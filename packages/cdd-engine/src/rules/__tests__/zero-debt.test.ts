@@ -25,12 +25,16 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { describe, it, expect } from "vitest";
-
-import { loadHandoffSchema } from "../schema.ts";
+import { describe, expect, it } from "vitest";
 import { deriveCloseoutMismatches } from "../closeout.ts";
 import { validateDispatchDocuments } from "../documents.ts";
-import { OVERALL_CLEAN, writeProgramDocs, writeCompletePlanWorkspace, mkProgramRepo } from "./closeout-fixtures.ts";
+import { loadHandoffSchema } from "../schema.ts";
+import {
+  mkProgramRepo,
+  OVERALL_CLEAN,
+  writeCompletePlanWorkspace,
+  writeProgramDocs,
+} from "./closeout-fixtures.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.resolve(HERE, "..", ".."); // packages/cdd-engine/src
@@ -49,11 +53,17 @@ describe("AC7 (1) no plan-only leftover — the reverse-direction rule is a sing
     const repo = mkProgramRepo();
     const c = writeProgramDocs(
       repo,
-      OVERALL_CLEAN.replace("| P1 | phase one | [Pending] | [Pending] | | none |", "| P1 | phase one | [Pending] | Done | | none |"),
+      OVERALL_CLEAN.replace(
+        "| P1 | phase one | [Pending] | [Pending] | | none |",
+        "| P1 | phase one | [Pending] | Done | | none |",
+      ),
     );
     const f = validateDispatchDocuments({ entry: c.plan1, root: c.repo });
     const missingClaim = f.filter(
-      (x) => x.artifact === "overall" && x.field === "backfill claim" && /no matching plan claim/i.test(x.missing),
+      (x) =>
+        x.artifact === "overall" &&
+        x.field === "backfill claim" &&
+        /no matching plan claim/i.test(x.missing),
     );
     expect(missingClaim).toHaveLength(1); // one missing-claim member — no dual or partial variant
     expect(f).toHaveLength(1); // the rest of the chain is clean — nothing else fires on this fixture
@@ -61,12 +71,21 @@ describe("AC7 (1) no plan-only leftover — the reverse-direction rule is a sing
 
   it("design backfill is audited on the SAME rule (forward: claim ⇒ column token) — not plan-only", () => {
     const repo = mkProgramRepo();
-    const c = writeProgramDocs(repo, OVERALL_CLEAN.concat("\n", "| v1.1 | 2026-09-21 | P2 Design-spec 列回填（[Pending]→p2-design v1.0） |"));
+    const c = writeProgramDocs(
+      repo,
+      OVERALL_CLEAN.concat(
+        "\n",
+        "| v1.1 | 2026-09-21 | P2 Design-spec 列回填（[Pending]→p2-design v1.0） |",
+      ),
+    );
     const f = validateDispatchDocuments({ entry: c.plan1, root: c.repo });
     // the claim demands p2-design in P2's Design spec cell, which is still [Pending] — the
     // backfill-claim member class carries the design-forward mismatch (the design column is audited
     // on the same bidirectional rule; nothing backfill is plan-only)
-    const backfill = f.filter((x) => x.artifact === "overall" && x.field === "backfill claim" && /Design spec/.test(x.missing));
+    const backfill = f.filter(
+      (x) =>
+        x.artifact === "overall" && x.field === "backfill claim" && /Design spec/.test(x.missing),
+    );
     expect(backfill.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -85,7 +104,10 @@ describe("AC7 (1) no plan-only leftover — the reverse-direction rule is a sing
     );
     const f = validateDispatchDocuments({ entry: c.plan1, root: c.repo });
     const missingClaim = f.filter(
-      (x) => x.artifact === "overall" && x.field === "backfill claim" && /no matching design claim/i.test(x.missing),
+      (x) =>
+        x.artifact === "overall" &&
+        x.field === "backfill claim" &&
+        /no matching design claim/i.test(x.missing),
     );
     expect(missingClaim).toHaveLength(1); // one reverse-design member — no dual or partial variant
     expect(f).toHaveLength(1); // the rest of the chain is clean — nothing else fires on this fixture
@@ -96,21 +118,31 @@ describe("AC7 (1) no plan-only leftover — the reverse-direction rule is a sing
     expect(docs.match(/no matching plan claim/g)).toHaveLength(1);
     expect(docs.match(/no matching design claim/g)).toHaveLength(1);
     // no other rules/dispatch module carries a second (plan-only) implementation of either phrase
-    expect(codeOnly(readSrc("rules/closeout.ts"))).not.toMatch(/matching plan claim|matching design claim/);
-    expect(codeOnly(readSrc("dispatch/base.ts"))).not.toMatch(/matching plan claim|matching design claim/);
+    expect(codeOnly(readSrc("rules/closeout.ts"))).not.toMatch(
+      /matching plan claim|matching design claim/,
+    );
+    expect(codeOnly(readSrc("dispatch/base.ts"))).not.toMatch(
+      /matching plan claim|matching design claim/,
+    );
   });
 });
 
 describe("AC7 (2) single inference module — one inference for the two base hooks", () => {
   it("grep: the inference is defined in rules/closeout.ts only; base.ts consumes it twice (pre-flight + post-flight), channels never", () => {
     const closeout = readSrc("rules/closeout.ts");
-    expect(closeout).toMatch(/export function deriveTerminalDebt\(overallPath: string, root: string\)/);
-    expect(closeout).toMatch(/export function deriveCloseoutMismatches\(options: \{ entry: string; root: string \}\)/);
+    expect(closeout).toMatch(
+      /export function deriveTerminalDebt\(overallPath: string, root: string\)/,
+    );
+    expect(closeout).toMatch(
+      /export function deriveCloseoutMismatches\(options: \{ entry: string; root: string \}\)/,
+    );
     const base = codeOnly(readSrc("dispatch/base.ts"));
     // two CALL SITES (the import line carries the name without a call paren)
     expect(base.match(/deriveCloseoutMismatches\(/g)).toHaveLength(2); // docContractValidate gate + statusValidate highlight
     for (const channel of ["task", "docs", "branch"]) {
-      expect(codeOnly(readSrc(`dispatch/${channel}.ts`))).not.toMatch(/deriveCloseoutMismatches|deriveTerminalDebt/);
+      expect(codeOnly(readSrc(`dispatch/${channel}.ts`))).not.toMatch(
+        /deriveCloseoutMismatches|deriveTerminalDebt/,
+      );
     }
   });
 
@@ -129,14 +161,25 @@ describe("AC7 (3) no exemption constants — the lane boundary is temporal deriv
   it("grep: the mismatch seam carries no lane parameter and no lane string literal", () => {
     const closeout = readSrc("rules/closeout.ts");
     // the two inference seams admit only {entry, root} — a per-lane exemption cannot even be expressed here
-    expect(closeout).toMatch(/export function deriveTerminalDebt\(overallPath: string, root: string\)/);
-    expect(closeout).toMatch(/export function deriveCloseoutMismatches\(options: \{ entry: string; root: string \}\)/);
+    expect(closeout).toMatch(
+      /export function deriveTerminalDebt\(overallPath: string, root: string\)/,
+    );
+    expect(closeout).toMatch(
+      /export function deriveCloseoutMismatches\(options: \{ entry: string; root: string \}\)/,
+    );
     // the inference CODE holds no phase/lane id literals (comments are prose and exempt from the grep)
     expect(codeOnly(closeout)).not.toMatch(/["'](?:task|docs|branch)["']/);
   });
 
   it("grep: no EXEMPT-style constant token in the closeout/rules + dispatch layer", () => {
-    for (const rel of ["rules/closeout.ts", "rules/documents.ts", "dispatch/base.ts", "dispatch/task.ts", "dispatch/docs.ts", "dispatch/branch.ts"]) {
+    for (const rel of [
+      "rules/closeout.ts",
+      "rules/documents.ts",
+      "dispatch/base.ts",
+      "dispatch/task.ts",
+      "dispatch/docs.ts",
+      "dispatch/branch.ts",
+    ]) {
       expect(codeOnly(readSrc(rel))).not.toMatch(/\b\w*[Ee]xempt\w*\s*=/);
     }
   });
@@ -171,9 +214,11 @@ describe("AC7 (4) no dual core block — task/docs share one machine core (singl
   // category / commits / blocker / recovery / the shared list fields. Lane differences may ONLY be
   // the boundary objects (task=task number; docs=doc_path/doc_hash/round).
   it("shared properties deep-equal across the task/docs core", () => {
-    const taskProps = (loadHandoffSchema("task") as { properties: Record<string, unknown> }).properties;
-    const docsProps = (loadHandoffSchema("docs") as { properties: Record<string, unknown> }).properties;
-    const shared = Object.keys(taskProps).filter((k) => Object.prototype.hasOwnProperty.call(docsProps, k));
+    const taskProps = (loadHandoffSchema("task") as { properties: Record<string, unknown> })
+      .properties;
+    const docsProps = (loadHandoffSchema("docs") as { properties: Record<string, unknown> })
+      .properties;
+    const shared = Object.keys(taskProps).filter((k) => Object.hasOwn(docsProps, k));
     // `phase` is excluded from the core-equality: its enums are a lane AMOUNT (task runs
     // implement/review/fix/branch-review, docs only review/fix) — the core fields below are the
     // unified contract the two families must not drift apart on. `findings` likewise carries a lane
@@ -188,24 +233,32 @@ describe("AC7 (4) no dual core block — task/docs share one machine core (singl
   });
 
   it("the only allowed divergences are the lane boundary objects", () => {
-    const taskProps = Object.keys((loadHandoffSchema("task") as { properties: Record<string, unknown> }).properties);
-    const docsProps = Object.keys((loadHandoffSchema("docs") as { properties: Record<string, unknown> }).properties);
+    const taskProps = Object.keys(
+      (loadHandoffSchema("task") as { properties: Record<string, unknown> }).properties,
+    );
+    const docsProps = Object.keys(
+      (loadHandoffSchema("docs") as { properties: Record<string, unknown> }).properties,
+    );
     const taskOnly = taskProps.filter((k) => !docsProps.includes(k)).sort();
     const docsOnly = docsProps.filter((k) => !taskProps.includes(k)).sort();
     // task-lane boundaries: the P4.3 single-data-model group reference (tasks — the carrier's sole
-// task identity) + the per-task findings-section items (findings is a shared name, spelled
-// lane-differently — see the core test)
+    // task identity) + the per-task findings-section items (findings is a shared name, spelled
+    // lane-differently — see the core test)
     expect(taskOnly).toEqual(["complexity", "notes", "review_scope", "tasks", "test_evidence"]);
     expect(docsOnly).toEqual(["doc_hash", "doc_path", "round"]);
     // the docs phase enum is a restriction of the task family's (review/fix shared; implement /
     // branch-review are task-only) — the shared status enum carries the unified core
-    const taskPhase = (loadHandoffSchema("task") as { properties: { phase: { enum: string[] } } }).properties.phase.enum;
-    const docsPhase = (loadHandoffSchema("docs") as { properties: { phase: { enum: string[] } } }).properties.phase.enum;
+    const taskPhase = (loadHandoffSchema("task") as { properties: { phase: { enum: string[] } } })
+      .properties.phase.enum;
+    const docsPhase = (loadHandoffSchema("docs") as { properties: { phase: { enum: string[] } } })
+      .properties.phase.enum;
     expect(taskPhase).toEqual(["implement", "review", "fix", "branch-review"]);
     expect(docsPhase).toEqual(["review", "fix"]);
     expect(docsPhase.every((p) => taskPhase.includes(p))).toBe(true);
-    const taskStatus = (loadHandoffSchema("task") as { properties: { status: { enum: string[] } } }).properties.status.enum;
-    const docsStatus = (loadHandoffSchema("docs") as { properties: { status: { enum: string[] } } }).properties.status.enum;
+    const taskStatus = (loadHandoffSchema("task") as { properties: { status: { enum: string[] } } })
+      .properties.status.enum;
+    const docsStatus = (loadHandoffSchema("docs") as { properties: { status: { enum: string[] } } })
+      .properties.status.enum;
     expect(docsStatus).toEqual(taskStatus); // docs gains TIMEOUT — same enum as task (the unified core)
   });
 });
@@ -229,7 +282,10 @@ describe("AC7 (5) base-default override on all channels — docContractValidate 
   });
 
   it("the per-hook three-channel acceptance surfaces (Task 3/4 acceptance) exist in the channel suites", () => {
-    for (const rel of ["dispatch/__tests__/doc-contract-channels.test.ts", "dispatch/__tests__/closeout-channels.test.ts"]) {
+    for (const rel of [
+      "dispatch/__tests__/doc-contract-channels.test.ts",
+      "dispatch/__tests__/closeout-channels.test.ts",
+    ]) {
       expect(readSrc(rel).length).toBeGreaterThan(0); // the file exists and is non-empty
     }
   });

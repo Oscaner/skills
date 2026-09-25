@@ -3,12 +3,12 @@
 // canonical + env status (per-mode over global override, stepped, clamped), stream-json
 // finalText extraction, op×type prefix/suffix injection, transient retry on overloaded stderr.
 // execa is mocked (same seam as the .mjs suite) — proc.spawnManaged is exercised through it.
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("execa", () => ({ execa: vi.fn() }));
 
 import { execa } from "execa";
-import { resolveTerminationConfig, invokeCli, invokeCliWithRetry } from "../invoke.ts";
+import { invokeCli, invokeCliWithRetry, resolveTerminationConfig } from "../invoke.ts";
 
 describe("infra/invoke.ts — resolveTerminationConfig (T26 single resolver, env-zero)", () => {
   it("default task budget is 3h (canonical timeouts.defaults.task)", () => {
@@ -43,20 +43,34 @@ describe("infra/invoke.ts — invokeCli stream-json + injection", () => {
 
   it("picks last completion.finalText from NDJSON stream", async () => {
     execa.mockResolvedValue({
-      exitCode: 0, stdout: '{"type":"text","text":"hello"}\n{"type":"completion","finalText":"done"}\n',
-      stderr: "", timedOut: false,
+      exitCode: 0,
+      stdout: '{"type":"text","text":"hello"}\n{"type":"completion","finalText":"done"}\n',
+      stderr: "",
+      timedOut: false,
     });
-    const entry = { cli: "claude", invoke: "-p --output-format stream-json", output: "stream-json" };
+    const entry = {
+      cli: "claude",
+      invoke: "-p --output-format stream-json",
+      output: "stream-json",
+    };
     const res = await invokeCli(entry, "prompt", { op: "implement" }, {}, "/tmp", undefined);
     expect(res.ok).toBe(true);
     expect(res.stdout).toBe("done");
   });
 
   it("injects /mattpocock-skills:tdd as first prompt line for implement", async () => {
-    execa.mockResolvedValue({ exitCode: 0, stdout: "status: APPROVED", stderr: "", timedOut: false });
+    execa.mockResolvedValue({
+      exitCode: 0,
+      stdout: "status: APPROVED",
+      stderr: "",
+      timedOut: false,
+    });
     const entry = {
-      cli: "claude", invoke: "-p", output: "text",
-      prefix: { implement: "/mattpocock-skills:tdd" }, suffix: {},
+      cli: "claude",
+      invoke: "-p",
+      output: "text",
+      prefix: { implement: "/mattpocock-skills:tdd" },
+      suffix: {},
     };
     await invokeCli(entry, "line one\nline two", { op: "implement" }, {}, "/tmp", undefined);
     const promptArg = execa.mock.calls[0][1].at(-1);
@@ -73,16 +87,24 @@ describe("infra/invoke.ts — invokeCli stream-json + injection", () => {
 
   it("legacy flat mode key straight hit (unmigrated registry fallback)", async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: "ok", stderr: "", timedOut: false });
-    const entry = { cli: "claude", invoke: "-p", output: "text", prefix: { "legacy-review": "/legacy" }, suffix: {} };
+    const entry = {
+      cli: "claude",
+      invoke: "-p",
+      output: "text",
+      prefix: { "legacy-review": "/legacy" },
+      suffix: {},
+    };
     await invokeCli(entry, "legacy prompt", { op: "legacy-review" }, {}, "/tmp", undefined);
     expect(execa.mock.calls[0][1].at(-1).split("\n")[0]).toBe("/legacy");
   });
 });
 
 describe("infra/invoke.ts — invokeCliWithRetry", () => {
-  beforeEach(() => vi.useFakeTimers());
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+  });
   afterEach(() => vi.useRealTimers());
-  beforeEach(() => vi.clearAllMocks());
 
   it("retries on overloaded stderr, succeeds on 2nd attempt", async () => {
     const sd = "status: APPROVED\ncommits: base=abc head=def\nartifacts: \nblocker: none";
@@ -102,7 +124,14 @@ describe("infra/invoke.ts — invokeCliWithRetry", () => {
     // timedOut flag alone was dropped with the monitor takeover; the monitor always kills via SIGTERM)
     execa.mockResolvedValue({ exitCode: -1, stdout: "", stderr: "", signal: "SIGTERM" });
     const entry = { cli: "claude", invoke: "-p", output: "text" };
-    const res = await invokeCliWithRetry(entry, "prompt", { op: "implement" }, {}, "/tmp", undefined);
+    const res = await invokeCliWithRetry(
+      entry,
+      "prompt",
+      { op: "implement" },
+      {},
+      "/tmp",
+      undefined,
+    );
     expect(res.timedOut).toBe(true);
     expect(res.cause).toBe("signal");
     expect(execa).toHaveBeenCalledTimes(1);

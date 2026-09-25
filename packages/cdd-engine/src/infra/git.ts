@@ -4,9 +4,10 @@
 // rules/commit.mjs (whose callers were re-pointed by Task 5 — this is now the single git seam).
 // Fail-open contracts mirror the old helpers exactly: non-repo or git error → null (string ops) /
 // false (boolean ops); no exception crosses the seam.
-import { simpleGit } from "simple-git";
+
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { simpleGit } from "simple-git";
 
 export interface GitLogOptions {
   maxCount?: number;
@@ -83,7 +84,10 @@ export async function gitLog(cwd: string, opts: GitLogOptions = {}): Promise<Git
 }
 
 /** `git cat-file -e <sha>^{commit}` — true when sha is a real reachable commit (phantom-SHA guard). */
-export async function gitCatFileCommitExists(cwd: string, sha: string | null | undefined): Promise<boolean> {
+export async function gitCatFileCommitExists(
+  cwd: string,
+  sha: string | null | undefined,
+): Promise<boolean> {
   if (!sha) return false;
   try {
     await git(cwd).catFile(["-e", `${sha}^{commit}`]);
@@ -102,7 +106,11 @@ export async function gitCatFileCommitExists(cwd: string, sha: string | null | u
  *  the caller must additionally require `!== HEAD` (that gate lives at the adoption lane). false on
  *  any error / stderr-failure / empty output — fail-open: an unknown/phantom/dangling sha (or a
  *  non-repo cwd) must never pass the adoption lane. */
-export async function gitMergeBaseIsAncestor(cwd: string, ancestor: string, descendant: string): Promise<boolean> {
+export async function gitMergeBaseIsAncestor(
+  cwd: string,
+  ancestor: string,
+  descendant: string,
+): Promise<boolean> {
   try {
     const base = (await git(cwd).raw(["merge-base", ancestor, descendant])).trim();
     return base === ancestor;
@@ -252,7 +260,11 @@ export async function gitUntrackedStat(cwd: string, porcelain?: string | null): 
 /** `git diff <base>..<head> --name-only` — the round's mechanical changed-surface fileset (rules/
  *  write-boundary.ts reconcile input). [] for an empty diff; null on unresolvable rev / git error
  *  (fail-open — a diff we cannot compute is no evidence). */
-export async function gitDiffNameOnly(cwd: string, base: string, head: string): Promise<string[] | null> {
+export async function gitDiffNameOnly(
+  cwd: string,
+  base: string,
+  head: string,
+): Promise<string[] | null> {
   try {
     const out = (await git(cwd).raw(["diff", "--name-only", `${base}..${head}`])).trim();
     if (!out) return [];

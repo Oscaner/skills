@@ -6,8 +6,9 @@
 // resolveWorkspace implement workspaceRoot + slugRule (.osuperpowers/cdd/<slug>/).
 // Task 8 (spec §2.13 glob row): the legacy readdirSync directory scan in resolveNextRound is
 // collected into tinyglobby (globSync) — the repo's shared glob toolchain, no hand-written walk.
-import path from "node:path";
+
 import { mkdirSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { globSync } from "tinyglobby";
 
 import { loadEngineConfig } from "../../infra/config.ts";
@@ -43,7 +44,10 @@ function familyKey(op: string, type: string): string {
   return `${op}.${type}`;
 }
 
-function family(op: string, type: string): { name: string; round?: string; prev?: Record<string, string> } {
+function family(
+  op: string,
+  type: string,
+): { name: string; round?: string; prev?: Record<string, string> } {
   const f = families[familyKey(op, type)];
   invariant(f, `unknown handoff family: ${op}.${type}`);
   return f;
@@ -82,7 +86,7 @@ function fillName(name: string, params: HandoffParams = {}): string {
 export function roundPattern(op: string, type: string, params: HandoffParams = {}): RegExp {
   const f = family(op, type);
   const groupPinned = ["task"].includes(type) && params.tasks != null;
-  let pattern = f.name
+  const pattern = f.name
     .replaceAll("{round}", "(\\d+)")
     .replaceAll("{tasks}", groupPinned ? String(params.tasks) : "\\d+(?:-\\d+)*")
     .replaceAll("{base7}", params.base7 ? params.base7 : "[0-9a-f]{7}")
@@ -105,7 +109,12 @@ export function handoffName(op: string, type: string, params: HandoffParams = {}
  * glob via tinyglobby (Task 8): a top-level `*` scan of the workspace replaces the legacy
  * readdirSync walk — same result set, shared toolchain. Missing workspace (ENOENT) → default
  * round 1; real errors rethrow (same fail-open semantics as the legacy catch). */
-export function resolveNextRound(workspace: string, op: string, type: string, opts: HandoffParams = {}): number {
+export function resolveNextRound(
+  workspace: string,
+  op: string,
+  type: string,
+  opts: HandoffParams = {},
+): number {
   const re = roundPattern(op, type, opts);
   let max = 0;
   let files: string[];
@@ -138,7 +147,7 @@ export function prevHandoffPath(
   // Cross-family dependency table first (prev table exists only on review.task and fix families).
   // round1 has no dedicated row (fix families) → falls back to the roundR entry — the dependency
   // expression is identical across rounds.
-  const prevExpr = f.prev?.[round === 1 ? "round1" : "roundR"] ?? f.prev?.["roundR"];
+  const prevExpr = f.prev?.[round === 1 ? "round1" : "roundR"] ?? f.prev?.roundR;
   if (prevExpr) {
     const [prevFamily, roundRef] = prevExpr.split(":");
     const [prevOp, prevType] = prevFamily.split(".");
@@ -179,11 +188,20 @@ export function resolveWorkspace(doc: string, root: string): string {
  * pollute the repo tree). Errors are recoverable orchestration failures (bad plan / non-git root)
  * → CddExitError kind "run-blocked" (exit 1) — the task dispatch resolves them to its run-blocked
  * exit face, exactly the former RunBlocked contract. */
-export function materializeWorkspace({ plan, repoRoot }: { plan: string; repoRoot: string }): string {
+export function materializeWorkspace({
+  plan,
+  repoRoot,
+}: {
+  plan: string;
+  repoRoot: string;
+}): string {
   if (!repoRoot) throw new CddExitError("not in a git repo", { exitCode: 1, kind: "run-blocked" });
   const slug = workspaceSlug(plan);
   if (!slug || slug === "." || slug === "..") {
-    throw new CddExitError(`cannot derive workspace name from: ${plan}`, { exitCode: 1, kind: "run-blocked" });
+    throw new CddExitError(`cannot derive workspace name from: ${plan}`, {
+      exitCode: 1,
+      kind: "run-blocked",
+    });
   }
   const base = path.join(repoRoot, workspaceRoot);
   mkdirSync(path.join(base, slug), { recursive: true });

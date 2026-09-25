@@ -5,22 +5,25 @@
 // (pre-commit clean-tree, spec §2.12 第二部分).
 // NOT covered here (out of this task's claim, single owner = Task 7 dispatch/base.ts):
 // lifecycle mounting of either gate and its CLI-level use-cases.
-import { describe, it, expect } from "vitest";
+
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, appendFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-
+import { describe, expect, it } from "vitest";
+import { gitCatFileCommitExists } from "../../infra/git.ts";
 import {
-  validateCommitContract,
+  DRY_RUN_DIRTY_WARN,
   entryGateCleanTree,
   rewriteHandoffBlocked,
-  DRY_RUN_DIRTY_WARN,
+  validateCommitContract,
 } from "../commit.ts";
-import { gitCatFileCommitExists } from "../../infra/git.ts";
 
 function git(repo: string, ...args: string[]) {
-  return execFileSync("git", ["-C", repo, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  return execFileSync("git", ["-C", repo, ...args], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  }).trim();
 }
 
 // setupRepo — fresh git repo, cdd/ gitignored (workspace dir), one fixture commit.
@@ -29,7 +32,17 @@ function setupRepo(): string {
   writeFileSync(path.join(dest, ".gitignore"), "cdd/\n");
   git(dest, "init", "-q");
   git(dest, "add", "-A");
-  git(dest, "-c", "user.name=cdd-gate-test", "-c", "user.email=cdd-gate-test@example.com", "commit", "--allow-empty", "-qm", "fixture");
+  git(
+    dest,
+    "-c",
+    "user.name=cdd-gate-test",
+    "-c",
+    "user.email=cdd-gate-test@example.com",
+    "commit",
+    "--allow-empty",
+    "-qm",
+    "fixture",
+  );
   return dest;
 }
 
@@ -69,7 +82,10 @@ describe("rules/commit.ts — 出口门 validateCommitContract（仅底层换 si
     const head = headOf(repo);
     const handoff = path.join(repo, "cdd", "task-1-handoff.json");
     mkdirSync(path.join(repo, "cdd"), { recursive: true });
-    writeFileSync(handoff, JSON.stringify({ status: "APPROVED", phase: "fix", task: 1, commits: { base: head, head } }));
+    writeFileSync(
+      handoff,
+      JSON.stringify({ status: "APPROVED", phase: "fix", task: 1, commits: { base: head, head } }),
+    );
     const r = await validateCommitContract("fix", repo, { handoffPath: handoff });
     expect(r.ok).toBe(true);
     expect(JSON.parse(readFileSync(handoff, "utf8")).status).toBe("APPROVED");
@@ -77,14 +93,19 @@ describe("rules/commit.ts — 出口门 validateCommitContract（仅底层换 si
 
   it("clean tree + 无 handoff 路径（readJson null）→ ok:true（fail-open）", async () => {
     const repo = setupRepo();
-    const r = await validateCommitContract("implement", repo, { handoffPath: path.join(repo, "cdd", "no-such.json") });
+    const r = await validateCommitContract("implement", repo, {
+      handoffPath: path.join(repo, "cdd", "no-such.json"),
+    });
     expect(r.ok).toBe(true);
   });
 
   it("clean tree + handoff.head ≠ HEAD → ok:false + handoff 改写 BLOCKED（F1）", async () => {
     const repo = setupRepo();
     const head = headOf(repo);
-    const handoff = seedHandoff(repo, 1, { base: head, head: "0000000000000000000000000000000000000000" });
+    const handoff = seedHandoff(repo, 1, {
+      base: head,
+      head: "0000000000000000000000000000000000000000",
+    });
     const r = await validateCommitContract("fix", repo, { handoffPath: handoff });
     expect(r.ok).toBe(false);
     expect(r.blocker).toMatch(/handoff commits.head .* does not match HEAD/);
@@ -127,14 +148,19 @@ describe("rules/commit.ts — 出口门 validateCommitContract（仅底层换 si
   it("review 模式 → clean tree 跳过 head 校验（handoff.commits.head≠HEAD 不 BLOCKED）", async () => {
     const repo = setupRepo();
     const head = headOf(repo);
-    const handoff = seedHandoff(repo, 1, { base: head, head: "0000000000000000000000000000000000000000" });
+    const handoff = seedHandoff(repo, 1, {
+      base: head,
+      head: "0000000000000000000000000000000000000000",
+    });
     const r = await validateCommitContract("review", repo, { handoffPath: handoff });
     expect(r.ok).toBe(true);
   });
 
   it("非 git 目录 → fail-open ok:true", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "cdd-nogit-ts-"));
-    const r = await validateCommitContract("fix", dir, { handoffPath: path.join(dir, "task-1-handoff.json") });
+    const r = await validateCommitContract("fix", dir, {
+      handoffPath: path.join(dir, "task-1-handoff.json"),
+    });
     expect(r.ok).toBe(true);
   });
 
@@ -153,7 +179,9 @@ describe("rules/commit.ts — 出口门 validateCommitContract（仅底层换 si
     const repo = setupRepo();
     const sha = headOf(repo);
     expect(await gitCatFileCommitExists(repo, sha)).toBe(true);
-    expect(await gitCatFileCommitExists(repo, "0000000000000000000000000000000000000000")).toBe(false);
+    expect(await gitCatFileCommitExists(repo, "0000000000000000000000000000000000000000")).toBe(
+      false,
+    );
     expect(await gitCatFileCommitExists(repo, "")).toBe(false);
   });
 });

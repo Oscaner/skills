@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 /**
  * Unified emit — write mode (`scripts/run.ts emit`).
  *
@@ -16,14 +17,14 @@
  * drift-check product-root set (`emit/compare.ts` owns the base set).
  */
 
-import { resolve, dirname } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
 import { realpathSync } from "node:fs";
-import { deriveSource } from "./source.ts";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { emitIssueTemplates } from "./issue-templates.ts";
+import { emitMarketplaceDocs } from "./marketplace.ts";
 import { writeJsonDoc } from "./orchestrate.ts";
 import { emitOsuperpowers } from "./osuperpowers.ts";
-import { emitMarketplaceDocs } from "./marketplace.ts";
-import { emitIssueTemplates } from "./issue-templates.ts";
+import { deriveSource } from "./source.ts";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 

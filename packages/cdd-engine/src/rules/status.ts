@@ -24,13 +24,12 @@
 // Dead-round precedence (resume-pending) therefore applies to: dead implement carriers, dead
 // reviews, and dead fixes under the not-APPROVED branch — never to a fix after an APPROVED review
 // (that chain is terminal complete no matter what the fix carrier says).
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
-
+import { normalizeHandoffStatus } from "../artifacts/handoff/finalize.ts";
 import { handoffName, tasksKey } from "../artifacts/handoff/naming.ts";
 import { readJson } from "../artifacts/handoff/write.ts";
 import { readProgressJSON } from "../artifacts/progress.ts";
-import { normalizeHandoffStatus } from "../artifacts/handoff/finalize.ts";
 
 export type TaskState =
   | "in-flight" // no conclusive chain — fresh task or a BLOCKED implement awaiting re-dispatch
@@ -50,7 +49,12 @@ function isDeadRound(h: Record<string, unknown> | null): boolean {
   return h.failure_category === "EXECUTION_FAILURE";
 }
 
-function readHandoff(workspace: string, op: string, key: string, round?: number): Record<string, unknown> | null {
+function readHandoff(
+  workspace: string,
+  op: string,
+  key: string,
+  round?: number,
+): Record<string, unknown> | null {
   // The dispatch unit's carriers: the group key (tasks-{a}-{b}-*) for a merged group, the
   // group-of-one name (key === the task number) for a singleton — one naming surface, P4.3.
   const name = handoffName(op, "task", round != null ? { tasks: key, round } : { tasks: key });
@@ -73,17 +77,22 @@ function statusOf(h: Record<string, unknown> | null): string | undefined {
  * derivation too (direct per-task callers and singletons share one code path).
  * The last review status is the first signal: APPROVED → complete (a following fix is the legal
  * terminal, T29 修正); not approved → the addressing fix decides needs-fix vs needs-re-review. */
-export function deriveTaskState(workspace: string, taskNum: number, groups?: number[][]): TaskState {
+export function deriveTaskState(
+  workspace: string,
+  taskNum: number,
+  groups?: number[][],
+): TaskState {
   const progress = readProgressJSON(workspace);
   // Group-of-one vs merged: the dispatch unit's key resolves the right carriers + ledger row
   // (a merged group keys off `tasks-{a}-{b}`; the singleton key is the task number itself).
   const declared = groups?.find((g) => g.includes(taskNum));
   const key = declared && declared.length > 1 ? tasksKey(declared) : String(taskNum);
-  const entry = key === String(taskNum)
-    ? progress.tasks.find((t) => "task" in t && t.task === taskNum)
-    : progress.tasks.find((t) => "group" in t && t.group === key);
-  const reviews = entry?.rounds?.["review"] ?? 0;
-  const fixes = entry?.rounds?.["fix"] ?? 0;
+  const entry =
+    key === String(taskNum)
+      ? progress.tasks.find((t) => "task" in t && t.task === taskNum)
+      : progress.tasks.find((t) => "group" in t && t.group === key);
+  const reviews = entry?.rounds?.review ?? 0;
+  const fixes = entry?.rounds?.fix ?? 0;
 
   if (reviews === 0) {
     // implement lane only — no review on record, the converge judgment rides the carrier status.
@@ -138,7 +147,7 @@ export interface PlanVerdict {
 export function derivePlanVerdict(
   planPath: string,
   workspace: string,
-  extractTaskNumbers: (planPath: string) => number[],
+  _extractTaskNumbers: (planPath: string) => number[],
   extractGroups: (planPath: string) => number[][],
 ): PlanVerdict {
   const groups = extractGroups(planPath);

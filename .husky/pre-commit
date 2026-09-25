@@ -4,4 +4,15 @@
 # validate's engine black-box cases (5b) dispatch against the real working tree,
 # which is dirty by definition at commit time; that surface stays in CI
 # (`.github/actions/validate`) on a clean checkout. See scripts/validate/pre-commit.ts.
+# T2 (P4.4 biome gate): before the precommit chain, `pnpm biome:fix` autofixes
+# formatting + safe lint fixes across the whole-repo ts surface. Files biome
+# touched that were already staged are re-staged so the commit captures the
+# normalized form; any violation surviving autofix exits non-zero, so a
+# format-or-lint-dirty tree cannot be committed (set -e).
+set -e
+pnpm biome:fix
+staged=$(git diff --cached --name-only || true)
+if [ -n "$staged" ]; then
+  printf '%s\n' "$staged" | xargs git add
+fi
 pnpm run precommit

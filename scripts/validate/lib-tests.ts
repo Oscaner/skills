@@ -1,10 +1,11 @@
 #!/usr/bin/env node
+
 // scripts/validate/lib-tests.ts — block 7: scripts unit tests (vitest).
 // vitest.config.mjs include: scripts/**/__tests__/**/*.test.ts (colocation, Task 21).
 
-import { execaSync } from "execa";
-import { resolve, dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { execaSync } from "execa";
 
 import { runIfMain } from "./runner.ts";
 

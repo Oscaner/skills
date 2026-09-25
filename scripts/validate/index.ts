@@ -10,14 +10,13 @@
 // main() returns 1 (run.ts turns a numeric return into process.exitCode).
 
 import { steps as emitCheckSteps } from "./emit-check.ts";
-import { steps as osuperpowersSteps } from "./osuperpowers.ts";
 import { steps as engineSteps } from "./engine.ts";
-import { steps as residueSteps } from "./residue.ts";
-import { steps as marketplaceSteps } from "./marketplace.ts";
 import { steps as libTestsSteps } from "./lib-tests.ts";
+import { steps as marketplaceSteps } from "./marketplace.ts";
+import { steps as osuperpowersSteps } from "./osuperpowers.ts";
+import { steps as residueSteps } from "./residue.ts";
+import { runIfMain, main as runSteps } from "./runner.ts";
 import { steps as versionSyncSteps } from "./version-sync.ts";
-
-import { main as runSteps, runIfMain } from "./runner.ts";
 
 // Original step order: the cdd-engine engine test suite follows the osuperpowers
 // step block (plugin resolution / skills inventory count / node:test behavior

@@ -5,8 +5,8 @@
  * drift diff input); all writers are passed in, no module-level state.
  */
 
-import { readdirSync, existsSync } from "node:fs";
-import { join, resolve, dirname } from "node:path";
+import { existsSync, readdirSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveVersion } from "../lib/marketplace-utils.ts";
 import { claudePluginManifest, cursorPluginManifest } from "./manifests.ts";
@@ -21,11 +21,8 @@ export function emitOsuperpowers(outRoot, plugin, generatedPaths) {
   // Canonical skills list (directory-discovered — no count kept here; the count is asserted
   // once, in scripts/validate/osuperpowers.ts EXPECTED/EMITTERS_LABEL).
   const skillsDir = join(root, contentRoot, "skills");
-  const skillNames = readdirSync(skillsDir, { withFileTypes: true })
-    .filter(
-      (d) =>
-        d.isDirectory() && existsSync(join(skillsDir, d.name, "SKILL.md")),
-    )
+  const _skillNames = readdirSync(skillsDir, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && existsSync(join(skillsDir, d.name, "SKILL.md")))
     .map((d) => d.name)
     .sort();
 

@@ -13,16 +13,17 @@
 //   needs-re-review   T14-class: review not approved → addressing fix APPROVED, no re-review yet
 //   resume-pending    dead round on record (TIMEOUT / EXECUTION_FAILURE) — resume or discard
 //   complete          latest review APPROVED (a subsequent fix is the legal terminal — T30 ①)
-import { it, expect, describe } from "vitest";
-import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
+
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { describe, expect, it } from "vitest";
 
 import {
-  deriveTaskState,
   derivePlanVerdict,
-  formatTaskStateLine,
+  deriveTaskState,
   formatPlanVerdict,
+  formatTaskStateLine,
   type PlanVerdict,
 } from "../status.ts";
 
@@ -76,63 +77,142 @@ describe("deriveTaskState — six-state convergence", () => {
 
   it("in-flight: implement carrier BLOCKED (non-APPROVED, non-dead) → re-dispatch implement", () => {
     const ws = workspace(EMPTY_PROGRESS);
-    writeHandoff(ws, "tasks-1-implement.json", { tasks: [1], phase: "implement", status: "BLOCKED", failure_category: "CONTRACT_VIOLATION", findings: [], artifacts: {} });
+    writeHandoff(ws, "tasks-1-implement.json", {
+      tasks: [1],
+      phase: "implement",
+      status: "BLOCKED",
+      failure_category: "CONTRACT_VIOLATION",
+      findings: [],
+      artifacts: {},
+    });
     expect(deriveTaskState(ws, 1)).toBe("in-flight");
   });
 
   it("needs-review: implement APPROVED + no review on record", () => {
     const ws = workspace(EMPTY_PROGRESS);
-    writeHandoff(ws, "tasks-1-implement.json", { tasks: [1], phase: "implement", status: "APPROVED", findings: [], artifacts: {} });
+    writeHandoff(ws, "tasks-1-implement.json", {
+      tasks: [1],
+      phase: "implement",
+      status: "APPROVED",
+      findings: [],
+      artifacts: {},
+    });
     expect(deriveTaskState(ws, 1)).toBe("needs-review");
   });
 
   it("needs-fix: review CHANGES_REQUESTED + no fix on record", () => {
     const ws = workspace(ROUNDS({ review: 1 }));
-    writeHandoff(ws, "tasks-1-review-1.json", { tasks: [1], phase: "review", status: "CHANGES_REQUESTED", findings: [{ severity: "blocker" }], artifacts: {} });
+    writeHandoff(ws, "tasks-1-review-1.json", {
+      tasks: [1],
+      phase: "review",
+      status: "CHANGES_REQUESTED",
+      findings: [{ severity: "blocker" }],
+      artifacts: {},
+    });
     expect(deriveTaskState(ws, 1)).toBe("needs-fix");
   });
 
   it("needs-fix: review BLOCKED (engine BLOCKED channel) likewise awaits the fix", () => {
     const ws = workspace(ROUNDS({ review: 1 }));
-    writeHandoff(ws, "tasks-1-review-1.json", { tasks: [1], phase: "review", status: "BLOCKED", failure_category: "UNVERIFIABLE", findings: [], artifacts: {} });
+    writeHandoff(ws, "tasks-1-review-1.json", {
+      tasks: [1],
+      phase: "review",
+      status: "BLOCKED",
+      failure_category: "UNVERIFIABLE",
+      findings: [],
+      artifacts: {},
+    });
     expect(deriveTaskState(ws, 1)).toBe("needs-fix");
   });
 
   it("needs-fix: fix BLOCKED (fix attempted but not landed) → fix again", () => {
     const ws = workspace(ROUNDS({ review: 1, fix: 1 }));
-    writeHandoff(ws, "tasks-1-review-1.json", { tasks: [1], phase: "review", status: "CHANGES_REQUESTED", findings: [{ severity: "blocker" }], artifacts: {} });
-    writeHandoff(ws, "tasks-1-fix-1.json", { tasks: [1], phase: "fix", status: "BLOCKED", blocker: "fix could not land", findings: [], artifacts: {} });
+    writeHandoff(ws, "tasks-1-review-1.json", {
+      tasks: [1],
+      phase: "review",
+      status: "CHANGES_REQUESTED",
+      findings: [{ severity: "blocker" }],
+      artifacts: {},
+    });
+    writeHandoff(ws, "tasks-1-fix-1.json", {
+      tasks: [1],
+      phase: "fix",
+      status: "BLOCKED",
+      blocker: "fix could not land",
+      findings: [],
+      artifacts: {},
+    });
     expect(deriveTaskState(ws, 1)).toBe("needs-fix");
   });
 
   it("needs-re-review (T14 explicit): review not approved → fix APPROVED, no subsequent review", () => {
     const ws = workspace(ROUNDS({ review: 1, fix: 1 }));
-    writeHandoff(ws, "tasks-1-review-1.json", { tasks: [1], phase: "review", status: "CHANGES_REQUESTED", findings: [{ severity: "blocker" }], artifacts: {} });
-    writeHandoff(ws, "tasks-1-fix-1.json", { tasks: [1], phase: "fix", status: "APPROVED", findings: [], artifacts: {} });
+    writeHandoff(ws, "tasks-1-review-1.json", {
+      tasks: [1],
+      phase: "review",
+      status: "CHANGES_REQUESTED",
+      findings: [{ severity: "blocker" }],
+      artifacts: {},
+    });
+    writeHandoff(ws, "tasks-1-fix-1.json", {
+      tasks: [1],
+      phase: "fix",
+      status: "APPROVED",
+      findings: [],
+      artifacts: {},
+    });
     expect(deriveTaskState(ws, 1)).toBe("needs-re-review");
   });
 
   it("resume-pending: implement TIMEOUT dead round → resume or discard", () => {
     const ws = workspace(EMPTY_PROGRESS);
-    writeHandoff(ws, "tasks-1-implement.json", { tasks: [1], phase: "implement", status: "TIMEOUT", failure_category: "TIMEOUT", findings: [], artifacts: {} });
+    writeHandoff(ws, "tasks-1-implement.json", {
+      tasks: [1],
+      phase: "implement",
+      status: "TIMEOUT",
+      failure_category: "TIMEOUT",
+      findings: [],
+      artifacts: {},
+    });
     expect(deriveTaskState(ws, 1)).toBe("resume-pending");
   });
 
   it("resume-pending: implement EXECUTION_FAILURE (status BLOCKED + category)", () => {
     const ws = workspace(EMPTY_PROGRESS);
-    writeHandoff(ws, "tasks-1-implement.json", { tasks: [1], phase: "implement", status: "BLOCKED", failure_category: "EXECUTION_FAILURE", blocker: "cli exited 1", findings: [], artifacts: {} });
+    writeHandoff(ws, "tasks-1-implement.json", {
+      tasks: [1],
+      phase: "implement",
+      status: "BLOCKED",
+      failure_category: "EXECUTION_FAILURE",
+      blocker: "cli exited 1",
+      findings: [],
+      artifacts: {},
+    });
     expect(deriveTaskState(ws, 1)).toBe("resume-pending");
   });
 
   it("resume-pending: review dead round (review TIMEOUT)", () => {
     const ws = workspace(ROUNDS({ review: 1 }));
-    writeHandoff(ws, "tasks-1-review-1.json", { tasks: [1], phase: "review", status: "TIMEOUT", failure_category: "TIMEOUT", findings: [], artifacts: {} });
+    writeHandoff(ws, "tasks-1-review-1.json", {
+      tasks: [1],
+      phase: "review",
+      status: "TIMEOUT",
+      failure_category: "TIMEOUT",
+      findings: [],
+      artifacts: {},
+    });
     expect(deriveTaskState(ws, 1)).toBe("resume-pending");
   });
 
   it("complete: latest review APPROVED (the existing writeback semantics)", () => {
     const ws = workspace(ROUNDS({ review: 1 }));
-    writeHandoff(ws, "tasks-1-review-1.json", { tasks: [1], phase: "review", status: "APPROVED", findings: [], artifacts: {} });
+    writeHandoff(ws, "tasks-1-review-1.json", {
+      tasks: [1],
+      phase: "review",
+      status: "APPROVED",
+      findings: [],
+      artifacts: {},
+    });
     expect(deriveTaskState(ws, 1)).toBe("complete");
   });
 
@@ -143,15 +223,40 @@ describe("deriveTaskState — six-state convergence", () => {
     // terminal (blocker=0 → fix all → done) and the T14 re-review chain. counts-equal was a
     // misjudgment: the fix after an approved review converged the task. (T29 evidence)
     const ws = workspace(ROUNDS({ review: 1, fix: 1 }));
-    writeHandoff(ws, "tasks-1-review-1.json", { tasks: [1], phase: "review", status: "APPROVED", findings: [{ severity: "warn" }], artifacts: {} });
-    writeHandoff(ws, "tasks-1-fix-1.json", { tasks: [1], phase: "fix", status: "APPROVED", findings: [], artifacts: {} });
+    writeHandoff(ws, "tasks-1-review-1.json", {
+      tasks: [1],
+      phase: "review",
+      status: "APPROVED",
+      findings: [{ severity: "warn" }],
+      artifacts: {},
+    });
+    writeHandoff(ws, "tasks-1-fix-1.json", {
+      tasks: [1],
+      phase: "fix",
+      status: "APPROVED",
+      findings: [],
+      artifacts: {},
+    });
     expect(deriveTaskState(ws, 1)).toBe("complete");
   });
 
   it("complete (T30 flip): review APPROVED + fix that did not land still converges on the review verdict", () => {
     const ws = workspace(ROUNDS({ review: 1, fix: 1 }));
-    writeHandoff(ws, "tasks-1-review-1.json", { tasks: [1], phase: "review", status: "APPROVED", findings: [], artifacts: {} });
-    writeHandoff(ws, "tasks-1-fix-1.json", { tasks: [1], phase: "fix", status: "BLOCKED", blocker: "fix aborted", findings: [], artifacts: {} });
+    writeHandoff(ws, "tasks-1-review-1.json", {
+      tasks: [1],
+      phase: "review",
+      status: "APPROVED",
+      findings: [],
+      artifacts: {},
+    });
+    writeHandoff(ws, "tasks-1-fix-1.json", {
+      tasks: [1],
+      phase: "fix",
+      status: "BLOCKED",
+      blocker: "fix aborted",
+      findings: [],
+      artifacts: {},
+    });
     expect(deriveTaskState(ws, 1)).toBe("complete");
   });
 
@@ -161,17 +266,51 @@ describe("deriveTaskState — six-state convergence", () => {
     // addressing fix, so a dead fix after an APPROVED review still derives complete. Pinned for both
     // dead carrier shapes (status TIMEOUT / status BLOCKED + failure_category EXECUTION_FAILURE).
     const ws = workspace(ROUNDS({ review: 1, fix: 1 }));
-    writeHandoff(ws, "tasks-1-review-1.json", { tasks: [1], phase: "review", status: "APPROVED", findings: [{ severity: "warn" }], artifacts: {} });
-    writeHandoff(ws, "tasks-1-fix-1.json", { tasks: [1], phase: "fix", status: "TIMEOUT", failure_category: "TIMEOUT", findings: [], artifacts: {} });
+    writeHandoff(ws, "tasks-1-review-1.json", {
+      tasks: [1],
+      phase: "review",
+      status: "APPROVED",
+      findings: [{ severity: "warn" }],
+      artifacts: {},
+    });
+    writeHandoff(ws, "tasks-1-fix-1.json", {
+      tasks: [1],
+      phase: "fix",
+      status: "TIMEOUT",
+      failure_category: "TIMEOUT",
+      findings: [],
+      artifacts: {},
+    });
     expect(deriveTaskState(ws, 1)).toBe("complete");
-    writeHandoff(ws, "tasks-1-fix-1.json", { tasks: [1], phase: "fix", status: "BLOCKED", failure_category: "EXECUTION_FAILURE", blocker: "cli exited 1", findings: [], artifacts: {} });
+    writeHandoff(ws, "tasks-1-fix-1.json", {
+      tasks: [1],
+      phase: "fix",
+      status: "BLOCKED",
+      failure_category: "EXECUTION_FAILURE",
+      blocker: "cli exited 1",
+      findings: [],
+      artifacts: {},
+    });
     expect(deriveTaskState(ws, 1)).toBe("complete");
   });
 
   it("needs-re-review (T14 explicit, review-BLOCKED channel variant): review BLOCKED → fix APPROVED", () => {
     const ws = workspace(ROUNDS({ review: 1, fix: 1 }));
-    writeHandoff(ws, "tasks-1-review-1.json", { tasks: [1], phase: "review", status: "BLOCKED", failure_category: "UNVERIFIABLE", findings: [], artifacts: {} });
-    writeHandoff(ws, "tasks-1-fix-1.json", { tasks: [1], phase: "fix", status: "APPROVED", findings: [], artifacts: {} });
+    writeHandoff(ws, "tasks-1-review-1.json", {
+      tasks: [1],
+      phase: "review",
+      status: "BLOCKED",
+      failure_category: "UNVERIFIABLE",
+      findings: [],
+      artifacts: {},
+    });
+    writeHandoff(ws, "tasks-1-fix-1.json", {
+      tasks: [1],
+      phase: "fix",
+      status: "APPROVED",
+      findings: [],
+      artifacts: {},
+    });
     expect(deriveTaskState(ws, 1)).toBe("needs-re-review");
   });
 
@@ -179,16 +318,46 @@ describe("deriveTaskState — six-state convergence", () => {
     // reviews=2, fixes=1: review-2 dispatched after fix-1 converged review-1's findings — the last
     // review has no addressing fix of its own → needs-fix (dispatch fix-2), never needs-re-review.
     const ws = workspace(ROUNDS({ review: 2, fix: 1 }));
-    writeHandoff(ws, "tasks-1-review-1.json", { tasks: [1], phase: "review", status: "CHANGES_REQUESTED", findings: [{ severity: "blocker" }], artifacts: {} });
-    writeHandoff(ws, "tasks-1-fix-1.json", { tasks: [1], phase: "fix", status: "APPROVED", findings: [], artifacts: {} });
-    writeHandoff(ws, "tasks-1-review-2.json", { tasks: [1], phase: "review", status: "CHANGES_REQUESTED", findings: [{ severity: "blocker" }], artifacts: {} });
+    writeHandoff(ws, "tasks-1-review-1.json", {
+      tasks: [1],
+      phase: "review",
+      status: "CHANGES_REQUESTED",
+      findings: [{ severity: "blocker" }],
+      artifacts: {},
+    });
+    writeHandoff(ws, "tasks-1-fix-1.json", {
+      tasks: [1],
+      phase: "fix",
+      status: "APPROVED",
+      findings: [],
+      artifacts: {},
+    });
+    writeHandoff(ws, "tasks-1-review-2.json", {
+      tasks: [1],
+      phase: "review",
+      status: "CHANGES_REQUESTED",
+      findings: [{ severity: "blocker" }],
+      artifacts: {},
+    });
     expect(deriveTaskState(ws, 1)).toBe("needs-fix");
   });
 
   it("derives from status-free progress rows (Task 30 ② migration shape — rounds-only row)", () => {
     const ws = workspace({ plan: "", tasks: [{ task: 1, rounds: { review: 1, fix: 1 } }] });
-    writeHandoff(ws, "tasks-1-review-1.json", { tasks: [1], phase: "review", status: "CHANGES_REQUESTED", findings: [{ severity: "blocker" }], artifacts: {} });
-    writeHandoff(ws, "tasks-1-fix-1.json", { tasks: [1], phase: "fix", status: "APPROVED", findings: [], artifacts: {} });
+    writeHandoff(ws, "tasks-1-review-1.json", {
+      tasks: [1],
+      phase: "review",
+      status: "CHANGES_REQUESTED",
+      findings: [{ severity: "blocker" }],
+      artifacts: {},
+    });
+    writeHandoff(ws, "tasks-1-fix-1.json", {
+      tasks: [1],
+      phase: "fix",
+      status: "APPROVED",
+      findings: [],
+      artifacts: {},
+    });
     expect(deriveTaskState(ws, 1)).toBe("needs-re-review");
   });
 
@@ -197,30 +366,66 @@ describe("deriveTaskState — six-state convergence", () => {
 
   it("complete: a merged-group member resolves the group carriers (reviews from the {group} row, review APPROVED)", () => {
     const ws = workspace({ plan: "", tasks: [{ group: "1-2", rounds: { review: 1 } }] });
-    writeHandoff(ws, "tasks-1-2-implement.json", { tasks: [1, 2], phase: "implement", status: "APPROVED", findings: [], artifacts: {} });
-    writeHandoff(ws, "tasks-1-2-review-1.json", { tasks: [1, 2], phase: "review", status: "APPROVED", findings: [], artifacts: {} });
+    writeHandoff(ws, "tasks-1-2-implement.json", {
+      tasks: [1, 2],
+      phase: "implement",
+      status: "APPROVED",
+      findings: [],
+      artifacts: {},
+    });
+    writeHandoff(ws, "tasks-1-2-review-1.json", {
+      tasks: [1, 2],
+      phase: "review",
+      status: "APPROVED",
+      findings: [],
+      artifacts: {},
+    });
     expect(deriveTaskState(ws, 1, [[1, 2]])).toBe("complete");
     expect(deriveTaskState(ws, 2, [[1, 2]])).toBe("complete");
   });
 
   it("needs-review: a merged group with implement APPROVED and no review on record", () => {
     const ws = workspace({ plan: "", tasks: [{ group: "1-2", rounds: {} }] });
-    writeHandoff(ws, "tasks-1-2-implement.json", { tasks: [1, 2], phase: "implement", status: "APPROVED", findings: [], artifacts: {} });
+    writeHandoff(ws, "tasks-1-2-implement.json", {
+      tasks: [1, 2],
+      phase: "implement",
+      status: "APPROVED",
+      findings: [],
+      artifacts: {},
+    });
     expect(deriveTaskState(ws, 1, [[1, 2]])).toBe("needs-review");
     expect(deriveTaskState(ws, 2, [[1, 2]])).toBe("needs-review");
   });
 
   it("needs-re-review: the addressing fix lane reads group carriers (review CHANGES_REQUESTED → fix APPROVED)", () => {
     const ws = workspace({ plan: "", tasks: [{ group: "1-2", rounds: { review: 1, fix: 1 } }] });
-    writeHandoff(ws, "tasks-1-2-review-1.json", { tasks: [1, 2], phase: "review", status: "CHANGES_REQUESTED", findings: [{ severity: "blocker" }], artifacts: {} });
-    writeHandoff(ws, "tasks-1-2-fix-1.json", { tasks: [1, 2], phase: "fix", status: "APPROVED", findings: [], artifacts: {} });
+    writeHandoff(ws, "tasks-1-2-review-1.json", {
+      tasks: [1, 2],
+      phase: "review",
+      status: "CHANGES_REQUESTED",
+      findings: [{ severity: "blocker" }],
+      artifacts: {},
+    });
+    writeHandoff(ws, "tasks-1-2-fix-1.json", {
+      tasks: [1, 2],
+      phase: "fix",
+      status: "APPROVED",
+      findings: [],
+      artifacts: {},
+    });
     expect(deriveTaskState(ws, 1, [[1, 2]])).toBe("needs-re-review");
     expect(deriveTaskState(ws, 2, [[1, 2]])).toBe("needs-re-review");
   });
 
   it("singleton fallback: a task unknown to the group set (or groups unspecified) keeps the per-task derivation", () => {
     const ws = workspace(EMPTY_PROGRESS);
-    writeHandoff(ws, "tasks-3-implement.json", { tasks: [3], phase: "implement", status: "APPROVED", findings: [], artifacts: {} });
+    writeHandoff(ws, "tasks-3-implement.json", {
+      tasks: [3],
+      phase: "implement",
+      status: "APPROVED",
+      findings: [],
+      artifacts: {},
+    });
     // groups provided but not containing task 3 → the per-task singleton derivation.
     expect(deriveTaskState(ws, 3, [[1, 2]])).toBe("needs-review");
     // groups unspecified → the pre-P4.3 signature is unchanged.
@@ -239,7 +444,13 @@ describe("derivePlanVerdict — plan completion verdict (`### Task N:` set ↔ s
       ],
     });
     for (const n of [1, 2]) {
-      writeHandoff(ws, `tasks-${n}-review-1.json`, { tasks: [n], phase: "review", status: "APPROVED", findings: [], artifacts: {} });
+      writeHandoff(ws, `tasks-${n}-review-1.json`, {
+        tasks: [n],
+        phase: "review",
+        status: "APPROVED",
+        findings: [],
+        artifacts: {},
+      });
     }
     const v: PlanVerdict = derivePlanVerdict(plan, ws, extractTasks, singletonGroups);
     expect(v.done).toBe(true);
@@ -256,13 +467,36 @@ describe("derivePlanVerdict — plan completion verdict (`### Task N:` set ↔ s
         { task: 2, rounds: { review: 1, fix: 1 } },
       ],
     });
-    writeHandoff(ws, "tasks-1-review-1.json", { tasks: [1], phase: "review", status: "APPROVED", findings: [], artifacts: {} });
+    writeHandoff(ws, "tasks-1-review-1.json", {
+      tasks: [1],
+      phase: "review",
+      status: "APPROVED",
+      findings: [],
+      artifacts: {},
+    });
     // task 2: review CHANGES_REQUESTED → fix APPROVED → needs-re-review (six-state convergence evidence)
-    writeHandoff(ws, "tasks-2-review-1.json", { tasks: [2], phase: "review", status: "CHANGES_REQUESTED", findings: [{ severity: "blocker" }], artifacts: {} });
-    writeHandoff(ws, "tasks-2-fix-1.json", { tasks: [2], phase: "fix", status: "APPROVED", findings: [], artifacts: {} });
+    writeHandoff(ws, "tasks-2-review-1.json", {
+      tasks: [2],
+      phase: "review",
+      status: "CHANGES_REQUESTED",
+      findings: [{ severity: "blocker" }],
+      artifacts: {},
+    });
+    writeHandoff(ws, "tasks-2-fix-1.json", {
+      tasks: [2],
+      phase: "fix",
+      status: "APPROVED",
+      findings: [],
+      artifacts: {},
+    });
     const v: PlanVerdict = derivePlanVerdict(plan, ws, extractTasks, singletonGroups);
     expect(v.done).toBe(false);
-    expect(v).toEqual({ total: 2, complete: 1, pending: [{ task: 2, state: "needs-re-review" }], done: false });
+    expect(v).toEqual({
+      total: 2,
+      complete: 1,
+      pending: [{ task: 2, state: "needs-re-review" }],
+      done: false,
+    });
     expect(formatPlanVerdict(v)).toBe("1/2 complete — pending: task 2 (needs-re-review)");
   });
 
@@ -283,13 +517,24 @@ describe("derivePlanVerdict — group iteration (P4.3 Task 3: the effectiveGroup
       ],
     });
     for (const n of [1, 2]) {
-      writeHandoff(ws, `tasks-${n}-review-1.json`, { tasks: [n], phase: "review", status: "APPROVED", findings: [], artifacts: {} });
+      writeHandoff(ws, `tasks-${n}-review-1.json`, {
+        tasks: [n],
+        phase: "review",
+        status: "APPROVED",
+        findings: [],
+        artifacts: {},
+      });
     }
     // A no-taskGroups plan's effectiveGroups is the per-task singletons (pinned at the derivation
     // in documents.test.ts). This surface consumes it as the injected extractor and yields the
     // pre-P4.3 per-task iteration exactly (the zero-migration property — the verdict module carries
     // no singleton fallback of its own, so no caller can drift off the single derivation).
-    expect(derivePlanVerdict(plan, ws, extractTasks, singletonGroups)).toEqual({ total: 2, complete: 2, pending: [], done: true });
+    expect(derivePlanVerdict(plan, ws, extractTasks, singletonGroups)).toEqual({
+      total: 2,
+      complete: 2,
+      pending: [],
+      done: true,
+    });
   });
 
   it("declared merged groups → the verdict iterates the group union (the group is the dispatch unit)", () => {
@@ -304,14 +549,28 @@ describe("derivePlanVerdict — group iteration (P4.3 Task 3: the effectiveGroup
       { task: 1, state: "in-flight" },
       { task: 2, state: "in-flight" },
     ]);
-    expect(formatPlanVerdict(v)).toBe("0/2 complete — pending: task 1 (in-flight), task 2 (in-flight)");
+    expect(formatPlanVerdict(v)).toBe(
+      "0/2 complete — pending: task 1 (in-flight), task 2 (in-flight)",
+    );
   });
 
   it("declared merged groups converge: a fully reviewed group reaches done (the planComplete green path)", () => {
     const plan = planFile("# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n");
     const ws = workspace({ plan: "", tasks: [{ group: "1-2", rounds: { review: 1 } }] });
-    writeHandoff(ws, "tasks-1-2-implement.json", { tasks: [1, 2], phase: "implement", status: "APPROVED", findings: [], artifacts: {} });
-    writeHandoff(ws, "tasks-1-2-review-1.json", { tasks: [1, 2], phase: "review", status: "APPROVED", findings: [], artifacts: {} });
+    writeHandoff(ws, "tasks-1-2-implement.json", {
+      tasks: [1, 2],
+      phase: "implement",
+      status: "APPROVED",
+      findings: [],
+      artifacts: {},
+    });
+    writeHandoff(ws, "tasks-1-2-review-1.json", {
+      tasks: [1, 2],
+      phase: "review",
+      status: "APPROVED",
+      findings: [],
+      artifacts: {},
+    });
     const mergedGroups = (_planPath: string) => [[1, 2]];
     const v = derivePlanVerdict(plan, ws, extractTasks, mergedGroups);
     expect(v.done).toBe(true);
@@ -322,7 +581,13 @@ describe("derivePlanVerdict — group iteration (P4.3 Task 3: the effectiveGroup
   it("declared merged groups, implement APPROVED only → members need review, not done", () => {
     const plan = planFile("# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n");
     const ws = workspace({ plan: "", tasks: [{ group: "1-2", rounds: {} }] });
-    writeHandoff(ws, "tasks-1-2-implement.json", { tasks: [1, 2], phase: "implement", status: "APPROVED", findings: [], artifacts: {} });
+    writeHandoff(ws, "tasks-1-2-implement.json", {
+      tasks: [1, 2],
+      phase: "implement",
+      status: "APPROVED",
+      findings: [],
+      artifacts: {},
+    });
     const mergedGroups = (_planPath: string) => [[1, 2]];
     const v = derivePlanVerdict(plan, ws, extractTasks, mergedGroups);
     expect(v.done).toBe(false);

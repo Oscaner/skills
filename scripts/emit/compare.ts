@@ -4,13 +4,13 @@
  * constants and the osuperpowers `.version-bump.json` consistency guard.
  */
 
-import { readFileSync, existsSync } from "node:fs";
-import { join, resolve, dirname } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execaSync } from "execa";
 import { findStaleCommittedFiles } from "./orchestrate.ts";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const _root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 /**
  * Base repo-relative directories fully owned by the emit tool — every file

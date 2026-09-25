@@ -6,10 +6,19 @@
 // Seam note (channel audit ③): env is an EXPLICIT parameter here — the .mjs / `env ?? process.env`
 // fallback is a whitelisted passthrough site pinned to proc.mjs/invoke.mjs; the rebuild passes env
 // down from its own callers instead of reading process.env at this depth.
-import { execa } from "execa";
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync } from "node:fs";
+
 import { execFileSync } from "node:child_process";
+import {
+  type Dirent,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
+import { execa } from "execa";
 
 import { invariant } from "./exit.ts";
 
@@ -129,7 +138,8 @@ export function evaluateStall(
   const mtimeAdvanced = state.maxMtimeMs == null || s.latestMtimeMs > state.maxMtimeMs;
   const next: StallState = {
     lastCpuMs: s.cpuMs,
-    maxMtimeMs: state.maxMtimeMs == null ? s.latestMtimeMs : Math.max(state.maxMtimeMs, s.latestMtimeMs),
+    maxMtimeMs:
+      state.maxMtimeMs == null ? s.latestMtimeMs : Math.max(state.maxMtimeMs, s.latestMtimeMs),
     idleSince: cpuGrew || mtimeAdvanced ? s.at : state.idleSince,
   };
   if (cpuGrew || mtimeAdvanced) return { state: next, verdict: "progress" };
@@ -190,7 +200,8 @@ export function parsePsCpuTime(output: string): number | null {
     const parts = t.split(":");
     let seconds = 0;
     if (parts.length === 2) seconds = Number(parts[0]) * 60 + Number(parts[1]);
-    else if (parts.length === 3) seconds = Number(parts[0]) * 3600 + Number(parts[1]) * 60 + Number(parts[2]);
+    else if (parts.length === 3)
+      seconds = Number(parts[0]) * 3600 + Number(parts[1]) * 60 + Number(parts[2]);
     else continue;
     if (Number.isNaN(seconds) || seconds < 0) continue;
     totalMs += seconds * 1000;
@@ -215,7 +226,7 @@ export function sampleGroupCpuMs(pgid: number): number | null {
 export function latestFileMtimeMs(dir: string, maxDepth = 8): number | null {
   let maxMs: number | null = null;
   const walk = (d: string, depth: number): void => {
-    let entries;
+    let entries: Dirent[];
     try {
       entries = readdirSync(d, { withFileTypes: true });
     } catch {
@@ -256,7 +267,9 @@ export interface TerminationMonitorOpts {
   onTerminate: (cause: "stalled" | "over-budget") => boolean;
 }
 
-export function startTerminationMonitor(opts: TerminationMonitorOpts): () => TerminationCause | null {
+export function startTerminationMonitor(
+  opts: TerminationMonitorOpts,
+): () => TerminationCause | null {
   const { pgid, start, progressPath, budgetMs, sampleIntervalMs, idleWindowMs, onTerminate } = opts;
   let state = initialStallState();
   let lastVerdict: StallVerdict = "unknown";
@@ -283,7 +296,14 @@ export function startTerminationMonitor(opts: TerminationMonitorOpts): () => Ter
     // The pure judge is the single decision point: it folds the current stall verdict + budget
     // into a cause — a declared stall wins when its idle window ended before the budget (or the
     // budget has not yet arrived); when the budget ended first the SAME tick surfaces over-budget.
-    const c = terminationCause({ start, at: s.at, budgetMs, stall: verdict, idleSince: next.idleSince, idleWindowMs });
+    const c = terminationCause({
+      start,
+      at: s.at,
+      budgetMs,
+      stall: verdict,
+      idleSince: next.idleSince,
+      idleWindowMs,
+    });
     if (c) fire(c);
   };
   if (progressPath) {
@@ -339,25 +359,39 @@ export async function persistRegistry(): Promise<void> {
   if (!diskPath) return;
   try {
     mkdirSync(path.dirname(diskPath), { recursive: true });
-    writeFileSync(diskPath, JSON.stringify(registry, null, 2) + "\n");
+    writeFileSync(diskPath, `${JSON.stringify(registry, null, 2)}\n`);
   } catch {
     /* disk-write failure fails open: the next run's ps scan is the fallback */
   }
 }
 
 function pgidAlive(pgid: number): boolean {
-  try { process.kill(-pgid, 0); return true; } catch { return false; }
+  try {
+    process.kill(-pgid, 0);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // owner process liveness: a concurrent in-flight group (foreign owner) must not be reaped as a
 // cross-run orphan. Orphan = foreign AND owner verifiably dead (kill(ownerPid,0) throws ESRCH).
 function pidAlive(pid: number | null | undefined): boolean {
   if (pid == null) return false;
-  try { process.kill(pid, 0); return true; } catch { return false; }
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function killGroup(pgid: number, signal: NodeJS.Signals): void {
-  try { process.kill(-pgid, signal); } catch { /* group already gone: idempotent */ }
+  try {
+    process.kill(-pgid, signal);
+  } catch {
+    /* group already gone: idempotent */
+  }
 }
 
 function cleanEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
@@ -370,7 +404,11 @@ function cleanEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 // Unified factory: detached process group + immediate registration. Six-field contract
 // { ok, code, stdout, stderr, timedOut } (+ cause when the termination monitor killed the group
 // or an external SIGTERM ended it — T26 replaces the T14 boolean stalled with the cause).
-export async function spawnManaged(command: string, args: string[], opts: SpawnOpts): Promise<SpawnResult> {
+export async function spawnManaged(
+  command: string,
+  args: string[],
+  opts: SpawnOpts,
+): Promise<SpawnResult> {
   const { cwd, env, termination } = opts;
   // execa: the return value is a subprocess (promise × child_process blend); pid is on the
   // subprocess, not on the awaited result (res.pid === undefined) — grab sub.pid before awaiting.
@@ -381,7 +419,7 @@ export async function spawnManaged(command: string, args: string[], opts: SpawnO
   const sub = execa(command, args, {
     cwd,
     env: cleanEnv(env),
-    detached: true,          // independent group: pgid = child pid, grandchildren join it
+    detached: true, // independent group: pgid = child pid, grandchildren join it
     reject: false,
     all: false,
   });
@@ -440,7 +478,14 @@ export async function spawnManaged(command: string, args: string[], opts: SpawnO
   const cause: TerminationCause | undefined =
     monitorCause ?? (res.signal === "SIGTERM" ? "signal" : undefined);
   const timedOut = cause != null;
-  return { ok: res.exitCode === 0 && !timedOut, code: res.exitCode ?? 1, stdout: res.stdout ?? "", stderr: res.stderr ?? "", timedOut, cause };
+  return {
+    ok: res.exitCode === 0 && !timedOut,
+    code: res.exitCode ?? 1,
+    stdout: res.stdout ?? "",
+    stderr: res.stderr ?? "",
+    timedOut,
+    cause,
+  };
 }
 
 // Mark every dispatch (incl. each retry attempt) done on return, for the idle sweep to reap.
@@ -456,13 +501,18 @@ export function markAllDispatchesDone(): void {
       `${inFlight.length} in-flight groups (concurrency requires pgid-exact marking)`,
   );
   for (const g of inFlight) g.done = true;
-  if (registry.length) { void persistRegistry(); }
+  if (registry.length) {
+    void persistRegistry();
+  }
 }
 
 // Reap one group: SIGTERM → grace (cap 1s/group) → SIGKILL → wait for the group to vanish.
 // Idempotent when the group is already gone.
 async function reapGroup(g: ManagedGroup, graceMs: number): Promise<void> {
-  if (!pgidAlive(g.pgid)) { g.done = true; return; }
+  if (!pgidAlive(g.pgid)) {
+    g.done = true;
+    return;
+  }
   killGroup(g.pgid, KILL_SIGNAL);
   await new Promise((r) => setTimeout(r, Math.min(graceMs, 1000)));
   killGroup(g.pgid, FORCE_SIGNAL);
@@ -496,7 +546,9 @@ export async function teardownAll({ graceMs = 5000 }: { graceMs?: number } = {})
     await waitForDeath(groups, 2000);
     await persistRegistry();
   } catch (err) {
-    process.stderr.write(`CDD_WARN: teardownAll partial failure: ${String((err as Error)?.message ?? err)}\n`);
+    process.stderr.write(
+      `CDD_WARN: teardownAll partial failure: ${String((err as Error)?.message ?? err)}\n`,
+    );
   }
 }
 
@@ -506,13 +558,19 @@ export function startIdleMonitor({ intervalMs = 30_000 }: { intervalMs?: number 
   if (idleTimer) return;
   idleTimer = setInterval(() => {
     reapDone({ graceMs: 1000 }).catch((err: unknown) =>
-      process.stderr.write(`CDD_WARN: reapDone tick failed: ${String((err as Error)?.message ?? err)}\n`));
+      process.stderr.write(
+        `CDD_WARN: reapDone tick failed: ${String((err as Error)?.message ?? err)}\n`,
+      ),
+    );
   }, intervalMs);
   idleTimer.unref?.();
 }
 
 export function stopIdleMonitor(): void {
-  if (idleTimer) { clearInterval(idleTimer); idleTimer = null; }
+  if (idleTimer) {
+    clearInterval(idleTimer);
+    idleTimer = null;
+  }
 }
 
 // Shared lifecycle wrapper (branch-review nit C extraction): startIdleMonitor → fn → finally
@@ -548,7 +606,9 @@ export async function reapStale({ graceMs = 5000 }: { graceMs?: number } = {}): 
     if (diskPath && existsSync(diskPath)) {
       pending = JSON.parse(readFileSync(diskPath, "utf8")) ?? [];
     }
-  } catch { pending = []; }
+  } catch {
+    pending = [];
+  }
   // orphans (foreign AND owner confirmed dead — concurrent engines' in-flight groups are excluded,
   // branch-review warn 4) and stale (own-process dispatch returned but group alive) unite into one
   // batch, rooted as a whole (every process in the group goes with the pgid).
@@ -568,6 +628,8 @@ export async function reapStale({ graceMs = 5000 }: { graceMs?: number } = {}): 
   // never reaped loses the fallback permanently; keep it for the next start.
   const survivors = pending.filter((g) => pgidAlive(g.pgid));
   if (diskPath) {
-    try { writeFileSync(diskPath, JSON.stringify(survivors, null, 2) + "\n"); } catch {}
+    try {
+      writeFileSync(diskPath, `${JSON.stringify(survivors, null, 2)}\n`);
+    } catch {}
   }
 }

@@ -47,7 +47,7 @@ export function returnFourLines(raw: string, workspace: string): string[] {
 // / empty → {}.
 export function artifactsFromReturnLine(line: string | undefined): Record<string, string> {
   const m = String(line).match(/^artifacts:\s*(.*)$/);
-  if (!m || !m[1].trim()) return {};
+  if (!m?.[1].trim()) return {};
   const artifacts: Record<string, string> = {};
   for (const pair of m[1].trim().split(/\s+/)) {
     const eq = pair.indexOf("=");
@@ -59,8 +59,13 @@ export function artifactsFromReturnLine(line: string | undefined): Record<string
 // Return block `status:` line → materialized status. The schema accepts only APPROVED/BLOCKED —
 // anything non-APPROVED (NEEDS_CONTEXT / <missing> …) folds to BLOCKED, raw passthrough for the
 // blocker (return block and handoff/exit stay consistent).
-export function implementStatusFromReturnLine(line: string | undefined): { status: string; raw: string } {
-  const raw = String(line).replace(/^status:\s*/, "").trim();
+export function implementStatusFromReturnLine(line: string | undefined): {
+  status: string;
+  raw: string;
+} {
+  const raw = String(line)
+    .replace(/^status:\s*/, "")
+    .trim();
   return { status: raw === "APPROVED" ? "APPROVED" : "BLOCKED", raw };
 }
 
@@ -70,7 +75,7 @@ export function implementStatusFromReturnLine(line: string | undefined): { statu
 // other commits line fields.
 export function commitsFromReturnLine(line: string | undefined): { base?: string; head?: string } {
   const m = String(line).match(/^commits:\s*(.*)$/);
-  if (!m || !m[1].trim()) return {};
+  if (!m?.[1].trim()) return {};
   const out: { base?: string; head?: string } = {};
   for (const pair of m[1].trim().split(/\s+/)) {
     const eq = pair.indexOf("=");
@@ -86,7 +91,9 @@ export function commitsFromReturnLine(line: string | undefined): { base?: string
 // Return block `blocker:` line → blocker. Missing line (<missing>) / success default (none) → ""
 // (no blocker field lands; returnFromHandoff presents the real-only blocker default at render).
 export function returnBlocker(line: string | undefined): string {
-  const v = String(line).replace(/^blocker:\s*/, "").trim();
+  const v = String(line)
+    .replace(/^blocker:\s*/, "")
+    .trim();
   return v && v !== "<missing>" && v !== "none" ? v : "";
 }
 
@@ -102,7 +109,11 @@ export function blockerDefaultFor(status: string | undefined): string {
 /** 4-line dry-run return block string (the task dispatch's agentOut: parse face re-appends the
  * counters line via returnFourLines). Always all four lines — the task dry-run artifacts line is
  * the non-empty brief/report/evidence triple. */
-export function dryRunBlock(fields: { commits: string; artifacts: string; blocker?: string }): string {
+export function dryRunBlock(fields: {
+  commits: string;
+  artifacts: string;
+  blocker?: string;
+}): string {
   return [
     "status: APPROVED",
     `commits: ${fields.commits}`,
@@ -132,11 +143,17 @@ export function assembleReturnBlock(
  * returnCountersLine. */
 export function returnFromHandoff(handoffPath: string, workspace: string): string[] {
   if (!handoffPath || !existsSync(handoffPath)) {
-    return returnFourLines("status: BLOCKED\nblocker: handoff missing after commit-contract interception → re-dispatch task after checking commit-contract errors", workspace);
+    return returnFourLines(
+      "status: BLOCKED\nblocker: handoff missing after commit-contract interception → re-dispatch task after checking commit-contract errors",
+      workspace,
+    );
   }
   const h = readJson(handoffPath);
   if (!h) {
-    return returnFourLines("status: BLOCKED\nblocker: handoff JSON unparseable after commit-contract interception → delete the corrupted handoff file and re-dispatch", workspace);
+    return returnFourLines(
+      "status: BLOCKED\nblocker: handoff JSON unparseable after commit-contract interception → delete the corrupted handoff file and re-dispatch",
+      workspace,
+    );
   }
   const commits = (h.commits as Record<string, unknown> | null) ?? {};
   const arts: string[] = [];

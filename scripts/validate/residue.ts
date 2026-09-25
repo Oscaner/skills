@@ -26,7 +26,7 @@
 // The grepTargets meta is consumed by the wiring guard
 // (packages/osuperpowers/tests/ci-validate.test.mjs) to pin the target set.
 
-import { readFileSync, statSync, existsSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { globSync } from "tinyglobby";
@@ -49,7 +49,12 @@ const ALL_MECH_POSITIONS = [...OSKILLS, ...CDD_ENGINE];
 // README.md (the published surface), and the maintainer docs directory.
 // Path literals are never written into this file (a guard body must not become a carrier of the
 // vocabulary it guards — see the comment beside GATE_TARGETS).
-export const DOC_SURFACE_TARGETS = ["CLAUDE.md", "README.md", "packages/osuperpowers/README.md", "docs/maintainers"];
+export const DOC_SURFACE_TARGETS = [
+  "CLAUDE.md",
+  "README.md",
+  "packages/osuperpowers/README.md",
+  "docs/maintainers",
+];
 
 const RESIDUE_TARGETS = [
   "packages/osuperpowers/bin",
@@ -80,20 +85,36 @@ const STALE_LEXICON_CHECKS = [
   // mode-name shape (negative lookbehind exempts the new digraph node name run-task-review).
   { label: "old mode task-review", re: /(?<!run-)task-review/, scope: ALL_MECH_POSITIONS },
   { label: "P4 degraded names", re: /(spec|plan)-1\.json|doc-fix-/, scope: CDD_ENGINE },
-  { label: "flat docs-review root fallback", re: /\.superpowers\/docs-review/, scope: CDD_ENGINE_BIN },
-  { label: "old runtime root .superpowers/cdd", re: /\.superpowers\/cdd/, scope: ALL_MECH_POSITIONS },
+  {
+    label: "flat docs-review root fallback",
+    re: /\.superpowers\/docs-review/,
+    scope: CDD_ENGINE_BIN,
+  },
+  {
+    label: "old runtime root .superpowers/cdd",
+    re: /\.superpowers\/cdd/,
+    scope: ALL_MECH_POSITIONS,
+  },
   { label: "deleted standalone root", re: /\.superpowers\/standalone/, scope: ALL_MECH_POSITIONS },
   { label: "dogfood as label", re: /labels [^\n]*dogfood|"dogfood",/, scope: OSKILLS },
   // Task 5 (P2): old docs root (the pre-P2 superpowers layout, pre-normalization) guard — zero
   // exemption at mechanism positions. Merged into the doc surface (DOC_SURFACE_TARGETS); the regex
   // escapes `\/` and labels carry no path literal, so the guard body never writes the guarded
   // old-root literal back into scripts/ (or the repo-wide check would gain a third hit class).
-  { label: "old docs root (pre-P2)", re: /docs\/superpowers/, scope: [...ALL_MECH_POSITIONS, ...DOC_SURFACE_TARGETS] },
+  {
+    label: "old docs root (pre-P2)",
+    re: /docs\/superpowers/,
+    scope: [...ALL_MECH_POSITIONS, ...DOC_SURFACE_TARGETS],
+  },
   // Task 5 (P3): removed cdd subcommands (**command-form only**, not bare words — the P4-legal
   // /mattpocock-skills:research session calls and the live text `brief-dependent plan sections` at
   // cli-driven-development/SKILL.md:66 must all pass) + the research-only timeout env (root-deleted
   // along with LEGACY_MODE_ENV/modeEnv.research).
-  { label: "removed cdd subcommand (pre-P3)", re: /\bcdd (brief|research)\b/, scope: [...ALL_MECH_POSITIONS, ...DOC_SURFACE_TARGETS] },
+  {
+    label: "removed cdd subcommand (pre-P3)",
+    re: /\bcdd (brief|research)\b/,
+    scope: [...ALL_MECH_POSITIONS, ...DOC_SURFACE_TARGETS],
+  },
   //   The single `RESEARCH_TIMEOUT` branch already covers both deleted forms (`CDD_RESEARCH_TIMEOUT`
   //   and the legacy bare name) — substring semantics with an unanchored alternation make the `CDD_`
   //   prefix branch a dead branch (T5 review-1 nit, verified equivalent), hence the suffix-only
@@ -110,21 +131,57 @@ const STALE_LEXICON_CHECKS = [
   // `execFileSync("git")` blocks hand-written git regression (the engine's sole spawn channel =
   // proc.mjs's execa). Scope is entirely mechanism positions (ALL_MECH_POSITIONS); scripts/ is in no
   // scope, so this file's written surface cannot self-hit.
-  { label: "bare report-issue (word-bounded; plural report-issues passes)", re: /\breport-issue\b/, scope: ALL_MECH_POSITIONS },
-  { label: "old --mode flag (task-level mode removed)", re: /(?<![\w-])--mode(?![-\w])/, scope: ALL_MECH_POSITIONS },
-  { label: "renderComment old renderer vocabulary", re: /\brenderComment\b/, scope: ALL_MECH_POSITIONS },
-  { label: "renderTitle old renderer vocabulary", re: /\brenderTitle\b/, scope: ALL_MECH_POSITIONS },
-  { label: "resolveDropdownOptions old dropdown resolution", re: /\bresolveDropdownOptions\b/, scope: ALL_MECH_POSITIONS },
-  { label: "sessionTypes old session classification", re: /\bsessionTypes\b/, scope: ALL_MECH_POSITIONS },
-  { label: 'execFileSync("git") hand-written git regression', re: /\bexecFileSync\(\s*["']git["']/, scope: ALL_MECH_POSITIONS },
+  {
+    label: "bare report-issue (word-bounded; plural report-issues passes)",
+    re: /\breport-issue\b/,
+    scope: ALL_MECH_POSITIONS,
+  },
+  {
+    label: "old --mode flag (task-level mode removed)",
+    re: /(?<![\w-])--mode(?![-\w])/,
+    scope: ALL_MECH_POSITIONS,
+  },
+  {
+    label: "renderComment old renderer vocabulary",
+    re: /\brenderComment\b/,
+    scope: ALL_MECH_POSITIONS,
+  },
+  {
+    label: "renderTitle old renderer vocabulary",
+    re: /\brenderTitle\b/,
+    scope: ALL_MECH_POSITIONS,
+  },
+  {
+    label: "resolveDropdownOptions old dropdown resolution",
+    re: /\bresolveDropdownOptions\b/,
+    scope: ALL_MECH_POSITIONS,
+  },
+  {
+    label: "sessionTypes old session classification",
+    re: /\bsessionTypes\b/,
+    scope: ALL_MECH_POSITIONS,
+  },
+  {
+    label: 'execFileSync("git") hand-written git regression',
+    re: /\bexecFileSync\(\s*["']git["']/,
+    scope: ALL_MECH_POSITIONS,
+  },
   // Task 2 (P6): the vendors self-maintenance surface was removed — regression-vocabulary guard
   // (B12). scope = ALL_MECH_POSITIONS zero-exemption (docs/maintainers's vendor-reference cleanup is
   // deferred to the F-domain reorganization per spec F7, not on this surface). Word forms keep the
   // compact shapes: `vendors/` (path form, not a bare vendor word), `publish-vendor` (word form,
   // covering file/step/subcommand names), `submodule[s]` (word form — both git submodule and
   // submodules: recursive hit).
-  { label: "vendors/ self-maintenance path-form regression", re: /vendors\//, scope: ALL_MECH_POSITIONS },
-  { label: "publish-vendor word-form regression", re: /\bpublish-vendor\b/, scope: ALL_MECH_POSITIONS },
+  {
+    label: "vendors/ self-maintenance path-form regression",
+    re: /vendors\//,
+    scope: ALL_MECH_POSITIONS,
+  },
+  {
+    label: "publish-vendor word-form regression",
+    re: /\bpublish-vendor\b/,
+    scope: ALL_MECH_POSITIONS,
+  },
   { label: "submodule word-form regression", re: /\bsubmodule[s]?\b/, scope: ALL_MECH_POSITIONS },
   // Task 19 (P6, spec F2): `.agents/` emit-surface removal (A5) + droid/pi keywords (A3) regression
   // guard. `.agents` uses the path/end-of-line form (`.agents/` or `.agents` at EOL; `m` makes `$`
@@ -133,8 +190,16 @@ const STALE_LEXICON_CHECKS = [
   // reorganization per spec F7, not on this surface — same ruling as vendors); droid/pi guards only
   // the A3 landing package.json (`\bpi\b` hits both the dead `#pi` field name and the keywords pi
   // word; no repo-wide bare words — pipeline/principle etc. are legal English words).
-  { label: ".agents/ emit-surface regression (post-A5 removal)", re: /\.agents(\/|$)/m, scope: ALL_MECH_POSITIONS },
-  { label: "droid/pi keywords regression (A3 package.json)", re: /\bdroid\b|\bpi\b/, scope: ["packages/osuperpowers/package.json"] },
+  {
+    label: ".agents/ emit-surface regression (post-A5 removal)",
+    re: /\.agents(\/|$)/m,
+    scope: ALL_MECH_POSITIONS,
+  },
+  {
+    label: "droid/pi keywords regression (A3 package.json)",
+    re: /\bdroid\b|\bpi\b/,
+    scope: ["packages/osuperpowers/package.json"],
+  },
   // Task 23 (P6, spec F8a): H1 semantic-name mechanism guard (zero-exemption). Two complementary
   // lanes: `\bH1\b` hits the bare uppercase word `H1` (word-bounded on both sides — `1` needs a
   // non-word char after it, so `H1_BLOCK`'s `_` is a word char and never hits; the underscore form
@@ -146,8 +211,16 @@ const STALE_LEXICON_CHECKS = [
   // only (CDD_ENGINE_BIN) — the skills surface never used h1* lowercase identifiers, no regression
   // face. Neither regex anchors the new vocabulary (return block / returnFourLines etc.), no
   // self-hit.
-  { label: "H1 vocabulary (residual) (post-F8a semanticization)", re: /\bH1\b/, scope: ALL_MECH_POSITIONS },
-  { label: "h1* identifiers (residual) (post-F8a semanticization)", re: /\bh1(?=[A-Z]|\b)/, scope: CDD_ENGINE_BIN },
+  {
+    label: "H1 vocabulary (residual) (post-F8a semanticization)",
+    re: /\bH1\b/,
+    scope: ALL_MECH_POSITIONS,
+  },
+  {
+    label: "h1* identifiers (residual) (post-F8a semanticization)",
+    re: /\bh1(?=[A-Z]|\b)/,
+    scope: CDD_ENGINE_BIN,
+  },
   // Task 18 (P6, spec F8): the old vocabulary after the Review Convergence term rename,
   // zero-exemption. Three complementary lanes —
   //  ① `Review Stopping` term form (word-bounded) in all mechanism positions + the governance doc
@@ -163,9 +236,21 @@ const STALE_LEXICON_CHECKS = [
   //     review-cycle-cap / dispatch-timeout-cap, registered under the same composite form. None of
   //     the three regexes matches the new vocabulary (Review Convergence / review-cycle-cap /
   //     dispatch-timeout-cap share no old-form substring), no self-hit.
-  { label: "Review Stopping retired term (F8 → Review Convergence)", re: /\bReview Stopping\b/, scope: [...ALL_MECH_POSITIONS, ...DOC_SURFACE_TARGETS] },
-  { label: "stopping modules/identifiers (engine surface zero-residue post-F8 rename)", re: /\bstopping\b/, scope: CDD_ENGINE },
-  { label: "retired failure-face literals (F8 → review-cycle-cap / dispatch-timeout-cap)", re: /\bfix-loop-exhausted\b|\btimeout-exhausted\b/, scope: [...ALL_MECH_POSITIONS, ...DOC_SURFACE_TARGETS] },
+  {
+    label: "Review Stopping retired term (F8 → Review Convergence)",
+    re: /\bReview Stopping\b/,
+    scope: [...ALL_MECH_POSITIONS, ...DOC_SURFACE_TARGETS],
+  },
+  {
+    label: "stopping modules/identifiers (engine surface zero-residue post-F8 rename)",
+    re: /\bstopping\b/,
+    scope: CDD_ENGINE,
+  },
+  {
+    label: "retired failure-face literals (F8 → review-cycle-cap / dispatch-timeout-cap)",
+    re: /\bfix-loop-exhausted\b|\btimeout-exhausted\b/,
+    scope: [...ALL_MECH_POSITIONS, ...DOC_SURFACE_TARGETS],
+  },
 ];
 
 // T6 (P5): gate-specific vocabulary zero-exemption (mirrors the P6 F5 stale-lexicon guard; same
@@ -219,7 +304,9 @@ function walkTargetFiles(targets, { includeTests = false } = {}) {
   for (const t of targets) {
     const abs = path.isAbsolute(t) ? t : path.join(ROOT, t);
     if (!existsSync(abs)) {
-      throw new Error(`walkTargetFiles: target missing — ${t} (deleted file? adjust target set or this sweep scope)`);
+      throw new Error(
+        `walkTargetFiles: target missing — ${t} (deleted file? adjust target set or this sweep scope)`,
+      );
     }
     const paths = statSync(abs).isDirectory()
       ? globSync("**/*", { cwd: abs, absolute: true, dot: true })
@@ -243,12 +330,17 @@ export function scanTargets(targets, re, opts) {
 
 function checkZeroResidue() {
   const hits = scanTargets(RESIDUE_TARGETS, RESIDUE_RE);
-  assert(hits.length === 0, `RESIDUE FOUND — sdd_/SDD_/sdd-run-/spor- in engine executable products:\n  ${hits.join("\n  ")}`);
+  assert(
+    hits.length === 0,
+    `RESIDUE FOUND — sdd_/SDD_/sdd-run-/spor- in engine executable products:\n  ${hits.join("\n  ")}`,
+  );
   console.log("OK — zero residue in engine executable products");
 }
 
 export function hasHit(lines) {
-  return [...STALE_LEXICON_CHECKS, ...GATE_LEXICON_CHECKS].some(({ re }) => lines.some((line) => re.test(line)));
+  return [...STALE_LEXICON_CHECKS, ...GATE_LEXICON_CHECKS].some(({ re }) =>
+    lines.some((line) => re.test(line)),
+  );
 }
 
 // targetsOverride mirrors collectGateLexiconHits — lets tests inject temporary targets to verify the
@@ -272,6 +364,7 @@ export function collectGateLexiconHits(targetsOverride) {
   return hits;
 }
 
+import { mainCommand } from "../../packages/cdd-engine/src/cli/parse.ts";
 // =====================================================================
 // Task 8 — channel audit (design §2.8 rows 1-11, 13; the engine-side 12 checks)
 // =====================================================================
@@ -282,18 +375,26 @@ export function collectGateLexiconHits(targetsOverride) {
 // root-resolver names are built by concatenation (the ⑤ target set includes scripts/, so the guard
 // body must not write the guarded words as contiguous literals or it self-hits).
 import { loadContract } from "../../packages/cdd-engine/src/infra/context.ts";
-import { mainCommand } from "../../packages/cdd-engine/src/cli/parse.ts";
-import { FAILURE_CATEGORIES, counters as canonicalCounters } from "../../packages/cdd-engine/src/rules/failure.ts";
+import {
+  counters as canonicalCounters,
+  FAILURE_CATEGORIES,
+} from "../../packages/cdd-engine/src/rules/failure.ts";
 
 const CONTRACT = loadContract();
 // Row-2 whitelist = canonical channels.env var + markers (§2.4.4-(1) 4 keys; converged after the
 // three rounds of T14/T26 env-key deletions).
 export const ENV_DIRECT_READ_WHITELIST = new Set(
-  Object.values(CONTRACT.channels.env).flatMap((ch) => [ch.var, ...(ch.markers ?? [])].filter(Boolean)),
+  Object.values(CONTRACT.channels.env).flatMap((ch) =>
+    [ch.var, ...(ch.markers ?? [])].filter(Boolean),
+  ),
 );
 // Row-9 canonical argv flag set (channels.argv's flag field; includes the program-level --dry-run
 // and -h/--help).
-export const CANONICAL_ARGV_FLAGS = new Set(Object.values(CONTRACT.channels.argv).map((a) => a.flag).filter(Boolean));
+export const CANONICAL_ARGV_FLAGS = new Set(
+  Object.values(CONTRACT.channels.argv)
+    .map((a) => a.flag)
+    .filter(Boolean),
+);
 // Row-5 old root-resolver names (concatenated construction: the ⑤ scope includes scripts/, so the
 // guard body keeps zero contiguous literals).
 const ROOT_FROM_DOC = "root" + "FromDoc" + "Path";
@@ -306,7 +407,8 @@ export function scanLines(targets, re, opts) {
   for (const f of walkTargetFiles(targets, opts)) {
     const lines = readFileSync(f).toString("utf8").split("\n");
     for (let i = 0; i < lines.length; i++) {
-      if (re.test(lines[i])) hits.push({ file: path.relative(ROOT, f), lineNo: i + 1, text: lines[i] });
+      if (re.test(lines[i]))
+        hits.push({ file: path.relative(ROOT, f), lineNo: i + 1, text: lines[i] });
     }
   }
   return hits;
@@ -324,32 +426,48 @@ export function collectProcessCwdAudit(targetsOverride = CDD_ENGINE_BIN) {
   const hits = [];
   if (m.length !== 1) {
     for (const { file, lineNo } of m) {
-      hits.push({ label: "process.cwd() non-single (expected exactly 1 in engine src)", file: `${file}:${lineNo}` });
+      hits.push({
+        label: "process.cwd() non-single (expected exactly 1 in engine src)",
+        file: `${file}:${lineNo}`,
+      });
     }
     if (m.length === 0) {
-      hits.push({ label: "process.cwd() missing (the src/bin.ts initRoot conversion point removed or renamed)", file: "packages/cdd-engine/src/bin.ts" });
+      hits.push({
+        label:
+          "process.cwd() missing (the src/bin.ts initRoot conversion point removed or renamed)",
+        file: "packages/cdd-engine/src/bin.ts",
+      });
     }
     return hits;
   }
   if (!m[0].file.endsWith(path.join("src", "bin.ts"))) {
-    hits.push({ label: "process.cwd() not converged to src/bin.ts (the only hit conversion point is elsewhere)", file: `${m[0].file}:${m[0].lineNo}` });
+    hits.push({
+      label:
+        "process.cwd() not converged to src/bin.ts (the only hit conversion point is elsewhere)",
+      file: `${m[0].file}:${m[0].lineNo}`,
+    });
   }
   return hits;
 }
 
 // ② Row 2: the three direct-read shapes (process.env.X / process.env["X"] / env.X); a non-whitelist
 // key → hit.
-const ENV_READ_RE = /(?:\bprocess\.env|\benv)\.([A-Za-z_][A-Za-z0-9_]*)|(?:\bprocess\.env|\benv)\[["']([^"']+)["']\]/;
+const ENV_READ_RE =
+  /(?:\bprocess\.env|\benv)\.([A-Za-z_][A-Za-z0-9_]*)|(?:\bprocess\.env|\benv)\[["']([^"']+)["']\]/;
 export function collectEnvDirectReadHits(targetsOverride = CDD_ENGINE_BIN) {
   const hits = [];
   const g = new RegExp(ENV_READ_RE.source, "g"); // line-wide capture (one line can host several shapes)
   for (const { file, lineNo, text } of scanLines(targetsOverride, ENV_READ_RE)) {
-    let m;
-    while ((m = g.exec(text)) !== null) {
+    let m: RegExpExecArray | null = g.exec(text);
+    while (m !== null) {
       const key = m[1] ?? m[2];
       if (key && !ENV_DIRECT_READ_WHITELIST.has(key)) {
-        hits.push({ label: `process.env/env direct-read key off whitelist (§2.4.4-(1)): ${key}`, file: `${file}:${lineNo}` });
+        hits.push({
+          label: `process.env/env direct-read key off whitelist (§2.4.4-(1)): ${key}`,
+          file: `${file}:${lineNo}`,
+        });
       }
+      m = g.exec(text);
     }
   }
   return hits;
@@ -362,9 +480,15 @@ export function collectEnvDirectReadHits(targetsOverride = CDD_ENGINE_BIN) {
 // passthrough hosts moved up from cli/branch-*.ts accordingly.
 const ENV_PASSTHROUGH_SITES = [
   { file: "packages/cdd-engine/src/dispatch/task.ts", re: /#opts\.env \?\? process\.env/ },
-  { file: "packages/cdd-engine/src/dispatch/docs.ts", re: /invokeCli\(entry, prompt, \{ op: mode, type \}, process\.env, this\.ctx\.repoRoot/ },
+  {
+    file: "packages/cdd-engine/src/dispatch/docs.ts",
+    re: /invokeCli\(entry, prompt, \{ op: mode, type \}, process\.env, this\.ctx\.repoRoot|process\.env,$/,
+  },
   { file: "packages/cdd-engine/src/cli/shared.ts", re: /detectCurrentHarness\(process\.env\)/ },
-  { file: "packages/cdd-engine/src/dispatch/branch.ts", re: /invokeCliWithRetry\([^)]*process\.env, |process\.env,$/ },
+  {
+    file: "packages/cdd-engine/src/dispatch/branch.ts",
+    re: /invokeCliWithRetry\([^)]*process\.env, |process\.env,$/,
+  },
 ];
 const ENV_WHOLE_RE = /process\.env([^.\w[]|$)/;
 export function collectEnvPassThroughHits(targetsOverride = CDD_ENGINE_BIN) {
@@ -372,7 +496,11 @@ export function collectEnvPassThroughHits(targetsOverride = CDD_ENGINE_BIN) {
   for (const { file, lineNo, text } of scanLines(targetsOverride, ENV_WHOLE_RE)) {
     if (text.trimStart().startsWith("//")) continue; // a comment mention is not a pass-through point
     const san = ENV_PASSTHROUGH_SITES.find((s) => s.file === file && s.re.test(text));
-    if (!san) hits.push({ label: `whole-env pass-through point off the §2.4.4-(2) inventory (4 sites): ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
+    if (!san)
+      hits.push({
+        label: `whole-env pass-through point off the §2.4.4-(2) inventory (4 sites): ${text.trim().slice(0, 48)}`,
+        file: `${file}:${lineNo}`,
+      });
   }
   return hits;
 }
@@ -381,7 +509,11 @@ export function collectEnvPassThroughHits(targetsOverride = CDD_ENGINE_BIN) {
 export function collectEnvSpreadHits(targetsOverride = CDD_ENGINE_BIN) {
   const hits = [];
   for (const { file, lineNo } of scanLines(targetsOverride, /\.\.\.process\.env/)) {
-    hits.push({ label: "process.env spread injection (§2.4.4 whole table passes via parameters, no spread object build)", file: `${file}:${lineNo}` });
+    hits.push({
+      label:
+        "process.env spread injection (§2.4.4 whole table passes via parameters, no spread object build)",
+      file: `${file}:${lineNo}`,
+    });
   }
   return hits;
 }
@@ -389,8 +521,14 @@ export function collectEnvSpreadHits(targetsOverride = CDD_ENGINE_BIN) {
 /** ③ Row 3c: the six key names zero-hit (CDD_LIFECYCLE_PATH / CDD_REGISTRY_PATH / NODE_ENV / CDD_DRY_RUN / PLAN_FILE / CDD_HANDOFF_PATH; grep -rnE includes comment lines). */
 export function collectSixEnvKeyHits(targetsOverride = CDD_ENGINE_BIN) {
   const hits = [];
-  for (const { file, lineNo } of scanLines(targetsOverride, /CDD_LIFECYCLE_PATH|CDD_REGISTRY_PATH|NODE_ENV|CDD_DRY_RUN|PLAN_FILE|CDD_HANDOFF_PATH/)) {
-    hits.push({ label: "env-channel key-name regression (six keys zero-hit)", file: `${file}:${lineNo}` });
+  for (const { file, lineNo } of scanLines(
+    targetsOverride,
+    /CDD_LIFECYCLE_PATH|CDD_REGISTRY_PATH|NODE_ENV|CDD_DRY_RUN|PLAN_FILE|CDD_HANDOFF_PATH/,
+  )) {
+    hits.push({
+      label: "env-channel key-name regression (six keys zero-hit)",
+      file: `${file}:${lineNo}`,
+    });
   }
   return hits;
 }
@@ -403,7 +541,8 @@ const PATH_ARG_SCOPE = ["packages/cdd-engine/src/cli", "packages/cdd-engine/src/
 // review-1 nit: side-lane completion — readFileSync's fs/promises async sibling `readFile(opts.*)`
 // and the dynamic import evaluating the same path argument (`import(opts.*)`) were previously off
 // the surface (the mechanical face follows the implementer's choice; this face must be complete).
-const PATH_ARG_BYPASS_RE = /resolveWorkspace\(opts\.(plan|spec|findings)|workspaceSlug\(opts\.(plan|spec|findings)|readFileSync\(opts\.(plan|spec|findings)|readFile\(opts\.(plan|spec|findings)|existsSync\(opts\.(plan|spec|findings)|import\(opts\.(plan|spec|findings)|path\.join\([^)]*opts\.(plan|spec|findings)/;
+const PATH_ARG_BYPASS_RE =
+  /resolveWorkspace\(opts\.(plan|spec|findings)|workspaceSlug\(opts\.(plan|spec|findings)|readFileSync\(opts\.(plan|spec|findings)|readFile\(opts\.(plan|spec|findings)|existsSync\(opts\.(plan|spec|findings)|import\(opts\.(plan|spec|findings)|path\.join\([^)]*opts\.(plan|spec|findings)/;
 const RESOLVER_FILES = [
   "packages/cdd-engine/src/cli/shared.ts",
   "packages/cdd-engine/src/cli/fix.ts",
@@ -416,12 +555,19 @@ export function collectPathArgResolverHits(scopeOverride, resolverFilesOverride)
   const files = resolverFilesOverride ?? RESOLVER_FILES;
   const hits = [];
   for (const { file, lineNo, text } of scanLines(scope, PATH_ARG_BYPASS_RE)) {
-    hits.push({ label: `path argument used directly, bypassing the resolver (resolveDocArg normalization missing): ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
+    hits.push({
+      label: `path argument used directly, bypassing the resolver (resolveDocArg normalization missing): ${text.trim().slice(0, 48)}`,
+      file: `${file}:${lineNo}`,
+    });
   }
   for (const f of files) {
     const text = readFileSync(path.isAbsolute(f) ? f : path.join(ROOT, f), "utf8");
     if (!/\bresolveDocArg\b/.test(text)) {
-      hits.push({ label: "--plan/--spec/--findings read site lacks resolveDocArg (normalization entry closure missing a member)", file: f });
+      hits.push({
+        label:
+          "--plan/--spec/--findings read site lacks resolveDocArg (normalization entry closure missing a member)",
+        file: f,
+      });
     }
   }
   return hits;
@@ -432,8 +578,14 @@ export function collectPathArgResolverHits(scopeOverride, resolverFilesOverride)
 // written `packages/cdd-engine/src`, never the deleted tests/ directory).
 const CHANNEL_ROOT_TARGETS = [...ALL_MECH_POSITIONS, "scripts"];
 const ROOT_RESOLVER_TOKENS = [
-  { label: `${ROOT_FROM_DOC} regression (the old second authority guessing the root by path)`, re: new RegExp(ROOT_FROM_DOC) },
-  { label: `${RESOLVE_REPO_ROOT} regression (old root-resolution function deleted wholesale)`, re: new RegExp(RESOLVE_REPO_ROOT) },
+  {
+    label: `${ROOT_FROM_DOC} regression (the old second authority guessing the root by path)`,
+    re: new RegExp(ROOT_FROM_DOC),
+  },
+  {
+    label: `${RESOLVE_REPO_ROOT} regression (old root-resolution function deleted wholesale)`,
+    re: new RegExp(RESOLVE_REPO_ROOT),
+  },
 ];
 export function collectRootResolverHits(targetsOverride) {
   const targets = targetsOverride ?? CHANNEL_ROOT_TARGETS;
@@ -457,7 +609,8 @@ const TEST_SEAM_CHECKS = [
 export function collectTestSeamHits(targetsOverride) {
   const hits = [];
   for (const { label, re, scope } of TEST_SEAM_CHECKS) {
-    for (const f of scanTargets(targetsOverride ?? scope, re, { includeTests: true })) hits.push({ label, file: f });
+    for (const f of scanTargets(targetsOverride ?? scope, re, { includeTests: true }))
+      hits.push({ label, file: f });
   }
   return hits;
 }
@@ -467,23 +620,37 @@ export function collectTestSeamHits(targetsOverride) {
 // without an inline object literal, and the implement materialization write side must go through
 // normalizeHandoff (the schema key set is the single authority, AC6). File scope is judged by
 // basename (override lets tests inject).
-export function collectHandoffShapeHits(filesOverride = [
-  "packages/cdd-engine/src/render/templates.ts",
-  "packages/cdd-engine/src/artifacts/handoff/finalize.ts",
-]) {
+export function collectHandoffShapeHits(
+  filesOverride = [
+    "packages/cdd-engine/src/render/templates.ts",
+    "packages/cdd-engine/src/artifacts/handoff/finalize.ts",
+  ],
+) {
   const hits = [];
   for (const f of filesOverride) {
     const text = readFileSync(path.isAbsolute(f) ? f : path.join(ROOT, f), "utf8");
     const base = path.basename(f);
     if (base === "templates.ts" && /\bswitch\s*\(/.test(text)) {
-      hits.push({ label: "hand-written schema field inventory (renderHandoffStub's original switch shape regressed)", file: f });
+      hits.push({
+        label:
+          "hand-written schema field inventory (renderHandoffStub's original switch shape regressed)",
+        file: f,
+      });
     }
     if (base === "finalize.ts") {
       if (/write(?:Own)?Handoff\([^,]+,\s*\{/.test(text)) {
-        hits.push({ label: "finalize write side inlines a hand-written handoff object literal (should go through schema / single-point construction)", file: f });
+        hits.push({
+          label:
+            "finalize write side inlines a hand-written handoff object literal (should go through schema / single-point construction)",
+          file: f,
+        });
       }
       if (!/\bnormalizeHandoff\b/.test(text)) {
-        hits.push({ label: "finalize materialization write side does not pass normalizeHandoff (schema key set no longer load-bearing)", file: f });
+        hits.push({
+          label:
+            "finalize materialization write side does not pass normalizeHandoff (schema key set no longer load-bearing)",
+          file: f,
+        });
       }
     }
   }
@@ -498,23 +665,34 @@ const TIMED_OUT_CONDITION_RE = /if\s*\(\s*!?\s*res\.timedOut\b/;
 export function collectTimedOutSoleHits(targetsOverride = CDD_ENGINE_BIN) {
   const hits = [];
   for (const { file, lineNo, text } of scanLines(targetsOverride, TIMED_OUT_CONDITION_RE)) {
-    hits.push({ label: `res.timedOut as a standalone judgment condition (timeout judgment not self-held): ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
+    hits.push({
+      label: `res.timedOut as a standalone judgment condition (timeout judgment not self-held): ${text.trim().slice(0, 48)}`,
+      file: `${file}:${lineNo}`,
+    });
   }
   const procFile = "packages/cdd-engine/src/infra/proc.ts";
   const proc = readFileSync(path.join(ROOT, procFile), "utf8");
   if (!proc.includes('res.signal === "SIGTERM"')) {
-    hits.push({ label: "self-held timeout judgment missing (proc.ts#spawnManaged lacks a res.signal === SIGTERM clause)", file: procFile });
+    hits.push({
+      label:
+        "self-held timeout judgment missing (proc.ts#spawnManaged lacks a res.signal === SIGTERM clause)",
+      file: procFile,
+    });
   }
   return hits;
 }
 
 // ⑧ Row 8: zero "write context to an arbitrary path" calls inside the engine (runtime context
 // never lands on disk, AC4).
-const CONTEXT_WRITE_RE = /write\w*Context\b|writeFileSync\([^)]*\bcontext\b|writeFileSync\([^,]+,\s*(?:JSON\.stringify\()?\s*(?:ctx|context)\.?/;
+const CONTEXT_WRITE_RE =
+  /write\w*Context\b|writeFileSync\([^)]*\bcontext\b|writeFileSync\([^,]+,\s*(?:JSON\.stringify\()?\s*(?:ctx|context)\.?/;
 export function collectContextWriteHits(targetsOverride = CDD_ENGINE_BIN) {
   const hits = [];
   for (const { file, lineNo } of scanLines(targetsOverride, CONTEXT_WRITE_RE)) {
-    hits.push({ label: "\"write context to an arbitrary path\" call (runtime context never lands on disk)", file: `${file}:${lineNo}` });
+    hits.push({
+      label: '"write context to an arbitrary path" call (runtime context never lands on disk)',
+      file: `${file}:${lineNo}`,
+    });
   }
   return hits;
 }
@@ -543,7 +721,10 @@ export function collectHelpFlagHits() {
     const [cmd, name] = stack.pop();
     for (const f of helpOptionFlags(cmd.args)) {
       if (!CANONICAL_ARGV_FLAGS.has(f)) {
-        hits.push({ label: `cdd ${name} --help Options carries a flag outside the canonical argv set: ${f}`, file: `cdd ${name} --help` });
+        hits.push({
+          label: `cdd ${name} --help Options carries a flag outside the canonical argv set: ${f}`,
+          file: `cdd ${name} --help`,
+        });
       }
     }
     for (const [sub, def] of Object.entries(cmd.subCommands ?? {})) {
@@ -575,13 +756,18 @@ function canonicalFactTokens() {
   return toks.filter(Boolean);
 }
 
-export function collectContextModuleHardcodeHits(fileOverride = "packages/cdd-engine/src/infra/context.ts") {
+export function collectContextModuleHardcodeHits(
+  fileOverride = "packages/cdd-engine/src/infra/context.ts",
+) {
   const abs = path.isAbsolute(fileOverride) ? fileOverride : path.join(ROOT, fileOverride);
   const text = readFileSync(abs, "utf8");
   const hits = [];
   for (const tok of canonicalFactTokens()) {
     if (text.includes(tok)) {
-      hits.push({ label: `src/infra/context.ts hard-codes a canonical fact name: ${tok} (load-bearing → decorative regression)`, file: fileOverride });
+      hits.push({
+        label: `src/infra/context.ts hard-codes a canonical fact name: ${tok} (load-bearing → decorative regression)`,
+        file: fileOverride,
+      });
     }
   }
   return hits;
@@ -599,14 +785,18 @@ export function collectContextModuleHardcodeHits(fileOverride = "packages/cdd-en
 // carve-out is enumerated to THIS file only (same precedent as the naming.ts readdirSync whitelist).
 // Every other residue token (latestHandoff/…) is still scanned inside proc.ts; any mtime/readdirSync
 // use in any OTHER file still hits — pinned by the ⑪ selftest (incl. the golden temp-dir test).
-const RESIDUAL_SCAN_RE = /latestHandoff|latestReview|latestRound|mostRecent|findLast|mtime|scanLatest|resolveLatest/i;
+const RESIDUAL_SCAN_RE =
+  /latestHandoff|latestReview|latestRound|mostRecent|findLast|mtime|scanLatest|resolveLatest/i;
 const LIVENESS_PROBE_FILE = "packages/cdd-engine/src/infra/proc.ts";
 export function collectResidualRereadHits(targetsOverride = CDD_ENGINE_BIN) {
   const hits = [];
   for (const { file, lineNo, text } of scanLines(targetsOverride, RESIDUAL_SCAN_RE)) {
     // T14 probe page: mtime-token lines are the sanctioned liveness sampler (whitelist above).
     if (file === LIVENESS_PROBE_FILE && /mtime/i.test(text)) continue;
-    hits.push({ label: `"most recent" residual re-read scan (read side must fully enumerate the whitelist): ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
+    hits.push({
+      label: `"most recent" residual re-read scan (read side must fully enumerate the whitelist): ${text.trim().slice(0, 48)}`,
+      file: `${file}:${lineNo}`,
+    });
   }
   const dirs = listTargetFiles(targetsOverride);
   for (const f of dirs) {
@@ -619,12 +809,19 @@ export function collectResidualRereadHits(targetsOverride = CDD_ENGINE_BIN) {
     // same fully-enumerated carve-out doctrine as the naming.ts whitelist (bounded dir listing in
     // the doc-contract judgment, not a "most recent" residue re-read).
     if (f === "packages/cdd-engine/src/rules/documents.ts") continue;
-    hits.push({ label: "readdirSync outside the whitelist (a directory scan in place of an explicit path argument is a \"most recent\" regression)", file: f });
+    hits.push({
+      label:
+        'readdirSync outside the whitelist (a directory scan in place of an explicit path argument is a "most recent" regression)',
+      file: f,
+    });
   }
   const rtFile = "packages/cdd-engine/src/dispatch/task.ts";
   const rt = readFileSync(path.join(ROOT, rtFile), "utf8");
   if (!rt.includes("prevHandoffPath")) {
-    hits.push({ label: "prev-round handoff explicit path read (prevHandoffPath) missing", file: rtFile });
+    hits.push({
+      label: "prev-round handoff explicit path read (prevHandoffPath) missing",
+      file: rtFile,
+    });
   }
   return hits;
 }
@@ -645,7 +842,10 @@ const CATEGORY_IDS = Object.values(FAILURE_CATEGORIES).map((c) => c.id);
 const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 export function collectCountersContractHits({
-  constructFiles = ["packages/cdd-engine/src/artifacts/progress.ts", "packages/cdd-engine/src/rules/failure.ts"],
+  constructFiles = [
+    "packages/cdd-engine/src/artifacts/progress.ts",
+    "packages/cdd-engine/src/rules/failure.ts",
+  ],
   engineScope = CDD_ENGINE_BIN,
   taskSchema = "packages/cdd-engine/templates/schema/task-handoff-schema.json",
   docsSchema = "packages/cdd-engine/templates/schema/docs-handoff-schema.json",
@@ -671,18 +871,31 @@ export function collectCountersContractHits({
     `failure_category:\\s*["'](?:${CATEGORY_IDS.map(escRe).join("|")})["']|isIncompleteDispatch\\(["']|incrementFailureCounter\\([^,]+,\\s*["']`,
   );
   for (const { file, lineNo, text } of scanLines(engineScope, failureCategoryRe)) {
-    hits.push({ label: `category appearing as a string literal (should go through FAILURE_CATEGORIES): ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
+    hits.push({
+      label: `category appearing as a string literal (should go through FAILURE_CATEGORIES): ${text.trim().slice(0, 48)}`,
+      file: `${file}:${lineNo}`,
+    });
   }
-  for (const [name, schemaPath] of [["task", taskSchema], ["docs", docsSchema]]) {
+  for (const [name, schemaPath] of [
+    ["task", taskSchema],
+    ["docs", docsSchema],
+  ]) {
     const abs = path.isAbsolute(schemaPath) ? schemaPath : path.join(ROOT, schemaPath);
     const schema = JSON.parse(readFileSync(abs, "utf8"));
     const props = Object.keys(schema.properties ?? {});
     for (const fld of COUNTER_FIELDS) {
-      if (props.includes(fld)) hits.push({ label: `counter ${fld} leaked into the ${name} handoff schema (counters never enter the contract)`, file: schemaPath });
+      if (props.includes(fld))
+        hits.push({
+          label: `counter ${fld} leaked into the ${name} handoff schema (counters never enter the contract)`,
+          file: schemaPath,
+        });
     }
     const expected = name === "task" ? 16 : 14;
     if (props.length !== expected || !props.includes("failure_category")) {
-      hits.push({ label: `${name} handoff schema properties count ${props.length} ≠ ${expected} (nothing may grow/shrink beyond failure_category)`, file: schemaPath });
+      hits.push({
+        label: `${name} handoff schema properties count ${props.length} ≠ ${expected} (nothing may grow/shrink beyond failure_category)`,
+        file: schemaPath,
+      });
     }
   }
   return hits;
@@ -780,7 +993,10 @@ const INIT_REFERENCE_RE = /\/init/;
 export function collectVersionStampHits(targetsOverride) {
   const hits = [];
   for (const f of scanTargets(targetsOverride ?? SHIPPED_SURFACE_TARGETS, VERSION_STAMP_RE)) {
-    hits.push({ label: "shipped non-emit surface version literal (the osuperpowers-version stamp)", file: f });
+    hits.push({
+      label: "shipped non-emit surface version literal (the osuperpowers-version stamp)",
+      file: f,
+    });
   }
   return hits;
 }
@@ -829,7 +1045,11 @@ const HANDOFF_SCHEMA_RE = /(?<!-)handoff-schema/;
 export function collectHandoffSchemaHits(targetsOverride) {
   const hits = [];
   for (const f of scanTargets(targetsOverride ?? HANDOFF_SCHEMA_TARGETS, HANDOFF_SCHEMA_RE)) {
-    hits.push({ label: "handoff-schema regression (deleted file/name; should point at the engine canonical schema JSON)", file: f });
+    hits.push({
+      label:
+        "handoff-schema regression (deleted file/name; should point at the engine canonical schema JSON)",
+      file: f,
+    });
   }
   return hits;
 }
@@ -857,11 +1077,18 @@ export function collectMjsTerminalStateViolations(srcRootOverride) {
   const relBase = srcRootOverride ? srcRoot : ROOT;
   const out = [];
   for (const f of globSync("**/*.mjs", { cwd: srcRoot, absolute: true })) {
-    out.push({ label: "engine src .mjs regression (post-P6 the engine is all TS, the .mjs plane is zero)", file: path.relative(relBase, f) });
+    out.push({
+      label: "engine src .mjs regression (post-P6 the engine is all TS, the .mjs plane is zero)",
+      file: path.relative(relBase, f),
+    });
   }
   const testsDir = path.join(srcRoot, "..", "tests");
   if (existsSync(testsDir)) {
-    out.push({ label: "tests/ directory reappeared (Task 3 retired it; new tests land in src/<module>/__tests__)", file: "tests" });
+    out.push({
+      label:
+        "tests/ directory reappeared (Task 3 retired it; new tests land in src/<module>/__tests__)",
+      file: "tests",
+    });
   }
   return out;
 }
@@ -894,7 +1121,10 @@ export function collectMemoryGuardViolations() {
     const text = readFileSync(path.join(ROOT, rel), "utf8");
     for (const [invariant, needle] of MEMORY_GUARD_INVARIANTS) {
       if (!text.includes(needle)) {
-        out.push({ label: `${label} vitest.config missing a memory guard ${invariant}`, file: rel });
+        out.push({
+          label: `${label} vitest.config missing a memory guard ${invariant}`,
+          file: rel,
+        });
       }
     }
   }
@@ -907,7 +1137,9 @@ function checkMemoryGuard() {
     hits.length === 0,
     `MEMORY GUARD MISSING — vitest dual-config memory guard (P6 Task 3 ⑥):\n  ${hits.map((h) => `[${h.label}] ${h.file}`).join("\n  ")}`,
   );
-  console.log("OK — memory-guard dual config (maxWorkers=1 / fileParallelism=false / maxConcurrency=2)");
+  console.log(
+    "OK — memory-guard dual config (maxWorkers=1 / fileParallelism=false / maxConcurrency=2)",
+  );
 }
 
 // =====================================================================
@@ -973,8 +1205,14 @@ function commentUnits(text) {
       i++;
       seenCode = true;
       while (i < n) {
-        if (text[i] === "\\") { i += 2; continue; }
-        if (text[i] === q) { i++; break; }
+        if (text[i] === "\\") {
+          i += 2;
+          continue;
+        }
+        if (text[i] === q) {
+          i++;
+          break;
+        }
         if (text[i] === "\n") line++;
         i++;
       }
@@ -984,8 +1222,14 @@ function commentUnits(text) {
       i++;
       seenCode = true;
       while (i < n) {
-        if (text[i] === "\\") { i += 2; continue; }
-        if (text[i] === "`") { i++; break; }
+        if (text[i] === "\\") {
+          i += 2;
+          continue;
+        }
+        if (text[i] === "`") {
+          i++;
+          break;
+        }
         if (text[i] === "$" && text[i + 1] === "{") {
           let depth = 1;
           i += 2;
@@ -996,8 +1240,14 @@ function commentUnits(text) {
               const q = text[i];
               i++;
               while (i < n) {
-                if (text[i] === "\\") { i += 2; continue; }
-                if (text[i] === q) { i++; break; }
+                if (text[i] === "\\") {
+                  i += 2;
+                  continue;
+                }
+                if (text[i] === q) {
+                  i++;
+                  break;
+                }
                 if (text[i] === "\n") line++;
                 i++;
               }
@@ -1036,7 +1286,7 @@ function groupCommentUnits(units) {
       prev.inHeader === u.inHeader
     ) {
       prev.lines.push(u.startLine);
-      prev.content += "\n" + u.content;
+      prev.content += `\n${u.content}`;
       continue;
     }
     grouped.push({ ...u, lines: [u.startLine] });
@@ -1147,18 +1397,24 @@ const CDD_SKILL = "packages/osuperpowers/skills/cli-driven-development/SKILL.md"
 // violation shapes are backtick/whitespace-led path references (`vendors/mattpocock-skills/…` ·
 // `_docs/review.md`), which a `/`-prefixed regex would let through; \b (_ is a word char) still
 // refuses false hits on hyphenated derived words (e.g. svendors/).
-const UPSTREAM_READ_RE = /\bvendors\/|\bsuperpowers\/.*SKILL\.md|Read[- ]Upstream|\bread upstream\b/i;
+const UPSTREAM_READ_RE =
+  /\bvendors\/|\bsuperpowers\/.*SKILL\.md|Read[- ]Upstream|\bread upstream\b/i;
 const UPSTREAM_REF_SLASH_RE = /(?<!\/)\b(?:superpowers|mattpocock-skills|impeccable):[a-z0-9-]+\b/;
-const INTERNAL_DEP_RE = /\bCDD_[A-Z_]+\b|\bprogress\.json\b|task-\d+-(?:review|fix|implement)-\d*\.?json/;
+const INTERNAL_DEP_RE =
+  /\bCDD_[A-Z_]+\b|\bprogress\.json\b|task-\d+-(?:review|fix|implement)-\d*\.?json/;
 const FIX_INLINE_RE = /fix-inline/;
-const FAILURE_SEMANTICS_RE = /engineRecoveryCount|countsTowardConvergence|dispatch-timeout-cap|计入\s*Convergence/;
+const FAILURE_SEMANTICS_RE =
+  /engineRecoveryCount|countsTowardConvergence|dispatch-timeout-cap|计入\s*Convergence/;
 const DOCS_REF_RE = /\b_docs\/|rule-review-convergence/;
 
 /** Handoff status-enum whitelist (declaration point = task-handoff-schema.json's status.enum;
  *  defensive pass-through). */
 function handoffStatusWhitelist() {
   const schema = JSON.parse(
-    readFileSync(path.join(ROOT, "packages/cdd-engine/templates/schema/task-handoff-schema.json"), "utf8"),
+    readFileSync(
+      path.join(ROOT, "packages/cdd-engine/templates/schema/task-handoff-schema.json"),
+      "utf8",
+    ),
   );
   return new Set(schema.properties.status.enum ?? []);
 }
@@ -1206,7 +1462,10 @@ export function collectFailureModeCategoryHits(fileOverride = CDD_SKILL) {
   const hits = [];
   for (const cand of failureModeCandidates(text)) {
     if (!allowed.has(cand)) {
-      hits.push({ label: `failure-category name not in canonical (§2.8 row 12): ${cand}`, file: fileOverride });
+      hits.push({
+        label: `failure-category name not in canonical (§2.8 row 12): ${cand}`,
+        file: fileOverride,
+      });
     }
   }
   return hits;
@@ -1216,7 +1475,10 @@ export function collectFailureModeCategoryHits(fileOverride = CDD_SKILL) {
 export function collectFailureModeSemanticsHits(targetsOverride = OSKILLS) {
   const hits = [];
   for (const { file, lineNo, text } of scanLines(targetsOverride, FAILURE_SEMANTICS_RE)) {
-    hits.push({ label: `category semantics rephrase (skills may only cite category names): ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
+    hits.push({
+      label: `category semantics rephrase (skills may only cite category names): ${text.trim().slice(0, 48)}`,
+      file: `${file}:${lineNo}`,
+    });
   }
   return hits;
 }
@@ -1225,7 +1487,10 @@ export function collectFailureModeSemanticsHits(targetsOverride = OSKILLS) {
 export function collectUpstreamReadHits(targetsOverride = OSKILLS) {
   const hits = [];
   for (const f of scanTargets(targetsOverride, UPSTREAM_READ_RE)) {
-    hits.push({ label: "upstream-document read regression (vendors/ · upstream SKILL.md · Read-Upstream)", file: f });
+    hits.push({
+      label: "upstream-document read regression (vendors/ · upstream SKILL.md · Read-Upstream)",
+      file: f,
+    });
   }
   return hits;
 }
@@ -1235,7 +1500,10 @@ export function collectUpstreamReadHits(targetsOverride = OSKILLS) {
 export function collectUpstreamSlashFormHits(targetsOverride = OSKILLS) {
   const hits = [];
   for (const { file, lineNo, text } of scanLines(targetsOverride, UPSTREAM_REF_SLASH_RE)) {
-    hits.push({ label: `upstream reference not in the /plugin:skill slash form: ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
+    hits.push({
+      label: `upstream reference not in the /plugin:skill slash form: ${text.trim().slice(0, 48)}`,
+      file: `${file}:${lineNo}`,
+    });
   }
   return hits;
 }
@@ -1245,7 +1513,11 @@ export function collectUpstreamSlashFormHits(targetsOverride = OSKILLS) {
 export function collectInternalDependencyHits(filesOverride = ORCHESTRATOR_SKILLS) {
   const hits = [];
   for (const f of scanTargets(filesOverride, INTERNAL_DEP_RE)) {
-    hits.push({ label: "orchestrator skill engine-internal-structure dependency (CDD_* · progress.json · handoff filenames)", file: f });
+    hits.push({
+      label:
+        "orchestrator skill engine-internal-structure dependency (CDD_* · progress.json · handoff filenames)",
+      file: f,
+    });
   }
   return hits;
 }
@@ -1254,7 +1526,10 @@ export function collectInternalDependencyHits(filesOverride = ORCHESTRATOR_SKILL
 export function collectFixInlineHits(targetsOverride = OSKILLS) {
   const hits = [];
   for (const f of scanTargets(targetsOverride, FIX_INLINE_RE)) {
-    hits.push({ label: "fix-inline regression (fixes always take the cdd fix form, §2.7.3)", file: f });
+    hits.push({
+      label: "fix-inline regression (fixes always take the cdd fix form, §2.7.3)",
+      file: f,
+    });
   }
   return hits;
 }
@@ -1282,12 +1557,15 @@ export function collectReviewLoopFixCddHits(targetsOverride = OSKILLS) {
     for (const label of extractFixNodeLabels(src)) {
       const lines = src.split("\n");
       const head = `### \`${label}\``;
-      const start = lines.findIndex((l) => l === head);
+      const start = lines.indexOf(head);
       if (start === -1) {
-        hits.push({ label: `review-loop node ${label} missing its ### section (digraph declares it)`, file: path.relative(ROOT, f) });
+        hits.push({
+          label: `review-loop node ${label} missing its ### section (digraph declares it)`,
+          file: path.relative(ROOT, f),
+        });
         continue;
       }
-      let section = [];
+      const section = [];
       // Section boundary takes /^#{1,3} / (stop at ###): the following ### `node` sections inside the
       // same ## block are adjacent nodes, not this node's prose — if the cut were only on ##, a
       // preceding fix node missing cdd fix would be masked to green by the following (cdd-fix-
@@ -1297,7 +1575,10 @@ export function collectReviewLoopFixCddHits(targetsOverride = OSKILLS) {
         section.push(lines[i]);
       }
       if (!/cdd fix/.test(section.join("\n"))) {
-        hits.push({ label: `review-loop node ${label} lacks the cdd fix command form (§2.8 row 16)`, file: path.relative(ROOT, f) });
+        hits.push({
+          label: `review-loop node ${label} lacks the cdd fix command form (§2.8 row 16)`,
+          file: path.relative(ROOT, f),
+        });
       }
     }
   }
@@ -1309,7 +1590,11 @@ export function collectReviewLoopFixCddHits(targetsOverride = OSKILLS) {
 export function collectDocsRefHits(targetsOverride = OSKILLS) {
   const hits = [];
   for (const f of scanTargets(targetsOverride, DOCS_REF_RE)) {
-    hits.push({ label: "_docs/ reference regression (incl. the rule-review-convergence anchor/bare mention, §2.8 row 18)", file: f });
+    hits.push({
+      label:
+        "_docs/ reference regression (incl. the rule-review-convergence anchor/bare mention, §2.8 row 18)",
+      file: f,
+    });
   }
   return hits;
 }

@@ -9,9 +9,9 @@
  * comparison — any drift/omission throws and the process exits 1.
  */
 
-import { mkdtempSync, rmSync, realpathSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve, dirname } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { emitAll } from "./all.ts";
 import { compareTrees } from "./compare.ts";

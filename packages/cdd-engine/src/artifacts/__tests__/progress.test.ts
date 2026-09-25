@@ -1,23 +1,24 @@
 // engine/tests/progress.test.mjs — progress.json module unit tests.
 // Tests: read/write/create/migrate/migrateIfNeeded + deriveProgressMD + getRound/incrementRound.
-import { it, expect, describe } from 'vitest';
-import { mkdtempSync, writeFileSync, readFileSync, existsSync, mkdirSync } from "node:fs";
+
 import { execFileSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { describe, expect, it } from "vitest";
 
-import { gitInit, gitCommit } from "../../infra/__tests__/helpers.ts";
+import { gitCommit, gitInit } from "../../infra/__tests__/helpers.ts";
 import {
-  readProgressJSON,
-  writeProgressJSON,
   createEmptyProgress,
-  migrateFromProgressMD,
-  migrateIfNeeded,
   getRound,
   incrementRound,
-  taskScopeBase,
-  seedScopeBase,
+  migrateFromProgressMD,
+  migrateIfNeeded,
   moveTaskScopeBaseEarlier,
+  readProgressJSON,
+  seedScopeBase,
+  taskScopeBase,
+  writeProgressJSON,
 } from "../progress.ts";
 
 function tmpDir(prefix) {
@@ -39,8 +40,14 @@ it("progress schema 不含 lastDispatchHead/degradationLog（T8 死字段清除�
   // T6（AC14「存储层落库形」）：progress.json 键集 = createEmptyProgress 初值形 + migrateIfNeeded
   // 存量补齐形 二者共同承载 —— 六键与 canonical 计数器列逐字一致（contractViolationCount <
   // engineRecoveryCount < engineSelfWrittenCount < plan < tasks < timeoutCount）。
-  expect(Object.keys(createEmptyProgress("/p")).sort())
-    .toEqual(["contractViolationCount", "engineRecoveryCount", "engineSelfWrittenCount", "plan", "tasks", "timeoutCount"]);
+  expect(Object.keys(createEmptyProgress("/p")).sort()).toEqual([
+    "contractViolationCount",
+    "engineRecoveryCount",
+    "engineSelfWrittenCount",
+    "plan",
+    "tasks",
+    "timeoutCount",
+  ]);
 });
 
 it("createEmptyProgress: plan parameter is used", () => {
@@ -96,12 +103,16 @@ it("readProgressJSON: legacy row with status loads with zero error (migration-co
   // neither strips nor fails on it.
   writeFileSync(
     path.join(dir, "progress.json"),
-    JSON.stringify({
-      plan: "/p.md",
-      timeoutCount: 0,
-      engineRecoveryCount: 0,
-      tasks: [{ task: 1, status: "complete", rounds: { review: 1 } }],
-    }, null, 2),
+    JSON.stringify(
+      {
+        plan: "/p.md",
+        timeoutCount: 0,
+        engineRecoveryCount: 0,
+        tasks: [{ task: 1, status: "complete", rounds: { review: 1 } }],
+      },
+      null,
+      2,
+    ),
   );
   const p = readProgressJSON(dir);
   expect(p.plan).toBe("/p.md");
@@ -227,12 +238,19 @@ it("migrateIfNeeded: neither file exists → returns empty progress + creates js
 // both the in-memory and the on-disk shapes must be asserted.
 it("migrateIfNeeded: 存量四键旧形 → 补齐两键并回写（内存对象 + 磁盘双断言）", () => {
   const dir = tmpDir("prog-mig-backfill-");
-  writeFileSync(path.join(dir, "progress.json"), JSON.stringify({
-    plan: "/p.md",
-    timeoutCount: 3,
-    engineRecoveryCount: 2,
-    tasks: [{ task: 1, status: "complete" }],
-  }, null, 2));
+  writeFileSync(
+    path.join(dir, "progress.json"),
+    JSON.stringify(
+      {
+        plan: "/p.md",
+        timeoutCount: 3,
+        engineRecoveryCount: 2,
+        tasks: [{ task: 1, status: "complete" }],
+      },
+      null,
+      2,
+    ),
+  );
   const p = migrateIfNeeded(dir);
   // 内存形：两键已补齐且值为 0；存量值不受影响
   expect(p.contractViolationCount).toBe(0);
@@ -242,8 +260,14 @@ it("migrateIfNeeded: 存量四键旧形 → 补齐两键并回写（内存对象
   expect(p.tasks).toEqual([{ task: 1, status: "complete" }]);
   // 磁盘形：已被回写为六键
   const disk = JSON.parse(readFileSync(path.join(dir, "progress.json"), "utf8"));
-  expect(Object.keys(disk).sort())
-    .toEqual(["contractViolationCount", "engineRecoveryCount", "engineSelfWrittenCount", "plan", "tasks", "timeoutCount"]);
+  expect(Object.keys(disk).sort()).toEqual([
+    "contractViolationCount",
+    "engineRecoveryCount",
+    "engineSelfWrittenCount",
+    "plan",
+    "tasks",
+    "timeoutCount",
+  ]);
   expect(disk.contractViolationCount).toBe(0);
   expect(disk.engineSelfWrittenCount).toBe(0);
 });
@@ -404,7 +428,9 @@ describe("progress.ts scope 账本（T27/spec T7.6）", () => {
     gitInit(forge);
     writeFileSync(path.join(forge, "forged.txt"), "forged\n");
     gitCommit(forge, "forged work");
-    const forgeHead = execFileSync("git", ["-C", forge, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    const forgeHead = execFileSync("git", ["-C", forge, "rev-parse", "HEAD"], {
+      encoding: "utf8",
+    }).trim();
     expect(forgeHead).not.toBe(c1);
     const dir = tmpDir("prog-scope-move-forge-");
     seedScopeBase(dir, 2, c1);

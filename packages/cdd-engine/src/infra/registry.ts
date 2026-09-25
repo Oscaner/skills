@@ -2,7 +2,7 @@
 // (ship gate + op×type prefix/suffix injection + CLI PATH preflight). Same behavior contract as
 // the .mjs module (checked by registry.test.mjs); this is the rebuilt-layer dependency point.
 // The only env read here is the canonical whitelisted PATH key (channel audit ②) — see cliInPath.
-import { readFileSync, statSync, existsSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv, { type ValidateFunction } from "ajv";
@@ -15,7 +15,9 @@ import { resolvePackageRoot } from "./resource.ts";
  * published copy at <pkg>/dist/resources/harness-registry.json (build.config.ts copy entry — the
  * consumer install's face; the module-origin relative `new URL` would resolve into the bundle's
  * chunk dir, which no build materializes) first, the src tree as the dev fallback. */
-export function resolveRegistryPath(fromDir = path.dirname(fileURLToPath(import.meta.url))): string {
+export function resolveRegistryPath(
+  fromDir = path.dirname(fileURLToPath(import.meta.url)),
+): string {
   const root = resolvePackageRoot(fromDir);
   const published = path.join(root, "dist", "resources", "harness-registry.json");
   if (existsSync(published)) return published;
@@ -28,7 +30,10 @@ export const REG_PATH = resolveRegistryPath();
 // top-level catch unifies the family by kind; `instanceof CddBlockedError` keeps working for the
 // dispatch runners' local catch (task/branch surfaces degrade to their run-blocked exit).
 export class CddBlockedError extends CddExitError {
-  constructor(message: string, { exitCode = 1, kind = "blocked" }: { exitCode?: number; kind?: string } = {}) {
+  constructor(
+    message: string,
+    { exitCode = 1, kind = "blocked" }: { exitCode?: number; kind?: string } = {},
+  ) {
     super(message, { exitCode, kind });
     this.name = "CddBlockedError";
   }
@@ -76,7 +81,8 @@ export function checkHarness(reg: any, harness: string, opts: { dryRun?: boolean
   const { dryRun = false } = opts ?? {};
   const entry = reg?.[harness];
   if (!entry) throw new CddBlockedError(`unknown harness: ${harness}`, { exitCode: 1 });
-  if (entry.ship !== "full") throw new CddBlockedError(`harness not supported: ${harness}`, { exitCode: 1 });
+  if (entry.ship !== "full")
+    throw new CddBlockedError(`harness not supported: ${harness}`, { exitCode: 1 });
   const cli = entry.cli;
   if (!cli) throw new CddBlockedError(`unknown harness: ${harness}`, { exitCode: 1 });
   if (!dryRun && !cliInPath(cli)) {

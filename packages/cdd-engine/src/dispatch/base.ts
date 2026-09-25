@@ -17,22 +17,27 @@
 // its default gates at the fixed points commit:enter / commit:exit (hooks.ts fixed-point
 // enumeration) — subclass overrides of commitPreCheck / commitPostCheck replace the judgment at the
 // fixed point via poly-dispatch (this binding), registry untouched.
-import { createDispatchHooks, type DispatchHookContext, type DispatchHooks } from "./hooks.ts";
-import type { PhaseId } from "./phases.ts";
-import { entryGateCleanTree, validateCommitContract } from "../rules/commit.ts";
+
+import { resolveWorkspace } from "../artifacts/handoff/naming.ts";
 import { preserveAndAnnounceResidue } from "../artifacts/residue.ts";
-import { reconcileChangedSurface } from "../rules/write-boundary.ts";
-import { formatDocFailures } from "../rules/documents.ts";
+import { CddExitError } from "../infra/exit.ts";
 import {
+  type CloseoutResult,
   deriveCloseoutMismatches,
   formatCloseoutDebtFailures,
   formatCloseoutDebtHighlight,
-  type CloseoutResult,
 } from "../rules/closeout.ts";
-import { deriveTaskState, derivePlanVerdict, formatTaskStateLine, formatPlanVerdict } from "../rules/status.ts";
-import { taskNumbersFromPlan, effectiveGroups } from "../rules/documents.ts";
-import { resolveWorkspace } from "../artifacts/handoff/naming.ts";
-import { CddExitError } from "../infra/exit.ts";
+import { entryGateCleanTree, validateCommitContract } from "../rules/commit.ts";
+import { effectiveGroups, formatDocFailures, taskNumbersFromPlan } from "../rules/documents.ts";
+import {
+  derivePlanVerdict,
+  deriveTaskState,
+  formatPlanVerdict,
+  formatTaskStateLine,
+} from "../rules/status.ts";
+import { reconcileChangedSurface } from "../rules/write-boundary.ts";
+import { createDispatchHooks, type DispatchHookContext, type DispatchHooks } from "./hooks.ts";
+import type { PhaseId } from "./phases.ts";
 
 // Consumer re-export: the override hooks (commitPreCheck / dispatch / …) all take this context;
 // subclasses import the signature from the lifecycle's home module, not from the registry.
@@ -178,7 +183,9 @@ export abstract class DispatchLifecycle {
    * reviewed doc path. null → the lane waived the audit (the gate is a no-op — the base's
    * fail-open default). Resolution happens inside the hook (the target may derive from state the
    * resolveContext step just produced). */
-  protected docAuditTarget(): string | null { return null; }
+  protected docAuditTarget(): string | null {
+    return null;
+  }
 
   /** The dispatched round's plan path (the plan-bearing declaration, P2 T4): task/branch lanes
    * declare their dispatch plan; docs / lane-less rounds return null. The closeout terminal-debt
@@ -186,7 +193,9 @@ export abstract class DispatchLifecycle {
    * declaration source is absent (docs channel), so the terminal-debt member no-ops there
    * (absent-source semantic, NOT an exemption constant — a branch or task round is never exempt)
    * and the backfill edit path always passes the debt face. */
-  protected dispatchPlanPath(): string | null { return null; }
+  protected dispatchPlanPath(): string | null {
+    return null;
+  }
 
   /** Doc-Contract validation (pre-flight, after resolveContext + validateMode, before dispatch —
    * the Task 29 docContractValidate template step, now the BASE default hook shared by every
@@ -231,17 +240,22 @@ export abstract class DispatchLifecycle {
     const debtActive = this.dispatchPlanPath() !== null && result.terminalDebt.length > 0;
     if (dryRun) {
       if (result.structural.length > 0) {
-        process.stderr.write(`CDD_WARN: doc contract invalid (dry-run) — fix the docs below, then re-dispatch:\n${formatDocFailures(result.structural)}\n`);
+        process.stderr.write(
+          `CDD_WARN: doc contract invalid (dry-run) — fix the docs below, then re-dispatch:\n${formatDocFailures(result.structural)}\n`,
+        );
       }
       if (debtActive) {
-        process.stderr.write(`CDD_WARN: closeout terminal debt (dry-run) — backfill the parent overall first:\n${formatCloseoutDebtFailures(result.terminalDebt, result.overallPath ?? entry)}\n`);
+        process.stderr.write(
+          `CDD_WARN: closeout terminal debt (dry-run) — backfill the parent overall first:\n${formatCloseoutDebtFailures(result.terminalDebt, result.overallPath ?? entry)}\n`,
+        );
       }
       return;
     }
     if (result.structural.length === 0 && !debtActive) return;
     const guidance: string[] = [];
     if (result.structural.length > 0) guidance.push(formatDocFailures(result.structural));
-    if (debtActive) guidance.push(formatCloseoutDebtFailures(result.terminalDebt, result.overallPath ?? entry));
+    if (debtActive)
+      guidance.push(formatCloseoutDebtFailures(result.terminalDebt, result.overallPath ?? entry));
     this.docContractBlocked(guidance.join("\n"));
   }
 
@@ -250,7 +264,10 @@ export abstract class DispatchLifecycle {
    * terminal (#done-family / exitWithCode) override this ONE seam; the judgment above stays the
    * shared base default for all channels. */
   protected docContractBlocked(guidance: string): void {
-    throw new DispatchBlocked(`doc contract validation failed — fix the docs below:\n${guidance}`, "entry");
+    throw new DispatchBlocked(
+      `doc contract validation failed — fix the docs below:\n${guidance}`,
+      "entry",
+    );
   }
 
   /** Status reconcile / closeout highlight (post-flight, after the exit gate — the Task 29
@@ -279,7 +296,9 @@ export abstract class DispatchLifecycle {
       const verdict = derivePlanVerdict(plan, workspace, taskNumbersFromPlan, effectiveGroups);
       for (const group of groups) {
         for (const n of group) {
-          process.stderr.write(`CDD_INFO: ${formatTaskStateLine(n, deriveTaskState(workspace, n, groups))}\n`);
+          process.stderr.write(
+            `CDD_INFO: ${formatTaskStateLine(n, deriveTaskState(workspace, n, groups))}\n`,
+          );
         }
       }
       process.stderr.write(`CDD_INFO: ${formatPlanVerdict(verdict)}\n`);
@@ -322,7 +341,11 @@ export abstract class DispatchLifecycle {
   protected async settleResidue(_hookCtx: DispatchHookContext): Promise<void> {
     if (this.ctx.dryRun === true) return; // dry-run: zero archive side effects
     if (!this.ctx.handoffPath) return;
-    await preserveAndAnnounceResidue(this.ctx.repoRoot ?? "", this.ctx.handoffPath, this.ctx.repoRoot);
+    await preserveAndAnnounceResidue(
+      this.ctx.repoRoot ?? "",
+      this.ctx.handoffPath,
+      this.ctx.repoRoot,
+    );
   }
 
   /** Changed-surface reconciliation (writeBoundary, post-flight, before the exit gate): for

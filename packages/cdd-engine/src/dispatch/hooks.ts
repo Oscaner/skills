@@ -14,7 +14,12 @@
 import { createHooks, type Hookable } from "hookable";
 import { invariant } from "../infra/exit.ts";
 
-export const HOOK_POINTS = ["dispatch:before", "dispatch:after", "commit:enter", "commit:exit"] as const;
+export const HOOK_POINTS = [
+  "dispatch:before",
+  "dispatch:after",
+  "commit:enter",
+  "commit:exit",
+] as const;
 export type FixedHookPoint = (typeof HOOK_POINTS)[number];
 
 const FIXED_POINT_SET = new Set<string>(HOOK_POINTS);

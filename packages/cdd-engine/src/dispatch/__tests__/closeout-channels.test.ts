@@ -17,31 +17,34 @@
 //
 // The program fixtures + engine-workspace writers live in rules/__tests__/closeout-fixtures.ts
 // (shared with the closeout rule-unit suite — single source, no drift between the two faces).
-import { it, expect, describe } from "vitest";
+
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-
-import { DispatchLifecycle, type DispatchHookContext } from "../base.ts";
-import { TaskLifecycle } from "../task.ts";
-import { runDocsTask } from "../docs.ts";
-import { runBranchReview } from "../../cli/branch-review.ts";
-import { REG_PATH } from "../../infra/registry.ts";
-import { ExitRequested } from "../../infra/exit.ts";
-import { captureStderr, captureStdout } from "../../infra/__tests__/helpers.ts";
+import { describe, expect, it } from "vitest";
 import { resolveWorkspace } from "../../artifacts/handoff/naming.ts";
+import { runBranchReview } from "../../cli/branch-review.ts";
+import { captureStderr, captureStdout } from "../../infra/__tests__/helpers.ts";
+import { ExitRequested } from "../../infra/exit.ts";
+import { REG_PATH } from "../../infra/registry.ts";
 import {
-  OVERALL_CLEAN,
   OVERALL_BACKFILLED,
-  writeProgramDocs,
+  OVERALL_CLEAN,
+  type Program,
   writeCompletePlanWorkspace,
   writeInFlightPlanWorkspace,
-  type Program,
+  writeProgramDocs,
 } from "../../rules/__tests__/closeout-fixtures.ts";
+import { type DispatchHookContext, DispatchLifecycle } from "../base.ts";
+import { runDocsTask } from "../docs.ts";
+import { TaskLifecycle } from "../task.ts";
 
 function git(repo: string, ...args: string[]) {
-  return execFileSync("git", ["-C", repo, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  return execFileSync("git", ["-C", repo, ...args], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  }).trim();
 }
 
 /** Fresh git repo: the `.osuperpowers/cdd/` workspace is gitignored (the engine's progress/handoff
@@ -51,7 +54,17 @@ function setupRepo(): string {
   writeFileSync(path.join(dest, ".gitignore"), "cdd/\n.osuperpowers/\n*.head\n");
   git(dest, "init", "-q");
   git(dest, "add", "-A");
-  git(dest, "-c", "user.name=cc-test", "-c", "user.email=cc-test@example.com", "commit", "--allow-empty", "-qm", "fixture");
+  git(
+    dest,
+    "-c",
+    "user.name=cc-test",
+    "-c",
+    "user.email=cc-test@example.com",
+    "commit",
+    "--allow-empty",
+    "-qm",
+    "fixture",
+  );
   return dest;
 }
 
@@ -74,11 +87,28 @@ function registry(): string {
 function writeProgram(repo: string, overallBody: string = OVERALL_CLEAN): Program {
   const p = writeProgramDocs(repo, overallBody);
   git(repo, "add", "-A");
-  git(repo, "-c", "user.name=cc-test", "-c", "user.email=cc-test@example.com", "commit", "-qm", "docs");
+  git(
+    repo,
+    "-c",
+    "user.name=cc-test",
+    "-c",
+    "user.email=cc-test@example.com",
+    "commit",
+    "-qm",
+    "docs",
+  );
   return p;
 }
 
-async function runTaskReview(repo: string, planFile: string, dryRun = false): Promise<{ exitCode: number; diagnostic: { prefix: string; msg: string } | null; stderr: string }> {
+async function runTaskReview(
+  repo: string,
+  planFile: string,
+  dryRun = false,
+): Promise<{
+  exitCode: number;
+  diagnostic: { prefix: string; msg: string } | null;
+  stderr: string;
+}> {
   const cap = captureStderr();
   const lc = new TaskLifecycle({
     harness: "ctr",
@@ -94,14 +124,21 @@ async function runTaskReview(repo: string, planFile: string, dryRun = false): Pr
   return { exitCode: lc.result.exitCode, diagnostic: lc.diagnostic, stderr: cap.text };
 }
 
-async function runBranch(dir: string, planPath: string): Promise<{ exitCode: number; stderr: string }> {
+async function runBranch(
+  dir: string,
+  planPath: string,
+): Promise<{ exitCode: number; stderr: string }> {
   const cap = captureStderr();
   let exitCode: number | null = null;
   try {
     await runBranchReview({
-      harness: "ctr", type: "branch", plan: planPath,
-      base: "a".repeat(40), head: "b".repeat(40),
-      root: dir, registryPath: registry(),
+      harness: "ctr",
+      type: "branch",
+      plan: planPath,
+      base: "a".repeat(40),
+      head: "b".repeat(40),
+      root: dir,
+      registryPath: registry(),
     });
   } catch (e) {
     if (e instanceof ExitRequested) exitCode = e.code;
@@ -112,12 +149,24 @@ async function runBranch(dir: string, planPath: string): Promise<{ exitCode: num
   return { exitCode: exitCode ?? 0, stderr: cap.text };
 }
 
-async function runDocs(dir: string, doc: string, handoffPath: string, { dryRun = false } = {}): Promise<number> {
+async function runDocs(
+  dir: string,
+  doc: string,
+  handoffPath: string,
+  { dryRun = false } = {},
+): Promise<number> {
   let exitCode: number | null = null;
   try {
     await runDocsTask({
-      harness: "ctr", mode: "review", template: "review", type: "spec", doc,
-      handoffPath, repoRoot: dir, registryPath: registry(), dryRun,
+      harness: "ctr",
+      mode: "review",
+      template: "review",
+      type: "spec",
+      doc,
+      handoffPath,
+      repoRoot: dir,
+      registryPath: registry(),
+      dryRun,
     });
   } catch (e) {
     if (e instanceof ExitRequested) exitCode = e.code;
@@ -167,8 +216,12 @@ describe("pre-flight terminal-debt gate — plan-bearing lanes BLOCK (v1.12: 回
     writeCompletePlanWorkspace(repo, p.plan1);
     const cap = captureStderr();
     try {
-      const exitCode = await runDocs(repo, p.plan1,
-        path.join(repo, ".osuperpowers", "cdd", "demo-p1", "plan-review-1.json"), { dryRun: true });
+      const exitCode = await runDocs(
+        repo,
+        p.plan1,
+        path.join(repo, ".osuperpowers", "cdd", "demo-p1", "plan-review-1.json"),
+        { dryRun: true },
+      );
       // The docs round is never gated on the debt — a dry-run over a complete-unbackfilled plan
       // passes the debt face (source-absent no-op) and completes with exit 0.
       expect(exitCode).toBe(0);
@@ -228,16 +281,29 @@ describe("post-flight statusValidate — base default + the CDD_CLOSEOUT highlig
     // lands the final APPROVED review mid-round (the round that made the plan complete); the
     // base-default statusValidate then sees done + debt → the backfill highlight on stdout.
     class CompletingStub extends DispatchLifecycle {
-      protected override dispatchPlanPath(): string | null { return p.plan1; }
+      protected override dispatchPlanPath(): string | null {
+        return p.plan1;
+      }
       protected async dispatch(_hookCtx: DispatchHookContext): Promise<void> {
         const ws = resolveWorkspace(p.plan1, repo);
         mkdirSync(ws, { recursive: true });
-        writeFileSync(path.join(ws, "tasks-1-review-1.json"), JSON.stringify({
-          tasks: [1], phase: "review", status: "APPROVED", findings: [], artifacts: {},
-        }));
-        writeFileSync(path.join(ws, "progress.json"), JSON.stringify({
-          plan: p.plan1, tasks: [{ task: 1, rounds: { review: 1 } }],
-        }));
+        writeFileSync(
+          path.join(ws, "tasks-1-review-1.json"),
+          JSON.stringify({
+            tasks: [1],
+            phase: "review",
+            status: "APPROVED",
+            findings: [],
+            artifacts: {},
+          }),
+        );
+        writeFileSync(
+          path.join(ws, "progress.json"),
+          JSON.stringify({
+            plan: p.plan1,
+            tasks: [{ task: 1, rounds: { review: 1 } }],
+          }),
+        );
       }
     }
     const outCap = captureStdout();
@@ -251,7 +317,9 @@ describe("post-flight statusValidate — base default + the CDD_CLOSEOUT highlig
     }
     expect(outCap.text).toContain("CDD_CLOSEOUT:");
     expect(outCap.text).toContain("backfill-overall");
-    expect(outCap.text).toContain(path.join(repo, "docs", "osuperpowers", "specs", "2026-01-01-demo-overall.md"));
+    expect(outCap.text).toContain(
+      path.join(repo, "docs", "osuperpowers", "specs", "2026-01-01-demo-overall.md"),
+    );
     // base-default CDD_INFO six-state + verdict (all lanes share one implementation)
     expect(cap.text).toContain("CDD_INFO: task 1 state: complete");
     expect(cap.text).toContain("CDD_INFO: plan done (1/1 complete)");

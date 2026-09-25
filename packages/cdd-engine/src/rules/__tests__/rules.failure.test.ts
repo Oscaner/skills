@@ -3,24 +3,24 @@
 // every expected value below is derived from the canonical JSON (never recomputed the way the port
 // computes it), so drift between the .ts port and the canonical fails loudly (AC14 "承重，非装饰").
 // Same seam as failure-categories.test.mjs, which keeps guarding the legacy .mjs copy.
-import { describe, it, expect } from "vitest";
+
 import { mkdirSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-
+import { describe, expect, it } from "vitest";
+import { writeHandoff } from "../../artifacts/handoff/write.ts";
 import {
-  FAILURE_CATEGORIES,
   counterFor,
-  terminalFor,
-  isIncompleteDispatch,
   counters,
-  incrementFailureCounter,
   exhaustedBlocker,
+  FAILURE_CATEGORIES,
+  incrementFailureCounter,
+  isIncompleteDispatch,
   maybeExhaust,
+  terminalFor,
   timeoutBlocker,
 } from "../failure.ts";
-import { writeHandoff } from "../../artifacts/handoff/write.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CAT: { categories: Array<Record<string, unknown>> } = JSON.parse(
@@ -57,7 +57,10 @@ describe("rules/failure.ts — canonical 承重读取（AC14）", () => {
 
   it("counters() 与 canonical 表内序一致（四字段名 + returnMarker，零手写字面量）", () => {
     expect(counters()).toEqual(
-      CATS.filter((c) => c.counter).map((c) => ({ field: String(c.counter), label: String(c.returnMarker) })),
+      CATS.filter((c) => c.counter).map((c) => ({
+        field: String(c.counter),
+        label: String(c.returnMarker),
+      })),
     );
   });
 });
@@ -127,15 +130,29 @@ describe("rules/failure.ts — timeoutBlocker (T26 unification; cause-keyed word
   });
 
   it("stall variant carries the resume-or-discard contract (T26 §⑤/§T7.5 reword)", () => {
-    const b = timeoutBlocker({ cause: "stalled", tasks: "7", idleWindowMs: 900_000, op: "implement", residue: "abc123" });
+    const b = timeoutBlocker({
+      cause: "stalled",
+      tasks: "7",
+      idleWindowMs: 900_000,
+      op: "implement",
+      residue: "abc123",
+    });
     expect(b).toMatch(/stalled/);
     expect(b).toMatch(/900000ms/);
     // brief's recovery-path contract: resume-or-discard — cdd implement --tasks re-dispatch
     // auto-resumes (recovery.residue_ref), or git stash drop abandons the salvage
-    expect(b).toContain("resume or discard: cdd implement --tasks 7 re-dispatch auto-resumes (recovery.residue_ref=abc123), or git stash drop to abandon");
+    expect(b).toContain(
+      "resume or discard: cdd implement --tasks 7 re-dispatch auto-resumes (recovery.residue_ref=abc123), or git stash drop to abandon",
+    );
     // group surface: a multi-task group's advice is whole-group — cdd implement --tasks 1-2, and
     // the suggestion's tasks value is exactly the group key (no per-task subset dispatch)
-    const g = timeoutBlocker({ cause: "stalled", tasks: "1-2", idleWindowMs: 900_000, op: "implement", residue: "abc123" });
+    const g = timeoutBlocker({
+      cause: "stalled",
+      tasks: "1-2",
+      idleWindowMs: 900_000,
+      op: "implement",
+      residue: "abc123",
+    });
     expect(g).toContain("cdd implement --tasks 1-2 re-dispatch auto-resumes");
     const gAdvice = /cdd implement --tasks ([^ ]+) re-dispatch/.exec(g)?.[1];
     expect(gAdvice).toBe("1-2");
@@ -145,8 +162,15 @@ describe("rules/failure.ts — timeoutBlocker (T26 unification; cause-keyed word
   });
 
   it("stall without a salvage record still carries the resume-or-discard contract (no ref to prepend)", () => {
-    const b = timeoutBlocker({ cause: "stalled", tasks: "7", idleWindowMs: 900_000, op: "implement" });
-    expect(b).toContain("resume or discard: cdd implement --tasks 7 re-dispatch auto-resumes (recovery.residue_ref), or git stash drop to abandon");
+    const b = timeoutBlocker({
+      cause: "stalled",
+      tasks: "7",
+      idleWindowMs: 900_000,
+      op: "implement",
+    });
+    expect(b).toContain(
+      "resume or discard: cdd implement --tasks 7 re-dispatch auto-resumes (recovery.residue_ref), or git stash drop to abandon",
+    );
   });
 
   it("non-implement lanes (review/fix) carry the stash-workflow contract (T25 — WIP preserved for retrieval, no false auto-resume promise)", () => {

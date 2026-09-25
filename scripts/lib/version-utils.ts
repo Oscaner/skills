@@ -1,4 +1,4 @@
-import { parse as semverParse, inc as semverInc } from "semver";
+import { inc as semverInc, parse as semverParse } from "semver";
 
 const BUMP_LEVELS = new Set(["major", "minor", "patch"]);
 
@@ -40,7 +40,5 @@ export function highestBumpLevel(types) {
  * @param {string} pluginName
  */
 export function changesetsForPlugin(changesets, pluginName) {
-  return changesets.filter((cs) =>
-    cs.releases?.some((r) => r.name === pluginName),
-  );
+  return changesets.filter((cs) => cs.releases?.some((r) => r.name === pluginName));
 }

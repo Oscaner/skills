@@ -13,17 +13,17 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { resolvePackageRoot } from "../infra/resource.ts";
 // handlebars is CommonJS (no export map): Node ESM can only see `default` / `module.exports`,
 // so the default-import + destructure form is the interop-safe spelling used everywhere (vitest
 // and the plain-node validate chains both resolve hb.compile to the compile function).
 import hb from "handlebars";
+import { resolvePackageRoot } from "../infra/resource.ts";
 
 const compile = hb.compile;
 
-import { loadHandoffSchema } from "../rules/schema.ts";
 import { familyConfig } from "../artifacts/handoff/naming.ts";
 import { invariant } from "../infra/exit.ts";
+import { loadHandoffSchema } from "../rules/schema.ts";
 
 // PKG_ROOT = <pkg>/templates — the render data plane's resource dir (contract + schemas alone;
 // re-org Step 5 semantics converged here; consumers use the constant directly).
@@ -33,7 +33,10 @@ import { invariant } from "../infra/exit.ts";
 // <pkg>/dist/ + `../..` = the parent of <pkg>, not <pkg>. The marker walk resolves <pkg>/templates
 // in every file state (dev stub src tree, dist bundle, consumer install).
 
-export const PKG_ROOT = path.join(resolvePackageRoot(path.dirname(fileURLToPath(import.meta.url))), "templates");
+export const PKG_ROOT = path.join(
+  resolvePackageRoot(path.dirname(fileURLToPath(import.meta.url))),
+  "templates",
+);
 
 // ---- template-contract (the rendering data plane): skeleton + zone sections + zone-tagged
 // token registry + clauses container (T12) + reviews content config. templates.ts is this
@@ -45,7 +48,7 @@ export interface TemplateZoneToken {
 }
 
 export interface TemplateContract {
-  "$version": number;
+  $version: number;
   skeleton: {
     sections: string[];
     segments: Record<string, string[]>;
@@ -133,7 +136,10 @@ export function loadTemplateContract(): TemplateContract {
 }
 
 export const LINE_BUDGETS = Object.freeze({
-  sdd: 210, ctrl: 50, tier1: 260, tier2: 331,
+  sdd: 210,
+  ctrl: 50,
+  tier1: 260,
+  tier2: 331,
 });
 
 export function lineBudget(tier: string): number {
@@ -143,19 +149,21 @@ export function lineBudget(tier: string): number {
 
 // pluginRoot() = the template resource dir (PKG_ROOT) — run-task step 2.5 existence check targets
 // pluginRootFn() directly (the dir holds the contract + schemas).
-export function pluginRoot(): string { return PKG_ROOT; }
+export function pluginRoot(): string {
+  return PKG_ROOT;
+}
 
 // ---- Handoff contract injection (Task 18: schema verbatim; zero render) ----
 // Contract uniqueness (schema) → injection uniqueness (its string form). The schema is the only
 // per-family injection the shell carries: shellFor(family) = shared frame + this block.
 export function renderHandoffSchemaJson(schema: unknown): string {
-  return '```json\n' + JSON.stringify(schema) + '\n```';
+  return `\`\`\`json\n${JSON.stringify(schema)}\n\`\`\``;
 }
 
 // ---- zone builders (runtime assembly; all memoized / frozen) ----
 
 function joinLines(lines: string[]): string {
-  return lines.join("\n") + "\n";
+  return `${lines.join("\n")}\n`;
 }
 
 /** Registry token names in registry order. */
@@ -164,7 +172,10 @@ export function tokenNames(contract: TemplateContract = loadTemplateContract()):
 }
 
 /** zone → its tokens (registry ownership: a slot renders only in its own zone). */
-export function tokensInZone(zone: string, contract: TemplateContract = loadTemplateContract()): string[] {
+export function tokensInZone(
+  zone: string,
+  contract: TemplateContract = loadTemplateContract(),
+): string[] {
   return contract.tokens.filter((t) => t.zone === zone).map((t) => t.name);
 }
 
@@ -191,7 +202,7 @@ function shellFor(family: string): string {
   let shell = CACHE.shells.get(family);
   if (shell === undefined) {
     const block = renderHandoffSchemaJson(loadHandoffSchema(family));
-    shell = shellFrame() + "\n" + block;
+    shell = `${shellFrame()}\n${block}`;
     CACHE.shells.set(family, shell);
   }
   return shell;
@@ -313,7 +324,10 @@ export function reviewArtifactConfig(type: string): { schema: string; returnForm
 // Round-context `### HANDOFF_WRITE_GATE` slot — the shell prose is byte constant. Illicit
 // returnFormat → RETURN_STDOUT_BLOCK default (unknown families must not crash rendering).
 export function reviewHardGate(returnFormat: string, handoffPath?: unknown): string {
-  const before = returnFormat === "RETURN_JSON" ? "BEFORE outputting the JSON return." : "BEFORE outputting the RETURN_STDOUT_BLOCK.";
+  const before =
+    returnFormat === "RETURN_JSON"
+      ? "BEFORE outputting the JSON return."
+      : "BEFORE outputting the RETURN_STDOUT_BLOCK.";
   const target = handoffPath ?? "{{HANDOFF_TARGET}}";
   return `> ⚠️ HARD GATE — Write \`${target}\` ${before}\n> Returning without a written handoff file = BLOCKED (runner exit 1).`;
 }
@@ -351,7 +365,10 @@ export function scanTemplateTokens(src: string): string[] {
 }
 
 /** Assert the text uses only registry tokens (unknown/legacy name → throw). */
-export function validateTemplateTokens(src: string, contract: TemplateContract = loadTemplateContract()): void {
+export function validateTemplateTokens(
+  src: string,
+  contract: TemplateContract = loadTemplateContract(),
+): void {
   const names = new Set(tokenNames(contract));
   for (const tok of scanTemplateTokens(src)) {
     if (!names.has(tok)) invariant(false, `template token not in registry: ${tok}`);
@@ -369,14 +386,19 @@ export function validateTemplateTokens(src: string, contract: TemplateContract =
  *   tokens surface as literal labels only (never moustaches), and any `{{> clause}}` reference
  *   resolves to a registered clause (T12 assembler);
  * - skeleton{ sections, slots-level segments, order } matches the assembled plane. */
-export function validateTemplateStructure(contract: TemplateContract = loadTemplateContract()): void {
+export function validateTemplateStructure(
+  contract: TemplateContract = loadTemplateContract(),
+): void {
   const shellSrc = joinLines(contract.sections.shell);
   // Zero shell injection (T12 revision): the shell embeds zero per-dispatch *slots* — token moustaches
   // ({{TOKEN}} / {{{TOKEN}}}) are banned; `{{> clause}}` partial refs (single-source discipline
   // markers, resolved once at load) are allowed. The guard keys on token-slot shapes, not `{{`
   // presence; real per-dispatch values ride ## Round context slots.
   if (/\{\{(?!>\s*)/.test(shellSrc)) {
-    invariant(false, "shell zone must be slot-free (zero token moustache) — embed per-dispatch values as ## Round context slots; only {{> clause}} refs are allowed");
+    invariant(
+      false,
+      "shell zone must be slot-free (zero token moustache) — embed per-dispatch values as ## Round context slots; only {{> clause}} refs are allowed",
+    );
   }
   const roundSrc = joinLines(contract.sections["round-context"]);
   if (!roundSrc.startsWith("## Round context")) {
@@ -384,36 +406,55 @@ export function validateTemplateStructure(contract: TemplateContract = loadTempl
   }
   for (const [format, lines] of Object.entries(contract.sections.return)) {
     const src = joinLines(lines);
-    if (!src.startsWith("## Return")) invariant(false, `return constant ${format} must open with ## Return`);
-    if (src.includes("{{")) invariant(false, `return constant ${format} must be a literal constant (zero moustache)`);
+    if (!src.startsWith("## Return"))
+      invariant(false, `return constant ${format} must open with ## Return`);
+    if (src.includes("{{"))
+      invariant(false, `return constant ${format} must be a literal constant (zero moustache)`);
   }
   // A slot renders only in its own zone: each registry token renders only inside its own zone's source.
-  if (JSON.stringify(contract.skeleton.sections) !== JSON.stringify(["Instructions", "Handoff", "Return", "Round context"])) {
+  if (
+    JSON.stringify(contract.skeleton.sections) !==
+    JSON.stringify(["Instructions", "Handoff", "Return", "Round context"])
+  ) {
     invariant(false, `skeleton.sections mismatch: got [${contract.skeleton.sections.join(", ")}]`);
   }
-  if (JSON.stringify(contract.skeleton.segments.shell) !== JSON.stringify(["Instructions", "Handoff"])) {
+  if (
+    JSON.stringify(contract.skeleton.segments.shell) !== JSON.stringify(["Instructions", "Handoff"])
+  ) {
     invariant(false, "skeleton.segments.shell must be slot-level [Instructions, Handoff]");
   }
   if (JSON.stringify(contract.skeleton.segments.return) !== JSON.stringify(["Return"])) {
     invariant(false, "skeleton.segments.return must be slot-level [Return]");
   }
-  if (JSON.stringify(contract.skeleton.segments["round-context"]) !== JSON.stringify(["Round context"])) {
+  if (
+    JSON.stringify(contract.skeleton.segments["round-context"]) !==
+    JSON.stringify(["Round context"])
+  ) {
     invariant(false, 'skeleton.segments["round-context"] must be slot-level [Round context]');
   }
-  if (JSON.stringify(contract.skeleton.order) !== JSON.stringify(["shell", "return", "round-context"])) {
-    invariant(false, "skeleton.order must be [shell, return, round-context] (segment order is always shell → Return → Round context)");
+  if (
+    JSON.stringify(contract.skeleton.order) !== JSON.stringify(["shell", "return", "round-context"])
+  ) {
+    invariant(
+      false,
+      "skeleton.order must be [shell, return, round-context] (segment order is always shell → Return → Round context)",
+    );
   }
   const zoneSource: Record<string, string> = {
     return: Object.values(contract.sections.return).map(joinLines).join("\n"),
     "round-context": roundSrc,
   };
   for (const tok of contract.tokens) {
-    if (tok.zone === "shell") invariant(false, `token ${tok.name}: shell is slot-free (shell zero-slot rule)`);
+    if (tok.zone === "shell")
+      invariant(false, `token ${tok.name}: shell is slot-free (shell zero-slot rule)`);
     const src = zoneSource[tok.zone];
     if (!src) invariant(false, `unknown zone ${tok.zone} for token ${tok.name}`);
     if (tok.zone === "return") {
       if (src.includes(`{{${tok.name}}}`)) {
-        invariant(false, `return token {{${tok.name}}} must surface as a literal label, not a moustache`);
+        invariant(
+          false,
+          `return token {{${tok.name}}} must surface as a literal label, not a moustache`,
+        );
       }
     } else if (!src.includes(`{{${tok.name}}}`)) {
       invariant(false, `token {{${tok.name}}} must render inside its ${tok.zone} zone source`);
@@ -422,15 +463,24 @@ export function validateTemplateStructure(contract: TemplateContract = loadTempl
   // A slot renders only in its own zone (reverse direction): every moustache actually rendered in
   // the round-context zone must be a round-zone token (shell slot-free + single dynamic zone: a
   // round slot may neither be absent from the registry nor be another zone token's injection channel).
-  const roundZoneNames = new Set(contract.tokens.filter((t) => t.zone === "round-context").map((t) => t.name));
+  const roundZoneNames = new Set(
+    contract.tokens.filter((t) => t.zone === "round-context").map((t) => t.name),
+  );
   for (const tok of scanTemplateTokens(roundSrc)) {
     if (!roundZoneNames.has(tok)) {
-      invariant(false, `slot {{${tok}}} must be a round-context token (a slot renders only in its own zone)`);
+      invariant(
+        false,
+        `slot {{${tok}}} must be a round-context token (a slot renders only in its own zone)`,
+      );
     }
   }
   // clauses assembler surface: any `{{> name}}` in a zone must resolve to a registered clause
   // (T12: clause ids carry the `cl:` namespace — `:` joins the partial-name alphabet).
-  for (const src of [shellSrc, roundSrc, ...Object.values(contract.sections.return).map(joinLines)]) {
+  for (const src of [
+    shellSrc,
+    roundSrc,
+    ...Object.values(contract.sections.return).map(joinLines),
+  ]) {
     for (const name of [...src.matchAll(/\{\{>\s*([\w:-]+)\}\}/g)].map((m) => m[1])) {
       if (!(name in contract.clauses)) invariant(false, `unknown clause partial: {{> ${name}}}`);
     }
@@ -464,7 +514,7 @@ export function assembleClauses(contract: TemplateContract = loadTemplateContrac
 
 // ---- dispatch prompt composition (renderModePrompt / renderTemplate: the sole renderer) ----
 
-function buildReviewRound(name: string, params: Record<string, unknown>): Record<string, unknown> {
+function buildReviewRound(_name: string, params: Record<string, unknown>): Record<string, unknown> {
   const cfg = reviewTypeConfig("task");
   const art = reviewArtifactConfig("task");
   const workspace = params.TASK_WORKSPACE ? String(params.TASK_WORKSPACE) : "";
@@ -502,7 +552,10 @@ export function renderModePrompt(mode: string, params: Record<string, unknown> =
   return renderTemplate(mode, {
     ...params,
     MODE: mode,
-    HANDOFF_WRITE_GATE: mode === "fix" ? reviewHardGate("RETURN_STDOUT_BLOCK", params.HANDOFF_TARGET) : implementHardGate(params.HANDOFF_TARGET, params.TASK_NUMBER),
+    HANDOFF_WRITE_GATE:
+      mode === "fix"
+        ? reviewHardGate("RETURN_STDOUT_BLOCK", params.HANDOFF_TARGET)
+        : implementHardGate(params.HANDOFF_TARGET, params.TASK_NUMBER),
     RETURN_FORMAT: defaultReturnFormat(),
   });
 }
@@ -511,10 +564,18 @@ export function renderModePrompt(mode: string, params: Record<string, unknown> =
  * ## Round context (the only dynamic zone). family routes by RETURN_FORMAT (docs = RETURN_JSON/DOCS_FIX,
  * else task); missing round slots pre-fill "" (mode-union template, no strict missing-param
  * throw); the tail memoizes by canonical params (identical re-dispatch = zero re-render). */
-export function renderTemplate(name: string, params: Record<string, unknown>, programName?: string): string {
-  const returnFormat = typeof params.RETURN_FORMAT === "string" ? params.RETURN_FORMAT : defaultReturnFormat();
+export function renderTemplate(
+  name: string,
+  params: Record<string, unknown>,
+  programName?: string,
+): string {
+  const returnFormat =
+    typeof params.RETURN_FORMAT === "string" ? params.RETURN_FORMAT : defaultReturnFormat();
   const family = familyFor(returnFormat);
   return (
-    shellFor(family) + "\n" + returnFor(returnFormat) + renderRoundContext(name, params, programName)
+    shellFor(family) +
+    "\n" +
+    returnFor(returnFormat) +
+    renderRoundContext(name, params, programName)
   );
 }

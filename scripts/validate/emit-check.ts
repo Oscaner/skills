@@ -1,13 +1,14 @@
 #!/usr/bin/env node
+
 // scripts/validate/emit-check.ts — block 0: unified emit freshness (emit-check).
 // Subprocess step: runs the canonical `node scripts/run.ts emit-check` (writes
 // nothing; exits 1 on drift between committed products and a fresh generation).
 // The subprocess target is run.ts, not this module, so standalone execution
 // (`node scripts/validate/emit-check.ts`) cannot recurse.
 
-import { execaSync } from "execa";
-import { resolve, dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { execaSync } from "execa";
 
 import { runIfMain } from "./runner.ts";
 

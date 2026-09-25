@@ -9,7 +9,7 @@
  * per-harness copies of the skill bodies.
  */
 
-import { readdirSync, existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 export const generatedBanner = "scripts/run.ts emit — do not edit";

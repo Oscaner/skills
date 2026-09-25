@@ -2,14 +2,23 @@
 // Spec §2.13 git row: status/add/commit/head/log replace the hand-written
 // hand-written git subprocess helpers in rules/commit.mjs. Fail-open contracts mirror
 // the old helpers (non-repo / git error → null / false).
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-
-import { gitInit, gitCommit } from "./helpers.ts";
-import { gitTopLevel, gitRevParseHead, gitStatusPorcelain, gitAdd, gitCommit as sgCommit, gitLog, gitCatFileCommitExists, gitMergeBaseIsAncestor } from "../git.ts";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  gitAdd,
+  gitCatFileCommitExists,
+  gitLog,
+  gitMergeBaseIsAncestor,
+  gitRevParseHead,
+  gitStatusPorcelain,
+  gitTopLevel,
+  gitCommit as sgCommit,
+} from "../git.ts";
+import { gitCommit, gitInit } from "./helpers.ts";
 
 let repo: string;
 
@@ -41,7 +50,10 @@ describe("infra/git.ts — gitTopLevel", () => {
 describe("infra/git.ts — gitRevParseHead", () => {
   it("temp repo → 40-hex sha matching git rev-parse HEAD", async () => {
     const head = await gitRevParseHead(repo);
-    const actual = execFileSync("git", ["rev-parse", "HEAD"], { cwd: repo, encoding: "utf8" }).trim();
+    const actual = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: repo,
+      encoding: "utf8",
+    }).trim();
     expect(head).toBe(actual);
     expect(String(head)).toMatch(/^[0-9a-f]{40}$/);
   });
@@ -136,7 +148,9 @@ describe("infra/git.ts — gitCatFileCommitExists", () => {
   });
 
   it("all-zero phantom sha → false", async () => {
-    expect(await gitCatFileCommitExists(repo, "0000000000000000000000000000000000000000")).toBe(false);
+    expect(await gitCatFileCommitExists(repo, "0000000000000000000000000000000000000000")).toBe(
+      false,
+    );
   });
 
   it("empty string → false", async () => {
@@ -185,7 +199,13 @@ describe("infra/git.ts — gitMergeBaseIsAncestor (spec T7.6 resume-declared-bas
   });
 
   it("all-zero phantom sha (40-hex but no real object) → false (fail-open)", async () => {
-    expect(await gitMergeBaseIsAncestor(repo, "0000000000000000000000000000000000000000", await gitRevParseHead(repo) ?? "")).toBe(false);
+    expect(
+      await gitMergeBaseIsAncestor(
+        repo,
+        "0000000000000000000000000000000000000000",
+        (await gitRevParseHead(repo)) ?? "",
+      ),
+    ).toBe(false);
   });
 
   it("non-git cwd → false (fail-open: an unguessable ancestry must never pass the adoption lane)", async () => {

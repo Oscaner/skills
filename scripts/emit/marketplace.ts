@@ -6,16 +6,16 @@
  * into the drift-check product roots (`emit/compare.ts` owns the base set).
  */
 
-import { resolve, dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  resolveVersion,
-  claudeMarketplaceEntry,
-  cursorWrapperManifest,
   assertCursorPathsExist,
   claudeMarketplaceDocument,
+  claudeMarketplaceEntry,
   cursorMarketplaceDocument,
+  cursorWrapperManifest,
   isPluginRoot,
+  resolveVersion,
 } from "../lib/marketplace-utils.ts";
 import { generatedBanner } from "./manifests.ts";
 import { writeJsonDoc } from "./orchestrate.ts";
@@ -40,9 +40,7 @@ export function emitMarketplaceDocs(outRoot, source, generatedPaths) {
     cursorMarketplacePlugins.push({
       _generated: generatedBanner,
       name: plugin.name,
-      source: isPluginRoot(plugin)
-        ? `./${plugin.contentRoot}`
-        : `cursor-plugins/${plugin.name}`,
+      source: isPluginRoot(plugin) ? `./${plugin.contentRoot}` : `cursor-plugins/${plugin.name}`,
       description: plugin.description,
     });
 

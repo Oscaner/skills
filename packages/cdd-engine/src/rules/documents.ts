@@ -37,7 +37,7 @@
 // docs, writes nothing (zero engine doc writes). taskNumbersFromPlan / extractPlanConstraints are
 // canonical HERE (Task 3 ③ — the base default hook needs them without a dispatch-layer import); the
 // dispatch layer re-exports the same identities for its workspace consumers.
-import { readFileSync, statSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { DOC_TOKENS, escapeRegExp } from "../documents/tokens.ts";
 
@@ -67,7 +67,7 @@ export interface DocValidationOptions {
 // backticks (markdown code span) so the guidance line reads as a doc reference. LINK_RE is a
 // generic markdown parse atom, not a doc-structure token — it stays engine-local.
 const SPEC_FIELD = DOC_TOKENS.specField;
-const PARENT_FIELD = DOC_TOKENS.parentField;
+const _PARENT_FIELD = DOC_TOKENS.parentField;
 const VERSION_FIELD = DOC_TOKENS.versionField;
 const SPEC_MARK = DOC_TOKENS.specMark;
 const PARENT_MARK = DOC_TOKENS.parentMark;
@@ -83,7 +83,7 @@ const CHANGE_HISTORY_SECTION_RE = DOC_TOKENS.changeHistoryHeadingRe;
 const PHASE_ROW_OPEN_RE = DOC_TOKENS.phaseRowOpenRe;
 const PHASE_ROW_CELL_COUNT = DOC_TOKENS.phaseRowCellCount;
 const VERSION_CELL_NUMERIC_RE = DOC_TOKENS.versionNumericRe;
-const ISSUE_INVENTORY_HEADING = DOC_TOKENS.issueInventoryHeading;
+const _ISSUE_INVENTORY_HEADING = DOC_TOKENS.issueInventoryHeading;
 const DEPENDENCY_GRAPH_HEADING_RE = DOC_TOKENS.dependencyGraphHeadingRe;
 const ISSUE_ANCHOR_RE = DOC_TOKENS.issueAnchorFormRe;
 const PHASE_TOKEN_RE = DOC_TOKENS.phaseTokenScanRe;
@@ -111,7 +111,7 @@ function isPlaceholderOrTemplateTarget(t: string): boolean {
   if (t.startsWith("#") || t.startsWith("/")) return true;
   if (t === "." || t === ".." || t.endsWith("/")) return true;
   if (/^url$/i.test(t)) return true;
-  if (/[\s<>…?|*{}\[\]()`"'（）]/.test(t)) return true;
+  if (/[\s<>…?|*{}[\]()`"'（）]/.test(t)) return true;
   return false;
 }
 
@@ -192,7 +192,8 @@ export function taskGroupsFromPlan(planFile: string): number[][] {
   if (start === -1) return [];
   const groups: number[][] = [];
   for (let i = start + 1; i < lines.length; i++) {
-    if (PLAN_SECTION_BOUNDARY.test(lines[i]) || DOC_TOKENS.taskHeadingPrefixRe.test(lines[i])) break;
+    if (PLAN_SECTION_BOUNDARY.test(lines[i]) || DOC_TOKENS.taskHeadingPrefixRe.test(lines[i]))
+      break;
     const m = lines[i].match(DOC_TOKENS.taskGroupsLineRe);
     if (!m) continue;
     groups.push([...new Set(m[1].split(",").map((s) => Number(s.trim())))].sort((a, b) => a - b));
@@ -225,14 +226,23 @@ function extractLiteralConstraints(content: string): string | null {
   const lines = content.split("\n");
   let start = -1;
   for (let i = 0; i < lines.length; i++) {
-    if (DOC_TOKENS.constraintsHeadingRe.test(lines[i])) { start = i; break; }
+    if (DOC_TOKENS.constraintsHeadingRe.test(lines[i])) {
+      start = i;
+      break;
+    }
   }
   if (start < 0) return null;
   let end = lines.length;
   for (let i = start + 1; i < lines.length; i++) {
-    if (PLAN_SECTION_BOUNDARY.test(lines[i]) || DOC_TOKENS.taskHeadingPrefixRe.test(lines[i])) { end = i; break; }
+    if (PLAN_SECTION_BOUNDARY.test(lines[i]) || DOC_TOKENS.taskHeadingPrefixRe.test(lines[i])) {
+      end = i;
+      break;
+    }
   }
-  const body = lines.slice(start + 1, end).join("\n").trimEnd();
+  const body = lines
+    .slice(start + 1, end)
+    .join("\n")
+    .trimEnd();
   if (!body) return null;
   return `${lines[start]}\n${body}\n`;
 }
@@ -275,7 +285,7 @@ function extractProseConstraints(content: string): string | null {
     out.push(block.join("\n"));
   }
   if (out.length === 0) return null;
-  return out.join("\n\n") + "\n";
+  return `${out.join("\n\n")}\n`;
 }
 
 /** Deterministic extraction from the plan's declared Constraints source: canonical Form A — a
@@ -364,7 +374,10 @@ export function validatePlanContract(planPath: string): DocValidationFailure[] {
  * fallback; holder targets skipped). Returns the resolved spec path + its failures (unresolved /
  * label drift). Class A keeps its failure surface at every resolution attempt — `**Spec:**` is a
  * plan's own line, not part of the (optional) parent lineage. */
-function resolveSpecFromPlan(planPath: string, root: string): { specPath: string | null; failures: DocValidationFailure[] } {
+function resolveSpecFromPlan(
+  planPath: string,
+  root: string,
+): { specPath: string | null; failures: DocValidationFailure[] } {
   const failures: DocValidationFailure[] = [];
   const lines = readFileSync(planPath, "utf8").split("\n");
   const lineIdx = lines.findIndex((l) => l.includes(SPEC_MARK));
@@ -428,7 +441,10 @@ export function phaseIdFromPlan(planPath: string): string | null {
 
 // Segment-preserving spec→phase identity (④'s own-token strand): the canonical phase-id token in
 // its spec-filename form — `…-p2.1-design.md` owns `P2.1`, never its numeric base P2.
-const SPEC_PHASE_ID_RE = new RegExp(`-(${PHASE_TOKEN_RE.source.replace(/^\\b/, "")})-design\\.md$`, "i");
+const SPEC_PHASE_ID_RE = new RegExp(
+  `-(${PHASE_TOKEN_RE.source.replace(/^\\b/, "")})-design\\.md$`,
+  "i",
+);
 
 function phaseIdFromSpecBasename(specPath: string): string | null {
   const m = path.basename(specPath).match(SPEC_PHASE_ID_RE);
@@ -545,8 +561,16 @@ export interface OverallParse {
  *  mismatch module — P2 ④ — which consumes the same parse as the audit, never a second one). */
 export function parseOverall(overallPath: string): OverallParse {
   const out: OverallParse = {
-    kernelOk: false, reason: "", ids: [], dupIds: [], rows: [], issues: [], graphTokens: [],
-    historyRows: [], shapeDrift: [], versionProblems: [],
+    kernelOk: false,
+    reason: "",
+    ids: [],
+    dupIds: [],
+    rows: [],
+    issues: [],
+    graphTokens: [],
+    historyRows: [],
+    shapeDrift: [],
+    versionProblems: [],
   };
   let raw: string;
   try {
@@ -599,7 +623,10 @@ export function parseOverall(overallPath: string): OverallParse {
   }
 
   // Issue inventory (⑥ / ⑤ faces) — `| Phase | Issue (ref) | … |`.
-  const issueRange = sectionRange(lines, new RegExp(`^${escapeRegExp(DOC_TOKENS.issueInventoryHeading)}`));
+  const issueRange = sectionRange(
+    lines,
+    new RegExp(`^${escapeRegExp(DOC_TOKENS.issueInventoryHeading)}`),
+  );
   if (issueRange) {
     for (const c of tableRows(lines, issueRange)) {
       if (isSeparatorRow(c) || c[1]?.trim().toLowerCase() === "phase") continue;
@@ -640,12 +667,15 @@ export function parseOverall(overallPath: string): OverallParse {
         );
       } else {
         version = [+m[1], +m[2]];
-        if (!(c[2] ?? "").trim()) out.versionProblems.push(`version v${m[1]}.${m[2]} has an empty date`);
+        if (!(c[2] ?? "").trim())
+          out.versionProblems.push(`version v${m[1]}.${m[2]} has an empty date`);
         const key = `${m[1]}.${m[2]}`;
         if (seen.has(key)) out.versionProblems.push(`duplicate version v${key}`);
         seen.add(key);
         if (prev && (version[0] < prev[0] || (version[0] === prev[0] && version[1] <= prev[1]))) {
-          out.versionProblems.push(`not ascending: v${prev[0]}.${prev[1]} → v${version[0]}.${version[1]}`);
+          out.versionProblems.push(
+            `not ascending: v${prev[0]}.${prev[1]} → v${version[0]}.${version[1]}`,
+          );
         }
         prev = version;
       }
@@ -662,7 +692,10 @@ export function parseOverall(overallPath: string): OverallParse {
  * overall 契約 faces no-op (AC1: lineage 未 resolve → 四表 no-op、necessary-subset 恒跑) — the
  * overall is only ever audited against a reached parent doc. Pinned version tokens ride the
  * resolution for the merged version-lineage check. */
-function resolveParentOverall(specPath: string, root: string): { overallPath: string | null; pinnedTokens: string[] } {
+function resolveParentOverall(
+  specPath: string,
+  root: string,
+): { overallPath: string | null; pinnedTokens: string[] } {
   const lines = readFileSync(specPath, "utf8").split("\n");
   const parentIdx = lines.findIndex((l) => l.includes(PARENT_MARK));
   if (parentIdx === -1) return { overallPath: null, pinnedTokens: [] };
@@ -672,7 +705,8 @@ function resolveParentOverall(specPath: string, root: string): { overallPath: st
   if (isPlaceholderOrTemplateTarget(target)) return { overallPath: null, pinnedTokens: [] };
   const resolved = resolveAny(target, [path.dirname(specPath), root]);
   if (!resolved) return { overallPath: null, pinnedTokens: [] };
-  if (!path.basename(resolved).endsWith("-overall.md")) return { overallPath: null, pinnedTokens: [] };
+  if (!path.basename(resolved).endsWith("-overall.md"))
+    return { overallPath: null, pinnedTokens: [] };
   const pinnedTokens = [...lines[parentIdx].matchAll(VERSION_TOKEN_RE)].map((m) => m[0]);
   return { overallPath: resolved, pinnedTokens };
 }
@@ -680,7 +714,11 @@ function resolveParentOverall(specPath: string, root: string): { overallPath: st
 /** The phase-spec doc-type surface: `**Version**` line (the spec's own structural face) then Class B
  * → the parent overall's 契約 face + four tables (version-lineage merged in). phaseId is the
  * dispatch plan's phase (a spec-entry audit has none). */
-export function validatePhaseSpecContract(specPath: string, root: string, phaseId: string | null): DocValidationFailure[] {
+export function validatePhaseSpecContract(
+  specPath: string,
+  root: string,
+  phaseId: string | null,
+): DocValidationFailure[] {
   const failures: DocValidationFailure[] = [];
   const content = readFileSync(specPath, "utf8");
   if (!content.match(VERSION_HEADER_RE)) {
@@ -704,7 +742,11 @@ export function validatePhaseSpecContract(specPath: string, root: string, phaseI
  * the merged version-lineage (the chain's pinned vX.Y tokens ∈ the overall's lineage, canonical
  * change-history version rules承接) — plus the four-table audit faces ①-⑥. A phase-less plan
  * (phaseId null) skips ④'s dispatch-phase registration; the structural faces still run fully. */
-export function validateOverallContract(overallPath: string, phaseId: string | null, pinnedTokens: string[] = []): DocValidationFailure[] {
+export function validateOverallContract(
+  overallPath: string,
+  phaseId: string | null,
+  pinnedTokens: string[] = [],
+): DocValidationFailure[] {
   const failures: DocValidationFailure[] = [];
   const o = parseOverall(overallPath);
   if (!o.kernelOk) {
@@ -823,7 +865,7 @@ const CELL_LINK_RE = /\[[^\]]*\]\(([^)]*)\)/;
 
 function linkHref(cell: string): string | null {
   const m = stripCellMarkup(cell).match(CELL_LINK_RE);
-  return m && m[1] ? m[1] : null;
+  return m?.[1] ? m[1] : null;
 }
 
 /** Own plan-document name identity — the phase's own plan doc is `*-<slug>-<id>.md` or the
@@ -860,7 +902,9 @@ function planCellMatchesClaim(cell: string, id: string, key: string, slug: strin
 // ASCII sentence period is stripped too — it binds to the target now that the canonical CLAIM_RE
 // stop-set exempts `.` (dotted sub-phase ids like `P2.1-design` embed literal periods).
 function claimKey(raw: string): string {
-  const t = stripCellMarkup(raw).replace(/[）】\]]+$/u, "").replace(/\.+$/u, "");
+  const t = stripCellMarkup(raw)
+    .replace(/[）】\]]+$/u, "")
+    .replace(/\.+$/u, "");
   const d = t.match(DESIGN_TOKEN_RE);
   return d ? d[0] : t;
 }
@@ -1011,7 +1055,11 @@ function anchorScanFiles(overallPath: string): string[] {
 
 /** ①-⑥ four-table audit on the resolved parent overall. Every face surfaces guidance-shaped
  * failures; faces with nothing to audit (no anchors / no claims / no graph / no issue rows) no-op. */
-function fourTableAudit(o: OverallParse, overallPath: string, phaseId: string | null): DocValidationFailure[] {
+function fourTableAudit(
+  o: OverallParse,
+  overallPath: string,
+  phaseId: string | null,
+): DocValidationFailure[] {
   const failures: DocValidationFailure[] = [];
   const idsLower = new Set(o.ids.map((id) => id.toLowerCase()));
   const byIdLower = new Map(o.rows.map((r) => [r.id.toLowerCase(), r]));
@@ -1142,7 +1190,9 @@ function fourTableAudit(o: OverallParse, overallPath: string, phaseId: string | 
   // form `*-<slug>-<phase-id>-design.md`): the design-doc glob suffix for an own design token.
   const designDocSuffix = DOC_TOKENS.designDocTail;
   const designHit = (id: string) => {
-    return mdNames(specsDir).filter((n) => n.endsWith(`-${slug}-${id.toLowerCase()}${designDocSuffix}`));
+    return mdNames(specsDir).filter((n) =>
+      n.endsWith(`-${slug}-${id.toLowerCase()}${designDocSuffix}`),
+    );
   };
   for (const r of o.rows) {
     if (!isPendingText(r.plan)) {

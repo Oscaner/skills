@@ -8,11 +8,11 @@
 // load-bearing, not decorative (AC14). Quota isolation: each counter-bearing category increments
 // its own progress.json field (channel audit ③ column), and exhaustion is judged per-category
 // (threshold >= 2) — one category's terminal state never leaks into another's counter.
-import { loadEngineConfig } from "../infra/config.ts";
-import { DEFAULT_IDLE_WINDOW_MS, type TerminationCause } from "../infra/proc.ts";
 
 import { readJson, writeHandoff } from "../artifacts/handoff/write.ts";
 import { readProgressJSON, writeProgressJSON } from "../artifacts/progress.ts";
+import { loadEngineConfig } from "../infra/config.ts";
+import { DEFAULT_IDLE_WINDOW_MS, type TerminationCause } from "../infra/proc.ts";
 
 export interface FailureCategory {
   id: string;

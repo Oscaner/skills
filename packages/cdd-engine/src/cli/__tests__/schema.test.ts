@@ -14,11 +14,12 @@
 //     both normalized to the schema usage line + exit 2 (bin parse-error normalization).
 // Unlike help (pre-boot intercept), schema rides the normal bootstrap (like base-branch) — runs
 // from the repo root, no host required.
-import { describe, it, expect } from "vitest";
-import { execaSync } from "execa";
+
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { execaSync } from "execa";
+import { describe, expect, it } from "vitest";
 import { DOC_SCHEMA_NAMES, resolveDocSchemaDir } from "../../documents/schema.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -43,10 +44,20 @@ function runCli(args: string[]): { exitCode: number; stdout: string; stderr: str
   try {
     // stripFinalNewline: false — execa's default strips the trailing newline, which would break
     // the byte-identical comparison (the schema files' own final newline is part of the bytes).
-    const r = execaSync(NODE, [CDD_MJS, ...args], { cwd: REPO_ROOT, env: cleanEnv(), encoding: "utf8", extendEnv: false, stripFinalNewline: false });
+    const r = execaSync(NODE, [CDD_MJS, ...args], {
+      cwd: REPO_ROOT,
+      env: cleanEnv(),
+      encoding: "utf8",
+      extendEnv: false,
+      stripFinalNewline: false,
+    });
     return { exitCode: r.exitCode ?? 0, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
   } catch (e) {
-    return { exitCode: (e as { exitCode?: number }).exitCode ?? 1, stdout: (e as { stdout?: string }).stdout ?? "", stderr: (e as { stderr?: string }).stderr ?? "" };
+    return {
+      exitCode: (e as { exitCode?: number }).exitCode ?? 1,
+      stdout: (e as { stdout?: string }).stdout ?? "",
+      stderr: (e as { stderr?: string }).stderr ?? "",
+    };
   }
 }
 
@@ -57,12 +68,15 @@ function schemaFileBytes(name: string): string {
 }
 
 describe("cdd schema get <type> (P4.3 Task 5 discovery)", () => {
-  it.each(DOC_SCHEMA_NAMES)("%s → exit 0, empty stderr, stdout byte-identical to the schema file", (name) => {
-    const r = runCli(["schema", "get", name]);
-    expect(r.exitCode).toBe(0);
-    expect(r.stderr).toBe("");
-    expect(r.stdout).toBe(schemaFileBytes(name));
-  });
+  it.each(DOC_SCHEMA_NAMES)(
+    "%s → exit 0, empty stderr, stdout byte-identical to the schema file",
+    (name) => {
+      const r = runCli(["schema", "get", name]);
+      expect(r.exitCode).toBe(0);
+      expect(r.stderr).toBe("");
+      expect(r.stdout).toBe(schemaFileBytes(name));
+    },
+  );
 
   it("the byte-parity reference is the published dist copy (acceptance: dist/documents/schema/<name>.json)", () => {
     const distDir = path.join(PKG_ROOT, "dist", "documents", "schema");
@@ -70,7 +84,9 @@ describe("cdd schema get <type> (P4.3 Task 5 discovery)", () => {
     // checkout pre-build) falls back legitimately — guard the dist-reference pin to the dist state.
     if (existsSync(distDir)) {
       expect(resolveDocSchemaDir()).toBe(distDir);
-      expect(runCli(["schema", "get", "phase-spec"]).stdout).toBe(readFileSync(path.join(distDir, "phase-spec.json"), "utf8"));
+      expect(runCli(["schema", "get", "phase-spec"]).stdout).toBe(
+        readFileSync(path.join(distDir, "phase-spec.json"), "utf8"),
+      );
     }
   });
 

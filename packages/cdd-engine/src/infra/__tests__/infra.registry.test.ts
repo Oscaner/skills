@@ -1,11 +1,17 @@
 // packages/cdd-engine/src/infra/__tests__/infra.registry.test.ts
 // Mirrors the .mjs registry.test.mjs contract: ship gate (unknown/not-supported → blocked exit 1;
 // CLI missing → cli-missing exit 2), registryField fallback "", op×type prefix resolution.
-import { it, expect } from "vitest";
+
 import { existsSync } from "node:fs";
+import { expect, it } from "vitest";
 
 import {
-  loadRegistry, checkHarness, registryField, resolveInjection, resolveSuffix, REG_PATH,
+  checkHarness,
+  loadRegistry,
+  REG_PATH,
+  registryField,
+  resolveInjection,
+  resolveSuffix,
 } from "../registry.ts";
 
 // REG_PATH is state-independent since P3 T7 (consumer parity): the published dist copy first, the

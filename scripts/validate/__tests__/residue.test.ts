@@ -7,59 +7,59 @@
 // （validateCommitContract / HARD GATE / cdd-commit-gate-smoke / ship gate / cdd-gate-test git 身份）
 // 同为合法语汇。collectStaleLexiconHits()/collectGateLexiconHits() 与 validate 5c 步同源扫描
 // —— unit 绿 + live-repo 零残留等于该 step 双断言行为。
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
-  hasHit,
-  collectStaleLexiconHits,
-  collectGateLexiconHits,
-  DOC_SURFACE_TARGETS,
   collectChannelAuditHits,
-  collectProcessCwdAudit,
+  collectCommentAnchorHits,
+  collectContextModuleHardcodeHits,
+  collectContextWriteHits,
+  collectCountersContractHits,
+  collectDocsRefHits,
   collectEnvDirectReadHits,
   collectEnvPassThroughHits,
   collectEnvSpreadHits,
-  collectSixEnvKeyHits,
-  collectPathArgResolverHits,
-  collectRootResolverHits,
-  collectTestSeamHits,
-  collectHandoffShapeHits,
-  collectTimedOutSoleHits,
-  collectContextWriteHits,
-  helpOptionFlags,
-  helpFlagsNotInCanonical,
-  collectContextModuleHardcodeHits,
-  collectResidualRereadHits,
-  collectCountersContractHits,
-  collectVersionStampHits,
-  collectInitReferenceHits,
-  collectShippedGuardHits,
-  SHIPPED_SURFACE_TARGETS,
-  INIT_REFERENCE_TARGETS,
-  collectHandoffSchemaHits,
-  HANDOFF_SCHEMA_TARGETS,
-  collectUpstreamReadHits,
-  collectUpstreamSlashFormHits,
-  collectInternalDependencyHits,
-  collectFixInlineHits,
-  collectReviewLoopFixCddHits,
   collectFailureModeCategoryHits,
   collectFailureModeSemanticsHits,
-  collectDocsRefHits,
-  collectSkillSurfaceHits,
-  ORCHESTRATOR_SKILLS,
-  collectMjsTerminalStateViolations,
+  collectFixInlineHits,
+  collectGateLexiconHits,
+  collectHandoffSchemaHits,
+  collectHandoffShapeHits,
+  collectInitReferenceHits,
+  collectInternalDependencyHits,
   collectMemoryGuardViolations,
-  collectCommentAnchorHits,
+  collectMjsTerminalStateViolations,
+  collectPathArgResolverHits,
+  collectProcessCwdAudit,
+  collectResidualRereadHits,
+  collectReviewLoopFixCddHits,
+  collectRootResolverHits,
+  collectShippedGuardHits,
+  collectSixEnvKeyHits,
+  collectSkillSurfaceHits,
+  collectStaleLexiconHits,
+  collectTestSeamHits,
+  collectTimedOutSoleHits,
+  collectUpstreamReadHits,
+  collectUpstreamSlashFormHits,
+  collectVersionStampHits,
+  DOC_SURFACE_TARGETS,
+  HANDOFF_SCHEMA_TARGETS,
+  hasHit,
+  helpFlagsNotInCanonical,
+  helpOptionFlags,
+  INIT_REFERENCE_TARGETS,
+  ORCHESTRATOR_SKILLS,
+  SHIPPED_SURFACE_TARGETS,
   scanTargets,
 } from "../residue.ts";
 
 describe("stale-lexicon：断言组行为（brief Step 1）", () => {
-  it("dogfood (CDD session) 下拉不误报（非裸 \"dogfood\" label）", () => {
+  it('dogfood (CDD session) 下拉不误报（非裸 "dogfood" label）', () => {
     expect(hasHit(['"dogfood (CDD session)"'])).toBe(false);
   });
   it("labels bug, dogfood, osuperpowers 命中（label 语法位）", () => {
@@ -97,7 +97,7 @@ describe("stale-lexicon：机制位置精确性", () => {
     expect(hasHit([".superpowers/docs-review/task-1.json"])).toBe(true);
     expect(hasHit([".superpowers/cdd/foo/spec-review-1.json"])).toBe(true); // 新 <cdd> 守卫命中
     expect(hasHit([".superpowers/standalone/x/base-branch.json"])).toBe(true); // standalone 守卫命中
-    expect(hasHit([".superpowers/sdd/foo/progress.json"])).toBe(false);      // sdd 保留面放行
+    expect(hasHit([".superpowers/sdd/foo/progress.json"])).toBe(false); // sdd 保留面放行
   });
 });
 
@@ -121,13 +121,13 @@ describe("stale-lexicon：removed cdd subcommand 守卫（Task 5）", () => {
     expect(hasHit([`Run \`${CDD} brief --tasks 1 --plan p --output o\``])).toBe(true);
     expect(hasHit(["/mattpocock-skills:research 会话调用"])).toBe(false);
     expect(hasHit(["brief-dependent plan sections"])).toBe(false);
-    expect(hasHit(["cddr research"])).toBe(false);        // 词边界：非 `cdd ` 前缀
+    expect(hasHit(["cddr research"])).toBe(false); // 词边界：非 `cdd ` 前缀
   });
   it("research timeout env 命中（单分支覆盖两种被删形态）；task/review timeout 放行", () => {
     // `RESEARCH_TIMEOUT` 为无锚定子串匹配 → `CDD_RESEARCH_TIMEOUT` 由其覆盖（T5 review-1 nit：
     // 原 alternation 的 `CDD_` 前缀分支为死分支，两行断言实际等价）。此处显式断言两形态同源覆盖。
     expect(hasHit([`${"CDD_RESEARCH"}_TIMEOUT=2700`])).toBe(true); // CDD_ 前缀形态（由后缀分支覆盖）
-    expect(hasHit([`${"RESEARCH"}_TIMEOUT=2700`])).toBe(true);     // legacy 裸名形态
+    expect(hasHit([`${"RESEARCH"}_TIMEOUT=2700`])).toBe(true); // legacy 裸名形态
     expect(hasHit(["CDD_TASK_TIMEOUT=60"])).toBe(false);
     expect(hasHit(["CDD_REVIEW_TIMEOUT=60"])).toBe(false);
   });
@@ -270,7 +270,9 @@ describe("stale-lexicon：vendors 自维护语汇（P6 Task 2 / B12）", () => {
 // principal/piper、版本号 0.1.1 均放行。
 describe("stale-lexicon：.agents + droid/pi 语汇（P6 Task 19 / spec F2）", () => {
   it(".agents/ 路径形命中（emit 副本面回渗）", () => {
-    expect(hasHit(["packages/osuperpowers/.agents/skills/writing-single-spec/SKILL.md"])).toBe(true);
+    expect(hasHit(["packages/osuperpowers/.agents/skills/writing-single-spec/SKILL.md"])).toBe(
+      true,
+    );
   });
   it(".agents 行尾形命中（裸目录名回渗）", () => {
     expect(hasHit(["retired emit tree at packages/osuperpowers/.agents"])).toBe(true);
@@ -302,7 +304,11 @@ describe("stale-lexicon：.agents + droid/pi 语汇（P6 Task 19 / spec F2）", 
   });
   it("含 droid keyword 的临时 package.json 被 collectStaleLexiconHits 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "residue-droid-"));
-    writeFileSync(path.join(dir, "package.json"), '{"keywords": ["osuperpowers", "droid"]}\n', "utf8");
+    writeFileSync(
+      path.join(dir, "package.json"),
+      '{"keywords": ["osuperpowers", "droid"]}\n',
+      "utf8",
+    );
     try {
       const hits = collectStaleLexiconHits([dir]);
       expect(hits).toHaveLength(1);
@@ -315,7 +321,9 @@ describe("stale-lexicon：.agents + droid/pi 语汇（P6 Task 19 / spec F2）", 
 
 describe("gate-lexicon：正例命中（T6 Step 2）", () => {
   it("bin/gate/ 路径命中（deleted gate dir，含 adapters/configs 下端）", () => {
-    expect(hasHit(["cdd-gate 子系统已删 packages/osuperpowers/bin/gate/adapters/kiro.mjs"])).toBe(true);
+    expect(hasHit(["cdd-gate 子系统已删 packages/osuperpowers/bin/gate/adapters/kiro.mjs"])).toBe(
+      true,
+    );
     expect(hasHit(["ref bin/gate/cdd-gate-core.mjs"])).toBe(true);
   });
   it("CDD_GATE env 命中（含带后缀形式）", () => {
@@ -380,7 +388,7 @@ describe("gate-lexicon：扫描行为（T6 Step 2 临时文件）+ live-repo", (
   it("含旧 docs 根字面（拼接构造）的临时文件被 collectStaleLexiconHits 命中——doc-surface 面在扫面内", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "residue-docroot-"));
     const f = path.join(dir, "CLAUDE.md");
-    writeFileSync(f, "Strategy B: `" + ["docs", "superpowers"].join("/") + "/specs/*.md`\n", "utf8");
+    writeFileSync(f, `Strategy B: \`${["docs", "superpowers"].join("/")}/specs/*.md\`\n`, "utf8");
     try {
       const hits = collectStaleLexiconHits([dir]);
       expect(hits).toHaveLength(1);
@@ -390,7 +398,12 @@ describe("gate-lexicon：扫描行为（T6 Step 2 临时文件）+ live-repo", (
     }
   });
   it("DOC_SURFACE_TARGETS 覆盖治理文件面（scope 缩小即失败）", () => {
-    for (const p of ["CLAUDE.md", "README.md", "packages/osuperpowers/README.md", "docs/maintainers"]) {
+    for (const p of [
+      "CLAUDE.md",
+      "README.md",
+      "packages/osuperpowers/README.md",
+      "docs/maintainers",
+    ]) {
       expect(DOC_SURFACE_TARGETS).toContain(p);
     }
   });
@@ -415,7 +428,11 @@ describe("stale-lexicon：old mode task-review（T15 行 21 扩容）", () => {
   });
   it("含裸 task-review 的临时文件被 collectStaleLexiconHits 命中；仅 run-task-review 不命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "residue-t15-"));
-    writeFileSync(path.join(dir, "a.mjs"), "export const MODES = 'implement|task-review|fix';\n", "utf8");
+    writeFileSync(
+      path.join(dir, "a.mjs"),
+      "export const MODES = 'implement|task-review|fix';\n",
+      "utf8",
+    );
     writeFileSync(path.join(dir, "b.mjs"), "export const NODE = 'run-task-review';\n", "utf8");
     try {
       const hits = collectStaleLexiconHits([dir]);
@@ -463,7 +480,11 @@ describe("channel audit：① process.cwd() 单点收口", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-cwd-ok-"));
     const chain = path.join(dir, "src");
     require("node:fs").mkdirSync(chain, { recursive: true });
-    writeFileSync(path.join(chain, "bin.ts"), "const repoRoot = await initRoot(process.cwd());\n", "utf8");
+    writeFileSync(
+      path.join(chain, "bin.ts"),
+      "const repoRoot = await initRoot(process.cwd());\n",
+      "utf8",
+    );
     try {
       expect(collectProcessCwdAudit([dir])).toEqual([]);
     } finally {
@@ -484,9 +505,13 @@ describe("channel audit：② process.env 取值直读 ⊆ canonical 白名单�
       rmSync(dir, { recursive: true, force: true });
     }
   });
-  it("process.env[\"X\"] 与 env.X 非白名单键 → 命中", () => {
+  it('process.env["X"] 与 env.X 非白名单键 → 命中', () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-env-2-"));
-    writeFileSync(path.join(dir, "leak.mjs"), `a = process.env["CDD_LEDGER"]; b = env.TEST_SEAM;\n`, "utf8");
+    writeFileSync(
+      path.join(dir, "leak.mjs"),
+      `a = process.env["CDD_LEDGER"]; b = env.TEST_SEAM;\n`,
+      "utf8",
+    );
     try {
       const hits = collectEnvDirectReadHits([dir]);
       expect(hits.length).toBe(2);
@@ -523,7 +548,11 @@ describe("channel audit：③ 整表透传点 ⊆ §2.4.4-② 清单 + 零 sprea
   });
   it("process.env spread 注入 → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-spread-"));
-    writeFileSync(path.join(dir, "x.mjs"), "const e = { ...process.env, PLAN_FILE: plan };\n", "utf8");
+    writeFileSync(
+      path.join(dir, "x.mjs"),
+      "const e = { ...process.env, PLAN_FILE: plan };\n",
+      "utf8",
+    );
     try {
       const hits = collectEnvSpreadHits([dir]);
       expect(hits.length).toBe(1);
@@ -533,7 +562,11 @@ describe("channel audit：③ 整表透传点 ⊆ §2.4.4-② 清单 + 零 sprea
   });
   it("六键名（含注释行）→ 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-sixkey-"));
-    writeFileSync(path.join(dir, "x.mjs"), "// CDD_LIFECYCLE_PATH / NODE_ENV 曾为 env 通道键名\n", "utf8");
+    writeFileSync(
+      path.join(dir, "x.mjs"),
+      "// CDD_LIFECYCLE_PATH / NODE_ENV 曾为 env 通道键名\n",
+      "utf8",
+    );
     try {
       const hits = collectSixEnvKeyHits([dir]);
       expect(hits.length).toBeGreaterThan(0);
@@ -546,7 +579,11 @@ describe("channel audit：③ 整表透传点 ⊆ §2.4.4-② 清单 + 零 sprea
 describe("channel audit：④ 路径实参必须过唯一 resolver", () => {
   it("opts.plan 绕过 resolver 直读文件 → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-arg-"));
-    writeFileSync(path.join(dir, "bypass.mjs"), "const x = readFileSync(opts.plan, \"utf8\");\n", "utf8");
+    writeFileSync(
+      path.join(dir, "bypass.mjs"),
+      'const x = readFileSync(opts.plan, "utf8");\n',
+      "utf8",
+    );
     try {
       const hits = collectPathArgResolverHits([dir], []);
       expect(hits.length).toBe(1);
@@ -557,7 +594,11 @@ describe("channel audit：④ 路径实参必须过唯一 resolver", () => {
   });
   it("resolveWorkspace 收到原始 opts.spec → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-arg-2-"));
-    writeFileSync(path.join(dir, "bypass.mjs"), "const ws = resolveWorkspace(opts.spec, root);\n", "utf8");
+    writeFileSync(
+      path.join(dir, "bypass.mjs"),
+      "const ws = resolveWorkspace(opts.spec, root);\n",
+      "utf8",
+    );
     try {
       const hits = collectPathArgResolverHits([dir], []);
       expect(hits.length).toBe(1);
@@ -567,7 +608,11 @@ describe("channel audit：④ 路径实参必须过唯一 resolver", () => {
   });
   it("readFile（fs/promises）与 import(opts.*) 旁路形 → 命中（review-1 nit 补测）", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-arg-4-"));
-    writeFileSync(path.join(dir, "bypass.mjs"), "const p = readFile(opts.plan, \"utf8\");\nconst doc = await import(opts.findings);\n", "utf8");
+    writeFileSync(
+      path.join(dir, "bypass.mjs"),
+      'const p = readFile(opts.plan, "utf8");\nconst doc = await import(opts.findings);\n',
+      "utf8",
+    );
     try {
       const hits = collectPathArgResolverHits([dir], []);
       expect(hits.length).toBe(2);
@@ -579,7 +624,11 @@ describe("channel audit：④ 路径实参必须过唯一 resolver", () => {
   it("call-site 文件缺 resolveDocArg 引用 → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-arg-3-"));
     const f = path.join(dir, "base-branch.ts");
-    writeFileSync(f, "export function resolveBaseBranchWorkspace(opts) { return opts.plan; }\n", "utf8");
+    writeFileSync(
+      f,
+      "export function resolveBaseBranchWorkspace(opts) { return opts.plan; }\n",
+      "utf8",
+    );
     try {
       const hits = collectPathArgResolverHits([], [f]);
       expect(hits.length).toBe(1);
@@ -593,7 +642,11 @@ describe("channel audit：④ 路径实参必须过唯一 resolver", () => {
 describe("channel audit：⑤ 全仓零旧根解析函数（拼接形字面）", () => {
   it(`${ROOT_FROM_DOC} 命中（含 tests 与 scripts 的 target 集）`, () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-root1-"));
-    writeFileSync(path.join(dir, "x.mjs"), `import { ${ROOT_FROM_DOC} } from "./doc-root.ts";\n`, "utf8");
+    writeFileSync(
+      path.join(dir, "x.mjs"),
+      `import { ${ROOT_FROM_DOC} } from "./doc-root.ts";\n`,
+      "utf8",
+    );
     try {
       const hits = collectRootResolverHits([dir]);
       expect(hits.length).toBe(1);
@@ -641,7 +694,11 @@ describe("channel audit：⑥ 测试零旁路缝（filteredEnv / baseEnv / __*Fo
   });
   it("lib 侧 __*ForTest 缝也入扫 → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-seam-lib-"));
-    writeFileSync(path.join(dir, "proc.mjs"), "export const __resetForTest = () => (registry = []);\n", "utf8");
+    writeFileSync(
+      path.join(dir, "proc.mjs"),
+      "export const __resetForTest = () => (registry = []);\n",
+      "utf8",
+    );
     try {
       const hits = collectTestSeamHits([dir]);
       expect(hits.length).toBe(1);
@@ -663,7 +720,11 @@ describe("channel audit：⑥ 测试零旁路缝（filteredEnv / baseEnv / __*Fo
 describe("channel audit：⑦ 零手写 handoff 形状 / 零 res.timedOut 单点依赖", () => {
   it("templates.ts 手写 schema 字段清单（switch 形）→ 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-shape-"));
-    writeFileSync(path.join(dir, "templates.ts"), "switch (key) { case \"task\": return `task: <n>`; }\n", "utf8");
+    writeFileSync(
+      path.join(dir, "templates.ts"),
+      'switch (key) { case "task": return `task: <n>`; }\n',
+      "utf8",
+    );
     try {
       const hits = collectHandoffShapeHits([path.join(dir, "templates.ts")]);
       expect(hits.length).toBe(1);
@@ -675,7 +736,7 @@ describe("channel audit：⑦ 零手写 handoff 形状 / 零 res.timedOut 单点
   it("finalize 写侧内联手写对象字面量 → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-shape-2-"));
     const f = path.join(dir, "finalize.ts");
-    writeFileSync(f, "writeOwnHandoff(p, { status: \"BLOCKED\", findings: [] });\n", "utf8");
+    writeFileSync(f, 'writeOwnHandoff(p, { status: "BLOCKED", findings: [] });\n', "utf8");
     try {
       const hits = collectHandoffShapeHits([f]);
       expect(hits.length).toBe(2); // 内联手写字面量 + 缺 normalizeHandoff 双命中
@@ -685,7 +746,11 @@ describe("channel audit：⑦ 零手写 handoff 形状 / 零 res.timedOut 单点
   });
   it("res.timedOut 作 if 判定条件 → 命中（超时判定非自持）", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-timedout-"));
-    writeFileSync(path.join(dir, "x.mjs"), "if (res.timedOut) { timeoutCount = timeoutCount + 1; }\n", "utf8");
+    writeFileSync(
+      path.join(dir, "x.mjs"),
+      "if (res.timedOut) { timeoutCount = timeoutCount + 1; }\n",
+      "utf8",
+    );
     try {
       const hits = collectTimedOutSoleHits([dir]);
       expect(hits.length).toBe(1);
@@ -698,7 +763,11 @@ describe("channel audit：⑦ 零手写 handoff 形状 / 零 res.timedOut 单点
 describe("channel audit：⑧ 运行期 context 零落盘", () => {
   it("写 context 到任意路径 → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-ctx-"));
-    writeFileSync(path.join(dir, "x.mjs"), "writeFileSync(path.join(root, \"context.json\"), JSON.stringify(ctx));\n", "utf8");
+    writeFileSync(
+      path.join(dir, "x.mjs"),
+      'writeFileSync(path.join(root, "context.json"), JSON.stringify(ctx));\n',
+      "utf8",
+    );
     try {
       const hits = collectContextWriteHits([dir]);
       expect(hits.length).toBe(1);
@@ -708,7 +777,11 @@ describe("channel audit：⑧ 运行期 context 零落盘", () => {
   });
   it("反射例：写 registry / progress.json → 零命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-ctx-ok-"));
-    writeFileSync(path.join(dir, "x.mjs"), "writeFileSync(ledgerPath, JSON.stringify(registry));\n", "utf8");
+    writeFileSync(
+      path.join(dir, "x.mjs"),
+      "writeFileSync(ledgerPath, JSON.stringify(registry));\n",
+      "utf8",
+    );
     try {
       expect(collectContextWriteHits([dir])).toEqual([]);
     } finally {
@@ -719,8 +792,11 @@ describe("channel audit：⑧ 运行期 context 零落盘", () => {
 
 describe("channel audit：⑨ citty 声明 Options ⊆ canonical argv（单元）", () => {
   it("Options 面 = 声明 args 键（kebab → --flag）+ citty 内建 --help", () => {
-    expect(helpOptionFlags({ type: { type: "string" }, spec: { type: "path" } }))
-      .toEqual(["--type", "--spec", "--help"]);
+    expect(helpOptionFlags({ type: { type: "string" }, spec: { type: "path" } })).toEqual([
+      "--type",
+      "--spec",
+      "--help",
+    ]);
     expect(helpOptionFlags({ "dry-run": { type: "boolean" } })).toEqual(["--dry-run", "--help"]);
     expect(helpOptionFlags(undefined)).toEqual(["--help"]);
   });
@@ -734,7 +810,11 @@ describe("channel audit：⑩ src/infra/context.ts 零 canonical 事实名硬编
   it("硬编码 flag/env 事实名 → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-ctxmod-"));
     const f = path.join(dir, "context.mjs");
-    writeFileSync(f, "export const PLAN_FLAG = \"--dry-run\"; // CDD_TASK_TIMEOUT 手动副本\n", "utf8");
+    writeFileSync(
+      f,
+      'export const PLAN_FLAG = "--dry-run"; // CDD_TASK_TIMEOUT 手动副本\n',
+      "utf8",
+    );
     try {
       const hits = collectContextModuleHardcodeHits(f);
       expect(hits.length).toBeGreaterThan(0);
@@ -767,7 +847,11 @@ describe("channel audit：⑩ src/infra/context.ts 零 canonical 事实名硬编
 describe("channel audit：⑪ 零「最近一次」残留回读", () => {
   it("mtime / latest 复合扫描 → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-latest-"));
-    writeFileSync(path.join(dir, "x.mjs"), "const p = pickByMtime(dir) ?? findLatestHandoff(dir);\n", "utf8");
+    writeFileSync(
+      path.join(dir, "x.mjs"),
+      "const p = pickByMtime(dir) ?? findLatestHandoff(dir);\n",
+      "utf8",
+    );
     try {
       const hits = collectResidualRereadHits([dir]);
       expect(hits.length).toBeGreaterThan(0);
@@ -777,7 +861,11 @@ describe("channel audit：⑪ 零「最近一次」残留回读", () => {
   });
   it("反射例：散文 latest review handoff 不命中（非扫描语汇）", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-latest-ok-"));
-    writeFileSync(path.join(dir, "x.mjs"), "// Read the status of the latest review handoff (round).\n", "utf8");
+    writeFileSync(
+      path.join(dir, "x.mjs"),
+      "// Read the status of the latest review handoff (round).\n",
+      "utf8",
+    );
     try {
       expect(collectResidualRereadHits([dir])).toEqual([]);
     } finally {
@@ -788,10 +876,20 @@ describe("channel audit：⑪ 零「最近一次」残留回读", () => {
     // spec E3 的 stall 探针是 brief 强制的活体采样，⑪ 白名单按文件级枚举到 infra/proc.ts ——
     // 扫真实仓储路径断言白名单有效（同 golden 测试证明的「探针外 mtime 照旧命中」互补）。
     const here = path.dirname(fileURLToPath(import.meta.url));
-    const procAbs = path.join(here, "..", "..", "..", "packages", "cdd-engine", "src", "infra", "proc.ts");
+    const procAbs = path.join(
+      here,
+      "..",
+      "..",
+      "..",
+      "packages",
+      "cdd-engine",
+      "src",
+      "infra",
+      "proc.ts",
+    );
     expect(collectResidualRereadHits(["packages/cdd-engine/src/infra/proc.ts"])).toEqual([]);
     const proc = readFileSync(procAbs, "utf8");
-    expect(proc).toMatch(/export function latestFileMtimeMs/);   // 探针仍在地 → 白名单不放空
+    expect(proc).toMatch(/export function latestFileMtimeMs/); // 探针仍在地 → 白名单不放空
     expect(proc).toMatch(/mtimeAdvanced/);
   });
   it("T3 白名单：documents.ts 四表审计目录枚举零残留命中 + glob 语汇仍在（白名单不空置）", () => {
@@ -799,10 +897,20 @@ describe("channel audit：⑪ 零「最近一次」残留回读", () => {
     // program doc dirs (bounded explicit-path listings — the naming.ts whitelist's doctrine).
     // The whitelist entry must stay load-bearing — the readdirSync atoms remain in the file.
     const here = path.dirname(fileURLToPath(import.meta.url));
-    const docsAbs = path.join(here, "..", "..", "..", "packages", "cdd-engine", "src", "rules", "documents.ts");
+    const docsAbs = path.join(
+      here,
+      "..",
+      "..",
+      "..",
+      "packages",
+      "cdd-engine",
+      "src",
+      "rules",
+      "documents.ts",
+    );
     expect(collectResidualRereadHits(["packages/cdd-engine/src/rules/documents.ts"])).toEqual([]);
     const docs = readFileSync(docsAbs, "utf8");
-    expect(docs).toMatch(/mdNames\(dir: string\)/);      // the dir-listing atom stays → whitelist not vacated
+    expect(docs).toMatch(/mdNames\(dir: string\)/); // the dir-listing atom stays → whitelist not vacated
     expect(docs).toMatch(/function anchorScanFiles/);
   });
 });
@@ -822,7 +930,7 @@ describe("channel audit：⑫ counters 行契约（canonical 派生 + 零手写 
   });
   it("类目以字符串字面量身份出现（failure_category 赋值）→ 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-cat-"));
-    writeFileSync(path.join(dir, "run-task.ts"), "failure_category: \"TIMEOUT\",\n", "utf8");
+    writeFileSync(path.join(dir, "run-task.ts"), 'failure_category: "TIMEOUT",\n', "utf8");
     try {
       const hits = collectCountersContractHits({ engineScope: [dir] });
       expect(hits.length).toBe(1);
@@ -833,7 +941,11 @@ describe("channel audit：⑫ counters 行契约（canonical 派生 + 零手写 
   it("counter 泄漏进 handoff schema properties → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-schema-"));
     const f = path.join(dir, "task-handoff-schema.json");
-    writeFileSync(f, '{ "properties": { "timeoutCount": { "type": "integer" }, "status": {} } }\n', "utf8");
+    writeFileSync(
+      f,
+      '{ "properties": { "timeoutCount": { "type": "integer" }, "status": {} } }\n',
+      "utf8",
+    );
     try {
       const hits = collectCountersContractHits({ taskSchema: f });
       expect(hits.some((h) => h.label.match(/leaked/))).toBe(true); // 泄漏 + 计数 14 双重命中，按泄漏面断言
@@ -845,7 +957,11 @@ describe("channel audit：⑫ counters 行契约（canonical 派生 + 零手写 
     const dir = mkdtempSync(path.join(tmpdir(), "audit-schema-2-"));
     const f = path.join(dir, "docs-handoff-schema.json");
     // properties 8 键（缺 failure_category）≠ 9
-    writeFileSync(f, '{ "properties": { "phase": {}, "status": {}, "doc_path": {}, "doc_hash": {}, "findings": {}, "artifacts": {}, "round": {}, "blocker": {} } }\n', "utf8");
+    writeFileSync(
+      f,
+      '{ "properties": { "phase": {}, "status": {}, "doc_path": {}, "doc_hash": {}, "findings": {}, "artifacts": {}, "round": {}, "blocker": {} } }\n',
+      "utf8",
+    );
     try {
       const hits = collectCountersContractHits({ docsSchema: f });
       expect(hits.length).toBe(1);
@@ -882,7 +998,11 @@ describe("shipped guards：版本字面量 + /init 引用（T10）", () => {
   });
   it("散文「osuperpowers version」不误报（非戳字面；无连字符）", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "residue-t10-ver-ok-"));
-    writeFileSync(path.join(dir, "README.md"), "osuperpowers version is synced across manifests\n", "utf8");
+    writeFileSync(
+      path.join(dir, "README.md"),
+      "osuperpowers version is synced across manifests\n",
+      "utf8",
+    );
     try {
       expect(collectVersionStampHits([dir])).toEqual([]);
     } finally {
@@ -902,7 +1022,11 @@ describe("shipped guards：版本字面量 + /init 引用（T10）", () => {
   });
   it("路径形 skills/init/SKILL.md 内含 /init 也命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "residue-t10-init-2-"));
-    writeFileSync(path.join(dir, "note.md"), "stamp in packages/osuperpowers/skills/init/SKILL.md\n", "utf8");
+    writeFileSync(
+      path.join(dir, "note.md"),
+      "stamp in packages/osuperpowers/skills/init/SKILL.md\n",
+      "utf8",
+    );
     try {
       expect(collectInitReferenceHits([dir])).toHaveLength(1);
     } finally {
@@ -942,7 +1066,11 @@ describe("shipped guards：版本字面量 + /init 引用（T10）", () => {
 describe("handoff-schema（§2.8 行 14）：正例命中 + canonical 豁免 + scope 钉死", () => {
   it("裸名形 handoff-schema → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "residue-t11-bare-"));
-    writeFileSync(path.join(dir, "note.md"), "// 对齐 handoff-schema「Severity → status mapping」表\n", "utf8");
+    writeFileSync(
+      path.join(dir, "note.md"),
+      "// 对齐 handoff-schema「Severity → status mapping」表\n",
+      "utf8",
+    );
     try {
       const hits = collectHandoffSchemaHits([dir]);
       expect(hits).toHaveLength(1);
@@ -958,7 +1086,11 @@ describe("handoff-schema（§2.8 行 14）：正例命中 + canonical 豁免 + s
       "// 按 skills/cli-driven-development/docs/handoff-schema.md（命名/workspace 见 handoff-namespace.json）写入\n",
       "utf8",
     );
-    writeFileSync(path.join(dir, "t.mjs"), "// docs/handoff-schema.md 是 agent 据实声明的字段\n", "utf8");
+    writeFileSync(
+      path.join(dir, "t.mjs"),
+      "// docs/handoff-schema.md 是 agent 据实声明的字段\n",
+      "utf8",
+    );
     try {
       const hits = collectHandoffSchemaHits([dir]);
       expect(hits).toHaveLength(2);
@@ -980,10 +1112,7 @@ describe("handoff-schema（§2.8 行 14）：正例命中 + canonical 豁免 + s
     }
   });
   it("HANDOFF_SCHEMA_TARGETS 覆盖既定 scope（scope 缩小即失败）", () => {
-    for (const p of [
-      "packages/cdd-engine/src",
-      "packages/osuperpowers",
-    ]) {
+    for (const p of ["packages/cdd-engine/src", "packages/osuperpowers"]) {
       expect(HANDOFF_SCHEMA_TARGETS).toContain(p);
     }
     // P6 Task 3：tests/ 已退役，src 面 walk 默认 __tests__ 自豁免 —— 不再单列根路径
@@ -1004,7 +1133,11 @@ describe("handoff-schema（§2.8 行 14）：正例命中 + canonical 豁免 + s
 describe("skills 面守卫（T16）：行 17 零上游文档 read + 上游引用一律 /plugin:skill 斜杠形", () => {
   it("vendors/ 路径 → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "skf-vendors-"));
-    writeFileSync(path.join(dir, "a.md"), "**Read**: `vendors/mattpocock-skills/skills/productivity/grilling/SKILL.md`\n", "utf8");
+    writeFileSync(
+      path.join(dir, "a.md"),
+      "**Read**: `vendors/mattpocock-skills/skills/productivity/grilling/SKILL.md`\n",
+      "utf8",
+    );
     try {
       const hits = collectUpstreamReadHits([dir]);
       expect(hits).toHaveLength(1);
@@ -1015,7 +1148,11 @@ describe("skills 面守卫（T16）：行 17 零上游文档 read + 上游引用
   });
   it("上游 SKILL.md 路径（superpowers/…SKILL.md）→ 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "skf-upstream-"));
-    writeFileSync(path.join(dir, "b.md"), "- **Do**: Read `superpowers/skills/brainstorming/SKILL.md` to load the framework\n", "utf8");
+    writeFileSync(
+      path.join(dir, "b.md"),
+      "- **Do**: Read `superpowers/skills/brainstorming/SKILL.md` to load the framework\n",
+      "utf8",
+    );
     try {
       expect(collectUpstreamReadHits([dir])).toHaveLength(1);
     } finally {
@@ -1033,7 +1170,11 @@ describe("skills 面守卫（T16）：行 17 零上游文档 read + 上游引用
   });
   it("上游引用非斜杠形（superpowers:brainstorming 前无 /）→ 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "skf-noslash-"));
-    writeFileSync(path.join(dir, "e.md"), "Delegates to a superpowers:brainstorming session.\n", "utf8");
+    writeFileSync(
+      path.join(dir, "e.md"),
+      "Delegates to a superpowers:brainstorming session.\n",
+      "utf8",
+    );
     try {
       const hits = collectUpstreamSlashFormHits([dir]);
       expect(hits).toHaveLength(1);
@@ -1044,7 +1185,11 @@ describe("skills 面守卫（T16）：行 17 零上游文档 read + 上游引用
   });
   it("反射例：slash 形 Run a /<plugin>:<skill> session 与同插件 osuperpowers:… 引用均不命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "skf-ok-"));
-    writeFileSync(path.join(dir, "d.md"), "- **Do**: Run a /superpowers:brainstorming session — the harness loads the upstream skill and runs its flow.\n", "utf8");
+    writeFileSync(
+      path.join(dir, "d.md"),
+      "- **Do**: Run a /superpowers:brainstorming session — the harness loads the upstream skill and runs its flow.\n",
+      "utf8",
+    );
     writeFileSync(path.join(dir, "f.md"), "hands off to osuperpowers:writing-plans\n", "utf8");
     try {
       expect(collectUpstreamReadHits([dir])).toEqual([]);
@@ -1108,7 +1253,11 @@ describe("skills 面守卫（T16）：行 15 零引擎内部结构依赖（AC5 �
     const dir = mkdtempSync(path.join(tmpdir(), "skf-int-ok-"));
     const file = path.join(dir, "cli-driven-development", "SKILL.md");
     mkdirSync(path.dirname(file), { recursive: true });
-    writeFileSync(file, "Every task goes through implement → review → (fix if blockers); routes by `status` + `findings[]` from the output contract.\n", "utf8");
+    writeFileSync(
+      file,
+      "Every task goes through implement → review → (fix if blockers); routes by `status` + `findings[]` from the output contract.\n",
+      "utf8",
+    );
     try {
       expect(collectInternalDependencyHits([file])).toEqual([]);
     } finally {
@@ -1131,7 +1280,14 @@ describe("skills 面守卫（T16）：行 16 零 fix-inline + 评审循环 fix �
   });
   it("评审循环 fix 节点节缺 cdd fix → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "skf-fixnode-"));
-    writeFileSync(path.join(dir, "SKILL.md"), SKILL_MD("  A[fix-spec] --> B((done))", "### `fix-spec`\n\n- **Do**: Fix all findings via the editor.\n"), "utf8");
+    writeFileSync(
+      path.join(dir, "SKILL.md"),
+      SKILL_MD(
+        "  A[fix-spec] --> B((done))",
+        "### `fix-spec`\n\n- **Do**: Fix all findings via the editor.\n",
+      ),
+      "utf8",
+    );
     try {
       const hits = collectReviewLoopFixCddHits([dir]);
       expect(hits).toHaveLength(1);
@@ -1160,7 +1316,14 @@ describe("skills 面守卫（T16）：行 16 零 fix-inline + 评审循环 fix �
   });
   it("评审循环 fix 节点节含 cdd fix → 零命中（反射例）", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "skf-fixnode-ok-"));
-    writeFileSync(path.join(dir, "SKILL.md"), SKILL_MD("  A[fix-spec] --> B((done))", "### `fix-spec`\n\n- **Do**: Fix ALL findings via `cdd fix --type spec --spec <path>`.\n"), "utf8");
+    writeFileSync(
+      path.join(dir, "SKILL.md"),
+      SKILL_MD(
+        "  A[fix-spec] --> B((done))",
+        "### `fix-spec`\n\n- **Do**: Fix ALL findings via `cdd fix --type spec --spec <path>`.\n",
+      ),
+      "utf8",
+    );
     try {
       expect(collectReviewLoopFixCddHits([dir])).toEqual([]);
     } finally {
@@ -1169,7 +1332,14 @@ describe("skills 面守卫（T16）：行 16 零 fix-inline + 评审循环 fix �
   });
   it("非 fix 节点不参与正面检查（零命中）", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "skf-nofix-"));
-    writeFileSync(path.join(dir, "SKILL.md"), SKILL_MD("  A[run-review] --> B((done))", "### `run-review`\n\n- **Do**: Dispatch `cdd review`.\n"), "utf8");
+    writeFileSync(
+      path.join(dir, "SKILL.md"),
+      SKILL_MD(
+        "  A[run-review] --> B((done))",
+        "### `run-review`\n\n- **Do**: Dispatch `cdd review`.\n",
+      ),
+      "utf8",
+    );
     try {
       expect(collectReviewLoopFixCddHits([dir])).toEqual([]);
     } finally {
@@ -1179,20 +1349,23 @@ describe("skills 面守卫（T16）：行 16 零 fix-inline + 评审循环 fix �
 });
 
 describe("skills 面守卫（T16）：行 12 失败类目名 ⊆ canonical ∪ 状态枚举白名单 + 类目语义零复述", () => {
-  const FM = (rows) => `# X\n\n## Failure Modes\n\n| category | handling |\n|---|---|\n${rows}\n\n## Elsewhere\n`;
+  const FM = (rows) =>
+    `# X\n\n## Failure Modes\n\n| category | handling |\n|---|---|\n${rows}\n\n## Elsewhere\n`;
   it("canonical 六类首列 → 零违规", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "skf-fm-"));
     const f = path.join(dir, "SKILL.md");
     writeFileSync(
       f,
-      FM([
-        "| TIMEOUT | routed from output contract |",
-        "| CONTRACT_VIOLATION | blocker |",
-        "| ENGINE_SELF_WRITTEN | blocker |",
-        "| EXECUTION_FAILURE | blocker |",
-        "| UNVERIFIABLE | blocker |",
-        "| PLAN_CONFLICT | surface to user |",
-      ].join("\n")),
+      FM(
+        [
+          "| TIMEOUT | routed from output contract |",
+          "| CONTRACT_VIOLATION | blocker |",
+          "| ENGINE_SELF_WRITTEN | blocker |",
+          "| EXECUTION_FAILURE | blocker |",
+          "| UNVERIFIABLE | blocker |",
+          "| PLAN_CONFLICT | surface to user |",
+        ].join("\n"),
+      ),
       "utf8",
     );
     try {
@@ -1316,7 +1489,11 @@ describe("stale-lexicon：report-issues 旧模型语汇守卫（Task 16·P5）",
   it("含旧 renderer 语汇的临时文件被 collectStaleLexiconHits 命中；复数/内部属性/execa 放行", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "residue-t16-"));
     writeFileSync(path.join(dir, "a.mjs"), "render --mode implement\nrenderComment gone\n", "utf8");
-    writeFileSync(path.join(dir, "b.mjs"), "osuperpowers:report-issues\nmode: \"implement\"\nexeca(\"git\", x)\n", "utf8");
+    writeFileSync(
+      path.join(dir, "b.mjs"),
+      'osuperpowers:report-issues\nmode: "implement"\nexeca("git", x)\n',
+      "utf8",
+    );
     try {
       const hits = collectStaleLexiconHits([dir]);
       expect(hits).toHaveLength(2); // --mode + renderComment（a.mjs）；b.mjs 全放行
@@ -1350,10 +1527,16 @@ describe("P6 Task 3 M5：.mjs 终态（src 0 .mjs + tests/ 0）", () => {
       mkdirSync(path.join(dir, "sub", "src", "__tests__"), { recursive: true });
       mkdirSync(path.join(dir, "sub", "tests"), { recursive: true });
       writeFileSync(path.join(dir, "sub", "src", "bin.mjs"), "console.log(1)\n", "utf8");
-      writeFileSync(path.join(dir, "sub", "src", "__tests__", "node.mjs"), "import x from '../bin.mjs'\n", "utf8");
+      writeFileSync(
+        path.join(dir, "sub", "src", "__tests__", "node.mjs"),
+        "import x from '../bin.mjs'\n",
+        "utf8",
+      );
       writeFileSync(path.join(dir, "sub", "tests", "old.mjs"), "// retired tests/ dir\n", "utf8");
       const hits = collectMjsTerminalStateViolations(path.join(dir, "sub", "src"));
-      expect(hits.map((h) => h.file).sort()).toEqual(["__tests__/node.mjs", "bin.mjs", "tests"].sort());
+      expect(hits.map((h) => h.file).sort()).toEqual(
+        ["__tests__/node.mjs", "bin.mjs", "tests"].sort(),
+      );
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -1373,15 +1556,21 @@ describe("P6 Task 3：walkTargetFiles `__tests__` 自豁免 doctrine", () => {
       mkdirSync(path.join(dir, "m", "__tests__"), { recursive: true });
       writeFileSync(path.join(dir, "mech.ts"), "// pkg/foo 字面\n", "utf8");
       writeFileSync(path.join(dir, "m", "mech2.ts"), "pkg/foo\n", "utf8");
-      writeFileSync(path.join(dir, "m", "__tests__", "t.test.ts"), "pkg/foo 测试断言必须引用\n", "utf8");
+      writeFileSync(
+        path.join(dir, "m", "__tests__", "t.test.ts"),
+        "pkg/foo 测试断言必须引用\n",
+        "utf8",
+      );
       const re = /pkg\/foo/;
       const defaultHits = scanTargets([dir], re);
       const withTests = scanTargets([dir], re, { includeTests: true });
       // scanTargets 文件名为 ROOT 相对（tmpdir 前缀不定）——按相对末端断言
-      expect(defaultHits.map((f) => f.replace(/^.*?residue-walk.*?\//, "")).sort())
-        .toEqual(["m/mech2.ts", "mech.ts"].sort());
-      expect(withTests.map((f) => f.replace(/^.*?residue-walk.*?\//, "")).sort())
-        .toEqual(["m/__tests__/t.test.ts", "m/mech2.ts", "mech.ts"].sort());
+      expect(defaultHits.map((f) => f.replace(/^.*?residue-walk.*?\//, "")).sort()).toEqual(
+        ["m/mech2.ts", "mech.ts"].sort(),
+      );
+      expect(withTests.map((f) => f.replace(/^.*?residue-walk.*?\//, "")).sort()).toEqual(
+        ["m/__tests__/t.test.ts", "m/mech2.ts", "mech.ts"].sort(),
+      );
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -1428,33 +1617,37 @@ describe("src 注释锚首禁（Task 31 / spec T7.10）", () => {
     expect(anchorHits("const x = 1;\n// E27: source-less fallback\n")).toBe(0);
   });
   it("文件头豁免仅用于路径/模块开头头注（行内尾锚合法）", () => {
-    expect(anchorHits(
-      "// packages/cdd-engine/src/dispatch/x.ts — CDD dispatch plumbing (Task 20 ⑦)\n" +
-      "// heritage port of run.mjs\n" +
-      "import path from \"node:path\";\n",
-    )).toBe(0);
+    expect(
+      anchorHits(
+        "// packages/cdd-engine/src/dispatch/x.ts — CDD dispatch plumbing (Task 20 ⑦)\n" +
+          "// heritage port of run.mjs\n" +
+          'import path from "node:path";\n',
+      ),
+    ).toBe(0);
   });
   it("锚首头注不放行（豁免以头注首 token 非锚为前提）", () => {
-    expect(anchorHits("// T26: header prose\nimport x from \"y\";\n")).toBe(1);
+    expect(anchorHits('// T26: header prose\nimport x from "y";\n')).toBe(1);
   });
   it("块粒度：相邻 `//` 行组整体一计数（paren 续行不误报）", () => {
     // Counter-example (the finalize.ts:387 lesson): a continuation line opening with an open
     // paren continues the previous line's semantics — the group's first token is the decision
     // point.
-    expect(anchorHits(
-      "// No agentHandoff authority is implied\n" +
-      "// (T6 logic moved in) completes the open paren\n",
-    )).toBe(0);
-    expect(anchorHits(
-      "// T6 logic moved in\n" +
-      "// No agentHandoff authority\n",
-    )).toBe(1);
+    expect(
+      anchorHits(
+        "// No agentHandoff authority is implied\n" +
+          "// (T6 logic moved in) completes the open paren\n",
+      ),
+    ).toBe(0);
+    expect(anchorHits("// T6 logic moved in\n" + "// No agentHandoff authority\n")).toBe(1);
   });
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: the title deliberately names the ${} interpolation shape under test.
   it("${} 内插值串内的 {/} 不动插值深度（防注释误吞）", () => {
     // A { inside an interpolated string must not over-extend the ${} walk past the template
     // close — a later // comment would otherwise be swallowed (false negative).
-    expect(anchorHits("const x = `a${ \"{\" }b`; // T7.10: prose\n")).toBe(1);
-    expect(anchorHits("const x = `a${ \"}\" }b`; // T7.10: prose\n")).toBe(1);
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: fixture strings intentionally carry a literal ${} inside a template-literal example.
+    expect(anchorHits('const x = `a${ "{" }b`; // T7.10: prose\n')).toBe(1);
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: fixture strings intentionally carry a literal ${} inside a template-literal example.
+    expect(anchorHits('const x = `a${ "}" }b`; // T7.10: prose\n')).toBe(1);
   });
   it("includeTests 入扫测试位（§35 无测试豁免）", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "residue-ca-t-"));

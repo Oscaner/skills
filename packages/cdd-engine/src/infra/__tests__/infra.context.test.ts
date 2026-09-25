@@ -1,7 +1,7 @@
 // packages/cdd-engine/src/infra/__tests__/infra.context.test.ts
 // Mirrors the .mjs suite's assertion set: loadContract returns the same canonical object;
 // the timeout defaults come from the canonical JSON (no literals in this module).
-import { it, expect } from "vitest";
+import { expect, it } from "vitest";
 
 import { loadContract } from "../context.ts";
 

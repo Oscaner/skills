@@ -3,25 +3,29 @@
 // driven; the actual measurement run is a documented dev-side action (no live harness in CI).
 // Also pins the argv parser (boolean-presence semantics) and the measurement-mode cross-phase
 // derivation (review/fix fixed-point from real prior handoffs).
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { extractCacheUsage, parseArgs, priorHandoffPaths } from "../observe-cache.ts";
 
 describe("extractCacheUsage — parse prompt-cache read/write tokens from harness output", () => {
   it("Anthropic --debug key=val form (cache_creation_input_tokens / cache_read_input_tokens)", () => {
-    const log = '{"type":"assistant","usage":{"input_tokens":412,"cache_creation_input_tokens":3482,"cache_read_input_tokens":6093,"output_tokens":15}}';
+    const log =
+      '{"type":"assistant","usage":{"input_tokens":412,"cache_creation_input_tokens":3482,"cache_read_input_tokens":6093,"output_tokens":15}}';
     expect(extractCacheUsage(log)).toEqual({ readTokens: 6093, writeTokens: 3482 });
   });
 
   it("OpenAI-verbose prompt_cache_read/write_tokens form", () => {
-    const log = 'usage: {"prompt_tokens":500,"prompt_cache_read_tokens":300,"prompt_cache_write_tokens":200}';
+    const log =
+      'usage: {"prompt_tokens":500,"prompt_cache_read_tokens":300,"prompt_cache_write_tokens":200}';
     expect(extractCacheUsage(log)).toEqual({ readTokens: 300, writeTokens: 200 });
   });
 
   it("human /cost table lines (thousands separators, case-insensitive)", () => {
-    const log = "Cost details:\nPrompt cache read tokens:       6,093\nPrompt cache write tokens: 2,000";
+    const log =
+      "Cost details:\nPrompt cache read tokens:       6,093\nPrompt cache write tokens: 2,000";
     expect(extractCacheUsage(log)).toEqual({ readTokens: 6093, writeTokens: 2000 });
   });
 
@@ -35,7 +39,8 @@ describe("extractCacheUsage — parse prompt-cache read/write tokens from harnes
   });
 
   it("zero-token cache fields are still a measurement (not null)", () => {
-    const log = 'usage: {"input_tokens":100,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}';
+    const log =
+      'usage: {"input_tokens":100,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}';
     expect(extractCacheUsage(log)).toEqual({ readTokens: 0, writeTokens: 0 });
   });
 
@@ -84,9 +89,21 @@ describe("priorHandoffPaths — measurement-mode cross-phase derivation (mirrors
   let ws: string;
   beforeEach(() => {
     ws = mkdtempSync(path.join(tmpdir(), "observe-cache-"));
-    writeFileSync(path.join(ws, "task-7-implement.json"), JSON.stringify({ phase: "implement", commits: { base: "a".repeat(40), head: "b".repeat(40) } }));
-    writeFileSync(path.join(ws, "task-7-review-1.json"), JSON.stringify({ phase: "review", commits: { base: "c".repeat(40), head: "d".repeat(40) } }));
-    writeFileSync(path.join(ws, "task-7-fix-1.json"), JSON.stringify({ phase: "fix", commits: { base: "e".repeat(40), head: "f".repeat(40) } }));
+    writeFileSync(
+      path.join(ws, "task-7-implement.json"),
+      JSON.stringify({
+        phase: "implement",
+        commits: { base: "a".repeat(40), head: "b".repeat(40) },
+      }),
+    );
+    writeFileSync(
+      path.join(ws, "task-7-review-1.json"),
+      JSON.stringify({ phase: "review", commits: { base: "c".repeat(40), head: "d".repeat(40) } }),
+    );
+    writeFileSync(
+      path.join(ws, "task-7-fix-1.json"),
+      JSON.stringify({ phase: "fix", commits: { base: "e".repeat(40), head: "f".repeat(40) } }),
+    );
   });
   afterEach(() => rmSync(ws, { recursive: true, force: true }));
 
@@ -95,7 +112,9 @@ describe("priorHandoffPaths — measurement-mode cross-phase derivation (mirrors
       findingsPath: "",
       fixedPoint: "",
     });
-    expect(priorHandoffPaths({ workspace: ws, task: 7, mode: "implement", round: 2 }).fixedPoint).toBe("");
+    expect(
+      priorHandoffPaths({ workspace: ws, task: 7, mode: "implement", round: 2 }).fixedPoint,
+    ).toBe("");
   });
 
   it("fix round R: findings + fixed point come from the same-round review handoff (prev = review.task:R)", () => {
@@ -111,7 +130,11 @@ describe("priorHandoffPaths — measurement-mode cross-phase derivation (mirrors
   });
 
   it("review round 1: fixed point from the implement handoff; review round R: from fix-(R-1)", () => {
-    expect(priorHandoffPaths({ workspace: ws, task: 7, mode: "review", round: 1 }).fixedPoint).toBe("a".repeat(40));
-    expect(priorHandoffPaths({ workspace: ws, task: 7, mode: "review", round: 2 }).fixedPoint).toBe("e".repeat(40));
+    expect(priorHandoffPaths({ workspace: ws, task: 7, mode: "review", round: 1 }).fixedPoint).toBe(
+      "a".repeat(40),
+    );
+    expect(priorHandoffPaths({ workspace: ws, task: 7, mode: "review", round: 2 }).fixedPoint).toBe(
+      "e".repeat(40),
+    );
   });
 });

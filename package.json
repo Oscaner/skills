@@ -9,10 +9,13 @@
     "version": "node scripts/run.ts version",
     "emit": "node scripts/run.ts emit",
     "emit:check": "node scripts/run.ts emit-check",
+    "biome": "biome check .",
+    "biome:fix": "biome check --write .",
     "prepare": "husky",
     "test": "vitest run"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.14",
     "@changesets/changelog-github": "^1.0.1",
     "@changesets/cli": "^3.0.3",
     "@changesets/config": "^4.0.1",

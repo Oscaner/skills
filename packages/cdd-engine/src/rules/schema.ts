@@ -22,7 +22,10 @@ import { resolvePackageRoot } from "../infra/resource.ts";
 // legacy `../..` hop was calibrated to src/rules/ but lands two levels too high from the real
 // bundle (dist/, consumer install), breaking the runtime reads of the shipped handoff JSON schemas
 // in the published package.
-const PKG_ROOT = path.join(resolvePackageRoot(path.dirname(fileURLToPath(import.meta.url))), "templates");
+const PKG_ROOT = path.join(
+  resolvePackageRoot(path.dirname(fileURLToPath(import.meta.url))),
+  "templates",
+);
 
 const SCHEMA_PATHS: Record<string, string> = {
   task: path.join(PKG_ROOT, "schema", "task-handoff-schema.json"),
@@ -60,8 +63,9 @@ export function validateHandoffSchema(
   const errors = validator.errors ?? [];
   const err = errors.find((e) => e.keyword === "additionalProperties");
   const reason = errors
-    .map((e) =>
-      `${e.instancePath || "/"}${e.params?.additionalProperty ? ` (unexpected key: ${e.params.additionalProperty})` : ""} ${e.message}`,
+    .map(
+      (e) =>
+        `${e.instancePath || "/"}${e.params?.additionalProperty ? ` (unexpected key: ${e.params.additionalProperty})` : ""} ${e.message}`,
     )
     .join("; ")
     .trim();

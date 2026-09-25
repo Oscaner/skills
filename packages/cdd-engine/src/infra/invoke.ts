@@ -5,9 +5,16 @@
 // fallback is a whitelisted passthrough site pinned to invoke.mjs; the rebuild threads env down
 // from its own callers instead of reading process.env at this depth.
 import { loadContract } from "./context.ts";
-import { resolveInjection, resolveSuffix } from "./registry.ts";
-import { spawnManaged, markAllDispatchesDone, DEFAULT_SAMPLE_INTERVAL_MS, DEFAULT_IDLE_WINDOW_MS, type SpawnResult, type TerminationConfig } from "./proc.ts";
 import { invariant } from "./exit.ts";
+import {
+  DEFAULT_IDLE_WINDOW_MS,
+  DEFAULT_SAMPLE_INTERVAL_MS,
+  markAllDispatchesDone,
+  type SpawnResult,
+  spawnManaged,
+  type TerminationConfig,
+} from "./proc.ts";
+import { resolveInjection, resolveSuffix } from "./registry.ts";
 
 export interface TimeoutDefaults {
   [mode: string]: number | undefined;
@@ -46,8 +53,12 @@ export function resolveTerminationConfig(
   return {
     budgetMs: overrides?.budgetMs ?? DEFAULT_TIMEOUTS[mode],
     progressPath: overrides?.progressPath ?? progressPath,
-    sampleIntervalMs: overrides?.sampleIntervalMs ?? LIVENESS_DEFAULTS.sampleIntervalMs ?? DEFAULT_SAMPLE_INTERVAL_MS,
-    idleWindowMs: overrides?.idleWindowMs ?? LIVENESS_DEFAULTS.idleWindowMs ?? DEFAULT_IDLE_WINDOW_MS,
+    sampleIntervalMs:
+      overrides?.sampleIntervalMs ??
+      LIVENESS_DEFAULTS.sampleIntervalMs ??
+      DEFAULT_SAMPLE_INTERVAL_MS,
+    idleWindowMs:
+      overrides?.idleWindowMs ?? LIVENESS_DEFAULTS.idleWindowMs ?? DEFAULT_IDLE_WINDOW_MS,
   };
 }
 
@@ -109,20 +120,33 @@ export async function invokeCli(
   params: InvokeParams | string,
   env: NodeJS.ProcessEnv,
   cwd: string,
-  termination?: TerminationConfig,   // unified budget + stall termination opts (single param; T26)
+  termination?: TerminationConfig, // unified budget + stall termination opts (single param; T26)
 ): Promise<SpawnResult> {
   const set = composeDispatchSet(entry, params, prompt, cwd, env);
   const res = await spawnManaged(set.cli, set.args, { cwd: set.cwd, env: set.env, termination });
-  markAllDispatchesDone();          // dispatch (incl. every retry attempt) returned → group done
+  markAllDispatchesDone(); // dispatch (incl. every retry attempt) returned → group done
   if (res.ok && entry.output === "stream-json") {
     const finalText = extractStreamJsonFinal(res.stdout);
     // timedOut passes the spawnManaged determination through — plus the cause it recorded (T26
     // three-cause surface), so the stream-json exit never drops the termination shape.
     if (!finalText) {
-      return { ok: false, code: 1, stdout: res.stdout,
-               stderr: "stream-json produced no completion finalText", timedOut: res.timedOut === true, cause: res.cause };
+      return {
+        ok: false,
+        code: 1,
+        stdout: res.stdout,
+        stderr: "stream-json produced no completion finalText",
+        timedOut: res.timedOut === true,
+        cause: res.cause,
+      };
     }
-    return { ok: true, code: 0, stdout: finalText, stderr: res.stderr, timedOut: res.timedOut === true, cause: res.cause };
+    return {
+      ok: true,
+      code: 0,
+      stdout: finalText,
+      stderr: res.stderr,
+      timedOut: res.timedOut === true,
+      cause: res.cause,
+    };
   }
   return res;
 }

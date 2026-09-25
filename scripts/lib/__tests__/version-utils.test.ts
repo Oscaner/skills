@@ -1,9 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  parseSemver,
+  changesetsForPlugin,
   computeNextIndependentVersion,
   highestBumpLevel,
-  changesetsForPlugin,
+  parseSemver,
 } from "../version-utils.ts";
 
 describe("parseSemver", () => {
@@ -66,21 +66,15 @@ describe("changesetsForPlugin", () => {
       { id: "b", releases: [{ name: "@oscaner-skills/osuperpowers", type: "minor" }] },
       {
         id: "c",
-        releases: [
-          { name: "@oscaner-skills/osuperpowers", type: "patch" },
-        ],
+        releases: [{ name: "@oscaner-skills/osuperpowers", type: "patch" }],
       },
     ];
     expect(
-      changesetsForPlugin(changesets, "@oscaner-skills/osuperpowers").map(
-        (cs) => cs.id,
-      ),
+      changesetsForPlugin(changesets, "@oscaner-skills/osuperpowers").map((cs) => cs.id),
     ).toEqual(["b", "c"]);
   });
 
   it("returns empty for missing releases array", () => {
-    expect(
-      changesetsForPlugin([{ id: "x" }], "@oscaner-skills/osuperpowers"),
-    ).toEqual([]);
+    expect(changesetsForPlugin([{ id: "x" }], "@oscaner-skills/osuperpowers")).toEqual([]);
   });
 });

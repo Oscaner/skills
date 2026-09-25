@@ -18,25 +18,25 @@
 //
 // The program fixtures + engine-workspace writers live in ./closeout-fixtures.ts (shared with
 // dispatch/__tests__/closeout-channels.test.ts — single source, no drift between the two faces).
-import { it, expect, describe } from "vitest";
-import { writeFileSync, existsSync, readdirSync } from "node:fs";
-import path from "node:path";
 
+import { existsSync, readdirSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+import { resolveWorkspace } from "../../artifacts/handoff/naming.ts";
 import {
   deriveCloseoutMismatches,
   deriveTerminalDebt,
   formatCloseoutDebtFailures,
   formatCloseoutDebtHighlight,
 } from "../closeout.ts";
-import { resolveWorkspace } from "../../artifacts/handoff/naming.ts";
 import {
-  OVERALL_CLEAN,
-  OVERALL_BACKFILLED,
   mkProgramRepo,
-  writeProgramDocs,
+  OVERALL_BACKFILLED,
+  OVERALL_CLEAN,
+  type Program,
   writeCompletePlanWorkspace,
   writeInFlightPlanWorkspace,
-  type Program,
+  writeProgramDocs,
 } from "./closeout-fixtures.ts";
 
 /** The three-doc program chain in a fresh temp repo. Derived counter-level: overall in specs/,
@@ -127,11 +127,16 @@ describe("deriveCloseoutMismatches — the single module (both surfaces, 同源)
 
   it("read-only: the inference never writes — a fresh checkout stays fresh (zero engine doc writes)", () => {
     const p = writeProgram();
-    const preTree = [readdirSync(p.repo), readdirSync(path.join(p.repo, "docs", "osuperpowers"))].flat();
+    const preTree = [
+      readdirSync(p.repo),
+      readdirSync(path.join(p.repo, "docs", "osuperpowers")),
+    ].flat();
     deriveCloseoutMismatches({ entry: p.plan1, root: p.repo });
     // No workspace is materialized, no progress.json landed, no doc touched
     expect(existsSync(resolveWorkspace(p.plan1, p.repo))).toBe(false);
-    expect([readdirSync(p.repo), readdirSync(path.join(p.repo, "docs", "osuperpowers"))].flat()).toEqual(preTree);
+    expect(
+      [readdirSync(p.repo), readdirSync(path.join(p.repo, "docs", "osuperpowers"))].flat(),
+    ).toEqual(preTree);
   });
 });
 

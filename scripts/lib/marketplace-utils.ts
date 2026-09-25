@@ -1,5 +1,5 @@
-import { readFileSync, existsSync } from "node:fs";
-import { join, resolve, dirname } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const GENERATED = "scripts/run.ts emit — do not edit";
@@ -30,9 +30,7 @@ export function resolveVersion(root, plugin) {
   }
 
   if (plugin.version === undefined) {
-    throw new Error(
-      `Missing version in source for ${plugin.name} (required)`,
-    );
+    throw new Error(`Missing version in source for ${plugin.name} (required)`);
   }
   if (plugin.version !== truthVersion) {
     throw new Error(
@@ -115,9 +113,7 @@ export function assertCursorPathsExist(root, plugin) {
     if (!rel) continue;
     const abs = resolve(wrapperRoot, rel);
     if (!existsSync(abs)) {
-      throw new Error(
-        `Missing ${field} path for ${plugin.name}: ${rel} → ${abs}`,
-      );
+      throw new Error(`Missing ${field} path for ${plugin.name}: ${rel} → ${abs}`);
     }
   }
 }

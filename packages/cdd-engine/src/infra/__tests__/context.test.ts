@@ -2,7 +2,7 @@
 // 三断言面：① timeout 默认值取自 canonical；② 统一 resolver（resolveTerminationConfig）的默认值/
 // seam 覆写契约——env 零读取（T26 删除面：CDD_* env 键与 perModeOverride/globalOverride 已删）；
 // ③ env 白名单取自 canonical 且恰为 4 键（AC3 唯一声明点）。
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { loadContract } from "../context.ts";
 import { resolveTerminationConfig } from "../invoke.ts";
 
@@ -30,7 +30,7 @@ describe("context-contract canonical 承重", () => {
   });
   it("env 白名单取自 canonical 且恰为 4 键（AC3 唯一声明点）", () => {
     const c = loadContract();
-    const keys = Object.values(c.channels.env).flatMap(v => (v.var ? [v.var] : v.markers));
+    const keys = Object.values(c.channels.env).flatMap((v) => (v.var ? [v.var] : v.markers));
     expect(keys.sort()).toEqual(["AI_AGENT", "CLAUDE_CODE_SESSION_ID", "CURSOR_TRACE_ID", "PATH"]);
   });
   // 「运行期 context 零落盘」断言**不在本文件**——由 T8 的 `collectChannelAuditHits()` 承担（见 T8 Produces 表 ⑧ 行）；

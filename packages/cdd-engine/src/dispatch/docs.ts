@@ -21,26 +21,30 @@
 // the lifecycle — existing consumers/tests unchanged.
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-
 import {
-  DispatchLifecycle,
-  type DispatchContext,
-  type DispatchHookContext,
-  DispatchBlocked,
-} from "./base.ts";
+  finalizeHandoff,
+  persistFinalized,
+  recoverHandoff,
+  writeBlockedCarrier,
+} from "../artifacts/handoff/finalize.ts";
+import { readJson, writeOwnHandoff } from "../artifacts/handoff/write.ts";
+import { hashFile } from "../artifacts/hash.ts";
+import { type ExitRequested, exitWithCode, invariant } from "../infra/exit.ts";
+import { gitRevParseHead } from "../infra/git.ts";
 import { invokeCli, resolveTerminationConfig } from "../infra/invoke.ts";
 import { withLifecycle } from "../infra/proc.ts";
+import { checkHarness, loadRegistry, REG_PATH } from "../infra/registry.ts";
 import { getRoot } from "../infra/root.ts";
-import { gitRevParseHead } from "../infra/git.ts";
-import { exitWithCode, ExitRequested, invariant } from "../infra/exit.ts";
-import { writeOwnHandoff, readJson } from "../artifacts/handoff/write.ts";
-import { finalizeHandoff, persistFinalized, recoverHandoff, writeBlockedCarrier } from "../artifacts/handoff/finalize.ts";
-import { loadRegistry, checkHarness, REG_PATH } from "../infra/registry.ts";
-import { validateHandoffSchema } from "../rules/schema.ts";
-import { FAILURE_CATEGORIES } from "../rules/failure.ts";
+import { docsFixHardGate, renderTemplate, reviewHardGate } from "../render/templates.ts";
 import { UNCOMMITTED_RETURN_MARKER, validateCommitContract } from "../rules/commit.ts";
-import { renderTemplate, reviewHardGate, docsFixHardGate } from "../render/templates.ts";
-import { hashFile } from "../artifacts/hash.ts";
+import { FAILURE_CATEGORIES } from "../rules/failure.ts";
+import { validateHandoffSchema } from "../rules/schema.ts";
+import {
+  DispatchBlocked,
+  type DispatchContext,
+  type DispatchHookContext,
+  DispatchLifecycle,
+} from "./base.ts";
 
 export interface DocsLifecycleOptions {
   /** docs agent harness key (registry lookup) */
@@ -150,7 +154,11 @@ export class DocsLifecycle extends DispatchLifecycle {
     }
     // handoffPath must be passed by the caller (canonical handoff-naming filenames; T3). The
     // legacy `${template}-${round}.json` derivation is removed — no second naming site.
-    if (!this.#opts.handoffPath) invariant(false, "docs-runner: handoffPath required (canonical naming; no template fallback)");
+    if (!this.#opts.handoffPath)
+      invariant(
+        false,
+        "docs-runner: handoffPath required (canonical naming; no template fallback)",
+      );
   }
 
   // ---- dispatch ----
@@ -194,7 +202,10 @@ export class DocsLifecycle extends DispatchLifecycle {
         // the file itself; stdout has no JSON return — reviewHardGate's "before outputting the
         // JSON return" self-contradicts for a fix agent — reviewHardGate must not be reused).
         RETURN_FORMAT: mode === "fix" ? "DOCS_FIX" : "RETURN_JSON",
-        HANDOFF_WRITE_GATE: mode === "fix" ? docsFixHardGate(handoffPath ?? "") : reviewHardGate("RETURN_JSON", handoffPath ?? ""),
+        HANDOFF_WRITE_GATE:
+          mode === "fix"
+            ? docsFixHardGate(handoffPath ?? "")
+            : reviewHardGate("RETURN_JSON", handoffPath ?? ""),
       },
       "docs-runner",
     );
@@ -208,7 +219,14 @@ export class DocsLifecycle extends DispatchLifecycle {
     // budget channel of task/branch; resolveTerminationConfig defaults the budget from canonical
     // timeouts.defaults.review — zero env reads; the terminal reason still lands in the TIMEOUT
     // blocker).
-    const res = await invokeCli(entry, prompt, { op: mode, type }, process.env, this.ctx.repoRoot as string, resolveTerminationConfig("review"));
+    const res = await invokeCli(
+      entry,
+      prompt,
+      { op: mode, type },
+      process.env,
+      this.ctx.repoRoot as string,
+      resolveTerminationConfig("review"),
+    );
     this.#agentRc = res.code;
   }
 
@@ -225,15 +243,17 @@ export class DocsLifecycle extends DispatchLifecycle {
       // (retrievable via `git stash list` — never pre-destroyed). exit_code stays a strictly-death
       // code (the recovery schema denotation: "1 = run failure, 143 = SIGTERM") — the exit-0-no-
       // handoff boundary carries the cause only, so a 0 never rides the carrier as a diagnosed death (T25).
-      this.#done(writeBlockedCarrier(handoffPath, {
-        phase: this.#opts.mode,
-        doc: this.#opts.doc,
-        recovery: {
-          cause: FAILURE_CATEGORIES.EXECUTION_FAILURE.id,
-          ...(this.#agentRc !== 0 ? { exit_code: this.#agentRc } : {}),
-        },
-        blocker: `${path.basename(handoffPath)} not written after exit → worktree residue is preserved as a stash (\`git stash list\` → \`git stash apply <ref>\` → review → commit to salvage or \`git stash drop\` to discard) → re-run ${this.#opts.mode} and ensure handoff is written to ${handoffPath} before exit`,
-      }));
+      this.#done(
+        writeBlockedCarrier(handoffPath, {
+          phase: this.#opts.mode,
+          doc: this.#opts.doc,
+          recovery: {
+            cause: FAILURE_CATEGORIES.EXECUTION_FAILURE.id,
+            ...(this.#agentRc !== 0 ? { exit_code: this.#agentRc } : {}),
+          },
+          blocker: `${path.basename(handoffPath)} not written after exit → worktree residue is preserved as a stash (\`git stash list\` → \`git stash apply <ref>\` → review → commit to salvage or \`git stash drop\` to discard) → re-run ${this.#opts.mode} and ensure handoff is written to ${handoffPath} before exit`,
+        }),
+      );
       return;
     }
 
@@ -245,11 +265,13 @@ export class DocsLifecycle extends DispatchLifecycle {
     try {
       handoff = JSON.parse(readFileSync(handoffPath, "utf8")) as Record<string, unknown>;
     } catch (e) {
-      this.#done(writeBlockedCarrier(handoffPath, {
-        phase: this.#opts.mode,
-        doc: this.#opts.doc,
-        blocker: `handoff JSON unparseable: ${(e as Error).message} → fix the handoff at ${handoffPath} or re-run ${this.#opts.mode}`,
-      }));
+      this.#done(
+        writeBlockedCarrier(handoffPath, {
+          phase: this.#opts.mode,
+          doc: this.#opts.doc,
+          blocker: `handoff JSON unparseable: ${(e as Error).message} → fix the handoff at ${handoffPath} or re-run ${this.#opts.mode}`,
+        }),
+      );
       return;
     }
     const sv = validateHandoffSchema(handoff, "docs"); // docs schema (doc_path, no task)
@@ -263,13 +285,15 @@ export class DocsLifecycle extends DispatchLifecycle {
       // it; still failing → BLOCKED with the parsed findings kept.
       const rec = recoverHandoff(handoff, "docs");
       if (!rec.valid) {
-        this.#done(writeBlockedCarrier(handoffPath, {
-          phase: this.#opts.mode,
-          doc: this.#opts.doc,
-          findings: rec.preservedFindings as unknown[],
-          blocker: `docs handoff schema invalid${rec.reason} → fix the handoff JSON at ${handoffPath} and re-run ${this.#opts.mode}`,
-          fullReplace: true, // normalized-object full-replace (offending keys never stay on disk)
-        }));
+        this.#done(
+          writeBlockedCarrier(handoffPath, {
+            phase: this.#opts.mode,
+            doc: this.#opts.doc,
+            findings: rec.preservedFindings as unknown[],
+            blocker: `docs handoff schema invalid${rec.reason} → fix the handoff JSON at ${handoffPath} and re-run ${this.#opts.mode}`,
+            fullReplace: true, // normalized-object full-replace (offending keys never stay on disk)
+          }),
+        );
         return;
       }
       writeOwnHandoff(handoffPath, rec.handoff as Record<string, unknown>);
@@ -299,7 +323,10 @@ export class DocsLifecycle extends DispatchLifecycle {
         // finalizer (the carrier's sole author, T7), so doc_hash always changes → full-replace
         // writeOwnHandoff (not the persistFinalized skip-write). The in-memory return matches the
         // disk finalization: the derived status overwrite is written back to local + doc_hash synced.
-        const merged: Record<string, unknown> = { ...(finalized.handoff ?? handoff), doc_hash: hashFile(this.#opts.doc) };
+        const merged: Record<string, unknown> = {
+          ...(finalized.handoff ?? handoff),
+          doc_hash: hashFile(this.#opts.doc),
+        };
         writeOwnHandoff(handoffPath!, merged);
         handoff.status = merged.status;
         handoff.doc_hash = merged.doc_hash;
@@ -352,7 +379,9 @@ export class DocsLifecycle extends DispatchLifecycle {
  * (the CLI needs the process exit — it discards the return value). Root resolves eagerly for a
  * real dispatch (entry gate must see it); dry-run defers root entirely (legacy: dry-run returned
  * before getRoot()). */
-export async function runDocsTask(options: DocsLifecycleOptions & { dryRun?: boolean }): Promise<DocsResult> {
+export async function runDocsTask(
+  options: DocsLifecycleOptions & { dryRun?: boolean },
+): Promise<DocsResult> {
   const { dryRun = false, ...rest } = options;
   return withLifecycle(async () => {
     const lc = new DocsLifecycle({

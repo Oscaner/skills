@@ -9,17 +9,18 @@
 // fix --type spec|plan）以 cwd=REPO_ROOT 黑盒运行，入口门（rules/commit.ts）放行依赖两态之一——
 // 真实干净树，或 dirty + dry-run 的 CDD_WARN 降级（exit 0，纯模拟）。本文件期望按 E2② 编写；
 // 入口门/dry-run 协议语义变更需同步维护此处（详见 vitest.config.mjs 5b）。
-import { describe, it, expect, afterAll } from 'vitest';
-import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-const HERE = path.dirname(fileURLToPath(import.meta.url)); 
-const REPO_ROOT = path.resolve(HERE, '..', '..', '..', '..', '..');
-const CDD_MJS = path.join(REPO_ROOT, 'packages/cdd-engine/dist/cli.mjs');
-const SMOKE_PLAN = path.join('packages/cdd-engine/src/cli/__tests__/fixtures/smoke-plan.md');
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { afterAll, describe, expect, it } from "vitest";
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = path.resolve(HERE, "..", "..", "..", "..", "..");
+const CDD_MJS = path.join(REPO_ROOT, "packages/cdd-engine/dist/cli.mjs");
+const SMOKE_PLAN = path.join("packages/cdd-engine/src/cli/__tests__/fixtures/smoke-plan.md");
 // SMOKE_PLAN-derived workspace = .osuperpowers/cdd/smoke/ (engine workspaceSlug strips the
 // trailing -plan: smoke-plan.md → smoke) — the test teardown clears it so validate-root noise
 // cannot pollute the F6 single root (same semantics as the branch-review/cdd.test tmp/teardown
@@ -36,11 +37,11 @@ afterAll(() => {
 // **不存在 → exit 1 三行诊断**，read point ⑦），故 fixture 必须真实落盘。落点用独立 tmp 目录而非
 // `.osuperpowers/cdd/smoke/`：后者是 SMOKE_PLAN 的 workspace，塞入 spec-review-1.json 会让 cdd.test.mjs
 // 的同 slug 用例命中 Review Convergence（跨文件共享盘面）。round 只从**文件名**解析，位置无关。
-const FINDINGS_DIR = mkdtempSync(path.join(tmpdir(), 'cdd-doctask-findings-'));
-const SPEC_FINDINGS = path.join(FINDINGS_DIR, 'spec-review-1.json');
-const PLAN_FINDINGS = path.join(FINDINGS_DIR, 'plan-review-1.json');
+const FINDINGS_DIR = mkdtempSync(path.join(tmpdir(), "cdd-doctask-findings-"));
+const SPEC_FINDINGS = path.join(FINDINGS_DIR, "spec-review-1.json");
+const PLAN_FINDINGS = path.join(FINDINGS_DIR, "plan-review-1.json");
 for (const f of [SPEC_FINDINGS, PLAN_FINDINGS]) {
-  writeFileSync(f, JSON.stringify({ status: 'CHANGES_REQUESTED', findings: [] }));
+  writeFileSync(f, JSON.stringify({ status: "CHANGES_REQUESTED", findings: [] }));
 }
 // lifecycle 路径纯派生：恒落 <repoRoot>/.osuperpowers/cdd/lifecycle.json；并发安全由 reapStale 的
 // owner 存活判定承担，不依赖路径分离。
@@ -48,7 +49,7 @@ for (const f of [SPEC_FINDINGS, PLAN_FINDINGS]) {
 function run(args, extraEnv = {}, opts = {}) {
   const env = {};
   for (const [k, v] of Object.entries(process.env)) {
-    if (!k.startsWith('CDD_')) env[k] = v;
+    if (!k.startsWith("CDD_")) env[k] = v;
   }
   // Host detection is ambient-env driven — a no-host test must explicitly delete the
   // host markers (parent session may carry CLAUDE_CODE_SESSION_ID/AI_AGENT) (T3).
@@ -57,60 +58,58 @@ function run(args, extraEnv = {}, opts = {}) {
     delete env.CURSOR_TRACE_ID;
     delete env.AI_AGENT;
   }
-  return spawnSync('node', [CDD_MJS, ...args], {
+  return spawnSync("node", [CDD_MJS, ...args], {
     cwd: REPO_ROOT,
     env: { ...env, ...extraEnv },
-    encoding: 'utf8',
+    encoding: "utf8",
   });
 }
 
-describe('cdd review/fix --type spec|plan CLI contract', () => {
-  it('-h → citty help on stdout + exit 0', () => {
-    const r = run(['-h']);
+describe("cdd review/fix --type spec|plan CLI contract", () => {
+  it("-h → citty help on stdout + exit 0", () => {
+    const r = run(["-h"]);
     expect(r.status).toBe(0);
     expect(r.stdout).toMatch(/USAGE cdd/);
   });
 
-  it('no host env → CDD_BLOCKED + exit 1 (harness resolved from ambient host, no flag)', () => {
-    const r = run(['review', '--type', 'spec', '--spec', '/x.md'], {}, { noHost: true });
+  it("no host env → CDD_BLOCKED + exit 1 (harness resolved from ambient host, no flag)", () => {
+    const r = run(["review", "--type", "spec", "--spec", "/x.md"], {}, { noHost: true });
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/no host harness detected|CDD_BLOCKED/);
   });
 
-  it('missing --spec (type=spec target param) → stderr + exit 2', () => {
-    const r = run(['review', '--type', 'spec'], { CLAUDE_CODE_SESSION_ID: '1' });
+  it("missing --spec (type=spec target param) → stderr + exit 2", () => {
+    const r = run(["review", "--type", "spec"], { CLAUDE_CODE_SESSION_ID: "1" });
     expect(r.status).toBe(2);
     expect(r.stderr).toMatch(/missing required --spec/);
   });
 
-  it('dry-run review --type spec → exit 0', () => {
+  it("dry-run review --type spec → exit 0", () => {
+    const r = run(["--dry-run", "review", "--type", "spec", "--spec", SMOKE_PLAN], {
+      CLAUDE_CODE_SESSION_ID: "1",
+    });
+    expect(r.status, r.stderr).toBe(0);
+  });
+
+  it("dry-run review --type plan → exit 0", () => {
+    const r = run(["--dry-run", "review", "--type", "plan", "--plan", SMOKE_PLAN], {
+      CLAUDE_CODE_SESSION_ID: "1",
+    });
+    expect(r.status, r.stderr).toBe(0);
+  });
+
+  it("dry-run fix --type spec → exit 0（T3: round 从 --findings spec-review-{R}.json 名解析）", () => {
     const r = run(
-      ['--dry-run', 'review', '--type', 'spec', '--spec', SMOKE_PLAN],
-      { CLAUDE_CODE_SESSION_ID: '1' },
+      ["--dry-run", "fix", "--type", "spec", "--spec", SMOKE_PLAN, "--findings", SPEC_FINDINGS],
+      { CLAUDE_CODE_SESSION_ID: "1" },
     );
     expect(r.status, r.stderr).toBe(0);
   });
 
-  it('dry-run review --type plan → exit 0', () => {
+  it("dry-run fix --type plan → exit 0", () => {
     const r = run(
-      ['--dry-run', 'review', '--type', 'plan', '--plan', SMOKE_PLAN],
-      { CLAUDE_CODE_SESSION_ID: '1' },
-    );
-    expect(r.status, r.stderr).toBe(0);
-  });
-
-  it('dry-run fix --type spec → exit 0（T3: round 从 --findings spec-review-{R}.json 名解析）', () => {
-    const r = run(
-      ['--dry-run', 'fix', '--type', 'spec', '--spec', SMOKE_PLAN, '--findings', SPEC_FINDINGS],
-      { CLAUDE_CODE_SESSION_ID: '1' },
-    );
-    expect(r.status, r.stderr).toBe(0);
-  });
-
-  it('dry-run fix --type plan → exit 0', () => {
-    const r = run(
-      ['--dry-run', 'fix', '--type', 'plan', '--plan', SMOKE_PLAN, '--findings', PLAN_FINDINGS],
-      { CLAUDE_CODE_SESSION_ID: '1' },
+      ["--dry-run", "fix", "--type", "plan", "--plan", SMOKE_PLAN, "--findings", PLAN_FINDINGS],
+      { CLAUDE_CODE_SESSION_ID: "1" },
     );
     expect(r.status, r.stderr).toBe(0);
   });

@@ -1,17 +1,17 @@
-import { test, expect } from "vitest";
-import { readFileSync, mkdirSync, writeFileSync, rmSync, existsSync, mkdtempSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { expect, test } from "vitest";
+import { emitAll } from "../all.ts";
+import { assertVersionBump, BASE_PRODUCT_ROOTS } from "../compare.ts";
 import {
   claudePluginManifest,
   cursorPluginManifest,
-  generatedBanner,
   deriveFirstPartyNames,
+  generatedBanner,
 } from "../manifests.ts";
+import { findStaleCommittedFiles, writeJsonDoc, writeText } from "../orchestrate.ts";
 import { deriveSource, SOURCE_TOP } from "../source.ts";
-import { findStaleCommittedFiles, writeText, writeJsonDoc } from "../orchestrate.ts";
-import { emitAll } from "../all.ts";
-import { assertVersionBump, BASE_PRODUCT_ROOTS } from "../compare.ts";
 
 // First-party versions are read from the live package.json SOTs so these
 // assertions hold at any released version. A stale hardcoded version broke the
@@ -19,16 +19,14 @@ import { assertVersionBump, BASE_PRODUCT_ROOTS } from "../compare.ts";
 // tree before committing (emit reads the bumped package.json, so asserts must
 // expect the bumped version).
 const readPkgVersion = (rel) =>
-  JSON.parse(
-    readFileSync(new URL(`../../../${rel}/package.json`, import.meta.url), "utf8"),
-  ).version;
+  JSON.parse(readFileSync(new URL(`../../../${rel}/package.json`, import.meta.url), "utf8"))
+    .version;
 const OS_VERSION = readPkgVersion("packages/osuperpowers");
 
 const OS_ENG = {
   name: "osuperpowers",
   version: OS_VERSION,
-  description:
-    "Standalone osuperpowers skills: orchestration + cli-* family + CDD engine.",
+  description: "Standalone osuperpowers skills: orchestration + cli-* family + CDD engine.",
   author: { name: "Oscaner Miao", email: "oscaner1997@gmail.com" },
   license: "MIT",
   claude: {
@@ -46,8 +44,7 @@ test("claudePluginManifest emits osuperpowers claude manifest (thin, skills, no 
   expect(m).toEqual({
     _generated: generatedBanner,
     name: "osuperpowers",
-    description:
-      "Standalone osuperpowers skills: orchestration + cli-* family + CDD engine.",
+    description: "Standalone osuperpowers skills: orchestration + cli-* family + CDD engine.",
     version: OS_VERSION,
     author: { name: "Oscaner Miao", email: "oscaner1997@gmail.com" },
     license: "MIT",
@@ -55,9 +52,7 @@ test("claudePluginManifest emits osuperpowers claude manifest (thin, skills, no 
     category: "osuperpowers",
     keywords: ["osuperpowers", "cli", "cdd", "harness"],
   });
-  expect(
-    !("hooks" in m),
-  ).toBeTruthy();
+  expect(!("hooks" in m)).toBeTruthy();
 });
 
 test("cursorPluginManifest points skills at canonical ./skills/, no hooks", () => {
@@ -90,9 +85,7 @@ test("claudePluginManifest emits hooks only for non-canonical hook files", () =>
     { ...OS_ENG, hooks: { claude: "./hooks/hooks.json" } },
     OS_VERSION,
   );
-  expect(
-    !("hooks" in canonical),
-  ).toBeTruthy();
+  expect(!("hooks" in canonical)).toBeTruthy();
 });
 
 test("cursorPluginManifest never emits a hooks field (gate hooks removed)", () => {
@@ -107,22 +100,15 @@ test("cursorPluginManifest never emits a hooks field (gate hooks removed)", () =
 });
 
 test(".version-bump.json tracks the versioned emit manifest set (.claude-plugin + .cursor-plugin)", () => {
-  const bump = JSON.parse(
-    readFileSync("packages/osuperpowers/.version-bump.json", "utf8"),
-  );
+  const bump = JSON.parse(readFileSync("packages/osuperpowers/.version-bump.json", "utf8"));
   const paths = bump.files.map((f) => f.path);
-  for (const p of [
-    ".claude-plugin/plugin.json",
-    ".cursor-plugin/plugin.json",
-  ]) {
+  for (const p of [".claude-plugin/plugin.json", ".cursor-plugin/plugin.json"]) {
     expect(paths.includes(p)).toBeTruthy();
   }
 });
 
 test("deriveFirstPartyNames discovers packages with oscaner-plugin (sorted)", () => {
-  expect(deriveFirstPartyNames("packages")).toEqual([
-    "osuperpowers",
-  ]);
+  expect(deriveFirstPartyNames("packages")).toEqual(["osuperpowers"]);
 });
 
 test("deriveFirstPartyNames ignores dirs without oscaner-plugin / package.json", () => {
@@ -175,8 +161,7 @@ test("deriveSource first-party entries carry oscaner-plugin + package metadata",
   expect(eng).toEqual({
     name: "osuperpowers",
     version: OS_VERSION,
-    description:
-      "Standalone osuperpowers skills: orchestration + cli-* family + CDD engine.",
+    description: "Standalone osuperpowers skills: orchestration + cli-* family + CDD engine.",
     author: { name: "Oscaner Miao", email: "oscaner1997@gmail.com" },
     contentRoot: "packages/osuperpowers",
     homepage: "https://github.com/Oscaner/skills",
@@ -215,10 +200,7 @@ test("findStaleCommittedFiles flags emitted products no longer generated", () =>
       extraStale: ["cursor-plugins/osuperpowers/"],
       root: tmp,
     });
-    expect(stale.sort()).toEqual([
-      "cursor-plugins/osuperpowers/",
-      "products/stale.json",
-    ]);
+    expect(stale.sort()).toEqual(["cursor-plugins/osuperpowers/", "products/stale.json"]);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
@@ -272,14 +254,10 @@ test("emitAll into a temp tree produces the full product set and tracks every pa
     }
     // the shared .agents/skills/ namespace copy is retired — no .agents paths
     // are produced and no hidden .agents tree exists in the product set
-    expect(
-      generatedPaths.some((r) => r.includes("/.agents/")),
-    ).toBe(false);
+    expect(generatedPaths.some((r) => r.includes("/.agents/"))).toBe(false);
     expect(existsSync(join(tmp, "packages/osuperpowers/.agents"))).toBe(false);
     // the drift-check product-root set no longer owns the .agents tree
-    expect(
-      BASE_PRODUCT_ROOTS.some((r) => r.includes("/.agents")),
-    ).toBe(false);
+    expect(BASE_PRODUCT_ROOTS.some((r) => r.includes("/.agents"))).toBe(false);
     // every recorded path resolves to a real temp-tree file, no duplicates
     for (const rel of generatedPaths) {
       expect(existsSync(join(tmp, rel))).toBe(true);
@@ -333,5 +311,3 @@ test("assertVersionBump validates the passed committedRoot, not the module root"
 // ---------------------------------------------------------------------------
 // overrides.mjs — router deleted, all tests below removed (#209)
 // ---------------------------------------------------------------------------
-
-

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 /**
  * Repo automation dispatcher — the single top-level entry for scripts/.
  * citty command surface (Task 21; engine src/cli/parse.ts isomorphism): ONE
@@ -20,11 +21,10 @@
  * (isMain guard — see the bottom of the file).
  */
 
-import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
-
-import { defineCommand, renderUsage, runCommand } from "citty";
+import { fileURLToPath } from "node:url";
 import type { CommandDef, SubCommandsDef } from "citty";
+import { defineCommand, renderUsage, runCommand } from "citty";
 
 // citty renders usage/help with ANSI color — this entry prints plain text (Commander-era parity +
 // deterministic test surface). Stripping happens at the two print points below, never via env
@@ -33,7 +33,9 @@ import type { CommandDef, SubCommandsDef } from "citty";
 // handlers + main(), and parse.ts pulls the whole dispatch graph — both defeat the lazy-load
 // requirement (Task 21 ①). This copy is the fuller CSI/OSC pattern (citty emits title-escapes);
 // keep the two in sync.
-const ANSI_RE = /[\u001B\u009B][[\]()#;?]*(?:(?:(?:[a-zA-Z\d]*(?:;[-a-zA-Z\d/#&.:=?%@~_]+)*)?\u0007)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[\dA-PR-TZcf-nq-uy=><~]))/g;
+const ANSI_RE =
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: citty emits ANSI escapes (ESC/CSI charset) — control characters are the regex's entire domain; no control-free representation exists.
+  /[\u001B\u009B][[\]()#;?]*(?:(?:(?:[a-zA-Z\d]*(?:;[-a-zA-Z\d/#&.:=?%@~_]+)*)?\u0007)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[\dA-PR-TZcf-nq-uy=><~]))/g;
 function plain(text: unknown): string {
   return String(text).replace(ANSI_RE, "");
 }
@@ -46,7 +48,10 @@ function plain(text: unknown): string {
 //   "dry-run" → main({ dryRun }) — version's destructured option (presence-based boolean: absent
 //              → false, present → true);
 //   "target"  → main(target) — apply-rules' single mandatory positional.
-export function invocationArgs(kind: "none" | "dry-run" | "target", args: Record<string, unknown>): unknown[] {
+export function invocationArgs(
+  kind: "none" | "dry-run" | "target",
+  args: Record<string, unknown>,
+): unknown[] {
   switch (kind) {
     case "none":
       return [];
@@ -57,7 +62,12 @@ export function invocationArgs(kind: "none" | "dry-run" | "target", args: Record
   }
 }
 
-function command(name: string, description: string, mod: string, kind: "none" | "dry-run" | "target") {
+function command(
+  name: string,
+  description: string,
+  mod: string,
+  kind: "none" | "dry-run" | "target",
+) {
   return defineCommand({
     meta: { name, description },
     args:
@@ -67,7 +77,9 @@ function command(name: string, description: string, mod: string, kind: "none" | 
           ? { target: { type: "positional", description: "protect-develop | protect-main" } }
           : {},
     run: async ({ args }) => {
-      const code = await import(mod).then((m) => m.main(...invocationArgs(kind, args as Record<string, unknown>)));
+      const code = await import(mod).then((m) =>
+        m.main(...invocationArgs(kind, args as Record<string, unknown>)),
+      );
       // A numeric return is an exit code (validate/version/apply-rules main → 1 on failure);
       // undefined returners (emit/emit-check/smoke-cdd) rely on the top-level catch for non-zero.
       if (typeof code === "number") process.exitCode = code;
@@ -83,12 +95,42 @@ export const mainCommand = defineCommand({
   args: {},
   subCommands: {
     emit: command("emit", "regenerate unified first-party manifests", "./emit/all.ts", "none"),
-    "emit-check": command("emit-check", "verify emitted products are fresh (drift → exit 1)", "./emit/check.ts", "none"),
-    validate: command("validate", "run the full validate suite (11 blocks)", "./validate/index.ts", "none"),
-    precommit: command("precommit", "run the tree-independent pre-commit subset (emit/osuperpowers/residue/marketplace/unit/version-sync)", "./validate/pre-commit.ts", "none"),
-    "smoke-cdd": command("smoke-cdd", "run the cdd-engine consumer-sim (build → pack → consumer install → 5-command dry-run chain)", "./validate/smoke-cdd.ts", "none"),
-    version: command("version", "apply changesets to bump versions (--dry-run supported)", "./release/version-packages.ts", "dry-run"),
-    "apply-rules": command("apply-rules", "apply a GitHub branch Ruleset (protect-develop | protect-main)", "./rulesets/apply.ts", "target"),
+    "emit-check": command(
+      "emit-check",
+      "verify emitted products are fresh (drift → exit 1)",
+      "./emit/check.ts",
+      "none",
+    ),
+    validate: command(
+      "validate",
+      "run the full validate suite (11 blocks)",
+      "./validate/index.ts",
+      "none",
+    ),
+    precommit: command(
+      "precommit",
+      "run the tree-independent pre-commit subset (emit/osuperpowers/residue/marketplace/unit/version-sync)",
+      "./validate/pre-commit.ts",
+      "none",
+    ),
+    "smoke-cdd": command(
+      "smoke-cdd",
+      "run the cdd-engine consumer-sim (build → pack → consumer install → 5-command dry-run chain)",
+      "./validate/smoke-cdd.ts",
+      "none",
+    ),
+    version: command(
+      "version",
+      "apply changesets to bump versions (--dry-run supported)",
+      "./release/version-packages.ts",
+      "dry-run",
+    ),
+    "apply-rules": command(
+      "apply-rules",
+      "apply a GitHub branch Ruleset (protect-develop | protect-main)",
+      "./rulesets/apply.ts",
+      "target",
+    ),
   },
 });
 
@@ -121,7 +163,9 @@ async function deepestCommand(
 
 function usageError(command: CommandDef<any> | undefined): void {
   const name = (command?.meta as { name?: string } | undefined)?.name;
-  process.stderr.write((name ? `usage: run ${name} [options]` : "usage: run <command> [options]") + "\n");
+  process.stderr.write(
+    `${name ? `usage: run ${name} [options]` : "usage: run <command> [options]"}\n`,
+  );
 }
 
 async function main(): Promise<void> {
@@ -132,7 +176,7 @@ async function main(): Promise<void> {
   // the citty declarations, plain-texted, exit 0.
   if (rawArgs.includes("--help") || rawArgs.includes("-h")) {
     const [cmd, parent] = await deepestCommand(rawArgs);
-    process.stdout.write(plain(await renderUsage(cmd, parent)) + "\n");
+    process.stdout.write(`${plain(await renderUsage(cmd, parent))}\n`);
     process.exit(0);
   }
 

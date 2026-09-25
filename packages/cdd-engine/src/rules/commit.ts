@@ -17,8 +17,9 @@
 // repoRoot is always the passed directory (mirrors `git -C <dir>`; a non-git workspace →
 // fail-open ok, never a silent fallback to the caller's cwd). The handoff path is exclusively
 // opts.handoffPath (derived by the engine through ctx — zero env channel).
-import { gitTopLevel, gitRevParseHead, gitStatusPorcelain } from "../infra/git.ts";
-import { writeHandoff, readJson } from "../artifacts/handoff/write.ts";
+
+import { readJson, writeHandoff } from "../artifacts/handoff/write.ts";
+import { gitRevParseHead, gitStatusPorcelain, gitTopLevel } from "../infra/git.ts";
 
 export interface CommitGateResult {
   ok: boolean;
@@ -63,13 +64,9 @@ export function rewriteHandoffBlocked(handoffPath: string | undefined, reason: s
 // gates' fail-open arms cannot drift independently in this high-risk rules layer. present →
 // { root, porcelain }: root is the resolved git top-level, reused by the exit gate's head check
 // (no second gitTopLevel call).
-type CleanTreeResolution =
-  | { present: false }
-  | { present: true; root: string; porcelain: string };
+type CleanTreeResolution = { present: false } | { present: true; root: string; porcelain: string };
 
-async function resolveCleanTree(
-  repoRoot: string | null | undefined,
-): Promise<CleanTreeResolution> {
+async function resolveCleanTree(repoRoot: string | null | undefined): Promise<CleanTreeResolution> {
   if (!repoRoot) return { present: false };
   const root = await gitTopLevel(repoRoot);
   if (!root) return { present: false };
@@ -95,7 +92,11 @@ export async function entryGateCleanTree(
     if (opts.dryRun) {
       return { ok: true, blocker: "", warn: DRY_RUN_DIRTY_WARN };
     }
-    return { ok: false, blocker: "uncommitted changes at entry: dirty working tree — commit or discard changes before dispatch" };
+    return {
+      ok: false,
+      blocker:
+        "uncommitted changes at entry: dirty working tree — commit or discard changes before dispatch",
+    };
   }
   return { ok: true, blocker: "" };
 }
@@ -123,7 +124,11 @@ export async function validateCommitContract(
     if (mode === "review") return { ok: true, blocker: "" };
     // Validate handoff.commits.head against actual HEAD (F1).
     // strict equal primary; prefix fallback for legacy 7-char handoffs (#186)
-    const handoffHead = (((readJson(handoffPath) as Record<string, unknown> | null)?.commits as Record<string, unknown> | undefined)?.head) as string | undefined;
+    const handoffHead = (
+      (readJson(handoffPath) as Record<string, unknown> | null)?.commits as
+        | Record<string, unknown>
+        | undefined
+    )?.head as string | undefined;
     if (handoffHead) {
       const actualHead = await gitRevParseHead(tree.root);
       if (actualHead && handoffHead !== actualHead && !actualHead.startsWith(handoffHead)) {

@@ -10,8 +10,9 @@
 // reconcile now runs like the task family when a legal base exists; unknown-base failure carriers
 // skip too). Review mode → skipped (its commits describe the reviewed range, not this dispatch's
 // output).
-import { gitDiffNameOnly, gitRevParseHead } from "../infra/git.ts";
+
 import { readJson, writeHandoff } from "../artifacts/handoff/write.ts";
+import { gitDiffNameOnly, gitRevParseHead } from "../infra/git.ts";
 
 export interface ChangedSurface {
   /** `git diff base..HEAD --name-only` fileset (the round's mechanical changed surface). */
@@ -51,8 +52,7 @@ export async function reconcileChangedSurface(
         .filter((c) => c && typeof c.file === "string")
         .map((c) => (c as { file: string }).file)
     : [];
-  const unattributed =
-    mode === "fix" ? diffFiles.filter((f) => !ledger.includes(f)) : [];
+  const unattributed = mode === "fix" ? diffFiles.filter((f) => !ledger.includes(f)) : [];
 
   if (mode === "fix" && unattributed.length > 0) {
     const list = unattributed.join(", ");

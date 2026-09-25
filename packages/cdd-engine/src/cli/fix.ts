@@ -2,13 +2,12 @@
 // spec §2.3 split (ex bin/cdd.mjs merged face): runFix lives here; the shared guards import
 // from ./shared.ts.
 import path from "node:path";
-
-import { requireHostHarness, resolveTargetDoc, DRY_RUN } from "./shared.ts";
 import * as handoffNaming from "../artifacts/handoff/naming.ts";
+import { exitOk, exitOkWith, exitWithCode } from "../infra/exit.ts";
 import { withLifecycle } from "../infra/proc.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
-import { exitOk, exitOkWith, exitWithCode } from "../infra/exit.ts";
 import { docsResultFace } from "./result-face.ts";
+import { DRY_RUN, requireHostHarness, resolveTargetDoc } from "./shared.ts";
 
 export interface FixOpts {
   type: string;
@@ -43,7 +42,8 @@ export async function runFix(opts: FixOpts): Promise<void> {
         exitWithCode(2);
       }
       await runTask(harness, opts.tasks, {
-        mode: "fix", dryRun: DRY_RUN(),
+        mode: "fix",
+        dryRun: DRY_RUN(),
         findingsPath: opts.findings,
         planFile: opts.plan,
       });
@@ -62,10 +62,12 @@ export async function runFix(opts: FixOpts): Promise<void> {
         exitWithCode(2);
       }
       if (!opts.findings) {
-        process.stderr.write("cdd fix --type branch: missing required --findings <branch-review-{base7}..{head7}-r{R}.json>\n");
+        process.stderr.write(
+          "cdd fix --type branch: missing required --findings <branch-review-{base7}..{head7}-r{R}.json>\n",
+        );
         exitWithCode(2);
       }
-      const { runBranchFix } = await import("./branch-fix.ts");   // lazy: breaks fix↔branch-fix import cycle
+      const { runBranchFix } = await import("./branch-fix.ts"); // lazy: breaks fix↔branch-fix import cycle
       return await runBranchFix({ ...opts, plan: opts.plan, findings: opts.findings, harness });
     }
     // spec/plan: the fix template comes from the canonical fix.{type} family fixTemplate
@@ -82,30 +84,47 @@ export async function runFix(opts: FixOpts): Promise<void> {
     // <type>-fix-{R}.json). Missing findings or non-matching name → prompt + exit 2 (no source
     // means the round is underivable).
     const findingsBase = opts.findings ? path.basename(opts.findings) : null;
-    const roundMatch = findingsBase ? findingsBase.match(handoffNaming.roundPattern("review", opts.type)) : null;
+    const roundMatch = findingsBase
+      ? findingsBase.match(handoffNaming.roundPattern("review", opts.type))
+      : null;
     if (!roundMatch) {
-      process.stderr.write(`cdd fix --type ${opts.type}: --findings must name a ${opts.type}-review-{R}.json file (round derived from the source review); got: ${opts.findings ?? "(missing)"}\n`);
+      process.stderr.write(
+        `cdd fix --type ${opts.type}: --findings must name a ${opts.type}-review-{R}.json file (round derived from the source review); got: ${opts.findings ?? "(missing)"}\n`,
+      );
       exitWithCode(2);
     }
     const fixRound = Number(roundMatch[1]);
     if (!Number.isInteger(fixRound) || fixRound < 1) {
-      process.stderr.write(`cdd fix --type ${opts.type}: --findings round must be >= 1 (round derived from the source review); got: ${opts.findings}\n`);
+      process.stderr.write(
+        `cdd fix --type ${opts.type}: --findings round must be >= 1 (round derived from the source review); got: ${opts.findings}\n`,
+      );
       exitWithCode(2);
     }
     // The fix template uniformly routes through the canonical fix.{type} family fixTemplate
     // (spec/plan → "docs" shared shell); workspace is the same-source resolveWorkspace(doc);
     // handoffPath is the explicit canonical fix.{type} name.
-    const template = (handoffNaming.familyConfig("fix", opts.type) as unknown as { fixTemplate: string }).fixTemplate;
+    const template = (
+      handoffNaming.familyConfig("fix", opts.type) as unknown as { fixTemplate: string }
+    ).fixTemplate;
     const ws = handoffNaming.resolveWorkspace(doc, root);
     // `--findings` normalization (read point ⑦): repo-root-relative → absolute; missing → exit 1
     // three-line diagnostic. Positioned AFTER the round-derivation guard — a round without a
     // source / round<1 must first fail as a usage error with exit 2 (§2.4.2: 2 = usage / env error).
     const findingsPath = opts.findings ? resolveDocArg(opts.findings, root, "findings") : undefined;
     const { runDocsTask } = await import("../dispatch/docs.ts");
-    const handoffPath = path.join(ws, handoffNaming.handoffName("fix", opts.type, { round: fixRound }));
+    const handoffPath = path.join(
+      ws,
+      handoffNaming.handoffName("fix", opts.type, { round: fixRound }),
+    );
     const result = await runDocsTask({
-      harness, mode: "fix", template, type: opts.type, doc,
-      findingsPath, repoRoot: root, dryRun: DRY_RUN(),
+      harness,
+      mode: "fix",
+      template,
+      type: opts.type,
+      doc,
+      findingsPath,
+      repoRoot: root,
+      dryRun: DRY_RUN(),
       handoffPath,
     });
     // Docs fix completion → stdout result face (design §2.9 / AC9): previously stdout had zero

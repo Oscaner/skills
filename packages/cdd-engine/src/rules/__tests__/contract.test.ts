@@ -8,26 +8,42 @@
 //   rollupStatus：warn/nit→APPROVED；含 blocker→CHANGES_REQUESTED；unverifiable/plan_conflicts→BLOCKED。
 //   validateHandoffSchema：notes 可选字段被 schema 接受（AC10，Enh T）。
 // writeHandoff：按 packages/cdd-engine/templates/schema/task-handoff-schema.json（docs 族 docs-handoff-schema.json；命名/workspace 见 engine-config.json#handoffNamespace）写 + 合并已有（H6 链 update 语义）。
-import { it, expect } from 'vitest';
+
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, readFileSync, existsSync, mkdirSync, appendFileSync } from "node:fs";
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { expect, it } from "vitest";
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
+const _HERE = path.dirname(fileURLToPath(import.meta.url));
 
+import {
+  classifySeverity,
+  deriveReviewStatus,
+  normalizeHandoffStatus,
+  rollupStatus,
+} from "../../artifacts/handoff/finalize.ts";
+import { writeHandoff, writeOwnHandoff } from "../../artifacts/handoff/write.ts";
+import { gitCatFileCommitExists } from "../../infra/git.ts";
 // The commit-contract block (this file, lines 52–186) was re-based by Task 5 to point at
 // ../commit.ts (the simple-git backend at @infra/git.ts) — semantics preserved word for word, only
 // the sync call became await (the "API re-base claim" has exactly one owner, rules/commit.ts from Task 5). gitCatFileCommitExists now points at infra/git.ts. (T2)
 import { validateCommitContract } from "../commit.ts";
-import { gitCatFileCommitExists } from "../../infra/git.ts";
-import { writeHandoff, writeOwnHandoff } from "../../artifacts/handoff/write.ts";
-import { classifySeverity, rollupStatus, deriveReviewStatus, normalizeHandoffStatus } from "../../artifacts/handoff/finalize.ts";
-import { validateHandoffSchema, loadHandoffSchema } from "../schema.ts";
+import { loadHandoffSchema, validateHandoffSchema } from "../schema.ts";
 
 function git(repo, ...args) {
-  return execFileSync("git", ["-C", repo, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  return execFileSync("git", ["-C", repo, ...args], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  }).trim();
 }
 
 // setup_repo —— port 自 cdd-commit-gate-smoke.sh：新 git repo，.gitignore 忽略 cdd/（workspace 目录）。
@@ -36,7 +52,17 @@ function setupRepo() {
   writeFileSync(path.join(dest, ".gitignore"), "cdd/\n");
   git(dest, "init", "-q");
   git(dest, "add", "-A");
-  git(dest, "-c", "user.name=cdd-gate-test", "-c", "user.email=cdd-gate-test@example.com", "commit", "--allow-empty", "-qm", "fixture");
+  git(
+    dest,
+    "-c",
+    "user.name=cdd-gate-test",
+    "-c",
+    "user.email=cdd-gate-test@example.com",
+    "commit",
+    "--allow-empty",
+    "-qm",
+    "fixture",
+  );
   return dest;
 }
 
@@ -77,7 +103,10 @@ it("commit-contract: clean tree → ok:true + handoff status 归一化 OK → AP
   const handoff = path.join(repo, "cdd", "task-1-handoff.json");
   const dir = path.join(repo, "cdd");
   mkdirSync(dir, { recursive: true });
-  writeFileSync(handoff, JSON.stringify({ status: "OK", phase: "fix", task: 1, commits: { base: head, head } }));
+  writeFileSync(
+    handoff,
+    JSON.stringify({ status: "OK", phase: "fix", task: 1, commits: { base: head, head } }),
+  );
   const r = await validateCommitContract("fix", repo, { handoffPath: handoff });
   expect(r.ok).toBe(true);
   expect(JSON.parse(readFileSync(handoff, "utf8")).status).toBe("OK");
@@ -89,7 +118,10 @@ it("commit-contract: clean tree → ok:true + handoff status COMPLETED unchanged
   const handoff = path.join(repo, "cdd", "task-1-handoff.json");
   const dir = path.join(repo, "cdd");
   mkdirSync(dir, { recursive: true });
-  writeFileSync(handoff, JSON.stringify({ status: "COMPLETED", phase: "fix", task: 1, commits: { base: head, head } }));
+  writeFileSync(
+    handoff,
+    JSON.stringify({ status: "COMPLETED", phase: "fix", task: 1, commits: { base: head, head } }),
+  );
   const r = await validateCommitContract("fix", repo, { handoffPath: handoff });
   expect(r.ok).toBe(true);
   expect(JSON.parse(readFileSync(handoff, "utf8")).status).toBe("COMPLETED");
@@ -101,7 +133,10 @@ it("commit-contract: clean tree → ok:true + handoff status APPROVED 不变", a
   const handoff = path.join(repo, "cdd", "task-1-handoff.json");
   const dir = path.join(repo, "cdd");
   mkdirSync(dir, { recursive: true });
-  writeFileSync(handoff, JSON.stringify({ status: "APPROVED", phase: "fix", task: 1, commits: { base: head, head } }));
+  writeFileSync(
+    handoff,
+    JSON.stringify({ status: "APPROVED", phase: "fix", task: 1, commits: { base: head, head } }),
+  );
   const r = await validateCommitContract("fix", repo, { handoffPath: handoff });
   expect(r.ok).toBe(true);
   expect(JSON.parse(readFileSync(handoff, "utf8")).status).toBe("APPROVED");
@@ -109,7 +144,9 @@ it("commit-contract: clean tree → ok:true + handoff status APPROVED 不变", a
 
 it("commit-contract: clean tree + 无 handoff → ok:true（fail-open）", async () => {
   const repo = setupRepo();
-  const r = await validateCommitContract("implement", repo, { handoffPath: path.join(repo, "cdd", "no-such.json") });
+  const r = await validateCommitContract("implement", repo, {
+    handoffPath: path.join(repo, "cdd", "no-such.json"),
+  });
   expect(r.ok).toBe(true);
 });
 
@@ -154,7 +191,9 @@ it("commit-contract #186: handoff.head=non-prefix 7-char → ok:false（mismatch
 
 it("commit-contract: 非 git 目录 → fail-open ok:true", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-nogit-"));
-  const r = await validateCommitContract("fix", dir, { handoffPath: path.join(dir, "task-1-handoff.json") });
+  const r = await validateCommitContract("fix", dir, {
+    handoffPath: path.join(dir, "task-1-handoff.json"),
+  });
   expect(r.ok).toBe(true);
 });
 
@@ -250,8 +289,12 @@ it("deriveReviewStatus: findings 空 + status APPROVED → 保持 APPROVED（空
 });
 
 it("deriveReviewStatus branch nit⑥：findings 空 + plan_conflicts 非空 → BLOCKED（BLOCKED 通道不依赖 findings 承载）", () => {
-  expect(deriveReviewStatus({ status: "APPROVED", findings: [], plan_conflicts: ["c1"] })).toBe("BLOCKED");
-  expect(deriveReviewStatus({ status: "APPROVED", findings: [], unverifiable: ["u1"] })).toBe("BLOCKED");
+  expect(deriveReviewStatus({ status: "APPROVED", findings: [], plan_conflicts: ["c1"] })).toBe(
+    "BLOCKED",
+  );
+  expect(deriveReviewStatus({ status: "APPROVED", findings: [], unverifiable: ["u1"] })).toBe(
+    "BLOCKED",
+  );
 });
 
 it("AC10: validateHandoffSchema accepts optional notes field（Enh T）", () => {
@@ -269,15 +312,25 @@ it("AC10: validateHandoffSchema accepts optional notes field（Enh T）", () => 
 // ---- The contract pushed into the schema field descriptions (semantic assertions on both schemas) + allOf BLOCKED enforcement (Task 23 ②) ----
 
 it("Task 23 task schema allOf: BLOCKED 必须 blocker 非空 或 failure_category —— 裸折契约违规", () => {
-  const base = (extra: Record<string, unknown>) => ({ tasks: [1], phase: "implement", status: "BLOCKED", artifacts: {}, findings: [], ...extra });
-  expect(validateHandoffSchema(base({}), "task").valid).toBe(false);            // 裸折 → 违规
+  const base = (extra: Record<string, unknown>) => ({
+    tasks: [1],
+    phase: "implement",
+    status: "BLOCKED",
+    artifacts: {},
+    findings: [],
+    ...extra,
+  });
+  expect(validateHandoffSchema(base({}), "task").valid).toBe(false); // 裸折 → 违规
   expect(validateHandoffSchema(base({ blocker: "" }), "task").valid).toBe(false); // 空字符串 blocker 不算数
   expect(validateHandoffSchema(base({ blocker: "真实原因" }), "task").valid).toBe(true);
-  expect(validateHandoffSchema(base({ failure_category: "UNVERIFIABLE" }), "task").valid).toBe(true);
+  expect(validateHandoffSchema(base({ failure_category: "UNVERIFIABLE" }), "task").valid).toBe(
+    true,
+  );
 });
 
 it("Task 23 task schema description 承载 status/failure_category/unverifiable 语义", () => {
-  const p = (loadHandoffSchema("task") as { properties: Record<string, { description: string }> }).properties;
+  const p = (loadHandoffSchema("task") as { properties: Record<string, { description: string }> })
+    .properties;
   expect(p.status.description).toContain("terminal");
   expect(p.status.description).toContain("failure_category");
   expect(p.failure_category.description.toLowerCase()).toContain("orthogonal");
@@ -288,7 +341,9 @@ it("Task 23 task schema description 承载 status/failure_category/unverifiable 
 });
 
 it("Task 23 docs schema: 14 props (+commits T5 + unverifiable/plan_conflicts + T25 changes/recovery) + dev-measured semantics + allOf BLOCKED enforced", () => {
-  const schema = loadHandoffSchema("docs") as { properties: Record<string, { description: string }> };
+  const schema = loadHandoffSchema("docs") as {
+    properties: Record<string, { description: string }>;
+  };
   const props = schema.properties;
   expect(Object.keys(props)).toHaveLength(14);
   expect(props).toHaveProperty("unverifiable");
@@ -301,7 +356,14 @@ it("Task 23 docs schema: 14 props (+commits T5 + unverifiable/plan_conflicts + T
   expect(props.unverifiable.description).toContain("never blocks");
   expect(props.blocker.description).toContain("never fabricated");
   expect(props.status.description).toContain("terminal");
-  const d = (extra: Record<string, unknown>) => ({ phase: "fix", status: "BLOCKED", findings: [], artifacts: {}, doc_path: "x.md", ...extra });
+  const d = (extra: Record<string, unknown>) => ({
+    phase: "fix",
+    status: "BLOCKED",
+    findings: [],
+    artifacts: {},
+    doc_path: "x.md",
+    ...extra,
+  });
   expect(validateHandoffSchema(d({}), "docs").valid).toBe(false);
   expect(validateHandoffSchema(d({ blocker: "真实原因" }), "docs").valid).toBe(true);
   expect(validateHandoffSchema(d({ failure_category: "PLAN_CONFLICT" }), "docs").valid).toBe(true);
@@ -367,10 +429,22 @@ it("writeOwnHandoff: 全量覆盖替换（非浅合并）—— existing 字段�
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-woh-"));
   const p = path.join(dir, "sub", "task-1-implement.json");
   writeOwnHandoff(p, { junk: true, task: 1, phase: "implement", status: "APPROVED" });
-  writeOwnHandoff(p, { task: 1, phase: "implement", status: "APPROVED", findings: [], artifacts: {} });
+  writeOwnHandoff(p, {
+    task: 1,
+    phase: "implement",
+    status: "APPROVED",
+    findings: [],
+    artifacts: {},
+  });
   const h = JSON.parse(readFileSync(p, "utf8"));
   expect(h).not.toHaveProperty("junk");
-  expect(h).toEqual({ task: 1, phase: "implement", status: "APPROVED", findings: [], artifacts: {} });
+  expect(h).toEqual({
+    task: 1,
+    phase: "implement",
+    status: "APPROVED",
+    findings: [],
+    artifacts: {},
+  });
 });
 
 it("writeOwnHandoff: 父目录递归创建 + 2-space 换行格式", () => {
@@ -388,7 +462,9 @@ it("gitCatFileCommitExists: real commit → true", async () => {
 
 it("gitCatFileCommitExists: phantom SHA → false", async () => {
   const repo = setupRepo();
-  expect(await gitCatFileCommitExists(repo, "0000000000000000000000000000000000000000")).toBe(false);
+  expect(await gitCatFileCommitExists(repo, "0000000000000000000000000000000000000000")).toBe(
+    false,
+  );
 });
 
 it("gitCatFileCommitExists: empty string → false", async () => {

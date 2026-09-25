@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import path from "node:path";
 // src/bin.ts — CDD engine CLI entry (spec §2.3; citty surface from Task 9, retired commander).
 // The full command tree lives in src/cli/parse.ts as one citty defineCommand (mainCommand with
 // the five subcommands implement / review / fix / base-branch [set|get] / schema [get]). This file only
@@ -24,18 +25,24 @@
 // engine src/ (validate's channel audit ① pins it here since the P5 infra/root.mjs retirement
 // moved the anchor out of src/infra/root.ts).
 import process from "node:process";
-import path from "node:path";
 
 import { parseArgs, renderUsage, runCommand } from "citty";
-import { initProcLifecycle, reapStale, teardownAll } from "./infra/proc.ts";
-import { mainCommand, MAIN_ARGS, usageError, commandUsageKey, deepestCommand } from "./cli/parse.ts";
+import {
+  commandUsageKey,
+  deepestCommand,
+  MAIN_ARGS,
+  mainCommand,
+  usageError,
+} from "./cli/parse.ts";
 import { setDryRun } from "./cli/shared.ts";
+import { CddExitError, ExitRequested } from "./infra/exit.ts";
+import { initProcLifecycle, reapStale, teardownAll } from "./infra/proc.ts";
 import { initRoot } from "./infra/root.ts";
-import { ExitRequested, CddExitError } from "./infra/exit.ts";
 
 // citty renders usage/help with ANSI color — this entry prints plain text (commander-era parity +
 // deterministic test surface). Stripping happens at the two print points below, never via env
 // mutation (the engine's env surface guard pins zero non-whitelisted reads).
+// biome-ignore lint/suspicious/noControlCharactersInRegex: citty emits ANSI escapes (ESC/CSI charset) — control characters are the regex's entire domain; no control-free representation exists for them.
 const ANSI_RE = /\u001B\u009B[[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
 function plain(text: unknown): string {
   return String(text).replace(ANSI_RE, "");
@@ -60,7 +67,11 @@ for (const [sig, code] of Object.entries(SIGNAL_EXIT)) {
   process.on(sig, async () => {
     signalExitCode = code;
     process.stderr.write(`CDD: caught ${sig} — teardownAll + exit ${code}\n`);
-    try { await teardownAll({ graceMs: 2000 }); } finally { finalExit(code); }
+    try {
+      await teardownAll({ graceMs: 2000 });
+    } finally {
+      finalExit(code);
+    }
   });
 }
 
@@ -73,7 +84,7 @@ async function main() {
   if (rawArgs.includes("--help") || rawArgs.includes("-h")) {
     const [cmd, parent] = await deepestCommand(rawArgs);
     const rendered = await renderUsage(cmd, parent);
-    process.stdout.write(plain(rendered) + "\n");
+    process.stdout.write(`${plain(rendered)}\n`);
     finalExit(0);
   }
 
@@ -98,7 +109,7 @@ async function main() {
   }
   const repoRoot = await initRoot(process.cwd());
   initProcLifecycle({ diskPath: path.join(repoRoot, ".osuperpowers", "cdd", "lifecycle.json") });
-  await reapStale({ graceMs: 2000 });   // startup sweep: root orphan groups across runs (before any action / dispatch)
+  await reapStale({ graceMs: 2000 }); // startup sweep: root orphan groups across runs (before any action / dispatch)
 
   try {
     await runCommand(mainCommand, { rawArgs });

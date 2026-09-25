@@ -9,16 +9,17 @@
 // withLifecycle finally blocks still unwind).
 import { existsSync } from "node:fs";
 import path from "node:path";
-
-import { gitTopLevel } from "./git.ts";
 import { exitWithCode, invariant } from "./exit.ts";
+import { gitTopLevel } from "./git.ts";
 
 let _root: string | null = null;
 
 export async function initRoot(cwd: string): Promise<string> {
   const root = await gitTopLevel(cwd);
   if (!root) {
-    process.stderr.write("CDD_BLOCKED: not in a git repository\n  Run cdd from within a git repository.\n");
+    process.stderr.write(
+      "CDD_BLOCKED: not in a git repository\n  Run cdd from within a git repository.\n",
+    );
     exitWithCode(1);
   }
   _root = root;
@@ -35,15 +36,17 @@ export function resolveDocArg(arg: string, root: string, flag = "path"): string 
     if (existsSync(arg)) return arg;
     process.stderr.write(
       `CDD_BLOCKED: --${flag} not found: ${arg}\n` +
-      `  Absolute path does not exist.\n` +
-      `  Hint: pass a repo-root-relative path instead.\n`);
+        `  Absolute path does not exist.\n` +
+        `  Hint: pass a repo-root-relative path instead.\n`,
+    );
     exitWithCode(1);
   }
   const resolved = path.join(root, arg);
   if (existsSync(resolved)) return resolved;
   process.stderr.write(
     `CDD_BLOCKED: --${flag} not found: ${arg}\n` +
-    `  Tried (against repo root ${root}): ${resolved}\n` +
-    `  Hint: cdd resolves paths against the repo root. Verify the path is correct relative to the repo root.\n`);
+      `  Tried (against repo root ${root}): ${resolved}\n` +
+      `  Hint: cdd resolves paths against the repo root. Verify the path is correct relative to the repo root.\n`,
+  );
   exitWithCode(1);
 }

@@ -11,26 +11,28 @@
 //
 // This file is statically readable by tests (cli-shape) and imports trigger no side effects —
 // runCommand is only invoked by the bin thin entry.
-import { defineCommand } from "citty";
-import type { ArgsDef, CommandDef, CommandMeta, SubCommandsDef } from "citty";
 
-import { runReview } from "./review.ts";
-import { runFix } from "./fix.ts";
-import { runBaseBranchSet, runBaseBranchGet } from "./base-branch.ts";
-import { runSchemaGet } from "./schema.ts";
-import { requireHostHarness, guardArgs, parseTaskList, DRY_RUN } from "./shared.ts";
+import type { ArgsDef, CommandDef, CommandMeta, SubCommandsDef } from "citty";
+import { defineCommand } from "citty";
 import { DOC_SCHEMA_NAMES } from "../documents/schema.ts";
+import { runBaseBranchGet, runBaseBranchSet } from "./base-branch.ts";
+import { runFix } from "./fix.ts";
+import { runReview } from "./review.ts";
+import { runSchemaGet } from "./schema.ts";
+import { DRY_RUN, guardArgs, parseTaskList, requireHostHarness } from "./shared.ts";
 
 // Per-subcommand usage lines (print on parse/usage errors in place of citty's own error text;
 // the commander-era wording is kept — the black-box face contracts pin it). Program-level
 // --dry-run does NOT appear here: it is declared on the main command only.
 const SUBCOMMAND_USAGE: Record<string, string> = {
   implement: "usage: cdd implement --tasks <n|n,n,…> [--plan <path>]",
-  review: "usage: cdd review --type <task|branch|spec|plan> [--tasks <n|n,n,…>] (--plan <path> | --spec <path>) [--base <sha> --head <sha>] [--round <n>]",
+  review:
+    "usage: cdd review --type <task|branch|spec|plan> [--tasks <n|n,n,…>] (--plan <path> | --spec <path>) [--base <sha> --head <sha>] [--round <n>]",
   fix: "usage: cdd fix --type <task|branch|spec|plan> [--tasks <n|n,n,…>] [--findings <path>] (--plan <path> | --spec <path>)",
   // base-branch: a bad flag / unknown subcommand inside set|get resolves to this single-word key
   // (the bin wrapper maps a nested citty leaf to its parent command — see commandUsageKey).
-  "base-branch": "usage: cdd base-branch <set|get> --plan <path> [set: --base <branch> --source <source>] [--force]",
+  "base-branch":
+    "usage: cdd base-branch <set|get> --plan <path> [set: --base <branch> --source <source>] [--force]",
   // schema — discovery: the canonical doc-structure schema printer (P4.3 Task 5). A nested leaf
   // (get) resolves to this key via commandUsageKey's parent mapping (same as base-branch set|get).
   schema: "usage: cdd schema get <type>",
@@ -38,7 +40,13 @@ const SUBCOMMAND_USAGE: Record<string, string> = {
 
 // Print the usage line for the resolved parse/usage-error context; default = the top-level line.
 export function usageError(command: string | null): void {
-  process.stderr.write((Object.hasOwn(SUBCOMMAND_USAGE, command ?? "") ? SUBCOMMAND_USAGE[command ?? ""] : "usage: cdd <command> [options]") + "\n");
+  process.stderr.write(
+    `${
+      Object.hasOwn(SUBCOMMAND_USAGE, command ?? "")
+        ? SUBCOMMAND_USAGE[command ?? ""]
+        : "usage: cdd <command> [options]"
+    }\n`,
+  );
 }
 
 // The citty types model meta as Resolvable<CommandMeta> (T | Promise<T> | ()=>T); this tree
@@ -51,7 +59,10 @@ function metaName(def: CommandDef<any> | undefined): string | null {
 // Map a resolveSubCommand result to its SUBCOMMAND_USAGE key: a nested citty leaf (set|get) maps
 // to its parent command key (base-branch), a direct child maps to itself, the root maps to null
 // (→ the default "usage: cdd <command> [options]" line).
-export function commandUsageKey(cmd: CommandDef<any>, parent: CommandDef<any> | undefined): string | null {
+export function commandUsageKey(
+  cmd: CommandDef<any>,
+  parent: CommandDef<any> | undefined,
+): string | null {
   if (parent && parent !== mainCommand) return metaName(parent);
   if (cmd !== mainCommand) return metaName(cmd);
   return null;
@@ -65,13 +76,16 @@ export function commandUsageKey(cmd: CommandDef<any>, parent: CommandDef<any> | 
 function subcommandIndex(rawArgs: string[], argDef: ArgsDef | undefined): number {
   for (let i = 0; i < rawArgs.length; i++) {
     const arg = rawArgs[i];
-    if (arg === "--") return -1;               // everything after -- is positional
+    if (arg === "--") return -1; // everything after -- is positional
     if (arg.startsWith("-")) {
       const name = arg.replace(/^-{1,2}/, "").split("=")[0];
-      const isValue = Object.entries(argDef ?? {}).some(([key, d]) =>
-        (d.type === "string" || d.type === "enum") &&
-        (name === key || (Array.isArray(d.alias) ? d.alias : d.alias ? [d.alias] : []).includes(name)));
-      if (!arg.includes("=") && isValue) i++;  // skip the value token of a value flag
+      const isValue = Object.entries(argDef ?? {}).some(
+        ([key, d]) =>
+          (d.type === "string" || d.type === "enum") &&
+          (name === key ||
+            (Array.isArray(d.alias) ? d.alias : d.alias ? [d.alias] : []).includes(name)),
+      );
+      if (!arg.includes("=") && isValue) i++; // skip the value token of a value flag
       continue;
     }
     return i;
@@ -121,7 +135,12 @@ function argsOf(def: CommandDef<any>): ArgsDef | undefined {
 const implementCmd = defineCommand({
   meta: { name: "implement", description: "run the task implement phase (cdd implement)" },
   args: {
-    tasks: { type: "string", required: true, valueHint: "n|n,n,…", description: "task number(s) — comma-separated list" },
+    tasks: {
+      type: "string",
+      required: true,
+      valueHint: "n|n,n,…",
+      description: "task number(s) — comma-separated list",
+    },
     plan: { type: "string", valueHint: "path", description: "plan file path" },
   },
   run: async ({ args, rawArgs }) => {
@@ -131,21 +150,49 @@ const implementCmd = defineCommand({
     // The --tasks value parses to the canonical task list — the dispatch group is the unit
     // (the whole group dispatches as one; handoff/brief/progress are group-keyed — P4.3).
     await runTask(harness, parseTaskList(args.tasks), {
-      mode: "implement", dryRun: DRY_RUN(), planFile: args.plan,
+      mode: "implement",
+      dryRun: DRY_RUN(),
+      planFile: args.plan,
     });
   },
 });
 
 const reviewCmd = defineCommand({
-  meta: { name: "review", description: "run a review — task | branch | spec | plan (consolidates the former cdd-task / docs-task review modes)" },
+  meta: {
+    name: "review",
+    description:
+      "run a review — task | branch | spec | plan (consolidates the former cdd-task / docs-task review modes)",
+  },
   args: {
-    type: { type: "string", required: true, valueHint: "task|branch|spec|plan", description: "review type" },
-    tasks: { type: "string", valueHint: "n|n,n,…", description: "task number(s) — comma-separated list (type=task)" },
-    plan: { type: "string", valueHint: "path", description: "plan path (type=task|branch; type=plan: review target)" },
+    type: {
+      type: "string",
+      required: true,
+      valueHint: "task|branch|spec|plan",
+      description: "review type",
+    },
+    tasks: {
+      type: "string",
+      valueHint: "n|n,n,…",
+      description: "task number(s) — comma-separated list (type=task)",
+    },
+    plan: {
+      type: "string",
+      valueHint: "path",
+      description: "plan path (type=task|branch; type=plan: review target)",
+    },
     base: { type: "string", valueHint: "sha", description: "base commit (type=task|branch)" },
     head: { type: "string", valueHint: "sha", description: "head commit (type=task|branch)" },
-    round: { type: "string", valueHint: "n", description: "round backfill (validate against engine auto-increment)" },
-    spec: { type: "string", valueHint: "path", description: "spec document path (type=spec: review target; type=plan: upstream reference pointer)" },
+    round: {
+      type: "string",
+      valueHint: "n",
+      description: "round backfill (validate against engine auto-increment)",
+    },
+    spec: {
+      type: "string",
+      valueHint: "path",
+      description:
+        "spec document path (type=spec: review target; type=plan: upstream reference pointer)",
+    },
   },
   run: async ({ args, rawArgs }) => {
     guardArgs(rawArgs, argsOf(reviewCmd));
@@ -155,11 +202,28 @@ const reviewCmd = defineCommand({
 });
 
 const fixCmd = defineCommand({
-  meta: { name: "fix", description: "fix review findings — task | branch | spec | plan (formerly cdd-task / docs-task fix modes)" },
+  meta: {
+    name: "fix",
+    description:
+      "fix review findings — task | branch | spec | plan (formerly cdd-task / docs-task fix modes)",
+  },
   args: {
-    type: { type: "string", required: true, valueHint: "task|branch|spec|plan", description: "fix type" },
-    tasks: { type: "string", valueHint: "n|n,n,…", description: "task number(s) — comma-separated list (type=task)" },
-    findings: { type: "string", valueHint: "path", description: "findings handoff path for this fix round" },
+    type: {
+      type: "string",
+      required: true,
+      valueHint: "task|branch|spec|plan",
+      description: "fix type",
+    },
+    tasks: {
+      type: "string",
+      valueHint: "n|n,n,…",
+      description: "task number(s) — comma-separated list (type=task)",
+    },
+    findings: {
+      type: "string",
+      valueHint: "path",
+      description: "findings handoff path for this fix round",
+    },
     spec: { type: "string", valueHint: "path", description: "spec document path (type=spec)" },
     plan: { type: "string", valueHint: "path", description: "plan path (type=task|branch|plan)" },
   },
@@ -177,9 +241,17 @@ const setCmd = defineCommand({
   meta: { name: "set", description: "write the base-branch artifact" },
   args: {
     base: { type: "string", valueHint: "branch", description: "base branch name" },
-    source: { type: "string", valueHint: "source", description: "base-branch source (plan-field|branch-upstream|conversation-context|user-confirmed)" },
+    source: {
+      type: "string",
+      valueHint: "source",
+      description:
+        "base-branch source (plan-field|branch-upstream|conversation-context|user-confirmed)",
+    },
     plan: { type: "string", valueHint: "path", description: "plan file → resolveWorkspace(plan)" },
-    force: { type: "boolean", description: "override an existing base-branch with a different base" },
+    force: {
+      type: "boolean",
+      description: "override an existing base-branch with a different base",
+    },
   },
   run: async ({ args, rawArgs }) => {
     guardArgs(rawArgs, argsOf(setCmd));
@@ -199,7 +271,10 @@ const getCmd = defineCommand({
 });
 
 const baseBranchCmd = defineCommand({
-  meta: { name: "base-branch", description: "read/write base-branch.json (single CDD --plan target)" },
+  meta: {
+    name: "base-branch",
+    description: "read/write base-branch.json (single CDD --plan target)",
+  },
   subCommands: { set: setCmd, get: getCmd },
 });
 
@@ -214,9 +289,16 @@ const baseBranchCmd = defineCommand({
 // face can never drift from the accepted set.
 const SCHEMA_TYPE_HINT = DOC_SCHEMA_NAMES.join(" | ");
 const schemaGetCmd = defineCommand({
-  meta: { name: "get", description: `print the canonical doc-structure schema for <type> (${SCHEMA_TYPE_HINT})` },
+  meta: {
+    name: "get",
+    description: `print the canonical doc-structure schema for <type> (${SCHEMA_TYPE_HINT})`,
+  },
   args: {
-    type: { type: "positional", required: true, description: `schema type — one of ${SCHEMA_TYPE_HINT}` },
+    type: {
+      type: "positional",
+      required: true,
+      description: `schema type — one of ${SCHEMA_TYPE_HINT}`,
+    },
   },
   run: async ({ args, rawArgs }) => {
     guardArgs(rawArgs, argsOf(schemaGetCmd));
@@ -225,7 +307,10 @@ const schemaGetCmd = defineCommand({
 });
 
 const schemaCmd = defineCommand({
-  meta: { name: "schema", description: "read canonical doc-structure schemas (discovery, zero enforcement)" },
+  meta: {
+    name: "schema",
+    description: "read canonical doc-structure schemas (discovery, zero enforcement)",
+  },
   subCommands: { get: schemaGetCmd },
 });
 

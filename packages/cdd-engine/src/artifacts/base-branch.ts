@@ -40,9 +40,7 @@ export function briefPath({ workspace, tasks }: { workspace: string; tasks: stri
  * "schema-invalid → non-zero exit"; F10-governed hand populations are exactly what's validated).
  * ISO8601 loose shape: `YYYY-MM-DDTHH:MM…` containing a T. */
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}T/;
-export function validateBaseBranch(
-  obj: unknown,
-): { ok: true } | { ok: false; errors: string[] } {
+export function validateBaseBranch(obj: unknown): { ok: true } | { ok: false; errors: string[] } {
   const errors: string[] = [];
   const o = obj as Record<string, unknown> | null | undefined;
   if (!o || typeof o.base !== "string" || o.base === "") {
@@ -52,7 +50,9 @@ export function validateBaseBranch(
     errors.push(`source must be one of: ${BASE_BRANCH_SOURCES.join(", ")}`);
   }
   if (!o || typeof o.confirmed_at !== "string" || !ISO_DATE_RE.test(o.confirmed_at)) {
-    errors.push(`confirmed_at is required and must be ISO8601 (YYYY-MM-DDTHH:MM…), got: ${JSON.stringify(o?.confirmed_at)}`);
+    errors.push(
+      `confirmed_at is required and must be ISO8601 (YYYY-MM-DDTHH:MM…), got: ${JSON.stringify(o?.confirmed_at)}`,
+    );
   }
   return errors.length > 0 ? { ok: false, errors } : { ok: true };
 }
@@ -91,7 +91,9 @@ export function writeBaseBranch({
     invariant(false, `writeBaseBranch: invalid args — ${gate.errors.join("; ")}`);
   }
   const target = baseBranchPath({ workspace });
-  const existing = existsSync(target) ? (JSON.parse(readFileSync(target, "utf8")) as Record<string, unknown>) : null;
+  const existing = existsSync(target)
+    ? (JSON.parse(readFileSync(target, "utf8")) as Record<string, unknown>)
+    : null;
   const sameBase = !!existing && existing.base === base;
   if (existing && !sameBase && !force) {
     invariant(
@@ -108,7 +110,8 @@ export function writeBaseBranch({
     typeof existing?.confirmed_at === "string" && ISO_DATE_RE.test(existing.confirmed_at)
       ? existing.confirmed_at
       : null;
-  const confirmed_at = sameBase && existingConfirmedAt ? existingConfirmedAt : new Date().toISOString();
+  const confirmed_at =
+    sameBase && existingConfirmedAt ? existingConfirmedAt : new Date().toISOString();
   mkdirSync(path.dirname(target), { recursive: true });
   writeFileSync(target, JSON.stringify({ base, source, confirmed_at }, null, 2));
   return target;

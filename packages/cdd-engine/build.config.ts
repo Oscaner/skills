@@ -10,7 +10,12 @@ export default defineBuildConfig({
     // single source of truth; the copy entry ships the addressable copy at dist/documents/schema
     // (package.json files includes dist/, so the published package carries it). Under dev:stub the
     // copy builder symlinks the source dir, keeping the dev face identical to the canonical files.
-    { builder: "copy", input: "src/documents/schema", outDir: "dist/documents/schema", pattern: ["*.json"] },
+    {
+      builder: "copy",
+      input: "src/documents/schema",
+      outDir: "dist/documents/schema",
+      pattern: ["*.json"],
+    },
     // Publish the harness registry (P3 T7 consumer parity): src/infra/harness-registry.json is the
     // single source; the copy entry ships dist/resources/harness-registry.json (infra/registry.ts
     // resolveRegistryPath published-first — the bundled module's file-relative URL would land in
@@ -18,6 +23,11 @@ export default defineBuildConfig({
     // unbuild's copy builder in stub mode rmdir's the whole outDir + symlinks the input dir, so a
     // copy into the top-level dist/ would clobber the rollup stub (the schema entry's dedicated
     // dist/documents/schema follows the same rule).
-    { builder: "copy", input: "src/infra", outDir: "dist/resources", pattern: ["harness-registry.json"] },
+    {
+      builder: "copy",
+      input: "src/infra",
+      outDir: "dist/resources",
+      pattern: ["harness-registry.json"],
+    },
   ],
 });

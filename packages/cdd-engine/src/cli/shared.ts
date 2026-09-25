@@ -8,7 +8,7 @@
 // (review.ts runReview still imports through this cluster; shared keeps zero reverse dependency).
 import type { ArgDef, ArgsDef } from "citty";
 
-import { exitWithCode, cliUsageError } from "../infra/exit.ts";
+import { cliUsageError, exitWithCode } from "../infra/exit.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
 
 // DRY_RUN — resolution of the program-level `--dry-run` flag (module state). The single write
@@ -43,7 +43,9 @@ export function detectCurrentHarness(env: NodeJS.ProcessEnv): string {
 export function requireHostHarness(): string {
   const harness = detectCurrentHarness(process.env);
   if (!harness) {
-    process.stderr.write("CDD_BLOCKED: no host harness detected (run cdd from within a supported harness)\n");
+    process.stderr.write(
+      "CDD_BLOCKED: no host harness detected (run cdd from within a supported harness)\n",
+    );
     exitWithCode(1);
   }
   return harness;
@@ -58,10 +60,15 @@ export function requireHostHarness(): string {
 // duplication forbidden. Exit normalizes via resolveDocArg (repo-root-relative → absolute;
 // missing → exit 1 three-line diagnostic, §2.4.2) — this is the common `--plan` / `--spec`
 // entry for review/fix, one call site covering four read points.
-export function resolveTargetDoc(opts: { type: string; spec?: string; plan?: string; root?: string }, verb: string): string {
+export function resolveTargetDoc(
+  opts: { type: string; spec?: string; plan?: string; root?: string },
+  verb: string,
+): string {
   const doc = opts.type === "spec" ? opts.spec : opts.plan;
   if (!doc) {
-    process.stderr.write(`cdd ${verb} --type ${opts.type}: missing required --${opts.type} <path>\n`);
+    process.stderr.write(
+      `cdd ${verb} --type ${opts.type}: missing required --${opts.type} <path>\n`,
+    );
     exitWithCode(2);
   }
   return resolveDocArg(doc, opts.root ?? getRoot(), opts.type === "spec" ? "spec" : "plan");
@@ -77,7 +84,7 @@ export function resolveTargetDoc(opts: { type: string; spec?: string; plan?: str
 // call sites thread the whole parsed list — no per-task iteration exists.
 function intTask(token: string): number {
   const n = parseInt(token, 10);
-  if (isNaN(n)) throw cliUsageError(`--tasks must be comma-separated integers: ${token}`);
+  if (Number.isNaN(n)) throw cliUsageError(`--tasks must be comma-separated integers: ${token}`);
   return n;
 }
 
@@ -107,28 +114,30 @@ function normFlag(name: string): string {
 // Program-level flags (`--dry-run` / `--no-dry-run`) are accepted at any position — they are
 // declared on the main command only, but the canonical scope is "program" (position-independent).
 export function guardArgs(rawArgs: readonly string[], argDef: ArgsDef | undefined): void {
-  const declared = new Map<string, ArgDef>();          // normed flag name → its arg definition (canonical key + aliases)
+  const declared = new Map<string, ArgDef>(); // normed flag name → its arg definition (canonical key + aliases)
   // The citty `alias` field lives on the string/boolean/enum variants only (PositionalArgDef omits
   // it); the scans below use only non-positional flags, so the access is narrowed via the
   // Partial<Pick<...>> cast — the alias-shaped read is the only surface used here.
-  const optionLike = (def: ArgDef): { alias?: string | string[] } => def as { alias?: string | string[] };
+  const optionLike = (def: ArgDef): { alias?: string | string[] } =>
+    def as { alias?: string | string[] };
   const defs = argDef ?? {};
   for (const key of Object.keys(defs)) {
     declared.set(normFlag(key), defs[key]);
     const aliases = optionLike(defs[key]).alias;
-    for (const a of (Array.isArray(aliases) ? aliases : aliases ? [aliases] : [])) {
+    for (const a of Array.isArray(aliases) ? aliases : aliases ? [aliases] : []) {
       declared.set(normFlag(String(a)), defs[key]);
     }
   }
   for (const tok of rawArgs ?? []) {
-    if (tok === "--") break;              // everything after -- is positional, not a flag
-    if (!tok.startsWith("-")) continue;   // positionals / flag values are not flags themselves
+    if (tok === "--") break; // everything after -- is positional, not a flag
+    if (!tok.startsWith("-")) continue; // positionals / flag values are not flags themselves
     const name = tok.split("=")[0].replace(/^-+/, "");
     const n = normFlag(name);
-    if (n === "dryrun" || n === "nodryrun") continue;                 // program-level option, any position
+    if (n === "dryrun" || n === "nodryrun") continue; // program-level option, any position
     // --no-<bool> negation is only meaningful for a boolean-typed declared arg; negating a
     // string/enum arg (e.g. --no-plan) is an unknown option — rejected below.
-    if (name.startsWith("no-") && declared.get(normFlag(name.slice(3)))?.type === "boolean") continue;
+    if (name.startsWith("no-") && declared.get(normFlag(name.slice(3)))?.type === "boolean")
+      continue;
     if (!declared.has(n)) {
       throw cliUsageError(`unknown option: ${tok}`);
     }
@@ -143,8 +152,8 @@ export function guardArgs(rawArgs: readonly string[], argDef: ArgsDef | undefine
 // a Convergence behavior change edits rules/convergence.ts once.
 export {
   blockerCount,
-  reviewConvergedError,
   convergedExit3,
+  reviewConvergedError,
   reviewConvergenceGuard,
 } from "../rules/convergence.ts";
 /** Review-handoff shape the CLI guard takes (alias of the owner's HandoffLike — one type

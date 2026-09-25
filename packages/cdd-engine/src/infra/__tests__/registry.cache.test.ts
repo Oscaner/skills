@@ -3,11 +3,12 @@
 // minTokens / readMultiplier / writeMultiplier / ttlMinutes / observable); the profile validates
 // against templates/schema/cache-profile-schema.json (ajv, same pattern as rules/schema.ts). Read
 // the REAL registry file — the profile is data, not prose, and adding a harness = one registry row.
-import { describe, it, expect } from "vitest";
+
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadRegistry, REG_PATH, cacheProfileFor, validateCacheProfile } from "../registry.ts";
+import { describe, expect, it } from "vitest";
+import { cacheProfileFor, loadRegistry, REG_PATH, validateCacheProfile } from "../registry.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -41,8 +42,19 @@ describe("registry cache profile (spec D-3 C7 — capability as data)", () => {
   });
 
   it("the profile schema file ships next to the other handoff schemas", () => {
-    const schemaPath = path.resolve(__dirname, "..", "..", "..", "templates", "schema", "cache-profile-schema.json");
-    const schema = JSON.parse(readFileSync(schemaPath, "utf8")) as { title?: string; additionalProperties?: boolean };
+    const schemaPath = path.resolve(
+      __dirname,
+      "..",
+      "..",
+      "..",
+      "templates",
+      "schema",
+      "cache-profile-schema.json",
+    );
+    const schema = JSON.parse(readFileSync(schemaPath, "utf8")) as {
+      title?: string;
+      additionalProperties?: boolean;
+    };
     expect(schema.title).toBeTruthy();
     expect(schema.additionalProperties).toBe(false); // no undeclared profile keys
   });

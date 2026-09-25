@@ -22,20 +22,19 @@
 // any doc (engine 零文档写入 — the backfill edit is orchestration's, never engine code's).
 import { existsSync } from "node:fs";
 import path from "node:path";
-
+import { resolveWorkspace } from "../artifacts/handoff/naming.ts";
 import {
-  validateDispatchDocuments,
-  parentOverallOf,
-  parseOverall,
+  type DocValidationFailure,
+  effectiveGroups,
   extractClaimRows,
   fileNameSlug,
   mdNames,
+  parentOverallOf,
+  parseOverall,
   taskNumbersFromPlan,
-  effectiveGroups,
-  type DocValidationFailure,
+  validateDispatchDocuments,
 } from "./documents.ts";
 import { derivePlanVerdict } from "./status.ts";
-import { resolveWorkspace } from "../artifacts/handoff/naming.ts";
 
 export interface CloseoutMismatch {
   surface: "structural" | "terminal-debt";
@@ -126,13 +125,21 @@ export function deriveCloseoutMismatches(options: { entry: string; root: string 
 export function formatCloseoutDebtFailures(items: CloseoutMismatch[], overallPath: string): string {
   return [
     `- [closeout] ${overallPath} — plan complete but overall unbackfilled → 先 backfill-overall: version bump + change-history claim + column backfill (branch-review 前置义务)`,
-    ...items.map((m) => `  - ${m.phase}: Implementation plan column ${JSON.stringify(m.column || "empty")} — no change-history claim → ${m.fix}`),
+    ...items.map(
+      (m) =>
+        `  - ${m.phase}: Implementation plan column ${JSON.stringify(m.column || "empty")} — no change-history claim → ${m.fix}`,
+    ),
   ].join("\n");
 }
 
 /** stdout highlight line (post-flight statusValidate) — the next backfill step, pointing at the
  *  overall path (Class B lineage known) and the column-state gaps. Exit unchanged: informational. */
-export function formatCloseoutDebtHighlight(items: CloseoutMismatch[], overallPath: string): string {
-  const detail = items.map((m) => `${m.phase} (Implementation plan: ${m.column || "empty"})`).join(", ");
+export function formatCloseoutDebtHighlight(
+  items: CloseoutMismatch[],
+  overallPath: string,
+): string {
+  const detail = items
+    .map((m) => `${m.phase} (Implementation plan: ${m.column || "empty"})`)
+    .join(", ");
   return `CDD_CLOSEOUT: plan complete with terminal debt — next step: backfill-overall at ${overallPath}: ${detail} (version bump + claim + column backfill)`;
 }

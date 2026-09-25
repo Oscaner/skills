@@ -3,18 +3,18 @@
 // materializer + the stale checker from dispatch/task.ts (the black-box pre-flight gate itself
 // lives in runner.test.ts — this file covers the deterministic-extraction / missing-source /
 // stale-anchor planes the brief calls out).
-import { describe, it, expect } from "vitest";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-
-import {
-  extractPlanConstraints,
-  materializePlanConstraints,
-  isPlanConstraintsStale,
-  ConstraintsSourceUndeclared,
-} from "../task.ts";
+import { describe, expect, it } from "vitest";
 import { hashFile } from "../../artifacts/hash.ts";
+import {
+  ConstraintsSourceUndeclared,
+  extractPlanConstraints,
+  isPlanConstraintsStale,
+  materializePlanConstraints,
+} from "../task.ts";
 
 // Legacy prose-pointer plan: the four **bold** constraint paragraphs in the preamble. Neutral
 // prose sits BEFORE the first anchor — unter-anchored preamble text must never be captured into a
@@ -41,7 +41,7 @@ const PROSE_PLAN = [
   "body",
 ].join("\n");
 
-const PROSE_EXTRACTED = [
+const PROSE_EXTRACTED = `${[
   "**口径**：mouthpiece constraint",
   "",
   "**commit 边界机制（本 program 全 phase 生效）**：commit-boundary constraint",
@@ -49,7 +49,7 @@ const PROSE_EXTRACTED = [
   "**Flow Atomicity（本 phase 强化）**：flow-atomicity constraint",
   "",
   "**顺序原则（spec §2.4）**：ordering-principle constraint",
-].join("\n") + "\n";
+].join("\n")}\n`;
 
 // Canonical plan: a first-class `## Constraints` top-level section (writing-plans-mandated for
 // new plans) with `###` subsections inside; the section is self-bounded by the `---` rule.
@@ -72,7 +72,7 @@ const LITERAL_PLAN = [
   "body",
 ].join("\n");
 
-const LITERAL_EXTRACTED = [
+const LITERAL_EXTRACTED = `${[
   "## Constraints",
   "Leading prose line of the constraints section.",
   "",
@@ -80,7 +80,7 @@ const LITERAL_EXTRACTED = [
   "mouthpiece subsection",
   "### Flow Atomicity",
   "flow subsection (### stays inside — only `##`/`#`/`### Task`/`---` bound the section)",
-].join("\n") + "\n";
+].join("\n")}\n`;
 
 const NO_SOURCE_PLAN = "# Plan\n\n### Task 1: x\nbody\n";
 
@@ -102,13 +102,13 @@ const MULTI_PARA_PLAN = [
   "body",
 ].join("\n");
 
-const MULTI_PARA_EXTRACTED = [
+const MULTI_PARA_EXTRACTED = `${[
   "**commit 边界机制（本 program 全 phase 生效）**：first paragraph of the commitment rule",
   "",
   "second paragraph elaborating the commitment rule",
   "",
   "third paragraph still inside the same commitment body",
-].join("\n") + "\n";
+].join("\n")}\n`;
 
 // Multi-paragraph body bounded by a `---` rule (the structural boundary of the literal form).
 const MULTI_PARA_BOUNDED = [
@@ -161,7 +161,10 @@ describe("extractPlanConstraints — source extraction determinism", () => {
   it("partial prose pointer: missing anchors are omitted, present ones keep canonical order", () => {
     // Flow removed whole (heading + its separator blank) — a plain replacement in the anchor
     // stream would be absorbed by the preceding block, so the omission is modelled by deletion.
-    const partial = PROSE_PLAN.replace("**Flow Atomicity（本 phase 强化）**：flow-atomicity constraint\n\n", "");
+    const partial = PROSE_PLAN.replace(
+      "**Flow Atomicity（本 phase 强化）**：flow-atomicity constraint\n\n",
+      "",
+    );
     const out = extractPlanConstraints(partial);
     expect(out).not.toBeNull();
     expect(out!.includes("flow-atomicity constraint")).toBe(false);
@@ -191,7 +194,7 @@ describe("extractPlanConstraints — source extraction determinism", () => {
   });
 
   it("canonical form: literal ## Constraints section wins over the prose pointer when both exist", () => {
-    const both = LITERAL_PLAN + "\n" + PROSE_PLAN.slice(PROSE_PLAN.indexOf("**口径"));
+    const both = `${LITERAL_PLAN}\n${PROSE_PLAN.slice(PROSE_PLAN.indexOf("**口径"))}`;
     const out = extractPlanConstraints(both);
     expect(out).toBe(LITERAL_EXTRACTED);
   });
@@ -234,7 +237,9 @@ describe("materializePlanConstraints — generate-once workspace artifact", () =
     writeFileSync(path.join(ws, "plan-constraints.md"), "operator legible content\n");
     const res = materializePlanConstraints(plan, ws);
     expect(res.generated).toBe(false);
-    expect(readFileSync(path.join(ws, "plan-constraints.md"), "utf8")).toBe("operator legible content\n");
+    expect(readFileSync(path.join(ws, "plan-constraints.md"), "utf8")).toBe(
+      "operator legible content\n",
+    );
   });
 
   it("plan with no constraint source → throws ConstraintsSourceUndeclared, writes nothing", () => {
@@ -257,7 +262,10 @@ describe("isPlanConstraintsStale — plan-hash anchor comparison", () => {
     const plan = tmpPlan(PROSE_PLAN);
     const ws = mkdtempSync(path.join(tmpdir(), "cdd-plan-ws-"));
     materializePlanConstraints(plan, ws);
-    writeFileSync(plan, PROSE_PLAN.replace("mouthpiece constraint", "mouthpiece constraint — revised"));
+    writeFileSync(
+      plan,
+      PROSE_PLAN.replace("mouthpiece constraint", "mouthpiece constraint — revised"),
+    );
     expect(isPlanConstraintsStale(path.join(ws, "plan-constraints.md"), plan)).toBe(true);
   });
 

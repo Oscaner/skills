@@ -32,13 +32,23 @@
 // is scoped to the standardized `cdd-<op>-<type>-<task>-r<round>-<cause>` name only — the T25
 // bespoke stash ("cdd-T25-… 2026-09-20 …") is a one-off narrative artifact, NOT a match target;
 // its WIP is restorable by manual `git stash apply stash@{0}`.
-import { gitDiffNumstat, gitDiffShortstat, gitStashApply, gitStashList, gitStashPush, gitStatusPorcelain, gitUntrackedStat, type WipStat } from "../infra/git.ts";
+
+import path from "node:path";
 import { loadEngineConfig } from "../infra/config.ts";
+import {
+  gitDiffNumstat,
+  gitDiffShortstat,
+  gitStashApply,
+  gitStashList,
+  gitStashPush,
+  gitStatusPorcelain,
+  gitUntrackedStat,
+  type WipStat,
+} from "../infra/git.ts";
 import { FAILURE_CATEGORIES } from "../rules/failure.ts";
 import { roundPattern } from "./handoff/naming.ts";
-import { SHA40_RE } from "./progress.ts";
 import { readJson, writeHandoff } from "./handoff/write.ts";
-import path from "node:path";
+import { SHA40_RE } from "./progress.ts";
 
 // ---- standardized stash message (settleResidue output ≡ resume input, spec T7.5) ----
 
@@ -46,7 +56,13 @@ export const STASH_MESSAGE_PREFIX = "cdd-";
 
 /** The canonical salvage stash name — the one naming contract both sides share: settleResidue
  *  produces it, the legacy resume scan matches it. `<round>` renders as r<round> (r1 = first round). */
-export function stashMessage(op: string, type: string, task: number, round: number, cause: string): string {
+export function stashMessage(
+  op: string,
+  type: string,
+  task: number,
+  round: number,
+  cause: string,
+): string {
   return `cdd-${op}-${type}-task-${task}-r${round}-${cause}`;
 }
 
@@ -120,13 +136,19 @@ interface CarrierSalvage {
   cause: string;
 }
 
-function salvageFromCarrier(basename: string, carrier: Record<string, unknown>): CarrierSalvage | null {
+function salvageFromCarrier(
+  basename: string,
+  carrier: Record<string, unknown>,
+): CarrierSalvage | null {
   const fam = familyFromBasename(basename);
   if (!fam) return null;
   const groupTasks = Array.isArray(carrier.tasks) ? carrier.tasks : [];
-  const task = typeof groupTasks[0] === "number" && Number.isInteger(groupTasks[0]) && (groupTasks[0] as number) >= 1
-    ? groupTasks[0]
-    : 1;
+  const task =
+    typeof groupTasks[0] === "number" &&
+    Number.isInteger(groupTasks[0]) &&
+    (groupTasks[0] as number) >= 1
+      ? groupTasks[0]
+      : 1;
   const cause = (carrier.recovery as Record<string, unknown> | undefined)?.cause;
   if (typeof cause !== "string" || !cause) return null;
   return { op: fam.op, type: fam.type, task, round: fam.round, cause };
@@ -164,7 +186,14 @@ export interface RecoveryInfo {
  *  round-terminal write — the carrier writes regardless, without the recovery record). */
 export async function settleResidue(
   cwd: string,
-  opts: { op: string; type?: string; task: number; round: number; cause: string; scopeBase?: string | null },
+  opts: {
+    op: string;
+    type?: string;
+    task: number;
+    round: number;
+    cause: string;
+    scopeBase?: string | null;
+  },
 ): Promise<RecoveryInfo | null> {
   const type = opts.type ?? "task";
   const message = stashMessage(opts.op, type, opts.task, opts.round, opts.cause);
@@ -178,7 +207,10 @@ export async function settleResidue(
   const scope = (await gitDiffShortstat(cwd)) ?? "";
   const porcelain = await gitStatusPorcelain(cwd);
   const untracked = await gitUntrackedStat(cwd, porcelain);
-  const residueScope = untracked.files > 0 ? `${scope}${scope ? "; " : ""}${untracked.files} untracked file(s)` : scope;
+  const residueScope =
+    untracked.files > 0
+      ? `${scope}${scope ? "; " : ""}${untracked.files} untracked file(s)`
+      : scope;
   // The structured scale (tracked numstat + untracked line counts) is read BEFORE the push too —
   // recovery.wip_stat archives the pre-stash tree's magnitude (the carrier itself never counts:
   // it lives in the gitignored .osuperpowers/cdd workspace, invisible to `??` and to -u).
@@ -284,8 +316,7 @@ export function readDeadCarrier(handoffPath: string): DeadCarrierRead | null {
   const obj = readJson(handoffPath);
   if (!obj) return null;
   const status = typeof obj.status === "string" ? obj.status : "";
-  const failureCategory =
-    typeof obj.failure_category === "string" ? obj.failure_category : "";
+  const failureCategory = typeof obj.failure_category === "string" ? obj.failure_category : "";
   if (status !== "TIMEOUT" && failureCategory !== "EXECUTION_FAILURE") return null; // only dead rounds resume
   const recovery = (obj.recovery ?? {}) as RecoveryInfo & Record<string, unknown>;
   return { status, failureCategory, recovery };
@@ -364,7 +395,10 @@ export interface ResidueAppendixInput {
   scope: string;
 }
 
-export function appendixFromRecovery(carrier: DeadCarrierRead, found: { ref: string; message: string }): ResidueAppendixInput {
+export function appendixFromRecovery(
+  carrier: DeadCarrierRead,
+  found: { ref: string; message: string },
+): ResidueAppendixInput {
   return {
     status: carrier.status || carrier.failureCategory,
     cause: (carrier.recovery?.cause as string | undefined) ?? carrier.failureCategory,

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 // scripts/validate/osuperpowers.ts — 5b block: osuperpowers plugin validation.
 // Five step descriptors in original run order (the 5b1 cdd-engine Vitest suite
 // lives in engine.ts and is spliced between the node:test tree and the wiring
@@ -6,10 +7,10 @@
 //   marker / skills-count / node:test trees /
 //   wiring guard (ci-validate.test.mjs).
 
-import { execaSync } from "execa";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { execaSync } from "execa";
 
 import { runIfMain } from "./runner.ts";
 
@@ -31,12 +32,14 @@ function subprocessStep(name, cmd, args) {
 }
 
 // block marker — plugin resolution.
-checkStep("osuperpowers plugin resolution", () => console.log("OK — osuperpowers plugin resolution"));
+checkStep("osuperpowers plugin resolution", () =>
+  console.log("OK — osuperpowers plugin resolution"),
+);
 
 function countSkillsWithMarkdown(dir) {
-  return readdirSync(dir, { withFileTypes: true })
-    .filter((e) => e.isDirectory() && existsSync(path.join(dir, e.name, "SKILL.md")))
-    .length;
+  return readdirSync(dir, { withFileTypes: true }).filter(
+    (e) => e.isDirectory() && existsSync(path.join(dir, e.name, "SKILL.md")),
+  ).length;
 }
 
 function checkOsuperpowersSkillsCount() {
@@ -45,23 +48,32 @@ function checkOsuperpowersSkillsCount() {
   const skills = manifest.skills;
   const EXPECTED = 8; // 5（init 已删 T10）+ 3 新 spec-writer（T12 writing-{single,overall,phase}-spec）
   const EMITTERS_LABEL = `${EXPECTED} skills`; // 纯计数标签（T16 去枚举——不重复写数值，EXPECTED 为唯一计数真相）
-  let n;
+  let n: number;
   if (skills === null || skills === undefined) {
     const dir = path.join(p, "skills");
     assert(existsSync(dir), `missing default skills dir: ${dir}`);
     n = countSkillsWithMarkdown(dir);
-    assert(n === EXPECTED, `expected ${EXPECTED} osuperpowers skills (${EMITTERS_LABEL}), got ${n}`);
+    assert(
+      n === EXPECTED,
+      `expected ${EXPECTED} osuperpowers skills (${EMITTERS_LABEL}), got ${n}`,
+    );
     console.log(`OK — ${n} osuperpowers skills (default skills/ discovery)`);
   } else if (typeof skills === "string") {
     const dir = path.join(p, skills.replace(/^\.\//, ""));
     assert(existsSync(dir), `missing skills dir: ${dir}`);
     n = countSkillsWithMarkdown(dir);
-    assert(n === EXPECTED, `expected ${EXPECTED} osuperpowers skills (${EMITTERS_LABEL}), got ${n}`);
+    assert(
+      n === EXPECTED,
+      `expected ${EXPECTED} osuperpowers skills (${EMITTERS_LABEL}), got ${n}`,
+    );
     console.log(`OK — ${n} osuperpowers skills (directory ${skills})`);
   } else {
     const missing = skills.filter((s) => !existsSync(path.join(p, s.replace(/^\.\//, ""))));
     assert(missing.length === 0, `skills[] points to missing dirs: ${missing}`);
-    assert(skills.length === EXPECTED, `expected ${EXPECTED} osuperpowers skills (${EMITTERS_LABEL}), got ${skills.length}`);
+    assert(
+      skills.length === EXPECTED,
+      `expected ${EXPECTED} osuperpowers skills (${EMITTERS_LABEL}), got ${skills.length}`,
+    );
     console.log(`OK — ${skills.length} osuperpowers skills (explicit list)`);
   }
 }
@@ -79,6 +91,9 @@ subprocessStep("osuperpowers node:test behavior tree", "node", [
   "packages/osuperpowers/tests/*.test.mjs",
 ]);
 
-subprocessStep("validate wiring guard (ci-validate.test.mjs)", "node", ["--test", "packages/osuperpowers/tests/ci-validate.test.mjs"]);
+subprocessStep("validate wiring guard (ci-validate.test.mjs)", "node", [
+  "--test",
+  "packages/osuperpowers/tests/ci-validate.test.mjs",
+]);
 
 runIfMain(import.meta.url, steps);

@@ -9,11 +9,12 @@
 // withLifecycle wrapper: build the lifecycle with the cli-module dry-run flag injected, run it,
 // map a gate DispatchBlocked to the CDD_BLOCKED + exit-1 face, and emit the stored round
 // conclusion. The CLI surface ({ runBranchFix } signature + 0/1/2 exit table) is unchanged.
-import { withLifecycle } from "../infra/proc.ts";
-import { exitWithCode } from "../infra/exit.ts";
+
 import { DispatchBlocked } from "../dispatch/base.ts";
-import { DRY_RUN } from "./shared.ts";
 import { BranchFixLifecycle, type BranchFixOpts } from "../dispatch/branch.ts";
+import { exitWithCode } from "../infra/exit.ts";
+import { withLifecycle } from "../infra/proc.ts";
+import { DRY_RUN } from "./shared.ts";
 
 export type { BranchFixOpts };
 

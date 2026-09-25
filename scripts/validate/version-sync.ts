@@ -7,7 +7,7 @@
 // standalone (`node scripts/validate/version-sync.ts`) runs the same checks.
 
 import { existsSync, readFileSync } from "node:fs";
-import { join, resolve, dirname } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runIfMain } from "./runner.ts";
@@ -33,7 +33,11 @@ function checkVersionSync() {
   if (!SEMVER.test(osuperpowersPkg.version)) {
     throw new Error(`Invalid osuperpowers version format: ${osuperpowersPkg.version}`);
   }
-  const osuperpowersVersions = [osuperpowersPkg.version, osuperpowersSrc.version, osuperpowersEntry.version];
+  const osuperpowersVersions = [
+    osuperpowersPkg.version,
+    osuperpowersSrc.version,
+    osuperpowersEntry.version,
+  ];
   if (new Set(osuperpowersVersions).size !== 1) {
     throw new Error(`osuperpowers version mismatch: ${osuperpowersVersions.join(" ")}`);
   }

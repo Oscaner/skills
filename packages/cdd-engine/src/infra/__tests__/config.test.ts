@@ -2,12 +2,18 @@
 // engine-config.json = 运行时配置面单文件（context-contract + failure-categories +
 // handoff-namespace 三区段归并）；src/infra/config.ts = 该平面唯一加载点（消费方程单点）。
 // 三个旧文件已删除 —— 任何旧路径引用立即炸出（零残留是机械约束，非评审客套）。
-import { describe, it, expect } from "vitest";
+
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
 
-import { loadEngineConfig, loadContextContract, loadFailureCategories, loadHandoffNamespace } from "../config.ts";
+import {
+  loadContextContract,
+  loadEngineConfig,
+  loadFailureCategories,
+  loadHandoffNamespace,
+} from "../config.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ENGINE = path.resolve(__dirname, "..", "..", "..");
@@ -34,7 +40,11 @@ describe("engine-config 单点消费（config.ts 分区段加载）", () => {
   });
 
   it("旧三文件已删除（context-contract / failure-categories / handoff-namespace 并入 engine-config）", () => {
-    for (const old of ["context-contract.json", "failure-categories.json", "handoff-namespace.json"]) {
+    for (const old of [
+      "context-contract.json",
+      "failure-categories.json",
+      "handoff-namespace.json",
+    ]) {
       expect(existsSync(path.join(TEMPLATES, old)), old).toBe(false);
     }
   });

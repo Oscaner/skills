@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+import { existsSync, readFileSync } from "node:fs";
+import { basename, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 // scripts/observe-cache.ts — spec D-3 C7 dev-side cache observation tool. Measures prompt-cache
 // read/write tokens across ≥2 consecutive same-(harness, op, type) dispatch rounds so a dev can
 // assert "consecutive same-type round read tok > 0" within the TTL window. What "same-type round"
@@ -27,13 +30,16 @@
 //   node scripts/observe-cache.ts --rounds 2 \
 //     -- .osuperpowers/cdd/2026-09-13-osuperpowers-overhaul-p6 7 implement
 import { execa } from "execa";
-import { existsSync, readFileSync } from "node:fs";
-import { basename, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-
-import { renderModePrompt, resetTemplateCaches } from "../packages/cdd-engine/src/render/templates.ts";
-import { loadRegistry, REG_PATH, resolveInjection } from "../packages/cdd-engine/src/infra/registry.ts";
 import { buildInvokeArgs, promptArgText } from "../packages/cdd-engine/src/infra/invoke.ts";
+import {
+  loadRegistry,
+  REG_PATH,
+  resolveInjection,
+} from "../packages/cdd-engine/src/infra/registry.ts";
+import {
+  renderModePrompt,
+  resetTemplateCaches,
+} from "../packages/cdd-engine/src/render/templates.ts";
 
 export type CacheUsage = { readTokens: number; writeTokens: number };
 
@@ -69,6 +75,7 @@ export function extractCacheUsage(log: string): CacheUsage | null {
   return { readTokens: readTokens ?? 0, writeTokens: writeTokens ?? 0 };
 }
 
+import type { ArgsDef } from "citty";
 // ---- driver ----
 //
 // citty args def (Task 21; engine src/cli/parse.ts isomorphism — the hand-rolled argv loop is
@@ -78,12 +85,22 @@ export function extractCacheUsage(log: string): CacheUsage | null {
 // Value-taking options (--harness / --rounds) alone consume the next token; the workspace/task/mode
 // trio are declared positionals (after `--` or bare).
 import { parseArgs as parseArgsCitty } from "citty";
-import type { ArgsDef } from "citty";
 
 export const ARGS = {
-  harness: { type: "string", description: "harness entry to observe (claude | cursor-agent)", default: "claude" },
-  rounds: { type: "string", description: "number of consecutive same-type rounds to measure", default: "2" },
-  cost: { type: "boolean", description: "append --cost measurement flag (explicit opt-in, harnesses that accept it)" },
+  harness: {
+    type: "string",
+    description: "harness entry to observe (claude | cursor-agent)",
+    default: "claude",
+  },
+  rounds: {
+    type: "string",
+    description: "number of consecutive same-type rounds to measure",
+    default: "2",
+  },
+  cost: {
+    type: "boolean",
+    description: "append --cost measurement flag (explicit opt-in, harnesses that accept it)",
+  },
   debug: { type: "boolean", description: "append --debug measurement flag (default)" },
   workspace: { type: "positional", description: "CDD workspace directory" },
   task: { type: "positional", description: "task number" },
@@ -167,7 +184,12 @@ export function priorHandoffPaths(state: {
   };
 }
 
-function renderRoundPrompt(state: { workspace: string; task: number; mode: string; round: number }): string {
+function renderRoundPrompt(state: {
+  workspace: string;
+  task: number;
+  mode: string;
+  round: number;
+}): string {
   // Measurement-only render: workspace-relative paths, round-suffixed review/fix handoff targets,
   // fixed implement target, and the cross-phase findings/fixed-point above.
   const handoffBase = `${state.workspace}/task-${state.task}`;
@@ -199,7 +221,9 @@ async function main(): Promise<void> {
   }
 
   resetTemplateCaches(); // one cold static-zone render, then measure the hot re-dispatches
-  console.log(`observe-cache: ${harness} · ${mode} · task ${task} · ${rounds} rounds (flag ${flag})`);
+  console.log(
+    `observe-cache: ${harness} · ${mode} · task ${task} · ${rounds} rounds (flag ${flag})`,
+  );
   console.log(`workspace: ${workspace}\n`);
 
   const rows: Array<{ round: number; promptBytes: number; read: number; write: number }> = [];
@@ -207,7 +231,11 @@ async function main(): Promise<void> {
     const prompt = renderRoundPrompt({ workspace, task, mode, round });
     // Resolve the op×type injection the exact way the engine does (registry resolver — C5 parity:
     // the observed invoke set mirrors what cdd dispatches, with only the measurement flag added).
-    const promptArg = promptArgText(resolveInjection(entry, mode, mode === "review" || mode === "fix" ? "task" : undefined), prompt, "");
+    const promptArg = promptArgText(
+      resolveInjection(entry, mode, mode === "review" || mode === "fix" ? "task" : undefined),
+      prompt,
+      "",
+    );
     const args = [...buildInvokeArgs(entry.invoke ?? "", promptArg)];
     args.splice(args.length - 1, 0, flag); // measurement flag (--debug default) right before the prompt arg
     const result = await execa(entry.cli, args, {
@@ -217,12 +245,19 @@ async function main(): Promise<void> {
       reject: false,
     });
     const usage = extractCacheUsage(`${result.stdout}\n${result.stderr}`);
-    rows.push({ round, promptBytes: prompt.length, read: usage?.readTokens ?? -1, write: usage?.writeTokens ?? -1 });
+    rows.push({
+      round,
+      promptBytes: prompt.length,
+      read: usage?.readTokens ?? -1,
+      write: usage?.writeTokens ?? -1,
+    });
     console.log(
       `round ${round}: prompt=${prompt.length}B exit=${result.exitCode} cache read=${usage?.readTokens ?? "—"} write=${usage?.writeTokens ?? "—"}`,
     );
     if (usage && round < rounds) {
-      console.log(`  (round ${round} written ${usage.writeTokens} cache tokens — next round reads within TTL should hit)`);
+      console.log(
+        `  (round ${round} written ${usage.writeTokens} cache tokens — next round reads within TTL should hit)`,
+      );
     }
   }
 
@@ -232,11 +267,17 @@ async function main(): Promise<void> {
   const hit = later.some((r) => r.read > 0);
   const measurable = rows.some((r) => r.read > 0 || r.write > 0);
   if (measurable && hit) {
-    console.log("\nverdict: cache OBSERVED — a later same-type round read tok > 0 (TTL window hit path).");
+    console.log(
+      "\nverdict: cache OBSERVED — a later same-type round read tok > 0 (TTL window hit path).",
+    );
   } else if (measurable) {
-    console.log("\nverdict: measurable but no read>0 hit recorded (TTL window may have elapsed between rounds).");
+    console.log(
+      "\nverdict: measurable but no read>0 hit recorded (TTL window may have elapsed between rounds).",
+    );
   } else {
-    console.log("\nverdict: not measurable (no cache fields) or below minTokens — record honestly, do not claim.");
+    console.log(
+      "\nverdict: not measurable (no cache fields) or below minTokens — record honestly, do not claim.",
+    );
     process.exit(1);
   }
 }

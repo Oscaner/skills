@@ -10,20 +10,21 @@
 //     prose anchors, CLAIM family) — the canary surface for the repo doc set;
 //   - the engine consumers (documents.ts / brief.ts / task.ts) consume via this module — the
 //     "grep 删除面零残留" engine-side face, checked textually (no literal re-assignment).
-import { describe, it, expect } from "vitest";
+
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
 
 import { loadDocSchema } from "../schema.ts";
-import { deriveDocTokens, DOC_TOKENS } from "../tokens.ts";
+import { DOC_TOKENS, deriveDocTokens } from "../tokens.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 // packages/cdd-engine/src/documents/__tests__ → the engine src root (2 hops up from __tests__)
 const ENGINE_SRC = path.resolve(HERE, "..", "..");
-const PLAN = loadDocSchema("plan");
-const OVERALL = loadDocSchema("overall");
-const PHASE_SPEC = loadDocSchema("phase-spec");
+const _PLAN = loadDocSchema("plan");
+const _OVERALL = loadDocSchema("overall");
+const _PHASE_SPEC = loadDocSchema("phase-spec");
 
 /** The four schemas deriveDocTokens needs — doctorable per-test. */
 function schemas(overrides: { plan?: unknown; overall?: unknown; phase?: unknown } = {}) {
@@ -47,7 +48,8 @@ describe("deriveDocTokens — live derivation from the canonical schemas", () =>
 
     // Doctored plan: the specRef marker const changes → the derived SPEC_MARK follows.
     const doctoredPlan = cloneSchema(loadDocSchema("plan") as Record<string, unknown>);
-    (doctoredPlan as any).properties.header.properties.specRef.properties.marker.const = "**Spec source:**";
+    (doctoredPlan as any).properties.header.properties.specRef.properties.marker.const =
+      "**Spec source:**";
     const re = deriveDocTokens(schemas({ plan: doctoredPlan }));
     expect(re.specMark).toBe("**Spec source:**");
     expect(re.specField).toBe("`**Spec source:**`");
@@ -65,7 +67,8 @@ describe("deriveDocTokens — live derivation from the canonical schemas", () =>
 
   it("doctored plan taskGroups heading → the derived section + line tokens follow (P4.3 Task 3)", () => {
     const doctoredPlan = cloneSchema(loadDocSchema("plan") as Record<string, unknown>);
-    (doctoredPlan as any).properties.taskGroups.$defs.section.properties.heading.const = "## Dispatch Groups";
+    (doctoredPlan as any).properties.taskGroups.$defs.section.properties.heading.const =
+      "## Dispatch Groups";
     const re = deriveDocTokens(schemas({ plan: doctoredPlan }));
     expect(re.taskGroupsHeading).toBe("## Dispatch Groups");
     expect(re.taskGroupsHeadingRe.test("## Dispatch Groups")).toBe(true);
@@ -115,7 +118,12 @@ describe("DOC_TOKENS — production values equal the canonical leaves (single so
     expect(DOC_TOKENS.taskHeadingFormat).toBe("### Task N:");
     expect(DOC_TOKENS.taskHeadingFor(7)).toBe("### Task 7:");
     expect(DOC_TOKENS.constraintsHeading).toBe("## Constraints");
-    expect(DOC_TOKENS.proseAnchors).toEqual(["口径", "commit 边界机制", "Flow Atomicity", "顺序原则"]);
+    expect(DOC_TOKENS.proseAnchors).toEqual([
+      "口径",
+      "commit 边界机制",
+      "Flow Atomicity",
+      "顺序原则",
+    ]);
     expect(DOC_TOKENS.proseAnchorTokens).toEqual([
       "**口径**：",
       "**commit 边界机制**：",
@@ -146,11 +154,14 @@ describe("DOC_TOKENS — production values equal the canonical leaves (single so
   });
 
   it("Phase-inventory header / canonical column / change-history heading", () => {
-    const header = "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |";
+    const header =
+      "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |";
     expect(DOC_TOKENS.phaseHeaderRe.test(header)).toBe(true);
     expect(DOC_TOKENS.phaseHeaderRe.test("| P1 | phase one |")).toBe(false); // phase rows are not the header
     expect(DOC_TOKENS.canonicalColumnRe.test(header)).toBe(true);
-    expect(DOC_TOKENS.canonicalColumnRe.test("| # | Phase | Scope | Implementation planning |")).toBe(false);
+    expect(
+      DOC_TOKENS.canonicalColumnRe.test("| # | Phase | Scope | Implementation planning |"),
+    ).toBe(false);
     expect(DOC_TOKENS.changeHistoryHeadingRe.test("## Change history")).toBe(true);
   });
 
@@ -193,20 +204,32 @@ describe("DOC_TOKENS — production values equal the canonical leaves (single so
     // Claim-clause separator (the canonical `；` const + its documented ASCII sibling) — a
     // change-history sentence splits on it.
     expect("clause A；clause B;clause C".split(DOC_TOKENS.claimClauseSeparatorRe)).toEqual([
-      "clause A", "clause B", "clause C",
+      "clause A",
+      "clause B",
+      "clause C",
     ]);
     // Claim phase references — the FULL canonical id captured (digit ridge inside, groups 1/3 full
     // + 2/4 digits): a `P2.1` reference stays verbatim (the ridge is captured as one group, dot
     // segments included).
-    expect([..."P1 Design + P2.1 复盘 · P1–P4 范围".matchAll(DOC_TOKENS.claimSinglePhaseRe)].map((m) => [m[1], m[2]])).toEqual([
-      ["P1", "1"], ["P2.1", "2.1"], ["P1", "1"], ["P4", "4"],
+    expect(
+      [..."P1 Design + P2.1 复盘 · P1–P4 范围".matchAll(DOC_TOKENS.claimSinglePhaseRe)].map((m) => [
+        m[1],
+        m[2],
+      ]),
+    ).toEqual([
+      ["P1", "1"],
+      ["P2.1", "2.1"],
+      ["P1", "1"],
+      ["P4", "4"],
     ]);
     const range = [..."P2.1–P2.3".matchAll(DOC_TOKENS.claimPhaseRangeRe)][0]!;
     expect([range[1], range[2], range[3], range[4]]).toEqual(["P2.1", "2.1", "P2.3", "2.3"]);
     // Design-spec token — the canonical `P<digits>(.digits)*-design` leaf (sub-phase ids allowed:
     // `P2.1-design` scans as its own FULL token — the segment-join attribution, never a bare `P2`
     // or a ridge-less `P2.1`) + the design-doc filename tail derived from it.
-    expect("source P2.1-design → p3-design v1.0".match(DOC_TOKENS.designTokenScanRe)?.[0]).toBe("P2.1-design");
+    expect("source P2.1-design → p3-design v1.0".match(DOC_TOKENS.designTokenScanRe)?.[0]).toBe(
+      "P2.1-design",
+    );
     expect(DOC_TOKENS.designTokenScanRe.test("P2.1-design v1.0")).toBe(true);
     expect(DOC_TOKENS.designDocTail).toBe("-design.md");
     // Issue-anchor scan — the issue-number run captured (the anchor-registry membership atom).
@@ -214,9 +237,9 @@ describe("DOC_TOKENS — production values equal the canonical leaves (single so
     expect(anchor[1]).toBe("123");
     // Phase-id token scan — the dependency graph / dependency-column membership scanner; dotted
     // ids scan as single tokens (`P2.1` is one id, not a `P2` + `.1` split).
-    expect([..."P1 -> P2  (hard) · P2.1".matchAll(DOC_TOKENS.phaseTokenScanRe)].map((m) => m[0])).toEqual([
-      "P1", "P2", "P2.1",
-    ]);
+    expect(
+      [..."P1 -> P2  (hard) · P2.1".matchAll(DOC_TOKENS.phaseTokenScanRe)].map((m) => m[0]),
+    ).toEqual(["P1", "P2", "P2.1"]);
   });
 });
 
@@ -253,12 +276,15 @@ describe("template retirement — md templates gone + read-schema nodes in the s
     expect(existsSync(path.join(REPO_ROOT, rel))).toBe(false);
   });
 
-  it.each(SPEC_WRITER_SKILLS)("%s carries the read-schema node and no template-path token", (rel) => {
-    const src = readFileSync(path.join(REPO_ROOT, rel), "utf8");
-    expect(src).toMatch(/read-schema/);
-    expect(src).not.toMatch(/read-template/);
-    expect(src).not.toMatch(/docs\/\*-template\.md/);
-  });
+  it.each(SPEC_WRITER_SKILLS)(
+    "%s carries the read-schema node and no template-path token",
+    (rel) => {
+      const src = readFileSync(path.join(REPO_ROOT, rel), "utf8");
+      expect(src).toMatch(/read-schema/);
+      expect(src).not.toMatch(/read-template/);
+      expect(src).not.toMatch(/docs\/\*-template\.md/);
+    },
+  );
 
   it("writing-plans author-plan defers plan structure to the canonical schema (`cdd schema get plan`)", () => {
     const src = readFileSync(

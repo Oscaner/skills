@@ -56,9 +56,7 @@ function deriveFirstParty(root, dirName) {
   const pkgPath = join(root, "packages", dirName, "package.json");
   const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
   const osc = pkg["oscaner-plugin"] ?? {};
-  const contentRoot = posix.normalize(
-    posix.join("packages", dirName, osc.contentRoot ?? "."),
-  );
+  const contentRoot = posix.normalize(posix.join("packages", dirName, osc.contentRoot ?? "."));
   const author = normalizeAuthor(pkg.author);
   const repository = repoUrl(pkg.repository);
 

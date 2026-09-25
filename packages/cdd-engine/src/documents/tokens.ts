@@ -138,7 +138,7 @@ export function escapeRegExp(s: string): string {
 function nodeAt(schema: unknown, props: readonly string[]): Record<string, unknown> {
   let cur = schema as Record<string, unknown>;
   for (const key of props) {
-    const viaProps = (cur?.["properties"] as Record<string, unknown> | undefined)?.[key];
+    const viaProps = (cur?.properties as Record<string, unknown> | undefined)?.[key];
     cur = (viaProps ?? (cur as Record<string, unknown>)[key]) as Record<string, unknown>;
     if (cur === null || cur === undefined) {
       throw new Error(`doc-structure token path not found: ${props.join(".")}`);
@@ -231,9 +231,7 @@ export function deriveDocTokens(schemas: {
     ["constraints", "formACanonical", "heading"],
     "pattern",
   );
-  const constraintsHeading = constraintsHeadingPattern
-    .replace(/^\^/, "")
-    .replace(/\\s\*\$$/, "");
+  const constraintsHeading = constraintsHeadingPattern.replace(/^\^/, "").replace(/\\s\*\$$/, "");
   const constraintsHeadingRe = new RegExp(constraintsHeadingPattern);
 
   // taskGroups (P4.3 Task 3, spec §2.2) — the dispatch-group declaration: the section heading
@@ -281,7 +279,11 @@ export function deriveDocTokens(schemas: {
   const versionToken = versionTokenBody(overall);
   const versionLinePattern = leaf<string>(overall, ["header", "version", "line"], "pattern");
   const versionHeaderRe = capturing(versionLinePattern, versionToken, "m");
-  const versionCellPattern = leaf<string>(overall, ["changeHistory", "row", "versionCell"], "pattern");
+  const versionCellPattern = leaf<string>(
+    overall,
+    ["changeHistory", "row", "versionCell"],
+    "pattern",
+  );
   const historyVersionCellRe = capturing(versionCellPattern, versionToken);
   const versionTokenRe = new RegExp(versionToken, "g");
 
@@ -301,8 +303,14 @@ export function deriveDocTokens(schemas: {
   const canonicalColumnRe = new RegExp(`${escapeRegExp(canonicalColumn)}\\b`);
   const changeHistoryHeading = leaf<string>(overall, ["sectionHeadings", "changeHistory"], "const");
   const changeHistoryHeadingRe = new RegExp(`^${escapeRegExp(changeHistoryHeading)}`);
-  const phaseRowOpenRe = new RegExp(leaf<string>(overall, ["phaseInventory", "rowShape", "rowOpen"], "pattern"));
-  const phaseRowCellCount = leaf<number>(overall, ["phaseInventory", "rowShape", "cellCount"], "const");
+  const phaseRowOpenRe = new RegExp(
+    leaf<string>(overall, ["phaseInventory", "rowShape", "rowOpen"], "pattern"),
+  );
+  const phaseRowCellCount = leaf<number>(
+    overall,
+    ["phaseInventory", "rowShape", "cellCount"],
+    "const",
+  );
   // change-history version cell numeric parse — the anchored version-token pattern with each
   // digit-run captured (descending/duplicate detection needs the major.minor tuple)
   const versionNumericRe = new RegExp(
@@ -324,8 +332,12 @@ export function deriveDocTokens(schemas: {
   const claimClauseRe = new RegExp(
     leaf<string>(overall, ["claimPatterns", "claimClause", "pattern"], "pattern"),
   );
-  const planLinkWordRe = new RegExp(leaf<string>(overall, ["claimPatterns", "planLinkWord"], "pattern"));
-  const designLinkWordRe = new RegExp(leaf<string>(overall, ["claimPatterns", "designLinkWord"], "pattern"));
+  const planLinkWordRe = new RegExp(
+    leaf<string>(overall, ["claimPatterns", "planLinkWord"], "pattern"),
+  );
+  const designLinkWordRe = new RegExp(
+    leaf<string>(overall, ["claimPatterns", "designLinkWord"], "pattern"),
+  );
   // Claim-clause boundary — the canonical `；` const + its documented ASCII sibling `;`.
   const claimClauseSeparatorRe = new RegExp(
     `[${escapeRegExp(leaf<string>(overall, ["changeHistory", "backfillClause", "clauseSeparator"], "const"))};]`,
@@ -340,7 +352,8 @@ export function deriveDocTokens(schemas: {
     ["claimPatterns", "phaseReference", "single"],
     "pattern",
   )
-    .replace(/^\^/, "").replace(/\$$/, "");
+    .replace(/^\^/, "")
+    .replace(/\$$/, "");
   const claimSinglePhaseRe = phaseRefCapturing(
     leaf<string>(overall, ["claimPatterns", "phaseReference", "single"], "pattern"),
     claimPhaseRefToken,
@@ -355,20 +368,23 @@ export function deriveDocTokens(schemas: {
   // `P<digits>(.digits)*-design` pattern leaf (claimPatterns.designToken): the unanchored token
   // scan (sub-phase ids allowed: `P2.1-design` belongs to P2.1, never P2) and the design-document
   // `-design.md` tail (the filePaths filename form, lowercase).
-  const designTokenBody = leaf<string>(
-    overall,
-    ["claimPatterns", "designToken"],
-    "pattern",
-  )
-    .replace(/^\^/, "").replace(/\$$/, "");
+  const designTokenBody = leaf<string>(overall, ["claimPatterns", "designToken"], "pattern")
+    .replace(/^\^/, "")
+    .replace(/\$$/, "");
   const designTokenScanRe = new RegExp(designTokenBody, "i");
   if (!designTokenBody.endsWith("-design")) {
-    throw new Error(`doc-structure token: designToken pattern "${designTokenBody}" lacks the "-design" tail`);
+    throw new Error(
+      `doc-structure token: designToken pattern "${designTokenBody}" lacks the "-design" tail`,
+    );
   }
   const designDocTail = `${designTokenBody.slice(designTokenBody.indexOf("-design"))}.md`;
   // The four-table audit's section headings (validator-keyed — same derivation family as the
   // change-history heading token).
-  const issueInventoryHeading = leaf<string>(overall, ["sectionHeadings", "issueInventory"], "const");
+  const issueInventoryHeading = leaf<string>(
+    overall,
+    ["sectionHeadings", "issueInventory"],
+    "const",
+  );
   const auditHeadingRe = (pattern: string): RegExp => {
     // Section-range scanning tests whole lines (`lines.findIndex(l => re.test(l))`) — the
     // canonical anchors (`^…$`) match the line extent exactly, so the pattern stays verbatim.
@@ -380,7 +396,9 @@ export function deriveDocTokens(schemas: {
   // Issue-anchor scan — the canonical anchored form (`^#\d+#issuecomment-\d+$`) unanchored, the
   // issue-number run captured (the anchor-registry membership atom).
   const issueAnchorFormRe = digitCapturing(
-    leaf<string>(overall, ["issueInventory", "row", "anchorForm"], "pattern").replace(/^\^/, "").replace(/\$$/, ""),
+    leaf<string>(overall, ["issueInventory", "row", "anchorForm"], "pattern")
+      .replace(/^\^/, "")
+      .replace(/\$$/, ""),
     "g",
   );
   // Phase-id token scan — the canonical phase id (`^P\d+(\.\d+)*$`) unanchored with a leading

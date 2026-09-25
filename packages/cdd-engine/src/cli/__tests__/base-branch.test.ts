@@ -7,16 +7,17 @@
 // 每条用例用独立 tmp git repo（mkdtemp）隔离副作用。lifecycle 路径纯派生：恒落
 // <repoRoot>/.osuperpowers/cdd/lifecycle.json —— 即各用例自己的 tmp repo（`cwd` 缺省为仓根时回落本仓根）；
 // 并发安全由 reapStale 的 owner 存活判定承担，不依赖路径分离。
-import { describe, it, expect, afterAll } from "vitest";
-import { execaSync } from "execa";
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { execaSync } from "execa";
+import { afterAll, describe, expect, it } from "vitest";
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));   
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..", "..", "..");
-const CDD_MJS = path.join(REPO_ROOT, 'packages/cdd-engine/dist/cli.mjs');
+const CDD_MJS = path.join(REPO_ROOT, "packages/cdd-engine/dist/cli.mjs");
 const NODE = process.execPath;
 
 // 与 cdd.test.mjs 同构：剥离继承的 CDD_*，extendEnv:false 防 orchestrator 环境泄漏回 child。
@@ -31,7 +32,12 @@ function cleanEnv(extra) {
 function runCli(args, opts = {}) {
   const { cwd = REPO_ROOT } = opts;
   try {
-    const r = execaSync(NODE, [CDD_MJS, ...args], { cwd, env: cleanEnv(), encoding: "utf8", extendEnv: false });
+    const r = execaSync(NODE, [CDD_MJS, ...args], {
+      cwd,
+      env: cleanEnv(),
+      encoding: "utf8",
+      extendEnv: false,
+    });
     return { exitCode: r.exitCode ?? 0, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
   } catch (e) {
     return { exitCode: e.exitCode ?? 1, stdout: e.stdout ?? "", stderr: e.stderr ?? "" };
@@ -42,8 +48,18 @@ function runCli(args, opts = {}) {
 function tmpGitRepo() {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-bb-"));
   execaSync("git", ["-C", dir, "init", "-q"]);
-  execaSync("git", ["-C", dir, "-c", "user.name=bb-test", "-c", "user.email=bb-test@example.com",
-    "commit", "--allow-empty", "-qm", "fixture"]);
+  execaSync("git", [
+    "-C",
+    dir,
+    "-c",
+    "user.name=bb-test",
+    "-c",
+    "user.email=bb-test@example.com",
+    "commit",
+    "--allow-empty",
+    "-qm",
+    "fixture",
+  ]);
   return dir;
 }
 
@@ -51,7 +67,7 @@ function tmpGitRepo() {
 function seedPlan(repo) {
   const plan = path.join(repo, "plans", "app-plan.md");
   mkdirSync(path.dirname(plan), { recursive: true });
-  writeFileSync(plan, "# app plan\n");   // workspaceSlug: app-plan → app
+  writeFileSync(plan, "# app plan\n"); // workspaceSlug: app-plan → app
   return plan;
 }
 
@@ -68,7 +84,10 @@ describe("cdd base-branch set — 单一 --plan 落点 + 幂等/force 矩阵", (
     const repo = tmpGitRepo();
     try {
       const plan = seedPlan(repo);
-      const r = runCli(["base-branch", "set", "--base", "develop", "--source", "plan-field", "--plan", plan], { cwd: repo });
+      const r = runCli(
+        ["base-branch", "set", "--base", "develop", "--source", "plan-field", "--plan", plan],
+        { cwd: repo },
+      );
       expect(r.exitCode).toBe(0);
       const saved = readBaseBranch(cddWorkspace(repo));
       expect(saved.base).toBe("develop");
@@ -83,9 +102,15 @@ describe("cdd base-branch set — 单一 --plan 落点 + 幂等/force 矩阵", (
     const repo = tmpGitRepo();
     try {
       const plan = seedPlan(repo);
-      runCli(["base-branch", "set", "--base", "develop", "--source", "plan-field", "--plan", plan], { cwd: repo });
+      runCli(
+        ["base-branch", "set", "--base", "develop", "--source", "plan-field", "--plan", plan],
+        { cwd: repo },
+      );
       const first = readBaseBranch(cddWorkspace(repo));
-      const r = runCli(["base-branch", "set", "--base", "develop", "--source", "branch-upstream", "--plan", plan], { cwd: repo });
+      const r = runCli(
+        ["base-branch", "set", "--base", "develop", "--source", "branch-upstream", "--plan", plan],
+        { cwd: repo },
+      );
       expect(r.exitCode).toBe(0);
       const second = readBaseBranch(cddWorkspace(repo));
       expect(second.source).toBe("branch-upstream");
@@ -100,8 +125,14 @@ describe("cdd base-branch set — 单一 --plan 落点 + 幂等/force 矩阵", (
     const repo = tmpGitRepo();
     try {
       const plan = seedPlan(repo);
-      runCli(["base-branch", "set", "--base", "develop", "--source", "plan-field", "--plan", plan], { cwd: repo });
-      const r = runCli(["base-branch", "set", "--base", "main", "--source", "user-confirmed", "--plan", plan], { cwd: repo });
+      runCli(
+        ["base-branch", "set", "--base", "develop", "--source", "plan-field", "--plan", plan],
+        { cwd: repo },
+      );
+      const r = runCli(
+        ["base-branch", "set", "--base", "main", "--source", "user-confirmed", "--plan", plan],
+        { cwd: repo },
+      );
       expect(r.exitCode).not.toBe(0);
       expect(r.stderr).toMatch(/force/);
       expect(readBaseBranch(cddWorkspace(repo)).base).toBe("develop");
@@ -116,7 +147,10 @@ describe("cdd base-branch set — 校验失败面（exit 非零 + errors）", ()
     const repo = tmpGitRepo();
     try {
       const plan = seedPlan(repo);
-      const r = runCli(["base-branch", "set", "--base", "develop", "--source", "bogus", "--plan", plan], { cwd: repo });
+      const r = runCli(
+        ["base-branch", "set", "--base", "develop", "--source", "bogus", "--plan", plan],
+        { cwd: repo },
+      );
       expect(r.exitCode).not.toBe(0);
       expect(r.stderr).toMatch(/source/);
       // 拒绝后不落盘坏 artifact
@@ -141,7 +175,9 @@ describe("cdd base-branch set — 校验失败面（exit 非零 + errors）", ()
   it("缺 --plan → exit 非零 + 明确报『CDD 需 --plan』", () => {
     const repo = tmpGitRepo();
     try {
-      const r = runCli(["base-branch", "set", "--base", "develop", "--source", "plan-field"], { cwd: repo });
+      const r = runCli(["base-branch", "set", "--base", "develop", "--source", "plan-field"], {
+        cwd: repo,
+      });
       expect(r.exitCode).not.toBe(0);
       expect(r.stderr).toMatch(/missing --plan/);
     } finally {
@@ -155,7 +191,10 @@ describe("cdd base-branch get — 单一 --plan 读 + 缺失/schema 非法", () 
     const repo = tmpGitRepo();
     try {
       const plan = seedPlan(repo);
-      runCli(["base-branch", "set", "--base", "develop", "--source", "plan-field", "--plan", plan], { cwd: repo });
+      runCli(
+        ["base-branch", "set", "--base", "develop", "--source", "plan-field", "--plan", plan],
+        { cwd: repo },
+      );
       const r = runCli(["base-branch", "get", "--plan", plan], { cwd: repo });
       expect(r.exitCode).toBe(0);
       const got = JSON.parse(r.stdout);
@@ -183,7 +222,7 @@ describe("cdd base-branch get — 单一 --plan 读 + 缺失/schema 非法", () 
   it("get 目标缺失（base-branch.json 不存在）→ exit 非零 + 明确报『artifact 缺失』", () => {
     const repo = tmpGitRepo();
     try {
-      const plan = seedPlan(repo);        // plan 存在，但从未 set → 无 artifact
+      const plan = seedPlan(repo); // plan 存在，但从未 set → 无 artifact
       const r = runCli(["base-branch", "get", "--plan", plan], { cwd: repo });
       expect(r.exitCode).not.toBe(0);
       expect(r.stderr).toMatch(/base-branch/);
@@ -197,8 +236,14 @@ describe("cdd base-branch get — 单一 --plan 读 + 缺失/schema 非法", () 
     try {
       const plan = seedPlan(repo);
       mkdirSync(cddWorkspace(repo), { recursive: true });
-      writeFileSync(path.join(cddWorkspace(repo), "base-branch.json"),
-        JSON.stringify({ base: "develop", source: "bogus", confirmed_at: "2026-09-12T10:00:00.000Z" }));
+      writeFileSync(
+        path.join(cddWorkspace(repo), "base-branch.json"),
+        JSON.stringify({
+          base: "develop",
+          source: "bogus",
+          confirmed_at: "2026-09-12T10:00:00.000Z",
+        }),
+      );
       const r = runCli(["base-branch", "get", "--plan", plan], { cwd: repo });
       expect(r.exitCode).not.toBe(0);
       expect(r.stderr).toMatch(/source/);

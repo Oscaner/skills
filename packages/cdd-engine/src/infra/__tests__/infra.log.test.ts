@@ -1,7 +1,7 @@
 // packages/cdd-engine/src/infra/__tests__/infra.log.test.ts
 // New dependency point for ALL logging in rebuilt infra: consumers import `log` and go through
 // consola (level-gated), never console.*. Changed level applies to subsequent calls (gate works).
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { log, setLogLevel } from "../log.ts";
 

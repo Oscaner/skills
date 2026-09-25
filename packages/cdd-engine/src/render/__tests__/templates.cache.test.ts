@@ -6,21 +6,21 @@
 // longer re-renders on ANY param change, the old "static zone re-renders once" assertion INVERTS:
 // a param change re-renders only the Round-context tail (tailRenders++) while the static
 // zone (shell + ## Return constant) stays byte-FROZEN.
-import { describe, it, expect, beforeEach } from "vitest";
+
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-
-import { loadHandoffSchema } from "../../rules/schema.ts";
-import { loadRegistry, REG_PATH } from "../../infra/registry.ts";
+import { beforeEach, describe, expect, it } from "vitest";
 import { composeDispatchSet } from "../../infra/invoke.ts";
+import { loadRegistry, REG_PATH } from "../../infra/registry.ts";
+import { loadHandoffSchema } from "../../rules/schema.ts";
 import {
+  loadTemplateContract,
+  renderHandoffSchemaJson,
   renderModePrompt,
   renderTemplate,
-  renderHandoffSchemaJson,
-  templateCacheStats,
   resetTemplateCaches,
-  loadTemplateContract,
+  templateCacheStats,
   validateShippedTemplates,
 } from "../templates.ts";
 
@@ -43,13 +43,15 @@ const IMPLEMENT_PARAMS = {
 // Second-level heading position via line-anchored match — the shell prose names `## Return` /
 // `## Round context` inline (backtick quotes in Instructions), so a plain indexOf would anchor on
 // the prose mention, not the real section heading.
-const heading = (prompt: string, name: string): number => prompt.search(new RegExp(`^## ${name}$`, 'm'));
+const heading = (prompt: string, name: string): number =>
+  prompt.search(new RegExp(`^## ${name}$`, "m"));
 
 // The static zone = the rendered prompt before the `## Return` heading (the parameterless shell
 // incl. its injected schema block). The tail = `## Return` constant + ## Round context.
 const staticZoneOf = (prompt: string): string => prompt.slice(0, heading(prompt, "Return"));
 // The byte-frozen per-format Return constant region (between `## Return` and the dynamic tail).
-const returnZoneOf = (prompt: string): string => prompt.slice(heading(prompt, "Return"), heading(prompt, "Round context"));
+const _returnZoneOf = (prompt: string): string =>
+  prompt.slice(heading(prompt, "Return"), heading(prompt, "Round context"));
 
 describe("C1 — assembly order [shell → Return constant → Round context tail]", () => {
   beforeEach(() => resetTemplateCaches());
@@ -73,7 +75,9 @@ describe("C1 — assembly order [shell → Return constant → Round context tai
   it("dispatch set assembly = [registry prefix] + prompt: the /mattpocock-skills prefix line precedes the unified shell title", () => {
     const reg = loadRegistry(REG_PATH);
     const prompt = renderModePrompt("implement", IMPLEMENT_PARAMS);
-    const set = composeDispatchSet(reg.claude, { op: "implement" }, prompt, "/ws", { PATH: "/usr/bin" });
+    const set = composeDispatchSet(reg.claude, { op: "implement" }, prompt, "/ws", {
+      PATH: "/usr/bin",
+    });
     const promptArg = set.args.at(-1) as string;
     expect(promptArg.split("\n")[0]).toBe("/mattpocock-skills:tdd"); // prefix line first
     const titleIdx = promptArg.indexOf("# CDD dispatch — CLI session"); // 统一壳字面头
@@ -86,7 +90,10 @@ describe("C2/C3 — structural single source + deterministic serialization", () 
   beforeEach(() => resetTemplateCaches());
 
   it("canonical round-key: same params in any insertion order → same rendered tail (memoized once); the shell has no key surface (parameterless)", () => {
-    const a = renderTemplate("implement", { ...IMPLEMENT_PARAMS, RETURN_FORMAT: "RETURN_STDOUT_BLOCK" });
+    const a = renderTemplate("implement", {
+      ...IMPLEMENT_PARAMS,
+      RETURN_FORMAT: "RETURN_STDOUT_BLOCK",
+    });
     resetTemplateCaches();
     // Different insertion order, same value set (identical keys, reverse listing) → byte-identical
     // render + single tail materialization. The memo key is the SORTED canonical params (insertion
@@ -208,7 +215,9 @@ describe("⑧ — byte-invariant guard: static zones carry zero volatile literal
   });
 
   it("no shipped template files remain on disk (渲染数据平面单文件：四 .md 并入 sections)", () => {
-    expect(readFileSync(path.join(TEMPLATES, "template-contract.json"), "utf8")).toContain('"$version": 2');
+    expect(readFileSync(path.join(TEMPLATES, "template-contract.json"), "utf8")).toContain(
+      '"$version": 2',
+    );
     for (const rel of ["task/implement.md", "task/fix.md", "docs/review.md", "docs/fix.md"]) {
       expect(() => readFileSync(path.join(TEMPLATES, rel), "utf8")).toThrow(); // 文件已删 —— 读取即抛 ENOENT
     }

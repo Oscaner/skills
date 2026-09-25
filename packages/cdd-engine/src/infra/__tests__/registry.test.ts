@@ -3,9 +3,15 @@
 // registry-schema.test.sh 移植行为断言。ship gate 语义：
 //   unknown / not-supported → blocked（exitCode 1）；CLI 存在校验失败 → cli-missing（exitCode 2）。
 // 真实 claude 二进制不在 PATH 的 CI 上，ship-gate 通过用例用 dryRun 跳过 CLI 校验（确定性）。
-import { it, expect } from 'vitest';
+import { expect, it } from "vitest";
 
-import { loadRegistry, checkHarness, registryField, resolveInjection, REG_PATH } from "../registry.ts";
+import {
+  checkHarness,
+  loadRegistry,
+  REG_PATH,
+  registryField,
+  resolveInjection,
+} from "../registry.ts";
 
 it("loadRegistry: 读取 2 harness（T2 收敛 claude/cursor-agent）", () => {
   const reg = loadRegistry(REG_PATH);
@@ -32,9 +38,7 @@ it("checkHarness: claude 通过 ship gate（dryRun 跳过 PATH 校验）", () =>
 it("checkHarness: not-supported harness → blocked（exitCode 1；T2 收敛后 registry 无 not-supported 键，经 fixture 注入覆盖该 ship-gate 分支）", () => {
   const reg = loadRegistry(REG_PATH);
   const fixture = { ...reg, legacy: { cli: "droid", ship: "not-supported" } };
-  expect(
-    () => checkHarness(fixture, "legacy"),
-  ).toThrow();
+  expect(() => checkHarness(fixture, "legacy")).toThrow();
   try {
     checkHarness(fixture, "legacy");
   } catch (e) {
@@ -86,7 +90,9 @@ it("checkHarness: dryRun 跳过 CLI 存在校验", () => {
 it("registryField: 字段读取 + 缺失回退空串", () => {
   const reg = loadRegistry(REG_PATH);
   expect(registryField(reg, "claude", "cli")).toBe("claude");
-  expect(registryField(reg, "claude", "invoke")).toBe("-p --output-format text --dangerously-skip-permissions");
+  expect(registryField(reg, "claude", "invoke")).toBe(
+    "-p --output-format text --dangerously-skip-permissions",
+  );
   // Enh P: task_review_prefix 泛化为 per-mode prefix/suffix（Enh P 后已删除）
   expect(registryField(reg, "claude", "task_review_prefix")).toBe("");
   // The prefix expands to operation×type (implement/review×{task,branch,spec,plan}/fix, /-style) (Task 5).
@@ -95,8 +101,12 @@ it("registryField: 字段读取 + 缺失回退空串", () => {
     review: {
       task: expect.stringMatching(/^\/mattpocock-skills:code-review.*single agent/),
       branch: expect.stringMatching(/^\/mattpocock-skills:code-review/),
-      spec: expect.stringMatching(/^Follow URC: single-cycle, lens-tagged findings \(completeness\/consistency\/clarity\)$/),
-      plan: expect.stringMatching(/^Follow URC: single-cycle, lens-tagged findings \(completeness\/decomposition\/buildability\)$/),
+      spec: expect.stringMatching(
+        /^Follow URC: single-cycle, lens-tagged findings \(completeness\/consistency\/clarity\)$/,
+      ),
+      plan: expect.stringMatching(
+        /^Follow URC: single-cycle, lens-tagged findings \(completeness\/decomposition\/buildability\)$/,
+      ),
     },
     fix: "/mattpocock-skills:tdd",
   });
@@ -117,8 +127,12 @@ it("resolveInjection: claude review×type — task/branch → code-review(单 ag
   expect(resolveInjection(reg.claude, "review", "task")).toContain("code-review");
   expect(resolveInjection(reg.claude, "review", "task")).toContain("single agent");
   expect(resolveInjection(reg.claude, "review", "branch")).toContain("code-review");
-  expect(resolveInjection(reg.claude, "review", "spec")).toMatch(/^Follow URC: single-cycle, lens-tagged findings \(completeness\/consistency\/clarity\)$/);
-  expect(resolveInjection(reg.claude, "review", "plan")).toMatch(/^Follow URC: single-cycle, lens-tagged findings \(completeness\/decomposition\/buildability\)$/);
+  expect(resolveInjection(reg.claude, "review", "spec")).toMatch(
+    /^Follow URC: single-cycle, lens-tagged findings \(completeness\/consistency\/clarity\)$/,
+  );
+  expect(resolveInjection(reg.claude, "review", "plan")).toMatch(
+    /^Follow URC: single-cycle, lens-tagged findings \(completeness\/decomposition\/buildability\)$/,
+  );
 });
 
 it("resolveInjection: 全 registry harness（claude/cursor-agent）同 claude set 非空", () => {
@@ -128,13 +142,20 @@ it("resolveInjection: 全 registry harness（claude/cursor-agent）同 claude se
     expect(resolveInjection(reg[h], "fix")).toBe("/mattpocock-skills:tdd");
     expect(resolveInjection(reg[h], "review", "task")).toContain("code-review");
     expect(resolveInjection(reg[h], "review", "branch")).toContain("code-review");
-    expect(resolveInjection(reg[h], "review", "spec")).toMatch(/^Follow URC: single-cycle, lens-tagged findings/);
-    expect(resolveInjection(reg[h], "review", "plan")).toMatch(/^Follow URC: single-cycle, lens-tagged findings/);
+    expect(resolveInjection(reg[h], "review", "spec")).toMatch(
+      /^Follow URC: single-cycle, lens-tagged findings/,
+    );
+    expect(resolveInjection(reg[h], "review", "plan")).toMatch(
+      /^Follow URC: single-cycle, lens-tagged findings/,
+    );
     // 同 set 非空：implement/review.task/review.branch/fix 四个注入点都有值
     expect(
-      [resolveInjection(reg[h], "implement"), resolveInjection(reg[h], "fix"),
-       resolveInjection(reg[h], "review", "task"), resolveInjection(reg[h], "review", "branch")]
-        .filter(Boolean).length,
+      [
+        resolveInjection(reg[h], "implement"),
+        resolveInjection(reg[h], "fix"),
+        resolveInjection(reg[h], "review", "task"),
+        resolveInjection(reg[h], "review", "branch"),
+      ].filter(Boolean).length,
     ).toBe(4);
   }
 });
@@ -143,9 +164,11 @@ it("resolveInjection: 兜底 —— 缺省 prefix/op/type 回退空串，legacy 
   expect(resolveInjection({}, "implement")).toBe("");
   expect(resolveInjection({ prefix: {} }, "implement")).toBe("");
   expect(resolveInjection({ prefix: { review: { task: "/x" } } }, "review")).toBe(""); // 无 type → 空
-  expect(resolveInjection({ prefix: { review: {} } }, "review", "task")).toBe("");      // type 缺该子键 → 空
+  expect(resolveInjection({ prefix: { review: {} } }, "review", "task")).toBe(""); // type 缺该子键 → 空
   // legacy 扁平 mode 键兜底：未迁移 registry / CDD_REGISTRY_PATH 覆盖仍直接命中
-  expect(resolveInjection({ prefix: { "legacy-review": "/legacy-review" } }, "legacy-review")).toBe("/legacy-review");
+  expect(resolveInjection({ prefix: { "legacy-review": "/legacy-review" } }, "legacy-review")).toBe(
+    "/legacy-review",
+  );
   // 新 registry 不再有扁平旧 mode 键 → 空
   expect(resolveInjection(loadRegistry(REG_PATH).claude, "legacy-review")).toBe("");
 });

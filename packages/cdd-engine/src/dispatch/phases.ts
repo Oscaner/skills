@@ -32,7 +32,8 @@ export interface DispatchPhase {
 export const PHASES: readonly DispatchPhase[] = [
   {
     id: "pre-flight",
-    responsibility: "entry readiness — clean working tree (entry gate) plus engine context loaded; dirty → BLOCKED before any semantic work",
+    responsibility:
+      "entry readiness — clean working tree (entry gate) plus engine context loaded; dirty → BLOCKED before any semantic work",
     commitGate: "enter",
     steps: [
       { id: "1", title: "CLI argument parsing + harness registry load" },
@@ -45,7 +46,8 @@ export const PHASES: readonly DispatchPhase[] = [
   },
   {
     id: "dispatch",
-    responsibility: "agent session execution — the only agent-semantics black box; engine steps end at spawn",
+    responsibility:
+      "agent session execution — the only agent-semantics black box; engine steps end at spawn",
     steps: [
       { id: "7", title: "prompt rendering (template + schema verbatim + brief/return block)" },
       { id: "8", title: "spawn agent CLI (execa background + timeout)" },
@@ -53,7 +55,8 @@ export const PHASES: readonly DispatchPhase[] = [
   },
   {
     id: "post-flight",
-    responsibility: "result normalization + contract validation — mechanical close-out, no agent semantics",
+    responsibility:
+      "result normalization + contract validation — mechanical close-out, no agent semantics",
     commitGate: "exit",
     steps: [
       { id: "8.5", title: "timeout path (write partial handoff, timeoutCount++)" },
@@ -112,13 +115,15 @@ export const BRANCH_PHASES: readonly BranchPhase[] = [
     phase: "branch-review",
     role: "review family stage — reviews the BASE..HEAD range (commits attached via the ref embedded in the file name)",
     family: "review.branch",
-    convergence: "branch ref = BASE..HEAD commit range (ref embedded in branch-review-{base7}..{head7}-r{R}.json); a BLOCKED/OPEN round re-reviews the same ref; an APPROVED blocker=0 round stops the same ref — a new ref (content evolution) is always a new review",
+    convergence:
+      "branch ref = BASE..HEAD commit range (ref embedded in branch-review-{base7}..{head7}-r{R}.json); a BLOCKED/OPEN round re-reviews the same ref; an APPROVED blocker=0 round stops the same ref — a new ref (content evolution) is always a new review",
   },
   {
     id: "branch-fix",
     phase: "fix",
     role: "work type stage — cdd fix --type branch closes the loop: fixes the source review's findings into real commits (engine channel, zero inline orchestration)",
     family: "fix.branch",
-    convergence: "the fix commits the reviewed range's changes → HEAD moves → re-review of the new ref is a new branch review (legality: fixed ref = new ref); a no-op fix (no diff) keeps the ref → the same-ref review stays stopped",
+    convergence:
+      "the fix commits the reviewed range's changes → HEAD moves → re-review of the new ref is a new branch review (legality: fixed ref = new ref); a no-op fix (no diff) keeps the ref → the same-ref review stays stopped",
   },
 ];

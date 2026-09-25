@@ -8,21 +8,24 @@
 //   - docs-lane overall self-audit boundary (the reviewed doc IS an overall → its own faces run)
 //   - dry-run lowers to CDD_WARN + exit 0 on every channel
 //   - lineage-unresolved chains pass (four tables no-op, necessary subset only)
-import { it, expect, describe } from "vitest";
+
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-
-import { TaskLifecycle } from "../task.ts";
-import { runDocsTask } from "../docs.ts";
+import { describe, expect, it } from "vitest";
 import { runBranchReview } from "../../cli/branch-review.ts";
-import { REG_PATH } from "../../infra/registry.ts";
-import { ExitRequested } from "../../infra/exit.ts";
 import { captureStderr } from "../../infra/__tests__/helpers.ts";
+import { ExitRequested } from "../../infra/exit.ts";
+import { REG_PATH } from "../../infra/registry.ts";
+import { runDocsTask } from "../docs.ts";
+import { TaskLifecycle } from "../task.ts";
 
 function git(repo: string, ...args: string[]) {
-  return execFileSync("git", ["-C", repo, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  return execFileSync("git", ["-C", repo, ...args], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  }).trim();
 }
 
 /** Fresh git repo: the `.osuperpowers/cdd/` workspace is gitignored (engine writes stay out of the
@@ -32,7 +35,17 @@ function setupRepo(): string {
   writeFileSync(path.join(dest, ".gitignore"), "cdd/\n.osuperpowers/\n*.head\n");
   git(dest, "init", "-q");
   git(dest, "add", "-A");
-  git(dest, "-c", "user.name=dcc-test", "-c", "user.email=dcc-test@example.com", "commit", "--allow-empty", "-qm", "fixture");
+  git(
+    dest,
+    "-c",
+    "user.name=dcc-test",
+    "-c",
+    "user.email=dcc-test@example.com",
+    "commit",
+    "--allow-empty",
+    "-qm",
+    "fixture",
+  );
   return dest;
 }
 
@@ -43,7 +56,13 @@ function registry(deps: Record<string, unknown> = {}): string {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-dcc-reg-"));
   const regPath = path.join(dir, "registry.json");
   const reg = JSON.parse(readFileSync(REG_PATH, "utf8")) as Record<string, unknown>;
-  (reg as Record<string, unknown>).ctr = { cli: "env", invoke: "-p", output: "text", ship: "full", ...deps };
+  (reg as Record<string, unknown>).ctr = {
+    cli: "env",
+    invoke: "-p",
+    output: "text",
+    ship: "full",
+    ...deps,
+  };
   writeFileSync(regPath, JSON.stringify(reg));
   return regPath;
 }
@@ -104,17 +123,40 @@ function writeChain(repo: string, overallBody: string = CLEAN_OVERALL): void {
   writeFileSync(path.join(repo, SPEC_DIR, "plan-design.md"), SPEC);
   writeFileSync(path.join(repo, SPEC_DIR, "plan-overall.md"), overallBody);
   git(repo, "add", "-A");
-  git(repo, "-c", "user.name=dcc-test", "-c", "user.email=dcc-test@example.com", "commit", "-qm", "docs");
+  git(
+    repo,
+    "-c",
+    "user.name=dcc-test",
+    "-c",
+    "user.email=dcc-test@example.com",
+    "commit",
+    "-qm",
+    "docs",
+  );
 }
 
 // ---- task channel ----
 
-async function runTaskReview(repo: string, dryRun = false): Promise<{ exitCode: number; diagnostic: { prefix: string; msg: string } | null; stderr: string }> {
+async function runTaskReview(
+  repo: string,
+  dryRun = false,
+): Promise<{
+  exitCode: number;
+  diagnostic: { prefix: string; msg: string } | null;
+  stderr: string;
+}> {
   const cap = captureStderr();
   const lc = new TaskLifecycle({
     harness: "ctr",
     tasks: [1],
-    opts: { mode: "review", dryRun, noExit: true, root: repo, planFile: path.join(PLAN_DIR, "plan.md"), registryPath: registry() },
+    opts: {
+      mode: "review",
+      dryRun,
+      noExit: true,
+      root: repo,
+      planFile: path.join(PLAN_DIR, "plan.md"),
+      registryPath: registry(),
+    },
     ctx: { mode: "review", repoRoot: repo, handoffPath: "", dryRun },
   });
   try {
@@ -149,12 +191,24 @@ describe("task channel — the base-default docContractValidate (four-table audi
 // ---- docs channel ----
 
 /** Run a docs dispatch in-process; a gate block surfaces as ExitRequested (runDocsTask throws it). */
-async function runDocs(dir: string, doc: string, handoffPath: string, { dryRun = false } = {}): Promise<number> {
+async function runDocs(
+  dir: string,
+  doc: string,
+  handoffPath: string,
+  { dryRun = false } = {},
+): Promise<number> {
   let exitCode: number | null = null;
   try {
     await runDocsTask({
-      harness: "ctr", mode: "review", template: "review", type: "spec", doc,
-      handoffPath, repoRoot: dir, registryPath: registry(), dryRun,
+      harness: "ctr",
+      mode: "review",
+      template: "review",
+      type: "spec",
+      doc,
+      handoffPath,
+      repoRoot: dir,
+      registryPath: registry(),
+      dryRun,
     });
   } catch (e) {
     if (e instanceof ExitRequested) exitCode = e.code;
@@ -169,8 +223,11 @@ describe("docs channel — the base-default docContractValidate (audits the revi
     writeChain(dir, DANGLING_OVERALL);
     const cap = captureStderr();
     try {
-      const exitCode = await runDocs(dir, path.join(dir, SPEC_DIR, "plan-design.md"),
-        path.join(dir, ".osuperpowers", "cdd", "plan", "spec-review-1.json"));
+      const exitCode = await runDocs(
+        dir,
+        path.join(dir, SPEC_DIR, "plan-design.md"),
+        path.join(dir, ".osuperpowers", "cdd", "plan", "spec-review-1.json"),
+      );
       expect(exitCode).toBe(1);
       expect(cap.text).toMatch(/CDD_BLOCKED: doc contract validation failed/);
       expect(cap.text).toContain("P9");
@@ -187,11 +244,23 @@ describe("docs channel — the base-default docContractValidate (audits the revi
     const brokenOverall = path.join(dir, SPEC_DIR, "broken-overall.md");
     writeFileSync(brokenOverall, DANGLING_OVERALL);
     git(dir, "add", "-A");
-    git(dir, "-c", "user.name=dcc-test", "-c", "user.email=dcc-test@example.com", "commit", "-qm", "self-audit");
+    git(
+      dir,
+      "-c",
+      "user.name=dcc-test",
+      "-c",
+      "user.email=dcc-test@example.com",
+      "commit",
+      "-qm",
+      "self-audit",
+    );
     const cap = captureStderr();
     try {
-      const exitCode = await runDocs(dir, brokenOverall,
-        path.join(dir, ".osuperpowers", "cdd", "broken", "spec-review-1.json"));
+      const exitCode = await runDocs(
+        dir,
+        brokenOverall,
+        path.join(dir, ".osuperpowers", "cdd", "broken", "spec-review-1.json"),
+      );
       expect(exitCode).toBe(1);
       expect(cap.text).toMatch(/CDD_BLOCKED: doc contract validation failed/);
       expect(cap.text).toContain("broken-overall.md");
@@ -205,8 +274,12 @@ describe("docs channel — the base-default docContractValidate (audits the revi
     writeChain(dir, DANGLING_OVERALL);
     const cap = captureStderr();
     try {
-      const exitCode = await runDocs(dir, path.join(dir, SPEC_DIR, "plan-design.md"),
-        path.join(dir, ".osuperpowers", "cdd", "plan", "spec-review-1.json"), { dryRun: true });
+      const exitCode = await runDocs(
+        dir,
+        path.join(dir, SPEC_DIR, "plan-design.md"),
+        path.join(dir, ".osuperpowers", "cdd", "plan", "spec-review-1.json"),
+        { dryRun: true },
+      );
       expect(exitCode).toBe(0);
       expect(cap.text).toMatch(/CDD_WARN: doc contract invalid \(dry-run\)/);
     } finally {
@@ -217,14 +290,21 @@ describe("docs channel — the base-default docContractValidate (audits the revi
 
 // ---- branch channel ----
 
-async function runBranch(dir: string, planPath: string): Promise<{ exitCode: number; stderr: string }> {
+async function runBranch(
+  dir: string,
+  planPath: string,
+): Promise<{ exitCode: number; stderr: string }> {
   const cap = captureStderr();
   let exitCode: number | null = null;
   try {
     await runBranchReview({
-      harness: "ctr", type: "branch", plan: planPath,
-      base: "a".repeat(40), head: "b".repeat(40),
-      root: dir, registryPath: registry(),
+      harness: "ctr",
+      type: "branch",
+      plan: planPath,
+      base: "a".repeat(40),
+      head: "b".repeat(40),
+      root: dir,
+      registryPath: registry(),
     });
   } catch (e) {
     if (e instanceof ExitRequested) exitCode = e.code;
@@ -252,9 +332,13 @@ describe("branch channel — the base-default docContractValidate (audits its `-
     let exitCode: number | null = null;
     try {
       await runBranchReview({
-        harness: "ctr", type: "branch", plan: path.join(dir, PLAN_DIR, "plan.md"),
-        base: "a".repeat(40), head: "b".repeat(40),
-        root: dir, registryPath: registry(),
+        harness: "ctr",
+        type: "branch",
+        plan: path.join(dir, PLAN_DIR, "plan.md"),
+        base: "a".repeat(40),
+        head: "b".repeat(40),
+        root: dir,
+        registryPath: registry(),
       });
     } catch (e) {
       if (e instanceof ExitRequested) exitCode = e.code;
@@ -275,10 +359,22 @@ describe("lineage-unresolved — four tables no-op, the necessary subset still g
     mkdirSync(path.join(repo, SPEC_DIR), { recursive: true });
     mkdirSync(path.join(repo, PLAN_DIR), { recursive: true });
     writeFileSync(path.join(repo, PLAN_DIR, "plan.md"), PLAN);
-    writeFileSync(path.join(repo, SPEC_DIR, "plan-design.md"), "- **Version**: v1.0 · 2026-09-21\n");
+    writeFileSync(
+      path.join(repo, SPEC_DIR, "plan-design.md"),
+      "- **Version**: v1.0 · 2026-09-21\n",
+    );
     writeFileSync(path.join(repo, SPEC_DIR, "plan-overall.md"), "not a doc at all"); // never read — the lineage truncates
     git(repo, "add", "-A");
-    git(repo, "-c", "user.name=dcc-test", "-c", "user.email=dcc-test@example.com", "commit", "-qm", "truncated");
+    git(
+      repo,
+      "-c",
+      "user.name=dcc-test",
+      "-c",
+      "user.email=dcc-test@example.com",
+      "commit",
+      "-qm",
+      "truncated",
+    );
     const r = await runTaskReview(repo, true);
     expect(r.exitCode).toBe(0);
     expect(r.stderr).not.toContain("doc contract invalid"); // four tables never audited

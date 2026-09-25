@@ -7,9 +7,10 @@
 // convention: form field definitions live solely in the canonical JSON —
 // nothing hardcoded here. Emitter output is drift-guarded by `emit:check`
 // (committed yml are products of this emitter + the canonical).
+
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { renderYml } from "../../packages/osuperpowers/scripts/render-yaml.mjs";
 
 const META_PATH = fileURLToPath(

@@ -11,10 +11,10 @@
 // Task 5 bottom-swap: git judgment via infra/git.ts (simple-git single point), no hand-written
 // git helpers.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { gitRevParseHead } from "../infra/git.ts";
-import { invariant } from "../infra/exit.ts";
-import { renderResidueAppendix, type ResidueAppendixInput } from "../artifacts/residue.ts";
+import { type ResidueAppendixInput, renderResidueAppendix } from "../artifacts/residue.ts";
 import { DOC_TOKENS } from "../documents/tokens.ts";
+import { invariant } from "../infra/exit.ts";
+import { gitRevParseHead } from "../infra/git.ts";
 
 /** generateBrief(planFile, tasks, outPath, repoRoot, residue) — the task brief single generator.
  * `tasks` is a scalar task number or the dispatch group list (the group briefs as one unit: every
@@ -68,9 +68,9 @@ export async function generateBrief(
   // data-driven `## Residue status` section (residue.ts renderResidueAppendix — prompt semantic
   // self-sufficiency §35: the prose states the WIP facts itself, zero external anchors) so the next
   // agent audits the restored WIP and continues instead of rewriting from zero.
-  let content = sections.join("\n\n") + "\nTASK_BASE: " + sha + "\n";
+  let content = `${sections.join("\n\n")}\nTASK_BASE: ${sha}\n`;
   if (residue) {
-    content += "\n" + renderResidueAppendix(residue) + "\n";
+    content += `\n${renderResidueAppendix(residue)}\n`;
   }
   writeFileSync(outPath, content, "utf8");
 }

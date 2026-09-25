@@ -56,7 +56,7 @@ export function convergedExit3(
   opts?: { reason?: string },
 ): never {
   const e = reviewConvergedError(type, round, ref, opts);
-  process.stderr.write(`${e.message}\n` + (blocker ? `last blocker: ${blocker}\n` : ""));
+  process.stderr.write(`${e.message}\n${blocker ? `last blocker: ${blocker}\n` : ""}`);
   exitWithCode(3);
 }
 

@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+import { realpathSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 // scripts/rulesets/apply.ts — GitHub Rulesets domain.
 //
 // Applies a GitHub Ruleset idempotently to the repo (Node port of
@@ -9,9 +12,6 @@
 // Wired into run.ts:
 //   node scripts/run.ts apply-rules <protect-develop|protect-main>
 import { execaSync } from "execa";
-import path from "node:path";
-import { realpathSync } from "node:fs";
-import { fileURLToPath, pathToFileURL } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = process.env.GITHUB_REPOSITORY || "Oscaner/skills";
@@ -28,7 +28,10 @@ function gh(args, opts = {}) {
 
 function applyRuleset(name, file) {
   const out = gh(["api", `repos/${REPO}/rulesets`, "--jq", `.[] | select(.name=="${name}") | .id`]);
-  const id = out.split("\n").map((l) => l.trim()).find((l) => l !== "");
+  const id = out
+    .split("\n")
+    .map((l) => l.trim())
+    .find((l) => l !== "");
   if (id) {
     console.log(`Ruleset ${name} already exists (${id}) — delete and recreate, or PATCH manually`);
     console.log(`  gh api repos/${REPO}/rulesets/${id} -X DELETE`);

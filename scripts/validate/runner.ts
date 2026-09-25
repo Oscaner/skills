@@ -43,10 +43,7 @@ export async function main(stepsArg: Array<StepDescriptor>): Promise<number> {
 }
 
 export function isMain(metaUrl: string): boolean {
-  return Boolean(
-    process.argv[1] &&
-      metaUrl === pathToFileURL(realpathSync(process.argv[1])).href,
-  );
+  return Boolean(process.argv[1] && metaUrl === pathToFileURL(realpathSync(process.argv[1])).href);
 }
 
 export function runIfMain(metaUrl: string, stepsArg: Array<StepDescriptor>): void {

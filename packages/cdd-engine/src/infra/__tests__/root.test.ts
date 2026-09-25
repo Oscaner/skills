@@ -1,19 +1,22 @@
-import { describe, it, expect } from "vitest";
-import { execaSync } from "execa";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { execaSync } from "execa";
+import { describe, expect, it } from "vitest";
 
 import { gitCommit, gitInit } from "./helpers.ts";
 
-const CDD_MJS = path.resolve(import.meta.dirname, '../../../dist/cli.mjs');
+const CDD_MJS = path.resolve(import.meta.dirname, "../../../dist/cli.mjs");
 const REPO_ROOT = path.resolve(import.meta.dirname, "../../../../..");
 
 describe("src/infra/root.ts — 单根权威", () => {
   it("非 git 目录 → CDD_BLOCKED + exit 1", () => {
     const bare = mkdtempSync(path.join(tmpdir(), "cdd-nogit-"));
     const r = execaSync(process.execPath, [CDD_MJS, "review", "--type", "spec", "--spec", "x.md"], {
-      cwd: bare, env: { PATH: process.env.PATH, CLAUDE_CODE_SESSION_ID: "1" }, reject: false, encoding: "utf8",
+      cwd: bare,
+      env: { PATH: process.env.PATH, CLAUDE_CODE_SESSION_ID: "1" },
+      reject: false,
+      encoding: "utf8",
     });
     expect(r.exitCode).toBe(1);
     expect(r.stderr).toMatch(/CDD_BLOCKED: not in a git repository/);
@@ -22,7 +25,10 @@ describe("src/infra/root.ts — 单根权威", () => {
   it("非 git 目录 + cdd --help → exit 0（§2.4.2 退出码表：0 = OK 含 --help）", () => {
     const bare = mkdtempSync(path.join(tmpdir(), "cdd-nogit-help-"));
     const r = execaSync(process.execPath, [CDD_MJS, "--help"], {
-      cwd: bare, env: { PATH: process.env.PATH, CLAUDE_CODE_SESSION_ID: "1" }, reject: false, encoding: "utf8",
+      cwd: bare,
+      env: { PATH: process.env.PATH, CLAUDE_CODE_SESSION_ID: "1" },
+      reject: false,
+      encoding: "utf8",
     });
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toMatch(/USAGE cdd/);
@@ -54,30 +60,52 @@ describe("src/infra/root.ts — resolveDocArg 单一坐标系（仓根相对归�
     // must already be committed, otherwise a dirty start is BLOCKED (exit 1) before the test can
     // exercise the cwd-coordinate normalization (Task 8).
     gitCommit(repo);
-    const r = execaSync(process.execPath, [CDD_MJS, "--dry-run", "review", "--type", "spec", "--spec", rel],
-      { cwd: sub, env: { PATH: process.env.PATH, CLAUDE_CODE_SESSION_ID: "1" }, reject: false, encoding: "utf8" });
+    const r = execaSync(
+      process.execPath,
+      [CDD_MJS, "--dry-run", "review", "--type", "spec", "--spec", rel],
+      {
+        cwd: sub,
+        env: { PATH: process.env.PATH, CLAUDE_CODE_SESSION_ID: "1" },
+        reject: false,
+        encoding: "utf8",
+      },
+    );
     expect(r.exitCode).toBe(0);
   });
 
   it("不存在的仓根相对路径 → exit 1 + BLOCKED 三行诊断（含仓根相对指导）", () => {
-    const r = execaSync(process.execPath, [CDD_MJS, "review", "--type", "spec", "--spec", "docs/nope.md"],
-      { cwd: REPO_ROOT, env: { PATH: process.env.PATH, CLAUDE_CODE_SESSION_ID: "1" }, reject: false, encoding: "utf8" });
-    expect(r.exitCode).toBe(1);                                     // §2.4.2：1 = 运行期不可继续（**不是** 2）
-    expect(r.stderr.trimEnd().split("\n").length).toBe(3);          // 三行诊断（行数是可区分形态，非恒真断言）
+    const r = execaSync(
+      process.execPath,
+      [CDD_MJS, "review", "--type", "spec", "--spec", "docs/nope.md"],
+      {
+        cwd: REPO_ROOT,
+        env: { PATH: process.env.PATH, CLAUDE_CODE_SESSION_ID: "1" },
+        reject: false,
+        encoding: "utf8",
+      },
+    );
+    expect(r.exitCode).toBe(1); // §2.4.2：1 = 运行期不可继续（**不是** 2）
+    expect(r.stderr.trimEnd().split("\n").length).toBe(3); // 三行诊断（行数是可区分形态，非恒真断言）
     expect(r.stderr).toMatch(/CDD_BLOCKED: --spec not found: docs\/nope\.md/);
     expect(r.stderr).toMatch(/Tried \(against repo root .+\): /);
-    expect(r.stderr).toMatch(/Hint: cdd resolves paths against the repo root\. Verify the path is correct relative to the repo root\./);
+    expect(r.stderr).toMatch(
+      /Hint: cdd resolves paths against the repo root\. Verify the path is correct relative to the repo root\./,
+    );
   });
 
   it("不存在的绝对路径 → exit 1 + BLOCKED 三行诊断（绝对路径形措辞；与相对形可区分）", () => {
-    const abs = path.join(REPO_ROOT, "docs/nope-abs.md");          // 绝对路径直用分支的负例（Global Constraints 的第二种形态）
-    const r = execaSync(process.execPath, [CDD_MJS, "review", "--type", "spec", "--spec", abs],
-      { cwd: REPO_ROOT, env: { PATH: process.env.PATH, CLAUDE_CODE_SESSION_ID: "1" }, reject: false, encoding: "utf8" });
-    expect(r.exitCode).toBe(1);                                     // 与相对形同码（§2.4.2：1，**不是** 2）
-    expect(r.stderr.trimEnd().split("\n").length).toBe(3);          // 两形态同为三行（行数锚点）
-    expect(r.stderr).toMatch(/CDD_BLOCKED: --spec not found: .*nope-abs\.md/);   // ① 与相对形逐字同形
-    expect(r.stderr).toMatch(/Absolute path does not exist\./);                   // ② 绝对路径形
-    expect(r.stderr).toMatch(/Hint: pass a repo-root-relative path instead\./);   // ③ 绝对路径形
-    expect(r.stderr).not.toMatch(/Tried \(against repo root/);                    // 绝对形不得出现仓根尝试行（可区分形态）
+    const abs = path.join(REPO_ROOT, "docs/nope-abs.md"); // 绝对路径直用分支的负例（Global Constraints 的第二种形态）
+    const r = execaSync(process.execPath, [CDD_MJS, "review", "--type", "spec", "--spec", abs], {
+      cwd: REPO_ROOT,
+      env: { PATH: process.env.PATH, CLAUDE_CODE_SESSION_ID: "1" },
+      reject: false,
+      encoding: "utf8",
+    });
+    expect(r.exitCode).toBe(1); // 与相对形同码（§2.4.2：1，**不是** 2）
+    expect(r.stderr.trimEnd().split("\n").length).toBe(3); // 两形态同为三行（行数锚点）
+    expect(r.stderr).toMatch(/CDD_BLOCKED: --spec not found: .*nope-abs\.md/); // ① 与相对形逐字同形
+    expect(r.stderr).toMatch(/Absolute path does not exist\./); // ② 绝对路径形
+    expect(r.stderr).toMatch(/Hint: pass a repo-root-relative path instead\./); // ③ 绝对路径形
+    expect(r.stderr).not.toMatch(/Tried \(against repo root/); // 绝对形不得出现仓根尝试行（可区分形态）
   });
 });

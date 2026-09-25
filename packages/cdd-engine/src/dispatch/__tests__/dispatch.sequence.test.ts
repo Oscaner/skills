@@ -3,7 +3,7 @@
 // opens the dispatch, the PHASES table (pre-flight / dispatch / post-flight, gates anchored to
 // the boundary phases) runs in between, dispatch:after closes it. Task 7's base.ts will drive
 // exactly this walk from hooks.ts + phases.ts.
-import { it, expect } from "vitest";
+import { expect, it } from "vitest";
 
 import { createDispatchHooks, type DispatchHookContext } from "../hooks.ts";
 import { PHASES } from "../phases.ts";

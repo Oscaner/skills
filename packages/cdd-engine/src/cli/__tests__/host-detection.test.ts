@@ -5,19 +5,23 @@
 // Crucially, the no-host env MUST explicitly delete all three host markers — a parent
 // orchestrator session may set CLAUDE_CODE_SESSION_ID / AI_AGENT (B1 blocker), so merely
 // stripping CDD_* leaks host detection into the child.
-import { it, expect } from "vitest";
-import { execaSync } from "execa";
+
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { execaSync } from "execa";
+import { expect, it } from "vitest";
 // 薄入口化（spec §2.3）：detectCurrentHarness 随守卫簇移 src/cli/shared.ts（spec §2.6 守卫簇拆
 // cli/shared，闭包完备性：reviewConvergenceGuard → convergedExit3 + blockerCount + reviewConvergedError 全簇
 // 随迁）—— 测试 seam 改指 shared.mjs。
 import { detectCurrentHarness } from "../shared.ts";
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));   
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..", "..", "..");
-const CDD_MJS = path.join(REPO_ROOT, 'packages/cdd-engine/dist/cli.mjs');
-const PLAN_FIXTURE = path.join(REPO_ROOT, "packages/cdd-engine/src/cli/__tests__/fixtures/smoke-plan.md");
+const CDD_MJS = path.join(REPO_ROOT, "packages/cdd-engine/dist/cli.mjs");
+const PLAN_FIXTURE = path.join(
+  REPO_ROOT,
+  "packages/cdd-engine/src/cli/__tests__/fixtures/smoke-plan.md",
+);
 const NODE = process.execPath;
 
 // Full-replacement child env from scratch (PATH only + test extras) — parent CDD_* / host
@@ -31,7 +35,12 @@ function runCli(args = [], opts = {}) {
     delete childEnv.AI_AGENT;
   }
   try {
-    const r = execaSync(NODE, [CDD_MJS, ...args], { cwd, env: childEnv, encoding: "utf8", extendEnv: false });
+    const r = execaSync(NODE, [CDD_MJS, ...args], {
+      cwd,
+      env: childEnv,
+      encoding: "utf8",
+      extendEnv: false,
+    });
     return { exitCode: r.exitCode ?? 0, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
   } catch (e) {
     return { exitCode: e.exitCode ?? 1, stdout: e.stdout ?? "", stderr: e.stderr ?? "" };
@@ -45,14 +54,19 @@ it("无 host env → cdd implement BLOCK exit 1 + CDD_BLOCKED", () => {
 });
 
 it("CLAUDE_CODE_SESSION_ID=1 → host 判定成功（dry-run exit 0）", () => {
-  const r = runCli(["--dry-run", "implement", "--tasks", "1", "--plan", PLAN_FIXTURE],
-    { env: { CLAUDE_CODE_SESSION_ID: "1" } });
+  const r = runCli(["--dry-run", "implement", "--tasks", "1", "--plan", PLAN_FIXTURE], {
+    env: { CLAUDE_CODE_SESSION_ID: "1" },
+  });
   expect(r.exitCode).toBe(0);
 });
 
 // N④: detectCurrentHarness 直接单测（table-driven marker 优先级）—— export 的 test seam 由真实消费.
 it.each([
-  ["CURSOR_TRACE_ID 优先 → cursor-agent", { CURSOR_TRACE_ID: "1", CLAUDE_CODE_SESSION_ID: "1" }, "cursor-agent"],
+  [
+    "CURSOR_TRACE_ID 优先 → cursor-agent",
+    { CURSOR_TRACE_ID: "1", CLAUDE_CODE_SESSION_ID: "1" },
+    "cursor-agent",
+  ],
   ["CLAUDE_CODE_SESSION_ID → claude", { CLAUDE_CODE_SESSION_ID: "1" }, "claude"],
   ["AI_AGENT=claude-code* → claude", { AI_AGENT: "claude-code-1.0" }, "claude"],
   ["AI_AGENT 非 claude → empty", { AI_AGENT: "codex" }, ""],

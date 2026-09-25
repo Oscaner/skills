@@ -6,9 +6,10 @@
 // thin withLifecycle wrapper: build the lifecycle with the cli-module dry-run flag injected,
 // run it, and let the hooks' exit helpers throw ExitRequested (the bin maps the code). The CLI
 // surface ({ runBranchReview } signature + 0/1/2 exit table + stderr text) is unchanged.
+
+import { BranchReviewLifecycle, type BranchReviewOpts } from "../dispatch/branch.ts";
 import { withLifecycle } from "../infra/proc.ts";
 import { DRY_RUN } from "./shared.ts";
-import { BranchReviewLifecycle, type BranchReviewOpts } from "../dispatch/branch.ts";
 
 export type { BranchReviewOpts };
 

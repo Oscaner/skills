@@ -1,6 +1,6 @@
 # 消费者面一致性（Consumer Parity）— P4.4 Phase Design Spec
 
-- **Version**: v1.0 · 2026-09-25
+- **Version**: v1.1 · 2026-09-25
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（osuperpowers:brainstorming → writing-phase-spec）
 - **Parent program**: [consumer-parity overall v1.38](2026-09-21-consumer-parity-overall.md)
@@ -40,20 +40,21 @@ Cross-phase 约定以 parent overall（v1.38）为准，conflict 时 overall win
 | 面 | 类（承载面） | 来源 / 落点 |
 |---|---|---|
 | RuntimeContext | `CddRuntime`（唯一可变态面：构造注入 · 测试可替） | 收编 `dryRun`（cli/shared.ts:18-24）· `_root`（infra/root.ts:16-31）· proc 全局 `registry/diskPath/idleTimer`（infra/proc.ts:330-332）· `signalExitCode`（bin.ts:54）· memo `cacheProfileValidator`（infra/registry.ts:98） |
-| 值对象 | `TaskGroup`（静态工厂 · dedup · 排序 · `key()` · 成员断言） | `parseTaskList()`（shared.ts:84）+ `tasksKey()`（handoff/naming.ts:37）双标量升级 |
+| 值对象 | `TaskGroup`（静态工厂 · dedup · 排序 · `key()` · 成员断言） | `parseTaskList()`（cli/shared.ts:84）+ `tasksKey()`（handoff/naming.ts:37）双标量升级 |
 | 调度生命周期 | `DispatchLifecycle` 族（既有 template-method 基底扩展）：`TaskLifecycle`（13.5 步）· `DocsLifecycle` · `BranchLifecycle` | 长链 `runReview`（cli/review.ts:76-226）· `runFix`（cli/fix.ts:23-120）· `buildCtx`（task.ts:122-158）迁入类步骤；`cli/*.ts` 退化为**组合根**（argv 解析 + 构造 + dispatch + 出口） |
 | 调度产物面 | `RoundContext`（round 基准 · base token · 轮次锚）· `Handoff`（typed 载体：构建/命名/落盘/终态化）· `ProgressLedger`（六 key 账本 · `rowFor/entryFor` 单源 + 写入不变量）· `ResidueManager`（residue 检测/结算/恢复状态机） | `TaskLedgerRow`（progress.ts:25-63）· 裸 `Record` handoff + `templates/schema/task-handoff-schema.json`（16-prop 校验留在 engine schema 面，不做第二执法实现）· `RecoveryInfo/DeadCarrierRead`（residue.ts:141/277） |
-| 域规则服务 | `ConvergenceChecker` · `FailureResolver` · `StatusJudge` · `CloseoutChecker` · `DocumentsValidator` · `TaskListParser` 等 | 重写 rules/（convergence/failure/status/closeout/documents）+ parse.ts —— 纯函数模块 → 无状态域服务类 |
+| 输出渲染面 | `BriefRenderer`（无状态域服务类：渲染方法即规则 · 构造注入文件/git 判据） | 类化 `generateBrief`（render/brief.ts:25，现导出异步纯函数模块）→ `BriefRenderer#render` |
+| 域规则服务 | `ConvergenceChecker` · `FailureResolver` · `StatusJudge` · `CloseoutChecker` · `DocumentsValidator` · `TaskListParser` 等 | 重写 rules/（convergence/failure/status/closeout/documents）—— 纯函数模块 → 无状态域服务类；`parseTaskList` 锚点见 §2.3（cli/shared.ts:84 → `TaskListParser`，非 rules/ 面） |
 | Infra | `Registry` · `GitClient`（WipStat）· proc 生命周期类 | infra/ 面类化 |
 | scripts 同构 | `Command` 类族（citty 命令树 + invocationArgs meta）· `ValidateBlock` 类族 + `ValidateRunner` | run.ts（scripts/run.ts:49-93）· validate（runner.ts:20-27）· scripts/lib 纯工具 → 无状态域服务类 |
 
 ### 2.3 模块级态收编（残面→RuntimeContext）
 
-上表来源列五个模块级可变态全数收编 `CddRuntime`：solo 全局变 `let/const` 面归零，构造注入 —— engine 测试与 scripts 测试经替身注入实证；`parse.ts` 静态可导入、零副作用约束随 `TaskListParser` 类化重算（cli-shape.test.ts / schema.test.ts 随破坏面改造，允许 breaking）。
+上表来源列五个模块级可变态全数收编 `CddRuntime`：solo 模块级可变态（`let` 声明）面归零，构造注入 —— engine 测试与 scripts 测试经替身注入实证；`cli/shared.ts:84 parseTaskList` → `TaskListParser` 类化落点（不在 rules/ 面），`cli/parse.ts` 组合根静态可导入、零副作用约束保持（cli-shape.test.ts / schema.test.ts 随破坏面改造，允许 breaking）。
 
 ### 2.4 破坏面（breaking — 1.0.0 收口）
 
-- **engine 导出函数面重排**：`runTask` · `runDocsTask` · `generateBrief` · `buildCtx` · `parseTaskList` 随类化移至类公共面（`TaskLifecycle.run` · `TaskGroup.parse` 等）；**不做薄壳转发保红线**（判定标准 ⑤）；engine 测试套件随类化同步改造（breaking 允许）
+- **engine 导出函数面重排**：`runTask` · `runDocsTask` · `generateBrief` · `buildCtx` · `parseTaskList` 随类化移至类公共面（`TaskLifecycle.run` · `TaskGroup.parse` · `BriefRenderer.render` 等）；**不做薄壳转发保红线**（判定标准 ⑤）；engine 测试套件随类化同步改造（breaking 允许）
 - **CLI argv 契约不变**：`--tasks` / `--type` / `--plan` / `--findings` 等 bin 入口面稳定（skills 与消费者经 CLI 调用，零回归）
 - **4 major deps 破坏行为逐项实证**：execa 9→10（API 删除/破坏面）· vitest 3→5（配置/API 迁移）· typescript 5→7（编译/类型行为）· @types/node 22→26（类型面）——逐项实证登记 changelog
 - **1.0.0 收口**：以上全部进 P4.2 发布 changelog（发布面消费 OOP 化完成态 + 全树 latest 基线）
@@ -96,7 +97,7 @@ Cross-phase 约定以 parent overall（v1.38）为准，conflict 时 overall win
 - 4 major deps 破坏行为逐项实证登记（execa@10 API 破坏面 · vitest@5 迁移面 · TS@7 编译/类型行为 · @types/node@26 类型面——engine 测试绿 + dispatch 实证 + 登记 changelog）
 - 全面 OOP 化按「零纯函数模块」口径实证：域规则服务类全类化（convergence / failure / status / closeout / documents / parse 零独立纯函数导出模块，grep 断言）；判定标准六条 sweep 实证（零模块级裸函数导出 · 零模块级可变态 · 零裸标量 裸 Record 域接口穿行 · 零转发壳 / 零空壳 class —— sweep + 代码评审）
 - `CddRuntime` 构造注入实证（dryRun / root / proc 状态 / exit signalling / memo 全收编；engine 测试注入替身绿）
-- `TaskGroup` 类化五签名统一（`--tasks` 解析 · `effectiveGroups` · progress ledger key · handoff 文件名 · `TaskLifecycle#tasks/#groupKey`），零 `number[]` / 裸串穿行（sweep）
+- `TaskGroup` 类化：五个历史散点派生统一收进 `TaskGroup` 单源（`--tasks` 解析 · `effectiveGroups` · progress ledger key · handoff 文件名 · `TaskLifecycle#tasks/#groupKey`）——与 §2.2 类自身能力面五枚举（静态工厂 · dedup · 排序 · `key()` · 成员断言）互补，零 `number[]` / 裸串穿行（sweep）
 - CLI 长链迁入 lifecycle 类步骤（`runReview` / `runFix` / `buildCtx` 主体逻辑入类；`cli/*.ts` 退化为组合根——argv 解析 + 构造 + dispatch + 出口；无转发壳实证）
 - progress / residue / handoff 载体类化（`ProgressLedger` 六 key + `rowFor/entryFor` 单源不变量 · `ResidueManager` 状态机 · `Handoff` typed 载体；schema 校验仍在 engine schema 面、无双实现实证）
 - engine 导出函数面破坏性重排到位 + engine 测试套件随类化全绿（breaking 允许、无薄壳）；CLI argv 契约（`--tasks` / `--type` / `--plan` / `--findings`）不变——skills 与消费者调用面零回归（smoke 实证）

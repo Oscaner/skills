@@ -1,6 +1,6 @@
 # 消费者面一致性（Consumer Parity）— P4.4 Phase Design Spec
 
-- **Version**: v1.4 · 2026-09-25
+- **Version**: v1.5 · 2026-09-25
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（osuperpowers:brainstorming → writing-phase-spec）
 - **Parent program**: [consumer-parity overall v1.40](2026-09-21-consumer-parity-overall.md)
@@ -12,9 +12,9 @@
 
 ## Section 1: Constraints pointer
 
-Cross-phase 约定以 parent overall（v1.39）为准，conflict 时 overall wins（此处不重复）。本 phase 生效的整体约定：
+Cross-phase 约定以 parent overall（v1.40）为准，conflict 时 overall wins（此处不重复）。本 phase 生效的整体约定：
 
-- **允许破坏性变更**（charter bullet）：cdd-engine 0.1.0 基准，P4.2 1.0.0 首次稳定开版前为破口窗口；本 phase breaking（OOP restructure + 4 major deps）登记 changelog、1.0.0 收口
+- **允许破坏性变更**（charter bullet）：cdd-engine 0.1.0 基准，P4.2 1.0.0 首次稳定开版前为破口窗口；本 phase breaking（OOP restructure + 4 major deps + Pending Acceptance Patch 移除）登记 changelog、1.0.0 收口
 - 本仓文档合规判据面 = engine lifecycle（dispatch 运行时审计 + engine 套件），无 repo 侧 charter 守卫
 - 语言政策：spec/plan 中文（Strategy B）· SKILL.md / docs / README 英文主源
 - 不 commit 除非用户明确要求；spec/plan 交付除外（I2 立即提交）
@@ -87,7 +87,7 @@ Cross-phase 约定以 parent overall（v1.39）为准，conflict 时 overall win
 | TG3 | **engine 域层**（`TaskGroup` 类 · `CddRuntime` · 载体 typed 化 · 模块态收编） | 域接口零裸标量（sweep 实证）· 套件绿 |
 | TG4 | **lifecycle 收口**（长链入类 · `RoundContext/Handoff/ProgressLedger/ResidueManager` + 域规则服务类 · 导出面重排 + 测试改造）+ **review 三段结案状态词汇**（handoff `status` enum 新增 `REVIEW_FIX` · `finalize.ts` 状态派生族单一 owner 三值产出 · `rules/status.ts` `deriveTaskState` 三态路由——S2 收口态走 fix 轮 → complete、与 S1 needs-re-review 路径区分） | 破坏面收口实证 · **三段结案三值实证**（S1 blocker 循环现状回归 · S2 收口态 → 复用现有 `cdd fix --findings` 一轮 → complete 无 re-review · S3 零 finding fast path——engine 测试自造链）· 套件绿 |
 | TG5 | **scripts 类化**（`Command` 族 · `ValidateBlock` 族） | run.test / ci-validate 面随域演化对齐 |
-| TG6 | **收口**（validate 11 块全绿 · 破坏面 changelog 登记——含 review `status` 新值 `REVIEW_FIX` · overall backfill · changeset）+ **skills 五面 Review Convergence 改三段表述**（writing-single-spec · writing-overall-spec · writing-phase-spec · writing-plans + cli-driven-development；`REVIEW_FIX` 同名入五面文本；emit 输入面） | validate 全绿（`emit:check` 无 drift——五面文本改后 `pnpm run emit` 重生成已提交）· 零残面 sweep |
+| TG6 | **收口**（validate 11 块全绿 · 破坏面 changelog 登记——含 review `status` 新值 `REVIEW_FIX` + Pending Acceptance Patch 移除（plan.json/skill-anatomy 节点删 · 标签约定出技能文本）· overall backfill · changeset）+ **skills 五面 Review Convergence 改三段表述**（writing-single-spec · writing-overall-spec · writing-phase-spec · writing-plans + cli-driven-development；`REVIEW_FIX` 同名入五面文本；emit 输入面）+ **Pending Acceptance Patch 移除面**（writing-plans / cli SKILL.md 条件节删 + I3 改述 + I6 删 + I7 改指 · plan.json `pendingAcceptancePatch` 节点删 · skill-anatomy 注册表收缩 · engine documents/schema tests 断言随删 · `pnpm run emit` + `emit:check` 无 drift） | validate 全绿（`emit:check` 无 drift——文本与移除面改后 `pnpm run emit` 重生成已提交）· 零残面 sweep · Pending Acceptance Patch 移除实证引用 AC 139/140（zone / tag 零活面 grep · plan.json 无节点 · 直写 Do/验收） |
 
 每 TG 独立 commit；clean-tree 纪律全程保持（engine 入口 gate：dirty → BLOCKED）。
 
@@ -104,9 +104,9 @@ Review 判定从两态（CHANGES_REQUESTED / APPROVED）划为**三态**，消�
 引擎面（最小改动，全部落在本 phase 类化面）：
 - `finalize.ts` 状态派生族（`classifySeverity` / `rollupStatus` / `deriveReviewStatus` 单一 owner）产出第三状态值——blocker>0 → `CHANGES_REQUESTED` · blocker=0∧warn/nit>0 → **`REVIEW_FIX`（收口态）** · 零 → `APPROVED`
 - `rules/status.ts` `deriveTaskState`：收口态（`REVIEW_FIX`）→ **fix 轮路由 → complete**（与 S1 的 needs-fix → needs-re-review 路径区分）
-- fix dispatch 对收口态（`REVIEW_FIX`）放行（与 needs-fix 同 gate）——**fix 行为本身零改动**：无 per-finding disposition 新机制、无 tag 路由（`targets later task` 标签约定随 Pending Acceptance Patch 整体移除，见 §2.10——当前 task 有 findings 即修全）；本改动只约束引擎 review/task 通道
+- fix dispatch 对收口态（`REVIEW_FIX`）放行（与 needs-fix 同 gate）——**fix 行为本身零改动**：无 per-finding disposition 新机制、无 tag 路由（`targets later task` 标签约定随 Pending Acceptance Patch 整体移除，见 §2.10——当前 task 有 findings 即修全）；该三段结案改动只约束引擎 review/task 通道，`targets later task` 标签移除面（含 skills 文本删除）见 §2.10
 
-Skills 面（emit 输入面）：五件 Review Convergence 文本改三段表述（writing-single-spec · writing-overall-spec · writing-phase-spec · writing-plans + cli-driven-development 的 I3/I1 行 + review/fix 节点路径），改后 `pnpm run emit` + 产物重生成
+Skills 面（emit 输入面）：五件 Review Convergence 文本改三段表述（writing-single-spec · writing-overall-spec · writing-phase-spec · writing-plans I1 / cli-driven-development I3 的 Review Convergence 不变量行 + review/fix 节点路径），改后 `pnpm run emit` + 产物重生成
 
 Breaking：handoff `status` 词汇新增第三值（`REVIEW_FIX`）→ 1.0.0 收口（P4.2 changelog）；历史 workspace 已落定终态（APPROVED+findings → complete）**不回滚**
 
@@ -114,8 +114,8 @@ Breaking：handoff `status` 词汇新增第三值（`REVIEW_FIX`）→ 1.0.0 收
 
 zone + `accepts pending-acceptance-patch` carry 约定 + `targets later task` 标签约定**整体退役**——以**移除**收口（#279 提案的「补双向 doc-contract 校验」被删除取代：第二副本删除使 zone↔carry 漏写与摘要漂移两缺口**构造性消失**）：
 
-- **移除理由**：zone 无消费者（engine `src/` 零识别零消费，grep 实证）；#278 裁决已把 tag 输入源抽掉（review finding 一律当前 task fix，不走延迟路由——见 §2.9）；carry 的 delivery 面（验收行逐字进 brief）由 orchestrator 直写承接，zone 只是同内容第二副本 + 记账单
-- **替代通道**：跨 task 裁决（用户裁决 / phase 级 re-scope）由 **orchestrator 直接写目标 task 的 `**Do**` 与 `**验收**`**（行为入 Do · 验证入 验收；按裁决性质分落）——backfill-as-version / I4 mid-flight 同通道，brief = task 段逐字抽取天然携带；**Plan Sole Writer 权限边界保留**（agents 零 plan 修改权，I3 仅去区名）
+- **移除理由**：zone 无消费者（engine `src/` 零识别零消费，grep 实证）；#278 后引擎 fix 通道无 tag 路由（review finding 一律当前 task fix），plan 平面 tag 输入源（writing-plans I3 · cli I6）由 #279 本轮移除；carry 的 delivery 面（验收行逐字进 brief）由 orchestrator 直写承接，zone 只是同内容第二副本 + 记账单
+- **替代通道**：跨 task 裁决（用户裁决 / phase 级 re-scope）由 **orchestrator 直接写目标 task 的 `**Do**` 与 `**验收**`**（行为入 Do · 验证入 验收；按裁决性质分落）——backfill-as-version / I4 mid-flight 同通道，brief = task 段逐字抽取天然携带；**Plan Sole Writer 权限边界保留**（agents 零 plan 修改权）——writing-plans I3 改述范围 = 题名去「(Pending Acceptance)」+ 删 zone-write / tag 收编 / patch-bullet 机制句，authority 句改写为「跨 task 裁决（用户裁决 / phase 级 re-scope）由 orchestrator 以 Plan Sole Writer 直写目标 task 的 Do 与验收；fix/implement agents 零 plan 修改权」
 - **删除面**：`writing-plans` SKILL.md `## Pending Acceptance Patch` 条件节（finding-tag 约定 · zone shape · 样例）· I3 改述 · fix 节点 tag 句删；`cli-driven-development` SKILL.md **I6 整条删** · fix 节点「LATER task tag」句删 · I7 改指 Plan Sole Writer；`plan.json` schema `pendingAcceptancePatch` 节点删；`skill-anatomy.json` 条件节注册表删（zone 描述 · `**Task N (patch)**:` 样例 pattern · `### Task N:` 样heading）；engine `documents.test.ts` / `schema.test.ts` 断言随删（engine 代码本体**零改动**）
 - **breaking**：plan.json schema 节点移除 · skill-anatomy 注册表收缩 · 标签约定出技能文本 → 1.0.0 收口登记（P4.2 changelog）
 - **frozen**：overhaul p6 族 / 已 shipped plan 与 overall change-history 历史记载保留（frozen 豁免）
@@ -132,11 +132,11 @@ zone + `accepts pending-acceptance-patch` carry 约定 + `targets later task` �
 - engine 导出函数面破坏性重排到位 + engine 测试套件随类化全绿（breaking 允许、无薄壳）；CLI argv 契约（`--tasks` / `--type` / `--plan` / `--findings`）不变——skills 与消费者调用面零回归（smoke 实证）
 - scripts 侧同构实证：`Command` 类族 + `ValidateBlock` 类族落地；11 步名/序/`grepTargets`/`channelTargets` 域事实保持（`ci-validate.test.mjs` 断言全绿，或同域演化后对齐）；`run.test.ts` 命令树断言同域对齐
 - biomejs 全面接入实证：biome.json 随仓发布（recommended）· husky pre-commit 触发 `biome check --write` 零违规通过（pre-commit 输出断言）· 覆盖 src + scripts + 全仓 ts 面（配置断言）
-- `pnpm run validate` 11 块全绿；`emit:check` 无 drift；破坏面（OOP restructure + 4 major deps + review 三段结案状态词汇新值 `REVIEW_FIX`）登记 changelog，1.0.0 收口就绪；本 spec Parent program v1.39 版本行 lineage 合法；P4.4 Design-spec / Implementation plan 列随 phase 推进正确回填（backfill-overall，branch-review 前）
+- `pnpm run validate` 11 块全绿；`emit:check` 无 drift；破坏面（OOP restructure + 4 major deps + review 三段结案状态词汇新值 `REVIEW_FIX` + Pending Acceptance Patch 移除——plan.json/skill-anatomy 节点删 · 标签约定出技能文本）登记 changelog，1.0.0 收口就绪；本 spec Parent program v1.40 版本行 lineage 合法；P4.4 Design-spec / Implementation plan 列随 phase 推进正确回填（backfill-overall，branch-review 前）
 - review 状态词汇三值落地实证：S1 blocker 循环（现状回归）· S2 收口态（`REVIEW_FIX`）→ 复用现有 `cdd fix --findings` 一轮 → complete（无 re-review）· S3 零 finding fast path——engine 测试自造链 + 现场回归
 - S2 fix 轮复用现有 `cdd fix --findings`、零 per-finding disposition 新机制、零 tag 路由（`targets later task` 标签约定已整体移除，见 §2.10；当前 task 有 findings 即修全）实证
 - skills 五面 Review Convergence 文本改三段表述（writing-single-spec · writing-overall-spec · writing-phase-spec · writing-plans + cli-driven-development；`REVIEW_FIX` 同名入五面文本；emit 输入面，改后 `pnpm run emit` + `emit:check` 无 drift）；breaking = handoff `status` 词汇新值（`REVIEW_FIX`）登记 changelog、1.0.0 收口、历史终态不回滚
-- Pending Acceptance Patch 移除实证（zone / `accepts pending-acceptance-patch` / `targets later task` 零活面 grep（frozen 豁免）· `plan.json` schema 无 `pendingAcceptancePatch` 节点 · `skill-anatomy` 注册表无该条件节 · cli-development 无 I6 · writing-plans I3 改述落地（Plan Sole Writer 保留）· engine tests 断言随删）
+- Pending Acceptance Patch 移除实证（zone / `accepts pending-acceptance-patch` / `targets later task` / `## Pending Acceptance Patch` 条件节 heading 零活面 grep（frozen 豁免）· `plan.json` schema 无 `pendingAcceptancePatch` 节点 · `skill-anatomy` 注册表无该条件节 · cli-development 无 I6 且 I7 改指 Plan Sole Writer（mid-flight 路由语义）· writing-plans I3 改述落地（Plan Sole Writer 保留）· writing-plans / cli SKILL.md fix 节点 tag 句删 · engine tests 断言随删）
 - 跨 task 裁决直写 Do/验收实证（orchestrator 直写目标 task `**Do**` 与 `**验收**` 后 brief 逐字携带——行为入 Do · 验证入 验收）
 
 ## Section 3: Deviations from overall
@@ -150,7 +150,7 @@ zone + `accepts pending-acceptance-patch` carry 约定 + `targets later task` �
 
 ## Section 4: Notes for downstream
 
-- **P4.2（发布闭环）**：1.0.0 首次稳定开版收进本 phase breaking 面（OOP restructure + 4 major deps + review 三段结案状态词汇新值 #278）；发布面消费 OOP 化完成态与全树 latest 基线（依赖图 `P4.4 ->(hard) P4.2` 已登记）
+- **P4.2（发布闭环）**：1.0.0 首次稳定开版收进本 phase breaking 面（OOP restructure + 4 major deps + review 三段结案状态词汇新值 #278 + Pending Acceptance Patch 移除——plan.json/skill-anatomy 节点删 · 标签约定出技能文本）；发布面消费 OOP 化完成态与全树 latest 基线（依赖图 `P4.4 ->(hard) P4.2` 已登记）
 - **biomejs 静态门**：P4.2 起 husky pre-commit 静态质量门常驻（与既有 precommit 校验链并列）
 - **repo 定位改述 cdd 方法论（v1.33 记录）**：待 P4.2 阶段启动分析落地，本 phase 不处理
 

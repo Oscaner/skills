@@ -30,9 +30,24 @@ export interface CommandMeta {
   kind: InvocationKind;
 }
 
-const DRY_RUN_ARGS = { "dry-run": { type: "boolean", description: "preview without writing" } };
-const TARGET_ARGS = {
-  target: { type: "positional", description: "protect-develop | protect-main" },
+/** Per-kind invocation contract — one table holds both the citty args declaration (#argsDef)
+ * and the forwarded-value mapping (invocationArgs), so the InvocationKind union is switched
+ * exactly once (the brief's contract-table shape). */
+interface InvocationFacet {
+  argsDef: ArgsDef;
+  forwarded: (args: Record<string, unknown>) => unknown[];
+}
+
+const INVOCATION_FACETS: Record<InvocationKind, InvocationFacet> = {
+  none: { argsDef: {}, forwarded: () => [] },
+  "dry-run": {
+    argsDef: { "dry-run": { type: "boolean", description: "preview without writing" } },
+    forwarded: (args) => [{ dryRun: args["dry-run"] === true }],
+  },
+  target: {
+    argsDef: { target: { type: "positional", description: "protect-develop | protect-main" } },
+    forwarded: (args) => [args.target],
+  },
 };
 
 export class Command {
@@ -48,25 +63,11 @@ export class Command {
 
   /** The invocation contract — the values a forwarded run() passes to the module main. */
   invocationArgs(args: Record<string, unknown>): unknown[] {
-    switch (this.meta.kind) {
-      case "none":
-        return [];
-      case "dry-run":
-        return [{ dryRun: args["dry-run"] === true }];
-      case "target":
-        return [args.target];
-    }
+    return INVOCATION_FACETS[this.meta.kind].forwarded(args);
   }
 
   #argsDef(): ArgsDef {
-    switch (this.meta.kind) {
-      case "dry-run":
-        return DRY_RUN_ARGS;
-      case "target":
-        return TARGET_ARGS;
-      case "none":
-        return {};
-    }
+    return INVOCATION_FACETS[this.meta.kind].argsDef;
   }
 
   /** 装配 — the citty CommandDef the composition root mounts under mainCommand. */

@@ -1,6 +1,7 @@
 // scripts/lib/doc-root.ts — docs 根落点的**唯一真相**（P2 起：`docs/osuperpowers/`）。
-// 只读纯数据（判定标准⑥：typed 载体，不建空壳 class）——消费方保持具名常量导入；
-// 段数组为 readonly tuple，防止任意处再写第二源头。
+// read-only pure data (判定标准⑥: typed carrier, no empty-shell class) — consumers keep
+// named-constant imports; segment arrays are readonly tuples so a second source of truth
+// cannot be written elsewhere.
 //
 // 消费方（仓工具链内）：
 //   - packages/osuperpowers/tests/grep-sweep-regression.test.mjs → grep -v 排除后缀

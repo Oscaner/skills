@@ -1,9 +1,9 @@
 # 消费者面一致性（Consumer Parity）— P4.4 Phase Design Spec
 
-- **Version**: v1.6 · 2026-09-25
+- **Version**: v1.7 · 2026-09-25
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（osuperpowers:brainstorming → writing-phase-spec）
-- **Parent program**: [consumer-parity overall v1.41](2026-09-21-consumer-parity-overall.md)
+- **Parent program**: [consumer-parity overall v1.42](2026-09-21-consumer-parity-overall.md)
 - **Depends on**: P4.3（shipped · [p4.3-design v1.7](2026-09-21-consumer-parity-p4.3-design.md)）
 
 ## Section 0: Incremental warning
@@ -12,7 +12,7 @@
 
 ## Section 1: Constraints pointer
 
-Cross-phase 约定以 parent overall（v1.41）为准，conflict 时 overall wins（此处不重复）。本 phase 生效的整体约定：
+Cross-phase 约定以 parent overall（v1.42）为准，conflict 时 overall wins（此处不重复）。本 phase 生效的整体约定：
 
 - **允许破坏性变更**（charter bullet）：cdd-engine 0.1.0 基准，P4.2 1.0.0 首次稳定开版前为破口窗口；本 phase breaking（OOP restructure + 4 major deps + Pending Acceptance Patch 移除）登记 changelog、1.0.0 收口
 - 本仓文档合规判据面 = engine lifecycle（dispatch 运行时审计 + engine 套件），无 repo 侧 charter 守卫
@@ -82,8 +82,8 @@ Cross-phase 约定以 parent overall（v1.41）为准，conflict 时 overall win
 
 **task groups 裁定节点迁移（2026-09-25 用户裁决：这是 writing-plans 的工作）**——Task Groups 裁定从 `cli-driven-development` 迁至 `writing-plans`（分组裁决 = plan 撰写期结构工作，非执行期）：
 
-- `writing-plans`：author-plan 后新增裁定节点（`author-plan → T{adjudicate-task-groups} → plan-review`）——AskUserQuestion 界定/确认（同一确认模板，镜像 `determine-base`）；「Task Groups」节**仅合并分组时落盘**（零分组 → 无节 → 零 plan churn）；拒答 → 默认全单组（`taskGroups` 空默认 = per-task，语义同 P4.3 不变）
-- `cli-driven-development`：**移除** `T{adjudicate-task-groups}` 裁定节点与 `task-groups-undecided` 拒答终端（`C → D` 直连）；**循环内 `{more-groups?}` 保留**；组列表自 plan 记录（`taskGroups` / `effectiveGroups`）读取，dispatch 每组分一个 `--tasks`
+- `writing-plans`：author-plan 内 tasks 写毕 → **裁定分组并落盘**（非交互：**无 AskUserQuestion**——分组 = authoring 期设计判断，随 spec §2.8 建议分组 + 实现常识裁定，写入「Task Groups」节 + plan `taskGroups` 声明，plan-review 同带审）；「Task Groups」节**仅合并分组时落盘**（零分组 → 无节 → 零 plan churn）；默认全单组（`taskGroups` 空默认 = per-task，语义同 P4.3 不变）
+- `cli-driven-development`：**移除** `T{adjudicate-task-groups}` 裁定节点与 `task-groups-undecided` 拒答终端（`C → D` 直连）；**loop 更名 `group-implement-review-fix`**（不再 task-implement-review-fix——dispatch 单位 = 组，节点更名 `implement-group` / `run-group-review` / `fix-group`，与 P4.3 单数据模型术语对齐）；**循环内 `{more-groups?}` 保留**；组列表自 plan 记录（`taskGroups` / `effectiveGroups`）读取，每组分一个 `--tasks`
 - 中循环 regrouping（plan 已批准后）：走 I4 Mid-Flight Backfill plan 编辑（用户确认 · 独立 commit · 干净树），裁定规则仍属 writing-plans 语义
 - 两件 skill 文本 = emit 输入面，改后 `pnpm run emit` + 产物重生成；`cli-driven-development` 节点数随移除降回 growth 边界内（growth 注册表核收）
 
@@ -145,7 +145,7 @@ zone + `accepts pending-acceptance-patch` carry 约定 + `targets later task` �
 - skills 五面 Review Convergence 文本改三段表述（writing-single-spec · writing-overall-spec · writing-phase-spec · writing-plans + cli-driven-development；`REVIEW_FIX` 同名入五面文本；emit 输入面，改后 `pnpm run emit` + `emit:check` 无 drift）；breaking = handoff `status` 词汇新值（`REVIEW_FIX`）登记 changelog、1.0.0 收口、历史终态不回滚
 - Pending Acceptance Patch 移除实证（zone / `accepts pending-acceptance-patch` / `targets later task` / `## Pending Acceptance Patch` 条件节 heading 零活面 grep（frozen 豁免）· `plan.json` schema 无 `pendingAcceptancePatch` 节点 · `skill-anatomy` 注册表无该条件节 · cli-development 无 I6 且 I7 改指 Plan Sole Writer（mid-flight 路由语义）· writing-plans I3 改述落地（Plan Sole Writer 保留）· writing-plans / cli SKILL.md fix 节点 tag 句删 · engine tests 断言随删）
 - 跨 task 裁决直写 Do/验收实证（orchestrator 直写目标 task `**Do**` 与 `**验收**` 后 brief 逐字携带——行为入 Do · 验证入 验收）
-- task groups 裁定迁移实证（writing-plans digraph 含 `T{adjudicate-task-groups}` 裁定节点（author-plan → plan-review 间）· AskUserQuestion 界定/确认 ·「Task Groups」节仅合并分组落盘 · 拒答 → 默认全单组；cli-driven-development digraph 无 `adjudicate-task-groups` 节点 / 无 `task-groups-undecided` 终端 · `C → D` 直连 · `{more-groups?}` 循环内保留 · 组列表自 plan 记录读取；两件 skill `pnpm run emit` 后 `emit:check` 无 drift）
+- task groups 裁定迁移实证（writing-plans author-plan 内 tasks 写毕即**非交互**裁定分组落盘「Task Groups」节 + plan `taskGroups` 声明 · 无 AskUserQuestion · 零分组无节；cli-driven-development digraph 无 `adjudicate-task-groups` 节点 / 无 `task-groups-undecided` 终端 · `C → D` 直连 · **loop 节点更名 group-*（`implement-group` / `run-group-review` / `fix-group`）** · `{more-groups?}` 循环内保留 · 组列表自 plan 记录读取；两件 skill `pnpm run emit` 后 `emit:check` 无 drift）
 
 ## Section 3: Deviations from overall
 
@@ -154,8 +154,8 @@ zone + `accepts pending-acceptance-patch` carry 约定 + `targets later task` �
 | P4.4 注册期 scope/AC（v1.26/v1.31，先注册不探索） | 全面 OOP 化裁决（含规则面全类化、零纯函数模块）+ 破坏性变更允许 + R7 全仓依赖升最新（4 major PR + caret floor 刷新）+ scope/AC 定稿（phase-size = fit · task groups 编排） | Yes — v1.38 · 2026-09-25 |
 | review status 两态词汇（CHANGES_REQUESTED / APPROVED，engine 现状） | 三段结案重构（#278 · 2026-09-25 用户裁决）：状态词汇三分（blocker>0 → CHANGES_REQUESTED · blocker=0∧warn/nit>0 → 收口态（`REVIEW_FIX`）· 零 → APPROVED）+ `deriveTaskState` 收口态路由复用现有 `cdd fix` 后 complete（无 re-review · 无 per-finding 行为 · 无 tag 过滤）；breaking 词汇面 1.0.0 收口、历史终态不回滚 | Yes — v1.39 · 2026-09-25 |
 | plan `## Pending Acceptance Patch` zone + `accepts pending-acceptance-patch` carry + `targets later task` 标签（overhaul P6 定案 v1.35） | Pending Acceptance Patch 整体移除（#279 · 2026-09-25 用户裁决）：zone / carry / 标签全删，跨 task 裁决由 orchestrator 直写目标 task 的 Do 与验收（Plan Sole Writer 权限边界保留）；plan.json 节点移除 + skill-anatomy 注册表收缩 + I6 删 + I3 改述 | Yes — v1.40 · 2026-09-25 |
-| P4.3 ② task groups 裁定节点置于 cli-driven-development（2026-09-24 裁决：正式 enter loop 前裁定） | 裁定节点迁 writing-plans（2026-09-25 用户裁决：分组裁决属 plan 撰写期工作）——author-plan 后裁定 · AskUserQuestion 界定/确认 · 拒答默认全单组 ·「Task Groups」节仅合并分组落盘；cli-driven-development 移除裁定节点与 `task-groups-undecided` 拒答终端（`C → D` 直连 · `{more-groups?}` 循环内保留 · 组列表自 plan 记录读取） | Yes — v1.41 · 2026-09-25 |
-| （其余全部设计裁决已随 overall v1.38/v1.39/v1.40/v1.41 回填：P4.4 行 scope/AC · Issue inventory P4.4 行 +#278/#279 锚点行 · change-history v1.38/v1.39/v1.40/v1.41，见 overall 变更基准） | 本 spec 不偏离 charter；实施细节见 §2.1–§2.10 | Yes — v1.41 · 2026-09-25 |
+| P4.3 ② task groups 裁定节点置于 cli-driven-development（2026-09-24 裁决：正式 enter loop 前裁定） | 裁定节点迁 writing-plans（2026-09-25 用户裁决：分组裁决属 plan 撰写期工作）——author-plan 内 tasks 写毕即**非交互**裁定分组落盘「Task Groups」节 + plan `taskGroups` 声明（**无 AskUserQuestion** · 零分组无节）；cli-driven-development 移除裁定节点与 `task-groups-undecided` 拒答终端（`C → D` 直连 · **loop 更名 group-implement-review-fix** · `{more-groups?}` 循环内保留 · 组列表自 plan 记录读取） | Yes — v1.41/v1.42 · 2026-09-25 |
+| （其余全部设计裁决已随 overall v1.38/v1.39/v1.40/v1.41/v1.42 回填：P4.4 行 scope/AC · Issue inventory P4.4 行 +#278/#279 锚点行 · change-history v1.38/v1.39/v1.40/v1.41/v1.42，见 overall 变更基准） | 本 spec 不偏离 charter；实施细节见 §2.1–§2.10 | Yes — v1.42 · 2026-09-25 |
 
 ## Section 4: Notes for downstream
 

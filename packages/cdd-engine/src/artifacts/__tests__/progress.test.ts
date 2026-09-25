@@ -288,13 +288,13 @@ it("getRound: incrementRound('review') 后 round=2（rounds['review'] 归一键�
 describe("progress.ts group ledger (group is the unit)", () => {
   it("incrementRound group key → 单个 {group} 行，round 按组一份", () => {
     const dir = tmpDir("prog-group-");
-    expect(getRound(readProgressJSON(dir), "1-2", "implement")).toBe(1);
-    incrementRound(dir, "1-2", "implement");
-    incrementRound(dir, "1-2", "review");
+    expect(getRound(readProgressJSON(dir), "1,2", "implement")).toBe(1);
+    incrementRound(dir, "1,2", "implement");
+    incrementRound(dir, "1,2", "review");
     const saved = JSON.parse(readFileSync(path.join(dir, "progress.json"), "utf8"));
-    expect(saved.tasks).toEqual([{ group: "1-2", rounds: { implement: 1, review: 1 } }]);
-    expect(getRound(readProgressJSON(dir), "1-2", "implement")).toBe(2);
-    expect(getRound(readProgressJSON(dir), "1-2", "review")).toBe(2);
+    expect(saved.tasks).toEqual([{ group: "1,2", rounds: { implement: 1, review: 1 } }]);
+    expect(getRound(readProgressJSON(dir), "1,2", "implement")).toBe(2);
+    expect(getRound(readProgressJSON(dir), "1,2", "review")).toBe(2);
   });
 
   it("single-task group key 解析到 per-task 行（向后兼容：--tasks 1 与既有 task 行同面）", () => {
@@ -307,21 +307,21 @@ describe("progress.ts group ledger (group is the unit)", () => {
     expect(getRound(readProgressJSON(dir), 1, "implement")).toBe(2);
   });
 
-  it("单组与多组互不串行：group 1-2 的 rounds 不落到 task 1 / task 2 行", () => {
+  it("单组与多组互不串行：group 1,2 的 rounds 不落到 task 1 / task 2 行", () => {
     const dir = tmpDir("prog-group-sep-");
-    incrementRound(dir, "1-2", "implement");
+    incrementRound(dir, "1,2", "implement");
     expect(getRound(readProgressJSON(dir), "1", "implement")).toBe(1);
     expect(getRound(readProgressJSON(dir), "2", "implement")).toBe(1);
     incrementRound(dir, "1", "implement");
-    expect(getRound(readProgressJSON(dir), "1-2", "implement")).toBe(2);
+    expect(getRound(readProgressJSON(dir), "1,2", "implement")).toBe(2);
     expect(getRound(readProgressJSON(dir), "1", "implement")).toBe(2);
   });
 
   it("scope 账本按组 keyed：seed/taskScopeBase 走 group 行", () => {
     const dir = tmpDir("prog-group-scope-");
     const base = "a".repeat(40);
-    expect(seedScopeBase(dir, "1-2", base)).toBe(base);
-    expect(taskScopeBase(dir, "1-2")).toBe(base);
+    expect(seedScopeBase(dir, "1,2", base)).toBe(base);
+    expect(taskScopeBase(dir, "1,2")).toBe(base);
     // 单组 key 仍走 per-task 行
     expect(seedScopeBase(dir, "3", "b".repeat(40))).toBe("b".repeat(40));
     expect(taskScopeBase(dir, 3)).toBe("b".repeat(40));

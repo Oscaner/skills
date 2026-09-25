@@ -15,6 +15,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { runBranchReview } from "../../cli/branch-review.ts";
+import { TaskGroup } from "../../domain/task-group.ts";
 import { captureStderr } from "../../infra/__tests__/helpers.ts";
 import { ExitRequested } from "../../infra/exit.ts";
 import { REG_PATH } from "../../infra/registry.ts";
@@ -148,7 +149,7 @@ async function runTaskReview(
   const cap = captureStderr();
   const lc = new TaskLifecycle({
     harness: "ctr",
-    tasks: [1],
+    group: TaskGroup.fromNumbers([1]),
     opts: {
       mode: "review",
       dryRun,

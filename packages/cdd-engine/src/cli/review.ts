@@ -9,6 +9,7 @@ import path from "node:path";
 import * as handoffNaming from "../artifacts/handoff/naming.ts";
 import { hashFile } from "../artifacts/hash.ts";
 import { DOC_TOKENS } from "../documents/tokens.ts";
+import { type TaskGroup, toTaskGroup } from "../domain/task-group.ts";
 import { exitOkWith, exitWithCode } from "../infra/exit.ts";
 import { withLifecycle } from "../infra/proc.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
@@ -26,8 +27,8 @@ export interface ReviewOpts {
   type: string;
   plan?: string;
   spec?: string;
-  /** The dispatch group (P4.3) — the whole group reviews as one unit. */
-  tasks?: number[];
+  /** The dispatch group (P4.3/4.4) — the whole group reviews as one unit (TaskGroup value). */
+  tasks?: number[] | TaskGroup;
   base?: string;
   head?: string;
   round?: string;
@@ -174,7 +175,7 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
           MODE: "review",
           REVIEW_TYPE: opts.type,
           REVIEW_LENS_GUIDE: cfg.lensEnum.join(" · "),
-          TASK_WORKSPACE: ws,
+          WORKSPACE: ws,
           WORKSPACE_SLUG: path.basename(ws),
           REVIEW_REFERENCE: doc,
           REVIEW_AXES: cfg.axesGuide,
@@ -197,7 +198,7 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
       exitWithCode(result.exitCode);
     }
 
-    // type=task: task review (runner internally tracks task-N-review-{R}.json round sequence).
+    // type=task: task review (runner internally tracks tasks-{key}-review-{R}.json round sequence).
     if (opts.type !== "task") {
       process.stderr.write(`unknown review --type: ${opts.type}\n`);
       exitWithCode(2);
@@ -213,15 +214,17 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
       exitWithCode(2);
     }
     // Workspace slug derives from the plan filename (workspaceSlug converges -design/-plan
-    // single-layer strip); task Convergence reads the latest tasks-{a}-{b}-review-{R}.json and
+    // single-layer strip); task Convergence reads the latest tasks-{a},{b}-review-{R}.json and
     // rejects when its blockers = 0. `--plan` second consumption point (read point ②): normalize
     // first via resolveDocArg (repo-root-relative → absolute) then derive the workspace — otherwise
     // the task workspace keeps a second coordinate system (cwd-relative).
     const taskPlan = resolveDocArg(opts.plan, root, "plan");
     const taskWs = taskReviewWorkspace(taskPlan, root);
     // The group is the dispatch unit — the group key pins the round scan (no subgroup mixing);
-    // the task round derives via the canonical type-aware resolveNextRound (P4.3).
-    const groupKey = handoffNaming.tasksKey(opts.tasks);
+    // the task round derives via the canonical type-aware resolveNextRound (P4.3). P4.4: the key
+    // IS the TaskGroup key (comma-joined — the CLI --tasks string, no second form).
+    const group = toTaskGroup(opts.tasks);
+    const groupKey = group.key();
     const nextTaskRound = handoffNaming.resolveNextRound(taskWs, "review", "task", {
       tasks: groupKey,
     });
@@ -249,7 +252,7 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
       reviewConvergenceGuard(th, "task", prevR, opts.plan); // only APPROVED+blocker=0 stops (SP-4)
     }
     const { runTask } = await import("../dispatch/task.ts");
-    await runTask(harness, opts.tasks, {
+    await runTask(harness, group, {
       mode: "review",
       dryRun: DRY_RUN(),
       planFile: opts.plan,

@@ -90,18 +90,18 @@ describe("priorHandoffPaths — measurement-mode cross-phase derivation (mirrors
   beforeEach(() => {
     ws = mkdtempSync(path.join(tmpdir(), "observe-cache-"));
     writeFileSync(
-      path.join(ws, "task-7-implement.json"),
+      path.join(ws, "tasks-7-implement.json"),
       JSON.stringify({
         phase: "implement",
         commits: { base: "a".repeat(40), head: "b".repeat(40) },
       }),
     );
     writeFileSync(
-      path.join(ws, "task-7-review-1.json"),
+      path.join(ws, "tasks-7-review-1.json"),
       JSON.stringify({ phase: "review", commits: { base: "c".repeat(40), head: "d".repeat(40) } }),
     );
     writeFileSync(
-      path.join(ws, "task-7-fix-1.json"),
+      path.join(ws, "tasks-7-fix-1.json"),
       JSON.stringify({ phase: "fix", commits: { base: "e".repeat(40), head: "f".repeat(40) } }),
     );
   });
@@ -119,13 +119,13 @@ describe("priorHandoffPaths — measurement-mode cross-phase derivation (mirrors
 
   it("fix round R: findings + fixed point come from the same-round review handoff (prev = review.task:R)", () => {
     const r1 = priorHandoffPaths({ workspace: ws, task: 7, mode: "fix", round: 1 });
-    expect(r1.findingsPath).toBe(path.join(ws, "task-7-review-1.json"));
+    expect(r1.findingsPath).toBe(path.join(ws, "tasks-7-review-1.json"));
     expect(r1.fixedPoint).toBe("c".repeat(40)); // the review handoff's commits.base
   });
 
   it("missing prior review handoff → the review path as findings, empty fixed point (documented approximation)", () => {
     const r2 = priorHandoffPaths({ workspace: ws, task: 7, mode: "fix", round: 2 });
-    expect(r2.findingsPath).toBe(path.join(ws, "task-7-review-2.json"));
+    expect(r2.findingsPath).toBe(path.join(ws, "tasks-7-review-2.json"));
     expect(r2.fixedPoint).toBe("");
   });
 

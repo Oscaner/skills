@@ -229,7 +229,7 @@ describe("P4.3 --tasks list model (group dispatch acceptance)", () => {
     );
   });
 
-  it("implement --tasks 1,2 → same dispatch path as --tasks 1: one group brief (tasks-1-2-brief.md with both sections)", () => {
+  it("implement --tasks 1,2 → same dispatch path as --tasks 1: one group brief (tasks-1,2-brief.md with both sections)", () => {
     const { repo, plan, ws } = setupWorkspace();
     const res = run(["--dry-run", "implement", "--tasks", "1,2", "--plan", plan], HOST, {
       cwd: repo,
@@ -237,14 +237,14 @@ describe("P4.3 --tasks list model (group dispatch acceptance)", () => {
     expect(res.status).toBe(0);
     expect(res.stdout).toMatch(/^status: APPROVED$/m);
     expect(res.stdout).toMatch(/^commits: base=dry-run$/m);
-    // The group is the dispatch unit — the group-keyed brief (tasks-1-2-brief.md) holds both
+    // The group is the dispatch unit — the group-keyed brief (tasks-1,2-brief.md) holds both
     // Task 1 + Task 2 sections and the single TASK_BASE.
-    const brief = readFileSync(path.join(ws, "tasks-1-2-brief.md"), "utf8");
+    const brief = readFileSync(path.join(ws, "tasks-1,2-brief.md"), "utf8");
     expect(brief).toMatch(/^### Task 1:/m);
     expect(brief).toMatch(/^### Task 2:/m);
     expect(brief.match(/^TASK_BASE: /gm)).toHaveLength(1);
-    // No per-task artifacts — a task-1-brief.md single-task brief must not exist
-    expect(existsSync(path.join(ws, "task-1-brief.md"))).toBe(false);
+    // No per-task artifacts — a tasks-1-brief.md single-task brief must not exist
+    expect(existsSync(path.join(ws, "tasks-1-brief.md"))).toBe(false);
   });
 
   it("implement --tasks 2,3 (Task 3 out of bounds) → whole-group BLOCK exit 1 + per-item missing listing (/task N not found/ contract)", () => {
@@ -280,7 +280,7 @@ describe("P4.3 --tasks list model (group dispatch acceptance)", () => {
 
   it("fix --type task --tasks 1,2 --findings <group review handoff> → whole-group fix (group findings path plumbed)", () => {
     const { repo, plan } = setupWorkspace();
-    const findingsRel = path.posix.join(".osuperpowers", "cdd", "plan", "tasks-1-2-review-1.json");
+    const findingsRel = path.posix.join(".osuperpowers", "cdd", "plan", "tasks-1,2-review-1.json");
     const res = run(
       [
         "--dry-run",

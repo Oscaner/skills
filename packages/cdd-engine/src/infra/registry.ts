@@ -5,7 +5,6 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import Ajv, { type ValidateFunction } from "ajv";
 
 import { CddExitError } from "./exit.ts";
 import { resolvePackageRoot } from "./resource.ts";
@@ -101,22 +100,7 @@ export function cacheProfileFor(entry: any): unknown {
 
 // Lazy ajv validator over the canonical cache-profile schema (same pattern as rules/schema.ts).
 // Not called on the dispatch hot path — exercised by tests/validate against the shipped registry.
-let cacheProfileValidator: ValidateFunction | null = null;
-const CACHE_PROFILE_SCHEMA_PATH = fileURLToPath(
-  new URL("../../templates/schema/cache-profile-schema.json", import.meta.url),
-);
-
-export function validateCacheProfile(
-  profile: unknown,
-): { valid: true } | { valid: false; reason: string } {
-  if (!cacheProfileValidator) {
-    const schema = JSON.parse(readFileSync(CACHE_PROFILE_SCHEMA_PATH, "utf8"));
-    cacheProfileValidator = new Ajv({ allErrors: true }).compile(schema);
-  }
-  const valid = cacheProfileValidator(profile);
-  if (valid) return { valid: true };
-  const reason = (cacheProfileValidator.errors ?? [])
-    .map((e) => `${e.instancePath || "/"} ${e.message}`)
-    .join("; ");
-  return { valid: false, reason };
-}
+// P4.4 Task 4: the former module-level `let cacheProfileValidator` memo migrated into the
+// CddRuntime singleton (infra/runtime.ts — the class is the single mutable-state surface); this
+// module re-exports the same identity so registry consumers keep importing the canonical face.
+export { validateCacheProfile } from "./runtime.ts";

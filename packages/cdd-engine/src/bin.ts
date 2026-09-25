@@ -38,6 +38,7 @@ import { setDryRun } from "./cli/shared.ts";
 import { CddExitError, ExitRequested } from "./infra/exit.ts";
 import { initProcLifecycle, reapStale, teardownAll } from "./infra/proc.ts";
 import { initRoot } from "./infra/root.ts";
+import { runtime } from "./infra/runtime.ts";
 
 // citty renders usage/help with ANSI color — this entry prints plain text (commander-era parity +
 // deterministic test surface). Stripping happens at the two print points below, never via env
@@ -57,15 +58,15 @@ const SIGNAL_EXIT = { SIGINT: 130, SIGTERM: 143, SIGHUP: 129 };
 // below can turn "signal arrived while the run was already tearing down" into the signal-mapped
 // code even when the run-boundary's own exit wins the process.exit race (both the handler and the
 // run-boundary ExitRequested unwind await teardownAll() concurrently; without the latch the normal
-// path's exit code — e.g. a docs-review non-zero result — could clobber 128+signo).
-let signalExitCode: number | null = null;
+// path's exit code — e.g. a docs-review non-zero result — could clobber 128+signo). The latch is a
+// CddRuntime-owned field (P4.4 Task 4 — the class is the single mutable-state surface).
 /** Single exit mapping: a caught signal always wins over the run's exit code (128+signo). */
 function finalExit(code: number): never {
-  process.exit(signalExitCode ?? code);
+  process.exit(runtime.signalExitCode ?? code);
 }
 for (const [sig, code] of Object.entries(SIGNAL_EXIT)) {
   process.on(sig, async () => {
-    signalExitCode = code;
+    runtime.signalExitCode = code;
     process.stderr.write(`CDD: caught ${sig} — teardownAll + exit ${code}\n`);
     try {
       await teardownAll({ graceMs: 2000 });

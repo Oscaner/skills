@@ -49,7 +49,7 @@ const CLAUSE_KEYS = [
 
 function zoneFixture(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    $version: 2,
+    $version: 3,
     skeleton: {
       sections: ["Instructions", "Handoff", "Return", "Round context"],
       segments: {
@@ -92,7 +92,7 @@ function zoneFixture(overrides: Record<string, unknown> = {}): Record<string, un
 }
 
 describe("template-contract 单点消费 + zone-tagged token registry（Task 20 ③④）", () => {
-  it("loadTemplateContract 加载真身：skeleton 槽级三段制 + tokens(19 带 zone) + clauses + reviews", async () => {
+  it("loadTemplateContract 加载真身：skeleton 槽级三段制 + tokens(18 带 zone) + clauses + reviews", async () => {
     const { loadTemplateContract } = await import("../templates.ts");
     const contract = loadTemplateContract();
     expect(contract.skeleton.sections).toEqual([
@@ -105,13 +105,13 @@ describe("template-contract 单点消费 + zone-tagged token registry（Task 20 
     expect(contract.skeleton.segments.return).toEqual(["Return"]);
     expect(contract.skeleton.segments["round-context"]).toEqual(["Round context"]);
     expect(contract.skeleton.order).toEqual(["shell", "return", "round-context"]); // 段序恒为 壳 → Return → Round context
-    expect(contract.tokens).toHaveLength(20);
-    // zone 归属：18 round-context + 2 return，壳零槽（不得有 shell 归属 token）；
-    // T5: DOCS_FIXED_POINT — docs-face dispatch entry base slot (same position as the task family's TASK_FIXED_POINT)
-    expect(contract.tokens.filter((t) => t.zone === "round-context")).toHaveLength(18);
+    expect(contract.tokens).toHaveLength(18);
+    // zone 归属：16 round-context + 2 return，壳零槽（不得有 shell 归属 token）；
+    // P4.4 Task 3: FIXED_POINT — the collapsed dispatch-entry base slot (docs face shares the task family's FIXED_POINT)
+    expect(contract.tokens.filter((t) => t.zone === "round-context")).toHaveLength(16);
     expect(contract.tokens.filter((t) => t.zone === "return")).toHaveLength(2);
     expect(contract.tokens.some((t) => t.zone === "shell")).toBe(false);
-    expect(contract.tokens).toContainEqual({ name: "DOCS_FIXED_POINT", zone: "round-context" });
+    expect(contract.tokens).toContainEqual({ name: "FIXED_POINT", zone: "round-context" });
     // The seven discipline clauses are stored single-source per D1.2 — the v1.29–v1.31 era, the `cl:` prefix family, non-empty bodies, zero moustache (T12).
     expect(Object.keys(contract.clauses)).toEqual(CLAUSE_KEYS);
     for (const [key, body] of Object.entries(contract.clauses)) {
@@ -124,7 +124,7 @@ describe("template-contract 单点消费 + zone-tagged token registry（Task 20 
     expect(contract).toEqual(onDisk);
   });
 
-  it("19 令牌全收敛（新命名规范；零遗留旧态名）—— 三段落实际使用的令牌 ⊆ registry", async () => {
+  it("18 令牌全收敛（P4.4 Task 3 契约面；零遗留旧态名）—— 三段落实际使用的令牌 ⊆ registry", async () => {
     const {
       scanTemplateTokens,
       validateTemplateTokens,
@@ -163,21 +163,24 @@ describe("template-contract 单点消费 + zone-tagged token registry（Task 20 
       "{{H1_BLOCK}}",
       "{{HANDOFF_STUB}}",
       "{{HANDOFF_TYPE}}",
+      "{{HANDOFF_SCHEMA_JSON}}",
       "{{HANDOFF}}",
       "{{TYPE}}",
       "{{LENS_GUIDE}}",
       "{{AXES}}",
       "{{HARD_GATE}}",
       "{{RETURN_MODE}}",
-      "{{WORKSPACE}}",
       "{{REFERENCE}}",
       "{{PLAN_LINE}}",
-      "{{FINDINGS}}",
-      "{{BRIEF}}",
-      "{{TASK}}",
-      "{{CONSTRAINTS}}",
-      "{{FIXED_POINT}}",
-      "{{DOC}}",
+      "{{TASK_BRIEF}}",
+      "{{TASK_NUMBER}}",
+      "{{TASK_WORKSPACE}}",
+      "{{TASK_CONSTRAINTS}}",
+      "{{TASK_FINDINGS}}",
+      "{{TASK_FIXED_POINT}}",
+      "{{DOCS_DOC}}",
+      "{{DOCS_FINDINGS}}",
+      "{{DOCS_FIXED_POINT}}",
     ];
     const full = [
       ...contract.sections.shell,
@@ -370,33 +373,33 @@ describe("D1.2/E2⑤ 纪律条款入库（Task 12）：clauses 单源 + 4 模板
     const contract = loadTemplateContract();
     const shapes: Record<string, string> = {
       implement: renderModePrompt("implement", {
-        TASK_WORKSPACE: "/ws",
+        WORKSPACE: "/ws",
         WORKSPACE_SLUG: "ws",
-        TASK_BRIEF: "/ws/task-1-brief.md",
-        TASK_CONSTRAINTS: "/ws/plan-constraints.md",
-        TASK_NUMBER: "1",
-        HANDOFF_TARGET: "/ws/task-1-implement.json",
+        BRIEF: "/ws/tasks-1-brief.md",
+        CONSTRAINTS: "/ws/plan-constraints.md",
+        DISPATCH_UNIT: "1",
+        HANDOFF_TARGET: "/ws/tasks-1-implement.json",
       }),
       fix: renderModePrompt("fix", {
-        TASK_WORKSPACE: "/ws",
+        WORKSPACE: "/ws",
         WORKSPACE_SLUG: "ws",
-        TASK_BRIEF: "/ws/task-1-brief.md",
-        TASK_CONSTRAINTS: "/ws/plan-constraints.md",
-        TASK_FINDINGS: "/ws/tasks-1-review-1.json",
-        TASK_FIXED_POINT: "7a7327b",
-        TASK_NUMBER: "1",
-        HANDOFF_TARGET: "/ws/task-1-fix-1.json",
+        BRIEF: "/ws/tasks-1-brief.md",
+        CONSTRAINTS: "/ws/plan-constraints.md",
+        FINDINGS: "/ws/tasks-1-review-1.json",
+        FIXED_POINT: "7a7327b",
+        DISPATCH_UNIT: "1",
+        HANDOFF_TARGET: "/ws/tasks-1-fix-1.json",
       }),
       taskReview: renderModePrompt("review", {
-        TASK_WORKSPACE: "/ws",
+        WORKSPACE: "/ws",
         WORKSPACE_SLUG: "ws",
         HANDOFF_TARGET: "/ws/tasks-1-review-1.json",
-        TASK_FIXED_POINT: "7a7327b",
+        FIXED_POINT: "7a7327b",
       }),
       docsReview: renderTemplate("review", {
         MODE: "review",
         REVIEW_TYPE: "spec",
-        TASK_WORKSPACE: "/ws",
+        WORKSPACE: "/ws",
         WORKSPACE_SLUG: "ws",
         REVIEW_LENS_GUIDE: "completeness · consistency · clarity",
         REVIEW_REFERENCE: "/ws/spec.md",
@@ -408,10 +411,10 @@ describe("D1.2/E2⑤ 纪律条款入库（Task 12）：clauses 单源 + 4 模板
       }),
       docsFix: renderTemplate("fix", {
         MODE: "fix",
-        TASK_WORKSPACE: "/ws",
+        WORKSPACE: "/ws",
         WORKSPACE_SLUG: "ws",
-        DOCS_DOC: "/ws/spec.md",
-        DOCS_FINDINGS: "/ws/spec-review-1.json",
+        DOC: "/ws/spec.md",
+        FINDINGS: "/ws/spec-review-1.json",
         HANDOFF_TARGET: "/ws/spec-fix-1.json",
         RETURN_FORMAT: "DOCS_FIX",
         HANDOFF_WRITE_GATE: docsFixHardGate("/ws/spec-fix-1.json"),
@@ -473,16 +476,16 @@ describe("review type config (Task 4: 模板数据化)", () => {
     const { renderModePrompt, resetTemplateCaches } = await import("../templates.ts");
     resetTemplateCaches();
     const out = renderModePrompt("review", {
-      TASK_WORKSPACE: "/ws",
+      WORKSPACE: "/ws",
       HANDOFF_TARGET: "/ws/tasks-1-review-1.json",
-      TASK_FIXED_POINT: "7a7327b",
+      FIXED_POINT: "7a7327b",
     });
     expect(out).toContain("# CDD dispatch — CLI session"); // 统一壳字面头（跨模板字节恒等）
     expect(out).toContain("standards · spec"); // lensEnum joined
     expect(out).toContain("7a7327b..HEAD"); // ref 具体化为 FIXED_POINT..HEAD
     expect(out).toContain("code-review smell baseline"); // axesGuide → code-review 焦点
     expect(out).toContain("/ws/tasks-1-review-1.json");
-    expect(out).toContain("WORKSPACE_SLUG"); // ⑦ canonical slug 槽（fallback = basename(TASK_WORKSPACE)）
+    expect(out).toContain("WORKSPACE_SLUG"); // ⑦ canonical slug 槽（fallback = basename(WORKSPACE)）
     expect(out).toContain("- `WORKSPACE_SLUG`: ws");
     // 段序恒为 壳 → ## Return → ## Round context
     const handoffIdx = heading(out, "Handoff");
@@ -504,7 +507,7 @@ describe("renderTemplate（唯一渲染器：壳 → Return 常数 → Round con
       {
         MODE: "review",
         REVIEW_TYPE: "spec",
-        TASK_WORKSPACE: "/ws",
+        WORKSPACE: "/ws",
         REVIEW_LENS_GUIDE: "completeness · consistency · clarity",
         REVIEW_REFERENCE: "/tmp/spec.md",
         REVIEW_AXES: "URC 规则指针",
@@ -537,8 +540,8 @@ describe("renderTemplate（唯一渲染器：壳 → Return 常数 → Round con
     resetTemplateCaches();
     const params = {
       MODE: "fix",
-      DOCS_DOC: "/d/spec.md",
-      DOCS_FINDINGS: "/d/review-1.json",
+      DOC: "/d/spec.md",
+      FINDINGS: "/d/review-1.json",
       HANDOFF_TARGET: "/d/docs-fix-1.json",
       RETURN_FORMAT: "DOCS_FIX",
       HANDOFF_WRITE_GATE: "> gate",
@@ -630,9 +633,9 @@ describe("T25: 四 review type 的 scope-composition 轴（changed-surface reaso
     const { renderModePrompt, resetTemplateCaches } = await import("../templates.ts");
     resetTemplateCaches();
     const out = renderModePrompt("review", {
-      TASK_WORKSPACE: "/ws",
+      WORKSPACE: "/ws",
       HANDOFF_TARGET: "/ws/tasks-1-review-1.json",
-      TASK_FIXED_POINT: "7a7327b",
+      FIXED_POINT: "7a7327b",
     });
     expect(out).toContain("changed-surface reasonableness");
     expect(out).toContain("Changed-surface bookkeeping");

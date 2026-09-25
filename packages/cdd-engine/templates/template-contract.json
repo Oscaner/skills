@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$version": 2,
+  "$version": 3,
   "skeleton": {
     "sections": [
       "Instructions",
@@ -32,14 +32,14 @@
       "",
       "## Instructions",
       "",
-      "1. **`## Round context` — the final section — is the only dynamic region of this prompt.** Every per-dispatch value lives there; this shell and `## Return` are the fixed dispatch contract, byte-identical for every round and mode. Wherever this contract names a symbol (`TASK_BRIEF`, `HANDOFF_TARGET`, `REVIEW_REFERENCE`, …), resolve the real value from `## Round context`; nothing real rides above it. The `MODE` in `## Round context` selects this round's rules below.",
+      "1. **`## Round context` — the final section — is the only dynamic region of this prompt.** Every per-dispatch value lives there; this shell and `## Return` are the fixed dispatch contract, byte-identical for every round and mode. Wherever this contract names a symbol (`BRIEF`, `HANDOFF_TARGET`, `REVIEW_REFERENCE`, …), resolve the real value from `## Round context`; nothing real rides above it. The `MODE` in `## Round context` selects this round's rules below.",
       "2. **Scope lock (every mode):** consume only this round's inputs listed in `## Round context`. Do **not** read the full plan file. Implement exactly what the brief specifies — no extra features, no tangential refactors, no scope creep beyond the brief's Files/Interfaces/Steps.",
-      "3. **`implement`:** read only the task brief at `TASK_BRIEF` and the plan constraints at `TASK_CONSTRAINTS`. `CONFIRMED_SEAMS` listed in the brief → apply them when invoking the implementation approach — no re-negotiation; otherwise propose the test boundaries in the report, then invoke **`mattpocock-skills:tdd`**. This mode does not write a handoff — the engine materializes `task-N-implement.json` from your return block four lines + the brief's `TASK_BASE` + `git HEAD` (the engine is the single authority for `commits` and for re-emitting your return block).",
-      "4. **`fix`:** read the open findings at `TASK_FINDINGS` and the task brief at `TASK_BRIEF` (paths only — do not paste review bodies into the prompt). Fix ALL findings — blockers, warns, and nits — and remove fixed findings from the handoff's `findings[]`. `commits.base` = `TASK_FIXED_POINT` (this round's `FIX_BASE` — the prior handoff's `commits.head`); `commits.head` = `git rev-parse HEAD` (full 40-char SHA, never `--short`). No fix-scope diff relative to `FIX_BASE` → no commit (keep `head` unchanged). Implement + handoff in one process; a handoff write failure → return block `status: BLOCKED`; retry = full mode re-run (idempotent).",
+      "3. **`implement`:** read only the task brief at `BRIEF` and the plan constraints at `CONSTRAINTS`. `DISPATCH_UNIT` is this round's group key (the CLI `--tasks` string — the canonical group identity); `BRIEF` is one file holding every `### Task N:` section of the group — implement **ALL sections**, never a subset. `CONFIRMED_SEAMS` listed in the brief → apply them when invoking the implementation approach — no re-negotiation; otherwise propose the test boundaries in the report, then invoke **`mattpocock-skills:tdd`**. This mode does not write a handoff — the engine materializes `tasks-{DISPATCH_UNIT}-implement.json` from your return block four lines + the brief's `TASK_BASE` + `git HEAD` (the engine is the single authority for `commits` and for re-emitting your return block).",
+      "4. **`fix`:** read the open findings at `FINDINGS` and the task brief at `BRIEF` (paths only — do not paste review bodies into the prompt). Fix ALL findings — blockers, warns, and nits — and remove fixed findings from the handoff's `findings[]`. `commits.base` = `FIXED_POINT` (this round's `FIX_BASE` — the prior handoff's `commits.head`); `commits.head` = `git rev-parse HEAD` (full 40-char SHA, never `--short`). No fix-scope diff relative to `FIXED_POINT` → no commit (keep `head` unchanged). Implement + handoff in one process; a handoff write failure → return block `status: BLOCKED`; retry = full mode re-run (idempotent).",
       "5. **`review`:** review the axes in `REVIEW_AXES` against the reference in `REVIEW_REFERENCE`. Every finding MUST carry its `lens` label (one of `REVIEW_LENS_GUIDE`); an empty `findings` array = approved. The `returnFormat` named in `## Return` selects the return contract: RETURN_JSON → findings-only JSON on stdout; RETURN_STDOUT_BLOCK → collect findings into the handoff's `findings[]` (do not print them), then the four-line block only.",
-      "6. **`docs`:** apply fixes directly to `DOCS_DOC` per `DOCS_FINDINGS` (all severities), removing fixed findings; `artifacts` records the doc path and `doc_path` = the exact `DOCS_DOC` path.",
-      "7. **Evidence gate:** before returning, write `task-N-test-evidence.json` under `TASK_WORKSPACE` with at least `command`, `exit_code`, `passed`, and `warnings_count` (include `behavior_change` when applicable). The engine reads it back after you exit: `behavior_change: true` requires `command`, `passed`, and `exit_code` — missing any of the three → the handoff is overridden to `status: BLOCKED` (exit 1); otherwise only a WARN note attaches. Update the implementer report at the path from the brief after verification. Report bodies, test stdout, and diff text live in files only — never in the return.",
-      "8. **Commit contract (base/head):** `base` = the brief's `TASK_BASE` (implement) or `TASK_FIXED_POINT` (fix — a review's reviewed range). When TDD/verification already produced one or more conventional commits covering this round's scope, set `head` = `git rev-parse HEAD` — do not create duplicate commits; otherwise create **one** conventional commit (`feat:` / `fix:` / `refactor:` / …) with subject aligned to the round — no attribution / co-author / AI-generation trailers — then `head` = `git rev-parse HEAD`. Uncommitted changes at return → `status: BLOCKED`. Only commit changes within this round's scope; out-of-scope uncommitted changes at return → `status: BLOCKED` + `blocker:` listing the out-of-scope paths.",
+      "6. **`docs`:** apply fixes directly to `DOC` per `FINDINGS` (all severities), removing fixed findings; `artifacts` records the doc path and `doc_path` = the exact `DOC` path.",
+      "7. **Evidence gate:** before returning, write the test-evidence file under `WORKSPACE` (`tasks-{DISPATCH_UNIT}-test-evidence.json` — the canonical task-family form the engine reads back byte-identically) with at least `command`, `exit_code`, `passed`, and `warnings_count` (include `behavior_change` when applicable). The engine reads it back after you exit: `behavior_change: true` requires `command`, `passed`, and `exit_code` — missing any of the three → the handoff is overridden to `status: BLOCKED` (exit 1); otherwise only a WARN note attaches. Update the implementer report at the path from the brief after verification. Report bodies, test stdout, and diff text live in files only — never in the return.",
+      "8. **Commit contract (base/head):** `base` = the brief's `TASK_BASE` (implement) or `FIXED_POINT` (fix — a review's reviewed range). When TDD/verification already produced one or more conventional commits covering this round's scope, set `head` = `git rev-parse HEAD` — do not create duplicate commits; otherwise create **one** conventional commit (`feat:` / `fix:` / `refactor:` / …) with subject aligned to the round — no attribution / co-author / AI-generation trailers — then `head` = `git rev-parse HEAD`. Uncommitted changes at return → `status: BLOCKED`. Only commit changes within this round's scope; out-of-scope uncommitted changes at return → `status: BLOCKED` + `blocker:` listing the out-of-scope paths.",
       "9. **Discipline clauses (single-source; bind every mode):**",
       "- {{> cl:english-comments}}",
       "- {{> cl:eof-newline}}",
@@ -88,21 +88,19 @@
       "## Round context",
       "",
       "- `MODE`: {{MODE}}",
-      "- `TASK_WORKSPACE`: {{TASK_WORKSPACE}}",
+      "- `DISPATCH_UNIT`: {{DISPATCH_UNIT}}",
+      "- `BRIEF`: {{BRIEF}}",
+      "- `CONSTRAINTS`: {{CONSTRAINTS}}",
+      "- `FINDINGS`: {{FINDINGS}}",
+      "- `FIXED_POINT`: {{FIXED_POINT}}",
+      "- `WORKSPACE`: {{WORKSPACE}}",
       "- `WORKSPACE_SLUG`: {{WORKSPACE_SLUG}}",
-      "- `TASK_NUMBER`: {{TASK_NUMBER}}",
-      "- `TASK_BRIEF`: {{TASK_BRIEF}}",
-      "- `TASK_CONSTRAINTS`: {{TASK_CONSTRAINTS}}",
-      "- `TASK_FINDINGS`: {{TASK_FINDINGS}}",
-      "- `TASK_FIXED_POINT`: {{TASK_FIXED_POINT}}",
       "- `REVIEW_TYPE`: {{REVIEW_TYPE}}",
       "- `REVIEW_REFERENCE`: {{REVIEW_REFERENCE}}",
       "- `REVIEW_LENS_GUIDE`: {{REVIEW_LENS_GUIDE}}",
       "- `REVIEW_AXES`: {{REVIEW_AXES}}",
       "- `REVIEW_PLAN_LINE`: {{REVIEW_PLAN_LINE}}",
-      "- `DOCS_DOC`: {{DOCS_DOC}}",
-      "- `DOCS_FINDINGS`: {{DOCS_FINDINGS}}",
-      "- `DOCS_FIXED_POINT`: {{DOCS_FIXED_POINT}}",
+      "- `DOC`: {{DOC}}",
       "- `HANDOFF_TARGET`: {{HANDOFF_TARGET}}",
       "",
       "### HANDOFF_WRITE_GATE",
@@ -112,15 +110,27 @@
   },
   "tokens": [
     {
-      "name": "DOCS_DOC",
+      "name": "BRIEF",
       "zone": "round-context"
     },
     {
-      "name": "DOCS_FINDINGS",
+      "name": "CONSTRAINTS",
       "zone": "round-context"
     },
     {
-      "name": "DOCS_FIXED_POINT",
+      "name": "DISPATCH_UNIT",
+      "zone": "round-context"
+    },
+    {
+      "name": "DOC",
+      "zone": "round-context"
+    },
+    {
+      "name": "FINDINGS",
+      "zone": "round-context"
+    },
+    {
+      "name": "FIXED_POINT",
       "zone": "round-context"
     },
     {
@@ -156,40 +166,20 @@
       "zone": "round-context"
     },
     {
-      "name": "TASK_BRIEF",
-      "zone": "round-context"
-    },
-    {
-      "name": "TASK_CONSTRAINTS",
-      "zone": "round-context"
-    },
-    {
-      "name": "TASK_FINDINGS",
-      "zone": "round-context"
-    },
-    {
-      "name": "TASK_FIXED_POINT",
-      "zone": "round-context"
-    },
-    {
-      "name": "TASK_NUMBER",
-      "zone": "round-context"
-    },
-    {
-      "name": "TASK_WORKSPACE",
-      "zone": "round-context"
-    },
-    {
-      "name": "WORKSPACE_SLUG",
-      "zone": "round-context"
-    },
-    {
       "name": "RETURN_FORMAT",
       "zone": "return"
     },
     {
       "name": "RETURN_STDOUT_BLOCK",
       "zone": "return"
+    },
+    {
+      "name": "WORKSPACE",
+      "zone": "round-context"
+    },
+    {
+      "name": "WORKSPACE_SLUG",
+      "zone": "round-context"
     }
   ],
   "clauses": {

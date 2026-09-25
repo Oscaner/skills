@@ -24,6 +24,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { materializeWorkspace } from "../../artifacts/handoff/naming.ts";
+import { TaskGroup } from "../../domain/task-group.ts";
 import { ExitRequested } from "../../infra/exit.ts";
 import { markAllDispatchesDone, spawnManaged } from "../../infra/proc.ts";
 import { REG_PATH } from "../../infra/registry.ts";
@@ -314,7 +315,7 @@ it("runTask: nested CLI failed no handoff → BLOCKED handoff (stderr into block
 // ---- group dispatch (in-process, non-dry-run): the group is the dispatch unit — one BLOCKED
 // carrier keyed tasks-{a}-{b} (no per-task decomposition), the whole-group re-dispatch advice ----
 
-it("runTask: group [1,2] implement failure → tasks-1-2-implement.json BLOCKED carrier (task + tasks fields, whole-group re-dispatch)", async () => {
+it("runTask: group [1,2] implement failure → tasks-1,2-implement.json BLOCKED carrier (task + tasks fields, whole-group re-dispatch)", async () => {
   const { repo } = setupWorkspace();
   // a two-task plan so the group brief is in-bounds (task 1 + task 2 both exist); commitValidDocs
   // is called with the custom body (commitPlan would clobber it with the default single-task body)
@@ -352,7 +353,7 @@ it("runTask: group [1,2] implement failure → tasks-1-2-implement.json BLOCKED 
       noExit: true,
     });
     expect(res.exitCode).toBe(1);
-    const hp = path.join(wsTwo, "tasks-1-2-implement.json");
+    const hp = path.join(wsTwo, "tasks-1,2-implement.json");
     expect(existsSync(hp)).toBe(true);
     const handoff = JSON.parse(readFileSync(hp, "utf8"));
     expect(handoff.tasks).toEqual([1, 2]); // the group reference (P4.3)
@@ -360,12 +361,12 @@ it("runTask: group [1,2] implement failure → tasks-1-2-implement.json BLOCKED 
     // No per-task carrier side-branches (the group is the unit — no task-1-implement.json / task-2-implement.json)
     expect(existsSync(path.join(wsTwo, "task-1-implement.json"))).toBe(false);
     // The whole-group shape rides the advice surface — the advised --tasks is exactly the group key 1-2 (no subset dispatch; zero legacy single-task residue)
-    expect(handoff.blocker).toMatch(/cdd implement --tasks 1-2 re-dispatch auto-resumes/);
+    expect(handoff.blocker).toMatch(/cdd implement --tasks 1,2 re-dispatch auto-resumes/);
     const adviceTasks = /cdd implement --tasks ([^ ]+) re-dispatch/.exec(handoff.blocker)?.[1];
-    expect(adviceTasks).toBe("1-2"); // whole-group re-dispatch advice — never a per-task subset
+    expect(adviceTasks).toBe("1,2"); // whole-group re-dispatch advice — never a per-task subset
     // Progress ledger: one row per group (round at group level)
     const progress = JSON.parse(readFileSync(path.join(wsTwo, "progress.json"), "utf8"));
-    expect(progress.tasks).toEqual([{ group: "1-2", rounds: { implement: 1 } }]);
+    expect(progress.tasks).toEqual([{ group: "1,2", rounds: { implement: 1 } }]);
   } finally {
     restore();
   }
@@ -513,7 +514,12 @@ it("spawnManaged: preserves non-subagent env vars", async () => {
 
 it("buildCtx: fix mode → findingsPath = review handoff path (no scope filter)", () => {
   const { repo, planFile } = setupWorkspace();
-  const ctx = buildCtx(repo, 1, { mode: "fix", harness: "claude", planFile, round: 1 });
+  const ctx = buildCtx(repo, TaskGroup.fromNumbers([1]), {
+    mode: "fix",
+    harness: "claude",
+    planFile,
+    round: 1,
+  });
   expect(ctx.findingsPath).toMatch(/tasks-1-review-1\.json$/);
   expect(ctx.findingsPath).not.toMatch(/open-findings/);
   expect(ctx.findingsScope).toBeUndefined();
@@ -521,7 +527,11 @@ it("buildCtx: fix mode → findingsPath = review handoff path (no scope filter)"
 
 it("buildCtx: implement mode → findingsPath = open-findings path, no scope key", () => {
   const { repo, planFile } = setupWorkspace();
-  const ctx = buildCtx(repo, 1, { mode: "implement", harness: "claude", planFile });
+  const ctx = buildCtx(repo, TaskGroup.fromNumbers([1]), {
+    mode: "implement",
+    harness: "claude",
+    planFile,
+  });
   expect(ctx.findingsPath).toMatch(/tasks-1-open-findings\.json$/);
   expect(ctx.findingsScope).toBeUndefined();
 });
@@ -1209,29 +1219,44 @@ it("runTask: step 10 (cli failed no handoff) BLOCKED has artifacts + action mess
 
 it("runTask: per-round buildCtx — review derives tasks-1-review-1.json", () => {
   const { repo, planFile } = setupWorkspace();
-  const ctx = buildCtx(repo, 1, { mode: "review", harness: "claude", planFile, round: 1 });
+  const ctx = buildCtx(repo, TaskGroup.fromNumbers([1]), {
+    mode: "review",
+    harness: "claude",
+    planFile,
+    round: 1,
+  });
   expect(ctx.handoffPath.endsWith("tasks-1-review-1.json")).toBe(true);
 });
 
 it("runTask: implement derives tasks-1-implement.json (no round suffix)", () => {
   const { repo, planFile } = setupWorkspace();
-  const ctx = buildCtx(repo, 1, { mode: "implement", harness: "claude", planFile, round: 1 });
+  const ctx = buildCtx(repo, TaskGroup.fromNumbers([1]), {
+    mode: "implement",
+    harness: "claude",
+    planFile,
+    round: 1,
+  });
   expect(ctx.handoffPath.endsWith("tasks-1-implement.json")).toBe(true);
 });
 
 it("runTask: round-2 buildCtx derives tasks-1-review-2.json + buildPromptParams 参数面同源", () => {
   const { repo, planFile, ws } = setupWorkspace();
-  const ctx = buildCtx(repo, 1, { mode: "review", harness: "claude", planFile, round: 2 });
+  const ctx = buildCtx(repo, TaskGroup.fromNumbers([1]), {
+    mode: "review",
+    harness: "claude",
+    planFile,
+    round: 2,
+  });
   expect(ctx.handoffPath.endsWith("tasks-1-review-2.json")).toBe(true);
 
-  const params = buildPromptParams(ctx, 1);
-  expect(params.TASK_WORKSPACE).toBe(ws);
+  const params = buildPromptParams(ctx, TaskGroup.fromNumbers([1]));
+  expect(params.WORKSPACE).toBe(ws);
   expect(params.WORKSPACE_SLUG).toBe(path.basename(ws)); // canonical slug slot, same source as workspaceSlug (Task 20 ⑦)
   expect(params.HANDOFF_TARGET).toBe(ctx.handoffPath);
-  expect(params.TASK_BRIEF).toBe(ctx.briefPath);
-  expect(params.TASK_CONSTRAINTS).toBe(ctx.constraintsPath);
-  expect(params.TASK_FINDINGS).toBe(ctx.findingsPath);
-  expect(params.TASK_NUMBER).toBe("1");
+  expect(params.BRIEF).toBe(ctx.briefPath);
+  expect(params.CONSTRAINTS).toBe(ctx.constraintsPath);
+  expect(params.FINDINGS).toBe(ctx.findingsPath);
+  expect(params.DISPATCH_UNIT).toBe("1");
   expect(params.REVIEW_PLAN_LINE).toBe(`**Plan:** ${ctx.plan}`);
 });
 
@@ -2161,9 +2186,9 @@ describe("T27 scope ledger black-box（spec T7.6）", () => {
       });
       expect(resF.exitCode).toBe(0);
       expect(existsSync(promptLogF)).toBe(true);
-      // The fix template carries the fixed-point in the `TASK_FIXED_POINT` round-context slot (the
+      // The fix template carries the fixed-point in the `FIXED_POINT` round-context slot (the
       // REVIEW_REFERENCE range composition is review-only) — the ledger value lands there unchanged.
-      expect(readFileSync(promptLogF, "utf8")).toContain(`\`TASK_FIXED_POINT\`: ${t0}`);
+      expect(readFileSync(promptLogF, "utf8")).toContain(`\`FIXED_POINT\`: ${t0}`);
       const fixHandoff = JSON.parse(readFileSync(path.join(ws, "tasks-1-fix-1.json"), "utf8"));
       expect(fixHandoff.commits.base).toBe(t0);
     } finally {

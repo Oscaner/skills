@@ -52,7 +52,7 @@ it("finalizeHandoff implement 族：输入无 agentHandoff 槽位（通过类型
   gitInit(repo);
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-hf-impl-ws-"));
   const taskBase = "9a4757b23b5f0634a8ef1d08e1d6c9d1c4f59c63";
-  const brief = path.join(ws, "task-1-brief.md");
+  const brief = path.join(ws, "tasks-1-brief.md");
   writeFileSync(brief, `# task 1\nTASK_BASE: ${taskBase}\n`);
   writeFileSync(path.join(ws, "task-1-test-evidence.json"), "{}"); // behavior_change !== true → soft 空
   const actualHead = execFileSync("git", ["rev-parse", "HEAD"], {
@@ -84,7 +84,7 @@ it("finalizeHandoff implement 族：输入无 agentHandoff 槽位（通过类型
 
 it("finalizeHandoff implement 族：brief 无 TASK_BASE → 降级 fail-open（不实体化，handoff:null + exit 0）", async () => {
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-hf-impl-fail-"));
-  const brief = path.join(ws, "task-1-brief.md");
+  const brief = path.join(ws, "tasks-1-brief.md");
   writeFileSync(brief, "# task 1\nno TASK_BASE here\n");
   const r = await finalizeHandoff({
     mode: "implement",
@@ -242,7 +242,7 @@ it("finalizeHandoff fix 族：BLOCKED → exit 1（任何通道 BLOCKED → 1）
 
 it("finalizeHandoff implement 族：非 APPROVED 返回 → BLOCKED + exit 1", async () => {
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-hf-impl-blocked-"));
-  const brief = path.join(ws, "task-1-brief.md");
+  const brief = path.join(ws, "tasks-1-brief.md");
   writeFileSync(brief, "# task 1\nTASK_BASE: 9a4757b23b5f0634a8ef1d08e1d6c9d1c4f59c63\n");
   writeFileSync(path.join(ws, "task-1-test-evidence.json"), "{}");
   const r = await finalizeHandoff({

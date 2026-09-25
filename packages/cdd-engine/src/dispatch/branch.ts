@@ -405,7 +405,7 @@ export class BranchReviewLifecycle extends BranchLifecycle {
       {
         MODE: "review",
         REVIEW_TYPE: "branch",
-        TASK_WORKSPACE: this.workspace,
+        WORKSPACE: this.workspace,
         WORKSPACE_SLUG: path.basename(this.workspace),
         REVIEW_LENS_GUIDE: cfg.lensEnum.join(" · "),
         REVIEW_REFERENCE: `${base}..${head}`,
@@ -605,17 +605,17 @@ export class BranchFixLifecycle extends BranchLifecycle {
     this.fixBase = fixBase;
 
     // The fix prompt: task-family shell + RETURN_STDOUT_BLOCK return (the fix agent writes the
-    // handoff + the return block; task-family round-context slots minus TASK_NUMBER/TASK_CONSTRAINTS
-    // — empty for the branch family; TASK_BRIEF carries the plan path as the branch-level brief).
+    // handoff + the return block; task-family round-context slots minus DISPATCH_UNIT/CONSTRAINTS
+    // — empty for the branch family; BRIEF carries the plan path as the branch-level brief).
     const prompt = renderTemplate(
       "fix",
       {
         MODE: "fix",
-        TASK_WORKSPACE: this.workspace,
+        WORKSPACE: this.workspace,
         WORKSPACE_SLUG: path.basename(this.workspace),
-        TASK_FINDINGS: findingsPath,
-        TASK_FIXED_POINT: fixBase,
-        TASK_BRIEF: this.opts.plan,
+        FINDINGS: findingsPath,
+        FIXED_POINT: fixBase,
+        BRIEF: this.opts.plan,
         HANDOFF_TARGET: this.handoffPath,
         REVIEW_PLAN_LINE: this.opts.plan ? `**Plan:** ${this.opts.plan}` : "",
         RETURN_FORMAT: "RETURN_STDOUT_BLOCK",

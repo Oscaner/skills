@@ -20,14 +20,15 @@ import { gitMergeBaseIsAncestor } from "../infra/git.ts";
 
 /** progress.json row — keyed by scalar `task` for single-task groups (`--tasks 1` — backward
  * compatible with every per-task consumer) or by the group key string for multi-task groups
- * (`--tasks 1,2` → `{ group: "1-2" }`; the P4.3 group is the dispatch unit — round/handoff/
- * progress/residue land per group). */
+ * (`--tasks 1,2` → `{ group: "1,2" }` — the P4.3/P4.4 group is the dispatch unit; the key IS the
+ * TaskGroup key — comma-joined, no second form — round/handoff/progress/residue land per group). */
 export type TaskLedgerRow =
   | { task: number; rounds?: Record<string, number>; scope_base?: string }
   | { group: string; rounds?: Record<string, number>; scope_base?: string };
 
 /** progress.json shape — top-level keys only (plan / counters / tasks). Counters derive from the
- * canonical failure-categories table (createEmptyProgress writes all counter fields at 0). */
+ * canonical failure-categories table (createEmptyProgress writes all counter fields at 0). Typed
+ * carrier (P4.4 Task 5): all members declared, no index-signature surface. */
 export interface ProgressData {
   plan?: string;
   timeoutCount?: number;
@@ -35,7 +36,6 @@ export interface ProgressData {
   engineSelfWrittenCount?: number;
   engineRecoveryCount?: number;
   tasks: TaskLedgerRow[];
-  [key: string]: unknown;
 }
 
 /** Ledger lookup key — a scalar task number (single-task group) or the group key string. */
@@ -43,7 +43,7 @@ export type LedgerKey = number | string;
 
 /** rowFor(data, key) — the ledger row lookup single point: a number key or a single-task group key
  * (`"1"`) resolves the `{ task: N }` row (post-migration single groups keep the legacy row shape);
- * a multi-task group key (`"1-2"`) resolves the `{ group }` row. Exported as the shared single/group
+ * a multi-task group key (`"1,2"`) resolves the `{ group }` row. Exported as the shared single/group
  * row lookup — dispatch/task.ts uses it for the APPROVED-review ensure-row writeback (single source,
  * no inline re-implementation of the dichotomy). */
 export function rowFor(data: ProgressData, key: LedgerKey): TaskLedgerRow | undefined {
@@ -90,7 +90,7 @@ export function readProgressJSON(progressDir: string, plan?: string): ProgressDa
 const PROGRESS_DEAD_KEYS = ["lastDispatchHead", "degradationLog"];
 export function writeProgressJSON(progressDir: string, data: ProgressData): void {
   const jsonPath = path.join(progressDir, "progress.json");
-  const clean = { ...data };
+  const clean = { ...data } as ProgressData & Record<string, unknown>;
   for (const k of PROGRESS_DEAD_KEYS) delete clean[k];
   if (Array.isArray(clean.tasks)) {
     clean.tasks = clean.tasks.map((t) => {
@@ -272,12 +272,12 @@ export function migrateIfNeeded(progressDir: string, plan?: string): ProgressDat
       // overwrite without change (same line as persistFinalized). Judgment by missing/non-numeric
       // rather than unconditional write: a legacy valid number (e.g. existing 5) must not be zeroed.
       let changed = false;
-      if (typeof (data as Record<string, unknown>).contractViolationCount !== "number") {
-        (data as Record<string, unknown>).contractViolationCount = 0;
+      if (typeof data.contractViolationCount !== "number") {
+        data.contractViolationCount = 0;
         changed = true;
       }
-      if (typeof (data as Record<string, unknown>).engineSelfWrittenCount !== "number") {
-        (data as Record<string, unknown>).engineSelfWrittenCount = 0;
+      if (typeof data.engineSelfWrittenCount !== "number") {
+        data.engineSelfWrittenCount = 0;
         changed = true;
       }
       if (changed) writeProgressJSON(progressDir, data);

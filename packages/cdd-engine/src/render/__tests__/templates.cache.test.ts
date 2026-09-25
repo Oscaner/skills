@@ -29,14 +29,14 @@ const PKG_ROOT = path.resolve(__dirname, "..", "..", "..");
 const TEMPLATES = path.join(PKG_ROOT, "templates");
 
 const IMPLEMENT_PARAMS = {
-  TASK_WORKSPACE: "/ws/osuperpowers-overhaul-p6",
+  WORKSPACE: "/ws/osuperpowers-overhaul-p6",
   WORKSPACE_SLUG: "osuperpowers-overhaul-p6",
-  TASK_BRIEF: "/ws/osuperpowers-overhaul-p6/task-7-brief.md",
-  HANDOFF_TARGET: "/ws/osuperpowers-overhaul-p6/task-7-implement.json",
-  TASK_FINDINGS: "",
-  TASK_CONSTRAINTS: "/ws/osuperpowers-overhaul-p6/plan-constraints.md",
-  TASK_FIXED_POINT: "",
-  TASK_NUMBER: "7",
+  BRIEF: "/ws/osuperpowers-overhaul-p6/tasks-7-brief.md",
+  HANDOFF_TARGET: "/ws/osuperpowers-overhaul-p6/tasks-7-implement.json",
+  FINDINGS: "",
+  CONSTRAINTS: "/ws/osuperpowers-overhaul-p6/plan-constraints.md",
+  FIXED_POINT: "",
+  DISPATCH_UNIT: "7",
   REVIEW_PLAN_LINE: "**Plan:** docs/osuperpowers/plans/2026-09-13-osuperpowers-overhaul-p6.md",
 };
 
@@ -101,14 +101,14 @@ describe("C2/C3 — structural single source + deterministic serialization", () 
     const flipped: Record<string, string> = {
       RETURN_FORMAT: "RETURN_STDOUT_BLOCK",
       REVIEW_PLAN_LINE: IMPLEMENT_PARAMS.REVIEW_PLAN_LINE,
-      TASK_NUMBER: IMPLEMENT_PARAMS.TASK_NUMBER,
-      TASK_FIXED_POINT: IMPLEMENT_PARAMS.TASK_FIXED_POINT,
-      TASK_CONSTRAINTS: IMPLEMENT_PARAMS.TASK_CONSTRAINTS,
-      TASK_FINDINGS: IMPLEMENT_PARAMS.TASK_FINDINGS,
-      TASK_BRIEF: IMPLEMENT_PARAMS.TASK_BRIEF,
+      DISPATCH_UNIT: IMPLEMENT_PARAMS.DISPATCH_UNIT,
+      FIXED_POINT: IMPLEMENT_PARAMS.FIXED_POINT,
+      CONSTRAINTS: IMPLEMENT_PARAMS.CONSTRAINTS,
+      FINDINGS: IMPLEMENT_PARAMS.FINDINGS,
+      BRIEF: IMPLEMENT_PARAMS.BRIEF,
       WORKSPACE_SLUG: IMPLEMENT_PARAMS.WORKSPACE_SLUG,
       HANDOFF_TARGET: IMPLEMENT_PARAMS.HANDOFF_TARGET,
-      TASK_WORKSPACE: IMPLEMENT_PARAMS.TASK_WORKSPACE,
+      WORKSPACE: IMPLEMENT_PARAMS.WORKSPACE,
     };
     const b = renderTemplate("implement", flipped);
     expect(staticZoneOf(b)).toBe(staticZoneOf(a)); // static zone byte-frozen (parameterless shell)
@@ -143,7 +143,7 @@ describe("C4 — parameterless shell: re-dispatch zero re-render; param change r
   it("a param change re-renders ONLY the Round-context tail once; shell + Return constant stay byte-FROZEN (C4 升格)", () => {
     renderModePrompt("implement", IMPLEMENT_PARAMS);
     const s1 = templateCacheStats();
-    const other = renderModePrompt("implement", { ...IMPLEMENT_PARAMS, TASK_NUMBER: "8" });
+    const other = renderModePrompt("implement", { ...IMPLEMENT_PARAMS, DISPATCH_UNIT: "8" });
     const s2 = templateCacheStats();
     expect(s2.reads).toBe(s1.reads); // contract not re-read
     expect(s2.compiles).toBe(s1.compiles); // compiled Round-context product frozen once
@@ -216,7 +216,7 @@ describe("⑧ — byte-invariant guard: static zones carry zero volatile literal
 
   it("no shipped template files remain on disk (渲染数据平面单文件：四 .md 并入 sections)", () => {
     expect(readFileSync(path.join(TEMPLATES, "template-contract.json"), "utf8")).toContain(
-      '"$version": 2',
+      '"$version": 3',
     );
     for (const rel of ["task/implement.md", "task/fix.md", "docs/review.md", "docs/fix.md"]) {
       expect(() => readFileSync(path.join(TEMPLATES, rel), "utf8")).toThrow(); // 文件已删 —— 读取即抛 ENOENT

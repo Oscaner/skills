@@ -3,6 +3,7 @@
 // from ./shared.ts.
 import path from "node:path";
 import * as handoffNaming from "../artifacts/handoff/naming.ts";
+import type { TaskGroup } from "../domain/task-group.ts";
 import { exitOk, exitOkWith, exitWithCode } from "../infra/exit.ts";
 import { withLifecycle } from "../infra/proc.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
@@ -12,8 +13,8 @@ import { DRY_RUN, requireHostHarness, resolveTargetDoc } from "./shared.ts";
 export interface FixOpts {
   type: string;
   plan?: string;
-  /** The dispatch group (P4.3) — the whole group fixes as one unit. */
-  tasks?: number[];
+  /** The dispatch group (P4.3/4.4) — the whole group fixes as one unit (TaskGroup value). */
+  tasks?: number[] | TaskGroup;
   findings?: string;
   root?: string;
 }

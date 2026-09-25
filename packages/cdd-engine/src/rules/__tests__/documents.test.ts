@@ -38,6 +38,7 @@ import {
   isPendingText,
   parseOverall,
   taskGroupsFromPlan,
+  taskNumbersFromPlan,
   validateDispatchDocuments,
 } from "../documents.ts";
 
@@ -189,7 +190,7 @@ describe("taskGroupsFromPlan / effectiveGroups — dispatch-group declaration (P
   it("no `## Task Groups` section → empty default: [] declared + per-task singleton groups (pre-P4.3 equivalence)", () => {
     const p = planFile(TASKS);
     expect(taskGroupsFromPlan(p)).toEqual([]);
-    expect(effectiveGroups(p)).toEqual([[1], [2], [3]]);
+    expect(effectiveGroups(p).map((g) => g.key())).toEqual(["1", "2", "3"]);
   });
 
   it("merged groups parse — one `- **Task 1, 2**:` bullet per group, number list ascending + deduped", () => {
@@ -203,7 +204,7 @@ describe("taskGroupsFromPlan / effectiveGroups — dispatch-group declaration (P
         "",
       ].join("\n"),
     );
-    expect(taskGroupsFromPlan(p)).toEqual([[1, 2], [3]]);
+    expect(taskGroupsFromPlan(p).map((g) => g.key())).toEqual(["1,2", "3"]);
   });
 
   it("section boundary — the next `##` heading / `---` rule / prose without a group line terminates the parse", () => {
@@ -222,7 +223,7 @@ describe("taskGroupsFromPlan / effectiveGroups — dispatch-group declaration (P
         "tail",
       ].join("\n"),
     );
-    expect(taskGroupsFromPlan(p)).toEqual([[1, 2]]);
+    expect(taskGroupsFromPlan(p).map((g) => g.key())).toEqual(["1,2"]);
   });
 
   it("declared groups replace the singleton set verbatim → effectiveGroups = the declared groups", () => {
@@ -237,10 +238,7 @@ describe("taskGroupsFromPlan / effectiveGroups — dispatch-group declaration (P
       ].join("\n"),
     );
     // effectiveGroups derives from the section, never fabricating singletons in the declared branch
-    expect(effectiveGroups(p)).toEqual([
-      [1, 2],
-      [3, 4],
-    ]);
+    expect(effectiveGroups(p).map((g) => g.key())).toEqual(["1,2", "3,4"]);
   });
 
   it("a length-1 declared line is parse-tolerated and surfaces in effectiveGroups — the >= 2 floor is schema minItems + write-back, never the parser", () => {
@@ -259,8 +257,26 @@ describe("taskGroupsFromPlan / effectiveGroups — dispatch-group declaration (P
     // taskGroups.items.tasks.minItems + the adjudication write-back judgment (plan.json description:
     // a length-1 group never lands on disk — the single-group state exists only as the empty
     // default), not in this derivation.
-    expect(taskGroupsFromPlan(p)).toEqual([[1], [2, 3]]);
-    expect(effectiveGroups(p)).toEqual([[1], [2, 3]]);
+    expect(taskGroupsFromPlan(p).map((g) => g.key())).toEqual(["1", "2,3"]);
+    expect(effectiveGroups(p).map((g) => g.key())).toEqual(["1", "2,3"]);
+  });
+
+  it("有效分区 == 全 task 号集覆盖 guard (P4.4: the effective-group union is the plan task set — declared or empty-default)", () => {
+    const declared = planFile(
+      [
+        "# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n\n### Task 3: c\nbody\n\n### Task 4: d\nbody\n",
+        "## Task Groups",
+        "",
+        "- **Task 1, 2**: merged",
+        "- **Task 3**: length-1 line tolerated",
+        "",
+      ].join("\n"),
+    );
+    const empty = planFile("# Plan\n\n### Task 1: a\n\n### Task 2: b\n\n### Task 3: c\n");
+    for (const p of [declared, empty]) {
+      const union = [...new Set(effectiveGroups(p).flatMap((g) => [...g]))].sort((a, b) => a - b);
+      expect(union).toEqual(taskNumbersFromPlan(p)); // every plan task lands in exactly one effective group
+    }
   });
 });
 

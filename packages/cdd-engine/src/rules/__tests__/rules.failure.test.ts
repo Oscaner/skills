@@ -144,18 +144,18 @@ describe("rules/failure.ts — timeoutBlocker (T26 unification; cause-keyed word
     expect(b).toContain(
       "resume or discard: cdd implement --tasks 7 re-dispatch auto-resumes (recovery.residue_ref=abc123), or git stash drop to abandon",
     );
-    // group surface: a multi-task group's advice is whole-group — cdd implement --tasks 1-2, and
+    // group surface: a multi-task group's advice is whole-group — cdd implement --tasks 1,2, and
     // the suggestion's tasks value is exactly the group key (no per-task subset dispatch)
     const g = timeoutBlocker({
       cause: "stalled",
-      tasks: "1-2",
+      tasks: "1,2",
       idleWindowMs: 900_000,
       op: "implement",
       residue: "abc123",
     });
-    expect(g).toContain("cdd implement --tasks 1-2 re-dispatch auto-resumes");
+    expect(g).toContain("cdd implement --tasks 1,2 re-dispatch auto-resumes");
     const gAdvice = /cdd implement --tasks ([^ ]+) re-dispatch/.exec(g)?.[1];
-    expect(gAdvice).toBe("1-2");
+    expect(gAdvice).toBe("1,2");
     // still a TIMEOUT-shaped blocker (same category identity, extended wording only)
     expect(b).not.toMatch(/simplify task/);
     expect(b).not.toMatch(/discard or commit/); // §⑤ upgrade: discard-or-commit wording is gone

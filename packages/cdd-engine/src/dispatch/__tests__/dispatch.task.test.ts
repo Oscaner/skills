@@ -22,6 +22,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { expect, it, vi } from "vitest";
+import { TaskGroup } from "../../domain/task-group.ts";
 import { captureStderr } from "../../infra/__tests__/helpers.ts";
 import { invokeCliWithRetry, resolveTerminationConfig } from "../../infra/invoke.ts";
 import { REG_PATH } from "../../infra/registry.ts";
@@ -101,7 +102,7 @@ it("入口门降级（继承基类 + E2②）: review 起点 dirty + dryRun → 
   try {
     const lc = new TaskLifecycle({
       harness: "ghost",
-      tasks: [1],
+      group: TaskGroup.fromNumbers([1]),
       opts: {
         mode: "review",
         planFile: "docs/plan.md",
@@ -142,7 +143,7 @@ it("真实 dispatch（dryRun=false）起点 dirty → 入口门仍 BLOCKED（E2�
   appendFileSync(path.join(repo, ".gitignore"), "dirty\n");
   const lc = new TaskLifecycle({
     harness: "ghost",
-    tasks: [1],
+    group: TaskGroup.fromNumbers([1]),
     opts: {
       mode: "review",
       planFile: "x.md",
@@ -302,7 +303,7 @@ it("干净树 + 非法 mode → validateMode 拒绝（模板停在 dispatch 前�
   git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "plan");
   const lc = new TaskLifecycle({
     harness: "ghost",
-    tasks: [1],
+    group: TaskGroup.fromNumbers([1]),
     opts: {
       mode: "bogus",
       dryRun: true,
@@ -363,7 +364,7 @@ it("ctx 注入面: 构造即挂基类双门（子类零注册面接触；ctx 原
   const repo = setupRepo();
   const lc = new TaskLifecycle({
     harness: "ghost",
-    tasks: [1],
+    group: TaskGroup.fromNumbers([1]),
     opts: {
       mode: "implement",
       dryRun: true,

@@ -273,7 +273,7 @@ it("docs review 失败优先: agent exit 1 + 有效 APPROVED handoff → exitCod
   expect(result.handoff?.status).toBe("APPROVED");
 });
 
-it("T5 ③: docs dispatch injects DOCS_FIXED_POINT = dispatch entry base (git HEAD at dispatch time, lands in the renderTemplate params)", async () => {
+it("T5 ③: docs dispatch injects FIXED_POINT = dispatch entry base (git HEAD at dispatch time, lands in the renderTemplate params)", async () => {
   const repo = setupRepo();
   const doc = path.join(repo, "spec.md");
   writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
@@ -296,7 +296,7 @@ it("T5 ③: docs dispatch injects DOCS_FIXED_POINT = dispatch entry base (git HE
   });
   // review face (docs single dispatch point) passes the entry base into the round-context slot
   const params = renderTemplate.mock.calls.at(-1)?.[1] as Record<string, unknown>;
-  expect(params.DOCS_FIXED_POINT).toBe(entryHead);
+  expect(params.FIXED_POINT).toBe(entryHead);
   // non-git / unborn HEAD → empty (mode-union prefill)
   await runDocsTask({
     harness: "ghost",
@@ -309,7 +309,7 @@ it("T5 ③: docs dispatch injects DOCS_FIXED_POINT = dispatch entry base (git HE
     dryRun: false,
   });
   const lastParams = renderTemplate.mock.calls.at(-1)?.[1] as Record<string, unknown> | undefined;
-  expect(lastParams?.DOCS_FIXED_POINT).toBe("");
+  expect(lastParams?.FIXED_POINT).toBe("");
   expect(result.exitCode).toBeGreaterThanOrEqual(0); // assertion surface is the render params, not the round conclusion
 });
 

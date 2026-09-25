@@ -10,7 +10,7 @@
 // (threshold >= 2) — one category's terminal state never leaks into another's counter.
 
 import { readJson, writeHandoff } from "../artifacts/handoff/write.ts";
-import { readProgressJSON, writeProgressJSON } from "../artifacts/progress.ts";
+import { type ProgressData, readProgressJSON, writeProgressJSON } from "../artifacts/progress.ts";
 import { loadEngineConfig } from "../infra/config.ts";
 import { DEFAULT_IDLE_WINDOW_MS, type TerminationCause } from "../infra/proc.ts";
 
@@ -54,10 +54,13 @@ export function incrementFailureCounter(progressDir: string, category: string): 
   const field = counterFor(category);
   if (!field) return -1;
   const data = readProgressJSON(progressDir);
-  const prev: number = typeof data[field] === "number" ? ((data[field] as number) ?? 0) : 0;
-  data[field] = prev + 1;
+  // The counter fields ride the canonical failure-categories table (never hand-written literals) —
+  // typed carrier access via the record-shaped view (ProgressData declares the known keys).
+  const rec = data as ProgressData & Record<string, unknown>;
+  const prev: number = typeof rec[field] === "number" ? ((rec[field] as number) ?? 0) : 0;
+  rec[field] = prev + 1;
   writeProgressJSON(progressDir, data);
-  return data[field] as number;
+  return rec[field] as number;
 }
 
 // Terminal gate (T6 / AC7): count >= 2 → terminal blocker, the orchestrator's stop-retrying
@@ -98,7 +101,7 @@ export function maybeExhaust(progressDir: string, category: string, handoffPath:
 // distinguishable in the blocker (death can be archived and replayed by cause).
 export function timeoutBlocker(opts: {
   cause?: TerminationCause;
-  /** The dispatch group's key (P4.3: `--tasks 1` → `"1"` · `--tasks 1,2` → `"1-2"`) — the
+  /** The dispatch group's key (P4.3/P4.4: `--tasks 1` → `"1"` · `--tasks 1,2` → `"1,2"`) — the
    * re-dispatch advice is whole-group surface, never a per-task subset. */
   tasks: string;
   timeoutMs?: number;

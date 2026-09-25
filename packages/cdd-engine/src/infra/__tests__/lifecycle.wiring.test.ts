@@ -1,5 +1,5 @@
 // packages/cdd-engine/src/infra/__tests__/lifecycle.wiring.test.ts
-// spec §2.6：引擎全派生点全部经 spawnManaged（execa 直接 import 仅允许 src/infra/proc.ts）；
+// spec §2.6：引擎全派生点全部经 spawnManaged（execa 直接 import 仅允许 src/infra/proc.ts / src/infra/runtime.ts —— P4.4 Task 4 将进程生命周期实现收编进 CddRuntime）；
 // 全部派发出口（runTask / docs-runner / cli 层）接 idle 监视 + teardownAll；dist/cli.mjs 信号安全出口
 //（SIGINT/SIGTERM/SIGHUP → teardownAll 连根回收 → 128+signo 退出码）。CLI 信号用例以 PATH 遮蔽
 // harness（既有技术：cdd.test.mjs 以 PATH 遮蔽 registry cli 名）→ 真实 dispatch 经 spawnManaged 派生
@@ -76,7 +76,11 @@ describe("架构违例守卫：引擎全部派生经 spawnManaged", () => {
       const src = readFileSync(path.join(LIB, f), "utf8");
       // 仅匹配真实 import 语句（`import ... from "execa"`）——注释/文档中的 "execa" 字样不当 offenders，
       // 否则 invoke.mjs 等派生点注释提及 execa 历史（迁移叙事、spawnCapture 说明）会造成误伤。
-      if (/^\s*import\b[^;]*\bfrom\s*["']execa["']/m.test(src) && f !== "infra/proc.ts") {
+      if (
+        /^\s*import\b[^;]*\bfrom\s*["']execa["']/m.test(src) &&
+        f !== "infra/proc.ts" &&
+        f !== "infra/runtime.ts"
+      ) {
         offenders.push(
           `${f}: ${src.match(/^\s*import\b[^;]*execa[^;]*;?/m)?.[0]?.trim() ?? "execa import"}`,
         );
@@ -102,8 +106,10 @@ describe("架构违例守卫：引擎全部派生经 spawnManaged", () => {
     ]) {
       expect(src, `${name} 经 withLifecycle 出口`).toMatch(/withLifecycle/);
     }
-    const proc = readFileSync(path.join(LIB, "infra", "proc.ts"), "utf8");
-    expect(proc).toMatch(/withLifecycle/); // 包装器本体驻 infra/proc.ts
+    // P4.4 Task 4: the wrapper implementation moved with the lifecycle into infra/runtime.ts (the
+    // CddRuntime class — proc.ts is now a re-export); the guard pins the REAL home.
+    const proc = readFileSync(path.join(LIB, "infra", "runtime.ts"), "utf8");
+    expect(proc).toMatch(/withLifecycle/); // 包装器本体驻 infra/runtime.ts
     expect(proc).toMatch(/startIdleMonitor/); // 包装器内含 idle 监视
     expect(proc).toMatch(/stopIdleMonitor/);
     expect(proc).toMatch(/teardownAll/);

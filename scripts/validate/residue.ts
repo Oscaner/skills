@@ -670,12 +670,14 @@ export function collectTimedOutSoleHits(targetsOverride = CDD_ENGINE_BIN) {
       file: `${file}:${lineNo}`,
     });
   }
-  const procFile = "packages/cdd-engine/src/infra/proc.ts";
+  // P4.4 Task 4: spawnManaged (the self-held timeout judgment) moved into the CddRuntime class
+  // (infra/runtime.ts — proc.ts is now a thin re-export); the clause guard pins the REAL home.
+  const procFile = "packages/cdd-engine/src/infra/runtime.ts";
   const proc = readFileSync(path.join(ROOT, procFile), "utf8");
   if (!proc.includes('res.signal === "SIGTERM"')) {
     hits.push({
       label:
-        "self-held timeout judgment missing (proc.ts#spawnManaged lacks a res.signal === SIGTERM clause)",
+        "self-held timeout judgment missing (runtime.ts#spawnManaged lacks a res.signal === SIGTERM clause)",
       file: procFile,
     });
   }
@@ -787,7 +789,9 @@ export function collectContextModuleHardcodeHits(
 // use in any OTHER file still hits — pinned by the ⑪ selftest (incl. the golden temp-dir test).
 const RESIDUAL_SCAN_RE =
   /latestHandoff|latestReview|latestRound|mostRecent|findLast|mtime|scanLatest|resolveLatest/i;
-const LIVENESS_PROBE_FILE = "packages/cdd-engine/src/infra/proc.ts";
+// P4.4 Task 4: the liveness probe (tree-mtime sampler + readdirSync walk) moved with the lifecycle
+// into the CddRuntime class (infra/runtime.ts — proc.ts is a thin re-export).
+const LIVENESS_PROBE_FILE = "packages/cdd-engine/src/infra/runtime.ts";
 export function collectResidualRereadHits(targetsOverride = CDD_ENGINE_BIN) {
   const hits = [];
   for (const { file, lineNo, text } of scanLines(targetsOverride, RESIDUAL_SCAN_RE)) {

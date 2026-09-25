@@ -34,6 +34,7 @@
 // (finalize → schema); schema.ts holds zero applyDerivedStatus reference.
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { TaskGroup } from "../../domain/task-group.ts";
 import { invariant } from "../../infra/exit.ts";
 import { gitMergeBaseIsAncestor, gitRevParseHead } from "../../infra/git.ts";
 import { FAILURE_CATEGORIES } from "../../rules/failure.ts";
@@ -46,7 +47,6 @@ import {
   implementStatusFromReturnLine,
   returnBlocker,
 } from "../return-block.ts";
-import { tasksKey } from "./naming.ts";
 import { readJson, writeHandoff, writeOwnHandoff } from "./write.ts";
 
 // ---- severity contract / status derivation (merged from contract.mjs, spec §2.3) ----
@@ -470,7 +470,7 @@ export function taskBaseFromBrief(briefPath: string | undefined): string | null 
 // TASK_BASE line; the repo has no mechanical complexity-tier source).
 // hard → BLOCKED overwrite; everything else (simple / no behavior_change / unreadable-unparseable
 // file) → soft WARN note. Grouped materialization reads the group-keyed evidence artifact
-// (`tasks-{a}-{b}-test-evidence.json`).
+// (`tasks-{a},{b}-test-evidence.json`).
 function evidenceGate(
   workspace: string | undefined,
   groupKey: string | null,
@@ -542,7 +542,7 @@ export async function finalizeImplement({
   }
   // The ledger/evidence identity: the group key (a single-task group's key `"1"` resolves the
   // per-task row — backward compatible ledger shape).
-  const groupKey = tasks ? tasksKey(tasks) : null;
+  const groupKey = tasks ? TaskGroup.fromNumbers(tasks).key() : null;
   // Destructured naming replaces returnBlock[0]/[2]/[3] magic-index subscripts (T6 nit3). The
   // commits line's head is ignored on fresh materialization — git HEAD takes commit authority;
   // the T27 resume-declared lane below reads its base= value instead.

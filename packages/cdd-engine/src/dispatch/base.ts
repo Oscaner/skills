@@ -43,8 +43,9 @@ import type { PhaseId } from "./phases.ts";
 // subclasses import the signature from the lifecycle's home module, not from the registry.
 export type { DispatchHookContext } from "./hooks.ts";
 
-/** Dispatch engine context — base consumes mode / repoRoot / handoffPath (the gate surface);
- * subclasses extend with their own keys (--plan workspace / progressDir / …). */
+/** Dispatch engine context — base consumes mode / repoRoot / handoffPath / dryRun (the gate
+ * surface). Typed carrier (P4.4 Task 5): precise declared members only — subclass state lives in
+ * each lifecycle's own options, never an index-signature escape hatch on the ctx. */
 export interface DispatchContext {
   /** dispatch mode id — gates branch on it (implement / review / fix as the CLI face emits; docs variants included) */
   mode: string;
@@ -56,8 +57,6 @@ export interface DispatchContext {
    * and lets the simulation finish (real dispatch keeps the hard BLOCKED). Threaded by the
    * concrete runners (runTask / runDocsTask) from their opts.dryRun — never read from env. */
   dryRun?: boolean;
-  /** subclass context extension (task.ts / docs.ts decide their own keys) */
-  [key: string]: unknown;
 }
 
 export interface DispatchLifecycleOptions {

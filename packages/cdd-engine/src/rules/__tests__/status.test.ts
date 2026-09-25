@@ -18,7 +18,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-
+import { TaskGroup } from "../../domain/task-group.ts";
 import {
   derivePlanVerdict,
   deriveTaskState,
@@ -58,8 +58,8 @@ function extractTasks(planPath: string): number[] {
 /** test-side effectiveGroups mirror — the empty-default per-task singletons. The no-taskGroups
  * derivation itself is pinned in documents.test.ts; this surface always consumes it via the
  * injected extractor (the verdict module carries no singleton fallback — one derivation). */
-function singletonGroups(planPath: string): number[][] {
-  return extractTasks(planPath).map((n) => [n]);
+function singletonGroups(planPath: string): TaskGroup[] {
+  return extractTasks(planPath).map((n) => TaskGroup.fromNumbers([n]));
 }
 
 function planFile(body: string): string {
@@ -365,56 +365,56 @@ describe("deriveTaskState — six-state convergence", () => {
   // group carriers (tasks-{a}-{b}-*) + the {group} ledger row — never stuck per-task in-flight ----
 
   it("complete: a merged-group member resolves the group carriers (reviews from the {group} row, review APPROVED)", () => {
-    const ws = workspace({ plan: "", tasks: [{ group: "1-2", rounds: { review: 1 } }] });
-    writeHandoff(ws, "tasks-1-2-implement.json", {
+    const ws = workspace({ plan: "", tasks: [{ group: "1,2", rounds: { review: 1 } }] });
+    writeHandoff(ws, "tasks-1,2-implement.json", {
       tasks: [1, 2],
       phase: "implement",
       status: "APPROVED",
       findings: [],
       artifacts: {},
     });
-    writeHandoff(ws, "tasks-1-2-review-1.json", {
+    writeHandoff(ws, "tasks-1,2-review-1.json", {
       tasks: [1, 2],
       phase: "review",
       status: "APPROVED",
       findings: [],
       artifacts: {},
     });
-    expect(deriveTaskState(ws, 1, [[1, 2]])).toBe("complete");
-    expect(deriveTaskState(ws, 2, [[1, 2]])).toBe("complete");
+    expect(deriveTaskState(ws, 1, [TaskGroup.fromNumbers([1, 2])])).toBe("complete");
+    expect(deriveTaskState(ws, 2, [TaskGroup.fromNumbers([1, 2])])).toBe("complete");
   });
 
   it("needs-review: a merged group with implement APPROVED and no review on record", () => {
-    const ws = workspace({ plan: "", tasks: [{ group: "1-2", rounds: {} }] });
-    writeHandoff(ws, "tasks-1-2-implement.json", {
+    const ws = workspace({ plan: "", tasks: [{ group: "1,2", rounds: {} }] });
+    writeHandoff(ws, "tasks-1,2-implement.json", {
       tasks: [1, 2],
       phase: "implement",
       status: "APPROVED",
       findings: [],
       artifacts: {},
     });
-    expect(deriveTaskState(ws, 1, [[1, 2]])).toBe("needs-review");
-    expect(deriveTaskState(ws, 2, [[1, 2]])).toBe("needs-review");
+    expect(deriveTaskState(ws, 1, [TaskGroup.fromNumbers([1, 2])])).toBe("needs-review");
+    expect(deriveTaskState(ws, 2, [TaskGroup.fromNumbers([1, 2])])).toBe("needs-review");
   });
 
   it("needs-re-review: the addressing fix lane reads group carriers (review CHANGES_REQUESTED → fix APPROVED)", () => {
-    const ws = workspace({ plan: "", tasks: [{ group: "1-2", rounds: { review: 1, fix: 1 } }] });
-    writeHandoff(ws, "tasks-1-2-review-1.json", {
+    const ws = workspace({ plan: "", tasks: [{ group: "1,2", rounds: { review: 1, fix: 1 } }] });
+    writeHandoff(ws, "tasks-1,2-review-1.json", {
       tasks: [1, 2],
       phase: "review",
       status: "CHANGES_REQUESTED",
       findings: [{ severity: "blocker" }],
       artifacts: {},
     });
-    writeHandoff(ws, "tasks-1-2-fix-1.json", {
+    writeHandoff(ws, "tasks-1,2-fix-1.json", {
       tasks: [1, 2],
       phase: "fix",
       status: "APPROVED",
       findings: [],
       artifacts: {},
     });
-    expect(deriveTaskState(ws, 1, [[1, 2]])).toBe("needs-re-review");
-    expect(deriveTaskState(ws, 2, [[1, 2]])).toBe("needs-re-review");
+    expect(deriveTaskState(ws, 1, [TaskGroup.fromNumbers([1, 2])])).toBe("needs-re-review");
+    expect(deriveTaskState(ws, 2, [TaskGroup.fromNumbers([1, 2])])).toBe("needs-re-review");
   });
 
   it("singleton fallback: a task unknown to the group set (or groups unspecified) keeps the per-task derivation", () => {
@@ -427,7 +427,7 @@ describe("deriveTaskState — six-state convergence", () => {
       artifacts: {},
     });
     // groups provided but not containing task 3 → the per-task singleton derivation.
-    expect(deriveTaskState(ws, 3, [[1, 2]])).toBe("needs-review");
+    expect(deriveTaskState(ws, 3, [TaskGroup.fromNumbers([1, 2])])).toBe("needs-review");
     // groups unspecified → the pre-P4.3 signature is unchanged.
     expect(deriveTaskState(ws, 3)).toBe("needs-review");
   });
@@ -541,7 +541,7 @@ describe("derivePlanVerdict — group iteration (P4.3 Task 3: the effectiveGroup
     const plan = planFile("# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n");
     const ws = workspace(EMPTY_PROGRESS);
     // mirror taskGroupsFromPlan for a merged `- **Task 1, 2**:` section
-    const mergedGroups = (_planPath: string) => [[1, 2]];
+    const mergedGroups = (_planPath: string) => [TaskGroup.fromNumbers([1, 2])];
     const v = derivePlanVerdict(plan, ws, extractTasks, mergedGroups);
     expect(v.total).toBe(2);
     expect(v.done).toBe(false);
@@ -556,22 +556,22 @@ describe("derivePlanVerdict — group iteration (P4.3 Task 3: the effectiveGroup
 
   it("declared merged groups converge: a fully reviewed group reaches done (the planComplete green path)", () => {
     const plan = planFile("# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n");
-    const ws = workspace({ plan: "", tasks: [{ group: "1-2", rounds: { review: 1 } }] });
-    writeHandoff(ws, "tasks-1-2-implement.json", {
+    const ws = workspace({ plan: "", tasks: [{ group: "1,2", rounds: { review: 1 } }] });
+    writeHandoff(ws, "tasks-1,2-implement.json", {
       tasks: [1, 2],
       phase: "implement",
       status: "APPROVED",
       findings: [],
       artifacts: {},
     });
-    writeHandoff(ws, "tasks-1-2-review-1.json", {
+    writeHandoff(ws, "tasks-1,2-review-1.json", {
       tasks: [1, 2],
       phase: "review",
       status: "APPROVED",
       findings: [],
       artifacts: {},
     });
-    const mergedGroups = (_planPath: string) => [[1, 2]];
+    const mergedGroups = (_planPath: string) => [TaskGroup.fromNumbers([1, 2])];
     const v = derivePlanVerdict(plan, ws, extractTasks, mergedGroups);
     expect(v.done).toBe(true);
     expect(v).toEqual({ total: 2, complete: 2, pending: [], done: true });
@@ -580,15 +580,15 @@ describe("derivePlanVerdict — group iteration (P4.3 Task 3: the effectiveGroup
 
   it("declared merged groups, implement APPROVED only → members need review, not done", () => {
     const plan = planFile("# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n");
-    const ws = workspace({ plan: "", tasks: [{ group: "1-2", rounds: {} }] });
-    writeHandoff(ws, "tasks-1-2-implement.json", {
+    const ws = workspace({ plan: "", tasks: [{ group: "1,2", rounds: {} }] });
+    writeHandoff(ws, "tasks-1,2-implement.json", {
       tasks: [1, 2],
       phase: "implement",
       status: "APPROVED",
       findings: [],
       artifacts: {},
     });
-    const mergedGroups = (_planPath: string) => [[1, 2]];
+    const mergedGroups = (_planPath: string) => [TaskGroup.fromNumbers([1, 2])];
     const v = derivePlanVerdict(plan, ws, extractTasks, mergedGroups);
     expect(v.done).toBe(false);
     expect(v).toEqual({

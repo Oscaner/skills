@@ -10,14 +10,14 @@ import { describe, expect, it } from "vitest";
 import { docsFixHardGate, renderModePrompt, renderTemplate, reviewHardGate } from "../templates.ts";
 
 const IMPLEMENT_PARAMS = {
-  TASK_WORKSPACE: "/ws/osuperpowers-overhaul-p6",
+  WORKSPACE: "/ws/osuperpowers-overhaul-p6",
   WORKSPACE_SLUG: "osuperpowers-overhaul-p6",
-  TASK_BRIEF: "/ws/osuperpowers-overhaul-p6/task-7-brief.md",
-  HANDOFF_TARGET: "/ws/osuperpowers-overhaul-p6/task-7-implement.json",
-  TASK_FINDINGS: "",
-  TASK_CONSTRAINTS: "/ws/osuperpowers-overhaul-p6/plan-constraints.md",
-  TASK_FIXED_POINT: "",
-  TASK_NUMBER: "7",
+  BRIEF: "/ws/osuperpowers-overhaul-p6/tasks-7-brief.md",
+  HANDOFF_TARGET: "/ws/osuperpowers-overhaul-p6/tasks-7-implement.json",
+  FINDINGS: "",
+  CONSTRAINTS: "/ws/osuperpowers-overhaul-p6/plan-constraints.md",
+  FIXED_POINT: "",
+  DISPATCH_UNIT: "7",
   REVIEW_PLAN_LINE: "",
 };
 
@@ -39,27 +39,27 @@ function fixtureRenders(): Record<string, string> {
     implement: renderModePrompt("implement", IMPLEMENT_PARAMS),
     fix: renderModePrompt("fix", {
       ...IMPLEMENT_PARAMS,
-      HANDOFF_TARGET: "/ws/osuperpowers-overhaul-p6/task-7-fix-1.json",
-      TASK_FINDINGS: "/ws/osuperpowers-overhaul-p6/task-7-review-1.json",
-      TASK_FIXED_POINT: "7a7327b",
+      HANDOFF_TARGET: "/ws/osuperpowers-overhaul-p6/tasks-7-fix-1.json",
+      FINDINGS: "/ws/osuperpowers-overhaul-p6/tasks-7-review-1.json",
+      FIXED_POINT: "7a7327b",
     }),
     taskReview: renderModePrompt("review", {
-      TASK_WORKSPACE: IMPLEMENT_PARAMS.TASK_WORKSPACE,
+      WORKSPACE: IMPLEMENT_PARAMS.WORKSPACE,
       WORKSPACE_SLUG: IMPLEMENT_PARAMS.WORKSPACE_SLUG,
-      HANDOFF_TARGET: "/ws/osuperpowers-overhaul-p6/task-7-review-1.json",
-      TASK_FIXED_POINT: "7a7327b",
+      HANDOFF_TARGET: "/ws/osuperpowers-overhaul-p6/tasks-7-review-1.json",
+      FIXED_POINT: "7a7327b",
     }),
     docsReview: renderTemplate("review", {
       MODE: "review",
       REVIEW_TYPE: "spec",
-      TASK_WORKSPACE: IMPLEMENT_PARAMS.TASK_WORKSPACE,
+      WORKSPACE: IMPLEMENT_PARAMS.WORKSPACE,
       WORKSPACE_SLUG: IMPLEMENT_PARAMS.WORKSPACE_SLUG,
       REVIEW_LENS_GUIDE: "completeness · consistency · clarity",
       REVIEW_REFERENCE: "/ws/osuperpowers-overhaul-p6/spec-design.md",
       REVIEW_AXES: "Follow URC: single-cycle; lens-tag every finding",
       REVIEW_PLAN_LINE: "**Spec:** /ws/osuperpowers-overhaul-p6/specs/design.md",
-      DOCS_DOC: "",
-      DOCS_FINDINGS: "",
+      DOC: "",
+      FINDINGS: "",
       HANDOFF_TARGET: "/ws/osuperpowers-overhaul-p6/spec-review-1.json",
       RETURN_FORMAT: "RETURN_JSON",
       HANDOFF_WRITE_GATE: reviewHardGate(
@@ -70,15 +70,15 @@ function fixtureRenders(): Record<string, string> {
     docsFix: renderTemplate("fix", {
       MODE: "fix",
       REVIEW_TYPE: "",
-      TASK_WORKSPACE: IMPLEMENT_PARAMS.TASK_WORKSPACE,
+      WORKSPACE: IMPLEMENT_PARAMS.WORKSPACE,
       WORKSPACE_SLUG: IMPLEMENT_PARAMS.WORKSPACE_SLUG,
       REVIEW_LENS_GUIDE: "",
       REVIEW_REFERENCE: "",
       REVIEW_AXES: "",
       REVIEW_PLAN_LINE: "",
-      DOCS_DOC: "/ws/osuperpowers-overhaul-p6/spec-design.md",
-      DOCS_FINDINGS: "/ws/osuperpowers-overhaul-p6/spec-review-1.json",
-      DOCS_FIXED_POINT: "7a7327b",
+      DOC: "/ws/osuperpowers-overhaul-p6/spec-design.md",
+      FINDINGS: "/ws/osuperpowers-overhaul-p6/spec-review-1.json",
+      FIXED_POINT: "7a7327b",
       HANDOFF_TARGET: "/ws/osuperpowers-overhaul-p6/spec-fix-1.json",
       RETURN_FORMAT: "DOCS_FIX",
       HANDOFF_WRITE_GATE: docsFixHardGate("/ws/osuperpowers-overhaul-p6/spec-fix-1.json"),
@@ -138,12 +138,12 @@ describe("unified constant shell（Task 20 ①）：字面头跨模式字节恒�
     expect(renders.implement).toContain("- `WORKSPACE_SLUG`: osuperpowers-overhaul-p6");
   });
 
-  it("T5: DOCS_FIXED_POINT slot in place (canonical-derived) — docs face renders the real value, other modes prefill empty", () => {
-    // docs fix renders the real value (same-position semantics as the task family's TASK_FIXED_POINT = dispatch entry base)
-    expect(renders.docsFix).toContain("- `DOCS_FIXED_POINT`: 7a7327b");
+  it("T5: FIXED_POINT slot in place (canonical-derived) — docs face renders the real value, other modes prefill empty", () => {
+    // docs fix renders the real value (same-position semantics as the task family's FIXED_POINT = dispatch entry base)
+    expect(renders.docsFix).toContain("- `FIXED_POINT`: 7a7327b");
     // mode-union template: modes without a passed value still render the empty-prefill slot (docs review / task family)
-    expect(renders.docsReview).toContain("- `DOCS_FIXED_POINT`: ");
-    expect(renders.implement).toContain("- `DOCS_FIXED_POINT`: ");
+    expect(renders.docsReview).toContain("- `FIXED_POINT`: ");
+    expect(renders.implement).toContain("- `FIXED_POINT`: ");
   });
 });
 
@@ -151,7 +151,7 @@ describe("my-gate 门面去路径化（Task 20 ⑥）：壳散文字节常数，
   it("task review 门：gate 值（含目标路径）在 `### HANDOFF_WRITE_GATE` 槽 / BEFORE outputting the RETURN_STDOUT_BLOCK", () => {
     const out = fixtureRenders().taskReview;
     expect(out).toMatch(/HARD GATE[^\n]*BEFORE outputting the RETURN_STDOUT_BLOCK/);
-    expect(out).toContain("/ws/osuperpowers-overhaul-p6/task-7-review-1.json");
+    expect(out).toContain("/ws/osuperpowers-overhaul-p6/tasks-7-review-1.json");
     expect(out).toContain("### HANDOFF_WRITE_GATE");
     expect(out).not.toContain("BEFORE outputting the JSON return");
   });
@@ -175,7 +175,7 @@ describe("my-gate 门面去路径化（Task 20 ⑥）：壳散文字节常数，
 
   it("implement 门：本模式不写 handoff —— runner 从 return block + TASK_BASE + git HEAD 实体化", () => {
     const out = fixtureRenders().implement;
-    expect(out).toMatch(/This mode does not write `[^`]+task-7-implement\.json`/); // 槽实值
+    expect(out).toMatch(/This mode does not write `[^`]+tasks-7-implement\.json`/); // 槽实值
     expect(out).toContain("does not write a handoff"); // 壳指令 3
     expect(out).toContain("the runner materializes it from your return block four lines"); // 槽散文
     expect(out).toContain("TASK_BASE");
@@ -185,7 +185,7 @@ describe("my-gate 门面去路径化（Task 20 ⑥）：壳散文字节常数，
 describe("共享纪律散文（壳 Instructions，跨 mode 同一字节）：evidence gate + commit contract + status 决策", () => {
   it("evidence gate（指令 7）：behavior_change / command / passed / exit_code 句在 implement + fix + docs fix 渲染内", () => {
     for (const [mode, out] of Object.entries(fixtureRenders())) {
-      expect(out, mode).toMatch(/task-N-test-evidence\.json/);
+      expect(out, mode).toMatch(/tasks-\{DISPATCH_UNIT\}-test-evidence\.json/);
       expect(out, mode).toContain("behavior_change");
       expect(out, mode).toContain("`command`");
       expect(out, mode).toContain("`passed`");
@@ -209,7 +209,7 @@ describe("共享纪律散文（壳 Instructions，跨 mode 同一字节）：evi
       /declare `status` \(APPROVED once applied, or BLOCKED with the reason in `blocker`\)/,
     );
     expect(out).toContain("fix-scope diff"); // fix 指令 4（FIX_BASE）
-    expect(out).toContain("`TASK_FIXED_POINT`"); // 指令 4 实值源在 Round context
+    expect(out).toContain("`FIXED_POINT`"); // 指令 4 实值源在 Round context
   });
 
   it("渲染输出零残留 moustache（r2-r3 泄漏回归守卫，迁移：{{HANDOFF_SCHEMA_JSON}} 槽已消）", () => {

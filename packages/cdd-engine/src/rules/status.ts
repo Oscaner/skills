@@ -27,9 +27,10 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { normalizeHandoffStatus } from "../artifacts/handoff/finalize.ts";
-import { handoffName, tasksKey } from "../artifacts/handoff/naming.ts";
+import { handoffName } from "../artifacts/handoff/naming.ts";
 import { readJson } from "../artifacts/handoff/write.ts";
 import { readProgressJSON } from "../artifacts/progress.ts";
+import type { TaskGroup } from "../domain/task-group.ts";
 
 export type TaskState =
   | "in-flight" // no conclusive chain — fresh task or a BLOCKED implement awaiting re-dispatch
@@ -55,8 +56,8 @@ function readHandoff(
   key: string,
   round?: number,
 ): Record<string, unknown> | null {
-  // The dispatch unit's carriers: the group key (tasks-{a}-{b}-*) for a merged group, the
-  // group-of-one name (key === the task number) for a singleton — one naming surface, P4.3.
+  // The dispatch unit's carriers: the group key (tasks-{a},{b}-*) for a merged group, the
+  // group-of-one name (key === the task number) for a singleton — one naming surface, P4.3/4.4.
   const name = handoffName(op, "task", round != null ? { tasks: key, round } : { tasks: key });
   const p = path.join(workspace, name);
   return existsSync(p) ? readJson(p) : null;
@@ -68,10 +69,10 @@ function statusOf(h: Record<string, unknown> | null): string | undefined {
 
 /** deriveTaskState(workspace, taskNum, groups?) — the six-state convergence (spec T7.8 ③ / T7.9 ①).
  * Reads the workspace's progress.json + the dispatch unit's implement/review/fix carriers; never
- * writes. groups — the effectiveGroups derivation, consumed one-to-one when provided — gives a
- * merged-group member the group's identity: the member derives from the group carriers
- * (tasks-{a}-{b}-*) + the {group} ledger row, never stuck on the per-task names the group never
- * wrote. A singleton member (declared one-member group or the no-declaration default) keeps
+ * writes. groups — the effectiveGroups derivation (TaskGroup[]), consumed one-to-one when
+ * provided — gives a merged-group member the group's identity: the member derives from the group
+ * carriers (tasks-{a},{b}-*) + the {group} ledger row, never stuck on the per-task names the group
+ * never wrote. A singleton member (declared one-member group or the no-declaration default) keeps
  * exactly the pre-P4.3 per-task derivation (tasks-{N}-* + the {task} row — byte-identical
  * empty-default behavior); a task absent from the group set falls back to that singleton
  * derivation too (direct per-task callers and singletons share one code path).
@@ -80,13 +81,13 @@ function statusOf(h: Record<string, unknown> | null): string | undefined {
 export function deriveTaskState(
   workspace: string,
   taskNum: number,
-  groups?: number[][],
+  groups?: readonly TaskGroup[],
 ): TaskState {
   const progress = readProgressJSON(workspace);
   // Group-of-one vs merged: the dispatch unit's key resolves the right carriers + ledger row
-  // (a merged group keys off `tasks-{a}-{b}`; the singleton key is the task number itself).
+  // (a merged group keys off `tasks-{a},{b}`; the singleton key is the task number itself).
   const declared = groups?.find((g) => g.includes(taskNum));
-  const key = declared && declared.length > 1 ? tasksKey(declared) : String(taskNum);
+  const key = declared && declared.length > 1 ? declared.key() : String(taskNum);
   const entry =
     key === String(taskNum)
       ? progress.tasks.find((t) => "task" in t && t.task === taskNum)
@@ -136,11 +137,11 @@ export interface PlanVerdict {
 
 /** derivePlanVerdict(planPath, workspace, extractTaskNumbers, extractGroups) — reconcile the plan's
  * task set against the six-state table. The iteration source is the effective dispatch groups
- * (P4.3 Task 3): extractGroups — the canonical effectiveGroups derivation — always provided (the
- * empty-default per-task singletons live inside effectiveGroups itself, never as a fallback here —
- * one derivation, no second implementation a caller can silently sit on). The group table flows
- * into deriveTaskState, so a merged-group member's state derives from its group carriers — the
- * declared-group loop reaches `plan done` exactly like the singleton loop. extractTaskNumbers /
+ * (P4.3 Task 3): extractGroups — the canonical effectiveGroups derivation (TaskGroup[]) — always
+ * provided (the empty-default per-task singletons live inside effectiveGroups itself, never as a
+ * fallback here — one derivation, no second implementation a caller can silently sit on). The group
+ * table flows into deriveTaskState, so a merged-group member's state derives from its group carriers —
+ * the declared-group loop reaches `plan done` exactly like the singleton loop. extractTaskNumbers /
  * extractGroups are injected (the canonical extractors live in rules/documents.ts, re-exported
  * through dispatch/task.ts; this rules module stays acyclic — status.test.ts mirrors the extractors
  * locally). */
@@ -148,11 +149,11 @@ export function derivePlanVerdict(
   planPath: string,
   workspace: string,
   _extractTaskNumbers: (planPath: string) => number[],
-  extractGroups: (planPath: string) => number[][],
+  extractGroups: (planPath: string) => readonly TaskGroup[],
 ): PlanVerdict {
   const groups = extractGroups(planPath);
   // The group union is the plan's task set (empty default: singletons → exactly taskNumbersFromPlan).
-  const tasks = [...new Set(groups.flat())].sort((a, b) => a - b);
+  const tasks = [...new Set(groups.flatMap((g) => [...g]))].sort((a, b) => a - b);
   const pending: TaskStatusRow[] = [];
   let complete = 0;
   for (const n of tasks) {

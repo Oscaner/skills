@@ -40,7 +40,6 @@ import {
   handoffName,
   prevHandoffPath as hnPreHandoffPath,
   materializeWorkspace,
-  tasksKey,
   workspaceSlug,
 } from "../artifacts/handoff/naming.ts";
 import { readJson, writeOwnHandoff } from "../artifacts/handoff/write.ts";
@@ -64,11 +63,13 @@ import {
   resumeFromResidue,
   settleResidue,
 } from "../artifacts/residue.ts";
+import { type TaskGroup, toTaskGroup } from "../domain/task-group.ts";
 import { CddExitError, ExitRequested, exitWithCode } from "../infra/exit.ts";
 import { invokeCli, invokeCliWithRetry, resolveTerminationConfig } from "../infra/invoke.ts";
-import { type TerminationCause, type TerminationConfig, withLifecycle } from "../infra/proc.ts";
+import type { TerminationCause, TerminationConfig } from "../infra/proc.ts";
 import { CddBlockedError, checkHarness, loadRegistry, REG_PATH } from "../infra/registry.ts";
-import { getRoot, resolveDocArg } from "../infra/root.ts";
+import { resolveDocArg } from "../infra/root.ts";
+import { type CddRuntimeLike, runtime } from "../infra/runtime.ts";
 import { generateBrief } from "../render/brief.ts";
 import { pluginRoot, renderModePrompt } from "../render/templates.ts";
 import { validateCommitContract } from "../rules/commit.ts";
@@ -144,16 +145,16 @@ export function resolvePlanWorkspace({ planFile, root }: { planFile?: string; ro
   return { plan, workspace: materializeWorkspace({ plan, repoRoot: root }) };
 }
 
-/** buildCtx(root, tasks, opts) — the engine-internal state (ctx) UNIQUE construction point. ctx
+/** buildCtx(root, group, opts) — the engine-internal state (ctx) UNIQUE construction point. ctx
  * always passes by return value, never through env: workspace / handoff / brief / ledger /
  * constraints / findings all derive here in one pass. root is injected by the caller (runTask
- * passes `opts.root ?? getRoot()`, tests pass a real fixture root). P4.3: `tasks` is the dispatch
- * GROUP (a scalar is accepted and normalized to a group of one) — every task artifact is
- * group-keyed (`tasks-{a}-{b}-*`), per the canonical derived-grid channels
- * (engine-config contextContract.derived — task → tasks). */
+ * passes `opts.root ?? getRoot()`, tests pass a real fixture root). P4.3/P4.4: `group` is the
+ * dispatch GROUP value object (TaskGroup — the CLI `--tasks` string IS its key, no second form) —
+ * every task artifact is group-keyed (`tasks-{key}-*` with key `"1"` / `"1,2"`), per the canonical
+ * derived-grid channels (engine-config contextContract.derived — task → tasks). */
 export function buildCtx(
   root: string,
-  tasks: number | number[],
+  group: TaskGroup,
   opts: Record<string, unknown> = {},
 ): TaskDispatchContext {
   const {
@@ -166,8 +167,7 @@ export function buildCtx(
     (opts.planWorkspace as { plan: string; workspace: string } | undefined) ??
     resolvePlanWorkspace({ planFile: opts.planFile as string | undefined, root });
   const { plan, workspace } = planWorkspace;
-  const taskList = Array.isArray(tasks) ? tasks : [tasks];
-  const groupKey = tasksKey(taskList);
+  const groupKey = group.key();
   // Per-phase per-round handoff path (canonical handoff-naming derivation): implement uses the
   // fixed family (no round); review/fix the round family. Illegal mode falls back to a legacy
   // spelling (the derivation layer only knows canonical family names — an unknown family throw
@@ -200,7 +200,10 @@ export function buildCtx(
   };
 }
 
-/** TaskDispatchContext — the task dispatch's derived engine state (buildCtx output). */
+/** TaskDispatchContext — the task dispatch's derived engine state (buildCtx output). Typed carrier
+ * (P4.4 Task 5): every field is a declared member — no bare `Record<…>` / index-signature
+ * surface travels the domain; the handoff schema validation stays the engine's schema face,
+ * there is no second enforcement implementation. */
 export interface TaskDispatchContext {
   plan: string;
   round: number;
@@ -213,7 +216,6 @@ export interface TaskDispatchContext {
   mode: string;
   harness?: string;
   fixedPoint: string;
-  [key: string]: unknown;
 }
 
 // Read a nested JSON field (commits.base / commits.head); missing/corrupt → "".
@@ -231,7 +233,7 @@ function readJsonField(filePath: string | null, keys: string[]): string {
 // Returns the path of the handoff written by the previous phase for this group (file name derived
 // via canonical handoff-naming; cross-family prev-table semantics preserved). Returns a path or
 // null (implement has no prior). task-mode three-in-one (review/fix share the family table).
-// P4.3: the key is the group key string (`tasks-1-2` — the group is the dispatch unit).
+// P4.3/4.4: the key is the group key string (`tasks-1,2` — the group is the dispatch unit).
 function prevHandoffPath(
   workspace: string,
   groupKey: string,
@@ -250,39 +252,41 @@ function validateModeMsg(mode: string): string | null {
 
 // Aligns cdd_require_env: required ctx fields + mode-specific extras (fix → findingsPath).
 function requireCtx(ctx: TaskDispatchContext | null, mode: string): string | null {
-  const missing = [];
-  for (const k of [
+  const missing: string[] = [];
+  const required: Array<keyof TaskDispatchContext> = [
     "workspace",
     "briefPath",
     "ledgerPath",
     "mode",
     "handoffPath",
     "constraintsPath",
-  ]) {
+  ];
+  for (const k of required) {
     if (!ctx?.[k]) missing.push(k);
   }
   if (mode === "fix" && !ctx?.findingsPath) missing.push("findingsPath");
   return missing.length > 0 ? `Missing required ctx fields: ${missing.join(" ")}` : null;
 }
 
-/** {{PLACEHOLDER}} template params (Task 5 token registry: task-* scope prefixes + HANDOFF_TARGET
- * merge + REVIEW_PLAN_LINE derived from the explicit plan path — no env-sourced plan key). P4.3:
- * TASK_NUMBER carries the group key (`1-2` — the group is the dispatch unit). */
+/** {{PLACEHOLDER}} template params (P4.4 Task 3 ④ contract-token surface: the collapsed
+ * round-context set — DISPATCH_UNIT (the group key) / BRIEF / FINDINGS / FIXED_POINT / CONSTRAINTS /
+ * WORKSPACE / DOC + WORKSPACE_SLUG / HANDOFF_TARGET + REVIEW_PLAN_LINE — derived from the explicit
+ * plan path; no env-sourced plan key). */
 export function buildPromptParams(
   ctx: TaskDispatchContext,
-  tasks: number | number[],
+  group: TaskGroup,
 ): Record<string, string> {
   return {
-    TASK_WORKSPACE: ctx.workspace,
+    WORKSPACE: ctx.workspace,
     // Canonical slug slot (Task 20 ⑦): workspaceSlug strips a single -design/-plan layer so a plan and
     // its paired spec converge to the same slug, e.g. osuperpowers-overhaul-p6.
     WORKSPACE_SLUG: workspaceSlug(ctx.plan),
-    TASK_BRIEF: ctx.briefPath,
+    BRIEF: ctx.briefPath,
     HANDOFF_TARGET: ctx.handoffPath,
-    TASK_FINDINGS: ctx.findingsPath ?? "",
-    TASK_CONSTRAINTS: ctx.constraintsPath,
-    TASK_FIXED_POINT: ctx.fixedPoint ?? "", // empty string if the cross-phase read returned nothing
-    TASK_NUMBER: tasksKey(Array.isArray(tasks) ? tasks : [tasks]),
+    FINDINGS: ctx.findingsPath ?? "",
+    CONSTRAINTS: ctx.constraintsPath,
+    FIXED_POINT: ctx.fixedPoint ?? "", // empty string if the cross-phase read returned nothing
+    DISPATCH_UNIT: group.key(),
     REVIEW_PLAN_LINE: ctx.plan ? `**Plan:** ${ctx.plan}` : "",
   };
 }
@@ -306,6 +310,10 @@ export interface TaskRunOptions {
   registryPath?: string;
   findingsPath?: string;
   pluginRoot?: () => string;
+  /** Constructor-injected CddRuntime stand-in (P4.4 Task 4 ②): substitutes the singleton for the
+   * dispatch's mutable-state reads/writes (dryRun / root / proc lifecycle). Tests inject a stub to
+   * prove dryRun/root/proc flow through the class face; production callers leave it unset. */
+  runtime?: CddRuntimeLike;
   /** Test/override seam (non-env, mirrors registryPath; T26): shorten the termination monitor's
    * timing for deterministic timeout/stall tests. Production callers leave it unset — canonical
    * defaults apply. */
@@ -340,16 +348,20 @@ interface TaskSpawnResult {
 /** TaskLifecycle — the task-function lifecycle class. All 13.5 steps of the legacy run-task.mjs
  * relocate into the hook overrides; the entry/exit gates are inherited from the base. Results
  * surface via .result ({ exitCode, returnBlock }) + .diagnostic (stderr message) after run().
- * P4.3: the dispatch unit is the task GROUP (tasks list) — handoff/brief/findings/progress all
- * key off the group (`tasks-{a}-{b}-*`; the scalar task number enters only where a per-task
- * primitive is required — the residue stash primitive / carrier `task` field / scope-brief seed). */
+ * P4.3/P4.4: the dispatch unit is the task GROUP value object (TaskGroup) — handoff/brief/findings/
+ * progress all key off the group (`tasks-{key}-*`; the scalar task number enters only where a
+ * per-task primitive is required — the residue stash primitive / carrier `task` field /
+ * scope-brief seed). */
 export class TaskLifecycle extends DispatchLifecycle {
   readonly #harness: string;
-  readonly #tasks: number[];
+  readonly #group: TaskGroup;
   readonly #firstTask: number;
   readonly #groupKey: string;
   readonly #opts: TaskRunOptions;
   readonly #root: string;
+  /** The injected CddRuntime stand-in (P4.4 Task 4 ②) — the singleton by default. All
+   * mutable-state reads (dryRun) and lifecycle ops route through this instance. */
+  readonly #runtime: CddRuntimeLike;
 
   #entry: unknown = null;
   #tcx: TaskDispatchContext | null = null;
@@ -367,17 +379,31 @@ export class TaskLifecycle extends DispatchLifecycle {
 
   constructor(options: {
     harness: string;
-    tasks: number[];
+    group: TaskGroup;
     opts: TaskRunOptions;
     ctx: DispatchContext;
   }) {
     super({ ctx: options.ctx });
     this.#harness = options.harness;
-    this.#tasks = options.tasks;
-    this.#firstTask = options.tasks[0];
-    this.#groupKey = tasksKey(options.tasks);
+    this.#group = options.group;
+    this.#firstTask = options.group.numbers[0];
+    this.#groupKey = options.group.key();
     this.#opts = options.opts;
     this.#root = (options.ctx.repoRoot as string) ?? "";
+    this.#runtime = options.opts.runtime ?? runtime;
+  }
+
+  /** The dispatch group's task list (readonly view — the scalar list the agent-facing
+   * carriers/progress rows are keyed by; the group key stays TaskGroup-derived, no second form). */
+  get #tasks(): number[] {
+    return [...this.#group.numbers];
+  }
+
+  /** dry-run — the injected runtime's isDryRun() feeds the dispatch (P4.4 Task 4 ②): the CLI
+   * threads DRY_RUN() via opts.dryRun (same singleton state), and an injected stand-in substitutes
+   * its own flag; the OR keeps both seams honest without double state. */
+  get #dryRun(): boolean {
+    return this.#opts.dryRun === true || this.#runtime.isDryRun();
   }
 
   #mode(): string {
@@ -412,16 +438,12 @@ export class TaskLifecycle extends DispatchLifecycle {
   protected override async resolveContext(_hookCtx: DispatchHookContext): Promise<void> {
     if (this.#finished) return;
     const mode = this.#mode();
-    const {
-      dryRun = false,
-      registryPath = REG_PATH,
-      pluginRoot: pluginRootFn = pluginRoot,
-    } = this.#opts;
+    const { registryPath = REG_PATH, pluginRoot: pluginRootFn = pluginRoot } = this.#opts;
 
     // 1. Registry ship gate + CLI preflight
     let entry: unknown;
     try {
-      entry = checkHarness(loadRegistry(registryPath), this.#harness, { dryRun });
+      entry = checkHarness(loadRegistry(registryPath), this.#harness, { dryRun: this.#dryRun });
     } catch (e) {
       if (e instanceof CddBlockedError) {
         this.#done(
@@ -452,7 +474,7 @@ export class TaskLifecycle extends DispatchLifecycle {
       // first implement dispatch and progress.json would never land.
       const progressData = readProgressJSON(planWorkspace.workspace, planWorkspace.plan);
       const round = mode === "implement" ? 1 : getRound(progressData, this.#groupKey, mode);
-      ctx = buildCtx(this.#root, this.#tasks, {
+      ctx = buildCtx(this.#root, this.#group, {
         mode,
         harness: this.#harness,
         planWorkspace,
@@ -470,7 +492,7 @@ export class TaskLifecycle extends DispatchLifecycle {
       // root cause this gate kills). dry-run keeps zero constraints side effects: no materialize,
       // no gate (T10 dry-run gate-family semantics). Generate-once: materialize writes or throws —
       // no post-call existsSync re-check (dead in the write-or-throw contract, findings 5).
-      if (!dryRun && mode === "implement") {
+      if (!this.#dryRun && mode === "implement") {
         if (!existsSync(ctx.constraintsPath)) {
           try {
             materializePlanConstraints(planWorkspace.plan, ctx.workspace);
@@ -489,7 +511,7 @@ export class TaskLifecycle extends DispatchLifecycle {
       // an existing brief. Parent-dir bootstrap before writing (same workspace-bootstrap
       // convention as writeBaseBranch).
       let residueAppendix: ResidueAppendixInput | null = null; // resume-from-residue (T26, spec T7.5)
-      if (!dryRun && mode === "implement") {
+      if (!this.#dryRun && mode === "implement") {
         try {
           // Resume pre-flight runs AFTER the entry gate (base.run(): commitPreCheck → resolveContext)
           // verified a clean tree — the restore may land without conflict. Reads the PRIOR implement
@@ -605,7 +627,7 @@ export class TaskLifecycle extends DispatchLifecycle {
           }
         }
       }
-      if (dryRun && !ctx.fixedPoint) ctx.fixedPoint = "HEAD~1";
+      if (this.#dryRun && !ctx.fixedPoint) ctx.fixedPoint = "HEAD~1";
     }
   }
 
@@ -662,14 +684,14 @@ export class TaskLifecycle extends DispatchLifecycle {
   protected override async dispatch(_hookCtx: DispatchHookContext): Promise<void> {
     if (this.#finished) return;
     const mode = this.#mode();
-    const dryRun = this.#opts.dryRun === true;
+    const dryRun = this.#dryRun;
     const ctx = this.#tcx!;
     const progressDir = path.dirname(ctx.ledgerPath);
 
     // 7. Render prompt
     let prompt: string;
     try {
-      prompt = renderModePrompt(mode, buildPromptParams(ctx, this.#tasks));
+      prompt = renderModePrompt(mode, buildPromptParams(ctx, this.#group));
     } catch (e) {
       this.#done(1, [], `template render failed: ${(e as Error).message}`);
       return;
@@ -825,7 +847,7 @@ export class TaskLifecycle extends DispatchLifecycle {
   protected override async schemaValidate(_hookCtx: DispatchHookContext): Promise<void> {
     if (this.#finished) return;
     const mode = this.#mode();
-    const dryRun = this.#opts.dryRun === true;
+    const dryRun = this.#dryRun;
     const ctx = this.#tcx!;
     const progressDir = path.dirname(ctx.ledgerPath);
 
@@ -956,7 +978,7 @@ export class TaskLifecycle extends DispatchLifecycle {
   protected override async normalizeResult(_hookCtx: DispatchHookContext): Promise<void> {
     if (this.#finished) return;
     const mode = this.#mode();
-    const dryRun = this.#opts.dryRun === true;
+    const dryRun = this.#dryRun;
     const ctx = this.#tcx!;
     const progressDir = path.dirname(ctx.ledgerPath);
 
@@ -973,7 +995,7 @@ export class TaskLifecycle extends DispatchLifecycle {
     //     T5: status single authority — the review-type handoff is derived/overwritten by the
     //     engine at finalization (SP-4 exempts failure rounds). T6: implement materializes — the
     //     agent writes no handoff (implement.md dropped the Handoff Output section), the runner
-    //     builds task-N-implement.json from the return block four lines + brief TASK_BASE + git HEAD;
+    //     builds tasks-{key}-implement.json from the return block four lines + brief TASK_BASE + git HEAD;
     //     evidence-gate read-back (behavior_change:true → hard; else soft WARN). T7: the carrier
     //     comes home to the engine — implement/review finalize through finalizeHandoff,
     //     writeOwnHandoff full-replace, return block always re-emits from returnFromHandoff.
@@ -1011,7 +1033,7 @@ export class TaskLifecycle extends DispatchLifecycle {
   protected override async commitPostCheck(_hookCtx: DispatchHookContext): Promise<void> {
     if (this.#finished) return;
     const mode = this.#mode();
-    const dryRun = this.#opts.dryRun === true;
+    const dryRun = this.#dryRun;
     const ctx = this.#tcx!;
     const progressDir = path.dirname(ctx.ledgerPath);
 
@@ -1077,23 +1099,31 @@ export class TaskLifecycle extends DispatchLifecycle {
  * exit-throw: the unit-test seam). Builds the injected ctx, runs TaskLifecycle, converts an
  * entry-gate DispatchBlocked into a CDD_BLOCKED stderr + exit 1 (or a { exitCode: 1, returnBlock: [] } in
  * noExit mode); on the normal path writes the diagnostic + return block lines + exits via exitWithCode when
- * noExit=false. P4.3: `tasks` is the dispatch GROUP (scalar task number normalized to a group of one) —
- * the group is the dispatch unit, never a per-task iteration. */
+ * noExit=false. P4.3/P4.4: `tasks` is the dispatch GROUP (scalar task number / list normalized to a
+ * TaskGroup at this boundary) — the group is the dispatch unit, never a per-task iteration. */
 export async function runTask(
   harness: string,
-  tasks: number | number[],
+  tasks: number | readonly number[] | TaskGroup,
   opts: TaskRunOptions = {},
 ): Promise<TaskResult> {
-  return withLifecycle(async () => {
-    // root is injected (default getRoot()); in-process tests without an injection throw — the
-    // correct failure face, never a graceful fallback.
-    const root = opts.root ?? getRoot();
-    const taskList = Array.isArray(tasks) ? tasks : [tasks];
+  // The injected runtime stand-in (P4.4 Task 4 ②) governs the proc lifecycle + the dry-run/root
+  // reads — the singleton by default; the constructor-injection seam is what engine tests probe.
+  const rt = opts.runtime ?? runtime;
+  return rt.withLifecycle(async () => {
+    // root is injected (default getRoot() via the runtime); in-process tests without an injection
+    // throw — the correct failure face, never a graceful fallback.
+    const root = opts.root ?? rt.getRoot();
+    const group = toTaskGroup(tasks);
     const lc = new TaskLifecycle({
       harness,
-      tasks: taskList,
+      group,
       opts,
-      ctx: { mode: opts.mode ?? "", repoRoot: root, handoffPath: "", dryRun: opts.dryRun === true },
+      ctx: {
+        mode: opts.mode ?? "",
+        repoRoot: root,
+        handoffPath: "",
+        dryRun: opts.dryRun === true || rt.isDryRun(),
+      },
     });
     try {
       await lc.run();

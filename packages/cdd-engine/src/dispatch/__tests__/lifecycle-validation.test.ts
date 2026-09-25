@@ -10,6 +10,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { TaskGroup } from "../../domain/task-group.ts";
 import { captureStderr } from "../../infra/__tests__/helpers.ts";
 import { REG_PATH } from "../../infra/registry.ts";
 import { TaskLifecycle } from "../task.ts";
@@ -129,7 +130,7 @@ async function runReview(
   const cap = captureStderr();
   const lc = new TaskLifecycle({
     harness: "ctr",
-    tasks: [1],
+    group: TaskGroup.fromNumbers([1]),
     opts: {
       mode: "review",
       dryRun,
@@ -272,7 +273,7 @@ describe("exit code table preserved (0/1/2/3)", () => {
     writeFileSync(regPath, JSON.stringify(reg));
     const lc = new TaskLifecycle({
       harness: "ctr",
-      tasks: [1],
+      group: TaskGroup.fromNumbers([1]),
       opts: {
         mode: "review",
         dryRun: false,

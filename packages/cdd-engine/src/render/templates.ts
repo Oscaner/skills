@@ -23,6 +23,7 @@ const compile = hb.compile;
 
 import { familyConfig } from "../artifacts/handoff/naming.ts";
 import { invariant } from "../infra/exit.ts";
+import { runtime, type TemplateCacheSlots } from "../infra/runtime.ts";
 import { loadHandoffSchema } from "../rules/schema.ts";
 
 // PKG_ROOT = <pkg>/templates — the render data plane's resource dir (contract + schemas alone;
@@ -64,8 +65,10 @@ export interface TemplateContract {
   reviews: Record<string, unknown>;
 }
 
-// ---- C4 cache-first layer (module-level, one frozen artifact tree per process) ----
-// Three frozen layers, all scoped at module level so one session's dispatches rebuild nothing:
+// ---- C4 cache-first layer (one frozen artifact tree per process — owned by CddRuntime) ----
+// Three frozen layers, all scoped to the runtime-owned cache so one session's dispatches rebuild
+// nothing (P4.4 Task 4: the former module-level CACHE object migrated into CddRuntime.templateCache —
+// the class is the single mutable-state surface; this alias narrows the loosely-typed slots):
 //   ① the CONTRACT source bytes   → parsed once (CACHE.reads);
 //   ② the COMPILED round-context fn → compiled once (CACHE.compiles);
 //   ③ the rendered ROUND CONTEXT  → memoized per canonical params — a re-dispatch with identical
@@ -73,29 +76,11 @@ export interface TemplateContract {
 //     tails materialized; the shell/return bytes are constants keyed only by family/format).
 const CONTRACT_REL = "template-contract.json";
 
-const CACHE: {
+/** The runtime-owned render cache — narrowed to the renderer's concrete slot types (the runtime
+ * carries the loose TemplateCacheSlots shape; the render helpers own the render-specific types). */
+const CACHE = runtime.templateCache as TemplateCacheSlots & {
   contract: TemplateContract | null;
-  shells: Map<string, string>;
-  returns: Map<string, string>;
   compiledRound: ReturnType<typeof compile> | null;
-  roundTokens: string[];
-  rounds: Map<string, string>;
-  /** The shared shell frame compiled + rendered once (T12, D1.2 — clause partial refs resolved). */
-  shellFrameRendered: string | null;
-  reads: number;
-  compiles: number;
-  tailRenders: number;
-} = {
-  contract: null,
-  shells: new Map(),
-  returns: new Map(),
-  compiledRound: null,
-  roundTokens: [],
-  rounds: new Map(),
-  shellFrameRendered: null,
-  reads: 0,
-  compiles: 0,
-  tailRenders: 0,
 };
 
 export interface TemplateCacheStats {
@@ -105,20 +90,11 @@ export interface TemplateCacheStats {
 }
 
 export function templateCacheStats(): TemplateCacheStats {
-  return { reads: CACHE.reads, compiles: CACHE.compiles, tailRenders: CACHE.tailRenders };
+  return runtime.templateCacheStats();
 }
 
 export function resetTemplateCaches(): void {
-  CACHE.contract = null;
-  CACHE.shells.clear();
-  CACHE.returns.clear();
-  CACHE.compiledRound = null;
-  CACHE.roundTokens = [];
-  CACHE.rounds.clear();
-  CACHE.shellFrameRendered = null;
-  CACHE.reads = 0;
-  CACHE.compiles = 0;
-  CACHE.tailRenders = 0;
+  runtime.resetTemplateCaches();
 }
 
 export function loadTemplateContract(): TemplateContract {
@@ -347,17 +323,18 @@ export function docsFixHardGate(handoffPath?: unknown): string {
 // but semantically inverted — the shared-Handoff-shell slot's injected value, not a template
 // difference. Artifacts (report + test evidence) come first: the materialized handoff's artifacts
 // all come from them; absent → BLOCKED.
-function implementHardGate(handoffPath: unknown, taskNum: unknown): string {
-  const target = handoffPath || `task-${taskNum}-implement.json`;
+function implementHardGate(handoffPath: unknown, dispatchUnit: unknown): string {
+  const target = handoffPath || `tasks-${dispatchUnit}-implement.json`;
   return `> ⚠️ HARD GATE — This mode does not write \`${target}\`: the runner materializes it from your return block four lines + the brief's \`TASK_BASE\` + \`git HEAD\`. Write the implementer report + test evidence BEFORE outputting the return block — returning without them = BLOCKED (runner exit 1).`;
 }
 
 // ---- token registry (Task 5 D1.4 + Task 20 zones) — driven/validated by template-contract.json ----
-// 19 tokens converge to the new naming convention (<domain>_<semantic> + task-*/docs-* scope
-// prefixes) and carry a zone ownership (return | round-context; zero shell slots — no token may live in
-// "shell"). Zero legacy names remain (H1_BLOCK / HANDOFF triple-meaning / HANDOFF_STUB /
-// HANDOFF_TYPE / HANDOFF_SCHEMA_JSON / TYPE / LENS_GUIDE / AXES / HARD_GATE / RETURN_MODE /
-// WORKSPACE / REFERENCE / PLAN_LINE / FINDINGS / BRIEF / TASK / CONSTRAINTS / FIXED_POINT / DOC).
+// 18 tokens converge to the P4.4 Task 3 contract-token surface (the nine TASK_*/DOCS_* scope
+// prefixes collapsed to the unit set — DISPATCH_UNIT / BRIEF / FINDINGS / FIXED_POINT / CONSTRAINTS /
+// WORKSPACE / DOC) and carry a zone ownership (return | round-context; zero shell slots — no token
+// may live in "shell"). Zero legacy names remain (H1_BLOCK / HANDOFF triple-meaning /
+// HANDOFF_STUB / HANDOFF_TYPE / HANDOFF_SCHEMA_JSON / TYPE / LENS_GUIDE / AXES / HARD_GATE /
+// RETURN_MODE / TASK_* / DOCS_*).
 
 /** Extract all `{{TOKEN}}` tokens declared in the text. */
 export function scanTemplateTokens(src: string): string[] {
@@ -517,19 +494,19 @@ export function assembleClauses(contract: TemplateContract = loadTemplateContrac
 function buildReviewRound(_name: string, params: Record<string, unknown>): Record<string, unknown> {
   const cfg = reviewTypeConfig("task");
   const art = reviewArtifactConfig("task");
-  const workspace = params.TASK_WORKSPACE ? String(params.TASK_WORKSPACE) : "";
+  const workspace = params.WORKSPACE ? String(params.WORKSPACE) : "";
   const round: Record<string, unknown> = {
     MODE: "review",
     REVIEW_TYPE: "task",
-    TASK_WORKSPACE: workspace,
+    WORKSPACE: workspace,
     WORKSPACE_SLUG: params.WORKSPACE_SLUG ?? (workspace ? path.basename(workspace) : ""),
     REVIEW_LENS_GUIDE: cfg.lensEnum.join(" · "),
-    REVIEW_REFERENCE: params.TASK_FIXED_POINT ? `${params.TASK_FIXED_POINT}..HEAD` : cfg.ref,
+    REVIEW_REFERENCE: params.FIXED_POINT ? `${params.FIXED_POINT}..HEAD` : cfg.ref,
     REVIEW_AXES: cfg.axesGuide,
     HANDOFF_TARGET: params.HANDOFF_TARGET ?? "",
     REVIEW_PLAN_LINE: params.REVIEW_PLAN_LINE ?? "",
     HANDOFF_WRITE_GATE: reviewHardGate(art.returnFormat, params.HANDOFF_TARGET),
-    TASK_FIXED_POINT: params.TASK_FIXED_POINT ?? "",
+    FIXED_POINT: params.FIXED_POINT ?? "",
     RETURN_FORMAT: art.returnFormat,
   };
   return { ...params, ...round };
@@ -555,7 +532,7 @@ export function renderModePrompt(mode: string, params: Record<string, unknown> =
     HANDOFF_WRITE_GATE:
       mode === "fix"
         ? reviewHardGate("RETURN_STDOUT_BLOCK", params.HANDOFF_TARGET)
-        : implementHardGate(params.HANDOFF_TARGET, params.TASK_NUMBER),
+        : implementHardGate(params.HANDOFF_TARGET, params.DISPATCH_UNIT),
     RETURN_FORMAT: defaultReturnFormat(),
   });
 }

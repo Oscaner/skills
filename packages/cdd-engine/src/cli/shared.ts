@@ -7,21 +7,17 @@
 // block). existingRoundHandoff is only consumed by runReview → stays private to review.ts
 // (review.ts runReview still imports through this cluster; shared keeps zero reverse dependency).
 import type { ArgDef, ArgsDef } from "citty";
-
+import { IllegalTaskTokenError, TaskGroup } from "../domain/task-group.ts";
 import { cliUsageError, exitWithCode } from "../infra/exit.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
 
-// DRY_RUN — resolution of the program-level `--dry-run` flag (module state). The single write
-// entry is setDryRun: the black-box path injects it from bin.ts's preAction over the FULL argv;
-// in-process tests (argv not parsed, preAction not fired) inject setDryRun(true) explicitly and
-// reset it in a finally. **The engine reads zero env here.**
-let dryRun = false;
-
-export const DRY_RUN = (): boolean => dryRun;
-
-export function setDryRun(enabled: boolean): void {
-  dryRun = enabled === true;
-}
+// DRY_RUN — the program-level `--dry-run` flag, owned by the CddRuntime singleton (P4.4 Task 4:
+// the former module-level `let dryRun` migrated into infra/runtime.ts — the class is the single
+// mutable-state surface). The single write entry stays setDryRun: the black-box path injects it
+// from bin.ts's preAction over the FULL argv; in-process tests inject setDryRun(true) explicitly
+// and reset it in a finally. **The engine reads zero env here.** These two are re-exported from the
+// runtime module (same identities — the cli face keeps zero state of its own).
+export { DRY_RUN, setDryRun } from "../infra/runtime.ts";
 
 // ---- host harness detection ----
 
@@ -75,28 +71,24 @@ export function resolveTargetDoc(
 }
 
 // Bug A (legacy cdd-task contract) under the P4.3 --tasks list model: the value must parse as
-// comma-separated integers. Token validation reuses the integer core below (exit 2 + message)
-// instead of letting parseInt leak NaN into runTask and fabricate task-NaN-* artifacts with a
-// false APPROVED return block (STD-3). Empty slices (e.g. a trailing comma in `1,`) are rejected,
-// tokens are trimmed (`1, 2` → [`1`, `2`]) and duplicates collapse (`1,1` → [`1`]). The legacy
-// single-value intTask entry is retired — the CLI task surface is list-shaped only, and the GROUP
-// is the dispatch unit: parseTaskList returns the canonical list (single-data-model) and dispatch
-// call sites thread the whole parsed list — no per-task iteration exists.
-function intTask(token: string): number {
-  const n = parseInt(token, 10);
-  if (Number.isNaN(n)) throw cliUsageError(`--tasks must be comma-separated integers: ${token}`);
-  return n;
-}
-
-export function parseTaskList(v: string): number[] {
-  const tasks: number[] = [];
-  for (const raw of v.split(",")) {
-    const token = raw.trim();
-    if (token === "") throw cliUsageError(`--tasks must be comma-separated integers: ${raw}`);
-    const n = intTask(token);
-    if (!tasks.includes(n)) tasks.push(n);
+// comma-separated integers. Token validation migrates to the TaskGroup value object (the group
+// identity's single factory — fromTokens: per-token integer validation · dedupe · ascending sort;
+// P4.4 Task 3): the hyphen form `1-2` and any non-integer token throw IllegalTaskTokenError, which
+// this boundary translates to the exit-2 usage face (`--tasks must be comma-separated integers:
+// <token>`) — never a parse-error that fabricates a `task-NaN-*` artifact with a false APPROVED
+// return block (STD-3). Empty slices (a trailing comma in `1,`) are rejected; tokens are trimmed.
+// The legacy single-value intTask entry is retired — the CLI task surface is list-shaped only, and
+// the GROUP is the dispatch unit: parseTaskList returns the canonical TaskGroup (single-data-model)
+// and dispatch call sites thread the whole group — no per-task iteration exists.
+export function parseTaskList(v: string): TaskGroup {
+  try {
+    return TaskGroup.fromTokens(v.split(","));
+  } catch (e) {
+    if (e instanceof IllegalTaskTokenError) {
+      throw cliUsageError(`--tasks must be comma-separated integers: ${e.token}`);
+    }
+    throw e;
   }
-  return tasks;
 }
 
 // ---- flag-surface guard (citty Task 9) ----

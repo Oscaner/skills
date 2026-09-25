@@ -40,6 +40,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { DOC_TOKENS, escapeRegExp } from "../documents/tokens.ts";
+import { TaskGroup } from "../domain/task-group.ts";
 
 export interface DocValidationFailure {
   /** which contract failed — "plan" | "phase spec" | "overall" */
@@ -172,6 +173,8 @@ export function taskNumbersFromPlan(planFile: string): number[] {
 
 // ---- task groups (P4.3 Task 3, spec §2.2) — the dispatch-group declaration + the ONE
 // effectiveGroups derivation (every group iteration surface consumes it — no second implementation).
+// P4.4 Task 3: groups surface as TaskGroup values (the group identity's single value object — key()
+// is the canonical `"1,2"` serialization; the CLI --tasks string is the same form, no second shape).
 
 // The standard section stop set — the structural boundary that closes a `##`-level section: a
 // `#`/`##` heading or a `---` rule (the `### Task ` heading clause — DOC_TOKENS.taskHeadingPrefixRe —
@@ -181,40 +184,50 @@ export function taskNumbersFromPlan(planFile: string): number[] {
 const PLAN_SECTION_BOUNDARY = /^(#{1,2}\s|---\s*$)/;
 
 /** Task-Groups section parse: the `## Task Groups` heading (canonical heading token) → the declared
- * merged groups as number[][] — one `- **Task 1, 2**: <note>` line per group (the captured comma-
+ * merged groups as TaskGroup[] — one `- **Task 1, 2**: <note>` line per group (the captured comma-
  * space number list, the `--tasks <a>,<b>` join form), each parsed to sorted unique integers.
  * No section / empty section → [] (the empty default — the section is written ONLY when a
  * non-trivial merged group exists, so its absence IS the default). Section boundary = the standard
  * PLAN_SECTION_BOUNDARY stop set (a `#`/`##` heading, a `### Task ` heading, or a `---` rule). */
-export function taskGroupsFromPlan(planFile: string): number[][] {
+export function taskGroupsFromPlan(planFile: string): TaskGroup[] {
   const lines = readFileSync(planFile, "utf8").split("\n");
   const start = lines.findIndex((l) => DOC_TOKENS.taskGroupsHeadingRe.test(l));
   if (start === -1) return [];
-  const groups: number[][] = [];
+  const groups: TaskGroup[] = [];
   for (let i = start + 1; i < lines.length; i++) {
     if (PLAN_SECTION_BOUNDARY.test(lines[i]) || DOC_TOKENS.taskHeadingPrefixRe.test(lines[i]))
       break;
     const m = lines[i].match(DOC_TOKENS.taskGroupsLineRe);
     if (!m) continue;
-    groups.push([...new Set(m[1].split(",").map((s) => Number(s.trim())))].sort((a, b) => a - b));
+    groups.push(TaskGroup.fromNumbers(m[1].split(",").map((s) => Number(s.trim()))));
   }
   return groups;
 }
 
-/** effectiveGroups(planPath) — the SINGLE dispatch-group derivation: declared groups win verbatim,
- * else each plan task is its own singleton group — `taskGroups.length ? taskGroups :
- * singletons(taskNumbersFromPlan(plan))`. The empty default (no `## Task Groups` section) yields
- * [[1],[2],…,[N]] — exactly the pre-P4.3 per-task dispatch (zero migration); a non-empty
- * declaration replaces the singleton set entirely (the loop dispatches `--tasks <a>,<b>` per
- * declared group). A length-1 declared line is parse-tolerated and surfaces in effectiveGroups as
- * declared — the parser never drops a declared task; the >= 2 floor is the schema minItems + the
- * write-back judgment (a length-1 group is redundant and never lands on disk), never this
- * derivation. The iteration surfaces (derivePlanVerdict / base.ts statusValidate progress lines)
- * consume this one derivation — no second implementation. */
-export function effectiveGroups(planPath: string): number[][] {
+/** effectiveGroups(planPath) — the SINGLE dispatch-group derivation (TaskGroup[]): declared groups
+ * ∪ implicit single-task groups for any plan task an empty-or-partial declaration leaves uncovered
+ * (`taskGroups.length ? … : singletons` under the P4.3 model — the P4.4 partition keeps the union
+ * == the full plan task number set). The empty default (no `## Task Groups` section) yields the
+ * per-task singletons [[1],[2],…,[N]] — exactly the pre-P4.3 per-task dispatch (zero migration); a
+ * non-empty declaration replaces the singleton set only for the tasks it covers — an uncovered
+ * plan task still lands as its implicit singleton (按 task 号序: groups ordered by their lowest
+ * task number), so the EFFECTIVE partition always covers the full plan task set (the union ==
+ * taskNumbersFromPlan guard asserted by the engine tests, unchanged). A length-1 declared line is
+ * parse-tolerated and surfaces in effectiveGroups as declared — the parser never drops a declared
+ * task; the >= 2 floor is the schema minItems + the write-back judgment (a length-1 group is
+ * redundant and never lands on disk), never this derivation. The iteration surfaces
+ * (derivePlanVerdict / base.ts statusValidate progress lines) consume this one derivation — no
+ * second implementation. */
+export function effectiveGroups(planPath: string): TaskGroup[] {
+  const all = taskNumbersFromPlan(planPath); // sorted ascending
   const declared = taskGroupsFromPlan(planPath);
-  if (declared.length > 0) return declared;
-  return taskNumbersFromPlan(planPath).map((n) => [n]);
+  if (declared.length === 0) return all.map((n) => TaskGroup.fromNumbers([n]));
+  const covered = new Set<number>();
+  for (const g of declared) for (const n of g) covered.add(n);
+  const uncovered = all.filter((n) => !covered.has(n)).map((n) => TaskGroup.fromNumbers([n]));
+  if (uncovered.length === 0) return declared;
+  // 按 task 号序: declared groups + implicit singletons, ordered by each group's lowest task number.
+  return [...declared, ...uncovered].sort((a, b) => (a.numbers[0] ?? 0) - (b.numbers[0] ?? 0));
 }
 
 // Deterministic section extraction for the canonical form: `## Constraints` heading + content to

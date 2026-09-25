@@ -29,7 +29,7 @@ it("generateBrief: 提取 Task 1 段落，含 TASK_BASE:，不含 Task 2", async
       [2, "Do task 2\n"],
     ]),
   );
-  const outPath = path.join(dir, "task-1-brief.md");
+  const outPath = path.join(dir, "tasks-1-brief.md");
   await generateBrief(planFile, 1, outPath, REPO_ROOT);
   const content = readFileSync(outPath, "utf8");
   expect(content).toMatch(/^### Task 1:/m);
@@ -62,7 +62,7 @@ it("generateBrief #173: 第 4 参数为 repoRoot —— cwd 无关，取传入�
   const planFile = path.join(repoA, "plan.md");
   writeFileSync(planFile, "# Plan\n\n### Task 1: x\nbody\n");
   gitCommit(repoA);
-  const out = path.join(mkdtempSync(path.join(tmpdir(), "cdd-brief-out-")), "task-1-brief.md");
+  const out = path.join(mkdtempSync(path.join(tmpdir(), "cdd-brief-out-")), "tasks-1-brief.md");
   // process.cwd() 与 repoA 无关（测试进程 cwd 在 oscaner-skills）——断言仅由第 4 参数决定
   await generateBrief(planFile, 1, out, repoA);
   const head = execFileSync("git", ["-C", repoA, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
@@ -112,7 +112,7 @@ it("generateBrief group: --tasks 1,2 → both sections present + single TASK_BAS
       [3, "Do task 3\n"],
     ]),
   );
-  const outPath = path.join(dir, "tasks-1-2-brief.md");
+  const outPath = path.join(dir, "tasks-1,2-brief.md");
   await generateBrief(planFile, [1, 2], outPath, REPO_ROOT);
   const content = readFileSync(outPath, "utf8");
   expect(content).toMatch(/^### Task 1:/m);

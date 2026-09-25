@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 // assert "consecutive same-type round read tok > 0" within the TTL window. What "same-type round"
 // means per mode (see maintainers/context-caching-doctrine § static-zone semantics):
 //   · implement rounds are BYTE-IDENTICAL (buildCtx's implement fixedPoint is always "" and the
-//     template declares no TASK_FIXED_POINT) — the read>0 hit measures the whole prompt;
+//     template declares no FIXED_POINT) — the read>0 hit measures the whole prompt;
 //   · fix/review rounds diverge at their round-suffixed Handoff slots (handoff target / findings /
 //     fixed point) — the shared harness prefix covers the invariant title/context/instructions
 //     bytes only; record read flips honestly rather than claiming whole-prompt reuse.
@@ -152,7 +152,7 @@ function readJsonField(filePath: string, keys: string[]): string {
 
 // Cross-phase derivation for measurement-mode rounds — an approximation of the params buildCtx
 // derives for this (op, type) round (dispatch/task.ts prev-table semantics):
-//   · implement: buildCtx never derives a fixed point and the round-context slot TASK_FIXED_POINT
+//   · implement: buildCtx never derives a fixed point and the round-context slot FIXED_POINT
 //     pre-fills "" (mode-union prefill; the per-template files are gone — a single round-context
 //     zone serves all modes) — the rendered prompt is byte-identical across rounds (EXACT parity
 //     for the C7 read>0 claim);
@@ -169,7 +169,7 @@ export function priorHandoffPaths(state: {
   mode: string;
   round: number;
 }): { findingsPath: string; fixedPoint: string } {
-  const handoffBase = `${state.workspace}/task-${state.task}`;
+  const handoffBase = `${state.workspace}/tasks-${state.task}`;
   if (state.mode === "implement") return { findingsPath: "", fixedPoint: "" };
   const reviewHandoff = `${handoffBase}-review-${state.round}.json`;
   const prior =
@@ -191,22 +191,23 @@ function renderRoundPrompt(state: {
   round: number;
 }): string {
   // Measurement-only render: workspace-relative paths, round-suffixed review/fix handoff targets,
-  // fixed implement target, and the cross-phase findings/fixed-point above.
-  const handoffBase = `${state.workspace}/task-${state.task}`;
+  // fixed implement target, and the cross-phase findings/fixed-point above. Group key form
+  // (P4.4 Task 3): the canonical `tasks-<key>-*` artifacts (single-task group key = the number).
+  const handoffBase = `${state.workspace}/tasks-${state.task}`;
   const { findingsPath, fixedPoint } = priorHandoffPaths(state);
   const handoff =
     state.mode === "implement"
       ? `${handoffBase}-implement.json`
       : `${handoffBase}-${state.mode}-${state.round}.json`;
   const params = {
-    TASK_WORKSPACE: state.workspace,
+    WORKSPACE: state.workspace,
     WORKSPACE_SLUG: basename(state.workspace),
-    TASK_BRIEF: `${handoffBase}-brief.md`,
+    BRIEF: `${handoffBase}-brief.md`,
     HANDOFF_TARGET: handoff,
-    TASK_FINDINGS: findingsPath,
-    TASK_CONSTRAINTS: `${state.workspace}/plan-constraints.md`,
-    TASK_FIXED_POINT: fixedPoint,
-    TASK_NUMBER: String(state.task),
+    FINDINGS: findingsPath,
+    CONSTRAINTS: `${state.workspace}/plan-constraints.md`,
+    FIXED_POINT: fixedPoint,
+    DISPATCH_UNIT: String(state.task),
     REVIEW_PLAN_LINE: "",
   };
   return renderModePrompt(state.mode, params);

@@ -1,6 +1,6 @@
 # 消费者面一致性（Consumer Parity）— P4.4 Phase Design Spec
 
-- **Version**: v1.1 · 2026-09-25
+- **Version**: v1.2 · 2026-09-25
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（osuperpowers:brainstorming → writing-phase-spec）
 - **Parent program**: [consumer-parity overall v1.38](2026-09-21-consumer-parity-overall.md)
@@ -91,6 +91,23 @@ Cross-phase 约定以 parent overall（v1.38）为准，conflict 时 overall win
 
 每 TG 独立 commit；clean-tree 纪律全程保持（engine 入口 gate：dirty → BLOCKED）。
 
+### 2.9 三段结案（review status 词汇三分 · #278 · 2026-09-25 用户裁决并入）
+
+Review 判定从两态（CHANGES_REQUESTED / APPROVED）划为**三态**，消除「APPROVED 携带 warn/nit 却跳过 fix 直接 complete」的心智误判面——**行为本质与既有 I3「blocker=0 → fix all findings，do not re-run」一致**，仅把状态划分变显式、由状态机而非 agent 自觉执行：
+
+- **S1 blocker > 0** → `CHANGES_REQUESTED` → needs-fix → needs-re-review → 循环至收敛（现状不变）
+- **S2 blocker = 0 ∧（warn + nit）> 0** → **收口态**（review 状态词汇第三值）→ **复用现有 `cdd fix --findings <handoff>`** 一轮 → complete（**无 re-review**）
+- **S3 blocker + warn + nit = 0** → `APPROVED` → complete（fast path，现状不变）
+
+引擎面（最小改动，全部落在本 phase 类化面）：
+- `finalize.ts` 状态派生族（`classifySeverity` / `rollupStatus` / `deriveReviewStatus` 单一 owner）产出第三状态值——blocker>0 → `CHANGES_REQUESTED` · blocker=0∧warn/nit>0 → **收口态** · 零 → `APPROVED`
+- `rules/status.ts` `deriveTaskState`：收口态 → **fix 轮路由 → complete**（与 S1 的 needs-fix → needs-re-review 路径区分）
+- fix dispatch 对收口态放行（与 needs-fix 同 gate）——**fix 行为本身零改动**：无 per-finding disposition 新机制、无 `targets later task` 过滤（不关心 tag，当前 task 有 findings 即 fix）
+
+Skills 面（emit 输入面）：五件 Review Convergence 文本改三段表述（writing-single-spec · writing-overall-spec · writing-phase-spec · writing-plans + cli-driven-development 的 I3/I1 行 + review/fix 节点路径），改后 `pnpm run emit` + 产物重生成
+
+Breaking：handoff `status` 词汇新增第三值 → 1.0.0 收口（P4.2 changelog）；历史 workspace 已落定终态（APPROVED+findings → complete）**不回滚**
+
 ### Acceptance criteria
 
 - `pnpm outdated` 零落后（全树 latest）：execa 10.0.1 · typescript 7.0.2 · vitest 5.0.1 · @types/node 26.6.2 + 全树 caret floor 刷新实证；4 个 dependabot PR（execa / typescript / vitest / @types/node）已 closed（superseded by P4.4，gh 断言）；`pnpm install --frozen-lockfile` 绿（lockfile 与依赖面一致）
@@ -103,21 +120,25 @@ Cross-phase 约定以 parent overall（v1.38）为准，conflict 时 overall win
 - engine 导出函数面破坏性重排到位 + engine 测试套件随类化全绿（breaking 允许、无薄壳）；CLI argv 契约（`--tasks` / `--type` / `--plan` / `--findings`）不变——skills 与消费者调用面零回归（smoke 实证）
 - scripts 侧同构实证：`Command` 类族 + `ValidateBlock` 类族落地；11 步名/序/`grepTargets`/`channelTargets` 域事实保持（`ci-validate.test.mjs` 断言全绿，或同域演化后对齐）；`run.test.ts` 命令树断言同域对齐
 - biomejs 全面接入实证：biome.json 随仓发布（recommended）· husky pre-commit 触发 `biome check --write` 零违规通过（pre-commit 输出断言）· 覆盖 src + scripts + 全仓 ts 面（配置断言）
-- `pnpm run validate` 11 块全绿；`emit:check` 无 drift；破坏面（OOP restructure + 4 major deps）登记 changelog，1.0.0 收口就绪；本 spec Parent program v1.38 版本行 lineage 合法；P4.4 Design-spec / Implementation plan 列随 phase 推进正确回填（backfill-overall，branch-review 前）
+- `pnpm run validate` 11 块全绿；`emit:check` 无 drift；破坏面（OOP restructure + 4 major deps + review 三段结案状态词汇新值）登记 changelog，1.0.0 收口就绪；本 spec Parent program v1.39 版本行 lineage 合法；P4.4 Design-spec / Implementation plan 列随 phase 推进正确回填（backfill-overall，branch-review 前）
+- review 状态词汇三值落地实证：S1 blocker 循环（现状回归）· S2 收口态 → 复用现有 `cdd fix --findings` 一轮 → complete（无 re-review）· S3 零 finding fast path——engine 测试自造链 + 现场回归
+- S2 fix 轮复用现有 `cdd fix --findings`、零 per-finding disposition 新机制、零 `targets later task` 过滤（当前 task 有 findings 即 fix）实证
+- skills 五面 Review Convergence 文本改三段表述（writing-single-spec · writing-overall-spec · writing-phase-spec · writing-plans + cli-driven-development；emit 输入面，改后 `pnpm run emit` + `emit:check` 无 drift）；breaking = handoff `status` 词汇新值登记 changelog、1.0.0 收口、历史终态不回滚
 
 ## Section 3: Deviations from overall
 
 | Overall assumption | Phase decision | Overall updated? |
 |---|---|---|
 | P4.4 注册期 scope/AC（v1.26/v1.31，先注册不探索） | 全面 OOP 化裁决（含规则面全类化、零纯函数模块）+ 破坏性变更允许 + R7 全仓依赖升最新（4 major PR + caret floor 刷新）+ scope/AC 定稿（phase-size = fit · task groups 编排） | Yes — v1.38 · 2026-09-25 |
-| （其余全部设计裁决已随 overall v1.38 回填：P4.4 行 scope/AC · Issue inventory P4.4 行 · change-history v1.38，见 overall 变更基准） | 本 spec 不偏离 charter；实施细节见 §2.1–§2.8 | Yes — v1.38 · 2026-09-25 |
+| review status 两态词汇（CHANGES_REQUESTED / APPROVED，engine 现状） | 三段结案重构（#278 · 2026-09-25 用户裁决）：状态词汇三分（blocker>0 → CHANGES_REQUESTED · blocker=0∧warn/nit>0 → 收口态 · 零 → APPROVED）+ `deriveTaskState` 收口态路由复用现有 `cdd fix` 后 complete（无 re-review · 无 per-finding 行为 · 无 tag 过滤）；breaking 词汇面 1.0.0 收口、历史终态不回滚 | Yes — v1.39 · 2026-09-25 |
+| （其余全部设计裁决已随 overall v1.38/v1.39 回填：P4.4 行 scope/AC · Issue inventory P4.4 行 +#278 锚点行 · change-history v1.38/v1.39，见 overall 变更基准） | 本 spec 不偏离 charter；实施细节见 §2.1–§2.9 | Yes — v1.39 · 2026-09-25 |
 
 ## Section 4: Notes for downstream
 
-- **P4.2（发布闭环）**：1.0.0 首次稳定开版收进本 phase breaking 面（OOP restructure + 4 major deps）；发布面消费 OOP 化完成态与全树 latest 基线（依赖图 `P4.4 ->(hard) P4.2` 已登记）
+- **P4.2（发布闭环）**：1.0.0 首次稳定开版收进本 phase breaking 面（OOP restructure + 4 major deps + review 三段结案状态词汇新值 #278）；发布面消费 OOP 化完成态与全树 latest 基线（依赖图 `P4.4 ->(hard) P4.2` 已登记）
 - **biomejs 静态门**：P4.2 起 husky pre-commit 静态质量门常驻（与既有 precommit 校验链并列）
 - **repo 定位改述 cdd 方法论（v1.33 记录）**：待 P4.2 阶段启动分析落地，本 phase 不处理
 
 ## Section 5: Review
 
-Fresh-subagent review passes before user review and writing-plans — baseline = committed tree, Review Convergence（blocker > 0 → fix all findings → re-review；blocker = 0 → fix all findings → done，no re-review）。spec 批准即 commit（I2），不等 dev 合并。
+Fresh-subagent review passes before user review and writing-plans — baseline = committed tree, Review Convergence（三段结案：blocker > 0 → fix 后 re-review；blocker = 0 ∧ warn/nit > 0 → fix 收口轮、无 re-review；零 finding → 批准收敛）。spec 批准即 commit（I2），不等 dev 合并。

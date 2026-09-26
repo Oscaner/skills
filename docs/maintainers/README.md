@@ -1,12 +1,25 @@
 # Maintainer Docs — index
 
-Maintainer-only documents for this monorepo's developers (English-primary; not shipped to consumers — the packages' `contentRoot` is `"."`, so `packages/*/` is what publishes). Files are numbered in two groups: the doctrine family (01–04, methodology distilled from the program) and the mechanism family (05–06, concrete working guides for this repo). All family-internal links use the numbered filenames below. The node-anchored SKILL.md anatomy's single structure authority is the engine's skill-anatomy schema (`packages/cdd-engine/src/documents/schema/skill-anatomy.json`), machine-checked against every skill by `packages/osuperpowers/tests/digraph-consistency.test.mjs` — the retired skill-authoring text doc is gone with it.
+Maintainer-only documents for this monorepo's developers (English-primary; not shipped to consumers — the packages' `contentRoot` is `"."`). Numbered 01–05; internal links use the numbered filenames.
 
-| # | File | Positioning | Reader |
+| # | File | Positioning |
+|---|---|---|
+| 01 | [01-template-doctrine.md](01-template-doctrine.md) | Template doctrine: the data-driven template contract (canonical → one renderer → emit/runtime products, `emit:check`-guarded) + two-plane systematization |
+| 02 | [02-naming-conventions.md](02-naming-conventions.md) | Naming system + terminology-first registry (F8): scoped names, active terms, migration, banned names, enforcement |
+| 03 | [03-context-caching-doctrine.md](03-context-caching-doctrine.md) | Host-harness prompt-cache doctrine (six axioms, C1–C7, cache profiles, observation boundaries) — the engine's live cache contract |
+| 04 | [04-program-experience.md](04-program-experience.md) | Hard-won lessons across every phase; the baking input for skill document templates |
+| 05 | [05-third-party-dependencies.md](05-third-party-dependencies.md) | Adopted / not-adopted dependency ledger (§2.13), YAML + husky isolation boundaries |
+
+## P4.2 convergence ledger
+
+Task 9 merged the two template docs, trimmed program-experience, updated 02/05 to the P4.4 final state. Plan anchor: total ≤ 53 KB — `maintainers-docs.test.mjs` asserts each After cell against the live file.
+
+| File | Before (B) | After (B) | Note |
 |---|---|---|---|
-| 01 | [01-data-driven-templates.md](01-data-driven-templates.md) | Data-driven template convention (canonical JSON → one renderer → emit/runtime products, guarded by `emit:check`) | Maintainers touching template-shaped content (packages/cdd-engine templates, emit products, ISSUE_TEMPLATE bodies) |
-| 02 | [02-template-doctrine.md](02-template-doctrine.md) | Template systematization doctrine for both planes (engine prompt templates + skill document templates) | Maintainers systematizing prompt or skill-document templates |
-| 03 | [03-naming-conventions.md](03-naming-conventions.md) | Naming system + terminology-first registry (F8): scoped semantic names, active terms, mechanismNames migration, banned legacy names, enforcement | Maintainers naming any authorable surface or auditing name consistency |
-| 04 | [04-context-caching-doctrine.md](04-context-caching-doctrine.md) | Host-harness prompt-cache doctrine (six axioms, C1–C7, registry cache profiles, observation boundaries) | Maintainers assembling agent prompts for cache hits |
-| 05 | [05-program-experience.md](05-program-experience.md) | Hard-won lessons across every phase, the baking input for skill document templates | Program maintainers; anyone running a future program touching this codebase |
-| 06 | [06-third-party-dependencies.md](06-third-party-dependencies.md) | Adopted / not-adopted dependency ledger (spec §2.13), YAML + husky isolation boundaries | Maintainers evaluating, upgrading, or adding dependencies |
+| 01-template-doctrine.md | 14,378 | 10,699 | merged from 01 + 02 |
+| 02-naming-conventions.md | 7,994 | 8,817 | P4.4 terms added |
+| 03-context-caching-doctrine.md | 8,706 | 8,706 | unchanged |
+| 04-program-experience.md | 21,773 | 12,699 | trimmed ~9 KB |
+| 05-third-party-dependencies.md | 10,018 | 10,136 | P4.4 deps registered |
+| README.md | 2,324 | 1,927 | index converged |
+| **Total** | 65,193 | **≤ 53,000** | plan anchor |

@@ -108,7 +108,6 @@ test("zero-residue check present with correct grep targets", () => {
   const zr = steps.find((s) => s.name === "engine zero residue + channel audit");
   assert.ok(zr, "engine zero residue + channel audit check missing");
   assert.ok(zr.grepTargets?.includes("packages/osuperpowers/skills"), "zero-residue grep misses osuperpowers/skills");
-  assert.ok(zr.grepTargets?.includes("packages/osuperpowers/bin"), "zero-residue grep misses osuperpowers/bin");
   assert.ok(zr.grepTargets?.includes("packages/cdd-engine/src"), "zero-residue grep misses cdd-engine/src (re-org: mechanism files moved into src/)");
   assert.ok(zr.grepTargets?.includes("packages/cdd-engine/templates"), "zero-residue grep misses cdd-engine/templates");
 });

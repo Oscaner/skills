@@ -27,11 +27,11 @@ Remaining dev-only toolchain (registered; no hand-written counterpart — build/
 
 `yaml` is the single dependency with a hard isolation rule — decided in spec §2.13 (option (b): isolate rather than grow the plugin's dependency set):
 
-- **Only one module consumes it:** `packages/osuperpowers/scripts/render-yaml.mjs`, an **emit-only** module. Its only runtime consumers are the emit toolchain (`scripts/emit/issue-templates.ts` — `.github/ISSUE_TEMPLATE/*.yml` emitter) and tests.
-- **It lives only in the repo root `devDependencies`** (emit toolchain) — never in `osuperpowers/package.json#dependencies`.
-- **The consumer runtime carries zero third-party dependencies:** the renderer entry `scripts/report-templates.mjs` (bare-call single entry: stdin JSON → aggregate body → stdout) **must not import `yaml`** — the form YAML is produced at emit time, so no consumer path touches it.
-- **It is forbidden to publish `yaml` as an osuperpowers runtime dependency.**
-- **Enforcement:** `packages/osuperpowers/tests/report-templates.test.mjs` asserts the renderer entry has no `import … from "yaml"` and that `render-yaml.mjs` does; the same test pair re-checks the two modules for the retired renderer vocabulary, and the Task 16 residue guard (`scripts/validate/residue.ts`) keeps that vocabulary at zero across the mechanism positions.
+- **Only one module consumes it:** `scripts/emit/render-yaml.mjs`, an **emit-only** module. Its only runtime consumers are the emit toolchain (`scripts/emit/issue-templates.ts` — `.github/ISSUE_TEMPLATE/*.yml` emitter) and tests.
+- **It lives only in the repo root `devDependencies`** (emit toolchain) — never in any shipped package's `dependencies`.
+- **The consumer runtime carries zero third-party dependencies:** the aggregate-body renderer — cdd-engine's `IssueReportRenderer` (`cdd issue render`: stdin JSON → aggregate body → stdout) — **must not import `yaml`**: the form YAML is produced at emit time, so no consumer path touches it, and cdd-engine's dependency list has no `yaml`.
+- **It is forbidden to publish `yaml` as an osuperpowers or cdd-engine runtime dependency.**
+- **Enforcement:** the emit colocated suite (`scripts/emit/__tests__/issue-templates.test.ts`) asserts `renderYml`'s byte golden and the single-source enum injection; the engine colocated suite covers the renderer determinism; the Task 16 residue guard (`scripts/validate/residue.ts`) keeps the retired renderer vocabulary at zero across the mechanism positions.
 
 ## 3. Husky boundary
 

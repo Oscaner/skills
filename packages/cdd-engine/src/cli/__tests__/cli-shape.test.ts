@@ -135,20 +135,23 @@ describe("cdd review/fix option 形态（D11: --doc 退役 → --spec/--plan typ
 });
 
 // The command surface converges on the canonical set (implement / review / fix / base-branch /
-// schema). The sole discovery subcommand is `schema` (P4.3 Task 5 — canonical schema output;
-// discovery-only, zero enforcement). The P2-era `help` discovery subcommand was removed whole
+// schema / issue). The discovery subcommands are `schema` (P4.3 Task 5 — canonical schema output;
+// discovery-only, zero enforcement) and `issue` (P4.2 Task 6 — the pure render leaf `issue render`,
+// stdin → stdout, zero enforcement). The P2-era `help` discovery subcommand was removed whole
 // (P4.3 v1.32 user ruling — its three-line directory face had zero consumers after read-schema
 // switched to `cdd schema get`; `--help` remains the retained flag surface).
 // Static instance assertions beat text regexes — citty's subCommands only holds **direct**
-// subcommands, so nested base-branch.set / .get / schema.get stay out of the set (parse.mjs's
+// subcommands, so nested base-branch.set / .get / schema.get / issue.render stay out of the set
+// (parse.mjs's
 // header states "this file is statically readable by tests (cli-shape); import has no side effects";
 // runCommand fires from the bin thin entry).
-describe("P3/P4.3 命令面收敛（P4.3: schema 唯一发现型）:顶层子命令恰为五", () => {
-  it("mainCommand.subCommands 名称集合 === {base-branch, fix, implement, review, schema}", () => {
+describe("P3/P4.3/P4.2 命令面收敛:顶层子命令恰为六", () => {
+  it("mainCommand.subCommands 名称集合 === {base-branch, fix, implement, issue, review, schema}", () => {
     expect(Object.keys(mainCommand.subCommands).sort()).toEqual([
       "base-branch",
       "fix",
       "implement",
+      "issue",
       "review",
       "schema",
     ]);

@@ -32,6 +32,11 @@
 //      dry-run degraded-BLOCK).
 //   6. per-command return-block contract assertions (status / commits / artifacts / blocker /
 //      counters) — the consumer-equivalent result surface for every output.
+//   7. osuperpowers pack whitelist audit (P4.2 Task 7 ⑤): `npm pack --dry-run --json` over the
+//      osuperpowers package — the pack top-level file set must equal the 7-item files whitelist
+//      (skills/ · .claude-plugin/ · .cursor-plugin/ · README.md · README.zh-CN.md · CHANGELOG.md ·
+//      package.json) with zero residue surfaces (tests/ · bin/ · scripts/ · .superpowers/ ·
+//      .version-bump.json).
 //
 // Optional `--expect-version <semver>` (release-state version identity assertion, P4.2 / design
 // §2.2 + §6): when present, step 3's tarball assertions additionally require the packed
@@ -59,6 +64,22 @@ const PKG = "packages/cdd-engine";
 const PKG_SCOPE = "@oscaner-skills/cdd-engine";
 const PKG_DIR = path.join(root, PKG);
 const CLI_ENTRY = "dist/cli.mjs";
+
+// ---- osuperpowers pack whitelist audit (P4.2 Task 7 ⑤) ----
+// The package's `files` whitelist is its ONLY shipped surface (7 entries): the probe asserts the
+// pack top-level file set equals the whitelist and that the prior inside-package surfaces
+// (tests/ bin/ scripts/ .superpowers/ .version-bump.json) stay at zero inside the tarball.
+const OSUPERPOWERS_DIR = path.join(root, "packages", "osuperpowers");
+const OSUPERPOWERS_WHITELIST = [
+  "skills/",
+  ".claude-plugin/",
+  ".cursor-plugin/",
+  "README.md",
+  "README.zh-CN.md",
+  "CHANGELOG.md",
+  "package.json",
+];
+const OSUPERPOWERS_RESIDUE = ["tests/", "bin/", "scripts/", ".superpowers/", ".version-bump.json"];
 
 // Real bundle anti-false-green bounds: dev stub ≈ 614 B, real ≈ 72 kB. The >10 kB floor rejects a
 // stub (or a half-shipped artifact) while staying well below the real product's byte size.
@@ -566,6 +587,34 @@ function runConsumerChain({
   }
 }
 
+/** osuperpowers pack whitelist audit — `npm pack --dry-run --json` over the osuperpowers package;
+ *  the pack's top-level file set must equal the 7-item files whitelist (normalized: a trailing
+ *  slash stripped) and no residue surface (tests/ bin/ scripts/ .superpowers/ .version-bump.json)
+ *  may appear anywhere in the tarball listing. */
+function assertOsuperpowersPackWhitelist(): void {
+  const res = execaSync("npm", ["pack", "--dry-run", "--json"], { cwd: OSUPERPOWERS_DIR });
+  const listing = JSON.parse(res.stdout) as Array<{ files: Array<{ path: string }> }>;
+  const files = listing[0]?.files ?? [];
+  const rel = files.map((f) => f.path.replace(/^package\//, ""));
+  const normalize = (entry: string) => entry.replace(/\/$/, "");
+  const topEntries = [...new Set(rel.map((p) => normalize(p.split("/")[0])))].sort();
+  assertTrue(
+    JSON.stringify(topEntries) ===
+      JSON.stringify([...OSUPERPOWERS_WHITELIST].map(normalize).sort()),
+    `osuperpowers pack top-level file set ${JSON.stringify(topEntries)} ≠ the 7-item whitelist ${JSON.stringify(OSUPERPOWERS_WHITELIST)}`,
+  );
+  for (const residue of OSUPERPOWERS_RESIDUE) {
+    const hits = rel.filter((p) => p === residue || p.startsWith(residue));
+    assertTrue(
+      hits.length === 0,
+      `osuperpowers pack carries a residue surface ${residue}: ${hits.join(", ")}`,
+    );
+  }
+  console.log(
+    "OK — osuperpowers pack whitelist audit (top-level file set == the 7-item whitelist, zero residue surfaces)",
+  );
+}
+
 export function main(expectVersion?: string): void {
   // 1. build — the real unbuild product into dist (dev and publish share the same dist entry).
   execaSync("pnpm", ["--filter", PKG_SCOPE, "build"], { cwd: root, stdio: "inherit" });
@@ -592,6 +641,10 @@ export function main(expectVersion?: string): void {
   // 4. consumer install + 5. consumer chain + 6. per-command return-block assertions.
   const consumer = installConsumer(tgz, expectVersion);
   runConsumerChain(consumer);
+
+  // 7. osuperpowers pack whitelist audit (P4.2 Task 7 ⑤) — the packed plugin surface is exactly
+  //    the 7-item files whitelist, zero residue.
+  assertOsuperpowersPackWhitelist();
 
   console.log(
     `OK — cdd-engine consumer-sim (pack → install → cdd schema get + 5-command dry-run chain green, tarball = real product${

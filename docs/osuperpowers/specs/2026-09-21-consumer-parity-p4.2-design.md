@@ -1,6 +1,6 @@
 # P4.2 — 发布一致性闭环
 
-- **Version**: v1.1 · 2026-09-26
+- **Version**: v1.2 · 2026-09-26
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)
 - **Parent program**: [2026-09-21-consumer-parity-overall.md v1.44](2026-09-21-consumer-parity-overall.md)
@@ -79,6 +79,17 @@
 
 **3.6 Non-goal #1 例外修订**：已随 overall v1.44 同步（「唯一 = schema get」→「发现型 schema get + 纯渲染型 issue render」）——本 phase 落地其一。
 
+### §7 plan-constraints 再生语义（2026-09-26 mid-backfill 追加）
+
+**根因**：T22/§T7.1 的 plan-constraints.md 材料化为 **generate-once**——implement pre-flight（`task.ts` line ~487）为纯 `existsSync` 门：TG1 生成后，后续 TG 全部跳过（`materializePlanConstraints` 自身也是 `if (existsSync) return {generated:false}`）。`isPlanConstraintsStale`（plan-hash anchor 比对）已实现但**零接线**——plan Constraints 的 mid-backfill 更新永远不会刷进派生产物。
+
+**处置（彻底去 generate-once · 非 breaking）**：
+- `materializePlanConstraints` 去 generate-once 早退：每 dispatch 无条件从 plan Constraints source 重新提取 + **覆写** plan-constraints.md（保留确定性 header：plan basename + hash 作 provenance；`generated` 返回若成恒真随代码简化）
+- implement pre-flight 去 `existsSync` 跳过：**每次 implement dispatch（= 每 TG 起点）必调 materializePlanConstraints**
+- `isPlanConstraintsStale` + 其测试 = 真死代码随删（锚点保留作 provenance，不再作 stale 判定）
+- plan-constraints.test.ts / runner.test.ts 的 generate-once 断言面反转为「无条件再生」语义（同 plan 二次调用覆写同字节 = 确定性保持）；T22 注释同步
+- 非 breaking：CLI/字段面零变化，仅派生产物再生语义
+
 ### §4 宣讲定位面（R5/R6/R8）
 
 **4.1 README 三段式骨架**：**定位（R8）→ 理念（R6）→ 行为（P4.1 成果）**——理念导览成第一读层：
@@ -127,6 +138,7 @@
 - `smoke-cdd --expect-version` 接线实证：tarball version 断言 + release.yml publish 前 post-version 门存在 + 安装后版本身份断言
 - README 三段式骨架（定位 → 理念 → 行为，grep 断言）+ 定位句无 harness 字样 + gh 元信息（description/topics 值与裁决一致，gh 实证）+ zh mirror 三件同步（emit:check / 一致性探针）
 - `docs/maintainers` 6 → 5 内容文档（01+02 合并为 `01-template-doctrine`，剩余连续重编号 01-05：naming→02 / context-caching→03 / program-experience→04 / third-party-dependencies→05）、62.6KB → ~42KB（收敛前后对照）+ `02`/`05`（原 03/06）更新到 P4.4 终态 + 互链零断裂（含重编号编号引用同步，链接探针）+ smoke-cdd 定位说明存在
+- **plan-constraints 每 TG 再生实证（mid-backfill 追加）**：`materializePlanConstraints` 无 generate-once 早退 · implement pre-flight 无 `existsSync` 跳过（每 implement dispatch 必调）· `isPlanConstraintsStale` 零残留（grep 断言）· 同 plan 二次调用覆写同字节（确定性保持）· engine 测试全绿（`pnpm --filter @oscaner-skills/cdd-engine test`）
 - 首次发布执行：`cdd-engine@1.0.0` / `osuperpowers@0.2.0` 双 tag + GH Release ×2 + npm 发布实证（`npm view` 可达）
 
 ## Section 3: Deviations from overall

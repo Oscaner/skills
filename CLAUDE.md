@@ -19,7 +19,7 @@ pnpm run emit       # regenerate all harness manifests from package.json
 pnpm run emit:check # verify emit output is fresh (no drift, exit 1 if stale)
 pnpm run validate   # full validation suite (emit check + plugin resolution + tests + version sync)
 pnpm run changeset  # create a changeset for versioning
-pnpm run version    # apply changesets to bump versions
+pnpm exec changeset version  # apply changesets to bump versions + CHANGELOGs (native; CI runs it on the Version PR)
 ```
 
 CI runs `node scripts/run.ts validate` on PRs to `develop` and `main` (11 validation blocks: emit freshness, osuperpowers plugin resolution / skills inventory / behavior tests + wiring guard, cdd-engine dev stub + engine test suite, engine zero residue + channel audit, marketplace manifests, scripts unit tests, package version sync).
@@ -42,7 +42,7 @@ Adding a new first-party plugin: create `packages/<name>/package.json` with an `
 ### Per-package docs
 
 - [`packages/osuperpowers/README.md`](packages/osuperpowers/README.md) — osuperpowers plugin user guide
-- [`.changeset/README.md`](.changeset/README.md) — changeset & release-flow reference for the first-party plugin (version scheme, Release flow)
+- [`.changeset/README.md`](.changeset/README.md) — changeset & release-flow reference for the first-party packages (version scheme, Release flow)
 - [skill-anatomy schema](packages/cdd-engine/src/documents/schema/skill-anatomy.json) — canonical SKILL.md structure contract (node-anchored format, English primary); the machine check [`digraph-consistency.test.mjs`](packages/osuperpowers/tests/digraph-consistency.test.mjs) validates all 8 osuperpowers skills against it
 
 ### Data-driven templates

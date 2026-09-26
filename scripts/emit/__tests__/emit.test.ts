@@ -10,9 +10,9 @@ import { SOURCE_TOP, sourceService } from "../source.ts";
 
 // First-party versions are read from the live package.json SOTs so these
 // assertions hold at any released version. A stale hardcoded version broke the
-// Release workflow's pre-commit gate whenever version-packages.ts bumped the
-// tree before committing (emit reads the bumped package.json, so asserts must
-// expect the bumped version).
+// Release workflow's pre-commit gate whenever a `changeset version` run bumped
+// the tree before committing (emit reads the bumped package.json, so asserts
+// must expect the bumped version).
 const readPkgVersion = (rel) =>
   JSON.parse(readFileSync(new URL(`../../../${rel}/package.json`, import.meta.url), "utf8"))
     .version;

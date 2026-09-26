@@ -3,13 +3,13 @@
 /**
  * Repo automation dispatcher — the single top-level entry for scripts/.
  * citty command surface (Task 21; engine src/cli/parse.ts isomorphism): ONE
- * defineCommand tree (mainCommand with the seven subcommands emit / emit-check /
- * validate / precommit / smoke-cdd / version / apply-rules), each subcommand
+ * defineCommand tree (mainCommand with the six subcommands emit / emit-check /
+ * validate / precommit / smoke-cdd / apply-rules), each subcommand
  * assembled from a `Command` instance (scripts/lib/command.ts) with its kind
  * declared by the invocation contract, and subcommand handlers lazy-loading via
  * dynamic import — each command's dependency graph loads only on first use.
  *
- * This file is the composition root (Task 9): it declares the seven Command
+ * This file is the composition root (Task 9): it declares the six Command
  * instances as data (CommandMeta) and assembles mainCommand — no inline command
  * factory, no forwarding shell (a forwarding shell = a defect — delete it; assembly/invoke/meta live in
  * the Command class, Criterion ⑤).
@@ -48,7 +48,7 @@ function plain(text: unknown): string {
   return String(text).replace(ANSI_RE, "");
 }
 
-// ---- composition root (Task 9): the seven subcommands as Command instances ----
+// ---- composition root (Task 9): the six subcommands as Command instances ----
 // CommandMeta is data (the brief's meta facet); assemble/invoke live on the Command class. The
 // modulePath is the lazy import target — the subcommand's dependency graph loads only on invoke.
 const SUBCOMMANDS: CommandMeta[] = [
@@ -83,12 +83,6 @@ const SUBCOMMANDS: CommandMeta[] = [
       "run the cdd-engine consumer-sim (build → pack → consumer install → 5-command dry-run chain)",
     modulePath: "./validate/smoke-cdd.ts",
     kind: "none",
-  },
-  {
-    name: "version",
-    description: "apply changesets to bump versions (--dry-run supported)",
-    modulePath: "./release/version-packages.ts",
-    kind: "dry-run",
   },
   {
     name: "apply-rules",

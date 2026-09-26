@@ -2,12 +2,20 @@
 #   develop accumulates .changeset/*.md → develop→main PR → push main
 #   → changesets/action opens Version PR (target main); hasChangesets=true → tag/Release/sync skipped
 #   → merge Version PR → push main again; hasChangesets=false → publish mode
-#   → per-plugin matrix job pushes git tag + GitHub Release only for plugins that
-#     were actually versioned (recorded in .changeset/versioned-plugins.json by
-#     version-packages.mjs); plugins with no changesets are skipped — no phantom
-#     baseline tag/release → sync PR.
-#   First-party osuperpowers only (vendors 自维护面已撤，P6 Task 2 / B2): release-plugin
+#   → per-plugin matrix job (osuperpowers + cdd-engine) pushes a git tag + GitHub Release only for
+#     plugins whose current package.json version is newer than their latest git tag (git-tag vs
+#     package.json semver judgment: `git tag --list "<tag_prefix>*" | sort -V | tail -1`, then
+#     strict x.y.z compare; an empty tag list = first release → versioned). The judgment is derived
+#     from the tree itself (native `changeset version` owns the version math), so plugins that were
+#     not versioned by the push get no tag/Release — no phantom baseline tag/release → sync PR.
+#   First-party osuperpowers + cdd-engine only (vendors 自维护面已撤，P6 Task 2 / B2): release-plugin
 #   and sync-develop no longer block on vendored co-publish.
+#   Push coverage model: `pnpm run validate` covers the PR surface in full (develop→main and
+#   changeset-release/* PRs run pr-validate); push→main itself runs no validate — the release
+#   surface = emit freshness (Version PR generation runs `pnpm exec changeset version` then
+#   `pnpm run emit`) + the dual consumer gates (pre-version baseline smoke-cdd, and the
+#   post-version `smoke-cdd --expect-version` before publish — the released artifact is the
+#   verified artifact).
 name: Release (main)
 
 on:
@@ -43,7 +51,7 @@ jobs:
       - uses: changesets/action@v2
         id: changesets
         with:
-          version: node scripts/run.ts version
+          version: pnpm exec changeset version && pnpm run emit
           publish: pnpm exec changeset publish
           createGithubReleases: false
           commit: "chore: release plugins"
@@ -61,6 +69,8 @@ jobs:
         include:
           - name: osuperpowers
             tag_prefix: "osuperpowers@"
+          - name: cdd-engine
+            tag_prefix: "cdd-engine@"
     steps:
       - uses: actions/checkout@v7
         with:
@@ -68,15 +78,28 @@ jobs:
       - name: Read plugin version
         id: ver
         run: echo "version=$(node -p "require('./packages/${{ matrix.name }}/package.json').version")" >> "$GITHUB_OUTPUT"
-      - name: Check plugin was versioned in this release
+      - name: Check plugin was versioned in this release (git-tag vs package.json semver)
         id: versioned
         run: |
-          if [ ! -f .changeset/versioned-plugins.json ]; then
-            echo "versioned=false" >> "$GITHUB_OUTPUT"
-          elif jq -e --arg p "${{ matrix.name }}" '.[] | select(. == $p)' .changeset/versioned-plugins.json >/dev/null 2>&1; then
+          # Judgment: versioned iff (a) no git tag exists yet for this package — first release
+          # (e.g. cdd-engine@1.0.0 has no "minimum tag" to compare against; the current version IS
+          # the first version) — or (b) the current package.json version strictly exceeds the
+          # latest git tag. Comparing against the latest tag prevents a phantom tag/Release when
+          # the version is unchanged (a ghost tag, or a push that did not version this package).
+          latest_tag=$(git tag --list "${{ matrix.tag_prefix }}*" | sort -V | tail -1)
+          if [ -z "$latest_tag" ]; then
             echo "versioned=true" >> "$GITHUB_OUTPUT"
           else
-            echo "versioned=false" >> "$GITHUB_OUTPUT"
+            version="${{ steps.ver.outputs.version }}"
+            tag="${latest_tag#${{ matrix.tag_prefix }}}"
+            # Pure-shell strict X.Y.Z compare — this job runs on a bare checkout (no pnpm
+            # install), so it cannot require('semver'); numeric field sort is identical on GNU
+            # and BSD, keeping the local rehearsal faithful to the runner.
+            if [ "$version" != "$tag" ] && [ "$(printf '%s\n%s\n' "$tag" "$version" | sort -t. -k1,1n -k2,2n -k3,3n | head -1)" = "$tag" ]; then
+              echo "versioned=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "versioned=false" >> "$GITHUB_OUTPUT"
+            fi
           fi
       - name: Check tag already exists
         id: tag-exists

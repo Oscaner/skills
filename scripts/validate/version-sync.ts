@@ -57,7 +57,18 @@ function checkVersionSync() {
       );
     }
   }
-  console.log("OK —", osuperpowersPkg.version);
+
+  // cdd-engine — independent semver with no emit products, so there is no sync surface to
+  // stamp the version into (under the native `changeset version` pipeline the version lives in
+  // its own package.json only). The published-state version identity is asserted by the release
+  // post-version gate `smoke-cdd --expect-version` (P4.2 Task 4) — not duplicated here. Only
+  // the declared version format is asserted: strict x.y.z, which also excludes prerelease (-X)
+  // and build (+X) suffixes.
+  const cddEnginePkg = readJson("packages/cdd-engine/package.json");
+  if (!SEMVER.test(cddEnginePkg.version)) {
+    throw new Error(`Invalid cdd-engine version format: ${cddEnginePkg.version}`);
+  }
+  console.log("OK —", osuperpowersPkg.version, "· cdd-engine", cddEnginePkg.version);
 }
 
 // Single in-process step (not a `node scripts/validate/version-sync.ts` subprocess,

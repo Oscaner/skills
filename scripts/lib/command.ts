@@ -5,7 +5,7 @@
 //   · assemble — the citty CommandDef (declared args + the lazy run handler);
 //   · invoke — lazy module dispatch (each subcommand's dependency graph loads only on
 //     first use — the Task 21 lazy-load contract is untouched).
-// run.ts is now a composition root: it declares the seven Command instances and mounts
+// run.ts is now a composition root: it declares the six Command instances and mounts
 // their assembled defs under mainCommand, never a forwarding shell to module mains.
 
 import type { ArgsDef, CommandDef } from "citty";
@@ -15,8 +15,7 @@ import { defineCommand } from "citty";
  * main (the forwarded args are the parsed citty args named by the subcommand's own argsDef):
  *   "none"    → main() — zero-arg mains (emit/emit-check/validate/precommit/smoke-cdd must never
  *              see an options object in that slot);
- *   "dry-run" → main({ dryRun }) — version's destructured option (presence-based boolean: absent
- *              → false, present → true);
+ *   "dry-run" → main({ dryRun }) — presence-based boolean (absent → false, present → true);
  *   "target"  → main(target) — apply-rules' single mandatory positional. */
 export type InvocationKind = "none" | "dry-run" | "target";
 
@@ -82,7 +81,7 @@ export class Command {
   }
 
   /** invoke — lazy module dispatch. A numeric module-main return is an exit code
-   * (validate/version/apply-rules main → 1 on failure); undefined returners
+   * (validate/apply-rules main → 1 on failure); undefined returners
    * (emit/emit-check/smoke-cdd) rely on the top-level catch for non-zero. */
   async invoke(args: Record<string, unknown>): Promise<void> {
     const mod = (await import(new URL(this.meta.modulePath, this.#baseUrl).href)) as {

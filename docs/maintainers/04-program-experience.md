@@ -84,18 +84,20 @@ Operational norms fixed by the consumer-parity P3 rebuild; each item is grep-ver
 **smoke-cdd positioning** — `smoke-cdd` (`scripts/validate/smoke-cdd.ts`, run as `node scripts/run.ts
 smoke-cdd`) is the **consumer-sim = the cdd-engine published-artifact consumer black-box**: real
 build → pack → tarball assertions → consumer install → `cdd schema get` + 5-command dry-run chain.
-It is the only CI face that installs the packed artifact into an ephemeral consumer repo (zero
-in-repo path dependencies — the engine resolves every runtime resource under `node_modules`). It is
+It is the only CI face installing the packed artifact into an ephemeral consumer repo (zero
+in-repo paths; runtime resources resolve under `node_modules`). It is
 **exclusive to cdd-engine**; osuperpowers publishes through a normal npm release (the reserved
 channel for npm-harness packages), and its release product is validated by the pack allowlist probe
 + emit products + version-sync, never a pseudo-consumer install.
 
-**Release-only gate** — the consumer black-box costs a full build + pack + install, so it is OFF the daily PR surface; push→main instead runs emit freshness + the dual consumer gates in `release.yml`, both wired **before** the changesets action:
+**Release-only gate** — the full build + pack + install cost keeps it OFF the daily PR surface; push→main instead runs emit freshness + the dual consumer gates in `release.yml`, wired **before** the changesets action:
 
-- pre-version baseline gate — `node scripts/run.ts smoke-cdd` (no expectation, version-agnostic); a failure here leaves a clean tree to roll back from;
-- post-version gate — `pnpm exec changeset status` detects the publish-mode push (zero pending changesets = the Version PR merged onto a 1.0.0 tree), then `smoke-cdd --expect-version 1.0.0` asserts the release-state version identity (tarball + installed `node_modules/@oscaner-skills/cdd-engine/package.json` both `== 1.0.0`), intercepting before `changeset publish` — the released artifact is the verified artifact.
+- pre-version baseline gate — `node scripts/run.ts smoke-cdd` (version-agnostic); failure leaves a clean tree to roll back from;
+- post-version gate — `changeset status` (zero pending = the Version PR merged onto a 1.0.0 tree) then `smoke-cdd --expect-version 1.0.0` asserts the tarball + installed package.json both `== 1.0.0`, ahead of `changeset publish` — the released artifact is the verified artifact.
 
-**Restore statement** — to move the consumer black-box back onto the daily PR face, add the `smoke-cdd` step to `pr-validate.yml` and drop the duplicated pre-version gate from `release.yml` (or accept the duplicate); revert is the inverse. `--expect-version` + the pack allowlist probe stay release-gate-mechanical regardless.
+**Restore statement** — to move the consumer black-box back onto the daily PR face, add the `smoke-cdd` step to `pr-validate.yml` and drop the duplicated pre-version gate from `release.yml`; revert is the inverse.
+
+55. **Validate ↔ smoke-cdd serial discipline** — both write `packages/cdd-engine/dist/` (validate materializes the dev stub, the engine suite reads dist; smoke-cdd rebuilds the directory): a P4.2 concurrent run ENOENTed the engine suite (reproduced; serial re-run green). Run `pnpm run validate` + `node scripts/run.ts smoke-cdd` serially.
 
 ---
 

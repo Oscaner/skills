@@ -3,8 +3,9 @@
 // to five (01 template-doctrine merged; 02 naming / 03 context-caching / 04 program-experience /
 // 05 third-party-dependencies renumbered contiguous), zero old-numbered names on live surfaces,
 // every markdown link + external reference resolves, the P4.2 convergence ledger in
-// docs/maintainers/README.md stays truthful (each After cell == the live file's byte count), the
-// total byte budget stays within the plan anchor ≤ 53,000, the P4.4 final-state tokens are
+// docs/maintainers/README.md stays truthful (each per-file After cell == the live file's byte
+// count, and the Total After cell == the sum of the per-file After cells), the total byte budget
+// stays within the plan anchor ≤ 53,000, the P4.4 final-state tokens are
 // registered in 02/05, and the smoke-cdd positioning (landed by P4.2 Task 4 ③) survives in 04.
 // Runs inside the `osuperpowers node:test behavior tree` validate step.
 import { test } from "node:test";
@@ -151,6 +152,18 @@ test("maintainers: README convergence ledger matches the live files (After cells
       `convergence ledger After(${byFile.get(f)}) drifted from the live byte count of ${f}`,
     );
   }
+  // Total row: the After cell records the measured total (byte-counted, like every other After
+  // cell), never the plan anchor as an inequality — the anchor lives in the Note column instead.
+  // A byte total is the one figure the per-file currency check cannot derive from a single file,
+  // so assert it equals the sum of the per-file After cells.
+  const total = [...byFile.values()].reduce((a, b) => a + b, 0);
+  const totalRow = section.match(/^\|\s*\*\*Total\*\*\s*\|\s*([\d,]+)\s*\|\s*([\d,]+)\s*\|/m);
+  assert.ok(totalRow, "convergence ledger missing the Total row");
+  assert.equal(
+    Number(totalRow[2].replace(/,/g, "")),
+    total,
+    `convergence ledger Total After (${totalRow[2]}) ≠ the sum of the per-file After cells (${total})`,
+  );
   assert.match(md, /≤ 53,000/, "convergence ledger must state the ≤ 53,000 plan anchor");
 });
 

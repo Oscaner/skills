@@ -21,5 +21,5 @@ Task 9 merged the two template docs, trimmed program-experience, updated 02/05 t
 | 03-context-caching-doctrine.md | 8,706 | 8,706 | unchanged |
 | 04-program-experience.md | 21,773 | 12,699 | trimmed ~9 KB |
 | 05-third-party-dependencies.md | 10,018 | 10,136 | P4.4 deps registered |
-| README.md | 2,324 | 1,927 | index converged |
-| **Total** | 65,193 | **≤ 53,000** | plan anchor |
+| README.md | 2,324 | 1,930 | index converged |
+| **Total** | 65,193 | 52,987 | plan anchor ≤ 53,000 |

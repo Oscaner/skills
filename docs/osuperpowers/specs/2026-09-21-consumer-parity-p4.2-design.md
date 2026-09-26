@@ -34,7 +34,7 @@
 - `scripts/run.ts version` 子命令入口与 `scripts/release/__tests__`、version-utils 相关测试 —— 同步删除
 - 残留对齐：`.changeset/README.md`（Release flow 述）与 docs/maintainers 发布面文档随改述
 
-**1.3 changesets/action version 命令**：由 `node scripts/run.ts version` 改 **`pnpm exec changeset version && pnpm run emit`**——原生 version 消费 changesets + 写 CHANGELOG（双包）+ bumppackage.json；emit 重 stamp 双包发布产物（marketplace / .claude-plugin 等）使 Version PR 上 version-sync 校验绿。changesets/action 在 version 命令退出后统一 commit（Version PR）。
+**1.3 changesets/action version 命令**：由 `node scripts/run.ts version` 改 **`pnpm exec changeset version && pnpm run emit`**——原生 version 消费 changesets + 写 CHANGELOG（双包）+ 各包 package.json bump；emit 重 stamp osuperpowers 发布产物（marketplace / .claude-plugin / .cursor-plugin 等）使 Version PR 上 version-sync 校验绿——cdd-engine 侧无 emit 产物（其版本只落自身 package.json，由原生 `changeset version` 直接写），不涉及 emit 重 stamp。changesets/action 在 version 命令退出后统一 commit（Version PR）。
 
 **1.4 `consumer-parity-p2-major.md` 声称改写**：prose 层的「`1.0.0 → 2.0.0`；版本化发布动作归 P4」改写为「P2 breaking 随 0.1.0 基线并入 **1.0.0 首次稳定开版**、不起跳 2.0.0；版本化发布动作归 P4.2」。changeset 的 `major` 类型保持（breaking 语义面正确；1.0.0 的 changelog 会写 `Major Changes` 段——发布记录内无版本轨迹谎话）。
 
@@ -46,7 +46,7 @@
 
 **2.1 consumer-sim 定位**：`smoke-cdd`（scripts/validate/smoke-cdd.ts）消费者黑盒**专属 cdd-engine**（真实 build → pack → tarball 断言 → 消费者仓安装 → 五命令 dry-run 链 → return-block 契约）。osuperpowers **走正常 npm 发版**（为 pi 类 npm-harness 预留的通道），其发布品校验 = §3 pack 内容面审计 + emit 产物 + version-sync，不做插件安装面的伪消费者模拟。
 
-**2.2 `smoke-cdd --expect-version <ver>`**：新增可选参数——tarball 内 `package.json` 的 version 字段 == 期望值才继续（发布态版本身份断言）。接线 release.yml 的 **post-version 门**：`hasChangesets=false` push（Version PR 合并后、`changeset publish` 前）执行 `node scripts/run.ts smoke-cdd --expect-version 1.0.0`——发布品即校验品的字面兑现；pre-version 基线门（现已有）保留——Version PR 产生前失败 → 干净回退。
+**2.2 `smoke-cdd --expect-version <ver>`**：新增可选参数——tarball 内 `package.json` 的 version 字段 == 期望值才继续（发布态版本身份断言）。接线 release.yml 的 **post-version 门**，构造钉死：changesets/action 的 `version` + `publish` 同 action，`hasChangesets` 只有 action 运行后才能知——门放 action 后 = `publish` 后（门失去拦截力），∴ 门必须在 action **前**独立成步，以早判定把 false/true push 区分开。具体：release job 在 changesets/action **之前**新增一步 `pnpm exec changeset status --output=<tmp>`（JSON `changesets` 数组空 = 无未消费 changesets = `hasChangesets=false` push）→ `--expect-version` 门步 `if:` 限定该 false push 并置于 action 前执行 `node scripts/run.ts smoke-cdd --expect-version 1.0.0`——Version PR 合并后的再 push（tree 已是 1.0.0 发布态）上「发布品即校验品」字面兑现，且拦截在 `changeset publish` 之前；`hasChangesets=true` push（Version PR 产生前、tree 仍 0.1.0）不触发断言，不破坏首次 version push。pre-version 基线门（现已有、无 expect-version）保留现有 pre-action 位置——Version PR 产生前失败 → 干净回退。
 
 **2.3 workflows 三层重构**：
 - **Tier 1 PR 门**：`pr-validate.yml` 收敛为 `checkout → actions/setup → actions/validate` 三步 compose（**删 link-cdd-engine、删 smoke-cdd**——消费者黑盒归 release 门，PR 提速一个全链）；显式 `permissions: contents: read`
@@ -94,15 +94,18 @@
 
 ### §5 运维文档精炼（R7）
 
-- **合并**：`01-data-driven-templates.md` + `02-template-doctrine.md` → 单文档 `01-template-doctrine.md`（template 面一个文档）→ 内容文档 6 → **5**
-- **精简**：`05-program-experience.md` 19.5KB → ~12KB（程序叙事/已过时条目清除，actionable lessons 保留）
-- **更新**：`03-naming-conventions.md` 到 P4.4 终态（REVIEW_FIX / group-* / `--tasks` / `issue` 词表）；`06-third-party-dependencies.md` 到 P4.4 deps 终态（biome · ts7 + @types/typescript6 shim · execa 10 等登记）
-- **保留**：`04-context-caching-doctrine.md`（engine cache-profile 活契约，不动）
-- **互链零断裂**：index README + CLAUDE.md 引用 + 内部链接迁移完整（链接探针）
+- **合并**：`01-data-driven-templates.md` + `02-template-doctrine.md` → 单文档 `01-template-doctrine.md`（template 面一个文档；02 槽位随合并消失）
+- **重编号**：剩余五件**连续重编号 01-05**（有意不留断号）——`03-naming-conventions.md` → **02** · `04-context-caching-doctrine.md` → **03** · `05-program-experience.md` → **04** · `06-third-party-dependencies.md` → **05**；下文与 Acceptance 引用一律用新号 → 内容文档 6 → **5**
+- **精简**：`04-program-experience.md`（原 05）19.5KB → ~12KB（程序叙事/已过时条目清除，actionable lessons 保留）
+- **更新**：`02-naming-conventions.md`（原 03）到 P4.4 终态（REVIEW_FIX / group-* / `--tasks` / `issue` 词表）；`05-third-party-dependencies.md`（原 06）到 P4.4 deps 终态（biome · ts7 + @types/typescript6 shim · execa 10 等登记）
+- **保留**：`03-context-caching-doctrine.md`（原 04；engine cache-profile 活契约，不动）
+- **互链零断裂**：index README + CLAUDE.md 引用 + 内部链接迁移完整（链接探针，含重编号对应编号引用同步：03→02 / 06→05 等）
 - **补位**：smoke-cdd 定位说明（P4.2 dogfood：owner 不确定其用途 → 在 docs/maintainers 写明「consumer-sim = cdd-engine 发布品消费者黑盒」）
 - **净目标**：62.6KB → ~42KB（-33%）、6 → 5 内容文档；验收 = 收敛前后对照 + 链接探针
 
 ### §6 首次发布执行（R1–R8 收口）
+
+版本目标推导——**cdd-engine**：现声明 0.1.0（1.1 降值）+ 累计 major changesets → 原生 `changeset version` 产出 **1.0.0**（§1 裁决基线，0.x major 不前折）；**osuperpowers**：现声明 **0.1.1**（已发布、npm + git tag 均存在）+ 累计 minor changesets（p3 / p4 / p5-report-issues / p6-osuperpowers-surface，及 p4.3 / p4.4 系列，均 osuperpowers minor）→ minor 折叠 → **0.2.0**（沙箱实证 Method 与 §1 同源：changesets v3.0.3，`0.1.0 + major → 1.0.0`、`0.1.1 + minor → 0.2.0`）。
 
 流程（全部配方细则 §1–§5）走一遍，产出：
 1. cdd-engine **1.0.0**（首次稳定）/ osuperpowers **0.2.0** —— 原生 changesets 一次集成发版，双 CHANGELOG 成文
@@ -123,7 +126,7 @@
 - workflows：`pr-validate.yml` = checkout + setup + validate 三步 compose（零 link-cdd-engine、零 smoke-cdd）；`.github/actions/link-cdd-engine/` 已删除；release.yml 无 `npm link` 字样（grep `.github/` 断言）+ 无 node-version 22 + 复用 setup action + release-plugin 矩阵含 `cdd-engine` 双条目
 - `smoke-cdd --expect-version` 接线实证：tarball version 断言 + release.yml publish 前 post-version 门存在 + 安装后版本身份断言
 - README 三段式骨架（定位 → 理念 → 行为，grep 断言）+ 定位句无 harness 字样 + gh 元信息（description/topics 值与裁决一致，gh 实证）+ zh mirror 三件同步（emit:check / 一致性探针）
-- `docs/maintainers` 6 → 5 内容文档、62.6KB → ~42KB（收敛前后对照）+ `03`/`06` 更新到 P4.4 终态 + 互链零断裂 + smoke-cdd 定位说明存在
+- `docs/maintainers` 6 → 5 内容文档（01+02 合并为 `01-template-doctrine`，剩余连续重编号 01-05：naming→02 / context-caching→03 / program-experience→04 / third-party-dependencies→05）、62.6KB → ~42KB（收敛前后对照）+ `02`/`05`（原 03/06）更新到 P4.4 终态 + 互链零断裂（含重编号编号引用同步，链接探针）+ smoke-cdd 定位说明存在
 - 首次发布执行：`cdd-engine@1.0.0` / `osuperpowers@0.2.0` 双 tag + GH Release ×2 + npm 发布实证（`npm view` 可达）
 
 ## Section 3: Deviations from overall

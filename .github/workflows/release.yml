@@ -8,7 +8,7 @@
 #     strict x.y.z compare; an empty tag list = first release → versioned). The judgment is derived
 #     from the tree itself (native `changeset version` owns the version math), so plugins that were
 #     not versioned by the push get no tag/Release — no phantom baseline tag/release → sync PR.
-#   First-party osuperpowers + cdd-engine only (vendors 自维护面已撤，P6 Task 2 / B2): release-plugin
+#   First-party osuperpowers + cdd-engine only (vendors self-maintenance surface withdrawn, P6 Task 2 / B2): release-plugin
 #   and sync-develop no longer block on vendored co-publish.
 #   Push coverage model: `pnpm run validate` covers the PR surface in full (develop→main and
 #   changeset-release/* PRs run pr-validate); push→main itself runs no validate — the release

@@ -21,7 +21,7 @@ Both packages follow plain semver, bumped independently of each other:
 - `0.1.1` → `0.2.0` for a `minor` changeset
 - cdd-engine (`0.1.0` baseline + accumulated majors) → **`1.0.0` first stable release** — modern changesets do not fold a 0.x major into a minor, so `semver.inc("0.1.0", "major") = "1.0.0"` (no 2.0.0 jump)
 
-osuperpowers's version is synced across `package.json`, `.claude-plugin/plugin.json` (SOT), `marketplace/source.json`, and the emitted marketplace manifests. cdd-engine has no emit products; its version lives in its own `package.json` (with `CHANGELOG.md` once first released).
+`package.json` is the version single source of truth (SOT) for each package; osuperpowers's version is re-stamped into its per-harness emit products (`.claude-plugin/plugin.json`, `marketplace/source.json`, and the emitted marketplace manifests) by `pnpm run emit`. cdd-engine has no emit products; its version lives in its own `package.json` (with `CHANGELOG.md` once first released).
 
 ## Release flow
 

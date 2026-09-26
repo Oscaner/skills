@@ -113,10 +113,11 @@ describe("issue-templates emitter", () => {
   });
 });
 
-// ---- renderYml 断言面（随 report-templates.test.mjs 退役迁入 scripts/emit/__tests__）----
-// 固定小形 formDef —— 两表单 canonical 现态：仅 component dropdown（零 session-type）。expected
-// 为独立手写字面（非代码重算），且在 yaml.stringify 字节侧做 round-trip：YAML.parse 回读结构与
-// canonical 等价，emit:check 作为输出新鲜度守卫。
+// ---- renderYml assertion surface (migrated from the retired report-templates.test.mjs) ----
+// Fixed minimal formDef — both forms' canonical state today: component dropdown only (zero
+// session-type). expected is an independent hand-written literal (not re-computed); the
+// byte round-trip through yaml.stringify is verified by re-parsing YAML output back to a
+// canonical-equivalent structure, with emit:check guarding output freshness.
 const FORM = {
   frontmatter: {
     name: "Bug report",
@@ -181,25 +182,28 @@ body:
 `;
 
 describe("render-yaml migrated golden + single-source (from the retired report-templates test)", () => {
-  it("renderYml（emit-only + yaml.stringify）：固定 golden 同字节，EOF 换行", () => {
+  it("renderYml (emit-only + yaml.stringify): golden byte-identical, EOF newline", () => {
     expect(renderYml(FORM, ENUMS)).toBe(GOLDEN_YML);
   });
 
-  it("renderYml 仅 component dropdown 注入枚举（无其他 options 注入面）", () => {
+  it("renderYml injects enums only on the component dropdown (no other options-injection surface)", () => {
     const yml = renderYml(FORM, ENUMS);
     expect((yml.match(/^ {6}options:$/gm) ?? []).length).toBe(1);
     expect((yml.match(/^ {8}- /gm) ?? []).length).toBe(3);
   });
 
-  it("canonical 单源：formFieldDefs 内零 options 数组（枚举只留顶层 components）", () => {
+  it("canonical single-source: formFieldDefs carry zero options arrays (enums live only at top-level components)", () => {
     for (const [name, formDef] of Object.entries(findingMeta.formFieldDefs)) {
       for (const item of formDef.body) {
-        expect(item.attributes.options, `${name} 的 ${item.id} 不应内联 options`).toBeUndefined();
+        expect(
+          item.attributes.options,
+          `${name}.${item.id} must not inline options`,
+        ).toBeUndefined();
       }
     }
   });
 
-  it("canonical 取值同步：init 移除 + 3 个 spec-writer 加入 + report-issues 现名", () => {
+  it("canonical value sync: init removed, 3 spec-writers present, report-issues renamed", () => {
     const components = findingMeta.components;
     expect(components).not.toContain("osuperpowers:init");
     for (const spec of [

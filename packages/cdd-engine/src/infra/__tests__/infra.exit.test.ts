@@ -2,17 +2,23 @@
 // Mirrors the .mjs exit.test.mjs contract exactly: ExitRequested sentinel is THROWN (not
 // process.exit) so run-boundary finally blocks (teardown/reap) still unwind; bin boundary maps
 // code → process.exit. Codes: 0=OK; 1=BLOCKED; 2=CLI missing.
-import { it, expect } from "vitest";
+import { expect, it } from "vitest";
 
-import { exitOk, exitOkWith, exitBlocked, exitCliMissing, ExitRequested } from "../exit.ts";
+import { ExitRequested, exitBlocked, exitCliMissing, exitOk, exitOkWith } from "../exit.ts";
 
 // Capture the ExitRequested code + stderr writes (same helper shape as the .mjs suite).
-function captureExit(fn: (...args: never[]) => void, ...args: never[]): { code: number | null; stderr: string } {
+function captureExit(
+  fn: (...args: never[]) => void,
+  ...args: never[]
+): { code: number | null; stderr: string } {
   const origWrite = process.stderr.write.bind(process.stderr);
   let code: number | null = null;
   let stderr = "";
   // stderr.write receives a string | Uint8Array; keep the string contract for assertions.
-  process.stderr.write = ((s: unknown) => { stderr += String(s); return true; }) as typeof process.stderr.write;
+  process.stderr.write = ((s: unknown) => {
+    stderr += String(s);
+    return true;
+  }) as typeof process.stderr.write;
   try {
     try {
       fn(...args);
@@ -62,7 +68,10 @@ function captureExitStdout(fn: () => void): { code: number | null; stdout: strin
   const origWrite = process.stdout.write.bind(process.stdout);
   let code: number | null = null;
   let stdout = "";
-  process.stdout.write = ((s: unknown) => { stdout += String(s); return true; }) as typeof process.stdout.write;
+  process.stdout.write = ((s: unknown) => {
+    stdout += String(s);
+    return true;
+  }) as typeof process.stdout.write;
   try {
     try {
       fn();
@@ -77,7 +86,8 @@ function captureExitStdout(fn: () => void): { code: number | null; stdout: strin
 }
 
 it("exitOkWith: writes the result line + exit 0 (success + stdout result face in one call)", () => {
-  const line = "status: APPROVED · blocker: 0 · handoff: /repo/.osuperpowers/cdd/foo/spec-review-1.json";
+  const line =
+    "status: APPROVED · blocker: 0 · handoff: /repo/.osuperpowers/cdd/foo/spec-review-1.json";
   const { code, stdout } = captureExitStdout(() => exitOkWith(line));
   expect(code).toBe(0);
   expect(stdout).toBe(`${line}\n`);

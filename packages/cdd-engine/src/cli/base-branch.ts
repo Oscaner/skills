@@ -5,10 +5,10 @@
 // target resolution + the error surface; write semantics are zero-copy.
 import { existsSync, readFileSync } from "node:fs";
 
-import { writeBaseBranch, validateBaseBranch, baseBranchPath } from "../artifacts/base-branch.ts";
+import { baseBranchPath, validateBaseBranch, writeBaseBranch } from "../artifacts/base-branch.ts";
 import { resolveWorkspace } from "../artifacts/handoff/naming.ts";
-import { getRoot, resolveDocArg } from "../infra/root.ts";
 import { exitWithCode } from "../infra/exit.ts";
+import { getRoot, resolveDocArg } from "../infra/root.ts";
 
 export interface BaseBranchOpts {
   plan: string | undefined;
@@ -46,7 +46,12 @@ export async function runBaseBranchSet(opts: BaseBranchOpts): Promise<void> {
     exitWithCode(2);
   }
   try {
-    const target = writeBaseBranch({ base: opts.base, source: opts.source, workspace, force: opts.force });
+    const target = writeBaseBranch({
+      base: opts.base,
+      source: opts.source,
+      workspace,
+      force: opts.force,
+    });
     process.stdout.write(`${target}\n`);
   } catch (err) {
     process.stderr.write(`cdd base-branch set: ${(err as Error)?.message ?? err}\n`);
@@ -74,7 +79,9 @@ export async function runBaseBranchGet(opts: BaseBranchOpts): Promise<void> {
   }
   const vr = validateBaseBranch(parsed);
   if (!vr.ok) {
-    process.stderr.write(`cdd base-branch get: invalid base-branch schema — ${vr.errors.join("; ")}\n`);
+    process.stderr.write(
+      `cdd base-branch get: invalid base-branch schema — ${vr.errors.join("; ")}\n`,
+    );
     exitWithCode(2);
   }
   process.stdout.write(`${JSON.stringify(parsed, null, 2)}\n`);

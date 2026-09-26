@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The gh CLI is the outbound seam — every ruleset interaction goes through
 // execaSync("gh", ...), so the module seam for unit tests is execaSync.
@@ -55,7 +55,12 @@ describe("apply.ts — ruleset dispatch", () => {
     expect(mocked).toHaveBeenNthCalledWith(
       1,
       "gh",
-      ["api", "repos/Oscaner/skills/rulesets", "--jq", '.[] | select(.name=="protect-develop") | .id'],
+      [
+        "api",
+        "repos/Oscaner/skills/rulesets",
+        "--jq",
+        '.[] | select(.name=="protect-develop") | .id',
+      ],
       { stdio: ["ignore", "pipe", "pipe"] },
     );
     // …then POST the moved protect-develop payload.
@@ -79,10 +84,7 @@ describe("apply.ts — ruleset dispatch", () => {
     expect(mocked.mock.calls[0][1][3]).toBe('.[] | select(.name=="protect-main") | .id');
     const post = mocked.mock.calls.find(([, args]) => args.includes("-X"));
     expect(post[1]).toEqual(
-      expect.arrayContaining([
-        "--input",
-        expect.stringMatching(/configs\/main\.json$/),
-      ]),
+      expect.arrayContaining(["--input", expect.stringMatching(/configs\/main\.json$/)]),
     );
   });
 
@@ -100,7 +102,9 @@ describe("apply.ts — ruleset dispatch", () => {
     expect(log).toHaveBeenCalledWith(
       expect.stringContaining("Ruleset protect-main already exists (42)"),
     );
-    expect(log.mock.calls.map((c) => c[0]).join("\n")).toMatch(/gh api repos\/Oscaner\/skills\/rulesets\/42 -X DELETE\n/);
+    expect(log.mock.calls.map((c) => c[0]).join("\n")).toMatch(
+      /gh api repos\/Oscaner\/skills\/rulesets\/42 -X DELETE\n/,
+    );
   });
 });
 
@@ -110,7 +114,7 @@ describe("apply.ts — moved config layout", () => {
   });
 
   it("resolves every target payload file under scripts/rulesets/configs", () => {
-    for (const [target, rel] of Object.entries(TARGETS)) {
+    for (const [_target, rel] of Object.entries(TARGETS)) {
       expect(rel).toMatch(/^configs\/[a-z-]+\.json$/);
       expect(existsSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)))).toBe(true);
     }

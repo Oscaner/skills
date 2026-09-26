@@ -3,11 +3,16 @@
 // with its responsibility, its step mount points, and the commit gate anchored to it. These
 // tests pin the enum, the order, the responsibilities, the step mounts, and the gate anchoring
 // — the parts Task 7 (dispatch/base.ts) will drive the template method from.
-import { it, expect } from "vitest";
+import { expect, it } from "vitest";
 
 import {
-  PHASES, PHASE_IDS, PHASES_BY_ID, type PhaseId,
-  BRANCH_PHASES, BRANCH_PHASE_IDS, type BranchPhaseId,
+  BRANCH_PHASE_IDS,
+  BRANCH_PHASES,
+  type BranchPhaseId,
+  PHASE_IDS,
+  PHASES,
+  PHASES_BY_ID,
+  type PhaseId,
 } from "../phases.ts";
 
 it("PHASE_IDS enumerates the three phases in execution order", () => {

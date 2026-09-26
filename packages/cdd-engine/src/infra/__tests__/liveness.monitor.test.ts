@@ -7,18 +7,26 @@
 // two-cause pure judge (terminationCause) pins the first-signal-wins and budget-fallback faces.
 // The pass-through invoke.ts → spawnManaged wiring is proven end-to-end via invokeCliWithRetry
 // with a real lingering child.
-import { describe, it, expect, beforeEach, afterEach, beforeAll } from "vitest";
-import { mkdtempSync, writeFileSync, utimesSync, rmSync, mkdirSync } from "node:fs";
+
+import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { EngineInvoker } from "../invoke.ts";
+
+const invoker = new EngineInvoker();
 
 import {
-  initProcLifecycle, teardownAll, spawnManaged,
-  evaluateStall, initialStallState, parsePsCpuTime, latestFileMtimeMs,
-  terminationCause,
+  evaluateStall,
+  initialStallState,
+  initProcLifecycle,
+  latestFileMtimeMs,
+  parsePsCpuTime,
   type StallSample,
+  spawnManaged,
+  teardownAll,
+  terminationCause,
 } from "../proc.ts";
-import { invokeCliWithRetry } from "../invoke.ts";
 import { processGroupReapingSupported } from "./helpers.ts";
 
 const GROUP_SUPPORTED = processGroupReapingSupported();
@@ -32,16 +40,20 @@ function tmpDir(prefix: string): string {
 describe("proc.ts evaluateStall — dual-signal criterion", () => {
   it("stationary over the window → stalled", () => {
     let state = initialStallState();
-    const s = (at: number, cpu: number | null = 10, mtime: number | null = 1000): StallSample => ({ cpuMs: cpu, latestMtimeMs: mtime, at });
+    const s = (at: number, cpu: number | null = 10, mtime: number | null = 1000): StallSample => ({
+      cpuMs: cpu,
+      latestMtimeMs: mtime,
+      at,
+    });
     const evals = [0, 400, 800, 1200, 1600].map((at) => {
       const r = evaluateStall(state, s(at), 1000);
       state = r.state;
       return r.verdict;
     });
-    expect(evals[0]).toBe("progress");   // first sample = baseline
+    expect(evals[0]).toBe("progress"); // first sample = baseline
     expect(evals[1]).toBe("idled");
     expect(evals[2]).toBe("idled");
-    expect(evals[3]).toBe("stalled");    // at=1200: 1200-0 >= 1000
+    expect(evals[3]).toBe("stalled"); // at=1200: 1200-0 >= 1000
     expect(evals[4]).toBe("stalled");
   });
 
@@ -78,7 +90,7 @@ describe("proc.ts evaluateStall — dual-signal criterion", () => {
       { cpuMs: 5, latestMtimeMs: 100, at: 0 },
       { cpuMs: 5, latestMtimeMs: 100, at: 400 },
       { cpuMs: 5, latestMtimeMs: 100, at: 800 },
-      { cpuMs: 200, latestMtimeMs: 100, at: 1200 },   // progress
+      { cpuMs: 200, latestMtimeMs: 100, at: 1200 }, // progress
       { cpuMs: 200, latestMtimeMs: 100, at: 1600 },
     ];
     const out = samples.map((s) => {
@@ -99,7 +111,7 @@ describe("proc.ts evaluateStall — dual-signal criterion", () => {
     let state = initialStallState();
     const r0 = evaluateStall(state, { cpuMs: 5000, latestMtimeMs: 100, at: 0 }, 3000);
     state = r0.state;
-    expect(r0.verdict).toBe("progress");            // first sample = baseline
+    expect(r0.verdict).toBe("progress"); // first sample = baseline
     // the heavy tool exits between samples: sum dips, no growth this tick
     const r1 = evaluateStall(state, { cpuMs: 2000, latestMtimeMs: 100, at: 400 }, 3000);
     state = r1.state;
@@ -123,7 +135,11 @@ describe("proc.ts evaluateStall — dual-signal criterion", () => {
   it("an unavailable signal fails open — unknown never stalls", () => {
     let state = initialStallState();
     let stalled = false;
-    const s = (at: number, cpu: number | null = 0, mtime: number | null = 100): StallSample => ({ cpuMs: cpu, latestMtimeMs: mtime, at });
+    const s = (at: number, cpu: number | null = 0, mtime: number | null = 100): StallSample => ({
+      cpuMs: cpu,
+      latestMtimeMs: mtime,
+      at,
+    });
     // cpu unreadable the whole time (hung-tool calls usually keep CPU≈0 AND unreadable is
     // possible) — the judge must refuse to kill on unknown + flat alone
     for (const at of [0, 400, 800, 1200, 1600, 2000]) {
@@ -145,13 +161,13 @@ describe("proc.ts evaluateStall — dual-signal criterion", () => {
   it("window boundary is inclusive (>=), sub-window flat is idled", () => {
     let state = initialStallState();
     const s = (at: number): StallSample => ({ cpuMs: 0, latestMtimeMs: 100, at });
-    const base = evaluateStall(state, s(0), 1000);   // first sample = window anchor
+    const base = evaluateStall(state, s(0), 1000); // first sample = window anchor
     state = base.state;
     const at999 = evaluateStall(state, s(999), 1000);
     state = at999.state;
     const at1000 = evaluateStall(state, s(1000), 1000);
     expect(base.verdict).toBe("progress");
-    expect(at999.verdict).toBe("idled");    // 999 - 0 < 1000
+    expect(at999.verdict).toBe("idled"); // 999 - 0 < 1000
     expect(at1000.verdict).toBe("stalled"); // 1000 - 0 >= 1000
   });
 });
@@ -164,39 +180,95 @@ describe("proc.ts evaluateStall — dual-signal criterion", () => {
 
 describe("proc.ts terminationCause — two-cause unified judgment", () => {
   it("running dispatch (no stall, budget not reached) → null", () => {
-    expect(terminationCause({ start: 0, at: 100, budgetMs: 1000, stall: "progress", idleSince: null, idleWindowMs: 500 }))
-      .toBeNull();
+    expect(
+      terminationCause({
+        start: 0,
+        at: 100,
+        budgetMs: 1000,
+        stall: "progress",
+        idleSince: null,
+        idleWindowMs: 500,
+      }),
+    ).toBeNull();
   });
 
   it("stalled before budget → stalled (idle fired first)", () => {
     // idleSince 2000 + window 1000 → idle ends at 3000 < at 600; budget not even reached
-    expect(terminationCause({ start: 0, at: 600, budgetMs: 1000, stall: "stalled", idleSince: 2000, idleWindowMs: 1000 }))
-      .toBe("stalled");
+    expect(
+      terminationCause({
+        start: 0,
+        at: 600,
+        budgetMs: 1000,
+        stall: "stalled",
+        idleSince: 2000,
+        idleWindowMs: 1000,
+      }),
+    ).toBe("stalled");
   });
 
   it("both signals ready, idle window ended first → stalled (stall priority)", () => {
     // idleSince 3000 + window 1000 → idle end 4000; budget end 5000 — stall provable before the cap
-    expect(terminationCause({ start: 0, at: 5000, budgetMs: 5000, stall: "stalled", idleSince: 3000, idleWindowMs: 1000 }))
-      .toBe("stalled");
+    expect(
+      terminationCause({
+        start: 0,
+        at: 5000,
+        budgetMs: 5000,
+        stall: "stalled",
+        idleSince: 3000,
+        idleWindowMs: 1000,
+      }),
+    ).toBe("stalled");
   });
 
   it("budget ended before the idle window completed → over-budget", () => {
     // stall verdict "idled": window (ending 5500) NOT yet complete, but the budget (ending 5000) is
-    expect(terminationCause({ start: 0, at: 5000, budgetMs: 5000, stall: "idled", idleSince: 4500, idleWindowMs: 1000 }))
-      .toBe("over-budget");
+    expect(
+      terminationCause({
+        start: 0,
+        at: 5000,
+        budgetMs: 5000,
+        stall: "idled",
+        idleSince: 4500,
+        idleWindowMs: 1000,
+      }),
+    ).toBe("over-budget");
   });
 
   it("stall signal fails open, budget reached → over-budget (budget fallback)", () => {
     // verdict "unknown" never becomes "stalled" (fail-open) — the budget is the only defense
-    expect(terminationCause({ start: 0, at: 1000, budgetMs: 1000, stall: "unknown", idleSince: 500, idleWindowMs: 5000 }))
-      .toBe("over-budget");
+    expect(
+      terminationCause({
+        start: 0,
+        at: 1000,
+        budgetMs: 1000,
+        stall: "unknown",
+        idleSince: 500,
+        idleWindowMs: 5000,
+      }),
+    ).toBe("over-budget");
   });
 
   it("no budget configured → stalled still terminates (liveness-only dispatch)", () => {
-    expect(terminationCause({ start: 0, at: 600, budgetMs: undefined, stall: "stalled", idleSince: 2000, idleWindowMs: 1000 }))
-      .toBe("stalled");
-    expect(terminationCause({ start: 0, at: 600, budgetMs: undefined, stall: "unknown", idleSince: 2000, idleWindowMs: 1000 }))
-      .toBeNull();
+    expect(
+      terminationCause({
+        start: 0,
+        at: 600,
+        budgetMs: undefined,
+        stall: "stalled",
+        idleSince: 2000,
+        idleWindowMs: 1000,
+      }),
+    ).toBe("stalled");
+    expect(
+      terminationCause({
+        start: 0,
+        at: 600,
+        budgetMs: undefined,
+        stall: "unknown",
+        idleSince: 2000,
+        idleWindowMs: 1000,
+      }),
+    ).toBeNull();
   });
 });
 
@@ -226,13 +298,18 @@ describe("proc.ts latestFileMtimeMs — tree-progress sampler", () => {
       mkdirSync(path.join(dir, "sub", ".git"), { recursive: true });
       const t0 = Date.UTC(2020, 0, 1);
       // utimesSync takes epoch SECONDS, not ms — passing ms yields a clamped sentinel on macOS
-      writeFileSync(path.join(dir, "old.txt"), "x"); utimesSync(path.join(dir, "old.txt"), t0 / 1000, t0 / 1000);
-      writeFileSync(path.join(dir, "sub", "new.txt"), "y"); utimesSync(path.join(dir, "sub", "new.txt"), (t0 + 5000) / 1000, (t0 + 5000) / 1000);
-      writeFileSync(path.join(dir, "sub", ".git", "big.txt"), "z"); utimesSync(path.join(dir, "sub", ".git", "big.txt"), (t0 + 9999) / 1000, (t0 + 9999) / 1000);
+      writeFileSync(path.join(dir, "old.txt"), "x");
+      utimesSync(path.join(dir, "old.txt"), t0 / 1000, t0 / 1000);
+      writeFileSync(path.join(dir, "sub", "new.txt"), "y");
+      utimesSync(path.join(dir, "sub", "new.txt"), (t0 + 5000) / 1000, (t0 + 5000) / 1000);
+      writeFileSync(path.join(dir, "sub", ".git", "big.txt"), "z");
+      utimesSync(path.join(dir, "sub", ".git", "big.txt"), (t0 + 9999) / 1000, (t0 + 9999) / 1000);
       const newest = latestFileMtimeMs(dir);
       expect(newest).toBe(t0 + 5000); // .git excluded, nested file wins
       expect(newest).not.toBe(t0 + 9999);
-    } finally { rmSync(dir, { recursive: true, force: true }); }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
   it("missing / unreadable dir → null (fail-open signal)", () => {
     expect(latestFileMtimeMs(path.join(tmpDir("gone"), "nope"))).toBeNull();
@@ -248,12 +325,20 @@ describe.skipIf(!GROUP_SUPPORTED)("proc.ts spawnManaged + liveness — integrati
     await initProcLifecycle({ diskPath: "" });
     await teardownAll();
   });
-  afterEach(async () => { await teardownAll(); });
+  afterEach(async () => {
+    await teardownAll();
+  });
 
   it("stationary CPU-quiet child is killed past the idle window → cause stalled + timedOut", async () => {
     const r = await spawnManaged(process.execPath, ["-e", "setTimeout(() => {}, 30_000)"], {
-      cwd: tmpDir("cwd"), env: process.env,
-      termination: { budgetMs: 30_000, progressPath: watch, sampleIntervalMs: 200, idleWindowMs: 1000 },
+      cwd: tmpDir("cwd"),
+      env: process.env,
+      termination: {
+        budgetMs: 30_000,
+        progressPath: watch,
+        sampleIntervalMs: 200,
+        idleWindowMs: 1000,
+      },
     });
     expect(r.timedOut).toBe(true);
     expect(r.cause).toBe("stalled");
@@ -268,8 +353,14 @@ describe.skipIf(!GROUP_SUPPORTED)("proc.ts spawnManaged + liveness — integrati
       setTimeout(() => process.exit(0), 3200);
     `;
     const r = await spawnManaged(process.execPath, ["-e", script], {
-      cwd: tmpDir("cwd"), env: process.env,
-      termination: { budgetMs: 30_000, progressPath: outDir, sampleIntervalMs: 200, idleWindowMs: 1200 },
+      cwd: tmpDir("cwd"),
+      env: process.env,
+      termination: {
+        budgetMs: 30_000,
+        progressPath: outDir,
+        sampleIntervalMs: 200,
+        idleWindowMs: 1200,
+      },
     });
     expect(r.ok).toBe(true);
     expect(r.cause).toBeUndefined();
@@ -279,8 +370,14 @@ describe.skipIf(!GROUP_SUPPORTED)("proc.ts spawnManaged + liveness — integrati
   it("CPU-burning child (thinking/file-reads) is never killed → completes ok", async () => {
     const script = "const t = Date.now(); while (Date.now() - t < 3000) {}";
     const r = await spawnManaged(process.execPath, ["-e", script], {
-      cwd: tmpDir("cwd"), env: process.env,
-      termination: { budgetMs: 30_000, progressPath: watch, sampleIntervalMs: 200, idleWindowMs: 2000 },
+      cwd: tmpDir("cwd"),
+      env: process.env,
+      termination: {
+        budgetMs: 30_000,
+        progressPath: watch,
+        sampleIntervalMs: 200,
+        idleWindowMs: 2000,
+      },
     });
     expect(r.ok).toBe(true);
     expect(r.cause).toBeUndefined();
@@ -295,10 +392,12 @@ describe.skipIf(!GROUP_SUPPORTED)("invoke.ts → spawnManaged — termination pa
     await initProcLifecycle({ diskPath: "" });
     await teardownAll();
   });
-  afterEach(async () => { await teardownAll(); });
+  afterEach(async () => {
+    await teardownAll();
+  });
 
-  it("invokeCliWithRetry(..., termination) surfaces the stall (idle params reach spawnManaged)", async () => {
-    const r = await invokeCliWithRetry(
+  it("invoker.invokeCliWithRetry(..., termination) surfaces the stall (idle params reach spawnManaged)", async () => {
+    const r = await invoker.invokeCliWithRetry(
       { cli: process.execPath, invoke: "-e", output: "text" },
       "setTimeout(() => {}, 30_000)",
       { op: "implement", type: "task" },

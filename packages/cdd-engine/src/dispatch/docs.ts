@@ -21,26 +21,37 @@
 // the lifecycle — existing consumers/tests unchanged.
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-
 import {
-  DispatchLifecycle,
+  finalizeHandoff,
+  persistFinalized,
+  recoverHandoff,
+  writeBlockedCarrier,
+} from "../artifacts/handoff/finalize.ts";
+import { readJson, writeOwnHandoff } from "../artifacts/handoff/write.ts";
+import { hashFile } from "../artifacts/hash.ts";
+import { type ExitRequested, exitWithCode, invariant } from "../infra/exit.ts";
+import { GitClient } from "../infra/git.ts";
+import { EngineInvoker } from "../infra/invoke.ts";
+import { withLifecycle } from "../infra/proc.ts";
+import { REG_PATH, Registry } from "../infra/registry.ts";
+import { getRoot } from "../infra/root.ts";
+import { TemplateLoader } from "../render/templates.ts";
+import { CommitChecker, UNCOMMITTED_RETURN_MARKER } from "../rules/commit.ts";
+import { FAILURE_CATEGORIES } from "../rules/failure.ts";
+import { HandoffSchemaValidator } from "../rules/schema.ts";
+import {
+  DispatchBlocked,
   type DispatchContext,
   type DispatchHookContext,
-  DispatchBlocked,
+  DispatchLifecycle,
 } from "./base.ts";
-import { invokeCli, resolveTerminationConfig } from "../infra/invoke.ts";
-import { withLifecycle } from "../infra/proc.ts";
-import { getRoot } from "../infra/root.ts";
-import { gitRevParseHead } from "../infra/git.ts";
-import { exitWithCode, ExitRequested, invariant } from "../infra/exit.ts";
-import { writeOwnHandoff, readJson } from "../artifacts/handoff/write.ts";
-import { finalizeHandoff, persistFinalized, recoverHandoff, writeBlockedCarrier } from "../artifacts/handoff/finalize.ts";
-import { loadRegistry, checkHarness, REG_PATH } from "../infra/registry.ts";
-import { validateHandoffSchema } from "../rules/schema.ts";
-import { FAILURE_CATEGORIES } from "../rules/failure.ts";
-import { UNCOMMITTED_RETURN_MARKER, validateCommitContract } from "../rules/commit.ts";
-import { renderTemplate, reviewHardGate, docsFixHardGate } from "../render/templates.ts";
-import { hashFile } from "../artifacts/hash.ts";
+
+const git = new GitClient();
+const registry = new Registry();
+const invoker = new EngineInvoker();
+const templates = new TemplateLoader();
+const commit = new CommitChecker();
+const schema = new HandoffSchemaValidator();
 
 export interface DocsLifecycleOptions {
   /** docs agent harness key (registry lookup) */
@@ -150,7 +161,11 @@ export class DocsLifecycle extends DispatchLifecycle {
     }
     // handoffPath must be passed by the caller (canonical handoff-naming filenames; T3). The
     // legacy `${template}-${round}.json` derivation is removed — no second naming site.
-    if (!this.#opts.handoffPath) invariant(false, "docs-runner: handoffPath required (canonical naming; no template fallback)");
+    if (!this.#opts.handoffPath)
+      invariant(
+        false,
+        "docs-runner: handoffPath required (canonical naming; no template fallback)",
+      );
   }
 
   // ---- dispatch ----
@@ -162,13 +177,13 @@ export class DocsLifecycle extends DispatchLifecycle {
   protected override async dispatch(_hookCtx: DispatchHookContext): Promise<void> {
     if (this.#finished) return; // early-finished rounds (dry-run / blocked pre-flight) skip the spawn
     const { mode, type, doc, template, params = {}, handoffPath, harness } = this.#opts;
-    // DOCS_FIXED_POINT (T5, design §2.4): the docs round's base anchor token — the canonical
+    // FIXED_POINT (P4.4 Task 3 ④, design §2.4): the docs round's base anchor token — the canonical
     // round-context slot (template-contract.json round-context zone) carries the dispatch entry
-    // base = git HEAD at dispatch time (same-position semantics as the task family's
-    // TASK_FIXED_POINT). Empty on non-git / unborn HEAD (fail-open, the mode-union pre-fill
-    // contract). Computed here — the single docs-dispatch point — so both review (review.ts)
-    // and fix (fix.ts) callers share one derivation, no per-caller plumbing.
-    const docFixedPoint = (await gitRevParseHead(this.ctx.repoRoot ?? "")) ?? "";
+    // base = git HEAD at dispatch time (same-position semantics as the task family's FIXED_POINT).
+    // Empty on non-git / unborn HEAD (fail-open, the mode-union pre-fill contract). Computed here —
+    // the single docs-dispatch point — so both review (review.ts) and fix (fix.ts) callers share one
+    // derivation, no per-caller plumbing.
+    const docFixedPoint = (await git.revParseHead(this.ctx.repoRoot ?? "")) ?? "";
     // Single-pass composition render (T3 URC after: fix templates take the canonical fixTemplate
     // value "docs" directly — the `-review`→`-fix` legacy derivation branch is gone; docs fix must
     // not double-suffix). Computed dispatch facts win over caller params (last-wins): RETURN_FORMAT
@@ -176,17 +191,17 @@ export class DocsLifecycle extends DispatchLifecycle {
     // stdout), review → RETURN_JSON — an explicit fix-mode value prevents the family-returnFormat
     // (fix.spec/plan says RETURN_JSON) from misrouting the docs-fix prompt to the JSON-return
     // constant. No `{{HANDOFF_SCHEMA_JSON}}` replace remains — the schema lives verbatim in the shell.
-    const prompt = renderTemplate(
+    const prompt = templates.renderTemplate(
       template,
       {
         MODE: mode,
-        DOCS_DOC: doc,
-        DOCS_FINDINGS: this.#opts.findingsPath ?? "",
+        DOC: doc,
+        FINDINGS: this.#opts.findingsPath ?? "",
         HANDOFF_TARGET: handoffPath ?? "",
         ...params,
-        // Computed dispatch facts win over caller params (last-wins) — DOCS_FIXED_POINT included:
+        // Computed dispatch facts win over caller params (last-wins) — FIXED_POINT included:
         // the entry base is an engine fact, never a caller injectable.
-        DOCS_FIXED_POINT: docFixedPoint,
+        FIXED_POINT: docFixedPoint,
         // The was-gate prose is byte constant; the gate VALUE (real handoff path) rides the
         // `### HANDOFF_WRITE_GATE` round-context slot (Task 20 ⑥ facade de-pathing). The review family
         // gate dispatches by return semantics (retrieve a fixed 'json-return' write gate — the
@@ -194,7 +209,10 @@ export class DocsLifecycle extends DispatchLifecycle {
         // the file itself; stdout has no JSON return — reviewHardGate's "before outputting the
         // JSON return" self-contradicts for a fix agent — reviewHardGate must not be reused).
         RETURN_FORMAT: mode === "fix" ? "DOCS_FIX" : "RETURN_JSON",
-        HANDOFF_WRITE_GATE: mode === "fix" ? docsFixHardGate(handoffPath ?? "") : reviewHardGate("RETURN_JSON", handoffPath ?? ""),
+        HANDOFF_WRITE_GATE:
+          mode === "fix"
+            ? templates.docsFixHardGate(handoffPath ?? "")
+            : templates.reviewHardGate("RETURN_JSON", handoffPath ?? ""),
       },
       "docs-runner",
     );
@@ -202,13 +220,20 @@ export class DocsLifecycle extends DispatchLifecycle {
     // Spawn agent using the harness registry (provides -p, --output-format, etc.).
     // invokeCli injection params = (op, type) — review/fix resolve prefix.review[type?] /
     // prefix.fix (flat string) respectively; type threads from cdd review/fix --type.
-    const reg = loadRegistry(REG_PATH);
-    const entry = checkHarness(reg, harness);
+    const reg = registry.load(REG_PATH);
+    const entry = registry.checkHarness(reg, harness);
     // Unified termination (T26 — budget-only for docs, no workspace tree signal, same as the
     // budget channel of task/branch; resolveTerminationConfig defaults the budget from canonical
     // timeouts.defaults.review — zero env reads; the terminal reason still lands in the TIMEOUT
     // blocker).
-    const res = await invokeCli(entry, prompt, { op: mode, type }, process.env, this.ctx.repoRoot as string, resolveTerminationConfig("review"));
+    const res = await invoker.invokeCli(
+      entry,
+      prompt,
+      { op: mode, type },
+      process.env,
+      this.ctx.repoRoot as string,
+      invoker.resolveTerminationConfig("review"),
+    );
     this.#agentRc = res.code;
   }
 
@@ -225,15 +250,17 @@ export class DocsLifecycle extends DispatchLifecycle {
       // (retrievable via `git stash list` — never pre-destroyed). exit_code stays a strictly-death
       // code (the recovery schema denotation: "1 = run failure, 143 = SIGTERM") — the exit-0-no-
       // handoff boundary carries the cause only, so a 0 never rides the carrier as a diagnosed death (T25).
-      this.#done(writeBlockedCarrier(handoffPath, {
-        phase: this.#opts.mode,
-        doc: this.#opts.doc,
-        recovery: {
-          cause: FAILURE_CATEGORIES.EXECUTION_FAILURE.id,
-          ...(this.#agentRc !== 0 ? { exit_code: this.#agentRc } : {}),
-        },
-        blocker: `${path.basename(handoffPath)} not written after exit → worktree residue is preserved as a stash (\`git stash list\` → \`git stash apply <ref>\` → review → commit to salvage or \`git stash drop\` to discard) → re-run ${this.#opts.mode} and ensure handoff is written to ${handoffPath} before exit`,
-      }));
+      this.#done(
+        writeBlockedCarrier(handoffPath, {
+          phase: this.#opts.mode,
+          doc: this.#opts.doc,
+          recovery: {
+            cause: FAILURE_CATEGORIES.EXECUTION_FAILURE.id,
+            ...(this.#agentRc !== 0 ? { exit_code: this.#agentRc } : {}),
+          },
+          blocker: `${path.basename(handoffPath)} not written after exit → worktree residue is preserved as a stash (\`git stash list\` → \`git stash apply <ref>\` → review → commit to salvage or \`git stash drop\` to discard) → re-run ${this.#opts.mode} and ensure handoff is written to ${handoffPath} before exit`,
+        }),
+      );
       return;
     }
 
@@ -245,14 +272,16 @@ export class DocsLifecycle extends DispatchLifecycle {
     try {
       handoff = JSON.parse(readFileSync(handoffPath, "utf8")) as Record<string, unknown>;
     } catch (e) {
-      this.#done(writeBlockedCarrier(handoffPath, {
-        phase: this.#opts.mode,
-        doc: this.#opts.doc,
-        blocker: `handoff JSON unparseable: ${(e as Error).message} → fix the handoff at ${handoffPath} or re-run ${this.#opts.mode}`,
-      }));
+      this.#done(
+        writeBlockedCarrier(handoffPath, {
+          phase: this.#opts.mode,
+          doc: this.#opts.doc,
+          blocker: `handoff JSON unparseable: ${(e as Error).message} → fix the handoff at ${handoffPath} or re-run ${this.#opts.mode}`,
+        }),
+      );
       return;
     }
-    const sv = validateHandoffSchema(handoff, "docs"); // docs schema (doc_path, no task)
+    const sv = schema.validateHandoffSchema(handoff, "docs"); // docs schema (doc_path, no task)
     if (!sv.valid) {
       // CONTRACT_VIOLATION recovery (T5, spec §2.5.2, AC7 category-level: spec/plan reviews follow
       // the same policy as task dispatch): the recovery single point is finalize.ts#recoverHandoff
@@ -263,13 +292,15 @@ export class DocsLifecycle extends DispatchLifecycle {
       // it; still failing → BLOCKED with the parsed findings kept.
       const rec = recoverHandoff(handoff, "docs");
       if (!rec.valid) {
-        this.#done(writeBlockedCarrier(handoffPath, {
-          phase: this.#opts.mode,
-          doc: this.#opts.doc,
-          findings: rec.preservedFindings as unknown[],
-          blocker: `docs handoff schema invalid${rec.reason} → fix the handoff JSON at ${handoffPath} and re-run ${this.#opts.mode}`,
-          fullReplace: true, // normalized-object full-replace (offending keys never stay on disk)
-        }));
+        this.#done(
+          writeBlockedCarrier(handoffPath, {
+            phase: this.#opts.mode,
+            doc: this.#opts.doc,
+            findings: rec.preservedFindings as unknown[],
+            blocker: `docs handoff schema invalid${rec.reason} → fix the handoff JSON at ${handoffPath} and re-run ${this.#opts.mode}`,
+            fullReplace: true, // normalized-object full-replace (offending keys never stay on disk)
+          }),
+        );
         return;
       }
       writeOwnHandoff(handoffPath, rec.handoff as Record<string, unknown>);
@@ -299,7 +330,10 @@ export class DocsLifecycle extends DispatchLifecycle {
         // finalizer (the carrier's sole author, T7), so doc_hash always changes → full-replace
         // writeOwnHandoff (not the persistFinalized skip-write). The in-memory return matches the
         // disk finalization: the derived status overwrite is written back to local + doc_hash synced.
-        const merged: Record<string, unknown> = { ...(finalized.handoff ?? handoff), doc_hash: hashFile(this.#opts.doc) };
+        const merged: Record<string, unknown> = {
+          ...(finalized.handoff ?? handoff),
+          doc_hash: hashFile(this.#opts.doc),
+        };
         writeOwnHandoff(handoffPath!, merged);
         handoff.status = merged.status;
         handoff.doc_hash = merged.doc_hash;
@@ -326,7 +360,7 @@ export class DocsLifecycle extends DispatchLifecycle {
    * finished rounds (unparseable/schema-invalid dry paths) — matches the task face's skip. */
   protected override async commitPostCheck(_hookCtx: DispatchHookContext): Promise<void> {
     if (this.#finished) return;
-    const cv = await validateCommitContract(this.#opts.mode, this.ctx.repoRoot, {
+    const cv = await commit.validateCommitContract(this.#opts.mode, this.ctx.repoRoot, {
       handoffPath: this.#opts.handoffPath,
     });
     if (!cv.ok) {
@@ -345,39 +379,40 @@ export class DocsLifecycle extends DispatchLifecycle {
       this.#done({ exitCode: 1, handoff: readJson(this.#opts.handoffPath ?? "") });
     }
   }
-}
 
-/** runDocsTask — legacy surface kept ({ exitCode, handoff }): builds the injected ctx, runs
- * DocsLifecycle, converts an entry-gate DispatchBlocked into a CDD_BLOCKED stderr + ExitRequested(1)
- * (the CLI needs the process exit — it discards the return value). Root resolves eagerly for a
- * real dispatch (entry gate must see it); dry-run defers root entirely (legacy: dry-run returned
- * before getRoot()). */
-export async function runDocsTask(options: DocsLifecycleOptions & { dryRun?: boolean }): Promise<DocsResult> {
-  const { dryRun = false, ...rest } = options;
-  return withLifecycle(async () => {
-    const lc = new DocsLifecycle({
-      ...rest,
-      dryRun,
-      ctx: {
-        mode: rest.mode,
-        repoRoot: rest.repoRoot ?? (dryRun ? null : getRoot()),
-        handoffPath: rest.handoffPath,
-        // E2②: the entry gate (inherited default hook) downgrades a dirty tree to a stderr CDD_WARN
-        // on the dry-run path — the base gate reads it from ctx; real dispatch keeps the hard BLOCKED.
+  /** run — legacy surface kept ({ exitCode, handoff }) as the class's STATIC entry (Task 6/7
+   * export-surface reshuffle: `runDocsTask` → `DocsLifecycle.run` — the class public face, no bare forwarding
+   * shell): builds the injected ctx, runs the lifecycle, converts an entry-gate DispatchBlocked
+   * into a CDD_BLOCKED stderr + ExitRequested(1) (the CLI needs the process exit — it discards the
+   * return value). Root resolves eagerly for a real dispatch (entry gate must see it); dry-run
+   * defers root entirely (legacy: dry-run returned before getRoot()). */
+  static run(options: DocsLifecycleOptions & { dryRun?: boolean }): Promise<DocsResult> {
+    const { dryRun = false, ...rest } = options;
+    return withLifecycle(async () => {
+      const lc = new DocsLifecycle({
+        ...rest,
         dryRun,
-      },
-    });
-    try {
-      await lc.run();
-    } catch (e) {
-      if (e instanceof DispatchBlocked && e.gate === "entry") {
-        process.stderr.write(`CDD_BLOCKED: ${e.message}\n`);
-        exitWithCode(1);
+        ctx: {
+          mode: rest.mode,
+          repoRoot: rest.repoRoot ?? (dryRun ? null : getRoot()),
+          handoffPath: rest.handoffPath,
+          // E2②: the entry gate (inherited default hook) downgrades a dirty tree to a stderr CDD_WARN
+          // on the dry-run path — the base gate reads it from ctx; real dispatch keeps the hard BLOCKED.
+          dryRun,
+        },
+      });
+      try {
+        await lc.run();
+      } catch (e) {
+        if (e instanceof DispatchBlocked && e.gate === "entry") {
+          process.stderr.write(`CDD_BLOCKED: ${e.message}\n`);
+          exitWithCode(1);
+        }
+        throw e;
       }
-      throw e;
-    }
-    return lc.result;
-  });
+      return lc.result;
+    });
+  }
 }
 
 export type { ExitRequested };

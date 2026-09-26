@@ -1,74 +1,84 @@
 /**
- * Marketplace documents (repo root) + vendored cursor wrappers.
+ * Marketplace documents (repo root) + cursor wrappers — the MarketplaceDocsEmitter domain
+ * service (Task 9, Criterion ②: stateless, constructor injection — composes MarketplaceService + EmitOrchestrator).
  *
  * Non-plugin-root plugins get a cursor wrapper under `cursor-plugins/<name>`.
- * The wrapper roots this run emits are returned so the caller can fold them
- * into the drift-check product roots (`emit/compare.ts` owns the base set).
+ * The wrapper roots this emitter produces are returned so the caller can fold
+ * them into the drift-check product roots (`emit/compare.ts` owns the base set).
  */
 
-import { resolve, dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  resolveVersion,
-  claudeMarketplaceEntry,
-  cursorWrapperManifest,
-  assertCursorPathsExist,
-  claudeMarketplaceDocument,
-  cursorMarketplaceDocument,
-  isPluginRoot,
-} from "../lib/marketplace-utils.ts";
+import { MarketplaceService } from "../lib/marketplace-utils.ts";
 import { generatedBanner } from "./manifests.ts";
-import { writeJsonDoc } from "./orchestrate.ts";
+import { type EmitOrchestrator, emitOrchestrator } from "./orchestrate.ts";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
-/**
- * Write the repo-root marketplace docs + cursor-wrapper manifests.
- * @returns {string[]} `cursor-plugins/<name>` roots emitted for non-plugin-root
- *   plugins (folded into the drift-check product roots by the caller)
- */
-export function emitMarketplaceDocs(outRoot, source, generatedPaths) {
-  const claudePlugins = [];
-  const cursorMarketplacePlugins = [];
-  const wrapperRoots = [];
+export class MarketplaceDocsEmitter {
+  /** injected marketplace domain service (lib) — manifest derivation + path assertions. */
+  readonly marketplace: MarketplaceService;
+  /** injected emit writer service — product writes + generatedPaths tracking. */
+  readonly writer: EmitOrchestrator;
 
-  for (const plugin of source.plugins) {
-    const resolved = resolveVersion(root, plugin);
-    assertCursorPathsExist(root, plugin);
-
-    claudePlugins.push(claudeMarketplaceEntry(plugin, resolved));
-    cursorMarketplacePlugins.push({
-      _generated: generatedBanner,
-      name: plugin.name,
-      source: isPluginRoot(plugin)
-        ? `./${plugin.contentRoot}`
-        : `cursor-plugins/${plugin.name}`,
-      description: plugin.description,
-    });
-
-    if (!isPluginRoot(plugin)) {
-      wrapperRoots.push(`cursor-plugins/${plugin.name}`);
-      writeJsonDoc(
-        outRoot,
-        `cursor-plugins/${plugin.name}/.cursor-plugin/plugin.json`,
-        cursorWrapperManifest(plugin, resolved),
-        generatedPaths,
-      );
-    }
+  constructor(marketplace: MarketplaceService, writer: EmitOrchestrator) {
+    this.marketplace = marketplace;
+    this.writer = writer;
   }
 
-  writeJsonDoc(
-    outRoot,
-    ".claude-plugin/marketplace.json",
-    claudeMarketplaceDocument(source, claudePlugins),
-    generatedPaths,
-  );
-  writeJsonDoc(
-    outRoot,
-    ".cursor-plugin/marketplace.json",
-    cursorMarketplaceDocument(source, cursorMarketplacePlugins),
-    generatedPaths,
-  );
+  /**
+   * Write the repo-root marketplace docs + cursor-wrapper manifests.
+   * @returns {string[]} `cursor-plugins/<name>` roots emitted for non-plugin-root
+   *   plugins (folded into the drift-check product roots by the caller)
+   */
+  emit(outRoot, source, generatedPaths): string[] {
+    const claudePlugins = [];
+    const cursorMarketplacePlugins = [];
+    const wrapperRoots = [];
 
-  return wrapperRoots;
+    for (const plugin of source.plugins) {
+      const resolved = this.marketplace.resolveVersion(plugin);
+      this.marketplace.assertCursorPathsExist(plugin);
+
+      claudePlugins.push(this.marketplace.claudeMarketplaceEntry(plugin, resolved));
+      cursorMarketplacePlugins.push({
+        _generated: generatedBanner,
+        name: plugin.name,
+        source: this.marketplace.isPluginRoot(plugin)
+          ? `./${plugin.contentRoot}`
+          : `cursor-plugins/${plugin.name}`,
+        description: plugin.description,
+      });
+
+      if (!this.marketplace.isPluginRoot(plugin)) {
+        wrapperRoots.push(`cursor-plugins/${plugin.name}`);
+        this.writer.writeJsonDoc(
+          outRoot,
+          `cursor-plugins/${plugin.name}/.cursor-plugin/plugin.json`,
+          this.marketplace.cursorWrapperManifest(plugin, resolved),
+          generatedPaths,
+        );
+      }
+    }
+
+    this.writer.writeJsonDoc(
+      outRoot,
+      ".claude-plugin/marketplace.json",
+      this.marketplace.claudeMarketplaceDocument(source, claudePlugins),
+      generatedPaths,
+    );
+    this.writer.writeJsonDoc(
+      outRoot,
+      ".cursor-plugin/marketplace.json",
+      this.marketplace.cursorMarketplaceDocument(source, cursorMarketplacePlugins),
+      generatedPaths,
+    );
+
+    return wrapperRoots;
+  }
 }
+
+export const marketplaceDocsEmitter = new MarketplaceDocsEmitter(
+  new MarketplaceService(root),
+  emitOrchestrator,
+);

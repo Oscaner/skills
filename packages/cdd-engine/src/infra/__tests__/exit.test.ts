@@ -7,11 +7,16 @@
 // invariant factory, and cliUsageError — the family is the CLI contract (exitCode + kind, bin maps
 // by kind), invariant is a library invariant (throws an Error, no process exit), cliUsageError is
 // the kind=usage exit-2 face (CLIError name + E_UNKNOWN_OPTION code keep citty-parse-error parity).
-import { it, expect } from 'vitest';
+import { expect, it } from "vitest";
 
 import {
-  exitOk, exitBlocked, exitCliMissing, ExitRequested,
-  CddExitError, invariant, cliUsageError,
+  CddExitError,
+  cliUsageError,
+  ExitRequested,
+  exitBlocked,
+  exitCliMissing,
+  exitOk,
+  invariant,
 } from "../exit.ts";
 
 // Capture the ExitRequested(code) that fn(...args) throws + the stderr it wrote; returns { code, stderr }.
@@ -83,7 +88,9 @@ it("CddExitError: custom exitCode/kind (e.g. the RunBlocked face)", () => {
 
 it("invariant: true condition passes with no side effects; false → throws a plain Error with the exact message (library invariant, not a process exit)", () => {
   expect(() => invariant(true, "nope")).not.toThrow();
-  expect(() => invariant(false, "unknown review type: task")).toThrowError("unknown review type: task");
+  expect(() => invariant(false, "unknown review type: task")).toThrowError(
+    "unknown review type: task",
+  );
 });
 
 it("cliUsageError: exit 2 + kind usage, CLIError name + E_UNKNOWN_OPTION code (citty-parse parity)", () => {

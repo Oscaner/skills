@@ -26,25 +26,32 @@
 // cli-module process-local; this module never reads it from elsewhere). Zero upward cli imports.
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-
 import {
-  DispatchLifecycle,
-  type DispatchContext,
-  type DispatchHookContext,
-} from "./base.ts";
-import { loadRegistry, checkHarness, CddBlockedError, REG_PATH } from "../infra/registry.ts";
-import { renderTemplate, reviewTypeConfig, reviewArtifactConfig, reviewHardGate } from "../render/templates.ts";
+  finalizeHandoff,
+  recoverHandoff,
+  writeBlockedCarrier,
+} from "../artifacts/handoff/finalize.ts";
 import * as handoffNaming from "../artifacts/handoff/naming.ts";
-import { validateHandoffSchema } from "../rules/schema.ts";
-import { finalizeHandoff, recoverHandoff, writeBlockedCarrier } from "../artifacts/handoff/finalize.ts";
-import { writeHandoff, writeOwnHandoff, readJson } from "../artifacts/handoff/write.ts";
-import { getRoot, resolveDocArg } from "../infra/root.ts";
-import { invokeCliWithRetry, resolveTerminationConfig } from "../infra/invoke.ts";
+import { readJson, writeHandoff, writeOwnHandoff } from "../artifacts/handoff/write.ts";
+import { ResidueManager } from "../artifacts/residue.ts";
+import { ReturnBlockParser } from "../artifacts/return-block.ts";
 import { exitOk, exitWithCode } from "../infra/exit.ts";
-import { reviewConvergenceGuard } from "../rules/convergence.ts";
+import { EngineInvoker } from "../infra/invoke.ts";
+import { CddBlockedError, REG_PATH, Registry } from "../infra/registry.ts";
+import { getRoot, resolveDocArg } from "../infra/root.ts";
+import { TemplateLoader } from "../render/templates.ts";
+import { ConvergenceChecker } from "../rules/convergence.ts";
 import { FAILURE_CATEGORIES } from "../rules/failure.ts";
-import { preserveAndAnnounceResidue } from "../artifacts/residue.ts";
-import { assembleReturnBlock } from "../artifacts/return-block.ts";
+import { HandoffSchemaValidator } from "../rules/schema.ts";
+import { type DispatchContext, type DispatchHookContext, DispatchLifecycle } from "./base.ts";
+
+const registry = new Registry();
+const invoker = new EngineInvoker();
+const templates = new TemplateLoader();
+const convergence = new ConvergenceChecker();
+const schema = new HandoffSchemaValidator();
+const residue = new ResidueManager();
+const returnBlocks = new ReturnBlockParser();
 
 // ---- public opts (the CLI surface's derivation contract; moved from cli/branch-review.ts / fix) ----
 
@@ -96,7 +103,13 @@ interface BranchInvokeResult {
  * template mid-run and post-terminal hooks never fire). */
 export abstract class BranchLifecycle extends DispatchLifecycle {
   protected readonly opts: BranchLifecycleOpts;
-  protected entry: { cli: string; invoke: string; output?: string; prefix?: unknown; suffix?: unknown } | null = null;
+  protected entry: {
+    cli: string;
+    invoke: string;
+    output?: string;
+    prefix?: unknown;
+    suffix?: unknown;
+  } | null = null;
   protected repoRoot = "";
   protected workspace = "";
   protected handoffPath = "";
@@ -151,7 +164,9 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
    * exitWithCode(1) (exit helpers throw ExitRequested, the bin maps the exact code; the default
    * DispatchBlocked throw would escape the wrappers' gate filters and land on exit 2). */
   protected override docContractBlocked(guidance: string): void {
-    process.stderr.write(`CDD_BLOCKED: doc contract validation failed — fix the docs below:\n${guidance}\n`);
+    process.stderr.write(
+      `CDD_BLOCKED: doc contract validation failed — fix the docs below:\n${guidance}\n`,
+    );
     exitWithCode(1);
   }
 
@@ -161,9 +176,13 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
    * registry failure (e.g. corrupt registry JSON) rethrows to the caller surface. */
   protected registryGate(): void {
     try {
-      this.entry = checkHarness(loadRegistry(this.opts.registryPath ?? REG_PATH), this.opts.harness, {
-        dryRun: this.opts.dryRun,
-      });
+      this.entry = registry.checkHarness(
+        registry.load(this.opts.registryPath ?? REG_PATH),
+        this.opts.harness,
+        {
+          dryRun: this.opts.dryRun,
+        },
+      );
     } catch (e) {
       if (e instanceof CddBlockedError) {
         process.stderr.write(`${e.message}\n`);
@@ -207,20 +226,22 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
     // advice; SIGTERM (143) is annotated so the death cause is replayable from the blocker.
     if (this.agentRc !== 0 && !existsSync(this.handoffPath)) {
       writeBlockedCarrier(this.handoffPath, {
-        tasks: [1], phase,
+        tasks: [1],
+        phase,
         ...(commits ? { commits } : {}),
         recovery: { cause: FAILURE_CATEGORIES.EXECUTION_FAILURE.id, exit_code: this.agentRc },
         blocker: `cli exited ${this.agentRc}${this.agentRc === 143 ? " (SIGTERM — externally killed)" : ""} without writing handoff → worktree residue is preserved as a stash (\`git stash list\` → \`git stash apply <ref>\` → review → commit to salvage or \`git stash drop\` to discard) → re-run ${reRun}`,
       });
       process.stderr.write(`CDD_BLOCKED: ${label} failed (exit ${this.agentRc})\n`);
-      await preserveAndAnnounceResidue(this.repoRoot, this.handoffPath, this.repoRoot);
+      await residue.preserveAndAnnounceResidue(this.repoRoot, this.handoffPath, this.repoRoot);
       exitWithCode(1);
     }
 
     // Agent exited 0 but never wrote the handoff — BLOCKED (mirrors runner step 10.5).
     if (!existsSync(this.handoffPath)) {
       writeBlockedCarrier(this.handoffPath, {
-        tasks: [1], phase,
+        tasks: [1],
+        phase,
         ...(commits ? { commits } : {}),
         blocker: `${path.basename(this.handoffPath)} not written after exit 0 → re-run ${reRun}`,
       });
@@ -239,7 +260,8 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
       agentHandoff = JSON.parse(readFileSync(this.handoffPath, "utf8")) as Record<string, unknown>;
     } catch (e) {
       writeBlockedCarrier(this.handoffPath, {
-        tasks: [1], phase,
+        tasks: [1],
+        phase,
         ...(commits ? { commits } : {}),
         blocker: `${label} handoff JSON unparseable: ${(e as Error).message} → fix the handoff at ${this.handoffPath} and re-run ${reRun}`,
       });
@@ -247,7 +269,7 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
       exitWithCode(1);
     }
     let handoff: Record<string, unknown> = agentHandoff;
-    const sv = validateHandoffSchema(agentHandoff, "task");
+    const sv = schema.validateHandoffSchema(agentHandoff, "task");
     if (!sv.valid) {
       // Recovery single point = finalize.ts#recoverHandoff (normalize → re-validate, one round
       // max; the violating-key suffix + findings array guard are written there once — this lane
@@ -255,7 +277,8 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
       const rec = recoverHandoff(agentHandoff, "task");
       if (!rec.valid) {
         writeBlockedCarrier(this.handoffPath, {
-          tasks: [1], phase,
+          tasks: [1],
+          phase,
           ...(commits ? { commits } : {}),
           findings: rec.preservedFindings,
           blocker: `${label} handoff schema invalid${rec.reason} → fix and re-run ${reRun}`,
@@ -306,12 +329,18 @@ export class BranchReviewLifecycle extends BranchLifecycle {
 
     // AC15 wiring: per-ref round seq + --round backfill validation (other refs' rounds never
     // interfere with this one) + Convergence reads the previous round.
-    const round = handoffNaming.resolveNextRound(this.workspace, "review", "branch", { base7, head7 });
+    const round = handoffNaming.resolveNextRound(this.workspace, "review", "branch", {
+      base7,
+      head7,
+    });
     if (this.opts.round && Number(this.opts.round) !== round) {
       process.stderr.write(`--round ${this.opts.round} ≠ engine round ${round}\n`);
       exitWithCode(2);
     }
-    const prevPath = handoffNaming.prevHandoffPath(this.workspace, "review", "branch", round, { base7, head7 });
+    const prevPath = handoffNaming.prevHandoffPath(this.workspace, "review", "branch", round, {
+      base7,
+      head7,
+    });
     let prev: Record<string, unknown> | null = null;
     if (prevPath && existsSync(prevPath)) {
       try {
@@ -321,17 +350,22 @@ export class BranchReviewLifecycle extends BranchLifecycle {
         // previous-round handoff must not lock re-review — worst case one extra review round,
         // never self-lock. The diagnostic lands on stderr instead of being swallowed so why the
         // re-dispatch did not trigger a Convergence lock stays transparent to the user.
-        process.stderr.write(`CDD_INFO: corrupt prev branch handoff ${prevPath} ignored → fail-open\n`);
+        process.stderr.write(
+          `CDD_INFO: corrupt prev branch handoff ${prevPath} ignored → fail-open\n`,
+        );
         prev = null;
       }
     }
     // Stop only on an APPROVED round with blocker=0 (SP-4) — a BLOCKED/TIMEOUT branch review
     // round with findings:[] must be re-dispatchable, not rejected as "already done".
-    if (prev) reviewConvergenceGuard(prev, "branch", round, `${base7}..${head7}`);
+    if (prev) convergence.reviewConvergenceGuard(prev, "branch", round, `${base7}..${head7}`);
 
     // Per-round handoff filename (canonical review.branch family; branch-fix re-reviews reuse
     // distinct files).
-    this.handoffPath = path.join(this.workspace, handoffNaming.handoffName("review", "branch", { base7, head7, round }));
+    this.handoffPath = path.join(
+      this.workspace,
+      handoffNaming.handoffName("review", "branch", { base7, head7, round }),
+    );
     mkdirSync(this.workspace, { recursive: true });
   }
 
@@ -345,11 +379,21 @@ export class BranchReviewLifecycle extends BranchLifecycle {
 
     if (this.opts.dryRun) {
       writeHandoff(this.handoffPath, {
-        tasks: [1], phase: "branch-review", status: "APPROVED",
-        commits: { base, head }, findings: [], artifacts: {}, blocker: "dry-run",
+        tasks: [1],
+        phase: "branch-review",
+        status: "APPROVED",
+        commits: { base, head },
+        findings: [],
+        artifacts: {},
+        blocker: "dry-run",
       });
-      const returnBlock = assembleReturnBlock(
-        { status: "APPROVED", commits: `base=${base} head=${head}`, artifacts: "", blocker: "dry-run" },
+      const returnBlock = returnBlocks.assembleReturnBlock(
+        {
+          status: "APPROVED",
+          commits: `base=${base} head=${head}`,
+          artifacts: "",
+          blocker: "dry-run",
+        },
         this.workspace,
       );
       for (const line of returnBlock) process.stdout.write(`${line}\n`);
@@ -357,27 +401,31 @@ export class BranchReviewLifecycle extends BranchLifecycle {
       return;
     }
 
-    const cfg = reviewTypeConfig("branch");
-    const art = reviewArtifactConfig("branch");
-    const prompt = renderTemplate("review", {
-      MODE: "review",
-      REVIEW_TYPE: "branch",
-      TASK_WORKSPACE: this.workspace,
-      WORKSPACE_SLUG: path.basename(this.workspace),
-      REVIEW_LENS_GUIDE: cfg.lensEnum.join(" · "),
-      REVIEW_REFERENCE: `${base}..${head}`,
-      REVIEW_AXES: cfg.axesGuide,
-      HANDOFF_TARGET: this.handoffPath,
-      RETURN_FORMAT: art.returnFormat,
-      REVIEW_PLAN_LINE: this.opts.plan ? `**Plan:** ${this.opts.plan}` : "",
-      HANDOFF_WRITE_GATE: reviewHardGate(art.returnFormat, this.handoffPath),
-    }, "cdd review");
+    const cfg = templates.reviewTypeConfig("branch");
+    const art = templates.reviewArtifactConfig("branch");
+    const prompt = templates.renderTemplate(
+      "review",
+      {
+        MODE: "review",
+        REVIEW_TYPE: "branch",
+        WORKSPACE: this.workspace,
+        WORKSPACE_SLUG: path.basename(this.workspace),
+        REVIEW_LENS_GUIDE: cfg.lensEnum.join(" · "),
+        REVIEW_REFERENCE: `${base}..${head}`,
+        REVIEW_AXES: cfg.axesGuide,
+        HANDOFF_TARGET: this.handoffPath,
+        RETURN_FORMAT: art.returnFormat,
+        REVIEW_PLAN_LINE: this.opts.plan ? `**Plan:** ${this.opts.plan}` : "",
+        HANDOFF_WRITE_GATE: templates.reviewHardGate(art.returnFormat, this.handoffPath),
+      },
+      "cdd review",
+    );
 
     // Invoke harness CLI. (op,type) injection resolves into prefix.review.branch (the old
     // branch-review standalone bin is deleted, its logic inlined here). T26 unified termination
     // (single resolver — budget from canonical review defaults, stall over the workspace tree).
-    const terminationCfg = resolveTerminationConfig("review", undefined, this.workspace);
-    const res = (await invokeCliWithRetry(
+    const terminationCfg = invoker.resolveTerminationConfig("review", undefined, this.workspace);
+    const res = (await invoker.invokeCliWithRetry(
       this.entry!,
       prompt,
       { op: "review", type: "branch" },
@@ -416,7 +464,11 @@ export class BranchReviewLifecycle extends BranchLifecycle {
     // derives FIX_BASE from the source review's commits.base. The review agent's handoff may omit
     // the field; stamp the CLI's reviewed range so the review→fix loop closes (same shape as the
     // dry-run / BLOCKED-carrier lanes).
-    if (handoff && typeof handoff === "object" && (handoff as { commits?: unknown }).commits === undefined) {
+    if (
+      handoff &&
+      typeof handoff === "object" &&
+      (handoff as { commits?: unknown }).commits === undefined
+    ) {
       const cc = this.branchCarrierCommits(base, head);
       if (cc) handoff = { ...handoff, commits: cc };
     }
@@ -462,12 +514,14 @@ export class BranchFixLifecycle extends BranchLifecycle {
 
     const findingsBase = path.basename(this.opts.findings);
     const refRoundRe = new RegExp(
-      "^" + handoffNaming.familyConfig("review", "branch").name
-        .replace("{round}", "(\\d+)")
-        .replace("{base7}", "([0-9a-f]{7})")
-        .replace("{head7}", "([0-9a-f]{7})")
-        .replaceAll(".", "\\.")
-      + "$",
+      "^" +
+        handoffNaming
+          .familyConfig("review", "branch")
+          .name.replace("{round}", "(\\d+)")
+          .replace("{base7}", "([0-9a-f]{7})")
+          .replace("{head7}", "([0-9a-f]{7})")
+          .replaceAll(".", "\\.") +
+        "$",
     );
     const refRound = findingsBase.match(refRoundRe);
     if (!refRound) {
@@ -489,7 +543,11 @@ export class BranchFixLifecycle extends BranchLifecycle {
     // family's "source" semantics: the fix round is copied from the review it sources).
     this.handoffPath = path.join(
       this.workspace,
-      handoffNaming.handoffName("fix", "branch", { base7: this.#base7, head7: this.#head7, round: this.#fixRound }),
+      handoffNaming.handoffName("fix", "branch", {
+        base7: this.#base7,
+        head7: this.#head7,
+        round: this.#fixRound,
+      }),
     );
     // Thread the derived handoff path AND the resolved root into the engine context: the inherited
     // exit gate (commitPostCheck → validateCommitContract) reads both from ctx — without them the
@@ -507,11 +565,21 @@ export class BranchFixLifecycle extends BranchLifecycle {
   protected override async dispatch(_hookCtx: DispatchHookContext): Promise<void> {
     if (this.opts.dryRun) {
       writeHandoff(this.handoffPath, {
-        tasks: [1], phase: "fix", status: "APPROVED",
-        commits: { base: "dry-run", head: "dry-run" }, findings: [], artifacts: {}, blocker: "dry-run",
+        tasks: [1],
+        phase: "fix",
+        status: "APPROVED",
+        commits: { base: "dry-run", head: "dry-run" },
+        findings: [],
+        artifacts: {},
+        blocker: "dry-run",
       });
-      const returnBlock = assembleReturnBlock(
-        { status: "APPROVED", commits: "base=dry-run head=dry-run", artifacts: "", blocker: "dry-run" },
+      const returnBlock = returnBlocks.assembleReturnBlock(
+        {
+          status: "APPROVED",
+          commits: "base=dry-run head=dry-run",
+          artifacts: "",
+          blocker: "dry-run",
+        },
         this.workspace,
       );
       for (const line of returnBlock) process.stdout.write(`${line}\n`);
@@ -530,7 +598,8 @@ export class BranchFixLifecycle extends BranchLifecycle {
     const fixBase = src?.commits?.base as string | undefined;
     if (!fixBase || fixBase === "unknown") {
       writeBlockedCarrier(this.handoffPath, {
-        tasks: [1], phase: "fix",
+        tasks: [1],
+        phase: "fix",
         blocker: `source review handoff ${findingsPath} has no valid commits.base → cannot derive the fix BASE; fix the source review and re-run cdd fix --type branch`,
       });
       process.stderr.write(`CDD_BLOCKED: branch-fix source review missing commits.base\n`);
@@ -539,26 +608,30 @@ export class BranchFixLifecycle extends BranchLifecycle {
     this.fixBase = fixBase;
 
     // The fix prompt: task-family shell + RETURN_STDOUT_BLOCK return (the fix agent writes the
-    // handoff + the return block; task-family round-context slots minus TASK_NUMBER/TASK_CONSTRAINTS
-    // — empty for the branch family; TASK_BRIEF carries the plan path as the branch-level brief).
-    const prompt = renderTemplate("fix", {
-      MODE: "fix",
-      TASK_WORKSPACE: this.workspace,
-      WORKSPACE_SLUG: path.basename(this.workspace),
-      TASK_FINDINGS: findingsPath,
-      TASK_FIXED_POINT: fixBase,
-      TASK_BRIEF: this.opts.plan,
-      HANDOFF_TARGET: this.handoffPath,
-      REVIEW_PLAN_LINE: this.opts.plan ? `**Plan:** ${this.opts.plan}` : "",
-      RETURN_FORMAT: "RETURN_STDOUT_BLOCK",
-      HANDOFF_WRITE_GATE: reviewHardGate("RETURN_STDOUT_BLOCK", this.handoffPath),
-    }, "cdd fix");
+    // handoff + the return block; task-family round-context slots minus DISPATCH_UNIT/CONSTRAINTS
+    // — empty for the branch family; BRIEF carries the plan path as the branch-level brief).
+    const prompt = templates.renderTemplate(
+      "fix",
+      {
+        MODE: "fix",
+        WORKSPACE: this.workspace,
+        WORKSPACE_SLUG: path.basename(this.workspace),
+        FINDINGS: findingsPath,
+        FIXED_POINT: fixBase,
+        BRIEF: this.opts.plan,
+        HANDOFF_TARGET: this.handoffPath,
+        REVIEW_PLAN_LINE: this.opts.plan ? `**Plan:** ${this.opts.plan}` : "",
+        RETURN_FORMAT: "RETURN_STDOUT_BLOCK",
+        HANDOFF_WRITE_GATE: templates.reviewHardGate("RETURN_STDOUT_BLOCK", this.handoffPath),
+      },
+      "cdd fix",
+    );
 
     // Invoke the harness CLI. (op,type) injection resolves the flat `prefix.fix` string
     // (/mattpocock-skills:tdd — the fix channel is work-type, not per-type). T26 unified
     // termination (single resolver — same surface as task/docs/branch-review).
-    const terminationCfg = resolveTerminationConfig("review", undefined, this.workspace);
-    const res = (await invokeCliWithRetry(
+    const terminationCfg = invoker.resolveTerminationConfig("review", undefined, this.workspace);
+    const res = (await invoker.invokeCliWithRetry(
       this.entry!,
       prompt,
       { op: "fix", type: "branch" },
@@ -588,7 +661,8 @@ export class BranchFixLifecycle extends BranchLifecycle {
    * emitted by the wrapper AFTER the (inherited) exit gate ran clean. */
   protected override async normalizeResult(_hookCtx: DispatchHookContext): Promise<void> {
     const finalized = await finalizeHandoff({ mode: "fix", agentHandoff: this.agentHandoff });
-    if (finalized.handoff && finalized.handoff !== this.agentHandoff) writeOwnHandoff(this.handoffPath, finalized.handoff);
+    if (finalized.handoff && finalized.handoff !== this.agentHandoff)
+      writeOwnHandoff(this.handoffPath, finalized.handoff);
     this.finalExitCode = finalized.exitCode;
   }
 }

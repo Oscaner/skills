@@ -2,20 +2,25 @@
 // Guard note: src/infra/root.ts is validate's sole process.cwd() anchor (channel audit ①). The
 // TS port takes cwd as an explicit parameter — no new process.cwd() token — and resolves the repo
 // root via infra/git.ts (gitTopLevel), the single git point for the rebuilt layer.
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { getRoot, initRoot, resolveDocArg } from "../root.ts";
 import { gitInit } from "./helpers.ts";
-import { initRoot, getRoot, resolveDocArg } from "../root.ts";
 
 let repo: string;
 
-function captureError<T extends Error>(fn: () => T): Promise<{ err: T & { code?: number }; stderr: string }> {
+function captureError<T extends Error>(
+  fn: () => T,
+): Promise<{ err: T & { code?: number }; stderr: string }> {
   const origWrite = process.stderr.write.bind(process.stderr);
   let stderr = "";
-  process.stderr.write = ((s: unknown) => { stderr += String(s); return true; }) as typeof process.stderr.write;
+  process.stderr.write = ((s: unknown) => {
+    stderr += String(s);
+    return true;
+  }) as typeof process.stderr.write;
   try {
     try {
       fn();
@@ -61,7 +66,10 @@ describe("infra/root.ts — initRoot(cwd)", () => {
     const bare = mkdtempSync(path.join(tmpdir(), "infra-root-norepo-"));
     const origWrite = process.stderr.write.bind(process.stderr);
     let stderr = "";
-    process.stderr.write = ((s: unknown) => { stderr += String(s); return true; }) as typeof process.stderr.write;
+    process.stderr.write = ((s: unknown) => {
+      stderr += String(s);
+      return true;
+    }) as typeof process.stderr.write;
     try {
       await expect(initRoot(bare)).rejects.toMatchObject({ code: 1 });
     } finally {

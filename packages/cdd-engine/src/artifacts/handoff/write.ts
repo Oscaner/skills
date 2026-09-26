@@ -40,7 +40,10 @@ function serializeHandoff(obj: Record<string, unknown>): string {
  * review/validator changing status/blocker keeps task/commits/findings etc.). Parent dir auto-
  * created; returns the merged full object.
  */
-export function writeHandoff(handoffPath: string, data: Record<string, unknown>): Record<string, unknown> {
+export function writeHandoff(
+  handoffPath: string,
+  data: Record<string, unknown>,
+): Record<string, unknown> {
   const existing = existsSync(handoffPath) ? safeParse(handoffPath) : null;
   const merged = { ...(existing ?? {}), ...data };
   mkdirSync(path.dirname(handoffPath), { recursive: true });
@@ -54,7 +57,10 @@ export function writeHandoff(handoffPath: string, data: Record<string, unknown>)
  * residue cannot enter the carrier (the natural semantics of a private write slot). Parent dir
  * auto-created; returns the written full object.
  */
-export function writeOwnHandoff(handoffPath: string, data: Record<string, unknown>): Record<string, unknown> {
+export function writeOwnHandoff(
+  handoffPath: string,
+  data: Record<string, unknown>,
+): Record<string, unknown> {
   mkdirSync(path.dirname(handoffPath), { recursive: true });
   writeFileSync(handoffPath, serializeHandoff(data));
   return data;

@@ -1,25 +1,22 @@
 #!/usr/bin/env node
+
 // scripts/validate/marketplace.ts — block 6: marketplace validate (moved up from the
 // scripts/ root). The four source.json / manifest checks run in-process as a single step
 // descriptor; standalone (`node scripts/validate/marketplace.ts`) executes the same checks.
 
-import Ajv from "ajv";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import Ajv from "ajv";
 
-import { runIfMain } from "./runner.ts";
+import { CheckBlock, validateRunner } from "./runner.ts";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const ajv = new Ajv();
 
 function validateSourceSchemaJson() {
-  const source = JSON.parse(
-    readFileSync(join(root, "marketplace/source.json"), "utf8"),
-  );
-  const schema = JSON.parse(
-    readFileSync(join(root, "marketplace/source.schema.json"), "utf8"),
-  );
+  const source = JSON.parse(readFileSync(join(root, "marketplace/source.json"), "utf8"));
+  const schema = JSON.parse(readFileSync(join(root, "marketplace/source.schema.json"), "utf8"));
   const validate = ajv.compile(schema);
   if (!validate(source)) {
     throw new Error(
@@ -36,9 +33,7 @@ function isPluginRoot(p) {
 }
 
 function validateSourceSchema() {
-  const source = JSON.parse(
-    readFileSync(join(root, "marketplace/source.json"), "utf8"),
-  );
+  const source = JSON.parse(readFileSync(join(root, "marketplace/source.json"), "utf8"));
 
   if (!source.name || !source.owner?.name || !source.metadata?.description) {
     throw new Error("source.json missing required top-level fields");
@@ -74,17 +69,13 @@ function validateSourceSchema() {
 }
 
 function validateWrapperPaths() {
-  const source = JSON.parse(
-    readFileSync(join(root, "marketplace/source.json"), "utf8"),
-  );
+  const source = JSON.parse(readFileSync(join(root, "marketplace/source.json"), "utf8"));
 
   for (const p of source.plugins) {
     if (isPluginRoot(p)) {
       const wrapperDir = join(root, "cursor-plugins", p.name);
       if (existsSync(wrapperDir)) {
-        throw new Error(
-          `plugin-root ${p.name} wrapper must be deleted: ${wrapperDir}`,
-        );
+        throw new Error(`plugin-root ${p.name} wrapper must be deleted: ${wrapperDir}`);
       }
       const contentRoot = join(root, p.contentRoot);
       const manifest = JSON.parse(
@@ -120,15 +111,9 @@ function validateWrapperPaths() {
 }
 
 function validateMarketplaceSources() {
-  const source = JSON.parse(
-    readFileSync(join(root, "marketplace/source.json"), "utf8"),
-  );
-  const claude = JSON.parse(
-    readFileSync(join(root, ".claude-plugin/marketplace.json"), "utf8"),
-  );
-  const cursor = JSON.parse(
-    readFileSync(join(root, ".cursor-plugin/marketplace.json"), "utf8"),
-  );
+  const source = JSON.parse(readFileSync(join(root, "marketplace/source.json"), "utf8"));
+  const claude = JSON.parse(readFileSync(join(root, ".claude-plugin/marketplace.json"), "utf8"));
+  const cursor = JSON.parse(readFileSync(join(root, ".cursor-plugin/marketplace.json"), "utf8"));
 
   for (const entry of claude.plugins) {
     const dir = join(root, entry.source.replace(/^\.\//, ""));
@@ -146,9 +131,7 @@ function validateMarketplaceSources() {
     if (plugin && isPluginRoot(plugin)) {
       const expected = `./${plugin.contentRoot}`;
       if (entry.source !== expected) {
-        throw new Error(
-          `${entry.name} cursor source want ${expected}, got ${entry.source}`,
-        );
+        throw new Error(`${entry.name} cursor source want ${expected}, got ${entry.source}`);
       }
     }
   }
@@ -161,7 +144,7 @@ function validateMarketplaceSources() {
 // infinitely on standalone execution — main() here IS this module's main. In-process
 // keeps suite and standalone paths byte-identical.
 export const steps = [
-  {
+  new CheckBlock({
     name: "marketplace manifests validate",
     run: () => {
       validateSourceSchemaJson();
@@ -169,7 +152,7 @@ export const steps = [
       validateWrapperPaths();
       validateMarketplaceSources();
     },
-  },
+  }),
 ];
 
-runIfMain(import.meta.url, steps);
+validateRunner.runIfMain(import.meta.url, steps);

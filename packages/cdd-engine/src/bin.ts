@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import path from "node:path";
 // src/bin.ts — CDD engine CLI entry (spec §2.3; citty surface from Task 9, retired commander).
 // The full command tree lives in src/cli/parse.ts as one citty defineCommand (mainCommand with
 // the five subcommands implement / review / fix / base-branch [set|get] / schema [get]). This file only
@@ -24,18 +25,25 @@
 // engine src/ (validate's channel audit ① pins it here since the P5 infra/root.mjs retirement
 // moved the anchor out of src/infra/root.ts).
 import process from "node:process";
-import path from "node:path";
 
 import { parseArgs, renderUsage, runCommand } from "citty";
-import { initProcLifecycle, reapStale, teardownAll } from "./infra/proc.ts";
-import { mainCommand, MAIN_ARGS, usageError, commandUsageKey, deepestCommand } from "./cli/parse.ts";
+import {
+  commandUsageKey,
+  deepestCommand,
+  MAIN_ARGS,
+  mainCommand,
+  usageError,
+} from "./cli/parse.ts";
 import { setDryRun } from "./cli/shared.ts";
+import { CddExitError, ExitRequested } from "./infra/exit.ts";
+import { initProcLifecycle, reapStale, teardownAll } from "./infra/proc.ts";
 import { initRoot } from "./infra/root.ts";
-import { ExitRequested, CddExitError } from "./infra/exit.ts";
+import { runtime } from "./infra/runtime.ts";
 
 // citty renders usage/help with ANSI color — this entry prints plain text (commander-era parity +
 // deterministic test surface). Stripping happens at the two print points below, never via env
 // mutation (the engine's env surface guard pins zero non-whitelisted reads).
+// biome-ignore lint/suspicious/noControlCharactersInRegex: citty emits ANSI escapes (ESC/CSI charset) — control characters are the regex's entire domain; no control-free representation exists for them.
 const ANSI_RE = /\u001B\u009B[[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
 function plain(text: unknown): string {
   return String(text).replace(ANSI_RE, "");
@@ -50,17 +58,21 @@ const SIGNAL_EXIT = { SIGINT: 130, SIGTERM: 143, SIGHUP: 129 };
 // below can turn "signal arrived while the run was already tearing down" into the signal-mapped
 // code even when the run-boundary's own exit wins the process.exit race (both the handler and the
 // run-boundary ExitRequested unwind await teardownAll() concurrently; without the latch the normal
-// path's exit code — e.g. a docs-review non-zero result — could clobber 128+signo).
-let signalExitCode: number | null = null;
+// path's exit code — e.g. a docs-review non-zero result — could clobber 128+signo). The latch is a
+// CddRuntime-owned field (P4.4 Task 4 — the class is the single mutable-state surface).
 /** Single exit mapping: a caught signal always wins over the run's exit code (128+signo). */
 function finalExit(code: number): never {
-  process.exit(signalExitCode ?? code);
+  process.exit(runtime.signalExitCode ?? code);
 }
 for (const [sig, code] of Object.entries(SIGNAL_EXIT)) {
   process.on(sig, async () => {
-    signalExitCode = code;
+    runtime.signalExitCode = code;
     process.stderr.write(`CDD: caught ${sig} — teardownAll + exit ${code}\n`);
-    try { await teardownAll({ graceMs: 2000 }); } finally { finalExit(code); }
+    try {
+      await teardownAll({ graceMs: 2000 });
+    } finally {
+      finalExit(code);
+    }
   });
 }
 
@@ -73,7 +85,7 @@ async function main() {
   if (rawArgs.includes("--help") || rawArgs.includes("-h")) {
     const [cmd, parent] = await deepestCommand(rawArgs);
     const rendered = await renderUsage(cmd, parent);
-    process.stdout.write(plain(rendered) + "\n");
+    process.stdout.write(`${plain(rendered)}\n`);
     finalExit(0);
   }
 
@@ -98,7 +110,7 @@ async function main() {
   }
   const repoRoot = await initRoot(process.cwd());
   initProcLifecycle({ diskPath: path.join(repoRoot, ".osuperpowers", "cdd", "lifecycle.json") });
-  await reapStale({ graceMs: 2000 });   // startup sweep: root orphan groups across runs (before any action / dispatch)
+  await reapStale({ graceMs: 2000 }); // startup sweep: root orphan groups across runs (before any action / dispatch)
 
   try {
     await runCommand(mainCommand, { rawArgs });

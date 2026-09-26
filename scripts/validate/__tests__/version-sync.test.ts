@@ -4,9 +4,9 @@
 // readFileSync ENOENT 而红。结构守卫（源文零戳 + 零 init 路径）是本任务「写失败测试（红）」的
 // 机械载体；行为信号（块 8-10 连同 `pnpm run validate` 全绿）由 validate 编排收归。
 import { readFileSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SRC = join(HERE, "..", "version-sync.ts");

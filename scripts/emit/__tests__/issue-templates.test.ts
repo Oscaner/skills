@@ -1,16 +1,22 @@
-import { describe, it, expect } from "vitest";
-import { readFileSync, mkdtempSync, rmSync, existsSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
 import { renderYml } from "../../../packages/osuperpowers/scripts/render-yaml.mjs";
-import { emitIssueTemplates } from "../issue-templates.ts";
-import { emitAll } from "../all.ts";
+import { emitService } from "../all.ts";
+import { issueTemplatesEmitter } from "../issue-templates.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const findingMeta = JSON.parse(readFileSync(path.resolve(
-  HERE, "../../../packages/osuperpowers/skills/report-issues/templates/finding-meta.json"
-), "utf8"));
+const findingMeta = JSON.parse(
+  readFileSync(
+    path.resolve(
+      HERE,
+      "../../../packages/osuperpowers/skills/report-issues/templates/finding-meta.json",
+    ),
+    "utf8",
+  ),
+);
 
 describe("render-yaml (emit-only module)", () => {
   it("隐私迁移后 2 个 yml 渲染产物无 Branch", () => {
@@ -39,10 +45,7 @@ describe("finding-meta canonical（§2.6 终态）", () => {
   });
 
   it("formFieldDefs 2 键（bug_report/enhancement），零 session-type 下拉、component 下拉保留", () => {
-    expect(Object.keys(findingMeta.formFieldDefs).sort()).toEqual([
-      "bug_report",
-      "enhancement",
-    ]);
+    expect(Object.keys(findingMeta.formFieldDefs).sort()).toEqual(["bug_report", "enhancement"]);
     for (const name of ["bug_report", "enhancement"]) {
       const body = findingMeta.formFieldDefs[name].body;
       for (const item of body) {
@@ -79,7 +82,7 @@ describe("issue-templates emitter", () => {
     const tmp = mkdtempSync(path.join(tmpdir(), "oscaner-issue-templates-"));
     try {
       const generatedPaths = [];
-      emitIssueTemplates(tmp, {}, { generatedPaths });
+      issueTemplatesEmitter.emit(tmp, {}, { generatedPaths });
       expect(generatedPaths).toEqual([
         ".github/ISSUE_TEMPLATE/bug_report.yml",
         ".github/ISSUE_TEMPLATE/enhancement.yml",
@@ -89,9 +92,7 @@ describe("issue-templates emitter", () => {
         expect(existsSync(path.join(tmp, rel))).toBe(true);
         const emitted = readFileSync(path.join(tmp, rel), "utf8");
         // 内容不变量（非 byte-golden——emit:check 已承担 drift 守卫，此处验关键形态）
-        expect(emitted).toContain(
-          `name: ${findingMeta.formFieldDefs[name].frontmatter.name}`,
-        );
+        expect(emitted).toContain(`name: ${findingMeta.formFieldDefs[name].frontmatter.name}`);
         expect(emitted).not.toMatch(/Branch/);
       }
     } finally {
@@ -103,7 +104,7 @@ describe("issue-templates emitter", () => {
     const tmp = mkdtempSync(path.join(tmpdir(), "oscaner-emitall-issues-"));
     try {
       const generatedPaths = [];
-      emitAll(tmp, { generatedPaths });
+      emitService.emitAll(tmp, { generatedPaths });
       for (const name of Object.keys(findingMeta.formFieldDefs)) {
         const rel = `.github/ISSUE_TEMPLATE/${name}.yml`;
         expect(existsSync(path.join(tmp, rel))).toBe(true);

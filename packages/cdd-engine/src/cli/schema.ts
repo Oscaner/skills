@@ -6,8 +6,9 @@
 // re-serialization), and every exit routes through the exit.ts exit family — no bare return. The
 // parse.ts declaration is the overall command face; this module owns only the type gate + the
 // stdout/exit surface (same split base-branch.ts documents for its artifact commands).
+
+import { DOC_SCHEMA_NAMES, type DocSchemaName, loadDocSchemaText } from "../documents/schema.ts";
 import { cliUsageError, exitOk } from "../infra/exit.ts";
-import { DOC_SCHEMA_NAMES, loadDocSchemaText, type DocSchemaName } from "../documents/schema.ts";
 
 /** `cdd schema get <type>`: gate the type against the DOC_SCHEMA_NAMES registry (unknown → usage
  *  exit 2 via the cliUsageError family — the bin wrapper prints the schema usage line + the message

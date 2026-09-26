@@ -19,25 +19,24 @@
 // intact in index.ts; this subset is pinned by scripts/validate/__tests__/pre-commit.test.ts.
 
 import { steps as emitCheckSteps } from "./emit-check.ts";
+import { steps as libTestsSteps } from "./lib-tests.ts";
+import { steps as marketplaceSteps } from "./marketplace.ts";
 import { steps as osuperpowersSteps } from "./osuperpowers.ts";
 import { steps as residueSteps } from "./residue.ts";
-import { steps as marketplaceSteps } from "./marketplace.ts";
-import { steps as libTestsSteps } from "./lib-tests.ts";
+import { validateRunner } from "./runner.ts";
 import { steps as versionSyncSteps } from "./version-sync.ts";
 
-import { main as runSteps, runIfMain } from "./runner.ts";
-
 export const steps = [
-  ...emitCheckSteps,           // emit freshness (checked against regenerated products)
-  ...osuperpowersSteps,        // osuperpowers: plugin resolution / skills inventory / node:test behavior tree + wiring guard
-  ...residueSteps,             // engine zero residue + channel audit
-  ...marketplaceSteps,         // marketplace manifests validate
-  ...libTestsSteps,            // scripts unit tests (vitest)
-  ...versionSyncSteps,         // package version sync
+  ...emitCheckSteps, // emit freshness (checked against regenerated products)
+  ...osuperpowersSteps, // osuperpowers: plugin resolution / skills inventory / node:test behavior tree + wiring guard
+  ...residueSteps, // engine zero residue + channel audit
+  ...marketplaceSteps, // marketplace manifests validate
+  ...libTestsSteps, // scripts unit tests (vitest)
+  ...versionSyncSteps, // package version sync
 ];
 
 export function main(stepsArg = steps) {
-  return runSteps(stepsArg);
+  return validateRunner.run(stepsArg);
 }
 
-runIfMain(import.meta.url, steps);
+validateRunner.runIfMain(import.meta.url, steps);

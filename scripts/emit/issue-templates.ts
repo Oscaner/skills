@@ -1,4 +1,5 @@
-// scripts/emit/issue-templates.ts — .github/ISSUE_TEMPLATE emitter.
+// scripts/emit/issue-templates.ts — .github/ISSUE_TEMPLATE emitter. The IssueTemplatesEmitter
+// domain service (Task 9, Criterion ②: stateless, zero bare-function module).
 //
 // Renders the two GitHub issue template forms (bug_report / enhancement) from
 // the canonical `finding-meta.json` via the emit-only YAML renderer
@@ -7,9 +8,10 @@
 // convention: form field definitions live solely in the canonical JSON —
 // nothing hardcoded here. Emitter output is drift-guarded by `emit:check`
 // (committed yml are products of this emitter + the canonical).
+
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { renderYml } from "../../packages/osuperpowers/scripts/render-yaml.mjs";
 
 const META_PATH = fileURLToPath(
@@ -20,19 +22,23 @@ const META_PATH = fileURLToPath(
 );
 
 // 表单名 = canonical formFieldDefs 对象键（单源；无第二处字面量列表）。
-/**
- * Emit `.github/ISSUE_TEMPLATE/*.yml` into `outRoot`.
- * @param {string} outRoot absolute output root (repo root in write mode, temp tree in check mode)
- * @param {unknown} _source unused — forms come from the canonical finding-meta.json
- * @param {{ generatedPaths: string[] }} opts repo-relative paths produced by this emitter
- */
-export function emitIssueTemplates(outRoot, _source, { generatedPaths }) {
-  const meta = JSON.parse(readFileSync(META_PATH, "utf8"));
-  for (const name of Object.keys(meta.formFieldDefs)) {
-    const rel = `.github/ISSUE_TEMPLATE/${name}.yml`;
-    const file = join(outRoot, rel);
-    mkdirSync(dirname(file), { recursive: true });
-    writeFileSync(file, renderYml(meta.formFieldDefs[name], meta));
-    generatedPaths.push(rel);
+export class IssueTemplatesEmitter {
+  /**
+   * Emit `.github/ISSUE_TEMPLATE/*.yml` into `outRoot`.
+   * @param {string} outRoot absolute output root (repo root in write mode, temp tree in check mode)
+   * @param {unknown} _source unused — forms come from the canonical finding-meta.json
+   * @param {{ generatedPaths: string[] }} opts repo-relative paths produced by this emitter
+   */
+  emit(outRoot, _source, { generatedPaths }): void {
+    const meta = JSON.parse(readFileSync(META_PATH, "utf8"));
+    for (const name of Object.keys(meta.formFieldDefs)) {
+      const rel = `.github/ISSUE_TEMPLATE/${name}.yml`;
+      const file = join(outRoot, rel);
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, renderYml(meta.formFieldDefs[name], meta));
+      generatedPaths.push(rel);
+    }
   }
 }
+
+export const issueTemplatesEmitter = new IssueTemplatesEmitter();

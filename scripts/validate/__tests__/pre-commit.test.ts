@@ -9,10 +9,9 @@
 // blocks whose cwd=REPO_ROOT dispatch depends on entry-gate tree cleanliness.
 // The full validate composition stays untouched (index.ts, 11 steps — pinned by
 // the wiring guard ci-validate.test.mjs).
-import { describe, it, expect } from "vitest";
-
-import { steps as subsetSteps } from "../pre-commit.ts";
+import { describe, expect, it } from "vitest";
 import { steps as fullSteps } from "../index.ts";
+import { steps as subsetSteps } from "../pre-commit.ts";
 
 describe("pre-commit subset (G4/P6 Task 17)", () => {
   it("leads with the unified emit freshness block", () => {
@@ -45,6 +44,9 @@ describe("pre-commit subset (G4/P6 Task 17)", () => {
     expect(fullSteps).toHaveLength(11);
     const subsetNames = new Set(subsetSteps.map((s) => s.name));
     const excluded = fullSteps.map((s) => s.name).filter((n) => !subsetNames.has(n));
-    expect(excluded).toEqual(["cdd-engine dev stub materialization", "cdd-engine engine test suite (vitest)"]);
+    expect(excluded).toEqual([
+      "cdd-engine dev stub materialization",
+      "cdd-engine engine test suite (vitest)",
+    ]);
   });
 });

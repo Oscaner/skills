@@ -6,16 +6,20 @@
 // surface) → the diff fileset is recorded verbatim as the ledger origin, zero warn. No base →
 // reconcile skipped (docs-family carries commits{base,head} since T5 — a legal base runs the same
 // reconcile as the task family; the unknown-base failure carriers skip too).
-import { describe, it, expect, afterEach } from "vitest";
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-
-import { gitInit, gitCommit, captureStderr } from "../../infra/__tests__/helpers.ts";
-import { gitRevParseHead } from "../../infra/git.ts";
+import { afterEach, describe, expect, it } from "vitest";
 import { writeHandoff } from "../../artifacts/handoff/write.ts";
-import { reconcileChangedSurface } from "../write-boundary.ts";
+import { captureStderr, gitCommit, gitInit } from "../../infra/__tests__/helpers.ts";
+import { GitClient } from "../../infra/git.ts";
+
+const gitClient = new GitClient();
+
+import { ChangedSurfaceAuditor } from "../write-boundary.ts";
+
+const surfaceAuditor = new ChangedSurfaceAuditor();
 
 const tmpRepos: string[] = [];
 
@@ -30,12 +34,13 @@ async function tmpRepo(): Promise<{ repo: string; handoff: string; base: string 
   gitInit(repo);
   writeFileSync(path.join(repo, "seed.txt"), "0\n");
   gitCommit(repo, "seed");
-  const base = (await gitRevParseHead(repo)) as string;
+  const base = (await gitClient.revParseHead(repo)) as string;
   return { repo, handoff: path.join(repo, "task-1-handoff.json"), base };
 }
 
 function commitChanges(repo: string, files: Record<string, string>, message: string): void {
-  for (const [name, content] of Object.entries(files)) writeFileSync(path.join(repo, name), content);
+  for (const [name, content] of Object.entries(files))
+    writeFileSync(path.join(repo, name), content);
   gitCommit(repo, message);
 }
 
@@ -53,9 +58,9 @@ describe("rules/write-boundary.ts — reconcileChangedSurface (on-book vs off-bo
     });
 
     const cap = captureStderr();
-    let res;
+    let res: Awaited<ReturnType<typeof reconcileChangedSurface>>;
     try {
-      res = await reconcileChangedSurface("fix", repo, handoff);
+      res = await surfaceAuditor.reconcileChangedSurface("fix", repo, handoff);
     } finally {
       cap.restore();
     }
@@ -80,9 +85,9 @@ describe("rules/write-boundary.ts — reconcileChangedSurface (on-book vs off-bo
     });
 
     const cap = captureStderr();
-    let res;
+    let res: Awaited<ReturnType<typeof reconcileChangedSurface>>;
     try {
-      res = await reconcileChangedSurface("fix", repo, handoff);
+      res = await surfaceAuditor.reconcileChangedSurface("fix", repo, handoff);
     } finally {
       cap.restore();
     }
@@ -108,9 +113,9 @@ describe("rules/write-boundary.ts — reconcileChangedSurface (on-book vs off-bo
     });
 
     const cap = captureStderr();
-    let res;
+    let res: Awaited<ReturnType<typeof reconcileChangedSurface>>;
     try {
-      res = await reconcileChangedSurface("implement", repo, handoff);
+      res = await surfaceAuditor.reconcileChangedSurface("implement", repo, handoff);
     } finally {
       cap.restore();
     }
@@ -124,15 +129,23 @@ describe("rules/write-boundary.ts — reconcileChangedSurface (on-book vs off-bo
   it("review mode / no handoff / no base → skipped (null, nothing recorded)", async () => {
     const { repo, handoff, base } = await tmpRepo();
     commitChanges(repo, { "a.md": "a1\n" }, "round-a");
-    expect(await reconcileChangedSurface("review", repo, handoff)).toBeNull(); // review skips
-    expect(await reconcileChangedSurface("fix", repo, path.join(repo, "nope.json"))).toBeNull(); // no handoff
+    expect(await surfaceAuditor.reconcileChangedSurface("review", repo, handoff)).toBeNull(); // review skips
+    expect(
+      await surfaceAuditor.reconcileChangedSurface("fix", repo, path.join(repo, "nope.json")),
+    ).toBeNull(); // no handoff
     const hNoBase = path.join(repo, "task-2-handoff.json");
     writeHandoff(hNoBase, { phase: "fix", status: "APPROVED", findings: [], artifacts: {} }); // no commits.base
-    expect(await reconcileChangedSurface("fix", repo, hNoBase)).toBeNull();
+    expect(await surfaceAuditor.reconcileChangedSurface("fix", repo, hNoBase)).toBeNull();
     const hEmptyDiff = path.join(repo, "task-3-handoff.json");
-    const headAfter = (await gitRevParseHead(repo)) as string; // base == HEAD → diff is empty
-    writeHandoff(hEmptyDiff, { phase: "fix", status: "APPROVED", findings: [], artifacts: {}, commits: { base: headAfter } });
-    expect(await reconcileChangedSurface("fix", repo, hEmptyDiff)).toBeNull(); // zero diff → nothing off-book
+    const headAfter = (await gitClient.revParseHead(repo)) as string; // base == HEAD → diff is empty
+    writeHandoff(hEmptyDiff, {
+      phase: "fix",
+      status: "APPROVED",
+      findings: [],
+      artifacts: {},
+      commits: { base: headAfter },
+    });
+    expect(await surfaceAuditor.reconcileChangedSurface("fix", repo, hEmptyDiff)).toBeNull(); // zero diff → nothing off-book
     void base;
   });
 });

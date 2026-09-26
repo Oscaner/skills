@@ -2,14 +2,14 @@
 // (spec §2.12 第一部分 + §2.13 hookable row). Tests the hookable instance + the FIXED
 // hook-point enumeration: callHook fires registered handlers at every declared point, plugins
 // may only attach at the enum, and unregister removes a handler.
-import { it, expect } from "vitest";
+import { expect, it } from "vitest";
 
 import {
-  HOOK_POINTS,
   createDispatchHooks,
-  registerDispatchPlugin,
   type DispatchHookContext,
   type DispatchPlugin,
+  HOOK_POINTS,
+  registerDispatchPlugin,
 } from "../hooks.ts";
 
 it("HOOK_POINTS declares the four fixed points (dispatch:before/after + commit gates)", () => {

@@ -1,7 +1,7 @@
 // packages/cdd-engine/src/infra/__tests__/helpers.ts
 // git init + 空提交（-c 内联身份：无全局 user.name/email 的环境（CI runner）也能 commit）。
 import { execFileSync, execSync, spawn } from "node:child_process";
-import { writeFileSync, mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 // 进程组回收能力探针（spec §2.6「环境不允许时 skip 保护」）：
@@ -10,9 +10,26 @@ import path from "node:path";
 // 能以 kill(-pgid,0) 观察、且能连根 SIGKILL → true 才运行依赖进程组语义的测试；否则 skip。
 export function processGroupReapingSupported() {
   try {
-    const child = spawn(process.execPath, ["-e", "setInterval(()=>{},1000)"], { detached: true, stdio: "ignore" });
-    const observable = (() => { try { process.kill(-child.pid, 0); return true; } catch { return false; } })();
-    const killable = (() => { try { process.kill(-child.pid, "SIGKILL"); return true; } catch { return false; } })();
+    const child = spawn(process.execPath, ["-e", "setInterval(()=>{},1000)"], {
+      detached: true,
+      stdio: "ignore",
+    });
+    const observable = (() => {
+      try {
+        process.kill(-child.pid, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    })();
+    const killable = (() => {
+      try {
+        process.kill(-child.pid, "SIGKILL");
+        return true;
+      } catch {
+        return false;
+      }
+    })();
     return observable && killable;
   } catch {
     return false;
@@ -35,10 +52,17 @@ export function pgrepCount(marker) {
 export function captureStderr() {
   const buf: string[] = [];
   const origWrite = process.stderr.write.bind(process.stderr);
-  process.stderr.write = ((s: unknown) => { buf.push(String(s)); return true; }) as typeof process.stderr.write;
+  process.stderr.write = ((s: unknown) => {
+    buf.push(String(s));
+    return true;
+  }) as typeof process.stderr.write;
   return {
-    get text() { return buf.join(""); },
-    restore() { process.stderr.write = origWrite; },
+    get text() {
+      return buf.join("");
+    },
+    restore() {
+      process.stderr.write = origWrite;
+    },
   };
 }
 
@@ -46,25 +70,53 @@ export function captureStderr() {
 export function captureStdout() {
   const buf: string[] = [];
   const origWrite = process.stdout.write.bind(process.stdout);
-  process.stdout.write = ((s: unknown) => { buf.push(String(s)); return true; }) as typeof process.stdout.write;
+  process.stdout.write = ((s: unknown) => {
+    buf.push(String(s));
+    return true;
+  }) as typeof process.stdout.write;
   return {
-    get text() { return buf.join(""); },
-    restore() { process.stdout.write = origWrite; },
+    get text() {
+      return buf.join("");
+    },
+    restore() {
+      process.stdout.write = origWrite;
+    },
   };
 }
 
 export function gitInit(dir) {
   execFileSync("git", ["init", "-q"], { cwd: dir });
-  execFileSync("git", ["-C", dir, "-c", "user.name=t", "-c", "user.email=t@t",
-    "commit", "--allow-empty", "-q", "-m", "init"]);
+  execFileSync("git", [
+    "-C",
+    dir,
+    "-c",
+    "user.name=t",
+    "-c",
+    "user.email=t@t",
+    "commit",
+    "--allow-empty",
+    "-q",
+    "-m",
+    "init",
+  ]);
 }
 
 // 在已 init 的仓库 add+commit（保持工作树干净——commit-contract 校验）。
 // 同样 -c 内联身份：裸 git commit 在无全局身份的 CI runner 上会失败（PR #177 CI 实测）。
 export function gitCommit(dir, message = "plan") {
   execFileSync("git", ["-C", dir, "add", "-A"]);
-  execFileSync("git", ["-C", dir, "-c", "user.name=t", "-c", "user.email=t@t",
-    "commit", "-q", "-m", message]);
+  execFileSync("git", [
+    "-C",
+    dir,
+    "-c",
+    "user.name=t",
+    "-c",
+    "user.email=t@t",
+    "commit",
+    "-q",
+    "-m",
+    message,
+  ]);
 }
 
 // ---- Doc-contract-valid chain (plan + spec + parent overall) (Task 29, spec T7.8) ----
@@ -111,7 +163,11 @@ const VALID_OVERALL_BODY = [
 /** commitValidDocs(dir, planRel?, planBody?) — write the valid spec + parent overall and the plan
  * (default the canonical valid body; a fixture may pass its own planBody) into the repo and commit
  * them (clean tree — commit-contract premise). Returns the plan's repo-relative path. */
-export function commitValidDocs(dir, planRel = path.join("docs", "osuperpowers", "plans", "plan.md"), planBody = VALID_PLAN_BODY) {
+export function commitValidDocs(
+  dir,
+  planRel = path.join("docs", "osuperpowers", "plans", "plan.md"),
+  planBody = VALID_PLAN_BODY,
+) {
   const planAbs = path.join(dir, planRel);
   mkdirSync(path.dirname(planAbs), { recursive: true });
   writeFileSync(planAbs, planBody);
@@ -140,41 +196,50 @@ export function writeBranchChain(dir, planName) {
   const specName = `${baseName}-design.md`;
   const overallName = `${baseName}-overall.md`;
   const planAbs = path.join(plansDir, planName);
-  writeFileSync(planAbs, [
-    "# Plan",
-    "",
-    `**Spec:** [${specName}](docs/osuperpowers/specs/${specName})`,
-    "",
-    "## Constraints",
-    "",
-    "- boundary one",
-    "",
-    "### Task 1: x",
-    "body",
-    "",
-  ].join("\n"));
-  writeFileSync(path.join(specsDir, specName), [
-    "- **Version**: v1.0 · 2026-09-21",
-    "",
-    `- **Parent program**: [${overallName} v1.0](./${overallName})`,
-    "",
-  ].join("\n"));
-  writeFileSync(path.join(specsDir, overallName), [
-    "- **Version**: v1.0 · 2026-09-21",
-    "",
-    "## Phase inventory",
-    "",
-    "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
-    "|---|---|---|---|---|---|---|",
-    "| P1 | phase one | [Pending] | Pending | | none |",
-    "",
-    "## Change history",
-    "",
-    "| Version | date | summary |",
-    "|---|---|---|",
-    "| v1.0 | 2026-09-21 | Initial |",
-    "",
-  ].join("\n"));
+  writeFileSync(
+    planAbs,
+    [
+      "# Plan",
+      "",
+      `**Spec:** [${specName}](docs/osuperpowers/specs/${specName})`,
+      "",
+      "## Constraints",
+      "",
+      "- boundary one",
+      "",
+      "### Task 1: x",
+      "body",
+      "",
+    ].join("\n"),
+  );
+  writeFileSync(
+    path.join(specsDir, specName),
+    [
+      "- **Version**: v1.0 · 2026-09-21",
+      "",
+      `- **Parent program**: [${overallName} v1.0](./${overallName})`,
+      "",
+    ].join("\n"),
+  );
+  writeFileSync(
+    path.join(specsDir, overallName),
+    [
+      "- **Version**: v1.0 · 2026-09-21",
+      "",
+      "## Phase inventory",
+      "",
+      "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+      "|---|---|---|---|---|---|---|",
+      "| P1 | phase one | [Pending] | Pending | | none |",
+      "",
+      "## Change history",
+      "",
+      "| Version | date | summary |",
+      "|---|---|---|",
+      "| v1.0 | 2026-09-21 | Initial |",
+      "",
+    ].join("\n"),
+  );
   return planAbs;
 }
 

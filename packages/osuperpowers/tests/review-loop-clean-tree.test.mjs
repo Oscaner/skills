@@ -23,7 +23,7 @@ const REVIEW_LOOP_NODES = {
   "writing-single-spec": ["spec-review"],
   "writing-overall-spec": ["spec-review"],
   "writing-plans": ["plan-review"],
-  "cli-driven-development": ["run-task-review", "branch-review"],
+  "cli-driven-development": ["run-group-review", "branch-review"],
   brainstorming: [
     "run-writing-single-spec",
     "run-writing-overall-spec",

@@ -4,25 +4,34 @@
 // resolveTargetDoc/blockerCount/convergedExit3/reviewConvergenceGuard) moved to src/cli/shared.ts
 // (spec §2.6 shared split, ownership by closure completeness), reused by the 3 consumers
 // (fix/parse/branch-review) and this file via shared (single host fact source).
+// Task 6/7: this file stays a COMPOSITE ROOT (argv-side guards + lifecycle construction + exit —
+// Criterion ⑤ — no forwarding shells): the branch channel constructs BranchReviewLifecycle inline
+// (cli/branch-review.ts deleted), the task channel delegates to TaskLifecycle.run, the spec/plan
+// channel to DocsLifecycle.run.
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-
-import { DOC_TOKENS } from "../documents/tokens.ts";
-import { renderTemplate, reviewTypeConfig, reviewArtifactConfig } from "../render/templates.ts";
 import * as handoffNaming from "../artifacts/handoff/naming.ts";
 import { hashFile } from "../artifacts/hash.ts";
+import { RoundContext } from "../artifacts/round-context.ts";
+import { DOC_TOKENS } from "../documents/tokens.ts";
+import { type TaskGroup, toTaskGroup } from "../domain/task-group.ts";
 import { exitOkWith, exitWithCode } from "../infra/exit.ts";
 import { withLifecycle } from "../infra/proc.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
-import { DRY_RUN, requireHostHarness, resolveTargetDoc, reviewConvergenceGuard, type PrevHandoff } from "./shared.ts";
+import { TemplateLoader } from "../render/templates.ts";
+import { ConvergenceChecker } from "../rules/convergence.ts";
 import { docsResultFace } from "./result-face.ts";
+import { DRY_RUN, type PrevHandoff, requireHostHarness, resolveTargetDoc } from "./shared.ts";
+
+const templates = new TemplateLoader();
+const convergence = new ConvergenceChecker();
 
 export interface ReviewOpts {
   type: string;
   plan?: string;
   spec?: string;
-  /** The dispatch group (P4.3) — the whole group reviews as one unit. */
-  tasks?: number[];
+  /** The dispatch group (P4.3/4.4) — the whole group reviews as one unit (TaskGroup value). */
+  tasks?: number[] | TaskGroup;
   base?: string;
   head?: string;
   round?: string;
@@ -55,7 +64,9 @@ export function existingRoundHandoff(ws: string, type: string, round: number): R
     // P4 robustness hardening: the diagnostic lands on stderr instead of being swallowed — when
     // a corrupt round-1 is ignored, why the re-dispatch did not trigger a Convergence lock is
     // transparent to the user.
-    process.stderr.write(`CDD_INFO: corrupt prev handoff ${p} ignored → fail-open (new review round)\n`);
+    process.stderr.write(
+      `CDD_INFO: corrupt prev handoff ${p} ignored → fail-open (new review round)\n`,
+    );
     return null;
   }
 }
@@ -72,7 +83,7 @@ export function taskReviewWorkspace(plan: string, repoRoot: string): string {
 
 // ---- review dispatch ----
 
-// Exported (test seam): cdd.test.mjs injects the docs-runner mock to assert runDocsTask args.
+// Exported (test seam): cdd.test.mjs injects the docs-runner mock to assert DocsLifecycle args.
 export async function runReview(opts: ReviewOpts): Promise<void> {
   return withLifecycle(async () => {
     // Host harness gate — the harness is no longer passed as a CLI param (T3); it is decided
@@ -82,7 +93,8 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
     // root explicitly (no reset / env / ForTest seam); the black-box path falls back to the
     // initRoot()-initialized singleton. Every root consumer in this file uses it uniformly.
     const root = opts.root ?? getRoot();
-    // type=branch: independent git-diff-level path (former branch-review bin action + AC15 wiring).
+    // type=branch: independent git-diff-level path (composite root inline — the former branch-review
+    // bin action + AC15 wiring; cli/branch-review.ts was deleted — Criterion ⑤).
     if (opts.type === "branch") {
       if (!opts.plan) {
         process.stderr.write("cdd review --type branch: missing required --plan <path>\n");
@@ -91,26 +103,37 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
       // --base/--head were requiredOption in the old branch-review bin; the inline keeps
       // that contract — missing values would otherwise render garbage ("undefin" file slugs  + undefined in return block).
       if (!opts.base || !opts.head) {
-        process.stderr.write("cdd review --type branch: missing required --base <sha> and --head <sha>\n");
+        process.stderr.write(
+          "cdd review --type branch: missing required --base <sha> and --head <sha>\n",
+        );
         exitWithCode(2);
       }
-      const { runBranchReview } = await import("./branch-review.ts");   // lazy: breaks review↔branch-review import cycle
-      // plan/base/head are required for branch (guarded above with exit 2); the explicit
-      // re-declaration carries the never-flow narrowing into the call object.
-      return await runBranchReview({
+      // DRY_RUN() is a cli-module process-local — injected into the lifecycle at the boundary
+      // (dispatch never reads it itself).
+      const dryRun = DRY_RUN();
+      const { BranchReviewLifecycle } = await import("../dispatch/branch.ts");
+      const lc = new BranchReviewLifecycle({
         ...opts,
         plan: opts.plan,
         base: opts.base,
         head: opts.head,
         harness,
+        dryRun,
+        ctx: {
+          mode: "branch-review",
+          repoRoot: opts.root ?? null,
+          dryRun,
+        },
       });
+      await lc.run();
+      return;
     }
 
     if (opts.type === "spec" || opts.type === "plan") {
       // D11: type-self-describing target param — type=spec reviews the --spec doc;
       // type=plan reviews the --plan doc (optional --spec carries the upstream reference).
       const doc = resolveTargetDoc(opts, "review");
-      const { runDocsTask } = await import("../dispatch/docs.ts");
+      const { DocsLifecycle } = await import("../dispatch/docs.ts");
       // spec/plan: round = engine auto-increment (canonical review.{type} family pattern scan);
       // --round only validates backfill (conflict → exit 2).
       const ws = handoffNaming.resolveWorkspace(doc, root);
@@ -129,12 +152,16 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
         const legacy = prev.doc_hash == null;
         const contentSame = !legacy && prev.doc_hash === docHash;
         if (legacy || contentSame) {
-          reviewConvergenceGuard(prev, opts.type, round, doc, { reason: legacy ? "legacy" : "unchanged" });
+          convergence.reviewConvergenceGuard(prev, opts.type, round, doc, {
+            reason: legacy ? "legacy" : "unchanged",
+          });
         } else if (prev.status === "APPROVED" && docHash) {
           // Content evolution + an existing clean review → new ref → pass + self-documenting.
           // The empty docHash sentinel (ghost doc, §2.4) does NOT print CDD_INFO — a deleted
           // doc is not "evolution": silent pass, downstream fails naturally.
-          process.stderr.write(`CDD_INFO: doc content changed since round-${round - 1} clean review (${prev.doc_hash!.slice(0, 8)} → ${docHash.slice(0, 8)}) → new review round ${round}\n`);
+          process.stderr.write(
+            `CDD_INFO: doc content changed since round-${round - 1} clean review (${prev.doc_hash!.slice(0, 8)} → ${docHash.slice(0, 8)}) → new review round ${round}\n`,
+          );
         }
       }
       // Review template data-driven — spec/plan route through the docs-family shell (Task 20:
@@ -147,26 +174,32 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
       // identical values here, matching for self-documentation). Round-context slots pre-fill
       // absent values with "" (mode-union template, no missing-param throw). `workspace` remains
       // in the options for the unit seam (cdd.test asserts it) — docs.ts ignores the key.
-      const cfg = reviewTypeConfig(opts.type);
-      const art = reviewArtifactConfig(opts.type);
+      const cfg = templates.reviewTypeConfig(opts.type);
+      const art = templates.reviewArtifactConfig(opts.type);
       const handoffPath = path.join(ws, handoffNaming.handoffName("review", opts.type, { round }));
-      const result = await runDocsTask({
-        harness, mode: "review", template: "review", type: opts.type, doc,
+      const result = await DocsLifecycle.run({
+        harness,
+        mode: "review",
+        template: "review",
+        type: opts.type,
+        doc,
         handoffPath,
         params: {
           MODE: "review",
           REVIEW_TYPE: opts.type,
           REVIEW_LENS_GUIDE: cfg.lensEnum.join(" · "),
-          TASK_WORKSPACE: ws,
+          WORKSPACE: ws,
           WORKSPACE_SLUG: path.basename(ws),
           REVIEW_REFERENCE: doc,
           REVIEW_AXES: cfg.axesGuide,
           RETURN_FORMAT: art.returnFormat,
           // type=plan: REVIEW_PLAN_LINE injects the upstream spec reference; type=spec has no plan
           // reference, stays empty. The `**Spec:**` marker comes from the canonical token surface.
-          REVIEW_PLAN_LINE: opts.type === "plan" && opts.spec ? `${DOC_TOKENS.specMark} ${opts.spec}` : "",
+          REVIEW_PLAN_LINE:
+            opts.type === "plan" && opts.spec ? `${DOC_TOKENS.specMark} ${opts.spec}` : "",
         },
-        workspace: ws, repoRoot: root,
+        workspace: ws,
+        repoRoot: root,
         dryRun: DRY_RUN(),
       });
       // Docs review completion → stdout result face (design §2.9 / AC9): the orchestrator routes on
@@ -178,13 +211,15 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
       exitWithCode(result.exitCode);
     }
 
-    // type=task: task review (runner internally tracks task-N-review-{R}.json round sequence).
+    // type=task: task review (runner internally tracks tasks-{key}-review-{R}.json round sequence).
     if (opts.type !== "task") {
       process.stderr.write(`unknown review --type: ${opts.type}\n`);
       exitWithCode(2);
     }
     if (!opts.plan) {
-      process.stderr.write("cdd review --type task: missing required --plan <path> (workspace slug + Convergence)\n");
+      process.stderr.write(
+        "cdd review --type task: missing required --plan <path> (workspace slug + Convergence)\n",
+      );
       exitWithCode(2);
     }
     if (opts.tasks == null || opts.tasks.length === 0) {
@@ -192,16 +227,20 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
       exitWithCode(2);
     }
     // Workspace slug derives from the plan filename (workspaceSlug converges -design/-plan
-    // single-layer strip); task Convergence reads the latest tasks-{a}-{b}-review-{R}.json and
+    // single-layer strip); task Convergence reads the latest tasks-{a},{b}-review-{R}.json and
     // rejects when its blockers = 0. `--plan` second consumption point (read point ②): normalize
     // first via resolveDocArg (repo-root-relative → absolute) then derive the workspace — otherwise
     // the task workspace keeps a second coordinate system (cwd-relative).
     const taskPlan = resolveDocArg(opts.plan, root, "plan");
     const taskWs = taskReviewWorkspace(taskPlan, root);
     // The group is the dispatch unit — the group key pins the round scan (no subgroup mixing);
-    // the task round derives via the canonical type-aware resolveNextRound (P4.3).
-    const groupKey = handoffNaming.tasksKey(opts.tasks);
-    const nextTaskRound = handoffNaming.resolveNextRound(taskWs, "review", "task", { tasks: groupKey });
+    // the task round derives via the canonical type-aware resolveNextRound (P4.3). P4.4: the key
+    // IS the TaskGroup key (comma-joined — the CLI --tasks string, no second form).
+    const group = toTaskGroup(opts.tasks);
+    const groupKey = group.key();
+    const nextTaskRound = handoffNaming.resolveNextRound(taskWs, "review", "task", {
+      tasks: groupKey,
+    });
     // --round validation backfill (task side: the derived next-round value; conflict → exit 2,
     // aligning spec/plan/branch).
     if (opts.round && Number(opts.round) !== nextTaskRound) {
@@ -210,16 +249,19 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
     }
     if (nextTaskRound > 1) {
       const prevR = nextTaskRound - 1;
-      // Convergence prev reads the same-family round-1 arithmetic (canonical review.task name →
+      // The review round's unique context (Task 6 ② RoundContext — round anchor): the same-family
+      // round-(R-1) anchor derives the Convergence prev path (canonical review.task name →
       // tasks-{groupKey}-review-{prevR}.json). Must NOT use prevHandoffPath: that helper resolves
       // the cross-family prev table for this family (round1=implement / fix:R-1), which would read
       // the materialized implement APPROVED+[] → Convergence false lock.
-      const th = JSON.parse(readFileSync(path.join(taskWs, handoffNaming.handoffName("review", "task", { tasks: groupKey, round: prevR })), "utf8")) as PrevHandoff;
-      reviewConvergenceGuard(th, "task", prevR, opts.plan);   // only APPROVED+blocker=0 stops (SP-4)
+      const prevRound = RoundContext.review(taskWs, "task", prevR, { tasks: groupKey });
+      const th = JSON.parse(readFileSync(path.join(taskWs, prevRound.name), "utf8")) as PrevHandoff;
+      convergence.reviewConvergenceGuard(th, "task", prevR, opts.plan); // only APPROVED+blocker=0 stops (SP-4)
     }
-    const { runTask } = await import("../dispatch/task.ts");
-    await runTask(harness, opts.tasks, {
-      mode: "review", dryRun: DRY_RUN(),
+    const { TaskLifecycle } = await import("../dispatch/task.ts");
+    await TaskLifecycle.run(harness, group, {
+      mode: "review",
+      dryRun: DRY_RUN(),
       planFile: opts.plan,
     });
   });

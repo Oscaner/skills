@@ -25,21 +25,22 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "ajv": "^8",
-    "citty": "^0.2",
-    "consola": "^3",
-    "execa": "^9",
-    "handlebars": "^4",
-    "hookable": "^6",
-    "semver": "^7",
-    "simple-git": "^3",
-    "tinyglobby": "^0.2"
+    "ajv": "^8.20.0",
+    "citty": "^0.2.2",
+    "consola": "^3.4.2",
+    "execa": "^10.0.1",
+    "handlebars": "^4.7.9",
+    "hookable": "^6.1.2",
+    "semver": "^7.8.5",
+    "simple-git": "^3.36.0",
+    "tinyglobby": "^0.2.17"
   },
   "devDependencies": {
-    "@types/node": "^22.20.3",
-    "typescript": "^5.9.3",
+    "@types/node": "^26.6.2",
+    "@typescript/typescript6": "^6.0.2",
+    "typescript": "^7.0.2",
     "unbuild": "^3.6.1",
-    "vitest": "^3"
+    "vitest": "^5.0.1"
   },
   "repository": {
     "type": "git",

@@ -1,44 +1,61 @@
 /**
  * osuperpowers emit — per-harness thin manifests (.claude-plugin / .cursor-plugin).
+ * The OsuperpowersEmitter domain service (Task 9, Criterion ②: stateless, constructor injection — composes
+ * MarketplaceService + ManifestService + EmitOrchestrator). `generatedPaths` records every
+ * repo-relative path produced (the emit-check drift diff input); no module-level state.
  *
- * `generatedPaths` records every repo-relative path produced (the emit-check
- * drift diff input); all writers are passed in, no module-level state.
+ * The canonical skills list is directory-discovered by the VALIDATE side
+ * (scripts/validate/osuperpowers.ts EXPECTED/EMITTERS_LABEL — the count truth); this emitter
+ * deliberately keeps no count and no skill-name inventory here.
  */
 
-import { readdirSync, existsSync } from "node:fs";
-import { join, resolve, dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { resolveVersion } from "../lib/marketplace-utils.ts";
-import { claudePluginManifest, cursorPluginManifest } from "./manifests.ts";
-import { writeJsonDoc } from "./orchestrate.ts";
+import { MarketplaceService } from "../lib/marketplace-utils.ts";
+import { type ManifestService, manifestService } from "./manifests.ts";
+import { type EmitOrchestrator, emitOrchestrator } from "./orchestrate.ts";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
-export function emitOsuperpowers(outRoot, plugin, generatedPaths) {
-  const version = resolveVersion(root, plugin).version;
-  const contentRoot = plugin.contentRoot;
+export class OsuperpowersEmitter {
+  /** injected marketplace domain service (lib) — version resolution. */
+  readonly marketplace: MarketplaceService;
+  /** injected manifest service — per-harness manifest builders. */
+  readonly manifests: ManifestService;
+  /** injected emit writer service — product writes + generatedPaths tracking. */
+  readonly writer: EmitOrchestrator;
 
-  // Canonical skills list (directory-discovered — no count kept here; the count is asserted
-  // once, in scripts/validate/osuperpowers.ts EXPECTED/EMITTERS_LABEL).
-  const skillsDir = join(root, contentRoot, "skills");
-  const skillNames = readdirSync(skillsDir, { withFileTypes: true })
-    .filter(
-      (d) =>
-        d.isDirectory() && existsSync(join(skillsDir, d.name, "SKILL.md")),
-    )
-    .map((d) => d.name)
-    .sort();
+  constructor(
+    marketplace: MarketplaceService,
+    manifests: ManifestService,
+    writer: EmitOrchestrator,
+  ) {
+    this.marketplace = marketplace;
+    this.manifests = manifests;
+    this.writer = writer;
+  }
 
-  writeJsonDoc(
-    outRoot,
-    `${contentRoot}/.claude-plugin/plugin.json`,
-    claudePluginManifest(plugin, version),
-    generatedPaths,
-  );
-  writeJsonDoc(
-    outRoot,
-    `${contentRoot}/.cursor-plugin/plugin.json`,
-    cursorPluginManifest(plugin, version),
-    generatedPaths,
-  );
+  emit(outRoot, plugin, generatedPaths): void {
+    const version = this.marketplace.resolveVersion(plugin).version;
+    const contentRoot = plugin.contentRoot;
+
+    this.writer.writeJsonDoc(
+      outRoot,
+      `${contentRoot}/.claude-plugin/plugin.json`,
+      this.manifests.claudePluginManifest(plugin, version),
+      generatedPaths,
+    );
+    this.writer.writeJsonDoc(
+      outRoot,
+      `${contentRoot}/.cursor-plugin/plugin.json`,
+      this.manifests.cursorPluginManifest(plugin, version),
+      generatedPaths,
+    );
+  }
 }
+
+export const osuperpowersEmitter = new OsuperpowersEmitter(
+  new MarketplaceService(root),
+  manifestService,
+  emitOrchestrator,
+);

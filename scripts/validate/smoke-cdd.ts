@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 // scripts/validate/smoke-cdd.ts — CDD engine consumer-sim (`node scripts/run.ts smoke-cdd`).
 // P3 T7 / design §2.6: replaces the old repo-internal dry-run smoke with a consumer-layout gate —
 // build the real package, pack it, and run the five-command dry-run chain against a CONSUMER
@@ -38,10 +39,10 @@
 // responsibility belongs to 5c, no double write. Depends on Node built-ins + execa + the tar ships
 // present on macOS (bsdtar) and CI (GNU tar) — both support `-tzf` (list) and `-xOzf` (stdout read).
 
-import { execaCommandSync, execaSync } from "execa";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { execaSync } from "execa";
 
 const root = process.cwd(); // repo toplevel (run.ts invokes with the repo root as cwd)
 const NODE = process.execPath;
@@ -55,7 +56,12 @@ const CLI_ENTRY = "dist/cli.mjs";
 const REAL_BUNDLE_MIN_BYTES = 10_000;
 const STUB_MARKERS = /createJiti|node_modules[\\/]\.pnpm/;
 
-const DOC_SCHEMA_FILES = ["overall.json", "plan.json", "phase-spec.json", "add-phase-protocol.json"];
+const DOC_SCHEMA_FILES = [
+  "overall.json",
+  "plan.json",
+  "phase-spec.json",
+  "add-phase-protocol.json",
+];
 
 function assertTrue(cond: boolean, msg: string): void {
   if (!cond) throw new Error(`consumer-sim: ${msg}`);
@@ -73,7 +79,8 @@ function schemaToken(schema: Record<string, unknown>, parts: string[]): string {
   let node: unknown = schema;
   for (const p of parts) {
     node = (node as Record<string, unknown> | null | undefined)?.[p];
-    if (node === undefined) throw new Error(`consumer-sim: shipped schema token missing at ${parts.join(".")}`);
+    if (node === undefined)
+      throw new Error(`consumer-sim: shipped schema token missing at ${parts.join(".")}`);
   }
   return String(node);
 }
@@ -83,7 +90,7 @@ function schemaToken(schema: Record<string, unknown>, parts: string[]): string {
  * heading); an unreducible pattern shape fails loud. */
 function patternLiteral(pattern: string): string {
   const body = pattern.replace(/^\^/, ""); // drop the anchor — the literal is the unanchored prefix
-  const m = body.match(/^([^\\^$+*?()|\[\]]+)/);
+  const m = body.match(/^([^\\^$+*?()|[\]]+)/);
   assertTrue(!!m, `cannot derive a literal from schema pattern ${JSON.stringify(pattern)}`);
   return m![1]!.trim();
 }
@@ -102,23 +109,47 @@ function assertTarball(tgz: string): void {
   const entries = tarList(tgz);
   const has = (member: string) => entries.includes(member);
   const cliMember = `package/${CLI_ENTRY}`;
-  assertTrue(has(cliMember), `tarball missing the CLI entry ${cliMember} (entries: ${entries.length} files)`);
+  assertTrue(
+    has(cliMember),
+    `tarball missing the CLI entry ${cliMember} (entries: ${entries.length} files)`,
+  );
   const cliBytes = Buffer.byteLength(tarRead(tgz, cliMember), "utf8");
-  assertTrue(cliBytes > REAL_BUNDLE_MIN_BYTES, `dist/cli.mjs is ${cliBytes} B — expected a real build > ${REAL_BUNDLE_MIN_BYTES} B (dev stub ≈ 614 B) — did the pack ship a stub?`);
-  assertTrue(!STUB_MARKERS.test(tarRead(tgz, cliMember)), `stub markers (createJiti / node_modules/.pnpm) found in package/dist/cli.mjs — the pack shipped the dev stub, not the build product`);
+  assertTrue(
+    cliBytes > REAL_BUNDLE_MIN_BYTES,
+    `dist/cli.mjs is ${cliBytes} B — expected a real build > ${REAL_BUNDLE_MIN_BYTES} B (dev stub ≈ 614 B) — did the pack ship a stub?`,
+  );
+  assertTrue(
+    !STUB_MARKERS.test(tarRead(tgz, cliMember)),
+    `stub markers (createJiti / node_modules/.pnpm) found in package/dist/cli.mjs — the pack shipped the dev stub, not the build product`,
+  );
   // Canonical doc-structure schemas addressable at the published dist face.
   for (const f of DOC_SCHEMA_FILES) {
-    assertTrue(has(`package/dist/documents/schema/${f}`), `tarball missing the canonical doc-structure schema dist/documents/schema/${f}`);
+    assertTrue(
+      has(`package/dist/documents/schema/${f}`),
+      `tarball missing the canonical doc-structure schema dist/documents/schema/${f}`,
+    );
   }
   // The render resource dir + the handoff schemas it serves.
-  assertTrue(has("package/templates/template-contract.json"), "tarball missing templates/template-contract.json");
-  assertTrue(has("package/templates/schema/task-handoff-schema.json"), "tarball missing templates/schema/task-handoff-schema.json");
+  assertTrue(
+    has("package/templates/template-contract.json"),
+    "tarball missing templates/template-contract.json",
+  );
+  assertTrue(
+    has("package/templates/schema/task-handoff-schema.json"),
+    "tarball missing templates/schema/task-handoff-schema.json",
+  );
   // The harness registry the dispatch ship gate resolves at runtime (build copy entry publishes the
   // dedicated dist/resources/ face — see build.config.ts).
-  assertTrue(has("package/dist/resources/harness-registry.json"), "tarball missing dist/resources/harness-registry.json (dispatch ship gate reads it at runtime)");
+  assertTrue(
+    has("package/dist/resources/harness-registry.json"),
+    "tarball missing dist/resources/harness-registry.json (dispatch ship gate reads it at runtime)",
+  );
   // Zero in-repo residues inside the packed artifact: the tarball must never reference the repo
   // tree (a jiti aliased stub or an absolute alias would embed it).
-  assertTrue(!tarRead(tgz, cliMember).includes(root), `package/dist/cli.mjs embeds the repo root path ${root} — the tarball is not consumer-standalone`);
+  assertTrue(
+    !tarRead(tgz, cliMember).includes(root),
+    `package/dist/cli.mjs embeds the repo root path ${root} — the tarball is not consumer-standalone`,
+  );
 }
 
 // ---- consumer install (step 4) ----
@@ -131,19 +162,25 @@ function installConsumer(tgz: string): { consumerRoot: string; installed: string
   execaSync("npm", ["init", "-y"], { cwd: consumerRoot, stdio: "inherit" });
   execaSync("npm", ["install", tgz], { cwd: consumerRoot, stdio: "inherit" });
   const installed = path.join(consumerRoot, "node_modules", ...PKG_SCOPE.split("/"));
-  assertTrue(existsSync(path.join(installed, CLI_ENTRY)), `installed CLI entry missing: ${path.join(installed, CLI_ENTRY)}`);
+  assertTrue(
+    existsSync(path.join(installed, CLI_ENTRY)),
+    `installed CLI entry missing: ${path.join(installed, CLI_ENTRY)}`,
+  );
   // The shipped bin surface: node_modules/.bin/cdd must resolve (package.json bin → dist/cli.mjs).
-  assertTrue(existsSync(path.join(consumerRoot, "node_modules", ".bin", "cdd")), "shipped bin node_modules/.bin/cdd missing");
+  assertTrue(
+    existsSync(path.join(consumerRoot, "node_modules", ".bin", "cdd")),
+    "shipped bin node_modules/.bin/cdd missing",
+  );
   return { consumerRoot, installed };
 }
 
 // ---- fixture derivation (D1) — generated inside the temp repo, derived from the shipped schemas ----
 
 interface Fixture {
-  plan: string;      // repo-root-relative plan path
-  spec: string;      // repo-root-relative spec path
-  overall: string;   // repo-root-relative overall path (the plan's **Parent program** link target)
-  slug: string;      // engine workspace slug (plan basename minus -plan)
+  plan: string; // repo-root-relative plan path
+  spec: string; // repo-root-relative spec path
+  overall: string; // repo-root-relative overall path (the plan's **Parent program** link target)
+  slug: string; // engine workspace slug (plan basename minus -plan)
   workspace: string; // <consumerRoot>/<workspaceRoot>/<slug> — derived from the shipped engine-config
 }
 
@@ -153,41 +190,124 @@ function deriveFixture(consumerRoot: string, installed: string): Fixture {
   const phaseSpecSchema = readSchema(schemaRoot, "phase-spec");
   const overallSchema = readSchema(schemaRoot, "overall");
   // Canonical markers extracted from the SHIPPED schemas (the fixture is derived, never hardcoded).
-  const specMark = schemaToken(planSchema, ["properties", "header", "properties", "specRef", "properties", "marker", "const"]);                      // **Spec:**
-  const parentMark = schemaToken(planSchema, ["properties", "header", "properties", "parentProgram", "properties", "marker", "const"]);            // **Parent program**
-  const constraintsHeading = patternLiteral(schemaToken(planSchema, ["properties", "constraints", "properties", "formACanonical", "properties", "heading", "pattern"])); // ## Constraints
-  const taskHeadingFormat = schemaToken(planSchema, ["properties", "taskHeadings", "properties", "format", "const"]);                              // ### Task N:
-  const doPattern = schemaToken(planSchema, ["properties", "taskBlock", "properties", "do", "pattern"]);                                           // ^- \*\*Do\*\*:
-  const acceptPattern = schemaToken(planSchema, ["properties", "taskBlock", "properties", "acceptance", "pattern"]);                                // ^- \*\*验收\*\*:
-  const versionMark = schemaToken(phaseSpecSchema, ["properties", "header", "properties", "version", "properties", "marker", "const"]);             // **Version**
-  const overallVersionMark = schemaToken(overallSchema, ["properties", "header", "properties", "version", "properties", "marker", "const"]);        // **Version**
-  const phaseInventoryHeader = schemaToken(overallSchema, ["properties", "phaseInventory", "properties", "columnNames", "properties", "header", "const"]); // | # | Phase | … | Dependency |
-  assertTrue(specMark === "**Spec:**" && parentMark === "**Parent program**" && constraintsHeading === "## Constraints"
-    && taskHeadingFormat === "### Task N:" && versionMark === "**Version**" && overallVersionMark === versionMark,
-    `shipped schema tokens drifted: Spec=${JSON.stringify(specMark)} Parent=${JSON.stringify(parentMark)} Constraints=${JSON.stringify(constraintsHeading)} Task=${JSON.stringify(taskHeadingFormat)} Version=${JSON.stringify(versionMark)} OverallVersion=${JSON.stringify(overallVersionMark)}`);
+  const specMark = schemaToken(planSchema, [
+    "properties",
+    "header",
+    "properties",
+    "specRef",
+    "properties",
+    "marker",
+    "const",
+  ]); // **Spec:**
+  const parentMark = schemaToken(planSchema, [
+    "properties",
+    "header",
+    "properties",
+    "parentProgram",
+    "properties",
+    "marker",
+    "const",
+  ]); // **Parent program**
+  const constraintsHeading = patternLiteral(
+    schemaToken(planSchema, [
+      "properties",
+      "constraints",
+      "properties",
+      "formACanonical",
+      "properties",
+      "heading",
+      "pattern",
+    ]),
+  ); // ## Constraints
+  const taskHeadingFormat = schemaToken(planSchema, [
+    "properties",
+    "taskHeadings",
+    "properties",
+    "format",
+    "const",
+  ]); // ### Task N:
+  const doPattern = schemaToken(planSchema, [
+    "properties",
+    "taskBlock",
+    "properties",
+    "do",
+    "pattern",
+  ]); // ^- \*\*Do\*\*:
+  const acceptPattern = schemaToken(planSchema, [
+    "properties",
+    "taskBlock",
+    "properties",
+    "acceptance",
+    "pattern",
+  ]); // ^- \*\*验收\*\*:
+  const versionMark = schemaToken(phaseSpecSchema, [
+    "properties",
+    "header",
+    "properties",
+    "version",
+    "properties",
+    "marker",
+    "const",
+  ]); // **Version**
+  const overallVersionMark = schemaToken(overallSchema, [
+    "properties",
+    "header",
+    "properties",
+    "version",
+    "properties",
+    "marker",
+    "const",
+  ]); // **Version**
+  const phaseInventoryHeader = schemaToken(overallSchema, [
+    "properties",
+    "phaseInventory",
+    "properties",
+    "columnNames",
+    "properties",
+    "header",
+    "const",
+  ]); // | # | Phase | … | Dependency |
+  assertTrue(
+    specMark === "**Spec:**" &&
+      parentMark === "**Parent program**" &&
+      constraintsHeading === "## Constraints" &&
+      taskHeadingFormat === "### Task N:" &&
+      versionMark === "**Version**" &&
+      overallVersionMark === versionMark,
+    `shipped schema tokens drifted: Spec=${JSON.stringify(specMark)} Parent=${JSON.stringify(parentMark)} Constraints=${JSON.stringify(constraintsHeading)} Task=${JSON.stringify(taskHeadingFormat)} Version=${JSON.stringify(versionMark)} OverallVersion=${JSON.stringify(overallVersionMark)}`,
+  );
 
   // The engine's workspace slug rule (schema-independent engine name derivation): plan basename
   // minus `.md`, with a single trailing -design/-plan layer stripped.
   const planName = "fixture-plan.md";
   const slug = path.basename(planName, ".md").replace(/-(?:design|plan)$/, "");
   // Workspace root from the SHIPPED engine-config (never a repo literal).
-  const config = JSON.parse(readFileSync(path.join(installed, "templates", "engine-config.json"), "utf8")) as { handoffNamespace: { workspaceRoot: string } };
+  const config = JSON.parse(
+    readFileSync(path.join(installed, "templates", "engine-config.json"), "utf8"),
+  ) as { handoffNamespace: { workspaceRoot: string } };
   const workspaceRootSeg = config.handoffNamespace.workspaceRoot;
-  assertTrue(workspaceRootSeg === ".osuperpowers/cdd", `shipped engine-config handoffNamespace.workspaceRoot drifted: ${JSON.stringify(workspaceRootSeg)}`);
+  assertTrue(
+    workspaceRootSeg === ".osuperpowers/cdd",
+    `shipped engine-config handoffNamespace.workspaceRoot drifted: ${JSON.stringify(workspaceRootSeg)}`,
+  );
 
   const spec = "fixture-design.md";
   // The spec doc the plan's **Spec:** line must resolve to (the audit's Class-A target). It carries
   // the spec's own face (a **Version** line — the phase-spec schema's own required surface) and NO
   // Parent program line — the four-table audit no-ops on the truncated lineage, making the consumer
   // chain's doc-existence path deterministic.
-  writeFileSync(path.join(consumerRoot, spec), [
-    `# ${spec}`,
-    "",
-    `- ${versionMark}: v1.0 · 2026-09-22`,
-    "",
-    "Fixture design spec derived from the shipped cdd-engine doc-structure schemas for the consumer-sim.",
-    "",
-  ].join("\n"), "utf8");
+  writeFileSync(
+    path.join(consumerRoot, spec),
+    [
+      `# ${spec}`,
+      "",
+      `- ${versionMark}: v1.0 · 2026-09-22`,
+      "",
+      "Fixture design spec derived from the shipped cdd-engine doc-structure schemas for the consumer-sim.",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
 
   // The overall the plan's **Parent program** link resolves to — a minimal canonical charter
   // (canonical header + empty Phase inventory table, the header row derived from the shipped
@@ -195,19 +315,23 @@ function deriveFixture(consumerRoot: string, installed: string): Fixture {
   // never a reached audit face — materializing it only makes the plan's own parent link resolve
   // (self-consistency), never a document the four-table / overall-contract audit runs against.
   const overall = "fixture-overall.md";
-  writeFileSync(path.join(consumerRoot, overall), [
-    `# Fixture Overall`,
-    "",
-    `- ${overallVersionMark}: v1.0 · 2026-09-22`,
-    "",
-    "Consumer-sim fixture program charter — the `**Parent program**` link target for the derived fixture plan.",
-    "",
-    `## Phase inventory`,
-    "",
-    phaseInventoryHeader,
-    "|---|-------|-------|-------------|---------------------|----------------------|------------|",
-    "",
-  ].join("\n"), "utf8");
+  writeFileSync(
+    path.join(consumerRoot, overall),
+    [
+      `# Fixture Overall`,
+      "",
+      `- ${overallVersionMark}: v1.0 · 2026-09-22`,
+      "",
+      "Consumer-sim fixture program charter — the `**Parent program**` link target for the derived fixture plan.",
+      "",
+      `## Phase inventory`,
+      "",
+      phaseInventoryHeader,
+      "|---|-------|-------|-------------|---------------------|----------------------|------------|",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
 
   const plan = planName;
   // Form-A plan (canonical ## Constraints) — the structural markers are the schema-derived tokens;
@@ -216,39 +340,54 @@ function deriveFixture(consumerRoot: string, installed: string): Fixture {
   const taskHeading = taskHeadingFormat.replace("N", "1");
   const doLine = "- **Do**: exercise the installed cdd engine under dry-run in a consumer layout";
   const acceptLine = "- **验收**: the dry-run chain prints the return-block contract";
-  assertTrue(new RegExp(doPattern).test(doLine), `fixture Do line does not match the shipped pattern ${doPattern}: ${doLine}`);
-  assertTrue(new RegExp(acceptPattern).test(acceptLine), `fixture acceptance line does not match the shipped pattern ${acceptPattern}: ${acceptLine}`);
-  writeFileSync(path.join(consumerRoot, plan), [
-    `# Fixture Plan`,
-    "",
-    `${specMark} [${spec}](${spec})`,
-    "",
-    `${parentMark}: [fixture-overall.md v1.0](fixture-overall.md)`,
-    "",
-    `${constraintsHeading}`,
-    "",
-    `### 口径`,
-    "",
-    `Consumer-sim fixture constraints materialized into the temp repo.`,
-    "",
-    `${taskHeading} fixture task`,
-    "",
-    doLine,
-    acceptLine,
-    "",
-  ].join("\n"), "utf8");
+  assertTrue(
+    new RegExp(doPattern).test(doLine),
+    `fixture Do line does not match the shipped pattern ${doPattern}: ${doLine}`,
+  );
+  assertTrue(
+    new RegExp(acceptPattern).test(acceptLine),
+    `fixture acceptance line does not match the shipped pattern ${acceptPattern}: ${acceptLine}`,
+  );
+  writeFileSync(
+    path.join(consumerRoot, plan),
+    [
+      `# Fixture Plan`,
+      "",
+      `${specMark} [${spec}](${spec})`,
+      "",
+      `${parentMark}: [fixture-overall.md v1.0](fixture-overall.md)`,
+      "",
+      `${constraintsHeading}`,
+      "",
+      `### 口径`,
+      "",
+      `Consumer-sim fixture constraints materialized into the temp repo.`,
+      "",
+      `${taskHeading} fixture task`,
+      "",
+      doLine,
+      acceptLine,
+      "",
+    ].join("\n"),
+    "utf8",
+  );
 
   return { plan, spec, overall, slug, workspace: path.join(consumerRoot, workspaceRootSeg, slug) };
 }
 
 // ---- consumer chain (steps 5 & 6) ----
 
-const COUNTERS_RE = /^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/;
+const COUNTERS_RE =
+  /^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/;
 
 /** Assert the command's last stdout block is the 5-line return-block contract (per-command line
  *  expectations included — the consumer-equivalent result surface). */
 function assertReturnBlock(cmd: string, stdout: string): void {
-  const lastBlock = stdout.trim().split(/\n{2,}/).at(-1) ?? "";
+  const lastBlock =
+    stdout
+      .trim()
+      .split(/\n{2,}/)
+      .at(-1) ?? "";
   const lines = lastBlock.split("\n");
   const lineByKey = new Map<string, string>();
   for (const line of lines) {
@@ -263,24 +402,42 @@ function assertReturnBlock(cmd: string, stdout: string): void {
   ];
   for (const [key, re] of checks) {
     const v = lineByKey.get(key);
-    assertTrue(v !== undefined, `${key}: line missing from the return block (last block: ${JSON.stringify(lastBlock)})`);
+    assertTrue(
+      v !== undefined,
+      `${key}: line missing from the return block (last block: ${JSON.stringify(lastBlock)})`,
+    );
     assertTrue(re.test(v!), `${key}: value ${JSON.stringify(v)} does not match ${re}`);
   }
   if (cmd.includes("review --type branch")) {
-    assertTrue(/^base=[0-9a-f]{40} head=[0-9a-f]{40}$/.test(lineByKey.get("commits")!),
-      `branch review commits ${JSON.stringify(lineByKey.get("commits"))} — expected base=<sha> head=<sha>`);
+    assertTrue(
+      /^base=[0-9a-f]{40} head=[0-9a-f]{40}$/.test(lineByKey.get("commits")!),
+      `branch review commits ${JSON.stringify(lineByKey.get("commits"))} — expected base=<sha> head=<sha>`,
+    );
   } else if (cmd.includes("fix --type branch")) {
-    assertTrue(/^base=dry-run head=dry-run$/.test(lineByKey.get("commits")!),
-      `branch fix commits ${JSON.stringify(lineByKey.get("commits"))} — expected base=dry-run head=dry-run`);
+    assertTrue(
+      /^base=dry-run head=dry-run$/.test(lineByKey.get("commits")!),
+      `branch fix commits ${JSON.stringify(lineByKey.get("commits"))} — expected base=dry-run head=dry-run`,
+    );
   } else {
-    assertTrue(/^base=dry-run$/.test(lineByKey.get("commits")!),
-      `task-family commits ${JSON.stringify(lineByKey.get("commits"))} — expected base=dry-run`);
+    assertTrue(
+      /^base=dry-run$/.test(lineByKey.get("commits")!),
+      `task-family commits ${JSON.stringify(lineByKey.get("commits"))} — expected base=dry-run`,
+    );
   }
   const counters = lines.find((l) => l.startsWith("counters: "));
-  assertTrue(!!counters && COUNTERS_RE.test(counters!), `counters line missing or malformed (got ${JSON.stringify(counters)})`);
+  assertTrue(
+    !!counters && COUNTERS_RE.test(counters!),
+    `counters line missing or malformed (got ${JSON.stringify(counters)})`,
+  );
 }
 
-function runConsumerChain({ consumerRoot, installed }: { consumerRoot: string; installed: string }): void {
+function runConsumerChain({
+  consumerRoot,
+  installed,
+}: {
+  consumerRoot: string;
+  installed: string;
+}): void {
   const cli = path.join(installed, CLI_ENTRY);
   const env = { ...process.env, CLAUDE_CODE_SESSION_ID: "1" };
 
@@ -291,11 +448,20 @@ function runConsumerChain({ consumerRoot, installed }: { consumerRoot: string; i
   // byte-identity assertion must measure the raw output, not a newline-normalized shape.
   // Templates addressability is proven implicitly by the consumer chain below (the engine reads the
   // shipped engine-config / handoff schemas on every dispatched command).
-  const schemaOut = execaSync(NODE, [cli, "schema", "get", "plan"], { cwd: consumerRoot, stripFinalNewline: false }).stdout;
-  assertTrue(schemaOut === readFileSync(path.join(installed, "dist", "documents", "schema", "plan.json"), "utf8"),
-    "cdd schema get plan output ≠ the installed dist/documents/schema/plan.json bytes");
+  const schemaOut = execaSync(NODE, [cli, "schema", "get", "plan"], {
+    cwd: consumerRoot,
+    stripFinalNewline: false,
+  }).stdout;
+  assertTrue(
+    schemaOut ===
+      readFileSync(path.join(installed, "dist", "documents", "schema", "plan.json"), "utf8"),
+    "cdd schema get plan output ≠ the installed dist/documents/schema/plan.json bytes",
+  );
   for (const f of DOC_SCHEMA_FILES) {
-    assertTrue(existsSync(path.join(installed, "dist", "documents", "schema", f)), `installed schema dir missing ${f}`);
+    assertTrue(
+      existsSync(path.join(installed, "dist", "documents", "schema", f)),
+      `installed schema dir missing ${f}`,
+    );
   }
 
   // Fixture generation (D1) inside the temp repo — fixture-plan.md, its design spec and the parent
@@ -303,8 +469,10 @@ function runConsumerChain({ consumerRoot, installed }: { consumerRoot: string; i
   // (base == head, the self-review shape).
   const fixture = deriveFixture(consumerRoot, installed);
   execaSync("git", ["add", "-A"], { cwd: consumerRoot });
-  execaSync("git", ["commit", "-m", "chore: consumer-sim fixture plan + spec + overall"], { cwd: consumerRoot });
-  const head = execaCommandSync("git rev-parse HEAD", { cwd: consumerRoot }).stdout.trim();
+  execaSync("git", ["commit", "-m", "chore: consumer-sim fixture plan + spec + overall"], {
+    cwd: consumerRoot,
+  });
+  const head = execaSync("git", ["rev-parse", "HEAD"], { cwd: consumerRoot }).stdout.trim();
   const head7 = head.slice(0, 7);
 
   // The five-command dry-run chain — argv shape mirrors the dispatch contract the engine's own
@@ -312,11 +480,40 @@ function runConsumerChain({ consumerRoot, installed }: { consumerRoot: string; i
   const chain = [
     ["--dry-run", "implement", "--tasks", "1", "--plan", fixture.plan],
     ["--dry-run", "review", "--type", "task", "--tasks", "1", "--plan", fixture.plan],
-    ["--dry-run", "fix", "--type", "task", "--tasks", "1", "--plan", fixture.plan,
-      "--findings", path.join(fixture.workspace, "tasks-1-review-1.json")],
-    ["--dry-run", "review", "--type", "branch", "--plan", fixture.plan, "--base", head, "--head", head],
-    ["--dry-run", "fix", "--type", "branch", "--plan", fixture.plan,
-      "--findings", path.join(fixture.workspace, `branch-review-${head7}..${head7}-r1.json`)],
+    [
+      "--dry-run",
+      "fix",
+      "--type",
+      "task",
+      "--tasks",
+      "1",
+      "--plan",
+      fixture.plan,
+      "--findings",
+      path.join(fixture.workspace, "tasks-1-review-1.json"),
+    ],
+    [
+      "--dry-run",
+      "review",
+      "--type",
+      "branch",
+      "--plan",
+      fixture.plan,
+      "--base",
+      head,
+      "--head",
+      head,
+    ],
+    [
+      "--dry-run",
+      "fix",
+      "--type",
+      "branch",
+      "--plan",
+      fixture.plan,
+      "--findings",
+      path.join(fixture.workspace, `branch-review-${head7}..${head7}-r1.json`),
+    ],
   ];
   for (const [i, args] of chain.entries()) {
     const res = execaSync(NODE, [cli, ...args], { cwd: consumerRoot, env });
@@ -332,8 +529,14 @@ export function main(): void {
   // 2. pack — from the package dir (prepare removed; --config.ignore-scripts=true is the verified
   //    belt-and-braces fallback).
   const outDir = mkdtempSync(path.join(tmpdir(), "cdd-consumer-pack-"));
-  execaSync("pnpm", ["pack", "--pack-destination", outDir, "--config.ignore-scripts=true"], { cwd: PKG_DIR, stdio: "inherit" });
-  const pkgJson = JSON.parse(readFileSync(path.join(PKG_DIR, "package.json"), "utf8")) as { name: string; version: string };
+  execaSync("pnpm", ["pack", "--pack-destination", outDir, "--config.ignore-scripts=true"], {
+    cwd: PKG_DIR,
+    stdio: "inherit",
+  });
+  const pkgJson = JSON.parse(readFileSync(path.join(PKG_DIR, "package.json"), "utf8")) as {
+    name: string;
+    version: string;
+  };
   const baseName = pkgJson.name.replace(/^@/, "").replace("/", "-"); // @scope/name → scope-name (pnpm pack's unscoped file prefix)
   const tgzName = `${baseName}-${pkgJson.version}.tgz`;
   const tgz = path.join(outDir, tgzName);
@@ -346,5 +549,7 @@ export function main(): void {
   const consumer = installConsumer(tgz);
   runConsumerChain(consumer);
 
-  console.log("OK — cdd-engine consumer-sim (pack → install → cdd schema get + 5-command dry-run chain green, tarball = real product)");
+  console.log(
+    "OK — cdd-engine consumer-sim (pack → install → cdd schema get + 5-command dry-run chain green, tarball = real product)",
+  );
 }

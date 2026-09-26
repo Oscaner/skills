@@ -1,14 +1,10 @@
 #!/usr/bin/env node
-import { readFileSync, writeFileSync, unlinkSync, existsSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import getChangesets from "@changesets/read";
+import { pathToFileURL } from "node:url";
 import changelogFunctions from "@changesets/changelog-github";
-import {
-  computeNextIndependentVersion,
-  highestBumpLevel,
-  changesetsForPlugin,
-} from "../lib/version-utils.ts";
+import getChangesets from "@changesets/read";
+import { versionService } from "../lib/version-utils.ts";
 
 const root = process.cwd();
 const changesetDir = join(root, ".changeset");
@@ -46,7 +42,7 @@ export async function main({ dryRun } = {}) {
       console.log(`  [dry-run] write ${rel}: version → ${data.version}`);
       return;
     }
-    writeFileSync(join(root, rel), JSON.stringify(data, null, 2) + "\n");
+    writeFileSync(join(root, rel), `${JSON.stringify(data, null, 2)}\n`);
   };
 
   /** Prepend a new release entry under a fixed header, preserving the rest. */
@@ -73,7 +69,7 @@ export async function main({ dryRun } = {}) {
   // ---- osuperpowers (independent semver) ----
   const osuperpowersPkgPath = "packages/osuperpowers/package.json";
   const osuperpowersChangelogPath = join(root, "packages/osuperpowers/CHANGELOG.md");
-  const osuperpowersCS = changesetsForPlugin(
+  const osuperpowersCS = versionService.changesetsForPlugin(
     changesets,
     "@oscaner-skills/osuperpowers",
   );
@@ -82,22 +78,21 @@ export async function main({ dryRun } = {}) {
     const osuperpowersTypes = osuperpowersCS.map(
       (cs) => cs.releases.find((r) => r.name === "@oscaner-skills/osuperpowers").type,
     );
-    const bumpLevel = highestBumpLevel(osuperpowersTypes);
-    const osuperpowersNext = computeNextIndependentVersion(osuperpowersPkg.version, bumpLevel);
+    const bumpLevel = versionService.highestBumpLevel(osuperpowersTypes);
+    const osuperpowersNext = versionService.computeNextIndependentVersion(
+      osuperpowersPkg.version,
+      bumpLevel,
+    );
 
     const sections = [];
     for (const type of ["major", "minor", "patch"]) {
       const typed = osuperpowersCS.filter(
-        (cs) =>
-          cs.releases.find((r) => r.name === "@oscaner-skills/osuperpowers").type ===
-          type,
+        (cs) => cs.releases.find((r) => r.name === "@oscaner-skills/osuperpowers").type === type,
       );
       if (typed.length === 0) continue;
       const lines = [];
       for (const cs of typed) {
-        lines.push(
-          await changelogFunctions.getReleaseLine(cs, type, changelogOptions),
-        );
+        lines.push(await changelogFunctions.getReleaseLine(cs, type, changelogOptions));
       }
       const title = `${type[0].toUpperCase()}${type.slice(1)} Changes`;
       sections.push(`### ${title}${lines.join("")}\n\n`);
@@ -128,7 +123,7 @@ export async function main({ dryRun } = {}) {
   } else {
     writeFileSync(
       join(root, ".changeset/versioned-plugins.json"),
-      JSON.stringify(versioned, null, 2) + "\n",
+      `${JSON.stringify(versioned, null, 2)}\n`,
     );
   }
 

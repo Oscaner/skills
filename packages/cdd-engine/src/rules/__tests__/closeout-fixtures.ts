@@ -4,7 +4,7 @@
 // program-shaped docs (slug "demo", phases P1/P2) + the engine-workspace writers the closeout debt
 // inference consumes — extracted from the two suites' identical copy-paste (previously ~90
 // duplicated lines) so the fixture text cannot drift between the two black-box faces.
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -87,7 +87,7 @@ function planBody(specBasename: string): string {
   ].join("\n");
 }
 
-export { OVERALL_CLEAN, OVERALL_BACKFILLED, SPEC, planBody };
+export { OVERALL_BACKFILLED, OVERALL_CLEAN, planBody, SPEC };
 
 /** The program chain a closeout suite walks: the overall + its phase docs under the canonical
  *  program dirs (`docs/osuperpowers/specs|plans`, filename slug "demo", phases P1 / P2). */
@@ -139,9 +139,16 @@ export function writeCompletePlanWorkspace(repo: string, planPath: string, taskC
   const tasks: Array<{ task: number; rounds: Record<string, number> }> = [];
   for (let n = 1; n <= taskCount; n++) {
     tasks.push({ task: n, rounds: { review: 1 } });
-    writeFileSync(path.join(ws, `tasks-${n}-review-1.json`), JSON.stringify({
-      task: n, phase: "review", status: "APPROVED", findings: [], artifacts: {},
-    }));
+    writeFileSync(
+      path.join(ws, `tasks-${n}-review-1.json`),
+      JSON.stringify({
+        task: n,
+        phase: "review",
+        status: "APPROVED",
+        findings: [],
+        artifacts: {},
+      }),
+    );
   }
   writeFileSync(path.join(ws, "progress.json"), JSON.stringify({ plan: planPath, tasks }));
   return ws;
@@ -152,9 +159,12 @@ export function writeCompletePlanWorkspace(repo: string, planPath: string, taskC
 export function writeInFlightPlanWorkspace(repo: string, planPath: string, taskCount = 1): string {
   const ws = resolveWorkspace(planPath, repo);
   mkdirSync(ws, { recursive: true });
-  writeFileSync(path.join(ws, "progress.json"), JSON.stringify({
-    plan: planPath,
-    tasks: Array.from({ length: taskCount }, (_, i) => ({ task: i + 1 })),
-  }));
+  writeFileSync(
+    path.join(ws, "progress.json"),
+    JSON.stringify({
+      plan: planPath,
+      tasks: Array.from({ length: taskCount }, (_, i) => ({ task: i + 1 })),
+    }),
+  );
   return ws;
 }

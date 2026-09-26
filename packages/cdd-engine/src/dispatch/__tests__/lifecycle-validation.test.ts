@@ -4,18 +4,22 @@
 // dry-run WARN lane) and statusValidate (post-flight: the CDD_INFO six-state line + plan verdict on
 // a normal dispatch). Exit code table 0/1/2/3 asserted unchanged (the doc-contract block lands on
 // exit 1; the cli-missing lane stays exit 2; a passing dispatch exits 0).
-import { it, expect, describe } from "vitest";
+
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-
-import { TaskLifecycle } from "../task.ts";
-import { REG_PATH } from "../../infra/registry.ts";
+import { describe, expect, it } from "vitest";
+import { TaskGroup } from "../../domain/task-group.ts";
 import { captureStderr } from "../../infra/__tests__/helpers.ts";
+import { REG_PATH } from "../../infra/registry.ts";
+import { TaskLifecycle } from "../task.ts";
 
 function git(repo: string, ...args: string[]) {
-  return execFileSync("git", ["-C", repo, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  return execFileSync("git", ["-C", repo, ...args], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  }).trim();
 }
 
 /** Fresh git repo: the `.osuperpowers/cdd/` workspace is gitignored (engine writes stay out of the
@@ -25,7 +29,17 @@ function setupRepo(): string {
   writeFileSync(path.join(dest, ".gitignore"), "cdd/\n");
   git(dest, "init", "-q");
   git(dest, "add", "-A");
-  git(dest, "-c", "user.name=lifecycle-test", "-c", "user.email=lifecycle-test@example.com", "commit", "--allow-empty", "-qm", "fixture");
+  git(
+    dest,
+    "-c",
+    "user.name=lifecycle-test",
+    "-c",
+    "user.email=lifecycle-test@example.com",
+    "commit",
+    "--allow-empty",
+    "-qm",
+    "fixture",
+  );
   return dest;
 }
 
@@ -80,29 +94,43 @@ const PLAN = [
 ].join("\n");
 
 /** write the committed doc chain; null member / explicit body overrides per fixture. */
-function writeChain(repo: string, overrides: { plan?: string; spec?: string; overall?: string } = {}): void {
+function writeChain(
+  repo: string,
+  overrides: { plan?: string; spec?: string; overall?: string } = {},
+): void {
   mkdirSync(path.join(repo, SPEC_DIR), { recursive: true });
   mkdirSync(path.join(repo, PLAN_DIR), { recursive: true });
   writeFileSync(path.join(repo, PLAN_DIR, "plan.md"), overrides.plan ?? PLAN);
   writeFileSync(path.join(repo, SPEC_DIR, "plan-design.md"), overrides.spec ?? SPEC);
   writeFileSync(path.join(repo, SPEC_DIR, "plan-overall.md"), overrides.overall ?? OVERALL);
   git(repo, "add", "-A");
-  git(repo, "-c", "user.name=lifecycle-test", "-c", "user.email=lifecycle-test@example.com", "commit", "-qm", "docs");
-}
-
-interface RunShape {
-  lc: TaskLifecycle;
-  cap: { text: string };
+  git(
+    repo,
+    "-c",
+    "user.name=lifecycle-test",
+    "-c",
+    "user.email=lifecycle-test@example.com",
+    "commit",
+    "-qm",
+    "docs",
+  );
 }
 
 /** run a review dispatch through the TaskLifecycle; real (non-dry) unless dryRun — review mode keeps
  * the implement-only constraints/pre-submit pre-flight out of the way so the doc-contract gate is
  * the sole downstream judge. */
-async function runReview(repo: string, { dryRun = false } = {}): Promise<{ exitCode: number; diagnostic: { prefix: string; msg: string } | null; stderr: string }> {
+async function runReview(
+  repo: string,
+  { dryRun = false } = {},
+): Promise<{
+  exitCode: number;
+  diagnostic: { prefix: string; msg: string } | null;
+  stderr: string;
+}> {
   const cap = captureStderr();
   const lc = new TaskLifecycle({
     harness: "ctr",
-    tasks: [1],
+    group: TaskGroup.fromNumbers([1]),
     opts: {
       mode: "review",
       dryRun,
@@ -216,7 +244,9 @@ describe("statusValidate — CDD_INFO six-state line + plan verdict on a normal 
     // both members of the merged group get their six-state line (the group loop walks every task)
     expect(r.stderr).toContain("CDD_INFO: task 1 state: in-flight");
     expect(r.stderr).toContain("CDD_INFO: task 2 state: in-flight");
-    expect(r.stderr).toContain("CDD_INFO: 0/2 complete — pending: task 1 (in-flight), task 2 (in-flight)");
+    expect(r.stderr).toContain(
+      "CDD_INFO: 0/2 complete — pending: task 1 (in-flight), task 2 (in-flight)",
+    );
   });
 });
 
@@ -234,12 +264,24 @@ describe("exit code table preserved (0/1/2/3)", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "cdd-lifecycle-reg-"));
     const regPath = path.join(dir, "registry.json");
     const reg = JSON.parse(readFileSync(REG_PATH, "utf8")) as Record<string, unknown>;
-    (reg as Record<string, unknown>).ctr = { cli: "cdd-no-such-binary-xyz", invoke: "-p", output: "text", ship: "full" };
+    (reg as Record<string, unknown>).ctr = {
+      cli: "cdd-no-such-binary-xyz",
+      invoke: "-p",
+      output: "text",
+      ship: "full",
+    };
     writeFileSync(regPath, JSON.stringify(reg));
     const lc = new TaskLifecycle({
       harness: "ctr",
-      tasks: [1],
-      opts: { mode: "review", dryRun: false, noExit: true, root: repo, planFile: path.join(PLAN_DIR, "plan.md"), registryPath: regPath },
+      group: TaskGroup.fromNumbers([1]),
+      opts: {
+        mode: "review",
+        dryRun: false,
+        noExit: true,
+        root: repo,
+        planFile: path.join(PLAN_DIR, "plan.md"),
+        registryPath: regPath,
+      },
       ctx: { mode: "review", repoRoot: repo, handoffPath: "", dryRun: false },
     });
     await lc.run();

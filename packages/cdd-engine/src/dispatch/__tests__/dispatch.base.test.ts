@@ -14,25 +14,23 @@
 // Test-fixture convention (accepted): git() / setupRepo() mirror tests/rules.commit.test.ts — two
 // consumers today, so the mirror is tolerated; extract a shared tests/ git-fixture helper
 // (mkdtemp + init + fixture commit) when a third consumer appears.
-import { it, expect } from "vitest";
+
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, appendFileSync } from "node:fs";
+import { appendFileSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-
-import {
-  DispatchLifecycle,
-  DispatchBlocked,
-  type DispatchContext,
-  type DispatchHookContext,
-} from "../base.ts";
-import { PHASE_IDS } from "../phases.ts";
-import { createDispatchHooks } from "../hooks.ts";
+import { expect, it } from "vitest";
 import { captureStderr } from "../../infra/__tests__/helpers.ts";
 import { DRY_RUN_DIRTY_WARN } from "../../rules/commit.ts";
+import { DispatchBlocked, type DispatchHookContext, DispatchLifecycle } from "../base.ts";
+import { createDispatchHooks } from "../hooks.ts";
+import { PHASE_IDS } from "../phases.ts";
 
 function git(repo: string, ...args: string[]) {
-  return execFileSync("git", ["-C", repo, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  return execFileSync("git", ["-C", repo, ...args], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  }).trim();
 }
 
 // Fresh git repo with one fixture commit (mirrors tests/rules.commit.test.ts setupRepo).
@@ -41,7 +39,17 @@ function setupRepo(): string {
   writeFileSync(path.join(dest, ".gitignore"), "cdd/\n");
   git(dest, "init", "-q");
   git(dest, "add", "-A");
-  git(dest, "-c", "user.name=cdd-base-test", "-c", "user.email=cdd-base-test@example.com", "commit", "--allow-empty", "-qm", "fixture");
+  git(
+    dest,
+    "-c",
+    "user.name=cdd-base-test",
+    "-c",
+    "user.email=cdd-base-test@example.com",
+    "commit",
+    "--allow-empty",
+    "-qm",
+    "fixture",
+  );
   return dest;
 }
 

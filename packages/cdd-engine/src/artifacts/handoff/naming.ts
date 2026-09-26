@@ -6,14 +6,15 @@
 // resolveWorkspace implement workspaceRoot + slugRule (.osuperpowers/cdd/<slug>/).
 // Task 8 (spec §2.13 glob row): the legacy readdirSync directory scan in resolveNextRound is
 // collected into tinyglobby (globSync) — the repo's shared glob toolchain, no hand-written walk.
-import path from "node:path";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { globSync } from "tinyglobby";
 
-import { loadEngineConfig } from "../../infra/config.ts";
+import { mkdirSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { globSync } from "tinyglobby";
+import { TaskGroup } from "../../domain/task-group.ts";
+import { ConfigLoader } from "../../infra/config.ts";
 import { CddExitError, invariant } from "../../infra/exit.ts";
 
-const NAMESPACE = loadEngineConfig().handoffNamespace;
+const NAMESPACE = new ConfigLoader().handoffNamespace();
 const { families } = NAMESPACE;
 
 /** workspaceRoot: the single truth of the runtime workspace base path segment (`.osuperpowers/cdd`).
@@ -22,20 +23,21 @@ const { families } = NAMESPACE;
 export const workspaceRoot = NAMESPACE.workspaceRoot;
 
 export interface HandoffParams {
-  /** The dispatch group's canonical key string (full task list joined by `-`, no range
-   * abbreviation: `--tasks 1` → `"1"` · `--tasks 1,2` → `"1-2"`) — fills the canonical
-   * `{tasks}` placeholder of the task handoff families. */
+  /** The dispatch group's canonical key string (TaskGroup#key() — comma-joined full list:
+   * `--tasks 1` → `"1"` · `--tasks 1,2` → `"1,2"`) — fills the canonical `{tasks}` placeholder of
+   * the task handoff families. The key IS the group identity (no second form). */
   tasks?: string;
   base7?: string;
   head7?: string;
   round?: number | string;
 }
 
-/** tasksKey(tasks) — the group key's single derivation point (P4.3 group dispatch): the full
- * comma-parse list joins by `-` into the handoff-namespace key. `--tasks 1` → `"1"` (single-task
- * group), `--tasks 1,2` → `"1-2"` — full list string, no range abbreviation. */
-export function tasksKey(tasks: readonly number[]): string {
-  return tasks.join("-");
+/** Scan-shape key grammar: the TaskGroup key pattern's body without its ^…$ anchors (the
+ * roundPattern scan placeholder — the key grammar's single source is GROUP_KEY_PATTERN; no second
+ * hand-written scan regex). */
+function scanGroupKeyPattern(): string {
+  const src = TaskGroup.GROUP_KEY_PATTERN.source;
+  return src.startsWith("^") && src.endsWith("$") ? src.slice(1, -1) : src;
 }
 
 // familyKey(op, type) → canonical family key (`${op}.${type}`). Internal helper, not public API.
@@ -43,7 +45,10 @@ function familyKey(op: string, type: string): string {
   return `${op}.${type}`;
 }
 
-function family(op: string, type: string): { name: string; round?: string; prev?: Record<string, string> } {
+function family(
+  op: string,
+  type: string,
+): { name: string; round?: string; prev?: Record<string, string> } {
   const f = families[familyKey(op, type)];
   invariant(f, `unknown handoff family: ${op}.${type}`);
   return f;
@@ -71,9 +76,10 @@ function fillName(name: string, params: HandoffParams = {}): string {
 }
 
 /** roundPattern(op, type, params) → ^...$ RegExp, two shapes:
- *   scan shape (params.tasks absent — workspace round scanning): {round}→(\d+), {tasks}→\d+(?:-\d+)*
- *     (any task group of the family hits the round capture group), {base7}/{head7}→[0-9a-f]{7} —
- *     wide (any group/ref of the family hits the round capture group);
+ *   scan shape (params.tasks absent — workspace round scanning): {round}→(\d+), {tasks}→ the
+ *     TaskGroup key grammar (GROUP_KEY_PATTERN body: \d+(?:,\d+)* — any task group of the family
+ *     hits the round capture group), {base7}/{head7}→[0-9a-f]{7} — wide (any group/ref of the
+ *     family hits the round capture group);
  *   concrete shape (params provides {tasks}/{base7}/{head7} — Convergence prev / round validation):
  *     placeholders → literals, exact-ref match.
  * Shape discrimination = params.tasks presence (task family), no probe flag.
@@ -82,9 +88,9 @@ function fillName(name: string, params: HandoffParams = {}): string {
 export function roundPattern(op: string, type: string, params: HandoffParams = {}): RegExp {
   const f = family(op, type);
   const groupPinned = ["task"].includes(type) && params.tasks != null;
-  let pattern = f.name
+  const pattern = f.name
     .replaceAll("{round}", "(\\d+)")
-    .replaceAll("{tasks}", groupPinned ? String(params.tasks) : "\\d+(?:-\\d+)*")
+    .replaceAll("{tasks}", groupPinned ? String(params.tasks) : scanGroupKeyPattern())
     .replaceAll("{base7}", params.base7 ? params.base7 : "[0-9a-f]{7}")
     .replaceAll("{head7}", params.head7 ? params.head7 : "[0-9a-f]{7}")
     .replaceAll(".", "\\.");
@@ -105,7 +111,12 @@ export function handoffName(op: string, type: string, params: HandoffParams = {}
  * glob via tinyglobby (Task 8): a top-level `*` scan of the workspace replaces the legacy
  * readdirSync walk — same result set, shared toolchain. Missing workspace (ENOENT) → default
  * round 1; real errors rethrow (same fail-open semantics as the legacy catch). */
-export function resolveNextRound(workspace: string, op: string, type: string, opts: HandoffParams = {}): number {
+export function resolveNextRound(
+  workspace: string,
+  op: string,
+  type: string,
+  opts: HandoffParams = {},
+): number {
   const re = roundPattern(op, type, opts);
   let max = 0;
   let files: string[];
@@ -138,7 +149,7 @@ export function prevHandoffPath(
   // Cross-family dependency table first (prev table exists only on review.task and fix families).
   // round1 has no dedicated row (fix families) → falls back to the roundR entry — the dependency
   // expression is identical across rounds.
-  const prevExpr = f.prev?.[round === 1 ? "round1" : "roundR"] ?? f.prev?.["roundR"];
+  const prevExpr = f.prev?.[round === 1 ? "round1" : "roundR"] ?? f.prev?.roundR;
   if (prevExpr) {
     const [prevFamily, roundRef] = prevExpr.split(":");
     const [prevOp, prevType] = prevFamily.split(".");
@@ -179,11 +190,20 @@ export function resolveWorkspace(doc: string, root: string): string {
  * pollute the repo tree). Errors are recoverable orchestration failures (bad plan / non-git root)
  * → CddExitError kind "run-blocked" (exit 1) — the task dispatch resolves them to its run-blocked
  * exit face, exactly the former RunBlocked contract. */
-export function materializeWorkspace({ plan, repoRoot }: { plan: string; repoRoot: string }): string {
+export function materializeWorkspace({
+  plan,
+  repoRoot,
+}: {
+  plan: string;
+  repoRoot: string;
+}): string {
   if (!repoRoot) throw new CddExitError("not in a git repo", { exitCode: 1, kind: "run-blocked" });
   const slug = workspaceSlug(plan);
   if (!slug || slug === "." || slug === "..") {
-    throw new CddExitError(`cannot derive workspace name from: ${plan}`, { exitCode: 1, kind: "run-blocked" });
+    throw new CddExitError(`cannot derive workspace name from: ${plan}`, {
+      exitCode: 1,
+      kind: "run-blocked",
+    });
   }
   const base = path.join(repoRoot, workspaceRoot);
   mkdirSync(path.join(base, slug), { recursive: true });

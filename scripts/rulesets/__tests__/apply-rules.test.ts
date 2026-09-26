@@ -1,12 +1,11 @@
-import { describe, it, expect } from "vitest";
-import { execa } from "execa";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { execa } from "execa";
+import { describe, expect, it } from "vitest";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
-const run = (args) =>
-  execa("node", ["scripts/run.ts", ...args], { cwd: ROOT, reject: false });
+const run = (args) => execa("node", ["scripts/run.ts", ...args], { cwd: ROOT, reject: false });
 
 describe("run.ts apply-rules wiring", () => {
   it("is listed in the subcommand help with both targets", async () => {

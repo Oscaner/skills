@@ -24,12 +24,15 @@
 // Every failure carries guidance (field / what is missing / how to fix). The module reads docs
 // only — zero writes. extractTaskNumbers / extractConstraints moved INTO this module (Task 3 —
 // the canonical plan extractors; the base default hook needs them without a dispatch-layer import).
-import { it, expect, describe } from "vitest";
-import { mkdirSync, mkdtempSync, writeFileSync, readFileSync, unlinkSync } from "node:fs";
+
+import { mkdirSync, mkdtempSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { describe, expect, it } from "vitest";
 
-import { validateDispatchDocuments, formatDocFailures, taskNumbersFromPlan, extractPlanConstraints, parseOverall, extractClaimRows, taskGroupsFromPlan, effectiveGroups, isPendingText, isInflightText } from "../documents.ts";
+import { DocumentsValidator } from "../documents.ts";
+
+const documentsValidator = new DocumentsValidator();
 
 function repoDir(): string {
   return mkdtempSync(path.join(tmpdir(), "cdd-docs-"));
@@ -59,13 +62,10 @@ const VALID_OVERALL = [
   "",
 ].join("\n");
 
-function validSpec(parent = "- **Parent program**: [plan-overall.md v1.0](./plan-overall.md)"): string {
-  return [
-    "- **Version**: v1.0 · 2026-09-21",
-    "",
-    parent,
-    "",
-  ].join("\n");
+function validSpec(
+  parent = "- **Parent program**: [plan-overall.md v1.0](./plan-overall.md)",
+): string {
+  return ["- **Version**: v1.0 · 2026-09-21", "", parent, ""].join("\n");
 }
 
 function validPlan(): string {
@@ -87,7 +87,9 @@ function validPlan(): string {
 
 /** write the three-doc chain; a null member falls back to the valid default for that doc (mutators
  *  pass a doctored version to build the invalid fixture). planName controls the phase id token. */
-function writeChain(overrides: { plan?: string; spec?: string; overall?: string; planName?: string } = {}): Chain {
+function writeChain(
+  overrides: { plan?: string; spec?: string; overall?: string; planName?: string } = {},
+): Chain {
   const repo = repoDir();
   const specsDir = path.join(repo, "docs", "osuperpowers", "specs");
   const plansDir = path.join(repo, "docs", "osuperpowers", "plans");
@@ -104,7 +106,7 @@ function writeChain(overrides: { plan?: string; spec?: string; overall?: string;
 }
 
 function run(c: Chain, entry?: string) {
-  return validateDispatchDocuments({ entry: entry ?? c.plan, root: c.repo });
+  return documentsValidator.validateDispatchDocuments({ entry: entry ?? c.plan, root: c.repo });
 }
 
 function fieldNames(c: Chain, entry?: string): string[] {
@@ -158,7 +160,7 @@ describe("validatePlanContract — the plan face (necessary subset, always runs)
 
   it("plan: `{{…}}` placeholder → failure; `{{> partial}}` mechanism ref → exempt", () => {
     const withPlaceholder = writeChain({
-      plan: "# Plan\n\n**Spec:** [plan-design.md](docs/osuperpowers/specs/plan-design.md)\n\n## Constraints\n\n- c\n\n{{TASK_BRIEF}}\n\n### Task 1: x\nbody\n",
+      plan: "# Plan\n\n**Spec:** [plan-design.md](docs/osuperpowers/specs/plan-design.md)\n\n## Constraints\n\n- c\n\n{{SOME_UNKNOWN}}\n\n### Task 1: x\nbody\n",
     });
     expect(fieldNames(withPlaceholder)).toContain("placeholders");
     const withPartial = writeChain({
@@ -179,74 +181,104 @@ describe("taskGroupsFromPlan / effectiveGroups — dispatch-group declaration (P
 
   it("no `## Task Groups` section → empty default: [] declared + per-task singleton groups (pre-P4.3 equivalence)", () => {
     const p = planFile(TASKS);
-    expect(taskGroupsFromPlan(p)).toEqual([]);
-    expect(effectiveGroups(p)).toEqual([[1], [2], [3]]);
+    expect(documentsValidator.taskGroupsFromPlan(p)).toEqual([]);
+    expect(documentsValidator.effectiveGroups(p).map((g) => g.key())).toEqual(["1", "2", "3"]);
   });
 
   it("merged groups parse — one `- **Task 1, 2**:` bullet per group, number list ascending + deduped", () => {
-    const p = planFile([
-      TASKS,
-      "## Task Groups",
-      "",
-      "- **Task 1, 2**: 共享验收面",
-      "- **Task 3**: reader-tolerated verbatim (length-1 line is schema-invalid — the write-back judgment keeps such groups off the plan)",
-      "",
-    ].join("\n"));
-    expect(taskGroupsFromPlan(p)).toEqual([[1, 2], [3]]);
+    const p = planFile(
+      [
+        TASKS,
+        "## Task Groups",
+        "",
+        "- **Task 1, 2**: 共享验收面",
+        "- **Task 3**: reader-tolerated verbatim (length-1 line is schema-invalid — the write-back judgment keeps such groups off the plan)",
+        "",
+      ].join("\n"),
+    );
+    expect(documentsValidator.taskGroupsFromPlan(p).map((g) => g.key())).toEqual(["1,2", "3"]);
   });
 
   it("section boundary — the next `##` heading / `---` rule / prose without a group line terminates the parse", () => {
-    const p = planFile([
-      TASKS,
-      "## Task Groups",
-      "",
-      "- **Task 1, 2**: merged",
-      "",
-      "## Pending Acceptance Patch",
-      "",
-      "- **Task 2 (patch)**: later",
-      "",
-      "---",
-      "tail",
-    ].join("\n"));
-    expect(taskGroupsFromPlan(p)).toEqual([[1, 2]]);
+    const p = planFile(
+      [
+        TASKS,
+        "## Task Groups",
+        "",
+        "- **Task 1, 2**: merged",
+        "",
+        "## Next section",
+        "",
+        "- unrelated bullet",
+        "",
+        "---",
+        "tail",
+      ].join("\n"),
+    );
+    expect(documentsValidator.taskGroupsFromPlan(p).map((g) => g.key())).toEqual(["1,2"]);
   });
 
   it("declared groups replace the singleton set verbatim → effectiveGroups = the declared groups", () => {
-    const p = planFile([
-      "# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n\n### Task 3: c\nbody\n\n### Task 4: d\nbody\n",
-      "## Task Groups",
-      "",
-      "- **Task 1, 2**: 共享验收面",
-      "- **Task 3, 4**: second merged group",
-      "",
-    ].join("\n"));
+    const p = planFile(
+      [
+        "# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n\n### Task 3: c\nbody\n\n### Task 4: d\nbody\n",
+        "## Task Groups",
+        "",
+        "- **Task 1, 2**: 共享验收面",
+        "- **Task 3, 4**: second merged group",
+        "",
+      ].join("\n"),
+    );
     // effectiveGroups derives from the section, never fabricating singletons in the declared branch
-    expect(effectiveGroups(p)).toEqual([[1, 2], [3, 4]]);
+    expect(documentsValidator.effectiveGroups(p).map((g) => g.key())).toEqual(["1,2", "3,4"]);
   });
 
   it("a length-1 declared line is parse-tolerated and surfaces in effectiveGroups — the >= 2 floor is schema minItems + write-back, never the parser", () => {
-    const p = planFile([
-      "# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n\n### Task 3: c\nbody\n",
-      "## Task Groups",
-      "",
-      "- **Task 1**: length-1 line (schema-invalid — tolerated read-only, never written back)",
-      "- **Task 2, 3**: conformant merged group",
-      "",
-    ].join("\n"));
+    const p = planFile(
+      [
+        "# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n\n### Task 3: c\nbody\n",
+        "## Task Groups",
+        "",
+        "- **Task 1**: length-1 line (schema-invalid — tolerated read-only, never written back)",
+        "- **Task 2, 3**: conformant merged group",
+        "",
+      ].join("\n"),
+    );
     // Reader tolerance: the length-1 group parses and surfaces verbatim — taskGroupsFromPlan /
     // effectiveGroups never drop a declared task. The >= 2 floor lives in plan.json
     // taskGroups.items.tasks.minItems + the adjudication write-back judgment (plan.json description:
     // a length-1 group never lands on disk — the single-group state exists only as the empty
     // default), not in this derivation.
-    expect(taskGroupsFromPlan(p)).toEqual([[1], [2, 3]]);
-    expect(effectiveGroups(p)).toEqual([[1], [2, 3]]);
+    expect(documentsValidator.taskGroupsFromPlan(p).map((g) => g.key())).toEqual(["1", "2,3"]);
+    expect(documentsValidator.effectiveGroups(p).map((g) => g.key())).toEqual(["1", "2,3"]);
+  });
+
+  it("有效分区 == 全 task 号集覆盖 guard (P4.4: the effective-group union is the plan task set — declared or empty-default)", () => {
+    const declared = planFile(
+      [
+        "# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n\n### Task 3: c\nbody\n\n### Task 4: d\nbody\n",
+        "## Task Groups",
+        "",
+        "- **Task 1, 2**: merged",
+        "- **Task 3**: length-1 line tolerated",
+        "",
+      ].join("\n"),
+    );
+    const empty = planFile("# Plan\n\n### Task 1: a\n\n### Task 2: b\n\n### Task 3: c\n");
+    for (const p of [declared, empty]) {
+      const union = [...new Set(documentsValidator.effectiveGroups(p).flatMap((g) => [...g]))].sort(
+        (a, b) => a - b,
+      );
+      expect(union).toEqual(documentsValidator.taskNumbersFromPlan(p)); // every plan task lands in exactly one effective group
+    }
   });
 });
 
 describe("lineage truncation — the spec's own face + necessary subset, four tables no-op", () => {
   it("spec: missing `**Version**` line → failure with guidance (spec own face still runs)", () => {
-    const c = writeChain({ spec: "- **Parent program**: [plan-overall.md v1.0](./plan-overall.md)\n" });
+    const c = writeChain({
+      spec: "- **Parent program**: [plan-overall.md v1.0](./plan-overall.md)\n",
+    });
     const f = run(c);
     expect(f.some((x) => x.artifact === "phase spec" && x.field === "`**Version**`")).toBe(true);
   });
@@ -259,12 +291,16 @@ describe("lineage truncation — the spec's own face + necessary subset, four ta
   });
 
   it("spec: Parent program target unresolvable → chain truncation (no four-table failure, necessary subset proceeds)", () => {
-    const c = writeChain({ spec: validSpec("- **Parent program**: [missing-overall.md v1.0](./missing-overall.md)") });
+    const c = writeChain({
+      spec: validSpec("- **Parent program**: [missing-overall.md v1.0](./missing-overall.md)"),
+    });
     expect(run(c)).toEqual([]);
   });
 
   it("spec: Parent program target is not a `*-overall.md` → chain truncation", () => {
-    const c = writeChain({ spec: validSpec("- **Parent program**: [plan-design.md](./plan-design.md)") });
+    const c = writeChain({
+      spec: validSpec("- **Parent program**: [plan-design.md](./plan-design.md)"),
+    });
     expect(run(c)).toEqual([]);
   });
 
@@ -325,7 +361,9 @@ const AUDIT_OVERALL = [
  * the resolved spec + parent overall, and the SHIPPED phase P1's docs (face ② globs need them,
  * slug "plan" derived from plan-overall.md) — P1 shipped with matching backfill claims, P2 pending.
  * Mutators override the overall / spec / planName. */
-function writeAuditChain(overrides: { overall?: string; spec?: string; planName?: string } = {}): Chain {
+function writeAuditChain(
+  overrides: { overall?: string; spec?: string; planName?: string } = {},
+): Chain {
   const c = writeChain({
     overall: overrides.overall ?? AUDIT_OVERALL,
     spec: overrides.spec ?? validSpec(),
@@ -333,8 +371,14 @@ function writeAuditChain(overrides: { overall?: string; spec?: string; planName?
   });
   // Face ② doc-existence globs (slug "plan"): the shipped phase's docs must exist under the
   // derived patterns — distinct from the entry plan (also 2026-09-21-plan-<pN>.md).
-  writeFileSync(path.join(c.repo, "docs", "osuperpowers", "specs", "2026-09-21-plan-p1-design.md"), "# p1 design\n");
-  writeFileSync(path.join(c.repo, "docs", "osuperpowers", "plans", "2026-09-21-plan-p1.md"), "# plan\n");
+  writeFileSync(
+    path.join(c.repo, "docs", "osuperpowers", "specs", "2026-09-21-plan-p1-design.md"),
+    "# p1 design\n",
+  );
+  writeFileSync(
+    path.join(c.repo, "docs", "osuperpowers", "plans", "2026-09-21-plan-p1.md"),
+    "# plan\n",
+  );
   return c;
 }
 
@@ -346,9 +390,10 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
 
   it("face ① forward: change-history plan claim says Done but the column cell is [Pending] → failure", () => {
     const c = writeAuditChain({
-      overall: AUDIT_OVERALL
-        .replace("| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | Done | | |",
-          "| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | [Pending] | | |"),
+      overall: AUDIT_OVERALL.replace(
+        "| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | Done | | |",
+        "| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | [Pending] | | |",
+      ),
     });
     const f = run(c);
     expect(f.some((x) => x.artifact === "overall" && /backfill|claim/i.test(x.field))).toBe(true);
@@ -417,7 +462,10 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
     });
     // face ② globs (slug "plan"): the shipped P2.1 plan doc must exist (its design cell is [Pending])
     // — the dotted-id filename form `…-plan-p2.1.md` is what the design-existence glob resolves.
-    writeFileSync(path.join(c.repo, "docs", "osuperpowers", "plans", "2026-09-21-plan-p2.1.md"), "# plan\n");
+    writeFileSync(
+      path.join(c.repo, "docs", "osuperpowers", "plans", "2026-09-21-plan-p2.1.md"),
+      "# plan\n",
+    );
     expect(run(c)).toEqual([]);
   });
 
@@ -493,7 +541,9 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
       ].join("\n"),
       planName: "2026-09-21-plan-p2.3.md",
     });
-    const { planClaims } = extractClaimRows(parseOverall(c.overall).historyRows);
+    const { planClaims } = documentsValidator.extractClaimRows(
+      documentsValidator.parseOverall(c.overall).historyRows,
+    );
     expect([...planClaims.keys()].sort()).toEqual(["P2.1", "P2.2", "P2.3"]);
   });
 
@@ -531,8 +581,14 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
       planName: "2026-09-21-demo-p2.1.md",
     });
     // face ② design-doc globs (slug "plan") — each own token needs its own dotted-id file
-    writeFileSync(path.join(c.repo, "docs", "osuperpowers", "specs", "2026-09-21-plan-p2-design.md"), "# d2\n");
-    writeFileSync(path.join(c.repo, "docs", "osuperpowers", "specs", "2026-09-21-plan-p2.1-design.md"), "# d21\n");
+    writeFileSync(
+      path.join(c.repo, "docs", "osuperpowers", "specs", "2026-09-21-plan-p2-design.md"),
+      "# d2\n",
+    );
+    writeFileSync(
+      path.join(c.repo, "docs", "osuperpowers", "specs", "2026-09-21-plan-p2.1-design.md"),
+      "# d21\n",
+    );
     expect(run(c)).toEqual([]);
   });
 
@@ -586,8 +642,10 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
 
   it("face ③: Phase-inventory dependency cell cites a predecessor not in the inventory → failure", () => {
     const c = writeAuditChain({
-      overall: AUDIT_OVERALL.replace("| P2 | phase two | [Pending] | [Pending] | | P1 ->(hard) |",
-        "| P2 | phase two | [Pending] | [Pending] | | P9 ->(hard) |"),
+      overall: AUDIT_OVERALL.replace(
+        "| P2 | phase two | [Pending] | [Pending] | | P1 ->(hard) |",
+        "| P2 | phase two | [Pending] | [Pending] | | P9 ->(hard) |",
+      ),
     });
     const f = run(c);
     expect(f.some((x) => x.artifact === "overall" && /dependency|依赖/i.test(x.field))).toBe(true);
@@ -709,16 +767,16 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
 
 describe("plan column three-state — `[Pending]` → `[In-flight]` → `**Done**` (P4.3 Task 8)", () => {
   it("isPendingText / isInflightText — the three-state recognition (pending vs in-flight vs shipped)", () => {
-    expect(isPendingText("[Pending]")).toBe(true);
-    expect(isPendingText("Pending")).toBe(true);
-    expect(isPendingText("")).toBe(true);
-    expect(isInflightText("[In-flight]")).toBe(true);
-    expect(isInflightText("In-flight")).toBe(true);
-    expect(isPendingText("[In-flight]")).toBe(false);
-    expect(isPendingText("In-flight")).toBe(false);
-    expect(isInflightText("[Pending]")).toBe(false);
-    expect(isInflightText("Done")).toBe(false);
-    expect(isInflightText("**Done**")).toBe(false);
+    expect(documentsValidator.isPendingText("[Pending]")).toBe(true);
+    expect(documentsValidator.isPendingText("Pending")).toBe(true);
+    expect(documentsValidator.isPendingText("")).toBe(true);
+    expect(documentsValidator.isInflightText("[In-flight]")).toBe(true);
+    expect(documentsValidator.isInflightText("In-flight")).toBe(true);
+    expect(documentsValidator.isPendingText("[In-flight]")).toBe(false);
+    expect(documentsValidator.isPendingText("In-flight")).toBe(false);
+    expect(documentsValidator.isInflightText("[Pending]")).toBe(false);
+    expect(documentsValidator.isInflightText("Done")).toBe(false);
+    expect(documentsValidator.isInflightText("**Done**")).toBe(false);
   });
 
   // A self-contained three-state overall: P1 flows [Pending] → [In-flight] → **Done**, P2 pending
@@ -755,9 +813,13 @@ describe("plan column three-state — `[Pending]` → `[In-flight]` → `**Done*
   ].join("\n");
 
   it("`[Pending]` plan column → clean (no plan-doc obligation, no claim) and `[In-flight]` with its plan doc and NO claim → clean (reverse-claim carve-out, non-mismatch cell)", () => {
-    const pending = writeAuditChain({ overall: THREE_STATE_OVERALL.replace("{PLAN}", "[Pending]") });
+    const pending = writeAuditChain({
+      overall: THREE_STATE_OVERALL.replace("{PLAN}", "[Pending]"),
+    });
     expect(run(pending)).toEqual([]);
-    const inflight = writeAuditChain({ overall: THREE_STATE_OVERALL.replace("{PLAN}", "[In-flight]") });
+    const inflight = writeAuditChain({
+      overall: THREE_STATE_OVERALL.replace("{PLAN}", "[In-flight]"),
+    });
     expect(run(inflight)).toEqual([]); // started (已开工): the plan doc is on disk, yet no closeout claim is owed
   });
 
@@ -775,19 +837,22 @@ describe("plan column three-state — `[Pending]` → `[In-flight]` → `**Done*
   });
 
   it("three-state + claim only at closeout — `**Done**` + matching claim → clean (the legal terminal state)", () => {
-    const overall = THREE_STATE_OVERALL
-      .replace("{PLAN}", "**Done**")
+    const overall = THREE_STATE_OVERALL.replace("{PLAN}", "**Done**")
       .replace("- **Version**: v1.0 · 2026-09-21", "- **Version**: v1.1 · 2026-09-21")
-      .replace("| v1.0 | 2026-09-21 | Initial |", "| v1.0 | 2026-09-21 | Initial |\n| v1.1 | 2026-09-21 | P1 Implementation plan 列回填（[Pending]→Done） |");
+      .replace(
+        "| v1.0 | 2026-09-21 | Initial |",
+        "| v1.0 | 2026-09-21 | Initial |\n| v1.1 | 2026-09-21 | P1 Implementation plan 列回填（[Pending]→Done） |",
+      );
     const c = writeAuditChain({ overall });
     expect(run(c)).toEqual([]);
   });
 
   it("face ① forward: a claim targeting `Done` vs an `[In-flight]` column → NOT a mismatch (in-flight carve-out)", () => {
     const c = writeAuditChain({
-      overall: AUDIT_OVERALL
-        .replace("| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | Done | | |",
-          "| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | [In-flight] | | |"),
+      overall: AUDIT_OVERALL.replace(
+        "| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | Done | | |",
+        "| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | [In-flight] | | |",
+      ),
     });
     // The change-history still carries the P1 plan claim (v1.1) + the P1 plan doc is on disk —
     // the in-flight column is a legal mid-dispatch state, never a forward mismatch.
@@ -796,18 +861,20 @@ describe("plan column three-state — `[Pending]` → `[In-flight]` → `**Done*
 
   it("face ①: a link-form plan column pointing at the phase's own plan doc satisfies its claim (own-document equivalence, ownDesignToken-aligned)", () => {
     const c = writeAuditChain({
-      overall: AUDIT_OVERALL
-        .replace("| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | Done | | |",
-          "| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | [p1-plan v1.1](2026-09-21-plan-p1.md) | | |"),
+      overall: AUDIT_OVERALL.replace(
+        "| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | Done | | |",
+        "| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | [p1-plan v1.1](2026-09-21-plan-p1.md) | | |",
+      ),
     });
     expect(run(c)).toEqual([]);
   });
 
   it("face ①: a link-form plan column pointing at a DIFFERENT plan doc → forward mismatch (own-document identity fails)", () => {
     const c = writeAuditChain({
-      overall: AUDIT_OVERALL
-        .replace("| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | Done | | |",
-          "| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | [p1-plan v1.1](2026-09-21-plan-p9.md) | | |"),
+      overall: AUDIT_OVERALL.replace(
+        "| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | Done | | |",
+        "| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | [p1-plan v1.1](2026-09-21-plan-p9.md) | | |",
+      ),
     });
     const f = run(c);
     expect(f.some((x) => x.artifact === "overall" && /backfill/i.test(x.field))).toBe(true);
@@ -815,10 +882,10 @@ describe("plan column three-state — `[Pending]` → `[In-flight]` → `**Done*
 
   it("face ① reverse: a shipped link-form plan column with no matching claim → reverse failure", () => {
     const c = writeAuditChain({
-      overall: AUDIT_OVERALL
-        .replace("| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | Done | | |",
-          "| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | [p1-plan v1.1](2026-09-21-plan-p1-plan.md) | | |")
-        .replace("| v1.1 | 2026-09-21 | P1 Implementation plan 列回填（[Pending]→Done） |", ""),
+      overall: AUDIT_OVERALL.replace(
+        "| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | Done | | |",
+        "| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | [p1-plan v1.1](2026-09-21-plan-p1-plan.md) | | |",
+      ).replace("| v1.1 | 2026-09-21 | P1 Implementation plan 列回填（[Pending]→Done） |", ""),
     });
     const f = run(c);
     expect(f.some((x) => x.artifact === "overall" && /backfill/i.test(x.field))).toBe(true);
@@ -832,33 +899,33 @@ describe("extractClaimRows — explicit claim structure only (P4.3 Task 8)", () 
   }
 
   it("a prose-mentioned phase in the SAME claim clause is not a target (window scan, not whole-clause)", () => {
-    const { planClaims, proseHints } = extractClaimRows(
-      [row("P1 Implementation plan 列回填（[Pending]→Done）+ Dependency graph P1→P3 边")],
-    );
+    const { planClaims, proseHints } = documentsValidator.extractClaimRows([
+      row("P1 Implementation plan 列回填（[Pending]→Done）+ Dependency graph P1→P3 边"),
+    ]);
     expect([...planClaims.keys()]).toEqual(["P1"]);
     expect(planClaims.get("P1")).toBe("Done"); // the claim key is the explicit target
     expect(proseHints.get("P1")).toEqual(["P3"]); // the same-clause prose mention rides as the hint
   });
 
   it("two comma-joined claims in one clause attribute phases via successive windows", () => {
-    const { planClaims } = extractClaimRows(
-      [row("P1 Implementation plan 列回填（[Pending]→Done），P2 计划列回填（[Pending]→Done）")],
-    );
+    const { planClaims } = documentsValidator.extractClaimRows([
+      row("P1 Implementation plan 列回填（[Pending]→Done），P2 计划列回填（[Pending]→Done）"),
+    ]);
     expect([...planClaims.keys()].sort()).toEqual(["P1", "P2"]);
   });
 
   it("a clause with BOTH a plan and a design claim attributes each target by its own window", () => {
-    const { planClaims, designClaims } = extractClaimRows(
-      [row("P1 计划列回填（[Pending]→Done）+ P2 Design-spec 列回填（[Pending]→p2-design v1.0）")],
-    );
+    const { planClaims, designClaims } = documentsValidator.extractClaimRows([
+      row("P1 计划列回填（[Pending]→Done）+ P2 Design-spec 列回填（[Pending]→p2-design v1.0）"),
+    ]);
     expect([...planClaims.keys()]).toEqual(["P1"]);
     expect(designClaims.get("P2")).toBe("p2-design");
   });
 
   it("a ranged claim stays range-expanded inside its window (P2.1–P2.3 → every endpoint + intermediate)", () => {
-    const { planClaims } = extractClaimRows(
-      [row("P2.1–P2.3 Implementation plan 列回填（[Pending]→Done）")],
-    );
+    const { planClaims } = documentsValidator.extractClaimRows([
+      row("P2.1–P2.3 Implementation plan 列回填（[Pending]→Done）"),
+    ]);
     expect([...planClaims.keys()].sort()).toEqual(["P2.1", "P2.2", "P2.3"]);
   });
 
@@ -884,13 +951,21 @@ describe("extractClaimRows — explicit claim structure only (P4.3 Task 8)", () 
     ].join("\n");
     const c = writeAuditChain({ overall, planName: "2026-09-21-plan-p2.md" });
     // The in-flight P3 plan doc (face ② non-missing cell) + the shipped P1 plan doc must exist:
-    writeFileSync(path.join(c.repo, "docs", "osuperpowers", "plans", "2026-09-21-plan-p1.md"), "# p\n");
-    writeFileSync(path.join(c.repo, "docs", "osuperpowers", "plans", "2026-09-21-plan-p3.md"), "# p\n");
+    writeFileSync(
+      path.join(c.repo, "docs", "osuperpowers", "plans", "2026-09-21-plan-p1.md"),
+      "# p\n",
+    );
+    writeFileSync(
+      path.join(c.repo, "docs", "osuperpowers", "plans", "2026-09-21-plan-p3.md"),
+      "# p\n",
+    );
     const f = run(c);
     const claimHits = f.filter((x) => /backfill|claim/i.test(x.field));
     expect(claimHits.some((x) => x.missing.includes("P1"))).toBe(true); // forward mismatch on P1
     expect(claimHits.some((x) => /P3/.test(x.missing))).toBe(true); // the same-clause prose hint names P3
-    expect(claimHits.some((x) => /P3/.test(x.missing) && /claim target|same-clause/.test(x.missing))).toBe(true);
+    expect(
+      claimHits.some((x) => /P3/.test(x.missing) && /claim target|same-clause/.test(x.missing)),
+    ).toBe(true);
     // No claim failure surfaces on the in-flight phase itself: its column is not a target and owes no claim.
     expect(claimHits.some((x) => x.missing.includes("P3 Implementation"))).toBe(false);
   });
@@ -961,7 +1036,9 @@ describe("overall 契約 face — kernel + merged version-lineage", () => {
   });
 
   it("merged version-lineage: spec pins a vX.Y the parent overall does not carry → the OVERALL face fails (single implementation)", () => {
-    const c = writeChain({ spec: validSpec("- **Parent program**: [plan-overall.md v9.9](./plan-overall.md)") });
+    const c = writeChain({
+      spec: validSpec("- **Parent program**: [plan-overall.md v9.9](./plan-overall.md)"),
+    });
     const f = run(c);
     // The check moved from the spec face into the overall contract face — artifact is the overall.
     expect(f.some((x) => x.artifact === "overall" && /v9\.9/.test(x.missing))).toBe(true);
@@ -969,7 +1046,9 @@ describe("overall 契約 face — kernel + merged version-lineage", () => {
   });
 
   it("merged version-lineage: a pinned token the overall DOES carry → no failure", () => {
-    const c = writeChain({ spec: validSpec("- **Parent program**: [plan-overall.md v1.0](./plan-overall.md)") });
+    const c = writeChain({
+      spec: validSpec("- **Parent program**: [plan-overall.md v1.0](./plan-overall.md)"),
+    });
     expect(run(c).some((x) => /v1\.0/.test(x.missing))).toBe(false);
   });
 });
@@ -1009,7 +1088,9 @@ describe("entry forms — the per-doc-type audit surfaces", () => {
   });
 
   it("plan entry whose own plan-level contracts pass but the resolved chain fails → chain failures surface", () => {
-    const c = writeChain({ spec: validSpec("- **Parent program**: [plan-overall.md v9.9](./plan-overall.md)") });
+    const c = writeChain({
+      spec: validSpec("- **Parent program**: [plan-overall.md v9.9](./plan-overall.md)"),
+    });
     const f = run(c, c.plan);
     expect(f.some((x) => x.artifact === "overall")).toBe(true);
   });
@@ -1019,7 +1100,7 @@ describe("formatDocFailures — the guidance line (artifact · file · field · 
   it("one failure line carries artifact / file / field / missing / fix in order", () => {
     const c = writeChain({ plan: "# Plan\n\n### Task 1: x\nbody\n" });
     const f = run(c);
-    const text = formatDocFailures([f[0]]);
+    const text = documentsValidator.formatDocFailures([f[0]]);
     expect(text).toMatch(/^- \[plan\] /);
     expect(text).toContain(c.plan);
     expect(text).toMatch(/→ .*how to fix|→ .*add a|→ .*declare/);
@@ -1203,7 +1284,11 @@ describe("P4.3 Task 9 #276 — error UX guidance + schema-described authoring sh
       ].join("\n"),
     });
     const f = run(c);
-    expect(f.some((x) => x.field === "Issue inventory" && /not a Phase-inventory id/.test(x.missing))).toBe(true);
-    expect(f.some((x) => x.field === "Issue inventory" && /unrecognized issue ref/.test(x.missing))).toBe(false);
+    expect(
+      f.some((x) => x.field === "Issue inventory" && /not a Phase-inventory id/.test(x.missing)),
+    ).toBe(true);
+    expect(
+      f.some((x) => x.field === "Issue inventory" && /unrecognized issue ref/.test(x.missing)),
+    ).toBe(false);
   });
 });

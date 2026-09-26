@@ -9,8 +9,8 @@
 import { stringify } from "yaml";
 
 // Form keys = formFieldDefs object keys (issue-body.json); frontmatter.name carries the
-// form name, rendering consumes only formDef — no secondary identifier (the name param is
-// de-duplicated). Enum direct-reference (single-source): the only dropdown is component,
+// form name, rendering consumes only formDef — no secondary identifier. Enum direct-reference
+// (single-source): the only dropdown is component,
 // whose options are injected directly by the second arg `enums.components` (the top level
 // of canonical issue-body.json already has this shape) — zero `options` arrays inside the
 // form definition, so no "two implementations to keep in sync" surface; no fallback branch

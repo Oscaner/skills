@@ -4,6 +4,14 @@
 
 Personal AI coding skills — osuperpowers orchestration, the `cli-*` CDD engine family, and the report-issues repo utility — packaged as an installable plugin for AI coding harnesses (verified on **Claude Code** and **Cursor Agent**).
 
+## The osuperpowers philosophy
+
+osuperpowers is the distribution vehicle for a cdd-first methodology: it packages the practice of **continuously-discovered development** as installable skills and puts the deterministic `cdd` engine behind the whole flow (see the repository [README](../README.md) for the full methodology).
+
+- **cdd as the core discipline.** Development runs through the three-mode chain — implement → review → fix — driven by the plan, and every phase closes under the same convergence rule.
+- **Orchestration as the flow layer.** The orchestrator skills carry the flow: clarifying questions, spec and plan writing with structured review, and branch finishing — each phase closed by a review rather than by assumption.
+- **The engine as the execution layer.** The `cdd` CLI makes the chain deterministic — same plan, same brief, same commands, same outcome. The engine dispatches each phase to the host harness and writes the handoff artifacts; skills never re-implement its mechanics.
+
 ## What it does
 
 Three skill families:
@@ -56,14 +64,14 @@ Or install from the oscaner-skills Claude Code marketplace:
 
 ## CDD engine CLI
 
-The CDD engine ships as the standalone `@oscaner-skills/cdd-engine` package; its single CLI runner is `cdd` (implement / review / fix / base-branch / schema). It dispatches each phase to the host harness CLI via the engine's embedded harness registry (per-harness invocation and output contract):
+The CDD engine ships as the standalone `@oscaner-skills/cdd-engine` package; its single CLI runner is `cdd` (implement / review / fix / base-branch / schema / issue). It dispatches each phase to the host harness CLI via the engine's embedded harness registry (per-harness invocation and output contract):
 
 | Harness | CLI binary | Ship status |
 |---------|------------|-------------|
 | claude | `claude` | Full |
 | cursor-agent | `cursor-agent` | Full |
 
-`cdd schema get <type>` prints the engine's canonical doc-structure schema straight to stdout (discovery-only, byte-identical to the shipped schema). See [the cdd-engine README](../cdd-engine/README.md) for the full CLI reference.
+`cdd schema get <type>` prints the engine's canonical doc-structure schema straight to stdout (discovery-only, byte-identical to the shipped schema), and `cdd issue render` builds an aggregate issue body from stdin findings (pure rendering, zero enforcement). See [the cdd-engine README](../cdd-engine/README.md) for the full CLI reference.
 
 ## Docs for maintainers
 

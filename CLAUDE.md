@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository purpose
 
-A **multi-harness AI coding skills marketplace**. Personal skills are packaged as installable plugins consumed by multiple AI coding harnesses (verified on Claude Code and Cursor Agent).
+**A cdd-first methodology: continuously-discovered development as the core discipline, AI coding skills as the distribution vehicle.** This repository is the home of that methodology and the vehicle that distributes it — the CDD (continuously-discovered development) practice encoded as skills and driven by the `cdd` engine, released as installable plugins consumable across multiple AI coding harnesses (verified on Claude Code and Cursor Agent).
 
 **osuperpowers** ships here as a first-party plugin in-tree at `packages/osuperpowers/` (osuperpowers orchestration + cli-* family + the CDD engine). Superpowers, mattpocock-skills, and impeccable are upstream third-party plugins — install them via their official commands (marked Upstream in the README); this repo no longer vendors them. Upstream workflow skills are read by osuperpowers orchestrators via `/`-prefixed plugin:skill references.
 
@@ -58,6 +58,10 @@ pnpm --filter @oscaner-skills/cdd-engine dev:stub && node packages/cdd-engine/di
 ```
 
 The global `cdd` command must NOT be used (`npm link` removed).
+
+### cdd CLI surface — zero new subcommands
+
+The `cdd` CLI gains **no new subcommands** — the only exceptions are the discovery-type `cdd schema get <type>` and the pure-rendering `cdd issue render`, both zero-enforcement (the charter's Non-goal #1 exception). Enforcement-capable subcommands stay closed.
 
 ### Engine tests
 

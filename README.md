@@ -6,7 +6,44 @@
 [![npm](https://img.shields.io/npm/v/@oscaner-skills/osuperpowers?label=osuperpowers)](https://www.npmjs.com/package/@oscaner-skills/osuperpowers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Personal AI coding skills marketplace. First-party plugins + upstream integrations, one pipeline — consumable across multiple AI coding harnesses (verified on **Claude Code** and **Cursor Agent**).
+**A cdd-first methodology: continuously-discovered development as the core discipline, AI coding skills as the distribution vehicle.**
+
+This repository is the home of that methodology and the vehicle that distributes it. The core discipline — **cdd**, continuously-discovered development — is encoded as skills and released as installable plugins, consumable across multiple AI coding harnesses (verified on **Claude Code** and **Cursor Agent**). First-party plugins are built here under `packages/` and published to npm under the `@oscaner-skills/*` scope; the `cdd` engine drives the whole flow.
+
+## The cdd philosophy
+
+**cdd (continuously-discovered development)** is a development discipline that treats planning as an ongoing discovery process instead of a front-loaded artifact. Requirements are discovered by working in small, verifiable increments: each task is planned against the plan, executed against a task brief by the host harness CLI, and reviewed against shared convergence rules — so the next increment is always planned from what the previous one actually learned.
+
+Instead of writing the plan once and hoping it survives contact with reality, cdd keeps planning live across the whole development process and makes every step provable ("did it converge?") rather than assumed ("it should be fine").
+
+### Why cdd is designed this way
+
+- **Discover, don't predict.** Requirements are discovered through implementation and review, not guessed up front. Every round's review findings become the input to the next round's brief — no requirement is taken on faith.
+- **Small, verifiable increments.** Each task is scoped by a plan, carried by a brief, and concluded by an explicit status. The process stays legible and every change is provable.
+- **Single sources, derived products.** Facts live once — in the plan, the schema, or the manifest — and everything that ships is derived from them, so paper and practice cannot drift apart.
+- **Deterministic execution.** The `cdd` engine drives the chain as commands: same plan, same brief, same commands, same outcome. The human and the harness follow the same contract.
+
+### The three-mode chain
+
+The core loop is a chain of three modes:
+
+| Mode | Role |
+|------|------|
+| `implement` | Execute the task brief for a group of tasks against the plan's constraints |
+| `review` | Review the implementer's result against a fixed review reference and lens guide |
+| `fix` | Apply the review findings — blockers, warnings, and nits — and converge the round |
+
+The chain is a closure: implement → review → fix, then the next group's implement. A review that blocks routes back through `fix` and is re-reviewed until it passes; a review that passes converges and the loop advances. When all groups have converged, a final branch review closes the change and hands it off to finishing. The `cdd` engine runs the whole chain deterministically — dispatching each phase to the host harness and writing the handoff artifacts.
+
+### Convergence discipline
+
+Reviews are structured, not impressionistic. Every finding carries a severity — blocker, warn, or nit — and a lens, and a round only concludes when its findings converge:
+
+- **blocker** findings route the round back to `fix` and a re-review, until none remain;
+- **warn / nit** findings are applied by a fix round that converges and completes without a re-review, with the findings recorded;
+- **zero findings** close the review outright.
+
+**Review Convergence** is the shared closure rule behind all of this — a review never passes silently, and a fix round never re-opens settled decisions. The same rule closes task reviews, branch reviews, spec reviews, and plan reviews alike, so the whole methodology converges under one discipline instead of a pile of ad hoc checklists.
 
 ## What this is
 

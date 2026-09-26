@@ -1,6 +1,6 @@
 # @oscaner-skills/cdd-engine
 
-> 🔗 **Mirror 同步声明**：本文件（`README.zh-CN.md`）是英文源 [README.md](README.md) 的同步中文 **mirror**——顶层章节集合逐条一致，节点按位置一一对应；本文为对外宣讲面的中文口径，语义以英文源为准。**同步时间戳**：2026-09-24。
+> 🔗 **Mirror 同步声明**：本文件（`README.zh-CN.md`）是英文源 [README.md](README.md) 的同步中文 **mirror**——顶层章节集合逐条一致，节点按位置一一对应；本文为对外宣讲面的中文口径，语义以英文源为准。**同步时间戳**：2026-09-26。
 
 [English](README.md) | [中文](README.zh-CN.md)
 
@@ -33,6 +33,7 @@ npm install @oscaner-skills/cdd-engine
 | `fix` | `cdd fix --type=<task\|branch\|spec\|plan>` | 修复评审发现——task、branch、spec 或 plan |
 | `base-branch` | `cdd base-branch set\|get` | 读写 `base-branch.json` 产物（单一 CDD `--plan` 目标） |
 | `schema` | `cdd schema get <type>` | 打印 canonical 文档结构 schema（发现型、零执法） |
+| `issue` | `cdd issue render` | 依据 stdin 发现渲染聚合 issue 正文（纯渲染、零执法） |
 
 用 `cdd <command> --help` 查看某命令的完整选项列表（例如 `cdd review --tasks` / `--base` / `--head` / `--spec` / `--round`）。
 

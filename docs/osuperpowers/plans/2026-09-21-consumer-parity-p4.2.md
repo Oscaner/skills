@@ -2,7 +2,7 @@
 
 **Spec:** [2026-09-21-consumer-parity-p4.2-design.md](docs/osuperpowers/specs/2026-09-21-consumer-parity-p4.2-design.md)
 - **Parent program**: [consumer-parity overall v1.45](docs/osuperpowers/specs/2026-09-21-consumer-parity-overall.md)
-- **Version**: v1.1 · 2026-09-26
+- **Version**: v1.2 · 2026-09-26（mid-backfill：Task 12 plan-constraints 每 TG 再生，2026-09-26 用户裁决）
 - **Base**: develop
 - **Depends on**: P4.4（shipped · [p4.4-design v1.9](docs/osuperpowers/specs/2026-09-21-consumer-parity-p4.4-design.md)）
 
@@ -40,7 +40,7 @@ Task 10 对 GitHub 仓库元信息（description / topics）做外发变更—�
 
 ## Task Groups
 
-**有效分区 = 七个 dispatch 单位**：[1,2,3] · [4,5] · [6,7] · [8] · [9] · [10] · [11] —— 本节声明仅列合并组（1,2,3 / 4,5 / 6,7）；未覆盖任务（8 · 9 · 10 · 11）以**隐式单组**补全（按 task 号序）。
+**有效分区 = 八个 dispatch 单位**：[1,2,3] · [4,5] · [6,7] · [8] · [9] · [10] · [11] · [12] —— 本节声明仅列合并组（1,2,3 / 4,5 / 6,7）；未覆盖任务（8 · 9 · 10 · 11 · 12）以**隐式单组**补全（按 task 号序）。
 
 - **Task 1, 2, 3**: 版本管线重构 —— 基线准备（降值/声称改写/backlog 清除）· 自研管线整删 + 原生 changeset 接线 · 发布矩阵 + version-sync（同域原子变更，render/version 面同批 review）
 - **Task 4, 5**: 发布门 + workflows 重构 —— `smoke-cdd --expect-version` + post-version 门接线 · 三层重构（release.yml / pr-validate.yml / actions 面同批）
@@ -156,3 +156,13 @@ Task 10 对 GitHub 仓库元信息（description / topics）做外发变更—�
   - overall P4.2 行 Implementation plan 列 = **Done** + change-history v-bump 行（四表 closeout 一致性：plan 列 Done ⇔ round 内可证子集 claim + 外部 post-publish 态有主——见验收⑥，声明源不外扩到未执行面）
   - P4.2 交付面 = spec §6 验收探针 **round 内可证子集** 全绿（版本基线、原生管线实证、issue render 确定性、白名单、workflows、宣讲、**maintainers 收敛（判据 = plan 锚 ≤53KB，绑定 Constraints「spec 目标偏离」声明——spec §6 旧值 42KB 不判不合格，spec 修订以 spec fix 轮落盘为准）**、gh 元信息）
   - **外部 post-publish 态登记有主**：npm 发布实证（`npm view` 可达）+ GitHub Release ×2 落盘 = CI 执行后的程序级外验项（owner = 收口复核 / 后续 dispatch）；本 round 不执行、不宣称，四表 Done 声明范围与此对齐
+
+### Task 12: plan-constraints 每 TG 再生 — 彻底去 generate-once（TG8 · 2026-09-26 mid-backfill 追加）
+
+- **Do**: ① `materializePlanConstraints`（`packages/cdd-engine/src/dispatch/task.ts`）**去 generate-once 早退**——无条件从 plan Constraints source 重新提取并**覆写** `plan-constraints.md`（保留确定性 header：plan basename + hash 作 provenance；`generated` 返回若成恒真随代码简化）② implement pre-flight **去 `existsSync` 跳过**——每次 implement dispatch（每 TG 起点）必调 `materializePlanConstraints` ③ `isPlanConstraintsStale` + 其测试随「无条件再生」成真死代码删除（plan-hash anchor 保留为 provenance，不再作 stale 判定）④ `plan-constraints.test.ts` / `runner.test.ts` 的 generate-once 断言面反转为「无条件再生」语义（同 plan 二次调用覆写同字节 = 确定性保持）；T22/§T7.1 注释同步 ⑤ 非 breaking 确认（CLI/字段面零变化，仅派生产物再生语义——mid-backfill 更新 plan Constraints 随 TG 起点刷新）
+- **验收**:
+  - `materializePlanConstraints` 二次调用（同 plan）重写同字节（确定性保持）；`generated:false` / existsSync 早退路径零残留（grep/代码断言）
+  - implement pre-flight 无 `existsSync(ctx.constraintsPath)` 跳过（每 dispatch 必调；grep 断言）
+  - `isPlanConstraintsStale` 零残留（src + tests；grep 断言）
+  - `plan-constraints.test.ts` / `runner.test.ts` generate-once 断言面全改「无条件再生」语义（接口细节同字节断言在）
+  - `pnpm --filter @oscaner-skills/cdd-engine test` 全绿 + `node scripts/run.ts precommit` 全绿

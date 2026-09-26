@@ -2,7 +2,7 @@
 
 **Spec:** [2026-09-21-consumer-parity-p4.2-design.md](docs/osuperpowers/specs/2026-09-21-consumer-parity-p4.2-design.md)
 - **Parent program**: [consumer-parity overall v1.45](docs/osuperpowers/specs/2026-09-21-consumer-parity-overall.md)
-- **Version**: v1.0 · 2026-09-26
+- **Version**: v1.1 · 2026-09-26
 - **Base**: develop
 - **Depends on**: P4.4（shipped · [p4.4-design v1.9](docs/osuperpowers/specs/2026-09-21-consumer-parity-p4.4-design.md)）
 
@@ -20,6 +20,9 @@ repo 治理面（scripts/emit · scripts/validate · release.yml）可依赖 eng
 ### 四表纪律
 回填 = branch-review 前置义务（backfill-overall 由 orchestration 于 branch-review 前执行）；结构性 mismatch → BLOCK；本 plan 终结态（plan complete）落地后 P4.2 行 Design-spec（已完成 v1.1）/ Implementation plan 列按 closeout 规则回填（Task 11 收口位）。
 
+### spec 目标偏离（maintainers 收敛锚）
+Task 9 的 **≤53KB** 锚（编辑集推导下限：03-context-caching 活契约保留不动 + 02/05 终态登记净增 = 不可动先验）与已批准 spec（v1.1 freeze）§5 净目标「62.6KB → ~42KB（-33%）」/ §6 Acceptance「62.6KB → ~42KB」**同面异值**——plan 单方重锚了 spec 承诺的验收面（plan-review-1 F2 授权「重锚为可由编辑集推出的值」，未授权取代 spec 验收数字）；spec 冻结无法就地吸收。本声明登记偏离并路由裁决：42KB 上界 46.2KB 在保留 03 活契约 + 02/05 登记净增的先验下**不可达**（删 03 / 砍 02/05 均 out of scope），**待 orchestrator 开 spec fix 轮**将 spec §5/§6 的 42KB（-33%）修订为 ≤53KB 推导值；修订前 Task 9 验收与 Task 11 ⑤ 探针一律以 **plan 锚 ≤53KB** 为判据（不按 spec 旧值判不合格，四表 closeout 口径一致）；spec 修订落盘后回填本声明。
+
 ### 语言政策
 本 plan 中文主源（Strategy B）；SKILL.md / docs / README 英文主源（Strategy A）——宣讲面（Task 8）为英文原文面，zh mirror 三件全量同步；docs/maintainers 遵循 English-primary。值 token（phase id / tag / SHA / 路径）中立。
 
@@ -27,7 +30,7 @@ repo 治理面（scripts/emit · scripts/validate · release.yml）可依赖 eng
 `node packages/cdd-engine/dist/cli.mjs`（`pnpm --filter @oscaner-skills/cdd-engine dev:stub` 材料化；不走 global register）；skills 调用 cdd 输出零过滤（禁 `tail`/`head`/`2>&1 |`/`EXIT=$?`）。
 
 ### emit 输入面
-skills/report-issues 技能文本改述（Task 7；全形 `packages/osuperpowers/skills/report-issues`）× README/CLAUDE.md 宣讲面（Task 8）为 emit 输入面/引用面——改动后核对 `pnpm run emit` 需求与 `emit:check` 无 drift；`.claude-plugin/`、`marketplace/` 等产物不手改。
+report-issues SKILL.md I5 改述（**Task 6 ④**：body 由 `cdd issue render` 直出 + pluginRoot 寻址删除；全形 `packages/osuperpowers/skills/report-issues`）+ **Task 7** 包内 `scripts/`+`bin/` 整删 + emit repoint（issue-templates import 重指，不涉技能文本）× README/CLAUDE.md 宣讲面（Task 8）为 emit 输入面/引用面——改动后核对 `pnpm run emit` 需求与 `emit:check` 无 drift；`.claude-plugin/`、`marketplace/` 等产物不手改。
 
 ### gh 外发
 Task 10 对 GitHub 仓库元信息（description / topics）做外发变更——gh 操作显式 `--repo Oscaner/skills`；homepageUrl 留空非遗漏（无独立站点）。
@@ -54,7 +57,7 @@ Task 10 对 GitHub 仓库元信息（description / topics）做外发变更—�
 
 ### Task 2: 自研版本管线整删 + 原生 changeset 接线（TG1）
 
-- **Do**: ① 整删 `scripts/release/version-packages.ts` + `scripts/lib/version-utils.ts`（`VersionService`）+ `.changeset/versioned-plugins.json` 机制 + `scripts/run.ts` 的 `version` 子命令入口 + `scripts/release/__tests__` 与 version-utils 相关测试——无中间态、无转发壳（死代码即删）② `.github/workflows/release.yml` 的 changesets/action `version:` 命令改 **`pnpm exec changeset version && pnpm run emit`**（原生 version 消费 changesets + 双包 CHANGELOG + bump package.json；emit 重 stamp osuperpowers 发布产物使 Version PR 上 version-sync 绿；cdd-engine 无 emit 产物、版本只落自身 package.json）③ `.changeset/README.md`（Release flow 述）与 docs/maintainers 发布面文档随改述原生流程 ④ 确认 `changeset version` 在 CI approve-path 可用（Dev:stub 树实测 `changeset version --help` / 沙箱验证 0.1.0 + major → 1.0.0）
+- **Do**: ① 整删 `scripts/release/version-packages.ts` + `scripts/lib/version-utils.ts`（`VersionService`）+ `.changeset/versioned-plugins.json` 机制 + `scripts/run.ts` 的 `version` 子命令入口 + `scripts/release/__tests__` 与 version-utils 相关测试——无中间态、无转发壳（死代码即删）② `.github/workflows/release.yml` 的 changesets/action `version:` 命令改 **`pnpm exec changeset version && pnpm run emit`**（原生 version 消费 changesets + 双包 CHANGELOG + bump package.json；emit 重 stamp osuperpowers 发布产物使 Version PR 上 version-sync 绿；cdd-engine 无 emit 产物、版本只落自身 package.json）③ `.changeset/README.md`（Release flow 述）与 docs/maintainers 发布面文档随改述原生流程 ④ 确认 `changeset version` 在 CI approve-path 可用（工作区 `pnpm exec changeset version --help` 实证；沙箱双腿版本推导引用 spec §1/§6 已裁决证据——cdd-engine 0.1.0 + major → **1.0.0** · osuperpowers 0.1.1 + minor → **0.2.0**）
 - **验收**:
   - `scripts/release/version-packages.ts` / `scripts/lib/version-utils.ts` 零存在（git ls-files 断言）
   - `scripts/run.ts version` 入口已退役（`scripts/run.ts` 无 `version` 子命令声明；run.ts help 面不含）
@@ -68,15 +71,15 @@ Task 10 对 GitHub 仓库元信息（description / topics）做外发变更—�
 - **Do**: ① `.github/workflows/release.yml` `release-plugin` 矩阵改 **git-tag vs package.json semver 判据**——对每包 `git tag --list "<tag_prefix>*" | sort -V | tail -1` 得最新 tag，semver 比较当前 package.json version > 最新 tag → versioned=true（否 false，防幽灵 tag/Release）；**最新 tag 为空 → 显式 versioned=true**（零 tag 首版，如 cdd-engine@1.0.0 首发——无「最小 tag」可比，当前 version 即首版起效；与「防幽灵 tag」同一注释声明）② 矩阵扩**双包条目**：`osuperpowers`（tag_prefix `osuperpowers@`）+ `cdd-engine`（tag_prefix `cdd-engine@`）③ `scripts/validate/version-sync.ts` 增 cdd-engine 段——package.json 声明 semver 格式断言（`^\d+\.\d+\.\d+$` + 无 prerelease/build）；发布态版本身份断言经 `smoke-cdd --expect-version`（Task 4）承担不重复 ④ 注释写明 push 覆盖模型（validate 全覆盖于 PR 面；push→main = emit 新鲜度 + 双 consumer 门）
 - **验收**:
   - release.yml `release-plugin` 矩阵含 `cdd-engine` 条目（grep 断言）+ versioned-plugins.json 读取逻辑零残留
-  - 判据脚本 dry-run 双态实证：① `osuperpowers@0.1.1` 现 tag 存在 → `version > tag` → versioned 判定自洽（本地 shell 演练）；② cdd-engine 零 tag 首版（`git tag --list "cdd-engine@*" | sort -V | tail -1` 为空）→ **versioned=true** 首版分支起效（本地 shell 演练双态，`--expect-version` 断言值 1.0.0 落地）
+  - 判据脚本 dry-run 双态实证：① `osuperpowers@0.1.1` 现 tag 存在 → `version > tag` → versioned 判定自洽（本地 shell 演练）；② cdd-engine 零 tag 首版（`git tag --list "cdd-engine@*" | sort -V | tail -1` 为空）→ **versioned=true** 首版分支起效（本地 shell 演练双态；判据值与 Task 4 ② post 门 `--expect-version 1.0.0` 同值——本组仅演练判据双态，**不执行** `--expect-version`，该参数面属 TG2）
   - `version-sync.ts` 含 cdd-engine 段断言（对 0.1.0 声明合法、非法格式报错实证）
   - `node scripts/run.ts precommit` 全绿
 
 ### Task 4: `smoke-cdd --expect-version` + post-version 门（TG2）
 
-- **Do**: ① `scripts/validate/smoke-cdd.ts` 增可选参数 `--expect-version <semver>`——tarball 内 `package.json` version 字段 `==` 期望值才继续（tarball 断言段新增；不满足 → FAIL 带期望/实际双值）② `.github/workflows/release.yml` 接线 post-version 门（spec §2.2 构造钉死）：changesets/action **前**新增 `pnpm exec changeset status --output=<tmp>` 步判定 `hasChangesets=false`（JSON `changesets` 数组空）→ `if:` 限定该 false push 于 action 前执行 `node scripts/run.ts smoke-cdd --expect-version 1.0.0`——Version PR 合并后的再 push（tree 已 1.0.0 发布态）上「发布品即校验品」字面兑现、拦截在 `changeset publish` 之前；true push 不触发 ③ smoke-cdd 定位说明补位（docs/maintainers；Constraints「gh 外发」外——P4.2 dogfood：owner 不确定其用途 → 写明「consumer-sim = cdd-engine 发布品消费者黑盒」）④ 现有 pre-version 基线门（无 expect-version、action 前）保留
+- **Do**: ① `scripts/validate/smoke-cdd.ts` 增可选参数 `--expect-version <semver>`——tarball 内 `package.json` version 字段 `==` 期望值才继续（tarball 断言段新增）；**consumer 安装态版本身份断言**补位：现 consumer-install 段（`npm install <tarball>`）后追加已装覆盖物 version 断言——读安装态 `node_modules/@oscaner-skills/cdd-engine/package.json` version 字段 `==` 期望值才继续（spec §6「安装后版本身份断言」落点；不满足 → FAIL 带期望/实际双值）② `.github/workflows/release.yml` 接线 post-version 门（spec §2.2 构造钉死）：changesets/action **前**新增 `pnpm exec changeset status --output=<tmp>` 步判定 `hasChangesets=false`（JSON `changesets` 数组空）→ `if:` 限定该 false push 于 action 前执行 `node scripts/run.ts smoke-cdd --expect-version 1.0.0`——Version PR 合并后的再 push（tree 已 1.0.0 发布态）上「发布品即校验品」字面兑现、拦截在 `changeset publish` 之前；true push 不触发 ③ smoke-cdd 定位说明补位（docs/maintainers；Constraints「gh 外发」外——P4.2 dogfood：owner 不确定其用途 → 写明「consumer-sim = cdd-engine 发布品消费者黑盒」）④ 现有 pre-version 基线门（无 expect-version、action 前）保留
 - **验收**:
-  - `node scripts/run.ts smoke-cdd --expect-version 0.1.0`（当前树）全通；`--expect-version 9.9.9` 显式 FAIL（tarball 实际 version 上报）——过/堵双向实证
+  - `node scripts/run.ts smoke-cdd --expect-version 0.1.0`（当前树）全通；`--expect-version 9.9.9` 显式 FAIL（tarball 实际 version 上报）——过/堵双向实证；consumer 安装态断言段（已装 `node_modules/@oscaner-skills/cdd-engine/package.json` version == 期望值）同双侧实证
   - release.yml 含 `changeset status` 判定步 + `if:` 门步 + `--expect-version 1.0.0`（grep 断言）；门步位于 action 之前
   - docs/maintainers 有 smoke-cdd 定位说明（grep 断言）
   - release.yml YAML 语法有效（`actionlint` 或等价解析实证）
@@ -129,7 +132,7 @@ Task 10 对 GitHub 仓库元信息（description / topics）做外发变更—�
 - **Do**: ① **合并** `01-data-driven-templates.md` + `02-template-doctrine.md` → 单文档 `01-template-doctrine.md`（template 面一个文档）；剩余五件按 spec §5 显式映射**连续重编号**（有意不留断号）——`03-naming-conventions.md` → **02** · `04-context-caching-doctrine.md` → **03** · `05-program-experience.md` → **04** · `06-third-party-dependencies.md` → **05**；全文引用（index README + CLAUDE.md + docs/maintainers 内部链接 + 本 plan 断言）一律用新号 ② **精简** `04-program-experience.md`（原 05）19.5KB → ~12KB（程序叙事/已过时条目清除、actionable lessons 保留；consumer-parity 规范节保留）③ **更新** `02-naming-conventions.md`（原 03）到 P4.4 终态（REVIEW_FIX / group-* / `--tasks` / `issue` 词表）+ `05-third-party-dependencies.md`（原 06）到 P4.4 deps 终态（biome · ts7 + `@types/typescript6` shim · execa 10 · vitest 5 登记）④ `03-context-caching-doctrine.md`（原 04，仅重编号）内容保留不动（engine cache-profile 活契约）⑤ **互链零断裂**：index README + CLAUDE.md 引用 + 内部链接全迁新号（链接探针）；index README 随链接收敛（条目与字节共同收敛）；smoke-cdd 定位说明（与 Task 4 ③ 同落点）
 - **验收**:
   - `docs/maintainers` 内容文档 6 → 5（01 合并落盘；五件新号断言：`01-template-doctrine.md` · `02-naming-conventions.md` · `03-context-caching-doctrine.md` · `04-program-experience.md` · `05-third-party-dependencies.md` 在场，零旧号 `02-template-doctrine.md` / 旧 `03`–`06` 文件名残留；grep/ls 断言）
-  - 收敛前后对照：总字节 62.6KB → **≤53KB**（编辑集推导下限：合并 01+02（14,308B → ≤11.5KB · 省 ≥2.8KB）+ 精简 04（19,548B → 12,000B · 省 7.5KB）+ index README 收敛（→ ~2.1KB）+ 03 活契约保留（8,706B）+ 02/05 终态登记净增（→ ~8.3KB / ~10.1KB）≈ **51–53KB**；±10% 容差实证 + 逐文件对照表落盘于 `docs/maintainers/README.md`；spec 净目标 42KB（-33%）上界 46.2KB 外不可达——03-context-caching 活契约保留不动 + 02/05 终态登记净增先验固定，对照表记偏离原因）
+  - 收敛前后对照：总字节 62.6KB → **≤53KB**（编辑集推导下限：合并 01+02（14,308B → ≤11.5KB · 省 ≥2.8KB）+ 精简 04（19,548B → 12,000B · 省 7.5KB）+ index README 收敛（→ ~2.1KB）+ 03 活契约保留（8,706B）+ 02/05 终态登记净增（→ ~8.3KB / ~10.1KB）≈ **51–53KB**；±10% 容差实证 + 逐文件对照表落盘于 `docs/maintainers/README.md`；spec 净目标 42KB（-33%）上界 46.2KB 外不可达——03-context-caching 活契约保留不动 + 02/05 终态登记净增先验固定，偏离登记 Constraints「spec 目标偏离」（spec 冻结、待 spec fix 轮修订 §5/§6 42KB → ≤53KB；探针判据绑定 plan 锚 ≤53KB，不按 spec 旧值判不合格））
   - `02`/`05`（原 03/06）含 P4.4 终态 token（`REVIEW_FIX` / `group-*` / `biome` / `@types/typescript6` 等 grep 断言）
   - 互链完整性探针：`docs/maintainers/` 内 markdown 链接 + CLAUDE.md 引用全部 resolve（重编号新号引用一一可证——`03`→`02` · `04`→`03` · `05`→`04` · `06`→`05`；浩零断裂）
   - `node scripts/run.ts precommit` 全绿
@@ -151,5 +154,5 @@ Task 10 对 GitHub 仓库元信息（description / topics）做外发变更—�
   - `node scripts/run.ts smoke-cdd` 全通；`changeset status` 输出 pending 清单核对一致（backlog 零）
   - 新增 changeset 落盘（`.changeset/consumer-parity-p4.2-*.md` ×2，规范头 + EOF 换行）
   - overall P4.2 行 Implementation plan 列 = **Done** + change-history v-bump 行（四表 closeout 一致性：plan 列 Done ⇔ round 内可证子集 claim + 外部 post-publish 态有主——见验收⑥，声明源不外扩到未执行面）
-  - P4.2 交付面 = spec §6 验收探针 **round 内可证子集** 全绿（版本基线、原生管线实证、issue render 确定性、白名单、workflows、宣讲、maintainers 收敛、gh 元信息）
+  - P4.2 交付面 = spec §6 验收探针 **round 内可证子集** 全绿（版本基线、原生管线实证、issue render 确定性、白名单、workflows、宣讲、**maintainers 收敛（判据 = plan 锚 ≤53KB，绑定 Constraints「spec 目标偏离」声明——spec §6 旧值 42KB 不判不合格，spec 修订以 spec fix 轮落盘为准）**、gh 元信息）
   - **外部 post-publish 态登记有主**：npm 发布实证（`npm view` 可达）+ GitHub Release ×2 落盘 = CI 执行后的程序级外验项（owner = 收口复核 / 后续 dispatch）；本 round 不执行、不宣称，四表 Done 声明范围与此对齐

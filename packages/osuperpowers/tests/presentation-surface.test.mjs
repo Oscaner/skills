@@ -165,6 +165,42 @@ const MIRROR_PAIRS = [
   ["packages/cdd-engine/README.md", "packages/cdd-engine/README.zh-CN.md"],
 ];
 
+// The pinned, ordered top-level zh heading sequence per mirror — the mechanical meat of the
+// mirror sync declaration's "each section corresponds one by one by position" claim. A zh
+// rename, reorder, or mistranslation into the wrong slot fails the deep-equal below; derive
+// new sequences only when a legit README rewrite renames the mirrored section (EN + zh
+// together).
+const ZH_HEADING_SEQUENCES = {
+  "README.zh-CN.md": [
+    "cdd 理念导览",
+    "这是什么",
+    "插件列表",
+    "安装",
+    "快速开始",
+    "架构",
+    "各包文档",
+    "开发",
+    "许可",
+  ],
+  "packages/osuperpowers/README.zh-CN.md": [
+    "osuperpowers 理念导览",
+    "功能",
+    "技能",
+    "安装",
+    "快速开始",
+    "CDD 引擎 CLI",
+    "维护者文档",
+    "许可",
+  ],
+  "packages/cdd-engine/README.zh-CN.md": [
+    "包定位",
+    "安装",
+    "CLI",
+    "开发说明",
+    "许可",
+  ],
+};
+
 for (const [en, zh] of MIRROR_PAIRS) {
   test(`zh mirror sync: ${zh} keeps positional heading parity with ${en}`, () => {
     const enMd = read(en);
@@ -178,9 +214,11 @@ for (const [en, zh] of MIRROR_PAIRS) {
       enHeadings.length,
       `top-level section count drifted between ${en} (${enHeadings.length}) and ${zh} (${zhHeadings.length})`,
     );
-    for (let i = 0; i < zhHeadings.length; i++) {
-      assert.ok(zhHeadings[i].length > 0, "empty heading position in mirror");
-    }
+    assert.deepEqual(
+      zhHeadings,
+      ZH_HEADING_SEQUENCES[zh],
+      `zh top-level heading sequence (:${zh} drifted from the pinned expectation)`,
+    );
   });
 }
 

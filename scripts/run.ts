@@ -80,9 +80,9 @@ const SUBCOMMANDS: CommandMeta[] = [
   {
     name: "smoke-cdd",
     description:
-      "run the cdd-engine consumer-sim (build → pack → consumer install → 5-command dry-run chain)",
+      "run the cdd-engine consumer-sim (build → pack → consumer install → 5-command dry-run chain; --expect-version asserts the release-state version within the packed and installed artifact)",
     modulePath: "./validate/smoke-cdd.ts",
-    kind: "none",
+    kind: "expect-version",
   },
   {
     name: "apply-rules",

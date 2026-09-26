@@ -33,6 +33,15 @@
 //   6. per-command return-block contract assertions (status / commits / artifacts / blocker /
 //      counters) — the consumer-equivalent result surface for every output.
 //
+// Optional `--expect-version <semver>` (release-state version identity assertion, P4.2 / design
+// §2.2 + §6): when present, step 3's tarball assertions additionally require the packed
+// package.json version to EQUAL the expectation, and step 4's consumer install additionally
+// requires the INSTALLED node_modules/@oscaner-skills/cdd-engine/package.json version to equal it
+// (a FAIL reports both the expected and the actual value). Wired as release.yml's post-version
+// release gate (`smoke-cdd --expect-version 1.0.0` after the Version PR merge, before
+// `changeset publish` — the released artifact is the verified artifact); the pre-version baseline
+// gate keeps calling it without the flag (version-agnostic).
+//
 // Entry subcommand `smoke-cdd` keeps its name with the consumer-sim semantics (Non-goal#1 — no new
 // subcommand). The old smoke's P5 deletion-surface sweep (collectGateLexiconHits / checkDeletionSurface)
 // is NOT carried over: that residue face overlaps validate block 5c (residue.ts) — the sweep's
@@ -65,6 +74,19 @@ const DOC_SCHEMA_FILES = [
 
 function assertTrue(cond: boolean, msg: string): void {
   if (!cond) throw new Error(`consumer-sim: ${msg}`);
+}
+
+/** Version identity comparison for the `--expect-version` gate — null when equal, else a mismatch
+ *  message carrying BOTH the expected and the actual value (a release FAIL must show both faces). */
+export function versionMismatch(actualVersion: string, expectVersion: string): string | null {
+  return actualVersion === expectVersion
+    ? null
+    : `version identity mismatch — expected ${expectVersion}, got ${actualVersion}`;
+}
+
+function assertVersionIdentity(actualVersion: string, expectVersion: string, where: string): void {
+  const mismatch = versionMismatch(actualVersion, expectVersion);
+  if (mismatch !== null) throw new Error(`consumer-sim: ${mismatch} (${where})`);
 }
 
 function readSchema(schemaRoot: string, name: string): Record<string, unknown> {
@@ -105,7 +127,7 @@ function tarRead(tgz: string, member: string): string {
   return execaSync("tar", ["-xOzf", tgz, member]).stdout;
 }
 
-function assertTarball(tgz: string): void {
+function assertTarball(tgz: string, expectVersion?: string): void {
   const entries = tarList(tgz);
   const has = (member: string) => entries.includes(member);
   const cliMember = `package/${CLI_ENTRY}`;
@@ -150,11 +172,20 @@ function assertTarball(tgz: string): void {
     !tarRead(tgz, cliMember).includes(root),
     `package/dist/cli.mjs embeds the repo root path ${root} — the tarball is not consumer-standalone`,
   );
+  // Release-state version identity (--expect-version gate): the packed artifact's declared version
+  // must equal the expectation before the consumer install proceeds.
+  if (expectVersion !== undefined) {
+    const packedPkg = JSON.parse(tarRead(tgz, "package/package.json")) as { version: string };
+    assertVersionIdentity(packedPkg.version, expectVersion, "tarball package/package.json");
+  }
 }
 
 // ---- consumer install (step 4) ----
 
-function installConsumer(tgz: string): { consumerRoot: string; installed: string } {
+function installConsumer(
+  tgz: string,
+  expectVersion?: string,
+): { consumerRoot: string; installed: string } {
   const consumerRoot = mkdtempSync(path.join(tmpdir(), "cdd-consumer-repo-"));
   execaSync("git", ["init", "-q"], { cwd: consumerRoot });
   execaSync("git", ["config", "user.email", "cdd-consumer-sim@oscaner.dev"], { cwd: consumerRoot });
@@ -162,6 +193,19 @@ function installConsumer(tgz: string): { consumerRoot: string; installed: string
   execaSync("npm", ["init", "-y"], { cwd: consumerRoot, stdio: "inherit" });
   execaSync("npm", ["install", tgz], { cwd: consumerRoot, stdio: "inherit" });
   const installed = path.join(consumerRoot, "node_modules", ...PKG_SCOPE.split("/"));
+  // Post-install version identity (--expect-version gate, its own assertion surface): the version
+  // that actually LANDED in the consumer's node_modules must equal the expectation (spec §6 —
+  // proves npm install resolved the asserted pack, not a cached/transformed equivalent).
+  if (expectVersion !== undefined) {
+    const installedPkg = JSON.parse(readFileSync(path.join(installed, "package.json"), "utf8")) as {
+      version: string;
+    };
+    assertVersionIdentity(
+      installedPkg.version,
+      expectVersion,
+      "installed node_modules/@oscaner-skills/cdd-engine/package.json",
+    );
+  }
   assertTrue(
     existsSync(path.join(installed, CLI_ENTRY)),
     `installed CLI entry missing: ${path.join(installed, CLI_ENTRY)}`,
@@ -522,7 +566,7 @@ function runConsumerChain({
   }
 }
 
-export function main(): void {
+export function main(expectVersion?: string): void {
   // 1. build — the real unbuild product into dist (dev and publish share the same dist entry).
   execaSync("pnpm", ["--filter", PKG_SCOPE, "build"], { cwd: root, stdio: "inherit" });
 
@@ -542,14 +586,18 @@ export function main(): void {
   const tgz = path.join(outDir, tgzName);
   assertTrue(existsSync(tgz), `pack produced no ${tgzName} at ${outDir}`);
 
-  // 3. tarball content assertions (anti-false-green).
-  assertTarball(tgz);
+  // 3. tarball content assertions (anti-false-green) + release-state version identity.
+  assertTarball(tgz, expectVersion);
 
   // 4. consumer install + 5. consumer chain + 6. per-command return-block assertions.
-  const consumer = installConsumer(tgz);
+  const consumer = installConsumer(tgz, expectVersion);
   runConsumerChain(consumer);
 
   console.log(
-    "OK — cdd-engine consumer-sim (pack → install → cdd schema get + 5-command dry-run chain green, tarball = real product)",
+    `OK — cdd-engine consumer-sim (pack → install → cdd schema get + 5-command dry-run chain green, tarball = real product${
+      expectVersion !== undefined
+        ? `, release-state version identity ${expectVersion} verified at pack + install`
+        : ""
+    })`,
   );
 }

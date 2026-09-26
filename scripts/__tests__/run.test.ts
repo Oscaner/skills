@@ -42,7 +42,7 @@ describe("run.ts command tree (citty Task 21)", () => {
 });
 
 describe("Command invocationArgs — subcommand value passing (Task 9 class face)", () => {
-  const command = (kind: "none" | "dry-run" | "target") =>
+  const command = (kind: "none" | "dry-run" | "target" | "expect-version") =>
     new Command(
       { name: kind, description: "test", modulePath: "./test.ts", kind },
       import.meta.url,
@@ -61,6 +61,13 @@ describe("Command invocationArgs — subcommand value passing (Task 9 class face
     expect(command("target").invocationArgs({ target: "protect-develop" })).toEqual([
       "protect-develop",
     ]);
+  });
+
+  it("expect-version kind forwards the declared semver string (smoke-cdd release gate)", () => {
+    expect(command("expect-version").invocationArgs({ "expect-version": "1.0.0" })).toEqual([
+      "1.0.0",
+    ]);
+    expect(command("expect-version").invocationArgs({})).toEqual([undefined]);
   });
 });
 

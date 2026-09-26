@@ -83,6 +83,36 @@ Operational norms fixed by the consumer-parity P3 rebuild (repo-side validation-
 53. **Signal-safe exit latch** — the CLI signal contract (SIGINT/SIGTERM/SIGHUP → teardownAll → exit 128+signo) must win over a concurrent run-boundary exit. Node's `process.exit` is first-call-decides: when the run's `ExitRequested` unwind and the signal handler both `await teardownAll()` then each call `process.exit`, either code can win. The engine pins the fixed pattern in `packages/cdd-engine/src/bin.ts`: a module-level `signalExitCode` latch set **synchronously** at signal entry (before any await), plus a single exit mapping `finalExit(code) = process.exit(signalExitCode ?? code)` used at every process.exit site (run catches and help sites). Real failure: P3 PR #273's original CI run failed 3/3 signal-safe-exit tests with the handler having fired (`CDD: caught <sig>` in stderr) yet the process exiting with the run's code 1 — the docs-family exit unification (`exitWithCode` non-zero route inside `runReview`, T6) made the race reachable; the latch makes 128+signo deterministic.
 54. **Same-signature CI batch failure = real-defect signal, not random flake** — an N/N failure on the same assertion (here 3/3 signal-exit tests) is a reachability signal, not noise. Attribute before labeling: reproduce locally (the race reproduced 5/20 at HEAD) and pin the mechanism (two concurrent teardownAll→process.exit paths; first-to-call decides). The branch-review's "pre-existing timing flake" tag on `lifecycle.wiring.test.ts` was wrong — the CI gate, not the review, caught it. Rule: a reviewer "flake" label requires reproduction or a known environment divergence; CI same-signature batches get root-caused before re-run, and the fix + re-run overturns or confirms the label.
 
+## 8. Consumer-sim release gate (P4.2, 2026-09-26)
+
+**smoke-cdd positioning** — `smoke-cdd` (`scripts/validate/smoke-cdd.ts`, run as `node scripts/run.ts
+smoke-cdd`) is the **consumer-sim = the cdd-engine published-artifact consumer black-box**: real
+build → pack → tarball assertions → consumer install → `cdd schema get` + 5-command dry-run chain.
+It is the only CI face that installs the packed artifact into an ephemeral consumer repo (zero
+in-repo path dependencies — the engine resolves every runtime resource under `node_modules`). It is
+**exclusive to cdd-engine**; osuperpowers publishes through a normal npm release (the reserved
+channel for npm-harness packages), and its release product is validated by the pack allowlist probe
++ emit products + version-sync, never a pseudo-consumer install.
+
+**Release-only gate** — the daily PR surface runs `pnpm run validate`; the consumer black-box costs
+a full build + pack + install and is deliberately OFF `pr-validate.yml` (validate suffices). Push
+coverage model: validate covers the PR surface in full; push→main itself runs no validate — the
+release surface = emit freshness (`pnpm run emit` pre-step) + the dual consumer gates in
+`release.yml`, both wired **before** the changesets action:
+
+- pre-version baseline gate — `node scripts/run.ts smoke-cdd` (no expectation, version-agnostic);
+  a failure here leaves a clean tree to roll back from;
+- post-version gate — `pnpm exec changeset status` detects the publish-mode push (zero pending
+  changesets = the Version PR was merged onto a 1.0.0 tree), then `smoke-cdd --expect-version
+  1.0.0` asserts the release-state version identity (tarball `package.json` AND installed
+  `node_modules/@oscaner-skills/cdd-engine/package.json` both `== 1.0.0`), intercepting before
+  `changeset publish` — the released artifact is the verified artifact.
+
+**Restore statement** — to move the consumer black-box back onto the daily PR face: add the
+`smoke-cdd` step to `pr-validate.yml` and drop the duplicated pre-version gate from `release.yml`
+(or accept the duplicate); revert is the inverse. `--expect-version` and the pack allowlist probe
+stay release-gate-mechanical regardless of that placement.
+
 ---
 
 **Use**: bake these into scaffolds (templates), consult before touching the program's mechanisms, and treat item 27 as a standing rule for every document this program produces.

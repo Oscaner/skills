@@ -1,6 +1,6 @@
 # Pi Harness P1 — 包侧 pi 分发面（Pi Harness P1: Package-Side Pi Distribution Surface）— Phase Spec
 
-- **Version**: v1.4 · 2026-09-27
+- **Version**: v1.5 · 2026-09-27
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming → writing-phase-spec)
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.3](2026-09-27-pi-harness-overall.md)
@@ -23,11 +23,11 @@
 
 #### 2.1 目标与范围
 
-P1 使 `@oscaner-skills/osuperpowers` 成为 pi 一等 pi-package：manifest 正式化 + 分发闭包守卫 + 安装验收两站。现状实证（grilling fact-finder）：`npm:@oscaner-skills/osuperpowers@0.2.0` 已可被 pi 凭借 conventional `skills/` 布局加载（user settings 中已安装），P1 是"把隐式可用固化为显式声明 + 加守卫"而非首次可达。范围外：任何 `.pi/` 运行时产物、emit 产物面变更、engine 数据面、harness 标识符 rename。
+P1 使 `@oscaner-skills/osuperpowers` 成为 pi 一等 pi-package：manifest 正式化 + 分发闭包守卫 + 安装验收（C4 validate 单站）。现状实证（grilling fact-finder）：`npm:@oscaner-skills/osuperpowers@0.2.0` 已可被 pi 凭借 conventional `skills/` 布局加载（user settings 中已安装），P1 是"把隐式可用固化为显式声明 + 加守卫"而非首次可达。范围外：任何 `.pi/` 运行时产物、emit 产物面变更、engine 数据面、harness 标识符 rename。
 
 #### 2.2 组件
 
-锚点图例：R/Q = grilling 定案轮次锚点（R5 覆盖验收两站：C4 validate 站① / C6 release 站②；Q1′ 为 validate 接线债定案轮）；编号非连续、非必经枚举——缺失编号（如 R2）仅表示该轮未直接产出本 spec 组件，不构成漏项。锚点仅供本 spec 内部溯源，Issue inventory 与 parent overall 均无对应登记（P1 issue ref = none）。
+锚点图例：R/Q = grilling 定案轮次锚点（R5 覆盖验收站：C4 validate 站①；②站已于 v1.4 裁定删除；Q1′ 为 validate 接线债定案轮）；编号非连续、非必经枚举——缺失编号（如 R2）仅表示该轮未直接产出本 spec 组件，不构成漏项。锚点仅供本 spec 内部溯源，Issue inventory 与 parent overall 均无对应登记（P1 issue ref = none）。
 
 **C1 源字段（R1）** — `packages/osuperpowers/package.json` 增（手维护，D2）：
 ```json
@@ -43,7 +43,7 @@ P1 使 `@oscaner-skills/osuperpowers` 成为 pi 一等 pi-package：manifest 正
 1. `pkg.keywords` 含字面 `pi-package`
 2. `pkg.pi` 存在；`pi.skills` 为非空 `string[]`（每项 `./<path>` glob 形态）
 3. `pi` 无 `extensions` / `prompts` 键（R0 守门）
-4. 每个 `pi.<face>` glob 路径在 pkgRoot 下存在；`./skills` 解析出 `EXPECTED` 个 `SKILL.md`（EXPECTED = 既有 `checkOsuperpowersSkillsCount` 的计数单一真相，导出共享复用——T16 去枚举：守卫内部不重复硬编码数值，字面 8 仅保留在 C4/C6 消费者可见验收）
+4. 每个 `pi.<face>` glob 路径在 pkgRoot 下存在；`./skills` 解析出 `EXPECTED` 个 `SKILL.md`（EXPECTED = 既有 `checkOsuperpowersSkillsCount` 的计数单一真相，导出共享复用——T16 去枚举：守卫内部不重复硬编码数值，字面 8 仅保留在 C4 消费者可见验收）
 5. files 闭包：`pi` 声明路径的展开集 ⊆ `pkg.files` 白名单展开集（静态 subset；`./skills` 现由 `skills/` 前缀覆盖）
 
 **C3 背靠测试（R4）** — `packages/osuperpowers/tests/pi-package.test.mjs`（自动进 behavior glob，validate + precommit 双面）：
@@ -55,9 +55,9 @@ P1 使 `@oscaner-skills/osuperpowers` 成为 pi 一等 pi-package：manifest 正
   1. 退出码 0
   2. 安装产物内 `skills/` 含恰 8 个 `SKILL.md`（落点 = pi 安装机制实证路径，plan 阶段探针确认）
   3. 项目 `.pi/settings.json` 写入该包 source（`--local` 使 settings 落项目、不污染 `~/.pi`）
-- **verified-vs-probe 口径**：已核实（grilling fact-finder，2026-09-27）仅 `npm:@oscaner-skills/osuperpowers` 的 npm 路径加载（见 2.1 现状实证）；本地目录 install 旗标**已实测**（pi 0.87.1，T3 测量）——`--local` 写项目 `.pi/settings.json` **需 `--approve`**（trust gate：`--no-approve` 与 `--local` 不兼容，exit 1 "Project is not trusted. Use --approve to modify local package config."，信任按项目、不持久）；`--approve` 非交互自动批准，临时项目即弃；`npm i -g @earendil-works/pi-coding-agent` 安装命令为 CI 装配事实（runner 侧）；与 C6 npm 路径 smoke 互证——实现以实测为准，残余漂移仍回填本 spec
+- **verified-vs-probe 口径**：已核实（grilling fact-finder，2026-09-27）仅 `npm:@oscaner-skills/osuperpowers` 的 npm 路径加载（见 2.1 现状实证）；本地目录 install 旗标**已实测**（pi 0.87.1，T3 测量）——`--local` 写项目 `.pi/settings.json` **需 `--approve`**（trust gate：`--no-approve` 与 `--local` 不兼容，exit 1 "Project is not trusted. Use --approve to modify local package config."，信任按项目、不持久）；`--approve` 非交互自动批准，临时项目即弃；`npm i -g @earendil-works/pi-coding-agent` 安装命令为 CI 装配事实（runner 侧）——实现以实测为准，残余漂移仍回填本 spec
 - **无条件执行**：缺 `pi` 即 FAIL + 错误信息含 `npm i -g @earendil-works/pi-coding-agent`；CI（`.github/actions/validate` 装配）增 `npm i -g @earendil-works/pi-coding-agent` step（**`@latest` 不固定版本**——pi-package 契约须对移动 pi 生态验证，防守卫随生态衰减失效）——零静默 skip（反白绿 AC4 纪律）
-- 残留记录（明示于 docs）：pi 无 CLI 内省其运行时技能清单，LLM 可见性不在本测试覆盖——release 站人工抽查 + P4 D5 消费故事补足
+- 残留记录（明示于 docs）：pi 无 CLI 内省其运行时技能清单，LLM 可见性不在本测试覆盖——publish 前人工抽查 + P4 D5 消费故事补足
 
 **C5 命名 pin 升级（Q1′，validate 接线债）**：
 - `packages/osuperpowers/tests/ci-validate.test.mjs`（~L170-172）与 `scripts/validate/__tests__/pre-commit.test.ts`（L43-51）：step count pin（`==11`）升级为 **name-set 断言**——逐一断言期望 step 名出现（含新 step「osuperpowers pi-package well-formed」）
@@ -109,7 +109,7 @@ P1 使 `@oscaner-skills/osuperpowers` 成为 pi 一等 pi-package：manifest 正
 - **P2（emit 分发注册表）**：消费 `package.json#pi` 作为 pi 分发条目注册的契约输入；本 phase 只固化源字段，不建注册表（P2 硬依赖 P1）
 - **P3（engine 数据面）**：`pi` registry 行 + `AI_AGENT=pi` 检测，不触碰 package 侧字段；`pi-install` 行为与 engine spawn 通道（`pi -p` print 形态）无重叠，per-op 形态 P3 自行定稿
 - **C6 已删（v1.4 裁定）**：release.yml 恢复原状，无修改面；npm-source 解析风险（pi 对 scoped 包 registry 层的接受）= 已知残余——P4 消费故事 / publish 前人工抽查承接
-- **残留记录（consumer 面）**：pi 运行时技能清单无 CLI 内省，skill 可见性由 C6 人工抽查 + P4 D5 消费故事（包序 override 语义）文档化
+- **残留记录（consumer 面）**：pi 运行时技能清单无 CLI 内省，skill 可见性由 publish 前人工抽查 + P4 D5 消费故事（包序 override 语义）文档化
 - **#302（独立 single-spec 程序，非本程序产物）**：Review Convergence 判读规则改动归其 spec；P3/P4 若触碰 Review Convergence 文案以 #302 程序定案为准
 
 ## Section 5: Review

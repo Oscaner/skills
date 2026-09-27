@@ -3,8 +3,8 @@
 **Spec:** [2026-09-27-pi-harness-p1-design.md](docs/osuperpowers/specs/2026-09-27-pi-harness-p1-design.md)
 
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.3](docs/osuperpowers/specs/2026-09-27-pi-harness-overall.md)
-- **Version**: v1.4 · 2026-09-27
-- **Depends on**: P1 design v1.4 Approved（`36e2e8f8`，C6 删除 + unpin 回填）
+- **Version**: v1.5 · 2026-09-27
+- **Depends on**: P1 design v1.5 Approved（`36e2e8f8`，C6 删除 + unpin + 残留清扫）
 - **Base**: develop
 
 ## Constraints
@@ -14,9 +14,9 @@
 - **机制口径**：C4 本地安装旗标**已实测**（pi 0.87.1，T3 测量）：`--local` 写项目 `.pi/settings.json` 需 `--approve`（trust gate——`--no-approve` 与 `--local` 不兼容，exit 1 "Project is not trusted. Use --approve to modify local package config."，按项目信任不持久）→ smoke 一律 `--local --approve`；残余实测不符仍按 verified-vs-probe 口径交 orchestrator（Plan Sole Writer）判定 spec 回填后再继续，实现 agent 不改 spec/plan
 - **pi 版本策略**：`@latest` 不固定版本——pi-package 契约须对移动 pi 生态验证；固定旧版 = 守卫随 pi 生态衰减失效（v1.4 裁定，validate CI 装配 + 测试提示命令一致）
 - **A3 债吸收口径**：residue.ts A3 的 pi 分支为死代码（守卫前提"pi 在该 package.json 是死残留"被本程序整体取代）——整体退役，不设精确正则、不缩 scope、不盲放行；`\bdroid\b` 分支前提未变、保留；residue.test.ts 断言翻转为放行端态（pi 形 → false）并作新世界态 pin（droid 保持 true）
-- **单一真相**：skills 计数单一真相 = `scripts/validate/osuperpowers.ts` 模块级 `EXPECTED`（T1 将 `checkOsuperpowersSkillsCount` 内局部 `const EXPECTED = 8` 提升至模块级并导出 count getter，函数体消费同源；既有实现该常量为函数内局部、无导出）——守卫/测试行为断言统一复用该导出、不硬编码字面 8；字面 8 仅保留在 C4/C6 消费者可见验收与 T1 注闭包实测描述（现状实证、非行为断言，豁免）
+- **单一真相**：skills 计数单一真相 = `scripts/validate/osuperpowers.ts` 模块级 `EXPECTED`（T1 将 `checkOsuperpowersSkillsCount` 内局部 `const EXPECTED = 8` 提升至模块级并导出 count getter，函数体消费同源；既有实现该常量为函数内局部、无导出）——守卫/测试行为断言统一复用该导出、不硬编码字面 8；字面 8 仅保留在 C4 消费者可见验收与 T1 注闭包实测描述（现状实证、非行为断言，豁免）
 - **闭包口径**：files 闭包 = 静态 subset（strip `./` 后目录/文件前缀覆盖判定），validate 循环零 pack 子进程；pack-truth 归 C4 smoke 解包处
-- **零网络**：validate 站本地 install 流程不触网；验收两站中 validate 站零网络
+- **零网络**：validate 站本地 install 流程不触网（单站验收）
 
 ### commit 边界机制
 
@@ -58,7 +58,7 @@
 
 - **Do**: 新建 `packages/osuperpowers/tests/pi-install-smoke.test.mjs`：流程 = `npm pack --pack-destination <mkdtemp>`（cwd `packages/osuperpowers`，产物动态定位不硬编码版本）→ tar 解包（剥离顶层包目录）→ 另建临时「项目」目录作 cwd → `pi install <解包绝对路径> --local --approve` → 断言三连：退出码 0 · 安装产物 `skills/` 含恰 8 个 `SKILL.md`（落点为实现期实测确认路径）· 项目 `.pi/settings.json` 写入该包 source。**旗标已实测定案**（0.87.1：`--local` 需 `--approve`，`--no-approve` 弃用——spec v1.3 已回填）；其余机制（产物落点）以本任务实现期探针实测为准，实测与 spec 描述不符 → 不符点记录为任务产出并交 orchestrator 判定 spec 回填（Plan Sole Writer）。无 `pi` 二进制 → 断言 FAIL 且错误信息含 `npm i -g @earendil-works/pi-coding-agent`（零静默 skip）。`.github/actions/validate` 装配增 `npm i -g @earendil-works/pi-coding-agent` step（版本按 smoke 验收时实测为准）。
 - **验收**: `pi-install-smoke.test.mjs` 在本机（pi 0.87.1）behavior glob 内通过：pack→解包→`pi install <dir> --local --approve` 退出 0 · 安装产物含恰 8 个 `SKILL.md` · 项目 `.pi/settings.json` 写入该包；缺 pi 路径失败信息含安装命令；`.github/actions/validate` 装配备 pi 安装 step。
-- **注**: 本地目录 install 全流程零网络；断言落点与旗标以实测为准（C4 verified-vs-probe 口径）；`pi` 运行时技能清单无 CLI 内省，LLM 可见性不在本测试覆盖——残留记录明示于 docs（spec C4）：落点 = T3 任务产出报告（owner = orchestrator 判定），保留 release 站人工抽查承诺，P4 D5 消费故事补足。
+- **注**: 本地目录 install 全流程零网络；断言落点与旗标以实测为准（C4 verified-vs-probe 口径）；`pi` 运行时技能清单无 CLI 内省，LLM 可见性不在本测试覆盖——残留记录明示于 docs（spec C4）：落点 = T3 任务产出报告（owner = orchestrator 判定），保留 publish 前人工抽查承诺，P4 D5 消费故事补足。
 
 ### Task 4: C6 撤销 + 全局 unpin（设计评审裁定 v1.4）
 

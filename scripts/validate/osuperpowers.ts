@@ -22,12 +22,15 @@ function countSkillsWithMarkdown(dir) {
   ).length;
 }
 
+// Authoritative skills count — module-level single source of truth shared by the skills-count
+// check below and the manifest contract pin (packages/osuperpowers/tests/pi-package.test.mjs).
+export const EXPECTED = 8; // init (deleted at T10) + 3 new spec-writers (T12 writing-{single,overall,phase}-spec)
+
 function checkOsuperpowersSkillsCount() {
   const p = path.join(ROOT, "packages/osuperpowers");
   const manifest = JSON.parse(readFileSync(path.join(p, ".claude-plugin/plugin.json"), "utf8"));
   const skills = manifest.skills;
-  const EXPECTED = 8; // 5（init 已删 T10）+ 3 新 spec-writer（T12 writing-{single,overall,phase}-spec）
-  const EMITTERS_LABEL = `${EXPECTED} skills`; // 纯计数标签（T16 去枚举——不重复写数值，EXPECTED 为唯一计数真相）
+  const EMITTERS_LABEL = `${EXPECTED} skills`; // pure count label (no re-listing; EXPECTED is the only count truth)
   let n: number;
   if (skills === null || skills === undefined) {
     const dir = path.join(p, "skills");

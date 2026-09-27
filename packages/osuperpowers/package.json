@@ -3,6 +3,9 @@
   "version": "0.2.0",
   "private": false,
   "description": "Standalone osuperpowers skills: orchestration + cli-* family + CDD engine.",
+  "keywords": [
+    "pi-package"
+  ],
   "author": {
     "name": "Oscaner Miao",
     "email": "oscaner1997@gmail.com"
@@ -15,6 +18,11 @@
   "homepage": "https://github.com/Oscaner/skills",
   "license": "MIT",
   "bin": {},
+  "pi": {
+    "skills": [
+      "./skills"
+    ]
+  },
   "files": [
     "skills/",
     ".claude-plugin/",

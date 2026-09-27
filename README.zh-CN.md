@@ -1,6 +1,6 @@
 # oscaner-skills
 
-> 🔗 **Mirror 同步声明**：本文件（`README.zh-CN.md`）是英文源 [README.md](README.md) 的同步中文 **mirror**——顶层章节集合逐条一致（8 段，节点按位置一一对应）；本文为对外宣讲面的中文口径，语义以英文源为准。**同步时间戳**：2026-09-23。
+> 🔗 **Mirror 同步声明**：本文件（`README.zh-CN.md`）是英文源 [README.md](README.md) 的同步中文 **mirror**——顶层章节集合逐条一致（9 段，节点按位置一一对应）；本文为对外宣讲面的中文口径，语义以英文源为准。**同步时间戳**：2026-09-26。
 
 [English](README.md) | [中文](README.zh-CN.md)
 
@@ -8,7 +8,46 @@
 [![npm](https://img.shields.io/npm/v/@oscaner-skills/osuperpowers?label=osuperpowers)](https://www.npmjs.com/package/@oscaner-skills/osuperpowers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-个人 AI 编程技能市场。第一方插件 + 上游集成，一条流水线——可供多种 AI 编程 harness 消费（已在 **Claude Code** 与 **Cursor Agent** 上验证）。
+**A cdd-first methodology: continuously-discovered development as the core discipline, AI coding skills as the distribution vehicle.**
+
+（cdd-first 方法论：以持续发现式开发为核心理念，以 AI 编程技能为分发载体。）
+
+本仓库是该方法论及其分发载体的家园。核心理念——**cdd**（continuously-discovered development，持续发现式开发）——被编码为技能，并以可安装插件形式发布，可供多种 AI 编程 harness 消费（已在 **Claude Code** 与 **Cursor Agent** 上验证）。第一方插件在本仓库 `packages/` 下构建，以 `@oscaner-skills/*` scope 发布到 npm；`cdd` 引擎驱动整个流程。
+
+## cdd 理念导览
+
+**cdd（continuously-discovered development，持续发现式开发）** 是一种将规划视为持续发现过程而非一次性前置产物的开发理念。需求通过小步、可验证的增量来发现：每个任务都对照计划规划、依据任务简报由宿主 harness CLI 执行，并对照共享的收敛规则进行评审——因此下一个增量总是基于前一个增量实际学到的东西来规划。
+
+cdd 不是把计划写一次就指望它扛住现实，而是让规划贯穿整个开发过程始终在线，并让每一步都可证明（「是否收敛了？」）而不是想当然（「应该没问题吧？」）。
+
+### 为什么这样设计
+
+- **发现而非预测。** 需求通过实现与评审来发现，而非事先猜测。每一轮的评审发现都会成为下一轮简报的输入——不凭信任接纳任何需求。
+- **小步、可验证的增量。** 每个任务由计划划定范围、由简报承载、以显式状态收尾。过程始终清晰，每处变更都可证明。
+- **单一来源，派生产物。** 事实只存在一处——计划、schema 或 manifest——一切对外发布的东西都由它们派生，纸面与实践不会漂移分家。
+- **确定性执行。** `cdd` 引擎以命令驱动整条链：同样的计划、同样的简报、同样的命令、同样的结果。人与 harness 遵循同一份契约。
+
+### 三种模式链
+
+核心循环是一条由三种模式构成的链：
+
+| 模式 | 职责 |
+|------|------|
+| `implement` | 对照计划的约束，为一组任务执行任务简报 |
+| `review` | 对照固定的评审参考与 lens 指南，评审实现结果 |
+| `fix` | 应用评审发现——blocker、warn 与 nit——并让该轮收敛 |
+
+这条链是一个闭环：implement → review → fix，然后是下一组的 implement。阻断的评审会被送回 `fix` 并重新评审，直到通过；通过的评审收敛后循环前进。当所有组都收敛后，最终的分支评审关闭本次变更并交接给收尾。`cdd` 引擎确定性运行整条链——将每个阶段派发给宿主 harness 并写入 handoff 产物。
+
+### 收敛纪律
+
+评审是结构化的，而非印象式的。每条发现都带有严重级别——blocker、warn 或 nit——与一个 lens，一轮只有在发现收敛时才会结束：
+
+- **blocker** 发现会把该轮送回 `fix` 并重新评审，直到不再剩 blocker；
+- **warn / nit** 发现由一轮收敛的 fix 应用并完成，无需重新评审，发现会被记录；
+- **零发现** 直接关闭评审。
+
+**Review Convergence** 是这一切背后的共享收口规则——评审从不无声通过，fix 轮也从不重开已定的决策。同一条规则关闭任务评审、分支评审、spec 评审与计划评审，让整套方法论在一种纪律下收敛，而非靠一堆临时检查清单。
 
 ## 这是什么
 

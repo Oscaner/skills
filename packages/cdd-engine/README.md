@@ -31,6 +31,7 @@ Global option: `--dry-run` — simulate the dispatch without writing handoff art
 | `fix` | `cdd fix --type=<task\|branch\|spec\|plan>` | Fix review findings — task, branch, spec, or plan |
 | `base-branch` | `cdd base-branch set\|get` | Read/write the `base-branch.json` artifact (single CDD `--plan` target) |
 | `schema` | `cdd schema get <type>` | Print the canonical doc-structure schema (discovery-only, zero enforcement) |
+| `issue` | `cdd issue render` | Render an aggregate issue body from stdin findings (pure rendering, zero enforcement) |
 
 Use `cdd <command> --help` for a command's full option list (for example `cdd review --tasks` / `--base` / `--head` / `--spec` / `--round`).
 

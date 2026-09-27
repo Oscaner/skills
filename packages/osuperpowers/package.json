@@ -15,6 +15,15 @@
   "homepage": "https://github.com/Oscaner/skills",
   "license": "MIT",
   "bin": {},
+  "files": [
+    "skills/",
+    ".claude-plugin/",
+    ".cursor-plugin/",
+    "README.md",
+    "README.zh-CN.md",
+    "CHANGELOG.md",
+    "package.json"
+  ],
   "dependencies": {
     "@oscaner-skills/cdd-engine": "workspace:*"
   },

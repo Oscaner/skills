@@ -2,7 +2,7 @@
 "@oscaner-skills/cdd-engine": major
 ---
 
-P2 consumer-parity breaking 面：harness 契约单源 + 全量 charter 审计 + closeout 统一规则 + `cdd help` + doc-structure schema 单源（breaking = cdd-engine major，1.0.0 → 2.0.0；版本化发布动作归 P4，本 changeset 定版本面与变更面清单）。
+P2 consumer-parity breaking 面：harness 契约单源 + 全量 charter 审计 + closeout 统一规则 + `cdd help` + doc-structure schema 单源（breaking = cdd-engine major，随 0.1.0 基线并入 **1.0.0 首次稳定开版**、不起跳 2.0.0；版本化发布动作归 P4.2，本 changeset 定版本面与变更面清单）。
 
 **handoff schema 契约统一（BREAKING）**：
 
@@ -21,4 +21,4 @@ P2 consumer-parity breaking 面：harness 契约单源 + 全量 charter 审计 +
 
 **全量 charter 审计 + closeout 统一规则**（lifecycle 行为面，随上述钩子全通道生效）：lineage 驱动的四表审计（①–⑥ 面）、closeout 声明源 ↔ 列双向全列（forward + reverse，plan + design）+ engine 派生终态并入 + mismatch 单一推断模块（pre-flight 与 post-flight 同源消费）、终态欠账硬门（回填 = branch-review 前置义务）、dry-run CDD_WARN 降级与 exit 语义不变。
 
-> **semver 说明**：handoff schema 结构升级（docs-family `commits{base,head}` 逆转旧「无 commits」声明 + status 增 TIMEOUT + recovery 核心统一）+ round-context 新 base token + lifecycle 契约结构升级（三通道共享默认钩子）+ 新增 `cdd help` 子命令 = **breaking**，按 major 发布。消费者迁移面：docs-family handoff 消费者需接受新核心块字段（同 task-family 契约）；engine 侧行为面（审计 / closeout 门）对既有合法程序文档链零新增失败（四表合法 → 全绿，dogfood 实证）。仓库内部件（`scripts/run.ts validate` 侧 charter 守卫）随 P3 退役、P4 发布闭环承载版本化，本 changeset 仅定版本面。
+> **semver 说明**：handoff schema 结构升级（docs-family `commits{base,head}` 逆转旧「无 commits」声明 + status 增 TIMEOUT + recovery 核心统一）+ round-context 新 base token + lifecycle 契约结构升级（三通道共享默认钩子）+ 新增 `cdd help` 子命令 = **breaking**，按 major 发布。消费者迁移面：docs-family handoff 消费者需接受新核心块字段（同 task-family 契约）；engine 侧行为面（审计 / closeout 门）对既有合法程序文档链零新增失败（四表合法 → 全绿，dogfood 实证）。仓库内部件（`scripts/run.ts validate` 侧 charter 守卫）随 P3 退役、P4.2 发布闭环承载版本化（cdd-engine 1.0.0 首次稳定开版），本 changeset 仅定版本面。

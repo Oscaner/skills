@@ -1,8 +1,8 @@
 // packages/cdd-engine/src/dispatch/__tests__/plan-constraints.test.ts — T22 / spec §T7.1
 // plan-constraints materialization contract. Unit seam: the pure extraction family + the
-// materializer + the stale checker from dispatch/task.ts (the black-box pre-flight gate itself
-// lives in runner.test.ts — this file covers the deterministic-extraction / missing-source /
-// stale-anchor planes the brief calls out).
+// materializer from dispatch/task.ts (the black-box pre-flight regeneration itself lives in
+// runner.test.ts — this file covers the deterministic-extraction / missing-source /
+// unconditional-overwrite planes the brief calls out).
 
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -10,11 +10,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { hashFile } from "../../artifacts/hash.ts";
 import { DocumentsValidator } from "../../rules/documents.ts";
-import {
-  ConstraintsSourceUndeclared,
-  isPlanConstraintsStale,
-  materializePlanConstraints,
-} from "../task.ts";
+import { ConstraintsSourceUndeclared, materializePlanConstraints } from "../task.ts";
 
 // The plan-Constraints extractor is a DocumentsValidator instance method (the class face — no
 // bare export on dispatch/task.ts, Criterion ⑤); the extraction plane below consumes the instance.
@@ -223,14 +219,13 @@ describe("extractPlanConstraints — missing source", () => {
   });
 });
 
-describe("materializePlanConstraints — generate-once workspace artifact", () => {
+describe("materializePlanConstraints — unconditional regeneration (TG8)", () => {
   it("writes plan-constraints.md with a deterministic plan-hash anchor header", () => {
     const plan = tmpPlan(PROSE_PLAN);
     const ws = mkdtempSync(path.join(tmpdir(), "cdd-plan-ws-"));
-    const res = materializePlanConstraints(plan, ws);
-    expect(res.generated).toBe(true);
-    expect(res.path).toBe(path.join(ws, "plan-constraints.md"));
-    const text = readFileSync(res.path, "utf8");
+    const outPath = materializePlanConstraints(plan, ws);
+    expect(outPath).toBe(path.join(ws, "plan-constraints.md"));
+    const text = readFileSync(outPath, "utf8");
     // anchor: plan hash + basename only (never the absolute root — machine-independent bytes)
     expect(text).toContain(`plan hash: ${hashFile(plan)}`);
     expect(text).toContain(`source plan: plan.md`);
@@ -239,34 +234,29 @@ describe("materializePlanConstraints — generate-once workspace artifact", () =
     expect(text.endsWith(PROSE_EXTRACTED)).toBe(true);
   });
 
-  it("existing file → no rewrite (generate once), custom content untouched", () => {
+  it("existing file is overwritten (no generate-once skip), operator content replaced", () => {
     const plan = tmpPlan(PROSE_PLAN);
     const ws = mkdtempSync(path.join(tmpdir(), "cdd-plan-ws-"));
     writeFileSync(path.join(ws, "plan-constraints.md"), "operator legible content\n");
-    const res = materializePlanConstraints(plan, ws);
-    expect(res.generated).toBe(false);
-    expect(readFileSync(path.join(ws, "plan-constraints.md"), "utf8")).toBe(
-      "operator legible content\n",
-    );
+    const outPath = materializePlanConstraints(plan, ws);
+    const text = readFileSync(outPath, "utf8");
+    expect(text).not.toContain("operator legible content");
+    expect(text).toContain(`plan hash: ${hashFile(plan)}`);
+    expect(text.endsWith(PROSE_EXTRACTED)).toBe(true);
+    // the deterministic header (plan basename + hash) is regenerated, not the operator file
+    expect(text.startsWith("<!-- plan-constraints.md — CDD workspace artifact")).toBe(true);
   });
 
-  it("plan with no constraint source → throws ConstraintsSourceUndeclared, writes nothing", () => {
-    const plan = tmpPlan(NO_SOURCE_PLAN);
-    const ws = mkdtempSync(path.join(tmpdir(), "cdd-plan-ws-"));
-    expect(() => materializePlanConstraints(plan, ws)).toThrow(ConstraintsSourceUndeclared);
-    expect(existsSync(path.join(ws, "plan-constraints.md"))).toBe(false);
-  });
-});
-
-describe("isPlanConstraintsStale — plan-hash anchor comparison", () => {
-  it("fresh: anchor matches current plan → false", () => {
+  it("second call with the same plan rewrites identical bytes (determinism preserved)", () => {
     const plan = tmpPlan(PROSE_PLAN);
     const ws = mkdtempSync(path.join(tmpdir(), "cdd-plan-ws-"));
-    materializePlanConstraints(plan, ws);
-    expect(isPlanConstraintsStale(path.join(ws, "plan-constraints.md"), plan)).toBe(false);
+    const first = materializePlanConstraints(plan, ws);
+    const second = materializePlanConstraints(plan, ws);
+    expect(second).toBe(first);
+    expect(readFileSync(second, "utf8")).toBe(readFileSync(first, "utf8"));
   });
 
-  it("plan content moved after generation → true", () => {
+  it("plan content change between calls → the next call reflects the new extraction", () => {
     const plan = tmpPlan(PROSE_PLAN);
     const ws = mkdtempSync(path.join(tmpdir(), "cdd-plan-ws-"));
     materializePlanConstraints(plan, ws);
@@ -274,14 +264,18 @@ describe("isPlanConstraintsStale — plan-hash anchor comparison", () => {
       plan,
       PROSE_PLAN.replace("mouthpiece constraint", "mouthpiece constraint — revised"),
     );
-    expect(isPlanConstraintsStale(path.join(ws, "plan-constraints.md"), plan)).toBe(true);
+    const outPath = materializePlanConstraints(plan, ws);
+    const text = readFileSync(outPath, "utf8");
+    expect(text).toContain("mouthpiece constraint — revised");
+    expect(text).not.toContain("mouthpiece constraint\n");
+    // the anchor follows the source plan hash, so provenance stays current
+    expect(text).toContain(`plan hash: ${hashFile(plan)}`);
   });
 
-  it("un-anchored / missing file → stale (cannot confirm freshness)", () => {
-    const plan = tmpPlan(PROSE_PLAN);
+  it("plan with no constraint source → throws ConstraintsSourceUndeclared, writes nothing", () => {
+    const plan = tmpPlan(NO_SOURCE_PLAN);
     const ws = mkdtempSync(path.join(tmpdir(), "cdd-plan-ws-"));
-    writeFileSync(path.join(ws, "plan-constraints.md"), "no anchor here\n");
-    expect(isPlanConstraintsStale(path.join(ws, "plan-constraints.md"), plan)).toBe(true);
-    expect(isPlanConstraintsStale(path.join(ws, "does-not-exist.md"), plan)).toBe(true);
+    expect(() => materializePlanConstraints(plan, ws)).toThrow(ConstraintsSourceUndeclared);
+    expect(existsSync(path.join(ws, "plan-constraints.md"))).toBe(false);
   });
 });

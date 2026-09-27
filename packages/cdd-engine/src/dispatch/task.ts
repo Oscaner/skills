@@ -470,29 +470,29 @@ export class TaskLifecycle extends DispatchLifecycle {
         round,
         findingsPath: this.#opts.findingsPath,
       });
-      // Plan-constraints existence gate (T22, §T7.1) — implement pre-flight, dry-run exempt. Runs
+      // Plan-constraints regeneration (T22, §T7.1) — implement pre-flight, dry-run exempt. Runs
       // BEFORE the F11 brief generation below (the brief does not feed extraction): a
       // source-undeclared BLOCK aborts pre-dispatch with zero workspace residue, rather than
       // leaving a partial brief artifact on disk (findings 6).
-      // Missing → materialize once from the plan's declared Constraints source (workitem same
-      // class as the brief; the anchor records the source plan hash for stale detection); a plan
-      // declaring no Constraints source → BLOCK (constraints source undeclared). The BLOCK is explicit — never a
-      // silent fallback to "brief as sole authority" (E27: source-less fallback was the recurring
-      // root cause this gate kills). dry-run keeps zero constraints side effects: no materialize,
-      // no gate (T10 dry-run gate-family semantics). Generate-once: materialize writes or throws —
-      // no post-call existsSync re-check (dead in the write-or-throw contract, findings 5).
+      // Every implement dispatch (each task-group start) unconditionally regenerates
+      // plan-constraints.md from the plan's declared Constraints source, overwriting any existing
+      // file — a mid-backfill edit to the plan's Constraints lands on disk at the next TG start
+      // (no generate-once existence skip; equal plans rewrite equal bytes, the header keeps the
+      // source plan hash as provenance). A plan declaring no Constraints source → BLOCK
+      // (constraints source undeclared). The BLOCK is explicit — never a silent fallback to "brief
+      // as sole authority" (E27: source-less fallback was the recurring root cause this gate
+      // kills). dry-run keeps zero constraints side effects: no materialize, no gate (T10 dry-run
+      // gate-family semantics).
       if (!this.#dryRun && mode === "implement") {
-        if (!existsSync(ctx.constraintsPath)) {
-          try {
-            materializePlanConstraints(planWorkspace.plan, ctx.workspace);
-          } catch (e) {
-            throw new CddExitError(
-              e instanceof ConstraintsSourceUndeclared
-                ? e.message
-                : `${PLAN_CONSTRAINTS_MISSING_BLOCKER} (${(e as Error).message})`,
-              { exitCode: 1, kind: "run-blocked" },
-            );
-          }
+        try {
+          materializePlanConstraints(planWorkspace.plan, ctx.workspace);
+        } catch (e) {
+          throw new CddExitError(
+            e instanceof ConstraintsSourceUndeclared
+              ? e.message
+              : `${PLAN_CONSTRAINTS_MISSING_BLOCKER} (${(e as Error).message})`,
+            { exitCode: 1, kind: "run-blocked" },
+          );
         }
       }
       // F11: self-provision the task brief at plan finalization (--plan takes effect on
@@ -1229,18 +1229,15 @@ export function isTaskPending(
 // ---- plan-constraints materialization (T22/§T7.1; pure functions, unit-test seam) ----
 
 // The workspace-derived constraints artifact name (derive-only until T22 — the recurring
-// "plan-constraints.md missing → brief is the sole authority" note root cause: derived but never generated).
+// "plan-constraints.md missing → brief is the sole authority" note root cause: derived but never
+// generated; regenerated unconditionally at every implement dispatch, see the resolveContext
+// pre-flight).
 const PLAN_CONSTRAINTS_FILE = "plan-constraints.md";
 // The actionable BLOCK face for an un-materializable constraints file — single module const for
-// the materializer catch fallback (findings 5: the generate-once post-check is gone because
-// materializePlanConstraints either writes the file or throws, never returns with it absent).
+// the materializer catch fallback (materializePlanConstraints either writes the file or throws,
+// never returns with it absent).
 const PLAN_CONSTRAINTS_MISSING_BLOCKER =
   "plan-constraints.md missing — run materializer or declare a plan Constraints source";
-// Plan-hash anchor token embedded in the artifact header (stale anchor; parsed by
-// isPlanConstraintsStale). The anchor is the ONLY path token in the file — the header embeds
-// the plan basename + content hash, never the absolute root — so equal plans produce equal
-// artifact bytes on any machine (recomputable test baseline).
-const PLAN_HASH_RE = /plan hash: ([0-9a-f]{64})/;
 // Legacy prose-pointer anchors, canonical order — extraction order is this constant, never plan
 // line order (byte-determinism). The bare names derive from the canonical plan schema's Form-B
 // anchor tokens (tokens.ts; `**口径**：` → `口径`); the canonical form (literal `## Constraints`)
@@ -1259,6 +1256,10 @@ export class ConstraintsSourceUndeclared extends CddExitError {
 }
 
 // Byte-deterministic artifact header: provenance + the plan-hash anchor (never the absolute path).
+// The anchor is provenance only — regeneration is unconditional, no stale detection. It is the
+// ONLY path token in the file — the header embeds the plan basename + content hash, never the
+// absolute root — so equal plans produce equal artifact bytes on any machine (recomputable test
+// baseline).
 function constraintsHeader(planPath: string, hash: string): string {
   return [
     `<!-- ${PLAN_CONSTRAINTS_FILE} — CDD workspace artifact derived from the plan's declared Constraints source. Do not edit. -->`,
@@ -1267,17 +1268,15 @@ function constraintsHeader(planPath: string, hash: string): string {
   ].join("\n");
 }
 
-/** Materialize plan-constraints.md in the workspace from the plan's declared Constraints source
- * (T22/§T7.1). Generate-once: an existing file is left untouched (the anchor surfaces staleness
- * via isPlanConstraintsStale). A plan declaring no Constraints source throws
- * ConstraintsSourceUndeclared — never a silent fallback (the derived artifact's existence gate is
- * the implement pre-flight's non-negotiable input). */
-export function materializePlanConstraints(
-  plan: string,
-  workspace: string,
-): { path: string; generated: boolean } {
+/** Regenerate plan-constraints.md in the workspace from the plan's declared Constraints source
+ * (T22/§T7.1). Unconditional: every call overwrites the file with the fresh extraction — equal
+ * plans rewrite equal bytes (the deterministic header keeps the source-plan hash as provenance),
+ * so the implement pre-flight can call this at every task-group start to land mid-backfill edits
+ * to the plan's Constraints on disk; no generate-once existence skip. A plan declaring no
+ * Constraints source throws ConstraintsSourceUndeclared — never a silent fallback (the derived
+ * artifact is the implement pre-flight's non-negotiable input). Returns the artifact path. */
+export function materializePlanConstraints(plan: string, workspace: string): string {
   const outPath = path.join(workspace, PLAN_CONSTRAINTS_FILE);
-  if (existsSync(outPath)) return { path: outPath, generated: false };
   const content = new DocumentsValidator().extractPlanConstraints(readFileSync(plan, "utf8"));
   if (content === null) {
     throw new ConstraintsSourceUndeclared(
@@ -1285,18 +1284,5 @@ export function materializePlanConstraints(
     );
   }
   writeFileSync(outPath, constraintsHeader(plan, hashFile(plan)) + content, "utf8");
-  return { path: outPath, generated: true };
-}
-
-/** Stale detection (T22 ④): compare the plan-hash anchor in an existing plan-constraints.md
- * against the current plan. Unreadable / un-anchored / sha mismatch → stale (true) — an
- * anchor-less file cannot be confirmed fresh. Recomputable baseline: same plan bytes → same hash. */
-export function isPlanConstraintsStale(constraintsFile: string, planPath: string): boolean {
-  try {
-    const m = readFileSync(constraintsFile, "utf8").match(PLAN_HASH_RE);
-    if (!m) return true;
-    return m[1] !== hashFile(planPath);
-  } catch {
-    return true;
-  }
+  return outPath;
 }

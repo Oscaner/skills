@@ -5,7 +5,7 @@
 //   · assemble — the citty CommandDef (declared args + the lazy run handler);
 //   · invoke — lazy module dispatch (each subcommand's dependency graph loads only on
 //     first use — the Task 21 lazy-load contract is untouched).
-// run.ts is now a composition root: it declares the seven Command instances and mounts
+// run.ts is now a composition root: it declares the six Command instances and mounts
 // their assembled defs under mainCommand, never a forwarding shell to module mains.
 
 import type { ArgsDef, CommandDef } from "citty";
@@ -13,12 +13,13 @@ import { defineCommand } from "citty";
 
 /** Subcommand value passing — the contract between a run() handler and the lazily-loaded module
  * main (the forwarded args are the parsed citty args named by the subcommand's own argsDef):
- *   "none"    → main() — zero-arg mains (emit/emit-check/validate/precommit/smoke-cdd must never
- *              see an options object in that slot);
- *   "dry-run" → main({ dryRun }) — version's destructured option (presence-based boolean: absent
- *              → false, present → true);
- *   "target"  → main(target) — apply-rules' single mandatory positional. */
-export type InvocationKind = "none" | "dry-run" | "target";
+ *   "none"           → main() — zero-arg mains (emit/emit-check/validate/precommit must never see
+ *                      an options object in that slot);
+ *   "dry-run"        → main({ dryRun }) — presence-based boolean (absent → false, present → true);
+ *   "expect-version" → main(expectVersion) — optional string option (smoke-cdd's --expect-version
+ *                      release-state version identity assertion; absent → undefined);
+ *   "target"         → main(target) — apply-rules' single mandatory positional. */
+export type InvocationKind = "none" | "dry-run" | "expect-version" | "target";
 
 /** Command identity — the meta facet (typed carrier, Criterion ⑥). */
 export interface CommandMeta {
@@ -43,6 +44,15 @@ const INVOCATION_FACETS: Record<InvocationKind, InvocationFacet> = {
   "dry-run": {
     argsDef: { "dry-run": { type: "boolean", description: "preview without writing" } },
     forwarded: (args) => [{ dryRun: args["dry-run"] === true }],
+  },
+  "expect-version": {
+    argsDef: {
+      "expect-version": {
+        type: "string",
+        description: "assert the packed/installed cdd-engine version equals this semver",
+      },
+    },
+    forwarded: (args) => [args["expect-version"] as string | undefined],
   },
   target: {
     argsDef: { target: { type: "positional", description: "protect-develop | protect-main" } },
@@ -82,7 +92,7 @@ export class Command {
   }
 
   /** invoke — lazy module dispatch. A numeric module-main return is an exit code
-   * (validate/version/apply-rules main → 1 on failure); undefined returners
+   * (validate/apply-rules main → 1 on failure); undefined returners
    * (emit/emit-check/smoke-cdd) rely on the top-level catch for non-zero. */
   async invoke(args: Record<string, unknown>): Promise<void> {
     const mod = (await import(new URL(this.meta.modulePath, this.#baseUrl).href)) as {

@@ -19,7 +19,7 @@ import {
   hasCjkProse,
 } from "../../lib/english-comments.ts";
 
-const ROOT = path.resolve(new URL("../..", import.meta.url).pathname);
+const ROOT = path.resolve(new URL("../../..", import.meta.url).pathname);
 
 describe("commentUnitsOf (string/template/regex-aware walker)", () => {
   it("finds line comments outside string literals", () => {

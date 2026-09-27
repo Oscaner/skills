@@ -1,12 +1,20 @@
 # @oscaner-skills/osuperpowers
 
-> 🔗 **Mirror 同步声明**：本文件（`README.zh-CN.md`）是英文源 [README.md](README.md) 的同步中文 **mirror**——顶层章节集合逐条一致，节点按位置一一对应；本文为对外宣讲面的中文口径，语义以英文源为准。**同步时间戳**：2026-09-24。
+> 🔗 **Mirror 同步声明**：本文件（`README.zh-CN.md`）是英文源 [README.md](README.md) 的同步中文 **mirror**——顶层章节集合逐条一致，节点按位置一一对应；本文为对外宣讲面的中文口径，语义以英文源为准。**同步时间戳**：2026-09-26。
 
 [English](README.md) | [中文](README.zh-CN.md)
 
 个人 AI 编程技能——osuperpowers 编排、`cli-*` CDD 引擎家族与 report-issues 仓库工具——打包为可安装插件，供多种 AI 编程 harness 消费（已在 **Claude Code** 与 **Cursor Agent** 上验证）。
 
-## 插件定位
+## osuperpowers 理念导览
+
+osuperpowers 是 cdd-first 方法论的分发载体：它将**持续发现式开发（continuously-discovered development）**的实践打包为可安装技能，并以确定性的 `cdd` 引擎支撑整个流程（完整方法论见仓库 [README](../README.md)）。
+
+- **cdd 为核心理念。** 开发经由三种模式链——implement → review → fix——由计划驱动，每个阶段都在同一条收敛规则下收口。
+- **编排为流程层。** 编排器技能承载流程：澄清问题、带结构化评审的 spec 与计划撰写、分支收尾——每个阶段由评审收口，而非靠假设。
+- **引擎为执行层。** `cdd` CLI 让链条确定化——同样的计划、同样的简报、同样的命令、同样的结果。引擎把每个阶段派发给宿主 harness 并写入 handoff 产物；技能从不重造引擎的机制。
+
+## 功能
 
 三个技能家族：
 
@@ -58,18 +66,18 @@ npm install @oscaner-skills/osuperpowers
 
 ## CDD 引擎 CLI
 
-CDD 引擎以独立 `@oscaner-skills/cdd-engine` 包发布；其唯一 CLI 运行器是 `cdd`（implement / review / fix / base-branch / schema）。它通过引擎内嵌的 harness 注册表（逐 harness 的调用与输出契约）将每个阶段派发给宿主 harness CLI：
+CDD 引擎以独立 `@oscaner-skills/cdd-engine` 包发布；其唯一 CLI 运行器是 `cdd`（implement / review / fix / base-branch / schema / issue）。它通过引擎内嵌的 harness 注册表（逐 harness 的调用与输出契约）将每个阶段派发给宿主 harness CLI：
 
 | Harness | CLI 二进制 | 交付状态 |
 |---------|------------|----------|
 | claude | `claude` | Full |
 | cursor-agent | `cursor-agent` | Full |
 
-`cdd schema get <type>` 直出引擎的 canonical 文档结构 schema（发现型、与原 schema 文件同字节）。完整 CLI 参考见 [cdd-engine README](../cdd-engine/README.zh-CN.md)。
+`cdd schema get <type>` 直出引擎的 canonical 文档结构 schema（发现型、与原 schema 文件同字节），`cdd issue render` 依据 stdin 发现渲染聚合 issue 正文（纯渲染、零执法）。完整 CLI 参考见 [cdd-engine README](../cdd-engine/README.zh-CN.md)。
 
 ## 维护者文档
 
-本单仓开发者的仓库内部维护文档（不随插件发布）。[docs/maintainers 索引](../../docs/maintainers/README.md) 链接编号族文档——如 [program experience](../../docs/maintainers/05-program-experience.md)（程序经验）与 [data-driven templates](../../docs/maintainers/01-data-driven-templates.md)（数据驱动模板惯例，约束 emit 派生产物）。
+本单仓开发者的仓库内部维护文档（不随插件发布）。[docs/maintainers 索引](../../docs/maintainers/README.md) 链接编号族文档——如 [program experience](../../docs/maintainers/04-program-experience.md)（程序经验）与 [template doctrine](../../docs/maintainers/01-template-doctrine.md)（模板惯例，约束 emit 派生产物）。
 
 ## 许可
 

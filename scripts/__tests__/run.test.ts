@@ -25,16 +25,11 @@ const sub = (name: string) =>
   )[name];
 
 describe("run.ts command tree (citty Task 21)", () => {
-  it("declares exactly the seven administrative subcommands", () => {
+  it("declares exactly the six administrative subcommands", () => {
     const keys = Object.keys(mainCommand.subCommands as Record<string, unknown>);
     expect([...keys].sort()).toEqual(
-      ["apply-rules", "emit", "emit-check", "precommit", "smoke-cdd", "validate", "version"].sort(),
+      ["apply-rules", "emit", "emit-check", "precommit", "smoke-cdd", "validate"].sort(),
     );
-  });
-
-  it("version declares a presence-based --dry-run boolean (no default → undefined when absent)", () => {
-    const args = sub("version").args;
-    expect(args["dry-run"]).toEqual({ type: "boolean", description: "preview without writing" });
   });
 
   it("apply-rules declares its single mandatory positional target", () => {
@@ -47,7 +42,7 @@ describe("run.ts command tree (citty Task 21)", () => {
 });
 
 describe("Command invocationArgs — subcommand value passing (Task 9 class face)", () => {
-  const command = (kind: "none" | "dry-run" | "target") =>
+  const command = (kind: "none" | "dry-run" | "target" | "expect-version") =>
     new Command(
       { name: kind, description: "test", modulePath: "./test.ts", kind },
       import.meta.url,
@@ -57,7 +52,7 @@ describe("Command invocationArgs — subcommand value passing (Task 9 class face
     expect(command("none").invocationArgs({})).toEqual([]);
   });
 
-  it("version forwards presence-based dryRun: present → true, absent → false", () => {
+  it("dry-run kind forwards presence-based dryRun (class contract; version was the retired consumer)", () => {
     expect(command("dry-run").invocationArgs({ "dry-run": true })).toEqual([{ dryRun: true }]);
     expect(command("dry-run").invocationArgs({})).toEqual([{ dryRun: false }]);
   });
@@ -67,21 +62,20 @@ describe("Command invocationArgs — subcommand value passing (Task 9 class face
       "protect-develop",
     ]);
   });
+
+  it("expect-version kind forwards the declared semver string (smoke-cdd release gate)", () => {
+    expect(command("expect-version").invocationArgs({ "expect-version": "1.0.0" })).toEqual([
+      "1.0.0",
+    ]);
+    expect(command("expect-version").invocationArgs({})).toEqual([undefined]);
+  });
 });
 
 describe("run.ts exit-code table (P5 §2.4.2, engine parity)", () => {
-  it("root --help exits 0 and lists all seven subcommands", async () => {
+  it("root --help exits 0 and lists all six subcommands", async () => {
     const { stdout, exitCode } = await runCli(["--help"]);
     expect(exitCode).toBe(0);
-    for (const c of [
-      "emit",
-      "emit-check",
-      "validate",
-      "precommit",
-      "smoke-cdd",
-      "version",
-      "apply-rules",
-    ]) {
+    for (const c of ["emit", "emit-check", "validate", "precommit", "smoke-cdd", "apply-rules"]) {
       expect(stdout).toMatch(c);
     }
   });
@@ -97,11 +91,5 @@ describe("run.ts exit-code table (P5 §2.4.2, engine parity)", () => {
     const { stderr, exitCode } = await runCli(["apply-rules"]);
     expect(exitCode).toBe(2);
     expect(stderr).toMatch(/Missing required positional argument: TARGET/);
-  });
-
-  it("version --dry-run reaches main as dryRun (dry-run banner only, exit 0)", async () => {
-    const { stdout, exitCode } = await runCli(["version", "--dry-run"]);
-    expect(exitCode).toBe(0);
-    expect(stdout).toMatch(/dry-run/);
   });
 });

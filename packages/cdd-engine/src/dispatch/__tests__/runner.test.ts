@@ -1705,11 +1705,11 @@ it("runTask T8: post-run validateCommitContract — implement dirty tree → 实
   }
 });
 
-// ---- Plan-constraints materialization + implement pre-flight existence gate (T22) ----
+// ---- Plan-constraints materialization + implement pre-flight regeneration gate (T22 / TG8) ----
 
-// Fixture (T22/§T7.1): git repo + committed plan (parametrized content) + workspace WITHOUT a
-// pre-written plan-constraints.md — the materializer's "generate once" surface is exercised by
-// letting runTask self-provision it (like F11's generateBrief, same resolveContext point).
+// Fixture (T22/§T7.1): git repo + committed plan (parametrized content) + workspace. The
+// materializer's regeneration surface is exercised by letting runTask materialize
+// plan-constraints.md (like F11's generateBrief, same resolveContext point).
 function t22Workspace(planContent: string) {
   const repo = gitInitReal(mkdtempSync(path.join(tmpdir(), "cdd-t22-ws-")));
   commitValidDocs(repo, PLAN_REL, planContent);
@@ -1799,6 +1799,53 @@ it("runTask T22: implement pre-flight 缺失 constraints → 自 plan 声明源�
     expect(text).not.toContain(t22.repo);
     // dispatch 照常完成（实体化 handoff 同样落地）
     expect(existsSync(path.join(t22.ws, "tasks-1-implement.json"))).toBe(true);
+  } finally {
+    restore();
+  }
+});
+
+// Black-box ①b (TG8): implement pre-flight regenerates a pre-existing plan-constraints.md every
+// dispatch — the generate-once existsSync skip is gone; operator content is replaced by the
+// plan-declared extraction (equal plans → equal bytes).
+it("runTask T22/TG8: implement pre-flight overwrites a pre-existing plan-constraints.md every dispatch", async () => {
+  const t22 = t22Workspace(T22_PROSE_PLAN);
+  const cpPath = path.join(t22.ws, "plan-constraints.md");
+  writeFileSync(cpPath, "operator legible content\n"); // pre-existing artifact — stale face
+  const report = path.join(t22.ws, "tasks-1-report.md");
+  const tev = path.join(t22.ws, "tasks-1-test-evidence.json");
+  writeFileSync(report, "report body\n");
+  writeFileSync(
+    tev,
+    JSON.stringify({ command: "npx vitest run", exit_code: 0, passed: true, warnings_count: 0 }),
+  );
+  const restore = withFakeCli(
+    t22.binDir,
+    "fake-cli",
+    [
+      "#!/usr/bin/env bash",
+      "printf '%s\\n' 'status: APPROVED'",
+      "printf '%s\\n' 'commits: base=x head=y'",
+      `printf '%s\\n' 'artifacts: report=${report} test_evidence=${tev}'`,
+      "printf '%s\\n' 'blocker: none'",
+      "exit 0",
+    ].join("\n"),
+  );
+  try {
+    const res = await TaskLifecycle.run("ghost", 1, {
+      mode: "implement",
+      planFile: t22.planFile,
+      root: t22.repo,
+      registryPath: t22.regPath,
+      noExit: true,
+    });
+    expect(res.exitCode).toBe(0); // regeneration runs before dispatch, gate passes → green
+    // operator content is gone — replaced by the plan-declared extraction + deterministic header
+    const text = readFileSync(cpPath, "utf8");
+    expect(text).not.toContain("operator legible content");
+    expect(text).toMatch(/plan hash: [0-9a-f]{64}/);
+    expect(text).toContain("**口径**：mouthpiece constraint");
+    expect(text).toContain("**顺序原则**：ordering-principle constraint");
+    expect(text).not.toContain(t22.repo);
   } finally {
     restore();
   }

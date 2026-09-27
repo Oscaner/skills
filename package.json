@@ -6,7 +6,6 @@
     "changeset": "changeset",
     "validate": "node scripts/run.ts validate",
     "precommit": "node scripts/run.ts precommit",
-    "version": "node scripts/run.ts version",
     "emit": "node scripts/run.ts emit",
     "emit:check": "node scripts/run.ts emit-check",
     "biome": "biome check .",

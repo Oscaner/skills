@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository purpose
 
-A **multi-harness AI coding skills marketplace**. Personal skills are packaged as installable plugins consumed by multiple AI coding harnesses (verified on Claude Code and Cursor Agent).
+**A cdd-first methodology: continuously-discovered development as the core discipline, AI coding skills as the distribution vehicle.** This repository is the home of that methodology and the vehicle that distributes it — the CDD (continuously-discovered development) practice encoded as skills and driven by the `cdd` engine, released as installable plugins consumable across multiple AI coding harnesses (verified on Claude Code and Cursor Agent).
 
 **osuperpowers** ships here as a first-party plugin in-tree at `packages/osuperpowers/` (osuperpowers orchestration + cli-* family + the CDD engine). Superpowers, mattpocock-skills, and impeccable are upstream third-party plugins — install them via their official commands (marked Upstream in the README); this repo no longer vendors them. Upstream workflow skills are read by osuperpowers orchestrators via `/`-prefixed plugin:skill references.
 
@@ -19,7 +19,7 @@ pnpm run emit       # regenerate all harness manifests from package.json
 pnpm run emit:check # verify emit output is fresh (no drift, exit 1 if stale)
 pnpm run validate   # full validation suite (emit check + plugin resolution + tests + version sync)
 pnpm run changeset  # create a changeset for versioning
-pnpm run version    # apply changesets to bump versions
+pnpm exec changeset version  # apply changesets to bump versions + CHANGELOGs (native; CI runs it on the Version PR)
 ```
 
 CI runs `node scripts/run.ts validate` on PRs to `develop` and `main` (11 validation blocks: emit freshness, osuperpowers plugin resolution / skills inventory / behavior tests + wiring guard, cdd-engine dev stub + engine test suite, engine zero residue + channel audit, marketplace manifests, scripts unit tests, package version sync).
@@ -42,12 +42,12 @@ Adding a new first-party plugin: create `packages/<name>/package.json` with an `
 ### Per-package docs
 
 - [`packages/osuperpowers/README.md`](packages/osuperpowers/README.md) — osuperpowers plugin user guide
-- [`.changeset/README.md`](.changeset/README.md) — changeset & release-flow reference for the first-party plugin (version scheme, Release flow)
+- [`.changeset/README.md`](.changeset/README.md) — changeset & release-flow reference for the first-party packages (version scheme, Release flow)
 - [skill-anatomy schema](packages/cdd-engine/src/documents/schema/skill-anatomy.json) — canonical SKILL.md structure contract (node-anchored format, English primary); the machine check [`digraph-consistency.test.mjs`](packages/osuperpowers/tests/digraph-consistency.test.mjs) validates all 8 osuperpowers skills against it
 
 ### Data-driven templates
 
-Template-shaped content converges to a single source of truth: canonical JSON → one renderer → emit-generated products (guarded by `pnpm run emit:check` drift + runtime composition). Full convention: [docs/maintainers/01-data-driven-templates.md](docs/maintainers/01-data-driven-templates.md).
+Template-shaped content converges to a single source of truth: canonical JSON → one renderer → emit-generated products (guarded by `pnpm run emit:check` drift + runtime composition). Full convention: [docs/maintainers/01-template-doctrine.md](docs/maintainers/01-template-doctrine.md).
 
 ### Development-time CDD invocation — direct, never global
 
@@ -58,6 +58,10 @@ pnpm --filter @oscaner-skills/cdd-engine dev:stub && node packages/cdd-engine/di
 ```
 
 The global `cdd` command must NOT be used (`npm link` removed).
+
+### cdd CLI surface — zero new subcommands
+
+The `cdd` CLI gains **no new subcommands** — the only exceptions are the discovery-type `cdd schema get <type>` and the pure-rendering `cdd issue render`, both zero-enforcement (the charter's Non-goal #1 exception). Enforcement-capable subcommands stay closed.
 
 ### Engine tests
 

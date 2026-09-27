@@ -57,7 +57,6 @@ export const DOC_SURFACE_TARGETS = [
 ];
 
 const RESIDUE_TARGETS = [
-  "packages/osuperpowers/bin",
   "packages/osuperpowers/skills",
   "packages/cdd-engine/src",
   "packages/cdd-engine/templates",

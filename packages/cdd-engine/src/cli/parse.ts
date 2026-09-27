@@ -17,6 +17,7 @@ import { defineCommand } from "citty";
 import { DOC_SCHEMA_NAMES } from "../documents/schema.ts";
 import { runBaseBranchGet, runBaseBranchSet } from "./base-branch.ts";
 import { runFix } from "./fix.ts";
+import { runIssueRender } from "./issue.ts";
 import { runReview } from "./review.ts";
 import { runSchemaGet } from "./schema.ts";
 import { DRY_RUN, guardArgs, requireHostHarness, TaskListParser } from "./shared.ts";
@@ -39,6 +40,9 @@ const SUBCOMMAND_USAGE: Record<string, string> = {
   // schema — discovery: the canonical doc-structure schema printer (P4.3 Task 5). A nested leaf
   // (get) resolves to this key via commandUsageKey's parent mapping (same as base-branch set|get).
   schema: "usage: cdd schema get <type>",
+  // issue — aggregate issue-body rendering (P4.2 Task 6): `cdd issue render` reads stdin findings
+  // JSON → aggregate body → stdout (no flags; a nested leaf resolves to this key via the parent mapping).
+  issue: "usage: cdd issue render",
 };
 
 // Print the usage line for the resolved parse/usage-error context; default = the top-level line.
@@ -317,11 +321,34 @@ const schemaCmd = defineCommand({
   subCommands: { get: schemaGetCmd },
 });
 
+// issue — aggregate issue-body rendering (P4.2 Task 6; same pure-command shape as base-branch /
+// schema — no harness / lifecycle dependency). The nested render leaf reads stdin; the leaf's
+// argument surface is deliberately empty (guardArgs still rejects unknown options → usage exit 2).
+const issueRenderCmd = defineCommand({
+  meta: {
+    name: "render",
+    description: "render the aggregate issue body (stdin findings JSON → stdout)",
+  },
+  args: {},
+  run: async ({ rawArgs }) => {
+    guardArgs(rawArgs, argsOf(issueRenderCmd));
+    runIssueRender();
+  },
+});
+
+const issueCmd = defineCommand({
+  meta: {
+    name: "issue",
+    description: "aggregate issue-body rendering (cdd issue render, zero enforcement)",
+  },
+  subCommands: { render: issueRenderCmd },
+});
+
 // The single citty command tree — the only command surface the bin thin entry boots.
 export const mainCommand = defineCommand({
   meta: {
     name: "cdd",
-    description: "CDD engine CLI — implement/review/fix/base-branch/schema",
+    description: "CDD engine CLI — implement/review/fix/base-branch/schema/issue",
   },
   args: MAIN_ARGS,
   subCommands: {
@@ -330,5 +357,6 @@ export const mainCommand = defineCommand({
     fix: fixCmd,
     "base-branch": baseBranchCmd,
     schema: schemaCmd,
+    issue: issueCmd,
   },
 });

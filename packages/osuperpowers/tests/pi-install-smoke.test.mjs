@@ -18,17 +18,11 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { EXPECTED } from "../../../scripts/validate/osuperpowers.ts";
+import { countSkillsWithMarkdown, EXPECTED } from "../../../scripts/validate/osuperpowers.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG_DIR = path.resolve(HERE, "..");
 const PI_INSTALL_HINT = "npm i -g @earendil-works/pi-coding-agent";
-
-function countSkillsWithMarkdown(dir) {
-  return readdirSync(dir, { withFileTypes: true }).filter(
-    (e) => e.isDirectory() && existsSync(path.join(dir, e.name, "SKILL.md")),
-  ).length;
-}
 
 // Spawn `pi`; a missing binary (ENOENT) becomes an assertion-failing Error whose message
 // carries the install command — the zero silent skip contract.
@@ -69,7 +63,8 @@ test("pi install smoke: pack → extract → pi install <dir> --local --approve"
 
     // 3. Install-product skills assertion: pi resolves local directory installs in place
     // (probe-measured landing), so the unpacked package's skills/ is the customer-visible
-    // artifact; its SKILL.md count shares the module-level EXPECTED truth (no literal 8).
+    // artifact; its SKILL.md count uses the shared countSkillsWithMarkdown + module-level
+    // EXPECTED truth (no literal 8).
     const skillsDir = path.join(unpacked, "skills");
     assert.ok(existsSync(skillsDir), "unpacked package must carry skills/");
     assert.strictEqual(

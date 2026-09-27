@@ -16,14 +16,18 @@ function assert(cond, msg) {
   if (!cond) throw new Error(msg);
 }
 
-function countSkillsWithMarkdown(dir) {
+// Single definition of "a skill = directory containing SKILL.md" — shared by the skills-count
+// check below, the pi-package well-formed guard, and the behavior tests (pi-package.test.mjs,
+// pi-install-smoke.test.mjs): a definition change needs this one edit only.
+export function countSkillsWithMarkdown(dir) {
   return readdirSync(dir, { withFileTypes: true }).filter(
     (e) => e.isDirectory() && existsSync(path.join(dir, e.name, "SKILL.md")),
   ).length;
 }
 
 // Authoritative skills count — module-level single source of truth shared by the skills-count
-// check below and the manifest contract pin (packages/osuperpowers/tests/pi-package.test.mjs).
+// check below and the behavior tests (packages/osuperpowers/tests/pi-package.test.mjs,
+// packages/osuperpowers/tests/pi-install-smoke.test.mjs).
 export const EXPECTED = 8; // init (deleted at T10) + 3 new spec-writers (T12 writing-{single,overall,phase}-spec)
 
 function checkOsuperpowersSkillsCount() {

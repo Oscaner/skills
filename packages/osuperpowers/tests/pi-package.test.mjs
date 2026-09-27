@@ -1,17 +1,17 @@
 // packages/osuperpowers/tests/pi-package.test.mjs — C1 source fields + C3 manifest contract pin.
 // Pins the live packages/osuperpowers/package.json manifest contract for the pi harness:
 // the `pi-package` keyword, the `pi.skills` declaration, the R0 invariant (no extensions /
-// prompts keys), the skills-count truth (the module-level EXPECTED export from
-// scripts/validate/osuperpowers.ts — never a local literal), and the static files closure
-// (pi-declared paths ⊆ pkg.files whitelist). Pure static fs + node:assert; zero subprocesses,
-// zero engine invocation at runtime.
+// prompts keys), the skills-count truth (the shared countSkillsWithMarkdown + module-level
+// EXPECTED export from scripts/validate/osuperpowers.ts — never a local literal), and the
+// static files closure (pi-declared paths ⊆ pkg.files whitelist). Pure static fs +
+// node:assert; zero subprocesses, zero engine invocation at runtime.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { EXPECTED } from "../../../scripts/validate/osuperpowers.ts";
+import { countSkillsWithMarkdown, EXPECTED } from "../../../scripts/validate/osuperpowers.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG_DIR = path.resolve(HERE, "..");
@@ -43,9 +43,7 @@ test("pi declares no extensions/prompts keys (R0 invariant)", () => {
 test("./skills resolves EXPECTED SKILL.md (count from the shared export)", () => {
   const skillsDir = path.join(PKG_DIR, "skills");
   assert.ok(existsSync(skillsDir), "skills directory must exist");
-  const count = readdirSync(skillsDir, { withFileTypes: true }).filter(
-    (e) => e.isDirectory() && existsSync(path.join(skillsDir, e.name, "SKILL.md")),
-  ).length;
+  const count = countSkillsWithMarkdown(skillsDir);
   assert.strictEqual(count, EXPECTED);
 });
 

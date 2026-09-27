@@ -1,6 +1,6 @@
 # Pi Harness 支持（Pi Harness Support）— Overall Spec
 
-- **Version**: v1.0 · 2026-09-27
+- **Version**: v1.1 · 2026-09-27
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Constraints**:
@@ -30,7 +30,7 @@ Charter only — no implementation detail.
 
 ## Program charter
 
-**Goal**：osuperpowers 成为第三 harness 面 pi 上的一等分发物——npm 原生 pi-package（`pi` 字段 + `keywords: ["pi-package"]`）直接 `pi install` 消费，八 skill 全量可见；以本次新 harness 为杠杆，把全仓 harness 命名统一为 `claude` / `cursor` / `pi`（`cursor-agent` 标识符退役，仅 CLI 二进制名残存），并把 emit 分发的 per-harness 硬编码升级为 registry 化（`harnessesNote` 死字段债清除）。engine 数据面同步加 `pi` 行 + `AI_AGENT=pi` 宿主检测（registrate 三面命名一致的唯一事实源）。验收即消费者视角：`pi install npm:@oscaner-skills/osuperpowers` 后八 skill 可加载；claude / cursor / pi 三面命名一致、文档零 `cursor-agent` 标识符残留（历史豁免清单除外）；`pnpm run validate` 全绿。
+**Goal**：osuperpowers 成为第三 harness 面 pi 上的一等分发物——npm 原生 pi-package（`pi` 字段 + `keywords: ["pi-package"]`）直接 `pi install` 消费，八 skill 全量可见；以本次新 harness 为杠杆，把全仓 harness 命名统一为 `claude` / `cursor` / `pi`（`cursor-agent` 标识符退役，仅 CLI 二进制名残存），并把 emit 分发的 per-harness 硬编码升级为 registry 化（`harnessesNote` 死字段债清除）。engine 数据面同步加 `pi` 行 + `AI_AGENT=pi` 宿主检测（registrate 三面命名一致的唯一事实源）。验收即消费者视角：`pi install npm:@oscaner-skills/osuperpowers` 后八 skill 可加载；claude / cursor / pi 三面命名一致、文档标识符面（README 家族 + CLAUDE.md + docs/maintainers live 档）零 `cursor-agent` 残留（历史豁免清单除外）；`pnpm run validate` 全绿。
 
 **Non-goals**（非目标，明确不发散）：
 - 不重命名 SKILL.md `name`——技能名无 harness 性，重命名不构成统一；pi 同名冲突（osuperpowers ↔ superpowers）走 D5 消费故事（包序 = override 语义）
@@ -42,7 +42,7 @@ Charter only — no implementation detail.
 **Cross-cutting**（程序级横切约束，先立后执行）：
 - **harness 命名一致性**：标识符 `claude`/`cursor`/`pi` ↔ 二进制 `claude`/`cursor-agent`/`pi` ↔ 宿主 marker `CLAUDE_CODE_SESSION_ID` · `AI_AGENT=claude-code*` / `CURSOR_TRACE_ID` / `AI_AGENT=pi`——三面映射表（名义映射表）P4 落 README
 - **D2 来源归属**：`pi` 字段 + `keywords` 源侧手维护（与 `version`/`description`/`files` 同源）；validate 加 pi-package well-formed 守卫；否决 emit 自反写回 package.json（源==产物自反破坏 changeset/version-sync 工作流）
-- **D4 检测链路**：`detectCurrentHarness(env)` 增 `AI_AGENT === "pi"` → `pi`；`harness-registry.json` 增 `pi` 行（`cli`/`ship: "full"`/per-op prefix+suffix/cache profile——过 `registry.cache.test.ts` 全行迭代 schema 校验）；pi 无 headless 非交互 spawn 时优先 `pi -p` 风格 print 模式（P3 phase spec 定稿）
+- **D4 检测链路**：`detectCurrentHarness(env)` 增 `AI_AGENT === "pi"` → `pi`；`harness-registry.json` 增 `pi` 行（`cli`/`ship: "full"`/per-op prefix+suffix/cache profile——过 `registry.cache.test.ts` 全行迭代 schema 校验）；D4 事实：pi 二进制无 headless 非交互 spawn 通道（区别于 claude/cursor 的 `-p`/`--print` invoke 面）；引擎对 pi 的 spawn 采用 `pi -p` 风格 print 模式（per-op 形态 P3 phase spec 定稿）
 - **D5 消费故事**：pi 下 osuperpowers 与 superpowers 同名技能（brainstorming / writing-plans 等）first-wins 包序裁决——osuperpowers 排前即 override（与设计意图同构）；collision warning 属预期，文档明示；inline import（`/superpowers:*`）在碰撞下的解析语义 P4 定稿
 
 ## Issue inventory
@@ -51,7 +51,7 @@ Charter only — no implementation detail.
 |---|---|---|
 | P1 | none | 包侧 pi 分发面：osuperpowers package.json 增源字段 `keywords: ["pi-package"]` + `pi: { skills: ["./skills"] }`（扩展面按 D4 事实 = 零运行时扩展）· `files` 白名单闭包校验（pi 声明引用路径全部在发布 tarball 内）· validate pi-package well-formed 守卫（字段 / 关键值 / 路径存在性 / 白名单覆盖）· node:test 骨架断言 manifest 结构 |
 | P2 | none | emit 分发面注册表化：`oscaner-plugin.harnesses` 从死字段（harnessesNote 明言 no script consumes）转为真消费——ManifestService / OsuperpowersEmitter / source.ts FIRST_PARTY_CURSOR 硬编码收编为 harness builder 注册表，pi 分发条目注册（包侧 manifest ↔ 注册表一致守卫） |
-| P3 | none | engine 数据面 harness 标识符全线统一（cursor-agent 退役）：`harness-registry.json` 行键 cursor-agent→cursor · `detectCurrentHarness`/`requireHostHarness` 匹配面 · host-detection/registry/cache/invoke/dispatch-set 测试与 `scripts/observe-cache.ts` 同步 · validate pin 面（smoke-cdd / residue 通道守卫 grep 目标）随改名面更新 · `cdd` 记录与 `h`/`id` 显示值归一（历史豁免清单注册） |
+| P3 | none | engine 数据面 harness 标识符全线统一（cursor-agent 退役）：`harness-registry.json` 行键 cursor-agent→cursor · `detectCurrentHarness`/`requireHostHarness` 匹配面 · host-detection/registry/cache/invoke/dispatch-set 测试与 `scripts/observe-cache.ts` 同步 · docs/maintainers 引擎 registry 行键镜像（03-context-caching-doctrine.md Baseline entries）随行改名 · validate pin 面（smoke-cdd / residue 通道守卫 grep 目标）随改名面更新 · `cdd` 记录与 `h`/`id` 显示值归一（历史豁免清单注册） |
 | P3 | none | engine pi registry 行 + 宿主检测（D4 事实定稿）：`pi` 行（registry 键 `pi` · `cli` 二进制 `pi` · ship full · per-op prefix/suffix · cache profile）+ `AI_AGENT === "pi"` → pi 映射（PI_CODING_AGENT=true 佐证；AI_AGENT 通道已是 claude 在用，对等式零新机制） |
 | P4 | none | 文档统一 + 消费故事：README 家族（root / CLAUDE.md / osuperpowers 双镜像）harness 矩阵 + `pi install npm:@oscaner-skills/osuperpowers` 段 + 名义映射表（标识符/二进制/宿主 marker）· D5 消费故事定稿 · 历史豁免清单（CHANGELOG 条目 / 2026-09-13 family）注册 |
 | P4 | none | 测试·validate 接线 + CHANGELOG：pi manifest 测试（node:test 进 validate glob）+ 命名统一 pin 测试 + validate 块接线全绿 + changeset + CHANGELOG 记录 |
@@ -62,8 +62,8 @@ Charter only — no implementation detail.
 |---|---|---|---|---|---|---|
 | P1 | 包侧 pi 分发面 | osuperpowers 作为 pi 包可安装消费：源字段 `keywords: ["pi-package"]` + `pi: { skills: ["./skills"] }`（D2 手维护）· `files` 白名单闭包 · validate pi-package well-formed 守卫 + node:test 骨架（进 validate glob） | [Pending] | [Pending] | `npm pack` 产物 `pi install <npm 或本地路径>` 可加载全部 8 skills；pi-package 守卫过 validate 全绿 | 无（program 起点） |
 | P2 | emit 分发注册表 | harnessesNote 债清除：`oscaner-plugin.harnesses` 真消费 · ManifestService/OsuperpowersEmitter/source.ts 硬编码收编 harness builder 注册表 · pi 分发条目注册 · 包面 ↔ 注册表一致守卫 | [Pending] | [Pending] | emit:check 零漂移；harness 增减即注册表一行接线；harnessesNote 退役；validate 相应块全绿 | P1 ->(hard) |
-| P3 | engine 数据面 | cursor-agent→cursor 全线 rename（engine src/tests + observe-cache + validate pin 面）+ `pi` registry 行（ship full · per-op prefix/suffix · cache profile 过全行迭代校验）+ `AI_AGENT=pi` detect 映射；`cdd` 记录/h·id 显示值归一；历史豁免清单声明 | [Pending] | [Pending] | registry/cache/host-detection/invoke 测试全绿；三位宿主（claude/cursor/pi）origin 全测；residue 通道守卫零回归；记录值零 cursor-agent | P1 ->(hard) |
-| P4 | 文档·测试·收口 | README 家族统一 + 名义映射表 + pi 安装段 + D5 消费故事 + 历史豁免清单 + pi/命名 pin 测试接线 + validate 全绿 + changeset + CHANGELOG | [Pending] | [Pending] | validate 全块全绿（pi 测试在内）；README/CLAUDE.md 标识符面零 cursor-agent（豁免清单除外）；双镜像同步；四表回填一致 | P2 ->(hard)（+P3，见依赖图） |
+| P3 | engine 数据面 | cursor-agent→cursor 全线 rename（engine src/tests + observe-cache + validate pin 面 + docs/maintainers 行键镜像）+ `pi` registry 行（ship full · per-op prefix/suffix · cache profile 过全行迭代校验）+ `AI_AGENT=pi` detect 映射；`cdd` 记录/h·id 显示值归一；历史豁免清单声明 | [Pending] | [Pending] | registry/cache/host-detection/invoke 测试全绿；三位宿主（claude/cursor/pi）origin 全测；residue 通道守卫零回归；记录值零 cursor-agent；docs/maintainers 行键镜像零 cursor-agent | P1 ->(hard) |
+| P4 | 文档·测试·收口 | README 家族统一 + 名义映射表 + pi 安装段 + D5 消费故事 + 历史豁免清单 + pi/命名 pin 测试接线 + validate 全绿 + changeset + CHANGELOG | [Pending] | [Pending] | validate 全块全绿（pi 测试在内）；文档标识符面（README 家族 + CLAUDE.md + docs/maintainers live 档）零 cursor-agent（历史豁免清单除外）；D5 消费故事交付（pi 下 collision first-wins 包序裁决文档明示 + inline import `/superpowers:*` 碰撞下解析语义定稿 + 历史豁免清单注册）；双镜像同步；四表回填一致 | P2 ->(hard)（+P3，见依赖图） |
 
 ## Dependency graph (ASCII)
 
@@ -90,3 +90,8 @@ Legend:
 
 - 四表随每 phase 回填：Issue inventory（新增 anchor 注册）、Phase inventory（design/plan 列状态 + dep 边）、Dependency graph（节点变化同步）、Change history（版本行逐 phase 追加）
 - Charter only——无任务清单；phase 细节归 phase spec；策略转向（如 D4 检测链路遇阻、pi 包被 pi 生态规则挟持）立即回填本 overall 后再议实现
+
+## Change history
+
+| v1.0 | 2026-09-27 | 程序 charter：pi harness 支持——osuperpowers 第三 harness 面一等分发物（npm 原生 pi-package：`pi` 字段 + `keywords: ["pi-package"]`）；全仓 harness 命名统一 claude/cursor/pi（`cursor-agent` 标识符退役，CLI 二进制名残存）；emit per-harness 硬编码 registry 化；engine `pi` 行 + `AI_AGENT=pi` 宿主检测（P1–P4） | [human] · Claude Opus 5 (1M context) |
+| v1.1 | 2026-09-27 | cdd spec-review r1（blocker=0，3 warn + 1 nit）全 finding 落地：`## Change history` 节补建（四表承台）+ D4 检测链路拆事实/规则双层 + docs/maintainers 行键镜像归入 P3 改名扫面 + Goal 与 P4 验收口径对齐 + P4 acceptance 补 D5 消费故事交付项（v1.0→v1.1） | [human] · Claude Opus 5 (1M context) |

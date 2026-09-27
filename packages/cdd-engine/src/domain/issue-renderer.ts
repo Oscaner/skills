@@ -99,7 +99,7 @@ export class IssueReportRenderer {
       `${labels.impact}\n\n${finding.impact}`,
       `${labels.suggestedFix}\n\n${finding.suggestedFix}`,
     ];
-    return segments.join("\n\n") + `\n${this.renderMeta(finding.meta)}`;
+    return `${segments.join("\n\n")}\n${this.renderMeta(finding.meta)}`;
   }
 
   /** Aggregate body rendering — layout pinned: Session as one block (masterDef sessionTitle +

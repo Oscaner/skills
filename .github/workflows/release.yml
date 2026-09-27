@@ -16,7 +16,13 @@
 #   `pnpm run emit`) + the dual consumer gates (pre-version baseline smoke-cdd, and the
 #   post-version `changeset status` push-mode split + `smoke-cdd --expect-version 1.0.0` on
 #   publish pushes — both wired before the changesets action, so the released artifact is the
-#   verified artifact and the post gate intercepts before `changeset publish`).
+#   verified artifact and the post gate intercepts before `changeset publish`). After the
+#   publish, a third consumer gate — the post-publish pi registry smoke — installs the released
+#   osuperpowers from the npm registry into a throwaway project (`pi install
+#   npm:@oscaner-skills/osuperpowers@<published> --local --approve`) and asserts exit 0, the
+#   installed skills/ SKILL.md count (the shared EXPECTED truth), and the .pi/settings.json
+#   record; a publish push that released only cdd-engine has no osuperpowers entry and skips
+#   the smoke — zero install, zero assertion, zero error.
 name: Release (main)
 
 on:
@@ -80,6 +86,64 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # Pinned to the version measured at smoke acceptance (pi 0.87.1, locale probe) — the
+      # C4 install smoke (packages/osuperpowers/tests/pi-install-smoke.test.mjs) fails hard
+      # with this install command in its message when the binary is missing (zero silent skip).
+      - name: Install pi coding agent
+        run: |
+          npm i -g @earendil-works/pi-coding-agent@0.87.1
+      # C6 release npm-path smoke (R5 station ②): the real consumer path — the changesets action
+      # just published the bumped packages to the npm registry, and this step installs the
+      # registry artifact into a throwaway project, proving distribution never depends on the
+      # repo working tree. Gated by the same publish-mode split as the Detect publish-mode push
+      # step (has_changesets == 'false'): a changesets push opens the Version PR and publishes
+      # nothing, so its smoke would install a stale version — skipped by the gate. The version
+      # being verified is read from the action's published-packages output (v2 kebab-case) by
+      # exact package name; a publish push that did not release osuperpowers (e.g. a
+      # cdd-engine-only changeset) has no entry and skips the smoke — zero install, zero
+      # assertion, zero error.
+      - name: Release smoke — pi install osuperpowers from the registry (npm path)
+        if: steps.changesets-status.outputs.has_changesets == 'false'
+        env:
+          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.published-packages }}
+        run: |
+          version="$(node -e 'const list = JSON.parse(process.env.PUBLISHED_PACKAGES || "[]"); const hit = (list ?? []).find((p) => p.name === "@oscaner-skills/osuperpowers"); process.stdout.write(hit ? hit.version : "")')"
+          if [ -z "$version" ]; then
+            echo "::notice::osuperpowers was not published on this push (no entry in changesets published-packages) — skipping the pi registry smoke (zero install, zero assertion, zero error)"
+            exit 0
+          fi
+
+          # The shared count truth: scripts/validate/osuperpowers.ts exports the module-level
+          # EXPECTED — the same single source the in-tree guards and the C4 smoke assert against
+          # (never a workflow-local literal; a skills-inventory change flows here automatically).
+          # Resolved at repo root, which is this run step's working directory.
+          expected="$(node --input-type=module --eval "import('./scripts/validate/osuperpowers.ts').then((m) => process.stdout.write(String(m.EXPECTED)))")"
+          [ -n "$expected" ]
+
+          # Throwaway consumer project — the install target is the just-published registry
+          # artifact, not the repo tree. --local --approve: the trust-gate pin measured at pi
+          # 0.87.1 (--local writes the project .pi/settings.json and requires --approve).
+          project="$(mktemp -d)"
+          cd "$project"
+
+          # Assertion 1 — the install exits 0 (a nonzero aborts the step via the run-shell -e
+          # contract).
+          pi install "npm:@oscaner-skills/osuperpowers@${version}" --local --approve
+
+          # Assertion 2 — the installed product's skills/ carries exactly the EXPECTED SKILL.md
+          # count. pi resolves npm sources into a project-local .pi/npm node_modules (layout
+          # probe-measured at pi 0.87.1: <project>/.pi/npm/node_modules/<pkg>/); each skill is a
+          # directory containing SKILL.md, so the count = SKILL.md files at depth 2 under skills/.
+          skills_dir="$project/.pi/npm/node_modules/@oscaner-skills/osuperpowers/skills"
+          [ -d "$skills_dir" ] || { echo "::error::installed skills/ missing at $skills_dir"; exit 1; }
+          count="$(find "$skills_dir" -mindepth 2 -maxdepth 2 -type f -name SKILL.md | wc -l | tr -d " ")"
+          echo "Installed osuperpowers SKILL.md count: ${count} (expected ${expected})"
+          [ "$count" = "$expected" ] || { echo "::error::installed skills/ SKILL.md count ${count} != expected ${expected}"; exit 1; }
+
+          # Assertion 3 — the project .pi/settings.json records the installed package source.
+          node -e 'const fs = require("node:fs"); const s = JSON.parse(fs.readFileSync(".pi/settings.json", "utf8")); const packages = s.packages ?? []; if (!packages.some((p) => typeof p === "string" && p.includes("@oscaner-skills/osuperpowers"))) { console.error("::error::.pi/settings.json packages must record the osuperpowers source, got: " + JSON.stringify(packages)); process.exit(1); }'
+
+          echo "::notice::pi registry smoke OK — osuperpowers@${version} installed and verified from the npm registry"
 
   release-plugin:
     needs: release

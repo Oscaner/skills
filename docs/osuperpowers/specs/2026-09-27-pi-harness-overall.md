@@ -1,6 +1,6 @@
 # Pi Harness 支持（Pi Harness Support）— Overall Spec
 
-- **Version**: v1.5 · 2026-09-28
+- **Version**: v1.6 · 2026-09-28
 - **Status**: Approved
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Constraints**:
@@ -99,3 +99,4 @@ Legend:
 | v1.3 | 2026-09-27 | P1 scope 回填（grilling 定案，sync-before-write 前置）：验收两站化（validate 本地解包安装实证 + release npm 路径 smoke）+ validate 命名 pin 升级（count→name-set）入 P1 行；Issue inventory / Dependency graph 不变 | [human] · Claude Opus 5 (1M context) |
 | v1.4 | 2026-09-27 | P1 设计评审裁定（user #1-4）：删除 C6 release 站（post-publish npm 路径 smoke——detect-only 无门控 + 内容与 C4 同构 + claude/cursor 无 post-publish smoke 一致性）；pi 安装不固定版本（`@latest`——契约对移动 pi 生态验证，防守卫随生态衰减）；P1 验收退回单站（C4 validate 站）；npm-source 解析风险 = 已知残余（P4 记录/人工抽查） | [human] · Claude Opus 5 (1M context) |
 | v1.5 | 2026-09-28 | P1 终期债回填（engine CLOSEOUT）：Design spec / Implementation plan 列 `[Pending]` → Done（spec v1.5 + plan v1.5 approved，P1 四任务 cdd 链全闭环）；changeset 已建（`pi-harness-manifest-pin.md`，osuperpowers minor） | [human] · Claude Opus 5 (1M context) |
+| v1.6 | 2026-09-28 | P1 计划回填 claim（plan-link 契约，v1.5 行缺 link 形态被 branch-fix 前置验签拒绝）：[2026-09-27-pi-harness-p1.md v1.5](docs/osuperpowers/plans/2026-09-27-pi-harness-p1.md) `Pending → Done`（Implementation plan 列回填，P1 cdd 链 4/4 闭合） | [human] · Claude Opus 5 (1M context) |

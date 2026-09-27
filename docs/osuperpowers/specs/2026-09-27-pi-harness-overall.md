@@ -1,7 +1,7 @@
 # Pi Harness 支持（Pi Harness Support）— Overall Spec
 
-- **Version**: v1.1 · 2026-09-27
-- **Status**: Draft
+- **Version**: v1.2 · 2026-09-27
+- **Status**: Approved
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Constraints**:
   - 仓库语言政策：SKILL.md / docs 英文主源；本 spec 中文（Strategy B internal docs）
@@ -95,3 +95,4 @@ Legend:
 
 | v1.0 | 2026-09-27 | 程序 charter：pi harness 支持——osuperpowers 第三 harness 面一等分发物（npm 原生 pi-package：`pi` 字段 + `keywords: ["pi-package"]`）；全仓 harness 命名统一 claude/cursor/pi（`cursor-agent` 标识符退役，CLI 二进制名残存）；emit per-harness 硬编码 registry 化；engine `pi` 行 + `AI_AGENT=pi` 宿主检测（P1–P4） | [human] · Claude Opus 5 (1M context) |
 | v1.1 | 2026-09-27 | cdd spec-review r1（blocker=0，3 warn + 1 nit）全 finding 落地：`## Change history` 节补建（四表承台）+ D4 检测链路拆事实/规则双层 + docs/maintainers 行键镜像归入 P3 改名扫面 + Goal 与 P4 验收口径对齐 + P4 acceptance 补 D5 消费故事交付项（v1.0→v1.1） | [human] · Claude Opus 5 (1M context) |
+| v1.2 | 2026-09-27 | 程序批准：Status Draft → Approved（user 启动 P1 brainstorm 为批准动作，backfill-as-version）；四表无 scope 变更；P1（包侧 pi 分发面）brainstorm 启动 | [human] · Claude Opus 5 (1M context) |

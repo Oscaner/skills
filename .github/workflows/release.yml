@@ -68,11 +68,11 @@ jobs:
       - uses: changesets/action@v2
         id: changesets
         with:
-          version: pnpm exec changeset version && pnpm run emit
-          publish: pnpm exec changeset publish
-          createGithubReleases: false
-          commit: "chore: release plugins"
-          title: "chore: release plugins"
+          version-script: pnpm exec changeset version && pnpm run emit
+          publish-script: pnpm exec changeset publish
+          create-github-releases: false
+          commit-message: "chore: release plugins"
+          pr-title: "chore: release plugins"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

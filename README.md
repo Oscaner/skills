@@ -51,12 +51,12 @@ A marketplace that packages personal AI coding skills as installable plugins con
 
 ## Plugins
 
-| Plugin | Version | Source |
-|--------|---------|--------|
-| **osuperpowers** | 0.1.1 | First-party — [this repo](https://github.com/Oscaner/skills), [`packages/osuperpowers/`](packages/osuperpowers/), published as [`@oscaner-skills/osuperpowers`](https://www.npmjs.com/package/@oscaner-skills/osuperpowers). Skills (osuperpowers orchestrators, `cli-*` family) plus the CDD engine |
-| **superpowers** | — | Upstream — [obra/superpowers](https://github.com/obra/superpowers). Workflow skills: brainstorming, writing plans, verification, branch finish |
-| **mattpocock-skills** | — | Upstream — [mattpocock/skills](https://github.com/mattpocock/skills). Precision tools: `grilling`, `tdd` |
-| **impeccable** | — | Upstream — [pbakaus/impeccable](https://github.com/pbakaus/impeccable). Frontend design skills |
+| Plugin | Source |
+|--------|--------|
+| **osuperpowers** | First-party — [this repo](https://github.com/Oscaner/skills), [`packages/osuperpowers/`](packages/osuperpowers/), published as [`@oscaner-skills/osuperpowers`](https://www.npmjs.com/package/@oscaner-skills/osuperpowers). Skills (osuperpowers orchestrators, `cli-*` family) plus the CDD engine |
+| **superpowers** | Upstream — [obra/superpowers](https://github.com/obra/superpowers). Workflow skills: brainstorming, writing plans, verification, branch finish |
+| **mattpocock-skills** | Upstream — [mattpocock/skills](https://github.com/mattpocock/skills). Precision tools: `grilling`, `tdd` |
+| **impeccable** | Upstream — [pbakaus/impeccable](https://github.com/pbakaus/impeccable). Frontend design skills |
 
 Upstream plugin versions follow their own release schedules and are not tracked in this marketplace — always install them from their own publishers (see [Installation](#installation)).
 

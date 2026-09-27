@@ -55,12 +55,12 @@ cdd 不是把计划写一次就指望它扛住现实，而是让规划贯穿整�
 
 ## 插件列表
 
-| 插件 | 版本 | 来源 |
-|------|------|------|
-| **osuperpowers** | 0.1.1 | 第一方——[本仓库](https://github.com/Oscaner/skills)、[`packages/osuperpowers/`](packages/osuperpowers/)，以 [`@oscaner-skills/osuperpowers`](https://www.npmjs.com/package/@oscaner-skills/osuperpowers) 发布。技能（osuperpowers 编排器、`cli-*` 家族）及 CDD 引擎 |
-| **superpowers** | — | 上游——[obra/superpowers](https://github.com/obra/superpowers)。工作流技能：brainstorming、writing plans、verification、branch finish |
-| **mattpocock-skills** | — | 上游——[mattpocock/skills](https://github.com/mattpocock/skills)。精准工具：`grilling`、`tdd` |
-| **impeccable** | — | 上游——[pbakaus/impeccable](https://github.com/pbakaus/impeccable)。前端设计技能 |
+| 插件 | 来源 |
+|------|------|
+| **osuperpowers** | 第一方——[本仓库](https://github.com/Oscaner/skills)、[`packages/osuperpowers/`](packages/osuperpowers/)，以 [`@oscaner-skills/osuperpowers`](https://www.npmjs.com/package/@oscaner-skills/osuperpowers) 发布。技能（osuperpowers 编排器、`cli-*` 家族）及 CDD 引擎 |
+| **superpowers** | 上游——[obra/superpowers](https://github.com/obra/superpowers)。工作流技能：brainstorming、writing plans、verification、branch finish |
+| **mattpocock-skills** | 上游——[mattpocock/skills](https://github.com/mattpocock/skills)。精准工具：`grilling`、`tdd` |
+| **impeccable** | 上游——[pbakaus/impeccable](https://github.com/pbakaus/impeccable)。前端设计技能 |
 
 上游插件版本遵循各自的发布节奏，本市场不跟踪——始终从各自发布方安装（见[安装](#安装)）。
 

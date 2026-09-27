@@ -222,12 +222,15 @@ for (const [en, zh] of MIRROR_PAIRS) {
   });
 }
 
-test("P4.1 behavior: root README plugin table version matches the package manifest", () => {
-  const pkg = JSON.parse(read("packages/osuperpowers/package.json"));
+test("P4.1 behavior: root README plugin table carries no hand-written version (single source: manifest + npm)", () => {
   const md = read("README.md");
-  const row = sectionOf(md, "## Plugins").match(/^\|\s*\*\*osuperpowers\*\*\s*\|\s*([^\s|]+)\s*\|/m);
+  const table = sectionOf(md, "## Plugins");
+  const row = table.match(/^\|\s*\*\*osuperpowers\*\*\s*\|/m);
   assert.ok(row, "osuperpowers plugin table row missing in README.md");
-  assert.equal(row[1], pkg.version, "plugin table version drifts from packages/osuperpowers/package.json");
+  // Zero hand-written versions (P4.2 "release with no hand-pinned versions"): the README plugin
+  // table must not carry a \d+.\d+.\d+ pin — version single source = package.json -> marketplace
+  // manifest -> npm (version-sync keeps the machine surface consistent)
+  assert.doesNotMatch(table, /\|\s*\d+\.\d+\.\d+\s*\|/, "README plugin table must not hand-pin a version");
 });
 
 test("P4.1 behavior: osuperpowers README skill inventory equals the shipped skills", () => {

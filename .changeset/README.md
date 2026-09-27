@@ -1,6 +1,6 @@
 # Changesets
 
-We use [changesets](https://github.com/changesets/changesets) to manage releases for two packages: **`@oscaner-skills/osuperpowers-router`** (superpowers-relative scheme) and **`@oscaner-skills/osuperpowers`** (independent semver). Both are workspace packages under `packages/`; each releases independently when a changeset names it.
+We use [changesets](https://github.com/changesets/changesets) to manage releases for the first-party packages **`@oscaner-skills/osuperpowers`** and **`@oscaner-skills/cdd-engine`** (independent semver per package). They are workspace packages under `packages/`; a package releases when a changeset names it.
 
 **Integration branch:** `develop` — feature PRs merge here and accumulate `.changeset/*.md` files.
 
@@ -8,35 +8,29 @@ We use [changesets](https://github.com/changesets/changesets) to manage releases
 
 ## When to add a changeset
 
-Run `pnpm changeset` when you change behavior or wiring under `packages/osuperpowers-router/` or `packages/osuperpowers/`. Select the plugin(s) the change affects — a changeset may name both. Version bumps are computed per plugin by `node scripts/version-packages.mjs`:
+Run `pnpm changeset` when you change behavior or wiring under `packages/osuperpowers/` or `packages/cdd-engine/`. Version bumps are computed by the native `changeset version`, run by the changesets/action on the Version PR:
 
-- `@oscaner-skills/osuperpowers-router` → `{superpowers-semver}-router.{major}.{minor}.{patch}` (patch increment on the same superpowers base)
 - `@oscaner-skills/osuperpowers` → plain semver bump (patch / minor / major per the changeset's declared type)
-
-You do **not** need a changeset when you only bump the vendored `superpowers` submodule — the [submodule-sync workflow](.github/workflows/submodule-sync.yml) opens a PR against `develop` that sets `{semver}-router.0.0.0` directly; release happens after merging `develop → main`. This resets **overrides only**; osuperpowers keeps its independent semver.
+- `@oscaner-skills/cdd-engine` → plain semver bump (patch / minor / major per the changeset's declared type)
 
 ## Version scheme
 
-`@oscaner-skills/osuperpowers-router` follows `{superpowers-semver}-router.{major}.{minor}.{patch}`:
-
-- `6.2.0-router.0.0.0` — aligned with superpowers 6.2.0, no overrides changes yet
-- `6.2.0-router.0.15.0` — fifteenth overrides-only release on superpowers 6.2.0 base (minor segment tracks release count on base)
-- `6.2.0-router.0.15.1` — next patch increment from changesets on the same base
-- `6.3.0-router.0.0.0` — resets when superpowers base moves to 6.3.0 (any semver segment change, including patch, resets to `0.0.0`)
-
-`@oscaner-skills/osuperpowers` follows plain semver (`0.1.x`), bumped independently of superpowers:
+Both packages follow plain semver, bumped independently of each other:
 
 - `0.1.0` → `0.1.1` for a `patch` changeset
 - `0.1.1` → `0.2.0` for a `minor` changeset
+- cdd-engine (`0.1.0` baseline + accumulated majors) → **`1.0.0` first stable release** — modern changesets do not fold a 0.x major into a minor, so `semver.inc("0.1.0", "major") = "1.0.0"` (no 2.0.0 jump)
 
-Its version is synced across `package.json`, `.claude-plugin/plugin.json` (SOT), `marketplace/source.json`, the emitted marketplace manifests, and the `<!-- osuperpowers-version: … -->` stamp in `packages/osuperpowers/skills/init/SKILL.md`.
+`package.json` is the version single source of truth (SOT) for each package; osuperpowers's version is re-stamped into its per-harness emit products (`.claude-plugin/plugin.json`, `marketplace/source.json`, and the emitted marketplace manifests) by `pnpm run emit`. cdd-engine has no emit products; its version lives in its own `package.json` (with `CHANGELOG.md` once first released).
 
 ## Release flow
 
 1. Add a changeset in your PR (if needed) and merge to **`develop`**
 2. Open a PR **`develop → main`**
-3. Merge to **`main`** → [release.yml](.github/workflows/release.yml) opens a Version PR targeting **`main`**
-4. Merge the Version PR on **`main`** → per-plugin git tag + GitHub Release for each plugin that had a changeset (`osuperpowers-router@{version}` and/or `osuperpowers@{version}`)
+3. Merge to **`main`** → [release.yml](.github/workflows/release.yml) opens a Version PR targeting **`main`**: changesets/action runs `pnpm exec changeset version && pnpm run emit` — the native version consumes the changesets, bumps both packages' `package.json` versions and writes their CHANGELOGs, and `emit` re-stamps the osuperpowers emit products so version-sync stays green on the Version PR
+4. Merge the Version PR on **`main`** → push again, now in publish mode (`hasChangesets=false`): `changeset publish` builds and publishes the first-party packages with bumped versions to npm; then the `release-plugin` matrix job pushes a git tag + GitHub Release for each package whose current version is newer than its latest git tag (`osuperpowers@{version}` / `cdd-engine@{version}`, judged by git-tag vs package.json semver; an empty tag list = first release → versioned)
 5. When `main` is ahead of `develop`, an automated **`main → develop`** sync PR opens — merge it manually to align `develop` with the released version
+
+Version mode (merging to `main` while opening a Version PR — `hasChangesets=true`): `release-plugin` and `sync-develop` do not run; publish, tags, and GitHub Releases are deferred to the next publish-mode push after the Version PR merges.
 
 See [CLAUDE.md](../CLAUDE.md) and [README.md](../README.md) for full details.

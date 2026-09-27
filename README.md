@@ -2,101 +2,129 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-[![CI](https://github.com/Oscaner/skills/actions/workflows/ci.yml/badge.svg)](https://github.com/Oscaner/skills/actions/workflows/ci.yml)
+[![PR Validate](https://github.com/Oscaner/skills/actions/workflows/pr-validate.yml/badge.svg)](https://github.com/Oscaner/skills/actions/workflows/pr-validate.yml)
 [![npm](https://img.shields.io/npm/v/@oscaner-skills/osuperpowers?label=osuperpowers)](https://www.npmjs.com/package/@oscaner-skills/osuperpowers)
-[![npm](https://img.shields.io/npm/v/@oscaner-skills/osuperpowers-router?label=osuperpowers-router)](https://www.npmjs.com/package/@oscaner-skills/osuperpowers-router)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Personal AI coding skills marketplace. Five plugins, one pipeline -- works across **Claude Code**, **Cursor**, **Droid**, **Pi**, **Grok**, **Qoder**, **Codex**, and **Gemini**.
+**A cdd-first methodology: continuously-discovered development as the core discipline, AI coding skills as the distribution vehicle.**
+
+This repository is the home of that methodology and the vehicle that distributes it. The core discipline — **cdd**, continuously-discovered development — is encoded as skills and released as installable plugins, consumable across multiple AI coding harnesses (verified on **Claude Code** and **Cursor Agent**). First-party plugins are built here under `packages/` and published to npm under the `@oscaner-skills/*` scope; the `cdd` engine drives the whole flow.
+
+## The cdd philosophy
+
+**cdd (continuously-discovered development)** is a development discipline that treats planning as an ongoing discovery process instead of a front-loaded artifact. Requirements are discovered by working in small, verifiable increments: each task is planned against the plan, executed against a task brief by the host harness CLI, and reviewed against shared convergence rules — so the next increment is always planned from what the previous one actually learned.
+
+Instead of writing the plan once and hoping it survives contact with reality, cdd keeps planning live across the whole development process and makes every step provable ("did it converge?") rather than assumed ("it should be fine").
+
+### Why cdd is designed this way
+
+- **Discover, don't predict.** Requirements are discovered through implementation and review, not guessed up front. Every round's review findings become the input to the next round's brief — no requirement is taken on faith.
+- **Small, verifiable increments.** Each task is scoped by a plan, carried by a brief, and concluded by an explicit status. The process stays legible and every change is provable.
+- **Single sources, derived products.** Facts live once — in the plan, the schema, or the manifest — and everything that ships is derived from them, so paper and practice cannot drift apart.
+- **Deterministic execution.** The `cdd` engine drives the chain as commands: same plan, same brief, same commands, same outcome. The human and the harness follow the same contract.
+
+### The three-mode chain
+
+The core loop is a chain of three modes:
+
+| Mode | Role |
+|------|------|
+| `implement` | Execute the task brief for a group of tasks against the plan's constraints |
+| `review` | Review the implementer's result against a fixed review reference and lens guide |
+| `fix` | Apply the review findings — blockers, warnings, and nits — and converge the round |
+
+The chain is a closure: implement → review → fix, then the next group's implement. A review that blocks routes back through `fix` and is re-reviewed until it passes; a review that passes converges and the loop advances. When all groups have converged, a final branch review closes the change and hands it off to finishing. The `cdd` engine runs the whole chain deterministically — dispatching each phase to the host harness and writing the handoff artifacts.
+
+### Convergence discipline
+
+Reviews are structured, not impressionistic. Every finding carries a severity — blocker, warn, or nit — and a lens, and a round only concludes when its findings converge:
+
+- **blocker** findings route the round back to `fix` and a re-review, until none remain;
+- **warn / nit** findings are applied by a fix round that converges and completes without a re-review, with the findings recorded;
+- **zero findings** close the review outright.
+
+**Review Convergence** is the shared closure rule behind all of this — a review never passes silently, and a fix round never re-opens settled decisions. The same rule closes task reviews, branch reviews, spec reviews, and plan reviews alike, so the whole methodology converges under one discipline instead of a pile of ad hoc checklists.
 
 ## What this is
 
-A plugin marketplace that packages personal skills as installable plugins consumed by multiple AI coding harnesses. Content is Markdown + JSON, discovered at runtime via the marketplace/plugin manifest chain. First-party plugins under `packages/` form a pnpm workspace (changesets, CI, unified `pnpm run emit` build).
-
-The pipeline flow:
-
-```
-Spec --> Plan --> SDD/TDD --> Verify --> Ship
-```
+A marketplace that packages personal AI coding skills as installable plugins consumed by multiple AI coding harnesses. First-party plugins live in this repository under `packages/` and are published by us to npm under the `@oscaner-skills/*` scope; upstream plugins are **not** packaged here — they install from their own publishers, and osuperpowers orchestrators read them through `/`-prefixed `plugin:skill` references (e.g. `/superpowers:brainstorming`).
 
 ## Plugins
 
-| Plugin | Type | Description |
-|--------|------|-------------|
-| **[osuperpowers](packages/osuperpowers/)** | First-party | Skills (osuperpowers orchestrators, `cli-*` family), CDD engine, cross-harness gate (11 adapters) |
-| **[osuperpowers-router](packages/osuperpowers-router/)** | First-party | Trigger router -- intercepts upstream triggers and routes to osuperpowers / mattpocock targets |
-| **[superpowers](vendors/superpowers/)** | Vendored | Upstream workflow skills -- brainstorming, writing plans, SDD, verification, branch finish |
-| **[mattpocock-skills](vendors/mattpocock-skills/)** | Vendored | Precision tools -- `grilling`, `tdd`, `to-tickets` |
-| **[impeccable](vendors/impeccable/)** | Vendored | Frontend design skills |
+| Plugin | Version | Source |
+|--------|---------|--------|
+| **osuperpowers** | 0.1.1 | First-party — [this repo](https://github.com/Oscaner/skills), [`packages/osuperpowers/`](packages/osuperpowers/), published as [`@oscaner-skills/osuperpowers`](https://www.npmjs.com/package/@oscaner-skills/osuperpowers). Skills (osuperpowers orchestrators, `cli-*` family) plus the CDD engine |
+| **superpowers** | — | Upstream — [obra/superpowers](https://github.com/obra/superpowers). Workflow skills: brainstorming, writing plans, verification, branch finish |
+| **mattpocock-skills** | — | Upstream — [mattpocock/skills](https://github.com/mattpocock/skills). Precision tools: `grilling`, `tdd` |
+| **impeccable** | — | Upstream — [pbakaus/impeccable](https://github.com/pbakaus/impeccable). Frontend design skills |
 
-All plugins are published as scoped npm packages under `@oscaner-skills/*`.
+Upstream plugin versions follow their own release schedules and are not tracked in this marketplace — always install them from their own publishers (see [Installation](#installation)).
 
 ## Installation
 
-### From marketplace (recommended)
+### From the marketplace (recommended)
 
 ```bash
 # Claude Code
 /plugin marketplace add oscaner/skills
-/plugin install osuperpowers@oscaner
-/plugin install osuperpowers-router@oscaner
-/plugin install superpowers@oscaner
-/plugin install mattpocock-skills@oscaner
+/plugin install osuperpowers@oscaner-skills
 ```
 
 ### From npm
 
 ```bash
-npm install @oscaner-skills/osuperpowers @oscaner-skills/osuperpowers-router
-npm install @oscaner-skills/superpowers @oscaner-skills/mattpocock-skills @oscaner-skills/impeccable
+npm install @oscaner-skills/osuperpowers
 ```
+
+### Upstream plugins
+
+Upstream plugins (superpowers / mattpocock-skills / impeccable) are not packaged here — install each from its own publisher via its official command (marked **Upstream** in the [Plugins](#plugins) table, linked to their GitHub home repos).
 
 ### Per-harness install
 
-| Harness | Channel | Install method |
-|---------|---------|---------------|
-| Claude Code | install-and-use | marketplace install |
-| Cursor Agent | install-and-use | marketplace install |
-| Droid | install-and-use | copy skills to `.agents/skills/` |
-| Grok | install-and-use | marketplace install (Claude compat) |
-| Qoder | install-and-use | install plugin |
-| Codex | install-and-use | install plugin + `/hooks` trust |
-| Gemini | install-and-use | `gemini extensions install <repo-url>` |
-| Pi | install-and-use | `pi install npm:@oscaner-skills/osuperpowers` |
-| Trae | init | `init harness trae` |
-| Vibe | init | `init harness vibe` |
-| Kiro | init | `init harness kiro` |
-| OpenCode | init | `init harness opencode` |
+| Harness | Install method |
+|---------|---------------|
+| Claude Code | Marketplace install |
+| Cursor Agent | Marketplace install |
 
-Full per-harness details: [docs/gate-install.md](docs/gate-install.md).
+osuperpowers installs through each harness's own plugin marketplace; neither Claude Code nor Cursor Agent needs a per-harness config file.
 
 ## Quick start
 
-1. Install plugins from the marketplace or npm (see above).
-2. Run **`init router`** once per project -- re-run after plugin upgrades. This initializes the override trigger table in your project's CLAUDE.md / Cursor rules.
-3. Invoke the superpowers workflow as you normally would -- the router routes to the matching osuperpowers / mattpocock target automatically.
+1. Install the plugins from the marketplace or npm (see [Installation](#installation)).
+2. Make sure the `cdd` engine CLI is on `PATH` (`command -v cdd`); if it is missing, run `npm i -g @oscaner-skills/cdd-engine`. `cli-driven-development`'s `detect-engine` node re-checks this at dispatch.
+3. Invoke the superpowers workflow as you normally would — osuperpowers skills intercept upstream triggers and route to the matching target automatically.
 
 ## Architecture
 
-The marketplace is **package-as-source** -- metadata lives in each `package.json`'s `oscaner-plugin` field. The build step `pnpm run emit` derives everything from that:
+### Package layout
+
+```
+packages/
+├── osuperpowers/   # first-party plugin: osuperpowers orchestration + cli-* family + CDD engine skills
+└── cdd-engine/     # @oscaner-skills/cdd-engine — the CDD engine CLI package (dependency of osuperpowers)
+```
+
+### Package-as-source, one emit chain
+
+The marketplace is **package-as-source** — metadata lives in each first-party `package.json`'s `oscaner-plugin` field. The build step `pnpm run emit` derives everything from that:
 
 ```
 package.json#oscaner-plugin --> emit --> marketplace/source.json
                                      --> .claude-plugin/marketplace.json
                                      --> .cursor-plugin/marketplace.json
                                      --> per-plugin .claude-plugin/plugin.json
-                                     --> hooks files (per harness)
 ```
 
-No hand-registration needed for first-party plugins. Vendored plugins are assembled from `vendors/` submodules via `scripts/lib/publish-vendor.mjs`.
+No hand-registration is needed for first-party plugins — `pnpm run emit` auto-discovers them.
 
 Full architecture: [CLAUDE.md](CLAUDE.md).
 
 ## Per-package docs
 
-- [packages/osuperpowers/](packages/osuperpowers/) -- skills, CDD engine, gate
-- [packages/osuperpowers-router/](packages/osuperpowers-router/) -- router targets, enforcement layers
-- [docs/gate-install.md](docs/gate-install.md) -- per-harness gate installation
+- [`packages/osuperpowers/`](packages/osuperpowers/README.md) — the plugin's own guide: skill inventory, install, quick start, the `cdd` CLI harness table
+- [`packages/cdd-engine/`](packages/cdd-engine/) — the CDD engine package source (maintained from this repo)
+- [`docs/maintainers/`](docs/maintainers/README.md) — maintainer-only documentation index for this repository's developers
 
 ## Development
 
@@ -105,33 +133,22 @@ Full architecture: [CLAUDE.md](CLAUDE.md).
 ```bash
 # After editing any plugin manifest or skills
 pnpm run emit && pnpm run validate
-
-# Fresh clone -- init submodules
-git submodule update --init
-
-# Bump a vendored submodule
-git -C vendors/mattpocock-skills fetch --tags origin
-git -C vendors/mattpocock-skills checkout v1.1.0
-git add vendors/mattpocock-skills
-git commit -m "chore: bump mattpocock-skills submodule"
 ```
 
 ### Adding a new first-party plugin
 
 1. Create `packages/<name>/package.json` with the `oscaner-plugin` field.
-2. Run `pnpm run emit` -- it auto-discovers the plugin and regenerates all manifests.
-3. Add a changeset naming it -- released as `@oscaner-skills/<name>`.
+2. Run `pnpm run emit` — it auto-discovers the plugin and regenerates all manifests.
+3. Add a changeset naming it — it is released as `@oscaner-skills/<name>`.
 
 No hand registration needed. See [CLAUDE.md](CLAUDE.md) for full details.
 
 ### Branch flow
 
-`develop` is the integration branch. Day-to-day PRs merge there. Production releases go through `develop --> main`. Version PRs, git tags, and GitHub Releases run on `main` only.
+`develop` is the integration branch — day-to-day PRs merge there. Production releases go through `develop --> main`. Version PRs, git tags, and GitHub Releases run on `main` only.
 
 Release process: [`.changeset/README.md`](.changeset/README.md).
 
 ## License
 
-First-party code (`osuperpowers`, `osuperpowers-router`, marketplace tooling): [MIT](LICENSE).
-
-Vendored plugins keep their own licenses -- see each plugin directory.
+First-party code (`osuperpowers`, marketplace tooling): [MIT](LICENSE).

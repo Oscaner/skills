@@ -2,11 +2,22 @@
 #   develop accumulates .changeset/*.md → develop→main PR → push main
 #   → changesets/action opens Version PR (target main); hasChangesets=true → tag/Release/sync skipped
 #   → merge Version PR → push main again; hasChangesets=false → publish mode
-#   → per-plugin matrix job pushes git tag + GitHub Release only for plugins that
-#     were actually versioned (recorded in .changeset/versioned-plugins.json by
-#     version-packages.mjs); plugins with no changesets are skipped — no phantom
-#     baseline tag/release → sync PR
-name: Release
+#   → per-plugin matrix job (osuperpowers + cdd-engine) pushes a git tag + GitHub Release only for
+#     plugins whose current package.json version is newer than their latest git tag (git-tag vs
+#     package.json semver judgment: `git tag --list "<tag_prefix>*" | sort -V | tail -1`, then
+#     strict x.y.z compare; an empty tag list = first release → versioned). The judgment is derived
+#     from the tree itself (native `changeset version` owns the version math), so plugins that were
+#     not versioned by the push get no tag/Release — no phantom baseline tag/release → sync PR.
+#   First-party osuperpowers + cdd-engine only (vendors self-maintenance surface withdrawn, P6 Task 2 / B2): release-plugin
+#   and sync-develop no longer block on vendored co-publish.
+#   Push coverage model: `pnpm run validate` covers the PR surface in full (develop→main and
+#   changeset-release/* PRs run pr-validate); push→main itself runs no validate — the release
+#   surface = emit freshness (Version PR generation runs `pnpm exec changeset version` then
+#   `pnpm run emit`) + the dual consumer gates (pre-version baseline smoke-cdd, and the
+#   post-version `changeset status` push-mode split + `smoke-cdd --expect-version 1.0.0` on
+#   publish pushes — both wired before the changesets action, so the released artifact is the
+#   verified artifact and the post gate intercepts before `changeset publish`).
+name: Release (main)
 
 on:
   push:
@@ -26,19 +37,38 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          submodules: recursive
           fetch-depth: 0
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: pnpm
+      - uses: ./.github/actions/setup
       - run: pnpm install --frozen-lockfile
       - run: pnpm run emit
-      - uses: changesets/action@v1
+      # Pre-version consumer-sim gate (P3 T7 / design §2.6): before any publish-side action,
+      # black-box the current tree's release candidate through a consumer install (pack →
+      # npm install → cdd schema get + 5-command dry-run chain). Version-agnostic — passes on
+      # both the 0.1.0 version push and the 1.0.0 publish push; a failure here aborts before
+      # the action, leaving a clean tree to roll back from.
+      - run: node scripts/run.ts smoke-cdd
+      # Post-version gate (P4.2 / design §2.2): split the two push modes BEFORE the action —
+      # changesets/action's hasChangesets is only known after it runs (a gate placed after it
+      # would sit after `changeset publish` too, losing its interception force). `changeset
+      # status` reads the push's pending changesets: an EMPTY array = the Version PR was merged
+      # → this push IS the publish mode. Only then the expect-version gate runs — on the 1.0.0
+      # publish tree the released artifact (packed AND installed) must carry version 1.0.0
+      # ("release artifact = verified artifact"), still before the action's publish.
+      - name: Detect publish-mode push (zero pending changesets)
+        id: changesets-status
+        env:
+          CHANGESET_STATUS_FILE: ${{ runner.temp }}/changeset-status.json
+        run: |
+          pnpm exec changeset status --output="$CHANGESET_STATUS_FILE"
+          has_changesets=$(node -e 'const s = JSON.parse(require("node:fs").readFileSync(process.env.CHANGESET_STATUS_FILE, "utf8")); process.stdout.write(s.changesets.length > 0 ? "true" : "false")')
+          echo "has_changesets=$has_changesets" >> "$GITHUB_OUTPUT"
+      - name: Post-version consumer gate (smoke-cdd --expect-version 1.0.0)
+        if: steps.changesets-status.outputs.has_changesets == 'false'
+        run: node scripts/run.ts smoke-cdd --expect-version 1.0.0
+      - uses: changesets/action@v2
         id: changesets
         with:
-          version: node scripts/version-packages.mjs
+          version: pnpm exec changeset version && pnpm run emit
           publish: pnpm exec changeset publish
           createGithubReleases: false
           commit: "chore: release plugins"
@@ -54,27 +84,39 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: osuperpowers-router
-            tag_prefix: "osuperpowers-router@"
           - name: osuperpowers
             tag_prefix: "osuperpowers@"
+          - name: cdd-engine
+            tag_prefix: "cdd-engine@"
     steps:
       - uses: actions/checkout@v7
         with:
-          submodules: recursive
           fetch-depth: 0
       - name: Read plugin version
         id: ver
         run: echo "version=$(node -p "require('./packages/${{ matrix.name }}/package.json').version")" >> "$GITHUB_OUTPUT"
-      - name: Check plugin was versioned in this release
+      - name: Check plugin was versioned in this release (git-tag vs package.json semver)
         id: versioned
         run: |
-          if [ ! -f .changeset/versioned-plugins.json ]; then
-            echo "versioned=false" >> "$GITHUB_OUTPUT"
-          elif jq -e --arg p "${{ matrix.name }}" '.[] | select(. == $p)' .changeset/versioned-plugins.json >/dev/null 2>&1; then
+          # Judgment: versioned iff (a) no git tag exists yet for this package — first release
+          # (e.g. cdd-engine@1.0.0 has no "minimum tag" to compare against; the current version IS
+          # the first version) — or (b) the current package.json version strictly exceeds the
+          # latest git tag. Comparing against the latest tag prevents a phantom tag/Release when
+          # the version is unchanged (a ghost tag, or a push that did not version this package).
+          latest_tag=$(git tag --list "${{ matrix.tag_prefix }}*" | sort -V | tail -1)
+          if [ -z "$latest_tag" ]; then
             echo "versioned=true" >> "$GITHUB_OUTPUT"
           else
-            echo "versioned=false" >> "$GITHUB_OUTPUT"
+            version="${{ steps.ver.outputs.version }}"
+            tag="${latest_tag#${{ matrix.tag_prefix }}}"
+            # Pure-shell strict X.Y.Z compare — this job runs on a bare checkout (no pnpm
+            # install), so it cannot require('semver'); numeric field sort is identical on GNU
+            # and BSD, keeping the local rehearsal faithful to the runner.
+            if [ "$version" != "$tag" ] && [ "$(printf '%s\n%s\n' "$tag" "$version" | sort -t. -k1,1n -k2,2n -k3,3n | head -1)" = "$tag" ]; then
+              echo "versioned=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "versioned=false" >> "$GITHUB_OUTPUT"
+            fi
           fi
       - name: Check tag already exists
         id: tag-exists

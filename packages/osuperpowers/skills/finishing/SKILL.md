@@ -1,31 +1,49 @@
 ---
 name: finishing
-description: Independent finishing orchestrator -- Reads upstream superpowers:finishing-a-development-branch as baseline, layers personal rules (no worktree / conventional commits / no attribution / Option4 typed discard).
+description: Independent finishing orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:finishing-a-development-branch flow inline as this session's baseline for the merge/PR/keep/discard decision, then closes related issues. Layers personal rules (no worktrees / conventional commits / typed-discard). Callable standalone; triggered by /finishing via overrides router.
 ---
 
-# OS Finishing
+# Osuperpowers Finishing
 
-Development branch finishing: merge / PR / keep / discard.
+Development branch finishing: the imported upstream flow decides merge / PR / keep / discard, then related issues are closed.
 
-## Rules
+## Flow Digraph
 
-### Rule: Read Upstream
+```mermaid
+flowchart TD
+  A[run-finishing-session] -->|complete| C[close-issues]
+  A -->|missing| Z1((BLOCKED: install superpowers))
+  C --> K((APPROVED))
+```
 
-Read upstream `superpowers:finishing-a-development-branch` SKILL.md as the process baseline **when available** (resolution priority + unavailability fallback same as [Rule: Read Upstream](../brainstorming/SKILL.md#rule-read-upstream)). **Read, not Skill-invoke**.
+## Node Definitions
 
-### Rule: No Worktrees
+### `run-finishing-session`
 
-**No worktrees** (user policy). Skip the upstream worktree detection block, use Standard 4 options (normal-repo variant). If worktree state is accidentally detected -> STOP + report to user. Skip upstream Step 6 (worktree remove/prune).
+- **Do**: Import `/superpowers:finishing-a-development-branch` — its flow is consumed inline as this session's baseline (loading an upstream skill imports its flow once; no second spawn) and runs its full finish loop (verify tests → read base → 4-option menu → execute merge / PR / keep / discard); it lands the finish decision (merged / PR created / kept / discarded) that routes `close-issues`. **Upstream steps are not restated here.** Personal rules enforced at this boundary: normal-repo menu (No Worktrees — I1); merge commit / PR title in conventional commits, PR body `## Summary` + `## Test Plan` only, zero attribution (I2); the strict typed-discard gate — the literal `discard` only (case-sensitive, no leading/trailing whitespace); any other input falls back to the menu **without resetting its presentation counter** (3 attempts max → BLOCKED)
+- **Read**: landed finish decision + base branch (`.osuperpowers/cdd/<slug>/base-branch.json`, or inference per [base-branch.md](../cli-driven-development/docs/base-branch.md))
+- **Exit**: Finish decision landed (merged / PR created / kept / discarded) → `close-issues`
+- **Fail**: Upstream superpowers plugin missing → BLOCKED (install superpowers); menu exhausted after 3 unrecognized inputs → BLOCKED (menu exhausted); tests red → BLOCKED (fix tests)
 
-### Rule: Conventional Commits
+### `close-issues`
 
-Merge commit / PR title follows conventional commits; **no attribution/co-author/AI-generation lines** (trailers, footers, inline -- none allowed). PR body uses only `## Summary` + `## Test Plan`, no attribution sections appended.
+- **Do**: Close the issues that shipped with the finished work — for each `#NNN` in the phase's scope, `gh issue close NNN` with the shipped state
+- **Read**: phase spec Issue inventory + finished branch
+- **Exit**: Issues closed → APPROVED
+- **Fail**: `gh` unavailable → report + fail-open (do not block the finish)
 
-### Rule: Option4 Typed Discard
+## Invariants
 
-Option 4 (discard branch) requires the user to **type the literal "discard"** to confirm, not a multiple-choice menu. The friction prevents accidental deletion.
+| # | Invariant |
+|---|---|
+| I1 | **No Worktrees** — skip the upstream worktree detection block and its cleanup; the menu is fixed to the normal-repo variant; worktree state is a pre-development violation (not finishing's scope) |
+| I2 | **Conventional Commits + No Attribution** — merge commit / PR title follows conventional commits; no trailers / footers / inline attribution; PR body uses only `## Summary` + `## Test Plan` |
 
-## Red Flags
+## Failure Modes
 
-- "Running worktree detection is harmless" -> no worktrees, skip detection block (Rule: No Worktrees)
-- "Adding Claude attribution to PR body is standard practice" -> user policy forbids it (Rule: Conventional Commits)
+| failure | behavior | reason |
+|---|---|---|
+| Upstream superpowers plugin missing | BLOCKED (install superpowers) | Block policy: no silent fallback |
+| Tests red before merge | BLOCKED (fix tests) | Do not merge/PR a red branch |
+| Menu unrecognized input reaches the 3-attempt limit | BLOCKED (menu exhausted) | Cannot obtain user decision |
+| Merge conflict / push rejected / PR failure | implicit fail-open (stop + report; branch and base retained; user recovers then re-runs finishing) | Do not auto-resolve |

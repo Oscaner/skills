@@ -1,34 +1,39 @@
 # @oscaner-skills/osuperpowers
 
-[English](README.md) | [简体中文](README.zh-CN.md)
+> 🔗 **Mirror 同步声明**：本文件（`README.zh-CN.md`）是英文源 [README.md](README.md) 的同步中文 **mirror**——顶层章节集合逐条一致，节点按位置一一对应；本文为对外宣讲面的中文口径，语义以英文源为准。**同步时间戳**：2026-09-26。
 
-Claude Code 工程技能插件 — osuperpowers 编排系列、cli-\* CDD 引擎技能、CDD 编排器门控。
+[English](README.md) | [中文](README.zh-CN.md)
 
-## 功能概述
+个人 AI 编程技能——osuperpowers 编排、`cli-*` CDD 引擎家族与 report-issues 仓库工具——打包为可安装插件，供多种 AI 编程 harness 消费（已在 **Claude Code** 与 **Cursor Agent** 上验证）。
 
-本插件提供两大技能系列：
+## osuperpowers 理念导览
 
-- **osuperpowers 编排器** — 读取上游 `superpowers` 基线并叠加个人规则的流程编排器（澄清问题通过 `grilling`、规格审查通过 fresh subagent passes、工单发布重定向等）
-- **cli-\* CDD 引擎** — 三模式链（implement / review / fix），将编码任务分发到外部 AI CLI（`claude`、`cursor-agent`、`droid`、`pi`）
-- **CDD 门控** — 对 `Write`/`Edit` 和 `Bash` 工具调用执行 pending-state 约束的钩子
+osuperpowers 是 cdd-first 方法论的分发载体：它将**持续发现式开发（continuously-discovered development）**的实践打包为可安装技能，并以确定性的 `cdd` 引擎支撑整个流程（完整方法论见仓库 [README](../README.md)）。
 
-## 技能列表
+- **cdd 为核心理念。** 开发经由三种模式链——implement → review → fix——由计划驱动，每个阶段都在同一条收敛规则下收口。
+- **编排为流程层。** 编排器技能承载流程：澄清问题、带结构化评审的 spec 与计划撰写、分支收尾——每个阶段由评审收口，而非靠假设。
+- **引擎为执行层。** `cdd` CLI 让链条确定化——同样的计划、同样的简报、同样的命令、同样的结果。引擎把每个阶段派发给宿主 harness 并写入 handoff 产物；技能从不重造引擎的机制。
+
+## 功能
+
+三个技能家族：
+
+- **osuperpowers 编排**——读取上游 `superpowers` 基线的流程编排器，并应用本插件的个人规则（经 `grilling` 澄清问题、经全新子代理 pass 做 spec 评审等）
+- **`cli-*` CDD 引擎家族**——计划执行器外加 `cdd` 引擎 CLI（`@oscaner-skills/cdd-engine`）：implement / review / fix 三模链与 base-branch 产物，将每个阶段派发给宿主 harness CLI
+- **report-issues**——仓库开发工具，为 CDD 会话的缺陷与改进机会聚合生成一个 GitHub issue（gh CLI、去重感知、手动触发）
+
+## 技能
 
 | 技能 | 类型 | 说明 |
 |------|------|------|
-| `brainstorming` | 编排器 | 发现阶段委托给 `grilling`；子代理规格审查；大范围整体/分阶段 |
-| `writing-plans` | 编排器 | 逐节方案编写 + 审查；工单输出到 `docs/superpowers/tickets/` |
-| `executing-plans` | 编排器 | 三模式执行器（会话内 / 子代理 / CLI） |
-| `finishing` | 编排器 | 分支收尾 / PR；禁止 worktree；约定式提交 |
-| `debugging` | 编排器 | 先收集证据再修复；委托给 `diagnosing-bugs` |
-| `verification` | 编排器 | 无验证证据不得声称完成 |
-| `code-review` | 编排器 | 反馈不清 → `grilling`；修复 → `tdd` |
-| `init` | 工具 | 项目初始化（`init router` 写入自检规则） |
-| `report-issue` | 工具 | 结构化问题报告 |
-| `cli-driven-development` | CDD 引擎 | CLI 三模式链分发器 |
-| `cli-select` | CDD 引擎 | 交互式 harness 选择 |
-| `cli-task` | CDD 引擎 | 单任务 CDD 执行 |
-| `cli-code-review` | CDD 引擎 | CDD 驱动的代码审查 |
+| `brainstorming` | Orchestrator | 委派发现给 `grilling`；子代理 spec 评审；路由到 overall/phase spec 写入器 |
+| `writing-overall-spec` | Orchestrator | 从设计会话写出程序宪章（overall spec）；cdd spec 评审-修复；交接下一阶段 |
+| `writing-phase-spec` | Orchestrator | 写阶段 spec 增量；先同步 scope 变更到父 overall；cdd spec 评审-修复；交接 `writing-plans` |
+| `writing-single-spec` | Orchestrator | 自由形式写单一（非阶段）spec；cdd spec 评审-修复；交接 `writing-plans` |
+| `writing-plans` | Orchestrator | 逐节撰写计划 + 评审 |
+| `cli-driven-development` | Orchestrator + Engine | 计划执行器（仅 CLI）；派发三模链（`cdd implement` / `cdd review` / `cdd fix`）+ `cdd base-branch` 产物；最终分支评审 |
+| `finishing` | Orchestrator | 分支收尾 / PR；禁用 worktree；conventional commits |
+| `report-issues` | Utility | 为 CDD 会话的缺陷与改进机会聚合生成一个 GitHub issue（gh CLI、去重感知）；手动触发 |
 
 ## 安装
 
@@ -36,47 +41,44 @@ Claude Code 工程技能插件 — osuperpowers 编排系列、cli-\* CDD 引擎
 npm install @oscaner-skills/osuperpowers
 ```
 
-或从 oscaner-skills Claude Code marketplace 安装。
+或从 oscaner-skills Claude Code 插件市场安装：
+
+```bash
+/plugin marketplace add oscaner/skills
+/plugin install osuperpowers@oscaner-skills
+```
 
 ## 快速开始
 
-1. 从 marketplace 安装 `superpowers`、`osuperpowers-router`、`osuperpowers` 和 `mattpocock-skills`。
-2. 在每个项目中运行 **`/init router`** 写入自检规则。
-3. 使用上游 superpowers 技能 — 路由器自动路由到工程编排器。
-
-### Claude Code
+1. 从市场安装 `superpowers`、`osuperpowers` 与 `mattpocock-skills`（逐 harness 安装见仓库 README）。
+2. 确保 `cdd` 引擎 CLI 在 `PATH` 上（`command -v cdd`）；若缺失，运行 `npm i -g @oscaner-skills/cdd-engine`。`cli-driven-development` 技能的 `detect-engine` 节点会在 dispatch 时重新检查。
+3. 调用 osuperpowers 技能——Claude Code 用 `/osuperpowers:<skill>`，Cursor 用裸斜杠命令：
 
 ```bash
+# Claude Code
 /osuperpowers:brainstorming    # → brainstorming
 /osuperpowers:writing-plans    # → writing-plans
-/osuperpowers:executing-plans  # → executing-plans
-```
 
-### Cursor
-
-```bash
-/brainstorming    # → brainstorming（裸上游斜杠命令）
+# Cursor
+/brainstorming    # → brainstorming（裸上游斜杠）
 /writing-plans    # → writing-plans
 ```
 
-## CDD CLI harness 脚本
+## CDD 引擎 CLI
 
-CDD 引擎通过插件捆绑脚本分发。单一 CLI 运行器为 `bin/engine/cdd-run.mjs`。
+CDD 引擎以独立 `@oscaner-skills/cdd-engine` 包发布；其唯一 CLI 运行器是 `cdd`（implement / review / fix / base-branch / schema / issue）。它通过引擎内嵌的 harness 注册表（逐 harness 的调用与输出契约）将每个阶段派发给宿主 harness CLI：
 
-| Harness | CLI 二进制 | 状态 |
-|---------|-----------|------|
-| claude | `claude` | 完整支持 |
-| cursor-agent | `cursor-agent` | 完整支持 |
-| droid | `droid` | 完整支持 |
-| pi | `pi` | 完整支持 |
-| codex | `codex` | 不支持 |
-| copilot | `copilot` | 不支持 |
-| gemini | `gemini` | 不支持 |
+| Harness | CLI 二进制 | 交付状态 |
+|---------|------------|----------|
+| claude | `claude` | Full |
+| cursor-agent | `cursor-agent` | Full |
+
+`cdd schema get <type>` 直出引擎的 canonical 文档结构 schema（发现型、与原 schema 文件同字节），`cdd issue render` 依据 stdin 发现渲染聚合 issue 正文（纯渲染、零执法）。完整 CLI 参考见 [cdd-engine README](../cdd-engine/README.zh-CN.md)。
 
 ## 维护者文档
 
-- [CLAUDE.md](CLAUDE.md) — 工程插件内部机制（钩子、overrides 模式、emit、验证、发布）
+本单仓开发者的仓库内部维护文档（不随插件发布）。[docs/maintainers 索引](../../docs/maintainers/README.md) 链接编号族文档——如 [program experience](../../docs/maintainers/04-program-experience.md)（程序经验）与 [template doctrine](../../docs/maintainers/01-template-doctrine.md)（模板惯例，约束 emit 派生产物）。
 
-## 许可证
+## 许可
 
 MIT

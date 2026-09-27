@@ -1,0 +1,204 @@
+{
+  "components": [
+    "osuperpowers (general)",
+    "cdd-engine",
+    "osuperpowers:brainstorming",
+    "osuperpowers:writing-single-spec",
+    "osuperpowers:writing-overall-spec",
+    "osuperpowers:writing-phase-spec",
+    "osuperpowers:writing-plans",
+    "osuperpowers:cli-driven-development",
+    "osuperpowers:report-issues",
+    "osuperpowers:finishing"
+  ],
+  "severities": [
+    "blocker",
+    "warn",
+    "nit"
+  ],
+  "metaFields": [
+    { "key": "skill", "label": "Skill" },
+    { "key": "step", "label": "Step" }
+  ],
+  "sectionLabels": {
+    "bug": {
+      "en": {
+        "context": "## Context",
+        "problem": "## Problem",
+        "impact": "## Impact",
+        "suggestedFix": "## Suggested fix"
+      },
+      "zh": {
+        "context": "## 背景",
+        "problem": "## 问题",
+        "impact": "## 影响",
+        "suggestedFix": "## 建议修复"
+      }
+    },
+    "enhancement": {
+      "en": {
+        "context": "## Context",
+        "problem": "## Current behavior",
+        "impact": "## Desired behavior",
+        "suggestedFix": "## Suggested approach"
+      },
+      "zh": {
+        "context": "## 背景",
+        "problem": "## 当前行为",
+        "impact": "## 期望行为",
+        "suggestedFix": "## 建议方案"
+      }
+    }
+  },
+  "formFieldDefs": {
+    "bug_report": {
+      "frontmatter": {
+        "name": "Bug report",
+        "description": "Report a bug found while using osuperpowers skills (dogfood)",
+        "labels": ["bug", "osuperpowers"]
+      },
+      "body": [
+        {
+          "type": "markdown",
+          "attributes": {
+            "value": "Use this template to report bugs found during dogfood use of osuperpowers skills.\n"
+          }
+        },
+        {
+          "type": "dropdown",
+          "id": "component",
+          "attributes": {
+            "label": "Component",
+            "description": "Which component does this finding relate to?"
+          },
+          "validations": { "required": true }
+        },
+        {
+          "type": "textarea",
+          "id": "context",
+          "attributes": {
+            "label": "Context",
+            "description": "Dogfood session context: date, harness, which osuperpowers skills were in use",
+            "placeholder": "Date: YYYY-MM-DD, Harness: claude-code, Skills: cli-driven-development, writing-plans"
+          },
+          "validations": { "required": true }
+        },
+        {
+          "type": "textarea",
+          "id": "problem",
+          "attributes": {
+            "label": "Problem",
+            "description": "What happened? Include exact error messages or tool output where available."
+          },
+          "validations": { "required": true }
+        },
+        {
+          "type": "textarea",
+          "id": "impact",
+          "attributes": {
+            "label": "Impact",
+            "description": "What did this block or degrade — token cost, extra rounds, incorrect state?"
+          },
+          "validations": { "required": true }
+        },
+        {
+          "type": "textarea",
+          "id": "suggested-fix",
+          "attributes": {
+            "label": "Suggested fix",
+            "description": "Concrete suggestion, or leave as \"Under investigation\"",
+            "placeholder": "Under investigation"
+          },
+          "validations": { "required": false }
+        },
+        {
+          "type": "textarea",
+          "id": "related",
+          "attributes": {
+            "label": "Related",
+            "description": "Links to related issues or commits, if known"
+          },
+          "validations": { "required": false }
+        }
+      ]
+    },
+    "enhancement": {
+      "frontmatter": {
+        "name": "Enhancement",
+        "description": "Suggest an improvement to osuperpowers skills or workflow",
+        "labels": ["enhancement", "osuperpowers"]
+      },
+      "body": [
+        {
+          "type": "markdown",
+          "attributes": {
+            "value": "Use this template to suggest improvements found during dogfood use of osuperpowers skills.\n"
+          }
+        },
+        {
+          "type": "dropdown",
+          "id": "component",
+          "attributes": {
+            "label": "Component",
+            "description": "Which component does this finding relate to?"
+          },
+          "validations": { "required": true }
+        },
+        {
+          "type": "textarea",
+          "id": "context",
+          "attributes": {
+            "label": "Context",
+            "description": "Dogfood session context: date, harness, which osuperpowers skills were in use",
+            "placeholder": "Date: YYYY-MM-DD, Harness: claude-code, Skills: cli-driven-development"
+          },
+          "validations": { "required": true }
+        },
+        {
+          "type": "textarea",
+          "id": "current-behavior",
+          "attributes": {
+            "label": "Current behavior",
+            "description": "What happens today?"
+          },
+          "validations": { "required": true }
+        },
+        {
+          "type": "textarea",
+          "id": "desired-behavior",
+          "attributes": {
+            "label": "Desired behavior",
+            "description": "What should happen instead?"
+          },
+          "validations": { "required": true }
+        },
+        {
+          "type": "textarea",
+          "id": "suggested-approach",
+          "attributes": {
+            "label": "Suggested approach",
+            "description": "Concrete suggestion, or \"Open for discussion\"",
+            "placeholder": "Open for discussion"
+          },
+          "validations": { "required": false }
+        },
+        {
+          "type": "textarea",
+          "id": "related",
+          "attributes": {
+            "label": "Related",
+            "description": "Links to related issues or commits, if known"
+          },
+          "validations": { "required": false }
+        }
+      ]
+    }
+  },
+  "reportDef": {
+    "labels": ["osuperpowers", "cdd-engine"]
+  },
+  "masterDef": {
+    "sessionTitle": "## Session",
+    "harnessRow": "- Harness: <harness>"
+  }
+}

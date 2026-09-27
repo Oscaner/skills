@@ -1,0 +1,24 @@
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { execa } from "execa";
+import { describe, expect, it } from "vitest";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+
+const run = (args) => execa("node", ["scripts/run.ts", ...args], { cwd: ROOT, reject: false });
+
+describe("run.ts apply-rules wiring", () => {
+  it("is listed in the subcommand help with both targets", async () => {
+    const { stdout, exitCode } = await run(["apply-rules", "--help"]);
+    expect(exitCode).toBe(0);
+    expect(stdout).toMatch(/apply-rules/);
+    expect(stdout).toMatch(/protect-develop/);
+    expect(stdout).toMatch(/protect-main/);
+  });
+
+  it("rejects an unknown target with usage on stderr and exit 1", async () => {
+    const { stderr, exitCode } = await run(["apply-rules", "bogus"]);
+    expect(exitCode).toBe(1);
+    expect(stderr).toMatch(/Usage: run\.ts apply-rules <protect-develop\|protect-main>/);
+  });
+});

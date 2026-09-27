@@ -1,0 +1,95 @@
+// scripts/__tests__/run.test.ts — Task 21: run.ts citty CLI surface. Pins the
+// value-passing contract between the subcommand run() handlers and the lazily-loaded module
+// mains (Command#invocationArgs — Task 9 class face), the command-tree shape, and the P5
+// §2.4.2 exit-code table via black-box spawns of `node scripts/run.ts`.
+
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { execa } from "execa";
+import { describe, expect, it } from "vitest";
+
+import { Command } from "../lib/command.ts";
+import { mainCommand } from "../run.ts";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+
+const runCli = (args: string[]) =>
+  execa("node", ["scripts/run.ts", ...args], { cwd: ROOT, reject: false });
+
+const sub = (name: string) =>
+  (
+    mainCommand.subCommands as Record<
+      string,
+      { meta: { name: string }; args: Record<string, unknown> }
+    >
+  )[name];
+
+describe("run.ts command tree (citty Task 21)", () => {
+  it("declares exactly the six administrative subcommands", () => {
+    const keys = Object.keys(mainCommand.subCommands as Record<string, unknown>);
+    expect([...keys].sort()).toEqual(
+      ["apply-rules", "emit", "emit-check", "precommit", "smoke-cdd", "validate"].sort(),
+    );
+  });
+
+  it("apply-rules declares its single mandatory positional target", () => {
+    const args = sub("apply-rules").args;
+    expect(args.target).toEqual({
+      type: "positional",
+      description: "protect-develop | protect-main",
+    });
+  });
+});
+
+describe("Command invocationArgs — subcommand value passing (Task 9 class face)", () => {
+  const command = (kind: "none" | "dry-run" | "target" | "expect-version") =>
+    new Command(
+      { name: kind, description: "test", modulePath: "./test.ts", kind },
+      import.meta.url,
+    );
+
+  it("zero-arg mains get no forwarded arguments (validate must never see an options object)", () => {
+    expect(command("none").invocationArgs({})).toEqual([]);
+  });
+
+  it("dry-run kind forwards presence-based dryRun (class contract; version was the retired consumer)", () => {
+    expect(command("dry-run").invocationArgs({ "dry-run": true })).toEqual([{ dryRun: true }]);
+    expect(command("dry-run").invocationArgs({})).toEqual([{ dryRun: false }]);
+  });
+
+  it("apply-rules forwards its required positional target", () => {
+    expect(command("target").invocationArgs({ target: "protect-develop" })).toEqual([
+      "protect-develop",
+    ]);
+  });
+
+  it("expect-version kind forwards the declared semver string (smoke-cdd release gate)", () => {
+    expect(command("expect-version").invocationArgs({ "expect-version": "1.0.0" })).toEqual([
+      "1.0.0",
+    ]);
+    expect(command("expect-version").invocationArgs({})).toEqual([undefined]);
+  });
+});
+
+describe("run.ts exit-code table (P5 §2.4.2, engine parity)", () => {
+  it("root --help exits 0 and lists all six subcommands", async () => {
+    const { stdout, exitCode } = await runCli(["--help"]);
+    expect(exitCode).toBe(0);
+    for (const c of ["emit", "emit-check", "validate", "precommit", "smoke-cdd", "apply-rules"]) {
+      expect(stdout).toMatch(c);
+    }
+  });
+
+  it("unknown subcommand → usage line + exit 2 (usage/parse error)", async () => {
+    const { stderr, exitCode } = await runCli(["frobnicate"]);
+    expect(exitCode).toBe(2);
+    expect(stderr).toMatch(/usage: run <command> \[options\]/);
+    expect(stderr).toMatch(/Unknown command frobnicate/);
+  });
+
+  it("missing required positional (apply-rules) → usage line + exit 2", async () => {
+    const { stderr, exitCode } = await runCli(["apply-rules"]);
+    expect(exitCode).toBe(2);
+    expect(stderr).toMatch(/Missing required positional argument: TARGET/);
+  });
+});

@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CDD harness cache profile (harness-registry.json#cache)",
+  "description": "Per-harness prompt-cache capability profile (spec D-3 C7). New harness = append a registry row + profile; capability is data, zero contract changes.",
+  "type": "object",
+  "required": ["mechanism", "minTokens"],
+  "properties": {
+    "mechanism": {
+      "enum": ["explicit", "auto-prefix", "implicit"]
+    },
+    "minTokens": {
+      "oneOf": [
+        { "type": "integer", "minimum": 1 },
+        { "enum": ["pending"] }
+      ]
+    },
+    "readMultiplier": { "type": "number", "exclusiveMinimum": 0 },
+    "writeMultiplier": { "type": "number", "exclusiveMinimum": 0 },
+    "ttlMinutes": { "type": "integer", "minimum": 0 },
+    "observable": { "type": "boolean" }
+  },
+  "additionalProperties": false
+}

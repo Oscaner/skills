@@ -93,7 +93,11 @@ osuperpowers installs through each harness's own plugin marketplace; neither Cla
 
 1. Install the plugins from the marketplace or npm (see [Installation](#installation)).
 2. Make sure the `cdd` engine CLI is on `PATH` (`command -v cdd`); if it is missing, run `npm i -g @oscaner-skills/cdd-engine`. `cli-driven-development`'s `detect-engine` node re-checks this at dispatch.
-3. Invoke the superpowers workflow as you normally would — osuperpowers skills intercept upstream triggers and route to the matching target automatically.
+3. Invoke the osuperpowers orchestrator by name — `osuperpowers:brainstorming`,
+   `osuperpowers:writing-plans`, and the rest of the family. Each skill imports the matching
+   upstream flow as its session baseline and runs its own orchestration digraph; osuperpowers
+   skills do not intercept or auto-route upstream `/superpowers:*` invocations — call the
+   vanilla skill directly for the unlayered variant.
 
 ## Architecture
 

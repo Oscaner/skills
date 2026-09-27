@@ -1,7 +1,7 @@
 # 消费者面一致性（Consumer Parity）— Overall Spec
 
-- **Version**: v1.47 · 2026-09-26
-- **Status**: Approved
+- **Version**: v1.48 · 2026-09-27
+- **Status**: Complete
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Constraints**:
   - 仓库语言政策：SKILL.md / docs 英文主源；本 spec 中文（Strategy B internal docs）
@@ -157,3 +157,4 @@ Legend:
 | v1.45 | 2026-09-26 | **P4.2 design 批准回填（backfill-as-version——P4.2 phase spec 经 cdd spec review-fix 收敛 APPROVED）：Phase inventory P4.2 Design-spec 列回填（[Pending]→p4.2-design v1.1）；依赖不变 `P4.4 ->(hard)`（v1.44→v1.45） | [human] · Claude Opus 5 (1M context) (osuperpowers:writing-phase-spec) |
 | v1.46 | 2026-09-26 | **P4.2 执行期 mid-backfill：plan-constraints 每 TG 再生（2026-09-26 用户裁决 · P4.2 执行期，TG3 review 返回后落地 · v1.45→v1.46）**：engine dispatch 行为面新增——plan-constraints.md **每 implement dispatch（每 TG 起点）无条件再生**（彻底去 generate-once：materializer 无早退 · pre-flight 去 existsSync 跳过 · `isPlanConstraintsStale` 成真死代码随删），mid-backfill 更新 plan Constraints 即随 TG 起点刷新；非 breaking（CLI/字段面零变化）；Issue inventory 增 P4.2 锚点行 + Phase inventory P4.2 行 scope/AC 增补（Task 12 落点随 plan v1.2）；依赖不变 `P4.4 ->(hard)`（v1.45→v1.46） | [human] · Claude Opus 5 (1M context) |
 | v1.47 | 2026-09-26 | **P4.2 Task 11 收口回填（backfill-overall 于 Task 11 收口位执行）：P4.2 Implementation plan 列回填（[Pending]→Done）**——claim 范围 = **P4.2 发布就绪态 round 内可证子集**：`pnpm run validate` 11 块全绿（emit:check / version-sync / scripts unit / marketplace）+ `node scripts/run.ts smoke-cdd` 全通（pre 基线门形态）+ `changeset status` 演练（pending 清单 = overhaul ×9 + p2-major + p4.3 + p4.4 ×5 + P4.2 ×2，backlog ×6 已清）+ 双 changeset 落盘 + 交付面探针全绿（版本基线 · 原生管线实证 · issue render 确定性 · 白名单 7 项 · workflows 三层 · 宣讲定位面 · maintainers 收敛【plan 锚 ≤53KB，spec §6 旧值 42KB 不判不合格——spec 修订以 spec fix 轮落盘为准】· gh 元信息）；**外部 post-publish 态登记有主**——npm 发布实证（`npm view` 可达）+ GitHub Release ×2 落盘 = **CI 执行后的程序级外验项**（owner = 收口复核 / 后续 dispatch），本回填不宣称（四表 Done 声明范围与此对齐，不外扩到未执行面）；P4.2 Design-spec 列 v1.45 已回填（[Pending]→p4.2-design v1.1）保持；Task 12（plan-constraints 每 TG 再生，TG8 · v1.46 注册）随后续 dispatch 落地后 plan complete（v1.46→v1.47） | [human] · Claude Opus 5 (1M context) |
+| v1.48 | 2026-09-27 | **consumer-parity 程序完结（P4.2 首发布后终态标记 · 用户裁决）**：Status Approved → **Complete**——七 phase（P1/P2/P3/P4.1/P4.3/P4.4/P4.2）全部 Design+Plan Done；锚点 issue #274/#276/#278/#279 全关（#278/#279 shipped-close）；发布态 cdd-engine 1.0.0 / osuperpowers 0.2.0（npm + 双 tag + GitHub Release ×2 + sync 回流）；无剩余 phase（v1.47→v1.48） | [human] · Claude Opus 5 (1M context) |

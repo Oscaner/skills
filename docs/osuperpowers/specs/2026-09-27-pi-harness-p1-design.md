@@ -1,6 +1,6 @@
 # Pi Harness P1 — 包侧 pi 分发面（Pi Harness P1: Package-Side Pi Distribution Surface）— Phase Spec
 
-- **Version**: v1.3 · 2026-09-27
+- **Version**: v1.4 · 2026-09-27
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming → writing-phase-spec)
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.3](2026-09-27-pi-harness-overall.md)
@@ -56,7 +56,7 @@ P1 使 `@oscaner-skills/osuperpowers` 成为 pi 一等 pi-package：manifest 正
   2. 安装产物内 `skills/` 含恰 8 个 `SKILL.md`（落点 = pi 安装机制实证路径，plan 阶段探针确认）
   3. 项目 `.pi/settings.json` 写入该包 source（`--local` 使 settings 落项目、不污染 `~/.pi`）
 - **verified-vs-probe 口径**：已核实（grilling fact-finder，2026-09-27）仅 `npm:@oscaner-skills/osuperpowers` 的 npm 路径加载（见 2.1 现状实证）；本地目录 install 旗标**已实测**（pi 0.87.1，T3 测量）——`--local` 写项目 `.pi/settings.json` **需 `--approve`**（trust gate：`--no-approve` 与 `--local` 不兼容，exit 1 "Project is not trusted. Use --approve to modify local package config."，信任按项目、不持久）；`--approve` 非交互自动批准，临时项目即弃；`npm i -g @earendil-works/pi-coding-agent` 安装命令为 CI 装配事实（runner 侧）；与 C6 npm 路径 smoke 互证——实现以实测为准，残余漂移仍回填本 spec
-- **无条件执行**：缺 `pi` 即 FAIL + 错误信息含 `npm i -g @earendil-works/pi-coding-agent`；CI（`.github/actions/validate` 装配）增 `npm i -g @earendil-works/pi-coding-agent` step——零静默 skip（反白绿 AC4 纪律）
+- **无条件执行**：缺 `pi` 即 FAIL + 错误信息含 `npm i -g @earendil-works/pi-coding-agent`；CI（`.github/actions/validate` 装配）增 `npm i -g @earendil-works/pi-coding-agent` step（**`@latest` 不固定版本**——pi-package 契约须对移动 pi 生态验证，防守卫随生态衰减失效）——零静默 skip（反白绿 AC4 纪律）
 - 残留记录（明示于 docs）：pi 无 CLI 内省其运行时技能清单，LLM 可见性不在本测试覆盖——release 站人工抽查 + P4 D5 消费故事补足
 
 **C5 命名 pin 升级（Q1′，validate 接线债）**：
@@ -64,20 +64,17 @@ P1 使 `@oscaner-skills/osuperpowers` 成为 pi 一等 pi-package：manifest 正
 - 语义增强：count 可被"一增一删"掩盖，name-set 不能；未来加块零 churn
 - plan 阶段读两文件全文核实既有断言，避免重复/冲突
 
-**C6 release 站（R5 站②）** — `.github/workflows/release.yml`：release job 内、changesets action 之后增 smoke step，复用现有 publish-mode 门控：
-- **publish-mode 门控**：step 条件 = `steps.changesets-status.outputs.has_changesets == 'false'`（release job 现「Detect publish-mode push」步骤同款）——changesets push（hasChangesets=true）不发版，跳过 smoke，避免 `pi install` 装到旧版本 / 首发 404 的假绿
-- 临时项目 cwd → `pi install npm:@oscaner-skills/osuperpowers@<publishedPackages 版本> --local --approve` → 退出 0 + 安装产物 `skills/` 恰 8 个 SKILL.md + 项目 `.pi/settings.json` 写入
-- 真消费者路径（registry 发布物），证明分发不依赖仓库工作树；版本取 changesets action 的 `publishedPackages` output（`steps.changesets.outputs.publishedPackages` 中 `name === "@oscaner-skills/osuperpowers"` 条目的 `version`），非笼统的「changeset publish 变量」
+**C6 release 站（R5 站②）— 已删除（v1.4 裁定）**：post-publish npm 路径 smoke 整体删除——① **detect-only 无门控**（changesets publish 已发生，失败只能 hotfix 二次发版，拦不住任何东西）；② **内容与 C4 同构**（同一 `files` 白名单同一棵树，无发布期变换，C4 已证 8-skill 落盘 + settings 写入）；③ **harness 一致性**：claude/cursor 均无 post-publish smoke（设计评审 user #1-4，2026-09-27）。release.yml 恢复至 C6 前状态；npm-source 解析风险（pi 对 scoped 包 registry 层的接受）记录为已知残余——P4 消费故事 / publish 前人工抽查承接。
 
 #### 2.3 数据流
 
-`packages/osuperpowers/package.json`（源侧手维护）→ C2 静态守卫（validate step）↔ C3 契约 pin（test）→ C4 安装 smoke（pack → 解包 → pi install → 断言）→ C6 release npm 路径 smoke（发布后）。全程无运行时扩展、无 emit 产物面。
+`packages/osuperpowers/package.json`（源侧手维护）→ C2 静态守卫（validate step）↔ C3 契约 pin（test）→ C4 安装 smoke（pack → 解包 → pi install --local --approve → 断言）。全程单站（C6 release 站已删于 v1.4，见 2.2）、无运行时扩展、无 emit 产物面。
 
 #### 2.4 错误与边界
 
 - `npm pack` 产物名 `oscaner-skills-osuperpowers-<ver>.tgz` 含版本——smoke 用 `--pack-destination` + 动态定位，不硬编码版本字面
 - `pi install` 本地目录源传绝对路径；`--local` 落项目 `.pi/settings.json`（**需 `--approve`**——0.87.1 实测 trust gate：`--no-approve` 与 `--local` 不兼容 exit 1，信任按项目不持久）；`--approve` 非交互自动批准（CI 安全，临时项目即弃）
-- CI runner 无 pi → 装配 step 安装（版本以 smoke 验收时实测为准）；本地无 pi → 断言 FAIL + 安装提示（零静默 skip）
+- CI runner 无 pi → 装配 step 安装（`@latest` 不固定版本）；本地无 pi → 断言 FAIL + 安装提示（零静默 skip）
 - files 闭包 glob 展开语义（目录前缀 vs 文件集）：实现以「strip `./` 后目录/文件前缀覆盖」判定，plan 阶段以既有 files 实证
 - smoke 全流程零网络（本地 pack + 本地目录 install）
 
@@ -95,15 +92,15 @@ P1 使 `@oscaner-skills/osuperpowers` 成为 pi 一等 pi-package：manifest 正
 - `packages/osuperpowers/tests/pi-package.test.mjs` 在 behavior glob 内通过（manifest 契约 + R0 不变式 pin）
 - `pi-install-smoke.test.mjs` 通过：pack → 解包 → `pi install <dir> --local --approve` 退出 0 · 安装产物含恰 8 个 SKILL.md · 项目 `.pi/settings.json` 写入该包
 - `ci-validate.test.mjs` 与 `pre-commit.test.ts` 以 name-set 断言 validate steps（11→12，含新 step），`pnpm run validate` 与 precommit 全绿
-- `.github/workflows/release.yml` 含 npm 路径 pi smoke 步骤（publish 后 `pi install npm:@oscaner-skills/osuperpowers@<ver> --local --approve`）
+- `.github/workflows/release.yml` **不含** pi smoke 步骤（C6 已删于 v1.4；npm-source 解析风险 = 已知残余，P4 承接）
 - `pnpm run validate` 全块全绿（新增守卫与测试在内）
 
 ## Section 3: Deviations from overall
 
 | Overall assumption | Phase decision | Overall updated? |
 |---|---|---|
-| overall v1.2 P1 acceptance「`pi install <npm 或本地路径>` 单口验收」 | 两站化：validate 本地解包安装实证（C4）+ release npm 路径 smoke（C6） | Yes — v1.3 · 2026-09-27 |
-| overall v1.2 P1「守卫 + node:test 骨架（进 validate glob）」未定形态 | 一等 CheckBlock（C2）+ 背靠测试（C3）+ 命名 pin count→name-set 债升级（C5） | Yes — v1.3 · 2026-09-27 |
+| overall v1.2 P1 acceptance「`pi install <npm 或本地路径>` 单口验收」 | 两站化 → v1.4 裁定退单站：C4 validate 站保留、C6 release 站删除（post-publish detect-only 无门控 + 内容与 C4 同构 + 与 claude/cursor 无 post-publish smoke 一致） | Yes — v1.4 · 2026-09-27 |
+| overall v1.2 P1「守卫 + node:test 骨架（进 validate glob）」未定形态 | 一等 CheckBlock（C2）+ 背靠测试（C3）+ 命名 pin count→name-set 债升级（C5） | Yes — v1.3 · 2026-09-27（v1.4 生效） |
 
 无未回填偏差——全部 grilling 定案已随 overall v1.3 sync-before-write 落地。
 
@@ -111,7 +108,7 @@ P1 使 `@oscaner-skills/osuperpowers` 成为 pi 一等 pi-package：manifest 正
 
 - **P2（emit 分发注册表）**：消费 `package.json#pi` 作为 pi 分发条目注册的契约输入；本 phase 只固化源字段，不建注册表（P2 硬依赖 P1）
 - **P3（engine 数据面）**：`pi` registry 行 + `AI_AGENT=pi` 检测，不触碰 package 侧字段；`pi-install` 行为与 engine spawn 通道（`pi -p` print 形态）无重叠，per-op 形态 P3 自行定稿
-- **C6 release.yml 修改面**：与 P4 的 validate/README 接线共享发布链文件，P4 改动时勿覆盖 smoke step
+- **C6 已删（v1.4 裁定）**：release.yml 恢复原状，无修改面；npm-source 解析风险（pi 对 scoped 包 registry 层的接受）= 已知残余——P4 消费故事 / publish 前人工抽查承接
 - **残留记录（consumer 面）**：pi 运行时技能清单无 CLI 内省，skill 可见性由 C6 人工抽查 + P4 D5 消费故事（包序 override 语义）文档化
 - **#302（独立 single-spec 程序，非本程序产物）**：Review Convergence 判读规则改动归其 spec；P3/P4 若触碰 Review Convergence 文案以 #302 程序定案为准
 

@@ -1,6 +1,6 @@
 # Pi Harness 支持（Pi Harness Support）— Overall Spec
 
-- **Version**: v1.2 · 2026-09-27
+- **Version**: v1.3 · 2026-09-27
 - **Status**: Approved
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Constraints**:
@@ -60,7 +60,7 @@ Charter only — no implementation detail.
 
 | # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |
 |---|---|---|---|---|---|---|
-| P1 | 包侧 pi 分发面 | osuperpowers 作为 pi 包可安装消费：源字段 `keywords: ["pi-package"]` + `pi: { skills: ["./skills"] }`（D2 手维护）· `files` 白名单闭包 · validate pi-package well-formed 守卫 + node:test 骨架（进 validate glob） | [Pending] | [Pending] | `npm pack` 产物 `pi install <npm 或本地路径>` 可加载全部 8 skills；pi-package 守卫过 validate 全绿 | 无（program 起点） |
+| P1 | 包侧 pi 分发面 | osuperpowers 作为 pi 包可安装消费：源字段 `keywords: ["pi-package"]` + `pi: { skills: ["./skills"] }`（D2 手维护）· `files` 白名单闭包 · validate pi-package well-formed 守卫（一等 CheckBlock + node:test 背靠，进 validate glob）· validate 命名 pin 升级（count→name-set，保 anti-white-green 语义） | [Pending] | [Pending] | 验收两站：① validate 站——`npm pack` 产物 `pi install <本地解包>` 装入临时项目，安装产物 8 SKILL.md 落盘 + project settings 写入，pi-package 守卫过 validate 全绿；② release 站——发版 `pi install npm:@oscaner-skills/osuperpowers@<ver>`（真消费者路径） | 无（program 起点） |
 | P2 | emit 分发注册表 | harnessesNote 债清除：`oscaner-plugin.harnesses` 真消费 · ManifestService/OsuperpowersEmitter/source.ts 硬编码收编 harness builder 注册表 · pi 分发条目注册 · 包面 ↔ 注册表一致守卫 | [Pending] | [Pending] | emit:check 零漂移；harness 增减即注册表一行接线；harnessesNote 退役；validate 相应块全绿 | P1 ->(hard) |
 | P3 | engine 数据面 | cursor-agent→cursor 全线 rename（engine src/tests + observe-cache + validate pin 面 + docs/maintainers 行键镜像）+ `pi` registry 行（ship full · per-op prefix/suffix · cache profile 过全行迭代校验）+ `AI_AGENT=pi` detect 映射；`cdd` 记录/h·id 显示值归一；历史豁免清单声明 | [Pending] | [Pending] | registry/cache/host-detection/invoke 测试全绿；三位宿主（claude/cursor/pi）origin 全测；residue 通道守卫零回归；记录值零 cursor-agent；docs/maintainers 行键镜像零 cursor-agent | P1 ->(hard) |
 | P4 | 文档·测试·收口 | README 家族统一 + 名义映射表 + pi 安装段 + D5 消费故事 + 历史豁免清单 + pi/命名 pin 测试接线 + validate 全绿 + changeset + CHANGELOG | [Pending] | [Pending] | validate 全块全绿（pi 测试在内）；文档标识符面（README 家族 + CLAUDE.md + docs/maintainers live 档）零 cursor-agent（历史豁免清单除外）；D5 消费故事交付（pi 下 collision first-wins 包序裁决文档明示 + inline import `/superpowers:*` 碰撞下解析语义定稿 + 历史豁免清单注册）；双镜像同步；四表回填一致 | P2 ->(hard)（+P3，见依赖图） |
@@ -96,3 +96,4 @@ Legend:
 | v1.0 | 2026-09-27 | 程序 charter：pi harness 支持——osuperpowers 第三 harness 面一等分发物（npm 原生 pi-package：`pi` 字段 + `keywords: ["pi-package"]`）；全仓 harness 命名统一 claude/cursor/pi（`cursor-agent` 标识符退役，CLI 二进制名残存）；emit per-harness 硬编码 registry 化；engine `pi` 行 + `AI_AGENT=pi` 宿主检测（P1–P4） | [human] · Claude Opus 5 (1M context) |
 | v1.1 | 2026-09-27 | cdd spec-review r1（blocker=0，3 warn + 1 nit）全 finding 落地：`## Change history` 节补建（四表承台）+ D4 检测链路拆事实/规则双层 + docs/maintainers 行键镜像归入 P3 改名扫面 + Goal 与 P4 验收口径对齐 + P4 acceptance 补 D5 消费故事交付项（v1.0→v1.1） | [human] · Claude Opus 5 (1M context) |
 | v1.2 | 2026-09-27 | 程序批准：Status Draft → Approved（user 启动 P1 brainstorm 为批准动作，backfill-as-version）；四表无 scope 变更；P1（包侧 pi 分发面）brainstorm 启动 | [human] · Claude Opus 5 (1M context) |
+| v1.3 | 2026-09-27 | P1 scope 回填（grilling 定案，sync-before-write 前置）：验收两站化（validate 本地解包安装实证 + release npm 路径 smoke）+ validate 命名 pin 升级（count→name-set）入 P1 行；Issue inventory / Dependency graph 不变 | [human] · Claude Opus 5 (1M context) |

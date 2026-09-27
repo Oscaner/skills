@@ -1,6 +1,6 @@
 ---
 name: finishing
-description: Independent finishing orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:finishing-a-development-branch flow inline as this session's baseline for the merge/PR/keep/discard decision, then closes related issues. Layers personal rules (no worktrees / conventional commits / typed-discard). Callable standalone; triggered by /finishing via overrides router.
+description: Independent finishing orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:finishing-a-development-branch flow inline as this session's baseline for the merge/PR/keep/discard decision, then closes related issues. Layers personal rules (no worktrees / conventional commits / typed-discard). Callable standalone; invoke as osuperpowers:finishing.
 ---
 
 # Osuperpowers Finishing

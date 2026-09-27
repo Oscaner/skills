@@ -97,7 +97,7 @@ osuperpowers 通过各 harness 自己的插件市场安装；Claude Code 与 Cur
 
 1. 从市场或 npm 安装插件（见[安装](#安装)）。
 2. 确保 `cdd` 引擎 CLI 在 `PATH` 上（`command -v cdd`）；若缺失，运行 `npm i -g @oscaner-skills/cdd-engine`。`cli-driven-development` 的 `detect-engine` 节点会在 dispatch 时重新检查。
-3. 照常调用 superpowers 工作流——osuperpowers 技能会自动拦截上游触发器并路由到对应目标。
+3. 按名称调用 osuperpowers 编排器——`osuperpowers:brainstorming`、`osuperpowers:writing-plans` 等家族技能。每个技能将对应的上游流程作为本会话基线导入并运行自身的编排图；osuperpowers 技能**不会拦截或自动改道**上游 `/superpowers:*` 调用——需要原版变体时直接调用对应原版技能。
 
 ## 架构
 

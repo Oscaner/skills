@@ -1,6 +1,6 @@
 ---
 name: brainstorming
-description: Independent brainstorm orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:brainstorming flow inline as this session's baseline (one import per session), gates on mode and phase registration, runs grilling, and routes to the three spec-writers. Callable standalone; triggered by /brainstorming via overrides router.
+description: Independent brainstorm orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:brainstorming flow inline as this session's baseline (one import per session), gates on mode and phase registration, runs grilling, and routes to the three spec-writers. Callable standalone; invoke as osuperpowers:brainstorming.
 ---
 
 # Osuperpowers Brainstorming

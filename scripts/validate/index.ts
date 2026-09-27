@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // scripts/validate/index.ts — validate orchestration (`node scripts/run.ts
-// validate` / standalone `node scripts/validate/index.ts`). Composes the 11
+// validate` / standalone `node scripts/validate/index.ts`). Composes the 12
 // per-block ValidateBlock instances from scripts/validate/*.ts into the original
 // run order and exposes `steps` + `main()` so the wiring guard
 // (packages/osuperpowers/tests/ci-validate.test.mjs) can assert osuperpowers

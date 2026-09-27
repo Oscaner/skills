@@ -1,6 +1,6 @@
 # Pi Harness P1 — 包侧 pi 分发面（Pi Harness P1: Package-Side Pi Distribution Surface）— Phase Spec
 
-- **Version**: v1.0 · 2026-09-27
+- **Version**: v1.1 · 2026-09-27
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming → writing-phase-spec)
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.3](2026-09-27-pi-harness-overall.md)
@@ -27,6 +27,8 @@ P1 使 `@oscaner-skills/osuperpowers` 成为 pi 一等 pi-package：manifest 正
 
 #### 2.2 组件
 
+锚点图例：R/Q = grilling 定案轮次锚点（R5 覆盖验收两站：C4 validate 站① / C6 release 站②；Q1′ 为 validate 接线债定案轮）；编号非连续、非必经枚举——缺失编号（如 R2）仅表示该轮未直接产出本 spec 组件，不构成漏项。锚点仅供本 spec 内部溯源，Issue inventory 与 parent overall 均无对应登记（P1 issue ref = none）。
+
 **C1 源字段（R1）** — `packages/osuperpowers/package.json` 增（手维护，D2）：
 ```json
 "keywords": ["pi-package"],
@@ -36,22 +38,23 @@ P1 使 `@oscaner-skills/osuperpowers` 成为 pi 一等 pi-package：manifest 正
 - `pi` 字段不涉 `.version-bump.json` / version-sync（后者仅管 version 三元组）
 - 闭包现状：`npm pack --dry-run` 已含 `skills/` 全 8 SKILL.md——源字段加入后闭包天然成立，守卫纯为防漂移
 
-**C2 一等守卫（R3）** — `scripts/validate/osuperpowers.ts` 增步骤「osuperpowers pi-package well-formed」+ `checkPiPackageWellFormed(pkgRoot)`（CheckBlock，与既有 `checkOsuperpowersSkillsCount` 同构：静态读 package.json，零子进程）。断言集：
+**C2 一等守卫（R3）** — `scripts/validate/osuperpowers.ts` 增步骤「osuperpowers pi-package well-formed」+ `checkPiPackageWellFormed(pkgRoot)`（CheckBlock，与既有 `checkOsuperpowersSkillsCount` 同构：静态读 package.json，零子进程；skills 计数与其共享单一真相）。断言集：
 1. `pkg.keywords` 含字面 `pi-package`
 2. `pkg.pi` 存在；`pi.skills` 为非空 `string[]`（每项 `./<path>` glob 形态）
 3. `pi` 无 `extensions` / `prompts` 键（R0 守门）
-4. 每个 `pi.<face>` glob 路径在 pkgRoot 下存在；`./skills` 解析出恰 8 个 `SKILL.md`
+4. 每个 `pi.<face>` glob 路径在 pkgRoot 下存在；`./skills` 解析出 `EXPECTED` 个 `SKILL.md`（EXPECTED = 既有 `checkOsuperpowersSkillsCount` 的计数单一真相，导出共享复用——T16 去枚举：守卫内部不重复硬编码数值，字面 8 仅保留在 C4/C6 消费者可见验收）
 5. files 闭包：`pi` 声明路径的展开集 ⊆ `pkg.files` 白名单展开集（静态 subset；`./skills` 现由 `skills/` 前缀覆盖）
 
 **C3 背靠测试（R4）** — `packages/osuperpowers/tests/pi-package.test.mjs`（自动进 behavior glob，validate + precommit 双面）：
-- 断言活 `package.json`：keywords 含 `pi-package` · `pi.skills` deepEqual `["./skills"]` · 无 extensions/prompts · `./skills` 解析 8 个 SKILL.md · files 闭包规则成立
+- 断言活 `package.json`：keywords 含 `pi-package` · `pi.skills` deepEqual `["./skills"]` · 无 extensions/prompts · `./skills` 解析 `EXPECTED` 个 SKILL.md（复用既有计数单一真相，非硬编码字面） · files 闭包规则成立
 - 纯静态导入（fs + assert），零子进程、零引擎依赖——manifests 契约 pin 即使守卫被误删仍失败（anti-white-green）
 
 **C4 安装 smoke（R5 站①）** — `packages/osuperpowers/tests/pi-install-smoke.test.mjs`（自动进 behavior glob）：
 - 流程：`npm pack --pack-destination <临时>（cd packages/osuperpowers）` → tar 解包到临时目录（剥离顶层包目录）→ 另建临时「项目」目录作 cwd → `pi install <解包目录> --local --no-approve` → 断言：
   1. 退出码 0
   2. 安装产物内 `skills/` 含恰 8 个 `SKILL.md`（落点 = pi 安装机制实证路径，plan 阶段探针确认）
-  3. 项目 `.pi/settings.json` 写入该包 source（`-l` 使 settings 落项目、不污染 `~/.pi`）
+  3. 项目 `.pi/settings.json` 写入该包 source（`--local` 使 settings 落项目、不污染 `~/.pi`）
+- **verified-vs-probe 口径**：已核实（grilling fact-finder，2026-09-27）仅 `npm:@oscaner-skills/osuperpowers` 的 npm 路径加载（见 2.1 现状实证）；本 step 的本地目录 install 语义、`--local`/`--no-approve` 旗标、`npm i -g @earendil-works/pi-coding-agent` 安装命令均属验证中机制——plan 阶段实测确认，与 C6 npm 路径 smoke 互证；实现与 pi 实测 CLI 不符时以实测为准并回填本 spec
 - **无条件执行**：缺 `pi` 即 FAIL + 错误信息含 `npm i -g @earendil-works/pi-coding-agent`；CI（`.github/actions/validate` 装配）增 `npm i -g @earendil-works/pi-coding-agent` step——零静默 skip（反白绿 AC4 纪律）
 - 残留记录（明示于 docs）：pi 无 CLI 内省其运行时技能清单，LLM 可见性不在本测试覆盖——release 站人工抽查 + P4 D5 消费故事补足
 
@@ -60,9 +63,10 @@ P1 使 `@oscaner-skills/osuperpowers` 成为 pi 一等 pi-package：manifest 正
 - 语义增强：count 可被"一增一删"掩盖，name-set 不能；未来加块零 churn
 - plan 阶段读两文件全文核实既有断言，避免重复/冲突
 
-**C6 release 站（R5 站②）** — `.github/workflows/release.yml`：changeset publish 后增 smoke step：
-- 临时项目 cwd → `pi install npm:@oscaner-skills/osuperpowers@<publish 产物版本>` → 退出 0 + 安装产物 `skills/` 恰 8 个 SKILL.md + 项目 `.pi/settings.json` 写入
-- 真消费者路径（registry 发布物），证明分发不依赖仓库工作树；版本号取 changeset publish 变量
+**C6 release 站（R5 站②）** — `.github/workflows/release.yml`：release job 内、changesets action 之后增 smoke step，复用现有 publish-mode 门控：
+- **publish-mode 门控**：step 条件 = `steps.changesets-status.outputs.has_changesets == 'false'`（release job 现「Detect publish-mode push」步骤同款）——changesets push（hasChangesets=true）不发版，跳过 smoke，避免 `pi install` 装到旧版本 / 首发 404 的假绿
+- 临时项目 cwd → `pi install npm:@oscaner-skills/osuperpowers@<publishedPackages 版本>` → 退出 0 + 安装产物 `skills/` 恰 8 个 SKILL.md + 项目 `.pi/settings.json` 写入
+- 真消费者路径（registry 发布物），证明分发不依赖仓库工作树；版本取 changesets action 的 `publishedPackages` output（`steps.changesets.outputs.publishedPackages` 中 `name === "@oscaner-skills/osuperpowers"` 条目的 `version`），非笼统的「changeset publish 变量」
 
 #### 2.3 数据流
 
@@ -71,7 +75,7 @@ P1 使 `@oscaner-skills/osuperpowers` 成为 pi 一等 pi-package：manifest 正
 #### 2.4 错误与边界
 
 - `npm pack` 产物名 `oscaner-skills-osuperpowers-<ver>.tgz` 含版本——smoke 用 `--pack-destination` + 动态定位，不硬编码版本字面
-- `pi install` 本地目录源传绝对路径；`-l` 落项目 `.pi/settings.json`；`--no-approve` 防交互挂起（CI 非交互）
+- `pi install` 本地目录源传绝对路径；`--local` 落项目 `.pi/settings.json`；`--no-approve` 防交互挂起（CI 非交互）——旗标与本地目录 install 语义属验证中机制，plan 阶段实测确认（C4 口径）
 - CI runner 无 pi → 装配 step 安装（版本以 smoke 验收时实测为准）；本地无 pi → 断言 FAIL + 安装提示（零静默 skip）
 - files 闭包 glob 展开语义（目录前缀 vs 文件集）：实现以「strip `./` 后目录/文件前缀覆盖」判定，plan 阶段以既有 files 实证
 - smoke 全流程零网络（本地 pack + 本地目录 install）
@@ -85,13 +89,13 @@ P1 使 `@oscaner-skills/osuperpowers` 成为 pi 一等 pi-package：manifest 正
 
 ### Acceptance criteria
 
-- ` `packages/osuperpowers/package.json` 含 `keywords: ["pi-package"]` 与 `pi: { skills: ["./skills"] }`（手维护源字段，emit 产物零变更）`
-- ` validate 增「osuperpowers pi-package well-formed」CheckBlock，`checkPiPackageWellFormed` 五组断言对当前树全过`
-- ` `packages/osuperpowers/tests/pi-package.test.mjs` 在 behavior glob 内通过（manifest 契约 + R0 不变式 pin）`
-- ` `pi-install-smoke.test.mjs` 通过：pack → 解包 → `pi install <dir> --local --no-approve` 退出 0 · 安装产物含恰 8 个 SKILL.md · 项目 `.pi/settings.json` 写入该包`
-- ` `ci-validate.test.mjs` 与 `pre-commit.test.ts` 以 name-set 断言 validate steps（11→12，含新 step），`pnpm run validate` 与 precommit 全绿`
-- ` `.github/workflows/release.yml` 含 npm 路径 pi smoke 步骤（publish 后 `pi install npm:@oscaner-skills/osuperpowers@<ver>`）`
-- ` `pnpm run validate` 全块全绿（新增守卫与测试在内）`
+- `packages/osuperpowers/package.json` 含 `keywords: ["pi-package"]` 与 `pi: { skills: ["./skills"] }`（手维护源字段，emit 产物零变更）
+- validate 增「osuperpowers pi-package well-formed」CheckBlock，`checkPiPackageWellFormed` 五组断言对当前树全过
+- `packages/osuperpowers/tests/pi-package.test.mjs` 在 behavior glob 内通过（manifest 契约 + R0 不变式 pin）
+- `pi-install-smoke.test.mjs` 通过：pack → 解包 → `pi install <dir> --local --no-approve` 退出 0 · 安装产物含恰 8 个 SKILL.md · 项目 `.pi/settings.json` 写入该包
+- `ci-validate.test.mjs` 与 `pre-commit.test.ts` 以 name-set 断言 validate steps（11→12，含新 step），`pnpm run validate` 与 precommit 全绿
+- `.github/workflows/release.yml` 含 npm 路径 pi smoke 步骤（publish 后 `pi install npm:@oscaner-skills/osuperpowers@<ver>`）
+- `pnpm run validate` 全块全绿（新增守卫与测试在内）
 
 ## Section 3: Deviations from overall
 

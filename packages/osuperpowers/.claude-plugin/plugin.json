@@ -2,7 +2,7 @@
   "_generated": "scripts/run.ts emit — do not edit",
   "name": "osuperpowers",
   "description": "Standalone osuperpowers skills: orchestration + cli-* family + CDD engine.",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "author": {
     "name": "Oscaner Miao",
     "email": "oscaner1997@gmail.com"

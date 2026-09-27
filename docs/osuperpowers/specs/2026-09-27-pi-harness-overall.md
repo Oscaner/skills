@@ -1,6 +1,6 @@
 # Pi Harness 支持（Pi Harness Support）— Overall Spec
 
-- **Version**: v1.7 · 2026-09-28
+- **Version**: v1.8 · 2026-09-28
 - **Status**: Approved
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Constraints**:
@@ -60,7 +60,7 @@ Charter only — no implementation detail.
 
 | # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |
 |---|---|---|---|---|---|---|
-| P1 | 包侧 pi 分发面 | osuperpowers 作为 pi 包可安装消费：源字段 `keywords: ["pi-package"]` + `pi: { skills: ["./skills"] }`（D2 手维护）· `files` 白名单闭包 · validate pi-package well-formed 守卫（一等 CheckBlock + node:test 背靠，进 validate glob）· validate 命名 pin 升级（count→name-set，保 anti-white-green 语义） | Done（v1.5 · 2026-09-28） | Done | `npm pack` 产物 `pi install <本地解包> --local --approve`（trust gate 实测）装入临时项目，安装产物 8 SKILL.md 落盘 + project settings 写入，pi-package 守卫过 validate 全绿；validate CI 装配 pi（`@latest` 不固定版本）；release 站删除（v1.4 裁定——post-publish detect-only 无门控、内容与 C4 同构、claude/cursor 无 post-publish smoke 一致；npm-source 解析风险 = 已知残余 P4 记录） | 无（program 起点） |
+| P1 | 包侧 pi 分发面 | osuperpowers 作为 pi 包可安装消费：源字段 `keywords: ["pi-package"]` + `pi: { skills: ["./skills"] }`（D2 手维护）· `files` 白名单闭包 · validate pi-package well-formed 守卫（一等 CheckBlock + node:test 背靠，进 validate glob）· validate 命名 pin 升级（count→name-set，保 anti-white-green 语义） | Done | Done | `npm pack` 产物 `pi install <本地解包> --local --approve`（trust gate 实测）装入临时项目，安装产物 8 SKILL.md 落盘 + project settings 写入，pi-package 守卫过 validate 全绿；validate CI 装配 pi（`@latest` 不固定版本）；release 站删除（v1.4 裁定——post-publish detect-only 无门控、内容与 C4 同构、claude/cursor 无 post-publish smoke 一致；npm-source 解析风险 = 已知残余 P4 记录） | 无（program 起点） |
 | P2 | emit 分发注册表 | harnessesNote 债清除：`oscaner-plugin.harnesses` 真消费 · ManifestService/OsuperpowersEmitter/source.ts 硬编码收编 harness builder 注册表 · pi 分发条目注册 · 包面 ↔ 注册表一致守卫 | [Pending] | [Pending] | emit:check 零漂移；harness 增减即注册表一行接线；harnessesNote 退役；validate 相应块全绿 | P1 ->(hard) |
 | P3 | engine 数据面 | cursor-agent→cursor 全线 rename（engine src/tests + observe-cache + validate pin 面 + docs/maintainers 行键镜像）+ `pi` registry 行（ship full · per-op prefix/suffix · cache profile 过全行迭代校验）+ `AI_AGENT=pi` detect 映射；`cdd` 记录/h·id 显示值归一；历史豁免清单声明 | [Pending] | [Pending] | registry/cache/host-detection/invoke 测试全绿；三位宿主（claude/cursor/pi）origin 全测；residue 通道守卫零回归；记录值零 cursor-agent；docs/maintainers 行键镜像零 cursor-agent | P1 ->(hard) |
 | P4 | 文档·测试·收口 | README 家族统一 + 名义映射表 + pi 安装段 + D5 消费故事 + 历史豁免清单 + pi/命名 pin 测试接线 + validate 全绿 + changeset + CHANGELOG | [Pending] | [Pending] | validate 全块全绿（pi 测试在内）；文档标识符面（README 家族 + CLAUDE.md + docs/maintainers live 档）零 cursor-agent（历史豁免清单除外）；D5 消费故事交付（pi 下 collision first-wins 包序裁决文档明示 + inline import `/superpowers:*` 碰撞下解析语义定稿 + 历史豁免清单注册）；双镜像同步；四表回填一致 | P2 ->(hard)（+P3，见依赖图） |
@@ -101,3 +101,4 @@ Legend:
 | v1.5 | 2026-09-28 | P1 终期债回填（engine CLOSEOUT）：Design spec / Implementation plan 列 `[Pending]` → Done（spec v1.5 + plan v1.5 approved，P1 四任务 cdd 链全闭环）；changeset 已建（`pi-harness-manifest-pin.md`，osuperpowers minor） | [human] · Claude Opus 5 (1M context) |
 | v1.6 | 2026-09-28 | P1 计划回填 claim（plan-link 契约，v1.5 行缺 link 形态被 branch-fix 前置验签拒绝）：[2026-09-27-pi-harness-p1.md v1.5](docs/osuperpowers/plans/2026-09-27-pi-harness-p1.md) Pending → Done（Implementation plan 列回填，P1 cdd 链 4/4 闭合） | [human] · Claude Opus 5 (1M context) |
 | v1.7 | 2026-09-28 | claim 目标对齐（doc contract 二连拒：claim 目标解析粘连反引号 + 列值≠目标）：Implementation plan 列改纯 `Done` 完成标记；claim 子句去 code-span 包裹（Pending → Done） | [human] · Claude Opus 5 (1M context) |
+| v1.8 | 2026-09-28 | claim 目标对齐收尾（validator 列索引偏读 Design 列值）：Design/Implementation plan 两列统一纯 `Done` 标记（版本化详见 v1.5–v1.7 行），任何列映射下均等于 claim 目标 | [human] · Claude Opus 5 (1M context) |

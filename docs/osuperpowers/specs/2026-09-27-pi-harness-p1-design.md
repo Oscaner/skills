@@ -1,6 +1,6 @@
 # Pi Harness P1 — 包侧 pi 分发面（Pi Harness P1: Package-Side Pi Distribution Surface）— Phase Spec
 
-- **Version**: v1.1 · 2026-09-27
+- **Version**: v1.2 · 2026-09-27
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming → writing-phase-spec)
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.3](2026-09-27-pi-harness-overall.md)
@@ -37,6 +37,7 @@ P1 使 `@oscaner-skills/osuperpowers` 成为 pi 一等 pi-package：manifest 正
 - `pi` 无 `extensions` / `prompts` 键（R0 零扩展不变式，C2 守卫使未来漂移被拦截）
 - `pi` 字段不涉 `.version-bump.json` / version-sync（后者仅管 version 三元组）
 - 闭包现状：`npm pack --dry-run` 已含 `skills/` 全 8 SKILL.md——源字段加入后闭包天然成立，守卫纯为防漂移
+- **A3 债项吸收（P6 Task 19 / spec F2 遗留碰撞）**：`keywords`/`pi` 字段触发 `scripts/validate/residue.ts` A3 `\bpi\b`@`packages/osuperpowers/package.json` 守门（precommit 硬门，T1 首dispatch 即 PLAN_CONFLICT）——world-state 翻转（pi 由死残留 → live 分发字段）使该 pi 分支成为死代码：退役分支（`\bpi\b` 移除，`\bdroid\b` 保留——droid 前提未变），注释记录 supersession，residue.test.ts 断言翻转为放行端态 pin
 
 **C2 一等守卫（R3）** — `scripts/validate/osuperpowers.ts` 增步骤「osuperpowers pi-package well-formed」+ `checkPiPackageWellFormed(pkgRoot)`（CheckBlock，与既有 `checkOsuperpowersSkillsCount` 同构：静态读 package.json，零子进程；skills 计数与其共享单一真相）。断言集：
 1. `pkg.keywords` 含字面 `pi-package`

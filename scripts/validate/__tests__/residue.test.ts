@@ -271,7 +271,7 @@ describe("stale-lexicon：vendors 自维护语汇（P6 Task 2 / B12）", () => {
 // so the initial `\bpi\b` branch was retired wholesale — the pi-shaped literals below are pinned
 // as pass (false) end-state, while droid keeps its hit (true). Counter-examples: bare agents (no
 // dot prefix), English words pipeline/principal/piper, version numbers.
-describe("stale-lexicon：.agents + droid 语汇（P6 Task 19 / spec F2）", () => {
+describe("stale-lexicon: .agents + droid lexicon (P6 Task 19 / spec F2)", () => {
   it(".agents/ 路径形命中（emit 副本面回渗）", () => {
     expect(hasHit(["packages/osuperpowers/.agents/skills/writing-single-spec/SKILL.md"])).toBe(
       true,

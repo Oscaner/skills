@@ -32,6 +32,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     outputs:
       hasChangesets: ${{ steps.changesets.outputs.hasChangesets }}
     steps:
@@ -39,6 +41,8 @@ jobs:
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup
+        with:
+          registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
       - run: pnpm run emit
       # Pre-version consumer-sim gate (P3 T7 / design §2.6): before any publish-side action,

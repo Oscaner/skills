@@ -6,6 +6,9 @@ inputs:
     description: Node.js version to install via actions/setup-node.
     required: false
     default: "24"
+  registry-url:
+    description: Registry to authenticate against via NODE_AUTH_TOKEN (setup-node writes a job-scoped, untracked .npmrc with the literal token — the GitHub Actions canonical auth; committed-project .npmrc env interpolation is refused by pnpm).
+    required: false
 
 runs:
   using: composite
@@ -14,4 +17,5 @@ runs:
     - uses: actions/setup-node@v7
       with:
         node-version: ${{ inputs.node-version }}
+        registry-url: ${{ inputs.registry-url }}
         cache: pnpm

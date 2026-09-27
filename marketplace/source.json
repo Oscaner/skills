@@ -14,7 +14,7 @@
       "cursor": {
         "emitMode": "plugin-root"
       },
-      "version": "0.1.1",
+      "version": "0.2.0",
       "description": "Standalone osuperpowers skills: orchestration + cli-* family + CDD engine.",
       "author": {
         "name": "Oscaner Miao",

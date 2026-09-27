@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 // scripts/validate/osuperpowers.ts — 5b block: osuperpowers plugin validation.
-// Four step descriptors in original run order — marker / skills-count /
-// node:test trees / wiring guard (ci-validate.test.mjs). The 5b1 cdd-engine
-// Vitest suite lives in engine.ts and is spliced between the node:test tree and
-// the wiring guard by index.ts.
+// Five step descriptors in original run order — marker / skills-count / node:test
+// trees / wiring guard (ci-validate.test.mjs) / pi-package well-formed. The
+// cdd-engine Vitest suite lives in engine.ts; index.ts splices it after the first
+// four steps of this block, leaving the pi-package check to close the block.
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -61,6 +61,62 @@ function checkOsuperpowersSkillsCount() {
   }
 }
 
+// First-class pi-package guard (C2): the package.json#pi source-field contract
+// checked statically — five assertions, zero subprocesses, zero engine invocation
+// — sharing the skills-count truth with checkOsuperpowersSkillsCount via the
+// module-level EXPECTED export (no local literal: a count change must update one
+// symbol only). The files-closure check is the static subset per the closure
+// contract (./ stripped, then directory/file prefix coverage); pack-truth is
+// verified separately by the install smoke.
+function checkPiPackageWellFormed(pkgRoot) {
+  const pkg = JSON.parse(readFileSync(path.join(pkgRoot, "package.json"), "utf8"));
+
+  // 1. Keywords carry the pi-package marker.
+  assert(
+    Array.isArray(pkg.keywords) && pkg.keywords.includes("pi-package"),
+    "package keywords must contain the literal pi-package",
+  );
+
+  // 2. pi.skills is a non-empty string[] of ./<path> glob shapes.
+  const declared = pkg.pi?.skills;
+  assert(Array.isArray(declared) && declared.length > 0, "pi.skills must be a non-empty array");
+  for (const s of declared) {
+    assert(
+      typeof s === "string" && s.startsWith("./") && s.length > 2 && !s.includes(".."),
+      `pi.skills entries must be ./<path> glob shapes, got: ${s}`,
+    );
+  }
+
+  // 3. pi declares no extensions/prompts keys (R0 invariant).
+  for (const key of ["extensions", "prompts"]) {
+    assert(!Object.hasOwn(pkg.pi ?? {}, key), `pi must not declare an ${key} key`);
+  }
+
+  // 4. Each declared skills path resolves to exactly EXPECTED SKILL.md dirs — the
+  //    count is read from the shared module export, never a local literal.
+  for (const s of declared) {
+    const dir = path.join(pkgRoot, s.replace(/^\.\//, "").replace(/\/\*$/, ""));
+    assert(existsSync(dir), `pi.skills path must resolve on disk: ${s}`);
+    const n = countSkillsWithMarkdown(dir);
+    assert(n === EXPECTED, `expected ${EXPECTED} osuperpowers skills under ${s}, got ${n}`);
+  }
+
+  // 5. Files closure: each pi-declared path is a static subset of the pkg.files
+  //    whitelist (directory or file prefix coverage after stripping ./ and /).
+  const whitelist = (pkg.files ?? []).map((p) => p.replace(/\/$/, ""));
+  for (const s of declared) {
+    const d = s.replace(/^\.\//, "");
+    assert(
+      whitelist.some((w) => d === w || d.startsWith(`${w}/`)),
+      `pi-declared path ${d} must be covered by a package files whitelist entry`,
+    );
+  }
+
+  console.log(
+    `OK — osuperpowers pi-package well-formed (${EXPECTED} skills via ${declared.join(", ")})`,
+  );
+}
+
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..");
 
@@ -90,6 +146,10 @@ export const steps = [
     name: "validate wiring guard (ci-validate.test.mjs)",
     cmd: "node",
     args: ["--test", "packages/osuperpowers/tests/ci-validate.test.mjs"],
+  }),
+  new CheckBlock({
+    name: "osuperpowers pi-package well-formed",
+    run: () => checkPiPackageWellFormed(path.join(ROOT, "packages/osuperpowers")),
   }),
 ];
 

@@ -165,10 +165,28 @@ test("overall-consistency block retired (no four-table step)", () => {
   );
 });
 
-// 11. block count = 11 (P3 T1: four-table block retired — 12→11). Pins the
-//     acceptance "validate 11 块".
-test("validate wiring is exactly 11 steps (four-table block retired)", () => {
-  assert.equal(steps.length, 11);
+// 11. block composition pinned by name-set (P3 T1 retired the four-table block;
+//     T2 upgraded the count pin to a name-set) — every expected step must be
+//     present by name, including the pi-package well-formed guard.
+const EXPECTED_VALIDATE_STEPS = [
+  "emit freshness (checked against regenerated products)",
+  "osuperpowers plugin resolution",
+  "osuperpowers skills inventory count",
+  "osuperpowers node:test behavior tree",
+  "validate wiring guard (ci-validate.test.mjs)",
+  "osuperpowers pi-package well-formed",
+  "cdd-engine dev stub materialization",
+  "cdd-engine engine test suite (vitest)",
+  "engine zero residue + channel audit",
+  "marketplace manifests validate",
+  "scripts unit tests (vitest)",
+  "package version sync",
+];
+test("validate wiring carries every expected step by name (name-set pin)", () => {
+  const names = new Set(steps.map((s) => s.name));
+  for (const n of EXPECTED_VALIDATE_STEPS) {
+    assert.ok(names.has(n), `missing expected validate step: ${n}`);
+  }
 });
 
 // 12. AC4 probe (D3): step names are semantic — no numeric/anchor prefixes. The
@@ -203,6 +221,7 @@ test("AC4 anti-white-green: semantic step names all MISS the anchor probe", () =
     "emit freshness (checked against regenerated products)",
     "osuperpowers plugin resolution",
     "osuperpowers skills inventory count",
+    "osuperpowers pi-package well-formed",
     "osuperpowers node:test behavior tree",
     "validate wiring guard (ci-validate.test.mjs)",
     "cdd-engine dev stub materialization",

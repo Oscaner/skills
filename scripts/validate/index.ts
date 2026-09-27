@@ -21,8 +21,9 @@ import { steps as versionSyncSteps } from "./version-sync.ts";
 
 // Original step order: the cdd-engine engine test suite follows the osuperpowers
 // step block (plugin resolution / skills inventory count / node:test behavior
-// tree / validate wiring guard) — engine steps are spliced after the four
-// osuperpowers steps to keep the 11 names and their order literal. The
+// tree / validate wiring guard) — engine steps are spliced after the first four
+// osuperpowers steps; the pi-package well-formed check closes the block after the
+// engine suite, keeping the 12-name composition literal. The
 // submodule self-maintenance block (13th) was removed with the vendors surface
 // (P6 Task 2 / B3, submodule.mjs deleted). The repo-side four-table guard block
 // (12th) was retired with the S1/S2 guards (P3 T1).

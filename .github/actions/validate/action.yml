@@ -8,6 +8,13 @@ runs:
       shell: bash
       run: |
         pnpm install --frozen-lockfile
+    # Pinned to the version measured at smoke acceptance (pi 0.87.1, locale probe) — the
+    # C4 install smoke (packages/osuperpowers/tests/pi-install-smoke.test.mjs) fails hard
+    # with this install command in its message when the binary is missing (zero silent skip).
+    - name: Install pi coding agent
+      shell: bash
+      run: |
+        npm i -g @earendil-works/pi-coding-agent@0.87.1
     - name: Run validation suite
       shell: bash
       run: |

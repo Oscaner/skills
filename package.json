@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "changeset": "changeset",
+    "ci:version": "pnpm exec changeset version && pnpm run emit",
     "validate": "node scripts/run.ts validate",
     "precommit": "node scripts/run.ts precommit",
     "emit": "node scripts/run.ts emit",

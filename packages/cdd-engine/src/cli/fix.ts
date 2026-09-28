@@ -105,8 +105,12 @@ export async function runFix(opts: FixOpts): Promise<void> {
         }
         throw e;
       }
-      // Normal round conclusion: run() completed → the stored finalize exit code (BLOCKED → 1,
-      // APPROVED/CHANGES_REQUESTED → 0) — emitted after the exit gate ran clean.
+      // Normal round conclusion: run() completed → the branch-fix return block (C5-1 — the result
+      // line the T9 branch-fix node routes on: status/commits/artifacts + counters + the derived
+      // `next:` suggestion; an APPROVED/CHANGES_REQUESTED fix carries the re-review-or-closure
+      // line, a BLOCKED round prints status only, no next), then the stored finalize exit code
+      // (BLOCKED → 1, APPROVED/CHANGES_REQUESTED → 0) — emitted after the exit gate ran clean.
+      for (const line of lc.returnBlock) process.stdout.write(`${line}\n`);
       exitWithCode(lc.exitCode);
     }
     // spec/plan: the fix template comes from the canonical fix.{type} family fixTemplate

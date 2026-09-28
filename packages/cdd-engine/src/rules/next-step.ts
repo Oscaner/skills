@@ -17,9 +17,10 @@
 // (convergence.blockerCount): blockers present → re-review (next: review); warn/nit only → closure
 // (next: none); consecutive-S1 soft cap → user adjudication. A review never previews what a fix
 // will do (one-way: any findings → next: fix). The soft cap is REACHABLE in production — the fix
-// faces (task #derivedNext / docs fix face) derive it from the ref sequence (the 'ref-sequence round
-// counting' judgment basis): consecutiveS1Count over the review-round walk (rules/ref-sequence.ts),
-// compared against SOFT_CAP_S1_ROUNDS — never a caller-authored literal.
+// faces (task #derivedNext / docs fix face / branch fix face) derive it from the ref-sequence walk
+// (rules/ref-sequence.ts maxConsecutiveS1Rounds — which delegates the leading-run count to the
+// shared pure consecutiveS1Count below), compared against SOFT_CAP_S1_ROUNDS — never a
+// caller-authored literal.
 //
 // C5-2 ZERO NEW CLI ARGUMENTS: this module reads only already-present dispatch ctx/opts fields
 // (op/type/group/round/ref/status/findings/workspace/plan/commits.base-head) + the `--findings`
@@ -87,8 +88,10 @@ export const SOFT_CAP_S1_ROUNDS = 3;
  *  entries from the START of seq (the review-round sequence, NEWEST round first — the ref sequence
  *  walked backward from the fix's source review) are S1 (>=1 blocker finding). The run stops at the
  *  first non-S1 entry; null/undefined/absent rounds end the run (unreadable history degrades the
- *  count to the conservative baseline, never a throw). The fix faces compare it against
- *  SOFT_CAP_S1_ROUNDS. */
+ *  count to the conservative baseline, never a throw). Production caller: the fix faces' soft-cap
+ *  derivation feeds the walked findings through rules/ref-sequence.ts
+ *  (maxConsecutiveS1Rounds — which reads the round files and hands the newest-first sequence to
+ *  this function), and the walk result is compared against SOFT_CAP_S1_ROUNDS. */
 export function consecutiveS1Count(
   seq: ReadonlyArray<ReadonlyArray<{ severity?: string }> | null | undefined>,
 ): number {

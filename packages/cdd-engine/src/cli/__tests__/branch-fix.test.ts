@@ -25,7 +25,7 @@ import { fileURLToPath } from "node:url";
 import { execaSync } from "execa";
 import { describe, expect, it } from "vitest";
 
-import { writeBranchChain } from "../../infra/__tests__/helpers.ts";
+import { captureStdout, writeBranchChain } from "../../infra/__tests__/helpers.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..", "..", "..", "..", ".."); // tests → packages/cdd-engine → packages → repo
@@ -315,6 +315,166 @@ describe("branch-fix in-process loop closure", () => {
       expect(resolveNextRound(workspace, "review", "branch", { base7, head7 })).toBe(2);
     } finally {
       process.env.PATH = origPath;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---- ③-bis real-mode stdout return block (T9 finding): BranchFixLifecycle's real-mode channel
+// previously emitted NO stdout — the normalizeResult deriveFixNext + the wrapper's returnBlock
+// emission surface the C5-1 fix-face result line (blocker input → re-review on the moved ref;
+// warn/nit → closure; the return block prints status/commits/artifacts + counters + next) ----
+describe("branch-fix real-mode — parent stdout return block (C5-1 fix face)", () => {
+  const setup = async (findings: Array<{ severity: string }>) => {
+    const dir = tmpGitRepo();
+    const slug = "test-plan-bf-rb";
+    const planPath = writeBranchChain(dir, `${slug}.md`);
+    writeFileSync(path.join(dir, ".gitignore"), ".osuperpowers/\n*.head\n");
+    const base = FULL_ID("a");
+    const head = FULL_ID("b");
+    const base7 = base.slice(0, 7);
+    const head7 = head.slice(0, 7);
+    const { resolveWorkspace, handoffName } = await import("../../artifacts/handoff/naming.ts");
+    const workspace = resolveWorkspace(planPath, dir);
+    const reviewPath = path.join(
+      workspace,
+      handoffName("review", "branch", { base7, head7, round: 1 }),
+    );
+    const handoffPath = path.join(
+      workspace,
+      handoffName("fix", "branch", { base7, head7, round: 1 }),
+    );
+    mkdirSync(workspace, { recursive: true });
+    // The source review's findings are the C5-1 `--findings` INPUT the fix face judges on.
+    writeFileSync(
+      reviewPath,
+      JSON.stringify({
+        tasks: [1],
+        phase: "branch-review",
+        status: "CHANGES_REQUESTED",
+        commits: { base, head },
+        findings,
+        artifacts: {},
+      }),
+    );
+    const binDir = mkdtempSync(path.join(tmpdir(), "cdd-bf-rb-fake-"));
+    writeFileSync(
+      path.join(binDir, "fake-cli"),
+      `#!/usr/bin/env bash\n` +
+        `git commit --allow-empty -qm "fix"\n` +
+        `HEAD=$(git rev-parse HEAD)\n` +
+        `cat > "${handoffPath}" <<EOF\n` +
+        `{"tasks":[1],"phase":"fix","status":"APPROVED","commits":{"base":"${base}","head":"$HEAD"},"findings":[],"artifacts":{"report":"/tmp/fix-report.md"}}\n` +
+        `EOF\n` +
+        `git rev-parse HEAD > "${path.join(dir, "fix-after-commit.head")}"\n` +
+        `exit 0\n`,
+    );
+    chmodSync(path.join(binDir, "fake-cli"), 0o755);
+    const origPath = process.env.PATH;
+    process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+    const { REG_PATH } = await import("../../infra/registry.ts");
+    const regPath = path.join(dir, "registry.json");
+    const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
+    reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full" };
+    writeFileSync(regPath, JSON.stringify(reg, null, 2));
+    execaSync("git", ["-C", dir, "add", "-A"]);
+    execaSync("git", [
+      "-C",
+      dir,
+      "-c",
+      "user.name=cdd-test",
+      "-c",
+      "user.email=cdd-test@example.com",
+      "commit",
+      "-qm",
+      "fixtures",
+    ]);
+    return { dir, planPath, reviewPath, handoffPath, base, head, regPath, origPath };
+  };
+
+  const run = async (dir: string, planPath: string, reviewPath: string, regPath: string) => {
+    const { ExitRequested, exitWithCode } = await import("../../infra/exit.ts");
+    const { DispatchBlocked } = await import("../../dispatch/base.ts");
+    const { BranchFixLifecycle } = await import("../../dispatch/branch.ts");
+    // Mirror the cli/fix.ts branch channel exactly: run() (exit gate inside) → the wrapper emits
+    // the lifecycle's returnBlock lines → exitWithCode.
+    let exitCode: number | null = null;
+    try {
+      const fxDryRun = false;
+      const lc = new BranchFixLifecycle({
+        harness: "ghost",
+        plan: planPath,
+        findings: reviewPath,
+        root: dir,
+        registryPath: regPath,
+        dryRun: fxDryRun,
+        ctx: { mode: "fix", repoRoot: dir, dryRun: fxDryRun },
+      });
+      try {
+        await lc.run();
+      } catch (e) {
+        if (e instanceof DispatchBlocked && e.gate === "exit") {
+          process.stderr.write(`CDD_BLOCKED: ${e.message}\n`);
+          exitWithCode(1);
+        }
+        throw e;
+      }
+      for (const line of lc.returnBlock) process.stdout.write(`${line}\n`);
+      exitWithCode(lc.exitCode);
+    } catch (e) {
+      if (e instanceof ExitRequested) exitCode = e.code;
+      else throw e;
+    }
+    return exitCode;
+  };
+
+  it("source review with a blocker finding → the fix face next: routes a re-review on the moved ref", async () => {
+    const { dir, planPath, reviewPath, handoffPath, base, regPath, origPath } = await setup([
+      { severity: "blocker", summary: "block me" },
+    ]);
+    const cap = captureStdout();
+    try {
+      const exitCode = await run(dir, planPath, reviewPath, regPath);
+      expect(exitCode).toBe(0);
+      const newHead = readFileSync(path.join(dir, "fix-after-commit.head"), "utf8").trim();
+      expect(cap.text).toContain("status: APPROVED");
+      expect(cap.text).toContain(`commits: base=${base} head=${newHead}`);
+      expect(cap.text).toContain("artifacts: report=/tmp/fix-report.md");
+      expect(cap.text).toMatch(
+        /counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+/,
+      );
+      // C5-1: the fix face derives the next hop from the --findings INPUT — blocker present →
+      // re-review on the moved ref (base = the reviewed range base, head = the fix's git HEAD).
+      expect(cap.text).toContain(
+        `next: cdd review --type branch --plan ${planPath} --base ${base} --head ${newHead}`,
+      );
+      expect(cap.text).not.toContain("blocker:"); // the stdout blocker column is retired (M3)
+      expect(existsSync(handoffPath)).toBe(true);
+    } finally {
+      process.env.PATH = origPath;
+      cap.restore();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("source review with warn/nit findings → closure `next: none`", async () => {
+    const { dir, planPath, reviewPath, handoffPath, base, regPath, origPath } = await setup([
+      { severity: "warn" },
+      { severity: "nit" },
+    ]);
+    const cap = captureStdout();
+    try {
+      const exitCode = await run(dir, planPath, reviewPath, regPath);
+      expect(exitCode).toBe(0);
+      const newHead = readFileSync(path.join(dir, "fix-after-commit.head"), "utf8").trim();
+      expect(cap.text).toContain("status: APPROVED");
+      expect(cap.text).toContain(`commits: base=${base} head=${newHead}`);
+      expect(cap.text).toContain("next: none"); // warn/nit-only input → closure round naturalization
+      expect(cap.text).not.toContain("blocker:");
+      expect(existsSync(handoffPath)).toBe(true);
+    } finally {
+      process.env.PATH = origPath;
+      cap.restore();
       rmSync(dir, { recursive: true, force: true });
     }
   });

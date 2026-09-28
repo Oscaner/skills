@@ -42,7 +42,8 @@ import { getRoot, resolveDocArg } from "../infra/root.ts";
 import { TemplateLoader } from "../render/templates.ts";
 import { ConvergenceChecker } from "../rules/convergence.ts";
 import { FAILURE_CATEGORIES } from "../rules/failure.ts";
-import { nextStepFor } from "../rules/next-step.ts";
+import { nextStepFor, SOFT_CAP_S1_ROUNDS } from "../rules/next-step.ts";
+import { maxConsecutiveS1Rounds } from "../rules/ref-sequence.ts";
 import { HandoffSchemaValidator } from "../rules/schema.ts";
 import { type DispatchContext, type DispatchHookContext, DispatchLifecycle } from "./base.ts";
 
@@ -533,6 +534,12 @@ export class BranchFixLifecycle extends BranchLifecycle {
   #fixRound = 0;
   /** the derived FIX_BASE (source review's commits.base — the reviewed range base). */
   protected fixBase = "";
+  /** the resolved source-review path (the `--findings` input) — the C5-1 next-hop judge reads the
+   *  `--findings` INPUT content, never the fix's own carrier (set in resolveContext). */
+  protected findingsPath = "";
+  /** the branch-fix return block's derived `next:` line value (C5-1 fix face — computed in
+   *  normalizeResult over the `--findings` input; the CLI wrapper emits it after run()). */
+  protected fixNext: string | null = null;
 
   constructor(options: BranchFixOpts & BranchLifecycleOpts & { ctx: DispatchContext }) {
     super(options);
@@ -642,6 +649,11 @@ export class BranchFixLifecycle extends BranchLifecycle {
     // = the fix range is underivable, and the fix handoff must declare commits.base for the exit
     // gate).
     const findingsPath = resolveDocArg(this.opts.findings, this.repoRoot, "findings");
+    // C5-1 (T9 fix): the source-review INPUT path — the fix face derives the return block's `next:`
+    // from the `--findings` content (never the fix's own carrier). Stored on the real lane only:
+    // the round-derivation guard ran before this point (exit 2 on a non-matching name) and the
+    // dry-run lane exits earlier (dispatch emits the stub block itself).
+    this.findingsPath = findingsPath;
     const src = readJson(findingsPath);
     const fixBase = src?.commits?.base as string | undefined;
     if (!fixBase || fixBase === "unknown") {
@@ -711,7 +723,11 @@ export class BranchFixLifecycle extends BranchLifecycle {
    * APPROVED (no hard gate on the receipt shape — #307), the truly failing faces (no commit /
    * code-face error) stay BLOCKED. Task 23 ③: the fix round conclusion → exit (BLOCKED → 1,
    * APPROVED/CHANGES_REQUESTED → 0) — captured here, emitted by the wrapper AFTER the (inherited)
-   * exit gate ran clean. */
+   * exit gate ran clean.
+   * C5-1 (T9 fix): the branch-fix return block is DERIVED here — the `next:` suggestion (the fix
+   * face is the re-review/closure single decision point, judged on the `--findings` INPUT content:
+   * blockers → re-review on the moved ref / warn+nit → closure / BLOCKED → no next line) — and
+   * SURFACED by the CLI wrapper on the parent stdout after run() returns (the exit gate ran first). */
   protected override async normalizeResult(_hookCtx: DispatchHookContext): Promise<void> {
     const finalized = await finalizeHandoff({
       mode: "fix",
@@ -722,5 +738,42 @@ export class BranchFixLifecycle extends BranchLifecycle {
     if (finalized.handoff && finalized.handoff !== this.agentHandoff)
       writeOwnHandoff(this.handoffPath, finalized.handoff);
     this.finalExitCode = finalized.exitCode;
+    this.fixNext = finalized.handoff ? this.deriveFixNext(finalized.handoff) : null;
+  }
+
+  /** C5-1: the branch-fix `next:` line value — the fix face's re-review/closure single decision
+   *  point. Read the `--findings` INPUT content (never the fix's own carrier — C5-1), mirror
+   *  cli/fix.ts docs face: blocker present → `cdd review --type branch --plan <p> --base <b>
+   *  --head <h>` (re-review on the moved ref: the fix base..its git HEAD); warn/nit-only → next:
+   *  none (closure); the fix round's own BLOCKED/TIMEOUT conclusion → null (no next line — the
+   *  failure-mode stderr face owns it). softCap via the ref-sequence walk (same basis as the task
+   *  and docs fix faces). */
+  protected deriveFixNext(handoff: Record<string, unknown>): string | null {
+    const inputHandoff = readJson(this.findingsPath) as {
+      findings?: Array<{ severity?: string }>;
+    } | null;
+    const inputFindings = Array.isArray(inputHandoff?.findings) ? inputHandoff.findings : [];
+    const softCap =
+      maxConsecutiveS1Rounds({ type: "branch", sourcePath: this.findingsPath }) >=
+      SOFT_CAP_S1_ROUNDS;
+    const commits = (handoff.commits as Record<string, unknown> | undefined) ?? {};
+    return nextStepFor({
+      op: "fix",
+      type: "branch",
+      plan: this.opts.plan,
+      base: typeof commits.base === "string" ? commits.base : undefined,
+      head: typeof commits.head === "string" ? commits.head : undefined,
+      status: typeof handoff.status === "string" ? handoff.status : undefined,
+      findings: inputFindings,
+      softCap,
+    });
+  }
+
+  /** The branch-fix real-mode return block lines (status/commits/artifacts + counters + the
+   *  derived `next:`) — the CLI wrapper emits these on the parent stdout after run() returns.
+   *  Re-reads the finalized handoff from disk (the engine-authoritative carrier normalizeResult
+   *  wrote). */
+  get returnBlock(): string[] {
+    return returnBlocks.returnFromHandoff(this.handoffPath, this.workspace, this.fixNext);
   }
 }

@@ -259,7 +259,7 @@ function auditingStubFor(repo: string): typeof DispatchLifecycle {
   };
 }
 
-it("缺根 + 真实 mode → docContratValidate BLOCK（DispatchBlocked gate=entry）+ 无缺根 WARN", async () => {
+it("缺根 + 真实 mode → docContractValidate BLOCK（DispatchBlocked gate=entry）+ 无缺根 WARN", async () => {
   const repo = setupRepo();
   const cap = captureStderr();
   let error: unknown;

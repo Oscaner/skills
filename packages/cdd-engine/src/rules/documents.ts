@@ -210,10 +210,8 @@ function claimTarget(full: string): string {
 
 // Phase references inside a claim clause — single + ranged (endpoints included), the canonical
 // claim-pattern scan forms. The full captured id (digit ridge included) is the verbatim
-// reference — a `P2.1` claim targets P2.1, never its numeric base. Range expansion is segment-
-// aware over the shared digit ridge (`P1–P4` → P1..P4; `P2.1–P2.3` → P2.1..P2.3): the last
-// segment iterates only when both endpoints share every earlier segment; endpoints that differ
-// before the last segment stay verbatim (a cross-bootstrap range has no canonical intermediates).
+// reference — a `P2.1` claim targets P2.1, never its numeric base. The range expansion lives in
+// `rangeContributedIds` (the shared walk `phaseIdsIn` and the C2 ⑧ per-pid mechanism both read).
 //
 // C2 ⑦ (strict grammar-A, cdd-review-contract-fix): a letter-suffixed ref (`P3.10a`) is masked
 // before the valid scans — the suffix is never silently swallowed into the numeric parent
@@ -233,7 +231,15 @@ function illegalPhaseRefsIn(clause: string): string[] {
   return [...new Set([...clause.matchAll(ILLEGAL_PHASE_REF_RE)].map((m) => m[0]))];
 }
 
-function phaseIdsIn(clause: string): string[] {
+/** The pids a canonical RANGE ref contributes over a clause span — every endpoint + its
+ *  shared-ridge intermediate (a cross-ridge range stays verbatim). The C2 ⑧ per-pid mechanism
+ *  attribution reads this set: a single-phase ref inside a ranged declaration window is never
+ *  labeled `range` — only the pids below report the range mechanism.
+ *  The expansion is segment-aware over the shared digit ridge (`P1–P4` → P1..P4; `P2.1–P2.3` →
+ *  P2.1..P2.3): the last segment iterates only when both endpoints share every earlier segment;
+ *  endpoints that differ before the last segment stay verbatim (a cross-bootstrap range has no
+ *  canonical intermediates). */
+function rangeContributedIds(clause: string): Set<string> {
   const sanitized = withoutIllegalRefs(clause);
   const ids = new Set<string>();
   for (const m of sanitized.matchAll(RANGE_RE)) {
@@ -254,7 +260,14 @@ function phaseIdsIn(clause: string): string[] {
       ids.add(a).add(b);
     }
   }
-  for (const m of sanitized.matchAll(SINGLE_PHASE_RE)) ids.add(m[1]);
+  return ids;
+}
+
+function phaseIdsIn(clause: string): string[] {
+  // the single-scan surrounds the range walk — the range's own endpoints also match the single
+  // form, deduped against the expanded set.
+  const ids = rangeContributedIds(clause);
+  for (const m of withoutIllegalRefs(clause).matchAll(SINGLE_PHASE_RE)) ids.add(m[1]);
   return [...ids];
 }
 
@@ -394,6 +407,11 @@ function isDeclarationSlotHead(maskedSpan: string): boolean {
 interface ClaimWindow {
   text: string;
   phases: string[];
+  /** C2 ⑧ — the phases a canonical RANGE ref contributed to this window (every endpoint +
+   *  intermediate, the ⑥ expansion) — the per-pid parse-mechanism attribution face: a mixed
+   *  declaration slot holds ranges AND single refs, and only the pids below report `range` (a
+   *  single ref inside a ranged window stays `single`). */
+  rangePhases: string[];
   /** C2 ⑦ — illegal phase-id tokens in this claim's declaration slot (the slot stops at the
    *  error state; the tokens are never attributed to a numeric parent). */
   illegal: string[];
@@ -442,15 +460,18 @@ function claimWindows(clause: string): {
       continue;
     }
     const phases = phaseIdsIn(span);
+    const rangePhases = rangeContributedIds(span);
     // C2 ⑥⑧ — a declaration-position range expands to every phase (endpoints included); the
     // C2 ⑧ fault context carries the expanded list. Range detection on the same sanitized surface
     // phaseIdsIn scans (a letter-suffixed range is already masked → never a range).
-    const ranged = withoutIllegalRefs(span).match(RANGE_RE) !== null;
+    const ranged = rangePhases.size > 0;
     for (const id of phases) windowed.add(id);
     claims.push({
       // the ORIGINAL text (the mask preserves offsets 1:1)
       text: clause.slice(at, at + m[0].length),
       phases,
+      // the C2 ⑧ per-pid mechanism face — only the range-expanded pids report `range`
+      rangePhases: [...rangePhases],
       illegal: illegalPhaseRefsIn(span),
       ranged,
     });
@@ -608,8 +629,9 @@ export interface ClaimDeclarationTrace {
   key: string;
   /** the claiming clause (verbatim — the fault-context clause excerpt). */
   clause: string;
-  /** how the parse attributed this phase: `single` (a single-phase declaration) or `range`
-   *  (a declaration-position range, C2 ⑥ — each endpoint + intermediate is a separate target). */
+  /** how the parse attributed THIS pid: `single` (a single-phase ref) or `range` (contributed by
+   *  a declaration-position range's expansion, C2 ⑥⑧ — each endpoint + intermediate is a separate
+   *  target). Attribution is PER-PID — a single ref inside a ranged window stays `single`. */
   mechanism: ClaimParseMechanism;
   /** C2 ⑥ — the expanded phase list for a range declaration (endpoints included — the SAME payload
    *  phaseIdsIn produced at parse time, so the diagnosis can never drift from the parse); empty for
@@ -654,14 +676,19 @@ function mismatchDiagnosticHint(trace: ClaimDeclarationTrace, strays: string[]):
 }
 
 /** C2 ⑧ — the dotted legal-shape guidance for a letter-suffixed phase id (`P3.10a`): the fixed
- *  rename target the syntax-class suggestion + action name. A single-letter suffix maps
- *  positionally (a→1 … e→5 — the P3.10a–e → P3.10.1–.5 renaming debt); anything else gets the
- *  generic dotted-form shape (`P<digits>.<digits>`). */
+ *  rename target the syntax-class suggestion + action name. Only a single-letter suffix within the
+ *  documented rename debt maps positionally (a→1 … e→5 — the P3.10a–e → P3.10.1–.5 backfill naming
+ *  collection); a letter beyond `e` or any multi-letter suffix has no rename target the debt
+ *  defines, so the guidance keeps the generic dotted-form shape (`P<digits>.<digits>`) — never a
+ *  fabricated phase position. */
 function dottedLegalHint(token: string): string {
   const m = token.match(/^(P\d+(?:\.\d+)*)([a-zA-Z]+)$/);
   if (m) {
     const letters = m[2]!.toLowerCase();
-    if (letters.length === 1) return `${m[1]}.${letters.charCodeAt(0) - 96}`;
+    const pos = letters.length === 1 ? letters.charCodeAt(0) - "a".charCodeAt(0) + 1 : 0;
+    // the positional rename covers exactly the documented a→1 … e→5 range; beyond `e` the suffix
+    // keeps the generic shape (zero-misleading — a fabricated position would misdirect the fix).
+    if (pos >= 1 && pos <= 5) return `${m[1]}.${pos}`;
   }
   return "`P<digits>.<digits>`";
 }
@@ -1603,15 +1630,19 @@ export class DocumentsValidator {
             const lane: ClaimDeclarationTrace["lane"] = planTarget ? "plan" : "design";
             for (const pid of c.phases) {
               // C2 ⑧ — one trace per REMEMBERED claim (the same first-wins guard as the claim map),
-              // carrying the fault-context the diagnostic trio assembles from.
+              // carrying the fault-context the diagnostic trio assembles from. The parse mechanism
+              // is PER-PID: only a pid the range expansion contributed reports `range` — a
+              // single-phase ref inside a ranged window stays `single` (a mixed declaration slot
+              // never misreports the range mechanism).
               if (!map.has(pid)) {
                 map.set(pid, key);
+                const fromRange = c.rangePhases.includes(pid);
                 traces.push({
                   lane,
                   pid,
                   key,
                   clause,
-                  mechanism: c.ranged ? "range" : "single",
+                  mechanism: fromRange ? "range" : "single",
                   expanded: c.ranged ? [...c.phases] : [],
                   row: rowLabel,
                 });

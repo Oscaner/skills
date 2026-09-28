@@ -1128,6 +1128,19 @@ describe("C2 ⑧ diagnostic trio — the mismatch/BLOCKED output payload carries
     expect(traces.map((t) => t.pid).sort()).toEqual(["P2.1", "P2.2", "P2.3"]);
   });
 
+  it("a mixed window attributes the parse mechanism PER-PID — only the RANGE_RE-expanded pids report `range`, a single ref beside the range stays `single` (C2 ⑧ zero-misleading)", () => {
+    const { traces, planClaims } = documentsValidator.extractClaimRows([
+      row("P1 + P2.1–P2.3 计划列回填：Pending → Done"),
+    ]);
+    expect([...planClaims.keys()].sort()).toEqual(["P1", "P2.1", "P2.2", "P2.3"]);
+    const byPid = new Map(traces.map((t) => [t.pid, t]));
+    // a single-phase ref inside a ranged window is never mislabeled `range`:
+    expect(byPid.get("P1")!.mechanism).toBe("single");
+    // the range-expanded pids report the range mechanism, with the ⑥ parse payload attached:
+    expect(byPid.get("P2.2")!.mechanism).toBe("range");
+    expect([...byPid.get("P2.2")!.expanded].sort()).toEqual(["P1", "P2.1", "P2.2", "P2.3"]);
+  });
+
   it("an illegal phase-id contributes NO trace (the parse phase slot stops at the error state); the offending row rides the carrier", () => {
     const { traces, planClaims, illegalPhaseRefs } = documentsValidator.extractClaimRows([
       row("P3.10a 计划列回填：Pending → Done"),
@@ -1174,6 +1187,36 @@ describe("C2 ⑧ diagnostic trio — the mismatch/BLOCKED output payload carries
     // zero-misleading: the retired parent-swallow never surfaces as the parse phase
     expect(s.missing).not.toContain("parses phase P3.10");
     expect(f.some((x) => x.field === "backfill claim")).toBe(false);
+  });
+
+  it("a letter-suffix beyond the a→e rename debt gets the generic dotted shape — never a fabricated phase position (zero-misleading guidance)", () => {
+    const c = writeChain({
+      overall: [
+        "- **Version**: v1.0 · 2026-09-21",
+        "",
+        "## Phase inventory",
+        "",
+        "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+        "|---|---|---|---|---|---|---|",
+        "| P1 | phase one | [Pending] | [Pending] | | none |",
+        "",
+        "## Change history",
+        "",
+        "| Version | date | summary |",
+        "|---|---|---|",
+        "| v1.0 | 2026-09-21 | Initial |",
+        "| v1.1 | 2026-09-21 | P3.10z 计划列回填：Pending → Done |",
+        "",
+      ].join("\n"),
+    });
+    const f = run(c);
+    const syntax = f.filter((x) => x.field === "phase-id syntax");
+    expect(syntax).toHaveLength(1);
+    const s = syntax[0]!;
+    // the guidance keeps the generic legal shape — a position beyond the a→1 … e→5 debt is never
+    // invented (the retired charCode mapping fabricated P3.10.26 for the suffix `z`):
+    expect(s.fix).toContain("P<digits>.<digits>");
+    expect(s.fix).not.toContain("P3.10.26");
   });
 
   it("prose class — the forward-mismatch payload carries the five elements (fault context · prose category · action)", () => {

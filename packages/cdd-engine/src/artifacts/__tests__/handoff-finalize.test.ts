@@ -10,6 +10,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { captureStderr, gitCommit, gitInit } from "../../infra/__tests__/helpers.ts";
 import { FAILURE_CATEGORIES } from "../../rules/failure.ts";
+import { HandoffSchemaValidator } from "../../rules/schema.ts";
 import {
   applyDerivedStatus,
   blockedCarrierFor,
@@ -155,6 +156,142 @@ it("finalizeHandoff fix 族：agent 声明保留（不派生覆写）", async ()
   const r = await finalizeHandoff({ mode: "fix", agentHandoff });
   expect(r.handoff).toBe(agentHandoff);
   expect(r.exitCode).toBe(0);
+});
+
+// ---- C4-1 (T7): branch-fix closing handoff = engine fact reconstruction — commits (git facts
+// base/head) + phase + status (commit-contract judgment) authoritative, the agent handoff is input
+// only (findings/notes preserved, unknown keys and `$schema` stripped). opt-in via fixBase+repoRoot
+// (the docs fix channel passes neither and keeps the work-type passthrough above). ----
+
+describe("finalizeHandoff fix 族 C4-1：收据事实重造（spec C4）", () => {
+  // two-commit repo: c0 (root) → c1 (HEAD). fixBase = c0 → a real fix-advance face.
+  function fixFixture() {
+    const repo = mkdtempSync(path.join(tmpdir(), "cdd-hf-c4-repo-"));
+    gitInit(repo);
+    const c0 = execFileSync("git", ["-C", repo, "rev-parse", "HEAD"], {
+      encoding: "utf8",
+    }).trim();
+    writeFileSync(path.join(repo, "a.txt"), "a\n");
+    gitCommit(repo, "second");
+    const c1 = execFileSync("git", ["-C", repo, "rev-parse", "HEAD"], {
+      encoding: "utf8",
+    }).trim();
+    expect(c0).not.toBe(c1);
+    return { repo, c0, c1 };
+  }
+
+  it("修已 commit + agent handoff 带 $schema/坏 review_scope/坏 notes → 收据自愈 APPROVED（不 BLOCKED）", async () => {
+    const { repo, c0, c1 } = fixFixture();
+    // The agent (per the #307 receipt bug) mirrored the injected schema into its handoff: the
+    // `$schema` meta key, a non-enum review_scope and a wrong-shape notes — shape junk that the
+    // engine's reconstruction must strip, never verbatim-persist.
+    const r = await finalizeHandoff({
+      mode: "fix",
+      agentHandoff: {
+        tasks: [1],
+        phase: "fix",
+        status: "APPROVED",
+        $schema: "http://json-schema.org/draft-07/schema#",
+        review_scope: "bogus",
+        notes: { oops: true },
+        commits: { base: "agent-wrong-base", head: "agent-wrong-head" },
+        findings: [{ severity: "warn" }],
+        artifacts: { report: "r.md" },
+      },
+      fixBase: c0,
+      repoRoot: repo,
+    });
+    expect(r.handoff.status).toBe("APPROVED"); // the fix committed → the receipt self-heals
+    expect(r.handoff.phase).toBe("fix"); // engine-stamped
+    expect(r.handoff.commits.base).toBe(c0); // git facts (FIX_BASE) authoritative
+    expect(r.handoff.commits.head).toBe(c1); // git facts (HEAD) authoritative — the agent line is ignored
+    expect(r.handoff).not.toHaveProperty("$schema"); // unknown key stripped
+    expect(r.handoff).not.toHaveProperty("review_scope"); // dispatch-stamp field never authored
+    expect(r.handoff).not.toHaveProperty("notes"); // malformed notes dropped (must stay schema-valid)
+    expect(r.handoff.findings).toEqual([{ severity: "warn" }]); // valid content preserved
+    expect(r.handoff.artifacts).toEqual({ report: "r.md" });
+    expect(r.handoff.blocker).toBeUndefined();
+    expect(r.exitCode).toBe(0);
+  });
+
+  it("无 commit（HEAD == FIX_BASE）→ BLOCKED + failure_category + exit 1（真败面仍 BLOCKED）", async () => {
+    const { repo, c1 } = fixFixture();
+    const r = await finalizeHandoff({
+      mode: "fix",
+      agentHandoff: { status: "APPROVED", findings: [], artifacts: {} },
+      fixBase: c1, // == HEAD: the fix produced no commit
+      repoRoot: repo,
+    });
+    expect(r.handoff.status).toBe("BLOCKED");
+    expect(r.handoff.failure_category).toBe(FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id);
+    expect(r.handoff.blocker).toMatch(/no commit|no fix commit/);
+    expect(r.handoff.commits.base).toBe(c1);
+    expect(r.handoff.commits.head).toBe(c1);
+    expect(r.exitCode).toBe(1);
+  });
+
+  it("代码面错误：agent 声明 BLOCKED（即便 HEAD 已前移）→ 保持 BLOCKED + exit 1", async () => {
+    const { repo, c0 } = fixFixture();
+    const r = await finalizeHandoff({
+      mode: "fix",
+      agentHandoff: {
+        status: "BLOCKED",
+        failure_category: FAILURE_CATEGORIES.EXECUTION_FAILURE.id,
+        blocker: "fix failed on the code face",
+        findings: [],
+        artifacts: {},
+      },
+      fixBase: c0,
+      repoRoot: repo,
+    });
+    expect(r.handoff.status).toBe("BLOCKED");
+    expect(r.handoff.failure_category).toBe(FAILURE_CATEGORIES.EXECUTION_FAILURE.id); // agent's real cause survives
+    expect(r.handoff.blocker).toContain("code face");
+    expect(r.exitCode).toBe(1);
+  });
+
+  it("代码面错误：unverifiable 车道 → BLOCKED + UNVERIFIABLE（内容级 BLOCK 通道不折叠）", async () => {
+    const { repo, c0 } = fixFixture();
+    const r = await finalizeHandoff({
+      mode: "fix",
+      agentHandoff: {
+        status: "APPROVED",
+        unverifiable: [{ claim: "复现场景", why: "环境缺失" }],
+        findings: [],
+        artifacts: {},
+      },
+      fixBase: c0,
+      repoRoot: repo,
+    });
+    expect(r.handoff.status).toBe("BLOCKED");
+    expect(r.handoff.failure_category).toBe(FAILURE_CATEGORIES.UNVERIFIABLE.id);
+    expect(r.handoff.blocker).toContain("复现场景");
+    expect(r.exitCode).toBe(1);
+  });
+
+  it("修复后的载体恒过任务 schema 校验（engine 是收据唯一作者）", async () => {
+    const { repo, c0 } = fixFixture();
+    const schemaValidator = new HandoffSchemaValidator();
+    for (const junk of [
+      { tasks: ["x"] },
+      { findings: "none" },
+      { artifacts: [1, 2] },
+      { blocker: null },
+      { status: "BLOCKED", failure_category: "BOGUS" }, // non-canonical category → engine fallback
+    ]) {
+      const r = await finalizeHandoff({
+        mode: "fix",
+        agentHandoff: { status: "APPROVED", findings: [], artifacts: {}, ...junk },
+        fixBase: c0,
+        repoRoot: repo,
+      });
+      const h = r.handoff as Record<string, unknown>;
+      // tasks never lands as a string array / findings stays an array / artifacts stays an object
+      // (fallbacks keep the carrier valid) — assert valid via the schema validator.
+      const ok = schemaValidator.validateHandoffSchema(h, "task");
+      expect(ok.valid, `${JSON.stringify(junk)} → ${ok.reason}`).toBe(true);
+    }
+  });
 });
 
 it("finalizeHandoff 未知 mode → 抛错（定稿分派契约）", async () => {

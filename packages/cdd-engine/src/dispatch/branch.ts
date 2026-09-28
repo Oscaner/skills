@@ -279,13 +279,18 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
       // keeps only its own failure-payload difference).
       const rec = recoverHandoff(agentHandoff, "task");
       if (!rec.valid) {
+        // C4-3 (T7, following #306's guidance call): the still-failing face's blocker carries the
+        // violating FIELD NAME (the rec.reason suffix — the engine-authored `(unexpected key: X)`
+        // / the ajv detail) + the EXPECTED SHAPE of a valid receipt + the fix-and-re-run phrase in
+        // the same sentence. Agents that lost the writable-subset message (C4-2) get the
+        // contract back here.
         writeBlockedCarrier(this.handoffPath, {
           tasks: [1],
           phase,
           failure_category: FAILURE_CATEGORIES.CONTRACT_VIOLATION.id,
           ...(commits ? { commits } : {}),
           findings: rec.preservedFindings,
-          blocker: `${label} handoff schema invalid${rec.reason} → fix and re-run ${reRun}`,
+          blocker: `${label} handoff schema invalid${rec.reason} — expected handoff shape: phase (implement|review|fix|branch-review) · status (APPROVED|BLOCKED|CHANGES_REQUESTED|REVIEW_FIX|TIMEOUT) · commits { base, head? } 40-hex · artifacts {} · findings [] · changes[] · notes string — NO unknown keys ('$schema' / 'review_scope' are engine-stamped, never authored) → fix the handoff JSON at ${this.handoffPath} and re-run ${reRun}`,
           fullReplace: true, // violating keys never stay on disk
         });
         process.stderr.write(`CDD_BLOCKED: ${label} handoff schema invalid\n`);
@@ -665,12 +670,21 @@ export class BranchFixLifecycle extends BranchLifecycle {
     });
   }
 
-  /** Finalize through the single finalization point (mode=fix → work-type passthrough: the
-   * agent-declared status stays, vetoed by the commit-contract layer just below). Task 23 ③: the
-   * fix round conclusion → exit (BLOCKED → 1, APPROVED/CHANGES_REQUESTED → 0) — captured here,
-   * emitted by the wrapper AFTER the (inherited) exit gate ran clean. */
+  /** Finalize through the single finalization point. C4 (T7): the branch-fix closing handoff is
+   * engine fact reconstruction (finalizeFix) — commits (git facts: base = this.fixBase, head =
+   * git HEAD) + phase + status (commit-contract judgment) authoritative, the agent handoff input
+   * only; a fix that advanced HEAD past the FIX_BASE with no code-face error self-heals to
+   * APPROVED (no hard gate on the receipt shape — #307), the truly failing faces (no commit /
+   * code-face error) stay BLOCKED. Task 23 ③: the fix round conclusion → exit (BLOCKED → 1,
+   * APPROVED/CHANGES_REQUESTED → 0) — captured here, emitted by the wrapper AFTER the (inherited)
+   * exit gate ran clean. */
   protected override async normalizeResult(_hookCtx: DispatchHookContext): Promise<void> {
-    const finalized = await finalizeHandoff({ mode: "fix", agentHandoff: this.agentHandoff });
+    const finalized = await finalizeHandoff({
+      mode: "fix",
+      agentHandoff: this.agentHandoff,
+      fixBase: this.fixBase,
+      repoRoot: this.repoRoot,
+    });
     if (finalized.handoff && finalized.handoff !== this.agentHandoff)
       writeOwnHandoff(this.handoffPath, finalized.handoff);
     this.finalExitCode = finalized.exitCode;

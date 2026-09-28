@@ -102,6 +102,29 @@ function tripleAll(src: string): string {
   return src.replace(/\{\{([A-Z0-9_]+)\}\}/g, (_m: string, key: string) => `{{{${key}}}}`);
 }
 
+// Writable-subset projection of a handoff schema (C4-2, T7): the injected contract strips the
+// `$schema` meta key and the dispatch-stamp field family (the "determined by the dispatch, not
+// authored" review_scope) so a mirroring agent can never copy non-writable surface into its
+// receipt. Returns a NEW object (the raw schema object is never mutated); every other top-level
+// key and property stays byte-identical. Deterministic — the injection remains uniqueness- and
+// cacheable across renders.
+function writableSchemaSubset(schema: unknown): unknown {
+  if (!schema || typeof schema !== "object" || Array.isArray(schema)) return schema;
+  const s = { ...(schema as Record<string, unknown>) };
+  delete s.$schema;
+  const props = s.properties;
+  if (props && typeof props === "object" && !Array.isArray(props)) {
+    const p = { ...(props as Record<string, unknown>) };
+    delete p.review_scope;
+    s.properties = p;
+  }
+  const required = s.required;
+  if (Array.isArray(required) && required.includes("review_scope")) {
+    s.required = required.filter((k) => k !== "review_scope");
+  }
+  return s;
+}
+
 // Canonical, environment-independent memo key for the Round-context tail (sorted keys, JSON-escaped
 // values; insertion order never factors in). The former exported shell cache-key helper is
 // eliminated — the shell is keyed by family constant; this internal key memoizes the tail only.
@@ -188,8 +211,12 @@ export class TemplateLoader {
   // ---- Handoff contract injection (Task 18: schema verbatim; zero render) ----
   // Contract uniqueness (schema) → injection uniqueness (its string form). The schema is the only
   // per-family injection the shell carries: shellFor(family) = shared frame + this block.
+  // C4-2 (T7): the injected contract = the WRITABLE subset (writableSchemaSubset) — the `$schema`
+  // meta key and the dispatch-stamp field family ("determined by the dispatch, not authored":
+  // review_scope) are stripped, so the agent can never mirror non-writable surface into its handoff
+  // (the #307 root cause — the injected schema verbatim-builds the ill-shaped receipt).
   renderHandoffSchemaJson(schema: unknown): string {
-    return `\`\`\`json\n${JSON.stringify(schema)}\n\`\`\``;
+    return `\`\`\`json\n${JSON.stringify(writableSchemaSubset(schema))}\n\`\`\``;
   }
 
   // ---- zone builders (runtime assembly; all memoized / frozen) ----

@@ -12,16 +12,30 @@ import { TemplateLoader } from "../templates.ts";
 
 const templates = new TemplateLoader();
 
-// ---- renderHandoffSchemaJson = verbatim schema injection (no render, no interpreter, no second validator) (Task 18) ----
+// ---- renderHandoffSchemaJson = writable-subset schema injection (C4-2/T7; formerly verbatim) ----
+// The injected contract is the WRITABLE subset of the schema — the `$schema` meta key and the
+// dispatch-stamp field family ("determined by the dispatch, not authored": review_scope) are
+// stripped so a mirroring agent can never copy non-writable surface into its handoff (the #307
+// root cause: the agent mirrored the injected schema verbatim into its $schema-bearing receipt).
 
-describe("renderHandoffSchemaJson — schema 原样注入", () => {
-  it("stub = schema 本体的 ```json 块：解析后逐键相等、description 随附", () => {
+describe("renderHandoffSchemaJson — schema 可写子集注入 (C4-2)", () => {
+  it("stub = 可写子集的 ```json 块：剥 `$schema` 元键 + `review_scope`（注入面零不可写键）", () => {
     const schema = schemaValidator.loadHandoffSchema("task");
     const stub = templates.renderHandoffSchemaJson(schema);
     expect(stub.startsWith("```json\n")).toBe(true); // the carrier is json (not jsonc: the schema itself has no comment lines to copy)
     expect(stub.endsWith("\n```")).toBe(true);
     const parsed = JSON.parse(stub.replace(/^```json\n/, "").replace(/\n```$/, ""));
-    expect(parsed).toEqual(schema);
+    // the writable subset = the schema minus the two non-writable keys
+    expect(parsed).toEqual({
+      ...schema,
+      $schema: undefined,
+      properties: {
+        ...(schema as { properties: Record<string, unknown> }).properties,
+        review_scope: undefined,
+      },
+    });
+    expect(stub).not.toContain('"$schema"');
+    expect(stub).not.toContain("review_scope");
     expect(stub).toContain('"description"'); // the write-protocol rules are injected with the schema
   });
 
@@ -35,7 +49,7 @@ describe("renderHandoffSchemaJson — schema 原样注入", () => {
     }
   });
 
-  it("stub 与 schema 键集同构（不新增不删减：注入面 = 契约面）", () => {
+  it("可写子集删减仅为 $schema + review_scope（其余契约键不增不减）", () => {
     const schema = schemaValidator.loadHandoffSchema("task");
     const parsed = JSON.parse(
       templates
@@ -43,7 +57,19 @@ describe("renderHandoffSchemaJson — schema 原样注入", () => {
         .replace(/^```json\n/, "")
         .replace(/\n```$/, ""),
     );
-    expect(Object.keys(parsed)).toEqual(Object.keys(schema));
+    const dropped = Object.keys(schema).filter((k) => !(k in parsed));
+    expect(dropped).toEqual(["$schema"]);
+    const props = parsed.properties as Record<string, unknown>;
+    expect(props).not.toHaveProperty("review_scope");
+    // the rest of the property set is byte-identical (no accidental drift)
+    const schemaProps = (schema as { properties: Record<string, unknown> }).properties;
+    for (const key of Object.keys(schemaProps).filter((k) => k !== "review_scope")) {
+      expect(props).toHaveProperty(key);
+      expect(JSON.parse(JSON.stringify(props[key]))).toEqual(
+        JSON.parse(JSON.stringify(schemaProps[key])),
+      );
+    }
+    expect(parsed.required).toEqual((schema as { required: string[] }).required); // review_scope is not required → unchanged
   });
 
   it("commits.head 为 schema 契约键（写协议规则迁入：full 40-char SHA）", () => {

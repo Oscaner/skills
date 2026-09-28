@@ -319,16 +319,17 @@ describe("branch-fix in-process loop closure", () => {
   });
 });
 
-// ---- ④ exit gate (commit contract): F1 head-mismatch + dirty-tree BLOCKED carrier rewrite ----
-describe("branch-fix exit gate — the inherited commit-contract BLOCKED lanes", () => {
+// ---- ④ exit gate (commit contract) — dirty-tree BLOCKED carrier rewrite; C4-1 the head-mismatch
+// lane retires (the engine stamps commits.head from git facts, the F1 mis-stamp is impossible) ----
+describe("branch-fix exit gate — dirty tree → inherited commit-contract BLOCKED rewrite + C4-1 head facts", () => {
   const setup = async () => {
     const dir = tmpGitRepo();
     const slug = "test-plan-bf-gate";
     const planPath = writeBranchChain(dir, `${slug}.md`);
-    // The exit gate rules at RETURN: a dirty tree, or a clean tree whose handoff commits.head
-    // mismatches actual HEAD (F1), rewrites the fix handoff to BLOCKED and exits 1. Everything the
-    // fake agent writes after setup must be gitignored (`.osuperpowers/` handoffs + `*.head`
-    // probes), and everything else committed as fixtures.
+    // The exit gate rules at RETURN: a dirty tree rewrites the fix handoff to BLOCKED and exits 1
+    // (the engine facts the commits head, so the only remaining commit-contract blot is the tree).
+    // Everything the fake agent writes after setup must be gitignored (`.osuperpowers/` handoffs +
+    // `*.head` probes), and everything else committed as fixtures.
     writeFileSync(path.join(dir, ".gitignore"), ".osuperpowers/\n*.head\n");
     const base = FULL_ID("a");
     const head = FULL_ID("b");
@@ -390,9 +391,12 @@ describe("branch-fix exit gate — the inherited commit-contract BLOCKED lanes",
     return { origPath, regPath };
   };
 
-  it("F1: clean tree + handoff commits.head ≠ actual HEAD → exit 1 + on-disk fix handoff rewritten to BLOCKED", async () => {
+  it("C4-1: agent 声明的坏 commits.head → engine 事实重造 stamp 真实 HEAD → 收据自愈 APPROVED（head 为机器事实，F1 硬闸收口于事实重造）", async () => {
     const { dir, planPath, reviewPath, handoffPath, base } = await setup();
     // A 40-hex ref that is NOT the repo HEAD — the agent declared a different commit than it made.
+    // Under C4 the engine is the carrier's sole author: commits.head is a git fact (never the
+    // agent's byte), so this receipt self-heals instead of F1-blocking — the head-mismatch lane
+    // retires on the branch face (the engine cannot mis-stamp; the dirty-tree lane below remains).
     const wrongHead = FULL_ID("c");
     const { origPath, regPath } = await installFakeCli(
       dir,
@@ -431,12 +435,18 @@ describe("branch-fix exit gate — the inherited commit-contract BLOCKED lanes",
         if (e instanceof ExitRequested) exitCode = e.code;
         else throw e;
       }
-      // The inherited exit gate turned the F1 violation into BLOCKED + exit 1 (previously the
-      // unthreaded handoff path silently no-opped the gate and this round exited APPROVED).
-      expect(exitCode).toBe(1);
+      // C4-1: the receipt self-heals — the engine re-authored commits (base = FIX_BASE, head =
+      // actual git HEAD); clean tree + engine-stamped head pass the exit gate.
+      expect(exitCode).toBe(0);
       const h = JSON.parse(readFileSync(handoffPath, "utf8"));
-      expect(h.status).toBe("BLOCKED");
-      expect(h.blocker).toMatch(/does not match HEAD/);
+      expect(h.status).toBe("APPROVED");
+      expect(h.commits.base).toBe(base); // the FIX_BASE survives as the git-fact base
+      expect(h.commits.head).not.toBe(wrongHead); // the agent's claimed head is not the receipt's
+      const actualHead = execaSync("git", ["-C", dir, "rev-parse", "HEAD"], {
+        encoding: "utf8",
+      }).stdout.trim();
+      expect(h.commits.head).toBe(actualHead); // git HEAD is the machine fact
+      expect(h.blocker).toBeUndefined();
     } finally {
       process.env.PATH = origPath;
       rmSync(dir, { recursive: true, force: true });
@@ -497,16 +507,15 @@ describe("branch-fix exit gate — the inherited commit-contract BLOCKED lanes",
     }
   });
 
-  it("F1 no-root path: getRoot() fallback (initRoot primed like bin.ts:87, no opts.root) still enforces the exit gate", async () => {
+  it("C4-1 no-root path: getRoot() fallback (initRoot primed like bin.ts:87) 的解析 root 仍喂 finalizeFix 的 head 事实 → 收据自愈 APPROVED + commits.head == 真实 HEAD", async () => {
     const { dir, planPath, reviewPath, handoffPath, base } = await setup();
     // The CLI wrapper seeds ctx.repoRoot = opts.root ?? null while fixCmd/reviewCmd declare no
     // --root, so on the real black-box walk the channel resolves its root from getRoot() (the
     // initRoot()-initialized singleton). This lane replicates that walk: initRoot primed like
-    // bin.ts:87, NO opts.root injected — the resolveContext threading (repoRoot → ctx) must still
-    // feed the resolved root to the inherited exit gate. Before the threading, ctx.repoRoot stayed
-    // null here → validateCommitContract → resolveCleanTree(null) → fail-open → APPROVED (the
-    // fix-1 gap this round closes). Same wrong-HEAD F1 probe as the root-injected lane above.
-    const wrongHead = FULL_ID("c");
+    // bin.ts:87 — the resolveContext resolution (repoRoot) must still feed the C4 reconstruction's
+    // head stamp (finalizeFix cds git HEAD off the resolved root; before the threading the root
+    // stayed null → no head fact → no commit-contract basis).
+    const wrongHead = FULL_ID("c"); // the agent's byte is not the receipt's git fact
     const { origPath, regPath } = await installFakeCli(
       dir,
       `cat > "${handoffPath}" <<EOF\n` +
@@ -547,10 +556,128 @@ describe("branch-fix exit gate — the inherited commit-contract BLOCKED lanes",
         if (e instanceof ExitRequested) exitCode = e.code;
         else throw e;
       }
+      expect(exitCode).toBe(0); // C4-1 self-heal: no F1 hard gate on the branch face
+      const h = JSON.parse(readFileSync(handoffPath, "utf8"));
+      expect(h.status).toBe("APPROVED");
+      expect(h.commits.head).not.toBe(wrongHead); // the agent's claimed head is replaced by the machine fact
+      const actualHead = execaSync("git", ["-C", dir, "rev-parse", "HEAD"], {
+        encoding: "utf8",
+      }).stdout.trim();
+      expect(h.commits.head).toBe(actualHead); // the resolved root fed the head stamp
+    } finally {
+      process.env.PATH = origPath;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---- ⑤ C4-3 (T7): still-failing schema-invalid receipt (following #306's guidance call) — the
+// blocker carries the bad FIELD NAME + the EXPECTED SHAPE, so the authing agent knows the writable
+// contract ----
+describe("branch-fix schema-invalid receipt — C4-3 blocker has field name + expected shape", () => {
+  it("notes 类型违规 → exit 1 + BLOCKED carrier 的 blocker 附坏字段名（notes）+ 期望形态 + 修后重跑同句", async () => {
+    const dir = tmpGitRepo();
+    const slug = "test-plan-bf-c43";
+    const planPath = writeBranchChain(dir, `${slug}.md`);
+    writeFileSync(path.join(dir, ".gitignore"), ".osuperpowers/\n*.head\n");
+    const base = FULL_ID("a");
+    const head = FULL_ID("b");
+    const base7 = base.slice(0, 7);
+    const head7 = head.slice(0, 7);
+    const { resolveWorkspace, handoffName } = await import("../../artifacts/handoff/naming.ts");
+    const workspace = resolveWorkspace(planPath, dir);
+    const reviewPath = path.join(
+      workspace,
+      handoffName("review", "branch", { base7, head7, round: 1 }),
+    );
+    const handoffPath = path.join(
+      workspace,
+      handoffName("fix", "branch", { base7, head7, round: 1 }),
+    );
+    mkdirSync(workspace, { recursive: true });
+    writeFileSync(
+      reviewPath,
+      JSON.stringify({
+        tasks: [1],
+        phase: "branch-review",
+        status: "APPROVED",
+        commits: { base, head },
+        findings: [],
+        artifacts: {},
+      }),
+    );
+    // A declared-but-wrong-shape key (notes: 5 — not an unknown key, so normalization cannot
+    // strip it) → the recovery still fails → the C4-3 still-failing face fires.
+    const binDir = mkdtempSync(path.join(tmpdir(), "cdd-bf-fake-c43-"));
+    writeFileSync(
+      path.join(binDir, "fake-cli"),
+      `#!/usr/bin/env bash\n` +
+        `cat > "${handoffPath}" <<EOF\n` +
+        `{"tasks":[1],"phase":"fix","status":"APPROVED","notes":5,"commits":{"base":"${base}","head":"${head}"},"findings":[],"artifacts":{}}\n` +
+        `EOF\n` +
+        `exit 0\n`,
+    );
+    chmodSync(path.join(binDir, "fake-cli"), 0o755);
+    const origPath = process.env.PATH;
+    process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+    const { REG_PATH } = await import("../../infra/registry.ts");
+    const regPath = path.join(dir, "registry.json");
+    const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
+    reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full" };
+    writeFileSync(regPath, JSON.stringify(reg, null, 2));
+    execaSync("git", ["-C", dir, "add", "-A"]);
+    execaSync("git", [
+      "-C",
+      dir,
+      "-c",
+      "user.name=cdd-test",
+      "-c",
+      "user.email=cdd-test@example.com",
+      "commit",
+      "-qm",
+      "fixtures",
+    ]);
+    try {
+      const { ExitRequested, exitWithCode } = await import("../../infra/exit.ts");
+      const { DispatchBlocked } = await import("../../dispatch/base.ts");
+      const { BranchFixLifecycle } = await import("../../dispatch/branch.ts");
+      let exitCode: number | null = null;
+      try {
+        const fxDryRun = false;
+        const lc = new BranchFixLifecycle({
+          harness: "ghost",
+          plan: planPath,
+          findings: reviewPath,
+          root: dir,
+          registryPath: regPath,
+          dryRun: fxDryRun,
+          ctx: { mode: "fix", repoRoot: dir, dryRun: fxDryRun },
+        });
+        try {
+          await lc.run();
+        } catch (e) {
+          if (e instanceof DispatchBlocked && e.gate === "exit") {
+            process.stderr.write(`CDD_BLOCKED: ${e.message}\n`);
+            exitWithCode(1);
+          }
+          throw e;
+        }
+        exitWithCode(lc.exitCode);
+      } catch (e) {
+        if (e instanceof ExitRequested) exitCode = e.code;
+        else throw e;
+      }
       expect(exitCode).toBe(1);
       const h = JSON.parse(readFileSync(handoffPath, "utf8"));
       expect(h.status).toBe("BLOCKED");
-      expect(h.blocker).toMatch(/does not match HEAD/);
+      const blocker = h.blocker as string;
+      // field name — the recovery reason carries the violating key's validation detail
+      expect(blocker).toMatch(/notes/);
+      // expected shape — the writable-contract guidance (C4-3, following #306)
+      expect(blocker).toMatch(/expected|shape/i);
+      expect(blocker).toMatch(/status|findings|artifacts|commits/);
+      // same sentence keeps the fix-and-re-run guidance
+      expect(blocker).toMatch(/fix the handoff|re-run .*cdd fix --type branch/);
     } finally {
       process.env.PATH = origPath;
       rmSync(dir, { recursive: true, force: true });

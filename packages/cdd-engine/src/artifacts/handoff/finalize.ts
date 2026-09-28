@@ -393,6 +393,7 @@ export async function finalizeHandoff({
   workspace,
   tasks,
   resumeScopeBase = null,
+  fixBase = null,
 }: {
   mode?: string;
   returnBlock?: string[];
@@ -407,6 +408,12 @@ export async function finalizeHandoff({
    *  the dead-round carrier (T27, spec T7.6). Finalize uses it to pull the ledger strictly earlier.
    *  Passed by the dispatch — the implement materialization is the only consumer. */
   resumeScopeBase?: string | null;
+  /** The branch-fix FIX_BASE (the reviewed range's base — the dispatch's derive, spec C4). Its
+   * presence switches the fix mode to the engine fact reconstruction (C4-1): commits / phase /
+   * status become engine-authoritative and the agent handoff is input only. Absent (the docs fix
+   * channel) keeps the work-type passthrough, whose declared status is vetoed by the commit-contract
+   * layer. */
+  fixBase?: string | null;
 } = {}): Promise<{ handoff: Record<string, unknown> | null; exitCode: number }> {
   if (mode === "review") {
     const derived = applyDerivedStatus(agentHandoff ?? {});
@@ -427,8 +434,15 @@ export async function finalizeHandoff({
     });
   }
   if (mode === "fix") {
-    // work-type: the agent-declared status stays, vetoed at the commit-contract layer
-    // (validateCommitContract).
+    // C4 (T7): branch-fix closing handoff — engine fact reconstruction (finalizeFix), the sibling
+    // of finalizeImplement: commits (git facts) + phase + status (commit-contract judgment) are
+    // authoritative, the agent's handoff is the input (findings/notes preserved, unknown keys and
+    // `$schema` stripped). The reconstruction is opt-in via fixBase+repoRoot: the docs fix channel
+    // passes neither and keeps the work-type passthrough (its agent-declared status stays, vetoed
+    // at the commit-contract layer).
+    if (fixBase && repoRoot) {
+      return await finalizeFix({ agentHandoff, fixBase, repoRoot });
+    }
     return {
       handoff: agentHandoff,
       exitCode: statusExitCode((agentHandoff?.status as string) ?? "BLOCKED"),
@@ -439,6 +453,118 @@ export async function finalizeHandoff({
     `finalizeHandoff: unknown mode ${mode}`,
   );
   return { handoff: null, exitCode: 1 }; // unreachable (invariant narrows to the three handled modes)
+}
+
+/** Branch-fix closing handoff — engine fact reconstruction (C4-1, T7; the sibling of
+ * finalizeImplement): commits (git facts: base = FIX_BASE, head = git HEAD) + phase + status
+ * (commit-contract judgment) are authoritative; the agent's original handoff is INPUT only
+ * (findings/notes/changes/artifacts preserved, unknown keys and `$schema` stripped — a mirrored
+ * receipt can never persist itself verbatim into the carrier).
+ *
+ * Status judgment (commit-contract): a fix that advanced HEAD past FIX_BASE with no code-face
+ * error self-heals the receipt to APPROVED — no hard gate on the receipt shape; the truly failing
+ * faces (no commit / code-face error: the agent-declared BLOCKED/TIMEOUT or the content-level
+ * unverifiable/plan_conflicts BLOCK channels) stay BLOCKED.
+ *
+ * The reconstructed carrier is assembled from the writable content whitelist only (every invalid
+ * agent value falls back to a schema-legal shape) and passed through the validator — the engine is
+ * the receipt's sole author; a non-schema-valid reconstruction is a programming bug, not a
+ * round-level failure to be written on disk. */
+export async function finalizeFix({
+  agentHandoff = {},
+  fixBase = null,
+  repoRoot = null,
+}: {
+  agentHandoff?: Record<string, unknown> | null;
+  /** The FIX_BASE (FIXED_POINT) — the dispatch's derive off the source review (spec C4). */
+  fixBase?: string | null;
+  repoRoot?: string | null;
+}): Promise<{ handoff: Record<string, unknown>; exitCode: number }> {
+  const base = typeof fixBase === "string" && SHA40_RE.test(fixBase) ? fixBase : null;
+  const head = repoRoot ? await git.revParseHead(repoRoot) : null;
+  // The schema requires commits{base} on every carrier — a malformed fixBase (possible only from a
+  // caller bug; the branch dispatch pre-gates its FIX_BASE to 40-hex) can produce no valid receipt,
+  // so it is a programming error, never a round-level shape to persist.
+  invariant(base !== null, "finalizeFix: no 40-hex FIX_BASE — the reconstruction requires a base");
+  // The fix advanced HEAD past the fix point (commits.head moved forward) — or could not be
+  // read at all (a root-less round has no head yet). Level with the implement materialization's
+  // fail-open: repoRoot → head omitted, never invented.
+  const committed = head !== null && head !== base;
+
+  // Code-face error signals veto the self-heal: the agent-declared failure (BLOCKED/TIMEOUT) and
+  // the content-level BLOCK channels (unverifiable/plan_conflicts). The agent's findings/changes/
+  // notes/artifacts are input content — they ride the receipt, never judge it.
+  const agentStatus = typeof agentHandoff.status === "string" ? agentHandoff.status : undefined;
+  const unverifiable = Array.isArray(agentHandoff.unverifiable) ? agentHandoff.unverifiable : [];
+  const planConflicts = Array.isArray(agentHandoff.plan_conflicts)
+    ? agentHandoff.plan_conflicts
+    : [];
+  const codeFaceError =
+    agentStatus === "BLOCKED" ||
+    agentStatus === "TIMEOUT" ||
+    unverifiable.length > 0 ||
+    planConflicts.length > 0;
+  const status = committed && !codeFaceError ? "APPROVED" : "BLOCKED";
+
+  const tasks =
+    Array.isArray(agentHandoff.tasks) &&
+    agentHandoff.tasks.length > 0 &&
+    agentHandoff.tasks.every((t) => Number.isInteger(t) && (t as number) >= 1)
+      ? agentHandoff.tasks
+      : [1];
+  const handoff: Record<string, unknown> = {
+    tasks,
+    phase: "fix",
+    status,
+    commits: { base, ...(head ? { head } : {}) },
+    findings: Array.isArray(agentHandoff.findings) ? agentHandoff.findings : [],
+    artifacts:
+      agentHandoff.artifacts &&
+      typeof agentHandoff.artifacts === "object" &&
+      !Array.isArray(agentHandoff.artifacts)
+        ? agentHandoff.artifacts
+        : {},
+  };
+  if (Array.isArray(agentHandoff.changes)) handoff.changes = agentHandoff.changes;
+  if (typeof agentHandoff.notes === "string") handoff.notes = agentHandoff.notes;
+
+  if (status === "BLOCKED") {
+    // The BLOCKED carrier's grounding (real sources only — never fabricated prose): the
+    // content-lane channel comes from the single blockedCarrierFor point (UNVERIFIABLE /
+    // PLAN_CONFLICT + the entries' what+why blocker); the declared-failure / no-commit faces carry
+    // the agent's category when present, else the engine-authored write itself (ENGINE_SELF_WRITTEN
+    // — the engine authored the carrier, the schema allOf's bottom line).
+    // An agent-authored failure_category is adopted only when it is a canonical category id —
+    // the reconstruction draws from machine facts, never raw agent bytes.
+    const agentCategory =
+      typeof agentHandoff.failure_category === "string" &&
+      FAILURE_CATEGORIES[agentHandoff.failure_category]
+        ? agentHandoff.failure_category
+        : undefined;
+    const carrier = blockedCarrierFor("BLOCKED", unverifiable, planConflicts, {
+      blocker: typeof agentHandoff.blocker === "string" ? agentHandoff.blocker : undefined,
+      failure_category: agentCategory,
+    });
+    handoff.failure_category =
+      carrier.failure_category ?? agentCategory ?? FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id;
+    const blocker =
+      carrier.blocker ??
+      (typeof agentHandoff.blocker === "string" ? agentHandoff.blocker : undefined);
+    if (blocker) {
+      handoff.blocker = blocker;
+    } else if (!committed) {
+      // No agent-provided reason on the no-commit face → the machine fact IS the real blocker.
+      handoff.blocker = `fix round produced no commit (commits.head == FIX_BASE ${base}) — the fix must advance HEAD; self-heal only applies to a committed clean fix → re-run cdd fix --type branch`;
+    }
+  }
+
+  // The reconstructed receipt must pass its own validation — the engine is the sole author; any
+  // assembled shape failure here would write an invalid carrier the next review's schema gate would
+  // reject (the exact bug class this reconstruction exists to eliminate). invariant = programming
+  // error, never a round-level BLOCKED to persist.
+  const sv = schemaValidator.validateHandoffSchema(handoff, "task");
+  invariant(sv.valid, `finalizeFix assembled an invalid carrier: ${sv.reason}`);
+  return { handoff, exitCode: statusExitCode(status) };
 }
 
 /** Finalization write-back single point (branch nit③: docs-runner/runner share this, deduplicating

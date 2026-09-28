@@ -1,6 +1,6 @@
 # Cdd Review 输出面契约修正（Cdd Review Output-Contract Fix）— Single Spec
 
-- **Version**: v1.4 · 2026-09-28
+- **Version**: v1.5 · 2026-09-28
 - **Status**: Approved
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Issues（收口时关闭）**: #302（cdd review 输出与 findings 的 blocker 同词异义导致路由判读歧义）· #304（cdd 收口 claim 审计：prose 误触发 + 排障引导不指向根因）· #305（branch-review root 注入缺口 + 静默空转）· #306（branch-review stdout 缺 result 行且 WARN 误导）· #307（branch-fix 关闭 handoff schema 校验失败——fix 已提交却被 BLOCKED）
@@ -154,6 +154,47 @@ T7 须在本程序**自身终闸 branch-fix 之前**落地——否则终闸 bra
 
 ---
 
+## C5：#next-step 输出面统一抽象（engine 输出面渗透下一跳建议）
+
+**核心原则（统一抽象，user 三轮裁定定稿）**：路由知识（S1→fix→re-review / S2→收口 / 何时结束 / soft-cap 何时裁决）从 skills 冗长散文**整体下沉 engine 输出面**——每条 stdout 结果契约末尾统一追加 `next:` 可机器 grep 的下一跳建议。skills 的每节点路由阐述坍缩为「按 `next:` 建议派发」。四条裁决：
+
+### C5-0 语义：suggestion，不是 hard action
+
+- `next:` = engine 在「当前世界态、无中途变更」下的**下一跳建议（默认路径）**——「若直接继续，这就是下一步」，**不含义务**。
+- 可被覆盖（既有机制全部保留）：**I6 mid-backfill**（dispatch 返回后编排方落地用户回填 → 世界态变化 → `next:` 建议失效或过时，以当前态为准）· **Plan Sole Writer / 用户裁决**（soft-cap 介入等）· **failure-mode 表**（BLOCKED/BLOCKED 轮走既有 stderr 通道，不归 `next:` 管）。
+- skills 措辞：「`next:` 是 engine 给出的默认下一跳建议；直接继续则按它派发，**mid-backfill / 用户裁决落地后以当前世界态为准**」——一句承载建议语义 + I6 兼容。
+
+### C5-1 责任单一：fix 面为 re-review/收口的唯一判定点
+
+- **谁消费 findings，谁决定下一跳**：review 只产出 findings（不知 fix 修得如何），**不再预告**「fix 后必 re-review」；fix 持有 `--findings` 全文（本就必读），下一跳由它判定。
+- 命令面 uniformity：`review → fix`（恒一，有 findings 即 one-way），`fix → review|终态`（按输入 findings 严重级）。
+
+| 命令 | 输出面 | `next:` 载荷 | 判定依据 |
+|---|---|---|---|
+| **review**（有 findings，任意严重级） | `next: cdd fix --type <t> [--tasks <n>] --plan <p> --findings <h>` —— 恒一，无分支 | findings 非空 |
+| **review**（APPROVED，零 findings） | `next: none` / `next: cdd implement --tasks <next>`（剩余组）/ `next: cdd review --type branch …`（全部组收罄） | findings 空 |
+| **fix**（输入 findings 含 blocker>0） | **`next: cdd review …`（re-review，新 ref）** | 输入 findings 严重级（`blockerCount`） |
+| **fix**（输入 findings 仅 warn/nit） | `next: none`（收口轮自然化——无需 review 预告） | 输入 findings 严重级 |
+| **fix**（自身 BLOCKED） | 不产 `next:` —— failure-mode 表（stderr） | 执行层状态 |
+| **fix**（连续 S1 达 soft cap） | `next: BLOCKED: review-cycle-cap — user adjudicates` | ref 序列轮次计数 |
+
+### C5-2 零新 CLI 参数（user 裁定）
+
+- `next-step.ts` 派生函数输入 = **本次 dispatch 构造函数/ctx 已有对象字段**（op / type / group / round / ref / status / findings / workspace / plan / commits.base-head）——纯读函数在 return block 组装时追加一行，`parse.ts` / usage / 白名单面**零变更**。
+- fix 判定打开 `--findings` 既有路径 + `convergence.blockerCount`（既有）——读取路径全复用。
+
+### C5-3 输出面与验证
+
+- 三输出面统一追加 `next:` 行：docs result face（`cli/review.ts:205-211`）· task return block（task lifecycle）· branch return block（**T6 落地的单点 emit 层上消费**——C5 依赖 T6 世界态）。
+- `rules/next-step.ts` 纯派生模块（可单测）；`smoke-cdd` 输出契约 4-key → 5-key（+next）。
+- **skills ×5 精简**：S1/S2/S3 fix/review 路由散文坍缩为「按 `next:` 建议派发」；五处「review closes in three segments…」长散文收编为共享引用 + 每节点一句；不变式（I5 不 bypass / I7 dry-run 模拟 / I2 commit 纪律）与 digraph 结构保留。
+
+### C5 依赖
+
+T8（engine core）须在本程序终闸 branch-review/fix 前落地（终闸链的 `next:` 建议随 C3/C4 面一并生效）；T9（skills 精简）同为终闸前收口面。串行 T1…T7→T8→T9。
+
+---
+
 ## 验收 criteria
 
 - **C1 引擎**：return-block 无 `blocker:` 行（`returnFourLines`/`assembleReturnBlock`/`dryRunBlock`/`returnFromHandoff` 单测断言 + 输出契约 grep）；`blockerDefaultFor` 与「`blocker: none`」零残存；`smoke-cdd.ts:33,466` 输出契约 pin 更新为 4-key（`status/commits/artifacts/counters`）；docs 面 `result-face.ts` + `result-face.test.ts` 保持（M2 计数）。
@@ -168,6 +209,7 @@ T7 须在本程序**自身终闸 branch-fix 之前**落地——否则终闸 bra
 - **C3（root 注入）**：branch-review 黑盒路径 `ctx.repoRoot` 恒真（缺根 WARN 零触发——doc-audit 门实跑）；真实 mode 缺根 → `CDD_BLOCKED` + exit 1、dry-run 缺根 → WARN（双 lane 单测）；`--root` 三命令 CLI 白名单可用。
 - **C3（result-line）**：branch-review 真实 mode stdout 含 return block（status/commits/artifacts + counters，零 `blocker:`）——单测断言父进程契约行存在。
 - **C4（收据重造）**：branch-fix 修已 commit + 无代码面错误 → 收据自愈 APPROVED（engine 事实重造，不 BLOCKED）；注入 schema 可写子集（grep `$schema`/`review_scope` 注入面零命中）；仍败面 blocker 附期望形态；单测断言。
+- **C5（`next:` 输出面）**：三输出面（docs face / task / branch return block）各含 `next:` 行——单测 + smoke-cdd 5-key pin；fix 面下一跳判定全表（输入 blocker>0 → `next: review` / 仅 warn/nit → `next: none` 收口 / cap → `next: BLOCKED: review-cycle-cap`）单测；零新 CLI 参数（parse.ts/usage 零变更 grep）；skills ×5 零 S1/S2/S3 路由复述（grep pin）、digraph 结构断言绿。
 - **收口**：changeset 双包各一（`@oscaner-skills/cdd-engine` patch + `@oscaner-skills/osuperpowers` patch，skills 文档随包）；validate/precommit 全绿（含 `smoke-cdd` 更新面）；issue #302 + #304 + #305 + #306 + #307 收口关闭。
 
 ## 影响面清单（file:line 事实锚点）
@@ -191,6 +233,10 @@ T7 须在本程序**自身终闸 branch-fix 之前**落地——否则终闸 bra
 | fix 收据重造 | `src/artifacts/handoff/finalize.ts:429-436`（mode "fix"）+ `finalizeImplement:416-427` 同构 | C4-1：透传 → engine 事实重造（commits/phase/status 权威 + agent 输入剥离） |
 | 注入可写子集 | `src/render/templates.ts:191-193,229`（`renderHandoffSchemaJson`/`#shellFor`） | C4-2：剥 `$schema` 元键 + dispatch-盖章字段（`review_scope` 族） |
 | fix 错误信息 | `src/dispatch/branch.ts:288,291` | C4-3：附期望形态（承 #306） |
+| `next:` 派生 | 新 `src/rules/next-step.ts`（纯读，输入 = 既有 ctx/opts + `--findings` 内容 + `convergence.blockerCount`；C5-2 零新 CLI 参数） | C5-1/C5-2：suggestion 语义 · fix 面判定单点 · soft-cap 标记 |
+| `next:` 输出面 ×3 | `cli/review.ts:205-211`（docs face）· task lifecycle return block · branch `normalizeResult` emit（T6 层） | C5-0/C5-3：每结果契约末尾追加 `next:` 行 |
+| `next:` 契约 pin | `scripts/validate/smoke-cdd.ts:466` | C5-3：4-key → 5-key（+next） |
+| skills ×5 | `cli-driven-development` + writing-* ×4 SKILL.md | C5-3：路由散文坍缩「按 `next:` 建议派发」+ I6 兼容措辞；不变式/digraph 保留 |
 
 ## 非目标
 
@@ -207,3 +253,4 @@ T7 须在本程序**自身终闸 branch-fix 之前**落地——否则终闸 bra
 | v1.2 | 2026-09-28 | 程序批准：Status Draft → Approved（cdd spec-review r1 收敛 blocker=0，REVIEW_FIX 收口轮 approved，零 re-review）——单 spec 合流 #302 + #304，进入 writing-plans | [human] · Claude Opus 5 (1M context) |
 | v1.3 | 2026-09-28 | 程序 in-flight 回填（I6，user 拍板「规划入当前阶段修复」）：#305 + #306 并入为 **C3 branch-review 通道契约收口**——C3-a 递归 root 注入（`cli/review.ts` seed 解析后 root + `base.ts` 缺根真实 BLOCK/dry-run WARN + `parse.ts` 三命令 `--root`）+ C3-b result-line 存在性（branch-review 真实 mode 经 `returnFromHandoff` 单点 emit，吃 C1 ② 新契约）；根因分析入档（#306 = #305 自我修正：handoff 实已产出、缺的是父进程契约行）；依赖 = T6 须在本程序终闸 branch-review 前落地 | [human] · Claude Opus 5 (1M context) |
 | v1.4 | 2026-09-28 | 程序 in-flight 回填（I6，同批）：#307 并入为 **C4 branch-fix 收据契约**——核心原则 = closing handoff 由 engine 从机器事实重造（implement 同构，`finalizeImplement` 先例）、agent 字节仅作输入；C4-1 收据事实重造（修已 commit + 无代码面错误 → 自愈 APPROVED，不再硬闸）+ C4-2 注入面可写子集（剥 `$schema` 元键 + `review_scope` 非可写字段族）+ C4-3 错误信息附期望形态（承 #306）；根因实证（`$schema` 注入源 = `renderHandoffSchemaJson` 整份 schema verbatim）；依赖 = T7 须在本程序终闸 branch-fix 前落地 | [human] · Claude Opus 5 (1M context) |
+| v1.5 | 2026-09-28 | 程序 in-flight 回填（I6，user 多轮裁定）：**C5 next-step 输出面统一抽象**——路由知识（S1→fix→re-review / S2→收口 / soft-cap 裁决）下沉 engine 输出面，每条 stdout 结果契约追加 `next:` 建议行；C5-0 suggestion 语义（非 hard action——I6 mid-backfill / Plan Sole Writer / 用户裁决可覆盖）+ C5-1 责任单一（fix 面为 re-review/收口的唯一判定点——谁消费 findings 谁决定下一跳，review 恒一 one-way 到 fix）+ C5-2 零新 CLI 参数（`next-step.ts` 纯读既有 ctx/opts + `--findings` 内容派生）+ C5-3 三输出面统一 + skills ×5 路由散文坍缩「按 `next:` 建议派发」；依赖 = T8/T9 须在终闸前落地（T8 依赖 T6 emit 层） | [human] · Claude Opus 5 (1M context) |

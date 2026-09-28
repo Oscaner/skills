@@ -2,7 +2,7 @@
 
 **Spec:** [2026-09-28-cdd-review-contract-fix.md](docs/osuperpowers/specs/2026-09-28-cdd-review-contract-fix.md)
 
-- **Version**: v1.3 · 2026-09-28
+- **Version**: v1.4 · 2026-09-28
 - **Depends on**: single spec v1.2 Approved（`21037fc9`，#302 + #304 合流单 spec 双组件，无 parent overall）
 - **Base**: develop
 
@@ -20,6 +20,7 @@
 - **changeset 义务**：本 program 双包各一 changeset（`pnpm run changeset`）——`@oscaner-skills/cdd-engine` patch + `@oscaner-skills/osuperpowers` patch（skills 文档随包）；收口时建（实现 commit 后 orchestrator 落）。
 - **C3 通道契约（v1.2 backfill）**：branch-review 输出通道两条裁定（spec C3）——C3-a 递归 root 注入（`cli/review.ts` branch ctx `repoRoot` = 解析后 root，黑盒恒真；`base.ts` 缺根真实 mode BLOCK/dry-run WARN；`parse.ts` 三命令 `--root` 白名单）；C3-b result-line 存在性（branch-review 真实 mode 经 `returnFromHandoff` emit return block，吃 4 行新契约）。**T6 须在本程序终闸 branch-review 前落地**（否则 C2 审计被跳过 + C1 status 路由无信号）。
 - **C4 收据契约（v1.3 backfill）**：branch-fix 关闭 handoff 由 engine 从机器事实重造（spec C4）——`finalizeHandoff` mode "fix" 透传 → 事实重造（commits/phase/status 权威 + agent 输入剥离）；修已 commit + 无代码面错误 → 收据自愈 APPROVED；注入 schema 收敛可写子集（剥 `$schema` + dispatch-盖章字段）。**T7 须在本程序终闸 branch-fix 前落地**（否则终闸 branch-fix 同撞收据闸）。
+- **C5 next-step 统一抽象（v1.4 backfill）**：三输出面（docs face / task / branch return block——branch 面消费 T6 emit 层）各追加 `next:` 建议行（spec C5）——C5-0 suggestion 语义（非 hard action，mid-backfill / Plan Sole Writer / 用户裁决可覆盖）+ C5-1 责任单一（**fix 面为 re-review/收口的唯一判定点**——按输入 `--findings` 严重级给 `next: review` 或 `next: none` 收口）+ C5-2 **零新 CLI 参数**（`next-step.ts` 纯读既有 ctx/opts + `convergence.blockerCount`）+ soft-cap 标记。**T8（engine core）/ T9（skills 精简）须在终闸前落地**（T8 依赖 T6 emit 层）。
 
 ### commit 边界机制
 
@@ -34,11 +35,11 @@
 
 - T1 契约破坏先行——return-block 删列与 smoke-cdd pin / finalize 重接 / 单测同任务内落地，validate/precommit 全绿后才进入 T2
 - 单任务原子：实测与 spec 不符 → 不符点记录为任务产出报告交 orchestrator 判定（Plan Sole Writer），不「带伤闭合」
-- 串行 dispatch：T1→T2→T3→T4→T5→T6→T7 全 singleton 组（无 `## Task Groups` 合并）
+- 串行 dispatch：T1→T2→T3→T4→T5→T6→T7→T8→T9 全 singleton 组（无 `## Task Groups` 合并）
 
 ### 顺序原则
 
-- T1（engine kernel：删列 + M3 载体裁定 + smoke-cdd pin）→ T2（status 路由 + skills ×5 重锚 + 等价单测）→ T3（命名档案收编）→ T4（C2 判别/range/语法）→ T5（C2 诊断三件套）→ T6（C3 branch-review 通道契约收口，v1.2 backfill）→ T7（C4 branch-fix 收据契约，v1.3 backfill）：T2 依赖 T1 世界态（判读措辞引用新行数契约）、T3 依赖 T2 语义、T4/T5 独立于 C1 面但串行收口、**T6 必须在终闸 branch-review 前落地**（spec C3 依赖裁定）、**T7 必须在终闸 branch-fix 前落地**（spec C4 依赖裁定）
+- T1（engine kernel：删列 + M3 载体裁定 + smoke-cdd pin）→ T2（status 路由 + skills ×5 重锚 + 等价单测）→ T3（命名档案收编）→ T4（C2 判别/range/语法）→ T5（C2 诊断三件套）→ T6（C3 branch-review 通道契约收口，v1.2 backfill）→ T7（C4 branch-fix 收据契约，v1.3 backfill）→ T8（C5 engine core：`next:` 输出面）→ T9（C5 skills 精简）：T2 依赖 T1 世界态（判读措辞引用新行数契约）、T3 依赖 T2 语义、T4/T5 独立于 C1 面但串行收口、**T6 必须在终闸 branch-review 前落地**（spec C3 依赖裁定）、**T7 必须在终闸 branch-fix 前落地**（spec C4 依赖裁定）、**T8 依赖 T6 emit 层 + 终闸前落地**、**T9 依赖 T8 且终闸前落地**（spec C5 依赖裁定）
 - 每任务 end-to-end：实现 → 该任务面测试绿 → 相关 validate 面绿
 
 ### 仓库纪律
@@ -88,3 +89,15 @@
 - **Do**: `src/artifacts/handoff/finalize.ts` `finalizeHandoff` mode `"fix"`（`:429-436`）从**原样透传 agentHandoff** 改 **engine 事实重造**（与 `finalizeImplement` `:416-427` 同构）：commits（git facts `base`/`head`）+ phase + status（commit-contract 判定）为权威，agent 原始 handoff 为输入（findings/notes 保留、未知键与 `$schema` 剥离）；**修已 commit（commits.head 前移）且无代码面错误 → 收据自愈 APPROVED**，不再硬闸于收据形状；真正失败面（无 commit / 代码面错误）仍 BLOCKED。`src/render/templates.ts` `renderHandoffSchemaJson`（`:191-193` / `#shellFor` `:229`）注入面收敛为**可写子集**——剥 `$schema` 元键 + 剥 dispatch-盖章字段（`review_scope`「not authored」族）。仍败面（`src/dispatch/branch.ts:288,291`）blocker 附**期望形态**（承 #306 引导号召；现状已含字段名）。engine 单测：构造「修已 commit + agent handoff 带 `$schema`/坏 `review_scope`/坏 `notes`」→ 断言收据自愈 APPROVED（非 BLOCKED）；注入 schema 零 `$schema`/零 `review_scope`（grep）；仍败面带字段名 + 期望形态。
 - **验收**: branch-fix 修已 commit + 无代码面错误 → APPROVED 收据（单测断言，不 BLOCKED）；注入 schema 可写子集（grep `$schema`/`review_scope` 注入面零命中）；仍败面 blocker 附期望形态；`pnpm run validate` + precommit 全绿（engine 套件 + smoke-cdd 更新面）。
 - **注**: 依赖 = T7 必须在本程序终闸 branch-fix 之前落地（spec C4：终闸 branch-review 通过后的 branch-fix 同撞收据闸）；与 T1 共享 finalize 单点（消费 4 行新契约），零文件冲突——T1=return-block/finalize 载体面已收敛，本任务=finalize 重造路径 + render 注入面。
+
+### Task 8: C5 engine core — `next:` 输出面（spec v1.5 backfill）
+
+- **Do**: 新 `packages/cdd-engine/src/rules/next-step.ts` 纯派生模块 `nextStepFor(ctx)`——输入 = **既有 dispatch ctx/opts 对象字段**（op/type/group/round/ref/status/findings/workspace/plan/commits.base-head），零新 CLI 参数（C5-2 显式约束：`parse.ts`/usage/白名单零变更）；对 review：有 findings → `next: cdd fix --type <t> [--tasks <n>] --plan <p> --findings <h>`、零 findings → `next: none`/剩余组 implement/全部收罄 branch-review；对 **fix**（C5-1 责任单一判定点）：按 `--findings` 内容 `convergence.blockerCount`——含 blocker>0 → `next: cdd review …`（re-review 新 ref）、仅 warn/nit → `next: none`（收口轮自然化）、连续 S1 达 soft cap → `next: BLOCKED: review-cycle-cap — user adjudicates`；自身 BLOCKED 不产 `next:`（走 failure-mode stderr 面）。**suggestion 语义（C5-0）**：载荷为「默认下一跳建议」，注释明示 mid-backfill / Plan Sole Writer / 用户裁决可覆盖。三输出面统一追加 `next:` 行：docs result face（`cli/review.ts:205-211`）· task return block · branch return block（**T6 已落地的 `normalizeResult` emit 层消费**——T8 在 T6 世界态上直挂）。`scripts/validate/smoke-cdd.ts`（`:33,466`）输出契约 4-key → 5-key（+next）。engine 单测：nextStepFor 全表（review 有/零 findings × fix 输入 blocker>0/仅 warn-nit/cap × 收口轮）+ 三输出面各含 `next:` 行断言 + BLOCKED 面不产 `next:`。
+- **验收**: 三输出面（docs face / task / branch return block）各含 `next:` 行（单测 + smoke-cdd 5-key pin）；fix 面下一跳判定全表单测绿（输入 blocker>0 → `next: review` / 仅 warn/nit → `next: none` 收口 / cap → `next: BLOCKED: review-cycle-cap`）；`parse.ts`/usage 零变更（grep `--next` 零命中）；`pnpm run validate` + precommit 全绿（engine 套件 + smoke-cdd 更新面）。
+- **注**: 依赖 = T8 须在本程序终闸 branch-review/fix 之前落地（spec C5 依赖裁定）+ 消费 T6 emit 层（branch 面）；BLOCKED 轮走既有 failure-mode 通道，`next:` 非 exit 码控制器（仅建议，exit 语义不变）。
+
+### Task 9: C5 skills ×5 精简（spec v1.5 backfill，T8 世界态）
+
+- **Do**: 五份 SKILL.md（`cli-driven-development` + `writing-single-spec` / `writing-overall-spec` / `writing-phase-spec` / `writing-plans`）：S1/S2/S3 fix/review 路由散文坍缩为共享引用「**`next:` 是 engine 给出的默认下一跳建议；直接继续则按它派发，mid-backfill / 用户裁决落地后以当前世界态为准**」——每节点 Do/Exit 依 T8 输出的 `next:` 载荷路由（不再自述 S1→fix→re-review / S2→closing 判定）；判读措辞统一「读 `next:` 建议」；五处「review closes in three segments…」长散文收编为一处共享引用（I1/I3 不变式保留「是什么」、去掉「怎么做」复述）；I5（不 bypass）/ I7（dry-run 模拟）/ I2（commit 纪律）不变式与 digraph 结构原样保留；消费面零程序叙事（iron rule）。digraph-consistency 结构断言保持绿（结构调整不破坏节点/边接线面）。
+- **验收**: 5 份 SKILL.md 零 S1/S2/S3 路由复述（grep pin——仅保留不变式中的收敛语义引用）；判读措辞统一引用 `next:` 建议（含 I6 mid-backfill 兼容句）；precommit digraph 套件 + 措辞 grep pin 全绿。
+- **注**: 依赖 = T9 须在 T8 之后（消费 engine 已印 `next:` 的世界态）+ 终闸前落地（spec C5 依赖裁定）；本任务零 engine 代码面改动（纯 skills 文档精简）。

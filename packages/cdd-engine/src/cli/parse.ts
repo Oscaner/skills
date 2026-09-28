@@ -149,6 +149,9 @@ const implementCmd = defineCommand({
       description: "task number(s) — comma-separated list",
     },
     plan: { type: "string", valueHint: "path", description: "plan file path" },
+    // C3-a (T6): the three command faces (implement/review/fix) uniformly declare --root — the CLI
+    // surface of the internal `opts.root ?? getRoot()` injection contract (guardArgs whitelists it).
+    root: { type: "string", valueHint: "path", description: "repo root override" },
   },
   run: async ({ args, rawArgs }) => {
     guardArgs(rawArgs, argsOf(implementCmd));
@@ -160,6 +163,7 @@ const implementCmd = defineCommand({
       mode: "implement",
       dryRun: DRY_RUN(),
       planFile: args.plan,
+      root: args.root,
     });
   },
 });
@@ -200,6 +204,7 @@ const reviewCmd = defineCommand({
       description:
         "spec document path (type=spec: review target; type=plan: upstream reference pointer)",
     },
+    root: { type: "string", valueHint: "path", description: "repo root override" },
   },
   run: async ({ args, rawArgs }) => {
     guardArgs(rawArgs, argsOf(reviewCmd));
@@ -233,6 +238,7 @@ const fixCmd = defineCommand({
     },
     spec: { type: "string", valueHint: "path", description: "spec document path (type=spec)" },
     plan: { type: "string", valueHint: "path", description: "plan path (type=task|branch|plan)" },
+    root: { type: "string", valueHint: "path", description: "repo root override" },
   },
   run: async ({ args, rawArgs }) => {
     guardArgs(rawArgs, argsOf(fixCmd));

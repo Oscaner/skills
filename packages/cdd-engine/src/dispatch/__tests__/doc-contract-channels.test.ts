@@ -375,6 +375,67 @@ describe("branch channel — the base-default docContractValidate (audits its `-
     expect(cap.text).not.toContain("doc contract validation failed");
     expect(exitCode).not.toBeNull();
   });
+
+  // ---- Missing-root dual lane (T6 C3-a): real → CDD_BLOCKED + exit 1; dry-run → WARN kept ----
+  // The base-default docContractValidate refuses to silently skip the audit on a root-less ctx:
+  // real mode hard-BLOCKs (no missing-root WARN + exit-0 idle), dry-run keeps the WARN lane (I7). The
+  // branch face = stderr CDD_BLOCKED + exitWithCode(1) (docContractBlocked override).
+  it("缺根 + 真实 mode → CDD_BLOCKED + exit 1（branch face；缺根 WARN 不空转）", async () => {
+    const dir = setupRepo();
+    writeChain(dir); // chain valid — the missing-root lane fires BEFORE the audit resolves it
+    const cap = captureStderr();
+    let exitCode: number | null = null;
+    try {
+      const lc = new BranchReviewLifecycle({
+        harness: "ctr",
+        type: "branch",
+        plan: path.join(dir, PLAN_DIR, "plan.md"),
+        base: "a".repeat(40),
+        head: "b".repeat(40),
+        root: dir, // resolveContext's own root (workspace/invoke) — the engine ctx stays root-less
+        registryPath: registry(),
+        dryRun: false,
+        ctx: { mode: "branch-review", repoRoot: null, dryRun: false },
+      });
+      await lc.run();
+    } catch (e) {
+      if (e instanceof ExitRequested) exitCode = e.code;
+      else throw e;
+    } finally {
+      cap.restore();
+    }
+    expect(exitCode).toBe(1);
+    expect(cap.text).toContain("CDD_BLOCKED");
+    expect(cap.text).not.toContain("doc contract validation skipped (no repo root)");
+  });
+
+  it("缺根 + dry-run → CDD_WARN 保留 + 收口 exit 0（I7: dry-run 永不阻塞）", async () => {
+    const dir = setupRepo();
+    writeChain(dir);
+    const cap = captureStderr();
+    let exitCode: number | null = null;
+    try {
+      const lc = new BranchReviewLifecycle({
+        harness: "ctr",
+        type: "branch",
+        plan: path.join(dir, PLAN_DIR, "plan.md"),
+        base: "a".repeat(40),
+        head: "b".repeat(40),
+        root: dir,
+        registryPath: registry(),
+        dryRun: true,
+        ctx: { mode: "branch-review", repoRoot: null, dryRun: true },
+      });
+      await lc.run();
+    } catch (e) {
+      if (e instanceof ExitRequested) exitCode = e.code;
+      else throw e;
+    } finally {
+      cap.restore();
+    }
+    expect(exitCode).toBe(0);
+    expect(cap.text).toContain("CDD_WARN: doc contract validation skipped (no repo root)");
+  });
 });
 
 describe("lineage-unresolved — four tables no-op, the necessary subset still gated per-channel", () => {

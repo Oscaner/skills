@@ -23,7 +23,7 @@ import { fileURLToPath } from "node:url";
 import { execaSync } from "execa";
 import { describe, expect, it } from "vitest";
 
-import { writeBranchChain } from "../../infra/__tests__/helpers.ts";
+import { captureStdout, writeBranchChain } from "../../infra/__tests__/helpers.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..", "..", "..", "..", ".."); // tests → packages/cdd-engine → packages → repo
@@ -47,7 +47,7 @@ function tmpGitRepo() {
 }
 
 describe("branch-review dry-run", () => {
-  it("writes CDD handoff to .osuperpowers/cdd/<slug>/ with CDD schema fields", () => {
+  it("writes CDD handoff to .osuperpowers/cdd/<slug>/ with CDD schema fields + doc-audit gate runs (no root-skip WARN)", () => {
     const dir = tmpGitRepo();
     const slug = "test-plan-br";
     const planPath = writeBranchChain(dir, "test-plan-br.md");
@@ -59,8 +59,11 @@ describe("branch-review dry-run", () => {
       "branch-review-abc1234..def5678-r1.json",
     );
 
+    let stdout = "";
+    let stderr = "";
+    let handoff: Record<string, unknown> | null = null;
     try {
-      const out = execaSync(
+      const r = execaSync(
         "node",
         [
           path.join(REPO_ROOT, "packages/cdd-engine/dist/cli.mjs"),
@@ -76,23 +79,26 @@ describe("branch-review dry-run", () => {
           "def5678",
         ],
         { cwd: dir, env: { ...process.env, CLAUDE_CODE_SESSION_ID: "1" }, encoding: "utf8" },
-      ).stdout;
-
-      expect(out).toContain("status: APPROVED");
-      expect(out).toContain("commits: base=abc1234 head=def5678");
-      expect(existsSync(handoffPath)).toBe(true);
-
-      const handoff = JSON.parse(readFileSync(handoffPath, "utf8"));
-      expect(handoff).toHaveProperty("status");
-      expect(handoff).toHaveProperty("commits");
-      expect(handoff.commits).toHaveProperty("base", "abc1234");
-      expect(handoff.commits).toHaveProperty("head", "def5678");
-      expect(handoff).toHaveProperty("findings");
-      expect(handoff).not.toHaveProperty("blocker"); // the blocker field is no longer written (M3)
-      expect(handoff).not.toHaveProperty("doc_path");
+      );
+      stdout = r.stdout;
+      stderr = r.stderr;
+      if (existsSync(handoffPath)) handoff = JSON.parse(readFileSync(handoffPath, "utf8"));
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+
+    expect(stdout).toContain("status: APPROVED");
+    expect(stdout).toContain("commits: base=abc1234 head=def5678");
+    // C3-a black-box: the doc-audit gate actually RAN on the branch-review path (the resolved root
+    // seeded the ctx — missing-root WARN must not fire), never WARN-skipped.
+    expect(stderr).not.toContain("doc contract validation skipped (no repo root)");
+    expect(handoff).not.toBeNull();
+    expect((handoff as Record<string, unknown>).status).toBe("APPROVED");
+    expect((handoff as { commits?: { base?: string } }).commits).toHaveProperty("base", "abc1234");
+    expect((handoff as { commits?: { head?: string } }).commits).toHaveProperty("head", "def5678");
+    expect(handoff).toHaveProperty("findings");
+    expect(handoff).not.toHaveProperty("blocker"); // the blocker field is no longer written (M3)
+    expect(handoff).not.toHaveProperty("doc_path");
   });
 });
 
@@ -343,6 +349,84 @@ describe("branch-review unparseable-handoff e2e", () => {
       expect(writes.some((w) => w.includes("CDD_INFO") && w.includes("corrupt prev"))).toBe(true);
     } finally {
       process.stderr.write = stderrWrite;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---- Branch-review REAL mode emits the 4-line return block on the parent stdout (T6 C3-b) ----
+// The normalization single point (returnFromHandoff over this.handoffPath/workspace) must surface
+// the new T1 contract (status/commits/artifacts + counters, zero `blocker:`) when the agent wrote
+// a valid handoff — the orchestrator routes the branch-review round on the `status:` line.
+describe("branch-review real-mode — parent stdout return block (C3-b)", () => {
+  it("agent writes APPROVED handoff → parent stdout = 4-line contract (status/commits/artifacts + counters, zero blocker:)", async () => {
+    const dir = tmpGitRepo();
+    const slug = "test-plan-br";
+    const planPath = writeBranchChain(dir, `${slug}.md`);
+    const base = "a".repeat(40);
+    const head = "b".repeat(40);
+    const base7 = base.slice(0, 7);
+    const head7 = head.slice(0, 7);
+    const { resolveWorkspace, handoffName, resolveNextRound } = await import(
+      "../../artifacts/handoff/naming.ts"
+    );
+    const workspace = resolveWorkspace(planPath, dir);
+    const round = resolveNextRound(workspace, "review", "branch", { base7, head7 });
+    const handoffPath = path.join(
+      workspace,
+      handoffName("review", "branch", { base7, head7, round }),
+    );
+    // fake-cli writes a schema-valid APPROVED branch-review handoff (artifacts populated — the
+    // return block's artifacts line keys off them) and exits 0.
+    const binDir = mkdtempSync(path.join(tmpdir(), "cdd-br-rb-"));
+    writeFileSync(
+      path.join(binDir, "fake-cli"),
+      `#!/usr/bin/env bash\n` +
+        `printf '%s' '{"tasks":[1],"phase":"branch-review","status":"APPROVED","commits":{"base":"${base}","head":"${head}"},"findings":[],"artifacts":{"report":"/tmp/report.md","test_evidence":"/tmp/ev.json"}}' > "${handoffPath}"\n` +
+        `exit 0\n`,
+    );
+    chmodSync(path.join(binDir, "fake-cli"), 0o755);
+    const origPath = process.env.PATH;
+    process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+    // ghost registry: real harness-registry.json + fake-cli appended (injected via opts.registryPath)
+    const { REG_PATH } = await import("../../infra/registry.ts");
+    const regPath = path.join(dir, "registry.json");
+    const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
+    reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full" };
+    writeFileSync(regPath, JSON.stringify(reg, null, 2));
+    const cap = captureStdout();
+    try {
+      const { ExitRequested } = await import("../../infra/exit.ts");
+      const { BranchReviewLifecycle } = await import("../../dispatch/branch.ts");
+      let exitCode: number | null = null;
+      try {
+        const brDryRun = false;
+        const lc = new BranchReviewLifecycle({
+          harness: "ghost",
+          plan: planPath,
+          base,
+          head,
+          root: dir,
+          registryPath: regPath,
+          dryRun: brDryRun,
+          ctx: { mode: "branch-review", repoRoot: dir, dryRun: brDryRun },
+        });
+        await lc.run();
+      } catch (e) {
+        if (e instanceof ExitRequested) exitCode = e.code;
+        else throw e;
+      }
+      expect(exitCode).toBe(0);
+      expect(cap.text).toContain("status: APPROVED");
+      expect(cap.text).toContain(`commits: base=${base} head=${head}`);
+      expect(cap.text).toContain("artifacts: report=/tmp/report.md test_evidence=/tmp/ev.json");
+      expect(cap.text).toMatch(
+        /counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+/,
+      );
+      expect(cap.text).not.toContain("blocker:"); // the stdout blocker column is retired (M3)
+    } finally {
+      process.env.PATH = origPath;
+      cap.restore();
       rmSync(dir, { recursive: true, force: true });
     }
   });

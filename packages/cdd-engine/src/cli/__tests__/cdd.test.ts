@@ -19,6 +19,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execaSync } from "execa";
 import { afterAll, describe, expect, it, vi } from "vitest";
+import { writeBranchChain } from "../../infra/__tests__/helpers.ts";
 import { ExitRequested } from "../../infra/exit.ts";
 import { DRY_RUN_DIRTY_WARN } from "../../rules/commit.ts";
 import { setDryRun } from "../shared.ts";
@@ -382,8 +383,10 @@ describe("cdd CLI", () => {
   it("branch-review 读回定稿（T5/T7 finalizeHandoff 单点）：fake harness CLI 写 warn-only CHANGES_REQUESTED branch-review handoff → 引擎覆写为 REVIEW_FIX（Task 8 收口态）", () => {
     const dir = tmpGitRepo();
     try {
-      const plan = path.join(dir, "plan.md");
-      writeFileSync(plan, "### Task 1:\n- base: develop\n");
+      // The black-box branch-review path now seeds the ctx with the RESOLVED repo root, so the
+      // base-default docContractValidate actually RUNS (T6 C3-a) — the plan must be a doc-contract-
+      // valid chain (writeBranchChain: plan → **Spec:** → spec → Parent program → overall).
+      const plan = writeBranchChain(dir, "plan.md");
       const binDir = mkdtempSync(path.join(tmpdir(), "cdd-br-fake-"));
       const ws = path.join(dir, ".osuperpowers", "cdd", "plan");
       const handoffPath = path.join(ws, "branch-review-eeee555..ffff666-r1.json");
@@ -409,6 +412,11 @@ describe("cdd CLI", () => {
         },
       );
       expect(r.exitCode).toBe(0);
+      // C3-b: the REAL-mode round emits the return block contract on the parent stdout — the
+      // orchestrator routes the branch-review conclusion on the `status:` line.
+      expect(r.stdout).toContain("status: REVIEW_FIX");
+      expect(r.stdout).toContain("counters: ");
+      expect(r.stdout).not.toContain("blocker:");
       const h = JSON.parse(readFileSync(handoffPath, "utf8"));
       // warn/nit = 0 blockers → status is overwritten by finalizeHandoff (applyDerivedStatus rollup) to REVIEW_FIX (closure state)
       expect(h.status).toBe("REVIEW_FIX");

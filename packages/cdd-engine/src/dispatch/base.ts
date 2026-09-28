@@ -216,6 +216,16 @@ export abstract class DispatchLifecycle {
     if (!entry) return; // no lane-declared target → the gate is waived
     const root = typeof this.ctx.repoRoot === "string" ? this.ctx.repoRoot : "";
     if (!root) {
+      // Missing-root face (T6 C3-a): a root-less doc audit must never be SILENTLY SKIPPED on the
+      // real lane (a missing-root WARN + exit 0 is a gate gap — the C2 audit face silently inert).
+      // Real mode → the channel's doc-contract BLOCK terminal (task/docs default DispatchBlocked →
+      // CDD_BLOCKED + exit 1; branch override stderr CDD_BLOCKED + exitWithCode(1)); dry-run keeps
+      // the WARN lane (I7: dry-run never blocks) so the simulation still completes.
+      if (this.ctx.dryRun !== true) {
+        this.docContractBlocked(
+          "no repo root — the doc contract validation cannot resolve the doc chain; pass --root (or run inside the repo) and re-dispatch",
+        );
+      }
       process.stderr.write("CDD_WARN: doc contract validation skipped (no repo root)\n");
       return;
     }

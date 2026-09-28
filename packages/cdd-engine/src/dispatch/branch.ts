@@ -456,7 +456,12 @@ export class BranchReviewLifecycle extends BranchLifecycle {
    * writeOwnHandoff (the engine is the carrier's sole author, full-replace). The three consumers
    * (runner/docs-runner/cdd) share the same finalizeHandoff single point.
    * The exit comes from the finalized round conclusion (Task 23 ③: BLOCKED → 1,
-   * APPROVED/CHANGES_REQUESTED → 0) — this is the sole exit path once the agent wrote a handoff. */
+   * APPROVED/CHANGES_REQUESTED → 0) — this is the sole exit path once the agent wrote a handoff.
+   * The REAL-mode round ALSO emits the return block on the parent stdout (T6 C3-b) — through the
+   * return-block single point (returnBlocks.returnFromHandoff over this.handoffPath + workspace,
+   * the same 4-line T1 contract status/commits/artifacts + counters, zero `blocker:`) — the
+   * orchestrator routes the branch-review round on the `status:` line. Aligned with the dry-run
+   * assembleReturnBlock lane and the task/docs return-block surfaces. */
   protected override async normalizeResult(_hookCtx: DispatchHookContext): Promise<void> {
     const base = String(this.#base);
     const head = String(this.#head);
@@ -475,6 +480,9 @@ export class BranchReviewLifecycle extends BranchLifecycle {
       if (cc) handoff = { ...handoff, commits: cc };
     }
     if (handoff && handoff !== this.agentHandoff) writeOwnHandoff(this.handoffPath, handoff);
+    for (const line of returnBlocks.returnFromHandoff(this.handoffPath, this.workspace)) {
+      process.stdout.write(`${line}\n`);
+    }
     exitWithCode(finalized.exitCode);
   }
 

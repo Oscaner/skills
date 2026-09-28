@@ -121,7 +121,10 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
         dryRun,
         ctx: {
           mode: "branch-review",
-          repoRoot: opts.root ?? null,
+          // C3-a (T6): seed the engine ctx with the RESOLVED root (line 95) — not `opts.root ??
+          // null` — so the black-box path is always root-truthful and the base-default
+          // docContractValidate never falls into its missing-root skip lane.
+          repoRoot: root,
           dryRun,
         },
       });

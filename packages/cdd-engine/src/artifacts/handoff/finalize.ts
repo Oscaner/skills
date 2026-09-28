@@ -9,8 +9,10 @@
 // Task 23: ① three-surface orthogonalization — status (round conclusion) vs failure_category
 // (mechanism channel) vs unverifiable[]/plan_conflicts[] (content notes) never fold: the derived
 // BLOCKED lane carries blockedCarrierFor (category + real blocker). ③ statusExitCode maps the
-// round conclusion to the runner exit (BLOCKED → 1 on any channel). ④ the materialized return
-// blocker stays real-only (returnBlocker; no fabricated default). ⑤ return-block naming.
+// round conclusion to the runner exit (BLOCKED → 1 on any channel). ④ materialization reasons ride
+// the stderr CDD_BLOCKED channel + the carrier's failure_category (M3 — the return-block blocker
+// column and returnBlocker/blockerDefaultFor are retired; the BLOCKED carrier carries a
+// failure_category, never fabricated prose). ⑤ return-block naming.
 // Architecture: the engine is the carrier's single author (T5/T6/T7 unified); the agent only
 // contributes content slices (findings/blocker/artifacts/notes).
 // Dispatch per canonical family `status` rule (plan-constraints `status` single-authority):
@@ -470,9 +472,10 @@ export function taskBaseFromBrief(briefPath: string | undefined): string | null 
   }
 }
 
-// Return block `status:` / `artifacts:` / `blocker:` line parsers (artifactsFromReturnLine /
-// implementStatusFromReturnLine / returnBlocker) are imported from ../return-block.ts — the return
-// block text plane's single point (P6 T24 C); the former private copies are gone.
+// Return block `status:` / `artifacts:` line parsers (artifactsFromReturnLine /
+// implementStatusFromReturnLine) are imported from ../return-block.ts — the return block text
+// plane's single point (P6 T24 C); returnBlocker/blockerDefaultFor were retired with the `blocker:`
+// column (M3), the former private copies are gone.
 
 // Evidence gate (implement non-dry-run materialization path only): the mechanical hard-gate's only
 // trigger = the test-evidence behavior_change:true (the brief outputs the group's task sections +
@@ -555,10 +558,17 @@ export async function finalizeImplement({
   // Destructured naming replaces returnBlock[0]/[2]/[3] magic-index subscripts (T6 nit3). The
   // commits line's head is ignored on fresh materialization — git HEAD takes commit authority;
   // the T27 resume-declared lane below reads its base= value instead.
-  const [statusLine, , artifactsLine, blockerLine] = returnBlock;
+  const [statusLine, , artifactsLine] = returnBlock;
   const { status, raw } = returnBlockParser.implementStatusFromReturnLine(statusLine ?? "");
-  let blocker = returnBlockParser.returnBlocker(blockerLine ?? "");
-  if (raw !== "APPROVED" && !blocker) blocker = `implement return status "${raw}" without blocker`;
+  // M3 carrier ruling: the stdout `blocker:` column is retired — a materialized BLOCKED round's
+  // reason travels the stderr CDD_BLOCKED single channel + the carrier's failure_category, with a
+  // `notes` copy as the addressable fallback where the stderr write is not captured (the
+  // «implement return status … without blocker» placeholder path stays reachable).
+  const reasons: string[] = [];
+  if (raw !== "APPROVED") {
+    reasons.push(`implement return status "${raw}" without blocker`);
+    process.stderr.write(`CDD_BLOCKED: ${reasons[reasons.length - 1]}\n`);
+  }
   const head = repoRoot ? await git.revParseHead(repoRoot) : null;
   // A materialization wearing the resume signature (base==head) may reconsider its base — the
   // fresh-implement base authority is untouched (T27 adoption lane).
@@ -589,26 +599,33 @@ export async function finalizeImplement({
   }
   const gate = evidenceGate(workspace, groupKey);
   if (gate.hard) {
-    blocker = gate.warn;
+    reasons.push(gate.warn);
     // hard gate → CDD_BLOCKED diagnostic (aligned with the legacy runner finish(…, gate.warn, …)’s
     // stderr output).
     process.stderr.write(`CDD_BLOCKED: ${gate.warn}\n`);
   } else if (gate.warn) {
     process.stderr.write(`CDD_WARN: ${gate.warn}\n`);
   }
+  const conclusion = gate.hard ? "BLOCKED" : status;
   // Write side through the schema (T5): the candidate passes normalizeHandoff for its key set —
   // the key-set authority is schema.properties, the write side carries no second hand-written
-  // field list (undeclared keys never enter the carrier; an empty/undefined `blocker` lands no
-  // field, replacing the legacy manual `if (blocker) handoff.blocker = blocker` gate).
+  // field list. The materialized BLOCKED grounds via failure_category + the notes reason (M3 —
+  // the vacant `blocker` field is never written here).
   const handoff = normalizeHandoff(
     {
       ...(tasks ? { tasks } : {}),
       phase: "implement",
-      status: gate.hard ? "BLOCKED" : status,
+      status: conclusion,
+      // M3: every materialized BLOCKED rides failure_category (the schema allOf no longer grounds
+      // BLOCKED via the vacant `blocker` field). ENGINE_SELF_WRITTEN = the engine authored the
+      // carrier — the same category the dispatch's maybeExhaust increments on this path.
+      ...(conclusion === "BLOCKED"
+        ? { failure_category: FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id }
+        : {}),
+      ...(reasons.length > 0 ? { notes: reasons.join("; ") } : {}),
       artifacts: returnBlockParser.artifactsFromReturnLine(artifactsLine ?? ""),
       findings: [],
       commits: { base: commitsBase, ...(head ? { head } : {}) },
-      blocker: blocker || undefined,
     },
     "task",
   ) as Record<string, unknown>;

@@ -293,7 +293,11 @@ describe("cdd CLI", () => {
         status,
         artifacts: {},
         findings: [],
-        ...(status !== "APPROVED" ? { blocker: "boom" } : {}),
+        // M3: a BLOCKED failed round grounds via failure_category (the blocker field is vacated as
+        // an agent channel — the carrier stays schema-valid for the SP-4 re-dispatch).
+        ...(status !== "APPROVED"
+          ? { blocker: "boom", failure_category: "EXECUTION_FAILURE" }
+          : {}),
       }),
     );
     // 入口门干净树：种子提交（workspace 已收编 .gitignore；后续手写 handoff 覆写不弄脏树）。

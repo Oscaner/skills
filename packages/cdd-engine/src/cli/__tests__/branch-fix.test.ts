@@ -52,7 +52,7 @@ const FULL_ID = (c: string) => c.repeat(40);
 
 // ---- ① dry-run (merged single CLI, host harness from the ambient env) ----
 describe("branch-fix dry-run", () => {
-  it("writes APPROVED branch-fix handoff + the 5-line return block block", () => {
+  it("writes APPROVED branch-fix handoff + the 4-line return block (status/commits/artifacts + counters)", () => {
     const dir = tmpGitRepo();
     const slug = "test-plan-bf";
     const planPath = writeBranchChain(dir, `${slug}.md`);
@@ -90,7 +90,8 @@ describe("branch-fix dry-run", () => {
 
       expect(out).toContain("status: APPROVED");
       expect(out).toContain("commits: base=dry-run head=dry-run");
-      expect(out).toContain("blocker: dry-run");
+      expect(out).toContain("counters: ");
+      expect(out).not.toContain("blocker:"); // zero blocker column (M3)
       expect(existsSync(handoffPath)).toBe(true);
 
       const handoff = JSON.parse(readFileSync(handoffPath, "utf8"));
@@ -98,7 +99,7 @@ describe("branch-fix dry-run", () => {
       expect(handoff).toHaveProperty("phase", "fix");
       expect(handoff).toHaveProperty("commits");
       expect(handoff).toHaveProperty("findings");
-      expect(handoff).toHaveProperty("blocker");
+      expect(handoff).not.toHaveProperty("blocker"); // the blocker field is no longer written (M3)
       expect(handoff).not.toHaveProperty("doc_path");
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -223,7 +224,6 @@ describe("branch-fix in-process loop closure", () => {
         commits: { base, head },
         findings: [],
         artifacts: {},
-        blocker: "none",
       }),
     );
     // fake-cli fix agent: writes the fix handoff (commits.base = reviewed range base, head = git HEAD
@@ -355,7 +355,6 @@ describe("branch-fix exit gate — the inherited commit-contract BLOCKED lanes",
         commits: { base, head },
         findings: [],
         artifacts: {},
-        blocker: "none",
       }),
     );
     return { dir, planPath, reviewPath, handoffPath, base, head };

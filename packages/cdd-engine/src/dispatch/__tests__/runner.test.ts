@@ -1,5 +1,5 @@
 // packages/cdd-engine/src/dispatch/__tests__/runner.test.ts
-// runTask dry-run: return block 5-line + no handoff written (aligns bash — bash dry-run branch does not write handoff).
+// runTask dry-run: return block 4-line + no handoff written (aligns bash — bash dry-run branch does not write handoff).
 // Also locks: ship gate (unknown/not-supported → blocked exit 1); invalid mode rejected;
 // nested CLI failed no handoff → write BLOCKED handoff (stderr into blocker) + exit 1 (aligns bash;
 // stderr-surfacing handoff write is the only sanctioned divergence); commit-contract intercepted → stderr CDD_BLOCKED.
@@ -158,7 +158,7 @@ async function capture(runFn) {
 
 // ---- dry-run scenarios ----
 
-it("runTask: dry-run implement → return block 5-line APPROVED + no handoff written (aligns bash)", async () => {
+it("runTask: dry-run implement → return block 4-line APPROVED + no handoff written (aligns bash)", async () => {
   const { repo, planFile, ws } = setupWorkspace();
   const res = await TaskLifecycle.run("claude", 1, {
     mode: "implement",
@@ -168,32 +168,30 @@ it("runTask: dry-run implement → return block 5-line APPROVED + no handoff wri
     noExit: true,
   });
   expect(res.exitCode).toBe(0);
-  expect(res.returnBlock.length).toBe(5);
+  expect(res.returnBlock.length).toBe(4);
   expect(res.returnBlock[0]).toBe("status: APPROVED");
   expect(res.returnBlock[1]).toBe("commits: base=dry-run");
   expect(res.returnBlock[2]).toMatch(/^artifacts: brief=/);
-  expect(res.returnBlock[3]).toBe("blocker: none");
-  expect(res.returnBlock[4]).toMatch(
+  expect(res.returnBlock.every((l) => !l.startsWith("blocker:"))).toBe(true); // zero blocker column (M3)
+  expect(res.returnBlock.at(-1)).toMatch(
     /^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/,
   );
   expect(existsSync(path.join(ws, "tasks-1-implement.json"))).toBe(false);
 });
 
-it("runTask: dry-run outputs return block 5 lines to stdout + exit 0", async () => {
+it("runTask: dry-run outputs return block 4 lines to stdout + exit 0", async () => {
   const { repo, planFile } = setupWorkspace();
   const { code, stdout } = await capture(() =>
     TaskLifecycle.run("claude", 1, { mode: "implement", dryRun: true, planFile, root: repo }),
   );
   expect(code).toBe(0);
   const lines = stdout.trim().split("\n");
-  expect(lines.length).toBe(5);
-  // 可区分形态：五行各自是一键行（防退化回恒真行数断言）
-  expect(lines.filter((l) => /^(status|commits|artifacts|blocker|counters):/.test(l)).length).toBe(
-    5,
-  );
+  expect(lines.length).toBe(4);
+  // Distinct shape: each of the four lines is a key line (guards against a tautological line count)
+  expect(lines.filter((l) => /^(status|commits|artifacts|counters):/.test(l)).length).toBe(4);
   expect(lines[0]).toBe("status: APPROVED");
-  expect(lines[3]).toBe("blocker: none");
-  expect(lines[4]).toMatch(
+  expect(lines.every((l) => !l.startsWith("blocker:"))).toBe(true);
+  expect(lines.at(-1)).toMatch(
     /^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/,
   );
 });
@@ -1103,10 +1101,8 @@ it("runner review 读回覆写：task-N-review-1.json agent 写 CHANGES_REQUESTE
     ]);
     // return block 同步从 handoff 重发（returnFromHandoff）— 状态一致，不携带 agent 的 CHANGES_REQUESTED
     expect(res.returnBlock[0]).toBe("status: REVIEW_FIX");
-    // Review success-round blocker defaults to none (not the commit-contract default text); a
-    // counters line still follows the blocker (returnBlock[3] or returnBlock[2] depending on
-    // artifacts — the **last line is always counters**) (T5 nit)
-    expect(res.returnBlock.at(-2)).toMatch(/^blocker: none$/);
+    // M3: zero blocker line; the counters line stays last (T5 nit)
+    expect(res.returnBlock.every((l) => !l.startsWith("blocker:"))).toBe(true);
     expect(res.returnBlock.at(-1)).toMatch(/^counters: /);
   } finally {
     restore();
@@ -1146,9 +1142,7 @@ it("runTask Task 23 T14 复现场景: review 写 unverifiable → BLOCKED + UNVE
     expect(res.exitCode).toBe(1);
     // return block 同步: 真实汇总, 不伪造「uncommitted changes at return」
     expect(res.returnBlock[0]).toBe("status: BLOCKED");
-    expect(res.returnBlock.at(-2)).toBe(
-      "blocker: could not verify: 90min 无拖死实证; 现场已恢复，无法复核",
-    );
+    expect(res.returnBlock.every((l) => !l.startsWith("blocker:"))).toBe(true); // zero blocker column (M3)
     expect(res.returnBlock.at(-1)).toMatch(/^counters: /);
     // Failed round still counts its round (re-dispatch must stop there) but carries zero status — no complete marker, no other state field
     const progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
@@ -1392,7 +1386,6 @@ it("runTask T6: implement 成功路径 — runner 实体化 tasks-1-implement.js
       "printf '%s\\n' 'status: APPROVED'",
       "printf '%s\\n' 'commits: base=agent-wrong-base head=agent-wrong-head'",
       `printf '%s\\n' 'artifacts: report=${report} test_evidence=${tev}'`,
-      "printf '%s\\n' 'blocker: none'",
       "exit 0",
     ].join("\n"),
   );
@@ -1407,7 +1400,7 @@ it("runTask T6: implement 成功路径 — runner 实体化 tasks-1-implement.js
   expect(h.commits.head).toBe(t6.actualHead); // git HEAD is authoritative
   expect(h.findings).toEqual([]);
   expect(h.artifacts.report).toBe(report);
-  expect(h.blocker).toBeUndefined(); // blocker: none → omitted (returnFromHandoff defaults none under APPROVED)
+  expect(h.blocker).toBeUndefined(); // the materialized carrier writes no blocker field (M3 — column retired)
   // return block 由实体化 handoff 重发（returnFromHandoff）
   expect(res.returnBlock[0]).toBe("status: APPROVED");
   expect(res.returnBlock[1]).toBe(`commits: base=${t6.taskBase} head=${t6.actualHead}`);
@@ -1435,7 +1428,6 @@ it("runTask T6: implement 提交真实改动 → 实体化 carrier 持存 change
       "printf '%s\\n' 'status: APPROVED'",
       "printf '%s\\n' 'commits: base=x head=y'",
       `printf '%s\\n' 'artifacts: report=${report} test_evidence=${tev}'`,
-      "printf '%s\\n' 'blocker: none'",
       "exit 0",
     ].join("\n"),
   );
@@ -1455,7 +1447,8 @@ it("runTask T6: implement 提交真实改动 → 实体化 carrier 持存 change
 }, 30_000);
 
 it("runTask T6: implement 不写 handoff 也不触发 10.5 BLOCKED（runner 实体化兜底）", async () => {
-  // fake-cli 只回 return block 四行、不写任何文件（连 test-evidence 都没有 → evidence-gate soft WARN）→ 仍 exit 0 + 实体化。
+  // fake-cli only echoes the 3-line return block and writes nothing (not even test-evidence →
+  // evidence-gate soft WARN) → still exit 0 + materialization.
   const t6 = t6Workspace();
   const res = await runT6Ghost(
     t6,
@@ -1464,7 +1457,6 @@ it("runTask T6: implement 不写 handoff 也不触发 10.5 BLOCKED（runner 实�
       "printf '%s\\n' 'status: APPROVED'",
       "printf '%s\\n' 'commits: base=x head=y'",
       `printf '%s\\n' 'artifacts: report=${path.join(t6.ws, "tasks-1-report.md")}'`,
-      "printf '%s\\n' 'blocker: none'",
       "exit 0",
     ].join("\n"),
   );
@@ -1489,7 +1481,6 @@ it("runTask T6: evidence-gate — behavior_change:true 缺 command/passed/exit_c
       "printf '%s\\n' 'status: APPROVED'",
       "printf '%s\\n' 'commits: base=x head=y'",
       `printf '%s\\n' 'artifacts: report=${path.join(t6.ws, "tasks-1-report.md")}'`,
-      "printf '%s\\n' 'blocker: none'",
       "exit 0",
     ].join("\n"),
   );
@@ -1498,10 +1489,13 @@ it("runTask T6: evidence-gate — behavior_change:true 缺 command/passed/exit_c
   expect(existsSync(hp)).toBe(true);
   const h = JSON.parse(readFileSync(hp, "utf8"));
   expect(h.status).toBe("BLOCKED");
-  expect(h.blocker).toMatch(/test_evidence gate: hard/);
-  expect(h.blocker).toContain("command");
+  // M3: the materialized BLOCKED reason rides failure_category + notes (the blocker field is vacant)
+  expect(h.failure_category).toBe("ENGINE_SELF_WRITTEN");
+  expect(h.notes).toMatch(/test_evidence gate: hard/);
+  expect(h.notes).toContain("command");
   // return block 同步为 BLOCKED（returnFromHandoff 与覆写后 handoff 一致）
   expect(res.returnBlock[0]).toBe("status: BLOCKED");
+  expect(res.returnBlock.every((l) => !l.startsWith("blocker:"))).toBe(true);
   // N② (T9) → T6: implement 实体化 BLOCKED = 引擎自写 BLOCKED → engineSelfWrittenCount
   //（六类分派后不再消耗 recovery 额度 —— engineRecoveryCount 只被 EXECUTION_FAILURE 消耗）
   const progress = JSON.parse(readFileSync(path.join(t6.ws, "progress.json"), "utf8"));
@@ -1509,9 +1503,9 @@ it("runTask T6: evidence-gate — behavior_change:true 缺 command/passed/exit_c
   expect(progress.engineRecoveryCount).toBe(0);
 });
 
-it("runTask T6: return block 输出改用 returnFromHandoff — agent stdout 的 commits/缺省 blocker 由实体化 handoff 重发覆写", async () => {
+it("runTask T6: return block 输出改用 returnFromHandoff — agent stdout 的 commits 由实体化 handoff 重发覆写", async () => {
   const t6 = t6Workspace();
-  // agent 谎报 commits + 无 blocker 行 → 最终 return block 必须来自实体化 handoff（brief TASK_BASE + git HEAD + blocker: none）
+  // the agent lies about commits → the final return block must come from the materialized handoff (brief TASK_BASE + git HEAD)
   const res = await runT6Ghost(
     t6,
     [
@@ -1523,11 +1517,11 @@ it("runTask T6: return block 输出改用 returnFromHandoff — agent stdout 的
     ].join("\n"),
   );
   expect(res.exitCode).toBe(0);
-  expect(res.returnBlock.length).toBe(5);
+  expect(res.returnBlock.length).toBe(4);
   expect(res.returnBlock[0]).toBe("status: APPROVED");
   expect(res.returnBlock[1]).toBe(`commits: base=${t6.taskBase} head=${t6.actualHead}`);
-  expect(res.returnBlock[3]).toBe("blocker: none");
-  expect(res.returnBlock[4]).toMatch(
+  expect(res.returnBlock.every((l) => !l.startsWith("blocker:"))).toBe(true); // zero blocker column (M3)
+  expect(res.returnBlock.at(-1)).toMatch(
     /^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/,
   );
   const h = JSON.parse(readFileSync(path.join(t6.ws, "tasks-1-implement.json"), "utf8"));
@@ -1551,7 +1545,6 @@ it("runTask T7: implement 8.8 不读 existing handoff → schema-invalid 残留�
       "printf '%s\\n' 'status: APPROVED'",
       "printf '%s\\n' 'commits: base=x head=y'",
       `printf '%s\\n' 'artifacts: report=${path.join(t6.ws, "tasks-1-report.md")}'`,
-      "printf '%s\\n' 'blocker: none'",
       "exit 0",
     ].join("\n"),
   );
@@ -1775,7 +1768,6 @@ it("runTask T22: implement pre-flight 缺失 constraints → 自 plan 声明源�
       "printf '%s\\n' 'status: APPROVED'",
       "printf '%s\\n' 'commits: base=x head=y'",
       `printf '%s\\n' 'artifacts: report=${report} test_evidence=${tev}'`,
-      "printf '%s\\n' 'blocker: none'",
       "exit 0",
     ].join("\n"),
   );
@@ -1826,7 +1818,6 @@ it("runTask T22/TG8: implement pre-flight overwrites a pre-existing plan-constra
       "printf '%s\\n' 'status: APPROVED'",
       "printf '%s\\n' 'commits: base=x head=y'",
       `printf '%s\\n' 'artifacts: report=${report} test_evidence=${tev}'`,
-      "printf '%s\\n' 'blocker: none'",
       "exit 0",
     ].join("\n"),
   );
@@ -1914,7 +1905,7 @@ function configureGitIdentity(repo) {
 }
 
 // The continuing round-2 fake CLI body (shared by both scenarios): append an incremental line to the
-// restored WIP, commit (clean exit-gate baseline), then emit the 4-line return block.
+// restored WIP, commit (clean exit-gate baseline), then emit the 3-line return block.
 function continuingCli(ws) {
   return (
     `#!/usr/bin/env bash\n` +
@@ -1922,7 +1913,7 @@ function continuingCli(ws) {
     `git add wip.md\n` +
     `git -c user.name=cdd-test -c user.email=cdd-test@example.com commit -qm "agent incremental continuation"\n` +
     `printf 'status: APPROVED\\ncommits: base=0000000000000000000000000000000000000000 head=0000000000000000000000000000000000000000\\n'\n` +
-    `printf 'artifacts: brief=${path.join(ws, "tasks-1-brief.md")}\\nblocker: none\\n'\n` +
+    `printf 'artifacts: brief=${path.join(ws, "tasks-1-brief.md")}\\n'\n` +
     `exit 0\n`
   );
 }
@@ -2082,7 +2073,7 @@ describe("T27 scope ledger black-box（spec T7.6）", () => {
       "fake-cli",
       `#!/usr/bin/env bash\n` +
         `printf 'status: APPROVED\\ncommits: base=${t0} head=${t1}\\n'\n` +
-        `printf 'artifacts: brief=${path.join(ws, "tasks-1-brief.md")}\\nblocker: none\\n'\n` +
+        `printf 'artifacts: brief=${path.join(ws, "tasks-1-brief.md")}\\n'\n` +
         `exit 0\n`,
     );
     try {
@@ -2145,7 +2136,7 @@ describe("T27 scope ledger black-box（spec T7.6）", () => {
         `git add wip.md\n` +
         `git -c user.name=cdd-test -c user.email=cdd-test@example.com commit -qm "fresh implement round"\n` +
         `printf 'status: APPROVED\\ncommits: base=${t0} head=$(git rev-parse HEAD)\\n'\n` +
-        `printf 'artifacts: brief=${path.join(ws, "tasks-1-brief.md")}\\nblocker: none\\n'\n` +
+        `printf 'artifacts: brief=${path.join(ws, "tasks-1-brief.md")}\\n'\n` +
         `exit 0\n`,
     );
     try {
@@ -2184,7 +2175,7 @@ describe("T27 scope ledger black-box（spec T7.6）", () => {
         `git add wip.md\n` +
         `git -c user.name=cdd-test -c user.email=cdd-test@example.com commit -qm "implement round"\n` +
         `printf 'status: APPROVED\\ncommits: base=${t0} head=$(git rev-parse HEAD)\\n'\n` +
-        `printf 'artifacts: brief=${path.join(ws, "tasks-1-brief.md")}\\nblocker: none\\n'\n` +
+        `printf 'artifacts: brief=${path.join(ws, "tasks-1-brief.md")}\\n'\n` +
         `exit 0\n`,
     );
     try {
@@ -2226,7 +2217,7 @@ describe("T27 scope ledger black-box（spec T7.6）", () => {
           `printf '%s' "\${@: -1}" > "${promptLogF}"\n` +
           `printf '%s' '{"tasks":[1],"phase":"fix","status":"APPROVED","commits":{"base":"'${t0}'","head":"'${h.commits.head}'"},"findings":[],"artifacts":{"report":"r.md"}}' > "${path.join(ws, "tasks-1-fix-1.json")}"\n` +
           `printf 'status: APPROVED\\ncommits: base=${t0} head=${h.commits.head}\\n'\n` +
-          `printf 'artifacts: report=r.md\\nblocker: none\\n'\n` +
+          `printf 'artifacts: report=r.md\\n'\n` +
           `exit 0\n`,
       );
       chmodSync(path.join(binDir, "fake-cli"), 0o755);

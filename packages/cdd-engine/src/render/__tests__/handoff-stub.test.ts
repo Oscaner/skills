@@ -192,11 +192,13 @@ describe("recoverHandoff — CONTRACT_VIOLATION 恢复单点（三路 runner 同
       expect(rec.valid).toBe(false);
       expect(Object.keys(rec.handoff)).not.toContain("0"); // the index-spread surface
       expect(Array.isArray(rec.preservedFindings)).toBe(true);
-      // 按 run-task.mjs 8.8 的载荷形状原样组装 → 必须过校验
+      // assemble the payload exactly as run-task 8.8 does → must pass validation (the BLOCKED allOf is
+      // now grounded by failure_category alone)
       const payload = {
         tasks: [1],
         phase: "review",
         status: "BLOCKED",
+        failure_category: "CONTRACT_VIOLATION",
         findings: rec.preservedFindings,
         artifacts: {},
         blocker: `handoff schema invalid${rec.reason} → fix the handoff JSON and re-dispatch task 1`,
@@ -258,11 +260,13 @@ describe("recoverHandoff 失败分支 → 三处 BLOCKED 载荷恒过校验（en
     it(`${name} → 三路 BLOCKED 载荷均 valid: true`, () => {
       const rec = recoverHandoff(handoff, "task");
       expect(rec.valid, "恢复面应判归一化不可救（已声明键违规不可剥除）").toBe(false);
-      // ① task 8.8 归一化不可救分支（src/dispatch/task.ts）——不 spread rec.handoff
+      // ① task 8.8 unfixable branch (src/dispatch/task.ts) — no spread of rec.handoff;
+      //    the BLOCKED allOf is now grounded by failure_category alone (blocker field vacant, M3) — the payload must carry the category
       const taskPayload = {
         tasks: [1],
         phase: "review",
         status: "BLOCKED",
+        failure_category: "CONTRACT_VIOLATION",
         findings: rec.preservedFindings,
         artifacts: {},
         blocker: `handoff schema invalid${rec.reason} → fix the handoff JSON and re-dispatch task 1`,
@@ -285,11 +289,12 @@ describe("recoverHandoff 失败分支 → 三处 BLOCKED 载荷恒过校验（en
         schemaValidator.validateHandoffSchema(docsPayload, "docs").valid,
         `docs 形（${rec.reason}）`,
       ).toBe(true);
-      // ③ branch-review writeBranchBlocked（src/cli/branch-review.ts）——commits 仅 base 全形时写入
+      // ③ branch-review writeBranchBlocked (src/dispatch/branch.ts) — commits written only in full form
       const branchPayload = {
         tasks: [1],
         phase: "branch-review",
         status: "BLOCKED",
+        failure_category: "CONTRACT_VIOLATION",
         commits: { base: "a".repeat(40), head: "b".repeat(40) },
         findings: rec.preservedFindings,
         artifacts: {},

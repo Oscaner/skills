@@ -8,7 +8,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { gitCommit, gitInit } from "../../infra/__tests__/helpers.ts";
+import { captureStderr, gitCommit, gitInit } from "../../infra/__tests__/helpers.ts";
 import { FAILURE_CATEGORIES } from "../../rules/failure.ts";
 import {
   applyDerivedStatus,
@@ -67,7 +67,6 @@ it("finalizeHandoff implement 族：输入无 agentHandoff 槽位（通过类型
       "status: APPROVED",
       "commits: base=agent-wrong-base head=agent-wrong-head",
       "artifacts: report=r.md",
-      "blocker: none",
     ],
     brief,
     repoRoot: repo,
@@ -80,7 +79,7 @@ it("finalizeHandoff implement 族：输入无 agentHandoff 槽位（通过类型
   expect(r.handoff.commits.head).toBe(actualHead); // git HEAD is authoritative
   expect(r.handoff.findings).toEqual([]);
   expect(r.handoff.artifacts.report).toBe("r.md");
-  expect(r.handoff.blocker).toBeUndefined(); // blocker: none → omitted
+  expect(r.handoff.blocker).toBeUndefined(); // no blocker field lands on the materialized carrier (M3)
   expect(r.exitCode).toBe(0);
 });
 
@@ -242,20 +241,33 @@ it("finalizeHandoff fix 族：BLOCKED → exit 1（任何通道 BLOCKED → 1）
   expect(r.exitCode).toBe(1);
 });
 
-it("finalizeHandoff implement 族：非 APPROVED 返回 → BLOCKED + exit 1", async () => {
+it("finalizeHandoff implement 族：非 APPROVED 返回 → BLOCKED + failure_category + stderr CDD_BLOCKED 占位理由 + exit 1", async () => {
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-hf-impl-blocked-"));
   const brief = path.join(ws, "tasks-1-brief.md");
   writeFileSync(brief, "# task 1\nTASK_BASE: 9a4757b23b5f0634a8ef1d08e1d6c9d1c4f59c63\n");
   writeFileSync(path.join(ws, "tasks-1-test-evidence.json"), "{}");
-  const r = await finalizeHandoff({
-    mode: "implement",
-    returnBlock: ["status: NEEDS_CONTEXT", "commits: base=x", "artifacts: ", "blocker: "],
-    brief,
-    workspace: ws,
-    tasks: [1],
-  });
-  expect(r.handoff.status).toBe("BLOCKED");
-  expect(r.exitCode).toBe(1);
+  const cap = captureStderr();
+  try {
+    const r = await finalizeHandoff({
+      mode: "implement",
+      returnBlock: ["status: NEEDS_CONTEXT", "commits: base=x", "artifacts: "],
+      brief,
+      workspace: ws,
+      tasks: [1],
+    });
+    expect(r.handoff.status).toBe("BLOCKED");
+    // M3 carrier ruling: the reason rides failure_category + notes — the `blocker` field is vacant
+    expect(r.handoff.failure_category).toBe(FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id);
+    expect(r.handoff.notes).toContain('implement return status "NEEDS_CONTEXT" without blocker');
+    expect(r.handoff.blocker).toBeUndefined();
+    expect(r.exitCode).toBe(1);
+  } finally {
+    cap.restore();
+  }
+  // stderr CDD_BLOCKED carries the same placeholder reason — the clue is not silently lost
+  expect(cap.text).toContain(
+    'CDD_BLOCKED: implement return status "NEEDS_CONTEXT" without blocker',
+  );
 });
 
 // ---- The commitsFromReturnLine parse atom — the input plane whose resume-declared base is adopted (T27, spec T7.6) ----
@@ -292,7 +304,7 @@ describe("return-block commitsFromReturnLine（T27 恢复轮声明 base 解析�
 
   it("无前导 `commits:` 前缀的串 → {}（非本行安全）", () => {
     expect(returnBlockParser.commitsFromReturnLine("artifacts: brief=b.md")).toEqual({});
-    expect(returnBlockParser.commitsFromReturnLine("blocker: none")).toEqual({});
+    expect(returnBlockParser.commitsFromReturnLine("phase: implement")).toEqual({});
   });
 });
 
@@ -323,12 +335,7 @@ describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6
     const { repo, c0, c1, ws, brief } = resumeFixture();
     const r = await finalizeHandoff({
       mode: "implement",
-      returnBlock: [
-        "status: APPROVED",
-        `commits: base=${c0} head=${c1}`,
-        "artifacts: report=r.md",
-        "blocker: none",
-      ],
+      returnBlock: ["status: APPROVED", `commits: base=${c0} head=${c1}`, "artifacts: report=r.md"],
       brief,
       repoRoot: repo,
       workspace: ws,
@@ -346,12 +353,7 @@ describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6
     const { repo, c1, ws, brief } = resumeFixture();
     const r1 = await finalizeHandoff({
       mode: "implement",
-      returnBlock: [
-        "status: APPROVED",
-        `commits: base=${c1} head=${c1}`,
-        "artifacts: ",
-        "blocker: none",
-      ],
+      returnBlock: ["status: APPROVED", `commits: base=${c1} head=${c1}`, "artifacts: "],
       brief,
       repoRoot: repo,
       workspace: ws,
@@ -360,12 +362,7 @@ describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6
     expect(r1.handoff.commits.base).toBe(c1); // 未采纳（==HEAD）→ 保持 brief TASK_BASE
     const r2 = await finalizeHandoff({
       mode: "implement",
-      returnBlock: [
-        "status: APPROVED",
-        "commits: base=agent-wrong-base",
-        "artifacts: ",
-        "blocker: none",
-      ],
+      returnBlock: ["status: APPROVED", "commits: base=agent-wrong-base", "artifacts: "],
       brief,
       repoRoot: repo,
       workspace: ws,
@@ -389,12 +386,7 @@ describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6
     expect(forgeHead).not.toBe(c1);
     const r = await finalizeHandoff({
       mode: "implement",
-      returnBlock: [
-        "status: APPROVED",
-        `commits: base=${forgeHead} head=${c1}`,
-        "artifacts: ",
-        "blocker: none",
-      ],
+      returnBlock: ["status: APPROVED", `commits: base=${forgeHead} head=${c1}`, "artifacts: "],
       brief,
       repoRoot: repo,
       workspace: ws,
@@ -412,12 +404,7 @@ describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6
     writeFileSync(path.join(ws, "tasks-27-test-evidence.json"), "{}");
     const r = await finalizeHandoff({
       mode: "implement",
-      returnBlock: [
-        "status: APPROVED",
-        `commits: base=${c0} head=${c1}`,
-        "artifacts: ",
-        "blocker: none",
-      ],
+      returnBlock: ["status: APPROVED", `commits: base=${c0} head=${c1}`, "artifacts: "],
       brief: freshBrief,
       repoRoot: repo,
       workspace: ws,
@@ -430,7 +417,7 @@ describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6
     const { repo, c0, c1, ws, brief } = resumeFixture();
     const r = await finalizeHandoff({
       mode: "implement",
-      returnBlock: ["status: APPROVED", `commits: head=${c1}`, "artifacts: ", "blocker: none"],
+      returnBlock: ["status: APPROVED", `commits: head=${c1}`, "artifacts: "],
       brief,
       repoRoot: repo,
       workspace: ws,

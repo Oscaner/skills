@@ -88,7 +88,7 @@ describe("branch-review dry-run", () => {
       expect(handoff.commits).toHaveProperty("base", "abc1234");
       expect(handoff.commits).toHaveProperty("head", "def5678");
       expect(handoff).toHaveProperty("findings");
-      expect(handoff).toHaveProperty("blocker");
+      expect(handoff).not.toHaveProperty("blocker"); // the blocker field is no longer written (M3)
       expect(handoff).not.toHaveProperty("doc_path");
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -162,11 +162,12 @@ describe("branch-review schema-invalid e2e", () => {
       const h = JSON.parse(readFileSync(handoffPath, "utf8"));
       expect(h.status).toBe("BLOCKED");
       expect(h.phase).toBe("branch-review");
-      // 键集干净：engine 字面量 + commits/findings（agent 的 notes / findings:"none" 不得进载体）
+      // clean keyset: engine literals + commits/findings/failure_category (agent's notes / findings:"none" never enter the carrier)
       expect(Object.keys(h).sort()).toEqual([
         "artifacts",
         "blocker",
         "commits",
+        "failure_category",
         "findings",
         "phase",
         "status",
@@ -285,6 +286,7 @@ describe("branch-review unparseable-handoff e2e", () => {
         "artifacts",
         "blocker",
         "commits",
+        "failure_category",
         "findings",
         "phase",
         "status",

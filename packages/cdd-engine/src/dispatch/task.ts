@@ -12,7 +12,7 @@
 //               timeout path (partial handoff + counters).
 //   post-flight schemaValidate — steps 8.8/10/10.5: handoff schema recovery (CONTRACT_VIOLATION
 //               keeps findings) + failure-without-handoff BLOCKED writes. normalizeResult — steps
-//               11/12/13: return block four-line parse, agent-failure exit, implement materialization.
+//               11/12/13: return block three-line parse, agent-failure exit, implement materialization.
 //               commitPostCheck — step 13.5 + review writeback: the exit gate (skipped on
 //               finished rounds / dry-run; failed gate → maybeExhaust + BLOCKED return block), then the
 //               APPROVED-review ensure-row writeback + round increment (post-gate only —
@@ -705,8 +705,9 @@ export class TaskLifecycle extends DispatchLifecycle {
     let cause: TerminationCause | undefined; // unified termination cause (stalled/over-budget/signal; T26)
     let idleWindowMs: number | undefined; // stall blocker detail (monitor idle window)
     if (dryRun) {
-      // Dry-run simulation block (return-block.ts single point): the 4-line APPROVED dry-run
-      // payload; the post-flight parse re-appends the counters line (returnFourLines).
+      // Dry-run simulation block (return-block.ts single point): the 3-line APPROVED dry-run
+      // payload (status/commits/artifacts — the agent output contract, no blocker column); the
+      // post-flight parse re-appends the counters line (returnFourLines).
       agentOut = this.#returnBlockParser.dryRunBlock({
         commits: "base=dry-run",
         artifacts: `brief=${ctx.briefPath} report=${ctx.workspace}/tasks-${this.#groupKey}-report.md test_evidence=${ctx.workspace}/tasks-${this.#groupKey}-test-evidence.json`,
@@ -991,7 +992,7 @@ export class TaskLifecycle extends DispatchLifecycle {
     }
   }
 
-  /** Steps 11/12/13: return block four-line parse → agent-failure exit → implement materialization
+  /** Steps 11/12/13: return block three-line parse → agent-failure exit → implement materialization
    * (dry-run writes no handoff — aligned with bash). */
   protected override async normalizeResult(_hookCtx: DispatchHookContext): Promise<void> {
     if (this.#finished) return;
@@ -1000,7 +1001,7 @@ export class TaskLifecycle extends DispatchLifecycle {
     const ctx = this.#tcx!;
     const progressDir = path.dirname(ctx.ledgerPath);
 
-    // 11. return block four lines (from the agent stdout / dry-run block)
+    // 11. return block three lines (from the agent stdout / dry-run block) + the counters line
     let returnBlock = this.#returnBlockParser.returnFourLines(this.#agentOut, ctx.workspace);
 
     // 12. Agent failed but handoff exists → exit agent_rc (raw return block stays from agent stdout).
@@ -1013,7 +1014,7 @@ export class TaskLifecycle extends DispatchLifecycle {
     //     T5: status single authority — the review-type handoff is derived/overwritten by the
     //     engine at finalization (SP-4 exempts failure rounds). T6: implement materializes — the
     //     agent writes no handoff (implement.md dropped the Handoff Output section), the runner
-    //     builds tasks-{key}-implement.json from the return block four lines + brief TASK_BASE + git HEAD;
+    //     builds tasks-{key}-implement.json from the return block three lines + brief TASK_BASE + git HEAD;
     //     evidence-gate read-back (behavior_change:true → hard; else soft WARN). T7: the carrier
     //     comes home to the engine — implement/review finalize through finalizeHandoff,
     //     writeOwnHandoff full-replace, return block always re-emits from returnFromHandoff.

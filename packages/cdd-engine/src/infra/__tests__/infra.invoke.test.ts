@@ -130,7 +130,7 @@ describe("infra/invoke.ts — invokeCliWithRetry", () => {
   afterEach(() => vi.useRealTimers());
 
   it("retries on overloaded stderr, succeeds on 2nd attempt", async () => {
-    const sd = "status: APPROVED\ncommits: base=abc head=def\nartifacts: \nblocker: none";
+    const sd = "status: APPROVED\ncommits: base=abc head=def\nartifacts: "; // 3-line agent contract (no blocker column)
     execa
       .mockResolvedValueOnce({ exitCode: 1, stdout: "", stderr: "overloaded", timedOut: false })
       .mockResolvedValueOnce({ exitCode: 0, stdout: sd, stderr: "", timedOut: false });

@@ -30,8 +30,8 @@
 //      engine-config — the plan declares `**Spec:**` and the spec doc is derived alongside (the
 //      engine's doc-existence audit path is thereby a deterministic pass, never dependent on a
 //      dry-run degraded-BLOCK).
-//   6. per-command return-block contract assertions (status / commits / artifacts / blocker /
-//      counters) — the consumer-equivalent result surface for every output.
+//   6. per-command return-block contract assertions (status / commits / artifacts / counters —
+//      the blocker column is retired) — the consumer-equivalent result surface for every output.
 //   7. osuperpowers pack whitelist audit (P4.2 Task 7 ⑤): `npm pack --dry-run --json` over the
 //      osuperpowers package — the pack top-level file set must equal the 7-item files whitelist
 //      (skills/ · .claude-plugin/ · .cursor-plugin/ · README.md · README.zh-CN.md · CHANGELOG.md ·
@@ -445,8 +445,9 @@ function deriveFixture(consumerRoot: string, installed: string): Fixture {
 const COUNTERS_RE =
   /^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/;
 
-/** Assert the command's last stdout block is the 5-line return-block contract (per-command line
- *  expectations included — the consumer-equivalent result surface). */
+/** Assert the command's last stdout block is the 4-line return-block contract (per-command line
+ *  expectations included — the consumer-equivalent result surface). The `blocker:` column is
+ *  retired (M3): status/commits/artifacts + the engine-append counters line. */
 function assertReturnBlock(cmd: string, stdout: string): void {
   const lastBlock =
     stdout
@@ -463,7 +464,6 @@ function assertReturnBlock(cmd: string, stdout: string): void {
     ["status", /^APPROVED$/],
     ["commits", /^base=/],
     ["artifacts", /^/],
-    ["blocker", /^/],
   ];
   for (const [key, re] of checks) {
     const v = lineByKey.get(key);

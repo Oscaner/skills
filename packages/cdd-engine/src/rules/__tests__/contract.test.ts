@@ -319,7 +319,7 @@ it("AC10: validateHandoffSchema accepts optional notes field（Enh T）", () => 
 
 // ---- The contract pushed into the schema field descriptions (semantic assertions on both schemas) + allOf BLOCKED enforcement (Task 23 ②) ----
 
-it("Task 23 task schema allOf: BLOCKED 必须 blocker 非空 或 failure_category —— 裸折契约违规", () => {
+it("Task 23 task schema allOf: BLOCKED 仅以 failure_category 支撑（blocker 字段空置，不再算作 grounding）", () => {
   const base = (extra: Record<string, unknown>) => ({
     tasks: [1],
     phase: "implement",
@@ -330,12 +330,20 @@ it("Task 23 task schema allOf: BLOCKED 必须 blocker 非空 或 failure_categor
   });
   expect(schemaValidator.validateHandoffSchema(base({}), "task").valid).toBe(false); // bare fold → violation
   expect(schemaValidator.validateHandoffSchema(base({ blocker: "" }), "task").valid).toBe(false); // an empty-string blocker does not count
+  // M3: the `blocker:` column is retired — a blocker-only BLOCKED (agent channel) no longer grounds
+  // the round; failure_category is the sole allOf support.
   expect(schemaValidator.validateHandoffSchema(base({ blocker: "真实原因" }), "task").valid).toBe(
-    true,
+    false,
   );
   expect(
     schemaValidator.validateHandoffSchema(base({ failure_category: "UNVERIFIABLE" }), "task").valid,
   ).toBe(true);
+  expect(
+    schemaValidator.validateHandoffSchema(
+      base({ failure_category: "UNVERIFIABLE", blocker: "engine reason" }),
+      "task",
+    ).valid,
+  ).toBe(true); // engine-carrier blocker coexists with the category
 });
 
 it("Task 23 task schema description 承载 status/failure_category/unverifiable 语义", () => {

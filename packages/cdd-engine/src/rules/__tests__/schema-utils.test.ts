@@ -7,7 +7,7 @@ import { HandoffSchemaValidator } from "../schema.ts";
 const schemaValidator = new HandoffSchemaValidator();
 
 // Handoffs must satisfy the real shipped schema (task/phase/status/findings/
-// artifacts required; blocker optional; additionalProperties: false).
+// artifacts required; blocker optional but vacated as an agent channel — engine carriers still write it).
 const VALID_HANDOFF = {
   tasks: [1],
   phase: "implement",
@@ -15,7 +15,7 @@ const VALID_HANDOFF = {
   commits: { base: "a".repeat(40), head: "b".repeat(40) },
   findings: [],
   artifacts: { brief: "/ws/tasks-1-brief.md" },
-  blocker: "none",
+  blocker: "engine-written failure reason",
 };
 
 describe("validateHandoffSchema (real schema)", () => {

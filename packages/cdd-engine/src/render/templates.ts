@@ -96,8 +96,8 @@ function joinLines(lines: string[]): string {
 const DOCS_FORMATS = Object.freeze(["RETURN_JSON", "DOCS_FIX"]);
 
 // Legacy double-stash → triple-stash (raw, un-escaped values): strict compile with {{{X}}}
-// preserves the four-line contract (`status: <APPROVED|BLOCKED>`), the gate (`> ⚠️ …`) and path
-// values verbatim.
+// preserves the three-line return contract (`status: <APPROVED|BLOCKED>`), the gate (`> ⚠️ …`) and
+// path values verbatim.
 function tripleAll(src: string): string {
   return src.replace(/\{\{([A-Z0-9_]+)\}\}/g, (_m: string, key: string) => `{{{${key}}}}`);
 }
@@ -341,13 +341,13 @@ export class TemplateLoader {
   }
 
   // implement's HANDOFF_WRITE_GATE: this mode does not write a handoff (the runner materializes it
-  // from the return block four lines + TASK_BASE + git HEAD), isomorphic to fix/review's
+  // from the return block three lines + TASK_BASE + git HEAD), isomorphic to fix/review's
   // "write-before-return" but semantically inverted — the shared-Handoff-shell slot's injected
   // value, not a template difference. Artifacts (report + test evidence) come first: the materialized
   // handoff's artifacts all come from them; absent → BLOCKED.
   #implementHardGate(handoffPath: unknown, dispatchUnit: unknown): string {
     const target = handoffPath || `tasks-${dispatchUnit}-implement.json`;
-    return `> ⚠️ HARD GATE — This mode does not write \`${target}\`: the runner materializes it from your return block four lines + the brief's \`TASK_BASE\` + \`git HEAD\`. Write the implementer report + test evidence BEFORE outputting the return block — returning without them = BLOCKED (runner exit 1).`;
+    return `> ⚠️ HARD GATE — This mode does not write \`${target}\`: the runner materializes it from your return block three lines + the brief's \`TASK_BASE\` + \`git HEAD\`. Write the implementer report + test evidence BEFORE outputting the return block — returning without them = BLOCKED (runner exit 1).`;
   }
 
   // ---- token registry (Task 5 D1.4 + Task 20 zones) — driven/validated by template-contract.json ----

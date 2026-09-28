@@ -59,7 +59,7 @@ const _returnZoneOf = (prompt: string): string =>
 describe("C1 — assembly order [shell → Return constant → Round context tail]", () => {
   beforeEach(() => templates.resetTemplateCaches());
 
-  it("rendered prompt keeps ## Handoff (last static section) before ## Return; the four-line return block block only exists in the Return constant", () => {
+  it("rendered prompt keeps ## Handoff (last static section) before ## Return; the three-line return block only exists in the Return constant", () => {
     for (const mode of ["implement", "fix"] as const) {
       const out = templates.renderModePrompt(mode, IMPLEMENT_PARAMS);
       const handoffIdx = heading(out, "Handoff");
@@ -67,7 +67,7 @@ describe("C1 — assembly order [shell → Return constant → Round context tai
       expect(handoffIdx).toBeGreaterThan(-1);
       expect(retIdx).toBeGreaterThan(handoffIdx);
       expect(heading(out, "Round context")).toBeGreaterThan(retIdx); // 动态区绝对末尾
-      // The shared return block four-line return contract (RETURN_STDOUT_BLOCK constant body) must be
+      // The shared return block three-line return contract (RETURN_STDOUT_BLOCK constant body) must be
       // tail-only, and the dynamic Round context must be the final `## ` section.
       expect(out.indexOf("status: <APPROVED|BLOCKED>")).toBeGreaterThan(retIdx);
       expect(out.indexOf("status: <APPROVED|BLOCKED>")).toBeGreaterThan(handoffIdx);
@@ -85,7 +85,7 @@ describe("C1 — assembly order [shell → Return constant → Round context tai
     expect(promptArg.split("\n")[0]).toBe("/mattpocock-skills:tdd"); // prefix line first
     const titleIdx = promptArg.indexOf("# CDD dispatch — CLI session"); // 统一壳字面头
     expect(titleIdx).toBeGreaterThan(promptArg.indexOf("/mattpocock-skills:tdd"));
-    expect(promptArg).toContain("status: <APPROVED|BLOCKED>"); // four-line contract present, tailed
+    expect(promptArg).toContain("status: <APPROVED|BLOCKED>"); // three-line contract present, tailed
   });
 });
 

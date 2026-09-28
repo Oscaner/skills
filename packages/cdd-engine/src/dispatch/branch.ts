@@ -228,6 +228,7 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
       writeBlockedCarrier(this.handoffPath, {
         tasks: [1],
         phase,
+        failure_category: FAILURE_CATEGORIES.EXECUTION_FAILURE.id,
         ...(commits ? { commits } : {}),
         recovery: { cause: FAILURE_CATEGORIES.EXECUTION_FAILURE.id, exit_code: this.agentRc },
         blocker: `cli exited ${this.agentRc}${this.agentRc === 143 ? " (SIGTERM — externally killed)" : ""} without writing handoff → worktree residue is preserved as a stash (\`git stash list\` → \`git stash apply <ref>\` → review → commit to salvage or \`git stash drop\` to discard) → re-run ${reRun}`,
@@ -242,6 +243,7 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
       writeBlockedCarrier(this.handoffPath, {
         tasks: [1],
         phase,
+        failure_category: FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id,
         ...(commits ? { commits } : {}),
         blocker: `${path.basename(this.handoffPath)} not written after exit 0 → re-run ${reRun}`,
       });
@@ -262,6 +264,7 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
       writeBlockedCarrier(this.handoffPath, {
         tasks: [1],
         phase,
+        failure_category: FAILURE_CATEGORIES.CONTRACT_VIOLATION.id,
         ...(commits ? { commits } : {}),
         blocker: `${label} handoff JSON unparseable: ${(e as Error).message} → fix the handoff at ${this.handoffPath} and re-run ${reRun}`,
       });
@@ -279,6 +282,7 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
         writeBlockedCarrier(this.handoffPath, {
           tasks: [1],
           phase,
+          failure_category: FAILURE_CATEGORIES.CONTRACT_VIOLATION.id,
           ...(commits ? { commits } : {}),
           findings: rec.preservedFindings,
           blocker: `${label} handoff schema invalid${rec.reason} → fix and re-run ${reRun}`,
@@ -371,7 +375,7 @@ export class BranchReviewLifecycle extends BranchLifecycle {
 
   /** Steps 7/8: render the branch-review prompt (docs-family shell + REVIEW_REFERENCE
    * base..head + review-family round-context slots) and spawn the harness CLI. Dry-run:
-   * APPROVED stub handoff + the 5-line return block (assembleReturnBlock — the return-block single
+   * APPROVED stub handoff + the 4-line return block (assembleReturnBlock — the return-block single
    * point) + exit 0. */
   protected override async dispatch(_hookCtx: DispatchHookContext): Promise<void> {
     const base = String(this.#base);
@@ -385,14 +389,12 @@ export class BranchReviewLifecycle extends BranchLifecycle {
         commits: { base, head },
         findings: [],
         artifacts: {},
-        blocker: "dry-run",
       });
       const returnBlock = returnBlocks.assembleReturnBlock(
         {
           status: "APPROVED",
           commits: `base=${base} head=${head}`,
           artifacts: "",
-          blocker: "dry-run",
         },
         this.workspace,
       );
@@ -561,7 +563,7 @@ export class BranchFixLifecycle extends BranchLifecycle {
 
   /** Steps 7/8: derive the FIX_BASE (source review's commits.base; missing/unknown → BLOCKED
    * carrier + exit 1), render the fix prompt (task-family shell + RETURN_STDOUT_BLOCK), spawn the
-   * fix agent CLI. Dry-run: APPROVED stub handoff + the 5-line return block + exit 0. */
+   * fix agent CLI. Dry-run: APPROVED stub handoff + the 4-line return block + exit 0. */
   protected override async dispatch(_hookCtx: DispatchHookContext): Promise<void> {
     if (this.opts.dryRun) {
       writeHandoff(this.handoffPath, {
@@ -571,14 +573,12 @@ export class BranchFixLifecycle extends BranchLifecycle {
         commits: { base: "dry-run", head: "dry-run" },
         findings: [],
         artifacts: {},
-        blocker: "dry-run",
       });
       const returnBlock = returnBlocks.assembleReturnBlock(
         {
           status: "APPROVED",
           commits: "base=dry-run head=dry-run",
           artifacts: "",
-          blocker: "dry-run",
         },
         this.workspace,
       );
@@ -600,6 +600,7 @@ export class BranchFixLifecycle extends BranchLifecycle {
       writeBlockedCarrier(this.handoffPath, {
         tasks: [1],
         phase: "fix",
+        failure_category: FAILURE_CATEGORIES.CONTRACT_VIOLATION.id,
         blocker: `source review handoff ${findingsPath} has no valid commits.base → cannot derive the fix BASE; fix the source review and re-run cdd fix --type branch`,
       });
       process.stderr.write(`CDD_BLOCKED: branch-fix source review missing commits.base\n`);

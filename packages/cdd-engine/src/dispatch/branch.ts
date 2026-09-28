@@ -562,9 +562,10 @@ export class BranchFixLifecycle extends BranchLifecycle {
     // Thread the derived handoff path AND the resolved root into the engine context: the inherited
     // exit gate (commitPostCheck → validateCommitContract) reads both from ctx — without them the
     // F1 head-mismatch BLOCKED and the dirty-tree BLOCKED-carrier rewrite both silently no-op. The
-    // CLI wrapper seeds ctx.repoRoot = opts.root ?? null while fixCmd/reviewCmd declare no --root,
-    // so on the production walk the wrapper's seed alone leaves the gate fail-open; threading the
-    // resolved this.repoRoot (opts.root ?? getRoot()) here closes it — the docs-channel precedent
+    // CLI wrapper seeds ctx.repoRoot = opts.root ?? null while all three command faces (implement /
+    // review / fix) declare --root (cli/parse.ts) — on a production walk without --root the wrapper's
+    // seed alone stays null and would leave the gate fail-open; threading the resolved this.repoRoot
+    // (opts.root ?? getRoot()) here closes it — the docs-channel precedent
     // (dispatch/docs.ts resolveContext).
     this.ctx = { ...this.ctx, handoffPath: this.handoffPath, repoRoot: this.repoRoot };
   }

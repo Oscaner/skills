@@ -296,7 +296,14 @@ export class TaskLifecycle extends DispatchLifecycle {
     this.#firstTask = options.group.numbers[0];
     this.#groupKey = options.group.key();
     this.#opts = options.opts;
-    this.#root = (options.ctx.repoRoot as string) ?? "";
+    // Root single authority (branch lane's dual-root design, mirror): the engine ctx.repoRoot is
+    // authoritative for the base gates (doc-contract missing-root lane reads THE SAME field — a
+    // null ctx root must reach that C3-a BLOCK/WARN lane, never silently starve resolution); #root
+    // falls back to the injected opts.root so an in-process caller seeding a root-less ctx still
+    // resolves its workspace and the task face's non-throwing #done terminal properly BLOCKs on the
+    // missing-root condition. runTask always injects a non-null ctx.repoRoot → production behavior
+    // is unchanged by the fallback (it only fires where resolution previously died unhelpfully).
+    this.#root = (options.ctx.repoRoot as string) ?? options.opts.root ?? "";
     this.#runtime = options.opts.runtime ?? runtime;
     this.#registry = new Registry();
     this.#invoker = new EngineInvoker();

@@ -164,6 +164,7 @@ function writeChain(repo: string, overallBody: string = CLEAN_OVERALL): void {
 async function runTaskReview(
   repo: string,
   dryRun = false,
+  ctxRepoRoot: string | null = repo,
 ): Promise<{
   exitCode: number;
   diagnostic: { prefix: string; msg: string } | null;
@@ -181,7 +182,10 @@ async function runTaskReview(
       planFile: path.join(PLAN_DIR, "plan.md"),
       registryPath: registry(),
     },
-    ctx: { mode: "review", repoRoot: repo, handoffPath: "", dryRun },
+    // ctxRepoRoot null → the engine ctx is root-LESS while resolution runs off opts.root (the task
+    // lane's dual-root fallback in the constructor) — the C3-a missing-root lane's only reachable
+    // task-face entry (the branch tests seed the same split).
+    ctx: { mode: "review", repoRoot: ctxRepoRoot, handoffPath: "", dryRun },
   });
   try {
     await lc.run();
@@ -209,6 +213,30 @@ describe("task channel — the base-default docContractValidate (four-table audi
     const r = await runTaskReview(repo, true);
     expect(r.exitCode).toBe(0);
     expect(r.stderr).not.toContain("doc contract invalid");
+  });
+
+  // ---- Missing-root dual lane (T6 C3-a) — task face: real → CDD_BLOCKED + exit 1; dry-run → WARN ----
+  // The task channel's docContractBlocked override is a NON-THROWING #done terminal (task.ts), so the
+  // base missing-root WARN write must be structurally dry-run-only (base's if/else): a real-mode
+  // fall-through would print the "skipped" WARN beside the CDD_BLOCKED diagnostic — the dual-signal
+  // defect this pair guards (the branch face throws exitWithCode and never reaches the WARN line).
+  it("缺根 + 真实 mode → CDD_BLOCKED diagnostic + exit 1，无缺根 WARN（task face 非抛出 #done 终态）", async () => {
+    const repo = setupRepo();
+    writeChain(repo); // chain valid — the missing-root lane fires BEFORE the audit resolves it
+    const r = await runTaskReview(repo, false, null);
+    expect(r.exitCode).toBe(1);
+    expect(r.diagnostic?.prefix).toBe("CDD_BLOCKED");
+    expect(r.diagnostic?.msg).toMatch(/doc contract validation failed/);
+    expect(r.diagnostic?.msg).toContain("no repo root");
+    expect(r.stderr).not.toContain("doc contract validation skipped (no repo root)");
+  });
+
+  it("缺根 + dry-run → CDD_WARN 保留 + 收口 exit 0（I7: dry-run 永不阻塞）", async () => {
+    const repo = setupRepo();
+    writeChain(repo);
+    const r = await runTaskReview(repo, true, null);
+    expect(r.exitCode).toBe(0);
+    expect(r.stderr).toContain("CDD_WARN: doc contract validation skipped (no repo root)");
   });
 });
 

@@ -1094,6 +1094,161 @@ describe("C2 claim discrimination — declaration-slot head + non-parenthetical 
   });
 });
 
+// ---- C2 ⑧ diagnostic trio (cdd-review-contract-fix T5): fault context (clause · parsed phase ·
+// mechanism · ⑥ expanded list) + category dispatch (syntax / prose) + executable action ---- //
+describe("C2 ⑧ diagnostic trio — the mismatch/BLOCKED output payload carries the five elements", () => {
+  function row(summary: string) {
+    return { version: [1, 2] as [number, number], date: "2026-09-21", summary };
+  }
+
+  it("the declaration trace records the fault context for a single-phase plan claim", () => {
+    const { traces } = documentsValidator.extractClaimRows([row("P1 计划列回填：Pending → Done")]);
+    expect(traces).toHaveLength(1);
+    expect(traces[0]).toMatchObject({
+      lane: "plan",
+      pid: "P1",
+      key: "Done",
+      clause: "P1 计划列回填：Pending → Done",
+      mechanism: "single",
+      expanded: [],
+      row: "v1.2 · 2026-09-21",
+    });
+  });
+
+  it("a declaration-position range records the ⑥ expanded phase list on every trace (the same payload the parse produced)", () => {
+    const { traces, planClaims } = documentsValidator.extractClaimRows([
+      row("P2.1–P2.3 计划列回填：Pending → Done"),
+    ]);
+    expect([...planClaims.keys()].sort()).toEqual(["P2.1", "P2.2", "P2.3"]);
+    expect(traces).toHaveLength(3);
+    for (const t of traces) {
+      expect(t.mechanism).toBe("range");
+      expect(t.expanded).toEqual(["P2.1", "P2.2", "P2.3"]);
+    }
+    expect(traces.map((t) => t.pid).sort()).toEqual(["P2.1", "P2.2", "P2.3"]);
+  });
+
+  it("an illegal phase-id contributes NO trace (the parse phase slot stops at the error state); the offending row rides the carrier", () => {
+    const { traces, planClaims, illegalPhaseRefs } = documentsValidator.extractClaimRows([
+      row("P3.10a 计划列回填：Pending → Done"),
+    ]);
+    expect(planClaims.size).toBe(0);
+    expect(traces).toEqual([]);
+    expect(illegalPhaseRefs).toEqual([
+      { clause: "P3.10a 计划列回填：Pending → Done", token: "P3.10a", row: "v1.2 · 2026-09-21" },
+    ]);
+  });
+
+  it("syntax class — the `phase-id syntax` BLOCKED payload carries the five elements with zero misleading parse-phase info", () => {
+    const c = writeChain({
+      overall: [
+        "- **Version**: v1.0 · 2026-09-21",
+        "",
+        "## Phase inventory",
+        "",
+        "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+        "|---|---|---|---|---|---|---|",
+        "| P1 | phase one | [Pending] | [Pending] | | none |",
+        "",
+        "## Change history",
+        "",
+        "| Version | date | summary |",
+        "|---|---|---|",
+        "| v1.0 | 2026-09-21 | Initial |",
+        "| v1.1 | 2026-09-21 | P3.10a 计划列回填：Pending → Done |",
+        "",
+      ].join("\n"),
+    });
+    const f = run(c);
+    const syntax = f.filter((x) => x.field === "phase-id syntax");
+    expect(syntax).toHaveLength(1);
+    const s = syntax[0]!;
+    // (1) fault context: clause excerpt · the vacant parse phase slot · the strict-grammar mechanism
+    expect(s.missing).toContain("P3.10a 计划列回填：Pending → Done"); // clause excerpt
+    expect(s.missing).toContain("no phase is attributed"); // the parse phase slot stopped at the error
+    expect(s.missing).toMatch(/parse mechanism: letter-suffixed phase-id → grammar-A violation/);
+    // (2)+(3) syntax-class category dispatch (legal dotted shape + location) + the executable rename
+    expect(s.fix).toContain("category: syntax");
+    expect(s.fix).toContain("rename P3.10a → P3.10.1"); // the legal-shape rename action
+    expect(s.fix).toContain("summary cell of row v1.1 · 2026-09-21"); // the table location face
+    // zero-misleading: the retired parent-swallow never surfaces as the parse phase
+    expect(s.missing).not.toContain("parses phase P3.10");
+    expect(f.some((x) => x.field === "backfill claim")).toBe(false);
+  });
+
+  it("prose class — the forward-mismatch payload carries the five elements (fault context · prose category · action)", () => {
+    const c = writeChain({
+      overall: [
+        "- **Version**: v1.0 · 2026-09-21",
+        "",
+        "## Phase inventory",
+        "",
+        "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+        "|---|---|---|---|---|---|---|",
+        "| P1 | phase one | [Pending] | [Pending] | | none |",
+        "",
+        "## Change history",
+        "",
+        "| Version | date | summary |",
+        "|---|---|---|",
+        "| v1.0 | 2026-09-21 | Initial |",
+        "| v1.1 | 2026-09-21 | P1 Implementation plan 列回填：Pending → Done + Dependency graph P1→P3 边 |",
+        "",
+      ].join("\n"),
+    });
+    const f = run(c);
+    const mm = f.filter((x) => x.field === "backfill claim");
+    expect(mm).toHaveLength(1);
+    const m = mm[0]!;
+    // (1) fault context: clause excerpt + parsed phase + mechanism
+    expect(m.missing).toContain(
+      "P1 Implementation plan 列回填：Pending → Done + Dependency graph P1→P3 边",
+    );
+    expect(m.missing).toMatch(/parses phase P1 via a single-phase declaration/);
+    // (2) prose-class category dispatch: the faulting clause + the isolate wording
+    expect(m.missing).toMatch(/category: prose — same-clause prose also mentions P3/);
+    // (3) executable action
+    expect(m.fix).toContain("backfill the plan column to the claimed value");
+    // the prose-mentioned P3 never becomes a claim target (window scan, not whole-clause)
+    expect(f.some((x) => x.missing.includes("P3 Implementation"))).toBe(false);
+  });
+
+  it("⑥ range face — a range-declaration forward-mismatch lists the expanded phase list in the diagnosis (silent-batch guard)", () => {
+    const c = writeChain({
+      overall: [
+        "- **Version**: v1.0 · 2026-09-21",
+        "",
+        "## Phase inventory",
+        "",
+        "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+        "|---|---|---|---|---|---|---|",
+        "| P2.1 | sub one | [Pending] | [Pending] | | none |",
+        "| P2.2 | sub two | [Pending] | [Pending] | | none |",
+        "| P2.3 | sub three | [Pending] | [Pending] | | none |",
+        "",
+        "## Change history",
+        "",
+        "| Version | date | summary |",
+        "|---|---|---|",
+        "| v1.0 | 2026-09-21 | Initial |",
+        "| v1.1 | 2026-09-21 | P2.1–P2.3 计划列回填：Pending → Done |",
+        "",
+      ].join("\n"),
+    });
+    const f = run(c);
+    // every expanded phase carries the multi-target declaration payload (fresh claims, no ghosts):
+    const mm = f.filter(
+      (x) => x.field === "backfill claim" && /P2\.[123] Implementation/.test(x.missing),
+    );
+    expect(mm).toHaveLength(3);
+    const sub = mm.find((x) => x.missing.includes("P2.2 Implementation"))!;
+    expect(sub).toBeDefined();
+    expect(sub.missing).toMatch(/parses phase P2\.2 via a declaration-position range \(3 phases\)/);
+    expect(sub.missing).toContain("the declaration expands to phases: P2.1, P2.2, P2.3");
+    expect(sub.fix).toContain("backfill the plan column to the claimed value");
+  });
+});
+
 describe("overall 契約 face — kernel + merged version-lineage", () => {
   it("overall: non-canonical Phase inventory header → failure", () => {
     const c = writeChain({

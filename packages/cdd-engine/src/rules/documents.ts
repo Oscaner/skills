@@ -221,6 +221,12 @@ function claimTarget(full: string): string {
 // slot stops at the error state instead of attributing the parent line.
 const ILLEGAL_PHASE_REF_RE = /\bP\d+(?:\.\d+)*[a-z]+\b/gi;
 
+/** C2 ⑦ — mask the letter-suffixed refs 1:1 (offset-preserving) so the valid single/range scans never
+ *  see the illegal shapes. phaseIdsIn and the C2 ⑧ range-detection face share the same mask. */
+function withoutIllegalRefs(clause: string): string {
+  return clause.replace(ILLEGAL_PHASE_REF_RE, (t) => " ".repeat(t.length));
+}
+
 /** C2 ⑦ — the letter-suffixed phase-id forms in a claim declaration slot (`P3.10a`), the strict
  *  grammar-A violations the parse must surface as an error rather than swallow into the parent. */
 function illegalPhaseRefsIn(clause: string): string[] {
@@ -228,7 +234,7 @@ function illegalPhaseRefsIn(clause: string): string[] {
 }
 
 function phaseIdsIn(clause: string): string[] {
-  const sanitized = clause.replace(ILLEGAL_PHASE_REF_RE, (t) => " ".repeat(t.length));
+  const sanitized = withoutIllegalRefs(clause);
   const ids = new Set<string>();
   for (const m of sanitized.matchAll(RANGE_RE)) {
     const a = m[1];
@@ -391,6 +397,10 @@ interface ClaimWindow {
   /** C2 ⑦ — illegal phase-id tokens in this claim's declaration slot (the slot stops at the
    *  error state; the tokens are never attributed to a numeric parent). */
   illegal: string[];
+  /** C2 ⑥⑧ — true when a canonical RANGE ref contributed to this claim's phases (a
+   *  declaration-position range: every endpoint + intermediate is a separate target, and the
+   *  diagnosis's expanded-list face rides the trace). */
+  ranged: boolean;
 }
 
 /** The explicit-claim window scan (P4.3 Task 8 #274, C2 ⑤⑥⑦ — only DECLARED claim structures
@@ -432,12 +442,17 @@ function claimWindows(clause: string): {
       continue;
     }
     const phases = phaseIdsIn(span);
+    // C2 ⑥⑧ — a declaration-position range expands to every phase (endpoints included); the
+    // C2 ⑧ fault context carries the expanded list. Range detection on the same sanitized surface
+    // phaseIdsIn scans (a letter-suffixed range is already masked → never a range).
+    const ranged = withoutIllegalRefs(span).match(RANGE_RE) !== null;
     for (const id of phases) windowed.add(id);
     claims.push({
       // the ORIGINAL text (the mask preserves offsets 1:1)
       text: clause.slice(at, at + m[0].length),
       phases,
       illegal: illegalPhaseRefsIn(span),
+      ranged,
     });
     // The next claim's window starts after this claim's target — skip the closing parens that wrap
     // it so a trailing `（…）` annotation does not leak phase refs into the next window.
@@ -457,15 +472,20 @@ export interface ClaimExtraction {
   designClaims: Map<string, string>;
   /** Same-clause prose collision (Task 8 diagnosis): claim phase → the stray clause phases ITS
    *  clause mentions outside the explicit claim structure — the ids a whole-clause scan would have
-   *  made claim targets too. Forward-mismatch failures attach this as the diagnosis hint. */
+   *  made claim targets too. Forward-mismatch failures fold these into the C2 ⑧ prose-class category
+   *  dispatch (the isolate-with-`；` wording). */
   proseHints: Map<string, string[]>;
   /** C2 ⑦ illegal phase-id carrier — strict grammar-A violations found in claim declaration slots
    *  (letter-suffixed refs like `P3.10a`, one record per occurrence: the offending token + the
-   *  clause that carries it, the offending context the diagnostic payload anchors to). The parse
-   *  phase slot stops at the error state — the token is never swallowed into the numeric parent nor
-   *  attributed as a claim target. Structured fact surface only; the guidance wording is the
-   *  payload surface (the T5 diagnostic trio). */
-  illegalPhaseRefs: Array<{ clause: string; token: string }>;
+   *  clause that carries it + the change-history row — the offending context the diagnostic trio
+   *  anchors to). The parse phase slot stops at the error state — the token is never swallowed into
+   *  the numeric parent nor attributed as a claim target. Structured fact surface only; the guidance
+   *  wording is the payload surface (the T5 diagnostic trio). */
+  illegalPhaseRefs: Array<{ clause: string; token: string; row: string }>;
+  /** C2 ⑧ — the declaration traces backing the diagnostic trio (one per remembered claim; the same
+   *  iteration that fills planClaims/designClaims). The forward-mismatch failures assemble their
+   *  fault context (clause · parsed phase · mechanism · ⑥ expanded list) from these. */
+  traces: ClaimDeclarationTrace[];
 }
 
 export interface PhaseRow {
@@ -571,13 +591,79 @@ function planCellMatchesClaim(cell: string, id: string, key: string, slug: strin
   return stripCellMarkup(cell) === key;
 }
 
-/** The Task-8 diagnosis hint appended to a forward-mismatch failure when the claim's clause also
- *  mentions phases outside the explicit claim structure (the ids the retired whole-clause scan
- *  would have made targets too — 同子句 prose 提及 phase 亦成 target). Empty for clean clauses. */
-function proseHintSuffix(proseHints: Map<string, string[]>, pid: string): string {
-  const strays = proseHints.get(pid);
-  if (!strays || strays.length === 0) return "";
-  return ` — same-clause prose also mentions ${strays.join(", ")}: a whole-clause scan would have made them claim targets too; isolate prose with the \`；\` clause separator if they are not claim phases`;
+/** C2 ⑧ — the parse-mechanism face of a claimed phase: how the parse attributed the id. */
+type ClaimParseMechanism = "single" | "range";
+
+/** C2 ⑧ — the declaration trace backing the diagnostic trio: one record per REMEMBERED claim (the
+ *  same iteration that fills planClaims/designClaims), carrying the fault context a doc-contract
+ *  failure anchors to — the claiming clause excerpt · the parsed phase · the parse mechanism · (⑥)
+ *  the expanded phase list for declaration-position ranges. The category dispatch + executable
+ *  action assemble from it at the failure surface. */
+export interface ClaimDeclarationTrace {
+  /** the claim's lane — plan (Implementation plan column) or design (Design spec column). */
+  lane: "plan" | "design";
+  /** the phase the claim parsed to. */
+  pid: string;
+  /** the claim target key (`Done` / a `P<n>-design` token). */
+  key: string;
+  /** the claiming clause (verbatim — the fault-context clause excerpt). */
+  clause: string;
+  /** how the parse attributed this phase: `single` (a single-phase declaration) or `range`
+   *  (a declaration-position range, C2 ⑥ — each endpoint + intermediate is a separate target). */
+  mechanism: ClaimParseMechanism;
+  /** C2 ⑥ — the expanded phase list for a range declaration (endpoints included — the SAME payload
+   *  phaseIdsIn produced at parse time, so the diagnosis can never drift from the parse); empty for
+   *  single-phase declarations. */
+  expanded: string[];
+  /** the change-history table row identity (`v1.1 · 2026-09-21`) — the location face. */
+  row: string;
+}
+
+/** The change-history table row identity — the trio's location face (the table row the failing
+ *  clause came from): `v1.1 · 2026-09-21` from the parsed row. */
+function historyRowLabel(row: { version: [number, number] | null; date: string }): string {
+  const v = row.version ? `v${row.version[0]}.${row.version[1]}` : "no-version";
+  return `${v} · ${row.date}`;
+}
+
+/** The parse mechanism in operator-facing words (the fault-context mechanism element). */
+function mechanismText(mechanism: ClaimParseMechanism, expandedCount: number): string {
+  return mechanism === "range"
+    ? `a declaration-position range (${expandedCount} phases)`
+    : "a single-phase declaration";
+}
+
+/** C2 ⑧ — the trio's fault context (1) + category-dispatched suggestion (2) appended to a
+ *  forward-mismatch failure's `missing`. The executable action (3) rides the failure's `fix`.
+ *  Fault context: the claiming clause excerpt · the parsed phase · the parse mechanism · (⑥) the
+ *  expanded phase list for range declarations. Category dispatch: prose class — the same-clause
+ *  prose collision is named with the isolate wording when the clause prose-mentions other phases. */
+function mismatchDiagnosticHint(trace: ClaimDeclarationTrace, strays: string[]): string {
+  const parts = [
+    `claim ${JSON.stringify(trace.clause)} (row ${trace.row}) → parses phase ${trace.pid} via ${mechanismText(trace.mechanism, trace.expanded.length)}`,
+  ];
+  if (trace.mechanism === "range") {
+    parts.push(`the declaration expands to phases: ${trace.expanded.join(", ")}`);
+  }
+  if (strays.length > 0) {
+    parts.push(
+      `category: prose — same-clause prose also mentions ${strays.join(", ")}; isolate the prose with the \`；\` clause separator if they are not claim phases`,
+    );
+  }
+  return ` — ${parts.join("; ")}`;
+}
+
+/** C2 ⑧ — the dotted legal-shape guidance for a letter-suffixed phase id (`P3.10a`): the fixed
+ *  rename target the syntax-class suggestion + action name. A single-letter suffix maps
+ *  positionally (a→1 … e→5 — the P3.10a–e → P3.10.1–.5 renaming debt); anything else gets the
+ *  generic dotted-form shape (`P<digits>.<digits>`). */
+function dottedLegalHint(token: string): string {
+  const m = token.match(/^(P\d+(?:\.\d+)*)([a-zA-Z]+)$/);
+  if (m) {
+    const letters = m[2]!.toLowerCase();
+    if (letters.length === 1) return `${m[1]}.${letters.charCodeAt(0) - 96}`;
+  }
+  return "`P<digits>.<digits>`";
 }
 
 // Segment-preserving spec→phase identity (④'s own-token strand): the canonical phase-id token in
@@ -894,20 +980,26 @@ function fourTableAudit(
 
   // ① bidirectional backfill claim ↔ column: forward (claim ⇒ column carries the target) + reverse
   // (a shipped column ⇒ a matching claim exists) for plan + design — no plan-only leftover.
-  const { planClaims, designClaims, proseHints, illegalPhaseRefs } = validator.extractClaimRows(
-    o.historyRows,
-  );
-  // C2 ⑦ — an illegal phase-id found in a declared claim slot is a strict grammar-A violation
+  const { planClaims, designClaims, proseHints, illegalPhaseRefs, traces } =
+    validator.extractClaimRows(o.historyRows);
+  // C2 ⑧ — per-lane trace lookup: the diagnostic trio assembles each forward-mismatch failure's
+  // fault context (claiming clause · parsed phase · mechanism · ⑥ expanded list) from the trace.
+  const planTrace = new Map<string, ClaimDeclarationTrace>();
+  const designTrace = new Map<string, ClaimDeclarationTrace>();
+  for (const t of traces) (t.lane === "plan" ? planTrace : designTrace).set(t.pid, t);
+  // C2 ⑦⑧ — an illegal phase-id found in a declared claim slot is a strict grammar-A violation
   // (letter-suffixed refs like `P3.10a` are never swallowed into their numeric parent). The parse
-  // phase slot already stopped at the error state; this is the audit's failure surface (the
-  // guidance wording is the T5 diagnostic payload — here only the structural fact rides).
+  // phase slot already stopped at the error state; the failure carries the diagnostic trio:
+  // (1) fault context (clause excerpt · the vacant parse phase slot · the strict-grammar mechanism),
+  // (2) syntax-class category dispatch (the legal dotted phase-id shape + the table location),
+  // (3) the executable rename action.
   for (const r of illegalPhaseRefs) {
     failures.push({
       artifact: "overall",
       file: overallPath,
       field: "phase-id syntax",
-      missing: `change-history claim references illegal phase-id ${JSON.stringify(r.token)} in ${JSON.stringify(r.clause)}`,
-      fix: "rename the letter-suffixed phase reference to a grammar-A phase id",
+      missing: `change-history claim clause ${JSON.stringify(r.clause)} (row ${r.row}) references illegal phase-id ${JSON.stringify(r.token)} — parse mechanism: letter-suffixed phase-id → grammar-A violation; the parse phase slot stops at the error state, no phase is attributed`,
+      fix: `category: syntax — the legal phase-id shape is dotted (${dottedLegalHint(r.token)}); locate the ref in the change-history summary cell of row ${r.row} — action: rename ${r.token} → ${dottedLegalHint(r.token)}, then re-run the audit`,
     });
   }
   for (const [pid, key] of planClaims) {
@@ -929,8 +1021,8 @@ function fourTableAudit(
         artifact: "overall",
         file: overallPath,
         field: "backfill claim",
-        missing: `${pid} Implementation plan column ${JSON.stringify(stripCellMarkup(r.plan))} ≠ claim target ${key}${proseHintSuffix(proseHints, pid)}`,
-        fix: "backfill the plan column to the claimed value — a `Done`-style completion marker or a link to the phase's own plan doc (or correct the claim)",
+        missing: `${pid} Implementation plan column ${JSON.stringify(stripCellMarkup(r.plan))} ≠ claim target ${key}${planTrace.has(pid) ? mismatchDiagnosticHint(planTrace.get(pid)!, proseHints.get(pid) ?? []) : ""}`,
+        fix: `action: backfill the plan column to the claimed value — a \`Done\`-style completion marker or a link to the phase's own plan doc (or correct the claim)`,
       });
     }
   }
@@ -952,8 +1044,8 @@ function fourTableAudit(
         artifact: "overall",
         file: overallPath,
         field: "backfill claim",
-        missing: `${pid} Design spec column needs its own ${key} token (got ${JSON.stringify(stripCellMarkup(r.design))})${proseHintSuffix(proseHints, pid)}`,
-        fix: "backfill the Design spec column to carry the claimed design token (or correct the claim)",
+        missing: `${pid} Design spec column needs its own ${key} token (got ${JSON.stringify(stripCellMarkup(r.design))})${designTrace.has(pid) ? mismatchDiagnosticHint(designTrace.get(pid)!, proseHints.get(pid) ?? []) : ""}`,
+        fix: `action: backfill the Design spec column to carry the claimed design token (or correct the claim)`,
       });
     }
   }
@@ -1492,12 +1584,14 @@ export class DocumentsValidator {
     const designClaims = new Map<string, string>();
     const proseHints = new Map<string, string[]>();
     const illegalPhaseRefs: ClaimExtraction["illegalPhaseRefs"] = [];
+    const traces: ClaimDeclarationTrace[] = [];
     for (const row of historyRows) {
+      const rowLabel = historyRowLabel(row);
       for (const clause of (row.summary ?? "").split(CLAIM_SEP_RE)) {
         const { claims, stray, illegal } = claimWindows(clause);
         // C2 ⑦ — every illegal phase-id found in a declared slot is a grammar-A violation the
         // audit surfaces (parse slot already stopped: no numeric-parent attribution happened).
-        for (const token of illegal) illegalPhaseRefs.push({ clause, token });
+        for (const token of illegal) illegalPhaseRefs.push({ clause, token, row: rowLabel });
         const planLink = PLAN_LINK_WORD.test(clause);
         const designLink = DESIGN_LINK_WORD.test(clause);
         for (const c of claims) {
@@ -1506,8 +1600,22 @@ export class DocumentsValidator {
           const designTarget = !!key && DESIGN_TOKEN_RE.test(key);
           if ((planTarget && planLink) || (designTarget && designLink)) {
             const map = planTarget ? planClaims : designClaims;
+            const lane: ClaimDeclarationTrace["lane"] = planTarget ? "plan" : "design";
             for (const pid of c.phases) {
-              if (!map.has(pid)) map.set(pid, key);
+              // C2 ⑧ — one trace per REMEMBERED claim (the same first-wins guard as the claim map),
+              // carrying the fault-context the diagnostic trio assembles from.
+              if (!map.has(pid)) {
+                map.set(pid, key);
+                traces.push({
+                  lane,
+                  pid,
+                  key,
+                  clause,
+                  mechanism: c.ranged ? "range" : "single",
+                  expanded: c.ranged ? [...c.phases] : [],
+                  row: rowLabel,
+                });
+              }
               if (stray.length > 0) {
                 const existing = proseHints.get(pid) ?? [];
                 proseHints.set(pid, [...new Set([...existing, ...stray])]);
@@ -1517,7 +1625,7 @@ export class DocumentsValidator {
         }
       }
     }
-    return { planClaims, designClaims, proseHints, illegalPhaseRefs };
+    return { planClaims, designClaims, proseHints, illegalPhaseRefs, traces };
   }
 }
 

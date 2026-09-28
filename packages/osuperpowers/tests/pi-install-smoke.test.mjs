@@ -80,13 +80,17 @@ test("pi install smoke: pack → extract → pi install <dir> --local --approve"
     assert.strictEqual(install.status, 0, `pi install exited ${install.status}: ${install.stderr}`);
 
     // 5. The project .pi/settings.json records the installed package source — path.resolve
-    // normalizes the recorded entry (relative or absolute) back to the unpacked dir.
+    // normalizes the recorded entry back to the unpacked dir. The recorded form is runtime-
+    // dependent (probe-measured on pi 0.87.1, cross-platform): absolute (macOS probe) or a
+    // path relative to the settings file's own directory (Linux CI: "../../unpacked" with the
+    // settings file under <project>/.pi/settings.json) — so resolution anchors on
+    // path.dirname(settingsPath), the one base both forms share.
     const settingsPath = path.join(project, ".pi", "settings.json");
     assert.ok(existsSync(settingsPath), "project .pi/settings.json must exist after a --local install");
     const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
     const recorded = Array.isArray(settings.packages) ? settings.packages : [];
     assert.ok(
-      recorded.some((entry) => typeof entry === "string" && path.resolve(project, entry) === unpacked),
+      recorded.some((entry) => typeof entry === "string" && path.resolve(path.dirname(settingsPath), entry) === unpacked),
       `settings.json packages must record the installed source, got: ${JSON.stringify(recorded)}`,
     );
   } finally {

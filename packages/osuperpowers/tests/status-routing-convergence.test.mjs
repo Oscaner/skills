@@ -66,7 +66,10 @@ const REQUIRED = [
 for (const name of CARRIERS) {
   const skill = readFileSync(path.join(SKILLS_ROOT, name, "SKILL.md"), "utf8");
 
-  test(`status-routing wording: ${name} carries zero retired "blocker count" reading wording`, () => {
+  // Test 1 asserts FORBIDDEN[0..6] — the C1 blocker-status reading block: the "blocker count"
+  // reading tones, the `{blocker=0?}` decision node, the `blocker>0` / `blocker=0` edge conditions,
+  // and the `status` / `blocker` output-contract columns.
+  test(`status-routing wording: ${name} carries zero retired blocker-status reading vocabulary`, () => {
     for (const [label, re] of FORBIDDEN.slice(0, 7)) {
       assert.doesNotMatch(
         skill,
@@ -77,7 +80,10 @@ for (const name of CARRIERS) {
     }
   });
 
-  test(`status-routing wording: ${name} carries zero self-narrated S1/S2/S3 routing restatement`, () => {
+  // Test 2 asserts FORBIDDEN[7..] — the C5 routing-restatement block: the S1/S2/S3 label ban, the
+  // "three segments" retelling, the closing-round / re-review descriptors, and the retired
+  // `status:`→dispatch reading idioms.
+  test(`status-routing wording: ${name} carries zero retired S1/S2/S3 routing-restatement vocabulary`, () => {
     for (const [label, re] of FORBIDDEN.slice(7)) {
       assert.doesNotMatch(
         skill,

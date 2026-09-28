@@ -1,9 +1,9 @@
 # Cdd Review 输出面契约修正（Cdd Review Output-Contract Fix）— Single Spec
 
-- **Version**: v1.3 · 2026-09-28
+- **Version**: v1.4 · 2026-09-28
 - **Status**: Approved
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
-- **Issues（收口时关闭）**: #302（cdd review 输出与 findings 的 blocker 同词异义导致路由判读歧义）· #304（cdd 收口 claim 审计：prose 误触发 + 排障引导不指向根因）· #305（branch-review root 注入缺口 + 静默空转）· #306（branch-review stdout 缺 result 行且 WARN 误导）
+- **Issues（收口时关闭）**: #302（cdd review 输出与 findings 的 blocker 同词异义导致路由判读歧义）· #304（cdd 收口 claim 审计：prose 误触发 + 排障引导不指向根因）· #305（branch-review root 注入缺口 + 静默空转）· #306（branch-review stdout 缺 result 行且 WARN 误导）· #307（branch-fix 关闭 handoff schema 校验失败——fix 已提交却被 BLOCKED）
 - **程序形态**: 独立 single-spec 程序（无 parent overall，无 canonical schema）；docs-lane 门控仅断言 `- **Version**:` 头行
 
 ## 背景与根因
@@ -131,6 +131,29 @@ T6 须在本程序**自身终闸 branch-review 之前**落地——否则 C2 审
 
 ---
 
+## C4：#307 — branch-fix 收据契约（closing handoff 由 engine 事实重造）
+
+**核心原则（统一抽象）**：每一通道的 closing handoff 都由 **engine 从机器事实重造**——implement 已是此形态（`finalizeImplement` 从 brief TASK_BASE + git HEAD 造）；agent 字节仅作输入，永不 verbatim 定格为收据。当前 branch-fix 违反该原则（`finalizeHandoff` mode `"fix"` 原样透传 `agentHandoff`，`finalize.ts:429-436`），实测：agent 照注入 schema 镜像出 `$schema` 键（`additionalProperties: false` 拒）、`review_scope`/`notes` 落错形状 → 修已 commit 仍 BLOCKED。三条裁定：
+
+### C4-1 收据事实重造（治 ①③）
+
+- branch-fix 关闭路径改「engine 事实重造 + agent 输入」：commits（git facts）+ phase + status（commit-contract 判定）为权威；agent 原始 handoff 为输入（findings/notes 保留、未知键与 `$schema` 剥离）。
+- **修已 commit（commits.head 前移）且无代码面错误 → 收据自愈为 APPROVED**，不再硬闸于收据形状；真正失败面（无 commit / 代码面错误）仍 BLOCKED。
+
+### C4-2 注入面 = 可写子集（治 ①② 源头）
+
+- `renderHandoffSchemaJson`（`render/templates.ts:191-193`，`#shellFor` `:229` 注入）输入收敛为**可写子集**——剥 `$schema` 元键 + 剥 dispatch-盖章字段（`review_scope`「determined by the dispatch, not authored」族）——agent 无缘照抄不可写面。
+
+### C4-3 错误信息（承 #306 引导号召）
+
+- 仍败时 blocker 附**坏字段名 + 期望形态**（现状已含字段名，补期望形态 + 修后重跑同句）。
+
+### C4 依赖
+
+T7 须在本程序**自身终闸 branch-fix 之前**落地——否则终闸 branch-review 通过后的 branch-fix 同撞此闸。串行排 T6 之后、终闸收口前。
+
+---
+
 ## 验收 criteria
 
 - **C1 引擎**：return-block 无 `blocker:` 行（`returnFourLines`/`assembleReturnBlock`/`dryRunBlock`/`returnFromHandoff` 单测断言 + 输出契约 grep）；`blockerDefaultFor` 与「`blocker: none`」零残存；`smoke-cdd.ts:33,466` 输出契约 pin 更新为 4-key（`status/commits/artifacts/counters`）；docs 面 `result-face.ts` + `result-face.test.ts` 保持（M2 计数）。
@@ -144,7 +167,8 @@ T6 须在本程序**自身终闸 branch-review 之前**落地——否则 C2 审
 - **C2 诊断**：mismatch 输出载荷断言（clause 摘录 + 解析相位 + 机理 + 类别分派 + 可执行动作）。
 - **C3（root 注入）**：branch-review 黑盒路径 `ctx.repoRoot` 恒真（缺根 WARN 零触发——doc-audit 门实跑）；真实 mode 缺根 → `CDD_BLOCKED` + exit 1、dry-run 缺根 → WARN（双 lane 单测）；`--root` 三命令 CLI 白名单可用。
 - **C3（result-line）**：branch-review 真实 mode stdout 含 return block（status/commits/artifacts + counters，零 `blocker:`）——单测断言父进程契约行存在。
-- **收口**：changeset 双包各一（`@oscaner-skills/cdd-engine` patch + `@oscaner-skills/osuperpowers` patch，skills 文档随包）；validate/precommit 全绿（含 `smoke-cdd` 更新面）；issue #302 + #304 + #305 + #306 收口关闭。
+- **C4（收据重造）**：branch-fix 修已 commit + 无代码面错误 → 收据自愈 APPROVED（engine 事实重造，不 BLOCKED）；注入 schema 可写子集（grep `$schema`/`review_scope` 注入面零命中）；仍败面 blocker 附期望形态；单测断言。
+- **收口**：changeset 双包各一（`@oscaner-skills/cdd-engine` patch + `@oscaner-skills/osuperpowers` patch，skills 文档随包）；validate/precommit 全绿（含 `smoke-cdd` 更新面）；issue #302 + #304 + #305 + #306 + #307 收口关闭。
 
 ## 影响面清单（file:line 事实锚点）
 
@@ -164,6 +188,9 @@ T6 须在本程序**自身终闸 branch-review 之前**落地——否则 C2 审
 | 缺根 BLOCK 面 | `src/dispatch/base.ts:217-220` | C3-a：真实 mode `CDD_BLOCKED` + exit 1；dry-run WARN |
 | CLI 白名单 | `src/cli/parse.ts:167-195`（implement/fix/review 三命令） | C3-a：统一增 `--root` |
 | branch result-line | `src/dispatch/branch.ts:380-479` | C3-b：真实 mode `normalizeResult` 经 `returnFromHandoff` 单点 emit（吃 4 行新契约；dry-run `:393-402` 已同源） |
+| fix 收据重造 | `src/artifacts/handoff/finalize.ts:429-436`（mode "fix"）+ `finalizeImplement:416-427` 同构 | C4-1：透传 → engine 事实重造（commits/phase/status 权威 + agent 输入剥离） |
+| 注入可写子集 | `src/render/templates.ts:191-193,229`（`renderHandoffSchemaJson`/`#shellFor`） | C4-2：剥 `$schema` 元键 + dispatch-盖章字段（`review_scope` 族） |
+| fix 错误信息 | `src/dispatch/branch.ts:288,291` | C4-3：附期望形态（承 #306） |
 
 ## 非目标
 
@@ -179,3 +206,4 @@ T6 须在本程序**自身终闸 branch-review 之前**落地——否则 C2 审
 | v1.1 | 2026-09-28 | cdd spec-review r1（blocker=0，2 warn + 4 nit）全 finding 落地：⑧1 诊断示例重锚到修复后行为（字母后缀报非法不回退父行）+ ② task/branch 面 M3 载体正面裁定（stderr `CDD_BLOCKED:` 单通道 + 材料化解构 3 行重接 + task handoff schema `blocker` 字段空置/allOf 调整，`finalize.ts` 与 `task-handoff-schema.json` 补入影响面）+ agent 输出 3 行/引擎 stdout 4 行行数区分 + C1 实测根因证据按 face 分列 + ⑤ 判别改结构性规则（头部 token + 非括注）+ EOF 补换行（v1.0→v1.1） | [human] · Claude Opus 5 (1M context) |
 | v1.2 | 2026-09-28 | 程序批准：Status Draft → Approved（cdd spec-review r1 收敛 blocker=0，REVIEW_FIX 收口轮 approved，零 re-review）——单 spec 合流 #302 + #304，进入 writing-plans | [human] · Claude Opus 5 (1M context) |
 | v1.3 | 2026-09-28 | 程序 in-flight 回填（I6，user 拍板「规划入当前阶段修复」）：#305 + #306 并入为 **C3 branch-review 通道契约收口**——C3-a 递归 root 注入（`cli/review.ts` seed 解析后 root + `base.ts` 缺根真实 BLOCK/dry-run WARN + `parse.ts` 三命令 `--root`）+ C3-b result-line 存在性（branch-review 真实 mode 经 `returnFromHandoff` 单点 emit，吃 C1 ② 新契约）；根因分析入档（#306 = #305 自我修正：handoff 实已产出、缺的是父进程契约行）；依赖 = T6 须在本程序终闸 branch-review 前落地 | [human] · Claude Opus 5 (1M context) |
+| v1.4 | 2026-09-28 | 程序 in-flight 回填（I6，同批）：#307 并入为 **C4 branch-fix 收据契约**——核心原则 = closing handoff 由 engine 从机器事实重造（implement 同构，`finalizeImplement` 先例）、agent 字节仅作输入；C4-1 收据事实重造（修已 commit + 无代码面错误 → 自愈 APPROVED，不再硬闸）+ C4-2 注入面可写子集（剥 `$schema` 元键 + `review_scope` 非可写字段族）+ C4-3 错误信息附期望形态（承 #306）；根因实证（`$schema` 注入源 = `renderHandoffSchemaJson` 整份 schema verbatim）；依赖 = T7 须在本程序终闸 branch-fix 前落地 | [human] · Claude Opus 5 (1M context) |

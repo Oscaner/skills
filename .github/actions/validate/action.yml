@@ -8,6 +8,15 @@ runs:
       shell: bash
       run: |
         pnpm install --frozen-lockfile
+    # @latest is deliberately unpinned: the pi-package contract must stay valid against the
+    # moving pi ecosystem — pinning an old version would let this guard decay as pi evolves.
+    # The @latest install is still failure-guarded: the C4 install smoke
+    # (packages/osuperpowers/tests/pi-install-smoke.test.mjs) fails hard with its install
+    # command in the message when the binary is missing (zero silent skip).
+    - name: Install pi coding agent
+      shell: bash
+      run: |
+        npm i -g @earendil-works/pi-coding-agent@latest
     - name: Run validation suite
       shell: bash
       run: |

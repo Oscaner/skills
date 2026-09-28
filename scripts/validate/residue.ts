@@ -183,21 +183,26 @@ const STALE_LEXICON_CHECKS = [
     scope: ALL_MECH_POSITIONS,
   },
   { label: "submodule word-form regression", re: /\bsubmodule[s]?\b/, scope: ALL_MECH_POSITIONS },
-  // Task 19 (P6, spec F2): `.agents/` emit-surface removal (A5) + droid/pi keywords (A3) regression
+  // Task 19 (P6, spec F2): `.agents/` emit-surface removal (A5) + droid keyword (A3) regression
   // guard. `.agents` uses the path/end-of-line form (`.agents/` or `.agents` at EOL; `m` makes `$`
   // line-local); bare mentions in other files are legal prose and stay. scope = ALL_MECH_POSITIONS
   // zero-exemption (docs/maintainers's stale-reference cleanup is deferred to the F-domain
-  // reorganization per spec F7, not on this surface — same ruling as vendors); droid/pi guards only
-  // the A3 landing package.json (`\bpi\b` hits both the dead `#pi` field name and the keywords pi
-  // word; no repo-wide bare words — pipeline/principle etc. are legal English words).
+  // reorganization per spec F7, not on this surface — same ruling as vendors); the droid lane
+  // guards only the A3 landing package.json, with zero repo-wide bare words (no word like `droid`
+  // in legal prose — pipeline/principle etc. stay legal). Superseded by the P1 pi-harness: `pi` is
+  // now this package.json's live distribution field (`keywords: ["pi-package"]` + `pi: { skills:
+  // ["./skills"] }`), so the residual `\bpi\b` branch is retired wholesale — the old "dead
+  // residue" premise collapsed when pi became the shipped manifest face (no precise regex, no
+  // narrowed scope, no blind pass; the pi contract is pinned instead by
+  // packages/osuperpowers/tests/pi-package.test.mjs).
   {
     label: ".agents/ emit-surface regression (post-A5 removal)",
     re: /\.agents(\/|$)/m,
     scope: ALL_MECH_POSITIONS,
   },
   {
-    label: "droid/pi keywords regression (A3 package.json)",
-    re: /\bdroid\b|\bpi\b/,
+    label: "droid keyword regression (A3 package.json)",
+    re: /\bdroid\b/,
     scope: ["packages/osuperpowers/package.json"],
   },
   // Task 23 (P6, spec F8a): H1 semantic-name mechanism guard (zero-exemption). Two complementary

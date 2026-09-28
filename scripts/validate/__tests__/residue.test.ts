@@ -263,12 +263,15 @@ describe("stale-lexicon：vendors 自维护语汇（P6 Task 2 / B12）", () => {
   });
 });
 
-// ---- Task 19（P6）：F2 全量断言 —— .agents emit 面（A5）+ droid/pi keywords（A3）防回渗 ----
-// .agents 守卫 scope = ALL_MECH_POSITIONS（机制位置零豁免；docs/maintainers 的 stale 引用
-// 清理延后至 F7 重组合并面）；droid/pi 守卫只守 A3 落点 package.json（`\bpi\b` 同时覆盖
-// 死 `#pi` 字段形与 keywords 的 pi 词）。反例：无 `.` 前缀的 agents、英文词 pipeline/
-// principal/piper、版本号 0.1.1 均放行。
-describe("stale-lexicon：.agents + droid/pi 语汇（P6 Task 19 / spec F2）", () => {
+// ---- Task 19 (P6, spec F2): .agents emit surface (A5) + droid keyword (A3) regression guard ----
+// .agents scope = ALL_MECH_POSITIONS (mechanism positions, zero-exemption; docs/maintainers stale
+// references deferred to the F7 re-org merge face). The droid lane guards only the A3 landing
+// package.json. Superseded by the P1 pi-harness: `pi` became the live distribution field of
+// packages/osuperpowers/package.json (`keywords: ["pi-package"]` + `pi: { skills: ["./skills"] }`),
+// so the initial `\bpi\b` branch was retired wholesale — the pi-shaped literals below are pinned
+// as pass (false) end-state, while droid keeps its hit (true). Counter-examples: bare agents (no
+// dot prefix), English words pipeline/principal/piper, version numbers.
+describe("stale-lexicon: .agents + droid lexicon (P6 Task 19 / spec F2)", () => {
   it(".agents/ 路径形命中（emit 副本面回渗）", () => {
     expect(hasHit(["packages/osuperpowers/.agents/skills/writing-single-spec/SKILL.md"])).toBe(
       true,
@@ -281,10 +284,10 @@ describe("stale-lexicon：.agents + droid/pi 语汇（P6 Task 19 / spec F2）", 
     expect(hasHit(["the shared agents namespace"])).toBe(false);
     expect(hasHit(["multi-agent orchestration"])).toBe(false);
   });
-  it("droid/pi keywords 命中（含死 #pi 字段形）", () => {
-    expect(hasHit(['"keywords": ["ped", "pi"]'])).toBe(true);
-    expect(hasHit(['"droid"'])).toBe(true);
-    expect(hasHit(['"#pi": {…}'])).toBe(true);
+  it("droid keyword hits while pi shapes pass (A3 retired end-state pin)", () => {
+    expect(hasHit(['"keywords": ["ped", "pi"]'])).toBe(false); // pi shapes pass — pi is now the live distribution field
+    expect(hasHit(['"droid"'])).toBe(true); // the droid premise is unchanged — keeps hitting
+    expect(hasHit(['"#pi": {…}'])).toBe(false); // the dead #pi-shaped literal retired with the \bpi\b branch
   });
   it("英文词零误报：pipeline/principal/piper/版本号放行", () => {
     expect(hasHit(["pipeline of rollouts"])).toBe(false);
@@ -312,7 +315,7 @@ describe("stale-lexicon：.agents + droid/pi 语汇（P6 Task 19 / spec F2）", 
     try {
       const hits = collectStaleLexiconHits([dir]);
       expect(hits).toHaveLength(1);
-      expect(hits[0].label).toMatch(/droid\/pi/);
+      expect(hits[0].label).toMatch(/droid/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

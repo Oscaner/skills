@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 // scripts/validate/osuperpowers.ts — 5b block: osuperpowers plugin validation.
-// Four step descriptors in original run order — marker / skills-count /
-// node:test trees / wiring guard (ci-validate.test.mjs). The 5b1 cdd-engine
-// Vitest suite lives in engine.ts and is spliced between the node:test tree and
-// the wiring guard by index.ts.
+// Five step descriptors in original run order — marker / skills-count / node:test
+// trees / wiring guard (ci-validate.test.mjs) / pi-package well-formed. The
+// cdd-engine Vitest suite lives in engine.ts; index.ts splices it after the first
+// four steps of this block, leaving the pi-package check to close the block.
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -16,18 +16,25 @@ function assert(cond, msg) {
   if (!cond) throw new Error(msg);
 }
 
-function countSkillsWithMarkdown(dir) {
+// Single definition of "a skill = directory containing SKILL.md" — shared by the skills-count
+// check below, the pi-package well-formed guard, and the behavior tests (pi-package.test.mjs,
+// pi-install-smoke.test.mjs): a definition change needs this one edit only.
+export function countSkillsWithMarkdown(dir) {
   return readdirSync(dir, { withFileTypes: true }).filter(
     (e) => e.isDirectory() && existsSync(path.join(dir, e.name, "SKILL.md")),
   ).length;
 }
 
+// Authoritative skills count — module-level single source of truth shared by the skills-count
+// check below and the behavior tests (packages/osuperpowers/tests/pi-package.test.mjs,
+// packages/osuperpowers/tests/pi-install-smoke.test.mjs).
+export const EXPECTED = 8; // init (deleted at T10) + 3 new spec-writers (T12 writing-{single,overall,phase}-spec)
+
 function checkOsuperpowersSkillsCount() {
   const p = path.join(ROOT, "packages/osuperpowers");
   const manifest = JSON.parse(readFileSync(path.join(p, ".claude-plugin/plugin.json"), "utf8"));
   const skills = manifest.skills;
-  const EXPECTED = 8; // 5（init 已删 T10）+ 3 新 spec-writer（T12 writing-{single,overall,phase}-spec）
-  const EMITTERS_LABEL = `${EXPECTED} skills`; // 纯计数标签（T16 去枚举——不重复写数值，EXPECTED 为唯一计数真相）
+  const EMITTERS_LABEL = `${EXPECTED} skills`; // pure count label (no re-listing; EXPECTED is the only count truth)
   let n: number;
   if (skills === null || skills === undefined) {
     const dir = path.join(p, "skills");
@@ -56,6 +63,62 @@ function checkOsuperpowersSkillsCount() {
     );
     console.log(`OK — ${skills.length} osuperpowers skills (explicit list)`);
   }
+}
+
+// First-class pi-package guard (C2): the package.json#pi source-field contract
+// checked statically — five assertions, zero subprocesses, zero engine invocation
+// — sharing the skills-count truth with checkOsuperpowersSkillsCount via the
+// module-level EXPECTED export (no local literal: a count change must update one
+// symbol only). The files-closure check is the static subset per the closure
+// contract (./ stripped, then directory/file prefix coverage); pack-truth is
+// verified separately by the install smoke.
+function checkPiPackageWellFormed(pkgRoot) {
+  const pkg = JSON.parse(readFileSync(path.join(pkgRoot, "package.json"), "utf8"));
+
+  // 1. Keywords carry the pi-package marker.
+  assert(
+    Array.isArray(pkg.keywords) && pkg.keywords.includes("pi-package"),
+    "package keywords must contain the literal pi-package",
+  );
+
+  // 2. pi.skills is a non-empty string[] of ./<path> glob shapes.
+  const declared = pkg.pi?.skills;
+  assert(Array.isArray(declared) && declared.length > 0, "pi.skills must be a non-empty array");
+  for (const s of declared) {
+    assert(
+      typeof s === "string" && s.startsWith("./") && s.length > 2 && !s.includes(".."),
+      `pi.skills entries must be ./<path> glob shapes, got: ${s}`,
+    );
+  }
+
+  // 3. pi declares no extensions/prompts keys (R0 invariant).
+  for (const key of ["extensions", "prompts"]) {
+    assert(!Object.hasOwn(pkg.pi ?? {}, key), `pi must not declare an ${key} key`);
+  }
+
+  // 4. Each declared skills path resolves to exactly EXPECTED SKILL.md dirs — the
+  //    count is read from the shared module export, never a local literal.
+  for (const s of declared) {
+    const dir = path.join(pkgRoot, s.replace(/^\.\//, "").replace(/\/\*$/, ""));
+    assert(existsSync(dir), `pi.skills path must resolve on disk: ${s}`);
+    const n = countSkillsWithMarkdown(dir);
+    assert(n === EXPECTED, `expected ${EXPECTED} osuperpowers skills under ${s}, got ${n}`);
+  }
+
+  // 5. Files closure: each pi-declared path is a static subset of the pkg.files
+  //    whitelist (directory or file prefix coverage after stripping ./ and /).
+  const whitelist = (pkg.files ?? []).map((p) => p.replace(/\/$/, ""));
+  for (const s of declared) {
+    const d = s.replace(/^\.\//, "");
+    assert(
+      whitelist.some((w) => d === w || d.startsWith(`${w}/`)),
+      `pi-declared path ${d} must be covered by a package files whitelist entry`,
+    );
+  }
+
+  console.log(
+    `OK — osuperpowers pi-package well-formed (${EXPECTED} skills via ${declared.join(", ")})`,
+  );
 }
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -87,6 +150,10 @@ export const steps = [
     name: "validate wiring guard (ci-validate.test.mjs)",
     cmd: "node",
     args: ["--test", "packages/osuperpowers/tests/ci-validate.test.mjs"],
+  }),
+  new CheckBlock({
+    name: "osuperpowers pi-package well-formed",
+    run: () => checkPiPackageWellFormed(path.join(ROOT, "packages/osuperpowers")),
   }),
 ];
 

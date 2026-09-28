@@ -362,8 +362,15 @@ function maskParentheticals(clause: string): string {
 // deliberately NOT in the closed attribution set — the discrimination is a structural rule, not a
 // dictionary membership judgment. CLAIM_SLOT_SUBSTANTIVE_RE covers the attribution atoms (longest
 // alternatives first), CLAIM_SLOT_GAP_RE the punctuation a declaration slot may close with.
-const CLAIM_SLOT_SUBSTANTIVE_RE =
-  /\[[^\]]*\]\([^)]*\)|\bP\d+(?:\.\d+)*[a-z]*\b|implementation|plan|design|spec|计划|设计|规格|回填|实现/gi;
+// The atom family is deliberately engine-local (same class as LINK_RE above — a parse primitive,
+// not a doc-structure token). The plan branch embeds the schema-derived PLAN_LINK_WORD source so
+// a claimPatterns.planLinkWord evolution follows the discrimination set; the design words stay
+// loose per-word atoms (`design|spec`) — the schema's `Design spec` phrase, a deliberate widening —
+// and `implementation|设计|规格|回填|实现` are engine-local attribution vocabulary with no schema leaf.
+const CLAIM_SLOT_SUBSTANTIVE_RE = new RegExp(
+  `\\[[^\\]]*\\]\\([^)]*\\)|\\bP\\d+(?:\\.\\d+)*[a-z]*\\b|${PLAN_LINK_WORD.source}|implementation|design|spec|设计|规格|回填|实现`,
+  "gi",
+);
 const CLAIM_SLOT_GAP_RE = /^[\s　：:，,、+・\-–—]*$/;
 
 /** C2 ⑤ — true when the (paren-masked) slot span preceding a claim literal is a pure

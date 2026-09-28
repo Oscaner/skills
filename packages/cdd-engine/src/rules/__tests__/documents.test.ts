@@ -1009,11 +1009,6 @@ describe("C2 claim discrimination — declaration-slot head + non-parenthetical 
   it("⑤ a non-head literal is prose (非头部 — glue between the attribution and `Pending` breaks the slot)", () => {
     const n = documentsValidator.extractClaimRows([row("P1 计划列回填为 Pending → Done")]);
     expect([...n.planClaims.keys()]).toEqual([]);
-    // a prose-position range after the literal does not become a claim either
-    const n2 = documentsValidator.extractClaimRows([
-      row("前述 Pending → Done 与 P3.10.1–P3.10.5 无关"),
-    ]);
-    expect([...n2.planClaims.keys()]).toEqual([]);
   });
 
   it("⑥ a declaration-position range is a multi-target declaration — the expanded phase list rides the claim payload", () => {
@@ -1029,6 +1024,17 @@ describe("C2 claim discrimination — declaration-slot head + non-parenthetical 
       "P3.10.5",
     ]);
     expect(planClaims.get("P3.10.1")).toBe("Done");
+  });
+
+  it("⑥ a prose-position range after a declared literal is never expanded into targets — the window stays at the declared phase (prose 位不展开)", () => {
+    // The plan link word keeps the lane gate open and the head literal declares on the windowed
+    // phase only — the range that follows the target in prose position must not become claim
+    // targets (range expansion is a declaration-window semantic).
+    const { planClaims } = documentsValidator.extractClaimRows([
+      row("P1 计划列回填：Pending → Done 与 P3.10.1–P3.10.5 无关联"),
+    ]);
+    expect([...planClaims.keys()]).toEqual(["P1"]);
+    expect(planClaims.get("P1")).toBe("Done");
   });
 
   it("⑦ `P3.10a` is an illegal phase-id error state — the letter suffix is never swallowed into `P3.10`, and the parse phase slot stops at the error", () => {

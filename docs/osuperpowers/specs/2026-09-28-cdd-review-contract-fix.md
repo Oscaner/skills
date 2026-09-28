@@ -1,7 +1,7 @@
 # Cdd Review 输出面契约修正（Cdd Review Output-Contract Fix）— Single Spec
 
-- **Version**: v1.1 · 2026-09-28
-- **Status**: Draft
+- **Version**: v1.2 · 2026-09-28
+- **Status**: Approved
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Issues（收口时关闭）**: #302（cdd review 输出与 findings 的 blocker 同词异义导致路由判读歧义）· #304（cdd 收口 claim 审计：prose 误触发 + 排障引导不指向根因）
 - **程序形态**: 独立 single-spec 程序（无 parent overall，无 canonical schema）；docs-lane 门控仅断言 `- **Version**:` 头行
@@ -150,3 +150,4 @@ doc-contract BLOCKED / mismatch 输出升级为：
 
 | v1.0 | 2026-09-28 | 程序 charter：cdd review 输出面契约修正（#302 + #304 单 spec 双组件）——C1 blocker 一义一词（status 路由 / return-block 去列 / 命名收编 / skills 重锚）+ C2 claim 判别 / range / 诊断三件套；探索实证四义表与根因修正入档 | [human] · Claude Opus 5 (1M context) |
 | v1.1 | 2026-09-28 | cdd spec-review r1（blocker=0，2 warn + 4 nit）全 finding 落地：⑧1 诊断示例重锚到修复后行为（字母后缀报非法不回退父行）+ ② task/branch 面 M3 载体正面裁定（stderr `CDD_BLOCKED:` 单通道 + 材料化解构 3 行重接 + task handoff schema `blocker` 字段空置/allOf 调整，`finalize.ts` 与 `task-handoff-schema.json` 补入影响面）+ agent 输出 3 行/引擎 stdout 4 行行数区分 + C1 实测根因证据按 face 分列 + ⑤ 判别改结构性规则（头部 token + 非括注）+ EOF 补换行（v1.0→v1.1） | [human] · Claude Opus 5 (1M context) |
+| v1.2 | 2026-09-28 | 程序批准：Status Draft → Approved（cdd spec-review r1 收敛 blocker=0，REVIEW_FIX 收口轮 approved，零 re-review）——单 spec 合流 #302 + #304，进入 writing-plans | [human] · Claude Opus 5 (1M context) |

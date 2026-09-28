@@ -5,6 +5,7 @@
 // (assertion surface = ExitRequested.code from convergedExit3), which covers the
 // reviewConvergenceGuard half of the same cluster.
 import { describe, expect, it } from "vitest";
+import { rollupStatus } from "../../artifacts/handoff/finalize.ts";
 import { ExitRequested } from "../../infra/exit.ts";
 import { ConvergenceChecker } from "../convergence.ts";
 
@@ -155,6 +156,48 @@ describe("rules/convergence.ts — reviewConvergenceGuard（Review Convergence �
           1,
           "plan",
         ),
+      ),
+    ).toBe(3);
+  });
+});
+
+describe("rules/convergence.ts — status ⟺ severity 等价锚（C1 ①④，防旁路稀释）", () => {
+  // The guard's machine decision stays bijectively aligned with the rollup encoding (finalize.ts
+  // rollup — the single status ⟺ severity map): CHANGES_REQUESTED ⟺ ≥1 blocker-severity finding ⟺ the
+  // guard does NOT stop (S1 — fix must run, then re-review); APPROVED ⟺ zero findings ⟺ the guard
+  // stops (S3 convergence — the same ref is not re-reviewed); REVIEW_FIX ⟺ warn/nit-only ⟺ a
+  // non-APPROVED round never converges early at the machine gate (S2 close).
+  it("CHANGES_REQUESTED ⟺ ≥1 blocker：guard 不停（fix 后必 re-review，即使 status 被旁路稀释为 APPROVED）", () => {
+    const findings = [{ severity: "blocker" }, { severity: "warn" }];
+    expect(rollupStatus(findings)).toBe("CHANGES_REQUESTED");
+    expect(convergence.blockerCount({ findings })).toBe(1);
+    // bypass-dilution face: status falsely declared APPROVED with blocker findings — the guard still
+    // does not stop (a blocker round never closes early upstream of its addressing fix)
+    expect(
+      exitCodeOf(() =>
+        convergence.reviewConvergenceGuard({ status: "APPROVED", findings }, "task", 2, "plan"),
+      ),
+    ).toBe(null);
+  });
+
+  it("REVIEW_FIX ⟺ warn/nit-only（blockerCount=0）：guard 不停（非 APPROVED 轮不机器收敛）", () => {
+    const findings = [{ severity: "warn" }, { severity: "nit" }];
+    expect(rollupStatus(findings)).toBe("REVIEW_FIX");
+    expect(convergence.blockerCount({ findings })).toBe(0);
+    expect(
+      exitCodeOf(() =>
+        convergence.reviewConvergenceGuard({ status: "REVIEW_FIX", findings }, "task", 1, "plan"),
+      ),
+    ).toBe(null);
+  });
+
+  it("APPROVED ⟺ 0 findings：guard 停（S3 收敛 — 同一 ref 不再 re-review）", () => {
+    const findings: Array<{ severity?: string }> = [];
+    expect(rollupStatus(findings)).toBe("APPROVED");
+    expect(convergence.blockerCount({ findings })).toBe(0);
+    expect(
+      exitCodeOf(() =>
+        convergence.reviewConvergenceGuard({ status: "APPROVED", findings }, "task", 1, "plan"),
       ),
     ).toBe(3);
   });

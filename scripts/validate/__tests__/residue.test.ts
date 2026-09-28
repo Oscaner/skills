@@ -1230,6 +1230,21 @@ describe("skills 面守卫（T16）：行 15 零引擎内部结构依赖（AC5 �
       rmSync(dir, { recursive: true, force: true });
     }
   });
+  it("CDD_BLOCKED: / CDD_WARN: 文档化 stderr 通道 → 放行（命令输出契约，非内部结构依赖；cdd-review-contract spec M3/M4）", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "skf-channels-"));
+    const file = path.join(dir, "cli-driven-development", "SKILL.md");
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(
+      file,
+      "- **Read**: `status: BLOCKED` + the stderr `CDD_BLOCKED:` reason; a dirty working tree under dry-run lands a stderr `CDD_WARN:`.\n",
+      "utf8",
+    );
+    try {
+      expect(collectInternalDependencyHits([file])).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
   it("progress.json → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "skf-prog-"));
     const file = path.join(dir, "writing-plans", "SKILL.md");

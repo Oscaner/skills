@@ -13,7 +13,9 @@ import { FAILURE_CATEGORIES } from "../../rules/failure.ts";
 import {
   applyDerivedStatus,
   blockedCarrierFor,
+  deriveReviewStatus,
   finalizeHandoff,
+  rollupStatus,
   statusExitCode,
   taskBaseFromBrief,
 } from "../handoff/finalize.ts";
@@ -44,6 +46,50 @@ it("finalizeHandoff review 族 SP-4 豁免：agent status BLOCKED + findings:[] 
   const agentHandoff = { status: "BLOCKED", findings: [], blocker: "boom" };
   const r = await finalizeHandoff({ mode: "review", agentHandoff });
   expect(r.handoff.status).toBe("BLOCKED");
+});
+
+// ---- C1 ①④ equivalence anchor: status ⟺ severity roll-up (rollupStatus/deriveReviewStatus single
+// encoding — prevents bypass dilution) ----
+// The status-routing criterion's machine equivalence: the review conclusion status is the severity
+// roll-up's bijective image (≥1 blocker-severity finding ↔ CHANGES_REQUESTED — S1 fix then mandatory
+// re-review; warn/nit-only ↔ REVIEW_FIX — S2 closure; zero findings ↔ APPROVED — S3 no fix dispatch).
+// A bypass that dilutes a blocker finding into a lower status fails here.
+describe("rollup 等价锚：status ⟺ severity 汇总（C1 ①④）", () => {
+  const blockerFindings = [
+    { severity: "blocker", summary: "blocking defect" },
+    { severity: "warn", summary: "soft issue" },
+  ];
+  const warnNitFindings = [
+    { severity: "warn", summary: "soft issue" },
+    { severity: "nit", summary: "polish" },
+  ];
+
+  it("≥1 severity=blocker finding → CHANGES_REQUESTED（收敛语义 = fix 后必 re-review）", () => {
+    expect(rollupStatus(blockerFindings)).toBe("CHANGES_REQUESTED");
+    // SP-4 pass-through bypass face: status falsely declared APPROVED is not spared — the
+    // derivation overwrites it to CHANGES_REQUESTED (SP-4 applies to BLOCKED/TIMEOUT rounds only).
+    expect(deriveReviewStatus({ status: "APPROVED", findings: blockerFindings })).toBe(
+      "CHANGES_REQUESTED",
+    );
+  });
+
+  it("warn/nit-only findings → REVIEW_FIX（S2 收口 — 无 blocker 但有 findings）", () => {
+    expect(rollupStatus(warnNitFindings)).toBe("REVIEW_FIX");
+    expect(deriveReviewStatus({ status: "CHANGES_REQUESTED", findings: warnNitFindings })).toBe(
+      "REVIEW_FIX",
+    );
+  });
+
+  it("zero findings → APPROVED（S3 — 无 fix dispatch）", () => {
+    expect(rollupStatus([])).toBe("APPROVED");
+    expect(deriveReviewStatus({ status: "CHANGES_REQUESTED", findings: [] })).toBe("APPROVED");
+  });
+
+  it("防旁路稀释：blocker 任何形态都不会汇总到 CHANGES_REQUESTED 之下", () => {
+    expect(rollupStatus([{ severity: "blocker" }])).not.toBe("REVIEW_FIX");
+    expect(rollupStatus([{ severity: "blocker" }])).not.toBe("APPROVED");
+    expect(rollupStatus([{ severity: "blocker" }, { severity: "nit" }])).toBe("CHANGES_REQUESTED");
+  });
 });
 
 // ---- implement 族：实体化，输入无 agentHandoff 槽位 ----

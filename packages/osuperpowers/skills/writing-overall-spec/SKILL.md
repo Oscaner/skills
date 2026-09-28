@@ -15,11 +15,11 @@ flowchart TD
   A -->|missing| Z1((BLOCKED: install superpowers))
   B --> C[author-spec]
   C --> D[spec-review]
-  D --> E{blocker=0?}
-  E -->|no| F[fix-spec]
-  E -->|yes| F
-  F -->|entered via blocker>0| D
-  F -->|entered via blocker=0| H[commit-spec]
+  D --> E{status?}
+  E -->|CHANGES_REQUESTED / REVIEW_FIX| F[fix-spec]
+  E -->|APPROVED| H[commit-spec]
+  F -->|entered via CHANGES_REQUESTED| D
+  F -->|entered via REVIEW_FIX| H[commit-spec]
   H --> I[handoff-compact-or-brainstorming]
 ```
 
@@ -58,16 +58,16 @@ flowchart TD
 
 ### `spec-review`
 
-- **Do**: Execute one review per cycle — one dispatch: `cdd review --type spec --spec <path>` (the overall spec document under review). Self-review, manual checks, or any other substitute for cdd review CLI invocation is forbidden. Review Convergence (I1): a review closes in three segments — S1 blocker>0 → `cdd fix`, then re-review (cycle to convergence); S2 blocker=0 with warn/nit findings → `cdd fix` closing round (REVIEW_FIX — the spec completes without a re-review); S3 zero findings → approved convergence. Ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch). Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
+- **Do**: Execute one review per cycle — one dispatch: `cdd review --type spec --spec <path>` (the overall spec document under review). Self-review, manual checks, or any other substitute for cdd review CLI invocation is forbidden. Review Convergence (I1): a review closes in three segments by its conclusion `status` — S1 `CHANGES_REQUESTED` (≥1 blocker-severity finding) → `cdd fix`, then re-review (re-review is mandatory after an S1 fix — cycle to convergence); S2 `REVIEW_FIX` (warn/nit-only findings) → `cdd fix` closing round (the overall spec completes without a re-review); S3 `APPROVED` (zero findings) → approved convergence. Ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch). Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
 - **Read**: The authored spec document
-- **Exit**: Blockers routed via `blocker=0?` → `fix-spec` (both branches; the edge inherits the re-run routing)
-- **Fail**: Re-run review after blocker=0 → violates I1 (Review Convergence)
+- **Exit**: `status?` routes CHANGES_REQUESTED / REVIEW_FIX to `fix-spec` and APPROVED to `commit-spec` (no fix dispatch; the re-run path is determined by the entry status)
+- **Fail**: Re-run review after a closure conclusion (REVIEW_FIX / APPROVED) → violates I1 (Review Convergence)
 
 ### `fix-spec`
 
-- **Do**: Fix ALL findings (blocker + warn + nit) via `cdd fix --type spec --spec <path> --findings <workspace>/spec-review-{R}.json`. No new review invocation — work from the findings already captured in the current cycle (a blocker=0 fix is the closing REVIEW_FIX round — all captured findings fixed, complete, no re-review). Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture. After the review, the orchestrator reads only the `status` / `blocker` count from the stdout result line; findings full text is consumed by `cdd fix`'s fix-agent via `--findings <handoff>` — the orchestrator must not self-apply findings as inline edits.
+- **Do**: Fix ALL findings (blocker + warn + nit) via `cdd fix --type spec --spec <path> --findings <workspace>/spec-review-{R}.json`. No new review invocation — work from the findings already captured in the current cycle (a REVIEW_FIX-conclusion fix is the closing round — all captured findings fixed, complete, no re-review). Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture. After the review, the orchestrator reads `status:` for routing; findings full text is consumed by `cdd fix`'s fix-agent via `--findings <handoff>` — the orchestrator must not self-apply findings as inline edits.
 - **Read**: The captured spec-review handoff (current cycle findings)
-- **Exit**: entered via blocker>0 → `spec-review` (re-run); entered via blocker=0 → `commit-spec` (no re-run)
+- **Exit**: entered via `CHANGES_REQUESTED` → `spec-review` (re-run — mandatory after the fix); entered via `REVIEW_FIX` → `commit-spec` (no re-run after the closure)
 - **Fail**: Invoking a new review instead of fixing from captured findings → violates I1 (Review Convergence)
 
 ### `commit-spec`
@@ -88,7 +88,7 @@ flowchart TD
 
 | # | Invariant |
 |---|---|
-| I1 | **Review Convergence** — a review closes in three segments: S1 blocker>0 → `cdd fix`, then re-review (cycle to convergence); S2 blocker=0 with warn/nit findings → `cdd fix` closing round — REVIEW_FIX: complete, no re-review; S3 zero findings → approved convergence, no fix dispatch (for task/branch the review ref moves with the fix commit — the engine cannot intercept it, so this discipline is the only guard). Fixes always dispatch via `cdd fix`; the orchestrator must not edit in place as a substitute |
+| I1 | **Review Convergence** — a review closes in three segments by its conclusion `status`: S1 `CHANGES_REQUESTED` (≥1 blocker-severity finding) → `cdd fix`, then re-review (re-review is mandatory after an S1 fix — cycle to convergence); S2 `REVIEW_FIX` (warn/nit-only findings) → `cdd fix` closing round — REVIEW_FIX: complete, no re-review; S3 `APPROVED` (zero findings) → approved convergence, no fix dispatch (for task/branch the review ref moves with the fix commit — the engine cannot intercept it, so this discipline is the only guard). Fixes always dispatch via `cdd fix`; the orchestrator must not edit in place as a substitute |
 | I2 | **Spec commit discipline** — spec approved = commit immediately; do not wait for dev merge |
 | I3 | **Mid-Flight Backfill** — a user-raised backfill of overall/spec/plan docs surfaced while a dispatch is in flight lands through four ordered steps on the current `cdd` call's return (any dispatch — implement/review/fix): (1) **land immediately** — hot context; no deferral to cycle close (deferral risks losing the decision); (2) **commit on its own** — committed as its own standalone change, never mixed with implementation commits; (3) **pause the loop until clean** — the loop pauses (tree clean, backfill committed) before the next dispatch; an uncommitted backfill trips the next review's entry gate (dirty → BLOCKED); (4) **audit in-band on resume** — after the loop resumes, the next review audits the backfill in-band (changed-surface booking, not a block); a backfill rewriting the current task's own plan/spec text routes through the orchestrator as Plan Sole Writer (cross-task adjudication), otherwise it rides the moving ref. |
 
@@ -98,5 +98,5 @@ flowchart TD
 |---|---|---|
 | Upstream superpowers plugin missing | BLOCKED (install superpowers) | Block policy: no silent fallback |
 | Schema missing/unreadable | BLOCKED (missing schema) | Cannot determine overall spec structure |
-| spec-review re-run after blocker=0 | Violates I1 (Review Convergence) — stop + report to user | Agent declares blocker=0 after fixing without re-running cdd review on that pass |
+| spec-review re-run after a closure conclusion (REVIEW_FIX / APPROVED) | Violates I1 (Review Convergence) — stop + report to user | Agent re-routes to a new review after the previous review already closed (REVIEW_FIX / APPROVED) without opening a new ref |
 | Git commit error | report + fail-open | Do not block user spec review |

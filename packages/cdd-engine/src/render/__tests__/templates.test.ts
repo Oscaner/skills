@@ -564,7 +564,8 @@ describe("renderTemplate（唯一渲染器：壳 → Return 常数 → Round con
   });
 });
 
-// ---- The data plane's empty-injection shell + verbatim schema injection + zero hand-written render symbols (Task 20 ①/③) ----
+// ---- The data plane's empty-injection shell + writable-subset schema injection (C4-2: $schema /
+// review_scope stripped) + zero hand-written render symbols (Task 20 ①/③) ----
 
 describe("unified constant shell（Task 20：四个 .md 并入 sections 的阅读理解）", () => {
   it("壳内零注入槽：sections.shell 零 token 槽（T12 起 `{{> cl:…}}` 条款 partial refs 为装配标记）；`## Round context` 唯一动态区宣言", () => {

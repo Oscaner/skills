@@ -266,6 +266,29 @@ describe("finalizeHandoff fix 族 C4-1：收据事实重造（spec C4）", () =>
     expect(r.handoff.status).toBe("BLOCKED");
     expect(r.handoff.failure_category).toBe(FAILURE_CATEGORIES.UNVERIFIABLE.id);
     expect(r.handoff.blocker).toContain("复现场景");
+    expect(r.handoff.unverifiable).toEqual([{ claim: "复现场景", why: "环境缺失" }]); // the structured lane rides the reconstructed carrier (C4-1)
+    expect(r.exitCode).toBe(1);
+  });
+
+  it("代码面错误：plan_conflicts 车道 → BLOCKED + PLAN_CONFLICT（结构化车道在重造载体上保留）", async () => {
+    const { repo, c0 } = fixFixture();
+    const r = await finalizeHandoff({
+      mode: "fix",
+      agentHandoff: {
+        status: "APPROVED",
+        plan_conflicts: [{ summary: "验收判据 与 plan-constraints §口径 冲突" }],
+        findings: [],
+        artifacts: {},
+      },
+      fixBase: c0,
+      repoRoot: repo,
+    });
+    expect(r.handoff.status).toBe("BLOCKED");
+    expect(r.handoff.failure_category).toBe(FAILURE_CATEGORIES.PLAN_CONFLICT.id);
+    expect(r.handoff.blocker).toContain("plan conflict");
+    expect(r.handoff.plan_conflicts).toEqual([
+      { summary: "验收判据 与 plan-constraints §口径 冲突" },
+    ]);
     expect(r.exitCode).toBe(1);
   });
 

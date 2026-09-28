@@ -527,6 +527,12 @@ export async function finalizeFix({
   };
   if (Array.isArray(agentHandoff.changes)) handoff.changes = agentHandoff.changes;
   if (typeof agentHandoff.notes === "string") handoff.notes = agentHandoff.notes;
+  // C4-1 content-lane preservation: the reconstructed carrier keeps the content-level
+  // unverifiable / plan_conflicts notes as structured lanes (mirror applyDerivedStatus and
+  // normalizeHandoff) — blockedCarrierFor's summary blocker is prose grounding for the channel,
+  // not a substitute for the notes; the re-dispatch reads the lanes, not the flattened text.
+  if (unverifiable.length > 0) handoff.unverifiable = unverifiable;
+  if (planConflicts.length > 0) handoff.plan_conflicts = planConflicts;
 
   if (status === "BLOCKED") {
     // The BLOCKED carrier's grounding (real sources only — never fabricated prose): the

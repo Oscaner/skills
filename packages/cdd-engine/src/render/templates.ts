@@ -208,7 +208,8 @@ export class TemplateLoader {
     return PKG_ROOT;
   }
 
-  // ---- Handoff contract injection (Task 18: schema verbatim; zero render) ----
+  // ---- Handoff contract injection (C4-2: schema writable-subset projection — $schema /
+  // review_scope stripped; zero render) ----
   // Contract uniqueness (schema) → injection uniqueness (its string form). The schema is the only
   // per-family injection the shell carries: shellFor(family) = shared frame + this block.
   // C4-2 (T7): the injected contract = the WRITABLE subset (writableSchemaSubset) — the `$schema`

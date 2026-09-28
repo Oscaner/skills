@@ -1,12 +1,14 @@
-// packages/osuperpowers/tests/status-routing-convergence.test.mjs — C1 ①④ wording grep pin.
-// The status-routing criterion's consumer-facing anchor: the five convergence-carrier SKILL.md
-// files must carry ZERO retired "blocker count" reading wording and zero retired criterion terms
-// (`{blocker=0?}` digraph decision, `blocker>0` / `blocker=0` edge conditions, the `status` /
-// `blocker` count result-line phrasing) — the orchestrator routes on the review conclusion
-// `status:` (CHANGES_REQUESTED ⟺ S1 fix+re-review / REVIEW_FIX ⟺ S2 closure / APPROVED ⟺ S3), and
-// every convergence statement is status-anchored. The check reads the skill files directly (pure
-// node:test, no shell grep chain), and asserts the required anchors so a future convergence
-// rewrite that drops the status vocabulary fails here.
+// packages/osuperpowers/tests/status-routing-convergence.test.mjs — C1 ①④ + C5 (T9) wording grep pin.
+// The routing criterion's consumer-facing anchor: the five convergence-carrier SKILL.md files must
+// carry ZERO retired "blocker count" reading vocabulary and ZERO self-narrated S1/S2/S3 status→dispatch
+// routing restatement (the retired "review closes in three segments … S1 → fix + re-review / S2 → fix
+// closing round / S3 → done" prose and the retired "reads `status:` for routing" reading) — routing is
+// read off the output's `next:` suggestion line (the engine's default next-step, C5-0: dispatch per it
+// when continuing directly; a mid-backfill or a user adjudication that lands governs over it). The
+// status vocabulary survives only as the structural + closure anchors (the `{status?}` digraph decision
+// node and the status edge labels, preserved verbatim), never as narrated routing. The check reads the
+// skill files directly (pure node:test, no shell grep chain) and asserts the required anchors so a
+// future convergence rewrite that drops the `next:` reading fails here.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -27,9 +29,9 @@ const CARRIERS = [
   "writing-plans",
 ];
 
-// Retired wording — the "blocker count" read-interpretation vocabulary and the old criterion terms.
-// Zero occurrences in the carrier SKILL.md files (M1/M3: `blocker` anchors only the finding severity;
-// the routing criterion is the review's conclusion status, never a stdout blocker count).
+// Retired wording — the "blocker count" read-interpretation vocabulary (M1/M3), the "three segments"
+// S1/S2/S3 self-narrated status→dispatch routing restatement (C5/T9), and the retired `status:` reading
+// idiom. Zero occurrences in the carrier SKILL.md files (unless the C1 blocker vocabulary was re-added).
 const FORBIDDEN = [
   ["`blocker` count", /`blocker` count/],
   ["blocker count (unbackticked)", /\bblocker count\b/],
@@ -38,40 +40,61 @@ const FORBIDDEN = [
   ["`blocker>0` edge condition", /\bblocker>0\b/],
   ["`blocker=0` edge condition", /\bblocker=0\b/],
   ["`status` / `blocker` output-contract columns", /`status` \/ `blocker`/],
+  ["`S1`/`S2`/`S3` self-narrated routing labels", /\bS[123]\b/],
+  ["the three-segment convergence restatement", /a review closes in three segments/],
+  ["the S2 'closing round' closure descriptor", /closing round/],
+  ["the S1 're-review is mandatory' re-review clause", /re-review is mandatory/],
+  ["the retired `status:` reading wording", /reads? `status:` for routing/],
+  ["the retired status→dispatch exit mapping", /routes CHANGES_REQUESTED \/ REVIEW_FIX/],
 ];
 
-// Required anchors — the status-routing vocabulary that must be present in every carrier.
-// (The `{status?}` decision node, the three-value status anchors of Review Convergence, and the
-// output-contract routing phrase.)
+// Required anchors — the status criterion's structural anchors (the `{status?}` digraph decision node
+// and the status vocabulary, surviving in the digraph edge labels) plus the `next:`-based routing
+// vocabulary that must be present in every carrier: the unified reading wording, the engine's-default
+// shared reference, the dispatch-per-it directive, and the I6 mid-backfill compatibility sentence.
 const REQUIRED = [
   ["`{status?}` digraph decision node", /status\?/],
   ["S1 status anchor CHANGES_REQUESTED", /\bCHANGES_REQUESTED\b/],
   ["S2 status anchor REVIEW_FIX", /\bREVIEW_FIX\b/],
   ["S3 status anchor APPROVED", /\bAPPROVED\b/],
-  ["three-segment convergence statement", /a review closes in three segments/],
-  ["read `status:` for routing", /reads `status:` for routing/],
+  ["the unified `next:` reading wording", /read the `next:` suggestion/],
+  ["the shared next-step reference (engine's default)", /default next-step suggestion/],
+  ["the dispatch-per-it directive", /dispatch per it/],
+  ["the I6 mid-backfill compatibility wording", /mid-backfill/],
 ];
 
 for (const name of CARRIERS) {
   const skill = readFileSync(path.join(SKILLS_ROOT, name, "SKILL.md"), "utf8");
 
   test(`status-routing wording: ${name} carries zero retired "blocker count" reading wording`, () => {
-    for (const [label, re] of FORBIDDEN) {
+    for (const [label, re] of FORBIDDEN.slice(0, 7)) {
       assert.doesNotMatch(
         skill,
         re,
         `${name}/SKILL.md still carries the retired ${label} — the convergence criterion routes on ` +
-          `status:, never on a stdout blocker count`,
+          `status: / the next: line, never on a stdout blocker count`,
       );
     }
   });
 
-  test(`status-routing wording: ${name} anchors Review Convergence to the status criterion`, () => {
+  test(`status-routing wording: ${name} carries zero self-narrated S1/S2/S3 routing restatement`, () => {
+    for (const [label, re] of FORBIDDEN.slice(7)) {
+      assert.doesNotMatch(
+        skill,
+        re,
+        `${name}/SKILL.md still carries the retired ${label} — the fix/review routing is read off the ` +
+          `engine's \`next:\` suggestion line, never hand-narrated from a status mapping`,
+      );
+    }
+  });
+
+  test(`status-routing wording: ${name} anchors Review Convergence to the status criterion + the next: reading`, () => {
     for (const [label, re] of REQUIRED) {
       assert.match(
         skill,
         re,
-        `${name}/SKILL.md is missing the ${label} — Review Convergence must be status-anchored`,
+        `${name}/SKILL.md is missing the ${label} — Review Convergence must stay status-anchored in ` +
+          `the digraph and route through the \`next:\` suggestion`,
       );
     }
   });

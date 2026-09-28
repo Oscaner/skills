@@ -1,0 +1,76 @@
+# Cdd Review 输出面契约修正实施计划（Cdd Review Output-Contract Fix Implementation Plan）
+
+**Spec:** [2026-09-28-cdd-review-contract-fix.md](docs/osuperpowers/specs/2026-09-28-cdd-review-contract-fix.md)
+
+- **Version**: v1.0 · 2026-09-28
+- **Depends on**: single spec v1.2 Approved（`21037fc9`，#302 + #304 合流单 spec 双组件，无 parent overall）
+- **Base**: develop
+
+## Constraints
+
+### 口径
+
+- **status 路由判据**：S1/S2/S3 收敛判据 = `status`（`CHANGES_REQUESTED` ⟺ ≥1 `severity=blocker` finding，`finalize.ts` 汇总编码）——orchestrator 读 `status:` 行路由，不再判读 stdout `blocker` 字段；findings 全文仍只经 `cdd fix --findings <handoff>` 交 fix-agent（I5 零新增 carve-out）。engine 侧 `reviewConvergenceGuard` / `blockerCount` 机器守门不变。
+- **一义一词（blocker）**：`blocker` 一词全仓唯一锚定 review finding 严重级（M1）；BLOCKED 状态（M4）与 docs 面结果行 `blocker: <n>`（M2 计数）随 spec ③ bounded 映射；stdout return-block `blocker:` 行与 `blockerDefaultFor`/「none」删除。
+- **M3 载体裁定**：task/branch 面 BLOCKED 理由单一化为 stderr `CDD_BLOCKED:` + `failure_category`（task handoff `blocker` 字段空置、schema allOf 仅 failure_category 支撑）；docs 面 handoff `blocker` 字段保持（allOf 不变）。删列后任一 BLOCKED 轮非空理由线索不静默丢失（engine 单测断言）。
+- **行数契约**：agent 输出契约 = 3 行（`status:` / `commits:` / `artifacts:`，agent 永不自产 counters）；引擎 stdout = 4 行（+ `counters:`，`returnCountersLine` 独占构造点）。`RETURN_STDOUT_BLOCK` 族随之收敛，防 prompt 更新者按 4 行要求 agent 自产 counters。
+- **判别结构性**：claim 声明判别 = clause 头部 token（`Pending`/`[Pending]`，`^` 锚语义）+ 非括注内联——结构性规则，引导词不作词典成员判定；range 由判别前置（声明位=多目标、prose 位不声明）。
+- **语法不宽容**：字母后缀 phase-id（`P3.10a`）报非法 + 引导合法点分式（`P3.10.1`），不回退父行——「P3.10a-e → P3.10.1-.5」正名债随行兑现，不反向放宽正则。
+- **等价单测唯一锚**：status ↔ severity 等价断言锚 `finalize.ts` rollup / convergence 单测（防 SP-4 pass-through 等旁路稀释语义）。
+- **changeset 义务**：本 program 双包各一 changeset（`pnpm run changeset`）——`@oscaner-skills/cdd-engine` patch + `@oscaner-skills/osuperpowers` patch（skills 文档随包）；收口时建（实现 commit 后 orchestrator 落）。
+
+### commit 边界机制
+
+- 实现提交按任务粒度（conventional commits，无 attribution trailers）
+- spec/plan 文档仅由 orchestrator（Plan Sole Writer）与 cdd fix-agent 修改；implement agent 零文档修改权
+- C1 engine 变更与 C2 `documents.ts` 变更分任务落地，不混 commit；docs 面 `result-face.ts` / `result-face.test.ts` 保持不动（M2 计数）
+- SKILL.md / maintainers 文档 English-primary（消费面零程序叙事 iron rule）；spec/plan 中文（Strategy B 豁免）
+- 引擎 `.mjs` plane zero：新测试 node:test `*.test.mjs` 或 colocated vitest `__tests__/*.test.ts`（随被覆盖模块）
+- 不触 emit 面（`pnpm run emit:check` 保持 fresh）——本 program 无 emit 产物变更
+
+### Flow Atomicity
+
+- T1 契约破坏先行——return-block 删列与 smoke-cdd pin / finalize 重接 / 单测同任务内落地，validate/precommit 全绿后才进入 T2
+- 单任务原子：实测与 spec 不符 → 不符点记录为任务产出报告交 orchestrator 判定（Plan Sole Writer），不「带伤闭合」
+- 串行 dispatch：T1→T2→T3→T4→T5 全 singleton 组（无 `## Task Groups` 合并）
+
+### 顺序原则
+
+- T1（engine kernel：删列 + M3 载体裁定 + smoke-cdd pin）→ T2（status 路由 + skills ×5 重锚 + 等价单测）→ T3（命名档案收编）→ T4（C2 判别/range/语法）→ T5（C2 诊断三件套）：T2 依赖 T1 世界态（判读措辞引用新行数契约）、T3 依赖 T2 语义、T4/T5 独立于 C1 面但串行收口
+- 每任务 end-to-end：实现 → 该任务面测试绿 → 相关 validate 面绿
+
+### 仓库纪律
+
+- node：`fnm use`（.nvmrc v24）；引擎调用 `node packages/cdd-engine/dist/cli.mjs` 直调（`dev:stub` 后），不走 global cdd
+- 引擎调用直接读完整 stdout/stderr，零输出过滤（无 `tail`/`head`/`2>&1 |`/`EXIT=$?` 捕获）
+- 预提交门 `pnpm run precommit`；完整 12 块 validate 在 CI 净检出上跑，本地提交后 `pnpm run validate` 全量核对
+
+### Task 1: C1 ② return-block 删 `blocker:` 列 + M3 载体裁定（engine kernel）
+
+- **Do**: `packages/cdd-engine/src/artifacts/return-block.ts` 删 `blocker:` 列并定行数契约——`returnFourLines`（`:49-55`）keys `["status","commits","artifacts","blocker"]` → 3 keys（agent 输出契约）；`assembleReturnBlock`（`:139-150`，引擎 stdout）→ `status/commits/artifacts` + `counters` 4 行、`blocker` 槽消除；`dryRunBlock`（`:127-134`）删 `blocker:` 行；`returnFromHandoff`（`:155-183`）删 `blocker:` 行；`blockerDefaultFor`（`:115-122`）与「none」假象源删除；`returnBlocker`（`:104-111`）随 agent 声明通道退役处置。`finalize.ts` 材料化解构（`:558-562`，4 槽 → 3 行）随 3 行契约重接、`blocker` 槽消除，stderr 捕获不到的场合落占领位兜底文案（「implement return status … without blocker」路径可达）。`task-handoff-schema.json` `blocker` 字段（`:171`）空置标注（不再作为 agent 声明通道）、BLOCKED allOf（`:311-318`）调整为仅以 `failure_category` 支撑。agent prompt 模板 `RETURN_STDOUT_BLOCK` 族收敛为 3 行（status/commits/artifacts，agent 永不自产 counters）。`scripts/validate/smoke-cdd.ts` 输出契约 pin 更新——`:33` 注释与 `:466` 断言 keys 改 4-key（status/commits/artifacts/counters，删 blocker）。engine 单测：return-block 各出口零 `blocker:` 行断言 + task 面任一 BLOCKED 轮理由经 stderr `CDD_BLOCKED:` / `failure_category` 可寻址断言（非空理由线索不随删列静默丢失）。
+- **验收**: return-block 零 `blocker:` 行（单测 + grep `blockerDefaultFor` /「blocker: none」零残存）；smoke-cdd 断言 4-key（status/commits/artifacts/counters）；finalize 材料化解构 3 行重接无 4 槽错位；task 面 BLOCKED 理由经 stderr/failure_category 可寻址；`pnpm run validate` + precommit 全绿（engine 套件 + smoke-cdd 更新面）。
+- **注**: docs 面 `result-face.ts` / `result-face.test.ts` 保持不动（M2 计数，C1 ① 互证面）；本任务不改 SKILL.md（判读措辞归 T2）。
+
+### Task 2: C1 ①④ status 路由判据 + skills ×5 重锚 + 等价单测
+
+- **Do**: 五份 SKILL.md——`cli-driven-development`（`:59,66,72,86,104,120-124`）+ `writing-single-spec` / `writing-overall-spec` / `writing-phase-spec` / `writing-plans`（I 节）：Review Convergence 与流程 digraph 的 `{blocker=0?}` 判据改述为 **status 判据**（`CHANGES_REQUESTED` ⇒ S1 fix 后必 re-review / `REVIEW_FIX` ⇒ S2 收口 / `APPROVED` ⇒ S3），边缘条件（`entered via blocker>0` / `blocker=0`）改 status 术语，node 定义的 Exit/Do 文字同步；判读指令删「reads only the `status` / `blocker` count」措辞、改「读 `status:` 路由」（output-contract Read 面同步 3 行/4 行契约）；Failure-Modes 表「blocker from output contract」改写为 `status: BLOCKED` + stderr `CDD_BLOCKED:` 理由（M4 语义，cli-driven-development 面）；digraph-consistency 结构断言保持绿（结构调整不破坏节点/边接线面）。engine 等价单测（colocate `finalize.ts` / `convergence.ts`）：构造含 `severity=blocker` findings → 断言 status=CHANGES_REQUESTED（收敛语义 = fix 后必 re-review）；warn/nit-only → REVIEW_FIX；zero findings → APPROVED——status ⟺ severity 汇总等价，防旁路稀释。
+- **验收**: 5 份 SKILL.md 零「blocker count」判读措辞、Review Convergence 以 status 锚定（precommit digraph 套件 + 措辞 grep pin 绿）；等价单测通过（`CHANGES_REQUESTED` ⟺ ≥1 `severity=blocker`）。
+- **注**: 消费面零程序叙事（iron rule）——skills 文案只承载收敛判据语义、不携带本程序 phase/issue 叙事；digraph 结构调整须过 skill-anatomy 结构断言（边界内，无需 growth registry）。
+
+### Task 3: C1 ③ 命名档案收编
+
+- **Do**: `docs/maintainers/02-naming-conventions.md`——`§3.5`（`:70`）移除 `blocker`（保留词清单去项）；`§3.2` 增 **bounded 映射**行：`blocker` = review finding 严重级（M1，唯一词义）、`BLOCKED` = 轮次状态（M4）、handoff `blocker` 字段（docs 面）= BLOCKED 理由串、task 面理由经 stderr `CDD_BLOCKED:` 单通道、stdout 仅 docs 结果行 `blocker: <n>` 作 M1 计数呈现；`§3.3` mechanismNames 迁移表补一行（stdout return-block `blocker:` 列 → 移除；`blockerDefaultFor` → 删除）。
+- **验收**: `§3.2` bounded 行落 + `§3.5` 零 `blocker` + `§3.3` 迁移行齐全；precommit 全绿（maintainers 一致性检查）。
+- **注**: 文档 English-primary；「一词一义」Principle 2 正式兑现（F8 时代豁免请求收尾）。
+
+### Task 4: C2 ⑤⑥⑦ claim 判别 + range 语义 + 语法显式化（documents.ts）
+
+- **Do**: `packages/cdd-engine/src/rules/documents.ts` 判别/range/语法收口——⑤ **判别结构性规则**：claim 声明仅认可 clause 头部 token `Pending`/`[Pending]`（`CLAIM_SCAN_RE` `:1411-1413` 收到 `claimTarget` 的 `^` 锚 `:207` 头部语义）+ **非括注内联**；括注内（`（…）`）或非头部位置的字面命中 = prose hint、不声明、不参与收敛审计（引导词「链接形态」「例如」「方式」不作词典成员判定）。⑥ **range 语义**：声明位 `P3.10.1-P3.10.5` = 多目标声明（个相位逐一为目标）；prose 位 = 描述性列举不声明；解析产出携带**展开相位清单**（诊断可见，防静默批量误配）。⑦ **语法显式化**：字母后缀（`P3.10a`）不再静默吞入父行——报**非法 phase-id** + 合法形态指引（点分式 `P3.10.1`）。engine 单测：#274 残留形态回归 pin（括注「（Pending → p3.10.1 链接形态）」不声明）；头部 `Pending → P3.1` 命中；非头部字面命中不声明；range 声明位多目标 / prose 位不展开 + 展开清单载荷断言；`P3.10a` → 非法 + 指引 `P3.10.1`（#304(b) 实测链回归，原吞父行行为断言不复现）。
+- **验收**: 判别/range/语法三面 engine 单测全绿；#274 残留形态回归 pin 成立；字母后缀报非法而非吞父行（#304(b) 实测链精确回归）。
+- **注**: 语法显式化承接「P3.10a-e → P3.10.1-.5」正名债；本任务不含诊断载荷（归 T5）。
+
+### Task 5: C2 ⑧ 诊断三件套
+
+- **Do**: doc-contract BLOCKED / mismatch 输出（docs 派发面，`documents.ts` 审计 + 报错载体）升级为三件套——(1) **肇事上下文**：触发 claim 的 clause 摘录 + claim 解析到的相位 + 解析机理（如「P3.10a → 非法 phase-id（字母后缀）：不回退父行，合法形态指引 P3.10.1」——非法形态下解析相位槽位止于错误态；历史吞父行旧机制仅作排障史标注，不放入解析相位槽位）；(2) **按类别分派建议**：语法类 → 合法 phase-id 形态 + 定位（表格行/单元格）；prose 类 → 肇事 clause 摘录 + 建议措辞；(3) **可执行动作**：每条错误至少一个可直接执行的定位/修复动作（如「将 `P3.10a` 改为 `P3.10.1`」）。engine 单测：mismatch/BLOCKED 输出载荷断言（clause 摘录 + 解析相位 + 机理 + 类别分派 + 可执行动作五要素齐备）。
+- **验收**: 诊断载荷单测全绿（五要素断言）；排障引导面直达根因——语法类引导到合法形态与定位、prose 类引导到肇事原文（零误导错误信息兑现，#304(b) 三轮盲修实证消除）。
+- **注**: T5 完成后由 orchestrator 建双包 changeset（`cdd-engine` patch + `osuperpowers` patch）并跑 `pnpm run validate` 全量核对；issue #302 + #304 于 finishing 收口关闭。

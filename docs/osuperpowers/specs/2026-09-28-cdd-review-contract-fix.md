@@ -1,9 +1,9 @@
 # Cdd Review 输出面契约修正（Cdd Review Output-Contract Fix）— Single Spec
 
-- **Version**: v1.2 · 2026-09-28
+- **Version**: v1.3 · 2026-09-28
 - **Status**: Approved
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
-- **Issues（收口时关闭）**: #302（cdd review 输出与 findings 的 blocker 同词异义导致路由判读歧义）· #304（cdd 收口 claim 审计：prose 误触发 + 排障引导不指向根因）
+- **Issues（收口时关闭）**: #302（cdd review 输出与 findings 的 blocker 同词异义导致路由判读歧义）· #304（cdd 收口 claim 审计：prose 误触发 + 排障引导不指向根因）· #305（branch-review root 注入缺口 + 静默空转）· #306（branch-review stdout 缺 result 行且 WARN 误导）
 - **程序形态**: 独立 single-spec 程序（无 parent overall，无 canonical schema）；docs-lane 门控仅断言 `- **Version**:` 头行
 
 ## 背景与根因
@@ -110,6 +110,27 @@ doc-contract BLOCKED / mismatch 输出升级为：
 
 ---
 
+## C3：#305 + #306 — branch-review 通道契约收口（root 注入 + result-line 存在性）
+
+两条 issue 为同根并发观测——branch-review 输出通道的契约缺位（#305 自 root 侧观测、#306 自结果侧观测）；#306 为 #305 现象的自我修正：评审 agent 实际正常跑、handoff 正常产出，缺的是父进程 stdout 契约行。统一三条裁定：
+
+### C3-a 递归 root 注入（治 #305 ①②③ + #306 ②根因）
+
+- branch channel 的 `ctx.repoRoot` 由 `opts.root ?? null`（`cli/review.ts:124`）改**解析后 root**（`cli/review.ts:95` 已解析值）——与 task 通道（`task.ts:1160`）、docs 自愈（`docs.ts:159-160`）、branch-fix（`branch.ts:561`）同源对齐；黑盒路径 `ctx.repoRoot` 恒真，`base.ts:218` 的 `CDD_WARN: doc contract validation skipped (no repo root)` 不再触发（误导面根治，不修文案）。
+- doc-contract 缺根面（`base.ts:217-220`）升级：**真实 mode → `CDD_BLOCKED` + exit 1（严禁缺根 WARN + exit 0 空转）**；dry-run → 保持 WARN（I7：dry-run 永不阻塞）。
+- `parse.ts` 三命令（implement/fix/review）统一声明 `--root`（对齐内部 `opts.root ?? getRoot()` 注入契约，issue ③ 逃生口）。
+
+### C3-b result-line 存在性（治 #306 ①③）
+
+- branch-review **真实 mode** `normalizeResult`（`branch.ts:460-479`）目前仅 `exitWithCode`、零 stdout emit（对比 dry-run `:393-402` 经 `assembleReturnBlock` 打印、docs review 打印 `docsResultFace`、task review 打印 return block）——补 **经 `returnFromHandoff` 单点 emit return block**（吃 C1 ② 的 4 行新契约 status/commits/artifacts + counters，无 `blocker:`），与 dry-run 同源、与 task/spec/plan 契约对齐。
+- 编排方 status 路由（C1 ①）在 branch 面获得可路由信号；doc-audit 门（C2 审计面）在终闸恢复实跑。
+
+### C3 依赖
+
+T6 须在本程序**自身终闸 branch-review 之前**落地——否则 C2 审计被跳过 + C1 status 路由无信号，本程序验收无法完成。串行排 T5 之后、终闸收口前。
+
+---
+
 ## 验收 criteria
 
 - **C1 引擎**：return-block 无 `blocker:` 行（`returnFourLines`/`assembleReturnBlock`/`dryRunBlock`/`returnFromHandoff` 单测断言 + 输出契约 grep）；`blockerDefaultFor` 与「`blocker: none`」零残存；`smoke-cdd.ts:33,466` 输出契约 pin 更新为 4-key（`status/commits/artifacts/counters`）；docs 面 `result-face.ts` + `result-face.test.ts` 保持（M2 计数）。
@@ -121,7 +142,9 @@ doc-contract BLOCKED / mismatch 输出升级为：
 - **C2 range**：声明位 range 展开为多目标；prose 位不展开；诊断附展开清单。
 - **C2 语法**：`P3.10a` → 报非法 + 引导 `P3.10.1`（不复现「吞父行」）——#304(b) 实测链精确回归单测。
 - **C2 诊断**：mismatch 输出载荷断言（clause 摘录 + 解析相位 + 机理 + 类别分派 + 可执行动作）。
-- **收口**：changeset 双包各一（`@oscaner-skills/cdd-engine` patch + `@oscaner-skills/osuperpowers` patch，skills 文档随包）；validate/precommit 全绿（含 `smoke-cdd` 更新面）；issue #302 + #304 收口关闭。
+- **C3（root 注入）**：branch-review 黑盒路径 `ctx.repoRoot` 恒真（缺根 WARN 零触发——doc-audit 门实跑）；真实 mode 缺根 → `CDD_BLOCKED` + exit 1、dry-run 缺根 → WARN（双 lane 单测）；`--root` 三命令 CLI 白名单可用。
+- **C3（result-line）**：branch-review 真实 mode stdout 含 return block（status/commits/artifacts + counters，零 `blocker:`）——单测断言父进程契约行存在。
+- **收口**：changeset 双包各一（`@oscaner-skills/cdd-engine` patch + `@oscaner-skills/osuperpowers` patch，skills 文档随包）；validate/precommit 全绿（含 `smoke-cdd` 更新面）；issue #302 + #304 + #305 + #306 收口关闭。
 
 ## 影响面清单（file:line 事实锚点）
 
@@ -137,6 +160,10 @@ doc-contract BLOCKED / mismatch 输出升级为：
 | skills | `packages/osuperpowers/skills/cli-driven-development/SKILL.md:59,66,72,86,104,120-124` + writing-* ×4 I 节 | ①④ 判读/收敛重锚 |
 | 命名档案 | `docs/maintainers/02-naming-conventions.md:8,42,70` | ③ 收编 |
 | 模板常量 | `RETURN_STDOUT_BLOCK` 族（`template-contract.json`）+ task/branch/docs 派发 prompt | ② 同步（agent 输出契约 3 行 = status/commits/artifacts；引擎 stdout 4 行 = +counters） |
+| branch root seed | `src/cli/review.ts:95,122-126` | C3-a：`ctx.repoRoot` 改解析后 root（恒真注入） |
+| 缺根 BLOCK 面 | `src/dispatch/base.ts:217-220` | C3-a：真实 mode `CDD_BLOCKED` + exit 1；dry-run WARN |
+| CLI 白名单 | `src/cli/parse.ts:167-195`（implement/fix/review 三命令） | C3-a：统一增 `--root` |
+| branch result-line | `src/dispatch/branch.ts:380-479` | C3-b：真实 mode `normalizeResult` 经 `returnFromHandoff` 单点 emit（吃 4 行新契约；dry-run `:393-402` 已同源） |
 
 ## 非目标
 
@@ -151,3 +178,4 @@ doc-contract BLOCKED / mismatch 输出升级为：
 | v1.0 | 2026-09-28 | 程序 charter：cdd review 输出面契约修正（#302 + #304 单 spec 双组件）——C1 blocker 一义一词（status 路由 / return-block 去列 / 命名收编 / skills 重锚）+ C2 claim 判别 / range / 诊断三件套；探索实证四义表与根因修正入档 | [human] · Claude Opus 5 (1M context) |
 | v1.1 | 2026-09-28 | cdd spec-review r1（blocker=0，2 warn + 4 nit）全 finding 落地：⑧1 诊断示例重锚到修复后行为（字母后缀报非法不回退父行）+ ② task/branch 面 M3 载体正面裁定（stderr `CDD_BLOCKED:` 单通道 + 材料化解构 3 行重接 + task handoff schema `blocker` 字段空置/allOf 调整，`finalize.ts` 与 `task-handoff-schema.json` 补入影响面）+ agent 输出 3 行/引擎 stdout 4 行行数区分 + C1 实测根因证据按 face 分列 + ⑤ 判别改结构性规则（头部 token + 非括注）+ EOF 补换行（v1.0→v1.1） | [human] · Claude Opus 5 (1M context) |
 | v1.2 | 2026-09-28 | 程序批准：Status Draft → Approved（cdd spec-review r1 收敛 blocker=0，REVIEW_FIX 收口轮 approved，零 re-review）——单 spec 合流 #302 + #304，进入 writing-plans | [human] · Claude Opus 5 (1M context) |
+| v1.3 | 2026-09-28 | 程序 in-flight 回填（I6，user 拍板「规划入当前阶段修复」）：#305 + #306 并入为 **C3 branch-review 通道契约收口**——C3-a 递归 root 注入（`cli/review.ts` seed 解析后 root + `base.ts` 缺根真实 BLOCK/dry-run WARN + `parse.ts` 三命令 `--root`）+ C3-b result-line 存在性（branch-review 真实 mode 经 `returnFromHandoff` 单点 emit，吃 C1 ② 新契约）；根因分析入档（#306 = #305 自我修正：handoff 实已产出、缺的是父进程契约行）；依赖 = T6 须在本程序终闸 branch-review 前落地 | [human] · Claude Opus 5 (1M context) |

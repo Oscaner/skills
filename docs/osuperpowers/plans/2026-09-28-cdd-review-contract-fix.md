@@ -2,7 +2,7 @@
 
 **Spec:** [2026-09-28-cdd-review-contract-fix.md](docs/osuperpowers/specs/2026-09-28-cdd-review-contract-fix.md)
 
-- **Version**: v1.1 · 2026-09-28
+- **Version**: v1.2 · 2026-09-28
 - **Depends on**: single spec v1.2 Approved（`21037fc9`，#302 + #304 合流单 spec 双组件，无 parent overall）
 - **Base**: develop
 
@@ -18,6 +18,7 @@
 - **语法不宽容**：字母后缀 phase-id（`P3.10a`）报非法 + 引导合法点分式（`P3.10.1`），不回退父行——「P3.10a-e → P3.10.1-.5」正名债随行兑现，不反向放宽正则。
 - **等价单测唯一锚**：status ↔ severity 等价断言锚 `finalize.ts` rollup / convergence 单测（防 SP-4 pass-through 等旁路稀释语义）。
 - **changeset 义务**：本 program 双包各一 changeset（`pnpm run changeset`）——`@oscaner-skills/cdd-engine` patch + `@oscaner-skills/osuperpowers` patch（skills 文档随包）；收口时建（实现 commit 后 orchestrator 落）。
+- **C3 通道契约（v1.2 backfill）**：branch-review 输出通道两条裁定（spec C3）——C3-a 递归 root 注入（`cli/review.ts` branch ctx `repoRoot` = 解析后 root，黑盒恒真；`base.ts` 缺根真实 mode BLOCK/dry-run WARN；`parse.ts` 三命令 `--root` 白名单）；C3-b result-line 存在性（branch-review 真实 mode 经 `returnFromHandoff` emit return block，吃 4 行新契约）。**T6 须在本程序终闸 branch-review 前落地**（否则 C2 审计被跳过 + C1 status 路由无信号）。
 
 ### commit 边界机制
 
@@ -32,11 +33,11 @@
 
 - T1 契约破坏先行——return-block 删列与 smoke-cdd pin / finalize 重接 / 单测同任务内落地，validate/precommit 全绿后才进入 T2
 - 单任务原子：实测与 spec 不符 → 不符点记录为任务产出报告交 orchestrator 判定（Plan Sole Writer），不「带伤闭合」
-- 串行 dispatch：T1→T2→T3→T4→T5 全 singleton 组（无 `## Task Groups` 合并）
+- 串行 dispatch：T1→T2→T3→T4→T5→T6 全 singleton 组（无 `## Task Groups` 合并）
 
 ### 顺序原则
 
-- T1（engine kernel：删列 + M3 载体裁定 + smoke-cdd pin）→ T2（status 路由 + skills ×5 重锚 + 等价单测）→ T3（命名档案收编）→ T4（C2 判别/range/语法）→ T5（C2 诊断三件套）：T2 依赖 T1 世界态（判读措辞引用新行数契约）、T3 依赖 T2 语义、T4/T5 独立于 C1 面但串行收口
+- T1（engine kernel：删列 + M3 载体裁定 + smoke-cdd pin）→ T2（status 路由 + skills ×5 重锚 + 等价单测）→ T3（命名档案收编）→ T4（C2 判别/range/语法）→ T5（C2 诊断三件套）→ T6（C3 branch-review 通道契约收口，v1.2 backfill）：T2 依赖 T1 世界态（判读措辞引用新行数契约）、T3 依赖 T2 语义、T4/T5 独立于 C1 面但串行收口、**T6 必须在终闸 branch-review 前落地**（spec C3 依赖裁定）
 - 每任务 end-to-end：实现 → 该任务面测试绿 → 相关 validate 面绿
 
 ### 仓库纪律
@@ -73,4 +74,10 @@
 
 - **Do**: doc-contract BLOCKED / mismatch 输出（docs 派发面，`documents.ts` 审计 + 报错载体）升级为三件套——(1) **肇事上下文**：触发 claim 的 clause 摘录 + claim 解析到的相位 + 解析机理（如「P3.10a → 非法 phase-id（字母后缀）：不回退父行，合法形态指引 P3.10.1」——非法形态下解析相位槽位止于错误态；历史吞父行旧机制仅作排障史标注，不放入解析相位槽位）；range 声明（声明位）的肇事上下文另含**展开相位清单**（与 T4 解析产出同一载荷，避免静默批量误配，⑥ 验收「诊断附展开清单」在输出面可测）；(2) **按类别分派建议**：语法类 → 合法 phase-id 形态 + 定位（表格行/单元格）；prose 类 → 肇事 clause 摘录 + 建议措辞；(3) **可执行动作**：每条错误至少一个可直接执行的定位/修复动作（如「将 `P3.10a` 改为 `P3.10.1`」）。三件套落地位：forward-mismatch 的 `proseHintSuffix`（`:460`，消费于 `:800`/`:823` backfill claim failures）——现行「isolate prose with `；`」单行 hint 为其替换对象。engine 单测：mismatch/BLOCKED 输出载荷断言（clause 摘录 + 解析相位 + 机理 + 类别分派 + 可执行动作五要素齐备）+ range 声明（声明位）诊断面「列出展开相位清单」断言成立。
 - **验收**: 诊断载荷单测全绿（五要素断言）；range 声明（声明位）诊断面列出展开相位清单（⑥ 验收「诊断附展开清单」逐字可测）；排障引导面直达根因——语法类引导到合法形态与定位、prose 类引导到肇事原文（零误导错误信息兑现，#304(b) 三轮盲修实证消除）。
-- **注**: T5 完成后由 orchestrator 建双包 changeset（`cdd-engine` patch + `osuperpowers` patch）并跑 `pnpm run validate` 全量核对；issue #302 + #304 于 finishing 收口关闭。
+- **注**: T5 完成后由 orchestrator 建双包 changeset（`cdd-engine` patch + `osuperpowers` patch）并跑 `pnpm run validate` 全量核对；issue #302 + #304 + #305 + #306 于 finishing 收口关闭。
+
+### Task 6: C3 branch-review 通道契约收口（spec v1.3 backfill：#305 + #306）
+
+- **Do**: `cli/review.ts`（`:95,122-126`）branch channel `ctx.repoRoot` 由 `opts.root ?? null` 改**解析后 root**（`:95` 已解析值）——黑盒路径恒真、`base.ts:218` 的缺根 WARN 零触发。`dispatch/base.ts`（`:217-220`）doc-contract 缺根面升级——**真实 mode `→ CDD_BLOCKED` + exit 1（严禁缺根 WARN + exit 0 空转）、dry-run → 保持 WARN**（I7：dry-run 永不阻塞；`ctx.dryRun` 判定）。`cli/parse.ts`（implementCmd/reviewCmd/fixCmd，`:167-195` 一带）三命令统一声明 `root` flag（`--root`，对齐内部 `opts.root ?? getRoot()` 注入契约）。`dispatch/branch.ts` branch-review **真实 mode** `normalizeResult`（`:460-479`）补 result-line——经 `returnFromHandoff(this.handoffPath, this.workspace)` **单点 emit return block**（吃 T1 的 4 行新契约 status/commits/artifacts + counters，无 `blocker:`），与 dry-run `assembleReturnBlock`（`:393-402`）、docs face、task return block 同源对齐。engine 单测：branch-review 真实 mode 父进程 stdout 有契约行（调 `runReview` 或黑盒断言）+ 缺根双 lane（真实 → `CDD_BLOCKED` + exit 1 / dry-run → WARN）+ `--root` CLI 白名单可注入 + doc-audit 门在 branch-review 黑盒路径实跑（不 WARN-skip）。
+- **验收**: branch-review 真实 mode stdout 含 return block（status/commits/artifacts + counters，零 `blocker:`）单测断言；缺根真实 mode → `CDD_BLOCKED` + exit 1、dry-run → WARN（双 lane）；`cdd review/fix/implement --root <path>` 可用（parse 白名单）；branch-review 黑盒路径零「doc contract validation skipped (no repo root)」WARN（doc-audit 门实跑——C2 审计面在终闸生效）；`pnpm run validate` + precommit 全绿（engine 套件 + smoke-cdd 更新面）。
+- **注**: 依赖 = T6 必须在本程序终闸 branch-review 之前落地（spec C3：C2 审计被跳过 + C1 status 路由无信号则本程序验收无法完成）；本任务不改 return-block.ts/finalize 载体面（T1 域）；`returnFromHandoff` 的 `blockerDefaultFor` 删除随 T1 已收敛，T6 消费其 4 行产出。

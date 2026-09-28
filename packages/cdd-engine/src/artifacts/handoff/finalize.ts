@@ -11,7 +11,7 @@
 // BLOCKED lane carries blockedCarrierFor (category + real blocker). ③ statusExitCode maps the
 // round conclusion to the runner exit (BLOCKED → 1 on any channel). ④ materialization reasons ride
 // the stderr CDD_BLOCKED channel + the carrier's failure_category (M3 — the return-block blocker
-// column and returnBlocker/blockerDefaultFor are retired; the BLOCKED carrier carries a
+// column and the fake-default carrier source are retired; the BLOCKED carrier carries a
 // failure_category, never fabricated prose). ⑤ return-block naming.
 // Architecture: the engine is the carrier's single author (T5/T6/T7 unified); the agent only
 // contributes content slices (findings/blocker/artifacts/notes).
@@ -474,8 +474,8 @@ export function taskBaseFromBrief(briefPath: string | undefined): string | null 
 
 // Return block `status:` / `artifacts:` line parsers (artifactsFromReturnLine /
 // implementStatusFromReturnLine) are imported from ../return-block.ts — the return block text
-// plane's single point (P6 T24 C); returnBlocker/blockerDefaultFor were retired with the `blocker:`
-// column (M3), the former private copies are gone.
+// plane's single point (P6 T24 C); the former private helpers were retired with the `blocker:`
+// column (M3) — no copies remain.
 
 // Evidence gate (implement non-dry-run materialization path only): the mechanical hard-gate's only
 // trigger = the test-evidence behavior_change:true (the brief outputs the group's task sections +

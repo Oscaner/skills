@@ -214,9 +214,23 @@ function claimTarget(full: string): string {
 // aware over the shared digit ridge (`P1–P4` → P1..P4; `P2.1–P2.3` → P2.1..P2.3): the last
 // segment iterates only when both endpoints share every earlier segment; endpoints that differ
 // before the last segment stay verbatim (a cross-bootstrap range has no canonical intermediates).
+//
+// C2 ⑦ (strict grammar-A, cdd-review-contract-fix): a letter-suffixed ref (`P3.10a`) is masked
+// before the valid scans — the suffix is never silently swallowed into the numeric parent
+// (`P3.10`); the illegal token rides its own channel (illegalPhaseRefsIn) and the parse phase
+// slot stops at the error state instead of attributing the parent line.
+const ILLEGAL_PHASE_REF_RE = /\bP\d+(?:\.\d+)*[a-z]+\b/gi;
+
+/** C2 ⑦ — the letter-suffixed phase-id forms in a claim declaration slot (`P3.10a`), the strict
+ *  grammar-A violations the parse must surface as an error rather than swallow into the parent. */
+function illegalPhaseRefsIn(clause: string): string[] {
+  return [...new Set([...clause.matchAll(ILLEGAL_PHASE_REF_RE)].map((m) => m[0]))];
+}
+
 function phaseIdsIn(clause: string): string[] {
+  const sanitized = clause.replace(ILLEGAL_PHASE_REF_RE, (t) => " ".repeat(t.length));
   const ids = new Set<string>();
-  for (const m of clause.matchAll(RANGE_RE)) {
+  for (const m of sanitized.matchAll(RANGE_RE)) {
     const a = m[1];
     const b = m[3];
     const digitsA = m[2]; // the endpoint digit ridges (e.g. "2.1")
@@ -234,7 +248,7 @@ function phaseIdsIn(clause: string): string[] {
       ids.add(a).add(b);
     }
   }
-  for (const m of clause.matchAll(SINGLE_PHASE_RE)) ids.add(m[1]);
+  for (const m of sanitized.matchAll(SINGLE_PHASE_RE)) ids.add(m[1]);
   return [...ids];
 }
 
@@ -312,34 +326,123 @@ function overallTokenVersions(filePath: string): string[] {
   return [...versions];
 }
 
-/** The explicit-claim window scan (P4.3 Task 8 #274 — only explicit claim structures count): a `；`-clause may carry a
- *  claim AND prose that happens to mention phases (dependency-graph refs, cross-references). Phase
- *  attribution reads the WINDOW — the span from after the previous claim's target (+ its closing
- *  parens) to the current claim match — so a prose-mentioned phase after a claim never becomes a
- *  target (a whole-clause scan was the P3.8 false-claim source). Ranges still expand inside a
- *  window. Phases outside every window are the `stray` set — the diagnosis-hint surface (same-clause
- *  prose mentioning a phase also made it a target under the retired whole-clause scan). */
+/** C2 ⑤ — parenthetical masking: a claim literal inside `（…）` (or `(…)`) is prose, never a
+ *  declaration. The mask replaces parenthetical content with spaces 1:1 (offset-preserving) so the
+ *  claim/range scans below simply skip it; markdown link bodies `[label](target)` are phase
+ *  references, NOT parenthetical prose — they survive untouched. */
+function maskParentheticals(clause: string): string {
+  const masked = clause.split("");
+  const protectedRange = new Array<boolean>(masked.length).fill(false);
+  for (const m of clause.matchAll(LINK_RE)) {
+    if (m.index === undefined) continue;
+    for (let i = m.index; i < m.index + m[0].length; i++) protectedRange[i] = true;
+  }
+  let depth = 0;
+  for (let i = 0; i < masked.length; i++) {
+    if (protectedRange[i]) continue;
+    const ch = masked[i];
+    if (ch === "（" || ch === "(") {
+      depth++;
+      masked[i] = " ";
+    } else if (ch === "）" || ch === ")") {
+      if (depth > 0) depth--;
+      masked[i] = " ";
+    } else if (depth > 0) {
+      masked[i] = " ";
+    }
+  }
+  return masked.join("");
+}
+
+// C2 ⑤ declaration-slot discrimination (structural — the #274 residual-shape closeout): a
+// `Pending`/`[Pending]` literal opens a claim declaration ONLY at a declaration-slot head —
+// everything between the previous declaration (or clause start) and the literal is a
+// phase-attribution prefix (phase refs / link-form phase references / the schema link words) +
+// structural punctuation, never free prose. Guide words （「链接形态」「例如」「方式」…） are
+// deliberately NOT in the closed attribution set — the discrimination is a structural rule, not a
+// dictionary membership judgment. CLAIM_SLOT_SUBSTANTIVE_RE covers the attribution atoms (longest
+// alternatives first), CLAIM_SLOT_GAP_RE the punctuation a declaration slot may close with.
+const CLAIM_SLOT_SUBSTANTIVE_RE =
+  /\[[^\]]*\]\([^)]*\)|\bP\d+(?:\.\d+)*[a-z]*\b|implementation|plan|design|spec|计划|设计|规格|回填|实现/gi;
+const CLAIM_SLOT_GAP_RE = /^[\s　：:，,、+・\-–—]*$/;
+
+/** C2 ⑤ — true when the (paren-masked) slot span preceding a claim literal is a pure
+ *  phase-attribution prefix: the LAST substantive (phase ref / link form / link word) is followed
+ *  only by structural punctuation + whitespace. A prose run (为/从/方式/形态… — anything outside
+ *  the closed attribution set) breaks the prefix → the literal is not declared. An entirely empty
+ *  slot (a clause-head literal) is the vacuous head. */
+function isDeclarationSlotHead(maskedSpan: string): boolean {
+  const subs = [...maskedSpan.matchAll(CLAIM_SLOT_SUBSTANTIVE_RE)];
+  if (subs.length === 0) return maskedSpan.trim() === "";
+  const last = subs[subs.length - 1];
+  return CLAIM_SLOT_GAP_RE.test(maskedSpan.slice((last.index ?? 0) + last[0].length));
+}
+
+interface ClaimWindow {
+  text: string;
+  phases: string[];
+  /** C2 ⑦ — illegal phase-id tokens in this claim's declaration slot (the slot stops at the
+   *  error state; the tokens are never attributed to a numeric parent). */
+  illegal: string[];
+}
+
+/** The explicit-claim window scan (P4.3 Task 8 #274, C2 ⑤⑥⑦ — only DECLARED claim structures
+ *  count): a `；`-clause may carry a claim AND prose that happens to mention phases
+ *  (dependency-graph refs, cross-references). Phase attribution reads the WINDOW — the span from
+ *  after the previous declaration's target (+ its closing parens) to the current declaration
+ *  match — so a prose-mentioned phase after a claim never becomes a target (a whole-clause scan
+ *  was the P3.8 false-claim source).
+ *
+ *  C2 ⑤ (discrimination): a claim literal must sit at a declaration-slot head AND outside `（…）`
+ *  parentheticals; parenthetical / non-head literal hits are prose hints (parenthetical-inline +
+ *  non-head), never declared, never part of the convergence audit (the #274 residual face). C2 ⑥
+ *  (range): ranges expand inside a declaration window to EVERY phase — the multi-target
+ *  declaration payload; a prose-position range yields nothing because no declaration is made. C2 ⑦
+ *  (grammar): a letter-suffixed ref (`P3.10a`) in a declaration slot is an illegal phase-id — the
+ *  parse phase slot stops at the error state (never the numeric-parent swallow) and the token
+ *  rides the `illegal` channel for the diagnosis payload.
+ *
+ *  Phases outside every window are the `stray` set — the diagnosis-hint surface (same-clause prose
+ *  mentioning a phase also made it a target under the retired whole-clause scan). */
 function claimWindows(clause: string): {
-  claims: Array<{ text: string; phases: string[] }>;
+  claims: ClaimWindow[];
   stray: string[];
+  illegal: string[];
 } {
+  const masked = maskParentheticals(clause);
   const wholeClause = new Set(phaseIdsIn(clause));
   const windowed = new Set<string>();
-  const claims: Array<{ text: string; phases: string[] }> = [];
+  const claims: ClaimWindow[] = [];
   let from = 0;
-  for (const m of clause.matchAll(CLAIM_SCAN_RE)) {
+  for (const m of masked.matchAll(CLAIM_SCAN_RE)) {
     const at = m.index ?? 0;
-    const span = clause.slice(from, at);
+    const span = masked.slice(from, at);
+    if (!isDeclarationSlotHead(span)) {
+      // C2 ⑤ — a non-head literal is prose: skip past it so its window content cannot leak phases
+      // into a later declaration's window.
+      from = at + m[0].length;
+      while (from < masked.length && /[\s）)]/.test(masked[from]!)) from++;
+      continue;
+    }
     const phases = phaseIdsIn(span);
     for (const id of phases) windowed.add(id);
-    claims.push({ text: m[0], phases });
+    claims.push({
+      // the ORIGINAL text (the mask preserves offsets 1:1)
+      text: clause.slice(at, at + m[0].length),
+      phases,
+      illegal: illegalPhaseRefsIn(span),
+    });
     // The next claim's window starts after this claim's target — skip the closing parens that wrap
     // it so a trailing `（…）` annotation does not leak phase refs into the next window.
     from = at + m[0].length;
-    while (from < clause.length && /[\s）)]/.test(clause[from]!)) from++;
+    while (from < masked.length && /[\s）)]/.test(masked[from]!)) from++;
   }
   const stray = [...wholeClause].filter((id) => !windowed.has(id));
-  return { claims, stray };
+  return {
+    claims,
+    stray,
+    illegal: [...new Set(claims.flatMap((c) => c.illegal))],
+  };
 }
 
 export interface ClaimExtraction {
@@ -349,6 +452,13 @@ export interface ClaimExtraction {
    *  clause mentions outside the explicit claim structure — the ids a whole-clause scan would have
    *  made claim targets too. Forward-mismatch failures attach this as the diagnosis hint. */
   proseHints: Map<string, string[]>;
+  /** C2 ⑦ illegal phase-id carrier — strict grammar-A violations found in claim declaration slots
+   *  (letter-suffixed refs like `P3.10a`, one record per occurrence: the offending token + the
+   *  clause that carries it, the offending context the diagnostic payload anchors to). The parse
+   *  phase slot stops at the error state — the token is never swallowed into the numeric parent nor
+   *  attributed as a claim target. Structured fact surface only; the guidance wording is the
+   *  payload surface (the T5 diagnostic trio). */
+  illegalPhaseRefs: Array<{ clause: string; token: string }>;
 }
 
 export interface PhaseRow {
@@ -777,7 +887,22 @@ function fourTableAudit(
 
   // ① bidirectional backfill claim ↔ column: forward (claim ⇒ column carries the target) + reverse
   // (a shipped column ⇒ a matching claim exists) for plan + design — no plan-only leftover.
-  const { planClaims, designClaims, proseHints } = validator.extractClaimRows(o.historyRows);
+  const { planClaims, designClaims, proseHints, illegalPhaseRefs } = validator.extractClaimRows(
+    o.historyRows,
+  );
+  // C2 ⑦ — an illegal phase-id found in a declared claim slot is a strict grammar-A violation
+  // (letter-suffixed refs like `P3.10a` are never swallowed into their numeric parent). The parse
+  // phase slot already stopped at the error state; this is the audit's failure surface (the
+  // guidance wording is the T5 diagnostic payload — here only the structural fact rides).
+  for (const r of illegalPhaseRefs) {
+    failures.push({
+      artifact: "overall",
+      file: overallPath,
+      field: "phase-id syntax",
+      missing: `change-history claim references illegal phase-id ${JSON.stringify(r.token)} in ${JSON.stringify(r.clause)}`,
+      fix: "rename the letter-suffixed phase reference to a grammar-A phase id",
+    });
+  }
   for (const [pid, key] of planClaims) {
     const r = byIdLower.get(pid.toLowerCase());
     if (!r) {
@@ -1359,9 +1484,13 @@ export class DocumentsValidator {
     const planClaims = new Map<string, string>();
     const designClaims = new Map<string, string>();
     const proseHints = new Map<string, string[]>();
+    const illegalPhaseRefs: ClaimExtraction["illegalPhaseRefs"] = [];
     for (const row of historyRows) {
       for (const clause of (row.summary ?? "").split(CLAIM_SEP_RE)) {
-        const { claims, stray } = claimWindows(clause);
+        const { claims, stray, illegal } = claimWindows(clause);
+        // C2 ⑦ — every illegal phase-id found in a declared slot is a grammar-A violation the
+        // audit surfaces (parse slot already stopped: no numeric-parent attribution happened).
+        for (const token of illegal) illegalPhaseRefs.push({ clause, token });
         const planLink = PLAN_LINK_WORD.test(clause);
         const designLink = DESIGN_LINK_WORD.test(clause);
         for (const c of claims) {
@@ -1381,7 +1510,7 @@ export class DocumentsValidator {
         }
       }
     }
-    return { planClaims, designClaims, proseHints };
+    return { planClaims, designClaims, proseHints, illegalPhaseRefs };
   }
 }
 

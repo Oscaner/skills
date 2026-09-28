@@ -84,7 +84,7 @@ describe("AC7 (1) no plan-only leftover — the reverse-direction rule is a sing
       repo,
       OVERALL_CLEAN.concat(
         "\n",
-        "| v1.1 | 2026-09-21 | P2 Design-spec 列回填（[Pending]→p2-design v1.0） |",
+        "| v1.1 | 2026-09-21 | P2 Design-spec 列回填：Pending → p2-design v1.0 |",
       ),
     );
     const f = documentsValidator.validateDispatchDocuments({ entry: c.plan1, root: c.repo });

@@ -352,8 +352,8 @@ const AUDIT_OVERALL = [
   "| Version | date | summary |",
   "|---|---|---|",
   "| v1.0 | 2026-09-21 | Initial |",
-  "| v1.1 | 2026-09-21 | P1 Implementation plan 列回填（[Pending]→Done） |",
-  "| v1.2 | 2026-09-21 | P1 Design-spec 列回填（[Pending]→p1-design v1.0） |",
+  "| v1.1 | 2026-09-21 | P1 Implementation plan 列回填：Pending → Done |",
+  "| v1.2 | 2026-09-21 | P1 Design-spec 列回填：Pending → p1-design v1.0 |",
   "",
 ].join("\n");
 
@@ -402,7 +402,7 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
   it("face ① reverse: shipped plan column (Done) with no matching plan claim in change history → failure", () => {
     const c = writeAuditChain({
       overall: AUDIT_OVERALL.replace(
-        "| v1.1 | 2026-09-21 | P1 Implementation plan 列回填（[Pending]→Done） |",
+        "| v1.1 | 2026-09-21 | P1 Implementation plan 列回填：Pending → Done |",
         "| v1.1 | 2026-09-21 | P1 scope refinement |",
       ),
     });
@@ -414,7 +414,7 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
     const c = writeAuditChain({
       overall: AUDIT_OVERALL.concat(
         "\n",
-        "| v1.3 | 2026-09-21 | P2 Design-spec 列回填（[Pending]→p2-design v1.0） |",
+        "| v1.3 | 2026-09-21 | P2 Design-spec 列回填：Pending → p2-design v1.0 |",
       ),
     });
     // The claim demands p2-design but the design cell is still [Pending] → forward mismatch.
@@ -455,7 +455,7 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
         "| Version | date | summary |",
         "|---|---|---|",
         "| v1.0 | 2026-09-21 | Initial |",
-        "| v1.1 | 2026-09-21 | P2.1 Implementation plan 列回填（[Pending]→Done） |",
+        "| v1.1 | 2026-09-21 | P2.1 Implementation plan 列回填：Pending → Done |",
         "",
       ].join("\n"),
       planName: "2026-09-21-plan-p2.md",
@@ -536,7 +536,7 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
         "| Version | date | summary |",
         "|---|---|---|",
         "| v1.0 | 2026-09-21 | Initial |",
-        "| v1.1 | 2026-09-21 | P2.1–P2.3 Implementation plan 列回填（[Pending]→Done） |",
+        "| v1.1 | 2026-09-21 | P2.1–P2.3 Implementation plan 列回填：Pending → Done |",
         "",
       ].join("\n"),
       planName: "2026-09-21-plan-p2.3.md",
@@ -574,8 +574,8 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
         "| Version | date | summary |",
         "|---|---|---|",
         "| v1.0 | 2026-09-21 | Initial |",
-        "| v1.1 | 2026-09-21 | P2 Design-spec 列回填（[Pending]→p2-design v1.0） |",
-        "| v1.2 | 2026-09-21 | P2.1 Design-spec 列回填（[Pending]→p2.1-design v1.0） |",
+        "| v1.1 | 2026-09-21 | P2 Design-spec 列回填：Pending → p2-design v1.0 |",
+        "| v1.2 | 2026-09-21 | P2.1 Design-spec 列回填：Pending → p2.1-design v1.0 |",
         "",
       ].join("\n"),
       planName: "2026-09-21-demo-p2.1.md",
@@ -720,7 +720,7 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
         "| Version | date | summary |",
         "|---|---|---|",
         "| v1.0 | 2026-09-21 | Initial |",
-        "| v1.1 | 2026-09-21 | P2.1 Design-spec 列回填（[Pending]→p2.1-design v1.0） |",
+        "| v1.1 | 2026-09-21 | P2.1 Design-spec 列回填：Pending → p2.1-design v1.0 |",
         "",
       ].join("\n"),
       planName: "2026-09-21-demo-p2.1.md",
@@ -841,7 +841,7 @@ describe("plan column three-state — `[Pending]` → `[In-flight]` → `**Done*
       .replace("- **Version**: v1.0 · 2026-09-21", "- **Version**: v1.1 · 2026-09-21")
       .replace(
         "| v1.0 | 2026-09-21 | Initial |",
-        "| v1.0 | 2026-09-21 | Initial |\n| v1.1 | 2026-09-21 | P1 Implementation plan 列回填（[Pending]→Done） |",
+        "| v1.0 | 2026-09-21 | Initial |\n| v1.1 | 2026-09-21 | P1 Implementation plan 列回填：Pending → Done |",
       );
     const c = writeAuditChain({ overall });
     expect(run(c)).toEqual([]);
@@ -885,7 +885,7 @@ describe("plan column three-state — `[Pending]` → `[In-flight]` → `**Done*
       overall: AUDIT_OVERALL.replace(
         "| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | Done | | |",
         "| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | [p1-plan v1.1](2026-09-21-plan-p1-plan.md) | | |",
-      ).replace("| v1.1 | 2026-09-21 | P1 Implementation plan 列回填（[Pending]→Done） |", ""),
+      ).replace("| v1.1 | 2026-09-21 | P1 Implementation plan 列回填：Pending → Done |", ""),
     });
     const f = run(c);
     expect(f.some((x) => x.artifact === "overall" && /backfill/i.test(x.field))).toBe(true);
@@ -900,7 +900,7 @@ describe("extractClaimRows — explicit claim structure only (P4.3 Task 8)", () 
 
   it("a prose-mentioned phase in the SAME claim clause is not a target (window scan, not whole-clause)", () => {
     const { planClaims, proseHints } = documentsValidator.extractClaimRows([
-      row("P1 Implementation plan 列回填（[Pending]→Done）+ Dependency graph P1→P3 边"),
+      row("P1 Implementation plan 列回填：Pending → Done + Dependency graph P1→P3 边"),
     ]);
     expect([...planClaims.keys()]).toEqual(["P1"]);
     expect(planClaims.get("P1")).toBe("Done"); // the claim key is the explicit target
@@ -909,14 +909,14 @@ describe("extractClaimRows — explicit claim structure only (P4.3 Task 8)", () 
 
   it("two comma-joined claims in one clause attribute phases via successive windows", () => {
     const { planClaims } = documentsValidator.extractClaimRows([
-      row("P1 Implementation plan 列回填（[Pending]→Done），P2 计划列回填（[Pending]→Done）"),
+      row("P1 Implementation plan 列回填：Pending → Done，P2 计划列回填：Pending → Done"),
     ]);
     expect([...planClaims.keys()].sort()).toEqual(["P1", "P2"]);
   });
 
   it("a clause with BOTH a plan and a design claim attributes each target by its own window", () => {
     const { planClaims, designClaims } = documentsValidator.extractClaimRows([
-      row("P1 计划列回填（[Pending]→Done）+ P2 Design-spec 列回填（[Pending]→p2-design v1.0）"),
+      row("P1 计划列回填：Pending → Done + P2 Design-spec 列回填：Pending → p2-design v1.0"),
     ]);
     expect([...planClaims.keys()]).toEqual(["P1"]);
     expect(designClaims.get("P2")).toBe("p2-design");
@@ -924,7 +924,7 @@ describe("extractClaimRows — explicit claim structure only (P4.3 Task 8)", () 
 
   it("a ranged claim stays range-expanded inside its window (P2.1–P2.3 → every endpoint + intermediate)", () => {
     const { planClaims } = documentsValidator.extractClaimRows([
-      row("P2.1–P2.3 Implementation plan 列回填（[Pending]→Done）"),
+      row("P2.1–P2.3 Implementation plan 列回填：Pending → Done"),
     ]);
     expect([...planClaims.keys()].sort()).toEqual(["P2.1", "P2.2", "P2.3"]);
   });
@@ -946,7 +946,7 @@ describe("extractClaimRows — explicit claim structure only (P4.3 Task 8)", () 
       "| Version | date | summary |",
       "|---|---|---|",
       "| v1.0 | 2026-09-21 | Initial |",
-      "| v1.1 | 2026-09-21 | P1 Implementation plan 列回填（[Pending]→Done）+ Dependency graph P1→P3 边 |",
+      "| v1.1 | 2026-09-21 | P1 Implementation plan 列回填：Pending → Done + Dependency graph P1→P3 边 |",
       "",
     ].join("\n");
     const c = writeAuditChain({ overall, planName: "2026-09-21-plan-p2.md" });
@@ -968,6 +968,123 @@ describe("extractClaimRows — explicit claim structure only (P4.3 Task 8)", () 
     ).toBe(true);
     // No claim failure surfaces on the in-flight phase itself: its column is not a target and owes no claim.
     expect(claimHits.some((x) => x.missing.includes("P3 Implementation"))).toBe(false);
+  });
+});
+
+// ---- C2 ⑤⑥⑦ claim discrimination / range / grammar (cdd-review-contract-fix T4) —- //
+describe("C2 claim discrimination — declaration-slot head + non-parenthetical (#304 residual)", () => {
+  function row(summary: string) {
+    return { version: [1, 2] as [number, number], date: "2026-09-21", summary };
+  }
+
+  it("⑤ #274 residual-shape pin: a parenthetical `（Pending → p3.10.1 链接形态）` literal is prose — never declared, no convergence-audit participation", () => {
+    const bare = documentsValidator.extractClaimRows([row("（Pending → p3.10.1 链接形态）")]);
+    expect([...bare.planClaims.keys()]).toEqual([]);
+    expect([...bare.designClaims.keys()]).toEqual([]);
+    expect(bare.illegalPhaseRefs).toEqual([]);
+    // The combined #304(a) measured shape: a descriptive range + the parenthetical note — the range
+    // must NOT be silently expanded into ghost claims on the un-started sub-phase plan columns.
+    const ranged = documentsValidator.extractClaimRows([
+      row("P3.10.1–P3.10.5 正名为点分式（Pending → p3.10.1 链接形态）"),
+    ]);
+    expect([...ranged.planClaims.keys()]).toEqual([]);
+    expect(ranged.proseHints.size).toBe(0); // no claim exists to hang a prose hint on
+  });
+
+  it("⑤ a declaration-slot-head literal declares — `Pending`/`[Pending]` after the phase-attribution prefix hits", () => {
+    const open = documentsValidator.extractClaimRows([row("P1 计划列回填：Pending → Done")]);
+    expect([...open.planClaims.keys()]).toEqual(["P1"]);
+    expect(open.planClaims.get("P1")).toBe("Done");
+    const bracketed = documentsValidator.extractClaimRows([row("P1 计划列回填：[Pending] → Done")]);
+    expect([...bracketed.planClaims.keys()]).toEqual(["P1"]);
+  });
+
+  it("⑤ a parenthetical literal is prose (括注内联 — the old `（[Pending]→Done）` backfill form no longer declares)", () => {
+    const paren = documentsValidator.extractClaimRows([row("P1 计划列回填（Pending → Done）")]);
+    expect([...paren.planClaims.keys()]).toEqual([]);
+    const oldForm = documentsValidator.extractClaimRows([row("P1 计划列回填（[Pending]→Done）")]);
+    expect([...oldForm.planClaims.keys()]).toEqual([]);
+  });
+
+  it("⑤ a non-head literal is prose (非头部 — glue between the attribution and `Pending` breaks the slot)", () => {
+    const n = documentsValidator.extractClaimRows([row("P1 计划列回填为 Pending → Done")]);
+    expect([...n.planClaims.keys()]).toEqual([]);
+    // a prose-position range after the literal does not become a claim either
+    const n2 = documentsValidator.extractClaimRows([
+      row("前述 Pending → Done 与 P3.10.1–P3.10.5 无关"),
+    ]);
+    expect([...n2.planClaims.keys()]).toEqual([]);
+  });
+
+  it("⑥ a declaration-position range is a multi-target declaration — the expanded phase list rides the claim payload", () => {
+    const { planClaims } = documentsValidator.extractClaimRows([
+      row("P3.10.1–P3.10.5 计划列回填：Pending → Done"),
+    ]);
+    // the expanded-phase payload: every intermediate phase is a separate target, endpoints included.
+    expect([...planClaims.keys()].sort()).toEqual([
+      "P3.10.1",
+      "P3.10.2",
+      "P3.10.3",
+      "P3.10.4",
+      "P3.10.5",
+    ]);
+    expect(planClaims.get("P3.10.1")).toBe("Done");
+  });
+
+  it("⑦ `P3.10a` is an illegal phase-id error state — the letter suffix is never swallowed into `P3.10`, and the parse phase slot stops at the error", () => {
+    const single = documentsValidator.extractClaimRows([row("P3.10a 计划列回填：Pending → Done")]);
+    expect([...single.planClaims.keys()]).toEqual([]); // nothing attributed
+    expect(single.planClaims.has("P3.10")).toBe(false); // the retired parent-swallow behavior does not reproduce
+    expect(single.illegalPhaseRefs.map((r) => r.token)).toEqual(["P3.10a"]);
+    expect(single.illegalPhaseRefs[0]!.clause).toContain("Pending → Done");
+  });
+
+  it("⑦ a letter-suffixed RANGE is fully illegal — both endpoints error, no endpoint falls through to a numeric id", () => {
+    const ranged = documentsValidator.extractClaimRows([
+      row("P3.10a–P3.10e 计划列回填：Pending → Done"),
+    ]);
+    expect([...ranged.planClaims.keys()]).toEqual([]);
+    expect(ranged.planClaims.has("P3.10")).toBe(false);
+    expect(ranged.illegalPhaseRefs.map((r) => r.token).sort()).toEqual(["P3.10a", "P3.10e"]);
+  });
+
+  it("⑦ the grammar-A violation surfaces as a doc-contract failure (`phase-id syntax`) on the overall face", () => {
+    const c = writeChain({
+      overall: [
+        "- **Version**: v1.0 · 2026-09-21",
+        "",
+        "## Phase inventory",
+        "",
+        "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+        "|---|---|---|---|---|---|---|",
+        "| P1 | phase one | [Pending] | [Pending] | | none |",
+        "",
+        "## Change history",
+        "",
+        "| Version | date | summary |",
+        "|---|---|---|",
+        "| v1.0 | 2026-09-21 | Initial |",
+        "| v1.1 | 2026-09-21 | P3.10a 计划列回填：Pending → Done |",
+        "",
+      ].join("\n"),
+    });
+    const f = run(c);
+    const syntax = f.filter((x) => x.field === "phase-id syntax");
+    expect(syntax).toHaveLength(1);
+    expect(syntax[0]!.missing).toMatch(/illegal phase-id "P3.10a"/);
+    expect(f.some((x) => x.field === "backfill claim")).toBe(false); // no swallow → no phantom claim failure
+  });
+
+  it("⑤ link-form phase reference stays a declaration-slot prefix — `[plan link](…path…)` before `Pending → Done` declares", () => {
+    const { planClaims } = documentsValidator.extractClaimRows([
+      row(
+        "[2026-09-27-p1.md v1.0](docs/osuperpowers/plans/2026-09-27-p1.md) P1 计划列回填：Pending → Done",
+      ),
+    ]);
+    // the phase refs resolve verbatim (case variants `p1` from the link path + `P1` from the
+    // attribution — the audit resolves the claim rows through toLowerCase)
+    expect([...new Set([...planClaims.keys()].map((k) => k.toUpperCase()))]).toEqual(["P1"]);
+    expect(planClaims.get("P1")).toBe("Done");
   });
 });
 

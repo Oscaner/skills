@@ -214,7 +214,7 @@ describe("共享纪律散文（壳 Instructions，跨 mode 同一字节）：evi
     expect(out).toContain("`FIXED_POINT`"); // directive 4's real value source is the Round context
   });
 
-  it("RETURN_STDOUT_BLOCK 收敛为 3 行（status/commits/artifacts，零 blocker 行；counters 由引擎追加）", () => {
+  it("RETURN_STDOUT_BLOCK 收敛为 3 行（status/commits/artifacts，零 blocker 行；counters 与 next: 由引擎追加）", () => {
     const out = fixtureRenders().implement;
     const returnZone = returnZoneOf(out);
     expect(returnZone).toContain("Return **exactly 3 lines** to stdout");
@@ -222,7 +222,9 @@ describe("共享纪律散文（壳 Instructions，跨 mode 同一字节）：evi
     expect(returnZone).toContain("commits: base=<sha> head=<sha>");
     expect(returnZone).toContain("artifacts: brief=<path> report=<path> test_evidence=<path>");
     expect(returnZone).not.toContain("blocker:");
-    expect(returnZone).toContain("engine appends a 4th `counters:` line"); // agent never self-produces counters
+    expect(returnZone).toContain(
+      "appends the 4th `counters:` line and the 5th derived `next:` suggestion line (C5)",
+    ); // agent never self-produces either engine-appended line
   });
 
   it("渲染输出零残留 moustache（r2-r3 泄漏回归守卫，迁移：{{HANDOFF_SCHEMA_JSON}} 槽已消）", () => {

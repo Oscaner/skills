@@ -468,6 +468,90 @@ it("C5 fix dry-run: --findings input warn/nit-only → next: none (closure natur
   expect(res.returnBlock.at(-1)).toBe("next: none");
 });
 
+// ---- C5-1 soft cap (T8 fix): the fix face's 'ref-sequence round counting' judgment must be
+// REACHABLE from a real dispatch — the ref-sequence walk (rules/ref-sequence.ts) reads the
+// workspace's review-round history anchored at the --findings source handoff, so a review→fix loop
+// that keeps returning blockers eventually surfaces next: BLOCKED: review-cycle-cap instead of the
+// unbounded re-review suggestion. The pure threshold table lives in
+// rules/__tests__/next-step.test.ts / rules/__tests__/ref-sequence.test.ts; these pin the task-face
+// integration end-to-end.
+
+it(
+  "C5 fix dry-run: consecutive S1 rounds reach the soft cap (3x blocker history) → review-cycle-cap " +
+    "adjudication marker",
+  async () => {
+    const repo = setupRepo();
+    mkdirSync(path.join(repo, "docs"), { recursive: true });
+    writeFileSync(path.join(repo, "docs", "plan.md"), "# P\n\n### Task 1: t\n");
+    git(repo, "add", "-A");
+    git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "plan");
+    const ws = path.join(repo, ".osuperpowers", "cdd", "plan");
+    mkdirSync(ws, { recursive: true });
+    // Rounds 1-3 are all S1 — the source review round 3 is the third consecutive blocker round.
+    for (const r of [1, 2, 3]) {
+      writeFileSync(
+        path.join(ws, `tasks-1-review-${r}.json`),
+        JSON.stringify({
+          status: "CHANGES_REQUESTED",
+          findings: [{ severity: "blocker", summary: `b${r}` }],
+          artifacts: {},
+        }),
+      );
+    }
+    const res = await TaskLifecycle.run("ghost", 1, {
+      mode: "fix",
+      dryRun: true,
+      planFile: "docs/plan.md",
+      root: repo,
+      registryPath: ghostRegistry(),
+      findingsPath: path.join(ws, "tasks-1-review-3.json"),
+      noExit: true,
+    });
+    expect(res.exitCode).toBe(0);
+    expect(res.returnBlock.at(-1)).toBe("next: BLOCKED: review-cycle-cap — user adjudicates");
+  },
+);
+
+it(
+  "C5 fix dry-run: a short consecutive-S1 history stays BELOW the soft cap → still the re-review " +
+    "suggestion (no adjudication marker)",
+  async () => {
+    const repo = setupRepo();
+    mkdirSync(path.join(repo, "docs"), { recursive: true });
+    writeFileSync(path.join(repo, "docs", "plan.md"), "# P\n\n### Task 1: t\n");
+    git(repo, "add", "-A");
+    git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "plan");
+    const ws = path.join(repo, ".osuperpowers", "cdd", "plan");
+    mkdirSync(ws, { recursive: true });
+    // Only two consecutive S1 rounds (rounds 2-3); round 1 closed clean → the cap is not reached.
+    writeFileSync(
+      path.join(ws, "tasks-1-review-1.json"),
+      JSON.stringify({ status: "REVIEW_FIX", findings: [{ severity: "warn" }], artifacts: {} }),
+    );
+    for (const r of [2, 3]) {
+      writeFileSync(
+        path.join(ws, `tasks-1-review-${r}.json`),
+        JSON.stringify({
+          status: "CHANGES_REQUESTED",
+          findings: [{ severity: "blocker", summary: `b${r}` }],
+          artifacts: {},
+        }),
+      );
+    }
+    const res = await TaskLifecycle.run("ghost", 1, {
+      mode: "fix",
+      dryRun: true,
+      planFile: "docs/plan.md",
+      root: repo,
+      registryPath: ghostRegistry(),
+      findingsPath: path.join(ws, "tasks-1-review-3.json"),
+      noExit: true,
+    });
+    expect(res.exitCode).toBe(0);
+    expect(res.returnBlock.at(-1)).toMatch(/^next: cdd review --type task --tasks 1/);
+  },
+);
+
 it("ctx 注入面: 构造即挂基类双门（子类零注册面接触；ctx 原样可读）", async () => {
   const repo = setupRepo();
   const lc = new TaskLifecycle({

@@ -16,7 +16,10 @@
 // fix round holds the `--findings` full text, so the next hop derives from ITS severity
 // (convergence.blockerCount): blockers present → re-review (next: review); warn/nit only → closure
 // (next: none); consecutive-S1 soft cap → user adjudication. A review never previews what a fix
-// will do (one-way: any findings → next: fix).
+// will do (one-way: any findings → next: fix). The soft cap is REACHABLE in production — the fix
+// faces (task #derivedNext / docs fix face) derive it from the ref sequence (the 'ref-sequence round
+// counting' judgment basis): consecutiveS1Count over the review-round walk (rules/ref-sequence.ts),
+// compared against SOFT_CAP_S1_ROUNDS — never a caller-authored literal.
 //
 // C5-2 ZERO NEW CLI ARGUMENTS: this module reads only already-present dispatch ctx/opts fields
 // (op/type/group/round/ref/status/findings/workspace/plan/commits.base-head) + the `--findings`
@@ -39,7 +42,8 @@ export interface NextStepArgs {
   type?: string;
   /** the tasks group key (comma-joined TaskGroup.key()) — the task family's dispatch unit. */
   group?: string;
-  /** the round number — unused by the current table, carried for future hop predicates. */
+  /** the round number — unused by the decision table directly (the fix face's soft-cap basis reads
+   *  it INDIRECTLY: the ref-sequence walk anchors at the source review's round R, rules/ref-sequence.ts). */
   round?: number;
   /** the round's concluding status (finalized): BLOCKED/TIMEOUT → no suggestion (null). */
   status?: string;
@@ -56,7 +60,9 @@ export interface NextStepArgs {
   base?: string;
   /** reviewed range head. */
   head?: string;
-  /** consecutive-S1 soft cap reached (fix) — the suggestion defers to user adjudication. */
+  /** consecutive-S1 soft cap reached (fix) — the suggestion defers to user adjudication. Derived by
+   *  the fix faces from the ref-sequence walk (maxConsecutiveS1Rounds >= SOFT_CAP_S1_ROUNDS); never
+   *  a caller-authored literal. */
   softCap?: boolean;
   /** the next un-dispatched group key (task review, zero findings → remaining-group implement). */
   nextGroup?: string;
@@ -71,6 +77,28 @@ const FAILED_STATUS = new Set(["BLOCKED", "TIMEOUT"]);
 const SOFT_CAP_SUGGESTION = "BLOCKED: review-cycle-cap — user adjudicates";
 /** The clean terminal — no useful next hop within this dispatch's line. */
 const NONE = "none";
+
+/** C5-1 soft-cap threshold — the consecutive-S1 run length at which the fix face defers the next hop
+ *  to user adjudication (the 'ref-sequence round counting' judgment basis). Soft by nature (C5-0): a
+ *  default suggestion, never a hard stop — Plan Sole Writer / user adjudication override it. */
+export const SOFT_CAP_S1_ROUNDS = 3;
+
+/** consecutiveS1Count(seq) — the C5-1 'ref-sequence round counting' pure judgment basis: how many
+ *  entries from the START of seq (the review-round sequence, NEWEST round first — the ref sequence
+ *  walked backward from the fix's source review) are S1 (>=1 blocker finding). The run stops at the
+ *  first non-S1 entry; null/undefined/absent rounds end the run (unreadable history degrades the
+ *  count to the conservative baseline, never a throw). The fix faces compare it against
+ *  SOFT_CAP_S1_ROUNDS. */
+export function consecutiveS1Count(
+  seq: ReadonlyArray<ReadonlyArray<{ severity?: string }> | null | undefined>,
+): number {
+  let n = 0;
+  for (const findings of seq) {
+    if (convergence.blockerCount({ findings }) > 0) n += 1;
+    else break;
+  }
+  return n;
+}
 
 // Shape helpers: only the present facts land on the line (missing args degrade the suggestion,
 // never a "undefined" literal). Suggestion semantics (C5-0): the orchestrator/user fills any

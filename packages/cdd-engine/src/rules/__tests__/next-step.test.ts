@@ -3,7 +3,7 @@
 // surface: every row of nextStepFor is pinned here (suggestion semantics C5-0, zero new CLI
 // params C5-2, BLOCKED → no line). Row-by-row mirror of the module header table.
 import { describe, expect, it } from "vitest";
-import { nextStepFor } from "../next-step.ts";
+import { consecutiveS1Count, nextStepFor, SOFT_CAP_S1_ROUNDS } from "../next-step.ts";
 
 const PLAN = "/repo/plan.md";
 const H = "/repo/.osuperpowers/cdd/fixture/tasks-1-review-1.json";
@@ -238,6 +238,44 @@ describe("rules/next-step.ts — fix face (C5-1 single decision point via --find
         findings: [{ severity: "blocker" }],
       }),
     ).toBe("BLOCKED: review-cycle-cap — user adjudicates");
+  });
+
+  it("fix soft cap outranks the blocker>0 re-review row (the adjudication marker wins)", () => {
+    expect(
+      nextStepFor({
+        op: "fix",
+        type: "task",
+        group: "1",
+        plan: PLAN,
+        status: "APPROVED",
+        softCap: true,
+        findings: [{ severity: "blocker" }],
+      }),
+    ).not.toMatch(/^cdd review/);
+  });
+});
+
+describe("rules/next-step.ts — consecutive-S1 soft-cap basis (C5-1 'ref 序列轮次计数')", () => {
+  const SOME = [{ severity: "blocker" }];
+  const WARN = [{ severity: "warn" }];
+
+  it("SOFT_CAP_S1_ROUNDS exports a production threshold (the fix faces compare against it)", () => {
+    expect(SOFT_CAP_S1_ROUNDS).toBeGreaterThanOrEqual(2);
+  });
+
+  it("counts only the LEADING consecutive S1 rounds (newest first) and stops at the first non-S1", () => {
+    expect(consecutiveS1Count([SOME, SOME, SOME, WARN, SOME, SOME])).toBe(3);
+  });
+
+  it("a warn/nit-only (or empty) first round → 0 (no run started)", () => {
+    expect(consecutiveS1Count([WARN, SOME, SOME])).toBe(0);
+    expect(consecutiveS1Count([[], SOME])).toBe(0);
+    expect(consecutiveS1Count([])).toBe(0);
+  });
+
+  it("null/undefined/absent rounds end the run (unreadable history degrades, never throws)", () => {
+    expect(consecutiveS1Count([SOME, null, SOME])).toBe(1);
+    expect(consecutiveS1Count([undefined])).toBe(0);
   });
 });
 

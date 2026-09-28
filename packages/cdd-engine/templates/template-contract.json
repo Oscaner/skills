@@ -66,7 +66,7 @@
         "artifacts: brief=<path> report=<path> test_evidence=<path>",
         "```",
         "",
-        "The `returnFormat` is **RETURN_STDOUT_BLOCK**: review-family rounds (task/branch) collect findings into `HANDOFF_TARGET` `findings[]` (see `## Round context` — do not print them), then output this block as the ONLY stdout content; `implement` rounds return this block directly. The engine appends a 4th `counters:` line — the agent never emits it. Report bodies, test stdout, and diff text live in files only — never in the return. Any non-`APPROVED` status line (e.g. `NEEDS_CONTEXT`) is collapsed by the engine to `BLOCKED` + exit 1."
+        "The `returnFormat` is **RETURN_STDOUT_BLOCK**: review-family rounds (task/branch) collect findings into `HANDOFF_TARGET` `findings[]` (see `## Round context` — do not print them), then output this block as the ONLY stdout content; `implement` rounds return this block directly. The engine appends the 4th `counters:` line and the 5th derived `next:` suggestion line (C5) — the agent never emits either. Report bodies, test stdout, and diff text live in files only — never in the return. Any non-`APPROVED` status line (e.g. `NEEDS_CONTEXT`) is collapsed by the engine to `BLOCKED` + exit 1."
       ],
       "RETURN_JSON": [
         "## Return",

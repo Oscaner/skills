@@ -586,6 +586,81 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
     }
   });
 
+  it("fix --type spec：--findings 输入 findings 非数组（agent 写 'none' 形态）→ 0-blocker 基线 next: none，不 crash（T8 fix 守卫对齐 task #inputFindings）", async () => {
+    const repo = tmpGitRepo();
+    setDryRun(true);
+    process.env.CLAUDE_CODE_SESSION_ID = "1";
+    try {
+      const doc = path.join(repo, "docs/osuperpowers/specs/foo-design.md");
+      mkdirSync(path.dirname(doc), { recursive: true });
+      writeFileSync(doc, "# foo design\n");
+      const findings = path.join(repo, ".osuperpowers", "cdd", "foo", "spec-review-1.json");
+      mkdirSync(path.dirname(findings), { recursive: true });
+      // The documented recurrent non-array shape: findings is the scalar "none", not [].
+      writeFileSync(findings, JSON.stringify({ status: "CHANGES_REQUESTED", findings: "none" }));
+      const { runFix } = await import("../fix.ts");
+      const cap = captureStdout();
+      let exitCode: number | null = null;
+      try {
+        await runFix({ type: "spec", spec: doc, findings, root: repo });
+      } catch (e) {
+        if (e instanceof ExitRequested) exitCode = e.code;
+        else throw e;
+      } finally {
+        cap.restore();
+      }
+      expect(exitCode).toBe(0);
+      expect(cap.text).toMatch(/next: none/); // non-array input → 0 blockers → closure, no TypeError
+    } finally {
+      setDryRun(false);
+      delete process.env.CLAUDE_CODE_SESSION_ID;
+      docsRunnerMock.run.mockClear();
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("fix --type spec：ref 序列连续 S1 达 soft cap（3 轮 blocker 历史）→ next: BLOCKED: review-cycle-cap（T8 fix 判定面可达）", async () => {
+    const repo = tmpGitRepo();
+    setDryRun(true);
+    process.env.CLAUDE_CODE_SESSION_ID = "1";
+    try {
+      const doc = path.join(repo, "docs/osuperpowers/specs/foo-design.md");
+      mkdirSync(path.dirname(doc), { recursive: true });
+      writeFileSync(doc, "# foo design\n");
+      const ws = path.join(repo, ".osuperpowers", "cdd", "foo");
+      mkdirSync(ws, { recursive: true });
+      for (const r of [1, 2, 3]) {
+        writeFileSync(
+          path.join(ws, `spec-review-${r}.json`),
+          JSON.stringify({
+            status: "CHANGES_REQUESTED",
+            findings: [{ severity: "blocker", summary: `b${r}` }],
+            artifacts: {},
+          }),
+        );
+      }
+      const findings = path.join(ws, "spec-review-3.json");
+      const { runFix } = await import("../fix.ts");
+      const cap = captureStdout();
+      let exitCode: number | null = null;
+      try {
+        await runFix({ type: "spec", spec: doc, findings, root: repo });
+      } catch (e) {
+        if (e instanceof ExitRequested) exitCode = e.code;
+        else throw e;
+      } finally {
+        cap.restore();
+      }
+      expect(exitCode).toBe(0);
+      expect(cap.text).toMatch(/next: BLOCKED: review-cycle-cap — user adjudicates/);
+    } finally {
+      setDryRun(false);
+      delete process.env.CLAUDE_CODE_SESSION_ID;
+      docsRunnerMock.run.mockClear();
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
   // ---- CLI 黑盒：canonical seed 驱动 Convergence / 轮次 ----
 
   it("review --type spec：canonical spec-review-1.json（doc_path 同 doc）于 .osuperpowers/cdd/foo/ → Convergence exit 3", () => {

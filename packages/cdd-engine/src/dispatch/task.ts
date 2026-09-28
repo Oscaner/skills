@@ -62,7 +62,8 @@ import { TemplateLoader } from "../render/templates.ts";
 import { CommitChecker } from "../rules/commit.ts";
 import { DocumentsValidator } from "../rules/documents.ts";
 import { FAILURE_CATEGORIES, FailureResolver } from "../rules/failure.ts";
-import { type NextStepArgs, nextStepFor } from "../rules/next-step.ts";
+import { type NextStepArgs, nextStepFor, SOFT_CAP_S1_ROUNDS } from "../rules/next-step.ts";
+import { maxConsecutiveS1Rounds } from "../rules/ref-sequence.ts";
 import { HandoffSchemaValidator } from "../rules/schema.ts";
 import {
   DispatchBlocked,
@@ -369,6 +370,19 @@ export class TaskLifecycle extends DispatchLifecycle {
       findings: deps.findings,
       findingsPath: deps.findingsPath ?? undefined,
     };
+    // C5-1 soft cap (T8 fix): the FIX face judges BEYOND the source round's own severity — the next
+    // hop defers to user adjudication when the ref sequence (the 'ref-sequence round counting' basis)
+    // has reached SOFT_CAP_S1_ROUNDS consecutive S1 rounds. The walk anchors at the `--findings`
+    // source review handoff and counts backward through this group's rounds — missing history
+    // degrades, never throws (a dry-run/fresh fix has no older rounds → no cap).
+    if (deps.mode === "fix" && ctx?.findingsPath) {
+      args.softCap =
+        maxConsecutiveS1Rounds({
+          type: "task",
+          sourcePath: ctx.findingsPath,
+          tasks: this.#groupKey,
+        }) >= SOFT_CAP_S1_ROUNDS;
+    }
     if (args.op === "review" && (deps.findings ?? []).length === 0) {
       let groups: TaskGroup[] = [];
       try {

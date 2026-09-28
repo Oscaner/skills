@@ -13,7 +13,8 @@ import type { TaskGroup } from "../domain/task-group.ts";
 import { exitOk, exitOkWith, exitWithCode } from "../infra/exit.ts";
 import { withLifecycle } from "../infra/proc.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
-import { nextStepFor } from "../rules/next-step.ts";
+import { nextStepFor, SOFT_CAP_S1_ROUNDS } from "../rules/next-step.ts";
+import { maxConsecutiveS1Rounds } from "../rules/ref-sequence.ts";
 import { docsResultFace } from "./result-face.ts";
 import { DRY_RUN, requireHostHarness, resolveTargetDoc } from "./shared.ts";
 
@@ -175,17 +176,30 @@ export async function runFix(opts: FixOpts): Promise<void> {
       | { status?: string; findings?: Array<{ severity?: string }> }
       | null
       | undefined;
-    const inputFindings =
-      (findingsPath
-        ? (readJson(findingsPath) as { findings?: Array<{ severity?: string }> })
-        : null
-      )?.findings ?? [];
+    // Array guard (same as dispatch/task.ts #inputFindings): an agent-written non-array `findings`
+    // on the --findings input (a documented recurrent shape) must degrade to the 0-blocker baseline,
+    // never flow into convergence.blockerCount as a non-array (TypeError).
+    const inputHandoff = findingsPath
+      ? (readJson(findingsPath) as { findings?: Array<{ severity?: string }> } | null)
+      : null;
+    const inputFindings = Array.isArray(inputHandoff?.findings) ? inputHandoff.findings : [];
+    // C5-1 (T8 fix): the docs fix face is the re-review / closure single decision point — judged on
+    // the `--findings` INPUT content severity (blockers → next review; warn/nit-only → closure) plus
+    // the ref-sequence soft-cap basis: SOFT_CAP_S1_ROUNDS consecutive S1 rounds in the workspace's
+    // review-round history (the 'ref-sequence round counting' basis) → the next hop defers to user
+    // adjudication.
+    const softCap =
+      findingsPath !== undefined
+        ? maxConsecutiveS1Rounds({ type: opts.type, sourcePath: findingsPath }) >=
+          SOFT_CAP_S1_ROUNDS
+        : false;
     const next = nextStepFor({
       op: "fix",
       type: opts.type,
       doc,
       status: fixHandoff?.status,
       findings: inputFindings,
+      softCap,
     });
     const faceOutput = next ? `${face}\nnext: ${next}` : face;
     if (result.exitCode === 0) exitOkWith(faceOutput);

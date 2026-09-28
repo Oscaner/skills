@@ -53,15 +53,24 @@ export class ReturnBlockParser {
     return `${key}: <missing>`;
   }
 
+  /** Append the C5 `next:` suggestion line at the END of the engine stdout contract (spec C5-3:
+   *  every result contract appends it last). next = the derived VALUE (rules/next-step.ts
+   *  nextStepFor); null/empty → no line (the BLOCKED/failure lanes emission, zero leaks). */
+  #withNext(out: string[], next?: string | null): string[] {
+    if (next) out.push(`next: ${next}`);
+    return out;
+  }
+
   /** returnFourLines — the agent output contract: picks the last ^key: line from agent stdout for
    * status/commits/artifacts (missing → "<missing>"); the 4th counters line appends via
    * returnCountersLine (engine owns the count — the agent never produces counters). The `blocker:`
    * column is retired (M3) — a stray blocker line in agent stdout is ignored. stdouts +
-   * res.returnBlock share this one source. */
-  returnFourLines(raw: string, workspace: string): string[] {
+   * res.returnBlock share this one source. C5 (T8): an optional `next` value appends the `next:`
+   * line (the agent never produces it — the engine derives it from the dispatch facts). */
+  returnFourLines(raw: string, workspace: string, next?: string | null): string[] {
     const out = ["status", "commits", "artifacts"].map((key) => this.lastKeyLine(raw, key));
     out.push(this.returnCountersLine(workspace));
-    return out;
+    return this.#withNext(out, next);
   }
 
   // ---- materialization parsers (return block → carrier fields) ----
@@ -125,27 +134,31 @@ export class ReturnBlockParser {
     ].join("\n");
   }
 
-  /** The full return block (three fixed lines + the 4th counters line) — the array assembler the
-   * black-box stdout producers share (branch-family dry-run blocks; the counters-presence assertion
-   * in scripts/validate/smoke-cdd.ts keys on exactly this shape). */
+  /** The full return block (three fixed lines + the 4th counters line + the optional 5th `next:`
+   * line) — the array assembler the black-box stdout producers share (branch-family dry-run
+   * blocks; the counters-presence assertion in scripts/validate/smoke-cdd.ts keys on exactly this
+   * shape). C5 (T8): the `next` value (rules/next-step.ts) appends the suggestion line. */
   assembleReturnBlock(
     fields: { status: string; commits: string; artifacts: string },
     workspace: string,
+    next?: string | null,
   ): string[] {
-    return [
+    const out = [
       `status: ${fields.status}`,
       `commits: ${fields.commits}`,
       `artifacts: ${fields.artifacts}`,
       this.returnCountersLine(workspace),
     ];
+    return this.#withNext(out, next);
   }
 
   /** Aligns _cdd_emit_h1_from_handoff (no jq dependency): reads the handoff JSON; missing/corrupt →
    * BLOCKED fallback. artifacts emitted only when present. T7: the 4th counters line appended via
    * returnCountersLine. M3: the `blocker:` column is retired — a BLOCKED round's reason rides the
    * carrier's failure_category + the stderr CDD_BLOCKED single channel; the missing/unparseable
-   * fallback reason strings write to stderr here (never silently dropped with the column). */
-  returnFromHandoff(handoffPath: string, workspace: string): string[] {
+   * fallback reason strings write to stderr here (never silently dropped with the column). C5 (T8):
+   * the optional `next` value (rules/next-step.ts) appends the `next:` suggestion line. */
+  returnFromHandoff(handoffPath: string, workspace: string, next?: string | null): string[] {
     if (!handoffPath || !existsSync(handoffPath)) {
       process.stderr.write(`CDD_BLOCKED: ${HANDOFF_MISSING_REASON}\n`);
       return this.returnFourLines("status: BLOCKED", workspace);
@@ -167,12 +180,12 @@ export class ReturnBlockParser {
     ];
     if (arts.length > 0) out.push(`artifacts: ${arts.join(" ")}`);
     out.push(this.returnCountersLine(workspace));
-    return out;
+    return this.#withNext(out, next);
   }
 
   /** returnCountersLine — the return block `counters` line's UNIQUE construction point (T7): all
-   * return block producers append through this method, or the 4-line engine stdout contract
-   * (status/commits/artifacts + counters) has no guard.
+   * return block producers append through this method, or the 5-line engine stdout contract
+   * (status/commits/artifacts + counters + next, C5) has no guard.
    * Reads the four counter fields of <workspace>/progress.json: missing / corrupt file / missing
    * keys each fall back to `0` and never throw (a dry-run first round may not have progress.json
    * yet — the fallback IS the first-round shape). **Read-only, no write side effect**: never

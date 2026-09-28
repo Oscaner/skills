@@ -42,6 +42,7 @@ import { getRoot, resolveDocArg } from "../infra/root.ts";
 import { TemplateLoader } from "../render/templates.ts";
 import { ConvergenceChecker } from "../rules/convergence.ts";
 import { FAILURE_CATEGORIES } from "../rules/failure.ts";
+import { nextStepFor } from "../rules/next-step.ts";
 import { HandoffSchemaValidator } from "../rules/schema.ts";
 import { type DispatchContext, type DispatchHookContext, DispatchLifecycle } from "./base.ts";
 
@@ -380,8 +381,8 @@ export class BranchReviewLifecycle extends BranchLifecycle {
 
   /** Steps 7/8: render the branch-review prompt (docs-family shell + REVIEW_REFERENCE
    * base..head + review-family round-context slots) and spawn the harness CLI. Dry-run:
-   * APPROVED stub handoff + the 4-line return block (assembleReturnBlock — the return-block single
-   * point) + exit 0. */
+   * APPROVED stub handoff + the 5-line return block (assembleReturnBlock — the return-block single
+   * point, counters + the C5 `next:` line) + exit 0. */
   protected override async dispatch(_hookCtx: DispatchHookContext): Promise<void> {
     const base = String(this.#base);
     const head = String(this.#head);
@@ -402,6 +403,15 @@ export class BranchReviewLifecycle extends BranchLifecycle {
           artifacts: "",
         },
         this.workspace,
+        // C5 (T8): the branch-review dry-run is a clean round (zero findings) → the approval is a
+        // terminal `next: none` (a branch review has no remaining-group hop).
+        nextStepFor({
+          op: "review",
+          type: "branch",
+          plan: this.opts.plan,
+          status: "APPROVED",
+          findings: [],
+        }),
       );
       for (const line of returnBlock) process.stdout.write(`${line}\n`);
       exitOk();
@@ -464,7 +474,7 @@ export class BranchReviewLifecycle extends BranchLifecycle {
    * APPROVED/CHANGES_REQUESTED → 0) — this is the sole exit path once the agent wrote a handoff.
    * The REAL-mode round ALSO emits the return block on the parent stdout (T6 C3-b) — through the
    * return-block single point (returnBlocks.returnFromHandoff over this.handoffPath + workspace,
-   * the same 4-line T1 contract status/commits/artifacts + counters, zero `blocker:`) — the
+   * the same 5-line contract status/commits/artifacts + counters + next, zero `blocker:`) — the
    * orchestrator routes the branch-review round on the `status:` line. Aligned with the dry-run
    * assembleReturnBlock lane and the task/docs return-block surfaces. */
   protected override async normalizeResult(_hookCtx: DispatchHookContext): Promise<void> {
@@ -485,7 +495,22 @@ export class BranchReviewLifecycle extends BranchLifecycle {
       if (cc) handoff = { ...handoff, commits: cc };
     }
     if (handoff && handoff !== this.agentHandoff) writeOwnHandoff(this.handoffPath, handoff);
-    for (const line of returnBlocks.returnFromHandoff(this.handoffPath, this.workspace)) {
+    // C5 (T8): the `next:` line rides the same return-block single point — derived from the
+    // finalized handoff facts (status + findings) + the reviewed range. A BLOCKED review (or a
+    // null handoff) produces no `next:` (the failure-mode stderr face owns it).
+    const next = handoff
+      ? nextStepFor({
+          op: "review",
+          type: "branch",
+          plan: this.opts.plan,
+          base: String(this.#base),
+          head: String(this.#head),
+          status: handoff.status as string | undefined,
+          findings: (handoff as { findings?: Array<{ severity?: string }> }).findings,
+          findingsPath: this.handoffPath,
+        })
+      : null;
+    for (const line of returnBlocks.returnFromHandoff(this.handoffPath, this.workspace, next)) {
       process.stdout.write(`${line}\n`);
     }
     exitWithCode(finalized.exitCode);
@@ -577,7 +602,8 @@ export class BranchFixLifecycle extends BranchLifecycle {
 
   /** Steps 7/8: derive the FIX_BASE (source review's commits.base; missing/unknown → BLOCKED
    * carrier + exit 1), render the fix prompt (task-family shell + RETURN_STDOUT_BLOCK), spawn the
-   * fix agent CLI. Dry-run: APPROVED stub handoff + the 4-line return block + exit 0. */
+   * fix agent CLI. Dry-run: APPROVED stub handoff + the 5-line return block (counters + the C5
+   * `next:` line) + exit 0. */
   protected override async dispatch(_hookCtx: DispatchHookContext): Promise<void> {
     if (this.opts.dryRun) {
       writeHandoff(this.handoffPath, {
@@ -595,6 +621,14 @@ export class BranchFixLifecycle extends BranchLifecycle {
           artifacts: "",
         },
         this.workspace,
+        // C5 (T8): dry-run fix input has zero findings → zero blockers → closure `next: none`.
+        nextStepFor({
+          op: "fix",
+          type: "branch",
+          plan: this.opts.plan,
+          status: "APPROVED",
+          findings: [],
+        }),
       );
       for (const line of returnBlock) process.stdout.write(`${line}\n`);
       exitOk();

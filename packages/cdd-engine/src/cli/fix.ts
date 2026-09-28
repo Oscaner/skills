@@ -7,11 +7,13 @@
 // channel to DocsLifecycle.run.
 import path from "node:path";
 import * as handoffNaming from "../artifacts/handoff/naming.ts";
+import { readJson } from "../artifacts/handoff/write.ts";
 import { DispatchBlocked } from "../dispatch/base.ts";
 import type { TaskGroup } from "../domain/task-group.ts";
 import { exitOk, exitOkWith, exitWithCode } from "../infra/exit.ts";
 import { withLifecycle } from "../infra/proc.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
+import { nextStepFor } from "../rules/next-step.ts";
 import { docsResultFace } from "./result-face.ts";
 import { DRY_RUN, requireHostHarness, resolveTargetDoc } from "./shared.ts";
 
@@ -164,12 +166,30 @@ export async function runFix(opts: FixOpts): Promise<void> {
       handoffPath,
     });
     // Docs fix completion → stdout result face (design §2.9 / AC9): previously stdout had zero
-    // result surface when the docs fix finished; the orchestrator now reads status/blocker/handoff
-    // off the line. Exit stays on the exit.ts single surface: exit 0 → exitOkWith(face); non-0 →
-    // face + exitWithCode.
+    // result surface when the docs fix finished; the orchestrator now reads status off the line.
+    // C5 (T8): the face appends the `next:` suggestion line — the fix face is the re-review / closure
+    // single decision point (C5-1), judged on the `--findings` INPUT content severity
+    // (convergence.blockerCount): blockers → next review; warn/nit-only → closure `none`.
     const face = docsResultFace(result, handoffPath);
-    if (result.exitCode === 0) exitOkWith(face);
-    process.stdout.write(`${face}\n`);
+    const fixHandoff = result.handoff as
+      | { status?: string; findings?: Array<{ severity?: string }> }
+      | null
+      | undefined;
+    const inputFindings =
+      (findingsPath
+        ? (readJson(findingsPath) as { findings?: Array<{ severity?: string }> })
+        : null
+      )?.findings ?? [];
+    const next = nextStepFor({
+      op: "fix",
+      type: opts.type,
+      doc,
+      status: fixHandoff?.status,
+      findings: inputFindings,
+    });
+    const faceOutput = next ? `${face}\nnext: ${next}` : face;
+    if (result.exitCode === 0) exitOkWith(faceOutput);
+    process.stdout.write(`${faceOutput}\n`);
     exitWithCode(result.exitCode);
   });
 }

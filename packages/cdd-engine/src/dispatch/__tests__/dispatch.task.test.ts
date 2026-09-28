@@ -201,7 +201,9 @@ it("runTask dry-run 降级: dirty + dryRun + noExit → exit 0 + return block AP
     });
     expect(res.exitCode).toBe(0);
     expect(res.returnBlock[0]).toBe("status: APPROVED");
-    expect(res.returnBlock).toHaveLength(4); // status/commits/artifacts + counters
+    // C5 (T8): engine stdout contract = status/commits/artifacts + counters + next
+    expect(res.returnBlock).toHaveLength(5);
+    expect(res.returnBlock.at(-1)).toMatch(/^next: /);
   } finally {
     cap.restore();
   }
@@ -322,7 +324,9 @@ it("dry-run 零 liveness 介入（T14 接口消歧）: 不 spawn / 不解析终�
   expect(res.returnBlock[0]).toBe("status: APPROVED");
   expect(invokeSpy).not.toHaveBeenCalled(); // dry-run ≈ run() pre-flight early return, no spawnManaged
   expect(terminationSpy).not.toHaveBeenCalled(); // dry-run resolves no termination config
-  expect(res.returnBlock.at(-1)).toMatch(/^counters: timeout=0 contract-violation=\d+/); // no TIMEOUT count increment
+  // C5 (T8): counters is the 4th line, the `next:` suggestion the 5th (engine stdout contract).
+  expect(res.returnBlock[3]).toMatch(/^counters: timeout=0 contract-violation=\d+/); // no TIMEOUT count increment
+  expect(res.returnBlock.at(-1)).toMatch(/^next: cdd review --type task --tasks 1/);
   expect(res.returnBlock.every((l) => !l.startsWith("blocker:"))).toBe(true); // zero blocker column (M3)
   // implement dry-run 不写 handoff（T6 实体化仅真实 dispatch）——也无 TIMEOUT 部分 handoff 可言
   const ws = path.join(repo, ".osuperpowers", "cdd", "plan");
@@ -373,7 +377,7 @@ it("干净树 + 非法 mode → validateMode 拒绝（模板停在 dispatch 前�
   ]);
 });
 
-it("dry-run implement 走全模板（双门卷入）→ 出口 0 + 4 行 return block（counters 行追加，零 blocker 列）", async () => {
+it("dry-run implement 走全模板（双门卷入）→ 出口 0 + 5 行 return block（counters 行追加 + next 建议行，零 blocker 列）", async () => {
   const repo = setupRepo();
   const { mkdirSync: mkdirFs } = await import("node:fs");
   mkdirFs(path.join(repo, "docs"), { recursive: true });
@@ -391,9 +395,77 @@ it("dry-run implement 走全模板（双门卷入）→ 出口 0 + 4 行 return 
   });
   expect(res.exitCode).toBe(0);
   expect(res.returnBlock[0]).toBe("status: APPROVED");
-  expect(res.returnBlock).toHaveLength(4); // status/commits/artifacts + counters
+  expect(res.returnBlock).toHaveLength(5); // status/commits/artifacts + counters + next (C5)
   expect(res.returnBlock.every((l) => !l.startsWith("blocker:"))).toBe(true);
-  expect(res.returnBlock.at(-1)).toMatch(/^counters: /);
+  expect(res.returnBlock[3]).toMatch(/^counters: /);
+  expect(res.returnBlock.at(-1)).toMatch(/^next: cdd review --type task --tasks 1/);
+});
+
+// ---- C5 fix next-hop decision (C5-1 single point: the --findings input severity decides
+// re-review vs closure). The pure full table lives in rules/__tests__/next-step.test.ts; this
+// pins the task-face integration: a dry-run fix return block derives through step-11, reading
+// the --findings INPUT content (blocker present → next: review; warn/nit only → next: none).
+it("C5 fix dry-run: --findings input with a blocker → next: cdd review (same group, new ref)", async () => {
+  const repo = setupRepo();
+  mkdirSync(path.join(repo, "docs"), { recursive: true });
+  writeFileSync(path.join(repo, "docs", "plan.md"), "# P\n\n### Task 1: t\n");
+  git(repo, "add", "-A");
+  git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "plan");
+  const ws = path.join(repo, ".osuperpowers", "cdd", "plan");
+  mkdirSync(ws, { recursive: true });
+  const findingsPath = path.join(ws, "tasks-1-review-1.json");
+  writeFileSync(
+    findingsPath,
+    JSON.stringify({
+      status: "CHANGES_REQUESTED",
+      findings: [{ severity: "blocker", summary: "b" }],
+      artifacts: {},
+    }),
+  );
+  const res = await TaskLifecycle.run("ghost", 1, {
+    mode: "fix",
+    dryRun: true,
+    planFile: "docs/plan.md",
+    root: repo,
+    registryPath: ghostRegistry(),
+    findingsPath,
+    noExit: true,
+  });
+  expect(res.exitCode).toBe(0);
+  expect(res.returnBlock.at(-1)).toMatch(/^next: cdd review --type task --tasks 1/);
+});
+
+it("C5 fix dry-run: --findings input warn/nit-only → next: none (closure naturalization)", async () => {
+  const repo = setupRepo();
+  mkdirSync(path.join(repo, "docs"), { recursive: true });
+  writeFileSync(path.join(repo, "docs", "plan.md"), "# P\n\n### Task 1: t\n");
+  git(repo, "add", "-A");
+  git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "plan");
+  const ws = path.join(repo, ".osuperpowers", "cdd", "plan");
+  mkdirSync(ws, { recursive: true });
+  const findingsPath = path.join(ws, "tasks-1-review-1.json");
+  writeFileSync(
+    findingsPath,
+    JSON.stringify({
+      status: "REVIEW_FIX",
+      findings: [
+        { severity: "warn", summary: "w" },
+        { severity: "nit", summary: "n" },
+      ],
+      artifacts: {},
+    }),
+  );
+  const res = await TaskLifecycle.run("ghost", 1, {
+    mode: "fix",
+    dryRun: true,
+    planFile: "docs/plan.md",
+    root: repo,
+    registryPath: ghostRegistry(),
+    findingsPath,
+    noExit: true,
+  });
+  expect(res.exitCode).toBe(0);
+  expect(res.returnBlock.at(-1)).toBe("next: none");
 });
 
 it("ctx 注入面: 构造即挂基类双门（子类零注册面接触；ctx 原样可读）", async () => {

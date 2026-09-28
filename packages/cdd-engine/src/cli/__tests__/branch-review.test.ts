@@ -89,6 +89,7 @@ describe("branch-review dry-run", () => {
 
     expect(stdout).toContain("status: APPROVED");
     expect(stdout).toContain("commits: base=abc1234 head=def5678");
+    expect(stdout).toContain("next: none"); // C5 (T8): clean branch review → terminal suggestion
     // C3-a black-box: the doc-audit gate actually RAN on the branch-review path (the resolved root
     // seeded the ctx — missing-root WARN must not fire), never WARN-skipped.
     expect(stderr).not.toContain("doc contract validation skipped (no repo root)");
@@ -354,12 +355,13 @@ describe("branch-review unparseable-handoff e2e", () => {
   });
 });
 
-// ---- Branch-review REAL mode emits the 4-line return block on the parent stdout (T6 C3-b) ----
+// ---- Branch-review REAL mode emits the 5-line return block on the parent stdout (T6 C3-b + C5) ----
 // The normalization single point (returnFromHandoff over this.handoffPath/workspace) must surface
-// the new T1 contract (status/commits/artifacts + counters, zero `blocker:`) when the agent wrote
-// a valid handoff — the orchestrator routes the branch-review round on the `status:` line.
+// the T1 contract (status/commits/artifacts + counters + the derived `next:` line, zero `blocker:`)
+// when the agent wrote a valid handoff — the orchestrator routes the branch-review round on the
+// `status:` line.
 describe("branch-review real-mode — parent stdout return block (C3-b)", () => {
-  it("agent writes APPROVED handoff → parent stdout = 4-line contract (status/commits/artifacts + counters, zero blocker:)", async () => {
+  it("agent writes APPROVED handoff → parent stdout = 5-line contract (status/commits/artifacts + counters + next, zero blocker:)", async () => {
     const dir = tmpGitRepo();
     const slug = "test-plan-br";
     const planPath = writeBranchChain(dir, `${slug}.md`);
@@ -423,6 +425,7 @@ describe("branch-review real-mode — parent stdout return block (C3-b)", () => 
       expect(cap.text).toMatch(
         /counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+/,
       );
+      expect(cap.text).toContain("next: none"); // C5 (T8): clean branch review → terminal suggestion
       expect(cap.text).not.toContain("blocker:"); // the stdout blocker column is retired (M3)
     } finally {
       process.env.PATH = origPath;

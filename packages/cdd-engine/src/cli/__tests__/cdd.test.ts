@@ -19,7 +19,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execaSync } from "execa";
 import { afterAll, describe, expect, it, vi } from "vitest";
-import { writeBranchChain } from "../../infra/__tests__/helpers.ts";
+import { captureStdout, writeBranchChain } from "../../infra/__tests__/helpers.ts";
 import { ExitRequested } from "../../infra/exit.ts";
 import { DRY_RUN_DIRTY_WARN } from "../../rules/commit.ts";
 import { setDryRun } from "../shared.ts";
@@ -151,9 +151,10 @@ describe("cdd CLI", () => {
     }
   });
 
-  it("dry-run review --type spec → exit 0 + stdout result face（docs-family 结果面，AC9）", () => {
-    // Design §2.9: the docs review completion prints the one-line stdout result face — the
-    // orchestrator routes on the `status:`/`blocker:` line without opening the handoff file.
+  it("dry-run review --type spec → exit 0 + stdout result face（docs-family 结果面，AC9 + C5 next 行）", () => {
+    // Design §2.9: the docs review completion prints the stdout result face — the orchestrator
+    // routes on the `status:` line without opening the handoff file. C5 (T8): the face APPENDS the
+    // `next:` suggestion line (`none` for a clean docs review approval).
     const r = runCli(["--dry-run", "review", "--type", "spec", "--spec", SMOKE_PLAN], {
       env: { CLAUDE_CODE_SESSION_ID: "1" },
     });
@@ -161,6 +162,7 @@ describe("cdd CLI", () => {
     expect(r.stdout).toMatch(/status: APPROVED/);
     expect(r.stdout).toMatch(/· blocker: 0/);
     expect(r.stdout).toMatch(/· handoff:/);
+    expect(r.stdout).toMatch(/next: none/);
   });
 
   it("dry-run fix --type task → return block + exit 0", () => {
@@ -556,14 +558,21 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
       const { runFix } = await import("../fix.ts");
       // D11: type=spec target param is --spec (opts.spec); opts.doc retired.
       // Docs fix completion routes through the exit helper (result face + ExitRequested(0)).
+      const cap = captureStdout();
       let exitCode: number | null = null;
       try {
         await runFix({ type: "spec", spec: doc, findings, root: repo });
       } catch (e) {
         if (e instanceof ExitRequested) exitCode = e.code;
         else throw e;
+      } finally {
+        cap.restore();
       }
       expect(exitCode).toBe(0);
+      // C5 (T8): the docs fix face APPENDS the `next:` line — zero input findings → closure `none`.
+      expect(cap.text).toMatch(/status: APPROVED/);
+      expect(cap.text).toMatch(/· handoff:/);
+      expect(cap.text).toMatch(/next: none/);
       const call = docsRunnerMock.run.mock.calls.at(-1)?.[0] ?? {};
       const ws = path.join(repo, ".osuperpowers", "cdd", "foo");
       expect(call.handoffPath).toBe(path.join(ws, "spec-fix-2.json"));

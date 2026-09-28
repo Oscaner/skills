@@ -84,23 +84,27 @@ function setupWorkspace() {
 const HOST = { CLAUDE_CODE_SESSION_ID: "1" };
 
 describe("cdd implement/review/fix CLI contract", () => {
-  it("dry-run implement → return block four lines APPROVED + exit 0", () => {
+  it("dry-run implement → return block five lines APPROVED + exit 0", () => {
     const { repo, plan } = setupWorkspace();
     const res = run(["--dry-run", "implement", "--tasks", "1", "--plan", plan], HOST, {
       cwd: repo,
     });
     expect(res.status).toBe(0);
     const lines = res.stdout.trim().split("\n");
-    expect(lines.length).toBe(4);
-    // Distinct shape: each of the four lines is a key line (guards against a tautological line count)
-    expect(lines.filter((l) => /^(status|commits|artifacts|counters):/.test(l)).length).toBe(4);
+    // C5 (T8): engine stdout contract = status/commits/artifacts + counters + next
+    expect(lines.length).toBe(5);
+    // Distinct shape: each of the five lines is a key line (guards against a tautological line count)
+    expect(lines.filter((l) => /^(status|commits|artifacts|counters|next):/.test(l)).length).toBe(
+      5,
+    );
     expect(lines[0]).toBe("status: APPROVED");
     expect(lines[1]).toBe("commits: base=dry-run");
     expect(lines[2]).toMatch(/^artifacts: brief=/);
     expect(lines.every((l) => !l.startsWith("blocker:"))).toBe(true); // zero blocker column (M3)
-    expect(lines.at(-1)).toMatch(
+    expect(lines[3]).toMatch(
       /^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/,
     );
+    expect(lines.at(-1)).toMatch(/^next: cdd review --type task --tasks 1/);
   });
 
   // F11: implement --plan 无前置 brief → runTask 自供应（plan 定稿处 generateBrief）；

@@ -1,7 +1,7 @@
 // packages/cdd-engine/src/rules/next-step.ts — NextStepRouter (C5 `next:` output-face derivation,
 // spec C5; T3). The router knowledge lives here as ONE class: every stdout result contract appends
 // a machine-greppable `next:` line carrying the default next-hop suggestion, and the dispatch faces
-// thread it through the ResultFace emit layer (cli/result-face.ts).
+// thread it through the ResultFace emit layer (rules/result-face.ts).
 //
 // C5-0 SUGGESTION SEMANTICS — the payload is the engine's DEFAULT next-hop suggestion for the
 // current world state with no mid-stream change ("if you continue directly, this is the next

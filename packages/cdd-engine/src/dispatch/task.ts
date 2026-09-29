@@ -19,11 +19,13 @@
 //               a dirty failure round never marks complete; the complete verdict is derived by
 //               deriveTaskState, never stored — Task 30 ②).
 //
-// P6 T24: the return-block text plane (returnFourLines / returnFromHandoff / dry-run block) is
-// owned by src/artifacts/return-block.ts (its single point) — this file imports + re-exports the
-// task-facing read-back atoms; the failure-carrier writes route through the writeBlockedCarrier
-// single terminal in finalize.ts; materializeWorkspace lives in naming.ts (workspace derivation
-// single point alongside resolveWorkspace). runTask keeps the legacy { exitCode, returnBlock }
+// P6 T24: the return-block text plane (returnFourLines parse / dryRunBlock serialize /
+// returnCountersLine counters) is owned by src/artifacts/return-block.ts (its single point) — this
+// file imports + re-exports the task-facing read-back atoms; engine stdout now emits via the
+// ResultFace status capsule (rules/result-face.ts), never a return-block atom; the failure-carrier
+// writes route through the writeBlockedCarrier single terminal in finalize.ts;
+// materializeWorkspace lives in naming.ts (workspace derivation single point alongside
+// resolveWorkspace). runTask keeps the legacy { exitCode, returnBlock }
 // surface ({ noExit } seam) as the static TaskLifecycle.run entry (Task 6/7 export-surface reshuffle:
 // `runTask` → `TaskLifecycle.run` — no bare forwarding shell).
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";

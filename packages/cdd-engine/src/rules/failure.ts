@@ -104,7 +104,7 @@ export class FailureResolver {
 
   // Single increment + threshold entry: after incrementing, if the category hit its terminal
   // threshold, overwrite the just-written failure handoff's blocker with the terminal shape
-  // (return block/status are re-read via returnFromHandoff, so the orchestrator sees the terminal signal).
+  // (the status capsule points at the carrier, so the orchestrator sees the terminal signal).
   maybeExhaust(progressDir: string, category: string, handoffPath: string): number {
     const n = this.incrementFailureCounter(progressDir, category);
     const ex = this.exhaustedBlocker(category, n);

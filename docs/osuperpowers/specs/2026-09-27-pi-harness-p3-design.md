@@ -1,6 +1,6 @@
 # Pi Harness P3 — engine 数据面（Pi Harness P3: Engine Data Plane）— Phase Spec
 
-- **Version**: v1.0 · 2026-09-29
+- **Version**: v1.1 · 2026-09-29（spec review-1 fix：G2 守卫扫面分期定案）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming → writing-phase-spec)
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.12](2026-09-27-pi-harness-overall.md)
@@ -14,7 +14,7 @@
 
 跨 phase 约定以 parent overall v1.12 为准（overall wins on conflict），本 phase 不重复表述，仅指针：
 - **P3 破坏性变更授权（2026-09-29，Constraints 登记）**：engine 数据面可重写代码 / 重整文件——约束 = 高维思考 / 抽象统一（OOP）/ 最佳实践 / 零技术债务
-- **豁免概念废除**：守卫扫 live 面（engine src/tests + scripts + docs/maintainers + README 家族 + osuperpowers tests）零 `cursor-agent`，唯一允许命中 = registry `cli` 数据值；历史正文（2026-09-13 family / change-history 行）即史实，不 retro-rename、无豁免机制
+- **豁免概念废除**：守卫扫 live 面（engine src/tests + scripts + docs/maintainers + README 家族 + osuperpowers tests）零 `cursor-agent`，唯一允许命中 = registry `cli` 数据值；历史正文（2026-09-13 family / change-history 行）即史实，不 retro-rename、无豁免机制。**P3 分期实施**：守卫扫面率先落三面（engine src/tests + scripts + docs/maintainers，本 phase 可归零面），README 家族与 osuperpowers tests 随 P4 文档统一验收纳入——program 终态五面归零定律不破（见 G2/C3/§4）
 - **CLI 二进制名不可改**（外部事实）：`cli` 字段保留 `claude` / `cursor-agent` / `pi`；名义映射表（标识符 ↔ 二进制 ↔ 宿主 marker）P4 落 README 渲染
 - **Non-goal：注册表分层不破**——本 phase 的 engine registry（spawn 契约面）与 emit 分发注册表 `scripts/lib/harness-registry.ts`（分发 manifest 面）不合并（P2 定案延续）
 - **host-marker 白名单恰 4 键不变**：`channels.env.hostHarness.markers` = `["AI_AGENT","CLAUDE_CODE_SESSION_ID","CURSOR_TRACE_ID"]` + `PATH`（engine-config.json:80-87，`context.test.ts:36` 钉死）——pi 检测复用 `AI_AGENT` 通道，零新键
@@ -24,7 +24,7 @@
 
 #### 2.1 目标与范围
 
-P3 把 engine 数据面收敛到与 P2 已定的分发契约同构：`harness-registry.json` 行键 `cursor-agent`→`cursor`（追平三元组 `{claude, cursor, pi}`），`detectCurrentHarness` 硬编码 if 链改 **OOP 多态**（Harness 抽象 + 子类 `detect(env)` 谓词 + 注册序 first-match），新增 `pi` 行（`cli` 二进制 `pi` · ship full · invoke `-p --mode text` · cache 未实测态）。用户前提（2026-09-29）抬升本 phase 为**抽象统一重构**：允许破坏性变更、高维 OOP、零技术债——detect 链、守卫面、显示面同步收编。范围外：engine 记录/artifacts 数据面（空壳废除声明，见 C4）、emit 分发注册表（Non-goal 分层）、README 家族收口（P4）。
+P3 把 engine 数据面收敛到与 P2 已定的分发契约同构：`harness-registry.json` 行键 `cursor-agent`→`cursor`（追平三元组 `{claude, cursor, pi}`），`detectCurrentHarness` 硬编码 if 链改 **OOP 多态**（Harness 抽象 + 子类 `detect(env)` 谓词 + 注册序 first-match），新增 `pi` 行（`cli` 二进制 `pi` · ship full · invoke `-p --mode text` · cache 未实测态）。用户前提（2026-09-29）抬升本 phase 为**抽象统一重构**：允许破坏性变更、高维 OOP、零技术债——detect 链、守卫面、显示面同步收编。范围外：engine 记录/artifacts 数据面（空壳废除声明，见 C4）、emit 分发注册表（Non-goal 分层）、README 家族收口与 osuperpowers tests 残留面（`tests/helpers.mjs:16` / `tests/presentation-surface.test.mjs:274`）零化（P4 文档·测试·收口——P3 守卫扫面不含此二面，见 G2/C3）。
 
 锚点图例：O = OOP 决定、G = 守卫决定、R = 实证/声明决定；锚点仅供本 spec 内部溯源（与 parent overall 的 D 编号非同号异义）：
 
@@ -34,7 +34,7 @@ P3 把 engine 数据面收敛到与 P2 已定的分发契约同构：`harness-re
 | O2 | pi 行定稿（grilling Q1/Q2，pi CLI 本机实证）：`cli` `pi` · invoke `-p --mode text`（pi 无 `--force`/`--output-format`）· ship full · prefix/suffix 镜像 claude/cursor · cache = auto-prefix/pending/observable false（克隆 cursor 未实测态） |
 | O3 | 注册序 = 优先级（grilling Q3）：`[cursor, claude, pi]`——SPECIFIC marker 先于 GENERIC env marker，与现状 if 链语义（CURSOR_TRACE_ID 先判）一致 |
 | G1 | name-set 断言（grilling Q3）：registry 迭代测试断言行键**恰**为 `{claude, cursor, pi}`（anti-white-green，防未来再引入非归一标识符） |
-| G2 | live 面 last-index 守卫（grilling R3 + 用户零豁免拍板）：engine src/tests + scripts + docs/maintainers + README 家族 + osuperpowers tests 扫 `cursor-agent` 即 fail；唯一允许命中 = registry `cli` 数据值 |
+| G2 | live 面 last-index 守卫（grilling R3 + 用户零豁免拍板）：**P3 扫面 = engine src/tests + scripts + docs/maintainers 三面**（P3 可归零面），扫 `cursor-agent` 即 fail；唯一允许命中 = registry `cli` 数据值（白名单单点，非豁免清单——命中点随 registry 数据走）；守卫面内合法点名二进制 `cursor-agent` 一律改写措辞（行键 `cursor` / 抽象措辞），字面残留恰 registry `cli` 字段一枚；README 家族 + osuperpowers tests 残留面零化与纳入守卫随 P4 文档·测试·收口激活（见 §4） |
 | R1 | `cdd` 记录/h·id 显示值 = **空壳**（实证）：artifacts/progress.ts、round-context.ts、return-block.ts、result-face.ts 零 harness 字段；真显示面 = observe-cache 日头（行键直出）+ issue 渲染 Host 行（宿主自报名）——scope 项改声明，见 C4 |
 
 **C1 Harness OOP 抽象（O1/O3）** — 新模块 `packages/cdd-engine/src/infra/harness.ts`：
@@ -58,12 +58,13 @@ P3 把 engine 数据面收敛到与 P2 已定的分发契约同构：`harness-re
 - `registry.cache.test.ts`：cursor 行 profile 用例 + pi 行 pending profile 用例；全行迭代 schema 校验自动纳入 pi（零硬编码）
 - `invoke.dispatch-set.test.ts`：`reg["cursor-agent"]` → `reg["cursor"]`
 - `host-detection.test.ts`：表驱动重写——cursor（CURSOR_TRACE_ID）· claude session（CLAUDE_CODE_SESSION_ID）· claude AI_AGENT（`claude-code*` 前缀）· pi（`AI_AGENT=pi`）· unknown（`AI_AGENT=codex` → `""`）· **优先级矩阵**（CURSOR_TRACE_ID + AI_AGENT=pi → cursor；CLAUDE_CODE_SESSION_ID + AI_AGENT=pi → claude；全空 → `""`）——三位宿主 origin 全测（P3 验收）
-- `scripts/validate/residue.ts`：新增 **live 面 last-index 守卫**（G2）——扫描 engine src（含测试）、scripts、docs/maintainers、README 家族、osuperpowers tests，`cursor-agent` 命中即 fail；唯一允许 = `harness-registry.json` 行 `cli` 字段值（白名单单点，非豁免清单——命中点随 registry 数据走）
+- `scripts/validate/residue.ts`：新增 **live 面 last-index 守卫**（G2）——扫描 **engine src（含测试）+ scripts + docs/maintainers 三面**（P3 可归零面），`cursor-agent` 命中即 fail；唯一允许 = `harness-registry.json` 行 `cli` 字段值（白名单单点，非豁免清单——命中点随 registry 数据走）；守卫面内合法点名二进制 `cursor-agent` 的测试/注释/文档措辞一律改写（经行键 `cursor` 或抽象措辞），字面残留恰 registry `cli` 字段一枚——三面残留已全部映射（engine src/tests 由 C1/C2/C3 清零，`scripts/observe-cache.ts` + `__tests__/observe-cache.test.ts` 由 C2 清零，`docs/maintainers/03-context-caching-doctrine.md:48` 由文档验收行清零）；**smoke-cdd 无 `cursor-agent` pin、无需改动**（守卫经 validate 的 residue block 生效，smoke-cdd 独立块仅 dist registry 运行时解析）；README 家族（`packages/osuperpowers/README.md:72` / `README.zh-CN.md:74` 行键格）与 osuperpowers tests 残留面（`tests/helpers.mjs:16` / `tests/presentation-surface.test.mjs:274`）零化随 P4 激活（届时扩展扫面纳入）
+- `scripts/validate/__tests__/residue.test.ts`：为 G2 守卫新增回归用例（与既有收集器 `targetsOverride` 注入模式一致）——(a) 白名单单点放行（registry `cli` 数据值所在行/文件即绿）、(b) 三守卫面任一 `cursor-agent` 命中即 fail、（c）白名单随 registry 数据变化（anti-white-green：registry `cli` 值改为他值后守卫放行新值、旧值命中即 fail——与 G1 对齐）
 - host-marker 白名单恰 4 键断言不动（`infra.context.test.ts` / `context.test.ts`）——pi 零新 env 键
 
 **C4 空壳声明 + 坐标系分层（R1）**：
 - **记录面空壳**：`artifacts/*` 与 `cli/result-face` 零 harness 字段（实证）——原 scope 项「`cdd` 记录与 `h`/`id` 显示值归一」无作业面，回填为事实声明（overall v1.12 已删）
-- **显示面坐标系分层**：issue 渲染 `- Harness: <harness>` 行（`templates/report/issue-body.json:201`）数据源 = `report-issues/SKILL.md:34` 宿主**自报名**（如 `claude-code`），与 registry 行键**非同一坐标系**——P3 声明此分层（引擎行键 ≠ 宿主自报名），不改写 Host 行；P4 名义映射表承载渲染
+- **显示面坐标系分层**：issue 渲染 `- Harness: <harness>` 行（`templates/report/issue-body.json:202`）数据源 = `report-issues/SKILL.md:34` 宿主**自报名**（如 `claude-code`），与 registry 行键**非同一坐标系**——P3 声明此分层（引擎行键 ≠ 宿主自报名），不改写 Host 行；P4 名义映射表承载渲染
 - **observe-cache 日头**（`observe-cache.ts:235` 打印 `observe-cache: ${harness} · …`）是唯一"行键直出"显示面——随 C2 rename 自然归一，零额外作业
 
 ### Acceptance criteria
@@ -71,7 +72,7 @@ P3 把 engine 数据面收敛到与 P2 已定的分发契约同构：`harness-re
 - `harness-registry.json` 行键集合断言恰 `{claude, cursor, pi}`（registry / infra.registry 测试 name-set，G1）
 - `detectCurrentHarness` 表驱动测试全绿：cursor/claude-session/claude-AI_AGENT/pi/unknown + 优先级矩阵（CURSOR_TRACE_ID > CLAUDE_CODE_SESSION_ID > AI_AGENT；pi = GENERIC 末位）
 - pi 行 `invoke` = `"-p --mode text"`，cache = `{mechanism: "auto-prefix", minTokens: "pending", observable: false}`，过全行迭代 schema 校验（registry.cache.test）
-- residue live 面守卫：engine src/tests + scripts + docs/maintainers + README 家族 + osuperpowers tests 扫描 `cursor-agent` 零命中（唯一允许 = registry `cli` 数据值），validate 全绿
+- residue live 面守卫：engine src/tests + scripts + docs/maintainers 三面扫描 `cursor-agent` 零命中（唯一允许 = registry `cli` 数据值），validate 全绿——README 家族与 osuperpowers tests 残留面（`packages/osuperpowers/README.md:72` / `README.zh-CN.md:74` · `tests/helpers.mjs:16` · `tests/presentation-surface.test.mjs:274`）零化及纳入守卫随 P4 激活，P3 不承诺此二面归零
 - `scripts/observe-cache.ts` + 测试使用 `cursor` 行键（零 `cursor-agent`）
 - docs/maintainers 引擎 registry 行键镜像（`03-context-caching-doctrine.md` Baseline entries）改行键 `cursor` + pi 行，零 `cursor-agent`
 - host-marker 白名单恰 4 键断言不变（`AI_AGENT`/`CLAUDE_CODE_SESSION_ID`/`CURSOR_TRACE_ID`/`PATH`）
@@ -89,7 +90,7 @@ P3 把 engine 数据面收敛到与 P2 已定的分发契约同构：`harness-re
 ## Section 4: Notes for downstream
 
 - **P4 名义映射表**：标识符 ↔ 二进制 ↔ 宿主 marker 三面映射的**数据**已由 P3（registry 行内 `cli`/`invoke` 数据 + OOP detect 谓词）承载；P4 README 家族只做**渲染**（registry 数据导出），零手写重复映射——P4 spec 消费本 phase 的 `harness.ts` 实例化面
-- **P4 文档统一验收**：README 家族 + CLAUDE.md + docs/maintainers live 档零 `cursor-agent`（历史豁免清单除外——已废，历史正文即史实）；P4 需注意 `report-issues/SKILL.md:34` 的宿主自报名示例（`claude-code`）属于自报名坐标系，与 registry 行键分层
+- **P4 文档统一验收**：docs/maintainers 已在 P3 随 C2 归零；P4 将守卫扫面扩展纳入 README 家族（`packages/osuperpowers/README.md:72` / `README.zh-CN.md:74` 行键格 `cursor-agent`→`cursor`）与 osuperpowers tests（`tests/helpers.mjs:16` 注释 / `tests/presentation-surface.test.mjs:274` 测试名）零化，并**定案 README Harness 表 cli 列二进制名 `cursor-agent` 渲染与守卫字面零化的关系**——守卫白名单单点 = registry `cli` 数据值，cli 列是数据导出渲染面（非豁免清单），P4 spec 设计其放行语义（root README 家族已零命中，仅复核）；历史正文即史实、无豁免；P4 需注意 `report-issues/SKILL.md:34` 的宿主自报名示例（`claude-code`）属于自报名坐标系，与 registry 行键分层（该不变量 P3 已声明，P4 渲染沿用）
 - **历史豁免**（已废概念）：本次 rename 不做 retro-rename；历史文件（2026-09-13 family / pi-harness 各 version change-history 行）保留 `cursor-agent` 原文即史实
 - **engine dist 资源**：`harness-registry.json` 随包发布（build.config.ts copy → `dist/resources/`）；本轮 rename + pi 行 = engine npm 包数据面变更，需 changeset 记录
 

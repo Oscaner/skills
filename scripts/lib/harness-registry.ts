@@ -16,8 +16,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 
-/** Emit-generated file watermark carried by every product document. */
-const GENERATED = "scripts/run.ts emit — do not edit";
+import { generatedBanner } from "./generated-banner.ts";
 
 export abstract class Harness {
   /** Harness identity — the registry id and the source.json row key slot. */
@@ -42,7 +41,7 @@ export class CursorHarness extends Harness {
   /** `.cursor-plugin/plugin.json` — thin manifest, no per-harness skill copy. */
   manifest(plugin, version) {
     const m = {
-      _generated: GENERATED,
+      _generated: generatedBanner,
       name: plugin.name,
       displayName: plugin.cursor?.displayName ?? plugin.name,
       description: plugin.description,
@@ -74,7 +73,7 @@ export class ClaudeHarness extends Harness {
    */
   manifest(plugin, version, { noSkills = false } = {}) {
     const m = {
-      _generated: GENERATED,
+      _generated: generatedBanner,
       name: plugin.name,
       description: plugin.description,
       version,
@@ -231,7 +230,13 @@ export const piHarness = new PiHarness();
 /** The repo's harness registry singleton — the single access point for emit + validate. */
 export const harnessRegistry = new HarnessRegistry([cursorHarness, claudeHarness, piHarness]);
 
-/** Shared keyword source for both thin manifests (claude keywords, tags fallback). */
+/**
+ * Keyword source for both thin manifests — only the aggregated claude row value
+ * (`ClaudeHarness.sourceJson` reconciles `oscaner.keywords ?? oscaner.claude?.keywords`
+ * at the D7 single source). An absent aggregate yields `[]` here and the caller's
+ * `if (kw.length)` guard omits the `keywords` field — no `tags` fallback chain
+ * (design §2.4: declared-missing = absent, no throw, no fallback).
+ */
 function keywordsOf(plugin) {
-  return plugin.claude?.keywords ?? plugin.claude?.tags ?? [];
+  return plugin.claude?.keywords ?? [];
 }

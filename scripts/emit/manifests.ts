@@ -3,14 +3,15 @@
  * registry (scripts/lib/harness-registry.ts: ClaudeHarness.manifest /
  * CursorHarness.manifest / PiHarness — each harness owns its own manifest or
  * product, skipping the old builder + keyword fallback chain wholesale). This
- * service keeps the two remaining emit-side surfaces: the shared `generatedBanner`
- * watermark constant and the `deriveFirstPartyNames` delegate (package discovery —
- * a repo concern, not a harness one, so it stays delegated from scripts/lib/first-party.ts).
+ * service keeps the two remaining emit-side surfaces: the `generatedBanner`
+ * watermark re-export (canonical literal lives in scripts/lib/generated-banner.ts)
+ * and the `deriveFirstPartyNames` delegate (package discovery — a repo concern,
+ * not a harness one, so it stays delegated from scripts/lib/first-party.ts).
  */
 
 import { deriveFirstPartyNames as firstPartyNames } from "../lib/first-party.ts";
 
-export const generatedBanner = "scripts/run.ts emit — do not edit";
+export { generatedBanner } from "../lib/generated-banner.ts";
 
 export class ManifestService {
   /**

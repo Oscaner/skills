@@ -7,7 +7,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-const GENERATED = "scripts/run.ts emit — do not edit";
+import { generatedBanner } from "./generated-banner.ts";
 
 export class MarketplaceService {
   /** repo root the service resolves manifests against (constructor-injected). */
@@ -74,7 +74,7 @@ export class MarketplaceService {
   /** @param {object} plugin @param {{ version: string }} resolved */
   cursorWrapperManifest(plugin, resolved) {
     const manifest = {
-      _generated: GENERATED,
+      _generated: generatedBanner,
       name: plugin.name,
       displayName: plugin.cursor.displayName,
       description: plugin.description,
@@ -125,7 +125,7 @@ export class MarketplaceService {
 
   claudeMarketplaceDocument(source, plugins) {
     return {
-      _generated: GENERATED,
+      _generated: generatedBanner,
       $schema: "https://www.schemastore.org/claude-code-marketplace.json",
       name: source.name,
       metadata: source.metadata,
@@ -136,7 +136,7 @@ export class MarketplaceService {
 
   cursorMarketplaceDocument(source, plugins) {
     return {
-      _generated: GENERATED,
+      _generated: generatedBanner,
       name: source.name,
       owner: source.owner,
       metadata: source.metadata,

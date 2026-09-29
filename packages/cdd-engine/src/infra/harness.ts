@@ -10,6 +10,31 @@ import { REG_PATH, Registry } from "./registry.ts";
 
 export type HarnessId = "claude" | "cursor" | "pi";
 
+/** The CLI prompt-cache capability profile, in the cache-profile-schema.json shape (spec D-3 C7):
+ *  mechanism/minTokens required; the numeric tuning fields are claude-only in the current rows. */
+export type CacheMechanism = "explicit" | "auto-prefix" | "implicit";
+
+export interface CacheProfile {
+  mechanism: CacheMechanism;
+  minTokens: number | "pending";
+  readMultiplier?: number;
+  writeMultiplier?: number;
+  ttlMinutes?: number;
+  observable?: boolean;
+}
+
+/** The closed op×type prefix shape (implement/review/fix — the CDD dispatch modes; the review op
+ *  carries the per-doc-type pointer map the registry's resolveInjection consumes). */
+export interface PrefixMap {
+  implement: string;
+  review: string | { task: string; branch: string; spec: string; plan: string };
+  fix: string;
+}
+
+/** The suffix shape — uniformly the empty op×type map ({} in every registry row; the resolver
+ *  stays registry.ts resolveSuffix, so consumers type against the row they read, not a resolver). */
+export type SuffixMap = Record<never, never>;
+
 /** The registry row contract each harness exposes as typed line access (self-held shape; the
  *  row a dispatch reads lives on the instance, not as bare registry reads at call sites). */
 export interface HarnessRow {
@@ -17,9 +42,9 @@ export interface HarnessRow {
   invoke?: string;
   output?: string;
   ship?: string;
-  cache?: unknown;
-  prefix?: unknown;
-  suffix?: unknown;
+  cache?: CacheProfile;
+  prefix?: PrefixMap;
+  suffix?: SuffixMap;
 }
 
 export abstract class Harness {
@@ -54,15 +79,15 @@ export abstract class Harness {
     return this.row().ship ?? "";
   }
 
-  get cache(): unknown {
+  get cache(): CacheProfile | undefined {
     return this.row().cache;
   }
 
-  get prefix(): unknown {
+  get prefix(): PrefixMap | undefined {
     return this.row().prefix;
   }
 
-  get suffix(): unknown {
+  get suffix(): SuffixMap | undefined {
     return this.row().suffix;
   }
 }

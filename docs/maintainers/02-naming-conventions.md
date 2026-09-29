@@ -34,7 +34,7 @@ Single registration point for the repo's governing terms. A term is in force fro
 
 1. **Terminology wins over mechanism names** — when a term and a mechanism name drift apart semantically, rename the code and docs to reach the term. Registration here defines the mechanism's contract.
 2. **Registration is the exit** — a term lands only when both hold: registered below, and its mechanism surfaces renamed to agree. Registration without rename (or vice versa) is a half-landed term.
-3. **Banned names are composed-form in this table** (underscore-joined), so the registry itself never trips the residue guards (e.g. `H1_BLOCK` under the `\bH1\b` guard in `residue.ts`).
+3. **Banned names are composed-form in this table** (underscore-joined), so the registry itself never trips the residue guards (e.g. `H1_BLOCK` under the `\bH1\b` guard in `scripts/validate/residue.ts`).
 
 ### 3.2 Active terms
 

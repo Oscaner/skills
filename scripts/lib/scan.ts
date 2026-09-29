@@ -10,9 +10,9 @@
 // scans must not trust test sites); guards that do scan tests opt in explicitly via
 // { includeTests: true }, with scope still written as src/... (never the deleted tests/).
 //
-// The face also carries the shared escapeRegExp literal-escaper: guard regexes built from data
-// rows (lexicon / canonical tables) come from ONE escaper in contract-lexicon.ts and residue.ts
-// instead of per-file copies.
+// The face also carries the shared escapeRegExp literal-escaper AND the shared isDataRow data-row
+// mask (the G2 data-derived allowance predicate): guard regexes built from data rows come from
+// ONE escaper and the data-source data-value judgment from ONE face instead of per-file copies.
 
 import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
@@ -87,4 +87,42 @@ export function listTargetFiles(targets: string[]): string[] {
  *  escaper so the consumers never carry a hand-copied escape one-liner. */
 export function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// JSON `"..."` strings and scalar literals (numbers / true / false / null) are data tokens, not
+// structure: stripping them alongside strings keeps an adjacent scalar field (e.g. `"port": 9000`)
+// on the allowance line from defeating the structural-purity mask.
+const DATA_TOKEN_RE = /"[^"]*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null/g;
+
+/**
+ * A line in a data-source file is a data row when (a) stripping every quoted string and scalar
+ * literal leaves only JSON structure (a data fragment, never prose/code/comment) and (b) each
+ * token occurrence sits in a data-value position — preceded by `:` / `[` / `,` AND not followed
+ * by `:` (a mapping value or an array element, never a key). This shared data-row mask is the G2
+ * allowance semantic the lexicon residue check applies; the stale-lexicon `--mode` lane rides the
+ * same predicate so mechanism scans allow a hit inside a lexicon-registered data source's data
+ * value (a harness CLI flag like `-p --mode text`) without a hand-written exemption list. A hit
+ * anywhere else on a live face fails.
+ */
+export function isDataRow(
+  dataSources: string[],
+  rel: string,
+  text: string,
+  tokenQuoted: string,
+): boolean {
+  if (!dataSources.includes(path.basename(rel))) return false;
+  if (!/^[\s{}:[\],]*$/.test(text.replace(DATA_TOKEN_RE, ""))) return false;
+  let idx = text.indexOf(tokenQuoted);
+  while (idx !== -1) {
+    let k = idx - 1;
+    while (k >= 0 && /\s/.test(text[k])) k--;
+    if (!":[,".includes(k >= 0 ? text[k] : "")) return false;
+    // Key-ness is decided by what follows the token: a mapping key is always followed by `:`
+    // (after whitespace), a data value never is — a `,`-preceded non-first key must fail.
+    let j = idx + tokenQuoted.length;
+    while (j < text.length && /\s/.test(text[j])) j++;
+    if (j < text.length && text[j] === ":") return false;
+    idx = text.indexOf(tokenQuoted, idx + tokenQuoted.length);
+  }
+  return true;
 }

@@ -18,7 +18,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { escapeRegExp, scanLines } from "./scan.ts";
+import { escapeRegExp, isDataRow, scanLines } from "./scan.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..");
@@ -81,36 +81,6 @@ export const G2_LIVE_FACES: ResidueFace[] = [
   { targets: ["scripts"], includeTests: false },
   { targets: ["docs/maintainers"], includeTests: false },
 ];
-
-// JSON `"..."` strings and scalar literals (numbers / true / false / null) are data tokens, not
-// structure: stripping them alongside strings keeps an adjacent scalar field (e.g. `"port": 9000`)
-// on the allowance line from defeating the structural-purity mask.
-const DATA_TOKEN_RE = /"[^"]*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null/g;
-
-/**
- * A line in a data-source file is a data row when (a) stripping every quoted string and scalar
- * literal leaves only JSON structure (a data fragment, never prose/code/comment) and (b) each
- * token occurrence sits in a data-value position — preceded by `:` / `[` / `,` AND not followed
- * by `:` (a mapping value or an array element, never a key). This is the G2 allowance semantic: a
- * hit inside a data-source data row is green; a token anywhere else on a live face fails.
- */
-function isDataRow(dataSources: string[], rel: string, text: string, tokenQuoted: string): boolean {
-  if (!dataSources.includes(path.basename(rel))) return false;
-  if (!/^[\s{}:[\],]*$/.test(text.replace(DATA_TOKEN_RE, ""))) return false;
-  let idx = text.indexOf(tokenQuoted);
-  while (idx !== -1) {
-    let k = idx - 1;
-    while (k >= 0 && /\s/.test(text[k])) k--;
-    if (!":[,".includes(k >= 0 ? text[k] : "")) return false;
-    // Key-ness is decided by what follows the token: a mapping key is always followed by `:`
-    // (after whitespace), a data value never is — a `,`-preceded non-first key must fail.
-    let j = idx + tokenQuoted.length;
-    while (j < text.length && /\s/.test(text[j])) j++;
-    if (j < text.length && text[j] === ":") return false;
-    idx = text.indexOf(tokenQuoted, idx + tokenQuoted.length);
-  }
-  return true;
-}
 
 // ---------------------------------------------------------------------------
 // skill-anatomy parsing — the digraph-consistency assertion port. All structure facts come from

@@ -1520,6 +1520,19 @@ describe("stale-lexicon：report-issues 旧模型语汇守卫（Task 16·P5）",
       rmSync(dir, { recursive: true, force: true });
     }
   });
+  it("data-row mask: a lexicon-registered data source's data value (`-p --mode text`) is green (G2 isDataRow allowance, data-derived)", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "residue-t16-datarow-"));
+    writeFileSync(
+      path.join(dir, "harness-registry.json"),
+      '{ "pi": { "cli": "pi", "invoke": "-p --mode text", "output": "text" } }\n',
+      "utf8",
+    );
+    try {
+      expect(collectStaleLexiconHits([dir])).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("live repo：T16 skills 面守卫 5 条零残留", () => {

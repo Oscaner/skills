@@ -140,11 +140,13 @@ const STALE_LEXICON_CHECKS = [
     label: "old --mode flag (task-level mode removed)",
     re: /(?<![\w-])--mode(?![-\w])/,
     scope: ALL_MECH_POSITIONS,
-    // G2 data-row carve-out (P3 T1): the harness-registry file is a data surface (spawn
-    // contract), not a mechanism position — the pi row's invoke `-p --mode text` (O2 fact,
-    // verified via `pi --help`) is a harness CLI flag, the same pass-through class as the
-    // registry cli data value. The check keeps zero-exemption over mechanism code.
-    excludeFiles: [{ file: "packages/cdd-engine/src/infra/harness-registry.json" }],
+    // G2 data-row allowance (P3 T1): the harness-registry pi invoke's `-p --mode text` (O2 fact,
+    // verified via `pi --help`) is a harness CLI data value, the same pass-through class as the
+    // registry cli data value. The allowance is data-derived — dataRowAllow names the token whose
+    // data-source data-row occurrences are green, and the allowance FILE SET rides the lexicon's
+    // residue dataSources (contract-lexicon.json), never a hand-written exemption list. The check
+    // keeps zero-exemption over mechanism code.
+    dataRowAllow: ["--mode"],
   },
   {
     label: "renderComment old renderer vocabulary",
@@ -305,6 +307,7 @@ function assert(cond, msg) {
 // do scan tests opt in explicitly via `{ includeTests: true }`.
 import {
   escapeRegExp,
+  isDataRow,
   listTargetFiles,
   scanLines,
   scanTargets,
@@ -362,14 +365,22 @@ export function hasHit(lines) {
 
 // targetsOverride mirrors collectGateLexiconHits — lets tests inject temporary targets to verify the
 // **doc-surface face** (DOC_SURFACE_TARGETS) is actually in the scan (otherwise a scope shrink goes
-// unnoticed by any assertion).
+// unnoticed by any assertion). A check with a non-empty dataRowAllow runs a line-level scan through
+// the shared data-row mask: the allowance FILE SET is the lexicon's residue dataSources (data-
+// derived, never a hand-written exemption list), and only a hit inside a data source's data row is
+// green — everything else on the mechanism face fails.
 export function collectStaleLexiconHits(targetsOverride) {
   const hits = [];
-  for (const { label, re, scope, excludeFiles = [] } of STALE_LEXICON_CHECKS) {
-    for (const f of scanTargets(targetsOverride ?? scope, re)) {
-      if (excludeFiles.some((x) => f.includes(x.file))) continue; // data-row carve-out (G2)
-      hits.push({ label, file: f });
+  const dataSources = new ContractLexiconGuard().lexicon().residue.dataSources;
+  for (const { label, re, scope, dataRowAllow = [] } of STALE_LEXICON_CHECKS) {
+    if (dataRowAllow.length > 0) {
+      for (const { file, text } of scanLines(targetsOverride ?? scope, re)) {
+        if (dataRowAllow.some((tok) => isDataRow(dataSources, file, text, `"${tok}"`))) continue;
+        hits.push({ label, file });
+      }
+      continue;
     }
+    for (const f of scanTargets(targetsOverride ?? scope, re)) hits.push({ label, file: f });
   }
   return hits;
 }

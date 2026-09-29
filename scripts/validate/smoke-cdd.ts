@@ -474,15 +474,22 @@ function assertReturnBlock(cmd: string, stdout: string): void {
     `old-shape stdout key line present (last block: ${JSON.stringify(lastBlock)})`,
   );
   // C5 (T8): the `next:` suggestion line — a command suggestion (`cdd …`), the clean terminal
-  // (`none`), or the review-cycle soft-cap user-adjudication marker (`BLOCKED: …`).
+  // (`none`), or the review-cycle soft-cap user-adjudication marker (`BLOCKED: …`). The assertion
+  // tests the VALUE after the `next: ` prefix (the prefix is the capsule's route anchor, not part
+  // of the suggestion shape — a green round's `next: cdd review …` must match the suggestion arm).
   const next = lines.find((l) => l.startsWith("next: "));
   assertTrue(
-    !!next && /^(cdd |none$|BLOCKED:)/.test(next!),
+    !!next && /^(cdd |none$|BLOCKED:)/.test(next!.replace(/^next: /, "")),
     `next: line missing or unexpected (got ${JSON.stringify(next)})`,
   );
   // Branch-family carrier facts follow the capsule's handoff pointer (commits moved off stdout).
+  // Only the branch family materializes its carrier in dry-run (branch-review → commits
+  // base=head=<sha>; branch-fix → base=head=dry-run); the task-family dry-run writes no handoff
+  // (the engine's dry-run no-handoff invariant — task.ts step 13 "dry-run does not write a
+  // handoff"), so its capsule `handoff:` pointer names a non-materialized path and the carrier
+  // assertions apply on the branch faces only.
   const handoffMatch = capsule!.match(/handoff: (\S+)$/);
-  if (handoffMatch) {
+  if (handoffMatch && cmd.includes("--type branch")) {
     const carrier = JSON.parse(readFileSync(handoffMatch[1], "utf8")) as {
       commits?: { base?: string; head?: string };
     };

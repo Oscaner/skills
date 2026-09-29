@@ -66,7 +66,7 @@ const SUBCOMMANDS: CommandMeta[] = [
   },
   {
     name: "validate",
-    description: "run the full validate suite (12 blocks)",
+    description: "run the full validate suite",
     modulePath: "./validate/index.ts",
     kind: "none",
   },

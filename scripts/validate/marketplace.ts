@@ -198,8 +198,9 @@ export function validateHarnessRegistryConsistency(packagesRoot) {
     }
   }
 
+  const declaredHarnessIds = Object.values(declarations).flat().length;
   console.log(
-    `OK — harness registry consistency (${names.length} first-party packages, ${Object.keys(declarations).length} declarations)`,
+    `OK — harness registry consistency (${names.length} first-party packages, ${declaredHarnessIds} declared harness ids)`,
   );
 }
 

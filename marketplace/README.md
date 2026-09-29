@@ -1,12 +1,12 @@
 # Marketplace source registry
 
-The marketplace is **package-as-source**: `packages/<name>/package.json#oscaner-plugin` is the single source of truth. [source.json](./source.json) is a **derived emit product** — do not hand-edit it. All marketplace manifests are generated from the same source.
+The marketplace is **package-as-source**: `packages/<name>/package.json#oscaner` is the single source of truth. [source.json](./source.json) is a **derived emit product** — do not hand-edit it. All marketplace manifests are generated from the same source.
 
 ## Edit workflow
 
 First-party plugins (`osuperpowers`):
 
-1. Edit `packages/<name>/package.json` — the `oscaner-plugin` field (contentRoot, harnesses, hooks) is the SOT. Adding a package dir with that field auto-joins the emit; no hand registration.
+1. Edit `packages/<name>/package.json` — the `oscaner` field (contentRoot, harnesses, keywords, claude) is the SOT. Adding a package dir with that field auto-joins the emit; no hand registration.
 2. Run emit:
 
 ```bash

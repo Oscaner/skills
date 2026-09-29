@@ -3,9 +3,9 @@
 /**
  * Unified emit — write mode (`scripts/run.ts emit`).
  *
- * The EmitService domain service (Task 9, Criterion ②: stateless service class) — the emit
+ * The EmitService domain service (Criterion ②: stateless service class) — the emit
  * composition root that derives `marketplace/source.json` (package-as-source) and guides every
- * first-party artifact into the repo root: osuperpowers per-harness manifests, the repo-root
+ * first-party artifact into the repo root: per-plugin per-harness manifests, the repo-root
  * marketplace documents, wrappers, and the data-driven `.github/ISSUE_TEMPLATE` forms. It
  * composes the module-level emitter singletons (each emitter is itself a stateless domain
  * service). The `generatedPaths` array records every repo-relative path produced (input for the
@@ -24,7 +24,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { issueTemplatesEmitter } from "./issue-templates.ts";
 import { marketplaceDocsEmitter } from "./marketplace.ts";
 import { emitOrchestrator } from "./orchestrate.ts";
-import { osuperpowersEmitter } from "./osuperpowers.ts";
+import { pluginManifestEmitter } from "./plugin-manifests.ts";
 import { sourceService } from "./source.ts";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -41,9 +41,7 @@ export class EmitService {
     const source = sourceService.derive(root);
 
     for (const plugin of source.plugins) {
-      if (plugin.name === "osuperpowers") {
-        osuperpowersEmitter.emit(outRoot, plugin, generatedPaths);
-      }
+      pluginManifestEmitter.emit(outRoot, plugin, generatedPaths);
     }
 
     const wrapperRoots = marketplaceDocsEmitter.emit(outRoot, source, generatedPaths);

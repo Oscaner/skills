@@ -2,13 +2,22 @@
 
 // scripts/validate/marketplace.ts — block 6: marketplace validate (moved up from the
 // scripts/ root). The four source.json / manifest checks run in-process as a single step
-// descriptor; standalone (`node scripts/validate/marketplace.ts`) executes the same checks.
+// descriptor with the new harness-registry consistency guard (C5); standalone
+// (`node scripts/validate/marketplace.ts`) executes the same checks.
+//
+// This is validate's first consumption of scripts/lib: the consistency guard must
+// compare the package declarations against the real registry (a blind read of the
+// emitted products would be a meaningless surface check). The layering here is
+// "product reader + registry-contract consumer", not the pure product reader the
+// block used to be.
 
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv from "ajv";
 
+import { deriveFirstPartyNames } from "../lib/first-party.ts";
+import { harnessRegistry } from "../lib/harness-registry.ts";
 import { CheckBlock, validateRunner } from "./runner.ts";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -139,6 +148,62 @@ function validateMarketplaceSources() {
   console.log("OK — marketplace plugin sources exist");
 }
 
+export function validateHarnessRegistryConsistency(packagesRoot) {
+  const names = deriveFirstPartyNames(packagesRoot);
+  const declarations = {};
+
+  // ① Every declared harness id must resolve in the registry — an unknown id is a
+  //    structured fail (package name + id + the expected id set).
+  for (const pkgName of names) {
+    const pkg = JSON.parse(readFileSync(join(packagesRoot, pkgName, "package.json"), "utf8"));
+    const declared = pkg.oscaner?.harnesses ?? [];
+    if (!Array.isArray(declared)) {
+      throw new Error(`Package "${pkgName}" must declare oscaner.harnesses as an array`);
+    }
+    declarations[pkgName] = declared;
+    for (const id of declared) {
+      try {
+        harnessRegistry.resolve(id, pkgName);
+      } catch {
+        const expected = harnessRegistry
+          .all()
+          .map((h) => h.id)
+          .join(", ");
+        throw new Error(
+          `Package "${pkgName}" declares unknown harness id "${id}" (expected one of: ${expected})`,
+        );
+      }
+    }
+  }
+
+  // ② Bidirectional wiring guard — a registry row no package declares is a defect
+  //    (registering a harness without wiring it would stay silent otherwise).
+  harnessRegistry.assertBidirectional(declarations);
+
+  // ③ Every declared emit-harness product must exist on disk under the package
+  //    content root (pi — an inline distribution with no product — is skipped).
+  for (const pkgName of names) {
+    const pkg = JSON.parse(readFileSync(join(packagesRoot, pkgName, "package.json"), "utf8"));
+    const contentRoot = pkg.oscaner?.contentRoot ?? ".";
+    for (const id of pkg.oscaner?.harnesses ?? []) {
+      const h = harnessRegistry.resolve(id);
+      if (h.product) {
+        const abs = join(packagesRoot, pkgName, contentRoot, h.product.rel);
+        if (!existsSync(abs)) {
+          throw new Error(
+            `Package "${pkgName}" declares emit-harness "${h.id}" but its product is missing: ${abs}`,
+          );
+        }
+      }
+    }
+  }
+
+  const declaredHarnessIds = Object.values(declarations).flat().length;
+  console.log(
+    `OK — harness registry consistency (${names.length} first-party packages, ${declaredHarnessIds} declared harness ids)`,
+  );
+}
+
 // Single in-process step, not a `node scripts/validate/marketplace.ts` subprocess
 // (plan Step 2's literal form): a run() that spawned this very module would recurse
 // infinitely on standalone execution — main() here IS this module's main. In-process
@@ -152,6 +217,10 @@ export const steps = [
       validateWrapperPaths();
       validateMarketplaceSources();
     },
+  }),
+  new CheckBlock({
+    name: "emit harness registry consistency",
+    run: () => validateHarnessRegistryConsistency(join(root, "packages")),
   }),
 ];
 

@@ -1,14 +1,14 @@
 // scripts/validate/__tests__/pre-commit.test.ts — G4 (P6 Task 17): pins the
 // tree-independent pre-commit subset composition (scripts/validate/pre-commit.ts).
 // The subset must (a) lead with the emit freshness block, (b) carry every
-// read-only / gate-free block of the full 12-step validate (osuperpowers:
+// read-only / gate-free block of the full validate (osuperpowers:
 // plugin resolution / skills inventory / pi-package well-formed / node:test
 // behavior tree + wiring guard; engine zero residue + channel audit; marketplace
 // manifests; scripts unit; package version sync), and (c) exclude ONLY the engine
 // black-box surface (cdd-engine dev stub materialization / engine test suite
 // (vitest)) — the blocks whose cwd=REPO_ROOT dispatch depends on entry-gate tree
-// cleanliness. The full validate composition is pinned by name-set (index.ts,
-// 12 steps — wired by the ci-validate.test.mjs guard).
+// cleanliness. The full validate composition is pinned by name-set in index.ts —
+// wired by the ci-validate.test.mjs guard.
 import { describe, expect, it } from "vitest";
 import { steps as fullSteps } from "../index.ts";
 import { steps as subsetSteps } from "../pre-commit.ts";

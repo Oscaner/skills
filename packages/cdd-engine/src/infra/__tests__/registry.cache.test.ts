@@ -36,6 +36,14 @@ describe("registry cache profile (spec D-3 C7 — capability as data)", () => {
     });
   });
 
+  it("pi profile = auto-prefix fallback, values pending measurement (the same capability lane as cursor)", () => {
+    expect(registry.cacheProfileFor(reg["pi"])).toMatchObject({
+      mechanism: "auto-prefix",
+      minTokens: "pending",
+      observable: false,
+    });
+  });
+
   it("all real profiles validate against the JSON schema (cache-profile-schema.json)", () => {
     for (const harness of Object.keys(reg)) {
       const result = validateCacheProfile(registry.cacheProfileFor(reg[harness]));

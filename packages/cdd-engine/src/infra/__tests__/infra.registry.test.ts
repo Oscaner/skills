@@ -21,6 +21,13 @@ it("loadRegistry: reads 3 harnesses (claude / cursor / pi)", () => {
   expect(Object.keys(reg).sort()).toEqual(["claude", "cursor", "pi"]);
 });
 
+// G1 bidirectional pin (reverse): the exact name-set assertion above is load-bearing — a foreign
+// row key makes the set differ, so the forward pin is provably sensitive to row-key drift.
+it("G1 reverse: a foreign row key fails the exact three-key name-set pin", () => {
+  const reg = registry.load(REG_PATH);
+  expect(Object.keys({ ...reg, gemini: {} }).sort()).not.toEqual(["claude", "cursor", "pi"]);
+});
+
 it("checkHarness: claude passes ship gate (dryRun skips PATH check)", () => {
   const reg = registry.load(REG_PATH);
   const entry = registry.checkHarness(reg, "claude", { dryRun: true });

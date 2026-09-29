@@ -347,6 +347,92 @@ function checkZeroResidue() {
   console.log("OK — zero residue in engine executable products");
 }
 
+// =====================================================================
+// P3 T2 — G2 live-face last-index guard (cursor binary-name residue)
+// =====================================================================
+// The cursor harness row key is `cursor`; its external binary name survives in exactly one
+// allowed live coordinate — the registry `cli` data value (a data-derived allowance, never a
+// hand-written exemption list). The guard scans the three live faces and fails any hit outside
+// a data-source data row:
+//   ① engine src incl. test sites — includeTests ON: the T1 zeroing must hold there too
+//     (registry.test / host-detection.test / invoke.dispatch-set.test pin the rename to zero);
+//     the same explicit opt-in as collectRootResolverHits — a residue sitting in a test file is
+//     only proven zero when tests are scanned.
+//   ② scripts — walkTargetFiles' default `**/__tests__` self-exemption applies (the guard's own
+//     regression test position at scripts/validate/__tests__ carries the lexeme as assertions).
+//   ③ docs/maintainers — no test sites, the face scans in full.
+// The data-source set = [harness-registry.json, contract-lexicon.json] (the lexicon joins at
+// T4; its harness clis-mapping / residue ban-table data rows fold into the same release form —
+// absent now, its allowance rows are naturally zero). The allowance is a data-row mask with a
+// value-position rule: a masked line is pure JSON structure once strings are stripped AND the
+// token sits in a data-value position (a mapping value or an array element), never a key.
+// The guard body never carries the guarded lexeme contiguously (scripts/ is a live face; a guard
+// body must not become a carrier of the vocabulary it guards) — the token is concatenated.
+const G2_TOKEN = "cursor" + "-agent";
+const G2_TOKEN_RE = new RegExp(G2_TOKEN);
+const G2_QUOTED = '"' + G2_TOKEN + '"';
+const G2_DATA_SOURCE_BASENAMES = ["harness-registry.json", "contract-lexicon.json"];
+
+// A line in a data-source file is a data row when (a) stripping every quoted string leaves only
+// JSON structure (a data fragment, never prose/code/comment) and (b) each token occurrence sits
+// in a data-value position — preceded by `:` / `[` / `,` (a mapping value or an array element),
+// never a key position (`{`-led / other). This is the allowance semantic: a hit inside
+// data-source data is green; a token anywhere else on a live face fails.
+function isG2DataRow(rel, text) {
+  if (!G2_DATA_SOURCE_BASENAMES.includes(path.basename(rel))) return false;
+  if (!/^[\s{}:[\],]*$/.test(text.replace(/"[^"]*"/g, ""))) return false;
+  let idx = text.indexOf(G2_QUOTED);
+  while (idx !== -1) {
+    let k = idx - 1;
+    while (k >= 0 && /\s/.test(text[k])) k--;
+    if (!":[,".includes(k >= 0 ? text[k] : "")) return false;
+    idx = text.indexOf(G2_QUOTED, idx + G2_QUOTED.length);
+  }
+  return true;
+}
+
+// The three live faces and their test-site stance (the guard's authority on effective scan
+// coverage — the per-face `__tests__` disposition the plan pins).
+export const G2_LIVE_FACES = [
+  { targets: ["packages/cdd-engine/src"], includeTests: true },
+  { targets: ["scripts"], includeTests: false },
+  { targets: ["docs/maintainers"], includeTests: false },
+];
+
+/**
+ * The G2 last-index guard's hit collector: { label, file:path:line } per hit. Live run = the three
+ * G2_LIVE_FACES (per-face includeTests). targetsOverride scans a flat target set with includeTests
+ * (the existing collector injection pattern); facesOverride lets tests inject temp face definitions
+ * to pin the per-face `__tests__` dispositions.
+ */
+export function collectCursorAgentHits(targetsOverride, facesOverride) {
+  const faces = targetsOverride
+    ? [{ targets: targetsOverride, includeTests: true }]
+    : (facesOverride ?? G2_LIVE_FACES);
+  const hits = [];
+  for (const { targets, includeTests } of faces) {
+    for (const { file, lineNo, text } of scanLines(targets, G2_TOKEN_RE, { includeTests })) {
+      if (isG2DataRow(file, text)) continue; // data-source data row (the release form)
+      hits.push({
+        label: "cursor binary-name live-face residue (G2 zero-exemption)",
+        file: `${file}:${lineNo}`,
+      });
+    }
+  }
+  return hits;
+}
+
+function checkCursorAgentResidue() {
+  const hits = collectCursorAgentHits();
+  assert(
+    hits.length === 0,
+    `CURSOR LIVE-FACE RESIDUE FOUND — G2 guard (engine src+tests / scripts / docs/maintainers):\n  ${hits.map((h) => `[${h.label}] ${h.file}`).join("\n  ")}`,
+  );
+  console.log(
+    "OK — G2 cursor binary-name zero residue (engine tests / scripts / docs/maintainers)",
+  );
+}
+
 export function hasHit(lines) {
   return [...STALE_LEXICON_CHECKS, ...GATE_LEXICON_CHECKS].some(({ re }) =>
     lines.some((line) => re.test(line)),
@@ -1658,6 +1744,8 @@ function checkSkillSurface() {
 // (M5: .mjs terminal state) and checkMemoryGuard (M6: vitest dual-config memory guard);
 // Task 31 (P6, spec T7.10) appends checkCommentAnchors (§35 second half: the src comment
 // anchor-first ban — semantic body first, anchor only as a trailing traceability suffix);
+// T2 (P3) appends checkCursorAgentResidue (the G2 live-face last-index guard: engine src+tests /
+// scripts / docs/maintainers, registry cli data-value rows as the only allowance);
 // grepTargets grew to include cdd-engine src+templates for the wiring guard to pin. channelTargets
 // = the channel-audit guard-surface union (the wiring guard pins any scope shrink as a fail;
 // post-move it excludes the retired tests/, the src surface walk self-exempts).
@@ -1666,6 +1754,7 @@ export const steps = [
     name: "engine zero residue + channel audit",
     run: () => {
       checkZeroResidue();
+      checkCursorAgentResidue();
       checkStaleLexicon();
       checkGateLexicon();
       checkChannelAudit();

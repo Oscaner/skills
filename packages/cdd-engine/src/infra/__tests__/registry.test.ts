@@ -24,6 +24,15 @@ it("registry 收敛三键 claude/cursor/pi", () => {
   expect(Object.keys(reg).sort()).toEqual(["claude", "cursor", "pi"]);
 });
 
+// G1 bidirectional pin (reverse): the exact name-set assertion above is load-bearing — a foreign
+// row key entering the registry makes the set differ (a junk key is the design-drift signal the
+// forward assertion exists to catch, never a pass).
+it("registry 恰三键反向：foreign key 入 registry → 恰三键 pin 抓负（G1 双向钉死）", () => {
+  const reg = registry.load(REG_PATH);
+  const junk = { ...reg, gemini: {} };
+  expect(Object.keys(junk).sort()).not.toEqual(["claude", "cursor", "pi"]);
+});
+
 it("checkHarness: claude 通过 ship gate（dryRun 跳过 PATH 校验）", () => {
   const reg = registry.load(REG_PATH);
   const entry = registry.checkHarness(reg, "claude", { dryRun: true });

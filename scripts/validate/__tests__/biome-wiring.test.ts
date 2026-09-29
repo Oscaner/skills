@@ -1,17 +1,22 @@
-// scripts/validate/__tests__/biome-wiring.test.ts — T2 (P4.4): pins the biome
-// gate wiring — biome.json's ts-scoped recommended shape (the consumer-reproducible
-// lint face) and the pre-commit hook's biome step (autofix + re-stage before the
-// `pnpm run precommit` chain, `set -e` so a surviving lint violation aborts the
-// commit). The zero-violation state itself is enforced by the hook on every commit
-// and re-asserted by Task 11; these pins guard the wiring, not the tree.
-import { readFileSync } from "node:fs";
+// scripts/validate/__tests__/biome-wiring.test.ts — pins the commit-gate wiring
+// (C6): the biome gate and the validate-subset backstop now ride lint-staged.
+// `.husky/pre-commit` is the single `pnpm exec lint-staged` line — the handwritten
+// autofix + re-stage loop is gone (biome:fix stays a manual script; the hook never
+// calls it), and lint-staged.config.mjs declares the two tasks: `biome check` for
+// the staged ts domain (no `--write`, so a surviving format/lint violation exits
+// non-zero and blocks the commit — the no-fix intercept) + a `*` catch-all that
+// keeps running `pnpm run precommit` (the tree-independent validate subset) as the
+// full-tree backstop. The zero-violation state itself is enforced by the hook on
+// every commit and re-asserted by the validate suite; these pins guard the
+// wiring, not the tree.
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
-describe("biome gate wiring (T2/P4.4)", () => {
+describe("biome gate wiring (C6/no-fix)", () => {
   it("biome.json ships the recommended ts-surface config", () => {
     const config = JSON.parse(readFileSync(join(ROOT, "biome.json"), "utf8"));
     expect(config.linter.rules.preset).toBe("recommended");
@@ -19,14 +24,26 @@ describe("biome gate wiring (T2/P4.4)", () => {
     expect(config.formatter.enabled).toBe(true);
   });
 
-  it("pre-commit hook runs the biome gate before the precommit chain", () => {
+  it("pre-commit hook runs the lint-staged gate (no-fix intercept, zero autofix residue)", () => {
     const hook = readFileSync(join(ROOT, ".husky", "pre-commit"), "utf8");
-    // Anchor on execution lines (newline-prefixed), not comment mentions.
-    const biomeIdx = hook.indexOf("\npnpm biome:fix");
-    const precommitIdx = hook.indexOf("\npnpm run precommit");
-    expect(biomeIdx).toBeGreaterThan(-1);
-    expect(precommitIdx).toBeGreaterThan(biomeIdx);
-    expect(hook).toContain("set -e");
-    expect(hook).toContain("git add"); // biome's reformat is re-staged into the commit
+    // The hook is the single lint-staged line; the old biome autofix + re-stage loop
+    // is gone (biome:fix stays a manual script — the hook never invokes it).
+    expect(hook).toContain("pnpm exec lint-staged");
+    expect(hook).not.toContain("biome:fix");
+    expect(hook).not.toContain("git add");
+  });
+
+  it("lint-staged pins biome check (no --write) for the staged ts domain", () => {
+    const config = readFileSync(join(ROOT, "lint-staged.config.mjs"), "utf8");
+    // A staged TS violation must surface as a non-zero biome exit, not a write-back —
+    // the no-fix semantics is what makes a format/lint-dirty staged set uncommittable.
+    expect(existsSync(join(ROOT, "lint-staged.config.mjs"))).toBe(true);
+    expect(config).toContain('"*.ts": ["biome check"]');
+    expect(config).not.toContain("--write");
+  });
+
+  it("lint-staged catch-all keeps the validate subset gating the commit", () => {
+    const config = readFileSync(join(ROOT, "lint-staged.config.mjs"), "utf8");
+    expect(config).toContain('"*": ["pnpm run precommit"]');
   });
 });

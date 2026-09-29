@@ -22,6 +22,7 @@
     "@changesets/read": "^1.0.1",
     "citty": "^0.2.2",
     "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
     "vitest": "^5.0.1",
     "yaml": "^2.9.1"
   },

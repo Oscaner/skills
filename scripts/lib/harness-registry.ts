@@ -5,12 +5,13 @@
 // contract. The registry provides the fixed iteration order (the source.json row key-slot
 // order) and the bidirectional wiring guard against `pkg.oscaner.harnesses` declarations.
 //
-// T1 shape: the harness classes are the NEW truth source for the manifest builders and the
-// cursor/claude descriptor slots, byte-pinned against the still-present ManifestService
-// builders (scripts/emit/manifests.ts) and against marketplace/source.json — any drift
-// between the two implementations fails the byte-pin tests immediately. The pi package
-// contract (P1 five assertions, scripts/validate/osuperpowers.ts) is folded in unchanged,
-// with the count and pkgRoot injected via ctx (this lib never imports the validate side).
+// Single source of truth: the harness classes ARE the manifest builders — the emit side
+// (scripts/emit/plugin-manifests.ts) consumes Harness.manifest directly, and no competing
+// builder survives in manifests.ts. The byte pins (harness-registry.test.ts) guard them
+// against the committed per-package .claude-plugin / .cursor-plugin products and the
+// derived marketplace/source.json row. The pi package contract (P1 five assertions,
+// scripts/validate/osuperpowers.ts) is folded in unchanged, with the count and pkgRoot
+// injected via ctx (this lib never imports the validate side).
 
 import { existsSync } from "node:fs";
 import { join } from "node:path";

@@ -1,9 +1,10 @@
 // scripts/lib/__tests__/harness-registry.test.ts — C1 harness-abstraction tests
-// (pi-harness-p2 Task 1). Byte pins: the harness manifest builders and source.json
-// descriptor slots must match the emit products byte-for-byte (marketplace/source.json
-// + per-package .claude-plugin / .cursor-plugin manifests), so the new truth source
-// cannot drift from the still-present ManifestService builders during the coexistence
-// window. Row key-order assertions are pixel-level (Object.keys), not JSON-semantic.
+// (pi-harness-p2 Task 1). The harness registry is the single manifest builder truth —
+// the emit side consumes Harness.manifest directly and no competing builder remains.
+// Byte pins: the manifest builders and source.json descriptor slots must match the
+// committed emit products byte-for-byte (marketplace/source.json + per-package
+// .claude-plugin / .cursor-plugin manifests), so any drift now fails immediately.
+// Row key-order assertions are pixel-level (Object.keys), not JSON-semantic.
 
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

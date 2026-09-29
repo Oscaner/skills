@@ -69,7 +69,7 @@ test("deriveFirstPartyNames ignores dirs without oscaner / package.json", () => 
 // ---------------------------------------------------------------------------
 
 test("pluginManifestEmitter writes products for declared harnesses and skips pi", () => {
-  const tmp = mkdtempSync(join(tmpdir(), "oscaner-plugin-manifests-"));
+  const tmp = mkdtempSync(join(tmpdir(), "oscaner-manifests-"));
   try {
     const plugin = sourceService.derive(".").plugins.find((p) => p.name === "osuperpowers");
     const generatedPaths = [];

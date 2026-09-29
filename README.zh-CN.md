@@ -111,10 +111,10 @@ packages/
 
 ### 包即源，一条 emit 派生链
 
-市场采用**包即源**模式——元数据位于各第一方 `package.json` 的 `oscaner-plugin` 字段中。构建步骤 `pnpm run emit` 从中派生一切：
+市场采用**包即源**模式——元数据位于各第一方 `package.json` 的 `oscaner` 字段中。构建步骤 `pnpm run emit` 从中派生一切：
 
 ```
-package.json#oscaner-plugin --> emit --> marketplace/source.json
+package.json#oscaner --> emit --> marketplace/source.json
                                      --> .claude-plugin/marketplace.json
                                      --> .cursor-plugin/marketplace.json
                                      --> 各插件 .claude-plugin/plugin.json
@@ -141,7 +141,7 @@ pnpm run emit && pnpm run validate
 
 ### 新增第一方插件
 
-1. 创建 `packages/<name>/package.json`，带 `oscaner-plugin` 字段。
+1. 创建 `packages/<name>/package.json`，带 `oscaner` 字段。
 2. 运行 `pnpm run emit`——自动发现插件并重新生成所有清单。
 3. 添加 changeset 命名它——以 `@oscaner-skills/<name>` 发布。
 

@@ -27,7 +27,7 @@ export abstract class Harness {
 
   /** Build this harness's manifest document for a plugin source row + version. */
   abstract manifest(plugin, version: string): object;
-  /** source.json descriptor contribution for a plugin's oscaner-plugin; `undefined` = no row slot. */
+  /** source.json descriptor contribution for a plugin's oscaner; `undefined` = no row slot. */
   abstract sourceJson(osc): object | undefined;
   /** Package-surface contract; default no-op — claude/cursor carry no package assertions. */
   validatePackage(_pkg, _ctx): void {
@@ -85,7 +85,7 @@ export class ClaudeHarness extends Harness {
     // file, so manifest.hooks may only name *additional* hook files — referencing
     // the canonical file makes plugin load fail with "Duplicate hooks file
     // detected". The canonical default is therefore omitted; a non-default
-    // `oscaner-plugin.hooks.claude` (an extra hook file) is still emitted.
+    // `oscaner.hooks.claude` (an extra hook file) is still emitted.
     const claudeHooks = plugin.hooks?.claude ?? "./hooks/hooks.json";
     if (claudeHooks !== "./hooks/hooks.json") m.hooks = claudeHooks;
     if (plugin.license) m.license = plugin.license;
@@ -96,11 +96,11 @@ export class ClaudeHarness extends Harness {
   }
 
   /**
-   * Claude descriptor contribution. Packages without an `oscaner-plugin.claude`
+   * Claude descriptor contribution. Packages without an `oscaner.claude`
    * field contribute nothing (undefined is skipped by the row-assembly loop, so
    * they never land a `claude: {}` slot — the same absence the `if (osc.claude
    * !== undefined)` gate preserved). Keywords aggregate top-level
-   * `oscaner-plugin.keywords` first, then `claude.keywords` — the single D7
+   * `oscaner.keywords` first, then `claude.keywords` — the single D7
    * byte-stable reconciliation point between the two keyword sources.
    */
   sourceJson(osc) {

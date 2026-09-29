@@ -111,10 +111,10 @@ packages/
 
 ### Package-as-source, one emit chain
 
-The marketplace is **package-as-source** — metadata lives in each first-party `package.json`'s `oscaner-plugin` field. The build step `pnpm run emit` derives everything from that:
+The marketplace is **package-as-source** — metadata lives in each first-party `package.json`'s `oscaner` field. The build step `pnpm run emit` derives everything from that:
 
 ```
-package.json#oscaner-plugin --> emit --> marketplace/source.json
+package.json#oscaner --> emit --> marketplace/source.json
                                      --> .claude-plugin/marketplace.json
                                      --> .cursor-plugin/marketplace.json
                                      --> per-plugin .claude-plugin/plugin.json
@@ -141,7 +141,7 @@ pnpm run emit && pnpm run validate
 
 ### Adding a new first-party plugin
 
-1. Create `packages/<name>/package.json` with the `oscaner-plugin` field.
+1. Create `packages/<name>/package.json` with the `oscaner` field.
 2. Run `pnpm run emit` — it auto-discovers the plugin and regenerates all manifests.
 3. Add a changeset naming it — it is released as `@oscaner-skills/<name>`.
 

@@ -1,6 +1,6 @@
 # Pi Harness P2 — emit 分发注册表（Pi Harness P2: Emit Distribution Registry）— Phase Spec
 
-- **Version**: v1.1 · 2026-09-29
+- **Version**: v1.2 · 2026-09-29
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming → writing-phase-spec)
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.9](2026-09-27-pi-harness-overall.md)
@@ -24,7 +24,7 @@
 
 #### 2.1 目标与范围
 
-P2 把 emit 分发面的"包侧声明 ↔ 实现"差距归零：`oscaner-plugin.harnesses` 死字段（harnessesNote 明言 no script consumes）转真消费，三处硬编码（`source.ts FIRST_PARTY_CURSOR` / `OsuperpowersEmitter` 无条件双写 / `manifests.ts` 两 builder）收编为一个 OOP 统一 `Harness` 抽象 + `HarnessRegistry`，三 harness（claude / cursor / pi）以多态表达各自的产物形态。用户前提（2026-09-29）抬升本 phase 为**抽象统一重构**：允许破坏性变更、高维 OOP、零技术债——D5 毗邻债（keywords fallback 链 + name-dispatch 单包分支）拉入本面一并清除。范围外：engine 数据面（Non-goal 分层）、source.json 产物 shape（D7 字节稳定）、`.github/ISSUE_TEMPLATE` / marketplace 文档产物。
+P2 把 emit 分发面的"包侧声明 ↔ 实现"差距归零：`oscaner-plugin.harnesses` 死字段（harnessesNote 明言 no script consumes）转真消费，三处硬编码（`source.ts FIRST_PARTY_CURSOR` / `OsuperpowersEmitter` 无条件双写 / `manifests.ts` 两 builder）收编为一个 OOP 统一 `Harness` 抽象 + `HarnessRegistry`，三 harness（claude / cursor / pi）以多态表达各自的产物形态。用户前提（2026-09-29）抬升本 phase 为**抽象统一重构**：允许破坏性变更、高维 OOP、零技术债——D5 毗邻债（keywords fallback 链 + name-dispatch 单包分支）拉入本面一并清除；C6 提交门工具链（husky pre-commit 手写 shell → lint-staged · no-fix 检查）同轮并入。范围外：engine 数据面（Non-goal 分层）、source.json 产物 shape（D7 字节稳定）、`.github/ISSUE_TEMPLATE` / marketplace 文档产物。
 
 #### 2.2 抽象与组件
 
@@ -78,6 +78,17 @@ P2 把 emit 分发面的"包侧声明 ↔ 实现"差距归零：`oscaner-plugin.
 - P1 守卫关系（D3）：`checkPiPackageWellFormed` 的断言体折叠进 `PiHarness.validatePackage(pkg, { pkgRoot, expectedCount, countSkills })`；`validate/osuperpowers.ts` block 5b 步骤变薄代理（透传现 `checkPiPackageWellFormed` 的 `pkgRoot` 实参 `path.join(ROOT, "packages/osuperpowers")`，断言面不变）；`pi-package.test.mjs` import 的 `countSkillsWithMarkdown` / `EXPECTED` 留在原模块导出（**测试零冲击**）
 - validate wiring name-set pin 更新：新 block 步骤名**只加入 `ci-validate.test.mjs` 的 `EXPECTED_VALIDATE_STEPS` name-set**（P1 C5 name-set 语义延续）；pre-commit 侧经 `...marketplaceSteps` 组合自动纳入——pre-commit.test.ts 系 `arrayContaining`（subset⊆full）＋ strict-exclusion（仅 exclude 两个 engine step）形态，无期望 step 集，新增 step 零改动
 
+**C6 提交门工具链（2026-09-29 用户拍板，lint-staged · no-fix）**：
+- `.husky/pre-commit` 手写 shell（`pnpm biome:fix` 全仓 autofix + re-stage 循环 + `pnpm run precommit`）→ **`npx lint-staged` 单行**；新增 **`lint-staged.config.mjs`**（用户指定文件名）：
+  - `"*.ts": ["biome check"]`——**无 `--write`**（no-fix 语义）：staged TS 域 violation 报 fail → lint-staged 非零 → commit 拦截；biome.json 现有 `files.includes: ["**/*.ts"]` 域不变
+  - `"*": ["pnpm run precommit"]`——validate 树无关子集（emit freshness / residue / consistency / unit / version sync）经 catch-all 继续门控，dedup 单跑，commit 纪律不降级
+- re-stage 循环**删除**（无 fix 即无写盘，无需重 add；staged deletion 特判随之消亡）
+- `biome:fix` 脚本保留为手动自查命令（`pnpm biome:fix`），hook 不再调用
+- deps：新增 `lint-staged` devDependency
+- 检查域语义变化：biome 从全仓 → **staged TS 集**（un-staged 脏文件不再挡 commit——lint-staged 本性；`pnpm run precommit` 全树门控保留兜底）
+- 测试重写：`scripts/validate/__tests__/biome-wiring.test.ts` 现 pin hook 内 `biome:fix`（L25），改 pin 新形态——hook 含 `lint-staged`、config 含 `biome check`（**断言无 `--write`**）、validate catch-all 保留
+- CLAUDE.md「Validation and commit flows」段 pre-commit 描述随行更新（lint-staged + no-fix 语义）
+
 #### 2.3 数据流
 
 `packages/osuperpowers/package.json`（`oscaner` 声明：harnesses 全配送面 + keywords 单源 + claude category）→ `harnessRegistry`（C1，emit/validate 双侧共享）→ `source.ts` 派生 source.json（**字节不变**）→ `PluginManifestEmitter` 按声明 harness 写 `.claude-plugin/` + `.cursor-plugin/`（**字节不变**）→ validate block 6 一致守卫（声明↔注册表双射 + 产物存在）＋ block 5b `PiHarness.validatePackage`（断言面不变）。
@@ -108,6 +119,7 @@ P2 把 emit 分发面的"包侧声明 ↔ 实现"差距归零：`oscaner-plugin.
 - validate block 6 一致守卫全绿（对活树实测三断言：声明⊆注册表 · 注册⊆声明并集 · emit-harness 产物存在）
 - P1 pi-package well-formed 在 `PiHarness.validatePackage` 宿主下全绿（block 5b 薄代理；`pi-package.test.mjs` 原样通过）
 - 零残留：代码/文档/测试零 `oscaner-plugin`（CHANGELOG + 2026-09-13 family 历史豁免登记于 overall v1.9）
+- commit 门：`.husky/pre-commit` 单行 `npx lint-staged` + `lint-staged.config.mjs`（`*.ts → biome check` **无 `--write`** · `* → pnpm run precommit`）；staged TS 带 format/lint violation 提交 → 拦截 fail 实证一次；`biome-wiring.test.ts` 重写全绿（pin no-fix + validate catch-all）；`pnpm run precommit` 门控保持全绿
 - `pnpm run validate` 全块全绿（新守卫在内）；changeset 建（breaking——osuperpowers 按 version scheme 判定）
 
 ## Section 3: Deviations from overall

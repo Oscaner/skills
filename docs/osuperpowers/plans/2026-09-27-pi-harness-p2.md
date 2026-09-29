@@ -3,7 +3,7 @@
 **Spec:** [2026-09-27-pi-harness-p2-design.md](docs/osuperpowers/specs/2026-09-27-pi-harness-p2-design.md)
 
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.9](docs/osuperpowers/specs/2026-09-27-pi-harness-overall.md)
-- **Version**: v1.1 · 2026-09-29
+- **Version**: v1.2 · 2026-09-29
 - **Depends on**: P2 design v1.1 Approved（`87b4a57d`，D1–D7 锚点定案）
 - **Base**: develop
 
@@ -22,7 +22,8 @@
 - 实现提交按任务粒度（conventional commits，无 attribution trailers）
 - spec/plan 文档仅由 orchestrator（Plan Sole Writer）与 cdd fix-agent 修改；implement agent 零文档修改权
 - 产物重 emit 只发生在任务内原子变更之后（每个任务闭合时 `pnpm run emit:check` 必须 fresh；产物面零 diff 时无需额外产物提交）
-- **changeset 义务**：P2 终验任务（T5）建 changeset——`@oscaner-skills/osuperpowers` breaking（`oscaner` key rename 发布面破坏性；0.x 下 bump 类型按 `.changeset/README.md` version scheme 判定，先读再判）
+- **pre-commit 无 fix 语义（C6）**：T6 迁移后 hook = `npx lint-staged` 单行——biome check（无 `--write`，staged TS 域）violation 即挡；`* → pnpm run precommit` catch-all 继续门控；`biome:fix` 仅手动自查（hook 不调）；T1–T5 期间旧 hook 仍生效（基线不变），T6 自身提交走新 hook 自证
+- **changeset 义务**：P2 终验任务（T6）建 changeset——`@oscaner-skills/osuperpowers` breaking（`oscaner` key rename 发布面破坏性；0.x 下 bump 类型按 `.changeset/README.md` version scheme 判定，先读再判）
 
 ### Flow Atomicity
 
@@ -31,7 +32,8 @@
 
 ### 顺序原则
 
-- T1（C1 抽象模块独立建 + 字节 pin）→ T2（C4 包侧声明 + source.ts registry 派生，原子 rename 束）→ T3（C2 emitter 泛化 + C3 命名 + keywords 单源收编）→ T4（C5 validate 一致守卫 + P1 守卫折叠 + wiring）→ T5（文档 sweep + 零残留 + changeset + 终验）
+- T1（C1 抽象模块独立建 + 字节 pin）→ T2（C4 包侧声明 + source.ts registry 派生，原子 rename 束）→ T3（C2 emitter 泛化 + C3 命名 + keywords 单源收编）→ T4（C5 validate 一致守卫 + P1 守卫折叠 + wiring）→ T5（文档 sweep + 零残留 + changeset + 终验）→ T6（提交门工具链：lint-staged + no-fix）
+- T6 置末位：P2 验收的 commit 门条目以 T6 为验收主体（T5 终验不含提交门）；T6 自身提交走新 hook 自证
 - 每任务 end-to-end：实现 → 该任务面测试绿 → `pnpm run emit:check` fresh → precommit 面绿
 
 ### 仓库纪律
@@ -103,3 +105,15 @@
   - 终验：`pnpm run emit` + `pnpm run emit:check` fresh · `pnpm run validate` 全块全绿 · `pnpm run precommit` 全绿；确认产物面零 diff（D7）
 - **验收**: live 面（CLAUDE.md / README 家族 / marketplace/README / scripts 源码与测试 / package.json）零 `oscaner-plugin` 残留（grep 实证，历史豁免文件除外）；`README.zh-CN.md` 与 `README.md` 镜像同步（zh mirror sync checks 绿）；changeset 文件存在（breaking 声明）；`pnpm run validate` 全块全绿（emit freshness 在内）。
 - **注**: 文档 sweep 不触 SKILL.md / docs/osuperpowers/specs 的 2026-09-13 family 与 CHANGELOG（历史豁免）；`oscaner` 新发布契约的消费者升级提示归 P4 消费故事（spec Section 4 残留），本 phase 不承接。
+
+### Task 6: C6 提交门工具链（lint-staged · no-fix，2026-09-29 用户拍板并入）
+
+- **Do**: 迁移提交门：
+  - `.husky/pre-commit` 手写 shell（`pnpm biome:fix` autofix + re-stage 循环 + `pnpm run precommit`）→ **`npx lint-staged` 单行**（保留 shebang 头；手写 body 删除——re-stage 循环随无-fix 语义消亡，staged deletion 特判不再需要）
+  - 新增根 **`lint-staged.config.mjs`**（用户指定文件名）：`"*.ts": ["biome check"]`（**无 `--write`**——staged TS 域 violation → biome 非零 → lint-staged 非零 → commit 拦截）+ `"*": ["pnpm run precommit"]`（validate 树无关子集 catch-all 继续门控，dedup 单跑）
+  - `package.json`：新增 `lint-staged` devDependency（`pnpm add -D lint-staged`，落 lockfile）；`biome:fix` 脚本**保留**为手动自查命令，hook 不再调用
+  - 重写 `scripts/validate/__tests__/biome-wiring.test.ts`（现 pin hook 内 `biome:fix`，见 L23-25）：改 pin 新形态——`.husky/pre-commit` 含 `lint-staged` 单行 · `lint-staged.config.mjs` 存在且 `*.ts` 任务为 `biome check`（**断言不含 `--write`**）· `*` catch-all 含 `pnpm run precommit`（validate 门控保留）；测试保留"格式/lint 脏树不可提交"的语义（no-fix 拦截即该语义新机器）
+  - CLAUDE.md「Validation and commit flows」段 pre-commit 描述更新：hook = `npx lint-staged` · biome no-fix 检查（staged 域）· `pnpm run precommit` 树无关子集继续门控（T5 的 oscaner refs 编辑是 CLAUDE.md 另一区域，互不影响）
+  - 验证：`npx lint-staged` 对当前 staged（无 violation）全绿；人为注入 format violation 的 staged 文件 → lint-staged 非零（实证拦截后还原，记录于任务产出）；本任务自身 commit 走新 hook 成功（自证）
+- **验收**: `.husky/pre-commit` 内容 = `npx lint-staged`（单行，手写 biome/restage 零残留）；`lint-staged.config.mjs` 存在（`*.ts → biome check` 无 `--write` · `* → pnpm run precommit`）；`biome-wiring.test.ts` 重写全绿（pin no-fix + catch-all 保留）；`biome:fix` 保留手动、hook 零调用；staged TS violation 提交被拦实证一次（任务产出记录）；`pnpm run validate` 全块全绿（含新提交门）。
+- **注**: 检查域从全仓 → staged TS 集（un-staged 脏文件不再挡 commit——lint-staged 本性；`pnpm run precommit` 全树门控兜底）；lint-staged 对无 staged 文件跳过（git 空提交侧天然不合法）；`prepare: "husky"` 脚本不动。

@@ -4,7 +4,7 @@
 //   (legacy review mode)         → cdd review --type task (mode 名归一后 runner CDD_MODE=review)
 //   cdd-task --mode fix          → cdd fix --type task
 // The program-level `--dry-run` flag leads the argv and skips real CLI invocation; runTask still walks
-// registry ship gate / template render / workspace resolution / commit-contract. Asserts return block four-line
+// registry ship gate / template render / workspace resolution / commit-contract. Asserts return block three-line
 // output + exit codes.
 // P4 §2.3.1 根注入契约（黑盒形）：root = bin preAction 的 initRoot() = cwd 的 git toplevel —— 故每条
 // 用例用 `cwd: <tmp repo>` 把 root 落在自己的真仓里，plan 经 `--plan`（仓根相对）提供。
@@ -84,25 +84,27 @@ function setupWorkspace() {
 const HOST = { CLAUDE_CODE_SESSION_ID: "1" };
 
 describe("cdd implement/review/fix CLI contract", () => {
-  it("dry-run implement → return block four lines APPROVED + exit 0", () => {
+  it("dry-run implement → return block five lines APPROVED + exit 0", () => {
     const { repo, plan } = setupWorkspace();
     const res = run(["--dry-run", "implement", "--tasks", "1", "--plan", plan], HOST, {
       cwd: repo,
     });
     expect(res.status).toBe(0);
     const lines = res.stdout.trim().split("\n");
+    // C5 (T8): engine stdout contract = status/commits/artifacts + counters + next
     expect(lines.length).toBe(5);
-    // 可区分形态：五行各自是一键行（防退化回恒真行数断言），第 5 行 counters 逐键断言
-    expect(
-      lines.filter((l) => /^(status|commits|artifacts|blocker|counters):/.test(l)).length,
-    ).toBe(5);
+    // Distinct shape: each of the five lines is a key line (guards against a tautological line count)
+    expect(lines.filter((l) => /^(status|commits|artifacts|counters|next):/.test(l)).length).toBe(
+      5,
+    );
     expect(lines[0]).toBe("status: APPROVED");
     expect(lines[1]).toBe("commits: base=dry-run");
     expect(lines[2]).toMatch(/^artifacts: brief=/);
-    expect(lines[3]).toBe("blocker: none");
-    expect(lines[4]).toMatch(
+    expect(lines.every((l) => !l.startsWith("blocker:"))).toBe(true); // zero blocker column (M3)
+    expect(lines[3]).toMatch(
       /^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/,
     );
+    expect(lines.at(-1)).toMatch(/^next: cdd review --type task --tasks 1/);
   });
 
   // F11: implement --plan 无前置 brief → runTask 自供应（plan 定稿处 generateBrief）；

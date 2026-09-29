@@ -179,3 +179,54 @@ describe("guardArgs: --no-* negation restricted to boolean args", () => {
     expect(r.stderr).not.toMatch(/unknown option/);
   });
 });
+
+// ---- --root parse whitelist: implement/review/fix uniformly declare the root flag (T6 C3-a) ----
+// The parse whitelist extends the internal `opts.root ?? getRoot()` injection contract to the CLI
+// surface; guardArgs pre-scans raw args against the declared args, so an undeclared --root would be
+// rejected as an unknown option (exit 2).
+describe("C3-a --root 白名单: implement/review/fix 声明 + 黑盒可用", () => {
+  it("三命令声明面含 root（implement/review/fix 统一 --root 注入契约）", () => {
+    for (const name of ["implement", "review", "fix"]) {
+      expect(mainCommand.subCommands[name].args).toHaveProperty("root");
+    }
+  });
+
+  it("cdd implement --dry-run --root 可用（parse 白名单；非 unknown-option exit 2）", () => {
+    const r = runCli(
+      ["--dry-run", "implement", "--tasks", "1", "--plan", SMOKE_PLAN, "--root", REPO_ROOT],
+      { env: { ...HOST_ENV } },
+    );
+    expect(r.exitCode).toBe(0);
+    expect(r.stderr).not.toMatch(/unknown option/);
+  });
+
+  it("cdd review --type spec --dry-run --root 可用（review 白名单）", () => {
+    const r = runCli(
+      [
+        "--dry-run",
+        "review",
+        "--type",
+        "spec",
+        "--spec",
+        SMOKE_SPEC,
+        "--plan",
+        SMOKE_PLAN,
+        "--root",
+        REPO_ROOT,
+      ],
+      { env: { ...HOST_ENV } },
+    );
+    expect(r.exitCode).toBe(0);
+    expect(r.stderr).not.toMatch(/unknown option/);
+  });
+
+  it("cdd fix --type spec --root 过 parse 白名单（非 unknown-option；缺 --findings 的 usage exit 2）", () => {
+    const r = runCli(
+      ["--dry-run", "fix", "--type", "spec", "--spec", SMOKE_SPEC, "--root", REPO_ROOT],
+      { env: { ...HOST_ENV } },
+    );
+    expect(r.exitCode).toBe(2);
+    expect(r.stderr).not.toMatch(/unknown option/);
+    expect(r.stderr).toMatch(/--findings must name a spec-review-\{R\}\.json file/);
+  });
+});

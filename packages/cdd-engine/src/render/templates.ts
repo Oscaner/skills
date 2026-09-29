@@ -96,10 +96,33 @@ function joinLines(lines: string[]): string {
 const DOCS_FORMATS = Object.freeze(["RETURN_JSON", "DOCS_FIX"]);
 
 // Legacy double-stash → triple-stash (raw, un-escaped values): strict compile with {{{X}}}
-// preserves the four-line contract (`status: <APPROVED|BLOCKED>`), the gate (`> ⚠️ …`) and path
-// values verbatim.
+// preserves the three-line return contract (`status: <APPROVED|BLOCKED>`), the gate (`> ⚠️ …`) and
+// path values verbatim.
 function tripleAll(src: string): string {
   return src.replace(/\{\{([A-Z0-9_]+)\}\}/g, (_m: string, key: string) => `{{{${key}}}}`);
+}
+
+// Writable-subset projection of a handoff schema (C4-2, T7): the injected contract strips the
+// `$schema` meta key and the dispatch-stamp field family (the "determined by the dispatch, not
+// authored" review_scope) so a mirroring agent can never copy non-writable surface into its
+// receipt. Returns a NEW object (the raw schema object is never mutated); every other top-level
+// key and property stays byte-identical. Deterministic — the injection remains uniqueness- and
+// cacheable across renders.
+function writableSchemaSubset(schema: unknown): unknown {
+  if (!schema || typeof schema !== "object" || Array.isArray(schema)) return schema;
+  const s = { ...(schema as Record<string, unknown>) };
+  delete s.$schema;
+  const props = s.properties;
+  if (props && typeof props === "object" && !Array.isArray(props)) {
+    const p = { ...(props as Record<string, unknown>) };
+    delete p.review_scope;
+    s.properties = p;
+  }
+  const required = s.required;
+  if (Array.isArray(required) && required.includes("review_scope")) {
+    s.required = required.filter((k) => k !== "review_scope");
+  }
+  return s;
 }
 
 // Canonical, environment-independent memo key for the Round-context tail (sorted keys, JSON-escaped
@@ -185,11 +208,16 @@ export class TemplateLoader {
     return PKG_ROOT;
   }
 
-  // ---- Handoff contract injection (Task 18: schema verbatim; zero render) ----
+  // ---- Handoff contract injection (C4-2: schema writable-subset projection — $schema /
+  // review_scope stripped; zero render) ----
   // Contract uniqueness (schema) → injection uniqueness (its string form). The schema is the only
   // per-family injection the shell carries: shellFor(family) = shared frame + this block.
+  // C4-2 (T7): the injected contract = the WRITABLE subset (writableSchemaSubset) — the `$schema`
+  // meta key and the dispatch-stamp field family ("determined by the dispatch, not authored":
+  // review_scope) are stripped, so the agent can never mirror non-writable surface into its handoff
+  // (the #307 root cause — the injected schema verbatim-builds the ill-shaped receipt).
   renderHandoffSchemaJson(schema: unknown): string {
-    return `\`\`\`json\n${JSON.stringify(schema)}\n\`\`\``;
+    return `\`\`\`json\n${JSON.stringify(writableSchemaSubset(schema))}\n\`\`\``;
   }
 
   // ---- zone builders (runtime assembly; all memoized / frozen) ----
@@ -341,13 +369,13 @@ export class TemplateLoader {
   }
 
   // implement's HANDOFF_WRITE_GATE: this mode does not write a handoff (the runner materializes it
-  // from the return block four lines + TASK_BASE + git HEAD), isomorphic to fix/review's
+  // from the return block three lines + TASK_BASE + git HEAD), isomorphic to fix/review's
   // "write-before-return" but semantically inverted — the shared-Handoff-shell slot's injected
   // value, not a template difference. Artifacts (report + test evidence) come first: the materialized
   // handoff's artifacts all come from them; absent → BLOCKED.
   #implementHardGate(handoffPath: unknown, dispatchUnit: unknown): string {
     const target = handoffPath || `tasks-${dispatchUnit}-implement.json`;
-    return `> ⚠️ HARD GATE — This mode does not write \`${target}\`: the runner materializes it from your return block four lines + the brief's \`TASK_BASE\` + \`git HEAD\`. Write the implementer report + test evidence BEFORE outputting the return block — returning without them = BLOCKED (runner exit 1).`;
+    return `> ⚠️ HARD GATE — This mode does not write \`${target}\`: the runner materializes it from your return block three lines + the brief's \`TASK_BASE\` + \`git HEAD\`. Write the implementer report + test evidence BEFORE outputting the return block — returning without them = BLOCKED (runner exit 1).`;
   }
 
   // ---- token registry (Task 5 D1.4 + Task 20 zones) — driven/validated by template-contract.json ----

@@ -1413,8 +1413,13 @@ const CDD_SKILL = "packages/osuperpowers/skills/cli-driven-development/SKILL.md"
 const UPSTREAM_READ_RE =
   /\bvendors\/|\bsuperpowers\/.*SKILL\.md|Read[- ]Upstream|\bread upstream\b/i;
 const UPSTREAM_REF_SLASH_RE = /(?<!\/)\b(?:superpowers|mattpocock-skills|impeccable):[a-z0-9-]+\b/;
+// Row 15 — engine-internal-structure dependency: orchestrator skills must not hard-code engine
+// internals (progress.json · handoff filenames · undocumented CDD_* env/tokens). Exception
+// (cdd-review-contract spec M3/M4): the TWO DOCUMENTED stderr output channels `CDD_BLOCKED:` /
+// `CDD_WARN:` are command-output contract — the orchestrator legitimately reads them for BLOCKED
+// reasons and dry-run warnings. Every other CDD_* token stays a hit.
 const INTERNAL_DEP_RE =
-  /\bCDD_[A-Z_]+\b|\bprogress\.json\b|task-\d+-(?:review|fix|implement)-\d*\.?json/;
+  /\b(?!CDD_BLOCKED\b|CDD_WARN\b)CDD_[A-Z_]+\b|\bprogress\.json\b|task-\d+-(?:review|fix|implement)-\d*\.?json/;
 const FIX_INLINE_RE = /fix-inline/;
 const FAILURE_SEMANTICS_RE =
   /engineRecoveryCount|countsTowardConvergence|dispatch-timeout-cap|计入\s*Convergence/;

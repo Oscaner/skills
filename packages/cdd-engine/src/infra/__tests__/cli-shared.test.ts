@@ -219,7 +219,7 @@ describe("invokeCliWithRetry", () => {
       .mockResolvedValueOnce({ exitCode: 1, stdout: "", stderr: "overloaded", timedOut: false })
       .mockResolvedValueOnce({
         exitCode: 0,
-        stdout: "status: APPROVED\ncommits: base=abc head=def\nartifacts: \nblocker: none",
+        stdout: "status: APPROVED\ncommits: base=abc head=def\nartifacts: ", // 3-line agent contract (no blocker column)
         stderr: "",
         timedOut: false,
       });

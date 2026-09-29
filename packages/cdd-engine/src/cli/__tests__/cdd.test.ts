@@ -19,6 +19,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execaSync } from "execa";
 import { afterAll, describe, expect, it, vi } from "vitest";
+import { captureStdout, writeBranchChain } from "../../infra/__tests__/helpers.ts";
 import { ExitRequested } from "../../infra/exit.ts";
 import { DRY_RUN_DIRTY_WARN } from "../../rules/commit.ts";
 import { setDryRun } from "../shared.ts";
@@ -150,9 +151,10 @@ describe("cdd CLI", () => {
     }
   });
 
-  it("dry-run review --type spec → exit 0 + stdout result face（docs-family 结果面，AC9）", () => {
-    // Design §2.9: the docs review completion prints the one-line stdout result face — the
-    // orchestrator routes on the `status:`/`blocker:` line without opening the handoff file.
+  it("dry-run review --type spec → exit 0 + stdout result face（docs-family 结果面，AC9 + C5 next 行）", () => {
+    // Design §2.9: the docs review completion prints the stdout result face — the orchestrator
+    // routes on the `status:` line without opening the handoff file. C5 (T8): the face APPENDS the
+    // `next:` suggestion line (`none` for a clean docs review approval).
     const r = runCli(["--dry-run", "review", "--type", "spec", "--spec", SMOKE_PLAN], {
       env: { CLAUDE_CODE_SESSION_ID: "1" },
     });
@@ -160,6 +162,7 @@ describe("cdd CLI", () => {
     expect(r.stdout).toMatch(/status: APPROVED/);
     expect(r.stdout).toMatch(/· blocker: 0/);
     expect(r.stdout).toMatch(/· handoff:/);
+    expect(r.stdout).toMatch(/next: none/);
   });
 
   it("dry-run fix --type task → return block + exit 0", () => {
@@ -293,7 +296,11 @@ describe("cdd CLI", () => {
         status,
         artifacts: {},
         findings: [],
-        ...(status !== "APPROVED" ? { blocker: "boom" } : {}),
+        // M3: a BLOCKED failed round grounds via failure_category (the blocker field is vacated as
+        // an agent channel — the carrier stays schema-valid for the SP-4 re-dispatch).
+        ...(status !== "APPROVED"
+          ? { blocker: "boom", failure_category: "EXECUTION_FAILURE" }
+          : {}),
       }),
     );
     // 入口门干净树：种子提交（workspace 已收编 .gitignore；后续手写 handoff 覆写不弄脏树）。
@@ -378,8 +385,10 @@ describe("cdd CLI", () => {
   it("branch-review 读回定稿（T5/T7 finalizeHandoff 单点）：fake harness CLI 写 warn-only CHANGES_REQUESTED branch-review handoff → 引擎覆写为 REVIEW_FIX（Task 8 收口态）", () => {
     const dir = tmpGitRepo();
     try {
-      const plan = path.join(dir, "plan.md");
-      writeFileSync(plan, "### Task 1:\n- base: develop\n");
+      // The black-box branch-review path now seeds the ctx with the RESOLVED repo root, so the
+      // base-default docContractValidate actually RUNS (T6 C3-a) — the plan must be a doc-contract-
+      // valid chain (writeBranchChain: plan → **Spec:** → spec → Parent program → overall).
+      const plan = writeBranchChain(dir, "plan.md");
       const binDir = mkdtempSync(path.join(tmpdir(), "cdd-br-fake-"));
       const ws = path.join(dir, ".osuperpowers", "cdd", "plan");
       const handoffPath = path.join(ws, "branch-review-eeee555..ffff666-r1.json");
@@ -405,6 +414,11 @@ describe("cdd CLI", () => {
         },
       );
       expect(r.exitCode).toBe(0);
+      // C3-b: the REAL-mode round emits the return block contract on the parent stdout — the
+      // orchestrator routes the branch-review conclusion on the `status:` line.
+      expect(r.stdout).toContain("status: REVIEW_FIX");
+      expect(r.stdout).toContain("counters: ");
+      expect(r.stdout).not.toContain("blocker:");
       const h = JSON.parse(readFileSync(handoffPath, "utf8"));
       // warn/nit = 0 blockers → status is overwritten by finalizeHandoff (applyDerivedStatus rollup) to REVIEW_FIX (closure state)
       expect(h.status).toBe("REVIEW_FIX");
@@ -544,19 +558,101 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
       const { runFix } = await import("../fix.ts");
       // D11: type=spec target param is --spec (opts.spec); opts.doc retired.
       // Docs fix completion routes through the exit helper (result face + ExitRequested(0)).
+      const cap = captureStdout();
       let exitCode: number | null = null;
       try {
         await runFix({ type: "spec", spec: doc, findings, root: repo });
       } catch (e) {
         if (e instanceof ExitRequested) exitCode = e.code;
         else throw e;
+      } finally {
+        cap.restore();
       }
       expect(exitCode).toBe(0);
+      // C5 (T8): the docs fix face APPENDS the `next:` line — zero input findings → closure `none`.
+      expect(cap.text).toMatch(/status: APPROVED/);
+      expect(cap.text).toMatch(/· handoff:/);
+      expect(cap.text).toMatch(/next: none/);
       const call = docsRunnerMock.run.mock.calls.at(-1)?.[0] ?? {};
       const ws = path.join(repo, ".osuperpowers", "cdd", "foo");
       expect(call.handoffPath).toBe(path.join(ws, "spec-fix-2.json"));
       expect(call.workspace).toBeUndefined(); // docs-runner no longer receives workspace (handoffPath is authoritative) — T3 r1 nit
       expect(call.findingsPath).toBe(findings);
+    } finally {
+      setDryRun(false);
+      delete process.env.CLAUDE_CODE_SESSION_ID;
+      docsRunnerMock.run.mockClear();
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("fix --type spec：--findings 输入 findings 非数组（agent 写 'none' 形态）→ 0-blocker 基线 next: none，不 crash（T8 fix 守卫对齐 task #inputFindings）", async () => {
+    const repo = tmpGitRepo();
+    setDryRun(true);
+    process.env.CLAUDE_CODE_SESSION_ID = "1";
+    try {
+      const doc = path.join(repo, "docs/osuperpowers/specs/foo-design.md");
+      mkdirSync(path.dirname(doc), { recursive: true });
+      writeFileSync(doc, "# foo design\n");
+      const findings = path.join(repo, ".osuperpowers", "cdd", "foo", "spec-review-1.json");
+      mkdirSync(path.dirname(findings), { recursive: true });
+      // The documented recurrent non-array shape: findings is the scalar "none", not [].
+      writeFileSync(findings, JSON.stringify({ status: "CHANGES_REQUESTED", findings: "none" }));
+      const { runFix } = await import("../fix.ts");
+      const cap = captureStdout();
+      let exitCode: number | null = null;
+      try {
+        await runFix({ type: "spec", spec: doc, findings, root: repo });
+      } catch (e) {
+        if (e instanceof ExitRequested) exitCode = e.code;
+        else throw e;
+      } finally {
+        cap.restore();
+      }
+      expect(exitCode).toBe(0);
+      expect(cap.text).toMatch(/next: none/); // non-array input → 0 blockers → closure, no TypeError
+    } finally {
+      setDryRun(false);
+      delete process.env.CLAUDE_CODE_SESSION_ID;
+      docsRunnerMock.run.mockClear();
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("fix --type spec：ref 序列连续 S1 达 soft cap（3 轮 blocker 历史）→ next: BLOCKED: review-cycle-cap（T8 fix 判定面可达）", async () => {
+    const repo = tmpGitRepo();
+    setDryRun(true);
+    process.env.CLAUDE_CODE_SESSION_ID = "1";
+    try {
+      const doc = path.join(repo, "docs/osuperpowers/specs/foo-design.md");
+      mkdirSync(path.dirname(doc), { recursive: true });
+      writeFileSync(doc, "# foo design\n");
+      const ws = path.join(repo, ".osuperpowers", "cdd", "foo");
+      mkdirSync(ws, { recursive: true });
+      for (const r of [1, 2, 3]) {
+        writeFileSync(
+          path.join(ws, `spec-review-${r}.json`),
+          JSON.stringify({
+            status: "CHANGES_REQUESTED",
+            findings: [{ severity: "blocker", summary: `b${r}` }],
+            artifacts: {},
+          }),
+        );
+      }
+      const findings = path.join(ws, "spec-review-3.json");
+      const { runFix } = await import("../fix.ts");
+      const cap = captureStdout();
+      let exitCode: number | null = null;
+      try {
+        await runFix({ type: "spec", spec: doc, findings, root: repo });
+      } catch (e) {
+        if (e instanceof ExitRequested) exitCode = e.code;
+        else throw e;
+      } finally {
+        cap.restore();
+      }
+      expect(exitCode).toBe(0);
+      expect(cap.text).toMatch(/next: BLOCKED: review-cycle-cap — user adjudicates/);
     } finally {
       setDryRun(false);
       delete process.env.CLAUDE_CODE_SESSION_ID;

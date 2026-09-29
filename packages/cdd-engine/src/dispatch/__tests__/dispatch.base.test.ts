@@ -244,3 +244,49 @@ it("构造注 hooks/ctx: 注入实例被使用（ctx 同实例；dispatch:before
   await lc.run();
   expect(order).toEqual(["before", "after"]);
 });
+
+// ---- Doc-contract missing-root face, base default judgment layer (T6 C3-a) ----
+// The base-default docContractValidate's missing-root lane: real mode must BLOCK (a root-less
+// audit is never silently skipped — no missing-root WARN + exit-0 idle), dry-run keeps the WARN
+// lane (I7: dry-run never blocks). This is the judgment level; each channel's CDD_BLOCKED +
+// exit-1 face is covered in doc-contract-channels.test.ts (branch face).
+function auditingStubFor(repo: string): typeof DispatchLifecycle {
+  return class extends DispatchLifecycle {
+    protected docAuditTarget(): string | null {
+      return path.join(repo, "docs", "osuperpowers", "plans", "plan.md");
+    }
+    protected async dispatch(_hookCtx: DispatchHookContext): Promise<void> {}
+  };
+}
+
+it("缺根 + 真实 mode → docContractValidate BLOCK（DispatchBlocked gate=entry）+ 无缺根 WARN", async () => {
+  const repo = setupRepo();
+  const cap = captureStderr();
+  let error: unknown;
+  try {
+    const lc = new (auditingStubFor(repo))({ ctx: { mode: "review", repoRoot: null } });
+    await lc.run();
+  } catch (e) {
+    error = e;
+  } finally {
+    cap.restore();
+  }
+  expect(error).toBeInstanceOf(DispatchBlocked);
+  expect((error as DispatchBlocked).gate).toBe("entry");
+  expect((error as DispatchBlocked).message).toMatch(/no repo root/);
+  expect(cap.text).not.toContain("CDD_WARN: doc contract validation skipped (no repo root)");
+});
+
+it("缺根 + dry-run → CDD_WARN 保留 + run() 走通（I7: dry-run 永不阻塞）", async () => {
+  const repo = setupRepo();
+  const cap = captureStderr();
+  try {
+    const lc = new (auditingStubFor(repo))({
+      ctx: { mode: "review", repoRoot: null, dryRun: true },
+    });
+    await expect(lc.run()).resolves.toBeUndefined();
+  } finally {
+    cap.restore();
+  }
+  expect(cap.text).toContain("CDD_WARN: doc contract validation skipped (no repo root)");
+});

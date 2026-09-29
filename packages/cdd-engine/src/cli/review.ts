@@ -20,6 +20,7 @@ import { withLifecycle } from "../infra/proc.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
 import { TemplateLoader } from "../render/templates.ts";
 import { ConvergenceChecker } from "../rules/convergence.ts";
+import { nextStepFor } from "../rules/next-step.ts";
 import { docsResultFace } from "./result-face.ts";
 import { DRY_RUN, type PrevHandoff, requireHostHarness, resolveTargetDoc } from "./shared.ts";
 
@@ -121,7 +122,10 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
         dryRun,
         ctx: {
           mode: "branch-review",
-          repoRoot: opts.root ?? null,
+          // C3-a (T6): seed the engine ctx with the RESOLVED root (line 95) — not `opts.root ??
+          // null` — so the black-box path is always root-truthful and the base-default
+          // docContractValidate never falls into its missing-root skip lane.
+          repoRoot: root,
           dryRun,
         },
       });
@@ -203,11 +207,25 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
         dryRun: DRY_RUN(),
       });
       // Docs review completion → stdout result face (design §2.9 / AC9): the orchestrator routes on
-      // the `status:`/`blocker:` line without opening the handoff. Exit stays on the exit.ts single
-      // surface: exit 0 → exitOkWith(face) one call; non-0 → face + exitWithCode.
+      // the `status:` line without opening the handoff — C5 (T8) appends the `next:` suggestion
+      // line (one-way → fix when findings exist; `none` on a clean docs approval). Exit stays on
+      // the exit.ts single surface: exit 0 → exitOkWith(face) one call; non-0 → face + exitWithCode.
       const face = docsResultFace(result, handoffPath);
-      if (result.exitCode === 0) exitOkWith(face);
-      process.stdout.write(`${face}\n`);
+      const docHandoff = result.handoff as
+        | { status?: string; findings?: Array<{ severity?: string }> }
+        | null
+        | undefined;
+      const next = nextStepFor({
+        op: "review",
+        type: opts.type,
+        doc,
+        status: docHandoff?.status,
+        findings: docHandoff?.findings,
+        findingsPath: handoffPath,
+      });
+      const faceOutput = next ? `${face}\nnext: ${next}` : face;
+      if (result.exitCode === 0) exitOkWith(faceOutput);
+      process.stdout.write(`${faceOutput}\n`);
       exitWithCode(result.exitCode);
     }
 

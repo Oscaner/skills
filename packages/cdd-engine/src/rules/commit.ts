@@ -22,6 +22,7 @@
 
 import { readJson, writeHandoff } from "../artifacts/handoff/write.ts";
 import { GitClient } from "../infra/git.ts";
+import { FAILURE_CATEGORIES } from "./failure.ts";
 
 export interface CommitGateResult {
   ok: boolean;
@@ -72,10 +73,17 @@ export class CommitChecker {
 
   // Aligns with the legacy _cdd_rewrite_handoff_blocked: rewrite the handoff to
   // status=BLOCKED + blocker + artifacts:{}. Guard: empty/undefined path → no-op (the caller did
-  // not provide a path; nothing written).
+  // not provide a path; nothing written). M3: the BLOCKED carrier grounds via failure_category
+  // (ENGINE_SELF_WRITTEN — the engine authored the rewrite) as the schema allOf requires — the
+  // reason still rides the CDD_BLOCKED stderr channel via the caller's diagnostic.
   rewriteHandoffBlocked(handoffPath: string | undefined, reason: string): void {
     if (!handoffPath) return;
-    writeHandoff(handoffPath, { status: "BLOCKED", blocker: reason, artifacts: {} });
+    writeHandoff(handoffPath, {
+      status: "BLOCKED",
+      failure_category: FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id,
+      blocker: reason,
+      artifacts: {},
+    });
   }
 
   async #resolveCleanTree(repoRoot: string | null | undefined): Promise<CleanTreeResolution> {

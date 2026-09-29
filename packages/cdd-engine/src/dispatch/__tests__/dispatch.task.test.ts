@@ -22,7 +22,11 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { expect, it, vi } from "vitest";
-import { ReturnBlockParser } from "../../artifacts/return-block.ts";
+import {
+  HANDOFF_MISSING_REASON,
+  HANDOFF_UNPARSEABLE_REASON,
+  ReturnBlockParser,
+} from "../../artifacts/return-block.ts";
 import { TaskGroup } from "../../domain/task-group.ts";
 import { captureStderr } from "../../infra/__tests__/helpers.ts";
 import { REG_PATH } from "../../infra/registry.ts";
@@ -197,16 +201,20 @@ it("runTask dry-run 降级: dirty + dryRun + noExit → exit 0 + return block AP
     });
     expect(res.exitCode).toBe(0);
     expect(res.returnBlock[0]).toBe("status: APPROVED");
+    // C5 (T8): engine stdout contract = status/commits/artifacts + counters + next
     expect(res.returnBlock).toHaveLength(5);
+    expect(res.returnBlock.at(-1)).toMatch(/^next: /);
   } finally {
     cap.restore();
   }
   expect(cap.text).toContain(`CDD_WARN: ${DRY_RUN_DIRTY_WARN}`); // mount 前缀 + 单点常量
 });
 
-// ---- returnFromHandoff ④（Task 23 fake killer）: blocker 行只允许真实来源，BLOCKED 无真实原因 → "" ----
+// ---- returnFromHandoff post-M3 (cdd-review-contract-fix): the return block carries zero
+// `blocker:` line — a BLOCKED round's reason travels the carrier's failure_category + the stderr
+// CDD_BLOCKED single channel (never fabricated prose, never silently dropped) ----
 
-it("returnFromHandoff ④: BLOCKED 无真实 reason → blocker 行空（不伪造 commit-contract 文案）", () => {
+it("returnFromHandoff: BLOCKED 无 failure_category → return block 零 blocker 行（仅 status/commits/counters）", () => {
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-rfh-"));
   const hp = path.join(ws, "tasks-1-review-1.json");
   writeFileSync(
@@ -215,11 +223,12 @@ it("returnFromHandoff ④: BLOCKED 无真实 reason → blocker 行空（不伪�
   );
   const lines = returnBlockParser.returnFromHandoff(hp, ws);
   expect(lines[0]).toBe("status: BLOCKED");
-  expect(lines.find((l) => l.startsWith("blocker:"))).toBe("blocker: ");
-  expect(lines.join("\n")).not.toContain("uncommitted changes at return"); // 伪造文案零残留
+  expect(lines.every((l) => !l.startsWith("blocker:"))).toBe(true); // zero blocker column
+  expect(lines.some((l) => l.startsWith("commits:"))).toBe(true);
+  expect(lines.at(-1)).toMatch(/^counters: /);
 });
 
-it("returnFromHandoff ④: 真实 blocker 原样透传；APPROVED 无 blocker → blocker: none", () => {
+it("returnFromHandoff: handoff 里的真实 blocker 也不再进 return block（理由留在载体，仅 stderr/failure_category 可寻址）", () => {
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-rfh2-"));
   const hp = path.join(ws, "tasks-1-review-1.json");
   writeFileSync(
@@ -227,46 +236,67 @@ it("returnFromHandoff ④: 真实 blocker 原样透传；APPROVED 无 blocker �
     JSON.stringify({
       tasks: [1],
       phase: "review",
-      status: "APPROVED",
-      blocker: "真实原因",
+      status: "BLOCKED",
+      blocker: "commit-contract rewrite reason",
+      failure_category: "ENGINE_SELF_WRITTEN",
       findings: [],
       artifacts: {},
     }),
   );
   const lines = returnBlockParser.returnFromHandoff(hp, ws);
-  expect(lines.find((l) => l.startsWith("blocker:"))).toBe("blocker: 真实原因");
-  writeFileSync(
-    hp,
-    JSON.stringify({
-      tasks: [1],
-      phase: "review",
-      status: "APPROVED",
-      findings: [],
-      artifacts: {},
-    }),
-  );
-  const lines2 = returnBlockParser.returnFromHandoff(hp, ws);
-  expect(lines2.find((l) => l.startsWith("blocker:"))).toBe("blocker: none");
+  expect(lines[0]).toBe("status: BLOCKED");
+  expect(lines.every((l) => !l.startsWith("blocker:"))).toBe(true);
+  expect(lines.find((l) => l.startsWith("status:"))).toBe("status: BLOCKED");
 });
 
-it("returnFromHandoff ④: commit-gate 文案仅当来源 commit-gate（handoff blocker 字段）时输出", () => {
-  const ws = mkdtempSync(path.join(tmpdir(), "cdd-rfh3-"));
+it("returnFromHandoff 兜底①: handoff 缺件 → return block 零 blocker 行，理由经 stderr CDD_BLOCKED 写出（不静默丢失）", () => {
+  const ws = mkdtempSync(path.join(tmpdir(), "cdd-rfh-missing-"));
+  const hp = path.join(ws, "tasks-1-review-1.json"); // does not exist
+  const cap = captureStderr();
+  try {
+    const lines = returnBlockParser.returnFromHandoff(hp, ws);
+    expect(lines[0]).toBe("status: BLOCKED");
+    expect(lines.every((l) => !l.startsWith("blocker:"))).toBe(true);
+  } finally {
+    cap.restore();
+  }
+  expect(cap.text).toContain("CDD_BLOCKED: " + HANDOFF_MISSING_REASON);
+});
+
+it("returnFromHandoff 兜底②: handoff JSON 不可解析 → return block 零 blocker 行，理由经 stderr CDD_BLOCKED 写出（不静默丢失）", () => {
+  const ws = mkdtempSync(path.join(tmpdir(), "cdd-rfh-unparse-"));
   const hp = path.join(ws, "tasks-1-review-1.json");
-  writeFileSync(
-    hp,
-    JSON.stringify({
-      tasks: [1],
-      phase: "review",
-      status: "BLOCKED",
-      blocker: "uncommitted changes at return",
-      findings: [],
-      artifacts: {},
-    }),
+  writeFileSync(hp, "{ not valid json");
+  const cap = captureStderr();
+  try {
+    const lines = returnBlockParser.returnFromHandoff(hp, ws);
+    expect(lines[0]).toBe("status: BLOCKED");
+    expect(lines.every((l) => !l.startsWith("blocker:"))).toBe(true);
+  } finally {
+    cap.restore();
+  }
+  expect(cap.text).toContain("CDD_BLOCKED: " + HANDOFF_UNPARSEABLE_REASON);
+});
+
+it("return-block 出口零 blocker 列: returnFourLines / dryRunBlock / assembleReturnBlock 全无 blocker 行", () => {
+  const ws = mkdtempSync(path.join(tmpdir(), "cdd-rb-atoms-"));
+  // returnFourLines ignores a stray blocker line in agent stdout (legacy-contract output still parses — the zero column does not break the parse)
+  const four = returnBlockParser.returnFourLines(
+    "status: APPROVED\ncommits: base=x head=y\nartifacts: brief=b\nblocker: leftover",
+    ws,
   );
-  const lines = returnBlockParser.returnFromHandoff(hp, ws);
-  expect(lines.find((l) => l.startsWith("blocker:"))).toBe(
-    "blocker: uncommitted changes at return",
+  expect(four).toHaveLength(4);
+  expect(four[0]).toBe("status: APPROVED");
+  expect(four.every((l) => !l.startsWith("blocker:"))).toBe(true);
+  const dry = returnBlockParser.dryRunBlock({ commits: "base=dry-run", artifacts: "report=r" });
+  expect(dry).toBe("status: APPROVED\ncommits: base=dry-run\nartifacts: report=r");
+  const assembled = returnBlockParser.assembleReturnBlock(
+    { status: "APPROVED", commits: "base=a head=b", artifacts: "" },
+    ws,
   );
+  expect(assembled).toHaveLength(4);
+  expect(assembled.every((l) => !l.startsWith("blocker:"))).toBe(true);
+  expect(assembled.at(-1)).toMatch(/^counters: /);
 });
 
 // E2②/T14 接口消歧 + T26: dry-run 路径零终止介入——不 spawn（invokeCliWithRetry 零调用）、不解析
@@ -294,7 +324,10 @@ it("dry-run 零 liveness 介入（T14 接口消歧）: 不 spawn / 不解析终�
   expect(res.returnBlock[0]).toBe("status: APPROVED");
   expect(invokeSpy).not.toHaveBeenCalled(); // dry-run ≈ run() pre-flight early return, no spawnManaged
   expect(terminationSpy).not.toHaveBeenCalled(); // dry-run resolves no termination config
-  expect(res.returnBlock[4]).toMatch(/^counters: timeout=0 contract-violation=\d+/); // 无 TIMEOUT 计数递增
+  // C5 (T8): counters is the 4th line, the `next:` suggestion the 5th (engine stdout contract).
+  expect(res.returnBlock[3]).toMatch(/^counters: timeout=0 contract-violation=\d+/); // no TIMEOUT count increment
+  expect(res.returnBlock.at(-1)).toMatch(/^next: cdd review --type task --tasks 1/);
+  expect(res.returnBlock.every((l) => !l.startsWith("blocker:"))).toBe(true); // zero blocker column (M3)
   // implement dry-run 不写 handoff（T6 实体化仅真实 dispatch）——也无 TIMEOUT 部分 handoff 可言
   const ws = path.join(repo, ".osuperpowers", "cdd", "plan");
   expect(existsSync(path.join(ws, "tasks-1-implement.json"))).toBe(false);
@@ -344,10 +377,10 @@ it("干净树 + 非法 mode → validateMode 拒绝（模板停在 dispatch 前�
   ]);
 });
 
-it("dry-run implement 走全模板（双门卷入）→ 出口 0 + 5 行 return block（counters 行追加）", async () => {
+it("dry-run implement 走全模板（双门卷入）→ 出口 0 + 5 行 return block（counters 行追加 + next 建议行，零 blocker 列）", async () => {
   const repo = setupRepo();
-  const { mkdirSync } = await import("node:fs");
-  mkdirSync(path.join(repo, "docs"), { recursive: true });
+  const { mkdirSync: mkdirFs } = await import("node:fs");
+  mkdirFs(path.join(repo, "docs"), { recursive: true });
   writeFileSync(path.join(repo, "docs", "plan.md"), "# P\n\n### Task 1: t\n");
   git(repo, "add", "-A");
   git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "plan");
@@ -362,9 +395,162 @@ it("dry-run implement 走全模板（双门卷入）→ 出口 0 + 5 行 return 
   });
   expect(res.exitCode).toBe(0);
   expect(res.returnBlock[0]).toBe("status: APPROVED");
-  expect(res.returnBlock).toHaveLength(5); // status/commits/artifacts/blocker + counters
-  expect(res.returnBlock[4]).toMatch(/^counters: /);
+  expect(res.returnBlock).toHaveLength(5); // status/commits/artifacts + counters + next (C5)
+  expect(res.returnBlock.every((l) => !l.startsWith("blocker:"))).toBe(true);
+  expect(res.returnBlock[3]).toMatch(/^counters: /);
+  expect(res.returnBlock.at(-1)).toMatch(/^next: cdd review --type task --tasks 1/);
 });
+
+// ---- C5 fix next-hop decision (C5-1 single point: the --findings input severity decides
+// re-review vs closure). The pure full table lives in rules/__tests__/next-step.test.ts; this
+// pins the task-face integration: a dry-run fix return block derives through step-11, reading
+// the --findings INPUT content (blocker present → next: review; warn/nit only → next: none).
+it("C5 fix dry-run: --findings input with a blocker → next: cdd review (same group, new ref)", async () => {
+  const repo = setupRepo();
+  mkdirSync(path.join(repo, "docs"), { recursive: true });
+  writeFileSync(path.join(repo, "docs", "plan.md"), "# P\n\n### Task 1: t\n");
+  git(repo, "add", "-A");
+  git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "plan");
+  const ws = path.join(repo, ".osuperpowers", "cdd", "plan");
+  mkdirSync(ws, { recursive: true });
+  const findingsPath = path.join(ws, "tasks-1-review-1.json");
+  writeFileSync(
+    findingsPath,
+    JSON.stringify({
+      status: "CHANGES_REQUESTED",
+      findings: [{ severity: "blocker", summary: "b" }],
+      artifacts: {},
+    }),
+  );
+  const res = await TaskLifecycle.run("ghost", 1, {
+    mode: "fix",
+    dryRun: true,
+    planFile: "docs/plan.md",
+    root: repo,
+    registryPath: ghostRegistry(),
+    findingsPath,
+    noExit: true,
+  });
+  expect(res.exitCode).toBe(0);
+  expect(res.returnBlock.at(-1)).toMatch(/^next: cdd review --type task --tasks 1/);
+});
+
+it("C5 fix dry-run: --findings input warn/nit-only → next: none (closure naturalization)", async () => {
+  const repo = setupRepo();
+  mkdirSync(path.join(repo, "docs"), { recursive: true });
+  writeFileSync(path.join(repo, "docs", "plan.md"), "# P\n\n### Task 1: t\n");
+  git(repo, "add", "-A");
+  git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "plan");
+  const ws = path.join(repo, ".osuperpowers", "cdd", "plan");
+  mkdirSync(ws, { recursive: true });
+  const findingsPath = path.join(ws, "tasks-1-review-1.json");
+  writeFileSync(
+    findingsPath,
+    JSON.stringify({
+      status: "REVIEW_FIX",
+      findings: [
+        { severity: "warn", summary: "w" },
+        { severity: "nit", summary: "n" },
+      ],
+      artifacts: {},
+    }),
+  );
+  const res = await TaskLifecycle.run("ghost", 1, {
+    mode: "fix",
+    dryRun: true,
+    planFile: "docs/plan.md",
+    root: repo,
+    registryPath: ghostRegistry(),
+    findingsPath,
+    noExit: true,
+  });
+  expect(res.exitCode).toBe(0);
+  expect(res.returnBlock.at(-1)).toBe("next: none");
+});
+
+// ---- C5-1 soft cap (T8 fix): the fix face's 'ref-sequence round counting' judgment must be
+// REACHABLE from a real dispatch — the ref-sequence walk (rules/ref-sequence.ts) reads the
+// workspace's review-round history anchored at the --findings source handoff, so a review→fix loop
+// that keeps returning blockers eventually surfaces next: BLOCKED: review-cycle-cap instead of the
+// unbounded re-review suggestion. The pure threshold table lives in
+// rules/__tests__/next-step.test.ts / rules/__tests__/ref-sequence.test.ts; these pin the task-face
+// integration end-to-end.
+
+it(
+  "C5 fix dry-run: consecutive S1 rounds reach the soft cap (3x blocker history) → review-cycle-cap " +
+    "adjudication marker",
+  async () => {
+    const repo = setupRepo();
+    mkdirSync(path.join(repo, "docs"), { recursive: true });
+    writeFileSync(path.join(repo, "docs", "plan.md"), "# P\n\n### Task 1: t\n");
+    git(repo, "add", "-A");
+    git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "plan");
+    const ws = path.join(repo, ".osuperpowers", "cdd", "plan");
+    mkdirSync(ws, { recursive: true });
+    // Rounds 1-3 are all S1 — the source review round 3 is the third consecutive blocker round.
+    for (const r of [1, 2, 3]) {
+      writeFileSync(
+        path.join(ws, `tasks-1-review-${r}.json`),
+        JSON.stringify({
+          status: "CHANGES_REQUESTED",
+          findings: [{ severity: "blocker", summary: `b${r}` }],
+          artifacts: {},
+        }),
+      );
+    }
+    const res = await TaskLifecycle.run("ghost", 1, {
+      mode: "fix",
+      dryRun: true,
+      planFile: "docs/plan.md",
+      root: repo,
+      registryPath: ghostRegistry(),
+      findingsPath: path.join(ws, "tasks-1-review-3.json"),
+      noExit: true,
+    });
+    expect(res.exitCode).toBe(0);
+    expect(res.returnBlock.at(-1)).toBe("next: BLOCKED: review-cycle-cap — user adjudicates");
+  },
+);
+
+it(
+  "C5 fix dry-run: a short consecutive-S1 history stays BELOW the soft cap → still the re-review " +
+    "suggestion (no adjudication marker)",
+  async () => {
+    const repo = setupRepo();
+    mkdirSync(path.join(repo, "docs"), { recursive: true });
+    writeFileSync(path.join(repo, "docs", "plan.md"), "# P\n\n### Task 1: t\n");
+    git(repo, "add", "-A");
+    git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "plan");
+    const ws = path.join(repo, ".osuperpowers", "cdd", "plan");
+    mkdirSync(ws, { recursive: true });
+    // Only two consecutive S1 rounds (rounds 2-3); round 1 closed clean → the cap is not reached.
+    writeFileSync(
+      path.join(ws, "tasks-1-review-1.json"),
+      JSON.stringify({ status: "REVIEW_FIX", findings: [{ severity: "warn" }], artifacts: {} }),
+    );
+    for (const r of [2, 3]) {
+      writeFileSync(
+        path.join(ws, `tasks-1-review-${r}.json`),
+        JSON.stringify({
+          status: "CHANGES_REQUESTED",
+          findings: [{ severity: "blocker", summary: `b${r}` }],
+          artifacts: {},
+        }),
+      );
+    }
+    const res = await TaskLifecycle.run("ghost", 1, {
+      mode: "fix",
+      dryRun: true,
+      planFile: "docs/plan.md",
+      root: repo,
+      registryPath: ghostRegistry(),
+      findingsPath: path.join(ws, "tasks-1-review-3.json"),
+      noExit: true,
+    });
+    expect(res.exitCode).toBe(0);
+    expect(res.returnBlock.at(-1)).toMatch(/^next: cdd review --type task --tasks 1/);
+  },
+);
 
 it("ctx 注入面: 构造即挂基类双门（子类零注册面接触；ctx 原样可读）", async () => {
   const repo = setupRepo();

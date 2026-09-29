@@ -66,6 +66,10 @@
           "alias": "-h",
           "type": "bool",
           "scope": "program"
+        },
+        "root": {
+          "flag": "--root",
+          "type": "path"
         }
       },
       "git": {

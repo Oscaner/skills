@@ -179,7 +179,7 @@ describe("my-gate 门面去路径化（Task 20 ⑥）：壳散文字节常数，
     const out = fixtureRenders().implement;
     expect(out).toMatch(/This mode does not write `[^`]+tasks-7-implement\.json`/); // 槽实值
     expect(out).toContain("does not write a handoff"); // shell directive 3
-    expect(out).toContain("the runner materializes it from your return block four lines"); // the slot's prose
+    expect(out).toContain("the runner materializes it from your return block three lines"); // the slot's prose
     expect(out).toContain("TASK_BASE");
   });
 });
@@ -205,13 +205,26 @@ describe("共享纪律散文（壳 Instructions，跨 mode 同一字节）：evi
     }
   });
 
-  it("fix status 决策（共享 Handoff 壳）：work-type declare status（APPROVED once applied, or BLOCKED with reason in blocker）", () => {
+  it("fix status 决策（共享 Handoff 壳）：work-type declare status（APPROVED once applied, or BLOCKED with failure_category）", () => {
     const out = fixtureRenders().fix;
     expect(out).toMatch(
-      /declare `status` \(APPROVED once applied, or BLOCKED with the reason in `blocker`\)/,
+      /declare `status` \(APPROVED once applied, or BLOCKED with `failure_category` — the reason channel\)/,
     );
     expect(out).toContain("fix-scope diff"); // fix directive 4 (FIX_BASE)
     expect(out).toContain("`FIXED_POINT`"); // directive 4's real value source is the Round context
+  });
+
+  it("RETURN_STDOUT_BLOCK 收敛为 3 行（status/commits/artifacts，零 blocker 行；counters 与 next: 由引擎追加）", () => {
+    const out = fixtureRenders().implement;
+    const returnZone = returnZoneOf(out);
+    expect(returnZone).toContain("Return **exactly 3 lines** to stdout");
+    expect(returnZone).toContain("status: <APPROVED|BLOCKED>");
+    expect(returnZone).toContain("commits: base=<sha> head=<sha>");
+    expect(returnZone).toContain("artifacts: brief=<path> report=<path> test_evidence=<path>");
+    expect(returnZone).not.toContain("blocker:");
+    expect(returnZone).toContain(
+      "appends the 4th `counters:` line and the 5th derived `next:` suggestion line (C5)",
+    ); // agent never self-produces either engine-appended line
   });
 
   it("渲染输出零残留 moustache（r2-r3 泄漏回归守卫，迁移：{{HANDOFF_SCHEMA_JSON}} 槽已消）", () => {

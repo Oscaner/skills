@@ -38,7 +38,7 @@
         "REVIEW_FIX",
         "TIMEOUT"
       ],
-      "description": "The round conclusion (this dispatch's terminal result) — APPROVED: done; CHANGES_REQUESTED: fix the findings (terminal conclusion of a review round; the fix loop runs as its own dispatch); REVIEW_FIX: the warn/nit-only review conclusion (收口态 — the review closed and its fix round routes the task to complete without a re-review, #278); BLOCKED: the round cannot proceed — the failure mechanism lives in failure_category, the reason in blocker; TIMEOUT: budget or liveness exceeded. Orthogonal surfaces: failure_category (mechanism channel) and unverifiable[]/plan_conflicts[] (content-level notes) never fold into status. The review family (review / branch-review) may omit this field — the engine derives it from findings; implement / fix (work types) must declare it. Write findings, not status."
+      "description": "The round conclusion (this dispatch's terminal result) — APPROVED: done; CHANGES_REQUESTED: fix the findings (terminal conclusion of a review round; the fix loop runs as its own dispatch); REVIEW_FIX: the warn/nit-only review conclusion (收口态 — the review closed and its fix round routes the task to complete without a re-review, #278); BLOCKED: the round cannot proceed — the failure mechanism lives in failure_category, the reason on the stderr `CDD_BLOCKED:` single channel (the stdout blocker column is retired); TIMEOUT: budget or liveness exceeded. Orthogonal surfaces: failure_category (mechanism channel) and unverifiable[]/plan_conflicts[] (content-level notes) never fold into status. The review family (review / branch-review) may omit this field — the engine derives it from findings; implement / fix (work types) must declare it. Write findings, not status."
     },
     "failure_category": {
       "type": "string",
@@ -170,7 +170,7 @@
     },
     "blocker": {
       "type": "string",
-      "description": "The round's single real blocker line — states what could not be verified and why, or the concrete reason the round cannot proceed. Real sources only (agent-declared / engine gate reason / failure mechanism / unverifiable summary); never fabricated. Omit when nothing blocks (NOT null) — null is invalid. BLOCKED requires a non-empty blocker or a failure_category (see allOf)."
+      "description": "Vacant on the task/branch faces — no longer an agent declaration channel (agents ground BLOCKED via `failure_category`, never this field; the stdout `blocker:` column is retired). Written only by engine failure carriers (writeBlockedCarrier / commit-contract rewrite / exhaustion markers) — real sources only, never fabricated; omit when nothing blocks (NOT null) — null is invalid. BLOCKED requires a non-empty failure_category (see allOf)."
     },
     "notes": {
       "type": "string",
@@ -307,24 +307,14 @@
         ]
       },
       "then": {
-        "anyOf": [
-          {
-            "required": [
-              "blocker"
-            ],
-            "properties": {
-              "blocker": {
-                "type": "string",
-                "minLength": 1
-              }
-            }
-          },
-          {
-            "required": [
-              "failure_category"
-            ]
+        "required": [
+          "failure_category"
+        ],
+        "properties": {
+          "failure_category": {
+            "type": "string"
           }
-        ]
+        }
       }
     }
   ],

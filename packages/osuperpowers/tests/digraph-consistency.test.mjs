@@ -388,25 +388,32 @@ for (const { name, path: skillPath } of SKILL_FILES) {
 
     test(`[${name}] assertion 2 · review-loop/commit/handoff skeleton is the shared shape`, () => {
       assert.ok(an.nodes.some((n) => n.type === "rect" && n.label === "spec-review"), `${name}: spec-review node missing`);
-      assert.ok(an.nodes.some((n) => n.type === "diamond" && n.label === "blocker=0?"), `${name}: blocker=0? decision missing`);
+      assert.ok(an.nodes.some((n) => n.type === "diamond" && n.label === "status?"), `${name}: status? decision missing`);
       assert.ok(an.nodes.some((n) => n.type === "rect" && n.label === "fix-spec"), `${name}: fix-spec node missing`);
       assert.ok(an.nodes.some((n) => n.type === "rect" && n.label === "commit-spec"), `${name}: commit-spec node missing`);
       assert.ok(
         an.nodes.some((n) => n.type === "rect" && /^handoff-/.test(n.label)),
         `${name}: handoff-* node missing`,
       );
-      assert.ok(edgeExists("spec-review", "blocker=0?", ""), `${name}: spec-review → blocker=0? edge missing`);
-      // Family canon (plan Task 9 is the single-arrow shape {blocker=0?} → [fix]; the trio draws both labeled
-      // yes/no arms — their drawing choice). edgeExists(label "") matches yes / no / unlabeled, so either
-      // convention satisfies the shared skeleton; revisit when Task 9 lands the cli-driven-development canon.
-      assert.ok(edgeExists("blocker=0?", "fix-spec", ""), `${name}: blocker=0? → fix-spec edge missing`);
+      assert.ok(edgeExists("spec-review", "status?", ""), `${name}: spec-review → status? edge missing`);
+      // C1 status-routing canon: the `{status?}` decision fires the convergence fork — the review
+      // conclusion status routes CHANGES_REQUESTED / REVIEW_FIX to fix-spec (one compound edge) and
+      // APPROVED straight to commit-spec (S3 — zero findings, no fix dispatch); the fix-spec exit
+      // returns to spec-review (S1 — re-review mandatory after the fix) or proceeds to commit-spec
+      // (S2 — closing round, no re-review). edgeExists(label "") accepts any label, so the compound
+      // edge satisfies the fixing edge check.
+      assert.ok(edgeExists("status?", "fix-spec", ""), `${name}: status? → fix-spec edge missing`);
       assert.ok(
-        edgeExists("fix-spec", "spec-review", "entered via blocker>0"),
-        `${name}: fix-spec --entered via blocker>0--> spec-review back-edge missing`,
+        edgeExists("status?", "commit-spec", "APPROVED"),
+        `${name}: status? --APPROVED--> commit-spec bypass edge missing (S3 — zero findings, no fix dispatch)`,
       );
       assert.ok(
-        edgeExists("fix-spec", "commit-spec", "entered via blocker=0"),
-        `${name}: fix-spec --entered via blocker=0--> commit-spec edge missing`,
+        edgeExists("fix-spec", "spec-review", "entered via CHANGES_REQUESTED"),
+        `${name}: fix-spec --entered via CHANGES_REQUESTED--> spec-review back-edge missing (S1 — re-review mandatory after the fix)`,
+      );
+      assert.ok(
+        edgeExists("fix-spec", "commit-spec", "entered via REVIEW_FIX"),
+        `${name}: fix-spec --entered via REVIEW_FIX--> commit-spec edge missing (S2 — closing round, no re-review)`,
       );
       assert.ok(edgeExists("commit-spec", /^handoff-/, ""), `${name}: commit-spec → handoff-* edge missing`);
     });

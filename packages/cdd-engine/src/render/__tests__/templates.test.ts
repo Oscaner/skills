@@ -564,7 +564,8 @@ describe("renderTemplate（唯一渲染器：壳 → Return 常数 → Round con
   });
 });
 
-// ---- The data plane's empty-injection shell + verbatim schema injection + zero hand-written render symbols (Task 20 ①/③) ----
+// ---- The data plane's empty-injection shell + writable-subset schema injection (C4-2: $schema /
+// review_scope stripped) + zero hand-written render symbols (Task 20 ①/③) ----
 
 describe("unified constant shell（Task 20：四个 .md 并入 sections 的阅读理解）", () => {
   it("壳内零注入槽：sections.shell 零 token 槽（T12 起 `{{> cl:…}}` 条款 partial refs 为装配标记）；`## Round context` 唯一动态区宣言", () => {
@@ -578,10 +579,21 @@ describe("unified constant shell（Task 20：四个 .md 并入 sections 的阅�
     expect(shell).toMatch(/byte-identical for every round and mode/); // C1-max 段序宣言
   });
 
-  it("Handoff 段为 schema 原样注入（含 description，零手写 render）", () => {
+  it("Handoff 段为 schema 可写子集注入（含 description，剥 $schema/review_scope，零手写 render）", () => {
     const schema = schemaValidator.loadHandoffSchema("task");
     const stub = templates.renderHandoffSchemaJson(schema);
-    expect(JSON.parse(stub.replace(/^```json\n/, "").replace(/\n```$/, ""))).toEqual(schema);
+    const parsed = JSON.parse(stub.replace(/^```json\n/, "").replace(/\n```$/, ""));
+    // C4-2: the injection face carries zero non-writable surface — the strict skip-write record is
+    // that the agent could only mirror writable keys back.
+    expect(stub).not.toContain("$schema");
+    expect(stub).not.toContain("review_scope");
+    expect(parsed.properties).not.toHaveProperty("review_scope");
+    // the rest stays the contract's own bytes (properties byte-identical apart from the stamp field)
+    const schemaProps = (schema as { properties: Record<string, unknown> }).properties;
+    for (const key of Object.keys(schemaProps).filter((k) => k !== "review_scope")) {
+      expect(parsed.properties[key]).toEqual(schemaProps[key]);
+    }
+    expect(parsed.description).toMatch(/\S/); // the write-protocol rules are injected with the schema
   });
 
   it("零手写 render 符号", () => {
@@ -615,20 +627,42 @@ describe("renderHandoffSchemaJson 紧凑注入（P5 E-8 省 tok + Task 5 rename:
     expect(stub).not.toMatch(/\n {2}"/);
   });
 
-  it("紧凑 JSON 单行承载 + 契约保持：JSON.parse(stub) === schema（注入面压缩但不损内容）", () => {
+  it("紧凑 JSON 单行承载 + 契约保持：JSON.parse(stub) === 可写子集（注入面压缩但不损内容）", () => {
     const schema = schemaValidator.loadHandoffSchema("task");
     const body = templates
       .renderHandoffSchemaJson(schema)
       .replace(/^```json\n/, "")
       .replace(/\n```$/, "");
     expect(body).not.toContain("\n"); // JSON.stringify without indentation → the body is exactly one line
-    expect(JSON.parse(body)).toEqual(schema); // 既有 round-trip 断言在紧凑形态下保持
+    // C4-2: the round-trip equals the writable subset — `$schema` and review_scope never injected
+    expect(body).not.toContain("$schema");
+    expect(body).not.toContain("review_scope");
+    const parsed = JSON.parse(body);
+    expect(parsed.properties).not.toHaveProperty("review_scope");
+    expect(parsed.required).toEqual((schema as { required: string[] }).required);
   });
 
   it("省 tok（R6）：紧凑 stub 短于同一 schema 的 2-缩进形态", () => {
     const schema = schemaValidator.loadHandoffSchema("task");
     const pretty = `\`\`\`json\n${JSON.stringify(schema, null, 2)}\n\`\`\``;
     expect(templates.renderHandoffSchemaJson(schema).length).toBeLessThan(pretty.length);
+  });
+
+  it("注入面 grep 零命中：task 与 docs 两族渲染出的完整 prompt 无 $schema / 无 review_scope（C4-2 验收）", () => {
+    // The shared shell (Instructions/Handoff) carries the per-family schema block — a full
+    // renderTemplate prompt IS the injection surface; both handoff families must stay zero on the
+    // non-writable keys (docs never had review_scope; $schema is stripped from both).
+    const renderTemplate = templates.renderTemplate.bind(templates);
+    const resetTemplateCaches = templates.resetTemplateCaches.bind(templates);
+    resetTemplateCaches();
+    for (const prompt of [
+      renderTemplate("review", { MODE: "review", REVIEW_TYPE: "task" }, "test"),
+      renderTemplate("review", { MODE: "review", REVIEW_TYPE: "spec" }, "test"),
+      renderTemplate("fix", { MODE: "fix", HANDOFF_TARGET: "/d/f.json" }, "test"),
+    ]) {
+      expect(prompt).not.toContain("$schema");
+      expect(prompt).not.toContain("review_scope");
+    }
   });
 });
 

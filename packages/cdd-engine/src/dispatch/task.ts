@@ -12,7 +12,7 @@
 //               timeout path (partial handoff + counters).
 //   post-flight schemaValidate — steps 8.8/10/10.5: handoff schema recovery (CONTRACT_VIOLATION
 //               keeps findings) + failure-without-handoff BLOCKED writes. normalizeResult — steps
-//               11/12/13: return block four-line parse, agent-failure exit, implement materialization.
+//               11/12/13: return block three-line parse, agent-failure exit, implement materialization.
 //               commitPostCheck — step 13.5 + review writeback: the exit gate (skipped on
 //               finished rounds / dry-run; failed gate → maybeExhaust + BLOCKED return block), then the
 //               APPROVED-review ensure-row writeback + round increment (post-gate only —
@@ -62,6 +62,8 @@ import { TemplateLoader } from "../render/templates.ts";
 import { CommitChecker } from "../rules/commit.ts";
 import { DocumentsValidator } from "../rules/documents.ts";
 import { FAILURE_CATEGORIES, FailureResolver } from "../rules/failure.ts";
+import { type NextStepArgs, nextStepFor, SOFT_CAP_S1_ROUNDS } from "../rules/next-step.ts";
+import { maxConsecutiveS1Rounds } from "../rules/ref-sequence.ts";
 import { HandoffSchemaValidator } from "../rules/schema.ts";
 import {
   DispatchBlocked,
@@ -296,7 +298,14 @@ export class TaskLifecycle extends DispatchLifecycle {
     this.#firstTask = options.group.numbers[0];
     this.#groupKey = options.group.key();
     this.#opts = options.opts;
-    this.#root = (options.ctx.repoRoot as string) ?? "";
+    // Root single authority (branch lane's dual-root design, mirror): the engine ctx.repoRoot is
+    // authoritative for the base gates (doc-contract missing-root lane reads THE SAME field — a
+    // null ctx root must reach that C3-a BLOCK/WARN lane, never silently starve resolution); #root
+    // falls back to the injected opts.root so an in-process caller seeding a root-less ctx still
+    // resolves its workspace and the task face's non-throwing #done terminal properly BLOCKs on the
+    // missing-root condition. runTask always injects a non-null ctx.repoRoot → production behavior
+    // is unchanged by the fallback (it only fires where resolution previously died unhelpfully).
+    this.#root = (options.ctx.repoRoot as string) ?? options.opts.root ?? "";
     this.#runtime = options.opts.runtime ?? runtime;
     this.#registry = new Registry();
     this.#invoker = new EngineInvoker();
@@ -328,6 +337,64 @@ export class TaskLifecycle extends DispatchLifecycle {
     // semantics; the empty fallback renders "got: " in the mode-must-be diagnostic (the legacy
     // undefined-got message, same rejection face).
     return this.#opts.mode ?? "";
+  }
+
+  /** Read the `--findings` INPUT findings (fix face, C5-1 — the fix next-hop judges on the input
+   *  content, never the fix's own carrier). Missing/unreadable input → [] (the conservative 0-blocker
+   *  baseline — the suggestion is a default, never a throw). */
+  #inputFindings(path: string | null | undefined): Array<{ severity?: string }> {
+    if (!path) return [];
+    const h = readJson(path) as { findings?: Array<{ severity?: string }> } | null;
+    return Array.isArray(h?.findings) ? h.findings : [];
+  }
+
+  /** C5 (T8) — the task return block's `next:` suggestion (rules/next-step.ts pure derivation; zero
+   *  new CLI args C5-2). Suggestion semantics (C5-0): a default next-hop, overridable by
+   *  mid-backfill / user adjudication. The failure lanes pass no status → null (BLOCKED rounds emit
+   *  no `next:` — the stderr CDD_BLOCKED face owns them). Review zero-findings: the remaining-group /
+   *  all-done facts derive from the plan's effective dispatch groups (serial in-order default — the
+   *  "no mid-stream change" path); an unreadable plan degrades to the conservative `none`. */
+  #derivedNext(deps: {
+    mode: string;
+    status?: string | null;
+    findings?: ReadonlyArray<{ severity?: string }>;
+    findingsPath?: string | null;
+  }): string | null {
+    const ctx = this.#tcx;
+    const args: NextStepArgs = {
+      op: deps.mode as NextStepArgs["op"],
+      type: "task",
+      group: this.#groupKey,
+      plan: ctx?.plan,
+      status: deps.status ?? undefined,
+      findings: deps.findings,
+      findingsPath: deps.findingsPath ?? undefined,
+    };
+    // C5-1 soft cap (T8 fix): the FIX face judges BEYOND the source round's own severity — the next
+    // hop defers to user adjudication when the ref sequence (the 'ref-sequence round counting' basis)
+    // has reached SOFT_CAP_S1_ROUNDS consecutive S1 rounds. The walk anchors at the `--findings`
+    // source review handoff and counts backward through this group's rounds — missing history
+    // degrades, never throws (a dry-run/fresh fix has no older rounds → no cap).
+    if (deps.mode === "fix" && ctx?.findingsPath) {
+      args.softCap =
+        maxConsecutiveS1Rounds({
+          type: "task",
+          sourcePath: ctx.findingsPath,
+          tasks: this.#groupKey,
+        }) >= SOFT_CAP_S1_ROUNDS;
+    }
+    if (args.op === "review" && (deps.findings ?? []).length === 0) {
+      let groups: TaskGroup[] = [];
+      try {
+        groups = ctx?.plan ? new DocumentsValidator().effectiveGroups(ctx.plan) : [];
+      } catch {
+        groups = [];
+      }
+      const idx = groups.findIndex((g) => g.key() === this.#groupKey);
+      if (idx >= 0 && idx < groups.length - 1) args.nextGroup = groups[idx + 1]!.key();
+      else if (idx >= 0) args.allGroupsDone = true;
+    }
+    return nextStepFor(args);
   }
 
   /** runTask-compat result surface — { exitCode, returnBlock } read after run(). */
@@ -705,8 +772,9 @@ export class TaskLifecycle extends DispatchLifecycle {
     let cause: TerminationCause | undefined; // unified termination cause (stalled/over-budget/signal; T26)
     let idleWindowMs: number | undefined; // stall blocker detail (monitor idle window)
     if (dryRun) {
-      // Dry-run simulation block (return-block.ts single point): the 4-line APPROVED dry-run
-      // payload; the post-flight parse re-appends the counters line (returnFourLines).
+      // Dry-run simulation block (return-block.ts single point): the 3-line APPROVED dry-run
+      // payload (status/commits/artifacts — the agent output contract, no blocker column); the
+      // post-flight parse re-appends the counters line (returnFourLines).
       agentOut = this.#returnBlockParser.dryRunBlock({
         commits: "base=dry-run",
         artifacts: `brief=${ctx.briefPath} report=${ctx.workspace}/tasks-${this.#groupKey}-report.md test_evidence=${ctx.workspace}/tasks-${this.#groupKey}-test-evidence.json`,
@@ -991,7 +1059,7 @@ export class TaskLifecycle extends DispatchLifecycle {
     }
   }
 
-  /** Steps 11/12/13: return block four-line parse → agent-failure exit → implement materialization
+  /** Steps 11/12/13: return block three-line parse → agent-failure exit → implement materialization
    * (dry-run writes no handoff — aligned with bash). */
   protected override async normalizeResult(_hookCtx: DispatchHookContext): Promise<void> {
     if (this.#finished) return;
@@ -1000,8 +1068,26 @@ export class TaskLifecycle extends DispatchLifecycle {
     const ctx = this.#tcx!;
     const progressDir = path.dirname(ctx.ledgerPath);
 
-    // 11. return block four lines (from the agent stdout / dry-run block)
-    let returnBlock = this.#returnBlockParser.returnFourLines(this.#agentOut, ctx.workspace);
+    // 11. return block three lines (from the agent stdout / dry-run block) + the counters line.
+    //     C5 (T8): dry-run rounds carry the derived `next:` line (status APPROVED + the dispatch
+    //     facts); real rounds re-emit with `next:` after finalization (step 13 implement /
+    //     commitPostCheck review+fix) — the raw agent passthrough on failure lanes is next-less
+    //     (BLOCKED face, no `next:` line).
+    const dryRunNext = dryRun
+      ? this.#derivedNext({
+          mode,
+          status: "APPROVED",
+          // C5-1: a dry-run fix judges on the `--findings` INPUT content (the real fix decision
+          // point); an unreadable/absent input degrades to the 0-blocker baseline.
+          findings: mode === "fix" ? this.#inputFindings(ctx.findingsPath) : [],
+          findingsPath: ctx.findingsPath,
+        })
+      : null;
+    let returnBlock = this.#returnBlockParser.returnFourLines(
+      this.#agentOut,
+      ctx.workspace,
+      dryRunNext,
+    );
 
     // 12. Agent failed but handoff exists → exit agent_rc (raw return block stays from agent stdout).
     if (this.#agentRc !== 0) {
@@ -1013,7 +1099,7 @@ export class TaskLifecycle extends DispatchLifecycle {
     //     T5: status single authority — the review-type handoff is derived/overwritten by the
     //     engine at finalization (SP-4 exempts failure rounds). T6: implement materializes — the
     //     agent writes no handoff (implement.md dropped the Handoff Output section), the runner
-    //     builds tasks-{key}-implement.json from the return block four lines + brief TASK_BASE + git HEAD;
+    //     builds tasks-{key}-implement.json from the return block three lines + brief TASK_BASE + git HEAD;
     //     evidence-gate read-back (behavior_change:true → hard; else soft WARN). T7: the carrier
     //     comes home to the engine — implement/review finalize through finalizeHandoff,
     //     writeOwnHandoff full-replace, return block always re-emits from returnFromHandoff.
@@ -1028,7 +1114,23 @@ export class TaskLifecycle extends DispatchLifecycle {
       });
       if (finalized.handoff) {
         this.#handoff!.persist(finalized.handoff);
-        returnBlock = this.#returnBlockParser.returnFromHandoff(ctx.handoffPath, ctx.workspace);
+        // C5 (T8): the materialized implement return block carries the `next:` line (→ the group's
+        // review); a BLOCKED materialization (finalized.exitCode ≠ 0) stays next-less — the
+        // failure-mode stderr face owns it.
+        const next =
+          finalized.exitCode === 0
+            ? this.#derivedNext({
+                mode,
+                status: finalized.handoff.status as string | undefined,
+                findings: finalized.handoff.findings as Array<{ severity?: string }> | undefined,
+                findingsPath: ctx.handoffPath,
+              })
+            : null;
+        returnBlock = this.#returnBlockParser.returnFromHandoff(
+          ctx.handoffPath,
+          ctx.workspace,
+          next,
+        );
         // Materialized return block and handoff/exit align: hard gate or an agent-declared BLOCKED → exit 1.
         if (finalized.exitCode !== 0) {
           this.#failure.maybeExhaust(
@@ -1098,9 +1200,23 @@ export class TaskLifecycle extends DispatchLifecycle {
         // persistFinalized: derivation unchanged (same reference) → skip the write (no no-op
         // overwrite); changed → full-replace + sync.
         persistFinalized(ctx.handoffPath, handoff, finalized);
+        // C5 (T8): the `next:` line rides the same return-block single point. review — the finalized
+        // handoff's own findings (one-way → fix); fix — the `--findings` INPUT findings (C5-1 single
+        // decision point: blockers → re-review, warn/nit-only → closure).
+        const finalizedH = finalized.handoff as {
+          status?: string;
+          findings?: Array<{ severity?: string }>;
+        } | null;
         this.#returnBlock = this.#returnBlockParser.returnFromHandoff(
           ctx.handoffPath,
           ctx.workspace,
+          this.#derivedNext({
+            mode,
+            status: finalizedH?.status,
+            findings:
+              mode === "fix" ? this.#inputFindings(ctx.findingsPath) : (finalizedH?.findings ?? []),
+            findingsPath: mode === "review" ? ctx.handoffPath : null,
+          }),
         );
         if (mode === "review" && normalizeHandoffStatus(handoff.status as string) === "APPROVED") {
           // This read stays single-arg (T7): at review-success execution progress.json already

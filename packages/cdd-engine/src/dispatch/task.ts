@@ -62,8 +62,9 @@ import { TemplateLoader } from "../render/templates.ts";
 import { CommitChecker } from "../rules/commit.ts";
 import { DocumentsValidator } from "../rules/documents.ts";
 import { FAILURE_CATEGORIES, FailureResolver } from "../rules/failure.ts";
-import { type NextStepArgs, nextStepFor, SOFT_CAP_S1_ROUNDS } from "../rules/next-step.ts";
+import { type NextStepArgs, NextStepRouter, SOFT_CAP_S1_ROUNDS } from "../rules/next-step.ts";
 import { maxConsecutiveS1Rounds } from "../rules/ref-sequence.ts";
+import { ResultFace } from "../rules/result-face.ts";
 import { HandoffSchemaValidator } from "../rules/schema.ts";
 import {
   DispatchBlocked,
@@ -270,6 +271,11 @@ export class TaskLifecycle extends DispatchLifecycle {
   readonly #failure: FailureResolver;
   readonly #schema: HandoffSchemaValidator;
   readonly #returnBlockParser: ReturnBlockParser;
+  /** C5 (T3) — the single stdout capsule face + its injected router (constructor injection; the
+   *  task-family 4-line return block is retired in favor of the capsule — status/blocker/handoff +
+   *  the derived `next:` line). */
+  readonly #nextRouter: NextStepRouter;
+  readonly #resultFace: ResultFace;
 
   #entry: unknown = null;
   #tcx: TaskDispatchContext | null = null;
@@ -317,6 +323,8 @@ export class TaskLifecycle extends DispatchLifecycle {
     this.#failure = new FailureResolver();
     this.#schema = new HandoffSchemaValidator();
     this.#returnBlockParser = new ReturnBlockParser();
+    this.#nextRouter = new NextStepRouter();
+    this.#resultFace = new ResultFace({ nextRouter: this.#nextRouter });
   }
 
   /** The dispatch group's task list (readonly view — the scalar list the agent-facing
@@ -348,18 +356,19 @@ export class TaskLifecycle extends DispatchLifecycle {
     return Array.isArray(h?.findings) ? h.findings : [];
   }
 
-  /** C5 (T8) — the task return block's `next:` suggestion (rules/next-step.ts pure derivation; zero
-   *  new CLI args C5-2). Suggestion semantics (C5-0): a default next-hop, overridable by
-   *  mid-backfill / user adjudication. The failure lanes pass no status → null (BLOCKED rounds emit
-   *  no `next:` — the stderr CDD_BLOCKED face owns them). Review zero-findings: the remaining-group /
-   *  all-done facts derive from the plan's effective dispatch groups (serial in-order default — the
-   *  "no mid-stream change" path); an unreadable plan degrades to the conservative `none`. */
-  #derivedNext(deps: {
+  /** C5 (T8) — the task capsule's `next:` derivation input (rules/next-step.ts NextStepRouter pure
+   *  derivation; zero new CLI args C5-2). Suggestion semantics (C5-0): a default next-hop, overridable
+   *  by mid-backfill / user adjudication. The failure lanes pass no args → the capsule carries no
+   *  `next:` (BLOCKED rounds — the stderr CDD_BLOCKED face owns them; the router also nulls any
+   *  BLOCKED/TIMEOUT status). Review zero-findings: the remaining-group / all-done facts derive from
+   *  the plan's effective dispatch groups (serial in-order default — the "no mid-stream change" path);
+   *  an unreadable plan degrades to the conservative `none`. */
+  #nextArgs(deps: {
     mode: string;
     status?: string | null;
     findings?: ReadonlyArray<{ severity?: string }>;
     findingsPath?: string | null;
-  }): string | null {
+  }): NextStepArgs {
     const ctx = this.#tcx;
     const args: NextStepArgs = {
       op: deps.mode as NextStepArgs["op"],
@@ -377,11 +386,14 @@ export class TaskLifecycle extends DispatchLifecycle {
     // degrades, never throws (a dry-run/fresh fix has no older rounds → no cap).
     if (deps.mode === "fix" && ctx?.findingsPath) {
       args.softCap =
-        maxConsecutiveS1Rounds({
-          type: "task",
-          sourcePath: ctx.findingsPath,
-          tasks: this.#groupKey,
-        }) >= SOFT_CAP_S1_ROUNDS;
+        maxConsecutiveS1Rounds(
+          {
+            type: "task",
+            sourcePath: ctx.findingsPath,
+            tasks: this.#groupKey,
+          },
+          this.#nextRouter,
+        ) >= SOFT_CAP_S1_ROUNDS;
     }
     if (args.op === "review" && (deps.findings ?? []).length === 0) {
       let groups: TaskGroup[] = [];
@@ -394,7 +406,25 @@ export class TaskLifecycle extends DispatchLifecycle {
       if (idx >= 0 && idx < groups.length - 1) args.nextGroup = groups[idx + 1]!.key();
       else if (idx >= 0) args.allGroupsDone = true;
     }
-    return nextStepFor(args);
+    return args;
+  }
+
+  /** C5 (T3) — the task round's stdout capsule (StatusDeriver/NextStepRouter/Convergence via the
+   *  injected ResultFace): review → the judgment axis + its own findings blocker; implement/fix →
+   *  the work axis + the decision-source blocker (fix = the `--findings` input count; implement = 0).
+   *  `next` = the C5 derivation args (absent → no `next:` line). */
+  #face(
+    status: string | undefined,
+    findings?: ReadonlyArray<{ severity?: string }>,
+    next?: NextStepArgs,
+  ): string[] {
+    return this.#resultFace.emit({
+      op: this.#mode() as "implement" | "review" | "fix",
+      handoffPath: this.#tcx?.handoffPath ?? "",
+      status,
+      findings,
+      next,
+    });
   }
 
   /** runTask-compat result surface — { exitCode, returnBlock } read after run(). */
@@ -846,11 +876,7 @@ export class TaskLifecycle extends DispatchLifecycle {
             ctx.handoffPath,
           ); // engine-self-written → engineSelfWrittenCount (not recovery quota)
         }
-        this.#done(
-          1,
-          this.#returnBlockParser.returnFromHandoff(ctx.handoffPath, ctx.workspace),
-          "process unkillable",
-        );
+        this.#done(1, this.#face("BLOCKED"), "process unkillable");
         return;
       }
       // Normal timeout (budget exceeded OR liveness stall OR external SIGTERM): TIMEOUT partial
@@ -902,11 +928,7 @@ export class TaskLifecycle extends DispatchLifecycle {
       // FAILURE_CATEGORIES (replaces the legacy timeoutCount++ three-liner, T6 zero hand-written
       // counter literals).
       this.#failure.maybeExhaust(progressDir, FAILURE_CATEGORIES.TIMEOUT.id, ctx.handoffPath);
-      this.#done(
-        1,
-        this.#returnBlockParser.returnFromHandoff(ctx.handoffPath, ctx.workspace),
-        `cli terminated (cause: ${cause ?? "unknown"})`,
-      );
+      this.#done(1, this.#face("TIMEOUT"), `cli terminated (cause: ${cause ?? "unknown"})`);
       return;
     }
   }
@@ -967,11 +989,7 @@ export class TaskLifecycle extends DispatchLifecycle {
                 ctx.handoffPath,
               ); // format error on the producing side
             }
-            this.#done(
-              1,
-              this.#returnBlockParser.returnFromHandoff(ctx.handoffPath, ctx.workspace),
-              `schema validation failed${rec.reason}`,
-            );
+            this.#done(1, this.#face("BLOCKED"), `schema validation failed${rec.reason}`);
             return;
           }
         }
@@ -1024,11 +1042,7 @@ export class TaskLifecycle extends DispatchLifecycle {
         this.#ledger.incrementRound(progressDir, this.#groupKey, mode);
         this.#ledger.incrementRecovery(progressDir); // REAL execution failure (not timeout / not engine-written) → EXECUTION_FAILURE — the only recovery-quota consumer (AC7)
       }
-      this.#done(
-        1,
-        this.#returnBlockParser.returnFromHandoff(ctx.handoffPath, ctx.workspace),
-        `cli exited ${this.#agentRc} and handoff missing`,
-      );
+      this.#done(1, this.#face("BLOCKED"), `cli exited ${this.#agentRc} and handoff missing`);
       return;
     }
 
@@ -1050,11 +1064,7 @@ export class TaskLifecycle extends DispatchLifecycle {
         FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id,
         ctx.handoffPath,
       ); // engine-written BLOCKED (exit 0 without handoff)
-      this.#done(
-        1,
-        this.#returnBlockParser.returnFromHandoff(ctx.handoffPath, ctx.workspace),
-        `${mode} agent did not write handoff`,
-      );
+      this.#done(1, this.#face("BLOCKED"), `${mode} agent did not write handoff`);
       return;
     }
   }
@@ -1068,30 +1078,21 @@ export class TaskLifecycle extends DispatchLifecycle {
     const ctx = this.#tcx!;
     const progressDir = path.dirname(ctx.ledgerPath);
 
-    // 11. return block three lines (from the agent stdout / dry-run block) + the counters line.
-    //     C5 (T8): dry-run rounds carry the derived `next:` line (status APPROVED + the dispatch
-    //     facts); real rounds re-emit with `next:` after finalization (step 13 implement /
-    //     commitPostCheck review+fix) — the raw agent passthrough on failure lanes is next-less
-    //     (BLOCKED face, no `next:` line).
-    const dryRunNext = dryRun
-      ? this.#derivedNext({
-          mode,
-          status: "APPROVED",
-          // C5-1: a dry-run fix judges on the `--findings` INPUT content (the real fix decision
-          // point); an unreadable/absent input degrades to the 0-blocker baseline.
-          findings: mode === "fix" ? this.#inputFindings(ctx.findingsPath) : [],
-          findingsPath: ctx.findingsPath,
-        })
-      : null;
-    let returnBlock = this.#returnBlockParser.returnFourLines(
+    // 11. return-block parse (the internal carrier feeding implement materialization — the agent's
+    //     3-line output contract is unchanged; the parse atoms stay in return-block.ts). C5 (T3):
+    //     the ENGINE stdout becomes the single status capsule (ResultFace) — dry-run rounds carry
+    //     the capsule + the derived `next:` line; real rounds re-emit the capsule after finalization
+    //     (step 13 implement / commitPostCheck review+fix); the failure lanes emit the capsule with
+    //     no `next:` (BLOCKED face, no `next:` line).
+    const parsedReturnBlock = this.#returnBlockParser.returnFourLines(
       this.#agentOut,
       ctx.workspace,
-      dryRunNext,
     );
 
-    // 12. Agent failed but handoff exists → exit agent_rc (raw return block stays from agent stdout).
+    // 12. Agent failed but handoff exists → exit agent_rc (the capsule shows the round's BLOCKED
+    //     conclusion; the agent's return text stays in its stdout history).
     if (this.#agentRc !== 0) {
-      this.#done(this.#agentRc, returnBlock, "");
+      this.#done(this.#agentRc, this.#face("BLOCKED"), "");
       return;
     }
 
@@ -1102,11 +1103,26 @@ export class TaskLifecycle extends DispatchLifecycle {
     //     builds tasks-{key}-implement.json from the return block three lines + brief TASK_BASE + git HEAD;
     //     evidence-gate read-back (behavior_change:true → hard; else soft WARN). T7: the carrier
     //     comes home to the engine — implement/review finalize through finalizeHandoff,
-    //     writeOwnHandoff full-replace, return block always re-emits from returnFromHandoff.
-    if (!dryRun && mode === "implement") {
+    //     writeOwnHandoff full-replace, and the stdout capsule always re-emits from the finalized carrier.
+    if (dryRun) {
+      // The dry-run capsule: the simulator's APPROVED conclusion on the round's axis (review → the
+      // judgment APPROVED; implement/fix → the work COMPLETED) + the fix decision-source blocker +
+      // the derived `next:` line (C5-1 — the fix judges on the `--findings` INPUT content).
+      const dryRunFindings = mode === "fix" ? this.#inputFindings(ctx.findingsPath) : [];
+      this.#returnBlock = this.#face(
+        "APPROVED",
+        dryRunFindings,
+        this.#nextArgs({
+          mode,
+          status: "APPROVED",
+          findings: dryRunFindings,
+          findingsPath: ctx.findingsPath,
+        }),
+      );
+    } else if (mode === "implement") {
       const finalized = await this.#handoff!.finalize({
         mode,
-        returnBlock,
+        returnBlock: parsedReturnBlock,
         brief: ctx.briefPath,
         repoRoot: this.#root,
         tasks: this.#tasks,
@@ -1114,39 +1130,75 @@ export class TaskLifecycle extends DispatchLifecycle {
       });
       if (finalized.handoff) {
         this.#handoff!.persist(finalized.handoff);
-        // C5 (T8): the materialized implement return block carries the `next:` line (→ the group's
+        // C5 (T8/T3): the materialized implement capsule carries the `next:` line (→ the group's
         // review); a BLOCKED materialization (finalized.exitCode ≠ 0) stays next-less — the
         // failure-mode stderr face owns it.
-        const next =
+        const nextArgs =
           finalized.exitCode === 0
-            ? this.#derivedNext({
+            ? this.#nextArgs({
                 mode,
                 status: finalized.handoff.status as string | undefined,
                 findings: finalized.handoff.findings as Array<{ severity?: string }> | undefined,
                 findingsPath: ctx.handoffPath,
               })
-            : null;
-        returnBlock = this.#returnBlockParser.returnFromHandoff(
-          ctx.handoffPath,
-          ctx.workspace,
-          next,
+            : undefined;
+        this.#returnBlock = this.#face(
+          finalized.handoff.status as string | undefined,
+          undefined,
+          nextArgs,
         );
-        // Materialized return block and handoff/exit align: hard gate or an agent-declared BLOCKED → exit 1.
+        // Materialized capsule and handoff/exit align: hard gate or an agent-declared BLOCKED → exit 1.
         if (finalized.exitCode !== 0) {
           this.#failure.maybeExhaust(
             progressDir,
             FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id,
             ctx.handoffPath,
           );
-          this.#done(finalized.exitCode, returnBlock, "");
+          this.#done(finalized.exitCode, this.#returnBlock, "");
           return;
         }
       }
       // Degradation exception (T6 nit2, documented): missing brief / no TASK_BASE line →
-      // finalizeHandoff materializes nothing (handoff:null + stderr CDD_WARN; the agent's original
-      // return block stays). dry-run and smoke chains both land here — an ENOENT must never crash the runner.
+      // finalizeHandoff materializes nothing (handoff:null + stderr CDD_WARN; the agent's capsule
+      // stays at the parse interim — the dry-run and smoke chains both land here, an ENOENT must
+      // never crash the runner). The provisional capsule derives from the agent-written handoff.
+      if (!this.#returnBlock.length) {
+        const existing = readJson(ctx.handoffPath) as {
+          status?: string;
+          findings?: Array<{ severity?: string }>;
+        } | null;
+        this.#returnBlock = this.#face(
+          existing?.status,
+          undefined,
+          this.#nextArgs({
+            mode,
+            status: existing?.status,
+            findings: [],
+            findingsPath: ctx.handoffPath,
+          }),
+        );
+      }
+    } else {
+      // review/fix: the provisional capsule from the agent-written handoff (the finalized capsule
+      // lands in commitPostCheck — step 13.5's finalize; this assignment covers the unreadable-
+      // finalize degradation).
+      const existing = readJson(ctx.handoffPath) as {
+        status?: string;
+        findings?: Array<{ severity?: string }>;
+      } | null;
+      const existingFindings =
+        mode === "fix" ? this.#inputFindings(ctx.findingsPath) : existing?.findings;
+      this.#returnBlock = this.#face(
+        existing?.status,
+        existingFindings,
+        this.#nextArgs({
+          mode,
+          status: existing?.status,
+          findings: existingFindings ?? [],
+          findingsPath: mode === "review" ? ctx.handoffPath : ctx.findingsPath,
+        }),
+      );
     }
-    this.#returnBlock = returnBlock;
   }
 
   /** Step 13.5 + post-gate writeback: the exit gate (validateCommitContract) runs for every
@@ -1175,11 +1227,7 @@ export class TaskLifecycle extends DispatchLifecycle {
           FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id,
           ctx.handoffPath,
         ); // commit-contract rewrite → engineSelfWrittenCount
-        this.#done(
-          1,
-          this.#returnBlockParser.returnFromHandoff(ctx.handoffPath, ctx.workspace),
-          cv.blocker,
-        );
+        this.#done(1, this.#face("BLOCKED"), cv.blocker);
         return;
       }
     }
@@ -1187,7 +1235,7 @@ export class TaskLifecycle extends DispatchLifecycle {
     // Status single authority (T5/T7): the review-type handoff is finalized by the engine
     // (finalizeHandoff rollup overwrites the agent-declared status, SP-4 exempts failure rounds);
     // the success path reads the finalized handoff and persists it (writeOwnHandoff full-replace),
-    // and re-emits return block from returnFromHandoff.
+    // and re-emits the stdout capsule from finalizeHandoff.
     // Review + fix both finalize here and take the round conclusion → exit (Task 23 ③):
     // (BLOCKED → 1 on any channel, APPROVED/CHANGES_REQUESTED → 0). finalizeHandoff review derives
     // status + the BLOCKED carrier; fix passes the work-type's declared status through. The
@@ -1200,21 +1248,23 @@ export class TaskLifecycle extends DispatchLifecycle {
         // persistFinalized: derivation unchanged (same reference) → skip the write (no no-op
         // overwrite); changed → full-replace + sync.
         persistFinalized(ctx.handoffPath, handoff, finalized);
-        // C5 (T8): the `next:` line rides the same return-block single point. review — the finalized
-        // handoff's own findings (one-way → fix); fix — the `--findings` INPUT findings (C5-1 single
-        // decision point: blockers → re-review, warn/nit-only → closure).
+        // C5 (T8/T3): the capsule's `next:` derivation args ride the same single face. review — the
+        // finalized handoff's own findings (one-way → fix) + own blocker; fix — the `--findings`
+        // INPUT findings (C5-1 single decision point + the decision-source blocker: blockers →
+        // re-review, warn/nit-only → closure).
         const finalizedH = finalized.handoff as {
           status?: string;
           findings?: Array<{ severity?: string }>;
         } | null;
-        this.#returnBlock = this.#returnBlockParser.returnFromHandoff(
-          ctx.handoffPath,
-          ctx.workspace,
-          this.#derivedNext({
+        const capsuleFindings =
+          mode === "fix" ? this.#inputFindings(ctx.findingsPath) : (finalizedH?.findings ?? []);
+        this.#returnBlock = this.#face(
+          finalizedH?.status,
+          capsuleFindings,
+          this.#nextArgs({
             mode,
             status: finalizedH?.status,
-            findings:
-              mode === "fix" ? this.#inputFindings(ctx.findingsPath) : (finalizedH?.findings ?? []),
+            findings: capsuleFindings,
             findingsPath: mode === "review" ? ctx.handoffPath : null,
           }),
         );

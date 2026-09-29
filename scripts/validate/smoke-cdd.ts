@@ -30,8 +30,9 @@
 //      engine-config — the plan declares `**Spec:**` and the spec doc is derived alongside (the
 //      engine's doc-existence audit path is thereby a deterministic pass, never dependent on a
 //      dry-run degraded-BLOCK).
-//   6. per-command return-block contract assertions (status / commits / artifacts / counters /
-//      next — the blocker column is retired; C5 adds the `next:` suggestion line) — the
+//   6. per-command status-capsule contract assertions (status / blocker / handoff + the `next:`
+//      suggestion line — the C5 T3 capsule; the stdout `blocker:` reason column is retired (M3) and
+//      commits/artifacts/counters live in the handoff the capsule points at) — the
 //      consumer-equivalent result surface for every output.
 //   7. osuperpowers pack whitelist audit (P4.2 Task 7 ⑤): `npm pack --dry-run --json` over the
 //      osuperpowers package — the pack top-level file set must equal the 7-item files whitelist
@@ -405,7 +406,7 @@ function deriveFixture(consumerRoot: string, installed: string): Fixture {
   // the shipped do/acceptance patterns below (drift → the consumer-sim fails loud, never silent).
   const taskHeading = taskHeadingFormat.replace("N", "1");
   const doLine = "- **Do**: exercise the installed cdd engine under dry-run in a consumer layout";
-  const acceptLine = "- **验收**: the dry-run chain prints the return-block contract";
+  const acceptLine = "- **验收**: the dry-run chain prints the status capsule contract (T3)";
   assertTrue(
     new RegExp(doPattern).test(doLine),
     `fixture Do line does not match the shipped pattern ${doPattern}: ${doLine}`,
@@ -443,13 +444,11 @@ function deriveFixture(consumerRoot: string, installed: string): Fixture {
 
 // ---- consumer chain (steps 5 & 6) ----
 
-const COUNTERS_RE =
-  /^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/;
-
-/** Assert the command's last stdout block is the 5-line return-block contract (per-command line
- *  expectations included — the consumer-equivalent result surface). The `blocker:` column is
- *  retired (M3); C5 (T8) adds the 5th `next:` suggestion line: status/commits/artifacts +
- *  counters + next. */
+/** Assert the command's last stdout block is the status capsule contract (per-command expectations
+ *  included — the consumer-equivalent result surface). T3: the engine stdout is the single capsule
+ *  `status: <axis> · blocker: <n> · handoff: <path>` + the C5 `next:` line. The `blocker:` is the
+ *  judgment-source count (M3 — never a reason column); commits/artifacts/counters live in the
+ *  handoff the capsule points at (the carrier facts are asserted through the capsule's pointer). */
 function assertReturnBlock(cmd: string, stdout: string): void {
   const lastBlock =
     stdout
@@ -457,48 +456,49 @@ function assertReturnBlock(cmd: string, stdout: string): void {
       .split(/\n{2,}/)
       .at(-1) ?? "";
   const lines = lastBlock.split("\n");
-  const lineByKey = new Map<string, string>();
-  for (const line of lines) {
-    const m = line.match(/^([a-z_]+): (.*)$/);
-    if (m) lineByKey.set(m[1], m[2]);
-  }
-  const checks: Array<[string, RegExp]> = [
-    ["status", /^APPROVED$/],
-    ["commits", /^base=/],
-    ["artifacts", /^/],
-    // C5 (T8): the `next:` suggestion line — a command suggestion (`cdd …`), the clean terminal
-    // (`none`), or the review-cycle soft-cap user-adjudication marker (`BLOCKED: …`).
-    ["next", /^(cdd |none$|BLOCKED:)/],
-  ];
-  for (const [key, re] of checks) {
-    const v = lineByKey.get(key);
-    assertTrue(
-      v !== undefined,
-      `${key}: line missing from the return block (last block: ${JSON.stringify(lastBlock)})`,
-    );
-    assertTrue(re.test(v!), `${key}: value ${JSON.stringify(v)} does not match ${re}`);
-  }
-  if (cmd.includes("review --type branch")) {
-    assertTrue(
-      /^base=[0-9a-f]{40} head=[0-9a-f]{40}$/.test(lineByKey.get("commits")!),
-      `branch review commits ${JSON.stringify(lineByKey.get("commits"))} — expected base=<sha> head=<sha>`,
-    );
-  } else if (cmd.includes("fix --type branch")) {
-    assertTrue(
-      /^base=dry-run head=dry-run$/.test(lineByKey.get("commits")!),
-      `branch fix commits ${JSON.stringify(lineByKey.get("commits"))} — expected base=dry-run head=dry-run`,
-    );
-  } else {
-    assertTrue(
-      /^base=dry-run$/.test(lineByKey.get("commits")!),
-      `task-family commits ${JSON.stringify(lineByKey.get("commits"))} — expected base=dry-run`,
-    );
-  }
-  const counters = lines.find((l) => l.startsWith("counters: "));
+  const capsule = lines.find((l) => l.startsWith("status: ") && l.includes("· blocker: "));
   assertTrue(
-    !!counters && COUNTERS_RE.test(counters!),
-    `counters line missing or malformed (got ${JSON.stringify(counters)})`,
+    !!capsule,
+    `status capsule missing from the last stdout block (last block: ${JSON.stringify(lastBlock)})`,
   );
+  // Both axes (review judgment APPROVED/CHANGES_REQUESTED/REVIEW_FIX; work COMPLETED/BLOCKED).
+  assertTrue(
+    /^status: (APPROVED|CHANGES_REQUESTED|REVIEW_FIX|COMPLETED|BLOCKED) · blocker: \d+ · handoff: /.test(
+      capsule!,
+    ),
+    `status capsule malformed: ${JSON.stringify(capsule)}`,
+  );
+  // Zero old-shape stdout key lines (the 4-line block is retired — T3).
+  assertTrue(
+    lines.every((l) => !/^(commits|artifacts|counters):/.test(l)),
+    `old-shape stdout key line present (last block: ${JSON.stringify(lastBlock)})`,
+  );
+  // C5 (T8): the `next:` suggestion line — a command suggestion (`cdd …`), the clean terminal
+  // (`none`), or the review-cycle soft-cap user-adjudication marker (`BLOCKED: …`).
+  const next = lines.find((l) => l.startsWith("next: "));
+  assertTrue(
+    !!next && /^(cdd |none$|BLOCKED:)/.test(next!),
+    `next: line missing or unexpected (got ${JSON.stringify(next)})`,
+  );
+  // Branch-family carrier facts follow the capsule's handoff pointer (commits moved off stdout).
+  const handoffMatch = capsule!.match(/handoff: (\S+)$/);
+  if (handoffMatch) {
+    const carrier = JSON.parse(readFileSync(handoffMatch[1], "utf8")) as {
+      commits?: { base?: string; head?: string };
+    };
+    if (cmd.includes("review --type branch")) {
+      assertTrue(
+        /^[0-9a-f]{40}$/.test(carrier.commits?.base ?? "") &&
+          /^[0-9a-f]{40}$/.test(carrier.commits?.head ?? ""),
+        `branch review carrier commits ${JSON.stringify(carrier.commits)} — expected base=<sha> head=<sha>`,
+      );
+    } else if (cmd.includes("fix --type branch")) {
+      assertTrue(
+        carrier.commits?.base === "dry-run" && carrier.commits?.head === "dry-run",
+        `branch fix carrier commits ${JSON.stringify(carrier.commits)} — expected base=dry-run head=dry-run`,
+      );
+    }
+  }
 }
 
 function runConsumerChain({
@@ -643,7 +643,7 @@ export function main(expectVersion?: string): void {
   // 3. tarball content assertions (anti-false-green) + release-state version identity.
   assertTarball(tgz, expectVersion);
 
-  // 4. consumer install + 5. consumer chain + 6. per-command return-block assertions.
+  // 4. consumer install + 5. consumer chain + 6. per-command status-capsule assertions.
   const consumer = installConsumer(tgz, expectVersion);
   runConsumerChain(consumer);
 

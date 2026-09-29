@@ -117,9 +117,10 @@ describe("CddRuntime — constructor injection (② the stand-in substitutes the
       registryPath: regPath,
       runtime: stub,
     });
-    // dry-run + clean exit: the stub's isDryRun() fed the gate downgrade path.
+    // dry-run + clean exit: the stub's isDryRun() fed the gate downgrade path. The engine stdout
+    // is the single status capsule (review judgment axis — T3).
     expect(res.exitCode).toBe(0);
-    expect(res.returnBlock[0]).toBe("status: APPROVED");
+    expect(res.returnBlock[0]).toMatch(/^status: APPROVED · blocker: 0 · handoff: /);
     // all three channels went through the injected class face:
     expect(withLifecycle).toHaveBeenCalledTimes(1);
     expect(isDryRun).toHaveBeenCalled();

@@ -158,7 +158,7 @@ async function capture(runFn) {
 
 // ---- dry-run scenarios ----
 
-it("runTask: dry-run implement → return block 5-line APPROVED + no handoff written (aligns bash)", async () => {
+it("runTask: dry-run implement → status capsule (COMPLETED work axis) + no handoff written (aligns bash)", async () => {
   const { repo, planFile, ws } = setupWorkspace();
   const res = await TaskLifecycle.run("claude", 1, {
     mode: "implement",
@@ -168,34 +168,25 @@ it("runTask: dry-run implement → return block 5-line APPROVED + no handoff wri
     noExit: true,
   });
   expect(res.exitCode).toBe(0);
-  // C5 (T8): engine stdout contract = status/commits/artifacts + counters + next
-  expect(res.returnBlock.length).toBe(5);
-  expect(res.returnBlock[0]).toBe("status: APPROVED");
-  expect(res.returnBlock[1]).toBe("commits: base=dry-run");
-  expect(res.returnBlock[2]).toMatch(/^artifacts: brief=/);
-  expect(res.returnBlock.every((l) => !l.startsWith("blocker:"))).toBe(true); // zero blocker column (M3)
-  expect(res.returnBlock[3]).toMatch(
-    /^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/,
-  );
+  // The engine stdout contract is now the status capsule + the derived `next:` line (T3 — the
+  // former status/commits/artifacts + counters block lives in the handoff/progress.json).
+  expect(res.returnBlock.length).toBe(2);
+  expect(res.returnBlock[0]).toMatch(/^status: COMPLETED · blocker: 0 · handoff: /);
+  expect(res.returnBlock.every((l) => !/^(commits|counters):/.test(l))).toBe(true);
   expect(res.returnBlock.at(-1)).toMatch(/^next: cdd review --type task --tasks 1/);
   expect(existsSync(path.join(ws, "tasks-1-implement.json"))).toBe(false);
 });
 
-it("runTask: dry-run outputs return block 5 lines to stdout + exit 0", async () => {
+it("runTask: dry-run outputs the status capsule to stdout + exit 0", async () => {
   const { repo, planFile } = setupWorkspace();
   const { code, stdout } = await capture(() =>
     TaskLifecycle.run("claude", 1, { mode: "implement", dryRun: true, planFile, root: repo }),
   );
   expect(code).toBe(0);
   const lines = stdout.trim().split("\n");
-  expect(lines.length).toBe(5);
-  // Distinct shape: each of the five lines is a key line (guards against a tautological line count)
-  expect(lines.filter((l) => /^(status|commits|artifacts|counters|next):/.test(l)).length).toBe(5);
-  expect(lines[0]).toBe("status: APPROVED");
-  expect(lines.every((l) => !l.startsWith("blocker:"))).toBe(true);
-  expect(lines[3]).toMatch(
-    /^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/,
-  );
+  expect(lines.length).toBe(2);
+  expect(lines[0]).toMatch(/^status: COMPLETED · blocker: 0 · handoff: /);
+  expect(lines.every((l) => !/^(commits|counters):/.test(l))).toBe(true);
   expect(lines.at(-1)).toMatch(/^next: cdd review --type task --tasks 1/);
 });
 
@@ -239,7 +230,10 @@ it("runTask: dry-run review/fix modes → return block APPROVED + no handoff wri
       noExit: true,
     });
     expect(res.exitCode).toBe(0);
-    expect(res.returnBlock[0]).toBe("status: APPROVED");
+    // Review → judgment axis APPROVED; fix → work axis COMPLETED (T3).
+    if (mode === "review")
+      expect(res.returnBlock[0]).toMatch(/^status: APPROVED · blocker: 0 · handoff: /);
+    else expect(res.returnBlock[0]).toMatch(/^status: COMPLETED · blocker: 0 · handoff: /);
     expect(existsSync(path.join(ws, "tasks-1-implement.json"))).toBe(false);
   }
 });
@@ -427,7 +421,7 @@ it("runTask: plan given → brief self-provisioned with TASK_BASE, dry-run exit 
     noExit: true,
   });
   expect(res.exitCode).toBe(0);
-  expect(res.returnBlock[0]).toBe("status: APPROVED");
+  expect(res.returnBlock[0]).toMatch(/^status: COMPLETED · blocker: 0 · handoff: /); // implement work axis (T3)
   expect(readFileSync(path.join(ws, "tasks-1-brief.md"), "utf8")).toMatch(
     /^TASK_BASE: [0-9a-f]{40}$/m,
   );
@@ -801,7 +795,7 @@ it("runTask #218 (T7→review): step 8.8 unknown-property handoff → normalized
     expect(h).not.toHaveProperty("unknownField"); // the offending key is stripped by the write-side single source — never left on disk
     expect(h.phase).toBe("review");
     expect(h.status).toBe("APPROVED");
-    expect(res.returnBlock[0]).toBe("status: APPROVED");
+    expect(res.returnBlock[0]).toMatch(/^status: APPROVED · blocker: 0 · handoff: /);
   } finally {
     restore();
   }
@@ -864,7 +858,7 @@ it("runTask #218 (T7→review): step 8.8 findings 非数组 + review 族缺 stat
       noExit: true,
     });
     expect(res.exitCode).toBe(1); // not a crash escape (exit 2)
-    expect(res.returnBlock[0]).toBe("status: BLOCKED");
+    expect(res.returnBlock[0]).toMatch(/^status: BLOCKED · blocker: 0 · handoff: /);
     const h = JSON.parse(readFileSync(path.join(ws, "tasks-1-review-1.json"), "utf8"));
     expect(h.status).toBe("BLOCKED");
     expect(h.phase).toBe("review");
@@ -888,7 +882,7 @@ it("runTask Pζ T3: review dry-run without prior implement handoff → exits 0",
     noExit: true,
   });
   expect(res.exitCode).toBe(0);
-  expect(res.returnBlock[0]).toBe("status: APPROVED");
+  expect(res.returnBlock[0]).toMatch(/^status: APPROVED · blocker: 0 · handoff: /);
 });
 
 it("runTask Pζ T3: review fake-CLI round 1 → FIXED_POINT (brief/reference 注入) = implement.json commits.base", async () => {
@@ -954,7 +948,7 @@ it("runTask Pζ T3: prior handoff with commits.base='unknown' → FIXED_POINT no
     noExit: true,
   });
   expect(res.exitCode).toBe(0);
-  expect(res.returnBlock[0]).toBe("status: APPROVED");
+  expect(res.returnBlock[0]).toMatch(/^status: APPROVED · blocker: 0 · handoff: /);
 });
 
 it("runTask Pζ T3: review round 2 → FIXED_POINT from task-N-fix-1.json (cross-phase fix round), not implement.json", async () => {
@@ -1102,13 +1096,12 @@ it("runner review 读回覆写：task-N-review-1.json agent 写 CHANGES_REQUESTE
       { severity: "warn", summary: "w" },
       { severity: "nit", summary: "n" },
     ]);
-    // return block 同步从 handoff 重发（returnFromHandoff）— 状态一致，不携带 agent 的 CHANGES_REQUESTED
-    expect(res.returnBlock[0]).toBe("status: REVIEW_FIX");
-    // M3: zero blocker line; C5 (T8): the `next:` line APPENDS after counters (the review handoff
-    // has no artifacts line — the arrays are shape-driven, the tail position is the contract) —
-    // REVIEW_FIX (warn/nit findings) → one-way cdd fix suggestion.
-    expect(res.returnBlock.every((l) => !l.startsWith("blocker:"))).toBe(true);
-    expect(res.returnBlock.some((l) => /^counters: /.test(l))).toBe(true);
+    // The round conclusion re-emits from the finalized carrier (T3) — consistent, never carrying the
+    // agent's CHANGES_REQUESTED
+    expect(res.returnBlock[0]).toMatch(/^status: REVIEW_FIX · blocker: 0 · handoff: /);
+    // The capsule + the derived `next:` line only — no counters line (T3): REVIEW_FIX (warn/nit
+    // findings) → one-way cdd fix suggestion.
+    expect(res.returnBlock).toHaveLength(2);
     expect(res.returnBlock.at(-1)).toMatch(/^next: cdd fix --type task --tasks 1/);
   } finally {
     restore();
@@ -1147,10 +1140,9 @@ it("runTask Task 23 T14 复现场景: review 写 unverifiable → BLOCKED + UNVE
     // ③ T14 反转: BLOCKED review → exit 1（不再是 exit 0）
     expect(res.exitCode).toBe(1);
     // return block 同步: 真实汇总, 不伪造「uncommitted changes at return」
-    expect(res.returnBlock[0]).toBe("status: BLOCKED");
-    expect(res.returnBlock.every((l) => !l.startsWith("blocker:"))).toBe(true); // zero blocker column (M3)
+    expect(res.returnBlock[0]).toMatch(/^status: BLOCKED · blocker: 0 · handoff: /);
+    expect(res.returnBlock).toHaveLength(1); // the BLOCKED capsule only (T3 — no counters line)
     // C5 (T8): a BLOCKED round produces NO `next:` line (the failure-mode stderr face owns it).
-    expect(res.returnBlock.at(-1)).toMatch(/^counters: /);
     expect(res.returnBlock.some((l) => l.startsWith("next:"))).toBe(false);
     // Failed round still counts its round (re-dispatch must stop there) but carries zero status — no complete marker, no other state field
     const progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
@@ -1188,7 +1180,7 @@ it("runTask Task 23 §口径: dev-measured 验收项 accepted-noted → notes �
     expect(h.status).toBe("REVIEW_FIX");
     expect(h.unverifiable).toBeUndefined();
     expect(h.blocker).toBeUndefined();
-    expect(res.returnBlock[0]).toBe("status: REVIEW_FIX");
+    expect(res.returnBlock[0]).toMatch(/^status: REVIEW_FIX · blocker: 0 · handoff: /);
   } finally {
     restore();
   }
@@ -1292,7 +1284,7 @@ it("runTask: mode review dry-run → return block APPROVED + no handoff written"
     noExit: true,
   });
   expect(res.exitCode).toBe(0);
-  expect(res.returnBlock[0]).toBe("status: APPROVED");
+  expect(res.returnBlock[0]).toMatch(/^status: APPROVED · blocker: 0 · handoff: /);
   expect(existsSync(path.join(ws, "tasks-1-review-1.json"))).toBe(false);
 });
 
@@ -1409,9 +1401,11 @@ it("runTask T6: implement 成功路径 — runner 实体化 tasks-1-implement.js
   expect(h.findings).toEqual([]);
   expect(h.artifacts.report).toBe(report);
   expect(h.blocker).toBeUndefined(); // the materialized carrier writes no blocker field (M3 — column retired)
-  // return block 由实体化 handoff 重发（returnFromHandoff）
-  expect(res.returnBlock[0]).toBe("status: APPROVED");
-  expect(res.returnBlock[1]).toBe(`commits: base=${t6.taskBase} head=${t6.actualHead}`);
+  // The capsule re-emits from the materialized carrier (T3): commits single-of-authority is asserted
+  // on the carrier, the capsule points back at the handoff.
+  expect(res.returnBlock[0]).toMatch(/^status: COMPLETED · blocker: 0 · handoff: /);
+  expect(res.returnBlock).toHaveLength(2);
+  expect(res.returnBlock[1]).toMatch(/^next: cdd review --type task --tasks 1/);
 });
 
 it("runTask T6: implement 提交真实改动 → 实体化 carrier 持存 changed-surface ledger origin note（writeBoundary 记账）", async () => {
@@ -1502,7 +1496,7 @@ it("runTask T6: evidence-gate — behavior_change:true 缺 command/passed/exit_c
   expect(h.notes).toMatch(/test_evidence gate: hard/);
   expect(h.notes).toContain("command");
   // return block 同步为 BLOCKED（returnFromHandoff 与覆写后 handoff 一致）
-  expect(res.returnBlock[0]).toBe("status: BLOCKED");
+  expect(res.returnBlock[0]).toMatch(/^status: BLOCKED · blocker: 0 · handoff: /);
   expect(res.returnBlock.every((l) => !l.startsWith("blocker:"))).toBe(true);
   // N② (T9) → T6: implement 实体化 BLOCKED = 引擎自写 BLOCKED → engineSelfWrittenCount
   //（六类分派后不再消耗 recovery 额度 —— engineRecoveryCount 只被 EXECUTION_FAILURE 消耗）
@@ -1525,14 +1519,13 @@ it("runTask T6: return block 输出改用 returnFromHandoff — agent stdout 的
     ].join("\n"),
   );
   expect(res.exitCode).toBe(0);
-  // C5 (T8): the materialized return block carries the 5th `next:` line (→ the group's review).
-  expect(res.returnBlock.length).toBe(5);
-  expect(res.returnBlock[0]).toBe("status: APPROVED");
-  expect(res.returnBlock[1]).toBe(`commits: base=${t6.taskBase} head=${t6.actualHead}`);
-  expect(res.returnBlock.every((l) => !l.startsWith("blocker:"))).toBe(true); // zero blocker column (M3)
-  expect(res.returnBlock[3]).toMatch(
-    /^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/,
-  );
+  // C5 (T8/T3): the materialized capsule carries the work-axis COMPLETED + the `next:` line (→ the
+  // group's review); commits/artifacts/counters live in the carrier (single-of-authority, T6).
+  expect(res.returnBlock.length).toBe(2);
+  expect(res.returnBlock[0]).toMatch(/^status: COMPLETED · blocker: 0 · handoff: /);
+  expect(
+    res.returnBlock.every((l) => !l.startsWith("blocker:") && !/^(commits|counters):/.test(l)),
+  ).toBe(true);
   expect(res.returnBlock.at(-1)).toMatch(/^next: cdd review --type task --tasks 1/);
   const h = JSON.parse(readFileSync(path.join(t6.ws, "tasks-1-implement.json"), "utf8"));
   expect(h.commits.base).toBe(t6.taskBase);
@@ -1567,7 +1560,7 @@ it("runTask T7: implement 8.8 不读 existing handoff → schema-invalid 残留�
   expect(h.phase).toBe("implement");
   expect(h.commits.base).toBe(t6.taskBase);
   expect(h.findings).toEqual([]);
-  expect(res.returnBlock[0]).toBe("status: APPROVED");
+  expect(res.returnBlock[0]).toMatch(/^status: COMPLETED · blocker: 0 · handoff: /); // implement work axis (T3)
 });
 
 // ---- Post-run validateCommitContract (all modes) + ensure-row writeback (no status field) (T8, Task 30 ②) ----
@@ -1635,7 +1628,7 @@ it("runTask T8/T30: review APPROVED → ensure-row writeback (rounds[review]=1, 
     ].join("\n"),
   );
   expect(res.exitCode).toBe(0);
-  expect(res.returnBlock[0]).toBe("status: APPROVED");
+  expect(res.returnBlock[0]).toMatch(/^status: APPROVED · blocker: 0 · handoff: /);
   const progress = JSON.parse(readFileSync(path.join(t8.ws, "progress.json"), "utf8"));
   // The row carries facts only — rounds on record, zero status field; the complete verdict is
   // deriveTaskState's sole authority (the T29-flip blackbox: review-APPROVED → complete) (Task 30 ②).
@@ -1662,7 +1655,7 @@ it("runTask T8: post-run validateCommitContract — dirty tree → handoff BLOCK
     ].join("\n"),
   );
   expect(res.exitCode).toBe(1);
-  expect(res.returnBlock[0]).toBe("status: BLOCKED");
+  expect(res.returnBlock[0]).toMatch(/^status: BLOCKED · blocker: 0 · handoff: /);
   const hp = path.join(t8.ws, "tasks-1-review-1.json");
   expect(existsSync(hp)).toBe(true);
   const h = JSON.parse(readFileSync(hp, "utf8"));
@@ -1698,7 +1691,7 @@ it("runTask T8: post-run validateCommitContract — implement dirty tree → 实
       noExit: true,
     });
     expect(res.exitCode).toBe(1);
-    expect(res.returnBlock[0]).toBe("status: BLOCKED");
+    expect(res.returnBlock[0]).toMatch(/^status: BLOCKED · blocker: 0 · handoff: /);
     const hp = path.join(t8.ws, "tasks-1-implement.json");
     const h = JSON.parse(readFileSync(hp, "utf8"));
     expect(h.status).toBe("BLOCKED");
@@ -1895,7 +1888,7 @@ it("runTask T22: dry-run 豁免 — 无源 plan 走 dry-run 零 BLOCK + 零 cons
     noExit: true,
   });
   expect(res.exitCode).toBe(0);
-  expect(res.returnBlock[0]).toBe("status: APPROVED");
+  expect(res.returnBlock[0]).toMatch(/^status: COMPLETED · blocker: 0 · handoff: /); // implement work axis (T3)
   expect(existsSync(path.join(t22.ws, "plan-constraints.md"))).toBe(false);
 });
 

@@ -91,19 +91,11 @@ describe("cdd implement/review/fix CLI contract", () => {
     });
     expect(res.status).toBe(0);
     const lines = res.stdout.trim().split("\n");
-    // C5 (T8): engine stdout contract = status/commits/artifacts + counters + next
-    expect(lines.length).toBe(5);
-    // Distinct shape: each of the five lines is a key line (guards against a tautological line count)
-    expect(lines.filter((l) => /^(status|commits|artifacts|counters|next):/.test(l)).length).toBe(
-      5,
-    );
-    expect(lines[0]).toBe("status: APPROVED");
-    expect(lines[1]).toBe("commits: base=dry-run");
-    expect(lines[2]).toMatch(/^artifacts: brief=/);
-    expect(lines.every((l) => !l.startsWith("blocker:"))).toBe(true); // zero blocker column (M3)
-    expect(lines[3]).toMatch(
-      /^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/,
-    );
+    // The engine stdout is the single status capsule (status/blocker/handoff) + the derived `next:`
+    // line — the former status/commits/artifacts + counters block lives in the handoff/progress.json (T3).
+    expect(lines.length).toBe(2);
+    expect(lines[0]).toMatch(/^status: COMPLETED · blocker: 0 · handoff: /);
+    expect(lines.filter((l) => /^(commits|artifacts|counters):/.test(l)).length).toBe(0);
     expect(lines.at(-1)).toMatch(/^next: cdd review --type task --tasks 1/);
   });
 
@@ -142,7 +134,10 @@ describe("cdd implement/review/fix CLI contract", () => {
         cwd: repo,
       });
       expect(res.status, `cdd ${sub} --type task`).toBe(0);
-      expect(res.stdout).toMatch(/^status: APPROVED$/m);
+      // review → judgment axis APPROVED; fix → work axis COMPLETED (T3).
+      if (sub === "review")
+        expect(res.stdout).toMatch(/^status: APPROVED · blocker: 0 · handoff: /m);
+      else expect(res.stdout).toMatch(/^status: COMPLETED · blocker: 0 · handoff: /m);
     }
   });
 
@@ -162,8 +157,7 @@ describe("cdd implement/review/fix CLI contract", () => {
       cwd: repo,
     });
     expect(res.status).toBe(0);
-    expect(res.stdout).toMatch(/^status: APPROVED$/m);
-    expect(res.stdout).toMatch(/^commits: base=dry-run$/m);
+    expect(res.stdout).toMatch(/^status: COMPLETED · blocker: 0 · handoff: /m); // implement work axis (T3)
   });
 
   it("no host env → CDD_BLOCKED + exit 1 (harness resolved from ambient host, no flag)", () => {
@@ -223,8 +217,8 @@ describe("P4.3 --tasks list model (group dispatch acceptance)", () => {
       cwd: repo,
     });
     expect(res.status).toBe(0);
-    expect(res.stdout).toMatch(/^status: APPROVED$/m);
-    expect(res.stdout).toMatch(/^commits: base=dry-run$/m);
+    expect(res.stdout).toMatch(/^status: COMPLETED · blocker: 0 · handoff: /m); // implement work axis (T3)
+    expect(res.stdout).not.toMatch(/^commits: /m); // the commits live in the handoff (T3)
     expect(existsSync(path.join(ws, "tasks-1-brief.md"))).toBe(true);
     expect(readFileSync(path.join(ws, "tasks-1-brief.md"), "utf8")).toMatch(
       /^TASK_BASE: [0-9a-f]{40}$/m,
@@ -237,8 +231,8 @@ describe("P4.3 --tasks list model (group dispatch acceptance)", () => {
       cwd: repo,
     });
     expect(res.status).toBe(0);
-    expect(res.stdout).toMatch(/^status: APPROVED$/m);
-    expect(res.stdout).toMatch(/^commits: base=dry-run$/m);
+    expect(res.stdout).toMatch(/^status: COMPLETED · blocker: 0 · handoff: /m); // implement work axis (T3)
+    expect(res.stdout).not.toMatch(/^commits: /m); // the commits live in the handoff (T3)
     // The group is the dispatch unit — the group-keyed brief (tasks-1,2-brief.md) holds both
     // Task 1 + Task 2 sections and the single TASK_BASE.
     const brief = readFileSync(path.join(ws, "tasks-1,2-brief.md"), "utf8");
@@ -277,7 +271,7 @@ describe("P4.3 --tasks list model (group dispatch acceptance)", () => {
       { cwd: repo },
     );
     expect(res.status).toBe(0);
-    expect(res.stdout).toMatch(/^status: APPROVED$/m);
+    expect(res.stdout).toMatch(/^status: APPROVED · blocker: 0 · handoff: /m); // review judgment axis (T3)
   });
 
   it("fix --type task --tasks 1,2 --findings <group review handoff> → whole-group fix (group findings path plumbed)", () => {
@@ -300,7 +294,7 @@ describe("P4.3 --tasks list model (group dispatch acceptance)", () => {
       { cwd: repo },
     );
     expect(res.status).toBe(0);
-    expect(res.stdout).toMatch(/^status: APPROVED$/m);
+    expect(res.stdout).toMatch(/^status: COMPLETED · blocker: 0 · handoff: /m); // fix work axis (T3)
   });
 
   it("--tasks with spaced token `1, 2` tolerated (trim) → same dispatch path", () => {
@@ -311,7 +305,7 @@ describe("P4.3 --tasks list model (group dispatch acceptance)", () => {
       { cwd: repo },
     );
     expect(res.status).toBe(0);
-    expect(res.stdout).toMatch(/^status: APPROVED$/m);
+    expect(res.stdout).toMatch(/^status: APPROVED · blocker: 0 · handoff: /m); // review judgment axis (T3)
   });
 
   it("--tasks 1,1 dedupes to [1] → group of one dispatched", () => {
@@ -320,7 +314,7 @@ describe("P4.3 --tasks list model (group dispatch acceptance)", () => {
       cwd: repo,
     });
     expect(res.status).toBe(0);
-    expect(res.stdout).toMatch(/^status: APPROVED$/m);
+    expect(res.stdout).toMatch(/^status: COMPLETED · blocker: 0 · handoff: /m); // implement work axis (T3)
   });
 
   it("--tasks 1, (trailing comma empty slice) → exit 2", () => {

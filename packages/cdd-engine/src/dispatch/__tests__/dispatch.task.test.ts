@@ -22,11 +22,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { expect, it, vi } from "vitest";
-import {
-  HANDOFF_MISSING_REASON,
-  HANDOFF_UNPARSEABLE_REASON,
-  ReturnBlockParser,
-} from "../../artifacts/return-block.ts";
+import { ReturnBlockParser } from "../../artifacts/return-block.ts";
 import { TaskGroup } from "../../domain/task-group.ts";
 import { captureStderr } from "../../infra/__tests__/helpers.ts";
 import { REG_PATH } from "../../infra/registry.ts";
@@ -125,7 +121,9 @@ it("入口门降级（继承基类 + E2②）: review 起点 dirty + dryRun → 
     });
     await expect(lc.run()).resolves.toBeUndefined();
     expect(lc.result.exitCode).toBe(0); // 降级非跳过：模拟 exit 0 走完
-    expect(lc.result.returnBlock[0]).toBe("status: APPROVED");
+    // The engine stdout is the single status capsule (T3 — review judgment axis on the clean dry
+    // run → APPROVED, blocker 0, the local handoff path).
+    expect(lc.result.returnBlock[0]).toMatch(/^status: APPROVED · blocker: 0 · handoff: /);
     // 模板全走（dispatch 进入——唯一 agent 语义步骤被执行；尾步 commitPostCheck 在 dryRun 下跳过退出校验）
     expect(lc.timeline).toEqual([
       "pre-flight",
@@ -200,9 +198,10 @@ it("runTask dry-run 降级: dirty + dryRun + noExit → exit 0 + return block AP
       registryPath: ghostRegistry(),
     });
     expect(res.exitCode).toBe(0);
-    expect(res.returnBlock[0]).toBe("status: APPROVED");
-    // C5 (T8): engine stdout contract = status/commits/artifacts + counters + next
-    expect(res.returnBlock).toHaveLength(5);
+    expect(res.returnBlock[0]).toMatch(/^status: APPROVED · blocker: 0 · handoff: /);
+    // C5 (T8/T3): engine stdout contract = the status capsule + the derived `next:` line (no
+    // 4-line status/commits/artifacts + counters block — those live in the handoff/progress.json).
+    expect(res.returnBlock).toHaveLength(2);
     expect(res.returnBlock.at(-1)).toMatch(/^next: /);
   } finally {
     cap.restore();
@@ -210,93 +209,37 @@ it("runTask dry-run 降级: dirty + dryRun + noExit → exit 0 + return block AP
   expect(cap.text).toContain(`CDD_WARN: ${DRY_RUN_DIRTY_WARN}`); // mount 前缀 + 单点常量
 });
 
-// ---- returnFromHandoff post-M3 (cdd-review-contract-fix): the return block carries zero
-// `blocker:` line — a BLOCKED round's reason travels the carrier's failure_category + the stderr
-// CDD_BLOCKED single channel (never fabricated prose, never silently dropped) ----
+// ---- C5 capsule exit surface (T3): the engine stdout is the single status capsule (ResultFace) —
+// the former 5-line return-block atoms (returnFromHandoff / assembleReturnBlock — the stdout
+// status/commits/artifacts + counters + next block) are RETIRED; commits/artifacts/counters live
+// in the handoff / progress.json only. What remains on the parse plane: the AGENT-output contract
+// atoms feeding implement materialization (returnFourLines / dryRunBlock) — the agent's stdout
+// output contract is unchanged. A BLOCKED round's reason travels the carrier's failure_category +
+// the stderr CDD_BLOCKED single channel (never fabricated prose, never silently dropped).
 
-it("returnFromHandoff: BLOCKED 无 failure_category → return block 零 blocker 行（仅 status/commits/counters）", () => {
-  const ws = mkdtempSync(path.join(tmpdir(), "cdd-rfh-"));
-  const hp = path.join(ws, "tasks-1-review-1.json");
-  writeFileSync(
-    hp,
-    JSON.stringify({ tasks: [1], phase: "review", status: "BLOCKED", findings: [], artifacts: {} }),
-  );
-  const lines = returnBlockParser.returnFromHandoff(hp, ws);
-  expect(lines[0]).toBe("status: BLOCKED");
-  expect(lines.every((l) => !l.startsWith("blocker:"))).toBe(true); // zero blocker column
-  expect(lines.some((l) => l.startsWith("commits:"))).toBe(true);
-  expect(lines.at(-1)).toMatch(/^counters: /);
-});
-
-it("returnFromHandoff: handoff 里的真实 blocker 也不再进 return block（理由留在载体，仅 stderr/failure_category 可寻址）", () => {
-  const ws = mkdtempSync(path.join(tmpdir(), "cdd-rfh2-"));
-  const hp = path.join(ws, "tasks-1-review-1.json");
-  writeFileSync(
-    hp,
-    JSON.stringify({
-      tasks: [1],
-      phase: "review",
-      status: "BLOCKED",
-      blocker: "commit-contract rewrite reason",
-      failure_category: "ENGINE_SELF_WRITTEN",
-      findings: [],
-      artifacts: {},
-    }),
-  );
-  const lines = returnBlockParser.returnFromHandoff(hp, ws);
-  expect(lines[0]).toBe("status: BLOCKED");
-  expect(lines.every((l) => !l.startsWith("blocker:"))).toBe(true);
-  expect(lines.find((l) => l.startsWith("status:"))).toBe("status: BLOCKED");
-});
-
-it("returnFromHandoff 兜底①: handoff 缺件 → return block 零 blocker 行，理由经 stderr CDD_BLOCKED 写出（不静默丢失）", () => {
-  const ws = mkdtempSync(path.join(tmpdir(), "cdd-rfh-missing-"));
-  const hp = path.join(ws, "tasks-1-review-1.json"); // does not exist
-  const cap = captureStderr();
-  try {
-    const lines = returnBlockParser.returnFromHandoff(hp, ws);
-    expect(lines[0]).toBe("status: BLOCKED");
-    expect(lines.every((l) => !l.startsWith("blocker:"))).toBe(true);
-  } finally {
-    cap.restore();
-  }
-  expect(cap.text).toContain("CDD_BLOCKED: " + HANDOFF_MISSING_REASON);
-});
-
-it("returnFromHandoff 兜底②: handoff JSON 不可解析 → return block 零 blocker 行，理由经 stderr CDD_BLOCKED 写出（不静默丢失）", () => {
-  const ws = mkdtempSync(path.join(tmpdir(), "cdd-rfh-unparse-"));
-  const hp = path.join(ws, "tasks-1-review-1.json");
-  writeFileSync(hp, "{ not valid json");
-  const cap = captureStderr();
-  try {
-    const lines = returnBlockParser.returnFromHandoff(hp, ws);
-    expect(lines[0]).toBe("status: BLOCKED");
-    expect(lines.every((l) => !l.startsWith("blocker:"))).toBe(true);
-  } finally {
-    cap.restore();
-  }
-  expect(cap.text).toContain("CDD_BLOCKED: " + HANDOFF_UNPARSEABLE_REASON);
-});
-
-it("return-block 出口零 blocker 列: returnFourLines / dryRunBlock / assembleReturnBlock 全无 blocker 行", () => {
+it("return-block parse atoms stay (T3): returnFourLines parses the agent's 3-line output + counters, the stray blocker line ignored; dryRunBlock unchanged", () => {
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-rb-atoms-"));
-  // returnFourLines ignores a stray blocker line in agent stdout (legacy-contract output still parses — the zero column does not break the parse)
   const four = returnBlockParser.returnFourLines(
     "status: APPROVED\ncommits: base=x head=y\nartifacts: brief=b\nblocker: leftover",
     ws,
   );
   expect(four).toHaveLength(4);
   expect(four[0]).toBe("status: APPROVED");
+  expect(four[1]).toBe("commits: base=x head=y");
+  expect(four[2]).toBe("artifacts: brief=b");
   expect(four.every((l) => !l.startsWith("blocker:"))).toBe(true);
+  expect(four[3]).toMatch(/^counters: /);
   const dry = returnBlockParser.dryRunBlock({ commits: "base=dry-run", artifacts: "report=r" });
   expect(dry).toBe("status: APPROVED\ncommits: base=dry-run\nartifacts: report=r");
-  const assembled = returnBlockParser.assembleReturnBlock(
-    { status: "APPROVED", commits: "base=a head=b", artifacts: "" },
-    ws,
-  );
-  expect(assembled).toHaveLength(4);
-  expect(assembled.every((l) => !l.startsWith("blocker:"))).toBe(true);
-  expect(assembled.at(-1)).toMatch(/^counters: /);
+});
+
+it("the removed engine-stdout block atoms are gone (T3): returnFromHandoff / assembleReturnBlock no longer exist — ResultFace is the only stdout face", () => {
+  expect(returnBlockParser).not.toHaveProperty("returnFromHandoff");
+  expect(returnBlockParser).not.toHaveProperty("assembleReturnBlock");
+  // the parse + counters atoms remain (the materialization carrier + the agent contract).
+  expect(typeof returnBlockParser.lastKeyLine).toBe("function");
+  expect(typeof returnBlockParser.implementStatusFromReturnLine).toBe("function");
+  expect(typeof returnBlockParser.returnCountersLine).toBe("function");
 });
 
 // E2②/T14 接口消歧 + T26: dry-run 路径零终止介入——不 spawn（invokeCliWithRetry 零调用）、不解析
@@ -321,13 +264,18 @@ it("dry-run 零 liveness 介入（T14 接口消歧）: 不 spawn / 不解析终�
     noExit: true,
   });
   expect(res.exitCode).toBe(0);
-  expect(res.returnBlock[0]).toBe("status: APPROVED");
+  // The implement dry-run capsule — the work axis (COMPLETED) + blocker 0 (no decision source, D2; T3).
+  expect(res.returnBlock[0]).toMatch(/^status: COMPLETED · blocker: 0 · handoff: /);
   expect(invokeSpy).not.toHaveBeenCalled(); // dry-run ≈ run() pre-flight early return, no spawnManaged
   expect(terminationSpy).not.toHaveBeenCalled(); // dry-run resolves no termination config
-  // C5 (T8): counters is the 4th line, the `next:` suggestion the 5th (engine stdout contract).
-  expect(res.returnBlock[3]).toMatch(/^counters: timeout=0 contract-violation=\d+/); // no TIMEOUT count increment
+  // C5 (T8/T3): the capsule + the `next:` suggestion line (no counters line on stdout — the
+  // timeout counters stay readable via progress.json).
+  expect(res.returnBlock).toHaveLength(2);
   expect(res.returnBlock.at(-1)).toMatch(/^next: cdd review --type task --tasks 1/);
-  expect(res.returnBlock.every((l) => !l.startsWith("blocker:"))).toBe(true); // zero blocker column (M3)
+  const progress = JSON.parse(
+    readFileSync(path.join(repo, ".osuperpowers", "cdd", "plan", "progress.json"), "utf8"),
+  );
+  expect(progress.timeoutCount).toBe(0); // no TIMEOUT count increment
   // implement dry-run 不写 handoff（T6 实体化仅真实 dispatch）——也无 TIMEOUT 部分 handoff 可言
   const ws = path.join(repo, ".osuperpowers", "cdd", "plan");
   expect(existsSync(path.join(ws, "tasks-1-implement.json"))).toBe(false);
@@ -394,10 +342,11 @@ it("dry-run implement 走全模板（双门卷入）→ 出口 0 + 5 行 return 
     noExit: true,
   });
   expect(res.exitCode).toBe(0);
-  expect(res.returnBlock[0]).toBe("status: APPROVED");
-  expect(res.returnBlock).toHaveLength(5); // status/commits/artifacts + counters + next (C5)
-  expect(res.returnBlock.every((l) => !l.startsWith("blocker:"))).toBe(true);
-  expect(res.returnBlock[3]).toMatch(/^counters: /);
+  expect(res.returnBlock[0]).toMatch(/^status: COMPLETED · blocker: 0 · handoff: /);
+  expect(res.returnBlock).toHaveLength(2); // the status capsule + the derived `next:` line (T3)
+  expect(
+    res.returnBlock.every((l) => !l.startsWith("commits:") && !l.startsWith("counters:")),
+  ).toBe(true);
   expect(res.returnBlock.at(-1)).toMatch(/^next: cdd review --type task --tasks 1/);
 });
 

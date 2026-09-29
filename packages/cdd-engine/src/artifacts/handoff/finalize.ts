@@ -41,6 +41,7 @@ import { invariant } from "../../infra/exit.ts";
 import { GitClient } from "../../infra/git.ts";
 import { FAILURE_CATEGORIES } from "../../rules/failure.ts";
 import { HandoffSchemaValidator } from "../../rules/schema.ts";
+import { StatusDeriver } from "../../rules/status-deriver.ts";
 import { hashFile } from "../hash.ts";
 import { ProgressLedger, SHA40_RE } from "../progress.ts";
 import { ReturnBlockParser } from "../return-block.ts";
@@ -50,6 +51,10 @@ const git = new GitClient();
 const ledger = new ProgressLedger();
 const schemaValidator = new HandoffSchemaValidator();
 const returnBlockParser = new ReturnBlockParser();
+// C5 (T3): the judgment-axis core lives in rules/status-deriver.ts (single source) — the
+// finalize-level review derivation (unverifiable/plan_conflicts + failure-status lanes) keeps its
+// handoff-level logic and delegates the severity roll-up to the shared StatusDeriver.
+const statusDeriver = new StatusDeriver();
 
 // ---- severity contract / status derivation (merged from contract.mjs, spec §2.3) ----
 
@@ -91,16 +96,16 @@ export function classifySeverity(sev: unknown): string {
  * packages/cdd-engine/templates/schema/docs-handoff-schema.json; this rollup is the mapping;
  * Task 8 #278 — the three-value conclusion):
  *   empty → APPROVED; warn/nit only → REVIEW_FIX (closure state); blocker present → CHANGES_REQUESTED;
- *   non-empty unverifiable[] / plan_conflicts[] → BLOCKED. */
+ *   non-empty unverifiable[] / plan_conflicts[] → BLOCKED. The severity roll-up delegates to the
+ *   shared StatusDeriver#deriveReviewStatus (C5, T3 — the judgment-axis single source); the
+ *   unverifiable/plan_conflicts BLOCKED lane stays here with the handoff-level review derivation. */
 export function rollupStatus(
   findings: Array<{ severity?: string }> = [],
   unverifiable: unknown[] = [],
   planConflicts: unknown[] = [],
 ): string {
   if (unverifiable.length > 0 || planConflicts.length > 0) return "BLOCKED";
-  const hasBlocker = findings.some((f) => f?.severity === "blocker");
-  if (hasBlocker) return "CHANGES_REQUESTED";
-  return findings.length > 0 ? "REVIEW_FIX" : "APPROVED";
+  return statusDeriver.deriveReviewStatus(findings);
 }
 
 /** review-family handoff status derivation (engine-authoritative only): after schema validation,

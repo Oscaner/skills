@@ -88,11 +88,11 @@ describe("branch-fix dry-run", () => {
         { cwd: dir, env: { ...process.env, CLAUDE_CODE_SESSION_ID: "1" }, encoding: "utf8" },
       ).stdout;
 
-      expect(out).toContain("status: APPROVED");
-      expect(out).toContain("commits: base=dry-run head=dry-run");
-      expect(out).toContain("counters: ");
+      expect(out).toContain("status: COMPLETED"); // fix work axis (T3): the dry-run fix round concludes COMPLETED
+      expect(out).toContain("· blocker: 0 ·"); // zero input findings → the decision-source blocker count 0
+      expect(out).toContain("· handoff:"); // the capsule points at the carrier (commits live there)
       expect(out).toContain("next: none"); // C5 (T8): dry-run fix has zero input findings → closure
-      expect(out).not.toContain("blocker:"); // zero blocker column (M3)
+      expect(out).not.toContain("counters:"); // no 4-line block on stdout (T3)
       expect(existsSync(handoffPath)).toBe(true);
 
       const handoff = JSON.parse(readFileSync(handoffPath, "utf8"));
@@ -437,18 +437,17 @@ describe("branch-fix real-mode — parent stdout return block (C5-1 fix face)", 
       const exitCode = await run(dir, planPath, reviewPath, regPath);
       expect(exitCode).toBe(0);
       const newHead = readFileSync(path.join(dir, "fix-after-commit.head"), "utf8").trim();
-      expect(cap.text).toContain("status: APPROVED");
-      expect(cap.text).toContain(`commits: base=${base} head=${newHead}`);
-      expect(cap.text).toContain("artifacts: report=/tmp/fix-report.md");
-      expect(cap.text).toMatch(
-        /counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+/,
-      );
+      // The fix round's stdout is the single capsule — work axis COMPLETED + the decision-source
+      // blocker (the source review's blocker count) + the carrier pointer (T3).
+      expect(cap.text).toContain("status: COMPLETED");
+      expect(cap.text).toContain("· blocker: 1 ·"); // the source review carries one blocker finding
+      expect(cap.text).toContain("· handoff:");
+      expect(cap.text).not.toContain("counters:");
       // C5-1: the fix face derives the next hop from the --findings INPUT — blocker present →
       // re-review on the moved ref (base = the reviewed range base, head = the fix's git HEAD).
       expect(cap.text).toContain(
         `next: cdd review --type branch --plan ${planPath} --base ${base} --head ${newHead}`,
       );
-      expect(cap.text).not.toContain("blocker:"); // the stdout blocker column is retired (M3)
       expect(existsSync(handoffPath)).toBe(true);
     } finally {
       process.env.PATH = origPath;
@@ -458,7 +457,7 @@ describe("branch-fix real-mode — parent stdout return block (C5-1 fix face)", 
   });
 
   it("source review with warn/nit findings → closure `next: none`", async () => {
-    const { dir, planPath, reviewPath, handoffPath, base, regPath, origPath } = await setup([
+    const { dir, planPath, reviewPath, handoffPath, regPath, origPath } = await setup([
       { severity: "warn" },
       { severity: "nit" },
     ]);
@@ -466,11 +465,11 @@ describe("branch-fix real-mode — parent stdout return block (C5-1 fix face)", 
     try {
       const exitCode = await run(dir, planPath, reviewPath, regPath);
       expect(exitCode).toBe(0);
-      const newHead = readFileSync(path.join(dir, "fix-after-commit.head"), "utf8").trim();
-      expect(cap.text).toContain("status: APPROVED");
-      expect(cap.text).toContain(`commits: base=${base} head=${newHead}`);
+      expect(cap.text).toContain("status: COMPLETED");
+      expect(cap.text).toContain("· blocker: 0 ·"); // warn/nit input → zero decision-source blockers
+      expect(cap.text).toContain("· handoff:");
       expect(cap.text).toContain("next: none"); // warn/nit-only input → closure round naturalization
-      expect(cap.text).not.toContain("blocker:");
+      expect(cap.text).not.toContain("counters:");
       expect(existsSync(handoffPath)).toBe(true);
     } finally {
       process.env.PATH = origPath;

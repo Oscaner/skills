@@ -20,12 +20,15 @@ import { withLifecycle } from "../infra/proc.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
 import { TemplateLoader } from "../render/templates.ts";
 import { ConvergenceChecker } from "../rules/convergence.ts";
-import { nextStepFor } from "../rules/next-step.ts";
-import { docsResultFace } from "./result-face.ts";
+import { ResultFace } from "../rules/result-face.ts";
 import { DRY_RUN, type PrevHandoff, requireHostHarness, resolveTargetDoc } from "./shared.ts";
 
 const templates = new TemplateLoader();
 const convergence = new ConvergenceChecker();
+// C5 (T3): the single stdout result face — the docs review capsule + the `next:` suggestion line
+// (status/blocker/handoff + next) derive through the injected StatusDeriver/NextStepRouter/Convergence
+// (zero bare function emission; docsResultFace is retired).
+const resultFace = new ResultFace();
 
 export interface ReviewOpts {
   type: string;
@@ -206,24 +209,31 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
         repoRoot: root,
         dryRun: DRY_RUN(),
       });
-      // Docs review completion → stdout result face (design §2.9 / AC9): the orchestrator routes on
-      // the `status:` line without opening the handoff — C5 (T8) appends the `next:` suggestion
-      // line (one-way → fix when findings exist; `none` on a clean docs approval). Exit stays on
-      // the exit.ts single surface: exit 0 → exitOkWith(face) one call; non-0 → face + exitWithCode.
-      const face = docsResultFace(result, handoffPath);
+      // Docs review completion → stdout result face (C5, T3): the orchestrator routes on the single
+      // capsule (`status: <judgment axis> · blocker: <own findings> · handoff: <path>`) without
+      // opening the handoff; the `next:` suggestion line rides the same ResultFace emit (one-way →
+      // fix when findings exist; `none` on a clean docs approval). Exit stays on the exit.ts single
+      // surface: exit 0 → exitOkWith(face) one call; non-0 → face + exitWithCode.
       const docHandoff = result.handoff as
         | { status?: string; findings?: Array<{ severity?: string }> }
         | null
         | undefined;
-      const next = nextStepFor({
-        op: "review",
-        type: opts.type,
-        doc,
-        status: docHandoff?.status,
-        findings: docHandoff?.findings,
-        findingsPath: handoffPath,
-      });
-      const faceOutput = next ? `${face}\nnext: ${next}` : face;
+      const faceOutput = resultFace
+        .emit({
+          op: "review",
+          handoffPath,
+          status: docHandoff?.status,
+          findings: docHandoff?.findings,
+          next: {
+            op: "review",
+            type: opts.type,
+            doc,
+            status: docHandoff?.status,
+            findings: docHandoff?.findings,
+            findingsPath: handoffPath,
+          },
+        })
+        .join("\n");
       if (result.exitCode === 0) exitOkWith(faceOutput);
       process.stdout.write(`${faceOutput}\n`);
       exitWithCode(result.exitCode);

@@ -145,7 +145,8 @@ describe("cdd CLI", () => {
       );
       expect(r.exitCode).toBe(0);
       expect(r.stdout).toMatch(/status: APPROVED/);
-      expect(r.stdout).toMatch(new RegExp(`commits: base=${base} head=${head}`));
+      expect(r.stdout).toMatch(/· blocker: 0 ·/);
+      expect(r.stdout).toMatch(/· handoff:/); // the capsule points at the carrier — commits/artifacts/counters live there (T3)
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -182,7 +183,7 @@ describe("cdd CLI", () => {
       { env: { CLAUDE_CODE_SESSION_ID: "1" } },
     );
     expect(r.exitCode).toBe(0);
-    expect(r.stdout).toMatch(/status: APPROVED/);
+    expect(r.stdout).toMatch(/status: COMPLETED/); // fix work axis (T3)
   });
 
   it("fix --type spec|plan 非 dry-run：无 host env → CDD_BLOCKED exit 1（T3 — 无 harness 停闸，host 由环境判定）", () => {
@@ -415,11 +416,12 @@ describe("cdd CLI", () => {
         },
       );
       expect(r.exitCode).toBe(0);
-      // C3-b: the REAL-mode round emits the return block contract on the parent stdout — the
-      // orchestrator routes the branch-review conclusion on the `status:` line.
+      // C3-b/T3: the REAL-mode round emits the status capsule on the parent stdout — the
+      // orchestrator routes the branch-review conclusion on the capsule's status.
       expect(r.stdout).toContain("status: REVIEW_FIX");
-      expect(r.stdout).toContain("counters: ");
-      expect(r.stdout).not.toContain("blocker:");
+      expect(r.stdout).toContain("· blocker: 0 ·"); // warn/nit-only findings → zero blockers
+      expect(r.stdout).toContain("· handoff:");
+      expect(r.stdout).not.toContain("counters:");
       const h = JSON.parse(readFileSync(handoffPath, "utf8"));
       // warn/nit = 0 blockers → status is overwritten by finalizeHandoff (applyDerivedStatus rollup) to REVIEW_FIX (closure state)
       expect(h.status).toBe("REVIEW_FIX");
@@ -570,8 +572,9 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
         cap.restore();
       }
       expect(exitCode).toBe(0);
-      // C5 (T8): the docs fix face APPENDS the `next:` line — zero input findings → closure `none`.
-      expect(cap.text).toMatch(/status: APPROVED/);
+      // C5 (T8/T3): the docs fix face = the work-axis capsule (COMPLETED) + the `next:` line —
+      // zero input findings → closure `none`.
+      expect(cap.text).toMatch(/status: COMPLETED/);
       expect(cap.text).toMatch(/· handoff:/);
       expect(cap.text).toMatch(/next: none/);
       const call = docsRunnerMock.run.mock.calls.at(-1)?.[0] ?? {};
@@ -1049,7 +1052,7 @@ describe("P6 T10: E2② dry-run 脏树降级 — CLI 黑盒各型 sweep", () => 
     expect(r.stderr).toContain(`CDD_WARN: ${DRY_RUN_DIRTY_WARN}`);
   };
 
-  it("implement --dry-run（task 面）: 脏树 exit 0 + return block APPROVED + WARN", () => {
+  it("implement --dry-run（task 面）: 脏树 exit 0 + capsule COMPLETED + WARN", () => {
     const dir = dirtyFixtureRepo();
     try {
       const r = runCli(["--dry-run", "implement", "--tasks", "1", "--plan", "docs/plan.md"], {
@@ -1057,7 +1060,8 @@ describe("P6 T10: E2② dry-run 脏树降级 — CLI 黑盒各型 sweep", () => 
         env: { CLAUDE_CODE_SESSION_ID: "1" },
       });
       assertDryRunWarn(r);
-      expect(r.stdout).toMatch(/status: APPROVED/);
+      // The dry-run implement capsule carries the work axis (COMPLETED) + blocker 0 (T3).
+      expect(r.stdout).toMatch(/status: COMPLETED · blocker: 0 · handoff:/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -1095,7 +1099,7 @@ describe("P6 T10: E2② dry-run 脏树降级 — CLI 黑盒各型 sweep", () => 
         { cwd: dir2, env: { CLAUDE_CODE_SESSION_ID: "1" } },
       );
       assertDryRunWarn(r);
-      expect(r.stdout).toMatch(/status: APPROVED/);
+      expect(r.stdout).toMatch(/status: COMPLETED/); // fix work axis (T3)
     } finally {
       rmSync(dir2, { recursive: true, force: true });
     }
@@ -1134,8 +1138,8 @@ describe("P6 T10: E2② dry-run 脏树降级 — CLI 黑盒各型 sweep", () => 
         { cwd: dir2, env: { CLAUDE_CODE_SESSION_ID: "1" } },
       );
       assertDryRunWarn(r);
-      // docs-fix result face (AC9 — fix completion now also carries the stdout face).
-      expect(r.stdout).toMatch(/status: APPROVED/);
+      // docs-fix result face (AC9/T3 — fix completion carries the work-axis capsule COMPLETED).
+      expect(r.stdout).toMatch(/status: COMPLETED/);
       expect(r.stdout).toMatch(/· blocker: 0/);
       expect(r.stdout).toMatch(/· handoff:/);
     } finally {

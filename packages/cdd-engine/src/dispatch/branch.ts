@@ -34,7 +34,6 @@ import {
 import * as handoffNaming from "../artifacts/handoff/naming.ts";
 import { readJson, writeHandoff, writeOwnHandoff } from "../artifacts/handoff/write.ts";
 import { ResidueManager } from "../artifacts/residue.ts";
-import { ReturnBlockParser } from "../artifacts/return-block.ts";
 import { exitOk, exitWithCode } from "../infra/exit.ts";
 import { EngineInvoker } from "../infra/invoke.ts";
 import { CddBlockedError, REG_PATH, Registry } from "../infra/registry.ts";
@@ -42,8 +41,9 @@ import { getRoot, resolveDocArg } from "../infra/root.ts";
 import { TemplateLoader } from "../render/templates.ts";
 import { ConvergenceChecker } from "../rules/convergence.ts";
 import { FAILURE_CATEGORIES } from "../rules/failure.ts";
-import { nextStepFor, SOFT_CAP_S1_ROUNDS } from "../rules/next-step.ts";
+import { type NextStepArgs, NextStepRouter, SOFT_CAP_S1_ROUNDS } from "../rules/next-step.ts";
 import { maxConsecutiveS1Rounds } from "../rules/ref-sequence.ts";
+import { ResultFace } from "../rules/result-face.ts";
 import { HandoffSchemaValidator } from "../rules/schema.ts";
 import { type DispatchContext, type DispatchHookContext, DispatchLifecycle } from "./base.ts";
 
@@ -53,7 +53,11 @@ const templates = new TemplateLoader();
 const convergence = new ConvergenceChecker();
 const schema = new HandoffSchemaValidator();
 const residue = new ResidueManager();
-const returnBlocks = new ReturnBlockParser();
+// C5 (T3): the single stdout capsule face — one ResultFace for branch review/fix (status/blocker/
+// handoff + the `next:` line through the injected router; the former 5-line assembleReturnBlock /
+// returnFromHandoff emissions are retired).
+const nextRouter = new NextStepRouter();
+const resultFace = new ResultFace({ nextRouter });
 
 // ---- public opts (the CLI surface's derivation contract; moved from cli/branch-review.ts / fix) ----
 
@@ -382,8 +386,8 @@ export class BranchReviewLifecycle extends BranchLifecycle {
 
   /** Steps 7/8: render the branch-review prompt (docs-family shell + REVIEW_REFERENCE
    * base..head + review-family round-context slots) and spawn the harness CLI. Dry-run:
-   * APPROVED stub handoff + the 5-line return block (assembleReturnBlock — the return-block single
-   * point, counters + the C5 `next:` line) + exit 0. */
+   * APPROVED stub handoff + the single stdout capsule (ResultFace — status/blocker/handoff + the
+   * C5 `next:` line) + exit 0. */
   protected override async dispatch(_hookCtx: DispatchHookContext): Promise<void> {
     const base = String(this.#base);
     const head = String(this.#head);
@@ -397,24 +401,22 @@ export class BranchReviewLifecycle extends BranchLifecycle {
         findings: [],
         artifacts: {},
       });
-      const returnBlock = returnBlocks.assembleReturnBlock(
-        {
-          status: "APPROVED",
-          commits: `base=${base} head=${head}`,
-          artifacts: "",
-        },
-        this.workspace,
+      const lines = resultFace.emit({
+        op: "review",
+        handoffPath: this.handoffPath,
+        status: "APPROVED",
+        findings: [],
         // C5 (T8): the branch-review dry-run is a clean round (zero findings) → the approval is a
         // terminal `next: none` (a branch review has no remaining-group hop).
-        nextStepFor({
+        next: {
           op: "review",
           type: "branch",
           plan: this.opts.plan,
           status: "APPROVED",
           findings: [],
-        }),
-      );
-      for (const line of returnBlock) process.stdout.write(`${line}\n`);
+        },
+      });
+      for (const line of lines) process.stdout.write(`${line}\n`);
       exitOk();
       return;
     }
@@ -473,11 +475,10 @@ export class BranchReviewLifecycle extends BranchLifecycle {
    * (runner/docs-runner/cdd) share the same finalizeHandoff single point.
    * The exit comes from the finalized round conclusion (Task 23 ③: BLOCKED → 1,
    * APPROVED/CHANGES_REQUESTED → 0) — this is the sole exit path once the agent wrote a handoff.
-   * The REAL-mode round ALSO emits the return block on the parent stdout (T6 C3-b) — through the
-   * return-block single point (returnBlocks.returnFromHandoff over this.handoffPath + workspace,
-   * the same 5-line contract status/commits/artifacts + counters + next, zero `blocker:`) — the
-   * orchestrator routes the branch-review round on the `status:` line. Aligned with the dry-run
-   * assembleReturnBlock lane and the task/docs return-block surfaces. */
+   * The REAL-mode round ALSO emits the single stdout capsule on the parent stdout (T6 C3-b / C5 T3)
+   * — via the one ResultFace (status/blocker/handoff + the `next:` line): the orchestrator routes
+   * the branch-review round on the capsule's status. A BLOCKED review (or a null handoff) produces
+   * no `next:` (the failure-mode stderr face owns it). */
   protected override async normalizeResult(_hookCtx: DispatchHookContext): Promise<void> {
     const base = String(this.#base);
     const head = String(this.#head);
@@ -496,24 +497,29 @@ export class BranchReviewLifecycle extends BranchLifecycle {
       if (cc) handoff = { ...handoff, commits: cc };
     }
     if (handoff && handoff !== this.agentHandoff) writeOwnHandoff(this.handoffPath, handoff);
-    // C5 (T8): the `next:` line rides the same return-block single point — derived from the
-    // finalized handoff facts (status + findings) + the reviewed range. A BLOCKED review (or a
-    // null handoff) produces no `next:` (the failure-mode stderr face owns it).
-    const next = handoff
-      ? nextStepFor({
-          op: "review",
-          type: "branch",
-          plan: this.opts.plan,
-          base: String(this.#base),
-          head: String(this.#head),
-          status: handoff.status as string | undefined,
-          findings: (handoff as { findings?: Array<{ severity?: string }> }).findings,
-          findingsPath: this.handoffPath,
-        })
-      : null;
-    for (const line of returnBlocks.returnFromHandoff(this.handoffPath, this.workspace, next)) {
-      process.stdout.write(`${line}\n`);
-    }
+    const reviewHandoff = handoff as {
+      status?: string;
+      findings?: Array<{ severity?: string }>;
+    } | null;
+    const lines = resultFace.emit({
+      op: "review",
+      handoffPath: this.handoffPath,
+      status: reviewHandoff?.status,
+      findings: reviewHandoff?.findings,
+      next: reviewHandoff
+        ? {
+            op: "review",
+            type: "branch",
+            plan: this.opts.plan,
+            base: String(this.#base),
+            head: String(this.#head),
+            status: reviewHandoff.status,
+            findings: reviewHandoff.findings,
+            findingsPath: this.handoffPath,
+          }
+        : undefined,
+    });
+    for (const line of lines) process.stdout.write(`${line}\n`);
     exitWithCode(finalized.exitCode);
   }
 
@@ -537,9 +543,6 @@ export class BranchFixLifecycle extends BranchLifecycle {
   /** the resolved source-review path (the `--findings` input) — the C5-1 next-hop judge reads the
    *  `--findings` INPUT content, never the fix's own carrier (set in resolveContext). */
   protected findingsPath = "";
-  /** the branch-fix return block's derived `next:` line value (C5-1 fix face — computed in
-   *  normalizeResult over the `--findings` input; the CLI wrapper emits it after run()). */
-  protected fixNext: string | null = null;
 
   constructor(options: BranchFixOpts & BranchLifecycleOpts & { ctx: DispatchContext }) {
     super(options);
@@ -609,8 +612,8 @@ export class BranchFixLifecycle extends BranchLifecycle {
 
   /** Steps 7/8: derive the FIX_BASE (source review's commits.base; missing/unknown → BLOCKED
    * carrier + exit 1), render the fix prompt (task-family shell + RETURN_STDOUT_BLOCK), spawn the
-   * fix agent CLI. Dry-run: APPROVED stub handoff + the 5-line return block (counters + the C5
-   * `next:` line) + exit 0. */
+   * fix agent CLI. Dry-run: APPROVED stub handoff + the single stdout capsule (ResultFace —
+   * status/blocker/handoff + the C5 `next:` line) + exit 0. */
   protected override async dispatch(_hookCtx: DispatchHookContext): Promise<void> {
     if (this.opts.dryRun) {
       writeHandoff(this.handoffPath, {
@@ -621,23 +624,21 @@ export class BranchFixLifecycle extends BranchLifecycle {
         findings: [],
         artifacts: {},
       });
-      const returnBlock = returnBlocks.assembleReturnBlock(
-        {
-          status: "APPROVED",
-          commits: "base=dry-run head=dry-run",
-          artifacts: "",
-        },
-        this.workspace,
+      const lines = resultFace.emit({
+        op: "fix",
+        handoffPath: this.handoffPath,
+        status: "APPROVED",
+        findings: [],
         // C5 (T8): dry-run fix input has zero findings → zero blockers → closure `next: none`.
-        nextStepFor({
+        next: {
           op: "fix",
           type: "branch",
           plan: this.opts.plan,
           status: "APPROVED",
           findings: [],
-        }),
-      );
-      for (const line of returnBlock) process.stdout.write(`${line}\n`);
+        },
+      });
+      for (const line of lines) process.stdout.write(`${line}\n`);
       exitOk();
       return;
     }
@@ -724,10 +725,11 @@ export class BranchFixLifecycle extends BranchLifecycle {
    * code-face error) stay BLOCKED. Task 23 ③: the fix round conclusion → exit (BLOCKED → 1,
    * APPROVED/CHANGES_REQUESTED → 0) — captured here, emitted by the wrapper AFTER the (inherited)
    * exit gate ran clean.
-   * C5-1 (T9 fix): the branch-fix return block is DERIVED here — the `next:` suggestion (the fix
-   * face is the re-review/closure single decision point, judged on the `--findings` INPUT content:
+   * C5 (T3): the branch-fix stdout capsule is DERIVED here — the `next:` suggestion (the fix face
+   * is the re-review/closure single decision point, judged on the `--findings` INPUT content:
    * blockers → re-review on the moved ref / warn+nit → closure / BLOCKED → no next line) — and
-   * SURFACED by the CLI wrapper on the parent stdout after run() returns (the exit gate ran first). */
+   * SURFACED by the CLI wrapper on the parent stdout after run() returns (the exit gate ran first)
+   * via this.returnBlock (which re-reads the finalized carrier from disk). */
   protected override async normalizeResult(_hookCtx: DispatchHookContext): Promise<void> {
     const finalized = await finalizeHandoff({
       mode: "fix",
@@ -738,42 +740,56 @@ export class BranchFixLifecycle extends BranchLifecycle {
     if (finalized.handoff && finalized.handoff !== this.agentHandoff)
       writeOwnHandoff(this.handoffPath, finalized.handoff);
     this.finalExitCode = finalized.exitCode;
-    this.fixNext = finalized.handoff ? this.deriveFixNext(finalized.handoff) : null;
   }
 
-  /** C5-1: the branch-fix `next:` line value — the fix face's re-review/closure single decision
-   *  point. Read the `--findings` INPUT content (never the fix's own carrier — C5-1), mirror
-   *  cli/fix.ts docs face: blocker present → `cdd review --type branch --plan <p> --base <b>
-   *  --head <h>` (re-review on the moved ref: the fix base..its git HEAD); warn/nit-only → next:
-   *  none (closure); the fix round's own BLOCKED/TIMEOUT conclusion → null (no next line — the
-   *  failure-mode stderr face owns it). softCap via the ref-sequence walk (same basis as the task
-   *  and docs fix faces). */
-  protected deriveFixNext(handoff: Record<string, unknown>): string | null {
+  /** C5-1: the branch-fix `--findings` INPUT findings (the capsule blocker + next-hop source —
+   *  never the fix's own carrier). Non-array `findings` on the input (a documented agent-written
+   *  shape) degrades to the 0-blocker baseline. */
+  #inputFindings(): Array<{ severity?: string }> {
     const inputHandoff = readJson(this.findingsPath) as {
       findings?: Array<{ severity?: string }>;
     } | null;
-    const inputFindings = Array.isArray(inputHandoff?.findings) ? inputHandoff.findings : [];
-    const softCap =
-      maxConsecutiveS1Rounds({ type: "branch", sourcePath: this.findingsPath }) >=
-      SOFT_CAP_S1_ROUNDS;
-    const commits = (handoff.commits as Record<string, unknown> | undefined) ?? {};
-    return nextStepFor({
+    return Array.isArray(inputHandoff?.findings) ? inputHandoff.findings : [];
+  }
+
+  /** C5-1 (T9 fix): the branch-fix `next:` derivation input — the fix face's re-review/closure
+   *  single decision point. Read the `--findings` INPUT content (never the fix's own carrier),
+   *  mirror cli/fix.ts docs face: blocker present → re-review on the moved ref (the fix base..its
+   *  git HEAD); warn/nit-only → closure `none`; the fix round's own BLOCKED/TIMEOUT conclusion →
+   *  no `next:` (the failure-mode stderr face owns it). softCap via the ref-sequence walk (same
+   *  basis as the task and docs fix faces). */
+  #fixNextArgs(handoff: Record<string, unknown> | null): NextStepArgs | undefined {
+    const commits = (handoff?.commits as Record<string, unknown> | undefined) ?? {};
+    return {
       op: "fix",
       type: "branch",
       plan: this.opts.plan,
       base: typeof commits.base === "string" ? commits.base : undefined,
       head: typeof commits.head === "string" ? commits.head : undefined,
-      status: typeof handoff.status === "string" ? handoff.status : undefined,
-      findings: inputFindings,
-      softCap,
-    });
+      status: typeof handoff?.status === "string" ? handoff.status : undefined,
+      findings: this.#inputFindings(),
+      softCap:
+        maxConsecutiveS1Rounds({ type: "branch", sourcePath: this.findingsPath }, nextRouter) >=
+        SOFT_CAP_S1_ROUNDS,
+    };
   }
 
-  /** The branch-fix real-mode return block lines (status/commits/artifacts + counters + the
-   *  derived `next:`) — the CLI wrapper emits these on the parent stdout after run() returns.
-   *  Re-reads the finalized handoff from disk (the engine-authoritative carrier normalizeResult
-   *  wrote). */
+  /** The branch-fix real-mode stdout capsule (`status: COMPLETED · blocker: <input count> ·
+   *  handoff: <path>` + the derived `next:` line) — the CLI wrapper emits these on the parent
+   *  stdout after run() returns. Re-reads the finalized handoff from disk (the engine-authoritative
+   *  carrier normalizeResult wrote — post-exit-gate state). */
   get returnBlock(): string[] {
-    return returnBlocks.returnFromHandoff(this.handoffPath, this.workspace, this.fixNext);
+    const handoff = readJson(this.handoffPath) as {
+      status?: string;
+      findings?: Array<{ severity?: string }>;
+      commits?: Record<string, unknown>;
+    } | null;
+    return resultFace.emit({
+      op: "fix",
+      handoffPath: this.handoffPath,
+      status: handoff?.status,
+      findings: this.#inputFindings(),
+      next: this.#fixNextArgs(handoff),
+    });
   }
 }

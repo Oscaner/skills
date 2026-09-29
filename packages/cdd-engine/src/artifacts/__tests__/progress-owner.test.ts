@@ -70,7 +70,7 @@ it("engine BLOCKED dispatch 后 engineRecoveryCount 自增（engine 写，orches
       noExit: true,
     });
     expect(res.exitCode).toBe(1);
-    expect(res.returnBlock[0]).toBe("status: BLOCKED");
+    expect(res.returnBlock[0]).toMatch(/^status: BLOCKED · blocker: 0 · handoff: /);
 
     // 断言：重读 progress.json engineRecoveryCount == 1（engine 自增写盘；无需 orchestrator 写）
     const progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));

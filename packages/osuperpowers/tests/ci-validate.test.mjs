@@ -179,6 +179,7 @@ const EXPECTED_VALIDATE_STEPS = [
   "cdd-engine engine test suite (vitest)",
   "engine zero residue + channel audit",
   "marketplace manifests validate",
+  "emit harness registry consistency",
   "scripts unit tests (vitest)",
   "package version sync",
 ];

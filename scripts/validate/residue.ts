@@ -364,28 +364,38 @@ function checkZeroResidue() {
 // The data-source set = [harness-registry.json, contract-lexicon.json] (the lexicon joins at
 // T4; its harness clis-mapping / residue ban-table data rows fold into the same release form —
 // absent now, its allowance rows are naturally zero). The allowance is a data-row mask with a
-// value-position rule: a masked line is pure JSON structure once strings are stripped AND the
-// token sits in a data-value position (a mapping value or an array element), never a key.
+// value-position rule: a masked line is pure JSON structure once strings and scalar literals are
+// stripped AND the token sits in a data-value position (a mapping value or an array element) — a
+// mapping key never releases, `{`-led first or `,`-preceded non-first.
 // The guard body never carries the guarded lexeme contiguously (scripts/ is a live face; a guard
 // body must not become a carrier of the vocabulary it guards) — the token is concatenated.
 const G2_TOKEN = "cursor" + "-agent";
 const G2_TOKEN_RE = new RegExp(G2_TOKEN);
 const G2_QUOTED = '"' + G2_TOKEN + '"';
 const G2_DATA_SOURCE_BASENAMES = ["harness-registry.json", "contract-lexicon.json"];
+// JSON `"..."` strings and scalar literals (numbers / true / false / null) are data tokens, not
+// structure: stripping them alongside strings keeps an adjacent scalar field (e.g. `"port": 9000`)
+// on the allowance line from defeating the structural-purity mask.
+const G2_DATA_TOKEN_RE = /"[^"]*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null/g;
 
-// A line in a data-source file is a data row when (a) stripping every quoted string leaves only
-// JSON structure (a data fragment, never prose/code/comment) and (b) each token occurrence sits
-// in a data-value position — preceded by `:` / `[` / `,` (a mapping value or an array element),
-// never a key position (`{`-led / other). This is the allowance semantic: a hit inside
-// data-source data is green; a token anywhere else on a live face fails.
+// A line in a data-source file is a data row when (a) stripping every quoted string and scalar
+// literal leaves only JSON structure (a data fragment, never prose/code/comment) and (b) each
+// token occurrence sits in a data-value position — preceded by `:` / `[` / `,` AND not followed
+// by `:` (a mapping value or an array element, never a key). This is the allowance semantic: a
+// hit inside data-source data is green; a token anywhere else on a live face fails.
 function isG2DataRow(rel, text) {
   if (!G2_DATA_SOURCE_BASENAMES.includes(path.basename(rel))) return false;
-  if (!/^[\s{}:[\],]*$/.test(text.replace(/"[^"]*"/g, ""))) return false;
+  if (!/^[\s{}:[\],]*$/.test(text.replace(G2_DATA_TOKEN_RE, ""))) return false;
   let idx = text.indexOf(G2_QUOTED);
   while (idx !== -1) {
     let k = idx - 1;
     while (k >= 0 && /\s/.test(text[k])) k--;
     if (!":[,".includes(k >= 0 ? text[k] : "")) return false;
+    // Key-ness is decided by what follows the token: a mapping key is always followed by `:`
+    // (after whitespace), a data value never is — a `,`-preceded non-first key must fail.
+    let j = idx + G2_QUOTED.length;
+    while (j < text.length && /\s/.test(text[j])) j++;
+    if (j < text.length && text[j] === ":") return false;
     idx = text.indexOf(G2_QUOTED, idx + G2_QUOTED.length);
   }
   return true;

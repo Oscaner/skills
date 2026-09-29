@@ -1711,8 +1711,9 @@ describe("G2 cursor live-face guard (P3 T2)", () => {
   it("(b) a non-data hit fails (plain prose; a junk data-source row key is not a release form)", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "g2-b-"));
     writeFileSync(path.join(dir, "note.md"), `the ${CURSOR_BINARY} rename\n`, "utf8");
-    // A token in a row KEY position on the registry is not the cli data value — the data-row mask
-    // refuses it (the precise allowance: the `cli` value is what releases, nothing else).
+    // A token in a row KEY position is not a data-value position: the mask releases any
+    // value-position token on a data-source row (the `cli` value, an array element, any other
+    // value), and key positions fail — `{`-led first keys here, `,`-preceded non-first keys in (b2).
     writeFileSync(
       path.join(dir, "harness-registry.json"),
       `{ "${CURSOR_BINARY}": { "cli": "sora" } }\n`,
@@ -1722,6 +1723,41 @@ describe("G2 cursor live-face guard (P3 T2)", () => {
       const hits = collectCursorAgentHits([dir]);
       expect(hits).toHaveLength(2); // note.md + the junk row key
       expect(hits[0].label).toMatch(/G2/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("(a2) an adjacent JSON scalar field does not defeat the structural-purity mask", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "g2-a2-"));
+    // The released row may carry scalar values beside the allowance value on the same physical
+    // line (numbers / true / false / null are data tokens, not structure).
+    writeFileSync(
+      path.join(dir, "harness-registry.json"),
+      `{ "cli": "${CURSOR_BINARY}", "port": 9000, "ratio": -1.5e3, "flag": true, "extra": null }\n`,
+      "utf8",
+    );
+    try {
+      expect(collectCursorAgentHits([dir])).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("(b2) a ','-preceded non-first mapping key is not a value position (right-context rule)", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "g2-b2-"));
+    // Left context alone is ambiguous — `,` precedes array elements AND non-first mapping keys;
+    // key-ness is decided by what follows the token, so a `,`-preceded key must fail the mask
+    // just like a `{`-led first key.
+    writeFileSync(
+      path.join(dir, "harness-registry.json"),
+      `{ "clis": { "cursor": "sora" }, "${CURSOR_BINARY}": "retired" }\n`,
+      "utf8",
+    );
+    try {
+      const hits = collectCursorAgentHits([dir]);
+      expect(hits).toHaveLength(1);
+      expect(hits[0].file).toContain("harness-registry.json");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

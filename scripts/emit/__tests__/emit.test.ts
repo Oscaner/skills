@@ -5,8 +5,9 @@ import { expect, test } from "vitest";
 import { claudeHarness, cursorHarness } from "../../lib/harness-registry.ts";
 import { emitService } from "../all.ts";
 import { BASE_PRODUCT_ROOTS, compareService } from "../compare.ts";
-import { generatedBanner, manifestService } from "../manifests.ts";
+import { manifestService } from "../manifests.ts";
 import { emitOrchestrator } from "../orchestrate.ts";
+import { pluginManifestEmitter } from "../plugin-manifests.ts";
 import { SOURCE_TOP, sourceService } from "../source.ts";
 
 // First-party versions are read from the live package.json SOTs so these
@@ -25,81 +26,12 @@ const readOscaner = () =>
     readFileSync(new URL("../../../packages/osuperpowers/package.json", import.meta.url), "utf8"),
   ).oscaner;
 
-const OS_ENG = {
-  name: "osuperpowers",
-  version: OS_VERSION,
-  description: "Standalone osuperpowers skills: orchestration + cli-* family + CDD engine.",
-  author: { name: "Oscaner Miao", email: "oscaner1997@gmail.com" },
-  license: "MIT",
-  claude: {
-    category: "osuperpowers",
-    keywords: ["osuperpowers", "cli", "cdd", "harness"],
-  },
-};
-
 // ---------------------------------------------------------------------------
-// manifests.ts — generic first-party per-harness manifest builders
+// manifests.ts — version-bump tracking + first-party name discovery
+// (the per-harness manifest builders moved into the harness registry — their
+// default shapes and hooks/noSkills semantics are byte-pinned and asserted in
+// scripts/lib/__tests__/harness-registry.test.ts)
 // ---------------------------------------------------------------------------
-
-test("claudePluginManifest emits osuperpowers claude manifest (thin, skills, no hooks field)", () => {
-  const m = manifestService.claudePluginManifest(OS_ENG, OS_VERSION);
-  expect(m).toEqual({
-    _generated: generatedBanner,
-    name: "osuperpowers",
-    description: "Standalone osuperpowers skills: orchestration + cli-* family + CDD engine.",
-    version: OS_VERSION,
-    author: { name: "Oscaner Miao", email: "oscaner1997@gmail.com" },
-    license: "MIT",
-    skills: "./skills/",
-    category: "osuperpowers",
-    keywords: ["osuperpowers", "cli", "cdd", "harness"],
-  });
-  expect(!("hooks" in m)).toBeTruthy();
-});
-
-test("cursorPluginManifest points skills at canonical ./skills/, no hooks", () => {
-  const m = manifestService.cursorPluginManifest(OS_ENG, OS_VERSION);
-  expect(m.name).toBe("osuperpowers");
-  expect(m.displayName).toBe("osuperpowers");
-  expect(m.skills).toBe("./skills/");
-  expect(!("hooks" in m)).toBeTruthy();
-  expect(m.version).toBe(OS_VERSION);
-  expect(m.license).toBe("MIT");
-  expect(m._generated).toBeTruthy();
-  expect(m._generated).toMatch(/scripts\/run\.ts/);
-});
-
-test("claudePluginManifest emits hooks only for non-canonical hook files", () => {
-  // A non-default `oscaner.hooks.claude` (an additional hook file beyond
-  // the auto-loaded standard) is still emitted in manifest.hooks.
-  const custom = manifestService.claudePluginManifest(
-    {
-      ...OS_ENG,
-      hooks: { claude: "./hooks/claude.json", cursor: "./hooks/cursor.json" },
-    },
-    OS_VERSION,
-  );
-  expect(custom.hooks).toBe("./hooks/claude.json");
-  // The canonical ./hooks/hooks.json is auto-loaded by Claude Code — naming it
-  // in manifest.hooks duplicates the load and fails plugin startup, so it is
-  // omitted even when `oscaner.hooks.claude` maps to it explicitly.
-  const canonical = manifestService.claudePluginManifest(
-    { ...OS_ENG, hooks: { claude: "./hooks/hooks.json" } },
-    OS_VERSION,
-  );
-  expect(!("hooks" in canonical)).toBeTruthy();
-});
-
-test("cursorPluginManifest never emits a hooks field (gate hooks removed)", () => {
-  const m = manifestService.cursorPluginManifest(
-    {
-      ...OS_ENG,
-      hooks: { claude: "./hooks/claude.json", cursor: "./hooks/cursor.json" },
-    },
-    OS_VERSION,
-  );
-  expect(!("hooks" in m)).toBeTruthy();
-});
 
 test(".version-bump.json tracks the versioned emit manifest set (.claude-plugin + .cursor-plugin)", () => {
   const bump = JSON.parse(readFileSync("packages/osuperpowers/.version-bump.json", "utf8"));
@@ -127,6 +59,36 @@ test("deriveFirstPartyNames ignores dirs without oscaner / package.json", () => 
     // no package.json → excluded
     mkdirSync(join(tmp, "empty"), { recursive: true });
     expect(manifestService.deriveFirstPartyNames(tmp)).toEqual(["real"]);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// plugin-manifests.ts — per-harness emitter driven by the package declaration set
+// ---------------------------------------------------------------------------
+
+test("pluginManifestEmitter writes products for declared harnesses and skips pi", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "oscaner-plugin-manifests-"));
+  try {
+    const plugin = sourceService.derive(".").plugins.find((p) => p.name === "osuperpowers");
+    const generatedPaths = [];
+    pluginManifestEmitter.emit(tmp, plugin, generatedPaths);
+    // claude + cursor are declared by `oscaner.harnesses` and carry products —
+    // each lands its manifest, byte-identical to the committed product (D7)
+    for (const rel of [
+      "packages/osuperpowers/.claude-plugin/plugin.json",
+      "packages/osuperpowers/.cursor-plugin/plugin.json",
+    ]) {
+      expect(existsSync(join(tmp, rel))).toBe(true);
+      expect(generatedPaths.includes(rel)).toBe(true);
+      expect(readFileSync(join(tmp, rel), "utf8")).toBe(
+        readFileSync(new URL(`../../../${rel}`, import.meta.url), "utf8"),
+      );
+    }
+    // `pi` is declared but carries no product (inline distribution) — the
+    // product guard skips it without branching, so no path is produced
+    expect(generatedPaths.filter((r) => r.includes(".pi-plugin"))).toEqual([]);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }

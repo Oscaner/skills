@@ -2,7 +2,7 @@
 // computation rules → a stateless domain service class, zero bare-function module). Constructed
 // with the repo root; every method takes the remaining inputs as parameters — no module state,
 // no repo-root closure. Consumed by the emit toolchain (scripts/emit/marketplace.ts +
-// scripts/emit/osuperpowers.ts).
+// scripts/emit/plugin-manifests.ts).
 
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";

@@ -1,16 +1,18 @@
 // packages/cdd-engine/src/artifacts/return-block.ts — ReturnBlockParser class (Task 7 OOP
-// restructure Criterion ②: the return block text plane — parse + serialize + the counters line — is
-// ONE instance-method class, zero bare function exports). The four half-implementations (task.ts
-// returnFourLines/returnFromHandoff/dryRunReturnBlock + the branch-family dry-run arrays) converge
-// here; the parse + serialize atoms live in ONE module. The return block is an engine artifact, so
-// it lives in the artifacts layer (the producers — dispatch/task.ts — import the class instance,
-// never re-defining the `key: value` shapes).
+// restructure Criterion ②: the return block text plane — parse + materialize + serialize + the
+// counters line — is ONE instance-method class, zero bare function exports). The surviving atoms
+// converge in ONE module:
 //
-//   parse       lastKeyLine / returnFourLines (agent stdout → the three lines)
+//   parse       lastKeyLine / returnFourLines (agent stdout → the three lines) plus the
+//               carrier-field parsers implementStatusFromReturnLine / commitsFromReturnLine /
+//               artifactsFromReturnLine (return block → carrier fields)
 //   serialize   dryRunBlock (the simulated agent's 3-line output)
 //   counters    returnCountersLine — the 4th `counters:` line's UNIQUE construction point (field
 //               names/labels from rules/failure.ts#counters(), canonical engine-config
 //               #failureCategories; missing/corrupt progress.json → 0-fallback, read-only).
+//
+// The return block is an engine artifact, so it lives in the artifacts layer (the producers —
+// dispatch/task.ts — import the class instance, never re-defining the `key: value` shapes).
 //
 // T3 (C5 command-contract plane): the ENGINE stdout is now the single status capsule (rules/
 // result-face.ts ResultFace) — this module's former engine-emission atoms (assembleReturnBlock /

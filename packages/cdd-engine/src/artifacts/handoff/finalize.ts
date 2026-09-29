@@ -169,8 +169,9 @@ function entrySummary(v: unknown): string {
 /** BLOCKED carrier single point (Task 23 ① ④): the review-family unverifiable/plan_conflicts lane
  * must never fold to a bare BLOCKED string — the derived round carries the failure channel
  * (canonical category identity via FAILURE_CATEGORIES, never a literal) + a real blocker saying
- * what couldn't be verified / why (so derive → returnFromHandoff never falls back to a fabricated
- * default). Real sources already present (an agent/engine blocker or failure_category) ground the
+ * what couldn't be verified / why (so the derived carrier's read-back never falls back to a
+ * fabricated default). Real sources already present (an agent/engine blocker or failure_category)
+ * ground the
  * round as-is («BLOCKED ⇒ blocker non-empty OR failure_category»); with no lane at all → {} — this
  * helper never invents prose. */
 export function blockedCarrierFor(
@@ -382,9 +383,9 @@ export function writeBlockedCarrier(
   return { exitCode: 1, handoff: payload };
 }
 
-/** Finalization single entry: dispatch per mode → { handoff, exitCode }. The return block re-emits
- * from the finalized returnFromHandoff at the consumer. Three consumers share this implementation
- * (runner step 13 / docs-runner read-back / branch review read-back).
+/** Finalization single entry: dispatch per mode → { handoff, exitCode }. The status capsule re-emits
+ * from the finalized carrier at the consumer. Three consumers share this implementation (runner step
+ * 13 / docs-runner read-back / branch review read-back).
  * Task 23 ③: the round conclusion maps to exit at the single point — BLOCKED → 1 (any mode),
  * APPROVED / CHANGES_REQUESTED → 0.
  * Task 5: implement family takes HEAD via git (infra/git.ts) → the whole chain is async

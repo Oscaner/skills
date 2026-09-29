@@ -1313,7 +1313,7 @@ it("schema: phase 'review' handoff 通过 Ajv 校验（phase enum 已归一）",
   ).toBe(false);
 });
 
-// ---- Implement handoff materialization + evidence-gate + return block returnFromHandoff (commits single authority) (T6) ----
+// ---- Implement handoff materialization + evidence-gate + the finalized-carrier status-capsule read-back (commits single authority) (T6) ----
 
 // Fixture (T6): git repo + git-committed plan at the repo root (`--plan`) + clean tracked tree
 // (the commit-contract precondition). Returns the registry / HEAD scene; root is injected via
@@ -1495,7 +1495,7 @@ it("runTask T6: evidence-gate — behavior_change:true 缺 command/passed/exit_c
   expect(h.failure_category).toBe("ENGINE_SELF_WRITTEN");
   expect(h.notes).toMatch(/test_evidence gate: hard/);
   expect(h.notes).toContain("command");
-  // return block 同步为 BLOCKED（returnFromHandoff 与覆写后 handoff 一致）
+  // The status capsule re-emits BLOCKED from the overwritten carrier (consistent with the handoff)
   expect(res.returnBlock[0]).toMatch(/^status: BLOCKED · blocker: 0 · handoff: /);
   expect(res.returnBlock.every((l) => !l.startsWith("blocker:"))).toBe(true);
   // N② (T9) → T6: implement 实体化 BLOCKED = 引擎自写 BLOCKED → engineSelfWrittenCount
@@ -1505,7 +1505,7 @@ it("runTask T6: evidence-gate — behavior_change:true 缺 command/passed/exit_c
   expect(progress.engineRecoveryCount).toBe(0);
 });
 
-it("runTask T6: return block 输出改用 returnFromHandoff — agent stdout 的 commits 由实体化 handoff 重发覆写", async () => {
+it("runTask T6: the status capsule re-emits from the finalized carrier — agent-lied stdout commits are overwritten (commits single of authority)", async () => {
   const t6 = t6Workspace();
   // the agent lies about commits → the final return block must come from the materialized handoff (brief TASK_BASE + git HEAD)
   const res = await runT6Ghost(

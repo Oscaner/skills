@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "vitest";
+import { claudeHarness, cursorHarness } from "../../lib/harness-registry.ts";
 import { emitService } from "../all.ts";
 import { BASE_PRODUCT_ROOTS, compareService } from "../compare.ts";
 import { generatedBanner, manifestService } from "../manifests.ts";
@@ -17,6 +18,12 @@ const readPkgVersion = (rel) =>
   JSON.parse(readFileSync(new URL(`../../../${rel}/package.json`, import.meta.url), "utf8"))
     .version;
 const OS_VERSION = readPkgVersion("packages/osuperpowers");
+
+/** The live osuperpowers `oscaner` descriptor — the sourceJson input for both registry slots. */
+const readOscaner = () =>
+  JSON.parse(
+    readFileSync(new URL("../../../packages/osuperpowers/package.json", import.meta.url), "utf8"),
+  ).oscaner;
 
 const OS_ENG = {
   name: "osuperpowers",
@@ -63,7 +70,7 @@ test("cursorPluginManifest points skills at canonical ./skills/, no hooks", () =
 });
 
 test("claudePluginManifest emits hooks only for non-canonical hook files", () => {
-  // A non-default `oscaner-plugin.hooks.claude` (an additional hook file beyond
+  // A non-default `oscaner.hooks.claude` (an additional hook file beyond
   // the auto-loaded standard) is still emitted in manifest.hooks.
   const custom = manifestService.claudePluginManifest(
     {
@@ -75,7 +82,7 @@ test("claudePluginManifest emits hooks only for non-canonical hook files", () =>
   expect(custom.hooks).toBe("./hooks/claude.json");
   // The canonical ./hooks/hooks.json is auto-loaded by Claude Code — naming it
   // in manifest.hooks duplicates the load and fails plugin startup, so it is
-  // omitted even when `oscaner-plugin.hooks.claude` maps to it explicitly.
+  // omitted even when `oscaner.hooks.claude` maps to it explicitly.
   const canonical = manifestService.claudePluginManifest(
     { ...OS_ENG, hooks: { claude: "./hooks/hooks.json" } },
     OS_VERSION,
@@ -102,19 +109,19 @@ test(".version-bump.json tracks the versioned emit manifest set (.claude-plugin 
   }
 });
 
-test("deriveFirstPartyNames discovers packages with oscaner-plugin (sorted)", () => {
+test("deriveFirstPartyNames discovers packages with oscaner (sorted)", () => {
   expect(manifestService.deriveFirstPartyNames("packages")).toEqual(["osuperpowers"]);
 });
 
-test("deriveFirstPartyNames ignores dirs without oscaner-plugin / package.json", () => {
+test("deriveFirstPartyNames ignores dirs without oscaner / package.json", () => {
   const tmp = mkdtempSync(join(tmpdir(), "oscaner-fp-"));
   try {
     mkdirSync(join(tmp, "real"), { recursive: true });
     writeFileSync(
       join(tmp, "real", "package.json"),
-      JSON.stringify({ name: "real", "oscaner-plugin": { contentRoot: "." } }),
+      JSON.stringify({ name: "real", oscaner: { contentRoot: "." } }),
     );
-    // has package.json but no oscaner-plugin → excluded
+    // has package.json but no oscaner → excluded
     mkdirSync(join(tmp, "helper"), { recursive: true });
     writeFileSync(join(tmp, "helper", "package.json"), JSON.stringify({ name: "helper" }));
     // no package.json → excluded
@@ -137,6 +144,11 @@ test("deriveSource top-level fields come from emit constants", () => {
   expect(source.$schema).toBe(SOURCE_TOP.$schema);
 });
 
+test("deriveSource top-level key order is byte-pinned (source.json Object.keys)", () => {
+  const source = sourceService.derive(".");
+  expect(Object.keys(source)).toEqual(["$schema", "name", "owner", "metadata", "plugins"]);
+});
+
 test("deriveSource enumerates first-party packages in stable order", () => {
   const source = sourceService.derive(".");
   expect(source.plugins.map((p) => p.name)).toEqual(["osuperpowers"]);
@@ -150,9 +162,13 @@ test("deriveSource enumerates first-party packages in stable order", () => {
   }
 });
 
-test("deriveSource first-party entries carry oscaner-plugin + package metadata", () => {
+test("deriveSource first-party entries carry oscaner + package metadata (registry descriptor slots)", () => {
   const source = sourceService.derive(".");
   const eng = source.plugins.find((p) => p.name === "osuperpowers");
+  // The claude/cursor slots are asserted against the registry descriptor
+  // contributions — the same single source the emitter derives them from — so
+  // slot drift (key order or value) fails against the pinned row shape.
+  const osc = readOscaner();
   expect(eng).toEqual({
     name: "osuperpowers",
     version: OS_VERSION,
@@ -162,11 +178,8 @@ test("deriveSource first-party entries carry oscaner-plugin + package metadata",
     homepage: "https://github.com/Oscaner/skills",
     repository: "https://github.com/Oscaner/skills",
     license: "MIT",
-    claude: {
-      category: "osuperpowers",
-      keywords: ["osuperpowers", "cli", "cdd", "harness"],
-    },
-    cursor: { emitMode: "plugin-root" },
+    claude: claudeHarness.sourceJson(osc),
+    cursor: cursorHarness.sourceJson(osc),
   });
 
   // router deleted — router assertions removed

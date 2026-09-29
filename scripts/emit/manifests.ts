@@ -7,31 +7,21 @@
  * canonical `./skills/` tree — no per-harness copies of the skill bodies.
  */
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { deriveFirstPartyNames as firstPartyNames } from "../lib/first-party.ts";
 
 export const generatedBanner = "scripts/run.ts emit — do not edit";
 
 export class ManifestService {
   /**
    * Derive first-party plugin package names from `packages/*` dirs whose
-   * package.json carries the `oscaner-plugin` field (package-as-source). The
-   * hand-maintained enum is gone — adding a package dir auto-joins the emit.
-   * Sorted for deterministic output.
+   * package.json carries the `oscaner` field (package-as-source). Delegates to
+   * the shared lib discovery (scripts/lib/first-party.ts) — package discovery is
+   * a repo concern, not a harness one, and the declare-side read must reach the
+   * same `oscaner` gate as every other consumer.
    * @param {string} packagesRoot repo-relative path to the packages/ dir
    */
   deriveFirstPartyNames(packagesRoot): string[] {
-    if (!existsSync(packagesRoot)) return [];
-    return readdirSync(packagesRoot, { withFileTypes: true })
-      .filter((d) => d.isDirectory())
-      .map((d) => d.name)
-      .filter((name) => {
-        const pkgPath = join(packagesRoot, name, "package.json");
-        if (!existsSync(pkgPath)) return false;
-        const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
-        return Boolean(pkg["oscaner-plugin"]);
-      })
-      .sort();
+    return firstPartyNames(packagesRoot);
   }
 
   /**
@@ -53,7 +43,7 @@ export class ManifestService {
     // file, so manifest.hooks may only name *additional* hook files — referencing
     // the canonical file makes plugin load fail with "Duplicate hooks file
     // detected". The canonical default is therefore omitted; a non-default
-    // `oscaner-plugin.hooks.claude` (an extra hook file) is still emitted.
+    // `oscaner.hooks.claude` (an extra hook file) is still emitted.
     const claudeHooks = plugin.hooks?.claude ?? "./hooks/hooks.json";
     if (claudeHooks !== "./hooks/hooks.json") m.hooks = claudeHooks;
     if (plugin.license) m.license = plugin.license;

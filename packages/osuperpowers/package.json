@@ -35,20 +35,21 @@
   "dependencies": {
     "@oscaner-skills/cdd-engine": "workspace:*"
   },
-  "oscaner-plugin": {
+  "oscaner": {
     "claude": {
-      "category": "osuperpowers",
-      "keywords": [
-        "osuperpowers",
-        "cli",
-        "cdd",
-        "harness"
-      ]
+      "category": "osuperpowers"
     },
     "contentRoot": ".",
     "harnesses": [
-      "cursor"
+      "claude",
+      "cursor",
+      "pi"
     ],
-    "harnessesNote": "declarative-only / informational — no script consumes this list; emit hardcodes the per-plugin manifest set"
+    "keywords": [
+      "osuperpowers",
+      "cli",
+      "cdd",
+      "harness"
+    ]
   }
 }

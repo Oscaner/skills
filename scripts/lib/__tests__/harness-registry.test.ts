@@ -22,9 +22,9 @@ function osuperpowersRow() {
   return sourceService.derive(REPO_ROOT).plugins.find((p) => p.name === "osuperpowers");
 }
 
-/** The live osuperpowers `oscaner-plugin` descriptor (the sourceJson input). */
+/** The live osuperpowers `oscaner` descriptor (the sourceJson input). */
 function osuperpowersOsc() {
-  return JSON.parse(readFileSync(join(OS_PKG_DIR, "package.json"), "utf8"))["oscaner-plugin"];
+  return JSON.parse(readFileSync(join(OS_PKG_DIR, "package.json"), "utf8")).oscaner;
 }
 
 /** The source.json row key-slot order the registry descriptor slots must produce. */
@@ -137,7 +137,7 @@ test("ClaudeHarness.manifest emits hooks only for non-canonical hook files", () 
   };
   expect(claudeHarness.manifest(row, row.version).hooks).toBe("./hooks/claude.json");
   // the canonical ./hooks/hooks.json is auto-loaded by Claude Code and must stay
-  // omitted even when `oscaner-plugin.hooks.claude` maps to it explicitly
+  // omitted even when `oscaner.hooks.claude` maps to it explicitly
   const canonical = claudeHarness.manifest(
     { ...row, hooks: { claude: "./hooks/hooks.json" } },
     row.version,

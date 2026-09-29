@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 pnpm run emit       # regenerate all harness manifests from package.json
 pnpm run emit:check # verify emit output is fresh (no drift, exit 1 if stale)
-pnpm run validate   # full validation suite (emit check + plugin resolution + tests + version sync)
+pnpm run validate   # full validation suite (emit check + plugin resolution + tests + Contract Lexicon wording + version sync)
 pnpm run changeset  # create a changeset for versioning
 pnpm exec changeset version  # apply changesets to bump versions + CHANGELOGs (native; CI runs it on the Version PR)
 ```
@@ -62,6 +62,8 @@ The global `cdd` command must NOT be used (`npm link` removed).
 ### cdd CLI surface — zero new subcommands
 
 The `cdd` CLI gains **no new subcommands** — the only exceptions are the discovery-type `cdd schema get <type>` and the pure-rendering `cdd issue render`, both zero-enforcement (the charter's Non-goal #1 exception). Enforcement-capable subcommands stay closed.
+
+Every op's stdout is the single status capsule (`status · blocker · handoff`) plus the engine-derived `next:` suggestion line — `cdd review` / `cdd fix` included; BLOCKED reasons ride the stderr `CDD_BLOCKED:` channel. The capsule/route vocabulary is single-sourced in the Contract Lexicon (`packages/cdd-engine/src/infra/contract-lexicon.json`), never restated in prose.
 
 ### Engine tests
 

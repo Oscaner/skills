@@ -16,10 +16,10 @@ Task 9 merged the two template docs, trimmed program-experience, updated 02/05 t
 
 | File | Before (B) | After (B) | Note |
 |---|---|---|---|
-| 01-template-doctrine.md | 14,378 | 10,699 | merged from 01 + 02 |
-| 02-naming-conventions.md | 7,994 | 8,784 | blocker bounded mapping added |
-| 03-context-caching-doctrine.md | 8,706 | 8,700 | row-key mirror (P3 T2) |
-| 04-program-experience.md | 21,773 | 12,707 | trimmed ~9 KB |
+| 01-template-doctrine.md | 14,378 | 10,316 | merged from 01 + 02 |
+| 02-naming-conventions.md | 7,994 | 8,952 | blocker bounded mapping added |
+| 03-context-caching-doctrine.md | 8,706 | 8,757 | row-key mirror (P3 T2) |
+| 04-program-experience.md | 21,773 | 12,859 | trimmed ~9 KB |
 | 05-third-party-dependencies.md | 10,018 | 10,136 | P4.4 deps registered |
 | README.md | 2,324 | 1,956 | index converged |
-| **Total** | 65,193 | 52,982 | plan anchor ≤ 53,000 |
+| **Total** | 65,193 | 52,976 | plan anchor ≤ 53,000 |

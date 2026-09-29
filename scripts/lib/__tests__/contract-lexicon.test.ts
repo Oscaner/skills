@@ -1,0 +1,467 @@
+// scripts/lib/__tests__/contract-lexicon.test.ts — the ContractLexiconGuard regression surface
+// (P3 T4): the four converged check faces. checkAnatomy — the digraph-consistency assertion port
+// (live skills green + the mkdtemp deliberate-break chains); checkResidue — the G2 cursor
+// binary-name live-face collector (the migrated residue.test.ts G2 group: data-row release /
+// non-data hits / anti-white-green / per-face dispositions / live-repo zero-hit); checkWording —
+// the C7 shape-restate guard (banned names fail, modern referents pass, granularity ruling);
+// checkConfig — the engine-config channel audit (whitelist + timeout facts, break injection).
+// The scanned lexeme is NEVER written contiguously here (the test position is self-exempt from
+// the scripts face scan — scripts/__tests__ is skipped by default — but the file stays
+// zero-literal so a future scope extension cannot self-bite); it is built by concatenation.
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
+import { ORCHESTRATOR_SKILLS } from "../../validate/residue.ts";
+import { ContractLexiconGuard, G2_LIVE_FACES } from "../contract-lexicon.ts";
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = path.resolve(HERE, "..", "..", "..");
+
+const guard = new ContractLexiconGuard();
+
+// ---------------------------------------------------------------------------
+// The lexicon itself — five domains exist and agree with the engine facts
+// ---------------------------------------------------------------------------
+
+describe("contract-lexicon.json — five domains + engine-facts consistency", () => {
+  it("harness domain: the ids triple + the clis mirror (registry cli data values)", () => {
+    const lex = guard.lexicon();
+    expect(lex.harness.ids.sort()).toEqual(["claude", "cursor", "pi"]);
+    // clis mapping mirrors the registry cli field verbatim (the G2 data-derived allowance).
+    const registry = JSON.parse(
+      readFileSync(
+        path.join(REPO_ROOT, "packages/cdd-engine/src/infra/harness-registry.json"),
+        "utf8",
+      ),
+    );
+    for (const id of lex.harness.ids) {
+      expect(lex.harness.clis[id]).toBe(registry[id].cli);
+    }
+    expect(Object.keys(lex.harness.clis).sort()).toEqual(lex.harness.ids.sort());
+  });
+
+  it("status domain: the five-value vocab + the dual-axis mapping (judgment three states / work COMPLETED)", () => {
+    const lex = guard.lexicon();
+    expect(lex.status.vocab.sort()).toEqual([
+      "APPROVED",
+      "BLOCKED",
+      "CHANGES_REQUESTED",
+      "REVIEW_FIX",
+      "TIMEOUT",
+    ]);
+    // The judgment axis owns the review conclusion states; only COMPLETED is the work-axis fold.
+    expect(lex.status.axes.judgment.includes("COMPLETED")).toBe(false);
+    expect(lex.status.axes.work).toEqual(["COMPLETED"]);
+  });
+
+  it("stdout domain: the capsule tokens + route anchors present, banned shape names carry no cursor residue", () => {
+    const lex = guard.lexicon();
+    expect(lex.stdout.capsule).toEqual(["status", "blocker", "handoff"]);
+    for (const tok of ["next:", "CDD_BLOCKED:", "findings"]) {
+      expect(lex.stdout.routeTokens).toContain(tok);
+    }
+    for (const shape of ["3-line return block", "4th line counters", "return block"]) {
+      expect(lex.stdout.bannedShapeNames).toContain(shape);
+    }
+  });
+
+  it("residue domain: the ban token is the cursor cli mirror and the data sources are the two JSONs", () => {
+    const lex = guard.lexicon();
+    expect(lex.residue.dataSources.sort()).toEqual([
+      "contract-lexicon.json",
+      "harness-registry.json",
+    ]);
+    expect(lex.residue.bannedToken).toBe(lex.harness.clis.cursor);
+  });
+
+  it("anatomy domain: the skill-anatomy schema path resolves on disk", () => {
+    const lex = guard.lexicon();
+    const p = path.isAbsolute(lex.anatomy.schemaPath)
+      ? lex.anatomy.schemaPath
+      : path.join(REPO_ROOT, lex.anatomy.schemaPath);
+    expectExists(p);
+  });
+});
+
+function expectExists(p) {
+  if (!existsSync(p)) throw new Error(`missing expected file: ${p}`);
+}
+
+// ---------------------------------------------------------------------------
+// checkAnatomy — the digraph-consistency assertion port
+// ---------------------------------------------------------------------------
+
+describe("ContractLexiconGuard.checkAnatomy — live skills (digraph-consistency port)", () => {
+  it("all osuperpowers skills pass every schema-driven check (the retired node:test surface)", () => {
+    const findings = guard.checkAnatomy();
+    expect(findings).toEqual([]);
+  });
+});
+
+// mkdtemp deliberate-break chains: a minimal-but-valid synthetic skill (the control) and four
+// broken variants — each break must be intercepted by the corresponding check (the anti-white-green
+// proof that the schema-driven checks fire). Built in mkdtemp dirs (zero repo-product fixtures).
+const BASE_SKILL = `# Synthetic Skill
+
+## Flow Digraph
+
+\`\`\`mermaid
+flowchart TD
+  A[run-thing] --> B{ok?}
+  B -->|yes| C((APPROVED))
+  B -->|no| D((BLOCKED: nope))
+\`\`\`
+
+## Node Definitions
+
+### \`run-thing\`
+
+- **Do**: Do the thing.
+- **Read**: input
+- **Exit**: ok? → \`ok?\`
+- **Fail**: failure → fail-open
+
+### \`ok?\`
+
+- **Do**: Decide.
+- **Read**: output
+- **Exit**: yes → APPROVED; no → BLOCKED
+- **Fail**: —
+
+## Invariants
+
+| # | Invariant |
+|---|---|
+| I1 | Keep it simple. |
+
+## Failure Modes
+
+| failure | behavior |
+|---|---|
+| nope | BLOCKED (no silent fallback) |
+`;
+
+const BREAK_CASES = [
+  {
+    kind: "deleted-node",
+    expect: /^digraph-(dangling-node|orphan-section)$/,
+    make: (s) => s.replace(/### `run-thing`[\s\S]*?(?=\n### |\n## )/, "\n"),
+  },
+  {
+    kind: "broken-four-elements",
+    expect: /^node-missing-/,
+    make: (s) => s.replace("- **Do**: Do the thing.\n", ""),
+  },
+  {
+    kind: "unregistered-section",
+    expect: /^registry-/,
+    make: (s) => `${s}\n## Flow size note\n\nNarration that never ships.\n`,
+  },
+  {
+    kind: "digraph-prose",
+    expect: /^digraph-prose-after-mermaid$/,
+    make: (s) =>
+      s.replace(
+        "```\n\n## Node Definitions",
+        "```\n\n7 process steps / 2 nodes.\n\n## Node Definitions",
+      ),
+  },
+];
+
+describe("ContractLexiconGuard.checkAnatomy — mkdtemp deliberate-break chains", () => {
+  // The interception surface = the per-skill anatomy categories (the original
+  // interceptingFindings union). The family/growth findings (skeleton-deltas-missing — the spec
+  // writers are absent from a single synthetic-file list, growth-crossing-unregistered /
+  // consumer-purity-heading / skeleton-shape) are the family-level checks and never fired by the
+  // per-skill break chains.
+  const PER_SKILL_SURFACE = (f) =>
+    ![
+      "skeleton-deltas-missing",
+      "growth-crossing-unregistered",
+      "consumer-purity-heading",
+      "skeleton-shape",
+    ].includes(f.category);
+
+  it("the synthetic base skill passes every check (control)", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "lex-anatomy-ctrl-"));
+    try {
+      const file = path.join(dir, "control.md");
+      writeFileSync(file, BASE_SKILL, "utf8");
+      expect(
+        guard.checkAnatomy([{ name: "synthetic-control", path: file }]).filter(PER_SKILL_SURFACE),
+      ).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("deleted node / broken four elements / unregistered section / digraph prose are each intercepted", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "lex-anatomy-break-"));
+    try {
+      for (const c of BREAK_CASES) {
+        const file = path.join(dir, `${c.kind}.md`);
+        writeFileSync(file, c.make(BASE_SKILL), "utf8");
+        const findings = guard
+          .checkAnatomy([{ name: `synthetic-${c.kind}`, path: file }])
+          .filter(PER_SKILL_SURFACE);
+        const matching = findings.filter((f) => c.expect.test(f.category));
+        expect(
+          matching.length,
+          `synthetic-${c.kind}: expected the ${c.expect} check to intercept the deliberate break — none fired`,
+        ).toBeGreaterThan(0);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// checkResidue — the G2 cursor binary-name live-face collector (migrated group)
+// ---------------------------------------------------------------------------
+
+describe("ContractLexiconGuard.checkResidue — G2 cursor live-face guard (P3 T2/T4)", () => {
+  const CURSOR_BINARY = "cursor" + "-agent";
+  const registryText = (cliValue) => `{ "cursor": { "cli": "${cliValue}" } }\n`;
+  const pathDir = (label) => mkdtempSync(path.join(tmpdir(), label));
+
+  it("(a) data-source data-value rows are green (the release form)", () => {
+    const dir = pathDir("g2-a-");
+    writeFileSync(path.join(dir, "harness-registry.json"), registryText(CURSOR_BINARY), "utf8");
+    try {
+      expect(guard.checkResidue([dir])).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("(b) a non-data hit fails (plain prose; a junk data-source row key is not a release form)", () => {
+    const dir = pathDir("g2-b-");
+    writeFileSync(path.join(dir, "note.md"), `the ${CURSOR_BINARY} rename\n`, "utf8");
+    writeFileSync(
+      path.join(dir, "harness-registry.json"),
+      `{ "${CURSOR_BINARY}": { "cli": "sora" } }\n`,
+      "utf8",
+    );
+    try {
+      const hits = guard.checkResidue([dir]);
+      expect(hits).toHaveLength(2); // note.md + the junk row key
+      expect(hits[0].label).toMatch(/G2/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("(a2) an adjacent JSON scalar field does not defeat the structural-purity mask", () => {
+    const dir = pathDir("g2-a2-");
+    writeFileSync(
+      path.join(dir, "harness-registry.json"),
+      `{ "cli": "${CURSOR_BINARY}", "port": 9000, "ratio": -1.5e3, "flag": true, "extra": null }\n`,
+      "utf8",
+    );
+    try {
+      expect(guard.checkResidue([dir])).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("(b2) a ','-preceded non-first mapping key is not a value position (right-context rule)", () => {
+    const dir = pathDir("g2-b2-");
+    writeFileSync(
+      path.join(dir, "harness-registry.json"),
+      `{ "clis": { "cursor": "sora" }, "${CURSOR_BINARY}": "retired" }\n`,
+      "utf8",
+    );
+    try {
+      const hits = guard.checkResidue([dir]);
+      expect(hits).toHaveLength(1);
+      expect(hits[0].file).toContain("harness-registry.json");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("(b-comp) lexicon-typed data rows release (clis mapping / ban-table rows green); out-of-domain residue still fails", () => {
+    const dir = pathDir("g2-le-");
+    writeFileSync(path.join(dir, "harness-registry.json"), registryText(CURSOR_BINARY), "utf8");
+    // contract-lexicon.json is the T4 data source; its harness clis mapping / residue ban-table
+    // rows carry the cli value as data and mask under the same data-row form.
+    writeFileSync(
+      path.join(dir, "contract-lexicon.json"),
+      `{ "clis": { "cursor": "${CURSOR_BINARY}" }, "banned": ["${CURSOR_BINARY}"] }\n`,
+      "utf8",
+    );
+    writeFileSync(path.join(dir, "note.md"), `${CURSOR_BINARY} outside the data domain\n`, "utf8");
+    try {
+      const hits = guard.checkResidue([dir]);
+      expect(hits).toHaveLength(1); // note.md only — both data rows are green
+      expect(hits[0].file).toContain("note.md");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("(c) the allowance follows registry data (anti-white-green): after the cli value moves, the retired name on a live position fails", () => {
+    const dir = pathDir("g2-c-");
+    writeFileSync(path.join(dir, "harness-registry.json"), registryText("sora-agent"), "utf8");
+    writeFileSync(path.join(dir, "note.md"), `the ${CURSOR_BINARY} name retired\n`, "utf8");
+    try {
+      const hits = guard.checkResidue([dir]);
+      expect(hits).toHaveLength(1); // the retired name on a live (non-data) position fails
+      expect(hits[0].file).toContain("note.md");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("per-face __tests__ dispositions: engine src scans test sites (includeTests ON), scripts exempts them", () => {
+    const engineDir = pathDir("g2-engine-");
+    mkdirSync(path.join(engineDir, "__tests__"), { recursive: true });
+    writeFileSync(
+      path.join(engineDir, "__tests__", "x.test.ts"),
+      `const c = "${CURSOR_BINARY}";\n`,
+      "utf8",
+    );
+    try {
+      const engineHits = guard.checkResidue(undefined, [
+        { targets: [engineDir], includeTests: true },
+      ]);
+      expect(engineHits).toHaveLength(1);
+    } finally {
+      rmSync(engineDir, { recursive: true, force: true });
+    }
+    const scriptsDir = pathDir("g2-scripts-");
+    mkdirSync(path.join(scriptsDir, "validate", "__tests__"), { recursive: true });
+    writeFileSync(
+      path.join(scriptsDir, "validate", "__tests__", "residue.test.ts"),
+      `// ${CURSOR_BINARY} assertion site\n`,
+      "utf8",
+    );
+    writeFileSync(
+      path.join(scriptsDir, "validate", "residue.ts"),
+      `const t = "${CURSOR_BINARY}";\n`,
+      "utf8",
+    );
+    try {
+      const scriptsHits = guard.checkResidue(undefined, [
+        { targets: [scriptsDir], includeTests: false },
+      ]);
+      expect(scriptsHits).toHaveLength(1); // the live residue.ts only; __tests__ exempt
+      expect(scriptsHits[0].file).toContain("residue.ts");
+    } finally {
+      rmSync(scriptsDir, { recursive: true, force: true });
+    }
+  });
+
+  it("G2_LIVE_FACES pins the three faces and the engine includeTests opt-in (scope shrink = fail)", () => {
+    expect(G2_LIVE_FACES.map((f) => f.targets[0])).toEqual([
+      "packages/cdd-engine/src",
+      "scripts",
+      "docs/maintainers",
+    ]);
+    const engine = G2_LIVE_FACES.find((f) => f.targets[0] === "packages/cdd-engine/src");
+    expect(engine?.includeTests).toBe(true);
+    for (const f of G2_LIVE_FACES.filter((x) => x.targets[0] !== "packages/cdd-engine/src")) {
+      expect(f.includeTests).toBe(false);
+    }
+  });
+
+  it("live repo: the three faces zero-hit + the real lexicon data rows release", () => {
+    expect(guard.checkResidue()).toEqual([]);
+    expect(guard.checkResidue(["packages/cdd-engine/src/infra"])).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// checkWording — the C7 shape-restate guard
+// ---------------------------------------------------------------------------
+
+describe("ContractLexiconGuard.checkWording — C7 shape-restate (P3 T4)", () => {
+  it("live orchestrator skills carry zero engine-shape restates", () => {
+    expect(guard.checkWording(ORCHESTRATOR_SKILLS)).toEqual([]);
+  });
+
+  it("each banned shape name is intercepted on a temp file; 3-line return block is reported under its own name", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "lex-wording-"));
+    try {
+      const cases = [
+        { line: "the 3-line return block contract", expect: "3-line return block" },
+        { line: "the engine's 4th line counters", expect: "4th line counters" },
+        {
+          line: "an APPROVED stub handoff plus the return block contract only",
+          expect: "return block",
+        },
+      ];
+      for (const [i, c] of cases.entries()) {
+        const file = path.join(dir, `t${i}.md`);
+        writeFileSync(file, `line with ${c.line}\n`, "utf8");
+        const hits = guard.checkWording([file]);
+        expect(hits).toHaveLength(1);
+        expect(hits[0].label).toContain(c.expect);
+        expect(hits[0].line).toBe(1);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("modern contract referents pass: output contract / handoff / findings / standalone counters", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "lex-wording-pass-"));
+    try {
+      const file = path.join(dir, "ok.md");
+      writeFileSync(
+        file,
+        [
+          "- **Read**: output contract — the status capsule and the `next:` suggestion",
+          "- the counters recorded in the handoff and its `findings`",
+          "- reduce prose after the counters report",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+      expect(guard.checkWording([file])).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// checkConfig — the engine-config channel audit
+// ---------------------------------------------------------------------------
+
+describe("ContractLexiconGuard.checkConfig — engine-config channel audit (P3 T4)", () => {
+  it("live engine-config: the env whitelist is exactly the four pinned keys + timeout defaults", () => {
+    expect(guard.checkConfig()).toEqual([]);
+  });
+
+  it("a config on the wrong channel whitelist fires (host-marker closure broken)", () => {
+    const cfg = {
+      channels: {
+        env: {
+          hostHarness: { markers: ["CURSOR_TRACE_ID", "CLAUDE_CODE_SESSION_ID", "AI_AGENT"] },
+          path: { var: "PATH" },
+          extra: { var: "EXTRA_KEY" },
+        },
+      },
+      timeouts: { defaults: { task: 10_800_000, review: 3_600_000 } },
+    };
+    const hits = guard.checkConfig(cfg);
+    expect(hits).toHaveLength(1);
+    expect(hits[0].label).toContain("env-channel whitelist");
+  });
+
+  it("a config missing the canonical timeout defaults fires", () => {
+    const cfg = {
+      channels: { env: { path: { var: "PATH" }, hostHarness: { markers: ["AI_AGENT"] } } },
+      timeouts: { defaults: { task: 42 } },
+    };
+    const hits = guard.checkConfig(cfg);
+    const labels = hits.map((h) => h.label).join(" | ");
+    expect(labels).toContain("defaults.task");
+    expect(labels).toContain("defaults.review");
+  });
+});

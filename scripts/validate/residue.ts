@@ -26,7 +26,7 @@
 // The grepTargets meta is consumed by the wiring guard
 // (packages/osuperpowers/tests/ci-validate.test.mjs) to pin the target set.
 
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { globSync } from "tinyglobby";
@@ -293,50 +293,17 @@ function assert(cond, msg) {
   if (!cond) throw new Error(msg);
 }
 
-// Shared scanning: tinyglobby replaces the hand-written recursion; `dot: true` scans hidden
-// subdirectories (.claude-plugin/). T6: directory targets glob **/*, single-file targets (root
-// README.md) are read directly; targets may be repo-relative or absolute paths (the latter lets
-// collectGateLexiconHits tests inject a temp directory). T7: exported for reuse by smoke-cdd.ts's
-// final reconciliation (deletion-surface sweep), not reimplemented.
-// review-1 warn (Duplicated Code): unified walk helper — scanTargets / scanLines / listTargetFiles
-// originally held three near-identical walks (target resolution → missing throw → glob expansion →
-// binary skip) copied line-by-line, so editing one silently drifted the rest; now converged into the
-// single walkTargetFiles, with the three consumers doing only their own matching/mapping. A missing
-// target throws a clear Error naming the target (aligned with the G7/G8 "deleted path has returned"
-// style) — future renames/deletions fail as a readable guard failure instead of an obscure statSync
-// ENOENT crash. `**/__tests__/` is skipped by default (post P6 Task 3, co-located test sites joined
-// the src tree) — the guard/test self-exemption doctrine's walk-side landing: tests asserting "dead
-// vocabulary absent" necessarily carry the guarded words, so mechanism scans must not trust test
-// sites; guards that do scan tests (seam gaps / old root-resolver names) opt in explicitly via
-// `{ includeTests: true }`, with scope still written as src/... (never the deleted tests/).
-function walkTargetFiles(targets, { includeTests = false } = {}) {
-  const out = [];
-  for (const t of targets) {
-    const abs = path.isAbsolute(t) ? t : path.join(ROOT, t);
-    if (!existsSync(abs)) {
-      throw new Error(
-        `walkTargetFiles: target missing — ${t} (deleted file? adjust target set or this sweep scope)`,
-      );
-    }
-    const paths = statSync(abs).isDirectory()
-      ? globSync("**/*", { cwd: abs, absolute: true, dot: true })
-      : [abs];
-    for (const f of paths) {
-      if (readFileSync(f).includes(0)) continue; // binary — grep -rn reports, doesn't content-match
-      if (!includeTests && f.includes(`${path.sep}__tests__${path.sep}`)) continue;
-      out.push(f);
-    }
-  }
-  return out;
-}
-
-export function scanTargets(targets, re, opts) {
-  const hits = [];
-  for (const f of walkTargetFiles(targets, opts)) {
-    if (re.test(readFileSync(f).toString("utf8"))) hits.push(path.relative(ROOT, f));
-  }
-  return hits;
-}
+// Shared scanning (scripts/lib/scan.ts — extracted to one face, P3 T4): tinyglobby replaces the
+// hand-written recursion; `dot: true` scans hidden subdirectories (.claude-plugin/). T6: directory
+// targets glob **/*, single-file targets (root README.md) are read directly; targets may be
+// repo-relative or absolute paths (the latter lets the injection tests use temp directories). T7:
+// exported for reuse by smoke-cdd.ts's final reconciliation (deletion-surface sweep), not
+// reimplemented. A missing target throws a clear Error naming the target (aligned with the G7/G8
+// "deleted path has returned" style); `**/__tests__/` is skipped by default (the guard/test
+// self-exemption doctrine's walk-side landing) — tests asserting "dead vocabulary absent"
+// necessarily carry the guarded words, so mechanism scans must not trust test sites; guards that
+// do scan tests opt in explicitly via `{ includeTests: true }`.
+import { listTargetFiles, scanLines, scanTargets, walkTargetFiles } from "../lib/scan.ts";
 
 function checkZeroResidue() {
   const hits = scanTargets(RESIDUE_TARGETS, RESIDUE_RE);
@@ -348,99 +315,37 @@ function checkZeroResidue() {
 }
 
 // =====================================================================
-// P3 T2 — G2 live-face last-index guard (cursor binary-name residue)
+// P3 T2/T4 — G2 live-face last-index guard (cursor binary-name residue)
 // =====================================================================
 // The cursor harness row key is `cursor`; its external binary name survives in exactly one
-// allowed live coordinate — the registry `cli` data value (a data-derived allowance, never a
-// hand-written exemption list). The guard scans the three live faces and fails any hit outside
-// a data-source data row:
-//   ① engine src incl. test sites — includeTests ON: the T1 zeroing must hold there too
-//     (registry.test / host-detection.test / invoke.dispatch-set.test pin the rename to zero);
-//     the same explicit opt-in as collectRootResolverHits — a residue sitting in a test file is
-//     only proven zero when tests are scanned.
-//   ② scripts — walkTargetFiles' default `**/__tests__` self-exemption applies (the guard's own
-//     regression test position at scripts/validate/__tests__ carries the lexeme as assertions).
+// allowed live coordinate — a data-source data row (the G2 data-derived allowance, never a
+// hand-written exemption list). The guard drives the live-face scan via the ContractLexiconGuard
+// (scripts/lib/contract-lexicon.ts#checkResidue, T4 — the collector migrated in-tree with the
+// lexicon data rows as its allow set):
+//   ① engine src incl. test sites — includeTests ON;
+//   ② scripts — walkTargetFiles' default `**/__tests__` self-exemption applies;
 //   ③ docs/maintainers — no test sites, the face scans in full.
-// The data-source set = [harness-registry.json, contract-lexicon.json] (the lexicon joins at
-// T4; its harness clis-mapping / residue ban-table data rows fold into the same release form —
-// absent now, its allowance rows are naturally zero). The allowance is a data-row mask with a
-// value-position rule: a masked line is pure JSON structure once strings and scalar literals are
-// stripped AND the token sits in a data-value position (a mapping value or an array element) — a
-// mapping key never releases, `{`-led first or `,`-preceded non-first.
-// The guard body never carries the guarded lexeme contiguously (scripts/ is a live face; a guard
-// body must not become a carrier of the vocabulary it guards) — the token is concatenated.
-const G2_TOKEN = "cursor" + "-agent";
-const G2_TOKEN_RE = new RegExp(G2_TOKEN);
-const G2_QUOTED = '"' + G2_TOKEN + '"';
-const G2_DATA_SOURCE_BASENAMES = ["harness-registry.json", "contract-lexicon.json"];
-// JSON `"..."` strings and scalar literals (numbers / true / false / null) are data tokens, not
-// structure: stripping them alongside strings keeps an adjacent scalar field (e.g. `"port": 9000`)
-// on the allowance line from defeating the structural-purity mask.
-const G2_DATA_TOKEN_RE = /"[^"]*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null/g;
+// The data-source set rides the lexicon residue domain data rows ([harness-registry.json,
+// contract-lexicon.json]); the guard body carries the scanned lexeme only via the lexicon data —
+// a live face (scripts/) must not become a carrier of the vocabulary it guards.
 
-// A line in a data-source file is a data row when (a) stripping every quoted string and scalar
-// literal leaves only JSON structure (a data fragment, never prose/code/comment) and (b) each
-// token occurrence sits in a data-value position — preceded by `:` / `[` / `,` AND not followed
-// by `:` (a mapping value or an array element, never a key). This is the allowance semantic: a
-// hit inside data-source data is green; a token anywhere else on a live face fails.
-function isG2DataRow(rel, text) {
-  if (!G2_DATA_SOURCE_BASENAMES.includes(path.basename(rel))) return false;
-  if (!/^[\s{}:[\],]*$/.test(text.replace(G2_DATA_TOKEN_RE, ""))) return false;
-  let idx = text.indexOf(G2_QUOTED);
-  while (idx !== -1) {
-    let k = idx - 1;
-    while (k >= 0 && /\s/.test(text[k])) k--;
-    if (!":[,".includes(k >= 0 ? text[k] : "")) return false;
-    // Key-ness is decided by what follows the token: a mapping key is always followed by `:`
-    // (after whitespace), a data value never is — a `,`-preceded non-first key must fail.
-    let j = idx + G2_QUOTED.length;
-    while (j < text.length && /\s/.test(text[j])) j++;
-    if (j < text.length && text[j] === ":") return false;
-    idx = text.indexOf(G2_QUOTED, idx + G2_QUOTED.length);
-  }
-  return true;
-}
+// The C6 ContractLexiconGuard — the single drive for the four converged check faces (anatomy /
+// residue / wording / config) plus the assertLexiconZero helper that renders its findings.
+import { ContractLexiconGuard } from "../lib/contract-lexicon.ts";
 
-// The three live faces and their test-site stance (the guard's authority on effective scan
-// coverage — the per-face `__tests__` disposition the plan pins).
-export const G2_LIVE_FACES = [
-  { targets: ["packages/cdd-engine/src"], includeTests: true },
-  { targets: ["scripts"], includeTests: false },
-  { targets: ["docs/maintainers"], includeTests: false },
-];
-
-/**
- * The G2 last-index guard's hit collector: { label, file:path:line } per hit. Live run = the three
- * G2_LIVE_FACES (per-face includeTests). targetsOverride scans a flat target set with includeTests
- * (the existing collector injection pattern); facesOverride lets tests inject temp face definitions
- * to pin the per-face `__tests__` dispositions.
- */
-export function collectCursorAgentHits(targetsOverride, facesOverride) {
-  const faces = targetsOverride
-    ? [{ targets: targetsOverride, includeTests: true }]
-    : (facesOverride ?? G2_LIVE_FACES);
-  const hits = [];
-  for (const { targets, includeTests } of faces) {
-    for (const { file, lineNo, text } of scanLines(targets, G2_TOKEN_RE, { includeTests })) {
-      if (isG2DataRow(file, text)) continue; // data-source data row (the release form)
-      hits.push({
-        label: "cursor binary-name live-face residue (G2 zero-exemption)",
-        file: `${file}:${lineNo}`,
-      });
-    }
-  }
-  return hits;
-}
-
-function checkCursorAgentResidue() {
-  const hits = collectCursorAgentHits();
+function assertLexiconZero(label, hits) {
   assert(
     hits.length === 0,
-    `CURSOR LIVE-FACE RESIDUE FOUND — G2 guard (engine src+tests / scripts / docs/maintainers):\n  ${hits.map((h) => `[${h.label}] ${h.file}`).join("\n  ")}`,
+    `CONTRACT LEXICON ${label.toUpperCase()} FOUND — guard check:\n  ${hits
+      .map(
+        (h) =>
+          `[${h.category ?? h.label}] ${h.file ?? ""}${h.line ? `:${h.line}` : ""}${
+            h.message ? ` — ${h.message}` : ""
+          }`,
+      )
+      .join("\n  ")}`,
   );
-  console.log(
-    "OK — G2 cursor binary-name zero residue (engine tests / scripts / docs/maintainers)",
-  );
+  console.log(`OK — contract lexicon ${label} check zero findings`);
 }
 
 export function hasHit(lines) {
@@ -512,26 +417,6 @@ export const CANONICAL_ARGV_FLAGS = new Set(
 // guard body keeps zero contiguous literals).
 const ROOT_FROM_DOC = "root" + "FromDoc" + "Path";
 const RESOLVE_REPO_ROOT = "resolve" + "Repo" + "Root";
-
-// Line-by-line scan helper (built on walkTargetFiles' file surface): each hit returns
-// { file, lineNo, text }.
-export function scanLines(targets, re, opts) {
-  const hits = [];
-  for (const f of walkTargetFiles(targets, opts)) {
-    const lines = readFileSync(f).toString("utf8").split("\n");
-    for (let i = 0; i < lines.length; i++) {
-      if (re.test(lines[i]))
-        hits.push({ file: path.relative(ROOT, f), lineNo: i + 1, text: lines[i] });
-    }
-  }
-  return hits;
-}
-
-// File-listing helper (scanLines' file surface): the repo-relative paths of every non-binary file
-// in the target set (for structure assertions / cross-file comparison).
-function listTargetFiles(targets) {
-  return walkTargetFiles(targets).map((f) => path.relative(ROOT, f));
-}
 
 /** ① Row 1: process.cwd() count in engine src = 1 and the sole hit file = src/bin.ts (both are asserted). */
 export function collectProcessCwdAudit(targetsOverride = CDD_ENGINE_BIN) {
@@ -1754,8 +1639,11 @@ function checkSkillSurface() {
 // (M5: .mjs terminal state) and checkMemoryGuard (M6: vitest dual-config memory guard);
 // Task 31 (P6, spec T7.10) appends checkCommentAnchors (§35 second half: the src comment
 // anchor-first ban — semantic body first, anchor only as a trailing traceability suffix);
-// T2 (P3) appends checkCursorAgentResidue (the G2 live-face last-index guard: engine src+tests /
-// scripts / docs/maintainers, registry cli data-value rows as the only allowance);
+// T2/T4 (P3) drive the G2 live-face last-index guard through the ContractLexiconGuard
+// (checkResidue: engine src+tests / scripts / docs/maintainers, the lexicon data-row allowance
+// set) — the four converged check faces run once in this block under the guard (checkAnatomy =
+// the retired digraph-consistency assertions, checkWording = the C7 shape-restate guard,
+// checkConfig = the engine-config channel audit);
 // grepTargets grew to include cdd-engine src+templates for the wiring guard to pin. channelTargets
 // = the channel-audit guard-surface union (the wiring guard pins any scope shrink as a fail;
 // post-move it excludes the retired tests/, the src surface walk self-exempts).
@@ -1764,7 +1652,6 @@ export const steps = [
     name: "engine zero residue + channel audit",
     run: () => {
       checkZeroResidue();
-      checkCursorAgentResidue();
       checkStaleLexicon();
       checkGateLexicon();
       checkChannelAudit();
@@ -1774,6 +1661,16 @@ export const steps = [
       checkMjsTerminalState();
       checkMemoryGuard();
       checkCommentAnchors();
+      // T4 (P3) — the ContractLexiconGuard single drive: anatomy / residue / wording / config run
+      // once in this block. checkResidue replaces the former inline G2 collector (the lexicon
+      // data rows are its allowance set); checkAnatomy absorbs the retired digraph-consistency
+      // node:test surface; checkWording pins C7 shape-restate zero-hit on the orchestrator
+      // skills; checkConfig runs the engine-config channel audit.
+      const guard = new ContractLexiconGuard();
+      assertLexiconZero("anatomy", guard.checkAnatomy());
+      assertLexiconZero("residue", guard.checkResidue());
+      assertLexiconZero("wording", guard.checkWording(ORCHESTRATOR_SKILLS));
+      assertLexiconZero("config", guard.checkConfig(loadContract()));
     },
     grepTargets: RESIDUE_TARGETS,
     channelTargets: CHANNEL_AUDIT_TARGETS,

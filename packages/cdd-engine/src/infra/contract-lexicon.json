@@ -1,0 +1,42 @@
+{
+  "_doc": "CDD engine contract lexicon — the single vocabulary source for the command contract (C6): the harness identity set, the status-value vocab plus its dual-axis mapping, the stdout contract tokens (capsule + route anchors + the banned old-shape names), the G2 residue ban table, and the skill-anatomy schema reference. Ships to consumers via the build copy entry (dist/resources/contract-lexicon.json, same pipeline and cadence as the harness registry).",
+  "harness": {
+    "ids": ["claude", "cursor", "pi"],
+    "clis": {
+      "claude": "claude",
+      "cursor": "cursor-agent",
+      "pi": "pi"
+    }
+  },
+  "status": {
+    "vocab": [
+      "APPROVED",
+      "BLOCKED",
+      "CHANGES_REQUESTED",
+      "REVIEW_FIX",
+      "TIMEOUT"
+    ],
+    "axes": {
+      "judgment": ["CHANGES_REQUESTED", "REVIEW_FIX", "APPROVED"],
+      "work": ["COMPLETED"]
+    }
+  },
+  "stdout": {
+    "capsule": ["status", "blocker", "handoff"],
+    "routeTokens": ["next:", "CDD_BLOCKED:", "findings"],
+    "bannedShapeNames": [
+      "3-line return block",
+      "4th line counters",
+      "return block"
+    ]
+  },
+  "residue": {
+    "dataSources": ["harness-registry.json", "contract-lexicon.json"],
+    "bannedToken": "cursor-agent",
+    "soleAllowed": "registry cli data value"
+  },
+  "anatomy": {
+    "schemaPath": "packages/cdd-engine/src/documents/schema/skill-anatomy.json",
+    "skillsRoot": "packages/osuperpowers/skills"
+  }
+}

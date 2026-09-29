@@ -12,14 +12,13 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-
+import { scanTargets } from "../../lib/scan.ts";
 import {
   collectChannelAuditHits,
   collectCommentAnchorHits,
   collectContextModuleHardcodeHits,
   collectContextWriteHits,
   collectCountersContractHits,
-  collectCursorAgentHits,
   collectDocsRefHits,
   collectEnvDirectReadHits,
   collectEnvPassThroughHits,
@@ -49,7 +48,6 @@ import {
   collectUpstreamSlashFormHits,
   collectVersionStampHits,
   DOC_SURFACE_TARGETS,
-  G2_LIVE_FACES,
   HANDOFF_SCHEMA_TARGETS,
   hasHit,
   helpFlagsNotInCanonical,
@@ -57,7 +55,6 @@ import {
   INIT_REFERENCE_TARGETS,
   ORCHESTRATOR_SKILLS,
   SHIPPED_SURFACE_TARGETS,
-  scanTargets,
 } from "../residue.ts";
 
 describe("stale-lexicon：断言组行为（brief Step 1）", () => {
@@ -1685,176 +1682,9 @@ describe("src 注释锚首禁（Task 31 / spec T7.10）", () => {
   });
 });
 
-// ---- P3 T2: G2 cursor binary-name live-face guard (residue.ts checkCursorAgentResidue) ----
-// The guarded lexeme is concatenated here too (never a contiguous literal) — the test position is
-// self-exempt from the scripts face scan, but the file stays zero-literal so a future scope
-// extension cannot self-bite. (a) the registry cli data row is green (the single allowed live
-// coordinate — a data-derived allowance, never an exemption list); (b) any non-data hit fails
-// (plain prose AND a junk data-source row key) + the lexicon-row release complement (clis mapping
-// / ban-table data rows green, out-of-domain residue still fails); (c) the allowance follows
-// registry data (anti-white-green: after the cli value moves, the retired name on a live position
-// fails). The per-face `__tests__` dispositions are pinned by injecting temp faces.
-describe("G2 cursor live-face guard (P3 T2)", () => {
-  const CURSOR_BINARY = "cursor" + "-agent";
-  const registryText = (cliValue) => `{ "cursor": { "cli": "${cliValue}" } }\n`;
-
-  it("(a) registry cli data-value row is green (the data-source release form)", () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "g2-a-"));
-    writeFileSync(path.join(dir, "harness-registry.json"), registryText(CURSOR_BINARY), "utf8");
-    try {
-      expect(collectCursorAgentHits([dir])).toEqual([]);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it("(b) a non-data hit fails (plain prose; a junk data-source row key is not a release form)", () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "g2-b-"));
-    writeFileSync(path.join(dir, "note.md"), `the ${CURSOR_BINARY} rename\n`, "utf8");
-    // A token in a row KEY position is not a data-value position: the mask releases any
-    // value-position token on a data-source row (the `cli` value, an array element, any other
-    // value), and key positions fail — `{`-led first keys here, `,`-preceded non-first keys in (b2).
-    writeFileSync(
-      path.join(dir, "harness-registry.json"),
-      `{ "${CURSOR_BINARY}": { "cli": "sora" } }\n`,
-      "utf8",
-    );
-    try {
-      const hits = collectCursorAgentHits([dir]);
-      expect(hits).toHaveLength(2); // note.md + the junk row key
-      expect(hits[0].label).toMatch(/G2/);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it("(a2) an adjacent JSON scalar field does not defeat the structural-purity mask", () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "g2-a2-"));
-    // The released row may carry scalar values beside the allowance value on the same physical
-    // line (numbers / true / false / null are data tokens, not structure).
-    writeFileSync(
-      path.join(dir, "harness-registry.json"),
-      `{ "cli": "${CURSOR_BINARY}", "port": 9000, "ratio": -1.5e3, "flag": true, "extra": null }\n`,
-      "utf8",
-    );
-    try {
-      expect(collectCursorAgentHits([dir])).toEqual([]);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it("(b2) a ','-preceded non-first mapping key is not a value position (right-context rule)", () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "g2-b2-"));
-    // Left context alone is ambiguous — `,` precedes array elements AND non-first mapping keys;
-    // key-ness is decided by what follows the token, so a `,`-preceded key must fail the mask
-    // just like a `{`-led first key.
-    writeFileSync(
-      path.join(dir, "harness-registry.json"),
-      `{ "clis": { "cursor": "sora" }, "${CURSOR_BINARY}": "retired" }\n`,
-      "utf8",
-    );
-    try {
-      const hits = collectCursorAgentHits([dir]);
-      expect(hits).toHaveLength(1);
-      expect(hits[0].file).toContain("harness-registry.json");
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it("(b-comp) lexicon-typed data rows release (clis mapping / ban-table rows green); out-of-domain residue still fails", () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "g2-le-"));
-    writeFileSync(path.join(dir, "harness-registry.json"), registryText(CURSOR_BINARY), "utf8");
-    // contract-lexicon.json is the T4 data source; its harness clis mapping / residue ban-table
-    // rows carry the cli value as data and mask under the same data-row form.
-    writeFileSync(
-      path.join(dir, "contract-lexicon.json"),
-      `{ "clis": { "cursor": "${CURSOR_BINARY}" }, "banned": ["${CURSOR_BINARY}"] }\n`,
-      "utf8",
-    );
-    writeFileSync(path.join(dir, "note.md"), `${CURSOR_BINARY} outside the data domain\n`, "utf8");
-    try {
-      const hits = collectCursorAgentHits([dir]);
-      expect(hits).toHaveLength(1); // note.md only — both data rows are green
-      expect(hits[0].file).toContain("note.md");
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it("(c) the allowance follows registry data (anti-white-green): after the cli value moves, the retired name on a live position fails", () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "g2-c-"));
-    // registry cli value moved to a new binary name — its data row is green; the OLD name on a
-    // live (non-data) position is a hit (aligned with G1: the allowance is data-derived).
-    writeFileSync(path.join(dir, "harness-registry.json"), registryText("sora-agent"), "utf8");
-    writeFileSync(path.join(dir, "note.md"), `the ${CURSOR_BINARY} name retired\n`, "utf8");
-    try {
-      const hits = collectCursorAgentHits([dir]);
-      expect(hits).toHaveLength(1); // the retired name on a live (non-data) position fails
-      expect(hits[0].file).toContain("note.md");
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it("per-face __tests__ dispositions: engine src scans test sites (includeTests ON), scripts exempts them", () => {
-    // engine-src disposition — a token inside an __tests__ file IS caught (the residue face
-    // includes the engine test sites that pin the rename to zero).
-    const engineDir = mkdtempSync(path.join(tmpdir(), "g2-engine-"));
-    mkdirSync(path.join(engineDir, "__tests__"), { recursive: true });
-    writeFileSync(
-      path.join(engineDir, "__tests__", "x.test.ts"),
-      `const c = "${CURSOR_BINARY}";\n`,
-      "utf8",
-    );
-    try {
-      const engineHits = collectCursorAgentHits(undefined, [
-        { targets: [engineDir], includeTests: true },
-      ]);
-      expect(engineHits).toHaveLength(1);
-    } finally {
-      rmSync(engineDir, { recursive: true, force: true });
-    }
-    // scripts disposition — walkTargetFiles' default __tests__ self-exemption keeps the regression
-    // test position out of the scan; a live scripts file carrying the token still fails.
-    const scriptsDir = mkdtempSync(path.join(tmpdir(), "g2-scripts-"));
-    mkdirSync(path.join(scriptsDir, "validate", "__tests__"), { recursive: true });
-    writeFileSync(
-      path.join(scriptsDir, "validate", "__tests__", "residue.test.ts"),
-      `// ${CURSOR_BINARY} assertion site\n`,
-      "utf8",
-    );
-    writeFileSync(
-      path.join(scriptsDir, "validate", "residue.ts"),
-      `const t = "${CURSOR_BINARY}";\n`,
-      "utf8",
-    );
-    try {
-      const scriptsHits = collectCursorAgentHits(undefined, [
-        { targets: [scriptsDir], includeTests: false },
-      ]);
-      expect(scriptsHits).toHaveLength(1); // the live residue.ts only; __tests__ exempt
-      expect(scriptsHits[0].file).toContain("residue.ts");
-    } finally {
-      rmSync(scriptsDir, { recursive: true, force: true });
-    }
-  });
-
-  it("G2_LIVE_FACES pins the three faces and the engine includeTests opt-in (scope shrink = fail)", () => {
-    expect(G2_LIVE_FACES.map((f) => f.targets[0])).toEqual([
-      "packages/cdd-engine/src",
-      "scripts",
-      "docs/maintainers",
-    ]);
-    const engine = G2_LIVE_FACES.find((f) => f.targets[0] === "packages/cdd-engine/src");
-    expect(engine?.includeTests).toBe(true);
-    for (const f of G2_LIVE_FACES.filter((x) => x.targets[0] !== "packages/cdd-engine/src")) {
-      expect(f.includeTests).toBe(false);
-    }
-  });
-
-  it("live repo: the three faces zero-hit (the only live coordinate = the registry data row)", () => {
-    expect(collectCursorAgentHits()).toEqual([]);
-  });
-});
+// ---- P3 T2/T4: the G2 cursor binary-name live-face guard migrated to the ContractLexiconGuard
+// ---- (scripts/lib/contract-lexicon.ts#checkResidue) with the contract lexicon — its regression
+// ---- assertions live in scripts/lib/__tests__/contract-lexicon.test.ts (the same data-row /
+// ---- per-face dispositions, now driven through the guard class). The scanned lexeme is never
+// ---- written contiguously here either (the test position is self-exempt, but the file stays
+// ---- zero-literal so a future scope extension cannot self-bite).

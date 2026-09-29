@@ -18,7 +18,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { scanLines } from "./scan.ts";
+import { escapeRegExp, scanLines } from "./scan.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..");
@@ -281,10 +281,7 @@ export class ContractLexiconGuard {
       ]),
     );
     const ESCAPED_HEADING = Object.fromEntries(
-      Object.entries(SECTION_HEADINGS).map(([key, h]) => [
-        key,
-        h.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
-      ]),
+      Object.entries(SECTION_HEADINGS).map(([key, h]) => [key, escapeRegExp(h)]),
     );
     const SECTION_HEADING_LINE = Object.fromEntries(
       Object.entries(ESCAPED_HEADING).map(([key, h]) => [key, new RegExp(`^${h}$`, "m")]),
@@ -304,7 +301,7 @@ export class ContractLexiconGuard {
     );
     const FORBIDDEN_HEADS =
       ANATOMY.properties.consumerPurity.properties.forbiddenNarrativeHeads.items.enum.map(
-        (h: string) => new RegExp(`^${h.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"),
+        (h: string) => new RegExp(`^${escapeRegExp(h)}$`, "m"),
       );
     const ELEMENT_PATTERNS = Object.fromEntries(
       Object.entries(ANATOMY.properties.nodeElements.properties).map(([key, node]) => [
@@ -554,10 +551,10 @@ export class ContractLexiconGuard {
   checkWording(skills?: string[]): WordingFinding[] {
     if (!skills || skills.length === 0) return [];
     const banned = this.#lexicon.stdout.bannedShapeNames;
-    const combined = new RegExp(banned.map((s) => escapeRe(s)).join("|"));
+    const combined = new RegExp(banned.map((s) => escapeRegExp(s)).join("|"));
     const hits: WordingFinding[] = [];
     for (const { file, lineNo, text } of scanLines(skills, combined)) {
-      const matched = banned.filter((shape) => new RegExp(escapeRe(shape)).test(text));
+      const matched = banned.filter((shape) => new RegExp(escapeRegExp(shape)).test(text));
       // The bare `return block` rule is subsumed by the `3-line return block` special name on the
       // same line (the dedicated fail name wins; the bare form targets unqualified use only).
       const names =
@@ -628,10 +625,6 @@ export class ContractLexiconGuard {
 // ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------
-
-function escapeRe(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
 
 /** Assertion 2 (skeleton isomorphism) findings for one deltas-table carrier: the shared
  *  review-loop/commit/handoff skeleton shape + the two registered deltas rows. */

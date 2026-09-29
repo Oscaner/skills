@@ -9,6 +9,10 @@
 // — tests asserting "dead vocabulary absent" necessarily carry the guarded words, so mechanism
 // scans must not trust test sites); guards that do scan tests opt in explicitly via
 // { includeTests: true }, with scope still written as src/... (never the deleted tests/).
+//
+// The face also carries the shared escapeRegExp literal-escaper: guard regexes built from data
+// rows (lexicon / canonical tables) come from ONE escaper in contract-lexicon.ts and residue.ts
+// instead of per-file copies.
 
 import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
@@ -76,4 +80,11 @@ export function scanLines(targets: string[], re: RegExp, opts: ScanOptions = {})
 /** File-listing helper (scanLines' file surface): repo-relative paths of every non-binary file. */
 export function listTargetFiles(targets: string[]): string[] {
   return walkTargetFiles(targets).map((f) => path.relative(ROOT, f));
+}
+
+/** Escape a string literal for safe use inside a RegExp construction. Guard regexes built from
+ *  data rows (lexicon word-table entries / canonical category tables) go through this single
+ *  escaper so the consumers never carry a hand-copied escape one-liner. */
+export function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

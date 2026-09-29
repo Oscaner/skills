@@ -303,7 +303,13 @@ function assert(cond, msg) {
 // self-exemption doctrine's walk-side landing) — tests asserting "dead vocabulary absent"
 // necessarily carry the guarded words, so mechanism scans must not trust test sites; guards that
 // do scan tests opt in explicitly via `{ includeTests: true }`.
-import { listTargetFiles, scanLines, scanTargets, walkTargetFiles } from "../lib/scan.ts";
+import {
+  escapeRegExp,
+  listTargetFiles,
+  scanLines,
+  scanTargets,
+  walkTargetFiles,
+} from "../lib/scan.ts";
 
 function checkZeroResidue() {
   const hits = scanTargets(RESIDUE_TARGETS, RESIDUE_RE);
@@ -841,7 +847,6 @@ export function collectResidualRereadHits(targetsOverride = CDD_ENGINE_BIN) {
 const COUNTER_FIELDS = failureResolver.counters().map((c) => c.field);
 const COUNTER_LABELS = failureResolver.counters().map((c) => c.label);
 const CATEGORY_IDS = Object.values(FAILURE_CATEGORIES).map((c) => c.id);
-const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 export function collectCountersContractHits({
   constructFiles = [
@@ -857,7 +862,9 @@ export function collectCountersContractHits({
   // field name/H1 label is hand-writing ("timeoutCount=" and similar). Line-limited (line-by-line
   // scan, no cross-line span matching); \b anchors the label short names ("timeout" …) so the
   // semantic word "dispatch-timeout-cap" is not false-hit.
-  const quoted = new RegExp(`"(${[...COUNTER_FIELDS, ...COUNTER_LABELS].map(escRe).join("|")})\\b`);
+  const quoted = new RegExp(
+    `"(${[...COUNTER_FIELDS, ...COUNTER_LABELS].map(escapeRegExp).join("|")})\\b`,
+  );
   for (const f of constructFiles) {
     const text = readFileSync(path.isAbsolute(f) ? f : path.join(ROOT, f), "utf8");
     const m = quoted.exec(text);
@@ -870,7 +877,7 @@ export function collectCountersContractHits({
   // enum values are not this class, hence no status key anchor). The category name list goes
   // through canonical.
   const failureCategoryRe = new RegExp(
-    `failure_category:\\s*["'](?:${CATEGORY_IDS.map(escRe).join("|")})["']|isIncompleteDispatch\\(["']|incrementFailureCounter\\([^,]+,\\s*["']`,
+    `failure_category:\\s*["'](?:${CATEGORY_IDS.map(escapeRegExp).join("|")})["']|isIncompleteDispatch\\(["']|incrementFailureCounter\\([^,]+,\\s*["']`,
   );
   for (const { file, lineNo, text } of scanLines(engineScope, failureCategoryRe)) {
     hits.push({

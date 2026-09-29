@@ -9,19 +9,19 @@ import { REG_PATH, Registry } from "../registry.ts";
 
 const registry = new Registry();
 
-it("loadRegistry: 读取 2 harness（T2 收敛 claude/cursor-agent）", () => {
+it("loadRegistry: 读取 3 harness（claude/cursor/pi）", () => {
   const reg = registry.load(REG_PATH);
-  expect(Object.keys(reg).length).toBe(2);
-  for (const name of ["claude", "cursor-agent"]) {
+  expect(Object.keys(reg).length).toBe(3);
+  for (const name of ["claude", "cursor", "pi"]) {
     expect(reg[name]).toBeTruthy();
   }
 });
 
 // The harness selection/probe/install layer is deleted, leaving the registry converged on
-// the two keys claude/cursor-agent (Task 2, P5).
-it("registry 收敛两键 claude/cursor-agent", () => {
+// the three row keys claude/cursor/pi (cli keeps the external binary names).
+it("registry 收敛三键 claude/cursor/pi", () => {
   const reg = registry.load(REG_PATH);
-  expect(Object.keys(reg).sort()).toEqual(["claude", "cursor-agent"]);
+  expect(Object.keys(reg).sort()).toEqual(["claude", "cursor", "pi"]);
 });
 
 it("checkHarness: claude 通过 ship gate（dryRun 跳过 PATH 校验）", () => {
@@ -131,7 +131,7 @@ it("resolveInjection: claude review×type — task/branch → code-review(单 ag
   );
 });
 
-it("resolveInjection: 全 registry harness（claude/cursor-agent）同 claude set 非空", () => {
+it("resolveInjection: 全 registry harness（claude/cursor/pi）同 claude set 非空", () => {
   const reg = registry.load(REG_PATH);
   for (const h of Object.keys(reg)) {
     expect(registry.resolveInjection(reg[h], "implement")).toBe("/mattpocock-skills:tdd");

@@ -187,7 +187,8 @@ describe("cdd CLI", () => {
 
   it("fix --type spec|plan 非 dry-run：无 host env → CDD_BLOCKED exit 1（T3 — 无 harness 停闸，host 由环境判定）", () => {
     // 原"unknown harness 停闸"用例已随 harness 参数删除淘汰：entry 层 host 判定为空即 BLOCK，
-    // 不再存在未知 harness 需停闸（host 必然是 claude/cursor-agent 两合法键）——T3 改断言无-host BLOCK。
+    // no unknown-harness stop gate remains — the host legal key set is {claude, cursor, pi}
+    // (T3: the no-host env case asserts the CDD_BLOCKED path instead).
     // 保留 not.toMatch(/template/)：BLOCK 消息不得来自 doc-fix 模板渲染错误。
     for (const [type, reviewFile] of [
       ["spec", "spec-review-1.json"],

@@ -23,7 +23,7 @@ import { fileURLToPath } from "node:url";
 //
 // Usage:
 //   node scripts/observe-cache.ts [options] -- <workspace> <task> <mode>
-//     --harness claude|cursor-agent   (default: claude)
+//     --harness claude|cursor   (default: claude)
 //     --rounds 2                     (default: 2 — the brief's ≥2 consecutive same-type rounds)
 //     --cost | --debug               (flag appended to the harness invoke; default --debug —
 //                                     the only real non-interactive claude -p flag; --cost is an
@@ -59,7 +59,7 @@ import { parseArgs as parseArgsCitty } from "citty";
 export const ARGS = {
   harness: {
     type: "string",
-    description: "harness entry to observe (claude | cursor-agent)",
+    description: "harness entry to observe (claude | cursor)",
     default: "claude",
   },
   rounds: {
@@ -231,6 +231,8 @@ async function main(): Promise<void> {
   }
 
   resetTemplateCaches(); // one cold static-zone render, then measure the hot re-dispatches
+  // Day-head: the emitted key is the registry row key as validated above (direct emission —
+  // cursor maps to the `cursor` row), so the banner tracks the registry's current row keys.
   console.log(
     `observe-cache: ${harness} · ${mode} · task ${task} · ${rounds} rounds (flag ${flag})`,
   );

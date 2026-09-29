@@ -83,7 +83,7 @@ describe("C5 — dispatch-set composition (invoke string / cwd / env)", () => {
   it("env passes through untouched (engine never rewrites the dispatch env)", () => {
     const env = { PATH: "/usr/bin", CDD_SHOULD_NOT_EXIST: "x" };
     const set = invoker.composeDispatchSet(
-      reg["cursor-agent"],
+      reg.cursor,
       { op: "fix", type: "task" },
       "P",
       "/ws",

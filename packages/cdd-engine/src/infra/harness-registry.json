@@ -24,9 +24,31 @@
       "observable": true
     }
   },
-  "cursor-agent": {
+  "cursor": {
     "cli": "cursor-agent",
     "invoke": "--print --output-format text --force",
+    "output": "text",
+    "ship": "full",
+    "cache": {
+      "mechanism": "auto-prefix",
+      "minTokens": "pending",
+      "observable": false
+    },
+    "prefix": {
+      "implement": "/mattpocock-skills:tdd",
+      "review": {
+        "task": "/mattpocock-skills:code-review — single agent, dual axis (standards + spec); parallel sub-agents forbidden",
+        "branch": "/mattpocock-skills:code-review — single agent, dual axis (standards + spec); parallel sub-agents forbidden",
+        "spec": "Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity)",
+        "plan": "Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability)"
+      },
+      "fix": "/mattpocock-skills:tdd"
+    },
+    "suffix": {}
+  },
+  "pi": {
+    "cli": "pi",
+    "invoke": "-p --mode text",
     "output": "text",
     "ship": "full",
     "cache": {

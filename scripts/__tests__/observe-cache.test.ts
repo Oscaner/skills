@@ -74,7 +74,7 @@ describe("parseArgs — presence-based booleans + value-taking options", () => {
     expect(a.workspace).toBe("ws");
     const b = cacheObserver.parseArgs([
       "--harness",
-      "cursor-agent",
+      "cursor",
       "--rounds",
       "3",
       "--",
@@ -82,7 +82,7 @@ describe("parseArgs — presence-based booleans + value-taking options", () => {
       "7",
       "review",
     ]);
-    expect(b.harness).toBe("cursor-agent");
+    expect(b.harness).toBe("cursor");
     expect(b.rounds).toBe(3);
     expect(b.flag).toBe("--debug");
   });

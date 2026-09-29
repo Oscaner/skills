@@ -9,6 +9,7 @@
 import type { ArgDef, ArgsDef } from "citty";
 import { IllegalTaskTokenError, TaskGroup } from "../domain/task-group.ts";
 import { cliUsageError, exitWithCode } from "../infra/exit.ts";
+import { ORDER } from "../infra/harness.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
 
 // DRY_RUN — the program-level `--dry-run` flag, owned by the CddRuntime singleton (P4.4 Task 4:
@@ -21,15 +22,17 @@ export { DRY_RUN, setDryRun } from "../infra/runtime.ts";
 
 // ---- host harness detection ----
 
-// detect_current_harness: CURSOR_TRACE_ID → cursor-agent; CLAUDE_CODE_SESSION_ID → claude;
-// AI_AGENT=claude-code* → claude; otherwise empty. T3 extension: the single host fact source
-// (empty → BLOCK). Exported (test seam) — the CLI resolves the harness here and no longer
-// accepts a harness flag. The process.env read is the shared-site passthrough anchor
-// (scripts/validate residue §2.4.4); requireHostHarness is the CLI-facing seam.
+// detect_current_harness: iterates the harness ORDER (infra/harness.ts — the registration order
+// is the detection priority: SPECIFIC markers first, GENERIC last) and returns the first
+// instance whose detect(env) matches: CURSOR_TRACE_ID → cursor; CLAUDE_CODE_SESSION_ID /
+// AI_AGENT=claude-code* → claude; AI_AGENT=pi → pi; otherwise empty. T3 extension: the single
+// host fact source (empty → BLOCK). Exported (test seam) — the CLI resolves the harness here
+// and no longer accepts a harness flag. The process.env read is the shared-site passthrough
+// anchor (scripts/validate residue §2.4.4); requireHostHarness is the CLI-facing seam.
 export function detectCurrentHarness(env: NodeJS.ProcessEnv): string {
-  if (env.CURSOR_TRACE_ID) return "cursor-agent";
-  if (env.CLAUDE_CODE_SESSION_ID) return "claude";
-  if ((env.AI_AGENT ?? "").startsWith("claude-code")) return "claude";
+  for (const harness of ORDER) {
+    if (harness.detect(env)) return harness.id;
+  }
   return "";
 }
 

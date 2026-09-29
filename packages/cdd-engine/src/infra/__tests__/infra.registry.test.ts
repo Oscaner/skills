@@ -16,9 +16,9 @@ it("REG_PATH resolves to an existing harness-registry.json (published dist/resou
   expect(existsSync(REG_PATH)).toBe(true);
 });
 
-it("loadRegistry: reads 2 harnesses (claude / cursor-agent)", () => {
+it("loadRegistry: reads 3 harnesses (claude / cursor / pi)", () => {
   const reg = registry.load(REG_PATH);
-  expect(Object.keys(reg).sort()).toEqual(["claude", "cursor-agent"]);
+  expect(Object.keys(reg).sort()).toEqual(["claude", "cursor", "pi"]);
 });
 
 it("checkHarness: claude passes ship gate (dryRun skips PATH check)", () => {

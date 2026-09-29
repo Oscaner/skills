@@ -28,15 +28,15 @@ describe("registry cache profile (spec D-3 C7 — capability as data)", () => {
     });
   });
 
-  it("cursor-agent profile = auto-prefix fallback, values pending measurement", () => {
-    expect(registry.cacheProfileFor(reg["cursor-agent"])).toMatchObject({
+  it("cursor profile = auto-prefix fallback, values pending measurement", () => {
+    expect(registry.cacheProfileFor(reg.cursor)).toMatchObject({
       mechanism: "auto-prefix",
       minTokens: "pending",
       observable: false,
     });
   });
 
-  it("both real profiles validate against the JSON schema (cache-profile-schema.json)", () => {
+  it("all real profiles validate against the JSON schema (cache-profile-schema.json)", () => {
     for (const harness of Object.keys(reg)) {
       const result = validateCacheProfile(registry.cacheProfileFor(reg[harness]));
       expect(result.valid, harness).toBe(true);

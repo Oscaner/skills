@@ -1,7 +1,8 @@
 // packages/cdd-engine/src/cli/__tests__/host-detection.test.ts
 // cdd implement/review/fix no longer take a harness flag — the harness is resolved from
-// the ambient host session (detectCurrentHarness markers: CURSOR_TRACE_ID → cursor-agent;
-// CLAUDE_CODE_SESSION_ID / AI_AGENT=claude-code* → claude). Empty host → CDD_BLOCKED + exit 1.
+// the ambient host session (detectCurrentHarness markers: CURSOR_TRACE_ID → cursor;
+// CLAUDE_CODE_SESSION_ID / AI_AGENT=claude-code* → claude; AI_AGENT=pi → pi). Empty host →
+// CDD_BLOCKED + exit 1.
 // Crucially, the no-host env MUST explicitly delete all three host markers — a parent
 // orchestrator session may set CLAUDE_CODE_SESSION_ID / AI_AGENT (B1 blocker), so merely
 // stripping CDD_* leaks host detection into the child.
@@ -63,12 +64,13 @@ it("CLAUDE_CODE_SESSION_ID=1 → host 判定成功（dry-run exit 0）", () => {
 // N④: detectCurrentHarness 直接单测（table-driven marker 优先级）—— export 的 test seam 由真实消费.
 it.each([
   [
-    "CURSOR_TRACE_ID 优先 → cursor-agent",
+    "CURSOR_TRACE_ID 优先 → cursor",
     { CURSOR_TRACE_ID: "1", CLAUDE_CODE_SESSION_ID: "1" },
-    "cursor-agent",
+    "cursor",
   ],
   ["CLAUDE_CODE_SESSION_ID → claude", { CLAUDE_CODE_SESSION_ID: "1" }, "claude"],
   ["AI_AGENT=claude-code* → claude", { AI_AGENT: "claude-code-1.0" }, "claude"],
+  ["AI_AGENT=pi → pi", { AI_AGENT: "pi" }, "pi"],
   ["AI_AGENT 非 claude → empty", { AI_AGENT: "codex" }, ""],
   ["全空 → empty（BLOCK 判定）", {}, ""],
 ])("%s", (_t, env, expected) => {

@@ -79,7 +79,7 @@ P2 把 emit 分发面的"包侧声明 ↔ 实现"差距归零：`oscaner-plugin.
 - validate wiring name-set pin 更新：新 block 步骤名**只加入 `ci-validate.test.mjs` 的 `EXPECTED_VALIDATE_STEPS` name-set**（P1 C5 name-set 语义延续）；pre-commit 侧经 `...marketplaceSteps` 组合自动纳入——pre-commit.test.ts 系 `arrayContaining`（subset⊆full）＋ strict-exclusion（仅 exclude 两个 engine step）形态，无期望 step 集，新增 step 零改动
 
 **C6 提交门工具链（2026-09-29 用户拍板，lint-staged · no-fix）**：
-- `.husky/pre-commit` 手写 shell（`pnpm biome:fix` 全仓 autofix + re-stage 循环 + `pnpm run precommit`）→ **`npx lint-staged` 单行**；新增 **`lint-staged.config.mjs`**（用户指定文件名）：
+- `.husky/pre-commit` 手写 shell（`pnpm biome:fix` 全仓 autofix + re-stage 循环 + `pnpm run precommit`）→ **`pnpm exec lint-staged` 单行**；新增 **`lint-staged.config.mjs`**（用户指定文件名）：
   - `"*.ts": ["biome check"]`——**无 `--write`**（no-fix 语义）：staged TS 域 violation 报 fail → lint-staged 非零 → commit 拦截；biome.json 现有 `files.includes: ["**/*.ts"]` 域不变
   - `"*": ["pnpm run precommit"]`——validate 树无关子集（emit freshness / residue / consistency / unit / version sync）经 catch-all 继续门控，dedup 单跑，commit 纪律不降级
 - re-stage 循环**删除**（无 fix 即无写盘，无需重 add；staged deletion 特判随之消亡）
@@ -119,7 +119,7 @@ P2 把 emit 分发面的"包侧声明 ↔ 实现"差距归零：`oscaner-plugin.
 - validate block 6 一致守卫全绿（对活树实测三断言：声明⊆注册表 · 注册⊆声明并集 · emit-harness 产物存在）
 - P1 pi-package well-formed 在 `PiHarness.validatePackage` 宿主下全绿（block 5b 薄代理；`pi-package.test.mjs` 原样通过）
 - 零残留：代码/文档/测试零 `oscaner-plugin`（CHANGELOG + 2026-09-13 family 历史豁免登记于 overall v1.9）
-- commit 门：`.husky/pre-commit` 单行 `npx lint-staged` + `lint-staged.config.mjs`（`*.ts → biome check` **无 `--write`** · `* → pnpm run precommit`）；staged TS 带 format/lint violation 提交 → 拦截 fail 实证一次；`biome-wiring.test.ts` 重写全绿（pin no-fix + validate catch-all）；`pnpm run precommit` 门控保持全绿
+- commit 门：`.husky/pre-commit` 单行 `pnpm exec lint-staged` + `lint-staged.config.mjs`（`*.ts → biome check` **无 `--write`** · `* → pnpm run precommit`）；staged TS 带 format/lint violation 提交 → 拦截 fail 实证一次；`biome-wiring.test.ts` 重写全绿（pin no-fix + validate catch-all）；`pnpm run precommit` 门控保持全绿
 - `pnpm run validate` 全块全绿（新守卫在内）；changeset 建（breaking——osuperpowers 按 version scheme 判定）
 
 ## Section 3: Deviations from overall

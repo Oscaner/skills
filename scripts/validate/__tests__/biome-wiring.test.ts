@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const CONFIG_PATH = join(ROOT, "lint-staged.config.mjs");
 
 describe("biome gate wiring (C6/no-fix)", () => {
   it("biome.json ships the recommended ts-surface config", () => {
@@ -34,16 +35,18 @@ describe("biome gate wiring (C6/no-fix)", () => {
   });
 
   it("lint-staged pins biome check (no --write) for the staged ts domain", () => {
-    const config = readFileSync(join(ROOT, "lint-staged.config.mjs"), "utf8");
+    // Existence is pinned live, before the read — a missing config must fail with a
+    // readable assertion instead of an ENOENT thrown by readFileSync.
+    expect(existsSync(CONFIG_PATH)).toBe(true);
+    const config = readFileSync(CONFIG_PATH, "utf8");
     // A staged TS violation must surface as a non-zero biome exit, not a write-back —
     // the no-fix semantics is what makes a format/lint-dirty staged set uncommittable.
-    expect(existsSync(join(ROOT, "lint-staged.config.mjs"))).toBe(true);
     expect(config).toContain('"*.ts": ["biome check"]');
     expect(config).not.toContain("--write");
   });
 
   it("lint-staged catch-all keeps the validate subset gating the commit", () => {
-    const config = readFileSync(join(ROOT, "lint-staged.config.mjs"), "utf8");
+    const config = readFileSync(CONFIG_PATH, "utf8");
     expect(config).toContain('"*": ["pnpm run precommit"]');
   });
 });

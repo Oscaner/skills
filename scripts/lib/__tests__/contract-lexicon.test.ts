@@ -447,7 +447,7 @@ describe("ContractLexiconGuard.checkConfig — engine-config channel audit (P3 T
           extra: { var: "EXTRA_KEY" },
         },
       },
-      timeouts: { defaults: { task: 10_800_000, review: 3_600_000 } },
+      timeouts: { defaults: { implement: 21_600_000, review: 10_800_000, fix: 21_600_000 } },
     };
     const hits = guard.checkConfig(cfg);
     expect(hits).toHaveLength(1);
@@ -457,11 +457,11 @@ describe("ContractLexiconGuard.checkConfig — engine-config channel audit (P3 T
   it("a config missing the canonical timeout defaults fires", () => {
     const cfg = {
       channels: { env: { path: { var: "PATH" }, hostHarness: { markers: ["AI_AGENT"] } } },
-      timeouts: { defaults: { task: 42 } },
+      timeouts: { defaults: { implement: 42 } },
     };
     const hits = guard.checkConfig(cfg);
     const labels = hits.map((h) => h.label).join(" | ");
-    expect(labels).toContain("defaults.task");
     expect(labels).toContain("defaults.review");
+    expect(labels).toContain("defaults.fix");
   });
 });

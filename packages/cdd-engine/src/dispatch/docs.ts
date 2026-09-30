@@ -33,7 +33,7 @@ import { Handoff } from "../artifacts/handoff.ts";
 import { hashFile } from "../artifacts/hash.ts";
 import { type ExitRequested, exitWithCode, invariant } from "../infra/exit.ts";
 import { GitClient } from "../infra/git.ts";
-import { EngineInvoker } from "../infra/invoke.ts";
+import { type DispatchOp, EngineInvoker } from "../infra/invoke.ts";
 import { withLifecycle } from "../infra/proc.ts";
 import { REG_PATH, Registry } from "../infra/registry.ts";
 import { getRoot } from "../infra/root.ts";
@@ -62,8 +62,9 @@ const crash = new CrashTeardown();
 export interface DocsLifecycleOptions {
   /** docs agent harness key (registry lookup) */
   harness: string;
-  /** dispatch mode — "review" | "fix" (docs carries no implement; the mode is the exit gate's) */
-  mode: string;
+  /** dispatch op — "review" | "fix" (docs carries no implement; the op is the budget-dimension
+   * key the docs island wires into resolveTerminationConfig, replacing the hardcoded "review") */
+  mode: DispatchOp;
   /** prompt template name ("review" shared shell / canonical fix.{type} fixTemplate) */
   template: string;
   /** review/fix subtype (spec|plan) → invokeCli (op, type) injection params */
@@ -231,17 +232,17 @@ export class DocsLifecycle extends DispatchLifecycle {
     // prefix.fix (flat string) respectively; type threads from cdd review/fix --type.
     const reg = registry.load(REG_PATH);
     const entry = registry.checkHarness(reg, harness);
-    // Unified termination (T26 — budget-only for docs, no workspace tree signal, same as the
-    // budget channel of task/branch; resolveTerminationConfig defaults the budget from canonical
-    // timeouts.defaults.review — zero env reads; the terminal reason still lands in the TIMEOUT
-    // blocker).
+    // Unified termination (T26 — budget-only for docs, no workspace
+    // tree signal, same as the budget channel of task/branch; resolveTerminationConfig defaults
+    // the budget from canonical timeouts.defaults.<mode> — the DISPATCHED OP, never a hardcoded
+    // "review" — zero env reads; the terminal reason still lands in the TIMEOUT blocker).
     const res = await invoker.invokeCli(
       entry,
       prompt,
       { op: mode, type },
       process.env,
       this.ctx.repoRoot as string,
-      invoker.resolveTerminationConfig("review"),
+      invoker.resolveTerminationConfig(mode),
     );
     this.#agentRc = res.code;
     this.#agentStdout = res.stdout;

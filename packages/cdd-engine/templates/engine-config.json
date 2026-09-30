@@ -152,8 +152,9 @@
     },
     "timeouts": {
       "defaults": {
-        "task": 10800000,
-        "review": 3600000
+        "implement": 21600000,
+        "review": 10800000,
+        "fix": 21600000
       },
       "liveness": {
         "sampleIntervalMs": 60000,

@@ -576,15 +576,25 @@ export class ContractLexiconGuard {
       });
     }
     const defaults = ctx.timeouts?.defaults ?? {};
-    if (defaults.task !== 10_800_000) {
+    // T9 budget-dimension unification: the canonical budgets are keyed by DISPATCH OP
+    // (implement 6h / review 3h / fix 6h) — the legacy `task` key is deleted with the config;
+    // the three ops are the budget dimension's key set (same currency the dispatch islands wire,
+    // task.ts / docs.ts / branch.ts resolving by their actual op).
+    if (defaults.implement !== 21_600_000) {
       hits.push({
-        label: `engine-config timeout defaults.task ${defaults.task} ≠ 10800000 (canonical drift)`,
+        label: `engine-config timeout defaults.implement ${defaults.implement} ≠ 21600000 (canonical drift)`,
         file: "packages/cdd-engine/templates/engine-config.json",
       });
     }
-    if (defaults.review !== 3_600_000) {
+    if (defaults.review !== 10_800_000) {
       hits.push({
-        label: `engine-config timeout defaults.review ${defaults.review} ≠ 3600000 (canonical drift)`,
+        label: `engine-config timeout defaults.review ${defaults.review} ≠ 10800000 (canonical drift)`,
+        file: "packages/cdd-engine/templates/engine-config.json",
+      });
+    }
+    if (defaults.fix !== 21_600_000) {
+      hits.push({
+        label: `engine-config timeout defaults.fix ${defaults.fix} ≠ 21600000 (canonical drift)`,
         file: "packages/cdd-engine/templates/engine-config.json",
       });
     }

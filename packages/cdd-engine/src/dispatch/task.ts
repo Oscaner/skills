@@ -46,7 +46,7 @@ import { RoundContext } from "../artifacts/round-context.ts";
 import { DOC_TOKENS } from "../documents/tokens.ts";
 import { type TaskGroup, toTaskGroup } from "../domain/task-group.ts";
 import { CddExitError, ExitRequested, exitWithCode } from "../infra/exit.ts";
-import { EngineInvoker } from "../infra/invoke.ts";
+import { type DispatchOp, EngineInvoker } from "../infra/invoke.ts";
 import type { TerminationCause, TerminationConfig } from "../infra/proc.ts";
 import { CddBlockedError, REG_PATH, Registry } from "../infra/registry.ts";
 import { resolveDocArg } from "../infra/root.ts";
@@ -839,13 +839,15 @@ export class TaskLifecycle extends DispatchLifecycle {
       });
     } else {
       // Unified termination config (T26): single resolver (resolveTerminationConfig) replaces the
-      // (resolveTimeoutMs + resolveLivenessConfig) pair — budget from canonical mode defaults with
-      // the opts.termination seam on top, stall cadence from canonical timeouts.liveness. The
-      // progress path is ALWAYS the dispatch workspace (engine artifacts live there); a missing
-      // one reads 'unknown' forever — fail loud so a broken workspace can never quietly neuter
-      // the tree signal.
+      // (resolveTimeoutMs + resolveLivenessConfig) pair — budget from canonical op defaults with
+      // the opts.termination seam on top, stall cadence from canonical timeouts.liveness. T9: the
+      // budget is keyed by the DISPATCHED OP (`mode` — the validated implement|review|fix trio) —
+      // the legacy hardcoded "task" key made `cdd review --type task` read the implement budget
+      // (the T7 review-not-capped accident this wiring pins). The progress path is ALWAYS the
+      // dispatch workspace (engine artifacts live there); a missing one reads 'unknown' forever —
+      // fail loud so a broken workspace can never quietly neuter the tree signal.
       const terminationCfg = this.#invoker.resolveTerminationConfig(
-        "task",
+        mode as DispatchOp,
         this.#opts.termination,
         ctx.workspace.path,
       );

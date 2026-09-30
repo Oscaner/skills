@@ -481,7 +481,8 @@ export class BranchReviewLifecycle extends BranchLifecycle {
 
     // Invoke harness CLI. (op,type) injection resolves into prefix.review.branch (the old
     // branch-review standalone bin is deleted, its logic inlined here). T26 unified termination
-    // (single resolver — budget from canonical review defaults, stall over the workspace tree).
+    // (single resolver — budget from canonical review defaults — the branch-review op IS "review",
+    // semantically correct by op dimension; T9), stall over the workspace tree.
     const terminationCfg = invoker.resolveTerminationConfig(
       "review",
       undefined,
@@ -749,12 +750,10 @@ export class BranchFixLifecycle extends BranchLifecycle {
 
     // Invoke the harness CLI. (op,type) injection resolves the flat `prefix.fix` string
     // (/mattpocock-skills:tdd — the fix channel is work-type, not per-type). T26 unified
-    // termination (single resolver — same surface as task/docs/branch-review).
-    const terminationCfg = invoker.resolveTerminationConfig(
-      "review",
-      undefined,
-      this.workspace!.path,
-    );
+    // termination (single resolver — same surface as task/docs/branch-review). T9: the budget key
+    // is the branch-fix OPERATION ("fix") — the former hardcoded "review" made branch-fix read
+    // the review budget (wrong for a work-type round).
+    const terminationCfg = invoker.resolveTerminationConfig("fix", undefined, this.workspace!.path);
     const res = (await invoker.invokeCliWithRetry(
       this.entry!,
       prompt,

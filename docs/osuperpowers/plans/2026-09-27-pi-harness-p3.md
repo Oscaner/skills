@@ -2,9 +2,9 @@
 
 **Spec:** [2026-09-27-pi-harness-p3-design.md](docs/osuperpowers/specs/2026-09-27-pi-harness-p3-design.md)
 
-- **Parent program**: [2026-09-27-pi-harness-overall.md v1.13](docs/osuperpowers/specs/2026-09-27-pi-harness-overall.md)
-- **Version**: v1.5 · 2026-09-30（plan review-3 fixes v1.3 + 用户拍板追加 T6 `.osuperpowers` 根目录 bootstrap v1.4 + Workspace 域收编定稿 v1.5）
-- **Depends on**: P3 design v1.3 Approved（`5b4ecfa7`，C1–C7 锚点定案 + 契约面 D1–D4 + Contract Lexicon L2）
+- **Parent program**: [2026-09-27-pi-harness-overall.md v1.16](docs/osuperpowers/specs/2026-09-27-pi-harness-overall.md)
+- **Version**: v1.7 · 2026-09-30（plan review-3 fixes v1.3 + 用户拍板 T6 bootstrap v1.4 → Workspace 收编 v1.5 → T6 补钉 v1.6 → **T7 崩溃恢复健壮性 v1.7**）
+- **Depends on**: P3 design v1.4 Approved（`495707f4`，C1–C7 锚点定案 + 契约面 D1–D4 + Contract Lexicon L2 + 崩溃恢复健壮性 T7）
 - **Base**: develop
 
 ## Constraints
@@ -131,3 +131,17 @@
   - 测试：`workspace.test.ts`（新：from/ensure/gitignore/for/enumerate/readJson/writeJson/lifecyclePath）· progress/handoff/lifecycle.wiring/proc/root/naming 相关 suite 迁移断言（`workspaceRoot` 三元组、`.superpowers` 退役、mkdir 归零）· `lifecycle.proc.test` 验证 reapStale 枚举全扫等价——断言覆盖读-滤-杀-写回全链（逐 slug 独立 lifecycle.json + 幸存者逐文件写回）而非仅孤儿过滤语义
 - **验收**: `src/infra/workspace.ts` 含 `WorkspaceRoot`/`Workspace` 全导出、零裸函数；`.osuperpowers/.gitignore`（根级 `*`）自守卫——新 repo 首次 cdd 运行即存在；`lifecycle.json` 落 `<workspaceRoot>/<slug>/` 而非 repo 级（无 `.osuperpowers/cdd/lifecycle.json` 单文件；bin.ts:114 启动 repo 级绑定已删除、启动清扫改枚举形）；`naming.ts` 删除、10 项导出逐项归位 + 转接面（src 非测试 13 + 测试面）全部闭合后零引用（grep 零命中）；6 处散装 `mkdirSync` 归零（`Workspace.ensure()` 单点）；根 `.gitignore` 无 `.superpowers` 行；`pnpm run validate` 全绿（含 workspace 新 suite + lifecycle reap 枚举等价）+ precommit 面绿。
 - **注**: 本任务是用户 2026-09-30 拍板追加（bootstrap 第一条 + lifecycle 归位第二条 + 双源灭绝）+ 高维抽象统一复盘（允许破坏性/重写/重组目录/死壳即删）；consume 面同步（`cli-driven-development/SKILL.md` 及运维文档如引用 `.osuperpowers` 路径形态，随 T6 措辞复核——workspace 位置语义不变，仅实现落点收编，skill 面若零路径描述则零改动）。
+
+### Task 7: 崩溃恢复健壮性（HARNESS_ABORT + crash-only snapshot + stash 平面删除，用户拍板 2026-09-30）
+
+- **Do**: engine 崩溃恢复从「stash 状态魔法」归一为「commit 确定性事实」（破坏性授权内：重写/重组/死壳即删）——
+  - **失败分类**：`templates/engine-config.json#failureCategories` 增 `HARNESS_ABORT`（`id: HARNESS_ABORT` · `counter: harnessAbortCount` · `returnMarker: harness-abort` · `terminal: BLOCKED: harness-abort-exhausted`，countsTowardConvergence 沿用 channel-audit 逐类独立语义）——`rules/failure.ts` FailureResolver 机械读取（类目声明单源 engine-config）；与 `EXECUTION_FAILURE` 区分：成因外部（harness/模型 403）、可确定性恢复
+  - **teardown（孤儿处理，lane 无关）**：run wrapper（implement/review/fix/docs 四 lane 共用一条）检测 child 非零退出 && handoff 未写 → ① 捕获 child stdout/stderr **尾部**（~40 行）② crash-only snapshot ③ Workspace 落 crash record ④ 出 BLOCKED capsule（类别改判 `HARNESS_ABORT`，exit code 语义显式）
+  - **crash-only snapshot**：`rules/commit.ts` 增 `commitSnapshot()`——`git add -A && git commit --no-verify`，消息 `chore(cdd-engine): crash-only snapshot — <lane> abort (exit <n>)`；树无变化则 no-op；复用现有 git 管线、**一个 commit 动词两处调用**（exit gate + crash teardown）；`--no-verify` 唯一正当理由 = 崩溃瞬间树可能语法半成品（biome 会拒收），快照是恢复点非验收面，质量门禁在 resume 后 exit gate + review + merge——理由落注释
+  - **crash record**：`Workspace` 增 `crashPath(lane)` 子路径 + 经现有 `writeJson` 落 `.osuperpowers/cdd/<slug>/crash-<lane>-<round>.json`：`{exitCode, stderrTail[], stdoutTail[], snapshotSha, attemptedHandoff, next}`（与 lifecycle/handoff/base-branch 同族）
+  - **next 路由**：`rules/next-step.ts` NextStepRouter 决策表增行——`status ∈ {BLOCKED} + recovery/crashRecord 在场 → next: <同命令 resume>`（Inputs 增 `recovery?`：snapshotSha + resumeCommand）；模糊失败（无 crash record）保持无 `next:`；C5-1 决策表注释 + `next-step.test.ts` 钉新行
+  - **stash 平面删除（死壳即删）**：boot apply 路径（dispatch/base.ts `CDD_WARN: residue stash apply` line）· `recovery.residue_ref` persist · `artifacts/residue.ts` 的 stash 部分 · 相关测试 · SKILL/residue 措辞全清——恢复原语归一 commit ledger、编排器零分支记忆
+  - **话术同步**：`cli-driven-development/SKILL.md` 各 failure 面（implement-group/run-group-review/fix-group/branch-review）收一句：「harness 异常退出 → 工作区存 crash-only snapshot + crash record；按 BLOCKED `next:` 原命令重跑即续作（不重做、不丢残骸）」；`docs/maintainers` + 根 `CLAUDE.md` failure-mode 面同步 + 本 403 事故教训登记（stash 跨分支误命中为根因）
+  - 测试：engine-config 类目身份（HARNESS_ABORT 新增 + 计数独立）· next-step recovery 新行 · commitSnapshot（树干净 no-op / `--no-verify` 语义）· crash record 写盘（Workspace.crashPath）· teardown 集成（模拟 child exit 1 无 handoff → tail 保留 + snapshot + record + BLOCKED capsule 带 next:）· 原 stash-residue 测试删改
+- **验收**: `failureCategories` 含 `HARNESS_ABORT`（harnessAbortCount / harness-abort / `BLOCKED: harness-abort-exhausted`）；child 异常退出（无 handoff）→ child stdout/stderr 尾部保留 + crash-only snapshot commit + crash record 落 `Workspace.crashPath`（字段齐：exitCode/stderrTail/stdoutTail/snapshotSha/attemptedHandoff/next）+ BLOCKED capsule `status: BLOCKED · … · next: <同命令 resume>`；`NextStepRouter` 决策表含 recovery 行（next-step.test 钉死）；**stash 平面零残留**——grep `stash apply` / `recovery.residue_ref` /「git stash drop」零命中（engine src/tests + skills + maintainers + CLAUDE.md）；`pnpm run validate` 全绿（含 channel-audit harnessAbortCount 计数）+ precommit 面绿。
+- **注**: 用户 2026-09-30 拍板（403 事故复盘五缺陷 → 崩溃恢复归一设计）；`--no-verify` 是唯一「看似破纪律、实为必要」例外（理由见 design v1.4 §2.2）；本任务含空壳/死代码即删（stash 平面整体）；收敛法自洽——快照 commit 移动 BASE..HEAD ref，re-review 新 ref = 新 review（I3），快照零特权。

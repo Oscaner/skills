@@ -1,9 +1,9 @@
 # Pi Harness P3 — engine 数据面（Pi Harness P3: Engine Data Plane）— Phase Spec
 
-- **Version**: v1.3 · 2026-09-29（spec review-1 fix v1.1 + P3 契约面/词表增项 v1.2 + spec review-2 fix v1.3）
+- **Version**: v1.4 · 2026-09-30（spec review-1 fix v1.1 + P3 契约面/词表增项 v1.2 + spec review-2 fix v1.3 + 崩溃恢复健壮性增项 v1.4）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming → writing-phase-spec)
-- **Parent program**: [2026-09-27-pi-harness-overall.md v1.13](2026-09-27-pi-harness-overall.md)
+- **Parent program**: [2026-09-27-pi-harness-overall.md v1.16](2026-09-27-pi-harness-overall.md)
 - **Depends on**: P1（shipped · [p1-design v1.5](2026-09-27-pi-harness-p1-design.md)）；P2（shipped · 契约面定案——`{claude, cursor, pi}` 三元组行键集）
 
 ## Section 0: Incremental warning
@@ -92,6 +92,42 @@ P3 把 engine 数据面收敛到与 P2 已定的分发契约同构：`harness-re
 - **docs/maintainers 同步**：01-template-doctrine（harness-registry 行键镜像 cursor + pi）· 02-naming-conventions（契约措辞指针）· 03-context-caching-doctrine（Baseline entries 随 C2）· 04-program-experience（Contract Lexicon 机制记录）——行键镜像零 cursor-agent（G2 验收）
 - **根 CLAUDE.md 同步**：`pnpm run emit`/validate 描述随 Contract Lexicon 单 block 更新；engine 调用面（dev:stub / cdd CLI）契约措辞随 C5 单胶囊更新；commit/validate 流程描述不因本 phase 变更
 
+#### 2.2 崩溃恢复健壮性（crash recovery — 用户拍板追加 T7）
+
+事故复盘（P3 T6 implement，上游模型 403 杀死内层 agent → `cli exited 1 and handoff missing`）暴露五缺陷：
+① 无报错保留（child 403 trace 丢失）② resume 流程绕（stash-residue 恢复误命中 P4.4 过期 stash，apply
+冲突把 ~70 文件抹成未合并态）③ BLOCKED 输出无 `next:` ④ 建议 discard（token 浪费）⑤ stash 混乱编排器
+决策。设计主线（允许破坏性/重写/重组/死壳即删）：**崩溃恢复从「stash 状态魔法」归一为「commit 确定性
+事实」——child 异常退出时 engine 就地落一个 ref-keyed 工作区 artifact（crash snapshot commit + crash
+record），恢复 = 同命令重跑即续作**。
+
+- **失败分类**：`templates/engine-config.json#failureCategories` 增 `HARNESS_ABORT`（`counter:
+  harnessAbortCount` · `returnMarker: harness-abort` · `terminal: BLOCKED: harness-abort-exhausted`）—
+  —与 `EXECUTION_FAILURE` 区分：成因外部（harness/模型 403）、可确定性恢复；每类计数独立，一类终态
+  不泄漏进另一类（channel-audit 语义沿用）；`rules/failure.ts` FailureResolver 机械读取（类目声明
+  单源）
+- **teardown（孤儿处理，lane 无关）**：run wrapper（implement/review/fix/docs 四 lane 共用一条）检测
+  child 非零退出 && handoff 未写 → ① 捕获 child stdout/stderr **尾部**（~40 行，缓解「403 不明不白」）
+  ② crash-only commit ③ Workspace 落 crash record ④ 出 BLOCKED capsule（类别改判 `HARNESS_ABORT`）
+- **crash-only snapshot**：`rules/commit.ts` 增 `commitSnapshot`（`git add -A && git commit --no-verify`，
+  消息 `chore(cdd-engine): crash-only snapshot — <lane> abort (exit <n>)`；树无变化则 no-op）——复用
+  现有 git 管线，**一个 commit 动词、两处调用**（exit gate + crash teardown）。`--no-verify` = 唯一
+  「看似破纪律、实为必要」例外：崩溃瞬间树可能语法半成品，pre-commit 的 biome 会拒收——快照是恢复点
+  非验收面，质量门禁在 resume 后的 exit gate + review + merge；理由落文档
+- **crash record 落 Workspace 域**：`Workspace.crashPath(lane)` 子路径（`.osuperpowers/cdd/<slug>/crash-
+  <lane>-<round>.json`）经现有 `writeJson` 落盘：`{exitCode, stderrTail[], stdoutTail[], snapshotSha,
+  attemptedHandoff, next}`——与 lifecycle/handoff/base-branch 同族同级（T6 统一落盘面直接吃掉它）
+- **next 路由**：`NextStepRouter` 决策表增一行——`status ∈ {BLOCKED} + crashRecord 在场 → next: <同命令
+  resume>`（Inputs 增 `recovery?` 面：snapshotSha + resumeCommand）；原则守着、例外开窗：模糊失败（无
+  crash record）仍无 `next:`，可确定性恢复的失败必有 `next:`；C5-1 决策表注释 + `next-step.test.ts` 同步
+- **stash 平面删除（死壳即删）**：boot apply 路径（dispatch/base.ts）、`recovery.residue_ref` persist、
+  `artifacts/residue.ts` 的 stash 部分、SKILL 「resume or discard / git stash drop」措辞、相关测试全清——
+  恢复原语归一 commit ledger，编排器零分支记忆
+- **话术同步**：SKILL failure 面一句定型——「harness 异常退出 → 工作区存 crash-only snapshot + crash
+  record；按 BLOCKED `next:` 原命令重跑即续作（不重做、不丢残骸）」；docs/maintainers + 根 CLAUDE.md
+  failure-mode 表同步
+- **收敛法自洽**：快照 commit 移动 BASE..HEAD ref → re-review 新 ref = 新 review（I3），快照零特权
+
 ### Acceptance criteria
 
 - `harness-registry.json` 行键集合断言恰 `{claude, cursor, pi}`（registry / infra.registry 测试 name-set，G1）
@@ -106,6 +142,7 @@ P3 把 engine 数据面收敛到与 P2 已定的分发契约同构：`harness-re
 - **Contract Lexicon 守卫全绿**：`contract-lexicon.json` 五域词表存在且与引擎事实一致（单词表 = 单一事实源）· `ContractLexiconGuard` 四检查（checkAnatomy/checkResidue/checkWording/checkConfig）在 validate 单 block 下全绿 · 三先例 test 入口收敛后无回归（digraph-consistency/residue.test/context.test 断言经 guard 同源通过）
 - **消费面措辞同步**：`cli-driven-development/SKILL.md` 零引擎形状 restate（`3-line return block` / `4th line counters` 类字面量清零），仅锚路由 token（`next:`/`CDD_BLOCKED:`/handoff `findings`）；`contract-wording` 检查零命中
 - **运维文档 + CLAUDE.md 同步落地**：docs/maintainers 全家族（01/02/03/04）与契约面/词表一致、行键镜像零 cursor-agent · 根 CLAUDE.md emit/validate 描述随 Contract Lexicon 单 block 与 C5 单胶囊更新 · `pnpm run emit` + `emit:check` 零漂移（skill 文本变化后重新 emit）
+- **T7 崩溃恢复全绿**：failureCategories 含 `HARNESS_ABORT`（harnessAbortCount / harness-abort terminal）· NextStepRouter 决策表含 recovery 行（BLOCKED + crashRecord → 同命令 resume `next:`，next-step.test 钉死）· teardown 集成测试（模拟 child exit 1 无 handoff → child tail 保留 + crash-only snapshot + crash record 落 `Workspace.crashPath` + BLOCKED capsule 带 next:）· commitSnapshot 行为测试（树干净 no-op / `--no-verify` 语义）· **stash 平面零残留**（grep `stash apply`/`recovery.residue_ref`/「git stash drop」零命中，含 SKILL/maintainers/CLAUDE.md 措辞）· `pnpm run validate` 全绿 + precommit 面绿
 
 ## Section 3: Deviations from overall
 
@@ -126,6 +163,7 @@ P3 把 engine 数据面收敛到与 P2 已定的分发契约同构：`harness-re
 - **engine dist 资源**：`harness-registry.json` 随包发布（build.config.ts copy → `dist/resources/`）；本轮 rename + pi 行 + contract-lexicon.json = engine npm 包数据面变更，需 changeset 记录
 - **P3 消费面同步**（C7）：`cli-driven-development/SKILL.md:59` 形状 restate 待删改（P3 交付时）——P3 交付后 orchestrator skill 措辞与引擎契约面同源（契约词表）；P4 收口时若引擎形状再变，`ContractLexiconGuard.checkWording` 将机械拦截旧 token re-entry（零漂移）
 - **Contract Lexicon 与 emit 的关系**：`contract-lexicon.json` 若放 engine templates/schema（`../../cdd-engine` 引用面），emit 产物面不新增文件（词表 = engine 数据面，非分发 manifest）；CLAUDE.md/`pnpm run emit` 描述随 validate block 更新（emit:check 零漂移）
+- **T7 波及面（崩溃恢复）**：`HARNESS_ABORT` 类别与 crash record 是新增横切——validate 的 channel-audit 需将 harnessAbortCount 纳入逐类计数断言（零泄漏）；`--no-verify` 快照语义写入 maintainers（hook 旁路的唯一正当理由 = crash-only snapshot）；P4 收口若引擎形状再变，ContractLexiconGuard.checkWording 机械拦截（零漂移）；crash record 属于工作区状态族，不参与消费面 restate
 
 ## Section 5: Review
 
@@ -133,4 +171,4 @@ Review Convergence 应用方：`cdd review --type spec --spec docs/osuperpowers/
 - blocker > 0 → fix 全部 findings → `cdd fix` 后 re-review
 - blocker = 0 → fix 全部 findings（warn + nit）→ done，不 re-review（Review Convergence 规则详见 parent overall section/各 orchestrator Invariants）
 - commit 前提：Review 收敛（status = APPROVED / REVIEW_FIX 走 fix 闭环后），spec approved = commit immediately
-- 本文件备选的偏离面已全部经 overall v1.12/v1.13 回填（Section 3 各行 `Overall updated?` = Yes）
+- 本文件备选的偏离面已全部经 overall v1.12/v1.13/v1.16 回填（Section 3 各行 `Overall updated?` = Yes；T7 崩溃恢复经 overall v1.16 登记）

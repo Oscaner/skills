@@ -24,7 +24,7 @@
 // rules/convergence.ts (NOT the cli/shared.ts re-export), return-block atoms from
 // artifacts/return-block.ts, and the dry-run flag is INJECTED by the CLI wrapper (DRY_RUN() is a
 // cli-module process-local; this module never reads it from elsewhere). Zero upward cli imports.
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { CrashTeardown, crashCauseFor, resumeCommandFor } from "../artifacts/crash.ts";
 import {
@@ -36,7 +36,7 @@ import { readJson, writeHandoff, writeOwnHandoff } from "../artifacts/handoff/wr
 import { Handoff } from "../artifacts/handoff.ts";
 import { exitOk, exitWithCode } from "../infra/exit.ts";
 import { EngineInvoker } from "../infra/invoke.ts";
-import { initProcLifecycle } from "../infra/proc.ts";
+import { initProcLifecycle, type TerminationCause } from "../infra/proc.ts";
 import { CddBlockedError, REG_PATH, Registry } from "../infra/registry.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
 import { type Workspace, WorkspaceRoot } from "../infra/workspace.ts";
@@ -105,6 +105,7 @@ interface BranchInvokeResult {
   stdout: string;
   stderr: string;
   timedOut: boolean;
+  cause?: TerminationCause;
 }
 
 /** BranchLifecycle — the branch family's shared base: the entry-gate no-op + the registry ship gate
@@ -129,6 +130,13 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
   /** the child's raw stdout/stderr (T7 — preserved for the crash teardown's output tails). */
   protected agentStdout = "";
   protected agentStderr = "";
+  /** whether the termination monitor ended the dispatch (engine-side kill — over-budget / stall /
+   *  or an external SIGTERM folding as "signal"; T8): the no-handoff teardown routes engine-
+   *  terminated rounds to the TIMEOUT face with the unified cause, never the HARNESS_ABORT child face. */
+  protected agentTimedOut = false;
+  /** the termination monitor's unified cause (stalled / over-budget / signal; absent when the child
+   *  ended naturally — the child-death classification derives from the exit shape instead). */
+  protected agentCause: TerminationCause | undefined;
   /** the schema-validated / recovered handoff (schemaValidate → normalizeResult handoff). */
   protected agentHandoff: Record<string, unknown> | null = null;
   /** post-finalization exit code — normalizeResult stores it; the fix wrapper emits it AFTER the
@@ -240,17 +248,29 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
   }): Promise<void> {
     const { phase, label, reRun, commits, lane, round, crashNext } = options;
 
-    // Nested CLI failed with no handoff → the T7 HARNESS_ABORT teardown + BLOCKED carrier +
+    // Nested CLI failed with no handoff → the T7/T8 teardown + BLOCKED/TIMEOUT carrier +
     // CDD_BLOCKED diagnostic + exit 1 (mirrors runner step 10; the branch lanes abort via
-    // exitWithCode so the template post-flight never fires). The harness-aborted dispatch's output
-    // tail + crash-only snapshot are recorded; SIGTERM (143) stays annotated so the death cause is
+    // exitWithCode so the template post-flight never fires). The death shape splits the face:
+    // engine-terminated rounds (timedOut — the termination monitor ended the dispatch over-budget /
+    // stall / external SIGTERM) classify by the monitor's unified cause and route to the TIMEOUT
+    // category — the same face the task lane threads (task.ts step 8.5); child-exit rounds keep the
+    // HARNESS_ABORT identity with the exit-shape classification. The aborted dispatch's output tail
+    // + crash-only snapshot are recorded; SIGTERM (143) stays annotated so the death cause is
     // replayable. Resume = re-running the same command (crash record next), never a stash workflow.
-    if (this.agentRc !== 0 && !existsSync(this.handoffPath)) {
+    if ((this.agentRc !== 0 || this.agentTimedOut) && !existsSync(this.handoffPath)) {
+      const engineTerminated = this.agentTimedOut;
+      const crashCause = engineTerminated
+        ? crashCauseFor({
+            timedOut: true,
+            monitorCause: this.agentCause,
+            exitCode: this.agentCause === "signal" ? 143 : 1,
+          })
+        : crashCauseFor({ exitCode: this.agentRc }); // unified cause (T8) — child-exit / child-signal
       const crashRecord = await crash.run({
         lane,
         round,
-        exitCode: this.agentRc,
-        cause: crashCauseFor({ exitCode: this.agentRc }), // unified cause (T8) — child-exit / child-signal
+        exitCode: engineTerminated ? (this.agentCause === "signal" ? 143 : 1) : this.agentRc,
+        cause: crashCause,
         stdout: this.agentStdout,
         stderr: this.agentStderr,
         attemptedHandoff: this.handoffPath,
@@ -261,14 +281,25 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
       writeBlockedCarrier(this.handoffPath, {
         tasks: [1],
         phase,
-        failure_category: FAILURE_CATEGORIES.HARNESS_ABORT.id,
+        status: engineTerminated ? "TIMEOUT" : undefined,
+        failure_category: engineTerminated
+          ? FAILURE_CATEGORIES.TIMEOUT.id
+          : FAILURE_CATEGORIES.HARNESS_ABORT.id,
         ...(commits ? { commits } : {}),
-        notes: crashRecord.snapshotSha
-          ? `crash snapshot ${crashRecord.snapshotSha.slice(0, 7)}`
-          : undefined,
-        blocker: `cli exited ${this.agentRc}${this.agentRc === 143 ? " (SIGTERM — externally killed)" : ""} without writing handoff → the harness aborted before the handoff; the dispatch's output tail + crash-only snapshot are recorded — resume by re-running the same command (\`${crashNext}\`) → re-run ${reRun}`,
+        notes: engineTerminated
+          ? `termination cause: ${crashCause}${crashRecord.snapshotSha ? `; crash snapshot ${crashRecord.snapshotSha.slice(0, 7)}` : ""}`
+          : crashRecord.snapshotSha
+            ? `crash snapshot ${crashRecord.snapshotSha.slice(0, 7)}`
+            : undefined,
+        blocker: engineTerminated
+          ? `cli terminated (cause: ${crashCause}) before writing handoff → the dispatch's output tail + crash-only snapshot are recorded — resume by re-running the same command (\`${crashNext}\`) → re-run ${reRun}`
+          : `cli exited ${this.agentRc}${this.agentRc === 143 ? " (SIGTERM — externally killed)" : ""} without writing handoff → the harness aborted before the handoff; the dispatch's output tail + crash-only snapshot are recorded — resume by re-running the same command (\`${crashNext}\`) → re-run ${reRun}`,
       });
-      process.stderr.write(`CDD_BLOCKED: ${label} failed (exit ${this.agentRc})\n`);
+      process.stderr.write(
+        engineTerminated
+          ? `CDD_BLOCKED: ${label} terminated (cause: ${crashCause})\n`
+          : `CDD_BLOCKED: ${label} failed (exit ${this.agentRc})\n`,
+      );
       exitWithCode(1);
     }
 
@@ -499,6 +530,8 @@ export class BranchReviewLifecycle extends BranchLifecycle {
     this.agentRc = res.code;
     this.agentStdout = res.stdout;
     this.agentStderr = res.stderr;
+    this.agentTimedOut = res.timedOut === true;
+    this.agentCause = res.cause;
   }
 
   /** Steps 8.8/10/10.5: agent-failure / no-handoff lanes (BLOCKED carrier writes) + schema
@@ -753,6 +786,23 @@ export class BranchFixLifecycle extends BranchLifecycle {
     // termination (single resolver — same surface as task/docs/branch-review). T9: the budget key
     // is the branch-fix OPERATION ("fix") — the former hardcoded "review" made branch-fix read
     // the review budget (wrong for a work-type round).
+    // 7.5 Stale-carrier rotation (T7 crash-resume hygiene, repeat-abort) — mirror of the task lane's
+    // step 7.5: the branch-fix round's handoff name is round-stable (fix round pinned to the source
+    // review's round + ref), so a first crash leaves a BLOCKED HARNESS_ABORT carrier at the path the
+    // resume re-dispatches. Rotate it away before the child runs: a second consecutive abort
+    // re-fires the crash teardown (fresh crash record + crash-only snapshot of the RESUME session's
+    // WIP) instead of being suppressed by the stale carrier (the teardown guard
+    // `!existsSync(handoffPath)` would read true). Only an engine-terminal carrier is rotated —
+    // writeBlockedCarrier always writes failure_category, the discriminator vs an agent-written
+    // handoff; the carrier is untracked (.osuperpowers is gitignored), so the rotation is a pure
+    // on-disk hygiene op with zero git-tree impact. The branch-review round is NOT round-stable
+    // (round auto-increments per resumed ref) — no rotation needed there.
+    if (!this.opts.dryRun) {
+      const stale = readJson(this.handoffPath) as { failure_category?: unknown } | null;
+      if (stale && typeof stale.failure_category === "string") {
+        rmSync(this.handoffPath);
+      }
+    }
     const terminationCfg = invoker.resolveTerminationConfig("fix", undefined, this.workspace!.path);
     const res = (await invoker.invokeCliWithRetry(
       this.entry!,
@@ -765,6 +815,8 @@ export class BranchFixLifecycle extends BranchLifecycle {
     this.agentRc = res.code;
     this.agentStdout = res.stdout;
     this.agentStderr = res.stderr;
+    this.agentTimedOut = res.timedOut === true;
+    this.agentCause = res.cause;
   }
 
   /** Steps 8.8/10/10.5: agent-failure / no-handoff lanes + schema recovery (the commit-contract

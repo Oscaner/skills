@@ -799,7 +799,7 @@ export function collectContextModuleHardcodeHits(
 // residue re-read, so it sits outside the residue ban's intent. The brief mandates the signal and
 // its acceptance gate is `pnpm run validate` green; per the guard's own `全枚举白名单`
 // (fully-enumerated-whitelist) principle the
-// carve-out is enumerated to THIS file only (same precedent as the naming.ts readdirSync whitelist).
+// carve-out is enumerated to THIS file only (same precedent as the documents.ts doc-existence carve-out).
 // Every other residue token (latestHandoff/…) is still scanned inside proc.ts; any mtime/readdirSync
 // use in any OTHER file still hits — pinned by the ⑪ selftest (incl. the golden temp-dir test).
 const RESIDUAL_SCAN_RE =
@@ -821,12 +821,11 @@ export function collectResidualRereadHits(targetsOverride = CDD_ENGINE_BIN) {
   for (const f of dirs) {
     const abs = path.isAbsolute(f) ? f : path.join(ROOT, f);
     if (!readFileSync(abs, "utf8").includes("readdirSync")) continue;
-    if (f === "packages/cdd-engine/src/artifacts/handoff/naming.ts") continue;
     if (f === LIVENESS_PROBE_FILE) continue; // T14 probe page (whitelist enumerated above)
     // P2 T3: the four-table audit's doc-existence globs + anchor-registry scan enumerate the two
     // program doc dirs (specs/ + plans/, both explicit path arguments — never a full-tree find):
-    // same fully-enumerated carve-out doctrine as the naming.ts whitelist (bounded dir listing in
-    // the doc-contract judgment, not a "most recent" residue re-read).
+    // same fully-enumerated carve-out doctrine as the runtime.ts T14 probe carve-out (bounded dir
+    // listing in the doc-contract judgment, not a "most recent" residue re-read).
     if (f === "packages/cdd-engine/src/rules/documents.ts") continue;
     hits.push({
       label:

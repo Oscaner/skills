@@ -897,7 +897,8 @@ describe("channel audit：⑪ 零「最近一次」残留回读", () => {
   });
   it("T3 白名单：documents.ts 四表审计目录枚举零残留命中 + glob 语汇仍在（白名单不空置）", () => {
     // P2 T3: the four-table audit's doc-existence globs + anchor-registry scan enumerate the two
-    // program doc dirs (bounded explicit-path listings — the naming.ts whitelist's doctrine).
+    // program doc dirs (bounded explicit-path listings — the documents.ts doc-existence carve-out's
+    // doctrine).
     // The whitelist entry must stay load-bearing — the readdirSync atoms remain in the file.
     const here = path.dirname(fileURLToPath(import.meta.url));
     const docsAbs = path.join(

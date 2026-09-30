@@ -19,7 +19,7 @@
 // runDocsTask keeps the legacy surface ({ exitCode, handoff }; noExit-free — the CLI discards the
 // return, so an entry-gate block throws ExitRequested(1) for the process exit) and delegates to
 // the lifecycle — existing consumers/tests unchanged.
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { CrashTeardown, crashCauseFor, resumeCommandFor } from "../artifacts/crash.ts";
 import {
@@ -34,7 +34,7 @@ import { hashFile } from "../artifacts/hash.ts";
 import { type ExitRequested, exitWithCode, invariant } from "../infra/exit.ts";
 import { GitClient } from "../infra/git.ts";
 import { type DispatchOp, EngineInvoker } from "../infra/invoke.ts";
-import { withLifecycle } from "../infra/proc.ts";
+import { type TerminationCause, withLifecycle } from "../infra/proc.ts";
 import { REG_PATH, Registry } from "../infra/registry.ts";
 import { getRoot } from "../infra/root.ts";
 import { Workspace } from "../infra/workspace.ts";
@@ -114,6 +114,14 @@ export class DocsLifecycle extends DispatchLifecycle {
   /** the child's raw stdout/stderr (T7 — preserved for the crash teardown's output tails). */
   #agentStdout = "";
   #agentStderr = "";
+  /** whether the termination monitor ended the dispatch (engine-side kill — over-budget / stall /
+   *  or an external SIGTERM folding as "signal"; T8): the docs no-handoff teardown routes
+   *  engine-terminated rounds to the TIMEOUT face with the unified cause, never the HARNESS_ABORT
+   *  child face. */
+  #agentTimedOut = false;
+  /** the termination monitor's unified cause (stalled / over-budget / signal; absent when the child
+   *  ended naturally — the child-death classification derives from the exit shape instead). */
+  #agentCause: TerminationCause | undefined;
   #handoff: Record<string, unknown> | null = null;
   #exitCode = 0;
   #finished = false;
@@ -232,6 +240,23 @@ export class DocsLifecycle extends DispatchLifecycle {
     // prefix.fix (flat string) respectively; type threads from cdd review/fix --type.
     const reg = registry.load(REG_PATH);
     const entry = registry.checkHarness(reg, harness);
+    // 7.5 Stale-carrier rotation (T7 crash-resume hygiene, repeat-abort) — mirror of the task lane's
+    // step 7.5: the docs FIX round's handoff name is round-stable (fix round pinned to the source
+    // review's round — the resume re-targets the same filename the first crash left a BLOCKED
+    // HARNESS_ABORT carrier on), so the stale carrier must be rotated away before the child runs: a
+    // second consecutive abort re-fires the crash teardown (fresh crash record + crash-only snapshot
+    // of the RESUME session's WIP) instead of being suppressed by the stale carrier (the teardown
+    // guard `!existsSync(handoffPath)` would read true). Only an engine-terminal carrier is rotated —
+    // writeBlockedCarrier always writes failure_category, the discriminator vs an agent-written
+    // handoff; the carrier is untracked (.osuperpowers is gitignored), so the rotation is a pure
+    // on-disk hygiene op with zero git-tree impact. The review round is NOT round-stable (round
+    // auto-increments per resume) — no rotation needed there.
+    if (mode === "fix" && !this.#opts.dryRun) {
+      const stale = readJson(handoffPath) as { failure_category?: unknown } | null;
+      if (stale && typeof stale.failure_category === "string") {
+        rmSync(handoffPath);
+      }
+    }
     // Unified termination (T26 — budget-only for docs, no workspace
     // tree signal, same as the budget channel of task/branch; resolveTerminationConfig defaults
     // the budget from canonical timeouts.defaults.<mode> — the DISPATCHED OP, never a hardcoded
@@ -247,6 +272,8 @@ export class DocsLifecycle extends DispatchLifecycle {
     this.#agentRc = res.code;
     this.#agentStdout = res.stdout;
     this.#agentStderr = res.stderr;
+    this.#agentTimedOut = res.timedOut === true;
+    this.#agentCause = res.cause;
   }
 
   // ---- post-flight ----
@@ -257,14 +284,19 @@ export class DocsLifecycle extends DispatchLifecycle {
     if (this.#finished) return;
     const handoffPath = this.#opts.handoffPath!;
     if (!existsSync(handoffPath)) {
-      // The docs channel's no-handoff lane splits on the child's exit code (T7 — the deleted
-      // base settleResidue stash step is replaced by the crash teardown):
-      //   rc !== 0 → HARNESS_ABORT (external retreat — harness/model abort): capture the output
-      //              tail + crash-only snapshot + crash record (the "403 with no trace" mitigation),
-      //              BLOCKED carrier category re-judged from the legacy EXECUTION_FAILURE lane;
-      //   rc === 0 → the discipline-failure face (agent exited 0 without writing the handoff —
-      //              ENGINE_SELF_WRITTEN, never a diagnosed death).
-      if (this.#agentRc !== 0) {
+      // The docs channel's no-handoff lane splits on the death shape (T7/T8 — the deleted base
+      // settleResidue stash step is replaced by the crash teardown):
+      //   rc !== 0 && timedOut  → the TERMINATION face (the termination monitor ended the dispatch —
+      //              over-budget / stall / external SIGTERM): unified T8 cause from the monitor
+      //              verdict + TIMEOUT category (same face as the task lane's step 8.5), crash
+      //              record + output tail + crash-only snapshot + the same-command resume;
+      //   rc !== 0             → HARNESS_ABORT (external retreat — harness/model abort): capture the
+      //              output tail + crash-only snapshot + crash record (the "403 with no trace"
+      //              mitigation), BLOCKED carrier category re-judged from the legacy
+      //              EXECUTION_FAILURE lane;
+      //   rc === 0             → the discipline-failure face (agent exited 0 without writing the
+      //              handoff — ENGINE_SELF_WRITTEN, never a diagnosed death).
+      if (this.#agentRc !== 0 || this.#agentTimedOut) {
         // The docs round for the crash record's round-qualified file name (derived from the
         // canonical handoff name — the family round is the either-side contract).
         const roundMatch = path
@@ -279,11 +311,22 @@ export class DocsLifecycle extends DispatchLifecycle {
             ? { findingsPath: this.#opts.findingsPath ?? undefined }
             : {}),
         });
+        // Unified termination cause (T8 threading): engine-terminated rounds classify by the
+        // monitor's verdict (engine-over-budget / engine-timeout / signal-folding as child-signal),
+        // child-exit rounds by their exit shape — the same two-way derivation the task lane threads.
+        const engineTerminated = this.#agentTimedOut;
+        const crashCause = engineTerminated
+          ? crashCauseFor({
+              timedOut: true,
+              monitorCause: this.#agentCause,
+              exitCode: this.#agentCause === "signal" ? 143 : 1,
+            })
+          : crashCauseFor({ exitCode: this.#agentRc }); // unified cause (T8) — child-exit / child-signal
         const crashRecord = await crash.run({
           lane: "docs",
           round,
-          exitCode: this.#agentRc,
-          cause: crashCauseFor({ exitCode: this.#agentRc }), // unified cause (T8) — child-exit / child-signal
+          exitCode: engineTerminated ? (this.#agentCause === "signal" ? 143 : 1) : this.#agentRc,
+          cause: crashCause,
           stdout: this.#agentStdout,
           stderr: this.#agentStderr,
           attemptedHandoff: handoffPath,
@@ -297,11 +340,18 @@ export class DocsLifecycle extends DispatchLifecycle {
           writeBlockedCarrier(handoffPath, {
             phase: this.#opts.mode,
             doc: this.#opts.doc,
-            failure_category: FAILURE_CATEGORIES.HARNESS_ABORT.id,
-            notes: crashRecord.snapshotSha
-              ? `crash snapshot ${crashRecord.snapshotSha.slice(0, 7)}`
-              : undefined,
-            blocker: `cli exited ${this.#agentRc}${this.#agentRc === 143 ? " (SIGTERM — externally killed)" : ""} without writing handoff → the harness aborted before the handoff; the dispatch's output tail + crash-only snapshot are recorded — resume by re-running the same command (\`${crashNext}\`)`,
+            status: engineTerminated ? "TIMEOUT" : undefined,
+            failure_category: engineTerminated
+              ? FAILURE_CATEGORIES.TIMEOUT.id
+              : FAILURE_CATEGORIES.HARNESS_ABORT.id,
+            notes: engineTerminated
+              ? `termination cause: ${crashCause}${crashRecord.snapshotSha ? `; crash snapshot ${crashRecord.snapshotSha.slice(0, 7)}` : ""}`
+              : crashRecord.snapshotSha
+                ? `crash snapshot ${crashRecord.snapshotSha.slice(0, 7)}`
+                : undefined,
+            blocker: engineTerminated
+              ? `cli terminated (cause: ${crashCause}) before writing handoff → the dispatch's output tail + crash-only snapshot are recorded — resume by re-running the same command (\`${crashNext}\`)`
+              : `cli exited ${this.#agentRc}${this.#agentRc === 143 ? " (SIGTERM — externally killed)" : ""} without writing handoff → the harness aborted before the handoff; the dispatch's output tail + crash-only snapshot are recorded — resume by re-running the same command (\`${crashNext}\`)`,
           }),
         );
         return;

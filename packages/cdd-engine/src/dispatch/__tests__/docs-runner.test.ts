@@ -528,11 +528,103 @@ describe("runDocsTask", () => {
         const crash = JSON.parse(readFileSync(join(dir, `ws${i}`, "crash-docs-1.json"), "utf8"));
         expect(crash.exitCode).toBe(face.rc);
         expect(crash.snapshotSha).toBeNull();
+        expect(crash.cause).toBe(face.rc === 143 ? "child-signal" : "child-exit"); // unified-cause classification (T8)
         expect(crash.next).toContain("cdd review --type spec --spec");
       } else {
         expect(existsSync(join(dir, `ws${i}`, "crash-docs-1.json"))).toBe(false);
       }
     }
+  });
+
+  it("T8 docs unified cause: an engine-terminated (timedOut) no-handoff round routes to the TIMEOUT category with the unified cause — not HARNESS_ABORT/child-exit", async () => {
+    const { execa } = await import("execa");
+    const dir = mkdtempSync(join(tmpdir(), "p2term-"));
+    const doc = join(dir, "spec.md");
+    writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
+    vi.resetModules();
+    const { DocsLifecycle } = await import("../docs.ts");
+    const { writeHandoff } = await import("../../artifacts/handoff/write.ts");
+    mockRealWriteBack(writeHandoff);
+    // A signal-ended dispatch (spawnManaged folds res.signal === "SIGTERM" → timedOut + cause
+    // "signal"): the engine-terminated face — same routing as the task lane's step 8.5 (TIMEOUT
+    // category + the unified cause), never the HARNESS_ABORT/child-shape face of the child-exit lane.
+    execa.mockResolvedValue({ exitCode: 143, stdout: "trace", stderr: "", signal: "SIGTERM" });
+    const result = await DocsLifecycle.run({
+      harness: "claude",
+      mode: "review",
+      template: "review",
+      type: "spec",
+      doc,
+      handoffPath: join(dir, "ws", "spec-review-1.json"),
+      repoRoot: "/repo/root",
+      dryRun: false,
+    });
+    expect(result.exitCode).toBe(1);
+    expect(result.handoff.status).toBe("TIMEOUT");
+    expect(result.handoff.failure_category).toBe("TIMEOUT");
+    const crash = JSON.parse(readFileSync(join(dir, "ws", "crash-docs-1.json"), "utf8"));
+    expect(crash.cause).toBe("child-signal"); // monitor cause "signal" → the signal-folding classification
+    expect(crash.exitCode).toBe(143); // the 128+signo convention
+    expect(crash.next).toContain("cdd review --type spec --spec");
+  });
+
+  it("T7 docs-fix repeat-abort: the stale HARNESS_ABORT carrier at the round-stable fix path is rotated pre-dispatch → the second abort re-fires the crash teardown (fresh crash record)", async () => {
+    const { execa } = await import("execa");
+    const dir = mkdtempSync(join(tmpdir(), "p2rot-"));
+    const doc = join(dir, "spec.md");
+    writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
+    const findingsPath = join(dir, "spec-review-1.json");
+    writeFileSync(
+      findingsPath,
+      `${JSON.stringify(
+        {
+          phase: "review",
+          status: "CHANGES_REQUESTED",
+          findings: [{ severity: "blocker" }],
+          artifacts: {},
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    vi.resetModules();
+    const { DocsLifecycle } = await import("../docs.ts");
+    const { writeHandoff } = await import("../../artifacts/handoff/write.ts");
+    // The carrier must land on disk so the resume's rotation can read it (writeHandoff default mock
+    // does not write).
+    mockRealWriteBack(writeHandoff);
+    const handoffPath = join(dir, "ws", "spec-fix-1.json");
+    const runFix = () =>
+      DocsLifecycle.run({
+        harness: "claude",
+        mode: "fix",
+        template: "review",
+        type: "spec",
+        doc,
+        findingsPath,
+        handoffPath,
+        repoRoot: "/repo/root",
+        dryRun: false,
+      });
+    // Round 1: the docs fix agent aborts (exit 1, no handoff) → HARNESS_ABORT teardown + carrier at
+    // the round-stable fix path.
+    execa.mockResolvedValue({ exitCode: 1, stdout: "", stderr: "round1-trace", timedOut: false });
+    const r1 = await runFix();
+    expect(r1.exitCode).toBe(1);
+    expect(r1.handoff.failure_category).toBe("HARNESS_ABORT");
+    const rec1 = JSON.parse(readFileSync(join(dir, "ws", "crash-docs-1.json"), "utf8"));
+    expect(rec1.stderrTail).toContain("round1-trace");
+    // Resume (same command — the docs fix round is pinned to the source review's round): the agent
+    // aborts AGAIN with a new trace. The stale round-1 carrier must be rotated pre-dispatch so the
+    // teardown re-fires with the resume session's output — the suppressed path would finalize from
+    // the stale carrier and leave the round-1 record untouched.
+    execa.mockResolvedValue({ exitCode: 1, stdout: "", stderr: "round2-trace", timedOut: false });
+    const r2 = await runFix();
+    expect(r2.exitCode).toBe(1);
+    expect(r2.handoff.failure_category).toBe("HARNESS_ABORT");
+    const rec2 = JSON.parse(readFileSync(join(dir, "ws", "crash-docs-1.json"), "utf8"));
+    expect(rec2.stderrTail).toContain("round2-trace"); // fresh record — the resume session's trace
+    expect(existsSync(handoffPath)).toBe(true); // the fresh BLOCKED carrier replaced the rotated stale one
   });
 
   it("plan 家族镜像：review-mode type:plan 定稿注入 doc_hash（真实双族 handoff 断言）", async () => {

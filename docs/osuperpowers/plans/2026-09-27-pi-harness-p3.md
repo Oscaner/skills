@@ -3,8 +3,8 @@
 **Spec:** [2026-09-27-pi-harness-p3-design.md](docs/osuperpowers/specs/2026-09-27-pi-harness-p3-design.md)
 
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.17](docs/osuperpowers/specs/2026-09-27-pi-harness-overall.md)
-- **Version**: v1.9 · 2026-09-30（plan review-3 fixes v1.3 + 用户拍板 T6 bootstrap v1.4 → Workspace 收编 v1.5 → T6 补钉 v1.6 → T7 崩溃恢复 v1.7 → review-5 fixes v1.8 → **T8 统一终止模型 v1.9**）
-- **Depends on**: P3 design v1.5 Approved（`495707f4` 前版 C1–C7 + 契约面 D1–D4 + Contract Lexicon L2 + 崩溃恢复 T7 + 统一终止模型 T8）
+- **Version**: v1.10 · 2026-09-30（plan review-3 fixes v1.3 + 用户拍板 T6 bootstrap v1.4 → Workspace 收编 v1.5 → T6 补钉 v1.6 → T7 崩溃恢复 v1.7 → review-5 fixes v1.8 → **T8 统一终止模型 v1.9** → **T9 预算维度统一 v1.10**）
+- **Depends on**: P3 design v1.6 Approved（`495707f4` 前版 C1–C7 + 契约面 D1–D4 + Contract Lexicon L2 + 崩溃恢复 T7 + 统一终止模型 T8 + 预算维度统一 T9）
 - **Base**: develop
 
 ## Constraints
@@ -30,7 +30,7 @@
 ### Flow Atomicity
 
 - 单任务原子：每个任务闭合前该任务面测试 + 相关 validate 面全绿；name-set / byte / 白名单 pin 破即是设计漂移信号，报告 orchestrator 判定而非"带伤闭合"
-- 串行 dispatch：T1→T2→T3→T4→T5→T6→T7，全 singleton 组（无 `## Task Groups` 合并）
+- 串行 dispatch：T1→T2→T3→T4→T5→T6→T7→T8→T9，全 singleton 组（无 `## Task Groups` 合并）
 - T3（命令契约面）闭合必跑 `dev:stub` 使后续 dispatch 消费新契约面；T4 词表接线后 validate 单 block 是验收主体
 
 ### 顺序原则
@@ -38,6 +38,7 @@
 - T1（C1+C2 engine 数据面核心：harness.ts 抽象 + registry rename + pi 行）→ T2（C3 测试接线：三元组 name-set + 优先级矩阵 + residue G2 守卫）→ T3（C5 命令契约面：StatusDeriver/NextStepRouter/ResultFace + 调用面）→ T4（C6 Contract Lexicon：contract-lexicon.json + ContractLexiconGuard 收敛）→ T5（C7 消费面措辞 + C4 声明 + 运维文档/CLAUDE.md + changeset + 终验 validate 全绿）→ T6（Workspace 域收编：WorkspaceRoot/Workspace 双类 + 双源灭绝 + 死壳删除 + lifecycle 归位，用户拍板追加）→ T7（崩溃恢复健壮性：HARNESS_ABORT + crash-only snapshot + stash 平面删除，消费 T6 Workspace 域）→ T8（统一终止模型：exit gate 前终止全类覆盖 + crash record 三方统一 + cause + resume 软帽 + 类别/机制解耦，用户拍板追加）
 - T6→T7 置尾：workspace 数据面收编依赖前五任务的实际产物面（contract lexicon / 契约面已落），且 bootstrap 保证（`.osuperpowers/.gitignore` 自守卫）+ lifecycle 归位 slug 是全程序 workspace 落点的统一收口；T7 崩镜记录/恢复（crash record 落盘 + crash-only snapshot + 恢复路由）依赖 T6 Workspace 域承接（`crashPath` / `writeJson` / snapshot 落点），顺序必在 T6 之后——T6 收编为 T7 铺平单一落点
 - T7→T8 置尾：T8 在 T7 落地物上增量（crash record 形状 / teardown 单路机制已具），T7 通用谓词天然兜住 over-budget/timeout（engine terminated child = 非零退出 + 无 handoff），T8 仅正式化 cause 归类 + 三方统一 + 软帽——**零空窗**；T8 顺序必在 T7 之后
+- T8→T9 置尾：T9（预算维度统一）在 T8 落地物上增量——T8 大改 task.ts（teardown 单路化），T9 再动同一岛 spawn 点的 mode 传参（一行增量零冲突）；T9 修复的正是预算接线 bug（task island 硬编码 `"task"` 使 `review --type task` 错读实施预算），op 维度与 T8 的 cause `engine-over-budget` 语义对齐；T9 顺序必在 T8 之后
 - 每任务 end-to-end：实现 → 该任务面测试绿 → precommit 面绿
 
 ### 仓库纪律
@@ -162,3 +163,14 @@
   - **话术/测试**：SKILL failure 面一句话已覆盖全类（「同命令重跑即续作」不变）；测试 = teardown 矩阵（child-exit / child-signal / over-budget / timeout 四类终止模拟 → 同路 snapshot + crash record（含 cause）+ BLOCKED capsule next 同命令 resume）+ resume 软帽打到 cap → `BLOCKED: crash-recovery-cap` 用户裁决 + reapStale 枚举 stale crash records 清理 + `residue_ref` 缺失后 progress 派生 resume-pending 断言 + channel-audit 计数（类别身份/机制分面）
 - **验收**: teardown 触发谓词 = **任意 exit gate 前终止**（非 child-exit 独占）——over-budget/timeout 终止 → snapshot + crash record（含 `cause`）+ BLOCKED capsule `next:` 同命令 resume，与 child-exit **同一实现路径**（teardown 矩阵测试钉死，非并行第二套）；crash record 含 `cause` 字段且行为零分叉；crash record 三方统一（teardown 写 / resume 读 / reapStale 枚举 stale records）；`recovery.residue_ref` / 旧独立 recovery 持久化面零残留（grep 零命中 + channel-audit 断言）；resume 软帽 3 次 → `BLOCKED: crash-recovery-cap`（FailureResolver 类别 cap 面不动）；`pnpm run validate` 全绿（含渠道审计）+ precommit 面绿。
 - **注**: 用户 2026-09-30 拍板（高维复盘折叠 A–D：对偶模型 / 三方统一 / 类别机制解耦 / 软帽；T7 通用 teardown 谓词已天然兜 over-budget，T8 正式化归类——**T7→T8 零空窗**）；本任务含死壳即删（`residue_ref` 持久化面、TIMEOUT/EXECUTION_FAILURE 残余独立 recovery 机制）；类别身份面与机制面测试分接（census 表管身份、teardown 通杀）。
+
+### Task 9: 预算维度统一（op 维度抽象：timeouts.defaults {implement/review/fix} + 三岛按 op 接线 + DispatchOp union + 接线层测试，用户拍板 2026-09-30）
+
+- **Do**: §2.4 落地（在 T8 落地物上增量，破坏性授权内：重写/删 key/死壳即删）——
+  - **config**：`timeouts.defaults` `{task, review}` → `{implement: 21600000, review: 10800000, fix: 21600000}`——删 `task` key（config 是 engine 自养 canonical、零消费者面，破坏性删除安全）；fix 与 implement 同额（用户拍板）；数值语义 = implement 6h / review 3h / fix 6h
+  - **三岛接线**：spawn 点按实际 op 传参——task.ts `resolveTerminationConfig(mode, …)`（mode ∈ implement|review|fix，删 `"task"` 硬编码——修复 `review --type task` 错读实施预算的接线 bug，T7 task review 2h 未被 review 1h 掐掉即其后果）· docs.ts `resolveTerminationConfig(mode, …)`（删 `"review"` 硬编码）· branch.ts branch-fix `resolveTerminationConfig("review", …)` → `"fix"`（branch-fix 当前错读 review 预算）；branch-review 保持 `"review"`（本就正确，语义即 op）
+  - **类型化**：`DispatchOp` union（`"implement" | "review" | "fix"`）+ `DEFAULT_TIMEOUTS: Record<DispatchOp, number | undefined>`——传错 op 编译期即报；`unknown→undefined` 防御语义保留（config 缺 key 时 fail-safe，T14 零 env 键面不变）
+  - **测试**：resolver 单测 `"task"` 断言 → `"implement"` + 新增 fix 断言（6h）+ unknown 测试改语义（union 编译期禁传，unknown 防御面降级为 config 缺 key）；**接线层断言**（防再逃逸——本次 bug 即接线层无测所致）：三岛各自 dispatch 在其 op 下 spawn 传出的 `terminationCfg.budgetMs` = 该 op 默认值（task.implement 6h / task.review 3h / task.fix 6h / branch.review 3h / branch.fix 6h / docs.review 3h / docs.fix 6h）
+  - **注释同步**：invoke.ts T26 注释块（「三个 dispatch islands (task / docs / branch)」描述改 op 维度）、docs.ts:65 mode 注释、T26 预算语义
+- **验收**: `timeouts.defaults` 恰 `{implement: 21600000, review: 10800000, fix: 21600000}` 且**无 `task` key**（config 读断言 + grep 兜底）；`cdd review --type task` 预算 = review 默认 3h（接线断言钉死，T7 事故根因即此）· branch-fix = fix 默认 6h；三岛接线断言全绿（7 个 op 组合——spawn 传出 budget = 对应 op 默认值）；resolver 单测迁完（`"task"` budget 断言零残留）；`DEFAULT_TIMEOUTS` 类型面 union 化；`pnpm run validate` 全绿（含 channel-audit）+ precommit 面绿。
+- **注**: 用户 2026-09-30 拍板（T9 预算维度统一——「task default → implement default」语义校准 + review 预算未生效的接线 bug 根因 + fix 与 implement 同额）；本任务含死壳即删（`task` key、resolver `"unknown"` 旧测试面重构）；数值变更（implement 6h / review 3h / fix 6h）复盘期间曾以岛名落盘后回退——最终随本任务以 op 名一次性落地，不含半成品 commit。

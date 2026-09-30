@@ -16,7 +16,7 @@ import { RoundContext } from "../artifacts/round-context.ts";
 import { DOC_TOKENS } from "../documents/tokens.ts";
 import { type TaskGroup, toTaskGroup } from "../domain/task-group.ts";
 import { exitOkWith, exitWithCode } from "../infra/exit.ts";
-import { withLifecycle } from "../infra/proc.ts";
+import { initProcLifecycle, withLifecycle } from "../infra/proc.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
 import { WorkspaceRoot } from "../infra/workspace.ts";
 import { TemplateLoader } from "../render/templates.ts";
@@ -151,6 +151,9 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
       const workspace = workspaceRoot.for(doc);
       workspace.ensure();
       const ws = workspace.path;
+      // Process-lifecycle registry binding (T6 relocation, same as the task/branch lanes): the docs
+      // review's registration lands in THIS slug's lifecycle.json — never the repo-level single file.
+      initProcLifecycle({ diskPath: workspace.lifecyclePath });
       const round = Handoff.resolveNextRound(ws, "review", opts.type);
       if (opts.round && Number(opts.round) !== round) {
         process.stderr.write(`--round ${opts.round} ≠ engine round ${round}\n`);

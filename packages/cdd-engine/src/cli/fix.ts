@@ -11,7 +11,7 @@ import { Handoff } from "../artifacts/handoff.ts";
 import { DispatchBlocked } from "../dispatch/base.ts";
 import type { TaskGroup } from "../domain/task-group.ts";
 import { exitOk, exitOkWith, exitWithCode } from "../infra/exit.ts";
-import { withLifecycle } from "../infra/proc.ts";
+import { initProcLifecycle, withLifecycle } from "../infra/proc.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
 import { WorkspaceRoot } from "../infra/workspace.ts";
 import { NextStepRouter, SOFT_CAP_S1_ROUNDS } from "../rules/next-step.ts";
@@ -160,7 +160,12 @@ export async function runFix(opts: FixOpts): Promise<void> {
       .fixTemplate;
     const workspaceRoot = WorkspaceRoot.from(root);
     workspaceRoot.ensure();
-    const ws = workspaceRoot.for(doc).path;
+    const workspace = workspaceRoot.for(doc);
+    workspace.ensure();
+    const ws = workspace.path;
+    // Process-lifecycle registry binding (T6 relocation, same as the task/branch lanes): the docs
+    // fix's registration lands in THIS slug's lifecycle.json — never the repo-level single file.
+    initProcLifecycle({ diskPath: workspace.lifecyclePath });
     // `--findings` normalization (read point ⑦): repo-root-relative → absolute; missing → exit 1
     // three-line diagnostic. Positioned AFTER the round-derivation guard — a round without a
     // source / round<1 must first fail as a usage error with exit 2 (§2.4.2: 2 = usage / env error).

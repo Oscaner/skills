@@ -153,7 +153,7 @@ export class Workspace {
     return path.join(this.path, "lifecycle.json");
   }
 
-  /** readJson<T>(name) — atomic JSON read ("><workspace>/<name>`; missing/corrupt → null,
+  /** readJson<T>(name) — atomic JSON read ("<workspace>/<name>"); missing/corrupt → null,
    *  fail-open). progress / handoff / base-branch converge here. */
   readJson<T = Record<string, unknown>>(name: string): T | null {
     try {

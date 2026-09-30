@@ -20,6 +20,7 @@ import { ConfigLoader } from "../infra/config.ts";
 import { invariant } from "../infra/exit.ts";
 import type { Workspace } from "../infra/workspace.ts";
 import { finalizeHandoff } from "./handoff/finalize.ts";
+import { writeHandoff } from "./handoff/write.ts";
 
 const NAMESPACE = new ConfigLoader().handoffNamespace();
 const { families } = NAMESPACE;
@@ -271,10 +272,9 @@ export class Handoff {
     opts: { replace?: boolean } = {},
   ): Record<string, unknown> {
     if (opts.replace === false) {
-      const existing = this.workspace.readJson<Record<string, unknown>>(this.name) ?? {};
-      const merged = { ...existing, ...data };
-      this.workspace.writeJson(this.name, merged);
-      return merged;
+      // Shallow-merge path (the H6 chain-update semantics) routes through the single merge
+      // implementation — writeHandoff, never a second read-modify-write copy.
+      return writeHandoff(path.join(this.workspace.path, this.name), data);
     }
     this.workspace.writeJson(this.name, data);
     return data;

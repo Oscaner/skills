@@ -431,12 +431,11 @@ export class CddRuntime {
 
   // proc lifecycle state (former infra/proc.ts `let registry/diskPath/idleTimer`); T6 relocation:
   // #diskPath is the per-DISPATCH binding (the workspace's lifecycle.json — injected from the
-  // dispatch context, never the repo-level single file); #workspaceRoot is the self-derived
-  // enumeration target (reapStale's per-slug sweep).
+  // dispatch context, never the repo-level single file); reapStale self-derives its per-slug
+  // enumeration target from the root (WorkspaceRoot.from(this.#root)).
   #registry: ManagedGroup[] = [];
   #diskPath = ""; // set via initProcLifecycle; when empty we never persist (test introspection state)
   #idleTimer: NodeJS.Timeout | null = null;
-  #workspaceRoot: WorkspaceRoot | null = null;
 
   /** initProcLifecycle({ diskPath }) — bind the on-disk lifecycle registry path (the dispatch
    *  context's Workspace.lifecyclePath; the startup path binds nothing — the startup sweep
@@ -694,7 +693,7 @@ export class CddRuntime {
   // the sweep holds when #diskPath is unbound (startup, no dispatch context yet). No initialized
   // root → the sweep is a no-op.
   async reapStale({ graceMs = 5000 }: { graceMs?: number } = {}): Promise<void> {
-    const root = this.#workspaceRoot ?? (this.#root ? WorkspaceRoot.from(this.#root) : null);
+    const root = this.#root ? WorkspaceRoot.from(this.#root) : null;
     if (!root) return;
     for (const slug of root.enumerate()) {
       const ws = new Workspace(root, slug);

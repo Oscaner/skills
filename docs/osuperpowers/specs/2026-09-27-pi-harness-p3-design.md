@@ -1,9 +1,9 @@
 # Pi Harness P3 — engine 数据面（Pi Harness P3: Engine Data Plane）— Phase Spec
 
-- **Version**: v1.4 · 2026-09-30（spec review-1 fix v1.1 + P3 契约面/词表增项 v1.2 + spec review-2 fix v1.3 + 崩溃恢复健壮性增项 v1.4）
+- **Version**: v1.5 · 2026-09-30（spec review-1 fix v1.1 + P3 契约面/词表增项 v1.2 + spec review-2 fix v1.3 + 崩溃恢复健壮性增项 v1.4 + 统一终止模型增项 v1.5）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming → writing-phase-spec)
-- **Parent program**: [2026-09-27-pi-harness-overall.md v1.16](2026-09-27-pi-harness-overall.md)
+- **Parent program**: [2026-09-27-pi-harness-overall.md v1.17](2026-09-27-pi-harness-overall.md)
 - **Depends on**: P1（shipped · [p1-design v1.5](2026-09-27-pi-harness-p1-design.md)）；P2（shipped · 契约面定案——`{claude, cursor, pi}` 三元组行键集）
 
 ## Section 0: Incremental warning
@@ -128,6 +128,18 @@ record），恢复 = 同命令重跑即续作**。
   failure-mode 表同步
 - **收敛法自洽**：快照 commit 移动 BASE..HEAD ref → re-review 新 ref = 新 review（I3），快照零特权
 
+#### 2.3 统一终止模型（fold A–D — 用户拍板追加 T8）
+
+§2.2 窄谓词（child 非零退出 && handoff 未写）收住 child-exit/child-signal；高维复盘折叠把模型升为**对偶全量**（§2.2 为地基，本节约为层加宽；允许破坏性/重写/重组/死壳即删）：
+
+- **对偶核心**：任何 dispatch 恰好终止于一个持久 artifact——exit gate 通过 = **handoff**（正常面），exit gate 前终止 = **crash record**（异常面）；两份 ref-keyed、落 Workspace 状态族、被同一组生命周期面读取；恢复原语两侧同构：**终止瞬间的工作树（已提交/已快照）即状态**，engine 零进程内记忆
+- **A — crash record 三方统一**：teardown（写）/ resume（读：snapshot commit 为基线续作）/ reapStale（枚举 stale crash record，复用 `WorkspaceRoot.enumerate()`——孤儿语义从 stash 考古变 artifact 枚举）；`recovery.residue_ref` 持久化字段**删除**，`resume-pending` 由「crash record 在场」派生（第二持久点灭绝）
+- **B — 恢复原语归一**（T7 已有，此处全覆盖）：exit gate commit 与 crash snapshot 是同一个 commit 动词的两个调用点；over-budget/timeout 的旧 stash 路随 T7 stash 平面删除而灭、迁入统一 teardown——**零空窗论证**：T7 通用谓词（child 终止 && 无 handoff）天然兜住 engine 终止（terminated child = 非零退出 + 无 handoff），T8 仅正式化 cause 归类
+- **C — 类别身份/机制解耦**：`failureCategories` 保留为**身份面**（counter / terminal / channel-audit 逐类独立、一类终态不泄漏进另一类——已承诺不变量不动）；**终止后的机制不再按类分叉**——无论 cause，runner 终止后单路（snapshot + record + resume）；TIMEOUT / EXECUTION_FAILURE 各自残余的独立 recovery 机制归零
+- **D — resume 软帽**：崩溃恢复按任务独立软上限（3 次 resume → `BLOCKED: crash-recovery-cap` 用户裁决，对齐 branch-fix I9 软帽哲学）；403 / OOM / over-budget **非任务缺陷**，不计入 FailureResolver 类别 cap（类别计数面不因外部事故冤枉任务——极重要：否则预算/上游事故耗尽重试 = 任务被冤枉终态）
+- **cause 字段**：crash record 增 `cause`：`child-exit` / `child-signal` / `engine-over-budget` / `engine-timeout` / `unknown`——postmortem 专用、**行为零分叉**（resume 不因 cause 不同路）
+- **边界自检**：engine 自身 liveness（engine 进程内内存泄漏面）属 liveness monitor 另轨，本模型只管 **child 终止面**；`dispatchIncomplete`（CONTRACT_VIOLATION / ENGINE_SELF_WRITTEN：部分 handoff = 合同违约面）语义保留，不并入终止面
+
 ### Acceptance criteria
 
 - `harness-registry.json` 行键集合断言恰 `{claude, cursor, pi}`（registry / infra.registry 测试 name-set，G1）
@@ -143,6 +155,7 @@ record），恢复 = 同命令重跑即续作**。
 - **消费面措辞同步**：`cli-driven-development/SKILL.md` 零引擎形状 restate（`3-line return block` / `4th line counters` 类字面量清零），仅锚路由 token（`next:`/`CDD_BLOCKED:`/handoff `findings`）；`contract-wording` 检查零命中
 - **运维文档 + CLAUDE.md 同步落地**：docs/maintainers 全家族（01/02/03/04）与契约面/词表一致、行键镜像零 cursor-agent · 根 CLAUDE.md emit/validate 描述随 Contract Lexicon 单 block 与 C5 单胶囊更新 · `pnpm run emit` + `emit:check` 零漂移（skill 文本变化后重新 emit）
 - **T7 崩溃恢复全绿**：failureCategories 含 `HARNESS_ABORT`（harnessAbortCount / harness-abort terminal）· NextStepRouter 决策表含 recovery 行（BLOCKED + crashRecord → 同命令 resume `next:`，next-step.test 钉死）· teardown 集成测试（模拟 child exit 1 无 handoff → child tail 保留 + crash-only snapshot + crash record 落 `Workspace.crashPath` + BLOCKED capsule 带 next:）· commitSnapshot 行为测试（树干净 no-op / `--no-verify` 语义）· **stash 平面零残留**（grep `stash apply`/`recovery.residue_ref`/「git stash drop」零命中，含 SKILL/maintainers/CLAUDE.md 措辞）· `pnpm run validate` 全绿 + precommit 面绿
+- **T8 统一终止模型全绿**：teardown 触发谓词 = **任意 exit gate 前终止**——over-budget/timeout 与 child-exit/child-signal **同一实现路径**（teardown 矩阵测试：四类终止模拟 → 同路 snapshot + crash record（含 `cause`）+ BLOCKED capsule next 同命令 resume，非并行第二套）· crash record 含 `cause`（child-exit/child-signal/engine-over-budget/engine-timeout/unknown）且行为零分叉 · crash record 三方统一（teardown 写 / resume 读 / reapStale 枚举 stale crash records，`WorkspaceRoot.enumerate()` 复用）· `recovery.residue_ref` / 旧独立 recovery 持久化面零残留（grep 零命中 + channel-audit 计数断言）· resume 软帽：3 次 → `BLOCKED: crash-recovery-cap` 用户裁决，FailureResolver 类别 cap 面不动 · `pnpm run validate` 全绿 + precommit 面绿
 
 ## Section 3: Deviations from overall
 
@@ -164,6 +177,7 @@ record），恢复 = 同命令重跑即续作**。
 - **P3 消费面同步**（C7）：`cli-driven-development/SKILL.md:59` 形状 restate 待删改（P3 交付时）——P3 交付后 orchestrator skill 措辞与引擎契约面同源（契约词表）；P4 收口时若引擎形状再变，`ContractLexiconGuard.checkWording` 将机械拦截旧 token re-entry（零漂移）
 - **Contract Lexicon 与 emit 的关系**：`contract-lexicon.json` 若放 engine templates/schema（`../../cdd-engine` 引用面），emit 产物面不新增文件（词表 = engine 数据面，非分发 manifest）；CLAUDE.md/`pnpm run emit` 描述随 validate block 更新（emit:check 零漂移）
 - **T7 波及面（崩溃恢复）**：`HARNESS_ABORT` 类别与 crash record 是新增横切——validate 的 channel-audit 需将 harnessAbortCount 纳入逐类计数断言（零泄漏）；`--no-verify` 快照语义写入 maintainers（hook 旁路的唯一正当理由 = crash-only snapshot）；P4 收口若引擎形状再变，ContractLexiconGuard.checkWording 机械拦截（零漂移）；crash record 属于工作区状态族，不参与消费面 restate
+- **T8 波及面（统一终止模型）**：resume 软帽进入 state 面（progress/lifecycle 持久化 crash 恢复计数，逐任务独立）；reapStale 枚举面扩为 crash records + lifecycle 全部工作区 artifact（T6 enum 基座直接复用）；`recovery.residue_ref` 删除面 = progress 字段 + SKILL 措辞 + 测试（channel-audit 断言随删）；类别/机制解耦后 failureCategories 表增 `HARNESS_ABORT` 的身份面测试维持、机制层单路测试新增——类别身份与机制测试分面、互不耦合
 
 ## Section 5: Review
 
@@ -171,4 +185,4 @@ Review Convergence 应用方：`cdd review --type spec --spec docs/osuperpowers/
 - blocker > 0 → fix 全部 findings → `cdd fix` 后 re-review
 - blocker = 0 → fix 全部 findings（warn + nit）→ done，不 re-review（Review Convergence 规则详见 parent overall section/各 orchestrator Invariants）
 - commit 前提：Review 收敛（status = APPROVED / REVIEW_FIX 走 fix 闭环后），spec approved = commit immediately
-- 本文件备选的偏离面已全部经 overall v1.12/v1.13/v1.16 回填（Section 3 各行 `Overall updated?` = Yes；T7 崩溃恢复经 overall v1.16 登记）
+- 本文件备选的偏离面已全部经 overall v1.12/v1.13/v1.16/v1.17 回填（Section 3 各行 `Overall updated?` = Yes；T7 崩溃恢复经 overall v1.16、T8 统一终止模型经 overall v1.17 登记）

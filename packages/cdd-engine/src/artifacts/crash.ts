@@ -19,7 +19,7 @@
 // T8 (fold A — crash record tri-party): teardown writes / resume reads (the crash record's presence
 // is the resume-pending source in rules/status.ts) / reapStale enumerates stale records (artifact
 // enumeration, never stash archaeology). `cause` is postmortem-only — resume never forks on it.
-import { readFileSync, rmSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import type { TerminationCause } from "../infra/runtime.ts";
 import type { Workspace } from "../infra/workspace.ts";
@@ -219,18 +219,5 @@ export class CrashTeardown {
     const crashName = path.basename(opts.workspace.crashPath(opts.lane, opts.round));
     opts.workspace.writeJson(crashName, record);
     return record;
-  }
-}
-
-/** clearCrashRecord — the T8 dual-artifact cleanup: delete the round's crash record (the lane calls
- *  this when the round terminates at the NORMAL face — a non-dead carrier written — so
- *  presence-derived resume-pending stays truthful; the crash record is the round's terminal ONLY
- *  while the round is unresolved). Uses rmSync's force semantics — a missing record is a no-op;
- *  malformed lane/round surface as catch (never a throw across the caller's exit path). */
-export function clearCrashRecord(workspace: Workspace, lane: string, round: number): void {
-  try {
-    rmSync(workspace.crashPath(lane, round), { force: true });
-  } catch {
-    // fail-open: a readonly/unusual workspace never blocks the caller's exit path.
   }
 }

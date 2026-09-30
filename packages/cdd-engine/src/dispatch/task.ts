@@ -443,21 +443,31 @@ export class TaskLifecycle extends DispatchLifecycle {
    *  returns whether the soft cap (CRASH_RECOVERY_CAP_ROUNDS) is now reached. Soft by nature
    *  (C5-0): the failure capsule's `next:` then defers to user adjudication (`BLOCKED:
    *  crash-recovery-cap`), never a hard block. External incidents (403 / OOM / over-budget) are not
-   *  task defects — the FailureResolver category caps stay untouched. */
+   *  task defects — the FailureResolver category caps stay untouched. The count tracks the
+   *  CONSECUTIVE streak — a normal-face round resets it (#clearResolvedCrashState), so the cap
+   *  never sticks a task whose latest round terminated normally. */
   #bumpRecovery(): boolean {
     if (this.#dryRun) return false;
     return this.#ledger!.incrementRecoveryCount(this.#groupKey) >= CRASH_RECOVERY_CAP_ROUNDS;
   }
 
-  /** The dual-artifact invariant on the NORMAL face (T8): a round terminating with a non-dead
-   *  carrier no longer owns its abnormal-face crash record (deleted here), so crashed-then-resumed
-   *  rounds never leave presence-derived resume-pending sticky. Fail-open (missing ctx / unusual
+  /** The normal-face crash-state teardown (T8): a round terminating at the NORMAL face leaves the
+   *  crash-recovery surface — ① its abnormal-face crash record no longer owns the round (removed
+   *  here, so crashed-then-resumed rounds never leave presence-derived resume-pending sticky) and
+   *  ② the group's consecutive recovery_count resets to 0 (incrementRecoveryCount's counterpart —
+   *  the soft cap measures consecutive failure cycles, symmetric with the S1 soft cap; a round
+   *  terminating normally ends the streak). Fail-open for both ops (missing ctx / unusual
    *  workspace → no-op). */
-  #clearResolvedCrash(): void {
+  #clearResolvedCrashState(): void {
     const ctx = this.#tcx;
     if (!ctx) return;
     try {
       ctx.workspace.removeCrashRecord(this.#mode(), ctx.round ?? 1);
+    } catch {
+      // fail-open: never blocks the normal-face exit.
+    }
+    try {
+      this.#ledger!.resetRecoveryCount(this.#groupKey);
     } catch {
       // fail-open: never blocks the normal-face exit.
     }
@@ -1214,7 +1224,7 @@ export class TaskLifecycle extends DispatchLifecycle {
         // The dual-artifact invariant on the normal face (T8): a materialized implement round no
         // longer owns its abnormal-face crash record (a prior crashed attempt of this same round was
         // resolved — presence-derived resume-pending must not stay sticky).
-        if (finalized.exitCode === 0) this.#clearResolvedCrash();
+        if (finalized.exitCode === 0) this.#clearResolvedCrashState();
         // Materialized capsule and handoff/exit align: hard gate or an agent-declared BLOCKED → exit 1.
         if (finalized.exitCode !== 0) {
           this.#failure.maybeExhaust(
@@ -1356,7 +1366,7 @@ export class TaskLifecycle extends DispatchLifecycle {
         // The dual-artifact invariant on the normal face (T8): a concluded review/fix round no
         // longer owns its abnormal-face crash record (a resumed round terminating normally is
         // resolved — presence-derived resume-pending must not stay sticky).
-        if (finalized.exitCode === 0) this.#clearResolvedCrash();
+        if (finalized.exitCode === 0) this.#clearResolvedCrashState();
       }
     }
     if (!dryRun && mode !== "implement") this.#ledger!.incrementRound(this.#groupKey, mode);

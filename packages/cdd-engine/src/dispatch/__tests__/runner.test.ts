@@ -384,6 +384,78 @@ it("T8 fold D: resume 软帽 — 3 次崩溃 → 第 3 次 capsule next: BLOCKED
   }
 });
 
+it("T8 fix: 软帽 consecutive — 正常面 round 重置 recovery_count（crash → success 归零 + record 清除；随后 review 再崩溃从 1 重新计，cap 不 sticky）", async () => {
+  const { repo, planFile, ws } = setupWorkspace();
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-softcap-reset-"));
+  const cliPath = path.join(binDir, "fake-cli");
+  const regPath = ghostRegistry(ws);
+  const crashBody = "#!/usr/bin/env bash\nexit 3\n";
+  const report = path.join(ws, "tasks-1-report.md");
+  const tev = path.join(ws, "tasks-1-test-evidence.json");
+  const okBody = [
+    "#!/usr/bin/env bash",
+    "printf '%s\\n' 'status: APPROVED'",
+    "printf '%s\\n' 'commits: base=x head=y'",
+    `printf '%s\\n' 'artifacts: report=${report} test_evidence=${tev}'`,
+    "exit 0",
+  ].join("\n");
+  // env must be snapshotted AFTER withFakeCli patches PATH (mirror the soft-cap test).
+  const restore = withFakeCli(binDir, "fake-cli", crashBody);
+  const env = { ...process.env };
+  try {
+    // crash 1 → recovery_count 1、resume 建议（非 cap）
+    const crash1 = await TaskLifecycle.run("ghost", 1, {
+      mode: "implement",
+      planFile,
+      root: repo,
+      registryPath: regPath,
+      noExit: true,
+      env,
+    });
+    expect(crash1.exitCode).toBe(1);
+    let progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
+    expect(progress.tasks[0].recovery_count).toBe(1);
+    expect(crash1.returnBlock[1]).toMatch(/^next: cdd implement --tasks 1 --plan /);
+    // 正常面 success → crash record 清除 + recovery_count 归零
+    writeFileSync(report, "report body\n");
+    writeFileSync(
+      tev,
+      JSON.stringify({ command: "npx vitest run", exit_code: 0, passed: true, warnings_count: 0 }),
+    );
+    writeFileSync(cliPath, okBody);
+    chmodSync(cliPath, 0o755);
+    const ok = await TaskLifecycle.run("ghost", 1, {
+      mode: "implement",
+      planFile,
+      root: repo,
+      registryPath: regPath,
+      noExit: true,
+      env,
+    });
+    expect(ok.exitCode).toBe(0);
+    progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
+    expect(progress.tasks[0].recovery_count).toBe(0);
+    expect(existsSync(path.join(ws, "crash-implement-1.json"))).toBe(false);
+    // review 再崩溃（其 handoff 尚不存在 → 走 crash 车道）→ streak 从 1 重新起 —— 非 cap、resume 建议
+    writeFileSync(cliPath, crashBody);
+    chmodSync(cliPath, 0o755);
+    const crash2 = await TaskLifecycle.run("ghost", 1, {
+      mode: "review",
+      planFile,
+      root: repo,
+      registryPath: regPath,
+      noExit: true,
+      env,
+    });
+    expect(crash2.exitCode).toBe(1);
+    progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
+    expect(progress.tasks[0].recovery_count).toBe(1);
+    expect(crash2.returnBlock[1]).toMatch(/^next: cdd review --type task --tasks 1 --plan /);
+  } finally {
+    restore();
+  }
+});
+
 // ---- group dispatch (in-process, non-dry-run): the group is the dispatch unit — one BLOCKED
 // carrier keyed tasks-{a}-{b} (no per-task decomposition), the whole-group re-dispatch advice ----
 

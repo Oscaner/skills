@@ -283,6 +283,27 @@ it("getRound: ledger.incrementRound('review') 后 round=2（rounds['review'] 归
   expect(saved.tasks[0].rounds).toEqual({ review: 1 });
 });
 
+it("resetRecoveryCount: 连续崩溃 streak 归零（正常面 —— 软帽只数 consecutive cycles，不 sticky；absent/已零行 no-op）", () => {
+  const dir = tmpDir("prog-recovery-reset-");
+  // absent row → no-op (read() materializes an empty progress, but no row / recovery_count lands)
+  ledgerFor(dir).resetRecoveryCount(1);
+  expect(JSON.parse(readFileSync(path.join(dir, "progress.json"), "utf8")).tasks).toEqual([]);
+  // streak: bump to 3 → reset to zero (a normal-face round ends the capped streak)
+  expect(ledgerFor(dir).incrementRecoveryCount(1)).toBe(1);
+  expect(ledgerFor(dir).incrementRecoveryCount(1)).toBe(2);
+  expect(ledgerFor(dir).incrementRecoveryCount(1)).toBe(3);
+  ledgerFor(dir).resetRecoveryCount(1);
+  expect(ledgerFor(dir).recoveryCount(1)).toBe(0);
+  const saved = JSON.parse(readFileSync(path.join(dir, "progress.json"), "utf8"));
+  expect(saved.tasks[0].recovery_count).toBe(0);
+  // already-zero row → no-op (byte-identical)
+  const before = readFileSync(path.join(dir, "progress.json"), "utf8");
+  ledgerFor(dir).resetRecoveryCount(1);
+  expect(readFileSync(path.join(dir, "progress.json"), "utf8")).toBe(before);
+  // streak restarts from 1 — the cap is never sticky
+  expect(ledgerFor(dir).incrementRecoveryCount(1)).toBe(1);
+});
+
 // ---- group ledger: the dispatch group is the unit — a multi-task group keys one `{group}`
 // row (round per group), single groups resolve the legacy per-task row (backward compatible) ----
 describe("progress.ts group ledger (group is the unit)", () => {

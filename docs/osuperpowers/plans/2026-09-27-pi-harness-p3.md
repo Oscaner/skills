@@ -3,7 +3,7 @@
 **Spec:** [2026-09-27-pi-harness-p3-design.md](docs/osuperpowers/specs/2026-09-27-pi-harness-p3-design.md)
 
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.13](docs/osuperpowers/specs/2026-09-27-pi-harness-overall.md)
-- **Version**: v1.3 · 2026-09-29（plan review-3 fixes：T1 注释/标题同落全清零 + T4 命中面补 :108 与 fail-set 粒度定裁 + G2 逐面 `__tests__` 处置钉死 + T3 冒烟补 `--spec`/`--dry-run`）
+- **Version**: v1.5 · 2026-09-30（plan review-3 fixes v1.3 + 用户拍板追加 T6 `.osuperpowers` 根目录 bootstrap v1.4 + Workspace 域收编定稿 v1.5）
 - **Depends on**: P3 design v1.3 Approved（`5b4ecfa7`，C1–C7 锚点定案 + 契约面 D1–D4 + Contract Lexicon L2）
 - **Base**: develop
 
@@ -23,20 +23,20 @@
 
 - 实现提交按任务粒度（conventional commits，无 attribution trailers）
 - spec/plan 文档仅由 orchestrator（Plan Sole Writer）与 cdd fix-agent 修改；implement agent 零文档修改权
-- **engine 数据面变更需 changeset**：`harness-registry.json` renaming + pi 行 + `contract-lexicon.json` 随包发布（build.config copy → dist/resources/）——changeset 记 cdd-engine（类型按 `.changeset/README.md` version scheme 判定，先读再判）
+- **engine 数据面变更需 changeset**：`harness-registry.json` renaming + pi 行 + `contract-lexicon.json` 随包发布（build.config copy → dist/resources/）+ T6 workspace 域收编（lifecycle 落点变更 = engine 行为面）——changeset 记 cdd-engine（类型按 `.changeset/README.md` version scheme 判定，先读再判）
 - 每任务闭合面测试绿 + `pnpm run precommit` 绿；engine 改面用 `pnpm --filter @oscaner-skills/cdd-engine test`（T3 后需 `dev:stub` 重跑以承接新契约面）
 - 无 emit 产物面变更（Contract Lexicon 词表 = engine 数据面，非分发 manifest）——`pnpm run emit:check` 保持 fresh
 
 ### Flow Atomicity
 
 - 单任务原子：每个任务闭合前该任务面测试 + 相关 validate 面全绿；name-set / byte / 白名单 pin 破即是设计漂移信号，报告 orchestrator 判定而非"带伤闭合"
-- 串行 dispatch：T1→T2→T3→T4→T5，全 singleton 组（无 `## Task Groups` 合并）
+- 串行 dispatch：T1→T2→T3→T4→T5→T6，全 singleton 组（无 `## Task Groups` 合并）
 - T3（命令契约面）闭合必跑 `dev:stub` 使后续 dispatch 消费新契约面；T4 词表接线后 validate 单 block 是验收主体
 
 ### 顺序原则
 
-- T1（C1+C2 engine 数据面核心：harness.ts 抽象 + registry rename + pi 行）→ T2（C3 测试接线：三元组 name-set + 优先级矩阵 + residue G2 守卫）→ T3（C5 命令契约面：StatusDeriver/NextStepRouter/ResultFace + 调用面）→ T4（C6 Contract Lexicon：contract-lexicon.json + ContractLexiconGuard 收敛）→ T5（C7 消费面措辞 + C4 声明 + 运维文档/CLAUDE.md + changeset + 终验 validate 全绿）
-- T5 置末位：消费面措辞与运维文档同步依赖前四任务的实际产物面；changeset 记录全部 P3 交付
+- T1（C1+C2 engine 数据面核心：harness.ts 抽象 + registry rename + pi 行）→ T2（C3 测试接线：三元组 name-set + 优先级矩阵 + residue G2 守卫）→ T3（C5 命令契约面：StatusDeriver/NextStepRouter/ResultFace + 调用面）→ T4（C6 Contract Lexicon：contract-lexicon.json + ContractLexiconGuard 收敛）→ T5（C7 消费面措辞 + C4 声明 + 运维文档/CLAUDE.md + changeset + 终验 validate 全绿）→ T6（Workspace 域收编：WorkspaceRoot/Workspace 双类 + 双源灭绝 + 死壳删除 + lifecycle 归位，用户拍板追加）
+- T6 置末位：workspace 数据面收编依赖前五任务的实际产物面（contract lexicon / 契约面已落），且 bootstrap 保证（`.osuperpowers/.gitignore` 自守卫）+ lifecycle 归位 slug 是全程序 workspace 落点的统一收口
 - 每任务 end-to-end：实现 → 该任务面测试绿 → precommit 面绿
 
 ### 仓库纪律
@@ -113,3 +113,18 @@
   - 终验：`pnpm run validate` 全绿（含 Contract Lexicon 单 block / residue G2 / 命名统一 pin）
 - **验收**: `cli-driven-development/SKILL.md` 零引擎形状 restate（`3-line return block` / `4th line counters` 类字面量清零），仅锚路由 token；docs/maintainers 全家族与契约面/词表一致、行键镜像零 cursor-agent（G2 三面扫描含 docs/maintainers 零命中）；根 CLAUDE.md emit/validate/engine 契约描述更新；C4 核对：`packages/cdd-engine/templates/report/issue-body.json:202` `masterDef.harnessRow`（`- Harness: <harness>`）字段零改动、Host 行不被引擎行键改写（坐标分层成立）；`pnpm run emit` + `emit:check` 零漂移；changeset 存在（cdd-engine，breaking/patch 按 scheme）；`pnpm run validate` 全块全绿；precommit 面绿。
 - **注**: 消费面措辞同步的验收主体 = `ContractLexiconGuard.checkWording`（T4 已接线）——T5 改动后该检查零命中即措辞同步生效；README 家族（`osuperpowers/README.md:72` / `README.zh-CN.md:74`）与 osuperpowers tests 残留面零化归 P4，P3 不承诺。
+
+### Task 6: Workspace 域收编（WorkspaceRoot/Workspace 双类 + 双源灭绝 + lifecycle 归位，用户拍板 2026-09-30）
+
+- **Do**: engine workspace 数据面一次收编（破坏性授权内：重写代码/重组目录/死壳即删）——
+  - 新建 `packages/cdd-engine/src/infra/workspace.ts`（OOP，Criterion ② 零裸函数）：
+    - `class WorkspaceRoot`：`static from(repoRoot, config)`（从 `ConfigLoader.handoffNamespace().workspaceRoot` 派生——消除 bin.ts:114 / review.ts:85 双源）· `path`（`<repoRoot>/<workspaceRoot>`）· `gitignorePath`（`<root>/.osuperpowers/.gitignore`）· `ensure()`（幂等创建目录 + 写 `"*\n"`——根级 bootstrap 自守卫，不依赖 repo 根 .gitignore）· `for(doc): Workspace`（slug 派生唯一入口，取代 `resolveWorkspace` 纯函数）· `enumerate(): string[]`（读 `<workspaceRoot>/` 子目录——reapStale 全扫用）
+    - `class Workspace`：`readonly path`（`<workspaceRoot>/<slug>/`）· `ensure()`（写前 mkdir `{ recursive: true }`，收编 6 处散装 mkdirSync：base-branch.ts:115 / handoff/write.ts:49,64 / naming.ts:209 / runtime.ts:446 / branch.ts:384 / task.ts:643）· `readJson<T>(name): T | null` / `writeJson(name, data): void`（原子 JSON 读写：mkdir + stringify + writeFileSync，progress/handoff/base-branch 收敛）· 子路径唯一事实源：`progressPath` / `briefPath` / `lifecyclePath`
+  - **lifecycle 归位 slug**（用户第二条）：`WorkspaceRoot.for(plan)` + `.lifecyclePath` —— `CddRuntime.initProcLifecycle({ diskPath })` 的 diskPath 由 dispatch 上下文（plan → workspace 已知时）注入，不再 repo 级单一文件；`reapStale` 改为 `WorkspaceRoot.enumerate()` 枚举全部 slug 的 `lifecycle.json` 全扫（孤儿语义不变：foreign + owner dead；测试钉死等价）
+  - **双源灭绝**：`bin.ts:114` 硬编码 `.osuperpowers` 字面 → `WorkspaceRoot` 派生 · `review.ts:85 taskReviewWorkspace` 手写 `path.join(repoRoot, workspaceRoot, slug)` → `WorkspaceRoot.from(...).for(doc)` · `naming.ts:193-212 materializeWorkspace` 内 `path.join(repoRoot, workspaceRoot)` → `WorkspaceRoot` 路径
+  - **死壳即删**：删除 `naming.ts`（workspaceSlug/resolveWorkspace/materializeWorkspace 迁 `Workspace`；handoffName/familyConfig/roundPattern/resolveNextRound/prevHandoffPath 迁 `WorkspaceRoot` 或并入 `Handoff` 类——15 个 import 面随迁移转接）· 根 `.gitignore` 第 4 行 `.superpowers`（旧 namespace 残留）退役删除 · 历史遗留 `.superpowers/cdd/lifecycle.json` 已删（不重建）
+  - **注入改造**：`ProgressLedger.read/write(progressDir, …)` 方法级 path 参数 → 构造注入 `Workspace`（消灭 string 路径面）· `Handoff` 构造注入 `Workspace`（路径派生收编）· `ReturnBlockParser` 不动（纯文本无路径面——保持隔离）
+  - **namespace 单源**：engine-config.json `handoffNamespace.workspaceRoot` 是唯一事实源（ConfigLoader 已单源），workspace 面全程经 `NAMESPACE.workspaceRoot`，零硬编码字面
+  - 测试：`workspace.test.ts`（新：from/ensure/gitignore/for/enumerate/readJson/writeJson/lifecyclePath）· progress/handoff/lifecycle.wiring/proc/root/naming 相关 suite 迁移断言（`workspaceRoot` 三元组、`.superpowers` 退役、mkdir 归零）· `lifecycle.proc.test` 验证 reapStale 枚举全扫等价
+- **验收**: `src/infra/workspace.ts` 含 `WorkspaceRoot`/`Workspace` 全导出、零裸函数；`.osuperpowers/.gitignore`（根级 `*`）自守卫——新 repo 首次 cdd 运行即存在；`lifecycle.json` 落 `<workspaceRoot>/<slug>/` 而非 repo 级（无 `.osuperpowers/cdd/lifecycle.json` 单文件）；`naming.ts` 删除、15 个 import 面全部转接后零引用（grep 零命中）；6 处散装 `mkdirSync` 归零（`Workspace.ensure()` 单点）；根 `.gitignore` 无 `.superpowers` 行；`pnpm run validate` 全绿（含 workspace 新 suite + lifecycle reap 枚举等价）+ precommit 面绿。
+- **注**: 本任务是用户 2026-09-30 拍板追加（bootstrap 第一条 + lifecycle 归位第二条 + 双源灭绝）+ 高维抽象统一复盘（允许破坏性/重写/重组目录/死壳即删）；consume 面同步（`cli-driven-development/SKILL.md` 及运维文档如引用 `.osuperpowers` 路径形态，随 T6 措辞复核——workspace 位置语义不变，仅实现落点收编，skill 面若零路径描述则零改动）。

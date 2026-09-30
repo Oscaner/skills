@@ -2,9 +2,9 @@
 
 **Spec:** [2026-09-27-pi-harness-p3-design.md](docs/osuperpowers/specs/2026-09-27-pi-harness-p3-design.md)
 
-- **Parent program**: [2026-09-27-pi-harness-overall.md v1.16](docs/osuperpowers/specs/2026-09-27-pi-harness-overall.md)
-- **Version**: v1.8 · 2026-09-30（plan review-3 fixes v1.3 + 用户拍板 T6 bootstrap v1.4 → Workspace 收编 v1.5 → T6 补钉 v1.6 → **T7 崩溃恢复健壮性 v1.7 → review-5 fixes v1.8**）
-- **Depends on**: P3 design v1.4 Approved（`495707f4`，C1–C7 锚点定案 + 契约面 D1–D4 + Contract Lexicon L2 + 崩溃恢复健壮性 T7）
+- **Parent program**: [2026-09-27-pi-harness-overall.md v1.17](docs/osuperpowers/specs/2026-09-27-pi-harness-overall.md)
+- **Version**: v1.9 · 2026-09-30（plan review-3 fixes v1.3 + 用户拍板 T6 bootstrap v1.4 → Workspace 收编 v1.5 → T6 补钉 v1.6 → T7 崩溃恢复 v1.7 → review-5 fixes v1.8 → **T8 统一终止模型 v1.9**）
+- **Depends on**: P3 design v1.5 Approved（`495707f4` 前版 C1–C7 + 契约面 D1–D4 + Contract Lexicon L2 + 崩溃恢复 T7 + 统一终止模型 T8）
 - **Base**: develop
 
 ## Constraints
@@ -35,8 +35,9 @@
 
 ### 顺序原则
 
-- T1（C1+C2 engine 数据面核心：harness.ts 抽象 + registry rename + pi 行）→ T2（C3 测试接线：三元组 name-set + 优先级矩阵 + residue G2 守卫）→ T3（C5 命令契约面：StatusDeriver/NextStepRouter/ResultFace + 调用面）→ T4（C6 Contract Lexicon：contract-lexicon.json + ContractLexiconGuard 收敛）→ T5（C7 消费面措辞 + C4 声明 + 运维文档/CLAUDE.md + changeset + 终验 validate 全绿）→ T6（Workspace 域收编：WorkspaceRoot/Workspace 双类 + 双源灭绝 + 死壳删除 + lifecycle 归位，用户拍板追加）→ T7（崩溃恢复健壮性：HARNESS_ABORT + crash-only snapshot + stash 平面删除，消费 T6 Workspace 域）
+- T1（C1+C2 engine 数据面核心：harness.ts 抽象 + registry rename + pi 行）→ T2（C3 测试接线：三元组 name-set + 优先级矩阵 + residue G2 守卫）→ T3（C5 命令契约面：StatusDeriver/NextStepRouter/ResultFace + 调用面）→ T4（C6 Contract Lexicon：contract-lexicon.json + ContractLexiconGuard 收敛）→ T5（C7 消费面措辞 + C4 声明 + 运维文档/CLAUDE.md + changeset + 终验 validate 全绿）→ T6（Workspace 域收编：WorkspaceRoot/Workspace 双类 + 双源灭绝 + 死壳删除 + lifecycle 归位，用户拍板追加）→ T7（崩溃恢复健壮性：HARNESS_ABORT + crash-only snapshot + stash 平面删除，消费 T6 Workspace 域）→ T8（统一终止模型：exit gate 前终止全类覆盖 + crash record 三方统一 + cause + resume 软帽 + 类别/机制解耦，用户拍板追加）
 - T6→T7 置尾：workspace 数据面收编依赖前五任务的实际产物面（contract lexicon / 契约面已落），且 bootstrap 保证（`.osuperpowers/.gitignore` 自守卫）+ lifecycle 归位 slug 是全程序 workspace 落点的统一收口；T7 崩镜记录/恢复（crash record 落盘 + crash-only snapshot + 恢复路由）依赖 T6 Workspace 域承接（`crashPath` / `writeJson` / snapshot 落点），顺序必在 T6 之后——T6 收编为 T7 铺平单一落点
+- T7→T8 置尾：T8 在 T7 落地物上增量（crash record 形状 / teardown 单路机制已具），T7 通用谓词天然兜住 over-budget/timeout（engine terminated child = 非零退出 + 无 handoff），T8 仅正式化 cause 归类 + 三方统一 + 软帽——**零空窗**；T8 顺序必在 T7 之后
 - 每任务 end-to-end：实现 → 该任务面测试绿 → precommit 面绿
 
 ### 仓库纪律
@@ -149,3 +150,15 @@
   - 测试：engine-config 类目身份（HARNESS_ABORT 新增 + 计数独立）· next-step crash-record 新行（`recovery?` 输入槽读 crash record 派生）· commitSnapshot（树干净 no-op / `--no-verify` 语义）· crash record 写盘（`Workspace.crashPath(lane, round)`）· teardown 集成（模拟 child exit 1 无 handoff → tail 保留 + snapshot + record + BLOCKED capsule 带 next:）· 原 stash-residue 测试删改
 - **验收**: `failureCategories` 含 `HARNESS_ABORT`（harnessAbortCount / harness-abort / `BLOCKED: harness-abort-exhausted`）；child 异常退出（无 handoff）→ child stdout/stderr 尾部保留 + crash-only snapshot commit + crash record 落 `Workspace.crashPath(lane, round)`（字段齐：exitCode/stderrTail/stdoutTail/snapshotSha/attemptedHandoff/next）+ BLOCKED capsule `status: BLOCKED · … · next: <同命令 resume>`；`NextStepRouter` 决策表含 crash-record 行（next-step.test 钉死）；**stash 平面零残留**——按命名面逐一闭合（apply 侧 / 保留侧 / camelCase 方法族 / 注释措辞 / JSON 属性键 / 教训条目 / 话术面，Do 枚举即边界），字面 grep（短语 / camelCase / JSON 键）降为兜底扫描而非边界：`stash apply` · `stashApply` · `stashPush` · `stashMessage` · `recovery.residue_ref` · 「git stash drop」 · `stash_message` · `residue_scope` · `wip_stat` · `preserved` 零命中（engine src/tests + templates/schema + skills + maintainers + CLAUDE.md）；`pnpm run validate` 全绿（含 channel-audit harnessAbortCount 计数）+ precommit 面绿。
 - **注**: 用户 2026-09-30 拍板（403 事故复盘五缺陷 → 崩溃恢复归一设计）；`--no-verify` 是唯一「看似破纪律、实为必要」例外（理由见 design v1.4 §2.2）；本任务含空壳/死代码即删（stash 平面整体）；收敛法自洽——快照 commit 移动 BASE..HEAD ref，re-review 新 ref = 新 review（I3），快照零特权。
+
+### Task 8: 统一终止模型（fold A–D：exit gate 前终止全类覆盖 + crash record 三方统一 + cause + resume 软帽 + 类别/机制解耦，用户拍板 2026-09-30）
+
+- **Do**: §2.2/T7 窄谓词加宽为「exit gate 前终止」对偶模型（在 T7 落地物上增量，破坏性授权内：重写/重组/死壳即删）——
+  - **谓词加宽**：teardown 触发 = `dispatch 在 exit gate 前终止 且 handoff 未写`（不再限于 child 非零退出）——engine 终止（over-budget/timeout）与 child 死亡（exit code / signal）**同一实现路径**（对偶模型：终止点只有 handoff（正常面）/ crash record（异常面）两种 artifact）
+  - **cause 字段**：crash record 增 `cause`：`child-exit` / `child-signal` / `engine-over-budget` / `engine-timeout` / `unknown`——postmortem 用、**行为零分叉**（resume 不因 cause 不同路）
+  - **A — crash record 三方统一**：resume 读 crash record（snapshot commit 为基线续作）；reapStale **枚举 stale crash records**（复用 `WorkspaceRoot.enumerate()`，孤儿语义从 stash 考古变 artifact 枚举）；`recovery.residue_ref` 持久化字段**删除**、`resume-pending` 由「crash record 在场」派生（progress/lifecycle 第二持久点灭绝）
+  - **C — 类别/机制解耦**：`failureCategories` 保留为身份面（counter / terminal / channel-audit 逐类独立不动）；终止后机制单路（snapshot + record + resume）——核查 TIMEOUT / EXECUTION_FAILURE 各自残余的独立 recovery 机制归零
+  - **D — resume 软帽**：崩溃恢复按任务**独立软上限 3 次** → `BLOCKED: crash-recovery-cap` 用户裁决（对齐 branch-fix I9 软帽哲学）；403 / OOM / over-budget **非任务缺陷**，不计入 FailureResolver 类别 cap（类别计数面不因外部事故冤枉任务）；逐任务恢复计数落 progress/lifecycle 持久化
+  - **话术/测试**：SKILL failure 面一句话已覆盖全类（「同命令重跑即续作」不变）；测试 = teardown 矩阵（child-exit / child-signal / over-budget / timeout 四类终止模拟 → 同路 snapshot + crash record（含 cause）+ BLOCKED capsule next 同命令 resume）+ resume 软帽打到 cap → `BLOCKED: crash-recovery-cap` 用户裁决 + reapStale 枚举 stale crash records 清理 + `residue_ref` 缺失后 progress 派生 resume-pending 断言 + channel-audit 计数（类别身份/机制分面）
+- **验收**: teardown 触发谓词 = **任意 exit gate 前终止**（非 child-exit 独占）——over-budget/timeout 终止 → snapshot + crash record（含 `cause`）+ BLOCKED capsule `next:` 同命令 resume，与 child-exit **同一实现路径**（teardown 矩阵测试钉死，非并行第二套）；crash record 含 `cause` 字段且行为零分叉；crash record 三方统一（teardown 写 / resume 读 / reapStale 枚举 stale records）；`recovery.residue_ref` / 旧独立 recovery 持久化面零残留（grep 零命中 + channel-audit 断言）；resume 软帽 3 次 → `BLOCKED: crash-recovery-cap`（FailureResolver 类别 cap 面不动）；`pnpm run validate` 全绿（含渠道审计）+ precommit 面绿。
+- **注**: 用户 2026-09-30 拍板（高维复盘折叠 A–D：对偶模型 / 三方统一 / 类别机制解耦 / 软帽；T7 通用 teardown 谓词已天然兜 over-budget，T8 正式化归类——**T7→T8 零空窗**）；本任务含死壳即删（`residue_ref` 持久化面、TIMEOUT/EXECUTION_FAILURE 残余独立 recovery 机制）；类别身份面与机制面测试分接（census 表管身份、teardown 通杀）。

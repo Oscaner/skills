@@ -21,7 +21,7 @@
 // the lifecycle — existing consumers/tests unchanged.
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { CrashTeardown, resumeCommandFor } from "../artifacts/crash.ts";
+import { CrashTeardown, crashCauseFor, resumeCommandFor } from "../artifacts/crash.ts";
 import {
   finalizeHandoff,
   persistFinalized,
@@ -282,6 +282,7 @@ export class DocsLifecycle extends DispatchLifecycle {
           lane: "docs",
           round,
           exitCode: this.#agentRc,
+          cause: crashCauseFor({ exitCode: this.#agentRc }), // unified cause (T8) — child-exit / child-signal
           stdout: this.#agentStdout,
           stderr: this.#agentStderr,
           attemptedHandoff: handoffPath,

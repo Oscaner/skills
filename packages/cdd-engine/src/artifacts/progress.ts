@@ -25,10 +25,15 @@ import type { Workspace } from "../infra/workspace.ts";
 /** progress.json row — keyed by scalar `task` for single-task groups (`--tasks 1` — backward
  * compatible with every per-task consumer) or by the group key string for multi-task groups
  * (`--tasks 1,2` → `{ group: "1,2" }` — the P4.3/P4.4 group is the dispatch unit; the key IS the
- * TaskGroup key — comma-joined, no second form — round/handoff/progress/residue land per group). */
-export type TaskLedgerRow =
-  | { task: number; rounds?: Record<string, number>; scope_base?: string }
-  | { group: string; rounds?: Record<string, number>; scope_base?: string };
+ * TaskGroup key — comma-joined, no second form — round/handoff/progress/residue land per group).
+ * T8: `recovery_count` — the group's crash-recovery attempts (the resume soft-cap basis, §D); a
+ * per-row engine-owned field, never a FailureResolver category counter (external incidents must not
+ * burn the category caps). */
+export type TaskLedgerRow = {
+  rounds?: Record<string, number>;
+  scope_base?: string;
+  recovery_count?: number;
+} & ({ task: number } | { group: string });
 
 /** progress.json shape — top-level keys only (plan / counters / tasks). Counters derive from the
  * canonical failure-categories table (create writes all counter fields at 0). Typed carrier
@@ -164,6 +169,7 @@ export class ProgressLedger {
         const row: TaskLedgerRow = "group" in t ? { group: t.group } : { task: t.task };
         if (t.rounds !== undefined) row.rounds = t.rounds;
         if (t.scope_base !== undefined) row.scope_base = t.scope_base;
+        if (t.recovery_count !== undefined) row.recovery_count = t.recovery_count;
         return row;
       });
     }
@@ -219,6 +225,32 @@ export class ProgressLedger {
     const data = this.read();
     data.engineRecoveryCount = (data.engineRecoveryCount ?? 0) + 1;
     this.write(data);
+  }
+
+  /** recoveryCount: the group's crash-recovery attempts (0 default — the T8 resume soft-cap basis).
+   * Reads the per-row recovery_count field (engine-owned); absent/malformed → 0. */
+  recoveryCount(key: LedgerKey): number {
+    const entry = this.rowFor(this.read(), key);
+    const v = entry?.recovery_count;
+    return typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : 0;
+  }
+
+  /** incrementRecoveryCount: one crash-teardown event bumps the group's recovery count — the
+   * per-task persistence point of the T8 resume soft cap (the per-task recovery count lands in
+   * progress persistence, §D): the
+   * count is a ROW fact, never a FailureResolver category counter — 403 / OOM / over-budget are
+   * external incidents, never task defects, so the category caps stay untouched. Returns the count
+   * AFTER the bump (the caller judges against CRASH_RECOVERY_CAP_ROUNDS). */
+  incrementRecoveryCount(key: LedgerKey): number {
+    const data = this.read();
+    let taskEntry = this.rowFor(data, key);
+    if (!taskEntry) {
+      taskEntry = this.entryFor(key);
+      data.tasks.push(taskEntry);
+    }
+    taskEntry.recovery_count = (taskEntry.recovery_count ?? 0) + 1;
+    this.write(data);
+    return taskEntry.recovery_count;
   }
 
   /** taskScopeBase: the ledger's current scope_base for the key, or null when absent/invalid

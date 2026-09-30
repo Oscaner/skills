@@ -30,7 +30,7 @@
 // `runTask` → `TaskLifecycle.run` — no bare forwarding shell).
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { CrashTeardown, resumeCommandFor } from "../artifacts/crash.ts";
+import { CrashTeardown, crashCauseFor, resumeCommandFor } from "../artifacts/crash.ts";
 import {
   normalizeHandoffStatus,
   persistFinalized,
@@ -57,7 +57,12 @@ import { TemplateLoader } from "../render/templates.ts";
 import { CommitChecker } from "../rules/commit.ts";
 import { DocumentsValidator } from "../rules/documents.ts";
 import { FAILURE_CATEGORIES, FailureResolver } from "../rules/failure.ts";
-import { type NextStepArgs, NextStepRouter, SOFT_CAP_S1_ROUNDS } from "../rules/next-step.ts";
+import {
+  CRASH_RECOVERY_CAP_ROUNDS,
+  type NextStepArgs,
+  NextStepRouter,
+  SOFT_CAP_S1_ROUNDS,
+} from "../rules/next-step.ts";
 import { maxConsecutiveS1Rounds } from "../rules/ref-sequence.ts";
 import { ResultFace } from "../rules/result-face.ts";
 import { HandoffSchemaValidator } from "../rules/schema.ts";
@@ -431,6 +436,31 @@ export class TaskLifecycle extends DispatchLifecycle {
       findings,
       next,
     });
+  }
+
+  /** The crash-recovery soft-cap bump (T8 fold D): one crash-teardown event increments the group's
+   *  recovery count (progress.json tasks[N].recovery_count — the per-task persistence point) and
+   *  returns whether the soft cap (CRASH_RECOVERY_CAP_ROUNDS) is now reached. Soft by nature
+   *  (C5-0): the failure capsule's `next:` then defers to user adjudication (`BLOCKED:
+   *  crash-recovery-cap`), never a hard block. External incidents (403 / OOM / over-budget) are not
+   *  task defects — the FailureResolver category caps stay untouched. */
+  #bumpRecovery(): boolean {
+    if (this.#dryRun) return false;
+    return this.#ledger!.incrementRecoveryCount(this.#groupKey) >= CRASH_RECOVERY_CAP_ROUNDS;
+  }
+
+  /** The dual-artifact invariant on the NORMAL face (T8): a round terminating with a non-dead
+   *  carrier no longer owns its abnormal-face crash record (deleted here), so crashed-then-resumed
+   *  rounds never leave presence-derived resume-pending sticky. Fail-open (missing ctx / unusual
+   *  workspace → no-op). */
+  #clearResolvedCrash(): void {
+    const ctx = this.#tcx;
+    if (!ctx) return;
+    try {
+      ctx.workspace.removeCrashRecord(this.#mode(), ctx.round ?? 1);
+    } catch {
+      // fail-open: never blocks the normal-face exit.
+    }
   }
 
   /** runTask-compat result surface — { exitCode, returnBlock } read after run(). */
@@ -881,29 +911,43 @@ export class TaskLifecycle extends DispatchLifecycle {
       // resume sentence points at the crash record; the termination sub-cause rides `notes` so a
       // dead round stays replayable by cause.
       const timeoutMs = this.#timeoutMs;
+      const crashNext = resumeCommandFor({
+        op: mode,
+        type: "task",
+        group: this.#groupKey,
+        plan: ctx.plan,
+        ...(mode === "fix" ? { findingsPath: ctx.findingsPath ?? undefined } : {}),
+      });
+      // The unified teardown (T8) — the same mechanism as the child-exit lane: tail capture → crash-only
+      // snapshot → crash record, classified by the unified cause (engine-over-budget / engine-timeout
+      // / child-signal — the monitor's verdict, zero second teardown implementation). The cause lands
+      // in the record + the carrier notes; resume never forks on it (postmortem only).
+      const crashCause = crashCauseFor({
+        timedOut: true,
+        monitorCause: cause,
+        exitCode: cause === "signal" ? 143 : 1,
+      });
       const crashRecord = await this.#crash.run({
         lane: mode,
         round: ctx.round ?? 1,
         exitCode: cause === "signal" ? 143 : 1,
+        cause: crashCause,
         stdout: this.#agentStdout,
         stderr: this.#agentErr,
         attemptedHandoff: ctx.handoffPath,
-        next: resumeCommandFor({
-          op: mode,
-          type: "task",
-          group: this.#groupKey,
-          plan: ctx.plan,
-          ...(mode === "fix" ? { findingsPath: ctx.findingsPath ?? undefined } : {}),
-        }),
+        next: crashNext,
         workspace: ctx.workspace,
         repoRoot: this.#root,
       });
+      // The crash-recovery soft cap (T8 fold D) — this teardown bumps the group's recovery count; at
+      // the cap the capsule's resume advice defers to user adjudication (crash-recovery-cap).
+      const crashCap = this.#bumpRecovery();
       writeBlockedCarrier(ctx.handoffPath, {
         tasks: this.#tasks,
         phase: mode,
         status: "TIMEOUT",
         failure_category: FAILURE_CATEGORIES.TIMEOUT.id,
-        notes: `termination cause: ${cause ?? "unknown"}${crashRecord.snapshotSha ? `; crash snapshot ${crashRecord.snapshotSha.slice(0, 7)}` : ""}`,
+        notes: `termination cause: ${crashCause}${crashRecord.snapshotSha ? `; crash snapshot ${crashRecord.snapshotSha.slice(0, 7)}` : ""}`,
         blocker: this.#failure.timeoutBlocker({
           cause,
           tasks: this.#groupKey,
@@ -917,7 +961,22 @@ export class TaskLifecycle extends DispatchLifecycle {
       // FAILURE_CATEGORIES (replaces the legacy timeoutCount++ three-liner, T6 zero hand-written
       // counter literals).
       this.#failure.maybeExhaust(ctx.workspace, FAILURE_CATEGORIES.TIMEOUT.id, ctx.handoffPath);
-      this.#done(1, this.#face("TIMEOUT"), `cli terminated (cause: ${cause ?? "unknown"})`);
+      // The TIMEOUT failure capsule carries the same-command resume `next:` (T8 — the crash-recovery
+      // row now covers BLOCKED/TIMEOUT — the teardown matrix: same path, same record, same resume).
+      this.#done(
+        1,
+        this.#face("TIMEOUT", undefined, {
+          op: mode,
+          type: "task",
+          group: this.#groupKey,
+          plan: ctx.plan,
+          ...(mode === "fix" ? { findingsPath: ctx.findingsPath ?? undefined } : {}),
+          status: "TIMEOUT",
+          recovery: { snapshotSha: crashRecord.snapshotSha, resumeCommand: crashNext },
+          ...(crashCap ? { crashSoftCap: true } : {}),
+        }),
+        `cli terminated (cause: ${crashCause})`,
+      );
       return;
     }
   }
@@ -1001,10 +1060,14 @@ export class TaskLifecycle extends DispatchLifecycle {
         plan: ctx.plan,
         ...(mode === "fix" ? { findingsPath: ctx.findingsPath ?? undefined } : {}),
       });
+      // The unified teardown (T8) — the same mechanism as the engine-terminated lane: the child's exit
+      // shape classifies the death (child-exit / child-signal for the 128+signo shell convention);
+      // the HARNESS_ABORT category identity stays, the mechanism is single-path.
       const crashRecord = await this.#crash.run({
         lane: mode,
         round: ctx.round ?? 1,
         exitCode: this.#agentRc,
+        cause: crashCauseFor({ exitCode: this.#agentRc }),
         stdout: this.#agentStdout,
         stderr: this.#agentErr,
         attemptedHandoff: ctx.handoffPath,
@@ -1012,6 +1075,8 @@ export class TaskLifecycle extends DispatchLifecycle {
         workspace: ctx.workspace,
         repoRoot: this.#root,
       });
+      // The crash-recovery soft cap (T8 fold D) — shared with the engine-terminated lane.
+      const crashCap = this.#bumpRecovery();
       writeBlockedCarrier(ctx.handoffPath, {
         tasks: this.#tasks,
         phase: mode,
@@ -1040,6 +1105,7 @@ export class TaskLifecycle extends DispatchLifecycle {
           ...(mode === "fix" ? { findingsPath: ctx.findingsPath ?? undefined } : {}),
           status: "BLOCKED",
           recovery: { snapshotSha: crashRecord.snapshotSha, resumeCommand: crashNext },
+          ...(crashCap ? { crashSoftCap: true } : {}),
         }),
         `cli exited ${this.#agentRc} and handoff missing`,
       );
@@ -1145,6 +1211,10 @@ export class TaskLifecycle extends DispatchLifecycle {
           undefined,
           nextArgs,
         );
+        // The dual-artifact invariant on the normal face (T8): a materialized implement round no
+        // longer owns its abnormal-face crash record (a prior crashed attempt of this same round was
+        // resolved — presence-derived resume-pending must not stay sticky).
+        if (finalized.exitCode === 0) this.#clearResolvedCrash();
         // Materialized capsule and handoff/exit align: hard gate or an agent-declared BLOCKED → exit 1.
         if (finalized.exitCode !== 0) {
           this.#failure.maybeExhaust(
@@ -1283,6 +1353,10 @@ export class TaskLifecycle extends DispatchLifecycle {
           }
           this.#ledger!.write(progressData2);
         }
+        // The dual-artifact invariant on the normal face (T8): a concluded review/fix round no
+        // longer owns its abnormal-face crash record (a resumed round terminating normally is
+        // resolved — presence-derived resume-pending must not stay sticky).
+        if (finalized.exitCode === 0) this.#clearResolvedCrash();
       }
     }
     if (!dryRun && mode !== "implement") this.#ledger!.incrementRound(this.#groupKey, mode);

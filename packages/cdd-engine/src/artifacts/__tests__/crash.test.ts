@@ -9,7 +9,13 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { Workspace } from "../../infra/workspace.ts";
-import { CRASH_TAIL_LINES, CrashTeardown, resumeCommandFor } from "../crash.ts";
+import {
+  CRASH_TAIL_LINES,
+  CrashTeardown,
+  crashCauseFor,
+  isStaleCrashRecord,
+  resumeCommandFor,
+} from "../crash.ts";
 
 function git(repo: string, ...args: string[]) {
   return execFileSync("git", ["-C", repo, ...args], { encoding: "utf8" }).trim();
@@ -36,6 +42,7 @@ function teardownOpts(
     lane: "implement",
     round: 1,
     exitCode: 3,
+    cause: "child-exit",
     stdout: "A\nB\n",
     stderr: "boom from the harness\n",
     attemptedHandoff: path.join(ws, "tasks-1-implement.json"),
@@ -150,6 +157,7 @@ describe("artifacts/crash.ts — CrashTeardown.run (crash-only snapshot + crash 
       lane: "docs",
       round: 1,
       exitCode: 143,
+      cause: "child-signal",
       stdout: "",
       stderr: "killed\n",
       attemptedHandoff: path.join(dir, "spec-review-1.json"),
@@ -159,7 +167,90 @@ describe("artifacts/crash.ts — CrashTeardown.run (crash-only snapshot + crash 
     });
     expect(record.snapshotSha).toBeNull();
     expect(record.exitCode).toBe(143);
+    // The cause field persists verbatim — the T8 postmortem classification, zero behavior fork.
+    expect(record.cause).toBe("child-signal");
     const disk = JSON.parse(readFileSync(path.join(dir, "crash-docs-1.json"), "utf8"));
     expect(disk.stderrTail).toEqual(["killed"]);
+    expect(disk.cause).toBe("child-signal");
+  });
+});
+
+describe("artifacts/crash.ts — crashCauseFor (T8 five-cause unified derivation)", () => {
+  // The teardown matrix (child-exit / child-signal / over-budget / timeout) — every pre-exit-gate
+  // termination maps onto the crash-record cause vocabulary; the engine-terminated and the
+  // child-died faces are ONE derivation (no second implementation).
+  it("child-exit: not timed out, plain non-zero exit", () => {
+    expect(crashCauseFor({ exitCode: 3 })).toBe("child-exit");
+    expect(crashCauseFor({ exitCode: 1 })).toBe("child-exit");
+  });
+
+  it("child-signal: the 128+signo shell convention (SIGTERM=143 / SIGINT=130)", () => {
+    expect(crashCauseFor({ exitCode: 143 })).toBe("child-signal");
+    expect(crashCauseFor({ exitCode: 130 })).toBe("child-signal");
+    expect(crashCauseFor({ exitCode: 137 })).toBe("child-signal");
+  });
+
+  it("engine-over-budget: the budget cap fired (timedOut + monitor over-budget)", () => {
+    expect(crashCauseFor({ timedOut: true, monitorCause: "over-budget", exitCode: 1 })).toBe(
+      "engine-over-budget",
+    );
+  });
+
+  it("engine-timeout: the liveness/stall monitor fired (timedOut + stalled)", () => {
+    expect(crashCauseFor({ timedOut: true, monitorCause: "stalled", exitCode: 1 })).toBe(
+      "engine-timeout",
+    );
+  });
+
+  it("child-signal: an external SIGTERM folds in as the monitor's signal cause — the CHILD's death shape, never an engine cause", () => {
+    expect(crashCauseFor({ timedOut: true, monitorCause: "signal", exitCode: 143 })).toBe(
+      "child-signal",
+    );
+  });
+
+  it("unknown: no facts classify the death (defensive fallback)", () => {
+    expect(crashCauseFor({})).toBe("unknown");
+    expect(crashCauseFor({ exitCode: 0 })).toBe("unknown");
+    expect(crashCauseFor({ timedOut: true })).toBe("unknown");
+  });
+});
+
+describe("artifacts/crash.ts — isStaleCrashRecord (T8 reapStale stale judgment)", () => {
+  const base = {
+    exitCode: 3,
+    stderrTail: [],
+    stdoutTail: [],
+    snapshotSha: null,
+    attemptedHandoff: "/ws/tasks-1-implement.json",
+    next: "cdd implement --tasks 1",
+    cause: "child-exit" as const,
+  };
+
+  it("attemptedHandoff now holds a non-dead carrier → stale (the round resolved at the normal face)", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "cdd-stale-"));
+    const hp = path.join(dir, "tasks-1-implement.json");
+    writeFileSync(
+      hp,
+      JSON.stringify({ phase: "implement", status: "APPROVED", findings: [], artifacts: {} }),
+    );
+    expect(isStaleCrashRecord({ ...base, attemptedHandoff: hp })).toBe(true);
+  });
+
+  it("a TIMEOUT / HARNESS_ABORT carrier at the attemptedHandoff → still live (the round is dead, not resolved)", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "cdd-live-"));
+    const hp = path.join(dir, "tasks-1-implement.json");
+    writeFileSync(hp, JSON.stringify({ status: "TIMEOUT", failure_category: "TIMEOUT" }));
+    expect(isStaleCrashRecord({ ...base, attemptedHandoff: hp })).toBe(false);
+    writeFileSync(hp, JSON.stringify({ status: "BLOCKED", failure_category: "HARNESS_ABORT" }));
+    expect(isStaleCrashRecord({ ...base, attemptedHandoff: hp })).toBe(false);
+  });
+
+  it("no attemptedHandoff / missing handoff / illegible → keep (no resolution signal)", () => {
+    expect(isStaleCrashRecord({ ...base, attemptedHandoff: null })).toBe(false);
+    const dir = mkdtempSync(path.join(tmpdir(), "cdd-keep-"));
+    const hp = path.join(dir, "tasks-1-implement.json");
+    expect(isStaleCrashRecord({ ...base, attemptedHandoff: hp })).toBe(false); // missing file
+    writeFileSync(hp, "not-json{");
+    expect(isStaleCrashRecord({ ...base, attemptedHandoff: hp })).toBe(false); // illegible
   });
 });

@@ -19,7 +19,7 @@
 //
 // OOP Criterion ②: everything is an instance/static method — zero bare function exports.
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { globSync } from "tinyglobby";
 import type { EngineConfig } from "./config.ts";
@@ -163,6 +163,26 @@ export class Workspace {
     if (!/^[a-z][a-z0-9-]*$/.test(lane)) throw new TypeError(`invalid crash lane: ${lane}`);
     if (!Number.isInteger(round) || round < 1) throw new TypeError(`invalid crash round: ${round}`);
     return path.join(this.path, `crash-${lane}-${round}.json`);
+  }
+
+  /** crashRecords() — the slug's crash-record FILE names (`crash-*.json` — the T8 crash-record
+   *  enumeration target reapStale's stale sweep reads; the artifact-enumeration counterpart to
+   *  WorkspaceRoot.enumerate()'s slug scan, built on the same shared tinyglobby toolchain — never a
+   *  hand-written directory walk / stash archaeology). Missing workspace dir → [] (no records). */
+  crashRecords(): string[] {
+    return globSync("crash-*.json", { cwd: this.path, onlyFiles: true, dot: true });
+  }
+
+  /** removeCrashRecord(lane, round) — delete the round's crash record (the T8 dual-artifact cleanup:
+   *  a round terminating at the normal face no longer owns its abnormal-face record). Same name
+   *  validation as crashPath; missing record → no-op; fail-open (never throws across the caller's
+   *  exit path — malformed lane/round are caught). */
+  removeCrashRecord(lane: string, round: number): void {
+    try {
+      rmSync(this.crashPath(lane, round), { force: true });
+    } catch {
+      // fail-open: a readonly/unusual workspace never blocks the normal-face exit.
+    }
   }
 
   /** readJson<T>(name) — atomic JSON read ("<workspace>/<name>"); missing/corrupt → null,

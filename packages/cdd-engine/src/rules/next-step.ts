@@ -69,12 +69,16 @@ export interface NextStepArgs {
   nextGroup?: string;
   /** all dispatch groups approved (task review, zero findings → terminal branch review). */
   allGroupsDone?: boolean;
-  /** The crash-record-derived recovery facts (the crash record file is the
+  /** The crash-record-derived recovery facts (the crash record FILE is the
    *  decision source, NEVER the handoff `recovery` carrier — deleted with the stash plane): a
-   *  BLOCKED round WITH a crash record present is deterministically recoverable → the router emits
-   *  `next: <same command resume>` (resumeCommand verbatim); absent → the failure-mode no-`next:`
-   *  face stands. */
+   *  failure round (BLOCKED/TIMEOUT) WITH a crash record present is deterministically recoverable →
+   *  the router emits `next: <same command resume>` (resumeCommand verbatim); absent → the
+   *  failure-mode no-`next:` face stands. */
   recovery?: { snapshotSha: string | null; resumeCommand: string } | null;
+  /** crash-recovery soft cap reached (T8 fold D — the group's recovery_count hit
+   *  CRASH_RECOVERY_CAP_ROUNDS): the resume suggestion defers to user adjudication
+   *  (`BLOCKED: crash-recovery-cap`) instead of the same-command resume. Soft by nature (C5-0). */
+  crashSoftCap?: boolean;
 }
 
 /** The failure lane — a BLOCKED/TIMEOUT round goes the stderr CDD_BLOCKED single channel (C5-1
@@ -82,6 +86,11 @@ export interface NextStepArgs {
 const FAILED_STATUS = new Set(["BLOCKED", "TIMEOUT"]);
 /** The consecutive-S1 soft-cap suggestion — the user/Plan Sole Writer adjudicates (C5-0). */
 const SOFT_CAP_SUGGESTION = "BLOCKED: review-cycle-cap — user adjudicates";
+/** The crash-recovery soft-cap suggestion (T8 fold D): the group's recovery count reached the cap —
+ *  the resume advice defers to user adjudication (aligned with the branch-fix I9 soft-cap
+ *  philosophy; 403/OOM/over-budget are external incidents, never task defects — the FailureResolver
+ *  category caps stay untouched). */
+const CRASH_RECOVERY_CAP_SUGGESTION = "BLOCKED: crash-recovery-cap — user adjudicates";
 /** The clean terminal — no useful next hop within this dispatch's line. */
 const NONE = "none";
 
@@ -89,6 +98,10 @@ const NONE = "none";
  *  to user adjudication (the 'ref-sequence round counting' judgment basis). Soft by nature (C5-0): a
  *  default suggestion, never a hard stop — Plan Sole Writer / user adjudication override it. */
 export const SOFT_CAP_S1_ROUNDS = 3;
+
+/** The per-task crash-recovery soft cap (T8 fold D): the recovery count at which the resume
+ *  suggestion defers to user adjudication (`BLOCKED: crash-recovery-cap`). Soft by nature (C5-0). */
+export const CRASH_RECOVERY_CAP_ROUNDS = 3;
 
 /** NextStepRouter — the C5 decision table as one instance-method class (Criterion ②; constructor
  *  injection — the ConvergenceChecker backing the blocker-count judgment defaults to a fresh
@@ -158,17 +171,24 @@ export class NextStepRouter {
    *    fix     input warn/nit    → next: none (closure-round naturalization — no re-review preview)
    *    fix     soft cap          → next: BLOCKED: review-cycle-cap — user adjudicates
    *    fix     itself BLOCKED    → no next: (failure-mode stderr face)
-   *    BLOCKED + crash record    → next: <same command resume> (T7 crash recovery — the decision
-   *                                source is the CRASH RECORD, never the handoff carrier; a recordless
-   *                                BLOCKED round keeps the no-next: failure-mode face)
+   *    BLOCKED/TIMEOUT + crash record → next: <same command resume> (T7/T8 crash recovery — the
+   *                                decision source is the CRASH RECORD, never the handoff carrier; a
+   *                                recordless failure round keeps the no-next: failure-mode face)
+   *    BLOCKED/TIMEOUT + crash record + recovery soft cap → next: BLOCKED: crash-recovery-cap —
+   *                                user adjudicates (T8 fold D — the cap outranks the resume row)
    */
   next(args: NextStepArgs): string | null {
     const { op, status, type } = args;
-    // Crash-recovery row FIRST (before the failure-mode null): a BLOCKED round WITH a crash
-    // record present is deterministically recoverable — the crash record (never the handoff
-    // carrier — the `recovery` schema field is deleted with the stash plane) carries the same-command
-    // resume, emitted verbatim. A recordless BLOCKED round keeps the failure-mode no-next: face.
-    if (status === "BLOCKED" && args.recovery?.resumeCommand) return args.recovery.resumeCommand;
+    // Crash-recovery row FIRST (before the failure-mode null): a failure round (BLOCKED/TIMEOUT)
+    // WITH a crash record present is deterministically recoverable — the crash record (never the
+    // handoff carrier — the `recovery` schema field is deleted with the stash plane) carries the
+    // same-command resume, emitted verbatim. When the group's recovery count reached the soft cap
+    // (crashSoftCap), the resume advice defers to user adjudication instead. A recordless failure
+    // round keeps the failure-mode no-next: face.
+    if (status && FAILED_STATUS.has(status) && args.recovery?.resumeCommand) {
+      if (args.crashSoftCap) return CRASH_RECOVERY_CAP_SUGGESTION;
+      return args.recovery.resumeCommand;
+    }
     if (status && FAILED_STATUS.has(status)) return null;
 
     if (op === "implement") {

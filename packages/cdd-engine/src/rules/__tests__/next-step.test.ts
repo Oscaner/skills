@@ -4,7 +4,7 @@
 // params C5-2, BLOCKED → no line). Row-by-row mirror of the module header table. T3: migrated to
 // instance-method assertions (the decision table rows are preserved one by one).
 import { describe, expect, it } from "vitest";
-import { NextStepRouter, SOFT_CAP_S1_ROUNDS } from "../next-step.ts";
+import { CRASH_RECOVERY_CAP_ROUNDS, NextStepRouter, SOFT_CAP_S1_ROUNDS } from "../next-step.ts";
 
 const PLAN = "/repo/plan.md";
 const H = "/repo/.osuperpowers/cdd/fixture/tasks-1-review-1.json";
@@ -270,6 +270,10 @@ describe("rules/next-step.ts — consecutive-S1 soft-cap basis (C5-1 'ref 序列
     expect(SOFT_CAP_S1_ROUNDS).toBeGreaterThanOrEqual(2);
   });
 
+  it("CRASH_RECOVERY_CAP_ROUNDS exports the T8 fold-D soft cap (the task face compares its recovery count against it)", () => {
+    expect(CRASH_RECOVERY_CAP_ROUNDS).toBe(3);
+  });
+
   it("counts only the LEADING consecutive S1 rounds (newest first) and stops at the first non-S1", () => {
     expect(new NextStepRouter().consecutiveS1Count([SOME, SOME, SOME, WARN, SOME, SOME])).toBe(3);
   });
@@ -347,7 +351,7 @@ describe("rules/next-step.ts — implement + failure lanes", () => {
   });
 });
 
-describe("rules/next-step.ts — crash-record recovery row (T7)", () => {
+describe("rules/next-step.ts — crash-record recovery row (T7/T8)", () => {
   const RESUME = {
     snapshotSha: "a".repeat(40),
     resumeCommand: "cdd implement --tasks 1 --plan /repo/plan.md",
@@ -366,10 +370,27 @@ describe("rules/next-step.ts — crash-record recovery row (T7)", () => {
     ).toBe(RESUME.resumeCommand);
   });
 
+  it("TIMEOUT + crash record present → next: <same command resume> (T8 — the teardown matrix: every pre-exit-gate termination carries the same-command resume, the recovery row now covers BLOCKED and TIMEOUT)", () => {
+    expect(
+      new NextStepRouter().next({
+        op: "implement",
+        type: "task",
+        group: "1",
+        plan: PLAN,
+        status: "TIMEOUT",
+        recovery: RESUME,
+      }),
+    ).toBe(RESUME.resumeCommand);
+  });
+
   it("BLOCKED without a crash record → null (the failure-mode no-next: face stands)", () => {
     expect(
       new NextStepRouter().next({ op: "implement", type: "task", status: "BLOCKED" }),
     ).toBeNull();
+  });
+
+  it("TIMEOUT without a crash record → null (recordless failure stays next-less)", () => {
+    expect(new NextStepRouter().next({ op: "review", type: "task", status: "TIMEOUT" })).toBeNull();
   });
 
   it("BLOCKED + crash record outranks the C5-1 fix re-review row (recovery wins on any op)", () => {
@@ -389,15 +410,31 @@ describe("rules/next-step.ts — crash-record recovery row (T7)", () => {
     ).toBe("cdd fix --type task --tasks 1 --plan /repo/plan.md");
   });
 
-  it("TIMEOUT + crash record → null (the recovery row is BLOCKED-only — TIMEOUT keeps the no-next: face)", () => {
+  it("crash-recovery soft cap (T8 fold D) → next: BLOCKED: crash-recovery-cap — user adjudicates (the cap outranks the resume row)", () => {
     expect(
       new NextStepRouter().next({
         op: "implement",
         type: "task",
-        status: "TIMEOUT",
+        group: "1",
+        plan: PLAN,
+        status: "BLOCKED",
         recovery: RESUME,
+        crashSoftCap: true,
       }),
-    ).toBeNull();
+    ).toBe("BLOCKED: crash-recovery-cap — user adjudicates");
+    // TIMEOUT + crash record + cap → the same adjudication marker (the recovery row covers both
+    // failure statuses, and the cap never leaks a resume command).
+    const cappedTimeout = new NextStepRouter().next({
+      op: "implement",
+      type: "task",
+      group: "1",
+      plan: PLAN,
+      status: "TIMEOUT",
+      recovery: RESUME,
+      crashSoftCap: true,
+    });
+    expect(cappedTimeout).toBe("BLOCKED: crash-recovery-cap — user adjudicates");
+    expect(cappedTimeout).not.toMatch(/^cdd /);
   });
 
   it("recordless BLOCKED review still stays next-less (the recovery row never invents a next:)", () => {

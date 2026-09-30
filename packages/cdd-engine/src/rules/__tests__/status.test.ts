@@ -11,7 +11,8 @@
 //   needs-review      implement APPROVED, no review dispatched yet
 //   needs-fix         latest review not approved (CHANGES_REQUESTED / BLOCKED), no addressing fix
 //   needs-re-review   T14-class: review not approved → addressing fix APPROVED, no re-review yet
-//   resume-pending    dead round on record (TIMEOUT / EXECUTION_FAILURE) — resume or discard
+//   resume-pending    crash record present for the lane+round (T8 — presence-derived; the handoff
+//                     carrier's TIMEOUT/EXECUTION_FAILURE dead face is retired) — resume or discard
 //   complete          latest review APPROVED (a subsequent fix is the legal terminal — T30 ①)
 
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -161,9 +162,20 @@ describe("deriveTaskState — six-state convergence", () => {
     expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("needs-re-review");
   });
 
-  it("resume-pending: implement TIMEOUT dead round → resume or discard", () => {
+  it("resume-pending (T8): implement crash record present → resume or discard (presence-derived — the carrier dead face is retired)", () => {
     const ws = workspace(EMPTY_PROGRESS);
-    writeHandoff(ws, "tasks-1-implement.json", {
+    // The abnormal-face artifact (the T8 dual-model — written by the crash teardown) is the
+    // dead-round source, never a handoff carrier persistence point. The implement lane's round is
+    // always 1 → crash-implement-1.json.
+    writeFileSync(
+      path.join(ws, "crash-implement-1.json"),
+      JSON.stringify({ exitCode: 1, cause: "child-exit", next: "cdd implement --tasks 1" }),
+    );
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("resume-pending");
+    // The historical recovery-carrier persistence point is gone — a carrier alone (TIMEOUT status or an
+    // EXECUTION_FAILURE category) no longer marks the round dead without its crash record.
+    const ws2 = workspace(EMPTY_PROGRESS);
+    writeHandoff(ws2, "tasks-1-implement.json", {
       tasks: [1],
       phase: "implement",
       status: "TIMEOUT",
@@ -171,33 +183,19 @@ describe("deriveTaskState — six-state convergence", () => {
       findings: [],
       artifacts: {},
     });
-    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("resume-pending");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws2), 1)).toBe("in-flight");
   });
 
-  it("resume-pending: implement EXECUTION_FAILURE (status BLOCKED + category)", () => {
-    const ws = workspace(EMPTY_PROGRESS);
-    writeHandoff(ws, "tasks-1-implement.json", {
-      tasks: [1],
-      phase: "implement",
-      status: "BLOCKED",
-      failure_category: "EXECUTION_FAILURE",
-      blocker: "cli exited 1",
-      findings: [],
-      artifacts: {},
-    });
-    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("resume-pending");
-  });
-
-  it("resume-pending: review dead round (review TIMEOUT)", () => {
+  it("resume-pending (T8): review crash record present (crash-review-1) → resume or discard", () => {
     const ws = workspace(ROUNDS({ review: 1 }));
-    writeHandoff(ws, "tasks-1-review-1.json", {
-      tasks: [1],
-      phase: "review",
-      status: "TIMEOUT",
-      failure_category: "TIMEOUT",
-      findings: [],
-      artifacts: {},
-    });
+    writeFileSync(
+      path.join(ws, "crash-review-1.json"),
+      JSON.stringify({
+        exitCode: 143,
+        cause: "child-signal",
+        next: "cdd review --type task --tasks 1",
+      }),
+    );
     expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("resume-pending");
   });
 
@@ -520,17 +518,15 @@ describe("deriveTaskState — six-state convergence", () => {
     expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("complete");
   });
 
-  it("S2 收口态: REVIEW_FIX review + addressing fix dead（EXECUTION_FAILURE）→ resume-pending", () => {
+  it("S2 收口态: REVIEW_FIX review + addressing fix crashed（crash record present）→ resume-pending", () => {
     const ws = workspace(ROUNDS({ review: 1, fix: 1 }));
     writeReview(ws, 1, "REVIEW_FIX", ["warn"]);
-    writeHandoff(ws, "tasks-1-fix-1.json", {
-      tasks: [1],
-      phase: "fix",
-      status: "BLOCKED",
-      failure_category: "EXECUTION_FAILURE",
-      findings: [],
-      artifacts: {},
-    });
+    // The dead fix is the crash-record presence face — the T8 abnormal artifact (crash-fix-1.json),
+    // never a carrier EXECUTION_FAILURE persistence point.
+    writeFileSync(
+      path.join(ws, "crash-fix-1.json"),
+      JSON.stringify({ exitCode: 1, cause: "child-exit", next: "cdd fix --type task --tasks 1" }),
+    );
     expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("resume-pending");
   });
 

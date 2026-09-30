@@ -3,7 +3,7 @@
 // / reapDone（进程内 idle 监视）/ reapStale（跨 run 孤儿兜底）。用真进程树验证组隔离与回收。
 
 import { execSync, spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -95,6 +95,31 @@ describe.skipIf(!GROUP_SUPPORTED)("proc-lifecycle spawnManaged", () => {
     );
     await expect(proc.reapStale()).resolves.toBeUndefined(); // does not throw
     expect(JSON.parse(readFileSync(slugLifecycle(repo, "gone"), "utf8"))).toEqual([]); // the gone entry is written back cleared
+  });
+
+  it("T8 reapStale 枚举 stale crash records 清理（artifact 枚举而非 stash 考古；round 已解析删除、仍在死亡保留）", async () => {
+    const repo = tmpReapRepo(["ws-crash"]);
+    await proc.initRoot(repo);
+    const wsDir = path.join(repo, ".osuperpowers", "cdd", "ws-crash");
+    const resolvedHp = path.join(wsDir, "tasks-1-implement.json");
+    const deadHp = path.join(wsDir, "tasks-2-implement.json");
+    // A stale record — its round resolved at the normal face (the attemptedHandoff now holds a
+    // non-dead carrier).
+    writeFileSync(
+      path.join(wsDir, "crash-implement-1.json"),
+      JSON.stringify({ exitCode: 3, attemptedHandoff: resolvedHp, cause: "child-exit" }),
+    );
+    // A live record — its round is still dead (the attemptedHandoff holds a TIMEOUT/HARNESS_ABORT
+    // termination carrier).
+    writeFileSync(
+      path.join(wsDir, "crash-implement-2.json"),
+      JSON.stringify({ exitCode: 1, attemptedHandoff: deadHp, cause: "engine-over-budget" }),
+    );
+    writeFileSync(resolvedHp, JSON.stringify({ status: "APPROVED", findings: [], artifacts: {} }));
+    writeFileSync(deadHp, JSON.stringify({ status: "TIMEOUT", failure_category: "TIMEOUT" }));
+    await expect(proc.reapStale()).resolves.toBeUndefined();
+    expect(existsSync(path.join(wsDir, "crash-implement-1.json"))).toBe(false); // stale → cleaned
+    expect(existsSync(path.join(wsDir, "crash-implement-2.json"))).toBe(true); // live → kept
   });
 
   it("reapStale 对存活超时组执行回收（stale 分支：own owner + 在途组连根回收，逐 slug 写回）", async () => {

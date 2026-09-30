@@ -317,6 +317,68 @@ it("runTask: nested CLI failed no handoff → BLOCKED handoff (stderr into block
     expect(crashRecord.exitCode).toBe(3);
     expect(crashRecord.stderrTail).toContain("boom from fake cli");
     expect(crashRecord.attemptedHandoff).toBe(path.join(ws, "tasks-1-implement.json"));
+    // The unified termination cause rides the record — child-exit for a plain non-zero exit (T8).
+    expect(crashRecord.cause).toBe("child-exit");
+  } finally {
+    restore();
+  }
+});
+
+it("T8 teardown matrix: child-signal (exit 143 — SIGTERM) → same-path crash record (cause child-signal) + BLOCKED capsule next: resume", async () => {
+  const { repo, planFile, ws } = setupWorkspace();
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-sig-"));
+  const restore = withFakeCli(
+    binDir,
+    "fake-cli",
+    "#!/usr/bin/env bash\necho 'killed' >&2\nexit 143\n",
+  );
+  const regPath = ghostRegistry(ws);
+  try {
+    const res = await TaskLifecycle.run("ghost", 1, {
+      mode: "implement",
+      planFile,
+      root: repo,
+      registryPath: regPath,
+      noExit: true,
+    });
+    expect(res.exitCode).toBe(1);
+    const crashRecord = JSON.parse(readFileSync(path.join(ws, "crash-implement-1.json"), "utf8"));
+    expect(crashRecord.exitCode).toBe(143);
+    expect(crashRecord.cause).toBe("child-signal");
+    expect(res.returnBlock[0]).toMatch(/^status: BLOCKED · blocker: 0 · handoff: /);
+    expect(res.returnBlock[1]).toMatch(/^next: cdd implement --tasks 1 --plan /);
+  } finally {
+    restore();
+  }
+});
+
+it("T8 fold D: resume 软帽 — 3 次崩溃 → 第 3 次 capsule next: BLOCKED: crash-recovery-cap（progress recovery_count 逐任务持久化，类别 cap 面不动）", async () => {
+  const { repo, planFile, ws } = setupWorkspace();
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-softcap-"));
+  const restore = withFakeCli(binDir, "fake-cli", "#!/usr/bin/env bash\nexit 3\n");
+  const regPath = ghostRegistry(ws);
+  const env = { ...process.env };
+  try {
+    for (let i = 1; i <= 3; i++) {
+      const res = await TaskLifecycle.run("ghost", 1, {
+        mode: "implement",
+        planFile,
+        root: repo,
+        registryPath: regPath,
+        noExit: true,
+        env,
+      });
+      expect(res.exitCode).toBe(1);
+      const progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
+      expect(progress.tasks[0].recovery_count).toBe(i); // per-task count persists (progress/lifecycle 面)
+      if (i < 3) {
+        expect(res.returnBlock[1]).toMatch(/^next: cdd implement --tasks 1 --plan /);
+      } else {
+        expect(res.returnBlock[1]).toBe("next: BLOCKED: crash-recovery-cap — user adjudicates");
+      }
+    }
+    // The duplicate-artifact invariant holds — the round's crash record keeps the latest overwrite.
+    expect(existsSync(path.join(ws, "crash-implement-1.json"))).toBe(true);
   } finally {
     restore();
   }
@@ -374,9 +436,10 @@ it("runTask: group [1,2] implement failure → tasks-1,2-implement.json BLOCKED 
     expect(handoff.blocker).toMatch(/cdd implement --tasks 1,2 /);
     const adviceTasks = /cdd implement --tasks ([^ )]+)/.exec(handoff.blocker)?.[1];
     expect(adviceTasks).toBe("1,2"); // whole-group re-dispatch advice — never a per-task subset
-    // Progress ledger: one row per group (round at group level)
+    // Progress ledger: one row per group (round at group level); T8 — the crash teardown bumped the
+    // group's recovery count (the resume soft-cap persistence point, tasks[N].recovery_count).
     const progress = JSON.parse(readFileSync(path.join(wsTwo, "progress.json"), "utf8"));
-    expect(progress.tasks).toEqual([{ group: "1,2", rounds: { implement: 1 } }]);
+    expect(progress.tasks).toEqual([{ group: "1,2", rounds: { implement: 1 }, recovery_count: 1 }]);
   } finally {
     restore();
   }
@@ -615,7 +678,7 @@ it("runTask: timeout → handoff status TIMEOUT + blocker + partial findings", a
   const restore = withFakeCli(binDir, "fake-cli", "#!/usr/bin/env bash\nexec sleep 5\nexit 0\n");
   const regPath = ghostRegistry(ws);
   try {
-    const _res = await TaskLifecycle.run("ghost", 1, {
+    const res = await TaskLifecycle.run("ghost", 1, {
       mode: "implement",
       planFile,
       root: repo,
@@ -629,6 +692,15 @@ it("runTask: timeout → handoff status TIMEOUT + blocker + partial findings", a
     expect(h.status).toBe("TIMEOUT");
     expect(h.blocker).toMatch(/timed out after 1000ms/);
     expect(h.tasks).toEqual([1]);
+    // The unified teardown (T8): the engine-over-budget crash record + the TIMEOUT capsule carries
+    // the same-command resume on the `next:` line (the work axis collapses TIMEOUT to the BLOCKED
+    // capsule — the acceptance's "BLOCKED capsule next:" — and the recovery row covers
+    // BLOCKED/TIMEOUT).
+    const crashRecord = JSON.parse(readFileSync(path.join(ws, "crash-implement-1.json"), "utf8"));
+    expect(crashRecord.cause).toBe("engine-over-budget");
+    expect(crashRecord.next).toContain("cdd implement --tasks 1");
+    expect(res.returnBlock[0]).toMatch(/^status: BLOCKED · blocker: 0 · handoff: /);
+    expect(res.returnBlock[1]).toMatch(/^next: cdd implement --tasks 1 --plan /);
   } finally {
     restore();
   }
@@ -703,11 +775,19 @@ it.skipIf(!GROUP_SUPPORTED)(
       expect(h.blocker).not.toMatch(/git stash/);
       expect(h.tasks).toEqual([1]);
       // T7 crash teardown raced the TIMEOUT lane: the crashed dispatch's crash record (tail + the
-      // same-command resume) lands beside the handoff in the workspace.
+      // same-command resume) lands beside the handoff in the workspace. T8: the LIFENESS termination
+      // classifies as engine-timeout (the stall monitor fired — same teardown path as every other
+      // pre-exit-gate termination).
       const crashRecord = JSON.parse(readFileSync(path.join(ws, "crash-implement-1.json"), "utf8"));
       expect(crashRecord.exitCode).toBe(1);
+      expect(crashRecord.cause).toBe("engine-timeout");
       expect(crashRecord.next).toContain("cdd implement --tasks 1");
       expect(crashRecord.attemptedHandoff).toBe(hp);
+      // The TIMEOUT capsule carries the same-command resume `next:` (T8; the work axis collapses
+      // TIMEOUT to the BLOCKED capsule; the recovery row covers BLOCKED/TIMEOUT — the teardown
+      // matrix's same-path resume).
+      expect(_res.returnBlock[0]).toMatch(/^status: BLOCKED · blocker: 0 · handoff: /);
+      expect(_res.returnBlock[1]).toMatch(/^next: cdd implement --tasks 1 /);
       const progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
       expect(progress.timeoutCount).toBe(1); // stall counts toward the normal timeout quota
     } finally {

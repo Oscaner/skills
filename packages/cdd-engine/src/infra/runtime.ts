@@ -25,6 +25,7 @@ import {
   existsSync,
   readdirSync,
   readFileSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -33,6 +34,7 @@ import { fileURLToPath } from "node:url";
 import Ajv, { type ValidateFunction } from "ajv";
 import { execa } from "execa";
 
+import { type CrashRecord, isStaleCrashRecord } from "../artifacts/crash.ts";
 import { exitWithCode, invariant } from "./exit.ts";
 import { GitClient } from "./git.ts";
 import { Workspace, WorkspaceRoot } from "./workspace.ts";
@@ -690,8 +692,11 @@ export class CddRuntime {
   // at engine start to sweep the previous run's SIGKILL residue; a group whose leader is dead but
   // members survive is rooted here. Read → filter → kill → write-back runs per slug file;
   // survivors write back to THEIR OWN Workspace.lifecyclePath, never aggregated to a single path —
-  // the sweep holds when #diskPath is unbound (startup, no dispatch context yet). No initialized
-  // root → the sweep is a no-op.
+  // the sweep holds when #diskPath is unbound (startup, no dispatch context yet). Per slug the
+  // crash-record sweep runs too (T8 fold A — reapStale enumerates stale crash records: artifact
+  // enumeration via Workspace.crashRecords + the WorkspaceRoot.enumerate slug walk; orphan
+  // semantics are artifact-based, never git stash archaeology). No initialized root → the sweep is
+  // a no-op.
   async reapStale({ graceMs = 5000 }: { graceMs?: number } = {}): Promise<void> {
     const root = this.#root ? WorkspaceRoot.from(this.#root) : null;
     if (!root) return;
@@ -730,6 +735,17 @@ export class CddRuntime {
         try {
           ws.writeJson("lifecycle.json", survivors);
         } catch {}
+      }
+      // The crash-record sweep (T8) — enumerate the slug's crash records and delete the stale ones (a
+      // record whose round has since terminated at the normal face is no longer the round's
+      // terminal; the dual-artifact invariant + the T8 crash record tri-party). Fail-open per file.
+      for (const name of ws.crashRecords()) {
+        const rec = ws.readJson<CrashRecord>(name);
+        if (rec && isStaleCrashRecord(rec)) {
+          try {
+            rmSync(path.join(ws.path, name), { force: true });
+          } catch {}
+        }
       }
     }
   }

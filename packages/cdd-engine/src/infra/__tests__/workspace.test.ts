@@ -112,3 +112,29 @@ describe("Workspace — one dispatch workspace", () => {
     expect(ws.readJson<{ k: number }>("x.json")?.k).toBe(1);
   });
 });
+
+describe("Workspace — crash-record face (T8 artifact enumeration + dual-artifact cleanup)", () => {
+  it("crashRecords() — enumerate crash-*.json only (missing dir → []; non-crash files skipped)", () => {
+    const repo = tmpRepo();
+    const ws = WorkspaceRoot.from(repo).for("docs/x.md");
+    expect(ws.crashRecords()).toEqual([]); // no workspace dir yet → no records (fail-open)
+    ws.writeJson("crash-implement-1.json", { cause: "child-exit" });
+    ws.writeJson("crash-review-2.json", { cause: "engine-over-budget" });
+    ws.writeJson("progress.json", { tasks: [] });
+    ws.writeJson("tasks-1-implement.json", { status: "BLOCKED" });
+    expect(ws.crashRecords().sort()).toEqual(["crash-implement-1.json", "crash-review-2.json"]);
+  });
+
+  it("removeCrashRecord(lane, round) — delete the round's record; missing → no-op; malformed lane/round fail-open", () => {
+    const repo = tmpRepo();
+    const ws = WorkspaceRoot.from(repo).for("docs/x.md");
+    ws.writeJson("crash-implement-1.json", { cause: "child-exit" });
+    expect(existsSync(path.join(ws.path, "crash-implement-1.json"))).toBe(true);
+    ws.removeCrashRecord("implement", 1);
+    expect(existsSync(path.join(ws.path, "crash-implement-1.json"))).toBe(false);
+    // no-op on a missing record + a malformed lane/round (never throws across a caller's exit path)
+    ws.removeCrashRecord("implement", 1);
+    expect(() => ws.removeCrashRecord("IMPLEMENT", 1)).not.toThrow();
+    expect(() => ws.removeCrashRecord("implement", 0)).not.toThrow();
+  });
+});

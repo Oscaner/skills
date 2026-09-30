@@ -2,8 +2,8 @@
 // spec §2.2 A–D：spawnManaged（detached 进程组 + run 级 registry）/ teardownAll（run 边界连根回收）
 // / reapDone（进程内 idle 监视）/ reapStale（跨 run 孤儿兜底）。用真进程树验证组隔离与回收。
 
-import { spawn } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { execSync, spawn } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -33,6 +33,23 @@ const waitFor = async (fn, ms) => {
 
 // 本文件专用落盘 registry 路径（每用例经真实边界重建，见 beforeEach）。
 const DISK = path.join(os.tmpdir(), `p1lifecycle-${process.pid}.json`);
+
+// The reapStale enumeration-target fixture (T6): a git repo with workspace slug dirs
+// (`.osuperpowers/cdd/<slug>/`).
+// The sweep enumerates every slug's `lifecycle.json` (WorkspaceRoot.enumerate) — read → filter →
+// kill → write-back per slug file, never a repo-level single path.
+function tmpReapRepo(slugs: string[]): string {
+  const repo = mkdtempSync(path.join(os.tmpdir(), "cdd-reap-repo-"));
+  execSync(`git init -q "${repo}"`);
+  execSync(`git -C "${repo}" -c user.name=t -c user.email=t@t commit --allow-empty -qm fixture`);
+  for (const s of slugs) {
+    mkdirSync(path.join(repo, ".osuperpowers", "cdd", s), { recursive: true });
+  }
+  return repo;
+}
+function slugLifecycle(repo: string, slug: string): string {
+  return path.join(repo, ".osuperpowers", "cdd", slug, "lifecycle.json");
+}
 
 describe.skipIf(!GROUP_SUPPORTED)("proc-lifecycle spawnManaged", () => {
   beforeEach(async () => {
@@ -68,61 +85,66 @@ describe.skipIf(!GROUP_SUPPORTED)("proc-lifecycle spawnManaged", () => {
     expect(JSON.parse(readFileSync(DISK, "utf8"))).toEqual([]); // registry 清空并落盘（不再有在册组）
   });
 
-  it("reapStale 对已消失组 fail-open", async () => {
-    await proc.spawnManaged("sleep", ["0.1"], {});
-    await new Promise((r) => setTimeout(r, 300)); // the group exited naturally
+  it("reapStale 对已消失组 fail-open（枚举条目不炸，逐 slug 写回清空）", async () => {
+    const repo = tmpReapRepo(["gone"]);
+    await proc.initRoot(repo);
+    // A group long gone (no pgid / no owner) — the filter roots nothing; the write-back sweeps it.
+    writeFileSync(
+      slugLifecycle(repo, "gone"),
+      JSON.stringify([{ pgid: 99999999, ownerPid: 99999999 }]),
+    );
     await expect(proc.reapStale()).resolves.toBeUndefined(); // does not throw
+    expect(JSON.parse(readFileSync(slugLifecycle(repo, "gone"), "utf8"))).toEqual([]); // the gone entry is written back cleared
   });
 
-  it("reapStale 对存活超时组执行回收（非仅 fail-open）", async () => {
-    // P1LLWC 派生孙组后 leader 退出 → 组存活留 registry；reapStale 走 stale 分支连根回收
+  it("reapStale 对存活超时组执行回收（stale 分支：own owner + 在途组连根回收，逐 slug 写回）", async () => {
+    // P1LLWC detaches a grandchild then the leader exits → the group stays alive in the registry;
+    // reapStale roots it via the stale branch. Registration lands directly in THIS slug's
+    // lifecycle.json (the T6 relocation shape) — reapStale reads the same file via enumeration.
+    const repo = tmpReapRepo(["ws-stale"]);
+    await proc.initRoot(repo);
+    await proc.initProcLifecycle({ diskPath: slugLifecycle(repo, "ws-stale") });
     const script = `const{spawn}=require('child_process');spawn(process.execPath,['-e','setTimeout(()=>{},60000)','P1LLWC']).unref();process.exit(0)`;
     await proc.spawnManaged("node", ["-e", script], { termination: { budgetMs: 5000 } });
     expect(markerAlive("P1LLWC")).toBeGreaterThan(0);
     await proc.reapStale({ graceMs: 500 });
-    expect(markerAlive("P1LLWC")).toBe(0);
+    expect(markerAlive("P1LLWC")).toBe(0); // own-process owner + alive → stale branch roots the group
+    expect(JSON.parse(readFileSync(slugLifecycle(repo, "ws-stale"), "utf8"))).toEqual([]); // swept + written back per-slug
   });
 
-  it("reapDone 清 dispatch 已返回仍存活组（idle 监视语义）", async () => {
-    const script = `const{spawn}=require('child_process');spawn(process.execPath,['-e','setTimeout(()=>{},60000)','P1LLWC']).unref();process.exit(0)`;
-    await proc.spawnManaged("node", ["-e", script], { termination: { budgetMs: 5000 } });
-    await proc.markAllDispatchesDone(); // dispatch returns → the group is marked done
-    await proc.reapDone({ graceMs: 500 });
-    expect(markerAlive("P1LLWC")).toBe(0); // done + a still-alive group is reaped wholesale (observable boundary result)
-    expect(JSON.parse(readFileSync(DISK, "utf8"))).toEqual([]); // the on-disk registry deregisters the group in sync
-  });
-
-  it("跨 run 父死回收：外部引擎落盘 registry 被 SIGKILL → 新 proc 实例 reapStale 连根回收", async () => {
-    const disk = path.join(os.tmpdir(), `p1oracle-${process.pid}-${Date.now()}.json`);
-    // 1) 独立引擎子进程（fixtures/proc-oracle-engine.ts，本次目录下）：initProcLifecycle(disk) →
-    //    spawnManaged 派生标记驻留组（P1ORPHAN）→ persistRegistry → 引擎驻留模拟「引擎被杀前仍活着」
-    //    P1ORPHAN 由 execa 子进程在运行期触发（先于 spawnManaged 落盘）——disk 须与 marker 同时就绪再读，
-    //    否则 readFileSync 会撞 ENOENT 竞态。
+  it("跨 run 父死回收：外部引擎落盘 registry 被 SIGKILL → 新 proc 实例 reapStale 枚举连根回收", async () => {
+    const repo = tmpReapRepo(["orphan"]);
+    await proc.initRoot(repo);
+    const lifecycle = slugLifecycle(repo, "orphan");
+    // 1) an independent engine subprocess (fixtures/proc-oracle-engine.ts, this dir):
+    //    initProcLifecycle(lifecycle) → spawnManaged spawns the marked lingering group (P1ORPHAN)
+    //    → persistRegistry → the engine lingers, simulating an engine killed while still alive.
     const engine = spawn(process.execPath, [
       path.join(TESTS_DIR, "fixtures", "proc-oracle-engine.ts"),
-      disk,
+      lifecycle,
     ]);
     await waitFor(() => {
       try {
         return (
-          markerAlive("P1ORPHAN") > 0 && JSON.parse(readFileSync(disk, "utf8"))[0]?.ownerPid != null
+          markerAlive("P1ORPHAN") > 0 &&
+          JSON.parse(readFileSync(lifecycle, "utf8"))[0]?.ownerPid != null
         );
       } catch {
         return false;
       }
     }, 8000);
-    expect(JSON.parse(readFileSync(disk, "utf8"))[0].ownerPid).toBe(engine.pid);
+    expect(JSON.parse(readFileSync(lifecycle, "utf8"))[0].ownerPid).toBe(engine.pid);
     engine.kill("SIGKILL"); // simulates the engine being killed: no teardown runs
     await new Promise((r) => setTimeout(r, 500));
-    // 2) 本进程以新 proc 模块实例回收（ownerPid 异 → 命中 orphans 分支）
-    await proc.initProcLifecycle({ diskPath: disk });
+    // 2) this process reaps via a fresh proc module instance (ownerPid differs → the orphans
+    //    branch; the enumeration reads only this slug's file)
     await proc.reapStale({ graceMs: 500 });
     expect(markerAlive("P1ORPHAN")).toBe(0); // the orphan group (including the grandchild session server) is reaped wholesale
   });
 
-  it("reapStale 排除并发引擎在途组：foreign owner 存活不回收、owner 已死才回收（branch-review warn 4）", async () => {
-    const disk = path.join(os.tmpdir(), `p1owner-${process.pid}-${Date.now()}.json`);
-    await proc.initProcLifecycle({ diskPath: disk });
+  it("reapStale 排除并发引擎在途组 + 逐 slug 独立写回（foreign owner 存活不回收、owner 已死才回收）", async () => {
+    const repo = tmpReapRepo(["in-flight", "orphan"]);
+    await proc.initRoot(repo);
     const pgAlive = (pgid) => {
       try {
         process.kill(-pgid, 0);
@@ -144,22 +166,36 @@ describe.skipIf(!GROUP_SUPPORTED)("proc-lifecycle spawnManaged", () => {
       detached: true,
       stdio: "ignore",
     });
-    // 手写落盘 registry：g1 归 foreign-存活 owner（并发在途组）→ 跳过；g2 归必死 pid → 回收。
+    // Hand-written per-slug registry files: in-flight is owned by a foreign LIVE owner (a concurrent
+    // in-flight engine) → skipped; orphan is owned by a dead pid → reaped.
     writeFileSync(
-      disk,
-      JSON.stringify([
-        { pgid: g1.pid, ownerPid: foreignOwnerAlive.pid },
-        { pgid: g2.pid, ownerPid: 99999999 },
-      ]),
+      slugLifecycle(repo, "in-flight"),
+      JSON.stringify([{ pgid: g1.pid, ownerPid: foreignOwnerAlive.pid }]),
+    );
+    writeFileSync(
+      slugLifecycle(repo, "orphan"),
+      JSON.stringify([{ pgid: g2.pid, ownerPid: 99999999 }]),
     );
     await proc.reapStale({ graceMs: 300 });
     expect(pgAlive(g2.pid)).toBe(false); // owner confirmed dead → the orphan is reaped
     expect(pgAlive(g1.pid)).toBe(true); // owner alive → no collateral kill of concurrent in-flight groups
+    // read-filter-kill-write-back runs PER slug file: in-flight keeps its survivor entry, orphan's sweeps.
+    expect(JSON.parse(readFileSync(slugLifecycle(repo, "in-flight"), "utf8"))).toHaveLength(1);
+    expect(JSON.parse(readFileSync(slugLifecycle(repo, "orphan"), "utf8"))).toEqual([]);
     try {
       process.kill(-g1.pid, "SIGKILL");
     } catch {}
     try {
       process.kill(-foreignOwnerAlive.pid, "SIGKILL");
     } catch {}
+  });
+
+  it("reapDone 清 dispatch 已返回仍存活组（idle 监视语义）", async () => {
+    const script = `const{spawn}=require('child_process');spawn(process.execPath,['-e','setTimeout(()=>{},60000)','P1LLWC']).unref();process.exit(0)`;
+    await proc.spawnManaged("node", ["-e", script], { termination: { budgetMs: 5000 } });
+    await proc.markAllDispatchesDone(); // dispatch returns → the group is marked done
+    await proc.reapDone({ graceMs: 500 });
+    expect(markerAlive("P1LLWC")).toBe(0); // done + a still-alive group is reaped wholesale (observable boundary result)
+    expect(JSON.parse(readFileSync(DISK, "utf8"))).toEqual([]); // the on-disk registry deregisters the group in sync
   });
 });

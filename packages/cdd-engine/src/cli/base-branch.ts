@@ -1,14 +1,14 @@
 // packages/cdd-engine/src/cli/base-branch.ts — `cdd base-branch set/get` action bodies
 // (P5 spec §2.3 / task-3 brief). Pure artifact commands — the sole target `--plan <path>` →
-// resolveWorkspace(plan) (.osuperpowers/cdd/<slug>/). Reuses the workspace-artifacts single
+// WorkspaceRoot.for(plan) (.osuperpowers/cdd/<slug>/). Reuses the workspace-artifacts single
 // authority layer (writeBaseBranch / validateBaseBranch / baseBranchPath) — the CLI only owns
 // target resolution + the error surface; write semantics are zero-copy.
 import { existsSync, readFileSync } from "node:fs";
 
 import { baseBranchPath, validateBaseBranch, writeBaseBranch } from "../artifacts/base-branch.ts";
-import { resolveWorkspace } from "../artifacts/handoff/naming.ts";
 import { exitWithCode } from "../infra/exit.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
+import { type Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 
 export interface BaseBranchOpts {
   plan: string | undefined;
@@ -20,31 +20,34 @@ export interface BaseBranchOpts {
 
 // resolveBaseBranchWorkspace(opts) → { workspace }. Sole target-resolution landing point:
 // `--plan` provided → normalize first via resolveDocArg (repo-root-relative → absolute; missing
-// → exit 1 three-line diagnostic) then resolveWorkspace (workspaceSlug converges the slug);
+// → exit 1 three-line diagnostic) then WorkspaceRoot.for (the slug rule converges the slug);
 // missing `--plan` → CDD must have a --plan → explicit error, exit 2.
 // base-branch does not go through resolveTargetDoc — it is the independent `--plan` entry
 // (read point ④) — both steps must happen (the second alone would keep a second coordinate
 // system: the repo-root-relative normalization would never occur).
-export function resolveBaseBranchWorkspace(opts: BaseBranchOpts): { workspace: string } {
+export function resolveBaseBranchWorkspace(opts: BaseBranchOpts): { workspace: Workspace } {
   if (!opts.plan) {
     process.stderr.write("cdd base-branch: missing --plan — the sole target is --plan <path>\n");
     exitWithCode(2);
   }
   const root = opts.root ?? getRoot();
   const normalizedPlan = resolveDocArg(opts.plan, root, "plan");
-  return { workspace: resolveWorkspace(normalizedPlan, root) };
+  return { workspace: WorkspaceRoot.from(root).for(normalizedPlan) };
 }
 
 // runBaseBranchSet(opts): `set --base <branch> --source <enum> --plan <path> [--force]`.
 // The base/source pair is required (writeBaseBranch's input-gate fallback enforces the same
 // semantics). Write failure (different base without force / illegal source / missing base) →
-// workspace-artifacts throws → prefix + exit 2.
+// workspace-artifacts throws → prefix + exit 2. The workspace root bootstraps here (root-level
+// `.gitignore` self-guard + the slug dir — determine-base runs before implement, when the
+// workspace does not exist yet).
 export async function runBaseBranchSet(opts: BaseBranchOpts): Promise<void> {
   const { workspace } = resolveBaseBranchWorkspace(opts);
   if (!opts.base || !opts.source) {
     process.stderr.write("cdd base-branch set: required --base <branch> and --source <source>\n");
     exitWithCode(2);
   }
+  if (workspace.workspaceRoot) workspace.workspaceRoot.ensure();
   try {
     const target = writeBaseBranch({
       base: opts.base,

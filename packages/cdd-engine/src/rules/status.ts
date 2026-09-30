@@ -35,10 +35,11 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { normalizeHandoffStatus } from "../artifacts/handoff/finalize.ts";
-import { handoffName } from "../artifacts/handoff/naming.ts";
 import { readJson } from "../artifacts/handoff/write.ts";
+import { Handoff } from "../artifacts/handoff.ts";
 import { ProgressLedger } from "../artifacts/progress.ts";
 import type { TaskGroup } from "../domain/task-group.ts";
+import type { Workspace } from "../infra/workspace.ts";
 
 export type TaskState =
   | "in-flight" // no conclusive chain — fresh task or a BLOCKED implement awaiting re-dispatch
@@ -49,15 +50,10 @@ export type TaskState =
   // never derived for a fix that follows an APPROVED review — that chain is terminal complete (T30 ①)
   | "complete"; // latest review APPROVED, or a REVIEW_FIX review followed by its fix round (Task 8 — closure state)
 
-/** StatusJudge — the six-state convergence + plan verdict derivation (Criterion ②; constructor injection — the
- *  progress ledger, defaulting to a fresh instance). */
+/** StatusJudge — the six-state convergence + plan verdict derivation (Criterion ②; the progress
+ *  reads construct a fresh workspace-scoped ledger per call — T6: ProgressLedger is Workspace-
+ *  injected, the string progressDir surface is gone). */
 export class StatusJudge {
-  readonly #ledger: ProgressLedger;
-
-  constructor(ledger: ProgressLedger = new ProgressLedger()) {
-    this.#ledger = ledger;
-  }
-
   /** carrier-level dead-round detection: a TIMEOUT status or an EXECUTION_FAILURE failure_category
    * (implement 10 lane / review-fix T25 lane both write status BLOCKED + the category). The
    * resume-or-discard family — every other status keeps its lane. */
@@ -68,15 +64,19 @@ export class StatusJudge {
   }
 
   #readHandoff(
-    workspace: string,
+    workspace: Workspace,
     op: string,
     key: string,
     round?: number,
   ): Record<string, unknown> | null {
     // The dispatch unit's carriers: the group key (tasks-{a},{b}-*) for a merged group, the
     // group-of-one name (key === the task number) for a singleton — one naming surface, P4.3/4.4.
-    const name = handoffName(op, "task", round != null ? { tasks: key, round } : { tasks: key });
-    const p = path.join(workspace, name);
+    const name = Handoff.handoffName(
+      op,
+      "task",
+      round != null ? { tasks: key, round } : { tasks: key },
+    );
+    const p = path.join(workspace.path, name);
     return existsSync(p) ? readJson(p) : null;
   }
 
@@ -97,8 +97,8 @@ export class StatusJudge {
    * The last review status is the first signal: APPROVED → complete (a following fix is the legal
    * terminal, T29 revision); REVIEW_FIX → the fix round routes to complete (S2 — closure state, no re-review);
    * not approved → the addressing fix decides needs-fix vs needs-re-review. */
-  deriveTaskState(workspace: string, taskNum: number, groups?: readonly TaskGroup[]): TaskState {
-    const progress = this.#ledger.read(workspace);
+  deriveTaskState(workspace: Workspace, taskNum: number, groups?: readonly TaskGroup[]): TaskState {
+    const progress = new ProgressLedger(workspace).read();
     // Group-of-one vs merged: the dispatch unit's key resolves the right carriers + ledger row
     // (a merged group keys off `tasks-{a},{b}`; the singleton key is the task number itself).
     const declared = groups?.find((g) => g.includes(taskNum));
@@ -163,7 +163,7 @@ export class StatusJudge {
    * status.test.ts mirrors the extractors locally). */
   derivePlanVerdict(
     planPath: string,
-    workspace: string,
+    workspace: Workspace,
     _extractTaskNumbers: (planPath: string) => number[],
     extractGroups: (planPath: string) => readonly TaskGroup[],
   ): PlanVerdict {

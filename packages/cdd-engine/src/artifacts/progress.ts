@@ -13,9 +13,10 @@
 // src/artifacts/return-block.ts#returnCountersLine (its single point) — progress drops the
 // counters() import, breaking the failure⇄progress mutual import (counters() stays the
 // rules/failure.ts owner; progress only reads/writes).
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { GitClient } from "../infra/git.ts";
+import type { Workspace } from "../infra/workspace.ts";
 
 // The progress schema dropped lastDispatchHead/degradationLog (T8: dead fields; check-head/
 // engine-recovery degradation, superseded by deriveReviewStatus/engineRecoveryCount);
@@ -75,12 +76,15 @@ export const SHA40_RE = /^[0-9a-f]{40}$/;
 /** ProgressLedger — the progress.json single owner (Task 6 ③ six-key ledger). All reads/writes and the
  *  round/scope derivations are instance methods; the rowFor/entryFor pair is the ledger's single
  *  single/group row lookup source (the dispatch layer's ensure-row writeback consumes the same
- *  methods). Constructor-injected git seam (the scope-ledger ancestry judgment), defaulting to a
- *  fresh GitClient. */
+ *  methods). Constructor-injected Workspace (T6 injection rework — the method-level progressDir path
+ *  parameters converged to the workspace injection, eliminating the string path surface) + git seam
+ *  (the scope-ledger ancestry judgment), defaulting to a fresh GitClient. */
 export class ProgressLedger {
+  readonly #workspace: Workspace;
   readonly #git: GitClient;
 
-  constructor(git: GitClient = new GitClient()) {
+  constructor(workspace: Workspace, git: GitClient = new GitClient()) {
+    this.#workspace = workspace;
     this.#git = git;
   }
 
@@ -113,15 +117,15 @@ export class ProgressLedger {
     return single ? { task: Number(key) } : { group: String(key) };
   }
 
-  /** read(progressDir, plan): read progress.json from progressDir.
+  /** read(plan?): read progress.json from the injected workspace.
    * Transparent migration: if progress.json is missing but progress.md exists, migrate first.
    * If neither exists, return empty progress.
-   * plan (T7 optional 2nd arg): recorded into progress on first create/migrate via
+   * plan (T7 optional arg): recorded into progress on first create/migrate via
    * create(plan) — the absolute path of the `--plan` arg. Single-arg consumers
    * (incrementRound / incrementRecovery internals) are unchanged: at their call time progress.json
    * already exists and plan does not participate in derivation. */
-  read(progressDir: string, plan?: string): ProgressData {
-    const jsonPath = path.join(progressDir, "progress.json");
+  read(plan?: string): ProgressData {
+    const jsonPath = this.#workspace.progressPath;
     if (existsSync(jsonPath)) {
       try {
         return JSON.parse(readFileSync(jsonPath, "utf8")) as ProgressData;
@@ -129,10 +133,11 @@ export class ProgressLedger {
         // Corrupted file — fall through to migration
       }
     }
-    return this.migrateIfNeeded(progressDir, plan);
+    return this.migrateIfNeeded(plan);
   }
 
-  /** write(progressDir, data): write data to progress.json in progressDir.
+  /** write(data): write data to progress.json in the injected workspace (through the Workspace
+   * writeJson single point — ensure + stringify + writeFileSync).
    * The dead fields (lastDispatchHead/degradationLog) are dropped on write — a legacy progress.json
    * (a live pre-degradation file) carrying the old keys gets a one-time GC on first write-back.
    * Task 30 ②: tasks[N].status is retired from the schema — any legacy row still carrying it
@@ -141,8 +146,7 @@ export class ProgressLedger {
    * (P4.4 Task 5): the strip is expressed as typed member writes over the declared ProgressData keys
    * — the two legacy top-level keys and the retired row status are dropped BY CONSTRUCTION without a
    * Record<string, unknown> view / bare `delete` against the typed carrier. */
-  write(progressDir: string, data: ProgressData): void {
-    const jsonPath = path.join(progressDir, "progress.json");
+  write(data: ProgressData): void {
     const clean: ProgressData = { tasks: [] };
     if (data.plan !== undefined) clean.plan = data.plan;
     if (data.timeoutCount !== undefined) clean.timeoutCount = data.timeoutCount;
@@ -160,7 +164,7 @@ export class ProgressLedger {
         return row;
       });
     }
-    writeFileSync(jsonPath, JSON.stringify(clean, null, 2));
+    this.#workspace.writeJson("progress.json", clean);
   }
 
   /** create(plan): fresh progress object for a given plan.
@@ -190,8 +194,8 @@ export class ProgressLedger {
 
   /** incrementRound: record that a round has been dispatched (call after any handoff is written to
    * disk, including BLOCKED/TIMEOUT). Creates the row (task or group kind) if absent. */
-  incrementRound(progressDir: string, key: LedgerKey, mode: string): void {
-    const data = this.read(progressDir);
+  incrementRound(key: LedgerKey, mode: string): void {
+    const data = this.read();
     let taskEntry = this.rowFor(data, key);
     if (!taskEntry) {
       taskEntry = this.entryFor(key);
@@ -199,7 +203,7 @@ export class ProgressLedger {
     }
     taskEntry.rounds ??= {}; // migrate pre-rounds task entries that lack the field
     taskEntry.rounds[mode] = (taskEntry.rounds[mode] ?? 0) + 1;
-    this.write(progressDir, data);
+    this.write(data);
   }
 
   /** incrementRecovery: engineRecoveryCount increments (D14 — every progress.json field is
@@ -207,16 +211,16 @@ export class ProgressLedger {
    * (BLOCKED/engine-error path); the orchestrator-layer skill (cli-driven-development
    * §engine-recovery) only READS it to decide retry (count < 2 → re-dispatch; count ≥ 2 → terminal
    * engine-error), never increments itself. */
-  incrementRecovery(progressDir: string): void {
-    const data = this.read(progressDir);
+  incrementRecovery(): void {
+    const data = this.read();
     data.engineRecoveryCount = (data.engineRecoveryCount ?? 0) + 1;
-    this.write(progressDir, data);
+    this.write(data);
   }
 
   /** taskScopeBase: the ledger's current scope_base for the key, or null when absent/invalid
    *  (a non-40-hex stored value is treated as a missing ledger — dispatch falls back to legacy). */
-  taskScopeBase(progressDir: string, key: LedgerKey): string | null {
-    const entry = this.rowFor(this.read(progressDir), key);
+  taskScopeBase(key: LedgerKey): string | null {
+    const entry = this.rowFor(this.read(), key);
     const v = entry?.scope_base;
     return typeof v === "string" && SHA40_RE.test(v) ? v : null;
   }
@@ -225,8 +229,8 @@ export class ProgressLedger {
    *  Returns the ledger value AFTER the call: an existing valid anchor wins (the return equals the
    *  current value, the change is a no-op); an invalid stored value is healed by the first valid seed;
    *  a non-40-hex/absent input never writes (returns the current ledger value — null when empty). */
-  seedScopeBase(progressDir: string, key: LedgerKey, base: string): string | null {
-    const data = this.read(progressDir);
+  seedScopeBase(key: LedgerKey, base: string): string | null {
+    const data = this.read();
     const current = this.rowFor(data, key)?.scope_base;
     if (typeof current === "string" && SHA40_RE.test(current)) return current; // earliest-wins
     if (!SHA40_RE.test(base)) return current ?? null;
@@ -236,7 +240,7 @@ export class ProgressLedger {
       data.tasks.push(taskEntry);
     }
     taskEntry.scope_base = base;
-    this.write(progressDir, data);
+    this.write(data);
     return base;
   }
 
@@ -247,23 +251,22 @@ export class ProgressLedger {
    *  and a non-40-hex candidate all leave the ledger intact. Ledger missing → falls back to the seed
    *  lane. Returns the ledger value after the call. */
   async moveTaskScopeBaseEarlier(
-    progressDir: string,
     key: LedgerKey,
     candidate: string,
     cwd: string,
     head: string,
   ): Promise<string | null> {
-    const current = this.taskScopeBase(progressDir, key);
-    if (current === null) return this.seedScopeBase(progressDir, key, candidate);
+    const current = this.taskScopeBase(key);
+    if (current === null) return this.seedScopeBase(key, candidate);
     if (!SHA40_RE.test(candidate) || candidate === current || candidate === head) return current;
     const isAncestorOfCurrent = await this.#git.mergeBaseIsAncestor(cwd, candidate, current);
     const isAncestorOfHead = await this.#git.mergeBaseIsAncestor(cwd, candidate, head);
     if (!isAncestorOfCurrent || !isAncestorOfHead) return current;
-    const data = this.read(progressDir);
+    const data = this.read();
     const taskEntry = this.rowFor(data, key);
     if (taskEntry) {
       taskEntry.scope_base = candidate;
-      this.write(progressDir, data);
+      this.write(data);
       return candidate;
     }
     return current;
@@ -271,8 +274,8 @@ export class ProgressLedger {
 
   /** migrateFromProgressMD: parse progress.md and return a structured progress object.
    * Returns null when progress.md does not exist. */
-  migrateFromProgressMD(progressDir: string): ProgressData | null {
-    const mdPath = path.join(progressDir, "progress.md");
+  migrateFromProgressMD(): ProgressData | null {
+    const mdPath = path.join(this.#workspace.path, "progress.md");
     if (!existsSync(mdPath)) return null;
     const content = readFileSync(mdPath, "utf8");
 
@@ -307,15 +310,15 @@ export class ProgressLedger {
     };
   }
 
-  /** migrateIfNeeded(progressDir, plan): transparent migration.
+  /** migrateIfNeeded(plan): transparent migration.
    * 1. progress.json exists → return it (T6: backfill the two counters when absent and write back —
    *    a legacy four-key object read out must already carry contractViolationCount /
    *    engineSelfWrittenCount for the stdout counters line's value source to be complete)
    * 2. progress.md exists → migrate to progress.json, return migrated data
    * 3. neither → create empty progress (T7: plan recorded via create at the init point;
    *    legacy no-plan semantics fall back to create(plan || "")) */
-  migrateIfNeeded(progressDir: string, plan?: string): ProgressData {
-    const jsonPath = path.join(progressDir, "progress.json");
+  migrateIfNeeded(plan?: string): ProgressData {
+    const jsonPath = this.#workspace.progressPath;
     if (existsSync(jsonPath)) {
       try {
         const data = JSON.parse(readFileSync(jsonPath, "utf8")) as ProgressData;
@@ -331,19 +334,19 @@ export class ProgressLedger {
           data.engineSelfWrittenCount = 0;
           changed = true;
         }
-        if (changed) this.write(progressDir, data);
+        if (changed) this.write(data);
         return data;
       } catch {
         // Corrupted — treat as missing, try migration
       }
     }
-    const mdData = this.migrateFromProgressMD(progressDir);
+    const mdData = this.migrateFromProgressMD();
     if (mdData) {
-      this.write(progressDir, mdData);
+      this.write(mdData);
       return mdData;
     }
     const empty = this.create(plan);
-    this.write(progressDir, empty);
+    this.write(empty);
     return empty;
   }
 }

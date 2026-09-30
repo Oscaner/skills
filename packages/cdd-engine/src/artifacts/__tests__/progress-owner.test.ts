@@ -17,9 +17,10 @@ import { expect, it } from "vitest";
 import { TaskLifecycle } from "../../dispatch/task.ts";
 import { commitValidDocs, gitCommit, gitInit } from "../../infra/__tests__/helpers.ts";
 import { REG_PATH } from "../../infra/registry.ts";
+import { Workspace } from "../../infra/workspace.ts";
 import { ProgressLedger } from "../progress.ts";
 
-const ledger = new ProgressLedger();
+const ledgerFor = (dir: string) => new ProgressLedger(Workspace.fromPath(dir));
 
 // 真仓 fixture（P4 §2.3.1 根注入契约）：root 经 runTask 的 `opts.root` 显式注入（真 mkdtemp 仓根），
 // 不调 initRoot()、不 chdir、无 env 缝。workspace 纯由 `--plan` 派生（<repo>/.osuperpowers/cdd/<slug>）。
@@ -56,7 +57,7 @@ it("engine BLOCKED dispatch 后 engineRecoveryCount 自增（engine 写，orches
   writeFileSync(regPath, JSON.stringify(reg));
 
   // 前置：engineRecoveryCount == 0
-  expect(ledger.read(ws).engineRecoveryCount).toBe(0);
+  expect(ledgerFor(ws).read().engineRecoveryCount).toBe(0);
 
   const origPath = process.env.PATH;
   process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
@@ -82,10 +83,10 @@ it("engine BLOCKED dispatch 后 engineRecoveryCount 自增（engine 写，orches
 
 it("incrementRecovery: 自增并持久化 engineRecoveryCount（缺省 0 → 1 → 2）", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-recovery-help-"));
-  expect(ledger.read(dir).engineRecoveryCount).toBe(0);
-  ledger.incrementRecovery(dir);
-  expect(ledger.read(dir).engineRecoveryCount).toBe(1);
-  ledger.incrementRecovery(dir);
+  expect(ledgerFor(dir).read().engineRecoveryCount).toBe(0);
+  ledgerFor(dir).incrementRecovery();
+  expect(ledgerFor(dir).read().engineRecoveryCount).toBe(1);
+  ledgerFor(dir).incrementRecovery();
   const saved = JSON.parse(readFileSync(path.join(dir, "progress.json"), "utf8"));
   expect(saved.engineRecoveryCount).toBe(2);
 });

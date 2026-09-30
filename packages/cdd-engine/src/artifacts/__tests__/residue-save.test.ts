@@ -34,17 +34,17 @@ afterEach(() => {
 });
 
 // Production-shaped fixture: engine carriers live in the gitignored `.osuperpowers/cdd/` workspace
-// (materializeWorkspace writes an in-dir `.gitignore`), so the canonical `git stash push -u`
-// (untracked only, never ignored) leaves the pass-through carrier untouched — no pathspec exclusion
-// exists anymore (gitStashPreserve deleted). The `.gitignore` itself is committed: an untracked one
-// would ride the stash.
+// (WorkspaceRoot.ensure writes the root-level `.osuperpowers/.gitignore` self-guard), so the
+// canonical `git stash push -u` (untracked only, never ignored) leaves the pass-through carrier
+// untouched — no pathspec exclusion exists anymore (gitStashPreserve deleted). The `.gitignore`
+// itself is committed: an untracked one would ride the stash.
 function tmpRepo(handoffBasename = "tasks-1-implement.json"): { repo: string; handoff: string } {
   const repo = mkdtempSync(path.join(tmpdir(), "cdd-residue-save-"));
   tmpRepos.push(repo);
   gitInit(repo);
   writeFileSync(path.join(repo, ".gitignore"), ".osuperpowers/\n");
   gitCommit(repo, "gitignore");
-  // The engine materializes the carrier dir itself (materializeWorkspace mkdir) — mirror it here
+  // The engine materializes the carrier dir itself (Workspace.ensure mkdir) — mirror it here
   // so the fixture equals the production tree shape, not an ENOENT landmine.
   mkdirSync(path.join(repo, ".osuperpowers", "cdd"), { recursive: true });
   return { repo, handoff: path.join(repo, ".osuperpowers", "cdd", handoffBasename) };

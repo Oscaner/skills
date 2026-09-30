@@ -7,11 +7,10 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { expect, it } from "vitest";
-
+import { Workspace } from "../../infra/workspace.ts";
 import {
   BASE_BRANCH_SOURCES,
   baseBranchPath,
-  briefPath,
   validateBaseBranch,
   writeBaseBranch,
 } from "../base-branch.ts";
@@ -20,8 +19,10 @@ function tmpDir(prefix) {
   return mkdtempSync(path.join(tmpdir(), prefix));
 }
 
-function readBaseBranch(workspace) {
-  return JSON.parse(readFileSync(baseBranchPath({ workspace }), "utf8"));
+function readBaseBranch(workspace: string) {
+  return JSON.parse(
+    readFileSync(baseBranchPath({ workspace: Workspace.fromPath(workspace) }), "utf8"),
+  );
 }
 
 const VALID = { base: "develop", source: "plan-field", confirmed_at: "2026-09-12T10:00:00.000Z" };
@@ -29,13 +30,13 @@ const VALID = { base: "develop", source: "plan-field", confirmed_at: "2026-09-12
 // ---- 路径派生 ----
 
 it("baseBranchPath: returns <workspace>/base-branch.json", () => {
-  expect(baseBranchPath({ workspace: "/ws" })).toBe("/ws/base-branch.json");
+  expect(baseBranchPath({ workspace: Workspace.fromPath("/ws") })).toBe("/ws/base-branch.json");
 });
 
-it("briefPath: returns <workspace>/tasks-<groupKey>-brief.md (group-keyed — --tasks 1 → tasks-1-)", () => {
-  expect(briefPath({ workspace: "/ws", tasks: "1" })).toBe("/ws/tasks-1-brief.md");
-  expect(briefPath({ workspace: "/ws", tasks: "2" })).toBe("/ws/tasks-2-brief.md");
-  expect(briefPath({ workspace: "/ws", tasks: "1,2" })).toBe("/ws/tasks-1,2-brief.md");
+it("Workspace.briefPath: returns <workspace>/tasks-<groupKey>-brief.md (group-keyed — --tasks 1 → tasks-1-)", () => {
+  expect(Workspace.fromPath("/ws").briefPath("1")).toBe("/ws/tasks-1-brief.md");
+  expect(Workspace.fromPath("/ws").briefPath("2")).toBe("/ws/tasks-2-brief.md");
+  expect(Workspace.fromPath("/ws").briefPath("1,2")).toBe("/ws/tasks-1,2-brief.md");
 });
 
 // ---- validateBaseBranch schema 校验（SKILL base-branch schema 4 值为准 — 修正 base-branch.md 3↔4 漂移）----
@@ -80,7 +81,11 @@ it("writeBaseBranch: 不存在 → 写 + confirmed_at ISO + workspace dir bootst
   // workspace 目录尚不存在（determine-base 在 implement 前跑，run-task 仅本地惰性建）——
   // 写入前 mkdirSync(dirname, {recursive:true})，否则首秀 set 即 ENOENT。
   const workspace = path.join(tmpDir("ws-art-none-"), "ws-does-not-exist", "nested");
-  const wrote = writeBaseBranch({ base: "develop", source: "plan-field", workspace });
+  const wrote = writeBaseBranch({
+    base: "develop",
+    source: "plan-field",
+    workspace: Workspace.fromPath(workspace),
+  });
   expect(existsSync(wrote)).toBe(true);
   const saved = readBaseBranch(workspace);
   expect(saved.base).toBe("develop");
@@ -90,9 +95,17 @@ it("writeBaseBranch: 不存在 → 写 + confirmed_at ISO + workspace dir bootst
 
 it("writeBaseBranch: 同 base → source 追新 / base+confirmed_at 保真（不破坏权威）", () => {
   const workspace = tmpDir("ws-art-same-");
-  writeBaseBranch({ base: "develop", source: "plan-field", workspace });
+  writeBaseBranch({
+    base: "develop",
+    source: "plan-field",
+    workspace: Workspace.fromPath(workspace),
+  });
   const first = readBaseBranch(workspace);
-  writeBaseBranch({ base: "develop", source: "branch-upstream", workspace });
+  writeBaseBranch({
+    base: "develop",
+    source: "branch-upstream",
+    workspace: Workspace.fromPath(workspace),
+  });
   const second = readBaseBranch(workspace);
   expect(second.base).toBe("develop");
   expect(second.source).toBe("branch-upstream");
@@ -103,18 +116,35 @@ it("writeBaseBranch: 同 base → source 追新 / base+confirmed_at 保真（不
 
 it("writeBaseBranch: 异 base 无 force → reject 且不落盘（不动现有权威）", () => {
   const workspace = tmpDir("ws-art-diff-");
-  writeBaseBranch({ base: "develop", source: "plan-field", workspace });
-  expect(() => writeBaseBranch({ base: "main", source: "user-confirmed", workspace })).toThrow(
-    /base-branch/,
-  );
+  writeBaseBranch({
+    base: "develop",
+    source: "plan-field",
+    workspace: Workspace.fromPath(workspace),
+  });
+  expect(() =>
+    writeBaseBranch({
+      base: "main",
+      source: "user-confirmed",
+      workspace: Workspace.fromPath(workspace),
+    }),
+  ).toThrow(/base-branch/);
   // 拒绝后原 artifact 不变
   expect(readBaseBranch(workspace).base).toBe("develop");
 });
 
 it("writeBaseBranch: --force → 覆盖（新 base + 新 confirmed_at）", () => {
   const workspace = tmpDir("ws-art-force-");
-  writeBaseBranch({ base: "develop", source: "plan-field", workspace });
-  writeBaseBranch({ base: "main", source: "user-confirmed", workspace, force: true });
+  writeBaseBranch({
+    base: "develop",
+    source: "plan-field",
+    workspace: Workspace.fromPath(workspace),
+  });
+  writeBaseBranch({
+    base: "main",
+    source: "user-confirmed",
+    workspace: Workspace.fromPath(workspace),
+    force: true,
+  });
   const saved = readBaseBranch(workspace);
   expect(saved.base).toBe("main");
   expect(saved.source).toBe("user-confirmed");
@@ -140,14 +170,22 @@ it("writeBaseBranch: 同 base + 存量缺 confirmed_at（legacy 旧件）→ 回
   // branch-review r1 warn 复合边：人工旧件缺 confirmed_at 时同 base 重写不得复制 undefined
   // （JSON.stringify 静默丢键 → 重产 schema 不完整）；回落 new Date().toISOString() 保证写后合法。
   const workspace = tmpDir("ws-art-legacy-");
-  writeBaseBranch({ base: "develop", source: "plan-field", workspace });
-  const target = baseBranchPath({ workspace });
+  writeBaseBranch({
+    base: "develop",
+    source: "plan-field",
+    workspace: Workspace.fromPath(workspace),
+  });
+  const target = baseBranchPath({ workspace: Workspace.fromPath(workspace) });
   // 手工制造 legacy 旧件（缺 confirmed_at —— F10 governs 的手写 population 代表样本）
   writeFileSync(
     target,
     JSON.stringify({ base: "develop", source: "conversation-context" }, null, 2),
   );
-  writeBaseBranch({ base: "develop", source: "plan-field", workspace });
+  writeBaseBranch({
+    base: "develop",
+    source: "plan-field",
+    workspace: Workspace.fromPath(workspace),
+  });
   const saved = readBaseBranch(workspace);
   expect(saved.confirmed_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
   expect(validateBaseBranch(saved).ok).toBe(true);
@@ -165,10 +203,12 @@ it("validateBaseBranch: 畸形 confirmed_at → {ok:false, errors}（读取侧�
 
 it("writeBaseBranch: 漏传 base / 非法 source → 入参 gate 拒绝，不静默落盘坏 artifact", () => {
   const workspace = tmpDir("ws-art-gate-");
-  expect(() => writeBaseBranch({ source: "plan-field", workspace })).toThrow(/base is required/);
-  expect(() => writeBaseBranch({ base: "develop", source: "bogus", workspace })).toThrow(
-    /source must be one of/,
-  );
+  expect(() =>
+    writeBaseBranch({ source: "plan-field", workspace: Workspace.fromPath(workspace) }),
+  ).toThrow(/base is required/);
+  expect(() =>
+    writeBaseBranch({ base: "develop", source: "bogus", workspace: Workspace.fromPath(workspace) }),
+  ).toThrow(/source must be one of/);
   // 两处拒绝后均未写入
   expect(existsSync(path.join(workspace, "base-branch.json"))).toBe(false);
 });

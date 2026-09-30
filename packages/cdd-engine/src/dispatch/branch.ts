@@ -24,20 +24,22 @@
 // rules/convergence.ts (NOT the cli/shared.ts re-export), return-block atoms from
 // artifacts/return-block.ts, and the dry-run flag is INJECTED by the CLI wrapper (DRY_RUN() is a
 // cli-module process-local; this module never reads it from elsewhere). Zero upward cli imports.
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import {
   finalizeHandoff,
   recoverHandoff,
   writeBlockedCarrier,
 } from "../artifacts/handoff/finalize.ts";
-import * as handoffNaming from "../artifacts/handoff/naming.ts";
 import { readJson, writeHandoff, writeOwnHandoff } from "../artifacts/handoff/write.ts";
+import { Handoff } from "../artifacts/handoff.ts";
 import { ResidueManager } from "../artifacts/residue.ts";
 import { exitOk, exitWithCode } from "../infra/exit.ts";
 import { EngineInvoker } from "../infra/invoke.ts";
+import { initProcLifecycle } from "../infra/proc.ts";
 import { CddBlockedError, REG_PATH, Registry } from "../infra/registry.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
+import { type Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 import { TemplateLoader } from "../render/templates.ts";
 import { ConvergenceChecker } from "../rules/convergence.ts";
 import { FAILURE_CATEGORIES } from "../rules/failure.ts";
@@ -117,7 +119,7 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
     suffix?: unknown;
   } | null = null;
   protected repoRoot = "";
-  protected workspace = "";
+  protected workspace: Workspace | null = null;
   protected handoffPath = "";
   /** invoke result code of the just-finished agent dispatch (schemaValidate reads it for the
    * failure-without-handoff lanes). */
@@ -338,13 +340,19 @@ export class BranchReviewLifecycle extends BranchLifecycle {
     const head = String(this.#head);
     const base7 = base.slice(0, 7);
     const head7 = head.slice(0, 7);
-    // Workspace same-source with the other review types: resolveWorkspace(plan)
-    // (.osuperpowers/cdd/<slug>/).
-    this.workspace = handoffNaming.resolveWorkspace(this.opts.plan, this.repoRoot);
+    // Workspace same-source with the other review types: WorkspaceRoot.for(plan)
+    // (.osuperpowers/cdd/<slug>/). Materializes the workspace (bootstrap guard + slug dir) and
+    // binds the process-lifecycle registry to this slug's lifecycle.json (T6 relocation — registration
+    // lands per-workspace, never the repo-level single file).
+    const workspaceRoot = WorkspaceRoot.from(this.repoRoot);
+    workspaceRoot.ensure();
+    this.workspace = workspaceRoot.for(this.opts.plan);
+    this.workspace.ensure();
+    initProcLifecycle({ diskPath: this.workspace.lifecyclePath });
 
     // AC15 wiring: per-ref round seq + --round backfill validation (other refs' rounds never
     // interfere with this one) + Convergence reads the previous round.
-    const round = handoffNaming.resolveNextRound(this.workspace, "review", "branch", {
+    const round = Handoff.resolveNextRound(this.workspace.path, "review", "branch", {
       base7,
       head7,
     });
@@ -352,7 +360,7 @@ export class BranchReviewLifecycle extends BranchLifecycle {
       process.stderr.write(`--round ${this.opts.round} ≠ engine round ${round}\n`);
       exitWithCode(2);
     }
-    const prevPath = handoffNaming.prevHandoffPath(this.workspace, "review", "branch", round, {
+    const prevPath = Handoff.prevHandoffPath(this.workspace.path, "review", "branch", round, {
       base7,
       head7,
     });
@@ -378,10 +386,9 @@ export class BranchReviewLifecycle extends BranchLifecycle {
     // Per-round handoff filename (canonical review.branch family; branch-fix re-reviews reuse
     // distinct files).
     this.handoffPath = path.join(
-      this.workspace,
-      handoffNaming.handoffName("review", "branch", { base7, head7, round }),
+      this.workspace.path,
+      Handoff.handoffName("review", "branch", { base7, head7, round }),
     );
-    mkdirSync(this.workspace, { recursive: true });
   }
 
   /** Steps 7/8: render the branch-review prompt (docs-family shell + REVIEW_REFERENCE
@@ -428,8 +435,8 @@ export class BranchReviewLifecycle extends BranchLifecycle {
       {
         MODE: "review",
         REVIEW_TYPE: "branch",
-        WORKSPACE: this.workspace,
-        WORKSPACE_SLUG: path.basename(this.workspace),
+        WORKSPACE: this.workspace!.path,
+        WORKSPACE_SLUG: this.workspace!.slug,
         REVIEW_LENS_GUIDE: cfg.lensEnum.join(" · "),
         REVIEW_REFERENCE: `${base}..${head}`,
         REVIEW_AXES: cfg.axesGuide,
@@ -444,7 +451,11 @@ export class BranchReviewLifecycle extends BranchLifecycle {
     // Invoke harness CLI. (op,type) injection resolves into prefix.review.branch (the old
     // branch-review standalone bin is deleted, its logic inlined here). T26 unified termination
     // (single resolver — budget from canonical review defaults, stall over the workspace tree).
-    const terminationCfg = invoker.resolveTerminationConfig("review", undefined, this.workspace);
+    const terminationCfg = invoker.resolveTerminationConfig(
+      "review",
+      undefined,
+      this.workspace!.path,
+    );
     const res = (await invoker.invokeCliWithRetry(
       this.entry!,
       prompt,
@@ -560,13 +571,18 @@ export class BranchFixLifecycle extends BranchLifecycle {
     // Root single authority (same injection contract as the review channel): opts.root wins; the
     // black-box path falls back to the initRoot()-initialized singleton.
     this.repoRoot = this.opts.root ?? getRoot();
-    this.workspace = handoffNaming.resolveWorkspace(this.opts.plan, this.repoRoot);
+    // Workspace same-source with every other lane (WorkspaceRoot.for(plan)); materializes
+    // (bootstrap guard + slug dir) and binds the lifecycle registry to this slug — T6 relocation.
+    const workspaceRoot = WorkspaceRoot.from(this.repoRoot);
+    workspaceRoot.ensure();
+    this.workspace = workspaceRoot.for(this.opts.plan);
+    this.workspace.ensure();
+    initProcLifecycle({ diskPath: this.workspace.lifecyclePath });
 
     const findingsBase = path.basename(this.opts.findings);
     const refRoundRe = new RegExp(
       "^" +
-        handoffNaming
-          .familyConfig("review", "branch")
+        Handoff.familyConfig("review", "branch")
           .name.replace("{round}", "(\\d+)")
           .replace("{base7}", "([0-9a-f]{7})")
           .replace("{head7}", "([0-9a-f]{7})")
@@ -592,8 +608,8 @@ export class BranchFixLifecycle extends BranchLifecycle {
     // Canonical fix.branch family name — same ref + same round as the source review (the `round`
     // family's "source" semantics: the fix round is copied from the review it sources).
     this.handoffPath = path.join(
-      this.workspace,
-      handoffNaming.handoffName("fix", "branch", {
+      this.workspace.path,
+      Handoff.handoffName("fix", "branch", {
         base7: this.#base7,
         head7: this.#head7,
         round: this.#fixRound,
@@ -676,8 +692,8 @@ export class BranchFixLifecycle extends BranchLifecycle {
       "fix",
       {
         MODE: "fix",
-        WORKSPACE: this.workspace,
-        WORKSPACE_SLUG: path.basename(this.workspace),
+        WORKSPACE: this.workspace!.path,
+        WORKSPACE_SLUG: this.workspace!.slug,
         FINDINGS: findingsPath,
         FIXED_POINT: fixBase,
         BRIEF: this.opts.plan,
@@ -692,7 +708,11 @@ export class BranchFixLifecycle extends BranchLifecycle {
     // Invoke the harness CLI. (op,type) injection resolves the flat `prefix.fix` string
     // (/mattpocock-skills:tdd — the fix channel is work-type, not per-type). T26 unified
     // termination (single resolver — same surface as task/docs/branch-review).
-    const terminationCfg = invoker.resolveTerminationConfig("review", undefined, this.workspace);
+    const terminationCfg = invoker.resolveTerminationConfig(
+      "review",
+      undefined,
+      this.workspace!.path,
+    );
     const res = (await invoker.invokeCliWithRetry(
       this.entry!,
       prompt,

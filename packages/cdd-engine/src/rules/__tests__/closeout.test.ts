@@ -22,7 +22,7 @@
 import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { resolveWorkspace } from "../../artifacts/handoff/naming.ts";
+import { WorkspaceRoot } from "../../infra/workspace.ts";
 import { CloseoutChecker } from "../closeout.ts";
 
 const closeoutChecker = new CloseoutChecker();
@@ -131,7 +131,7 @@ describe("deriveCloseoutMismatches — the single module (both surfaces, 同源)
     ].flat();
     closeoutChecker.deriveCloseoutMismatches({ entry: p.plan1, root: p.repo });
     // No workspace is materialized, no progress.json landed, no doc touched
-    expect(existsSync(resolveWorkspace(p.plan1, p.repo))).toBe(false);
+    expect(existsSync(WorkspaceRoot.from(p.repo).for(p.plan1).path)).toBe(false);
     expect(
       [readdirSync(p.repo), readdirSync(path.join(p.repo, "docs", "osuperpowers"))].flat(),
     ).toEqual(preTree);

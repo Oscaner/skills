@@ -14,6 +14,7 @@ import { readJson, writeHandoff } from "../artifacts/handoff/write.ts";
 import { ProgressLedger } from "../artifacts/progress.ts";
 import { ConfigLoader } from "../infra/config.ts";
 import { DEFAULT_IDLE_WINDOW_MS, type TerminationCause } from "../infra/proc.ts";
+import type { Workspace } from "../infra/workspace.ts";
 
 export interface FailureCategory {
   id: string;
@@ -33,15 +34,17 @@ export const FAILURE_CATEGORIES: Record<string, FailureCategory> = Object.fromEn
   CAT.categories.map((c) => [c.id, c]),
 );
 
-/** FailureResolver — the failure-category judgment class (Criterion ②; constructor injection — the ledger instance
- *  that backs the per-category quota is injected, defaulting to a fresh ProgressLedger). */
+/** FailureResolver — the failure-category judgment class (Criterion ②; constructor injection — the
+ *  optional ledger; T6: ProgressLedger is Workspace-injected — an injected ledger wins, otherwise a
+ *  fresh workspace-scoped ledger is built per increment call (a single cached ledger could not serve
+ *  multiple workspaces across a shared resolver instance)). */
 export class FailureResolver {
   readonly #cat: { categories: FailureCategory[] };
-  readonly #ledger: ProgressLedger;
+  readonly #ledger: ProgressLedger | null;
 
   constructor(categories: { categories: FailureCategory[] } = CAT, ledger?: ProgressLedger) {
     this.#cat = categories;
-    this.#ledger = ledger ?? new ProgressLedger();
+    this.#ledger = ledger ?? null;
   }
 
   counterFor(id: string): string | null {
@@ -73,11 +76,12 @@ export class FailureResolver {
 
   // Per-category counter: fields come from the canonical (counterFor), never a hand-written
   // literal. Categories without a counter record the outcome only (no count) — -1 sentinel.
-  incrementFailureCounter(progressDir: string, category: string): number {
+  incrementFailureCounter(workspace: Workspace, category: string): number {
     const field = this.counterFor(category);
     if (!field) return -1;
-    const data = this.#ledger.read(progressDir);
-    if (!this.#ledger.isCounterKey(field)) {
+    const ledger = this.#ledger ?? new ProgressLedger(workspace);
+    const data = ledger.read();
+    if (!ledger.isCounterKey(field)) {
       // Canonical drift (an engine-config edit naming a counter field ProgressData does not declare)
       // fails loudly — the typed carrier never takes a dynamic-key write (AC14, channel audit row 13).
       throw new Error(`unknown progress counter field: ${field}`);
@@ -87,7 +91,7 @@ export class FailureResolver {
     // unknown> view / index-signature carrier in this construction point.
     const next = (data[field] ?? 0) + 1;
     data[field] = next;
-    this.#ledger.write(progressDir, data);
+    ledger.write(data);
     return next;
   }
 
@@ -105,8 +109,8 @@ export class FailureResolver {
   // Single increment + threshold entry: after incrementing, if the category hit its terminal
   // threshold, overwrite the just-written failure handoff's blocker with the terminal shape
   // (the status capsule points at the carrier, so the orchestrator sees the terminal signal).
-  maybeExhaust(progressDir: string, category: string, handoffPath: string): number {
-    const n = this.incrementFailureCounter(progressDir, category);
+  maybeExhaust(workspace: Workspace, category: string, handoffPath: string): number {
+    const n = this.incrementFailureCounter(workspace, category);
     const ex = this.exhaustedBlocker(category, n);
     if (ex) {
       const obj = readJson(handoffPath) ?? {};

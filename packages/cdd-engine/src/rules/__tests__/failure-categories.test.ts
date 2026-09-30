@@ -13,6 +13,7 @@ import { ConvergenceChecker } from "../convergence.ts";
 const convergence = new ConvergenceChecker();
 
 import { ExitRequested } from "../../infra/exit.ts";
+import { Workspace } from "../../infra/workspace.ts";
 import { FAILURE_CATEGORIES, FailureResolver } from "../failure.ts";
 
 const failureResolver = new FailureResolver();
@@ -148,8 +149,12 @@ describe("run-task 终态门（branch-review finding 补）", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "failterm-"));
     try {
       seed(dir);
-      expect(failureResolver.incrementFailureCounter(dir, "CONTRACT_VIOLATION")).toBe(1);
-      expect(failureResolver.incrementFailureCounter(dir, "CONTRACT_VIOLATION")).toBe(2);
+      expect(
+        failureResolver.incrementFailureCounter(Workspace.fromPath(dir), "CONTRACT_VIOLATION"),
+      ).toBe(1);
+      expect(
+        failureResolver.incrementFailureCounter(Workspace.fromPath(dir), "CONTRACT_VIOLATION"),
+      ).toBe(2);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -173,9 +178,9 @@ describe("run-task 终态门（branch-review finding 补）", () => {
           blocker: "handoff schema invalid",
         }),
       );
-      failureResolver.maybeExhaust(dir, "CONTRACT_VIOLATION", h);
+      failureResolver.maybeExhaust(Workspace.fromPath(dir), "CONTRACT_VIOLATION", h);
       expect(JSON.parse(readFileSync(h, "utf8")).blocker).toBe("handoff schema invalid");
-      failureResolver.maybeExhaust(dir, "CONTRACT_VIOLATION", h);
+      failureResolver.maybeExhaust(Workspace.fromPath(dir), "CONTRACT_VIOLATION", h);
       expect(JSON.parse(readFileSync(h, "utf8")).blocker).toMatch(/contract-violation-exhausted/);
     } finally {
       rmSync(dir, { recursive: true, force: true });

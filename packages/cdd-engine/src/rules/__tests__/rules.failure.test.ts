@@ -10,6 +10,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { writeHandoff } from "../../artifacts/handoff/write.ts";
+import { Workspace } from "../../infra/workspace.ts";
 import { FAILURE_CATEGORIES, FailureResolver } from "../failure.ts";
 
 const failureResolver = new FailureResolver();
@@ -64,15 +65,21 @@ describe("rules/failure.ts — canonical 承重读取（AC14）", () => {
 describe("rules/failure.ts — 配额隔离（per-category 计数器）", () => {
   it("incrementFailureCounter 首犯 1 / 再犯 2（progress.json 持久化）", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "cdd-fail-"));
-    expect(failureResolver.incrementFailureCounter(dir, "CONTRACT_VIOLATION")).toBe(1);
-    expect(failureResolver.incrementFailureCounter(dir, "CONTRACT_VIOLATION")).toBe(2);
+    expect(
+      failureResolver.incrementFailureCounter(Workspace.fromPath(dir), "CONTRACT_VIOLATION"),
+    ).toBe(1);
+    expect(
+      failureResolver.incrementFailureCounter(Workspace.fromPath(dir), "CONTRACT_VIOLATION"),
+    ).toBe(2);
     const p = JSON.parse(readFileSync(path.join(dir, "progress.json"), "utf8"));
     expect(p.contractViolationCount).toBe(2);
   });
 
   it("incrementFailureCounter 无计数器类目 → -1（不写 progress）", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "cdd-fail2-"));
-    expect(failureResolver.incrementFailureCounter(dir, "UNVERIFIABLE")).toBe(-1);
+    expect(failureResolver.incrementFailureCounter(Workspace.fromPath(dir), "UNVERIFIABLE")).toBe(
+      -1,
+    );
   });
 
   it("exhaustedBlocker 仅计数 ≥2 触发且携带终态语汇", () => {
@@ -85,9 +92,9 @@ describe("rules/failure.ts — 配额隔离（per-category 计数器）", () => 
     const dir = mkdtempSync(path.join(tmpdir(), "cdd-fail3-"));
     const h = path.join(dir, "task-1-handoff.json");
     writeHandoff(h, { task: 1, phase: "implement", status: "DONE" });
-    expect(failureResolver.maybeExhaust(dir, "CONTRACT_VIOLATION", h)).toBe(1);
+    expect(failureResolver.maybeExhaust(Workspace.fromPath(dir), "CONTRACT_VIOLATION", h)).toBe(1);
     expect(JSON.parse(readFileSync(h, "utf8")).blocker).toBeUndefined();
-    expect(failureResolver.maybeExhaust(dir, "CONTRACT_VIOLATION", h)).toBe(2);
+    expect(failureResolver.maybeExhaust(Workspace.fromPath(dir), "CONTRACT_VIOLATION", h)).toBe(2);
     expect(JSON.parse(readFileSync(h, "utf8")).blocker).toMatch(/contract-violation-exhausted/);
   });
 
@@ -96,9 +103,9 @@ describe("rules/failure.ts — 配额隔离（per-category 计数器）", () => 
     const h = path.join(dir, "task-1-handoff.json");
     writeHandoff(h, { task: 1, phase: "implement", status: "DONE" });
     mkdirSync(dir, { recursive: true });
-    failureResolver.maybeExhaust(dir, "CONTRACT_VIOLATION", h);
-    failureResolver.maybeExhaust(dir, "CONTRACT_VIOLATION", h);
-    expect(failureResolver.incrementFailureCounter(dir, "TIMEOUT")).toBe(1);
+    failureResolver.maybeExhaust(Workspace.fromPath(dir), "CONTRACT_VIOLATION", h);
+    failureResolver.maybeExhaust(Workspace.fromPath(dir), "CONTRACT_VIOLATION", h);
+    expect(failureResolver.incrementFailureCounter(Workspace.fromPath(dir), "TIMEOUT")).toBe(1);
     const p = JSON.parse(readFileSync(path.join(dir, "progress.json"), "utf8"));
     expect(p.contractViolationCount).toBe(2);
     expect(p.timeoutCount).toBe(1);

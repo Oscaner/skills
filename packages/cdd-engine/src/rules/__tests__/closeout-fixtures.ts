@@ -8,7 +8,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { resolveWorkspace } from "../../artifacts/handoff/naming.ts";
+import { WorkspaceRoot } from "../../infra/workspace.ts";
 
 const OVERALL_CLEAN = [
   "- **Version**: v1.0 · 2026-09-21",
@@ -131,10 +131,10 @@ export function writeProgramDocs(repo: string, overallBody: string = OVERALL_CLE
 
 /** Land a COMPLETE plan (all tasks converged to complete) in the plan's workspace — progress.json
  *  rows + the APPROVED review-1 carriers (the engine-derived terminal state the debt inference
- *  consumes). The workspace is derived through the canonical resolveWorkspace (no hand-written slug
+ *  consumes). The workspace is derived through WorkspaceRoot.for (no hand-written slug
  *  drift). P4.3: task carriers are group-keyed (tasks-{N}-review-1.json). */
 export function writeCompletePlanWorkspace(repo: string, planPath: string, taskCount = 1): string {
-  const ws = resolveWorkspace(planPath, repo);
+  const ws = WorkspaceRoot.from(repo).for(planPath).path;
   mkdirSync(ws, { recursive: true });
   const tasks: Array<{ task: number; rounds: Record<string, number> }> = [];
   for (let n = 1; n <= taskCount; n++) {
@@ -157,7 +157,7 @@ export function writeCompletePlanWorkspace(repo: string, planPath: string, taskC
 /** Land an IN-FLIGHT workspace (progress row without a completed review) — the plan is dispatched
  *  but not complete. */
 export function writeInFlightPlanWorkspace(repo: string, planPath: string, taskCount = 1): string {
-  const ws = resolveWorkspace(planPath, repo);
+  const ws = WorkspaceRoot.from(repo).for(planPath).path;
   mkdirSync(ws, { recursive: true });
   writeFileSync(
     path.join(ws, "progress.json"),

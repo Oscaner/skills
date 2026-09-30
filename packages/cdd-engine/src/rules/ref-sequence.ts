@@ -15,8 +15,8 @@
 // Fail-open discipline (same as #inputFindings / ConvergenceChecker blockerCount): a missing,
 // unreadable or non-matching round degrades the count to the conservative baseline — never a throw.
 import path from "node:path";
-import { handoffName, roundPattern } from "../artifacts/handoff/naming.ts";
 import { readJson } from "../artifacts/handoff/write.ts";
+import { Handoff } from "../artifacts/handoff.ts";
 import { NextStepRouter } from "./next-step.ts";
 
 export interface RefSeqSource {
@@ -45,7 +45,7 @@ export function maxConsecutiveS1Rounds(
   router: NextStepRouter = new NextStepRouter(),
 ): number {
   const pin = src.tasks ? { tasks: src.tasks } : {};
-  const re = roundPattern("review", src.type, pin);
+  const re = Handoff.roundPattern("review", src.type, pin);
   const m = path.basename(src.sourcePath).match(re);
   if (!m) return 0;
   const roundR = Number(m[1]);
@@ -53,7 +53,7 @@ export function maxConsecutiveS1Rounds(
   const dir = path.dirname(src.sourcePath);
   const seq: Array<Array<{ severity?: string }> | null> = [];
   for (let k = roundR; k >= 1; k -= 1) {
-    const candidate = path.join(dir, handoffName("review", src.type, { ...pin, round: k }));
+    const candidate = path.join(dir, Handoff.handoffName("review", src.type, { ...pin, round: k }));
     const h = readJson(candidate) as { findings?: Array<{ severity?: string }> } | null;
     // Array guard (repo doctrine): an agent-written non-array `findings` reads as zero blockers.
     // null/absence ends the walked sequence (consecutiveS1Count's fail-open lane — the count can

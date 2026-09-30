@@ -40,8 +40,8 @@ import path from "node:path";
 import { ConfigLoader } from "../infra/config.ts";
 import { GitClient, type WipStat } from "../infra/git.ts";
 import { FAILURE_CATEGORIES } from "../rules/failure.ts";
-import { roundPattern } from "./handoff/naming.ts";
 import { readJson, writeHandoff } from "./handoff/write.ts";
+import { Handoff } from "./handoff.ts";
 import { SHA40_RE } from "./progress.ts";
 
 // ---- standardized stash message (settleResidue output ≡ resume input, spec T7.5) ----
@@ -137,17 +137,17 @@ export class ResidueManager {
   }
 
   /** The basename → handoff-family classification (the adapter's op/type/round source). For each
-   * canonical family (engine-config.json#handoffNamespace — naming.ts roundPattern as the single
-   * pattern source, never a hand-parallel regex), classify the carrier basename: the matching family
-   * yields op/type; round = the name's `{round}` slot when the family has one, else 1 (the lone
-   * round-slot-less family implement.task — implement rounds are always 1; buildCtx hard-codes it).
-   * Unclassifiable basenames → null (the save is never fabricated for a foreign carrier). */
+   * canonical family (engine-config.json#handoffNamespace — Handoff.roundPattern as the
+   * single pattern source, never a hand-parallel regex), classify the carrier basename: the matching
+   * family yields op/type; round = the name's `{round}` slot when the family has one, else 1 (the
+   * lone round-slot-less family implement.task — implement rounds are always 1; buildCtx hard-codes
+   * it). Unclassifiable basenames → null (the save is never fabricated for a foreign carrier). */
   #familyFromBasename(basename: string): { op: string; type: string; round: number } | null {
     const { families } = this.#config.handoffNamespace();
     for (const [key] of Object.entries(families)) {
       const [op, type] = key.split(".");
       if (!op || !type) continue;
-      const m = basename.match(roundPattern(op, type));
+      const m = basename.match(Handoff.roundPattern(op, type));
       if (!m) continue;
       return { op, type, round: m[1] !== undefined ? Number(m[1]) : 1 };
     }
@@ -257,8 +257,8 @@ export class ResidueManager {
    *  auto-swallowed (the tree stays dirty and the discipline failure surfaces explicitly). Fail-open:
    *  !cwd / missing carrier / clean tree / git error → null with zero output.
    *  The pass-through carrier never joins the stash: it lives in the gitignored `.osuperpowers/cdd/`
-   *  workspace (materializeWorkspace writes an in-dir `.gitignore`), and `git stash push -u` sweeps
-   *  untracked, not ignored, files — no pathspec exclusion needed. */
+   *  workspace (the WorkspaceRoot.ensure root-level `.gitignore` self-guard), and `git stash push -u`
+   *  sweeps untracked, not ignored, files — no pathspec exclusion needed. */
   async settleFromCarrier(
     cwd: string,
     handoffPath: string,

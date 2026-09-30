@@ -6,13 +6,14 @@
 // (cli/branch-fix.ts was deleted), the task channel delegates to TaskLifecycle.run, the spec/plan
 // channel to DocsLifecycle.run.
 import path from "node:path";
-import * as handoffNaming from "../artifacts/handoff/naming.ts";
 import { readJson } from "../artifacts/handoff/write.ts";
+import { Handoff } from "../artifacts/handoff.ts";
 import { DispatchBlocked } from "../dispatch/base.ts";
 import type { TaskGroup } from "../domain/task-group.ts";
 import { exitOk, exitOkWith, exitWithCode } from "../infra/exit.ts";
 import { withLifecycle } from "../infra/proc.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
+import { WorkspaceRoot } from "../infra/workspace.ts";
 import { NextStepRouter, SOFT_CAP_S1_ROUNDS } from "../rules/next-step.ts";
 import { maxConsecutiveS1Rounds } from "../rules/ref-sequence.ts";
 import { ResultFace } from "../rules/result-face.ts";
@@ -136,7 +137,7 @@ export async function runFix(opts: FixOpts): Promise<void> {
     // means the round is underivable).
     const findingsBase = opts.findings ? path.basename(opts.findings) : null;
     const roundMatch = findingsBase
-      ? findingsBase.match(handoffNaming.roundPattern("review", opts.type))
+      ? findingsBase.match(Handoff.roundPattern("review", opts.type))
       : null;
     if (!roundMatch) {
       process.stderr.write(
@@ -152,21 +153,20 @@ export async function runFix(opts: FixOpts): Promise<void> {
       exitWithCode(2);
     }
     // The fix template uniformly routes through the canonical fix.{type} family fixTemplate
-    // (spec/plan → "docs" shared shell); workspace is the same-source resolveWorkspace(doc);
-    // handoffPath is the explicit canonical fix.{type} name.
-    const template = (
-      handoffNaming.familyConfig("fix", opts.type) as unknown as { fixTemplate: string }
-    ).fixTemplate;
-    const ws = handoffNaming.resolveWorkspace(doc, root);
+    // (spec/plan → "docs" shared shell); workspace is the same-source WorkspaceRoot.for(doc) path;
+    // handoffPath is the explicit canonical fix.{type} name. The workspace materializes here
+    // (bootstrap guard + slug dir — the docs fix agent's handoff writes land guarded too).
+    const template = (Handoff.familyConfig("fix", opts.type) as unknown as { fixTemplate: string })
+      .fixTemplate;
+    const workspaceRoot = WorkspaceRoot.from(root);
+    workspaceRoot.ensure();
+    const ws = workspaceRoot.for(doc).path;
     // `--findings` normalization (read point ⑦): repo-root-relative → absolute; missing → exit 1
     // three-line diagnostic. Positioned AFTER the round-derivation guard — a round without a
     // source / round<1 must first fail as a usage error with exit 2 (§2.4.2: 2 = usage / env error).
     const findingsPath = opts.findings ? resolveDocArg(opts.findings, root, "findings") : undefined;
     const { DocsLifecycle } = await import("../dispatch/docs.ts");
-    const handoffPath = path.join(
-      ws,
-      handoffNaming.handoffName("fix", opts.type, { round: fixRound }),
-    );
+    const handoffPath = path.join(ws, Handoff.handoffName("fix", opts.type, { round: fixRound }));
     const result = await DocsLifecycle.run({
       harness,
       mode: "fix",

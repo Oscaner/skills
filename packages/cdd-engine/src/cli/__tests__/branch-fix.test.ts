@@ -202,17 +202,16 @@ describe("branch-fix in-process loop closure", () => {
     const head = FULL_ID("b");
     const base7 = base.slice(0, 7);
     const head7 = head.slice(0, 7);
-    const { resolveWorkspace, handoffName, resolveNextRound } = await import(
-      "../../artifacts/handoff/naming.ts"
-    );
-    const workspace = resolveWorkspace(planPath, dir);
+    const { Handoff } = await import("../../artifacts/handoff.ts");
+    const { WorkspaceRoot } = await import("../../infra/workspace.ts");
+    const workspace = WorkspaceRoot.from(dir).for(planPath).path;
     const reviewPath = path.join(
       workspace,
-      handoffName("review", "branch", { base7, head7, round: 1 }),
+      Handoff.handoffName("review", "branch", { base7, head7, round: 1 }),
     );
     const handoffPath = path.join(
       workspace,
-      handoffName("fix", "branch", { base7, head7, round: 1 }),
+      Handoff.handoffName("fix", "branch", { base7, head7, round: 1 }),
     );
     mkdirSync(workspace, { recursive: true });
     // The source review handoff the fix reads: --findings IS the review handoff (same file).
@@ -309,10 +308,12 @@ describe("branch-fix in-process loop closure", () => {
 
       // Ref-moved = new review: a branch-review on the NEW ref resolves round 1 (never falsely
       // stopped by the old ref's APPROVED round) — the BASE..HEAD Convergence law.
-      expect(resolveNextRound(workspace, "review", "branch", { base7, head7: newHead7 })).toBe(1);
+      expect(
+        Handoff.resolveNextRound(workspace, "review", "branch", { base7, head7: newHead7 }),
+      ).toBe(1);
       // The OLD ref keeps its own lineage: round 2 (the fix consumed nothing from the review
       // sequence — same-ref re-review remains a continuation, Convergence decides at dispatch).
-      expect(resolveNextRound(workspace, "review", "branch", { base7, head7 })).toBe(2);
+      expect(Handoff.resolveNextRound(workspace, "review", "branch", { base7, head7 })).toBe(2);
     } finally {
       process.env.PATH = origPath;
       rmSync(dir, { recursive: true, force: true });
@@ -334,15 +335,16 @@ describe("branch-fix real-mode — parent stdout return block (C5-1 fix face)", 
     const head = FULL_ID("b");
     const base7 = base.slice(0, 7);
     const head7 = head.slice(0, 7);
-    const { resolveWorkspace, handoffName } = await import("../../artifacts/handoff/naming.ts");
-    const workspace = resolveWorkspace(planPath, dir);
+    const { Handoff } = await import("../../artifacts/handoff.ts");
+    const { WorkspaceRoot } = await import("../../infra/workspace.ts");
+    const workspace = WorkspaceRoot.from(dir).for(planPath).path;
     const reviewPath = path.join(
       workspace,
-      handoffName("review", "branch", { base7, head7, round: 1 }),
+      Handoff.handoffName("review", "branch", { base7, head7, round: 1 }),
     );
     const handoffPath = path.join(
       workspace,
-      handoffName("fix", "branch", { base7, head7, round: 1 }),
+      Handoff.handoffName("fix", "branch", { base7, head7, round: 1 }),
     );
     mkdirSync(workspace, { recursive: true });
     // The source review's findings are the C5-1 `--findings` INPUT the fix face judges on.
@@ -495,15 +497,16 @@ describe("branch-fix exit gate — dirty tree → inherited commit-contract BLOC
     const head = FULL_ID("b");
     const base7 = base.slice(0, 7);
     const head7 = head.slice(0, 7);
-    const { resolveWorkspace, handoffName } = await import("../../artifacts/handoff/naming.ts");
-    const workspace = resolveWorkspace(planPath, dir);
+    const { Handoff } = await import("../../artifacts/handoff.ts");
+    const { WorkspaceRoot } = await import("../../infra/workspace.ts");
+    const workspace = WorkspaceRoot.from(dir).for(planPath).path;
     const reviewPath = path.join(
       workspace,
-      handoffName("review", "branch", { base7, head7, round: 1 }),
+      Handoff.handoffName("review", "branch", { base7, head7, round: 1 }),
     );
     const handoffPath = path.join(
       workspace,
-      handoffName("fix", "branch", { base7, head7, round: 1 }),
+      Handoff.handoffName("fix", "branch", { base7, head7, round: 1 }),
     );
     mkdirSync(workspace, { recursive: true });
     // The source review handoff the fix reads: --findings IS the review handoff (same file).
@@ -744,15 +747,16 @@ describe("branch-fix schema-invalid receipt — C4-3 blocker has field name + ex
     const head = FULL_ID("b");
     const base7 = base.slice(0, 7);
     const head7 = head.slice(0, 7);
-    const { resolveWorkspace, handoffName } = await import("../../artifacts/handoff/naming.ts");
-    const workspace = resolveWorkspace(planPath, dir);
+    const { Handoff } = await import("../../artifacts/handoff.ts");
+    const { WorkspaceRoot } = await import("../../infra/workspace.ts");
+    const workspace = WorkspaceRoot.from(dir).for(planPath).path;
     const reviewPath = path.join(
       workspace,
-      handoffName("review", "branch", { base7, head7, round: 1 }),
+      Handoff.handoffName("review", "branch", { base7, head7, round: 1 }),
     );
     const handoffPath = path.join(
       workspace,
-      handoffName("fix", "branch", { base7, head7, round: 1 }),
+      Handoff.handoffName("fix", "branch", { base7, head7, round: 1 }),
     );
     mkdirSync(workspace, { recursive: true });
     writeFileSync(

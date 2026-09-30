@@ -118,14 +118,13 @@ describe("branch-review schema-invalid e2e", () => {
     const base7 = base.slice(0, 7);
     const head7 = head.slice(0, 7);
     // 与 runBranchReview 同派生的 handoff 路径（全新 workspace → round 1）
-    const { resolveWorkspace, handoffName, resolveNextRound } = await import(
-      "../../artifacts/handoff/naming.ts"
-    );
-    const workspace = resolveWorkspace(planPath, dir);
-    const round = resolveNextRound(workspace, "review", "branch", { base7, head7 });
+    const { Handoff } = await import("../../artifacts/handoff.ts");
+    const { WorkspaceRoot } = await import("../../infra/workspace.ts");
+    const workspace = WorkspaceRoot.from(dir).for(planPath).path;
+    const round = Handoff.resolveNextRound(workspace, "review", "branch", { base7, head7 });
     const handoffPath = path.join(
       workspace,
-      handoffName("review", "branch", { base7, head7, round }),
+      Handoff.handoffName("review", "branch", { base7, head7, round }),
     );
     // fake-cli：应引擎调用写出违规 handoff 后 exit 0（真实子进程，与 runner.test.mjs 的 fake-cli 同法）
     const binDir = mkdtempSync(path.join(tmpdir(), "cdd-br-sv-"));
@@ -262,17 +261,20 @@ describe("branch-review unparseable-handoff e2e", () => {
     const planPath = writeBranchChain(dir, `${slug}.md`);
     const base = "a".repeat(40);
     const head = "b".repeat(40);
-    const { resolveWorkspace, handoffName, resolveNextRound } = await import(
-      "../../artifacts/handoff/naming.ts"
-    );
-    const workspace = resolveWorkspace(planPath, dir);
-    const round = resolveNextRound(workspace, "review", "branch", {
+    const { Handoff } = await import("../../artifacts/handoff.ts");
+    const { WorkspaceRoot } = await import("../../infra/workspace.ts");
+    const workspace = WorkspaceRoot.from(dir).for(planPath).path;
+    const round = Handoff.resolveNextRound(workspace, "review", "branch", {
       base7: base.slice(0, 7),
       head7: head.slice(0, 7),
     });
     const handoffPath = path.join(
       workspace,
-      handoffName("review", "branch", { base7: base.slice(0, 7), head7: head.slice(0, 7), round }),
+      Handoff.handoffName("review", "branch", {
+        base7: base.slice(0, 7),
+        head7: head.slice(0, 7),
+        round,
+      }),
     );
     const regPath = await ghostRegistry(dir);
     try {
@@ -312,18 +314,19 @@ describe("branch-review unparseable-handoff e2e", () => {
     const head = "b".repeat(40);
     const base7 = base.slice(0, 7);
     const head7 = head.slice(0, 7);
-    const { resolveWorkspace, handoffName } = await import("../../artifacts/handoff/naming.ts");
-    const workspace = resolveWorkspace(planPath, dir);
+    const { Handoff } = await import("../../artifacts/handoff.ts");
+    const { WorkspaceRoot } = await import("../../infra/workspace.ts");
+    const workspace = WorkspaceRoot.from(dir).for(planPath).path;
     // Pre-seed workspace with a CORRUPT r1 review (same ref) → the review must start at round 2
     // and not crash on the unparseable prev (fail-open → no Convergence lock).
     mkdirSync(workspace, { recursive: true });
     writeFileSync(
-      path.join(workspace, handoffName("review", "branch", { base7, head7, round: 1 })),
+      path.join(workspace, Handoff.handoffName("review", "branch", { base7, head7, round: 1 })),
       "{\nnot json\n",
     );
     const handoffPath = path.join(
       workspace,
-      handoffName("review", "branch", { base7, head7, round: 2 }),
+      Handoff.handoffName("review", "branch", { base7, head7, round: 2 }),
     );
     const regPath = await ghostRegistry(dir);
     const stderrWrite = process.stderr.write;
@@ -370,14 +373,13 @@ describe("branch-review real-mode — parent stdout capsule (C3-b)", () => {
     const head = "b".repeat(40);
     const base7 = base.slice(0, 7);
     const head7 = head.slice(0, 7);
-    const { resolveWorkspace, handoffName, resolveNextRound } = await import(
-      "../../artifacts/handoff/naming.ts"
-    );
-    const workspace = resolveWorkspace(planPath, dir);
-    const round = resolveNextRound(workspace, "review", "branch", { base7, head7 });
+    const { Handoff } = await import("../../artifacts/handoff.ts");
+    const { WorkspaceRoot } = await import("../../infra/workspace.ts");
+    const workspace = WorkspaceRoot.from(dir).for(planPath).path;
+    const round = Handoff.resolveNextRound(workspace, "review", "branch", { base7, head7 });
     const handoffPath = path.join(
       workspace,
-      handoffName("review", "branch", { base7, head7, round }),
+      Handoff.handoffName("review", "branch", { base7, head7, round }),
     );
     // fake-cli writes a schema-valid APPROVED branch-review handoff (artifacts populated — the
     // return block's artifacts line keys off them) and exits 0.

@@ -537,14 +537,14 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
   });
 
   it("resolveWorkspace: plan foo.md 与 spec foo-design.md 收敛同一 workspace", async () => {
-    const { resolveWorkspace } = await import("../../artifacts/handoff/naming.ts");
+    const { WorkspaceRoot } = await import("../../infra/workspace.ts");
     // root 显式注入（不调 initRoot()、不 chdir）——POSIX 路径字面量，无盘上依赖。
-    expect(resolveWorkspace("/repo/root/docs/osuperpowers/plans/foo.md", "/repo/root")).toBe(
-      "/repo/root/.osuperpowers/cdd/foo",
-    );
-    expect(resolveWorkspace("/repo/root/docs/osuperpowers/specs/foo-design.md", "/repo/root")).toBe(
-      "/repo/root/.osuperpowers/cdd/foo",
-    );
+    expect(
+      WorkspaceRoot.from("/repo/root").for("/repo/root/docs/osuperpowers/plans/foo.md").path,
+    ).toBe("/repo/root/.osuperpowers/cdd/foo");
+    expect(
+      WorkspaceRoot.from("/repo/root").for("/repo/root/docs/osuperpowers/specs/foo-design.md").path,
+    ).toBe("/repo/root/.osuperpowers/cdd/foo");
   });
 
   it("fix --findings spec-review-2.json → runDocsTask handoffPath=<ws>/spec-fix-2.json（round 从 findings 名经 roundPattern 解析）", async () => {

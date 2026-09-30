@@ -23,11 +23,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { materializeWorkspace } from "../../artifacts/handoff/naming.ts";
 import { TaskGroup } from "../../domain/task-group.ts";
 import { ExitRequested } from "../../infra/exit.ts";
 import { markAllDispatchesDone, spawnManaged } from "../../infra/proc.ts";
 import { REG_PATH } from "../../infra/registry.ts";
+import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 // The runner-level writeback contract is verified against the derivation —
 // deriveTaskState is the single TaskState source (progress rows carry no status) (Task 30 ②/④).
 import { StatusJudge } from "../../rules/status.ts";
@@ -401,10 +401,12 @@ it("isTaskPending / handoffStatus: rounds[review] round 0 → MISSING / pending;
   expect(isTaskPending(1, dir, progressR1)).toBe(true);
 });
 
-it("materializeWorkspace: plan xxx-p5-plan.md 与 xxx-p5.md slug 收敛同 workspace（run-task 派生点回归）", () => {
+it("WorkspaceRoot.for: plan xxx-p5-plan.md 与 xxx-p5.md slug 收敛同 workspace（run-task 派生点回归）", () => {
   const base = mkdtempSync(path.join(tmpdir(), "cdd-rw-"));
-  const wsPlan = materializeWorkspace({ plan: path.join(base, "xxx-p5-plan.md"), repoRoot: base });
-  const wsPlain = materializeWorkspace({ plan: path.join(base, "xxx-p5.md"), repoRoot: base });
+  const root = WorkspaceRoot.from(base);
+  root.ensure();
+  const wsPlan = root.for(path.join(base, "xxx-p5-plan.md")).path;
+  const wsPlain = root.for(path.join(base, "xxx-p5.md")).path;
   expect(wsPlan).toBe(wsPlain);
   expect(wsPlain).toBe(path.join(base, ".osuperpowers", "cdd", "xxx-p5"));
 });
@@ -1634,7 +1636,7 @@ it("runTask T8/T30: review APPROVED → ensure-row writeback (rounds[review]=1, 
   // deriveTaskState's sole authority (the T29-flip blackbox: review-APPROVED → complete) (Task 30 ②).
   expect(progress.tasks[0]).toEqual({ task: 1, rounds: { review: 1 } });
   expect(progress.tasks[0]).not.toHaveProperty("status");
-  expect(statusJudge.deriveTaskState(t8.ws, 1)).toBe("complete");
+  expect(statusJudge.deriveTaskState(Workspace.fromPath(t8.ws), 1)).toBe("complete");
   // handoff 保持 APPROVED（clean tree 通过 post-run validate；review 跳过 head 校验）
   const h = JSON.parse(readFileSync(path.join(t8.ws, "tasks-1-review-1.json"), "utf8"));
   expect(h.status).toBe("APPROVED");

@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import path from "node:path";
 // src/bin.ts — CDD engine CLI entry (spec §2.3; citty surface from Task 9, retired commander).
 // The full command tree lives in src/cli/parse.ts as one citty defineCommand (mainCommand with
 // the six subcommands implement / review / fix / base-branch [set|get] / schema [get] / issue
@@ -38,7 +37,7 @@ import {
 } from "./cli/parse.ts";
 import { setDryRun } from "./cli/shared.ts";
 import { CddExitError, ExitRequested } from "./infra/exit.ts";
-import { initProcLifecycle, reapStale, teardownAll } from "./infra/proc.ts";
+import { reapStale, teardownAll } from "./infra/proc.ts";
 import { initRoot } from "./infra/root.ts";
 import { runtime } from "./infra/runtime.ts";
 
@@ -95,9 +94,12 @@ async function main() {
   // resolves position-independent from the FULL argv (parseArgs over the main args def tolerates
   // the subcommand surface), then the engine root + process lifecycle are initialized once per run.
   // Flow: cross-run sweep at startup (reap orphan groups a previous engine left behind after
-  // SIGKILL/crash) + signal-safe exit (spec §2.2 A / §2.6). The lifecycle path is pure derivation:
-  // fixed relative paths under the single root authority (src/infra/root.ts, anchored via the
-  // initRoot(cwd) call here) — no env override seam, no other cwd reads (P4 §2.4.1).
+  // SIGKILL/crash) + signal-safe exit (spec §2.2 A / §2.6). T6 (the workspace-domain consolidation): the lifecycle
+  // registry lands per workspace slug (Workspace.lifecyclePath), so the STARTUP has no repo-level
+  // single-file binding — initProcLifecycle is not called here; reapStale self-derives
+  // WorkspaceRoot.from(initRoot(cwd)) and enumerates every slug's lifecycle.json (read-filter-kill-
+  // writeback per slug; the sweep holds with no diskPath bound). The dispatch context binds its own
+  // slug's lifecycle path before the agent runs (registration lands per-workspace).
   try {
     // Program-level --dry-run from the FULL argv (parseArgs is tolerant of the subcommand
     // surface; only the program-level key is read here). MAIN_ARGS is the same plain object the
@@ -110,8 +112,7 @@ async function main() {
     process.stderr.write(`${(e as { message?: unknown })?.message ?? String(e)}\n`);
     finalExit(2);
   }
-  const repoRoot = await initRoot(process.cwd());
-  initProcLifecycle({ diskPath: path.join(repoRoot, ".osuperpowers", "cdd", "lifecycle.json") });
+  await initRoot(process.cwd()); // anchors the runtime root — reapStale self-derives the WorkspaceRoot from it
   await reapStale({ graceMs: 2000 }); // startup sweep: root orphan groups across runs (before any action / dispatch)
 
   try {

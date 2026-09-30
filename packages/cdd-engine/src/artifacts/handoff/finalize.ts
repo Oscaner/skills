@@ -1,6 +1,6 @@
 // packages/cdd-engine/src/artifacts/handoff/finalize.ts — handoff carrier finalization single point
 // (T7; Task 8 TS port of finalize.mjs): agent content → finalized handoff → full-replace write →
-// return block re-emit. Peer of handoff/naming (finalization is an independent concern).
+// return block re-emit. Peer of the Handoff carrier (finalization is an independent concern).
 // P6 T24 B: this file is the status-derivation family's SOLE owner (rollupStatus / deriveReviewStatus
 // / applyDerivedStatus / statusExitCode / blockedCarrierFor — the five contract.mjs symbols +
 // applyDerivedStatus) AND the CONTRACT_VIOLATION recovery unit's home (normalizeHandoff /
@@ -35,20 +35,19 @@
 // with the validator it consumes coming from rules/schema.ts. The edge is one-way
 // (finalize → schema); schema.ts holds zero applyDerivedStatus reference.
 import { existsSync, readFileSync } from "node:fs";
-import path from "node:path";
 import { TaskGroup } from "../../domain/task-group.ts";
 import { invariant } from "../../infra/exit.ts";
 import { GitClient } from "../../infra/git.ts";
+import type { Workspace } from "../../infra/workspace.ts";
 import { FAILURE_CATEGORIES } from "../../rules/failure.ts";
 import { HandoffSchemaValidator } from "../../rules/schema.ts";
 import { StatusDeriver } from "../../rules/status-deriver.ts";
 import { hashFile } from "../hash.ts";
 import { ProgressLedger, SHA40_RE } from "../progress.ts";
 import { ReturnBlockParser } from "../return-block.ts";
-import { readJson, writeHandoff, writeOwnHandoff } from "./write.ts";
+import { writeHandoff, writeOwnHandoff } from "./write.ts";
 
 const git = new GitClient();
-const ledger = new ProgressLedger();
 const schemaValidator = new HandoffSchemaValidator();
 const returnBlockParser = new ReturnBlockParser();
 // C5 (T3): the judgment-axis core lives in rules/status-deriver.ts (single source) — the
@@ -406,7 +405,7 @@ export async function finalizeHandoff({
   agentHandoff?: Record<string, unknown> | null;
   brief?: string;
   repoRoot?: string | null;
-  workspace?: string;
+  workspace?: Workspace;
   /** The dispatch group — the materialized carrier's `tasks` identity + the group-keyed
    * evidence/scope-ledger key (single-data-model). */
   tasks?: number[];
@@ -622,15 +621,12 @@ export function taskBaseFromBrief(briefPath: string | undefined): string | null 
 // file) → soft WARN note. Grouped materialization reads the group-keyed evidence artifact
 // (`tasks-{a},{b}-test-evidence.json`).
 function evidenceGate(
-  workspace: string | undefined,
+  workspace: Workspace | undefined,
   groupKey: string | null,
 ): { hard: boolean; warn: string } {
   const ev =
-    groupKey != null
-      ? (readJson(path.join(workspace ?? "", `tasks-${groupKey}-test-evidence.json`)) as Record<
-          string,
-          unknown
-        > | null)
+    groupKey != null && workspace
+      ? workspace.readJson<Record<string, unknown>>(`tasks-${groupKey}-test-evidence.json`)
       : null;
   if (!ev)
     return {
@@ -675,7 +671,7 @@ export async function finalizeImplement({
   returnBlock?: string[];
   brief?: string;
   repoRoot?: string | null;
-  workspace?: string;
+  workspace?: Workspace;
   /** The dispatch group — the carrier's `tasks` identity + the group-keyed evidence/scope-ledger
    * key. Null → legacy task-less materialization (no carrier identity). */
   tasks?: number[];
@@ -729,11 +725,12 @@ export async function finalizeImplement({
   // the ledger (a task-less materialization writes no scope state).
   const seedKey = groupKey;
   if (repoRoot && head && workspace && seedKey != null) {
-    ledger.seedScopeBase(workspace, seedKey, base);
+    const ledger = new ProgressLedger(workspace);
+    ledger.seedScopeBase(seedKey, base);
     if (resumeScopeBase)
-      await ledger.moveTaskScopeBaseEarlier(workspace, seedKey, resumeScopeBase, repoRoot, head);
+      await ledger.moveTaskScopeBaseEarlier(seedKey, resumeScopeBase, repoRoot, head);
     if (commitsBase !== base)
-      await ledger.moveTaskScopeBaseEarlier(workspace, seedKey, commitsBase, repoRoot, head);
+      await ledger.moveTaskScopeBaseEarlier(seedKey, commitsBase, repoRoot, head);
   }
   const gate = evidenceGate(workspace, groupKey);
   if (gate.hard) {

@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { captureStderr, gitCommit, gitInit } from "../../infra/__tests__/helpers.ts";
+import { Workspace } from "../../infra/workspace.ts";
 import { FAILURE_CATEGORIES } from "../../rules/failure.ts";
 import { HandoffSchemaValidator } from "../../rules/schema.ts";
 import {
@@ -117,7 +118,7 @@ it("finalizeHandoff implement 族：输入无 agentHandoff 槽位（通过类型
     ],
     brief,
     repoRoot: repo,
-    workspace: ws,
+    workspace: Workspace.fromPath(ws),
     tasks: [1],
   });
   expect(r.handoff.phase).toBe("implement");
@@ -138,7 +139,7 @@ it("finalizeHandoff implement 族：brief 无 TASK_BASE → 降级 fail-open（�
     mode: "implement",
     returnBlock: ["status: APPROVED"],
     brief,
-    workspace: ws,
+    workspace: Workspace.fromPath(ws),
     tasks: [1],
   });
   expect(r.handoff).toBeNull();
@@ -458,7 +459,7 @@ it("finalizeHandoff implement 族：非 APPROVED 返回 → BLOCKED + failure_ca
       mode: "implement",
       returnBlock: ["status: NEEDS_CONTEXT", "commits: base=x", "artifacts: "],
       brief,
-      workspace: ws,
+      workspace: Workspace.fromPath(ws),
       tasks: [1],
     });
     expect(r.handoff.status).toBe("BLOCKED");
@@ -544,7 +545,7 @@ describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6
       returnBlock: ["status: APPROVED", `commits: base=${c0} head=${c1}`, "artifacts: report=r.md"],
       brief,
       repoRoot: repo,
-      workspace: ws,
+      workspace: Workspace.fromPath(ws),
       tasks: [27],
     });
     expect(r.handoff.commits.base).toBe(c0); // 声明被采纳（非空 review 范围）
@@ -562,7 +563,7 @@ describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6
       returnBlock: ["status: APPROVED", `commits: base=${c1} head=${c1}`, "artifacts: "],
       brief,
       repoRoot: repo,
-      workspace: ws,
+      workspace: Workspace.fromPath(ws),
       tasks: [27],
     });
     expect(r1.handoff.commits.base).toBe(c1); // 未采纳（==HEAD）→ 保持 brief TASK_BASE
@@ -571,7 +572,7 @@ describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6
       returnBlock: ["status: APPROVED", "commits: base=agent-wrong-base", "artifacts: "],
       brief,
       repoRoot: repo,
-      workspace: ws,
+      workspace: Workspace.fromPath(ws),
       tasks: [27],
     });
     expect(r2.handoff.commits.base).toBe(c1); // 未采纳（非 40-hex）
@@ -595,7 +596,7 @@ describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6
       returnBlock: ["status: APPROVED", `commits: base=${forgeHead} head=${c1}`, "artifacts: "],
       brief,
       repoRoot: repo,
-      workspace: ws,
+      workspace: Workspace.fromPath(ws),
       tasks: [27],
     });
     expect(r.handoff.commits.base).toBe(c1); // 非祖先伪造被拒 → 保持 brief TASK_BASE
@@ -613,7 +614,7 @@ describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6
       returnBlock: ["status: APPROVED", `commits: base=${c0} head=${c1}`, "artifacts: "],
       brief: freshBrief,
       repoRoot: repo,
-      workspace: ws,
+      workspace: Workspace.fromPath(ws),
       tasks: [27],
     });
     expect(r.handoff.commits.base).toBe(c0); // fresh = brief TASK_BASE 权威（声明车道关闭）
@@ -626,7 +627,7 @@ describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6
       returnBlock: ["status: APPROVED", `commits: head=${c1}`, "artifacts: "],
       brief,
       repoRoot: repo,
-      workspace: ws,
+      workspace: Workspace.fromPath(ws),
       tasks: [27],
       resumeScopeBase: c0,
     });

@@ -199,7 +199,7 @@ export class GitClient {
   // files (the normal TDD shape for new tests/modules): each untracked entry counts as one file with
   // its newline-count as insertions — `git diff --numstat` cannot see untracked files, so the count
   // is derived from a per-file line read instead of a second git walk. Pass-through carriers never
-  // count: the engine handoff lives in the gitignored `.osuperpowers/cdd/` workspace (materializeWorkspace
+  // count: the engine handoff lives in the gitignored `.osuperpowers/cdd/` workspace (WorkspaceRoot.ensure
   // writes an in-dir `.gitignore`), so it never appears in porcelain as `??` in the first place.
 
   async diffNumstat(cwd: string): Promise<WipStat> {

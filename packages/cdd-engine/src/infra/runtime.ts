@@ -23,7 +23,6 @@ import { execFileSync } from "node:child_process";
 import {
   type Dirent,
   existsSync,
-  mkdirSync,
   readdirSync,
   readFileSync,
   statSync,
@@ -36,6 +35,7 @@ import { execa } from "execa";
 
 import { exitWithCode, invariant } from "./exit.ts";
 import { GitClient } from "./git.ts";
+import { Workspace, WorkspaceRoot } from "./workspace.ts";
 
 const git = new GitClient();
 
@@ -429,21 +429,28 @@ export class CddRuntime {
   // signal-safe exit code (former bin.ts `let signalExitCode`)
   signalExitCode: number | null = null;
 
-  // proc lifecycle state (former infra/proc.ts `let registry/diskPath/idleTimer`)
+  // proc lifecycle state (former infra/proc.ts `let registry/diskPath/idleTimer`); T6 relocation:
+  // #diskPath is the per-DISPATCH binding (the workspace's lifecycle.json — injected from the
+  // dispatch context, never the repo-level single file); #workspaceRoot is the self-derived
+  // enumeration target (reapStale's per-slug sweep).
   #registry: ManagedGroup[] = [];
   #diskPath = ""; // set via initProcLifecycle; when empty we never persist (test introspection state)
   #idleTimer: NodeJS.Timeout | null = null;
+  #workspaceRoot: WorkspaceRoot | null = null;
 
-  /** initProcLifecycle({ diskPath }) — bind the on-disk lifecycle registry path. */
+  /** initProcLifecycle({ diskPath }) — bind the on-disk lifecycle registry path (the dispatch
+   *  context's Workspace.lifecyclePath; the startup path binds nothing — the startup sweep
+   *  enumerates slugs instead). */
   initProcLifecycle({ diskPath: dp }: { diskPath?: string }): void {
     this.#diskPath = dp ?? "";
   }
 
-  /** persistRegistry — registry double-write (memory + disk). */
+  /** persistRegistry — registry double-write (memory + disk). The landing dir is the dispatch's
+   *  workspace — pre-ensured by the workspace materialization; a missing dir fails open (the next
+   *  run's reapStale scan is the fallback), never a throw. */
   async persistRegistry(): Promise<void> {
     if (!this.#diskPath) return;
     try {
-      mkdirSync(path.dirname(this.#diskPath), { recursive: true });
       writeFileSync(this.#diskPath, `${JSON.stringify(this.#registry, null, 2)}\n`);
     } catch {
       /* disk-write failure fails open: the next run's ps scan is the fallback */
@@ -677,43 +684,54 @@ export class CddRuntime {
     await this.persistRegistry();
   }
 
-  // Cross-run orphan fallback + timed-out-group cleanup: read the disk registry and handle two
-  // shapes — orphans (foreign owner whose engine is verifiably dead) + stale (live groups whose
-  // dispatch already returned in this process). Called at engine start to sweep the previous run's
-  // SIGKILL residue; a group whose leader is dead but members survive is rooted here.
+  // Cross-run orphan fallback + timed-out-group cleanup: enumerate EVERY workspace slug's
+  // lifecycle.json (WorkspaceRoot.enumerate — the self-derived enumeration target, T6; no #diskPath
+  // single binding) and handle two shapes per file — orphans (foreign owner whose engine is
+  // verifiably dead) + stale (live groups whose dispatch already returned in this process). Called
+  // at engine start to sweep the previous run's SIGKILL residue; a group whose leader is dead but
+  // members survive is rooted here. Read → filter → kill → write-back runs per slug file;
+  // survivors write back to THEIR OWN Workspace.lifecyclePath, never aggregated to a single path —
+  // the sweep holds when #diskPath is unbound (startup, no dispatch context yet). No initialized
+  // root → the sweep is a no-op.
   async reapStale({ graceMs = 5000 }: { graceMs?: number } = {}): Promise<void> {
-    let pending: ManagedGroup[] = [];
-    try {
-      if (this.#diskPath && existsSync(this.#diskPath)) {
-        pending = JSON.parse(readFileSync(this.#diskPath, "utf8")) ?? [];
-      }
-    } catch {
-      pending = [];
-    }
-    // orphans (foreign AND owner confirmed dead — concurrent engines' in-flight groups are excluded,
-    // branch-review warn 4) and stale (own-process dispatch returned but group alive) unite into one
-    // batch, rooted as a whole (every process in the group goes with the pgid).
-    const orphans = pending.filter(
-      (g) => g.ownerPid !== process.pid && !this.#pidAlive(g.ownerPid),
-    );
-    const stale = pending.filter((g) => g.ownerPid === process.pid && this.#pgidAlive(g.pgid));
-    const targets: ManagedGroup[] = [];
-    for (const g of [...orphans, ...stale]) {
-      if (this.#pgidAlive(g.pgid)) {
-        this.#killGroup(g.pgid, KILL_SIGNAL);
-        await new Promise((r) => setTimeout(r, Math.min(graceMs, 1000)));
-        this.#killGroup(g.pgid, FORCE_SIGNAL);
-        targets.push(g);
-      }
-    }
-    await this.#waitForDeath(targets, 2000);
-    // Write back only entries not yet confirmed dead (SIGKILL-failed / D-state survivors) — a group
-    // never reaped loses the fallback permanently; keep it for the next start.
-    const survivors = pending.filter((g) => this.#pgidAlive(g.pgid));
-    if (this.#diskPath) {
+    const root = this.#workspaceRoot ?? (this.#root ? WorkspaceRoot.from(this.#root) : null);
+    if (!root) return;
+    for (const slug of root.enumerate()) {
+      const ws = new Workspace(root, slug);
+      const file = ws.lifecyclePath;
+      const hadFile = existsSync(file);
+      let pending: ManagedGroup[] = [];
       try {
-        writeFileSync(this.#diskPath, `${JSON.stringify(survivors, null, 2)}\n`);
-      } catch {}
+        if (hadFile) pending = JSON.parse(readFileSync(file, "utf8")) ?? [];
+      } catch {
+        pending = [];
+      }
+      // orphans (foreign AND owner confirmed dead — concurrent engines' in-flight groups are excluded,
+      // branch-review warn 4) and stale (own-process dispatch returned but group alive) unite into one
+      // batch, rooted as a whole (every process in the group goes with the pgid).
+      const orphans = pending.filter(
+        (g) => g.ownerPid !== process.pid && !this.#pidAlive(g.ownerPid),
+      );
+      const stale = pending.filter((g) => g.ownerPid === process.pid && this.#pgidAlive(g.pgid));
+      const targets: ManagedGroup[] = [];
+      for (const g of [...orphans, ...stale]) {
+        if (this.#pgidAlive(g.pgid)) {
+          this.#killGroup(g.pgid, KILL_SIGNAL);
+          await new Promise((r) => setTimeout(r, Math.min(graceMs, 1000)));
+          this.#killGroup(g.pgid, FORCE_SIGNAL);
+          targets.push(g);
+        }
+      }
+      await this.#waitForDeath(targets, 2000);
+      // Write back only entries not yet confirmed dead (SIGKILL-failed / D-state survivors) — a group
+      // never reaped loses the fallback permanently; keep it for the next start. Written per-slug
+      // (survivors → the slug's own lifecyclePath; no aggregation).
+      const survivors = pending.filter((g) => this.#pgidAlive(g.pgid));
+      if (hadFile) {
+        try {
+          ws.writeJson("lifecycle.json", survivors);
+        } catch {}
+      }
     }
   }
 
@@ -815,6 +833,7 @@ export type CddRuntimeLike = Pick<
   | "setDryRun"
   | "initRoot"
   | "getRoot"
+  | "initProcLifecycle"
   | "withLifecycle"
   | "teardownAll"
   | "startIdleMonitor"

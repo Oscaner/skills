@@ -91,6 +91,7 @@ describe("CddRuntime — constructor injection (② the stand-in substitutes the
       setDryRun: vi.fn(),
       initRoot: vi.fn(async () => repo),
       getRoot,
+      initProcLifecycle: vi.fn(),
       withLifecycle,
       teardownAll: vi.fn(async () => {}),
       startIdleMonitor: vi.fn(),

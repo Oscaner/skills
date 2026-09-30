@@ -26,7 +26,7 @@ import { resolvePackageRoot } from "../infra/resource.ts";
 
 const compile = hb.compile;
 
-import { familyConfig } from "../artifacts/handoff/naming.ts";
+import { Handoff } from "../artifacts/handoff.ts";
 import { invariant } from "../infra/exit.ts";
 import { runtime, type TemplateCacheSlots, type TemplateCacheStats } from "../infra/runtime.ts";
 import { HandoffSchemaValidator } from "../rules/schema.ts";
@@ -340,7 +340,10 @@ export class TemplateLoader {
   // {"RETURN_STDOUT_BLOCK", "RETURN_JSON"} (the canonical return-contract discriminator). fixTemplate
   // is not surfaced by this layer (runFix reads the fix family directly; no second read point).
   reviewArtifactConfig(type: string): { schema: string; returnFormat: string } {
-    const cfg = familyConfig("review", type) as unknown as { schema: string; returnFormat: string };
+    const cfg = Handoff.familyConfig("review", type) as unknown as {
+      schema: string;
+      returnFormat: string;
+    };
     return { schema: cfg.schema, returnFormat: cfg.returnFormat };
   }
 

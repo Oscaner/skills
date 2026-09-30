@@ -18,9 +18,9 @@
 // enumeration) — subclass overrides of commitPreCheck / commitPostCheck replace the judgment at the
 // fixed point via poly-dispatch (this binding), registry untouched.
 
-import { resolveWorkspace } from "../artifacts/handoff/naming.ts";
 import { ResidueManager } from "../artifacts/residue.ts";
 import { CddExitError } from "../infra/exit.ts";
+import { WorkspaceRoot } from "../infra/workspace.ts";
 import { CloseoutChecker, type CloseoutResult } from "../rules/closeout.ts";
 import { CommitChecker } from "../rules/commit.ts";
 import { DocumentsValidator } from "../rules/documents.ts";
@@ -301,7 +301,7 @@ export abstract class DispatchLifecycle {
     const root = typeof this.ctx.repoRoot === "string" ? this.ctx.repoRoot : "";
     if (!root) return;
     try {
-      const workspace = resolveWorkspace(plan, root);
+      const workspace = WorkspaceRoot.from(root).for(plan);
       // The progress-tracking iteration follows the SINGLE effectiveGroups derivation — per declared
       // group (empty default: each task its own singleton group → the six-state lines are
       // byte-identical to the pre-P4.3 per-task iteration); the verdict shares the same group

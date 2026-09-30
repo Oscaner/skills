@@ -1,6 +1,6 @@
 # Pi Harness P3 — engine 数据面（Pi Harness P3: Engine Data Plane）— Phase Spec
 
-- **Version**: v1.5 · 2026-09-30（spec review-1 fix v1.1 + P3 契约面/词表增项 v1.2 + spec review-2 fix v1.3 + 崩溃恢复健壮性增项 v1.4 + 统一终止模型增项 v1.5）
+- **Version**: v1.6 · 2026-09-30（spec review-1 fix v1.1 + P3 契约面/词表增项 v1.2 + spec review-2 fix v1.3 + 崩溃恢复健壮性增项 v1.4 + 统一终止模型增项 v1.5 + 预算维度统一增项 v1.6）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming → writing-phase-spec)
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.17](2026-09-27-pi-harness-overall.md)
@@ -140,6 +140,15 @@ record），恢复 = 同命令重跑即续作**。
 - **cause 字段**：crash record 增 `cause`：`child-exit` / `child-signal` / `engine-over-budget` / `engine-timeout` / `unknown`——postmortem 专用、**行为零分叉**（resume 不因 cause 不同路）
 - **边界自检**：engine 自身 liveness（engine 进程内内存泄漏面）属 liveness monitor 另轨，本模型只管 **child 终止面**；`dispatchIncomplete`（CONTRACT_VIOLATION / ENGINE_SELF_WRITTEN：部分 handoff = 合同违约面）语义保留，不并入终止面
 
+#### 2.4 预算维度统一（op 维度抽象 — 用户拍板追加 T9）
+
+§2.3 把终止面收为对偶 artifact；预算（wall-clock hard cap，`timeouts.defaults`）是 termination 的触发源之一（cause `engine-over-budget`）。预算配置对象当前挂在**岛名**上（`{task, review}`）——task island 一个 call site 承载 implement/review/fix 三 op、`resolveTerminationConfig("task")` 硬编码 → `review --type task` **错读实施预算**（T7 task review 已 2h 未被 review 1h 掐掉即为该错读的直接后果）；branch-fix 同样错读 `"review"`。预算本质是 **op 维度**（工作轮资源上限），岛/type 是平行通道、与资源需求无关（同一轮 review 花在 task 或 branch 上预算应同）：
+
+- **op 三 key**：`timeouts.defaults` → `{implement: 21600000 (6h), review: 10800000 (3h), fix: 21600000 (6h)}`——删 `task` key（config 是 engine 自养 canonical、零消费者面，破坏性删除安全）；fix 与 implement 同额（用户拍板）
+- **接线按实际 op**：三岛 spawn 点传各自实际 op——task.ts / docs.ts 传已有的 `mode`（「mode 即 op」已是三岛既有模态：task.ts `INVOKE_PARAMS[mode] ?? { op: mode }`、docs.ts `{ op: mode }`），branch.ts branch-fix `"review"`→`"fix"`；修复后 review 轮在 op 维度下**永远**读 review 预算——错位从「可能发生」变「不可能发生」（改坐标系而非打补丁）
+- **类型化**：`DispatchOp = "implement" | "review" | "fix"` union + `DEFAULT_TIMEOUTS: Record<DispatchOp, number | undefined>`——传错 op 编译期即报；`unknown → undefined` 防御从「调用方传错」降级为「config 缺 key」（T14 零 env 键面不变）
+- **接线层测试**（本次逃逸根源：现有测试只测 resolver `mode→budget`、不测岛→resolver 传参）：三岛各一断言——dispatch 在自身 op 下 spawn 传出的 `terminationCfg.budgetMs` = 该 op 默认值（task.implement 6h / task.review 3h / task.fix 6h / branch.review 3h / branch.fix 6h / docs.review 3h / docs.fix 6h）
+
 ### Acceptance criteria
 
 - `harness-registry.json` 行键集合断言恰 `{claude, cursor, pi}`（registry / infra.registry 测试 name-set，G1）
@@ -156,6 +165,7 @@ record），恢复 = 同命令重跑即续作**。
 - **运维文档 + CLAUDE.md 同步落地**：docs/maintainers 全家族（01/02/03/04）与契约面/词表一致、行键镜像零 cursor-agent · 根 CLAUDE.md emit/validate 描述随 Contract Lexicon 单 block 与 C5 单胶囊更新 · `pnpm run emit` + `emit:check` 零漂移（skill 文本变化后重新 emit）
 - **T7 崩溃恢复全绿**：failureCategories 含 `HARNESS_ABORT`（harnessAbortCount / harness-abort terminal）· NextStepRouter 决策表含 recovery 行（BLOCKED + crashRecord → 同命令 resume `next:`，next-step.test 钉死）· teardown 集成测试（模拟 child exit 1 无 handoff → child tail 保留 + crash-only snapshot + crash record 落 `Workspace.crashPath` + BLOCKED capsule 带 next:）· commitSnapshot 行为测试（树干净 no-op / `--no-verify` 语义）· **stash 平面零残留**（grep `stash apply`/`recovery.residue_ref`/「git stash drop」零命中，含 SKILL/maintainers/CLAUDE.md 措辞）· `pnpm run validate` 全绿 + precommit 面绿
 - **T8 统一终止模型全绿**：teardown 触发谓词 = **任意 exit gate 前终止**——over-budget/timeout 与 child-exit/child-signal **同一实现路径**（teardown 矩阵测试：四类终止模拟 → 同路 snapshot + crash record（含 `cause`）+ BLOCKED capsule next 同命令 resume，非并行第二套）· crash record 含 `cause`（child-exit/child-signal/engine-over-budget/engine-timeout/unknown）且行为零分叉 · crash record 三方统一（teardown 写 / resume 读 / reapStale 枚举 stale crash records，`WorkspaceRoot.enumerate()` 复用）· `recovery.residue_ref` / 旧独立 recovery 持久化面零残留（grep 零命中 + channel-audit 计数断言）· resume 软帽：3 次 → `BLOCKED: crash-recovery-cap` 用户裁决，FailureResolver 类别 cap 面不动 · `pnpm run validate` 全绿 + precommit 面绿
+- **T9 预算维度统一全绿**：`timeouts.defaults` = `{implement: 21600000, review: 10800000, fix: 21600000}` 且**无 `task` key**（config 读断言 + grep 兜底）· 三岛接线断言全绿（7 op 组合 spawn 传出 budget = 对应 op 默认值——task.implement 6h / task.review 3h / task.fix 6h / branch.review 3h / branch.fix 6h / docs.review 3h / docs.fix 6h）· resolver 单测迁完（`"task"` budget 断言零残留）· `DispatchOp` union 编译期禁 `"unknown"`（unknown 防御语义保留为 config 缺 key fail-safe）· `pnpm run validate` 全绿 + precommit 面绿
 
 ## Section 3: Deviations from overall
 

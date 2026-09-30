@@ -1945,13 +1945,14 @@ it("T7 black-box: harness abort (child exit 1, no handoff) → crash record + cr
   configureGitIdentity(repo);
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-t7rr-"));
   const regPath = ghostRegistry(ws);
-  // Round 1 agent: writes a tracked WIP file, then dies WITHOUT writing the handoff (the 403-shaped
-  // harness abort) → the HARNESS_ABORT teardown captures the tail, commits the WIP as a crash-only
-  // snapshot, and writes the crash record (the commit ledger — not a stash).
+  // Round 1 agent: prints a stdout trace, writes a tracked WIP file, then dies WITHOUT writing the
+  // handoff (the 403-shaped harness abort) → the HARNESS_ABORT teardown captures the tail (BOTH
+  // stdout AND stderr — the 403-no-trace mitigation), commits the WIP as a crash-only snapshot,
+  // and writes the crash record (the commit ledger — not a stash).
   const restore = withFakeCli(
     binDir,
     "fake-cli",
-    `#!/usr/bin/env bash\nprintf 'line2-round1-agent-wip\n' > wip.md\ngit add wip.md\nexit 1\n`,
+    `#!/usr/bin/env bash\nprintf 'line2-round1-agent-wip\n' > wip.md\ngit add wip.md\nprintf 'stdout-trace-round1\n'\nprintf 'stderr-trace-round1\n' >&2\nexit 1\n`,
   );
   try {
     await TaskLifecycle.run("ghost", 1, {
@@ -1970,6 +1971,10 @@ it("T7 black-box: harness abort (child exit 1, no handoff) → crash record + cr
     // the snapshot commit IS the new HEAD, so the re-dispatch entry gate passes and the WIP is present.
     const crashRecord = JSON.parse(readFileSync(path.join(ws, "crash-implement-1.json"), "utf8"));
     expect(crashRecord.exitCode).toBe(1);
+    // BOTH tails are captured on the failure path (the task lane preserves the child's raw stdout
+    // unconditionally — docs/branch parity — so the crash record carries the real trace).
+    expect(crashRecord.stdoutTail).toContain("stdout-trace-round1");
+    expect(crashRecord.stderrTail).toContain("stderr-trace-round1");
     const headNow = execFileSync("git", ["-C", repo, "rev-parse", "HEAD"], {
       encoding: "utf8",
     }).trim();
@@ -1995,6 +2000,70 @@ it("T7 black-box: harness abort (child exit 1, no handoff) → crash record + cr
     expect(readFileSync(path.join(repo, "wip.md"), "utf8")).toBe(
       "line2-round1-agent-wip\nline3-agent-increment\n",
     );
+  } finally {
+    restore();
+  }
+}, 30_000);
+
+it("T7 black-box: a SECOND consecutive harness abort on the resumed round re-fires the teardown (stale carrier rotated before re-dispatch) → fresh crash record + snapshot covering the resume session's WIP", async () => {
+  const { repo, planFile, ws } = setupWorkspace();
+  configureGitIdentity(repo);
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-t7rr2-"));
+  const regPath = ghostRegistry(ws);
+  const hp = path.join(ws, "tasks-1-implement.json");
+  // Round 1 agent dies (writes round-1 WIP, no handoff) → teardown + crash record + snapshot1.
+  const restore = withFakeCli(
+    binDir,
+    "fake-cli",
+    `#!/usr/bin/env bash\nprintf 'line2-round1-agent-wip\n' > wip.md\ngit add wip.md\nprintf 'trace-round1\n'\nexit 1\n`,
+  );
+  try {
+    await TaskLifecycle.run("ghost", 1, {
+      mode: "implement",
+      planFile,
+      root: repo,
+      registryPath: regPath,
+      noExit: true,
+    });
+    const rec1 = JSON.parse(readFileSync(path.join(ws, "crash-implement-1.json"), "utf8"));
+    expect(rec1.stdoutTail).toContain("trace-round1");
+    // Round 2 (the BLOCKED next: same-command resume) agent strikes AGAIN: more WIP on top of the
+    // round-1 WIP, then dies. The stale round-1 BLOCKED carrier at the round-stable implement path
+    // must be rotated pre-dispatch, so the second abort re-fires the teardown instead of being
+    // suppressed (existsSync → teardown guard false) and falling into the generic BLOCKED face.
+    writeFileSync(
+      path.join(binDir, "fake-cli"),
+      `#!/usr/bin/env bash\nprintf 'line4-round2-agent-wip\n' >> wip.md\ngit add wip.md\nprintf 'trace-round2\n'\nexit 1\n`,
+    );
+    chmodSync(path.join(binDir, "fake-cli"), 0o755);
+    const res2 = await TaskLifecycle.run("ghost", 1, {
+      mode: "implement",
+      planFile,
+      root: repo,
+      registryPath: regPath,
+      noExit: true,
+    });
+    expect(res2.exitCode).toBe(1); // the second abort stays a BLOCKED round (exit 1), not an escape
+    const h2 = JSON.parse(readFileSync(hp, "utf8"));
+    expect(h2.status).toBe("BLOCKED");
+    expect(h2.failure_category).toBe("HARNESS_ABORT"); // classification kept (never a stale-carrier CONTRACT_VIOLATION face)
+    // Fresh crash record: the round-2 teardown rewrote crash-implement-1.json with the SECOND
+    // session's trace + WIP (the pre-fix behavior left the stale round-1 record untouched).
+    const rec2 = JSON.parse(readFileSync(path.join(ws, "crash-implement-1.json"), "utf8"));
+    expect(rec2.stdoutTail).toContain("trace-round2");
+    expect(rec2.exitCode).toBe(1);
+    // The round-2 WIP normalized into a SECOND crash-only snapshot commit (HEAD moved forward with
+    // line4 — the resume session's WIP is committed, not lost to a dirty tree).
+    const head2 = execFileSync("git", ["-C", repo, "rev-parse", "HEAD"], {
+      encoding: "utf8",
+    }).trim();
+    expect(rec2.snapshotSha).toBe(head2);
+    expect(readFileSync(path.join(repo, "wip.md"), "utf8")).toBe(
+      "line2-round1-agent-wip\nline4-round2-agent-wip\n",
+    );
+    expect(
+      execFileSync("git", ["-C", repo, "status", "--porcelain"], { encoding: "utf8" }).trim(),
+    ).toBe("");
   } finally {
     restore();
   }

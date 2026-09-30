@@ -967,8 +967,27 @@ describe("channel audit：⑫ counters 行契约（canonical 派生 + 零手写 
     );
     try {
       const hits = collectCountersContractHits({ docsSchema: f });
-      expect(hits.length).toBe(1);
-      expect(hits[0].label).toMatch(/count|≠/);
+      // count-drift hit + the missing failure_category → the canonical-set enum drift hit fires too
+      expect(hits.some((h) => h.label.match(/≠/))).toBe(true);
+      expect(hits.some((h) => h.label.match(/enum drift/))).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("failure_category enum 漏掉 canonical 类目（HARNESS_ABORT 回归面）→ 命中", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "audit-schema-3-"));
+    const f = path.join(dir, "docs-handoff-schema.json");
+    // the six-legacy-category enum (HARNESS_ABORT missing) — the pre-T7 drift shape; the guard
+    // must pin the enum to the canonical set
+    writeFileSync(
+      f,
+      '{ "properties": { "failure_category": { "type": "string", "enum": ["TIMEOUT", "CONTRACT_VIOLATION", "ENGINE_SELF_WRITTEN", "EXECUTION_FAILURE", "UNVERIFIABLE", "PLAN_CONFLICT"] } } }\n',
+      "utf8",
+    );
+    try {
+      const hits = collectCountersContractHits({ docsSchema: f });
+      expect(hits.some((h) => h.label.match(/enum drift/))).toBe(true);
+      expect(hits.some((h) => h.label.match(/HARNESS_ABORT/))).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

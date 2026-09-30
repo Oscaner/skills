@@ -28,7 +28,7 @@
 // derivation single entry is WorkspaceRoot#for). runTask keeps the legacy { exitCode, returnBlock }
 // surface ({ noExit } seam) as the static TaskLifecycle.run entry (Task 6/7 export-surface reshuffle:
 // `runTask` → `TaskLifecycle.run` — no bare forwarding shell).
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { CrashTeardown, resumeCommandFor } from "../artifacts/crash.ts";
 import {
@@ -283,7 +283,13 @@ export class TaskLifecycle extends DispatchLifecycle {
   #entry: unknown = null;
   #tcx: TaskDispatchContext | null = null;
   #handoff: Handoff | null = null;
+  /** the child's return-block stdout — the parse input for returnFourLines (gated on res.ok:
+   *  a failed child's stdout is arbitrary trace output, never a return block). */
   #agentOut = "";
+  /** the child's raw stdout (T7 — preserved for the crash teardown's stdout tail; captured
+   *  unconditionally so the HARNESS_ABORT/TIMEOUT crash record carries the real stdout trace,
+   *  never the empty-on-failure return-block gate). */
+  #agentStdout = "";
   /** the child's raw stderr (T7 — preserved for the crash teardown's stderr tail; keep the failed
    *  dispatch's "403 / model abort" trace, not the legacy discard-on-failure). */
   #agentErr = "";
@@ -756,10 +762,29 @@ export class TaskLifecycle extends DispatchLifecycle {
       return;
     }
 
+    // 7.5 Stale-carrier rotation (T7 crash-resume hygiene, repeat-abort): the current round's
+    // handoff path may already hold a terminal carrier from a PRIOR crashed dispatch of this same
+    // round — implement's handoff name is round-stable (round always 1), so a first crash leaves a
+    // BLOCKED HARNESS_ABORT carrier at the path the resume re-dispatches. Rotate it away before the
+    // child runs: a second consecutive abort must re-fire the crash teardown (fresh crash record +
+    // crash-only snapshot of the RESUME session's WIP) instead of being suppressed by the stale
+    // carrier (teardown guard `!existsSync(handoffPath)` would read true). Only an engine-terminal
+    // carrier is rotated — writeBlockedCarrier always writes failure_category, the discriminator
+    // vs an agent-written handoff; the carrier is untracked (.osuperpowers is gitignored), so the
+    // rotation is a pure on-disk hygiene op with zero git-tree impact. dry-run keeps zero side
+    // effects (no rotation).
+    if (!dryRun) {
+      const stale = readJson(ctx.handoffPath) as { failure_category?: unknown } | null;
+      if (stale && typeof stale.failure_category === "string") {
+        rmSync(ctx.handoffPath);
+      }
+    }
+
     // 8. Invoke CLI (or dry-run simulation)
     let agentOut = "";
     let agentRc = 0;
     let resStderr = ""; // the child's raw stderr (T7 — preserved for the crash teardown's tail)
+    let resStdout = ""; // the child's raw stdout (T7 — preserved for the crash teardown's tail)
     let timedOut = false;
     let unkillable = false;
     let cause: TerminationCause | undefined; // unified termination cause (stalled/over-budget/signal; T26)
@@ -811,6 +836,7 @@ export class TaskLifecycle extends DispatchLifecycle {
       )) as TaskSpawnResult;
       agentOut = res.ok ? res.stdout : "";
       resStderr = res.stderr;
+      resStdout = res.stdout; // raw, unconditional — the crash teardown's stdout tail (never the empty-on-failure gate)
       timedOut = res.timedOut === true;
       unkillable = res.unkillable === true;
       cause = res.cause;
@@ -818,8 +844,9 @@ export class TaskLifecycle extends DispatchLifecycle {
       if (!res.ok && !timedOut) agentRc = res.code;
     }
     this.#agentOut = agentOut;
-    // Preserve the child's raw stderr (the failed dispatch's trace — the harness-abort teardown
-    // captures its tail; never discard it).
+    // Preserve the child's raw streams (the failed dispatch's trace — the harness-abort teardown
+    // captures BOTH tails; never discard them on the failure path).
+    this.#agentStdout = resStdout;
     this.#agentErr = resStderr;
     this.#agentRc = agentRc;
 
@@ -858,7 +885,7 @@ export class TaskLifecycle extends DispatchLifecycle {
         lane: mode,
         round: ctx.round ?? 1,
         exitCode: cause === "signal" ? 143 : 1,
-        stdout: this.#agentOut,
+        stdout: this.#agentStdout,
         stderr: this.#agentErr,
         attemptedHandoff: ctx.handoffPath,
         next: resumeCommandFor({
@@ -978,7 +1005,7 @@ export class TaskLifecycle extends DispatchLifecycle {
         lane: mode,
         round: ctx.round ?? 1,
         exitCode: this.#agentRc,
-        stdout: this.#agentOut,
+        stdout: this.#agentStdout,
         stderr: this.#agentErr,
         attemptedHandoff: ctx.handoffPath,
         next: crashNext,

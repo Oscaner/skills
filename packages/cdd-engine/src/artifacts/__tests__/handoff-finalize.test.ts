@@ -620,22 +620,6 @@ describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6
     expect(r.handoff.commits.base).toBe(c0); // fresh = brief TASK_BASE 权威（声明车道关闭）
   });
 
-  it("resumeScopeBase 车道：carrier 恢复锚（recovery.scope_base）把账本严格前移（声明缺失时）", async () => {
-    const { repo, c0, c1, ws, brief } = resumeFixture();
-    const r = await finalizeHandoff({
-      mode: "implement",
-      returnBlock: ["status: APPROVED", `commits: head=${c1}`, "artifacts: "],
-      brief,
-      repoRoot: repo,
-      workspace: Workspace.fromPath(ws),
-      tasks: [27],
-      resumeScopeBase: c0,
-    });
-    expect(r.handoff.commits.base).toBe(c1); // 无声明 → 不采纳，commits.base = brief TASK_BASE
-    const progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
-    expect(progress.tasks[0].scope_base).toBe(c0); // 账本被 resumeScopeBase 严格前移到 c0
-  });
-
   it("taskBaseFromBrief：无 brief / 无 TASK_BASE 行 → null；有 → 40-hex 值", () => {
     expect(taskBaseFromBrief(undefined)).toBeNull();
     const ws = mkdtempSync(path.join(tmpdir(), "cdd-hf-t27-tbf-"));

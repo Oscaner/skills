@@ -916,6 +916,22 @@ export function collectCountersContractHits({
         file: schemaPath,
       });
     }
+    // T7 fix (the HARNESS_ABORT enum drift): pin the schema's failure_category enum to the
+    // CANONICAL category set (FAILURE_CATEGORIES — the same canonical read the category checks use,
+    // never a literal copy) so a future engine-config category addition/removal cannot silently
+    // desync the shipped schema the way HARNESS_ABORT did. Equality on both directions (extra +
+    // missing) — a guard that only checked missing would allow out-of-canonical enum members.
+    const enumSet = new Set(
+      (schema.properties.failure_category?.enum as string[] | undefined) ?? [],
+    );
+    const missing = CATEGORY_IDS.filter((c) => !enumSet.has(c));
+    const extra = [...enumSet].filter((c) => !new Set(CATEGORY_IDS).has(c));
+    if (missing.length > 0 || extra.length > 0) {
+      hits.push({
+        label: `${name} handoff schema failure_category enum drift vs the canonical category set (missing: ${missing.join(",") || "none"}; extra: ${extra.join(",") || "none"})`,
+        file: schemaPath,
+      });
+    }
   }
   return hits;
 }

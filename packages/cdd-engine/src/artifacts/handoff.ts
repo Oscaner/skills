@@ -86,7 +86,6 @@ export interface HandoffFinalizeOptions {
   repoRoot?: string | null;
   workspace?: Workspace;
   tasks?: number[];
-  resumeScopeBase?: string | null;
 }
 
 /** Handoff — the typed carrier for a handoff artifact (Task 6 ④): construct with an identity, read
@@ -293,7 +292,6 @@ export class Handoff {
       repoRoot: opts.repoRoot,
       workspace: opts.workspace ?? this.workspace,
       tasks: opts.tasks,
-      resumeScopeBase: opts.resumeScopeBase ?? null,
     });
   }
 }

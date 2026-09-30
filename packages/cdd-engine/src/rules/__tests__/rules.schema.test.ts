@@ -10,6 +10,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { normalizeHandoff, recoverHandoff } from "../../artifacts/handoff/finalize.ts";
+import { FAILURE_CATEGORIES } from "../failure.ts";
 // normalizeHandoff / recoverHandoff now live in artifacts/handoff/finalize.ts — the module that
 // owns status derivation, while the validator stays on rules/schema.ts; this file's import split
 // tracks the schema⇄finalize cycle break. (P6 Task 24 B)
@@ -226,6 +227,20 @@ describe("T5 AC7: handoff schema single-source core (task/docs one contract core
     expect(Object.keys(taskProps)).not.toContain("blockers");
     expect(docsProps.blocker.type).toBe("string");
     expect(taskProps.blocker.type).toBe("string");
+  });
+
+  it("failure_category enum == the canonical category set (T7: HARNESS_ABORT joins — the schema must never desync from engine-config#failureCategories)", () => {
+    // The enum is the machine-checked mechanism-channel whitelist: the shipped schema and the
+    // engine's own FAILURE_CATEGORIES (engine-config#failureCategories) are the same set — a
+    // BLOCKED carrier with HARNESS_ABORT must pass its own schema. Sorted compare = set equality.
+    expect([...taskProps.failure_category.enum].sort()).toEqual(
+      Object.keys(FAILURE_CATEGORIES).sort(),
+    );
+    expect([...docsProps.failure_category.enum].sort()).toEqual(
+      Object.keys(FAILURE_CATEGORIES).sort(),
+    );
+    expect(taskProps.failure_category.enum).toContain("HARNESS_ABORT");
+    expect(String(docsProps.failure_category.description)).toContain("HARNESS_ABORT");
   });
 
   it("core block key shapes align (changes/artifacts/findings same type); lane differences are only boundary objects (docs: doc_path/doc_hash; task: tasks group reference)", () => {

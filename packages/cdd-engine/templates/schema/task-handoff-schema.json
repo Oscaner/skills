@@ -47,10 +47,11 @@
         "CONTRACT_VIOLATION",
         "ENGINE_SELF_WRITTEN",
         "EXECUTION_FAILURE",
+        "HARNESS_ABORT",
         "UNVERIFIABLE",
         "PLAN_CONFLICT"
       ],
-      "description": "Failure mechanism channel \u2014 which mechanism ended the round (TIMEOUT / CONTRACT_VIOLATION / ENGINE_SELF_WRITTEN / EXECUTION_FAILURE / UNVERIFIABLE / PLAN_CONFLICT). Orthogonal to status (the round conclusion) and to the content-level unverifiable[]/plan_conflicts[] notes. Engine-written on failure paths; declared by the agent only when it reports one. A BLOCKED round may satisfy its grounding via this field (see allOf)."
+      "description": "Failure mechanism channel \u2014 which mechanism ended the round (TIMEOUT / CONTRACT_VIOLATION / ENGINE_SELF_WRITTEN / EXECUTION_FAILURE / HARNESS_ABORT / UNVERIFIABLE / PLAN_CONFLICT). Orthogonal to status (the round conclusion) and to the content-level unverifiable[]/plan_conflicts[] notes. Engine-written on failure paths; declared by the agent only when it reports one. A BLOCKED round may satisfy its grounding via this field (see allOf)."
     },
     "commits": {
       "type": "object",

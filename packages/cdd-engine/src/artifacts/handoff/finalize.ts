@@ -393,7 +393,6 @@ export async function finalizeHandoff({
   repoRoot,
   workspace,
   tasks,
-  resumeScopeBase = null,
   fixBase = null,
 }: {
   mode?: string;
@@ -405,10 +404,6 @@ export async function finalizeHandoff({
   /** The dispatch group — the materialized carrier's `tasks` identity + the group-keyed
    * evidence/scope-ledger key (single-data-model). */
   tasks?: number[];
-  /** Legacy resume anchor (T27, spec T7.6) — kept for interface stability but never supplied by a
-   *  production dispatch: its feeder (the deleted recovery carrier's scope_base) went with the
-   *  stash plane. The resume round's earlier ledger pull is served by the adopted-base lane. */
-  resumeScopeBase?: string | null;
   /** The branch-fix FIX_BASE (the reviewed range's base — the dispatch's derive, spec C4). Its
    * presence switches the fix mode to the engine fact reconstruction (C4-1): commits / phase /
    * status become engine-authoritative and the agent handoff is input only. Absent (the docs fix
@@ -431,7 +426,6 @@ export async function finalizeHandoff({
       repoRoot,
       workspace,
       tasks,
-      resumeScopeBase,
     });
   }
   if (mode === "fix") {
@@ -662,7 +656,6 @@ export async function finalizeImplement({
   repoRoot,
   workspace,
   tasks,
-  resumeScopeBase = null,
 }: {
   returnBlock?: string[];
   brief?: string;
@@ -671,10 +664,6 @@ export async function finalizeImplement({
   /** The dispatch group — the carrier's `tasks` identity + the group-keyed evidence/scope-ledger
    * key. Null → legacy task-less materialization (no carrier identity). */
   tasks?: number[];
-  /** Legacy resume anchor (T27, spec T7.6) — never supplied in production (its recovery-carrier
-   *  feeder is deleted with the stash plane); kept for interface stability, the earlier ledger
-   *  pull on resume rounds is the adopted-base lane. */
-  resumeScopeBase?: string | null;
 }): Promise<{ handoff: Record<string, unknown> | null; exitCode: number }> {
   const base = taskBaseFromBrief(brief);
   if (!base) {
@@ -724,8 +713,6 @@ export async function finalizeImplement({
   if (repoRoot && head && workspace && seedKey != null) {
     const ledger = new ProgressLedger(workspace);
     ledger.seedScopeBase(seedKey, base);
-    if (resumeScopeBase)
-      await ledger.moveTaskScopeBaseEarlier(seedKey, resumeScopeBase, repoRoot, head);
     if (commitsBase !== base)
       await ledger.moveTaskScopeBaseEarlier(seedKey, commitsBase, repoRoot, head);
   }

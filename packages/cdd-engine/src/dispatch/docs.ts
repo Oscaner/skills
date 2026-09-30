@@ -21,6 +21,7 @@
 // the lifecycle — existing consumers/tests unchanged.
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { CrashTeardown, resumeCommandFor } from "../artifacts/crash.ts";
 import {
   finalizeHandoff,
   persistFinalized,
@@ -28,6 +29,7 @@ import {
   writeBlockedCarrier,
 } from "../artifacts/handoff/finalize.ts";
 import { readJson, writeOwnHandoff } from "../artifacts/handoff/write.ts";
+import { Handoff } from "../artifacts/handoff.ts";
 import { hashFile } from "../artifacts/hash.ts";
 import { type ExitRequested, exitWithCode, invariant } from "../infra/exit.ts";
 import { GitClient } from "../infra/git.ts";
@@ -35,6 +37,7 @@ import { EngineInvoker } from "../infra/invoke.ts";
 import { withLifecycle } from "../infra/proc.ts";
 import { REG_PATH, Registry } from "../infra/registry.ts";
 import { getRoot } from "../infra/root.ts";
+import { Workspace } from "../infra/workspace.ts";
 import { TemplateLoader } from "../render/templates.ts";
 import { CommitChecker, UNCOMMITTED_RETURN_MARKER } from "../rules/commit.ts";
 import { FAILURE_CATEGORIES } from "../rules/failure.ts";
@@ -52,6 +55,9 @@ const invoker = new EngineInvoker();
 const templates = new TemplateLoader();
 const commit = new CommitChecker();
 const schema = new HandoffSchemaValidator();
+// Crash recovery — the docs failure lane routes through the shared crash teardown
+// (crash-only snapshot + crash record) instead of the deleted stash workflow.
+const crash = new CrashTeardown();
 
 export interface DocsLifecycleOptions {
   /** docs agent harness key (registry lookup) */
@@ -104,6 +110,9 @@ interface DocsResult {
 export class DocsLifecycle extends DispatchLifecycle {
   readonly #opts: DocsLifecycleOptions;
   #agentRc = 0;
+  /** the child's raw stdout/stderr (T7 — preserved for the crash teardown's output tails). */
+  #agentStdout = "";
+  #agentStderr = "";
   #handoff: Record<string, unknown> | null = null;
   #exitCode = 0;
   #finished = false;
@@ -235,6 +244,8 @@ export class DocsLifecycle extends DispatchLifecycle {
       invoker.resolveTerminationConfig("review"),
     );
     this.#agentRc = res.code;
+    this.#agentStdout = res.stdout;
+    this.#agentStderr = res.stderr;
   }
 
   // ---- post-flight ----
@@ -245,20 +256,60 @@ export class DocsLifecycle extends DispatchLifecycle {
     if (this.#finished) return;
     const handoffPath = this.#opts.handoffPath!;
     if (!existsSync(handoffPath)) {
-      // The docs channel carries the death diagnosis (recovery.cause + exit_code) so the base
-      // settleResidue template step auto-preserves the dirty-tree WIP right after this lane returns
-      // (retrievable via `git stash list` — never pre-destroyed). exit_code stays a strictly-death
-      // code (the recovery schema denotation: "1 = run failure, 143 = SIGTERM") — the exit-0-no-
-      // handoff boundary carries the cause only, so a 0 never rides the carrier as a diagnosed death (T25).
+      // The docs channel's no-handoff lane splits on the child's exit code (T7 — the deleted
+      // base settleResidue stash step is replaced by the crash teardown):
+      //   rc !== 0 → HARNESS_ABORT (external retreat — harness/model abort): capture the output
+      //              tail + crash-only snapshot + crash record (the "403 with no trace" mitigation),
+      //              BLOCKED carrier category re-judged from the legacy EXECUTION_FAILURE lane;
+      //   rc === 0 → the discipline-failure face (agent exited 0 without writing the handoff —
+      //              ENGINE_SELF_WRITTEN, never a diagnosed death).
+      if (this.#agentRc !== 0) {
+        // The docs round for the crash record's round-qualified file name (derived from the
+        // canonical handoff name — the family round is the either-side contract).
+        const roundMatch = path
+          .basename(handoffPath)
+          .match(Handoff.roundPattern(this.#opts.mode, this.#opts.type));
+        const round = roundMatch ? Number(roundMatch[1]) : 1;
+        const crashNext = resumeCommandFor({
+          op: this.#opts.mode,
+          type: this.#opts.type,
+          doc: this.#opts.doc,
+          ...(this.#opts.mode === "fix"
+            ? { findingsPath: this.#opts.findingsPath ?? undefined }
+            : {}),
+        });
+        const crashRecord = await crash.run({
+          lane: "docs",
+          round,
+          exitCode: this.#agentRc,
+          stdout: this.#agentStdout,
+          stderr: this.#agentStderr,
+          attemptedHandoff: handoffPath,
+          next: crashNext,
+          // The crash record lands beside the handoff in the SAME workspace directory — the
+          // handoff's dirname IS the workspace dir (no second derivation surface).
+          workspace: Workspace.fromPath(path.dirname(handoffPath)),
+          repoRoot: this.#opts.repoRoot ?? this.ctx.repoRoot,
+        });
+        this.#done(
+          writeBlockedCarrier(handoffPath, {
+            phase: this.#opts.mode,
+            doc: this.#opts.doc,
+            failure_category: FAILURE_CATEGORIES.HARNESS_ABORT.id,
+            notes: crashRecord.snapshotSha
+              ? `crash snapshot ${crashRecord.snapshotSha.slice(0, 7)}`
+              : undefined,
+            blocker: `cli exited ${this.#agentRc}${this.#agentRc === 143 ? " (SIGTERM — externally killed)" : ""} without writing handoff → the harness aborted before the handoff; the dispatch's output tail + crash-only snapshot are recorded — resume by re-running the same command (\`${crashNext}\`)`,
+          }),
+        );
+        return;
+      }
       this.#done(
         writeBlockedCarrier(handoffPath, {
           phase: this.#opts.mode,
           doc: this.#opts.doc,
-          recovery: {
-            cause: FAILURE_CATEGORIES.EXECUTION_FAILURE.id,
-            ...(this.#agentRc !== 0 ? { exit_code: this.#agentRc } : {}),
-          },
-          blocker: `${path.basename(handoffPath)} not written after exit → worktree residue is preserved as a stash (\`git stash list\` → \`git stash apply <ref>\` → review → commit to salvage or \`git stash drop\` to discard) → re-run ${this.#opts.mode} and ensure handoff is written to ${handoffPath} before exit`,
+          failure_category: FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id,
+          blocker: `${path.basename(handoffPath)} not written after exit 0 → re-run ${this.#opts.mode} and ensure handoff is written to ${handoffPath} before exit`,
         }),
       );
       return;

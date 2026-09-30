@@ -69,6 +69,12 @@ export interface NextStepArgs {
   nextGroup?: string;
   /** all dispatch groups approved (task review, zero findings → terminal branch review). */
   allGroupsDone?: boolean;
+  /** The crash-record-derived recovery facts (the crash record file is the
+   *  decision source, NEVER the handoff `recovery` carrier — deleted with the stash plane): a
+   *  BLOCKED round WITH a crash record present is deterministically recoverable → the router emits
+   *  `next: <same command resume>` (resumeCommand verbatim); absent → the failure-mode no-`next:`
+   *  face stands. */
+  recovery?: { snapshotSha: string | null; resumeCommand: string } | null;
 }
 
 /** The failure lane — a BLOCKED/TIMEOUT round goes the stderr CDD_BLOCKED single channel (C5-1
@@ -152,9 +158,17 @@ export class NextStepRouter {
    *    fix     input warn/nit    → next: none (closure-round naturalization — no re-review preview)
    *    fix     soft cap          → next: BLOCKED: review-cycle-cap — user adjudicates
    *    fix     itself BLOCKED    → no next: (failure-mode stderr face)
+   *    BLOCKED + crash record    → next: <same command resume> (T7 crash recovery — the decision
+   *                                source is the CRASH RECORD, never the handoff carrier; a recordless
+   *                                BLOCKED round keeps the no-next: failure-mode face)
    */
   next(args: NextStepArgs): string | null {
     const { op, status, type } = args;
+    // Crash-recovery row FIRST (before the failure-mode null): a BLOCKED round WITH a crash
+    // record present is deterministically recoverable — the crash record (never the handoff
+    // carrier — the `recovery` schema field is deleted with the stash plane) carries the same-command
+    // resume, emitted verbatim. A recordless BLOCKED round keeps the failure-mode no-next: face.
+    if (status === "BLOCKED" && args.recovery?.resumeCommand) return args.recovery.resumeCommand;
     if (status && FAILED_STATUS.has(status)) return null;
 
     if (op === "implement") {

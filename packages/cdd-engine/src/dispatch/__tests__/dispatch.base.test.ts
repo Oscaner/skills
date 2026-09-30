@@ -80,7 +80,6 @@ const EXPECTED_TIMELINE = [
   "post-flight",
   "schemaValidate",
   "normalizeResult",
-  "settleResidue",
   "writeBoundary",
   "commitPostCheck",
   "statusValidate",

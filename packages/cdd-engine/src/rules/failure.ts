@@ -125,12 +125,11 @@ export class FailureResolver {
   // are shared), but the blocker wording is produced from ONE point keyed on the unified termination
   // cause: over-budget keeps the legacy wording (T6 AC7, backwards-compatible — the "timed out
   // after" phrase the tests and the orchestrator match on), while "stalled" (hung tool call) and
-  // "signal" (external SIGTERM — abrupt agent death, not a budget expiry) both carry the recovery
-  // contract from the brief. The resume-or-discard wording is scoped to the IMPLEMENT lane — the only
-  // lane with a resume pre-flight (settleResidue salvage → re-dispatch stash apply); review/fix
-  // rounds (T25) keep the stash-workflow shape (the settlement step auto-preserves their WIP; the
-  // operator retrieves it via `git stash list` → apply → review → commit or drop). Each cause is
-  // distinguishable in the blocker (death can be archived and replayed by cause).
+  // "signal" (external SIGTERM — abrupt agent death, not a budget expiry) both carry the T7
+  // crash-recovery resume contract — the stash-workflow wording is gone with the stash plane: the
+  // round's tail + crash-only snapshot are recorded in the workspace crash record, and resume =
+  // re-running the same command (no redo, no residue loss). Each cause is distinguishable in the
+  // blocker (death can be archived and replayed by cause).
   timeoutBlocker(opts: {
     cause?: TerminationCause;
     /** The dispatch group's key (P4.3/P4.4: `--tasks 1` → `"1"` · `--tasks 1,2` → `"1,2"`) — the
@@ -138,10 +137,8 @@ export class FailureResolver {
     tasks: string;
     timeoutMs?: number;
     idleWindowMs?: number;
-    /** dispatch op (implement/review/fix) — only implement carries the auto-resume contract. */
+    /** dispatch op (implement/review/fix) — the resume sentence's re-run command verb. */
     op?: string;
-    /** the salvage stash ref recorded in the carrier's recovery.residue_ref (null → nothing salvaged / not recorded). */
-    residue?: string | null;
   }): string {
     if (opts.cause === "stalled" || opts.cause === "signal") {
       const op = opts.op || "implement";
@@ -149,13 +146,7 @@ export class FailureResolver {
         opts.cause === "signal"
           ? "agent dispatch terminated by an external signal (SIGTERM)"
           : `agent dispatch stalled (no CPU or workspace-file progress for ${opts.idleWindowMs ?? DEFAULT_IDLE_WINDOW_MS}ms — tool call hung)`;
-      if (op === "implement") {
-        const resume = opts.residue
-          ? `resume or discard: cdd implement --tasks ${opts.tasks} re-dispatch auto-resumes (recovery.residue_ref=${opts.residue}), or git stash drop to abandon`
-          : `resume or discard: cdd implement --tasks ${opts.tasks} re-dispatch auto-resumes (recovery.residue_ref), or git stash drop to abandon`;
-        return `${basis}; ${resume}`;
-      }
-      return `${basis}; worktree residue (if any) is preserved as a stash — \`git stash list\` to find the snapshot, \`git stash apply <ref>\` + review to salvage (then commit) or \`git stash drop\` to discard, then re-dispatch cdd ${op} --tasks ${opts.tasks}`;
+      return `${basis}; the dispatch's output tail + crash-only snapshot are recorded in the workspace crash record — resume by re-running the same command (cdd ${op} --tasks ${opts.tasks}), no redo, no residue loss`;
     }
     return `cli timed out after ${opts.timeoutMs ?? "<unknown>"}ms → simplify task ${opts.tasks} scope or increase timeout, then re-dispatch`;
   }

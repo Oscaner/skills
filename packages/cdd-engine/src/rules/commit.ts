@@ -5,6 +5,8 @@
 // the legacy handwritten git subprocess helpers of rules/commit.mjs are gone — every git answer
 // here comes from the injected GitClient (simple-git single point, fail-open null/false on non-repo
 // or git error, no exception crosses this seam).
+// T7 (crash recovery): commitSnapshot — the crash-only snapshot verb (`git add -A && git commit
+// --no-verify`), called from both the exit gate's dirty-tree arm and the crash teardown.
 //
 //   Entry gate (pre-commit, P5-new): working tree must be clean before a dispatch starts;
 //   dirty → BLOCKED signal { ok:false }. Mounting (dispatch/base.ts) is Task 7's — this module
@@ -69,6 +71,39 @@ export class CommitChecker {
 
   constructor(git: GitClient = new GitClient()) {
     this.#git = git;
+  }
+
+  /** Crash-only snapshot verb (T7 crash recovery) — `git add -A && git commit --no-verify` with the
+   *  standardized message `chore(cdd-engine): crash-only snapshot — <lane> abort (exit <n>)`, reused
+   *  by BOTH call sites that normalize a dead round's tree into a commit ledger (the design's "one
+   *  commit verb, two call sites" — the exit gate's discipline-failure arm + the crash teardown): a
+   *  failed round's residue becomes a plain commit so the re-dispatch (entry gate clean-tree, resume
+   *  `next:` same-command) continues from it — no redo, no residue loss.
+   *
+   *  `--no-verify` is the ONLY justified hook bypass: the crash moment's tree may be a syntactically
+   *  half-finished state that the pre-commit biome hook would reject. The snapshot is a recovery
+   *  point, NOT an acceptance surface — the quality gates run on the resume (exit gate's clean-tree +
+   *  review + merge), never on the snapshot itself.
+   *
+   *  Clean tree → no-op (null, nothing invented). Fail-open: non-repo / no repoRoot / git error →
+   *  null, never a throw. Returns the snapshot commit SHA (or null when nothing was committed). */
+  async commitSnapshot(
+    repoRoot: string | null | undefined,
+    lane: string,
+    exitCode: number,
+  ): Promise<string | null> {
+    if (!repoRoot) return null;
+    const root = await this.#git.topLevel(repoRoot);
+    if (!root) return null;
+    const porcelain = await this.#git.statusPorcelain(root);
+    if (porcelain === null || porcelain === "") return null; // clean tree → no-op
+    const staged = await this.#git.addAll(root);
+    if (!staged) return null;
+    return this.#git.commit(
+      root,
+      `chore(cdd-engine): crash-only snapshot — ${lane} abort (exit ${exitCode})`,
+      true,
+    );
   }
 
   // Aligns with the legacy _cdd_rewrite_handoff_blocked: rewrite the handoff to
@@ -163,6 +198,13 @@ export class CommitChecker {
 
     const blocker = `${UNCOMMITTED_RETURN_MARKER} (${mode}): dirty working tree`;
     this.rewriteHandoffBlocked(handoffPath, blocker);
+    // Tree normalization (T7, the design's "one commit verb, two call sites" — exit gate + crash
+    // teardown): snapshot the uncommitted residue into the commit ledger (`git add -A && git commit
+    // --no-verify`). Best-effort + fail-open — the snapshot NEVER changes the gate result (ok stays
+    // false, blocker unchanged); if it lands, the tree returns to a committed state so the
+    // re-dispatch's entry gate passes and the resume continues from the snapshot commit (no redo,
+    // no residue loss); if it fails (non-repo / clean-race / git error) the BLOCKED signal stands.
+    await this.commitSnapshot(tree.root, mode, 1);
     return { ok: false, blocker };
   }
 }

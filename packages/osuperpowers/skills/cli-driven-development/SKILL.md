@@ -58,28 +58,28 @@ flowchart TD
 - **Do**: Dispatch `cdd implement --tasks <n|n,n,…> --plan <path>` — background execution (harness `run_in_background` when supported; timeout + poll otherwise). One dispatch group per iteration of the group-implement-review-fix loop: the group list derives from the plan's `## Task Groups` section via the engine's `effectiveGroups` — the declared merged groups (the `taskGroups` plan record) ∪ uncovered tasks as singleton groups; an absent section is the empty default → every `### Task N:` its own group (the all-singleton default equals the pre-group per-task dispatch). Each group dispatches with its own `--tasks` — `<n>` a singleton group, `<a,b>` a merged group. Every nested `cdd` dispatch in this skill forbids historical session flags (`--resume` / `-c`) — one-shot print mode only. Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
 - **Read**: output contract — the status capsule (`status:` / `blocker:` / `handoff:` + the engine's `next:` suggestion); BLOCKED grounds ride the stderr `CDD_BLOCKED:` channel; the handoff carries the committed change identity and the `findings` full text (consumed inside `cdd fix`, never by the orchestrator)
 - **Exit**: dispatch complete → `run-group-review`
-- **Fail**: nested CLI exits with no output → BLOCKED: engine-error (report via `osuperpowers:report-issues`)
+- **Fail**: nested CLI exits with no output → BLOCKED: engine-error (report via `osuperpowers:report-issues`); a harness abnormal exit stores a crash-only snapshot + crash record in the workspace — re-run the same command per the BLOCKED `next:` to continue (no redo, no residue loss)
 
 ### `run-group-review`
 
 - **Do**: Dispatch `cdd review --type task --tasks <n|n,n,…> --plan <path>` — background execution. Every dispatch group goes through implement → review → (fix if findings); review is unskippable — a group never goes straight from implement to completion. Review Convergence (I3): read the `next:` suggestion from the review output — the engine's default next-step suggestion (dispatch per it when continuing directly); a mid-backfill or a user adjudication that lands governs over it (current world state). Ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch). Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
 - **Read**: the full stdout — the `next:` line names the engine's default next dispatch and the `status:` line the review conclusion (BLOCKED grounds ride the stderr `CDD_BLOCKED:` channel); findings full text lives in the handoff (`artifacts`) and is consumed inside `cdd fix` via `--findings`, never by the orchestrator
 - **Exit**: the `next:` suggestion routes the next dispatch — fix / next-group continue / terminal (no self-authored status→dispatch mapping)
-- **Fail**: review exits with no output → BLOCKED: engine-error
+- **Fail**: review exits with no output → BLOCKED: engine-error; a harness abnormal exit stores a crash-only snapshot + crash record in the workspace — re-run the same command per the BLOCKED `next:` to continue (no redo, no residue loss)
 
 ### `fix-group`
 
 - **Do**: Fix ALL review findings (blocker + warn + nit) via `cdd fix --type task --tasks <n|n,n,…> --plan <path> --findings <handoff>` — `<handoff>` is the current cycle's handoff path from `artifacts`. No new review invocation — work from the findings already captured in this cycle (the fix output's `next:` suggestion names the next hop: re-review / closure). Cross-task adjudication never happens here — the fix agent holds zero plan-modification authority, the orchestrator writes the plan as sole writer. Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture. After the review, the orchestrator reads the `next:` suggestion for routing; findings full text is consumed by `cdd fix`'s fix-agent via `--findings <handoff>` — the orchestrator must not self-apply findings as inline edits.
 - **Read**: captured review handoff `findings[]` (path from `artifacts`)
 - **Exit**: the fix output's `next:` suggestion routes the next dispatch — the re-review face or the continuation/terminal face (the fix face is where the loop decides re-review vs closure; a closure conclusion never re-reviews)
-- **Fail**: invoking a new review instead of fixing from captured findings → violates the convergence discipline
+- **Fail**: invoking a new review instead of fixing from captured findings → violates the convergence discipline; a harness abnormal exit stores a crash-only snapshot + crash record in the workspace — re-run the same command per the BLOCKED `next:` to continue (no redo, no residue loss)
 
 ### `branch-review`
 
 - **Do**: Dispatch `cdd review --type branch --plan <path> --base <merge-base> --head <head>` — `<merge-base>` = `git merge-base HEAD origin/<base>`; `<head>` = `git rev-parse HEAD`; `<base>` from `cdd base-branch get --plan <path>`; background execution. Persist the diff to the workspace (`git diff <base>..<head> --stat`). Review Convergence (I3): read the `next:` suggestion from the review output — the engine's default next-step suggestion (dispatch per it when continuing directly); a mid-backfill or a user adjudication that lands governs over it (current world state). Ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch). Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
 - **Read**: `cdd base-branch get` output + branch HEAD + the review output contract (incl. the `next:` suggestion)
 - **Exit**: the `next:` suggestion routes the next dispatch — `cdd fix --type branch …` or the handoff to finishing
-- **Fail**: review exits with no output → BLOCKED: engine-error
+- **Fail**: review exits with no output → BLOCKED: engine-error; a harness abnormal exit stores a crash-only snapshot + crash record in the workspace — re-run the same command per the BLOCKED `next:` to continue (no redo, no residue loss)
 
 ### `branch-fix`
 
@@ -117,6 +117,7 @@ Cross-node failure handling (complements node Fail fields):
 | category | handling |
 |---|---|
 | TIMEOUT | routed from output contract `status`; retry within the handoff's counters cap, then terminal per the output contract |
+| HARNESS_ABORT | `status: BLOCKED` from the output contract + the stderr `CDD_BLOCKED:` reason + the `next:` same-command resume — a harness abnormal exit stores a crash-only snapshot + crash record in the workspace; re-run the same command per the `next:` to continue (no redo, no residue loss) |
 | CONTRACT_VIOLATION | `status: BLOCKED` from the output contract + the stderr `CDD_BLOCKED:` reason; report via `osuperpowers:report-issues`; no re-dispatch |
 | ENGINE_SELF_WRITTEN | `status: BLOCKED` from the output contract + the stderr `CDD_BLOCKED:` reason; report via `osuperpowers:report-issues`; orchestrator never rewrites handoff state |
 | EXECUTION_FAILURE | `status: BLOCKED` from the output contract + the stderr `CDD_BLOCKED:` reason; fixable + retry available → re-dispatch; else BLOCKED: engine-error |

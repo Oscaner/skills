@@ -347,11 +347,8 @@ export interface BlockedCarrierInput {
   blocker: string;
   /** docs-family review target — carves doc_path + the doc_hash content-state token. */
   doc?: string;
-  /** resume contract (T26/spec T7.5): settleResidue's salvage record rides any TIMEOUT /
-   * EXECUTION_FAILURE carrier so the re-dispatch pre-flight can restore the WIP. */
-  recovery?: Record<string, unknown>;
-  /** death-reason archival (T26): recorded when a dead round salvages NOTHING (recovery is absent,
-   * so recovery.cause cannot carry the termination cause) — the carrier stays replayable by cause. */
+  /** death-reason archival (T26): recorded on the TIMEOUT/child-failure lanes so the dead round
+   * stays replayable by cause (the crash record takes over the death diagnosis + snapshot). */
   notes?: string;
   /** schema-invalid branch: full-replace write so offending keys never stay on disk. */
   fullReplace?: boolean;
@@ -368,7 +365,6 @@ export function writeBlockedCarrier(
   };
   if (input.failure_category) payload.failure_category = input.failure_category;
   if (input.commits) payload.commits = input.commits;
-  if (input.recovery) payload.recovery = input.recovery;
   if (input.notes) payload.notes = input.notes;
   payload.findings = input.findings ?? [];
   payload.artifacts = input.artifacts ?? {};
@@ -409,9 +405,9 @@ export async function finalizeHandoff({
   /** The dispatch group — the materialized carrier's `tasks` identity + the group-keyed
    * evidence/scope-ledger key (single-data-model). */
   tasks?: number[];
-  /** The resume pre-flight's captured recovery.scope_base — the settled ledger anchor riding
-   *  the dead-round carrier (T27, spec T7.6). Finalize uses it to pull the ledger strictly earlier.
-   *  Passed by the dispatch — the implement materialization is the only consumer. */
+  /** Legacy resume anchor (T27, spec T7.6) — kept for interface stability but never supplied by a
+   *  production dispatch: its feeder (the deleted recovery carrier's scope_base) went with the
+   *  stash plane. The resume round's earlier ledger pull is served by the adopted-base lane. */
   resumeScopeBase?: string | null;
   /** The branch-fix FIX_BASE (the reviewed range's base — the dispatch's derive, spec C4). Its
    * presence switches the fix mode to the engine fact reconstruction (C4-1): commits / phase /
@@ -599,7 +595,7 @@ export function persistFinalized(
 
 // TASK_BASE → the sole authority of implement commits.base. Missing brief / no TASK_BASE line →
 // null (degrade without materialization: dry-run and smoke chains both land here, an ENOENT must
-// never crash the runner). Exported for the dispatch's settleResidue fallback (scope ledger, T27).
+// never crash the runner).
 export function taskBaseFromBrief(briefPath: string | undefined): string | null {
   if (!briefPath || !existsSync(briefPath)) return null;
   try {
@@ -675,8 +671,9 @@ export async function finalizeImplement({
   /** The dispatch group — the carrier's `tasks` identity + the group-keyed evidence/scope-ledger
    * key. Null → legacy task-less materialization (no carrier identity). */
   tasks?: number[];
-  /** The resume pre-flight's captured recovery.scope_base — the settled ledger anchor riding
-   *  the dead-round carrier, used to pull the ledger strictly earlier (T27, spec T7.6). */
+  /** Legacy resume anchor (T27, spec T7.6) — never supplied in production (its recovery-carrier
+   *  feeder is deleted with the stash plane); kept for interface stability, the earlier ledger
+   *  pull on resume rounds is the adopted-base lane. */
   resumeScopeBase?: string | null;
 }): Promise<{ handoff: Record<string, unknown> | null; exitCode: number }> {
   const base = taskBaseFromBrief(brief);
@@ -720,8 +717,8 @@ export async function finalizeImplement({
   }
   // The scope ledger seeds the brief TASK_BASE (T27: earliest-wins — re-dispatches carry LATER
   // TASK_BASE snapshots that must never overwrite the round-1 anchor), then moves the ledger
-  // strictly earlier along the resume anchors (the recovery-carrier scope_base and the adopted
-  // base). progressDir == workspace (ledgerPath = <workspace>/progress.json). Null key → skip
+  // strictly earlier along the adopted base (the T27 resume-declared anchor).
+  // progressDir == workspace (ledgerPath = <workspace>/progress.json). Null key → skip
   // the ledger (a task-less materialization writes no scope state).
   const seedKey = groupKey;
   if (repoRoot && head && workspace && seedKey != null) {

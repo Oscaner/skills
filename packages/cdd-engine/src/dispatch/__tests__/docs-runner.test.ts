@@ -3,7 +3,7 @@
 // All file-touching modules are mocked for isolation (no real CLI, no real schema files needed).
 
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path, { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -487,7 +487,7 @@ describe("runDocsTask", () => {
     );
   });
 
-  it("exit-0-no-handoff boundary → recovery carries the cause only (exit_code stays a strict-death code)", async () => {
+  it("no-handoff boundary splits on the exit code (T7): exit 0 → ENGINE_SELF_WRITTEN discipline face; exit 143/1 → HARNESS_ABORT teardown + crash record", async () => {
     const { execa } = await import("execa");
     const dir = mkdtempSync(join(tmpdir(), "p2death-"));
     const doc = join(dir, "spec.md");
@@ -497,12 +497,13 @@ describe("runDocsTask", () => {
     const { writeHandoff } = await import("../../artifacts/handoff/write.ts");
     mockRealWriteBack(writeHandoff);
     // Three faces of the same「no handoff after exit」boundary: exit 0 (contract break, NOT a death),
-    // 143 (SIGTERM), 1 (run failure). Each dispatch gets a fresh orphan dir (an existing written
-    // handoff would reroute the run to the read-and-validate path, leaving the boundary).
+    // 143 (SIGTERM), 1 (run failure). T7: the rc ≠ 0 faces run the HARNESS_ABORT crash teardown
+    // (crash record + resume), the rc === 0 face stays the ENGINE_SELF_WRITTEN discipline carrier;
+    // the recovery carrier itself is deleted (crash record takes over the death diagnosis).
     const faces = [
-      { rc: 0, recovery: { cause: "EXECUTION_FAILURE" } }, // cause ONLY — a 0 never rides as a diagnosed death
-      { rc: 143, recovery: { cause: "EXECUTION_FAILURE", exit_code: 143 } },
-      { rc: 1, recovery: { cause: "EXECUTION_FAILURE", exit_code: 1 } },
+      { rc: 0, category: "ENGINE_SELF_WRITTEN", crash: false },
+      { rc: 143, category: "HARNESS_ABORT", crash: true },
+      { rc: 1, category: "HARNESS_ABORT", crash: true },
     ];
     for (const [i, face] of faces.entries()) {
       execa.mockResolvedValue({ exitCode: face.rc, stdout: "", stderr: "", timedOut: false });
@@ -519,7 +520,18 @@ describe("runDocsTask", () => {
       expect(result.exitCode).toBe(1);
       const writeCall = writeHandoff.mock.calls.at(-1); // exactly one carrier write per dispatch
       expect(String(writeCall[0])).toContain(`ws${i}`);
-      expect(writeCall[1].recovery).toEqual(face.recovery);
+      expect(writeCall[1].failure_category).toBe(face.category);
+      expect(writeCall[1].recovery).toBeUndefined(); // the stash-plane recovery carrier is deleted
+      if (face.crash) {
+        // Crash teardown: the crash record lands beside the handoff (lane "docs", round from the
+        // canonical name). commitSnapshot fails open on the non-repo /repo/root → snapshotSha null.
+        const crash = JSON.parse(readFileSync(join(dir, `ws${i}`, "crash-docs-1.json"), "utf8"));
+        expect(crash.exitCode).toBe(face.rc);
+        expect(crash.snapshotSha).toBeNull();
+        expect(crash.next).toContain("cdd review --type spec --spec");
+      } else {
+        expect(existsSync(join(dir, `ws${i}`, "crash-docs-1.json"))).toBe(false);
+      }
     }
   });
 

@@ -26,6 +26,7 @@
 // cli-module process-local; this module never reads it from elsewhere). Zero upward cli imports.
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { CrashTeardown, resumeCommandFor } from "../artifacts/crash.ts";
 import {
   finalizeHandoff,
   recoverHandoff,
@@ -33,7 +34,6 @@ import {
 } from "../artifacts/handoff/finalize.ts";
 import { readJson, writeHandoff, writeOwnHandoff } from "../artifacts/handoff/write.ts";
 import { Handoff } from "../artifacts/handoff.ts";
-import { ResidueManager } from "../artifacts/residue.ts";
 import { exitOk, exitWithCode } from "../infra/exit.ts";
 import { EngineInvoker } from "../infra/invoke.ts";
 import { initProcLifecycle } from "../infra/proc.ts";
@@ -54,7 +54,9 @@ const invoker = new EngineInvoker();
 const templates = new TemplateLoader();
 const convergence = new ConvergenceChecker();
 const schema = new HandoffSchemaValidator();
-const residue = new ResidueManager();
+// Crash recovery — the branch failure lanes route through the shared crash teardown
+// (crash-only snapshot + crash record) instead of the deleted stash workflow.
+const crash = new CrashTeardown();
 // C5 (T3): the single stdout capsule face — one ResultFace for branch review/fix (status/blocker/
 // handoff + the `next:` line through the injected router; the former 5-line assembleReturnBlock /
 // returnFromHandoff emissions are retired).
@@ -124,6 +126,9 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
   /** invoke result code of the just-finished agent dispatch (schemaValidate reads it for the
    * failure-without-handoff lanes). */
   protected agentRc = 0;
+  /** the child's raw stdout/stderr (T7 — preserved for the crash teardown's output tails). */
+  protected agentStdout = "";
+  protected agentStderr = "";
   /** the schema-validated / recovered handoff (schemaValidate → normalizeResult handoff). */
   protected agentHandoff: Record<string, unknown> | null = null;
   /** post-finalization exit code — normalizeResult stores it; the fix wrapper emits it AFTER the
@@ -216,33 +221,53 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
    * branch-review and branch-fix). Every lane writes the BLOCKED carrier and exits 1; on recovery
    * the normalized handoff replaces the agent's file. `phase` is the handoff phase field, `label`
    * the channel word in the CDD_BLOCKED diagnostics, `reRun` the re-run command phrase in the
-   * blockers, `commits` the channel's BLOCKED-carrier commits subset. T25: the execution-failure
-   * lane records the death diagnosis (recovery.cause + exit_code) and preserves the dirty-tree
-   * residue INLINE (these lanes abort via exitWithCode — the template post-flight settleResidue
-   * step never fires on the branch channel). */
+   * blockers, `commits` the channel's BLOCKED-carrier commits subset, `lane`/`round`/`crashNext`
+   * the crash teardown's lane word + round-qualified crash-record file name + the same-command
+   * resume. T7: a harness-aborted dispatch (child non-zero, no handoff) routes through the crash
+   * teardown — output-tail + crash-only snapshot + crash record, failure_category HARNESS_ABORT
+   * (these lanes abort via exitWithCode so the template post-flight never fires). */
   protected async schemaValidateBranch(options: {
     phase: string;
     label: string;
     reRun: string;
     commits?: Record<string, unknown>;
+    /** the crash-record lane word (review/fix). */
+    lane: string;
+    /** the round number for the crash record (the branch review/fix round). */
+    round: number;
+    /** the same-command resume string the crash record carries (the re-run target). */
+    crashNext: string;
   }): Promise<void> {
-    const { phase, label, reRun, commits } = options;
+    const { phase, label, reRun, commits, lane, round, crashNext } = options;
 
-    // Nested CLI failed with no handoff → write BLOCKED handoff + CDD_BLOCKED diagnostic + exit 1
-    // (mirrors runner step 10). T25: residue preserved inline (stash-workflow contract — retrieve
-    // via `git stash list`, salvage or discard) instead of the pre-destroying discard-or-commit
-    // advice; SIGTERM (143) is annotated so the death cause is replayable from the blocker.
+    // Nested CLI failed with no handoff → the T7 HARNESS_ABORT teardown + BLOCKED carrier +
+    // CDD_BLOCKED diagnostic + exit 1 (mirrors runner step 10; the branch lanes abort via
+    // exitWithCode so the template post-flight never fires). The harness-aborted dispatch's output
+    // tail + crash-only snapshot are recorded; SIGTERM (143) stays annotated so the death cause is
+    // replayable. Resume = re-running the same command (crash record next), never a stash workflow.
     if (this.agentRc !== 0 && !existsSync(this.handoffPath)) {
+      const crashRecord = await crash.run({
+        lane,
+        round,
+        exitCode: this.agentRc,
+        stdout: this.agentStdout,
+        stderr: this.agentStderr,
+        attemptedHandoff: this.handoffPath,
+        next: crashNext,
+        workspace: this.workspace!,
+        repoRoot: this.repoRoot,
+      });
       writeBlockedCarrier(this.handoffPath, {
         tasks: [1],
         phase,
-        failure_category: FAILURE_CATEGORIES.EXECUTION_FAILURE.id,
+        failure_category: FAILURE_CATEGORIES.HARNESS_ABORT.id,
         ...(commits ? { commits } : {}),
-        recovery: { cause: FAILURE_CATEGORIES.EXECUTION_FAILURE.id, exit_code: this.agentRc },
-        blocker: `cli exited ${this.agentRc}${this.agentRc === 143 ? " (SIGTERM — externally killed)" : ""} without writing handoff → worktree residue is preserved as a stash (\`git stash list\` → \`git stash apply <ref>\` → review → commit to salvage or \`git stash drop\` to discard) → re-run ${reRun}`,
+        notes: crashRecord.snapshotSha
+          ? `crash snapshot ${crashRecord.snapshotSha.slice(0, 7)}`
+          : undefined,
+        blocker: `cli exited ${this.agentRc}${this.agentRc === 143 ? " (SIGTERM — externally killed)" : ""} without writing handoff → the harness aborted before the handoff; the dispatch's output tail + crash-only snapshot are recorded — resume by re-running the same command (\`${crashNext}\`) → re-run ${reRun}`,
       });
       process.stderr.write(`CDD_BLOCKED: ${label} failed (exit ${this.agentRc})\n`);
-      await residue.preserveAndAnnounceResidue(this.repoRoot, this.handoffPath, this.repoRoot);
       exitWithCode(1);
     }
 
@@ -317,6 +342,8 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
 export class BranchReviewLifecycle extends BranchLifecycle {
   readonly #base: string;
   readonly #head: string;
+  /** The review round (set in resolveContext; the crash record's round). */
+  #branchRound = 1;
 
   constructor(options: BranchReviewOpts & BranchLifecycleOpts & { ctx: DispatchContext }) {
     super(options);
@@ -356,6 +383,9 @@ export class BranchReviewLifecycle extends BranchLifecycle {
       base7,
       head7,
     });
+    // The review round: the crash teardown's round-qualified crash record name
+    // (crash-<lane>-<round>.json).
+    this.#branchRound = round;
     if (this.opts.round && Number(this.opts.round) !== round) {
       process.stderr.write(`--round ${this.opts.round} ≠ engine round ${round}\n`);
       exitWithCode(2);
@@ -465,6 +495,8 @@ export class BranchReviewLifecycle extends BranchLifecycle {
       terminationCfg,
     )) as BranchInvokeResult;
     this.agentRc = res.code;
+    this.agentStdout = res.stdout;
+    this.agentStderr = res.stderr;
   }
 
   /** Steps 8.8/10/10.5: agent-failure / no-handoff lanes (BLOCKED carrier writes) + schema
@@ -476,6 +508,15 @@ export class BranchReviewLifecycle extends BranchLifecycle {
       phase: "branch-review",
       label: "branch-review",
       reRun: "branch-review",
+      lane: "review",
+      round: this.#branchRound,
+      crashNext: resumeCommandFor({
+        op: "review",
+        type: "branch",
+        plan: this.opts.plan,
+        base,
+        head,
+      }),
       commits: this.branchCarrierCommits(base, head),
     });
   }
@@ -722,6 +763,8 @@ export class BranchFixLifecycle extends BranchLifecycle {
       terminationCfg,
     )) as BranchInvokeResult;
     this.agentRc = res.code;
+    this.agentStdout = res.stdout;
+    this.agentStderr = res.stderr;
   }
 
   /** Steps 8.8/10/10.5: agent-failure / no-handoff lanes + schema recovery (the commit-contract
@@ -733,6 +776,14 @@ export class BranchFixLifecycle extends BranchLifecycle {
       phase: "fix",
       label: "branch-fix",
       reRun: "cdd fix --type branch",
+      lane: "fix",
+      round: this.#fixRound,
+      crashNext: resumeCommandFor({
+        op: "fix",
+        type: "branch",
+        plan: this.opts.plan,
+        findingsPath: this.findingsPath,
+      }),
       commits: this.branchCarrierCommits(this.fixBase),
     });
   }

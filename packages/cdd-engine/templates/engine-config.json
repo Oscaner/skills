@@ -194,6 +194,13 @@
         "terminal": "BLOCKED: engine-error"
       },
       {
+        "id": "HARNESS_ABORT",
+        "countsTowardConvergence": false,
+        "counter": "harnessAbortCount",
+        "returnMarker": "harness-abort",
+        "terminal": "BLOCKED: harness-abort-exhausted"
+      },
+      {
         "id": "UNVERIFIABLE",
         "countsTowardConvergence": false
       },

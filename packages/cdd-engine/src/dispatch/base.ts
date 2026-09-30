@@ -18,7 +18,6 @@
 // enumeration) — subclass overrides of commitPreCheck / commitPostCheck replace the judgment at the
 // fixed point via poly-dispatch (this binding), registry untouched.
 
-import { ResidueManager } from "../artifacts/residue.ts";
 import { CddExitError } from "../infra/exit.ts";
 import { WorkspaceRoot } from "../infra/workspace.ts";
 import { CloseoutChecker, type CloseoutResult } from "../rules/closeout.ts";
@@ -33,9 +32,8 @@ import type { PhaseId } from "./phases.ts";
 // subclasses import the signature from the lifecycle's home module, not from the registry.
 export type { DispatchHookContext } from "./hooks.ts";
 
-// Service seams — the base's default gates + doc/status/writeBoundary/settle hooks delegate to
+// Service seams — the base's default gates + doc/status/writeBoundary hooks delegate to
 // these (constructible, stateless — cheap per-lifecycle construction; the Task 6/7 seams).
-const residue = new ResidueManager();
 const commit = new CommitChecker();
 const documents = new DocumentsValidator();
 const status = new StatusJudge();
@@ -136,8 +134,6 @@ export abstract class DispatchLifecycle {
       await this.schemaValidate(hookCtx);
       this.#step("normalizeResult");
       await this.normalizeResult(hookCtx);
-      this.#step("settleResidue"); // residue settlement — before the exit gate
-      await this.settleResidue(hookCtx);
       this.#step("writeBoundary"); // changed-surface reconcile — after materialization, before the exit gate
       await this.writeBoundary(hookCtx);
       this.#step("commitPostCheck"); // exit gate — mounted at commit:exit (default constructor mount)
@@ -348,29 +344,6 @@ export abstract class DispatchLifecycle {
   /** Result normalization (post-flight): default pass-through; subclasses produce the exit code /
    * return block surface. */
   protected async normalizeResult(_hookCtx: DispatchHookContext): Promise<void> {}
-
-  /** Residue settlement (post-flight, before the exit gate): a failed round's recovery carrier —
-   * an eligible cause (EXECUTION_FAILURE / TIMEOUT — artifacts/residue.ts single eligibility set) with
-   * a dirty tree — gets its WIP auto-preserved (`git stash push -u`) and the carrier gains
-   * residue_ref / stash_message / residue_scope / wip_stat / preserved (facts in the carrier, prose
-   * stays in the blocker). T28 (spec T7.7): the step now goes through the settleFromCarrier adapter
-   * (save family single owner = artifacts/residue.ts) — ONE standardized stash message contract
-   * with the task lane; the preserved guard there makes coexisting lanes a no-op, never a double
-   * stash. Runs AFTER the failure lanes' #done returned — the terminal decision already happened,
-   * settlement is the last archival act before the exit gate. Success / no-recovery rounds → no-op;
-   * CONTRACT_VIOLATION-class causes are deliberately not auto-swallowed. The branch channel aborts
-   * via ExitRequested and calls preserveAndAnnounceResidue inline (dispatch/branch.ts) — the
-   * template step is the task/docs path. Dry-run skip: a pure simulation must not mutate the git
-   * object store. */
-  protected async settleResidue(_hookCtx: DispatchHookContext): Promise<void> {
-    if (this.ctx.dryRun === true) return; // dry-run: zero archive side effects
-    if (!this.ctx.handoffPath) return;
-    await residue.preserveAndAnnounceResidue(
-      this.ctx.repoRoot ?? "",
-      this.ctx.handoffPath,
-      this.ctx.repoRoot,
-    );
-  }
 
   /** Changed-surface reconciliation (writeBoundary, post-flight, before the exit gate): for
    * implement/fix rounds the round's `git diff <base>..HEAD` fileset is reconciled against the

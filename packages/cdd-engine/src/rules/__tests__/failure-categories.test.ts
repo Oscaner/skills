@@ -23,31 +23,39 @@ const CAT = JSON.parse(
 ).failureCategories;
 
 describe("failure-categories canonical", () => {
-  it("六类齐备且仅 EXECUTION_FAILURE 消耗 engineRecoveryCount", () => {
+  it("七类齐备、HARNESS_ABORT 独立消耗 harnessAbortCount（EXECUTION_FAILURE 消耗 engineRecoveryCount 不变）", () => {
     const ids = CAT.categories.map((c) => c.id).sort();
     expect(ids).toEqual([
       "CONTRACT_VIOLATION",
       "ENGINE_SELF_WRITTEN",
       "EXECUTION_FAILURE",
+      "HARNESS_ABORT",
       "PLAN_CONFLICT",
       "TIMEOUT",
       "UNVERIFIABLE",
     ]);
     const recovery = CAT.categories.filter((c) => c.counter === "engineRecoveryCount");
     expect(recovery.map((c) => c.id)).toEqual(["EXECUTION_FAILURE"]);
+    // The crash-recovery category owns its own counter — per-category quota independence
+    // (a HARNESS_ABORT exhaustion never leaks into another category's counter).
+    const harness = CAT.categories.filter((c) => c.counter === "harnessAbortCount");
+    expect(harness.map((c) => c.id)).toEqual(["HARNESS_ABORT"]);
   });
-  it("六类均不计入 Review Convergence", () => {
+  it("七类均不计入 Review Convergence", () => {
     expect(CAT.categories.every((c) => c.countsTowardConvergence === false)).toBe(true);
   });
   it("src/rules/failure.ts 承重读取：导出与 canonical 逐字一致（AC14）", () => {
     const ids = CAT.categories.map((c) => c.id);
-    // FAILURE_CATEGORIES 键集 = canonical 六 id（无法达的引用在引擎入口立即炸出，非装饰）
+    // FAILURE_CATEGORIES key set = the canonical seven ids (an unreachable reference blows up at
+    // the engine entry, not decorative)
     expect(Object.keys(FAILURE_CATEGORIES).sort()).toEqual([...ids].sort());
-    // counterFor：四计数器类目 → canonical 字段名；无计数器类目（UNVERIFIABLE / PLAN_CONFLICT）→ null
+    // counterFor: the five counter categories → canonical field names; counter-less categories
+    // (UNVERIFIABLE / PLAN_CONFLICT) → null
     expect(failureResolver.counterFor("TIMEOUT")).toBe("timeoutCount");
     expect(failureResolver.counterFor("CONTRACT_VIOLATION")).toBe("contractViolationCount");
     expect(failureResolver.counterFor("ENGINE_SELF_WRITTEN")).toBe("engineSelfWrittenCount");
     expect(failureResolver.counterFor("EXECUTION_FAILURE")).toBe("engineRecoveryCount");
+    expect(failureResolver.counterFor("HARNESS_ABORT")).toBe("harnessAbortCount");
     expect(failureResolver.counterFor("UNVERIFIABLE")).toBe(null);
     expect(failureResolver.counterFor("PLAN_CONFLICT")).toBe(null);
     // terminalFor：终态文案与 canonical 列逐字一致（EXECUTION_FAILURE 的终态是 engine-error，非 -exhausted）
@@ -59,17 +67,19 @@ describe("failure-categories canonical", () => {
       "BLOCKED: engine-self-written-exhausted",
     );
     expect(failureResolver.terminalFor("EXECUTION_FAILURE")).toBe("BLOCKED: engine-error");
+    expect(failureResolver.terminalFor("HARNESS_ABORT")).toBe("BLOCKED: harness-abort-exhausted");
     expect(failureResolver.terminalFor("UNVERIFIABLE")).toBe(null);
     expect(failureResolver.terminalFor("PLAN_CONFLICT")).toBe(null);
     // isIncompleteDispatch：仅 ENGINE_SELF_WRITTEN / CONTRACT_VIOLATION（canonical dispatchIncomplete 派生）
     const incomplete = ids.filter((id) => failureResolver.isIncompleteDispatch(id)).sort();
     expect(incomplete).toEqual(["CONTRACT_VIOLATION", "ENGINE_SELF_WRITTEN"]);
-    // failureResolver.counters(): the four counter categories follow in-table order (T7 returnCountersLine's value surface; labels are not mechanically derived from field names)
+    // failureResolver.counters(): the five counter categories follow in-table order (T7 returnCountersLine's value surface; labels are not mechanically derived from field names)
     expect(failureResolver.counters()).toEqual([
       { field: "timeoutCount", label: "timeout" },
       { field: "contractViolationCount", label: "contract-violation" },
       { field: "engineSelfWrittenCount", label: "engine-self-written" },
       { field: "engineRecoveryCount", label: "recovery" },
+      { field: "harnessAbortCount", label: "harness-abort" },
     ]);
   });
 });

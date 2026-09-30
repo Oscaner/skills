@@ -63,7 +63,7 @@ The global `cdd` command must NOT be used (`npm link` removed).
 
 The `cdd` CLI gains **no new subcommands** — the only exceptions are the discovery-type `cdd schema get <type>` and the pure-rendering `cdd issue render`, both zero-enforcement (the charter's Non-goal #1 exception). Enforcement-capable subcommands stay closed.
 
-Every op's stdout is the single status capsule (`status · blocker · handoff`) plus the engine-derived `next:` suggestion line — `cdd review` / `cdd fix` included; BLOCKED reasons ride the stderr `CDD_BLOCKED:` channel. The capsule/route vocabulary is single-sourced in the Contract Lexicon (`packages/cdd-engine/src/infra/contract-lexicon.json`), never restated in prose.
+Every op's stdout is the single status capsule (`status · blocker · handoff`) plus the engine-derived `next:` suggestion line — `cdd review` / `cdd fix` included; BLOCKED reasons ride the stderr `CDD_BLOCKED:` channel. The capsule/route vocabulary is single-sourced in the Contract Lexicon (`packages/cdd-engine/src/infra/contract-lexicon.json`), never restated in prose. A harness abnormal exit stores a crash-only snapshot + crash record in the workspace (`.osuperpowers/cdd/<slug>/crash-<lane>-<round>.json`) — re-run the same command per the BLOCKED `next:` to continue (no redo, no residue loss).
 
 ### Engine tests
 

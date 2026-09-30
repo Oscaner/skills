@@ -346,3 +346,68 @@ describe("rules/next-step.ts — implement + failure lanes", () => {
     expect(out).not.toContain("undefined");
   });
 });
+
+describe("rules/next-step.ts — crash-record recovery row (T7)", () => {
+  const RESUME = {
+    snapshotSha: "a".repeat(40),
+    resumeCommand: "cdd implement --tasks 1 --plan /repo/plan.md",
+  };
+
+  it("BLOCKED + crash record present → next: <same command resume> (verbatim from the record)", () => {
+    expect(
+      new NextStepRouter().next({
+        op: "implement",
+        type: "task",
+        group: "1",
+        plan: PLAN,
+        status: "BLOCKED",
+        recovery: RESUME,
+      }),
+    ).toBe(RESUME.resumeCommand);
+  });
+
+  it("BLOCKED without a crash record → null (the failure-mode no-next: face stands)", () => {
+    expect(
+      new NextStepRouter().next({ op: "implement", type: "task", status: "BLOCKED" }),
+    ).toBeNull();
+  });
+
+  it("BLOCKED + crash record outranks the C5-1 fix re-review row (recovery wins on any op)", () => {
+    expect(
+      new NextStepRouter().next({
+        op: "fix",
+        type: "task",
+        group: "1",
+        plan: PLAN,
+        status: "BLOCKED",
+        findings: [{ severity: "blocker" }],
+        recovery: {
+          snapshotSha: null,
+          resumeCommand: "cdd fix --type task --tasks 1 --plan /repo/plan.md",
+        },
+      }),
+    ).toBe("cdd fix --type task --tasks 1 --plan /repo/plan.md");
+  });
+
+  it("TIMEOUT + crash record → null (the recovery row is BLOCKED-only — TIMEOUT keeps the no-next: face)", () => {
+    expect(
+      new NextStepRouter().next({
+        op: "implement",
+        type: "task",
+        status: "TIMEOUT",
+        recovery: RESUME,
+      }),
+    ).toBeNull();
+  });
+
+  it("recordless BLOCKED review still stays next-less (the recovery row never invents a next:)", () => {
+    expect(
+      new NextStepRouter().next({
+        op: "review",
+        type: "task",
+        status: "BLOCKED",
+        findings: [{ severity: "blocker" }],
+      }),
+    ).toBeNull();
+  });
+});

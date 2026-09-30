@@ -846,15 +846,14 @@ export function collectResidualRereadHits(targetsOverride = CDD_ENGINE_BIN) {
 }
 
 // ⑫ Row 13: the stdout counters line derives from the canonical category table — the construction
-// points keep zero hand-written counter names/labels; the six category names, "appearing as a
+// points keep zero hand-written counter names/labels; the seven category names, "appearing as a
 // category identity", keep zero hand-written sites (failure_category assignment /
 // isIncompleteDispatch judgment); counters never enter the handoff contract. The properties count is
-// iron-anchored by the guard: task 16 (14 base properties incl. failure_category + recovery +
-// changes + the P4.3 single-data-model group reference tasks, T7.4/T7.5 carriers) / docs 14 (12 base
-// properties incl. failure_category + recovery + changes, T7.4 carrier + the T5 commits{base,head}
-// core-block unification). Nothing beyond recovery/changes/failure_category/commits + the P4.3
-// group-reference fields (tasks / findings[].task) may be added. The four field names and labels go
-// through failure-categories.json.
+// iron-anchored by the guard: task 15 / docs 13 — the T7 crash recovery deleted the `recovery`
+// carrier from BOTH schemas (crash record + top-level mechanism fields take over the death
+// diagnosis); what may be added beyond the base + failure_category + changes + commits + the P4.3
+// group-reference fields (tasks / findings[].task) stays closed. The counter field names and labels
+// go through failure-categories.json.
 const COUNTER_FIELDS = failureResolver.counters().map((c) => c.field);
 const COUNTER_LABELS = failureResolver.counters().map((c) => c.label);
 const CATEGORY_IDS = Object.values(FAILURE_CATEGORIES).map((c) => c.id);
@@ -910,7 +909,7 @@ export function collectCountersContractHits({
           file: schemaPath,
         });
     }
-    const expected = name === "task" ? 16 : 14;
+    const expected = name === "task" ? 15 : 13;
     if (props.length !== expected || !props.includes("failure_category")) {
       hits.push({
         label: `${name} handoff schema properties count ${props.length} ≠ ${expected} (nothing may grow/shrink beyond failure_category)`,

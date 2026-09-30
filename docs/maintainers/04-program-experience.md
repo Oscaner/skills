@@ -60,7 +60,7 @@ Maintainer-only record of the hard-won lessons from the osuperpowers-overhaul pr
 39. **Engine-materialized implement handoffs are resilient to return drift** — a mis-formatted return is rewritten BLOCKED even with a perfect committed deliverable; re-dispatch the same brief (`base==head` legal).
 40. **"Zero legacy residue" must enumerate surfaces** — name the planes (tokens · content prose · identifiers) before checking, and pin each plane with a mechanical guard.
 41. **Shared template hooks need explicit context wiring** — a subclass overriding a base template step must thread the resolved context into the lifecycle ctx (a `handoffPath` left `""` silently no-ops).
-42. **The resume stash contract is a full canonical token** — match the exact standard message (`cdd-<op>-<type>-task-<N>-r<round>-<cause>`); re-message by re-stashing; anchor by message, never `stash@{N}`.
+42. **Crash recovery = the commit ledger — zero stash** — a 403 root cause was a stale cross-branch stash mis-hit; recovery = crash-only snapshot + crash record, resume via the BLOCKED `next:`.
 43. **Host-harness black-box tests must mock the harness for CI** — a real host name fails on a runner lacking the binary (pre-flight gate exits 2 first); use the fake-CLI + ghost-registry pattern.
 44. **Skills are consumer-operating surfaces — zero design-history / mechanism narration** — SKILL.md specifies the executable flow and nothing else; design history, mechanism explanation, and internal-program refs are forbidden. Enforced by the skill-anatomy schema's consumer-purity facet.
 

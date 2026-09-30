@@ -4,8 +4,8 @@
 // pair are instance methods, zero bare function exports). Replaces the progress.md-based
 // timeoutCount with structured JSON. Transparent migration: read auto-migrates progress.md →
 // progress.json.
-// six-key ledger: plan / timeoutCount / contractViolationCount / engineSelfWrittenCount /
-// engineRecoveryCount / tasks — the fixed top-level key set (COUNTER_ZERO satisfies-checks the
+// seven-key ledger: plan / timeoutCount / contractViolationCount / engineSelfWrittenCount /
+// engineRecoveryCount / harnessAbortCount / tasks — the fixed top-level key set (COUNTER_ZERO satisfies-checks the
 // counter arm; drift fails to compile, AC14). Write invariant: every write goes through #write —
 // the retired-field strip (dead top-level keys + the retired tasks[N].status) converges there, so
 // no caller can re-introduce a legacy field.
@@ -39,6 +39,7 @@ export interface ProgressData {
   contractViolationCount?: number;
   engineSelfWrittenCount?: number;
   engineRecoveryCount?: number;
+  harnessAbortCount?: number;
   tasks: TaskLedgerRow[];
 }
 
@@ -54,9 +55,10 @@ export const COUNTER_ZERO = {
   contractViolationCount: 0,
   engineSelfWrittenCount: 0,
   engineRecoveryCount: 0,
+  harnessAbortCount: 0,
 } as const satisfies Record<keyof Omit<ProgressData, "plan" | "tasks">, 0>;
 
-/** CounterKey — the four declared counter members as a literal union (derived, never quoted). */
+/** CounterKey — the five declared counter members as a literal union (derived, never quoted). */
 export type CounterKey = keyof typeof COUNTER_ZERO;
 
 /** Ledger lookup key — a scalar task number (single-task group) or the group key string. */
@@ -156,6 +158,7 @@ export class ProgressLedger {
       clean.engineSelfWrittenCount = data.engineSelfWrittenCount;
     if (data.engineRecoveryCount !== undefined)
       clean.engineRecoveryCount = data.engineRecoveryCount;
+    if (data.harnessAbortCount !== undefined) clean.harnessAbortCount = data.harnessAbortCount;
     if (Array.isArray(data.tasks)) {
       clean.tasks = data.tasks.map((t) => {
         const row: TaskLedgerRow = "group" in t ? { group: t.group } : { task: t.task };
@@ -179,6 +182,7 @@ export class ProgressLedger {
       contractViolationCount: 0,
       engineSelfWrittenCount: 0,
       engineRecoveryCount: 0,
+      harnessAbortCount: 0,
       tasks: [],
     };
   }
@@ -332,6 +336,10 @@ export class ProgressLedger {
         }
         if (typeof data.engineSelfWrittenCount !== "number") {
           data.engineSelfWrittenCount = 0;
+          changed = true;
+        }
+        if (typeof data.harnessAbortCount !== "number") {
+          data.harnessAbortCount = 0;
           changed = true;
         }
         if (changed) this.write(data);

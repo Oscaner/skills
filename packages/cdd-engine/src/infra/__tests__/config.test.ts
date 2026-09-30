@@ -24,7 +24,7 @@ describe("engine-config 单点消费（config.ts 分区段加载）", () => {
     // 三区段的既有承重锚点（内容随迁移逐字保留）
     expect(cfg.contextContract.timeouts.defaults.task).toBe(10_800_000);
     expect(cfg.contextContract.channels.env).toHaveProperty("hostHarness");
-    expect(cfg.failureCategories.categories).toHaveLength(6);
+    expect(cfg.failureCategories.categories).toHaveLength(7);
     expect(cfg.handoffNamespace.workspaceRoot).toBe(".osuperpowers/cdd");
     expect(Object.keys(cfg.handoffNamespace.families)).toHaveLength(9);
   });

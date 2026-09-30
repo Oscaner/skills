@@ -167,7 +167,7 @@ export function evaluateStall(
 }
 
 // ---- unified termination judge (T26: one decision layer, two signals) ----
-// settleResidue/resume interface (spec T7.5): the dispatch's death is classified into exactly three
+// crash-teardown/resume contract (spec T7.5): the dispatch's death is classified into exactly three
 // distinguishable causes — the stall signal (dual-signal judge above), the budget signal (wall-clock
 // cap, last-resort: liveness fail-open + "busy but never done" sole defense), and an external
 // SIGTERM (the exit shape, not this judge). First-cause-wins: a cause is overridden when its own

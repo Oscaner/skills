@@ -30,18 +30,17 @@
 // `runTask` → `TaskLifecycle.run` — no bare forwarding shell).
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { CrashTeardown, resumeCommandFor } from "../artifacts/crash.ts";
 import {
   normalizeHandoffStatus,
   persistFinalized,
   recoverHandoff,
-  taskBaseFromBrief,
   writeBlockedCarrier,
 } from "../artifacts/handoff/finalize.ts";
 import { readJson, writeOwnHandoff } from "../artifacts/handoff/write.ts";
 import { Handoff } from "../artifacts/handoff.ts";
 import { hashFile } from "../artifacts/hash.ts";
-import { ProgressLedger, SHA40_RE } from "../artifacts/progress.ts";
-import { type ResidueAppendixInput, ResidueManager } from "../artifacts/residue.ts";
+import { ProgressLedger } from "../artifacts/progress.ts";
 import { ReturnBlockParser } from "../artifacts/return-block.ts";
 import { RoundContext } from "../artifacts/round-context.ts";
 import { DOC_TOKENS } from "../documents/tokens.ts";
@@ -250,12 +249,10 @@ interface TaskSpawnResult {
  * the static TaskLifecycle.run is the legacy runTask surface.
  * P4.3/P4.4: the dispatch unit is the task GROUP value object (TaskGroup) — handoff/brief/findings/
  * progress all key off the group (`tasks-{key}-*`; the scalar task number enters only where a
- * per-task primitive is required — the residue stash primitive / carrier `task` field /
- * scope-brief seed). */
+ * per-task primitive is required — the carrier `task` field / scope-brief seed). */
 export class TaskLifecycle extends DispatchLifecycle {
   readonly #harness: string;
   readonly #group: TaskGroup;
-  readonly #firstTask: number;
   readonly #groupKey: string;
   readonly #opts: TaskRunOptions;
   readonly #root: string;
@@ -269,7 +266,8 @@ export class TaskLifecycle extends DispatchLifecycle {
   /** The progress ledger (T6 injection rework): Workspace-injected — constructed in resolveContext once the
    * plan workspace derives (this.#ledger stays null until then). */
   #ledger: ProgressLedger | null = null;
-  readonly #residue: ResidueManager;
+  /** Crash recovery — the lane-shared teardown wrapper (crash-only snapshot + crash record). */
+  readonly #crash: CrashTeardown;
   readonly #templates: TemplateLoader;
   readonly #briefRenderer: BriefRenderer;
   readonly #commit: CommitChecker;
@@ -286,16 +284,15 @@ export class TaskLifecycle extends DispatchLifecycle {
   #tcx: TaskDispatchContext | null = null;
   #handoff: Handoff | null = null;
   #agentOut = "";
+  /** the child's raw stderr (T7 — preserved for the crash teardown's stderr tail; keep the failed
+   *  dispatch's "403 / model abort" trace, not the legacy discard-on-failure). */
+  #agentErr = "";
   #agentRc = 0;
   #timeoutMs: number | undefined;
   #returnBlock: string[] = [];
   #exitCode = -1;
   #diagnostic: TaskDiagnostic | null = null;
   #finished = false;
-  /** The dead-round carrier's recovery.scope_base captured at the resume pre-flight (T27,
-   *  spec T7.6), handed to implement materialization (finalizeImplement pulls the scope ledger
-   *  strictly earlier along it). null = no earlier anchor was riding the carrier. */
-  #resumeScopeBase: string | null = null;
 
   constructor(options: {
     harness: string;
@@ -306,7 +303,6 @@ export class TaskLifecycle extends DispatchLifecycle {
     super({ ctx: options.ctx });
     this.#harness = options.harness;
     this.#group = options.group;
-    this.#firstTask = options.group.numbers[0];
     this.#groupKey = options.group.key();
     this.#opts = options.opts;
     // Root single authority (branch lane's dual-root design, mirror): the engine ctx.repoRoot is
@@ -320,7 +316,7 @@ export class TaskLifecycle extends DispatchLifecycle {
     this.#runtime = options.opts.runtime ?? runtime;
     this.#registry = new Registry();
     this.#invoker = new EngineInvoker();
-    this.#residue = new ResidueManager();
+    this.#crash = new CrashTeardown();
     this.#templates = new TemplateLoader();
     this.#briefRenderer = new BriefRenderer();
     this.#commit = new CommitChecker();
@@ -603,48 +599,9 @@ export class TaskLifecycle extends DispatchLifecycle {
       // F11: self-provision the task brief at plan finalization (--plan takes effect on
       // generation). Failure → CddExitError kind run-blocked → exit 1 — never a silent fallback to
       // an existing brief. Parent-dir bootstrap before writing (same workspace-bootstrap
-      // convention as writeBaseBranch).
-      let residueAppendix: ResidueAppendixInput | null = null; // resume-from-residue (T26, spec T7.5)
-      if (!this.#dryRun && mode === "implement") {
-        try {
-          // Resume pre-flight runs AFTER the entry gate (base.run(): commitPreCheck → resolveContext)
-          // verified a clean tree — the restore may land without conflict. Reads the PRIOR implement
-          // carrier: a dead round (TIMEOUT / EXECUTION_FAILURE) → find the salvage
-          // (recovery.residue_ref primary — settleResidue output ≡ resume input; standardized
-          // stash-message scan fallback for pre-schema carriers) → `git stash apply` → the
-          // regenerated brief appends the data-driven residue appendix so the next agent audits the
-          // restored WIP and continues, not rewrites. Fail-open: a resume failure never blocks the
-          // dispatch (CDD_WARN diagnostic; the brief regenerates without the appendix and the
-          // pre-resume clean baseline stands).
-          const carrier = this.#residue.readDeadCarrier(ctx.handoffPath);
-          if (carrier) {
-            // The dead round's settled scope rides the resume (T27): recovery.scope_base — ledger
-            // value / fallback dead-round brief TASK_BASE — is the same task-level anchor, so
-            // re-materialization pulls the ledger strictly earlier along it (finalizeImplement).
-            const recoveryScope = (carrier.recovery as Record<string, unknown> | undefined)
-              ?.scope_base;
-            if (typeof recoveryScope === "string" && SHA40_RE.test(recoveryScope)) {
-              this.#resumeScopeBase = recoveryScope;
-            }
-            const found = await this.#residue.findResumeResidue(
-              this.#root,
-              carrier,
-              this.#firstTask,
-            );
-            if (found) {
-              if (await this.#residue.resumeFromResidue(this.#root, found.ref)) {
-                residueAppendix = this.#residue.appendixFromRecovery(carrier, found);
-              } else {
-                process.stderr.write(
-                  `CDD_WARN: residue stash apply failed (${found.ref}) — dispatch continues from the clean baseline\n`,
-                );
-              }
-            }
-          }
-        } catch {
-          // resume is best-effort — never blocks the dispatch
-        }
-      }
+      // convention as writeBaseBranch). T7: the resume-from-residue pre-flight is deleted with the
+      // stash plane — resume is same-command re-dispatch from the crash-only snapshot commit (the
+      // crash record + next: guidance), never a stash restore.
       try {
         ctx.workspace.ensure(); // the brief writes through the single Workspace.ensure point (T6)
         await this.#briefRenderer.render(
@@ -652,7 +609,6 @@ export class TaskLifecycle extends DispatchLifecycle {
           this.#tasks,
           ctx.briefPath,
           this.#root,
-          residueAppendix,
         );
       } catch (e) {
         throw new CddExitError(`brief generation failed: ${(e as Error).message}`, {
@@ -690,8 +646,6 @@ export class TaskLifecycle extends DispatchLifecycle {
     // ctx (which runTask constructs with an empty handoffPath — the canonical path is derived here
     // by buildContext). Sync it so the changed-surface reconcile sees the real carrier (the T25 gap:
     // task-family carriers never carried the ledger-origin note because the step was reading "").
-    // Idempotence is preserved: the base settleResidue step, which reads the same path, is a no-op
-    // for task rounds (resume-class failures already preserved inline — recovery.preserved guard).
     this.ctx = { ...this.ctx, handoffPath: ctx.handoffPath };
 
     // 2.5 Templates existence check — BLOCKED exit 1 if missing. pluginRoot() =
@@ -805,6 +759,7 @@ export class TaskLifecycle extends DispatchLifecycle {
     // 8. Invoke CLI (or dry-run simulation)
     let agentOut = "";
     let agentRc = 0;
+    let resStderr = ""; // the child's raw stderr (T7 — preserved for the crash teardown's tail)
     let timedOut = false;
     let unkillable = false;
     let cause: TerminationCause | undefined; // unified termination cause (stalled/over-budget/signal; T26)
@@ -855,6 +810,7 @@ export class TaskLifecycle extends DispatchLifecycle {
         terminationCfg,
       )) as TaskSpawnResult;
       agentOut = res.ok ? res.stdout : "";
+      resStderr = res.stderr;
       timedOut = res.timedOut === true;
       unkillable = res.unkillable === true;
       cause = res.cause;
@@ -862,6 +818,9 @@ export class TaskLifecycle extends DispatchLifecycle {
       if (!res.ok && !timedOut) agentRc = res.code;
     }
     this.#agentOut = agentOut;
+    // Preserve the child's raw stderr (the failed dispatch's trace — the harness-abort teardown
+    // captures its tail; never discard it).
+    this.#agentErr = resStderr;
     this.#agentRc = agentRc;
 
     // 8.5 Timeout path — write the partial handoff before commit-contract validation.
@@ -888,46 +847,42 @@ export class TaskLifecycle extends DispatchLifecycle {
         return;
       }
       // Normal timeout (budget exceeded OR liveness stall OR external SIGTERM): TIMEOUT partial
-      // handoff. The blocker comes from the single rules/failure.ts timeoutBlocker point keyed on
-      // the unified cause — the stall/signal variants carry the resume-or-discard contract on the
-      // implement lane. T26 salvage: the round's uncommitted work is stashed FIRST (settleResidue
-      // — recovery.residue_ref rides the carrier; spec T7.5 settleResidue output ≡ resume input),
-      // so the re-dispatch pre-flight can restore it. T25: the review/fix lanes now carry the death
-      // diagnosis too (recovery.cause = the TIMEOUT category id — the base settleResidue template
-      // step auto-preserves their dirty-tree WIP right after this lane returns; #done returns, it
-      // does not throw). A clean tree → nothing to preserve, and the termination sub-cause is
-      // archived via `notes` instead.
+      // handoff. T7 crash recovery: the round's WIP is normalized into the commit ledger via the
+      // crash teardown (crash-only snapshot + crash record — the crashed dispatch's trailing output
+      // and its tree survive as a recovery record; the snapshot also clears the tree so the
+      // re-dispatch's entry gate passes) BEFORE the carrier writes. The blocker's stalled/signal
+      // resume sentence points at the crash record; the termination sub-cause rides `notes` so a
+      // dead round stays replayable by cause.
       const timeoutMs = this.#timeoutMs;
-      const recovery =
-        mode === "implement"
-          ? await this.#residue.settleResidue(this.#root, {
-              op: mode,
-              type: "task",
-              task: this.#firstTask,
-              round: ctx.round ?? 1,
-              cause: cause ?? "over-budget",
-              // The salvage captures the task-level scope anchor (ledger priority / fallback the
-              // dead-round brief TASK_BASE; T27) so the resume restores the same scope.
-              scopeBase:
-                this.#ledger!.taskScopeBase(this.#groupKey) ?? taskBaseFromBrief(ctx.briefPath),
-            })
-          : { cause: FAILURE_CATEGORIES.TIMEOUT.id };
+      const crashRecord = await this.#crash.run({
+        lane: mode,
+        round: ctx.round ?? 1,
+        exitCode: cause === "signal" ? 143 : 1,
+        stdout: this.#agentOut,
+        stderr: this.#agentErr,
+        attemptedHandoff: ctx.handoffPath,
+        next: resumeCommandFor({
+          op: mode,
+          type: "task",
+          group: this.#groupKey,
+          plan: ctx.plan,
+          ...(mode === "fix" ? { findingsPath: ctx.findingsPath ?? undefined } : {}),
+        }),
+        workspace: ctx.workspace,
+        repoRoot: this.#root,
+      });
       writeBlockedCarrier(ctx.handoffPath, {
         tasks: this.#tasks,
         phase: mode,
         status: "TIMEOUT",
         failure_category: FAILURE_CATEGORIES.TIMEOUT.id,
-        recovery: recovery ?? undefined,
-        // no salvage / review-fix lane → the termination sub-cause rides `notes` (the only archival
-        // channel when recovery.cause is the category id) so a dead round stays replayable by cause
-        notes: mode === "implement" ? undefined : `termination cause: ${cause ?? "unknown"}`,
+        notes: `termination cause: ${cause ?? "unknown"}${crashRecord.snapshotSha ? `; crash snapshot ${crashRecord.snapshotSha.slice(0, 7)}` : ""}`,
         blocker: this.#failure.timeoutBlocker({
           cause,
           tasks: this.#groupKey,
           timeoutMs,
           idleWindowMs,
           op: mode,
-          residue: recovery?.residue_ref ?? null,
         }),
       });
       if (!dryRun) this.#ledger!.incrementRound(this.#groupKey, mode);
@@ -1002,52 +957,65 @@ export class TaskLifecycle extends DispatchLifecycle {
       }
     }
 
-    // 10. Nested CLI failed with no handoff → write BLOCKED handoff (stderr into blocker) + return block +
-    //     the CDD_BLOCKED diagnostic + exit 1. T26: like TIMEOUT, this is a resumable dead round —
-    //     settleResidue salvages whatever partial WIP the failed agent left before the carrier writes
-    //     (implement lane only — the resume lane; a clean tree → no recovery record). The upgrade
-    //     text keeps the legacy `cli exited N without writing handoff` prefix the black-box suite
-    //     matches, with the resume-or-discard contract on implement and the stash-workflow text on
-    //     review/fix (T25 — the base settleResidue step preserves their WIP right after this lane
-    //     returns, so the operator retrieves it via `git stash list` instead of pre-destroying it).
+    // 10. Nested CLI failed with no handoff → the T7 HARNESS_ABORT teardown + write BLOCKED handoff
+    //     (stderr into blocker) + return block + the CDD_BLOCKED diagnostic + exit 1. The legacy
+    //     EXECUTION_FAILURE child-failure lane is RECLASSIFIED: an external retreat (harness/model
+    //     403 — the failed child leaves no handoff) is a different mechanism — deterministically
+    //     recoverable via the crash-only snapshot + crash record — and the BLOCKED capsule carries
+    //     the same-command resume `next:` (the NextStepRouter recovery row; crash record = the
+    //     decision source, never a handoff recovery field). The legacy `cli exited N without writing
+    //     handoff` prefix the black-box suite matches stays; the resume-or-discard / stash-workflow
+    //     wording is gone with the stash plane.
     if (this.#agentRc !== 0 && !existsSync(ctx.handoffPath)) {
-      const recovery =
-        mode === "implement"
-          ? await this.#residue.settleResidue(this.#root, {
-              op: mode,
-              type: "task",
-              task: this.#firstTask,
-              round: ctx.round ?? 1,
-              cause: "exec-failure",
-              // Same scope-anchor capture as the TIMEOUT salvage lane (T27).
-              scopeBase:
-                this.#ledger!.taskScopeBase(this.#groupKey) ?? taskBaseFromBrief(ctx.briefPath),
-            })
-          : // Review/fix EXECUTION_FAILURE death diagnosis rides the carrier (T25): cause = the category
-            // id — the preserve eligibility key + exit code distinguishing exit 1 vs 143. The base
-            // settleResidue step stashes the dirty-tree WIP afterwards, filling residue_ref/wip_stat/
-            // preserved.
-            { cause: FAILURE_CATEGORIES.EXECUTION_FAILURE.id, exit_code: this.#agentRc };
+      const crashNext = resumeCommandFor({
+        op: mode,
+        type: "task",
+        group: this.#groupKey,
+        plan: ctx.plan,
+        ...(mode === "fix" ? { findingsPath: ctx.findingsPath ?? undefined } : {}),
+      });
+      const crashRecord = await this.#crash.run({
+        lane: mode,
+        round: ctx.round ?? 1,
+        exitCode: this.#agentRc,
+        stdout: this.#agentOut,
+        stderr: this.#agentErr,
+        attemptedHandoff: ctx.handoffPath,
+        next: crashNext,
+        workspace: ctx.workspace,
+        repoRoot: this.#root,
+      });
       writeBlockedCarrier(ctx.handoffPath, {
         tasks: this.#tasks,
         phase: mode,
-        failure_category: FAILURE_CATEGORIES.EXECUTION_FAILURE.id,
-        commits: { base: "unknown" }, // no real head at failure time — the "unknown" sentinel is the EXECUTION_FAILURE ground (T23)
-        recovery: recovery ?? undefined,
-        blocker:
-          `cli exited ${this.#agentRc}${this.#agentRc === 143 ? " (SIGTERM — externally killed)" : ""} without writing handoff → check stderr above for errors; ` +
-          (`residue_ref` in (recovery ?? {})
-            ? `WIP salvaged (recovery.residue_ref=${(recovery as { residue_ref: string }).residue_ref}) — `
-            : "") +
-          (mode === "implement"
-            ? `resume or discard: cdd implement --tasks ${this.#groupKey} re-dispatch auto-resumes (recovery.residue_ref), or git stash drop to abandon`
-            : `worktree residue (if any) is preserved as a stash — \`git stash list\` to find the snapshot, \`git stash apply <ref>\` + review to salvage (then commit) or \`git stash drop\` to discard, then re-dispatch cdd ${mode} --tasks ${this.#groupKey}`),
+        failure_category: FAILURE_CATEGORIES.HARNESS_ABORT.id,
+        commits: { base: "unknown" }, // no real head at failure time — the "unknown" sentinel is the dead-round ground (T23)
+        notes: crashRecord.snapshotSha
+          ? `crash snapshot ${crashRecord.snapshotSha.slice(0, 7)}`
+          : undefined,
+        blocker: `cli exited ${this.#agentRc}${this.#agentRc === 143 ? " (SIGTERM — externally killed)" : ""} without writing handoff → the harness aborted before the handoff; the dispatch's output tail + crash-only snapshot are recorded — resume by re-running the same command (\`${crashNext}\`), no redo, no residue loss`,
       });
       if (!dryRun) {
         this.#ledger!.incrementRound(this.#groupKey, mode);
-        this.#ledger!.incrementRecovery(); // REAL execution failure (not timeout / not engine-written) → EXECUTION_FAILURE — the only recovery-quota consumer (AC7)
+        this.#failure.maybeExhaust(
+          ctx.workspace,
+          FAILURE_CATEGORIES.HARNESS_ABORT.id,
+          ctx.handoffPath,
+        ); // harness abort → harnessAbortCount (per-category independent quota)
       }
-      this.#done(1, this.#face("BLOCKED"), `cli exited ${this.#agentRc} and handoff missing`);
+      this.#done(
+        1,
+        this.#face("BLOCKED", undefined, {
+          op: mode,
+          type: "task",
+          group: this.#groupKey,
+          plan: ctx.plan,
+          ...(mode === "fix" ? { findingsPath: ctx.findingsPath ?? undefined } : {}),
+          status: "BLOCKED",
+          recovery: { snapshotSha: crashRecord.snapshotSha, resumeCommand: crashNext },
+        }),
+        `cli exited ${this.#agentRc} and handoff missing`,
+      );
       return;
     }
 
@@ -1130,7 +1098,6 @@ export class TaskLifecycle extends DispatchLifecycle {
         brief: ctx.briefPath,
         repoRoot: this.#root,
         tasks: this.#tasks,
-        resumeScopeBase: this.#resumeScopeBase,
       });
       if (finalized.handoff) {
         this.#handoff!.persist(finalized.handoff);

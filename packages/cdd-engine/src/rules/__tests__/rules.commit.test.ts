@@ -7,7 +7,14 @@
 // lifecycle mounting of either gate and its CLI-level use-cases.
 
 import { execFileSync } from "node:child_process";
-import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -31,6 +38,8 @@ function setupRepo(): string {
   const dest = mkdtempSync(path.join(tmpdir(), "cdd-commit-ts-"));
   writeFileSync(path.join(dest, ".gitignore"), "cdd/\n");
   git(dest, "init", "-q");
+  git(dest, "config", "user.name", "cdd-gate-test");
+  git(dest, "config", "user.email", "cdd-gate-test@example.com");
   git(dest, "add", "-A");
   git(
     dest,
@@ -255,5 +264,57 @@ describe("rules/commit.ts — rewriteHandoffBlocked（BLOCKED 重写载荷）", 
     expect(() =>
       commitChecker.rewriteHandoffBlocked(undefined as unknown as string, "boom"),
     ).not.toThrow();
+  });
+});
+
+describe("rules/commit.ts — commitSnapshot（T7 crash-only snapshot 语义）", () => {
+  it("clean tree → no-op（null，无 commit，HEAD 不动）", async () => {
+    const repo = setupRepo();
+    const head = headOf(repo);
+    expect(await commitChecker.commitSnapshot(repo, "implement", 1)).toBeNull();
+    expect(headOf(repo)).toBe(head);
+  });
+
+  it("dirty tree → crash-only snapshot commit（标准化消息、HEAD 前移、树归零）", async () => {
+    const repo = setupRepo();
+    appendFileSync(path.join(repo, "wip.md"), "wip\n");
+    const sha = await commitChecker.commitSnapshot(repo, "implement", 3);
+    expect(sha).toMatch(/^[0-9a-f]{40}$/);
+    expect(sha).toBe(headOf(repo)); // the snapshot commit IS the new HEAD
+    expect(git(repo, "log", "-1", "--format=%s")).toBe(
+      "chore(cdd-engine): crash-only snapshot — implement abort (exit 3)",
+    );
+    // the tree normalizes to clean — the re-dispatch entry gate passes on the snapshot
+    expect(git(repo, "status", "--porcelain")).toBe("");
+  });
+
+  it("--no-verify: a rejecting pre-commit hook does not block the snapshot（唯一正当 hook 旁路 — 快照是恢复点非验收面）", async () => {
+    const repo = setupRepo();
+    const hooks = path.join(repo, ".git", "hooks");
+    mkdirSync(hooks, { recursive: true });
+    writeFileSync(path.join(hooks, "pre-commit"), "#!/usr/bin/env bash\nexit 1\n");
+    chmodSync(path.join(hooks, "pre-commit"), 0o755);
+    appendFileSync(path.join(repo, "wip.md"), "wip\n");
+    const sha = await commitChecker.commitSnapshot(repo, "fix", 1);
+    expect(sha).toMatch(/^[0-9a-f]{40}$/); // committed despite the hook — biome would reject the half-finished crash moment
+  });
+
+  it("non-repo / no repoRoot → fail-open null", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "cdd-snap-nogit-"));
+    expect(await commitChecker.commitSnapshot(dir, "review", 1)).toBeNull();
+    expect(await commitChecker.commitSnapshot(null, "fix", 1)).toBeNull();
+    expect(await commitChecker.commitSnapshot(undefined, "implement", 1)).toBeNull();
+  });
+
+  it("exit gate dirty-tree arm snapshots alongside the BLOCKED rewrite（ok/blocker 不变，树归零恢复点）", async () => {
+    const repo = setupRepo();
+    appendFileSync(path.join(repo, ".gitignore"), "dirty\n");
+    const r = await commitChecker.validateCommitContract("implement", repo);
+    expect(r.ok).toBe(false);
+    expect(r.blocker).toMatch(/uncommitted changes at return/);
+    // the residue normalized into a snapshot commit → the tree is clean again (the re-dispatch
+    // entry gate passes; the WIP survives as the snapshot commit)
+    expect(git(repo, "status", "--porcelain")).toBe("");
+    expect(git(repo, "log", "-1", "--format=%s")).toMatch(/crash-only snapshot — implement abort/);
   });
 });

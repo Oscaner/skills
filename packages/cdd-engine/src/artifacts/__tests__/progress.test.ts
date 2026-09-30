@@ -30,15 +30,17 @@ it("createEmptyProgress: returns empty structure with defaults", () => {
   expect(p.tasks).toEqual([]);
 });
 
-it("progress schema 不含 lastDispatchHead/degradationLog（T8 死字段清除）——T6 增两键后为六键词法序", () => {
+it("progress schema 不含 lastDispatchHead/degradationLog（T8 死字段清除）——T6 增两键 + T7 增 harnessAbortCount 后为七键词法序", () => {
   // Object.keys 词法排序 —— 期望字面量用词法序，勿用插入序断言。
-  // T6（AC14「存储层落库形」）：progress.json 键集 = createEmptyProgress 初值形 + migrateIfNeeded
-  // 存量补齐形 二者共同承载 —— 六键与 canonical 计数器列逐字一致（contractViolationCount <
-  // engineRecoveryCount < engineSelfWrittenCount < plan < tasks < timeoutCount）。
+  // progress.json key set = the createEmptyProgress initial shape + the migrateIfNeeded legacy
+  // backfill shape combined — seven keys verbatim-aligned with the canonical counter columns
+  // (contractViolationCount <
+  // engineRecoveryCount < engineSelfWrittenCount < harnessAbortCount < plan < tasks < timeoutCount）。
   expect(Object.keys(ledger.create("/p")).sort()).toEqual([
     "contractViolationCount",
     "engineRecoveryCount",
     "engineSelfWrittenCount",
+    "harnessAbortCount",
     "plan",
     "tasks",
     "timeoutCount",
@@ -231,7 +233,7 @@ it("migrateIfNeeded: neither file exists → returns empty progress + creates js
 // write-back) would let a "backfilled-but-not-persisted" shape pass (the next read misses the
 // keys); asserting only key presence, not value 0, lets "backfilled-with-undefined" pass too —
 // both the in-memory and the on-disk shapes must be asserted.
-it("migrateIfNeeded: 存量四键旧形 → 补齐两键并回写（内存对象 + 磁盘双断言）", () => {
+it("migrateIfNeeded: 存量四键旧形 → 补齐三键并回写（内存对象 + 磁盘双断言）", () => {
   const dir = tmpDir("prog-mig-backfill-");
   writeFileSync(
     path.join(dir, "progress.json"),
@@ -247,24 +249,27 @@ it("migrateIfNeeded: 存量四键旧形 → 补齐两键并回写（内存对象
     ),
   );
   const p = ledgerFor(dir).migrateIfNeeded();
-  // 内存形：两键已补齐且值为 0；存量值不受影响
+  // In-memory shape: the three keys are backfilled with 0; pre-existing values are untouched
   expect(p.contractViolationCount).toBe(0);
   expect(p.engineSelfWrittenCount).toBe(0);
+  expect(p.harnessAbortCount).toBe(0);
   expect(p.timeoutCount).toBe(3);
   expect(p.engineRecoveryCount).toBe(2);
   expect(p.tasks).toEqual([{ task: 1, status: "complete" }]);
-  // 磁盘形：已被回写为六键
+  // Disk shape: written back as the seven keys
   const disk = JSON.parse(readFileSync(path.join(dir, "progress.json"), "utf8"));
   expect(Object.keys(disk).sort()).toEqual([
     "contractViolationCount",
     "engineRecoveryCount",
     "engineSelfWrittenCount",
+    "harnessAbortCount",
     "plan",
     "tasks",
     "timeoutCount",
   ]);
   expect(disk.contractViolationCount).toBe(0);
   expect(disk.engineSelfWrittenCount).toBe(0);
+  expect(disk.harnessAbortCount).toBe(0);
 });
 
 // ---- The rounds key is normalized ("review" is the sole task-mode key) — the progress layer is already mode-parameterized, so tests assert the key semantics directly (T4) ----

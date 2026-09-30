@@ -153,6 +153,18 @@ export class Workspace {
     return path.join(this.path, "lifecycle.json");
   }
 
+  /** crashPath(lane, round) — a crash record's canonical subpath (`crash-<lane>-<round>.json`, e.g.
+   *  `crash-implement-1.json`; T7 — the crash-recovery artifact family, written through the shared
+   *  writeJson point like lifecycle/handoff/base-branch). The two-parameter signature pins the
+   *  round-qualified file name — the method signature IS the on-disk file name. `lane` is the
+   *  dispatch lane word (implement/review/fix/docs), `round` the teardown's dispatch-context round.
+   *  Malformed names are rejected (never a path-traversal write surface). */
+  crashPath(lane: string, round: number): string {
+    if (!/^[a-z][a-z0-9-]*$/.test(lane)) throw new TypeError(`invalid crash lane: ${lane}`);
+    if (!Number.isInteger(round) || round < 1) throw new TypeError(`invalid crash round: ${round}`);
+    return path.join(this.path, `crash-${lane}-${round}.json`);
+  }
+
   /** readJson<T>(name) — atomic JSON read ("<workspace>/<name>"); missing/corrupt → null,
    *  fail-open). progress / handoff / base-branch converge here. */
   readJson<T = Record<string, unknown>>(name: string): T | null {

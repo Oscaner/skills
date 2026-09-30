@@ -301,11 +301,22 @@ it("runTask: nested CLI failed no handoff → BLOCKED handoff (stderr into block
     const handoff = JSON.parse(readFileSync(path.join(ws, "tasks-1-implement.json"), "utf8"));
     expect(handoff.status).toBe("BLOCKED");
     expect(handoff.blocker).toMatch(/cli exited 3 without writing handoff/);
-    // The EXECUTION_FAILURE arm carries the resume-or-discard contract — resume via the implement
-    // re-dispatch, or abandon the salvage (T26 §⑤)
+    // The child-failure lane is rejudged HARNESS_ABORT (external retreat) — the crash-record
+    // resume contract (re-run the same command; no stash) replaces the EXECUTION_FAILURE
+    // resume-or-discard wording.
+    expect(handoff.failure_category).toBe("HARNESS_ABORT");
     expect(handoff.blocker).toMatch(
-      /resume or discard: cdd implement --tasks 1 re-dispatch auto-resumes \(recovery.residue_ref\), or git stash drop to abandon/,
+      /resume by re-running the same command \(`cdd implement --tasks 1 --plan [^`]+`\)/,
     );
+    // The BLOCKED capsule carries the same-command resume on the `next:` line (the NextStepRouter
+    // crash-record recovery row — recorded crash record = the decision source).
+    expect(res.returnBlock[0]).toMatch(/^status: BLOCKED · blocker: 0 · handoff: /);
+    expect(res.returnBlock[1]).toMatch(/^next: cdd implement --tasks 1 --plan /);
+    // The crash teardown wrote the crash record (tail + attempted handoff) into the workspace.
+    const crashRecord = JSON.parse(readFileSync(path.join(ws, "crash-implement-1.json"), "utf8"));
+    expect(crashRecord.exitCode).toBe(3);
+    expect(crashRecord.stderrTail).toContain("boom from fake cli");
+    expect(crashRecord.attemptedHandoff).toBe(path.join(ws, "tasks-1-implement.json"));
   } finally {
     restore();
   }
@@ -360,8 +371,8 @@ it("runTask: group [1,2] implement failure → tasks-1,2-implement.json BLOCKED 
     // No per-task carrier side-branches (the group is the unit — no task-1-implement.json / task-2-implement.json)
     expect(existsSync(path.join(wsTwo, "task-1-implement.json"))).toBe(false);
     // The whole-group shape rides the advice surface — the advised --tasks is exactly the group key 1-2 (no subset dispatch; zero legacy single-task residue)
-    expect(handoff.blocker).toMatch(/cdd implement --tasks 1,2 re-dispatch auto-resumes/);
-    const adviceTasks = /cdd implement --tasks ([^ ]+) re-dispatch/.exec(handoff.blocker)?.[1];
+    expect(handoff.blocker).toMatch(/cdd implement --tasks 1,2 /);
+    const adviceTasks = /cdd implement --tasks ([^ )]+)/.exec(handoff.blocker)?.[1];
     expect(adviceTasks).toBe("1,2"); // whole-group re-dispatch advice — never a per-task subset
     // Progress ledger: one row per group (round at group level)
     const progress = JSON.parse(readFileSync(path.join(wsTwo, "progress.json"), "utf8"));
@@ -658,11 +669,12 @@ it("runTask: timeout → timeoutCount incremented in progress.json", async () =>
 }, 15_000);
 
 it.skipIf(!GROUP_SUPPORTED)(
-  "runTask: stall → TIMEOUT handoff + resume-or-discard blocker + timeoutCount incremented (T26)",
+  "runTask: stall → TIMEOUT handoff + crash-record resume blocker + timeoutCount incremented (T26/T7)",
   async () => {
     // The fake CLI runs forever with no CPU and writes nothing — the stall signal must kill the
-    // group past the idle window (LONG BEFORE the budget), and the handoff must carry the T26
-    // resume-or-discard contract (recovery salvage + cdd implement re-dispatch auto-resume).
+    // group past the idle window (LONG BEFORE the budget), and the handoff must carry the T7
+    // crash-record resume contract (crash-only snapshot + crash record — no stash), on the TIMEOUT
+    // category (stall stays TIMEOUT, not HARNESS_ABORT).
     const { repo, planFile, ws } = setupWorkspace();
     const binDir = mkdtempSync(path.join(tmpdir(), "cdd-stall-"));
     const restore = withFakeCli(
@@ -686,11 +698,16 @@ it.skipIf(!GROUP_SUPPORTED)(
       expect(h.status).toBe("TIMEOUT");
       expect(h.failure_category).toBe("TIMEOUT"); // stall stays in the TIMEOUT category (extended semantics — not a new category)
       expect(h.blocker).toMatch(/stalled/);
-      expect(h.blocker).toMatch(
-        /resume or discard: cdd implement --tasks 1 re-dispatch auto-resumes/,
-      );
-      expect(h.blocker).toMatch(/git stash drop to abandon/);
+      expect(h.blocker).toMatch(/resume by re-running the same command \(cdd implement --tasks 1/);
+      expect(h.blocker).toMatch(/crash record/);
+      expect(h.blocker).not.toMatch(/git stash/);
       expect(h.tasks).toEqual([1]);
+      // T7 crash teardown raced the TIMEOUT lane: the crashed dispatch's crash record (tail + the
+      // same-command resume) lands beside the handoff in the workspace.
+      const crashRecord = JSON.parse(readFileSync(path.join(ws, "crash-implement-1.json"), "utf8"));
+      expect(crashRecord.exitCode).toBe(1);
+      expect(crashRecord.next).toContain("cdd implement --tasks 1");
+      expect(crashRecord.attemptedHandoff).toBe(hp);
       const progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
       expect(progress.timeoutCount).toBe(1); // stall counts toward the normal timeout quota
     } finally {
@@ -1894,16 +1911,16 @@ it("runTask T22: dry-run 豁免 — 无源 plan 走 dry-run 零 BLOCK + 零 cons
   expect(existsSync(path.join(t22.ws, "plan-constraints.md"))).toBe(false);
 });
 
-// ---- Resume-from-residue black-box (T26, spec T7.5) ----
-// Real dispatch through the ghost fake-cli: ① a dead round (budget TIMEOUT with tracked WIP)
-// must salvage the WIP into a stash and ride recovery.residue_ref on the carrier; ② the re-dispatch
-// pre-flight (resolveContext, after the entry gate) must apply the salvage back, and the regenerated
-// brief must carry the data-driven residue appendix — the next agent continues on the restored WIP
-// (incremental addition), it does not rewrite from zero (the T25 0→727 story). Budget path (not
-// stall) keeps the suite group-support-independent like the timeout test above.
+// ---- Crash-recovery black-box (T7 — the stash plane is deleted) ----
+// Real dispatch through the ghost fake-cli: ① a dead round (harness abort: child exit non-zero with
+// no handoff) runs the lane-shared crash teardown — the WIP normalizes into a crash-only snapshot
+// commit + crash record (opposite the legacy stash — the tree returns to a committed state); ② the
+// same-command re-dispatch continues from the snapped WIP (no pre-flight restore — the resume is
+// the entry-gate-clean baseline + the snapshot commit in branch history). Budget path (not stall)
+// keeps the suite group-support-independent like the timeout test above.
 
-// git stash needs a repo-local identity (helpers' gitInit sets it only inline on the commit command)
-// — real repos always have one.
+// The crash-only snapshot commit needs a repo-local identity (helpers' gitInit sets it only inline
+// on the commit command) — real repos always have one.
 function configureGitIdentity(repo) {
   execFileSync("git", ["-C", repo, "config", "user.name", "cdd-test"]);
   execFileSync("git", ["-C", repo, "config", "user.email", "cdd-test@example.com"]);
@@ -1923,126 +1940,61 @@ function continuingCli(ws) {
   );
 }
 
-it("T26 black-box: TIMEOUT → salvage → re-dispatch resumes WIP + brief appendix + increment on top", async () => {
+it("T7 black-box: harness abort (child exit 1, no handoff) → crash record + crash-only snapshot commit; re-dispatch the same command continues from the snapped WIP", async () => {
   const { repo, planFile, ws } = setupWorkspace();
   configureGitIdentity(repo);
-  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-rr-"));
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-t7rr-"));
   const regPath = ghostRegistry(ws);
-  // Round 1 agent: writes a tracked WIP file then hangs → budget TIMEOUT (cause over-budget).
-  // (no opts.env — hostEnv() reads the LIVE process.env, which withFakeCli PATH-shims below)
+  // Round 1 agent: writes a tracked WIP file, then dies WITHOUT writing the handoff (the 403-shaped
+  // harness abort) → the HARNESS_ABORT teardown captures the tail, commits the WIP as a crash-only
+  // snapshot, and writes the crash record (the commit ledger — not a stash).
   const restore = withFakeCli(
     binDir,
     "fake-cli",
-    `#!/usr/bin/env bash\nprintf 'line2-round1-agent-wip\n' > wip.md\ngit add wip.md\nexec sleep 100\n`,
+    `#!/usr/bin/env bash\nprintf 'line2-round1-agent-wip\n' > wip.md\ngit add wip.md\nexit 1\n`,
   );
   try {
     await TaskLifecycle.run("ghost", 1, {
       mode: "implement",
       planFile,
       root: repo,
-      termination: { budgetMs: 1000 },
       registryPath: regPath,
       noExit: true,
     });
     const hp = path.join(ws, "tasks-1-implement.json");
     const h1 = JSON.parse(readFileSync(hp, "utf8"));
-    expect(h1.status).toBe("TIMEOUT");
-    expect(h1.recovery.residue_ref).toMatch(/^[0-9a-f]{40}$/); // settleResidue output rides the carrier
-    expect(h1.recovery.stash_message).toBe("cdd-implement-task-task-1-r1-over-budget");
-    expect(h1.recovery.residue_scope).toMatch(/file changed/); // scope data-driven from git shortstat
-    expect(existsSync(path.join(repo, "wip.md"))).toBe(false); // salvage moved the WIP OUT of the tree
-    // T28 dual-trigger black-box (spec T7.7): the implement lane's inline settleResidue pre-wrote
-    // preserved=true, so the base settleResidue template hook's adapter (which follows in
-    // post-flight, same carrier) sees recovery.preserved and idempotently skips — an implement
-    // TIMEOUT round writes EXACTLY ONE stash, never two (the pre-T28 double-owner defect produced
-    // a second, bespoke-message stash for the same round).
-    expect(h1.recovery.preserved).toBe(true);
-    expect(
-      execFileSync("git", ["-C", repo, "stash", "list"], { encoding: "utf8" })
-        .trim()
-        .split("\n")
-        .filter(Boolean),
-    ).toHaveLength(1);
-    // Round 2 agent: continues on the restored WIP (increment), commits, returns the block.
+    expect(h1.status).toBe("BLOCKED");
+    expect(h1.failure_category).toBe("HARNESS_ABORT"); // child-failure rejudged from EXECUTION_FAILURE
+    expect(h1.blocker).toMatch(/cli exited 1 without writing handoff/);
+    // The crash record + snapshot normalized the WIP into the commit ledger and cleared the tree —
+    // the snapshot commit IS the new HEAD, so the re-dispatch entry gate passes and the WIP is present.
+    const crashRecord = JSON.parse(readFileSync(path.join(ws, "crash-implement-1.json"), "utf8"));
+    expect(crashRecord.exitCode).toBe(1);
+    const headNow = execFileSync("git", ["-C", repo, "rev-parse", "HEAD"], {
+      encoding: "utf8",
+    }).trim();
+    expect(crashRecord.snapshotSha).toBe(headNow);
+    expect(readFileSync(path.join(repo, "wip.md"), "utf8")).toBe("line2-round1-agent-wip\n");
+    expect(execFileSync("git", ["-C", repo, "stash", "list"], { encoding: "utf8" }).trim()).toBe(
+      "",
+    );
+    // Round 2 agent: continues on the snapped WIP (increment), commits, returns the block — the
+    // same-command re-run resumes 续作（increment on top）, not a rewrite from zero.
     writeFileSync(path.join(binDir, "fake-cli"), continuingCli(ws));
     chmodSync(path.join(binDir, "fake-cli"), 0o755);
     const res2 = await TaskLifecycle.run("ghost", 1, {
       mode: "implement",
       planFile,
       root: repo,
-      termination: { budgetMs: 5000 },
       registryPath: regPath,
       noExit: true,
     });
     expect(res2.exitCode).toBe(0);
     const h2 = JSON.parse(readFileSync(hp, "utf8"));
     expect(h2.status).toBe("APPROVED");
-    expect(h2.artifacts.brief).toBe(path.join(ws, "tasks-1-brief.md"));
-    // WIP restored AND extended — 续作（increment on top）, not a rewrite from zero
     expect(readFileSync(path.join(repo, "wip.md"), "utf8")).toBe(
       "line2-round1-agent-wip\nline3-agent-increment\n",
     );
-    // the regenerated brief carries the data-driven residue appendix (status/cause/stash/scope)
-    const brief = readFileSync(path.join(ws, "tasks-1-brief.md"), "utf8");
-    expect(brief).toContain("## Residue status from the previous dispatch");
-    expect(brief).toContain("ended in TIMEOUT (cause: over-budget)");
-    expect(brief).toContain("cdd-implement-task-task-1-r1-over-budget");
-    expect(brief).toContain("1 file changed, 1 insertion(+)");
-    // apply ≠ pop — the salvage stays in the stash list for the operator to inspect/drop
-    expect(execFileSync("git", ["-C", repo, "stash", "list"], { encoding: "utf8" })).toContain(
-      "cdd-implement-task-task-1-r1-over-budget",
-    );
-  } finally {
-    restore();
-  }
-}, 30_000);
-
-it("T26 black-box: legacy fallback — pre-schema TIMEOUT carrier (no recovery) + standardized stash → scan → apply → appendix", async () => {
-  const { repo, planFile, ws } = setupWorkspace();
-  configureGitIdentity(repo);
-  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-rr-legacy-"));
-  const regPath = ghostRegistry(ws);
-  const restore = withFakeCli(
-    binDir,
-    "fake-cli",
-    `#!/usr/bin/env bash\nprintf 'legacy-wip\n' > wip.md\ngit add wip.md\nexec sleep 100\n`,
-  );
-  try {
-    await TaskLifecycle.run("ghost", 1, {
-      mode: "implement",
-      planFile,
-      root: repo,
-      termination: { budgetMs: 1000 },
-      registryPath: regPath,
-      noExit: true,
-    });
-    const hp = path.join(ws, "tasks-1-implement.json");
-    const h1 = JSON.parse(readFileSync(hp, "utf8"));
-    expect(h1.recovery.residue_ref).toMatch(/^[0-9a-f]{40}$/);
-    // 模拟 pre-schema carrier：T25 时代的 TIMEOUT handoff 无 recovery 键（settleResidue 未落地、
-    // ref 未入 schema），仅 status + failure_category 机制面。
-    delete h1.recovery;
-    writeFileSync(hp, JSON.stringify(h1));
-    // Round 2: swap in the continuing agent, then re-dispatch.
-    writeFileSync(path.join(binDir, "fake-cli"), continuingCli(ws));
-    chmodSync(path.join(binDir, "fake-cli"), 0o755);
-    const res2 = await TaskLifecycle.run("ghost", 1, {
-      mode: "implement",
-      planFile,
-      root: repo,
-      termination: { budgetMs: 5000 },
-      registryPath: regPath,
-      noExit: true,
-    });
-    expect(res2.exitCode).toBe(0);
-    // 检索兜底命中 standardized stash message → WIP 恢复（resume input = stash@{0} list ref）
-    expect(readFileSync(path.join(repo, "wip.md"), "utf8")).toBe(
-      "legacy-wip\nline3-agent-increment\n",
-    );
-    const brief = readFileSync(path.join(ws, "tasks-1-brief.md"), "utf8");
-    expect(brief).toContain("## Residue status from the previous dispatch");
-    expect(brief).toContain("stash@{0}"); // legacy resume keyed on the list ref (no index-independent SHA)
-    expect(brief).toContain("cdd-implement-task-task-1-r1-over-budget");
   } finally {
     restore();
   }

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **A cdd-first methodology: continuously-discovered development as the core discipline, AI coding skills as the distribution vehicle.** This repository is the home of that methodology and the vehicle that distributes it — the CDD (continuously-discovered development) practice encoded as skills and driven by the `cdd` engine, released as installable plugins consumable across multiple AI coding harnesses (verified on Claude Code and Cursor Agent).
 
-**kairos** ships here as a first-party plugin in-tree at `packages/kairos/` (kairos orchestration + cli-* family + the CDD engine). Superpowers, mattpocock-skills, and impeccable are upstream third-party plugins — install them via their official commands (marked Upstream in the README); this repo no longer vendors them. Upstream workflow skills are read by kairos orchestrators via `/`-prefixed plugin:skill references.
+**kairos** ships here as a first-party plugin in-tree at `packages/kairos/` (kairos orchestration + cdd-* family + the CDD engine). Superpowers, mattpocock-skills, and impeccable are upstream third-party plugins — install them via their official commands (marked Upstream in the README); this repo no longer vendors them. Upstream workflow skills are read by kairos orchestrators via `/`-prefixed plugin:skill references.
 
 ## ⚠️ emit products are derived — never edit them
 

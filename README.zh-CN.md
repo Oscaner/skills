@@ -57,8 +57,8 @@ cdd 不是把计划写一次就指望它扛住现实，而是让规划贯穿整�
 
 | 插件 | 来源 |
 |------|------|
-| **kairos** | 第一方——[本仓库](https://github.com/Oscaner/skills)、[`packages/kairos/`](packages/kairos/)，以 [`@oscaner-skills/kairos`](https://www.npmjs.com/package/@oscaner-skills/kairos) 发布。技能（kairos 编排器、`cli-*` 家族）及 CDD 引擎 |
-| **superpowers** | 上游——[obra/superpowers](https://github.com/obra/superpowers)。工作流技能：cdd-design、writing plans、verification、branch finish |
+| **kairos** | 第一方——[本仓库](https://github.com/Oscaner/skills)、[`packages/kairos/`](packages/kairos/)，以 [`@oscaner-skills/kairos`](https://www.npmjs.com/package/@oscaner-skills/kairos) 发布。技能（kairos 编排器、`cdd-*` 家族）及 CDD 引擎 |
+| **superpowers** | 上游——[obra/superpowers](https://github.com/obra/superpowers)。工作流技能：brainstorming、writing plans、verification、branch finish |
 | **mattpocock-skills** | 上游——[mattpocock/skills](https://github.com/mattpocock/skills)。精准工具：`grilling`、`tdd` |
 | **impeccable** | 上游——[pbakaus/impeccable](https://github.com/pbakaus/impeccable)。前端设计技能 |
 
@@ -105,7 +105,7 @@ kairos 通过各 harness 自己的插件市场安装；Claude Code 与 Cursor Ag
 
 ```
 packages/
-├── kairos/   # 第一方插件：kairos 编排 + cli-* 家族 + CDD 引擎技能
+├── kairos/   # 第一方插件：kairos 编排 + cdd-* 家族 + CDD 引擎技能
 └── cdd-engine/     # @oscaner-skills/cdd-engine —— CDD 引擎 CLI 包（kairos 的依赖）
 ```
 

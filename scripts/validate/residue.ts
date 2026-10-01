@@ -1683,9 +1683,10 @@ function checkSkillSurface() {
 // anchor-first ban — semantic body first, anchor only as a trailing traceability suffix);
 // T2/T4 (P3) drive the G2 live-face last-index guard through the ContractLexiconGuard
 // (checkResidue: engine src+tests / scripts / docs/maintainers, the lexicon data-row allowance
-// set) — the four converged check faces run once in this block under the guard (checkAnatomy =
+// set) — the five converged check faces run once in this block under the guard (checkAnatomy =
 // the retired digraph-consistency assertions, checkWording = the C7 shape-restate guard,
-// checkConfig = the engine-config channel audit);
+// checkConfig = the engine-config channel audit, checkMarkers = the T3 three-way host-marker
+// consistency guard);
 // grepTargets grew to include cdd-engine src+templates for the wiring guard to pin. channelTargets
 // = the channel-audit guard-surface union (the wiring guard pins any scope shrink as a fail;
 // post-move it excludes the retired tests/, the src surface walk self-exempts).
@@ -1707,12 +1708,16 @@ export const steps = [
       // once in this block. checkResidue replaces the former inline G2 collector (the lexicon
       // data rows are its allowance set); checkAnatomy absorbs the retired digraph-consistency
       // node:test surface; checkWording pins C7 shape-restate zero-hit on the orchestrator
-      // skills; checkConfig runs the engine-config channel audit.
+      // skills; checkConfig runs the engine-config channel audit. T3 appends checkMarkers — the
+      // three-way host-marker consistency guard (lexicon markers ↔ harness.ts detect() predicates
+      // ↔ the engine-config env whitelist), same block, no new validate step (zero ci-validate
+      // perturbation).
       const guard = new ContractLexiconGuard();
       assertLexiconZero("anatomy", guard.checkAnatomy());
       assertLexiconZero("residue", guard.checkResidue());
       assertLexiconZero("wording", guard.checkWording(ORCHESTRATOR_SKILLS));
       assertLexiconZero("config", guard.checkConfig(loadContract()));
+      assertLexiconZero("markers", guard.checkMarkers({ engineConfig: loadContract() }));
     },
     grepTargets: RESIDUE_TARGETS,
     channelTargets: CHANNEL_AUDIT_TARGETS,

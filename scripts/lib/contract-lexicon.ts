@@ -1,9 +1,11 @@
 // scripts/lib/contract-lexicon.ts — the CDD contract-lexicon guard (C6, P3 T4). ONE class drives
-// the four converged check faces the plan pinned: the skill-anatomy assertions (checkAnatomy —
-// the digraph-consistency surface), the G2 cursor binary-name live-face residue collector
+// the converged check faces the plan pinned: the skill-anatomy assertions (checkAnatomy — the
+// digraph-consistency surface), the G2 cursor binary-name live-face residue collector
 // (checkResidue — the former collectCursorAgentHits), the C7 shape-restate wording guard
-// (checkWording — orchestrator skills keep zero engine-shape special-name literals), and the
-// engine-config channel audit (checkConfig — the former context.test channel assertions). The
+// (checkWording — orchestrator skills keep zero engine-shape special-name literals), the
+// engine-config channel audit (checkConfig — the former context.test channel assertions), and the
+// three-way host-marker consistency guard (checkMarkers — the lexicon markers data ↔ the
+// harness.ts detect() predicates ↔ the engine-config env whitelist). The
 // class reads contract-lexicon.json (packages/cdd-engine/src/infra/ — the repo source single; the
 // dist/resources copy rides the published package) as its data source: the scan token / data-row
 // basenames / banned shape names all come from the lexicon, never a hand-written allowlist — a
@@ -64,8 +66,22 @@ export interface ConfigFinding {
   file: string;
 }
 
+export interface MarkerFinding {
+  label: string;
+  file: string;
+}
+
+export interface LexiconMarker {
+  /** The host-marker env key the harness detect() predicate reads. */
+  env: string;
+  /** claude-only: the AI_AGENT prefix the detect() predicate matches via startsWith. */
+  aiAgentPrefix?: string;
+  /** pi-only: the AI_AGENT exact value the detect() predicate matches (=== "value"). */
+  value?: string;
+}
+
 interface LexiconData {
-  harness: { ids: string[]; clis: Record<string, string> };
+  harness: { ids: string[]; clis: Record<string, string>; markers: Record<string, LexiconMarker> };
   status: { vocab: string[]; axes: { judgment: string[]; work: string[] } };
   stdout: { capsule: string[]; routeTokens: string[]; bannedShapeNames: string[] };
   residue: { dataSources: string[]; bannedToken: string; soleAllowed: string };
@@ -552,22 +568,14 @@ export class ContractLexiconGuard {
    *  consumed); the omitted-argument default loads engine-config.json and reads its contextContract
    *  section. */
   checkConfig(engineConfig?: Record<string, unknown>): ConfigFinding[] {
-    const cfg: Record<string, unknown> | undefined =
-      engineConfig ??
-      (
-        JSON.parse(
-          readFileSync(path.join(ROOT, "packages/cdd-engine/templates/engine-config.json"), "utf8"),
-        ) as { contextContract?: Record<string, unknown> }
-      ).contextContract;
+    const cfg = loadConfigCtx(engineConfig);
     const ctx = cfg as {
       channels?: { env?: Record<string, unknown> };
       timeouts?: { defaults?: Record<string, number> };
     };
     const hits: ConfigFinding[] = [];
 
-    const envKeys = Object.values(ctx.channels?.env ?? {}).flatMap((v: Record<string, unknown>) =>
-      typeof v.var === "string" ? [v.var] : Array.isArray(v.markers) ? v.markers : [],
-    );
+    const envKeys = configEnvKeys(ctx);
     const pinned = ["AI_AGENT", "CLAUDE_CODE_SESSION_ID", "CURSOR_TRACE_ID", "PATH"];
     if (JSON.stringify([...envKeys].sort()) !== JSON.stringify([...pinned].sort())) {
       hits.push({
@@ -595,6 +603,104 @@ export class ContractLexiconGuard {
     if (defaults.fix !== 21_600_000) {
       hits.push({
         label: `engine-config timeout defaults.fix ${defaults.fix} ≠ 21600000 (canonical drift)`,
+        file: "packages/cdd-engine/templates/engine-config.json",
+      });
+    }
+    return hits;
+  }
+
+  // -------------------------------------------------------------------------
+  // checkMarkers(opts?) — the three-way host-marker consistency guard
+  // -------------------------------------------------------------------------
+
+  /** checkMarkers(opts?) — the three-way host-marker consistency guard: the lexicon markers data
+   *  must mirror BOTH the harness.ts detect() predicates (semantic presence — env key read /
+   *  aiAgentPrefix startsWith / value === match — plus the bidirectional env-key closure) AND the
+   *  engine-config env whitelist (marker env keys ∪ PATH — the host-marker closure). Drift on any
+   *  face fires a finding. The detect face parses the live harness.ts source into class blocks and
+   *  brace-balanced detect() bodies (`harnessSrc` override lets tests inject a broken predicate);
+   *  the config face reads the same engine-config context-contract the channel audit consumes
+   *  (loadConfigCtx, shared with checkConfig). */
+  checkMarkers(
+    opts: { harnessSrc?: string; engineConfig?: Record<string, unknown> } = {},
+  ): MarkerFinding[] {
+    const hits: MarkerFinding[] = [];
+    const markers = this.#lexicon.harness.markers ?? {};
+    const markerIds = Object.keys(markers);
+    const harnessSrc =
+      opts.harnessSrc ??
+      readFileSync(path.join(ROOT, "packages/cdd-engine/src/infra/harness.ts"), "utf8");
+    const classes = harnessClassesById(harnessSrc);
+
+    // Identity closure — every harness class id carries a marker row and every marker row has a
+    // class (a new harness class or a removed marker row is drift), and the marker set matches
+    // the lexicon's harness identity set.
+    const classIds = new Set(classes.keys());
+    if (!setEqual(classIds, new Set(markerIds))) {
+      hits.push({
+        label: `marker ids ${JSON.stringify(markerIds)} ≠ harness.ts detect() classes ${JSON.stringify([...classIds].sort())} (host-marker identity closure broken)`,
+        file: "packages/cdd-engine/src/infra/harness.ts",
+      });
+    }
+    if (!setEqual(new Set(markerIds), new Set(this.#lexicon.harness.ids))) {
+      hits.push({
+        label: `marker ids ${JSON.stringify(markerIds)} ≠ lexicon harness ids ${JSON.stringify(this.#lexicon.harness.ids)} (marker row per identity missing)`,
+        file: "packages/cdd-engine/src/infra/contract-lexicon.json",
+      });
+    }
+
+    // Per-marker-row semantics vs the detect() predicate; the marker data is the single source of
+    // the detect() env semantics — reversed, every env key the predicates read must be declared.
+    const declaredKeys = new Set<string>();
+    const detectedKeys = new Set<string>();
+    for (const id of markerIds) {
+      const row = markers[id];
+      if (row.env) declaredKeys.add(row.env);
+      const classBody = classes.get(id)?.body;
+      if (classBody === undefined) continue; // the identity-closure hit above names the gap
+      const pred = detectPredicate(classBody);
+      if (!pred) {
+        hits.push({
+          label: `harness class for marker ${id} carries no detect() predicate body (marker row unverifiable)`,
+          file: "packages/cdd-engine/src/infra/harness.ts",
+        });
+        continue;
+      }
+      const keys = envKeysUsed(pred.body, pred.paramName);
+      for (const k of keys) detectedKeys.add(k);
+      if (row.env && !keys.includes(row.env)) {
+        hits.push({
+          label: `marker ${id} env key ${row.env} not read by the detect() predicate`,
+          file: "packages/cdd-engine/src/infra/harness.ts",
+        });
+      }
+      if (row.aiAgentPrefix && !pred.body.includes(`startsWith("${row.aiAgentPrefix}")`)) {
+        hits.push({
+          label: `marker ${id} aiAgentPrefix ${row.aiAgentPrefix} absent from the detect() predicate`,
+          file: "packages/cdd-engine/src/infra/harness.ts",
+        });
+      }
+      if (row.value && !pred.body.includes(`=== "${row.value}"`)) {
+        hits.push({
+          label: `marker ${id} value ${row.value} absent from the detect() predicate`,
+          file: "packages/cdd-engine/src/infra/harness.ts",
+        });
+      }
+    }
+    if (!setEqual(declaredKeys, detectedKeys)) {
+      hits.push({
+        label: `detect() env reads ${JSON.stringify([...detectedKeys].sort())} ≠ lexicon marker env ${JSON.stringify([...declaredKeys].sort())} (three-way env-set drift)`,
+        file: "packages/cdd-engine/src/infra/harness.ts",
+      });
+    }
+
+    // The config face — the env whitelist is the host-marker closure: marker env keys ∪ PATH,
+    // neither larger nor smaller (the 4-key pin lives here; checkConfig pins the same set).
+    const whitelisted = [...configEnvKeys(loadConfigCtx(opts.engineConfig))].sort();
+    const expected = [...new Set([...declaredKeys, "PATH"])].sort();
+    if (JSON.stringify(whitelisted) !== JSON.stringify(expected)) {
+      hits.push({
+        label: `engine-config env whitelist ${JSON.stringify(whitelisted)} ≠ markers ∪ PATH ${JSON.stringify(expected)} (host-marker closure broken)`,
         file: "packages/cdd-engine/templates/engine-config.json",
       });
     }
@@ -717,4 +823,82 @@ function skeletonDeltaRows(src: string, escapedHeading: Record<string, string>) 
     rows.push({ key: r[1].trim(), value: r[2].trim() });
   }
   return rows;
+}
+
+// ---------------------------------------------------------------------------
+// checkMarkers helpers — the host-marker three-way consistency face (T3)
+// ---------------------------------------------------------------------------
+
+/** Bounded-set equality (the identity/closure comparisons in checkMarkers). */
+function setEqual(a: Set<string>, b: Set<string>): boolean {
+  return a.size === b.size && [...a].every((x) => b.has(x));
+}
+
+/** The brace-balanced span opened by src[openIndex] (the caller's `{`). */
+function braceBody(src: string, openIndex: number): { body: string; end: number } {
+  let depth = 0;
+  for (let i = openIndex; i < src.length; i++) {
+    if (src[i] === "{") depth++;
+    else if (src[i] === "}") {
+      depth--;
+      if (depth === 0) return { body: src.slice(openIndex + 1, i), end: i };
+    }
+  }
+  return { body: src.slice(openIndex + 1), end: src.length };
+}
+
+/** Parse every Harness subclass block in harness.ts and index it by the `readonly id` it declares
+ *  (the id is the marker data's key — the linkage between the two faces is source-derived). */
+function harnessClassesById(harnessSrc: string): Map<string, { body: string }> {
+  const out = new Map<string, { body: string }>();
+  const re = /class\s+([A-Za-z0-9_]+)\s+extends\s+Harness\s*\{/g;
+  for (let m = re.exec(harnessSrc); m !== null; m = re.exec(harnessSrc)) {
+    const open = m.index + m[0].length - 1;
+    const { body } = braceBody(harnessSrc, open);
+    const id = body.match(/readonly\s+id\s*=\s*"([^"]+)"/)?.[1];
+    if (id) out.set(id, { body });
+  }
+  return out;
+}
+
+/** The detect() predicate of one harness class block: the env-parameter name + the brace-balanced
+ *  method body (null when the class carries no matching predicate). The parameter name is captured
+ *  so the env-key scan follows a renamed parameter without a false drift firing. */
+function detectPredicate(classBody: string): { paramName: string; body: string } | null {
+  const sig = classBody.match(/detect\s*\(\s*([A-Za-z_$][\w$]*)\s*:[^;()]*\)\s*:\s*boolean\s*\{/);
+  if (!sig) return null;
+  const open = sig.index + sig[0].length - 1;
+  const { body } = braceBody(classBody, open);
+  return { paramName: sig[1], body };
+}
+
+/** Env keys a predicate body reads via its parameter object (`param.KEY` / `param["KEY"]`). */
+function envKeysUsed(src: string, param: string): string[] {
+  const keys: string[] = [];
+  const re = new RegExp(
+    `\\b${escapeRegExp(param)}\\s*\\.\\s*([A-Za-z0-9_]+)|\\b${escapeRegExp(param)}\\s*\\[\\s*["']([^"']+)["']\\s*\\]`,
+    "g",
+  );
+  for (let m = re.exec(src); m !== null; m = re.exec(src)) keys.push(m[1] ?? m[2]);
+  return keys;
+}
+
+/** The env-channel key set of a context-contract section (the var / markers union). */
+function configEnvKeys(ctx: Record<string, unknown>): string[] {
+  const env = (ctx.channels as { env?: Record<string, unknown> } | undefined)?.env ?? {};
+  return Object.values(env).flatMap((v: Record<string, unknown>) =>
+    typeof v.var === "string" ? [v.var] : Array.isArray(v.markers) ? (v.markers as string[]) : [],
+  );
+}
+
+/** Load the engine-config context-contract section (the config face shared with checkConfig). */
+function loadConfigCtx(engineConfig?: Record<string, unknown>): Record<string, unknown> {
+  return (
+    engineConfig ??
+    (
+      JSON.parse(
+        readFileSync(path.join(ROOT, "packages/cdd-engine/templates/engine-config.json"), "utf8"),
+      ) as { contextContract?: Record<string, unknown> }
+    ).contextContract
+  );
 }

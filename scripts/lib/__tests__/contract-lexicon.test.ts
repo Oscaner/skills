@@ -1,10 +1,14 @@
 // scripts/lib/__tests__/contract-lexicon.test.ts — the ContractLexiconGuard regression surface
-// (P3 T4): the four converged check faces. checkAnatomy — the digraph-consistency assertion port
+// (P3 T4): the converged check faces. checkAnatomy — the digraph-consistency assertion port
 // (live skills green + the mkdtemp deliberate-break chains); checkResidue — the G2 cursor
 // binary-name live-face collector (the migrated residue.test.ts G2 group: data-row release /
 // non-data hits / anti-white-green / per-face dispositions / live-repo zero-hit); checkWording —
 // the C7 shape-restate guard (banned names fail, modern referents pass, granularity ruling);
-// checkConfig — the engine-config channel audit (whitelist + timeout facts, break injection).
+// checkConfig — the engine-config channel audit (whitelist + timeout facts, break injection);
+// checkMarkers — the T3 three-way host-marker consistency guard (live three-way green + the
+// single-side break chains). The README nominal-table ↔ markers-drift assertion does NOT live on
+// this plane: the presentation surface is a package test (T5, nominal table == data derivation) —
+// the lexicon test plane holds only the data-plane invariants.
 // The scanned lexeme is NEVER written contiguously here (the test position is self-exempt from
 // the scripts face scan — scripts/__tests__ is skipped by default — but the file stays
 // zero-literal so a future scope extension cannot self-bite); it is built by concatenation.
@@ -463,5 +467,116 @@ describe("ContractLexiconGuard.checkConfig — engine-config channel audit (P3 T
     const labels = hits.map((h) => h.label).join(" | ");
     expect(labels).toContain("defaults.review");
     expect(labels).toContain("defaults.fix");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// checkMarkers — the three-way host-marker consistency guard (T3)
+// ---------------------------------------------------------------------------
+
+const MARKERS_HARNESS_SRC = path.join(REPO_ROOT, "packages/cdd-engine/src/infra/harness.ts");
+const MARKERS_LEXICON_SRC = path.join(
+  REPO_ROOT,
+  "packages/cdd-engine/src/infra/contract-lexicon.json",
+);
+
+// Temp-lexicon break helper: write a contract-lexicon.json with the markers data mutated and run
+// checkMarkers against it. The detect() source and the engine-config faces stay live — a hit can
+// only come from the lexicon face.
+function markerHitsWithLexicon(
+  mutate: (
+    markers: Record<string, { env?: string; aiAgentPrefix?: string; value?: string }>,
+  ) => void,
+) {
+  const dir = mkdtempSync(path.join(tmpdir(), "lex-markers-"));
+  try {
+    const lex = JSON.parse(readFileSync(MARKERS_LEXICON_SRC, "utf8")) as {
+      harness: {
+        markers: Record<string, { env?: string; aiAgentPrefix?: string; value?: string }>;
+      };
+    };
+    mutate(lex.harness.markers);
+    const file = path.join(dir, "contract-lexicon.json");
+    writeFileSync(file, JSON.stringify(lex, null, 2), "utf8");
+    return new ContractLexiconGuard({ lexiconPath: file }).checkMarkers();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+describe("ContractLexiconGuard.checkMarkers — three-way host-marker consistency (T3)", () => {
+  it("live repo: lexicon markers ↔ detect() predicates ↔ engine-config env whitelist agree", () => {
+    expect(guard.checkMarkers()).toEqual([]);
+  });
+
+  it("a lexicon marker value the detect() predicate does not match fires (lexicon face)", () => {
+    const hits = markerHitsWithLexicon((markers) => {
+      markers.pi.value = "pi-dev";
+    });
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits[0].file).toContain("harness.ts");
+  });
+
+  it("a lexicon aiAgentPrefix the detect() predicate does not carry fires (lexicon face)", () => {
+    const hits = markerHitsWithLexicon((markers) => {
+      markers.claude.aiAgentPrefix = "claude";
+    });
+    expect(hits.length).toBeGreaterThan(0);
+  });
+
+  it("a detect() predicate value drift fires (detect face)", () => {
+    const src = readFileSync(MARKERS_HARNESS_SRC, "utf8");
+    const broken = src.replace('env.AI_AGENT === "pi"', 'env.AI_AGENT === "pi-dev"');
+    const hits = guard.checkMarkers({ harnessSrc: broken });
+    expect(hits.length).toBeGreaterThan(0);
+  });
+
+  it("a detect() predicate reading an env key the lexicon does not declare fires (detect face)", () => {
+    const src = readFileSync(MARKERS_HARNESS_SRC, "utf8");
+    const broken = src.replace(
+      "return Boolean(env.CURSOR_TRACE_ID);",
+      "return Boolean(env.CURSOR_TRACE_ID) || Boolean(env.CURSOR_SESSION_ID);",
+    );
+    const hits = guard.checkMarkers({ harnessSrc: broken });
+    expect(hits.length).toBeGreaterThan(0);
+  });
+
+  it("a harness class id the marker set does not declare fires (identity closure)", () => {
+    const src = readFileSync(MARKERS_HARNESS_SRC, "utf8");
+    const broken = src.replace(
+      'readonly id = "claude" as const;',
+      'readonly id = "claude-x" as const;',
+    );
+    const hits = guard.checkMarkers({ harnessSrc: broken });
+    expect(hits.length).toBeGreaterThan(0);
+  });
+
+  it("an engine-config env whitelist dropping a marker key fires (config face)", () => {
+    const cfg = {
+      channels: {
+        env: {
+          hostHarness: { markers: ["CURSOR_TRACE_ID", "CLAUDE_CODE_SESSION_ID"] },
+          path: { var: "PATH" },
+        },
+      },
+    };
+    const hits = guard.checkMarkers({ engineConfig: cfg });
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits[0].file).toContain("engine-config.json");
+  });
+
+  it("the env whitelist exactly-4-key pin: a 5th key fires (config face)", () => {
+    const cfg = {
+      channels: {
+        env: {
+          hostHarness: { markers: ["CURSOR_TRACE_ID", "CLAUDE_CODE_SESSION_ID", "AI_AGENT"] },
+          path: { var: "PATH" },
+          extra: { var: "EXTRA_KEY" },
+        },
+      },
+    };
+    const hits = guard.checkMarkers({ engineConfig: cfg });
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits[0].file).toContain("engine-config.json");
   });
 });

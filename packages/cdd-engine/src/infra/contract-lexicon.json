@@ -1,11 +1,16 @@
 {
-  "_doc": "CDD engine contract lexicon — the single vocabulary source for the command contract (C6): the harness identity set, the status-value vocab plus its dual-axis mapping, the stdout contract tokens (capsule + route anchors + the banned old-shape names), the G2 residue ban table, and the skill-anatomy schema reference. Ships to consumers via the build copy entry (dist/resources/contract-lexicon.json, same pipeline and cadence as the harness registry).",
+  "_doc": "CDD engine contract lexicon — the single vocabulary source for the command contract (C6): the harness identity set plus its marker rows, the status-value vocab plus its dual-axis mapping, the stdout contract tokens (capsule + route anchors + the banned old-shape names), the G2 residue ban table, and the skill-anatomy schema reference. Ships to consumers via the build copy entry (dist/resources/contract-lexicon.json, same pipeline and cadence as the harness registry).",
   "harness": {
     "ids": ["claude", "cursor", "pi"],
     "clis": {
       "claude": "claude",
       "cursor": "cursor-agent",
       "pi": "pi"
+    },
+    "markers": {
+      "claude": { "env": "CLAUDE_CODE_SESSION_ID", "aiAgentPrefix": "claude-code" },
+      "cursor": { "env": "CURSOR_TRACE_ID" },
+      "pi": { "env": "AI_AGENT", "value": "pi" }
     }
   },
   "status": {

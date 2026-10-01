@@ -63,14 +63,26 @@ test("files closure: pi-declared paths are a static subset of the files whitelis
 test("pi.skills glob resolution set == the {dir, name} scan set (exactly 8 cdd-*)", () => {
   const pkg = loadPackage();
   const skillsDir = path.join(PKG_DIR, "skills");
-  // The resolution side: every declared pi.skills glob, expanded to its SKILL.md-bearing dirs.
-  const resolved = (pkg.pi?.skills ?? [])
-    .flatMap((glob) => {
-      const dir = path.join(PKG_DIR, glob.replace(/^\.\//, "").replace(/\/\*$/, ""));
-      return readdirSync(dir, { withFileTypes: true })
+  // Anchor the glob side to the canonical skills face it must resolve: project every
+  // declared pi.skills glob through the same normalizer (strip `./`, strip trailing
+  // `/*`) and require it to equal the canonical skills dir. A glob that drifts to a
+  // different directory fails here instead of passing by re-reading whatever directory
+  // that glob now points at.
+  const resolvedRoots = (pkg.pi?.skills ?? []).map((glob) =>
+    path.join(PKG_DIR, glob.replace(/^\.\//, "").replace(/\/\*$/, "")),
+  );
+  assert.deepEqual(
+    resolvedRoots,
+    [skillsDir],
+    "pi.skills globs must resolve to the canonical skills dir",
+  );
+  // The resolution side: the declared globs, expanded to their SKILL.md-bearing dirs.
+  const resolved = resolvedRoots
+    .flatMap((dir) =>
+      readdirSync(dir, { withFileTypes: true })
         .filter((e) => e.isDirectory() && existsSync(path.join(dir, e.name, "SKILL.md")))
-        .map((e) => e.name);
-    })
+        .map((e) => e.name),
+    )
     .sort();
   // The scan side: the canonical skills/ directory (dir × SKILL.md name: double-pin).
   const scanned = readdirSync(skillsDir, { withFileTypes: true })

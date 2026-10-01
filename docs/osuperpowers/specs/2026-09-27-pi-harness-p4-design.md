@@ -1,6 +1,6 @@
 # Pi Harness P4 — 技能改名 + 文档·测试·收口（Pi Harness P4: Skill Rename + Docs · Tests · Closeout）— Phase Spec
 
-- **Version**: v1.2 · 2026-10-01（user 2026-10-01 裁定：skills/ 目录名同步改名——单身份零债务，v1.1「目录名保持不变」案推翻）
+- **Version**: v1.3 · 2026-10-01（user 裁定追加：全仓测试 / 文件名 / 字面量同步改名——「改名了就全都一起改」；v1.2 目录名同步改名案保持）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming → writing-phase-spec)
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.21](2026-09-27-pi-harness-overall.md)
@@ -44,7 +44,7 @@ P4 使 osuperpowers 的**技能身份**完成程序级统一：8 技能全量改
 | finishing | `cdd-close` | 收口 |
 | report-issues | `cdd-report` | 内部 dev 工具 |
 
-- 命名空间 `osuperpowers` 保留（claude/cursor 插件限定语法侧照常）；改名 = **`skills/` 目录名 + 8 个 `SKILL.md` 的 `name:` 字段 + 引用面**（单身份：目录名 == `name:` == 三 harness invocation token——user 2026-10-01 裁定「不留任何债务」，v1.1 评审 agent「目录名保持不变」案推翻）。机械范围：8 目录 `git mv`（`skills/brainstorming/` → `skills/cdd-design/` 等）+ `name:` 字段 + 引用面——既有测试目录路径引用（`status-routing-convergence.test.mjs` 按 `SKILLS_ROOT/<name>/SKILL.md` 读 · `writing-plans-spec.test.mjs` 读 `skills/writing-plans/SKILL.md` · `review-loop-clean-tree.test.mjs` 的 skill→review-loop 映射）与 `finishing/SKILL.md:24` 相对路径 `../cli-driven-development/docs/base-branch.md` → `../cdd-dev/docs/base-branch.md` 及跨技能相对引用随改；**plan 阶段以全仓 grep 枚举全部目录/路径引用**（`skills/<dir>` / `..` 相对引用）清单化随行
+- 命名空间 `osuperpowers` 保留（claude/cursor 插件限定语法侧照常）；改名 = **`skills/` 目录名 + 8 个 `SKILL.md` 的 `name:` 字段 + 引用面**（单身份：目录名 == `name:` == 三 harness invocation token——user 2026-10-01 裁定「不留任何债务」，v1.1 评审 agent「目录名保持不变」案推翻）。机械范围：8 目录 `git mv`（`skills/brainstorming/` → `skills/cdd-design/` 等）+ `name:` 字段 + 引用面——既有测试目录路径引用（`status-routing-convergence.test.mjs` 按 `SKILLS_ROOT/<name>/SKILL.md` 读 · `writing-plans-spec.test.mjs` 读 `skills/writing-plans/SKILL.md` · `review-loop-clean-tree.test.mjs` 的 skill→review-loop 映射）与 `finishing/SKILL.md:24` 相对路径 `../cli-driven-development/docs/base-branch.md` → `../cdd-dev/docs/base-branch.md` 及跨技能相对引用随改；**plan 阶段以全仓 grep 枚举全部目录/路径引用**（`skills/<dir>` / `..` 相对引用）清单化随行 · **全仓测试 / 文件名 / 字面量同步（user 2026-10-01 全改令）**：所有 test 文件（文件名内嵌旧 skill 名者随名重命名——如 `writing-plans-spec.test.mjs` → `cdd-plan-spec.test.mjs`）+ 测试/代码/文档内全部字面量（旧名字符串 / 路径 glob / 标识符 / 声称字面量）随改名面一起改
 - 机械范围：8× SKILL.md `name:` + flow digraph 内 `/osuperpowers:*` 互引 · `/superpowers:*` / `/mattpocock-skills:*` 上游 import **不动** · README 家族 ×4 · CLAUDE.md 提及面 · docs/maintainers 提及面 · 测试 · `pnpm run emit` 重生成（claude/cursor manifests + marketplace + `source.json`）
 - **执行排序（地基纪律）**：改名最早落位——P4 实现首任务即 rename，其后文档 / 测试 / 守卫全部引用新名；旧名只在历史文献（既有 spec/plan/CHANGELOG 正文）留存为史实，live 面零旧名 skill 身份
 - **裁定备注（G3 高维复核）**：3 个 writing-* 合并为 1 个带 mode 的写法**拒**——mode 参数重复 `cdd-design` 已有路由职责（program 状态天然决定产物类型），三个产物是方法论一等概念，合并把「写什么」从 invocation 面挪进内部条件分支，反统一；软散落不建镜像注册面（见 C2）；report-issues 保留为 cdd-report（已是 shipped skill + dogfooding 通道，移除是又一次消费面改动）
@@ -101,7 +101,7 @@ P4 使 osuperpowers 的**技能身份**完成程序级统一：8 技能全量改
 
 ### Acceptance criteria
 
-- `packages/osuperpowers/skills/` 下 8 目录重命名（`brainstorming/`→`cdd-design/` 等），各 `SKILL.md` `name:` == 目录名 == cdd-* 八名集合（`cdd-design` / `cdd-spec` / `cdd-charter` / `cdd-phase` / `cdd-plan` / `cdd-dev` / `cdd-close` / `cdd-report`），目录/字段双钉死守卫生；flow 内 `/osuperpowers:*` 互引同步为新名，上游 import（`/superpowers:*` / `/mattpocock-skills:*`）不变；全仓 grep 零旧目录/旧名 skill 路径引用（历史正文除外）
+- `packages/osuperpowers/skills/` 下 8 目录重命名（`brainstorming/`→`cdd-design/` 等），各 `SKILL.md` `name:` == 目录名 == cdd-* 八名集合（`cdd-design` / `cdd-spec` / `cdd-charter` / `cdd-phase` / `cdd-plan` / `cdd-dev` / `cdd-close` / `cdd-report`），目录/字段双钉死守卫生；flow 内 `/osuperpowers:*` 互引同步为新名，上游 import（`/superpowers:*` / `/mattpocock-skills:*`）不变；全仓 grep 零旧目录/旧名 skill 路径引用与字面量（含 test 文件名内嵌旧名——`writing-plans-spec.test.mjs` → `cdd-plan-spec.test.mjs` 等；历史正文除外）
 - `.claude-plugin/` / `.cursor-plugin/` / `marketplace/` emit 产物重生成（含 `./skills/<dir>` 路径引用，随目录改名重生成）后 `emit:check` 零漂移
 - 文档标识符面（README 家族 + CLAUDE.md + docs/maintainers live 档）零 `cursor-agent`（豁免锚已废，历史正文即史实）
 - 名义映射表 = 数据渲染：README 表与 lexicon markers / registry 数据一致（presentation-surface 漂移守卫绿）；`checkMarkers` 三方一致（markers ↔ detect() ↔ engine-config）绿

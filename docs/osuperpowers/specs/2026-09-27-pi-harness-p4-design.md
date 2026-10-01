@@ -1,6 +1,6 @@
 # Pi Harness P4 — 技能改名 + 文档·测试·收口（Pi Harness P4: Skill Rename + Docs · Tests · Closeout）— Phase Spec
 
-- **Version**: v1.1 · 2026-10-01
+- **Version**: v1.2 · 2026-10-01（user 2026-10-01 裁定：skills/ 目录名同步改名——单身份零债务，v1.1「目录名保持不变」案推翻）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming → writing-phase-spec)
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.21](2026-09-27-pi-harness-overall.md)
@@ -25,7 +25,7 @@
 
 #### 2.1 目标与范围
 
-P4 使 osuperpowers 的**技能身份**完成程序级统一：8 技能全量改名 `cdd-*`（三 harness invocation 面同步变，breaking），配套命名机制（SKILL.md `name` 单源 + 目录扫描守卫），并把 pi 身份落到消费者文档面（README 家族矩阵 + `pi install` 段 + 名义映射表数据渲染 + D5 消费故事改写），最后以测试延展 + changeset 收口。现状实证（grilling fact-finder）：README 家族 6 文件全线 pre-pi（零 `pi` / `pi-package` 提及，per-harness 表只有 claude/cursor 两行）；live 面 `cursor-agent` 恰好 2 处（osuperpowers README CDD engine CLI 表行键）；名义映射表任何位置不存在（只有 spec 承诺）；D5 故事零 live 呈现。范围外：engine 运行逻辑（detect / spawn / registry 面）零改动（P3 已闭环）；不合并 engine 与 emit 注册表（Non-goal #2）；不做结构性技能合并（3 个 writing-* 并 1 带 mode——裁定拒，rationale 见 2.2 C1 裁定备注）。
+P4 使 osuperpowers 的**技能身份**完成程序级统一：8 技能全量改名 `cdd-*`（含 `skills/` 目录名——单身份零债务，user 裁定；三 harness invocation 面同步变，breaking），配套命名机制（SKILL.md `name` 单源 + 目录扫描守卫），并把 pi 身份落到消费者文档面（README 家族矩阵 + `pi install` 段 + 名义映射表数据渲染 + D5 消费故事改写），最后以测试延展 + changeset 收口。现状实证（grilling fact-finder）：README 家族 6 文件全线 pre-pi（零 `pi` / `pi-package` 提及，per-harness 表只有 claude/cursor 两行）；live 面 `cursor-agent` 恰好 2 处（osuperpowers README CDD engine CLI 表行键）；名义映射表任何位置不存在（只有 spec 承诺）；D5 故事零 live 呈现。范围外：engine 运行逻辑（detect / spawn / registry 面）零改动（P3 已闭环）；不合并 engine 与 emit 注册表（Non-goal #2）；不做结构性技能合并（3 个 writing-* 并 1 带 mode——裁定拒，rationale 见 2.2 C1 裁定备注）。
 
 #### 2.2 组件
 
@@ -44,13 +44,13 @@ P4 使 osuperpowers 的**技能身份**完成程序级统一：8 技能全量改
 | finishing | `cdd-close` | 收口 |
 | report-issues | `cdd-report` | 内部 dev 工具 |
 
-- 命名空间 `osuperpowers` 保留（claude/cursor 插件限定语法侧照常）；改的是 8 个 `SKILL.md` 的 `name:` 字段（= 三 harness 共享的身份 token）。**目录名保持不变**：`packages/osuperpowers/skills/<dir>` 沿用现状路径，本次改名只触及 `name:` 字段 + 引用面（机械范围枚举如下行），不带目录重命名——既有测试（status-routing-convergence.test.mjs 按 `SKILLS_ROOT/<name>/SKILL.md` 读、writing-plans-spec.test.mjs 读 `skills/writing-plans/SKILL.md`、review-loop-clean-tree.test.mjs 的 skill→review-loop 映射）与 finishing/SKILL.md:24 相对路径 `../cli-driven-development/docs/base-branch.md` 均以目录路径/名为键
+- 命名空间 `osuperpowers` 保留（claude/cursor 插件限定语法侧照常）；改名 = **`skills/` 目录名 + 8 个 `SKILL.md` 的 `name:` 字段 + 引用面**（单身份：目录名 == `name:` == 三 harness invocation token——user 2026-10-01 裁定「不留任何债务」，v1.1 评审 agent「目录名保持不变」案推翻）。机械范围：8 目录 `git mv`（`skills/brainstorming/` → `skills/cdd-design/` 等）+ `name:` 字段 + 引用面——既有测试目录路径引用（`status-routing-convergence.test.mjs` 按 `SKILLS_ROOT/<name>/SKILL.md` 读 · `writing-plans-spec.test.mjs` 读 `skills/writing-plans/SKILL.md` · `review-loop-clean-tree.test.mjs` 的 skill→review-loop 映射）与 `finishing/SKILL.md:24` 相对路径 `../cli-driven-development/docs/base-branch.md` → `../cdd-dev/docs/base-branch.md` 及跨技能相对引用随改；**plan 阶段以全仓 grep 枚举全部目录/路径引用**（`skills/<dir>` / `..` 相对引用）清单化随行
 - 机械范围：8× SKILL.md `name:` + flow digraph 内 `/osuperpowers:*` 互引 · `/superpowers:*` / `/mattpocock-skills:*` 上游 import **不动** · README 家族 ×4 · CLAUDE.md 提及面 · docs/maintainers 提及面 · 测试 · `pnpm run emit` 重生成（claude/cursor manifests + marketplace + `source.json`）
 - **执行排序（地基纪律）**：改名最早落位——P4 实现首任务即 rename，其后文档 / 测试 / 守卫全部引用新名；旧名只在历史文献（既有 spec/plan/CHANGELOG 正文）留存为史实，live 面零旧名 skill 身份
 - **裁定备注（G3 高维复核）**：3 个 writing-* 合并为 1 个带 mode 的写法**拒**——mode 参数重复 `cdd-design` 已有路由职责（program 状态天然决定产物类型），三个产物是方法论一等概念，合并把「写什么」从 invocation 面挪进内部条件分支，反统一；软散落不建镜像注册面（见 C2）；report-issues 保留为 cdd-report（已是 shipped skill + dogfooding 通道，移除是又一次消费面改动）
 
 **C2 命名机制（G2）** — SKILL.md `name` = 单一事实源，守卫派生断言：
-- **目录扫描与技术**：测试从 `packages/osuperpowers/skills/` 扫描各 SKILL.md front-matter `name:`，得到唯一事实集的「cdd-\* 八名命集」
+- **目录扫描与技术**：测试从 `packages/osuperpowers/skills/` 扫描，**目录名 == 各 SKILL.md front-matter `name:` == cdd-* 八名集合（目录/字段双钉死，不一致即 FAIL）**——单身份由目录与字段两侧同时保证
 - **presentation-surface.test.mjs 延展**：断言 README 技能清单 == 扫描命集（恰 8，全部 cdd-* 前缀）；README 名义表（C3）== lexicon 派生期望；harness 声称 = verified triple（claude / cursor / pi）；保留 `/8 harnesses|Trae|Vibe|Kiro|OpenCode` 外国声称禁令
 - **pi-package.test.mjs 延展**：`pi.skills` glob 解析集 == 扫描命集（包面 pin）
 - **旧名残留 pin（精确保守）**：pin 只针对 osuperpowers 面 skill 身份——SKILL.md name / README 家族 / CLAUDE.md 显式技能引用零旧名；`brainstorming` 作为词在上游 import（`/superpowers:brainstorming`）合法，不做词级禁
@@ -101,8 +101,8 @@ P4 使 osuperpowers 的**技能身份**完成程序级统一：8 技能全量改
 
 ### Acceptance criteria
 
-- `packages/osuperpowers/skills/*/SKILL.md` 全部 `name:` 为 cdd-* 八名集合（`cdd-design` / `cdd-spec` / `cdd-charter` / `cdd-phase` / `cdd-plan` / `cdd-dev` / `cdd-close` / `cdd-report`），flow 内 `/osuperpowers:*` 互引同步为新名，上游 import（`/superpowers:*` / `/mattpocock-skills:*`）不变
-- `.claude-plugin/` / `.cursor-plugin/` / `marketplace/` emit 产物重生成后 `emit:check` 零漂移（产物按 `./skills/` 目录 glob 引用、不含技能名单；改名面在 SKILL.md front-matter 与引用面）
+- `packages/osuperpowers/skills/` 下 8 目录重命名（`brainstorming/`→`cdd-design/` 等），各 `SKILL.md` `name:` == 目录名 == cdd-* 八名集合（`cdd-design` / `cdd-spec` / `cdd-charter` / `cdd-phase` / `cdd-plan` / `cdd-dev` / `cdd-close` / `cdd-report`），目录/字段双钉死守卫生；flow 内 `/osuperpowers:*` 互引同步为新名，上游 import（`/superpowers:*` / `/mattpocock-skills:*`）不变；全仓 grep 零旧目录/旧名 skill 路径引用（历史正文除外）
+- `.claude-plugin/` / `.cursor-plugin/` / `marketplace/` emit 产物重生成（含 `./skills/<dir>` 路径引用，随目录改名重生成）后 `emit:check` 零漂移
 - 文档标识符面（README 家族 + CLAUDE.md + docs/maintainers live 档）零 `cursor-agent`（豁免锚已废，历史正文即史实）
 - 名义映射表 = 数据渲染：README 表与 lexicon markers / registry 数据一致（presentation-surface 漂移守卫绿）；`checkMarkers` 三方一致（markers ↔ detect() ↔ engine-config）绿
 - D5 消费故事交付：README 含 cdd-* 零冲突 by-construction 说明 + inline import harness 条件化语义（claude/cursor 限定引用恒落属主包 · pi 纯 bare name 唯一）

@@ -3,7 +3,7 @@
 **Spec:** [2026-09-27-pi-harness-p4-design.md](docs/kairos/specs/2026-09-27-pi-harness-p4-design.md)
 
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.22](docs/kairos/specs/2026-09-27-pi-harness-overall.md)
-- **Version**: v1.4 · 2026-10-01（backfill-after-discussion：追加 Task 8 engine 静态数据面重组——config/ 家 + resolveResource 唯一路径真相（讨论定案 Q1–Q4）；Task 7 pi prefix 惯用法随 v1.3）
+- **Version**: v1.5 · 2026-10-01（契约收敛定稿：T7/T8 合并同组 `7,8`「harness 契约面成型」——T8 布局（config/ 家 + harness-contract 命名 + resolveResource）与 T7 收敛（detect/install/refs + prefix 派生 + lexicon 纯词表 + checkHarness）同文件集一原子，布局步骤先行；v1.3（T7 pi prefix 值）与 v1.4（T8 布局）的历史表述被其并入）
 - **Depends on**: P4 design v1.4 Approved（`0f279ded` · `4db6049c`，C1–C6）
 - **Base**: develop
 
@@ -33,13 +33,14 @@
 ### Flow Atomicity
 
 - 单任务/合并组原子：闭合前该面测试 + 相关 validate 面全绿；目录×name 双钉 / 三方一致 / 声称字面量 pin 破 = 设计漂移信号，报告 orchestrator 判定而非带伤闭合
-- 串行 dispatch：`--tasks 1,2` → 3 → `--tasks 4,5` → 7 → 8 → 6（T6 = changeset + validate 终验收尾、实现任务全结束后才跑；T1/T2 与 T4/T5 各为同一原子单位；T7/T8 独立单例组）
+- 串行 dispatch：`--tasks 1,2` → 3 → `--tasks 4,5` → `--tasks 7,8` → 6（T6 = changeset + validate 终验收尾、实现任务全结束后才跑；T1/T2 与 T4/T5 与 T7/T8 各自同一原子单位——T7/T8 一原子内布局步骤先行（git mv + resolveResource）再契约收敛）
 - **T1/T2 必须同组**：改名面改动立即使 emit 产物 stale——`.github/ISSUE_TEMPLATE/*.yml`（emit-checked）数据源 `templates/report/issue-body.json` 技能选项含旧名，issue-body.json 改名后不重生成即漂移，分开 dispatch 中间态 emit:check 全链红（`./skills/<dir>` 键说法不成立——claude/cursor plugin manifests 的 `skills` = 常数 glob `"./skills/"` 相对 contentRoot，改名不改其内容；改名分步提交时 checkAnatomy/树守卫同样红）；**v1.2 拓展**：改名面含包身份（`osuperpowers` → `kairos`，source.json name/contentRoot 随 emit）与 workspace 根（`.osuperpowers` → `.kairos`，engine-config 单源 + engine dev:stub 重写 + 锁文件重写）——全部折入同原子单位
 - **T4/T5 必须同组**：README 铺设即破既有声称 pin（presentation-surface 的 pair 声称面），pin 延展必须与铺设同时闭合
+- **T7/T8 必须同组（v1.5）**：契约文件（harness-contract / contract-lexicon / config/schema）**布局与内容同一文件集**——分开则同一批文件两次触改（先搬一次再改一次）+ 双轮 review/fix 翻倍、中间态 = 无意义的纯搬移里程碑；新 schema 落 T8 之家、T7 内容在最终家写作，一原子内天然消解顺序依赖（布局步骤先行）
 
 ### 顺序原则
 
-- T1/T2（改名原子单位：目录 + name + 引用 + 测试文件名 + 字面量 + emit 重生成）→ T3（markers 数据 + checkMarkers guard）→ T4/T5（README 铺设 + pin 延展，名义表消耗 T3 markers 数据）→ T7（pi 行 prefix 值修正 + pin）→ T8（engine 静态数据面重组：config/ 家 + resolveResource）→ T6（changeset + validate 终验收尾）
+- T1/T2（改名原子单位：目录 + name + 引用 + 测试文件名 + 字面量 + emit 重生成）→ T3（markers 数据 + checkMarkers guard）→ T4/T5（README 铺设 + pin 延展，名义表消耗 T3 markers 数据）→ T7/T8（harness 契约面成型：config/ 布局 + 契约收敛一原子，布局步骤先行）→ T6（changeset + validate 终验收尾）
 - T1 必为首：全仓后续引用全用新名；T3 先于 T4：名义表渲染依赖 `markers` 数据就位；T4 先于 T5（同组内）：pin 断言 README 产物
 
 ### 仓库纪律
@@ -151,29 +152,30 @@
 - **验收**: 两个 changeset 文件在 `.changeset/` 且 bump 类型正确（kairos `major` / cdd-engine `patch`，含 manifest-pin 包字段重定向）；`pnpm run validate` ALL PASS；`pnpm run precommit` 绿；四表回填一致（P4 收口 claim 归本 plan 提交后的 closeout，见注）
 - **注**: 版本单源 `package.json` → emit 重 stamp（Version PR 流程承接 CHANGELOG）；P4 closeout 四表回填（phase spec / plan 列 → Done + overall change-history 行）在后续 writing-plans 收口 / finishing 流程执行，非本 plan 任务
 
-### Task 7: pi 行 prefix 惯用法修正（harness-registry + engine pin；独立单例组）
+### Task 7: harness 契约收敛（registry 唯一契约源 + lexicon 纯词表 + checkHarness + 文本/渲染双形态；与 Task 8 同组 dispatch，布局步骤先行）
 
-- **Do**: 修正 `packages/cdd-engine/src/infra/harness-registry.json` pi 行的技能引用惯用法——P3 O2「prefix 镜像 claude/cursor」沿用 `/mattpocock-skills:tdd` 等 namespace 限定引用，但 pi **无命名空间修饰语法**（D5 事实，2026-10-01 官方源码核验：仅 `/skill:<bare-name>`），注入到 prompt 首行的 `/ns:name` 引用对 pi 无语义、技能静默不加载：
-  - **Step 1** pi 行 prefix 改 `/skill:` 惯用法：`implement` / `fix`：`/mattpocock-skills:tdd` → `/skill:tdd`；`review.task` / `review.branch`：`/mattpocock-skills:code-review — single agent, dual axis (standards + spec); parallel sub-agents forbidden` → `/skill:code-review — single agent, dual axis (standards + spec); parallel sub-agents forbidden`（`review.spec` / `review.plan` 纯 URC 措辞无技能引用，不变）
-  - **Step 2** engine 测试 pin（防回归）：新增断言 pi 行注入的 implement/fix prefix 首行 = `/skill:tdd`、review.task/branch 首行 = `/skill:code-review`，且 pi 行 prefix 全值零 namespace 修饰引用（形 `/word:word` 且 word ≠ `skill` 即 FAIL）——落 engine infra 测试面（如 `invoke.dispatch-set.test.ts` / 新建 registry pin 用例）
-  - **Step 3** `pnpm --filter @oscaner-skills/cdd-engine test`（vitest 全绿）+ `pnpm run precommit` 绿
-- **验收**: registry pi 行 prefix 四项全 `/skill:<bare-name>` 惯用法（零 `/ns:name` 残留）；engine vitest 绿含新 pin；`pnpm run precommit` 绿；P3 O2 的「镜像 claude/cursor」历史陈述不 retro-edit
-- **注**: prefix = 注入 prompt 首行的指令文本（invoke.ts `promptArgText` 拼接，registry 单源）；本 T7 = D5 事实落 registry 数据面 + pin 防回归；package bump 由 T6 changeset（cdd-engine patch）覆盖，无需新 changeset
+- **Do**: 把「如何适配宿主」收敛为一张 harness 契约（design C8）——registry 行增 detect/install/refs、prefix 删除改派生、lexicon 瘦身、守卫泛化、SKILL 文本与 README 照数据：
+  - **Step 1（registry 域扩展）** `config/harness-contract.json`（T8 已落位命名）：`detect`（markers 自 lexicon 回迁：claude/cursor/pi 各 env marker + value；engine-config env 白名单恰 4 键不变）· `install`（per-pkg 安装旌：kairos 自装 + superpowers/mattpocock-skills/impeccable 上游——用户 2026-10-01 提供命令，claude/cursor/pi 各列，cursor 列 pending 不虚报）· `refs`（per `<pkg>:<skill>` 引用形态：上游 brainstorming/writing-plans/grilling/finishing-a-development-branch/tdd/code-review + kairos cdd-* 内部互引；claude/cursor 列 = `/ns:name`、pi 列 = `/skill:<bare>`）· **prefix 删除 → 派生**（dispatch-slot → ref key：implement→`mattpocock-skills:tdd`、review.task/branch→`mattpocock-skills:code-review`、review.spec/plan→URC 措辞；pi 行 prefix 自此 = refs 派生——T7 前身 pi-prefix 值修正并入）
+  - **Step 2（lexicon 瘦身）**：删 `harness` 域（ids/clis/markers 全回迁 registry 单源，守卫生效镜像对偶删）；status/stdout/residue/anatomy 不动
+  - **Step 3（checkHarness）**：`ContractLexiconGuard` 新方法——detect ↔ `detect()` 谓词 ↔ engine-config env 白名单（原 checkMarkers 同型，数据家换 registry）· refs ↔ SKILL 文本 26 处双形态 · prefix 派生 ↔ 实际注入值 · install ↔ README 上游依赖表；T3 的 checkMarkers 融入
+  - **Step 4（SKILL 文本 + re-anchor）**：6 个 cdd-* skill 26 处跨技能引用照 refs 填 pi 形（`（pi：/skill:<bare>）`）+ BLOCKED（install superpowers / install mattpocock-skills）行内照 install 填；T3/T4/T5 交付面 re-anchor（presentation-surface 名义表数据源 lexicon→registry、contract-lexicon.test checkMarkers 家换）
+  - **Step 5（README 渲染 + 终验）**：README D5/上游依赖安装段从 install/refs 数据渲染（用户提供的安装命令只此一份）；`pnpm --filter @oscaner-skills/cdd-engine test` + scripts vitest + `pnpm run precommit` 绿
+- **验收**: registry 行 = 唯一 harness 契约（detect/install/refs 在位 · prefix 零字面 · cli 单源）；lexicon harness 域零残留（纯词表）；checkHarness 四向全绿（detect/refs/prefix/install）；SKILL 文本引用全双形态 + 零裸 ns 残留（pin）；README 上游表数据渲染与 install 一致；engine/scripts 测试 + precommit 绿
+- **注**: T3 markers 数据家置换 + T4/T5 pin 源置换 = re-anchor（机械面，测试兜底）；emit 分发注册表（scripts/lib）不并入（Non-goal #2）；cursor 安装列 pending 先例同 cache；changeset 由 T6（cdd-engine patch）覆盖，无需新 changeset
 
-### Task 8: engine 静态数据面重组（config/ 家 + resolveResource 唯一路径真相；独立单例组）
+### Task 8: engine 静态数据面重组（config/ 家 + harness-contract 命名 + resolveResource 唯一路径真相；与 Task 7 同组 dispatch，布局步骤先行）
 
-- **Do**: engine 静态 JSON 收编为二分家（读作数据 → `config/`，渲染/拷贝种子 → `templates/`）+ 唯一路径真相（design C7）：
-  - **Step 1（git mv 落位）**：到 `config/`——`src/infra/contract-lexicon.json` · `src/infra/harness-registry.json` · `templates/engine-config.json` · `templates/template-contract.json`；到 `config/schema/`——`src/documents/schema/*.json`（5：overall/phase-spec/plan/add-phase-protocol/skill-anatomy）+ `templates/schema/*.json`（3：task-handoff/docs-handoff/cache-profile，文件名保留）；`templates/report/issue-body.json` 原地不动（内容种子）；此后 `templates/` 仅内容种子
+- **Do**: engine 静态 JSON 收编为二分家（读作数据 → `config/`，渲染/拷贝种子 → `templates/`）+ 命名消歧 + 唯一路径真相（design C7）——布局先行，T7 契约收敛在其最终家写作：
+  - **Step 1（git mv 落位 + 命名消歧）**：`src/infra/harness-registry.json` → **`config/harness-contract.json`**（engine 侧运行时契约命名；emit 侧 `scripts/lib/harness-registry.ts` 保留原名 = 分发注册表，分界清晰化）；`src/infra/contract-lexicon.json` · `templates/engine-config.json` · `templates/template-contract.json` → `config/`；`src/documents/schema/*.json`（5）+ `templates/schema/*.json`（3，文件名保留）→ `config/schema/`（通用 `schema/<name>` 命名空间——T7 的 harness-contract schema 走通用解析，零专属路径）；`templates/report/issue-body.json` 原地（内容种子）；此后 `templates/` 仅内容种子
   - **Step 2（resolveResource 唯一路径真相）**：`src/infra/resource.ts` 升级 = logical-name → path 决议（logical name 表自定义数据 + dev 树与 dist 打包树同构镜像；registry.ts 的 `dist/resources` 特殊位废除）；engine 六消费点 `path.join(resolvePackageRoot(__dirname), …)` 全收编（config.ts / registry.ts / render/templates.ts / documents/schema.ts / rules/schema.ts / domain/issue-renderer.ts）
   - **Step 3（构建/发布面）**：`package.json#files` 发 `config/` + `templates/`（内容种子）+ `dist/`；构建/打包 config → dist/config 镜像，删除旧 `dist/resources` 分叉与残影
-  - **Step 4（validate pin 数据派生）**：smoke-cdd tarball pin（doc schema / handoff schema / template-contract / registry 位）· residue.ts 路径 pin（task/docs-handoff-schema、templates/schema 扫面、lexicon 数据源）· scripts/lib/contract-lexicon 数据源——全部改从 locator 数据派生（零第二份字面路径）
-  - **Step 5（测试 + 终验）**：engine vitest（schema 加载 / registry 解析 / invoke dispatch-set 路径期望）+ scripts vitest（residue/smoke/lexicon pin）+ kairos 测试路径引用随迁；`pnpm --filter @oscaner-skills/cdd-engine test` + `pnpm run precommit` 绿
-- **验收**: `config/` 落位（读作数据全归位）且 `templates/` 仅含内容种子（issue-body.json）；`resolveResource()` = 唯一路径真相——engine 六消费面零散落 `path.join(pkgRoot, "…")` 硬编码、smoke-cdd / residue / contract-lexicon pin 全数据派生、dev↔dist `config/` 同构（`dist/resources` 零残留）；`package.json#files` 随发 config；engine/scripts 测试 + precommit 全绿；CLI 面与 registry/lexicon 数据语义零变化（纯内部结构，patch 级）
-- **注**: T8 是布局重组，不吞 T7 的 pi prefix 值修正（T7 先行独立）；文件名保留（`schema/` 子目内 `-schema` 词缀冗余 = 显式非变更）；changeset 由 T6（cdd-engine patch）覆盖，无需新 changeset
+  - **Step 4（validate pin 数据派生）**：smoke-cdd tarball pin（doc schema / handoff schema / template-contract / harness-contract 位）· residue.ts 路径 pin（task/docs-handoff-schema、templates/schema 扫面、lexicon 数据源）· scripts/lib/contract-lexicon 数据源——全部改从 locator 数据派生（零第二份字面路径）
+  - **Step 5（测试 + 终验）**：engine vitest（schema 加载 / contract 契约解析 / invoke dispatch-set 路径期望）+ scripts vitest（residue/smoke/lexicon pin）+ kairos 测试路径引用随迁；`pnpm --filter @oscaner-skills/cdd-engine test` + `pnpm run precommit` 绿
+- **验收**: `config/` 落位（读作数据全归位）+ `harness-contract.json` 命名落地（engine 契约 vs emit 分发注册表消歧）+ `templates/` 仅内容种子（issue-body.json）；`resolveResource()` = 唯一路径真相——engine 六消费面零散落 `path.join(pkgRoot, "…")` 硬编码、smoke-cdd / residue / contract-lexicon pin 全数据派生、dev↔dist `config/` 同构（`dist/resources` 零残留）；`package.json#files` 随发 config；engine/scripts 测试 + precommit 全绿；CLI 面与数据语义零变化（纯内部结构 + 命名，patch 级）
+- **注**: 布局先行（本任务）→ T7 契约收敛（同组内后续步骤）；文件名保留（`schema/` 子目内 `-schema` 词缀冗余 = 显式非变更）；changeset 由 T6（cdd-engine patch）覆盖，无需新 changeset
 
 ## Task Groups
 
 - **Task 1, 2**: 改名原子单位——身份全扫（目录 / name / 引用 / 测试文件名 / 字面量 / **包身份 `osuperpowers`→`kairos` / workspace 根 `.osuperpowers`→`.kairos`（engine-config 单源） / 文档树 `docs/osuperpowers/`→`docs/kairos/`，三目录 git mv 零存量**）与 emit 重生成不可分（改名即 ISSUE_TEMPLATE yml 漂移——claude/cursor manifests 的 `skills` = 常数 glob `"./skills/"` 相对 contentRoot、source.json name/contentRoot 随包身份；分开 dispatch 中间态 emit:check 全链红）
 - **Task 4, 5**: README 铺设 + 其 pin——presentation-surface / pi-package pin 断言 README 产物（声称面 / 清单 / 名义表），同原子（README 铺完而 pin 未跟即为红）
-- **Task 7**: pi 行 prefix 惯用法修正（`/skill:<bare-name>`）+ engine pin——D5 事实落 registry 数据面，独立单例组
-- **Task 8**: engine 静态数据面重组——config/ 家（读作数据全归位 + schema 毕业）+ resolveResource 唯一路径真相（dev↔dist 同构）+ templates/ 仅内容种子，独立单例组
+- **Task 7, 8**: harness 契约面成型——config/ 布局（harness-contract 命名 + resolveResource + schema 家）与契约收敛（detect/install/refs + prefix 派生 + lexicon 纯词表 + checkHarness + 文本双形态 + 渲染）同文件集一原子，布局步骤先行（T8→T7 内部序）

@@ -1,6 +1,6 @@
 # Pi Harness P4 — 技能改名 + 命名退役 + 文档·测试·收口（Pi Harness P4: Skill Rename + Naming Retirement + Docs · Tests · Closeout）— Phase Spec
 
-- **Version**: v1.5 · 2026-10-01（backfill-after-discussion 追加 C7：engine 静态数据面重组——config/ 单一数据家 + resolveResource 唯一路径真相；v1.4 kairos 命名全面退役页保留）
+- **Version**: v1.6 · 2026-10-01（契约收敛定稿 C8：registry 唯一 harness 契约 + lexicon 纯词表 + checkHarness + cdd-init-ready 数据面；C7 布局与 C8 收敛同组 atomic，布局先行；v1.5 的 T7 pi prefix / T8 布局历史表述并入）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming → writing-phase-spec)
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.22](2026-09-27-pi-harness-overall.md)
@@ -25,7 +25,7 @@
 
 #### 2.1 目标与范围
 
-P4 使 kairos（前 osuperpowers）的**技能身份**完成程序级统一：8 技能全量改名 `cdd-*`（含 `skills/` 目录名——单身份零债务，user 裁定；三 harness invocation 面同步变，breaking），配套命名机制（SKILL.md `name` 单源 + 目录扫描守卫），并把 pi 身份落到消费者文档面（README 家族矩阵 + `pi install` 段 + 名义映射表数据渲染 + D5 消费故事改写），最后以测试延展 + changeset 收口。现状实证（grilling fact-finder）：README 家族 6 文件全线 pre-pi（零 `pi` / `pi-package` 提及，per-harness 表只有 claude/cursor 两行）；live 面 `cursor-agent` 系 osuperpowers README CDD engine CLI 表行（EN `README.md:72` + zh 镜像 `README.zh-CN.md:74` 同形，共 4 token）；名义映射表任何位置不存在（只有 spec 承诺）；D5 故事零 live 呈现。范围外：engine 运行逻辑（detect / spawn / registry 面）零改动（P3 已闭环）；不合并 engine 与 emit 注册表（Non-goal #2）；不做结构性技能合并（3 个 writing-* 并 1 带 mode——裁定拒，rationale 见 2.2 C1 裁定备注）。**范围增项（v1.5 backfill-after-discussion，user 2026-10-01 拍板）**：engine 静态数据面重组（C7）——散落于 `src/infra/` / `src/documents/schema/` / `templates/` 的配置·注册表·词汇·契约·schema JSON 收编为 `config/` 单一数据家，`templates/` 只留内容渲染种子（`report/issue-body.json`），`resolveResource()` 唯一路径真相（dev 树 ↔ dist 打包树同构、零路径分叉零散落硬编码）；纯内部结构 patch 级（CLI 面 / registry / lexicon 数据语义零变化）。
+P4 使 kairos（前 osuperpowers）的**技能身份**完成程序级统一：8 技能全量改名 `cdd-*`（含 `skills/` 目录名——单身份零债务，user 裁定；三 harness invocation 面同步变，breaking），配套命名机制（SKILL.md `name` 单源 + 目录扫描守卫），并把 pi 身份落到消费者文档面（README 家族矩阵 + `pi install` 段 + 名义映射表数据渲染 + D5 消费故事改写），最后以测试延展 + changeset 收口。现状实证（grilling fact-finder）：README 家族 6 文件全线 pre-pi（零 `pi` / `pi-package` 提及，per-harness 表只有 claude/cursor 两行）；live 面 `cursor-agent` 系 osuperpowers README CDD engine CLI 表行（EN `README.md:72` + zh 镜像 `README.zh-CN.md:74` 同形，共 4 token）；名义映射表任何位置不存在（只有 spec 承诺）；D5 故事零 live 呈现。范围外：engine 运行逻辑（detect / spawn / registry 面）零改动（P3 已闭环）；不合并 engine 与 emit 注册表（Non-goal #2）；不做结构性技能合并（3 个 writing-* 并 1 带 mode——裁定拒，rationale 见 2.2 C1 裁定备注）。**范围增项（v1.5/v1.6 backfill-after-discussion，user 2026-10-01 拍板）**：① engine 静态数据面重组（C7）——配置·注册表·词汇·契约·schema JSON 收编为 `config/` 单一数据家，`templates/` 只留内容渲染种子（`report/issue-body.json`），`resolveResource()` 唯一路径真相（dev 树 ↔ dist 打包树同构、零路径分叉零散落硬编码）；② **harness 契约收敛（C8）**——registry 行增 detect/install/refs、prefix 删除改派生、lexicon 瘦身为纯词表、守卫泛化 `checkHarness`、SKILL 文本与 README 照数据渲染；C7 与 C8 同组 atomic（布局先行，T8 为 T7 提供 config/ 之家），`cdd init` 未来消费同一契约。
 
 #### 2.2 组件
 
@@ -87,7 +87,15 @@ P4 使 kairos（前 osuperpowers）的**技能身份**完成程序级统一：8 
 - **`templates/` 纯净**：仅内容种子（`report/issue-body.json` 渲染出 gh ISSUE_TEMPLATE + `cdd issue render`）
 - **`resolveResource()` 唯一路径真相**：`src/infra/resource.ts` 的 `resolvePackageRoot` 升级为 logical-name → path 决议（logical name 表 = 唯一路径真相，dev 树与 dist 打包树同构镜像）；engine 六消费点 `path.join(resolvePackageRoot(__dirname), …)`（config.ts / registry.ts / render/templates.ts / documents/schema.ts / rules/schema.ts / domain/issue-renderer.ts）全收编；smoke-cdd tarball pin / residue 路径 pin / scripts/lib/contract-lexicon 数据源全改为**从 locator 数据派生**（零第二份字面路径）
 - 构建/发布面：`package.json#files` 发 `config/` + `templates/`（内容种子）+ `dist/`；构建把 config 镜像到 dist/config，删除旧 `dist/resources` 分叉
-- 范围口径：纯内部结构重组——消费者 CLI 面零变化、registry/lexicon 数据语义零变化（T7 pi prefix 值修正先行且独立，v1.5 不动其身）；cdd-engine patch 级（T6 changeset 覆盖，无需新 changeset）；文件名保留（`schema/` 子目内 `-schema` 词缀冗余为显式非变更）
+- 范围口径：纯内部结构重组——消费者 CLI 面零变化、registry/lexicon 数据语义零变化；与 C8 契约收敛（T7）**同组 atomic**（布局先行，本 C7 为 C8 提供 config/ 之家与 resolveResource 底座）；cdd-engine patch 级（T6 changeset 覆盖，无需新 changeset）；文件名保留（`schema/` 子目内 `-schema` 词缀冗余为显式非变更）
+
+**C8 harness 契约收敛（v1.6 backfill-after-discussion，user 2026-10-01）** — 把「如何适配宿主」收敛为一张契约：
+- **registry = 唯一 harness 契约**：行增 `detect`（markers 自 lexicon 回迁：claude/cursor/pi 各 env marker + value，engine-config env 白名单恰 4 键不变）· `install`（per-pkg 安装旌：kairos 自装 + superpowers / mattpocock-skills / impeccable 上游——用户 2026-10-01 提供命令，claude/cursor/pi 各列；cursor 列 pending 同 cache 先例不虚报）· `refs`（per `<pkg>:<skill>` 引用形态：上游 brainstorming/writing-plans/grilling/finishing-a-development-branch/tdd/code-review + kairos cdd-* 内部互引；claude/cursor = `/ns:name`，pi = `/skill:<bare>`——D5 事实）· **prefix 删除 → 派生**（dispatch-slot → ref key；pi 行 prefix = refs 派生自动 `/skill:` 正确——T7 前身 pi-prefix 修正并入）
+- **lexicon 瘦身为纯词表**：删 `harness` 域（ids/clis/markers 全回迁 registry 单源——ids/clis 是 guard 维持的镜像对偶，删 = 净简化）；status/stdout/residue/anatomy 不动
+- **守卫泛化 `checkHarness`**：detect ↔ `detect()` 谓词 ↔ engine-config env 白名单 · refs ↔ SKILL 文本 26 处双形态 · prefix 派生 ↔ 实际注入 · install ↔ README 上游依赖表——markers 三方一致只是其一实例（checkMarkers 融入）
+- **面向未来**：`cdd init`（未来 phase，不在 P4）消费同一契约——detect 宿主 → install 按行执行 → scaffold；P4 只落数据 + Schema + 守卫 + 渲染，init 子命令 + charter zero-new-subcommands 例外修订归 init 自己的 phase
+- **re-anchor 面**：T3 markers 数据家换（lexicon → registry.detect）+ T4/T5 pin 源换（presentation-surface 名义表 / contract-lexicon.test checkMarkers）——机械面，测试兜底
+- **边界**：emit 分发注册表（`scripts/lib/harness-registry.ts`）不并入（Non-goal #2）——分发产物构建面 vs 运行时契约面，C7 以 `harness-contract.json` 命名消歧
 
 #### 2.3 数据流
 
@@ -121,7 +129,8 @@ P4 使 kairos（前 osuperpowers）的**技能身份**完成程序级统一：8 
 - `pnpm run precommit` 与 `pnpm run validate` 全块全绿（零新 validate step；ci-validate 编排断言零新 step，assertion-set 随 token 扫改名）
 - kairos changeset（major）+ cdd-engine changeset（patch）已建（pending manifest-pin 包字段重定向 `@oscaner-skills/kairos`）；CHANGELOG 记录由 Version PR 流程承接
 - P4 closeout 时四表回填一致（phase spec / plan 列 → Done，change-history v1.22+ 行）
-- **engine 静态数据面重组（v1.5 增）**：`config/` 落位（读作数据全归位——engine-config / harness-registry / contract-lexicon / template-contract + `schema/` 子目全部 JSON Schema：doc 5 / handoff 2 / cache-profile）且 `templates/` 仅含内容种子（issue-body.json）；`resolveResource()` = 唯一路径真相——engine 六消费面零散落 `path.join(pkgRoot, "…")` 硬编码、smoke-cdd / residue / contract-lexicon pin 全从 locator 数据派生、dev 树 ↔ dist 打包树 `config/` 同构（旧 `dist/resources` 零残留）；`package.json#files` 随发 config；engine/scripts 测试 + precommit 全绿（T6 终验兜）
+- **engine 静态数据面重组（v1.5 增）**：`config/` 落位（读作数据全归位——engine-config / harness-contract / contract-lexicon / template-contract + `schema/` 子目全部 JSON Schema：doc 5 / handoff 2 / cache-profile）且 `templates/` 仅含内容种子（issue-body.json）；`resolveResource()` = 唯一路径真相——engine 六消费面零散落 `path.join(pkgRoot, "…")` 硬编码、smoke-cdd / residue / contract-lexicon pin 全从 locator 数据派生、dev 树 ↔ dist 打包树 `config/` 同构（旧 `dist/resources` 零残留）；`package.json#files` 随发 config；engine/scripts 测试 + precommit 全绿（T6 终验兜）
+- **harness 契约收敛（v1.6 增）**：registry = 唯一 harness 契约（行含 detect/install/refs · prefix 零字面改派生 · cli 单源）；lexicon 纯词表（harness 域零残留）；`checkHarness` 四向全绿（detect ↔ 谓词 ↔ 白名单 · refs ↔ SKILL 文本 26 处双形态 · prefix 派生 ↔ 注入 · install ↔ README 渲染）；SKILL 文本引用全双形态 + 零裸 `/ns:name` 残留（pin）；README 上游依赖表 = install/refs 数据渲染零手写（用户提供命令只此一份）；T3/T4/T5 交付面 re-anchor 全绿（presentation-surface 名义表数据源 lexicon→registry · checkMarkers 家换）；`cdd init` 就绪（未来 phase 消费同一契约）
 
 ## Section 3: Deviations from overall
 

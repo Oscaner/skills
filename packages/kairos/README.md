@@ -86,6 +86,19 @@ The CDD engine ships as the standalone `@oscaner-skills/cdd-engine` package; its
 
 kairos ships every skill as `cdd-*`, so the family coexists with upstream plugins without conflict by construction: pi's flat namespace has no namespace-qualification syntax, and the unique `cdd-*` bare names keep every kairos skill unambiguous alongside any upstream plugin. Inline skill references are harness-conditional — Claude Code and Cursor Agent support plugin-qualified imports like `/superpowers:*`, which always resolve to the owning package, while pi invokes bare `/skill:<name>` only, where `cdd-*` uniqueness guarantees an unambiguous target.
 
+### Upstream dependency install
+
+The orchestrator skills import upstream flows as their session baseline (superpowers / mattpocock-skills / impeccable). Install them per harness from their own publishers — kairos installs through each harness's own channel:
+
+| Package | Claude Code | Cursor Agent | Pi |
+|---------|-------------|--------------|-----|
+| kairos | `/plugin marketplace add oscaner/skills → /plugin install kairos@oscaner-skills` | pending | `pi install npm:@oscaner-skills/kairos` |
+| superpowers | pending | pending | pending |
+| mattpocock-skills | pending | pending | pending |
+| impeccable | pending | pending | pending |
+
+Commands marked `pending` install from the plugin's official channel (see the repository [Plugins](../README.md#plugins) table — each upstream plugin links its GitHub home, where the current install command is published).
+
 ## Docs for maintainers
 
 Repository-internal maintenance docs for this monorepo's developers (not shipped with the plugin). The [docs/maintainers index](../../docs/maintainers/README.md) links the numbered family — e.g. [program experience](../../docs/maintainers/04-program-experience.md) and the [template doctrine](../../docs/maintainers/01-template-doctrine.md) that governs emit-generated products.

@@ -1,6 +1,6 @@
 # Template Doctrine
 
-> **Scope:** every template-shaped content — text that is data-izable, referenced by multiple consumers, and drift-prone. Large to small: `template-contract.json`, `harness-registry.json`, `issue-body.json` and `.github/ISSUE_TEMPLATE/*.yml`, down to emit-derived marketplace manifests (`.claude-plugin/`, `.cursor-plugin/`, `marketplace/source.json`). This is the methodological contract (AC12).
+> **Scope:** every template-shaped content — text that is data-izable, referenced by multiple consumers, and drift-prone. Large to small: `template-contract.json`, `harness-contract.json`, `issue-body.json` and `.github/ISSUE_TEMPLATE/*.yml`, down to emit-derived marketplace manifests (`.claude-plugin/`, `.cursor-plugin/`, `marketplace/source.json`). This is the methodological contract (AC12).
 
 The single-source-of-truth convention for template body text — cited whenever a new skill introduces template body text or an emit-derived product needs drift guarding.
 
@@ -83,13 +83,13 @@ The segment attribute (C1) is the cache contract's landing spot: the shell (`## 
 
 Skill document templates additionally bake in the program's experience asset (see `04-program-experience.md`): four-table sync mechanics, clean-tree prerequisite, session-call semantics, backfill-as-version, no-claim-without-enforcement, anti-residue guards, capability claims.
 
-> **Doc-structure templates are canonical JSON Schemas** in `packages/cdd-engine/src/documents/schema/` (surface: `cdd schema get <type>` reads them straight to stdout); skills consume them via `read-schema`, and the engine's `docContractValidate` asserts the same tokens. `base-branch.md` is methodology only.
+> **Doc-structure templates are canonical JSON Schemas** in `packages/cdd-engine/config/schema/` (surface: `cdd schema get <type>` reads them straight to stdout); skills consume them via `read-schema`, and the engine's `docContractValidate` asserts the same tokens. `base-branch.md` is methodology only.
 
 ## 10. Exemplars
 
 | Template form | canonical (single source) | renderer / runtime consumer | derived products | guard |
 |---|---|---|---|---|
-| Harness routing | `harness-registry.json` | cdd engine runtime (`src/dispatch/{task.ts,docs.ts,review-loop.ts}` · `src/infra/registry.ts`) | runtime harness routing (no emit product) | single-source JSON + engine validation · row keys = `{claude, cursor, pi}` (the G1 identity set); the external harness binary name surfaces only as a `cli` data value |
+| Harness routing | `harness-contract.json` | cdd engine runtime (`src/dispatch/{task.ts,docs.ts,review-loop.ts}` · `src/infra/registry.ts`) | runtime harness routing (no emit product) | single-source JSON + engine validation · row keys = `{claude, cursor, pi}` (the G1 identity set); the external harness binary name surfaces only as a `cli` data value |
 | Review contract | `template-contract.json#reviews` | `src/render/templates.ts` runtime + the URC prose in each orchestrator skill's `## Invariants` | cdd review / fix template rendering (runtime) | engine colocated tests + single-source config |
 | Finding/report body | `templates/report/issue-body.json` | `IssueReportRenderer` (`cdd issue render`: stdin JSON → aggregate body → stdout) · `renderYml` (`scripts/emit/render-yaml.mjs`, emit-only) | `.github/ISSUE_TEMPLATE/*.yml` (emit) + cdd-report aggregate body (runtime) | engine colocated tests + `issue-templates.test.ts` two-stage round-trip + `emit:check` |
 | Issue form yml | same `formFieldDefs` | `renderYml` in `scripts/emit/render-yaml.mjs` (emit-only — wired into emitAll) | `.github/ISSUE_TEMPLATE/bug_report.yml` / `enhancement.yml` | `emit:check` drift + single-source `Object.keys` form-name assertion |

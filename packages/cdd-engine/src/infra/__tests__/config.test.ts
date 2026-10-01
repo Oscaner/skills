@@ -14,11 +14,11 @@ const configLoader = new ConfigLoader();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ENGINE = path.resolve(__dirname, "..", "..", "..");
-const TEMPLATES = path.join(ENGINE, "templates");
+const CONFIG_DIR = path.join(ENGINE, "config");
 
 describe("engine-config 单点消费（config.ts 分区段加载）", () => {
   it("loadEngineConfig 返回 engine-config.json 原值（三区段齐备：contextContract / failureCategories / handoffNamespace）", () => {
-    const onDisk = JSON.parse(readFileSync(path.join(TEMPLATES, "engine-config.json"), "utf8"));
+    const onDisk = JSON.parse(readFileSync(path.join(CONFIG_DIR, "engine-config.json"), "utf8"));
     const cfg = configLoader.engineConfig();
     expect(cfg).toEqual(onDisk);
     // The pinned anchors below (T9 budget-dimension unification: the defaults are keyed by
@@ -46,12 +46,12 @@ describe("engine-config 单点消费（config.ts 分区段加载）", () => {
       "failure-categories.json",
       "handoff-namespace.json",
     ]) {
-      expect(existsSync(path.join(TEMPLATES, old)), old).toBe(false);
+      expect(existsSync(path.join(CONFIG_DIR, old)), old).toBe(false);
     }
   });
 
   it("engine-config.json 是运行时配置唯一单源：templates/ 下无第二个 failure-categories/handoff-namespace 家族文件", () => {
-    expect(existsSync(path.join(TEMPLATES, "engine-config.json"))).toBe(true);
-    expect(existsSync(path.join(TEMPLATES, "context-contract.json"))).toBe(false);
+    expect(existsSync(path.join(CONFIG_DIR, "engine-config.json"))).toBe(true);
+    expect(existsSync(path.join(CONFIG_DIR, "context-contract.json"))).toBe(false);
   });
 });

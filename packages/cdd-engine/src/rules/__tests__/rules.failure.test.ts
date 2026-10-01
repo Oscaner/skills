@@ -17,7 +17,7 @@ const failureResolver = new FailureResolver();
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CAT: { categories: Array<Record<string, unknown>> } = JSON.parse(
-  readFileSync(path.join(HERE, "..", "..", "..", "templates", "engine-config.json"), "utf8"),
+  readFileSync(path.join(HERE, "..", "..", "..", "config", "engine-config.json"), "utf8"),
 ).failureCategories;
 const CATS = CAT.categories;
 

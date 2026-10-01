@@ -1,6 +1,6 @@
 ---
 name: cdd-plan
-description: Independent plan-writing orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:writing-plans flow inline as this session's baseline, backfills the design spec on substantive drift before authoring, runs the cdd plan review-fix loop, commits on approval, and hands off to cdd-dev. Callable standalone; invoke as kairos:cdd-plan.
+description: Independent plan-writing orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:writing-plans（pi：/skill:writing-plans） flow inline as this session's baseline, backfills the design spec on substantive drift before authoring, runs the cdd plan review-fix loop, commits on approval, and hands off to cdd-dev. Callable standalone; invoke as kairos:cdd-plan（pi：/skill:cdd-plan）.
 ---
 
 # Kairos CDD-Plan
@@ -27,7 +27,7 @@ flowchart TD
 
 ### `run-cdd-plan-session`
 
-- **Do**: Import `/superpowers:writing-plans` — its flow is consumed inline as this session's baseline (loading an upstream skill imports its flow once; no second spawn) to plan the approved spec; it lands the draft plan (session-call; the upstream document is not read)
+- **Do**: Import `/superpowers:writing-plans`（pi：/skill:writing-plans） — its flow is consumed inline as this session's baseline (loading an upstream skill imports its flow once; no second spawn) to plan the approved spec; it lands the draft plan (session-call; the upstream document is not read)
 - **Read**: nothing before the import; the import plans from the approved spec and lands the draft plan
 - **Exit**: Import landed → `backfill-design`; upstream missing → BLOCKED (install superpowers)
 - **Fail**: Upstream superpowers plugin missing → BLOCKED: install superpowers (no downgrade, no skip, no inline restatement)
@@ -69,7 +69,7 @@ flowchart TD
 
 ### `handoff-cdd-dev`
 
-- **Do**: Prepare the handoff to `/kairos:cdd-dev` — its `cdd` implement → review → fix orchestration takes over to implement the approved plan (flow handoff, not a session spawn; the cdd chain drives the work)
+- **Do**: Prepare the handoff to `/kairos:cdd-dev`（pi：/skill:cdd-dev） — its `cdd` implement → review → fix orchestration takes over to implement the approved plan (flow handoff, not a session spawn; the cdd chain drives the work)
 - **Read**: The committed plan file
 - **Exit**: Handoff executed → flow ends for this skill
 - **Fail**: Target skill missing → BLOCKED (install kairos)

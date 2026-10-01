@@ -1,6 +1,6 @@
 ---
 name: cdd-charter
-description: Independent overall-spec writer -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:brainstorming (writing-spec) design flow inline as this session's baseline, reads the canonical overall spec schema, authors the program charter to docs/kairos/specs/, runs the cdd spec review-fix loop, commits on approval, and hands off to /compact or cdd-design [Px]. Callable standalone.
+description: Independent overall-spec writer -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:brainstorming（pi：/skill:brainstorming） (writing-spec) design flow inline as this session's baseline, reads the canonical overall spec schema, authors the program charter to docs/kairos/specs/, runs the cdd spec review-fix loop, commits on approval, and hands off to /compact or cdd-design [Px]. Callable standalone.
 ---
 
 # Kairos CDD-Charter
@@ -31,13 +31,13 @@ flowchart TD
 | scope changed? | N/A |
 | sync-overall | N/A — this skill is the overall writer; no parent overall to sync |
 | review loop (D/E/F) | shared shape — no delta (only the `--spec <path>` target differs: this skill's own product) |
-| handoff-spec | `handoff-compact-or-cdd-design` — /compact, or prepare the handoff to `/kairos:cdd-design [Px program]` |
+| handoff-spec | `handoff-compact-or-cdd-design` — /compact, or prepare the handoff to `/kairos:cdd-design [Px program]`（pi：/skill:cdd-design） |
 
 ## Node Definitions
 
 ### `run-writing-spec-session`
 
-- **Do**: Import `/superpowers:brainstorming` (writing-spec import) — its flow is consumed inline as this session's baseline; it lands the design decisions (including the program charter and phase decomposition) this overall spec will capture
+- **Do**: Import `/superpowers:brainstorming`（pi：/skill:brainstorming） (writing-spec import) — its flow is consumed inline as this session's baseline; it lands the design decisions (including the program charter and phase decomposition) this overall spec will capture
 - **Read**: nothing before the import; the import lands the design
 - **Exit**: Import landed → `read-schema`; upstream missing → BLOCKED (install superpowers)
 - **Fail**: Upstream superpowers plugin missing → BLOCKED: install superpowers (no downgrade, no skip, no inline restatement)
@@ -79,7 +79,7 @@ flowchart TD
 
 ### `handoff-compact-or-cdd-design`
 
-- **Do**: Run /compact to collapse the completed overall session, or prepare the handoff to `/kairos:cdd-design [Px program]` — its flow is consumed inline as this session's baseline to start the next phase's full brainstorm → plan → dev cycle
+- **Do**: Run /compact to collapse the completed overall session, or prepare the handoff to `/kairos:cdd-design [Px program]`（pi：/skill:cdd-design） — its flow is consumed inline as this session's baseline to start the next phase's full brainstorm → plan → dev cycle
 - **Read**: The committed overall spec
 - **Exit**: Handoff executed → flow ends for this skill
 - **Fail**: Handing a phase decided by the overall straight to cdd-plan (skipping phase-level cdd-design) → violates the overall boundary rule

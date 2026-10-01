@@ -1,4 +1,4 @@
-// engine/tests/registry.test.mjs — T1: harness-registry 模块单测（Node port）。
+// engine/tests/registry.test.mjs — T1: harness-contract module unit tests (Node port).
 // 从 cdd-common-functions.test.sh（cdd_check_harness / _cdd_registry_field）与
 // registry-schema.test.sh 移植行为断言。ship gate 语义：
 //   unknown / not-supported → blocked（exitCode 1）；CLI 存在校验失败 → cli-missing（exitCode 2）。
@@ -9,19 +9,21 @@ import { REG_PATH, Registry } from "../registry.ts";
 
 const registry = new Registry();
 
-it("loadRegistry: 读取 3 harness（claude/cursor/pi）", () => {
+it("loadRegistry: 读取 3 harness（claude/cursor/pi）+ 顶层 dispatch/refs 契约表", () => {
   const reg = registry.load(REG_PATH);
-  expect(Object.keys(reg).length).toBe(3);
   for (const name of ["claude", "cursor", "pi"]) {
     expect(reg[name]).toBeTruthy();
   }
+  expect(reg.dispatch).toBeTruthy();
+  expect(reg.refs).toBeTruthy();
 });
 
 // The harness selection/probe/install layer is deleted, leaving the registry converged on
 // the three row keys claude/cursor/pi (cli keeps the external binary names).
 it("registry 收敛三键 claude/cursor/pi", () => {
   const reg = registry.load(REG_PATH);
-  expect(Object.keys(reg).sort()).toEqual(["claude", "cursor", "pi"]);
+  const rows = Object.keys(reg).filter((k) => !["_doc", "dispatch", "refs"].includes(k));
+  expect(rows.sort()).toEqual(["claude", "cursor", "pi"]);
 });
 
 // G1 bidirectional pin (reverse): the exact name-set assertion above is load-bearing — a foreign
@@ -30,7 +32,8 @@ it("registry 收敛三键 claude/cursor/pi", () => {
 it("registry 恰三键反向：foreign key 入 registry → 恰三键 pin 抓负（G1 双向钉死）", () => {
   const reg = registry.load(REG_PATH);
   const junk = { ...reg, gemini: {} };
-  expect(Object.keys(junk).sort()).not.toEqual(["claude", "cursor", "pi"]);
+  const rows = Object.keys(junk).filter((k) => !["_doc", "dispatch", "refs"].includes(k));
+  expect(rows.sort()).not.toEqual(["claude", "cursor", "pi"]);
 });
 
 it("checkHarness: claude 通过 ship gate（dryRun 跳过 PATH 校验）", () => {
@@ -100,80 +103,105 @@ it("registryField: 字段读取 + 缺失回退空串", () => {
   );
   // Enh P: task_review_prefix 泛化为 per-mode prefix/suffix（Enh P 后已删除）
   expect(registry.field(reg, "claude", "task_review_prefix")).toBe("");
-  // The prefix expands to operation×type (implement/review×{task,branch,spec,plan}/fix, /-style) (Task 5).
-  expect(registry.field(reg, "claude", "prefix")).toEqual({
-    implement: "/mattpocock-skills:tdd",
-    review: {
-      task: expect.stringMatching(/^\/mattpocock-skills:code-review.*single agent/),
-      branch: expect.stringMatching(/^\/mattpocock-skills:code-review/),
-      spec: expect.stringMatching(
-        /^Follow URC: single-cycle, lens-tagged findings \(completeness\/consistency\/clarity\)$/,
-      ),
-      plan: expect.stringMatching(
-        /^Follow URC: single-cycle, lens-tagged findings \(completeness\/decomposition\/buildability\)$/,
-      ),
-    },
-    fix: "/mattpocock-skills:tdd",
-  });
-  expect(registry.field(reg, "claude", "suffix")).toEqual({});
+  // C8: the prefix is no longer row data — the row carries neither `prefix` nor `suffix`; the
+  // dispatch prefix derives from the contract's dispatch + refs tables (derivePrefixMap).
+  expect(registry.field(reg, "claude", "prefix")).toBe("");
+  expect(registry.field(reg, "claude", "suffix")).toBe("");
   expect(registry.field(reg, "claude", "no-such-field")).toBe("");
   expect(registry.field(reg, "no-such-harness", "cli")).toBe("");
   expect(registry.field(reg, "gemini", "invoke")).toBe(""); // gemini is not a registry key after the convergence, so missing fields fall back to an empty string (T2)
 });
 
-it("resolveInjection: claude implement/fix → /mattpocock-skills:tdd", () => {
+it("deriveInjection: claude implement/fix → /mattpocock-skills:tdd（C8 派生，非行数据）", () => {
   const reg = registry.load(REG_PATH);
-  expect(registry.resolveInjection(reg.claude, "implement")).toBe("/mattpocock-skills:tdd");
-  expect(registry.resolveInjection(reg.claude, "fix")).toBe("/mattpocock-skills:tdd");
+  expect(registry.deriveInjection(reg, "claude", "implement")).toBe("/mattpocock-skills:tdd");
+  expect(registry.deriveInjection(reg, "claude", "fix")).toBe("/mattpocock-skills:tdd");
 });
 
-it("resolveInjection: claude review×type — task/branch → code-review(单 agent)；spec/plan → URC 指针", () => {
+it("deriveInjection: pi implement/fix → /skill:tdd（T7 前身 pi-prefix 修正——refs 派生自动 /skill:）", () => {
   const reg = registry.load(REG_PATH);
-  expect(registry.resolveInjection(reg.claude, "review", "task")).toContain("code-review");
-  expect(registry.resolveInjection(reg.claude, "review", "task")).toContain("single agent");
-  expect(registry.resolveInjection(reg.claude, "review", "branch")).toContain("code-review");
-  expect(registry.resolveInjection(reg.claude, "review", "spec")).toMatch(
+  expect(registry.deriveInjection(reg, "pi", "implement")).toBe("/skill:tdd");
+  expect(registry.deriveInjection(reg, "pi", "fix")).toBe("/skill:tdd");
+});
+
+it("deriveInjection: claude review×type — task/branch → code-review(单 agent)；spec/plan → URC 指针", () => {
+  const reg = registry.load(REG_PATH);
+  expect(registry.deriveInjection(reg, "claude", "review", "task")).toContain(
+    "/mattpocock-skills:code-review",
+  );
+  expect(registry.deriveInjection(reg, "claude", "review", "task")).toContain("single agent");
+  expect(registry.deriveInjection(reg, "claude", "review", "branch")).toMatch(
+    /^\/mattpocock-skills:code-review/,
+  );
+  expect(registry.deriveInjection(reg, "claude", "review", "spec")).toMatch(
     /^Follow URC: single-cycle, lens-tagged findings \(completeness\/consistency\/clarity\)$/,
   );
-  expect(registry.resolveInjection(reg.claude, "review", "plan")).toMatch(
+  expect(registry.deriveInjection(reg, "claude", "review", "plan")).toMatch(
     /^Follow URC: single-cycle, lens-tagged findings \(completeness\/decomposition\/buildability\)$/,
   );
 });
 
-it("resolveInjection: 全 registry harness（claude/cursor/pi）同 claude set 非空", () => {
+it("deriveInjection: pi review 注入走 /skill: 形（code-review 单 agent + URC 措辞 harness 无关）", () => {
+  const reg = registry.load(REG_PATH);
+  expect(registry.deriveInjection(reg, "pi", "review", "task")).toContain("/skill:code-review");
+  expect(registry.deriveInjection(reg, "pi", "review", "branch")).toContain("/skill:code-review");
+  expect(registry.deriveInjection(reg, "pi", "review", "spec")).toMatch(
+    /^Follow URC: single-cycle, lens-tagged findings/,
+  );
+  expect(registry.deriveInjection(reg, "pi", "review", "plan")).toMatch(
+    /^Follow URC: single-cycle, lens-tagged findings/,
+  );
+});
+
+it("deriveInjection: 全 registry harness（claude/cursor/pi）注入集非空（pi 列恒 /skill:）", () => {
   const reg = registry.load(REG_PATH);
   for (const h of Object.keys(reg)) {
-    expect(registry.resolveInjection(reg[h], "implement")).toBe("/mattpocock-skills:tdd");
-    expect(registry.resolveInjection(reg[h], "fix")).toBe("/mattpocock-skills:tdd");
-    expect(registry.resolveInjection(reg[h], "review", "task")).toContain("code-review");
-    expect(registry.resolveInjection(reg[h], "review", "branch")).toContain("code-review");
-    expect(registry.resolveInjection(reg[h], "review", "spec")).toMatch(
+    if (h === "_doc" || h === "dispatch" || h === "refs") continue;
+    const isPi = h === "pi";
+    const impl = isPi ? "/skill:tdd" : "/mattpocock-skills:tdd";
+    expect(registry.deriveInjection(reg, h, "implement")).toBe(impl);
+    expect(registry.deriveInjection(reg, h, "fix")).toBe(impl);
+    const reviewTask = isPi
+      ? "/skill:code-review — single agent, dual axis (standards + spec); parallel sub-agents forbidden"
+      : "/mattpocock-skills:code-review — single agent, dual axis (standards + spec); parallel sub-agents forbidden";
+    expect(registry.deriveInjection(reg, h, "review", "task")).toBe(reviewTask);
+    expect(registry.deriveInjection(reg, h, "review", "branch")).toBe(reviewTask);
+    expect(registry.deriveInjection(reg, h, "review", "spec")).toMatch(
       /^Follow URC: single-cycle, lens-tagged findings/,
     );
-    expect(registry.resolveInjection(reg[h], "review", "plan")).toMatch(
+    expect(registry.deriveInjection(reg, h, "review", "plan")).toMatch(
       /^Follow URC: single-cycle, lens-tagged findings/,
     );
-    // 同 set 非空：implement/review.task/review.branch/fix 四个注入点都有值
+    // the four injection points all resolve to a non-empty value
     expect(
       [
-        registry.resolveInjection(reg[h], "implement"),
-        registry.resolveInjection(reg[h], "fix"),
-        registry.resolveInjection(reg[h], "review", "task"),
-        registry.resolveInjection(reg[h], "review", "branch"),
+        registry.deriveInjection(reg, h, "implement"),
+        registry.deriveInjection(reg, h, "fix"),
+        registry.deriveInjection(reg, h, "review", "task"),
+        registry.deriveInjection(reg, h, "review", "branch"),
       ].filter(Boolean).length,
     ).toBe(4);
   }
 });
 
+it("checkHarness stamps the derived prefix map（resolveInjection 消费签名不变）", () => {
+  const reg = registry.load(REG_PATH);
+  const entry = registry.checkHarness(reg, "claude", { dryRun: true });
+  expect(entry.prefix.implement).toBe("/mattpocock-skills:tdd");
+  expect(registry.resolveInjection(entry, "implement")).toBe("/mattpocock-skills:tdd");
+  const piEntry = registry.checkHarness(reg, "pi", { dryRun: true });
+  expect(registry.resolveInjection(piEntry, "implement")).toBe("/skill:tdd");
+  expect(registry.resolveInjection(piEntry, "review", "task")).toContain("/skill:code-review");
+});
+
 it("resolveInjection: 兜底 —— 缺省 prefix/op/type 回退空串，legacy 扁平 mode 键直接命中", () => {
   expect(registry.resolveInjection({}, "implement")).toBe("");
+  // C8: a raw (unstamped) row carries no prefix → empty (the derived prefix rides the
+  // checkHarness entry; the deleted-data fallback shape stays empty).
   expect(registry.resolveInjection({ prefix: {} }, "implement")).toBe("");
   expect(registry.resolveInjection({ prefix: { review: { task: "/x" } } }, "review")).toBe(""); // no type → empty
-  expect(registry.resolveInjection({ prefix: { review: {} } }, "review", "task")).toBe(""); // the type lacks that subkey → empty
-  // legacy 扁平 mode 键兜底：未迁移 registry / CDD_REGISTRY_PATH 覆盖仍直接命中
-  expect(
-    registry.resolveInjection({ prefix: { "legacy-review": "/legacy-review" } }, "legacy-review"),
-  ).toBe("/legacy-review");
-  // 新 registry 不再有扁平旧 mode 键 → 空
+  expect(registry.resolveInjection({ prefix: { review: { task: "/x" } } }, "review", "spec")).toBe(
+    "",
+  ); // the type lacks that subkey → empty
   expect(registry.resolveInjection(registry.load(REG_PATH).claude, "legacy-review")).toBe("");
 });

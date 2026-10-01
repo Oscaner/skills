@@ -10,7 +10,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const REG_PATH = path.resolve(HERE, "../bin/engine/harness-registry.json");
+// C8/C7: the harness data lives in the engine harness contract (config/harness-contract.json) —
+// the row `cli` fields are what the free-path filter must drop from PATH.
+const REG_PATH = path.resolve(HERE, "../../cdd-engine/config/harness-contract.json");
 
 // harness_free_path（test-lib.sh）—— 丢弃每个含 registry CLI 二进制的 PATH 目录，使
 // 宿主真实 CLI（claude/cursor-agent/droid/pi/codex/...）无法穿透 mock-PATH 场景泄漏。

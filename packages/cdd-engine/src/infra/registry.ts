@@ -1,28 +1,25 @@
 // packages/cdd-engine/src/infra/registry.ts — Registry class (TS port of registry.mjs + Task 7 OOP
-// restructure Criterion ②: the CDD harness-registry domain rules — ship gate + op×type prefix/suffix
+// restructure Criterion ②: the CDD harness-contract domain rules — ship gate + the derived op×type prefix/suffix
 // injection + CLI PATH preflight + cache profile — are instance methods, zero bare function exports).
 // Same behavior contract as the .mjs module (checked by registry.test.mjs); this is the
 // rebuilt-layer dependency point. The only env read here is the canonical whitelisted PATH key
 // (channel audit ②) — see cliInPath.
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { CddExitError } from "./exit.ts";
-import { resolvePackageRoot } from "./resource.ts";
+import { resolveResource } from "./resource.ts";
 
-/** The shipped harness-registry file (harness rows + op×type prefix/suffix injection + ship gate).
- * State-independent resolution (same convention as documents/schema.ts resolveDocSchemaDir): the
- * published copy at <pkg>/dist/resources/harness-registry.json (build.config.ts copy entry — the
- * consumer install's face; the module-origin relative `new URL` would resolve into the bundle's
- * chunk dir, which no build materializes) first, the src tree as the dev fallback. */
+/** The shipped harness-contract file (harness rows + op×type prefix/suffix injection + ship gate).
+ * State-independent resolution via the logical-name locator (C7 — the single path truth, dev tree
+ * and dist pack tree isomorphic): the published copy at <pkg>/dist/config/harness-contract.json
+ * (build.config.ts copy entry — the consumer install's face) first, the source config/ as the dev
+ * fallback. */
 export function resolveRegistryPath(
   fromDir = path.dirname(fileURLToPath(import.meta.url)),
 ): string {
-  const root = resolvePackageRoot(fromDir);
-  const published = path.join(root, "dist", "resources", "harness-registry.json");
-  if (existsSync(published)) return published;
-  return path.join(root, "src", "infra", "harness-registry.json");
+  return resolveResource("harness-contract", fromDir);
 }
 
 export const REG_PATH = resolveRegistryPath();
@@ -40,7 +37,7 @@ export class CddBlockedError extends CddExitError {
   }
 }
 
-/** Registry — the harness-registry domain rules (Criterion ②): reading a row, op×type prefix/suffix
+/** Registry — the harness-contract domain rules (Criterion ②): reading a row, the derived op×type prefix
  *  injection resolution, the CLI PATH preflight, the ship gate and the cache-profile read are all
  *  instance methods. Stateless; construction is cheap. */
 export class Registry {
@@ -69,6 +66,64 @@ export class Registry {
     return this.#resolveInjectionField(entry, "suffix", op, type);
   }
 
+  // C8 — the dispatch prefix is DERIVED from the harness contract, never row data: the dispatch
+  // table maps each op×type slot to a ref key (implement/fix → mattpocock-skills:tdd, review
+  // task/branch → mattpocock-skills:code-review) or a harness-agnostic literal (review spec/plan →
+  // the URC wording); the refs table renders the per-harness reference form (claude/cursor
+  // `/namespace:skill`, pi `/skill:<bare>` — the pi-correct derivation that fixes the legacy
+  // hand-written pi prefix).
+  #renderRef(reg: any, ref: string, harness: string): string {
+    return (reg?.refs?.[ref]?.[harness] as string | undefined) ?? "";
+  }
+
+  #renderSlot(reg: any, slot: unknown, harness: string): string {
+    if (typeof slot === "string") {
+      // A ref-shaped slot (`pkg:skill`) renders its per-harness ref form; a non-ref-shaped
+      // literal (the URC wording) is harness-agnostic and passes through.
+      if (/^[a-z][a-z-]*:[a-z][a-z-]*$/.test(slot)) {
+        return this.#renderRef(reg, slot, harness);
+      }
+      return slot;
+    }
+    if (slot && typeof slot === "object") {
+      const ref = (slot as { ref?: string; note?: string }).ref;
+      if (typeof ref !== "string") return "";
+      const base = this.#renderRef(reg, ref, harness);
+      const note = (slot as { note?: string }).note;
+      return note ? `${base} — ${note}` : base;
+    }
+    return "";
+  }
+
+  /** Derive the op×type prefix map for one harness (the shape resolveInjection reads; the same
+   *  derivation checkHarness stamps on the returned entry). */
+  derivePrefixMap(reg: any, harness: string): Record<string, unknown> {
+    const dispatch = reg?.dispatch ?? {};
+    const review = dispatch.review ?? {};
+    const render = (op: string, type?: string): string => {
+      const slot = type != null ? (review as Record<string, unknown>)[type] : dispatch[op];
+      return this.#renderSlot(reg, slot, harness);
+    };
+    return {
+      implement: render("implement"),
+      review: {
+        task: render("review", "task"),
+        branch: render("review", "branch"),
+        spec: render("review", "spec"),
+        plan: render("review", "plan"),
+      },
+      fix: render("fix"),
+    };
+  }
+
+  /** Derive one op×type injection string (the testable/guard face of the prefix derivation). */
+  deriveInjection(reg: any, harness: string, op: string, type?: string): string {
+    const map = this.derivePrefixMap(reg, harness) as Record<string, unknown>;
+    const v = map[op] ?? "";
+    if (v && typeof v === "object") return type ? ((v as Record<string, unknown>)[type] ?? "") : "";
+    return typeof v === "string" ? v : "";
+  }
+
   cliInPath(cli: string): boolean {
     const pathDirs = (process.env.PATH ?? "").split(path.delimiter);
     for (const dir of pathDirs) {
@@ -94,12 +149,15 @@ export class Registry {
     if (!dryRun && !this.cliInPath(cli)) {
       throw new CddBlockedError(`${cli} not found in PATH`, { exitCode: 2, kind: "cli-missing" });
     }
-    return entry;
+    // C8 — the prefix data is deleted; the dispatch prefix is derived from the contract's dispatch
+    // + refs tables and stamped on the returned entry (resolveInjection reads it from `prefix`,
+    // the consumers' signature unchanged).
+    return { ...entry, prefix: this.derivePrefixMap(reg, harness) };
   }
 
   // ---- spec D-3 C7: per-harness cache profile (capability as data) ----
   // The `cache` profile rides the registry row (mechanism / minTokens / readMultiplier /
-  // writeMultiplier / ttlMinutes / observable), validated against templates/schema/
+  // writeMultiplier / ttlMinutes / observable), validated against config/schema/
   // cache-profile-schema.json — adding a harness = one registry row, contract unchanged.
   cacheProfileFor(entry: any): unknown {
     return entry?.cache ?? null;

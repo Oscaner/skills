@@ -30,13 +30,13 @@ import {
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import Ajv, { type ValidateFunction } from "ajv";
 import { execa } from "execa";
 
 import { type CrashRecord, isStaleCrashRecord } from "../artifacts/crash.ts";
 import { exitWithCode, invariant } from "./exit.ts";
 import { GitClient } from "./git.ts";
+import { resolveResource } from "./resource.ts";
 import { Workspace, WorkspaceRoot } from "./workspace.ts";
 
 const git = new GitClient();
@@ -391,9 +391,7 @@ export interface TemplateCacheStats {
 }
 
 // ---- cache-profile validator memo (formerly infra/registry.ts) ----
-const CACHE_PROFILE_SCHEMA_PATH = fileURLToPath(
-  new URL("../../templates/schema/cache-profile-schema.json", import.meta.url),
-);
+const CACHE_PROFILE_SCHEMA_PATH = path.join(resolveResource("schema"), "cache-profile-schema.json");
 
 /** CddRuntime — the engine's single mutable-state owner (P4.4 Task 4). Every module-level mutable
  *  variable converges here; the module singleton `runtime` is the process default and the injected

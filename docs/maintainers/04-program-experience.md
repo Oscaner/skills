@@ -100,7 +100,7 @@ channel for npm-harness packages), validated by the pack allowlist probe + emit 
 
 ## 9. Contract Lexicon (P3, 2026-09-30)
 
-56. **Contract Lexicon single source** — the command-contract vocabulary (harness row keys, status vocab + axes, stdout capsule/route tokens + banned shape names, G2 residue allowance set) lives in `contract-lexicon.json` (ships to `dist/resources/`); `ContractLexiconGuard` runs its four check faces as one validate block — change the word table, never the code.
+56. **Contract Lexicon single source** — the command-contract vocabulary (harness row keys, status vocab + axes, stdout capsule/route tokens + banned shape names, G2 residue allowance set) lives in `contract-lexicon.json` (ships to `dist/config/`); `ContractLexiconGuard` runs its four check faces as one validate block — change the word table, never the code.
 
 ---
 

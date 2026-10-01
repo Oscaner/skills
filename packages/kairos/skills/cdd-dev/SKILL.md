@@ -58,7 +58,7 @@ flowchart TD
 - **Do**: Dispatch `cdd implement --tasks <n|n,n,…> --plan <path>` — background execution (harness `run_in_background` when supported; timeout + poll otherwise). One dispatch group per iteration of the group-implement-review-fix loop: the group list derives from the plan's `## Task Groups` section via the engine's `effectiveGroups` — the declared merged groups (the `taskGroups` plan record) ∪ uncovered tasks as singleton groups; an absent section is the empty default → every `### Task N:` its own group (the all-singleton default equals the pre-group per-task dispatch). Each group dispatches with its own `--tasks` — `<n>` a singleton group, `<a,b>` a merged group. Every nested `cdd` dispatch in this skill forbids historical session flags (`--resume` / `-c`) — one-shot print mode only. Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
 - **Read**: output contract — the status capsule (`status:` / `blocker:` / `handoff:` + the engine's `next:` suggestion); BLOCKED grounds ride the stderr `CDD_BLOCKED:` channel; the handoff carries the committed change identity and the `findings` full text (consumed inside `cdd fix`, never by the orchestrator)
 - **Exit**: dispatch complete → `run-group-review`
-- **Fail**: nested CLI exits with no output → BLOCKED: engine-error (report via `kairos:cdd-report`); a harness abnormal exit stores a crash-only snapshot + crash record in the workspace — re-run the same command per the BLOCKED `next:` to continue (no redo, no residue loss)
+- **Fail**: nested CLI exits with no output → BLOCKED: engine-error (report via `kairos:cdd-report`（pi：/skill:cdd-report）); a harness abnormal exit stores a crash-only snapshot + crash record in the workspace — re-run the same command per the BLOCKED `next:` to continue (no redo, no residue loss)
 
 ### `run-group-review`
 
@@ -90,7 +90,7 @@ flowchart TD
 
 ### `handoff-cdd-close`
 
-- **Do**: Prepare the handoff to `kairos:cdd-close`: ensure the base-branch artifact is written (cdd-close reads the same artifact inside its `run-cdd-close-session` merge/PR flow); summarize branch state (commits count / base); invoke `kairos:cdd-close` to take over (merge / PR / keep / discard).
+- **Do**: Prepare the handoff to `kairos:cdd-close`（pi：/skill:cdd-close）: ensure the base-branch artifact is written (cdd-close reads the same artifact inside its `run-cdd-close-session` merge/PR flow); summarize branch state (commits count / base); invoke `kairos:cdd-close`（pi：/skill:cdd-close） to take over (merge / PR / keep / discard).
 - **Read**: `cdd base-branch get --plan <path>` output + final branch-review state — direct invocation: read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
 - **Exit**: handoff complete → APPROVED: cdd-close
 - **Fail**: cdd-close takeover fails → implicit fail-open (branch preserved; user finishes manually)
@@ -118,8 +118,8 @@ Cross-node failure handling (complements node Fail fields):
 |---|---|
 | TIMEOUT | routed from output contract `status`; retry within the handoff's counters cap, then terminal per the output contract |
 | HARNESS_ABORT | `status: BLOCKED` from the output contract + the stderr `CDD_BLOCKED:` reason + the `next:` same-command resume — a harness abnormal exit stores a crash-only snapshot + crash record in the workspace; re-run the same command per the `next:` to continue (no redo, no residue loss) |
-| CONTRACT_VIOLATION | `status: BLOCKED` from the output contract + the stderr `CDD_BLOCKED:` reason; report via `kairos:cdd-report`; no re-dispatch |
-| ENGINE_SELF_WRITTEN | `status: BLOCKED` from the output contract + the stderr `CDD_BLOCKED:` reason; report via `kairos:cdd-report`; orchestrator never rewrites handoff state |
+| CONTRACT_VIOLATION | `status: BLOCKED` from the output contract + the stderr `CDD_BLOCKED:` reason; report via `kairos:cdd-report`（pi：/skill:cdd-report）; no re-dispatch |
+| ENGINE_SELF_WRITTEN | `status: BLOCKED` from the output contract + the stderr `CDD_BLOCKED:` reason; report via `kairos:cdd-report`（pi：/skill:cdd-report）; orchestrator never rewrites handoff state |
 | EXECUTION_FAILURE | `status: BLOCKED` from the output contract + the stderr `CDD_BLOCKED:` reason; fixable + retry available → re-dispatch; else BLOCKED: engine-error |
 | UNVERIFIABLE | `status: BLOCKED` from the output contract + the stderr `CDD_BLOCKED:` reason; report to user; re-dispatch only on user confirmation |
 | PLAN_CONFLICT | `status: BLOCKED` from the output contract + the stderr `CDD_BLOCKED:` reason; surface to the user — never silently override the plan |

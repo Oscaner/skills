@@ -20,7 +20,7 @@ const schemaValidator = new HandoffSchemaValidator();
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const read = (rel: string) =>
-  JSON.parse(readFileSync(path.join(HERE, "..", "..", "..", "templates", rel), "utf8"));
+  JSON.parse(readFileSync(path.join(HERE, "..", "..", "..", "config", rel), "utf8"));
 
 const TASK_SCHEMA = read(path.join("schema", "task-handoff-schema.json"));
 const DOCS_SCHEMA = read(path.join("schema", "docs-handoff-schema.json"));

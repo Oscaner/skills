@@ -1,6 +1,6 @@
 ---
 name: cdd-phase
-description: Independent phase-spec writer -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:brainstorming (writing-spec) design flow inline as this session's baseline, reads the canonical phase-spec schema, syncs scope changes to the parent overall before writing, runs the cdd spec review-fix loop, commits on approval, and hands off to cdd-plan. Callable standalone.
+description: Independent phase-spec writer -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:brainstorming（pi：/skill:brainstorming） (writing-spec) design flow inline as this session's baseline, reads the canonical phase-spec schema, syncs scope changes to the parent overall before writing, runs the cdd spec review-fix loop, commits on approval, and hands off to cdd-plan. Callable standalone.
 ---
 
 # Kairos CDD-Phase
@@ -34,13 +34,13 @@ flowchart TD
 | scope changed? | present — first decision node, positioned between `read-schema` and `author-spec` |
 | sync-overall | present — only when phase scope changed: `B2 --yes--> G --> C` (sync to the parent overall first, then write the phase spec — overall v1.4 ordering) |
 | review loop (D/E/F) | shared shape — no delta (only the `--spec <path>` target differs: this skill's own product) |
-| handoff-spec | `handoff-cdd-plan` — prepare the handoff to `/kairos:cdd-plan` (plan authoring) |
+| handoff-spec | `handoff-cdd-plan` — prepare the handoff to `/kairos:cdd-plan`（pi：/skill:cdd-plan） (plan authoring) |
 
 ## Node Definitions
 
 ### `run-writing-spec-session`
 
-- **Do**: Import `/superpowers:brainstorming` (writing-spec import) — its flow is consumed inline as this session's baseline; it lands the design decisions (including grilling output: root cause / fix direction / technical decisions) this phase spec will capture. The grilling that produced them ran enumerate-then-grill: the requirements registered for this phase in the parent overall were enumerated item by item (each requirement's status — `[Pending]` / `Done` / dropped — cross-referenced from the phase's Phase inventory `[Pending]`/Done cells and the change-history dropped claims) and user-confirmed complete before the grilling frontier
+- **Do**: Import `/superpowers:brainstorming`（pi：/skill:brainstorming） (writing-spec import) — its flow is consumed inline as this session's baseline; it lands the design decisions (including grilling output: root cause / fix direction / technical decisions) this phase spec will capture. The grilling that produced them ran enumerate-then-grill: the requirements registered for this phase in the parent overall were enumerated item by item (each requirement's status — `[Pending]` / `Done` / dropped — cross-referenced from the phase's Phase inventory `[Pending]`/Done cells and the change-history dropped claims) and user-confirmed complete before the grilling frontier
 - **Read**: nothing before the import; the import lands the design
 - **Exit**: Import landed → `read-schema`; upstream missing → BLOCKED (install superpowers)
 - **Fail**: Upstream superpowers plugin missing → BLOCKED: install superpowers (no downgrade, no skip, no inline restatement)
@@ -61,7 +61,7 @@ flowchart TD
 
 ### `sync-overall`
 
-- **Do**: Import `/kairos:cdd-charter` — its flow is consumed inline as this session's baseline; it lands the scope change synced into the parent overall (issue inventory / phase inventory / dependency graph / version bump + change history), then return here to write the phase spec
+- **Do**: Import `/kairos:cdd-charter`（pi：/skill:cdd-charter） — its flow is consumed inline as this session's baseline; it lands the scope change synced into the parent overall (issue inventory / phase inventory / dependency graph / version bump + change history), then return here to write the phase spec
 - **Read**: The parent overall
 - **Exit**: Sync landed → `author-spec`
 - **Fail**: Parent overall unparseable / four-table sync inconsistent → BLOCKED (overall-sync-failed)
@@ -96,7 +96,7 @@ flowchart TD
 
 ### `handoff-cdd-plan`
 
-- **Do**: Prepare the handoff to `/kairos:cdd-plan` — the plan-authoring flow takes over to plan the implementation of the approved phase spec (flow import, consumed inline as this session's baseline; not a session spawn)
+- **Do**: Prepare the handoff to `/kairos:cdd-plan`（pi：/skill:cdd-plan） — the plan-authoring flow takes over to plan the implementation of the approved phase spec (flow import, consumed inline as this session's baseline; not a session spawn)
 - **Read**: The committed phase spec file
 - **Exit**: Handoff executed → flow ends for this skill
 - **Fail**: Target skill missing → BLOCKED (install kairos)

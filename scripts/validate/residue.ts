@@ -30,19 +30,28 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { globSync } from "tinyglobby";
-
+import { RESOURCE_SPECS } from "../../packages/cdd-engine/src/infra/resource.ts";
 import { CheckBlock, validateRunner } from "./runner.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..");
 
+// C7: the engine's static data paths derive from the locator table (RESOURCE_SPECS — the single
+// path truth), never a second literal path list.
+const ENGINE_PKG_REL = path.join("packages", "cdd-engine");
+const enginePath = (...segments: string[]): string => path.join(ROOT, ENGINE_PKG_REL, ...segments);
+const ENGINE_SCHEMA_DIR = enginePath(...RESOURCE_SPECS.schema.source); // <pkg>/config/schema
+const ENGINE_CONFIG_DIR = enginePath(...RESOURCE_SPECS["engine-config"].source); // <pkg>/config
+const relEngine = (abs: string): string => path.relative(ROOT, abs);
+
 const OSKILLS = ["packages/kairos/skills"];
 // re-org (spec §2.13): cdd-engine mechanism files moved out of lib/ into the src/ target tree —
 // scope constants unified on src (bin/ removed; the lib/ topology dispersed into
-// src/{cli,dispatch,rules,artifacts,render,infra}, templates live in a standalone templates/).
+// src/{cli,dispatch,rules,artifacts,render,infra}); C7 — the read-as-data plane moved from
+// templates/ to config/ (templates/ now holds only the content seeds).
 const CDD_ENGINE_BIN = ["packages/cdd-engine/src"];
-const CDD_ENGINE = [...CDD_ENGINE_BIN, "packages/cdd-engine/templates"];
-// T9 nit3 (DRY): the mechanism-position set shared across skills + cdd-engine (src+templates) — used by 5 checks.
+const CDD_ENGINE = [...CDD_ENGINE_BIN, "packages/cdd-engine/config"];
+// T9 nit3 (DRY): the mechanism-position set shared across skills + cdd-engine (src+config) — used by 5 checks.
 const ALL_MECH_POSITIONS = [...OSKILLS, ...CDD_ENGINE];
 // Task 5 (P2): doc-surface targets — the governance-file surface (the most likely regression point
 // for old docs-root residue): root CLAUDE.md (the active conventions entry), root README.md / plugin
@@ -59,7 +68,7 @@ export const DOC_SURFACE_TARGETS = [
 const RESIDUE_TARGETS = [
   "packages/kairos/skills",
   "packages/cdd-engine/src",
-  "packages/cdd-engine/templates",
+  "packages/cdd-engine/config",
 ];
 const RESIDUE_RE = /\b(sdd_|_sdd_|SDD_|sdd-run-|spor-)/;
 
@@ -875,8 +884,8 @@ export function collectCountersContractHits({
     "packages/cdd-engine/src/rules/failure.ts",
   ],
   engineScope = CDD_ENGINE_BIN,
-  taskSchema = "packages/cdd-engine/templates/schema/task-handoff-schema.json",
-  docsSchema = "packages/cdd-engine/templates/schema/docs-handoff-schema.json",
+  taskSchema = relEngine(path.join(ENGINE_SCHEMA_DIR, "task-handoff-schema.json")),
+  docsSchema = relEngine(path.join(ENGINE_SCHEMA_DIR, "docs-handoff-schema.json")),
 } = {}) {
   const hits = [];
   // Construction points keep zero hand-writing: a double quote immediately followed by a counter
@@ -984,7 +993,7 @@ export function checkChannelAudit() {
 // lists tests/ (retired directory), source paths only write src/... .
 export const CHANNEL_AUDIT_TARGETS = [
   "packages/cdd-engine/src",
-  "packages/cdd-engine/templates/schema",
+  relEngine(ENGINE_SCHEMA_DIR),
   "packages/kairos/skills",
   "scripts",
 ];
@@ -1460,10 +1469,7 @@ const DOCS_REF_RE = /\b_docs\/|rule-review-convergence/;
  *  defensive pass-through). */
 function handoffStatusWhitelist() {
   const schema = JSON.parse(
-    readFileSync(
-      path.join(ROOT, "packages/cdd-engine/templates/schema/task-handoff-schema.json"),
-      "utf8",
-    ),
+    readFileSync(path.join(ENGINE_SCHEMA_DIR, "task-handoff-schema.json"), "utf8"),
   );
   return new Set(schema.properties.status.enum ?? []);
 }
@@ -1717,7 +1723,9 @@ export const steps = [
       assertLexiconZero("residue", guard.checkResidue());
       assertLexiconZero("wording", guard.checkWording(ORCHESTRATOR_SKILLS));
       assertLexiconZero("config", guard.checkConfig(loadContract()));
-      assertLexiconZero("markers", guard.checkMarkers({ engineConfig: loadContract() }));
+      // T7 (P4 C8): the four-direction harness-contract guard — checkMarkers (the T3 detection
+      // three-way) folds into checkHarness as its detect direction.
+      assertLexiconZero("harness", guard.checkHarness({ engineConfig: loadContract() }));
     },
     grepTargets: RESIDUE_TARGETS,
     channelTargets: CHANNEL_AUDIT_TARGETS,

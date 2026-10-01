@@ -4,31 +4,40 @@
 // (checkResidue — the former collectCursorAgentHits), the C7 shape-restate wording guard
 // (checkWording — orchestrator skills keep zero engine-shape special-name literals), the
 // engine-config channel audit (checkConfig — the former context.test channel assertions), and the
-// three-way host-marker consistency guard (checkMarkers — the lexicon markers data ↔ the
-// harness.ts detect() predicates ↔ the engine-config env whitelist). The
-// class reads contract-lexicon.json (packages/cdd-engine/src/infra/ — the repo source single; the
-// dist/resources copy rides the published package) as its data source: the scan token / data-row
-// basenames / banned shape names all come from the lexicon, never a hand-written allowlist — a
-// behavior change goes through the word table, not through this file.
+// four-direction harness-contract guard (checkHarness — P4 C8: detect ↔ the harness.ts detect()
+// predicates ↔ the engine-config env whitelist, refs ↔ SKILL text dual forms, prefix derivation ↔
+// the actual injected forms, install ↔ the README upstream dependency table; checkMarkers folds
+// into its detect direction). The class reads contract-lexicon.json (packages/cdd-engine/config/ —
+// the repo source single; the dist/config copy rides the published package) and the harness
+// contract (config/harness-contract.json — the unique harness contract, C8) as its data sources:
+// the scan token / data-row basenames / banned shape names all come from the lexicon, the harness
+// data (rows / detect / dispatch / refs / install) from the harness contract, never a
+// hand-written allowlist — a behavior change goes through the data, not through this file.
 //
 // Criterion ②: the guard surface is instance methods, zero bare-function exports (module-private
 // helpers stay private). The guarded binary-name lexeme is CARRIED by the lexicon data rows, so
 // this guard body never holds the lexeme contiguously — a live face (scripts/) must not become a
 // carrier of the vocabulary it guards (the scripts face scan sits in the same G2 sweep).
+// C7: the data-source paths derive from the engine locator table (RESOURCE_SPECS — the single
+// path truth), never a second literal path list.
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { resolveResourceSrc } from "../../packages/cdd-engine/src/infra/resource.ts";
 import { escapeRegExp, isDataRow, scanLines } from "./scan.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..");
 
-const DEFAULT_LEXICON_PATH = path.join(ROOT, "packages/cdd-engine/src/infra/contract-lexicon.json");
-const DEFAULT_REGISTRY_PATH = path.join(
-  ROOT,
-  "packages/cdd-engine/src/infra/harness-registry.json",
+const DEFAULT_LEXICON_PATH = resolveResourceSrc(
+  "contract-lexicon",
+  path.join(HERE, "..", "..", "packages/cdd-engine", "src"),
+);
+const DEFAULT_REGISTRY_PATH = resolveResourceSrc(
+  "harness-contract",
+  path.join(HERE, "..", "..", "packages/cdd-engine", "src"),
 );
 
 // ---------------------------------------------------------------------------
@@ -81,11 +90,21 @@ export interface LexiconMarker {
 }
 
 interface LexiconData {
-  harness: { ids: string[]; clis: Record<string, string>; markers: Record<string, LexiconMarker> };
   status: { vocab: string[]; axes: { judgment: string[]; work: string[] } };
   stdout: { capsule: string[]; routeTokens: string[]; bannedShapeNames: string[] };
   residue: { dataSources: string[]; bannedToken: string; soleAllowed: string };
   anatomy: { schemaPath: string; skillsRoot: string };
+}
+
+/** The harness-contract row shape (config/harness-contract.json — C8): the per-harness row data
+ *  the guard's harness-side directions read (detect rows / install banners / the dispatch + refs
+ *  tables at the top level). */
+interface HarnessContract {
+  detect?: LexiconMarker;
+  install?: Record<string, string>;
+  dispatch?: Record<string, unknown>;
+  refs?: Record<string, Record<string, string>>;
+  [key: string]: unknown;
 }
 
 // The three live residue faces and their test-site disposition (the per-face `__tests__` ruling
@@ -200,23 +219,33 @@ function analyzeSkill(name: string, src: string, flowDigraphHeading: string): An
 
 /**
  * The CDD contract-lexicon guard. Instance methods only (Criterion ②); the lexicon (and the
- * harness registry it mirrors) load from the repo source single. `lexiconPath` / `registryPath`
+ * harness contract it mirrors) load from the repo source single. `lexiconPath` / `registryPath`
  * injection lets tests drive the guard against temp data sources.
  */
 export class ContractLexiconGuard {
   readonly #lexicon: LexiconData;
-  readonly #registryPath: string;
+  readonly #contractPath: string;
+  #contract: HarnessContract | null = null;
 
   constructor(opts: { lexiconPath?: string; registryPath?: string } = {}) {
     this.#lexicon = JSON.parse(
       readFileSync(opts.lexiconPath ?? DEFAULT_LEXICON_PATH, "utf8"),
     ) as LexiconData;
-    this.#registryPath = opts.registryPath ?? DEFAULT_REGISTRY_PATH;
+    this.#contractPath = opts.registryPath ?? DEFAULT_REGISTRY_PATH;
   }
 
   /** The loaded lexicon (test/assertion surface reads the same data the guard reads). */
   lexicon(): LexiconData {
     return this.#lexicon;
+  }
+
+  /** The loaded harness contract (config/harness-contract.json — the unique harness contract the
+   *  harness-side directions read; lazy, so tests injecting a registry path get the injected data). */
+  contract(): HarnessContract {
+    if (!this.#contract) {
+      this.#contract = JSON.parse(readFileSync(this.#contractPath, "utf8")) as HarnessContract;
+    }
+    return this.#contract;
   }
 
   // -------------------------------------------------------------------------
@@ -470,9 +499,11 @@ export class ContractLexiconGuard {
   // -------------------------------------------------------------------------
 
   /** checkResidue(targets?, faces?) — the G2 live-face last-index guard. The scan token, the
-   *  data-source basenames, and the lexicon↔registry mirror all come from the lexicon data rows
-   *  (data-derived allowance, never a hand-written exemption list); targetsOverride / facesOverride
-   *  follow the existing collector injection pattern for tests. */
+   *  data-source basenames come from the lexicon data rows (data-derived allowance, never a
+   *  hand-written exemption list); targetsOverride / facesOverride follow the existing collector
+   *  injection pattern for tests. C8: the former lexicon↔registry mirror-pair checks are deleted —
+   *  the harness contract is the unique harness-data source (the lexicon keeps the pure word
+   *  tables), so no mirror drift surface remains. */
   checkResidue(targetsOverride?: string[], facesOverride?: ResidueFace[]): ResidueFinding[] {
     const token = this.#lexicon.residue.bannedToken;
     const tokenRe = new RegExp(token);
@@ -490,36 +521,6 @@ export class ContractLexiconGuard {
           file: `${file}:${lineNo}`,
         });
       }
-    }
-
-    // The lexicon is a mirror of the harness registry data (single-source rule): the clis mapping
-    // must equal the registry cli values, and the residue ban token must equal the cursor mirror.
-    const registry = JSON.parse(readFileSync(this.#registryPath, "utf8")) as Record<
-      string,
-      { cli?: string }
-    >;
-    const registryKeys = new Set(Object.keys(registry));
-    for (const id of this.#lexicon.harness.ids) {
-      if (!registryKeys.has(id)) {
-        hits.push({
-          label: `lexicon harness id ${id} missing from the harness registry (mirror drift)`,
-          file: "packages/cdd-engine/src/infra/harness-registry.json",
-        });
-      }
-    }
-    for (const [id, cli] of Object.entries(this.#lexicon.harness.clis)) {
-      if (registry[id]?.cli !== cli) {
-        hits.push({
-          label: `lexicon clis mapping ${id}=${cli} diverges from the registry cli data value (mirror drift)`,
-          file: "packages/cdd-engine/src/infra/harness-registry.json",
-        });
-      }
-    }
-    if (this.#lexicon.residue.bannedToken !== this.#lexicon.harness.clis.cursor) {
-      hits.push({
-        label: "lexicon residue ban token diverges from the harness clis mirror",
-        file: "packages/cdd-engine/src/infra/contract-lexicon.json",
-      });
     }
     return hits;
   }
@@ -580,7 +581,7 @@ export class ContractLexiconGuard {
     if (JSON.stringify([...envKeys].sort()) !== JSON.stringify([...pinned].sort())) {
       hits.push({
         label: `engine-config env-channel whitelist ${JSON.stringify([...envKeys].sort())} ≠ pinned 4 keys ${JSON.stringify(pinned)} (host-marker closure broken)`,
-        file: "packages/cdd-engine/templates/engine-config.json",
+        file: "packages/cdd-engine/config/engine-config.json",
       });
     }
     const defaults = ctx.timeouts?.defaults ?? {};
@@ -591,66 +592,100 @@ export class ContractLexiconGuard {
     if (defaults.implement !== 21_600_000) {
       hits.push({
         label: `engine-config timeout defaults.implement ${defaults.implement} ≠ 21600000 (canonical drift)`,
-        file: "packages/cdd-engine/templates/engine-config.json",
+        file: "packages/cdd-engine/config/engine-config.json",
       });
     }
     if (defaults.review !== 10_800_000) {
       hits.push({
         label: `engine-config timeout defaults.review ${defaults.review} ≠ 10800000 (canonical drift)`,
-        file: "packages/cdd-engine/templates/engine-config.json",
+        file: "packages/cdd-engine/config/engine-config.json",
       });
     }
     if (defaults.fix !== 21_600_000) {
       hits.push({
         label: `engine-config timeout defaults.fix ${defaults.fix} ≠ 21600000 (canonical drift)`,
-        file: "packages/cdd-engine/templates/engine-config.json",
+        file: "packages/cdd-engine/config/engine-config.json",
       });
     }
     return hits;
   }
 
   // -------------------------------------------------------------------------
-  // checkMarkers(opts?) — the three-way host-marker consistency guard
+  // checkMarkers(opts?) — the detect direction of the harness-contract guard
   // -------------------------------------------------------------------------
 
-  /** checkMarkers(opts?) — the three-way host-marker consistency guard: the lexicon markers data
-   *  must mirror BOTH the harness.ts detect() predicates (semantic presence — env key read /
-   *  aiAgentPrefix startsWith / value === match — plus the bidirectional env-key closure) AND the
-   *  engine-config env whitelist (marker env keys ∪ PATH — the host-marker closure). Drift on any
-   *  face fires a finding. The detect face parses the live harness.ts source into class blocks and
-   *  brace-balanced detect() bodies (`harnessSrc` override lets tests inject a broken predicate);
-   *  the config face reads the same engine-config context-contract the channel audit consumes
-   *  (loadConfigCtx, shared with checkConfig). */
+  /** checkMarkers(opts?) — the detect direction of the harness-contract guard (T3, re-homed by
+   *  C8): the harness contract's per-row `detect` data must mirror BOTH the harness.ts detect()
+   *  predicates (semantic presence — env key read / aiAgentPrefix startsWith / value === match —
+   *  plus the bidirectional env-key closure) AND the engine-config env whitelist (detect env keys
+   *  ∪ PATH — the host-marker closure). Drift on any face fires a finding. The detect face parses
+   *  the live harness.ts source into class blocks and brace-balanced detect() bodies (`harnessSrc`
+   *  override lets tests inject a broken predicate); the config face reads the same engine-config
+   *  context-contract the channel audit consumes (loadConfigCtx, shared with checkConfig). */
   checkMarkers(
     opts: { harnessSrc?: string; engineConfig?: Record<string, unknown> } = {},
   ): MarkerFinding[] {
+    return this.#checkHarnessDetect(opts);
+  }
+
+  // -------------------------------------------------------------------------
+  // checkHarness(opts?) — the four-direction harness-contract guard (C8)
+  // -------------------------------------------------------------------------
+
+  /** checkHarness(opts?) — the four-direction harness-contract guard (C8): ① detect ↔ the
+   *  harness.ts detect() predicates ↔ the engine-config env whitelist; ② refs ↔ the SKILL-text
+   *  reference sites (every `<pkg>:<skill>` cross-skill reference must be a registered ref key and
+   *  carry its pi dual form `（pi：/skill:<bare>）` — the zero-bare-ns pin); ③ prefix derivation ↔
+   *  the actual per-harness injection forms (every dispatch slot resolves to a ref key that the
+   *  refs table renders per harness — pi always `/skill:<bare>`, claude/cursor `/namespace:skill`);
+   *  ④ install ↔ the README upstream dependency table (the user-provided install commands render
+   *  verbatim from the install rows). checkMarkers is the detect direction's retained seam. */
+  checkHarness(
+    opts: {
+      harnessSrc?: string;
+      engineConfig?: Record<string, unknown>;
+      skills?: AnatomySkill[];
+      readmes?: string[];
+    } = {},
+  ): MarkerFinding[] {
+    return [
+      ...this.#checkHarnessDetect(opts),
+      ...this.#checkHarnessRefs(opts),
+      ...this.#checkHarnessPrefix(),
+      ...this.#checkHarnessInstall(opts),
+    ];
+  }
+
+  #checkHarnessDetect(opts: { harnessSrc?: string; engineConfig?: Record<string, unknown> } = {}) {
     const hits: MarkerFinding[] = [];
-    const markers = this.#lexicon.harness.markers ?? {};
+    const contract = this.contract();
+    const rows = Object.entries(contract).filter(
+      ([key, row]) => key !== "dispatch" && key !== "refs" && row && typeof row === "object",
+    );
+    const markers: Record<string, LexiconMarker> = {};
+    for (const [id, row] of rows) {
+      const detect = (row as { detect?: LexiconMarker }).detect;
+      if (detect) markers[id] = detect;
+    }
     const markerIds = Object.keys(markers);
     const harnessSrc =
       opts.harnessSrc ??
       readFileSync(path.join(ROOT, "packages/cdd-engine/src/infra/harness.ts"), "utf8");
     const classes = harnessClassesById(harnessSrc);
 
-    // Identity closure — every harness class id carries a marker row and every marker row has a
-    // class (a new harness class or a removed marker row is drift), and the marker set matches
-    // the lexicon's harness identity set.
+    // Identity closure — every harness class id carries a detect row and every detect row has a
+    // class (a new harness class or a removed detect row is drift).
     const classIds = new Set(classes.keys());
     if (!setEqual(classIds, new Set(markerIds))) {
       hits.push({
-        label: `marker ids ${JSON.stringify(markerIds)} ≠ harness.ts detect() classes ${JSON.stringify([...classIds].sort())} (host-marker identity closure broken)`,
+        label: `detect ids ${JSON.stringify(markerIds)} ≠ harness.ts detect() classes ${JSON.stringify([...classIds].sort())} (host-marker identity closure broken)`,
         file: "packages/cdd-engine/src/infra/harness.ts",
       });
     }
-    if (!setEqual(new Set(markerIds), new Set(this.#lexicon.harness.ids))) {
-      hits.push({
-        label: `marker ids ${JSON.stringify(markerIds)} ≠ lexicon harness ids ${JSON.stringify(this.#lexicon.harness.ids)} (marker row per identity missing)`,
-        file: "packages/cdd-engine/src/infra/contract-lexicon.json",
-      });
-    }
 
-    // Per-marker-row semantics vs the detect() predicate; the marker data is the single source of
-    // the detect() env semantics — reversed, every env key the predicates read must be declared.
+    // Per-detect-row semantics vs the detect() predicate; the contract detect data is the single
+    // source of the detect() env semantics — reversed, every env key the predicates read must be
+    // declared.
     const declaredKeys = new Set<string>();
     const detectedKeys = new Set<string>();
     for (const id of markerIds) {
@@ -661,7 +696,7 @@ export class ContractLexiconGuard {
       const pred = detectPredicate(classBody);
       if (!pred) {
         hits.push({
-          label: `harness class for marker ${id} carries no detect() predicate body (marker row unverifiable)`,
+          label: `harness class for detect row ${id} carries no detect() predicate body (detect row unverifiable)`,
           file: "packages/cdd-engine/src/infra/harness.ts",
         });
         continue;
@@ -670,39 +705,215 @@ export class ContractLexiconGuard {
       for (const k of keys) detectedKeys.add(k);
       if (row.env && !keys.includes(row.env)) {
         hits.push({
-          label: `marker ${id} env key ${row.env} not read by the detect() predicate`,
+          label: `detect ${id} env key ${row.env} not read by the detect() predicate`,
           file: "packages/cdd-engine/src/infra/harness.ts",
         });
       }
       if (row.aiAgentPrefix && !pred.body.includes(`startsWith("${row.aiAgentPrefix}")`)) {
         hits.push({
-          label: `marker ${id} aiAgentPrefix ${row.aiAgentPrefix} absent from the detect() predicate`,
+          label: `detect ${id} aiAgentPrefix ${row.aiAgentPrefix} absent from the detect() predicate`,
           file: "packages/cdd-engine/src/infra/harness.ts",
         });
       }
       if (row.value && !pred.body.includes(`=== "${row.value}"`)) {
         hits.push({
-          label: `marker ${id} value ${row.value} absent from the detect() predicate`,
+          label: `detect ${id} value ${row.value} absent from the detect() predicate`,
           file: "packages/cdd-engine/src/infra/harness.ts",
         });
       }
     }
     if (!setEqual(declaredKeys, detectedKeys)) {
       hits.push({
-        label: `detect() env reads ${JSON.stringify([...detectedKeys].sort())} ≠ lexicon marker env ${JSON.stringify([...declaredKeys].sort())} (three-way env-set drift)`,
+        label: `detect() env reads ${JSON.stringify([...detectedKeys].sort())} ≠ contract detect env ${JSON.stringify([...declaredKeys].sort())} (host-marker env-set drift)`,
         file: "packages/cdd-engine/src/infra/harness.ts",
       });
     }
 
-    // The config face — the env whitelist is the host-marker closure: marker env keys ∪ PATH,
+    // The config face — the env whitelist is the host-marker closure: detect env keys ∪ PATH,
     // neither larger nor smaller (the 4-key pin lives here; checkConfig pins the same set).
     const whitelisted = [...configEnvKeys(loadConfigCtx(opts.engineConfig))].sort();
     const expected = [...new Set([...declaredKeys, "PATH"])].sort();
     if (JSON.stringify(whitelisted) !== JSON.stringify(expected)) {
       hits.push({
-        label: `engine-config env whitelist ${JSON.stringify(whitelisted)} ≠ markers ∪ PATH ${JSON.stringify(expected)} (host-marker closure broken)`,
-        file: "packages/cdd-engine/templates/engine-config.json",
+        label: `engine-config env whitelist ${JSON.stringify(whitelisted)} ≠ detect keys ∪ PATH ${JSON.stringify(expected)} (host-marker closure broken)`,
+        file: "packages/cdd-engine/config/engine-config.json",
       });
+    }
+    return hits;
+  }
+
+  #checkHarnessRefs(opts: { skills?: AnatomySkill[] }) {
+    const hits: Array<{ label: string; file: string }> = [];
+    const refs = this.contract().refs ?? {};
+    const skills = opts.skills ?? this.#discoverSkills();
+    const refRe = /\/?(?:superpowers|mattpocock-skills|impeccable|kairos):([a-z][a-z-]*)/g;
+    for (const { path: p } of skills) {
+      const src = readFileSync(p, "utf8");
+      for (const line of src.split("\n")) {
+        refRe.lastIndex = 0;
+        for (let m = refRe.exec(line); m !== null; m = refRe.exec(line)) {
+          const key = m[0].startsWith("/") ? m[0].slice(1) : m[0];
+          const bare = m[1];
+          if (!(key in refs)) {
+            hits.push({
+              label: `SKILL text reference ${key} is not a registered ref key (refs table drift)`,
+              file: path.relative(ROOT, p),
+            });
+            continue;
+          }
+          if (!line.includes(`（pi：/skill:${bare}）`)) {
+            hits.push({
+              label: `SKILL text reference ${key} carries no pi dual form （pi：/skill:${bare}） (zero-bare-ns pin)`,
+              file: path.relative(ROOT, p),
+            });
+          }
+        }
+      }
+    }
+    return hits;
+  }
+
+  #checkHarnessPrefix() {
+    const hits: Array<{ label: string; file: string }> = [];
+    const contract = this.contract();
+    const dispatch = contract.dispatch ?? {};
+    const refs = contract.refs ?? {};
+    const rows = Object.entries(contract).filter(
+      ([key, row]) => key !== "dispatch" && key !== "refs" && row && typeof row === "object",
+    );
+    const harnessIds = rows.map(([id]) => id);
+
+    // The dispatch slots resolve to ref keys; a slot whose value is a `pkg:skill`-shaped string
+    // must be a REGISTERED ref key (a ref-shaped slot outside the table = drift); a colon-free
+    // literal (review spec/plan) is the harness-agnostic URC wording and has no per-harness form.
+    // The `{ ref, note }` object form (review task/branch) names its ref key the same way.
+    const dispatchRefs: string[] = [];
+    const pushSlot = (slot: string, value: unknown): void => {
+      if (typeof value === "string") {
+        // A ref-shaped dispatch-slot string (`pkg:skill`, lowercase — a registered ref key) must
+        // be registered; a non-ref-shaped literal (the URC wording — spaces/uppercase/parens) is
+        // harness-agnostic and has no per-harness form.
+        if (/^[a-z][a-z-]*:[a-z][a-z-]*$/.test(value)) {
+          if (value in refs) dispatchRefs.push(value);
+          else
+            hits.push({
+              label: `dispatch slot ${slot} names an unregistered ref key ${value} (refs table drift)`,
+              file: "packages/cdd-engine/config/harness-contract.json",
+            });
+        }
+        return;
+      }
+      if (value && typeof value === "object") {
+        const ref = (value as { ref?: string }).ref;
+        if (typeof ref === "string") {
+          if (ref in refs) dispatchRefs.push(ref);
+          else
+            hits.push({
+              label: `dispatch slot ${slot} names an unregistered ref key ${ref} (refs table drift)`,
+              file: "packages/cdd-engine/config/harness-contract.json",
+            });
+        }
+      }
+    };
+    for (const [op, v] of Object.entries(dispatch)) {
+      if (v && typeof v === "object") {
+        for (const [type, slot] of Object.entries(v as Record<string, unknown>)) {
+          pushSlot(`${op}:${type}`, slot);
+        }
+      } else {
+        pushSlot(op, v);
+      }
+    }
+
+    // Every dispatch-slot ref key must render a valid per-harness form (the actual injected
+    // prefix), and the full refs table must be consistent: pi is always `/skill:<bare>`,
+    // claude/cursor always `/namespace:skill` — a divergence anywhere is prefix-derivation drift.
+    const expectForm = (ref: string, id: string): string => {
+      const bare = ref.split(":")[1];
+      return id === "pi" ? `/skill:${bare}` : `/${ref}`;
+    };
+    for (const ref of [...new Set([...dispatchRefs, ...Object.keys(refs)])]) {
+      const entry = refs[ref] ?? {};
+      for (const id of harnessIds) {
+        const form = entry[id];
+        if (!form) {
+          hits.push({
+            label: `ref ${ref} has no form for harness ${id} (refs table missing a column)`,
+            file: "packages/cdd-engine/config/harness-contract.json",
+          });
+          continue;
+        }
+        const expect = expectForm(ref, id);
+        if (form !== expect) {
+          hits.push({
+            label: `ref ${ref} form for ${id} is ${JSON.stringify(form)} ≠ derived ${JSON.stringify(expect)} (prefix derivation drift)`,
+            file: "packages/cdd-engine/config/harness-contract.json",
+          });
+        }
+      }
+    }
+    return hits;
+  }
+
+  #checkHarnessInstall(opts: { readmes?: string[] }) {
+    const hits: Array<{ label: string; file: string }> = [];
+    const contract = this.contract();
+    const refs = contract.refs ?? {};
+    const rows = Object.entries(contract).filter(
+      ([key, row]) => key !== "dispatch" && key !== "refs" && row && typeof row === "object",
+    );
+    const harnessIds = rows.map(([id]) => id);
+    // The install package set: kairos self-install + every refs-table namespace (the upstream
+    // plugins the skills open-reference). Missing install rows for a referenced package = drift.
+    const installPkgs = new Set(["kairos"]);
+    for (const key of Object.keys(refs)) {
+      const ns = key.split(":")[0];
+      if (ns !== "kairos") installPkgs.add(ns);
+    }
+    const readmes = opts.readmes ?? ["packages/kairos/README.md"];
+
+    // Every harness row must declare an install banner for each install package.
+    for (const [id, row] of rows) {
+      const install = (row as { install?: Record<string, string> }).install;
+      if (!install) continue;
+      for (const pkg of installPkgs) {
+        if (install[pkg] === undefined) {
+          hits.push({
+            label: `harness ${id} install row missing package ${pkg} (install table drift)`,
+            file: "packages/cdd-engine/config/harness-contract.json",
+          });
+        }
+      }
+    }
+    // The README upstream dependency table must equal the install rows verbatim (the user-provided
+    // commands render from the install data only — the "single copy" pin); rendered cells carry
+    // markdown backticks the data does not (the plain command string is the data value).
+    for (const rel of readmes) {
+      const md = readFileSync(path.isAbsolute(rel) ? rel : path.join(ROOT, rel), "utf8");
+      for (const [id, row] of rows) {
+        const install = (row as { install?: Record<string, string> }).install;
+        if (!install) continue;
+        for (const [pkg, cmd] of Object.entries(install)) {
+          const rowMatch = md.match(
+            new RegExp(`^\\|\\s*${escapeRegExp(pkg)}\\s*\\|([^\\n]*)$`, "m"),
+          );
+          if (!rowMatch) {
+            hits.push({
+              label: `README upstream table has no row for package ${pkg} (install render drift)`,
+              file: rel,
+            });
+            continue;
+          }
+          const cells = rowMatch[0].split("|").map((c) => c.trim().replace(/`/g, ""));
+          const rendered = cells[harnessIds.indexOf(id) + 2] ?? "";
+          if (rendered !== cmd) {
+            hits.push({
+              label: `README upstream table cell ${pkg}/${id} ${JSON.stringify(rendered)} ≠ install data ${JSON.stringify(cmd)} (install render drift)`,
+              file: rel,
+            });
+          }
+        }
+      }
     }
     return hits;
   }
@@ -897,7 +1108,13 @@ function loadConfigCtx(engineConfig?: Record<string, unknown>): Record<string, u
     engineConfig ??
     (
       JSON.parse(
-        readFileSync(path.join(ROOT, "packages/cdd-engine/templates/engine-config.json"), "utf8"),
+        readFileSync(
+          resolveResourceSrc(
+            "engine-config",
+            path.join(HERE, "..", "..", "packages", "cdd-engine", "src"),
+          ),
+          "utf8",
+        ),
       ) as { contextContract?: Record<string, unknown> }
     ).contextContract
   );

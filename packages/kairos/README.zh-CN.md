@@ -88,6 +88,19 @@ CDD 引擎以独立 `@oscaner-skills/cdd-engine` 包发布；其唯一 CLI 运�
 
 kairos 将每个技能都命名为 `cdd-*`，因此该家族与上游插件可无冲突并存——这是构造保证：pi 的扁平命名空间没有命名空间修饰语法，而 `cdd-*` 裸名的唯一性让每个 kairos 技能在任意上游插件旁都无可歧义。inline skill 引用按 harness 条件化——Claude Code 与 Cursor Agent 支持插件限定引用（如 `/superpowers:*`），恒解析到属主包；pi 只能以裸 `/skill:<name>` 调用，`cdd-*` 唯一性同样保证引用目标无歧义。
 
+### 上游依赖安装
+
+编排技能会以 inline 导入上游 flow 作为本次会话基线（superpowers / mattpocock-skills / impeccable）。按 harness 从各自发布方安装——kairos 经由各 harness 自有渠道安装：
+
+| Package | Claude Code | Cursor Agent | Pi |
+|---------|-------------|--------------|-----|
+| kairos | `/plugin marketplace add oscaner/skills → /plugin install kairos@oscaner-skills` | pending | `pi install npm:@oscaner-skills/kairos` |
+| superpowers | pending | pending | pending |
+| mattpocock-skills | pending | pending | pending |
+| impeccable | pending | pending | pending |
+
+标记为 `pending` 的命令从插件的官方渠道安装（见仓库 [Plugins](../README.zh-CN.md#插件列表) 表——每个上游插件链接其 GitHub 主页，当前安装命令就在其上发布）。
+
 ## 维护者文档
 
 本单仓开发者的仓库内部维护文档（不随插件发布）。[docs/maintainers 索引](../../docs/maintainers/README.md) 链接编号族文档——如 [program experience](../../docs/maintainers/04-program-experience.md)（程序经验）与 [template doctrine](../../docs/maintainers/01-template-doctrine.md)（模板惯例，约束 emit 派生产物）。

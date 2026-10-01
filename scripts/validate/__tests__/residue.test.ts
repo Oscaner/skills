@@ -1541,7 +1541,7 @@ describe("stale-lexicon：cdd-report 旧模型语汇守卫（Task 16·P5）", ()
   it("data-row mask: a lexicon-registered data source's data value (`-p --mode text`) is green (G2 isDataRow allowance, data-derived)", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "residue-t16-datarow-"));
     writeFileSync(
-      path.join(dir, "harness-registry.json"),
+      path.join(dir, "harness-contract.json"),
       '{ "pi": { "cli": "pi", "invoke": "-p --mode text", "output": "text" } }\n',
       "utf8",
     );

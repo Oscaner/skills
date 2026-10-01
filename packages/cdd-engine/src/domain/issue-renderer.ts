@@ -12,10 +12,8 @@
 //     emit-only YAML renderer lives in the repo's scripts/emit plane, never here.
 
 import { readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 
-import { resolvePackageRoot } from "../infra/resource.ts";
+import { resolveResource } from "../infra/resource.ts";
 
 export interface IssueBodyTemplate {
   components: string[];
@@ -51,11 +49,10 @@ export interface IssueReportInput {
 // fixed segment order the aggregate body renders (context → problem → impact → suggestedFix).
 const TEXT_FIELDS = ["context", "problem", "impact", "suggestedFix"] as const;
 
-// <pkg>/templates/report/issue-body.json — the canonical issue-form template (the renamed home of
-// the former skills/cdd-report/templates/finding-meta.json). Resolved like every engine resource
-// (nearest-ancestor package.json marker walk, same convention as render/templates.ts PKG_ROOT) so
+// templates/report/issue-body.json — the canonical issue-form template (the renamed home of
+// the former skills/cdd-report/templates/finding-meta.json). Resolved through the logical-name
+// locator (resolveResource — the same single-path-truth convention as every engine resource), so
 // the loader works in every file state: dev stub src tree, dist bundle, consumer install.
-const ISSUE_BODY_REL = path.join("templates", "report", "issue-body.json");
 
 /** IssueReportRenderer — the issue-body plane's single loader/validator/renderer (instance
  *  methods; the template parse is memoized on the instance, injected through no cache channel). */
@@ -65,8 +62,7 @@ export class IssueReportRenderer {
   /** Single-point template loader — parse-on-demand, memoized on the instance. */
   loadTemplate(): IssueBodyTemplate {
     if (this.#meta === null) {
-      const root = resolvePackageRoot(path.dirname(fileURLToPath(import.meta.url)));
-      const file = path.join(root, ISSUE_BODY_REL);
+      const file = resolveResource("issue-body");
       this.#meta = JSON.parse(readFileSync(file, "utf8")) as IssueBodyTemplate;
     }
     return this.#meta;

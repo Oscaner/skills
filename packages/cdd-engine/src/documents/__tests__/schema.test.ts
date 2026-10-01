@@ -34,7 +34,7 @@ import { DOC_TOKENS } from "../tokens.ts";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 // packages/cdd-engine/src/documents/__tests__ → package root (3 hops: __tests__ → documents → src → pkg)
 const PKG_ROOT = path.resolve(HERE, "..", "..", "..");
-const SRC_SCHEMA_DIR = path.join(PKG_ROOT, "src", "documents", "schema");
+const SRC_SCHEMA_DIR = path.join(PKG_ROOT, "config", "schema");
 
 // Walk every structural node of a schema (properties / patternProperties / items / $defs /
 // allOf·anyOf·oneOf) and report the ones lacking a non-empty `description`.
@@ -487,26 +487,26 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
     for (const name of DOC_SCHEMA_NAMES)
       expect(existsSync(path.join(dev, `${name}.json`))).toBe(true);
 
-    // Consumer face: a fabricated install layout — package root with dist/documents/schema copy
-    // and NO src tree (a published package ships only dist/ + templates/). Walking up from a
-    // bundled dist/cli.mjs must resolve the dist copy, never the source.
+    // Consumer face: a fabricated install layout — package root with dist/config/schema mirror
+    // and NO source tree (a published package ships only dist/ + templates/ + config/). Walking
+    // up from a bundled dist/cli.mjs must resolve the dist mirror, never the source.
     const install = mkdtempSync(path.join(tmpdir(), "cdd-consumer-layout-"));
     try {
       const pkg = path.join(install, "node_modules", "@oscaner-skills", "cdd-engine");
-      mkdirSync(path.join(pkg, "dist", "documents", "schema"), { recursive: true });
-      mkdirSync(path.join(pkg, "templates"), { recursive: true });
+      mkdirSync(path.join(pkg, "dist", "config", "schema"), { recursive: true });
+      mkdirSync(path.join(pkg, "config", "schema"), { recursive: true });
       writeFileSync(
         path.join(pkg, "package.json"),
         JSON.stringify({ name: "@oscaner-skills/cdd-engine", version: "1.0.0" }),
       );
       for (const name of DOC_SCHEMA_NAMES) {
         writeFileSync(
-          path.join(pkg, "dist", "documents", "schema", `${name}.json`),
+          path.join(pkg, "dist", "config", "schema", `${name}.json`),
           readFileSync(path.join(dev, `${name}.json`), "utf8"),
         );
       }
       const resolved = resolveDocSchemaDir(path.join(pkg, "dist"));
-      expect(resolved).toBe(path.join(pkg, "dist", "documents", "schema"));
+      expect(resolved).toBe(path.join(pkg, "dist", "config", "schema"));
       expect(existsSync(resolved)).toBe(true);
       for (const name of DOC_SCHEMA_NAMES)
         expect(existsSync(path.join(resolved, `${name}.json`))).toBe(true);

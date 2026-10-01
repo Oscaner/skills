@@ -360,17 +360,19 @@ const NOMINAL_SECTION_HEADING = {
 };
 
 /** The data-derived nominal table row for one harness id (display form): identifier + CLI binary
- *  + host marker from the contract lexicon (ids/clis/markers), ship status from the harness
- *  registry — `cursor-agent` is legal ONLY as the cursor binary-column data value. */
-function nominalRow(lexicon, registry, id) {
-  const marker = lexicon.harness.markers[id];
-  assert.ok(marker, `lexicon marker row missing for harness ${id}`);
-  assert.ok(registry[id]?.ship, `harness-registry row missing ship for harness ${id}`);
+ *  + host marker from the harness contract (row id + cli + detect — C8: the unique harness-data
+ *  source), ship status from the same contract row — `cursor-agent` is legal ONLY as the cursor
+ *  binary-column data value. */
+function nominalRow(contract, id) {
+  const row = contract[id];
+  const detect = row.detect;
+  assert.ok(row, `harness contract row missing for harness ${id}`);
+  assert.ok(row.ship, `harness contract row missing ship for harness ${id}`);
   return {
     id,
-    cli: lexicon.harness.clis[id],
-    marker: marker.value != null ? `${marker.env}=${marker.value}` : marker.env,
-    ship: registry[id].ship,
+    cli: row.cli,
+    marker: detect.value != null ? `${detect.env}=${detect.value}` : detect.env,
+    ship: row.ship,
   };
 }
 
@@ -387,10 +389,10 @@ function parseNominalRow(line) {
   };
 }
 
-test("nominal mapping table == lexicon (ids/clis/markers) + registry (ship) data derivation", () => {
-  const lexicon = JSON.parse(read("packages/cdd-engine/src/infra/contract-lexicon.json"));
-  const registry = JSON.parse(read("packages/cdd-engine/src/infra/harness-registry.json"));
-  const expected = lexicon.harness.ids.map((id) => nominalRow(lexicon, registry, id));
+test("nominal mapping table == the harness contract (row id/cli/detect + ship) data derivation", () => {
+  const contract = JSON.parse(read("packages/cdd-engine/config/harness-contract.json"));
+  const ids = Object.keys(contract).filter((k) => !["_doc", "dispatch", "refs"].includes(k));
+  const expected = ids.map((id) => nominalRow(contract, id));
   for (const rel of Object.keys(NOMINAL_SECTION_HEADING)) {
     const md = read(rel);
     const section = sectionOf(md, NOMINAL_SECTION_HEADING[rel]);

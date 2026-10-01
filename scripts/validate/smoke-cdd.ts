@@ -16,14 +16,15 @@
 //   3. tarball content assertions (anti-false-green): dist/cli.mjs must carry zero stub markers
 //      (createJiti / node_modules/.pnpm) and exceed 10 kB (dev stub ≈ 614 B vs real ≈ 72 kB — the
 //      >10 kB bound rejects a stub while staying well below the real product; a harsher >100 kB
-//      threshold could misjudge a legitimately smaller real bundle). templates/ and
-//      dist/documents/schema/ (canonical overall/plan/phase-spec/add-phase-protocol) must be
-//      present, plus the harness registry the dispatch ships gate resolves at runtime.
+//      threshold could misjudge a legitimately smaller real bundle). The config/ home's dist
+//      mirror (dist/config/ — canonical overall/plan/phase-spec/add-phase-protocol schemas +
+//      template-contract + the harness contract) must be present, plus the engine-config the
+//      fixture derives from.
 //   4. mkdtemp consumer repo: git init + npm init + `npm install <tarball>` — consumer layout; the
 //      installed engine resolves all runtime resources under node_modules, never the repo tree.
 //   5. consumer chain: installed entry (`node <installed>/dist/cli.mjs`, plus the shipped
 //      node_modules/.bin/cdd), `cdd schema get plan` (installed schema-dir addressability measured
-//      byte-identically — stdout === the published dist/documents/schema/plan.json bytes),
+//      byte-identically — stdout === the published dist/config/schema/plan.json bytes),
 //      then the five-command dry-run chain (implement / review task / fix task / review branch /
 //      fix branch). The fixture plan + design spec + the parent overall it links are GENERATED
 //      INSIDE the temp repo (D1), derived from the tarball's shipped doc-structure schemas and
@@ -59,6 +60,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { execaSync } from "execa";
+import { RESOURCE_SPECS } from "../../packages/cdd-engine/src/infra/resource.ts";
 
 const root = process.cwd(); // repo toplevel (run.ts invokes with the repo root as cwd)
 const NODE = process.execPath;
@@ -66,6 +68,12 @@ const PKG = "packages/cdd-engine";
 const PKG_SCOPE = "@oscaner-skills/cdd-engine";
 const PKG_DIR = path.join(root, PKG);
 const CLI_ENTRY = "dist/cli.mjs";
+
+// C7: the engine's shipped-resource member paths derive from the locator table (RESOURCE_SPECS —
+// the published dist mirror segments), never a second literal path list.
+const published = (name: keyof typeof RESOURCE_SPECS, ...tail: string[]): string =>
+  path.join(...RESOURCE_SPECS[name].published!, ...tail);
+const DIST_SCHEMA_DIR = published("schema"); // dist/config/schema
 
 // ---- kairos pack whitelist audit (P4.2 Task 7 ⑤) ----
 // The package's `files` whitelist is its ONLY shipped surface (7 entries): the probe asserts the
@@ -170,24 +178,24 @@ function assertTarball(tgz: string, expectVersion?: string): void {
   // Canonical doc-structure schemas addressable at the published dist face.
   for (const f of DOC_SCHEMA_FILES) {
     assertTrue(
-      has(`package/dist/documents/schema/${f}`),
-      `tarball missing the canonical doc-structure schema dist/documents/schema/${f}`,
+      has(`package/${DIST_SCHEMA_DIR}/${f}`),
+      `tarball missing the canonical doc-structure schema dist/config/schema/${f}`,
     );
   }
-  // The render resource dir + the handoff schemas it serves.
+  // The render resource + the handoff schemas it serves ride the dist mirror of the config/ home.
   assertTrue(
-    has("package/templates/template-contract.json"),
-    "tarball missing templates/template-contract.json",
+    has(`package/${published("template-contract")}`),
+    `tarball missing the template-contract resource dist/config/template-contract.json`,
   );
   assertTrue(
-    has("package/templates/schema/task-handoff-schema.json"),
-    "tarball missing templates/schema/task-handoff-schema.json",
+    has(`package/${path.join(DIST_SCHEMA_DIR, "task-handoff-schema.json")}`),
+    "tarball missing dist/config/schema/task-handoff-schema.json",
   );
-  // The harness registry the dispatch ship gate resolves at runtime (build copy entry publishes the
-  // dedicated dist/resources/ face — see build.config.ts).
+  // The harness contract the dispatch ship gate resolves at runtime (build mirror entry publishes the
+  // dedicated dist/config/ face — see build.config.ts).
   assertTrue(
-    has("package/dist/resources/harness-registry.json"),
-    "tarball missing dist/resources/harness-registry.json (dispatch ship gate reads it at runtime)",
+    has(`package/${published("harness-contract")}`),
+    "tarball missing dist/config/harness-contract.json (dispatch ship gate reads it at runtime)",
   );
   // Zero in-repo residues inside the packed artifact: the tarball must never reference the repo
   // tree (a jiti aliased stub or an absolute alias would embed it).
@@ -252,7 +260,7 @@ interface Fixture {
 }
 
 function deriveFixture(consumerRoot: string, installed: string): Fixture {
-  const schemaRoot = path.join(installed, "dist", "documents", "schema");
+  const schemaRoot = path.join(installed, DIST_SCHEMA_DIR);
   const planSchema = readSchema(schemaRoot, "plan");
   const phaseSpecSchema = readSchema(schemaRoot, "phase-spec");
   const overallSchema = readSchema(schemaRoot, "overall");
@@ -350,7 +358,7 @@ function deriveFixture(consumerRoot: string, installed: string): Fixture {
   const slug = path.basename(planName, ".md").replace(/-(?:design|plan)$/, "");
   // Workspace root from the SHIPPED engine-config (never a repo literal).
   const config = JSON.parse(
-    readFileSync(path.join(installed, "templates", "engine-config.json"), "utf8"),
+    readFileSync(path.join(installed, "config", "engine-config.json"), "utf8"),
   ) as { handoffNamespace: { workspaceRoot: string } };
   const workspaceRootSeg = config.handoffNamespace.workspaceRoot;
   assertTrue(
@@ -520,23 +528,22 @@ function runConsumerChain({
 
   // `cdd schema get plan` — the discovery surface (canonical doc-structure schema straight to
   // stdout), the install-face resource proof (AC6: installed-face schema-dir addressability measured
-  // byte-identically — schema-get stdout === the published dist/documents/schema/plan.json bytes).
+  // byte-identically — schema-get stdout === the published dist/config/schema/plan.json bytes).
   // `stripFinalNewline: false` keeps execa from trimming the schema's trailing newline — the
   // byte-identity assertion must measure the raw output, not a newline-normalized shape.
-  // Templates addressability is proven implicitly by the consumer chain below (the engine reads the
-  // shipped engine-config / handoff schemas on every dispatched command).
+  // The config/ home's dist mirror is proven implicitly by the consumer chain below (the engine
+  // reads the shipped engine-config / handoff schemas on every dispatched command).
   const schemaOut = execaSync(NODE, [cli, "schema", "get", "plan"], {
     cwd: consumerRoot,
     stripFinalNewline: false,
   }).stdout;
   assertTrue(
-    schemaOut ===
-      readFileSync(path.join(installed, "dist", "documents", "schema", "plan.json"), "utf8"),
-    "cdd schema get plan output ≠ the installed dist/documents/schema/plan.json bytes",
+    schemaOut === readFileSync(path.join(installed, DIST_SCHEMA_DIR, "plan.json"), "utf8"),
+    "cdd schema get plan output ≠ the installed dist/config/schema/plan.json bytes",
   );
   for (const f of DOC_SCHEMA_FILES) {
     assertTrue(
-      existsSync(path.join(installed, "dist", "documents", "schema", f)),
+      existsSync(path.join(installed, DIST_SCHEMA_DIR, f)),
       `installed schema dir missing ${f}`,
     );
   }

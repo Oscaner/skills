@@ -138,7 +138,7 @@ describe("branch-review schema-invalid e2e", () => {
     chmodSync(path.join(binDir, "fake-cli"), 0o755);
     const origPath = process.env.PATH;
     process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
-    // ghost registry：真实 harness-registry.json + 追加 fake-cli（runBranchReview 经 opts.registryPath 注入）
+    // ghost registry: the real harness contract + a fake-cli row appended (runBranchReview injects via opts.registryPath)
     const { REG_PATH } = await import("../../infra/registry.ts");
     const regPath = path.join(dir, "registry.json");
     const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
@@ -394,7 +394,7 @@ describe("branch-review real-mode — parent stdout capsule (C3-b)", () => {
     chmodSync(path.join(binDir, "fake-cli"), 0o755);
     const origPath = process.env.PATH;
     process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
-    // ghost registry: real harness-registry.json + fake-cli appended (injected via opts.registryPath)
+    // ghost registry: the real harness contract + fake-cli appended (injected via opts.registryPath)
     const { REG_PATH } = await import("../../infra/registry.ts");
     const regPath = path.join(dir, "registry.json");
     const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));

@@ -104,8 +104,10 @@ function withFakeCli(binDir, name, body) {
   };
 }
 
-// ghost registry：真实 harness-registry.json + 追加 fake-cli 条目。
-function ghostRegistry(ws, { prefix, suffix } = {}) {
+// ghost registry: the real harness contract + an appended fake-cli row. C8 — the injection prefix
+// derives from dispatch + refs; the ghost row gets matching ghost columns in the refs table so the
+// derivation also holds for the test harness (the per-row prefix surface is deleted).
+function ghostRegistry(ws, { prefix, suffix, dispatch } = {}) {
   const regPath = path.join(ws, "registry.json");
   const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
   reg.ghost = {
@@ -116,6 +118,10 @@ function ghostRegistry(ws, { prefix, suffix } = {}) {
     ...(prefix ? { prefix } : {}),
     ...(suffix ? { suffix } : {}),
   };
+  for (const ref of ["mattpocock-skills:tdd", "mattpocock-skills:code-review"]) {
+    if (reg.refs[ref]) reg.refs[ref].ghost = `/mattpocock-skills:${ref.split(":")[1]}`;
+  }
+  if (dispatch) reg.dispatch = dispatch;
   writeFileSync(regPath, JSON.stringify(reg));
   return regPath;
 }
@@ -1207,17 +1213,18 @@ it("runTask Task 5: review → invokeCli (op=review,type=task) → code-review p
     `#!/usr/bin/env bash\nprintf '%s' "\${@: -1}" > "${promptLog}"\nprintf '%s' '{"tasks":[1],"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "${path.join(ws, "tasks-1-review-1.json")}"\nexit 0\n`,
   );
   const regPath = ghostRegistry(ws, {
-    prefix: {
-      implement: "/mattpocock-skills:tdd",
+    // The dispatch prefix derives from the dispatch + refs tables (C8); the review task slot
+    // names the code-review ref with no note so the injected first line is the bare ref form.
+    dispatch: {
+      implement: "mattpocock-skills:tdd",
       review: {
-        task: "/mattpocock-skills:code-review",
-        branch: "/mattpocock-skills:code-review",
+        task: { ref: "mattpocock-skills:code-review" },
+        branch: { ref: "mattpocock-skills:code-review" },
         spec: "",
         plan: "",
       },
-      fix: "/mattpocock-skills:tdd",
+      fix: "mattpocock-skills:tdd",
     },
-    suffix: {},
   });
 
   try {

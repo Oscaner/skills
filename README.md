@@ -66,14 +66,8 @@ Upstream plugin versions follow their own release schedules and are not tracked 
 
 ```bash
 # Claude Code
-/plugin marketplace add oscaner/skills
-/plugin install kairos@oscaner-skills
-```
-
-### From npm
-
-```bash
-npm install @oscaner-skills/kairos
+claude plugin marketplace add oscaner/skills
+claude plugin install kairos@oscaner-skills
 ```
 
 ### From pi

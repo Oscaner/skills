@@ -37,15 +37,11 @@ kairos 是 cdd-first 方法论的分发载体：它将**持续发现式开发（
 
 ## 安装
 
-```bash
-npm install @oscaner-skills/kairos
-```
-
-或从 oscaner-skills Claude Code 插件市场安装：
+从 oscaner-skills Claude Code 插件市场安装：
 
 ```bash
-/plugin marketplace add oscaner/skills
-/plugin install kairos@oscaner-skills
+claude plugin marketplace add oscaner/skills
+claude plugin install kairos@oscaner-skills
 ```
 
 ### 从 pi 安装
@@ -94,12 +90,12 @@ kairos 将每个技能都命名为 `cdd-*`，因此该家族与上游插件可�
 
 | Package | Claude Code | Cursor Agent | Pi |
 |---------|-------------|--------------|-----|
-| kairos | `/plugin marketplace add oscaner/skills → /plugin install kairos@oscaner-skills` | pending | `pi install npm:@oscaner-skills/kairos` |
-| superpowers | pending | pending | pending |
-| mattpocock-skills | pending | pending | pending |
-| impeccable | pending | pending | pending |
+| kairos | `claude plugin marketplace add oscaner/skills；claude plugin install kairos@oscaner-skills` | pending | `pi install npm:@oscaner-skills/kairos` |
+| superpowers | `claude plugin marketplace add obra/superpowers-marketplace；claude plugin install superpowers@superpowers-marketplace` | pending | `pi install git:github.com/obra/superpowers` |
+| mattpocock-skills | `claude plugin marketplace add mattpocock/skills；claude plugin install mattpocock-skills@mattpocock` | pending | `pi install git:github.com/mattpocock/skills` |
+| impeccable | `claude plugin marketplace add pbakaus/impeccable；claude plugin install impeccable@impeccable` | pending | `npx impeccable install --providers=pi --scope=global -y` |
 
-标记为 `pending` 的命令从插件的官方渠道安装（见仓库 [Plugins](../README.zh-CN.md#插件列表) 表——每个上游插件链接其 GitHub 主页，当前安装命令就在其上发布）。
+光标代理（Cursor Agent）列为 `pending`——各插件从其官方渠道安装（见仓库 [Plugins](../README.zh-CN.md#插件列表) 表——每个插件链接其 GitHub 主页，当前安装命令就在其上发布）。
 
 ## 维护者文档
 

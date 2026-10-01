@@ -35,15 +35,11 @@ Three skill families:
 
 ## Installation
 
-```bash
-npm install @oscaner-skills/kairos
-```
-
-Or install from the oscaner-skills Claude Code marketplace:
+Install from the oscaner-skills Claude Code marketplace:
 
 ```bash
-/plugin marketplace add oscaner/skills
-/plugin install kairos@oscaner-skills
+claude plugin marketplace add oscaner/skills
+claude plugin install kairos@oscaner-skills
 ```
 
 ### From pi
@@ -92,12 +88,12 @@ The orchestrator skills import upstream flows as their session baseline (superpo
 
 | Package | Claude Code | Cursor Agent | Pi |
 |---------|-------------|--------------|-----|
-| kairos | `/plugin marketplace add oscaner/skills → /plugin install kairos@oscaner-skills` | pending | `pi install npm:@oscaner-skills/kairos` |
-| superpowers | pending | pending | pending |
-| mattpocock-skills | pending | pending | pending |
-| impeccable | pending | pending | pending |
+| kairos | `claude plugin marketplace add oscaner/skills；claude plugin install kairos@oscaner-skills` | pending | `pi install npm:@oscaner-skills/kairos` |
+| superpowers | `claude plugin marketplace add obra/superpowers-marketplace；claude plugin install superpowers@superpowers-marketplace` | pending | `pi install git:github.com/obra/superpowers` |
+| mattpocock-skills | `claude plugin marketplace add mattpocock/skills；claude plugin install mattpocock-skills@mattpocock` | pending | `pi install git:github.com/mattpocock/skills` |
+| impeccable | `claude plugin marketplace add pbakaus/impeccable；claude plugin install impeccable@impeccable` | pending | `npx impeccable install --providers=pi --scope=global -y` |
 
-Commands marked `pending` install from the plugin's official channel (see the repository [Plugins](../README.md#plugins) table — each upstream plugin links its GitHub home, where the current install command is published).
+The Cursor Agent column is `pending` — install each plugin from its official channel (see the repository [Plugins](../README.md#plugins) table — each plugin links its GitHub home, where the current install command is published).
 
 ## Docs for maintainers
 

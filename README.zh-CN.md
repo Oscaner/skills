@@ -70,14 +70,8 @@ cdd 不是把计划写一次就指望它扛住现实，而是让规划贯穿整�
 
 ```bash
 # Claude Code
-/plugin marketplace add oscaner/skills
-/plugin install kairos@oscaner-skills
-```
-
-### 从 npm 安装
-
-```bash
-npm install @oscaner-skills/kairos
+claude plugin marketplace add oscaner/skills
+claude plugin install kairos@oscaner-skills
 ```
 
 ### 从 pi 安装

@@ -22,7 +22,7 @@ export interface HarnessRow {
   ship?: string;
   cache?: CacheProfile;
   detect?: LexiconMarkerLike;
-  install?: Record<string, string>;
+  install?: Record<string, string[]>;
 }
 
 export interface CacheProfile {
@@ -81,7 +81,7 @@ export abstract class Harness {
     return this.row().detect;
   }
 
-  get install(): Record<string, string> | undefined {
+  get install(): Record<string, string[]> | undefined {
     return this.row().install;
   }
 }

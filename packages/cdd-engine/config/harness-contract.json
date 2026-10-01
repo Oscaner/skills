@@ -5,12 +5,27 @@
     "invoke": "-p --output-format text --dangerously-skip-permissions",
     "output": "text",
     "ship": "full",
-    "detect": { "env": "CLAUDE_CODE_SESSION_ID", "aiAgentPrefix": "claude-code" },
+    "detect": {
+      "env": "CLAUDE_CODE_SESSION_ID",
+      "aiAgentPrefix": "claude-code"
+    },
     "install": {
-      "kairos": "/plugin marketplace add oscaner/skills → /plugin install kairos@oscaner-skills",
-      "superpowers": "pending",
-      "mattpocock-skills": "pending",
-      "impeccable": "pending"
+      "kairos": [
+        "claude plugin marketplace add oscaner/skills",
+        "claude plugin install kairos@oscaner-skills"
+      ],
+      "superpowers": [
+        "claude plugin marketplace add obra/superpowers-marketplace",
+        "claude plugin install superpowers@superpowers-marketplace"
+      ],
+      "mattpocock-skills": [
+        "claude plugin marketplace add mattpocock/skills",
+        "claude plugin install mattpocock-skills@mattpocock"
+      ],
+      "impeccable": [
+        "claude plugin marketplace add pbakaus/impeccable",
+        "claude plugin install impeccable@impeccable"
+      ]
     },
     "cache": {
       "mechanism": "explicit",
@@ -26,7 +41,9 @@
     "invoke": "--print --output-format text --force",
     "output": "text",
     "ship": "full",
-    "detect": { "env": "CURSOR_TRACE_ID" },
+    "detect": {
+      "env": "CURSOR_TRACE_ID"
+    },
     "install": {
       "kairos": "pending",
       "superpowers": "pending",
@@ -44,12 +61,23 @@
     "invoke": "-p --mode text",
     "output": "text",
     "ship": "full",
-    "detect": { "env": "AI_AGENT", "value": "pi" },
+    "detect": {
+      "env": "AI_AGENT",
+      "value": "pi"
+    },
     "install": {
-      "kairos": "pi install npm:@oscaner-skills/kairos",
-      "superpowers": "pending",
-      "mattpocock-skills": "pending",
-      "impeccable": "pending"
+      "kairos": [
+        "pi install npm:@oscaner-skills/kairos"
+      ],
+      "superpowers": [
+        "pi install git:github.com/obra/superpowers"
+      ],
+      "mattpocock-skills": [
+        "pi install git:github.com/mattpocock/skills"
+      ],
+      "impeccable": [
+        "npx impeccable install --providers=pi --scope=global -y"
+      ]
     },
     "cache": {
       "mechanism": "auto-prefix",
@@ -61,26 +89,88 @@
     "implement": "mattpocock-skills:tdd",
     "fix": "mattpocock-skills:tdd",
     "review": {
-      "task": { "ref": "mattpocock-skills:code-review", "note": "single agent, dual axis (standards + spec); parallel sub-agents forbidden" },
-      "branch": { "ref": "mattpocock-skills:code-review", "note": "single agent, dual axis (standards + spec); parallel sub-agents forbidden" },
+      "task": {
+        "ref": "mattpocock-skills:code-review",
+        "note": "single agent, dual axis (standards + spec); parallel sub-agents forbidden"
+      },
+      "branch": {
+        "ref": "mattpocock-skills:code-review",
+        "note": "single agent, dual axis (standards + spec); parallel sub-agents forbidden"
+      },
       "spec": "Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity)",
       "plan": "Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability)"
     }
   },
   "refs": {
-    "superpowers:brainstorming": { "claude": "/superpowers:brainstorming", "cursor": "/superpowers:brainstorming", "pi": "/skill:brainstorming" },
-    "superpowers:writing-plans": { "claude": "/superpowers:writing-plans", "cursor": "/superpowers:writing-plans", "pi": "/skill:writing-plans" },
-    "superpowers:finishing-a-development-branch": { "claude": "/superpowers:finishing-a-development-branch", "cursor": "/superpowers:finishing-a-development-branch", "pi": "/skill:finishing-a-development-branch" },
-    "mattpocock-skills:tdd": { "claude": "/mattpocock-skills:tdd", "cursor": "/mattpocock-skills:tdd", "pi": "/skill:tdd" },
-    "mattpocock-skills:code-review": { "claude": "/mattpocock-skills:code-review", "cursor": "/mattpocock-skills:code-review", "pi": "/skill:code-review" },
-    "mattpocock-skills:grilling": { "claude": "/mattpocock-skills:grilling", "cursor": "/mattpocock-skills:grilling", "pi": "/skill:grilling" },
-    "kairos:cdd-design": { "claude": "/kairos:cdd-design", "cursor": "/kairos:cdd-design", "pi": "/skill:cdd-design" },
-    "kairos:cdd-spec": { "claude": "/kairos:cdd-spec", "cursor": "/kairos:cdd-spec", "pi": "/skill:cdd-spec" },
-    "kairos:cdd-charter": { "claude": "/kairos:cdd-charter", "cursor": "/kairos:cdd-charter", "pi": "/skill:cdd-charter" },
-    "kairos:cdd-phase": { "claude": "/kairos:cdd-phase", "cursor": "/kairos:cdd-phase", "pi": "/skill:cdd-phase" },
-    "kairos:cdd-plan": { "claude": "/kairos:cdd-plan", "cursor": "/kairos:cdd-plan", "pi": "/skill:cdd-plan" },
-    "kairos:cdd-dev": { "claude": "/kairos:cdd-dev", "cursor": "/kairos:cdd-dev", "pi": "/skill:cdd-dev" },
-    "kairos:cdd-close": { "claude": "/kairos:cdd-close", "cursor": "/kairos:cdd-close", "pi": "/skill:cdd-close" },
-    "kairos:cdd-report": { "claude": "/kairos:cdd-report", "cursor": "/kairos:cdd-report", "pi": "/skill:cdd-report" }
+    "superpowers:brainstorming": {
+      "claude": "/superpowers:brainstorming",
+      "cursor": "/superpowers:brainstorming",
+      "pi": "/skill:brainstorming"
+    },
+    "superpowers:writing-plans": {
+      "claude": "/superpowers:writing-plans",
+      "cursor": "/superpowers:writing-plans",
+      "pi": "/skill:writing-plans"
+    },
+    "superpowers:finishing-a-development-branch": {
+      "claude": "/superpowers:finishing-a-development-branch",
+      "cursor": "/superpowers:finishing-a-development-branch",
+      "pi": "/skill:finishing-a-development-branch"
+    },
+    "mattpocock-skills:tdd": {
+      "claude": "/mattpocock-skills:tdd",
+      "cursor": "/mattpocock-skills:tdd",
+      "pi": "/skill:tdd"
+    },
+    "mattpocock-skills:code-review": {
+      "claude": "/mattpocock-skills:code-review",
+      "cursor": "/mattpocock-skills:code-review",
+      "pi": "/skill:code-review"
+    },
+    "mattpocock-skills:grilling": {
+      "claude": "/mattpocock-skills:grilling",
+      "cursor": "/mattpocock-skills:grilling",
+      "pi": "/skill:grilling"
+    },
+    "kairos:cdd-design": {
+      "claude": "/kairos:cdd-design",
+      "cursor": "/kairos:cdd-design",
+      "pi": "/skill:cdd-design"
+    },
+    "kairos:cdd-spec": {
+      "claude": "/kairos:cdd-spec",
+      "cursor": "/kairos:cdd-spec",
+      "pi": "/skill:cdd-spec"
+    },
+    "kairos:cdd-charter": {
+      "claude": "/kairos:cdd-charter",
+      "cursor": "/kairos:cdd-charter",
+      "pi": "/skill:cdd-charter"
+    },
+    "kairos:cdd-phase": {
+      "claude": "/kairos:cdd-phase",
+      "cursor": "/kairos:cdd-phase",
+      "pi": "/skill:cdd-phase"
+    },
+    "kairos:cdd-plan": {
+      "claude": "/kairos:cdd-plan",
+      "cursor": "/kairos:cdd-plan",
+      "pi": "/skill:cdd-plan"
+    },
+    "kairos:cdd-dev": {
+      "claude": "/kairos:cdd-dev",
+      "cursor": "/kairos:cdd-dev",
+      "pi": "/skill:cdd-dev"
+    },
+    "kairos:cdd-close": {
+      "claude": "/kairos:cdd-close",
+      "cursor": "/kairos:cdd-close",
+      "pi": "/skill:cdd-close"
+    },
+    "kairos:cdd-report": {
+      "claude": "/kairos:cdd-report",
+      "cursor": "/kairos:cdd-report",
+      "pi": "/skill:cdd-report"
+    }
   }
 }

@@ -101,7 +101,7 @@ interface LexiconData {
  *  tables at the top level). */
 interface HarnessContract {
   detect?: LexiconMarker;
-  install?: Record<string, string>;
+  install?: Record<string, string[]>;
   dispatch?: Record<string, unknown>;
   refs?: Record<string, Record<string, string>>;
   [key: string]: unknown;
@@ -877,7 +877,7 @@ export class ContractLexiconGuard {
 
     // Every harness row must declare an install banner for each install package.
     for (const [id, row] of rows) {
-      const install = (row as { install?: Record<string, string> }).install;
+      const install = (row as { install?: Record<string, string[]> }).install;
       if (!install) continue;
       for (const pkg of installPkgs) {
         if (install[pkg] === undefined) {
@@ -894,7 +894,7 @@ export class ContractLexiconGuard {
     for (const rel of readmes) {
       const md = readFileSync(path.isAbsolute(rel) ? rel : path.join(ROOT, rel), "utf8");
       for (const [id, row] of rows) {
-        const install = (row as { install?: Record<string, string> }).install;
+        const install = (row as { install?: Record<string, string[]> }).install;
         if (!install) continue;
         for (const [pkg, cmd] of Object.entries(install)) {
           const rowMatch = md.match(
@@ -909,9 +909,10 @@ export class ContractLexiconGuard {
           }
           const cells = rowMatch[0].split("|").map((c) => c.trim().replace(/`/g, ""));
           const rendered = cells[harnessIds.indexOf(id) + 2] ?? "";
-          if (rendered !== cmd) {
+          const cmdText = Array.isArray(cmd) ? cmd.join("；") : (cmd as string);
+          if (rendered !== cmdText) {
             hits.push({
-              label: `README upstream table cell ${pkg}/${id} ${JSON.stringify(rendered)} ≠ install data ${JSON.stringify(cmd)} (install render drift)`,
+              label: `README upstream table cell ${pkg}/${id} ${JSON.stringify(rendered)} ≠ install data ${JSON.stringify(cmdText)} (install render drift)`,
               file: rel,
             });
           }

@@ -4,14 +4,14 @@
 
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.22](docs/osuperpowers/specs/2026-09-27-pi-harness-overall.md)
 - **Version**: v1.2 · 2026-10-01（user 拍板 kairos 命名全面退役折入——包身份 / workspace 根 / 文档树 git mv，零存量；plan-review-1 六项已随 v1.1 落地）
-- **Depends on**: P4 design v1.3 Approved（`0e057b9f`，C1–C6）
+- **Depends on**: P4 design v1.4 Approved（`0f279ded` · `4db6049c`，C1–C6）
 - **Base**: develop
 
 ## Constraints
 
 ### 口径
 
-- **单身份（G1）**：每个 skill 的目录名 == `SKILL.md` front-matter `name:` == 三 harness invocation token——三者合一，任何一者偏移即 FAIL；新名集合恰 8 个：`cdd-design` / `cdd-spec` / `cdd-charter` / `cdd-phase` / `cdd-plan` / `cdd-dev` / `cdd-close` / `cdd-report`；命名空间 `osuperpowers` 保留
+- **单身份（G1）**：每个 skill 的目录名 == `SKILL.md` front-matter `name:` == 三 harness invocation token——三者合一，任何一者偏移即 FAIL；新名集合恰 8 个：`cdd-design` / `cdd-spec` / `cdd-charter` / `cdd-phase` / `cdd-plan` / `cdd-dev` / `cdd-close` / `cdd-report`；命名空间随命名退役改 `kairos`（`/kairos:cdd-*`，见 G4）
 - **全改令（G2，user 2026-10-01 拍板）**：改名是全仓原子面——**所有测试（含文件名内嵌旧 skill 名者）、各种文件名、字面量（字符串 / 路径 glob / 标识符 / 声称字面量）一并改**，不允许只改 `name:` 字段留旧面；live 面（kairos src/tests + scripts live + README 家族 + CLAUDE.md + docs/maintainers + engine src）零旧名/旧目录；**历史正文不 retro-rename**（docs/osuperpowers/specs|plans 既有行、CHANGELOG、既有 changeset = 史实）
 - **命名退役 token 同扫（G4，user 2026-10-01）**：`osuperpowers` → `kairos`——插件包 npm 名/namespace `/kairos:`/marketplace/安装命令/release 流/lockfile/engine schema 描述字符串/scripts 标识符（`osuperpowersPkg/Row/Steps/Versions/Osc/Src/Entry/Bump`）+ validate step 名（ci-validate name-set 同步）+ **三目录 `git mv`**（`packages/osuperpowers/`→`packages/kairos/` · `docs/osuperpowers/`→`docs/kairos/` · `.osuperpowers`→`.kairos`（`engine-config.json#handoffNamespace.workspaceRoot` 单源 + 根 .gitignore + biome includes））——**零存量迁移**（user：不建兼容机制，实现当时 git mv 直迁；存量 `.osuperpowers/` 磁盘态 gitignored 惰性、零处理）；`cdd`/`cdd-engine`/CLI `cdd` 保留（方法论层）；live 面零 `osuperpowers`（历史正文除外）
 - **上游 import 不动**：`/superpowers:*` / `/mattpocock-skills:*` 引用原样保留（它们不属于 kairos 身份面）；flow 内 `/osuperpowers:*` 互引随命名退役 + 新名（→ `/kairos:cdd-*`）
@@ -116,13 +116,13 @@
     - **neutral verified 声称 pair→triple**：`verified on **Claude Code** and **Cursor Agent**`（README.md:11）→ `verified on **Claude Code**, **Cursor Agent**, and **Pi**`
     - per-harness 安装表加 pi 行（`Pi` | `pi install npm:@oscaner-skills/kairos`）
     - 新增 `### From pi` 小节：`pi install npm:@oscaner-skills/kairos`（`@latest` 契约）· 安装后事实（八 skill 以 `cdd-*` 名可见 · project settings 写入）· **一行 cdd- 缘由**（pi 为 flat namespace 且无命名空间修饰语法，`cdd-*` bare-name 唯一性即最佳实践）
-    - 技能清单/插件表内既有 `/osuperpowers:<旧名>` 提及更新为 `/kairos:<新名>`
+    - 既有 `osuperpowers:<旧名>` 技能提及更新为 `kairos:<新名>`（命名空间随退役，同 Step 4）——root 为 README.md:96-97 叙述行、kairos 包 README 为 invoke 示例行；与 T1 Step 6 的提及改名不重复：T1 只改既有提及，本行仅确认铺设后最终形态
   - **Step 2（kairos README）** `packages/kairos/README.md`（目录迁移后）：
     - **neutral verified 声称 pair→triple**：`verified on **Claude Code** and **Cursor Agent**`（README.md:5）→ `verified on **Claude Code**, **Cursor Agent**, and **Pi**`
     - **名义映射表**替换手写 CDD engine CLI 表（`| Harness | CLI binary | Ship status |`——含 2 处 `cursor-agent` 手写行键的行）：新表列 = `标识符 | 二进制 | 宿主 marker | Ship`，数据从 contract-lexicon（`ids`/`clis`/`markers`）+ harness-registry `ship` 派生（零手写重复映射；`cursor-agent` 仅在二进制列作数据值出现）
     - pi 消费段（八 skill 以 `cdd-*` 名安装可见）
     - **D5 消费故事节**（「与 superpowers 并存」）：`cdd-*` 零冲突 by-construction（pi flat namespace 唯一命名）· inline import **harness 条件化**——claude/cursor 插件限定引用（`/superpowers:*`）可用且恒落属主包；pi 仅 `/skill:<bare-name>`，`cdd-*` 唯一性保证无歧义
-  - **Step 3（双镜像）**：`README.zh-CN.md` + `packages/osuperpowers/README.zh-CN.md` 结构与 EN 同步（per-harness 表 + pi 小节 + 名义表 + D5 节）· **neutral verified 声称 pair→triple 随 EN**（`已在 **Claude Code** 与 **Cursor Agent** 上验证`（README.zh-CN.md:15 / packages/osuperpowers/README.zh-CN.md:7）→ 补 `**Pi**`，与 EN 措辞对齐）· 各文件镜像声明时间戳校准为 `2026-10-01`；`packages/cdd-engine/README.md` 零铺设增量（T4 不为其加内容；T1 改名面仍适用——其 `cli-driven-development` 提及随新名）
+  - **Step 3（双镜像）**：`README.zh-CN.md` + `packages/kairos/README.zh-CN.md`（目录迁移后；行号随迁不变，内容同前）结构与 EN 同步（per-harness 表 + pi 小节 + 名义表 + D5 节）· **neutral verified 声称 pair→triple 随 EN**（`已在 **Claude Code** 与 **Cursor Agent** 上验证`（README.zh-CN.md:15 / packages/kairos/README.zh-CN.md:7）→ 补 `**Pi**`，与 EN 措辞对齐）· 各文件镜像声明时间戳校准为 `2026-10-01`；`packages/cdd-engine/README.md` 零铺设增量（T4 不为其加内容；T1 改名面仍适用——其 `cli-driven-development` 提及随新名）
   - **Step 4**：`pnpm run precommit`
 - **验收**: README 家族零 `cursor-agent`（豁免锚已废；二进制列数据值除外——名义表二进制列含 `cursor-agent` 属 registry `cli` 数据值，合法）；neutral verified 声称 triple 四声明面实际落笔（root EN / osuperpowers EN / zh 双镜像，pair→triple 补 Pi）；zh 双镜像结构 parallel + 声明时间戳 `2026-10-01`；名义表与 lexicon/registry 数据一致（人工过目 + T5 守卫）；pi 安装段含命令 + 安装后事实 + cdd- 缘由一行；D5 节含零冲突叙事 + harness 条件化语义；`pnpm run precommit` 绿
 - **注**: pi 面引用用 `/skill:<name>` / 裸名（无 namespace 语法事实）；cdd-engine README 零增量指 T4 铺设零增量——T1 改名面仍适用（非豁免面，其 `cli-driven-development` 提及随新名）
@@ -134,10 +134,10 @@
     - harness 声称 = **verified triple**（`claude` / `cursor-agent` / `pi`）——README 家族只声称已验证三面（`P4.1` pin 升级；断言正则同步 T4 铺设后的 triple 措辞 `verified on **Claude Code**, **Cursor Agent**, and **Pi**` / 镜像 `已在 **Claude Code**、**Cursor Agent** 与 **Pi** 上验证`，非旧 pair 措辞）
     - **技能清单 == 目录扫描双钉**：README 声明的技能集合 == `skills/` 目录名 × 各 SKILL.md `name:`（恰 8 全 `cdd-*`，双钉不一致即 FAIL）
     - **名义表 == 数据派生**：README 名义表行 == lexicon（`ids`/`clis`/`markers`）+ registry（`ship`）派生期望
-    - 保留 `/8 harnesses|Trae|Vibe|Kiro|OpenCode` 外国声称禁令；**零旧名 skill 身份残留**断言（README 声称面无 `brainstorming` 等旧名 skill 引称——上游 import 词法除外）；**零 `osuperpowers` 残留**断言（README 声称面/插件名无 `osuperpowers`——退役说明行除外）
+    - 保留 `/8 harnesses|Trae|Vibe|Kiro|OpenCode` 外国声称禁令；**零旧名 skill 身份残留**断言（README 声称面无 `brainstorming` 等旧名 skill 引称——上游 import 词法除外）；**零 `osuperpowers` 残留**断言（README 声称面/插件名无 `osuperpowers`）
     - npm-source 解析风险残记录注释（承接 v1.21 登记）
   - **Step 2（pi-package）** `packages/kairos/tests/pi-package.test.mjs`（目录迁移后）延展：`pi.skills` glob 解析集 == 扫描集（恰 8 `cdd-*`，目录×name 双钉）——既有 4 个测试块断言不变（test() 于 24 / 33 / 43 / 50 行，文件实态），新增集合断言
-  - **Step 3**：零新 validate step（node:test 自动进 step-4 glob）；`ci-validate.test.mjs` 零改动；`pnpm run precommit`
+  - **Step 3**：零新 validate step（node:test 自动进 step-4 glob）；ci-validate 编排断言零新 step、assertion-set 的改名同步已由 T1 Step 6b 承载（非文件禁改）；`pnpm run precommit`
 - **验收**: `presentation-surface.test.mjs` / `pi-package.test.mjs` 全绿（triple + 清单双钉 + 名义派生 + 禁令 + 零旧名/零 `osuperpowers` 残留 + pi 集合断言）；validate step-4 块绿；ci-validate 零扰动；`pnpm run precommit` 绿
 - **注**: pin 只指 kairos 面身份；`brainstorming` 作为词在上游 import（`/superpowers:brainstorming`）合法——不做词级禁（G2 精确保守）
 

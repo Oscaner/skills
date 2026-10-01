@@ -60,7 +60,7 @@ npm install @oscaner-skills/kairos
 /kairos:cdd-plan    # → cdd-plan
 
 # Cursor
-/cdd-design    # → cdd-design（裸上游斜杠）
+/cdd-design    # → cdd-design
 /cdd-plan    # → cdd-plan
 ```
 

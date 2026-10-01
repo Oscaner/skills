@@ -58,7 +58,7 @@ Or install from the oscaner-skills Claude Code marketplace:
 /kairos:cdd-plan    # → cdd-plan
 
 # Cursor
-/cdd-design    # → cdd-design (bare upstream slash)
+/cdd-design    # → cdd-design
 /cdd-plan    # → cdd-plan
 ```
 

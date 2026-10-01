@@ -8,7 +8,7 @@
 
 **A cdd-first methodology: continuously-discovered development as the core discipline, AI coding skills as the distribution vehicle.**
 
-This repository is the home of that methodology and the vehicle that distributes it. The core discipline — **cdd**, continuously-discovered development — is encoded as skills and released as installable plugins, consumable across multiple AI coding harnesses (verified on **Claude Code** and **Cursor Agent**). First-party plugins are built here under `packages/` and published to npm under the `@oscaner-skills/*` scope; the `cdd` engine drives the whole flow.
+This repository is the home of that methodology and the vehicle that distributes it. The core discipline — **cdd**, continuously-discovered development — is encoded as skills and released as installable plugins, consumable across multiple AI coding harnesses (verified on **Claude Code**, **Cursor Agent**, and **Pi**). First-party plugins are built here under `packages/` and published to npm under the `@oscaner-skills/*` scope; the `cdd` engine drives the whole flow.
 
 ## The cdd philosophy
 
@@ -76,6 +76,14 @@ Upstream plugin versions follow their own release schedules and are not tracked 
 npm install @oscaner-skills/kairos
 ```
 
+### From pi
+
+```bash
+pi install npm:@oscaner-skills/kairos
+```
+
+Installs the latest release into the pi harness: the eight `cdd-*` skills land under their bare names and pi's project settings are written on install. kairos ships every skill as `cdd-*` because pi has a flat skill namespace with no namespace-qualification syntax — the unique `cdd-*` bare names are what keep each skill unambiguous when invoked.
+
 ### Upstream plugins
 
 Upstream plugins (superpowers / mattpocock-skills / impeccable) are not packaged here — install each from its own publisher via its official command (marked **Upstream** in the [Plugins](#plugins) table, linked to their GitHub home repos).
@@ -86,8 +94,9 @@ Upstream plugins (superpowers / mattpocock-skills / impeccable) are not packaged
 |---------|---------------|
 | Claude Code | Marketplace install |
 | Cursor Agent | Marketplace install |
+| Pi | `pi install npm:@oscaner-skills/kairos` |
 
-kairos installs through each harness's own plugin marketplace; neither Claude Code nor Cursor Agent needs a per-harness config file.
+kairos installs through each harness's own channel — the plugin marketplace for Claude Code and Cursor Agent, `pi install npm:@oscaner-skills/kairos` for Pi. pi's install writes its project settings; Claude Code and Cursor Agent need no per-harness config file.
 
 ## Quick start
 

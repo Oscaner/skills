@@ -1,6 +1,6 @@
 # oscaner-skills
 
-> 🔗 **Mirror 同步声明**：本文件（`README.zh-CN.md`）是英文源 [README.md](README.md) 的同步中文 **mirror**——顶层章节集合逐条一致（9 段，节点按位置一一对应）；本文为对外宣讲面的中文口径，语义以英文源为准。**同步时间戳**：2026-09-26。
+> 🔗 **Mirror 同步声明**：本文件（`README.zh-CN.md`）是英文源 [README.md](README.md) 的同步中文 **mirror**——顶层章节集合逐条一致（9 段，节点按位置一一对应）；本文为对外宣讲面的中文口径，语义以英文源为准。**同步时间戳**：2026-10-01。
 
 [English](README.md) | [中文](README.zh-CN.md)
 
@@ -12,7 +12,7 @@
 
 （cdd-first 方法论：以持续发现式开发为核心理念，以 AI 编程技能为分发载体。）
 
-本仓库是该方法论及其分发载体的家园。核心理念——**cdd**（continuously-discovered development，持续发现式开发）——被编码为技能，并以可安装插件形式发布，可供多种 AI 编程 harness 消费（已在 **Claude Code** 与 **Cursor Agent** 上验证）。第一方插件在本仓库 `packages/` 下构建，以 `@oscaner-skills/*` scope 发布到 npm；`cdd` 引擎驱动整个流程。
+本仓库是该方法论及其分发载体的家园。核心理念——**cdd**（continuously-discovered development，持续发现式开发）——被编码为技能，并以可安装插件形式发布，可供多种 AI 编程 harness 消费（已在 **Claude Code**、**Cursor Agent** 与 **Pi** 上验证）。第一方插件在本仓库 `packages/` 下构建，以 `@oscaner-skills/*` scope 发布到 npm；`cdd` 引擎驱动整个流程。
 
 ## cdd 理念导览
 
@@ -80,6 +80,14 @@ cdd 不是把计划写一次就指望它扛住现实，而是让规划贯穿整�
 npm install @oscaner-skills/kairos
 ```
 
+### 从 pi 安装
+
+```bash
+pi install npm:@oscaner-skills/kairos
+```
+
+将最新发布版安装进 pi harness：八个 `cdd-*` 技能以裸名落盘，pi 的 project settings 随安装写入。kairos 将每个技能都命名为 `cdd-*` 是有意为之——pi 为扁平命名空间且无命名空间修饰语法，`cdd-*` 裸名的唯一性正是每个技能调用时无歧义的保证。
+
 ### 上游插件
 
 上游插件（superpowers / mattpocock-skills / impeccable）不在此仓库打包——请从各自发布方按其官方命令安装（上方「[插件列表](#插件列表)」中标注「上游」，链接至其 GitHub 主页）。
@@ -90,8 +98,9 @@ npm install @oscaner-skills/kairos
 |---------|---------|
 | Claude Code | Marketplace 安装 |
 | Cursor Agent | Marketplace 安装 |
+| Pi | `pi install npm:@oscaner-skills/kairos` |
 
-kairos 通过各 harness 自己的插件市场安装；Claude Code 与 Cursor Agent 均无需逐 harness 配置文件。
+kairos 通过各 harness 自己的渠道安装——Claude Code 与 Cursor Agent 走插件市场，Pi 用 `pi install npm:@oscaner-skills/kairos`。pi 的安装会写入其 project settings；Claude Code 与 Cursor Agent 均无需逐 harness 配置文件。
 
 ## 快速开始
 

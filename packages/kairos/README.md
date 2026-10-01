@@ -2,7 +2,7 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-Personal AI coding skills — kairos orchestration, the `cdd-*` CDD engine family, and the cdd-report repo utility — packaged as an installable plugin for AI coding harnesses (verified on **Claude Code** and **Cursor Agent**).
+Personal AI coding skills — kairos orchestration, the `cdd-*` CDD engine family, and the cdd-report repo utility — packaged as an installable plugin for AI coding harnesses (verified on **Claude Code**, **Cursor Agent**, and **Pi**).
 
 ## The kairos philosophy
 
@@ -46,6 +46,14 @@ Or install from the oscaner-skills Claude Code marketplace:
 /plugin install kairos@oscaner-skills
 ```
 
+### From pi
+
+```bash
+pi install npm:@oscaner-skills/kairos
+```
+
+Installs the latest release and writes pi's project settings. The eight `cdd-*` skills are then visible under their bare names in pi's flat namespace — `cdd-design`, `cdd-plan`, and the rest.
+
 ## Quick start
 
 1. Install `superpowers`, `kairos`, and `mattpocock-skills` from the marketplace (see the repository README for per-harness install).
@@ -66,12 +74,17 @@ Or install from the oscaner-skills Claude Code marketplace:
 
 The CDD engine ships as the standalone `@oscaner-skills/cdd-engine` package; its single CLI runner is `cdd` (implement / review / fix / base-branch / schema / issue). It dispatches each phase to the host harness CLI via the engine's embedded harness registry (per-harness invocation and output contract):
 
-| Harness | CLI binary | Ship status |
-|---------|------------|-------------|
-| claude | `claude` | Full |
-| cursor-agent | `cursor-agent` | Full |
+| Identifier | CLI binary | Host marker | Ship |
+|------------|------------|-------------|------|
+| claude | `claude` | `CLAUDE_CODE_SESSION_ID` | full |
+| cursor | `cursor-agent` | `CURSOR_TRACE_ID` | full |
+| pi | `pi` | `AI_AGENT=pi` | full |
 
 `cdd schema get <type>` prints the engine's canonical doc-structure schema straight to stdout (discovery-only, byte-identical to the shipped schema), and `cdd issue render` builds an aggregate issue body from stdin findings (pure rendering, zero enforcement). See [the cdd-engine README](../cdd-engine/README.md) for the full CLI reference.
+
+## Co-existing with upstream plugins
+
+kairos ships every skill as `cdd-*`, so the family coexists with upstream plugins without conflict by construction: pi's flat namespace has no namespace-qualification syntax, and the unique `cdd-*` bare names keep every kairos skill unambiguous alongside any upstream plugin. Inline skill references are harness-conditional — Claude Code and Cursor Agent support plugin-qualified imports like `/superpowers:*`, which always resolve to the owning package, while pi invokes bare `/skill:<name>` only, where `cdd-*` uniqueness guarantees an unambiguous target.
 
 ## Docs for maintainers
 

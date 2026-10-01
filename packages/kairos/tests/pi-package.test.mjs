@@ -7,7 +7,7 @@
 // node:assert; zero subprocesses, zero engine invocation at runtime.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -57,5 +57,33 @@ test("files closure: pi-declared paths are a static subset of the files whitelis
       whitelist.some((w) => d === w || d.startsWith(`${w}/`)),
       `pi-declared path ${d} must be covered by a package files whitelist entry`,
     );
+  }
+});
+
+test("pi.skills glob resolution set == the {dir, name} scan set (exactly 8 cdd-*)", () => {
+  const pkg = loadPackage();
+  const skillsDir = path.join(PKG_DIR, "skills");
+  // The resolution side: every declared pi.skills glob, expanded to its SKILL.md-bearing dirs.
+  const resolved = (pkg.pi?.skills ?? [])
+    .flatMap((glob) => {
+      const dir = path.join(PKG_DIR, glob.replace(/^\.\//, "").replace(/\/\*$/, ""));
+      return readdirSync(dir, { withFileTypes: true })
+        .filter((e) => e.isDirectory() && existsSync(path.join(dir, e.name, "SKILL.md")))
+        .map((e) => e.name);
+    })
+    .sort();
+  // The scan side: the canonical skills/ directory (dir × SKILL.md name: double-pin).
+  const scanned = readdirSync(skillsDir, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && existsSync(path.join(skillsDir, e.name, "SKILL.md")))
+    .map((e) => e.name)
+    .sort();
+  assert.equal(resolved.length, 8, "pi.skills globs must resolve exactly the 8 shipped skills");
+  assert.deepEqual(resolved, scanned, "pi.skills glob resolution set must equal the skills/ dir scan");
+  for (const name of scanned) {
+    assert.match(name, /^cdd-/, `every pi-resolved skill must be a cdd-* family name: ${name}`);
+    const md = readFileSync(path.join(skillsDir, name, "SKILL.md"), "utf8");
+    const picked = md.match(/^name:\s*(.+)$/m);
+    assert.ok(picked, `SKILL.md in ${name} missing a name: front-matter field`);
+    assert.equal(picked[1].trim(), name, `SKILL.md front-matter name: must equal its directory name ${name}`);
   }
 });

@@ -24,16 +24,16 @@ Cross-phase 约定属 parent overall，本 spec 不复述（overall wins on conf
 **根因**（v1.26 复盘 + 本 session 补证）：precommit 子集排除 engine 两块 · vitest esbuild 转译不查型 · unbuild 不查型 · scripts 零 tsconfig · 全仓零 `tsc --noEmit`。补证：root 零 typescript（engine tsconfig 存在但零接线）；dev 面可零构建直跑（2.4）；`typescript@7` 原生 CLI 判官形态（`@typescript/typescript6` = JS-API 线，本仓零消费）。
 
 **三项目 tsconfig 面**：
-- **engine**：`packages/cdd-engine/tsconfig.json` 原位——include `src`（含 `__tests__`）；`strict`/`noEmit`/`skipLibCheck`/`moduleResolution: bundler` 保持（构建面语义）；`build.config.ts` 删除后（2.4）include 缩为 `src`
-- **scripts**：新建 `scripts/tsconfig.json`——`module: nodenext` · `moduleResolution: nodenext` · `allowImportingTsExtensions: true` + `noEmit: true` · `strict: true` · `skipLibCheck` · **`erasableSyntaxOnly: true`**（Node strip 运行契约镜像——防「能编译但 Node 跑不了」）· include `scripts/**/*.ts`（含 emit / observe-cache / `__tests__`）
+- **engine**：`packages/cdd-engine/tsconfig.json` 原位——`strict`/`noEmit`/`skipLibCheck`/`moduleResolution: bundler` 保持（构建面语义）+ **`erasableSyntaxOnly: true`**（Node strip 运行契约镜像——engine 即主 strip 运行时 `node src/bin.ts` 直跑，防「能编译但 Node 跑不了」；src 实测零非 erasable 构造，落地即绿）；include `src`（含 `__tests__`）+ `vitest.config.ts`（config 面并入闸——vitest 转译不查型）；`build.config.ts` 删除后（2.4）不再入 include
+- **scripts**：新建 `scripts/tsconfig.json`——`module: nodenext` · `moduleResolution: nodenext` · `allowImportingTsExtensions: true` + `noEmit: true` · `strict: true` · `skipLibCheck` · **`erasableSyntaxOnly: true`**（Node strip 运行契约镜像——防「能编译但 Node 跑不了」）· include `scripts/**/*.ts`（含 emit / observe-cache / `__tests__`）+ root `vitest.config.ts` / `lint-staged.config.ts`（根配置面并入闸——vitest/lint-staged 由 esbuild/原生加载，均不查型，配置盲区不留）
 - **kairos-tests**：新建 `packages/kairos/tests/tsconfig.json`——与 scripts 同语义（node:test 直跑面）；`.mjs→.ts` 后并入闸
 
-**命令形态**：root script `"typecheck": "tsc --noEmit -p packages/cdd-engine && tsc --noEmit -p scripts && tsc --noEmit -p packages/kairos/tests"`；root devDeps 增 `typescript@^7.0.2`（判官单源，与 engine 的 `typescript@^7` 拉齐）。**`@typescript/typescript6` 删除**（2.4）。
+**命令形态**：root script `"typecheck": "tsc --noEmit -p packages/cdd-engine && tsc --noEmit -p scripts && tsc --noEmit -p packages/kairos/tests"`；root devDeps 增 `typescript@^7.0.2`（判官单源，与 engine 的 `typescript@^7` 拉齐）。**`@typescript/typescript6` 删除**（2.4）。三项目 include 面总覆盖 = 全迁移 TS 面（engine `src` + `vitest.config.ts` · scripts 全量 + root `vitest.config.ts` / `lint-staged.config.ts` · kairos-tests 全量）——`.mjs→ts` 后的任一 TS 文件（源面与配置面）都被恰一项目盘到，配置面不留类型盲区。
 
 **type-check 块（validate + precommit 双接点）**：`scripts/validate/type-check.ts` 导出 steps（`SubprocessBlock` cmd=`pnpm` args=`run typecheck`）；compose 进 `scripts/validate/index.ts`（终验）与 `scripts/validate/pre-commit.ts`（提交）——同一步、两接点。根因之一即「precommit 子集排除 engine 两块」，双接点防提交面空窗复现。
 
 **全仓源面 `.mjs→.ts`（全代码 TS 化 iron rule）**：
-- `packages/kairos/tests/*.test.mjs`（11 个）+ `helpers.mjs` → `.test.ts`/`.ts`（import 规格符改 `.ts`——现有测试已 import `../../../scripts/validate/kairos.ts`（带 `.ts` 后缀）先例成立）
+- `packages/kairos/tests/*.test.mjs`（10 个——cdd-plan-spec / ci-validate / grep-sweep-regression / maintainers-docs / no-gate / pi-install-smoke / pi-package / presentation-surface / review-loop-clean-tree / status-routing-convergence）+ `helpers.mjs`（1 个）→ `.test.ts`/`.ts`（import 规格符改 `.ts`——现有测试已 import `../../../scripts/validate/kairos.ts`（带 `.ts` 后缀）先例成立）
 - `scripts/emit/render-yaml.mjs` → `.ts`（`issue-templates.ts` + 其 test 共 2 处 import 同步）
 - `vitest.config.mjs`（root + engine）→ `vitest.config.ts`（vitest 原生支持）
 - `lint-staged.config.mjs` → `lint-staged.config.ts`（lint-staged v17 原生支持 `.ts/.cts/.mts`，configFiles.js 实证）
@@ -77,8 +77,9 @@ Cross-phase 约定属 parent overall，本 spec 不复述（overall wins on conf
 
 **目标形态**：
 - **dev/CI 面**：`node packages/cdd-engine/src/bin.ts <subcommand>`（Node ≥22.18）——CLAUDE.md「Development-time CDD invocation」改指 · engine vitest 黑盒 ~13 处 exec 常量（`cdd.test.ts` 等 CDD_MJS 族）改指 `src/bin.ts` · `globalSetup` self-stub 删除（无 dist 缺省逻辑可删）· validate `smoke-cdd` pin 改指
-- **发布面**：`tsconfig.build.json`（`module: nodenext` · `moduleResolution: nodenext` · `allowImportingTsExtensions` + `rewriteRelativeImportExtensions` · `noEmit: false` · `outDir: dist` · exclude `**/__tests__/**` · typeRoots 显式指 engine `node_modules/@types`）→ `tsc -p` 产 `dist/` JS 模块树 + config copy（`dist/config`——published-first resolveResource 面保持，P4 C7 不破）；`bin: {"cdd": "dist/bin.js"}` · `files: ["src/","config/","templates/"]` · `engines: >=22.18`
-- **删除层（死壳即删）**：unbuild（devDeps）· jiti（stub 机制）· `build.config.ts` · `dev:stub` script（engine package.json + CLAUDE.md）· `@typescript/typescript6`（零 d.ts 需求 = 零 JS-API 消费实证）· `dist/` stub 产物面的外围逻辑（globalSetup）· vitest 自给缺省分支 —— `docs/maintainers/05-third-party-dependencies.md` unbuild 登记改 retired · CLAUDE.md 相应段重写
+- **发布面**：`tsconfig.build.json`（`module: nodenext` · `moduleResolution: nodenext` · `allowImportingTsExtensions` + `rewriteRelativeImportExtensions` · `noEmit: false` · `outDir: dist` · exclude `**/__tests__/**` · typeRoots 显式指 engine `node_modules/@types`）→ `tsc -p` 产 `dist/` JS 模块树 + config copy（`dist/config`——published-first resolveResource 面保持，P4 C7 不破）；manifest **入口三连一并改指发射产物**——`bin: {"cdd": "dist/bin.js"}` · `main` / `exports["."]` 改指 `./dist/bin.js`（`dist/cli.mjs` 随 unbuild 删除后不再存在；零 JS-API 消费——`src/bin.ts` 注释声明，保持 manifest 可解析即可）· `files: ["dist/","config/","templates/"]`（发布面 = `tsc --emit` 的 JS 树，`src/` 源面零 ship——node_modules 类型剥离永久禁令即「发布必 JS」）· `engines: >=22.18`
+- **删除层（死壳即删）**：unbuild（devDeps）· jiti（stub 机制）· `build.config.ts` · `dev:stub` script（engine package.json + CLAUDE.md）· `@typescript/typescript6`（零 d.ts 需求 = 零 JS-API 消费实证）· `dist/` stub 产物面的外围逻辑（globalSetup）· vitest 自给缺省分支 —— **改写面**：`docs/maintainers/05-third-party-dependencies.md` unbuild 登记改 retired · CLAUDE.md 相应段重写 · engine README 对（`packages/cdd-engine/README.md` + `README.zh-CN.md`）toolchain/dev-invocation 段改指 `node packages/cdd-engine/src/bin.ts`、移除 `dev:stub`/`dist/cli.mjs` 引用（consumer-shipped——npm 必发 README*，live 面同污点）
+- **retired/删除登记措辞（live 面 grep 契约）**：`docs/maintainers/05` 等登记文本**不得携带被禁 token 原文**（`build.config` / `dev:stub` / `@typescript/typescript6` / `globalSetup`——已被 acceptance live 面 grep 判为目标污点，retired 登记若保留原文即自败于本 phase 验收）；一律转述——如「the old dev-stub chain」「the TS6-compat shim」，05 现存的 `@typescript/typescript6` 相关 prose 行同此处理（现 05:21 unbuild 行含 `build.config.ts`/`dev:stub` 原文、05:25 含包名原文，改 retired 时逐行转述）
 - **实证锚（P5 验收）**：`pnpm pack`（target files/bin）→ 临时项目 `npm install` → `.bin/cdd` 执行（已手跑通过——成为 plan/CI 验收）
 
 ### 2.5 测试与验证面
@@ -96,9 +97,9 @@ Cross-phase 约定属 parent overall，本 spec 不复述（overall wins on conf
 - `pnpm run typecheck`（engine + scripts + kairos-tests 三项目）exit 0：engine 787→0、scripts 零错、kairos-tests 零错
 - validate 与 precommit 均含 `type-check` 块且全绿（双接点）
 - 全仓源面零 `.mjs`（residue 守卫绿，产物面除外）；`packages/kairos/tests`、`scripts/emit`、vitest/lint-staged configs 全 `.ts`
-- 零构建删除面 **live 面** grep 零命中：`build.config` / `dev:stub` / `@typescript/typescript6` / `globalSetup` / `@ts-ignore` / `@ts-expect-error`
+- 零构建删除面 **live 面** grep 零命中：`build.config` / `dev:stub` / `@typescript/typescript6` / `globalSetup` / `@ts-ignore` / `@ts-expect-error`（live 面 = CLAUDE.md · `docs/maintainers/05` · engine README 对 · 源面/config 面；历史 spec/plan 正文与发布面 schema/产物除外）
 - `tsc --emit` 发布面：`pnpm pack` → 临时项目 `npm install` → `.bin/cdd` 执行成功（`--help` exit 0，走真实引擎栈）
-- CLAUDE.md dev 链 = `node packages/cdd-engine/src/bin.ts`；`docs/maintainers/05` unbuild 登记 retired
+- CLAUDE.md + engine README 对（EN/zh）dev 链均 = `node packages/cdd-engine/src/bin.ts`、零 `dev:stub`/`dist/cli.mjs` 引用；`docs/maintainers/05` unbuild 登记 retired（被禁 token 一律转述，非原文）
 - buildability 双证据：`reviews.task/branch` axesGuide 含 buildability 双证据（`templates.test.ts`/`registry.test.ts` 断言绿）；implement evidence 扩 `typecheck` 项且 engine 读回机检（缺 → BLOCKED 测试绿）
 - engine vitest 黑盒 exec 全指 `src/bin.ts`（live 面 `dist/cli.mjs` 引用零命中，发布面 schema/产物除外）
 - `pnpm run validate` 全绿
@@ -114,6 +115,7 @@ Cross-phase 约定属 parent overall，本 spec 不复述（overall wins on conf
 - **P6（若存在）**：`cdd init` 未来 phase 消费同一 harness 契约（overall v1.24 定）——本 phase 的 type-check 面与零构建形态是其前置基建；engine-config 不建 buildability 命令配置面（YAGNI——review 指令用转译描述，消费仓自洽），若未来需要再建为独立 phase
 - 发布面 `tsc --emit` 依赖结算完成（emit 也吃 48 条 src 债）→ **publish 前置 = 结算完成**，先清底再上闸
 - `typescript@7` 原生 CLI 无 JS-API——若未来 kairos/cdd-engine 需要程序化嵌 TS（如 dts）需另引入 JS-API 线（本 phase 零需求，登记为已知边界）
+- **overall v1.27 计数修正（backfill-as-version 待办）**：overall 正文「kairos tests×11 + helpers」（scope 行 72 与 change-history 行 143）实为 **10 个 `*.test.mjs` + 1 `helpers.mjs`**——本 spec 2.1 已以 10 为准；approved overall 冻结，本 phase 不动原文，下次 overall backfill-as-version 时随 P5 落地一并修正
 
 ## Section 5: Review
 

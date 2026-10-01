@@ -58,16 +58,16 @@ Installs the latest release and writes pi's project settings. The eight `cdd-*` 
 
 1. Install `superpowers`, `kairos`, and `mattpocock-skills` from the marketplace (see the repository README for per-harness install).
 2. Ensure the `cdd` engine CLI is on `PATH` (`command -v cdd`); if missing, run `npm i -g @oscaner-skills/cdd-engine`. The `cdd-dev` skill's `detect-engine` node re-checks this at dispatch.
-3. Invoke kairos skills — `/kairos:<skill>` in Claude Code, or bare slash commands in Cursor:
+3. Invoke kairos skills — the `/kairos:<skill>` slash form in Claude Code and Cursor Agent:
 
 ```bash
 # Claude Code
 /kairos:cdd-design    # → cdd-design
 /kairos:cdd-plan    # → cdd-plan
 
-# Cursor
-/cdd-design    # → cdd-design
-/cdd-plan    # → cdd-plan
+# Cursor Agent
+/kairos:cdd-design    # → cdd-design
+/kairos:cdd-plan    # → cdd-plan
 ```
 
 ## CDD engine CLI

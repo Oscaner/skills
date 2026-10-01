@@ -1,0 +1,121 @@
+# Pi Harness 支持 P5 — 编译面收敛与结算（Phase Design Spec）
+
+- **Version**: v1.0 · 2026-10-02
+- **Status**: Draft
+- **Author**: [human] · Claude Opus 5 (1M context)（kairos:cdd-design → grilling → cdd-phase）
+- **Parent program**: [2026-09-27-pi-harness-overall.md v1.27](2026-09-27-pi-harness-overall.md)
+- **Depends on**: P4（shipped · [p4-design v1.6](2026-09-27-pi-harness-p4-design.md)）——hard 前驱 Design spec = Done / Implementation plan = Done（v1.25 closeout）
+
+## Section 0: Incremental warning
+
+本 spec 承诺恰好一个 phase（P5 编译面收敛与结算）。P5 的分割/重排不是本地编辑——phase inventory 行、依赖边与 change-history 行先落 parent overall（backfill-as-version），再动 spec。v1.27 已落地本 phase 全量 scope 定案；本 spec 仅记录 increment 的实现形态。
+
+## Section 1: Constraints pointer
+
+Cross-phase 约定属 parent overall，本 spec 不复述（overall wins on conflict）。引用要点：
+- **P5 破坏性变更授权**（overall Constraints v1.27 登记，2026-10-02 用户拍板）：允许破坏性变更 / 重写代码 / 重组目录；约束 = 高维思考 / OOP 抽象统一 / 最佳实践 / **零技术债务 + 死壳即删**
+- 事实定稿（v1.27 Constraints）：Node `node_modules` 下类型剥离永久禁止（发布必 JS）· Node ≥22.18 strip 默认（dev 零构建）· `typescript@7` 单工具兼判官 + 发射
+- 不 commit 除非用户明确要求；spec 交付除外（I2 立即提交）· changeset 逐 phase 建
+
+## Section 2: Design body
+
+### 2.1 编译面门禁（`tsc --noEmit` 一等 gate + 三项目闸 + 全仓源面 ts 化）
+
+**根因**（v1.26 复盘 + 本 session 补证）：precommit 子集排除 engine 两块 · vitest esbuild 转译不查型 · unbuild 不查型 · scripts 零 tsconfig · 全仓零 `tsc --noEmit`。补证：root 零 typescript（engine tsconfig 存在但零接线）；dev 面可零构建直跑（2.4）；`typescript@7` 原生 CLI 判官形态（`@typescript/typescript6` = JS-API 线，本仓零消费）。
+
+**三项目 tsconfig 面**：
+- **engine**：`packages/cdd-engine/tsconfig.json` 原位——include `src`（含 `__tests__`）；`strict`/`noEmit`/`skipLibCheck`/`moduleResolution: bundler` 保持（构建面语义）；`build.config.ts` 删除后（2.4）include 缩为 `src`
+- **scripts**：新建 `scripts/tsconfig.json`——`module: nodenext` · `moduleResolution: nodenext` · `allowImportingTsExtensions: true` + `noEmit: true` · `strict: true` · `skipLibCheck` · **`erasableSyntaxOnly: true`**（Node strip 运行契约镜像——防「能编译但 Node 跑不了」）· include `scripts/**/*.ts`（含 emit / observe-cache / `__tests__`）
+- **kairos-tests**：新建 `packages/kairos/tests/tsconfig.json`——与 scripts 同语义（node:test 直跑面）；`.mjs→.ts` 后并入闸
+
+**命令形态**：root script `"typecheck": "tsc --noEmit -p packages/cdd-engine && tsc --noEmit -p scripts && tsc --noEmit -p packages/kairos/tests"`；root devDeps 增 `typescript@^7.0.2`（判官单源，与 engine 的 `typescript@^7` 拉齐）。**`@typescript/typescript6` 删除**（2.4）。
+
+**type-check 块（validate + precommit 双接点）**：`scripts/validate/type-check.ts` 导出 steps（`SubprocessBlock` cmd=`pnpm` args=`run typecheck`）；compose 进 `scripts/validate/index.ts`（终验）与 `scripts/validate/pre-commit.ts`（提交）——同一步、两接点。根因之一即「precommit 子集排除 engine 两块」，双接点防提交面空窗复现。
+
+**全仓源面 `.mjs→.ts`（全代码 TS 化 iron rule）**：
+- `packages/kairos/tests/*.test.mjs`（11 个）+ `helpers.mjs` → `.test.ts`/`.ts`（import 规格符改 `.ts`——现有测试已 import `../../../scripts/validate/kairos.ts`（带 `.ts` 后缀）先例成立）
+- `scripts/emit/render-yaml.mjs` → `.ts`（`issue-templates.ts` + 其 test 共 2 处 import 同步）
+- `vitest.config.mjs`（root + engine）→ `vitest.config.ts`（vitest 原生支持）
+- `lint-staged.config.mjs` → `lint-staged.config.ts`（lint-staged v17 原生支持 `.ts/.cts/.mts`，configFiles.js 实证）
+- **产物面零迁移**：`dist/`（发布产物，其名 = 发布面契约，2.4 改 `dist/bin.js`）· `.kairos/`（gitignored 运行时）· `templates/`（内容种子）
+
+**守卫升级**：residue `.mjs` 守卫目标扩为「全仓源面零 .mjs」（engine src + scripts + kairos tests + configs）；逃逸禁令 `@ts-ignore`/`@ts-expect-error` 零命中入 ContractLexiconGuard/新 grep 面（2.2 零债口径）。
+
+### 2.2 类型债全量结算（787 → 0，真相优先）
+
+**判据**：`tsc --noEmit` engine 全树 **exit 0**（上闸前先清底；结算与门禁同 phase 落）。
+
+**实测分布（本 session 全量跑）**：
+- `__tests__` **739**：`cdd.test.ts` 302（最大存量）/ `docs-runner.test.ts` 73 / `handoff-finalize.test.ts` 71 / `host-detection.test.ts` 29 / `runner.test.ts` 23 / `cli-shared.test.ts` 21 … ——机械族主导：隐式 any（TS7006/18046/7031）、`{}` 上取属性（TS7053/2339）、catch-unknown（18046）、possible-null 解构（18047）、mock 函数签名（2507/2698/2322）
+- **src 48** 全结构性：finalize `agentHandoff` null ×27（TS18047）/ branch `round`/`findings`/`base` ×8（TS2339）/ harness `detect` 撞名 ×2（TS2300）+ `HarnessRow|{}`（TS2322）/ task `DispatchOp` string→union ×2（TS2322）/ docs `string|undefined→PathLike` ×2 / registry `{}`→string / resource `published` 判别 / write-boundary `base` on `{}`
+
+**真相优先修复清单（src，非抹平——Criterion ② OOP/高维）**：
+1. `agentHandoff`（finalize.ts @492-567 ×27）：重审 write→finalize 契约——载荷在 finalize 时点结构上不可能为 null；以 payload 型 presence 判别 / 默认化把 nullable 从类型中移除 → 27 处同源消亡（零散 `!` 是抹平，弃）
+2. `BranchLifecycleOpts`（branch.ts）：契约如实扩 `round`/`findings`/`base` 字段（declared truth——`round` 语义对 crash record、`findings` 对判定源计数）
+3. `detect` 撞名（harness.ts TS2300）：OOP 消歧（Harness 抽象 `detect(env)` 谓词与右面重命名/信号归一），非 `as` 压
+4. `HarnessRow | {}`：`{}` fallback 灭——undefined-coalesce 真形态，call site 单点处理
+5. `DispatchOp` string→union：上游源类型收窄（`mode`/op 派生点），非下游 cast
+6. docs/registry/resource/write-boundary：path 型收窄 + 判别 union 正确取窄
+
+**零债口径（入 contract-lexicon 词表 + guard）**：`@ts-ignore`/`@ts-expect-error` 结算中**清零且全禁**；显式 `any` / `as unknown as X` **默认禁**（框架真实边界逐案评审登记）；`!` **限单一类型化 assert helper**（非散落裸断言）；fixture 边界 `as T`（`{}` → 真实 fixture 接口）允许。
+
+**零行为变化护栏**：结算 = 纯类型面修改；行为由既有测试全绿守（对标 P5 系迁移护栏先例「0 行为变化，纯搬移/纯类型不改逻辑」）。结算不入新逻辑、不顺手重构。
+
+### 2.3 cdd 闭环 buildability 双证据
+
+**现状**：implement 侧 Evidence gate（template-contract clause 7）记 `test-evidence.json`（`command`/`exit_code`/`passed`，engine 读回机检）；review 侧 `reviews.task/branch` axesGuide = Standards/Spec/Scope 三轴，**零 buildability 措辞**（「测试能跑」只是 implement 证据的间接读取）。
+
+**变更（双槽——machine 机检 + reviewer judgment）**：
+- **implement 证据闸扩 `typecheck` 项**：evidence 文件记 `typecheck` 命令（`command`/`exit_code`/`passed`，与既有 `test` 项同构）；engine 读回核验，缺任一 → `status: BLOCKED`（与 `behavior_change` 缺失同型）
+- **review 指令补 buildability 轴**：`reviews.task/branch` axesGuide 增 buildability——reviewer 在评审中**显式跑** `tsc --noEmit`（或该仓等价）+ 测试，findings lens-tag `buildability` 自证「双命令已跑」；命令用**转译描述**（不硬编码 pnpm/npm——消费仓 toolchain 自洽），本仓引擎闭环自指时跑的就是本 phase 的三项目闸
+- **守卫**：`templates.test.ts`/`registry.test.ts` 断言 task+branch `reviewTypeConfig` 的 axesGuide 含 buildability 双证据文句（`tsc` + `test` token）；evidence 新字段结构合法（adapt schema）；ContractLexicon 词表补 buildability 措辞（checkWording 对 template-contract 断言）
+- **消费面零动**：SKILL（cdd-dev orchestrator）zero-restate 规则 + 实测零命中 → 零 SKILL 改动；README/CLAUDE.md 无消费故事变更
+
+### 2.4 零构建架构收敛（单工具 `typescript@7`）+ 死壳即删
+
+**实证链（本 session 端到端）**：① `node packages/cdd-engine/src/bin.ts --help` exit 0（Node 24.21 原生 strip，零 unbuild/jiti）② `dist/cli.mjs` dev 态 = unbuild `--stub` 的 jiti 载入器（`createJiti` → `jiti.import(src/bin.ts)` + 自引用别名）——冗余层 ③ Node 对 `node_modules` 下 strip **永久禁止**（`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING` 实测；Node 官方「discourage publishing packages written in TypeScript」；tracker #57215 closed-as-not-planned）→ **发布必 JS** ④ `tsc --emit`（`tsconfig.build.json`：`module: nodenext` + `rewriteRelativeImportExtensions`）端到端跑通：shebang 保留、`.ts→.js` 重写、零残留 `.ts` 引用；staged pack → 消费安装 → `.bin/cdd` → `--help` + `schema get overall` 走真实引擎栈。
+
+**目标形态**：
+- **dev/CI 面**：`node packages/cdd-engine/src/bin.ts <subcommand>`（Node ≥22.18）——CLAUDE.md「Development-time CDD invocation」改指 · engine vitest 黑盒 ~13 处 exec 常量（`cdd.test.ts` 等 CDD_MJS 族）改指 `src/bin.ts` · `globalSetup` self-stub 删除（无 dist 缺省逻辑可删）· validate `smoke-cdd` pin 改指
+- **发布面**：`tsconfig.build.json`（`module: nodenext` · `moduleResolution: nodenext` · `allowImportingTsExtensions` + `rewriteRelativeImportExtensions` · `noEmit: false` · `outDir: dist` · exclude `**/__tests__/**` · typeRoots 显式指 engine `node_modules/@types`）→ `tsc -p` 产 `dist/` JS 模块树 + config copy（`dist/config`——published-first resolveResource 面保持，P4 C7 不破）；`bin: {"cdd": "dist/bin.js"}` · `files: ["src/","config/","templates/"]` · `engines: >=22.18`
+- **删除层（死壳即删）**：unbuild（devDeps）· jiti（stub 机制）· `build.config.ts` · `dev:stub` script（engine package.json + CLAUDE.md）· `@typescript/typescript6`（零 d.ts 需求 = 零 JS-API 消费实证）· `dist/` stub 产物面的外围逻辑（globalSetup）· vitest 自给缺省分支 —— `docs/maintainers/05-third-party-dependencies.md` unbuild 登记改 retired · CLAUDE.md 相应段重写
+- **实证锚（P5 验收）**：`pnpm pack`（target files/bin）→ 临时项目 `npm install` → `.bin/cdd` 执行（已手跑通过——成为 plan/CI 验收）
+
+### 2.5 测试与验证面
+
+- type-check 闸：validate + precommit 双接点全绿；root `pnpm run typecheck` 三项目 exit 0
+- engine suite：结算后全绿（0 行为变化）+ 新断言（evidence `typecheck` 字段结构 / review 指令文本含 buildability + tsc + test / 黑盒 exec 全指 `src/bin.ts`）
+- scripts suite：render-yaml `.mjs→.ts` 迁移后绿 + type-check 接线测试
+- kairos tests：`.mjs→.ts` 后 node:test 直跑绿（`scripts/validate/kairos.ts` 等跨项目 `.ts` import 先例扩展）
+- residue/lexicon：全仓源面零 `.mjs` + `build.config`/`dev:stub`/TS6/globalSetup/ts-ignore 系 grep 零命中（live 面；历史 plan 正文 = 史实不 retro-rename）
+- 发布面实证：pack → install → `.bin/cdd`（CI/手动锚）
+- `pnpm run validate` 全绿
+
+### Acceptance criteria
+
+- `pnpm run typecheck`（engine + scripts + kairos-tests 三项目）exit 0：engine 787→0、scripts 零错、kairos-tests 零错
+- validate 与 precommit 均含 `type-check` 块且全绿（双接点）
+- 全仓源面零 `.mjs`（residue 守卫绿，产物面除外）；`packages/kairos/tests`、`scripts/emit`、vitest/lint-staged configs 全 `.ts`
+- 零构建删除面 **live 面** grep 零命中：`build.config` / `dev:stub` / `@typescript/typescript6` / `globalSetup` / `@ts-ignore` / `@ts-expect-error`
+- `tsc --emit` 发布面：`pnpm pack` → 临时项目 `npm install` → `.bin/cdd` 执行成功（`--help` exit 0，走真实引擎栈）
+- CLAUDE.md dev 链 = `node packages/cdd-engine/src/bin.ts`；`docs/maintainers/05` unbuild 登记 retired
+- buildability 双证据：`reviews.task/branch` axesGuide 含 buildability 双证据（`templates.test.ts`/`registry.test.ts` 断言绿）；implement evidence 扩 `typecheck` 项且 engine 读回机检（缺 → BLOCKED 测试绿）
+- engine vitest 黑盒 exec 全指 `src/bin.ts`（live 面 `dist/cli.mjs` 引用零命中，发布面 schema/产物除外）
+- `pnpm run validate` 全绿
+
+## Section 3: Deviations from overall
+
+| Overall assumption | Phase decision | Overall updated? |
+|---|---|---|
+| 无（本 phase 全量决策已随 overall v1.27 grilling 定案回填——零构建收敛 / 全仓 .mjs→ts / 三项目闸 / 死壳即删验收均落四表） | 与 overall 无偏差 | Yes — v1.27 · 2026-10-02 |
+
+## Section 4: Notes for downstream
+
+- **P6（若存在）**：`cdd init` 未来 phase 消费同一 harness 契约（overall v1.24 定）——本 phase 的 type-check 面与零构建形态是其前置基建；engine-config 不建 buildability 命令配置面（YAGNI——review 指令用转译描述，消费仓自洽），若未来需要再建为独立 phase
+- 发布面 `tsc --emit` 依赖结算完成（emit 也吃 48 条 src 债）→ **publish 前置 = 结算完成**，先清底再上闸
+- `typescript@7` 原生 CLI 无 JS-API——若未来 kairos/cdd-engine 需要程序化嵌 TS（如 dts）需另引入 JS-API 线（本 phase 零需求，登记为已知边界）
+
+## Section 5: Review
+
+- **spec-review 循环记录**（Review Convergence I1）：`cdd review --type spec --spec docs/kairos/specs/2026-09-27-pi-harness-p5-design.md` 状态与 fix 落地记录于此（评审完成时逐行回填）
+- 基线 = committed tree（v1.27 overall（db489699）+ 本 spec author 后树态）；Review Convergence：blocker > 0 → fix 全 finding → re-review；blocker = 0 → fix 全 finding → done，无 re-review

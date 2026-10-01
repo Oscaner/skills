@@ -1,5 +1,5 @@
 // packages/cdd-engine/src/domain/issue-renderer.ts — IssueReportRenderer: the aggregate-issue-body
-// renderer (P4.2 Task 6: migrated from packages/osuperpowers/scripts/report-templates.mjs, the
+// renderer (P4.2 Task 6: migrated from packages/kairos/scripts/report-templates.mjs, the
 // template authority moved to templates/report/issue-body.json). Single renderer over the canonical
 // finding-meta plane:
 //   · the template is loaded once and memoized on the instance (methods only — zero module-level
@@ -52,7 +52,7 @@ export interface IssueReportInput {
 const TEXT_FIELDS = ["context", "problem", "impact", "suggestedFix"] as const;
 
 // <pkg>/templates/report/issue-body.json — the canonical issue-form template (the renamed home of
-// the former skills/report-issues/templates/finding-meta.json). Resolved like every engine resource
+// the former skills/cdd-report/templates/finding-meta.json). Resolved like every engine resource
 // (nearest-ancestor package.json marker walk, same convention as render/templates.ts PKG_ROOT) so
 // the loader works in every file state: dev stub src tree, dist bundle, consumer install.
 const ISSUE_BODY_REL = path.join("templates", "report", "issue-body.json");

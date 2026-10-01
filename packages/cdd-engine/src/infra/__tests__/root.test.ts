@@ -36,23 +36,26 @@ describe("src/infra/root.ts — 单根权威", () => {
   });
 });
 
-describe("src/infra/root.ts — resolveDocArg 单一坐标系（仓根相对归一）", () => {
-  it("子目录 cwd + 仓根相对 --spec → 归一仍命中仓根（cwd 相对回落即 exit 1）", () => {
-    // 自给自足：mkdtemp 真 git 仓 + 真 doc 文件。**不得**断言 `REPO_ROOT/.osuperpowers/...`——
-    // `.osuperpowers` 被 `.gitignore` 忽略，fresh clone / CI 上不存在。
+describe("src/infra/root.ts — resolveDocArg single-coordinate system (repo-root relative normalization)", () => {
+  it("subdir cwd + repo-root relative --spec → resolution still hits the repo root (cwd-relative fallback exits 1)", () => {
+    // Self-contained: a real mkdtemp git repo + a real doc file. Must NOT assert
+    // `REPO_ROOT/.kairos/...` — `.kairos` is gitignored and absent on a fresh clone / CI.
     //
-    // **本用例只断言 exit 0，不设「无幽灵根」落点断言**（T2 review nit）：dry-run 路径下
-    // runDocsTask 在 `if (dryRun) return` 处早退、resolveNextRound 只读不建（ENOENT 归 round 1），
-    // **没有任何代码会创建该 workspace**——故 `!existsSync(<sub>/.osuperpowers)` 在改造前后恒真，
-    // 是可失败性为零的假绿源，已删除。真正可失败的是本断言：把仓根相对回落成 cwd 相对时
-    // `path.join(<sub>, "docs/...")` 不存在 → resolveDocArg exit 1（而仓根相对 → exit 0）。
-    // 落点（workspace 实体创建在仓根、子目录下零落点）由非 dry-run 路径承担：
-    // `cdd.test.mjs` 的 PATH-shim 黑盒用例（`.osuperpowers/cdd/plan/branch-review-*.json` 真实落盘断言）
-    // 与 `progress-owner.test.mjs`（注入 root + 真仓，断言 `<repo>/.osuperpowers/…` 产物）。
+    // This case asserts only exit 0, with no "no phantom root" landing assertion (T2 review nit):
+    // on the dry-run path runDocsTask exits early at `if (dryRun) return`, resolveNextRound only
+    // reads and never creates (ENOENT → round 1), so no code ever creates this workspace — a
+    // `!existsSync(<sub>/.kairos)` assertion is a zero-failability false-green source and was
+    // deleted. What really fails this case: falling back the repo-root relative path to a
+    // cwd-relative one makes `path.join(<sub>, "docs/...")` missing → resolveDocArg exits 1 (while
+    // the repo-root relative form exits 0). The landing face (workspace entities created under the
+    // repo root, zero landings under subdirs) is carried by the non-dry-run path:
+    // `cdd.test.mjs`'s PATH-shim blackbox cases (asserting real `.kairos/cdd/plan/branch-review-*.json`
+    // disk writes) and `progress-owner.test.mjs` (injected root + real repo, asserting
+    // `<repo>/.kairos/…` products).
     const repo = mkdtempSync(path.join(tmpdir(), "cdd-subdir-"));
     gitInit(repo);
-    const rel = "docs/osuperpowers/specs/2026-09-13-foo-design.md";
-    mkdirSync(path.join(repo, "docs/osuperpowers/specs"), { recursive: true });
+    const rel = "docs/kairos/specs/2026-09-13-foo-design.md";
+    mkdirSync(path.join(repo, "docs/kairos/specs"), { recursive: true });
     writeFileSync(path.join(repo, rel), "# foo design\n");
     const sub = path.join(repo, "packages/cdd-engine");
     mkdirSync(sub, { recursive: true });

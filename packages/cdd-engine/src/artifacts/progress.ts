@@ -221,7 +221,7 @@ export class ProgressLedger {
 
   /** incrementRecovery: engineRecoveryCount increments (D14 — every progress.json field is
    * engine-written). The runner calls this whenever the engine writes a BLOCKED handoff
-   * (BLOCKED/engine-error path); the orchestrator-layer skill (cli-driven-development
+   * (BLOCKED/engine-error path); the orchestrator-layer skill (cdd-dev
    * §engine-recovery) only READS it to decide retry (count < 2 → re-dispatch; count ≥ 2 → terminal
    * engine-error), never increments itself. */
   incrementRecovery(): void {

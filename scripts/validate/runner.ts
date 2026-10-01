@@ -4,7 +4,7 @@
 // ValidateBlock instances — CheckBlock for in-process checks, SubprocessBlock for execa steps —
 // and the ~30-line step-runner loop becomes ValidateRunner.run() (ONE loop; the 11 names / order /
 // grepTargets / channelTargets domain facts stay byte-identical — pinned by
-// packages/osuperpowers/tests/ci-validate.test.mjs). A leaf module (imports nothing from
+// packages/kairos/tests/ci-validate.test.mjs). A leaf module (imports nothing from
 // validate/), so importing it from the block modules creates no ESM cycle.
 //
 // run() prints `== <step> ==` + OK per step, `== FAIL: <step> ==` + message and

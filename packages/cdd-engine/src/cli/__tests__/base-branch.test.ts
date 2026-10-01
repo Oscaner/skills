@@ -5,7 +5,8 @@
 // 模块层幂等矩阵由 workspace-artifacts.test.mjs（Task 2）覆盖，
 // 此处只验证 CLI→模块接线 + CLI 自有的 flag 边界与报错面（exit 非零）。
 // 每条用例用独立 tmp git repo（mkdtemp）隔离副作用。lifecycle 路径纯派生：恒落
-// <repoRoot>/.osuperpowers/cdd/lifecycle.json —— 即各用例自己的 tmp repo（`cwd` 缺省为仓根时回落本仓根）；
+// <repoRoot>/.kairos/cdd/lifecycle.json — i.e. the tmp repo of its own case (`cwd` falls back
+// to the local repo root when absent); runtime-kairos/ws-isolation for each case.
 // 并发安全由 reapStale 的 owner 存活判定承担，不依赖路径分离。
 
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -72,7 +73,7 @@ function seedPlan(repo) {
 }
 
 function cddWorkspace(repo) {
-  return path.join(repo, ".osuperpowers", "cdd", "app");
+  return path.join(repo, ".kairos", "cdd", "app");
 }
 
 function readBaseBranch(dir) {
@@ -292,5 +293,5 @@ describe("cdd base-branch — 命令面（SUBCOMMAND_USAGE + help 标题）", ()
 
 // 清理：本文件所有 set 落点都在 tmp repo 内，无 repo-root 副作用 —— 仅兜底清理（无实际残留）。
 afterAll(() => {
-  rmSync(path.join(REPO_ROOT, ".osuperpowers", "cdd", "app"), { recursive: true, force: true });
+  rmSync(path.join(REPO_ROOT, ".kairos", "cdd", "app"), { recursive: true, force: true });
 });

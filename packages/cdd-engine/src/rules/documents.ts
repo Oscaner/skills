@@ -728,7 +728,7 @@ function resolveSpecFromPlan(
       file: planPath,
       field: SPEC_FIELD,
       missing: `no ${SPEC_FIELD} reference`,
-      fix: `add a ${SPEC_FIELD} line pointing at the phase design spec, e.g. ${SPEC_FIELD} [<name>-design.md](docs/osuperpowers/specs/<name>-design.md)`,
+      fix: `add a ${SPEC_FIELD} line pointing at the phase design spec, e.g. ${SPEC_FIELD} [<name>-design.md](docs/kairos/specs/<name>-design.md)`,
     });
     return { specPath: null, failures };
   }
@@ -742,7 +742,7 @@ function resolveSpecFromPlan(
         file: planPath,
         field: SPEC_FIELD,
         missing: `target does not resolve (${target})`,
-        fix: "fix the link target to an existing spec file (repo-root form docs/osuperpowers/specs/<file> or a file-relative path)",
+        fix: "fix the link target to an existing spec file (repo-root form docs/kairos/specs/<file> or a file-relative path)",
       });
       continue;
     }

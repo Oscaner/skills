@@ -31,15 +31,15 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..", "..", "..");
 const CDD_MJS = path.join(REPO_ROOT, "packages/cdd-engine/dist/cli.mjs");
 const SMOKE_PLAN = "packages/cdd-engine/src/cli/__tests__/fixtures/smoke-plan.md";
-// SMOKE_PLAN's derived workspace is .osuperpowers/cdd/smoke/ (the engine workspaceSlug strips a
+// SMOKE_PLAN's derived workspace is .kairos/cdd/smoke/ (the engine workspaceSlug strips a
 // trailing -plan: smoke-plan.md → smoke) — a T10 warn. Do not clean smoke/: the engine creates
 // the workspace while running tests, and cli-shape / docs-task / host-detection / lifecycle.wiring
 // share the same slug — an afterAll delete in any one file races the other files' brief
 // self-supply (directory removed between resolveWorkspace's mkdirSync and generateBrief's write
-// → ENOENT false red; reproduced in this repo). `.osuperpowers` is gitignored, so residue never
+// → ENOENT false red; reproduced in this repo). `.kairos` is gitignored, so residue never
 // pollutes the version tree — only clean the slug exclusive to this file.
 afterAll(() => {
-  rmSync(path.join(REPO_ROOT, ".osuperpowers", "cdd", "plan"), { recursive: true, force: true }); // 其他 fixture slug
+  rmSync(path.join(REPO_ROOT, ".kairos", "cdd", "plan"), { recursive: true, force: true }); // other fixture slug
 });
 const NODE = process.execPath;
 
@@ -205,7 +205,7 @@ describe("cdd CLI", () => {
           targetParam,
           SMOKE_PLAN,
           "--findings",
-          path.join(REPO_ROOT, ".osuperpowers", "cdd", "smoke", reviewFile),
+          path.join(REPO_ROOT, ".kairos", "cdd", "smoke", reviewFile),
         ],
         { noHost: true },
       );
@@ -283,12 +283,12 @@ describe("cdd CLI", () => {
       "fixture",
     ]);
     // Dispatch entry gate (pre-commit clean tree): the workspace is absorbed into .gitignore
-    // (mirroring the repo-root .osuperpowers ignore rule) and the plan committed; subsequent
+    // (mirroring the repo-root .kairos ignore rule) and the plan committed; subsequent
     // hand-written handoff overwrites keep the tree clean (Task 8).
-    writeFileSync(path.join(dir, ".gitignore"), ".osuperpowers/\n");
+    writeFileSync(path.join(dir, ".gitignore"), ".kairos/\n");
     const plan = path.join(dir, "zz-stop-test.md");
     writeFileSync(plan, "### Task 1: fixture\n");
-    const ws = path.join(dir, ".osuperpowers", "cdd", "zz-stop-test");
+    const ws = path.join(dir, ".kairos", "cdd", "zz-stop-test");
     mkdirSync(ws, { recursive: true });
     writeFileSync(
       path.join(ws, "tasks-1-review-1.json"),
@@ -392,7 +392,7 @@ describe("cdd CLI", () => {
       // valid chain (writeBranchChain: plan → **Spec:** → spec → Parent program → overall).
       const plan = writeBranchChain(dir, "plan.md");
       const binDir = mkdtempSync(path.join(tmpdir(), "cdd-br-fake-"));
-      const ws = path.join(dir, ".osuperpowers", "cdd", "plan");
+      const ws = path.join(dir, ".kairos", "cdd", "plan");
       const handoffPath = path.join(ws, "branch-review-eeee555..ffff666-r1.json");
       // fake claude：PATH 遮蔽 registry cli 名（cdd.mjs REG_PATH 无 registry override seam）。
       // Non-dry-run real runReview (branch channel merged into the composition root): the agent writes warn-only CHANGES_REQUESTED
@@ -454,12 +454,13 @@ function tmpGitRepo() {
   ]);
   // Dispatch entry gate: workspace absorbed into .gitignore, the seeded doc/plan committed
   // (later handoff overwrites do not dirty the tree) (Task 8).
-  writeFileSync(path.join(dir, ".gitignore"), ".osuperpowers/\n");
+  writeFileSync(path.join(dir, ".gitignore"), ".kairos/\n");
   return dir;
 }
 
 // seed 一条 canonical <type>-review-1.json（status APPROVED + blocker=0）→ 命中 Review Convergence。
-// ws = <repo>/.osuperpowers/cdd/foo —— 覆盖 spec（foo-design.md 去 -design）与 plan（foo.md）同 slug 收敛。
+// ws = <repo>/.kairos/cdd/foo — covers the spec (foo-design.md minus -design) and the plan
+// (foo.md) converging on the same slug.
 // doc 父目录一并创建：resolveWorkspace 从 dirname(doc) 走 gitToplevel，父目录缺失会回退失败。
 // content 实写 doc 文件（hashFile 读实时文件）：默认 content="" → 既有 legacy seed 调用写空 doc，
 // 语义（status APPROVED + blocker=0）不变仍 exit 3；docHash 显式传入才落 handoff.doc_hash。
@@ -467,7 +468,7 @@ function sha256(s) {
   return createHash("sha256").update(s).digest("hex");
 }
 function seedDocsReviewRound(repo, doc, fileName, { docHash, content = "" } = {}) {
-  const ws = path.join(repo, ".osuperpowers", "cdd", "foo");
+  const ws = path.join(repo, ".kairos", "cdd", "foo");
   mkdirSync(path.dirname(doc), { recursive: true });
   mkdirSync(ws, { recursive: true });
   writeFileSync(doc, content); // hashFile reads the live file — the content is explicitly controlled by the case
@@ -509,7 +510,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
     setDryRun(true);
     process.env.CLAUDE_CODE_SESSION_ID = "1"; // in-process seam: runReview resolves host from process.env
     try {
-      const doc = path.join(repo, "docs/osuperpowers/specs/foo-design.md");
+      const doc = path.join(repo, "docs/kairos/specs/foo-design.md");
       mkdirSync(path.dirname(doc), { recursive: true });
       writeFileSync(doc, "# foo design\n");
       const { runReview } = await import("../review.ts");
@@ -525,7 +526,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
       }
       expect(exitCode).toBe(0);
       const call = docsRunnerMock.run.mock.calls.at(-1)?.[0] ?? {};
-      const ws = path.join(repo, ".osuperpowers", "cdd", "foo");
+      const ws = path.join(repo, ".kairos", "cdd", "foo");
       expect(call.handoffPath).toBe(path.join(ws, "spec-review-1.json"));
       expect(call.workspace).toBe(ws);
     } finally {
@@ -539,12 +540,12 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
   it("resolveWorkspace: plan foo.md 与 spec foo-design.md 收敛同一 workspace", async () => {
     const { WorkspaceRoot } = await import("../../infra/workspace.ts");
     // root 显式注入（不调 initRoot()、不 chdir）——POSIX 路径字面量，无盘上依赖。
+    expect(WorkspaceRoot.from("/repo/root").for("/repo/root/docs/kairos/plans/foo.md").path).toBe(
+      "/repo/root/.kairos/cdd/foo",
+    );
     expect(
-      WorkspaceRoot.from("/repo/root").for("/repo/root/docs/osuperpowers/plans/foo.md").path,
-    ).toBe("/repo/root/.osuperpowers/cdd/foo");
-    expect(
-      WorkspaceRoot.from("/repo/root").for("/repo/root/docs/osuperpowers/specs/foo-design.md").path,
-    ).toBe("/repo/root/.osuperpowers/cdd/foo");
+      WorkspaceRoot.from("/repo/root").for("/repo/root/docs/kairos/specs/foo-design.md").path,
+    ).toBe("/repo/root/.kairos/cdd/foo");
   });
 
   it("fix --findings spec-review-2.json → runDocsTask handoffPath=<ws>/spec-fix-2.json（round 从 findings 名经 roundPattern 解析）", async () => {
@@ -552,10 +553,10 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
     setDryRun(true);
     process.env.CLAUDE_CODE_SESSION_ID = "1"; // in-process seam: runFix resolves host from process.env
     try {
-      const doc = path.join(repo, "docs/osuperpowers/specs/foo-design.md");
+      const doc = path.join(repo, "docs/kairos/specs/foo-design.md");
       mkdirSync(path.dirname(doc), { recursive: true });
       writeFileSync(doc, "# foo design\n");
-      const findings = path.join(repo, ".osuperpowers", "cdd", "foo", "spec-review-2.json");
+      const findings = path.join(repo, ".kairos", "cdd", "foo", "spec-review-2.json");
       mkdirSync(path.dirname(findings), { recursive: true });
       writeFileSync(findings, JSON.stringify({ status: "CHANGES_REQUESTED", findings: [] }));
       const { runFix } = await import("../fix.ts");
@@ -578,7 +579,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
       expect(cap.text).toMatch(/· handoff:/);
       expect(cap.text).toMatch(/next: none/);
       const call = docsRunnerMock.run.mock.calls.at(-1)?.[0] ?? {};
-      const ws = path.join(repo, ".osuperpowers", "cdd", "foo");
+      const ws = path.join(repo, ".kairos", "cdd", "foo");
       expect(call.handoffPath).toBe(path.join(ws, "spec-fix-2.json"));
       expect(call.workspace).toBeUndefined(); // docs-runner no longer receives workspace (handoffPath is authoritative) — T3 r1 nit
       expect(call.findingsPath).toBe(findings);
@@ -595,10 +596,10 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
     setDryRun(true);
     process.env.CLAUDE_CODE_SESSION_ID = "1";
     try {
-      const doc = path.join(repo, "docs/osuperpowers/specs/foo-design.md");
+      const doc = path.join(repo, "docs/kairos/specs/foo-design.md");
       mkdirSync(path.dirname(doc), { recursive: true });
       writeFileSync(doc, "# foo design\n");
-      const findings = path.join(repo, ".osuperpowers", "cdd", "foo", "spec-review-1.json");
+      const findings = path.join(repo, ".kairos", "cdd", "foo", "spec-review-1.json");
       mkdirSync(path.dirname(findings), { recursive: true });
       // The documented recurrent non-array shape: findings is the scalar "none", not [].
       writeFileSync(findings, JSON.stringify({ status: "CHANGES_REQUESTED", findings: "none" }));
@@ -628,10 +629,10 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
     setDryRun(true);
     process.env.CLAUDE_CODE_SESSION_ID = "1";
     try {
-      const doc = path.join(repo, "docs/osuperpowers/specs/foo-design.md");
+      const doc = path.join(repo, "docs/kairos/specs/foo-design.md");
       mkdirSync(path.dirname(doc), { recursive: true });
       writeFileSync(doc, "# foo design\n");
-      const ws = path.join(repo, ".osuperpowers", "cdd", "foo");
+      const ws = path.join(repo, ".kairos", "cdd", "foo");
       mkdirSync(ws, { recursive: true });
       for (const r of [1, 2, 3]) {
         writeFileSync(
@@ -667,7 +668,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
 
   // ---- CLI 黑盒：canonical seed 驱动 Convergence / 轮次 ----
 
-  it("review --type spec：canonical spec-review-1.json（doc_path 同 doc）于 .osuperpowers/cdd/foo/ → Convergence exit 3", () => {
+  it("review --type spec：canonical spec-review-1.json（doc_path 同 doc）于 .kairos/cdd/foo/ → Convergence exit 3", () => {
     const dir = tmpGitRepo();
     try {
       const doc = path.join(dir, "docs", "foo-design.md");
@@ -717,7 +718,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
         "--spec",
         SMOKE_PLAN,
         "--findings",
-        path.join(REPO_ROOT, ".osuperpowers", "cdd", "smoke", "spec-review-0.json"),
+        path.join(REPO_ROOT, ".kairos", "cdd", "smoke", "spec-review-0.json"),
       ],
       { env: { CLAUDE_CODE_SESSION_ID: "1" } },
     );
@@ -730,7 +731,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
     try {
       const plan = path.join(dir, "plan.md");
       writeFileSync(plan, "### Task 1:\n- base: develop\n");
-      const wsPath = path.join(dir, ".osuperpowers", "cdd", "plan");
+      const wsPath = path.join(dir, ".kairos", "cdd", "plan");
       mkdirSync(wsPath, { recursive: true });
       writeFileSync(
         path.join(wsPath, "branch-review-eeee555..ffff666-r1.json"),
@@ -770,7 +771,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
     try {
       const plan = path.join(dir, "plan.md");
       writeFileSync(plan, "### Task 1:\n- base: develop\n");
-      const wsPath = path.join(dir, ".osuperpowers", "cdd", "plan");
+      const wsPath = path.join(dir, ".kairos", "cdd", "plan");
       mkdirSync(wsPath, { recursive: true });
       // 他 ref（aaaa111..bbbb222）已有 r1 —— 全局轮次已被推到 r2；新 ref 应各自从 r1 起（ref 名内嵌）。
       writeFileSync(path.join(wsPath, "branch-review-aaaa111..bbbb222-r1.json"), "{}");
@@ -1032,10 +1033,11 @@ function dirtyFixtureRepo() {
   return repo;
 }
 
-// 种子 findings 文件（fix --type task 透传 + fix --type spec/plan 的 resolveDocArg 要求存在；
-// 名字需匹配 <type>-review-{n}.json 以派生轮次）。落 .osuperpowers/（gitignored）。
+// Seeds the findings file (fix --type task passthrough + fix --type spec/plan's resolveDocArg
+// requires it to exist; the name must match <type>-review-{n}.json to derive the round). Lands in
+// .kairos/ (gitignored).
 function seedFindings(repo: string, rel: string): string {
-  const p = path.join(repo, ".osuperpowers", "cdd", rel);
+  const p = path.join(repo, ".kairos", "cdd", rel);
   mkdirSync(path.dirname(p), { recursive: true });
   writeFileSync(
     p,

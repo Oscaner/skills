@@ -8,7 +8,7 @@
 //      FIX_BASE) and passes the exit gate; the fix commit moves HEAD → the next branch-review reads a
 //      NEW ref → resolveNextRound returns round 1 (ref-moved = legal re-review — the Convergence law).
 // T10 warn (mirrors branch-review.test.ts): fixture plan/workspace in a tmp git repo — never the
-// real repo's .osuperpowers/cdd/.
+// real repo's .kairos/cdd/.
 
 import {
   chmodSync,
@@ -58,14 +58,14 @@ describe("branch-fix dry-run", () => {
     const planPath = writeBranchChain(dir, `${slug}.md`);
     const findingsPath = path.join(
       dir,
-      ".osuperpowers",
+      ".kairos",
       "cdd",
       slug,
       "branch-review-abc1234..def5678-r1.json",
     );
     const handoffPath = path.join(
       dir,
-      ".osuperpowers",
+      ".kairos",
       "cdd",
       slug,
       "branch-fix-abc1234..def5678-r1.json",
@@ -115,7 +115,7 @@ describe("branch-fix usage guards", () => {
     const planPath = writeBranchChain(dir, "test-plan-guard.md");
     const findingsPath = path.join(
       dir,
-      ".osuperpowers",
+      ".kairos",
       "cdd",
       "test-plan-guard",
       "branch-review-abc1234..def5678-r1.json",
@@ -196,8 +196,8 @@ describe("branch-fix in-process loop closure", () => {
     const planPath = writeBranchChain(dir, `${slug}.md`);
     // The exit gate (validateCommitContract) rules at RETURN: a dirty tree → BLOCKED rewrite.
     // Everything the fake agent + this test write after setup must be gitignored
-    // (`.osuperpowers/` handoffs + `*.head` probe), and everything else committed as fixtures.
-    writeFileSync(path.join(dir, ".gitignore"), ".osuperpowers/\n*.head\n");
+    // (`.kairos/` handoffs + `*.head` probe), and everything else committed as fixtures.
+    writeFileSync(path.join(dir, ".gitignore"), ".kairos/\n*.head\n");
     const base = FULL_ID("a");
     const head = FULL_ID("b");
     const base7 = base.slice(0, 7);
@@ -330,7 +330,7 @@ describe("branch-fix real-mode — parent stdout return block (C5-1 fix face)", 
     const dir = tmpGitRepo();
     const slug = "test-plan-bf-rb";
     const planPath = writeBranchChain(dir, `${slug}.md`);
-    writeFileSync(path.join(dir, ".gitignore"), ".osuperpowers/\n*.head\n");
+    writeFileSync(path.join(dir, ".gitignore"), ".kairos/\n*.head\n");
     const base = FULL_ID("a");
     const head = FULL_ID("b");
     const base7 = base.slice(0, 7);
@@ -490,9 +490,9 @@ describe("branch-fix exit gate — dirty tree → inherited commit-contract BLOC
     const planPath = writeBranchChain(dir, `${slug}.md`);
     // The exit gate rules at RETURN: a dirty tree rewrites the fix handoff to BLOCKED and exits 1
     // (the engine facts the commits head, so the only remaining commit-contract blot is the tree).
-    // Everything the fake agent writes after setup must be gitignored (`.osuperpowers/` handoffs +
+    // Everything the fake agent writes after setup must be gitignored (`.kairos/` handoffs +
     // `*.head` probes), and everything else committed as fixtures.
-    writeFileSync(path.join(dir, ".gitignore"), ".osuperpowers/\n*.head\n");
+    writeFileSync(path.join(dir, ".gitignore"), ".kairos/\n*.head\n");
     const base = FULL_ID("a");
     const head = FULL_ID("b");
     const base7 = base.slice(0, 7);
@@ -742,7 +742,7 @@ describe("branch-fix schema-invalid receipt — C4-3 blocker has field name + ex
     const dir = tmpGitRepo();
     const slug = "test-plan-bf-c43";
     const planPath = writeBranchChain(dir, `${slug}.md`);
-    writeFileSync(path.join(dir, ".gitignore"), ".osuperpowers/\n*.head\n");
+    writeFileSync(path.join(dir, ".gitignore"), ".kairos/\n*.head\n");
     const base = FULL_ID("a");
     const head = FULL_ID("b");
     const base7 = base.slice(0, 7);

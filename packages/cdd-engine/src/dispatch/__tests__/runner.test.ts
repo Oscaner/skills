@@ -63,16 +63,17 @@ function gitInitReal(dir) {
 // ---- real-repo fixture (root injection) ----
 
 // 仓根相对的 plan 路径（`--plan` 参数形态；engine 经 resolveDocArg 归一到 root 坐标系）。
-const PLAN_REL = path.join("docs", "osuperpowers", "plans", "plan.md");
+const PLAN_REL = path.join("docs", "kairos", "plans", "plan.md");
 
-// 真仓 fixture：gitInit + 仓根内 plan（已 commit，工作树干净 —— commit-contract 前提）+ 预置 workspace
-// 元数据（progress.json / plan-constraints.md）。workspace 派生 = <repo>/.osuperpowers/cdd/plan
-//（slug 取 plan.md 去扩展名）；`.osuperpowers/cdd/.gitignore` 的 `*` 让 ws 产物不进 tracked 树。
+// Real-repo fixture: gitInit + plan inside the repo root (committed, clean tree — the
+// commit-contract precondition) + prepared workspace metadata (progress.json /
+// plan-constraints.md). Workspace derivation = <repo>/.kairos/cdd/plan (slug from plan.md minus
+// the extension); `.kairos/cdd/.gitignore`'s `*` keeps ws products out of the tracked tree.
 function setupWorkspace() {
   const repo = gitInitReal(mkdtempSync(path.join(tmpdir(), "cdd-task-runner-")));
   // doc-contract-valid chain: plan + its spec + parent overall (the dispatch gate requires it)
   commitValidDocs(repo);
-  const cddDir = path.join(repo, ".osuperpowers", "cdd");
+  const cddDir = path.join(repo, ".kairos", "cdd");
   mkdirSync(cddDir, { recursive: true });
   writeFileSync(path.join(cddDir, ".gitignore"), "*\n");
   const ws = path.join(cddDir, "plan");
@@ -463,14 +464,14 @@ it("runTask: group [1,2] implement failure → tasks-1,2-implement.json BLOCKED 
   const { repo } = setupWorkspace();
   // a two-task plan so the group brief is in-bounds (task 1 + task 2 both exist); commitValidDocs
   // is called with the custom body (commitPlan would clobber it with the default single-task body)
-  const twoTaskPlanRel = "docs/osuperpowers/plans/plan-two.md";
+  const twoTaskPlanRel = "docs/kairos/plans/plan-two.md";
   const twoTaskBody = readFileSync(
-    path.join(repo, "docs", "osuperpowers", "plans", "plan.md"),
+    path.join(repo, "docs", "kairos", "plans", "plan.md"),
     "utf8",
   ).replace("### Task 1: x", "### Task 1: x\n\n### Task 2: y");
   commitValidDocs(repo, twoTaskPlanRel, twoTaskBody);
   const twoTaskPlan = path.join(repo, twoTaskPlanRel);
-  const wsTwo = path.join(repo, ".osuperpowers", "cdd", "plan-two");
+  const wsTwo = path.join(repo, ".kairos", "cdd", "plan-two");
   mkdirSync(wsTwo, { recursive: true });
   writeFileSync(
     path.join(wsTwo, "progress.json"),
@@ -554,7 +555,7 @@ it("WorkspaceRoot.for: plan xxx-p5-plan.md 与 xxx-p5.md slug 收敛同 workspac
   const wsPlan = root.for(path.join(base, "xxx-p5-plan.md")).path;
   const wsPlain = root.for(path.join(base, "xxx-p5.md")).path;
   expect(wsPlan).toBe(wsPlain);
-  expect(wsPlain).toBe(path.join(base, ".osuperpowers", "cdd", "xxx-p5"));
+  expect(wsPlain).toBe(path.join(base, ".kairos", "cdd", "xxx-p5"));
 });
 
 // ---- brief self-provision ----
@@ -604,8 +605,8 @@ it("runTask #173: plan in repo A + root=repo A → workspace lands in A, unrelat
     noExit: true,
   });
   expect(res.exitCode).toBe(0);
-  expect(existsSync(path.join(repoA, ".osuperpowers", "cdd", "plan"))).toBe(true);
-  expect(existsSync(path.join(repoB, ".osuperpowers"))).toBe(false);
+  expect(existsSync(path.join(repoA, ".kairos", "cdd", "plan"))).toBe(true);
+  expect(existsSync(path.join(repoB, ".kairos"))).toBe(false);
 });
 
 it("runTask #173: no --plan → 'cannot resolve repo root' exit 1（plan 是唯一 workspace 源）", async () => {
@@ -632,7 +633,7 @@ it("runTask #173: root 注入决定落点（无第二坐标系）→ workspace �
     noExit: true,
   });
   expect(res.exitCode).toBe(0);
-  expect(existsSync(path.join(repoA, ".osuperpowers", "cdd", "plan"))).toBe(true);
+  expect(existsSync(path.join(repoA, ".kairos", "cdd", "plan"))).toBe(true);
 });
 
 // ---- spawnManaged env leak regression (P5 - re-targeted from spawnCapture) ----
@@ -1488,11 +1489,11 @@ it("schema: phase 'review' handoff 通过 Ajv 校验（phase enum 已归一）",
 
 // Fixture (T6): git repo + git-committed plan at the repo root (`--plan`) + clean tracked tree
 // (the commit-contract precondition). Returns the registry / HEAD scene; root is injected via
-// opts.root; workspace purely derived = <repo>/.osuperpowers/cdd/plan.
+// opts.root; workspace purely derived = <repo>/.kairos/cdd/plan.
 function t6Workspace(extraFiles = {}) {
   const repo = gitInitReal(mkdtempSync(path.join(tmpdir(), "cdd-t6-ws-")));
   commitValidDocs(repo);
-  const cddDir = path.join(repo, ".osuperpowers", "cdd");
+  const cddDir = path.join(repo, ".kairos", "cdd");
   mkdirSync(cddDir, { recursive: true });
   writeFileSync(path.join(cddDir, ".gitignore"), "*\n");
   const ws = path.join(cddDir, "plan");
@@ -1736,14 +1737,14 @@ it("runTask T7: implement 8.8 不读 existing handoff → schema-invalid 残留�
 
 // ---- Post-run validateCommitContract (all modes) + ensure-row writeback (no status field) (T8, Task 30 ②) ----
 
-// Fixture (T8): git repo (tracked source + committed plan + ws adopted under .osuperpowers/cdd/plan);
+// Fixture (T8): git repo (tracked source + committed plan + ws adopted under .kairos/cdd/plan);
 // dirty=true appends to tracked.txt (porcelain ` M`) → the post-run commit-contract must BLOCK.
 function t8Workspace({ dirty = false } = {}) {
   const repo = gitInitReal(mkdtempSync(path.join(tmpdir(), "cdd-t8-ws-")));
   writeFileSync(path.join(repo, "tracked.txt"), "v1\n");
   gitCommit(repo);
   commitValidDocs(repo);
-  const cddDir = path.join(repo, ".osuperpowers", "cdd");
+  const cddDir = path.join(repo, ".kairos", "cdd");
   mkdirSync(cddDir, { recursive: true });
   writeFileSync(path.join(cddDir, ".gitignore"), "*\n");
   const ws = path.join(cddDir, "plan");
@@ -1880,7 +1881,7 @@ it("runTask T8: post-run validateCommitContract — implement dirty tree → 实
 function t22Workspace(planContent: string) {
   const repo = gitInitReal(mkdtempSync(path.join(tmpdir(), "cdd-t22-ws-")));
   commitValidDocs(repo, PLAN_REL, planContent);
-  const cddDir = path.join(repo, ".osuperpowers", "cdd");
+  const cddDir = path.join(repo, ".kairos", "cdd");
   mkdirSync(cddDir, { recursive: true });
   writeFileSync(path.join(cddDir, ".gitignore"), "*\n");
   const ws = path.join(cddDir, "plan");
@@ -1908,7 +1909,7 @@ function t22Workspace(planContent: string) {
 const T22_PROSE_PLAN = [
   "# Plan",
   "",
-  "**Spec:** [plan-design.md](docs/osuperpowers/specs/plan-design.md)",
+  "**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)",
   "",
   "**口径**：mouthpiece constraint",
   "",

@@ -10,7 +10,7 @@
 import { describe, expect, it } from "vitest";
 import { ResultFace } from "../../rules/result-face.ts";
 
-const H = "/repo/.osuperpowers/cdd/foo/spec-review-1.json";
+const H = "/repo/.kairos/cdd/foo/spec-review-1.json";
 
 describe("rules/result-face.ts — review judgment axis (C5 D1)", () => {
   it("review: empty findings → status: APPROVED · blocker: 0 · handoff: <path> (single capsule)", () => {

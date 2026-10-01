@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **A cdd-first methodology: continuously-discovered development as the core discipline, AI coding skills as the distribution vehicle.** This repository is the home of that methodology and the vehicle that distributes it — the CDD (continuously-discovered development) practice encoded as skills and driven by the `cdd` engine, released as installable plugins consumable across multiple AI coding harnesses (verified on Claude Code and Cursor Agent).
 
-**osuperpowers** ships here as a first-party plugin in-tree at `packages/osuperpowers/` (osuperpowers orchestration + cli-* family + the CDD engine). Superpowers, mattpocock-skills, and impeccable are upstream third-party plugins — install them via their official commands (marked Upstream in the README); this repo no longer vendors them. Upstream workflow skills are read by osuperpowers orchestrators via `/`-prefixed plugin:skill references.
+**kairos** ships here as a first-party plugin in-tree at `packages/kairos/` (kairos orchestration + cli-* family + the CDD engine). Superpowers, mattpocock-skills, and impeccable are upstream third-party plugins — install them via their official commands (marked Upstream in the README); this repo no longer vendors them. Upstream workflow skills are read by kairos orchestrators via `/`-prefixed plugin:skill references.
 
 ## ⚠️ emit products are derived — never edit them
 
@@ -22,7 +22,7 @@ pnpm run changeset  # create a changeset for versioning
 pnpm exec changeset version  # apply changesets to bump versions + CHANGELOGs (native; CI runs it on the Version PR)
 ```
 
-CI runs `node scripts/run.ts validate` on PRs to `develop` and `main` (validation blocks: emit freshness, osuperpowers plugin resolution / skills inventory / pi-package well-formed / behavior tests + wiring guard, cdd-engine dev stub + engine test suite, engine zero residue + channel audit, marketplace manifests + emit harness registry consistency, scripts unit tests, package version sync).
+CI runs `node scripts/run.ts validate` on PRs to `develop` and `main` (validation blocks: emit freshness, kairos plugin resolution / skills inventory / pi-package well-formed / behavior tests + wiring guard, cdd-engine dev stub + engine test suite, engine zero residue + channel audit, marketplace manifests + emit harness registry consistency, scripts unit tests, package version sync).
 
 ## Architecture
 
@@ -34,16 +34,16 @@ Adding a new first-party plugin: create `packages/<name>/package.json` with an `
 
 ### Repository layout
 
-- `packages/` — first-party plugins (osuperpowers)
+- `packages/` — first-party plugins (kairos)
 - `scripts/run.ts emit` — unified emit tool (derives `source.json` + all harness manifests)
 - `scripts/run.ts validate` — Node validation orchestration
 - `packages/cdd-engine/` — CDD engine npm package (cdd-task / docs-task / branch-review / cdd-select / cdd-research, lib/, templates/)
 
 ### Per-package docs
 
-- [`packages/osuperpowers/README.md`](packages/osuperpowers/README.md) — osuperpowers plugin user guide
+- [`packages/kairos/README.md`](packages/kairos/README.md) — kairos plugin user guide
 - [`.changeset/README.md`](.changeset/README.md) — changeset & release-flow reference for the first-party packages (version scheme, Release flow)
-- [skill-anatomy schema](packages/cdd-engine/src/documents/schema/skill-anatomy.json) — canonical SKILL.md structure contract (node-anchored format, English primary); the machine check [`ContractLexiconGuard#checkAnatomy`](scripts/lib/contract-lexicon.ts) validates all 8 osuperpowers skills against it
+- [skill-anatomy schema](packages/cdd-engine/src/documents/schema/skill-anatomy.json) — canonical SKILL.md structure contract (node-anchored format, English primary); the machine check [`ContractLexiconGuard#checkAnatomy`](scripts/lib/contract-lexicon.ts) validates all 8 kairos skills against it
 
 ### Data-driven templates
 
@@ -63,7 +63,7 @@ The global `cdd` command must NOT be used (`npm link` removed).
 
 The `cdd` CLI gains **no new subcommands** — the only exceptions are the discovery-type `cdd schema get <type>` and the pure-rendering `cdd issue render`, both zero-enforcement (the charter's Non-goal #1 exception). Enforcement-capable subcommands stay closed.
 
-Every op's stdout is the single status capsule (`status · blocker · handoff`) plus the engine-derived `next:` suggestion line — `cdd review` / `cdd fix` included; BLOCKED reasons ride the stderr `CDD_BLOCKED:` channel. The capsule/route vocabulary is single-sourced in the Contract Lexicon (`packages/cdd-engine/src/infra/contract-lexicon.json`), never restated in prose. A harness abnormal exit stores a crash-only snapshot + crash record in the workspace (`.osuperpowers/cdd/<slug>/crash-<lane>-<round>.json`) — re-run the same command per the BLOCKED `next:` to continue (no redo, no residue loss).
+Every op's stdout is the single status capsule (`status · blocker · handoff`) plus the engine-derived `next:` suggestion line — `cdd review` / `cdd fix` included; BLOCKED reasons ride the stderr `CDD_BLOCKED:` channel. The capsule/route vocabulary is single-sourced in the Contract Lexicon (`packages/cdd-engine/src/infra/contract-lexicon.json`), never restated in prose. A harness abnormal exit stores a crash-only snapshot + crash record in the workspace (`.kairos/cdd/<slug>/crash-<lane>-<round>.json`) — re-run the same command per the BLOCKED `next:` to continue (no redo, no residue loss).
 
 ### Engine tests
 
@@ -71,7 +71,7 @@ The engine test suite lives at `packages/cdd-engine/src/**/__tests__/**/*.test.t
 
 ### Language policy — English-primary, mirror only the README family
 
-**Repository authoring policy (governing principle):** the main codebase — source files, `skills/*/SKILL.md`, and `docs/*.md` — is **English-primary**, and the repo's mirror policy is **"mirror only the README family"**: the **only** `.zh-CN.md` mirrors in the repo are the root **`README.zh-CN.md`** and the per-package **`packages/osuperpowers/README.zh-CN.md`** / **`packages/cdd-engine/README.zh-CN.md`** — three files total, each kept in sync with its English counterpart. Every other plane carries zero mirrors. The single deliberate non-English surface is this repo's internal developer specs/plans, which follow the user's working language.
+**Repository authoring policy (governing principle):** the main codebase — source files, `skills/*/SKILL.md`, and `docs/*.md` — is **English-primary**, and the repo's mirror policy is **"mirror only the README family"**: the **only** `.zh-CN.md` mirrors in the repo are the root **`README.zh-CN.md`** and the per-package **`packages/kairos/README.zh-CN.md`** / **`packages/cdd-engine/README.zh-CN.md`** — three files total, each kept in sync with its English counterpart. Every other plane carries zero mirrors. The single deliberate non-English surface is this repo's internal developer specs/plans, which follow the user's working language.
 
 Three strategies implement this, depending on file type:
 
@@ -88,7 +88,7 @@ Three strategies implement this, depending on file type:
 
 #### Strategy B — Chinese-primary, no mirror (specs and plans)
 
-`docs/osuperpowers/specs/*.md` and `docs/osuperpowers/plans/*.md` are internal developer documents written **in Chinese** (the user's working language). No `.zh-CN.md` mirror is needed or maintained for these files.
+`docs/kairos/specs/*.md` and `docs/kairos/plans/*.md` are internal developer documents written **in Chinese** (the user's working language). No `.zh-CN.md` mirror is needed or maintained for these files.
 
 #### Strategy B extension — maintainer docs (docs/maintainers/)
 
@@ -96,7 +96,7 @@ Three strategies implement this, depending on file type:
 
 ### Review convergence
 
-The unified review convergence rule lives as the `Review Convergence` entry in each orchestrator skill's `## Invariants` — `packages/osuperpowers/skills/*/SKILL.md` (writing-single-spec / writing-overall-spec / writing-phase-spec / writing-plans / cli-driven-development). That entry is the single source; this section intentionally carries no restatement of the rule.
+The unified review convergence rule lives as the `Review Convergence` entry in each orchestrator skill's `## Invariants` — `packages/kairos/skills/*/SKILL.md` (cdd-spec / cdd-charter / cdd-phase / cdd-plan / cdd-dev). That entry is the single source; this section intentionally carries no restatement of the rule.
 
 ## Conventions
 
@@ -126,7 +126,7 @@ Never write to the local session-memory directory (`~/.claude/projects/<repo>/me
 
 ### Validation and commit flows
 
-Commits run on a dirty tree (`git add` + `git commit` run with uncommitted changes present). `.husky/pre-commit` is the single line **`pnpm exec lint-staged`** (tasks in `lint-staged.config.mjs`): **`biome check`** gates the staged TS set with no-fix semantics — no `--write`, so a format/lint violation in a staged `.ts` file exits non-zero and aborts the commit (lint-staged only checks staged files, so un-staged dirty files don't block; `biome:fix` remains a manual self-check the hook never calls) — and a **`*` catch-all runs `pnpm run precommit`** (`node scripts/run.ts precommit`, i.e. `scripts/validate/pre-commit.ts`) once per commit: the tree-independent subset of the full validate (emit freshness / osuperpowers tree + wiring guard + pi-package well-formed / engine zero residue + channel audit / marketplace manifests / scripts unit / package version sync), excluding the two engine-dependent blocks (cdd-engine dev stub materialization + the engine test suite). The full validate, including the tree-dependent black-box cases, runs on the CI clean checkout (`.github/actions/validate` + `scripts/run.ts smoke-cdd`); locally, commit first, then run `pnpm run validate` for the complete assertion surface.
+Commits run on a dirty tree (`git add` + `git commit` run with uncommitted changes present). `.husky/pre-commit` is the single line **`pnpm exec lint-staged`** (tasks in `lint-staged.config.mjs`): **`biome check`** gates the staged TS set with no-fix semantics — no `--write`, so a format/lint violation in a staged `.ts` file exits non-zero and aborts the commit (lint-staged only checks staged files, so un-staged dirty files don't block; `biome:fix` remains a manual self-check the hook never calls) — and a **`*` catch-all runs `pnpm run precommit`** (`node scripts/run.ts precommit`, i.e. `scripts/validate/pre-commit.ts`) once per commit: the tree-independent subset of the full validate (emit freshness / kairos tree + wiring guard + pi-package well-formed / engine zero residue + channel audit / marketplace manifests / scripts unit / package version sync), excluding the two engine-dependent blocks (cdd-engine dev stub materialization + the engine test suite). The full validate, including the tree-dependent black-box cases, runs on the CI clean checkout (`.github/actions/validate` + `scripts/run.ts smoke-cdd`); locally, commit first, then run `pnpm run validate` for the complete assertion surface.
 
 ### Node.js
 

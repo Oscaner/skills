@@ -9,7 +9,7 @@
  * resolved in the harness registry; a harness without a product document (pi is
  * an inline distribution) contributes nothing — skipped by the product guard,
  * not by any plugin-name branch. The manifest builders and the count truth stay
- * in their own single sources (the registry / scripts/validate/osuperpowers.ts):
+ * in their own single sources (the registry / scripts/validate/kairos.ts):
  * this emitter keeps no inventory of either.
  */
 

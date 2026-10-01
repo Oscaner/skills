@@ -1,15 +1,15 @@
 {
   "components": [
-    "osuperpowers (general)",
+    "kairos (general)",
     "cdd-engine",
-    "osuperpowers:brainstorming",
-    "osuperpowers:writing-single-spec",
-    "osuperpowers:writing-overall-spec",
-    "osuperpowers:writing-phase-spec",
-    "osuperpowers:writing-plans",
-    "osuperpowers:cli-driven-development",
-    "osuperpowers:report-issues",
-    "osuperpowers:finishing"
+    "kairos:cdd-design",
+    "kairos:cdd-spec",
+    "kairos:cdd-charter",
+    "kairos:cdd-phase",
+    "kairos:cdd-plan",
+    "kairos:cdd-dev",
+    "kairos:cdd-report",
+    "kairos:cdd-close"
   ],
   "severities": [
     "blocker",
@@ -54,14 +54,14 @@
     "bug_report": {
       "frontmatter": {
         "name": "Bug report",
-        "description": "Report a bug found while using osuperpowers skills (dogfood)",
-        "labels": ["bug", "osuperpowers"]
+        "description": "Report a bug found while using kairos skills (dogfood)",
+        "labels": ["bug", "kairos"]
       },
       "body": [
         {
           "type": "markdown",
           "attributes": {
-            "value": "Use this template to report bugs found during dogfood use of osuperpowers skills.\n"
+            "value": "Use this template to report bugs found during dogfood use of kairos skills.\n"
           }
         },
         {
@@ -78,8 +78,8 @@
           "id": "context",
           "attributes": {
             "label": "Context",
-            "description": "Dogfood session context: date, harness, which osuperpowers skills were in use",
-            "placeholder": "Date: YYYY-MM-DD, Harness: claude-code, Skills: cli-driven-development, writing-plans"
+            "description": "Dogfood session context: date, harness, which kairos skills were in use",
+            "placeholder": "Date: YYYY-MM-DD, Harness: claude-code, Skills: cdd-dev, cdd-plan"
           },
           "validations": { "required": true }
         },
@@ -125,14 +125,14 @@
     "enhancement": {
       "frontmatter": {
         "name": "Enhancement",
-        "description": "Suggest an improvement to osuperpowers skills or workflow",
-        "labels": ["enhancement", "osuperpowers"]
+        "description": "Suggest an improvement to kairos skills or workflow",
+        "labels": ["enhancement", "kairos"]
       },
       "body": [
         {
           "type": "markdown",
           "attributes": {
-            "value": "Use this template to suggest improvements found during dogfood use of osuperpowers skills.\n"
+            "value": "Use this template to suggest improvements found during dogfood use of kairos skills.\n"
           }
         },
         {
@@ -149,8 +149,8 @@
           "id": "context",
           "attributes": {
             "label": "Context",
-            "description": "Dogfood session context: date, harness, which osuperpowers skills were in use",
-            "placeholder": "Date: YYYY-MM-DD, Harness: claude-code, Skills: cli-driven-development"
+            "description": "Dogfood session context: date, harness, which kairos skills were in use",
+            "placeholder": "Date: YYYY-MM-DD, Harness: claude-code, Skills: cdd-dev"
           },
           "validations": { "required": true }
         },
@@ -195,7 +195,7 @@
     }
   },
   "reportDef": {
-    "labels": ["osuperpowers", "cdd-engine"]
+    "labels": ["kairos", "cdd-engine"]
   },
   "masterDef": {
     "sessionTitle": "## Session",

@@ -52,11 +52,11 @@ function git(repo: string, ...args: string[]) {
   }).trim();
 }
 
-/** Fresh git repo: the `.osuperpowers/cdd/` workspace is gitignored (engine writes stay out of the
+/** Fresh git repo: the `.kairos/cdd/` workspace is gitignored (engine writes stay out of the
  * tree), the doc chain is committed → the entry gate sees a clean tree. */
 function setupRepo(): string {
   const dest = mkdtempSync(path.join(tmpdir(), "cdd-dcc-"));
-  writeFileSync(path.join(dest, ".gitignore"), "cdd/\n.osuperpowers/\n*.head\n");
+  writeFileSync(path.join(dest, ".gitignore"), "cdd/\n.kairos/\n*.head\n");
   git(dest, "init", "-q");
   git(dest, "add", "-A");
   git(
@@ -91,8 +91,8 @@ function registry(deps: Record<string, unknown> = {}): string {
   return regPath;
 }
 
-const SPEC_DIR = "docs/osuperpowers/specs";
-const PLAN_DIR = "docs/osuperpowers/plans";
+const SPEC_DIR = "docs/kairos/specs";
+const PLAN_DIR = "docs/kairos/plans";
 const SPEC = [
   "- **Version**: v1.0 · 2026-09-21",
   "",
@@ -102,7 +102,7 @@ const SPEC = [
 const PLAN = [
   "# Plan",
   "",
-  "**Spec:** [plan-design.md](docs/osuperpowers/specs/plan-design.md)",
+  "**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)",
   "",
   "## Constraints",
   "",
@@ -278,7 +278,7 @@ describe("docs channel — the base-default docContractValidate (audits the revi
       const exitCode = await runDocs(
         dir,
         path.join(dir, SPEC_DIR, "plan-design.md"),
-        path.join(dir, ".osuperpowers", "cdd", "plan", "spec-review-1.json"),
+        path.join(dir, ".kairos", "cdd", "plan", "spec-review-1.json"),
       );
       expect(exitCode).toBe(1);
       expect(cap.text).toMatch(/CDD_BLOCKED: doc contract validation failed/);
@@ -311,7 +311,7 @@ describe("docs channel — the base-default docContractValidate (audits the revi
       const exitCode = await runDocs(
         dir,
         brokenOverall,
-        path.join(dir, ".osuperpowers", "cdd", "broken", "spec-review-1.json"),
+        path.join(dir, ".kairos", "cdd", "broken", "spec-review-1.json"),
       );
       expect(exitCode).toBe(1);
       expect(cap.text).toMatch(/CDD_BLOCKED: doc contract validation failed/);
@@ -329,7 +329,7 @@ describe("docs channel — the base-default docContractValidate (audits the revi
       const exitCode = await runDocs(
         dir,
         path.join(dir, SPEC_DIR, "plan-design.md"),
-        path.join(dir, ".osuperpowers", "cdd", "plan", "spec-review-1.json"),
+        path.join(dir, ".kairos", "cdd", "plan", "spec-review-1.json"),
         { dryRun: true },
       );
       expect(exitCode).toBe(0);

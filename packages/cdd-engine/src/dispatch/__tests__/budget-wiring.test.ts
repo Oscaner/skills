@@ -145,8 +145,8 @@ function git(repo: string, ...args: string[]): string {
 function makeRepo(): string {
   const repo = mkdtempSync(path.join(tmpdir(), "cdd-budget-wiring-"));
   gitInit(repo);
-  // Workspace bootstrap: the engine's `.osuperpowers/cdd/` writes stay out of the tracked tree.
-  writeFileSync(path.join(repo, ".gitignore"), ".osuperpowers/\n");
+  // Workspace bootstrap: the engine's `.kairos/cdd/` writes stay out of the tracked tree.
+  writeFileSync(path.join(repo, ".gitignore"), ".kairos/\n");
   execFileSync("git", ["-C", repo, "add", "-A"], { encoding: "utf8" });
   execFileSync(
     "git",
@@ -186,7 +186,7 @@ async function runTaskDispatch(mode: DispatchOp, repo: string): Promise<unknown>
   const planFile = commitValidDocs(repo);
   if (mode === "fix") {
     // The fix round's source: a previous review handoff (the findings input the fix path reads).
-    const wsDir = path.join(repo, ".osuperpowers", "cdd", "plan");
+    const wsDir = path.join(repo, ".kairos", "cdd", "plan");
     mkdirSync(wsDir, { recursive: true });
     writeFileSync(
       path.join(wsDir, "tasks-1-review-1.json"),
@@ -225,8 +225,8 @@ describe("task island — spawn budget keyed by the DISPATCHED op (review --type
 async function runDocsDispatch(mode: "review" | "fix", repo: string): Promise<unknown> {
   commitValidDocs(repo);
   // The doc-contract-valid spec the docs lane audits (the same valid chain the fixtures commit).
-  const doc = path.join(repo, "docs", "osuperpowers", "specs", "plan-design.md");
-  const wsDir = path.join(repo, ".osuperpowers", "cdd", "plan");
+  const doc = path.join(repo, "docs", "kairos", "specs", "plan-design.md");
+  const wsDir = path.join(repo, ".kairos", "cdd", "plan");
   mkdirSync(wsDir, { recursive: true });
   vi.mocked(execa).mockResolvedValue({
     exitCode: 0,
@@ -295,7 +295,7 @@ async function runBranchDispatch(mode: "review" | "fix", repo: string): Promise<
   }
   const findingsPath = path.join(
     repo,
-    ".osuperpowers",
+    ".kairos",
     "cdd",
     "pi-branch",
     `branch-review-${base7}..${head7}-r1.json`,

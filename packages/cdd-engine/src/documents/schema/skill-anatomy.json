@@ -2,12 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://oscaner.dev/schemas/cdd/skill-anatomy.json",
   "title": "Node-anchored skill (SKILL.md) document structure",
-  "description": "Canonical structure of an osuperpowers skill's SKILL.md — the node-anchored anatomy every consumer-facing skill document follows. The digraph is the sole control-flow source of truth; prose sections map one-to-one to graph nodes. This schema is the single structure fact for the skill-anatomy doc type: the section-heading registry (a STRICT allowlist the machine check enforces — a registry-external heading is a BLOCK because an undefined section is uncertainty on the consumer's real entry surface), the `## Flow Digraph` mermaid section (mermaid-only, zero trailing prose), the `### `node`` node-definition headings, the per-node four-element contract (Do / Read / Exit / Fail), the `## Invariants` and `## Failure Modes` tables, the BLOCKED terminal convention, the conditional `## Skeleton deltas` table (the writing-* spec-writer trio MUST carry it; the deltas table is the validation input for the skeleton-isomorphism assertion), the growth boundary (15 nodes / 17 edges — crossing requires a rationale registered in this schema's registry), and the consumer-surface purity rule (SKILL.md carries zero growth/refactor narrative headings in any form). Authoring agents read the properties below + their descriptions to draft conforming SKILL.md files; the machine check (scripts/lib/contract-lexicon.ts#checkAnatomy — the ContractLexiconGuard's anatomy face) consumes the same patterns against every skill under packages/osuperpowers/skills/.",
+  "description": "Canonical structure of a kairos skill's SKILL.md — the node-anchored anatomy every consumer-facing skill document follows. The digraph is the sole control-flow source of truth; prose sections map one-to-one to graph nodes. This schema is the single structure fact for the skill-anatomy doc type: the section-heading registry (a STRICT allowlist the machine check enforces — a registry-external heading is a BLOCK because an undefined section is uncertainty on the consumer's real entry surface), the `## Flow Digraph` mermaid section (mermaid-only, zero trailing prose), the `### `node`` node-definition headings, the per-node four-element contract (Do / Read / Exit / Fail), the `## Invariants` and `## Failure Modes` tables, the BLOCKED terminal convention, the conditional `## Skeleton deltas` table (the cdd spec-writer trio MUST carry it; the deltas table is the validation input for the skeleton-isomorphism assertion), the growth boundary (15 nodes / 17 edges — crossing requires a rationale registered in this schema's registry), and the consumer-surface purity rule (SKILL.md carries zero growth/refactor narrative headings in any form). Authoring agents read the properties below + their descriptions to draft conforming SKILL.md files; the machine check (scripts/lib/contract-lexicon.ts#checkAnatomy — the ContractLexiconGuard's anatomy face) consumes the same patterns against every skill under packages/kairos/skills/.",
   "type": "object",
   "properties": {
     "sectionRegistry": {
       "type": "object",
-      "description": "The section-heading registry — the literal `## ` headings a SKILL.md may carry and the `### ` heading kinds a SKILL.md may use. STRICT allowlist, machine-enforced: four PUBLIC sections every skill carries (Flow Digraph · Node Definitions · Invariants · Failure Modes) plus one CONDITIONAL section (Skeleton deltas — mandatory for the writing-* spec-writer trio). Every live `## ` heading must be one of these five literals; every live `### ` heading must be the backticked node-name heading kind. Any heading outside the registry BLOCKS validation — an undefined section/heading is uncertainty on a consumer real entry surface that this schema has never defined (for example the evolution-narration sections `## Flow size note` / `## Full Flow Refactor Rationale` never appear).",
+      "description": "The section-heading registry — the literal `## ` headings a SKILL.md may carry and the `### ` heading kinds a SKILL.md may use. STRICT allowlist, machine-enforced: four PUBLIC sections every skill carries (Flow Digraph · Node Definitions · Invariants · Failure Modes) plus one CONDITIONAL section (Skeleton deltas — mandatory for the cdd spec-writer trio). Every live `## ` heading must be one of these five literals; every live `### ` heading must be the backticked node-name heading kind. Any heading outside the registry BLOCKS validation — an undefined section/heading is uncertainty on a consumer real entry surface that this schema has never defined (for example the evolution-narration sections `## Flow size note` / `## Full Flow Refactor Rationale` never appear).",
       "properties": {
         "public": {
           "type": "array",
@@ -25,7 +25,7 @@
             "enum": ["skeletonDeltas"],
             "description": "One conditional section key — carried only by its required carriers."
           },
-          "description": "The conditional section — Skeleton deltas (the writing-* spec-writer trio) — with its requiredCarriers below."
+          "description": "The conditional section — Skeleton deltas (the cdd spec-writer trio) — with its requiredCarriers below."
         },
         "sections": {
           "type": "object",
@@ -68,10 +68,10 @@
                   "type": "array",
                   "items": {
                     "type": "string",
-                    "enum": ["writing-single-spec", "writing-phase-spec", "writing-overall-spec"],
+                    "enum": ["cdd-spec", "cdd-phase", "cdd-charter"],
                     "description": "One spec-writer-trio skill — the shared review-loop/commit/handoff skeleton's owner; MUST carry the Skeleton deltas table."
                   },
-                  "description": "The writing-* spec-writer trio (single / phase-spec / overall) — each MUST carry the `## Skeleton deltas` table; a trio member without the table fails the family guard."
+                  "description": "The cdd spec-writer trio (spec / phase / charter) — each MUST carry the `## Skeleton deltas` table; a trio member without the table fails the family guard."
                 },
                 "rows": {
                   "type": "object",

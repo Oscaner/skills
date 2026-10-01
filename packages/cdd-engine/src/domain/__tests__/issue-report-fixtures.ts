@@ -1,6 +1,6 @@
 // packages/cdd-engine/src/domain/__tests__/issue-report-fixtures.ts — the shared golden corpus
 // for the `cdd issue render` migration (P4.2 Task 6: the renderer's determinism tests moved from
-// packages/osuperpowers/tests/report-templates.test.mjs into the engine test plane). The golden
+// packages/kairos/tests/report-templates.test.mjs into the engine test plane). The golden
 // body is an independent hand-written literal (same-bytes with the retired report-templates.mjs
 // samples — the assertion compares the renderer output against THIS literal, never a recompute);
 // the INPUT finds exercise mixed type × lang, N findings, and the full related shape (open /
@@ -17,7 +17,7 @@ export const INPUT = {
       problem: "Stopped before emitting findings",
       impact: "Blocked the whole phase",
       suggestedFix: "Skip idempotent reruns",
-      meta: { skill: "cli-driven-development", step: "3-2" },
+      meta: { skill: "cdd-dev", step: "3-2" },
     },
     {
       type: "enhancement",
@@ -26,7 +26,7 @@ export const INPUT = {
       problem: "fix 轮次由 reviewer 全量重跑",
       impact: "浪费 token",
       suggestedFix: "引入 review convergence 配额",
-      meta: { skill: "writing-plans", step: "5-1" },
+      meta: { skill: "cdd-plan", step: "5-1" },
     },
   ],
   related: {
@@ -57,7 +57,7 @@ Blocked the whole phase
 ## Suggested fix
 
 Skip idempotent reruns
-- Skill: cli-driven-development
+- Skill: cdd-dev
 - Step: 3-2
 
 ## 背景
@@ -75,7 +75,7 @@ fix 轮次由 reviewer 全量重跑
 ## 建议方案
 
 引入 review convergence 配额
-- Skill: writing-plans
+- Skill: cdd-plan
 - Step: 5-1
 
 ## Dedup
@@ -92,7 +92,7 @@ export const VALID_FINDING = {
   problem: "p",
   impact: "i",
   suggestedFix: "f",
-  meta: { skill: "cli-driven-development", step: "3-2" },
+  meta: { skill: "cdd-dev", step: "3-2" },
 };
 
 /** The single-finding body (the VALID_FINDING input) — a second independent hand-written literal
@@ -115,7 +115,7 @@ i
 ## Suggested fix
 
 f
-- Skill: cli-driven-development
+- Skill: cdd-dev
 - Step: 3-2`;
 
 export function validInput() {

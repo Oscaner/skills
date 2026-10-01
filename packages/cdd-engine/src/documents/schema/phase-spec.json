@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://oscaner.dev/schemas/cdd/phase-spec.json",
   "title": "Phase design spec document structure",
-  "description": "Canonical structure of an osuperpowers phase design spec — one phase's increment of a program; the program-level charter lives in the parent overall (whole-program conventions win on conflict). This schema is the single structure fact for the phase-spec doc type: the artifact header block, the fixed Section 0–5 skeleton (skeleton isomorphism — do not insert sections mid-sequence, each number is one semantic), the unique `### Acceptance criteria` subsection inside Section 2, and the deviations table whose `Overall updated?` column must be `Yes` before review. Authoring agents read the properties + descriptions to draft conforming specs; docContractValidate consumes the same patterns (`**Version**` strictly required, Class-B parent-program lineage).",
+  "description": "Canonical structure of an kairos phase design spec — one phase's increment of a program; the program-level charter lives in the parent overall (whole-program conventions win on conflict). This schema is the single structure fact for the phase-spec doc type: the artifact header block, the fixed Section 0–5 skeleton (skeleton isomorphism — do not insert sections mid-sequence, each number is one semantic), the unique `### Acceptance criteria` subsection inside Section 2, and the deviations table whose `Overall updated?` column must be `Yes` before review. Authoring agents read the properties + descriptions to draft conforming specs; docContractValidate consumes the same patterns (`**Version**` strictly required, Class-B parent-program lineage).",
   "type": "object",
   "properties": {
     "header": {
@@ -103,7 +103,7 @@
         },
         "section5": {
           "type": "object",
-          "description": "Section 5 — Review: fresh-subagent review passes before user review and writing-plans — baseline = committed tree, Review Convergence (blocker > 0 → fix all findings → re-review; blocker = 0 → fix all findings → done, no re-review).",
+          "description": "Section 5 — Review: fresh-subagent review passes before user review and cdd-plan — baseline = committed tree, Review Convergence (blocker > 0 → fix all findings → re-review; blocker = 0 → fix all findings → done, no re-review).",
           "properties": {
             "heading": { "type": "string", "pattern": "^## Section 5: Review$", "description": "Literal heading `## Section 5: Review`." }
           }
@@ -139,7 +139,7 @@
     },
     "language": {
       "type": "object",
-      "description": "Repo authoring policy applies to the spec prose — specs at docs/osuperpowers/specs/ are internal program docs in the working language (Strategy B), value tokens (phase ids / tags / SHAs / paths) stay locale-neutral."
+      "description": "Repo authoring policy applies to the spec prose — specs at docs/kairos/specs/ are internal program docs in the working language (Strategy B), value tokens (phase ids / tags / SHAs / paths) stay locale-neutral."
     }
   }
 }

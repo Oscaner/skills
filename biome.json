@@ -4,7 +4,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**/*.ts", "!tmp/**", "!.osuperpowers/**", "!packages/cdd-engine/dist/**"]
+    "includes": ["**/*.ts", "!tmp/**", "!.kairos/**", "!packages/cdd-engine/dist/**"]
   },
   "formatter": {
     "enabled": true,

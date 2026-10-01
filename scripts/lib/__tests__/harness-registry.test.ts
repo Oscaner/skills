@@ -12,19 +12,19 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 import { sourceService } from "../../emit/source.ts";
-import { countSkillsWithMarkdown, EXPECTED } from "../../validate/osuperpowers.ts";
+import { countSkillsWithMarkdown, EXPECTED } from "../../validate/kairos.ts";
 import { claudeHarness, cursorHarness, harnessRegistry, piHarness } from "../harness-registry.ts";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const OS_PKG_DIR = join(REPO_ROOT, "packages/osuperpowers");
+const OS_PKG_DIR = join(REPO_ROOT, "packages/kairos");
 
-/** The live osuperpowers source.json row (same byte shape the byte pins target). */
-function osuperpowersRow() {
-  return sourceService.derive(REPO_ROOT).plugins.find((p) => p.name === "osuperpowers");
+/** The live kairos source.json row (same byte shape the byte pins target). */
+function kairosRow() {
+  return sourceService.derive(REPO_ROOT).plugins.find((p) => p.name === "kairos");
 }
 
-/** The live osuperpowers `oscaner` descriptor (the sourceJson input). */
-function osuperpowersOsc() {
+/** The live kairos `oscaner` descriptor (the sourceJson input). */
+function kairosOsc() {
   return JSON.parse(readFileSync(join(OS_PKG_DIR, "package.json"), "utf8")).oscaner;
 }
 
@@ -92,7 +92,7 @@ test("resolve() throws for an unknown id, carrying the id text", () => {
 test("assertBidirectional flags a registered harness no package declares", () => {
   // only claude declared → the cursor row is registered-but-unwired
   expect(() =>
-    harnessRegistry.assertBidirectional({ "@oscaner-skills/osuperpowers": ["claude"] }),
+    harnessRegistry.assertBidirectional({ "@oscaner-skills/kairos": ["claude"] }),
   ).toThrow(/cursor/);
 });
 
@@ -106,7 +106,7 @@ test("assertBidirectional flags a declared id absent from the registry", () => {
 test("assertBidirectional passes when the declaration set matches the registry", () => {
   expect(() =>
     harnessRegistry.assertBidirectional({
-      "@oscaner-skills/osuperpowers": ["cursor", "claude", "pi"],
+      "@oscaner-skills/kairos": ["cursor", "claude", "pi"],
     }),
   ).not.toThrow();
 });
@@ -116,7 +116,7 @@ test("assertBidirectional passes when the declaration set matches the registry",
 // ---------------------------------------------------------------------------
 
 test("ClaudeHarness.manifest byte-pins the .claude-plugin product", () => {
-  const row = osuperpowersRow();
+  const row = kairosRow();
   const product = JSON.parse(readFileSync(join(OS_PKG_DIR, ".claude-plugin/plugin.json"), "utf8"));
   const m = claudeHarness.manifest(row, row.version);
   expect(m).toEqual(product);
@@ -124,7 +124,7 @@ test("ClaudeHarness.manifest byte-pins the .claude-plugin product", () => {
 });
 
 test("CursorHarness.manifest byte-pins the .cursor-plugin product", () => {
-  const row = osuperpowersRow();
+  const row = kairosRow();
   const product = JSON.parse(readFileSync(join(OS_PKG_DIR, ".cursor-plugin/plugin.json"), "utf8"));
   const m = cursorHarness.manifest(row, row.version);
   expect(m).toEqual(product);
@@ -133,7 +133,7 @@ test("CursorHarness.manifest byte-pins the .cursor-plugin product", () => {
 
 test("ClaudeHarness.manifest emits hooks only for non-canonical hook files", () => {
   const row = {
-    ...osuperpowersRow(),
+    ...kairosRow(),
     hooks: { claude: "./hooks/claude.json", cursor: "./hooks/cursor.json" },
   };
   expect(claudeHarness.manifest(row, row.version).hooks).toBe("./hooks/claude.json");
@@ -147,15 +147,15 @@ test("ClaudeHarness.manifest emits hooks only for non-canonical hook files", () 
 });
 
 test("ClaudeHarness.manifest omits the skills field under noSkills", () => {
-  const row = osuperpowersRow();
+  const row = kairosRow();
   const m = claudeHarness.manifest(row, row.version, { noSkills: true });
   expect("skills" in m).toBe(false);
-  expect(m.name).toBe("osuperpowers");
+  expect(m.name).toBe("kairos");
 });
 
 test("CursorHarness.manifest never emits a hooks field", () => {
   const row = {
-    ...osuperpowersRow(),
+    ...kairosRow(),
     hooks: { claude: "./hooks/claude.json", cursor: "./hooks/cursor.json" },
   };
   const m = cursorHarness.manifest(row, row.version);
@@ -173,11 +173,11 @@ test("CursorHarness.sourceJson always contributes the plugin-root emit descripto
 
 test("ClaudeHarness.sourceJson aggregates keywords keeping values from both sources", () => {
   const osc = {
-    claude: { category: "osuperpowers", keywords: ["claude-src"] },
+    claude: { category: "kairos", keywords: ["claude-src"] },
     keywords: ["top-level"],
   };
   expect(claudeHarness.sourceJson(osc)).toEqual({
-    category: "osuperpowers",
+    category: "kairos",
     keywords: ["top-level"],
   });
 });
@@ -206,7 +206,7 @@ test("PiHarness.manifest is unreachable (pi is an inline distribution)", () => {
 // PiHarness.validatePackage — live package + temporary broken packages
 // ---------------------------------------------------------------------------
 
-test("PiHarness.validatePackage passes the live osuperpowers package (five assertions)", () => {
+test("PiHarness.validatePackage passes the live kairos package (five assertions)", () => {
   const pkg = JSON.parse(readFileSync(join(OS_PKG_DIR, "package.json"), "utf8"));
   expect(() =>
     piHarness.validatePackage(pkg, {
@@ -322,15 +322,15 @@ test("PiHarness.validatePackage throws on a missing pi.skills dir", () => {
 // ---------------------------------------------------------------------------
 
 test("registry-derived plugin row keeps the source.json byte key order", () => {
-  const derived = osuperpowersRow();
-  const row = assemblePluginRow(osuperpowersOsc(), derived);
+  const derived = kairosRow();
+  const row = assemblePluginRow(kairosOsc(), derived);
   expect(Object.keys(row)).toEqual(ROW_KEY_ORDER);
   expect(row).toEqual(derived);
 });
 
 test("a hooks declaration lands in the last row slot", () => {
-  const derived = osuperpowersRow();
-  const osc = { ...osuperpowersOsc(), hooks: { claude: "./hooks/claude.json" } };
+  const derived = kairosRow();
+  const osc = { ...kairosOsc(), hooks: { claude: "./hooks/claude.json" } };
   const row = assemblePluginRow(osc, derived);
   expect(Object.keys(row)).toEqual([...ROW_KEY_ORDER, "hooks"]);
   expect(row.hooks).toEqual({ claude: "./hooks/claude.json" });

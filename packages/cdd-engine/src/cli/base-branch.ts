@@ -1,6 +1,6 @@
 // packages/cdd-engine/src/cli/base-branch.ts — `cdd base-branch set/get` action bodies
 // (P5 spec §2.3 / task-3 brief). Pure artifact commands — the sole target `--plan <path>` →
-// WorkspaceRoot.for(plan) (.osuperpowers/cdd/<slug>/). Reuses the workspace-artifacts single
+// WorkspaceRoot.for(plan) (.kairos/cdd/<slug>/). Reuses the workspace-artifacts single
 // authority layer (writeBaseBranch / validateBaseBranch / baseBranchPath) — the CLI only owns
 // target resolution + the error surface; write semantics are zero-copy.
 import { existsSync, readFileSync } from "node:fs";

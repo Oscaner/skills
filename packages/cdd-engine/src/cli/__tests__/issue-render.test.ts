@@ -87,7 +87,7 @@ describe("cdd issue render (P4.2 Task 6)", () => {
       JSON.stringify({ ...validInput(), findings: [] }),
     );
     expect(r.exitCode).toBe(1);
-    expect(r.stderr).toContain("Invalid report-issues input:");
+    expect(r.stderr).toContain("Invalid cdd-report input:");
     expect(r.stderr).toContain("findings: must not be empty");
   });
 

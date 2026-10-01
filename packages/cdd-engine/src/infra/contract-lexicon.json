@@ -37,6 +37,6 @@
   },
   "anatomy": {
     "schemaPath": "packages/cdd-engine/src/documents/schema/skill-anatomy.json",
-    "skillsRoot": "packages/osuperpowers/skills"
+    "skillsRoot": "packages/kairos/skills"
   }
 }

@@ -50,7 +50,7 @@ describe("rules/schema.ts — loadHandoffSchema / loadHandoffNamespace canonical
   it("loadHandoffNamespace 返回 engine-config#handoffNamespace 原值（workspaceRoot + 9 families）", () => {
     const ns = schemaValidator.loadHandoffNamespace();
     expect(ns).toEqual(NAMESPACE);
-    expect(ns.workspaceRoot).toBe(".osuperpowers/cdd");
+    expect(ns.workspaceRoot).toBe(".kairos/cdd");
     expect(Object.keys(ns.families)).toHaveLength(9);
   });
 });

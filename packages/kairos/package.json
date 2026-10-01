@@ -1,0 +1,55 @@
+{
+  "name": "@oscaner-skills/kairos",
+  "version": "0.2.0",
+  "private": false,
+  "description": "Standalone kairos skills: orchestration + cdd-* family + CDD engine.",
+  "keywords": [
+    "pi-package"
+  ],
+  "author": {
+    "name": "Oscaner Miao",
+    "email": "oscaner1997@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Oscaner/skills",
+    "directory": "packages/kairos"
+  },
+  "homepage": "https://github.com/Oscaner/skills",
+  "license": "MIT",
+  "bin": {},
+  "pi": {
+    "skills": [
+      "./skills"
+    ]
+  },
+  "files": [
+    "skills/",
+    ".claude-plugin/",
+    ".cursor-plugin/",
+    "README.md",
+    "README.zh-CN.md",
+    "CHANGELOG.md",
+    "package.json"
+  ],
+  "dependencies": {
+    "@oscaner-skills/cdd-engine": "workspace:*"
+  },
+  "oscaner": {
+    "claude": {
+      "category": "kairos"
+    },
+    "contentRoot": ".",
+    "harnesses": [
+      "claude",
+      "cursor",
+      "pi"
+    ],
+    "keywords": [
+      "kairos",
+      "cli",
+      "cdd",
+      "harness"
+    ]
+  }
+}

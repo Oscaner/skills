@@ -27,7 +27,7 @@ describe("render-yaml (emit-only module)", () => {
     for (const component of findingMeta.components) {
       expect(yml).toContain(`        - ${component}`);
     }
-    expect(yml).not.toContain("osuperpowers:init");
+    expect(yml).not.toContain("kairos:init");
   });
 });
 
@@ -55,9 +55,9 @@ describe("finding-meta canonical（§2.6 终态）", () => {
     }
   });
 
-  it("reportDef.labels 单点 = [osuperpowers, cdd-engine]", () => {
+  it("reportDef.labels 单点 = [kairos, cdd-engine]", () => {
     expect(findingMeta.reportDef).toEqual({
-      labels: ["osuperpowers", "cdd-engine"],
+      labels: ["kairos", "cdd-engine"],
     });
   });
 
@@ -68,9 +68,9 @@ describe("finding-meta canonical（§2.6 终态）", () => {
     });
   });
 
-  it("components 经 Task 11 改名后继验：report-issues 现名在枚举、单数 report-issue 不在", () => {
-    expect(findingMeta.components).toContain("osuperpowers:report-issues");
-    expect(findingMeta.components).not.toContain("osuperpowers:report-issue");
+  it("components 经 Task 11 改名后继验：cdd-report 现名在枚举、单数 report-issue 不在", () => {
+    expect(findingMeta.components).toContain("kairos:cdd-report");
+    expect(findingMeta.components).not.toContain("kairos:report-issue");
   });
 });
 
@@ -121,8 +121,8 @@ describe("issue-templates emitter", () => {
 const FORM = {
   frontmatter: {
     name: "Bug report",
-    description: "Report a bug found while using osuperpowers skills (dogfood)",
-    labels: ["bug", "osuperpowers"],
+    description: "Report a bug found while using kairos skills (dogfood)",
+    labels: ["bug", "kairos"],
   },
   body: [
     { type: "markdown", attributes: { value: "Use this template.\n" } },
@@ -140,22 +140,21 @@ const FORM = {
       id: "context",
       attributes: {
         label: "Context",
-        description:
-          "Dogfood session context: date, harness, which osuperpowers skills were in use",
+        description: "Dogfood session context: date, harness, which kairos skills were in use",
       },
       validations: { required: true },
     },
   ],
 };
 const ENUMS = {
-  components: ["osuperpowers (general)", "cdd-engine", "osuperpowers:writing-plans"],
+  components: ["kairos (general)", "cdd-engine", "kairos:cdd-plan"],
 };
 
 const GOLDEN_YML = `name: Bug report
-description: Report a bug found while using osuperpowers skills (dogfood)
+description: Report a bug found while using kairos skills (dogfood)
 labels:
   - bug
-  - osuperpowers
+  - kairos
 body:
   - type: markdown
     attributes:
@@ -167,16 +166,16 @@ body:
       label: Component
       description: Which component does this finding relate to?
       options:
-        - osuperpowers (general)
+        - kairos (general)
         - cdd-engine
-        - osuperpowers:writing-plans
+        - kairos:cdd-plan
     validations:
       required: true
   - type: textarea
     id: context
     attributes:
       label: Context
-      description: "Dogfood session context: date, harness, which osuperpowers skills were in use"
+      description: "Dogfood session context: date, harness, which kairos skills were in use"
     validations:
       required: true
 `;
@@ -203,17 +202,13 @@ describe("render-yaml migrated golden + single-source (from the retired report-t
     }
   });
 
-  it("canonical value sync: init removed, 3 spec-writers present, report-issues renamed", () => {
+  it("canonical value sync: init removed, 3 spec-writers present, cdd-report renamed", () => {
     const components = findingMeta.components;
-    expect(components).not.toContain("osuperpowers:init");
-    for (const spec of [
-      "osuperpowers:writing-single-spec",
-      "osuperpowers:writing-overall-spec",
-      "osuperpowers:writing-phase-spec",
-    ]) {
+    expect(components).not.toContain("kairos:init");
+    for (const spec of ["kairos:cdd-spec", "kairos:cdd-charter", "kairos:cdd-phase"]) {
       expect(components).toContain(spec);
     }
-    expect(components).toContain("osuperpowers:report-issues");
-    expect(components).not.toContain("osuperpowers:report-issue");
+    expect(components).toContain("kairos:cdd-report");
+    expect(components).not.toContain("kairos:report-issue");
   });
 });

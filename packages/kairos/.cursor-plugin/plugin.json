@@ -1,0 +1,19 @@
+{
+  "_generated": "scripts/run.ts emit — do not edit",
+  "name": "kairos",
+  "displayName": "kairos",
+  "description": "Standalone kairos skills: orchestration + cdd-* family + CDD engine.",
+  "version": "0.2.0",
+  "author": {
+    "name": "Oscaner Miao",
+    "email": "oscaner1997@gmail.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "kairos",
+    "cli",
+    "cdd",
+    "harness"
+  ],
+  "skills": "./skills/"
+}

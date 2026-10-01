@@ -4,7 +4,7 @@ The marketplace is **package-as-source**: `packages/<name>/package.json#oscaner`
 
 ## Edit workflow
 
-First-party plugins (`osuperpowers`):
+First-party plugins (`kairos`):
 
 1. Edit `packages/<name>/package.json` — the `oscaner` field (contentRoot, harnesses, keywords, claude) is the SOT. Adding a package dir with that field auto-joins the emit; no hand registration.
 2. Run emit:
@@ -39,7 +39,7 @@ Files include `"_generated": "… — do not edit"`. CI step 7 fails if emit out
 | **Wrapper** (default) | `displayName` + `skills` (+ optional `hooks`) | `cursor-plugins/<name>` |
 | **Plugin-root** | `{ "emitMode": "plugin-root" }` only | `./<contentRoot>` (reads plugin's `.cursor-plugin/plugin.json`) |
 
-**Plugin-root today:** **`osuperpowers`** (oscaner-generated manifests). The vendored wrapper emit under `cursor-plugins/` was removed with the vendors self-maintenance surface (P6 — upstream plugins install from their own publishers).
+**Plugin-root today:** **`kairos`** (oscaner-generated manifests). The vendored wrapper emit under `cursor-plugins/` was removed with the vendors self-maintenance surface (P6 — upstream plugins install from their own publishers).
 
 ## Schema
 
@@ -49,10 +49,10 @@ Files include `"_generated": "… — do not edit"`. CI step 7 fails if emit out
 
 | Plugin | Canonical version source |
 |--------|-------------------------|
-| `osuperpowers` | `packages/osuperpowers/package.json` (SOT) |
+| `kairos` | `packages/kairos/package.json` (SOT) |
 
 Emit fails when `source.json` versions disagree with the truth sources.
 
 ## Cursor Team Marketplace
 
-Import `https://github.com/Oscaner/skills` in Cursor Dashboard → Settings → Plugins → Team Marketplaces. Plugins resolve via `.cursor-plugin/marketplace.json`. **`osuperpowers`** installs from plugin root (`./packages/...`).
+Import `https://github.com/Oscaner/skills` in Cursor Dashboard → Settings → Plugins → Team Marketplaces. Plugins resolve via `.cursor-plugin/marketplace.json`. **`kairos`** installs from plugin root (`./packages/...`).

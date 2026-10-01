@@ -61,8 +61,8 @@ describe("stale-lexicon：断言组行为（brief Step 1）", () => {
   it('dogfood (CDD session) 下拉不误报（非裸 "dogfood" label）', () => {
     expect(hasHit(['"dogfood (CDD session)"'])).toBe(false);
   });
-  it("labels bug, dogfood, osuperpowers 命中（label 语法位）", () => {
-    expect(hasHit(["labels bug, dogfood, osuperpowers"])).toBe(true);
+  it("labels bug, dogfood, kairos 命中（label 语法位）", () => {
+    expect(hasHit(["labels bug, dogfood, kairos"])).toBe(true);
   });
   it("旧 mode task-review 命中（cdd-engine）", () => {
     expect(hasHit(["CDD_MODE must be implement|task-review|fix"])).toBe(true);
@@ -104,9 +104,9 @@ describe("stale-lexicon：机制位置精确性", () => {
 // 经字符串拼接构造旧根，否则本文件会成为 Task 6 全仓 grep 的第三类命中。
 describe("stale-lexicon：old docs root 守卫（Task 5）", () => {
   const OLD_DOCS_ROOT = "docs" + "/superpowers";
-  it("旧 docs 根命中（机制/文档表层）；新根 docs/osuperpowers/ 放行", () => {
+  it("旧 docs 根命中（机制/文档表层）；新根 docs/kairos/ 放行", () => {
     expect(hasHit([`${OLD_DOCS_ROOT}/specs/foo.md`])).toBe(true); // 新守卫命中
-    expect(hasHit(["docs/osuperpowers/specs/foo.md"])).toBe(false); // 新根放行
+    expect(hasHit(["docs/kairos/specs/foo.md"])).toBe(false); // new root passes
   });
 });
 
@@ -266,18 +266,16 @@ describe("stale-lexicon：vendors 自维护语汇（P6 Task 2 / B12）", () => {
 // .agents scope = ALL_MECH_POSITIONS (mechanism positions, zero-exemption; docs/maintainers stale
 // references deferred to the F7 re-org merge face). The droid lane guards only the A3 landing
 // package.json. Superseded by the P1 pi-harness: `pi` became the live distribution field of
-// packages/osuperpowers/package.json (`keywords: ["pi-package"]` + `pi: { skills: ["./skills"] }`),
+// packages/kairos/package.json (`keywords: ["pi-package"]` + `pi: { skills: ["./skills"] }`),
 // so the initial `\bpi\b` branch was retired wholesale — the pi-shaped literals below are pinned
 // as pass (false) end-state, while droid keeps its hit (true). Counter-examples: bare agents (no
 // dot prefix), English words pipeline/principal/piper, version numbers.
 describe("stale-lexicon: .agents + droid lexicon (P6 Task 19 / spec F2)", () => {
   it(".agents/ 路径形命中（emit 副本面回渗）", () => {
-    expect(hasHit(["packages/osuperpowers/.agents/skills/writing-single-spec/SKILL.md"])).toBe(
-      true,
-    );
+    expect(hasHit(["packages/kairos/.agents/skills/cdd-spec/SKILL.md"])).toBe(true);
   });
   it(".agents 行尾形命中（裸目录名回渗）", () => {
-    expect(hasHit(["retired emit tree at packages/osuperpowers/.agents"])).toBe(true);
+    expect(hasHit(["retired emit tree at packages/kairos/.agents"])).toBe(true);
   });
   it("无 `.` 前缀的 agents 与普通散文放行", () => {
     expect(hasHit(["the shared agents namespace"])).toBe(false);
@@ -306,11 +304,7 @@ describe("stale-lexicon: .agents + droid lexicon (P6 Task 19 / spec F2)", () => 
   });
   it("含 droid keyword 的临时 package.json 被 collectStaleLexiconHits 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "residue-droid-"));
-    writeFileSync(
-      path.join(dir, "package.json"),
-      '{"keywords": ["osuperpowers", "droid"]}\n',
-      "utf8",
-    );
+    writeFileSync(path.join(dir, "package.json"), '{"keywords": ["kairos", "droid"]}\n', "utf8");
     try {
       const hits = collectStaleLexiconHits([dir]);
       expect(hits).toHaveLength(1);
@@ -323,9 +317,7 @@ describe("stale-lexicon: .agents + droid lexicon (P6 Task 19 / spec F2)", () => 
 
 describe("gate-lexicon：正例命中（T6 Step 2）", () => {
   it("bin/gate/ 路径命中（deleted gate dir，含 adapters/configs 下端）", () => {
-    expect(hasHit(["cdd-gate 子系统已删 packages/osuperpowers/bin/gate/adapters/kiro.mjs"])).toBe(
-      true,
-    );
+    expect(hasHit(["cdd-gate 子系统已删 packages/kairos/bin/gate/adapters/kiro.mjs"])).toBe(true);
     expect(hasHit(["ref bin/gate/cdd-gate-core.mjs"])).toBe(true);
   });
   it("CDD_GATE env 命中（含带后缀形式）", () => {
@@ -366,7 +358,7 @@ describe("gate-lexicon：扫描行为（T6 Step 2 临时文件）+ live-repo", (
   it("含 bin/gate/ 引用的临时文件被 collectGateLexiconHits 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "residue-gate-"));
     const f = path.join(dir, "note.md");
-    writeFileSync(f, "cdd-gate 子系统已删（packages/osuperpowers/bin/gate/）\n", "utf8");
+    writeFileSync(f, "cdd-gate 子系统已删（packages/kairos/bin/gate/）\n", "utf8");
     try {
       const hits = collectGateLexiconHits([dir]);
       expect(hits).toHaveLength(1);
@@ -400,16 +392,11 @@ describe("gate-lexicon：扫描行为（T6 Step 2 临时文件）+ live-repo", (
     }
   });
   it("DOC_SURFACE_TARGETS 覆盖治理文件面（scope 缩小即失败）", () => {
-    for (const p of [
-      "CLAUDE.md",
-      "README.md",
-      "packages/osuperpowers/README.md",
-      "docs/maintainers",
-    ]) {
+    for (const p of ["CLAUDE.md", "README.md", "packages/kairos/README.md", "docs/maintainers"]) {
       expect(DOC_SURFACE_TARGETS).toContain(p);
     }
   });
-  it("collectGateLexiconHits() === []（机制/文档表层零残留；docs/osuperpowers/{specs,plans} 历史文档 + CHANGELOG 豁免）", () => {
+  it("collectGateLexiconHits() === []（机制/文档表层零残留；docs/kairos/{specs,plans} 历史文档 + CHANGELOG 豁免）", () => {
     expect(collectGateLexiconHits()).toEqual([]);
   });
 });
@@ -1001,16 +988,19 @@ describe("live repo：Task 8 channel audit（§2.8 行 1–11、13）零残留",
   });
 });
 
-// ---- Task 10: init 删除 + 版本戳机制删除 反向守卫（design §2.6.2 / §2.8 行 19-20）----
-// ① shipped 非 emit 面（skills/** · 插件 README）零版本字面量（osuperpowers-version 戳——
-// 版本真相收敛到 package.json + emit 产物后，戳写方/读方均已连根删除）；② shipped 面
-//（根 README · 插件 README）+ 协作者面（.changeset/README.md）零 `/init` 引用（marketplace
-// 安装指引已内联进 README 安装节）。scripts/ 不在两个 scope 内，本文件直接写字面无自噬风险。
-describe("shipped guards：版本字面量 + /init 引用（T10）", () => {
-  it("osuperpowers-version 戳命中（shipped 非 emit 面）", () => {
+// ---- Task 10: init removal + version-stamp mechanism removal reverse guard (design §2.6.2 /
+// §2.8 rows 19-20) ----
+// ① shipped non-emit surface (skills/** · plugin README) keeps zero version literals (the
+// kairos-version stamp — the version truth converging to package.json + emit products means the
+// stamper and reader were both root-deleted); ② the shipped surface (root README · plugin README)
+// + the collaborator surface (.changeset/README.md) keep zero `/init` references (the marketplace
+// install guide inlined into the README install section). scripts/ is in neither scope, so this
+// file writing literals directly is free of self-hit risk.
+describe("shipped guards：version literal + /init references (T10)", () => {
+  it("kairos-version stamp hits (shipped non-emit surface)", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "residue-t10-ver-"));
     const f = path.join(dir, "SKILL.md");
-    writeFileSync(f, "<!-- osuperpowers-version: 0.1.1 -->\n", "utf8");
+    writeFileSync(f, "<!-- kairos-version: 0.1.1 -->\n", "utf8");
     try {
       const hits = collectVersionStampHits([dir]);
       expect(hits.length).toBe(1);
@@ -1019,11 +1009,11 @@ describe("shipped guards：版本字面量 + /init 引用（T10）", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
-  it("散文「osuperpowers version」不误报（非戳字面；无连字符）", () => {
+  it("散文「kairos version」不误报（非戳字面；无连字符）", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "residue-t10-ver-ok-"));
     writeFileSync(
       path.join(dir, "README.md"),
-      "osuperpowers version is synced across manifests\n",
+      "kairos version is synced across manifests\n",
       "utf8",
     );
     try {
@@ -1047,7 +1037,7 @@ describe("shipped guards：版本字面量 + /init 引用（T10）", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "residue-t10-init-2-"));
     writeFileSync(
       path.join(dir, "note.md"),
-      "stamp in packages/osuperpowers/skills/init/SKILL.md\n",
+      "stamp in packages/kairos/skills/init/SKILL.md\n",
       "utf8",
     );
     try {
@@ -1066,10 +1056,10 @@ describe("shipped guards：版本字面量 + /init 引用（T10）", () => {
     }
   });
   it("SHIPPED_SURFACE_TARGETS / INIT_REFERENCE_TARGETS 覆盖既定 scope（scope 缩小即失败）", () => {
-    for (const p of ["packages/osuperpowers/skills", "packages/osuperpowers/README.md"]) {
+    for (const p of ["packages/kairos/skills", "packages/kairos/README.md"]) {
       expect(SHIPPED_SURFACE_TARGETS).toContain(p);
     }
-    for (const p of ["README.md", "packages/osuperpowers/README.md", ".changeset/README.md"]) {
+    for (const p of ["README.md", "packages/kairos/README.md", ".changeset/README.md"]) {
       expect(INIT_REFERENCE_TARGETS).toContain(p);
     }
   });
@@ -1078,14 +1068,16 @@ describe("shipped guards：版本字面量 + /init 引用（T10）", () => {
   });
 });
 
-// ---- Task 11: handoff-schema.md 删除 反向守卫（design §2.8 行 14）----
-// `(?<!-)handoff-schema` 零命中条目：裸名形（`// 对齐 handoff-schema…表` cite）与路径形
-//（`docs/handoff-schema.md` / `skills/cli-driven-development/docs/handoff-schema.md`）一律命中；
-// canonical schema 文件名（`task-handoff-schema.json` / `docs-handoff-schema.json`）的
-// `handoff-schema` 均前接 `-` → 负向后顾豁免。scope 覆盖测试钉死 {bin,lib,tests} + osuperpowers
-// 全目录（含 .agents/ emit 副本面 —— 副本由 emit prune，删除动作与守卫同 commit）。
-// 行 21 的 task-review 守卫归 T15 Step 4b，本组不写其单测（写入会在本任务内不可转绿）。
-// scripts/ 不在 line-14 scope 内，本文件直接写字面无自噬风险。
+// ---- Task 11: handoff-schema.md removal reverse guard (design §2.8 row 14) ----
+// `(?<!-)handoff-schema` zero-hit entry: bare-name forms (a `// cite aligning handoff-schema…`
+// table) and path forms (`docs/handoff-schema.md` / `skills/cdd-dev/docs/handoff-schema.md`)
+// all hit; the canonical schema filenames (`task-handoff-schema.json` /
+// `docs-handoff-schema.json`) always have `handoff-schema` preceded by `-` → the negative
+// lookbehind exempts them. Scope covers {bin,lib,tests} + the whole kairos directory (incl. the
+// .agents/ emit copy face — the copy is pruned by emit; deletion and guard ship in the same
+// commit). The row-21 task-review guard belongs to T15 Step 4b and gets no unit test here
+// (writing one would stay red inside this task). scripts/ is outside the row-14 scope, so this
+// file writing literals directly is free of self-hit risk.
 describe("handoff-schema（§2.8 行 14）：正例命中 + canonical 豁免 + scope 钉死", () => {
   it("裸名形 handoff-schema → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "residue-t11-bare-"));
@@ -1106,7 +1098,7 @@ describe("handoff-schema（§2.8 行 14）：正例命中 + canonical 豁免 + s
     const dir = mkdtempSync(path.join(tmpdir(), "residue-t11-path-"));
     writeFileSync(
       path.join(dir, "w.mjs"),
-      "// 按 skills/cli-driven-development/docs/handoff-schema.md（命名/workspace 见 handoff-namespace.json）写入\n",
+      "// 按 skills/cdd-dev/docs/handoff-schema.md（命名/workspace 见 handoff-namespace.json）写入\n",
       "utf8",
     );
     writeFileSync(
@@ -1135,7 +1127,7 @@ describe("handoff-schema（§2.8 行 14）：正例命中 + canonical 豁免 + s
     }
   });
   it("HANDOFF_SCHEMA_TARGETS 覆盖既定 scope（scope 缩小即失败）", () => {
-    for (const p of ["packages/cdd-engine/src", "packages/osuperpowers"]) {
+    for (const p of ["packages/cdd-engine/src", "packages/kairos"]) {
       expect(HANDOFF_SCHEMA_TARGETS).toContain(p);
     }
     // P6 Task 3：tests/ 已退役，src 面 walk 默认 __tests__ 自豁免 —— 不再单列根路径
@@ -1146,13 +1138,17 @@ describe("handoff-schema（§2.8 行 14）：正例命中 + canonical 豁免 + s
   });
 });
 
-// ---- Task 16: skills 面守卫（design §2.8 行 12/15/16/17/18；AC5/AC11/AC14 的 skills 侧落点）----
-// 五条守卫并入 collectSkillSurfaceHits()（与 T8 的 collectChannelAuditHits() 同构）。守卫 scope 全部
-// 落在 packages/osuperpowers/skills/ 内，scripts/ 不在任一 scope——本文件直接写字面无自噬风险（T11 先例）。
-// 各行权威文本：行 17 零上游文档 read + 上游引用 /plugin:skill 斜杠形 · 行 15 零 CDD_*/progress.json/
-// handoff 文件名（AC5 七个编排型 skill 逐名枚举，report-issues 按 AC5 显式例外排除）· 行 16 零 fix-inline
-// + 评审循环 fix 节点须含 cdd fix 命令形 · 行 12 类目名 ⊆ canonical ∪ 状态枚举白名单 + 类目语义零复述
-//· 行 18 零 _docs/ 引用（含 rule-review-convergence 锚点形与裸提及）。
+// ---- Task 16: skills-surface guard (design §2.8 rows 12/15/16/17/18; the skills-side landings of
+// AC5/AC11/AC14) ----
+// The five guards merge into collectSkillSurfaceHits() (isomorphic to T8's collectChannelAuditHits()).
+// Every guard scope sits inside packages/kairos/skills/; scripts/ is in no scope — this file
+// writing literals directly is free of self-hit risk (T11 precedent). Authority texts per row:
+// row 17 zero upstream-document reads + upstream references in /plugin:skill slash form · row 15
+// zero CDD_*/progress.json/handoff filenames (the AC5 seven orchestrator skills enumerated by name;
+// cdd-report excluded per AC5's explicit exception) · row 16 zero fix-inline + every review-loop fix
+// node must carry the cdd fix command form · row 12 category names ⊆ canonical ∪ status whitelist
+// + zero category-semantics rephrase · row 18 zero _docs/ references (incl. the rule-review-
+// convergence anchor and bare mentions).
 describe("skills 面守卫（T16）：行 17 零上游文档 read + 上游引用一律 /plugin:skill 斜杠形", () => {
   it("vendors/ 路径 → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "skf-vendors-"));
@@ -1173,7 +1169,7 @@ describe("skills 面守卫（T16）：行 17 零上游文档 read + 上游引用
     const dir = mkdtempSync(path.join(tmpdir(), "skf-upstream-"));
     writeFileSync(
       path.join(dir, "b.md"),
-      "- **Do**: Read `superpowers/skills/brainstorming/SKILL.md` to load the framework\n",
+      "- **Do**: Read `superpowers/skills/cdd-design/SKILL.md` to load the framework\n",
       "utf8",
     );
     try {
@@ -1191,11 +1187,11 @@ describe("skills 面守卫（T16）：行 17 零上游文档 read + 上游引用
       rmSync(dir, { recursive: true, force: true });
     }
   });
-  it("上游引用非斜杠形（superpowers:brainstorming 前无 /）→ 命中", () => {
+  it("上游引用非斜杠形（superpowers:cdd-design 前无 /）→ 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "skf-noslash-"));
     writeFileSync(
       path.join(dir, "e.md"),
-      "Delegates to a superpowers:brainstorming session.\n",
+      "Delegates to a superpowers:cdd-design session.\n",
       "utf8",
     );
     try {
@@ -1206,14 +1202,14 @@ describe("skills 面守卫（T16）：行 17 零上游文档 read + 上游引用
       rmSync(dir, { recursive: true, force: true });
     }
   });
-  it("反射例：slash 形 Run a /<plugin>:<skill> session 与同插件 osuperpowers:… 引用均不命中", () => {
+  it("反射例：slash 形 Run a /<plugin>:<skill> session 与同插件 kairos:… 引用均不命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "skf-ok-"));
     writeFileSync(
       path.join(dir, "d.md"),
       "- **Do**: Run a /superpowers:brainstorming session — the harness loads the upstream skill and runs its flow.\n",
       "utf8",
     );
-    writeFileSync(path.join(dir, "f.md"), "hands off to osuperpowers:writing-plans\n", "utf8");
+    writeFileSync(path.join(dir, "f.md"), "hands off to kairos:cdd-plan\n", "utf8");
     try {
       expect(collectUpstreamReadHits([dir])).toEqual([]);
       expect(collectUpstreamSlashFormHits([dir])).toEqual([]);
@@ -1224,21 +1220,21 @@ describe("skills 面守卫（T16）：行 17 零上游文档 read + 上游引用
 });
 
 describe("skills 面守卫（T16）：行 15 零引擎内部结构依赖（AC5 七个编排型 skill 逐名枚举）", () => {
-  it("ORCHESTRATOR_SKILLS = AC5 全枚举（7 个，含 finishing；不含 report-issues），不用 skills/** 通配", () => {
+  it("ORCHESTRATOR_SKILLS = AC5 全枚举（7 个，含 cdd-close；不含 cdd-report），不用 skills/** 通配", () => {
     const names = ORCHESTRATOR_SKILLS.map((p) => p.split("/").slice(-2).join("/"));
     expect(names).toEqual([
-      "brainstorming/SKILL.md",
-      "writing-single-spec/SKILL.md",
-      "writing-overall-spec/SKILL.md",
-      "writing-phase-spec/SKILL.md",
-      "writing-plans/SKILL.md",
-      "cli-driven-development/SKILL.md",
-      "finishing/SKILL.md",
+      "cdd-design/SKILL.md",
+      "cdd-spec/SKILL.md",
+      "cdd-charter/SKILL.md",
+      "cdd-phase/SKILL.md",
+      "cdd-plan/SKILL.md",
+      "cdd-dev/SKILL.md",
+      "cdd-close/SKILL.md",
     ]);
   });
   it("CDD_* 名 → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "skf-cdd-"));
-    const file = path.join(dir, "writing-plans", "SKILL.md");
+    const file = path.join(dir, "cdd-plan", "SKILL.md");
     mkdirSync(path.dirname(file), { recursive: true });
     writeFileSync(file, "**Read**: `CDD_HANDOFF_PATH`\n", "utf8");
     try {
@@ -1251,7 +1247,7 @@ describe("skills 面守卫（T16）：行 15 零引擎内部结构依赖（AC5 �
   });
   it("CDD_BLOCKED: / CDD_WARN: 文档化 stderr 通道 → 放行（命令输出契约，非内部结构依赖；cdd-review-contract spec M3/M4）", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "skf-channels-"));
-    const file = path.join(dir, "cli-driven-development", "SKILL.md");
+    const file = path.join(dir, "cdd-dev", "SKILL.md");
     mkdirSync(path.dirname(file), { recursive: true });
     writeFileSync(
       file,
@@ -1266,7 +1262,7 @@ describe("skills 面守卫（T16）：行 15 零引擎内部结构依赖（AC5 �
   });
   it("progress.json → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "skf-prog-"));
-    const file = path.join(dir, "writing-plans", "SKILL.md");
+    const file = path.join(dir, "cdd-plan", "SKILL.md");
     mkdirSync(path.dirname(file), { recursive: true });
     writeFileSync(file, "- **Read**: `progress.json#plan`;\n", "utf8");
     try {
@@ -1277,7 +1273,7 @@ describe("skills 面守卫（T16）：行 15 零引擎内部结构依赖（AC5 �
   });
   it("handoff 文件名模式（task-N-implement.json）→ 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "skf-handoff-"));
-    const file = path.join(dir, "writing-plans", "SKILL.md");
+    const file = path.join(dir, "cdd-plan", "SKILL.md");
     mkdirSync(path.dirname(file), { recursive: true });
     writeFileSync(file, "读 `task-3-implement.json` 与 `task-2-review-1.json`\n", "utf8");
     try {
@@ -1289,7 +1285,7 @@ describe("skills 面守卫（T16）：行 15 零引擎内部结构依赖（AC5 �
   });
   it("反射例：合法的输出契约语汇（every task goes through implement → review → fix）不命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "skf-int-ok-"));
-    const file = path.join(dir, "cli-driven-development", "SKILL.md");
+    const file = path.join(dir, "cdd-dev", "SKILL.md");
     mkdirSync(path.dirname(file), { recursive: true });
     writeFileSync(
       file,
@@ -1491,20 +1487,22 @@ describe("skills 面守卫（T16）：行 18 零 _docs/ 引用（含 rule-review
   });
 });
 
-// ---- Task 16（P5）：report-issues 旧模型残留守卫 ----
-// 旧模型语汇（resolve-destination / ensure-session / append-comment / --mode /
-// renderComment / renderTitle / resolveDropdownOptions / sessionTypes）已清零（rewrite 收口轮），
-// 此处为常驻防回归。`report-issue` 必须词边界（\b）——复数 `report-issues` skill 名合法（裸
-// substring 会误报复数）。`--mode` 取词形（负向后顾/前瞻豁免内部 `mode:` 属性与 --modeYaml 一类
-// 衍生 token）。`execFileSync("git")` 防手写 git 回渗（engine 唯一 spawn 通道 = proc.mjs 的
-// execa）。scope = ALL_MECH_POSITIONS（机制面零豁免）；scripts/ 不在 scope，本文件直接写字面
-// 无自噬风险（T15 先例）。
-describe("stale-lexicon：report-issues 旧模型语汇守卫（Task 16·P5）", () => {
-  it("裸 report-issue（词边界）命中；复数 report-issues skill 名放行", () => {
+// ---- Task 16（P5）：cdd-report legacy-model residue guard ----
+// The legacy-model vocabulary (resolve-destination / ensure-session / append-comment / --mode /
+// renderComment / renderTitle / resolveDropdownOptions / sessionTypes) was cleared (the rewrite
+// closing round); this stays as the permanent regression guard. `report-issue` must be word-bounded
+// (\b) — the cdd-report skill name and the report-links-only node carry no such token (a bare
+// substring would false-positive). `--mode` takes the word form (negative lookbehind/lookahead
+// exempts the internal `mode:` attribute and derived tokens like --modeYaml). `execFileSync("git")`
+// blocks hand-written git regression (the engine's sole spawn channel = proc.mjs's execa). scope =
+// ALL_MECH_POSITIONS (mechanism positions, zero exemption); scripts/ is in no scope, so this file
+// writing literals directly is free of self-hit risk (T15 precedent).
+describe("stale-lexicon：cdd-report 旧模型语汇守卫（Task 16·P5）", () => {
+  it("裸 report-issue（词边界）命中；cdd-report skill 名 / report-links-only 放行", () => {
     expect(hasHit(["report-issue 旧流程名"])).toBe(true);
     expect(hasHit(["`report-issue` 节点"])).toBe(true);
-    expect(hasHit(["osuperpowers:report-issues skill 名"])).toBe(false);
-    expect(hasHit(["packages/osuperpowers/skills/report-issues/SKILL.md"])).toBe(false);
+    expect(hasHit(["kairos:cdd-report skill 名"])).toBe(false);
+    expect(hasHit(["packages/kairos/skills/cdd-report/SKILL.md"])).toBe(false);
   });
   it("--mode 词形命中（旧 flag）；内部 mode 属性 / --modeYaml 衍生形放行", () => {
     expect(hasHit(["cdd-task --mode implement"])).toBe(true);
@@ -1529,7 +1527,7 @@ describe("stale-lexicon：report-issues 旧模型语汇守卫（Task 16·P5）",
     writeFileSync(path.join(dir, "a.mjs"), "render --mode implement\nrenderComment gone\n", "utf8");
     writeFileSync(
       path.join(dir, "b.mjs"),
-      'osuperpowers:report-issues\nmode: "implement"\nexeca("git", x)\n',
+      'kairos:cdd-report\nmode: "implement"\nexeca("git", x)\n',
       "utf8",
     );
     try {

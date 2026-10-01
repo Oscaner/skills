@@ -5,7 +5,7 @@
 [English](README.md) | [中文](README.zh-CN.md)
 
 [![PR Validate](https://github.com/Oscaner/skills/actions/workflows/pr-validate.yml/badge.svg)](https://github.com/Oscaner/skills/actions/workflows/pr-validate.yml)
-[![npm](https://img.shields.io/npm/v/@oscaner-skills/osuperpowers?label=osuperpowers)](https://www.npmjs.com/package/@oscaner-skills/osuperpowers)
+[![npm](https://img.shields.io/npm/v/@oscaner-skills/kairos?label=kairos)](https://www.npmjs.com/package/@oscaner-skills/kairos)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 **A cdd-first methodology: continuously-discovered development as the core discipline, AI coding skills as the distribution vehicle.**
@@ -51,14 +51,14 @@ cdd 不是把计划写一次就指望它扛住现实，而是让规划贯穿整�
 
 ## 这是什么
 
-一个将个人 AI 编程技能打包为可安装插件的市场，供多种 AI 编程 harness 消费。第一方插件位于本仓库 `packages/` 下，由我们以 `@oscaner-skills/*` scope 发布到 npm；上游插件**不**在本仓库打包——从各自的发布方安装，osuperpowers 编排器通过 `/` 前缀的 `plugin:skill` 引用读取它们（如 `/superpowers:brainstorming`）。
+一个将个人 AI 编程技能打包为可安装插件的市场，供多种 AI 编程 harness 消费。第一方插件位于本仓库 `packages/` 下，由我们以 `@oscaner-skills/*` scope 发布到 npm；上游插件**不**在本仓库打包——从各自的发布方安装，kairos 编排器通过 `/` 前缀的 `plugin:skill` 引用读取它们（如 `/superpowers:brainstorming`）。
 
 ## 插件列表
 
 | 插件 | 来源 |
 |------|------|
-| **osuperpowers** | 第一方——[本仓库](https://github.com/Oscaner/skills)、[`packages/osuperpowers/`](packages/osuperpowers/)，以 [`@oscaner-skills/osuperpowers`](https://www.npmjs.com/package/@oscaner-skills/osuperpowers) 发布。技能（osuperpowers 编排器、`cli-*` 家族）及 CDD 引擎 |
-| **superpowers** | 上游——[obra/superpowers](https://github.com/obra/superpowers)。工作流技能：brainstorming、writing plans、verification、branch finish |
+| **kairos** | 第一方——[本仓库](https://github.com/Oscaner/skills)、[`packages/kairos/`](packages/kairos/)，以 [`@oscaner-skills/kairos`](https://www.npmjs.com/package/@oscaner-skills/kairos) 发布。技能（kairos 编排器、`cli-*` 家族）及 CDD 引擎 |
+| **superpowers** | 上游——[obra/superpowers](https://github.com/obra/superpowers)。工作流技能：cdd-design、writing plans、verification、branch finish |
 | **mattpocock-skills** | 上游——[mattpocock/skills](https://github.com/mattpocock/skills)。精准工具：`grilling`、`tdd` |
 | **impeccable** | 上游——[pbakaus/impeccable](https://github.com/pbakaus/impeccable)。前端设计技能 |
 
@@ -71,13 +71,13 @@ cdd 不是把计划写一次就指望它扛住现实，而是让规划贯穿整�
 ```bash
 # Claude Code
 /plugin marketplace add oscaner/skills
-/plugin install osuperpowers@oscaner-skills
+/plugin install kairos@oscaner-skills
 ```
 
 ### 从 npm 安装
 
 ```bash
-npm install @oscaner-skills/osuperpowers
+npm install @oscaner-skills/kairos
 ```
 
 ### 上游插件
@@ -91,13 +91,13 @@ npm install @oscaner-skills/osuperpowers
 | Claude Code | Marketplace 安装 |
 | Cursor Agent | Marketplace 安装 |
 
-osuperpowers 通过各 harness 自己的插件市场安装；Claude Code 与 Cursor Agent 均无需逐 harness 配置文件。
+kairos 通过各 harness 自己的插件市场安装；Claude Code 与 Cursor Agent 均无需逐 harness 配置文件。
 
 ## 快速开始
 
 1. 从市场或 npm 安装插件（见[安装](#安装)）。
-2. 确保 `cdd` 引擎 CLI 在 `PATH` 上（`command -v cdd`）；若缺失，运行 `npm i -g @oscaner-skills/cdd-engine`。`cli-driven-development` 的 `detect-engine` 节点会在 dispatch 时重新检查。
-3. 按名称调用 osuperpowers 编排器——`osuperpowers:brainstorming`、`osuperpowers:writing-plans` 等家族技能。每个技能将对应的上游流程作为本会话基线导入并运行自身的编排图；osuperpowers 技能**不会拦截或自动改道**上游 `/superpowers:*` 调用——需要原版变体时直接调用对应原版技能。
+2. 确保 `cdd` 引擎 CLI 在 `PATH` 上（`command -v cdd`）；若缺失，运行 `npm i -g @oscaner-skills/cdd-engine`。`cdd-dev` 的 `detect-engine` 节点会在 dispatch 时重新检查。
+3. 按名称调用 kairos 编排器——`kairos:cdd-design`、`kairos:cdd-plan` 等家族技能。每个技能将对应的上游流程作为本会话基线导入并运行自身的编排图；kairos 技能**不会拦截或自动改道**上游 `/superpowers:*` 调用——需要原版变体时直接调用对应原版技能。
 
 ## 架构
 
@@ -105,8 +105,8 @@ osuperpowers 通过各 harness 自己的插件市场安装；Claude Code 与 Cur
 
 ```
 packages/
-├── osuperpowers/   # 第一方插件：osuperpowers 编排 + cli-* 家族 + CDD 引擎技能
-└── cdd-engine/     # @oscaner-skills/cdd-engine —— CDD 引擎 CLI 包（osuperpowers 的依赖）
+├── kairos/   # 第一方插件：kairos 编排 + cli-* 家族 + CDD 引擎技能
+└── cdd-engine/     # @oscaner-skills/cdd-engine —— CDD 引擎 CLI 包（kairos 的依赖）
 ```
 
 ### 包即源，一条 emit 派生链
@@ -126,7 +126,7 @@ package.json#oscaner --> emit --> marketplace/source.json
 
 ## 各包文档
 
-- [`packages/osuperpowers/`](packages/osuperpowers/README.md)——插件自身指南：技能清单、安装、快速开始、`cdd` CLI harness 对照表
+- [`packages/kairos/`](packages/kairos/README.md)——插件自身指南：技能清单、安装、快速开始、`cdd` CLI harness 对照表
 - [`packages/cdd-engine/`](packages/cdd-engine/)——CDD 引擎包源码（在本仓库维护）
 - [`docs/maintainers/`](docs/maintainers/README.md)——本仓库开发者的 maintainers 专属文档索引
 
@@ -155,4 +155,4 @@ pnpm run emit && pnpm run validate
 
 ## 许可
 
-第一方代码（`osuperpowers`、marketplace 工具链）：[MIT](LICENSE)。
+第一方代码（`kairos`、marketplace 工具链）：[MIT](LICENSE)。

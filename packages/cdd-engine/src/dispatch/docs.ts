@@ -248,7 +248,7 @@ export class DocsLifecycle extends DispatchLifecycle {
     // of the RESUME session's WIP) instead of being suppressed by the stale carrier (the teardown
     // guard `!existsSync(handoffPath)` would read true). Only an engine-terminal carrier is rotated —
     // writeBlockedCarrier always writes failure_category, the discriminator vs an agent-written
-    // handoff; the carrier is untracked (.osuperpowers is gitignored), so the rotation is a pure
+    // handoff; the carrier is untracked (.kairos is gitignored), so the rotation is a pure
     // on-disk hygiene op with zero git-tree impact. The review round is NOT round-stable (round
     // auto-increments per resume) — no rotation needed there.
     if (mode === "fix" && !this.#opts.dryRun) {

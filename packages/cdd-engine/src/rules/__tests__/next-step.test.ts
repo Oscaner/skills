@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { CRASH_RECOVERY_CAP_ROUNDS, NextStepRouter, SOFT_CAP_S1_ROUNDS } from "../next-step.ts";
 
 const PLAN = "/repo/plan.md";
-const H = "/repo/.osuperpowers/cdd/fixture/tasks-1-review-1.json";
+const H = "/repo/.kairos/cdd/fixture/tasks-1-review-1.json";
 const DOC = "/repo/spec.md";
 
 describe("rules/next-step.ts — review face (C5-1 one-way)", () => {
@@ -46,10 +46,10 @@ describe("rules/next-step.ts — review face (C5-1 one-way)", () => {
         type: "spec",
         doc: DOC,
         findings: [{ severity: "blocker" }],
-        findingsPath: "/repo/.osuperpowers/cdd/fixture/review.spec.1.json",
+        findingsPath: "/repo/.kairos/cdd/fixture/review.spec.1.json",
       }),
     ).toBe(
-      "cdd fix --type spec --spec /repo/spec.md --findings /repo/.osuperpowers/cdd/fixture/review.spec.1.json",
+      "cdd fix --type spec --spec /repo/spec.md --findings /repo/.kairos/cdd/fixture/review.spec.1.json",
     );
   });
 
@@ -60,10 +60,10 @@ describe("rules/next-step.ts — review face (C5-1 one-way)", () => {
         type: "plan",
         doc: "/repo/plan.md",
         findings: [{ severity: "blocker" }],
-        findingsPath: "/repo/.osuperpowers/cdd/fixture/review.plan.1.json",
+        findingsPath: "/repo/.kairos/cdd/fixture/review.plan.1.json",
       }),
     ).toBe(
-      "cdd fix --type plan --plan /repo/plan.md --findings /repo/.osuperpowers/cdd/fixture/review.plan.1.json",
+      "cdd fix --type plan --plan /repo/plan.md --findings /repo/.kairos/cdd/fixture/review.plan.1.json",
     );
   });
 
@@ -74,10 +74,10 @@ describe("rules/next-step.ts — review face (C5-1 one-way)", () => {
         type: "branch",
         plan: PLAN,
         findings: [{ severity: "blocker" }],
-        findingsPath: "/repo/.osuperpowers/cdd/fixture/branch-review-abc1234..def5678-r1.json",
+        findingsPath: "/repo/.kairos/cdd/fixture/branch-review-abc1234..def5678-r1.json",
       }),
     ).toBe(
-      "cdd fix --type branch --plan /repo/plan.md --findings /repo/.osuperpowers/cdd/fixture/branch-review-abc1234..def5678-r1.json",
+      "cdd fix --type branch --plan /repo/plan.md --findings /repo/.kairos/cdd/fixture/branch-review-abc1234..def5678-r1.json",
     );
   });
 });

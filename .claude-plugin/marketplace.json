@@ -10,9 +10,9 @@
   },
   "plugins": [
     {
-      "name": "osuperpowers",
-      "source": "./packages/osuperpowers",
-      "description": "Standalone osuperpowers skills: orchestration + cli-* family + CDD engine.",
+      "name": "kairos",
+      "source": "./packages/kairos",
+      "description": "Standalone kairos skills: orchestration + cdd-* family + CDD engine.",
       "author": {
         "name": "Oscaner Miao",
         "email": "oscaner1997@gmail.com"
@@ -21,9 +21,9 @@
       "repository": "https://github.com/Oscaner/skills",
       "license": "MIT",
       "version": "0.2.0",
-      "category": "osuperpowers",
+      "category": "kairos",
       "keywords": [
-        "osuperpowers",
+        "kairos",
         "cli",
         "cdd",
         "harness"

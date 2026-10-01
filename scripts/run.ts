@@ -73,7 +73,7 @@ const SUBCOMMANDS: CommandMeta[] = [
   {
     name: "precommit",
     description:
-      "run the tree-independent pre-commit subset (emit/osuperpowers/residue/marketplace/unit/version-sync)",
+      "run the tree-independent pre-commit subset (emit/kairos/residue/marketplace/unit/version-sync)",
     modulePath: "./validate/pre-commit.ts",
     kind: "none",
   },

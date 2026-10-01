@@ -94,7 +94,7 @@ function expectExists(p) {
 // ---------------------------------------------------------------------------
 
 describe("ContractLexiconGuard.checkAnatomy — live skills (digraph-consistency port)", () => {
-  it("all osuperpowers skills pass every schema-driven check (the retired node:test surface)", () => {
+  it("all kairos skills pass every schema-driven check (the retired node:test surface)", () => {
     const findings = guard.checkAnatomy();
     expect(findings).toEqual([]);
   });

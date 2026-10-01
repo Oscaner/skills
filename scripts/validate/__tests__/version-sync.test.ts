@@ -13,8 +13,8 @@ const SRC = join(HERE, "..", "version-sync.ts");
 const src = () => readFileSync(SRC, "utf8");
 
 describe("version-sync：init 版本戳读侧连根删除（T10 / §2.6.2 R2）", () => {
-  it("源内零 `osuperpowers-version` 戳字面", () => {
-    expect(src()).not.toMatch(/osuperpowers-version/);
+  it("源内零 `kairos-version` 戳字面", () => {
+    expect(src()).not.toMatch(/kairos-version/);
   });
   it("源内零 init SKILL.md 路径（不再读已删的 init 目录）", () => {
     expect(src()).not.toMatch(/skills\/init/);
@@ -23,9 +23,9 @@ describe("version-sync：init 版本戳读侧连根删除（T10 / §2.6.2 R2）"
 
 describe("version-sync：vendors 自维护读侧连根删除（P6 Task 2 / B8）", () => {
   it("源内零 vendored 读侧（superpowers submodule check 已删——v1.13 flake 消解）", () => {
-    // B8: superpowers ↔ marketplace 版本一致性检查删（vendors/superpowers/
-    // .claude-plugin/plugin.json 读侧 + 三源等值比较）；version-sync 只校验
-    // first-party osuperpowers 版本同步。\b 词界保证 osuperpowers 不误伤。
+    // B8: superpowers ↔ marketplace version-consistency check deleted (vendors/superpowers/
+    // .claude-plugin/plugin.json read side + the three-source equality); version-sync only
+    // verifies the first-party kairos version sync. The \b word boundary keeps kairos safe.
     expect(src()).not.toMatch(/\bsuperpowers\b|vendors\//);
   });
 });

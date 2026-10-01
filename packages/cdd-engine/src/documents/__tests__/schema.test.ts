@@ -297,7 +297,7 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
         );
       }
       if (name === "skill-anatomy") {
-        // Section-heading registry — the strict allowlist the osuperpowers machine check consumes:
+        // Section-heading registry — the strict allowlist the kairos machine check consumes:
         // the four public + two conditional section keys, and the literal heading consts.
         expect(schemaNode(s, "$.properties.sectionRegistry.properties.public.items.enum")).toEqual([
           "flowDigraph",
@@ -325,7 +325,7 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
             s,
             "$.properties.sectionRegistry.properties.sections.properties.skeletonDeltas.properties.requiredCarriers.items.enum",
           ),
-        ).toEqual(["writing-single-spec", "writing-phase-spec", "writing-overall-spec"]);
+        ).toEqual(["cdd-spec", "cdd-phase", "cdd-charter"]);
         expect(
           get(
             "$.properties.sectionRegistry.properties.sections.properties.skeletonDeltas.properties.heading.const",
@@ -352,7 +352,7 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
         // Growth boundary — the numbers + the crossed-skill registry (the machine check reads them,
         // never test literals: crossing means MORE than the limits, and every crossing skill must
         // be registered here — consumer SKILL.md carries zero trace). The P4.4 loop shrink (13 nodes
-        // / 17 edges) dropped cli-driven-development back inside the boundary — the registry's
+        // / 17 edges) dropped cdd-dev back inside the boundary — the registry's
         // per-skill crossings map carries zero registered names.
         expect(schemaNode(s, "$.properties.growthBoundary.properties.nodeLimit.const")).toBe(15);
         expect(schemaNode(s, "$.properties.growthBoundary.properties.edgeLimit.const")).toBe(17);
@@ -473,7 +473,7 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
   it("the live canonical surface carries no misleading 7-column Phase-header claim (the retired hint + drifted descriptions)", () => {
     // The 7-column Phase-header framing is gone from every shipped plane: the canonical schema
     // text (the authoring surface) and the engine's enforcement module. Frozen program docs
-    // (docs/osuperpowers/specs/*) are exempt — they are lineage-pinned artifacts, not live surface.
+    // (docs/kairos/specs/*) are exempt — they are lineage-pinned artifacts, not live surface.
     expect(loadDocSchemaText("overall")).not.toMatch(/7-column/);
     expect(readFileSync(path.join(PKG_ROOT, "src", "rules", "documents.ts"), "utf8")).not.toMatch(
       /7-column/,

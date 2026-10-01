@@ -1,6 +1,6 @@
 # Program Experience — P1 → P6
 
-Maintainer-only record of the hard-won lessons from the osuperpowers-overhaul program (P1 runtime layout → P6 convergence); the baking input for skill document templates and the context for any future program touching this codebase.
+Maintainer-only record of the hard-won lessons from the kairos-overhaul program (P1 runtime layout → P6 convergence); the baking input for skill document templates and the context for any future program touching this codebase.
 
 ## 1. Organization & process
 
@@ -11,7 +11,7 @@ Maintainer-only record of the hard-won lessons from the osuperpowers-overhaul pr
 5. **Single-root authority** — every derived surface converges on one root: workspace root, docs root, schema, finding-meta, labels SOT, context contract.
 6. **Mechanical guard beats verbal discipline** — double gates, validators, residue, byte-invariants: discipline that cannot be tested does not execute.
 7. **Shrink capability claims** — unproven capabilities are withdrawn, not parked.
-8. **The program turns the lens on itself** — brainstorming/grilling flows must honestly describe single-session reality (session-call semantics), or they erode.
+8. **The program turns the lens on itself** — cdd-design/grilling flows must honestly describe single-session reality (session-call semantics), or they erode.
 
 ## 2. Engineering & architecture
 
@@ -86,7 +86,7 @@ smoke-cdd`) is the **consumer-sim = the cdd-engine published-artifact consumer b
 build → pack → tarball assertions → consumer install → `cdd schema get` + 5-command dry-run chain.
 It is the only CI face installing the packed artifact into an ephemeral consumer repo (zero
 in-repo paths; runtime resources resolve under `node_modules`). It is
-**exclusive to cdd-engine**; osuperpowers publishes through a normal npm release (the reserved
+**exclusive to cdd-engine**; kairos publishes through a normal npm release (the reserved
 channel for npm-harness packages), validated by the pack allowlist probe + emit products + version-sync, never a pseudo-consumer install.
 
 **Release-only gate** — the full build + pack + install cost keeps it OFF the daily PR surface; push→main instead runs emit freshness + the dual consumer gates in `release.yml`, wired **before** the changesets action:

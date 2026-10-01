@@ -81,7 +81,7 @@ export const PHASES_BY_ID = Object.fromEntries(
 // shape), test-pinned by dispatch.phases.test.ts — consumed when the branch face
 // (cli/branch-review.ts / cli/branch-fix.ts) integrates the stage table. Each
 // stage declares:
-//   id        — the loop-stage identity (same letters as the cli-driven-development digraph:
+//   id        — the loop-stage identity (same letters as the cdd-dev digraph:
 //               K[branch-review] → J[branch-fix]);
 //   phase     — the handoff's schema phase value (the fix handoff's schema phase is "fix" —
 //               the schema enum is implement/review/fix/branch-review — NOT "branch-fix", which

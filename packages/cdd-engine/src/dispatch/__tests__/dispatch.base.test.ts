@@ -252,7 +252,7 @@ it("构造注 hooks/ctx: 注入实例被使用（ctx 同实例；dispatch:before
 function auditingStubFor(repo: string): typeof DispatchLifecycle {
   return class extends DispatchLifecycle {
     protected docAuditTarget(): string | null {
-      return path.join(repo, "docs", "osuperpowers", "plans", "plan.md");
+      return path.join(repo, "docs", "kairos", "plans", "plan.md");
     }
     protected async dispatch(_hookCtx: DispatchHookContext): Promise<void> {}
   };

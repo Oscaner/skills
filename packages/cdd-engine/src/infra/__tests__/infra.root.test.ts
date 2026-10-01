@@ -82,8 +82,8 @@ describe("infra/root.ts — initRoot(cwd)", () => {
 
 describe("infra/root.ts — resolveDocArg (same single-coordinate contract as root.mjs)", () => {
   it("repo-root-relative existing path → absolute", () => {
-    const rel = "docs/osuperpowers/specs/foo.md";
-    mkdirSync(path.join(repo, "docs/osuperpowers/specs"), { recursive: true });
+    const rel = "docs/kairos/specs/foo.md";
+    mkdirSync(path.join(repo, "docs/kairos/specs"), { recursive: true });
     writeFileSync(path.join(repo, rel), "# x\n");
     expect(resolveDocArg(rel, repo, "path")).toBe(path.join(repo, rel));
   });

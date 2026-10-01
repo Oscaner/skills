@@ -32,15 +32,15 @@ const PKG_ROOT = path.resolve(__dirname, "..", "..", "..");
 const TEMPLATES = path.join(PKG_ROOT, "templates");
 
 const IMPLEMENT_PARAMS = {
-  WORKSPACE: "/ws/osuperpowers-overhaul-p6",
-  WORKSPACE_SLUG: "osuperpowers-overhaul-p6",
-  BRIEF: "/ws/osuperpowers-overhaul-p6/tasks-7-brief.md",
-  HANDOFF_TARGET: "/ws/osuperpowers-overhaul-p6/tasks-7-implement.json",
+  WORKSPACE: "/ws/kairos-overhaul-p6",
+  WORKSPACE_SLUG: "kairos-overhaul-p6",
+  BRIEF: "/ws/kairos-overhaul-p6/tasks-7-brief.md",
+  HANDOFF_TARGET: "/ws/kairos-overhaul-p6/tasks-7-implement.json",
   FINDINGS: "",
-  CONSTRAINTS: "/ws/osuperpowers-overhaul-p6/plan-constraints.md",
+  CONSTRAINTS: "/ws/kairos-overhaul-p6/plan-constraints.md",
   FIXED_POINT: "",
   DISPATCH_UNIT: "7",
-  REVIEW_PLAN_LINE: "**Plan:** docs/osuperpowers/plans/2026-09-13-osuperpowers-overhaul-p6.md",
+  REVIEW_PLAN_LINE: "**Plan:** docs/kairos/plans/2026-09-13-kairos-overhaul-p6.md",
 };
 
 // Second-level heading position via line-anchored match — the shell prose names `## Return` /

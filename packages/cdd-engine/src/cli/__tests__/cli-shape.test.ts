@@ -33,14 +33,14 @@ const SMOKE_PLAN = path.join("packages/cdd-engine/src/cli/__tests__/fixtures/smo
 const SMOKE_SPEC = path.join("packages/cdd-engine/src/cli/__tests__/fixtures/smoke-spec.md");
 const NODE = process.execPath;
 
-// SMOKE_PLAN/SMOKE_SPEC derive workspace = .osuperpowers/cdd/smoke/{smoke-spec}/ (T10 warn) —
+// SMOKE_PLAN/SMOKE_SPEC derive workspace = .kairos/cdd/smoke/{smoke-spec}/ (T10 warn) —
 // (engine workspaceSlug strips a trailing -plan: smoke-plan.md → smoke)
 // Smoke-case teardown cleanup (dry-run writes nothing to disk, so it is a defensive fallback).
 // Only smoke-spec is cleaned (its slug is exclusive to this file): smoke/ is shared by cdd /
 // docs-task / host-detection / lifecycle.wiring under the same slug, so deleting it races those
 // files' brief self-supply (mkdirSync → generateBrief write gap → ENOENT false red).
 afterAll(() => {
-  rmSync(path.join(REPO_ROOT, ".osuperpowers", "cdd", "smoke-spec"), {
+  rmSync(path.join(REPO_ROOT, ".kairos", "cdd", "smoke-spec"), {
     recursive: true,
     force: true,
   });

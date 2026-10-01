@@ -213,7 +213,7 @@
   },
   "handoffNamespace": {
     "schema": 1,
-    "workspaceRoot": ".osuperpowers/cdd",
+    "workspaceRoot": ".kairos/cdd",
     "slugRule": "strip .md, then a single trailing -design or -plan suffix",
     "families": {
       "implement.task": {

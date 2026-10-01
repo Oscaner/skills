@@ -29,7 +29,7 @@ describe("engine-config 单点消费（config.ts 分区段加载）", () => {
     expect(defaults).not.toHaveProperty("task");
     expect(cfg.contextContract.channels.env).toHaveProperty("hostHarness");
     expect(cfg.failureCategories.categories).toHaveLength(7);
-    expect(cfg.handoffNamespace.workspaceRoot).toBe(".osuperpowers/cdd");
+    expect(cfg.handoffNamespace.workspaceRoot).toBe(".kairos/cdd");
     expect(Object.keys(cfg.handoffNamespace.families)).toHaveLength(9);
   });
 

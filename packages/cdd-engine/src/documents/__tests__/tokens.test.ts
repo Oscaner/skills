@@ -262,14 +262,14 @@ describe("template retirement — md templates gone + read-schema nodes in the s
   // packages/cdd-engine/src/documents/__tests__ → repo root (5 hops: __tests__→documents→src→cdd-engine→packages→root)
   const REPO_ROOT = path.resolve(HERE, "..", "..", "..", "..", "..");
   const RETIRED = [
-    "packages/osuperpowers/skills/writing-overall-spec/docs/overall-spec-template.md",
-    "packages/osuperpowers/skills/writing-phase-spec/docs/phase-spec-template.md",
-    "packages/osuperpowers/skills/writing-overall-spec/docs/add-phase-protocol.md",
+    "packages/kairos/skills/cdd-charter/docs/overall-spec-template.md",
+    "packages/kairos/skills/cdd-phase/docs/phase-spec-template.md",
+    "packages/kairos/skills/cdd-charter/docs/add-phase-protocol.md",
   ];
   const SPEC_WRITER_SKILLS = [
-    "packages/osuperpowers/skills/writing-overall-spec/SKILL.md",
-    "packages/osuperpowers/skills/writing-phase-spec/SKILL.md",
-    "packages/osuperpowers/skills/writing-single-spec/SKILL.md",
+    "packages/kairos/skills/cdd-charter/SKILL.md",
+    "packages/kairos/skills/cdd-phase/SKILL.md",
+    "packages/kairos/skills/cdd-spec/SKILL.md",
   ];
 
   it.each(RETIRED)("%s is deleted (structure facts moved to the canonical schema)", (rel) => {
@@ -286,9 +286,9 @@ describe("template retirement — md templates gone + read-schema nodes in the s
     },
   );
 
-  it("writing-plans author-plan defers plan structure to the canonical schema (`cdd schema get plan`)", () => {
+  it("cdd-plan author-plan defers plan structure to the canonical schema (`cdd schema get plan`)", () => {
     const src = readFileSync(
-      path.join(REPO_ROOT, "packages/osuperpowers/skills/writing-plans/SKILL.md"),
+      path.join(REPO_ROOT, "packages/kairos/skills/cdd-plan/SKILL.md"),
       "utf8",
     );
     expect(src).toMatch(/cdd schema get plan/);

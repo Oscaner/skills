@@ -56,7 +56,7 @@ function setup() {
   execFileSync("git", ["-C", dir, "add", "-A"]);
   execFileSync("git", ["-C", dir, "commit", "-qm", "docs"]);
   const base = execFileSync("git", ["-C", dir, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-  const ws = path.join(dir, ".osuperpowers", "cdd", "test-plan-bc");
+  const ws = path.join(dir, ".kairos", "cdd", "test-plan-bc");
   mkdirSync(ws, { recursive: true });
   const base7 = base.slice(0, 7);
   const head7 = "def5678";

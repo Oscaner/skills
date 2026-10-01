@@ -2,11 +2,11 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-CDD engine CLI — the task runner, document/branch reviewer, and harness dispatcher behind the osuperpowers `cli-driven-development` skill. Published as a standalone package so the engine (`cdd`) can be installed and invoked on its own.
+CDD engine CLI — the task runner, document/branch reviewer, and harness dispatcher behind the kairos `cdd-dev` skill. Published as a standalone package so the engine (`cdd`) can be installed and invoked on its own.
 
 ## What this package is
 
-The engine runs the implement / review / fix phases of the CDD workflow against a plan file, writes the dispatch's handoff artifacts, reads and writes the `base-branch` artifact, and dispatches each phase to the host harness CLI through its embedded harness registry. It is consumed by the [osuperpowers plugin](https://www.npmjs.com/package/@oscaner-skills/osuperpowers)'s `cli-driven-development` skill and is also usable directly from the command line.
+The engine runs the implement / review / fix phases of the CDD workflow against a plan file, writes the dispatch's handoff artifacts, reads and writes the `base-branch` artifact, and dispatches each phase to the host harness CLI through its embedded harness registry. It is consumed by the [kairos plugin](https://www.npmjs.com/package/@oscaner-skills/kairos)'s `cdd-dev` skill and is also usable directly from the command line.
 
 ## Installation
 

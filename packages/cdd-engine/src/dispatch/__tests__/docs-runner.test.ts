@@ -123,7 +123,7 @@ vi.mock("node:fs", async (importOriginal) => {
     existsSync: vi.fn((p) => {
       // Handoff file "exists" so we take the read-and-validate path (not writeHandoff BLOCKED path).
       // T3: 以 canonical fake ws 前缀判别（不再按 template 名含 "review"）—— spec-fix-1.json 等也视为存在。
-      if (String(p).includes(".osuperpowers/cdd/foo/")) return true;
+      if (String(p).includes(".kairos/cdd/foo/")) return true;
       return actual.existsSync(p);
     }),
     readFileSync: vi.fn((p, enc) => {
@@ -139,7 +139,7 @@ vi.mock("node:fs", async (importOriginal) => {
           },
         });
       }
-      if (String(p).includes(".osuperpowers/cdd/foo/")) {
+      if (String(p).includes(".kairos/cdd/foo/")) {
         return JSON.stringify({
           phase: "review",
           status: "APPROVED",
@@ -167,7 +167,7 @@ function mockRealWriteBack(writeHandoff) {
 }
 
 // 夹具常量：单一来源（根迁移一行改动，免 9 处机械编辑）
-const SPEC_DOC = "/repo/root/docs/osuperpowers/specs/my-spec.md";
+const SPEC_DOC = "/repo/root/docs/kairos/specs/my-spec.md";
 
 describe("runDocsTask", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -201,14 +201,15 @@ describe("runDocsTask", () => {
       template: "review",
       doc: SPEC_DOC,
       params: { REVIEW_TYPE: "spec" },
-      handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-review-1.json",
+      handoffPath: "/repo/root/.kairos/cdd/foo/spec-review-1.json",
       repoRoot: "/repo/root", // injection seam: run-docs really uses this value (P4 §2.4.1 single-root authority)
       dryRun: false,
     });
 
-    // execa called with cwd = '/repo/root' (注入的 repoRoot), NOT the doc directory.
-    // （原另有一条 `not.toContain("/docs/osuperpowers/specs")` 反向断言，经 branch-review 判定为
-    //  **不可失败**——上行已 pin cwd === "/repo/root"；已删，见 P2 plan T3 follow-up。）
+    // execa called with cwd = '/repo/root' (the injected repoRoot), NOT the doc directory.
+    // (A previous `not.toContain("/docs/kairos/specs")` reverse assertion was judged by
+    //  branch-review as un-failable — the line above already pins cwd === "/repo/root"; it was
+    //  deleted, see the P2 plan T3 follow-up.)
     const callOpts = execa.mock.calls[0][2];
     expect(callOpts.cwd).toBe("/repo/root");
   });
@@ -227,7 +228,7 @@ describe("runDocsTask", () => {
       type: "spec",
       doc: SPEC_DOC,
       params: { REVIEW_TYPE: "spec" },
-      handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-review-1.json",
+      handoffPath: "/repo/root/.kairos/cdd/foo/spec-review-1.json",
       repoRoot: "/repo/root",
       dryRun: false,
     });
@@ -243,7 +244,7 @@ describe("runDocsTask", () => {
       type: "spec",
       doc: SPEC_DOC,
       findingsPath: "/repo/root/docs/findings.md",
-      handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-fix-1.json",
+      handoffPath: "/repo/root/.kairos/cdd/foo/spec-fix-1.json",
       repoRoot: "/repo/root",
       dryRun: false,
     });
@@ -269,13 +270,13 @@ describe("runDocsTask", () => {
       type: "spec",
       doc: SPEC_DOC,
       findingsPath: "/repo/root/docs/findings.md",
-      handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-fix-1.json",
+      handoffPath: "/repo/root/.kairos/cdd/foo/spec-fix-1.json",
       repoRoot: "/repo/root",
       dryRun: false,
     });
     // fix 的 return = 文件本体（stdout 无 JSON return）：门 = docsFixHardGate(handoffPath)
     expect(typeof new TemplateLoader().docsFixHardGate).toBe("function"); // class surface, not a bare export
-    expect(docsFixGateSpy).toHaveBeenCalledWith("/repo/root/.osuperpowers/cdd/foo/spec-fix-1.json");
+    expect(docsFixGateSpy).toHaveBeenCalledWith("/repo/root/.kairos/cdd/foo/spec-fix-1.json");
     expect(docsReviewGateSpy).not.toHaveBeenCalled();
   });
 
@@ -310,7 +311,7 @@ describe("runDocsTask", () => {
       type: "spec",
       doc: SPEC_DOC,
       // 含 "review" 段 → node:fs fixture 的 existsSync 视为存在 → 走 read-and-validate 路径。
-      handoffPath: "/repo/root/.osuperpowers/cdd/foo/critiques-review-1.json",
+      handoffPath: "/repo/root/.kairos/cdd/foo/critiques-review-1.json",
       repoRoot: "/repo/root",
       dryRun: false,
     });
@@ -331,7 +332,7 @@ describe("runDocsTask", () => {
     // 覆写读回 fixture：同一 canonical ws 前缀下，agent 写 status:CHANGES_REQUESTED + warn/nit findings
     //（engine 应派生覆写为 APPROVED 并持久化；findings 原样保留）。
     fs.readFileSync.mockImplementation((p, enc) => {
-      if (String(p).includes(".osuperpowers/cdd/foo/")) {
+      if (String(p).includes(".kairos/cdd/foo/")) {
         return JSON.stringify({
           phase: "review",
           status: "CHANGES_REQUESTED",
@@ -352,7 +353,7 @@ describe("runDocsTask", () => {
         template: "review",
         type: "spec",
         doc: SPEC_DOC,
-        handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-review-1.json",
+        handoffPath: "/repo/root/.kairos/cdd/foo/spec-review-1.json",
         repoRoot: "/repo/root",
         dryRun: false,
       });
@@ -389,7 +390,7 @@ describe("runDocsTask", () => {
       template: "review",
       type: "spec",
       doc: SPEC_DOC, // does not exist → hashFile "" sentinel
-      handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-review-1.json",
+      handoffPath: "/repo/root/.kairos/cdd/foo/spec-review-1.json",
       repoRoot: "/repo/root",
       dryRun: false,
     });
@@ -417,7 +418,7 @@ describe("runDocsTask", () => {
       template: "review",
       type: "spec",
       doc,
-      handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-review-1.json",
+      handoffPath: "/repo/root/.kairos/cdd/foo/spec-review-1.json",
       repoRoot: "/repo/root",
       dryRun: false,
     });
@@ -443,7 +444,7 @@ describe("runDocsTask", () => {
       type: "spec",
       doc: SPEC_DOC,
       findingsPath: "/repo/root/docs/findings.md",
-      handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-fix-1.json",
+      handoffPath: "/repo/root/.kairos/cdd/foo/spec-fix-1.json",
       repoRoot: "/repo/root",
       dryRun: false,
     });
@@ -466,7 +467,7 @@ describe("runDocsTask", () => {
     // JSON.parse(readFileSync(handoffPath)) 读回必 ENOENT（orphan 路径 node:fs mock 透传真实 fs）。
     // 注入真实写盘实现让读回成功（run-docs.mjs BLOCKED 分支强耦合同步读回，不可 stub 掉）。
     mockRealWriteBack(writeHandoff);
-    const orphanPath = join(dir, "ws", "spec-review-1.json"); // non-.osuperpowers/cdd/foo prefix → the existsSync mock falls through to real → the file does not exist → BLOCKED written to disk
+    const orphanPath = join(dir, "ws", "spec-review-1.json"); // non-.kairos/cdd/foo prefix → the existsSync mock falls through to real → the file does not exist → BLOCKED written to disk
     const result = await DocsLifecycle.run({
       harness: "claude",
       mode: "review",
@@ -642,7 +643,7 @@ describe("runDocsTask", () => {
       template: "review",
       type: "plan",
       doc,
-      handoffPath: "/repo/root/.osuperpowers/cdd/foo/plan-review-1.json",
+      handoffPath: "/repo/root/.kairos/cdd/foo/plan-review-1.json",
       repoRoot: "/repo/root",
       dryRun: false,
     });
@@ -707,7 +708,7 @@ describe("runDocsTask", () => {
     const dir = mkdtempSync(join(tmpdir(), "p5cv-"));
     const doc = join(dir, "spec.md");
     writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
-    const handoffPath = join(dir, "ws", "spec-review-1.json"); // non-`.osuperpowers/cdd/foo/` prefix → real fs
+    const handoffPath = join(dir, "ws", "spec-review-1.json"); // non-`.kairos/cdd/foo/` prefix → real fs
     mkdirSync(path.dirname(handoffPath), { recursive: true });
     // agent 手写违规 handoff：findings 非数组 + `notes: 5`（已声明键类型违规，normalize 无权修改其值）
     writeFileSync(

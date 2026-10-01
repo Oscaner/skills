@@ -220,7 +220,7 @@ export class ContractLexiconGuard {
   }
 
   /** checkAnatomy(skills?) — the schema-driven SKILL.md anatomy assertions (P13 governance test +
-   *  P6 E1 flow atomicity; the migration target of packages/osuperpowers/tests/
+   *  P6 E1 flow atomicity; the migration target of packages/kairos/tests/
    *  digraph-consistency.test.mjs). Every structure literal reads from the skill-anatomy schema
    *  (the lexicon's anatomy domain pins its path); skillsOverride lets tests inject temp skills.
    *  The growth report prints to stdout (the validate block's output face, same as the retired

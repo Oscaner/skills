@@ -1,17 +1,17 @@
-// scripts/lib/doc-root.ts — docs 根落点的**唯一真相**（P2 起：`docs/osuperpowers/`）。
+// scripts/lib/doc-root.ts — the single truth of the docs-root landing point (P2 onward: `docs/kairos/`).
 // read-only pure data (Criterion ⑥: typed carrier, no empty-shell class) — consumers keep
 // named-constant imports; segment arrays are readonly tuples so a second source of truth
 // cannot be written elsewhere.
 //
 // 消费方（仓工具链内）：
-//   - packages/osuperpowers/tests/grep-sweep-regression.test.mjs → grep -v 排除后缀
+//   - packages/kairos/tests/grep-sweep-regression.test.mjs → grep -v exclusion suffix
 //
-export const DOC_ROOT_SEGMENTS = ["docs", "osuperpowers"] as const;
+export const DOC_ROOT_SEGMENTS = ["docs", "kairos"] as const;
 
-/** `<cwd>/docs/osuperpowers/specs` 的段数组（供 path.join 展开）。 */
+/** The segment array of `<cwd>/docs/kairos/specs` (for path.join expansion). */
 export const DOC_SPECS_SEGMENTS = [...DOC_ROOT_SEGMENTS, "specs"] as const;
 
-/** `<cwd>/docs/osuperpowers/plans` 的段数组（供 path.join 展开）。 */
+/** The segment array of `<cwd>/docs/kairos/plans` (for path.join expansion). */
 export const DOC_PLANS_SEGMENTS = [...DOC_ROOT_SEGMENTS, "plans"] as const;
 
 /**

@@ -3,7 +3,7 @@
 [English](README.md) | [中文](README.zh-CN.md)
 
 [![PR Validate](https://github.com/Oscaner/skills/actions/workflows/pr-validate.yml/badge.svg)](https://github.com/Oscaner/skills/actions/workflows/pr-validate.yml)
-[![npm](https://img.shields.io/npm/v/@oscaner-skills/osuperpowers?label=osuperpowers)](https://www.npmjs.com/package/@oscaner-skills/osuperpowers)
+[![npm](https://img.shields.io/npm/v/@oscaner-skills/kairos?label=kairos)](https://www.npmjs.com/package/@oscaner-skills/kairos)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 **A cdd-first methodology: continuously-discovered development as the core discipline, AI coding skills as the distribution vehicle.**
@@ -33,7 +33,7 @@ The core loop is a chain of three modes:
 | `review` | Review the implementer's result against a fixed review reference and lens guide |
 | `fix` | Apply the review findings — blockers, warnings, and nits — and converge the round |
 
-The chain is a closure: implement → review → fix, then the next group's implement. A review that blocks routes back through `fix` and is re-reviewed until it passes; a review that passes converges and the loop advances. When all groups have converged, a final branch review closes the change and hands it off to finishing. The `cdd` engine runs the whole chain deterministically — dispatching each phase to the host harness and writing the handoff artifacts.
+The chain is a closure: implement → review → fix, then the next group's implement. A review that blocks routes back through `fix` and is re-reviewed until it passes; a review that passes converges and the loop advances. When all groups have converged, a final branch review closes the change and hands it off to cdd-close. The `cdd` engine runs the whole chain deterministically — dispatching each phase to the host harness and writing the handoff artifacts.
 
 ### Convergence discipline
 
@@ -47,13 +47,13 @@ Reviews are structured, not impressionistic. Every finding carries a severity �
 
 ## What this is
 
-A marketplace that packages personal AI coding skills as installable plugins consumed by multiple AI coding harnesses. First-party plugins live in this repository under `packages/` and are published by us to npm under the `@oscaner-skills/*` scope; upstream plugins are **not** packaged here — they install from their own publishers, and osuperpowers orchestrators read them through `/`-prefixed `plugin:skill` references (e.g. `/superpowers:brainstorming`).
+A marketplace that packages personal AI coding skills as installable plugins consumed by multiple AI coding harnesses. First-party plugins live in this repository under `packages/` and are published by us to npm under the `@oscaner-skills/*` scope; upstream plugins are **not** packaged here — they install from their own publishers, and kairos orchestrators read them through `/`-prefixed `plugin:skill` references (e.g. `/superpowers:brainstorming`).
 
 ## Plugins
 
 | Plugin | Source |
 |--------|--------|
-| **osuperpowers** | First-party — [this repo](https://github.com/Oscaner/skills), [`packages/osuperpowers/`](packages/osuperpowers/), published as [`@oscaner-skills/osuperpowers`](https://www.npmjs.com/package/@oscaner-skills/osuperpowers). Skills (osuperpowers orchestrators, `cli-*` family) plus the CDD engine |
+| **kairos** | First-party — [this repo](https://github.com/Oscaner/skills), [`packages/kairos/`](packages/kairos/), published as [`@oscaner-skills/kairos`](https://www.npmjs.com/package/@oscaner-skills/kairos). Skills (kairos orchestrators, `cdd-*` family) plus the CDD engine |
 | **superpowers** | Upstream — [obra/superpowers](https://github.com/obra/superpowers). Workflow skills: brainstorming, writing plans, verification, branch finish |
 | **mattpocock-skills** | Upstream — [mattpocock/skills](https://github.com/mattpocock/skills). Precision tools: `grilling`, `tdd` |
 | **impeccable** | Upstream — [pbakaus/impeccable](https://github.com/pbakaus/impeccable). Frontend design skills |
@@ -67,13 +67,13 @@ Upstream plugin versions follow their own release schedules and are not tracked 
 ```bash
 # Claude Code
 /plugin marketplace add oscaner/skills
-/plugin install osuperpowers@oscaner-skills
+/plugin install kairos@oscaner-skills
 ```
 
 ### From npm
 
 ```bash
-npm install @oscaner-skills/osuperpowers
+npm install @oscaner-skills/kairos
 ```
 
 ### Upstream plugins
@@ -87,15 +87,15 @@ Upstream plugins (superpowers / mattpocock-skills / impeccable) are not packaged
 | Claude Code | Marketplace install |
 | Cursor Agent | Marketplace install |
 
-osuperpowers installs through each harness's own plugin marketplace; neither Claude Code nor Cursor Agent needs a per-harness config file.
+kairos installs through each harness's own plugin marketplace; neither Claude Code nor Cursor Agent needs a per-harness config file.
 
 ## Quick start
 
 1. Install the plugins from the marketplace or npm (see [Installation](#installation)).
-2. Make sure the `cdd` engine CLI is on `PATH` (`command -v cdd`); if it is missing, run `npm i -g @oscaner-skills/cdd-engine`. `cli-driven-development`'s `detect-engine` node re-checks this at dispatch.
-3. Invoke the osuperpowers orchestrator by name — `osuperpowers:brainstorming`,
-   `osuperpowers:writing-plans`, and the rest of the family. Each skill imports the matching
-   upstream flow as its session baseline and runs its own orchestration digraph; osuperpowers
+2. Make sure the `cdd` engine CLI is on `PATH` (`command -v cdd`); if it is missing, run `npm i -g @oscaner-skills/cdd-engine`. `cdd-dev`'s `detect-engine` node re-checks this at dispatch.
+3. Invoke the kairos orchestrator by name — `kairos:cdd-design`,
+   `kairos:cdd-plan`, and the rest of the family. Each skill imports the matching
+   upstream flow as its session baseline and runs its own orchestration digraph; kairos
    skills do not intercept or auto-route upstream `/superpowers:*` invocations — call the
    vanilla skill directly for the unlayered variant.
 
@@ -105,8 +105,8 @@ osuperpowers installs through each harness's own plugin marketplace; neither Cla
 
 ```
 packages/
-├── osuperpowers/   # first-party plugin: osuperpowers orchestration + cli-* family + CDD engine skills
-└── cdd-engine/     # @oscaner-skills/cdd-engine — the CDD engine CLI package (dependency of osuperpowers)
+├── kairos/   # first-party plugin: kairos orchestration + cdd-* family + CDD engine skills
+└── cdd-engine/     # @oscaner-skills/cdd-engine — the CDD engine CLI package (dependency of kairos)
 ```
 
 ### Package-as-source, one emit chain
@@ -126,7 +126,7 @@ Full architecture: [CLAUDE.md](CLAUDE.md).
 
 ## Per-package docs
 
-- [`packages/osuperpowers/`](packages/osuperpowers/README.md) — the plugin's own guide: skill inventory, install, quick start, the `cdd` CLI harness table
+- [`packages/kairos/`](packages/kairos/README.md) — the plugin's own guide: skill inventory, install, quick start, the `cdd` CLI harness table
 - [`packages/cdd-engine/`](packages/cdd-engine/) — the CDD engine package source (maintained from this repo)
 - [`docs/maintainers/`](docs/maintainers/README.md) — maintainer-only documentation index for this repository's developers
 
@@ -155,4 +155,4 @@ Release process: [`.changeset/README.md`](.changeset/README.md).
 
 ## License
 
-First-party code (`osuperpowers`, marketplace tooling): [MIT](LICENSE).
+First-party code (`kairos`, marketplace tooling): [MIT](LICENSE).

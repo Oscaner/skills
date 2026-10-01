@@ -71,11 +71,11 @@ function git(repo: string, ...args: string[]) {
   }).trim();
 }
 
-/** Fresh git repo: the `.osuperpowers/cdd/` workspace is gitignored (the engine's progress/handoff
+/** Fresh git repo: the `.kairos/cdd/` workspace is gitignored (the engine's progress/handoff
  *  writes stay out of the tree), the doc chain is committed → the entry gate sees a clean tree. */
 function setupRepo(): string {
   const dest = mkdtempSync(path.join(tmpdir(), "cdd-closeout-ch-"));
-  writeFileSync(path.join(dest, ".gitignore"), "cdd/\n.osuperpowers/\n*.head\n");
+  writeFileSync(path.join(dest, ".gitignore"), "cdd/\n.kairos/\n*.head\n");
   git(dest, "init", "-q");
   git(dest, "add", "-A");
   git(
@@ -243,7 +243,7 @@ describe("pre-flight terminal-debt gate — plan-bearing lanes BLOCK (v1.12: 回
       const exitCode = await runDocs(
         repo,
         p.plan1,
-        path.join(repo, ".osuperpowers", "cdd", "demo-p1", "plan-review-1.json"),
+        path.join(repo, ".kairos", "cdd", "demo-p1", "plan-review-1.json"),
         { dryRun: true },
       );
       // The docs round is never gated on the debt — a dry-run over a complete-unbackfilled plan
@@ -342,7 +342,7 @@ describe("post-flight statusValidate — base default + the CDD_CLOSEOUT highlig
     expect(outCap.text).toContain("CDD_CLOSEOUT:");
     expect(outCap.text).toContain("backfill-overall");
     expect(outCap.text).toContain(
-      path.join(repo, "docs", "osuperpowers", "specs", "2026-01-01-demo-overall.md"),
+      path.join(repo, "docs", "kairos", "specs", "2026-01-01-demo-overall.md"),
     );
     // base-default CDD_INFO six-state + verdict (all lanes share one implementation)
     expect(cap.text).toContain("CDD_INFO: task 1 state: complete");

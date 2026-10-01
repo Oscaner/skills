@@ -189,7 +189,7 @@ export function buildPromptParams(
   return {
     WORKSPACE: ctx.workspace.path,
     // Canonical slug slot (Task 20 ⑦): the workspace slug strips a single -design/-plan layer so a
-    // plan and its paired spec converge to the same slug, e.g. osuperpowers-overhaul-p6.
+    // plan and its paired spec converge to the same slug, e.g. kairos-overhaul-p6.
     WORKSPACE_SLUG: ctx.workspace.slug,
     BRIEF: ctx.briefPath,
     HANDOFF_TARGET: ctx.handoffPath,
@@ -810,7 +810,7 @@ export class TaskLifecycle extends DispatchLifecycle {
     // crash-only snapshot of the RESUME session's WIP) instead of being suppressed by the stale
     // carrier (teardown guard `!existsSync(handoffPath)` would read true). Only an engine-terminal
     // carrier is rotated — writeBlockedCarrier always writes failure_category, the discriminator
-    // vs an agent-written handoff; the carrier is untracked (.osuperpowers is gitignored), so the
+    // vs an agent-written handoff; the carrier is untracked (.kairos is gitignored), so the
     // rotation is a pure on-disk hygiene op with zero git-tree impact. dry-run keeps zero side
     // effects (no rotation).
     if (!dryRun) {

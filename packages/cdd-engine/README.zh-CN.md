@@ -4,11 +4,11 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-CDD 引擎 CLI——osuperpowers `cli-driven-development` 技能背后的任务运行器、文档/分支评审器与 harness 派发器。以独立包发布，使引擎（`cdd`）可单独安装与调用。
+CDD 引擎 CLI——kairos `cdd-dev` 技能背后的任务运行器、文档/分支评审器与 harness 派发器。以独立包发布，使引擎（`cdd`）可单独安装与调用。
 
 ## 包定位
 
-引擎针对计划文件运行 CDD 工作流的 implement / review / fix 阶段，写出派发的 handoff 产物，读写 `base-branch` 产物，并通过其内嵌的 harness 注册表将每个阶段派发给宿主 harness CLI。它被 [osuperpowers 插件](https://www.npmjs.com/package/@oscaner-skills/osuperpowers)的 `cli-driven-development` 技能消费，也可直接从命令行使用。
+引擎针对计划文件运行 CDD 工作流的 implement / review / fix 阶段，写出派发的 handoff 产物，读写 `base-branch` 产物，并通过其内嵌的 harness 注册表将每个阶段派发给宿主 harness CLI。它被 [kairos 插件](https://www.npmjs.com/package/@oscaner-skills/kairos)的 `cdd-dev` 技能消费，也可直接从命令行使用。
 
 ## 安装
 

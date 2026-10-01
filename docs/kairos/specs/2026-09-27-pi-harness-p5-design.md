@@ -67,8 +67,8 @@ Cross-phase 约定属 parent overall，本 spec 不复述（overall wins on conf
 
 **变更（双槽——machine 机检 + reviewer judgment）**：
 - **implement 证据闸扩 `typecheck` 项**：evidence 文件记 `typecheck` 命令（`command`/`exit_code`/`passed`，与既有 `test` 项同构）；engine 读回核验，缺任一 → `status: BLOCKED`（与 `behavior_change` 缺失同型）
-- **review 指令补 buildability 轴**：`reviews.task/branch` axesGuide 增 buildability——reviewer 在评审中**显式跑** `tsc --noEmit`（或该仓等价）+ 测试，findings lens-tag `buildability` 自证「双命令已跑」；命令用**转译描述**（不硬编码 pnpm/npm——消费仓 toolchain 自洽），本仓引擎闭环自指时跑的就是本 phase 的三项目闸
-- **守卫**：`templates.test.ts`/`registry.test.ts` 断言 task+branch `reviewTypeConfig` 的 axesGuide 含 buildability 双证据文句（`tsc` + `test` token）；evidence 新字段结构合法（adapt schema）；ContractLexicon 词表补 buildability 措辞（checkWording 对 template-contract 断言）
+- **review 指令补 buildability 轴**：`reviews.task/branch.lensEnum` 增 `"buildability"`（REVIEW_LENS_GUIDE 由 `lensEnum.join(" · ")` 自动派生——无独立 prompt 改动）+ 对应 axesGuide 段——reviewer 在评审中**显式跑** `tsc --noEmit`（或该仓等价）+ 测试，findings lens-tag `buildability` 自证「双命令已跑」；命令用**转译描述**（不硬编码 pnpm/npm——消费仓 toolchain 自洽），本仓引擎闭环自指时跑的就是本 phase 的三项目闸
+- **守卫**：`templates.test.ts`/`registry.test.ts` 断言 task+branch `reviewTypeConfig` 的 `lensEnum` 含 `"buildability"` **且** axesGuide 含 buildability 双证据文句（`tsc` + `test` token）——两条并判，lens-tag 要求才可执行而非仅文本描述；evidence 新字段结构合法（adapt schema）；ContractLexicon 词表补 buildability 措辞（checkWording 对 template-contract 断言）
 - **消费面零动**：SKILL（cdd-dev orchestrator）zero-restate 规则 + 实测零命中 → 零 SKILL 改动；README/CLAUDE.md 无消费故事变更
 
 ### 2.4 零构建架构收敛（单工具 `typescript@7`）+ 死壳即删
@@ -76,7 +76,7 @@ Cross-phase 约定属 parent overall，本 spec 不复述（overall wins on conf
 **实证链（本 session 端到端）**：① `node packages/cdd-engine/src/bin.ts --help` exit 0（Node 24.21 原生 strip，零 unbuild/jiti）② `dist/cli.mjs` dev 态 = unbuild `--stub` 的 jiti 载入器（`createJiti` → `jiti.import(src/bin.ts)` + 自引用别名）——冗余层 ③ Node 对 `node_modules` 下 strip **永久禁止**（`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING` 实测；Node 官方「discourage publishing packages written in TypeScript」；tracker #57215 closed-as-not-planned）→ **发布必 JS** ④ `tsc --emit`（`tsconfig.build.json`：`module: nodenext` + `rewriteRelativeImportExtensions`）端到端跑通：shebang 保留、`.ts→.js` 重写、零残留 `.ts` 引用；staged pack → 消费安装 → `.bin/cdd` → `--help` + `schema get overall` 走真实引擎栈。
 
 **目标形态**：
-- **dev/CI 面**：`node packages/cdd-engine/src/bin.ts <subcommand>`（Node ≥22.18）——CLAUDE.md「Development-time CDD invocation」改指 · engine vitest 黑盒 ~13 处 exec 常量（`cdd.test.ts` 等 CDD_MJS 族）改指 `src/bin.ts` · `globalSetup` self-stub 删除（无 dist 缺省逻辑可删）· validate `smoke-cdd` pin 改指
+- **dev/CI 面**：`node packages/cdd-engine/src/bin.ts <subcommand>`（Node ≥22.18）——CLAUDE.md「Development-time CDD invocation」改指 · engine vitest 黑盒 **9 处 `const CDD_MJS` 定义 · 11 处 execa 调用**（`cdd.test.ts` 等 CDD_MJS 族）全改指 `src/bin.ts` · `globalSetup` self-stub 删除（无 dist 缺省逻辑可删）· validate `smoke-cdd` pin 改指
 - **发布面**：`tsconfig.build.json`（`module: nodenext` · `moduleResolution: nodenext` · `allowImportingTsExtensions` + `rewriteRelativeImportExtensions` · `noEmit: false` · `outDir: dist` · exclude `**/__tests__/**` · typeRoots 显式指 engine `node_modules/@types`）→ `tsc -p` 产 `dist/` JS 模块树 + config copy（`dist/config`——published-first resolveResource 面保持，P4 C7 不破）；manifest **入口三连一并改指发射产物**——`bin: {"cdd": "dist/bin.js"}` · `main` / `exports["."]` 改指 `./dist/bin.js`（`dist/cli.mjs` 随 unbuild 删除后不再存在；零 JS-API 消费——`src/bin.ts` 注释声明，保持 manifest 可解析即可）· `files: ["dist/","config/","templates/"]`（发布面 = `tsc --emit` 的 JS 树，`src/` 源面零 ship——node_modules 类型剥离永久禁令即「发布必 JS」）· `engines: >=22.18`
 - **删除层（死壳即删）**：unbuild（devDeps）· jiti（stub 机制）· `build.config.ts` · `dev:stub` script（engine package.json + CLAUDE.md）· `@typescript/typescript6`（零 d.ts 需求 = 零 JS-API 消费实证）· `dist/` stub 产物面的外围逻辑（globalSetup）· vitest 自给缺省分支 —— **改写面**：`docs/maintainers/05-third-party-dependencies.md` unbuild 登记改 retired · CLAUDE.md 相应段重写 · engine README 对（`packages/cdd-engine/README.md` + `README.zh-CN.md`）toolchain/dev-invocation 段改指 `node packages/cdd-engine/src/bin.ts`、移除 `dev:stub`/`dist/cli.mjs` 引用（consumer-shipped——npm 必发 README*，live 面同污点）
 - **retired/删除登记措辞（live 面 grep 契约）**：`docs/maintainers/05` 等登记文本**不得携带被禁 token 原文**（`build.config` / `dev:stub` / `@typescript/typescript6` / `globalSetup`——已被 acceptance live 面 grep 判为目标污点，retired 登记若保留原文即自败于本 phase 验收）；一律转述——如「the old dev-stub chain」「the TS6-compat shim」，05 现存的 `@typescript/typescript6` 相关 prose 行同此处理（现 05:21 unbuild 行含 `build.config.ts`/`dev:stub` 原文、05:25 含包名原文，改 retired 时逐行转述）
@@ -85,7 +85,7 @@ Cross-phase 约定属 parent overall，本 spec 不复述（overall wins on conf
 ### 2.5 测试与验证面
 
 - type-check 闸：validate + precommit 双接点全绿；root `pnpm run typecheck` 三项目 exit 0
-- engine suite：结算后全绿（0 行为变化）+ 新断言（evidence `typecheck` 字段结构 / review 指令文本含 buildability + tsc + test / 黑盒 exec 全指 `src/bin.ts`）
+- engine suite：结算后全绿（0 行为变化）+ 新断言（evidence `typecheck` 字段结构 / task+branch lensEnum 含 buildability + review 指令文本含 buildability + tsc + test / 黑盒 exec 全指 `src/bin.ts`）
 - scripts suite：render-yaml `.mjs→.ts` 迁移后绿 + type-check 接线测试
 - kairos tests：`.mjs→.ts` 后 node:test 直跑绿（`scripts/validate/kairos.ts` 等跨项目 `.ts` import 先例扩展）
 - residue/lexicon：全仓源面零 `.mjs` + `build.config`/`dev:stub`/TS6/globalSetup/ts-ignore 系 grep 零命中（live 面；历史 plan 正文 = 史实不 retro-rename）
@@ -100,7 +100,7 @@ Cross-phase 约定属 parent overall，本 spec 不复述（overall wins on conf
 - 零构建删除面 **live 面** grep 零命中：`build.config` / `dev:stub` / `@typescript/typescript6` / `globalSetup` / `@ts-ignore` / `@ts-expect-error`（live 面 = CLAUDE.md · `docs/maintainers/05` · engine README 对 · 源面/config 面；历史 spec/plan 正文与发布面 schema/产物除外）
 - `tsc --emit` 发布面：`pnpm pack` → 临时项目 `npm install` → `.bin/cdd` 执行成功（`--help` exit 0，走真实引擎栈）
 - CLAUDE.md + engine README 对（EN/zh）dev 链均 = `node packages/cdd-engine/src/bin.ts`、零 `dev:stub`/`dist/cli.mjs` 引用；`docs/maintainers/05` unbuild 登记 retired（被禁 token 一律转述，非原文）
-- buildability 双证据：`reviews.task/branch` axesGuide 含 buildability 双证据（`templates.test.ts`/`registry.test.ts` 断言绿）；implement evidence 扩 `typecheck` 项且 engine 读回机检（缺 → BLOCKED 测试绿）
+- buildability 双证据：`reviews.task/branch.lensEnum` 含 `"buildability"`（REVIEW_LENS_GUIDE 自动派生）且 axesGuide 含 buildability 双证据文句（`templates.test.ts`/`registry.test.ts` 断言绿）；implement evidence 扩 `typecheck` 项且 engine 读回机检（缺 → BLOCKED 测试绿）
 - engine vitest 黑盒 exec 全指 `src/bin.ts`（live 面 `dist/cli.mjs` 引用零命中，发布面 schema/产物除外）
 - `pnpm run validate` 全绿
 

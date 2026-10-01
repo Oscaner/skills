@@ -1,6 +1,6 @@
 # Pi Harness P4 — 技能改名 + 文档·测试·收口（Pi Harness P4: Skill Rename + Docs · Tests · Closeout）— Phase Spec
 
-- **Version**: v1.0 · 2026-10-01
+- **Version**: v1.1 · 2026-10-01
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming → writing-phase-spec)
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.21](2026-09-27-pi-harness-overall.md)
@@ -44,20 +44,20 @@ P4 使 osuperpowers 的**技能身份**完成程序级统一：8 技能全量改
 | finishing | `cdd-close` | 收口 |
 | report-issues | `cdd-report` | 内部 dev 工具 |
 
-- 命名空间 `osuperpowers` 保留（claude/cursor 插件限定语法侧照常）；改的是 8 个 `SKILL.md` 的 `name:` 字段（= 三 harness 共享的身份 token）
+- 命名空间 `osuperpowers` 保留（claude/cursor 插件限定语法侧照常）；改的是 8 个 `SKILL.md` 的 `name:` 字段（= 三 harness 共享的身份 token）。**目录名保持不变**：`packages/osuperpowers/skills/<dir>` 沿用现状路径，本次改名只触及 `name:` 字段 + 引用面（机械范围枚举如下行），不带目录重命名——既有测试（status-routing-convergence.test.mjs 按 `SKILLS_ROOT/<name>/SKILL.md` 读、writing-plans-spec.test.mjs 读 `skills/writing-plans/SKILL.md`、review-loop-clean-tree.test.mjs 的 skill→review-loop 映射）与 finishing/SKILL.md:24 相对路径 `../cli-driven-development/docs/base-branch.md` 均以目录路径/名为键
 - 机械范围：8× SKILL.md `name:` + flow digraph 内 `/osuperpowers:*` 互引 · `/superpowers:*` / `/mattpocock-skills:*` 上游 import **不动** · README 家族 ×4 · CLAUDE.md 提及面 · docs/maintainers 提及面 · 测试 · `pnpm run emit` 重生成（claude/cursor manifests + marketplace + `source.json`）
 - **执行排序（地基纪律）**：改名最早落位——P4 实现首任务即 rename，其后文档 / 测试 / 守卫全部引用新名；旧名只在历史文献（既有 spec/plan/CHANGELOG 正文）留存为史实，live 面零旧名 skill 身份
 - **裁定备注（G3 高维复核）**：3 个 writing-* 合并为 1 个带 mode 的写法**拒**——mode 参数重复 `cdd-design` 已有路由职责（program 状态天然决定产物类型），三个产物是方法论一等概念，合并把「写什么」从 invocation 面挪进内部条件分支，反统一；软散落不建镜像注册面（见 C2）；report-issues 保留为 cdd-report（已是 shipped skill + dogfooding 通道，移除是又一次消费面改动）
 
 **C2 命名机制（G2）** — SKILL.md `name` = 单一事实源，守卫派生断言：
 - **目录扫描与技术**：测试从 `packages/osuperpowers/skills/` 扫描各 SKILL.md front-matter `name:`，得到唯一事实集的「cdd-\* 八名命集」
-- **presentation-surface.test.mjs 延展**：断言 README 技能清单 == 扫描命集（恰 8，全部 cdd-* 前缀）；README 名义表（C3）== lexicon 派生期望；harness 声称 = verified triple（claude / cursor-agent / pi）；保留 `/8 harnesses|Trae|Vibe|Kiro|OpenCode` 外国声称禁令
+- **presentation-surface.test.mjs 延展**：断言 README 技能清单 == 扫描命集（恰 8，全部 cdd-* 前缀）；README 名义表（C3）== lexicon 派生期望；harness 声称 = verified triple（claude / cursor / pi）；保留 `/8 harnesses|Trae|Vibe|Kiro|OpenCode` 外国声称禁令
 - **pi-package.test.mjs 延展**：`pi.skills` glob 解析集 == 扫描命集（包面 pin）
 - **旧名残留 pin（精确保守）**：pin 只针对 osuperpowers 面 skill 身份——SKILL.md name / README 家族 / CLAUDE.md 显式技能引用零旧名；`brainstorming` 作为词在上游 import（`/superpowers:brainstorming`）合法，不做词级禁
 - 拒绝：engine lexicon 技能域（分层错误——engine 不拥有 osuperpowers 技能名）；另建 skills-registry 镜像面（SKILL.md front-matter 即 canonical JSON，emit + 守卫即 renderer/verifier，镜像面 = 新漂移面）
 
 **C3 名义映射表 + markers 数据（G4）** — engine 侧 lexicon harness 域增数据（**engine 语义归 lexicon，技能名归包面**——分层齐整）：
-- `contract-lexicon.json` harness 域并列 `markers` 子对象：`claude: { env: CLAUDE_CODE_SESSION_ID, aiAgentPrefix: claude-code }` · `cursor: { env: CURSOR_TRACE_ID }` · `pi: { env: AI_AGENT, value: pi }`（与既有 `ids` / `clis` 镜像并列；`clis` 与 registry 的镜镜像既有 guard 强制相等，markers 域同样过 guard）
+- `contract-lexicon.json` harness 域并列 `markers` 子对象：`claude: { env: CLAUDE_CODE_SESSION_ID, aiAgentPrefix: claude-code }` · `cursor: { env: CURSOR_TRACE_ID }` · `pi: { env: AI_AGENT, value: pi }`（与既有 `ids` / `clis` 镜像并列；`clis` 与 registry 的镜像既有 guard 强制相等，markers 域同样过 guard）
 - `ContractLexiconGuard` 增 `checkMarkers`：markers ↔ `harness.ts` detect() 谓词 ↔ engine-config env 白名单（`[AI_AGENT, CLAUDE_CODE_SESSION_ID, CURSOR_TRACE_ID, PATH]` 恰 4 键不变）**三方一致**
 - README 名义映射表（标识符/二进制/宿主 marker/ship）读 lexicon 数据派生——零手写重复映射；漂移守卫 = presentation-surface 延展断言
 - registry 行内数据（`cli` / `ship`）继续作为二进制列与 ship 列的源；marker 列首次数据化
@@ -65,14 +65,14 @@ P4 使 osuperpowers 的**技能身份**完成程序级统一：8 技能全量改
 **C4 README 家族铺设（G5）** — 两级铺设 + 双镜像：
 - **root README**：per-harness 安装表 + pi 行 + `From pi` 小节（`pi install npm:@oscaner-skills/osuperpowers`（`@latest` 契约）· 安装后八 skill 以 cdd-* 名可见 · project settings 写入）+ **一行 cdd- 缘由**（pi flat namespace 无限定语法 → bare-name 唯一性即最佳实践）+ 技能清单更新为 cdd-*
 - **osuperpowers README**：名义映射表（C3 数据渲染，替换手写 CDD engine CLI 表——同时消灭 2 处 live `cursor-agent`）+ pi 消费段 + **D5 消费故事节**（「与 superpowers 并存」：`cdd-*` 零冲突 by-construction · inline import harness 条件化——claude/cursor 限定引用恒落属主包；pi 仅 bare name 且 `cdd-*` 唯一性保证无歧义）
-- cdd-engine README 不动（验收只要求零 cursor-agent 不要求加内容）；双镜像（root + osuperpowers 各 zh 结构 parallel 同步 + 镜像声明时间戳校准——现存声明 09-26 早于文件 mtime 09-29，顺手校准）
+- cdd-engine README 不动（验收只要求零 cursor-agent 不要求加内容）；双镜像（root + osuperpowers 各 zh 结构 parallel 同步 + 镜像声明时间戳校准——root 声明 09-26 早于其 mtime 09-29、osuperpowers 声明 09-26 早于其 mtime 09-27，两处声明均早于各自文件 mtime，顺手校准）
 
 **C5 测试·validate（G6，零新 step）** — 三文件延展，零新 validate step：
 - `presentation-surface.test.mjs`：verified triple + 技能清单 == 扫描 + 名义表 == 数据派生 + 外国声称禁令（见 C2）
 - `pi-package.test.mjs`：pi 字段集 == 扫描命集（原五断言延展）
 - `scripts/lib/__tests__/contract-lexicon.test.ts`（vitest）：markers 三方一致 + README 漂移期望
 - 接线：node:test 走 validate step-4 glob（自动携带）· lexicon guard 走 step-9 既有 CheckBlock（checkMarkers 为 guard 新方法，不增 step 名）· vitest 走 step-12 → **ci-validate.test.mjs 零扰动、pre-commit 子集面不变**；`pnpm run validate` 13 块全绿即验收
-- **npm-source 解析风险登记（v1.21 承承接）**：pi 对 scoped 包 registry 层的接受 = 已知残余，测试·validate issue 行显式登记 + publish 前人工抽查动作归属（本 phase 不做 release 站，承接记录落 C5 测试文件注释或 maintainers 文档）
+- **npm-source 解析风险登记（v1.21 承接）**：pi 对 scoped 包 registry 层的接受 = 已知残余，测试·validate issue 行显式登记 + publish 前人工抽查动作归属（本 phase 不做 release 站，承接记录落 C5 测试文件注释或 maintainers 文档）
 
 **C6 changeset / 收口（G7）**：
 - osuperpowers changeset **major**（技能改名 = 消费者 breaking，发布面）——与既有 pending（manifest-pin minor）在 `changeset version` 合并结算 → **1.0.0 首稳定**（版本方案：0.x major → 1.0.0）
@@ -102,7 +102,7 @@ P4 使 osuperpowers 的**技能身份**完成程序级统一：8 技能全量改
 ### Acceptance criteria
 
 - `packages/osuperpowers/skills/*/SKILL.md` 全部 `name:` 为 cdd-* 八名集合（`cdd-design` / `cdd-spec` / `cdd-charter` / `cdd-phase` / `cdd-plan` / `cdd-dev` / `cdd-close` / `cdd-report`），flow 内 `/osuperpowers:*` 互引同步为新名，上游 import（`/superpowers:*` / `/mattpocock-skills:*`）不变
-- `.claude-plugin/` / `.cursor-plugin/` / `marketplace/` emit 产物重生成后含改名后技能清单，`emit:check` 零漂移
+- `.claude-plugin/` / `.cursor-plugin/` / `marketplace/` emit 产物重生成后 `emit:check` 零漂移（产物按 `./skills/` 目录 glob 引用、不含技能名单；改名面在 SKILL.md front-matter 与引用面）
 - 文档标识符面（README 家族 + CLAUDE.md + docs/maintainers live 档）零 `cursor-agent`（豁免锚已废，历史正文即史实）
 - 名义映射表 = 数据渲染：README 表与 lexicon markers / registry 数据一致（presentation-surface 漂移守卫绿）；`checkMarkers` 三方一致（markers ↔ detect() ↔ engine-config）绿
 - D5 消费故事交付：README 含 cdd-* 零冲突 by-construction 说明 + inline import harness 条件化语义（claude/cursor 限定引用恒落属主包 · pi 纯 bare name 唯一）

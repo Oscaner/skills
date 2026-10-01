@@ -1,5 +1,5 @@
 // packages/cdd-engine/src/rules/__tests__/rules.schema.test.ts
-// Independent source of truth = the templates/schema/*.json plus templates/engine-config.json
+// Independent source of truth = the config/schema/*.json plus config/engine-config.json
 // #handoffNamespace (read fresh in this file; never recomputed the way the port computes). Same
 // seams as handoff-stub.test.mjs / schema-utils.test.mjs, which keep guarding the legacy .mjs copy.
 // Covers the write-side contract that makes CONTRACT_VIOLATION recovery lossless:
@@ -35,7 +35,7 @@ const validTask = {
 };
 
 describe("rules/schema.ts — loadHandoffSchema / loadHandoffNamespace canonical 单读", () => {
-  it("schemaValidator.loadHandoffSchema('task') 返回 templates/schema/task-handoff-schema.json 原值", () => {
+  it("schemaValidator.loadHandoffSchema('task') 返回 config/schema/task-handoff-schema.json 原值", () => {
     expect(schemaValidator.loadHandoffSchema("task")).toEqual(TASK_SCHEMA);
   });
 

@@ -12,7 +12,7 @@ Development branch close-out: the imported upstream flow decides merge / PR / ke
 ```mermaid
 flowchart TD
   A[run-cdd-close-session] -->|complete| C[close-issues]
-  A -->|missing| Z1((BLOCKED: install superpowers))
+  A -->|missing| Z1((BLOCKED: install superpowers — see README 'Upstream dependency install'))
   C --> K((APPROVED))
 ```
 
@@ -23,7 +23,7 @@ flowchart TD
 - **Do**: Import `/superpowers:finishing-a-development-branch`（pi：/skill:finishing-a-development-branch） — its flow is consumed inline as this session's baseline (loading an upstream skill imports its flow once; no second spawn) and runs its full finish loop (verify tests → read base → 4-option menu → execute merge / PR / keep / discard); it lands the finish decision (merged / PR created / kept / discarded) that routes `close-issues`. **Upstream steps are not restated here.** Personal rules enforced at this boundary: normal-repo menu (No Worktrees — I1); merge commit / PR title in conventional commits, PR body `## Summary` + `## Test Plan` only, zero attribution (I2); the strict typed-discard gate — the literal `discard` only (case-sensitive, no leading/trailing whitespace); any other input falls back to the menu **without resetting its presentation counter** (3 attempts max → BLOCKED)
 - **Read**: landed finish decision + base branch (`.kairos/cdd/<slug>/base-branch.json`, or inference per [base-branch.md](../cdd-dev/docs/base-branch.md))
 - **Exit**: Finish decision landed (merged / PR created / kept / discarded) → `close-issues`
-- **Fail**: Upstream superpowers plugin missing → BLOCKED (install superpowers); menu exhausted after 3 unrecognized inputs → BLOCKED (menu exhausted); tests red → BLOCKED (fix tests)
+- **Fail**: Upstream superpowers plugin missing → BLOCKED (install superpowers — see the kairos README's 'Upstream dependency install' table); menu exhausted after 3 unrecognized inputs → BLOCKED (menu exhausted); tests red → BLOCKED (fix tests)
 
 ### `close-issues`
 
@@ -43,7 +43,7 @@ flowchart TD
 
 | failure | behavior | reason |
 |---|---|---|
-| Upstream superpowers plugin missing | BLOCKED (install superpowers) | Block policy: no silent fallback |
+| Upstream superpowers plugin missing | BLOCKED (install superpowers — see the kairos README's 'Upstream dependency install' table) | Block policy: no silent fallback |
 | Tests red before merge | BLOCKED (fix tests) | Do not merge/PR a red branch |
 | Menu unrecognized input reaches the 3-attempt limit | BLOCKED (menu exhausted) | Cannot obtain user decision |
 | Merge conflict / push rejected / PR failure | implicit fail-open (stop + report; branch and base retained; user recovers then re-runs cdd-close) | Do not auto-resolve |

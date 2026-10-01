@@ -1117,7 +1117,7 @@ describe("handoff-schema（§2.8 行 14）：正例命中 + canonical 豁免 + s
     const dir = mkdtempSync(path.join(tmpdir(), "residue-t11-canon-"));
     writeFileSync(
       path.join(dir, "ok.mjs"),
-      "// schema → packages/cdd-engine/templates/schema/task-handoff-schema.json + docs-handoff-schema.json\n",
+      "// schema → packages/cdd-engine/config/schema/task-handoff-schema.json + docs-handoff-schema.json\n",
       "utf8",
     );
     try {

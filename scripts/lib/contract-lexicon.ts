@@ -870,7 +870,10 @@ export class ContractLexiconGuard {
       const ns = key.split(":")[0];
       if (ns !== "kairos") installPkgs.add(ns);
     }
-    const readmes = opts.readmes ?? ["packages/kairos/README.md"];
+    const readmes = opts.readmes ?? [
+      "packages/kairos/README.md",
+      "packages/kairos/README.zh-CN.md",
+    ];
 
     // Every harness row must declare an install banner for each install package.
     for (const [id, row] of rows) {

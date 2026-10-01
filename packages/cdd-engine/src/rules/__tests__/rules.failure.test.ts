@@ -1,5 +1,5 @@
 // packages/cdd-engine/src/rules/__tests__/rules.failure.test.ts
-// The canonical templates/engine-config.json#failureCategories is the independent source of truth:
+// The canonical config/engine-config.json#failureCategories is the independent source of truth:
 // every expected value below is derived from the canonical JSON (never recomputed the way the port
 // computes it), so drift between the .ts port and the canonical fails loudly (AC14 "承重，非装饰").
 // Same seam as failure-categories.test.mjs, which keeps guarding the legacy .mjs copy.

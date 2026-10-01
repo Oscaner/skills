@@ -12,14 +12,14 @@ Full brainstorm flow orchestration, callable standalone. The imported /superpowe
 ```mermaid
 flowchart TD
   A[run-cdd-design-session] -->|landed| B[explore-context]
-  A -->|missing| Z1((BLOCKED: install superpowers))
+  A -->|missing| Z1((BLOCKED: install superpowers — see README 'Upstream dependency install'))
   B --> C{mode?}
   C -->|new-program| G[run-grilling-session]
   C -->|phase-within-program| P{phase-registered?}
   P -->|no| S[run-cdd-charter · sync]
   S --> P
   P -->|yes| G
-  G -->|missing| Z2((BLOCKED: install mattpocock-skills))
+  G -->|missing| Z2((BLOCKED: install mattpocock-skills — see README 'Upstream dependency install'))
   G --> D{scope-size?}
   D -->|single| H[run-cdd-spec]
   D -->|multi| I[run-cdd-charter]
@@ -35,8 +35,8 @@ flowchart TD
 
 - **Do**: Import `/superpowers:brainstorming`（pi：/skill:brainstorming） — its flow is consumed inline as this session's baseline (loading an upstream skill imports its flow once; no second spawn). It lands the mode marker (`new-program` = no parent overall; `phase-within-program` = has a parent overall) and the design context this flow routes on
 - **Read**: nothing before the import; the import resolves mode + design context
-- **Exit**: Import landed → `explore-context`; upstream missing → BLOCKED (install superpowers)
-- **Fail**: Upstream superpowers plugin missing → BLOCKED: install superpowers (no downgrade, no skip, no inline restatement)
+- **Exit**: Import landed → `explore-context`; upstream missing → BLOCKED (install superpowers — see the kairos README's 'Upstream dependency install' table)
+- **Fail**: Upstream superpowers plugin missing → BLOCKED: install superpowers — see the kairos README's 'Upstream dependency install' table (no downgrade, no skip, no inline restatement)
 
 ### `explore-context`
 
@@ -70,7 +70,7 @@ flowchart TD
 
 - **Do**: Import `/mattpocock-skills:grilling`（pi：/skill:grilling） — its flow is consumed inline as this session's baseline, scoped by mode: `new-program` → scope-level grilling (each candidate phase's scope / dependencies / acceptance / issue ownership, one grilling pass); `phase-within-program` → enumerate-then-grill: enumerate the requirements registered for the phase in the parent overall item by item (each requirement's status — `[Pending]` / `Done` / dropped — cross-referenced from the phase's Phase inventory `[Pending]`/Done cells and the change-history dropped claims), restate the full list to the user, and enter the grilling frontier (root cause → impact boundary → fix direction → approach, one issue per pass) only after the user confirms the enumerated coverage is complete. It lands the grilling outcome; size judgment (`scope-size?` / `phase-size?`) routes on it. Register-before-grill is guaranteed by the `phase-registered?` gate
 - **Read**: landed grilling outcome + mode marker + gate verdict
-- **Exit**: Grilling outcome landed → size judgment (`scope-size?` on the new-program path, `phase-size?` on the phase-within-program path); upstream missing → BLOCKED (install mattpocock-skills)
+- **Exit**: Grilling outcome landed → size judgment (`scope-size?` on the new-program path, `phase-size?` on the phase-within-program path); upstream missing → BLOCKED (install mattpocock-skills — see the kairos README's 'Upstream dependency install' table)
 - **Fail**: Grilling an unregistered phase → register-gate violation (BLOCKED upstream at `phase-registered?`)
 
 ### `scope-size?`
@@ -92,21 +92,21 @@ flowchart TD
 - **Do**: Import `/kairos:cdd-spec`（pi：/skill:cdd-spec） — its flow is consumed inline as this session's baseline; it authors, reviews and commits the single spec (the program converges into one spec), landing the committed single spec as the terminal artifact. The imported flow's review-fix loop expects a clean start — ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch). Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
 - **Read**: grilling output + exploration context
 - **Exit**: Handoff executed → flow ends for this skill
-- **Fail**: Target skill missing → BLOCKED (install kairos)
+- **Fail**: Target skill missing → BLOCKED (install kairos — see the kairos README's 'Upstream dependency install' table)
 
 ### `run-cdd-charter`
 
 - **Do**: Import `/kairos:cdd-charter`（pi：/skill:cdd-charter） — its flow is consumed inline as this session's baseline; it authors, reviews and commits the overall spec (the program charter), landing the committed overall spec. Terminal write: the flow converges here and enters the /compact or /kairos:cdd-design（pi：/skill:cdd-design） [Px program] handoff from inside the imported flow. The imported flow's review-fix loop expects a clean start — ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch). Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
 - **Read**: grilling output + parent overall (oversized phase-within-program case)
 - **Exit**: Handoff executed → flow ends for this skill
-- **Fail**: Target skill missing → BLOCKED (install kairos)
+- **Fail**: Target skill missing → BLOCKED (install kairos — see the kairos README's 'Upstream dependency install' table)
 
 ### `run-cdd-phase`
 
 - **Do**: Import `/kairos:cdd-phase`（pi：/skill:cdd-phase） — its flow is consumed inline as this session's baseline; it authors, reviews and commits the phase spec (this phase's increment), landing the committed phase spec. The imported flow's review-fix loop expects a clean start — ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch). Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
 - **Read**: grilling output + parent overall
 - **Exit**: Handoff executed → flow ends for this skill
-- **Fail**: Target skill missing → BLOCKED (install kairos)
+- **Fail**: Target skill missing → BLOCKED (install kairos — see the kairos README's 'Upstream dependency install' table)
 
 ## Invariants
 
@@ -119,8 +119,8 @@ flowchart TD
 
 | failure | behavior | reason |
 |---|---|---|
-| Upstream superpowers plugin missing | BLOCKED (install superpowers) | Block policy: no silent fallback |
-| Grilling plugin missing | BLOCKED (install mattpocock-skills) | Block policy: no degradation |
+| Upstream superpowers plugin missing | BLOCKED (install superpowers — see the kairos README's 'Upstream dependency install' table) | Block policy: no silent fallback |
+| Grilling plugin missing | BLOCKED (install mattpocock-skills — see the kairos README's 'Upstream dependency install' table) | Block policy: no degradation |
 | Phase inventory missing / unparseable | BLOCKED (overall-sync-failed) | Registration gate cannot run |
 | Registering with predecessor Design spec ≠ Done | BLOCKED (serial-phase) | Never release grilling for an unmet phase |
 | Four-table sync inconsistent | BLOCKED (overall-sync-failed) | Refuse to register an inconsistent phase |

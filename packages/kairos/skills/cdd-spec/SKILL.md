@@ -12,7 +12,7 @@ Writes a single (non-phase) spec from the writing-spec import, reviews it under 
 ```mermaid
 flowchart TD
   A[run-writing-spec-session] -->|landed| C[author-spec]
-  A -->|missing| Z1((BLOCKED: install superpowers))
+  A -->|missing| Z1((BLOCKED: install superpowers — see README 'Upstream dependency install'))
   C --> D[spec-review]
   D --> E{status?}
   E -->|CHANGES_REQUESTED / REVIEW_FIX| F[fix-spec]
@@ -38,8 +38,8 @@ flowchart TD
 
 - **Do**: Import `/superpowers:brainstorming`（pi：/skill:brainstorming） (writing-spec import) — its flow is consumed inline as this session's baseline; it lands the design decisions this single spec will capture
 - **Read**: nothing before the import; the import lands the design
-- **Exit**: Import landed → `author-spec`; upstream missing → BLOCKED (install superpowers)
-- **Fail**: Upstream superpowers plugin missing → BLOCKED: install superpowers (no downgrade, no skip, no inline restatement)
+- **Exit**: Import landed → `author-spec`; upstream missing → BLOCKED (install superpowers — see the kairos README's 'Upstream dependency install' table)
+- **Fail**: Upstream superpowers plugin missing → BLOCKED: install superpowers — see the kairos README's 'Upstream dependency install' table (no downgrade, no skip, no inline restatement)
 
 ### `author-spec`
 
@@ -74,7 +74,7 @@ flowchart TD
 - **Do**: Prepare the handoff to `/kairos:cdd-plan`（pi：/skill:cdd-plan） — the plan-authoring flow takes over to plan the implementation of the approved spec (flow import, consumed inline as this session's baseline; not a session spawn)
 - **Read**: The committed spec file
 - **Exit**: Handoff executed → flow ends for this skill
-- **Fail**: Target skill missing → BLOCKED (install kairos)
+- **Fail**: Target skill missing → BLOCKED (install kairos — see the kairos README's 'Upstream dependency install' table)
 
 ## Invariants
 
@@ -88,6 +88,6 @@ flowchart TD
 
 | failure | behavior | reason |
 |---|---|---|
-| Upstream superpowers plugin missing | BLOCKED (install superpowers) | Block policy: no silent fallback |
+| Upstream superpowers plugin missing | BLOCKED (install superpowers — see the kairos README's 'Upstream dependency install' table) | Block policy: no silent fallback |
 | spec-review re-run after a closure conclusion (REVIEW_FIX / APPROVED) | Violates I1 (Review Convergence) — stop + report to user | Agent re-routes to a new review after the previous review already closed (REVIEW_FIX / APPROVED) without opening a new ref |
 | Git commit error | report + fail-open | Do not block user spec review |

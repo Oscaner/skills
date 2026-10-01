@@ -12,7 +12,7 @@ Writes a single phase's spec document (increment only) from the writing-spec imp
 ```mermaid
 flowchart TD
   A[run-writing-spec-session] -->|landed| B[read-schema]
-  A -->|missing| Z1((BLOCKED: install superpowers))
+  A -->|missing| Z1((BLOCKED: install superpowers — see README 'Upstream dependency install'))
   B --> B2{scope changed?}
   B2 -->|yes| G[sync-overall]
   B2 -->|no| C[author-spec]
@@ -42,8 +42,8 @@ flowchart TD
 
 - **Do**: Import `/superpowers:brainstorming`（pi：/skill:brainstorming） (writing-spec import) — its flow is consumed inline as this session's baseline; it lands the design decisions (including grilling output: root cause / fix direction / technical decisions) this phase spec will capture. The grilling that produced them ran enumerate-then-grill: the requirements registered for this phase in the parent overall were enumerated item by item (each requirement's status — `[Pending]` / `Done` / dropped — cross-referenced from the phase's Phase inventory `[Pending]`/Done cells and the change-history dropped claims) and user-confirmed complete before the grilling frontier
 - **Read**: nothing before the import; the import lands the design
-- **Exit**: Import landed → `read-schema`; upstream missing → BLOCKED (install superpowers)
-- **Fail**: Upstream superpowers plugin missing → BLOCKED: install superpowers (no downgrade, no skip, no inline restatement)
+- **Exit**: Import landed → `read-schema`; upstream missing → BLOCKED (install superpowers — see the kairos README's 'Upstream dependency install' table)
+- **Fail**: Upstream superpowers plugin missing → BLOCKED: install superpowers — see the kairos README's 'Upstream dependency install' table (no downgrade, no skip, no inline restatement)
 
 ### `read-schema`
 
@@ -99,7 +99,7 @@ flowchart TD
 - **Do**: Prepare the handoff to `/kairos:cdd-plan`（pi：/skill:cdd-plan） — the plan-authoring flow takes over to plan the implementation of the approved phase spec (flow import, consumed inline as this session's baseline; not a session spawn)
 - **Read**: The committed phase spec file
 - **Exit**: Handoff executed → flow ends for this skill
-- **Fail**: Target skill missing → BLOCKED (install kairos)
+- **Fail**: Target skill missing → BLOCKED (install kairos — see the kairos README's 'Upstream dependency install' table)
 
 ## Invariants
 
@@ -114,7 +114,7 @@ flowchart TD
 
 | failure | behavior | reason |
 |---|---|---|
-| Upstream superpowers plugin missing | BLOCKED (install superpowers) | Block policy: no silent fallback |
+| Upstream superpowers plugin missing | BLOCKED (install superpowers — see the kairos README's 'Upstream dependency install' table) | Block policy: no silent fallback |
 | Schema missing/unreadable | BLOCKED (missing schema) | Cannot determine phase spec structure |
 | Parent overall unparseable / sync inconsistent | BLOCKED (overall-sync-failed) | Refuse to write a phase spec against a stale overall |
 | spec-review re-run after a closure conclusion (REVIEW_FIX / APPROVED) | Violates I1 (Review Convergence) — stop + report to user | Agent re-routes to a new review after the previous review already closed (REVIEW_FIX / APPROVED) without opening a new ref |

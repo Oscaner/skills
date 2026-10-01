@@ -12,7 +12,7 @@ Writes the program-level (overall) spec from the writing-spec import, reviews it
 ```mermaid
 flowchart TD
   A[run-writing-spec-session] -->|landed| B[read-schema]
-  A -->|missing| Z1((BLOCKED: install superpowers))
+  A -->|missing| Z1((BLOCKED: install superpowers — see README 'Upstream dependency install'))
   B --> C[author-spec]
   C --> D[spec-review]
   D --> E{status?}
@@ -39,8 +39,8 @@ flowchart TD
 
 - **Do**: Import `/superpowers:brainstorming`（pi：/skill:brainstorming） (writing-spec import) — its flow is consumed inline as this session's baseline; it lands the design decisions (including the program charter and phase decomposition) this overall spec will capture
 - **Read**: nothing before the import; the import lands the design
-- **Exit**: Import landed → `read-schema`; upstream missing → BLOCKED (install superpowers)
-- **Fail**: Upstream superpowers plugin missing → BLOCKED: install superpowers (no downgrade, no skip, no inline restatement)
+- **Exit**: Import landed → `read-schema`; upstream missing → BLOCKED (install superpowers — see the kairos README's 'Upstream dependency install' table)
+- **Fail**: Upstream superpowers plugin missing → BLOCKED: install superpowers — see the kairos README's 'Upstream dependency install' table (no downgrade, no skip, no inline restatement)
 
 ### `read-schema`
 
@@ -96,7 +96,7 @@ flowchart TD
 
 | failure | behavior | reason |
 |---|---|---|
-| Upstream superpowers plugin missing | BLOCKED (install superpowers) | Block policy: no silent fallback |
+| Upstream superpowers plugin missing | BLOCKED (install superpowers — see the kairos README's 'Upstream dependency install' table) | Block policy: no silent fallback |
 | Schema missing/unreadable | BLOCKED (missing schema) | Cannot determine overall spec structure |
 | spec-review re-run after a closure conclusion (REVIEW_FIX / APPROVED) | Violates I1 (Review Convergence) — stop + report to user | Agent re-routes to a new review after the previous review already closed (REVIEW_FIX / APPROVED) without opening a new ref |
 | Git commit error | report + fail-open | Do not block user spec review |

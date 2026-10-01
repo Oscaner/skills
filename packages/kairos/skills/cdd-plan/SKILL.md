@@ -12,7 +12,7 @@ Writes a plan document from an approved spec, backfills the design when planning
 ```mermaid
 flowchart TD
   A[run-cdd-plan-session] -->|landed| B[backfill-design]
-  A -->|missing| Z1((BLOCKED: install superpowers))
+  A -->|missing| Z1((BLOCKED: install superpowers — see README 'Upstream dependency install'))
   B --> C[author-plan]
   C --> D[plan-review]
   D --> E{status?}
@@ -29,8 +29,8 @@ flowchart TD
 
 - **Do**: Import `/superpowers:writing-plans`（pi：/skill:writing-plans） — its flow is consumed inline as this session's baseline (loading an upstream skill imports its flow once; no second spawn) to plan the approved spec; it lands the draft plan (session-call; the upstream document is not read)
 - **Read**: nothing before the import; the import plans from the approved spec and lands the draft plan
-- **Exit**: Import landed → `backfill-design`; upstream missing → BLOCKED (install superpowers)
-- **Fail**: Upstream superpowers plugin missing → BLOCKED: install superpowers (no downgrade, no skip, no inline restatement)
+- **Exit**: Import landed → `backfill-design`; upstream missing → BLOCKED (install superpowers — see the kairos README's 'Upstream dependency install' table)
+- **Fail**: Upstream superpowers plugin missing → BLOCKED: install superpowers — see the kairos README's 'Upstream dependency install' table (no downgrade, no skip, no inline restatement)
 
 ### `backfill-design`
 
@@ -72,7 +72,7 @@ flowchart TD
 - **Do**: Prepare the handoff to `/kairos:cdd-dev`（pi：/skill:cdd-dev） — its `cdd` implement → review → fix orchestration takes over to implement the approved plan (flow handoff, not a session spawn; the cdd chain drives the work)
 - **Read**: The committed plan file
 - **Exit**: Handoff executed → flow ends for this skill
-- **Fail**: Target skill missing → BLOCKED (install kairos)
+- **Fail**: Target skill missing → BLOCKED (install kairos — see the kairos README's 'Upstream dependency install' table)
 
 ## Invariants
 
@@ -87,6 +87,6 @@ flowchart TD
 
 | failure | behavior | reason |
 |---|---|---|
-| Upstream superpowers plugin missing | BLOCKED (install superpowers) | Block policy: no silent fallback |
+| Upstream superpowers plugin missing | BLOCKED (install superpowers — see the kairos README's 'Upstream dependency install' table) | Block policy: no silent fallback |
 | Design drift not backfilled before plan-review | BLOCKED (design-backfill violation) | spec and plan must agree before review |
 | Git commit error | report + fail-open | Do not block user plan review |

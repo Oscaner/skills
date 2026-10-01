@@ -41,7 +41,6 @@ const ROOT = path.resolve(HERE, "..", "..");
 const ENGINE_PKG_REL = path.join("packages", "cdd-engine");
 const enginePath = (...segments: string[]): string => path.join(ROOT, ENGINE_PKG_REL, ...segments);
 const ENGINE_SCHEMA_DIR = enginePath(...RESOURCE_SPECS.schema.source); // <pkg>/config/schema
-const ENGINE_CONFIG_DIR = enginePath(...RESOURCE_SPECS["engine-config"].source); // <pkg>/config
 const relEngine = (abs: string): string => path.relative(ROOT, abs);
 
 const OSKILLS = ["packages/kairos/skills"];

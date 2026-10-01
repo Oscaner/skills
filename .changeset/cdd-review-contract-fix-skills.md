@@ -1,5 +1,5 @@
 ---
-"@oscaner-skills/osuperpowers": patch
+"@oscaner-skills/kairos": patch
 ---
 
 fix: reviews route on the engine-printed `next:` suggestion; status meanings unified.

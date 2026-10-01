@@ -263,6 +263,18 @@ const STALE_LEXICON_CHECKS = [
     re: /\bfix-loop-exhausted\b|\btimeout-exhausted\b/,
     scope: [...ALL_MECH_POSITIONS, ...DOC_SURFACE_TARGETS],
   },
+  // Task 1/2 (pi-harness): the retired osuperpowers→kairos naming guard — the retired package /
+  // namespace token zero-exemption on all mechanism positions + the governance doc surface. The
+  // word-bounded form covers every retired shape (bare token / osuperpowers:<old-name> /
+  // packages/osuperpowers / docs/osuperpowers); the historical corpus (CHANGELOGs, existing
+  // changesets, docs/kairos specs+plans prose) sits outside the scope targets, so it stays exempt.
+  // scripts/ is in no scope — the guard body keeps zero self-hit risk (same stance as the other
+  // checks in this file).
+  {
+    label: "retired osuperpowers naming (→ kairos)",
+    re: /\bosuperpowers\b/,
+    scope: [...ALL_MECH_POSITIONS, ...DOC_SURFACE_TARGETS],
+  },
 ];
 
 // T6 (P5): gate-specific vocabulary zero-exemption (mirrors the P6 F5 stale-lexicon guard; same

@@ -3,7 +3,7 @@
 **Spec:** [2026-09-27-pi-harness-p4-design.md](docs/kairos/specs/2026-09-27-pi-harness-p4-design.md)
 
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.22](docs/kairos/specs/2026-09-27-pi-harness-overall.md)
-- **Version**: v1.2 · 2026-10-01（user 拍板 kairos 命名全面退役折入——包身份 / workspace 根 / 文档树 git mv，零存量；plan-review-1 六项已随 v1.1 落地）
+- **Version**: v1.3 · 2026-10-01（实现尾段追加 Task 7：pi 行 prefix 惯用法修正——用户 2026-10-01 指正 pi 行镜像 claude/cursor 的 `/ns:name` 引用在 pi 上无语义；plan-review-1 六项随 v1.1、kairos 命名退役随 v1.2）
 - **Depends on**: P4 design v1.4 Approved（`0f279ded` · `4db6049c`，C1–C6）
 - **Base**: develop
 
@@ -33,13 +33,13 @@
 ### Flow Atomicity
 
 - 单任务/合并组原子：闭合前该面测试 + 相关 validate 面全绿；目录×name 双钉 / 三方一致 / 声称字面量 pin 破 = 设计漂移信号，报告 orchestrator 判定而非带伤闭合
-- 串行 dispatch：`--tasks 1,2` → 3 → `--tasks 4,5` → 6（两组 merge 见 `## Task Groups`；T1/T2 与 T4/T5 各自同一原子单位）
+- 串行 dispatch：`--tasks 1,2` → 3 → `--tasks 4,5` → 6 → 7（两组 merge 见 `## Task Groups`；T1/T2 与 T4/T5 各自同一原子单位）
 - **T1/T2 必须同组**：改名面改动立即使 emit 产物 stale——`.github/ISSUE_TEMPLATE/*.yml`（emit-checked）数据源 `templates/report/issue-body.json` 技能选项含旧名，issue-body.json 改名后不重生成即漂移，分开 dispatch 中间态 emit:check 全链红（`./skills/<dir>` 键说法不成立——claude/cursor plugin manifests 的 `skills` = 常数 glob `"./skills/"` 相对 contentRoot，改名不改其内容；改名分步提交时 checkAnatomy/树守卫同样红）；**v1.2 拓展**：改名面含包身份（`osuperpowers` → `kairos`，source.json name/contentRoot 随 emit）与 workspace 根（`.osuperpowers` → `.kairos`，engine-config 单源 + engine dev:stub 重写 + 锁文件重写）——全部折入同原子单位
 - **T4/T5 必须同组**：README 铺设即破既有声称 pin（presentation-surface 的 pair 声称面），pin 延展必须与铺设同时闭合
 
 ### 顺序原则
 
-- T1/T2（改名原子单位：目录 + name + 引用 + 测试文件名 + 字面量 + emit 重生成）→ T3（markers 数据 + checkMarkers guard）→ T4/T5（README 铺设 + pin 延展，名义表消耗 T3 markers 数据）→ T6（changeset + validate 终验）
+- T1/T2（改名原子单位：目录 + name + 引用 + 测试文件名 + 字面量 + emit 重生成）→ T3（markers 数据 + checkMarkers guard）→ T4/T5（README 铺设 + pin 延展，名义表消耗 T3 markers 数据）→ T6（changeset + validate 终验）→ T7（pi 行 prefix 惯用法修正 + pin，独立单例组）
 - T1 必为首：全仓后续引用全用新名；T3 先于 T4：名义表渲染依赖 `markers` 数据就位；T4 先于 T5（同组内）：pin 断言 README 产物
 
 ### 仓库纪律

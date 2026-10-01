@@ -1,6 +1,6 @@
 # Pi Harness P4 — 技能改名 + 命名退役 + 文档·测试·收口（Pi Harness P4: Skill Rename + Naming Retirement + Docs · Tests · Closeout）— Phase Spec
 
-- **Version**: v1.4 · 2026-10-01（user 拍板：命名全面退役 `osuperpowers` → `kairos`——插件包/namespace/workspace 根/文档树；`cdd`·`cdd-engine`·CLI 保留；零存量迁移、git mv 直迁）
+- **Version**: v1.5 · 2026-10-01（backfill-after-discussion 追加 C7：engine 静态数据面重组——config/ 单一数据家 + resolveResource 唯一路径真相；v1.4 kairos 命名全面退役页保留）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming → writing-phase-spec)
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.22](2026-09-27-pi-harness-overall.md)
@@ -25,7 +25,7 @@
 
 #### 2.1 目标与范围
 
-P4 使 kairos（前 osuperpowers）的**技能身份**完成程序级统一：8 技能全量改名 `cdd-*`（含 `skills/` 目录名——单身份零债务，user 裁定；三 harness invocation 面同步变，breaking），配套命名机制（SKILL.md `name` 单源 + 目录扫描守卫），并把 pi 身份落到消费者文档面（README 家族矩阵 + `pi install` 段 + 名义映射表数据渲染 + D5 消费故事改写），最后以测试延展 + changeset 收口。现状实证（grilling fact-finder）：README 家族 6 文件全线 pre-pi（零 `pi` / `pi-package` 提及，per-harness 表只有 claude/cursor 两行）；live 面 `cursor-agent` 系 osuperpowers README CDD engine CLI 表行（EN `README.md:72` + zh 镜像 `README.zh-CN.md:74` 同形，共 4 token）；名义映射表任何位置不存在（只有 spec 承诺）；D5 故事零 live 呈现。范围外：engine 运行逻辑（detect / spawn / registry 面）零改动（P3 已闭环）；不合并 engine 与 emit 注册表（Non-goal #2）；不做结构性技能合并（3 个 writing-* 并 1 带 mode——裁定拒，rationale 见 2.2 C1 裁定备注）。
+P4 使 kairos（前 osuperpowers）的**技能身份**完成程序级统一：8 技能全量改名 `cdd-*`（含 `skills/` 目录名——单身份零债务，user 裁定；三 harness invocation 面同步变，breaking），配套命名机制（SKILL.md `name` 单源 + 目录扫描守卫），并把 pi 身份落到消费者文档面（README 家族矩阵 + `pi install` 段 + 名义映射表数据渲染 + D5 消费故事改写），最后以测试延展 + changeset 收口。现状实证（grilling fact-finder）：README 家族 6 文件全线 pre-pi（零 `pi` / `pi-package` 提及，per-harness 表只有 claude/cursor 两行）；live 面 `cursor-agent` 系 osuperpowers README CDD engine CLI 表行（EN `README.md:72` + zh 镜像 `README.zh-CN.md:74` 同形，共 4 token）；名义映射表任何位置不存在（只有 spec 承诺）；D5 故事零 live 呈现。范围外：engine 运行逻辑（detect / spawn / registry 面）零改动（P3 已闭环）；不合并 engine 与 emit 注册表（Non-goal #2）；不做结构性技能合并（3 个 writing-* 并 1 带 mode——裁定拒，rationale 见 2.2 C1 裁定备注）。**范围增项（v1.5 backfill-after-discussion，user 2026-10-01 拍板）**：engine 静态数据面重组（C7）——散落于 `src/infra/` / `src/documents/schema/` / `templates/` 的配置·注册表·词汇·契约·schema JSON 收编为 `config/` 单一数据家，`templates/` 只留内容渲染种子（`report/issue-body.json`），`resolveResource()` 唯一路径真相（dev 树 ↔ dist 打包树同构、零路径分叉零散落硬编码）；纯内部结构 patch 级（CLI 面 / registry / lexicon 数据语义零变化）。
 
 #### 2.2 组件
 
@@ -81,6 +81,14 @@ P4 使 kairos（前 osuperpowers）的**技能身份**完成程序级统一：8 
 - CHANGELOG 行由 Version PR `changeset version` 流程生成（不手改）；root README 插件表零字面版本号（既有 probe 守卫）
 - 版本单源：`package.json` → emit 重 stamp（overall 已记录此流）
 
+**C7 engine 静态数据面重组（v1.5 backfill-after-discussion，user 2026-10-01 拍板）** — 配置/注册表/schema 收编 + 唯一路径真相：
+- **二进制分类原则**：静态 JSON 只二类——**读作数据**（engine/scripts 原样读）vs **渲染/拷贝产物种子**（engine 渲染或 emit 拷贝出去）；左者归 `config/`，右者留 `templates/`
+- **`config/` 家（唯一静态数据家）**：`engine-config.json`（运行时配置）· `harness-registry.json`（harness 注册表——dev 树与 dist 打包树同构，消灭既有 `src/infra/` vs `dist/resources/` 路径分叉）· `contract-lexicon.json`（词汇表单源）· `template-contract.json`（dispatch 契约注册表）· `schema/` 子目 = **全部 JSON Schema**（doc 5：overall/phase-spec/plan/add-phase-protocol/skill-anatomy + handoff 2：task/docs + cache-profile——从 `src/documents/schema/` 与 `templates/schema/` 两处毕业归一；doc word = code word = engine token：词汇表与 doc schema 同族同家）
+- **`templates/` 纯净**：仅内容种子（`report/issue-body.json` 渲染出 gh ISSUE_TEMPLATE + `cdd issue render`）
+- **`resolveResource()` 唯一路径真相**：`src/infra/resource.ts` 的 `resolvePackageRoot` 升级为 logical-name → path 决议（logical name 表 = 唯一路径真相，dev 树与 dist 打包树同构镜像）；engine 六消费点 `path.join(resolvePackageRoot(__dirname), …)`（config.ts / registry.ts / render/templates.ts / documents/schema.ts / rules/schema.ts / domain/issue-renderer.ts）全收编；smoke-cdd tarball pin / residue 路径 pin / scripts/lib/contract-lexicon 数据源全改为**从 locator 数据派生**（零第二份字面路径）
+- 构建/发布面：`package.json#files` 发 `config/` + `templates/`（内容种子）+ `dist/`；构建把 config 镜像到 dist/config，删除旧 `dist/resources` 分叉
+- 范围口径：纯内部结构重组——消费者 CLI 面零变化、registry/lexicon 数据语义零变化（T7 pi prefix 值修正先行且独立，v1.5 不动其身）；cdd-engine patch 级（T6 changeset 覆盖，无需新 changeset）；文件名保留（`schema/` 子目内 `-schema` 词缀冗余为显式非变更）
+
 #### 2.3 数据流
 
 `skills/` SKILL.md `name`（单源）→ 目录扫描守卫（测试）→ README 清单 / pi 包面 pin；`contract-lexicon.json` `markers`（engine 数据）→ `checkMarkers` 三方一致 → README 名义表数据派生 + 漂移守卫；`cdd-*` 改名 → `pnpm run emit` 重生成 manifests / marketplace / source.json；changeset（major + patch）→ Version PR `changeset version && emit` → CHANGELOG + 版本重 stamp。
@@ -113,6 +121,7 @@ P4 使 kairos（前 osuperpowers）的**技能身份**完成程序级统一：8 
 - `pnpm run precommit` 与 `pnpm run validate` 全块全绿（零新 validate step；ci-validate 编排断言零新 step，assertion-set 随 token 扫改名）
 - kairos changeset（major）+ cdd-engine changeset（patch）已建（pending manifest-pin 包字段重定向 `@oscaner-skills/kairos`）；CHANGELOG 记录由 Version PR 流程承接
 - P4 closeout 时四表回填一致（phase spec / plan 列 → Done，change-history v1.22+ 行）
+- **engine 静态数据面重组（v1.5 增）**：`config/` 落位（读作数据全归位——engine-config / harness-registry / contract-lexicon / template-contract + `schema/` 子目全部 JSON Schema：doc 5 / handoff 2 / cache-profile）且 `templates/` 仅含内容种子（issue-body.json）；`resolveResource()` = 唯一路径真相——engine 六消费面零散落 `path.join(pkgRoot, "…")` 硬编码、smoke-cdd / residue / contract-lexicon pin 全从 locator 数据派生、dev 树 ↔ dist 打包树 `config/` 同构（旧 `dist/resources` 零残留）；`package.json#files` 随发 config；engine/scripts 测试 + precommit 全绿（T6 终验兜）
 
 ## Section 3: Deviations from overall
 

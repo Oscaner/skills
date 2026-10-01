@@ -1,6 +1,6 @@
 # Pi Harness 支持 P5 — 编译面收敛与结算（Phase Design Spec）
 
-- **Version**: v1.0 · 2026-10-02
+- **Version**: v1.2 · 2026-10-02（review 循环收口：r1 七 finding 落地——发布面 files/main/exports 修指 dist · engine/scripts 门禁入配置面 + engine erasableSyntaxOnly · kairos-tests 10+1 计数 · engine README/05 改面 + retired 转述措辞；r2 二 finding 落地——task/branch lensEnum 接 buildability · CDD_MJS 实测计数；v1.0 定稿形态保持）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（kairos:cdd-design → grilling → cdd-phase）
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.27](2026-09-27-pi-harness-overall.md)
@@ -119,5 +119,8 @@ Cross-phase 约定属 parent overall，本 spec 不复述（overall wins on conf
 
 ## Section 5: Review
 
-- **spec-review 循环记录**（Review Convergence I1）：`cdd review --type spec --spec docs/kairos/specs/2026-09-27-pi-harness-p5-design.md` 状态与 fix 落地记录于此（评审完成时逐行回填）
-- 基线 = committed tree（v1.27 overall（db489699）+ 本 spec author 后树态）；Review Convergence：blocker > 0 → fix 全 finding → re-review；blocker = 0 → fix 全 finding → done，无 re-review
+- **spec-review 循环记录**（Review Convergence I1，`cdd review --type spec` 逐循环）：
+  - **r1**（v1.0，base `13ec3860`）：`CHANGES_REQUESTED · blocker 1`（+3 warn +3 nit）→ `cdd fix`（`spec-fix-1`，commit `ba60cfa2`）——blocker = 发布面 `files` 丢 `dist/` 且带 `src/`（与 bin/发布必 JS 矛盾）→ 修指 `["dist/","config/","templates/"]` + bin/main/exports 改指 `dist/bin.js`；warns = engine 缺 `erasableSyntaxOnly`（主 strip 运行时镜像）→ 补；配置面不入闸 → scripts include 扩 root configs + engine include 扩 `vitest.config.ts`；kairos-tests 计数 11→10+1；engine README 对入改面；nits = 05 retired 转述措辞、main/exports re-point
+  - **r2**（fix-1 后，base `ba60cfa2`）：`REVIEW_FIX · blocker 0`（1 warn + 1 nit）→ `cdd fix`（`spec-fix-2`，commit `b6e141f6`）——warn = `buildability` 未入 `reviews.task/branch.lensEnum`（REVIEW_LENS_GUIDE 由 lensEnum 派生，lens-tag 需可强制）→ 补 + 守卫并判成员；nit = CDD_MJS「~13 处」→ 实测 9 定义 · 11 调用
+  - **closure**：blocker = 0 → fix 全 → done 无 re-review；评审记录终状 = 11 findings 全落地、零 blocker 残
+- 基线 = committed tree（v1.27 overall（`db489699`）· spec v1.0（`13ec3860`）· fix-1（`ba60cfa2`）· fix-2（`b6e141f6`））；Review Convergence：blocker > 0 → fix 全 finding → re-review；blocker = 0 → fix 全 finding → done，无 re-review

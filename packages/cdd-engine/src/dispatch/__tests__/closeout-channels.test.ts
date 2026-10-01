@@ -23,7 +23,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { resolveWorkspace } from "../../artifacts/handoff/naming.ts";
+import { WorkspaceRoot } from "../../infra/workspace.ts";
 import { BranchReviewLifecycle } from "../branch.ts";
 
 /**
@@ -309,7 +309,7 @@ describe("post-flight statusValidate — base default + the CDD_CLOSEOUT highlig
         return p.plan1;
       }
       protected async dispatch(_hookCtx: DispatchHookContext): Promise<void> {
-        const ws = resolveWorkspace(p.plan1, repo);
+        const ws = WorkspaceRoot.from(repo).for(p.plan1).path;
         mkdirSync(ws, { recursive: true });
         writeFileSync(
           path.join(ws, "tasks-1-review-1.json"),

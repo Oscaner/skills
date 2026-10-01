@@ -1,9 +1,10 @@
 // packages/cdd-engine/src/rules/__tests__/next-step.test.ts
 // C5 next-step derivation (`next:` output face, spec C5-1 decision table) — the pure unit
-// surface: every row of nextStepFor is pinned here (suggestion semantics C5-0, zero new CLI
-// params C5-2, BLOCKED → no line). Row-by-row mirror of the module header table.
+// surface: every row of NextStepRouter#next is pinned here (suggestion semantics C5-0, zero new CLI
+// params C5-2, BLOCKED → no line). Row-by-row mirror of the module header table. T3: migrated to
+// instance-method assertions (the decision table rows are preserved one by one).
 import { describe, expect, it } from "vitest";
-import { consecutiveS1Count, nextStepFor, SOFT_CAP_S1_ROUNDS } from "../next-step.ts";
+import { CRASH_RECOVERY_CAP_ROUNDS, NextStepRouter, SOFT_CAP_S1_ROUNDS } from "../next-step.ts";
 
 const PLAN = "/repo/plan.md";
 const H = "/repo/.osuperpowers/cdd/fixture/tasks-1-review-1.json";
@@ -12,7 +13,7 @@ const DOC = "/repo/spec.md";
 describe("rules/next-step.ts — review face (C5-1 one-way)", () => {
   it("review task with findings (blocker severity) → one-way cdd fix line", () => {
     expect(
-      nextStepFor({
+      new NextStepRouter().next({
         op: "review",
         type: "task",
         group: "1",
@@ -26,7 +27,7 @@ describe("rules/next-step.ts — review face (C5-1 one-way)", () => {
 
   it("review task with warn/nit findings → same one-way fix line (severity does not branch the review)", () => {
     expect(
-      nextStepFor({
+      new NextStepRouter().next({
         op: "review",
         type: "task",
         group: "1",
@@ -40,7 +41,7 @@ describe("rules/next-step.ts — review face (C5-1 one-way)", () => {
 
   it("review spec with findings → type-self-describing --spec target", () => {
     expect(
-      nextStepFor({
+      new NextStepRouter().next({
         op: "review",
         type: "spec",
         doc: DOC,
@@ -54,7 +55,7 @@ describe("rules/next-step.ts — review face (C5-1 one-way)", () => {
 
   it("review plan with findings → type-self-describing --plan target", () => {
     expect(
-      nextStepFor({
+      new NextStepRouter().next({
         op: "review",
         type: "plan",
         doc: "/repo/plan.md",
@@ -68,7 +69,7 @@ describe("rules/next-step.ts — review face (C5-1 one-way)", () => {
 
   it("review branch with findings → branch fix line (no --tasks)", () => {
     expect(
-      nextStepFor({
+      new NextStepRouter().next({
         op: "review",
         type: "branch",
         plan: PLAN,
@@ -84,7 +85,7 @@ describe("rules/next-step.ts — review face (C5-1 one-way)", () => {
 describe("rules/next-step.ts — review zero-findings terminal (approved)", () => {
   it("task review zero findings + a remaining group → next-group implement", () => {
     expect(
-      nextStepFor({
+      new NextStepRouter().next({
         op: "review",
         type: "task",
         group: "1",
@@ -98,7 +99,7 @@ describe("rules/next-step.ts — review zero-findings terminal (approved)", () =
 
   it("task review zero findings + all groups done → terminal branch review", () => {
     expect(
-      nextStepFor({
+      new NextStepRouter().next({
         op: "review",
         type: "task",
         group: "1",
@@ -112,7 +113,7 @@ describe("rules/next-step.ts — review zero-findings terminal (approved)", () =
 
   it("task review zero findings + all groups done + known range → branch review with base/head", () => {
     expect(
-      nextStepFor({
+      new NextStepRouter().next({
         op: "review",
         type: "task",
         group: "1",
@@ -128,7 +129,7 @@ describe("rules/next-step.ts — review zero-findings terminal (approved)", () =
 
   it("task review zero findings + no remaining-group facts → none (conservative default)", () => {
     expect(
-      nextStepFor({
+      new NextStepRouter().next({
         op: "review",
         type: "task",
         group: "1",
@@ -142,7 +143,13 @@ describe("rules/next-step.ts — review zero-findings terminal (approved)", () =
   it("spec/plan/branch review zero findings → none", () => {
     for (const type of ["spec", "plan", "branch"] as const) {
       expect(
-        nextStepFor({ op: "review", type, plan: PLAN, findings: [], status: "APPROVED" }),
+        new NextStepRouter().next({
+          op: "review",
+          type,
+          plan: PLAN,
+          findings: [],
+          status: "APPROVED",
+        }),
       ).toBe("none");
     }
   });
@@ -151,7 +158,7 @@ describe("rules/next-step.ts — review zero-findings terminal (approved)", () =
 describe("rules/next-step.ts — fix face (C5-1 single decision point via --findings input)", () => {
   it("fix input findings with blocker>0 (task) → re-review line", () => {
     expect(
-      nextStepFor({
+      new NextStepRouter().next({
         op: "fix",
         type: "task",
         group: "1",
@@ -164,7 +171,7 @@ describe("rules/next-step.ts — fix face (C5-1 single decision point via --find
 
   it("fix input findings with blocker>0 (branch) → re-review with the range", () => {
     expect(
-      nextStepFor({
+      new NextStepRouter().next({
         op: "fix",
         type: "branch",
         plan: PLAN,
@@ -178,7 +185,7 @@ describe("rules/next-step.ts — fix face (C5-1 single decision point via --find
 
   it("fix input findings with blocker>0 (spec) → re-review with --spec", () => {
     expect(
-      nextStepFor({
+      new NextStepRouter().next({
         op: "fix",
         type: "spec",
         doc: DOC,
@@ -190,7 +197,7 @@ describe("rules/next-step.ts — fix face (C5-1 single decision point via --find
 
   it("fix input findings with blocker>0 (plan) → re-review with --plan", () => {
     expect(
-      nextStepFor({
+      new NextStepRouter().next({
         op: "fix",
         type: "plan",
         doc: "/repo/other-plan.md",
@@ -202,7 +209,7 @@ describe("rules/next-step.ts — fix face (C5-1 single decision point via --find
 
   it("fix input findings warn/nit-only → none (收口轮自然化 — no re-review preview)", () => {
     expect(
-      nextStepFor({
+      new NextStepRouter().next({
         op: "fix",
         type: "task",
         group: "1",
@@ -215,7 +222,7 @@ describe("rules/next-step.ts — fix face (C5-1 single decision point via --find
 
   it("fix input zero findings → none", () => {
     expect(
-      nextStepFor({
+      new NextStepRouter().next({
         op: "fix",
         type: "task",
         group: "1",
@@ -228,7 +235,7 @@ describe("rules/next-step.ts — fix face (C5-1 single decision point via --find
 
   it("fix soft cap → BLOCKED: review-cycle-cap — user adjudicates", () => {
     expect(
-      nextStepFor({
+      new NextStepRouter().next({
         op: "fix",
         type: "task",
         group: "1",
@@ -242,7 +249,7 @@ describe("rules/next-step.ts — fix face (C5-1 single decision point via --find
 
   it("fix soft cap outranks the blocker>0 re-review row (the adjudication marker wins)", () => {
     expect(
-      nextStepFor({
+      new NextStepRouter().next({
         op: "fix",
         type: "task",
         group: "1",
@@ -263,32 +270,42 @@ describe("rules/next-step.ts — consecutive-S1 soft-cap basis (C5-1 'ref 序列
     expect(SOFT_CAP_S1_ROUNDS).toBeGreaterThanOrEqual(2);
   });
 
+  it("CRASH_RECOVERY_CAP_ROUNDS exports the T8 fold-D soft cap (the task face compares its recovery count against it)", () => {
+    expect(CRASH_RECOVERY_CAP_ROUNDS).toBe(3);
+  });
+
   it("counts only the LEADING consecutive S1 rounds (newest first) and stops at the first non-S1", () => {
-    expect(consecutiveS1Count([SOME, SOME, SOME, WARN, SOME, SOME])).toBe(3);
+    expect(new NextStepRouter().consecutiveS1Count([SOME, SOME, SOME, WARN, SOME, SOME])).toBe(3);
   });
 
   it("a warn/nit-only (or empty) first round → 0 (no run started)", () => {
-    expect(consecutiveS1Count([WARN, SOME, SOME])).toBe(0);
-    expect(consecutiveS1Count([[], SOME])).toBe(0);
-    expect(consecutiveS1Count([])).toBe(0);
+    expect(new NextStepRouter().consecutiveS1Count([WARN, SOME, SOME])).toBe(0);
+    expect(new NextStepRouter().consecutiveS1Count([[], SOME])).toBe(0);
+    expect(new NextStepRouter().consecutiveS1Count([])).toBe(0);
   });
 
   it("null/undefined/absent rounds end the run (unreadable history degrades, never throws)", () => {
-    expect(consecutiveS1Count([SOME, null, SOME])).toBe(1);
-    expect(consecutiveS1Count([undefined])).toBe(0);
+    expect(new NextStepRouter().consecutiveS1Count([SOME, null, SOME])).toBe(1);
+    expect(new NextStepRouter().consecutiveS1Count([undefined])).toBe(0);
   });
 });
 
 describe("rules/next-step.ts — implement + failure lanes", () => {
   it("implement APPROVED → the group's review is the next hop", () => {
     expect(
-      nextStepFor({ op: "implement", type: "task", group: "1", plan: PLAN, status: "APPROVED" }),
+      new NextStepRouter().next({
+        op: "implement",
+        type: "task",
+        group: "1",
+        plan: PLAN,
+        status: "APPROVED",
+      }),
     ).toBe(`cdd review --type task --tasks 1 --plan ${PLAN}`);
   });
 
   it("BLOCKED status → null (no next: line — the failure-mode stderr face owns it)", () => {
     expect(
-      nextStepFor({
+      new NextStepRouter().next({
         op: "review",
         type: "task",
         status: "BLOCKED",
@@ -296,23 +313,25 @@ describe("rules/next-step.ts — implement + failure lanes", () => {
       }),
     ).toBeNull();
     expect(
-      nextStepFor({
+      new NextStepRouter().next({
         op: "fix",
         type: "task",
         status: "BLOCKED",
         findings: [{ severity: "blocker" }],
       }),
     ).toBeNull();
-    expect(nextStepFor({ op: "implement", type: "task", status: "BLOCKED" })).toBeNull();
+    expect(
+      new NextStepRouter().next({ op: "implement", type: "task", status: "BLOCKED" }),
+    ).toBeNull();
   });
 
   it("TIMEOUT status → null", () => {
-    expect(nextStepFor({ op: "review", type: "task", status: "TIMEOUT" })).toBeNull();
+    expect(new NextStepRouter().next({ op: "review", type: "task", status: "TIMEOUT" })).toBeNull();
   });
 
   it("unknown-type review falls through to the default (none)", () => {
     expect(
-      nextStepFor({
+      new NextStepRouter().next({
         op: "review",
         type: "unknown" as never,
         findings: [{ severity: "blocker" }],
@@ -321,7 +340,7 @@ describe("rules/next-step.ts — implement + failure lanes", () => {
   });
 
   it("degraded facts (missing plan/group/doc) never render 'undefined' — the suggestion shortens", () => {
-    const out = nextStepFor({
+    const out = new NextStepRouter().next({
       op: "review",
       type: "task",
       findings: [{ severity: "blocker" }],
@@ -329,5 +348,103 @@ describe("rules/next-step.ts — implement + failure lanes", () => {
     });
     expect(out).toBe(`cdd fix --type task --findings ${H}`);
     expect(out).not.toContain("undefined");
+  });
+});
+
+describe("rules/next-step.ts — crash-record recovery row (T7/T8)", () => {
+  const RESUME = {
+    snapshotSha: "a".repeat(40),
+    resumeCommand: "cdd implement --tasks 1 --plan /repo/plan.md",
+  };
+
+  it("BLOCKED + crash record present → next: <same command resume> (verbatim from the record)", () => {
+    expect(
+      new NextStepRouter().next({
+        op: "implement",
+        type: "task",
+        group: "1",
+        plan: PLAN,
+        status: "BLOCKED",
+        recovery: RESUME,
+      }),
+    ).toBe(RESUME.resumeCommand);
+  });
+
+  it("TIMEOUT + crash record present → next: <same command resume> (T8 — the teardown matrix: every pre-exit-gate termination carries the same-command resume, the recovery row now covers BLOCKED and TIMEOUT)", () => {
+    expect(
+      new NextStepRouter().next({
+        op: "implement",
+        type: "task",
+        group: "1",
+        plan: PLAN,
+        status: "TIMEOUT",
+        recovery: RESUME,
+      }),
+    ).toBe(RESUME.resumeCommand);
+  });
+
+  it("BLOCKED without a crash record → null (the failure-mode no-next: face stands)", () => {
+    expect(
+      new NextStepRouter().next({ op: "implement", type: "task", status: "BLOCKED" }),
+    ).toBeNull();
+  });
+
+  it("TIMEOUT without a crash record → null (recordless failure stays next-less)", () => {
+    expect(new NextStepRouter().next({ op: "review", type: "task", status: "TIMEOUT" })).toBeNull();
+  });
+
+  it("BLOCKED + crash record outranks the C5-1 fix re-review row (recovery wins on any op)", () => {
+    expect(
+      new NextStepRouter().next({
+        op: "fix",
+        type: "task",
+        group: "1",
+        plan: PLAN,
+        status: "BLOCKED",
+        findings: [{ severity: "blocker" }],
+        recovery: {
+          snapshotSha: null,
+          resumeCommand: "cdd fix --type task --tasks 1 --plan /repo/plan.md",
+        },
+      }),
+    ).toBe("cdd fix --type task --tasks 1 --plan /repo/plan.md");
+  });
+
+  it("crash-recovery soft cap (T8 fold D) → next: BLOCKED: crash-recovery-cap — user adjudicates (the cap outranks the resume row)", () => {
+    expect(
+      new NextStepRouter().next({
+        op: "implement",
+        type: "task",
+        group: "1",
+        plan: PLAN,
+        status: "BLOCKED",
+        recovery: RESUME,
+        crashSoftCap: true,
+      }),
+    ).toBe("BLOCKED: crash-recovery-cap — user adjudicates");
+    // TIMEOUT + crash record + cap → the same adjudication marker (the recovery row covers both
+    // failure statuses, and the cap never leaks a resume command).
+    const cappedTimeout = new NextStepRouter().next({
+      op: "implement",
+      type: "task",
+      group: "1",
+      plan: PLAN,
+      status: "TIMEOUT",
+      recovery: RESUME,
+      crashSoftCap: true,
+    });
+    expect(cappedTimeout).toBe("BLOCKED: crash-recovery-cap — user adjudicates");
+    expect(cappedTimeout).not.toMatch(/^cdd /);
+  });
+
+  it("recordless BLOCKED review still stays next-less (the recovery row never invents a next:)", () => {
+    expect(
+      new NextStepRouter().next({
+        op: "review",
+        type: "task",
+        status: "BLOCKED",
+        findings: [{ severity: "blocker" }],
+      }),
+    ).toBeNull();
   });
 });

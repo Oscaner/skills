@@ -23,7 +23,7 @@
 // any doc (engine 零文档写入 — the backfill edit is orchestration's, never engine code's).
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { resolveWorkspace } from "../artifacts/handoff/naming.ts";
+import { WorkspaceRoot } from "../infra/workspace.ts";
 import { DocumentsValidator, type DocValidationFailure } from "./documents.ts";
 import { StatusJudge } from "./status.ts";
 
@@ -53,7 +53,7 @@ export interface CloseoutResult {
 
 /** CloseoutChecker — the single closeout mismatch inference face (Criterion ②; constructor injection — the
  *  DocumentsValidator + StatusJudge collaborators, defaulting to fresh instances; the plan-workspace
- *  resolution rides naming.ts resolveWorkspace, the naming single point). */
+ *  resolution rides WorkspaceRoot.for — the workspace derivation single point). */
 export class CloseoutChecker {
   readonly #documents: DocumentsValidator;
   readonly #status: StatusJudge;
@@ -71,8 +71,8 @@ export class CloseoutChecker {
    * started) → not done. The guard replaces derivePlanVerdict's own read (which would otherwise
    * materialize an empty progress.json — a write the closeout surface must never perform). */
   #planComplete(planPath: string, root: string): boolean {
-    const workspace = resolveWorkspace(planPath, root);
-    if (!existsSync(path.join(workspace, "progress.json"))) return false;
+    const workspace = WorkspaceRoot.from(root).for(planPath);
+    if (!existsSync(workspace.progressPath)) return false;
     return this.#status.derivePlanVerdict(
       planPath,
       workspace,

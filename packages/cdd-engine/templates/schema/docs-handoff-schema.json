@@ -1,11 +1,33 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "description": "Docs-family handoff contract (spec / plan review + fix rounds; the docs-family shell + return constants live in template-contract.json#sections). Doc identity is doc_path + doc_hash; write findings, not status — the engine derives status from findings (review) or trusts the declared status (fix). Each property below documents its rule. Breaking change (engine major): the docs handoff carries the same lifecycle contract core as the task family — status gains TIMEOUT and commits{base,head} lands (the reverse of the legacy 'Docs rounds carry no commits field' declaration); docs consumers that relied on the commits-free docs handoff must migrate to the unified core.",
+  "description": "Docs-family handoff contract (spec / plan review + fix rounds; the docs-family shell + return constants live in template-contract.json#sections). Doc identity is doc_path + doc_hash; write findings, not status \u2014 the engine derives status from findings (review) or trusts the declared status (fix). Each property below documents its rule. Breaking change (engine major): the docs handoff carries the same lifecycle contract core as the task family \u2014 status gains TIMEOUT and commits{base,head} lands (the reverse of the legacy 'Docs rounds carry no commits field' declaration); docs consumers that relied on the commits-free docs handoff must migrate to the unified core.",
   "type": "object",
-  "required": ["phase", "findings", "artifacts", "doc_path"],
+  "required": [
+    "phase",
+    "findings",
+    "artifacts",
+    "doc_path"
+  ],
   "properties": {
-    "phase":     { "type": "string", "enum": ["review", "fix"], "description": "dispatch phase (review / fix); determined by the engine, not authored." },
-    "status":    { "type": "string", "enum": ["APPROVED", "BLOCKED", "CHANGES_REQUESTED", "REVIEW_FIX", "TIMEOUT"], "description": "The round conclusion (this dispatch's terminal result) — APPROVED: done; CHANGES_REQUESTED: fix the findings (terminal conclusion of a review round; the fix loop runs as its own dispatch); REVIEW_FIX: the warn/nit-only review conclusion (收口态 — the review closed and its fix round routes the task to complete without a re-review, #278); BLOCKED: the round cannot proceed — the failure mechanism lives in failure_category, the reason in blocker; TIMEOUT: budget or liveness exceeded (engine-written attribution; the docs channel declares the same status enum as the task family). Orthogonal surfaces: failure_category (mechanism channel) and unverifiable[]/plan_conflicts[] (content-level notes) never fold into status. Review may omit this field — the engine derives it from findings; fix (work type) declares it and the engine passes it through. Write findings, not status." },
+    "phase": {
+      "type": "string",
+      "enum": [
+        "review",
+        "fix"
+      ],
+      "description": "dispatch phase (review / fix); determined by the engine, not authored."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "APPROVED",
+        "BLOCKED",
+        "CHANGES_REQUESTED",
+        "REVIEW_FIX",
+        "TIMEOUT"
+      ],
+      "description": "The round conclusion (this dispatch's terminal result) \u2014 APPROVED: done; CHANGES_REQUESTED: fix the findings (terminal conclusion of a review round; the fix loop runs as its own dispatch); REVIEW_FIX: the warn/nit-only review conclusion (\u6536\u53e3\u6001 \u2014 the review closed and its fix round routes the task to complete without a re-review, #278); BLOCKED: the round cannot proceed \u2014 the failure mechanism lives in failure_category, the reason in blocker; TIMEOUT: budget or liveness exceeded (engine-written attribution; the docs channel declares the same status enum as the task family). Orthogonal surfaces: failure_category (mechanism channel) and unverifiable[]/plan_conflicts[] (content-level notes) never fold into status. Review may omit this field \u2014 the engine derives it from findings; fix (work type) declares it and the engine passes it through. Write findings, not status."
+    },
     "failure_category": {
       "type": "string",
       "enum": [
@@ -13,10 +35,11 @@
         "CONTRACT_VIOLATION",
         "ENGINE_SELF_WRITTEN",
         "EXECUTION_FAILURE",
+        "HARNESS_ABORT",
         "UNVERIFIABLE",
         "PLAN_CONFLICT"
       ],
-      "description": "Failure mechanism channel — which mechanism ended the round (TIMEOUT / CONTRACT_VIOLATION / ENGINE_SELF_WRITTEN / EXECUTION_FAILURE / UNVERIFIABLE / PLAN_CONFLICT). Orthogonal to status (the round conclusion) and to the content-level unverifiable[]/plan_conflicts[] notes. Engine-written on failure paths. A BLOCKED round may satisfy its grounding via this field (see allOf)."
+      "description": "Failure mechanism channel \u2014 which mechanism ended the round (TIMEOUT / CONTRACT_VIOLATION / ENGINE_SELF_WRITTEN / EXECUTION_FAILURE / HARNESS_ABORT / UNVERIFIABLE / PLAN_CONFLICT). Orthogonal to status (the round conclusion) and to the content-level unverifiable[]/plan_conflicts[] notes. Engine-written on failure paths. A BLOCKED round may satisfy its grounding via this field (see allOf)."
     },
     "commits": {
       "type": "object",
@@ -33,53 +56,62 @@
         "head": {
           "type": "string",
           "pattern": "^[0-9a-f]{40}$",
-          "description": "full 40-char SHA; never --short / %h / any truncated form. Optional — omitted when the round has no head yet (e.g. some BLOCKED branch-review payloads)."
+          "description": "full 40-char SHA; never --short / %h / any truncated form. Optional \u2014 omitted when the round has no head yet (e.g. some BLOCKED branch-review payloads)."
         }
       }
     },
-    "doc_path":  { "type": "string", "description": "the reviewed document's exact path — must match the doc argument, do not rewrite relative forms." },
-    "doc_hash":  { "type": "string", "description": "content state token (sha256 of the doc at review time); legacy handoffs may omit it." },
-    "findings":  { "type": "array", "description": "[{lens, severity, section|file, line?, summary, fix}] — every review finding; severity blocker → CHANGES_REQUESTED, warn/nit → REVIEW_FIX (review rolls up; fix keeps declared findings, #278)." },
+    "doc_path": {
+      "type": "string",
+      "description": "the reviewed document's exact path \u2014 must match the doc argument, do not rewrite relative forms."
+    },
+    "doc_hash": {
+      "type": "string",
+      "description": "content state token (sha256 of the doc at review time); legacy handoffs may omit it."
+    },
+    "findings": {
+      "type": "array",
+      "description": "[{lens, severity, section|file, line?, summary, fix}] \u2014 every review finding; severity blocker \u2192 CHANGES_REQUESTED, warn/nit \u2192 REVIEW_FIX (review rolls up; fix keeps declared findings, #278)."
+    },
     "changes": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["file"],
+        "required": [
+          "file"
+        ],
         "properties": {
-          "file": { "type": "string", "description": "repo-relative path of a file this round changed." },
-          "reason": { "type": "string", "description": "why the file changed (finding id / fix intent); omitted entries stay attributed by file." }
+          "file": {
+            "type": "string",
+            "description": "repo-relative path of a file this round changed."
+          },
+          "reason": {
+            "type": "string",
+            "description": "why the file changed (finding id / fix intent); omitted entries stay attributed by file."
+          }
         }
       },
-      "description": "Changed-file attribution ledger (fix rounds declare every file the round touched, each with its reason). The engine reconciles `git diff <base>..HEAD` against it — files off the ledger are surfaced (warn + notes), never blocked; the review scope axis judges them as findings. The docs commitment boundary is the same as the task family (commits{base,head}), not doc_path alone."
+      "description": "Changed-file attribution ledger (fix rounds declare every file the round touched, each with its reason). The engine reconciles `git diff <base>..HEAD` against it \u2014 files off the ledger are surfaced (warn + notes), never blocked; the review scope axis judges them as findings. The docs commitment boundary is the same as the task family (commits{base,head}), not doc_path alone."
     },
-    "recovery": {
+    "artifacts": {
       "type": "object",
-      "required": ["cause"],
-      "properties": {
-        "cause":    { "type": "string", "description": "round-end cause: the failure-category id (EXECUTION_FAILURE / TIMEOUT — the residue-preservation eligibility set) on engine-written death carriers, or the termination sub-cause on legacy salvage records." },
-        "exit_code": { "type": "integer", "description": "the failed agent's process exit code (1 = run failure, 143 = SIGTERM) — the archived death diagnosis distinguishing exit 1 vs 143; absent on TIMEOUT rounds (the monitor killed the process)." },
-        "residue_ref": { "type": "string", "description": "Salvaged-WIP stash commit SHA (index-independent: `stash@{N}` indices shift on every push/drop). Written by the residue settlement step on eligible EXECUTION_FAILURE/TIMEOUT rounds with a dirty tree; the re-dispatch resume pre-flight reads it and `git stash apply`s it. Settlement output ≡ resume input." },
-        "wip_stat": { "type": "object", "required": ["files", "insertions", "deletions"], "properties": { "files": { "type": "integer" }, "insertions": { "type": "integer" }, "deletions": { "type": "integer" } }, "description": "structured WIP scale (files / +M / -M) at salvage time — the recovery carrier's archivable magnitude beside residue_ref; counts brand-new untracked files too." },
-        "preserved": { "type": "boolean", "description": "true when the round's residue was stashed into the recovery carrier (residue_ref + wip_stat present); the settlement step's idempotence flag — an already-preserved carrier never double-stashes." },
-        "stash_message": { "type": "string", "description": "The standardized stash name `cdd-<op>-<type>-<task>-r<round>-<cause>` (src/artifacts/residue.ts single source) — the legacy stash-list scan matches on it for pre-schema carriers." },
-        "residue_scope": { "type": "string", "description": "WIP scope summary (`git diff HEAD --shortstat`) — data-driven input for the resume brief appendix." },
-        "round":       { "type": "integer", "minimum": 1, "description": "the salvaged round number (implement rounds are always round 1)." },
-        "scope_base": { "type": "string", "pattern": "^[0-9a-f]{40}$", "description": "The round-level scope anchor at salvage time (ledger value priority / fallback dead-round brief TASK_BASE). Resume restores the same anchor — the round-BASE (resume-declared) adoption and the recovered scope stay consistent across round death." }
-      },
-      "additionalProperties": false,
-      "description": "Residue recovery carrier — engine-written on EXECUTION_FAILURE/TIMEOUT failure rounds: cause + exit_code ride every death (the archived, replayable diagnosis); residue_ref / wip_stat / preserved appear once the settlement step stashed the dirty-tree WIP. Absent on all other rounds. Same law as every structured field: the facts live here, the blocker stays human-readable prose."
+      "description": "point at files, do not embed report bodies \u2014 values are paths (e.g. {\"doc\": \"<path>\"}), never inline content."
     },
-    "artifacts": { "type": "object", "description": "point at files, do not embed report bodies — values are paths (e.g. {\"doc\": \"<path>\"}), never inline content." },
-    "round":     { "type": "integer", "description": "review/fix round number (engine-derived; canonical naming embeds it in the filename)." },
+    "round": {
+      "type": "integer",
+      "description": "review/fix round number (engine-derived; canonical naming embeds it in the filename)."
+    },
     "unverifiable": {
       "type": "array",
-      "description": "Content-level notes — each entry states one claim the round could not verify (what + why: e.g. {claim, why}). A non-empty list makes the round BLOCKED with failure_category UNVERIFIABLE and a blocker summarizing the entries. Dev-measured acceptance items (plan-constraints §口径) are NOT unverifiable: an evidence-contract accepted-noted round records them in `notes`, never writes unverifiable and never blocks."
+      "description": "Content-level notes \u2014 each entry states one claim the round could not verify (what + why: e.g. {claim, why}). A non-empty list makes the round BLOCKED with failure_category UNVERIFIABLE and a blocker summarizing the entries. Dev-measured acceptance items (plan-constraints \u00a7\u53e3\u5f84) are NOT unverifiable: an evidence-contract accepted-noted round records them in `notes`, never writes unverifiable and never blocks."
     },
     "plan_conflicts": {
       "type": "array",
-      "description": "Content-level notes — each entry states one plan conflict discovered during the round. A non-empty list makes the round BLOCKED with failure_category PLAN_CONFLICT and a blocker summarizing the entries."
+      "description": "Content-level notes \u2014 each entry states one plan conflict discovered during the round. A non-empty list makes the round BLOCKED with failure_category PLAN_CONFLICT and a blocker summarizing the entries."
     },
-    "blocker":   { "type": "string", "description": "The round's single real blocker line — states what could not be verified and why, or the concrete reason the round cannot proceed. Real sources only (agent-declared / engine gate reason / failure mechanism / unverifiable summary); never fabricated. Omit when nothing blocks (NOT null) — null is invalid. BLOCKED requires a non-empty blocker or a failure_category (see allOf)." }
+    "blocker": {
+      "type": "string",
+      "description": "The round's single real blocker line \u2014 states what could not be verified and why, or the concrete reason the round cannot proceed. Real sources only (agent-declared / engine gate reason / failure mechanism / unverifiable summary); never fabricated. Omit when nothing blocks (NOT null) \u2014 null is invalid. BLOCKED requires a non-empty blocker or a failure_category (see allOf)."
+    }
   },
   "allOf": [
     {
@@ -89,13 +121,17 @@
             "const": "review"
           }
         },
-        "required": ["phase"]
+        "required": [
+          "phase"
+        ]
       },
       "then": {
         "required": []
       },
       "else": {
-        "required": ["status"]
+        "required": [
+          "status"
+        ]
       }
     },
     {
@@ -105,12 +141,16 @@
             "const": "BLOCKED"
           }
         },
-        "required": ["status"]
+        "required": [
+          "status"
+        ]
       },
       "then": {
         "anyOf": [
           {
-            "required": ["blocker"],
+            "required": [
+              "blocker"
+            ],
             "properties": {
               "blocker": {
                 "type": "string",
@@ -119,7 +159,9 @@
             }
           },
           {
-            "required": ["failure_category"]
+            "required": [
+              "failure_category"
+            ]
           }
         ]
       }

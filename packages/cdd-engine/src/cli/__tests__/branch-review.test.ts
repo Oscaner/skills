@@ -88,7 +88,7 @@ describe("branch-review dry-run", () => {
     }
 
     expect(stdout).toContain("status: APPROVED");
-    expect(stdout).toContain("commits: base=abc1234 head=def5678");
+    expect(stdout).toContain("· handoff:"); // the capsule points at the carrier — commits/artifacts/counters live in the handoff (T3)
     expect(stdout).toContain("next: none"); // C5 (T8): clean branch review → terminal suggestion
     // C3-a black-box: the doc-audit gate actually RAN on the branch-review path (the resolved root
     // seeded the ctx — missing-root WARN must not fire), never WARN-skipped.
@@ -118,14 +118,13 @@ describe("branch-review schema-invalid e2e", () => {
     const base7 = base.slice(0, 7);
     const head7 = head.slice(0, 7);
     // 与 runBranchReview 同派生的 handoff 路径（全新 workspace → round 1）
-    const { resolveWorkspace, handoffName, resolveNextRound } = await import(
-      "../../artifacts/handoff/naming.ts"
-    );
-    const workspace = resolveWorkspace(planPath, dir);
-    const round = resolveNextRound(workspace, "review", "branch", { base7, head7 });
+    const { Handoff } = await import("../../artifacts/handoff.ts");
+    const { WorkspaceRoot } = await import("../../infra/workspace.ts");
+    const workspace = WorkspaceRoot.from(dir).for(planPath).path;
+    const round = Handoff.resolveNextRound(workspace, "review", "branch", { base7, head7 });
     const handoffPath = path.join(
       workspace,
-      handoffName("review", "branch", { base7, head7, round }),
+      Handoff.handoffName("review", "branch", { base7, head7, round }),
     );
     // fake-cli：应引擎调用写出违规 handoff 后 exit 0（真实子进程，与 runner.test.mjs 的 fake-cli 同法）
     const binDir = mkdtempSync(path.join(tmpdir(), "cdd-br-sv-"));
@@ -262,17 +261,20 @@ describe("branch-review unparseable-handoff e2e", () => {
     const planPath = writeBranchChain(dir, `${slug}.md`);
     const base = "a".repeat(40);
     const head = "b".repeat(40);
-    const { resolveWorkspace, handoffName, resolveNextRound } = await import(
-      "../../artifacts/handoff/naming.ts"
-    );
-    const workspace = resolveWorkspace(planPath, dir);
-    const round = resolveNextRound(workspace, "review", "branch", {
+    const { Handoff } = await import("../../artifacts/handoff.ts");
+    const { WorkspaceRoot } = await import("../../infra/workspace.ts");
+    const workspace = WorkspaceRoot.from(dir).for(planPath).path;
+    const round = Handoff.resolveNextRound(workspace, "review", "branch", {
       base7: base.slice(0, 7),
       head7: head.slice(0, 7),
     });
     const handoffPath = path.join(
       workspace,
-      handoffName("review", "branch", { base7: base.slice(0, 7), head7: head.slice(0, 7), round }),
+      Handoff.handoffName("review", "branch", {
+        base7: base.slice(0, 7),
+        head7: head.slice(0, 7),
+        round,
+      }),
     );
     const regPath = await ghostRegistry(dir);
     try {
@@ -312,18 +314,19 @@ describe("branch-review unparseable-handoff e2e", () => {
     const head = "b".repeat(40);
     const base7 = base.slice(0, 7);
     const head7 = head.slice(0, 7);
-    const { resolveWorkspace, handoffName } = await import("../../artifacts/handoff/naming.ts");
-    const workspace = resolveWorkspace(planPath, dir);
+    const { Handoff } = await import("../../artifacts/handoff.ts");
+    const { WorkspaceRoot } = await import("../../infra/workspace.ts");
+    const workspace = WorkspaceRoot.from(dir).for(planPath).path;
     // Pre-seed workspace with a CORRUPT r1 review (same ref) → the review must start at round 2
     // and not crash on the unparseable prev (fail-open → no Convergence lock).
     mkdirSync(workspace, { recursive: true });
     writeFileSync(
-      path.join(workspace, handoffName("review", "branch", { base7, head7, round: 1 })),
+      path.join(workspace, Handoff.handoffName("review", "branch", { base7, head7, round: 1 })),
       "{\nnot json\n",
     );
     const handoffPath = path.join(
       workspace,
-      handoffName("review", "branch", { base7, head7, round: 2 }),
+      Handoff.handoffName("review", "branch", { base7, head7, round: 2 }),
     );
     const regPath = await ghostRegistry(dir);
     const stderrWrite = process.stderr.write;
@@ -355,13 +358,14 @@ describe("branch-review unparseable-handoff e2e", () => {
   });
 });
 
-// ---- Branch-review REAL mode emits the 5-line return block on the parent stdout (T6 C3-b + C5) ----
-// The normalization single point (returnFromHandoff over this.handoffPath/workspace) must surface
-// the T1 contract (status/commits/artifacts + counters + the derived `next:` line, zero `blocker:`)
-// when the agent wrote a valid handoff — the orchestrator routes the branch-review round on the
-// `status:` line.
-describe("branch-review real-mode — parent stdout return block (C3-b)", () => {
-  it("agent writes APPROVED handoff → parent stdout = 5-line contract (status/commits/artifacts + counters + next, zero blocker:)", async () => {
+// ---- Branch-review REAL mode emits the single stdout capsule on the parent stdout (T6 C3-b + C5,
+// T3) ----
+// The normalization single point (ResultFace — status/blocker/handoff + the derived `next:` line)
+// must surface the capsule contract when the agent wrote a valid handoff — commits/artifacts/
+// counters live in the handoff; the orchestrator routes the branch-review round on the capsule's
+// status.
+describe("branch-review real-mode — parent stdout capsule (C3-b)", () => {
+  it("agent writes APPROVED handoff → parent stdout = the status capsule (status/blocker/handoff + next, no 4-line block)", async () => {
     const dir = tmpGitRepo();
     const slug = "test-plan-br";
     const planPath = writeBranchChain(dir, `${slug}.md`);
@@ -369,14 +373,13 @@ describe("branch-review real-mode — parent stdout return block (C3-b)", () => 
     const head = "b".repeat(40);
     const base7 = base.slice(0, 7);
     const head7 = head.slice(0, 7);
-    const { resolveWorkspace, handoffName, resolveNextRound } = await import(
-      "../../artifacts/handoff/naming.ts"
-    );
-    const workspace = resolveWorkspace(planPath, dir);
-    const round = resolveNextRound(workspace, "review", "branch", { base7, head7 });
+    const { Handoff } = await import("../../artifacts/handoff.ts");
+    const { WorkspaceRoot } = await import("../../infra/workspace.ts");
+    const workspace = WorkspaceRoot.from(dir).for(planPath).path;
+    const round = Handoff.resolveNextRound(workspace, "review", "branch", { base7, head7 });
     const handoffPath = path.join(
       workspace,
-      handoffName("review", "branch", { base7, head7, round }),
+      Handoff.handoffName("review", "branch", { base7, head7, round }),
     );
     // fake-cli writes a schema-valid APPROVED branch-review handoff (artifacts populated — the
     // return block's artifacts line keys off them) and exits 0.
@@ -420,13 +423,20 @@ describe("branch-review real-mode — parent stdout return block (C3-b)", () => 
       }
       expect(exitCode).toBe(0);
       expect(cap.text).toContain("status: APPROVED");
-      expect(cap.text).toContain(`commits: base=${base} head=${head}`);
-      expect(cap.text).toContain("artifacts: report=/tmp/report.md test_evidence=/tmp/ev.json");
-      expect(cap.text).toMatch(
-        /counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+/,
-      );
+      expect(cap.text).toContain("· blocker: 0 ·"); // no blocker-severity findings on the clean review
+      expect(cap.text).toContain("· handoff:"); // the capsule points at the carrier (commits/artifacts live there)
       expect(cap.text).toContain("next: none"); // C5 (T8): clean branch review → terminal suggestion
-      expect(cap.text).not.toContain("blocker:"); // the stdout blocker column is retired (M3)
+      expect(cap.text).not.toContain("counters:"); // no 4-line (status/commits/artifacts + counters) block — the capsule is the only stdout contract
+      // the carrier keeps the reviewed-range commits + the agent's artifacts (the capsule only points at it).
+      const carrier = JSON.parse(readFileSync(handoffPath, "utf8")) as {
+        commits?: { base?: string; head?: string };
+        artifacts?: Record<string, string>;
+      };
+      expect(carrier.commits).toEqual({ base, head });
+      expect(carrier.artifacts).toEqual({
+        report: "/tmp/report.md",
+        test_evidence: "/tmp/ev.json",
+      });
     } finally {
       process.env.PATH = origPath;
       cap.restore();

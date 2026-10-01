@@ -1,38 +1,34 @@
-// packages/cdd-engine/src/artifacts/return-block.ts — ReturnBlockParser class (P6 T24 C + Task 7 OOP
-// restructure Criterion ②: the return block text plane — parse + serialize + the counters line — is
-// ONE instance-method class, zero bare function exports). The four half-implementations (task.ts
-// returnFourLines/returnFromHandoff/dryRunReturnBlock + the branch-family dry-run arrays) converge
-// here; the parse + serialize atoms live in ONE module. The return block is an engine stdout
-// artifact, so it lives in the artifacts layer (the producers — dispatch/task.ts,
-// dispatch/branch.ts — import the class instance, never re-defining the `key: value` shapes).
+// packages/cdd-engine/src/artifacts/return-block.ts — ReturnBlockParser class (Task 7 OOP
+// restructure Criterion ②: the return block text plane — parse + materialize + serialize + the
+// counters line — is ONE instance-method class, zero bare function exports). The surviving atoms
+// converge in ONE module:
 //
-//   parse      lastKeyLine / returnFourLines (agent stdout → the three lines)
-//   serialize  dryRunBlock / assembleReturnBlock / returnFromHandoff (handoff read-back)
-//   counters   returnCountersLine — the UNIQUE construction point of the 4th `counters:` line
-//              (field names/labels from rules/failure.ts#counters(), canonical engine-config
-//              #failureCategories; missing/corrupt progress.json → 0-fallback, read-only).
+//   parse       lastKeyLine / returnFourLines (agent stdout → the three lines) plus the
+//               carrier-field parsers implementStatusFromReturnLine / commitsFromReturnLine /
+//               artifactsFromReturnLine (return block → carrier fields)
+//   serialize   dryRunBlock (the simulated agent's 3-line output)
+//   counters    returnCountersLine — the 4th `counters:` line's UNIQUE construction point (field
+//               names/labels from rules/failure.ts#counters(), canonical engine-config
+//               #failureCategories; missing/corrupt progress.json → 0-fallback, read-only).
 //
-// May-2026 M3 carrier ruling (cdd-review-contract-fix): the stdout return-block `blocker:` column
-// is RETIRED — the agent output contract is three lines (status/commits/artifacts; the engine owns
-// the counters line), and a BLOCKED round's reason travels the stderr `CDD_BLOCKED:` single channel
-// + the carrier's failure_category. returnFromHandoff's missing/unparseable fallback reason strings
-// write to stderr here (never a fabricated blocker default).
+// The return block is an engine artifact, so it lives in the artifacts layer (the producers —
+// dispatch/task.ts — import the class instance, never re-defining the `key: value` shapes).
+//
+// T3 (C5 command-contract plane): the ENGINE stdout is now the single status capsule (rules/
+// result-face.ts ResultFace) — this module's former engine-emission atoms (assembleReturnBlock /
+// returnFromHandoff, the 5-line status/commits/artifacts + counters + next block) are retired; the
+// stdout facts (status / blocker / handoff / next) emit through ResultFace only. `returnFourLines`
+// survives as the AGENT-output parse carrier feeding implement materialization (its status/commits/
+// artifacts indices 0-2 are what finalize.ts reads; the appended counters + next lines are parse-
+// plane residue kept for the unit seam). The M3 `blocker:` column stays retired — a BLOCKED round's
+// reason travels the stderr `CDD_BLOCKED:` channel + the carrier's failure_category (never a
+// fabricated blocker default).
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { FailureResolver } from "../rules/failure.ts";
-import { readJson } from "./handoff/write.ts";
 
-// M3 carrier ruling — the returnFromHandoff fallback branches' reason strings, written to stderr
-// through the CDD_BLOCKED single channel (the stdout blocker column is retired, so these reasons
-// must never be silently dropped). Module constants so the stderr write and the test assertions
-// share one source.
-export const HANDOFF_MISSING_REASON =
-  "handoff missing after commit-contract interception → re-dispatch task after checking commit-contract errors";
-export const HANDOFF_UNPARSEABLE_REASON =
-  "handoff JSON unparseable after commit-contract interception → delete the corrupted handoff file and re-dispatch";
-
-/** ReturnBlockParser — the return-block text plane's single face (Criterion ②; constructor injection — the
+/** ReturnBlockParser — the return block text plane's single face (Criterion ②; constructor injection — the
  *  failure resolver backing the counters line defaults to a fresh instance). Every parse/serialize
  *  atom is an instance method. */
 export class ReturnBlockParser {
@@ -53,20 +49,13 @@ export class ReturnBlockParser {
     return `${key}: <missing>`;
   }
 
-  /** Append the C5 `next:` suggestion line at the END of the engine stdout contract (spec C5-3:
-   *  every result contract appends it last). next = the derived VALUE (rules/next-step.ts
-   *  nextStepFor); null/empty → no line (the BLOCKED/failure lanes emission, zero leaks). */
-  #withNext(out: string[], next?: string | null): string[] {
-    if (next) out.push(`next: ${next}`);
-    return out;
-  }
-
-  /** returnFourLines — the agent output contract: picks the last ^key: line from agent stdout for
-   * status/commits/artifacts (missing → "<missing>"); the 4th counters line appends via
-   * returnCountersLine (engine owns the count — the agent never produces counters). The `blocker:`
-   * column is retired (M3) — a stray blocker line in agent stdout is ignored. stdouts +
-   * res.returnBlock share this one source. C5 (T8): an optional `next` value appends the `next:`
-   * line (the agent never produces it — the engine derives it from the dispatch facts). */
+  /** returnFourLines — the agent output contract (the parse carrier feeding implement
+   *  materialization): the last ^key: line from agent stdout for status/commits/artifacts (missing →
+   *  "<missing>"); the 4th counters line appends via returnCountersLine (the engine owns the count —
+   *  the agent never produces counters). The `blocker:` column is retired (M3) — a stray blocker
+   *  line in agent stdout is ignored. T3: this is a parse/intermediate shape — the ENGINE stdout
+   *  capsule is ResultFace's, never this array. Optional `next` appends the line (the engine's
+   *  C5 suggestion — the agent never produces it). */
   returnFourLines(raw: string, workspace: string, next?: string | null): string[] {
     const out = ["status", "commits", "artifacts"].map((key) => this.lastKeyLine(raw, key));
     out.push(this.returnCountersLine(workspace));
@@ -90,7 +79,8 @@ export class ReturnBlockParser {
 
   // Return block `status:` line → materialized status. The schema accepts only APPROVED/BLOCKED —
   // anything non-APPROVED (NEEDS_CONTEXT / <missing> …) folds to BLOCKED, raw passthrough for the
-  // blocker (return block and handoff/exit stay consistent).
+  // blocker (return block and handoff/exit stay consistent). T3: this fold feeds the CARRIER status;
+  // the stdout work axis (COMPLETED spelling) lives in rules/status-deriver.ts#workStatus.
   implementStatusFromReturnLine(line: string | undefined): {
     status: string;
     raw: string;
@@ -122,10 +112,10 @@ export class ReturnBlockParser {
 
   // ---- serialize ----
 
-  /** 3-line dry-run return block string (the task dispatch's agentOut: parse face re-appends the
-   * counters line via returnFourLines). status/commits/artifacts — the agent output contract (the
-   * `blocker:` column is retired, M3). The task dry-run artifacts line is the non-empty
-   * brief/report/evidence triple. */
+  /** The 3-line dry-run return block string (the task dispatch's simulated AGENT output: the
+   *  parse face re-appends the counters line via returnFourLines on the materialization carrier).
+   *  status/commits/artifacts — the agent output contract (the `blocker:` column is retired, M3).
+   *  The task dry-run artifacts line is the non-empty brief/report/evidence triple. */
   dryRunBlock(fields: { commits: string; artifacts: string }): string {
     return [
       "status: APPROVED",
@@ -134,64 +124,21 @@ export class ReturnBlockParser {
     ].join("\n");
   }
 
-  /** The full return block (three fixed lines + the 4th counters line + the optional 5th `next:`
-   * line) — the array assembler the black-box stdout producers share (branch-family dry-run
-   * blocks; the counters-presence assertion in scripts/validate/smoke-cdd.ts keys on exactly this
-   * shape). C5 (T8): the `next` value (rules/next-step.ts) appends the suggestion line. */
-  assembleReturnBlock(
-    fields: { status: string; commits: string; artifacts: string },
-    workspace: string,
-    next?: string | null,
-  ): string[] {
-    const out = [
-      `status: ${fields.status}`,
-      `commits: ${fields.commits}`,
-      `artifacts: ${fields.artifacts}`,
-      this.returnCountersLine(workspace),
-    ];
-    return this.#withNext(out, next);
+  #withNext(out: string[], next?: string | null): string[] {
+    if (next) out.push(`next: ${next}`);
+    return out;
   }
 
-  /** Aligns _cdd_emit_h1_from_handoff (no jq dependency): reads the handoff JSON; missing/corrupt →
-   * BLOCKED fallback. artifacts emitted only when present. T7: the 4th counters line appended via
-   * returnCountersLine. M3: the `blocker:` column is retired — a BLOCKED round's reason rides the
-   * carrier's failure_category + the stderr CDD_BLOCKED single channel; the missing/unparseable
-   * fallback reason strings write to stderr here (never silently dropped with the column). C5 (T8):
-   * the optional `next` value (rules/next-step.ts) appends the `next:` suggestion line. */
-  returnFromHandoff(handoffPath: string, workspace: string, next?: string | null): string[] {
-    if (!handoffPath || !existsSync(handoffPath)) {
-      process.stderr.write(`CDD_BLOCKED: ${HANDOFF_MISSING_REASON}\n`);
-      return this.returnFourLines("status: BLOCKED", workspace);
-    }
-    const h = readJson(handoffPath);
-    if (!h) {
-      process.stderr.write(`CDD_BLOCKED: ${HANDOFF_UNPARSEABLE_REASON}\n`);
-      return this.returnFourLines("status: BLOCKED", workspace);
-    }
-    const commits = (h.commits as Record<string, unknown> | null) ?? {};
-    const arts: string[] = [];
-    const art = (h.artifacts as Record<string, unknown> | undefined) ?? {};
-    for (const key of ["brief", "report", "test_evidence"] as const) {
-      if (art[key]) arts.push(`${key}=${String(art[key])}`);
-    }
-    const out = [
-      `status: ${(h.status as string) ?? "BLOCKED"}`,
-      `commits: base=${commits.base ?? ""} head=${commits.head ?? ""}`,
-    ];
-    if (arts.length > 0) out.push(`artifacts: ${arts.join(" ")}`);
-    out.push(this.returnCountersLine(workspace));
-    return this.#withNext(out, next);
-  }
-
-  /** returnCountersLine — the return block `counters` line's UNIQUE construction point (T7): all
-   * return block producers append through this method, or the 5-line engine stdout contract
-   * (status/commits/artifacts + counters + next, C5) has no guard.
-   * Reads the four counter fields of <workspace>/progress.json: missing / corrupt file / missing
-   * keys each fall back to `0` and never throw (a dry-run first round may not have progress.json
-   * yet — the fallback IS the first-round shape). **Read-only, no write side effect**: never
-   * paper-over the missing-file zero fallback, never overwrites progress.json on the return block path.
-   * Field names and counter labels come from failureResolver.counters() (T6 canonical) — zero
-   * hand-written counter names / labels here. */
+  /** returnCountersLine — the return block `counters` line's UNIQUE construction point (T7): the
+   *  parse carrier's 4th line (the engine stdout stopped carrying it in T3 — ResultFace emits the
+   *  capsule only; the counters stay readable via progress.json / the `counters` read for
+   *  materialization tests).
+   *  Reads the four counter fields of <workspace>/progress.json: missing / corrupt file / missing
+   *  keys each fall back to `0` and never throw (a dry-run first round may not have progress.json
+   *  yet — the fallback IS the first-round shape). **Read-only, no write side effect**: never
+   *  paper-over the missing-file zero fallback, never overwrites progress.json on the return block path.
+   *  Field names and counter labels come from failureResolver.counters() (T6 canonical) — zero
+   *  hand-written counter names / labels here. */
   returnCountersLine(workspace: string): string {
     const jsonPath = path.join(workspace, "progress.json");
     let data: Record<string, unknown> = {};

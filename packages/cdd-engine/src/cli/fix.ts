@@ -6,17 +6,26 @@
 // (cli/branch-fix.ts was deleted), the task channel delegates to TaskLifecycle.run, the spec/plan
 // channel to DocsLifecycle.run.
 import path from "node:path";
-import * as handoffNaming from "../artifacts/handoff/naming.ts";
 import { readJson } from "../artifacts/handoff/write.ts";
+import { Handoff } from "../artifacts/handoff.ts";
 import { DispatchBlocked } from "../dispatch/base.ts";
 import type { TaskGroup } from "../domain/task-group.ts";
 import { exitOk, exitOkWith, exitWithCode } from "../infra/exit.ts";
-import { withLifecycle } from "../infra/proc.ts";
+import { initProcLifecycle, withLifecycle } from "../infra/proc.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
-import { nextStepFor, SOFT_CAP_S1_ROUNDS } from "../rules/next-step.ts";
+import { WorkspaceRoot } from "../infra/workspace.ts";
+import { NextStepRouter, SOFT_CAP_S1_ROUNDS } from "../rules/next-step.ts";
 import { maxConsecutiveS1Rounds } from "../rules/ref-sequence.ts";
-import { docsResultFace } from "./result-face.ts";
+import { ResultFace } from "../rules/result-face.ts";
 import { DRY_RUN, requireHostHarness, resolveTargetDoc } from "./shared.ts";
+
+// C5 (T3): the single stdout result face (docs-fix capsule + `next:` — the fix face is the
+// re-review / closure single decision point) — statusDeriver/nextRouter/convergence injected.
+const resultFace = new ResultFace();
+// The shared NextStepRouter (C5-1 soft-cap basis + the router injected into the face): the
+// ref-sequence walk consumes the same injected instance (constructor injection — zero module-level
+// singletons).
+const nextRouter = new NextStepRouter();
 
 export interface FixOpts {
   type: string;
@@ -128,7 +137,7 @@ export async function runFix(opts: FixOpts): Promise<void> {
     // means the round is underivable).
     const findingsBase = opts.findings ? path.basename(opts.findings) : null;
     const roundMatch = findingsBase
-      ? findingsBase.match(handoffNaming.roundPattern("review", opts.type))
+      ? findingsBase.match(Handoff.roundPattern("review", opts.type))
       : null;
     if (!roundMatch) {
       process.stderr.write(
@@ -144,21 +153,25 @@ export async function runFix(opts: FixOpts): Promise<void> {
       exitWithCode(2);
     }
     // The fix template uniformly routes through the canonical fix.{type} family fixTemplate
-    // (spec/plan → "docs" shared shell); workspace is the same-source resolveWorkspace(doc);
-    // handoffPath is the explicit canonical fix.{type} name.
-    const template = (
-      handoffNaming.familyConfig("fix", opts.type) as unknown as { fixTemplate: string }
-    ).fixTemplate;
-    const ws = handoffNaming.resolveWorkspace(doc, root);
+    // (spec/plan → "docs" shared shell); workspace is the same-source WorkspaceRoot.for(doc) path;
+    // handoffPath is the explicit canonical fix.{type} name. The workspace materializes here
+    // (bootstrap guard + slug dir — the docs fix agent's handoff writes land guarded too).
+    const template = (Handoff.familyConfig("fix", opts.type) as unknown as { fixTemplate: string })
+      .fixTemplate;
+    const workspaceRoot = WorkspaceRoot.from(root);
+    workspaceRoot.ensure();
+    const workspace = workspaceRoot.for(doc);
+    workspace.ensure();
+    const ws = workspace.path;
+    // Process-lifecycle registry binding (T6 relocation, same as the task/branch lanes): the docs
+    // fix's registration lands in THIS slug's lifecycle.json — never the repo-level single file.
+    initProcLifecycle({ diskPath: workspace.lifecyclePath });
     // `--findings` normalization (read point ⑦): repo-root-relative → absolute; missing → exit 1
     // three-line diagnostic. Positioned AFTER the round-derivation guard — a round without a
     // source / round<1 must first fail as a usage error with exit 2 (§2.4.2: 2 = usage / env error).
     const findingsPath = opts.findings ? resolveDocArg(opts.findings, root, "findings") : undefined;
     const { DocsLifecycle } = await import("../dispatch/docs.ts");
-    const handoffPath = path.join(
-      ws,
-      handoffNaming.handoffName("fix", opts.type, { round: fixRound }),
-    );
+    const handoffPath = path.join(ws, Handoff.handoffName("fix", opts.type, { round: fixRound }));
     const result = await DocsLifecycle.run({
       harness,
       mode: "fix",
@@ -170,19 +183,19 @@ export async function runFix(opts: FixOpts): Promise<void> {
       dryRun: DRY_RUN(),
       handoffPath,
     });
-    // Docs fix completion → stdout result face (design §2.9 / AC9): previously stdout had zero
-    // result surface when the docs fix finished; the orchestrator now reads status off the line.
-    // C5 (T8): the face appends the `next:` suggestion line — the fix face is the re-review / closure
-    // single decision point (C5-1), judged on the `--findings` INPUT content severity
-    // (convergence.blockerCount): blockers → next review; warn/nit-only → closure `none`.
-    const face = docsResultFace(result, handoffPath);
+    // Docs fix completion → stdout result face (C5, T3): previously stdout had zero result surface
+    // when the docs fix finished; the orchestrator now reads status off the single capsule
+    // (`status: COMPLETED · blocker: <input count> · handoff: <path>` + the C5 `next:` line). The
+    // fix face is the re-review / closure single decision point (C5-1), judged on the `--findings`
+    // INPUT content severity (blockers → capsule blocker N + next review; warn/nit-only → closure
+    // `none`).
     const fixHandoff = result.handoff as
       | { status?: string; findings?: Array<{ severity?: string }> }
       | null
       | undefined;
     // Array guard (same as dispatch/task.ts #inputFindings): an agent-written non-array `findings`
     // on the --findings input (a documented recurrent shape) must degrade to the 0-blocker baseline,
-    // never flow into convergence.blockerCount as a non-array (TypeError).
+    // never flow into the blocker count as a non-array (TypeError).
     const inputHandoff = findingsPath
       ? (readJson(findingsPath) as { findings?: Array<{ severity?: string }> } | null)
       : null;
@@ -194,18 +207,25 @@ export async function runFix(opts: FixOpts): Promise<void> {
     // adjudication.
     const softCap =
       findingsPath !== undefined
-        ? maxConsecutiveS1Rounds({ type: opts.type, sourcePath: findingsPath }) >=
+        ? maxConsecutiveS1Rounds({ type: opts.type, sourcePath: findingsPath }, nextRouter) >=
           SOFT_CAP_S1_ROUNDS
         : false;
-    const next = nextStepFor({
-      op: "fix",
-      type: opts.type,
-      doc,
-      status: fixHandoff?.status,
-      findings: inputFindings,
-      softCap,
-    });
-    const faceOutput = next ? `${face}\nnext: ${next}` : face;
+    const faceOutput = resultFace
+      .emit({
+        op: "fix",
+        handoffPath,
+        status: fixHandoff?.status,
+        findings: inputFindings,
+        next: {
+          op: "fix",
+          type: opts.type,
+          doc,
+          status: fixHandoff?.status,
+          findings: inputFindings,
+          softCap,
+        },
+      })
+      .join("\n");
     if (result.exitCode === 0) exitOkWith(faceOutput);
     process.stdout.write(`${faceOutput}\n`);
     exitWithCode(result.exitCode);

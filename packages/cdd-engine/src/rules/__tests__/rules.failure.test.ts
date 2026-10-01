@@ -10,6 +10,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { writeHandoff } from "../../artifacts/handoff/write.ts";
+import { Workspace } from "../../infra/workspace.ts";
 import { FAILURE_CATEGORIES, FailureResolver } from "../failure.ts";
 
 const failureResolver = new FailureResolver();
@@ -64,15 +65,21 @@ describe("rules/failure.ts — canonical 承重读取（AC14）", () => {
 describe("rules/failure.ts — 配额隔离（per-category 计数器）", () => {
   it("incrementFailureCounter 首犯 1 / 再犯 2（progress.json 持久化）", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "cdd-fail-"));
-    expect(failureResolver.incrementFailureCounter(dir, "CONTRACT_VIOLATION")).toBe(1);
-    expect(failureResolver.incrementFailureCounter(dir, "CONTRACT_VIOLATION")).toBe(2);
+    expect(
+      failureResolver.incrementFailureCounter(Workspace.fromPath(dir), "CONTRACT_VIOLATION"),
+    ).toBe(1);
+    expect(
+      failureResolver.incrementFailureCounter(Workspace.fromPath(dir), "CONTRACT_VIOLATION"),
+    ).toBe(2);
     const p = JSON.parse(readFileSync(path.join(dir, "progress.json"), "utf8"));
     expect(p.contractViolationCount).toBe(2);
   });
 
   it("incrementFailureCounter 无计数器类目 → -1（不写 progress）", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "cdd-fail2-"));
-    expect(failureResolver.incrementFailureCounter(dir, "UNVERIFIABLE")).toBe(-1);
+    expect(failureResolver.incrementFailureCounter(Workspace.fromPath(dir), "UNVERIFIABLE")).toBe(
+      -1,
+    );
   });
 
   it("exhaustedBlocker 仅计数 ≥2 触发且携带终态语汇", () => {
@@ -85,9 +92,9 @@ describe("rules/failure.ts — 配额隔离（per-category 计数器）", () => 
     const dir = mkdtempSync(path.join(tmpdir(), "cdd-fail3-"));
     const h = path.join(dir, "task-1-handoff.json");
     writeHandoff(h, { task: 1, phase: "implement", status: "DONE" });
-    expect(failureResolver.maybeExhaust(dir, "CONTRACT_VIOLATION", h)).toBe(1);
+    expect(failureResolver.maybeExhaust(Workspace.fromPath(dir), "CONTRACT_VIOLATION", h)).toBe(1);
     expect(JSON.parse(readFileSync(h, "utf8")).blocker).toBeUndefined();
-    expect(failureResolver.maybeExhaust(dir, "CONTRACT_VIOLATION", h)).toBe(2);
+    expect(failureResolver.maybeExhaust(Workspace.fromPath(dir), "CONTRACT_VIOLATION", h)).toBe(2);
     expect(JSON.parse(readFileSync(h, "utf8")).blocker).toMatch(/contract-violation-exhausted/);
   });
 
@@ -96,9 +103,9 @@ describe("rules/failure.ts — 配额隔离（per-category 计数器）", () => 
     const h = path.join(dir, "task-1-handoff.json");
     writeHandoff(h, { task: 1, phase: "implement", status: "DONE" });
     mkdirSync(dir, { recursive: true });
-    failureResolver.maybeExhaust(dir, "CONTRACT_VIOLATION", h);
-    failureResolver.maybeExhaust(dir, "CONTRACT_VIOLATION", h);
-    expect(failureResolver.incrementFailureCounter(dir, "TIMEOUT")).toBe(1);
+    failureResolver.maybeExhaust(Workspace.fromPath(dir), "CONTRACT_VIOLATION", h);
+    failureResolver.maybeExhaust(Workspace.fromPath(dir), "CONTRACT_VIOLATION", h);
+    expect(failureResolver.incrementFailureCounter(Workspace.fromPath(dir), "TIMEOUT")).toBe(1);
     const p = JSON.parse(readFileSync(path.join(dir, "progress.json"), "utf8"));
     expect(p.contractViolationCount).toBe(2);
     expect(p.timeoutCount).toBe(1);
@@ -118,32 +125,36 @@ describe("rules/failure.ts — timeoutBlocker (T26 unification; cause-keyed word
     expect(b).toContain("simplify task");
   });
 
-  it("external SIGTERM carries its own wording — an external signal kill, not a budget expiry, with the resume-or-discard contract on the implement lane", () => {
+  it("external SIGTERM carries its own wording — an external signal kill, not a budget expiry, with the crash-record resume contract on the implement lane", () => {
     const b = failureResolver.timeoutBlocker({ cause: "signal", tasks: "4", timeoutMs: 5_400_000 });
     expect(b).toMatch(/external signal \(SIGTERM\)/);
     // distinct from over-budget — "increase timeout" cannot fix a signal kill, and the over-budget
     // wording deliberately stays absent (the three causes are distinguishable in the blocker)
     expect(b).not.toMatch(/timed out after/);
     expect(b).not.toMatch(/simplify task/);
-    // implement lane (op default) → resume-or-discard (the only auto-resume lane, T26/T7.5)
-    expect(b).toMatch(/resume or discard: cdd implement --tasks 4 re-dispatch auto-resumes/);
+    // Crash recovery: resume = re-running the same command (crash record + snapshot); the
+    // stash-workflow wording is gone
+    expect(b).toMatch(/resume by re-running the same command \(cdd implement --tasks 4\)/);
+    expect(b).not.toContain("stash");
+    expect(b).not.toContain("residue_ref");
   });
 
-  it("stall variant carries the resume-or-discard contract (T26 §⑤/§T7.5 reword)", () => {
+  it("stall variant carries the crash-record resume contract (T7 — the stash-workflow reword)", () => {
     const b = failureResolver.timeoutBlocker({
       cause: "stalled",
       tasks: "7",
       idleWindowMs: 900_000,
       op: "implement",
-      residue: "abc123",
     });
     expect(b).toMatch(/stalled/);
     expect(b).toMatch(/900000ms/);
-    // brief's recovery-path contract: resume-or-discard — cdd implement --tasks re-dispatch
-    // auto-resumes (recovery.residue_ref), or git stash drop abandons the salvage
-    expect(b).toContain(
-      "resume or discard: cdd implement --tasks 7 re-dispatch auto-resumes (recovery.residue_ref=abc123), or git stash drop to abandon",
-    );
+    // crash-record resume: the round's tail + crash-only snapshot are recorded; re-run the same
+    // command — no redo, no residue loss (the legacy stash contract died with the stash plane)
+    expect(b).toContain("crash record");
+    expect(b).toContain("cdd implement --tasks 7");
+    expect(b).toContain("no redo, no residue loss");
+    expect(b).not.toContain("resume or discard");
+    expect(b).not.toContain("stash");
     // group surface: a multi-task group's advice is whole-group — cdd implement --tasks 1,2, and
     // the suggestion's tasks value is exactly the group key (no per-task subset dispatch)
     const g = failureResolver.timeoutBlocker({
@@ -151,44 +162,29 @@ describe("rules/failure.ts — timeoutBlocker (T26 unification; cause-keyed word
       tasks: "1,2",
       idleWindowMs: 900_000,
       op: "implement",
-      residue: "abc123",
     });
-    expect(g).toContain("cdd implement --tasks 1,2 re-dispatch auto-resumes");
-    const gAdvice = /cdd implement --tasks ([^ ]+) re-dispatch/.exec(g)?.[1];
+    expect(g).toContain("cdd implement --tasks 1,2");
+    const gAdvice = /cdd implement --tasks ([^ )]+)/.exec(g)?.[1];
     expect(gAdvice).toBe("1,2");
     // still a TIMEOUT-shaped blocker (same category identity, extended wording only)
     expect(b).not.toMatch(/simplify task/);
-    expect(b).not.toMatch(/discard or commit/); // §⑤ upgrade: discard-or-commit wording is gone
   });
 
-  it("stall without a salvage record still carries the resume-or-discard contract (no ref to prepend)", () => {
-    const b = failureResolver.timeoutBlocker({
-      cause: "stalled",
-      tasks: "7",
-      idleWindowMs: 900_000,
-      op: "implement",
-    });
-    expect(b).toContain(
-      "resume or discard: cdd implement --tasks 7 re-dispatch auto-resumes (recovery.residue_ref), or git stash drop to abandon",
-    );
-  });
-
-  it("non-implement lanes (review/fix) carry the stash-workflow contract (T25 — WIP preserved for retrieval, no false auto-resume promise)", () => {
+  it("non-implement lanes (review/fix) carry the same crash-record resume contract (T7 — no stash-workflow shape)", () => {
     const b = failureResolver.timeoutBlocker({
       cause: "stalled",
       tasks: "4",
       idleWindowMs: 900_000,
       op: "review",
     });
-    // §⑤ upgrade: the pre-destroying discard-or-commit wording is gone → stash retrieve-first shape
-    expect(b).not.toContain("discard or commit");
-    expect(b).toContain("git stash list");
+    expect(b).not.toContain("stash");
     expect(b).toContain("cdd review --tasks 4"); // re-dispatch advice kept — whole-group surface
-    expect(b).not.toContain("resume or discard"); // no false auto-resume promise
-    // signal death on a non-implement lane gets the same stash-workflow shape
+    expect(b).toContain("no redo, no residue loss");
+    expect(b).toContain("crash record");
+    // signal death on a non-implement lane gets the same crash-record shape
     const b2 = failureResolver.timeoutBlocker({ cause: "signal", tasks: "5", op: "fix" });
     expect(b2).toMatch(/external signal \(SIGTERM\)/);
-    expect(b2).toContain("git stash list");
-    expect(b2).not.toContain("resume or discard");
+    expect(b2).toContain("cdd fix --tasks 5");
+    expect(b2).not.toContain("git stash");
   });
 });

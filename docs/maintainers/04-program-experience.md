@@ -57,10 +57,10 @@ Maintainer-only record of the hard-won lessons from the osuperpowers-overhaul pr
 36. **Unified abstraction before patching** — first ask "what is the single concept behind these two implementations?"; collapse duplicates into one mechanism and one owner first.
 37. **Never edit the working tree while a dispatch is in flight** — the engine treats the live git tree as ground truth at the dispatch boundary; a mid-round doc edit looks like a forgetful agent → the exit gate rewrites the round BLOCKED.
 38. **"Uncommitted changes at return" ≠ gate fired** — cross-check: tree clean? handoff findings intact? counter unchanged? An intact handoff means the BLOCKED came from the agent's `unverifiable`/`plan_conflicts` rollup.
-39. **Engine-materialized implement handoffs are resilient to return drift** — a mis-formatted return is rewritten BLOCKED even with a perfect committed deliverable; re-dispatch the same brief and re-return `status: APPROVED` (`base==head` is legal).
+39. **Engine-materialized implement handoffs are resilient to return drift** — a mis-formatted return is rewritten BLOCKED even with a perfect committed deliverable; re-dispatch the same brief (`base==head` legal).
 40. **"Zero legacy residue" must enumerate surfaces** — name the planes (tokens · content prose · identifiers) before checking, and pin each plane with a mechanical guard.
 41. **Shared template hooks need explicit context wiring** — a subclass overriding a base template step must thread the resolved context into the lifecycle ctx (a `handoffPath` left `""` silently no-ops).
-42. **The resume stash contract is a full canonical token** — match the exact standard message (`cdd-<op>-<type>-task-<N>-r<round>-<cause>`); re-message by re-stashing; anchor by message, never `stash@{N}`.
+42. **Crash recovery = the commit ledger — zero stash** — a 403 root cause was a stale cross-branch stash mis-hit; recovery = crash-only snapshot + crash record, resume via the BLOCKED `next:`.
 43. **Host-harness black-box tests must mock the harness for CI** — a real host name fails on a runner lacking the binary (pre-flight gate exits 2 first); use the fake-CLI + ghost-registry pattern.
 44. **Skills are consumer-operating surfaces — zero design-history / mechanism narration** — SKILL.md specifies the executable flow and nothing else; design history, mechanism explanation, and internal-program refs are forbidden. Enforced by the skill-anatomy schema's consumer-purity facet.
 
@@ -73,11 +73,11 @@ Operational norms fixed by the consumer-parity P3 rebuild; each item is grep-ver
 47. **Zero legacy-exemption dead code** — C3-hit code is deleted, never exempted (`plan-spec-anchors`' Class C legacy exemption and `isLegacyRef` were repo-only carve-outs, deleted).
 48. **Phase-id syntax A** — canonical phase ids are dotted numeric `P<digits>(.digits)*` (split phases climb the dot hierarchy, e.g. `P2.1`); letters or hyphens are prohibited.
 49. **Single enforcement face** — the four-table charter adjudication has exactly one implementation: the engine lifecycle; `pnpm run validate` has no four-table block.
-50. **Validate 11-block structure snapshot** — post-P3, `pnpm run validate` composes 11 semantic blocks: emit freshness / osuperpowers plugin resolution · skills inventory count · node:test behavior tree · validate wiring guard / cdd-engine dev stub · engine test suite (vitest) / engine zero residue + channel audit / marketplace manifests / scripts unit tests / package version sync. The pre-commit subset is 9 blocks — the engine pair is tree-coupled and excluded.
+50. **Validate 11-block structure snapshot** — `pnpm run validate` composes 11 semantic blocks: emit freshness / plugin resolution · skills inventory · behavior tree · wiring guard / dev stub · engine suite / zero residue + channel audit / marketplace / scripts unit / version sync. The pre-commit subset is 9 blocks — the engine pair is tree-coupled and excluded.
 51. **cdd output zero-filtering** — any skill calling the cdd CLI reads the full stdout/stderr; `tail` / `head` / `2>&1 |` / `EXIT=$?` capture wrappers are forbidden.
-52. **Docs-family result visibility + exit.ts single source** — docs-family review/fix print the result face to stdout (`status:` / `blocker:` / `handoff:`), so the orchestrator reads the verdict without opening the handoff; command-level exits single-source through `infra/exit.ts` (exit table 0/1/2/3 unchanged).
+52. **Result-face visibility + exit.ts single source** — every op prints the single status capsule (`status:` / `blocker:` / `handoff:` + `next:`); the orchestrator reads the verdict without opening the handoff; command-level exits single-source through `infra/exit.ts` (0/1/2/3 unchanged).
 53. **Signal-safe exit latch** — the CLI signal contract (SIGINT/SIGTERM/SIGHUP → teardownAll → exit 128+signo) must beat a concurrent run-boundary exit (`process.exit` is first-call-decides). Pinned in `src/bin.ts`: a module-level `signalExitCode` latch set **synchronously** at signal entry (before any await), plus a single `finalExit(code) = process.exit(signalExitCode ?? code)` used at every process.exit site.
-54. **Same-signature CI batch failure = real-defect signal, not random flake** — an N/N failure on the same assertion is a reachability signal, not noise. Attribute before labeling: reproduce locally and pin the mechanism. A reviewer "flake" label requires reproduction or a known environment divergence.
+54. **Same-signature CI batch failure = real-defect signal, not random flake** — an N/N failure on the same assertion is a reachability signal, not noise. Attribute before labeling: reproduce locally and pin the mechanism; a reviewer "flake" label requires reproduction.
 
 ## 8. Consumer-sim release gate (P4.2, 2026-09-26)
 
@@ -87,17 +87,20 @@ build → pack → tarball assertions → consumer install → `cdd schema get` 
 It is the only CI face installing the packed artifact into an ephemeral consumer repo (zero
 in-repo paths; runtime resources resolve under `node_modules`). It is
 **exclusive to cdd-engine**; osuperpowers publishes through a normal npm release (the reserved
-channel for npm-harness packages), and its release product is validated by the pack allowlist probe
-+ emit products + version-sync, never a pseudo-consumer install.
+channel for npm-harness packages), validated by the pack allowlist probe + emit products + version-sync, never a pseudo-consumer install.
 
 **Release-only gate** — the full build + pack + install cost keeps it OFF the daily PR surface; push→main instead runs emit freshness + the dual consumer gates in `release.yml`, wired **before** the changesets action:
 
 - pre-version baseline gate — `node scripts/run.ts smoke-cdd` (version-agnostic); failure leaves a clean tree to roll back from;
 - post-version gate — `changeset status` (zero pending = the Version PR merged onto a 1.0.0 tree) then `smoke-cdd --expect-version 1.0.0` asserts the tarball + installed package.json both `== 1.0.0`, ahead of `changeset publish` — the released artifact is the verified artifact.
 
-**Restore statement** — to move the consumer black-box back onto the daily PR face, add the `smoke-cdd` step to `pr-validate.yml` and drop the duplicated pre-version gate from `release.yml`; revert is the inverse.
+**Restore statement** — to move the consumer black-box back onto the daily PR face, add the `smoke-cdd` step to `pr-validate.yml` and drop the pre-version gate from `release.yml`.
 
 55. **Validate ↔ smoke-cdd serial discipline** — both write `packages/cdd-engine/dist/` (validate materializes the dev stub, the engine suite reads dist; smoke-cdd rebuilds the directory): a P4.2 concurrent run ENOENTed the engine suite (reproduced; serial re-run green). Run `pnpm run validate` + `node scripts/run.ts smoke-cdd` serially.
+
+## 9. Contract Lexicon (P3, 2026-09-30)
+
+56. **Contract Lexicon single source** — the command-contract vocabulary (harness row keys, status vocab + axes, stdout capsule/route tokens + banned shape names, G2 residue allowance set) lives in `contract-lexicon.json` (ships to `dist/resources/`); `ContractLexiconGuard` runs its four check faces as one validate block — change the word table, never the code.
 
 ---
 

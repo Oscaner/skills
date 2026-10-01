@@ -16,7 +16,7 @@ import { FailureResolver } from "./failure.ts";
 
 export interface HandoffLike {
   status?: string;
-  findings?: Array<{ severity?: string }>;
+  findings?: ReadonlyArray<{ severity?: string }>;
   blocker?: string;
   failure_category?: string;
 }

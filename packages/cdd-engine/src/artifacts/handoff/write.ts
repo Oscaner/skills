@@ -6,8 +6,9 @@
 // converges to this module.
 // contract.mjs symbol split (spec §2.3): the three write symbols (readJson / writeHandoff /
 // writeOwnHandoff) belong to this file.
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { Workspace } from "../../infra/workspace.ts";
 
 // ---- handoff read/write ----
 
@@ -38,7 +39,8 @@ function serializeHandoff(obj: Record<string, unknown>): string {
  * Write a handoff per the task schema (docs family per docs schema; naming/workspace per
  * engine-config.json#handoffNamespace). Existing file → shallow merge (H6 chain-update semantics: a
  * review/validator changing status/blocker keeps task/commits/findings etc.). Parent dir auto-
- * created; returns the merged full object.
+ * created (through the Workspace ensure single point — T6: the workspace's directory creation
+ * converges on Workspace.ensure); returns the merged full object.
  */
 export function writeHandoff(
   handoffPath: string,
@@ -46,7 +48,7 @@ export function writeHandoff(
 ): Record<string, unknown> {
   const existing = existsSync(handoffPath) ? safeParse(handoffPath) : null;
   const merged = { ...(existing ?? {}), ...data };
-  mkdirSync(path.dirname(handoffPath), { recursive: true });
+  Workspace.fromPath(path.dirname(handoffPath)).ensure();
   writeFileSync(handoffPath, serializeHandoff(merged));
   return merged;
 }
@@ -55,13 +57,13 @@ export function writeHandoff(
  * Full-replace write (T7: the engine is the carrier's single author, used for finalized writes).
  * NOT a shallow merge: no read-before-write, existing fields are never retained — agent-written
  * residue cannot enter the carrier (the natural semantics of a private write slot). Parent dir
- * auto-created; returns the written full object.
+ * auto-created (through the Workspace ensure single point — T6); returns the written full object.
  */
 export function writeOwnHandoff(
   handoffPath: string,
   data: Record<string, unknown>,
 ): Record<string, unknown> {
-  mkdirSync(path.dirname(handoffPath), { recursive: true });
+  Workspace.fromPath(path.dirname(handoffPath)).ensure();
   writeFileSync(handoffPath, serializeHandoff(data));
   return data;
 }

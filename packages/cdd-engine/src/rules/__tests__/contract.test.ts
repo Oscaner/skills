@@ -361,16 +361,16 @@ it("Task 23 task schema description 承载 status/failure_category/unverifiable 
   expect(p.blocker.description).toContain("never fabricated");
 });
 
-it("Task 23 docs schema: 14 props (+commits T5 + unverifiable/plan_conflicts + T25 changes/recovery) + dev-measured semantics + allOf BLOCKED enforced", () => {
+it("Task 23 docs schema: 13 props (+commits T5 + unverifiable/plan_conflicts + changes; T7 deletes the recovery carrier, T25 changes carried) + dev-measured semantics + allOf BLOCKED enforced", () => {
   const schema = schemaValidator.loadHandoffSchema("docs") as {
     properties: Record<string, { description: string }>;
   };
   const props = schema.properties;
-  expect(Object.keys(props)).toHaveLength(14);
+  expect(Object.keys(props)).toHaveLength(13);
   expect(props).toHaveProperty("unverifiable");
   expect(props).toHaveProperty("plan_conflicts");
   expect(props).toHaveProperty("changes"); // The changed-file attribution ledger (task/docs dual schemas) (T25)
-  expect(props).toHaveProperty("recovery"); // The residue recovery carrier (task/docs dual schemas) (T25)
+  expect(props).not.toHaveProperty("recovery"); // T7: the recovery carrier is deleted (crash record takes over the death diagnosis)
   expect(props).toHaveProperty("failure_category");
   expect(props).toHaveProperty("commits"); // docs handoff reversal (T5): commits{base,head} share the task family's contract core
   expect(props.unverifiable.description.toLowerCase()).toContain("dev-measured");

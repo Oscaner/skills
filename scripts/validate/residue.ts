@@ -26,7 +26,7 @@
 // The grepTargets meta is consumed by the wiring guard
 // (packages/osuperpowers/tests/ci-validate.test.mjs) to pin the target set.
 
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { globSync } from "tinyglobby";
@@ -140,6 +140,13 @@ const STALE_LEXICON_CHECKS = [
     label: "old --mode flag (task-level mode removed)",
     re: /(?<![\w-])--mode(?![-\w])/,
     scope: ALL_MECH_POSITIONS,
+    // G2 data-row allowance (P3 T1): the harness-registry pi invoke's `-p --mode text` (O2 fact,
+    // verified via `pi --help`) is a harness CLI data value, the same pass-through class as the
+    // registry cli data value. The allowance is data-derived — dataRowAllow names the token whose
+    // data-source data-row occurrences are green, and the allowance FILE SET rides the lexicon's
+    // residue dataSources (contract-lexicon.json), never a hand-written exemption list. The check
+    // keeps zero-exemption over mechanism code.
+    dataRowAllow: ["--mode"],
   },
   {
     label: "renderComment old renderer vocabulary",
@@ -288,50 +295,24 @@ function assert(cond, msg) {
   if (!cond) throw new Error(msg);
 }
 
-// Shared scanning: tinyglobby replaces the hand-written recursion; `dot: true` scans hidden
-// subdirectories (.claude-plugin/). T6: directory targets glob **/*, single-file targets (root
-// README.md) are read directly; targets may be repo-relative or absolute paths (the latter lets
-// collectGateLexiconHits tests inject a temp directory). T7: exported for reuse by smoke-cdd.ts's
-// final reconciliation (deletion-surface sweep), not reimplemented.
-// review-1 warn (Duplicated Code): unified walk helper — scanTargets / scanLines / listTargetFiles
-// originally held three near-identical walks (target resolution → missing throw → glob expansion →
-// binary skip) copied line-by-line, so editing one silently drifted the rest; now converged into the
-// single walkTargetFiles, with the three consumers doing only their own matching/mapping. A missing
-// target throws a clear Error naming the target (aligned with the G7/G8 "deleted path has returned"
-// style) — future renames/deletions fail as a readable guard failure instead of an obscure statSync
-// ENOENT crash. `**/__tests__/` is skipped by default (post P6 Task 3, co-located test sites joined
-// the src tree) — the guard/test self-exemption doctrine's walk-side landing: tests asserting "dead
-// vocabulary absent" necessarily carry the guarded words, so mechanism scans must not trust test
-// sites; guards that do scan tests (seam gaps / old root-resolver names) opt in explicitly via
-// `{ includeTests: true }`, with scope still written as src/... (never the deleted tests/).
-function walkTargetFiles(targets, { includeTests = false } = {}) {
-  const out = [];
-  for (const t of targets) {
-    const abs = path.isAbsolute(t) ? t : path.join(ROOT, t);
-    if (!existsSync(abs)) {
-      throw new Error(
-        `walkTargetFiles: target missing — ${t} (deleted file? adjust target set or this sweep scope)`,
-      );
-    }
-    const paths = statSync(abs).isDirectory()
-      ? globSync("**/*", { cwd: abs, absolute: true, dot: true })
-      : [abs];
-    for (const f of paths) {
-      if (readFileSync(f).includes(0)) continue; // binary — grep -rn reports, doesn't content-match
-      if (!includeTests && f.includes(`${path.sep}__tests__${path.sep}`)) continue;
-      out.push(f);
-    }
-  }
-  return out;
-}
-
-export function scanTargets(targets, re, opts) {
-  const hits = [];
-  for (const f of walkTargetFiles(targets, opts)) {
-    if (re.test(readFileSync(f).toString("utf8"))) hits.push(path.relative(ROOT, f));
-  }
-  return hits;
-}
+// Shared scanning (scripts/lib/scan.ts — extracted to one face, P3 T4): tinyglobby replaces the
+// hand-written recursion; `dot: true` scans hidden subdirectories (.claude-plugin/). T6: directory
+// targets glob **/*, single-file targets (root README.md) are read directly; targets may be
+// repo-relative or absolute paths (the latter lets the injection tests use temp directories). T7:
+// exported for reuse by smoke-cdd.ts's final reconciliation (deletion-surface sweep), not
+// reimplemented. A missing target throws a clear Error naming the target (aligned with the G7/G8
+// "deleted path has returned" style); `**/__tests__/` is skipped by default (the guard/test
+// self-exemption doctrine's walk-side landing) — tests asserting "dead vocabulary absent"
+// necessarily carry the guarded words, so mechanism scans must not trust test sites; guards that
+// do scan tests opt in explicitly via `{ includeTests: true }`.
+import {
+  escapeRegExp,
+  isDataRow,
+  listTargetFiles,
+  scanLines,
+  scanTargets,
+  walkTargetFiles,
+} from "../lib/scan.ts";
 
 function checkZeroResidue() {
   const hits = scanTargets(RESIDUE_TARGETS, RESIDUE_RE);
@@ -342,6 +323,40 @@ function checkZeroResidue() {
   console.log("OK — zero residue in engine executable products");
 }
 
+// =====================================================================
+// P3 T2/T4 — G2 live-face last-index guard (cursor binary-name residue)
+// =====================================================================
+// The cursor harness row key is `cursor`; its external binary name survives in exactly one
+// allowed live coordinate — a data-source data row (the G2 data-derived allowance, never a
+// hand-written exemption list). The guard drives the live-face scan via the ContractLexiconGuard
+// (scripts/lib/contract-lexicon.ts#checkResidue, T4 — the collector migrated in-tree with the
+// lexicon data rows as its allow set):
+//   ① engine src incl. test sites — includeTests ON;
+//   ② scripts — walkTargetFiles' default `**/__tests__` self-exemption applies;
+//   ③ docs/maintainers — no test sites, the face scans in full.
+// The data-source set rides the lexicon residue domain data rows ([harness-registry.json,
+// contract-lexicon.json]); the guard body carries the scanned lexeme only via the lexicon data —
+// a live face (scripts/) must not become a carrier of the vocabulary it guards.
+
+// The C6 ContractLexiconGuard — the single drive for the four converged check faces (anatomy /
+// residue / wording / config) plus the assertLexiconZero helper that renders its findings.
+import { ContractLexiconGuard } from "../lib/contract-lexicon.ts";
+
+function assertLexiconZero(label, hits) {
+  assert(
+    hits.length === 0,
+    `CONTRACT LEXICON ${label.toUpperCase()} FOUND — guard check:\n  ${hits
+      .map(
+        (h) =>
+          `[${h.category ?? h.label}] ${h.file ?? ""}${h.line ? `:${h.line}` : ""}${
+            h.message ? ` — ${h.message}` : ""
+          }`,
+      )
+      .join("\n  ")}`,
+  );
+  console.log(`OK — contract lexicon ${label} check zero findings`);
+}
+
 export function hasHit(lines) {
   return [...STALE_LEXICON_CHECKS, ...GATE_LEXICON_CHECKS].some(({ re }) =>
     lines.some((line) => re.test(line)),
@@ -350,10 +365,21 @@ export function hasHit(lines) {
 
 // targetsOverride mirrors collectGateLexiconHits — lets tests inject temporary targets to verify the
 // **doc-surface face** (DOC_SURFACE_TARGETS) is actually in the scan (otherwise a scope shrink goes
-// unnoticed by any assertion).
+// unnoticed by any assertion). A check with a non-empty dataRowAllow runs a line-level scan through
+// the shared data-row mask: the allowance FILE SET is the lexicon's residue dataSources (data-
+// derived, never a hand-written exemption list), and only a hit inside a data source's data row is
+// green — everything else on the mechanism face fails.
 export function collectStaleLexiconHits(targetsOverride) {
   const hits = [];
-  for (const { label, re, scope } of STALE_LEXICON_CHECKS) {
+  const dataSources = new ContractLexiconGuard().lexicon().residue.dataSources;
+  for (const { label, re, scope, dataRowAllow = [] } of STALE_LEXICON_CHECKS) {
+    if (dataRowAllow.length > 0) {
+      for (const { file, text } of scanLines(targetsOverride ?? scope, re)) {
+        if (dataRowAllow.some((tok) => isDataRow(dataSources, file, text, `"${tok}"`))) continue;
+        hits.push({ label, file });
+      }
+      continue;
+    }
     for (const f of scanTargets(targetsOverride ?? scope, re)) hits.push({ label, file: f });
   }
   return hits;
@@ -408,26 +434,6 @@ export const CANONICAL_ARGV_FLAGS = new Set(
 // guard body keeps zero contiguous literals).
 const ROOT_FROM_DOC = "root" + "FromDoc" + "Path";
 const RESOLVE_REPO_ROOT = "resolve" + "Repo" + "Root";
-
-// Line-by-line scan helper (built on walkTargetFiles' file surface): each hit returns
-// { file, lineNo, text }.
-export function scanLines(targets, re, opts) {
-  const hits = [];
-  for (const f of walkTargetFiles(targets, opts)) {
-    const lines = readFileSync(f).toString("utf8").split("\n");
-    for (let i = 0; i < lines.length; i++) {
-      if (re.test(lines[i]))
-        hits.push({ file: path.relative(ROOT, f), lineNo: i + 1, text: lines[i] });
-    }
-  }
-  return hits;
-}
-
-// File-listing helper (scanLines' file surface): the repo-relative paths of every non-binary file
-// in the target set (for structure assertions / cross-file comparison).
-function listTargetFiles(targets) {
-  return walkTargetFiles(targets).map((f) => path.relative(ROOT, f));
-}
 
 /** ① Row 1: process.cwd() count in engine src = 1 and the sole hit file = src/bin.ts (both are asserted). */
 export function collectProcessCwdAudit(targetsOverride = CDD_ENGINE_BIN) {
@@ -793,7 +799,7 @@ export function collectContextModuleHardcodeHits(
 // residue re-read, so it sits outside the residue ban's intent. The brief mandates the signal and
 // its acceptance gate is `pnpm run validate` green; per the guard's own `全枚举白名单`
 // (fully-enumerated-whitelist) principle the
-// carve-out is enumerated to THIS file only (same precedent as the naming.ts readdirSync whitelist).
+// carve-out is enumerated to THIS file only (same precedent as the documents.ts doc-existence carve-out).
 // Every other residue token (latestHandoff/…) is still scanned inside proc.ts; any mtime/readdirSync
 // use in any OTHER file still hits — pinned by the ⑪ selftest (incl. the golden temp-dir test).
 const RESIDUAL_SCAN_RE =
@@ -815,12 +821,11 @@ export function collectResidualRereadHits(targetsOverride = CDD_ENGINE_BIN) {
   for (const f of dirs) {
     const abs = path.isAbsolute(f) ? f : path.join(ROOT, f);
     if (!readFileSync(abs, "utf8").includes("readdirSync")) continue;
-    if (f === "packages/cdd-engine/src/artifacts/handoff/naming.ts") continue;
     if (f === LIVENESS_PROBE_FILE) continue; // T14 probe page (whitelist enumerated above)
     // P2 T3: the four-table audit's doc-existence globs + anchor-registry scan enumerate the two
     // program doc dirs (specs/ + plans/, both explicit path arguments — never a full-tree find):
-    // same fully-enumerated carve-out doctrine as the naming.ts whitelist (bounded dir listing in
-    // the doc-contract judgment, not a "most recent" residue re-read).
+    // same fully-enumerated carve-out doctrine as the runtime.ts T14 probe carve-out (bounded dir
+    // listing in the doc-contract judgment, not a "most recent" residue re-read).
     if (f === "packages/cdd-engine/src/rules/documents.ts") continue;
     hits.push({
       label:
@@ -840,19 +845,17 @@ export function collectResidualRereadHits(targetsOverride = CDD_ENGINE_BIN) {
 }
 
 // ⑫ Row 13: the stdout counters line derives from the canonical category table — the construction
-// points keep zero hand-written counter names/labels; the six category names, "appearing as a
+// points keep zero hand-written counter names/labels; the seven category names, "appearing as a
 // category identity", keep zero hand-written sites (failure_category assignment /
 // isIncompleteDispatch judgment); counters never enter the handoff contract. The properties count is
-// iron-anchored by the guard: task 16 (14 base properties incl. failure_category + recovery +
-// changes + the P4.3 single-data-model group reference tasks, T7.4/T7.5 carriers) / docs 14 (12 base
-// properties incl. failure_category + recovery + changes, T7.4 carrier + the T5 commits{base,head}
-// core-block unification). Nothing beyond recovery/changes/failure_category/commits + the P4.3
-// group-reference fields (tasks / findings[].task) may be added. The four field names and labels go
-// through failure-categories.json.
+// iron-anchored by the guard: task 15 / docs 13 — the T7 crash recovery deleted the `recovery`
+// carrier from BOTH schemas (crash record + top-level mechanism fields take over the death
+// diagnosis); what may be added beyond the base + failure_category + changes + commits + the P4.3
+// group-reference fields (tasks / findings[].task) stays closed. The counter field names and labels
+// go through failure-categories.json.
 const COUNTER_FIELDS = failureResolver.counters().map((c) => c.field);
 const COUNTER_LABELS = failureResolver.counters().map((c) => c.label);
 const CATEGORY_IDS = Object.values(FAILURE_CATEGORIES).map((c) => c.id);
-const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 export function collectCountersContractHits({
   constructFiles = [
@@ -868,7 +871,9 @@ export function collectCountersContractHits({
   // field name/H1 label is hand-writing ("timeoutCount=" and similar). Line-limited (line-by-line
   // scan, no cross-line span matching); \b anchors the label short names ("timeout" …) so the
   // semantic word "dispatch-timeout-cap" is not false-hit.
-  const quoted = new RegExp(`"(${[...COUNTER_FIELDS, ...COUNTER_LABELS].map(escRe).join("|")})\\b`);
+  const quoted = new RegExp(
+    `"(${[...COUNTER_FIELDS, ...COUNTER_LABELS].map(escapeRegExp).join("|")})\\b`,
+  );
   for (const f of constructFiles) {
     const text = readFileSync(path.isAbsolute(f) ? f : path.join(ROOT, f), "utf8");
     const m = quoted.exec(text);
@@ -881,7 +886,7 @@ export function collectCountersContractHits({
   // enum values are not this class, hence no status key anchor). The category name list goes
   // through canonical.
   const failureCategoryRe = new RegExp(
-    `failure_category:\\s*["'](?:${CATEGORY_IDS.map(escRe).join("|")})["']|isIncompleteDispatch\\(["']|incrementFailureCounter\\([^,]+,\\s*["']`,
+    `failure_category:\\s*["'](?:${CATEGORY_IDS.map(escapeRegExp).join("|")})["']|isIncompleteDispatch\\(["']|incrementFailureCounter\\([^,]+,\\s*["']`,
   );
   for (const { file, lineNo, text } of scanLines(engineScope, failureCategoryRe)) {
     hits.push({
@@ -903,10 +908,26 @@ export function collectCountersContractHits({
           file: schemaPath,
         });
     }
-    const expected = name === "task" ? 16 : 14;
+    const expected = name === "task" ? 15 : 13;
     if (props.length !== expected || !props.includes("failure_category")) {
       hits.push({
         label: `${name} handoff schema properties count ${props.length} ≠ ${expected} (nothing may grow/shrink beyond failure_category)`,
+        file: schemaPath,
+      });
+    }
+    // T7 fix (the HARNESS_ABORT enum drift): pin the schema's failure_category enum to the
+    // CANONICAL category set (FAILURE_CATEGORIES — the same canonical read the category checks use,
+    // never a literal copy) so a future engine-config category addition/removal cannot silently
+    // desync the shipped schema the way HARNESS_ABORT did. Equality on both directions (extra +
+    // missing) — a guard that only checked missing would allow out-of-canonical enum members.
+    const enumSet = new Set(
+      (schema.properties.failure_category?.enum as string[] | undefined) ?? [],
+    );
+    const missing = CATEGORY_IDS.filter((c) => !enumSet.has(c));
+    const extra = [...enumSet].filter((c) => !new Set(CATEGORY_IDS).has(c));
+    if (missing.length > 0 || extra.length > 0) {
+      hits.push({
+        label: `${name} handoff schema failure_category enum drift vs the canonical category set (missing: ${missing.join(",") || "none"}; extra: ${extra.join(",") || "none"})`,
         file: schemaPath,
       });
     }
@@ -1650,6 +1671,11 @@ function checkSkillSurface() {
 // (M5: .mjs terminal state) and checkMemoryGuard (M6: vitest dual-config memory guard);
 // Task 31 (P6, spec T7.10) appends checkCommentAnchors (§35 second half: the src comment
 // anchor-first ban — semantic body first, anchor only as a trailing traceability suffix);
+// T2/T4 (P3) drive the G2 live-face last-index guard through the ContractLexiconGuard
+// (checkResidue: engine src+tests / scripts / docs/maintainers, the lexicon data-row allowance
+// set) — the four converged check faces run once in this block under the guard (checkAnatomy =
+// the retired digraph-consistency assertions, checkWording = the C7 shape-restate guard,
+// checkConfig = the engine-config channel audit);
 // grepTargets grew to include cdd-engine src+templates for the wiring guard to pin. channelTargets
 // = the channel-audit guard-surface union (the wiring guard pins any scope shrink as a fail;
 // post-move it excludes the retired tests/, the src surface walk self-exempts).
@@ -1667,6 +1693,16 @@ export const steps = [
       checkMjsTerminalState();
       checkMemoryGuard();
       checkCommentAnchors();
+      // T4 (P3) — the ContractLexiconGuard single drive: anatomy / residue / wording / config run
+      // once in this block. checkResidue replaces the former inline G2 collector (the lexicon
+      // data rows are its allowance set); checkAnatomy absorbs the retired digraph-consistency
+      // node:test surface; checkWording pins C7 shape-restate zero-hit on the orchestrator
+      // skills; checkConfig runs the engine-config channel audit.
+      const guard = new ContractLexiconGuard();
+      assertLexiconZero("anatomy", guard.checkAnatomy());
+      assertLexiconZero("residue", guard.checkResidue());
+      assertLexiconZero("wording", guard.checkWording(ORCHESTRATOR_SKILLS));
+      assertLexiconZero("config", guard.checkConfig(loadContract()));
     },
     grepTargets: RESIDUE_TARGETS,
     channelTargets: CHANNEL_AUDIT_TARGETS,

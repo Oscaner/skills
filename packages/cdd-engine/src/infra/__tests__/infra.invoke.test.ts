@@ -8,33 +8,41 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("execa", () => ({ execa: vi.fn() }));
 
 import { execa } from "execa";
-import { EngineInvoker } from "../invoke.ts";
+import { type DispatchOp, EngineInvoker } from "../invoke.ts";
 
 const invoker = new EngineInvoker();
 
-describe("infra/invoke.ts — resolveTerminationConfig (T26 single resolver, env-zero)", () => {
-  it("default task budget is 3h (canonical timeouts.defaults.task)", () => {
-    expect(invoker.resolveTerminationConfig("task").budgetMs).toBe(10_800_000);
+describe("infra/invoke.ts — resolveTerminationConfig (T26 single resolver, env-zero; T9 op-dimension budgets)", () => {
+  it("default implement budget is 6h (canonical timeouts.defaults.implement)", () => {
+    expect(invoker.resolveTerminationConfig("implement").budgetMs).toBe(21_600_000);
   });
-  it("default review budget is 60min (canonical timeouts.defaults.review)", () => {
-    expect(invoker.resolveTerminationConfig("review").budgetMs).toBe(3_600_000);
+  it("default review budget is 3h (canonical timeouts.defaults.review)", () => {
+    expect(invoker.resolveTerminationConfig("review").budgetMs).toBe(10_800_000);
+  });
+  it("default fix budget is 6h (canonical timeouts.defaults.fix — same amount as implement, user ruling)", () => {
+    expect(invoker.resolveTerminationConfig("fix").budgetMs).toBe(21_600_000);
   });
   it("seam override wins over the canonical default (no env reads anywhere)", () => {
-    expect(invoker.resolveTerminationConfig("task", { budgetMs: 42_000 }).budgetMs).toBe(42_000);
+    expect(invoker.resolveTerminationConfig("implement", { budgetMs: 42_000 }).budgetMs).toBe(
+      42_000,
+    );
     expect(invoker.resolveTerminationConfig("review", { budgetMs: 7_000 }).budgetMs).toBe(7_000);
+    expect(invoker.resolveTerminationConfig("fix", { budgetMs: 9_000 }).budgetMs).toBe(9_000);
   });
   it("stall detector timing comes from canonical timeouts.liveness (60s sample / 15min idle window)", () => {
-    expect(invoker.resolveTerminationConfig("task").sampleIntervalMs).toBe(60_000);
-    expect(invoker.resolveTerminationConfig("task").idleWindowMs).toBe(900_000);
+    expect(invoker.resolveTerminationConfig("implement").sampleIntervalMs).toBe(60_000);
+    expect(invoker.resolveTerminationConfig("implement").idleWindowMs).toBe(900_000);
   });
   it("progressPath threads through (workspace tree signal for the stall detector)", () => {
-    expect(invoker.resolveTerminationConfig("task", undefined, "/ws").progressPath).toBe("/ws");
+    expect(invoker.resolveTerminationConfig("implement", undefined, "/ws").progressPath).toBe(
+      "/ws",
+    );
   });
-  it("unknown mode → budget undefined (canonical defaults only for declared modes)", () => {
-    const cfg = invoker.resolveTerminationConfig("unknown");
+  it("config-missing key → budget undefined (the unknown→undefined fail-safe: the DispatchOp union makes any other literal unreachable at compile time; the runtime defense still covers a canonical that lacks a key)", () => {
+    const cfg = invoker.resolveTerminationConfig("unknown" as DispatchOp);
     expect(cfg.budgetMs).toBeUndefined();
     // stall cadence still resolves from canonical liveness — the liveness defaults are
-    // not mode-scoped (T14 surface preserved under the unified resolver)
+    // not op-scoped (T14 surface preserved under the unified resolver)
     expect(cfg.sampleIntervalMs).not.toBeUndefined();
   });
 });

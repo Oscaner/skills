@@ -21,10 +21,14 @@ describe("engine-config 单点消费（config.ts 分区段加载）", () => {
     const onDisk = JSON.parse(readFileSync(path.join(TEMPLATES, "engine-config.json"), "utf8"));
     const cfg = configLoader.engineConfig();
     expect(cfg).toEqual(onDisk);
-    // 三区段的既有承重锚点（内容随迁移逐字保留）
-    expect(cfg.contextContract.timeouts.defaults.task).toBe(10_800_000);
+    // The pinned anchors below (T9 budget-dimension unification: the defaults are keyed by
+    // DISPATCH OP — implement 6h / review 3h / fix 6h — the legacy `task` key is deleted,
+    // user ruling 2026-09-30).
+    const defaults = cfg.contextContract.timeouts.defaults as Record<string, number>;
+    expect(defaults).toEqual({ implement: 21_600_000, review: 10_800_000, fix: 21_600_000 });
+    expect(defaults).not.toHaveProperty("task");
     expect(cfg.contextContract.channels.env).toHaveProperty("hostHarness");
-    expect(cfg.failureCategories.categories).toHaveLength(6);
+    expect(cfg.failureCategories.categories).toHaveLength(7);
     expect(cfg.handoffNamespace.workspaceRoot).toBe(".osuperpowers/cdd");
     expect(Object.keys(cfg.handoffNamespace.families)).toHaveLength(9);
   });

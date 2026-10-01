@@ -10,22 +10,26 @@
 // channel to DocsLifecycle.run.
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import * as handoffNaming from "../artifacts/handoff/naming.ts";
+import { Handoff } from "../artifacts/handoff.ts";
 import { hashFile } from "../artifacts/hash.ts";
 import { RoundContext } from "../artifacts/round-context.ts";
 import { DOC_TOKENS } from "../documents/tokens.ts";
 import { type TaskGroup, toTaskGroup } from "../domain/task-group.ts";
 import { exitOkWith, exitWithCode } from "../infra/exit.ts";
-import { withLifecycle } from "../infra/proc.ts";
+import { initProcLifecycle, withLifecycle } from "../infra/proc.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
+import { WorkspaceRoot } from "../infra/workspace.ts";
 import { TemplateLoader } from "../render/templates.ts";
 import { ConvergenceChecker } from "../rules/convergence.ts";
-import { nextStepFor } from "../rules/next-step.ts";
-import { docsResultFace } from "./result-face.ts";
+import { ResultFace } from "../rules/result-face.ts";
 import { DRY_RUN, type PrevHandoff, requireHostHarness, resolveTargetDoc } from "./shared.ts";
 
 const templates = new TemplateLoader();
 const convergence = new ConvergenceChecker();
+// C5 (T3): the single stdout result face — the docs review capsule + the `next:` suggestion line
+// (status/blocker/handoff + next) derive through the injected StatusDeriver/NextStepRouter/Convergence
+// (zero bare function emission; docsResultFace is retired).
+const resultFace = new ResultFace();
 
 export interface ReviewOpts {
   type: string;
@@ -50,12 +54,12 @@ interface RoundHandoff {
 
 // ---- review-specific helpers ----
 
-// Docs workspace fully routes through handoff-naming.resolveWorkspace(doc)
-// (.osuperpowers/cdd/<slug>/, slug derived via slugRule; the Phase-0 flat root is retired,
+// Docs workspace fully routes through WorkspaceRoot.for(doc) → path
+// (.osuperpowers/cdd/<slug>/, slug derived via the slug rule; the Phase-0 flat root is retired,
 // zero engine references).
 export function existingRoundHandoff(ws: string, type: string, round: number): RoundHandoff | null {
   if (round < 1) return null;
-  const p = path.join(ws, handoffNaming.handoffName("review", type, { round }));
+  const p = path.join(ws, Handoff.handoffName("review", type, { round }));
   if (!existsSync(p)) return null;
   try {
     return JSON.parse(readFileSync(p, "utf8")) as RoundHandoff;
@@ -72,14 +76,14 @@ export function existingRoundHandoff(ws: string, type: string, round: number): R
   }
 }
 
-// The `review --type task` task workspace derivation (the task derivation point: same-source
-// workspaceSlug as run-task resolveWorkspace). plan file name → <repoRoot>/<workspaceRoot>/<slug> —
-// slug converges via handoff-naming.workspaceSlug (-design/-plan single-layer strip), base path via
-// the workspaceRoot constant (no hard-coded literal); the two derivation points' fork-prevention
-// regression tests live in tests/cli-shared.test.mjs (§2.9 row 6). Exported as a pure function
-// (test seam): repoRoot is injected by the caller.
+// The `review --type task` task workspace derivation (the task derivation point: same-source slug
+// as the dispatch's plan workspace). plan file name → WorkspaceRoot.for(plan).path — the slug rule
+// (-design/-plan single-layer strip) and the base path converge via the WorkspaceRoot derivation
+// (no hard-coded literal); the two derivation points' fork-prevention regression tests live in
+// infra/__tests__/cli-shared.test.ts (§2.9 row 6 relocated — taskReviewWorkspace slug convergence).
+// Exported as a test seam: repoRoot is injected by the caller.
 export function taskReviewWorkspace(plan: string, repoRoot: string): string {
-  return path.join(repoRoot, handoffNaming.workspaceRoot, handoffNaming.workspaceSlug(plan));
+  return WorkspaceRoot.from(repoRoot).for(plan).path;
 }
 
 // ---- review dispatch ----
@@ -139,9 +143,18 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
       const doc = resolveTargetDoc(opts, "review");
       const { DocsLifecycle } = await import("../dispatch/docs.ts");
       // spec/plan: round = engine auto-increment (canonical review.{type} family pattern scan);
-      // --round only validates backfill (conflict → exit 2).
-      const ws = handoffNaming.resolveWorkspace(doc, root);
-      const round = handoffNaming.resolveNextRound(ws, "review", opts.type);
+      // --round only validates backfill (conflict → exit 2). The workspace materializes here
+      // (WorkspaceRoot.ensure bootstrap guard + slug dir) — the docs agent's handoff writes land in
+      // an already-guarded workspace.
+      const workspaceRoot = WorkspaceRoot.from(root);
+      workspaceRoot.ensure();
+      const workspace = workspaceRoot.for(doc);
+      workspace.ensure();
+      const ws = workspace.path;
+      // Process-lifecycle registry binding (T6 relocation, same as the task/branch lanes): the docs
+      // review's registration lands in THIS slug's lifecycle.json — never the repo-level single file.
+      initProcLifecycle({ diskPath: workspace.lifecyclePath });
+      const round = Handoff.resolveNextRound(ws, "review", opts.type);
       if (opts.round && Number(opts.round) !== round) {
         process.stderr.write(`--round ${opts.round} ≠ engine round ${round}\n`);
         exitWithCode(2);
@@ -180,7 +193,7 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
       // in the options for the unit seam (cdd.test asserts it) — docs.ts ignores the key.
       const cfg = templates.reviewTypeConfig(opts.type);
       const art = templates.reviewArtifactConfig(opts.type);
-      const handoffPath = path.join(ws, handoffNaming.handoffName("review", opts.type, { round }));
+      const handoffPath = path.join(ws, Handoff.handoffName("review", opts.type, { round }));
       const result = await DocsLifecycle.run({
         harness,
         mode: "review",
@@ -192,8 +205,8 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
           MODE: "review",
           REVIEW_TYPE: opts.type,
           REVIEW_LENS_GUIDE: cfg.lensEnum.join(" · "),
-          WORKSPACE: ws,
-          WORKSPACE_SLUG: path.basename(ws),
+          WORKSPACE: workspace.path,
+          WORKSPACE_SLUG: workspace.slug,
           REVIEW_REFERENCE: doc,
           REVIEW_AXES: cfg.axesGuide,
           RETURN_FORMAT: art.returnFormat,
@@ -202,28 +215,35 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
           REVIEW_PLAN_LINE:
             opts.type === "plan" && opts.spec ? `${DOC_TOKENS.specMark} ${opts.spec}` : "",
         },
-        workspace: ws,
+        workspace: workspace.path,
         repoRoot: root,
         dryRun: DRY_RUN(),
       });
-      // Docs review completion → stdout result face (design §2.9 / AC9): the orchestrator routes on
-      // the `status:` line without opening the handoff — C5 (T8) appends the `next:` suggestion
-      // line (one-way → fix when findings exist; `none` on a clean docs approval). Exit stays on
-      // the exit.ts single surface: exit 0 → exitOkWith(face) one call; non-0 → face + exitWithCode.
-      const face = docsResultFace(result, handoffPath);
+      // Docs review completion → stdout result face (C5, T3): the orchestrator routes on the single
+      // capsule (`status: <judgment axis> · blocker: <own findings> · handoff: <path>`) without
+      // opening the handoff; the `next:` suggestion line rides the same ResultFace emit (one-way →
+      // fix when findings exist; `none` on a clean docs approval). Exit stays on the exit.ts single
+      // surface: exit 0 → exitOkWith(face) one call; non-0 → face + exitWithCode.
       const docHandoff = result.handoff as
         | { status?: string; findings?: Array<{ severity?: string }> }
         | null
         | undefined;
-      const next = nextStepFor({
-        op: "review",
-        type: opts.type,
-        doc,
-        status: docHandoff?.status,
-        findings: docHandoff?.findings,
-        findingsPath: handoffPath,
-      });
-      const faceOutput = next ? `${face}\nnext: ${next}` : face;
+      const faceOutput = resultFace
+        .emit({
+          op: "review",
+          handoffPath,
+          status: docHandoff?.status,
+          findings: docHandoff?.findings,
+          next: {
+            op: "review",
+            type: opts.type,
+            doc,
+            status: docHandoff?.status,
+            findings: docHandoff?.findings,
+            findingsPath: handoffPath,
+          },
+        })
+        .join("\n");
       if (result.exitCode === 0) exitOkWith(faceOutput);
       process.stdout.write(`${faceOutput}\n`);
       exitWithCode(result.exitCode);
@@ -256,7 +276,7 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
     // IS the TaskGroup key (comma-joined — the CLI --tasks string, no second form).
     const group = toTaskGroup(opts.tasks);
     const groupKey = group.key();
-    const nextTaskRound = handoffNaming.resolveNextRound(taskWs, "review", "task", {
+    const nextTaskRound = Handoff.resolveNextRound(taskWs, "review", "task", {
       tasks: groupKey,
     });
     // --round validation backfill (task side: the derived next-round value; conflict → exit 2,

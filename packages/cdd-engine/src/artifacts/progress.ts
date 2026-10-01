@@ -4,8 +4,8 @@
 // pair are instance methods, zero bare function exports). Replaces the progress.md-based
 // timeoutCount with structured JSON. Transparent migration: read auto-migrates progress.md →
 // progress.json.
-// six-key ledger: plan / timeoutCount / contractViolationCount / engineSelfWrittenCount /
-// engineRecoveryCount / tasks — the fixed top-level key set (COUNTER_ZERO satisfies-checks the
+// seven-key ledger: plan / timeoutCount / contractViolationCount / engineSelfWrittenCount /
+// engineRecoveryCount / harnessAbortCount / tasks — the fixed top-level key set (COUNTER_ZERO satisfies-checks the
 // counter arm; drift fails to compile, AC14). Write invariant: every write goes through #write —
 // the retired-field strip (dead top-level keys + the retired tasks[N].status) converges there, so
 // no caller can re-introduce a legacy field.
@@ -13,9 +13,10 @@
 // src/artifacts/return-block.ts#returnCountersLine (its single point) — progress drops the
 // counters() import, breaking the failure⇄progress mutual import (counters() stays the
 // rules/failure.ts owner; progress only reads/writes).
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { GitClient } from "../infra/git.ts";
+import type { Workspace } from "../infra/workspace.ts";
 
 // The progress schema dropped lastDispatchHead/degradationLog (T8: dead fields; check-head/
 // engine-recovery degradation, superseded by deriveReviewStatus/engineRecoveryCount);
@@ -24,10 +25,18 @@ import { GitClient } from "../infra/git.ts";
 /** progress.json row — keyed by scalar `task` for single-task groups (`--tasks 1` — backward
  * compatible with every per-task consumer) or by the group key string for multi-task groups
  * (`--tasks 1,2` → `{ group: "1,2" }` — the P4.3/P4.4 group is the dispatch unit; the key IS the
- * TaskGroup key — comma-joined, no second form — round/handoff/progress/residue land per group). */
-export type TaskLedgerRow =
-  | { task: number; rounds?: Record<string, number>; scope_base?: string }
-  | { group: string; rounds?: Record<string, number>; scope_base?: string };
+ * TaskGroup key — comma-joined, no second form — round/handoff/progress/residue land per group).
+ * T8: `recovery_count` — the group's CONSECUTIVE crash-recovery streak (the resume soft-cap basis,
+ * §D): it grows with each crash teardown and resets to 0 when a round terminates at the normal face
+ * (resetRecoveryCount — the dual-artifact normal-face cleanup), so the soft cap measures consecutive
+ * failure cycles only (symmetric with the S1 soft cap's leading-consecutive count), never a lifetime
+ * per-task total. A per-row engine-owned field, never a FailureResolver category counter (external
+ * incidents must not burn the category caps). */
+export type TaskLedgerRow = {
+  rounds?: Record<string, number>;
+  scope_base?: string;
+  recovery_count?: number;
+} & ({ task: number } | { group: string });
 
 /** progress.json shape — top-level keys only (plan / counters / tasks). Counters derive from the
  * canonical failure-categories table (create writes all counter fields at 0). Typed carrier
@@ -38,6 +47,7 @@ export interface ProgressData {
   contractViolationCount?: number;
   engineSelfWrittenCount?: number;
   engineRecoveryCount?: number;
+  harnessAbortCount?: number;
   tasks: TaskLedgerRow[];
 }
 
@@ -53,9 +63,10 @@ export const COUNTER_ZERO = {
   contractViolationCount: 0,
   engineSelfWrittenCount: 0,
   engineRecoveryCount: 0,
+  harnessAbortCount: 0,
 } as const satisfies Record<keyof Omit<ProgressData, "plan" | "tasks">, 0>;
 
-/** CounterKey — the four declared counter members as a literal union (derived, never quoted). */
+/** CounterKey — the five declared counter members as a literal union (derived, never quoted). */
 export type CounterKey = keyof typeof COUNTER_ZERO;
 
 /** Ledger lookup key — a scalar task number (single-task group) or the group key string. */
@@ -75,12 +86,15 @@ export const SHA40_RE = /^[0-9a-f]{40}$/;
 /** ProgressLedger — the progress.json single owner (Task 6 ③ six-key ledger). All reads/writes and the
  *  round/scope derivations are instance methods; the rowFor/entryFor pair is the ledger's single
  *  single/group row lookup source (the dispatch layer's ensure-row writeback consumes the same
- *  methods). Constructor-injected git seam (the scope-ledger ancestry judgment), defaulting to a
- *  fresh GitClient. */
+ *  methods). Constructor-injected Workspace (T6 injection rework — the method-level progressDir path
+ *  parameters converged to the workspace injection, eliminating the string path surface) + git seam
+ *  (the scope-ledger ancestry judgment), defaulting to a fresh GitClient. */
 export class ProgressLedger {
+  readonly #workspace: Workspace;
   readonly #git: GitClient;
 
-  constructor(git: GitClient = new GitClient()) {
+  constructor(workspace: Workspace, git: GitClient = new GitClient()) {
+    this.#workspace = workspace;
     this.#git = git;
   }
 
@@ -113,15 +127,15 @@ export class ProgressLedger {
     return single ? { task: Number(key) } : { group: String(key) };
   }
 
-  /** read(progressDir, plan): read progress.json from progressDir.
+  /** read(plan?): read progress.json from the injected workspace.
    * Transparent migration: if progress.json is missing but progress.md exists, migrate first.
    * If neither exists, return empty progress.
-   * plan (T7 optional 2nd arg): recorded into progress on first create/migrate via
+   * plan (T7 optional arg): recorded into progress on first create/migrate via
    * create(plan) — the absolute path of the `--plan` arg. Single-arg consumers
    * (incrementRound / incrementRecovery internals) are unchanged: at their call time progress.json
    * already exists and plan does not participate in derivation. */
-  read(progressDir: string, plan?: string): ProgressData {
-    const jsonPath = path.join(progressDir, "progress.json");
+  read(plan?: string): ProgressData {
+    const jsonPath = this.#workspace.progressPath;
     if (existsSync(jsonPath)) {
       try {
         return JSON.parse(readFileSync(jsonPath, "utf8")) as ProgressData;
@@ -129,10 +143,11 @@ export class ProgressLedger {
         // Corrupted file — fall through to migration
       }
     }
-    return this.migrateIfNeeded(progressDir, plan);
+    return this.migrateIfNeeded(plan);
   }
 
-  /** write(progressDir, data): write data to progress.json in progressDir.
+  /** write(data): write data to progress.json in the injected workspace (through the Workspace
+   * writeJson single point — ensure + stringify + writeFileSync).
    * The dead fields (lastDispatchHead/degradationLog) are dropped on write — a legacy progress.json
    * (a live pre-degradation file) carrying the old keys gets a one-time GC on first write-back.
    * Task 30 ②: tasks[N].status is retired from the schema — any legacy row still carrying it
@@ -141,8 +156,7 @@ export class ProgressLedger {
    * (P4.4 Task 5): the strip is expressed as typed member writes over the declared ProgressData keys
    * — the two legacy top-level keys and the retired row status are dropped BY CONSTRUCTION without a
    * Record<string, unknown> view / bare `delete` against the typed carrier. */
-  write(progressDir: string, data: ProgressData): void {
-    const jsonPath = path.join(progressDir, "progress.json");
+  write(data: ProgressData): void {
     const clean: ProgressData = { tasks: [] };
     if (data.plan !== undefined) clean.plan = data.plan;
     if (data.timeoutCount !== undefined) clean.timeoutCount = data.timeoutCount;
@@ -152,15 +166,17 @@ export class ProgressLedger {
       clean.engineSelfWrittenCount = data.engineSelfWrittenCount;
     if (data.engineRecoveryCount !== undefined)
       clean.engineRecoveryCount = data.engineRecoveryCount;
+    if (data.harnessAbortCount !== undefined) clean.harnessAbortCount = data.harnessAbortCount;
     if (Array.isArray(data.tasks)) {
       clean.tasks = data.tasks.map((t) => {
         const row: TaskLedgerRow = "group" in t ? { group: t.group } : { task: t.task };
         if (t.rounds !== undefined) row.rounds = t.rounds;
         if (t.scope_base !== undefined) row.scope_base = t.scope_base;
+        if (t.recovery_count !== undefined) row.recovery_count = t.recovery_count;
         return row;
       });
     }
-    writeFileSync(jsonPath, JSON.stringify(clean, null, 2));
+    this.#workspace.writeJson("progress.json", clean);
   }
 
   /** create(plan): fresh progress object for a given plan.
@@ -175,6 +191,7 @@ export class ProgressLedger {
       contractViolationCount: 0,
       engineSelfWrittenCount: 0,
       engineRecoveryCount: 0,
+      harnessAbortCount: 0,
       tasks: [],
     };
   }
@@ -190,8 +207,8 @@ export class ProgressLedger {
 
   /** incrementRound: record that a round has been dispatched (call after any handoff is written to
    * disk, including BLOCKED/TIMEOUT). Creates the row (task or group kind) if absent. */
-  incrementRound(progressDir: string, key: LedgerKey, mode: string): void {
-    const data = this.read(progressDir);
+  incrementRound(key: LedgerKey, mode: string): void {
+    const data = this.read();
     let taskEntry = this.rowFor(data, key);
     if (!taskEntry) {
       taskEntry = this.entryFor(key);
@@ -199,7 +216,7 @@ export class ProgressLedger {
     }
     taskEntry.rounds ??= {}; // migrate pre-rounds task entries that lack the field
     taskEntry.rounds[mode] = (taskEntry.rounds[mode] ?? 0) + 1;
-    this.write(progressDir, data);
+    this.write(data);
   }
 
   /** incrementRecovery: engineRecoveryCount increments (D14 — every progress.json field is
@@ -207,16 +224,60 @@ export class ProgressLedger {
    * (BLOCKED/engine-error path); the orchestrator-layer skill (cli-driven-development
    * §engine-recovery) only READS it to decide retry (count < 2 → re-dispatch; count ≥ 2 → terminal
    * engine-error), never increments itself. */
-  incrementRecovery(progressDir: string): void {
-    const data = this.read(progressDir);
+  incrementRecovery(): void {
+    const data = this.read();
     data.engineRecoveryCount = (data.engineRecoveryCount ?? 0) + 1;
-    this.write(progressDir, data);
+    this.write(data);
+  }
+
+  /** recoveryCount: the group's consecutive crash-recovery streak (0 default — the T8 resume
+   * soft-cap basis). Reads the per-row recovery_count field (engine-owned); absent/malformed → 0. */
+  recoveryCount(key: LedgerKey): number {
+    const entry = this.rowFor(this.read(), key);
+    const v = entry?.recovery_count;
+    return typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : 0;
+  }
+
+  /** incrementRecoveryCount: one crash-teardown event bumps the group's recovery count — the
+   * per-task persistence point of the T8 resume soft cap (the per-task recovery count lands in
+   * progress persistence, §D): the
+   * count is a ROW fact, never a FailureResolver category counter — 403 / OOM / over-budget are
+   * external incidents, never task defects, so the category caps stay untouched. The count tracks
+   * the CONSECUTIVE streak — a normal-face round resets it (resetRecoveryCount), so a long-ago
+   * crash does not keep a task pinned at the cap. Returns the count AFTER the bump (the caller
+   * judges against CRASH_RECOVERY_CAP_ROUNDS). */
+  incrementRecoveryCount(key: LedgerKey): number {
+    const data = this.read();
+    let taskEntry = this.rowFor(data, key);
+    if (!taskEntry) {
+      taskEntry = this.entryFor(key);
+      data.tasks.push(taskEntry);
+    }
+    taskEntry.recovery_count = (taskEntry.recovery_count ?? 0) + 1;
+    this.write(data);
+    return taskEntry.recovery_count;
+  }
+
+  /** resetRecoveryCount: the consecutive-streak reset (the normal-face counterpart of
+   * incrementRecoveryCount) — a round terminating at the NORMAL face ends the crash-recovery
+   * sequence, so the group's recovery_count drops back to 0 and a later crash re-enters the cap
+   * adjudication fresh (the soft cap measures consecutive failure cycles, symmetric with the S1
+   * soft cap's leading-consecutive count). Only a row holding a nonzero streak writes (absent rows
+   * and an already-zero streak are no-ops — no no-op overwrite). Caller: the task lifecycle's
+   * normal-face cleanup, alongside the resolved crash-record removal. */
+  resetRecoveryCount(key: LedgerKey): void {
+    const data = this.read();
+    const entry = this.rowFor(data, key);
+    if (entry && entry.recovery_count !== undefined && entry.recovery_count !== 0) {
+      entry.recovery_count = 0;
+      this.write(data);
+    }
   }
 
   /** taskScopeBase: the ledger's current scope_base for the key, or null when absent/invalid
    *  (a non-40-hex stored value is treated as a missing ledger — dispatch falls back to legacy). */
-  taskScopeBase(progressDir: string, key: LedgerKey): string | null {
-    const entry = this.rowFor(this.read(progressDir), key);
+  taskScopeBase(key: LedgerKey): string | null {
+    const entry = this.rowFor(this.read(), key);
     const v = entry?.scope_base;
     return typeof v === "string" && SHA40_RE.test(v) ? v : null;
   }
@@ -225,8 +286,8 @@ export class ProgressLedger {
    *  Returns the ledger value AFTER the call: an existing valid anchor wins (the return equals the
    *  current value, the change is a no-op); an invalid stored value is healed by the first valid seed;
    *  a non-40-hex/absent input never writes (returns the current ledger value — null when empty). */
-  seedScopeBase(progressDir: string, key: LedgerKey, base: string): string | null {
-    const data = this.read(progressDir);
+  seedScopeBase(key: LedgerKey, base: string): string | null {
+    const data = this.read();
     const current = this.rowFor(data, key)?.scope_base;
     if (typeof current === "string" && SHA40_RE.test(current)) return current; // earliest-wins
     if (!SHA40_RE.test(base)) return current ?? null;
@@ -236,7 +297,7 @@ export class ProgressLedger {
       data.tasks.push(taskEntry);
     }
     taskEntry.scope_base = base;
-    this.write(progressDir, data);
+    this.write(data);
     return base;
   }
 
@@ -247,23 +308,22 @@ export class ProgressLedger {
    *  and a non-40-hex candidate all leave the ledger intact. Ledger missing → falls back to the seed
    *  lane. Returns the ledger value after the call. */
   async moveTaskScopeBaseEarlier(
-    progressDir: string,
     key: LedgerKey,
     candidate: string,
     cwd: string,
     head: string,
   ): Promise<string | null> {
-    const current = this.taskScopeBase(progressDir, key);
-    if (current === null) return this.seedScopeBase(progressDir, key, candidate);
+    const current = this.taskScopeBase(key);
+    if (current === null) return this.seedScopeBase(key, candidate);
     if (!SHA40_RE.test(candidate) || candidate === current || candidate === head) return current;
     const isAncestorOfCurrent = await this.#git.mergeBaseIsAncestor(cwd, candidate, current);
     const isAncestorOfHead = await this.#git.mergeBaseIsAncestor(cwd, candidate, head);
     if (!isAncestorOfCurrent || !isAncestorOfHead) return current;
-    const data = this.read(progressDir);
+    const data = this.read();
     const taskEntry = this.rowFor(data, key);
     if (taskEntry) {
       taskEntry.scope_base = candidate;
-      this.write(progressDir, data);
+      this.write(data);
       return candidate;
     }
     return current;
@@ -271,8 +331,8 @@ export class ProgressLedger {
 
   /** migrateFromProgressMD: parse progress.md and return a structured progress object.
    * Returns null when progress.md does not exist. */
-  migrateFromProgressMD(progressDir: string): ProgressData | null {
-    const mdPath = path.join(progressDir, "progress.md");
+  migrateFromProgressMD(): ProgressData | null {
+    const mdPath = path.join(this.#workspace.path, "progress.md");
     if (!existsSync(mdPath)) return null;
     const content = readFileSync(mdPath, "utf8");
 
@@ -307,15 +367,15 @@ export class ProgressLedger {
     };
   }
 
-  /** migrateIfNeeded(progressDir, plan): transparent migration.
+  /** migrateIfNeeded(plan): transparent migration.
    * 1. progress.json exists → return it (T6: backfill the two counters when absent and write back —
    *    a legacy four-key object read out must already carry contractViolationCount /
    *    engineSelfWrittenCount for the stdout counters line's value source to be complete)
    * 2. progress.md exists → migrate to progress.json, return migrated data
    * 3. neither → create empty progress (T7: plan recorded via create at the init point;
    *    legacy no-plan semantics fall back to create(plan || "")) */
-  migrateIfNeeded(progressDir: string, plan?: string): ProgressData {
-    const jsonPath = path.join(progressDir, "progress.json");
+  migrateIfNeeded(plan?: string): ProgressData {
+    const jsonPath = this.#workspace.progressPath;
     if (existsSync(jsonPath)) {
       try {
         const data = JSON.parse(readFileSync(jsonPath, "utf8")) as ProgressData;
@@ -331,19 +391,23 @@ export class ProgressLedger {
           data.engineSelfWrittenCount = 0;
           changed = true;
         }
-        if (changed) this.write(progressDir, data);
+        if (typeof data.harnessAbortCount !== "number") {
+          data.harnessAbortCount = 0;
+          changed = true;
+        }
+        if (changed) this.write(data);
         return data;
       } catch {
         // Corrupted — treat as missing, try migration
       }
     }
-    const mdData = this.migrateFromProgressMD(progressDir);
+    const mdData = this.migrateFromProgressMD();
     if (mdData) {
-      this.write(progressDir, mdData);
+      this.write(mdData);
       return mdData;
     }
     const empty = this.create(plan);
-    this.write(progressDir, empty);
+    this.write(empty);
     return empty;
   }
 }

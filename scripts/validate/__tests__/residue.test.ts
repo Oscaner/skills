@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-
+import { scanTargets } from "../../lib/scan.ts";
 import {
   collectChannelAuditHits,
   collectCommentAnchorHits,
@@ -55,7 +55,6 @@ import {
   INIT_REFERENCE_TARGETS,
   ORCHESTRATOR_SKILLS,
   SHIPPED_SURFACE_TARGETS,
-  scanTargets,
 } from "../residue.ts";
 
 describe("stale-lexicon：断言组行为（brief Step 1）", () => {
@@ -898,7 +897,8 @@ describe("channel audit：⑪ 零「最近一次」残留回读", () => {
   });
   it("T3 白名单：documents.ts 四表审计目录枚举零残留命中 + glob 语汇仍在（白名单不空置）", () => {
     // P2 T3: the four-table audit's doc-existence globs + anchor-registry scan enumerate the two
-    // program doc dirs (bounded explicit-path listings — the naming.ts whitelist's doctrine).
+    // program doc dirs (bounded explicit-path listings — the documents.ts doc-existence carve-out's
+    // doctrine).
     // The whitelist entry must stay load-bearing — the readdirSync atoms remain in the file.
     const here = path.dirname(fileURLToPath(import.meta.url));
     const docsAbs = path.join(
@@ -968,8 +968,27 @@ describe("channel audit：⑫ counters 行契约（canonical 派生 + 零手写 
     );
     try {
       const hits = collectCountersContractHits({ docsSchema: f });
-      expect(hits.length).toBe(1);
-      expect(hits[0].label).toMatch(/count|≠/);
+      // count-drift hit + the missing failure_category → the canonical-set enum drift hit fires too
+      expect(hits.some((h) => h.label.match(/≠/))).toBe(true);
+      expect(hits.some((h) => h.label.match(/enum drift/))).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("failure_category enum 漏掉 canonical 类目（HARNESS_ABORT 回归面）→ 命中", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "audit-schema-3-"));
+    const f = path.join(dir, "docs-handoff-schema.json");
+    // the six-legacy-category enum (HARNESS_ABORT missing) — the pre-T7 drift shape; the guard
+    // must pin the enum to the canonical set
+    writeFileSync(
+      f,
+      '{ "properties": { "failure_category": { "type": "string", "enum": ["TIMEOUT", "CONTRACT_VIOLATION", "ENGINE_SELF_WRITTEN", "EXECUTION_FAILURE", "UNVERIFIABLE", "PLAN_CONFLICT"] } } }\n',
+      "utf8",
+    );
+    try {
+      const hits = collectCountersContractHits({ docsSchema: f });
+      expect(hits.some((h) => h.label.match(/enum drift/))).toBe(true);
+      expect(hits.some((h) => h.label.match(/HARNESS_ABORT/))).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -1521,6 +1540,19 @@ describe("stale-lexicon：report-issues 旧模型语汇守卫（Task 16·P5）",
       rmSync(dir, { recursive: true, force: true });
     }
   });
+  it("data-row mask: a lexicon-registered data source's data value (`-p --mode text`) is green (G2 isDataRow allowance, data-derived)", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "residue-t16-datarow-"));
+    writeFileSync(
+      path.join(dir, "harness-registry.json"),
+      '{ "pi": { "cli": "pi", "invoke": "-p --mode text", "output": "text" } }\n',
+      "utf8",
+    );
+    try {
+      expect(collectStaleLexiconHits([dir])).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("live repo：T16 skills 面守卫 5 条零残留", () => {
@@ -1682,3 +1714,10 @@ describe("src 注释锚首禁（Task 31 / spec T7.10）", () => {
     expect(collectCommentAnchorHits()).toEqual([]);
   });
 });
+
+// ---- P3 T2/T4: the G2 cursor binary-name live-face guard migrated to the ContractLexiconGuard
+// ---- (scripts/lib/contract-lexicon.ts#checkResidue) with the contract lexicon — its regression
+// ---- assertions live in scripts/lib/__tests__/contract-lexicon.test.ts (the same data-row /
+// ---- per-face dispositions, now driven through the guard class). The scanned lexeme is never
+// ---- written contiguously here either (the test position is self-exempt, but the file stays
+// ---- zero-literal so a future scope extension cannot self-bite).

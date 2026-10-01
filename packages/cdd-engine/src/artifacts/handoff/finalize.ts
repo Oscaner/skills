@@ -1,6 +1,6 @@
 // packages/cdd-engine/src/artifacts/handoff/finalize.ts — handoff carrier finalization single point
 // (T7; Task 8 TS port of finalize.mjs): agent content → finalized handoff → full-replace write →
-// return block re-emit. Peer of handoff/naming (finalization is an independent concern).
+// return block re-emit. Peer of the Handoff carrier (finalization is an independent concern).
 // P6 T24 B: this file is the status-derivation family's SOLE owner (rollupStatus / deriveReviewStatus
 // / applyDerivedStatus / statusExitCode / blockedCarrierFor — the five contract.mjs symbols +
 // applyDerivedStatus) AND the CONTRACT_VIOLATION recovery unit's home (normalizeHandoff /
@@ -35,21 +35,25 @@
 // with the validator it consumes coming from rules/schema.ts. The edge is one-way
 // (finalize → schema); schema.ts holds zero applyDerivedStatus reference.
 import { existsSync, readFileSync } from "node:fs";
-import path from "node:path";
 import { TaskGroup } from "../../domain/task-group.ts";
 import { invariant } from "../../infra/exit.ts";
 import { GitClient } from "../../infra/git.ts";
+import type { Workspace } from "../../infra/workspace.ts";
 import { FAILURE_CATEGORIES } from "../../rules/failure.ts";
 import { HandoffSchemaValidator } from "../../rules/schema.ts";
+import { StatusDeriver } from "../../rules/status-deriver.ts";
 import { hashFile } from "../hash.ts";
 import { ProgressLedger, SHA40_RE } from "../progress.ts";
 import { ReturnBlockParser } from "../return-block.ts";
-import { readJson, writeHandoff, writeOwnHandoff } from "./write.ts";
+import { writeHandoff, writeOwnHandoff } from "./write.ts";
 
 const git = new GitClient();
-const ledger = new ProgressLedger();
 const schemaValidator = new HandoffSchemaValidator();
 const returnBlockParser = new ReturnBlockParser();
+// C5 (T3): the judgment-axis core lives in rules/status-deriver.ts (single source) — the
+// finalize-level review derivation (unverifiable/plan_conflicts + failure-status lanes) keeps its
+// handoff-level logic and delegates the severity roll-up to the shared StatusDeriver.
+const statusDeriver = new StatusDeriver();
 
 // ---- severity contract / status derivation (merged from contract.mjs, spec §2.3) ----
 
@@ -91,16 +95,16 @@ export function classifySeverity(sev: unknown): string {
  * packages/cdd-engine/templates/schema/docs-handoff-schema.json; this rollup is the mapping;
  * Task 8 #278 — the three-value conclusion):
  *   empty → APPROVED; warn/nit only → REVIEW_FIX (closure state); blocker present → CHANGES_REQUESTED;
- *   non-empty unverifiable[] / plan_conflicts[] → BLOCKED. */
+ *   non-empty unverifiable[] / plan_conflicts[] → BLOCKED. The severity roll-up delegates to the
+ *   shared StatusDeriver#deriveReviewStatus (C5, T3 — the judgment-axis single source); the
+ *   unverifiable/plan_conflicts BLOCKED lane stays here with the handoff-level review derivation. */
 export function rollupStatus(
   findings: Array<{ severity?: string }> = [],
   unverifiable: unknown[] = [],
   planConflicts: unknown[] = [],
 ): string {
   if (unverifiable.length > 0 || planConflicts.length > 0) return "BLOCKED";
-  const hasBlocker = findings.some((f) => f?.severity === "blocker");
-  if (hasBlocker) return "CHANGES_REQUESTED";
-  return findings.length > 0 ? "REVIEW_FIX" : "APPROVED";
+  return statusDeriver.deriveReviewStatus(findings);
 }
 
 /** review-family handoff status derivation (engine-authoritative only): after schema validation,
@@ -164,8 +168,9 @@ function entrySummary(v: unknown): string {
 /** BLOCKED carrier single point (Task 23 ① ④): the review-family unverifiable/plan_conflicts lane
  * must never fold to a bare BLOCKED string — the derived round carries the failure channel
  * (canonical category identity via FAILURE_CATEGORIES, never a literal) + a real blocker saying
- * what couldn't be verified / why (so derive → returnFromHandoff never falls back to a fabricated
- * default). Real sources already present (an agent/engine blocker or failure_category) ground the
+ * what couldn't be verified / why (so the derived carrier's read-back never falls back to a
+ * fabricated default). Real sources already present (an agent/engine blocker or failure_category)
+ * ground the
  * round as-is («BLOCKED ⇒ blocker non-empty OR failure_category»); with no lane at all → {} — this
  * helper never invents prose. */
 export function blockedCarrierFor(
@@ -342,11 +347,8 @@ export interface BlockedCarrierInput {
   blocker: string;
   /** docs-family review target — carves doc_path + the doc_hash content-state token. */
   doc?: string;
-  /** resume contract (T26/spec T7.5): settleResidue's salvage record rides any TIMEOUT /
-   * EXECUTION_FAILURE carrier so the re-dispatch pre-flight can restore the WIP. */
-  recovery?: Record<string, unknown>;
-  /** death-reason archival (T26): recorded when a dead round salvages NOTHING (recovery is absent,
-   * so recovery.cause cannot carry the termination cause) — the carrier stays replayable by cause. */
+  /** death-reason archival (T26): recorded on the TIMEOUT/child-failure lanes so the dead round
+   * stays replayable by cause (the crash record takes over the death diagnosis + snapshot). */
   notes?: string;
   /** schema-invalid branch: full-replace write so offending keys never stay on disk. */
   fullReplace?: boolean;
@@ -363,7 +365,6 @@ export function writeBlockedCarrier(
   };
   if (input.failure_category) payload.failure_category = input.failure_category;
   if (input.commits) payload.commits = input.commits;
-  if (input.recovery) payload.recovery = input.recovery;
   if (input.notes) payload.notes = input.notes;
   payload.findings = input.findings ?? [];
   payload.artifacts = input.artifacts ?? {};
@@ -377,9 +378,9 @@ export function writeBlockedCarrier(
   return { exitCode: 1, handoff: payload };
 }
 
-/** Finalization single entry: dispatch per mode → { handoff, exitCode }. The return block re-emits
- * from the finalized returnFromHandoff at the consumer. Three consumers share this implementation
- * (runner step 13 / docs-runner read-back / branch review read-back).
+/** Finalization single entry: dispatch per mode → { handoff, exitCode }. The status capsule re-emits
+ * from the finalized carrier at the consumer. Three consumers share this implementation (runner step
+ * 13 / docs-runner read-back / branch review read-back).
  * Task 23 ③: the round conclusion maps to exit at the single point — BLOCKED → 1 (any mode),
  * APPROVED / CHANGES_REQUESTED → 0.
  * Task 5: implement family takes HEAD via git (infra/git.ts) → the whole chain is async
@@ -392,7 +393,6 @@ export async function finalizeHandoff({
   repoRoot,
   workspace,
   tasks,
-  resumeScopeBase = null,
   fixBase = null,
 }: {
   mode?: string;
@@ -400,14 +400,10 @@ export async function finalizeHandoff({
   agentHandoff?: Record<string, unknown> | null;
   brief?: string;
   repoRoot?: string | null;
-  workspace?: string;
+  workspace?: Workspace;
   /** The dispatch group — the materialized carrier's `tasks` identity + the group-keyed
    * evidence/scope-ledger key (single-data-model). */
   tasks?: number[];
-  /** The resume pre-flight's captured recovery.scope_base — the settled ledger anchor riding
-   *  the dead-round carrier (T27, spec T7.6). Finalize uses it to pull the ledger strictly earlier.
-   *  Passed by the dispatch — the implement materialization is the only consumer. */
-  resumeScopeBase?: string | null;
   /** The branch-fix FIX_BASE (the reviewed range's base — the dispatch's derive, spec C4). Its
    * presence switches the fix mode to the engine fact reconstruction (C4-1): commits / phase /
    * status become engine-authoritative and the agent handoff is input only. Absent (the docs fix
@@ -430,7 +426,6 @@ export async function finalizeHandoff({
       repoRoot,
       workspace,
       tasks,
-      resumeScopeBase,
     });
   }
   if (mode === "fix") {
@@ -594,7 +589,7 @@ export function persistFinalized(
 
 // TASK_BASE → the sole authority of implement commits.base. Missing brief / no TASK_BASE line →
 // null (degrade without materialization: dry-run and smoke chains both land here, an ENOENT must
-// never crash the runner). Exported for the dispatch's settleResidue fallback (scope ledger, T27).
+// never crash the runner).
 export function taskBaseFromBrief(briefPath: string | undefined): string | null {
   if (!briefPath || !existsSync(briefPath)) return null;
   try {
@@ -616,15 +611,12 @@ export function taskBaseFromBrief(briefPath: string | undefined): string | null 
 // file) → soft WARN note. Grouped materialization reads the group-keyed evidence artifact
 // (`tasks-{a},{b}-test-evidence.json`).
 function evidenceGate(
-  workspace: string | undefined,
+  workspace: Workspace | undefined,
   groupKey: string | null,
 ): { hard: boolean; warn: string } {
   const ev =
-    groupKey != null
-      ? (readJson(path.join(workspace ?? "", `tasks-${groupKey}-test-evidence.json`)) as Record<
-          string,
-          unknown
-        > | null)
+    groupKey != null && workspace
+      ? workspace.readJson<Record<string, unknown>>(`tasks-${groupKey}-test-evidence.json`)
       : null;
   if (!ev)
     return {
@@ -664,18 +656,14 @@ export async function finalizeImplement({
   repoRoot,
   workspace,
   tasks,
-  resumeScopeBase = null,
 }: {
   returnBlock?: string[];
   brief?: string;
   repoRoot?: string | null;
-  workspace?: string;
+  workspace?: Workspace;
   /** The dispatch group — the carrier's `tasks` identity + the group-keyed evidence/scope-ledger
    * key. Null → legacy task-less materialization (no carrier identity). */
   tasks?: number[];
-  /** The resume pre-flight's captured recovery.scope_base — the settled ledger anchor riding
-   *  the dead-round carrier, used to pull the ledger strictly earlier (T27, spec T7.6). */
-  resumeScopeBase?: string | null;
 }): Promise<{ handoff: Record<string, unknown> | null; exitCode: number }> {
   const base = taskBaseFromBrief(brief);
   if (!base) {
@@ -718,16 +706,15 @@ export async function finalizeImplement({
   }
   // The scope ledger seeds the brief TASK_BASE (T27: earliest-wins — re-dispatches carry LATER
   // TASK_BASE snapshots that must never overwrite the round-1 anchor), then moves the ledger
-  // strictly earlier along the resume anchors (the recovery-carrier scope_base and the adopted
-  // base). progressDir == workspace (ledgerPath = <workspace>/progress.json). Null key → skip
+  // strictly earlier along the adopted base (the T27 resume-declared anchor).
+  // progressDir == workspace (ledgerPath = <workspace>/progress.json). Null key → skip
   // the ledger (a task-less materialization writes no scope state).
   const seedKey = groupKey;
   if (repoRoot && head && workspace && seedKey != null) {
-    ledger.seedScopeBase(workspace, seedKey, base);
-    if (resumeScopeBase)
-      await ledger.moveTaskScopeBaseEarlier(workspace, seedKey, resumeScopeBase, repoRoot, head);
+    const ledger = new ProgressLedger(workspace);
+    ledger.seedScopeBase(seedKey, base);
     if (commitsBase !== base)
-      await ledger.moveTaskScopeBaseEarlier(workspace, seedKey, commitsBase, repoRoot, head);
+      await ledger.moveTaskScopeBaseEarlier(seedKey, commitsBase, repoRoot, head);
   }
   const gate = evidenceGate(workspace, groupKey);
   if (gate.hard) {

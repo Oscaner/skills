@@ -16,10 +16,13 @@ export default defineBuildConfig({
       outDir: "dist/documents/schema",
       pattern: ["*.json"],
     },
-    // Publish the harness registry (P3 T7 consumer parity): src/infra/harness-registry.json is the
-    // single source; the copy entry ships dist/resources/harness-registry.json (infra/registry.ts
+    // Publish the harness registry + the contract lexicon (P3 T7 consumer parity + C6): both
+    // src/infra JSONs are data surfaces with the same copy pipeline and release cadence —
+    // harness-registry.json ships dist/resources/harness-registry.json (infra/registry.ts
     // resolveRegistryPath published-first — the bundled module's file-relative URL would land in
-    // the bundle's chunk dir, which no build materializes). The outDir must be a DEDICATED subdir:
+    // the bundle's chunk dir, which no build materializes), and the five-domain contract lexicon
+    // ships beside it as dist/resources/contract-lexicon.json (the guards read the src single;
+    // the dist copy rides the published package). The outDir must be a DEDICATED subdir:
     // unbuild's copy builder in stub mode rmdir's the whole outDir + symlinks the input dir, so a
     // copy into the top-level dist/ would clobber the rollup stub (the schema entry's dedicated
     // dist/documents/schema follows the same rule).
@@ -27,7 +30,7 @@ export default defineBuildConfig({
       builder: "copy",
       input: "src/infra",
       outDir: "dist/resources",
-      pattern: ["harness-registry.json"],
+      pattern: ["harness-registry.json", "contract-lexicon.json"],
     },
   ],
 });

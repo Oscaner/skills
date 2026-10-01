@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 pnpm run emit       # regenerate all harness manifests from package.json
 pnpm run emit:check # verify emit output is fresh (no drift, exit 1 if stale)
-pnpm run validate   # full validation suite (emit check + plugin resolution + tests + version sync)
+pnpm run validate   # full validation suite (emit check + plugin resolution + tests + Contract Lexicon wording + version sync)
 pnpm run changeset  # create a changeset for versioning
 pnpm exec changeset version  # apply changesets to bump versions + CHANGELOGs (native; CI runs it on the Version PR)
 ```
@@ -43,7 +43,7 @@ Adding a new first-party plugin: create `packages/<name>/package.json` with an `
 
 - [`packages/osuperpowers/README.md`](packages/osuperpowers/README.md) — osuperpowers plugin user guide
 - [`.changeset/README.md`](.changeset/README.md) — changeset & release-flow reference for the first-party packages (version scheme, Release flow)
-- [skill-anatomy schema](packages/cdd-engine/src/documents/schema/skill-anatomy.json) — canonical SKILL.md structure contract (node-anchored format, English primary); the machine check [`digraph-consistency.test.mjs`](packages/osuperpowers/tests/digraph-consistency.test.mjs) validates all 8 osuperpowers skills against it
+- [skill-anatomy schema](packages/cdd-engine/src/documents/schema/skill-anatomy.json) — canonical SKILL.md structure contract (node-anchored format, English primary); the machine check [`ContractLexiconGuard#checkAnatomy`](scripts/lib/contract-lexicon.ts) validates all 8 osuperpowers skills against it
 
 ### Data-driven templates
 
@@ -62,6 +62,8 @@ The global `cdd` command must NOT be used (`npm link` removed).
 ### cdd CLI surface — zero new subcommands
 
 The `cdd` CLI gains **no new subcommands** — the only exceptions are the discovery-type `cdd schema get <type>` and the pure-rendering `cdd issue render`, both zero-enforcement (the charter's Non-goal #1 exception). Enforcement-capable subcommands stay closed.
+
+Every op's stdout is the single status capsule (`status · blocker · handoff`) plus the engine-derived `next:` suggestion line — `cdd review` / `cdd fix` included; BLOCKED reasons ride the stderr `CDD_BLOCKED:` channel. The capsule/route vocabulary is single-sourced in the Contract Lexicon (`packages/cdd-engine/src/infra/contract-lexicon.json`), never restated in prose. A harness abnormal exit stores a crash-only snapshot + crash record in the workspace (`.osuperpowers/cdd/<slug>/crash-<lane>-<round>.json`) — re-run the same command per the BLOCKED `next:` to continue (no redo, no residue loss).
 
 ### Engine tests
 
@@ -116,7 +118,7 @@ Changes to rule text and docs shipped with the plugin must be reviewed from the 
 
 ### Consumer surface purity (iron rule — zero program history in shipped skill text)
 
-An iron rule, hard-won: **consumer-shipped skill text carries zero program history.** SKILL.md (and every file that ships to harness consumers) is an instruction document — its sections are executable direction or self-describing structure, never program narrative. Phase/issue numbers, evolution rationales, refactor justifications, mid-flight decisions, growth-guide notes, and "why X was rejected" history are meaningless to consumers with none of this repo's program context — misplaced content is a defect, and this rule recurs whenever a fix/backfill narrates its own history into a skill. **No one-line pointer or neutral note substitutes for removal**: if a consumer would not act on the section, the section does not belong in the shipped file. Such content belongs in `docs/maintainers/` (repo-shared, maintainer-positioned). Machine enforcement: the skill-anatomy schema ([`packages/cdd-engine/src/documents/schema/skill-anatomy.json`](packages/cdd-engine/src/documents/schema/skill-anatomy.json)) carries the section-heading registry — a strict allowlist `digraph-consistency.test.mjs` enforces: it fails any SKILL.md carrying a growth/refactor narrative heading in any form (`## Flow size note`, `## Full Flow Refactor Rationale`, …) or any registry-external heading, and requires a growth-boundary crossing's rationale to be registered in the schema's growth registry instead.
+An iron rule, hard-won: **consumer-shipped skill text carries zero program history.** SKILL.md (and every file that ships to harness consumers) is an instruction document — its sections are executable direction or self-describing structure, never program narrative. Phase/issue numbers, evolution rationales, refactor justifications, mid-flight decisions, growth-guide notes, and "why X was rejected" history are meaningless to consumers with none of this repo's program context — misplaced content is a defect, and this rule recurs whenever a fix/backfill narrates its own history into a skill. **No one-line pointer or neutral note substitutes for removal**: if a consumer would not act on the section, the section does not belong in the shipped file. Such content belongs in `docs/maintainers/` (repo-shared, maintainer-positioned). Machine enforcement: the skill-anatomy schema ([`packages/cdd-engine/src/documents/schema/skill-anatomy.json`](packages/cdd-engine/src/documents/schema/skill-anatomy.json)) carries the section-heading registry — the strict allowlist [`ContractLexiconGuard#checkAnatomy`](scripts/lib/contract-lexicon.ts) enforces: it fails any SKILL.md carrying a growth/refactor narrative heading in any form (`## Flow size note`, `## Full Flow Refactor Rationale`, …) or any registry-external heading, and requires a growth-boundary crossing's rationale to be registered in the schema's growth registry instead.
 
 ### Session-memory policy
 

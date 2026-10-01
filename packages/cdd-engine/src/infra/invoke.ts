@@ -19,9 +19,10 @@ import {
 } from "./proc.ts";
 import { Registry } from "./registry.ts";
 
-export interface TimeoutDefaults {
-  [mode: string]: number | undefined;
-}
+/** The dispatch-op union (T9 budget-dimension unification) — the key set of the budget dimension:
+ *  implement / review / fix. Every budget default is keyed by op; passing a non-op string fails at
+ *  compile time (the legacy `"task"` / `"unknown"` budget keys are gone with the config). */
+export type DispatchOp = "implement" | "review" | "fix";
 
 // Termination config source of truth: canonical `engine-config.json#contextContract` (loadContract()
 // is the unique reader). The budget defaults + stall cadence come from the canonical — editing the
@@ -29,8 +30,12 @@ export interface TimeoutDefaults {
 // CDD_REVIEW_TIMEOUT / CDD_CLI_TIMEOUT) and the perModeOverride/globalOverride config segments are
 // REMOVED — runtime budget tuning had zero real scenarios and violated the T14 zero-new-env-key
 // principle; the config defaults + the explicit opts.termination seam are the only budget sources.
+// T9: the defaults are keyed by DISPATCH OP (implement 6h / review 3h / fix 6h) — the `task` key
+// is deleted; the `Record<DispatchOp, number | undefined>` surface keeps the unknown→undefined
+// fail-safe (a canonical lacking a key resolves an undefined budget — the defensive semantics the
+// union makes unreachable at compile time).
 const CONTRACT = loadContract();
-const DEFAULT_TIMEOUTS: TimeoutDefaults = CONTRACT.timeouts.defaults;
+const DEFAULT_TIMEOUTS: Record<DispatchOp, number | undefined> = CONTRACT.timeouts.defaults;
 
 // Stall-cadence surface (T26): the stall detector's sample cadence + idle window read from canonical
 // timeouts.liveness (defaults are honored the same way the mode budgets are — a config file edit
@@ -70,13 +75,14 @@ export class EngineInvoker {
 
   /** resolveTerminationConfig — the single resolver for the unified termination param (T26:
    * replaces resolveTimeoutMs + resolveLivenessConfig). Returns the full TerminationConfig the
-   * three dispatch islands (task / docs / branch) thread into invokeCli/spawnManaged:
+   * three dispatch islands thread into invokeCli/spawnManaged, keyed by the DISPATCH OP (T9: the
+   * op dimension — `mode` is the actual dispatched op, never a hardcoded island/budget key):
    *   budgetMs       = overrides?.budgetMs ?? canonical default for mode (no env reads);
    *   progressPath   = overrides?.progressPath ?? progressPath arg (the workspace tree signal);
    *   sampleInterval = overrides?.sampleIntervalMs ?? canonical timeouts.liveness;
    *   idleWindowMs   = overrides?.idleWindowMs ?? canonical timeouts.liveness. */
   resolveTerminationConfig(
-    mode: string,
+    mode: DispatchOp,
     overrides: Partial<TerminationConfig> | undefined = undefined,
     progressPath: string | undefined = undefined,
   ): TerminationConfig {

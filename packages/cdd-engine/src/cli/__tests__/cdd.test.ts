@@ -145,7 +145,8 @@ describe("cdd CLI", () => {
       );
       expect(r.exitCode).toBe(0);
       expect(r.stdout).toMatch(/status: APPROVED/);
-      expect(r.stdout).toMatch(new RegExp(`commits: base=${base} head=${head}`));
+      expect(r.stdout).toMatch(/· blocker: 0 ·/);
+      expect(r.stdout).toMatch(/· handoff:/); // the capsule points at the carrier — commits/artifacts/counters live there (T3)
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -182,12 +183,13 @@ describe("cdd CLI", () => {
       { env: { CLAUDE_CODE_SESSION_ID: "1" } },
     );
     expect(r.exitCode).toBe(0);
-    expect(r.stdout).toMatch(/status: APPROVED/);
+    expect(r.stdout).toMatch(/status: COMPLETED/); // fix work axis (T3)
   });
 
   it("fix --type spec|plan 非 dry-run：无 host env → CDD_BLOCKED exit 1（T3 — 无 harness 停闸，host 由环境判定）", () => {
     // 原"unknown harness 停闸"用例已随 harness 参数删除淘汰：entry 层 host 判定为空即 BLOCK，
-    // 不再存在未知 harness 需停闸（host 必然是 claude/cursor-agent 两合法键）——T3 改断言无-host BLOCK。
+    // no unknown-harness stop gate remains — the host legal key set is {claude, cursor, pi}
+    // (T3: the no-host env case asserts the CDD_BLOCKED path instead).
     // 保留 not.toMatch(/template/)：BLOCK 消息不得来自 doc-fix 模板渲染错误。
     for (const [type, reviewFile] of [
       ["spec", "spec-review-1.json"],
@@ -414,11 +416,12 @@ describe("cdd CLI", () => {
         },
       );
       expect(r.exitCode).toBe(0);
-      // C3-b: the REAL-mode round emits the return block contract on the parent stdout — the
-      // orchestrator routes the branch-review conclusion on the `status:` line.
+      // C3-b/T3: the REAL-mode round emits the status capsule on the parent stdout — the
+      // orchestrator routes the branch-review conclusion on the capsule's status.
       expect(r.stdout).toContain("status: REVIEW_FIX");
-      expect(r.stdout).toContain("counters: ");
-      expect(r.stdout).not.toContain("blocker:");
+      expect(r.stdout).toContain("· blocker: 0 ·"); // warn/nit-only findings → zero blockers
+      expect(r.stdout).toContain("· handoff:");
+      expect(r.stdout).not.toContain("counters:");
       const h = JSON.parse(readFileSync(handoffPath, "utf8"));
       // warn/nit = 0 blockers → status is overwritten by finalizeHandoff (applyDerivedStatus rollup) to REVIEW_FIX (closure state)
       expect(h.status).toBe("REVIEW_FIX");
@@ -534,14 +537,14 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
   });
 
   it("resolveWorkspace: plan foo.md 与 spec foo-design.md 收敛同一 workspace", async () => {
-    const { resolveWorkspace } = await import("../../artifacts/handoff/naming.ts");
+    const { WorkspaceRoot } = await import("../../infra/workspace.ts");
     // root 显式注入（不调 initRoot()、不 chdir）——POSIX 路径字面量，无盘上依赖。
-    expect(resolveWorkspace("/repo/root/docs/osuperpowers/plans/foo.md", "/repo/root")).toBe(
-      "/repo/root/.osuperpowers/cdd/foo",
-    );
-    expect(resolveWorkspace("/repo/root/docs/osuperpowers/specs/foo-design.md", "/repo/root")).toBe(
-      "/repo/root/.osuperpowers/cdd/foo",
-    );
+    expect(
+      WorkspaceRoot.from("/repo/root").for("/repo/root/docs/osuperpowers/plans/foo.md").path,
+    ).toBe("/repo/root/.osuperpowers/cdd/foo");
+    expect(
+      WorkspaceRoot.from("/repo/root").for("/repo/root/docs/osuperpowers/specs/foo-design.md").path,
+    ).toBe("/repo/root/.osuperpowers/cdd/foo");
   });
 
   it("fix --findings spec-review-2.json → runDocsTask handoffPath=<ws>/spec-fix-2.json（round 从 findings 名经 roundPattern 解析）", async () => {
@@ -569,8 +572,9 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
         cap.restore();
       }
       expect(exitCode).toBe(0);
-      // C5 (T8): the docs fix face APPENDS the `next:` line — zero input findings → closure `none`.
-      expect(cap.text).toMatch(/status: APPROVED/);
+      // C5 (T8/T3): the docs fix face = the work-axis capsule (COMPLETED) + the `next:` line —
+      // zero input findings → closure `none`.
+      expect(cap.text).toMatch(/status: COMPLETED/);
       expect(cap.text).toMatch(/· handoff:/);
       expect(cap.text).toMatch(/next: none/);
       const call = docsRunnerMock.run.mock.calls.at(-1)?.[0] ?? {};
@@ -1048,7 +1052,7 @@ describe("P6 T10: E2② dry-run 脏树降级 — CLI 黑盒各型 sweep", () => 
     expect(r.stderr).toContain(`CDD_WARN: ${DRY_RUN_DIRTY_WARN}`);
   };
 
-  it("implement --dry-run（task 面）: 脏树 exit 0 + return block APPROVED + WARN", () => {
+  it("implement --dry-run（task 面）: 脏树 exit 0 + capsule COMPLETED + WARN", () => {
     const dir = dirtyFixtureRepo();
     try {
       const r = runCli(["--dry-run", "implement", "--tasks", "1", "--plan", "docs/plan.md"], {
@@ -1056,7 +1060,8 @@ describe("P6 T10: E2② dry-run 脏树降级 — CLI 黑盒各型 sweep", () => 
         env: { CLAUDE_CODE_SESSION_ID: "1" },
       });
       assertDryRunWarn(r);
-      expect(r.stdout).toMatch(/status: APPROVED/);
+      // The dry-run implement capsule carries the work axis (COMPLETED) + blocker 0 (T3).
+      expect(r.stdout).toMatch(/status: COMPLETED · blocker: 0 · handoff:/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -1094,7 +1099,7 @@ describe("P6 T10: E2② dry-run 脏树降级 — CLI 黑盒各型 sweep", () => 
         { cwd: dir2, env: { CLAUDE_CODE_SESSION_ID: "1" } },
       );
       assertDryRunWarn(r);
-      expect(r.stdout).toMatch(/status: APPROVED/);
+      expect(r.stdout).toMatch(/status: COMPLETED/); // fix work axis (T3)
     } finally {
       rmSync(dir2, { recursive: true, force: true });
     }
@@ -1133,8 +1138,8 @@ describe("P6 T10: E2② dry-run 脏树降级 — CLI 黑盒各型 sweep", () => 
         { cwd: dir2, env: { CLAUDE_CODE_SESSION_ID: "1" } },
       );
       assertDryRunWarn(r);
-      // docs-fix result face (AC9 — fix completion now also carries the stdout face).
-      expect(r.stdout).toMatch(/status: APPROVED/);
+      // docs-fix result face (AC9/T3 — fix completion carries the work-axis capsule COMPLETED).
+      expect(r.stdout).toMatch(/status: COMPLETED/);
       expect(r.stdout).toMatch(/· blocker: 0/);
       expect(r.stdout).toMatch(/· handoff:/);
     } finally {

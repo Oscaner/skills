@@ -1,11 +1,11 @@
 // packages/cdd-engine/src/artifacts/round-context.ts — RoundContext class (Task 6 ②): the review/fix
-// round's unique context — the round base / base token / round anchor. Wraps the canonical handoff-naming
-// atoms (naming.ts single point) so every review/fix round derivation (task dispatch buildContext /
-// cli review type=task round scan) shares ONE anchor object: the op/type/workspace/round identity,
-// the per-family params ({tasks} for task, {base7,head7} for branch), the base token (the round's
+// round's unique context — the round base / base token / round anchor. Wraps the canonical Handoff
+// family-naming statics (handoff.ts single point) so every review/fix round derivation (task dispatch
+// buildContext / cli review type=task round scan) shares ONE anchor object: the op/type/workspace/round
+// identity, the per-family params ({tasks} for task, {base7,head7} for branch), the base token (the round's
 // fixed-point / FIX_BASE anchor), and the derived name/path/previous-round surfaces.
 import path from "node:path";
-import { type HandoffParams, handoffName, prevHandoffPath } from "./handoff/naming.ts";
+import { Handoff, type HandoffParams } from "./handoff.ts";
 
 export type RoundOp = "review" | "fix";
 export type RoundType = "task" | "branch" | "spec" | "plan";
@@ -73,9 +73,9 @@ export class RoundContext {
     });
   }
 
-  /** The canonical handoff file name for this round (handoff-naming single truth). */
+  /** The canonical handoff file name for this round (Handoff handoffName single truth). */
   get name(): string {
-    return handoffName(this.op, this.type, {
+    return Handoff.handoffName(this.op, this.type, {
       ...this.params,
       ...(this.round != null ? { round: this.round } : {}),
     });
@@ -89,7 +89,7 @@ export class RoundContext {
   /** The round's previous-phase handoff path (the canonical prev table — fix → the source review;
    *  same-family round-1 arithmetic for review). null → no previous phase on record. */
   prevHandoffPath(): string | null {
-    return prevHandoffPath(this.workspace, this.op, this.type, this.round, this.params);
+    return Handoff.prevHandoffPath(this.workspace, this.op, this.type, this.round, this.params);
   }
 
   /** The previous review/fix round anchor (round-1 when one exists), null at round 1 /

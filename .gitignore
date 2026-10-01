@@ -1,7 +1,6 @@
 node_modules
 .pnpm-store
 .venv
-.superpowers
 .osuperpowers
 __pycache__/
 tmp

@@ -11,7 +11,6 @@
 //   the git judgment rides the injected GitClient (Task 5 bottom-swap: infra/git.ts simple-git
 //   single point, no hand-written git helpers).
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { type ResidueAppendixInput, ResidueManager } from "../artifacts/residue.ts";
 import { DOC_TOKENS } from "../documents/tokens.ts";
 import { invariant } from "../infra/exit.ts";
 import { GitClient } from "../infra/git.ts";
@@ -19,21 +18,18 @@ import { GitClient } from "../infra/git.ts";
 export interface BriefRendererDeps {
   /** injected file/git judgments (determinism + test seam — the constructor-injected file/git judgments). */
   git?: GitClient;
-  residue?: ResidueManager;
 }
 
-/** BriefRenderer — the task brief single generator (Criterion ②; constructor injection — the GitClient + the
- *  ResidueManager appendix renderer, both defaulting to fresh instances). */
+/** BriefRenderer — the task brief single generator (Criterion ②; constructor injection — the GitClient,
+ *  defaulting to a fresh instance). */
 export class BriefRenderer {
   readonly #git: GitClient;
-  readonly #residue: ResidueManager;
 
   constructor(deps: BriefRendererDeps = {}) {
     this.#git = deps.git ?? new GitClient();
-    this.#residue = deps.residue ?? new ResidueManager();
   }
 
-  /** render(planFile, tasks, outPath, repoRoot, residue) — the brief single renderer. `tasks` is a
+  /** render(planFile, tasks, outPath, repoRoot) — the brief single renderer. `tasks` is a
    * scalar task number or the dispatch group list (the group briefs as one unit: every requested
    * task's `### Task N:` section lands in the one file, then one TASK_BASE line). Any requested task
    * with no matching heading BLOCKs the whole group — the invariant lists every missing task
@@ -44,7 +40,6 @@ export class BriefRenderer {
     tasks: number | number[],
     outPath: string,
     repoRoot: string,
-    residue: ResidueAppendixInput | null = null,
   ): Promise<void> {
     invariant(existsSync(planFile), `plan file not found: ${planFile}`);
     const lines = readFileSync(planFile, "utf8").split("\n");
@@ -81,14 +76,10 @@ export class BriefRenderer {
     );
     const sha = await this.#git.revParseHead(repoRoot);
     invariant(sha, "cannot resolve HEAD: not in a git repo");
-    // Resume-from-residue (T26): when the pre-flight applied a salvaged stash, the brief appends the
-    // data-driven `## Residue status` section (residue.ts renderResidueAppendix — prompt semantic
-    // self-sufficiency §35: the prose states the WIP facts itself, zero external anchors) so the next
-    // agent audits the restored WIP and continues instead of rewriting from zero.
-    let content = `${sections.join("\n\n")}\nTASK_BASE: ${sha}\n`;
-    if (residue) {
-      content += `\n${this.#residue.renderResidueAppendix(residue)}\n`;
-    }
+    // The Residue-status appendix (former resume-from-residue brief section) is deleted with the
+    // stash plane — resume is same-command re-dispatch from the crash-only snapshot commit, and the
+    // brief carries no appendix (the crash record holds the recovery facts).
+    const content = `${sections.join("\n\n")}\nTASK_BASE: ${sha}\n`;
     writeFileSync(outPath, content, "utf8");
   }
 }

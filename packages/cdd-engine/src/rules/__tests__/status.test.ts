@@ -11,7 +11,8 @@
 //   needs-review      implement APPROVED, no review dispatched yet
 //   needs-fix         latest review not approved (CHANGES_REQUESTED / BLOCKED), no addressing fix
 //   needs-re-review   T14-class: review not approved → addressing fix APPROVED, no re-review yet
-//   resume-pending    dead round on record (TIMEOUT / EXECUTION_FAILURE) — resume or discard
+//   resume-pending    crash record present for the lane+round (T8 — presence-derived; the handoff
+//                     carrier's TIMEOUT/EXECUTION_FAILURE dead face is retired) — resume or discard
 //   complete          latest review APPROVED (a subsequent fix is the legal terminal — T30 ①)
 
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -19,6 +20,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { TaskGroup } from "../../domain/task-group.ts";
+import { Workspace } from "../../infra/workspace.ts";
 import { type PlanVerdict, StatusJudge } from "../status.ts";
 
 const statusJudge = new StatusJudge();
@@ -68,7 +70,7 @@ function planFile(body: string): string {
 describe("deriveTaskState — six-state convergence", () => {
   it("in-flight: fresh task with no handoff / rounds (or implement not yet APPROVED)", () => {
     const ws = workspace(EMPTY_PROGRESS);
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("in-flight");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("in-flight");
   });
 
   it("in-flight: implement carrier BLOCKED (non-APPROVED, non-dead) → re-dispatch implement", () => {
@@ -81,7 +83,7 @@ describe("deriveTaskState — six-state convergence", () => {
       findings: [],
       artifacts: {},
     });
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("in-flight");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("in-flight");
   });
 
   it("needs-review: implement APPROVED + no review on record", () => {
@@ -93,7 +95,7 @@ describe("deriveTaskState — six-state convergence", () => {
       findings: [],
       artifacts: {},
     });
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("needs-review");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("needs-review");
   });
 
   it("needs-fix: review CHANGES_REQUESTED + no fix on record", () => {
@@ -105,7 +107,7 @@ describe("deriveTaskState — six-state convergence", () => {
       findings: [{ severity: "blocker" }],
       artifacts: {},
     });
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("needs-fix");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("needs-fix");
   });
 
   it("needs-fix: review BLOCKED (engine BLOCKED channel) likewise awaits the fix", () => {
@@ -118,7 +120,7 @@ describe("deriveTaskState — six-state convergence", () => {
       findings: [],
       artifacts: {},
     });
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("needs-fix");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("needs-fix");
   });
 
   it("needs-fix: fix BLOCKED (fix attempted but not landed) → fix again", () => {
@@ -138,7 +140,7 @@ describe("deriveTaskState — six-state convergence", () => {
       findings: [],
       artifacts: {},
     });
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("needs-fix");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("needs-fix");
   });
 
   it("needs-re-review (T14 explicit): review not approved → fix APPROVED, no subsequent review", () => {
@@ -157,12 +159,23 @@ describe("deriveTaskState — six-state convergence", () => {
       findings: [],
       artifacts: {},
     });
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("needs-re-review");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("needs-re-review");
   });
 
-  it("resume-pending: implement TIMEOUT dead round → resume or discard", () => {
+  it("resume-pending (T8): implement crash record present → resume or discard (presence-derived — the carrier dead face is retired)", () => {
     const ws = workspace(EMPTY_PROGRESS);
-    writeHandoff(ws, "tasks-1-implement.json", {
+    // The abnormal-face artifact (the T8 dual-model — written by the crash teardown) is the
+    // dead-round source, never a handoff carrier persistence point. The implement lane's round is
+    // always 1 → crash-implement-1.json.
+    writeFileSync(
+      path.join(ws, "crash-implement-1.json"),
+      JSON.stringify({ exitCode: 1, cause: "child-exit", next: "cdd implement --tasks 1" }),
+    );
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("resume-pending");
+    // The historical recovery-carrier persistence point is gone — a carrier alone (TIMEOUT status or an
+    // EXECUTION_FAILURE category) no longer marks the round dead without its crash record.
+    const ws2 = workspace(EMPTY_PROGRESS);
+    writeHandoff(ws2, "tasks-1-implement.json", {
       tasks: [1],
       phase: "implement",
       status: "TIMEOUT",
@@ -170,34 +183,20 @@ describe("deriveTaskState — six-state convergence", () => {
       findings: [],
       artifacts: {},
     });
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("resume-pending");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws2), 1)).toBe("in-flight");
   });
 
-  it("resume-pending: implement EXECUTION_FAILURE (status BLOCKED + category)", () => {
-    const ws = workspace(EMPTY_PROGRESS);
-    writeHandoff(ws, "tasks-1-implement.json", {
-      tasks: [1],
-      phase: "implement",
-      status: "BLOCKED",
-      failure_category: "EXECUTION_FAILURE",
-      blocker: "cli exited 1",
-      findings: [],
-      artifacts: {},
-    });
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("resume-pending");
-  });
-
-  it("resume-pending: review dead round (review TIMEOUT)", () => {
+  it("resume-pending (T8): review crash record present (crash-review-1) → resume or discard", () => {
     const ws = workspace(ROUNDS({ review: 1 }));
-    writeHandoff(ws, "tasks-1-review-1.json", {
-      tasks: [1],
-      phase: "review",
-      status: "TIMEOUT",
-      failure_category: "TIMEOUT",
-      findings: [],
-      artifacts: {},
-    });
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("resume-pending");
+    writeFileSync(
+      path.join(ws, "crash-review-1.json"),
+      JSON.stringify({
+        exitCode: 143,
+        cause: "child-signal",
+        next: "cdd review --type task --tasks 1",
+      }),
+    );
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("resume-pending");
   });
 
   it("complete: latest review APPROVED (the existing writeback semantics)", () => {
@@ -209,7 +208,7 @@ describe("deriveTaskState — six-state convergence", () => {
       findings: [],
       artifacts: {},
     });
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("complete");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("complete");
   });
 
   // ---- last-review-primary — the T29 reproduction flip (Task 30 ①, spec T7.9) ----
@@ -233,7 +232,7 @@ describe("deriveTaskState — six-state convergence", () => {
       findings: [],
       artifacts: {},
     });
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("complete");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("complete");
   });
 
   it("complete (T30 flip): review APPROVED + fix that did not land still converges on the review verdict", () => {
@@ -253,7 +252,7 @@ describe("deriveTaskState — six-state convergence", () => {
       findings: [],
       artifacts: {},
     });
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("complete");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("complete");
   });
 
   it("complete (T30 terminal carve-out): a DEAD fix after an APPROVED review is never consulted — not resume-pending", () => {
@@ -277,7 +276,7 @@ describe("deriveTaskState — six-state convergence", () => {
       findings: [],
       artifacts: {},
     });
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("complete");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("complete");
     writeHandoff(ws, "tasks-1-fix-1.json", {
       tasks: [1],
       phase: "fix",
@@ -287,7 +286,7 @@ describe("deriveTaskState — six-state convergence", () => {
       findings: [],
       artifacts: {},
     });
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("complete");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("complete");
   });
 
   it("needs-re-review (T14 explicit, review-BLOCKED channel variant): review BLOCKED → fix APPROVED", () => {
@@ -307,7 +306,7 @@ describe("deriveTaskState — six-state convergence", () => {
       findings: [],
       artifacts: {},
     });
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("needs-re-review");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("needs-re-review");
   });
 
   it("needs-fix (T30 discriminator): a fix pre-dating the latest review does not re-review it", () => {
@@ -335,7 +334,7 @@ describe("deriveTaskState — six-state convergence", () => {
       findings: [{ severity: "blocker" }],
       artifacts: {},
     });
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("needs-fix");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("needs-fix");
   });
 
   it("derives from status-free progress rows (Task 30 ② migration shape — rounds-only row)", () => {
@@ -354,7 +353,7 @@ describe("deriveTaskState — six-state convergence", () => {
       findings: [],
       artifacts: {},
     });
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("needs-re-review");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("needs-re-review");
   });
 
   // ---- group convergence (P4.3 declared taskGroups): a merged-group member derives from the
@@ -376,8 +375,12 @@ describe("deriveTaskState — six-state convergence", () => {
       findings: [],
       artifacts: {},
     });
-    expect(statusJudge.deriveTaskState(ws, 1, [TaskGroup.fromNumbers([1, 2])])).toBe("complete");
-    expect(statusJudge.deriveTaskState(ws, 2, [TaskGroup.fromNumbers([1, 2])])).toBe("complete");
+    expect(
+      statusJudge.deriveTaskState(Workspace.fromPath(ws), 1, [TaskGroup.fromNumbers([1, 2])]),
+    ).toBe("complete");
+    expect(
+      statusJudge.deriveTaskState(Workspace.fromPath(ws), 2, [TaskGroup.fromNumbers([1, 2])]),
+    ).toBe("complete");
   });
 
   it("needs-review: a merged group with implement APPROVED and no review on record", () => {
@@ -389,12 +392,12 @@ describe("deriveTaskState — six-state convergence", () => {
       findings: [],
       artifacts: {},
     });
-    expect(statusJudge.deriveTaskState(ws, 1, [TaskGroup.fromNumbers([1, 2])])).toBe(
-      "needs-review",
-    );
-    expect(statusJudge.deriveTaskState(ws, 2, [TaskGroup.fromNumbers([1, 2])])).toBe(
-      "needs-review",
-    );
+    expect(
+      statusJudge.deriveTaskState(Workspace.fromPath(ws), 1, [TaskGroup.fromNumbers([1, 2])]),
+    ).toBe("needs-review");
+    expect(
+      statusJudge.deriveTaskState(Workspace.fromPath(ws), 2, [TaskGroup.fromNumbers([1, 2])]),
+    ).toBe("needs-review");
   });
 
   it("needs-re-review: the addressing fix lane reads group carriers (review CHANGES_REQUESTED → fix APPROVED)", () => {
@@ -413,12 +416,12 @@ describe("deriveTaskState — six-state convergence", () => {
       findings: [],
       artifacts: {},
     });
-    expect(statusJudge.deriveTaskState(ws, 1, [TaskGroup.fromNumbers([1, 2])])).toBe(
-      "needs-re-review",
-    );
-    expect(statusJudge.deriveTaskState(ws, 2, [TaskGroup.fromNumbers([1, 2])])).toBe(
-      "needs-re-review",
-    );
+    expect(
+      statusJudge.deriveTaskState(Workspace.fromPath(ws), 1, [TaskGroup.fromNumbers([1, 2])]),
+    ).toBe("needs-re-review");
+    expect(
+      statusJudge.deriveTaskState(Workspace.fromPath(ws), 2, [TaskGroup.fromNumbers([1, 2])]),
+    ).toBe("needs-re-review");
   });
 
   it("singleton fallback: a task unknown to the group set (or groups unspecified) keeps the per-task derivation", () => {
@@ -431,11 +434,11 @@ describe("deriveTaskState — six-state convergence", () => {
       artifacts: {},
     });
     // groups provided but not containing task 3 → the per-task singleton derivation.
-    expect(statusJudge.deriveTaskState(ws, 3, [TaskGroup.fromNumbers([1, 2])])).toBe(
-      "needs-review",
-    );
+    expect(
+      statusJudge.deriveTaskState(Workspace.fromPath(ws), 3, [TaskGroup.fromNumbers([1, 2])]),
+    ).toBe("needs-review");
     // groups unspecified → the pre-P4.3 signature is unchanged.
-    expect(statusJudge.deriveTaskState(ws, 3)).toBe("needs-review");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 3)).toBe("needs-review");
   });
 
   // ---- REVIEW_FIX three-value conclusion (#278) — a self-built mkdtemp chain: S1 blocker loop regression · S2 closure state → fix → complete
@@ -482,29 +485,29 @@ describe("deriveTaskState — six-state convergence", () => {
     // review-1 blocker → needs-fix (fix routing).
     setRounds(ws, { review: 1 });
     writeReview(ws, 1, "CHANGES_REQUESTED", ["blocker"]);
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("needs-fix");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("needs-fix");
     // fix-1 landed → re-review due (the blocker loop keeps routing, never closes out).
     setRounds(ws, { review: 1, fix: 1 });
     writeFix(ws, 1);
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("needs-re-review");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("needs-re-review");
     // re-review still blocker → another fix round (loop regression: no early terminal state).
     setRounds(ws, { review: 2, fix: 1 });
     writeReview(ws, 2, "CHANGES_REQUESTED", ["blocker"]);
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("needs-fix");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("needs-fix");
     // addressing fix 2 → then re-review …
     setRounds(ws, { review: 2, fix: 2 });
     writeFix(ws, 2);
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("needs-re-review");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("needs-re-review");
     // … only a clean review closes the loop → complete.
     setRounds(ws, { review: 3, fix: 2 });
     writeReview(ws, 3, "APPROVED", []);
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("complete");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("complete");
   });
 
   it("S2 收口态: REVIEW_FIX review（warn-only）+ no fix on record → needs-fix（fix 路由与 needs-fix 同 gate, 零行为改动）", () => {
     const ws = workspace(ROUNDS({ review: 1 }));
     writeReview(ws, 1, "REVIEW_FIX", ["warn"]);
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("needs-fix");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("needs-fix");
   });
 
   it("S2 收口态 → cdd fix --findings → complete 无 re-review: REVIEW_FIX review + addressing fix APPROVED → complete（非 needs-re-review）", () => {
@@ -512,21 +515,19 @@ describe("deriveTaskState — six-state convergence", () => {
     writeReview(ws, 1, "REVIEW_FIX", ["warn", "nit"]);
     writeFix(ws, 1);
     // the closure-state fix routes to complete — never a re-review (distinct from S1 needs-fix → needs-re-review).
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("complete");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("complete");
   });
 
-  it("S2 收口态: REVIEW_FIX review + addressing fix dead（EXECUTION_FAILURE）→ resume-pending", () => {
+  it("S2 收口态: REVIEW_FIX review + addressing fix crashed（crash record present）→ resume-pending", () => {
     const ws = workspace(ROUNDS({ review: 1, fix: 1 }));
     writeReview(ws, 1, "REVIEW_FIX", ["warn"]);
-    writeHandoff(ws, "tasks-1-fix-1.json", {
-      tasks: [1],
-      phase: "fix",
-      status: "BLOCKED",
-      failure_category: "EXECUTION_FAILURE",
-      findings: [],
-      artifacts: {},
-    });
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("resume-pending");
+    // The dead fix is the crash-record presence face — the T8 abnormal artifact (crash-fix-1.json),
+    // never a carrier EXECUTION_FAILURE persistence point.
+    writeFileSync(
+      path.join(ws, "crash-fix-1.json"),
+      JSON.stringify({ exitCode: 1, cause: "child-exit", next: "cdd fix --type task --tasks 1" }),
+    );
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("resume-pending");
   });
 
   it("S2 收口态 discriminator: REVIEW_FIX review + addressing fix BLOCKED（非 dead 未落地）→ needs-fix（收口 fix 不吞终态, 与 S1 判别器同则）", () => {
@@ -541,7 +542,7 @@ describe("deriveTaskState — six-state convergence", () => {
       artifacts: {},
     });
     // the closure fix declares BLOCKED (not dead, not APPROVED) → has not landed → needs-fix (re-dispatch), never an early complete.
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("needs-fix");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("needs-fix");
   });
 
   it("S2 收口态 discriminator: 收口 fix 先于最新 REVIEW_FIX review（fix 轮 < review 轮）→ 该 fix 不吞最新轮 → needs-fix", () => {
@@ -557,13 +558,13 @@ describe("deriveTaskState — six-state convergence", () => {
     });
     writeFix(ws, 1);
     writeReview(ws, 2, "REVIEW_FIX", ["nit"]);
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("needs-fix");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("needs-fix");
   });
 
   it("S3 零 finding fast path: review APPROVED（空 findings）→ complete（直通, 无需 fix 轮, 不变）", () => {
     const ws = workspace(ROUNDS({ review: 1 }));
     writeReview(ws, 1, "APPROVED", []);
-    expect(statusJudge.deriveTaskState(ws, 1)).toBe("complete");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1)).toBe("complete");
     // no fix is required after an APPROVED review — the plan-level straight-through is already covered by derivePlanVerdict's green path.
   });
 
@@ -593,8 +594,8 @@ describe("deriveTaskState — six-state convergence", () => {
       artifacts: {},
     });
     // the group carrier's closure-state fix takes every member to complete without a re-review (merged-group convergence, P4.3/P4.4).
-    expect(statusJudge.deriveTaskState(ws, 1, [group])).toBe("complete");
-    expect(statusJudge.deriveTaskState(ws, 2, [group])).toBe("complete");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 1, [group])).toBe("complete");
+    expect(statusJudge.deriveTaskState(Workspace.fromPath(ws), 2, [group])).toBe("complete");
   });
 });
 
@@ -617,7 +618,12 @@ describe("derivePlanVerdict — plan completion verdict (`### Task N:` set ↔ s
         artifacts: {},
       });
     }
-    const v: PlanVerdict = statusJudge.derivePlanVerdict(plan, ws, extractTasks, singletonGroups);
+    const v: PlanVerdict = statusJudge.derivePlanVerdict(
+      plan,
+      Workspace.fromPath(ws),
+      extractTasks,
+      singletonGroups,
+    );
     expect(v.done).toBe(true);
     expect(v).toEqual({ total: 2, complete: 2, pending: [], done: true });
     expect(statusJudge.formatPlanVerdict(v)).toBe("plan done (2/2 complete)");
@@ -654,7 +660,12 @@ describe("derivePlanVerdict — plan completion verdict (`### Task N:` set ↔ s
       findings: [],
       artifacts: {},
     });
-    const v: PlanVerdict = statusJudge.derivePlanVerdict(plan, ws, extractTasks, singletonGroups);
+    const v: PlanVerdict = statusJudge.derivePlanVerdict(
+      plan,
+      Workspace.fromPath(ws),
+      extractTasks,
+      singletonGroups,
+    );
     expect(v.done).toBe(false);
     expect(v).toEqual({
       total: 2,
@@ -696,7 +707,9 @@ describe("derivePlanVerdict — group iteration (P4.3 Task 3: the effectiveGroup
     // in documents.test.ts). This surface consumes it as the injected extractor and yields the
     // pre-P4.3 per-task iteration exactly (the zero-migration property — the verdict module carries
     // no singleton fallback of its own, so no caller can drift off the single derivation).
-    expect(statusJudge.derivePlanVerdict(plan, ws, extractTasks, singletonGroups)).toEqual({
+    expect(
+      statusJudge.derivePlanVerdict(plan, Workspace.fromPath(ws), extractTasks, singletonGroups),
+    ).toEqual({
       total: 2,
       complete: 2,
       pending: [],
@@ -709,7 +722,12 @@ describe("derivePlanVerdict — group iteration (P4.3 Task 3: the effectiveGroup
     const ws = workspace(EMPTY_PROGRESS);
     // mirror taskGroupsFromPlan for a merged `- **Task 1, 2**:` section
     const mergedGroups = (_planPath: string) => [TaskGroup.fromNumbers([1, 2])];
-    const v = statusJudge.derivePlanVerdict(plan, ws, extractTasks, mergedGroups);
+    const v = statusJudge.derivePlanVerdict(
+      plan,
+      Workspace.fromPath(ws),
+      extractTasks,
+      mergedGroups,
+    );
     expect(v.total).toBe(2);
     expect(v.done).toBe(false);
     expect(v.pending).toEqual([
@@ -739,7 +757,12 @@ describe("derivePlanVerdict — group iteration (P4.3 Task 3: the effectiveGroup
       artifacts: {},
     });
     const mergedGroups = (_planPath: string) => [TaskGroup.fromNumbers([1, 2])];
-    const v = statusJudge.derivePlanVerdict(plan, ws, extractTasks, mergedGroups);
+    const v = statusJudge.derivePlanVerdict(
+      plan,
+      Workspace.fromPath(ws),
+      extractTasks,
+      mergedGroups,
+    );
     expect(v.done).toBe(true);
     expect(v).toEqual({ total: 2, complete: 2, pending: [], done: true });
     expect(statusJudge.formatPlanVerdict(v)).toBe("plan done (2/2 complete)");
@@ -756,7 +779,12 @@ describe("derivePlanVerdict — group iteration (P4.3 Task 3: the effectiveGroup
       artifacts: {},
     });
     const mergedGroups = (_planPath: string) => [TaskGroup.fromNumbers([1, 2])];
-    const v = statusJudge.derivePlanVerdict(plan, ws, extractTasks, mergedGroups);
+    const v = statusJudge.derivePlanVerdict(
+      plan,
+      Workspace.fromPath(ws),
+      extractTasks,
+      mergedGroups,
+    );
     expect(v.done).toBe(false);
     expect(v).toEqual({
       total: 2,

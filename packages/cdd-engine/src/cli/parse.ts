@@ -260,7 +260,7 @@ const setCmd = defineCommand({
       description:
         "base-branch source (plan-field|branch-upstream|conversation-context|user-confirmed)",
     },
-    plan: { type: "string", valueHint: "path", description: "plan file → resolveWorkspace(plan)" },
+    plan: { type: "string", valueHint: "path", description: "plan file → the workspace slug" },
     force: {
       type: "boolean",
       description: "override an existing base-branch with a different base",
@@ -275,7 +275,7 @@ const setCmd = defineCommand({
 const getCmd = defineCommand({
   meta: { name: "get", description: "read the base-branch artifact" },
   args: {
-    plan: { type: "string", valueHint: "path", description: "plan file → resolveWorkspace(plan)" },
+    plan: { type: "string", valueHint: "path", description: "plan file → the workspace slug" },
   },
   run: async ({ args, rawArgs }) => {
     guardArgs(rawArgs, argsOf(getCmd));

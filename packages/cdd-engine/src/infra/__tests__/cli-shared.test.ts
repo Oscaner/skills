@@ -2,7 +2,7 @@
 
 import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { EngineInvoker } from "../invoke.ts";
+import { type DispatchOp, EngineInvoker } from "../invoke.ts";
 
 const invoker = new EngineInvoker();
 
@@ -13,22 +13,27 @@ vi.mock("execa", () => ({
 import { execa } from "execa";
 
 describe("resolveTerminationConfig", () => {
-  it("default task budget is 3h (canonical timeouts.defaults.task)", () => {
-    expect(invoker.resolveTerminationConfig("task").budgetMs).toBe(10_800_000);
+  it("default implement budget is 6h (canonical timeouts.defaults.implement)", () => {
+    expect(invoker.resolveTerminationConfig("implement").budgetMs).toBe(21_600_000);
   });
-  it("default review budget is 60min (canonical timeouts.defaults.review)", () => {
-    expect(invoker.resolveTerminationConfig("review").budgetMs).toBe(3_600_000);
+  it("default review budget is 3h (canonical timeouts.defaults.review)", () => {
+    expect(invoker.resolveTerminationConfig("review").budgetMs).toBe(10_800_000);
+  });
+  it("default fix budget is 6h (canonical timeouts.defaults.fix)", () => {
+    expect(invoker.resolveTerminationConfig("fix").budgetMs).toBe(21_600_000);
   });
   it("seam override wins over the canonical default (env-zero resolver)", () => {
-    expect(invoker.resolveTerminationConfig("task", { budgetMs: 60_000 }).budgetMs).toBe(60_000);
+    expect(invoker.resolveTerminationConfig("implement", { budgetMs: 60_000 }).budgetMs).toBe(
+      60_000,
+    );
   });
   it("stall cadence reads canonical timeouts.liveness (60s sample / 15min idle window)", () => {
-    const cfg = invoker.resolveTerminationConfig("task");
+    const cfg = invoker.resolveTerminationConfig("implement");
     expect(cfg.sampleIntervalMs).toBe(60_000);
     expect(cfg.idleWindowMs).toBe(900_000);
   });
-  it("unknown mode returns undefined budget (canonical defaults only for declared modes)", () => {
-    expect(invoker.resolveTerminationConfig("unknown").budgetMs).toBeUndefined();
+  it("config-missing key → undefined budget (the DispatchOp union forbids any other literal at compile time; the runtime fail-safe still covers a canonical lacking the key)", () => {
+    expect(invoker.resolveTerminationConfig("unknown" as DispatchOp).budgetMs).toBeUndefined();
   });
 });
 
@@ -262,10 +267,12 @@ describe("invokeCliWithRetry", () => {
   });
 });
 
-describe("review.mjs task 派生点（taskReviewWorkspace — workspaceSlug 收敛）", () => {
-  // review --type task 的 task workspace 路径派生 = <repoRoot>/.osuperpowers/cdd/<slug>，
-  // slug 经 handoff-naming.workspaceSlug 收敛（-design/-plan 单层 strip）。
-  // run-task 侧派生点（resolveWorkspace）由 runner.test.mjs 回归 —— 两派生点同源防分叉。
+describe("review.mjs task 派生点（taskReviewWorkspace — slug 收敛）", () => {
+  // review --type task derives the task workspace path = <repoRoot>/.osuperpowers/cdd/<slug>; the
+  // slug converges via WorkspaceRoot.for (single-layer -design/-plan strip — T6 workspace
+  // consolidation made WorkspaceRoot the only slug-derivation entry).
+  // The run-task-side derivation (same WorkspaceRoot.for source) is regressed by runner.test — the
+  // two derivation points share one source, preventing fork).
   it("--plan xxx-p5-plan.md → task workspace .osuperpowers/cdd/xxx-p5（Convergence prev 命中）", async () => {
     const { taskReviewWorkspace } = await import("../../cli/review.ts");
     expect(taskReviewWorkspace("xxx-p5-plan.md", "/repo")).toBe(

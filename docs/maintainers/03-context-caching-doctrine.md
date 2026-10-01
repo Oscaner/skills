@@ -45,7 +45,7 @@ The engine's only reliable lever is **bytes**, because prompt text arrives at th
 - `ttlMinutes`: default 5-min TTL, reads refresh free
 - `observable`: whether usage fields exist (`cache_read_input_tokens` etc.)
 
-Baseline entries: `claude` = explicit / 512 / 0.1 / 1.25 / 5 / true; `cursor-agent` = auto-prefix fallback, values pending measurement.
+Baseline entries: `claude` = explicit / 512 / 0.1 / 1.25 / 5 / true; `cursor` = auto-prefix fallback, values pending measurement; `pi` = auto-prefix fallback, values pending measurement.
 
 ## 6. Observation & honest boundaries
 

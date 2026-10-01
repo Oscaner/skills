@@ -4,10 +4,15 @@
 // base-branch 3↔4-value drift (source enum takes the SKILL schema's 4 values: plan-field /
 // branch-upstream / conversation-context / user-confirmed). The orchestrator never writes —
 // always through writeBaseBranch.
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+// T6 (the workspace-domain consolidation): the workspace-pathed derivation (baseBranchPath) + the write entry take
+// the canonical Workspace object; the task brief path derivation (briefPath) moved to
+// Workspace#briefPath (the workspace child-path single fact) — this module no longer re-declares
+// it.
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { invariant } from "../infra/exit.ts";
+import type { Workspace } from "../infra/workspace.ts";
 
 /** BASE_BRANCH_SOURCES: the source field's 4-value enum sole definition (canonical).
  * Fixes the base-branch schema-table 3-value drift missing conversation-context (SKILL schema wins). */
@@ -20,16 +25,8 @@ export const BASE_BRANCH_SOURCES = [
 
 export type BaseBranchSource = (typeof BASE_BRANCH_SOURCES)[number];
 
-export function baseBranchPath({ workspace }: { workspace: string }): string {
-  return path.join(workspace, "base-branch.json");
-}
-
-/** briefPath: the brief file path's single derivation point (`<ws>/tasks-<groupKey>-brief.md` —
- * the group-keyed artifact of the P4.3 group dispatch; `--tasks 1` → `tasks-1-brief.md` — the
- * task runner's buildCtx takes ctx.briefPath through this function (consumers must not inline
- * the same shape literal, or the single authority is nominal only). */
-export function briefPath({ workspace, tasks }: { workspace: string; tasks: string }): string {
-  return path.join(workspace, `tasks-${tasks}-brief.md`);
+export function baseBranchPath({ workspace }: { workspace: Workspace }): string {
+  return path.join(workspace.path, "base-branch.json");
 }
 
 /** validateBaseBranch(obj) → {ok:true} | {ok:false, errors: []}.
@@ -68,10 +65,9 @@ export function validateBaseBranch(obj: unknown): { ok: true } | { ok: false; er
  * prevents a missing-base / illegal-source silent write of a schema-invalid artifact
  * (JSON.stringify drops undefined keys). The CLI layer (Task 3) is a planned validation gate, but
  * this module claims to be the engine's only write entry — it must hold its own input guard, not
- * rely on downstream. Writes pre-pended with mkdirSync(dirname, {recursive:true}) for workspace
- * bootstrap — determine-base runs before implement, when the workspace dir does not exist yet
- * (naming.resolveWorkspace doesn't mkdir), otherwise the first set would ENOENT. Returns the
- * target path. */
+ * rely on downstream. Writes route through the Workspace writeJson single point (T6 — ensure the
+ * workspace dir + stringify + writeFileSync): determine-base runs before implement, when the
+ * workspace dir does not exist yet, and the workspace ensure covers it. Returns the target path. */
 export function writeBaseBranch({
   base,
   source,
@@ -80,7 +76,7 @@ export function writeBaseBranch({
 }: {
   base: string;
   source: string;
-  workspace: string;
+  workspace: Workspace;
   force?: boolean;
 }): string {
   const gate = validateBaseBranch({ base, source, confirmed_at: new Date().toISOString() });
@@ -112,7 +108,6 @@ export function writeBaseBranch({
       : null;
   const confirmed_at =
     sameBase && existingConfirmedAt ? existingConfirmedAt : new Date().toISOString();
-  mkdirSync(path.dirname(target), { recursive: true });
-  writeFileSync(target, JSON.stringify({ base, source, confirmed_at }, null, 2));
+  workspace.writeJson("base-branch.json", { base, source, confirmed_at });
   return target;
 }

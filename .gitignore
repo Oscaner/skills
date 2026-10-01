@@ -1,7 +1,7 @@
 node_modules
 .pnpm-store
 .venv
-.osuperpowers
+.kairos
 __pycache__/
 tmp
 .DS_Store

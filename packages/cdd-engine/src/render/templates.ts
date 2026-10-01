@@ -17,12 +17,11 @@
 // (templatePath / TEMPLATE_FILES retired — no template files remain).
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 // handlebars is CommonJS (no export map): Node ESM can only see `default` / `module.exports`,
 // so the default-import + destructure form is the interop-safe spelling used everywhere (vitest
 // and the plain-node validate chains both resolve hb.compile to the compile function).
 import hb from "handlebars";
-import { resolvePackageRoot } from "../infra/resource.ts";
+import { resolveResource } from "../infra/resource.ts";
 
 const compile = hb.compile;
 
@@ -31,18 +30,14 @@ import { invariant } from "../infra/exit.ts";
 import { runtime, type TemplateCacheSlots, type TemplateCacheStats } from "../infra/runtime.ts";
 import { HandoffSchemaValidator } from "../rules/schema.ts";
 
-// PKG_ROOT = <pkg>/templates — the render data plane's resource dir (contract + schemas alone;
-// re-org Step 5 semantics converged here; consumers use the constant directly).
-// Resolved by the nearest-ancestor package.json marker walk (same state-independent convention as
-// infra/config.ts / documents/schema.ts) — the `../../templates` hop worked from src/render/ but
-// lands one level too high from the real bundle (dist/, consumer install): a bundled cli.mjs at
-// <pkg>/dist/ + `../..` = the parent of <pkg>, not <pkg>. The marker walk resolves <pkg>/templates
-// in every file state (dev stub src tree, dist bundle, consumer install).
+// PKG_ROOT = <pkg>/config — the render data plane's resource dir (the template contract rides the
+// read-as-data plane; the config/ home holds the contract + schemas).
+// Resolved through the logical-name locator (C7 — the single path truth, published dist mirror
+// first, the source config/ as the dev fallback), the same state-independent convention as
+// infra/config.ts / documents/schema.ts — the legacy `../../templates` hop worked from src/render/
+// but landed one level too high from the real bundle (dist/, consumer install).
 
-export const PKG_ROOT = path.join(
-  resolvePackageRoot(path.dirname(fileURLToPath(import.meta.url))),
-  "templates",
-);
+export const PKG_ROOT = path.dirname(resolveResource("template-contract"));
 
 // ---- template-contract (the rendering data plane): skeleton + zone sections + zone-tagged
 // token registry + clauses container (T12) + reviews content config. templates.ts is this

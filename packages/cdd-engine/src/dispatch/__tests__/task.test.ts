@@ -59,8 +59,9 @@ function run(args, extraEnv = {}, opts = {}) {
   return { status: res.status, stdout: res.stdout ?? "", stderr: res.stderr ?? "" };
 }
 
-// 真仓 fixture：mkdtemp + gitInit + 仓根内 plan（`--plan` 的仓根相对路径）+ 干净工作树
-//（commit-contract 前提）。workspace 由 engine 纯派生：<repo>/.osuperpowers/cdd/plan。
+// Real-repo fixture: mkdtemp + gitInit + a plan inside the repo root (`--plan` repo-root
+// relative path) + clean tree (the commit-contract precondition). Workspace is purely derived by
+// the engine: <repo>/.kairos/cdd/plan.
 // P4.3: the plan carries Task 1 + Task 2 — single-task (--tasks 1 / --tasks 2) and whole-group
 // (--tasks 1,2) share the same dispatch path; the out-of-bounds face (--tasks 9) stays BLOCK.
 function setupWorkspace() {
@@ -70,14 +71,14 @@ function setupWorkspace() {
     ),
   );
   gitInit(repo);
-  const plans = path.join(repo, "docs", "osuperpowers", "plans");
+  const plans = path.join(repo, "docs", "kairos", "plans");
   mkdirSync(plans, { recursive: true });
   writeFileSync(path.join(plans, "plan.md"), "# Plan\n\n### Task 1: test\n\n### Task 2: test\n");
   gitCommit(repo);
   return {
     repo,
-    plan: path.join("docs", "osuperpowers", "plans", "plan.md"),
-    ws: path.join(repo, ".osuperpowers", "cdd", "plan"),
+    plan: path.join("docs", "kairos", "plans", "plan.md"),
+    ws: path.join(repo, ".kairos", "cdd", "plan"),
   };
 }
 
@@ -276,7 +277,7 @@ describe("P4.3 --tasks list model (group dispatch acceptance)", () => {
 
   it("fix --type task --tasks 1,2 --findings <group review handoff> → whole-group fix (group findings path plumbed)", () => {
     const { repo, plan } = setupWorkspace();
-    const findingsRel = path.posix.join(".osuperpowers", "cdd", "plan", "tasks-1,2-review-1.json");
+    const findingsRel = path.posix.join(".kairos", "cdd", "plan", "tasks-1,2-review-1.json");
     const res = run(
       [
         "--dry-run",

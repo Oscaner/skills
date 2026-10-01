@@ -36,9 +36,9 @@ const waitFor = async (fn, ms) => {
 };
 
 // G4 (P6 Task 17): an isolated clean repo for real-dispatch tests — the entry gate resolves
-// the CWD repo's tree, so a committed baseline + gitignored `.osuperpowers/` keeps it clean
+// the CWD repo's tree, so a committed baseline + gitignored `.kairos/` keeps it clean
 // no matter what state the ambient working tree is in (pre-commit is dirty by definition).
-// Engine workspace writes land under the gitignored `.osuperpowers/` and never dirty the
+// Engine workspace writes land under the gitignored `.kairos/` and never dirty the
 // tracked tree the gate read.
 function tmpDispatchRepo() {
   const dir = mkdtempSync(path.join(os.tmpdir(), "cdd-wiring-"));
@@ -46,7 +46,7 @@ function tmpDispatchRepo() {
   execSync(
     `git -C "${dir}" -c user.name=cdd-test -c user.email=cdd-test@example.com commit --allow-empty -qm "fixture"`,
   );
-  writeFileSync(path.join(dir, ".gitignore"), ".osuperpowers/\n");
+  writeFileSync(path.join(dir, ".gitignore"), ".kairos/\n");
   execSync(`git -C "${dir}" add -A`);
   execSync(
     `git -C "${dir}" -c user.name=cdd-test -c user.email=cdd-test@example.com commit -qm "seed"`,

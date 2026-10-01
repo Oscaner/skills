@@ -23,7 +23,7 @@ const validator = new DocumentsValidator();
 const PROSE_PLAN = [
   "# Plan title",
   "",
-  "**Spec:** [x-design.md](docs/osuperpowers/specs/x-design.md)",
+  "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
   "",
   "a neutral prose paragraph (not a constraint anchor)",
   "",
@@ -51,12 +51,12 @@ const PROSE_EXTRACTED = `${[
   "**顺序原则（spec §2.4）**：ordering-principle constraint",
 ].join("\n")}\n`;
 
-// Canonical plan: a first-class `## Constraints` top-level section (writing-plans-mandated for
+// Canonical plan: a first-class `## Constraints` top-level section (cdd-plan-mandated for
 // new plans) with `###` subsections inside; the section is self-bounded by the `---` rule.
 const LITERAL_PLAN = [
   "# Plan title",
   "",
-  "**Spec:** [x-design.md](docs/osuperpowers/specs/x-design.md)",
+  "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
   "",
   "## Constraints",
   "Leading prose line of the constraints section.",

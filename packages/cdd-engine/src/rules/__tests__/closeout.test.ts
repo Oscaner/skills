@@ -125,16 +125,13 @@ describe("deriveCloseoutMismatches — the single module (both surfaces, 同源)
 
   it("read-only: the inference never writes — a fresh checkout stays fresh (zero engine doc writes)", () => {
     const p = writeProgram();
-    const preTree = [
-      readdirSync(p.repo),
-      readdirSync(path.join(p.repo, "docs", "osuperpowers")),
-    ].flat();
+    const preTree = [readdirSync(p.repo), readdirSync(path.join(p.repo, "docs", "kairos"))].flat();
     closeoutChecker.deriveCloseoutMismatches({ entry: p.plan1, root: p.repo });
     // No workspace is materialized, no progress.json landed, no doc touched
     expect(existsSync(WorkspaceRoot.from(p.repo).for(p.plan1).path)).toBe(false);
-    expect(
-      [readdirSync(p.repo), readdirSync(path.join(p.repo, "docs", "osuperpowers"))].flat(),
-    ).toEqual(preTree);
+    expect([readdirSync(p.repo), readdirSync(path.join(p.repo, "docs", "kairos"))].flat()).toEqual(
+      preTree,
+    );
   });
 });
 

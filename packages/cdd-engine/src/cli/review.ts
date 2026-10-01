@@ -55,7 +55,7 @@ interface RoundHandoff {
 // ---- review-specific helpers ----
 
 // Docs workspace fully routes through WorkspaceRoot.for(doc) → path
-// (.osuperpowers/cdd/<slug>/, slug derived via the slug rule; the Phase-0 flat root is retired,
+// (.kairos/cdd/<slug>/, slug derived via the slug rule; the Phase-0 flat root is retired,
 // zero engine references).
 export function existingRoundHandoff(ws: string, type: string, round: number): RoundHandoff | null {
   if (round < 1) return null;

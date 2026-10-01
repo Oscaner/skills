@@ -6,7 +6,7 @@
 // against the real tree, and the entry gate (rules/commit.ts entryGateCleanTree) treats a
 // dirty tree as BLOCKED for real dispatches (dry-run downgrades to a WARN, E2②). The fix
 // aligns the gate boundaries: this subset — the blocks that only READ the tree and never
-// dispatch through the entry gate (emit-check / osuperpowers / residue / marketplace /
+// dispatch through the entry gate (emit-check / kairos / residue / marketplace /
 // scripts-unit / version-sync) — runs locally at pre-commit; the tree-dependent surface
 // stays in CI full validate (`.github/actions/validate` on a clean checkout) and in the
 // development-time full suite (E2② dirty-tree WARN precondition documented in CLAUDE.md).
@@ -19,16 +19,16 @@
 // intact in index.ts; this subset is pinned by scripts/validate/__tests__/pre-commit.test.ts.
 
 import { steps as emitCheckSteps } from "./emit-check.ts";
+import { steps as kairosSteps } from "./kairos.ts";
 import { steps as libTestsSteps } from "./lib-tests.ts";
 import { steps as marketplaceSteps } from "./marketplace.ts";
-import { steps as osuperpowersSteps } from "./osuperpowers.ts";
 import { steps as residueSteps } from "./residue.ts";
 import { validateRunner } from "./runner.ts";
 import { steps as versionSyncSteps } from "./version-sync.ts";
 
 export const steps = [
   ...emitCheckSteps, // emit freshness (checked against regenerated products)
-  ...osuperpowersSteps, // osuperpowers: plugin resolution / skills inventory / pi-package well-formed / node:test behavior tree + wiring guard
+  ...kairosSteps, // kairos: plugin resolution / skills inventory / pi-package well-formed / node:test behavior tree + wiring guard
   ...residueSteps, // engine zero residue + channel audit
   ...marketplaceSteps, // marketplace manifests validate
   ...libTestsSteps, // scripts unit tests (vitest)

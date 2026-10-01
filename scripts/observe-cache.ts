@@ -30,7 +30,7 @@ import { fileURLToPath } from "node:url";
 //                                     explicit opt-in for harnesses that accept it)
 //   e.g.
 //   node scripts/observe-cache.ts --rounds 2 \
-//     -- .osuperpowers/cdd/2026-09-13-osuperpowers-overhaul-p6 7 implement
+//     -- .kairos/cdd/2026-09-27-pi-harness-p4 3 implement
 import { execa } from "execa";
 import { buildInvokeArgs, promptArgText } from "../packages/cdd-engine/src/infra/invoke.ts";
 import {

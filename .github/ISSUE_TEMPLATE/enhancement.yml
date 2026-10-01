@@ -1,37 +1,37 @@
 name: Enhancement
-description: Suggest an improvement to osuperpowers skills or workflow
+description: Suggest an improvement to kairos skills or workflow
 labels:
   - enhancement
-  - osuperpowers
+  - kairos
 body:
   - type: markdown
     attributes:
       value: |
-        Use this template to suggest improvements found during dogfood use of osuperpowers skills.
+        Use this template to suggest improvements found during dogfood use of kairos skills.
   - type: dropdown
     id: component
     attributes:
       label: Component
       description: Which component does this finding relate to?
       options:
-        - osuperpowers (general)
+        - kairos (general)
         - cdd-engine
-        - osuperpowers:brainstorming
-        - osuperpowers:writing-single-spec
-        - osuperpowers:writing-overall-spec
-        - osuperpowers:writing-phase-spec
-        - osuperpowers:writing-plans
-        - osuperpowers:cli-driven-development
-        - osuperpowers:report-issues
-        - osuperpowers:finishing
+        - kairos:cdd-design
+        - kairos:cdd-spec
+        - kairos:cdd-charter
+        - kairos:cdd-phase
+        - kairos:cdd-plan
+        - kairos:cdd-dev
+        - kairos:cdd-report
+        - kairos:cdd-close
     validations:
       required: true
   - type: textarea
     id: context
     attributes:
       label: Context
-      description: "Dogfood session context: date, harness, which osuperpowers skills were in use"
-      placeholder: "Date: YYYY-MM-DD, Harness: claude-code, Skills: cli-driven-development"
+      description: "Dogfood session context: date, harness, which kairos skills were in use"
+      placeholder: "Date: YYYY-MM-DD, Harness: claude-code, Skills: cdd-dev"
     validations:
       required: true
   - type: textarea

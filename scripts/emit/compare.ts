@@ -1,7 +1,7 @@
 /**
  * Emit drift check — compares a freshly generated tree against the committed
  * tree (`scripts/run.ts emit-check`). CompareService owns the emit product-root/file
- * constants and the osuperpowers `.version-bump.json` consistency guard (Task 9,
+ * constants and the kairos `.version-bump.json` consistency guard (Task 9,
  * Criterion ②: stateless domain service, zero bare-function module).
  */
 
@@ -25,8 +25,8 @@ const _root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const BASE_PRODUCT_ROOTS = [
   ".claude-plugin",
   ".cursor-plugin",
-  "packages/osuperpowers/.claude-plugin",
-  "packages/osuperpowers/.cursor-plugin",
+  "packages/kairos/.claude-plugin",
+  "packages/kairos/.cursor-plugin",
 ] as const;
 
 /** Standalone repo-relative product files (not inside a product root). */
@@ -48,11 +48,11 @@ export class CompareService {
   // ---------------------------------------------------------------------------
 
   assertVersionBump(committedRoot): void {
-    const plugin = "packages/osuperpowers";
+    const plugin = "packages/kairos";
     const bumpPath = join(committedRoot, plugin, ".version-bump.json");
     if (!existsSync(bumpPath)) return;
     const bump = JSON.parse(readFileSync(bumpPath, "utf8"));
-    const pkgVersion = readJson(committedRoot, "packages/osuperpowers/package.json").version;
+    const pkgVersion = readJson(committedRoot, "packages/kairos/package.json").version;
     for (const f of bump.files) {
       const abs = join(committedRoot, plugin, f.path);
       if (!existsSync(abs)) continue; // not materialized on disk — checked via --check diff

@@ -92,7 +92,7 @@ export function classifySeverity(sev: unknown): string {
 }
 
 /** findings[] roll-up → handoff status (aligned with the status enum of
- * packages/cdd-engine/templates/schema/docs-handoff-schema.json; this rollup is the mapping;
+ * packages/cdd-engine/config/schema/docs-handoff-schema.json; this rollup is the mapping;
  * Task 8 #278 — the three-value conclusion):
  *   empty → APPROVED; warn/nit only → REVIEW_FIX (closure state); blocker present → CHANGES_REQUESTED;
  *   non-empty unverifiable[] / plan_conflicts[] → BLOCKED. The severity roll-up delegates to the

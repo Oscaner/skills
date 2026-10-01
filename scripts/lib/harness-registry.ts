@@ -10,7 +10,7 @@
 // builder survives in manifests.ts. The byte pins (harness-registry.test.ts) guard them
 // against the committed per-package .claude-plugin / .cursor-plugin products and the
 // derived marketplace/source.json row. The pi package contract (P1 five assertions,
-// scripts/validate/osuperpowers.ts) is folded in unchanged, with the count and pkgRoot
+// scripts/validate/kairos.ts) is folded in unchanged, with the count and pkgRoot
 // injected via ctx (this lib never imports the validate side).
 
 import { existsSync } from "node:fs";
@@ -68,7 +68,7 @@ export class ClaudeHarness extends Harness {
   /**
    * `.claude-plugin/plugin.json` — Claude Code manifest. Thin: skills/ points at
    * the canonical dir. `noSkills` omits the `skills` field for the overrides
-   * trigger router, which ships no skill bodies (osuperpowers keeps
+   * trigger router, which ships no skill bodies (kairos keeps
    * `skills: "./skills/"`).
    */
   manifest(plugin, version, { noSkills = false } = {}) {
@@ -128,7 +128,7 @@ export class PiHarness extends Harness {
    * no extensions+prompts keys / each glob resolves `expectedCount` SKILL.md dirs /
    * files-closure static subset (strip `./` and `/` prefix coverage). The disk
    * baseline (pkgRoot) and the skills count are injected via ctx so the lib never
-   * imports the validate side (count single-truth = scripts/validate/osuperpowers.ts).
+   * imports the validate side (count single-truth = scripts/validate/kairos.ts).
    */
   validatePackage(pkg, ctx) {
     const declared = pkg.pi?.skills;

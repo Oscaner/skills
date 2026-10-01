@@ -127,7 +127,7 @@ export function gitCommit(dir, message = "plan") {
 const VALID_PLAN_BODY = [
   "# Plan",
   "",
-  "**Spec:** [plan-design.md](docs/osuperpowers/specs/plan-design.md)",
+  "**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)",
   "",
   "## Constraints",
   "",
@@ -165,17 +165,17 @@ const VALID_OVERALL_BODY = [
  * them (clean tree — commit-contract premise). Returns the plan's repo-relative path. */
 export function commitValidDocs(
   dir,
-  planRel = path.join("docs", "osuperpowers", "plans", "plan.md"),
+  planRel = path.join("docs", "kairos", "plans", "plan.md"),
   planBody = VALID_PLAN_BODY,
 ) {
   const planAbs = path.join(dir, planRel);
   mkdirSync(path.dirname(planAbs), { recursive: true });
   writeFileSync(planAbs, planBody);
-  const specRel = path.join("docs", "osuperpowers", "specs", "plan-design.md");
+  const specRel = path.join("docs", "kairos", "specs", "plan-design.md");
   const specAbs = path.join(dir, specRel);
   mkdirSync(path.dirname(specAbs), { recursive: true });
   writeFileSync(specAbs, VALID_SPEC_BODY);
-  const overallAbs = path.join(dir, path.join("docs", "osuperpowers", "specs", "plan-overall.md"));
+  const overallAbs = path.join(dir, path.join("docs", "kairos", "specs", "plan-overall.md"));
   mkdirSync(path.dirname(overallAbs), { recursive: true });
   writeFileSync(overallAbs, VALID_OVERALL_BODY);
   gitCommit(dir);
@@ -188,8 +188,8 @@ export function commitValidDocs(
  * tables — the overall's only phase is all-pending, so all six audit faces no-op). Returns the
  * plan's absolute path (the branch fixtures pass it as `--plan`/runBranchReview`.plan). */
 export function writeBranchChain(dir, planName) {
-  const plansDir = path.join(dir, "docs", "osuperpowers", "plans");
-  const specsDir = path.join(dir, "docs", "osuperpowers", "specs");
+  const plansDir = path.join(dir, "docs", "kairos", "plans");
+  const specsDir = path.join(dir, "docs", "kairos", "specs");
   mkdirSync(plansDir, { recursive: true });
   mkdirSync(specsDir, { recursive: true });
   const baseName = String(planName).replace(/\.md$/, "");
@@ -201,7 +201,7 @@ export function writeBranchChain(dir, planName) {
     [
       "# Plan",
       "",
-      `**Spec:** [${specName}](docs/osuperpowers/specs/${specName})`,
+      `**Spec:** [${specName}](docs/kairos/specs/${specName})`,
       "",
       "## Constraints",
       "",

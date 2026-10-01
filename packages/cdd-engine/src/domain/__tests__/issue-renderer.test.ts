@@ -1,6 +1,6 @@
 // packages/cdd-engine/src/domain/__tests__/issue-renderer.test.ts — IssueReportRenderer (P4.2
-// Task 6: the report-issues aggregate-body renderer migrated from
-// packages/osuperpowers/scripts/report-templates.mjs). The determinism corpus is ported verbatim:
+// Task 6: the cdd-report aggregate-body renderer migrated from
+// packages/kairos/scripts/report-templates.mjs). The determinism corpus is ported verbatim:
 // golden-body byte parity (mixed type × N + Dedup/Related tail), N-finding meta adjacency, the
 // Session one-line face, the input-structure validation field-path surface (the E-3 / R2 contract:
 // exit 1 + offending field path), the enumeration single-source property, and the canonical
@@ -29,24 +29,20 @@ describe("IssueReportRenderer template plane", () => {
     expect(renderer.langs).toEqual(["en", "zh"]);
   });
 
-  it("canonical components commitment: init removed, the 3 spec-writers present, report-issues current name", () => {
+  it("canonical components commitment: init removed, the 3 spec-writers present, cdd-report current name", () => {
     const components = META.components;
-    expect(components).not.toContain("osuperpowers:init");
-    for (const spec of [
-      "osuperpowers:writing-single-spec",
-      "osuperpowers:writing-overall-spec",
-      "osuperpowers:writing-phase-spec",
-    ]) {
+    expect(components).not.toContain("kairos:init");
+    for (const spec of ["kairos:cdd-spec", "kairos:cdd-charter", "kairos:cdd-phase"]) {
       expect(components).toContain(spec);
     }
-    expect(components).toContain("osuperpowers:report-issues");
+    expect(components).toContain("kairos:cdd-report");
   });
 });
 
 describe("renderMeta", () => {
   it("renders the report-meta two-field bullet (skill/step, canonical metaFields driven)", () => {
-    expect(renderer.renderMeta({ skill: "report-issues", step: "review" })).toBe(
-      "- Skill: report-issues\n- Step: review",
+    expect(renderer.renderMeta({ skill: "cdd-report", step: "review" })).toBe(
+      "- Skill: cdd-report\n- Step: review",
     );
   });
 });
@@ -95,7 +91,7 @@ describe("aggregate body rendering", () => {
       related: {
         open: [
           { issue: 231, component: "cdd-engine", reason: "timeout on rerun" },
-          { issue: 240, component: "osuperpowers:writing-plans", reason: "same dedup loop" },
+          { issue: 240, component: "kairos:cdd-plan", reason: "same dedup loop" },
         ],
         closed: [{ issue: 230 }, { issue: 233 }],
         program: { issue: 262 },
@@ -164,7 +160,7 @@ describe("input-structure validation (E-3 / R2 handling: field-path error surfac
     expect(noSkill.some((e) => e.startsWith("findings[0].meta.skill:"))).toBe(true);
     const noStep = renderer.validateInput({
       ...validInput(),
-      findings: [{ ...VALID_FINDING, meta: { skill: "cli-driven-development" } }],
+      findings: [{ ...VALID_FINDING, meta: { skill: "cdd-dev" } }],
     });
     expect(noStep.some((e) => e.startsWith("findings[0].meta.step:"))).toBe(true);
   });

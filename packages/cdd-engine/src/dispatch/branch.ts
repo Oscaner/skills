@@ -400,7 +400,7 @@ export class BranchReviewLifecycle extends BranchLifecycle {
     const base7 = base.slice(0, 7);
     const head7 = head.slice(0, 7);
     // Workspace same-source with the other review types: WorkspaceRoot.for(plan)
-    // (.osuperpowers/cdd/<slug>/). Materializes the workspace (bootstrap guard + slug dir) and
+    // (.kairos/cdd/<slug>/). Materializes the workspace (bootstrap guard + slug dir) and
     // binds the process-lifecycle registry to this slug's lifecycle.json (T6 relocation — registration
     // lands per-workspace, never the repo-level single file).
     const workspaceRoot = WorkspaceRoot.from(this.repoRoot);
@@ -794,7 +794,7 @@ export class BranchFixLifecycle extends BranchLifecycle {
     // WIP) instead of being suppressed by the stale carrier (the teardown guard
     // `!existsSync(handoffPath)` would read true). Only an engine-terminal carrier is rotated —
     // writeBlockedCarrier always writes failure_category, the discriminator vs an agent-written
-    // handoff; the carrier is untracked (.osuperpowers is gitignored), so the rotation is a pure
+    // handoff; the carrier is untracked (.kairos is gitignored), so the rotation is a pure
     // on-disk hygiene op with zero git-tree impact. The branch-review round is NOT round-stable
     // (round auto-increments per resumed ref) — no rotation needed there.
     if (!this.opts.dryRun) {

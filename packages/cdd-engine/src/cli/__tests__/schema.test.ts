@@ -4,7 +4,7 @@
 //     no result envelope, no re-serialization), verified against the shared resolver's resolved
 //     path (the exact file the CLI reads: published dist copy first, src fallback);
 //   - the acceptance's published reference: in this dev tree the resolver serves the dist copy
-//     (dist/documents/schema/<name>.json — the addressable consumer face);
+//     (dist/config/schema/<name>.json — the addressable consumer face, locator-derived);
 //   - zero-enforcement properties: works with NO host harness env (schema never calls
 //     requireHostHarness — no dispatch/audit/convergence surface), stderr stays empty, stdout
 //     carries no `status:`/`CDD_*` envelope;
@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import { execaSync } from "execa";
 import { describe, expect, it } from "vitest";
 import { DOC_SCHEMA_NAMES, resolveDocSchemaDir } from "../../documents/schema.ts";
+import { resolveResourcePublished } from "../../infra/resource.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..", "..", "..");
@@ -78,8 +79,8 @@ describe("cdd schema get <type> (P4.3 Task 5 discovery)", () => {
     },
   );
 
-  it("the byte-parity reference is the published dist copy (acceptance: dist/documents/schema/<name>.json)", () => {
-    const distDir = path.join(PKG_ROOT, "dist", "documents", "schema");
+  it("the byte-parity reference is the published dist copy (acceptance: the locator-derived dist/config/schema face)", () => {
+    const distDir = resolveResourcePublished("schema"); // <pkg>/dist/config/schema
     // The published-present state is what the acceptance names; a src-only dev face (fresh
     // checkout pre-build) falls back legitimately — guard the dist-reference pin to the dist state.
     if (existsSync(distDir)) {

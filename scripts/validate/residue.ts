@@ -10,13 +10,13 @@
 // subsystem removal (bin/gate/
 // path, CDD_GATE env, cdd-gate-core, gateDecide, deleted gate adapters) — must
 // not creep back into mechanism/document positions.)
-// Task 16 (P5) adds the report-issues legacy-model residue guard (the mechanism-side landing of the
+// Task 16 (P5) adds the cdd-report legacy-model residue guard (the mechanism-side landing of the
 // p5 design §2.8 "residue guard" row — AC1 word-boundary zero-hit / AC5 renderer zero-residue):
-// bare report-issue (word-bounded; the plural report-issues skill name passes) / the --mode word
+// bare report-issue (word-bounded; the cdd-report skill name passes) / the --mode word
 // form / renderComment / renderTitle / resolveDropdownOptions / sessionTypes /
 // execFileSync("git") (hand-written git regression) — all zero-exemption in mechanism positions.
 // T10 adds two reverse guards on the shipped surface (§2.8 rows 19-20): (1) zero
-// osuperpowers-version version literal on the shipped non-emit surface (skills/** · plugin
+// kairos-version version literal on the shipped non-emit surface (skills/** · plugin
 // README); (2) zero `/init` references on the shipped surface (root README · plugin README) plus
 // the collaborator surface (.changeset/README.md) — reverse residue checks after the init and
 // version-stamp mechanism deletion.
@@ -24,25 +24,33 @@
 // path form) zero-hit, with the negative lookbehind exempting canonical schema filenames — the
 // handoff-schema.md deletion ships in the same commit as the guard.
 // The grepTargets meta is consumed by the wiring guard
-// (packages/osuperpowers/tests/ci-validate.test.mjs) to pin the target set.
+// (packages/kairos/tests/ci-validate.test.mjs) to pin the target set.
 
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { globSync } from "tinyglobby";
-
+import { RESOURCE_SPECS } from "../../packages/cdd-engine/src/infra/resource.ts";
 import { CheckBlock, validateRunner } from "./runner.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..");
 
-const OSKILLS = ["packages/osuperpowers/skills"];
+// C7: the engine's static data paths derive from the locator table (RESOURCE_SPECS — the single
+// path truth), never a second literal path list.
+const ENGINE_PKG_REL = path.join("packages", "cdd-engine");
+const enginePath = (...segments: string[]): string => path.join(ROOT, ENGINE_PKG_REL, ...segments);
+const ENGINE_SCHEMA_DIR = enginePath(...RESOURCE_SPECS.schema.source); // <pkg>/config/schema
+const relEngine = (abs: string): string => path.relative(ROOT, abs);
+
+const OSKILLS = ["packages/kairos/skills"];
 // re-org (spec §2.13): cdd-engine mechanism files moved out of lib/ into the src/ target tree —
 // scope constants unified on src (bin/ removed; the lib/ topology dispersed into
-// src/{cli,dispatch,rules,artifacts,render,infra}, templates live in a standalone templates/).
+// src/{cli,dispatch,rules,artifacts,render,infra}); C7 — the read-as-data plane moved from
+// templates/ to config/ (templates/ now holds only the content seeds).
 const CDD_ENGINE_BIN = ["packages/cdd-engine/src"];
-const CDD_ENGINE = [...CDD_ENGINE_BIN, "packages/cdd-engine/templates"];
-// T9 nit3 (DRY): the mechanism-position set shared across skills + cdd-engine (src+templates) — used by 5 checks.
+const CDD_ENGINE = [...CDD_ENGINE_BIN, "packages/cdd-engine/config"];
+// T9 nit3 (DRY): the mechanism-position set shared across skills + cdd-engine (src+config) — used by 5 checks.
 const ALL_MECH_POSITIONS = [...OSKILLS, ...CDD_ENGINE];
 // Task 5 (P2): doc-surface targets — the governance-file surface (the most likely regression point
 // for old docs-root residue): root CLAUDE.md (the active conventions entry), root README.md / plugin
@@ -52,14 +60,14 @@ const ALL_MECH_POSITIONS = [...OSKILLS, ...CDD_ENGINE];
 export const DOC_SURFACE_TARGETS = [
   "CLAUDE.md",
   "README.md",
-  "packages/osuperpowers/README.md",
+  "packages/kairos/README.md",
   "docs/maintainers",
 ];
 
 const RESIDUE_TARGETS = [
-  "packages/osuperpowers/skills",
+  "packages/kairos/skills",
   "packages/cdd-engine/src",
-  "packages/cdd-engine/templates",
+  "packages/cdd-engine/config",
 ];
 const RESIDUE_RE = /\b(sdd_|_sdd_|SDD_|sdd-run-|spor-)/;
 
@@ -79,7 +87,7 @@ const STALE_LEXICON_CHECKS = [
   // CDD_ENGINE_BIN — templates (implement/fix/review) historically referenced the old mode name and
   // became a regression source, so templates must be scanned too.
   // T15 (design §2.8 row 21): scope widened to ALL_MECH_POSITIONS — bare task-review on the skills
-  // surface was cleared in three batches (handoff-schema.md → cli-driven-development SKILL.md →
+  // surface was cleared in three batches (handoff-schema.md → cdd-dev SKILL.md →
   // _docs/review.md), so this scope is the standing regression face; the regex converges to the old
   // mode-name shape. The negative lookbehind only exempts the retired digraph node name
   // `run-task-review` (renamed `run-group-review` in P4.4) — no live surface carries the token.
@@ -108,7 +116,7 @@ const STALE_LEXICON_CHECKS = [
   },
   // Task 5 (P3): removed cdd subcommands (**command-form only**, not bare words — the P4-legal
   // /mattpocock-skills:research session calls and the live text `brief-dependent plan sections` at
-  // cli-driven-development/SKILL.md:66 must all pass) + the research-only timeout env (root-deleted
+  // cdd-dev/SKILL.md:66 must all pass) + the research-only timeout env (root-deleted
   // along with LEGACY_MODE_ENV/modeEnv.research).
   {
     label: "removed cdd subcommand (pre-P3)",
@@ -122,17 +130,17 @@ const STALE_LEXICON_CHECKS = [
   //   root-deleted with the three T26 keys (CDD_TASK_TIMEOUT/CDD_REVIEW_TIMEOUT/CDD_CLI_TIMEOUT now
   //   zero-read — the env surface is a closed-set guard).
   { label: "removed research timeout env", re: /RESEARCH_TIMEOUT/, scope: CDD_ENGINE },
-  // Task 16 (P5): report-issues legacy-model residue guard — the legacy-model vocabulary (--mode flag
+  // Task 16 (P5): cdd-report legacy-model residue guard — the legacy-model vocabulary (--mode flag
   // / renderComment / renderTitle / resolveDropdownOptions / sessionTypes / bare report-issue) was
   // cleared in the rewrite closing round; this guard prevents regression. `report-issue` must be
-  // word-bounded (\b) — the plural `report-issues` skill name and `report-links-only` nodes are
-  // legal (a substring match would false-positive the plural). `--mode` uses the word form (negative
+  // word-bounded (\b) — the cdd-report skill name and the report-links-only node are
+  // legal (a substring match would false-positive the singular form). `--mode` uses the word form (negative
   // lookbehind/lookahead exempt the internal `mode:` attribute and derived tokens like --modeYaml).
   // `execFileSync("git")` blocks hand-written git regression (the engine's sole spawn channel =
   // proc.mjs's execa). Scope is entirely mechanism positions (ALL_MECH_POSITIONS); scripts/ is in no
   // scope, so this file's written surface cannot self-hit.
   {
-    label: "bare report-issue (word-bounded; plural report-issues passes)",
+    label: "bare report-issue (word-bounded; cdd-report skill name passes)",
     re: /\breport-issue\b/,
     scope: ALL_MECH_POSITIONS,
   },
@@ -201,7 +209,7 @@ const STALE_LEXICON_CHECKS = [
   // ["./skills"] }`), so the residual `\bpi\b` branch is retired wholesale — the old "dead
   // residue" premise collapsed when pi became the shipped manifest face (no precise regex, no
   // narrowed scope, no blind pass; the pi contract is pinned instead by
-  // packages/osuperpowers/tests/pi-package.test.mjs).
+  // packages/kairos/tests/pi-package.test.mjs).
   {
     label: ".agents/ emit-surface regression (post-A5 removal)",
     re: /\.agents(\/|$)/m,
@@ -210,7 +218,7 @@ const STALE_LEXICON_CHECKS = [
   {
     label: "droid keyword regression (A3 package.json)",
     re: /\bdroid\b/,
-    scope: ["packages/osuperpowers/package.json"],
+    scope: ["packages/kairos/package.json"],
   },
   // Task 23 (P6, spec F8a): H1 semantic-name mechanism guard (zero-exemption). Two complementary
   // lanes: `\bH1\b` hits the bare uppercase word `H1` (word-bounded on both sides — `1` needs a
@@ -263,15 +271,27 @@ const STALE_LEXICON_CHECKS = [
     re: /\bfix-loop-exhausted\b|\btimeout-exhausted\b/,
     scope: [...ALL_MECH_POSITIONS, ...DOC_SURFACE_TARGETS],
   },
+  // Task 1/2 (pi-harness): the retired osuperpowers→kairos naming guard — the retired package /
+  // namespace token zero-exemption on all mechanism positions + the governance doc surface. The
+  // word-bounded form covers every retired shape (bare token / osuperpowers:<old-name> /
+  // packages/osuperpowers / docs/osuperpowers); the historical corpus (CHANGELOGs, existing
+  // changesets, docs/kairos specs+plans prose) sits outside the scope targets, so it stays exempt.
+  // scripts/ is in no scope — the guard body keeps zero self-hit risk (same stance as the other
+  // checks in this file).
+  {
+    label: "retired osuperpowers naming (→ kairos)",
+    re: /\bosuperpowers\b/,
+    scope: [...ALL_MECH_POSITIONS, ...DOC_SURFACE_TARGETS],
+  },
 ];
 
 // T6 (P5): gate-specific vocabulary zero-exemption (mirrors the P6 F5 stale-lexicon guard; same
 // boundary stance as the T7 grep1 set). After the cdd-gate subsystem removal
-// (packages/osuperpowers/bin/gate/ deleted whole-tree), its vocabulary must not creep back into
-// mechanism/document surfaces: cdd-engine bin + osuperpowers skills + docs/maintainers + root
-// README. Exemptions (registered non-targets): docs/osuperpowers/{specs,plans} (the new home of
+// (packages/kairos/bin/gate/ deleted whole-tree), its vocabulary must not creep back into
+// mechanism/document surfaces: cdd-engine bin + kairos skills + docs/maintainers + root
+// README. Exemptions (registered non-targets): docs/kairos/{specs,plans} (the new home of
 // historical docs; spec/plan deletion-surface descriptions necessarily carry gate vocabulary, and
-// it is not in the gate targets), packages/osuperpowers/CHANGELOG.md (historical record, not a
+// it is not in the gate targets), packages/kairos/CHANGELOG.md (historical record, not a
 // mechanism position), engine src/**/__tests__ (reverse-guard test sites must cite the vocabulary;
 // collectGateLexiconHits rides walkTargetFiles' default self-exemption and never scans them) — the
 // same stance as the T2 Step 4 docs-runner CDD_GATE comment cleanup. False positives are avoided
@@ -863,8 +883,8 @@ export function collectCountersContractHits({
     "packages/cdd-engine/src/rules/failure.ts",
   ],
   engineScope = CDD_ENGINE_BIN,
-  taskSchema = "packages/cdd-engine/templates/schema/task-handoff-schema.json",
-  docsSchema = "packages/cdd-engine/templates/schema/docs-handoff-schema.json",
+  taskSchema = relEngine(path.join(ENGINE_SCHEMA_DIR, "task-handoff-schema.json")),
+  docsSchema = relEngine(path.join(ENGINE_SCHEMA_DIR, "docs-handoff-schema.json")),
 } = {}) {
   const hits = [];
   // Construction points keep zero hand-writing: a double quote immediately followed by a counter
@@ -972,8 +992,8 @@ export function checkChannelAudit() {
 // lists tests/ (retired directory), source paths only write src/... .
 export const CHANNEL_AUDIT_TARGETS = [
   "packages/cdd-engine/src",
-  "packages/cdd-engine/templates/schema",
-  "packages/osuperpowers/skills",
+  relEngine(ENGINE_SCHEMA_DIR),
+  "packages/kairos/skills",
   "scripts",
 ];
 
@@ -999,7 +1019,7 @@ function checkGateLexicon() {
 // Task 10 — init removal + version-stamp mechanism removal reverse guards (design §2.6.2 / §2.8 rows 19-20)
 // =====================================================================
 // ① The shipped non-emit surface (skills/** · plugin README — the contentRoot: "." publishing
-// surface) keeps zero version literals (the osuperpowers-version stamp — the writer
+// surface) keeps zero version literals (the kairos-version stamp — the writer
 // release/version-packages.ts and the reader validate/version-sync.ts were root-deleted, and the
 // version truth converged to package.json + emit products); ② the shipped surface (root README.md ·
 // plugin README) + the collaborator surface (.changeset/README.md) keep zero `/init` references
@@ -1007,20 +1027,17 @@ function checkGateLexicon() {
 // does not exist). The scope is verbatim-identical to the §2.6.2 reverse-guard rows and §2.8 rows
 // 19/20; `.changeset/README.md` is a collaborator surface (what publishes is packages/*/), so it
 // stays out of the shipped assertion scope.
-export const SHIPPED_SURFACE_TARGETS = [
-  "packages/osuperpowers/skills",
-  "packages/osuperpowers/README.md",
-];
+export const SHIPPED_SURFACE_TARGETS = ["packages/kairos/skills", "packages/kairos/README.md"];
 export const INIT_REFERENCE_TARGETS = [
   "README.md",
-  "packages/osuperpowers/README.md",
+  "packages/kairos/README.md",
   ".changeset/README.md",
 ];
 
 // The stamp literal (the mechanism's sole carrier = the HTML-comment form
-// `<!-- osuperpowers-version: X -->`; substring matching covers non-standard forms outside the
+// `<!-- kairos-version: X -->`; substring matching covers non-standard forms outside the
 // comment — the same deletion-surface stance as R2's "sole carrier = skills/init/SKILL.md:6").
-const VERSION_STAMP_RE = /osuperpowers-version/;
+const VERSION_STAMP_RE = /kairos-version/;
 const INIT_REFERENCE_RE = /\/init/;
 
 /** ① Shipped non-emit surface: zero version literals. targetsOverride lets tests inject temp targets. */
@@ -1028,7 +1045,7 @@ export function collectVersionStampHits(targetsOverride) {
   const hits = [];
   for (const f of scanTargets(targetsOverride ?? SHIPPED_SURFACE_TARGETS, VERSION_STAMP_RE)) {
     hits.push({
-      label: "shipped non-emit surface version literal (the osuperpowers-version stamp)",
+      label: "shipped non-emit surface version literal (the kairos-version stamp)",
       file: f,
     });
   }
@@ -1063,16 +1080,16 @@ function checkShippedGuards() {
 // =====================================================================
 // `(?<!-)handoff-schema` zero-hit entry (row 14 is solely claimed by this task; the removal commits
 // in the same commit as the guard): the bare-name form (e.g. a `// aligned with the … table` cite)
-// and the path forms (`docs/handoff-schema.md` / `skills/cli-driven-development/
+// and the path forms (`docs/handoff-schema.md` / `skills/cdd-dev/
 // docs/handoff-schema.md`) all hit; the negative lookbehind exempts the canonical schema filenames
 // (`handoff-schema` in `task-handoff-schema.json` / `docs-handoff-schema.json` is always preceded by
 // `-`). scope = packages/cdd-engine/src (walkTargetFiles' default `__tests__`
 // self-exemption applies — test sites citing the deleted name are test assertions, the seam face,
-// and tests no longer carry the engine-canonical pointer) + the whole packages/osuperpowers dir.
+// and tests no longer carry the engine-canonical pointer) + the whole packages/kairos dir.
 // This entry is not part of T8's collectChannelAuditHits (whose 12 checks mean §2.8 rows 1-11, 13);
 // the row-21 task-review guard belongs to T15 Step 4b, not here. scripts/ is not in scope, so this
 // file's written surface bears no self-hit risk.
-export const HANDOFF_SCHEMA_TARGETS = [...CDD_ENGINE_BIN, "packages/osuperpowers"];
+export const HANDOFF_SCHEMA_TARGETS = [...CDD_ENGINE_BIN, "packages/kairos"];
 const HANDOFF_SCHEMA_RE = /(?<!-)handoff-schema/;
 
 /** targetsOverride lets tests inject a temp directory; hits = { label, file } list. */
@@ -1383,28 +1400,29 @@ function checkCommentAnchors() {
 // =====================================================================
 // The five guards merge into collectSkillSurfaceHits() (isomorphic to T8's
 // collectChannelAuditHits()), folded into the existing 5c step by checkSkillSurface() (block count
-// unchanged). Every guard scope sits inside packages/osuperpowers/skills/; scripts/ is in no
+// unchanged). Every guard scope sits inside packages/kairos/skills/; scripts/ is in no
 // scope — the guard body is not a carrier of the vocabulary it guards.
 //   Row 17 — zero upstream-document read (\bvendors\/ · \bsuperpowers\/.*SKILL\.md · Read[- ]Upstream ·
 //            \bread upstream\b) + every upstream reference takes the `/<plugin>:<skill>` slash form
 //            (an upstream plugin:skill reference without a slash prefix → hit; a same-plugin
-//            `osuperpowers:` reference is not upstream).
+//            `kairos:` reference is not upstream).
 //   Row 15 — zero engine-internal-structure dependency (\bCDD_[A-Z_]+\b · \bprogress\.json\b ·
 //            task-\d+-(review|fix|implement)-\d*\.?json). scope = design AC5's 7 orchestrator
-//            skills enumerated by name (see ORCHESTRATOR_SKILLS). report-issues is explicitly
-//            excluded — AC5 verbatim quote: 「例外（设计内，非缺口）：
-//            report-issues 的 progress.json#plan 读取是 program 通道的首跳（§2.5.4 的目的正是使其
-//            可用），不属「引擎内部结构依赖」——该处的去留归 P5 的目标流程（届时可改指命令输出
-//            契约）」. The exclusion applies only to this entry; report-issues remains in the skills-
+//            skills enumerated by name (see ORCHESTRATOR_SKILLS). cdd-report is explicitly
+//            excluded — AC5 verbatim quote: "exception (within design, not a gap):
+//            cdd-report's progress.json#plan read is the first hop of the program channel
+//            (§2.5.4 exists to make it available), not an 'engine-internal-structure dependency' —
+//            whether it stays there belongs to P5's target flow (it may later point at command
+//            output contract)". The exclusion applies only to this entry; cdd-report remains in the skills-
 //            surface scope of the other 4 entries in this group (measured zero-hit on CDD_* /
-//            fix-inline / vendors/ / _docs/). The 7-name enumeration (including finishing, not 6)
+//            fix-inline / vendors/ / _docs/). The 7-name enumeration (including cdd-close, not 6)
 //            is a verbatim same-source inventory — a skills/** wildcard is not allowed to cover it:
-//            a wildcard would make the guard unreachable on report-issues and miss future new
+//            a wildcard would make the guard unreachable on cdd-report and miss future new
 //            skills.
 //   Row 16 — zero fix-inline (fixes always take the `cdd fix` form, §2.7.3); and every review-loop
 //            fix node (a mermaid node whose label contains fix — fix-task / branch-fix / fix-spec /
 //            fix-plan) must have its `### `label`` section contain the `cdd fix` command form.
-//   Row 12 — ① the first column of cli-driven-development/SKILL.md's `## Failure Modes` short table
+//   Row 12 — ① the first column of cdd-dev/SKILL.md's `## Failure Modes` short table
 //            ⊆ the canonical category set (FAILURE_CATEGORIES, taken here via cdd-engine's single
 //            read entry, never a second literal copy) ∪ the handoff status-enum whitelist
 //            (declaration point = task-handoff-schema.json's status.enum; defensive pass-through,
@@ -1417,15 +1435,15 @@ function checkCommentAnchors() {
 //            mention) — the permanent guard for T15's one-time deletion; scope is exactly the
 //            skills surface (not extended to the engine injection / governance entry surfaces).
 export const ORCHESTRATOR_SKILLS = [
-  "packages/osuperpowers/skills/brainstorming/SKILL.md",
-  "packages/osuperpowers/skills/writing-single-spec/SKILL.md",
-  "packages/osuperpowers/skills/writing-overall-spec/SKILL.md",
-  "packages/osuperpowers/skills/writing-phase-spec/SKILL.md",
-  "packages/osuperpowers/skills/writing-plans/SKILL.md",
-  "packages/osuperpowers/skills/cli-driven-development/SKILL.md",
-  "packages/osuperpowers/skills/finishing/SKILL.md",
+  "packages/kairos/skills/cdd-design/SKILL.md",
+  "packages/kairos/skills/cdd-spec/SKILL.md",
+  "packages/kairos/skills/cdd-charter/SKILL.md",
+  "packages/kairos/skills/cdd-phase/SKILL.md",
+  "packages/kairos/skills/cdd-plan/SKILL.md",
+  "packages/kairos/skills/cdd-dev/SKILL.md",
+  "packages/kairos/skills/cdd-close/SKILL.md",
 ];
-const CDD_SKILL = "packages/osuperpowers/skills/cli-driven-development/SKILL.md";
+const CDD_SKILL = "packages/kairos/skills/cdd-dev/SKILL.md";
 
 // Negative vocabulary uses the "token form" rather than the "slash-prefixed form": the historical
 // violation shapes are backtick/whitespace-led path references (`vendors/mattpocock-skills/…` ·
@@ -1450,16 +1468,13 @@ const DOCS_REF_RE = /\b_docs\/|rule-review-convergence/;
  *  defensive pass-through). */
 function handoffStatusWhitelist() {
   const schema = JSON.parse(
-    readFileSync(
-      path.join(ROOT, "packages/cdd-engine/templates/schema/task-handoff-schema.json"),
-      "utf8",
-    ),
+    readFileSync(path.join(ENGINE_SCHEMA_DIR, "task-handoff-schema.json"), "utf8"),
   );
   return new Set(schema.properties.status.enum ?? []);
 }
 
 /** Row 12 ① extraction: the first column of the `## Failure Modes` short table (§2.5.2 derivation
- *  channel ②'s sole consumer = cli-driven-development; the extraction surface is the adjudication
+ *  channel ②'s sole consumer = cdd-dev; the extraction surface is the adjudication
  *  surface — the implementation must not invent its own scan surface). */
 export function failureModeCandidates(skillText) {
   const candidates = [];
@@ -1535,7 +1550,7 @@ export function collectUpstreamReadHits(targetsOverride = OSKILLS) {
 }
 
 /** Row 17 (positive): every upstream reference takes the `/plugin:skill` slash form (skills
- *  surface; a same-plugin `osuperpowers:` reference is not upstream). */
+ *  surface; a same-plugin `kairos:` reference is not upstream). */
 export function collectUpstreamSlashFormHits(targetsOverride = OSKILLS) {
   const hits = [];
   for (const { file, lineNo, text } of scanLines(targetsOverride, UPSTREAM_REF_SLASH_RE)) {
@@ -1673,9 +1688,10 @@ function checkSkillSurface() {
 // anchor-first ban — semantic body first, anchor only as a trailing traceability suffix);
 // T2/T4 (P3) drive the G2 live-face last-index guard through the ContractLexiconGuard
 // (checkResidue: engine src+tests / scripts / docs/maintainers, the lexicon data-row allowance
-// set) — the four converged check faces run once in this block under the guard (checkAnatomy =
+// set) — the five converged check faces run once in this block under the guard (checkAnatomy =
 // the retired digraph-consistency assertions, checkWording = the C7 shape-restate guard,
-// checkConfig = the engine-config channel audit);
+// checkConfig = the engine-config channel audit, checkMarkers = the T3 three-way host-marker
+// consistency guard);
 // grepTargets grew to include cdd-engine src+templates for the wiring guard to pin. channelTargets
 // = the channel-audit guard-surface union (the wiring guard pins any scope shrink as a fail;
 // post-move it excludes the retired tests/, the src surface walk self-exempts).
@@ -1697,12 +1713,18 @@ export const steps = [
       // once in this block. checkResidue replaces the former inline G2 collector (the lexicon
       // data rows are its allowance set); checkAnatomy absorbs the retired digraph-consistency
       // node:test surface; checkWording pins C7 shape-restate zero-hit on the orchestrator
-      // skills; checkConfig runs the engine-config channel audit.
+      // skills; checkConfig runs the engine-config channel audit. T3 appends checkMarkers — the
+      // three-way host-marker consistency guard (lexicon markers ↔ harness.ts detect() predicates
+      // ↔ the engine-config env whitelist), same block, no new validate step (zero ci-validate
+      // perturbation).
       const guard = new ContractLexiconGuard();
       assertLexiconZero("anatomy", guard.checkAnatomy());
       assertLexiconZero("residue", guard.checkResidue());
       assertLexiconZero("wording", guard.checkWording(ORCHESTRATOR_SKILLS));
       assertLexiconZero("config", guard.checkConfig(loadContract()));
+      // T7 (P4 C8): the four-direction harness-contract guard — checkMarkers (the T3 detection
+      // three-way) folds into checkHarness as its detect direction.
+      assertLexiconZero("harness", guard.checkHarness({ engineConfig: loadContract() }));
     },
     grepTargets: RESIDUE_TARGETS,
     channelTargets: CHANNEL_AUDIT_TARGETS,

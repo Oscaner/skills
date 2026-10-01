@@ -40,11 +40,11 @@ export class WorkspaceRoot {
   /** The git repo root this workspace base lives under. */
   readonly repoRoot: string;
   /** The canonical workspace-root segment (engine-config.json#handoffNamespace.workspaceRoot —
-   *  `.osuperpowers/cdd`; zero consumer-literal duplication). */
+   *  `.kairos/cdd`; zero consumer-literal duplication). */
   readonly workspaceRoot: string;
   /** The workspace base directory: `<repoRoot>/<workspaceRoot>`. */
   readonly path: string;
-  /** The root-level bootstrap gitignore: `<repoRoot>/.osuperpowers/.gitignore` — self-guarding the
+  /** The root-level bootstrap gitignore: `<repoRoot>/.kairos/.gitignore` — self-guarding the
    *  whole workspace subtree without relying on the repo root .gitignore. */
   readonly gitignorePath: string;
 
@@ -52,7 +52,7 @@ export class WorkspaceRoot {
     this.repoRoot = repoRoot;
     this.workspaceRoot = config.workspaceRoot;
     this.path = path.join(repoRoot, config.workspaceRoot);
-    this.gitignorePath = path.join(repoRoot, ".osuperpowers", ".gitignore");
+    this.gitignorePath = path.join(repoRoot, ".kairos", ".gitignore");
   }
 
   /** from(repoRoot, config) — the single construction entry: repoRoot from the caller (the

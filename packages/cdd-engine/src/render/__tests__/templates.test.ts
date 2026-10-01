@@ -17,7 +17,7 @@ const templates = new TemplateLoader();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ENGINE = path.join(__dirname, "..", "..", "..");
-const TEMPLATES = path.join(ENGINE, "templates");
+const CONFIG_DIR = path.join(ENGINE, "config");
 
 // Second-level heading position via line-anchored match — the shell prose names `## Return` /
 // `## Round context` inline (backtick quotes in Instructions), so a plain indexOf would anchor on
@@ -30,8 +30,9 @@ describe("PKG_ROOT", () => {
     // PKG_ROOT is the module's path constant (not a TemplateLoader member — Task 7 ①: the class
     // surface owns load/render, the resource root stays a module const).
     const { PKG_ROOT } = await import("../templates.ts");
-    // re-org Step 5：PKG_ROOT 语义收敛为模板资源目录本身（fileURLToPath(new URL("../templates", …))）。
-    expect(PKG_ROOT).toMatch(/packages\/cdd-engine\/templates$/);
+    // re-org Step 5: PKG_ROOT converges on the render-data-plane resource dir (the dist/config mirror
+    // when a build materialized it, config/ in the plain dev face).
+    expect(PKG_ROOT).toMatch(/packages\/cdd-engine\/(?:dist\/)?config$/);
   });
 });
 
@@ -127,7 +128,9 @@ describe("template-contract 单点消费 + zone-tagged token registry（Task 20 
     }
     expect(Object.keys(contract.reviews)).toEqual(["task", "branch", "spec", "plan"]);
     // 与磁盘真身一致（单点）
-    const onDisk = JSON.parse(readFileSync(path.join(TEMPLATES, "template-contract.json"), "utf8"));
+    const onDisk = JSON.parse(
+      readFileSync(path.join(CONFIG_DIR, "template-contract.json"), "utf8"),
+    );
     expect(contract).toEqual(onDisk);
   });
 
@@ -448,7 +451,7 @@ describe("review type config (Task 4: 模板数据化)", () => {
     // 直接读真身：returnFormat/handoffType/fixTemplate
     // 已迁 canonical（review.{type} 族 schema/return + fix 族 fixTemplate），reviews 只剩内容轴。
     const CONTRACT = JSON.parse(
-      readFileSync(new URL("../../../templates/template-contract.json", import.meta.url), "utf8"),
+      readFileSync(path.join(CONFIG_DIR, "template-contract.json"), "utf8"),
     );
     for (const cfg of Object.values(CONTRACT.reviews)) {
       expect(cfg).not.toHaveProperty("returnMode");
@@ -570,7 +573,7 @@ describe("renderTemplate（唯一渲染器：壳 → Return 常数 → Round con
 describe("unified constant shell（Task 20：四个 .md 并入 sections 的阅读理解）", () => {
   it("壳内零注入槽：sections.shell 零 token 槽（T12 起 `{{> cl:…}}` 条款 partial refs 为装配标记）；`## Round context` 唯一动态区宣言", () => {
     const contract = JSON.parse(
-      readFileSync(path.join(TEMPLATES, "template-contract.json"), "utf8"),
+      readFileSync(path.join(CONFIG_DIR, "template-contract.json"), "utf8"),
     );
     const shell = contract.sections.shell.join("\n");
     expect(shell).not.toMatch(/\{\{(?!>\s*)/); // the shell has zero token slots (the structure validator asserts the same; this is the data-plane direct read)

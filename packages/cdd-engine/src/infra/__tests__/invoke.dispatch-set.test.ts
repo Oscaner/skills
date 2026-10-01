@@ -14,6 +14,11 @@ const registry = new Registry();
 
 const reg = registry.load(REG_PATH);
 
+// The dispatch entry is the checkHarness product (C8: the dispatch prefix derives from the
+// contract's dispatch + refs tables and is stamped on the entry — composeDispatchSet consumes it).
+const CLAUDE_ENTRY = registry.checkHarness(reg, "claude", { dryRun: true });
+const CURSOR_ENTRY = registry.checkHarness(reg, "cursor", { dryRun: true });
+
 describe("C5 — dispatch-set composition (invoke string / cwd / env)", () => {
   it("assembly = [registry prefix, prompt, suffix] joined on newlines (C1: prefix precedes the prompt)", () => {
     expect(invoker.promptArgText("/p", "hello", "bye")).toBe("/p\nhello\nbye");
@@ -30,7 +35,7 @@ describe("C5 — dispatch-set composition (invoke string / cwd / env)", () => {
   });
 
   it("same (harness, op, type) + same inputs → byte-identical dispatch set (byte-equal args/cwd/env)", () => {
-    const entry = reg.claude;
+    const entry = CLAUDE_ENTRY;
     const set1 = invoker.composeDispatchSet(entry, { op: "implement" }, "prompt A", "/wsA", {
       PATH: "/usr/bin",
       HOME: "/h",
@@ -46,9 +51,13 @@ describe("C5 — dispatch-set composition (invoke string / cwd / env)", () => {
   });
 
   it("the real claude implement set starts with the /mattpocock-skills:tdd prefix line and ends with the prompt", () => {
-    const set = invoker.composeDispatchSet(reg.claude, { op: "implement" }, "line1\nline2", "/ws", {
-      PATH: "/usr/bin",
-    });
+    const set = invoker.composeDispatchSet(
+      CLAUDE_ENTRY,
+      { op: "implement" },
+      "line1\nline2",
+      "/ws",
+      { PATH: "/usr/bin" },
+    );
     expect(set.cli).toBe("claude");
     expect(set.args.slice(0, -1)).toEqual([
       "-p",
@@ -62,7 +71,7 @@ describe("C5 — dispatch-set composition (invoke string / cwd / env)", () => {
   });
 
   it("(op, type) granularity resolves distinct prefixes deterministically (registry-driven, zero env sway)", () => {
-    const entry = reg.claude;
+    const entry = CLAUDE_ENTRY;
     const implement = invoker.composeDispatchSet(entry, { op: "implement" }, "P", "/ws", {});
     const reviewTask = invoker.composeDispatchSet(
       entry,
@@ -83,7 +92,7 @@ describe("C5 — dispatch-set composition (invoke string / cwd / env)", () => {
   it("env passes through untouched (engine never rewrites the dispatch env)", () => {
     const env = { PATH: "/usr/bin", CDD_SHOULD_NOT_EXIST: "x" };
     const set = invoker.composeDispatchSet(
-      reg.cursor,
+      CURSOR_ENTRY,
       { op: "fix", type: "task" },
       "P",
       "/ws",

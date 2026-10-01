@@ -22,7 +22,7 @@ function git(repo: string, ...args: string[]) {
   }).trim();
 }
 
-/** Fresh git repo: the `.osuperpowers/cdd/` workspace is gitignored (engine writes stay out of the
+/** Fresh git repo: the `.kairos/cdd/` workspace is gitignored (engine writes stay out of the
  * tree), the doc chain is committed → the entry gate sees a clean tree. */
 function setupRepo(): string {
   const dest = mkdtempSync(path.join(tmpdir(), "cdd-lifecycle-val-"));
@@ -55,8 +55,8 @@ function registry(): string {
   return regPath;
 }
 
-const SPEC_DIR = "docs/osuperpowers/specs";
-const PLAN_DIR = "docs/osuperpowers/plans";
+const SPEC_DIR = "docs/kairos/specs";
+const PLAN_DIR = "docs/kairos/plans";
 const OVERALL = [
   "- **Version**: v1.0 · 2026-09-21",
   "",
@@ -82,7 +82,7 @@ const SPEC = [
 const PLAN = [
   "# Plan",
   "",
-  "**Spec:** [plan-design.md](docs/osuperpowers/specs/plan-design.md)",
+  "**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)",
   "",
   "## Constraints",
   "",
@@ -221,7 +221,7 @@ describe("statusValidate — CDD_INFO six-state line + plan verdict on a normal 
     const groupedPlan = [
       "# Plan",
       "",
-      "**Spec:** [plan-design.md](docs/osuperpowers/specs/plan-design.md)",
+      "**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)",
       "",
       "## Constraints",
       "",

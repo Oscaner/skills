@@ -19,7 +19,7 @@ import { FAILURE_CATEGORIES, FailureResolver } from "../failure.ts";
 const failureResolver = new FailureResolver();
 
 const CAT = JSON.parse(
-  readFileSync(path.resolve(import.meta.dirname, "../../../templates/engine-config.json"), "utf8"),
+  readFileSync(path.resolve(import.meta.dirname, "../../../config/engine-config.json"), "utf8"),
 ).failureCategories;
 
 describe("failure-categories canonical", () => {

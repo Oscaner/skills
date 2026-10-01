@@ -18,12 +18,12 @@ import { SOURCE_TOP, sourceService } from "../source.ts";
 const readPkgVersion = (rel) =>
   JSON.parse(readFileSync(new URL(`../../../${rel}/package.json`, import.meta.url), "utf8"))
     .version;
-const OS_VERSION = readPkgVersion("packages/osuperpowers");
+const OS_VERSION = readPkgVersion("packages/kairos");
 
-/** The live osuperpowers `oscaner` descriptor — the sourceJson input for both registry slots. */
+/** The live kairos `oscaner` descriptor — the sourceJson input for both registry slots. */
 const readOscaner = () =>
   JSON.parse(
-    readFileSync(new URL("../../../packages/osuperpowers/package.json", import.meta.url), "utf8"),
+    readFileSync(new URL("../../../packages/kairos/package.json", import.meta.url), "utf8"),
   ).oscaner;
 
 // ---------------------------------------------------------------------------
@@ -34,7 +34,7 @@ const readOscaner = () =>
 // ---------------------------------------------------------------------------
 
 test(".version-bump.json tracks the versioned emit manifest set (.claude-plugin + .cursor-plugin)", () => {
-  const bump = JSON.parse(readFileSync("packages/osuperpowers/.version-bump.json", "utf8"));
+  const bump = JSON.parse(readFileSync("packages/kairos/.version-bump.json", "utf8"));
   const paths = bump.files.map((f) => f.path);
   for (const p of [".claude-plugin/plugin.json", ".cursor-plugin/plugin.json"]) {
     expect(paths.includes(p)).toBeTruthy();
@@ -42,7 +42,7 @@ test(".version-bump.json tracks the versioned emit manifest set (.claude-plugin 
 });
 
 test("deriveFirstPartyNames discovers packages with oscaner (sorted)", () => {
-  expect(manifestService.deriveFirstPartyNames("packages")).toEqual(["osuperpowers"]);
+  expect(manifestService.deriveFirstPartyNames("packages")).toEqual(["kairos"]);
 });
 
 test("deriveFirstPartyNames ignores dirs without oscaner / package.json", () => {
@@ -71,14 +71,14 @@ test("deriveFirstPartyNames ignores dirs without oscaner / package.json", () => 
 test("pluginManifestEmitter writes products for declared harnesses and skips pi", () => {
   const tmp = mkdtempSync(join(tmpdir(), "oscaner-manifests-"));
   try {
-    const plugin = sourceService.derive(".").plugins.find((p) => p.name === "osuperpowers");
+    const plugin = sourceService.derive(".").plugins.find((p) => p.name === "kairos");
     const generatedPaths = [];
     pluginManifestEmitter.emit(tmp, plugin, generatedPaths);
     // claude + cursor are declared by `oscaner.harnesses` and carry products —
     // each lands its manifest, byte-identical to the committed product (D7)
     for (const rel of [
-      "packages/osuperpowers/.claude-plugin/plugin.json",
-      "packages/osuperpowers/.cursor-plugin/plugin.json",
+      "packages/kairos/.claude-plugin/plugin.json",
+      "packages/kairos/.cursor-plugin/plugin.json",
     ]) {
       expect(existsSync(join(tmp, rel))).toBe(true);
       expect(generatedPaths.includes(rel)).toBe(true);
@@ -113,7 +113,7 @@ test("deriveSource top-level key order is byte-pinned (source.json Object.keys)"
 
 test("deriveSource enumerates first-party packages in stable order", () => {
   const source = sourceService.derive(".");
-  expect(source.plugins.map((p) => p.name)).toEqual(["osuperpowers"]);
+  expect(source.plugins.map((p) => p.name)).toEqual(["kairos"]);
   // schema-required fields present on every plugin
   for (const p of source.plugins) {
     expect(p.name).toBeTruthy();
@@ -126,17 +126,17 @@ test("deriveSource enumerates first-party packages in stable order", () => {
 
 test("deriveSource first-party entries carry oscaner + package metadata (registry descriptor slots)", () => {
   const source = sourceService.derive(".");
-  const eng = source.plugins.find((p) => p.name === "osuperpowers");
+  const eng = source.plugins.find((p) => p.name === "kairos");
   // The claude/cursor slots are asserted against the registry descriptor
   // contributions — the same single source the emitter derives them from — so
   // slot drift (key order or value) fails against the pinned row shape.
   const osc = readOscaner();
   expect(eng).toEqual({
-    name: "osuperpowers",
+    name: "kairos",
     version: OS_VERSION,
-    description: "Standalone osuperpowers skills: orchestration + cli-* family + CDD engine.",
+    description: "Standalone kairos skills: orchestration + cdd-* family + CDD engine.",
     author: { name: "Oscaner Miao", email: "oscaner1997@gmail.com" },
-    contentRoot: "packages/osuperpowers",
+    contentRoot: "packages/kairos",
     homepage: "https://github.com/Oscaner/skills",
     repository: "https://github.com/Oscaner/skills",
     license: "MIT",
@@ -161,16 +161,16 @@ test("findStaleCommittedFiles flags emitted products no longer generated", () =>
     // standalone product file that IS still generated
     writeFileSync(join(tmp, "standalone.json"), "{}\n");
     // retired whole-directory product (cursor wrapper) that must be gone
-    mkdirSync(join(tmp, "cursor-plugins/osuperpowers"), { recursive: true });
+    mkdirSync(join(tmp, "cursor-plugins/kairos"), { recursive: true });
 
     const stale = emitOrchestrator.findStaleCommittedFiles({
       generatedSet: new Set(["products/kept.json", "standalone.json"]),
       productRoots: ["products"],
       productFiles: ["standalone.json"],
-      extraStale: ["cursor-plugins/osuperpowers/"],
+      extraStale: ["cursor-plugins/kairos/"],
       root: tmp,
     });
-    expect(stale.sort()).toEqual(["cursor-plugins/osuperpowers/", "products/stale.json"]);
+    expect(stale.sort()).toEqual(["cursor-plugins/kairos/", "products/stale.json"]);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
@@ -216,8 +216,8 @@ test("emitAll into a temp tree produces the full product set and tracks every pa
       "marketplace/source.json",
       ".claude-plugin/marketplace.json",
       ".cursor-plugin/marketplace.json",
-      "packages/osuperpowers/.claude-plugin/plugin.json",
-      "packages/osuperpowers/.cursor-plugin/plugin.json",
+      "packages/kairos/.claude-plugin/plugin.json",
+      "packages/kairos/.cursor-plugin/plugin.json",
     ]) {
       expect(existsSync(join(tmp, rel))).toBe(true);
       expect(generatedPaths.includes(rel)).toBe(true);
@@ -225,7 +225,7 @@ test("emitAll into a temp tree produces the full product set and tracks every pa
     // the shared .agents/skills/ namespace copy is retired — no .agents paths
     // are produced and no hidden .agents tree exists in the product set
     expect(generatedPaths.some((r) => r.includes("/.agents/"))).toBe(false);
-    expect(existsSync(join(tmp, "packages/osuperpowers/.agents"))).toBe(false);
+    expect(existsSync(join(tmp, "packages/kairos/.agents"))).toBe(false);
     // the drift-check product-root set no longer owns the .agents tree
     expect(BASE_PRODUCT_ROOTS.some((r) => r.includes("/.agents"))).toBe(false);
     // every recorded path resolves to a real temp-tree file, no duplicates
@@ -243,7 +243,7 @@ test("emitAll returns an identical wrapper-root set per run (no shared-state acc
   try {
     const wrapperRoots = emitService.emitAll(tmp, { generatedPaths: [] });
     // vendor cursor wrappers retired with the self-maintenance surface — no
-    // wrapper roots remain (osuperpowers runs plugin-root in-repo)
+    // wrapper roots remain (kairos runs plugin-root in-repo)
     expect(wrapperRoots).toEqual([]);
     // a second emit returns the identical set — the base product-root constant
     // is never mutated (regression: marketplace used to push into the exported
@@ -257,7 +257,7 @@ test("emitAll returns an identical wrapper-root set per run (no shared-state acc
 test("assertVersionBump validates the passed committedRoot, not the module root", () => {
   const tmp = mkdtempSync(join(tmpdir(), "oscaner-version-bump-"));
   try {
-    const pluginRoot = join(tmp, "packages", "osuperpowers");
+    const pluginRoot = join(tmp, "packages", "kairos");
     mkdirSync(pluginRoot, { recursive: true });
     writeFileSync(join(pluginRoot, "package.json"), JSON.stringify({ version: "1.0.0" }));
     mkdirSync(join(pluginRoot, ".claude-plugin"), { recursive: true });

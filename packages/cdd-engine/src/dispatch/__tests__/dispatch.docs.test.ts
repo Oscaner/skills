@@ -93,7 +93,7 @@ it("docs review 起点 dirty → 入口门 BLOCKED（dispatch 不进入；spec-r
     template: "review",
     type: "spec",
     doc: path.join(repo, "spec.md"),
-    handoffPath: path.join(repo, ".osuperpowers", "cdd", "spec", "spec-review-1.json"),
+    handoffPath: path.join(repo, ".kairos", "cdd", "spec", "spec-review-1.json"),
     repoRoot: repo,
   });
   await expect(lc.run()).rejects.toBeInstanceOf(DispatchBlocked);
@@ -115,7 +115,7 @@ it("docs review dry-run + dirty → 入口门降级：CDD_WARN + exit 0 + 零 sp
       template: "review",
       type: "spec",
       doc: path.join(repo, "spec.md"),
-      handoffPath: path.join(repo, ".osuperpowers", "cdd", "spec", "spec-review-1.json"),
+      handoffPath: path.join(repo, ".kairos", "cdd", "spec", "spec-review-1.json"),
       repoRoot: repo,
       dryRun: true,
     });
@@ -127,9 +127,7 @@ it("docs review dry-run + dirty → 入口门降级：CDD_WARN + exit 0 + 零 sp
   expect(cap.text).toContain(`CDD_WARN: ${DRY_RUN_DIRTY_WARN}`); // mount 前缀 + 单点常量
   const { execa } = await import("execa");
   expect(vi.mocked(execa)).not.toHaveBeenCalled(); // 不 spawn → 零 liveness 介入（T14）
-  expect(existsSync(path.join(repo, ".osuperpowers", "cdd", "spec", "spec-review-1.json"))).toBe(
-    false,
-  ); // does not write the handoff
+  expect(existsSync(path.join(repo, ".kairos", "cdd", "spec", "spec-review-1.json"))).toBe(false); // does not write the handoff
 });
 
 it("runDocsTask: 入口门 BLOCKED → CDD_BLOCKED stderr + ExitRequested(1)（CLI 面出口）", async () => {
@@ -144,7 +142,7 @@ it("runDocsTask: 入口门 BLOCKED → CDD_BLOCKED stderr + ExitRequested(1)（C
         template: "review",
         type: "spec",
         doc: path.join(repo, "spec.md"),
-        handoffPath: path.join(repo, ".osuperpowers", "cdd", "spec", "spec-review-1.json"),
+        handoffPath: path.join(repo, ".kairos", "cdd", "spec", "spec-review-1.json"),
         repoRoot: repo,
         dryRun: false,
       }),
@@ -161,7 +159,7 @@ it("docs fix 出口门（P5 落点 2）: 派发后 dirty → handoff 覆写 BLOC
   writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
   git(repo, "add", "-A");
   git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "doc");
-  const handoffPath = path.join(repo, ".osuperpowers", "cdd", "spec", "spec-fix-1.json");
+  const handoffPath = path.join(repo, ".kairos", "cdd", "spec", "spec-fix-1.json");
   const dir = path.dirname(handoffPath);
   // The docs fix agent writes the fix handoff AND dirties the tree during dispatch (entry clean →
   // exit dirty): the exit gate must rewrite the handoff to BLOCKED (the fix agent forgot to commit).
@@ -205,7 +203,7 @@ it("docs review 出口门: clean tree 通过 + result 原样（exitCode = agent 
   writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
   git(repo, "add", "-A");
   git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "doc");
-  const handoffPath = path.join(repo, ".osuperpowers", "cdd", "spec", "spec-review-1.json");
+  const handoffPath = path.join(repo, ".kairos", "cdd", "spec", "spec-review-1.json");
   const { execa } = await import("execa");
   vi.mocked(execa).mockImplementation(async () => {
     const { mkdirSync, writeFileSync: wfs } = await import("node:fs");
@@ -248,7 +246,7 @@ it("docs review 失败优先: agent exit 1 + 有效 APPROVED handoff → exitCod
   writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
   git(repo, "add", "-A");
   git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "doc");
-  const handoffPath = path.join(repo, ".osuperpowers", "cdd", "spec", "spec-review-1.json");
+  const handoffPath = path.join(repo, ".kairos", "cdd", "spec", "spec-review-1.json");
   const { execa } = await import("execa");
   vi.mocked(execa).mockImplementation(async () => {
     const { mkdirSync, writeFileSync: wfs } = await import("node:fs");
@@ -289,7 +287,7 @@ it("T5 ③: docs dispatch injects FIXED_POINT = dispatch entry base (git HEAD at
   git(repo, "add", "-A");
   git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "doc");
   const entryHead = git(repo, "rev-parse", "HEAD");
-  const handoffPath = path.join(repo, ".osuperpowers", "cdd", "spec", "spec-review-1.json");
+  const handoffPath = path.join(repo, ".kairos", "cdd", "spec", "spec-review-1.json");
   const { execa } = await import("execa");
   const { renderTemplate } = await import("../../render/templates.ts");
   vi.mocked(execa).mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
@@ -313,7 +311,7 @@ it("T5 ③: docs dispatch injects FIXED_POINT = dispatch entry base (git HEAD at
     template: "review",
     type: "spec",
     doc: path.join(repo, "missing.md"),
-    handoffPath: path.join(repo, ".osuperpowers", "cdd", "spec", "spec-review-1.json"),
+    handoffPath: path.join(repo, ".kairos", "cdd", "spec", "spec-review-1.json"),
     repoRoot: path.join(repo, "no-such-dir"),
     dryRun: false,
   });
@@ -334,7 +332,7 @@ it("T5 ⑤: docs fix same-contract round behavior — commit → APPROVED; uncom
   const { execa } = await import("execa");
 
   // Round A — docs fix agent commits the change → clean tree + commits.head == HEAD → APPROVED exit 0
-  const handoffA = path.join(repo, ".osuperpowers", "cdd", "spec", "spec-fix-1.json");
+  const handoffA = path.join(repo, ".kairos", "cdd", "spec", "spec-fix-1.json");
   vi.mocked(execa).mockImplementation(async () => {
     const { mkdirSync, writeFileSync: wfs } = await import("node:fs");
     mkdirSync(path.dirname(handoffA), { recursive: true });
@@ -371,7 +369,7 @@ it("T5 ⑤: docs fix same-contract round behavior — commit → APPROVED; uncom
   expect(JSON.parse(readFileSync(handoffA, "utf8")).status).toBe("APPROVED");
 
   // Round B — same-contract docs fix agent leaves the change uncommitted → exit gate dirty → BLOCKED + stdout-visible diagnosis
-  const handoffB = path.join(repo, ".osuperpowers", "cdd", "spec", "spec-fix-2.json");
+  const handoffB = path.join(repo, ".kairos", "cdd", "spec", "spec-fix-2.json");
   const entryHead = git(repo, "rev-parse", "HEAD");
   vi.mocked(execa).mockImplementation(async () => {
     const { mkdirSync, writeFileSync: wfs } = await import("node:fs");

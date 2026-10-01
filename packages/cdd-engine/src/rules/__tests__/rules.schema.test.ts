@@ -1,5 +1,5 @@
 // packages/cdd-engine/src/rules/__tests__/rules.schema.test.ts
-// Independent source of truth = the templates/schema/*.json plus templates/engine-config.json
+// Independent source of truth = the config/schema/*.json plus config/engine-config.json
 // #handoffNamespace (read fresh in this file; never recomputed the way the port computes). Same
 // seams as handoff-stub.test.mjs / schema-utils.test.mjs, which keep guarding the legacy .mjs copy.
 // Covers the write-side contract that makes CONTRACT_VIOLATION recovery lossless:
@@ -20,7 +20,7 @@ const schemaValidator = new HandoffSchemaValidator();
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const read = (rel: string) =>
-  JSON.parse(readFileSync(path.join(HERE, "..", "..", "..", "templates", rel), "utf8"));
+  JSON.parse(readFileSync(path.join(HERE, "..", "..", "..", "config", rel), "utf8"));
 
 const TASK_SCHEMA = read(path.join("schema", "task-handoff-schema.json"));
 const DOCS_SCHEMA = read(path.join("schema", "docs-handoff-schema.json"));
@@ -35,7 +35,7 @@ const validTask = {
 };
 
 describe("rules/schema.ts — loadHandoffSchema / loadHandoffNamespace canonical 单读", () => {
-  it("schemaValidator.loadHandoffSchema('task') 返回 templates/schema/task-handoff-schema.json 原值", () => {
+  it("schemaValidator.loadHandoffSchema('task') 返回 config/schema/task-handoff-schema.json 原值", () => {
     expect(schemaValidator.loadHandoffSchema("task")).toEqual(TASK_SCHEMA);
   });
 
@@ -50,7 +50,7 @@ describe("rules/schema.ts — loadHandoffSchema / loadHandoffNamespace canonical
   it("loadHandoffNamespace 返回 engine-config#handoffNamespace 原值（workspaceRoot + 9 families）", () => {
     const ns = schemaValidator.loadHandoffNamespace();
     expect(ns).toEqual(NAMESPACE);
-    expect(ns.workspaceRoot).toBe(".osuperpowers/cdd");
+    expect(ns.workspaceRoot).toBe(".kairos/cdd");
     expect(Object.keys(ns.families)).toHaveLength(9);
   });
 });

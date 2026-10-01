@@ -1,6 +1,6 @@
 // packages/cdd-engine/src/artifacts/handoff/write.ts — handoff read/write (Task 8 port of
 // write.mjs; engine is the handoff carrier's single author). Writes per
-// packages/cdd-engine/templates/schema/task-handoff-schema.json (docs family
+// packages/cdd-engine/config/schema/task-handoff-schema.json (docs family
 // docs-handoff-schema.json; naming/workspace per engine-config.json#handoffNamespace). T7 nit2: the unified
 // JSON read single point (readJson) lives here — every engine shape-sibling readJson/safeParse
 // converges to this module.

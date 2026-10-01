@@ -12,12 +12,12 @@ import { TemplateLoader } from "../templates.ts";
 const templates = new TemplateLoader();
 
 const IMPLEMENT_PARAMS = {
-  WORKSPACE: "/ws/osuperpowers-overhaul-p6",
-  WORKSPACE_SLUG: "osuperpowers-overhaul-p6",
-  BRIEF: "/ws/osuperpowers-overhaul-p6/tasks-7-brief.md",
-  HANDOFF_TARGET: "/ws/osuperpowers-overhaul-p6/tasks-7-implement.json",
+  WORKSPACE: "/ws/kairos-overhaul-p6",
+  WORKSPACE_SLUG: "kairos-overhaul-p6",
+  BRIEF: "/ws/kairos-overhaul-p6/tasks-7-brief.md",
+  HANDOFF_TARGET: "/ws/kairos-overhaul-p6/tasks-7-implement.json",
   FINDINGS: "",
-  CONSTRAINTS: "/ws/osuperpowers-overhaul-p6/plan-constraints.md",
+  CONSTRAINTS: "/ws/kairos-overhaul-p6/plan-constraints.md",
   FIXED_POINT: "",
   DISPATCH_UNIT: "7",
   REVIEW_PLAN_LINE: "",
@@ -41,14 +41,14 @@ function fixtureRenders(): Record<string, string> {
     implement: templates.renderModePrompt("implement", IMPLEMENT_PARAMS),
     fix: templates.renderModePrompt("fix", {
       ...IMPLEMENT_PARAMS,
-      HANDOFF_TARGET: "/ws/osuperpowers-overhaul-p6/tasks-7-fix-1.json",
-      FINDINGS: "/ws/osuperpowers-overhaul-p6/tasks-7-review-1.json",
+      HANDOFF_TARGET: "/ws/kairos-overhaul-p6/tasks-7-fix-1.json",
+      FINDINGS: "/ws/kairos-overhaul-p6/tasks-7-review-1.json",
       FIXED_POINT: "7a7327b",
     }),
     taskReview: templates.renderModePrompt("review", {
       WORKSPACE: IMPLEMENT_PARAMS.WORKSPACE,
       WORKSPACE_SLUG: IMPLEMENT_PARAMS.WORKSPACE_SLUG,
-      HANDOFF_TARGET: "/ws/osuperpowers-overhaul-p6/tasks-7-review-1.json",
+      HANDOFF_TARGET: "/ws/kairos-overhaul-p6/tasks-7-review-1.json",
       FIXED_POINT: "7a7327b",
     }),
     docsReview: templates.renderTemplate("review", {
@@ -57,16 +57,16 @@ function fixtureRenders(): Record<string, string> {
       WORKSPACE: IMPLEMENT_PARAMS.WORKSPACE,
       WORKSPACE_SLUG: IMPLEMENT_PARAMS.WORKSPACE_SLUG,
       REVIEW_LENS_GUIDE: "completeness · consistency · clarity",
-      REVIEW_REFERENCE: "/ws/osuperpowers-overhaul-p6/spec-design.md",
+      REVIEW_REFERENCE: "/ws/kairos-overhaul-p6/spec-design.md",
       REVIEW_AXES: "Follow URC: single-cycle; lens-tag every finding",
-      REVIEW_PLAN_LINE: "**Spec:** /ws/osuperpowers-overhaul-p6/specs/design.md",
+      REVIEW_PLAN_LINE: "**Spec:** /ws/kairos-overhaul-p6/specs/design.md",
       DOC: "",
       FINDINGS: "",
-      HANDOFF_TARGET: "/ws/osuperpowers-overhaul-p6/spec-review-1.json",
+      HANDOFF_TARGET: "/ws/kairos-overhaul-p6/spec-review-1.json",
       RETURN_FORMAT: "RETURN_JSON",
       HANDOFF_WRITE_GATE: templates.reviewHardGate(
         "RETURN_JSON",
-        "/ws/osuperpowers-overhaul-p6/spec-review-1.json",
+        "/ws/kairos-overhaul-p6/spec-review-1.json",
       ),
     }),
     docsFix: templates.renderTemplate("fix", {
@@ -78,12 +78,12 @@ function fixtureRenders(): Record<string, string> {
       REVIEW_REFERENCE: "",
       REVIEW_AXES: "",
       REVIEW_PLAN_LINE: "",
-      DOC: "/ws/osuperpowers-overhaul-p6/spec-design.md",
-      FINDINGS: "/ws/osuperpowers-overhaul-p6/spec-review-1.json",
+      DOC: "/ws/kairos-overhaul-p6/spec-design.md",
+      FINDINGS: "/ws/kairos-overhaul-p6/spec-review-1.json",
       FIXED_POINT: "7a7327b",
-      HANDOFF_TARGET: "/ws/osuperpowers-overhaul-p6/spec-fix-1.json",
+      HANDOFF_TARGET: "/ws/kairos-overhaul-p6/spec-fix-1.json",
       RETURN_FORMAT: "DOCS_FIX",
-      HANDOFF_WRITE_GATE: templates.docsFixHardGate("/ws/osuperpowers-overhaul-p6/spec-fix-1.json"),
+      HANDOFF_WRITE_GATE: templates.docsFixHardGate("/ws/kairos-overhaul-p6/spec-fix-1.json"),
     }),
   };
 }
@@ -137,7 +137,7 @@ describe("unified constant shell（Task 20 ①）：字面头跨模式字节恒�
   });
 
   it("WORKSPACE_SLUG 槽就位（⑦ canonical slug）：templates.renderModePrompt(implement) 渲染实值", () => {
-    expect(renders.implement).toContain("- `WORKSPACE_SLUG`: osuperpowers-overhaul-p6");
+    expect(renders.implement).toContain("- `WORKSPACE_SLUG`: kairos-overhaul-p6");
   });
 
   it("T5: FIXED_POINT slot in place (canonical-derived) — docs face renders the real value, other modes prefill empty", () => {
@@ -153,7 +153,7 @@ describe("my-gate 门面去路径化（Task 20 ⑥）：壳散文字节常数，
   it("task review 门：gate 值（含目标路径）在 `### HANDOFF_WRITE_GATE` 槽 / BEFORE outputting the RETURN_STDOUT_BLOCK", () => {
     const out = fixtureRenders().taskReview;
     expect(out).toMatch(/HARD GATE[^\n]*BEFORE outputting the RETURN_STDOUT_BLOCK/);
-    expect(out).toContain("/ws/osuperpowers-overhaul-p6/tasks-7-review-1.json");
+    expect(out).toContain("/ws/kairos-overhaul-p6/tasks-7-review-1.json");
     expect(out).toContain("### HANDOFF_WRITE_GATE");
     expect(out).not.toContain("BEFORE outputting the JSON return");
   });
@@ -162,7 +162,7 @@ describe("my-gate 门面去路径化（Task 20 ⑥）：壳散文字节常数，
     const out = fixtureRenders().docsReview;
     expect(out).toMatch(/HARD GATE[^\n]*BEFORE outputting the JSON return/);
     expect(out).not.toContain("BEFORE outputting the RETURN_STDOUT_BLOCK");
-    expect(out).toContain("/ws/osuperpowers-overhaul-p6/spec-review-1.json");
+    expect(out).toContain("/ws/kairos-overhaul-p6/spec-review-1.json");
     expect(out).toContain("This review's `returnFormat` is **RETURN_JSON**");
   });
 
@@ -171,7 +171,7 @@ describe("my-gate 门面去路径化（Task 20 ⑥）：壳散文字节常数，
     expect(out).toMatch(/HARD GATE[^\n]*BEFORE exiting/);
     expect(out).toContain("the engine reads the file, not your stdout");
     expect(out).not.toContain("outputting the JSON return"); // fix stdout has no JSON return
-    expect(out).toContain("/ws/osuperpowers-overhaul-p6/spec-fix-1.json");
+    expect(out).toContain("/ws/kairos-overhaul-p6/spec-fix-1.json");
     expect(out).toContain("Write/update `HANDOFF_TARGET` per the schema"); // the DOCS_FIX constant is self-describing
   });
 

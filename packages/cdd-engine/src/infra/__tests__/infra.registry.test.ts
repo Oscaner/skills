@@ -9,23 +9,27 @@ import { REG_PATH, Registry } from "../registry.ts";
 
 const registry = new Registry();
 
-// REG_PATH is state-independent since P3 T7 (consumer parity): the published dist copy first, the
-// source tree as the dev fallback — the file must exist either way and always be the registry.
-it("REG_PATH resolves to an existing harness-registry.json (published dist/resources or src fallback)", () => {
-  expect(REG_PATH).toMatch(/(?:dist[\\/]resources|src[\\/]infra)[\\/]harness-registry\.json$/);
+// REG_PATH is state-independent since P3 T7 (consumer parity): the published dist mirror first, the
+// source tree as the dev fallback — the file must exist either way and always be the harness contract.
+it("REG_PATH resolves to an existing harness-contract.json (published dist/config or config fallback)", () => {
+  expect(REG_PATH).toMatch(/(?:dist[\\/]config|config)[\\/]harness-contract\.json$/);
   expect(existsSync(REG_PATH)).toBe(true);
 });
 
-it("loadRegistry: reads 3 harnesses (claude / cursor / pi)", () => {
+it("loadRegistry: reads 3 harnesses (claude / cursor / pi) + the dispatch/refs contract tables", () => {
   const reg = registry.load(REG_PATH);
-  expect(Object.keys(reg).sort()).toEqual(["claude", "cursor", "pi"]);
+  const rows = Object.keys(reg).filter((k) => !["_doc", "dispatch", "refs"].includes(k));
+  expect(rows.sort()).toEqual(["claude", "cursor", "pi"]);
 });
 
 // G1 bidirectional pin (reverse): the exact name-set assertion above is load-bearing — a foreign
 // row key makes the set differ, so the forward pin is provably sensitive to row-key drift.
 it("G1 reverse: a foreign row key fails the exact three-key name-set pin", () => {
   const reg = registry.load(REG_PATH);
-  expect(Object.keys({ ...reg, gemini: {} }).sort()).not.toEqual(["claude", "cursor", "pi"]);
+  const rows = Object.keys({ ...reg, gemini: {} }).filter(
+    (k) => !["_doc", "dispatch", "refs"].includes(k),
+  );
+  expect(rows.sort()).not.toEqual(["claude", "cursor", "pi"]);
 });
 
 it("checkHarness: claude passes ship gate (dryRun skips PATH check)", () => {
@@ -66,13 +70,15 @@ it("registryField: field read + missing fallback empty string", () => {
   expect(registry.field(reg, "no-such-harness", "cli")).toBe("");
 });
 
-it("resolveInjection: op×type resolution (implement/fix → tdd; review spec/plan → URC pointer)", () => {
+it("deriveInjection: op×type resolution (implement/fix → tdd; review spec/plan → URC pointer)", () => {
   const reg = registry.load(REG_PATH);
-  expect(registry.resolveInjection(reg.claude, "implement")).toBe("/mattpocock-skills:tdd");
-  expect(registry.resolveInjection(reg.claude, "fix")).toBe("/mattpocock-skills:tdd");
-  expect(registry.resolveInjection(reg.claude, "review", "task")).toContain("code-review");
-  expect(registry.resolveInjection(reg.claude, "review", "spec")).toMatch(/^Follow URC/);
-  expect(registry.resolveInjection(reg.claude, "review", "plan")).toMatch(/^Follow URC/);
+  expect(registry.deriveInjection(reg, "claude", "implement")).toBe("/mattpocock-skills:tdd");
+  expect(registry.deriveInjection(reg, "claude", "fix")).toBe("/mattpocock-skills:tdd");
+  expect(registry.deriveInjection(reg, "claude", "review", "task")).toContain("code-review");
+  expect(registry.deriveInjection(reg, "claude", "review", "spec")).toMatch(/^Follow URC/);
+  expect(registry.deriveInjection(reg, "claude", "review", "plan")).toMatch(/^Follow URC/);
+  // the pi row derives the bare form (C8: prefix deleted → refs-derived, pi resolves /skill: automatically)
+  expect(registry.deriveInjection(reg, "pi", "implement")).toBe("/skill:tdd");
 });
 
 it("resolveSuffix: missing suffix → empty string", () => {

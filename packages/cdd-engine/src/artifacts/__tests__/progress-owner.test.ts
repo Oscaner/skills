@@ -1,7 +1,8 @@
 // packages/cdd-engine/src/artifacts/__tests__/progress-owner.test.ts
-// engineRecoveryCount 由 engine 在 BLOCKED/engine-error 判定路径自增（runner.mjs 写 BLOCKED handoff 时），
-// orchestrator 层 skill（cli-driven-development §engine-recovery / §timeout-decision）只读判 retry，
-// 不再写 progress.json（[#232 comment 5612106797]：orchestrator 手写 tasks 当数组 → dispatch 失败）。
+// engineRecoveryCount is incremented by the engine on the BLOCKED/engine-error decision path
+// (runner.mjs writes the BLOCKED handoff); the orchestrator-layer skill (cdd-dev §engine-recovery /
+// §timeout-decision) only reads it to judge retry and no longer writes progress.json
+// ([#232 comment 5612106797]: the orchestrator hand-writing tasks as an array → dispatch fails).
 
 import {
   chmodSync,
@@ -22,15 +23,16 @@ import { ProgressLedger } from "../progress.ts";
 
 const ledgerFor = (dir: string) => new ProgressLedger(Workspace.fromPath(dir));
 
-// 真仓 fixture（P4 §2.3.1 根注入契约）：root 经 runTask 的 `opts.root` 显式注入（真 mkdtemp 仓根），
-// 不调 initRoot()、不 chdir、无 env 缝。workspace 纯由 `--plan` 派生（<repo>/.osuperpowers/cdd/<slug>）。
+// Real-repo fixture (P4 §2.3.1 root-injection contract): root is explicitly injected via
+// runTask's `opts.root` (a real mkdtemp repo root), no initRoot() call, no chdir, no env seams.
+// workspace derives purely from `--plan` (<repo>/.kairos/cdd/<slug>).
 function setupWorkspace() {
   const repo = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-progress-owner-")));
   gitInit(repo);
   // doc-contract-valid chain (plan + spec + parent overall) — the docContractValidate gate requires them
   const planRel = commitValidDocs(repo);
   const planFile = path.join(repo, planRel);
-  const cddDir = path.join(repo, ".osuperpowers", "cdd");
+  const cddDir = path.join(repo, ".kairos", "cdd");
   mkdirSync(cddDir, { recursive: true });
   writeFileSync(path.join(cddDir, ".gitignore"), "*\n");
   const ws = path.join(cddDir, "plan");
@@ -110,8 +112,8 @@ it("incrementRecovery: 自增并持久化 engineRecoveryCount（缺省 0 → 1 �
 it("progress.json#plan 与 --plan 入参一致（program 通道首跳可解析）", async () => {
   const repo = mkdtempSync(path.join(tmpdir(), "cdd-plan-pass-"));
   gitInit(repo);
-  const planRel = "docs/osuperpowers/plans/x.md";
-  mkdirSync(path.join(repo, "docs/osuperpowers/plans"), { recursive: true });
+  const planRel = "docs/kairos/plans/x.md";
+  mkdirSync(path.join(repo, "docs/kairos/plans"), { recursive: true });
   writeFileSync(path.join(repo, planRel), "# P\n\n### Task 1: t\n");
   // 根经 opts.root 注入（T3 的根注入契约）——不调 initRoot()、不 process.chdir()
   // Task 8: 入口门（pre-commit 干净树）先于 dispatch —— plan 必须已提交，否则起点 dirty 直接 BLOCKED。
@@ -123,6 +125,6 @@ it("progress.json#plan 与 --plan 入参一致（program 通道首跳可解析�
     root: repo,
     noExit: true,
   });
-  const p = JSON.parse(readFileSync(path.join(repo, ".osuperpowers/cdd/x/progress.json"), "utf8"));
+  const p = JSON.parse(readFileSync(path.join(repo, ".kairos/cdd/x/progress.json"), "utf8"));
   expect(p.plan).toBe(path.join(repo, planRel));
 });

@@ -2,7 +2,7 @@
 // Task 7 OOP restructure Criterion ②: the failure-category judgment surface is one instance-method
 // class — quota isolation, exhaustion terminal, the unified TIMEOUT blocker — zero bare function
 // exports; ex src/rules/failure.mjs + the increment/exhaustion machinery of src/dispatch/task.mjs#maybeExhaust).
-// Six category names and their semantics are declared once by templates/engine-config.json#failureCategories
+// Six category names and their semantics are declared once by config/engine-config.json#failureCategories
 // (Task 5: merged into a single module); this module is the unique read entry for every "category identity" reference
 // in the engine (failure_category assignment / Convergence guard / counter increment). If the
 // canonical is edited and a reference site falls out of sync (undefined / red assertions), it must

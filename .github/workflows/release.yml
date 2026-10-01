@@ -2,13 +2,13 @@
 #   develop accumulates .changeset/*.md → develop→main PR → push main
 #   → changesets/action opens Version PR (target main); hasChangesets=true → tag/Release/sync skipped
 #   → merge Version PR → push main again; hasChangesets=false → publish mode
-#   → per-plugin matrix job (osuperpowers + cdd-engine) pushes a git tag + GitHub Release only for
+#   → per-plugin matrix job (kairos + cdd-engine) pushes a git tag + GitHub Release only for
 #     plugins whose current package.json version is newer than their latest git tag (git-tag vs
 #     package.json semver judgment: `git tag --list "<tag_prefix>*" | sort -V | tail -1`, then
 #     strict x.y.z compare; an empty tag list = first release → versioned). The judgment is derived
 #     from the tree itself (native `changeset version` owns the version math), so plugins that were
 #     not versioned by the push get no tag/Release — no phantom baseline tag/release → sync PR.
-#   First-party osuperpowers + cdd-engine only (vendors self-maintenance surface withdrawn, P6 Task 2 / B2): release-plugin
+#   First-party kairos + cdd-engine only (vendors self-maintenance surface withdrawn, P6 Task 2 / B2): release-plugin
 #   and sync-develop no longer block on vendored co-publish.
 #   Push coverage model: `pnpm run validate` covers the PR surface in full (develop→main and
 #   changeset-release/* PRs run pr-validate); push→main itself runs no validate — the release
@@ -88,8 +88,8 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: osuperpowers
-            tag_prefix: "osuperpowers@"
+          - name: kairos
+            tag_prefix: "kairos@"
           - name: cdd-engine
             tag_prefix: "cdd-engine@"
     steps:

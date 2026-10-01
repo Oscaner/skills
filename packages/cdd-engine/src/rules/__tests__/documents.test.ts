@@ -72,7 +72,7 @@ function validPlan(): string {
   return [
     "# Plan",
     "",
-    "**Spec:** [plan-design.md](docs/osuperpowers/specs/plan-design.md)",
+    "**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)",
     "",
     "## Constraints",
     "",
@@ -91,8 +91,8 @@ function writeChain(
   overrides: { plan?: string; spec?: string; overall?: string; planName?: string } = {},
 ): Chain {
   const repo = repoDir();
-  const specsDir = path.join(repo, "docs", "osuperpowers", "specs");
-  const plansDir = path.join(repo, "docs", "osuperpowers", "plans");
+  const specsDir = path.join(repo, "docs", "kairos", "specs");
+  const plansDir = path.join(repo, "docs", "kairos", "plans");
   mkdirSync(specsDir, { recursive: true });
   mkdirSync(plansDir, { recursive: true });
   const planName = overrides.planName ?? "plan.md";
@@ -130,7 +130,7 @@ describe("validatePlanContract — the plan face (necessary subset, always runs)
 
   it("plan: `**Spec:**` target does not resolve → failure", () => {
     const c = writeChain({
-      plan: "# Plan\n\n**Spec:** [missing-design.md](docs/osuperpowers/specs/missing-design.md)\n\n## Constraints\n\n- c\n\n### Task 1: x\nbody\n",
+      plan: "# Plan\n\n**Spec:** [missing-design.md](docs/kairos/specs/missing-design.md)\n\n## Constraints\n\n- c\n\n### Task 1: x\nbody\n",
     });
     const f = run(c);
     expect(f[0].field).toBe("`**Spec:**`");
@@ -139,32 +139,32 @@ describe("validatePlanContract — the plan face (necessary subset, always runs)
 
   it("plan: `**Spec:**` link label ≠ resolved basename (label drift) → failure", () => {
     const c = writeChain({
-      plan: "# Plan\n\n**Spec:** [wrong-name.md](docs/osuperpowers/specs/plan-design.md)\n\n## Constraints\n\n- c\n\n### Task 1: x\nbody\n",
+      plan: "# Plan\n\n**Spec:** [wrong-name.md](docs/kairos/specs/plan-design.md)\n\n## Constraints\n\n- c\n\n### Task 1: x\nbody\n",
     });
     expect(fieldNames(c)).toContain("`**Spec:**`");
   });
 
   it("plan: non-contiguous task headings → failure", () => {
     const c = writeChain({
-      plan: "# Plan\n\n**Spec:** [plan-design.md](docs/osuperpowers/specs/plan-design.md)\n\n## Constraints\n\n- c\n\n### Task 1: x\nbody\n\n### Task 3: z\nbody\n",
+      plan: "# Plan\n\n**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)\n\n## Constraints\n\n- c\n\n### Task 1: x\nbody\n\n### Task 3: z\nbody\n",
     });
     expect(fieldNames(c)).toContain("Task headings");
   });
 
   it("plan: no Constraints source declaration → failure (Form A and Form B both absent)", () => {
     const c = writeChain({
-      plan: "# Plan\n\n**Spec:** [plan-design.md](docs/osuperpowers/specs/plan-design.md)\n\n### Task 1: x\nbody\n",
+      plan: "# Plan\n\n**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)\n\n### Task 1: x\nbody\n",
     });
     expect(fieldNames(c)).toContain("Constraints source");
   });
 
   it("plan: `{{…}}` placeholder → failure; `{{> partial}}` mechanism ref → exempt", () => {
     const withPlaceholder = writeChain({
-      plan: "# Plan\n\n**Spec:** [plan-design.md](docs/osuperpowers/specs/plan-design.md)\n\n## Constraints\n\n- c\n\n{{SOME_UNKNOWN}}\n\n### Task 1: x\nbody\n",
+      plan: "# Plan\n\n**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)\n\n## Constraints\n\n- c\n\n{{SOME_UNKNOWN}}\n\n### Task 1: x\nbody\n",
     });
     expect(fieldNames(withPlaceholder)).toContain("placeholders");
     const withPartial = writeChain({
-      plan: "# Plan\n\n**Spec:** [plan-design.md](docs/osuperpowers/specs/plan-design.md)\n\n## Constraints\n\n- c **{{> clause cl:language}}**\n\n### Task 1: x\nbody\n",
+      plan: "# Plan\n\n**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)\n\n## Constraints\n\n- c **{{> clause cl:language}}**\n\n### Task 1: x\nbody\n",
     });
     expect(fieldNames(withPartial)).not.toContain("placeholders");
   });
@@ -306,7 +306,7 @@ describe("lineage truncation — the spec's own face + necessary subset, four ta
 
   it("lineage truncated + plan invalid → only the plan-face failures surface (never overall faces)", () => {
     const c = writeChain({
-      plan: "# Plan\n\n**Spec:** [plan-design.md](docs/osuperpowers/specs/plan-design.md)\n\n### Task 1: x\nbody\n", // no Constraints source
+      plan: "# Plan\n\n**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)\n\n### Task 1: x\nbody\n", // no Constraints source
       spec: "- **Version**: v1.0 · 2026-09-21\n", // no parent line → overall never audited
       overall: "not even a doc",
     });
@@ -372,13 +372,10 @@ function writeAuditChain(
   // Face ② doc-existence globs (slug "plan"): the shipped phase's docs must exist under the
   // derived patterns — distinct from the entry plan (also 2026-09-21-plan-<pN>.md).
   writeFileSync(
-    path.join(c.repo, "docs", "osuperpowers", "specs", "2026-09-21-plan-p1-design.md"),
+    path.join(c.repo, "docs", "kairos", "specs", "2026-09-21-plan-p1-design.md"),
     "# p1 design\n",
   );
-  writeFileSync(
-    path.join(c.repo, "docs", "osuperpowers", "plans", "2026-09-21-plan-p1.md"),
-    "# plan\n",
-  );
+  writeFileSync(path.join(c.repo, "docs", "kairos", "plans", "2026-09-21-plan-p1.md"), "# plan\n");
   return c;
 }
 
@@ -463,7 +460,7 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
     // face ② globs (slug "plan"): the shipped P2.1 plan doc must exist (its design cell is [Pending])
     // — the dotted-id filename form `…-plan-p2.1.md` is what the design-existence glob resolves.
     writeFileSync(
-      path.join(c.repo, "docs", "osuperpowers", "plans", "2026-09-21-plan-p2.1.md"),
+      path.join(c.repo, "docs", "kairos", "plans", "2026-09-21-plan-p2.1.md"),
       "# plan\n",
     );
     expect(run(c)).toEqual([]);
@@ -582,11 +579,11 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
     });
     // face ② design-doc globs (slug "plan") — each own token needs its own dotted-id file
     writeFileSync(
-      path.join(c.repo, "docs", "osuperpowers", "specs", "2026-09-21-plan-p2-design.md"),
+      path.join(c.repo, "docs", "kairos", "specs", "2026-09-21-plan-p2-design.md"),
       "# d2\n",
     );
     writeFileSync(
-      path.join(c.repo, "docs", "osuperpowers", "specs", "2026-09-21-plan-p2.1-design.md"),
+      path.join(c.repo, "docs", "kairos", "specs", "2026-09-21-plan-p2.1-design.md"),
       "# d21\n",
     );
     expect(run(c)).toEqual([]);
@@ -620,14 +617,14 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
 
   it("face ②: design cell carries an own P<n>-design token but the design doc glob misses → failure", () => {
     const c = writeAuditChain();
-    unlinkSync(path.join(c.repo, "docs", "osuperpowers", "specs", "2026-09-21-plan-p1-design.md"));
+    unlinkSync(path.join(c.repo, "docs", "kairos", "specs", "2026-09-21-plan-p1-design.md"));
     const f = run(c);
     expect(f.some((x) => x.artifact === "overall" && /missing/i.test(x.missing))).toBe(true);
   });
 
   it("face ②: non-pending plan column with no matching plan doc on disk → failure", () => {
     const c = writeAuditChain();
-    unlinkSync(path.join(c.repo, "docs", "osuperpowers", "plans", "2026-09-21-plan-p1.md"));
+    unlinkSync(path.join(c.repo, "docs", "kairos", "plans", "2026-09-21-plan-p1.md"));
     const f = run(c);
     expect(f.some((x) => x.artifact === "overall" && /missing/i.test(x.missing))).toBe(true);
   });
@@ -704,7 +701,7 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
     // preserved (a ridge-blind scan would return the base P2).
     const specName = "2026-09-21-plan-p2.1-design.md";
     const c = writeChain({
-      plan: `# Plan\n\n**Spec:** [${specName}](docs/osuperpowers/specs/${specName})\n\n## Constraints\n\n- c\n\n### Task 1: x\nbody\n`,
+      plan: `# Plan\n\n**Spec:** [${specName}](docs/kairos/specs/${specName})\n\n## Constraints\n\n- c\n\n### Task 1: x\nbody\n`,
       spec: "- **Version**: v1.0 · 2026-09-21\n\n- **Parent program**: [plan-overall.md v1.0](./plan-overall.md)\n",
       overall: [
         "- **Version**: v1.1 · 2026-09-21",
@@ -727,14 +724,14 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
     });
     // the token-strand spec file the plan's `**Spec:**` targets (also satisfies the face ② glob
     // `-plan-p2.1-design.md` under the dotted id)
-    writeFileSync(path.join(c.repo, "docs", "osuperpowers", "specs", specName), validSpec());
+    writeFileSync(path.join(c.repo, "docs", "kairos", "specs", specName), validSpec());
     expect(run(c)).toEqual([]);
   });
 
   it("face ⑤: a phase doc carries a `#NNN#issuecomment-<digits>` anchor whose issue is not in the Issue inventory → failure", () => {
     const c = writeAuditChain();
     writeFileSync(
-      path.join(c.repo, "docs", "osuperpowers", "specs", "2026-09-21-plan-p1-design.md"),
+      path.join(c.repo, "docs", "kairos", "specs", "2026-09-21-plan-p1-design.md"),
       "fixes #123#issuecomment-456\n",
     );
     const f = run(c);
@@ -825,7 +822,7 @@ describe("plan column three-state — `[Pending]` → `[In-flight]` → `**Done*
 
   it("`[In-flight]` is a non-missing cell — deleting the plan doc still fails face ②", () => {
     const c = writeAuditChain({ overall: THREE_STATE_OVERALL.replace("{PLAN}", "[In-flight]") });
-    unlinkSync(path.join(c.repo, "docs", "osuperpowers", "plans", "2026-09-21-plan-p1.md"));
+    unlinkSync(path.join(c.repo, "docs", "kairos", "plans", "2026-09-21-plan-p1.md"));
     const f = run(c);
     expect(f.some((x) => x.artifact === "overall" && /missing/i.test(x.missing))).toBe(true);
   });
@@ -951,14 +948,8 @@ describe("extractClaimRows — explicit claim structure only (P4.3 Task 8)", () 
     ].join("\n");
     const c = writeAuditChain({ overall, planName: "2026-09-21-plan-p2.md" });
     // The in-flight P3 plan doc (face ② non-missing cell) + the shipped P1 plan doc must exist:
-    writeFileSync(
-      path.join(c.repo, "docs", "osuperpowers", "plans", "2026-09-21-plan-p1.md"),
-      "# p\n",
-    );
-    writeFileSync(
-      path.join(c.repo, "docs", "osuperpowers", "plans", "2026-09-21-plan-p3.md"),
-      "# p\n",
-    );
+    writeFileSync(path.join(c.repo, "docs", "kairos", "plans", "2026-09-21-plan-p1.md"), "# p\n");
+    writeFileSync(path.join(c.repo, "docs", "kairos", "plans", "2026-09-21-plan-p3.md"), "# p\n");
     const f = run(c);
     const claimHits = f.filter((x) => /backfill|claim/i.test(x.field));
     expect(claimHits.some((x) => x.missing.includes("P1"))).toBe(true); // forward mismatch on P1
@@ -1084,7 +1075,7 @@ describe("C2 claim discrimination — declaration-slot head + non-parenthetical 
   it("⑤ link-form phase reference stays a declaration-slot prefix — `[plan link](…path…)` before `Pending → Done` declares", () => {
     const { planClaims } = documentsValidator.extractClaimRows([
       row(
-        "[2026-09-27-p1.md v1.0](docs/osuperpowers/plans/2026-09-27-p1.md) P1 计划列回填：Pending → Done",
+        "[2026-09-27-p1.md v1.0](docs/kairos/plans/2026-09-27-p1.md) P1 计划列回填：Pending → Done",
       ),
     ]);
     // the phase refs resolve verbatim (case variants `p1` from the link path + `P1` from the
@@ -1377,12 +1368,12 @@ describe("overall 契約 face — kernel + merged version-lineage", () => {
 describe("entry forms — the per-doc-type audit surfaces", () => {
   it("overall self-audit (docs-lane boundary): entry is the overall itself → kernel + four tables run on it", () => {
     const repo = repoDir();
-    const specsDir = path.join(repo, "docs", "osuperpowers", "specs");
+    const specsDir = path.join(repo, "docs", "kairos", "specs");
     mkdirSync(specsDir, { recursive: true });
     const duck = path.join(specsDir, "duck-overall.md");
     writeFileSync(duck, AUDIT_OVERALL.replace("P1 -> P2", "P1 -> P9"));
     writeFileSync(path.join(specsDir, "2026-09-21-duck-p1-design.md"), "# d\n");
-    const plansDir = path.join(repo, "docs", "osuperpowers", "plans");
+    const plansDir = path.join(repo, "docs", "kairos", "plans");
     mkdirSync(plansDir, { recursive: true });
     writeFileSync(path.join(plansDir, "2026-09-21-duck-p1.md"), "# p\n");
     const f = run({ repo, plan: duck, spec: duck, overall: duck }, duck);
@@ -1391,12 +1382,12 @@ describe("entry forms — the per-doc-type audit surfaces", () => {
 
   it("overall self-audit: a clean overall entry → zero failures", () => {
     const repo = repoDir();
-    const specsDir = path.join(repo, "docs", "osuperpowers", "specs");
+    const specsDir = path.join(repo, "docs", "kairos", "specs");
     mkdirSync(specsDir, { recursive: true });
     const overall = path.join(specsDir, "duck-overall.md");
     writeFileSync(overall, AUDIT_OVERALL);
     writeFileSync(path.join(specsDir, "2026-09-21-duck-p1-design.md"), "# d\n");
-    const plansDir = path.join(repo, "docs", "osuperpowers", "plans");
+    const plansDir = path.join(repo, "docs", "kairos", "plans");
     mkdirSync(plansDir, { recursive: true });
     writeFileSync(path.join(plansDir, "2026-09-21-duck-p1.md"), "# p\n");
     expect(run({ repo, plan: overall, spec: overall, overall }, overall)).toEqual([]);

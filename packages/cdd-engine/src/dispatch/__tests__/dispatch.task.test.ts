@@ -272,11 +272,11 @@ it("dry-run 零 liveness 介入（T14 接口消歧）: 不 spawn / 不解析终�
   expect(res.returnBlock).toHaveLength(2);
   expect(res.returnBlock.at(-1)).toMatch(/^next: cdd review --type task --tasks 1/);
   const progress = JSON.parse(
-    readFileSync(path.join(repo, ".osuperpowers", "cdd", "plan", "progress.json"), "utf8"),
+    readFileSync(path.join(repo, ".kairos", "cdd", "plan", "progress.json"), "utf8"),
   );
   expect(progress.timeoutCount).toBe(0); // no TIMEOUT count increment
   // implement dry-run 不写 handoff（T6 实体化仅真实 dispatch）——也无 TIMEOUT 部分 handoff 可言
-  const ws = path.join(repo, ".osuperpowers", "cdd", "plan");
+  const ws = path.join(repo, ".kairos", "cdd", "plan");
   expect(existsSync(path.join(ws, "tasks-1-implement.json"))).toBe(false);
 });
 
@@ -358,7 +358,7 @@ it("C5 fix dry-run: --findings input with a blocker → next: cdd review (same g
   writeFileSync(path.join(repo, "docs", "plan.md"), "# P\n\n### Task 1: t\n");
   git(repo, "add", "-A");
   git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "plan");
-  const ws = path.join(repo, ".osuperpowers", "cdd", "plan");
+  const ws = path.join(repo, ".kairos", "cdd", "plan");
   mkdirSync(ws, { recursive: true });
   const findingsPath = path.join(ws, "tasks-1-review-1.json");
   writeFileSync(
@@ -388,7 +388,7 @@ it("C5 fix dry-run: --findings input warn/nit-only → next: none (closure natur
   writeFileSync(path.join(repo, "docs", "plan.md"), "# P\n\n### Task 1: t\n");
   git(repo, "add", "-A");
   git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "plan");
-  const ws = path.join(repo, ".osuperpowers", "cdd", "plan");
+  const ws = path.join(repo, ".kairos", "cdd", "plan");
   mkdirSync(ws, { recursive: true });
   const findingsPath = path.join(ws, "tasks-1-review-1.json");
   writeFileSync(
@@ -432,7 +432,7 @@ it(
     writeFileSync(path.join(repo, "docs", "plan.md"), "# P\n\n### Task 1: t\n");
     git(repo, "add", "-A");
     git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "plan");
-    const ws = path.join(repo, ".osuperpowers", "cdd", "plan");
+    const ws = path.join(repo, ".kairos", "cdd", "plan");
     mkdirSync(ws, { recursive: true });
     // Rounds 1-3 are all S1 — the source review round 3 is the third consecutive blocker round.
     for (const r of [1, 2, 3]) {
@@ -468,7 +468,7 @@ it(
     writeFileSync(path.join(repo, "docs", "plan.md"), "# P\n\n### Task 1: t\n");
     git(repo, "add", "-A");
     git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "plan");
-    const ws = path.join(repo, ".osuperpowers", "cdd", "plan");
+    const ws = path.join(repo, ".kairos", "cdd", "plan");
     mkdirSync(ws, { recursive: true });
     // Only two consecutive S1 rounds (rounds 2-3); round 1 closed clean → the cap is not reached.
     writeFileSync(

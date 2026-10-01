@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // scripts/validate/version-sync.ts — blocks 8-10: version sync (moved up from the
-// scripts/ root). Verifies every osuperpowers emit product carries the package.json
+// scripts/ root). Verifies every kairos emit product carries the package.json
 // version (run after `pnpm run emit`). The vendored-plugin submodule ↔ marketplace
 // version check was removed with the self-maintenance surface withdrawal
 // (P6 B8 — that check carried the v1.13 resolver flake). Single step descriptor;
@@ -21,40 +21,32 @@ function checkVersionSync() {
 
   // router deleted — router version sync section removed (#209)
 
-  // osuperpowers — independent semver. package.json is the SOT; the
+  // kairos — independent semver. package.json is the SOT; the
   // per-harness manifests are committed emit products, re-stamped by `pnpm run
   // emit` (run before this check). The manifest set is taken from
   // .version-bump.json#files so a newly-added harness manifest can't slip past
   // the equality check.
-  const osuperpowersPkg = readJson("packages/osuperpowers/package.json");
-  const osuperpowersSrc = s.plugins.find((x) => x.name === "osuperpowers");
-  const osuperpowersEntry = m.plugins.find((x) => x.name === "osuperpowers");
+  const kairosPkg = readJson("packages/kairos/package.json");
+  const kairosSrc = s.plugins.find((x) => x.name === "kairos");
+  const kairosEntry = m.plugins.find((x) => x.name === "kairos");
   const SEMVER = /^\d+\.\d+\.\d+$/;
-  if (!SEMVER.test(osuperpowersPkg.version)) {
-    throw new Error(`Invalid osuperpowers version format: ${osuperpowersPkg.version}`);
+  if (!SEMVER.test(kairosPkg.version)) {
+    throw new Error(`Invalid kairos version format: ${kairosPkg.version}`);
   }
-  const osuperpowersVersions = [
-    osuperpowersPkg.version,
-    osuperpowersSrc.version,
-    osuperpowersEntry.version,
-  ];
-  if (new Set(osuperpowersVersions).size !== 1) {
-    throw new Error(`osuperpowers version mismatch: ${osuperpowersVersions.join(" ")}`);
+  const kairosVersions = [kairosPkg.version, kairosSrc.version, kairosEntry.version];
+  if (new Set(kairosVersions).size !== 1) {
+    throw new Error(`kairos version mismatch: ${kairosVersions.join(" ")}`);
   }
-  const osuperpowersBump = readJson("packages/osuperpowers/.version-bump.json");
-  for (const f of osuperpowersBump.files) {
-    const abs = join(root, "packages/osuperpowers", f.path);
+  const kairosBump = readJson("packages/kairos/.version-bump.json");
+  for (const f of kairosBump.files) {
+    const abs = join(root, "packages/kairos", f.path);
     if (!existsSync(abs)) {
-      throw new Error(
-        `missing generated manifest packages/osuperpowers/${f.path} — run pnpm run emit`,
-      );
+      throw new Error(`missing generated manifest packages/kairos/${f.path} — run pnpm run emit`);
     }
     const doc = JSON.parse(readFileSync(abs, "utf8"));
     const val = f.field.split(".").reduce((o, k) => o?.[k], doc);
-    if (val !== osuperpowersPkg.version) {
-      throw new Error(
-        `osuperpowers ${f.path} ${val} != ${osuperpowersPkg.version} — run pnpm run emit`,
-      );
+    if (val !== kairosPkg.version) {
+      throw new Error(`kairos ${f.path} ${val} != ${kairosPkg.version} — run pnpm run emit`);
     }
   }
 
@@ -68,7 +60,7 @@ function checkVersionSync() {
   if (!SEMVER.test(cddEnginePkg.version)) {
     throw new Error(`Invalid cdd-engine version format: ${cddEnginePkg.version}`);
   }
-  console.log("OK —", osuperpowersPkg.version, "· cdd-engine", cddEnginePkg.version);
+  console.log("OK —", kairosPkg.version, "· cdd-engine", cddEnginePkg.version);
 }
 
 // Single in-process step (not a `node scripts/validate/version-sync.ts` subprocess,

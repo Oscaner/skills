@@ -86,8 +86,7 @@ function captureExitStdout(fn: () => void): { code: number | null; stdout: strin
 }
 
 it("exitOkWith: writes the result line + exit 0 (success + stdout result face in one call)", () => {
-  const line =
-    "status: APPROVED · blocker: 0 · handoff: /repo/.osuperpowers/cdd/foo/spec-review-1.json";
+  const line = "status: APPROVED · blocker: 0 · handoff: /repo/.kairos/cdd/foo/spec-review-1.json";
   const { code, stdout } = captureExitStdout(() => exitOkWith(line));
   expect(code).toBe(0);
   expect(stdout).toBe(`${line}\n`);

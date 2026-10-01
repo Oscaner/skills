@@ -2,7 +2,8 @@
 // Branch-review dry-run through the merged single CLI (harness resolved from the ambient host):
 //   (legacy standalone branch-review bin: -h <name> flag) --plan <p> --base <b> --head <h>
 //   → cdd review --type branch --plan <p> --base <b> --head <h> + CLAUDE_CODE_SESSION_ID=1 env
-// T10 warn: fixture plan/workspace 用临时 git 仓库（临时目录），不写真实 repo 的 .osuperpowers/cdd/ ——
+// T10 warn: the fixture plan/workspace uses a temporary git repo (temp dir) and never writes the
+// real repo's .kairos/cdd/ —
 // 避免 validate 轮次污染 F6 单一根（smoke-plan/test-plan-br 再生）。
 // P4 T2 单一坐标系：branch review 的 workspace 由**注入 root**（= cwd 的 git toplevel，bin preAction
 // 经 initRoot 初始化）派生，不再由 plan 路径形状反推 —— 故调用必须 `cwd: dir` 让 root 落在本 tmp 仓，
@@ -47,13 +48,13 @@ function tmpGitRepo() {
 }
 
 describe("branch-review dry-run", () => {
-  it("writes CDD handoff to .osuperpowers/cdd/<slug>/ with CDD schema fields + doc-audit gate runs (no root-skip WARN)", () => {
+  it("writes CDD handoff to .kairos/cdd/<slug>/ with CDD schema fields + doc-audit gate runs (no root-skip WARN)", () => {
     const dir = tmpGitRepo();
     const slug = "test-plan-br";
     const planPath = writeBranchChain(dir, "test-plan-br.md");
     const handoffPath = path.join(
       dir,
-      ".osuperpowers",
+      ".kairos",
       "cdd",
       slug,
       "branch-review-abc1234..def5678-r1.json",
@@ -137,7 +138,7 @@ describe("branch-review schema-invalid e2e", () => {
     chmodSync(path.join(binDir, "fake-cli"), 0o755);
     const origPath = process.env.PATH;
     process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
-    // ghost registry：真实 harness-registry.json + 追加 fake-cli（runBranchReview 经 opts.registryPath 注入）
+    // ghost registry: the real harness contract + a fake-cli row appended (runBranchReview injects via opts.registryPath)
     const { REG_PATH } = await import("../../infra/registry.ts");
     const regPath = path.join(dir, "registry.json");
     const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
@@ -393,7 +394,7 @@ describe("branch-review real-mode — parent stdout capsule (C3-b)", () => {
     chmodSync(path.join(binDir, "fake-cli"), 0o755);
     const origPath = process.env.PATH;
     process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
-    // ghost registry: real harness-registry.json + fake-cli appended (injected via opts.registryPath)
+    // ghost registry: the real harness contract + fake-cli appended (injected via opts.registryPath)
     const { REG_PATH } = await import("../../infra/registry.ts");
     const regPath = path.join(dir, "registry.json");
     const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));

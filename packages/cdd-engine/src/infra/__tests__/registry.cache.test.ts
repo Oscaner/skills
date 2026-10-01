@@ -1,8 +1,9 @@
 // packages/cdd-engine/src/infra/__tests__/registry.cache.test.ts — spec D-3 C7: per-harness cache
-// profile capability-as-data. harness-registry.json entries carry a `cache` profile (mechanism /
-// minTokens / readMultiplier / writeMultiplier / ttlMinutes / observable); the profile validates
-// against templates/schema/cache-profile-schema.json (ajv, same pattern as rules/schema.ts). Read
-// the REAL registry file — the profile is data, not prose, and adding a harness = one registry row.
+// profile capability-as-data. config/harness-contract.json entries carry a `cache` profile
+// (mechanism / minTokens / readMultiplier / writeMultiplier / ttlMinutes / observable); the
+// profile validates against config/schema/cache-profile-schema.json (ajv, same pattern as
+// rules/schema.ts). Read the REAL contract file — the profile is data, not prose, and adding a
+// harness = one registry row.
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -13,6 +14,12 @@ import { REG_PATH, Registry, validateCacheProfile } from "../registry.ts";
 const registry = new Registry();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// The harness rows are the claude/cursor/pi keys — the top-level _doc / dispatch / refs contract
+// tables are not harness rows.
+const ROW_KEYS = Object.keys(registry.load(REG_PATH)).filter(
+  (k) => !["_doc", "dispatch", "refs"].includes(k),
+);
 
 describe("registry cache profile (spec D-3 C7 — capability as data)", () => {
   const reg = registry.load(REG_PATH);
@@ -45,7 +52,7 @@ describe("registry cache profile (spec D-3 C7 — capability as data)", () => {
   });
 
   it("all real profiles validate against the JSON schema (cache-profile-schema.json)", () => {
-    for (const harness of Object.keys(reg)) {
+    for (const harness of ROW_KEYS) {
       const result = validateCacheProfile(registry.cacheProfileFor(reg[harness]));
       expect(result.valid, harness).toBe(true);
     }
@@ -57,7 +64,7 @@ describe("registry cache profile (spec D-3 C7 — capability as data)", () => {
       "..",
       "..",
       "..",
-      "templates",
+      "config",
       "schema",
       "cache-profile-schema.json",
     );

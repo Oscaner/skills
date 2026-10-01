@@ -28,7 +28,7 @@ export function runIssueRender(): never {
   const violations = issueBodyRenderer.validateInput(input);
   if (violations.length > 0) {
     process.stderr.write(
-      `Invalid report-issues input:\n${violations.map((v) => `  ${v}`).join("\n")}\n`,
+      `Invalid cdd-report input:\n${violations.map((v) => `  ${v}`).join("\n")}\n`,
     );
     exitBlocked();
   }

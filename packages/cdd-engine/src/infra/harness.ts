@@ -1,41 +1,19 @@
 // packages/cdd-engine/src/infra/harness.ts — the harness OOP abstraction (P3 T1, Criterion ②).
 // Each supported harness (claude / cursor / pi) is a class: a typed id, a typed row contract
-// (cli/invoke/output/ship/cache/prefix/suffix held on the instance — never bare JSON reads), and
+// (cli/invoke/output/ship/cache/install/detect held on the instance — never bare JSON reads), and
 // an abstract detect(env) predicate. ORDER is the registration order = detection priority
 // (SPECIFIC first, GENERIC last) — the legacy if-chain semantics (CURSOR_TRACE_ID →
 // CLAUDE_CODE_SESSION_ID → AI_AGENT=claude-code*) preserved as data. Single-direction
 // dependency: harness.ts consumes the Registry data facade (read row → typed access);
-// infra/registry.ts never imports this module.
+// infra/registry.ts never imports this module. C8: the dispatch prefix injection is no longer row
+// data — it is DERIVED from the harness contract's dispatch + refs tables (registry.ts
+// checkHarness stamps the derived prefix map on the entry); this class's typed access stays on
+// the row's own fields (the derived injection lives on the checkHarness entry, not the row).
 import { REG_PATH, Registry } from "./registry.ts";
 
 export type HarnessId = "claude" | "cursor" | "pi";
 
-/** The CLI prompt-cache capability profile, in the cache-profile-schema.json shape (spec D-3 C7):
- *  mechanism/minTokens required; the numeric tuning fields are claude-only in the current rows. */
-export type CacheMechanism = "explicit" | "auto-prefix" | "implicit";
-
-export interface CacheProfile {
-  mechanism: CacheMechanism;
-  minTokens: number | "pending";
-  readMultiplier?: number;
-  writeMultiplier?: number;
-  ttlMinutes?: number;
-  observable?: boolean;
-}
-
-/** The closed op×type prefix shape (implement/review/fix — the CDD dispatch modes; the review op
- *  carries the per-doc-type pointer map the registry's resolveInjection consumes). */
-export interface PrefixMap {
-  implement: string;
-  review: string | { task: string; branch: string; spec: string; plan: string };
-  fix: string;
-}
-
-/** The suffix shape — uniformly the empty op×type map ({} in every registry row; the resolver
- *  stays registry.ts resolveSuffix, so consumers type against the row they read, not a resolver). */
-export type SuffixMap = Record<never, never>;
-
-/** The registry row contract each harness exposes as typed line access (self-held shape; the
+/** The row contract each harness exposes as typed line access (self-held shape; the
  *  row a dispatch reads lives on the instance, not as bare registry reads at call sites). */
 export interface HarnessRow {
   cli: string;
@@ -43,8 +21,24 @@ export interface HarnessRow {
   output?: string;
   ship?: string;
   cache?: CacheProfile;
-  prefix?: PrefixMap;
-  suffix?: SuffixMap;
+  detect?: LexiconMarkerLike;
+  install?: Record<string, string[]>;
+}
+
+export interface CacheProfile {
+  mechanism: "explicit" | "auto-prefix" | "implicit";
+  minTokens: number | "pending";
+  readMultiplier?: number;
+  writeMultiplier?: number;
+  ttlMinutes?: number;
+  observable?: boolean;
+}
+
+/** The detect-row shape (harness-contract detect — the host-marker data the predicate mirrors). */
+export interface LexiconMarkerLike {
+  env: string;
+  aiAgentPrefix?: string;
+  value?: string;
 }
 
 export abstract class Harness {
@@ -83,12 +77,12 @@ export abstract class Harness {
     return this.row().cache;
   }
 
-  get prefix(): PrefixMap | undefined {
-    return this.row().prefix;
+  get detect(): LexiconMarkerLike | undefined {
+    return this.row().detect;
   }
 
-  get suffix(): SuffixMap | undefined {
-    return this.row().suffix;
+  get install(): Record<string, string[]> | undefined {
+    return this.row().install;
   }
 }
 

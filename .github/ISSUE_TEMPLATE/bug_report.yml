@@ -1,37 +1,37 @@
 name: Bug report
-description: Report a bug found while using osuperpowers skills (dogfood)
+description: Report a bug found while using kairos skills (dogfood)
 labels:
   - bug
-  - osuperpowers
+  - kairos
 body:
   - type: markdown
     attributes:
       value: |
-        Use this template to report bugs found during dogfood use of osuperpowers skills.
+        Use this template to report bugs found during dogfood use of kairos skills.
   - type: dropdown
     id: component
     attributes:
       label: Component
       description: Which component does this finding relate to?
       options:
-        - osuperpowers (general)
+        - kairos (general)
         - cdd-engine
-        - osuperpowers:brainstorming
-        - osuperpowers:writing-single-spec
-        - osuperpowers:writing-overall-spec
-        - osuperpowers:writing-phase-spec
-        - osuperpowers:writing-plans
-        - osuperpowers:cli-driven-development
-        - osuperpowers:report-issues
-        - osuperpowers:finishing
+        - kairos:cdd-design
+        - kairos:cdd-spec
+        - kairos:cdd-charter
+        - kairos:cdd-phase
+        - kairos:cdd-plan
+        - kairos:cdd-dev
+        - kairos:cdd-report
+        - kairos:cdd-close
     validations:
       required: true
   - type: textarea
     id: context
     attributes:
       label: Context
-      description: "Dogfood session context: date, harness, which osuperpowers skills were in use"
-      placeholder: "Date: YYYY-MM-DD, Harness: claude-code, Skills: cli-driven-development, writing-plans"
+      description: "Dogfood session context: date, harness, which kairos skills were in use"
+      placeholder: "Date: YYYY-MM-DD, Harness: claude-code, Skills: cdd-dev, cdd-plan"
     validations:
       required: true
   - type: textarea

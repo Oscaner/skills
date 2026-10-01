@@ -29,18 +29,18 @@ const templates = new TemplateLoader();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = path.resolve(__dirname, "..", "..", "..");
-const TEMPLATES = path.join(PKG_ROOT, "templates");
+const CONFIG_DIR = path.join(PKG_ROOT, "config");
 
 const IMPLEMENT_PARAMS = {
-  WORKSPACE: "/ws/osuperpowers-overhaul-p6",
-  WORKSPACE_SLUG: "osuperpowers-overhaul-p6",
-  BRIEF: "/ws/osuperpowers-overhaul-p6/tasks-7-brief.md",
-  HANDOFF_TARGET: "/ws/osuperpowers-overhaul-p6/tasks-7-implement.json",
+  WORKSPACE: "/ws/kairos-overhaul-p6",
+  WORKSPACE_SLUG: "kairos-overhaul-p6",
+  BRIEF: "/ws/kairos-overhaul-p6/tasks-7-brief.md",
+  HANDOFF_TARGET: "/ws/kairos-overhaul-p6/tasks-7-implement.json",
   FINDINGS: "",
-  CONSTRAINTS: "/ws/osuperpowers-overhaul-p6/plan-constraints.md",
+  CONSTRAINTS: "/ws/kairos-overhaul-p6/plan-constraints.md",
   FIXED_POINT: "",
   DISPATCH_UNIT: "7",
-  REVIEW_PLAN_LINE: "**Plan:** docs/osuperpowers/plans/2026-09-13-osuperpowers-overhaul-p6.md",
+  REVIEW_PLAN_LINE: "**Plan:** docs/kairos/plans/2026-09-13-kairos-overhaul-p6.md",
 };
 
 // Second-level heading position via line-anchored match — the shell prose names `## Return` /
@@ -78,7 +78,10 @@ describe("C1 — assembly order [shell → Return constant → Round context tai
   it("dispatch set assembly = [registry prefix] + prompt: the /mattpocock-skills prefix line precedes the unified shell title", () => {
     const reg = registry.load(REG_PATH);
     const prompt = templates.renderModePrompt("implement", IMPLEMENT_PARAMS);
-    const set = invoker.composeDispatchSet(reg.claude, { op: "implement" }, prompt, "/ws", {
+    // C8: the entry is the checkHarness product (the dispatch prefix derives from the contract's
+    // dispatch + refs tables and is stamped on the entry — composeDispatchSet consumes it).
+    const entry = registry.checkHarness(reg, "claude", { dryRun: true });
+    const set = invoker.composeDispatchSet(entry, { op: "implement" }, prompt, "/ws", {
       PATH: "/usr/bin",
     });
     const promptArg = set.args.at(-1) as string;
@@ -221,11 +224,11 @@ describe("⑧ — byte-invariant guard: static zones carry zero volatile literal
   });
 
   it("no shipped template files remain on disk (渲染数据平面单文件：四 .md 并入 sections)", () => {
-    expect(readFileSync(path.join(TEMPLATES, "template-contract.json"), "utf8")).toContain(
+    expect(readFileSync(path.join(CONFIG_DIR, "template-contract.json"), "utf8")).toContain(
       '"$version": 3',
     );
     for (const rel of ["task/implement.md", "task/fix.md", "docs/review.md", "docs/fix.md"]) {
-      expect(() => readFileSync(path.join(TEMPLATES, rel), "utf8")).toThrow(); // 文件已删 —— 读取即抛 ENOENT
+      expect(() => readFileSync(path.join(CONFIG_DIR, rel), "utf8")).toThrow(); // deleted files throw ENOENT
     }
   });
 });

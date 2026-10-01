@@ -75,7 +75,7 @@ function planBody(specBasename: string): string {
   return [
     "# Plan",
     "",
-    `**Spec:** [${specBasename}](docs/osuperpowers/specs/${specBasename})`,
+    `**Spec:** [${specBasename}](docs/kairos/specs/${specBasename})`,
     "",
     "## Constraints",
     "",
@@ -90,7 +90,7 @@ function planBody(specBasename: string): string {
 export { OVERALL_BACKFILLED, OVERALL_CLEAN, planBody, SPEC };
 
 /** The program chain a closeout suite walks: the overall + its phase docs under the canonical
- *  program dirs (`docs/osuperpowers/specs|plans`, filename slug "demo", phases P1 / P2). */
+ *  program dirs (`docs/kairos/specs|plans`, filename slug "demo", phases P1 / P2). */
 export interface Program {
   repo: string;
   specDir: string;
@@ -112,8 +112,8 @@ export function mkProgramRepo(): string {
  *  `*-demo-p1.md` / `*-demo-p2.md` (the canonical program glob). The dispatch-channel suite wraps
  *  this with the docs git-commit; the rule-unit suite calls it straight on a fresh temp dir. */
 export function writeProgramDocs(repo: string, overallBody: string = OVERALL_CLEAN): Program {
-  const specDir = path.join(repo, "docs", "osuperpowers", "specs");
-  const plansDir = path.join(repo, "docs", "osuperpowers", "plans");
+  const specDir = path.join(repo, "docs", "kairos", "specs");
+  const plansDir = path.join(repo, "docs", "kairos", "plans");
   mkdirSync(specDir, { recursive: true });
   mkdirSync(plansDir, { recursive: true });
   const overall = path.join(specDir, "2026-01-01-demo-overall.md");

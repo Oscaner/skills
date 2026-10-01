@@ -268,21 +268,21 @@ describe("invokeCliWithRetry", () => {
 });
 
 describe("review.mjs task 派生点（taskReviewWorkspace — slug 收敛）", () => {
-  // review --type task derives the task workspace path = <repoRoot>/.osuperpowers/cdd/<slug>; the
+  // review --type task derives the task workspace path = <repoRoot>/.kairos/cdd/<slug>; the
   // slug converges via WorkspaceRoot.for (single-layer -design/-plan strip — T6 workspace
   // consolidation made WorkspaceRoot the only slug-derivation entry).
   // The run-task-side derivation (same WorkspaceRoot.for source) is regressed by runner.test — the
   // two derivation points share one source, preventing fork).
-  it("--plan xxx-p5-plan.md → task workspace .osuperpowers/cdd/xxx-p5（Convergence prev 命中）", async () => {
+  it("--plan xxx-p5-plan.md → task workspace .kairos/cdd/xxx-p5（Convergence prev 命中）", async () => {
     const { taskReviewWorkspace } = await import("../../cli/review.ts");
     expect(taskReviewWorkspace("xxx-p5-plan.md", "/repo")).toBe(
-      path.join("/repo", ".osuperpowers", "cdd", "xxx-p5"),
+      path.join("/repo", ".kairos", "cdd", "xxx-p5"),
     );
   });
   it("--plan xxx-p5.md → 与 -plan.md 变体收敛同 workspace", async () => {
     const { taskReviewWorkspace } = await import("../../cli/review.ts");
     expect(taskReviewWorkspace("xxx-p5.md", "/repo")).toBe(
-      path.join("/repo", ".osuperpowers", "cdd", "xxx-p5"),
+      path.join("/repo", ".kairos", "cdd", "xxx-p5"),
     );
   });
 });

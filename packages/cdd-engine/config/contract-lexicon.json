@@ -1,0 +1,34 @@
+{
+  "_doc": "CDD engine contract lexicon — the single vocabulary source for the command contract (C6): the status-value vocab plus its dual-axis mapping, the stdout contract tokens (capsule + route anchors + the banned old-shape names), the G2 residue ban table, and the skill-anatomy schema reference. The harness contract data (rows / markers / refs) lives in the engine harness contract (config/harness-contract.json — the unique harness contract, C8); this file keeps the pure word tables. Ships to consumers via the build mirror entry (dist/config/contract-lexicon.json, same pipeline and cadence as the harness contract).",
+  "status": {
+    "vocab": [
+      "APPROVED",
+      "BLOCKED",
+      "CHANGES_REQUESTED",
+      "REVIEW_FIX",
+      "TIMEOUT"
+    ],
+    "axes": {
+      "judgment": ["CHANGES_REQUESTED", "REVIEW_FIX", "APPROVED"],
+      "work": ["COMPLETED"]
+    }
+  },
+  "stdout": {
+    "capsule": ["status", "blocker", "handoff"],
+    "routeTokens": ["next:", "CDD_BLOCKED:", "findings"],
+    "bannedShapeNames": [
+      "3-line return block",
+      "4th line counters",
+      "return block"
+    ]
+  },
+  "residue": {
+    "dataSources": ["harness-contract.json", "contract-lexicon.json"],
+    "bannedToken": "cursor-agent",
+    "soleAllowed": "registry cli data value"
+  },
+  "anatomy": {
+    "schemaPath": "packages/cdd-engine/config/schema/skill-anatomy.json",
+    "skillsRoot": "packages/kairos/skills"
+  }
+}

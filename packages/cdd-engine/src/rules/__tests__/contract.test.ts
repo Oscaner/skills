@@ -7,7 +7,7 @@
 //   classifySeverity: blocker→CHANGES_REQUESTED; warn/nit→REVIEW_FIX (Task 8 closure state); unverifiable/needs_context→STOP.
 //   rollupStatus: warn/nit→REVIEW_FIX (Task 8); contains blocker→CHANGES_REQUESTED; unverifiable/plan_conflicts→BLOCKED.
 //   validateHandoffSchema：notes 可选字段被 schema 接受（AC10，Enh T）。
-// writeHandoff：按 packages/cdd-engine/templates/schema/task-handoff-schema.json（docs 族 docs-handoff-schema.json；命名/workspace 见 engine-config.json#handoffNamespace）写 + 合并已有（H6 链 update 语义）。
+// writeHandoff writes per packages/cdd-engine/config/schema/task-handoff-schema.json (docs family: docs-handoff-schema.json; naming/workspace per engine-config.json#handoffNamespace) and merges existing state (H6 chain-update semantics).
 
 import { execFileSync } from "node:child_process";
 import {

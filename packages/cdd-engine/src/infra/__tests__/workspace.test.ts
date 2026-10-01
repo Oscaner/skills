@@ -16,14 +16,14 @@ function tmpRepo(): string {
 }
 
 describe("WorkspaceRoot — the repo-scoped workspace base", () => {
-  it("from(repoRoot) → path = <repoRoot>/<workspaceRoot>; gitignorePath = <repoRoot>/.osuperpowers/.gitignore", () => {
+  it("from(repoRoot) → path = <repoRoot>/<workspaceRoot>; gitignorePath = <repoRoot>/.kairos/.gitignore", () => {
     const repo = tmpRepo();
     const root = WorkspaceRoot.from(repo);
     // The workspaceRoot segment value comes from engine-config.json#handoffNamespace.workspaceRoot
     // (single source — no hard-coded literal).
-    expect(root.workspaceRoot).toBe(".osuperpowers/cdd");
-    expect(root.path).toBe(path.join(repo, ".osuperpowers", "cdd"));
-    expect(root.gitignorePath).toBe(path.join(repo, ".osuperpowers", ".gitignore"));
+    expect(root.workspaceRoot).toBe(".kairos/cdd");
+    expect(root.path).toBe(path.join(repo, ".kairos", "cdd"));
+    expect(root.gitignorePath).toBe(path.join(repo, ".kairos", ".gitignore"));
   });
 
   it("ensure() → base dir created + root-level .gitignore (`*`) written; idempotent (第二次不炸)", () => {
@@ -46,7 +46,7 @@ describe("WorkspaceRoot — the repo-scoped workspace base", () => {
     // File-name-only derivation, no plan-file-existence dependency — the derived Workspace's path
     // mirrors the former resolveWorkspace.
     expect(root.for("2026-09-08-foo.md").path).toBe(
-      path.join("/repo", ".osuperpowers", "cdd", "2026-09-08-foo"),
+      path.join("/repo", ".kairos", "cdd", "2026-09-08-foo"),
     );
   });
 
@@ -73,7 +73,7 @@ describe("Workspace — one dispatch workspace", () => {
     const repo = tmpRepo();
     const root = WorkspaceRoot.from(repo);
     const ws = root.for("docs/x.md");
-    expect(ws.path).toBe(path.join(repo, ".osuperpowers", "cdd", "x"));
+    expect(ws.path).toBe(path.join(repo, ".kairos", "cdd", "x"));
     expect(existsSync(ws.path)).toBe(false);
     ws.ensure();
     expect(existsSync(ws.path)).toBe(true);
@@ -82,14 +82,12 @@ describe("Workspace — one dispatch workspace", () => {
   it("child-path single facts: progressPath / briefPath / lifecyclePath", () => {
     const root = WorkspaceRoot.from("/repo");
     const ws = root.for("docs/x.md");
-    expect(ws.progressPath).toBe(path.join("/repo", ".osuperpowers", "cdd", "x", "progress.json"));
+    expect(ws.progressPath).toBe(path.join("/repo", ".kairos", "cdd", "x", "progress.json"));
     expect(ws.briefPath("1,2")).toBe(
-      path.join("/repo", ".osuperpowers", "cdd", "x", "tasks-1,2-brief.md"),
+      path.join("/repo", ".kairos", "cdd", "x", "tasks-1,2-brief.md"),
     );
     // The lifecycle registry is PER-SLUG (T6 relocation) — never the repo-level single file.
-    expect(ws.lifecyclePath).toBe(
-      path.join("/repo", ".osuperpowers", "cdd", "x", "lifecycle.json"),
-    );
+    expect(ws.lifecyclePath).toBe(path.join("/repo", ".kairos", "cdd", "x", "lifecycle.json"));
   });
 
   it("writeJson / readJson — atomic JSON write (mkdir first) + fail-open read", () => {

@@ -1,7 +1,7 @@
 // scripts/validate/__tests__/pre-commit.test.ts — G4 (P6 Task 17): pins the
 // tree-independent pre-commit subset composition (scripts/validate/pre-commit.ts).
 // The subset must (a) lead with the emit freshness block, (b) carry every
-// read-only / gate-free block of the full validate (osuperpowers:
+// read-only / gate-free block of the full validate (kairos:
 // plugin resolution / skills inventory / pi-package well-formed / node:test
 // behavior tree + wiring guard; engine zero residue + channel audit; marketplace
 // manifests; scripts unit; package version sync), and (c) exclude ONLY the engine
@@ -22,10 +22,10 @@ describe("pre-commit subset (G4/P6 Task 17)", () => {
     const names = subsetSteps.map((s) => s.name);
     expect(names).toEqual(
       expect.arrayContaining([
-        "osuperpowers plugin resolution",
-        "osuperpowers skills inventory count",
-        "osuperpowers pi-package well-formed",
-        "osuperpowers node:test behavior tree",
+        "kairos plugin resolution",
+        "kairos skills inventory count",
+        "kairos pi-package well-formed",
+        "kairos node:test behavior tree",
         "validate wiring guard (ci-validate.test.mjs)",
         "engine zero residue + channel audit",
         "marketplace manifests validate",
@@ -44,10 +44,10 @@ describe("pre-commit subset (G4/P6 Task 17)", () => {
   it("full validate composes every pinned step by name (subset is a strict exclusion)", () => {
     const expectedFull = [
       "emit freshness (checked against regenerated products)",
-      "osuperpowers plugin resolution",
-      "osuperpowers skills inventory count",
-      "osuperpowers pi-package well-formed",
-      "osuperpowers node:test behavior tree",
+      "kairos plugin resolution",
+      "kairos skills inventory count",
+      "kairos pi-package well-formed",
+      "kairos node:test behavior tree",
       "validate wiring guard (ci-validate.test.mjs)",
       "cdd-engine dev stub materialization",
       "cdd-engine engine test suite (vitest)",

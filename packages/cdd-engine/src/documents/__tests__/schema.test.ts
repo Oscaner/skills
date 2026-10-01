@@ -34,7 +34,7 @@ import { DOC_TOKENS } from "../tokens.ts";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 // packages/cdd-engine/src/documents/__tests__ → package root (3 hops: __tests__ → documents → src → pkg)
 const PKG_ROOT = path.resolve(HERE, "..", "..", "..");
-const SRC_SCHEMA_DIR = path.join(PKG_ROOT, "src", "documents", "schema");
+const SRC_SCHEMA_DIR = path.join(PKG_ROOT, "config", "schema");
 
 // Walk every structural node of a schema (properties / patternProperties / items / $defs /
 // allOf·anyOf·oneOf) and report the ones lacking a non-empty `description`.
@@ -297,7 +297,7 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
         );
       }
       if (name === "skill-anatomy") {
-        // Section-heading registry — the strict allowlist the osuperpowers machine check consumes:
+        // Section-heading registry — the strict allowlist the kairos machine check consumes:
         // the four public + two conditional section keys, and the literal heading consts.
         expect(schemaNode(s, "$.properties.sectionRegistry.properties.public.items.enum")).toEqual([
           "flowDigraph",
@@ -325,7 +325,7 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
             s,
             "$.properties.sectionRegistry.properties.sections.properties.skeletonDeltas.properties.requiredCarriers.items.enum",
           ),
-        ).toEqual(["writing-single-spec", "writing-phase-spec", "writing-overall-spec"]);
+        ).toEqual(["cdd-spec", "cdd-phase", "cdd-charter"]);
         expect(
           get(
             "$.properties.sectionRegistry.properties.sections.properties.skeletonDeltas.properties.heading.const",
@@ -352,7 +352,7 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
         // Growth boundary — the numbers + the crossed-skill registry (the machine check reads them,
         // never test literals: crossing means MORE than the limits, and every crossing skill must
         // be registered here — consumer SKILL.md carries zero trace). The P4.4 loop shrink (13 nodes
-        // / 17 edges) dropped cli-driven-development back inside the boundary — the registry's
+        // / 17 edges) dropped cdd-dev back inside the boundary — the registry's
         // per-skill crossings map carries zero registered names.
         expect(schemaNode(s, "$.properties.growthBoundary.properties.nodeLimit.const")).toBe(15);
         expect(schemaNode(s, "$.properties.growthBoundary.properties.edgeLimit.const")).toBe(17);
@@ -473,7 +473,7 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
   it("the live canonical surface carries no misleading 7-column Phase-header claim (the retired hint + drifted descriptions)", () => {
     // The 7-column Phase-header framing is gone from every shipped plane: the canonical schema
     // text (the authoring surface) and the engine's enforcement module. Frozen program docs
-    // (docs/osuperpowers/specs/*) are exempt — they are lineage-pinned artifacts, not live surface.
+    // (docs/kairos/specs/*) are exempt — they are lineage-pinned artifacts, not live surface.
     expect(loadDocSchemaText("overall")).not.toMatch(/7-column/);
     expect(readFileSync(path.join(PKG_ROOT, "src", "rules", "documents.ts"), "utf8")).not.toMatch(
       /7-column/,
@@ -487,26 +487,26 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
     for (const name of DOC_SCHEMA_NAMES)
       expect(existsSync(path.join(dev, `${name}.json`))).toBe(true);
 
-    // Consumer face: a fabricated install layout — package root with dist/documents/schema copy
-    // and NO src tree (a published package ships only dist/ + templates/). Walking up from a
-    // bundled dist/cli.mjs must resolve the dist copy, never the source.
+    // Consumer face: a fabricated install layout — package root with dist/config/schema mirror
+    // and NO source tree (a published package ships only dist/ + templates/ + config/). Walking
+    // up from a bundled dist/cli.mjs must resolve the dist mirror, never the source.
     const install = mkdtempSync(path.join(tmpdir(), "cdd-consumer-layout-"));
     try {
       const pkg = path.join(install, "node_modules", "@oscaner-skills", "cdd-engine");
-      mkdirSync(path.join(pkg, "dist", "documents", "schema"), { recursive: true });
-      mkdirSync(path.join(pkg, "templates"), { recursive: true });
+      mkdirSync(path.join(pkg, "dist", "config", "schema"), { recursive: true });
+      mkdirSync(path.join(pkg, "config", "schema"), { recursive: true });
       writeFileSync(
         path.join(pkg, "package.json"),
         JSON.stringify({ name: "@oscaner-skills/cdd-engine", version: "1.0.0" }),
       );
       for (const name of DOC_SCHEMA_NAMES) {
         writeFileSync(
-          path.join(pkg, "dist", "documents", "schema", `${name}.json`),
+          path.join(pkg, "dist", "config", "schema", `${name}.json`),
           readFileSync(path.join(dev, `${name}.json`), "utf8"),
         );
       }
       const resolved = resolveDocSchemaDir(path.join(pkg, "dist"));
-      expect(resolved).toBe(path.join(pkg, "dist", "documents", "schema"));
+      expect(resolved).toBe(path.join(pkg, "dist", "config", "schema"));
       expect(existsSync(resolved)).toBe(true);
       for (const name of DOC_SCHEMA_NAMES)
         expect(existsSync(path.join(resolved, `${name}.json`))).toBe(true);

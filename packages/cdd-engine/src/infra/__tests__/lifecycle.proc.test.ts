@@ -35,7 +35,7 @@ const waitFor = async (fn, ms) => {
 const DISK = path.join(os.tmpdir(), `p1lifecycle-${process.pid}.json`);
 
 // The reapStale enumeration-target fixture (T6): a git repo with workspace slug dirs
-// (`.osuperpowers/cdd/<slug>/`).
+// (`.kairos/cdd/<slug>/`).
 // The sweep enumerates every slug's `lifecycle.json` (WorkspaceRoot.enumerate) — read → filter →
 // kill → write-back per slug file, never a repo-level single path.
 function tmpReapRepo(slugs: string[]): string {
@@ -43,12 +43,12 @@ function tmpReapRepo(slugs: string[]): string {
   execSync(`git init -q "${repo}"`);
   execSync(`git -C "${repo}" -c user.name=t -c user.email=t@t commit --allow-empty -qm fixture`);
   for (const s of slugs) {
-    mkdirSync(path.join(repo, ".osuperpowers", "cdd", s), { recursive: true });
+    mkdirSync(path.join(repo, ".kairos", "cdd", s), { recursive: true });
   }
   return repo;
 }
 function slugLifecycle(repo: string, slug: string): string {
-  return path.join(repo, ".osuperpowers", "cdd", slug, "lifecycle.json");
+  return path.join(repo, ".kairos", "cdd", slug, "lifecycle.json");
 }
 
 describe.skipIf(!GROUP_SUPPORTED)("proc-lifecycle spawnManaged", () => {
@@ -100,7 +100,7 @@ describe.skipIf(!GROUP_SUPPORTED)("proc-lifecycle spawnManaged", () => {
   it("T8 reapStale 枚举 stale crash records 清理（artifact 枚举而非 stash 考古；round 已解析删除、仍在死亡保留）", async () => {
     const repo = tmpReapRepo(["ws-crash"]);
     await proc.initRoot(repo);
-    const wsDir = path.join(repo, ".osuperpowers", "cdd", "ws-crash");
+    const wsDir = path.join(repo, ".kairos", "cdd", "ws-crash");
     const resolvedHp = path.join(wsDir, "tasks-1-implement.json");
     const deadHp = path.join(wsDir, "tasks-2-implement.json");
     // A stale record — its round resolved at the normal face (the attemptedHandoff now holds a

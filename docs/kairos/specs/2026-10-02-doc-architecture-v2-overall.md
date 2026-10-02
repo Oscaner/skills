@@ -20,12 +20,13 @@ Charter only, zero implementation detail. **Overall approval is not equivalent t
 | Artifact | Path |
 |---|---|
 | Overall | `specs/2026-10-02-doc-architecture-v2-overall.md` |
+| Archive | `specs/2026-10-02-doc-architecture-v2-archive.md`（issue/history 结构化 record；精确命名与形态归 P6 定义，届时回填本表） |
 | Phase spec | `specs/2026-10-02-doc-architecture-v2-p<N>-design.md` |
 | Phase plan | `plans/2026-10-02-doc-architecture-v2-p<N>.md` |
 
 ## Program charter
 
-**Goal**：把跨 6 个 overall / 20+ phase / 28 个 change-history 版本积累的**文档内容组织方法论**蒸馏为类型化对象模型——**DocType 抽象**（shape/words/instructions/refKind/bodyView 五域合一）+ **TaskGraph 任务图**（分组由图派生、约束继承 delta-only）+ **DispatchContract / DispatchPacket**（skill 链 / capability / ref / 类型化正文）+ **overall 宪法/档案分层** + **一产化 `cdd-doc-review`**——达成「更精炼、不损失质量、零债务、可演化」的文档平面；并保持消费者链（engine CLI 面、上游 skill 引用、现有 schema 校验）渐进兼容、历史零 retro-rename。
+**Goal**：把跨 4 个 overall 家族 / ~20 phase（18 份 design + 19 份 plan）/ pi-harness 单系 28 个 change-history 版本积累的**文档内容组织方法论**蒸馏为类型化对象模型——**DocType 抽象**（shape/words/instructions/refKind/bodyView 五域合一）+ **TaskGraph 任务图**（分组由图派生、约束继承 delta-only）+ **DispatchContract / DispatchPacket**（skill 链 / capability / ref / 类型化正文）+ **overall 宪法/档案分层** + **一产化 `cdd-doc-review`**——达成「更精炼、不损失质量、零债务、可演化」的文档平面；并保持消费者链（engine CLI 面、上游 skill 引用、现有 schema 校验）渐进兼容、历史零 retro-rename。
 
 **Non-goals**：
 - 不 retro-rename 既有 all overall/phase/plan/CHANGELOG 正文（历史即史实）
@@ -45,12 +46,13 @@ Charter only, zero implementation detail. **Overall approval is not equivalent t
 **M 组（skill-ref 映射，M1–M4 全关）**：
 | op | skills（有序链） | 依据 |
 |---|---|---|
-| implement | `[mattpocock-skills:implement]` + tdd 条件纪律（`appliesTo:[真行为变更]` 指令单元，非恒常进链） | M1：spec/tickets→交付面；tdd 是内部纪律 |
+| implement | `[mattpocock-skills:tdd]`（交付面；条件纪律 = 真行为变更才进链，经 B1 InstructionUnit `appliesTo` 表达，非恒常进链） | M1：spec/tickets→交付面，tdd 承载交付面（harness-contract `dispatch.implement` 既定槽，refs 域实测） |
 | fix | `[superpowers:receiving-code-review, superpowers:verification-before-completion]` | M2：严谨验证 findings 拒盲从 → 提交前证据先行；harness 多 skill 原生态 |
 | review.task/branch | `[mattpocock-skills:code-review]` | M3：并行双轴 capability-resolved；删 engine「单 agent 并行禁」（harness-contract:94,98 + template-contract axesGuide 三处禁文） |
 | review.spec/plan | `[kairos:cdd-doc-review]` | M4b：URC（spec 三轴 / plan 三轴）+ writing-plans 自检准则 + verification evidence + grilling 追问——一产组合体内化，kairos 第 9 席 |
 
 - 拟合规则 + dispatch.skills = 有序链（多 `/xxxx` token，`refs` 域逐 token 渲染，pi = `/skill:a /skill:b`）
+- **M4a 处置**：M4a（review.spec/plan 映射候选线）随目录实测结论并入 M4b 一产化定案（唯一真 fit，见下）——M 组决策序号 M1–M4 连续、可审计
 - **目录实测结论**：无单上游 skill 是「设计文档评审」；spec/plan review 的方法论 = 程序自有 URC + 三纪律组合——一产化是唯一真 fit（M4b）
 
 **F 组（文档平面结构，提案）**：
@@ -61,9 +63,10 @@ Charter only, zero implementation detail. **Overall approval is not equivalent t
 - F5 Task=数据（`{objective, files[], interface{consumes,produces}, steps[]{action,checkable}, acceptance[]}`）+ brief=数据渲染
 
 **R 组（ref 统一身份，提案）**：
-- R1 task ref = handoff ledger `commit-set`（去 HEAD 环境依赖；I10 从环境不变量 → 显式身份）
+- R1 task ref = handoff ledger `commit-set`（去 HEAD 环境依赖：提交身份从环境不变量推导转为显式记账）
 - R2 spec/plan/overall = 一等 `doc-revision` ref（`{docPath, versionToken, bodyHash}` 双层收敛：version bump 或 body 变更 = new ref）；backfill-as-version 机械化 = archive 的 doc-revision ref
 - R3 DispatchPacket 正文一体（ref + bodyView + convergence + constraints）
+- R4 review/fix 轮的评审范围 = `commit-range` ref（`base..head` 两提交身份界定评审/修复范围，随 handoff `commits{base,head}` 固化——refKind 四型之 commit-range，与 R1 commit-set 基型不同、互不取代）
 - R5 v2 TaskGraph 派发 = `graph-node` ref
 
 **B 组（正文内容，提案）**：
@@ -73,7 +76,7 @@ Charter only, zero implementation detail. **Overall approval is not equivalent t
 - B4 约束继承 + 子集过滤（每 dispatch 只带适用规则，正文 -30~50%）
 - B5 task step 类型约束（每步 = action + checkable，schema 校验非作者自觉）
 
-**P 组（经验债，驱动本整体）**：P1 overall append-only 增生（143 行 · history 28 行 · issue 18 行 prose）· P2 phase-spec 六段五样板 · P3 plan 约束再述 · P4 Task Do 长散文 + brief 散文雕刻 · P5 Task Groups 字面行静默偏差（格式漂移丢组 / 节界截断 / 越界延迟爆 / 意图无回读 / 双写认知）· P6 schema/template-contract/lexicon 三面无统一抽象 · P7 版本行 lineage 散文
+**E 组（经验债，驱动本整体）**：E1 overall append-only 增生（143 行 · history 28 行 · issue 18 行 prose）· E2 phase-spec 六段五样板 · E3 plan 约束再述 · E4 Task Do 长散文 + brief 散文雕刻 · E5 Task Groups 字面行静默偏差（格式漂移丢组 / 节界截断 / 越界延迟爆 / 意图无回读 / 双写认知）· E6 schema/template-contract/lexicon 三面无统一抽象 · E7 版本行 lineage 散文。编号独立于 Phase inventory 的 P#（债源自既有程序阶段线，非一一对应），两系仅组号字面相近、无映射关系。
 
 **上游先例背书**：`implement-spec`（tickets = task graph + frontier + 指针通信 ≈ v2 TaskGraph 分组 + DispatchPacket 指针式正文）· `to-tickets`（blocking edges ≈ 任务边）· `code-review`（双轴并行——本程序 capability 模型后照用）
 
@@ -104,6 +107,7 @@ Charter only, zero implementation detail. **Overall approval is not equivalent t
 ```
 P1 -> P2   (hard: 文档瘦身依赖 schema 工厂/DocType 先落)
 P1 -> P3   (hard: TaskGraph 是 P1 DocType 的 PlanDocType body 形态)
+P1 -> P5   (hard: DispatchContract refKind 四型 / doc-revision 双层收敛继承 P1 DocType 的 refKind 面)
 P1 -> P6   (hard: archive doc-revision ref 依赖 DocType refKind 面)
 P2 -> P4   (hard: cdd-doc-review 依赖 P2 的 acceptance claim 形态与文档瘦身面)
 P3 -> P5   (hard: DispatchContract graph-node ref 依赖 TaskGraph)
@@ -127,10 +131,10 @@ Legend:
 
 - 四表随每 phase 回填：Issue inventory（新增 anchor 注册）、Phase inventory（design/plan 列状态 + dep 边）、Dependency graph（节点变化同步）、Change history（版本行逐 phase 追加）
 - Charter only——无任务清单；phase 细节归 phase spec；策略转向（如上游 skill 目录演进改变拟合判定、harness capability 实测变化）立即回填本 overall 后再议实现
-- 本整体自身 = 方法论层；实施期若发现 Documentation plane 的更深债（除 P1–P7 经验债外）同样回填追加
+- 本整体自身 = 方法论层；实施期若发现 Documentation plane 的更深债（除 E1–E7 经验债外）同样回填追加
 
 ## Change history
 
 | Version | date | summary | author |
 |---|---|---|---|
-| v1.0 | 2026-10-02 | 程序 charter：文档架构方法论 v2——DocType 抽象（五域）/ TaskGraph 分组 / DispatchContract+DispatchPacket / overall 宪法+档案分层 / `cdd-doc-review` 一产化 · 破坏性授权 + **空壳死代码即删常设规则** + 尽量复用上游规则 + 先落留存 P5 后开线 GATE · 全量决策留存（M1–M4 / F1–F5 / R1–R5 / B1–B5 / 经验债 P1–P7 / 上游先例背书）· Issue/Phase inventory ×6 + 依赖图 | [human] · Claude Opus 5 (1M context)（kairos:cdd-design 元层 grilling） |
+| v1.0 | 2026-10-02 | 程序 charter：文档架构方法论 v2——DocType 抽象（五域）/ TaskGraph 分组 / DispatchContract+DispatchPacket / overall 宪法+档案分层 / `cdd-doc-review` 一产化 · 破坏性授权 + **空壳死代码即删常设规则** + 尽量复用上游规则 + 先落留存 P5 后开线 GATE · 全量决策留存（M1–M4 / F1–F5 / R1–R5 / B1–B5 / 经验债 E1–E7 / 上游先例背书）· Issue/Phase inventory ×6 + 依赖图 | [human] · Claude Opus 5 (1M context)（kairos:cdd-design 元层 grilling） |

@@ -436,7 +436,10 @@ export async function finalizeHandoff({
     // passes neither and keeps the work-type passthrough (its agent-declared status stays, vetoed
     // at the commit-contract layer).
     if (fixBase && repoRoot) {
-      return await finalizeFix({ agentHandoff, fixBase, repoRoot });
+      // The fix-reconstruction payload defaults the nullable entry: at finalize time the engine
+      // treats an absent agent handoff as the empty input (the reconstruction draws only from the
+      // writable content whitelist — an empty input reconstructs the same engine-fact carrier).
+      return await finalizeFix({ agentHandoff: agentHandoff ?? {}, fixBase, repoRoot });
     }
     return {
       handoff: agentHandoff,
@@ -470,7 +473,11 @@ export async function finalizeFix({
   fixBase = null,
   repoRoot = null,
 }: {
-  agentHandoff?: Record<string, unknown> | null;
+  /** The agent's original handoff — INPUT only (findings/notes/changes/artifacts preserved,
+   * unknown keys and `$schema` stripped). Non-nullable at the finalize point: the reconstruction
+   * defaults any absent input to the empty payload (a mirrored receipt can never persist itself
+   * verbatim, and an empty input reconstructs the same engine-fact carrier). */
+  agentHandoff?: Record<string, unknown>;
   /** The FIX_BASE (FIXED_POINT) — the dispatch's derive off the source review (spec C4). */
   fixBase?: string | null;
   repoRoot?: string | null;
@@ -564,7 +571,10 @@ export async function finalizeFix({
   // reject (the exact bug class this reconstruction exists to eliminate). invariant = programming
   // error, never a round-level BLOCKED to persist.
   const sv = schemaValidator.validateHandoffSchema(handoff, "task");
-  invariant(sv.valid, `finalizeFix assembled an invalid carrier: ${sv.reason}`);
+  // Discriminant-narrowed read of the ajv failure detail (the schema validator's union carries
+  // `reason` only on the { valid: false } arm).
+  const validationReason = sv.valid === false ? sv.reason : "";
+  invariant(sv.valid, `finalizeFix assembled an invalid carrier: ${validationReason}`);
   return { handoff, exitCode: statusExitCode(status) };
 }
 

@@ -252,6 +252,10 @@ export class DocsLifecycle extends DispatchLifecycle {
     // on-disk hygiene op with zero git-tree impact. The review round is NOT round-stable (round
     // auto-increments per resume) — no rotation needed there.
     if (mode === "fix" && !this.#opts.dryRun) {
+      // The fix lane's handoff path is structurally required (resolveContext's non-dry-run
+      // handoffPath gate already enforced it pre-dispatch) — the narrow asserts the same declared
+      // truth before the stale-carrier rotation reads/removes the file.
+      invariant(handoffPath != null, "docs-runner: handoffPath required");
       const stale = readJson(handoffPath) as { failure_category?: unknown } | null;
       if (stale && typeof stale.failure_category === "string") {
         rmSync(handoffPath);

@@ -48,7 +48,17 @@ export class ChangedSurfaceAuditor {
     const handoff = readJson(handoffPath);
     if (!handoff) return null;
     const commits = handoff.commits;
-    const base = commits && typeof commits.base === "string" ? commits.base : null;
+    // The commits base (the round's diff-range anchor): a shape-narrowed read — the handoff read
+    // is `Record<string, unknown> | null`, so the nested `commits.base` needs the unknown shape
+    // narrowed (`"base" in commits`) before access; a missing/complex commits → null (skip).
+    const base =
+      commits != null &&
+      typeof commits === "object" &&
+      !Array.isArray(commits) &&
+      "base" in commits &&
+      typeof commits.base === "string"
+        ? commits.base
+        : null;
     if (!base) return null;
     const head = await this.#git.revParseHead(repoRoot ?? "");
     if (!head) return null;

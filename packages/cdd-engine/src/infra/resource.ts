@@ -107,5 +107,10 @@ export function resolveResourcePublished(
   name: ResourceName,
   fromDir = path.dirname(fileURLToPath(import.meta.url)),
 ): string {
-  return path.join(resolvePackageRoot(fromDir), ...RESOURCE_SPECS[name].published!);
+  const spec: ResourceSpec = RESOURCE_SPECS[name];
+  // The published home is a discriminant of the locator table (resources without a `published`
+  // mirror ship as-is from source and are never addressed through the published face) — asserting
+  // the discriminant is the declared truth for programmer misuse, never a non-null squash.
+  invariant(spec.published !== undefined, `resource has no published home: ${name}`);
+  return path.join(resolvePackageRoot(fromDir), ...spec.published);
 }

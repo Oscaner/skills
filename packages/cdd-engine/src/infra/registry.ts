@@ -120,7 +120,14 @@ export class Registry {
   deriveInjection(reg: any, harness: string, op: string, type?: string): string {
     const map = this.derivePrefixMap(reg, harness) as Record<string, unknown>;
     const v = map[op] ?? "";
-    if (v && typeof v === "object") return type ? ((v as Record<string, unknown>)[type] ?? "") : "";
+    // Shape-narrowed slot read: the op value is either the flat injection string or the typed
+    // op×type map (the derivePrefixMap shape) — the object arm is verified by the typeof guard,
+    // then read through the record index (the single cast at the shape boundary); a non-string
+    // slot degrades to "" (the injection slots are strings by construction).
+    if (v && typeof v === "object") {
+      const slot = type != null ? (v as Record<string, unknown>)[type] : undefined;
+      return typeof slot === "string" ? slot : "";
+    }
     return typeof v === "string" ? v : "";
   }
 

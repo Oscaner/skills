@@ -26,15 +26,18 @@ export default defineConfig({
     // All tests are TypeScript (vitest transforms TS via esbuild); any .mjs regressing
     // back into the engine is caught by the residue mjs-terminal-state guard (block 5c).
     include: ["src/**/__tests__/**/*.test.ts"],
-    // 5b CLI 黑盒用例依赖「入口门意义下的干净树」（E2②/G4①/P6 T10 文档化前置）：cdd.test.ts /
-    // docs-task.test.ts / cli-shape.test.ts 的部分 dry-run 用例以 REPO_ROOT 为 cwd 黑盒运行 ——
-    // 入口门放行依赖两态之一：真实干净树，或 dirty + dry-run 的 CDD_WARN 降级。跑测试时请勿带着
-    // 脏开发树（未提交改动）执行本套件黑盒用例，除非预期它们断言 CDD_WARN 降级路径；entry gate
-    // 与 dry-run 协议的语义变更需同步 review 这三个文件的用例预期。
-    // G4③（P6 Task 17）闭环：真实（非 dry-run）派发用例 —— lifecycle.wiring.test.ts 的 CLI 信号
-    // 用例 —— 已在独立 mkdtemp 干净临时仓上运行（cwd = 临时仓，入口门解析的是临时仓的工作树），
-    // 套件因此对当前工作树状态不敏感（pre-commit 提交时工作树必然 dirty，pre-commit 钩子现在只跑
-    // 树无关子集 `pnpm run precommit`——见 scripts/validate/pre-commit.ts 与 .husky/pre-commit）。
+    // 5b CLI black-box cases depend on the entry-gate sense of a clean tree (E2②/G4①/P6 T10 —
+    // documented prerequisite): some dry-run cases in cdd.test.ts / docs-task.test.ts / cli-shape.test.ts
+    // run black-box with REPO_ROOT as cwd — the entry gate passes in either of two states: a genuinely
+    // clean tree, or the CDD_WARN downgrade of dirty + dry-run. Do not run this suite's black-box cases
+    // with a dirty dev tree (uncommitted changes) unless you expect them to assert the CDD_WARN downgrade
+    // path; semantic changes to the entry gate / dry-run protocol must sync-review the case expectations
+    // of these three files.
+    // G4③ (P6 Task 17) closure: the real (non-dry-run) dispatch cases — lifecycle.wiring.test.ts's CLI
+    // signal cases — run on a standalone mkdtemp clean temp repo (cwd = the temp repo; the entry gate
+    // resolves the temp repo's worktree), so the suite is insensitive to the current worktree state (the
+    // worktree is necessarily dirty at pre-commit time; the pre-commit hook now only runs the
+    // tree-independent subset `pnpm run precommit` — see scripts/validate/pre-commit.ts and .husky/pre-commit).
     // The suite spawns many node CLI + git subprocesses under a 20-file forks pool; per-test
     // wall time inflates under load (observed >5s on a busy machine). 20s guards the
     // default 5s budget without masking genuinely stuck tests.

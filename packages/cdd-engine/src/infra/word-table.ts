@@ -42,6 +42,7 @@ export interface CommandLexicon {
 
 export type VocabDomain = "status" | "statusJudgment" | "statusWork";
 export type TokenDomain = "capsule" | "route";
+export type CapsuleKind = "status" | "blocker" | "handoff";
 export type WordingDomain = "readback";
 export type StationKind = "next" | "blocked" | "warn" | "cliMissing";
 export type SchemaRef = "schema.anatomy.schemaPath" | "schema.anatomy.skillsRoot";
@@ -69,11 +70,12 @@ export class WordTable {
       opts.schemaPath ??
       path.join(resolveResource("schema", opts.fromDir), `${CONTRACT_LEXICON_SCHEMA_NAME}.json`);
     const lexiconPath = opts.lexiconPath ?? resolveResource("contract-lexicon", opts.fromDir);
-    // JSON.parse boundary: the shipped word table. Constructor-time schema validation — the shape
-    // authority with additionalProperties:false (an unknown key is a construction failure).
-    const parsed = JSON.parse(readFileSync(lexiconPath, "utf8")) as object;
+    // JSON.parse boundary: the shipped word table, narrowed to the command/schema-families shape.
+    // Constructor-time schema validation — the shape authority with additionalProperties:false (an
+    // unknown key is a construction failure).
+    const parsed = JSON.parse(readFileSync(lexiconPath, "utf8")) as CommandLexicon;
     this.#validateShape(parsed, schemaPath);
-    this.#lexicon = parsed as unknown as CommandLexicon;
+    this.#lexicon = parsed;
   }
 
   #validateShape(value: object, schemaPath: string): void {
@@ -104,7 +106,9 @@ export class WordTable {
   }
 
   /** The machine-token arrays of the command family — the capsule keys (status · blocker ·
-   *  handoff) or the stdout route anchors. */
+   *  handoff) or the stdout route anchors. The capped emission order of the tokens array (status ·
+   *  blocker · handoff) is pinned by the word-table tests — a reorder is a red test, never a
+   *  silent stdout reshape. */
   tokens(domain: TokenDomain): string[] {
     switch (domain) {
       case "capsule":
@@ -114,6 +118,17 @@ export class WordTable {
       default:
         invariant(false, `unknown word-table token domain: ${domain}`);
     }
+  }
+
+  /** The addressed capsule keys (status · blocker · handoff): the capsule output point reads each
+   *  key by semantic kind — never a positional destructure of the tokens array — so the stdout
+   *  capsule line is worded by addressed lookup, consistent with the route station accessor. */
+  capsuleToken(kind: CapsuleKind): string {
+    const tokens = this.#lexicon.command.capsule.tokens;
+    if (kind === "status") return tokens[0];
+    if (kind === "blocker") return tokens[1];
+    if (kind === "handoff") return tokens[2];
+    invariant(false, `unknown word-table capsule kind: ${kind}`);
   }
 
   /** The wording strings of the command family. */

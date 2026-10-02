@@ -84,14 +84,15 @@ export class ResultFace {
       findings: ctx.findings,
     } satisfies HandoffLike);
     // The capsule keys (status · blocker · handoff) and the `next:` station prefix ride the
-    // contract lexicon — the capsule vocabulary is data (word-table access, never an emission-side
-    // literal), so a vocabulary change is a data change, not an engine edit.
-    const [statusKey, blockerKey, handoffKey] = wordTable().tokens("capsule");
+    // contract lexicon — the capsule vocabulary is data (addressed word-table access by semantic
+    // key, never an emission-side literal or a positional destructure), so a vocabulary change is
+    // a data change, not an engine edit.
+    const capsule = wordTable();
     const out = [
-      `${statusKey}: ${status} · ${blockerKey}: ${blockers} · ${handoffKey}: ${ctx.handoffPath}`,
+      `${capsule.capsuleToken("status")}: ${status} · ${capsule.capsuleToken("blocker")}: ${blockers} · ${capsule.capsuleToken("handoff")}: ${ctx.handoffPath}`,
     ];
     const next = ctx.next ? this.#nextRouter.next(ctx.next) : null;
-    if (next) out.push(`${wordTable().station("next")} ${next}`);
+    if (next) out.push(`${capsule.station("next")} ${next}`);
     return out;
   }
 }

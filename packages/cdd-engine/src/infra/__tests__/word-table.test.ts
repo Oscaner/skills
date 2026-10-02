@@ -2,8 +2,9 @@
 // (T5): the contract lexicon loads + schema-validates at construction (the shape authority with
 // additionalProperties: false — an unknown/illegal key fails construction, never a silent drift),
 // and the accessors serve the engine capsule output points their emitted wording (vocab / tokens /
-// wording / station / ref). The stderr station tokens are written by concatenation so the test
-// stays zero-literal on the zero-debt vocabulary (the engine src face scans its test sites).
+// wording / capsuleToken / station / ref). The stderr station tokens are written by concatenation
+// so the test stays zero-literal on the zero-debt vocabulary (the engine src face scans its test
+// sites).
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -29,6 +30,11 @@ describe("WordTable — the engine contract lexicon typed view (T5)", () => {
     expect(wt.vocab("statusJudgment")).toEqual(["CHANGES_REQUESTED", "REVIEW_FIX", "APPROVED"]);
     expect(wt.vocab("statusWork")).toEqual(["COMPLETED"]);
     expect(wt.tokens("capsule")).toEqual(["status", "blocker", "handoff"]);
+    // The addressed capsule reads (the emission site's order-independent face — a data reorder
+    // must fail this pin, not silently reshape the stdout capsule).
+    expect(wt.capsuleToken("status")).toBe("status");
+    expect(wt.capsuleToken("blocker")).toBe("blocker");
+    expect(wt.capsuleToken("handoff")).toBe("handoff");
     expect(wt.wording("readback").length).toBeGreaterThan(0);
     expect(wt.station("blocked")).toBe(BLOCKED_STATION);
     expect(wt.station("warn")).toBe(WARN_STATION);
@@ -77,5 +83,6 @@ describe("WordTable — the engine contract lexicon typed view (T5)", () => {
   it("an unknown accessor domain is a library invariant (never a silent undefined)", () => {
     const wt = new WordTable({ lexiconPath: LEXICON, schemaPath: SCHEMA });
     expect(() => wt.tokens("bogus" as never)).toThrow(/unknown word-table token domain/);
+    expect(() => wt.capsuleToken("bogus" as never)).toThrow(/unknown word-table capsule kind/);
   });
 });

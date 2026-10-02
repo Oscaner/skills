@@ -1,6 +1,6 @@
 # 文档架构方法论 v2（Doc Architecture v2）— Overall Spec
 
-- **Version**: v1.1 · 2026-10-02（spec-review-1 七 finding 落地：Goal 量级校正 · E 组经验债改号（避 Phase P# 双义）· R4 补行 + M4a 处置 · I10 出处展开 · File paths 补 archive · 依赖图补 P1→P5 边；**M1 恢复判定**——fix-agent 误取 finding #1 的 revert 分支改指 tdd，违 user 拍板，设计属主恢复 `[mattpocock-skills:implement]` + 上游实存证据 + supersede 登记；v1.0 charter 保持）
+- **Version**: v1.1 · 2026-10-02（spec-review-1 七 finding 落地：Goal 量级校正 · E 组经验债改号（避 Phase P# 双义）· R4 补行 + M4a 处置 · I10 悬空引用按语义改写消解 · File paths 补 archive · 依赖图补 P1→P5 边；**M1 恢复判定**——fix-agent 误取 finding #1 的 revert 分支改指 tdd，违 user 拍板，设计属主恢复 `[mattpocock-skills:implement]` + 上游实存证据 + supersede 登记；v1.0 charter 保持）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（kairos:cdd-design → grilling 元层）
 - **Constraints**:
@@ -46,7 +46,7 @@ Charter only, zero implementation detail. **Overall approval is not equivalent t
 **M 组（skill-ref 映射，M1–M4 全关）**：
 | op | skills（有序链） | 依据 |
 |---|---|---|
-| implement | `[mattpocock-skills:implement]`（spec/tickets→交付面——**supersede 既定 `dispatch.implement = tdd` 映射**；tdd 仅作真行为变更的条件纪律，经 B1 `appliesTo` 表达、非恒常进链） | M1（user 拍板）：上游实存证据 = 安装目录 `mattpocock/1.2.3/skills/engineering/implement/SKILL.md`（「Implement a piece of work based on a spec or set of tickets」——原始读取）；spec/tickets→交付面 ⊇ tdd 纯 test-first 面；harness-contract `dispatch.implement` 槽自 tdd 改指 + `refs` 域登记 `mattpocock-skills:implement` 为本程序 P5 待办 |
+| implement | `[mattpocock-skills:implement]`（spec/tickets→交付面——**supersede 既定 `dispatch.implement = tdd` 映射**；tdd 仅作真行为变更的条件纪律，经 B1 `appliesTo` 表达、非恒常进链） | M1（user 拍板）：上游实存证据 = 安装目录 `~/.claude/plugins/marketplaces/mattpocock/skills/engineering/implement/SKILL.md`（安装版本 v1.2.3；「Implement a piece of work based on a spec or set of tickets」——原始读取）；spec/tickets→交付面 ⊇ tdd 纯 test-first 面；harness-contract `dispatch.implement` 槽自 tdd 改指 + `refs` 域登记 `mattpocock-skills:implement` 为本程序 P5 待办 |
 | fix | `[superpowers:receiving-code-review, superpowers:verification-before-completion]` | M2：严谨验证 findings 拒盲从 → 提交前证据先行；harness 多 skill 原生态 |
 | review.task/branch | `[mattpocock-skills:code-review]` | M3：并行双轴 capability-resolved；删 engine「单 agent 并行禁」（harness-contract:94,98 + template-contract axesGuide 三处禁文） |
 | review.spec/plan | `[kairos:cdd-doc-review]` | M4b：URC（spec 三轴 / plan 三轴）+ writing-plans 自检准则 + verification evidence + grilling 追问——一产组合体内化，kairos 第 9 席 |
@@ -88,7 +88,7 @@ Charter only, zero implementation detail. **Overall approval is not equivalent t
 | P2 | none | 文档平面瘦身：phase-spec 样板 schema 化（`## Design` + `### Acceptance criteria` 唯一 + `## Constraints` 继承点；增量警告/约束指针/偏差/下游注/评审记录 → schema description + 条件元数据）· plan Task=数据（task `{objective,files,interface,steps,acceptance}` + step checkable 类型约束 + brief 数据渲染）· plan 约束继承 delta-only（宪法 auto-applies，per-plan 复述清零） |
 | P3 | none | TaskGraph 分组派生：task `depends_on`/`atomic_with` → DAG → 拓扑序分组（`## Task Groups` 字面段删除）· plan-parse crisp BLOCK（无环 / union==task set / atomic 闭包）· 「先清底再上闸」= 图性质非文字 |
 | P4 | none | `cdd-doc-review` first-party skill（kairos 第 9 席）：URC（spec 三轴 / plan 三轴）+ writing-plans 自检准则（spec 覆盖/占位扫/类型一致）+ verification evidence + grilling 追问——组合体内化单 skill · skill-anatomy registry 注册 + 目录扫描守卫含新成员 + README/tests/changeset |
-| P5 | none | DispatchContract + DispatchPacket：harness-contract `dispatch` 域重构（skills 有序链 + `capabilities` per-harness 子代理面 + `refKind` commit-set/commit-range/doc-revision/graph-node + bodyView）· ref 机制（R1 handoff ledger·R2 doc-revision 双层收敛·R3 一体）· DispatchPacket 正文（InstructionUnit 结构化 + return/evidence schema 引用 + BodyView 分型 + convergence 数据 + constraints 子集过滤）· 三处禁文删除（harness-contract:94,98 + template-contract axesGuide） |
+| P5 | none | DispatchContract + DispatchPacket：harness-contract `dispatch` 域重构（skills 有序链 + `capabilities` per-harness 子代理面 + `refKind` commit-set/commit-range/doc-revision/graph-node + bodyView）· ref 机制（R1 handoff ledger·R2 doc-revision 双层收敛·R3 一体）· DispatchPacket 正文（InstructionUnit 结构化 + return/evidence schema 引用 + BodyView 分型 + convergence 数据 + constraints 子集过滤）· 三处禁文删除（harness-contract:94,98 + template-contract axesGuide）· M1 supersede 落地（dispatch.implement 自 tdd 改指 mattpocock-skills:implement + refs 域登记，规格锚 M1 行「P5 待办」） |
 | P6 | none | overall 宪法/档案分层：宪法本体（Goal/Standing rules 规范化折叠/Cross-cutting/Phase inventory/Dependency graph）+ `*-archive.md`（issue/history 结构化 record + doc-revision ref 机械化 backfill）· **「空壳、死代码即删」入 Standing rules 常态化** · 版本行 lineage 散文消解 |
 
 ## Phase inventory
@@ -129,7 +129,7 @@ Legend:
 
 ## Maintenance
 
-- 四表随每 phase 回填：Issue inventory（新增 anchor 注册）、Phase inventory（design/plan 列状态 + dep 边）、Dependency graph（节点变化同步）、Change history（版本行逐 phase 追加）
+- 五表随每 phase 回填：Issue inventory（新增 anchor 注册）、Phase inventory（design/plan 列状态 + dep 边）、Dependency graph（节点变化同步）、Change history（版本行逐 phase 追加）、File paths（新 artifact 行登记；Archive 精确命名归 P6 定义，届时按此回填——File paths Archive 行承诺通道进入回填机制）
 - Charter only——无任务清单；phase 细节归 phase spec；策略转向（如上游 skill 目录演进改变拟合判定、harness capability 实测变化）立即回填本 overall 后再议实现
 - 本整体自身 = 方法论层；实施期若发现 Documentation plane 的更深债（除 E1–E7 经验债外）同样回填追加
 
@@ -137,5 +137,5 @@ Legend:
 
 | Version | date | summary | author |
 |---|---|---|---|
-| v1.0 | 2026-10-02 | 程序 charter：文档架构方法论 v2——DocType 抽象（五域）/ TaskGraph 分组 / DispatchContract+DispatchPacket / overall 宪法+档案分层 / `cdd-doc-review` 一产化 · 破坏性授权 + **空壳死代码即删常设规则** + 尽量复用上游规则 + 先落留存 P5 后开线 GATE · 全量决策留存（M1–M4 / F1–F5 / R1–R5 / B1–B5 / 经验债 E1–E7 / 上游先例背书）· Issue/Phase inventory ×6 + 依赖图 | [human] · Claude Opus 5 (1M context)（kairos:cdd-design 元层 grilling） |
-| v1.1 | 2026-10-02 | cdd spec-review-1 七 finding 落地（blocker 0）：Goal 量级校正（4 overall / 18 design / 19 plan / pi-harness 单系 28 版本）· E 组改号避双义 · R4 commit-range 补行 + M4a 处置 · I10 展开出处 · File paths 补 archive · 依赖图补 P1→P5 · **M1 恢复判定**（fix-agent 误 revert → 设计属主恢复 `mattpocock-skills:implement` + 实存证据 + supersede tdd 登记） | [human] · Claude |
+| v1.0 | 2026-10-02 | 程序 charter：文档架构方法论 v2——DocType 抽象（五域）/ TaskGraph 分组 / DispatchContract+DispatchPacket / overall 宪法+档案分层 / `cdd-doc-review` 一产化 · 破坏性授权 + **空壳死代码即删常设规则** + 尽量复用上游规则 + 先落留存 P5 后开线 GATE · 全量决策留存（M1–M4 / F1–F5 / R1–R5 / B1–B5 / 经验债 P1–P7 / 上游先例背书）· Issue/Phase inventory ×6 + 依赖图 | [human] · Claude Opus 5 (1M context)（kairos:cdd-design 元层 grilling） |
+| v1.1 | 2026-10-02 | cdd spec-review-1 七 finding 落地（blocker 0）：Goal 量级校正（4 overall / 18 design / 19 plan / pi-harness 单系 28 版本）· E 组改号避双义 · R4 commit-range 补行 + M4a 处置 · I10 悬空引用按语义改写消解 · File paths 补 archive · 依赖图补 P1→P5 · **M1 恢复判定**（fix-agent 误 revert → 设计属主恢复 `mattpocock-skills:implement` + 实存证据 + supersede tdd 登记） | [human] · Claude |

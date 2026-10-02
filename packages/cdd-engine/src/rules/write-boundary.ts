@@ -12,7 +12,7 @@
 // skip too). Review mode → skipped (its commits describe the reviewed range, not this dispatch's
 // output).
 
-import { readJson, writeHandoff } from "../artifacts/handoff/write.ts";
+import { readCommitsBase, readJson, writeHandoff } from "../artifacts/handoff/write.ts";
 import { GitClient } from "../infra/git.ts";
 
 export interface ChangedSurface {
@@ -48,17 +48,10 @@ export class ChangedSurfaceAuditor {
     const handoff = readJson(handoffPath);
     if (!handoff) return null;
     const commits = handoff.commits;
-    // The commits base (the round's diff-range anchor): a shape-narrowed read — the handoff read
-    // is `Record<string, unknown> | null`, so the nested `commits.base` needs the unknown shape
-    // narrowed (`"base" in commits`) before access; a missing/complex commits → null (skip).
-    const base =
-      commits != null &&
-      typeof commits === "object" &&
-      !Array.isArray(commits) &&
-      "base" in commits &&
-      typeof commits.base === "string"
-        ? commits.base
-        : null;
+    // The commits base (the round's diff-range anchor): the shared shape-narrowed read (the one
+    // handoff commits.base reader — readCommitsBase, artifacts/handoff/write.ts); missing/complex
+    // → null (skip).
+    const base = readCommitsBase(commits);
     if (!base) return null;
     const head = await this.#git.revParseHead(repoRoot ?? "");
     if (!head) return null;

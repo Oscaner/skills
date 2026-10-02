@@ -32,7 +32,12 @@ import {
   recoverHandoff,
   writeBlockedCarrier,
 } from "../artifacts/handoff/finalize.ts";
-import { readJson, writeHandoff, writeOwnHandoff } from "../artifacts/handoff/write.ts";
+import {
+  readCommitsBase,
+  readJson,
+  writeHandoff,
+  writeOwnHandoff,
+} from "../artifacts/handoff/write.ts";
 import { Handoff } from "../artifacts/handoff.ts";
 import { exitOk, exitWithCode, invariant } from "../infra/exit.ts";
 import { EngineInvoker } from "../infra/invoke.ts";
@@ -762,18 +767,10 @@ export class BranchFixLifecycle extends BranchLifecycle {
     // dry-run lane exits earlier (dispatch emits the stub block itself).
     this.findingsPath = findingsPath;
     const src = readJson(findingsPath);
-    // The FIX_BASE (the reviewed range's base — the fix's diff surface): a shape-narrowed read of
-    // the source review's commits.base (the handoff read is `Record<string, unknown> | null` — the
-    // nested base needs the unknown shape narrowed before access; absent/complex → undefined).
-    const srcCommits = src?.commits;
-    const fixBase =
-      srcCommits != null &&
-      typeof srcCommits === "object" &&
-      !Array.isArray(srcCommits) &&
-      "base" in srcCommits &&
-      typeof srcCommits.base === "string"
-        ? srcCommits.base
-        : undefined;
+    // The FIX_BASE (the reviewed range's base — the fix's diff surface): the shared shape-narrowed
+    // read (the one handoff commits.base reader — readCommitsBase, artifacts/handoff/write.ts);
+    // absent/complex → null; the "unknown" sentinel still rejected below.
+    const fixBase = readCommitsBase(src?.commits);
     if (!fixBase || fixBase === "unknown") {
       writeBlockedCarrier(this.handoffPath, {
         tasks: [1],

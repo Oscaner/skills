@@ -38,6 +38,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { TaskGroup } from "../../domain/task-group.ts";
 import { invariant } from "../../infra/exit.ts";
 import { GitClient } from "../../infra/git.ts";
+import { wordTable } from "../../infra/word-table.ts";
 import type { Workspace } from "../../infra/workspace.ts";
 import { FAILURE_CATEGORIES } from "../../rules/failure.ts";
 import { HandoffSchemaValidator } from "../../rules/schema.ts";
@@ -678,7 +679,7 @@ export async function finalizeImplement({
   const base = taskBaseFromBrief(brief);
   if (!base) {
     process.stderr.write(
-      `CDD_WARN: implement handoff not materialized — brief missing or no TASK_BASE line: ${brief}\n`,
+      `${wordTable().station("warn")} implement handoff not materialized — brief missing or no TASK_BASE line: ${brief}\n`,
     );
     return { handoff: null, exitCode: 0 };
   }
@@ -697,7 +698,7 @@ export async function finalizeImplement({
   const reasons: string[] = [];
   if (raw !== "APPROVED") {
     reasons.push(`implement return status "${raw}" without blocker`);
-    process.stderr.write(`CDD_BLOCKED: ${reasons[reasons.length - 1]}\n`);
+    process.stderr.write(`${wordTable().station("blocked")} ${reasons[reasons.length - 1]}\n`);
   }
   const head = repoRoot ? await git.revParseHead(repoRoot) : null;
   // A materialization wearing the resume signature (base==head) may reconsider its base — the
@@ -731,9 +732,9 @@ export async function finalizeImplement({
     reasons.push(gate.warn);
     // hard gate → CDD_BLOCKED diagnostic (aligned with the legacy runner finish(…, gate.warn, …)’s
     // stderr output).
-    process.stderr.write(`CDD_BLOCKED: ${gate.warn}\n`);
+    process.stderr.write(`${wordTable().station("blocked")} ${gate.warn}\n`);
   } else if (gate.warn) {
-    process.stderr.write(`CDD_WARN: ${gate.warn}\n`);
+    process.stderr.write(`${wordTable().station("warn")} ${gate.warn}\n`);
   }
   const conclusion = gate.hard ? "BLOCKED" : status;
   // Write side through the schema (T5): the candidate passes normalizeHandoff for its key set —

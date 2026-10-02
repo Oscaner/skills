@@ -151,9 +151,9 @@ const STALE_LEXICON_CHECKS = [
     // G2 data-row allowance (P3 T1): the harness-registry pi invoke's `-p --mode text` (O2 fact,
     // verified via `pi --help`) is a harness CLI data value, the same pass-through class as the
     // registry cli data value. The allowance is data-derived — dataRowAllow names the token whose
-    // data-source data-row occurrences are green, and the allowance FILE SET rides the lexicon's
-    // residue dataSources (contract-lexicon.json), never a hand-written exemption list. The check
-    // keeps zero-exemption over mechanism code.
+    // data-source data-row occurrences are green, and the allowance FILE SET rides the guards
+    // lexicon's residue dataSources (scripts/lib/guard-lexicon.json), never a hand-written
+    // exemption list. The check keeps zero-exemption over mechanism code.
     dataRowAllow: ["--mode"],
   },
   {
@@ -354,9 +354,10 @@ function checkZeroResidue() {
 //   ① engine src incl. test sites — includeTests ON;
 //   ② scripts — walkTargetFiles' default `**/__tests__` self-exemption applies;
 //   ③ docs/maintainers — no test sites, the face scans in full.
-// The data-source set rides the lexicon residue domain data rows ([harness-registry.json,
-// contract-lexicon.json]); the guard body carries the scanned lexeme only via the lexicon data —
-// a live face (scripts/) must not become a carrier of the vocabulary it guards.
+// The data-source set rides the guards lexicon's residue domain data rows ([harness-registry.json,
+// contract-lexicon.json, guard-lexicon.json]); the guard body carries the scanned lexeme only via
+// the lexicon data — a live face (scripts/) must not become a carrier of the vocabulary it
+// guards.
 
 // The C6 ContractLexiconGuard — the single drive for the four converged check faces (anatomy /
 // residue / wording / config) plus the assertLexiconZero helper that renders its findings.
@@ -400,7 +401,7 @@ export function hasHit(lines: string[]) {
 // green — everything else on the mechanism face fails.
 export function collectStaleLexiconHits(targetsOverride?: string[]) {
   const hits = [];
-  const dataSources = new ContractLexiconGuard().lexicon().residue.dataSources;
+  const dataSources = new ContractLexiconGuard().lexicon().guards.residue.dataSources;
   for (const { label, re, scope, dataRowAllow = [] } of STALE_LEXICON_CHECKS) {
     if (dataRowAllow.length > 0) {
       for (const { file, text } of scanLines(targetsOverride ?? scope, re)) {

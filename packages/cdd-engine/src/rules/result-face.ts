@@ -26,6 +26,8 @@
 // (status/commits/artifacts + counters) — commits/artifacts/counters stay in the handoff /
 // progress.json, stdout shows only the status capsule. Constructor injection (Criterion ②): the
 // status derive + next router + convergence judge are all injected, zero module-level singletons.
+
+import { wordTable } from "../infra/word-table.ts";
 import { ConvergenceChecker, type HandoffLike } from "../rules/convergence.ts";
 import { type NextStepArgs, NextStepRouter } from "../rules/next-step.ts";
 import { StatusDeriver } from "../rules/status-deriver.ts";
@@ -81,9 +83,15 @@ export class ResultFace {
     const blockers = this.#convergence.blockerCount({
       findings: ctx.findings,
     } satisfies HandoffLike);
-    const out = [`status: ${status} · blocker: ${blockers} · handoff: ${ctx.handoffPath}`];
+    // The capsule keys (status · blocker · handoff) and the `next:` station prefix ride the
+    // contract lexicon — the capsule vocabulary is data (word-table access, never an emission-side
+    // literal), so a vocabulary change is a data change, not an engine edit.
+    const [statusKey, blockerKey, handoffKey] = wordTable().tokens("capsule");
+    const out = [
+      `${statusKey}: ${status} · ${blockerKey}: ${blockers} · ${handoffKey}: ${ctx.handoffPath}`,
+    ];
     const next = ctx.next ? this.#nextRouter.next(ctx.next) : null;
-    if (next) out.push(`next: ${next}`);
+    if (next) out.push(`${wordTable().station("next")} ${next}`);
     return out;
   }
 }

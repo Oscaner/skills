@@ -29,7 +29,11 @@ import {
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..");
 // The data-source constants the assertion helpers read (the repo config homes).
-const LEXICON_SRC = path.join(REPO_ROOT, "packages/cdd-engine/config/contract-lexicon.json");
+const GUARD_LEXICON_SRC = path.join(REPO_ROOT, "scripts/lib/guard-lexicon.json");
+const COMMAND_LEXICON_SRC = path.join(
+  REPO_ROOT,
+  "packages/cdd-engine/config/contract-lexicon.json",
+);
 const CONTRACT_SRC = path.join(REPO_ROOT, "packages/cdd-engine/config/harness-contract.json");
 
 const guard = new ContractLexiconGuard();
@@ -42,15 +46,27 @@ const T5_MJS = "." + "mjs";
 const T5_READBACK = "(read <" + "handoff> back to confirm)";
 
 // ---------------------------------------------------------------------------
-// The lexicon itself — five domains exist and agree with the engine facts
+// The word tables — the guards family + the engine command/schema family + the engine forwarding
 // ---------------------------------------------------------------------------
 
-describe("contract-lexicon.json — the pure word-table domains + engine-facts consistency", () => {
-  it("the lexicon carries zero harness domain — the harness contract is the unique harness-data source", () => {
-    // The loaded lexicon data (JSON.parse boundary): the absence of a harness domain is the C8
-    // re-home assertion — the harness contract is the unique harness-data source.
-    const lexData = JSON.parse(readFileSync(LEXICON_SRC, "utf8")) as Record<string, unknown>;
-    expect(lexData.harness).toBeUndefined();
+describe("guard-lexicon.json + engine contract-lexicon.json — the family word tables + engine-facts consistency", () => {
+  it("the engine lexicon carries zero guards domain and zero harness domain (word-authority split + the unique harness-data source)", () => {
+    // The loaded engine word table (JSON.parse boundary): the ownership split — the guards family
+    // (residue / escape / zeroDebt / buildability / banned-shape words) is NOT part of the engine
+    // file (a guards key is an unknown-key violation), and the harness contract is the unique
+    // harness-data source.
+    const engineData = JSON.parse(readFileSync(COMMAND_LEXICON_SRC, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    expect(Object.keys(engineData).sort()).toEqual(["_doc", "command", "schema"]);
+    expect(engineData.guards).toBeUndefined();
+    const guardData = JSON.parse(readFileSync(GUARD_LEXICON_SRC, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    expect(Object.keys(guardData).sort()).toEqual(["_doc", "guards"]);
+    expect(guardData.command).toBeUndefined();
     const contract = guard.contract();
     expect(Object.keys(contract).sort()).toEqual([
       "_doc",
@@ -65,8 +81,8 @@ describe("contract-lexicon.json — the pure word-table domains + engine-facts c
   });
 
   it("status domain: the five-value vocab + the dual-axis mapping (judgment three states / work COMPLETED)", () => {
-    const lex = guard.lexicon();
-    expect(lex.status.vocab.sort()).toEqual([
+    const lex = guard.commandLexicon();
+    expect(lex.command.status.vocab.sort()).toEqual([
       "APPROVED",
       "BLOCKED",
       "CHANGES_REQUESTED",
@@ -74,25 +90,25 @@ describe("contract-lexicon.json — the pure word-table domains + engine-facts c
       "TIMEOUT",
     ]);
     // The judgment axis owns the review conclusion states; only COMPLETED is the work-axis fold.
-    expect(lex.status.axes.judgment.includes("COMPLETED")).toBe(false);
-    expect(lex.status.axes.work).toEqual(["COMPLETED"]);
+    expect(lex.command.status.axes.judgment.includes("COMPLETED")).toBe(false);
+    expect(lex.command.status.axes.work).toEqual(["COMPLETED"]);
   });
 
-  it("stdout domain: the capsule tokens + route anchors present, banned shape names carry no cursor residue", () => {
-    const lex = guard.lexicon();
-    expect(lex.stdout.capsule).toEqual(["status", "blocker", "handoff"]);
-    for (const tok of ["next:", "CDD_BLOCKED:", "findings"]) {
-      expect(lex.stdout.routeTokens).toContain(tok);
+  it("capsule + route domains: the capsule tokens, the read-back wording and the addressed station channels", () => {
+    const lex = guard.commandLexicon();
+    expect(lex.command.capsule.tokens).toEqual(["status", "blocker", "handoff"]);
+    expect(lex.command.route.stations.next).toBe("next:");
+    for (const station of ["blocked", "warn", "cliMissing"]) {
+      expect(lex.command.route.stations[station]).toContain(":");
     }
-    for (const shape of ["3-line return block", "4th line counters", "return block"]) {
-      expect(lex.stdout.bannedShapeNames).toContain(shape);
-    }
+    expect(lex.command.route.routeTokens).toContain("next:");
   });
 
-  it("residue domain: the data sources are the two config JSONs and the ban token is the cursor cli data value", () => {
+  it("residue domain: the data sources are the two config JSONs + the guard home and the ban token is the cursor cli data value", () => {
     const lex = guard.lexicon();
-    expect(lex.residue.dataSources.sort()).toEqual([
+    expect(lex.guards.residue.dataSources.sort()).toEqual([
       "contract-lexicon.json",
+      "guard-lexicon.json",
       "harness-contract.json",
     ]);
     // C8: the ban token follows the harness contract's cursor cli (the unique cli source) — read
@@ -100,40 +116,68 @@ describe("contract-lexicon.json — the pure word-table domains + engine-facts c
     const contract = JSON.parse(readFileSync(CONTRACT_SRC, "utf8")) as {
       cursor: { cli: string };
     };
-    expect(lex.residue.bannedToken).toBe(contract.cursor.cli);
+    expect(lex.guards.residue.tokens).toContain(contract.cursor.cli);
   });
 
   it("anatomy domain: the skill-anatomy schema path resolves on disk", () => {
-    const lex = guard.lexicon();
-    const p = path.isAbsolute(lex.anatomy.schemaPath)
-      ? lex.anatomy.schemaPath
-      : path.join(REPO_ROOT, lex.anatomy.schemaPath);
+    const lex = guard.commandLexicon();
+    const p = path.isAbsolute(lex.schema.anatomy.schemaPath)
+      ? lex.schema.anatomy.schemaPath
+      : path.join(REPO_ROOT, lex.schema.anatomy.schemaPath);
     expectExists(p);
+  });
+
+  it("the word tables carry zero retired leaf-name fields (the shape migration is complete)", () => {
+    // The retired pre-split lexicon leaves — a re-appearance on any word-table surface is a
+    // migration regression (the phrasing must go through the new family names). The test position
+    // is self-exempt; this file's own carries of these names are the pattern strings below.
+    const retired = [
+      "bannedToken",
+      "soleAllowed",
+      "mjsToken",
+      "dualEvidence",
+      "bannedShapeNames",
+      "readbackAnnotation",
+    ];
+    const surfaces = [
+      GUARD_LEXICON_SRC,
+      COMMAND_LEXICON_SRC,
+      path.join(REPO_ROOT, "scripts/lib/contract-lexicon.ts"),
+      path.join(REPO_ROOT, "packages/cdd-engine/src/infra/word-table.ts"),
+    ];
+    const violations: string[] = [];
+    for (const rel of surfaces) {
+      const text = readFileSync(rel, "utf8");
+      for (const name of retired) {
+        if (text.includes(name)) violations.push(`${path.relative(REPO_ROOT, rel)}: ${name}`);
+      }
+    }
+    expect(violations).toEqual([]);
   });
 });
 
-describe("contract-lexicon.json — the T5 (P5) zero-debt / buildability / read-back domains", () => {
+describe("guard-lexicon.json — the T5 (P5) zero-debt / buildability / read-back domains (guards family)", () => {
   it("escape domain: the two escape directives + the ban wording are present", () => {
     const lex = guard.lexicon();
-    expect(lex.escape.tokens).toEqual([T5_TS_IGNORE, T5_TS_EXPECT_ERROR]);
-    expect(lex.escape.wording.length).toBeGreaterThan(0);
+    expect(lex.guards.escape.tokens).toEqual([T5_TS_IGNORE, T5_TS_EXPECT_ERROR]);
+    expect(lex.guards.escape.wording.length).toBeGreaterThan(0);
   });
 
   it("zeroDebt domain: the prebuilt-module extension token rides the data", () => {
-    expect(guard.lexicon().zeroDebt.mjsToken).toBe(T5_MJS);
-    expect(guard.lexicon().zeroDebt.wording.length).toBeGreaterThan(0);
+    expect(guard.lexicon().guards.zeroDebt.tokens).toContain(T5_MJS);
+    expect(guard.lexicon().guards.zeroDebt.wording.length).toBeGreaterThan(0);
   });
 
   it("buildability domain: the dual-evidence wording carries the tsc + test tokens (T6 read-only consumption)", () => {
-    const dual = guard.lexicon().buildability.dualEvidence;
-    expect(dual.length).toBeGreaterThan(0);
-    expect(dual).toContain("tsc");
-    expect(dual).toContain("test");
-    expect(guard.lexicon().buildability.wording.length).toBeGreaterThan(0);
+    const evidenceWording = guard.lexicon().guards.buildability.evidenceWording;
+    expect(evidenceWording.length).toBeGreaterThan(0);
+    expect(evidenceWording).toContain("tsc");
+    expect(evidenceWording).toContain("test");
+    expect(guard.lexicon().guards.buildability.wording.length).toBeGreaterThan(0);
   });
 
-  it("stdout domain: the canonical read-back annotation (the T5 restate decision — zero restate on the orchestrator surface)", () => {
-    expect(guard.lexicon().stdout.readbackAnnotation).toBe(T5_READBACK);
+  it("engine command lexicon: the canonical read-back wording (the T5 restate decision — zero restate on the orchestrator surface)", () => {
+    expect(guard.commandLexicon().command.capsule.readbackWording).toBe(T5_READBACK);
   });
 });
 
@@ -342,14 +386,14 @@ describe("ContractLexiconGuard.checkResidue — G2 cursor live-face guard (P3 T2
     }
   });
 
-  it("(b-comp) lexicon-typed data rows release (clis mapping / ban-table rows green); out-of-domain residue still fails", () => {
+  it("(b-comp) lexicon-typed data rows release (first-exemption / ban-table rows green); out-of-domain residue still fails", () => {
     const dir = pathDir("g2-le-");
     writeFileSync(path.join(dir, "harness-contract.json"), registryText(CURSOR_BINARY), "utf8");
-    // contract-lexicon.json is the T4 data source; its harness clis mapping / residue ban-table
-    // rows carry the cli value as data and mask under the same data-row form.
+    // guard-lexicon.json is the guards-family data source; its residue ban-table rows carry the cli
+    // value as data and mask under the data-row form (the dataSources set names the home).
     writeFileSync(
-      path.join(dir, "contract-lexicon.json"),
-      `{ "clis": { "cursor": "${CURSOR_BINARY}" }, "banned": ["${CURSOR_BINARY}"] }\n`,
+      path.join(dir, "guard-lexicon.json"),
+      `{ "guards": { "residue": { "tokens": ["${CURSOR_BINARY}"] } } }\n`,
       "utf8",
     );
     writeFileSync(path.join(dir, "note.md"), `${CURSOR_BINARY} outside the data domain\n`, "utf8");
@@ -479,12 +523,12 @@ describe("ContractLexiconGuard.checkEscape — T5 escape-directive zero-hit (the
     }
   });
 
-  it("the lexicon config data rows release (the directives ride data values); an out-of-data line fails", () => {
+  it("the guard-lexicon data rows release (the directives ride data values); an out-of-data line fails", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "lex-escape-rl-"));
     try {
       writeFileSync(
-        path.join(dir, "contract-lexicon.json"),
-        `{ "tokens": ["${T5_TS_IGNORE}", "${T5_TS_EXPECT_ERROR}"] }\n`,
+        path.join(dir, "guard-lexicon.json"),
+        `{ "guards": { "escape": { "tokens": ["${T5_TS_IGNORE}", "${T5_TS_EXPECT_ERROR}"] } } }\n`,
         "utf8",
       );
       writeFileSync(

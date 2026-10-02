@@ -3,7 +3,7 @@
 **Spec:** [2026-09-27-pi-harness-p5-design.md](docs/kairos/specs/2026-09-27-pi-harness-p5-design.md)
 
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.27](docs/kairos/specs/2026-09-27-pi-harness-overall.md)
-- **Version**: v1.2 · 2026-10-02（P5 编译面收敛与结算：结算 → 迁移 → 上闸 → 守卫 → buildability → 零构建收敛 → 终验；T7/T8 同组 atomic）。v1.0 → v1.1 = plan-review-1 五 finding 落地：ESM 检测前置 + 迁移 kairos 测试类型清零归位（T4）· src 48 精确枚举收敛 · contract-lexicon 写权归一（T5）· T9 closeout 豁免 + 版本实态回填口径 · T9 changeset 并解 kairos type:module。v1.1 → v1.2 = Plan Sole Writer 补入：review `next:` fix 建议附 `(read <handoff> back to confirm)`（user 2026-10-02 mid-flight，spec 2.3/v1.3 联动）
+- **Version**: v1.3 · 2026-10-02（P5 编译面收敛与结算：结算 → 迁移 → 上闸 → 守卫 → buildability → 零构建收敛 → 终验；T7/T8 同组 atomic）。v1.0 → v1.1 = plan-review-1 五 finding 落地：ESM 检测前置 + 迁移 kairos 测试类型清零归位（T4）· src 48 精确枚举收敛 · contract-lexicon 写权归一（T5）· T9 closeout 豁免 + 版本实态回填口径 · T9 changeset 并解 kairos type:module。v1.1 → v1.2 = Plan Sole Writer 补入：review `next:` fix 建议附 `(read <handoff> back to confirm)`（user 2026-10-02 mid-flight，spec 2.3/v1.3 联动）。v1.2 → v1.3 = plan-review-2 三 finding 落地：T6 路由 bullet 词表改只读断言消费（写权归一 T5——`next:` 读回措辞纳入 T5 全量词表 scope，删条件式写权）· T4 validate 断言面改指迁移后 `ci-validate.test.ts` · 逃逸 grep 目标补源配置面 + docs 面零命中归 T7 live 面 grep（双任务 grep 面 = spec acceptance 全量 live 面）
 - **Depends on**: P5 design v1.3 Approved（`18d30c16` review r1+r2 收口 + `f3e78471` v1.3 design backfill）
 - **Base**: develop
 
@@ -101,7 +101,7 @@
   - **ESM 检测前置**：`packages/kairos/package.json` 增 `"type": "module"`（实测缺失——nodenext 下用 `import.meta` 的迁移测试 TS1470；kairos 纯 SKILL/plugin 面、无 CJS 运行时 JS 模块，ESM 化安全）；changeset 联动口径由 T9 并解（kairos patch changeset，见 commit 边界机制）
   - **迁移 kairos 测试类型清零显式归本任务**（T3 只保迁移格式/规格，不背类型债）：迁移产生的 TS7006 隐式 any 族 + nodenext import 语义错误（目录 index 导入 / T1470 类）随本任务专清——结算后 `pnpm run typecheck` 三项目零错（本任务验收自带判据）
   - root `package.json`：`"typecheck": "tsc --noEmit -p packages/cdd-engine && tsc --noEmit -p scripts && tsc --noEmit -p packages/kairos/tests"`；devDependencies 增 `typescript@^7.0.2`（判官单源，与 engine 拉齐）→ `pnpm install` 锁文件更新
-  - 新建 `scripts/validate/type-check.ts`：导出 steps（`SubprocessBlock` cmd=`pnpm` args=`run typecheck`）；compose 进 `scripts/validate/index.ts`（终验）+ `scripts/validate/pre-commit.ts`（提交）**双接点**；validate step 名/order 断言面（`ci-validate.test.mjs` / `pre-commit.test.ts` 类 name-set）同步含新块
+  - 新建 `scripts/validate/type-check.ts`：导出 steps（`SubprocessBlock` cmd=`pnpm` args=`run typecheck`）；compose 进 `scripts/validate/index.ts`（终验）+ `scripts/validate/pre-commit.ts`（提交）**双接点**；validate step 名/order 断言面（`ci-validate.test.ts` / `pre-commit.test.ts` 类 name-set——迁移后文件名）同步含新块
 - **验收**:
   - `pnpm run typecheck` exit 0（engine/scripts/kairos-tests 三项目零错误）
   - `pnpm run precommit` 绿（含新 type-check 块）· `node scripts/run.ts validate`（或对应块级别）type-check 块 OK
@@ -111,12 +111,12 @@
 ### Task 5: 逃逸禁令 + residue/lexicon 守卫升级
 
 - **Do**: 按 spec 2.1/2.2 零债口径：
-  - `scripts/lib/contract-lexicon.ts`（ContractLexiconGuard）：扩 **逃逸零命中检查**（`@ts-ignore`/`@ts-expect-error` 于 engine src + scripts + kairos tests 源面 = 零）+ **residue 目标升全仓源面零 `.mjs`**（engine src + scripts + kairos tests + 源配置面；产物面 `dist/` 除外）+ checkWording 对零债措辞断言
-  - `config/contract-lexicon.json`（engine）词表补**全量**：逃逸禁令 / 零债 / buildability 双证据措辞——**词表写权全归本任务**（T6 只读消费，不新增词表）
+  - `scripts/lib/contract-lexicon.ts`（ContractLexiconGuard）：扩 **逃逸零命中检查**（`@ts-ignore`/`@ts-expect-error` 于 engine src + scripts + kairos tests + 源配置面 = 零——与同任务 `.mjs` residue 目标准口径对齐；docs 面逃逸 token 由 T7 live 面 grep 兜底）+ **residue 目标升全仓源面零 `.mjs`**（engine src + scripts + kairos tests + 源配置面；产物面 `dist/` 除外）+ checkWording 对零债措辞断言
+  - `config/contract-lexicon.json`（engine）词表补**全量**：逃逸禁令 / 零债 / buildability 双证据 / review `next:` 读回措辞（`(read <handoff> back to confirm)` 附注——restate 与否与补全均在本任务定）——**词表写权全归本任务**（T6 只读断言消费，不新增词表）
   - 相应 guard 测试（`scripts/lib/__tests__/` + engine residue/lexicon 测试面）延展
 - **验收**:
   - guard 对四消费面断言全绿（root 相应 validate 块 + `pnpm --filter @oscaner-skills/cdd-engine test`）
-  - live 面 grep 零命中：`@ts-ignore` / `@ts-expect-error`（eng/scri/kairos 源面）· 源面 `.mjs`（产物面除外）
+  - guard 逃逸零命中（engine src + scripts + kairos tests + 源配置面）· 源面 `.mjs` 零命中（产物面除外）· 全量 live 面（含 docs 面）逃逸 token 零命中由 T7 live 面 grep 闸验收兜底
   - `pnpm run precommit` 绿
 - **注**: T5 在 T3/T2 之后（迁移/清零完成才有可判据的零面）；词表面与 T6 buildability 共用 contract-lexicon 单文件
 
@@ -127,7 +127,7 @@
   - implement Evidence gate：task-family evidence 文件扩 **`typecheck` 项**（`command`/`exit_code`/`passed`，与既有 `test` 项同构）——engine 读回核验，缺任一 → `status: BLOCKED`（与 `behavior_change` 缺失同型）；相应 schema（evidence 形态）延展 + 读回逻辑
   - 守卫测试：`templates.test.ts` / `registry.test.ts`（engine）断言 task+branch `reviewTypeConfig` 的 **`lensEnum` 含 `"buildability"` 且 axesGuide 含 buildability 双证据文句**（`tsc` + `test` token）——两条并判，lens-tag 才可执行
   - ContractLexicon buildability 措辞经 checkWording + templates.test/registry.test 断言消费（**只读**——措辞写权全归 T5，本任务仅断言词表已含 buildability 双证据措辞，不新增词表）
-  - **路由说明（review→fix 输出面，user 2026-10-02 mid-flight —— spec 2.3 联动）**：review 的 `next:` fix 建议附 **`(read <handoff> back to confirm)`** 说明——`NextStepRouter`（C5 决策表）next-line 生成补携该读回提示 + 对应 result-face/next-step 测试断言 + contract-lexicon 通道措辞同步（若词表 restate `next:` 形态）——派发者在 fix 前读回 findings handoff 确认再 dispatch（本 phase 亲历先例：plan-review-1 先手读 handoff）
+  - **路由说明（review→fix 输出面，user 2026-10-02 mid-flight —— spec 2.3 联动）**：review 的 `next:` fix 建议附 **`(read <handoff> back to confirm)`** 说明——`NextStepRouter`（C5 决策表）next-line 生成补携该读回提示 + 对应 result-face/next-step 测试断言 + contract-lexicon `next:` 读回措辞**只读断言消费**（**只读**——restate 与否及措辞补全全归 T5 全量词表 scope，本任务仅断言词表已含该措辞、不新增词表；与同任务 buildability 措辞行同构，不产生第二写权）——派发者在 fix 前读回 findings handoff 确认再 dispatch（本 phase 亲历先例：plan-review-1 先手读 handoff）
   - **SKILL 面零动**（P3 zero-restate + P5 实测零命中）· README/CLAUDE.md 无消费故事变更
 - **验收**:
   - engine suite 全绿（含新断言：lensEnum 成员 + axesGuide 文句 + evidence `typecheck` 字段结构 + 缺项→BLOCKED 读回）
@@ -145,7 +145,7 @@
   - `docs/maintainers/05-third-party-dependencies.md`：unbuild 登记改 **retired** + `@typescript/typescript6` prose 行转述——**不得携带被禁 token 原文**（`build.config`/`dev:stub`/`@typescript/typescript6`/`globalSetup` 均转述：如「the old dev-stub chain」）
 - **验收**:
   - engine suite 全绿（黑盒经 `src/bin.ts` spawn——`CDD_MJS` 族改指后零 `dist/cli.mjs` 引用）· root vitest 绿 · `pnpm run precommit` 绿
-  - live 面 grep 零命中：`build.config` / `dev:stub` / `@typescript/typescript6` / `globalSetup`（历史 spec/plan 正文与发布面 schema/产物除外）
+  - live 面 grep 零命中：`build.config` / `dev:stub` / `@typescript/typescript6` / `globalSetup` / `@ts-ignore` / `@ts-expect-error`（live 面 = CLAUDE.md · `docs/maintainers/05` · engine README 对 · 源面/config 面——逃逸 token 并入本列表，与 T5 guard 合计 = 完整 live 面；历史 spec/plan 正文与发布面 schema/产物除外，live 面定义同 Constraints 契约）
   - `node packages/cdd-engine/src/bin.ts --help` exit 0
 - **注**: 本任务删目录面，但发布面（T8）仍在同组——删除中态不可验收，同组 atomic 落地；`pnpm install` 后 engine node_modules 需重解析（unbuild/TS6 移除）
 

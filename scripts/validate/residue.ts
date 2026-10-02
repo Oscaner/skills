@@ -1766,7 +1766,7 @@ export const steps = [
       // ↔ the engine-config env whitelist), same block, no new validate step (zero ci-validate
       // perturbation). T5 (P5) appends the zero-debt faces — checkEscape (the escape-directive
       // zero-hit) and checkMjs (the whole-repo source-plane prebuilt-module zero-hit) over the
-      // four source faces; checkWording additionally pins zero-debt restate zero-hit on the
+      // zero-debt source faces; checkWording additionally pins zero-debt restate zero-hit on the
       // orchestrator skills.
       const guard = new ContractLexiconGuard();
       assertLexiconZero("anatomy", guard.checkAnatomy());
@@ -1777,9 +1777,10 @@ export const steps = [
       // three-way) folds into checkHarness as its detect direction.
       assertLexiconZero("harness", guard.checkHarness({ engineConfig: loadContract() }));
       // T5 (P5): the zero-debt source faces — the escape-directive zero-hit + the whole-repo
-      // source-plane prebuilt-module zero-hit ride the same four faces (engine src · scripts ·
-      // kairos tests · source config); the product dist tree is outside them. The docs-face
-      // escape tokens are covered by the T7 live-face grep gate, not this scan.
+      // source-plane prebuilt-module zero-hit ride the same face set (engine src · scripts ·
+      // kairos tests · engine config · the migrated source-config plane); the product dist tree
+      // is outside them. The docs-face escape tokens are covered by the T7 live-face grep gate,
+      // not this scan.
       assertLexiconZero("escape", guard.checkEscape());
       assertLexiconZero("mjs", guard.checkMjs());
     },

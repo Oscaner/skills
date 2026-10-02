@@ -434,11 +434,11 @@ describe("ContractLexiconGuard.checkResidue — G2 cursor live-face guard (P3 T2
 });
 
 // ---------------------------------------------------------------------------
-// checkEscape / checkMjs — the T5 zero-debt source faces (four faces, ZERO_DEBT_FACES)
+// checkEscape / checkMjs — the T5 zero-debt source faces (five faces, ZERO_DEBT_FACES)
 // ---------------------------------------------------------------------------
 
-describe("ContractLexiconGuard.checkEscape — T5 escape-directive zero-hit (four source faces)", () => {
-  it("live repo: the four zero-debt faces carry zero escape directives (incl. engine + kairos test sites)", () => {
+describe("ContractLexiconGuard.checkEscape — T5 escape-directive zero-hit (the source faces)", () => {
+  it("live repo: the zero-debt faces carry zero escape directives (incl. engine + kairos test sites)", () => {
     expect(guard.checkEscape()).toEqual([]);
   });
 
@@ -500,21 +500,30 @@ describe("ContractLexiconGuard.checkEscape — T5 escape-directive zero-hit (fou
     }
   });
 
-  it("ZERO_DEBT_FACES pins the four source faces + the engine includeTests opt-in (scope shrink = fail)", () => {
+  it("ZERO_DEBT_FACES pins the five source faces + the engine includeTests opt-in (scope shrink = fail)", () => {
     expect(ZERO_DEBT_FACES.map((f) => f.targets[0])).toEqual([
       "packages/cdd-engine/src",
       "scripts",
       "packages/kairos/tests",
       "packages/cdd-engine/config",
+      "vitest.config.ts",
     ]);
     expect(ZERO_DEBT_FACES[0].includeTests).toBe(true); // engine src zeroing held in test sites
     expect(ZERO_DEBT_FACES[1].includeTests).toBe(false); // scripts self-exempts its __tests__
     for (const f of ZERO_DEBT_FACES.slice(2)) expect(Array.isArray(f.targets)).toBe(true);
+    // the source-config face = the T3-migrated config plane (the three .ts config files the
+    // whole-repo .mjs→.ts migration moved) — pinned in full so a config-target change also fails.
+    expect(ZERO_DEBT_FACES[4].targets).toEqual([
+      "vitest.config.ts",
+      "packages/cdd-engine/vitest.config.ts",
+      "lint-staged.config.ts",
+    ]);
+    expect(ZERO_DEBT_FACES[4].includeTests).toBe(false);
   });
 });
 
 describe("ContractLexiconGuard.checkMjs — T5 whole-repo source-plane prebuilt-module zero-hit", () => {
-  it("live repo: the four zero-debt faces carry zero prebuilt-module files", () => {
+  it("live repo: the zero-debt faces carry zero prebuilt-module files", () => {
     expect(guard.checkMjs()).toEqual([]);
   });
 

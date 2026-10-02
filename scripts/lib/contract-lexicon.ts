@@ -100,8 +100,8 @@ interface LexiconData {
     readbackAnnotation: string;
   };
   residue: { dataSources: string[]; bannedToken: string; soleAllowed: string };
-  /** T5: the escape-directive ban — the token set the guard's escape zero-hit scans across the
-   *  four zero-debt source faces (the guard body never holds the directives contiguously). */
+  /** The escape-directive ban — the token set the guard's escape zero-hit scans across the
+   *  zero-debt source faces (the guard body never holds the directives contiguously). */
   escape: { tokens: string[]; wording: string };
   /** T5: the zero-debt source-plane residue — the prebuilt-module extension token the source-face
    *  zero-hit scans (file-extension based; the product dist/ tree sits outside the faces). */
@@ -133,18 +133,25 @@ export const G2_LIVE_FACES: ResidueFace[] = [
   { targets: ["docs/maintainers"], includeTests: false },
 ];
 
-// T5 (P5): the four zero-debt source faces — the escape-directive zero-hit and the whole-repo
-// source-plane prebuilt-module zero-hit ride ONE face set (engine src · scripts · kairos tests ·
-// source config); the product face (the engine's dist/ tree) is deliberately outside the set — it
-// ships the built artifacts. Dispositions follow the G2 doctrine: engine src scans its test sites
-// (the T1/T2 zeroing held there too), scripts self-exempts its __tests__ (the guard's own
-// regression-test position), the kairos tests face is a test surface scanned in full, the source
-// config face has no test sites.
+// The zero-debt source faces — the escape-directive zero-hit and the whole-repo source-plane
+// prebuilt-module zero-hit ride ONE face set (engine src · scripts · kairos tests · the
+// engine-config data plane · the migrated source-config plane); the product face (the engine's
+// dist/ tree) is deliberately outside the set — it ships the built artifacts. Dispositions follow
+// the G2 doctrine: engine src scans its test sites (the T1/T2 zeroing held there too), scripts
+// self-exempts its __tests__ (the guard's own regression-test position), the kairos tests face is
+// a test surface scanned in full, the two config faces have no test sites. The last face pins the
+// T3-migrated source-config plane (root/engine vitest.config.ts + lint-staged.config.ts) — the
+// exact files the whole-repo .mjs→.ts migration moved; a deleted or renamed config target surfaces
+// as a missing-target guard failure, never a silent pass.
 export const ZERO_DEBT_FACES: ResidueFace[] = [
   { targets: ["packages/cdd-engine/src"], includeTests: true },
   { targets: ["scripts"], includeTests: false },
   { targets: ["packages/kairos/tests"], includeTests: true },
   { targets: ["packages/cdd-engine/config"], includeTests: false },
+  {
+    targets: ["vitest.config.ts", "packages/cdd-engine/vitest.config.ts", "lint-staged.config.ts"],
+    includeTests: false,
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -614,12 +621,13 @@ export class ContractLexiconGuard {
 
   /** checkEscape(faces?) — the escape-directive zero-hit (T5): the two TypeScript escape
    *  directives (token set from the lexicon's escape domain, never a literal in this body — the
-   *  guard must not become a carrier) settle to zero across the four zero-debt source faces
-   *  (ZERO_DEBT_FACES — engine src · scripts · kairos tests · source config, the same face set the
-   *  source-plane prebuilt-module zero-hit rides). The lexicon config file carries the directives
-   *  as data values — the shared data-row mask (isDataRow over the lexicon's residue dataSources)
-   *  releases them; anything else on the four faces fails. The docs face is covered by the T7
-   *  live-face grep gate, not this scan. facesOverride follows the collector injection pattern. */
+   *  guard must not become a carrier) settle to zero across the zero-debt source faces
+   *  (ZERO_DEBT_FACES — engine src · scripts · kairos tests · engine config · the migrated
+   *  source-config plane, the same face set the source-plane prebuilt-module zero-hit rides).
+   *  The lexicon config file carries the directives as data values — the shared data-row mask
+   *  (isDataRow over the lexicon's residue dataSources) releases them; anything else on the source
+   *  faces fails. The docs face is covered by the T7 live-face grep gate, not this scan.
+   *  facesOverride follows the collector injection pattern. */
   checkEscape(facesOverride?: ResidueFace[]): ResidueFinding[] {
     const dataSources = this.#lexicon.residue.dataSources;
     const tokens = this.#lexicon.escape.tokens;
@@ -642,8 +650,9 @@ export class ContractLexiconGuard {
 
   /** checkMjs(faces?) — the whole-repo source-plane prebuilt-module zero-hit (T5 residue-target
    *  upgrade): the prebuilt-module extension (token from the lexicon's zeroDebt domain) settles to
-   *  zero across the four zero-debt source faces (ZERO_DEBT_FACES). The check is file-extension
-   *  based (walkTargetFiles), never a content scan — a comment mention stays legal, a file of the
+   *  zero across the zero-debt source faces (ZERO_DEBT_FACES — engine src · scripts · kairos tests
+   *  · engine config · the migrated source-config plane). The check is file-extension based
+   *  (walkTargetFiles), never a content scan — a comment mention stays legal, a file of the
    *  banned extension on a source face fails. The product face (the engine's dist/ tree) is outside
    *  the face set and stays exempt — the published package ships real built artifacts there.
    *  facesOverride follows the collector injection pattern. */

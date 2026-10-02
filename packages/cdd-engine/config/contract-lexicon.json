@@ -1,5 +1,5 @@
 {
-  "_doc": "CDD engine contract lexicon — the single vocabulary source for the command contract (C6): the status-value vocab plus its dual-axis mapping, the stdout contract tokens (capsule + route anchors + the banned old-shape names), the G2 residue ban table, and the skill-anatomy schema reference. The harness contract data (rows / markers / refs) lives in the engine harness contract (config/harness-contract.json — the unique harness contract, C8); this file keeps the pure word tables. Ships to consumers via the build mirror entry (dist/config/contract-lexicon.json, same pipeline and cadence as the harness contract).",
+  "_doc": "CDD engine contract lexicon — the single vocabulary source for the command contract (C6): the status-value vocab plus its dual-axis mapping, the stdout contract tokens (capsule + route anchors + the banned old-shape names + the read-back annotation the review fix `next:` line carries), the G2 residue ban table, the T5 (P5) zero-debt domains (the escape-directive ban, the prebuilt-module source-plane residue, the review buildability dual-evidence wording), and the skill-anatomy schema reference. T5 restate decision: the read-back annotation and the zero-debt vocabulary are single-sourced here and on the engine command output — the orchestrator skill surface keeps zero literal restates. The harness contract data (rows / markers / refs) lives in the engine harness contract (config/harness-contract.json — the unique harness contract, C8); this file keeps the pure word tables. Ships to consumers via the build mirror entry (dist/config/contract-lexicon.json, same pipeline and cadence as the harness contract).",
   "status": {
     "vocab": [
       "APPROVED",
@@ -20,12 +20,25 @@
       "3-line return block",
       "4th line counters",
       "return block"
-    ]
+    ],
+    "readbackAnnotation": "(read <handoff> back to confirm)"
   },
   "residue": {
     "dataSources": ["harness-contract.json", "contract-lexicon.json"],
     "bannedToken": "cursor-agent",
     "soleAllowed": "registry cli data value"
+  },
+  "escape": {
+    "tokens": ["@ts-ignore", "@ts-expect-error"],
+    "wording": "the escape-directive ban — the two TypeScript escape directives settle to zero across the four zero-debt source faces (engine src · scripts · kairos tests · source config) and stay fully banned: any re-appearance fails the guard; the docs face is covered by the live-face grep gate"
+  },
+  "zeroDebt": {
+    "mjsToken": ".mjs",
+    "wording": "the zero-debt source plane — the repository source faces carry zero prebuilt-module files: the plane is fully typed (.ts), the product build emits under dist/ (excluded from the zero-debt faces), and the orchestrator skills keep zero literal restates of the zero-debt vocabulary"
+  },
+  "buildability": {
+    "dualEvidence": "Buildability dual-evidence — the reviewer explicitly runs the repository's typecheck command (tsc --noEmit, or the repo equivalent) AND its test command; a buildability finding asserts both commands ran (dual evidence, not a single check)",
+    "wording": "the review buildability axis — findings carry dual-evidence self-reports (typecheck + test both executed); the wording renders command descriptions, never a toolchain literal"
   },
   "anatomy": {
     "schemaPath": "packages/cdd-engine/config/schema/skill-anatomy.json",

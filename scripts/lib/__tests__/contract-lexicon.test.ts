@@ -19,7 +19,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { ORCHESTRATOR_SKILLS } from "../../validate/residue.ts";
-import { type AnatomyFinding, ContractLexiconGuard, G2_LIVE_FACES } from "../contract-lexicon.ts";
+import {
+  type AnatomyFinding,
+  ContractLexiconGuard,
+  G2_LIVE_FACES,
+  ZERO_DEBT_FACES,
+} from "../contract-lexicon.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..");
@@ -28,6 +33,13 @@ const LEXICON_SRC = path.join(REPO_ROOT, "packages/cdd-engine/config/contract-le
 const CONTRACT_SRC = path.join(REPO_ROOT, "packages/cdd-engine/config/harness-contract.json");
 
 const guard = new ContractLexiconGuard();
+
+// T5 (P5): the guarded zero-debt tokens, built by concatenation — the test position stays
+// zero-literal so a future scope extension (scripts tests included) cannot self-bite.
+const T5_TS_IGNORE = "@ts" + "-ignore";
+const T5_TS_EXPECT_ERROR = "@ts" + "-expect" + "-error";
+const T5_MJS = "." + "mjs";
+const T5_READBACK = "(read <" + "handoff> back to confirm)";
 
 // ---------------------------------------------------------------------------
 // The lexicon itself — five domains exist and agree with the engine facts
@@ -97,6 +109,31 @@ describe("contract-lexicon.json — the pure word-table domains + engine-facts c
       ? lex.anatomy.schemaPath
       : path.join(REPO_ROOT, lex.anatomy.schemaPath);
     expectExists(p);
+  });
+});
+
+describe("contract-lexicon.json — the T5 (P5) zero-debt / buildability / read-back domains", () => {
+  it("escape domain: the two escape directives + the ban wording are present", () => {
+    const lex = guard.lexicon();
+    expect(lex.escape.tokens).toEqual([T5_TS_IGNORE, T5_TS_EXPECT_ERROR]);
+    expect(lex.escape.wording.length).toBeGreaterThan(0);
+  });
+
+  it("zeroDebt domain: the prebuilt-module extension token rides the data", () => {
+    expect(guard.lexicon().zeroDebt.mjsToken).toBe(T5_MJS);
+    expect(guard.lexicon().zeroDebt.wording.length).toBeGreaterThan(0);
+  });
+
+  it("buildability domain: the dual-evidence wording carries the tsc + test tokens (T6 read-only consumption)", () => {
+    const dual = guard.lexicon().buildability.dualEvidence;
+    expect(dual.length).toBeGreaterThan(0);
+    expect(dual).toContain("tsc");
+    expect(dual).toContain("test");
+    expect(guard.lexicon().buildability.wording.length).toBeGreaterThan(0);
+  });
+
+  it("stdout domain: the canonical read-back annotation (the T5 restate decision — zero restate on the orchestrator surface)", () => {
+    expect(guard.lexicon().stdout.readbackAnnotation).toBe(T5_READBACK);
   });
 });
 
@@ -397,6 +434,117 @@ describe("ContractLexiconGuard.checkResidue — G2 cursor live-face guard (P3 T2
 });
 
 // ---------------------------------------------------------------------------
+// checkEscape / checkMjs — the T5 zero-debt source faces (four faces, ZERO_DEBT_FACES)
+// ---------------------------------------------------------------------------
+
+describe("ContractLexiconGuard.checkEscape — T5 escape-directive zero-hit (four source faces)", () => {
+  it("live repo: the four zero-debt faces carry zero escape directives (incl. engine + kairos test sites)", () => {
+    expect(guard.checkEscape()).toEqual([]);
+  });
+
+  it("an escape directive on a temp source file fails (engine face disposition: test sites included)", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "lex-escape-"));
+    try {
+      mkdirSync(path.join(dir, "__tests__"), { recursive: true });
+      writeFileSync(path.join(dir, "mech.ts"), `// ${T5_TS_IGNORE} restate\n`, "utf8");
+      writeFileSync(
+        path.join(dir, "__tests__", "m.test.ts"),
+        `// ${T5_TS_EXPECT_ERROR} restate\n`,
+        "utf8",
+      );
+      const hits = guard.checkEscape([{ targets: [dir], includeTests: true }]);
+      expect(hits.map((h) => h.file).join(" | ")).toContain("mech.ts");
+      expect(hits.map((h) => h.file).join(" | ")).toContain(path.join("__tests__", "m.test.ts"));
+      expect(hits[0].label).toContain("T5");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("the scripts disposition exempts its __tests__ (the guard's own regression position); a live file fails", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "lex-escape-ts-"));
+    try {
+      mkdirSync(path.join(dir, "__tests__"), { recursive: true });
+      writeFileSync(path.join(dir, "mech.ts"), `// ${T5_TS_IGNORE} restate\n`, "utf8");
+      writeFileSync(
+        path.join(dir, "__tests__", "t.test.ts"),
+        `// ${T5_TS_IGNORE} assertion site\n`,
+        "utf8",
+      );
+      const hits = guard.checkEscape([{ targets: [dir], includeTests: false }]);
+      expect(hits).toHaveLength(1);
+      expect(hits[0].file).toContain("mech.ts");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("the lexicon config data rows release (the directives ride data values); an out-of-data line fails", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "lex-escape-rl-"));
+    try {
+      writeFileSync(
+        path.join(dir, "contract-lexicon.json"),
+        `{ "tokens": ["${T5_TS_IGNORE}", "${T5_TS_EXPECT_ERROR}"] }\n`,
+        "utf8",
+      );
+      writeFileSync(
+        path.join(dir, "note.ts"),
+        `// ${T5_TS_IGNORE} outside the data domain\n`,
+        "utf8",
+      );
+      const hits = guard.checkEscape([{ targets: [dir], includeTests: true }]);
+      expect(hits).toHaveLength(1);
+      expect(hits[0].file).toContain("note.ts");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("ZERO_DEBT_FACES pins the four source faces + the engine includeTests opt-in (scope shrink = fail)", () => {
+    expect(ZERO_DEBT_FACES.map((f) => f.targets[0])).toEqual([
+      "packages/cdd-engine/src",
+      "scripts",
+      "packages/kairos/tests",
+      "packages/cdd-engine/config",
+    ]);
+    expect(ZERO_DEBT_FACES[0].includeTests).toBe(true); // engine src zeroing held in test sites
+    expect(ZERO_DEBT_FACES[1].includeTests).toBe(false); // scripts self-exempts its __tests__
+    for (const f of ZERO_DEBT_FACES.slice(2)) expect(Array.isArray(f.targets)).toBe(true);
+  });
+});
+
+describe("ContractLexiconGuard.checkMjs — T5 whole-repo source-plane prebuilt-module zero-hit", () => {
+  it("live repo: the four zero-debt faces carry zero prebuilt-module files", () => {
+    expect(guard.checkMjs()).toEqual([]);
+  });
+
+  it("a file of the banned extension fails by extension (never a content scan); test-site disposition rides the face", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "lex-mjs-"));
+    try {
+      const src = path.join(root, "src");
+      mkdirSync(path.join(src, "__tests__"), { recursive: true });
+      // The product dist tree sits OUTSIDE the faces (a sibling of the scanned src face) and stays
+      // exempt — the published package ships real built artifacts there.
+      mkdirSync(path.join(root, "dist"), { recursive: true });
+      writeFileSync(path.join(src, `bin${T5_MJS}`), "console.log(1)\n", "utf8");
+      writeFileSync(path.join(src, "__tests__", `node${T5_MJS}`), "// retired plane\n", "utf8");
+      writeFileSync(path.join(root, "dist", `out${T5_MJS}`), "// built artifact\n", "utf8");
+      const engineHits = guard.checkMjs([{ targets: [src], includeTests: true }]);
+      expect(engineHits.map((h) => h.file).join(" | ")).toContain(`bin${T5_MJS}`);
+      expect(engineHits.map((h) => h.file).join(" | ")).toContain(
+        path.join("__tests__", `node${T5_MJS}`),
+      );
+      expect(engineHits.map((h) => h.file).join(" | ")).not.toContain("dist");
+      const scriptsHits = guard.checkMjs([{ targets: [src], includeTests: false }]);
+      expect(scriptsHits).toHaveLength(1);
+      expect(scriptsHits[0].file).toContain(`bin${T5_MJS}`);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // checkWording — the C7 shape-restate guard
 // ---------------------------------------------------------------------------
 
@@ -439,6 +587,55 @@ describe("ContractLexiconGuard.checkWording — C7 shape-restate (P3 T4)", () =>
           "- **Read**: output contract — the status capsule and the `next:` suggestion",
           "- the counters recorded in the handoff and its `findings`",
           "- reduce prose after the counters report",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+      expect(guard.checkWording([file])).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // T5 (P5): the zero-debt restate guard — the escape directives / the prebuilt-module extension /
+  // the engine read-back annotation carry zero literal restates on the orchestrator skills (the
+  // read-back hint rides the actual command output; the restate decision = zero restate).
+  it("live orchestrator skills carry zero zero-debt restates (T5)", () => {
+    expect(guard.checkWording(ORCHESTRATOR_SKILLS)).toEqual([]);
+  });
+
+  it("each zero-debt token is intercepted on a temp file with the zero-debt label", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "lex-zd-"));
+    try {
+      const cases = [
+        { line: `the ${T5_TS_IGNORE} restate`, expect: T5_TS_IGNORE },
+        { line: `run the ${T5_MJS} plane`, expect: T5_MJS },
+        { line: `dispatch ${T5_READBACK}`, expect: T5_READBACK },
+      ];
+      for (const [i, c] of cases.entries()) {
+        const file = path.join(dir, `t${i}.md`);
+        writeFileSync(file, `${c.line}\n`, "utf8");
+        const hits = guard.checkWording([file]);
+        const zeroDebt = hits.filter((h) => h.label.includes("zero-debt"));
+        expect(zeroDebt.length).toBeGreaterThan(0);
+        expect(zeroDebt.map((h) => h.label).join(" | ")).toContain(c.expect);
+        expect(zeroDebt[0].line).toBe(1);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("neutral zero-debt behavior prose passes — the bans target the literal restates only (T5)", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "lex-zd-pass-"));
+    try {
+      const file = path.join(dir, "ok.md");
+      writeFileSync(
+        file,
+        [
+          "- read the `next:` suggestion for routing and dispatch per it when continuing directly",
+          "- the plan keeps the source plane fully typed; escaped directives stay banned in the repo",
+          "- read the handoff back to confirm before dispatching the fix",
           "",
         ].join("\n"),
         "utf8",

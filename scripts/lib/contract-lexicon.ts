@@ -26,7 +26,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { resolveResourceSrc } from "../../packages/cdd-engine/src/infra/resource.ts";
-import { escapeRegExp, isDataRow, scanLines } from "./scan.ts";
+import { escapeRegExp, isDataRow, scanLines, walkTargetFiles } from "./scan.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..");
@@ -91,8 +91,24 @@ export interface LexiconMarker {
 
 interface LexiconData {
   status: { vocab: string[]; axes: { judgment: string[]; work: string[] } };
-  stdout: { capsule: string[]; routeTokens: string[]; bannedShapeNames: string[] };
+  stdout: {
+    capsule: string[];
+    routeTokens: string[];
+    bannedShapeNames: string[];
+    /** T5: the read-back annotation the review fix `next:` line carries — single-sourced here and
+     *  on the engine command output; the orchestrator skill surface keeps zero literal restates. */
+    readbackAnnotation: string;
+  };
   residue: { dataSources: string[]; bannedToken: string; soleAllowed: string };
+  /** T5: the escape-directive ban — the token set the guard's escape zero-hit scans across the
+   *  four zero-debt source faces (the guard body never holds the directives contiguously). */
+  escape: { tokens: string[]; wording: string };
+  /** T5: the zero-debt source-plane residue — the prebuilt-module extension token the source-face
+   *  zero-hit scans (file-extension based; the product dist/ tree sits outside the faces). */
+  zeroDebt: { mjsToken: string; wording: string };
+  /** T5: the review buildability axis — the canonical dual-evidence wording (T6 consumes read-only
+   *  and writes no lexicon). */
+  buildability: { dualEvidence: string; wording: string };
   anatomy: { schemaPath: string; skillsRoot: string };
 }
 
@@ -115,6 +131,20 @@ export const G2_LIVE_FACES: ResidueFace[] = [
   { targets: ["packages/cdd-engine/src"], includeTests: true },
   { targets: ["scripts"], includeTests: false },
   { targets: ["docs/maintainers"], includeTests: false },
+];
+
+// T5 (P5): the four zero-debt source faces — the escape-directive zero-hit and the whole-repo
+// source-plane prebuilt-module zero-hit ride ONE face set (engine src · scripts · kairos tests ·
+// source config); the product face (the engine's dist/ tree) is deliberately outside the set — it
+// ships the built artifacts. Dispositions follow the G2 doctrine: engine src scans its test sites
+// (the T1/T2 zeroing held there too), scripts self-exempts its __tests__ (the guard's own
+// regression-test position), the kairos tests face is a test surface scanned in full, the source
+// config face has no test sites.
+export const ZERO_DEBT_FACES: ResidueFace[] = [
+  { targets: ["packages/cdd-engine/src"], includeTests: true },
+  { targets: ["scripts"], includeTests: false },
+  { targets: ["packages/kairos/tests"], includeTests: true },
+  { targets: ["packages/cdd-engine/config"], includeTests: false },
 ];
 
 // ---------------------------------------------------------------------------
@@ -579,33 +609,118 @@ export class ContractLexiconGuard {
   }
 
   // -------------------------------------------------------------------------
+  // checkEscape(faces?) / checkMjs(faces?) — the T5 zero-debt source faces
+  // -------------------------------------------------------------------------
+
+  /** checkEscape(faces?) — the escape-directive zero-hit (T5): the two TypeScript escape
+   *  directives (token set from the lexicon's escape domain, never a literal in this body — the
+   *  guard must not become a carrier) settle to zero across the four zero-debt source faces
+   *  (ZERO_DEBT_FACES — engine src · scripts · kairos tests · source config, the same face set the
+   *  source-plane prebuilt-module zero-hit rides). The lexicon config file carries the directives
+   *  as data values — the shared data-row mask (isDataRow over the lexicon's residue dataSources)
+   *  releases them; anything else on the four faces fails. The docs face is covered by the T7
+   *  live-face grep gate, not this scan. facesOverride follows the collector injection pattern. */
+  checkEscape(facesOverride?: ResidueFace[]): ResidueFinding[] {
+    const dataSources = this.#lexicon.residue.dataSources;
+    const tokens = this.#lexicon.escape.tokens;
+    const faces = facesOverride ?? ZERO_DEBT_FACES;
+    const hits: ResidueFinding[] = [];
+    for (const { targets, includeTests } of faces) {
+      for (const token of tokens) {
+        const re = new RegExp(escapeRegExp(token));
+        for (const { file, lineNo, text } of scanLines(targets, re, { includeTests })) {
+          if (isDataRow(dataSources, file, text, `"${token}"`)) continue; // lexicon data-value release form
+          hits.push({
+            label: `escape-directive zero-hit violation (T5 escape ban): ${token}`,
+            file: `${file}:${lineNo}`,
+          });
+        }
+      }
+    }
+    return hits;
+  }
+
+  /** checkMjs(faces?) — the whole-repo source-plane prebuilt-module zero-hit (T5 residue-target
+   *  upgrade): the prebuilt-module extension (token from the lexicon's zeroDebt domain) settles to
+   *  zero across the four zero-debt source faces (ZERO_DEBT_FACES). The check is file-extension
+   *  based (walkTargetFiles), never a content scan — a comment mention stays legal, a file of the
+   *  banned extension on a source face fails. The product face (the engine's dist/ tree) is outside
+   *  the face set and stays exempt — the published package ships real built artifacts there.
+   *  facesOverride follows the collector injection pattern. */
+  checkMjs(facesOverride?: ResidueFace[]): ResidueFinding[] {
+    const mjs = this.#lexicon.zeroDebt.mjsToken;
+    const faces = facesOverride ?? ZERO_DEBT_FACES;
+    const hits: ResidueFinding[] = [];
+    for (const { targets, includeTests } of faces) {
+      for (const abs of walkTargetFiles(targets, { includeTests })) {
+        if (abs.endsWith(mjs)) {
+          hits.push({
+            label:
+              "source-plane prebuilt-module residue (T5: the plane is all typed sources; the product dist tree excluded)",
+            file: path.relative(ROOT, abs),
+          });
+        }
+      }
+    }
+    return hits;
+  }
+
+  // -------------------------------------------------------------------------
   // checkWording(skills?) — the C7 shape-restate guard
   // -------------------------------------------------------------------------
 
-  /** checkWording(skills?) — the C7 wording guard: orchestrator skills keep zero engine-shape
-   *  restate. The banned shape names (the old-stdout special-name literals — `3-line return
-   *  block` / `4th line counters` / bare `return block`) come from the lexicon's stdout domain;
-   *  modern contract referents (`output contract` / `handoff` / `findings`) and standalone
-   *  `counters` (absorbed into the handoff namespace) are deliberately not in the set. The scan
+  /** checkWording(skills?) — the C7 wording guard + the T5 zero-debt restate guard: orchestrator
+   *  skills keep zero engine-shape restate AND zero zero-debt vocabulary restate. The banned shape
+   *  names (the old-stdout special-name literals — `3-line return block` / `4th line counters` /
+   *  bare `return block`) come from the lexicon's stdout domain; the T5 zero-debt vocabulary (the
+   *  escape directives / the prebuilt-module extension / the engine read-back annotation) comes
+   *  from the lexicon's escape / zeroDebt / stdout domains (data-derived, never a literal in this
+   *  body). Modern contract referents (`output contract` / `handoff` / `findings`) and standalone
+   *  `counters` (absorbed into the handoff namespace) are deliberately not in the set; the
+   *  read-back annotation rides the actual engine command output (T6 wires it onto the `next:`
+   *  line), so the skill surface keeps zero literal restates (the T5 restate decision). The scan
    *  covers the full file (the safety net beyond the plan's known hit surface). */
   checkWording(skills?: string[]): WordingFinding[] {
     if (!skills || skills.length === 0) return [];
-    const banned = this.#lexicon.stdout.bannedShapeNames;
+    return [
+      ...this.#wordingScan(
+        skills,
+        this.#lexicon.stdout.bannedShapeNames,
+        "engine-shape restate on the orchestrator surface (C7)",
+      ),
+      ...this.#wordingScan(
+        skills,
+        this.#zeroDebtBannedTokens(),
+        "zero-debt restate on the orchestrator surface (T5)",
+      ),
+    ];
+  }
+
+  /** The zero-debt ban set checkWording asserts on the orchestrator skills (T5): the escape
+   *  directives, the prebuilt-module extension, and the engine read-back annotation — sourced from
+   *  the lexicon data, never a literal restate (the guard body is not a carrier). */
+  #zeroDebtBannedTokens(): string[] {
+    return [
+      ...this.#lexicon.escape.tokens,
+      this.#lexicon.zeroDebt.mjsToken,
+      this.#lexicon.stdout.readbackAnnotation,
+    ];
+  }
+
+  /** One banned-word scan lane: line-level hits for a banned token set under a label kind. The
+   *  bare `return block` rule is subsumed by the `3-line return block` special name on the same
+   *  line (the dedicated fail name wins; the bare form targets unqualified use only). */
+  #wordingScan(skills: string[], banned: string[], kind: string): WordingFinding[] {
+    if (banned.length === 0) return [];
     const combined = new RegExp(banned.map((s) => escapeRegExp(s)).join("|"));
     const hits: WordingFinding[] = [];
     for (const { file, lineNo, text } of scanLines(skills, combined)) {
       const matched = banned.filter((shape) => new RegExp(escapeRegExp(shape)).test(text));
-      // The bare `return block` rule is subsumed by the `3-line return block` special name on the
-      // same line (the dedicated fail name wins; the bare form targets unqualified use only).
       const names =
         matched.includes("3-line return block") && matched.includes("return block")
           ? matched.filter((n) => n !== "return block")
           : matched;
-      hits.push({
-        label: `engine-shape restate on the orchestrator surface (C7): ${names.join(", ")}`,
-        file,
-        line: lineNo,
-      });
+      hits.push({ label: `${kind}: ${names.join(", ")}`, file, line: lineNo });
     }
     return hits;
   }

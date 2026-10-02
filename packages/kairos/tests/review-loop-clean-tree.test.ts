@@ -1,14 +1,15 @@
-// packages/kairos/tests/review-loop-clean-tree.test.mjs — P5 T10 assertion (one per skill):
+// packages/kairos/tests/review-loop-clean-tree.test.ts — P5 T10 assertion (one per skill):
 // the six orchestrator SKILL.md review-fix loop wordings uniformly carry the clean-tree
 // obligation — ensure the working tree is clean before entering review (spec §2.12 落点 4 + AC10).
 // Each assertion is scoped to the review-fix node's own block (split on `### ` headings), not the
 // whole file — a future edit that moves the obligation out of the loop node would fail here.
 // The mechanism is enforced by the engine's entry gate (dispatch/base.ts commitPreCheck — dirty →
 // BLOCKED); the skills only state the obligation and must not re-implement it.
-import { test } from "node:test";
+
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -24,11 +25,7 @@ const REVIEW_LOOP_NODES = {
   "cdd-charter": ["spec-review"],
   "cdd-plan": ["plan-review"],
   "cdd-dev": ["run-group-review", "branch-review"],
-  "cdd-design": [
-    "run-cdd-spec",
-    "run-cdd-charter",
-    "run-cdd-phase",
-  ],
+  "cdd-design": ["run-cdd-spec", "run-cdd-charter", "run-cdd-phase"],
 };
 
 const CLEAN_TREE_PHRASE = /ensure the working tree is clean before entering review/i;

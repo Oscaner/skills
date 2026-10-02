@@ -1,4 +1,4 @@
-// packages/kairos/tests/maintainers-docs.test.mjs — P4.2 Task 9 maintainers-docs probe
+// packages/kairos/tests/maintainers-docs.test.ts — P4.2 Task 9 maintainers-docs probe
 // Asserts the P4.2 Task 9 acceptance: the docs/maintainers family converged from six content docs
 // to five (01 template-doctrine merged; 02 naming / 03 context-caching / 04 program-experience /
 // 05 third-party-dependencies renumbered contiguous), zero old-numbered names on live surfaces,
@@ -8,10 +8,11 @@
 // stays within the plan anchor ≤ 53,000, the P4.4 final-state tokens are
 // registered in 02/05, and the smoke-cdd positioning (landed by P4.2 Task 4 ③) survives in 04.
 // Runs inside the `kairos node:test behavior tree` validate step.
-import { test } from "node:test";
+
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -69,7 +70,11 @@ function resolveLink(fromRel, link) {
 test("maintainers: content docs are exactly the five new-numbered files, zero old names present", () => {
   const names = readdirSync(MAINTAINERS).filter((n) => n.endsWith(".md"));
   const expected = [...CONTENT_DOCS, "README.md"].sort();
-  assert.deepEqual(names.sort(), expected, `docs/maintainers file set drifted: ${names.join(", ")}`);
+  assert.deepEqual(
+    names.sort(),
+    expected,
+    `docs/maintainers file set drifted: ${names.join(", ")}`,
+  );
 });
 
 for (const f of CONTENT_DOCS) {
@@ -90,7 +95,10 @@ test("maintainers: every markdown link inside docs/maintainers resolves", () => 
       const target = resolveLink(`docs/maintainers/${f}`, link);
       assert.ok(target, `non-file link ${link} in docs/maintainers/${f}`);
       assert.ok(existsSync(target), `unresolved link ${link} in docs/maintainers/${f}`);
-      assert.ok(statSync(target).isFile(), `link target not a file: ${link} in docs/maintainers/${f}`);
+      assert.ok(
+        statSync(target).isFile(),
+        `link target not a file: ${link} in docs/maintainers/${f}`,
+      );
     }
   }
 });
@@ -129,7 +137,10 @@ test("maintainers: total bytes within the plan anchor (≤ 53,000)", () => {
   const total = [...CONTENT_DOCS, "README.md"]
     .map((f) => bytesOf(`docs/maintainers/${f}`))
     .reduce((a, b) => a + b, 0);
-  assert.ok(total <= 53_000, `docs/maintainers total ${total} bytes exceeds the plan anchor 53,000`);
+  assert.ok(
+    total <= 53_000,
+    `docs/maintainers total ${total} bytes exceeds the plan anchor 53,000`,
+  );
 });
 
 test("maintainers: README convergence ledger matches the live files (After cells + anchor)", () => {

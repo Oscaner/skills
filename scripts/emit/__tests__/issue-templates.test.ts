@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { emitService } from "../all.ts";
 import { issueTemplatesEmitter } from "../issue-templates.ts";
-import { renderYml } from "../render-yaml.mjs";
+import { renderYml } from "../render-yaml.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const findingMeta = JSON.parse(

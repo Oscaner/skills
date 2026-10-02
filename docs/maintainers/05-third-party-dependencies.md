@@ -28,7 +28,7 @@ Remaining dev-only toolchain (registered; no hand-written counterpart — build/
 
 `yaml` is the single dependency with a hard isolation rule — decided in spec §2.13 (option (b): isolate rather than grow the plugin's dependency set):
 
-- **Only one module consumes it:** `scripts/emit/render-yaml.mjs`, an **emit-only** module. Its only runtime consumers are the emit toolchain (`scripts/emit/issue-templates.ts` — `.github/ISSUE_TEMPLATE/*.yml` emitter) and tests.
+- **Only one module consumes it:** `scripts/emit/render-yaml.ts`, an **emit-only** module. Its only runtime consumers are the emit toolchain (`scripts/emit/issue-templates.ts` — `.github/ISSUE_TEMPLATE/*.yml` emitter) and tests.
 - **It lives only in the repo root `devDependencies`** (emit toolchain) — never in any shipped package's `dependencies`.
 - **The consumer runtime carries zero third-party dependencies:** the aggregate-body renderer — cdd-engine's `IssueReportRenderer` (`cdd issue render`: stdin JSON → aggregate body → stdout) — **must not import `yaml`**: the form YAML is produced at emit time, so no consumer path touches it, and cdd-engine's dependency list has no `yaml`.
 - **It is forbidden to publish `yaml` as a kairos or cdd-engine runtime dependency.**

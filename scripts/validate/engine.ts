@@ -6,7 +6,7 @@
 // checkout. Since P3 T7 the engine's `prepare` hook (`dev:stub` on install) was REMOVED — the
 // install-time auto-stub is gone, so this step is the CI-face materialization (the standalone
 // `pnpm --filter @oscaner-skills/cdd-engine test` face is self-sufficient via the vitest
-// globalSetup — see vitest.config.mjs / vitest.global-setup.ts, D4).
+// globalSetup — see vitest.config.ts / vitest.global-setup.ts, D4).
 // 5b1 runs the engine Vitest suite (engine code moved out of bin/engine; `pnpm -C packages/cdd-engine test`).
 
 import { SubprocessBlock, validateRunner } from "./runner.ts";

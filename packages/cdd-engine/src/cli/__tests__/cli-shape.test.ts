@@ -11,7 +11,8 @@
 // **5b CLI 黑盒用例依赖「入口门意义下的干净树」（E2②/G4①，P6 T10）**：本文件 dry-run smoke 以
 // cwd=REPO_ROOT 黑盒运行，入口门（rules/commit.ts entryGateCleanTree）放行依赖两态之一——真实
 // 干净树，或 dirty + dry-run 的 CDD_WARN 降级（exit 0，纯模拟）。本文件的期望按「脏树也不 BLOCK」
-// 编写（E2② 文档化前置）：入口门/dry-run 协议语义变更需同步维护此处（详见 vitest.config.mjs 5b）。
+// authored per E2② (documented precondition): entry-gate/dry-run protocol semantic changes must be
+// kept in sync here (see vitest.config.ts 5b).
 
 import { rmSync } from "node:fs";
 import path from "node:path";

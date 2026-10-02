@@ -1,14 +1,14 @@
-// packages/cdd-engine/vitest.config.mjs
-import { defineConfig } from 'vitest/config';
+// packages/cdd-engine/vitest.config.ts
+import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
-    pool: 'forks',            // node:test 兼容模式（避免 worker_threads 干扰 execa mock）
+    pool: "forks", // node:test compatibility mode (avoids worker_threads interference with execa mocks)
     // 5b CLI black-box self-supply face (P3 T7/D4) — `prepare` (`pnpm run dev:stub`) is removed, so
     // `pnpm install` no longer auto-stubs dist; cdd.test.ts etc. spawn dist/cli.mjs directly.
     // validate 5b0 already covers the CI face; globalSetup backs local single runs: when dist/cli.mjs
     // is absent it runs `pnpm -C packages/cdd-engine dev:stub` first (self-supplying the standalone
     // face; an existing dist — a real build product — is left untouched). See vitest.global-setup.ts.
-    globalSetup: ['./vitest.global-setup.ts'],
+    globalSetup: ["./vitest.global-setup.ts"],
     // Memory-bounded concurrency (2026-09-17): the previous default spawned one
     // fork per CPU (10) with no per-file cap; each fork loads the full engine
     // (jiti stub → simple-git / handlebars / …) and spawns node CLI + git
@@ -25,7 +25,7 @@ export default defineConfig({
     // lives at src/**/__tests__/**/*.test.ts (tests/ retired; .mjs plane is zero).
     // All tests are TypeScript (vitest transforms TS via esbuild); any .mjs regressing
     // back into the engine is caught by the residue mjs-terminal-state guard (block 5c).
-    include: ['src/**/__tests__/**/*.test.ts'],
+    include: ["src/**/__tests__/**/*.test.ts"],
     // 5b CLI 黑盒用例依赖「入口门意义下的干净树」（E2②/G4①/P6 T10 文档化前置）：cdd.test.ts /
     // docs-task.test.ts / cli-shape.test.ts 的部分 dry-run 用例以 REPO_ROOT 为 cwd 黑盒运行 ——
     // 入口门放行依赖两态之一：真实干净树，或 dirty + dry-run 的 CDD_WARN 降级。跑测试时请勿带着
@@ -39,6 +39,6 @@ export default defineConfig({
     // wall time inflates under load (observed >5s on a busy machine). 20s guards the
     // default 5s budget without masking genuinely stuck tests.
     testTimeout: 20000,
-    coverage: { provider: 'v8' },
+    coverage: { provider: "v8" },
   },
 });

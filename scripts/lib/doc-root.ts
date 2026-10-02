@@ -4,7 +4,7 @@
 // cannot be written elsewhere.
 //
 // 消费方（仓工具链内）：
-//   - packages/kairos/tests/grep-sweep-regression.test.mjs → grep -v exclusion suffix
+//   - packages/kairos/tests/grep-sweep-regression.test.ts → grep -v exclusion suffix
 //
 export const DOC_ROOT_SEGMENTS = ["docs", "kairos"] as const;
 

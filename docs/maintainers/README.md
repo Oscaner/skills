@@ -12,14 +12,14 @@ Maintainer-only documents for this monorepo's developers (English-primary; not s
 
 ## P4.2 convergence ledger
 
-Task 9 merged the two template docs, trimmed program-experience, updated 02/05 to the P4.4 final state. Plan anchor: total ≤ 53 KB — `maintainers-docs.test.mjs` asserts each After cell against the live file.
+Task 9 merged the two template docs, trimmed program-experience, updated 02/05 to the P4.4 final state. Plan anchor: total ≤ 53 KB — `maintainers-docs.test.ts` asserts each After cell against the live file.
 
 | File | Before (B) | After (B) | Note |
 |---|---|---|---|
-| 01-template-doctrine.md | 14,378 | 10,297 | merged from 01 + 02 |
+| 01-template-doctrine.md | 14,378 | 10,295 | merged from 01 + 02 |
 | 02-naming-conventions.md | 7,994 | 8,969 | blocker bounded mapping added |
 | 03-context-caching-doctrine.md | 8,706 | 8,757 | row-key mirror (P3 T2) |
 | 04-program-experience.md | 21,773 | 12,830 | trimmed ~9 KB |
-| 05-third-party-dependencies.md | 10,018 | 10,138 | P4.4 deps registered + kairos rename |
-| README.md | 2,324 | 1,988 | index converged + kairos rename |
-| **Total** | 65,193 | 52,979 | plan anchor ≤ 53,000 |
+| 05-third-party-dependencies.md | 10,018 | 10,137 | P4.4 deps registered + kairos rename |
+| README.md | 2,324 | 1,987 | index converged + kairos rename |
+| **Total** | 65,193 | 52,975 | plan anchor ≤ 53,000 |

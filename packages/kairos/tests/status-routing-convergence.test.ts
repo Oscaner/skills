@@ -1,4 +1,4 @@
-// packages/kairos/tests/status-routing-convergence.test.mjs — C1 ①④ + C5 (T9) wording grep pin.
+// packages/kairos/tests/status-routing-convergence.test.ts — C1 ①④ + C5 (T9) wording grep pin.
 // The routing criterion's consumer-facing anchor: the five convergence-carrier SKILL.md files must
 // carry ZERO retired "blocker count" reading vocabulary and ZERO self-narrated S1/S2/S3 status→dispatch
 // routing restatement (the retired "review closes in three segments … S1 → fix + re-review / S2 → fix
@@ -9,10 +9,11 @@
 // node and the status edge labels, preserved verbatim), never as narrated routing. The check reads the
 // skill files directly (pure node:test, no shell grep chain) and asserts the required anchors so a
 // future convergence rewrite that drops the `next:` reading fails here.
-import { test } from "node:test";
+
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -21,13 +22,7 @@ const SKILLS_ROOT = path.resolve(HERE, "..", "skills");
 // The convergence carriers — the C1 ①④ status-routing re-anchor set (the five skills whose Review
 // Convergence words the orchestrator surface). Scope is self-describing: this is the set that
 // carries the convergence discipline, not an arbitrary file list.
-const CARRIERS = [
-  "cdd-dev",
-  "cdd-spec",
-  "cdd-charter",
-  "cdd-phase",
-  "cdd-plan",
-];
+const CARRIERS = ["cdd-dev", "cdd-spec", "cdd-charter", "cdd-phase", "cdd-plan"];
 
 // Retired wording — the "blocker count" read-interpretation vocabulary (M1/M3), the "three segments"
 // S1/S2/S3 self-narrated status→dispatch routing restatement (C5/T9), and the retired `status:` reading
@@ -109,6 +104,14 @@ for (const name of CARRIERS) {
 test("status-routing wording: cdd-dev Failure Modes ground BLOCKED via status + the stderr CDD_BLOCKED channel", () => {
   const skill = readFileSync(path.join(SKILLS_ROOT, "cdd-dev", "SKILL.md"), "utf8");
   const failureModes = skill.slice(skill.indexOf("## Failure Modes"));
-  assert.match(failureModes, /status: BLOCKED/, "Failure Modes must route on `status: BLOCKED` (M4)");
-  assert.match(failureModes, /CDD_BLOCKED:/, "Failure Modes must name the stderr `CDD_BLOCKED:` reason channel");
+  assert.match(
+    failureModes,
+    /status: BLOCKED/,
+    "Failure Modes must route on `status: BLOCKED` (M4)",
+  );
+  assert.match(
+    failureModes,
+    /CDD_BLOCKED:/,
+    "Failure Modes must name the stderr `CDD_BLOCKED:` reason channel",
+  );
 });

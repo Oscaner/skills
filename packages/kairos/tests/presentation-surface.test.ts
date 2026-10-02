@@ -1,4 +1,4 @@
-// packages/kairos/tests/presentation-surface.test.mjs — P4.2 Task 8 presentation-surface probe
+// packages/kairos/tests/presentation-surface.test.ts — P4.2 Task 8 presentation-surface probe
 // Asserts the README family and CLAUDE.md satisfy the P4.2 Task 8 acceptance — the three-stage
 // README skeleton (positioning → philosophy → behavior), the no-harness positioning sentence,
 // the four cdd philosophy anchors, the CLAUDE.md positioning sentence + Non-goal #1 exception +
@@ -15,10 +15,11 @@
 // registry layer — a known residual the P4 consumer story records rather than gates; content-level
 // verification and publish-source reproducibility carry the acceptance semantics (see the
 // pi-harness overall spec P1). This comment is the P4 continuation of that registration.
-import { test } from "node:test";
+
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -147,7 +148,11 @@ test("kairos README: philosophy walkthrough present (cdd as the distributed disc
   assert.match(md, /^## The kairos philosophy$/m, "kairos philosophy section missing");
   const section = sectionOf(md, OSP_PHILOSOPHY_HEADING);
   assert.match(section, /cdd/i, "cdd anchor missing in kairos philosophy");
-  assert.match(section, /implement|review|fix/, "mode-chain/engine anchor missing in kairos philosophy");
+  assert.match(
+    section,
+    /implement|review|fix/,
+    "mode-chain/engine anchor missing in kairos philosophy",
+  );
 });
 
 test("zh mirror set: exactly the root + two package mirrors, zero others", () => {
@@ -203,13 +208,7 @@ const ZH_HEADING_SEQUENCES = {
     "维护者文档",
     "许可",
   ],
-  "packages/cdd-engine/README.zh-CN.md": [
-    "包定位",
-    "安装",
-    "CLI",
-    "开发说明",
-    "许可",
-  ],
+  "packages/cdd-engine/README.zh-CN.md": ["包定位", "安装", "CLI", "开发说明", "许可"],
 };
 
 for (const [en, zh] of MIRROR_PAIRS) {
@@ -241,7 +240,11 @@ test("P4.1 behavior: root README plugin table carries no hand-written version (s
   // Zero hand-written versions (P4.2 "release with no hand-pinned versions"): the README plugin
   // table must not carry a \d+.\d+.\d+ pin — version single source = package.json -> marketplace
   // manifest -> npm (version-sync keeps the machine surface consistent)
-  assert.doesNotMatch(table, /\|\s*\d+\.\d+\.\d+\s*\|/, "README plugin table must not hand-pin a version");
+  assert.doesNotMatch(
+    table,
+    /\|\s*\d+\.\d+\.\d+\s*\|/,
+    "README plugin table must not hand-pin a version",
+  );
 });
 
 test("P4.1 behavior: kairos README skill inventory equals the shipped skills (dir × SKILL.md name double-pin)", () => {
@@ -303,7 +306,11 @@ test("P4.1 behavior: harness claims stay at the verified triple (claude + cursor
     /consumable across multiple AI coding harnesses \(verified on \*\*Claude Code\*\*, \*\*Cursor Agent\*\*, and \*\*Pi\*\*\)/,
     "root README must keep the P6 B1 neutral multi-harness claim with the verified triple",
   );
-  assert.doesNotMatch(root, /8 harnesses|Trae|Vibe|Kiro|OpenCode/, "unverified harness claims leaked back into README.md");
+  assert.doesNotMatch(
+    root,
+    /8 harnesses|Trae|Vibe|Kiro|OpenCode/,
+    "unverified harness claims leaked back into README.md",
+  );
   // The triple-wordings ride the T4-deployed claim surface on all four README claim files (root
   // EN/zh + kairos EN/zh) — a pair-form regression anywhere fails; the foreign-claim ban holds.
   assert.match(
@@ -379,7 +386,10 @@ function nominalRow(contract, id) {
 /** Parse a nominal-table data row (backticked cli + marker cells stripped) into the derived shape;
  *  rows without a backticked second cell (header / separator) return null. */
 function parseNominalRow(line) {
-  const cells = line.split("|").map((c) => c.trim()).filter(Boolean);
+  const cells = line
+    .split("|")
+    .map((c) => c.trim())
+    .filter(Boolean);
   if (cells.length !== 4 || !cells[1].startsWith("`")) return null;
   return {
     id: cells[0],

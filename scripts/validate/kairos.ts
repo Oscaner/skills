@@ -2,7 +2,7 @@
 
 // scripts/validate/kairos.ts — 5b block: kairos plugin validation.
 // Five step descriptors in original run order — marker / skills-count / node:test
-// trees / wiring guard (ci-validate.test.mjs) / pi-package well-formed. The
+// trees / wiring guard (ci-validate.test.ts) / pi-package well-formed. The
 // cdd-engine Vitest suite lives in engine.ts; index.ts splices it after the first
 // four steps of this block, leaving the pi-package check to close the block.
 
@@ -18,8 +18,8 @@ function assert(cond, msg) {
 }
 
 // Single definition of "a skill = directory containing SKILL.md" — shared by the skills-count
-// check below, the pi-package well-formed guard, and the behavior tests (pi-package.test.mjs,
-// pi-install-smoke.test.mjs): a definition change needs this one edit only.
+// check below, the pi-package well-formed guard, and the behavior tests (pi-package.test.ts,
+// pi-install-smoke.test.ts): a definition change needs this one edit only.
 export function countSkillsWithMarkdown(dir) {
   return readdirSync(dir, { withFileTypes: true }).filter(
     (e) => e.isDirectory() && existsSync(path.join(dir, e.name, "SKILL.md")),
@@ -27,8 +27,8 @@ export function countSkillsWithMarkdown(dir) {
 }
 
 // Authoritative skills count — module-level single source of truth shared by the skills-count
-// check below and the behavior tests (packages/kairos/tests/pi-package.test.mjs,
-// packages/kairos/tests/pi-install-smoke.test.mjs).
+// check below and the behavior tests (packages/kairos/tests/pi-package.test.ts,
+// packages/kairos/tests/pi-install-smoke.test.ts).
 export const EXPECTED = 8; // init (deleted at T10) + 3 spec-writer skills (cdd-spec / cdd-charter / cdd-phase)
 
 function checkKairosSkillsCount() {
@@ -84,8 +84,8 @@ function checkPiPackageWellFormed(pkgRoot) {
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..");
 
-// node:test trees: behavior/integration (packages/kairos/tests: helpers.mjs
-// + ci-validate.test.mjs). T16 removed the rule-reference suite (semantic mode)
+// node:test trees: behavior/integration (packages/kairos/tests: helpers.ts
+// + ci-validate.test.ts). T16 removed the rule-reference suite (semantic mode)
 // with its wiring. T2 removed the harness selection/detection/install layers — the init-suite and utils-suite globs (bin/init/tests, bin/utils/tests)
 // are gone with them. Globs rather than bare directories — node --test <dir> loads the
 // dir as a module here and fails; the runner expands the globs. The legacy bash engine
@@ -104,12 +104,12 @@ export const steps = [
   new SubprocessBlock({
     name: "kairos node:test behavior tree",
     cmd: "node",
-    args: ["--test", "packages/kairos/tests/*.test.mjs"],
+    args: ["--test", "packages/kairos/tests/*.test.ts"],
   }),
   new SubprocessBlock({
-    name: "validate wiring guard (ci-validate.test.mjs)",
+    name: "validate wiring guard (ci-validate.test.ts)",
     cmd: "node",
-    args: ["--test", "packages/kairos/tests/ci-validate.test.mjs"],
+    args: ["--test", "packages/kairos/tests/ci-validate.test.ts"],
   }),
   new CheckBlock({
     name: "kairos pi-package well-formed",

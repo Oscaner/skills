@@ -9,7 +9,7 @@
 // **5b CLI 黑盒用例依赖「入口门意义下的干净树」（E2②/G4①，P6 T10）**：docs 家族 dry-run（review/
 // fix --type spec|plan）以 cwd=REPO_ROOT 黑盒运行，入口门（rules/commit.ts）放行依赖两态之一——
 // 真实干净树，或 dirty + dry-run 的 CDD_WARN 降级（exit 0，纯模拟）。本文件期望按 E2② 编写；
-// 入口门/dry-run 协议语义变更需同步维护此处（详见 vitest.config.mjs 5b）。
+// Entry-gate/dry-run protocol semantic changes must be kept in sync here (see vitest.config.ts 5b).
 
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";

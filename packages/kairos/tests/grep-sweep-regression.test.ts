@@ -1,11 +1,12 @@
-// packages/kairos/tests/grep-sweep-regression.test.mjs — P13 grep sweep regression guard
+// packages/kairos/tests/grep-sweep-regression.test.ts — P13 grep sweep regression guard
 // Verifies all deleted-skill tokens remain zero in the in-scope tree.
-import { test } from "node:test";
+
 import assert from "node:assert/strict";
 import { execSync } from "node:child_process";
 import path from "node:path";
+import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { DOC_ROOT_SEGMENTS, DOC_ROOT_EXCLUDE_PATHS } from "../../../scripts/lib/doc-root.ts";
+import { DOC_ROOT_EXCLUDE_PATHS, DOC_ROOT_SEGMENTS } from "../../../scripts/lib/doc-root.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..", "..", "..");
@@ -16,9 +17,11 @@ const DOC_ROOT_PREFIX = `| grep -v "${DOC_ROOT_SEGMENTS.join("/")}/" `;
 
 function grepCount(pattern, extraArgs = "") {
   try {
-    const cmd = `grep -rn "${pattern}" ${extraArgs} packages/ docs/ README.md marketplace/source.json --include="*.md" --include="*.json" --include="*.mjs" 2>/dev/null | grep -v "/CHANGELOG.md" ${DOC_ROOT_EXCLUDES}| grep -v "validate-overrides-build.mjs" | grep -v "grep-sweep-regression.test.mjs" | wc -l`;
+    const cmd = `grep -rn "${pattern}" ${extraArgs} packages/ docs/ README.md marketplace/source.json --include="*.md" --include="*.json" --include="*.ts" 2>/dev/null | grep -v "/CHANGELOG.md" ${DOC_ROOT_EXCLUDES}| grep -v "grep-sweep-regression.test.ts" | wc -l`;
     return parseInt(execSync(cmd, { cwd: REPO, encoding: "utf8" }).trim(), 10);
-  } catch { return 0; }
+  } catch {
+    return 0;
+  }
 }
 
 // Tokens that must be zero in-scope
@@ -60,7 +63,7 @@ for (const [token, desc] of SKILL_ONLY_TOKENS) {
 
 // --prompt (exclude bin/engine/tests/)
 test('grep sweep: "--prompt" in live code (excl. engine tests) → 0 hits', () => {
-  const cmd = `grep -rn "\\-\\-prompt" packages/ --include="*.md" --include="*.json" --include="*.mjs" 2>/dev/null | grep -v "/CHANGELOG.md" | grep -v "bin/engine/tests/" | grep -v "grep-sweep-regression.test.mjs" | wc -l`;
+  const cmd = `grep -rn "\\-\\-prompt" packages/ --include="*.md" --include="*.json" --include="*.ts" 2>/dev/null | grep -v "/CHANGELOG.md" | grep -v "bin/engine/tests/" | grep -v "grep-sweep-regression.test.ts" | wc -l`;
   const count = parseInt(execSync(cmd, { cwd: REPO, encoding: "utf8" }).trim(), 10);
   assert.equal(count, 0, `"--prompt" has ${count} live-code hits`);
 });
@@ -71,14 +74,14 @@ test('grep sweep: "--prompt" in live code (excl. engine tests) → 0 hits', () =
 // the filter is dead (measured 0 hits either way) and would mask a future
 // re-appearance of the old path.
 test('grep sweep: "docs/cdd-reference" old path → 0 hits', () => {
-  const cmd = `grep -rn "docs/cdd-reference" packages/ docs/ --include="*.md" --include="*.json" 2>/dev/null | grep -v "/CHANGELOG.md" ${DOC_ROOT_PREFIX}| grep -v "grep-sweep-regression.test.mjs" | wc -l`;
+  const cmd = `grep -rn "docs/cdd-reference" packages/ docs/ --include="*.md" --include="*.json" 2>/dev/null | grep -v "/CHANGELOG.md" ${DOC_ROOT_PREFIX}| grep -v "grep-sweep-regression.test.ts" | wc -l`;
   const count = parseInt(execSync(cmd, { cwd: REPO, encoding: "utf8" }).trim(), 10);
   assert.equal(count, 0, `"docs/cdd-reference" old path has ${count} hits`);
 });
 
 // Special token: subagent-driven-development (allowed in vendor path + maintainer docs)
 test("grep sweep: subagent-driven-development in non-vendor/non-maintainer code → 0 hits", () => {
-  const cmd = `grep -rn "subagent-driven-development" packages/kairos/skills/ docs/ README.md marketplace/source.json --include="*.md" --include="*.json" --include="*.mjs" 2>/dev/null | grep -v "/CHANGELOG.md" ${DOC_ROOT_EXCLUDES}| grep -v "runner.mjs" | grep -v "runner.test.mjs" | grep -v "overrides.manifest.json" | grep -v "prompt-expansion.mjs" | grep -v "cursor-detect.mjs" | grep -v "docs/maintainers/" | wc -l`;
+  const cmd = `grep -rn "subagent-driven-development" packages/kairos/skills/ docs/ README.md marketplace/source.json --include="*.md" --include="*.json" --include="*.ts" 2>/dev/null | grep -v "/CHANGELOG.md" ${DOC_ROOT_EXCLUDES}| grep -v "grep-sweep-regression.test.ts" | grep -v "docs/maintainers/" | wc -l`;
   const count = parseInt(execSync(cmd, { cwd: REPO, encoding: "utf8" }).trim(), 10);
   assert.equal(count, 0, `subagent-driven-development has ${count} non-vendor/non-maintainer hits`);
 });

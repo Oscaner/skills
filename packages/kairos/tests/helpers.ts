@@ -1,7 +1,7 @@
-// packages/kairos/tests/helpers.mjs — shared helpers for behavior/integration tests (Node port of test-lib.sh
-// `harness_free_path` + cdd-commit-gate-smoke.sh `setup_repo` fixture）。
+// packages/kairos/tests/helpers.ts — shared helpers for behavior/integration tests (Node port
+// of test-lib.sh `harness_free_path` + cdd-commit-gate-smoke.sh `setup_repo`).
 //
-// Distinct layer from bin/engine/tests/ (module unit tests, their helpers inline): this file serves
+// Distinct layer from the engine module unit tests (their helpers are inline): this file serves
 // the behavior/integration test tree under packages/kairos/tests/ (bash boundary tests).
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -14,10 +14,10 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 // the row `cli` fields are what the free-path filter must drop from PATH.
 const REG_PATH = path.resolve(HERE, "../../cdd-engine/config/harness-contract.json");
 
-// harness_free_path（test-lib.sh）—— 丢弃每个含 registry CLI 二进制的 PATH 目录，使
-// 宿主真实 CLI（claude/cursor-agent/droid/pi/codex/...）无法穿透 mock-PATH 场景泄漏。
-// 默认读真实 registry + process.env.PATH；可传 registryPath / pathValue 覆盖（对齐
-// exec.test.mjs / select.test.mjs 的内联版语义）。
+// harness_free_path — drop every PATH directory that contains a registry CLI binary, so the
+// host's real CLIs (claude/cursor-agent/droid/pi/codex/...) cannot leak through a mock-PATH
+// scenario. Reads the real registry + process.env.PATH by default; registryPath / pathValue
+// overrides match the inline versions' semantics.
 export function harnessFreePath({ registryPath = REG_PATH, pathValue = process.env.PATH } = {}) {
   const reg = JSON.parse(readFileSync(registryPath, "utf8"));
   const clis = Object.values(reg)
@@ -39,18 +39,31 @@ export function harnessFreePath({ registryPath = REG_PATH, pathValue = process.e
     .join(path.delimiter);
 }
 
-// setup_repo（cdd-commit-gate-smoke.sh）—— 新 git repo，tracked .gitignore 忽略 cdd/
-// （workspace 目录，镜像真实 repo：fixture 文件放 cdd/ 下不弄脏 tracked tree）。
-// 返回 repo 绝对路径。
+// setup_repo — a fresh git repo whose tracked .gitignore ignores cdd/ (the workspace dir,
+// mirroring a real repo: fixture files live under cdd/ without dirtying the tracked tree).
+// Returns the repo's absolute path.
 export function setupRepo({ prefix = "cdd-behavior-" } = {}) {
   const dest = mkdtempSync(path.join(tmpdir(), prefix));
   writeFileSync(path.join(dest, ".gitignore"), "cdd/\n");
   git(dest, "init", "-q");
   git(dest, "add", "-A");
-  git(dest, "-c", "user.name=cdd-gate-test", "-c", "user.email=cdd-gate-test@example.com", "commit", "--allow-empty", "-qm", "fixture");
+  git(
+    dest,
+    "-c",
+    "user.name=cdd-gate-test",
+    "-c",
+    "user.email=cdd-gate-test@example.com",
+    "commit",
+    "--allow-empty",
+    "-qm",
+    "fixture",
+  );
   return dest;
 }
 
 function git(repo, ...args) {
-  return execFileSync("git", ["-C", repo, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  return execFileSync("git", ["-C", repo, ...args], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  }).trim();
 }

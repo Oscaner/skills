@@ -1561,7 +1561,7 @@ describe("live repo：T16 skills 面守卫 5 条零残留", () => {
 
 // ---- Task 3（P6）：.mjs 终态 + vitest 内存守卫双 config + walk 自豁免（spec 域 C，M5/M6）----
 // M5（brief ⑤）：src 恒真 0 `.mjs`（48 测试节点 + helpers + fixtures 全转 `.ts`）+ tests/ 退役 0。
-// M6（brief ⑥）：engine root + 仓库根 双 vitest.config.mjs 固化 maxWorkers=1/fileParallelism=false/
+// M6 (brief ⑥): engine root + repo root dual vitest.config.ts pins maxWorkers=1/fileParallelism=false/
 // maxConcurrency=2（2026-09-17 CPU 级 fork 池 OOM 后收敛）。self-exempt doctrine：walkTargetFiles
 // 默认跳过 `**/__tests__/`（迁就近后测试位并入 src 树），机制扫描不得采信测试位断言（其必携被守
 // 语汇）；需扫测试位的守卫（seam 缝 / 旧根解析名）经 `{ includeTests: true }` 显式打开。

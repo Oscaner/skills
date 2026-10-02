@@ -7,10 +7,10 @@
 // manifests; scripts unit; package version sync), and (c) exclude ONLY the engine
 // black-box surface (cdd-engine dev stub materialization / engine test suite
 // (vitest)) — the blocks whose cwd=REPO_ROOT dispatch depends on entry-gate tree
-// cleanliness. The full validate composition is pinned by name-set in index.ts —
-// wired by the ci-validate.test.mjs guard.
+// cleanliness. The full validate composition is pinned by name-set in orchestrate.ts —
+// wired by the ci-validate.test.ts guard.
 import { describe, expect, it } from "vitest";
-import { steps as fullSteps } from "../index.ts";
+import { steps as fullSteps } from "../orchestrate.ts";
 import { steps as subsetSteps } from "../pre-commit.ts";
 
 describe("pre-commit subset (G4/P6 Task 17)", () => {
@@ -26,7 +26,7 @@ describe("pre-commit subset (G4/P6 Task 17)", () => {
         "kairos skills inventory count",
         "kairos pi-package well-formed",
         "kairos node:test behavior tree",
-        "validate wiring guard (ci-validate.test.mjs)",
+        "validate wiring guard (ci-validate.test.ts)",
         "engine zero residue + channel audit",
         "marketplace manifests validate",
         "scripts unit tests (vitest)",
@@ -48,7 +48,7 @@ describe("pre-commit subset (G4/P6 Task 17)", () => {
       "kairos skills inventory count",
       "kairos pi-package well-formed",
       "kairos node:test behavior tree",
-      "validate wiring guard (ci-validate.test.mjs)",
+      "validate wiring guard (ci-validate.test.ts)",
       "cdd-engine dev stub materialization",
       "cdd-engine engine test suite (vitest)",
       "engine zero residue + channel audit",

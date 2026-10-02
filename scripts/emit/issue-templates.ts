@@ -15,7 +15,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { renderYml } from "./render-yaml.mjs";
+import { renderYml } from "./render-yaml.ts";
 
 const META_PATH = fileURLToPath(
   new URL("../../packages/cdd-engine/templates/report/issue-body.json", import.meta.url),

@@ -1,45 +1,16 @@
 #!/usr/bin/env node
-// scripts/validate/index.ts — validate orchestration (`node scripts/run.ts
-// validate` / standalone `node scripts/validate/index.ts`). Composes the
-// per-block ValidateBlock instances from scripts/validate/*.ts into the original
-// run order and exposes `steps` + `main()` so the wiring guard
-// (packages/kairos/tests/ci-validate.test.mjs) can assert kairos
-// coverage is not dropped. The runner loop + isMain guard live in ValidateRunner
-// (runner.ts).
-//
-// Failure is structured: `console.error("== FAIL: <step> ==")` + message, and
-// main() returns 1 (run.ts turns a numeric return into process.exitCode).
 
-import { steps as emitCheckSteps } from "./emit-check.ts";
-import { steps as engineSteps } from "./engine.ts";
-import { steps as kairosSteps } from "./kairos.ts";
-import { steps as libTestsSteps } from "./lib-tests.ts";
-import { steps as marketplaceSteps } from "./marketplace.ts";
-import { steps as residueSteps } from "./residue.ts";
+// scripts/validate/index.ts — validate orchestration entry (`node scripts/run.ts
+// validate` / standalone `node scripts/validate/index.ts`). The composed steps and
+// main() live in orchestrate.ts — a named non-index entry the wiring guard
+// (packages/kairos/tests/ci-validate.test.ts) and the pre-commit subset test import
+// without a directory-index specifier (explicit `./index.ts` imports are TS2307 under
+// the T4 nodenext typecheck). This file re-exports the composition and wires the
+// standalone-execution guard (only the directly-run module's guard fires).
+
+import { main, steps } from "./orchestrate.ts";
 import { validateRunner } from "./runner.ts";
-import { steps as versionSyncSteps } from "./version-sync.ts";
 
-// Original step order: the cdd-engine engine test suite follows the kairos
-// step block (plugin resolution / skills inventory count / node:test behavior
-// tree / validate wiring guard) — engine steps are spliced after the first four
-// kairos steps; the pi-package well-formed check closes the block after the
-// engine suite, keeping the composition literal. The
-// submodule self-maintenance block (13th) was removed with the vendors surface
-// (P6 Task 2 / B3, submodule.mjs deleted). The repo-side four-table guard block
-// (12th) was retired with the S1/S2 guards (P3 T1).
-export const steps = [
-  ...emitCheckSteps,
-  ...kairosSteps.slice(0, 4),
-  ...engineSteps,
-  ...kairosSteps.slice(4),
-  ...residueSteps,
-  ...marketplaceSteps,
-  ...libTestsSteps,
-  ...versionSyncSteps,
-];
-
-export function main(stepsArg = steps) {
-  return validateRunner.run(stepsArg);
-}
+export { main, steps };
 
 validateRunner.runIfMain(import.meta.url, steps);

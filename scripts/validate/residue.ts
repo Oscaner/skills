@@ -24,7 +24,7 @@
 // path form) zero-hit, with the negative lookbehind exempting canonical schema filenames — the
 // handoff-schema.md deletion ships in the same commit as the guard.
 // The grepTargets meta is consumed by the wiring guard
-// (packages/kairos/tests/ci-validate.test.mjs) to pin the target set.
+// (packages/kairos/tests/ci-validate.test.ts) to pin the target set.
 
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -209,7 +209,7 @@ const STALE_LEXICON_CHECKS = [
   // ["./skills"] }`), so the residual `\bpi\b` branch is retired wholesale — the old "dead
   // residue" premise collapsed when pi became the shipped manifest face (no precise regex, no
   // narrowed scope, no blind pass; the pi contract is pinned instead by
-  // packages/kairos/tests/pi-package.test.mjs).
+  // packages/kairos/tests/pi-package.test.ts).
   {
     label: ".agents/ emit-surface regression (post-A5 removal)",
     re: /\.agents(\/|$)/m,
@@ -1153,7 +1153,7 @@ function checkMjsTerminalState() {
   console.log("OK — .mjs terminal state (src always-truly 0 .mjs, tests/ retired at 0)");
 }
 
-// M6 (brief ⑥): memory-guard recheck — the engine root + repo root dual vitest.config.mjs must
+// M6 (brief ⑥): memory-guard recheck — the engine root + repo root dual vitest.config.ts must
 // hold maxWorkers=1 + fileParallelism=false + maxConcurrency=2 (converged after the 2026-09-17
 // CPU-level fork-pool OOM; any divergence in either config is drift, pinned to the same values
 // here). The presence assertion is conservative — passing when both carry the values.
@@ -1163,8 +1163,8 @@ const MEMORY_GUARD_INVARIANTS = [
   ["maxConcurrency=2", "maxConcurrency: 2"],
 ];
 const VITEST_CONFIGS = [
-  ["packages/cdd-engine/vitest.config.mjs", "engine root"],
-  ["vitest.config.mjs", "repo root"],
+  ["packages/cdd-engine/vitest.config.ts", "engine root"],
+  ["vitest.config.ts", "repo root"],
 ];
 export function collectMemoryGuardViolations() {
   const out = [];

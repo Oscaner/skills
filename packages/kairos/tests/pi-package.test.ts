@@ -1,14 +1,15 @@
-// packages/kairos/tests/pi-package.test.mjs — C1 source fields + C3 manifest contract pin.
+// packages/kairos/tests/pi-package.test.ts — C1 source fields + C3 manifest contract pin.
 // Pins the live packages/kairos/package.json manifest contract for the pi harness:
 // the `pi-package` keyword, the `pi.skills` declaration, the R0 invariant (no extensions /
 // prompts keys), the skills-count truth (the shared countSkillsWithMarkdown + module-level
 // EXPECTED export from scripts/validate/kairos.ts — never a local literal), and the
 // static files closure (pi-declared paths ⊆ pkg.files whitelist). Pure static fs +
 // node:assert; zero subprocesses, zero engine invocation at runtime.
-import { test } from "node:test";
+
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { countSkillsWithMarkdown, EXPECTED } from "../../../scripts/validate/kairos.ts";
@@ -33,10 +34,7 @@ test("live package.json declares the pi source fields", () => {
 test("pi declares no extensions/prompts keys (R0 invariant)", () => {
   const pkg = loadPackage();
   for (const key of ["extensions", "prompts"]) {
-    assert.ok(
-      !Object.prototype.hasOwnProperty.call(pkg.pi ?? {}, key),
-      `pi must not declare an ${key} key`,
-    );
+    assert.ok(!Object.hasOwn(pkg.pi ?? {}, key), `pi must not declare an ${key} key`);
   }
 });
 
@@ -90,12 +88,20 @@ test("pi.skills glob resolution set == the {dir, name} scan set (exactly 8 cdd-*
     .map((e) => e.name)
     .sort();
   assert.equal(resolved.length, 8, "pi.skills globs must resolve exactly the 8 shipped skills");
-  assert.deepEqual(resolved, scanned, "pi.skills glob resolution set must equal the skills/ dir scan");
+  assert.deepEqual(
+    resolved,
+    scanned,
+    "pi.skills glob resolution set must equal the skills/ dir scan",
+  );
   for (const name of scanned) {
     assert.match(name, /^cdd-/, `every pi-resolved skill must be a cdd-* family name: ${name}`);
     const md = readFileSync(path.join(skillsDir, name, "SKILL.md"), "utf8");
     const picked = md.match(/^name:\s*(.+)$/m);
     assert.ok(picked, `SKILL.md in ${name} missing a name: front-matter field`);
-    assert.equal(picked[1].trim(), name, `SKILL.md front-matter name: must equal its directory name ${name}`);
+    assert.equal(
+      picked[1].trim(),
+      name,
+      `SKILL.md front-matter name: must equal its directory name ${name}`,
+    );
   }
 });

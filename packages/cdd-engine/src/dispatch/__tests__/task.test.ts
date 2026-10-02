@@ -1,5 +1,5 @@
 // packages/cdd-engine/src/dispatch/__tests__/task.test.ts
-// exercised through the merged single CLI (dist/cli.mjs). Invocations map:
+// exercised through the merged single CLI (src/bin.ts). Invocations map:
 //   cdd-task --mode implement    → cdd implement
 //   (legacy review mode)         → cdd review --type task (mode 名归一后 runner CDD_MODE=review)
 //   cdd-task --mode fix          → cdd fix --type task
@@ -30,7 +30,7 @@ import { gitCommit, gitInit } from "../../infra/__tests__/helpers.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..", "..", "..");
-const CDD_MJS = path.join(REPO_ROOT, "packages/cdd-engine/dist/cli.mjs");
+const CDD_TS = path.join(REPO_ROOT, "packages/cdd-engine/src/bin.ts");
 
 // Test env: strip any CDD_* inherited from an orchestrator session, then overlay test extras.
 function cleanEnv(extra: Record<string, string | undefined> = {}) {
@@ -60,7 +60,7 @@ function run(
     delete env.CURSOR_TRACE_ID;
     delete env.AI_AGENT;
   }
-  const res = spawnSync("node", [CDD_MJS, ...args], {
+  const res = spawnSync("node", [CDD_TS, ...args], {
     cwd: opts.cwd ?? REPO_ROOT,
     env,
     encoding: "utf8",

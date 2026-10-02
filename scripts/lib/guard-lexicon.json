@@ -11,8 +11,15 @@
       "wording": "the G2 cursor binary-name live-face ban — the scan token settles to zero on the live faces except the data-source data rows that carry it (the data-row release is the sole allowed live coordinate)"
     },
     "escape": {
-      "tokens": ["@ts-ignore", "@ts-expect-error"],
-      "wording": "the escape-directive ban — the two TypeScript escape directives settle to zero across the zero-debt source faces (engine src · scripts · kairos tests · the config planes) and stay fully banned: any re-appearance fails the guard; the docs face is covered by the live-face grep gate"
+      "tokens": [
+        "@ts-ignore",
+        "@ts-expect-error",
+        "build.config",
+        "dev:stub",
+        "@typescript/typescript6",
+        "globalSetup"
+      ],
+      "wording": "the escape-directive ban extended to the retired zero-build toolchain tokens (T7): the two TypeScript escape directives PLUS the retired build-surface tokens (the old unbuild config file name / the dev-stub script / the TS6-compat shim package / the vitest setup hook) settle to zero across the zero-debt source faces (engine src · scripts · kairos tests · the config planes) and stay fully banned — any re-appearance on a source face fails the guard; the docs face is covered by the T7 live-face grep gate"
     },
     "zeroDebt": {
       "tokens": [".mjs"],

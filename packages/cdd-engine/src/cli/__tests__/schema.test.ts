@@ -26,7 +26,7 @@ import { resolveResourcePublished } from "../../infra/resource.ts";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..", "..", "..");
 const PKG_ROOT = path.join(REPO_ROOT, "packages", "cdd-engine");
-const CDD_MJS = path.join(PKG_ROOT, "dist", "cli.mjs");
+const CDD_TS = path.join(PKG_ROOT, "src", "bin.ts");
 const NODE = process.execPath;
 
 // Test env: strip any CDD_* inherited from the orchestrator session AND the three host markers —
@@ -45,7 +45,7 @@ function runCli(args: string[]): { exitCode: number; stdout: string; stderr: str
   try {
     // stripFinalNewline: false — execa's default strips the trailing newline, which would break
     // the byte-identical comparison (the schema files' own final newline is part of the bytes).
-    const r = execaSync(NODE, [CDD_MJS, ...args], {
+    const r = execaSync(NODE, [CDD_TS, ...args], {
       cwd: REPO_ROOT,
       env: cleanEnv(),
       encoding: "utf8",

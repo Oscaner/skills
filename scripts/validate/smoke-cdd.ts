@@ -7,24 +7,25 @@
 // works outside this repo with zero in-repo path dependencies.
 //
 // Steps (design §2.6):
-//   1. `pnpm --filter @oscaner-skills/cdd-engine build` — real unbuild product into dist
-//   2. package-dir `pnpm pack --pack-destination <out>` — the `prepare` hook (dev:stub) was removed
-//      from package.json (P3 T7 ①), so pack no longer re-stubs dist with a jiti stub; the
-//      `--config.ignore-scripts=true` flag is the verified belt-and-braces fallback. Pack MUST run
+//   1. `pnpm --filter @oscaner-skills/cdd-engine build` — the tsc-emitted product into dist
+//      (tsc -p tsconfig.build.json + the config → dist/config copy)
+//   2. package-dir `pnpm pack --pack-destination <out>` — the retired dev-stub chain no longer
+//      exists, so pack has nothing to re-materialize; the `--config.ignore-scripts=true` flag
+//      stays the verified belt-and-braces fallback. Pack MUST run
 //      from the package dir — a workspace-root relative path is resolved as a registry spec
 //      (ERR_PNPM_PACKAGE_VERSION_NOT_FOUND), and `--ignore-scripts` is not a supported pack flag.
-//   3. tarball content assertions (anti-false-green): dist/cli.mjs must carry zero stub markers
-//      (createJiti / node_modules/.pnpm) and exceed 10 kB (dev stub ≈ 614 B vs real ≈ 72 kB — the
-//      >10 kB bound rejects a stub while staying well below the real product; a harsher >100 kB
-//      threshold could misjudge a legitimately smaller real bundle). The config/ home's dist
+//   3. tarball content assertions (anti-false-green): the emitted entry keeps its shebang, every
+//      emitted dist/**/*.js rewrites relative imports to .js (zero residual `.ts` specifiers),
+//      the tarball ships NO src/ tree, and the config/ home's dist
 //      mirror (dist/config/ — canonical overall/plan/phase-spec/add-phase-protocol schemas +
 //      template-contract + the harness contract) must be present, plus the engine-config the
 //      fixture derives from.
 //   4. mkdtemp consumer repo: git init + npm init + `npm install <tarball>` — consumer layout; the
 //      installed engine resolves all runtime resources under node_modules, never the repo tree.
-//   5. consumer chain: installed entry (`node <installed>/dist/cli.mjs`, plus the shipped
-//      node_modules/.bin/cdd), `cdd schema get plan` (installed schema-dir addressability measured
-//      byte-identically — stdout === the published dist/config/schema/plan.json bytes),
+//   5. consumer chain: installed entry (`node <installed>/dist/bin.js`, plus the shipped
+//      node_modules/.bin/cdd — `.bin/cdd --help` exits 0 on the real engine stack), `cdd schema get
+//      plan` (installed schema-dir addressability measured byte-identically — stdout === the
+//      published dist/config/schema/plan.json bytes),
 //      then the five-command dry-run chain (implement / review task / fix task / review branch /
 //      fix branch). The fixture plan + design spec + the parent overall it links are GENERATED
 //      INSIDE the temp repo (D1), derived from the tarball's shipped doc-structure schemas and
@@ -67,7 +68,7 @@ const NODE = process.execPath;
 const PKG = "packages/cdd-engine";
 const PKG_SCOPE = "@oscaner-skills/cdd-engine";
 const PKG_DIR = path.join(root, PKG);
-const CLI_ENTRY = "dist/cli.mjs";
+const CLI_ENTRY = "dist/bin.js";
 
 // C7: the engine's shipped-resource member paths derive from the locator table (RESOURCE_SPECS —
 // the published dist mirror segments), never a second literal path list.
@@ -99,10 +100,17 @@ const KAIROS_WHITELIST = [
 ];
 const KAIROS_RESIDUE = ["tests/", "bin/", "scripts/", ".superpowers/", ".version-bump.json"];
 
-// Real bundle anti-false-green bounds: dev stub ≈ 614 B, real ≈ 72 kB. The >10 kB floor rejects a
-// stub (or a half-shipped artifact) while staying well below the real product's byte size.
-const REAL_BUNDLE_MIN_BYTES = 10_000;
-const STUB_MARKERS = /createJiti|node_modules[\\/]\.pnpm/;
+// Published-entry anti-false-green (T8): the pack must ship the tsc-emitted product, never a
+// phantom. The CLI entry carries the preserved shebang (tsc passes the source #! through), the
+// emitted module JS rewrites every relative import to .js (rewriteRelativeImportExtensions — a
+// residual `.ts` relative specifier means the publish emit is broken), and the tarball ships NO
+// source tree (`src/` zero — a source-shipped artifact would bypass the compile face).
+const SHEBANG = "#!/usr/bin/env node";
+// A relative module specifier ending in .ts — the residual shape rewriteRelativeImportExtensions
+// must eliminate from the emitted JS (from/import forms; the scoped ./ and ../ prefixes keep
+// bare words free). The emitted-dist scan is specifier-specific, so a source comment carrying the
+// ".ts" substring stays legal.
+const TS_IMPORT_RE = /["'](?:\.{1,2}\/)[^"']*\.ts["']/;
 
 const DOC_SCHEMA_FILES = [
   "overall.json",
@@ -174,14 +182,26 @@ function assertTarball(tgz: string, expectVersion?: string): void {
     has(cliMember),
     `tarball missing the CLI entry ${cliMember} (entries: ${entries.length} files)`,
   );
-  const cliBytes = Buffer.byteLength(tarRead(tgz, cliMember), "utf8");
+  const cliSrc = tarRead(tgz, cliMember);
   assertTrue(
-    cliBytes > REAL_BUNDLE_MIN_BYTES,
-    `dist/cli.mjs is ${cliBytes} B — expected a real build > ${REAL_BUNDLE_MIN_BYTES} B (dev stub ≈ 614 B) — did the pack ship a stub?`,
+    cliSrc.startsWith(SHEBANG),
+    `package/${CLI_ENTRY} lost its shebang — the emitted entry must stay directly runnable (tsc passes the source #! through)`,
   );
+  // The compiled module plane must be specifier-clean: every emitted dist/**/*.js rewrites its
+  // relative imports to .js (rewriteRelativeImportExtensions); a residual `.ts` relative
+  // specifier in any emitted module means the publish emit is broken, not a usable artifact.
+  const distJs = entries.filter((e) => e.startsWith("package/dist/") && e.endsWith(".js"));
+  for (const member of distJs) {
+    assertTrue(
+      !TS_IMPORT_RE.test(tarRead(tgz, member)),
+      `${member} carries a residual .ts relative import specifier — the publish emit must rewrite relative imports to .js`,
+    );
+  }
+  // Zero source-tree ship: the tarball must never contain src/ (a source-shipped artifact would
+  // bypass the compile face; the published package carries only the tsc-emitted dist + config + templates).
   assertTrue(
-    !STUB_MARKERS.test(tarRead(tgz, cliMember)),
-    `stub markers (createJiti / node_modules/.pnpm) found in package/dist/cli.mjs — the pack shipped the dev stub, not the build product`,
+    !entries.some((e) => e.startsWith("package/src/")),
+    `tarball ships a source-tree member (${entries.find((e) => e.startsWith("package/src/"))}) — the publish artifact must be compiled JS only`,
   );
   // Canonical doc-structure schemas addressable at the published dist face.
   for (const f of DOC_SCHEMA_FILES) {
@@ -199,17 +219,17 @@ function assertTarball(tgz: string, expectVersion?: string): void {
     has(`package/${path.join(DIST_SCHEMA_DIR, "task-handoff-schema.json")}`),
     "tarball missing dist/config/schema/task-handoff-schema.json",
   );
-  // The harness contract the dispatch ship gate resolves at runtime (build mirror entry publishes the
-  // dedicated dist/config/ face — see build.config.ts).
+  // The harness contract the dispatch ship gate resolves at runtime (the build's config copy
+  // publishes the dedicated dist/config/ face).
   assertTrue(
     has(`package/${published("harness-contract")}`),
     "tarball missing dist/config/harness-contract.json (dispatch ship gate reads it at runtime)",
   );
   // Zero in-repo residues inside the packed artifact: the tarball must never reference the repo
-  // tree (a jiti aliased stub or an absolute alias would embed it).
+  // tree (an absolute in-repo path would embed it).
   assertTrue(
     !tarRead(tgz, cliMember).includes(root),
-    `package/dist/cli.mjs embeds the repo root path ${root} — the tarball is not consumer-standalone`,
+    `package/${CLI_ENTRY} embeds the repo root path ${root} — the tarball is not consumer-standalone`,
   );
   // Release-state version identity (--expect-version gate): the packed artifact's declared version
   // must equal the expectation before the consumer install proceeds.
@@ -249,7 +269,7 @@ function installConsumer(
     existsSync(path.join(installed, CLI_ENTRY)),
     `installed CLI entry missing: ${path.join(installed, CLI_ENTRY)}`,
   );
-  // The shipped bin surface: node_modules/.bin/cdd must resolve (package.json bin → dist/cli.mjs).
+  // The shipped bin surface: node_modules/.bin/cdd must resolve (package.json bin → dist/bin.js).
   assertTrue(
     existsSync(path.join(consumerRoot, "node_modules", ".bin", "cdd")),
     "shipped bin node_modules/.bin/cdd missing",
@@ -534,6 +554,17 @@ function runConsumerChain({
   const cli = path.join(installed, CLI_ENTRY);
   const env = { ...process.env, CLAUDE_CODE_SESSION_ID: "1" };
 
+  // The installed bin shim on the real engine stack: `.bin/cdd --help` runs the shipped
+  // dist/bin.js through its shebang and must exit 0 with the USAGE face (T8 empirical anchor).
+  const shimHelp = execaSync(path.join(consumerRoot, "node_modules", ".bin", "cdd"), ["--help"], {
+    cwd: consumerRoot,
+    env,
+  }).stdout;
+  assertTrue(
+    shimHelp.includes("USAGE") && /implement\|review\|fix/.test(shimHelp),
+    "installed .bin/cdd --help missing the engine USAGE face (the bin shim did not surface the engine help)",
+  );
+
   // `cdd schema get plan` — the discovery surface (canonical doc-structure schema straight to
   // stdout), the install-face resource proof (AC6: installed-face schema-dir addressability measured
   // byte-identically — schema-get stdout === the published dist/config/schema/plan.json bytes).
@@ -642,7 +673,8 @@ function assertKairosPackWhitelist(): void {
 }
 
 export function main(expectVersion?: string): void {
-  // 1. build — the real unbuild product into dist (dev and publish share the same dist entry).
+  // 1. build — the tsc-emitted product into dist (dev runs the src entry directly; the published
+  //    dist/bin.js is the compile face).
   execaSync("pnpm", ["--filter", PKG_SCOPE, "build"], { cwd: root, stdio: "inherit" });
 
   // 2. pack — from the package dir (prepare removed; --config.ignore-scripts=true is the verified

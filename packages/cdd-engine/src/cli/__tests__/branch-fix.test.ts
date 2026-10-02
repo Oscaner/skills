@@ -75,7 +75,7 @@ describe("branch-fix dry-run", () => {
       const out = execaSync(
         "node",
         [
-          path.join(REPO_ROOT, "packages/cdd-engine/dist/cli.mjs"),
+          path.join(REPO_ROOT, "packages/cdd-engine/src/bin.ts"),
           "--dry-run",
           "fix",
           "--type",
@@ -126,7 +126,7 @@ describe("branch-fix usage guards", () => {
         execaSync(
           "node",
           [
-            path.join(REPO_ROOT, "packages/cdd-engine/dist/cli.mjs"),
+            path.join(REPO_ROOT, "packages/cdd-engine/src/bin.ts"),
             "--dry-run",
             "fix",
             "--type",
@@ -166,7 +166,7 @@ describe("branch-fix usage guards", () => {
         execaSync(
           "node",
           [
-            path.join(REPO_ROOT, "packages/cdd-engine/dist/cli.mjs"),
+            path.join(REPO_ROOT, "packages/cdd-engine/src/bin.ts"),
             "--dry-run",
             "fix",
             "--type",

@@ -23,10 +23,10 @@ import { mainCommand } from "../parse.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..", "..", "..");
-const CDD_MJS = path.join(REPO_ROOT, "packages/cdd-engine/dist/cli.mjs");
-// 薄入口化（spec §2.3）：命令定义（option 形态）已移 src/cli/parse.ts —— 静态断言改读 citty
-// 声明（mainCommand.subCommands.*.args）；CLI 黑盒 exec 入口仍 CDD_MJS（dist/cli.mjs 由
-// src/bin.ts 构建，行为不变）。
+const CDD_TS = path.join(REPO_ROOT, "packages/cdd-engine/src/bin.ts");
+// Thin entry (spec §2.3): the command declarations (option shapes) moved to src/cli/parse.ts —
+// the static assertions read the citty declarations (mainCommand.subCommands.*.args); the CLI
+// black-box exec entry is src/bin.ts itself (dev invokes the source entry, behavior unchanged).
 const SMOKE_PLAN = path.join("packages/cdd-engine/src/cli/__tests__/fixtures/smoke-plan.md");
 // SMOKE_SPEC 用 fixtures 自有 smoke-spec.md —— 不能用本 repo 真实 spec 路径（如 design.md）：
 // 真实 spec 已被 spec-review 轮次评过（APPROVED + blocker=0），会在 Review Convergence 守卫处
@@ -58,7 +58,7 @@ function runCli(
     if (!k.startsWith("CDD_")) env[k] = v;
   }
   try {
-    const r = execaSync(NODE, [CDD_MJS, ...args], {
+    const r = execaSync(NODE, [CDD_TS, ...args], {
       cwd: REPO_ROOT,
       env: { ...env, ...extraEnv },
       encoding: "utf8",

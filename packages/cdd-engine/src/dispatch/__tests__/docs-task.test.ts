@@ -1,5 +1,5 @@
 // packages/cdd-engine/src/dispatch/__tests__/docs-task.test.ts
-// exercised through the merged single CLI (dist/cli.mjs). Invocation map (D11: type
+// exercised through the merged single CLI (src/bin.ts). Invocation map (D11: type
 // 自解释 target 参数):
 //   docs-task --mode review --template <t>  → cdd review --type spec|plan [--spec/--plan <path>]
 //   docs-task --mode fix --template <t>     → cdd fix --type spec|plan [--spec/--plan <path>]
@@ -20,7 +20,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..", "..", "..");
-const CDD_MJS = path.join(REPO_ROOT, "packages/cdd-engine/dist/cli.mjs");
+const CDD_TS = path.join(REPO_ROOT, "packages/cdd-engine/src/bin.ts");
 const SMOKE_PLAN = path.join("packages/cdd-engine/src/cli/__tests__/fixtures/smoke-plan.md");
 // SMOKE_PLAN-derived workspace = .kairos/cdd/smoke/ (engine workspaceSlug strips the
 // trailing -plan: smoke-plan.md → smoke) — the test teardown clears it so validate-root noise
@@ -65,7 +65,7 @@ function run(
     delete env.CURSOR_TRACE_ID;
     delete env.AI_AGENT;
   }
-  return spawnSync("node", [CDD_MJS, ...args], {
+  return spawnSync("node", [CDD_TS, ...args], {
     cwd: REPO_ROOT,
     env: { ...env, ...extraEnv },
     encoding: "utf8",

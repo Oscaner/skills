@@ -166,6 +166,22 @@ export const ZERO_DEBT_FACES: ResidueFace[] = [
   },
 ];
 
+// The docs-face live grep gate target set (T7): the docs faces of the constraint's live-face
+// definition (CLAUDE.md · the deps ledger · the engine README pair), scanned with the SAME
+// escape/retired token set via checkEscape(facesOverride). Together with the ZERO_DEBT_FACES scan
+// (the source/config faces) the two gates are the complete live face.
+export const DOC_ESCAPE_FACES: ResidueFace[] = [
+  {
+    targets: [
+      "CLAUDE.md",
+      "docs/maintainers/05-third-party-dependencies.md",
+      "packages/cdd-engine/README.md",
+      "packages/cdd-engine/README.zh-CN.md",
+    ],
+    includeTests: false,
+  },
+];
+
 // ---------------------------------------------------------------------------
 // skill-anatomy parsing — the digraph-consistency assertion port. All structure facts come from
 // the canonical skill-anatomy schema (single source, never a hard-coded structure literal); the
@@ -702,14 +718,17 @@ export class ContractLexiconGuard {
   // checkEscape(faces?) / checkMjs(faces?) — the T5 zero-debt source faces
   // -------------------------------------------------------------------------
 
-  /** checkEscape(faces?) — the escape-directive zero-hit (T5): the two TypeScript escape
-   *  directives (token set from the lexicon's escape domain, never a literal in this body — the
-   *  guard must not become a carrier) settle to zero across the zero-debt source faces
-   *  (ZERO_DEBT_FACES — engine src · scripts · kairos tests · engine config · the migrated
-   *  source-config plane, the same face set the source-plane prebuilt-module zero-hit rides).
-   *  The lexicon config file carries the directives as data values — the shared data-row mask
+  /** checkEscape(faces?) — the escape/retired-token zero-hit (T5 + T7): the two TypeScript escape
+   *  directives plus the retired zero-build toolchain tokens (token set from the lexicon's escape
+   *  domain, never a literal in this body — the guard must not become a carrier) settle to zero
+   *  across the zero-debt source faces (ZERO_DEBT_FACES — engine src · scripts · kairos tests ·
+   *  engine config · the migrated source-config plane, the same face set the source-plane
+   *  prebuilt-module zero-hit rides).
+   *  The lexicon config file carries the tokens as data values — the shared data-row mask
    *  (isDataRow over the lexicon's residue dataSources) releases them; anything else on the source
-   *  faces fails. The docs face is covered by the T7 live-face grep gate, not this scan.
+   *  faces fails. The live docs face (CLAUDE.md · the deps ledger · the engine README pair) is
+   *  covered by the T7 docs-face live grep gate in scripts/validate/residue.ts — it calls this
+   *  same check with the docs target set, so the full six-token list rides both gates.
    *  facesOverride follows the collector injection pattern. */
   checkEscape(facesOverride?: ResidueFace[]): ResidueFinding[] {
     const dataSources = this.#lexicon.guards.residue.dataSources;
@@ -722,7 +741,7 @@ export class ContractLexiconGuard {
         for (const { file, lineNo, text } of scanLines(targets, re, { includeTests })) {
           if (isDataRow(dataSources, file, text, `"${token}"`)) continue; // lexicon data-value release form
           hits.push({
-            label: `escape-directive zero-hit violation (T5 escape ban): ${token}`,
+            label: `escape/retired-token zero-hit violation (T5+T7 ban): ${token}`,
             file: `${file}:${lineNo}`,
           });
         }

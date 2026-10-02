@@ -361,7 +361,7 @@ function checkZeroResidue() {
 
 // The C6 ContractLexiconGuard — the single drive for the four converged check faces (anatomy /
 // residue / wording / config) plus the assertLexiconZero helper that renders its findings.
-import { ContractLexiconGuard } from "../lib/contract-lexicon.ts";
+import { ContractLexiconGuard, DOC_ESCAPE_FACES } from "../lib/contract-lexicon.ts";
 
 /** A contract-lexicon guard finding — the row face assertLexiconZero renders. */
 interface LexiconHit {
@@ -1780,9 +1780,14 @@ export const steps = [
       // T5 (P5): the zero-debt source faces — the escape-directive zero-hit + the whole-repo
       // source-plane prebuilt-module zero-hit ride the same face set (engine src · scripts ·
       // kairos tests · engine config · the migrated source-config plane); the product dist tree
-      // is outside them. The docs-face escape tokens are covered by the T7 live-face grep gate,
-      // not this scan.
+      // is outside them. T7 (P5) extends the escape token set with the retired zero-build
+      // toolchain tokens (build-config-name / dev-stub script / TS6 shim package / vitest setup
+      // hook) — the same zero-debt scan enforces them on the source/config faces, and the
+      // docs-face live grep gate below enforces the SAME full token set on the live docs faces
+      // (CLAUDE.md · the deps ledger · the engine README pair — the constraint's live-face
+      // definition); the two gates together are the complete live face.
       assertLexiconZero("escape", guard.checkEscape());
+      assertLexiconZero("escape-docs", guard.checkEscape(DOC_ESCAPE_FACES));
       assertLexiconZero("mjs", guard.checkMjs());
     },
     grepTargets: RESIDUE_TARGETS,

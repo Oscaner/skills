@@ -4,8 +4,9 @@
 //              template-contract + config/schema/), mirrored to dist/config by the build so the
 //              consumer install resolves the published face first;
 //   templates/ — render/copy content seeds only (report/issue-body.json), shipped as-is.
-// import.meta.url lands at different depths depending on the file state (dev:stub / vitest load
-// from src/** via jiti; the real build bundles into dist/cli.mjs), so every loader resolves the
+// import.meta.url lands at different depths depending on the file state (dev runs src/bin.ts
+// directly via Node native type stripping; the published package runs the tsc-emitted JS under
+// dist/), so every loader resolves the
 // package root via the nearest-ancestor package.json marker walk and the resource BY LOGICAL NAME
 // through resolveResource — the single locator table (dev tree + dist pack tree isomorphic, no
 // scattered path.join(resolvePackageRoot(...), "...") literals) — published (dist) first, source

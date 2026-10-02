@@ -12,9 +12,8 @@
 // development-time full suite (E2② dirty-tree WARN precondition documented in CLAUDE.md).
 // The entry gate itself keeps its real boundary.
 //
-// Composition mirrors scripts/validate/index.ts minus the engine steps (cdd-engine dev stub
-// materialization / engine test suite (vitest)) — the only blocks coupled to working-tree
-// cleanliness. Standalone (`node scripts/validate/pre-commit.ts`) or via `pnpm run precommit`
+// Composition mirrors scripts/validate/index.ts minus the engine step (the cdd-engine engine
+// test suite (vitest)) — the only block coupled to working-tree cleanliness. Standalone (`node scripts/validate/pre-commit.ts`) or via `pnpm run precommit`
 // (run.ts subcommand, same lazy-load contract as validate). The full suite stays
 // intact in index.ts; this subset is pinned by scripts/validate/__tests__/pre-commit.test.ts.
 

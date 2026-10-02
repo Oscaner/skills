@@ -189,7 +189,11 @@ test("maintainers: 02-naming carries the P4.4 final-state terms", () => {
 test("maintainers: 05-deps carries the P4.4 dependency final state", () => {
   const md = read("docs/maintainers/05-third-party-dependencies.md");
   assert.match(md, /@biomejs\/biome/, "biome not registered in the dependency ledger");
-  assert.match(md, /@typescript\/typescript6/, "the @typescript/typescript6 shim not registered");
+  // The TS6-compat shim (and the old build chain) are RETIRED — the ledger must record the
+  // retirement transcription, never re-register the shim as a live dependency (token-muted prose
+  // per the retired/delete face rule).
+  assert.match(md, /TS6-compat shim retired/, "the TS6-compat shim retirement not recorded");
+  assert.match(md, /~~`unbuild`~~ \(retired\)/, "the unbuild retirement row not recorded");
   // the P4.4 rebase versions — each lockfile version string is unique on the surface.
   assert.match(md, /10\.0\.1/, "execa 10.0.1 not registered");
   assert.match(md, /7\.0\.2/, "typescript 7.0.2 not registered");

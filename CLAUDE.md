@@ -51,10 +51,10 @@ Template-shaped content converges to a single source of truth: canonical JSON �
 
 ### Development-time CDD invocation — direct, never global
 
-Invoke the engine from this repo's working tree via the `dist` entry: `pnpm --filter @oscaner-skills/cdd-engine dev:stub` (`unbuild --stub`) generates the `dist/cli.mjs` stub — re-run it after dependency changes; the artifact is gitignored.
+Invoke the engine from this repo's working tree straight on the source entry: `node packages/cdd-engine/src/bin.ts <subcommand>` (Node ≥22.18 strips types natively — the dev face runs the .ts source directly; no build, no stub).
 
 ```bash
-pnpm --filter @oscaner-skills/cdd-engine dev:stub && node packages/cdd-engine/dist/cli.mjs <subcommand>
+node packages/cdd-engine/src/bin.ts <subcommand>
 ```
 
 The global `cdd` command must NOT be used (`npm link` removed).

@@ -214,8 +214,9 @@ test("overall-consistency block retired (no four-table step)", () => {
 });
 
 // 11. block composition pinned by name-set (P3 T1 retired the four-table block;
-//     T2 upgraded the count pin to a name-set) — every expected step must be
-//     present by name, including the pi-package well-formed guard.
+//     T2 upgraded the count pin to a name-set; T7 (P5) deleted the stub-materialization
+//     step with the zero-build chain — the suite step remains the only cdd-engine block)
+//     — every expected step must be present by name, including the pi-package well-formed guard.
 const EXPECTED_VALIDATE_STEPS = [
   "emit freshness (checked against regenerated products)",
   "kairos plugin resolution",
@@ -223,7 +224,6 @@ const EXPECTED_VALIDATE_STEPS = [
   "kairos node:test behavior tree",
   "validate wiring guard (ci-validate.test.ts)",
   "kairos pi-package well-formed",
-  "cdd-engine dev stub materialization",
   "cdd-engine engine test suite (vitest)",
   "engine zero residue + channel audit",
   "marketplace manifests validate",
@@ -274,7 +274,6 @@ test("AC4 anti-white-green: semantic step names all MISS the anchor probe", () =
     "kairos pi-package well-formed",
     "kairos node:test behavior tree",
     "validate wiring guard (ci-validate.test.ts)",
-    "cdd-engine dev stub materialization",
     "cdd-engine engine test suite (vitest)",
     "engine zero residue + channel audit",
     "marketplace manifests validate",

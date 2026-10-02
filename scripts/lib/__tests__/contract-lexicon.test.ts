@@ -22,6 +22,7 @@ import { ORCHESTRATOR_SKILLS } from "../../validate/residue.ts";
 import {
   type AnatomyFinding,
   ContractLexiconGuard,
+  DOC_ESCAPE_FACES,
   G2_LIVE_FACES,
   ZERO_DEBT_FACES,
 } from "../contract-lexicon.ts";
@@ -44,6 +45,12 @@ const T5_TS_IGNORE = "@ts" + "-ignore";
 const T5_TS_EXPECT_ERROR = "@ts" + "-expect" + "-error";
 const T5_MJS = "." + "mjs";
 const T5_READBACK = "(read <" + "handoff> back to confirm)";
+// T7 (P5): the retired zero-build toolchain tokens ride the escape family's token set — same
+// split-string construction (the scripts test position stays zero-literal).
+const T7_BUILD_CONFIG = "build" + ".config";
+const T7_DEV_STUB = "dev" + ":stub";
+const T7_TS6_PKG = "@typescript" + "/typescript6";
+const T7_GLOBAL_SETUP = "global" + "Setup";
 
 // ---------------------------------------------------------------------------
 // The word tables — the guards family + the engine command/schema family + the engine forwarding
@@ -157,9 +164,18 @@ describe("guard-lexicon.json + engine contract-lexicon.json — the family word 
 });
 
 describe("guard-lexicon.json — the T5 (P5) zero-debt / buildability / read-back domains (guards family)", () => {
-  it("escape domain: the two escape directives + the ban wording are present", () => {
+  it("escape domain: the two escape directives + the four retired build tokens + the ban wording are present", () => {
     const lex = guard.lexicon();
-    expect(lex.guards.escape.tokens).toEqual([T5_TS_IGNORE, T5_TS_EXPECT_ERROR]);
+    expect(lex.guards.escape.tokens).toEqual(
+      expect.arrayContaining([
+        T5_TS_IGNORE,
+        T5_TS_EXPECT_ERROR,
+        T7_BUILD_CONFIG,
+        T7_DEV_STUB,
+        T7_TS6_PKG,
+        T7_GLOBAL_SETUP,
+      ]),
+    );
     expect(lex.guards.escape.wording.length).toBeGreaterThan(0);
   });
 
@@ -542,6 +558,29 @@ describe("ContractLexiconGuard.checkEscape — T5 escape-directive zero-hit (the
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it("a retired zero-build token on a temp source file fails (the T7 token rides the same scan)", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "lex-escape-t7-"));
+    try {
+      writeFileSync(path.join(dir, "mech.ts"), `// ${T7_DEV_STUB} restate\n`, "utf8");
+      const hits = guard.checkEscape([{ targets: [dir], includeTests: true }]);
+      expect(hits).toHaveLength(1);
+      expect(hits[0].label).toContain("T7");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("DOC_ESCAPE_FACES pins the four docs live faces and the live repo carries zero tokens on them", () => {
+    expect(DOC_ESCAPE_FACES.flatMap((f) => f.targets)).toEqual([
+      "CLAUDE.md",
+      "docs/maintainers/05-third-party-dependencies.md",
+      "packages/cdd-engine/README.md",
+      "packages/cdd-engine/README.zh-CN.md",
+    ]);
+    expect(DOC_ESCAPE_FACES.every((f) => f.includeTests === false)).toBe(true);
+    expect(guard.checkEscape(DOC_ESCAPE_FACES)).toEqual([]);
   });
 
   it("ZERO_DEBT_FACES pins the five source faces + the engine includeTests opt-in (scope shrink = fail)", () => {

@@ -14,7 +14,7 @@ import { resolveResource } from "./resource.ts";
 /** The shipped harness-contract file (harness rows + op×type prefix/suffix injection + ship gate).
  * State-independent resolution via the logical-name locator (C7 — the single path truth, dev tree
  * and dist pack tree isomorphic): the published copy at <pkg>/dist/config/harness-contract.json
- * (build.config.ts copy entry — the consumer install's face) first, the source config/ as the dev
+ * (the tsc build's config copy — the consumer install's face) first, the source config/ as the dev
  * fallback. */
 export function resolveRegistryPath(
   fromDir = path.dirname(fileURLToPath(import.meta.url)),

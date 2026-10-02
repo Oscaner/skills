@@ -25,11 +25,11 @@ import { DRY_RUN_DIRTY_WARN } from "../../rules/commit.ts";
 import { setDryRun } from "../shared.ts";
 
 // Repo-root derivation via fileURLToPath (task.test.mjs convention) — no hardcoded machine
-// path, so the suite also passes under CI checkouts (STD-4). CDD_MJS must be absolute:
+// path, so the suite also passes under CI checkouts (STD-4). CDD_TS must be absolute:
 // contract tests switch cwd to a temp repo and a relative path would break there.
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..", "..", "..");
-const CDD_MJS = path.join(REPO_ROOT, "packages/cdd-engine/dist/cli.mjs");
+const CDD_TS = path.join(REPO_ROOT, "packages/cdd-engine/src/bin.ts");
 const SMOKE_PLAN = "packages/cdd-engine/src/cli/__tests__/fixtures/smoke-plan.md";
 // SMOKE_PLAN's derived workspace is .kairos/cdd/smoke/ (the engine workspaceSlug strips a
 // trailing -plan: smoke-plan.md → smoke) — a T10 warn. Do not clean smoke/: the engine creates
@@ -74,7 +74,7 @@ function runCli(args: string[] = [], opts: RunCliOpts = {}) {
     // CDD_* 剥离（orchestrator 携带的 CDD_* 键泄漏回测试 child，T8 回归：秒值 ×1000 溢出 setTimeout
     // 32 位上限 → ~1ms 瞬时 SIGTERM → 非 dry-run 用例确定性 FAIL；T26 三超时键已删，机理由整族
     // CDD_* 键承担）。关闭 extendEnv 后 child 只见 cleanEnv 显式清单，测试与调度侧环境变量零耦合。
-    const r = execaSync(NODE, [CDD_MJS, ...args], { cwd, env, encoding: "utf8", extendEnv: false });
+    const r = execaSync(NODE, [CDD_TS, ...args], { cwd, env, encoding: "utf8", extendEnv: false });
     return { exitCode: r.exitCode ?? 0, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
   } catch (e: unknown) {
     // child_process boundary cast: an execa rejection carries exitCode/stdout/stderr (any execa
@@ -108,7 +108,7 @@ vi.mock("../../dispatch/docs.ts", () => ({
 
 describe("cdd CLI", () => {
   it("-h → help", () => {
-    const r = execaSync(NODE, [CDD_MJS, "--help"], {
+    const r = execaSync(NODE, [CDD_TS, "--help"], {
       cwd: REPO_ROOT,
       env: cleanEnv(),
       extendEnv: false,
@@ -119,7 +119,7 @@ describe("cdd CLI", () => {
 
   it("review missing --type → usage exit 2", () => {
     expect(() =>
-      execaSync(NODE, [CDD_MJS, "review"], { cwd: REPO_ROOT, env: cleanEnv(), extendEnv: false }),
+      execaSync(NODE, [CDD_TS, "review"], { cwd: REPO_ROOT, env: cleanEnv(), extendEnv: false }),
     ).toThrow(/required option|--type/);
   });
 

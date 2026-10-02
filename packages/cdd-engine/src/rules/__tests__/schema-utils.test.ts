@@ -25,7 +25,10 @@ describe("validateHandoffSchema (real schema)", () => {
 
   it("missing required field (tasks) fails", () => {
     const { tasks, ...missingTasks } = VALID_HANDOFF;
-    const res = schemaValidator.validateHandoffSchema(missingTasks);
+    const res = schemaValidator.validateHandoffSchema(missingTasks) as {
+      valid: boolean;
+      reason?: string;
+    };
     expect(res.valid).toBe(false);
     expect(res.reason).toContain("tasks");
   });

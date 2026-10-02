@@ -49,8 +49,12 @@ for (const f of [SPEC_FINDINGS, PLAN_FINDINGS]) {
 // The lifecycle path is purely derived: always <repoRoot>/.kairos/cdd/lifecycle.json; concurrency
 // safety rests on reapStale's owner-liveness judgement, not on path separation.
 
-function run(args, extraEnv = {}, opts = {}) {
-  const env = {};
+function run(
+  args: string[],
+  extraEnv: Record<string, string | undefined> = {},
+  opts: { noHost?: boolean } = {},
+) {
+  const env: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (!k.startsWith("CDD_")) env[k] = v;
   }

@@ -50,9 +50,11 @@ it("checkHarness: not-supported harness → blocked（exitCode 1；T2 收敛后 
   try {
     registry.checkHarness(fixture, "legacy");
   } catch (e) {
-    expect(e.kind).toBe("blocked");
-    expect(e.exitCode).toBe(1);
-    expect(e.message).toMatch(/harness not supported: legacy/);
+    // acquireCddExitError-shape cast — the CddExitError family carries these three fields.
+    const err = e as { kind?: string; exitCode?: number; message?: string };
+    expect(err.kind).toBe("blocked");
+    expect(err.exitCode).toBe(1);
+    expect(err.message).toMatch(/harness not supported: legacy/);
   }
 });
 
@@ -62,9 +64,10 @@ it("checkHarness: unknown harness → blocked", () => {
   try {
     registry.checkHarness(reg, "no-such-harness");
   } catch (e) {
-    expect(e.kind).toBe("blocked");
-    expect(e.exitCode).toBe(1);
-    expect(e.message).toMatch(/unknown harness/);
+    const err = e as { kind?: string; exitCode?: number; message?: string };
+    expect(err.kind).toBe("blocked");
+    expect(err.exitCode).toBe(1);
+    expect(err.message).toMatch(/unknown harness/);
   }
 });
 
@@ -79,9 +82,10 @@ it("checkHarness: CLI preflight — full harness 缺二进制 → cli-missing（
   try {
     registry.checkHarness(fixture, "ghost");
   } catch (e) {
-    expect(e.kind).toBe("cli-missing");
-    expect(e.exitCode).toBe(2);
-    expect(e.message).toContain(`${ghost} not found in PATH`);
+    const err = e as { kind?: string; exitCode?: number; message?: string };
+    expect(err.kind).toBe("cli-missing");
+    expect(err.exitCode).toBe(2);
+    expect(err.message).toContain(`${ghost} not found in PATH`);
   }
 });
 

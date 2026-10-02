@@ -7,8 +7,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("execa", () => ({ execa: vi.fn() }));
 
-import { execa } from "execa";
+import { execa as execaImport } from "execa";
 import { type DispatchOp, EngineInvoker } from "../invoke.ts";
+import { mockExeca } from "./helpers.ts";
+
+// vi.mock("execa") swaps the module for a bare vi.fn — the seam exposes the mock surface once
+// (framework-boundary fixture cast, shared helper).
+const execa = mockExeca(execaImport);
 
 const invoker = new EngineInvoker();
 
@@ -97,7 +102,7 @@ describe("infra/invoke.ts — invokeCli stream-json + injection", () => {
       "/tmp",
       undefined,
     );
-    const promptArg = execa.mock.calls[0][1].at(-1);
+    const promptArg = execa.mock.calls[0][1].at(-1) ?? "";
     expect(promptArg.split("\n")[0]).toBe("/mattpocock-skills:tdd");
     expect(promptArg.split("\n").slice(1).join("\n")).toBe("line one\nline two");
   });
@@ -126,7 +131,7 @@ describe("infra/invoke.ts — invokeCli stream-json + injection", () => {
       suffix: {},
     };
     await invoker.invokeCli(entry, "legacy prompt", { op: "legacy-review" }, {}, "/tmp", undefined);
-    expect(execa.mock.calls[0][1].at(-1).split("\n")[0]).toBe("/legacy");
+    expect((execa.mock.calls[0][1].at(-1) ?? "").split("\n")[0]).toBe("/legacy");
   });
 });
 

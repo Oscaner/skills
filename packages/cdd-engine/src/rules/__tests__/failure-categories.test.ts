@@ -18,8 +18,18 @@ import { FAILURE_CATEGORIES, FailureResolver } from "../failure.ts";
 
 const failureResolver = new FailureResolver();
 
-const CAT = JSON.parse(
-  readFileSync(path.resolve(import.meta.dirname, "../../../config/engine-config.json"), "utf8"),
+/** engine-config failureCategories fixture shape (read from the shipped config JSON — narrowed
+ * at the read seam so the canonical-table assertions type-check without per-callback casts). */
+interface CategoryFixture {
+  id: string;
+  counter?: string;
+  countsTowardConvergence?: boolean;
+  dispatchIncomplete?: boolean;
+}
+const CAT = (
+  JSON.parse(
+    readFileSync(path.resolve(import.meta.dirname, "../../../config/engine-config.json"), "utf8"),
+  ) as { failureCategories: { categories: CategoryFixture[] } }
 ).failureCategories;
 
 describe("failure-categories canonical", () => {
@@ -87,7 +97,7 @@ describe("failure-categories canonical", () => {
 describe("reviewConvergenceGuard — 未完成 dispatch 排除", () => {
   // 断言面 = convergedExit3 的退出码（ExitRequested.code）——与既有 cli-shared.test.mjs 的函数级
   // 断言同面；不取 isIncompleteDispatch 的返回值（判定源的单元测试 ≠「Convergence 控制流被修正」）。
-  function exitCodeOf(fn) {
+  function exitCodeOf(fn: () => void) {
     try {
       fn();
       return null;
@@ -96,7 +106,7 @@ describe("reviewConvergenceGuard — 未完成 dispatch 排除", () => {
     }
   }
   // 三例同形：status APPROVED + failure_category 差 + blocker 0（findings 空 → blockerCount 0）
-  const convergenceShaped = (failure_category) => ({
+  const convergenceShaped = (failure_category: string) => ({
     status: "APPROVED",
     failure_category,
     findings: [],
@@ -142,7 +152,7 @@ describe("reviewConvergenceGuard — 未完成 dispatch 排除", () => {
 
 // branch-review finding（P4）：T6 终态门只 increment 不消费 —— 补引擎侧「计数 ≥2 → canonical 终态语汇」。
 describe("run-task 终态门（branch-review finding 补）", () => {
-  function seed(dir) {
+  function seed(dir: string) {
     writeFileSync(
       path.join(dir, "progress.json"),
       JSON.stringify({

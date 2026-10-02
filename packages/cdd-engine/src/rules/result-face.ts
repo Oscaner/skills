@@ -41,8 +41,9 @@ export interface ResultFaceEmitCtx {
    *  implement/fix — the agent/engine declared conclusion (BLOCKED → the work axis). */
   status?: string;
   /** the judgment source: review — this round's own findings; fix — the `--findings` INPUT
-   *  findings (the decision source); implement — absent (blocker: 0). */
-  findings?: ReadonlyArray<{ severity?: string }>;
+   *  findings (the decision source); implement — absent (blocker: 0). Findings carry the
+   *  severity selector + the summary prose. */
+  findings?: ReadonlyArray<{ severity?: string; summary?: string }>;
   /** the C5 next-hop derivation input (NextStepRouter.next); absent → no `next:` line. */
   next?: NextStepArgs;
 }

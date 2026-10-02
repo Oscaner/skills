@@ -26,11 +26,45 @@ import { ReturnBlockParser } from "../return-block.ts";
 
 const returnBlockParser = new ReturnBlockParser();
 
+// ---- finalize fixture seam (T2 mechanical surface) ----
+// These cases construct a non-null materialized/derived handoff by fixture design (asserted
+// immediately below each call); the seam narrows finalizeHandoff's nullable
+// `Record<string, unknown>` return to the concrete fixture shape once — no per-property casts
+// land in the expectations. The fail-open case (no TASK_BASE → handoff null) does NOT use the
+// seam — it asserts the null branch verbatim.
+// `type` alias (not interface): a type-alias object shape is assignable to a
+// `Record<string, unknown>` carrier (implicit index signature) — the single cast below stays
+// legal without an `as unknown` bridge.
+type TestHandoff = {
+  status?: string;
+  phase?: string;
+  // commits/artifacts land on every engine-materialized carrier (finalizeFix / finalizeImplement
+  // always assemble them) — the fixture keeps `.commits.base` / `.artifacts.report` readable
+  // without per-access `?.` churn.
+  commits: { base?: string; head?: string };
+  findings?: unknown;
+  artifacts: Record<string, unknown>;
+  blocker?: unknown;
+  failure_category?: unknown;
+  notes?: unknown;
+  unverifiable?: unknown;
+  plan_conflicts?: unknown;
+};
+interface FinalizeFixture {
+  handoff: TestHandoff;
+  exitCode: number;
+}
+function finalized(
+  r: Promise<{ handoff: Record<string, unknown> | null; exitCode: number }>,
+): Promise<FinalizeFixture> {
+  return r as Promise<FinalizeFixture>;
+}
+
 // ---- review 族：rollup 派生（applyDerivedStatus；SP-4 失败轮次豁免）----
 
 it("finalizeHandoff review 族：agent 写 warn-only CHANGES_REQUESTED → 定稿 REVIEW_FIX（Task 8 收口态）", async () => {
   const agentHandoff = { status: "CHANGES_REQUESTED", findings: [{ severity: "warn" }] };
-  const r = await finalizeHandoff({ mode: "review", agentHandoff });
+  const r = await finalized(finalizeHandoff({ mode: "review", agentHandoff }));
   expect(r.handoff.status).toBe("REVIEW_FIX");
   expect(r.handoff.findings).toEqual([{ severity: "warn" }]);
   expect(r.handoff).not.toBe(agentHandoff); // 派生返回新对象（不原地修改 agent 内容）
@@ -39,14 +73,14 @@ it("finalizeHandoff review 族：agent 写 warn-only CHANGES_REQUESTED → 定�
 
 it("finalizeHandoff review 族：无变化 → 返回原对象（不写盘；caller 以引用判定 skip）", async () => {
   const agentHandoff = { status: "APPROVED", findings: [] };
-  const r = await finalizeHandoff({ mode: "review", agentHandoff });
+  const r = await finalized(finalizeHandoff({ mode: "review", agentHandoff }));
   expect(r.handoff).toBe(agentHandoff);
   expect(r.exitCode).toBe(0);
 });
 
 it("finalizeHandoff review 族 SP-4 豁免：agent status BLOCKED + findings:[] → 保持 BLOCKED（失败轮次不覆写）", async () => {
   const agentHandoff = { status: "BLOCKED", findings: [], blocker: "boom" };
-  const r = await finalizeHandoff({ mode: "review", agentHandoff });
+  const r = await finalized(finalizeHandoff({ mode: "review", agentHandoff }));
   expect(r.handoff.status).toBe("BLOCKED");
 });
 
@@ -109,18 +143,20 @@ it("finalizeHandoff implement 族：输入无 agentHandoff 槽位（通过类型
     cwd: repo,
     encoding: "utf8",
   }).trim();
-  const r = await finalizeHandoff({
-    mode: "implement",
-    returnBlock: [
-      "status: APPROVED",
-      "commits: base=agent-wrong-base head=agent-wrong-head",
-      "artifacts: report=r.md",
-    ],
-    brief,
-    repoRoot: repo,
-    workspace: Workspace.fromPath(ws),
-    tasks: [1],
-  });
+  const r = await finalized(
+    finalizeHandoff({
+      mode: "implement",
+      returnBlock: [
+        "status: APPROVED",
+        "commits: base=agent-wrong-base head=agent-wrong-head",
+        "artifacts: report=r.md",
+      ],
+      brief,
+      repoRoot: repo,
+      workspace: Workspace.fromPath(ws),
+      tasks: [1],
+    }),
+  );
   expect(r.handoff.phase).toBe("implement");
   expect(r.handoff.status).toBe("APPROVED");
   expect(r.handoff.commits.base).toBe(taskBase); // brief TASK_BASE is authoritative (the agent line is ignored)
@@ -154,7 +190,7 @@ it("finalizeHandoff fix 族：agent 声明保留（不派生覆写）", async ()
     findings: [{ severity: "blocker" }],
     blocker: "uncommitted",
   };
-  const r = await finalizeHandoff({ mode: "fix", agentHandoff });
+  const r = await finalized(finalizeHandoff({ mode: "fix", agentHandoff }));
   expect(r.handoff).toBe(agentHandoff);
   expect(r.exitCode).toBe(0);
 });
@@ -186,22 +222,24 @@ describe("finalizeHandoff fix 族 C4-1：收据事实重造（spec C4）", () =>
     // The agent (per the #307 receipt bug) mirrored the injected schema into its handoff: the
     // `$schema` meta key, a non-enum review_scope and a wrong-shape notes — shape junk that the
     // engine's reconstruction must strip, never verbatim-persist.
-    const r = await finalizeHandoff({
-      mode: "fix",
-      agentHandoff: {
-        tasks: [1],
-        phase: "fix",
-        status: "APPROVED",
-        $schema: "http://json-schema.org/draft-07/schema#",
-        review_scope: "bogus",
-        notes: { oops: true },
-        commits: { base: "agent-wrong-base", head: "agent-wrong-head" },
-        findings: [{ severity: "warn" }],
-        artifacts: { report: "r.md" },
-      },
-      fixBase: c0,
-      repoRoot: repo,
-    });
+    const r = await finalized(
+      finalizeHandoff({
+        mode: "fix",
+        agentHandoff: {
+          tasks: [1],
+          phase: "fix",
+          status: "APPROVED",
+          $schema: "http://json-schema.org/draft-07/schema#",
+          review_scope: "bogus",
+          notes: { oops: true },
+          commits: { base: "agent-wrong-base", head: "agent-wrong-head" },
+          findings: [{ severity: "warn" }],
+          artifacts: { report: "r.md" },
+        },
+        fixBase: c0,
+        repoRoot: repo,
+      }),
+    );
     expect(r.handoff.status).toBe("APPROVED"); // the fix committed → the receipt self-heals
     expect(r.handoff.phase).toBe("fix"); // engine-stamped
     expect(r.handoff.commits.base).toBe(c0); // git facts (FIX_BASE) authoritative
@@ -217,12 +255,14 @@ describe("finalizeHandoff fix 族 C4-1：收据事实重造（spec C4）", () =>
 
   it("无 commit（HEAD == FIX_BASE）→ BLOCKED + failure_category + exit 1（真败面仍 BLOCKED）", async () => {
     const { repo, c1 } = fixFixture();
-    const r = await finalizeHandoff({
-      mode: "fix",
-      agentHandoff: { status: "APPROVED", findings: [], artifacts: {} },
-      fixBase: c1, // == HEAD: the fix produced no commit
-      repoRoot: repo,
-    });
+    const r = await finalized(
+      finalizeHandoff({
+        mode: "fix",
+        agentHandoff: { status: "APPROVED", findings: [], artifacts: {} },
+        fixBase: c1, // == HEAD: the fix produced no commit
+        repoRoot: repo,
+      }),
+    );
     expect(r.handoff.status).toBe("BLOCKED");
     expect(r.handoff.failure_category).toBe(FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id);
     expect(r.handoff.blocker).toMatch(/no commit|no fix commit/);
@@ -233,18 +273,20 @@ describe("finalizeHandoff fix 族 C4-1：收据事实重造（spec C4）", () =>
 
   it("代码面错误：agent 声明 BLOCKED（即便 HEAD 已前移）→ 保持 BLOCKED + exit 1", async () => {
     const { repo, c0 } = fixFixture();
-    const r = await finalizeHandoff({
-      mode: "fix",
-      agentHandoff: {
-        status: "BLOCKED",
-        failure_category: FAILURE_CATEGORIES.EXECUTION_FAILURE.id,
-        blocker: "fix failed on the code face",
-        findings: [],
-        artifacts: {},
-      },
-      fixBase: c0,
-      repoRoot: repo,
-    });
+    const r = await finalized(
+      finalizeHandoff({
+        mode: "fix",
+        agentHandoff: {
+          status: "BLOCKED",
+          failure_category: FAILURE_CATEGORIES.EXECUTION_FAILURE.id,
+          blocker: "fix failed on the code face",
+          findings: [],
+          artifacts: {},
+        },
+        fixBase: c0,
+        repoRoot: repo,
+      }),
+    );
     expect(r.handoff.status).toBe("BLOCKED");
     expect(r.handoff.failure_category).toBe(FAILURE_CATEGORIES.EXECUTION_FAILURE.id); // agent's real cause survives
     expect(r.handoff.blocker).toContain("code face");
@@ -253,17 +295,19 @@ describe("finalizeHandoff fix 族 C4-1：收据事实重造（spec C4）", () =>
 
   it("代码面错误：unverifiable 车道 → BLOCKED + UNVERIFIABLE（内容级 BLOCK 通道不折叠）", async () => {
     const { repo, c0 } = fixFixture();
-    const r = await finalizeHandoff({
-      mode: "fix",
-      agentHandoff: {
-        status: "APPROVED",
-        unverifiable: [{ claim: "复现场景", why: "环境缺失" }],
-        findings: [],
-        artifacts: {},
-      },
-      fixBase: c0,
-      repoRoot: repo,
-    });
+    const r = await finalized(
+      finalizeHandoff({
+        mode: "fix",
+        agentHandoff: {
+          status: "APPROVED",
+          unverifiable: [{ claim: "复现场景", why: "环境缺失" }],
+          findings: [],
+          artifacts: {},
+        },
+        fixBase: c0,
+        repoRoot: repo,
+      }),
+    );
     expect(r.handoff.status).toBe("BLOCKED");
     expect(r.handoff.failure_category).toBe(FAILURE_CATEGORIES.UNVERIFIABLE.id);
     expect(r.handoff.blocker).toContain("复现场景");
@@ -273,17 +317,19 @@ describe("finalizeHandoff fix 族 C4-1：收据事实重造（spec C4）", () =>
 
   it("代码面错误：plan_conflicts 车道 → BLOCKED + PLAN_CONFLICT（结构化车道在重造载体上保留）", async () => {
     const { repo, c0 } = fixFixture();
-    const r = await finalizeHandoff({
-      mode: "fix",
-      agentHandoff: {
-        status: "APPROVED",
-        plan_conflicts: [{ summary: "验收判据 与 plan-constraints §口径 冲突" }],
-        findings: [],
-        artifacts: {},
-      },
-      fixBase: c0,
-      repoRoot: repo,
-    });
+    const r = await finalized(
+      finalizeHandoff({
+        mode: "fix",
+        agentHandoff: {
+          status: "APPROVED",
+          plan_conflicts: [{ summary: "验收判据 与 plan-constraints §口径 冲突" }],
+          findings: [],
+          artifacts: {},
+        },
+        fixBase: c0,
+        repoRoot: repo,
+      }),
+    );
     expect(r.handoff.status).toBe("BLOCKED");
     expect(r.handoff.failure_category).toBe(FAILURE_CATEGORIES.PLAN_CONFLICT.id);
     expect(r.handoff.blocker).toContain("plan conflict");
@@ -311,8 +357,12 @@ describe("finalizeHandoff fix 族 C4-1：收据事实重造（spec C4）", () =>
       });
       const h = r.handoff as Record<string, unknown>;
       // tasks never lands as a string array / findings stays an array / artifacts stays an object
-      // (fallbacks keep the carrier valid) — assert valid via the schema validator.
-      const ok = schemaValidator.validateHandoffSchema(h, "task");
+      // (fallbacks keep the carrier valid) — assert valid via the schema validator (the union
+      // carries `reason` only on the { valid: false } arm — fixture seam narrows the read).
+      const ok = schemaValidator.validateHandoffSchema(h, "task") as {
+        valid: boolean;
+        reason?: string;
+      };
       expect(ok.valid, `${JSON.stringify(junk)} → ${ok.reason}`).toBe(true);
     }
   });
@@ -384,10 +434,12 @@ it("blockedCarrierFor: 非 BLOCKED / 无车道 → {}（不发明散文）", () 
 });
 
 it("applyDerivedStatus: unverifiable 裸折消灭 — 派生 BLOCKED 必带 failure_category + blocker", () => {
+  // These inputs derive a BLOCKED carrier by design (asserted below) — fixture seam: the
+  // non-null branch, not the call-skip null.
   const d = applyDerivedStatus({
     findings: [],
     unverifiable: [{ claim: "复现场景", why: "环境缺失" }],
-  });
+  }) as Record<string, unknown>;
   expect(d.status).toBe("BLOCKED");
   expect(d.failure_category).toBe(FAILURE_CATEGORIES.UNVERIFIABLE.id);
   expect(d.blocker).toContain("复现场景");
@@ -396,19 +448,24 @@ it("applyDerivedStatus: unverifiable 裸折消灭 — 派生 BLOCKED 必带 fail
 
 it("applyDerivedStatus: 无变化 → null（caller skip 写盘）；带 carrier 的 BLOCKED → 合并返回", () => {
   expect(applyDerivedStatus({ status: "APPROVED", findings: [] })).toBeNull();
-  const d = applyDerivedStatus({ status: "BLOCKED", findings: [], unverifiable: [{}] });
+  const d = applyDerivedStatus({ status: "BLOCKED", findings: [], unverifiable: [{}] }) as Record<
+    string,
+    unknown
+  >;
   expect(d.status).toBe("BLOCKED");
   expect(d.failure_category).toBe(FAILURE_CATEGORIES.UNVERIFIABLE.id);
 });
 
 it("finalizeHandoff review 族 T14 复现场景：unverifiable → BLOCKED + UNVERIFIABLE + 真实 blocker + exit 1（反转 exit 0）", async () => {
-  const r = await finalizeHandoff({
-    mode: "review",
-    agentHandoff: {
-      findings: [],
-      unverifiable: [{ claim: "90min 无拖死实证", why: "现场已恢复" }],
-    },
-  });
+  const r = await finalized(
+    finalizeHandoff({
+      mode: "review",
+      agentHandoff: {
+        findings: [],
+        unverifiable: [{ claim: "90min 无拖死实证", why: "现场已恢复" }],
+      },
+    }),
+  );
   expect(r.handoff.status).toBe("BLOCKED");
   expect(r.handoff.failure_category).toBe(FAILURE_CATEGORIES.UNVERIFIABLE.id);
   expect(r.handoff.blocker).toContain("90min 无拖死实证");
@@ -416,23 +473,27 @@ it("finalizeHandoff review 族 T14 复现场景：unverifiable → BLOCKED + UNV
 });
 
 it("finalizeHandoff review 族：真 blocker 发现 → CHANGES_REQUESTED + exit 0（非 BLOCKED 通道）", async () => {
-  const r = await finalizeHandoff({
-    mode: "review",
-    agentHandoff: { findings: [{ severity: "blocker" }] },
-  });
+  const r = await finalized(
+    finalizeHandoff({
+      mode: "review",
+      agentHandoff: { findings: [{ severity: "blocker" }] },
+    }),
+  );
   expect(r.handoff.status).toBe("CHANGES_REQUESTED");
   expect(r.exitCode).toBe(0);
 });
 
 it("finalizeHandoff review 族 dev-measured：notes 记录接受项 + warn-only → REVIEW_FIX，零 unverifiable 零 BLOCK", async () => {
-  const r = await finalizeHandoff({
-    mode: "review",
-    agentHandoff: {
-      findings: [{ severity: "warn" }],
-      notes:
-        "§口径 dev-measured 验收项已经 evidence-contract accepted-noted（notes 记录，不写 unverifiable 不 BLOCK）",
-    },
-  });
+  const r = await finalized(
+    finalizeHandoff({
+      mode: "review",
+      agentHandoff: {
+        findings: [{ severity: "warn" }],
+        notes:
+          "§口径 dev-measured 验收项已经 evidence-contract accepted-noted（notes 记录，不写 unverifiable 不 BLOCK）",
+      },
+    }),
+  );
   expect(r.handoff.status).toBe("REVIEW_FIX");
   expect(r.handoff.unverifiable).toBeUndefined();
   expect(r.handoff.blocker).toBeUndefined();
@@ -440,10 +501,12 @@ it("finalizeHandoff review 族 dev-measured：notes 记录接受项 + warn-only 
 });
 
 it("finalizeHandoff fix 族：BLOCKED → exit 1（任何通道 BLOCKED → 1）", async () => {
-  const r = await finalizeHandoff({
-    mode: "fix",
-    agentHandoff: { status: "BLOCKED", blocker: "真实原因" },
-  });
+  const r = await finalized(
+    finalizeHandoff({
+      mode: "fix",
+      agentHandoff: { status: "BLOCKED", blocker: "真实原因" },
+    }),
+  );
   expect(r.handoff).toBeDefined();
   expect(r.exitCode).toBe(1);
 });
@@ -455,13 +518,15 @@ it("finalizeHandoff implement 族：非 APPROVED 返回 → BLOCKED + failure_ca
   writeFileSync(path.join(ws, "tasks-1-test-evidence.json"), "{}");
   const cap = captureStderr();
   try {
-    const r = await finalizeHandoff({
-      mode: "implement",
-      returnBlock: ["status: NEEDS_CONTEXT", "commits: base=x", "artifacts: "],
-      brief,
-      workspace: Workspace.fromPath(ws),
-      tasks: [1],
-    });
+    const r = await finalized(
+      finalizeHandoff({
+        mode: "implement",
+        returnBlock: ["status: NEEDS_CONTEXT", "commits: base=x", "artifacts: "],
+        brief,
+        workspace: Workspace.fromPath(ws),
+        tasks: [1],
+      }),
+    );
     expect(r.handoff.status).toBe("BLOCKED");
     // M3 carrier ruling: the reason rides failure_category + notes — the `blocker` field is vacant
     expect(r.handoff.failure_category).toBe(FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id);
@@ -540,14 +605,20 @@ describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6
 
   it("恢复签名（base==head）+ 合法声明（祖先、≠HEAD）→ 采纳声明为 commits.base + 账本移至声明", async () => {
     const { repo, c0, c1, ws, brief } = resumeFixture();
-    const r = await finalizeHandoff({
-      mode: "implement",
-      returnBlock: ["status: APPROVED", `commits: base=${c0} head=${c1}`, "artifacts: report=r.md"],
-      brief,
-      repoRoot: repo,
-      workspace: Workspace.fromPath(ws),
-      tasks: [27],
-    });
+    const r = await finalized(
+      finalizeHandoff({
+        mode: "implement",
+        returnBlock: [
+          "status: APPROVED",
+          `commits: base=${c0} head=${c1}`,
+          "artifacts: report=r.md",
+        ],
+        brief,
+        repoRoot: repo,
+        workspace: Workspace.fromPath(ws),
+        tasks: [27],
+      }),
+    );
     expect(r.handoff.commits.base).toBe(c0); // 声明被采纳（非空 review 范围）
     expect(r.handoff.commits.head).toBe(c1);
     expect(r.exitCode).toBe(0);
@@ -558,23 +629,27 @@ describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6
 
   it("声明 ==HEAD → 拒（Reset 面）；声明非 40-hex → 拒（agent 伪造面）", async () => {
     const { repo, c1, ws, brief } = resumeFixture();
-    const r1 = await finalizeHandoff({
-      mode: "implement",
-      returnBlock: ["status: APPROVED", `commits: base=${c1} head=${c1}`, "artifacts: "],
-      brief,
-      repoRoot: repo,
-      workspace: Workspace.fromPath(ws),
-      tasks: [27],
-    });
+    const r1 = await finalized(
+      finalizeHandoff({
+        mode: "implement",
+        returnBlock: ["status: APPROVED", `commits: base=${c1} head=${c1}`, "artifacts: "],
+        brief,
+        repoRoot: repo,
+        workspace: Workspace.fromPath(ws),
+        tasks: [27],
+      }),
+    );
     expect(r1.handoff.commits.base).toBe(c1); // 未采纳（==HEAD）→ 保持 brief TASK_BASE
-    const r2 = await finalizeHandoff({
-      mode: "implement",
-      returnBlock: ["status: APPROVED", "commits: base=agent-wrong-base", "artifacts: "],
-      brief,
-      repoRoot: repo,
-      workspace: Workspace.fromPath(ws),
-      tasks: [27],
-    });
+    const r2 = await finalized(
+      finalizeHandoff({
+        mode: "implement",
+        returnBlock: ["status: APPROVED", "commits: base=agent-wrong-base", "artifacts: "],
+        brief,
+        repoRoot: repo,
+        workspace: Workspace.fromPath(ws),
+        tasks: [27],
+      }),
+    );
     expect(r2.handoff.commits.base).toBe(c1); // 未采纳（非 40-hex）
     // 账本既有值不被 c1（==HEAD 的恢复轮快照）覆盖 — 首 seed 后 earliest-wins
     const progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
@@ -591,14 +666,16 @@ describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6
       encoding: "utf8",
     }).trim();
     expect(forgeHead).not.toBe(c1);
-    const r = await finalizeHandoff({
-      mode: "implement",
-      returnBlock: ["status: APPROVED", `commits: base=${forgeHead} head=${c1}`, "artifacts: "],
-      brief,
-      repoRoot: repo,
-      workspace: Workspace.fromPath(ws),
-      tasks: [27],
-    });
+    const r = await finalized(
+      finalizeHandoff({
+        mode: "implement",
+        returnBlock: ["status: APPROVED", `commits: base=${forgeHead} head=${c1}`, "artifacts: "],
+        brief,
+        repoRoot: repo,
+        workspace: Workspace.fromPath(ws),
+        tasks: [27],
+      }),
+    );
     expect(r.handoff.commits.base).toBe(c1); // 非祖先伪造被拒 → 保持 brief TASK_BASE
   });
 
@@ -609,14 +686,16 @@ describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6
     const freshBrief = path.join(ws, "tasks-27-brief.md");
     writeFileSync(freshBrief, `# task 27\nTASK_BASE: ${c0}\n`);
     writeFileSync(path.join(ws, "tasks-27-test-evidence.json"), "{}");
-    const r = await finalizeHandoff({
-      mode: "implement",
-      returnBlock: ["status: APPROVED", `commits: base=${c0} head=${c1}`, "artifacts: "],
-      brief: freshBrief,
-      repoRoot: repo,
-      workspace: Workspace.fromPath(ws),
-      tasks: [27],
-    });
+    const r = await finalized(
+      finalizeHandoff({
+        mode: "implement",
+        returnBlock: ["status: APPROVED", `commits: base=${c0} head=${c1}`, "artifacts: "],
+        brief: freshBrief,
+        repoRoot: repo,
+        workspace: Workspace.fromPath(ws),
+        tasks: [27],
+      }),
+    );
     expect(r.handoff.commits.base).toBe(c0); // fresh = brief TASK_BASE 权威（声明车道关闭）
   });
 
@@ -642,7 +721,7 @@ it("branch/docs/runner 三消费方共享同一 finalizeHandoff（非各自接�
   // read-back (the single final-entry point = finalizeHandoff; applyDerivedStatus is consumed only
   // by artifact/handoff/finalize.ts itself).
   const dir = new URL("../../../", import.meta.url); // packages/cdd-engine/（P6 Task 3 迁就近：src/artifacts/__tests__ → 3-up）
-  const src = (rel) => readFileSync(new URL(rel, dir), "utf8");
+  const src = (rel: string) => readFileSync(new URL(rel, dir), "utf8");
   for (const rel of ["src/dispatch/task.ts", "src/dispatch/docs.ts", "src/dispatch/branch.ts"]) {
     expect(src(rel)).toMatch(/handoff\/finalize\.ts/);
     // 不得再各自手写 applyDerivedStatus 调用接线（注释提及无害；唯一定稿入口 = finalizeHandoff）

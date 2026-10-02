@@ -7,9 +7,9 @@ import { expect, it } from "vitest";
 import { ExitRequested, exitBlocked, exitCliMissing, exitOk, exitOkWith } from "../exit.ts";
 
 // Capture the ExitRequested code + stderr writes (same helper shape as the .mjs suite).
-function captureExit(
-  fn: (...args: never[]) => void,
-  ...args: never[]
+function captureExit<A extends unknown[]>(
+  fn: (...args: A) => void,
+  ...args: A
 ): { code: number | null; stderr: string } {
   const origWrite = process.stderr.write.bind(process.stderr);
   let code: number | null = null;
@@ -33,31 +33,31 @@ function captureExit(
 }
 
 it("exitOk: exit 0, no stderr", () => {
-  const { code, stderr } = captureExit(exitOk as () => void);
+  const { code, stderr } = captureExit(exitOk);
   expect(code).toBe(0);
   expect(stderr).toBe("");
 });
 
 it("exitBlocked: with message → CDD_BLOCKED prefix + exit 1", () => {
-  const { code, stderr } = captureExit(exitBlocked as () => void, "boom");
+  const { code, stderr } = captureExit(exitBlocked, "boom");
   expect(code).toBe(1);
   expect(stderr).toBe("CDD_BLOCKED: boom\n");
 });
 
 it("exitBlocked: empty message → no stderr, exit 1 only", () => {
-  const { code, stderr } = captureExit(exitBlocked as () => void);
+  const { code, stderr } = captureExit(exitBlocked);
   expect(code).toBe(1);
   expect(stderr).toBe("");
 });
 
 it("exitCliMissing: with message → CDD_CLI_MISSING prefix + exit 2", () => {
-  const { code, stderr } = captureExit(exitCliMissing as () => void, "pi not found in PATH");
+  const { code, stderr } = captureExit(exitCliMissing, "pi not found in PATH");
   expect(code).toBe(2);
   expect(stderr).toBe("CDD_CLI_MISSING: pi not found in PATH\n");
 });
 
 it("exitCliMissing: empty message → no stderr, exit 2 only", () => {
-  const { code, stderr } = captureExit(exitCliMissing as () => void);
+  const { code, stderr } = captureExit(exitCliMissing);
   expect(code).toBe(2);
   expect(stderr).toBe("");
 });

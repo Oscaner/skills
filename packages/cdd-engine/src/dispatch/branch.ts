@@ -78,7 +78,10 @@ const resultFace = new ResultFace({ nextRouter });
 export interface BranchLifecycleOpts {
   plan: string;
   harness: string;
-  type: string;
+  /** branch-lane subtype (the CLI callers pass "branch"; the lifecycle itself never consumes it —
+   *  its dispatch facts carry the literal — so the field stays optional for the in-process
+   *  dispatch-probe surface, T2 widening). */
+  type?: string;
   root?: string;
   registryPath?: string;
   dryRun: boolean;
@@ -93,7 +96,7 @@ export interface BranchReviewOpts {
   base: string;
   head: string;
   harness: string;
-  type: string;
+  type?: string;
   task?: number;
   round?: string;
   root?: string;
@@ -104,7 +107,7 @@ export interface BranchFixOpts {
   plan: string;
   findings: string;
   harness: string;
-  type: string;
+  type?: string;
   root?: string;
   registryPath?: string;
 }

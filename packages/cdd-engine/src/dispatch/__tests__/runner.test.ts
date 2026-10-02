@@ -54,7 +54,7 @@ import {
 const GROUP_SUPPORTED = processGroupReapingSupported(); // spec §2.6 skip guard (CI container group semantics are unreliable)
 
 // gitInit + realpath normalization (macOS /tmp → /private/tmp).
-function gitInitReal(dir) {
+function gitInitReal(dir: string) {
   const real = realpathSync(dir);
   gitInit(real);
   return real;
@@ -88,13 +88,13 @@ function setupWorkspace() {
 
 // Commit a doc-contract-valid plan into an already-initialized repo (add + commit) — keeps working
 // tree clean.
-function commitPlan(repoDir, planFile) {
+function commitPlan(repoDir: string, planFile: string) {
   commitValidDocs(repoDir, path.relative(repoDir, planFile));
   return planFile;
 }
 
 // fake-cli（registry cli 名遮蔽）：写脚本 + 注入 PATH，返回还原函数。
-function withFakeCli(binDir, name, body) {
+function withFakeCli(binDir: string, name: string, body: string) {
   writeFileSync(path.join(binDir, name), body);
   chmodSync(path.join(binDir, name), 0o755);
   const origPath = process.env.PATH;
@@ -107,7 +107,11 @@ function withFakeCli(binDir, name, body) {
 // ghost registry: the real harness contract + an appended fake-cli row. C8 — the injection prefix
 // derives from dispatch + refs; the ghost row gets matching ghost columns in the refs table so the
 // derivation also holds for the test harness (the per-row prefix surface is deleted).
-function ghostRegistry(ws, { prefix, suffix, dispatch } = {}) {
+function ghostRegistry(
+  ws: string,
+  opts: { prefix?: unknown; suffix?: unknown; dispatch?: unknown } = {},
+) {
+  const { prefix, suffix, dispatch } = opts;
   const regPath = path.join(ws, "registry.json");
   const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
   reg.ghost = {
@@ -127,15 +131,15 @@ function ghostRegistry(ws, { prefix, suffix, dispatch } = {}) {
 }
 
 // Capture process.exit + stdout/stderr from runTask (noExit:false).
-async function capture(runFn) {
+async function capture(runFn: () => Promise<unknown>) {
   const origExit = process.exit;
   const origOut = process.stdout.write.bind(process.stdout);
   const origErr = process.stderr.write.bind(process.stderr);
-  let code = null;
+  let code: string | number | null = null;
   let stdout = "";
   let stderr = "";
   process.exit = (c) => {
-    code = c;
+    code = c ?? null;
     throw new Error(`process.exit(${c})`);
   };
   process.stdout.write = (s) => {
@@ -153,7 +157,7 @@ async function capture(runFn) {
       if (e instanceof ExitRequested) {
         code = e.code;
       } // exit helpers now throw the sentinel (Task 3 review-warn fix)
-      else if (!/process\.exit/.test(e.message)) throw e;
+      else if (e instanceof Error && !/process\.exit/.test(e.message)) throw e;
     }
   } finally {
     process.exit = origExit;
@@ -206,7 +210,7 @@ it.skipIf(!GROUP_SUPPORTED)(
     const { repo, planFile } = setupWorkspace();
     // mocks the session server left behind by dispatch: the leader exits after triggering grandchild P1EXIT, the grandchild lingers (group pgid liveness semantics).
     const script = `const{spawn}=require('child_process');spawn(process.execPath,['-e','setTimeout(()=>{},60000)','P1EXIT']).unref();process.exit(0)`;
-    await spawnManaged("node", ["-e", script], { timeoutMs: 5000 });
+    await spawnManaged("node", ["-e", script], { termination: { budgetMs: 5000 } });
     const p1exitAlive = () => pgrepCount("P1EXIT"); // the bracket trick removes pgrep self-matching (helpers.ts)
     expect(p1exitAlive()).toBeGreaterThan(0);
     let code = null;
@@ -227,7 +231,7 @@ it.skipIf(!GROUP_SUPPORTED)(
 );
 
 it("runTask: dry-run review/fix modes → return block APPROVED + no handoff written (aligns bash)", async () => {
-  for (const mode of ["review", "fix"]) {
+  for (const mode of ["review", "fix"] as const) {
     const { repo, planFile, ws } = setupWorkspace();
     const res = await TaskLifecycle.run("claude", 1, {
       mode,
@@ -676,7 +680,7 @@ it("buildCtx: fix mode → findingsPath = review handoff path (no scope filter)"
   });
   expect(ctx.findingsPath).toMatch(/tasks-1-review-1\.json$/);
   expect(ctx.findingsPath).not.toMatch(/open-findings/);
-  expect(ctx.findingsScope).toBeUndefined();
+  expect(ctx).not.toHaveProperty("findingsScope");
 });
 
 it("buildCtx: implement mode → findingsPath = open-findings path, no scope key", () => {
@@ -687,7 +691,7 @@ it("buildCtx: implement mode → findingsPath = open-findings path, no scope key
     planFile,
   });
   expect(ctx.findingsPath).toMatch(/tasks-1-open-findings\.json$/);
-  expect(ctx.findingsScope).toBeUndefined();
+  expect(ctx).not.toHaveProperty("findingsScope");
 });
 
 // ---- CLI succeeds + no handoff → BLOCKED (Pζ) ----
@@ -717,7 +721,7 @@ it("runTask #187→Pζ: review CLI 成功 + 无 handoff → BLOCKED（10.5 仍�
 
 // ---- handoffStatus DONE/OK/COMPLETED normalization ----
 
-function makeHandoffStatusFixture(status) {
+function makeHandoffStatusFixture(status: string) {
   const dir = mkdtempSync(path.join(tmpdir(), "runner-hs-"));
   const progressData = { tasks: [{ task: 1, rounds: { review: 1 } }] };
   writeFileSync(path.join(dir, "tasks-1-review-1.json"), JSON.stringify({ status }));
@@ -1497,7 +1501,7 @@ it("schema: phase 'review' handoff 通过 Ajv 校验（phase enum 已归一）",
 // Fixture (T6): git repo + git-committed plan at the repo root (`--plan`) + clean tracked tree
 // (the commit-contract precondition). Returns the registry / HEAD scene; root is injected via
 // opts.root; workspace purely derived = <repo>/.kairos/cdd/plan.
-function t6Workspace(extraFiles = {}) {
+function t6Workspace(extraFiles: Record<string, string> = {}) {
   const repo = gitInitReal(mkdtempSync(path.join(tmpdir(), "cdd-t6-ws-")));
   commitValidDocs(repo);
   const cddDir = path.join(repo, ".kairos", "cdd");
@@ -1533,7 +1537,7 @@ function t6Workspace(extraFiles = {}) {
 }
 
 // Ghost-run wrapper: write fake-cli (body) → inject PATH to run runTask (implement/non-dry) → restore PATH (T6)
-async function runT6Ghost(t6, body) {
+async function runT6Ghost(t6: ReturnType<typeof t6Workspace>, body: string) {
   const restore = withFakeCli(t6.binDir, "fake-cli", body);
   try {
     return await TaskLifecycle.run("ghost", 1, {
@@ -1781,7 +1785,7 @@ function t8Workspace({ dirty = false } = {}) {
 }
 
 // Review ghost-run wrapper: fake-cli writes an APPROVED review handoff → run runTask review (non-dry) → restore PATH (T8)
-async function runT8ReviewGhost(t8, body) {
+async function runT8ReviewGhost(t8: ReturnType<typeof t8Workspace>, body: string) {
   const restore = withFakeCli(t8.binDir, "fake-cli", body);
   try {
     return await TaskLifecycle.run("ghost", 1, {
@@ -2081,14 +2085,14 @@ it("runTask T22: dry-run 豁免 — 无源 plan 走 dry-run 零 BLOCK + 零 cons
 
 // The crash-only snapshot commit needs a repo-local identity (helpers' gitInit sets it only inline
 // on the commit command) — real repos always have one.
-function configureGitIdentity(repo) {
+function configureGitIdentity(repo: string) {
   execFileSync("git", ["-C", repo, "config", "user.name", "cdd-test"]);
   execFileSync("git", ["-C", repo, "config", "user.email", "cdd-test@example.com"]);
 }
 
 // The continuing round-2 fake CLI body (shared by both scenarios): append an incremental line to the
 // restored WIP, commit (clean exit-gate baseline), then emit the 3-line return block.
-function continuingCli(ws) {
+function continuingCli(ws: string) {
   return (
     `#!/usr/bin/env bash\n` +
     `printf 'line3-agent-increment\n' >> wip.md\n` +

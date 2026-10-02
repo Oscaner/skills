@@ -9,14 +9,14 @@ import { describe, expect, it } from "vitest";
 
 import { gitCommit, gitInit } from "../../infra/__tests__/helpers.ts";
 import { Workspace } from "../../infra/workspace.ts";
-import { ProgressLedger } from "../progress.ts";
+import { type ProgressData, ProgressLedger, type TaskLedgerRow } from "../progress.ts";
 
 const ledgerFor = (dir: string) => new ProgressLedger(Workspace.fromPath(dir));
 // The workspace-independent API probes (create builds a fresh object — the ledger's workspace is
 // irrelevant there), kept on a shared instance.
 const ledger = new ProgressLedger(Workspace.fromPath(tmpdir()));
 
-function tmpDir(prefix) {
+function tmpDir(prefix: string) {
   return mkdtempSync(path.join(tmpdir(), prefix));
 }
 
@@ -86,8 +86,12 @@ it("writeProgressJSON: creates progress.json file", () => {
 it("writeProgressJSON: write-back strips tasks[N].status (T30 ② single-source — state pure-derivation, ledger keeps facts only)", () => {
   const dir = tmpDir("prog-strip-status-");
   // A legacy row carrying the retired status field converges to the new schema on any write-back.
+  // The legacy row is typed through the fixture seam (status is retired, off-schema today).
   const data = ledger.create("");
-  data.tasks = [{ task: 1, status: "complete", rounds: { review: 1 } }];
+  const legacyRows: Array<TaskLedgerRow & { status?: string }> = [
+    { task: 1, status: "complete", rounds: { review: 1 } },
+  ];
+  data.tasks = legacyRows;
   ledgerFor(dir).write(data);
   const written = JSON.parse(readFileSync(path.join(dir, "progress.json"), "utf8"));
   expect(written.tasks[0]).toEqual({ task: 1, rounds: { review: 1 } });
@@ -113,7 +117,7 @@ it("readProgressJSON: legacy row with status loads with zero error (migration-co
   );
   const p = ledgerFor(dir).read();
   expect(p.plan).toBe("/p.md");
-  expect(p.tasks[0].task).toBe(1);
+  expect(p.tasks[0]).toMatchObject({ task: 1 });
   expect(p.tasks[0].rounds).toEqual({ review: 1 });
   // Where the status field ends up is the write path's call (writeProgressJSON GC); the read path
   // only guarantees no error.
@@ -122,7 +126,12 @@ it("readProgressJSON: legacy row with status loads with zero error (migration-co
 
 it("writeProgressJSON: 写前剥除死字段 lastDispatchHead/degradationLog（T8 存量 progress.json 首次回写即回收）", () => {
   const dir = tmpDir("prog-strip-");
-  const data = ledger.create("");
+  // Dead-field injection (T8): lastDispatchHead / degradationLog are retired — write-back strips
+  // them; the injected legacy carrier is typed through the fixture seam (off-schema today).
+  const data = ledger.create("") as ProgressData & {
+    lastDispatchHead?: string;
+    degradationLog?: Array<{ at: string; reason: string }>;
+  };
   data.lastDispatchHead = "8e95ac735540c264cd4500d4c1ca659971bd2f11";
   data.degradationLog = [{ at: "2026-09-08", reason: "legacy pre-T8" }];
   ledgerFor(dir).write(data);
@@ -152,14 +161,14 @@ it("migrateFromProgressMD: returns null when no progress.md", () => {
 it("migrateFromProgressMD: parses timeoutCount from # timeoutCount: N", () => {
   const dir = tmpDir("prog-md-tc-");
   writeFileSync(path.join(dir, "progress.md"), "# CDD ledger\n# timeoutCount: 3\n");
-  const p = ledgerFor(dir).migrateFromProgressMD();
+  const p = ledgerFor(dir).migrateFromProgressMD() as ProgressData;
   expect(p.timeoutCount).toBe(3);
 });
 
 it("migrateFromProgressMD: parses engineRecoveryCount from # engine-recovery-count: N", () => {
   const dir = tmpDir("prog-md-rc-");
   writeFileSync(path.join(dir, "progress.md"), "# CDD ledger\n# engine-recovery-count: 2\n");
-  const p = ledgerFor(dir).migrateFromProgressMD();
+  const p = ledgerFor(dir).migrateFromProgressMD() as ProgressData;
   expect(p.engineRecoveryCount).toBe(2);
 });
 
@@ -169,7 +178,7 @@ it("migrateFromProgressMD: parses completed tasks", () => {
     path.join(dir, "progress.md"),
     "# CDD ledger\nTask 1: complete\nTask 3: complete\n",
   );
-  const p = ledgerFor(dir).migrateFromProgressMD();
+  const p = ledgerFor(dir).migrateFromProgressMD() as ProgressData;
   expect(p.tasks.length).toBe(3); // 1:complete, 2:pending, 3:complete
   expect(p.tasks[0]).toEqual({ task: 1 });
   expect(p.tasks[1]).toEqual({ task: 2 });
@@ -179,14 +188,14 @@ it("migrateFromProgressMD: parses completed tasks", () => {
 it("migrateFromProgressMD: empty ledger → no tasks", () => {
   const dir = tmpDir("prog-md-empty-");
   writeFileSync(path.join(dir, "progress.md"), "# CDD ledger\n");
-  const p = ledgerFor(dir).migrateFromProgressMD();
+  const p = ledgerFor(dir).migrateFromProgressMD() as ProgressData;
   expect(p.tasks).toEqual([]);
 });
 
 it("migrateFromProgressMD: no timeoutCount → defaults to 0", () => {
   const dir = tmpDir("prog-md-notc-");
   writeFileSync(path.join(dir, "progress.md"), "# CDD ledger\n");
-  const p = ledgerFor(dir).migrateFromProgressMD();
+  const p = ledgerFor(dir).migrateFromProgressMD() as ProgressData;
   expect(p.timeoutCount).toBe(0);
 });
 

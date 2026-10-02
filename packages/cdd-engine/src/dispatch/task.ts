@@ -203,9 +203,10 @@ export function buildPromptParams(
 
 /** TaskRunOptions — runTask's public opts (signature keys only; anything else unused). */
 export interface TaskRunOptions {
-  /** The dispatch op — the legal trio (the only values the CLI faces pass: implement / review /
-   * fix literal modes). A persisted invalid value is rejected at pre-flight validateMode. */
-  mode?: DispatchOp;
+  /** The dispatch op — the legal trio implement / review / fix as the CLI faces emit it, though
+   * the runtime contract keeps the field open: a persisted invalid value is rejected at pre-flight
+   * validateMode (the deliberate-invalid probe surface, T2 widening). */
+  mode?: string;
   planFile?: string;
   root?: string;
   dryRun?: boolean;

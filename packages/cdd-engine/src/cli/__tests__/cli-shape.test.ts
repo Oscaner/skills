@@ -48,8 +48,11 @@ afterAll(() => {
 
 // runCli: spawnSync-style { exitCode, stdout, stderr }，与 cdd.test.mjs 同构（execaSync +
 // 剥离 CDD_* 继承 env + extendEnv:false，避免 orchestrator 携带的 CDD_* 泄漏回 child）。
-function runCli(args, { env: extraEnv = {} } = {}) {
-  const env = {};
+function runCli(
+  args: string[] = [],
+  { env: extraEnv = {} }: { env?: Record<string, string | undefined> } = {},
+) {
+  const env: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (!k.startsWith("CDD_")) env[k] = v;
   }
@@ -61,23 +64,33 @@ function runCli(args, { env: extraEnv = {} } = {}) {
       extendEnv: false,
     });
     return { exitCode: r.exitCode ?? 0, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
-  } catch (e) {
-    return { exitCode: e.exitCode ?? 1, stdout: e.stdout ?? "", stderr: e.stderr ?? "" };
+  } catch (e: unknown) {
+    // child_process boundary cast: an execa rejection carries exitCode/stdout/stderr — narrow
+    // once at the seam.
+    const err = e as { exitCode?: number; stdout?: string; stderr?: string };
+    return { exitCode: err.exitCode ?? 1, stdout: err.stdout ?? "", stderr: err.stderr ?? "" };
   }
 }
 
 const HOST_ENV = { CLAUDE_CODE_SESSION_ID: "1" };
 
+// citty declaration-shape seam (T2): the frame types `subCommands` as Resolvable
+// (fn/promise-capable); parse.ts declares plain literal objects — the static assertions read the
+// resolved subset through this intersection cast (the declaration value IS the resolved object:
+// the intersection target is assignable to the source, no bridge needed).
+const subCommands = mainCommand.subCommands as NonNullable<(typeof mainCommand)["subCommands"]> &
+  Record<string, { args?: Record<string, unknown> }>;
+
 describe("cdd review/fix option 形态（D11: --doc 退役 → --spec/--plan type 自解释）", () => {
   it("review 声明面无 doc arg（D11 退役）；spec/plan arg 存在", () => {
-    const reviewArgs = mainCommand.subCommands.review.args;
+    const reviewArgs = subCommands.review.args;
     expect(reviewArgs).not.toHaveProperty("doc");
     expect(reviewArgs).toHaveProperty("spec");
     expect(reviewArgs).toHaveProperty("plan");
   });
 
   it("fix 声明面无 doc arg（D11 退役）；plan arg 存在", () => {
-    const fixArgs = mainCommand.subCommands.fix.args;
+    const fixArgs = subCommands.fix.args;
     expect(fixArgs).not.toHaveProperty("doc");
     expect(fixArgs).toHaveProperty("plan");
   });
@@ -147,7 +160,7 @@ describe("cdd review/fix option 形态（D11: --doc 退役 → --spec/--plan typ
 // runCommand fires from the bin thin entry).
 describe("P3/P4.3/P4.2 命令面收敛:顶层子命令恰为六", () => {
   it("mainCommand.subCommands 名称集合 === {base-branch, fix, implement, issue, review, schema}", () => {
-    expect(Object.keys(mainCommand.subCommands).sort()).toEqual([
+    expect(Object.keys(subCommands).sort()).toEqual([
       "base-branch",
       "fix",
       "implement",
@@ -187,7 +200,7 @@ describe("guardArgs: --no-* negation restricted to boolean args", () => {
 describe("C3-a --root 白名单: implement/review/fix 声明 + 黑盒可用", () => {
   it("三命令声明面含 root（implement/review/fix 统一 --root 注入契约）", () => {
     for (const name of ["implement", "review", "fix"]) {
-      expect(mainCommand.subCommands[name].args).toHaveProperty("root");
+      expect(subCommands[name].args).toHaveProperty("root");
     }
   });
 

@@ -55,7 +55,26 @@ const CLAUSE_KEYS = [
   "cl:changed-surface",
 ];
 
-function zoneFixture(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+/** Zone-plan fixture shape (synthetic template contract): the sections/skeleton planes the
+ * validator branches read are typed so the override spreads stay object-typed (the rest of the
+ * fixture is opaque). */
+interface ZoneFixtureShape {
+  sections: {
+    shell: string[];
+    "round-context": string[];
+    return: Record<string, string[]>;
+    [key: string]: string[] | Record<string, string[]>;
+  };
+  skeleton: {
+    sections: string[];
+    segments: Record<string, string[]>;
+    order: string[];
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+function zoneFixture(overrides: Record<string, unknown> = {}): ZoneFixtureShape {
   return {
     $version: 3,
     skeleton: {
@@ -322,7 +341,7 @@ describe("template-contract 单点消费 + zone-tagged token registry（Task 20 
     });
     expect(() => validateTemplateStructure(okRef as never)).not.toThrow();
     assembleClauses(okRef as never);
-    expect(hb.compile("{{> discipline}}")()).toBe("FIND-ALL-FINDINGS"); // assembly surface: the partial is registered
+    expect(hb.compile("{{> discipline}}")({})).toBe("FIND-ALL-FINDINGS"); // assembly surface: the partial is registered
   });
 
   it("validateShippedTemplates: 单文件数据面校验通过 → 返回 zone 键清单（原 TEMPLATE_FILES 逐文件扫退位）", async () => {

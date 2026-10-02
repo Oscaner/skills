@@ -33,16 +33,25 @@ const REPO_ROOT = path.resolve(HERE, "..", "..", "..", "..", "..");
 const CDD_MJS = path.join(REPO_ROOT, "packages/cdd-engine/dist/cli.mjs");
 
 // Test env: strip any CDD_* inherited from an orchestrator session, then overlay test extras.
-function cleanEnv(extra) {
-  const env = {};
+function cleanEnv(extra: Record<string, string | undefined> = {}) {
+  const env: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (!k.startsWith("CDD_")) env[k] = v;
   }
   return { ...env, ...extra };
 }
 
+interface RunOpts {
+  noHost?: boolean;
+  cwd?: string;
+}
+
 // Spawn the CLI as a subprocess; returns { status, stdout, stderr }.
-function run(args, extraEnv = {}, opts = {}) {
+function run(
+  args: string[],
+  extraEnv: Record<string, string | undefined> = {},
+  opts: RunOpts = {},
+) {
   const env = cleanEnv(extraEnv);
   // Host detection is ambient-env driven — a test needing a truly host-free env must
   // explicitly delete the host markers (parent session may carry CLAUDE_CODE_SESSION_ID/AI_AGENT) (T3).

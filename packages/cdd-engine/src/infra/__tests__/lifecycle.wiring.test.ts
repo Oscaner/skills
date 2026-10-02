@@ -25,8 +25,8 @@ const REPO_ROOT = path.resolve(LIB, "..", "..", "..");
 // spec §2.6「环境不允许时 skip 保护」：信号用例依赖真进程组回收（P1SIG 组随 teardownAll 连根退出），
 // CI 容器下组语义不可靠 → skipIf 门控；形构守卫（execa 收敛 / withLifecycle 接线）不受影响始终运行。
 const GROUP_SUPPORTED = processGroupReapingSupported();
-const alive = (m) => pgrepCount(m); // the bracket trick removes pgrep -f self-matching (helpers.ts)
-const waitFor = async (fn, ms) => {
+const alive = (m: string) => pgrepCount(m); // the bracket trick removes pgrep -f self-matching (helpers.ts)
+const waitFor = async (fn: () => boolean, ms: number) => {
   const t0 = Date.now();
   while (Date.now() - t0 < ms) {
     if (fn()) return;
@@ -70,10 +70,10 @@ describe("架构违例守卫：引擎全部派生经 spawnManaged", () => {
     // also live under __tests__).
     const files = readdirSync(LIB, { recursive: true })
       .filter((f) => String(f).endsWith(".mjs") || String(f).endsWith(".ts"))
-      .filter((f) => !f.split(path.sep).includes("__tests__"));
+      .filter((f) => !String(f).split(path.sep).includes("__tests__"));
     const offenders = [];
     for (const f of files) {
-      const src = readFileSync(path.join(LIB, f), "utf8");
+      const src = readFileSync(path.join(LIB, String(f)), "utf8");
       // 仅匹配真实 import 语句（`import ... from "execa"`）——注释/文档中的 "execa" 字样不当 offenders，
       // 否则 invoke.mjs 等派生点注释提及 execa 历史（迁移叙事、spawnCapture 说明）会造成误伤。
       if (
@@ -161,8 +161,10 @@ describe("架构违例守卫：引擎全部派生经 spawnManaged", () => {
             },
           );
           await waitFor(() => alive("P1SIG") > 0, 30_000);
-          child.kill(sig);
-          const [code, signal] = await new Promise((res) =>
+          // the it.each table passes signal-name strings; the kill channel takes the Signals union
+          // (narrowed at the boundary — the table values are the literal signal names).
+          child.kill(sig as NodeJS.Signals);
+          const [code, signal] = await new Promise<[number | null, string | null]>((res) =>
             child.on("exit", (c, s) => res([c, s])),
           );
           // after the handler intercepts, exit is normal (signal = null); the exit code = 128 + signo (SIGINT→130 / SIGTERM→143 / SIGHUP→129);

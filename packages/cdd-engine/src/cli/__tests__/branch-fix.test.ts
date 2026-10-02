@@ -326,7 +326,7 @@ describe("branch-fix in-process loop closure", () => {
 // emission surface the C5-1 fix-face result line (blocker input → re-review on the moved ref;
 // warn/nit → closure; the return block prints status/commits/artifacts + counters + next) ----
 describe("branch-fix real-mode — parent stdout return block (C5-1 fix face)", () => {
-  const setup = async (findings: Array<{ severity: string }>) => {
+  const setup = async (findings: Array<{ severity: string; summary?: string }>) => {
     const dir = tmpGitRepo();
     const slug = "test-plan-bf-rb";
     const planPath = writeBranchChain(dir, `${slug}.md`);

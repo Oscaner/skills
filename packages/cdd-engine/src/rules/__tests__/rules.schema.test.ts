@@ -48,10 +48,13 @@ describe("rules/schema.ts — loadHandoffSchema / loadHandoffNamespace canonical
   });
 
   it("loadHandoffNamespace 返回 engine-config#handoffNamespace 原值（workspaceRoot + 9 families）", () => {
-    const ns = schemaValidator.loadHandoffNamespace();
+    const ns = schemaValidator.loadHandoffNamespace() as {
+      workspaceRoot?: string;
+      families?: Record<string, unknown>;
+    };
     expect(ns).toEqual(NAMESPACE);
     expect(ns.workspaceRoot).toBe(".kairos/cdd");
-    expect(Object.keys(ns.families)).toHaveLength(9);
+    expect(Object.keys(ns.families ?? {})).toHaveLength(9);
   });
 });
 
@@ -69,13 +72,21 @@ describe("rules/schema.ts — validateHandoffSchema", () => {
   });
 
   it("缺 required 字段 → { valid: false, reason 含 must have required property }", () => {
-    const r = schemaValidator.validateHandoffSchema({ phase: "review", findings: [] });
+    const r = schemaValidator.validateHandoffSchema({ phase: "review", findings: [] }) as {
+      valid: boolean;
+      reason?: string;
+      property?: string;
+    };
     expect(r.valid).toBe(false);
     expect(r.reason).toMatch(/must have required property/);
   });
 
   it("未知键 → { valid: false, property: 键名, reason 含 unexpected key }", () => {
-    const r = schemaValidator.validateHandoffSchema({ ...validTask, junk: 5 });
+    const r = schemaValidator.validateHandoffSchema({ ...validTask, junk: 5 }) as {
+      valid: boolean;
+      reason?: string;
+      property?: string;
+    };
     expect(r.valid).toBe(false);
     expect(r.property).toBe("junk");
     expect(r.reason).toContain("unexpected key: junk");
@@ -113,13 +124,13 @@ describe("P6 T24 B: finalize.ts — normalizeHandoff (single-point re-validate; 
       phase: "review",
       artifacts: {},
       findings: [{ severity: "blocker" }],
-    });
+    }) as { status?: string };
     expect(n.status).toBe("CHANGES_REQUESTED");
   });
 
   it("work 型（implement）缺 status → 不派生（schema else.required 强制 agent 声明）", () => {
     const n = normalizeHandoff({ tasks: [1], phase: "implement", artifacts: {}, findings: [] });
-    expect("status" in n).toBe(false);
+    expect("status" in (n as object)).toBe(false);
   });
 
   it("非对象输入原样透传（透传契约由恢复面 objOrEmpty 收口）", () => {
@@ -188,14 +199,24 @@ describe("P6 T24 B: finalize.ts — recoverHandoff (CONTRACT_VIOLATION recovery 
 // task). A divergent core (e.g. docs losing TIMEOUT or keeping the commits-free declaration) must
 // fail here before it ships.
 describe("T5 AC7: handoff schema single-source core (task/docs one contract core; lane differences are only boundary objects)", () => {
+  // Fixture seam: the schema property values are JSON-schema objects read off the shipped
+  // config — the narrowed property shape covers the fields these assertions read (enum/type/
+  // description/required) without per-access casts.
+  type Prop = {
+    type?: string;
+    description?: string;
+    enum?: string[];
+    required?: string[];
+    properties?: unknown;
+  };
   const taskProps = (
     schemaValidator.loadHandoffSchema("task") as {
-      properties: Record<string, Record<string, unknown>>;
+      properties: Record<string, Prop>;
     }
   ).properties;
   const docsProps = (
     schemaValidator.loadHandoffSchema("docs") as {
-      properties: Record<string, Record<string, unknown>>;
+      properties: Record<string, Prop>;
     }
   ).properties;
 
@@ -233,10 +254,10 @@ describe("T5 AC7: handoff schema single-source core (task/docs one contract core
     // The enum is the machine-checked mechanism-channel whitelist: the shipped schema and the
     // engine's own FAILURE_CATEGORIES (engine-config#failureCategories) are the same set — a
     // BLOCKED carrier with HARNESS_ABORT must pass its own schema. Sorted compare = set equality.
-    expect([...taskProps.failure_category.enum].sort()).toEqual(
+    expect([...(taskProps.failure_category.enum ?? [])].sort()).toEqual(
       Object.keys(FAILURE_CATEGORIES).sort(),
     );
-    expect([...docsProps.failure_category.enum].sort()).toEqual(
+    expect([...(docsProps.failure_category.enum ?? [])].sort()).toEqual(
       Object.keys(FAILURE_CATEGORIES).sort(),
     );
     expect(taskProps.failure_category.enum).toContain("HARNESS_ABORT");

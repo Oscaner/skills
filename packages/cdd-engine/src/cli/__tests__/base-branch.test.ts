@@ -22,15 +22,18 @@ const CDD_MJS = path.join(REPO_ROOT, "packages/cdd-engine/dist/cli.mjs");
 const NODE = process.execPath;
 
 // 与 cdd.test.mjs 同构：剥离继承的 CDD_*，extendEnv:false 防 orchestrator 环境泄漏回 child。
-function cleanEnv(extra) {
-  const env = {};
+function cleanEnv(extra: Record<string, string | undefined> = {}) {
+  const env: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (!k.startsWith("CDD_")) env[k] = v;
   }
   return { ...env, ...extra };
 }
 
-function runCli(args, opts = {}) {
+interface RunCliOpts {
+  cwd?: string;
+}
+function runCli(args: string[] = [], opts: RunCliOpts = {}) {
   const { cwd = REPO_ROOT } = opts;
   try {
     const r = execaSync(NODE, [CDD_MJS, ...args], {
@@ -40,8 +43,11 @@ function runCli(args, opts = {}) {
       extendEnv: false,
     });
     return { exitCode: r.exitCode ?? 0, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
-  } catch (e) {
-    return { exitCode: e.exitCode ?? 1, stdout: e.stdout ?? "", stderr: e.stderr ?? "" };
+  } catch (e: unknown) {
+    // child_process boundary cast: an execa rejection carries exitCode/stdout/stderr — narrow
+    // once at the seam.
+    const err = e as { exitCode?: number; stdout?: string; stderr?: string };
+    return { exitCode: err.exitCode ?? 1, stdout: err.stdout ?? "", stderr: err.stderr ?? "" };
   }
 }
 
@@ -65,18 +71,18 @@ function tmpGitRepo() {
 }
 
 // 在 repo 内建 plan 文件（父目录一并创建：resolveWorkspace 从 dirname(doc) 走 gitToplevel）。
-function seedPlan(repo) {
+function seedPlan(repo: string) {
   const plan = path.join(repo, "plans", "app-plan.md");
   mkdirSync(path.dirname(plan), { recursive: true });
   writeFileSync(plan, "# app plan\n"); // workspaceSlug: app-plan → app
   return plan;
 }
 
-function cddWorkspace(repo) {
+function cddWorkspace(repo: string) {
   return path.join(repo, ".kairos", "cdd", "app");
 }
 
-function readBaseBranch(dir) {
+function readBaseBranch(dir: string) {
   return JSON.parse(readFileSync(path.join(dir, "base-branch.json"), "utf8"));
 }
 

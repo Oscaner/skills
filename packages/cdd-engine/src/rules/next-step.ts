@@ -48,8 +48,9 @@ export interface NextStepArgs {
   round?: number;
   /** the round's concluding status (finalized): BLOCKED/TIMEOUT → no suggestion (null). */
   status?: string;
-  /** findings — review: this round's findings; fix: the `--findings` INPUT content (C5-1). */
-  findings?: ReadonlyArray<{ severity?: string }>;
+  /** findings — review: this round's findings; fix: the `--findings` INPUT content (C5-1).
+   *  Findings carry the severity selector + the summary prose. */
+  findings?: ReadonlyArray<{ severity?: string; summary?: string }>;
   /** the findings handoff path — fix: the `--findings` input path; review: its own review handoff
    *  (the path the next fix round reads on `--findings`). */
   findingsPath?: string;

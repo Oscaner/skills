@@ -44,15 +44,21 @@ afterAll(() => {
 const NODE = process.execPath;
 
 // Test env: strip 任何从 orchestrator session 继承的 CDD_*，再叠加测试 extras（与 task.test.mjs 一致）。
-function cleanEnv(extra) {
-  const env = {};
+function cleanEnv(extra: Record<string, string | undefined> = {}) {
+  const env: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (!k.startsWith("CDD_")) env[k] = v;
   }
   return { ...env, ...extra };
 }
 
-function runCli(args = [], opts = {}) {
+interface RunCliOpts {
+  env?: Record<string, string | undefined>;
+  cwd?: string;
+  noHost?: boolean;
+}
+
+function runCli(args: string[] = [], opts: RunCliOpts = {}) {
   const { env: extraEnv = {}, cwd = REPO_ROOT, noHost = false } = opts;
   const env = cleanEnv(extraEnv);
   // Host detection is ambient-env driven (CLAUDE_CODE_SESSION_ID / AI_AGENT) — a no-host case
@@ -70,8 +76,11 @@ function runCli(args = [], opts = {}) {
     // CDD_* 键承担）。关闭 extendEnv 后 child 只见 cleanEnv 显式清单，测试与调度侧环境变量零耦合。
     const r = execaSync(NODE, [CDD_MJS, ...args], { cwd, env, encoding: "utf8", extendEnv: false });
     return { exitCode: r.exitCode ?? 0, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
-  } catch (e) {
-    return { exitCode: e.exitCode ?? 1, stdout: e.stdout ?? "", stderr: e.stderr ?? "" };
+  } catch (e: unknown) {
+    // child_process boundary cast: an execa rejection carries exitCode/stdout/stderr (any execa
+    // sync throw shape) — narrow once at the seam.
+    const err = e as { exitCode?: number; stdout?: string; stderr?: string };
+    return { exitCode: err.exitCode ?? 1, stdout: err.stdout ?? "", stderr: err.stderr ?? "" };
   }
 }
 
@@ -82,7 +91,9 @@ function runCli(args = [], opts = {}) {
 // export), so vitest intercepts the same module by resolved id and surfaces `run` as the static
 // face. CLI black-box cases run as standalone node child processes and bypass this mock.
 const docsRunnerMock = vi.hoisted(() => ({
-  run: vi.fn(async () => ({
+  // The mock's param is the runDocsTask options blob (handoffPath/workspace/findingsPath —
+  // the derived-naming assertions read it back below); fixture boundary → Record shape.
+  run: vi.fn(async (_opts: Record<string, unknown>) => ({
     exitCode: 0,
     handoff: { phase: "review", status: "APPROVED", findings: [], artifacts: {}, doc_path: "" },
   })),
@@ -267,7 +278,7 @@ describe("cdd CLI", () => {
   //     must remain re-dispatchable; only an APPROVED round with blocker=0 stops a re-run. ---
 
   // Seed helper: temp git repo + plan file + a seeded task-N-review-N.json round.
-  function seedTaskReviewHandoff(status) {
+  function seedTaskReviewHandoff(status: string) {
     const dir = mkdtempSync(path.join(tmpdir(), "cdd-stop-"));
     execaSync("git", ["-C", dir, "init", "-q"]);
     execaSync("git", [
@@ -464,15 +475,25 @@ function tmpGitRepo() {
 // doc 父目录一并创建：resolveWorkspace 从 dirname(doc) 走 gitToplevel，父目录缺失会回退失败。
 // content 实写 doc 文件（hashFile 读实时文件）：默认 content="" → 既有 legacy seed 调用写空 doc，
 // 语义（status APPROVED + blocker=0）不变仍 exit 3；docHash 显式传入才落 handoff.doc_hash。
-function sha256(s) {
+function sha256(s: string) {
   return createHash("sha256").update(s).digest("hex");
 }
-function seedDocsReviewRound(repo, doc, fileName, { docHash, content = "" } = {}) {
+interface SeedDocsRoundOpts {
+  docHash?: string;
+  content?: string;
+}
+function seedDocsReviewRound(
+  repo: string,
+  doc: string,
+  fileName: string,
+  opts: SeedDocsRoundOpts = {},
+) {
+  const { docHash, content = "" } = opts;
   const ws = path.join(repo, ".kairos", "cdd", "foo");
   mkdirSync(path.dirname(doc), { recursive: true });
   mkdirSync(ws, { recursive: true });
   writeFileSync(doc, content); // hashFile reads the live file — the content is explicitly controlled by the case
-  const handoff = {
+  const handoff: Record<string, unknown> = {
     task: 0,
     phase: "review",
     status: "APPROVED",

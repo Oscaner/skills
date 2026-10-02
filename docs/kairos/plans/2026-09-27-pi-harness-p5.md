@@ -3,7 +3,7 @@
 **Spec:** [2026-09-27-pi-harness-p5-design.md](docs/kairos/specs/2026-09-27-pi-harness-p5-design.md)
 
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.27](docs/kairos/specs/2026-09-27-pi-harness-overall.md)
-- **Version**: v1.1 · 2026-10-02（P5 编译面收敛与结算：结算 → 迁移 → 上闸 → 守卫 → buildability → 零构建收敛 → 终验；T7/T8 同组 atomic）。v1.0 → v1.1 = plan-review-1 五 finding 落地：ESM 检测前置 + 迁移 kairos 测试类型清零归位（T4）· src 48 精确枚举收敛 · contract-lexicon 写权归一（T5）· T9 closeout 豁免 + 版本实态回填口径 · T9 changeset 并解 kairos type:module
+- **Version**: v1.2 · 2026-10-02（P5 编译面收敛与结算：结算 → 迁移 → 上闸 → 守卫 → buildability → 零构建收敛 → 终验；T7/T8 同组 atomic）。v1.0 → v1.1 = plan-review-1 五 finding 落地：ESM 检测前置 + 迁移 kairos 测试类型清零归位（T4）· src 48 精确枚举收敛 · contract-lexicon 写权归一（T5）· T9 closeout 豁免 + 版本实态回填口径 · T9 changeset 并解 kairos type:module。v1.1 → v1.2 = Plan Sole Writer 补入：review `next:` fix 建议附 `(read <handoff> back to confirm)`（user 2026-10-02 mid-flight，spec 2.3/v1.3 联动）
 - **Depends on**: P5 design v1.3 Approved（`18d30c16` review r1+r2 收口 + `f3e78471` v1.3 design backfill）
 - **Base**: develop
 
@@ -127,10 +127,12 @@
   - implement Evidence gate：task-family evidence 文件扩 **`typecheck` 项**（`command`/`exit_code`/`passed`，与既有 `test` 项同构）——engine 读回核验，缺任一 → `status: BLOCKED`（与 `behavior_change` 缺失同型）；相应 schema（evidence 形态）延展 + 读回逻辑
   - 守卫测试：`templates.test.ts` / `registry.test.ts`（engine）断言 task+branch `reviewTypeConfig` 的 **`lensEnum` 含 `"buildability"` 且 axesGuide 含 buildability 双证据文句**（`tsc` + `test` token）——两条并判，lens-tag 才可执行
   - ContractLexicon buildability 措辞经 checkWording + templates.test/registry.test 断言消费（**只读**——措辞写权全归 T5，本任务仅断言词表已含 buildability 双证据措辞，不新增词表）
+  - **路由说明（review→fix 输出面，user 2026-10-02 mid-flight —— spec 2.3 联动）**：review 的 `next:` fix 建议附 **`(read <handoff> back to confirm)`** 说明——`NextStepRouter`（C5 决策表）next-line 生成补携该读回提示 + 对应 result-face/next-step 测试断言 + contract-lexicon 通道措辞同步（若词表 restate `next:` 形态）——派发者在 fix 前读回 findings handoff 确认再 dispatch（本 phase 亲历先例：plan-review-1 先手读 handoff）
   - **SKILL 面零动**（P3 zero-restate + P5 实测零命中）· README/CLAUDE.md 无消费故事变更
 - **验收**:
   - engine suite 全绿（含新断言：lensEnum 成员 + axesGuide 文句 + evidence `typecheck` 字段结构 + 缺项→BLOCKED 读回）
   - `templates.test.ts`/`registry.test.ts` 新断言绿 · contract-lexicon guard 绿 · `pnpm run precommit` 绿
+  - review `next:` fix 建议载 `(read <handoff> back to confirm)`（NextStepRouter next-line 断言绿）
 - **注**: lensEnum 是机制面（REVIEW_LENS_GUIDE 派生），axesGuide 是措辞面——两处同改，守卫并判；plan（doc) review 的 lensEnum 已含 buildability（现成先例）
 
 ### Task 7: 零构建 dev/CI 面 + 删除层（与 Task 8 同组 dispatch）

@@ -3,8 +3,8 @@
 **Spec:** [2026-09-27-pi-harness-p5-design.md](docs/kairos/specs/2026-09-27-pi-harness-p5-design.md)
 
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.27](docs/kairos/specs/2026-09-27-pi-harness-overall.md)
-- **Version**: v1.0 · 2026-10-02（P5 编译面收敛与结算：结算 → 迁移 → 上闸 → 守卫 → buildability → 零构建收敛 → 终验；T7/T8 同组 atomic）
-- **Depends on**: P5 design v1.2 Approved（`18d30c16`，review r1+r2 收口）
+- **Version**: v1.1 · 2026-10-02（P5 编译面收敛与结算：结算 → 迁移 → 上闸 → 守卫 → buildability → 零构建收敛 → 终验；T7/T8 同组 atomic）。v1.0 → v1.1 = plan-review-1 五 finding 落地：ESM 检测前置 + 迁移 kairos 测试类型清零归位（T4）· src 48 精确枚举收敛 · contract-lexicon 写权归一（T5）· T9 closeout 豁免 + 版本实态回填口径 · T9 changeset 并解 kairos type:module
+- **Depends on**: P5 design v1.3 Approved（`18d30c16` review r1+r2 收口 + `f3e78471` v1.3 design backfill）
 - **Base**: develop
 
 ## Constraints
@@ -18,13 +18,13 @@
 - **dev/CI 引擎调用（P5 新链）**：`node packages/cdd-engine/src/bin.ts <subcommand>` 直调（Node ≥22.18 原生 strip），不走 global cdd；**发布面必为编译 JS**（Node 对 `node_modules` 下类型剥离永久禁止——`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING` 实测 + 官方设计意图 + tracker #57215 closed-as-not-planned）——禁止把 `.ts` 源面写入 npm 包
 - **先清底再上闸（spec 2.2）**：结算（T1/T2）先行，门禁上闸（T4）在后；发布 `tsc --emit` 前置 = 结算完成（emit 也吃 48 条 src 债）
 - **live 面 grep 契约（spec 2.4/acceptance）**：`build.config` / `dev:stub` / `@typescript/typescript6` / `globalSetup` / `@ts-ignore` / `@ts-expect-error` **零命中**（live 面 = CLAUDE.md · `docs/maintainers/05` · engine README 对 · 源面/config 面；历史 spec/plan 正文与发布面 schema/产物除外）；**retired/删除登记不得携带被禁 token 原文**（转述——如「the old dev-stub chain」「the TS6-compat shim」）
-- **引擎调用输出零过滤**：无 `tail`/`head`/`2>&1 |`/`EXIT=$?` capture；spec/plan 文档仅 orchestrator（Plan Sole Writer）与 cdd fix-agent 修改，implement agent 零文档修改权
+- **引擎调用输出零过滤**：无 `tail`/`head`/`2>&1 |`/`EXIT=$?` capture；spec/plan 文档仅 orchestrator（Plan Sole Writer）与 cdd fix-agent 修改，implement agent 零文档修改权（**唯一豁免：T9 overall closeout 回填**——branch-review 预条件 backfill-overall，独立 `docs(kairos):` 提交，见 Task 9）
 
 ### commit 边界机制
 
 - 实现提交按任务/合并组粒度（conventional commits，无 attribution trailers）
 - T7/T8 同组原子：删除链与发布面同组落地（删除中间态不可验收）；布局/删除步骤先行，发布面跟进
-- T9 统一建 changeset：**cdd-engine patch**（bin/files/main/exports/engines 为消费者可见非 breaking——bin 命令名 `cdd` 不变 · 零 API 消费者）；kairos 无面不改 → 无 kairos changeset
+- T9 统一建 changeset：**cdd-engine patch**（bin/files/main/exports/engines 为消费者可见非 breaking——bin 命令名 `cdd` 不变 · 零 API 消费者）；kairos 面改一轮（`type: module` ESM 前置，T4）→ **kairos patch changeset** 一并建（plugin/SKILL 面无 CJS 运行时模块，非 breaking）——并解「kairos 无面不改」原口径
 - 每任务闭合面测试绿 + `pnpm run precommit` 绿；`pnpm run validate` 为终验（T9）
 
 ### Flow Atomicity
@@ -59,11 +59,11 @@
 ### Task 1: 类型债结算——engine src 结构性面（48 → src 零错）
 
 - **Do**: 按 spec 2.2 真相优先清单修复 `packages/cdd-engine/src/**`（非 `__tests__`）48 处类型错误：
-  - `src/artifacts/handoff/finalize.ts`（`agentHandoff` null ×27）：重审 write→finalize 契约——载荷在 finalize 时点结构上不可能为 null；以 payload 型 presence 判别 / 默认化把 nullable 从类型中移除（**零散 `!` 是抹平，弃**）
+  - `src/artifacts/handoff/finalize.ts`（`agentHandoff` null ×27 + validation `reason` 取窄 ×1（TS2339 @567）——共 28）：重审 write→finalize 契约——载荷在 finalize 时点结构上不可能为 null；以 payload 型 presence 判别 / 默认化把 nullable 从类型中移除（**零散 `!` 是抹平，弃**）
   - `src/dispatch/branch.ts`（`round`/`findings`/`base` ×8）：`BranchLifecycleOpts` 契约**如实扩字段**（declared truth——`round` 对 crash record、`findings` 对判定源计数、`base` 对 diff 面）
-  - `src/infra/harness.ts`（`detect` 撞名 TS2300 ×2 + `HarnessRow|{}`）：OOP 消歧（Harness 抽象 `detect(env)` 谓词与右侧重命名/信号归一）；`HarnessRow | {}` 的 `{}` fallback 灭——undefined-coalesce 真形态，call site 单点处理
+  - `src/infra/harness.ts`（`detect` 撞名 TS2300 ×2 + `HarnessRow|{}` TS2322 ×2——共 4）：OOP 消歧（Harness 抽象 `detect(env)` 谓词与右侧重命名/信号归一）；`HarnessRow | {}` 的 `{}` fallback 灭——undefined-coalesce 真形态，call site 单点处理
   - `src/dispatch/task.ts`（`DispatchOp` string→union ×2）：上游源类型收窄（`mode`/op 派生点），非下游 cast
-  - `src/dispatch/docs.ts` / `src/infra/registry.ts` / `src/infra/resource.ts` / `src/rules/write-boundary.ts`：path 型收窄 + 判别 union 正确取窄
+  - `src/dispatch/docs.ts`（×2）/ `src/infra/registry.ts`（×1）/ `src/infra/resource.ts`（×1）/ `src/rules/write-boundary.ts`（×2）：path 型收窄 + 判别 union 正确取窄（28+8+4+2+2+1+1+2 = 48）
   - 全程遵守逃逸禁令（无 `@ts-ignore`/`@ts-expect-error`/`any`/双 cast；`!` 仅经单一类型化 assert helper）+ **零行为变化**（不顺手重构、不入新逻辑）
 - **验收**:
   - `./packages/cdd-engine/node_modules/.bin/tsc --noEmit -p packages/cdd-engine/tsconfig.json` 全部报错**位于 `src/**/__tests__/**`**（src 非测试面零错误；`__tests__` 存量归属 T2）
@@ -82,13 +82,14 @@
 ### Task 3: 全仓源面 `.mjs→.ts` 迁移（全代码 TS 化 iron rule）
 
 - **Do**: 按 spec 2.1 迁移清单：
-  - `packages/kairos/tests/*.test.mjs`（**10 个**：cdd-plan-spec / ci-validate / grep-sweep-regression / maintainers-docs / no-gate / pi-install-smoke / pi-package / presentation-surface / review-loop-clean-tree / status-routing-convergence）+ `helpers.mjs`（1 个）→ `.test.ts`/`.ts`——import 规格符改 `.ts`（含跨项目 `../../../scripts/validate/kairos.ts` 先例扩展为一致性）；node:test 语法 strip 兼容（erasable-only）
+  - `packages/kairos/tests/*.test.mjs`（**10 个**：cdd-plan-spec / ci-validate / grep-sweep-regression / maintainers-docs / no-gate / pi-install-smoke / pi-package / presentation-surface / review-loop-clean-tree / status-routing-convergence）+ `helpers.mjs`（1 个）→ `.test.ts`/`.ts`——import 规格符改 `.ts`（含跨项目 `../../../scripts/validate/kairos.ts` 先例扩展为一致性）；**目录 index 导入（如 `../../../scripts/validate/index.ts`）一律改指非 index 显式文件入口**——nodenext 下目录 index 导入 TS2307（runtime 先例成立、typecheck 先例不成立）；node:test 语法 strip 兼容（erasable-only）
   - `scripts/emit/render-yaml.mjs` → `.ts`（`scripts/emit/issue-templates.ts` + `scripts/emit/__tests__/issue-templates.test.ts` 2 处 import 同步）
   - `vitest.config.mjs`（root + `packages/cdd-engine`）→ `vitest.config.ts`；`lint-staged.config.mjs` → `lint-staged.config.ts`
   - **产物面零迁移**：`dist/`（发布产物）· `.kairos/`（gitignored 运行时）· `templates/`（内容种子）
 - **验收**:
   - kairos 测试面（node:test 经 validate SubprocessBlock / `node --test`）全绿 · root vitest（scripts）全绿 · engine vitest 全绿
   - `git ls-files | grep '\.mjs$'` 排除 `dist/` 产物面后**零命中**（源面 `.mjs` 清零）
+  - 迁移输出面符合 T4 目标 tsconfig（nodenext + erasableSyntaxOnly）语义：import 全 `.ts` 后缀 · 零目录 index 导入（机械 grep 可判）；**类型清零不归本任务**——迁移产生的 TS7006 隐式 any 族由 T4 结算（类型清零所有权见 Task 4 Do）
 - **注**: 迁移是 T4 闸面覆盖（scripts/kairos-tests include）与 T5 守卫（全仓源面零 .mjs）的前置——先迁移后上闸
 
 ### Task 4: 三项目 tsc 闸 + type-check 块（validate/precommit 双接点）
@@ -97,6 +98,8 @@
   - `packages/cdd-engine/tsconfig.json`：加 **`erasableSyntaxOnly: true`**（Node strip 运行契约镜像——engine 即主 strip 运行时）；include 加 `vitest.config.ts`（config 面并入闸；`build.config.ts` 行由 T7 删除后移除）
   - 新建 `scripts/tsconfig.json`：`module: nodenext` · `moduleResolution: nodenext` · `allowImportingTsExtensions: true` + `noEmit: true` · `strict: true` · `skipLibCheck` · **`erasableSyntaxOnly: true`**；include `scripts/**/*.ts`（含 emit / observe-cache / `__tests__`）**+ root `vitest.config.ts` / `lint-staged.config.ts`**
   - 新建 `packages/kairos/tests/tsconfig.json`：同 scripts 语义（node:test 直跑面）；include tests 面
+  - **ESM 检测前置**：`packages/kairos/package.json` 增 `"type": "module"`（实测缺失——nodenext 下用 `import.meta` 的迁移测试 TS1470；kairos 纯 SKILL/plugin 面、无 CJS 运行时 JS 模块，ESM 化安全）；changeset 联动口径由 T9 并解（kairos patch changeset，见 commit 边界机制）
+  - **迁移 kairos 测试类型清零显式归本任务**（T3 只保迁移格式/规格，不背类型债）：迁移产生的 TS7006 隐式 any 族 + nodenext import 语义错误（目录 index 导入 / T1470 类）随本任务专清——结算后 `pnpm run typecheck` 三项目零错（本任务验收自带判据）
   - root `package.json`：`"typecheck": "tsc --noEmit -p packages/cdd-engine && tsc --noEmit -p scripts && tsc --noEmit -p packages/kairos/tests"`；devDependencies 增 `typescript@^7.0.2`（判官单源，与 engine 拉齐）→ `pnpm install` 锁文件更新
   - 新建 `scripts/validate/type-check.ts`：导出 steps（`SubprocessBlock` cmd=`pnpm` args=`run typecheck`）；compose 进 `scripts/validate/index.ts`（终验）+ `scripts/validate/pre-commit.ts`（提交）**双接点**；validate step 名/order 断言面（`ci-validate.test.mjs` / `pre-commit.test.ts` 类 name-set）同步含新块
 - **验收**:
@@ -109,7 +112,7 @@
 
 - **Do**: 按 spec 2.1/2.2 零债口径：
   - `scripts/lib/contract-lexicon.ts`（ContractLexiconGuard）：扩 **逃逸零命中检查**（`@ts-ignore`/`@ts-expect-error` 于 engine src + scripts + kairos tests 源面 = 零）+ **residue 目标升全仓源面零 `.mjs`**（engine src + scripts + kairos tests + 源配置面；产物面 `dist/` 除外）+ checkWording 对零债措辞断言
-  - `config/contract-lexicon.json`（engine）词表补：逃逸禁令 / 零债 / buildability 双证据措辞（T6 联动）
+  - `config/contract-lexicon.json`（engine）词表补**全量**：逃逸禁令 / 零债 / buildability 双证据措辞——**词表写权全归本任务**（T6 只读消费，不新增词表）
   - 相应 guard 测试（`scripts/lib/__tests__/` + engine residue/lexicon 测试面）延展
 - **验收**:
   - guard 对四消费面断言全绿（root 相应 validate 块 + `pnpm --filter @oscaner-skills/cdd-engine test`）
@@ -123,7 +126,7 @@
   - `packages/cdd-engine/config/template-contract.json`：`reviews.task` / `reviews.branch` 的 **`lensEnum` 增 `"buildability"`**（dispatch 的 REVIEW_LENS_GUIDE 由 `lensEnum.join(" · ")` 自动派生——无独立 prompt 改动）+ 对应 **axesGuide 补 buildability 轴**——reviewer 在评审中**显式跑** `tsc --noEmit`（或该仓等价）+ 测试，findings lens-tag `buildability` 自证「双命令已跑」；命令用**转译描述**（不硬编码 pnpm/npm，消费仓 toolchain 自洽）
   - implement Evidence gate：task-family evidence 文件扩 **`typecheck` 项**（`command`/`exit_code`/`passed`，与既有 `test` 项同构）——engine 读回核验，缺任一 → `status: BLOCKED`（与 `behavior_change` 缺失同型）；相应 schema（evidence 形态）延展 + 读回逻辑
   - 守卫测试：`templates.test.ts` / `registry.test.ts`（engine）断言 task+branch `reviewTypeConfig` 的 **`lensEnum` 含 `"buildability"` 且 axesGuide 含 buildability 双证据文句**（`tsc` + `test` token）——两条并判，lens-tag 才可执行
-  - ContractLexicon buildability 措辞（T5 词表面联动）
+  - ContractLexicon buildability 措辞经 checkWording + templates.test/registry.test 断言消费（**只读**——措辞写权全归 T5，本任务仅断言词表已含 buildability 双证据措辞，不新增词表）
   - **SKILL 面零动**（P3 zero-restate + P5 实测零命中）· README/CLAUDE.md 无消费故事变更
 - **验收**:
   - engine suite 全绿（含新断言：lensEnum 成员 + axesGuide 文句 + evidence `typecheck` 字段结构 + 缺项→BLOCKED 读回）
@@ -164,11 +167,11 @@
 - **Do**: 按 spec 2.5/acceptance：
   - `pnpm run validate` 全块全绿（type-check 块 · engine suite · scripts suite · kairos tests（`.ts` 迁后）· residue/lexicon guard · emit 面）
   - **acceptance 复验对照 spec**（逐条核 2.1–2.4 acceptance：三项目 tsc 0 · 双接点绿 · 全仓源面零 .mjs · 删除面 grep 零命中 · pack→install→bin 实证 · buildability 双证据 · 黑盒全指 src/bin.ts）
-  - changeset：`pnpm run changeset` 建 **cdd-engine patch**（bin/files/main/exports/engines + 构建面收敛——消费者可见非 breaking；kairos 无面不改）
-  - overall **v1.28 closeout 回填**（branch-review 预条件 backfill-overall）：P5 Design spec / Implementation plan 列 `[Pending] → Done` + change-history 行（spec v1.2 + plan v1.5 已批形态）+ **v1.27 计数修正落地**（`kairos tests×11` → `10 *.test.mjs + 1 helpers.mjs`——spec Section 4 的 backfill-as-version 待办）
+  - changeset：`pnpm run changeset` 建 **cdd-engine patch**（bin/files/main/exports/engines + 构建面收敛——消费者可见非 breaking）+ **kairos patch changeset**（`type: module` ESM 前置面改，T4）——并解「kairos 无面不改」原口径
+  - overall **v1.28 closeout 回填**（branch-review 预条件 backfill-overall；**Constraints「零文档修改权」的显式豁免**——对标 P4.1 Task 6 先例：backfill-overall 独立执行、**独立 `docs(kairos):` conventional commit**，不混入 changeset 任务提交）：P5 Design spec / Implementation plan 列 `[Pending] → Done` + change-history 行（spec **v1.3**（实态）/ plan **最终已批版本号**——closeout 时点以实态回填，不预设预测号）+ **v1.27 计数修正落地**（`kairos tests×11` → `10 *.test.mjs + 1 helpers.mjs`——spec Section 4 的 backfill-as-version 待办）
 - **验收**:
   - `pnpm run validate` **ALL PASS**
-  - `.changeset/*.md` 存在（cdd-engine patch）· P5 plan closeout 链（branch-review 预条件）满足
+  - `.changeset/*.md` 存在（cdd-engine patch + kairos patch）· P5 plan closeout 链（branch-review 预条件）满足
   - overall v1.28 四表一致（Issue inventory P5 计数修正 · Phase inventory P5 两列 Done · 依赖图不变 · change-history v1.28）
 - **注**: closeout 回填 = 本 phase implementation 终结的 backfill-overall（对标 v1.25 P4 计划 closeout 先例）；changeset 类型终审在任务内（若发布面意外带 breaking——如 bin 命令名变故——升 major，实态为准）
 
@@ -181,6 +184,6 @@
 ## Section 3: 预研锚点（plan 引用的事实，供 implement 直接取用）
 
 - **判定命令**：`./packages/cdd-engine/node_modules/.bin/tsc --noEmit -p packages/cdd-engine/tsconfig.json`（T1/T2 判据）
-- **787→0 实测分布**（本 session 全量跑）：总 787 = `__tests__` 739 + src 48；Top 测试文件 `cdd.test.ts` 302 / `docs-runner.test.ts` 73 / `handoff-finalize.test.ts` 71；src 错误族 = finalize `agentHandoff` null ×27 / branch ×8 / harness `detect`+`HarnessRow` ×3（TS2300×2）/ task `DispatchOp` ×2 / docs ×2 / registry / resource / write-boundary
+- **787→0 实测分布**（本 session 全量跑）：总 787 = `__tests__` 739 + src 48；Top 测试文件 `cdd.test.ts` 302 / `docs-runner.test.ts` 73 / `handoff-finalize.test.ts` 71；src 错误族 = finalize `agentHandoff` null ×27（TS18047）+ validation `reason` 取窄 ×1（TS2339 @567）/ branch ×8 / harness `detect` 撞名 ×2（TS2300）+ `HarnessRow|{}` ×2（TS2322）/ task `DispatchOp` ×2 / docs ×2 / registry ×1 / resource ×1 / write-boundary ×2——28+8+4+2+2+1+1+2 = **48**，与标题「src 48」精确收敛（与 spec 2.2 同数）；报错权威 = tsc 输出，枚举供定向
 - **实证链**（本 session 已手跑）：`node packages/cdd-engine/src/bin.ts --help` exit 0 · staged pack→`npm install`→`.bin/cdd --help` + `schema get overall` 走真实引擎栈 · 发射 JS `bin.js` shebang 保留 + `.ts→.js` 重写零残留
 - **`reviews.task/branch.lensEnum` 现值**：`["standards","spec"]`（buildability 未入——T6 增补）；plan review `lensEnum` 已含 buildability（先例）

@@ -3,7 +3,7 @@
 **Spec:** [2026-09-27-pi-harness-p5-design.md](docs/kairos/specs/2026-09-27-pi-harness-p5-design.md)
 
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.27](docs/kairos/specs/2026-09-27-pi-harness-overall.md)
-- **Version**: v1.3 · 2026-10-02（P5 编译面收敛与结算：结算 → 迁移 → 上闸 → 守卫 → buildability → 零构建收敛 → 终验；T7/T8 同组 atomic）。v1.0 → v1.1 = plan-review-1 五 finding 落地：ESM 检测前置 + 迁移 kairos 测试类型清零归位（T4）· src 48 精确枚举收敛 · contract-lexicon 写权归一（T5）· T9 closeout 豁免 + 版本实态回填口径 · T9 changeset 并解 kairos type:module。v1.1 → v1.2 = Plan Sole Writer 补入：review `next:` fix 建议附 `(read <handoff> back to confirm)`（user 2026-10-02 mid-flight，spec 2.3/v1.3 联动）。v1.2 → v1.3 = plan-review-2 三 finding 落地：T6 路由 bullet 词表改只读断言消费（写权归一 T5——`next:` 读回措辞纳入 T5 全量词表 scope，删条件式写权）· T4 validate 断言面改指迁移后 `ci-validate.test.ts` · 逃逸 grep 目标补源配置面 + docs 面零命中归 T7 live 面 grep（双任务 grep 面 = spec acceptance 全量 live 面）
+- **Version**: v1.3 · 2026-10-02（P5 编译面收敛与结算：结算 → 迁移 → 上闸 → 守卫 → buildability → 零构建收敛 → 终验；T7/T8 同组 atomic）。v1.0 → v1.1 = plan-review-1 五 finding 落地：ESM 检测前置 + 迁移 kairos 测试类型清零归位（T4）· src 48 精确枚举收敛 · contract-lexicon 写权归一（T5）· T9 closeout 豁免 + 版本实态回填口径 · T9 changeset 并解 kairos type:module。v1.1 → v1.2 = Plan Sole Writer 补入：review `next:` fix 建议附 `(read <handoff> back to confirm)`（user 2026-10-02 mid-flight，spec 2.3/v1.3 联动）。v1.2 → v1.3 = plan-review-2 三 finding 落地：T6 路由 bullet 词表改只读断言消费（写权归一 T5——`next:` 读回措辞纳入 T5 全量词表 scope，删条件式写权）· T4 validate 断言面改指迁移后 `ci-validate.test.ts` · 逃逸 grep 目标补源配置面 + docs 面零命中归 T7 live 面 grep（双任务 grep 面 = spec acceptance 全量 live 面）· v1.3 → v1.4 = P5 mid-flight backfill（user 2026-10-02 词表形态裁定，Plan Sole Writer）：T5 Do 增 **WordTable 内核**——三族分层 + 统一叶约定 + 第 9 schema + 视图类 validate-on-load；**所有权分裂**（command/schema = 引擎契约事实留 engine 且引擎反读出词；guards = 运维验证事实迁 scripts/lib/guard-lexicon.json）；死代码空壳即删清单（引擎字面量去真源化 / 旧守卫读面归零 / ship 面死载荷抽干）
 - **Depends on**: P5 design v1.3 Approved（`18d30c16` review r1+r2 收口 + `f3e78471` v1.3 design backfill）
 - **Base**: develop
 
@@ -113,12 +113,19 @@
 - **Do**: 按 spec 2.1/2.2 零债口径：
   - `scripts/lib/contract-lexicon.ts`（ContractLexiconGuard）：扩 **逃逸零命中检查**（`@ts-ignore`/`@ts-expect-error` 于 engine src + scripts + kairos tests + 源配置面 = 零——与同任务 `.mjs` residue 目标准口径对齐；docs 面逃逸 token 由 T7 live 面 grep 兜底）+ **residue 目标升全仓源面零 `.mjs`**（engine src + scripts + kairos tests + 源配置面；产物面 `dist/` 除外）+ checkWording 对零债措辞断言
   - `config/contract-lexicon.json`（engine）词表补**全量**：逃逸禁令 / 零债 / buildability 双证据 / review `next:` 读回措辞（`(read <handoff> back to confirm)` 附注——restate 与否与补全均在本任务定）——**词表写权全归本任务**（T6 只读断言消费，不新增词表）
+  - **T5 Do 增（v1.4 backfill，user 2026-10-02 词表形态裁定——WordTable 内核 + 所有权分裂）**：
+    - `config/contract-lexicon.json` 组织形态 = 三族（`command`（status/capsule/route）· `guards`（residue/escape/zeroDebt/buildability）· `schema`（anatomy））+ 统一叶约定：机器 token 一律数组（`tokens`/`vocab`/`capsule`/`routeTokens`/`dataSources`）· 措辞一律 `wording`（`soleAllowed` 并入 · `dualEvidence` → `evidenceWording`）· `_doc` 中性化（消费面 purity 零程序历史）
+    - **所有权分裂**：`command` + `schema` = 引擎契约事实，留 engine `config/` + resource.ts 注册原地；`guards` = 仓库运维验证事实，**迁 `scripts/lib/guard-lexicon.json`**——引擎包零守卫词残留（ship 面死载荷抽干，`dist/config/contract-lexicon.json` 随包仅镜像引擎词表）
+    - **引擎反读兑现 C6 意图**：新增 `src/infra/word-table.ts` 类型化视图（构造注入 + 构造时 schema 校验 + vocab()/wording()/tokens()/ref() 访问器）；capsule 输出点（`finalize.ts` / `exit.ts` / `root.ts` 的 `CDD_BLOCKED:` 与 status 字面量族）改数据出词——**代码零词面重复**
+    - 新建 `config/schema/contract-lexicon.json`（第 9 schema，与既存 8 列同列）：command + schema 族形状权威 + `additionalProperties: false`（未知键验出）；guard 词面另小 schema 或守卫内联约束
+    - **死代码、空壳即删（常设铁律）**：守卫重构后旧 `#lexicon.*` 逐字段读面全删 · 引擎去真源化后旧字面量即删 · 迁后全仓零旧字段引用（guard / residue / templates 断言同步）
   - 相应 guard 测试（`scripts/lib/__tests__/` + engine residue/lexicon 测试面）延展
 - **验收**:
   - guard 对四消费面断言全绿（root 相应 validate 块 + `pnpm --filter @oscaner-skills/cdd-engine test`）
   - guard 逃逸零命中（engine src + scripts + kairos tests + 源配置面）· 源面 `.mjs` 零命中（产物面除外）· 全量 live 面（含 docs 面）逃逸 token 零命中由 T7 live 面 grep 闸验收兜底
   - `pnpm run precommit` 绿
-- **注**: T5 在 T3/T2 之后（迁移/清零完成才有可判据的零面）；词表面与 T6 buildability 共用 contract-lexicon 单文件
+  - WordTable 内核落地：三族分层 json 形态 · `config/schema/contract-lexicon.json` 存在且 validate 适配 · 引擎 word-table 视图访问器消费（capsule 出词自数据）· `guards` 零引擎包残留（`scripts/lib/guard-lexicon.json` 在位）· 全仓零 lexicon 旧字段字面（grep 断言）
+- **注**: T5 在 T3/T2 之后（迁移/清零完成才有可判据的零面）；T6 buildability 只读断言按新所有权分别消费（engine 词表 + scripts guard 词表），不新增词表
 
 ### Task 6: cdd 闭环 buildability 双证据（evidence + lensEnum + axesGuide + 断言）
 

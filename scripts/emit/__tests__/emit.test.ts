@@ -15,7 +15,7 @@ import { SOURCE_TOP, sourceService } from "../source.ts";
 // Release workflow's pre-commit gate whenever a `changeset version` run bumped
 // the tree before committing (emit reads the bumped package.json, so asserts
 // must expect the bumped version).
-const readPkgVersion = (rel) =>
+const readPkgVersion = (rel: string) =>
   JSON.parse(readFileSync(new URL(`../../../${rel}/package.json`, import.meta.url), "utf8"))
     .version;
 const OS_VERSION = readPkgVersion("packages/kairos");
@@ -34,7 +34,9 @@ const readOscaner = () =>
 // ---------------------------------------------------------------------------
 
 test(".version-bump.json tracks the versioned emit manifest set (.claude-plugin + .cursor-plugin)", () => {
-  const bump = JSON.parse(readFileSync("packages/kairos/.version-bump.json", "utf8"));
+  const bump = JSON.parse(readFileSync("packages/kairos/.version-bump.json", "utf8")) as {
+    files: Array<{ path: string }>;
+  }; // JSON.parse boundary
   const paths = bump.files.map((f) => f.path);
   for (const p of [".claude-plugin/plugin.json", ".cursor-plugin/plugin.json"]) {
     expect(paths.includes(p)).toBeTruthy();
@@ -72,7 +74,8 @@ test("pluginManifestEmitter writes products for declared harnesses and skips pi"
   const tmp = mkdtempSync(join(tmpdir(), "oscaner-manifests-"));
   try {
     const plugin = sourceService.derive(".").plugins.find((p) => p.name === "kairos");
-    const generatedPaths = [];
+    if (plugin === undefined) throw new Error("kairos must be present in the derive output");
+    const generatedPaths: string[] = [];
     pluginManifestEmitter.emit(tmp, plugin, generatedPaths);
     // claude + cursor are declared by `oscaner.harnesses` and carry products —
     // each lands its manifest, byte-identical to the committed product (D7)
@@ -118,7 +121,7 @@ test("deriveSource enumerates first-party packages in stable order", () => {
   for (const p of source.plugins) {
     expect(p.name).toBeTruthy();
     expect(p.description).toBeTruthy();
-    expect(p.author?.name).toBeTruthy();
+    expect(p.author && typeof p.author === "object" ? p.author.name : undefined).toBeTruthy();
     expect(p.contentRoot).toBeTruthy();
     expect(p.cursor).toBeTruthy();
   }
@@ -196,7 +199,7 @@ test("findStaleCommittedFiles returns empty when every product is generated", ()
 test("writeJsonDoc/writeText write into outRoot (mkdir -p) and track generatedPaths", () => {
   const tmp = mkdtempSync(join(tmpdir(), "oscaner-writers-"));
   try {
-    const generatedPaths = [];
+    const generatedPaths: string[] = [];
     emitOrchestrator.writeText(tmp, "a/b.txt", "hello", generatedPaths);
     emitOrchestrator.writeJsonDoc(tmp, "c/d.json", { ok: true }, generatedPaths);
     expect(generatedPaths).toEqual(["a/b.txt", "c/d.json"]);
@@ -210,7 +213,7 @@ test("writeJsonDoc/writeText write into outRoot (mkdir -p) and track generatedPa
 test("emitAll into a temp tree produces the full product set and tracks every path", () => {
   const tmp = mkdtempSync(join(tmpdir(), "oscaner-emitall-"));
   try {
-    const generatedPaths = [];
+    const generatedPaths: string[] = [];
     emitService.emitAll(tmp, { generatedPaths });
     for (const rel of [
       "marketplace/source.json",

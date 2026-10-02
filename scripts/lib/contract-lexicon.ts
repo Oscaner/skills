@@ -123,6 +123,49 @@ export const G2_LIVE_FACES: ResidueFace[] = [
 // lexicon's anatomy domain carries the schema path.
 // ---------------------------------------------------------------------------
 
+/** The skill-anatomy schema surface checkAnatomy reads (the structure contract it asserts). The
+ *  JSON data itself is loaded at the JSON.parse boundary in checkAnatomy. */
+interface AnatomySchema {
+  properties: {
+    sectionRegistry: {
+      description: string;
+      properties: {
+        public: { items: { enum: string[] } };
+        conditional: { items: { enum: string[] } };
+        headingKinds: { description: string; properties: { nodeName: { pattern: string } } };
+        sections: {
+          properties: Record<
+            string,
+            {
+              properties: {
+                heading: { const: string };
+                requiredCarriers?: { items: { enum: string[] } };
+              };
+            }
+          >;
+        };
+      };
+    };
+    digraph: { properties: { mermaidOnly: { description: string } } };
+    nodeElements: { description: string; properties: Record<string, { pattern: string }> };
+    nodeDefinitions: { description: string };
+    growthBoundary: {
+      description: string;
+      properties: {
+        nodeLimit: { const: number };
+        edgeLimit: { const: number };
+        registry: {
+          properties: { crossings: { properties: Record<string, unknown> } };
+        };
+      };
+    };
+    consumerPurity: {
+      description: string;
+      properties: { forbiddenNarrativeHeads: { items: { enum: string[] } } };
+    };
+  };
+}
+
 interface AnalyzedSkill {
   name: string;
   src: string;
@@ -274,7 +317,8 @@ export class ContractLexiconGuard {
     const schemaPath = path.isAbsolute(this.#lexicon.anatomy.schemaPath)
       ? this.#lexicon.anatomy.schemaPath
       : path.join(ROOT, this.#lexicon.anatomy.schemaPath);
-    const ANATOMY = JSON.parse(readFileSync(schemaPath, "utf8"));
+    // JSON.parse boundary: the canonical skill-anatomy schema document (its structure contract).
+    const ANATOMY = JSON.parse(readFileSync(schemaPath, "utf8")) as AnatomySchema;
 
     // Schema description text — the diagnostic wording the checks quote when a failure fires.
     const REGISTRY_RULE = ANATOMY.properties.sectionRegistry.description;
@@ -290,22 +334,32 @@ export class ContractLexiconGuard {
     const PUBLIC_SECTION_KEYS = reg.public.items.enum; // [flowDigraph, nodeDefinitions, invariants, failureModes]
     const CONDITIONAL_SECTION_KEYS = reg.conditional.items.enum; // [skeletonDeltas]
     const SECTION_HEADINGS = Object.fromEntries(
-      Object.entries(reg.sections.properties).map(([key, node]) => [
+      Object.entries(reg.sections.properties).map(([key, node]): [string, string] => [
         key,
         node.properties.heading.const,
       ]),
     );
     const ESCAPED_HEADING = Object.fromEntries(
-      Object.entries(SECTION_HEADINGS).map(([key, h]) => [key, escapeRegExp(h)]),
+      Object.entries(SECTION_HEADINGS).map(([key, h]): [string, string] => [key, escapeRegExp(h)]),
     );
     const SECTION_HEADING_LINE = Object.fromEntries(
-      Object.entries(ESCAPED_HEADING).map(([key, h]) => [key, new RegExp(`^${h}$`, "m")]),
+      Object.entries(ESCAPED_HEADING).map(([key, h]): [string, RegExp] => [
+        key,
+        new RegExp(`^${h}$`, "m"),
+      ]),
     );
     const CONDITIONAL_CARRIERS = Object.fromEntries(
-      CONDITIONAL_SECTION_KEYS.map((key) => [
-        key,
-        reg.sections.properties[key].properties.requiredCarriers.items.enum,
-      ]),
+      CONDITIONAL_SECTION_KEYS.map((key): [string, string[]] => {
+        const carriers = reg.sections.properties[key].properties.requiredCarriers;
+        // The schema requires requiredCarriers on its conditional sections — a missing one is
+        // schema drift the guard must fail loud on, never carry forward as an empty set.
+        if (carriers === undefined) {
+          throw new Error(
+            `skill-anatomy schema: conditional section ${key} missing requiredCarriers`,
+          );
+        }
+        return [key, carriers.items.enum];
+      }),
     );
     const SKELETON_TRIO = CONDITIONAL_CARRIERS.skeletonDeltas;
     const NODE_HEADING_RE = new RegExp(reg.headingKinds.properties.nodeName.pattern, "m");
@@ -319,10 +373,9 @@ export class ContractLexiconGuard {
         (h: string) => new RegExp(`^${escapeRegExp(h)}$`, "m"),
       );
     const ELEMENT_PATTERNS = Object.fromEntries(
-      Object.entries(ANATOMY.properties.nodeElements.properties).map(([key, node]) => [
-        key,
-        new RegExp(node.pattern, "m"),
-      ]),
+      Object.entries(ANATOMY.properties.nodeElements.properties).map(
+        ([key, node]): [string, RegExp] => [key, new RegExp(node.pattern, "m")],
+      ),
     );
 
     const skills = skillsOverride ?? this.#discoverSkills();
@@ -1082,7 +1135,8 @@ function harnessClassesById(harnessSrc: string): Map<string, { body: string }> {
 function detectPredicate(classBody: string): { paramName: string; body: string } | null {
   const sig = classBody.match(/detect\s*\(\s*([A-Za-z_$][\w$]*)\s*:[^;()]*\)\s*:\s*boolean\s*\{/);
   if (!sig) return null;
-  const open = sig.index + sig[0].length - 1;
+  // A successful match always exposes its start index (the regex is non-global here).
+  const open = sig.index! + sig[0].length - 1;
   const { body } = braceBody(classBody, open);
   return { paramName: sig[1], body };
 }
@@ -1098,10 +1152,18 @@ function envKeysUsed(src: string, param: string): string[] {
   return keys;
 }
 
+/** The env-channel row shape of the engine-config context-contract (JSON data — each row carries
+ *  either a single `var` key or a `markers` array; other keys are ignored). */
+interface EnvChannelRow {
+  var?: unknown;
+  markers?: unknown;
+}
+
 /** The env-channel key set of a context-contract section (the var / markers union). */
 function configEnvKeys(ctx: Record<string, unknown>): string[] {
-  const env = (ctx.channels as { env?: Record<string, unknown> } | undefined)?.env ?? {};
-  return Object.values(env).flatMap((v: Record<string, unknown>) =>
+  // JSON-derived engine-config data — the channel value map is narrowed to its row shape.
+  const env = (ctx.channels as { env?: Record<string, EnvChannelRow> } | undefined)?.env ?? {};
+  return Object.values(env).flatMap((v) =>
     typeof v.var === "string" ? [v.var] : Array.isArray(v.markers) ? (v.markers as string[]) : [],
   );
 }
@@ -1110,6 +1172,7 @@ function configEnvKeys(ctx: Record<string, unknown>): string[] {
 function loadConfigCtx(engineConfig?: Record<string, unknown>): Record<string, unknown> {
   return (
     engineConfig ??
+    // JSON.parse boundary: the shipped engine-config always carries its contextContract section.
     (
       JSON.parse(
         readFileSync(
@@ -1119,7 +1182,7 @@ function loadConfigCtx(engineConfig?: Record<string, unknown>): Record<string, u
           ),
           "utf8",
         ),
-      ) as { contextContract?: Record<string, unknown> }
+      ) as { contextContract: Record<string, unknown> }
     ).contextContract
   );
 }

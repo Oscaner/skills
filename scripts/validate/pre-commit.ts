@@ -23,7 +23,8 @@ import { steps as kairosSteps } from "./kairos.ts";
 import { steps as libTestsSteps } from "./lib-tests.ts";
 import { steps as marketplaceSteps } from "./marketplace.ts";
 import { steps as residueSteps } from "./residue.ts";
-import { validateRunner } from "./runner.ts";
+import { type StepRun, validateRunner } from "./runner.ts";
+import { steps as typeCheckSteps } from "./type-check.ts";
 import { steps as versionSyncSteps } from "./version-sync.ts";
 
 export const steps = [
@@ -32,10 +33,11 @@ export const steps = [
   ...residueSteps, // engine zero residue + channel audit
   ...marketplaceSteps, // marketplace manifests validate
   ...libTestsSteps, // scripts unit tests (vitest)
+  ...typeCheckSteps, // three-project tsc --noEmit gate (config plane blind spot)
   ...versionSyncSteps, // package version sync
 ];
 
-export function main(stepsArg = steps) {
+export function main(stepsArg: ReadonlyArray<StepRun> = steps) {
   return validateRunner.run(stepsArg);
 }
 

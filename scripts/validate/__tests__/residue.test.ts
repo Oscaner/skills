@@ -1301,7 +1301,7 @@ describe("skills 面守卫（T16）：行 15 零引擎内部结构依赖（AC5 �
 });
 
 describe("skills 面守卫（T16）：行 16 零 fix-inline + 评审循环 fix 节点须含 cdd fix 命令形", () => {
-  const SKILL_MD = (graphLines, sections) =>
+  const SKILL_MD = (graphLines: string, sections: string) =>
     `# X\n\n## Flow Digraph\n\n\`\`\`mermaid\nflowchart TD\n${graphLines}\n\`\`\`\n\n${sections}\n`;
   it("fix-inline → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "skf-inline-"));
@@ -1383,7 +1383,7 @@ describe("skills 面守卫（T16）：行 16 零 fix-inline + 评审循环 fix �
 });
 
 describe("skills 面守卫（T16）：行 12 失败类目名 ⊆ canonical ∪ 状态枚举白名单 + 类目语义零复述", () => {
-  const FM = (rows) =>
+  const FM = (rows: string) =>
     `# X\n\n## Failure Modes\n\n| category | handling |\n|---|---|\n${rows}\n\n## Elsewhere\n`;
   it("canonical 六类首列 → 零违规", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "skf-fm-"));

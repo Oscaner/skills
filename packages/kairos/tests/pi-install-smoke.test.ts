@@ -27,10 +27,14 @@ const PI_INSTALL_HINT = "npm i -g @earendil-works/pi-coding-agent";
 
 // Spawn `pi`; a missing binary (ENOENT) becomes an assertion-failing Error whose message
 // carries the install command — the zero silent skip contract.
-function runPi(args, { cwd, env = process.env } = {}) {
+function runPi(
+  args: string[],
+  { cwd, env = process.env }: { cwd?: string; env?: NodeJS.ProcessEnv } = {},
+) {
   const result = spawnSync("pi", args, { cwd, env, encoding: "utf8" });
   if (result.error) {
-    if (result.error.code === "ENOENT") {
+    // errno carries the real code on child-process errors (NodeJS.ErrnoException).
+    if ((result.error as NodeJS.ErrnoException).code === "ENOENT") {
       throw new Error(
         `pi CLI not found on PATH — install it with: ${PI_INSTALL_HINT} (${result.error.message})`,
       );
@@ -97,8 +101,8 @@ test("pi install smoke: pack → extract → pi install <dir> --local --approve"
       existsSync(settingsPath),
       "project .pi/settings.json must exist after a --local install",
     );
-    const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
-    const recorded = Array.isArray(settings.packages) ? settings.packages : [];
+    const settings = JSON.parse(readFileSync(settingsPath, "utf8")) as { packages?: unknown[] };
+    const recorded = settings.packages ?? [];
     assert.ok(
       recorded.some(
         (entry) =>

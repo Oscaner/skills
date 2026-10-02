@@ -6,16 +6,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // execaSync("gh", ...), so the module seam for unit tests is execaSync.
 vi.mock("execa", () => ({ execaSync: vi.fn() }));
 
-import { execaSync } from "execa";
+import { execaSync, type SyncResult } from "execa";
 import { main, TARGETS } from "../apply.ts";
 
 const mocked = vi.mocked(execaSync);
+
+/** execa SyncResult boundary — the gh seam reads only `.stdout` (stub shape). */
+function ghStdout(stdout: string): SyncResult {
+  return { stdout } as SyncResult;
+}
 
 describe("apply.ts — target validation", () => {
   beforeEach(() => {
     delete process.env.GITHUB_REPOSITORY;
     mocked.mockReset();
-    // 静默未知-target / 创建路径的真实 console 输出（branch-review nit：vitest 噪音）
+    // Silence the real console output on the unknown-target / creation paths
+    // (vitest noise).
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.spyOn(console, "log").mockImplementation(() => {});
   });
@@ -42,7 +48,7 @@ describe("apply.ts — ruleset dispatch", () => {
   beforeEach(() => {
     delete process.env.GITHUB_REPOSITORY;
     mocked.mockReset();
-    mocked.mockReturnValue({ stdout: "" });
+    mocked.mockReturnValue(ghStdout(""));
   });
 
   afterEach(() => {
@@ -81,8 +87,9 @@ describe("apply.ts — ruleset dispatch", () => {
 
   it("resolves the protect-main payload from configs/main.json", () => {
     expect(main("protect-main")).toBe(0);
-    expect(mocked.mock.calls[0][1][3]).toBe('.[] | select(.name=="protect-main") | .id');
-    const post = mocked.mock.calls.find(([, args]) => args.includes("-X"));
+    expect(mocked.mock.calls[0]?.[1]).toContain('.[] | select(.name=="protect-main") | .id');
+    const post = mocked.mock.calls.find(([, args]) => Array.isArray(args) && args.includes("-X"));
+    if (post === undefined) throw new Error("expected a gh POST call in the mock call log");
     expect(post[1]).toEqual(
       expect.arrayContaining(["--input", expect.stringMatching(/configs\/main\.json$/)]),
     );
@@ -94,7 +101,7 @@ describe("apply.ts — ruleset dispatch", () => {
     });
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     mocked.mockReset();
-    mocked.mockReturnValueOnce({ stdout: "42\n" });
+    mocked.mockReturnValueOnce(ghStdout("42\n"));
 
     expect(() => main("protect-main")).toThrow("process.exit");
     expect(exit).toHaveBeenCalledWith(1);

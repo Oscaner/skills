@@ -8,12 +8,34 @@ import { issueTemplatesEmitter } from "../issue-templates.ts";
 import { renderYml } from "../render-yaml.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+
+/** Issue-form row surface — one body entry of an issue template form. */
+interface FieldItem {
+  type: string;
+  id?: string;
+  attributes: { options?: unknown; [key: string]: unknown };
+  validations?: { required?: unknown };
+}
+/** Issue template form definition — one formFieldDefs entry. */
+interface FormFieldDef {
+  frontmatter: { name?: string; description?: string; labels?: string[] };
+  body: FieldItem[];
+}
+/** Canonical issue-body.json surface the tests assert over. */
+interface FindingMeta {
+  formFieldDefs: Record<string, FormFieldDef>;
+  components: string[];
+  metaFields: Array<{ key: string; label: string }>;
+  reportDef: { labels?: unknown };
+  masterDef: { sessionTitle?: unknown; harnessRow?: unknown };
+}
+
 const findingMeta = JSON.parse(
   readFileSync(
     path.resolve(HERE, "../../../packages/cdd-engine/templates/report/issue-body.json"),
     "utf8",
   ),
-);
+) as FindingMeta; // JSON.parse boundary
 
 describe("render-yaml (emit-only module)", () => {
   it("隐私迁移后 2 个 yml 渲染产物无 Branch", () => {
@@ -78,7 +100,7 @@ describe("issue-templates emitter", () => {
   it("emitIssueTemplates 写 2 个 yml 到 outRoot/.github/ISSUE_TEMPLATE 并 track generatedPaths", () => {
     const tmp = mkdtempSync(path.join(tmpdir(), "oscaner-issue-templates-"));
     try {
-      const generatedPaths = [];
+      const generatedPaths: string[] = [];
       issueTemplatesEmitter.emit(tmp, {}, { generatedPaths });
       expect(generatedPaths).toEqual([
         ".github/ISSUE_TEMPLATE/bug_report.yml",
@@ -88,7 +110,8 @@ describe("issue-templates emitter", () => {
         const rel = `.github/ISSUE_TEMPLATE/${name}.yml`;
         expect(existsSync(path.join(tmp, rel))).toBe(true);
         const emitted = readFileSync(path.join(tmp, rel), "utf8");
-        // 内容不变量（非 byte-golden——emit:check 已承担 drift 守卫，此处验关键形态）
+        // Content invariants (not byte-golden — emit:check owns the drift guard; here
+        // verify the key shapes)
         expect(emitted).toContain(`name: ${findingMeta.formFieldDefs[name].frontmatter.name}`);
         expect(emitted).not.toMatch(/Branch/);
       }
@@ -100,7 +123,7 @@ describe("issue-templates emitter", () => {
   it("emitAll 接线：全量 emit 亦产出 2 个 issue 模板并 track（all.ts 挂入校验）", () => {
     const tmp = mkdtempSync(path.join(tmpdir(), "oscaner-emitall-issues-"));
     try {
-      const generatedPaths = [];
+      const generatedPaths: string[] = [];
       emitService.emitAll(tmp, { generatedPaths });
       for (const name of Object.keys(findingMeta.formFieldDefs)) {
         const rel = `.github/ISSUE_TEMPLATE/${name}.yml`;

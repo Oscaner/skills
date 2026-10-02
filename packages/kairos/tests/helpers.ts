@@ -18,11 +18,19 @@ const REG_PATH = path.resolve(HERE, "../../cdd-engine/config/harness-contract.js
 // host's real CLIs (claude/cursor-agent/droid/pi/codex/...) cannot leak through a mock-PATH
 // scenario. Reads the real registry + process.env.PATH by default; registryPath / pathValue
 // overrides match the inline versions' semantics.
-export function harnessFreePath({ registryPath = REG_PATH, pathValue = process.env.PATH } = {}) {
-  const reg = JSON.parse(readFileSync(registryPath, "utf8"));
+export function harnessFreePath({
+  registryPath = REG_PATH,
+  pathValue = process.env.PATH,
+}: {
+  registryPath?: string;
+  pathValue?: string;
+} = {}) {
+  const reg = JSON.parse(readFileSync(registryPath, "utf8")) as Record<string, { cli?: string }>;
   const clis = Object.values(reg)
     .map((e) => e.cli)
-    .filter(Boolean);
+    .filter((b): b is string => Boolean(b));
+  // PATH is always set under Node; the guard mirrors the old `.split` crash if it is not.
+  if (pathValue === undefined) throw new Error("PATH is not set");
   return pathValue
     .split(path.delimiter)
     .filter((d) => {
@@ -61,7 +69,7 @@ export function setupRepo({ prefix = "cdd-behavior-" } = {}) {
   return dest;
 }
 
-function git(repo, ...args) {
+function git(repo: string, ...args: string[]) {
   return execFileSync("git", ["-C", repo, ...args], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "ignore"],

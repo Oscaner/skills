@@ -71,8 +71,16 @@ const CLI_ENTRY = "dist/cli.mjs";
 
 // C7: the engine's shipped-resource member paths derive from the locator table (RESOURCE_SPECS —
 // the published dist mirror segments), never a second literal path list.
-const published = (name: keyof typeof RESOURCE_SPECS, ...tail: string[]): string =>
-  path.join(...RESOURCE_SPECS[name].published!, ...tail);
+// RESOURCE_SPECS mixes dist-mirrored resources (published + source) and as-is-shipped ones
+// (source only — issue-body); the published-face helper is only ever used for mirrored
+// resources, so the name set is narrowed to those carrying a published home.
+type PublishedResource = {
+  [K in keyof typeof RESOURCE_SPECS]: "published" extends keyof (typeof RESOURCE_SPECS)[K]
+    ? K
+    : never;
+}[keyof typeof RESOURCE_SPECS];
+const published = (name: PublishedResource, ...tail: string[]): string =>
+  path.join(...RESOURCE_SPECS[name].published, ...tail);
 const DIST_SCHEMA_DIR = published("schema"); // dist/config/schema
 
 // ---- kairos pack whitelist audit (P4.2 Task 7 ⑤) ----

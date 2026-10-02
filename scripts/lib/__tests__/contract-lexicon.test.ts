@@ -18,10 +18,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { ORCHESTRATOR_SKILLS } from "../../validate/residue.ts";
-import { ContractLexiconGuard, G2_LIVE_FACES } from "../contract-lexicon.ts";
+import { type AnatomyFinding, ContractLexiconGuard, G2_LIVE_FACES } from "../contract-lexicon.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..");
+// The data-source constants the assertion helpers read (the repo config homes).
+const LEXICON_SRC = path.join(REPO_ROOT, "packages/cdd-engine/config/contract-lexicon.json");
+const CONTRACT_SRC = path.join(REPO_ROOT, "packages/cdd-engine/config/harness-contract.json");
 
 const guard = new ContractLexiconGuard();
 
@@ -31,10 +34,10 @@ const guard = new ContractLexiconGuard();
 
 describe("contract-lexicon.json — the pure word-table domains + engine-facts consistency", () => {
   it("the lexicon carries zero harness domain — the harness contract is the unique harness-data source", () => {
-    const lex = guard.lexicon();
-    // C8: ids/clis/markers all re-homed to config/harness-contract.json; the lexicon keeps only
-    // the pure word tables (status / stdout / residue / anatomy).
-    expect(lex.harness).toBeUndefined();
+    // The loaded lexicon data (JSON.parse boundary): the absence of a harness domain is the C8
+    // re-home assertion — the harness contract is the unique harness-data source.
+    const lexData = JSON.parse(readFileSync(LEXICON_SRC, "utf8")) as Record<string, unknown>;
+    expect(lexData.harness).toBeUndefined();
     const contract = guard.contract();
     expect(Object.keys(contract).sort()).toEqual([
       "_doc",
@@ -79,9 +82,12 @@ describe("contract-lexicon.json — the pure word-table domains + engine-facts c
       "contract-lexicon.json",
       "harness-contract.json",
     ]);
-    // C8: the ban token follows the harness contract's cursor cli (the unique cli source).
-    const contract = guard.contract();
-    expect(lex.residue.bannedToken).toBe((contract as Record<string, any>).cursor.cli);
+    // C8: the ban token follows the harness contract's cursor cli (the unique cli source) — read
+    // from the raw contract data (JSON.parse boundary).
+    const contract = JSON.parse(readFileSync(CONTRACT_SRC, "utf8")) as {
+      cursor: { cli: string };
+    };
+    expect(lex.residue.bannedToken).toBe(contract.cursor.cli);
   });
 
   it("anatomy domain: the skill-anatomy schema path resolves on disk", () => {
@@ -93,7 +99,7 @@ describe("contract-lexicon.json — the pure word-table domains + engine-facts c
   });
 });
 
-function expectExists(p) {
+function expectExists(p: string): void {
   if (!existsSync(p)) throw new Error(`missing expected file: ${p}`);
 }
 
@@ -151,7 +157,13 @@ flowchart TD
 | nope | BLOCKED (no silent fallback) |
 `;
 
-const BREAK_CASES = [
+interface BreakCase {
+  kind: string;
+  expect: RegExp;
+  make: (src: string) => string;
+}
+
+const BREAK_CASES: BreakCase[] = [
   {
     kind: "deleted-node",
     expect: /^digraph-(dangling-node|orphan-section)$/,
@@ -184,7 +196,7 @@ describe("ContractLexiconGuard.checkAnatomy — mkdtemp deliberate-break chains"
   // writers are absent from a single synthetic-file list, growth-crossing-unregistered /
   // consumer-purity-heading / skeleton-shape) are the family-level checks and never fired by the
   // per-skill break chains.
-  const PER_SKILL_SURFACE = (f) =>
+  const PER_SKILL_SURFACE = (f: AnatomyFinding): boolean =>
     ![
       "skeleton-deltas-missing",
       "growth-crossing-unregistered",
@@ -232,8 +244,8 @@ describe("ContractLexiconGuard.checkAnatomy — mkdtemp deliberate-break chains"
 
 describe("ContractLexiconGuard.checkResidue — G2 cursor live-face guard (P3 T2/T4)", () => {
   const CURSOR_BINARY = "cursor" + "-agent";
-  const registryText = (cliValue) => `{ "cursor": { "cli": "${cliValue}" } }\n`;
-  const pathDir = (label) => mkdtempSync(path.join(tmpdir(), label));
+  const registryText = (cliValue: string) => `{ "cursor": { "cli": "${cliValue}" } }\n`;
+  const pathDir = (label: string) => mkdtempSync(path.join(tmpdir(), label));
 
   it("(a) data-source data-value rows are green (the release form)", () => {
     const dir = pathDir("g2-a-");
@@ -479,23 +491,40 @@ describe("ContractLexiconGuard.checkConfig — engine-config channel audit (P3 T
 // ---------------------------------------------------------------------------
 
 const MARKERS_HARNESS_SRC = path.join(REPO_ROOT, "packages/cdd-engine/src/infra/harness.ts");
-const CONTRACT_SRC = path.join(REPO_ROOT, "packages/cdd-engine/config/harness-contract.json");
+
+/** The event-row surface of config/harness-contract.json the break helpers read/mutate (the
+ *  parsed harness-contract.json — a JSON.parse boundary; other row keys ride the index). */
+interface HarnessContractRow {
+  detect?: { env?: string; aiAgentPrefix?: string; value?: string };
+  install?: Record<string, string[]>;
+  [key: string]: unknown;
+}
+/** The harness-contract.json top-level surface the prefix-direction tests mutate. */
+interface HarnessContractSurface {
+  dispatch: Record<string, unknown>;
+  refs: Record<string, Record<string, string>>;
+  claude: HarnessContractRow;
+  cursor: HarnessContractRow;
+  pi: HarnessContractRow;
+}
+type DetectRow = { env?: string; aiAgentPrefix?: string; value?: string };
 
 // Temp-contract break helper: write a harness-contract.json with a harness-row detect mutated and
 // run checkMarkers against it. The detect() source and the engine-config faces stay live — a hit
 // can only come from the contract face.
-function detectHitsWithContract(
-  mutate: (
-    detect: Record<string, { env?: string; aiAgentPrefix?: string; value?: string }>,
-  ) => void,
-) {
+function detectHitsWithContract(mutate: (detect: Record<string, DetectRow>) => void) {
   const dir = mkdtempSync(path.join(tmpdir(), "lex-detect-"));
   try {
-    const contract = JSON.parse(readFileSync(CONTRACT_SRC, "utf8")) as Record<string, any>;
-    const detect: Record<string, { env?: string; aiAgentPrefix?: string; value?: string }> = {};
-    for (const id of ["claude", "cursor", "pi"]) detect[id] = contract[id].detect;
+    const contract = JSON.parse(readFileSync(CONTRACT_SRC, "utf8")) as HarnessContractSurface;
+    const detect: Record<string, DetectRow> = {};
+    for (const id of ["claude", "cursor", "pi"] as const) {
+      // The live contract always carries a detect row on every harness (JSON data).
+      detect[id] = contract[id].detect!;
+    }
     mutate(detect);
-    for (const id of Object.keys(detect)) contract[id].detect = detect[id];
+    // Write the mutated detect rows back — the id set seeded above is exactly the detected
+    // harness ids (no caller in the break cases adds or removes an id).
+    for (const id of ["claude", "cursor", "pi"] as const) contract[id].detect = detect[id];
     const file = path.join(dir, "harness-contract.json");
     writeFileSync(file, JSON.stringify(contract, null, 2), "utf8");
     return new ContractLexiconGuard({ registryPath: file }).checkMarkers();
@@ -635,7 +664,7 @@ describe("ContractLexiconGuard.checkHarness — the four directions (C8)", () =>
   it("the prefix direction: a dispatch slot naming an unregistered ref key fires", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "lex-prefix-"));
     try {
-      const contract = JSON.parse(readFileSync(CONTRACT_SRC, "utf8")) as Record<string, any>;
+      const contract = JSON.parse(readFileSync(CONTRACT_SRC, "utf8")) as HarnessContractSurface;
       contract.dispatch.implement = "superpowers:not-registered";
       const file = path.join(dir, "harness-contract.json");
       writeFileSync(file, JSON.stringify(contract, null, 2), "utf8");
@@ -650,7 +679,7 @@ describe("ContractLexiconGuard.checkHarness — the four directions (C8)", () =>
   it("the prefix direction: a ref form that diverges from the derived per-harness shape fires", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "lex-prefix2-"));
     try {
-      const contract = JSON.parse(readFileSync(CONTRACT_SRC, "utf8")) as Record<string, any>;
+      const contract = JSON.parse(readFileSync(CONTRACT_SRC, "utf8")) as HarnessContractSurface;
       contract.refs["kairos:cdd-plan"].claude = "/kairos:WRONG";
       const file = path.join(dir, "harness-contract.json");
       writeFileSync(file, JSON.stringify(contract, null, 2), "utf8");
@@ -665,8 +694,9 @@ describe("ContractLexiconGuard.checkHarness — the four directions (C8)", () =>
   it("the install direction: a harness install row missing a referenced package fires", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "lex-install-"));
     try {
-      const contract = JSON.parse(readFileSync(CONTRACT_SRC, "utf8")) as Record<string, any>;
-      delete contract.claude.install.superpowers;
+      const contract = JSON.parse(readFileSync(CONTRACT_SRC, "utf8")) as HarnessContractSurface;
+      // The live claude row always declares its install table (JSON data).
+      delete contract.claude.install!.superpowers;
       const file = path.join(dir, "harness-contract.json");
       writeFileSync(file, JSON.stringify(contract, null, 2), "utf8");
       const hits = new ContractLexiconGuard({ registryPath: file }).checkHarness();

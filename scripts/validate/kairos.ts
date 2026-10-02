@@ -13,14 +13,14 @@ import { fileURLToPath } from "node:url";
 import { piHarness } from "../lib/harness-registry.ts";
 import { CheckBlock, SubprocessBlock, validateRunner } from "./runner.ts";
 
-function assert(cond, msg) {
+function assert(cond: boolean, msg: string): void {
   if (!cond) throw new Error(msg);
 }
 
 // Single definition of "a skill = directory containing SKILL.md" — shared by the skills-count
 // check below, the pi-package well-formed guard, and the behavior tests (pi-package.test.ts,
 // pi-install-smoke.test.ts): a definition change needs this one edit only.
-export function countSkillsWithMarkdown(dir) {
+export function countSkillsWithMarkdown(dir: string): number {
   return readdirSync(dir, { withFileTypes: true }).filter(
     (e) => e.isDirectory() && existsSync(path.join(dir, e.name, "SKILL.md")),
   ).length;
@@ -33,7 +33,9 @@ export const EXPECTED = 8; // init (deleted at T10) + 3 spec-writer skills (cdd-
 
 function checkKairosSkillsCount() {
   const p = path.join(ROOT, "packages/kairos");
-  const manifest = JSON.parse(readFileSync(path.join(p, ".claude-plugin/plugin.json"), "utf8"));
+  const manifest = JSON.parse(readFileSync(path.join(p, ".claude-plugin/plugin.json"), "utf8")) as {
+    skills?: string[] | string | null;
+  };
   const skills = manifest.skills;
   const EMITTERS_LABEL = `${EXPECTED} skills`; // pure count label (no re-listing; EXPECTED is the only count truth)
   let n: number;
@@ -70,8 +72,11 @@ function checkKairosSkillsCount() {
 // files-closure check is the static subset per the closure contract (./ stripped,
 // then directory/file prefix coverage); pack-truth is verified separately by the
 // install smoke.
-function checkPiPackageWellFormed(pkgRoot) {
-  const pkg = JSON.parse(readFileSync(path.join(pkgRoot, "package.json"), "utf8"));
+function checkPiPackageWellFormed(pkgRoot: string) {
+  const pkg = JSON.parse(readFileSync(path.join(pkgRoot, "package.json"), "utf8")) as {
+    pi?: { skills?: string[] };
+    [key: string]: unknown;
+  };
   const declared = pkg.pi?.skills ?? [];
   piHarness.validatePackage(pkg, {
     pkgRoot,

@@ -50,14 +50,14 @@ const ROOT_BEHAVIOR_HEADINGS = [
 // landing behavior.
 const CDD_SUBCOMMANDS = ["implement", "review", "fix", "base-branch", "schema", "issue"];
 
-function read(rel) {
+function read(rel: string) {
   return readFileSync(path.join(REPO, rel), "utf8");
 }
 
 /** Top-level `## ` headings in document order — the sync statement's "top-level sections
  *  correspond one by one" contract; `###`, the language row and the badge block are not
  *  sections. */
-function headingsOf(md) {
+function headingsOf(md: string) {
   return md
     .split("\n")
     .filter((l) => /^## /.test(l))
@@ -65,7 +65,7 @@ function headingsOf(md) {
 }
 
 /** A section's text from its heading up to the next top-level heading (or EOF). */
-function sectionOf(md, heading) {
+function sectionOf(md: string, heading: string) {
   const start = md.indexOf(heading);
   assert.ok(start !== -1, `heading not found: ${heading}`);
   const next = md.indexOf("\n## ", start + 1);
@@ -156,8 +156,8 @@ test("kairos README: philosophy walkthrough present (cdd as the distributed disc
 });
 
 test("zh mirror set: exactly the root + two package mirrors, zero others", () => {
-  const found = [];
-  const walk = (dir) => {
+  const found: string[] = [];
+  const walk = (dir: string) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
       const p = path.join(dir, entry.name);
@@ -185,7 +185,7 @@ const MIRROR_PAIRS = [
 // rename, reorder, or mistranslation into the wrong slot fails the deep-equal below; derive
 // new sequences only when a legit README rewrite renames the mirrored section (EN + zh
 // together).
-const ZH_HEADING_SEQUENCES = {
+const ZH_HEADING_SEQUENCES: Record<string, string[]> = {
   "README.zh-CN.md": [
     "cdd 理念导览",
     "这是什么",
@@ -361,7 +361,7 @@ const OLD_KAIROS_SKILL_NAMES = [
 
 // The kairos README nominal mapping table (## CDD engine CLI) — the per-file section heading
 // differs between the EN source and its zh mirror.
-const NOMINAL_SECTION_HEADING = {
+const NOMINAL_SECTION_HEADING: Record<string, string> = {
   "packages/kairos/README.md": "## CDD engine CLI",
   "packages/kairos/README.zh-CN.md": "## CDD 引擎 CLI",
 };
@@ -370,11 +370,20 @@ const NOMINAL_SECTION_HEADING = {
  *  + host marker from the harness contract (row id + cli + detect — C8: the unique harness-data
  *  source), ship status from the same contract row — `cursor-agent` is legal ONLY as the cursor
  *  binary-column data value. */
-function nominalRow(contract, id) {
+/** One row of the canonical harness contract (packages/cdd-engine/config/harness-contract.json) —
+ *  the nominal-table derivation source (id + cli + detect + ship). */
+interface HarnessContractRow {
+  cli?: unknown;
+  detect?: { env?: string; value?: string };
+  ship?: unknown;
+}
+
+function nominalRow(contract: Record<string, HarnessContractRow>, id: string) {
   const row = contract[id];
-  const detect = row.detect;
   assert.ok(row, `harness contract row missing for harness ${id}`);
+  assert.ok(row.detect, `harness contract row missing detect for harness ${id}`);
   assert.ok(row.ship, `harness contract row missing ship for harness ${id}`);
+  const detect = row.detect;
   return {
     id,
     cli: row.cli,
@@ -385,7 +394,7 @@ function nominalRow(contract, id) {
 
 /** Parse a nominal-table data row (backticked cli + marker cells stripped) into the derived shape;
  *  rows without a backticked second cell (header / separator) return null. */
-function parseNominalRow(line) {
+function parseNominalRow(line: string) {
   const cells = line
     .split("|")
     .map((c) => c.trim())
@@ -400,7 +409,10 @@ function parseNominalRow(line) {
 }
 
 test("nominal mapping table == the harness contract (row id/cli/detect + ship) data derivation", () => {
-  const contract = JSON.parse(read("packages/cdd-engine/config/harness-contract.json"));
+  const contract = JSON.parse(read("packages/cdd-engine/config/harness-contract.json")) as Record<
+    string,
+    HarnessContractRow
+  >;
   const ids = Object.keys(contract).filter((k) => !["_doc", "dispatch", "refs"].includes(k));
   const expected = ids.map((id) => nominalRow(contract, id));
   for (const rel of Object.keys(NOMINAL_SECTION_HEADING)) {

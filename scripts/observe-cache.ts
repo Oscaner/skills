@@ -32,16 +32,15 @@ import { fileURLToPath } from "node:url";
 //   node scripts/observe-cache.ts --rounds 2 \
 //     -- .kairos/cdd/2026-09-27-pi-harness-p4 3 implement
 import { execa } from "execa";
-import { buildInvokeArgs, promptArgText } from "../packages/cdd-engine/src/infra/invoke.ts";
-import {
-  loadRegistry,
-  REG_PATH,
-  resolveInjection,
-} from "../packages/cdd-engine/src/infra/registry.ts";
-import {
-  renderModePrompt,
-  resetTemplateCaches,
-} from "../packages/cdd-engine/src/render/templates.ts";
+import { EngineInvoker } from "../packages/cdd-engine/src/infra/invoke.ts";
+import { REG_PATH, Registry } from "../packages/cdd-engine/src/infra/registry.ts";
+import { TemplateLoader } from "../packages/cdd-engine/src/render/templates.ts";
+
+// The engine's Criterion-② service instances (the .mjs bare-function exports retired with the
+// OOP restructure) — the same instance faces the engine's dispatch/cli layers construct once.
+const invoker = new EngineInvoker();
+const registry = new Registry();
+const templates = new TemplateLoader();
 
 export type CacheUsage = { readTokens: number; writeTokens: number };
 
@@ -179,7 +178,7 @@ export class CacheObserver {
       DISPATCH_UNIT: String(state.task),
       REVIEW_PLAN_LINE: "",
     };
-    return renderModePrompt(state.mode, params);
+    return templates.renderModePrompt(state.mode, params);
   }
 }
 
@@ -224,13 +223,13 @@ async function main(): Promise<void> {
   const { harness, rounds, flag, workspace, task, mode } = cacheObserver.parseArgs(
     process.argv.slice(2),
   );
-  const entry = loadRegistry(REG_PATH)[harness];
+  const entry = registry.load(REG_PATH)[harness];
   if (!entry) {
     console.error(`observe-cache: unknown harness "${harness}" — registry at ${REG_PATH}`);
     process.exit(2);
   }
 
-  resetTemplateCaches(); // one cold static-zone render, then measure the hot re-dispatches
+  templates.resetTemplateCaches(); // one cold static-zone render, then measure the hot re-dispatches
   // Day-head: the emitted key is the registry row key as validated above (direct emission —
   // cursor maps to the `cursor` row), so the banner tracks the registry's current row keys.
   console.log(
@@ -243,12 +242,16 @@ async function main(): Promise<void> {
     const prompt = cacheObserver.renderRoundPrompt({ workspace, task, mode, round });
     // Resolve the op×type injection the exact way the engine does (registry resolver — C5 parity:
     // the observed invoke set mirrors what cdd dispatches, with only the measurement flag added).
-    const promptArg = promptArgText(
-      resolveInjection(entry, mode, mode === "review" || mode === "fix" ? "task" : undefined),
+    const promptArg = invoker.promptArgText(
+      registry.resolveInjection(
+        entry,
+        mode,
+        mode === "review" || mode === "fix" ? "task" : undefined,
+      ),
       prompt,
       "",
     );
-    const args = [...buildInvokeArgs(entry.invoke ?? "", promptArg)];
+    const args = [...invoker.buildInvokeArgs(entry.invoke ?? "", promptArg)];
     args.splice(args.length - 1, 0, flag); // measurement flag (--debug default) right before the prompt arg
     const result = await execa(entry.cli, args, {
       cwd: workspace,

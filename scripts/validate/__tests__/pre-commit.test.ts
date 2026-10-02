@@ -30,6 +30,7 @@ describe("pre-commit subset (G4/P6 Task 17)", () => {
         "engine zero residue + channel audit",
         "marketplace manifests validate",
         "scripts unit tests (vitest)",
+        "type-check (tsc --noEmit × 3 projects)",
         "package version sync",
       ]),
     );
@@ -54,6 +55,7 @@ describe("pre-commit subset (G4/P6 Task 17)", () => {
       "engine zero residue + channel audit",
       "marketplace manifests validate",
       "scripts unit tests (vitest)",
+      "type-check (tsc --noEmit × 3 projects)",
       "package version sync",
     ];
     expect(fullSteps.map((s) => s.name)).toEqual(expect.arrayContaining(expectedFull));

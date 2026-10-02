@@ -8,6 +8,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 import { generatedBanner } from "./generated-banner.ts";
+import type { PluginSource } from "./harness-registry.ts";
 
 export class MarketplaceService {
   /** repo root the service resolves manifests against (constructor-injected). */
@@ -20,7 +21,7 @@ export class MarketplaceService {
   /**
    * @param {{ name: string, version?: string }} plugin
    */
-  resolveVersion(plugin) {
+  resolveVersion(plugin: PluginSource) {
     // First-party: package.json is the version SOT. The vendor branch (listVendors
     // + resolveVendorVersion) was retired with the self-maintenance surface (P6 B9).
     const truthPath = join(this.root, "packages", plugin.name, "package.json");
@@ -28,7 +29,7 @@ export class MarketplaceService {
       throw new Error(`Missing truth source for ${plugin.name}: ${truthPath}`);
     }
 
-    const truth = JSON.parse(readFileSync(truthPath, "utf8"));
+    const truth = JSON.parse(readFileSync(truthPath, "utf8")) as { version?: string };
     const truthVersion = truth.version;
 
     if (!truthVersion) {
@@ -47,8 +48,11 @@ export class MarketplaceService {
   }
 
   /** @param {object} plugin @param {{ version: string, includeInClaude: boolean }} resolved */
-  claudeMarketplaceEntry(plugin, resolved) {
-    const entry = {
+  claudeMarketplaceEntry(
+    plugin: PluginSource,
+    resolved: { version?: string; includeInClaude: boolean },
+  ) {
+    const entry: Record<string, unknown> = {
       name: plugin.name,
       source: `./${plugin.contentRoot}`,
       description: plugin.description,
@@ -67,39 +71,39 @@ export class MarketplaceService {
   }
 
   /** @param {object} plugin */
-  isPluginRoot(plugin) {
+  isPluginRoot(plugin: PluginSource) {
     return plugin.cursor?.emitMode === "plugin-root";
   }
 
   /** @param {object} plugin @param {{ version: string }} resolved */
-  cursorWrapperManifest(plugin, resolved) {
-    const manifest = {
+  cursorWrapperManifest(plugin: PluginSource, resolved: { version?: string }) {
+    const manifest: Record<string, unknown> = {
       _generated: generatedBanner,
       name: plugin.name,
-      displayName: plugin.cursor.displayName,
+      displayName: plugin.cursor?.displayName,
       description: plugin.description,
       author: plugin.author,
-      skills: plugin.cursor.skills,
+      skills: plugin.cursor?.skills,
     };
     if (resolved.version) manifest.version = resolved.version;
     if (plugin.homepage) manifest.homepage = plugin.homepage;
     if (plugin.repository) manifest.repository = plugin.repository;
     if (plugin.license) manifest.license = plugin.license;
-    if (plugin.cursor.hooks) manifest.hooks = plugin.cursor.hooks;
+    if (plugin.cursor?.hooks) manifest.hooks = plugin.cursor.hooks;
     return manifest;
   }
 
   /**
    * @param {object} plugin
    */
-  assertCursorPathsExist(plugin) {
+  assertCursorPathsExist(plugin: PluginSource) {
     if (this.isPluginRoot(plugin)) {
       const contentRoot = join(this.root, plugin.contentRoot);
       const manifestPath = join(contentRoot, ".cursor-plugin/plugin.json");
       if (!existsSync(manifestPath)) {
         throw new Error(`Missing plugin-root manifest: ${manifestPath}`);
       }
-      const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+      const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Record<string, string>;
       for (const field of ["skills", "hooks"]) {
         if (!manifest[field]) continue;
         const abs = resolve(contentRoot, manifest[field]);
@@ -112,9 +116,9 @@ export class MarketplaceService {
 
     const wrapperRoot = join(this.root, "cursor-plugins", plugin.name);
     for (const [field, rel] of [
-      ["skills", plugin.cursor.skills],
-      ["hooks", plugin.cursor.hooks],
-    ]) {
+      ["skills", plugin.cursor?.skills],
+      ["hooks", plugin.cursor?.hooks],
+    ] as const) {
       if (!rel) continue;
       const abs = resolve(wrapperRoot, rel);
       if (!existsSync(abs)) {
@@ -123,7 +127,10 @@ export class MarketplaceService {
     }
   }
 
-  claudeMarketplaceDocument(source, plugins) {
+  claudeMarketplaceDocument(
+    source: { name?: string; metadata?: unknown; owner?: unknown },
+    plugins: unknown[],
+  ) {
     return {
       _generated: generatedBanner,
       $schema: "https://www.schemastore.org/claude-code-marketplace.json",
@@ -134,7 +141,10 @@ export class MarketplaceService {
     };
   }
 
-  cursorMarketplaceDocument(source, plugins) {
+  cursorMarketplaceDocument(
+    source: { name?: string; metadata?: unknown; owner?: unknown },
+    plugins: unknown[],
+  ) {
     return {
       _generated: generatedBanner,
       name: source.name,

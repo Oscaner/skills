@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SKILL = path.resolve(HERE, "../skills/cdd-plan/SKILL.md");
 
-function authorPlanNode(text) {
+function authorPlanNode(text: string) {
   // The `author-plan` node block — from its H3 heading to the next H3 heading.
   const start = text.indexOf("### `author-plan`");
   const end = text.indexOf("\n### ", start === -1 ? 0 : start + 1);

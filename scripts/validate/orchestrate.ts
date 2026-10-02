@@ -16,7 +16,8 @@ import { steps as kairosSteps } from "./kairos.ts";
 import { steps as libTestsSteps } from "./lib-tests.ts";
 import { steps as marketplaceSteps } from "./marketplace.ts";
 import { steps as residueSteps } from "./residue.ts";
-import { validateRunner } from "./runner.ts";
+import { type StepRun, validateRunner } from "./runner.ts";
+import { steps as typeCheckSteps } from "./type-check.ts";
 import { steps as versionSyncSteps } from "./version-sync.ts";
 
 // Original step order: the cdd-engine engine test suite follows the kairos
@@ -35,9 +36,10 @@ export const steps = [
   ...residueSteps,
   ...marketplaceSteps,
   ...libTestsSteps,
+  ...typeCheckSteps,
   ...versionSyncSteps,
 ];
 
-export function main(stepsArg = steps) {
+export function main(stepsArg: ReadonlyArray<StepRun> = steps) {
   return validateRunner.run(stepsArg);
 }

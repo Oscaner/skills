@@ -31,11 +31,11 @@ const REVIEW_LOOP_NODES = {
 const CLEAN_TREE_PHRASE = /ensure the working tree is clean before entering review/i;
 
 // Split a SKILL.md into its `### `-headed node blocks: { title, block } (title without backticks).
-function nodeBlocks(skillText) {
+function nodeBlocks(skillText: string) {
   return skillText
     .split(/^### /m)
     .slice(1)
-    .map((section) => {
+    .map((section: string) => {
       const newline = section.indexOf("\n");
       const title = (newline === -1 ? section : section.slice(0, newline))
         .trim()

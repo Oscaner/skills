@@ -37,7 +37,7 @@ export class EmitService {
    * @returns {string[]} `cursor-plugins/<name>` wrapper roots emitted (see
    *   the marketplace docs emitter) — folded into the drift-check product roots by the caller
    */
-  emitAll(outRoot, { generatedPaths }): string[] {
+  emitAll(outRoot: string, { generatedPaths }: { generatedPaths: string[] }): string[] {
     const source = sourceService.derive(root);
 
     for (const plugin of source.plugins) {
@@ -60,7 +60,7 @@ export class EmitService {
 export const emitService = new EmitService();
 
 export function main() {
-  const generatedPaths = [];
+  const generatedPaths: string[] = [];
   emitService.emitAll(root, { generatedPaths });
   console.log("OK — emitted unified first-party manifests");
 }
@@ -71,7 +71,7 @@ if (isMain) {
   try {
     main();
   } catch (e) {
-    console.error(e?.message ?? String(e));
+    console.error(e instanceof Error ? e.message : String(e));
     process.exit(1);
   }
 }

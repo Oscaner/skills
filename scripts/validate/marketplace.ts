@@ -14,14 +14,25 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import Ajv from "ajv";
+import { Ajv } from "ajv";
 
 import { deriveFirstPartyNames } from "../lib/first-party.ts";
-import { harnessRegistry } from "../lib/harness-registry.ts";
+import { harnessRegistry, type OscanerFields, type PluginSource } from "../lib/harness-registry.ts";
 import { CheckBlock, validateRunner } from "./runner.ts";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const ajv = new Ajv();
+
+// The committed document shapes this block reads (the faces it checks only).
+interface SourceDoc {
+  name?: string;
+  owner?: { name?: string };
+  metadata?: { description?: string };
+  plugins: PluginSource[];
+}
+interface MarketplaceDoc {
+  plugins: Array<{ name: string; source: string }>;
+}
 
 function validateSourceSchemaJson() {
   const source = JSON.parse(readFileSync(join(root, "marketplace/source.json"), "utf8"));
@@ -29,7 +40,7 @@ function validateSourceSchemaJson() {
   const validate = ajv.compile(schema);
   if (!validate(source)) {
     throw new Error(
-      `source.json schema invalid:\n${validate.errors
+      `source.json schema invalid:\n${(validate.errors ?? [])
         .map((e) => `  ${e.instancePath || "/"} ${e.message}`)
         .join("\n")}`,
     );
@@ -37,12 +48,14 @@ function validateSourceSchemaJson() {
   console.log("OK — source.json schema");
 }
 
-function isPluginRoot(p) {
+function isPluginRoot(p: PluginSource): boolean {
   return p.cursor?.emitMode === "plugin-root";
 }
 
 function validateSourceSchema() {
-  const source = JSON.parse(readFileSync(join(root, "marketplace/source.json"), "utf8"));
+  const source = JSON.parse(
+    readFileSync(join(root, "marketplace/source.json"), "utf8"),
+  ) as SourceDoc;
 
   if (!source.name || !source.owner?.name || !source.metadata?.description) {
     throw new Error("source.json missing required top-level fields");
@@ -52,7 +65,8 @@ function validateSourceSchema() {
   }
 
   for (const p of source.plugins) {
-    for (const field of ["name", "description", "author", "contentRoot", "cursor"]) {
+    const requiredFields = ["name", "description", "author", "contentRoot", "cursor"] as const;
+    for (const field of requiredFields) {
       if (!p[field]) throw new Error(`${p.name ?? "?"} missing ${field}`);
     }
     if (isPluginRoot(p)) {
@@ -61,10 +75,10 @@ function validateSourceSchema() {
         throw new Error(`${p.name} missing plugin-root manifest: ${manifest}`);
       }
     } else {
-      if (!p.cursor.displayName || !p.cursor.skills) {
+      if (!p.cursor?.displayName || !p.cursor?.skills) {
         throw new Error(`${p.name} missing cursor.displayName or cursor.skills`);
       }
-      if (typeof p.cursor.skills !== "string") {
+      if (typeof p.cursor?.skills !== "string") {
         throw new Error(`${p.name} cursor.skills must be string in v1`);
       }
     }
@@ -78,7 +92,9 @@ function validateSourceSchema() {
 }
 
 function validateWrapperPaths() {
-  const source = JSON.parse(readFileSync(join(root, "marketplace/source.json"), "utf8"));
+  const source = JSON.parse(
+    readFileSync(join(root, "marketplace/source.json"), "utf8"),
+  ) as SourceDoc;
 
   for (const p of source.plugins) {
     if (isPluginRoot(p)) {
@@ -89,7 +105,7 @@ function validateWrapperPaths() {
       const contentRoot = join(root, p.contentRoot);
       const manifest = JSON.parse(
         readFileSync(join(contentRoot, ".cursor-plugin/plugin.json"), "utf8"),
-      );
+      ) as { skills?: string; hooks?: string };
       for (const [field, rel] of [
         ["skills", manifest.skills],
         ["hooks", manifest.hooks],
@@ -105,8 +121,8 @@ function validateWrapperPaths() {
 
     const wrapperRoot = join(root, "cursor-plugins", p.name);
     for (const [field, rel] of [
-      ["skills", p.cursor.skills],
-      ["hooks", p.cursor.hooks],
+      ["skills", p.cursor?.skills],
+      ["hooks", p.cursor?.hooks],
     ]) {
       if (!rel) continue;
       const abs = resolve(wrapperRoot, rel);
@@ -120,9 +136,15 @@ function validateWrapperPaths() {
 }
 
 function validateMarketplaceSources() {
-  const source = JSON.parse(readFileSync(join(root, "marketplace/source.json"), "utf8"));
-  const claude = JSON.parse(readFileSync(join(root, ".claude-plugin/marketplace.json"), "utf8"));
-  const cursor = JSON.parse(readFileSync(join(root, ".cursor-plugin/marketplace.json"), "utf8"));
+  const source = JSON.parse(
+    readFileSync(join(root, "marketplace/source.json"), "utf8"),
+  ) as SourceDoc;
+  const claude = JSON.parse(
+    readFileSync(join(root, ".claude-plugin/marketplace.json"), "utf8"),
+  ) as MarketplaceDoc;
+  const cursor = JSON.parse(
+    readFileSync(join(root, ".cursor-plugin/marketplace.json"), "utf8"),
+  ) as MarketplaceDoc;
 
   for (const entry of claude.plugins) {
     const dir = join(root, entry.source.replace(/^\.\//, ""));
@@ -148,14 +170,17 @@ function validateMarketplaceSources() {
   console.log("OK — marketplace plugin sources exist");
 }
 
-export function validateHarnessRegistryConsistency(packagesRoot) {
+export function validateHarnessRegistryConsistency(packagesRoot: string) {
   const names = deriveFirstPartyNames(packagesRoot);
-  const declarations = {};
+  const declarations: Record<string, string[]> = {};
 
   // ① Every declared harness id must resolve in the registry — an unknown id is a
   //    structured fail (package name + id + the expected id set).
   for (const pkgName of names) {
-    const pkg = JSON.parse(readFileSync(join(packagesRoot, pkgName, "package.json"), "utf8"));
+    const pkg = JSON.parse(readFileSync(join(packagesRoot, pkgName, "package.json"), "utf8")) as {
+      oscaner?: OscanerFields;
+      [key: string]: unknown;
+    };
     const declared = pkg.oscaner?.harnesses ?? [];
     if (!Array.isArray(declared)) {
       throw new Error(`Package "${pkgName}" must declare oscaner.harnesses as an array`);
@@ -183,7 +208,10 @@ export function validateHarnessRegistryConsistency(packagesRoot) {
   // ③ Every declared emit-harness product must exist on disk under the package
   //    content root (pi — an inline distribution with no product — is skipped).
   for (const pkgName of names) {
-    const pkg = JSON.parse(readFileSync(join(packagesRoot, pkgName, "package.json"), "utf8"));
+    const pkg = JSON.parse(readFileSync(join(packagesRoot, pkgName, "package.json"), "utf8")) as {
+      oscaner?: OscanerFields;
+      [key: string]: unknown;
+    };
     const contentRoot = pkg.oscaner?.contentRoot ?? ".";
     for (const id of pkg.oscaner?.harnesses ?? []) {
       const h = harnessRegistry.resolve(id);

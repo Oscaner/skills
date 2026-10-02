@@ -13,7 +13,8 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "allowJs": true
+    "allowJs": true,
+    "erasableSyntaxOnly": true
   },
-  "include": ["src", "build.config.ts"]
+  "include": ["src", "build.config.ts", "vitest.config.ts"]
 }

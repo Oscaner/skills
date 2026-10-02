@@ -52,16 +52,16 @@ const LIVE_SURFACES = [
   "packages/cdd-engine/README.zh-CN.md",
 ];
 
-function read(rel) {
+function read(rel: string) {
   return readFileSync(path.join(REPO, rel), "utf8");
 }
 
-function bytesOf(rel) {
+function bytesOf(rel: string) {
   return statSync(path.join(REPO, rel)).size;
 }
 
 /** Resolve a markdown link from its containing file against the repo root. */
-function resolveLink(fromRel, link) {
+function resolveLink(fromRel: string, link: string) {
   const clean = link.split("#")[0].split("?")[0];
   if (!clean.endsWith(".md")) return null; // non-md targets (schemas, dirs) are not plain file links
   return path.posix.normalize(path.posix.join(path.posix.dirname(fromRel), clean));

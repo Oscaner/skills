@@ -11,22 +11,23 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 //
 // Wired into run.ts:
 //   node scripts/run.ts apply-rules <protect-develop|protect-main>
-import { execaSync } from "execa";
+import { execaSync, type SyncOptions } from "execa";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = process.env.GITHUB_REPOSITORY || "Oscaner/skills";
 
 // target → payload file (ruleset name == target; file is relative to HERE).
-export const TARGETS = {
+export const TARGETS: Record<string, string> = {
   "protect-develop": "configs/develop.json",
   "protect-main": "configs/main.json",
 };
 
-function gh(args, opts = {}) {
-  return execaSync("gh", args, { stdio: ["ignore", "pipe", "pipe"], ...opts }).stdout;
+function gh(args: string[], opts: SyncOptions = {}): string {
+  // execa stdout is a text/binary-encoding union — the gh CLI always emits text.
+  return execaSync("gh", args, { stdio: ["ignore", "pipe", "pipe"], ...opts }).stdout as string;
 }
 
-function applyRuleset(name, file) {
+function applyRuleset(name: string, file: string): void {
   const out = gh(["api", `repos/${REPO}/rulesets`, "--jq", `.[] | select(.name=="${name}") | .id`]);
   const id = out
     .split("\n")
@@ -47,13 +48,12 @@ function applyRuleset(name, file) {
  * @param {string} target ruleset name (protect-develop | protect-main)
  * @returns {number} exit code (1 = usage error)
  */
-export function main(target) {
-  const file = TARGETS[target];
-  if (!file) {
+export function main(target?: string): number {
+  if (target === undefined || !(target in TARGETS)) {
     console.error("Usage: run.ts apply-rules <protect-develop|protect-main>");
     return 1;
   }
-  applyRuleset(target, path.join(HERE, file));
+  applyRuleset(target, path.join(HERE, TARGETS[target]));
   return 0;
 }
 

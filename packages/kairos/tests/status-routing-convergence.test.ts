@@ -27,7 +27,7 @@ const CARRIERS = ["cdd-dev", "cdd-spec", "cdd-charter", "cdd-phase", "cdd-plan"]
 // Retired wording — the "blocker count" read-interpretation vocabulary (M1/M3), the "three segments"
 // S1/S2/S3 self-narrated status→dispatch routing restatement (C5/T9), and the retired `status:` reading
 // idiom. Zero occurrences in the carrier SKILL.md files (unless the C1 blocker vocabulary was re-added).
-const FORBIDDEN = [
+const FORBIDDEN: Array<[string, RegExp]> = [
   ["`blocker` count", /`blocker` count/],
   ["blocker count (unbackticked)", /\bblocker count\b/],
   ["reads only the `status` reading instruction", /reads only the `status`/],
@@ -47,7 +47,7 @@ const FORBIDDEN = [
 // and the status vocabulary, surviving in the digraph edge labels) plus the `next:`-based routing
 // vocabulary that must be present in every carrier: the unified reading wording, the engine's-default
 // shared reference, the dispatch-per-it directive, and the I6 mid-backfill compatibility sentence.
-const REQUIRED = [
+const REQUIRED: Array<[string, RegExp]> = [
   ["`{status?}` digraph decision node", /status\?/],
   ["S1 status anchor CHANGES_REQUESTED", /\bCHANGES_REQUESTED\b/],
   ["S2 status anchor REVIEW_FIX", /\bREVIEW_FIX\b/],

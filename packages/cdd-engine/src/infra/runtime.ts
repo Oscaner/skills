@@ -30,7 +30,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
-import Ajv, { type ValidateFunction } from "ajv";
+import { Ajv, type ValidateFunction } from "ajv";
 import { execa } from "execa";
 
 import { type CrashRecord, isStaleCrashRecord } from "../artifacts/crash.ts";

@@ -20,7 +20,7 @@ const REPO_ROOT = path.resolve(HERE, "../../..");
 const VAL = path.join(REPO_ROOT, "scripts/validate/index.ts");
 
 // Captures main()'s stdout/stderr (aligning with the runner capture pattern — no process.exit mock).
-async function capture(fn) {
+async function capture(fn: () => unknown) {
   const origOut = process.stdout.write.bind(process.stdout);
   const origErr = process.stderr.write.bind(process.stderr);
   let stdout = "";
@@ -85,7 +85,7 @@ test("5b node:test runs the behavior + engine trees; legacy shell tests are not 
   const nt = behaviorNodeTestStep();
   assert.ok(nt, "kairos node:test behavior-tree step missing");
   assert.ok(
-    nt.args.some((a) => a.includes("packages/kairos/tests/*.test.ts")),
+    nt.args?.some((a) => a.includes("packages/kairos/tests/*.test.ts")) ?? false,
     "behavior-tree glob missing",
   );
   assert.ok(
@@ -116,11 +116,11 @@ test("node:test steps carry the behavior glob, no init/utils suite globs (T2), e
   const nt = behaviorNodeTestStep();
   assert.ok(nt, "5b node:test step missing");
   assert.ok(
-    !nt.args.some((a) => a.includes("packages/kairos/bin/init/tests/*.test.ts")),
+    !(nt.args?.some((a) => a.includes("packages/kairos/bin/init/tests/*.test.ts")) ?? true),
     "init suite glob remainder",
   );
   assert.ok(
-    !nt.args.some((a) => a.includes("packages/kairos/bin/utils/tests/*.test.ts")),
+    !(nt.args?.some((a) => a.includes("packages/kairos/bin/utils/tests/*.test.ts")) ?? true),
     "utils suite glob remainder",
   );
   assert.ok(
@@ -229,6 +229,7 @@ const EXPECTED_VALIDATE_STEPS = [
   "marketplace manifests validate",
   "emit harness registry consistency",
   "scripts unit tests (vitest)",
+  "type-check (tsc --noEmit × 3 projects)",
   "package version sync",
 ];
 test("validate wiring carries every expected step by name (name-set pin)", () => {

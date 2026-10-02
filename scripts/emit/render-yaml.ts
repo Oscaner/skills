@@ -15,14 +15,29 @@ import { stringify } from "yaml";
 // of canonical issue-body.json already has this shape) — zero `options` arrays inside the
 // form definition, so no "two implementations to keep in sync" surface; no fallback branch
 // (enum injection already converged to direct reference).
-export function renderYml(formDef, enums = {}) {
+/** Issue-form row surface — the shape renderYml consumes (issue-body.json formDef). */
+interface FormItemAttrs {
+  options?: unknown;
+  [key: string]: unknown;
+}
+interface FormItem {
+  type: string;
+  id?: string;
+  attributes?: FormItemAttrs;
+  validations?: { required?: unknown };
+}
+interface FormDef {
+  frontmatter: { name?: string; description?: string; labels?: string[] };
+  body: FormItem[];
+}
+export function renderYml(formDef: FormDef, enums: { components?: unknown } = {}) {
   const { frontmatter, body } = formDef;
-  const doc = {
+  const doc: Record<string, unknown> = {
     name: frontmatter.name,
     description: frontmatter.description,
     labels: frontmatter.labels,
     body: body.map((item) => {
-      const entry = { type: item.type };
+      const entry: Record<string, unknown> = { type: item.type };
       if (item.id) entry.id = item.id;
       const attributes = { ...item.attributes };
       if (item.type === "dropdown" && item.id === "component") {

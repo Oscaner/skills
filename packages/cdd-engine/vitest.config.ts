@@ -18,7 +18,6 @@ export default defineConfig({
     // further capped in-file. Folded into the P6 plan as the engine-side
     // test-run memory guard (overall v1.28).
     maxWorkers: 1,
-    minWorkers: 1,
     fileParallelism: false,
     maxConcurrency: 2,
     // Explicit include for the migrated colocated suite (P6 Task 3): every test node now

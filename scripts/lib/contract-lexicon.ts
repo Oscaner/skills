@@ -1136,7 +1136,8 @@ function detectPredicate(classBody: string): { paramName: string; body: string }
   const sig = classBody.match(/detect\s*\(\s*([A-Za-z_$][\w$]*)\s*:[^;()]*\)\s*:\s*boolean\s*\{/);
   if (!sig) return null;
   // A successful match always exposes its start index (the regex is non-global here).
-  const open = sig.index! + sig[0].length - 1;
+  if (sig.index === undefined) throw new Error("matched regex missing index");
+  const open = sig.index + sig[0].length - 1;
   const { body } = braceBody(classBody, open);
   return { paramName: sig[1], body };
 }

@@ -12,6 +12,7 @@
 // The scanned lexeme is NEVER written contiguously here (the test position is self-exempt from
 // the scripts face scan — scripts/__tests__ is skipped by default — but the file stays
 // zero-literal so a future scope extension cannot self-bite); it is built by concatenation.
+import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -519,7 +520,9 @@ function detectHitsWithContract(mutate: (detect: Record<string, DetectRow>) => v
     const detect: Record<string, DetectRow> = {};
     for (const id of ["claude", "cursor", "pi"] as const) {
       // The live contract always carries a detect row on every harness (JSON data).
-      detect[id] = contract[id].detect!;
+      const detectRow = contract[id].detect;
+      assert.ok(detectRow, `live ${id} harness row missing its detect slot`);
+      detect[id] = detectRow;
     }
     mutate(detect);
     // Write the mutated detect rows back — the id set seeded above is exactly the detected
@@ -696,7 +699,9 @@ describe("ContractLexiconGuard.checkHarness — the four directions (C8)", () =>
     try {
       const contract = JSON.parse(readFileSync(CONTRACT_SRC, "utf8")) as HarnessContractSurface;
       // The live claude row always declares its install table (JSON data).
-      delete contract.claude.install!.superpowers;
+      const install = contract.claude.install;
+      assert.ok(install, "live claude harness row missing its install table");
+      delete install.superpowers;
       const file = path.join(dir, "harness-contract.json");
       writeFileSync(file, JSON.stringify(contract, null, 2), "utf8");
       const hits = new ContractLexiconGuard({ registryPath: file }).checkHarness();

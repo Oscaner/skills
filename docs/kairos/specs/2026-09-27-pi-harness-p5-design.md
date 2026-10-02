@@ -1,6 +1,6 @@
 # Pi Harness 支持 P5 — 编译面收敛与结算（Phase Design Spec）
 
-- **Version**: v1.2 · 2026-10-02（review 循环收口：r1 七 finding 落地——发布面 files/main/exports 修指 dist · engine/scripts 门禁入配置面 + engine erasableSyntaxOnly · kairos-tests 10+1 计数 · engine README/05 改面 + retired 转述措辞；r2 二 finding 落地——task/branch lensEnum 接 buildability · CDD_MJS 实测计数；v1.0 定稿形态保持）
+- **Version**: v1.3 · 2026-10-02（review 循环收口：r1 七 finding 落地——发布面 files/main/exports 修指 dist · engine/scripts 门禁入配置面 + engine erasableSyntaxOnly · kairos-tests 10+1 计数 · engine README/05 改面 + retired 转述措辞；r2 二 finding 落地——task/branch lensEnum 接 buildability · CDD_MJS 实测计数；**v1.3 design backfill（plan-review-1 驱动）**——src 48 精确枚举修正（finalize 28/branch 8/harness 4/task 2/docs 2/registry 1/resource 1/write-boundary 2）+ kairos `type: module` ESM 前置规则 + review `next:` 附 `(read <handoff> back to confirm)` 说明（user 2026-10-02 mid-flight））
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（kairos:cdd-design → grilling → cdd-phase）
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.27](2026-09-27-pi-harness-overall.md)
@@ -26,7 +26,7 @@ Cross-phase 约定属 parent overall，本 spec 不复述（overall wins on conf
 **三项目 tsconfig 面**：
 - **engine**：`packages/cdd-engine/tsconfig.json` 原位——`strict`/`noEmit`/`skipLibCheck`/`moduleResolution: bundler` 保持（构建面语义）+ **`erasableSyntaxOnly: true`**（Node strip 运行契约镜像——engine 即主 strip 运行时 `node src/bin.ts` 直跑，防「能编译但 Node 跑不了」；src 实测零非 erasable 构造，落地即绿）；include `src`（含 `__tests__`）+ `vitest.config.ts`（config 面并入闸——vitest 转译不查型）；`build.config.ts` 删除后（2.4）不再入 include
 - **scripts**：新建 `scripts/tsconfig.json`——`module: nodenext` · `moduleResolution: nodenext` · `allowImportingTsExtensions: true` + `noEmit: true` · `strict: true` · `skipLibCheck` · **`erasableSyntaxOnly: true`**（Node strip 运行契约镜像——防「能编译但 Node 跑不了」）· include `scripts/**/*.ts`（含 emit / observe-cache / `__tests__`）+ root `vitest.config.ts` / `lint-staged.config.ts`（根配置面并入闸——vitest/lint-staged 由 esbuild/原生加载，均不查型，配置盲区不留）
-- **kairos-tests**：新建 `packages/kairos/tests/tsconfig.json`——与 scripts 同语义（node:test 直跑面）；`.mjs→.ts` 后并入闸
+- **kairos-tests**：新建 `packages/kairos/tests/tsconfig.json`——与 scripts 同语义（node:test 直跑面）；`.mjs→.ts` 后并入闸 · **ESM 检测前置**：`packages/kairos/package.json` 增 `"type": "module"`（实测缺失——nodenext 下 `import.meta` TS1470；10 个迁移测试实用它；kairos 为纯 SKILL/plugin 面、无 CJS 运行时 JS 模块，ESM 化安全）——kairos 包面一次 patch 级小改、changeset 联动（T9 并解「kairos 无面不改」口径）
 
 **命令形态**：root script `"typecheck": "tsc --noEmit -p packages/cdd-engine && tsc --noEmit -p scripts && tsc --noEmit -p packages/kairos/tests"`；root devDeps 增 `typescript@^7.0.2`（判官单源，与 engine 的 `typescript@^7` 拉齐）。**`@typescript/typescript6` 删除**（2.4）。三项目 include 面总覆盖 = 全迁移 TS 面（engine `src` + `vitest.config.ts` · scripts 全量 + root `vitest.config.ts` / `lint-staged.config.ts` · kairos-tests 全量）——`.mjs→ts` 后的任一 TS 文件（源面与配置面）都被恰一项目盘到，配置面不留类型盲区。
 
@@ -47,7 +47,7 @@ Cross-phase 约定属 parent overall，本 spec 不复述（overall wins on conf
 
 **实测分布（本 session 全量跑）**：
 - `__tests__` **739**：`cdd.test.ts` 302（最大存量）/ `docs-runner.test.ts` 73 / `handoff-finalize.test.ts` 71 / `host-detection.test.ts` 29 / `runner.test.ts` 23 / `cli-shared.test.ts` 21 … ——机械族主导：隐式 any（TS7006/18046/7031）、`{}` 上取属性（TS7053/2339）、catch-unknown（18046）、possible-null 解构（18047）、mock 函数签名（2507/2698/2322）
-- **src 48** 全结构性：finalize `agentHandoff` null ×27（TS18047）/ branch `round`/`findings`/`base` ×8（TS2339）/ harness `detect` 撞名 ×2（TS2300）+ `HarnessRow|{}`（TS2322）/ task `DispatchOp` string→union ×2（TS2322）/ docs `string|undefined→PathLike` ×2 / registry `{}`→string / resource `published` 判别 / write-boundary `base` on `{}`
+- **src 48** 全结构性（精确枚举 = 48：finalize 28 + branch 8 + harness 4 + task 2 + docs 2 + registry 1 + resource 1 + write-boundary 2）：finalize `agentHandoff` null ×27（TS18047）+ validation `reason` 取窄 ×1（TS2339 @567）/ branch `round`/`findings`/`base` ×8（TS2339）/ harness `detect` 撞名 ×2（TS2300）+ `HarnessRow|{}` ×2（TS2322）/ task `DispatchOp` string→union ×2（TS2322）/ docs `string|undefined→PathLike` ×2（TS2345）/ registry `{}`→string ×1 / resource `published` 判别 ×1 / write-boundary `base` on `{}` ×2
 
 **真相优先修复清单（src，非抹平——Criterion ② OOP/高维）**：
 1. `agentHandoff`（finalize.ts @492-567 ×27）：重审 write→finalize 契约——载荷在 finalize 时点结构上不可能为 null；以 payload 型 presence 判别 / 默认化把 nullable 从类型中移除 → 27 处同源消亡（零散 `!` 是抹平，弃）
@@ -70,6 +70,8 @@ Cross-phase 约定属 parent overall，本 spec 不复述（overall wins on conf
 - **review 指令补 buildability 轴**：`reviews.task/branch.lensEnum` 增 `"buildability"`（REVIEW_LENS_GUIDE 由 `lensEnum.join(" · ")` 自动派生——无独立 prompt 改动）+ 对应 axesGuide 段——reviewer 在评审中**显式跑** `tsc --noEmit`（或该仓等价）+ 测试，findings lens-tag `buildability` 自证「双命令已跑」；命令用**转译描述**（不硬编码 pnpm/npm——消费仓 toolchain 自洽），本仓引擎闭环自指时跑的就是本 phase 的三项目闸
 - **守卫**：`templates.test.ts`/`registry.test.ts` 断言 task+branch `reviewTypeConfig` 的 `lensEnum` 含 `"buildability"` **且** axesGuide 含 buildability 双证据文句（`tsc` + `test` token）——两条并判，lens-tag 要求才可执行而非仅文本描述；evidence 新字段结构合法（adapt schema）；ContractLexicon 词表补 buildability 措辞（checkWording 对 template-contract 断言）
 - **消费面零动**：SKILL（cdd-dev orchestrator）zero-restate 规则 + 实测零命中 → 零 SKILL 改动；README/CLAUDE.md 无消费故事变更
+- **路由说明（engine 输出面，user 2026-10-02 mid-flight）**：review 的 `next:` fix 建议附 **`(read <handoff> back to confirm)`** 说明——派发者在 fix 前读回 findings handoff 确认再 dispatch（C5 `NextStepRouter` next-line 生成 + result-face 测试 + contract-lexicon 通道措辞同步）；本 phase 亲历暴露（plan-review-1 先手读 handoff 之实态为证）
+- **ESM 检测前置（kairos-tests 面，2.1 联动）**：`packages/kairos/package.json` 增 `"type": "module"`（kairos-tests nodenext 面 TS1470 消除前提；T9 changeset 并解「kairos 无面不改」口径）
 
 ### 2.4 零构建架构收敛（单工具 `typescript@7`）+ 死壳即删
 
@@ -101,6 +103,8 @@ Cross-phase 约定属 parent overall，本 spec 不复述（overall wins on conf
 - `tsc --emit` 发布面：`pnpm pack` → 临时项目 `npm install` → `.bin/cdd` 执行成功（`--help` exit 0，走真实引擎栈）
 - CLAUDE.md + engine README 对（EN/zh）dev 链均 = `node packages/cdd-engine/src/bin.ts`、零 `dev:stub`/`dist/cli.mjs` 引用；`docs/maintainers/05` unbuild 登记 retired（被禁 token 一律转述，非原文）
 - buildability 双证据：`reviews.task/branch.lensEnum` 含 `"buildability"`（REVIEW_LENS_GUIDE 自动派生）且 axesGuide 含 buildability 双证据文句（`templates.test.ts`/`registry.test.ts` 断言绿）；implement evidence 扩 `typecheck` 项且 engine 读回机检（缺 → BLOCKED 测试绿）
+- review `next:` fix 建议附 `(read <handoff> back to confirm)` 说明（C5 `NextStepRouter` next-line 生成 + result-face/next-step 测试断言绿）——user 2026-10-02 mid-flight
+- 三项目零错成立前提落地：`packages/kairos/package.json` 含 `"type": "module"`（ESM 检测前置；2.1/2.3 联动）
 - engine vitest 黑盒 exec 全指 `src/bin.ts`（live 面 `dist/cli.mjs` 引用零命中，发布面 schema/产物除外）
 - `pnpm run validate` 全绿
 
@@ -122,5 +126,7 @@ Cross-phase 约定属 parent overall，本 spec 不复述（overall wins on conf
 - **spec-review 循环记录**（Review Convergence I1，`cdd review --type spec` 逐循环）：
   - **r1**（v1.0，base `13ec3860`）：`CHANGES_REQUESTED · blocker 1`（+3 warn +3 nit）→ `cdd fix`（`spec-fix-1`，commit `ba60cfa2`）——blocker = 发布面 `files` 丢 `dist/` 且带 `src/`（与 bin/发布必 JS 矛盾）→ 修指 `["dist/","config/","templates/"]` + bin/main/exports 改指 `dist/bin.js`；warns = engine 缺 `erasableSyntaxOnly`（主 strip 运行时镜像）→ 补；配置面不入闸 → scripts include 扩 root configs + engine include 扩 `vitest.config.ts`；kairos-tests 计数 11→10+1；engine README 对入改面；nits = 05 retired 转述措辞、main/exports re-point
   - **r2**（fix-1 后，base `ba60cfa2`）：`REVIEW_FIX · blocker 0`（1 warn + 1 nit）→ `cdd fix`（`spec-fix-2`，commit `b6e141f6`）——warn = `buildability` 未入 `reviews.task/branch.lensEnum`（REVIEW_LENS_GUIDE 由 lensEnum 派生，lens-tag 需可强制）→ 补 + 守卫并判成员；nit = CDD_MJS「~13 处」→ 实测 9 定义 · 11 调用
+  - **v1.3 design backfill**（plan-review-1 驱动，非新评审轮）：src 48 精确枚举修正 · kairos `type: module` ESM 前置规则 · review `next:` 附 `(read <handoff> back to confirm)` 说明（user 2026-10-02 mid-flight）
+
   - **closure**：blocker = 0 → fix 全 → done 无 re-review；评审记录终状 = 11 findings 全落地、零 blocker 残
 - 基线 = committed tree（v1.27 overall（`db489699`）· spec v1.0（`13ec3860`）· fix-1（`ba60cfa2`）· fix-2（`b6e141f6`））；Review Convergence：blocker > 0 → fix 全 finding → re-review；blocker = 0 → fix 全 finding → done，无 re-review

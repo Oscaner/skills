@@ -481,7 +481,7 @@ describe("review type config (Task 4: 模板数据化)", () => {
 
   it("reviewTypeConfig: known type → content-only config; unknown → throw", async () => {
     const reviewTypeConfig = templates.reviewTypeConfig.bind(templates);
-    expect(reviewTypeConfig("task").lensEnum).toEqual(["standards", "spec"]);
+    expect(reviewTypeConfig("task").lensEnum).toEqual(["standards", "spec", "buildability"]);
     expect(reviewTypeConfig("task")).not.toHaveProperty("returnMode");
     expect(reviewTypeConfig("task")).not.toHaveProperty("fixTemplate");
     expect(() => reviewTypeConfig("nope")).toThrow("unknown review type: nope");
@@ -512,7 +512,7 @@ describe("review type config (Task 4: 模板数据化)", () => {
       FIXED_POINT: "7a7327b",
     });
     expect(out).toContain("# CDD dispatch — CLI session"); // the unified shell literal header (byte-identical across templates)
-    expect(out).toContain("standards · spec"); // lensEnum joined
+    expect(out).toContain("standards · spec · buildability"); // lensEnum joined (task review config)
     expect(out).toContain("7a7327b..HEAD"); // the ref concretizes to FIXED_POINT..HEAD
     expect(out).toContain("code-review smell baseline"); // axesGuide → the code-review focus
     expect(out).toContain("/ws/tasks-1-review-1.json");
@@ -711,5 +711,38 @@ describe("T25: 四 review type 的 scope-composition 轴（changed-surface reaso
     });
     expect(out).toContain("changed-surface reasonableness");
     expect(out).toContain("Changed-surface bookkeeping");
+  });
+});
+
+describe("T6: task/branch reviewTypeConfig buildability dual evidence（lens member + axesGuide wording, judged together）", () => {
+  it("task + branch lensEnum contain buildability (the REVIEW_LENS_GUIDE mechanism face; plan doc review precedent)", async () => {
+    const reviewTypeConfig = templates.reviewTypeConfig.bind(templates);
+    for (const type of ["task", "branch"]) {
+      expect(reviewTypeConfig(type).lensEnum, type).toContain("buildability");
+    }
+  });
+
+  it("task + branch axesGuide carry the buildability dual-evidence wording (tsc + test tokens judged together — the lens-tag stays executable only with both)", async () => {
+    const reviewTypeConfig = templates.reviewTypeConfig.bind(templates);
+    for (const type of ["task", "branch"]) {
+      const guide = reviewTypeConfig(type).axesGuide;
+      // Both assertions must hold — dual evidence (typecheck AND test executed) is the
+      // buildability lens-tag's executable precondition.
+      expect(guide, type).toContain("tsc");
+      expect(guide, type).toContain("test");
+    }
+  });
+
+  it("the rendered task review prompt carries the buildability lens (lensEnum.join derivation — zero separate prompt edits)", async () => {
+    const renderModePrompt = templates.renderModePrompt.bind(templates);
+    const resetTemplateCaches = templates.resetTemplateCaches.bind(templates);
+    resetTemplateCaches();
+    const out = renderModePrompt("review", {
+      WORKSPACE: "/ws",
+      HANDOFF_TARGET: "/ws/tasks-1-review-1.json",
+      FIXED_POINT: "7a7327b",
+    });
+    expect(out).toContain("- `REVIEW_LENS_GUIDE`: standards · spec · buildability");
+    expect(out).toContain("Buildability axis");
   });
 });

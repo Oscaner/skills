@@ -38,7 +38,7 @@
       "4. **`fix`:** read the open findings at `FINDINGS` and the task brief at `BRIEF` (paths only — do not paste review bodies into the prompt). Fix ALL findings — blockers, warns, and nits — and remove fixed findings from the handoff's `findings[]`. `commits.base` = `FIXED_POINT` (this round's `FIX_BASE` — the prior handoff's `commits.head`); `commits.head` = `git rev-parse HEAD` (full 40-char SHA, never `--short`). No fix-scope diff relative to `FIXED_POINT` → no commit (keep `head` unchanged). Implement + handoff in one process; a handoff write failure → return block `status: BLOCKED`; retry = full mode re-run (idempotent).",
       "5. **`review`:** review the axes in `REVIEW_AXES` against the reference in `REVIEW_REFERENCE`. Every finding MUST carry its `lens` label (one of `REVIEW_LENS_GUIDE`); an empty `findings` array = approved. The `returnFormat` named in `## Return` selects the return contract: RETURN_JSON → findings-only JSON on stdout; RETURN_STDOUT_BLOCK → collect findings into the handoff's `findings[]` (do not print them), then the three-line return block only.",
       "6. **`docs`:** apply fixes directly to `DOC` per `FINDINGS` (all severities), removing fixed findings; `artifacts` records the doc path and `doc_path` = the exact `DOC` path.",
-      "7. **Evidence gate:** before returning, write the test-evidence file under `WORKSPACE` (`tasks-{DISPATCH_UNIT}-test-evidence.json` — the canonical task-family form the engine reads back byte-identically) with at least `command`, `exit_code`, `passed`, and `warnings_count` (include `behavior_change` when applicable). The engine reads it back after you exit: `behavior_change: true` requires `command`, `passed`, and `exit_code` — missing any of the three → the handoff is overridden to `status: BLOCKED` (exit 1); otherwise only a WARN note attaches. Update the implementer report at the path from the brief after verification. Report bodies, test stdout, and diff text live in files only — never in the return.",
+      "7. **Evidence gate:** before returning, write the test-evidence file under `WORKSPACE` (`tasks-{DISPATCH_UNIT}-test-evidence.json` — the canonical task-family form the engine reads back byte-identically) with at least `command`, `exit_code`, `passed`, and `warnings_count`, plus the `typecheck` item (`command`/`exit_code`/`passed`, isomorphic with the exec fields); include `behavior_change` when applicable. The engine reads it back after you exit: a missing or incomplete `typecheck` item (missing any of its three fields), and a `behavior_change: true` round missing `command`/`passed`/`exit_code`, both override the handoff to `status: BLOCKED` (exit 1) — otherwise only a WARN note attaches. Update the implementer report at the path from the brief after verification. Report bodies, test stdout, and diff text live in files only — never in the return.",
       "8. **Commit contract (base/head):** `base` = the brief's `TASK_BASE` (implement) or `FIXED_POINT` (fix — a review's reviewed range). When TDD/verification already produced one or more conventional commits covering this round's scope, set `head` = `git rev-parse HEAD` — do not create duplicate commits; otherwise create **one** conventional commit (`feat:` / `fix:` / `refactor:` / …) with subject aligned to the round — no attribution / co-author / AI-generation trailers — then `head` = `git rev-parse HEAD`. Uncommitted changes at return → `status: BLOCKED`. Only commit changes within this round's scope; out-of-scope uncommitted changes at return → `status: BLOCKED` (the engine rewrites the handoff to BLOCKED and surfaces the generic uncommitted-changes reason on stderr `CDD_BLOCKED:`; the changed-surface audit records committed off-ledger files in the handoff's `notes`; the `blocker:` declaration channel is retired with the return-block column).",
       "9. **Discipline clauses (single-source; bind every mode):**",
       "- {{> cl:english-comments}}",
@@ -195,18 +195,20 @@
     "task": {
       "lensEnum": [
         "standards",
-        "spec"
+        "spec",
+        "buildability"
       ],
       "ref": "TASK_BASE..HEAD",
-      "axesGuide": "Standards axis (repo coding standards + code-review smell baseline) + Spec axis (task brief / plan requirements) + Scope axis (changed-surface reasonableness): cross-check the handoff's `changes[]` ledger against the actual `git diff <base>..HEAD` fileset — any changed file with no ledger entry and no brief-seam attribution is a candidate finding (severity by your judgment; warn-level booking gaps the engine flagged can surface here as blockers when they expose out-of-brief changes). Single agent, three axes, no parallel sub-agents."
+      "axesGuide": "Standards axis (repo coding standards + code-review smell baseline) + Spec axis (task brief / plan requirements) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — `tsc --noEmit`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): cross-check the handoff's `changes[]` ledger against the actual `git diff <base>..HEAD` fileset — any changed file with no ledger entry and no brief-seam attribution is a candidate finding (severity by your judgment; warn-level booking gaps the engine flagged can surface here as blockers when they expose out-of-brief changes). Single agent, four axes, no parallel sub-agents."
     },
     "branch": {
       "lensEnum": [
         "standards",
-        "spec"
+        "spec",
+        "buildability"
       ],
       "ref": "BASE..HEAD",
-      "axesGuide": "Same three axes as task (branch-wide health: diff BASE..HEAD + plan conformance) + Scope axis (changed-surface reasonableness): branch review IS the full diff — every changed file must be attributable to a finding, a plan requirement, or the reviewed intent; unrelated surface = candidate finding (severity by your judgment), normal finding → fix loop"
+      "axesGuide": "Same four axes as task (branch-wide health: diff BASE..HEAD + plan conformance) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — `tsc --noEmit`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): branch review IS the full diff — every changed file must be attributable to a finding, a plan requirement, or the reviewed intent; unrelated surface = candidate finding (severity by your judgment), normal finding → fix loop"
     },
     "spec": {
       "lensEnum": [

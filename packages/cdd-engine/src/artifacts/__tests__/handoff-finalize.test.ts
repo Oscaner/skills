@@ -26,6 +26,18 @@ import { ReturnBlockParser } from "../return-block.ts";
 
 const returnBlockParser = new ReturnBlockParser();
 
+// The canonical implement-family evidence fixture — the test item's three exec fields at the top
+// level PLUS the dual-evidence `typecheck` item (T6: the evidence-gate closed loop requires it;
+// a missing/incomplete typecheck item hard-blocks the materialization).
+const TEST_EVIDENCE = JSON.stringify({
+  command: "node --test",
+  exit_code: 0,
+  passed: true,
+  warnings_count: 0,
+  behavior_change: false,
+  typecheck: { command: "tsc --noEmit", exit_code: 0, passed: true },
+});
+
 // ---- finalize fixture seam (T2 mechanical surface) ----
 // These cases construct a non-null materialized/derived handoff by fixture design (asserted
 // immediately below each call); the seam narrows finalizeHandoff's nullable
@@ -138,7 +150,7 @@ it("finalizeHandoff implement 族：输入无 agentHandoff 槽位（通过类型
   const taskBase = "9a4757b23b5f0634a8ef1d08e1d6c9d1c4f59c63";
   const brief = path.join(ws, "tasks-1-brief.md");
   writeFileSync(brief, `# task 1\nTASK_BASE: ${taskBase}\n`);
-  writeFileSync(path.join(ws, "tasks-1-test-evidence.json"), "{}"); // behavior_change !== true → soft empty
+  writeFileSync(path.join(ws, "tasks-1-test-evidence.json"), TEST_EVIDENCE); // complete dual evidence → soft
   const actualHead = execFileSync("git", ["rev-parse", "HEAD"], {
     cwd: repo,
     encoding: "utf8",
@@ -180,6 +192,88 @@ it("finalizeHandoff implement 族：brief 无 TASK_BASE → 降级 fail-open（�
   });
   expect(r.handoff).toBeNull();
   expect(r.exitCode).toBe(0);
+});
+
+// The dual-evidence closed loop (T6 spec 2.3): the task-family evidence file carries the
+// `typecheck` item — the evidence gate's second hard lane (missing/incomplete → materialized BLOCKED).
+
+describe("finalizeImplement T6 evidence-gate — the typecheck item (dual-evidence closed loop)", () => {
+  // The evidence FILE body is passed as the raw JSON text (callers stringify objects or reuse
+  // the pre-stringified TEST_EVIDENCE — never double-encode).
+  function gateFixture(evidenceBody: string): { ws: string; brief: string } {
+    const ws = mkdtempSync(path.join(tmpdir(), "cdd-hf-t6-ev-"));
+    const brief = path.join(ws, "tasks-1-brief.md");
+    writeFileSync(brief, "# task 1\nTASK_BASE: 9a4757b23b5f0634a8ef1d08e1d6c9d1c4f59c63\n");
+    writeFileSync(path.join(ws, "tasks-1-test-evidence.json"), evidenceBody);
+    return { ws, brief };
+  }
+  const run = ({ ws, brief }: { ws: string; brief: string }) =>
+    finalized(
+      finalizeHandoff({
+        mode: "implement",
+        returnBlock: ["status: APPROVED", "commits: base=x", "artifacts: report=r.md"],
+        brief,
+        workspace: Workspace.fromPath(ws),
+        tasks: [1],
+      }),
+    );
+
+  it("complete test item + complete typecheck item → gate soft (APPROVED + exit 0)", async () => {
+    const r = await run(gateFixture(TEST_EVIDENCE));
+    expect(r.handoff.status).toBe("APPROVED");
+    expect(r.exitCode).toBe(0);
+  });
+
+  it("typecheck item missing entirely → hard gate (status BLOCKED + exit 1 + stderr CDD_BLOCKED)", async () => {
+    const cap = captureStderr();
+    try {
+      const r = await run(
+        gateFixture(
+          JSON.stringify({ command: "node --test", exit_code: 0, passed: true, warnings_count: 0 }),
+        ),
+      );
+      expect(r.handoff.status).toBe("BLOCKED");
+      expect(r.handoff.failure_category).toBe(FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id);
+      expect(r.handoff.notes).toMatch(/test_evidence gate: hard requires the typecheck item/);
+      expect(r.handoff.notes).toContain("command");
+      expect(r.exitCode).toBe(1);
+    } finally {
+      cap.restore();
+    }
+    expect(cap.text).toContain("test_evidence gate: hard requires the typecheck item");
+  });
+
+  it("typecheck item present but missing a field → hard gate (the absent field lands on the note)", async () => {
+    const r = await run(
+      gateFixture(
+        JSON.stringify({
+          command: "node --test",
+          exit_code: 0,
+          passed: true,
+          warnings_count: 0,
+          typecheck: { command: "tsc --noEmit", exit_code: 0 },
+        }),
+      ),
+    );
+    expect(r.handoff.status).toBe("BLOCKED");
+    expect(r.handoff.notes).toMatch(/missing: passed/);
+    expect(r.exitCode).toBe(1);
+  });
+
+  it("behavior_change:true misses its three exec fields while the typecheck item is complete → the behavior_change hard lane still fires", async () => {
+    const r = await run(
+      gateFixture(
+        JSON.stringify({
+          behavior_change: true,
+          warnings_count: 0,
+          typecheck: { command: "tsc --noEmit", exit_code: 0, passed: true },
+        }),
+      ),
+    );
+    expect(r.handoff.status).toBe("BLOCKED");
+    expect(r.handoff.notes).toMatch(/test_evidence gate: hard requires command\/passed\/exit_code/);
+    expect(r.exitCode).toBe(1);
+  });
 });
 
 // ---- fix 族：work 型 — agent 声明保留，契约在 commit-contract 层否决 ----
@@ -515,7 +609,7 @@ it("finalizeHandoff implement 族：非 APPROVED 返回 → BLOCKED + failure_ca
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-hf-impl-blocked-"));
   const brief = path.join(ws, "tasks-1-brief.md");
   writeFileSync(brief, "# task 1\nTASK_BASE: 9a4757b23b5f0634a8ef1d08e1d6c9d1c4f59c63\n");
-  writeFileSync(path.join(ws, "tasks-1-test-evidence.json"), "{}");
+  writeFileSync(path.join(ws, "tasks-1-test-evidence.json"), TEST_EVIDENCE);
   const cap = captureStderr();
   try {
     const r = await finalized(
@@ -599,7 +693,7 @@ describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6
     const ws = mkdtempSync(path.join(tmpdir(), "cdd-hf-t27-ws-"));
     const brief = path.join(ws, "tasks-27-brief.md");
     writeFileSync(brief, `# task 27\nTASK_BASE: ${c1}\n`);
-    writeFileSync(path.join(ws, "tasks-27-test-evidence.json"), "{}");
+    writeFileSync(path.join(ws, "tasks-27-test-evidence.json"), TEST_EVIDENCE);
     return { repo, c0, c1, ws, brief };
   }
 
@@ -685,7 +779,7 @@ describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6
     // fresh brief：TASK_BASE = c0（≠HEAD）
     const freshBrief = path.join(ws, "tasks-27-brief.md");
     writeFileSync(freshBrief, `# task 27\nTASK_BASE: ${c0}\n`);
-    writeFileSync(path.join(ws, "tasks-27-test-evidence.json"), "{}");
+    writeFileSync(path.join(ws, "tasks-27-test-evidence.json"), TEST_EVIDENCE);
     const r = await finalized(
       finalizeHandoff({
         mode: "implement",

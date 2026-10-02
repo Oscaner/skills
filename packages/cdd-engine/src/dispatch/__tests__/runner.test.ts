@@ -39,6 +39,17 @@ import { buildPromptParams, handoffStatus, isTaskPending, TaskLifecycle } from "
 
 const documentsValidator = new DocumentsValidator();
 
+// The canonical implement-family evidence fixture — the test item's three exec fields at the top
+// level PLUS the dual-evidence `typecheck` item (T6: the evidence-gate closed loop requires it;
+// a missing/incomplete typecheck item hard-blocks the implement materialization).
+const TEST_EVIDENCE = JSON.stringify({
+  command: "npx vitest run",
+  exit_code: 0,
+  passed: true,
+  warnings_count: 0,
+  typecheck: { command: "npx tsc --noEmit", exit_code: 0, passed: true },
+});
+
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const _REPO_ROOT = path.resolve(HERE, "../../../../..");
 
@@ -429,10 +440,7 @@ it("T8 fix: 软帽 consecutive — 正常面 round 重置 recovery_count（crash
     expect(crash1.returnBlock[1]).toMatch(/^next: cdd implement --tasks 1 --plan /);
     // 正常面 success → crash record 清除 + recovery_count 归零
     writeFileSync(report, "report body\n");
-    writeFileSync(
-      tev,
-      JSON.stringify({ command: "npx vitest run", exit_code: 0, passed: true, warnings_count: 0 }),
-    );
+    writeFileSync(tev, TEST_EVIDENCE);
     writeFileSync(cliPath, okBody);
     chmodSync(cliPath, 0o755);
     const ok = await TaskLifecycle.run("ghost", 1, {
@@ -1558,10 +1566,7 @@ it("runTask T6: implement 成功路径 — runner 实体化 tasks-1-implement.js
   const tev = path.join(t6.ws, "tasks-1-test-evidence.json");
   writeFileSync(report, "report body\n");
   // evidence 齐 command/passed/exit_code（behavior_change 非 true 或齐全是 soft）→ 不拦
-  writeFileSync(
-    tev,
-    JSON.stringify({ command: "npx vitest run", exit_code: 0, passed: true, warnings_count: 0 }),
-  );
+  writeFileSync(tev, TEST_EVIDENCE);
   const res = await runT6Ghost(
     t6,
     [
@@ -1596,10 +1601,7 @@ it("runTask T6: implement 提交真实改动 → 实体化 carrier 持存 change
   const report = path.join(t6.ws, "tasks-1-report.md");
   const tev = path.join(t6.ws, "tasks-1-test-evidence.json");
   writeFileSync(report, "report body\n");
-  writeFileSync(
-    tev,
-    JSON.stringify({ command: "npx vitest run", exit_code: 0, passed: true, warnings_count: 0 }),
-  );
+  writeFileSync(tev, TEST_EVIDENCE);
   // Ghost agent commits a REAL deliverable (wip.md) — the first T25-era dispatch round ran on an
   // engine without writeBoundary, so its materialized carrier carried no ledger-origin note; the
   // full-dispatch regression pins the note surviving materialization (reconcile runs after it).
@@ -1661,8 +1663,9 @@ it("runTask T6: evidence-gate — behavior_change:true 缺 command/passed/exit_c
     t6,
     [
       "#!/usr/bin/env bash",
-      // mocks an agent writing test-evidence: behavior_change:true but missing the three required keys
-      `printf '%s' '{"behavior_change":true,"warnings_count":0}' > "${path.join(t6.ws, "tasks-1-test-evidence.json")}"`,
+      // mocks an agent writing test-evidence: the typecheck item is complete, but behavior_change:true
+      // with the three exec fields missing → the behavior_change hard lane fires
+      `printf '%s' '{"behavior_change":true,"warnings_count":0,"typecheck":{"command":"npx tsc --noEmit","exit_code":0,"passed":true}}' > "${path.join(t6.ws, "tasks-1-test-evidence.json")}"`,
       "printf '%s\\n' 'status: APPROVED'",
       "printf '%s\\n' 'commits: base=x head=y'",
       `printf '%s\\n' 'artifacts: report=${path.join(t6.ws, "tasks-1-report.md")}'`,
@@ -1686,6 +1689,31 @@ it("runTask T6: evidence-gate — behavior_change:true 缺 command/passed/exit_c
   const progress = JSON.parse(readFileSync(path.join(t6.ws, "progress.json"), "utf8"));
   expect(progress.engineSelfWrittenCount).toBe(1);
   expect(progress.engineRecoveryCount).toBe(0);
+});
+
+it("runTask T6: evidence-gate — typecheck item 缺失 → 双证据闭环拦截（handoff 覆写 BLOCKED + exit 1）", async () => {
+  const t6 = t6Workspace();
+  const res = await runT6Ghost(
+    t6,
+    [
+      "#!/usr/bin/env bash",
+      // mocks an agent writing test-evidence: the exec-field test item is complete but the
+      // typecheck item is absent → the dual-evidence closed loop hard-blocks
+      `printf '%s' '{"command":"npx vitest run","exit_code":0,"passed":true,"warnings_count":0}' > "${path.join(t6.ws, "tasks-1-test-evidence.json")}"`,
+      "printf '%s\\n' 'status: APPROVED'",
+      "printf '%s\\n' 'commits: base=x head=y'",
+      `printf '%s\\n' 'artifacts: report=${path.join(t6.ws, "tasks-1-report.md")}'`,
+      "exit 0",
+    ].join("\n"),
+  );
+  expect(res.exitCode).toBe(1);
+  const hp = path.join(t6.ws, "tasks-1-implement.json");
+  expect(existsSync(hp)).toBe(true);
+  const h = JSON.parse(readFileSync(hp, "utf8"));
+  expect(h.status).toBe("BLOCKED");
+  expect(h.failure_category).toBe("ENGINE_SELF_WRITTEN");
+  expect(h.notes).toMatch(/test_evidence gate: hard requires the typecheck item/);
+  expect(res.returnBlock[0]).toMatch(/^status: BLOCKED · blocker: 0 · handoff: /);
 });
 
 it("runTask T6: the status capsule re-emits from the finalized carrier — agent-lied stdout commits are overwritten (commits single of authority)", async () => {
@@ -1942,10 +1970,7 @@ it("runTask T22: implement pre-flight 缺失 constraints → 自 plan 声明源�
   const report = path.join(t22.ws, "tasks-1-report.md");
   const tev = path.join(t22.ws, "tasks-1-test-evidence.json");
   writeFileSync(report, "report body\n");
-  writeFileSync(
-    tev,
-    JSON.stringify({ command: "npx vitest run", exit_code: 0, passed: true, warnings_count: 0 }),
-  );
+  writeFileSync(tev, TEST_EVIDENCE);
   const restore = withFakeCli(
     t22.binDir,
     "fake-cli",
@@ -1992,10 +2017,7 @@ it("runTask T22/TG8: implement pre-flight overwrites a pre-existing plan-constra
   const report = path.join(t22.ws, "tasks-1-report.md");
   const tev = path.join(t22.ws, "tasks-1-test-evidence.json");
   writeFileSync(report, "report body\n");
-  writeFileSync(
-    tev,
-    JSON.stringify({ command: "npx vitest run", exit_code: 0, passed: true, warnings_count: 0 }),
-  );
+  writeFileSync(tev, TEST_EVIDENCE);
   const restore = withFakeCli(
     t22.binDir,
     "fake-cli",

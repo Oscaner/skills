@@ -615,12 +615,17 @@ export function taskBaseFromBrief(briefPath: string | undefined): string | null 
 // plane's single point (P6 T24 C); the former private helpers were retired with the `blocker:`
 // column (M3) — no copies remain.
 
-// Evidence gate (implement non-dry-run materialization path only): the mechanical hard-gate's only
-// trigger = the test-evidence behavior_change:true (the brief outputs the group's task sections +
-// TASK_BASE line; the repo has no mechanical complexity-tier source).
+// Evidence gate (implement non-dry-run materialization path only): the mechanical hard gate's
+// triggers = (a) the task-family evidence file's `typecheck` item missing/incomplete — the
+// dual-evidence closed loop (T6: the canonical form carries BOTH the top-level exec-field test
+// item AND the isomorphic `typecheck` item; the buildability axis is only executable when both
+// commands' evidence landed) — and (b) the test-evidence behavior_change:true missing the three
+// exec fields (the brief outputs the group's task sections + TASK_BASE line; the repo has no
+// mechanical complexity-tier source).
 // hard → BLOCKED overwrite; everything else (simple / no behavior_change / unreadable-unparseable
 // file) → soft WARN note. Grouped materialization reads the group-keyed evidence artifact
 // (`tasks-{a},{b}-test-evidence.json`).
+const EVIDENCE_EXEC_FIELDS = ["command", "exit_code", "passed"] as const;
 function evidenceGate(
   workspace: Workspace | undefined,
   groupKey: string | null,
@@ -634,8 +639,21 @@ function evidenceGate(
       hard: false,
       warn: `test-evidence missing or unparseable for task group ${groupKey} (soft WARN)`,
     };
+  // The `typecheck` item is a required member of the canonical form: absent or a non-object → the
+  // full exec-field triple is missing; present-but-partial reports the absent fields.
+  const tc = ev.typecheck;
+  const missingTypecheck =
+    typeof tc === "object" && tc !== null
+      ? EVIDENCE_EXEC_FIELDS.filter((f) => !(f in tc))
+      : [...EVIDENCE_EXEC_FIELDS];
+  if (missingTypecheck.length > 0) {
+    return {
+      hard: true,
+      warn: `test_evidence gate: hard requires the typecheck item with command/exit_code/passed (missing: ${missingTypecheck.join(", ")})`,
+    };
+  }
   if (ev.behavior_change !== true) return { hard: false, warn: "" };
-  const missing = ["command", "passed", "exit_code"].filter((k) => !(k in ev));
+  const missing = EVIDENCE_EXEC_FIELDS.filter((k) => !(k in ev));
   if (missing.length > 0) {
     return {
       hard: true,

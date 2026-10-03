@@ -19,7 +19,7 @@ import { compareService } from "./compare.ts";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 export function main() {
-  const generatedPaths = [];
+  const generatedPaths: string[] = [];
   const tempRoot = mkdtempSync(join(tmpdir(), "oscaner-emit-"));
   try {
     const wrapperRoots = emitService.emitAll(tempRoot, { generatedPaths });
@@ -35,7 +35,8 @@ if (isMain) {
   try {
     main();
   } catch (e) {
-    console.error(e?.message ?? String(e));
+    // Unknown catch binding — read the message face at the catch boundary.
+    console.error((e as { message?: unknown }).message ?? String(e));
     process.exit(1);
   }
 }

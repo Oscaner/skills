@@ -30,7 +30,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { DispatchBlocked } from "../../dispatch/base.ts";
 import { BranchFixLifecycle } from "../../dispatch/branch.ts";
-import { writeBranchChain } from "../../infra/__tests__/helpers.ts";
+import { mockExeca, writeBranchChain } from "../../infra/__tests__/helpers.ts";
 import { ExitRequested, exitWithCode } from "../../infra/exit.ts";
 import { REG_PATH } from "../../infra/registry.ts";
 
@@ -136,7 +136,7 @@ describe("branch fix crash/termination lanes (T7/T8)", () => {
   it("child-exit no-handoff face: HARNESS_ABORT carrier + crash record with the exit-shape cause (child-exit)", async () => {
     const fx = setup();
     try {
-      const { execa } = await import("execa");
+      const execa = mockExeca((await import("execa")).execa);
       execa.mockResolvedValue({
         exitCode: 1,
         stdout: "",
@@ -161,7 +161,7 @@ describe("branch fix crash/termination lanes (T7/T8)", () => {
   it("engine-terminated (timedOut, signal) no-handoff face: TIMEOUT category + unified cause — not HARNESS_ABORT/child-*", async () => {
     const fx = setup();
     try {
-      const { execa } = await import("execa");
+      const execa = mockExeca((await import("execa")).execa);
       // spawnManaged folds res.signal === "SIGTERM" → timedOut + cause "signal".
       execa.mockResolvedValue({
         exitCode: 143,
@@ -186,7 +186,7 @@ describe("branch fix crash/termination lanes (T7/T8)", () => {
   it("repeat-abort rotation: a SECOND consecutive abort on the resumed round-stable fix path re-fires the crash teardown → fresh crash record covering the resume session", async () => {
     const fx = setup();
     try {
-      const { execa } = await import("execa");
+      const execa = mockExeca((await import("execa")).execa);
       // Round 1: agent aborts → HARNESS_ABORT teardown + carrier at the round-stable fix path.
       execa.mockResolvedValue({
         exitCode: 1,

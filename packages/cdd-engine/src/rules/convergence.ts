@@ -16,7 +16,8 @@ import { FailureResolver } from "./failure.ts";
 
 export interface HandoffLike {
   status?: string;
-  findings?: ReadonlyArray<{ severity?: string }>;
+  /** review findings — severity selector + the summary prose (real review findings carry both). */
+  findings?: ReadonlyArray<{ severity?: string; summary?: string }>;
   blocker?: string;
   failure_category?: string;
 }

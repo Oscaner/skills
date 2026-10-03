@@ -39,6 +39,17 @@ import { buildPromptParams, handoffStatus, isTaskPending, TaskLifecycle } from "
 
 const documentsValidator = new DocumentsValidator();
 
+// The canonical implement-family evidence fixture — the test item's three exec fields at the top
+// level PLUS the dual-evidence `typecheck` item (T6: the evidence-gate closed loop requires it;
+// a missing/incomplete typecheck item hard-blocks the implement materialization).
+const TEST_EVIDENCE = JSON.stringify({
+  command: "npx vitest run",
+  exit_code: 0,
+  passed: true,
+  warnings_count: 0,
+  typecheck: { command: "npx tsc --noEmit", exit_code: 0, passed: true },
+});
+
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const _REPO_ROOT = path.resolve(HERE, "../../../../..");
 
@@ -54,7 +65,7 @@ import {
 const GROUP_SUPPORTED = processGroupReapingSupported(); // spec §2.6 skip guard (CI container group semantics are unreliable)
 
 // gitInit + realpath normalization (macOS /tmp → /private/tmp).
-function gitInitReal(dir) {
+function gitInitReal(dir: string) {
   const real = realpathSync(dir);
   gitInit(real);
   return real;
@@ -88,13 +99,13 @@ function setupWorkspace() {
 
 // Commit a doc-contract-valid plan into an already-initialized repo (add + commit) — keeps working
 // tree clean.
-function commitPlan(repoDir, planFile) {
+function commitPlan(repoDir: string, planFile: string) {
   commitValidDocs(repoDir, path.relative(repoDir, planFile));
   return planFile;
 }
 
 // fake-cli（registry cli 名遮蔽）：写脚本 + 注入 PATH，返回还原函数。
-function withFakeCli(binDir, name, body) {
+function withFakeCli(binDir: string, name: string, body: string) {
   writeFileSync(path.join(binDir, name), body);
   chmodSync(path.join(binDir, name), 0o755);
   const origPath = process.env.PATH;
@@ -107,7 +118,11 @@ function withFakeCli(binDir, name, body) {
 // ghost registry: the real harness contract + an appended fake-cli row. C8 — the injection prefix
 // derives from dispatch + refs; the ghost row gets matching ghost columns in the refs table so the
 // derivation also holds for the test harness (the per-row prefix surface is deleted).
-function ghostRegistry(ws, { prefix, suffix, dispatch } = {}) {
+function ghostRegistry(
+  ws: string,
+  opts: { prefix?: unknown; suffix?: unknown; dispatch?: unknown } = {},
+) {
+  const { prefix, suffix, dispatch } = opts;
   const regPath = path.join(ws, "registry.json");
   const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
   reg.ghost = {
@@ -127,15 +142,15 @@ function ghostRegistry(ws, { prefix, suffix, dispatch } = {}) {
 }
 
 // Capture process.exit + stdout/stderr from runTask (noExit:false).
-async function capture(runFn) {
+async function capture(runFn: () => Promise<unknown>) {
   const origExit = process.exit;
   const origOut = process.stdout.write.bind(process.stdout);
   const origErr = process.stderr.write.bind(process.stderr);
-  let code = null;
+  let code: string | number | null = null;
   let stdout = "";
   let stderr = "";
   process.exit = (c) => {
-    code = c;
+    code = c ?? null;
     throw new Error(`process.exit(${c})`);
   };
   process.stdout.write = (s) => {
@@ -153,7 +168,7 @@ async function capture(runFn) {
       if (e instanceof ExitRequested) {
         code = e.code;
       } // exit helpers now throw the sentinel (Task 3 review-warn fix)
-      else if (!/process\.exit/.test(e.message)) throw e;
+      else if (e instanceof Error && !/process\.exit/.test(e.message)) throw e;
     }
   } finally {
     process.exit = origExit;
@@ -206,7 +221,7 @@ it.skipIf(!GROUP_SUPPORTED)(
     const { repo, planFile } = setupWorkspace();
     // mocks the session server left behind by dispatch: the leader exits after triggering grandchild P1EXIT, the grandchild lingers (group pgid liveness semantics).
     const script = `const{spawn}=require('child_process');spawn(process.execPath,['-e','setTimeout(()=>{},60000)','P1EXIT']).unref();process.exit(0)`;
-    await spawnManaged("node", ["-e", script], { timeoutMs: 5000 });
+    await spawnManaged("node", ["-e", script], { termination: { budgetMs: 5000 } });
     const p1exitAlive = () => pgrepCount("P1EXIT"); // the bracket trick removes pgrep self-matching (helpers.ts)
     expect(p1exitAlive()).toBeGreaterThan(0);
     let code = null;
@@ -227,7 +242,7 @@ it.skipIf(!GROUP_SUPPORTED)(
 );
 
 it("runTask: dry-run review/fix modes → return block APPROVED + no handoff written (aligns bash)", async () => {
-  for (const mode of ["review", "fix"]) {
+  for (const mode of ["review", "fix"] as const) {
     const { repo, planFile, ws } = setupWorkspace();
     const res = await TaskLifecycle.run("claude", 1, {
       mode,
@@ -425,10 +440,7 @@ it("T8 fix: 软帽 consecutive — 正常面 round 重置 recovery_count（crash
     expect(crash1.returnBlock[1]).toMatch(/^next: cdd implement --tasks 1 --plan /);
     // 正常面 success → crash record 清除 + recovery_count 归零
     writeFileSync(report, "report body\n");
-    writeFileSync(
-      tev,
-      JSON.stringify({ command: "npx vitest run", exit_code: 0, passed: true, warnings_count: 0 }),
-    );
+    writeFileSync(tev, TEST_EVIDENCE);
     writeFileSync(cliPath, okBody);
     chmodSync(cliPath, 0o755);
     const ok = await TaskLifecycle.run("ghost", 1, {
@@ -676,7 +688,7 @@ it("buildCtx: fix mode → findingsPath = review handoff path (no scope filter)"
   });
   expect(ctx.findingsPath).toMatch(/tasks-1-review-1\.json$/);
   expect(ctx.findingsPath).not.toMatch(/open-findings/);
-  expect(ctx.findingsScope).toBeUndefined();
+  expect(ctx).not.toHaveProperty("findingsScope");
 });
 
 it("buildCtx: implement mode → findingsPath = open-findings path, no scope key", () => {
@@ -687,7 +699,7 @@ it("buildCtx: implement mode → findingsPath = open-findings path, no scope key
     planFile,
   });
   expect(ctx.findingsPath).toMatch(/tasks-1-open-findings\.json$/);
-  expect(ctx.findingsScope).toBeUndefined();
+  expect(ctx).not.toHaveProperty("findingsScope");
 });
 
 // ---- CLI succeeds + no handoff → BLOCKED (Pζ) ----
@@ -717,7 +729,7 @@ it("runTask #187→Pζ: review CLI 成功 + 无 handoff → BLOCKED（10.5 仍�
 
 // ---- handoffStatus DONE/OK/COMPLETED normalization ----
 
-function makeHandoffStatusFixture(status) {
+function makeHandoffStatusFixture(status: string) {
   const dir = mkdtempSync(path.join(tmpdir(), "runner-hs-"));
   const progressData = { tasks: [{ task: 1, rounds: { review: 1 } }] };
   writeFileSync(path.join(dir, "tasks-1-review-1.json"), JSON.stringify({ status }));
@@ -1497,7 +1509,7 @@ it("schema: phase 'review' handoff 通过 Ajv 校验（phase enum 已归一）",
 // Fixture (T6): git repo + git-committed plan at the repo root (`--plan`) + clean tracked tree
 // (the commit-contract precondition). Returns the registry / HEAD scene; root is injected via
 // opts.root; workspace purely derived = <repo>/.kairos/cdd/plan.
-function t6Workspace(extraFiles = {}) {
+function t6Workspace(extraFiles: Record<string, string> = {}) {
   const repo = gitInitReal(mkdtempSync(path.join(tmpdir(), "cdd-t6-ws-")));
   commitValidDocs(repo);
   const cddDir = path.join(repo, ".kairos", "cdd");
@@ -1533,7 +1545,7 @@ function t6Workspace(extraFiles = {}) {
 }
 
 // Ghost-run wrapper: write fake-cli (body) → inject PATH to run runTask (implement/non-dry) → restore PATH (T6)
-async function runT6Ghost(t6, body) {
+async function runT6Ghost(t6: ReturnType<typeof t6Workspace>, body: string) {
   const restore = withFakeCli(t6.binDir, "fake-cli", body);
   try {
     return await TaskLifecycle.run("ghost", 1, {
@@ -1554,10 +1566,7 @@ it("runTask T6: implement 成功路径 — runner 实体化 tasks-1-implement.js
   const tev = path.join(t6.ws, "tasks-1-test-evidence.json");
   writeFileSync(report, "report body\n");
   // evidence 齐 command/passed/exit_code（behavior_change 非 true 或齐全是 soft）→ 不拦
-  writeFileSync(
-    tev,
-    JSON.stringify({ command: "npx vitest run", exit_code: 0, passed: true, warnings_count: 0 }),
-  );
+  writeFileSync(tev, TEST_EVIDENCE);
   const res = await runT6Ghost(
     t6,
     [
@@ -1592,10 +1601,7 @@ it("runTask T6: implement 提交真实改动 → 实体化 carrier 持存 change
   const report = path.join(t6.ws, "tasks-1-report.md");
   const tev = path.join(t6.ws, "tasks-1-test-evidence.json");
   writeFileSync(report, "report body\n");
-  writeFileSync(
-    tev,
-    JSON.stringify({ command: "npx vitest run", exit_code: 0, passed: true, warnings_count: 0 }),
-  );
+  writeFileSync(tev, TEST_EVIDENCE);
   // Ghost agent commits a REAL deliverable (wip.md) — the first T25-era dispatch round ran on an
   // engine without writeBoundary, so its materialized carrier carried no ledger-origin note; the
   // full-dispatch regression pins the note surviving materialization (reconcile runs after it).
@@ -1657,8 +1663,9 @@ it("runTask T6: evidence-gate — behavior_change:true 缺 command/passed/exit_c
     t6,
     [
       "#!/usr/bin/env bash",
-      // mocks an agent writing test-evidence: behavior_change:true but missing the three required keys
-      `printf '%s' '{"behavior_change":true,"warnings_count":0}' > "${path.join(t6.ws, "tasks-1-test-evidence.json")}"`,
+      // mocks an agent writing test-evidence: the typecheck item is complete, but behavior_change:true
+      // with the three exec fields missing → the behavior_change hard lane fires
+      `printf '%s' '{"behavior_change":true,"warnings_count":0,"typecheck":{"command":"npx tsc --noEmit","exit_code":0,"passed":true}}' > "${path.join(t6.ws, "tasks-1-test-evidence.json")}"`,
       "printf '%s\\n' 'status: APPROVED'",
       "printf '%s\\n' 'commits: base=x head=y'",
       `printf '%s\\n' 'artifacts: report=${path.join(t6.ws, "tasks-1-report.md")}'`,
@@ -1682,6 +1689,31 @@ it("runTask T6: evidence-gate — behavior_change:true 缺 command/passed/exit_c
   const progress = JSON.parse(readFileSync(path.join(t6.ws, "progress.json"), "utf8"));
   expect(progress.engineSelfWrittenCount).toBe(1);
   expect(progress.engineRecoveryCount).toBe(0);
+});
+
+it("runTask T6: evidence-gate — typecheck item 缺失 → 双证据闭环拦截（handoff 覆写 BLOCKED + exit 1）", async () => {
+  const t6 = t6Workspace();
+  const res = await runT6Ghost(
+    t6,
+    [
+      "#!/usr/bin/env bash",
+      // mocks an agent writing test-evidence: the exec-field test item is complete but the
+      // typecheck item is absent → the dual-evidence closed loop hard-blocks
+      `printf '%s' '{"command":"npx vitest run","exit_code":0,"passed":true,"warnings_count":0}' > "${path.join(t6.ws, "tasks-1-test-evidence.json")}"`,
+      "printf '%s\\n' 'status: APPROVED'",
+      "printf '%s\\n' 'commits: base=x head=y'",
+      `printf '%s\\n' 'artifacts: report=${path.join(t6.ws, "tasks-1-report.md")}'`,
+      "exit 0",
+    ].join("\n"),
+  );
+  expect(res.exitCode).toBe(1);
+  const hp = path.join(t6.ws, "tasks-1-implement.json");
+  expect(existsSync(hp)).toBe(true);
+  const h = JSON.parse(readFileSync(hp, "utf8"));
+  expect(h.status).toBe("BLOCKED");
+  expect(h.failure_category).toBe("ENGINE_SELF_WRITTEN");
+  expect(h.notes).toMatch(/test_evidence gate: hard requires the typecheck item/);
+  expect(res.returnBlock[0]).toMatch(/^status: BLOCKED · blocker: 0 · handoff: /);
 });
 
 it("runTask T6: the status capsule re-emits from the finalized carrier — agent-lied stdout commits are overwritten (commits single of authority)", async () => {
@@ -1781,7 +1813,7 @@ function t8Workspace({ dirty = false } = {}) {
 }
 
 // Review ghost-run wrapper: fake-cli writes an APPROVED review handoff → run runTask review (non-dry) → restore PATH (T8)
-async function runT8ReviewGhost(t8, body) {
+async function runT8ReviewGhost(t8: ReturnType<typeof t8Workspace>, body: string) {
   const restore = withFakeCli(t8.binDir, "fake-cli", body);
   try {
     return await TaskLifecycle.run("ghost", 1, {
@@ -1938,10 +1970,7 @@ it("runTask T22: implement pre-flight 缺失 constraints → 自 plan 声明源�
   const report = path.join(t22.ws, "tasks-1-report.md");
   const tev = path.join(t22.ws, "tasks-1-test-evidence.json");
   writeFileSync(report, "report body\n");
-  writeFileSync(
-    tev,
-    JSON.stringify({ command: "npx vitest run", exit_code: 0, passed: true, warnings_count: 0 }),
-  );
+  writeFileSync(tev, TEST_EVIDENCE);
   const restore = withFakeCli(
     t22.binDir,
     "fake-cli",
@@ -1988,10 +2017,7 @@ it("runTask T22/TG8: implement pre-flight overwrites a pre-existing plan-constra
   const report = path.join(t22.ws, "tasks-1-report.md");
   const tev = path.join(t22.ws, "tasks-1-test-evidence.json");
   writeFileSync(report, "report body\n");
-  writeFileSync(
-    tev,
-    JSON.stringify({ command: "npx vitest run", exit_code: 0, passed: true, warnings_count: 0 }),
-  );
+  writeFileSync(tev, TEST_EVIDENCE);
   const restore = withFakeCli(
     t22.binDir,
     "fake-cli",
@@ -2081,14 +2107,14 @@ it("runTask T22: dry-run 豁免 — 无源 plan 走 dry-run 零 BLOCK + 零 cons
 
 // The crash-only snapshot commit needs a repo-local identity (helpers' gitInit sets it only inline
 // on the commit command) — real repos always have one.
-function configureGitIdentity(repo) {
+function configureGitIdentity(repo: string) {
   execFileSync("git", ["-C", repo, "config", "user.name", "cdd-test"]);
   execFileSync("git", ["-C", repo, "config", "user.email", "cdd-test@example.com"]);
 }
 
 // The continuing round-2 fake CLI body (shared by both scenarios): append an incremental line to the
 // restored WIP, commit (clean exit-gate baseline), then emit the 3-line return block.
-function continuingCli(ws) {
+function continuingCli(ws: string) {
   return (
     `#!/usr/bin/env bash\n` +
     `printf 'line3-agent-increment\n' >> wip.md\n` +

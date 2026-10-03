@@ -38,6 +38,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { TaskGroup } from "../../domain/task-group.ts";
 import { invariant } from "../../infra/exit.ts";
 import { GitClient } from "../../infra/git.ts";
+import { wordTable } from "../../infra/word-table.ts";
 import type { Workspace } from "../../infra/workspace.ts";
 import { FAILURE_CATEGORIES } from "../../rules/failure.ts";
 import { HandoffSchemaValidator } from "../../rules/schema.ts";
@@ -436,7 +437,10 @@ export async function finalizeHandoff({
     // passes neither and keeps the work-type passthrough (its agent-declared status stays, vetoed
     // at the commit-contract layer).
     if (fixBase && repoRoot) {
-      return await finalizeFix({ agentHandoff, fixBase, repoRoot });
+      // The fix-reconstruction payload defaults the nullable entry: at finalize time the engine
+      // treats an absent agent handoff as the empty input (the reconstruction draws only from the
+      // writable content whitelist — an empty input reconstructs the same engine-fact carrier).
+      return await finalizeFix({ agentHandoff: agentHandoff ?? {}, fixBase, repoRoot });
     }
     return {
       handoff: agentHandoff,
@@ -470,7 +474,11 @@ export async function finalizeFix({
   fixBase = null,
   repoRoot = null,
 }: {
-  agentHandoff?: Record<string, unknown> | null;
+  /** The agent's original handoff — INPUT only (findings/notes/changes/artifacts preserved,
+   * unknown keys and `$schema` stripped). Non-nullable at the finalize point: the reconstruction
+   * defaults any absent input to the empty payload (a mirrored receipt can never persist itself
+   * verbatim, and an empty input reconstructs the same engine-fact carrier). */
+  agentHandoff?: Record<string, unknown>;
   /** The FIX_BASE (FIXED_POINT) — the dispatch's derive off the source review (spec C4). */
   fixBase?: string | null;
   repoRoot?: string | null;
@@ -564,7 +572,10 @@ export async function finalizeFix({
   // reject (the exact bug class this reconstruction exists to eliminate). invariant = programming
   // error, never a round-level BLOCKED to persist.
   const sv = schemaValidator.validateHandoffSchema(handoff, "task");
-  invariant(sv.valid, `finalizeFix assembled an invalid carrier: ${sv.reason}`);
+  // Discriminant-narrowed read of the ajv failure detail (the schema validator's union carries
+  // `reason` only on the { valid: false } arm).
+  const validationReason = sv.valid === false ? sv.reason : "";
+  invariant(sv.valid, `finalizeFix assembled an invalid carrier: ${validationReason}`);
   return { handoff, exitCode: statusExitCode(status) };
 }
 
@@ -604,12 +615,17 @@ export function taskBaseFromBrief(briefPath: string | undefined): string | null 
 // plane's single point (P6 T24 C); the former private helpers were retired with the `blocker:`
 // column (M3) — no copies remain.
 
-// Evidence gate (implement non-dry-run materialization path only): the mechanical hard-gate's only
-// trigger = the test-evidence behavior_change:true (the brief outputs the group's task sections +
-// TASK_BASE line; the repo has no mechanical complexity-tier source).
+// Evidence gate (implement non-dry-run materialization path only): the mechanical hard gate's
+// triggers = (a) the task-family evidence file's `typecheck` item missing/incomplete — the
+// dual-evidence closed loop (T6: the canonical form carries BOTH the top-level exec-field test
+// item AND the isomorphic `typecheck` item; the buildability axis is only executable when both
+// commands' evidence landed) — and (b) the test-evidence behavior_change:true missing the three
+// exec fields (the brief outputs the group's task sections + TASK_BASE line; the repo has no
+// mechanical complexity-tier source).
 // hard → BLOCKED overwrite; everything else (simple / no behavior_change / unreadable-unparseable
 // file) → soft WARN note. Grouped materialization reads the group-keyed evidence artifact
 // (`tasks-{a},{b}-test-evidence.json`).
+const EVIDENCE_EXEC_FIELDS = ["command", "exit_code", "passed"] as const;
 function evidenceGate(
   workspace: Workspace | undefined,
   groupKey: string | null,
@@ -623,8 +639,21 @@ function evidenceGate(
       hard: false,
       warn: `test-evidence missing or unparseable for task group ${groupKey} (soft WARN)`,
     };
+  // The `typecheck` item is a required member of the canonical form: absent or a non-object → the
+  // full exec-field triple is missing; present-but-partial reports the absent fields.
+  const tc = ev.typecheck;
+  const missingTypecheck =
+    typeof tc === "object" && tc !== null
+      ? EVIDENCE_EXEC_FIELDS.filter((f) => !(f in tc))
+      : [...EVIDENCE_EXEC_FIELDS];
+  if (missingTypecheck.length > 0) {
+    return {
+      hard: true,
+      warn: `test_evidence gate: hard requires the typecheck item with command/exit_code/passed (missing: ${missingTypecheck.join(", ")})`,
+    };
+  }
   if (ev.behavior_change !== true) return { hard: false, warn: "" };
-  const missing = ["command", "passed", "exit_code"].filter((k) => !(k in ev));
+  const missing = EVIDENCE_EXEC_FIELDS.filter((k) => !(k in ev));
   if (missing.length > 0) {
     return {
       hard: true,
@@ -668,7 +697,7 @@ export async function finalizeImplement({
   const base = taskBaseFromBrief(brief);
   if (!base) {
     process.stderr.write(
-      `CDD_WARN: implement handoff not materialized — brief missing or no TASK_BASE line: ${brief}\n`,
+      `${wordTable().station("warn")} implement handoff not materialized — brief missing or no TASK_BASE line: ${brief}\n`,
     );
     return { handoff: null, exitCode: 0 };
   }
@@ -687,7 +716,7 @@ export async function finalizeImplement({
   const reasons: string[] = [];
   if (raw !== "APPROVED") {
     reasons.push(`implement return status "${raw}" without blocker`);
-    process.stderr.write(`CDD_BLOCKED: ${reasons[reasons.length - 1]}\n`);
+    process.stderr.write(`${wordTable().station("blocked")} ${reasons[reasons.length - 1]}\n`);
   }
   const head = repoRoot ? await git.revParseHead(repoRoot) : null;
   // A materialization wearing the resume signature (base==head) may reconsider its base — the
@@ -721,9 +750,9 @@ export async function finalizeImplement({
     reasons.push(gate.warn);
     // hard gate → CDD_BLOCKED diagnostic (aligned with the legacy runner finish(…, gate.warn, …)’s
     // stderr output).
-    process.stderr.write(`CDD_BLOCKED: ${gate.warn}\n`);
+    process.stderr.write(`${wordTable().station("blocked")} ${gate.warn}\n`);
   } else if (gate.warn) {
-    process.stderr.write(`CDD_WARN: ${gate.warn}\n`);
+    process.stderr.write(`${wordTable().station("warn")} ${gate.warn}\n`);
   }
   const conclusion = gate.hard ? "BLOCKED" : status;
   // Write side through the schema (T5): the candidate passes normalizeHandoff for its key set —

@@ -6,13 +6,13 @@ import { describe, expect, it } from "vitest";
 
 import { gitCommit, gitInit } from "./helpers.ts";
 
-const CDD_MJS = path.resolve(import.meta.dirname, "../../../dist/cli.mjs");
+const CDD_TS = path.resolve(import.meta.dirname, "../../bin.ts");
 const REPO_ROOT = path.resolve(import.meta.dirname, "../../../../..");
 
 describe("src/infra/root.ts — 单根权威", () => {
   it("非 git 目录 → CDD_BLOCKED + exit 1", () => {
     const bare = mkdtempSync(path.join(tmpdir(), "cdd-nogit-"));
-    const r = execaSync(process.execPath, [CDD_MJS, "review", "--type", "spec", "--spec", "x.md"], {
+    const r = execaSync(process.execPath, [CDD_TS, "review", "--type", "spec", "--spec", "x.md"], {
       cwd: bare,
       env: { PATH: process.env.PATH, CLAUDE_CODE_SESSION_ID: "1" },
       reject: false,
@@ -24,7 +24,7 @@ describe("src/infra/root.ts — 单根权威", () => {
 
   it("非 git 目录 + cdd --help → exit 0（§2.4.2 退出码表：0 = OK 含 --help）", () => {
     const bare = mkdtempSync(path.join(tmpdir(), "cdd-nogit-help-"));
-    const r = execaSync(process.execPath, [CDD_MJS, "--help"], {
+    const r = execaSync(process.execPath, [CDD_TS, "--help"], {
       cwd: bare,
       env: { PATH: process.env.PATH, CLAUDE_CODE_SESSION_ID: "1" },
       reject: false,
@@ -65,7 +65,7 @@ describe("src/infra/root.ts — resolveDocArg single-coordinate system (repo-roo
     gitCommit(repo);
     const r = execaSync(
       process.execPath,
-      [CDD_MJS, "--dry-run", "review", "--type", "spec", "--spec", rel],
+      [CDD_TS, "--dry-run", "review", "--type", "spec", "--spec", rel],
       {
         cwd: sub,
         env: { PATH: process.env.PATH, CLAUDE_CODE_SESSION_ID: "1" },
@@ -79,7 +79,7 @@ describe("src/infra/root.ts — resolveDocArg single-coordinate system (repo-roo
   it("不存在的仓根相对路径 → exit 1 + BLOCKED 三行诊断（含仓根相对指导）", () => {
     const r = execaSync(
       process.execPath,
-      [CDD_MJS, "review", "--type", "spec", "--spec", "docs/nope.md"],
+      [CDD_TS, "review", "--type", "spec", "--spec", "docs/nope.md"],
       {
         cwd: REPO_ROOT,
         env: { PATH: process.env.PATH, CLAUDE_CODE_SESSION_ID: "1" },
@@ -98,7 +98,7 @@ describe("src/infra/root.ts — resolveDocArg single-coordinate system (repo-roo
 
   it("不存在的绝对路径 → exit 1 + BLOCKED 三行诊断（绝对路径形措辞；与相对形可区分）", () => {
     const abs = path.join(REPO_ROOT, "docs/nope-abs.md"); // the negative case of the absolute-path direct-use branch (the second shape of Global Constraints)
-    const r = execaSync(process.execPath, [CDD_MJS, "review", "--type", "spec", "--spec", abs], {
+    const r = execaSync(process.execPath, [CDD_TS, "review", "--type", "spec", "--spec", abs], {
       cwd: REPO_ROOT,
       env: { PATH: process.env.PATH, CLAUDE_CODE_SESSION_ID: "1" },
       reject: false,

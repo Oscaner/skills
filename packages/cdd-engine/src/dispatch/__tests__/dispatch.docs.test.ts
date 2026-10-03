@@ -12,7 +12,7 @@ import { appendFileSync, existsSync, mkdtempSync, readFileSync, writeFileSync } 
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { expect, it, vi } from "vitest";
-import { captureStderr, captureStdout } from "../../infra/__tests__/helpers.ts";
+import { captureStderr, captureStdout, mockExeca } from "../../infra/__tests__/helpers.ts";
 import { ExitRequested } from "../../infra/exit.ts";
 import { DRY_RUN_DIRTY_WARN } from "../../rules/commit.ts";
 import { DispatchBlocked, type DispatchContext } from "../base.ts";
@@ -23,7 +23,7 @@ vi.mock("execa", () => ({ execa: vi.fn() }));
 // Ghost harness registry (mirrors docs-runner.test.mjs): checkHarness resolves a fake entry with
 // the review/fix injection map; invokeCli's resolveInjection comes from the real implementation.
 const { renderSpy, reviewGateSpy, docsGateSpy } = vi.hoisted(() => ({
-  renderSpy: vi.fn(() => "mocked docs prompt body"),
+  renderSpy: vi.fn((_template: string, _params?: unknown) => "mocked docs prompt body"),
   reviewGateSpy: vi.fn((ret: string) => `--hard-gate ${ret}`),
   docsGateSpy: vi.fn((hp: string) => `--hard-gate write ${hp}`),
 }));
@@ -125,8 +125,8 @@ it("docs review dry-run + dirty → 入口门降级：CDD_WARN + exit 0 + 零 sp
     cap.restore();
   }
   expect(cap.text).toContain(`CDD_WARN: ${DRY_RUN_DIRTY_WARN}`); // mount 前缀 + 单点常量
-  const { execa } = await import("execa");
-  expect(vi.mocked(execa)).not.toHaveBeenCalled(); // 不 spawn → 零 liveness 介入（T14）
+  const execa = mockExeca((await import("execa")).execa);
+  expect(execa).not.toHaveBeenCalled(); // no spawn → zero liveness on this path (T14)
   expect(existsSync(path.join(repo, ".kairos", "cdd", "spec", "spec-review-1.json"))).toBe(false); // does not write the handoff
 });
 
@@ -163,8 +163,8 @@ it("docs fix 出口门（P5 落点 2）: 派发后 dirty → handoff 覆写 BLOC
   const dir = path.dirname(handoffPath);
   // The docs fix agent writes the fix handoff AND dirties the tree during dispatch (entry clean →
   // exit dirty): the exit gate must rewrite the handoff to BLOCKED (the fix agent forgot to commit).
-  const { execa } = await import("execa");
-  vi.mocked(execa).mockImplementation(async () => {
+  const execa = mockExeca((await import("execa")).execa);
+  execa.mockImplementation(async () => {
     const { mkdirSync, writeFileSync: wfs } = await import("node:fs");
     mkdirSync(dir, { recursive: true });
     wfs(
@@ -204,8 +204,8 @@ it("docs review 出口门: clean tree 通过 + result 原样（exitCode = agent 
   git(repo, "add", "-A");
   git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "doc");
   const handoffPath = path.join(repo, ".kairos", "cdd", "spec", "spec-review-1.json");
-  const { execa } = await import("execa");
-  vi.mocked(execa).mockImplementation(async () => {
+  const execa = mockExeca((await import("execa")).execa);
+  execa.mockImplementation(async () => {
     const { mkdirSync, writeFileSync: wfs } = await import("node:fs");
     mkdirSync(path.dirname(handoffPath), { recursive: true });
     wfs(
@@ -247,8 +247,8 @@ it("docs review 失败优先: agent exit 1 + 有效 APPROVED handoff → exitCod
   git(repo, "add", "-A");
   git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "doc");
   const handoffPath = path.join(repo, ".kairos", "cdd", "spec", "spec-review-1.json");
-  const { execa } = await import("execa");
-  vi.mocked(execa).mockImplementation(async () => {
+  const execa = mockExeca((await import("execa")).execa);
+  execa.mockImplementation(async () => {
     const { mkdirSync, writeFileSync: wfs } = await import("node:fs");
     mkdirSync(path.dirname(handoffPath), { recursive: true });
     wfs(
@@ -288,9 +288,8 @@ it("T5 ③: docs dispatch injects FIXED_POINT = dispatch entry base (git HEAD at
   git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "doc");
   const entryHead = git(repo, "rev-parse", "HEAD");
   const handoffPath = path.join(repo, ".kairos", "cdd", "spec", "spec-review-1.json");
-  const { execa } = await import("execa");
-  const { renderTemplate } = await import("../../render/templates.ts");
-  vi.mocked(execa).mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
+  const execa = mockExeca((await import("execa")).execa);
+  execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
   const result = await DocsLifecycle.run({
     harness: "ghost",
     mode: "review",
@@ -302,7 +301,8 @@ it("T5 ③: docs dispatch injects FIXED_POINT = dispatch entry base (git HEAD at
     dryRun: false,
   });
   // review face (docs single dispatch point) passes the entry base into the round-context slot
-  const params = renderTemplate.mock.calls.at(-1)?.[1] as Record<string, unknown>;
+  // (renderTemplate is a mock-only surface — the hoisted renderSpy IS the mocked export).
+  const params = renderSpy.mock.calls.at(-1)?.[1] as Record<string, unknown>;
   expect(params.FIXED_POINT).toBe(entryHead);
   // non-git / unborn HEAD → empty (mode-union prefill)
   await DocsLifecycle.run({
@@ -315,7 +315,7 @@ it("T5 ③: docs dispatch injects FIXED_POINT = dispatch entry base (git HEAD at
     repoRoot: path.join(repo, "no-such-dir"),
     dryRun: false,
   });
-  const lastParams = renderTemplate.mock.calls.at(-1)?.[1] as Record<string, unknown> | undefined;
+  const lastParams = renderSpy.mock.calls.at(-1)?.[1] as Record<string, unknown> | undefined;
   expect(lastParams?.FIXED_POINT).toBe("");
   expect(result.exitCode).toBeGreaterThanOrEqual(0); // assertion surface is the render params, not the round conclusion
 });
@@ -329,11 +329,11 @@ it("T5 ⑤: docs fix same-contract round behavior — commit → APPROVED; uncom
   writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
   git(repo, "add", "-A");
   git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "doc");
-  const { execa } = await import("execa");
+  const execa = mockExeca((await import("execa")).execa);
 
   // Round A — docs fix agent commits the change → clean tree + commits.head == HEAD → APPROVED exit 0
   const handoffA = path.join(repo, ".kairos", "cdd", "spec", "spec-fix-1.json");
-  vi.mocked(execa).mockImplementation(async () => {
+  execa.mockImplementation(async () => {
     const { mkdirSync, writeFileSync: wfs } = await import("node:fs");
     mkdirSync(path.dirname(handoffA), { recursive: true });
     wfs(doc, "- **Version**: v1.1 · 2026-09-22\n");
@@ -371,7 +371,7 @@ it("T5 ⑤: docs fix same-contract round behavior — commit → APPROVED; uncom
   // Round B — same-contract docs fix agent leaves the change uncommitted → exit gate dirty → BLOCKED + stdout-visible diagnosis
   const handoffB = path.join(repo, ".kairos", "cdd", "spec", "spec-fix-2.json");
   const entryHead = git(repo, "rev-parse", "HEAD");
-  vi.mocked(execa).mockImplementation(async () => {
+  execa.mockImplementation(async () => {
     const { mkdirSync, writeFileSync: wfs } = await import("node:fs");
     mkdirSync(path.dirname(handoffB), { recursive: true });
     wfs(doc, "- **Version**: v1.3 · 2026-09-22\n"); // change left uncommitted

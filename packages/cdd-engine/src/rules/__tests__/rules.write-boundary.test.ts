@@ -58,7 +58,7 @@ describe("rules/write-boundary.ts — reconcileChangedSurface (on-book vs off-bo
     });
 
     const cap = captureStderr();
-    let res: Awaited<ReturnType<typeof reconcileChangedSurface>>;
+    let res: Awaited<ReturnType<typeof surfaceAuditor.reconcileChangedSurface>>;
     try {
       res = await surfaceAuditor.reconcileChangedSurface("fix", repo, handoff);
     } finally {
@@ -85,7 +85,7 @@ describe("rules/write-boundary.ts — reconcileChangedSurface (on-book vs off-bo
     });
 
     const cap = captureStderr();
-    let res: Awaited<ReturnType<typeof reconcileChangedSurface>>;
+    let res: Awaited<ReturnType<typeof surfaceAuditor.reconcileChangedSurface>>;
     try {
       res = await surfaceAuditor.reconcileChangedSurface("fix", repo, handoff);
     } finally {
@@ -113,7 +113,7 @@ describe("rules/write-boundary.ts — reconcileChangedSurface (on-book vs off-bo
     });
 
     const cap = captureStderr();
-    let res: Awaited<ReturnType<typeof reconcileChangedSurface>>;
+    let res: Awaited<ReturnType<typeof surfaceAuditor.reconcileChangedSurface>>;
     try {
       res = await surfaceAuditor.reconcileChangedSurface("implement", repo, handoff);
     } finally {

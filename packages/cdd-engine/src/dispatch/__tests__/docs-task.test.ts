@@ -1,5 +1,5 @@
 // packages/cdd-engine/src/dispatch/__tests__/docs-task.test.ts
-// exercised through the merged single CLI (dist/cli.mjs). Invocation map (D11: type
+// exercised through the merged single CLI (src/bin.ts). Invocation map (D11: type
 // 自解释 target 参数):
 //   docs-task --mode review --template <t>  → cdd review --type spec|plan [--spec/--plan <path>]
 //   docs-task --mode fix --template <t>     → cdd fix --type spec|plan [--spec/--plan <path>]
@@ -9,7 +9,7 @@
 // **5b CLI 黑盒用例依赖「入口门意义下的干净树」（E2②/G4①，P6 T10）**：docs 家族 dry-run（review/
 // fix --type spec|plan）以 cwd=REPO_ROOT 黑盒运行，入口门（rules/commit.ts）放行依赖两态之一——
 // 真实干净树，或 dirty + dry-run 的 CDD_WARN 降级（exit 0，纯模拟）。本文件期望按 E2② 编写；
-// 入口门/dry-run 协议语义变更需同步维护此处（详见 vitest.config.mjs 5b）。
+// Entry-gate/dry-run protocol semantic changes must be kept in sync here (see vitest.config.ts 5b).
 
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -20,7 +20,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..", "..", "..");
-const CDD_MJS = path.join(REPO_ROOT, "packages/cdd-engine/dist/cli.mjs");
+const CDD_TS = path.join(REPO_ROOT, "packages/cdd-engine/src/bin.ts");
 const SMOKE_PLAN = path.join("packages/cdd-engine/src/cli/__tests__/fixtures/smoke-plan.md");
 // SMOKE_PLAN-derived workspace = .kairos/cdd/smoke/ (engine workspaceSlug strips the
 // trailing -plan: smoke-plan.md → smoke) — the test teardown clears it so validate-root noise
@@ -49,8 +49,12 @@ for (const f of [SPEC_FINDINGS, PLAN_FINDINGS]) {
 // The lifecycle path is purely derived: always <repoRoot>/.kairos/cdd/lifecycle.json; concurrency
 // safety rests on reapStale's owner-liveness judgement, not on path separation.
 
-function run(args, extraEnv = {}, opts = {}) {
-  const env = {};
+function run(
+  args: string[],
+  extraEnv: Record<string, string | undefined> = {},
+  opts: { noHost?: boolean } = {},
+) {
+  const env: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (!k.startsWith("CDD_")) env[k] = v;
   }
@@ -61,7 +65,7 @@ function run(args, extraEnv = {}, opts = {}) {
     delete env.CURSOR_TRACE_ID;
     delete env.AI_AGENT;
   }
-  return spawnSync("node", [CDD_MJS, ...args], {
+  return spawnSync("node", [CDD_TS, ...args], {
     cwd: REPO_ROOT,
     env: { ...env, ...extraEnv },
     encoding: "utf8",

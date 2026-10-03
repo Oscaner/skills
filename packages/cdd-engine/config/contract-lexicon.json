@@ -1,34 +1,37 @@
 {
-  "_doc": "CDD engine contract lexicon — the single vocabulary source for the command contract (C6): the status-value vocab plus its dual-axis mapping, the stdout contract tokens (capsule + route anchors + the banned old-shape names), the G2 residue ban table, and the skill-anatomy schema reference. The harness contract data (rows / markers / refs) lives in the engine harness contract (config/harness-contract.json — the unique harness contract, C8); this file keeps the pure word tables. Ships to consumers via the build mirror entry (dist/config/contract-lexicon.json, same pipeline and cadence as the harness contract).",
-  "status": {
-    "vocab": [
-      "APPROVED",
-      "BLOCKED",
-      "CHANGES_REQUESTED",
-      "REVIEW_FIX",
-      "TIMEOUT"
-    ],
-    "axes": {
-      "judgment": ["CHANGES_REQUESTED", "REVIEW_FIX", "APPROVED"],
-      "work": ["COMPLETED"]
+  "_doc": "CDD engine contract word table — the vocabulary of the engine command contract: the status values and their dual-axis mapping (command.status), the stdout capsule keys and the review read-back wording (command.capsule), and the stdout route anchors with the stderr station channels (command.route). The reference facts the engine services read (the skill-anatomy schema path / skills root) live under schema. Ownership: the command and schema families are engine-contract facts and ship with the package (dist/config/contract-lexicon.json rides the build mirror, same pipeline and cadence as the harness contract); the repository-verification vocabulary (the residue ban table, the escape directive ban, the zero-debt source-plane ban, the buildability dual-evidence wording, the banned shape names) lives in the guard lexicon (scripts/lib/guard-lexicon.json) and is not shipped here. Machine-token leaves are arrays (vocab / tokens); wording leaves are plain strings (readbackWording); the route stations are an addressed map the engine looks up by its station key.",
+  "command": {
+    "status": {
+      "vocab": [
+        "APPROVED",
+        "BLOCKED",
+        "CHANGES_REQUESTED",
+        "REVIEW_FIX",
+        "TIMEOUT"
+      ],
+      "axes": {
+        "judgment": ["CHANGES_REQUESTED", "REVIEW_FIX", "APPROVED"],
+        "work": ["COMPLETED"]
+      }
+    },
+    "capsule": {
+      "tokens": ["status", "blocker", "handoff"],
+      "readbackWording": "(read <handoff> back to confirm)"
+    },
+    "route": {
+      "routeTokens": ["next:", "findings"],
+      "stations": {
+        "next": "next:",
+        "blocked": "CDD_BLOCKED:",
+        "warn": "CDD_WARN:",
+        "cliMissing": "CDD_CLI_MISSING:"
+      }
     }
   },
-  "stdout": {
-    "capsule": ["status", "blocker", "handoff"],
-    "routeTokens": ["next:", "CDD_BLOCKED:", "findings"],
-    "bannedShapeNames": [
-      "3-line return block",
-      "4th line counters",
-      "return block"
-    ]
-  },
-  "residue": {
-    "dataSources": ["harness-contract.json", "contract-lexicon.json"],
-    "bannedToken": "cursor-agent",
-    "soleAllowed": "registry cli data value"
-  },
-  "anatomy": {
-    "schemaPath": "packages/cdd-engine/config/schema/skill-anatomy.json",
-    "skillsRoot": "packages/kairos/skills"
+  "schema": {
+    "anatomy": {
+      "schemaPath": "packages/cdd-engine/config/schema/skill-anatomy.json",
+      "skillsRoot": "packages/kairos/skills"
+    }
   }
 }

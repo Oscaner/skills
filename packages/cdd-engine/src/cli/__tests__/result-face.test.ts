@@ -128,7 +128,9 @@ describe("rules/result-face.ts — the next: suggestion line rides the capsule (
     });
     expect(lines).toEqual([
       `status: CHANGES_REQUESTED · blocker: 1 · handoff: ${H}`,
-      `next: cdd fix --type spec --spec /repo/spec.md --findings ${H}`,
+      // The review→fix line carries the read-back annotation (T6 spec 2.3): the dispatcher reads
+      // the review's findings handoff back before dispatching the fix round.
+      `next: cdd fix --type spec --spec /repo/spec.md --findings ${H} (read ${H} back to confirm)`,
     ]);
   });
 

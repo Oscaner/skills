@@ -7,6 +7,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from "node:os";
 import path, { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mockExeca } from "../../infra/__tests__/helpers.ts";
 
 // --- Module mocks (hoisted before imports) ---
 
@@ -31,8 +32,9 @@ vi.mock("../../infra/registry.ts", async () => {
   // implementation; checkHarness returns entries with full operation×type prefixes (to verify
   // docs-runner's type pass-through injection). REG_PATH, the unified export (spec §2.3), joins
   // the mock surface for the run-docs consumer (Task 5).
-  const { REG_PATH } = await vi.importActual("../../infra/registry.ts");
-  class MockRegistry extends (await vi.importActual("../../infra/registry.ts")).Registry {
+  const actual =
+    await vi.importActual<typeof import("../../infra/registry.ts")>("../../infra/registry.ts");
+  class MockRegistry extends actual.Registry {
     load = vi.fn(() => ({}));
     checkHarness = vi.fn(() => ({
       cli: "claude",
@@ -53,12 +55,12 @@ vi.mock("../../infra/registry.ts", async () => {
   }
   return {
     Registry: MockRegistry,
-    REG_PATH,
+    REG_PATH: actual.REG_PATH,
   };
 });
 
 const { docsRenderSpy, docsReviewGateSpy, docsFixGateSpy } = vi.hoisted(() => ({
-  docsRenderSpy: vi.fn(() => "mocked docs review prompt"),
+  docsRenderSpy: vi.fn((_template: string, _params?: unknown) => "mocked docs review prompt"),
   docsReviewGateSpy: vi.fn(
     (_returnFormat: string, handoffPath?: unknown) =>
       `> HARD GATE — Write \`${handoffPath}\` BEFORE outputting the JSON return.`,
@@ -117,39 +119,46 @@ vi.mock("../../artifacts/handoff/finalize.ts", async () => {
 
 // Selective node:fs mock: intercept schema + handoff reads; pass through everything else.
 vi.mock("node:fs", async (importOriginal) => {
-  const actual = await importOriginal();
+  // Factory boundary cast: importOriginal is statically unknown — the real module types the
+  // pass-through reads (fixture seam).
+  const actual = (await importOriginal()) as typeof import("node:fs");
   return {
     ...actual,
-    existsSync: vi.fn((p) => {
+    existsSync: vi.fn((p: Parameters<typeof actual.existsSync>[0]) => {
       // Handoff file "exists" so we take the read-and-validate path (not writeHandoff BLOCKED path).
       // T3: 以 canonical fake ws 前缀判别（不再按 template 名含 "review"）—— spec-fix-1.json 等也视为存在。
       if (String(p).includes(".kairos/cdd/foo/")) return true;
       return actual.existsSync(p);
     }),
-    readFileSync: vi.fn((p, enc) => {
-      if (String(p).includes("docs-handoff-schema")) {
-        return JSON.stringify({
-          required: ["phase", "status", "findings", "artifacts", "doc_path"],
-          properties: {
-            phase: { enum: ["review", "fix"] },
-            status: { enum: ["APPROVED", "CHANGES_REQUESTED", "BLOCKED"] },
-            findings: {},
+    readFileSync: vi.fn(
+      (
+        p: Parameters<typeof actual.readFileSync>[0],
+        enc: Parameters<typeof actual.readFileSync>[1],
+      ) => {
+        if (String(p).includes("docs-handoff-schema")) {
+          return JSON.stringify({
+            required: ["phase", "status", "findings", "artifacts", "doc_path"],
+            properties: {
+              phase: { enum: ["review", "fix"] },
+              status: { enum: ["APPROVED", "CHANGES_REQUESTED", "BLOCKED"] },
+              findings: {},
+              artifacts: {},
+              doc_path: {},
+            },
+          });
+        }
+        if (String(p).includes(".kairos/cdd/foo/")) {
+          return JSON.stringify({
+            phase: "review",
+            status: "APPROVED",
+            findings: [],
             artifacts: {},
-            doc_path: {},
-          },
-        });
-      }
-      if (String(p).includes(".kairos/cdd/foo/")) {
-        return JSON.stringify({
-          phase: "review",
-          status: "APPROVED",
-          findings: [],
-          artifacts: {},
-          doc_path: "/doc.md",
-        });
-      }
-      return actual.readFileSync(p, enc);
-    }),
+            doc_path: "/doc.md",
+          });
+        }
+        return actual.readFileSync(p, enc);
+      },
+    ),
   };
 });
 
@@ -158,7 +167,11 @@ vi.mock("node:fs", async (importOriginal) => {
 // 真实落盘 mock helper（P4 nit fix 4 DRY）：模块级 vi.mock 把 writeHandoff 换成 vi.fn() 不落盘
 // → BLOCKED 分支写盘后 JSON.parse(readFileSync(handoffPath)) 读回必 ENOENT。注入真实写盘实现
 // 让读回成功（run-docs.mjs BLOCKED 分支强耦合同步读回，不可 stub 掉）。
-function mockRealWriteBack(writeHandoff) {
+function mockRealWriteBack(writeHandoff: {
+  mockImplementation(
+    fn: (p: string, data: Record<string, unknown>) => Record<string, unknown>,
+  ): void;
+}) {
   writeHandoff.mockImplementation((p, data) => {
     mkdirSync(path.dirname(p), { recursive: true });
     writeFileSync(p, `${JSON.stringify(data, null, 2)}\n`);
@@ -169,19 +182,37 @@ function mockRealWriteBack(writeHandoff) {
 // 夹具常量：单一来源（根迁移一行改动，免 9 处机械编辑）
 const SPEC_DOC = "/repo/root/docs/kairos/specs/my-spec.md";
 
+/** docs-run finalize fixture seam (T2 mechanical surface): these cases construct a non-null
+ * handoff by fixture design (asserted below each call) — narrows DocsResult's nullable
+ * `unknown`-shaped handoff once at the assignment seam; no per-property casts in the
+ * expectations. */
+type DocsRunFixture = {
+  exitCode: number;
+  handoff: {
+    status?: string;
+    phase?: string;
+    doc_path?: string;
+    doc_hash?: string;
+    failure_category?: string;
+    blocker?: unknown;
+    findings?: unknown;
+    [k: string]: unknown;
+  };
+};
+
 describe("runDocsTask", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("dry-run review → exitCode 0 + APPROVED handoff", async () => {
     vi.resetModules();
     const { DocsLifecycle } = await import("../docs.ts");
-    const result = await DocsLifecycle.run({
+    const result = (await DocsLifecycle.run({
       harness: "claude",
       mode: "review",
       template: "review",
       doc: "/spec.md",
       dryRun: true,
-    });
+    })) as DocsRunFixture;
     expect(result.exitCode).toBe(0);
     expect(result.handoff.status).toBe("APPROVED");
     expect(result.handoff.phase).toBe("review");
@@ -190,7 +221,7 @@ describe("runDocsTask", () => {
 
   it("subprocess cwd = 注入的 repoRoot not doc directory", async () => {
     // Bug L regression: cwd must be the repo root ('/repo/root'), never the doc path or workspace.
-    const { execa } = await import("execa");
+    const execa = mockExeca((await import("execa")).execa);
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
 
     vi.resetModules();
@@ -215,7 +246,7 @@ describe("runDocsTask", () => {
   });
 
   it("Task 5: type opt 透传 invokeCli (op, type) —— review×spec 无注入、fix×spec 得 tdd 首行", async () => {
-    const { execa } = await import("execa");
+    const execa = mockExeca((await import("execa")).execa);
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
 
     vi.resetModules();
@@ -232,7 +263,7 @@ describe("runDocsTask", () => {
       repoRoot: "/repo/root",
       dryRun: false,
     });
-    let promptArg = execa.mock.calls[0][1].at(-1);
+    let promptArg = execa.mock.calls[0][1].at(-1) ?? "";
     expect(promptArg.split("\n")[0]).toBe("mocked docs review prompt");
 
     // fix×spec → prefix.fix="/mattpocock-skills:tdd"（flat string）→ 注入首行
@@ -248,13 +279,13 @@ describe("runDocsTask", () => {
       repoRoot: "/repo/root",
       dryRun: false,
     });
-    promptArg = execa.mock.calls[0][1].at(-1);
+    promptArg = execa.mock.calls[0][1].at(-1) ?? "";
     expect(promptArg.split("\n")[0]).toBe("/mattpocock-skills:tdd");
     expect(promptArg.split("\n")[1]).toBe("mocked docs review prompt");
   });
 
   it("Task 18 review-1 finding 2: fix 族 HARD_GATE = docsFixHardGate 写盘门（review 的 json-return 门不被挪用）", async () => {
-    const { execa } = await import("execa");
+    const execa = mockExeca((await import("execa")).execa);
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
     // The gate atoms are TemplateLoader instance methods (Task 7 ①); the docs.ts module-scope
     // instance's methods ARE the hoisted spies, so the fix/review gates asserts on the spies
@@ -298,9 +329,8 @@ describe("runDocsTask", () => {
   });
 
   it("T3: fix 模板名直传 —— `-review`→`-fix` legacy 派生分支已删（renderTemplate 收 template 原值）", async () => {
-    const { execa } = await import("execa");
+    const execa = mockExeca((await import("execa")).execa);
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
-    const { renderTemplate } = await import("../../render/templates.ts");
 
     vi.resetModules();
     const { DocsLifecycle } = await import("../docs.ts");
@@ -315,23 +345,27 @@ describe("runDocsTask", () => {
       repoRoot: "/repo/root",
       dryRun: false,
     });
-    expect(renderTemplate.mock.calls.at(-1)?.[0]).toBe("critiques-review");
+    // The mock maps templates.renderTemplate to the hoisted docsRenderSpy — assert the spy directly
+    // (renderTemplate is a mock-only surface, absent from the real module's exports).
+    expect(docsRenderSpy.mock.calls.at(-1)?.[0]).toBe("critiques-review");
   });
 
   // ---- Status single-authority: review-type read-back overwrites (agent wrote a warn-only CHANGES_REQUESTED → overwritten to APPROVED) (T5) ----
 
   it("docs-runner 读回定稿（T7 writeOwnHandoff）：agent 写 warn-only CHANGES_REQUESTED → 文件 status 覆写为 APPROVED", async () => {
-    const { execa } = await import("execa");
+    const execa = mockExeca((await import("execa")).execa);
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
 
     vi.resetModules();
     const { DocsLifecycle } = await import("../docs.ts");
-    const { writeOwnHandoff } = await import("../../artifacts/handoff/write.ts");
+    const writeOwnHandoff = vi.mocked(
+      (await import("../../artifacts/handoff/write.ts")).writeOwnHandoff,
+    );
     const fs = await import("node:fs");
-    const origRead = fs.readFileSync.getMockImplementation();
+    const origRead = vi.mocked(fs.readFileSync).getMockImplementation();
     // 覆写读回 fixture：同一 canonical ws 前缀下，agent 写 status:CHANGES_REQUESTED + warn/nit findings
     //（engine 应派生覆写为 APPROVED 并持久化；findings 原样保留）。
-    fs.readFileSync.mockImplementation((p, enc) => {
+    vi.mocked(fs.readFileSync).mockImplementation((p, enc) => {
       if (String(p).includes(".kairos/cdd/foo/")) {
         return JSON.stringify({
           phase: "review",
@@ -344,10 +378,10 @@ describe("runDocsTask", () => {
           doc_path: "/spec.md",
         });
       }
-      return origRead(p, enc);
+      return origRead?.(p, enc) ?? "";
     });
     try {
-      const result = await DocsLifecycle.run({
+      const result = (await DocsLifecycle.run({
         harness: "claude",
         mode: "review",
         template: "review",
@@ -356,7 +390,7 @@ describe("runDocsTask", () => {
         handoffPath: "/repo/root/.kairos/cdd/foo/spec-review-1.json",
         repoRoot: "/repo/root",
         dryRun: false,
-      });
+      })) as DocsRunFixture;
       expect(result.exitCode).toBe(0);
       // after run/read-back, the status has been derived-overwritten to REVIEW_FIX (warn/nit = 0 blockers — Task 8 closure state)
       expect(result.handoff.status).toBe("REVIEW_FIX");
@@ -366,25 +400,27 @@ describe("runDocsTask", () => {
         String(p).endsWith("spec-review-1.json"),
       );
       expect(writeCall).toBeDefined();
-      expect(writeCall[1].status).toBe("REVIEW_FIX");
-      expect(writeCall[1].findings).toEqual([
+      expect(writeCall?.[1].status).toBe("REVIEW_FIX");
+      expect(writeCall?.[1].findings).toEqual([
         { severity: "warn", summary: "w" },
         { severity: "nit", summary: "n" },
       ]);
     } finally {
-      fs.readFileSync.mockImplementation(origRead);
+      if (origRead) vi.mocked(fs.readFileSync).mockImplementation(origRead);
     }
   });
 
   // ---- Review-mode doc_hash finalization injection — the engine is the carrier's sole author (T7) (P2 F5) ----
 
   it("review-mode 定稿注入 doc_hash：缺失 doc（mock 环境 ENOENT）→ 空串哨兵 + 内存返回值同步", async () => {
-    const { execa } = await import("execa");
+    const execa = mockExeca((await import("execa")).execa);
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
     vi.resetModules();
     const { DocsLifecycle } = await import("../docs.ts");
-    const { writeOwnHandoff } = await import("../../artifacts/handoff/write.ts");
-    const result = await DocsLifecycle.run({
+    const writeOwnHandoff = vi.mocked(
+      (await import("../../artifacts/handoff/write.ts")).writeOwnHandoff,
+    );
+    const result = (await DocsLifecycle.run({
       harness: "claude",
       mode: "review",
       template: "review",
@@ -393,26 +429,28 @@ describe("runDocsTask", () => {
       handoffPath: "/repo/root/.kairos/cdd/foo/spec-review-1.json",
       repoRoot: "/repo/root",
       dryRun: false,
-    });
+    })) as DocsRunFixture;
     expect(result.handoff.status).toBe("APPROVED");
     expect(result.handoff.doc_hash).toBe(""); // in-memory return value in sync (§2.3.3)
     const writeCall = writeOwnHandoff.mock.calls.find(([p]) =>
       String(p).endsWith("spec-review-1.json"),
     );
-    expect(writeCall[1].doc_hash).toBe(""); // the on-disk finalization carries doc_hash
-    expect(writeCall[1].status).toBe("APPROVED");
+    expect(writeCall?.[1].doc_hash).toBe(""); // the on-disk finalization carries doc_hash
+    expect(writeCall?.[1].status).toBe("APPROVED");
   });
 
   it("review-mode doc_hash = 真实内容 sha256 hex（temp doc + 非 ws 前缀不被 mock 拦截）", async () => {
-    const { execa } = await import("execa");
+    const execa = mockExeca((await import("execa")).execa);
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
     const dir = mkdtempSync(join(tmpdir(), "p2hash-"));
     const doc = join(dir, "spec.md");
     writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
     vi.resetModules();
     const { DocsLifecycle } = await import("../docs.ts");
-    const { writeOwnHandoff } = await import("../../artifacts/handoff/write.ts");
-    const result = await DocsLifecycle.run({
+    const writeOwnHandoff = vi.mocked(
+      (await import("../../artifacts/handoff/write.ts")).writeOwnHandoff,
+    );
+    const result = (await DocsLifecycle.run({
       harness: "claude",
       mode: "review",
       template: "review",
@@ -421,22 +459,24 @@ describe("runDocsTask", () => {
       handoffPath: "/repo/root/.kairos/cdd/foo/spec-review-1.json",
       repoRoot: "/repo/root",
       dryRun: false,
-    });
+    })) as DocsRunFixture;
     expect(result.handoff.doc_hash).toBe(
       createHash("sha256").update("- **Version**: v1.0 · 2026-09-21\n").digest("hex"),
     );
     const writeCall = writeOwnHandoff.mock.calls.find(([p]) =>
       String(p).endsWith("spec-review-1.json"),
     );
-    expect(writeCall[1].doc_hash).toBe(result.handoff.doc_hash);
+    expect(writeCall?.[1].doc_hash).toBe(result.handoff.doc_hash);
   });
 
   it("fix-mode 不注入 doc_hash（p persistFinalized 原样；负向对称防误扩展）", async () => {
-    const { execa } = await import("execa");
+    const execa = mockExeca((await import("execa")).execa);
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
     vi.resetModules();
     const { DocsLifecycle } = await import("../docs.ts");
-    const { writeOwnHandoff } = await import("../../artifacts/handoff/write.ts");
+    const writeOwnHandoff = vi.mocked(
+      (await import("../../artifacts/handoff/write.ts")).writeOwnHandoff,
+    );
     await DocsLifecycle.run({
       harness: "claude",
       mode: "fix",
@@ -462,13 +502,13 @@ describe("runDocsTask", () => {
     writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
     vi.resetModules();
     const { DocsLifecycle } = await import("../docs.ts");
-    const { writeHandoff } = await import("../../artifacts/handoff/write.ts");
+    const writeHandoff = vi.mocked((await import("../../artifacts/handoff/write.ts")).writeHandoff);
     // 真实落盘 mock：模块级 vi.mock 把 writeHandoff 换成 vi.fn() 不落盘 → BLOCKED 分支写盘后
     // JSON.parse(readFileSync(handoffPath)) 读回必 ENOENT（orphan 路径 node:fs mock 透传真实 fs）。
     // 注入真实写盘实现让读回成功（run-docs.mjs BLOCKED 分支强耦合同步读回，不可 stub 掉）。
     mockRealWriteBack(writeHandoff);
     const orphanPath = join(dir, "ws", "spec-review-1.json"); // non-.kairos/cdd/foo prefix → the existsSync mock falls through to real → the file does not exist → BLOCKED written to disk
-    const result = await DocsLifecycle.run({
+    const result = (await DocsLifecycle.run({
       harness: "claude",
       mode: "review",
       template: "review",
@@ -477,25 +517,25 @@ describe("runDocsTask", () => {
       handoffPath: orphanPath,
       repoRoot: "/repo/root",
       dryRun: false,
-    });
+    })) as DocsRunFixture;
     expect(result.exitCode).toBe(1);
     const writeCall = writeHandoff.mock.calls.find(([p]) =>
       String(p).endsWith("spec-review-1.json"),
     );
-    expect(writeCall[1].status).toBe("BLOCKED");
-    expect(writeCall[1].doc_hash).toBe(
+    expect(writeCall?.[1].status).toBe("BLOCKED");
+    expect(writeCall?.[1].doc_hash).toBe(
       createHash("sha256").update("- **Version**: v1.0 · 2026-09-21\n").digest("hex"),
     );
   });
 
   it("no-handoff boundary splits on the exit code (T7): exit 0 → ENGINE_SELF_WRITTEN discipline face; exit 143/1 → HARNESS_ABORT teardown + crash record", async () => {
-    const { execa } = await import("execa");
+    const execa = mockExeca((await import("execa")).execa);
     const dir = mkdtempSync(join(tmpdir(), "p2death-"));
     const doc = join(dir, "spec.md");
     writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
     vi.resetModules();
     const { DocsLifecycle } = await import("../docs.ts");
-    const { writeHandoff } = await import("../../artifacts/handoff/write.ts");
+    const writeHandoff = vi.mocked((await import("../../artifacts/handoff/write.ts")).writeHandoff);
     mockRealWriteBack(writeHandoff);
     // Three faces of the same「no handoff after exit」boundary: exit 0 (contract break, NOT a death),
     // 143 (SIGTERM), 1 (run failure). T7: the rc ≠ 0 faces run the HARNESS_ABORT crash teardown
@@ -508,7 +548,7 @@ describe("runDocsTask", () => {
     ];
     for (const [i, face] of faces.entries()) {
       execa.mockResolvedValue({ exitCode: face.rc, stdout: "", stderr: "", timedOut: false });
-      const result = await DocsLifecycle.run({
+      const result = (await DocsLifecycle.run({
         harness: "claude",
         mode: "review",
         template: "review",
@@ -517,12 +557,12 @@ describe("runDocsTask", () => {
         handoffPath: join(dir, `ws${i}`, "spec-review-1.json"),
         repoRoot: "/repo/root",
         dryRun: false,
-      });
+      })) as DocsRunFixture;
       expect(result.exitCode).toBe(1);
       const writeCall = writeHandoff.mock.calls.at(-1); // exactly one carrier write per dispatch
-      expect(String(writeCall[0])).toContain(`ws${i}`);
-      expect(writeCall[1].failure_category).toBe(face.category);
-      expect(writeCall[1].recovery).toBeUndefined(); // the stash-plane recovery carrier is deleted
+      expect(String(writeCall?.[0])).toContain(`ws${i}`);
+      expect(writeCall?.[1].failure_category).toBe(face.category);
+      expect(writeCall?.[1].recovery).toBeUndefined(); // the stash-plane recovery carrier is deleted
       if (face.crash) {
         // Crash teardown: the crash record lands beside the handoff (lane "docs", round from the
         // canonical name). commitSnapshot fails open on the non-repo /repo/root → snapshotSha null.
@@ -538,19 +578,19 @@ describe("runDocsTask", () => {
   });
 
   it("T8 docs unified cause: an engine-terminated (timedOut) no-handoff round routes to the TIMEOUT category with the unified cause — not HARNESS_ABORT/child-exit", async () => {
-    const { execa } = await import("execa");
+    const execa = mockExeca((await import("execa")).execa);
     const dir = mkdtempSync(join(tmpdir(), "p2term-"));
     const doc = join(dir, "spec.md");
     writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
     vi.resetModules();
     const { DocsLifecycle } = await import("../docs.ts");
-    const { writeHandoff } = await import("../../artifacts/handoff/write.ts");
+    const writeHandoff = vi.mocked((await import("../../artifacts/handoff/write.ts")).writeHandoff);
     mockRealWriteBack(writeHandoff);
     // A signal-ended dispatch (spawnManaged folds res.signal === "SIGTERM" → timedOut + cause
     // "signal"): the engine-terminated face — same routing as the task lane's step 8.5 (TIMEOUT
     // category + the unified cause), never the HARNESS_ABORT/child-shape face of the child-exit lane.
     execa.mockResolvedValue({ exitCode: 143, stdout: "trace", stderr: "", signal: "SIGTERM" });
-    const result = await DocsLifecycle.run({
+    const result = (await DocsLifecycle.run({
       harness: "claude",
       mode: "review",
       template: "review",
@@ -559,7 +599,7 @@ describe("runDocsTask", () => {
       handoffPath: join(dir, "ws", "spec-review-1.json"),
       repoRoot: "/repo/root",
       dryRun: false,
-    });
+    })) as DocsRunFixture;
     expect(result.exitCode).toBe(1);
     expect(result.handoff.status).toBe("TIMEOUT");
     expect(result.handoff.failure_category).toBe("TIMEOUT");
@@ -570,7 +610,7 @@ describe("runDocsTask", () => {
   });
 
   it("T7 docs-fix repeat-abort: the stale HARNESS_ABORT carrier at the round-stable fix path is rotated pre-dispatch → the second abort re-fires the crash teardown (fresh crash record)", async () => {
-    const { execa } = await import("execa");
+    const execa = mockExeca((await import("execa")).execa);
     const dir = mkdtempSync(join(tmpdir(), "p2rot-"));
     const doc = join(dir, "spec.md");
     writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
@@ -590,7 +630,7 @@ describe("runDocsTask", () => {
     );
     vi.resetModules();
     const { DocsLifecycle } = await import("../docs.ts");
-    const { writeHandoff } = await import("../../artifacts/handoff/write.ts");
+    const writeHandoff = vi.mocked((await import("../../artifacts/handoff/write.ts")).writeHandoff);
     // The carrier must land on disk so the resume's rotation can read it (writeHandoff default mock
     // does not write).
     mockRealWriteBack(writeHandoff);
@@ -610,7 +650,7 @@ describe("runDocsTask", () => {
     // Round 1: the docs fix agent aborts (exit 1, no handoff) → HARNESS_ABORT teardown + carrier at
     // the round-stable fix path.
     execa.mockResolvedValue({ exitCode: 1, stdout: "", stderr: "round1-trace", timedOut: false });
-    const r1 = await runFix();
+    const r1 = (await runFix()) as DocsRunFixture;
     expect(r1.exitCode).toBe(1);
     expect(r1.handoff.failure_category).toBe("HARNESS_ABORT");
     const rec1 = JSON.parse(readFileSync(join(dir, "ws", "crash-docs-1.json"), "utf8"));
@@ -620,7 +660,7 @@ describe("runDocsTask", () => {
     // teardown re-fires with the resume session's output — the suppressed path would finalize from
     // the stale carrier and leave the round-1 record untouched.
     execa.mockResolvedValue({ exitCode: 1, stdout: "", stderr: "round2-trace", timedOut: false });
-    const r2 = await runFix();
+    const r2 = (await runFix()) as DocsRunFixture;
     expect(r2.exitCode).toBe(1);
     expect(r2.handoff.failure_category).toBe("HARNESS_ABORT");
     const rec2 = JSON.parse(readFileSync(join(dir, "ws", "crash-docs-1.json"), "utf8"));
@@ -629,15 +669,17 @@ describe("runDocsTask", () => {
   });
 
   it("plan 家族镜像：review-mode type:plan 定稿注入 doc_hash（真实双族 handoff 断言）", async () => {
-    const { execa } = await import("execa");
+    const execa = mockExeca((await import("execa")).execa);
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
     const dir = mkdtempSync(join(tmpdir(), "p2planh-"));
     const doc = join(dir, "plan.md");
     writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
     vi.resetModules();
     const { DocsLifecycle } = await import("../docs.ts");
-    const { writeOwnHandoff } = await import("../../artifacts/handoff/write.ts");
-    const result = await DocsLifecycle.run({
+    const writeOwnHandoff = vi.mocked(
+      (await import("../../artifacts/handoff/write.ts")).writeOwnHandoff,
+    );
+    const result = (await DocsLifecycle.run({
       harness: "claude",
       mode: "review",
       template: "review",
@@ -646,20 +688,20 @@ describe("runDocsTask", () => {
       handoffPath: "/repo/root/.kairos/cdd/foo/plan-review-1.json",
       repoRoot: "/repo/root",
       dryRun: false,
-    });
+    })) as DocsRunFixture;
     expect(result.handoff.doc_hash).toBe(
       createHash("sha256").update("- **Version**: v1.0 · 2026-09-21\n").digest("hex"),
     );
     const writeCall = writeOwnHandoff.mock.calls.find(([p]) =>
       String(p).endsWith("plan-review-1.json"),
     );
-    expect(writeCall[1].doc_hash).toBe(result.handoff.doc_hash);
+    expect(writeCall?.[1].doc_hash).toBe(result.handoff.doc_hash);
   });
 
   // ---- Hardening: agent-write bad JSON (unescaped \d) → BLOCKED handoff, not throw (T8) ----
 
   it("T8-hardening: agent 手写坏 JSON（未转义 \\d）→ BLOCKED handoff 非 throw", async () => {
-    const { execa } = await import("execa");
+    const execa = mockExeca((await import("execa")).execa);
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
     const dir = mkdtempSync(join(tmpdir(), "p8bad-"));
     const doc = join(dir, "spec.md");
@@ -674,10 +716,10 @@ describe("runDocsTask", () => {
     );
     vi.resetModules();
     const { DocsLifecycle } = await import("../docs.ts");
-    const { writeHandoff } = await import("../../artifacts/handoff/write.ts");
+    const writeHandoff = vi.mocked((await import("../../artifacts/handoff/write.ts")).writeHandoff);
     // 真实落盘 mock：BLOCKED 分支写盘后 JSON.parse(readFileSync(handoffPath)) 同步读回必须成功。
     mockRealWriteBack(writeHandoff);
-    const result = await DocsLifecycle.run({
+    const result = (await DocsLifecycle.run({
       harness: "claude",
       mode: "review",
       template: "review",
@@ -686,7 +728,7 @@ describe("runDocsTask", () => {
       handoffPath,
       repoRoot: "/repo/root",
       dryRun: false,
-    });
+    })) as DocsRunFixture;
     // 非 throw —— BLOCKED handoff（doc_hash 载体 uniform），而非 exit 2 / 无 handoff 静默丢失。
     expect(result.exitCode).toBe(1);
     expect(result.handoff.status).toBe("BLOCKED");
@@ -703,7 +745,7 @@ describe("runDocsTask", () => {
   // + 已声明键类型违规（`notes: 5`）→ 恢复面判不可救 → BLOCKED 载体**键集干净**（engine 自写字面量，
   // 不 spread 归一化结果——review-3 finding 1 的失败分支载荷规则）、findings 守卫成 []、blocker 含违规键名。
   it("schema-invalid handoff（findings 非数组 + notes:5）→ BLOCKED 载体键集干净 / findings [] / blocker 含违规键名", async () => {
-    const { execa } = await import("execa");
+    const execa = mockExeca((await import("execa")).execa);
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
     const dir = mkdtempSync(join(tmpdir(), "p5cv-"));
     const doc = join(dir, "spec.md");
@@ -729,7 +771,7 @@ describe("runDocsTask", () => {
     }));
     // 沿真实 recoverHandoff 语义：归一化结果**保留已声明键原值**（notes: 5 仍在内——正是旧载荷的泄漏源），
     // 重校验仍失败 → 调用方走 BLOCKED；findings 非数组 → preservedFindings 守卫成 []。
-    recoverHandoff.mockImplementationOnce(() => ({
+    vi.mocked(recoverHandoff).mockImplementationOnce(() => ({
       handoff: {
         phase: "review",
         status: "APPROVED",
@@ -742,12 +784,14 @@ describe("runDocsTask", () => {
       reason: ": /findings must be array; /notes must be string",
       preservedFindings: [],
     }));
-    const { writeOwnHandoff } = await import("../../artifacts/handoff/write.ts");
+    const writeOwnHandoff = vi.mocked(
+      (await import("../../artifacts/handoff/write.ts")).writeOwnHandoff,
+    );
     mockRealWriteBack(writeOwnHandoff); // the resume surface is irrecoverable → writeBlocked carries baseHandoff → full-overwrite write to disk
 
     vi.resetModules();
     const { DocsLifecycle } = await import("../docs.ts");
-    const result = await DocsLifecycle.run({
+    const result = (await DocsLifecycle.run({
       harness: "claude",
       mode: "review",
       template: "review",
@@ -756,7 +800,7 @@ describe("runDocsTask", () => {
       handoffPath,
       repoRoot: "/repo/root",
       dryRun: false,
-    });
+    })) as DocsRunFixture;
     expect(result.exitCode).toBe(1);
     expect(result.handoff.status).toBe("BLOCKED");
     // 键集干净：engine 字面量 + doc_path/doc_hash + findings（agent 的 notes 不得进载体）
@@ -777,6 +821,6 @@ describe("runDocsTask", () => {
       String(p).endsWith("spec-review-1.json"),
     );
     expect(writeCall).toBeDefined();
-    expect(writeCall[1]).not.toHaveProperty("notes");
+    expect(writeCall?.[1]).not.toHaveProperty("notes");
   });
 });

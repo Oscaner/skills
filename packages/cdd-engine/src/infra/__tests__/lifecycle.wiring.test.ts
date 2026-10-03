@@ -1,14 +1,14 @@
 // packages/cdd-engine/src/infra/__tests__/lifecycle.wiring.test.ts
 // spec §2.6: every engine spawn point goes through spawnManaged (direct execa imports are allowed only in src/infra/proc.ts / src/infra/runtime.ts — P4.4 Task 4 consolidated the process-lifecycle implementation into CddRuntime);
-// 全部派发出口（runTask / docs-runner / cli 层）接 idle 监视 + teardownAll；dist/cli.mjs 信号安全出口
+// All dispatch exits (runTask / docs-runner / cli layers) wire into the idle monitor + teardownAll; src/bin.ts's signal-safe exit
 //（SIGINT/SIGTERM/SIGHUP → teardownAll 连根回收 → 128+signo 退出码）。CLI 信号用例以 PATH 遮蔽
 // harness（既有技术：cdd.test.mjs 以 PATH 遮蔽 registry cli 名）→ 真实 dispatch 经 spawnManaged 派生
-// P1SIG 标记驻留组；对 dist/cli.mjs 发信号断言组连根退出（spec §2.6 三信号全覆盖）。
+// Signal the P1SIG-tagged resident group via the src/bin.ts entry and assert the group reaps to root (spec §2.6 covers all three signals).
 // G4 (P6 Task 17): the signal cases are REAL (non-dry-run) dispatches, so the entry gate
 // (rules/commit.ts entryGateCleanTree) previously BLOCKed them whenever the ambient working
 // tree was dirty — and pre-commit commits on a dirty tree by definition. They now dispatch
 // against an isolated mkdtemp clean repo (cwd = temp repo, engine binary stays the repo's
-// dist/cli.mjs via absolute path): the gate resolves a clean tree regardless of the ambient
+// src/bin.ts via absolute path): the gate resolves a clean tree regardless of the ambient
 // repo state, so the suite is tree-independent end-to-end (spec G4③ black-box isolation;
 // pre-commit runs only the tree-independent subset — scripts/validate/pre-commit.ts).
 
@@ -25,8 +25,8 @@ const REPO_ROOT = path.resolve(LIB, "..", "..", "..");
 // spec §2.6「环境不允许时 skip 保护」：信号用例依赖真进程组回收（P1SIG 组随 teardownAll 连根退出），
 // CI 容器下组语义不可靠 → skipIf 门控；形构守卫（execa 收敛 / withLifecycle 接线）不受影响始终运行。
 const GROUP_SUPPORTED = processGroupReapingSupported();
-const alive = (m) => pgrepCount(m); // the bracket trick removes pgrep -f self-matching (helpers.ts)
-const waitFor = async (fn, ms) => {
+const alive = (m: string) => pgrepCount(m); // the bracket trick removes pgrep -f self-matching (helpers.ts)
+const waitFor = async (fn: () => boolean, ms: number) => {
   const t0 = Date.now();
   while (Date.now() - t0 < ms) {
     if (fn()) return;
@@ -70,10 +70,10 @@ describe("架构违例守卫：引擎全部派生经 spawnManaged", () => {
     // also live under __tests__).
     const files = readdirSync(LIB, { recursive: true })
       .filter((f) => String(f).endsWith(".mjs") || String(f).endsWith(".ts"))
-      .filter((f) => !f.split(path.sep).includes("__tests__"));
+      .filter((f) => !String(f).split(path.sep).includes("__tests__"));
     const offenders = [];
     for (const f of files) {
-      const src = readFileSync(path.join(LIB, f), "utf8");
+      const src = readFileSync(path.join(LIB, String(f)), "utf8");
       // 仅匹配真实 import 语句（`import ... from "execa"`）——注释/文档中的 "execa" 字样不当 offenders，
       // 否则 invoke.mjs 等派生点注释提及 execa 历史（迁移叙事、spawnCapture 说明）会造成误伤。
       if (
@@ -130,7 +130,7 @@ describe("架构违例守卫：引擎全部派生经 spawnManaged", () => {
       "CLI 信号安全出口 %s → teardownAll 连根回收 + 退出码 %i（128+signo）",
       async (sig, expectCode) => {
         // real dispatches are isolated in a mkdtemp clean repo (G4/Task 17): cwd = the temp repo, the CLI binary = this repo's
-        // dist/cli.mjs (absolute path) → the entry gate resolves the temp repo's clean tree, naturally unaffected by this repo's dirty tree
+        // src/bin.ts (absolute path) → the entry gate resolves the temp repo's clean tree, naturally unaffected by this repo's dirty tree
         // (the working tree is necessarily dirty at pre-commit time — that hard BLOCK used to be pre-commit's structural failure point).
         const repo = tmpDispatchRepo();
         const stubDir = mkdtempSync(path.join(os.tmpdir(), "p1-stub-"));
@@ -143,7 +143,7 @@ describe("架构违例守卫：引擎全部派生经 spawnManaged", () => {
           const child = spawn(
             process.execPath,
             [
-              path.join(REPO_ROOT, "packages/cdd-engine/dist/cli.mjs"),
+              path.join(REPO_ROOT, "packages/cdd-engine/src/bin.ts"),
               "review",
               "--type",
               "plan",
@@ -161,8 +161,10 @@ describe("架构违例守卫：引擎全部派生经 spawnManaged", () => {
             },
           );
           await waitFor(() => alive("P1SIG") > 0, 30_000);
-          child.kill(sig);
-          const [code, signal] = await new Promise((res) =>
+          // the it.each table passes signal-name strings; the kill channel takes the Signals union
+          // (narrowed at the boundary — the table values are the literal signal names).
+          child.kill(sig as NodeJS.Signals);
+          const [code, signal] = await new Promise<[number | null, string | null]>((res) =>
             child.on("exit", (c, s) => res([c, s])),
           );
           // after the handler intercepts, exit is normal (signal = null); the exit code = 128 + signo (SIGINT→130 / SIGTERM→143 / SIGHUP→129);

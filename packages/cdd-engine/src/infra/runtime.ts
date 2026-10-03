@@ -30,7 +30,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
-import Ajv, { type ValidateFunction } from "ajv";
+import { Ajv, type ValidateFunction } from "ajv";
 import { execa } from "execa";
 
 import { type CrashRecord, isStaleCrashRecord } from "../artifacts/crash.ts";
@@ -98,7 +98,10 @@ export interface SpawnResult {
 
 export interface SpawnOpts {
   cwd?: string;
-  env: NodeJS.ProcessEnv;
+  /** child env — optional: omitted → a stripped copy of the parent env (cleanEnv spreads the
+   * input, and `...undefined` yields the empty spread — the caller-omitted form stays the node
+   * default). */
+  env?: NodeJS.ProcessEnv;
   termination?: TerminationConfig;
 }
 
@@ -485,7 +488,7 @@ export class CddRuntime {
     }
   }
 
-  #cleanEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  #cleanEnv(env: NodeJS.ProcessEnv | undefined): NodeJS.ProcessEnv {
     const e = { ...env };
     delete e.CLAUDE_CODE_SUBAGENT_MODEL;
     delete e.ANTHROPIC_API_KEY;

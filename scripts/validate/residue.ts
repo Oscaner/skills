@@ -24,7 +24,7 @@
 // path form) zero-hit, with the negative lookbehind exempting canonical schema filenames — the
 // handoff-schema.md deletion ships in the same commit as the guard.
 // The grepTargets meta is consumed by the wiring guard
-// (packages/kairos/tests/ci-validate.test.mjs) to pin the target set.
+// (packages/kairos/tests/ci-validate.test.ts) to pin the target set.
 
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -151,9 +151,9 @@ const STALE_LEXICON_CHECKS = [
     // G2 data-row allowance (P3 T1): the harness-registry pi invoke's `-p --mode text` (O2 fact,
     // verified via `pi --help`) is a harness CLI data value, the same pass-through class as the
     // registry cli data value. The allowance is data-derived — dataRowAllow names the token whose
-    // data-source data-row occurrences are green, and the allowance FILE SET rides the lexicon's
-    // residue dataSources (contract-lexicon.json), never a hand-written exemption list. The check
-    // keeps zero-exemption over mechanism code.
+    // data-source data-row occurrences are green, and the allowance FILE SET rides the guards
+    // lexicon's residue dataSources (scripts/lib/guard-lexicon.json), never a hand-written
+    // exemption list. The check keeps zero-exemption over mechanism code.
     dataRowAllow: ["--mode"],
   },
   {
@@ -209,7 +209,7 @@ const STALE_LEXICON_CHECKS = [
   // ["./skills"] }`), so the residual `\bpi\b` branch is retired wholesale — the old "dead
   // residue" premise collapsed when pi became the shipped manifest face (no precise regex, no
   // narrowed scope, no blind pass; the pi contract is pinned instead by
-  // packages/kairos/tests/pi-package.test.mjs).
+  // packages/kairos/tests/pi-package.test.ts).
   {
     label: ".agents/ emit-surface regression (post-A5 removal)",
     re: /\.agents(\/|$)/m,
@@ -311,7 +311,7 @@ const GATE_LEXICON_CHECKS = [
   { label: "deleted gate adapters", re: /gate\/adapters\//, scope: GATE_TARGETS },
 ];
 
-function assert(cond, msg) {
+function assert(cond: boolean, msg: string) {
   if (!cond) throw new Error(msg);
 }
 
@@ -354,15 +354,25 @@ function checkZeroResidue() {
 //   ① engine src incl. test sites — includeTests ON;
 //   ② scripts — walkTargetFiles' default `**/__tests__` self-exemption applies;
 //   ③ docs/maintainers — no test sites, the face scans in full.
-// The data-source set rides the lexicon residue domain data rows ([harness-registry.json,
-// contract-lexicon.json]); the guard body carries the scanned lexeme only via the lexicon data —
-// a live face (scripts/) must not become a carrier of the vocabulary it guards.
+// The data-source set rides the guards lexicon's residue domain data rows ([harness-registry.json,
+// contract-lexicon.json, guard-lexicon.json]); the guard body carries the scanned lexeme only via
+// the lexicon data — a live face (scripts/) must not become a carrier of the vocabulary it
+// guards.
 
 // The C6 ContractLexiconGuard — the single drive for the four converged check faces (anatomy /
 // residue / wording / config) plus the assertLexiconZero helper that renders its findings.
-import { ContractLexiconGuard } from "../lib/contract-lexicon.ts";
+import { ContractLexiconGuard, DOC_ESCAPE_FACES } from "../lib/contract-lexicon.ts";
 
-function assertLexiconZero(label, hits) {
+/** A contract-lexicon guard finding — the row face assertLexiconZero renders. */
+interface LexiconHit {
+  category?: string;
+  label?: string;
+  file?: string;
+  line?: number;
+  message?: string;
+}
+
+function assertLexiconZero(label: string, hits: Array<LexiconHit>) {
   assert(
     hits.length === 0,
     `CONTRACT LEXICON ${label.toUpperCase()} FOUND — guard check:\n  ${hits
@@ -377,7 +387,7 @@ function assertLexiconZero(label, hits) {
   console.log(`OK — contract lexicon ${label} check zero findings`);
 }
 
-export function hasHit(lines) {
+export function hasHit(lines: string[]) {
   return [...STALE_LEXICON_CHECKS, ...GATE_LEXICON_CHECKS].some(({ re }) =>
     lines.some((line) => re.test(line)),
   );
@@ -389,9 +399,9 @@ export function hasHit(lines) {
 // the shared data-row mask: the allowance FILE SET is the lexicon's residue dataSources (data-
 // derived, never a hand-written exemption list), and only a hit inside a data source's data row is
 // green — everything else on the mechanism face fails.
-export function collectStaleLexiconHits(targetsOverride) {
+export function collectStaleLexiconHits(targetsOverride?: string[]) {
   const hits = [];
-  const dataSources = new ContractLexiconGuard().lexicon().residue.dataSources;
+  const dataSources = new ContractLexiconGuard().lexicon().guards.residue.dataSources;
   for (const { label, re, scope, dataRowAllow = [] } of STALE_LEXICON_CHECKS) {
     if (dataRowAllow.length > 0) {
       for (const { file, text } of scanLines(targetsOverride ?? scope, re)) {
@@ -407,7 +417,7 @@ export function collectStaleLexiconHits(targetsOverride) {
 
 // T6: isomorphic to collectStaleLexiconHits; `targetsOverride` lets tests inject a temp directory
 // to verify scan hits.
-export function collectGateLexiconHits(targetsOverride) {
+export function collectGateLexiconHits(targetsOverride?: string[]) {
   const hits = [];
   for (const { label, re, scope } of GATE_LEXICON_CHECKS) {
     for (const f of scanTargets(targetsOverride ?? scope, re)) hits.push({ label, file: f });
@@ -436,17 +446,32 @@ import {
 const failureResolver = new FailureResolver();
 
 const CONTRACT = loadContract();
+
+// Channel row shapes from the canonical context contract (engine-config.json#contextContract) —
+// the subset this module reads. Pin the Object.values element type (TS7 returns unknown[] for
+// loosely-typed sources) to the real contract shapes.
+interface ChannelEnvRow {
+  var?: string;
+  markers?: string[];
+}
+interface ChannelArgvRow {
+  flag?: string;
+  alias?: string;
+}
+interface ChannelGitRow {
+  derivation?: string;
+}
 // Row-2 whitelist = canonical channels.env var + markers (§2.4.4-(1) 4 keys; converged after the
 // three rounds of T14/T26 env-key deletions).
 export const ENV_DIRECT_READ_WHITELIST = new Set(
-  Object.values(CONTRACT.channels.env).flatMap((ch) =>
+  Object.values<ChannelEnvRow>(CONTRACT.channels.env).flatMap((ch) =>
     [ch.var, ...(ch.markers ?? [])].filter(Boolean),
   ),
 );
 // Row-9 canonical argv flag set (channels.argv's flag field; includes the program-level --dry-run
 // and -h/--help).
 export const CANONICAL_ARGV_FLAGS = new Set(
-  Object.values(CONTRACT.channels.argv)
+  Object.values<ChannelArgvRow>(CONTRACT.channels.argv)
     .map((a) => a.flag)
     .filter(Boolean),
 );
@@ -585,7 +610,10 @@ const RESOLVER_FILES = [
   "packages/cdd-engine/src/cli/base-branch.ts",
   "packages/cdd-engine/src/dispatch/task.ts",
 ];
-export function collectPathArgResolverHits(scopeOverride, resolverFilesOverride) {
+export function collectPathArgResolverHits(
+  scopeOverride?: string[],
+  resolverFilesOverride?: string[],
+) {
   const scope = scopeOverride ?? PATH_ARG_SCOPE;
   const files = resolverFilesOverride ?? RESOLVER_FILES;
   const hits = [];
@@ -622,7 +650,7 @@ const ROOT_RESOLVER_TOKENS = [
     re: new RegExp(RESOLVE_REPO_ROOT),
   },
 ];
-export function collectRootResolverHits(targetsOverride) {
+export function collectRootResolverHits(targetsOverride?: string[]) {
   const targets = targetsOverride ?? CHANNEL_ROOT_TARGETS;
   const hits = [];
   for (const { label, re } of ROOT_RESOLVER_TOKENS) {
@@ -641,7 +669,7 @@ const TEST_SEAM_CHECKS = [
   { label: "baseEnv patch pattern", re: /\bbaseEnv\b/, scope: ["packages/cdd-engine/src"] },
   { label: "__*ForTest seam", re: /__\w*ForTest\b/, scope: ["packages/cdd-engine/src"] },
 ];
-export function collectTestSeamHits(targetsOverride) {
+export function collectTestSeamHits(targetsOverride?: string[]) {
   const hits = [];
   for (const { label, re, scope } of TEST_SEAM_CHECKS) {
     for (const f of scanTargets(targetsOverride ?? scope, re, { includeTests: true }))
@@ -741,21 +769,33 @@ export function collectContextWriteHits(targetsOverride = CDD_ENGINE_BIN) {
 // declaration), so the guard walks the declaration tree directly for args keys (kebab → --flag),
 // zero subprocesses. citty's built-in --help/-h is not a declared arg, appended per command into
 // the flag set.
-export function helpOptionFlags(argDef) {
+export function helpOptionFlags(argDef?: Record<string, unknown>) {
   const flags = Object.keys(argDef ?? {}).map((key) => `--${key}`);
   flags.push("--help");
   return flags;
 }
 
-export function helpFlagsNotInCanonical(flags) {
+export function helpFlagsNotInCanonical(flags: string[]) {
   return flags.filter((f) => !CANONICAL_ARGV_FLAGS.has(f));
 }
 
+/** The citty command-tree face this guard walks — args keys + the subcommand map. The engine
+ *  declares every command tree eagerly (defineCommand in parse.ts, same pattern as parse.ts:108's
+ *  SubCommandsDef cast), so the guard consumes the resolved shape; the boundary cast unwraps citty's
+ *  Resolvable wrapper without changing the walk. */
+type HelpCommandNode = {
+  args?: Record<string, unknown>;
+  subCommands?: Record<string, HelpCommandNode>;
+};
+
 export function collectHelpFlagHits() {
   const hits = [];
-  const stack = [[mainCommand, "cdd"]];
+  const root = mainCommand as HelpCommandNode;
+  const stack: Array<[HelpCommandNode, string]> = [[root, "cdd"]];
   while (stack.length > 0) {
-    const [cmd, name] = stack.pop();
+    const top = stack.pop();
+    if (!top) break;
+    const [cmd, name] = top;
     for (const f of helpOptionFlags(cmd.args)) {
       if (!CANONICAL_ARGV_FLAGS.has(f)) {
         hits.push({
@@ -776,18 +816,18 @@ export function collectHelpFlagHits() {
 // is "load-bearing, not decorative"; this module only performs reads, AC4).
 function canonicalFactTokens() {
   const toks = [];
-  for (const a of Object.values(CONTRACT.channels.argv)) {
+  for (const a of Object.values<ChannelArgvRow>(CONTRACT.channels.argv)) {
     if (a.flag) toks.push(a.flag);
     // review-1 nit: single-char short aliases (the -h shape) skip the bare includes — a two-char
     // substring would false-red on occasional hyphenated words like "-h1" / "-handler" in comments;
     // their long-name flag (--help) enters the tok set independently, so the guard keeps coverage.
     if (a.alias && !/^-[^-]$/.test(a.alias)) toks.push(a.alias);
   }
-  for (const ch of Object.values(CONTRACT.channels.env)) {
+  for (const ch of Object.values<ChannelEnvRow>(CONTRACT.channels.env)) {
     if (ch.var) toks.push(ch.var);
     for (const m of ch.markers ?? []) toks.push(m);
   }
-  for (const g of Object.values(CONTRACT.channels.git)) {
+  for (const g of Object.values<ChannelGitRow>(CONTRACT.channels.git)) {
     if (g.derivation) toks.push(g.derivation);
   }
   return toks.filter(Boolean);
@@ -1041,7 +1081,7 @@ const VERSION_STAMP_RE = /kairos-version/;
 const INIT_REFERENCE_RE = /\/init/;
 
 /** ① Shipped non-emit surface: zero version literals. targetsOverride lets tests inject temp targets. */
-export function collectVersionStampHits(targetsOverride) {
+export function collectVersionStampHits(targetsOverride?: string[]) {
   const hits = [];
   for (const f of scanTargets(targetsOverride ?? SHIPPED_SURFACE_TARGETS, VERSION_STAMP_RE)) {
     hits.push({
@@ -1053,7 +1093,7 @@ export function collectVersionStampHits(targetsOverride) {
 }
 
 /** ② Shipped surface + collaborator surface: zero `/init` references. targetsOverride lets tests inject temp targets. */
-export function collectInitReferenceHits(targetsOverride) {
+export function collectInitReferenceHits(targetsOverride?: string[]) {
   const hits = [];
   for (const f of scanTargets(targetsOverride ?? INIT_REFERENCE_TARGETS, INIT_REFERENCE_RE)) {
     hits.push({ label: "/init reference (shipped + collaborator surfaces)", file: f });
@@ -1093,7 +1133,7 @@ export const HANDOFF_SCHEMA_TARGETS = [...CDD_ENGINE_BIN, "packages/kairos"];
 const HANDOFF_SCHEMA_RE = /(?<!-)handoff-schema/;
 
 /** targetsOverride lets tests inject a temp directory; hits = { label, file } list. */
-export function collectHandoffSchemaHits(targetsOverride) {
+export function collectHandoffSchemaHits(targetsOverride?: string[]) {
   const hits = [];
   for (const f of scanTargets(targetsOverride ?? HANDOFF_SCHEMA_TARGETS, HANDOFF_SCHEMA_RE)) {
     hits.push({
@@ -1123,7 +1163,7 @@ function checkHandoffSchema() {
 // `.mjs` re-appearance (engine product or test face) fails. `srcRootOverride` lets tests inject a
 // temp src layout (the tests dir = a same-named `tests` under the src parent, verified pairwise
 // with the override).
-export function collectMjsTerminalStateViolations(srcRootOverride) {
+export function collectMjsTerminalStateViolations(srcRootOverride?: string) {
   const srcRoot = srcRootOverride ?? path.join(ROOT, "packages/cdd-engine/src");
   const relBase = srcRootOverride ? srcRoot : ROOT;
   const out = [];
@@ -1153,7 +1193,7 @@ function checkMjsTerminalState() {
   console.log("OK — .mjs terminal state (src always-truly 0 .mjs, tests/ retired at 0)");
 }
 
-// M6 (brief ⑥): memory-guard recheck — the engine root + repo root dual vitest.config.mjs must
+// M6 (brief ⑥): memory-guard recheck — the engine root + repo root dual vitest.config.ts must
 // hold maxWorkers=1 + fileParallelism=false + maxConcurrency=2 (converged after the 2026-09-17
 // CPU-level fork-pool OOM; any divergence in either config is drift, pinned to the same values
 // here). The presence assertion is conservative — passing when both carry the values.
@@ -1163,8 +1203,8 @@ const MEMORY_GUARD_INVARIANTS = [
   ["maxConcurrency=2", "maxConcurrency: 2"],
 ];
 const VITEST_CONFIGS = [
-  ["packages/cdd-engine/vitest.config.mjs", "engine root"],
-  ["vitest.config.mjs", "repo root"],
+  ["packages/cdd-engine/vitest.config.ts", "engine root"],
+  ["vitest.config.ts", "repo root"],
 ];
 export function collectMemoryGuardViolations() {
   const out = [];
@@ -1217,13 +1257,21 @@ function checkMemoryGuard() {
 const ANCHOR_FAMILY_RE = /^(?:P\d+|T\d+(?:\.\d+)?|Task \d+|spec T\d+(?:\.\d+)?)\b/;
 const SRC_COMMENT_TARGETS = ["packages/cdd-engine/src"];
 
+/** A comment unit extracted by commentUnits — line/block + position + header membership. */
+interface CommentUnit {
+  kind: "line" | "block";
+  startLine: number;
+  content: string;
+  inHeader: boolean;
+}
+
 // String/template-aware comment extraction: `//` and `/* */` outside string/template/regex
 // surfaces only; the template-literal ${…} span is walked opaque (a nested compiler directive
 // inside an interpolated string must not open a comment). Each unit carries inHeader (no code
 // token seen before it) for the file-header carve-out.
-function commentUnits(text) {
-  const units = [];
-  const newlineCount = (s) => (s.match(/\n/g) ?? []).length;
+function commentUnits(text: string): CommentUnit[] {
+  const units: CommentUnit[] = [];
+  const newlineCount = (s: string): number => (s.match(/\n/g) ?? []).length;
   let i = 0;
   let line = 1;
   let seenCode = false;
@@ -1325,8 +1373,9 @@ function commentUnits(text) {
 
 // Consecutive line comments (adjacent source lines, same header membership) collapse into one
 // unit; block comments are already one unit each. The first line carries the reported line.
-function groupCommentUnits(units) {
-  const grouped = [];
+type GroupedCommentUnit = CommentUnit & { lines: number[] };
+function groupCommentUnits(units: CommentUnit[]): GroupedCommentUnit[] {
+  const grouped: GroupedCommentUnit[] = [];
   for (const u of units) {
     const prev = grouped[grouped.length - 1];
     if (
@@ -1348,7 +1397,7 @@ function groupCommentUnits(units) {
 // The comment's first valid token: block-comment `*` markers stripped per line, then leading
 // delimiter punctuation (parens/brackets/dashes/colons/quotes…) skipped until the first word —
 // the point at which a phase anchor would match the family regex.
-function firstValidToken(unit) {
+function firstValidToken(unit: CommentUnit) {
   let text =
     unit.kind === "block"
       ? unit.content
@@ -1364,7 +1413,7 @@ function firstValidToken(unit) {
 }
 
 /** targetsOverride lets tests inject a temp dir; hits = { label, file: path:line } list. */
-export function collectCommentAnchorHits(targetsOverride) {
+export function collectCommentAnchorHits(targetsOverride?: string[]) {
   const hits = [];
   for (const f of walkTargetFiles(targetsOverride ?? SRC_COMMENT_TARGETS, { includeTests: true })) {
     if (!f.endsWith(".ts")) continue; // the engine src plane is all TS (M5: the .mjs plane is zero)
@@ -1476,7 +1525,7 @@ function handoffStatusWhitelist() {
 /** Row 12 ① extraction: the first column of the `## Failure Modes` short table (§2.5.2 derivation
  *  channel ②'s sole consumer = cdd-dev; the extraction surface is the adjudication
  *  surface — the implementation must not invent its own scan surface). */
-export function failureModeCandidates(skillText) {
+export function failureModeCandidates(skillText: string) {
   const candidates = [];
   const lines = skillText.split("\n");
   let inSection = false;
@@ -1590,7 +1639,7 @@ export function collectFixInlineHits(targetsOverride = OSKILLS) {
 
 /** mermaid node labels containing "fix" (the review-loop fix-node shapes: fix-task / branch-fix /
  *  fix-spec / fix-plan). */
-function extractFixNodeLabels(src) {
+function extractFixNodeLabels(src: string) {
   const m = src.match(/```mermaid\n([\s\S]*?)```/);
   if (!m) return [];
   const labels = [];
@@ -1716,7 +1765,10 @@ export const steps = [
       // skills; checkConfig runs the engine-config channel audit. T3 appends checkMarkers — the
       // three-way host-marker consistency guard (lexicon markers ↔ harness.ts detect() predicates
       // ↔ the engine-config env whitelist), same block, no new validate step (zero ci-validate
-      // perturbation).
+      // perturbation). T5 (P5) appends the zero-debt faces — checkEscape (the escape-directive
+      // zero-hit) and checkMjs (the whole-repo source-plane prebuilt-module zero-hit) over the
+      // zero-debt source faces; checkWording additionally pins zero-debt restate zero-hit on the
+      // orchestrator skills.
       const guard = new ContractLexiconGuard();
       assertLexiconZero("anatomy", guard.checkAnatomy());
       assertLexiconZero("residue", guard.checkResidue());
@@ -1725,6 +1777,18 @@ export const steps = [
       // T7 (P4 C8): the four-direction harness-contract guard — checkMarkers (the T3 detection
       // three-way) folds into checkHarness as its detect direction.
       assertLexiconZero("harness", guard.checkHarness({ engineConfig: loadContract() }));
+      // T5 (P5): the zero-debt source faces — the escape-directive zero-hit + the whole-repo
+      // source-plane prebuilt-module zero-hit ride the same face set (engine src · scripts ·
+      // kairos tests · engine config · the migrated source-config plane); the product dist tree
+      // is outside them. T7 (P5) extends the escape token set with the retired zero-build
+      // toolchain tokens (build-config-name / dev-stub script / TS6 shim package / vitest setup
+      // hook) — the same zero-debt scan enforces them on the source/config faces, and the
+      // docs-face live grep gate below enforces the SAME full token set on the live docs faces
+      // (CLAUDE.md · the deps ledger · the engine README pair — the constraint's live-face
+      // definition); the two gates together are the complete live face.
+      assertLexiconZero("escape", guard.checkEscape());
+      assertLexiconZero("escape-docs", guard.checkEscape(DOC_ESCAPE_FACES));
+      assertLexiconZero("mjs", guard.checkMjs());
     },
     grepTargets: RESIDUE_TARGETS,
     channelTargets: CHANNEL_AUDIT_TARGETS,

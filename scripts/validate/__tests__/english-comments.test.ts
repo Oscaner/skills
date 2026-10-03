@@ -88,7 +88,7 @@ describe("diffAddedLineSets", () => {
       "+added-b",
     ].join("\n");
     const sets = diffAddedLineSets(diff);
-    const expectSorted = (f: string | undefined, want: number[]) =>
+    const expectSorted = (f: string, want: number[]) =>
       expect([...(sets.get(f) ?? [])].sort((a, b) => a - b)).toEqual(want);
     expectSorted("a.ts", [2, 3, 11]);
     expectSorted("b.ts", [5]);

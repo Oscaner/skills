@@ -20,13 +20,16 @@ import { validateHarnessRegistryConsistency } from "../marketplace.ts";
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
 /** Seed one package.json under a temp fixture root. */
-function seedPackage(packagesRoot, dirName, pkg) {
+function seedPackage(packagesRoot: string, dirName: string, pkg: Record<string, unknown>): void {
   mkdirSync(join(packagesRoot, dirName), { recursive: true });
   writeFileSync(join(packagesRoot, dirName, "package.json"), `${JSON.stringify(pkg, null, 2)}\n`);
 }
 
 /** Run fn against a temp packages/ root seeded with the given declarations. */
-function withFixture(pkgs, fn) {
+function withFixture(
+  pkgs: Record<string, Record<string, unknown>>,
+  fn: (root: string) => void,
+): void {
   const root = mkdtempSync(join(tmpdir(), "harness-consistency-"));
   try {
     for (const [dirName, pkg] of Object.entries(pkgs)) seedPackage(root, dirName, pkg);

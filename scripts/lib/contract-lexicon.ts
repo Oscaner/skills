@@ -7,12 +7,13 @@
 // four-direction harness-contract guard (checkHarness — P4 C8: detect ↔ the harness.ts detect()
 // predicates ↔ the engine-config env whitelist, refs ↔ SKILL text dual forms, prefix derivation ↔
 // the actual injected forms, install ↔ the README upstream dependency table; checkMarkers folds
-// into its detect direction). The class reads contract-lexicon.json (packages/cdd-engine/config/ —
-// the repo source single; the dist/config copy rides the published package) and the harness
-// contract (config/harness-contract.json — the unique harness contract, C8) as its data sources:
-// the scan token / data-row basenames / banned shape names all come from the lexicon, the harness
-// data (rows / detect / dispatch / refs / install) from the harness contract, never a
-// hand-written allowlist — a behavior change goes through the data, not through this file.
+// into its detect direction). The class reads the guards-family lexicon (scripts/lib/
+// guard-lexicon.json — the repository-verification word tables: the scan token / data-row
+// basenames / banned shape names), the engine command lexicon (packages/cdd-engine/config/
+// contract-lexicon.json — the command + schema facts: the read-back wording / the anatomy
+// reference) and the harness contract (config/harness-contract.json — the unique harness
+// contract, C8) as its data sources: never a hand-written allowlist — a behavior change goes
+// through the data, not through this file.
 //
 // Criterion ②: the guard surface is instance methods, zero bare-function exports (module-private
 // helpers stay private). The guarded binary-name lexeme is CARRIED by the lexicon data rows, so
@@ -26,12 +27,19 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { resolveResourceSrc } from "../../packages/cdd-engine/src/infra/resource.ts";
-import { escapeRegExp, isDataRow, scanLines } from "./scan.ts";
+import { escapeRegExp, isDataRow, scanLines, walkTargetFiles } from "./scan.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..");
 
-const DEFAULT_LEXICON_PATH = resolveResourceSrc(
+// The guard lexicon (scripts/lib/guard-lexicon.json) is the guards-family data source — the
+// repository-verification vocabulary (residue / escape / zero-debt / buildability / banned-shape
+// words). The engine contract vocabulary (the command + schema families — the read-back wording /
+// the anatomy schema reference) lives in the engine word table (config/contract-lexicon.json) and
+// is read as the command data source; the two files use the governance/machine vocabularies
+// (word-authority split).
+const DEFAULT_GUARD_LEXICON_PATH = path.join(HERE, "guard-lexicon.json");
+const DEFAULT_COMMAND_LEXICON_PATH = resolveResourceSrc(
   "contract-lexicon",
   path.join(HERE, "..", "..", "packages/cdd-engine", "src"),
 );
@@ -89,11 +97,31 @@ export interface LexiconMarker {
   value?: string;
 }
 
-interface LexiconData {
-  status: { vocab: string[]; axes: { judgment: string[]; work: string[] } };
-  stdout: { capsule: string[]; routeTokens: string[]; bannedShapeNames: string[] };
-  residue: { dataSources: string[]; bannedToken: string; soleAllowed: string };
-  anatomy: { schemaPath: string; skillsRoot: string };
+/** The guard-lexicon data shape (scripts/lib/guard-lexicon.json — the guards family): the
+ *  repository-verification word tables. Machine-token leaves are arrays (tokens / dataSources);
+ *  wording leaves are plain strings (wording / evidenceWording). */
+interface GuardLexiconData {
+  _doc: string;
+  guards: {
+    residue: { dataSources: string[]; tokens: string[]; wording: string };
+    escape: { tokens: string[]; wording: string };
+    zeroDebt: { tokens: string[]; wording: string };
+    buildability: { evidenceWording: string; wording: string };
+    wording: { tokens: string[]; wording: string };
+  };
+}
+
+/** The engine contract-word data shape (config/contract-lexicon.json — the command + schema
+ *  families): the status vocabulary / dual axes, the capsule + route tokens, the read-back wording
+ *  the engine emits on the review `next:` line, and the skill-anatomy schema reference. */
+interface CommandLexiconData {
+  _doc: string;
+  command: {
+    status: { vocab: string[]; axes: { judgment: string[]; work: string[] } };
+    capsule: { tokens: string[]; readbackWording: string };
+    route: { routeTokens: string[]; stations: Record<string, string> };
+  };
+  schema: { anatomy: { schemaPath: string; skillsRoot: string } };
 }
 
 /** The harness-contract row shape (config/harness-contract.json — C8): the per-harness row data
@@ -117,11 +145,91 @@ export const G2_LIVE_FACES: ResidueFace[] = [
   { targets: ["docs/maintainers"], includeTests: false },
 ];
 
+// The zero-debt source faces — the escape-directive zero-hit and the whole-repo source-plane
+// prebuilt-module zero-hit ride ONE face set (engine src · scripts · kairos tests · the
+// engine-config data plane · the migrated source-config plane); the product face (the engine's
+// dist/ tree) is deliberately outside the set — it ships the built artifacts. Dispositions follow
+// the G2 doctrine: engine src scans its test sites (the T1/T2 zeroing held there too), scripts
+// self-exempts its __tests__ (the guard's own regression-test position), the kairos tests face is
+// a test surface scanned in full, the two config faces have no test sites. The last face pins the
+// T3-migrated source-config plane (root/engine vitest.config.ts + lint-staged.config.ts) — the
+// exact files the whole-repo .mjs→.ts migration moved; a deleted or renamed config target surfaces
+// as a missing-target guard failure, never a silent pass.
+export const ZERO_DEBT_FACES: ResidueFace[] = [
+  { targets: ["packages/cdd-engine/src"], includeTests: true },
+  { targets: ["scripts"], includeTests: false },
+  { targets: ["packages/kairos/tests"], includeTests: true },
+  { targets: ["packages/cdd-engine/config"], includeTests: false },
+  {
+    targets: ["vitest.config.ts", "packages/cdd-engine/vitest.config.ts", "lint-staged.config.ts"],
+    includeTests: false,
+  },
+];
+
+// The docs-face live grep gate target set (T7): the docs faces of the constraint's live-face
+// definition (CLAUDE.md · the deps ledger · the engine README pair), scanned with the SAME
+// escape/retired token set via checkEscape(facesOverride). Together with the ZERO_DEBT_FACES scan
+// (the source/config faces) the two gates are the complete live face.
+export const DOC_ESCAPE_FACES: ResidueFace[] = [
+  {
+    targets: [
+      "CLAUDE.md",
+      "docs/maintainers/05-third-party-dependencies.md",
+      "packages/cdd-engine/README.md",
+      "packages/cdd-engine/README.zh-CN.md",
+    ],
+    includeTests: false,
+  },
+];
+
 // ---------------------------------------------------------------------------
 // skill-anatomy parsing — the digraph-consistency assertion port. All structure facts come from
 // the canonical skill-anatomy schema (single source, never a hard-coded structure literal); the
 // lexicon's anatomy domain carries the schema path.
 // ---------------------------------------------------------------------------
+
+/** The skill-anatomy schema surface checkAnatomy reads (the structure contract it asserts). The
+ *  JSON data itself is loaded at the JSON.parse boundary in checkAnatomy. */
+interface AnatomySchema {
+  properties: {
+    sectionRegistry: {
+      description: string;
+      properties: {
+        public: { items: { enum: string[] } };
+        conditional: { items: { enum: string[] } };
+        headingKinds: { description: string; properties: { nodeName: { pattern: string } } };
+        sections: {
+          properties: Record<
+            string,
+            {
+              properties: {
+                heading: { const: string };
+                requiredCarriers?: { items: { enum: string[] } };
+              };
+            }
+          >;
+        };
+      };
+    };
+    digraph: { properties: { mermaidOnly: { description: string } } };
+    nodeElements: { description: string; properties: Record<string, { pattern: string }> };
+    nodeDefinitions: { description: string };
+    growthBoundary: {
+      description: string;
+      properties: {
+        nodeLimit: { const: number };
+        edgeLimit: { const: number };
+        registry: {
+          properties: { crossings: { properties: Record<string, unknown> } };
+        };
+      };
+    };
+    consumerPurity: {
+      description: string;
+      properties: { forbiddenNarrativeHeads: { items: { enum: string[] } } };
+    };
+  };
+}
 
 interface AnalyzedSkill {
   name: string;
@@ -223,20 +331,89 @@ function analyzeSkill(name: string, src: string, flowDigraphHeading: string): An
  * injection lets tests drive the guard against temp data sources.
  */
 export class ContractLexiconGuard {
-  readonly #lexicon: LexiconData;
+  readonly #lexicon: GuardLexiconData;
+  readonly #commandLexicon: CommandLexiconData;
   readonly #contractPath: string;
   #contract: HarnessContract | null = null;
 
-  constructor(opts: { lexiconPath?: string; registryPath?: string } = {}) {
+  constructor(
+    opts: {
+      /** The guards-family lexicon path. Default: scripts/lib/guard-lexicon.json. */
+      guardLexiconPath?: string;
+      /** The engine command+schema lexicon path. Default: the engine config contract-lexicon.json
+       *  via the locator table. */
+      commandLexiconPath?: string;
+      registryPath?: string;
+    } = {},
+  ) {
     this.#lexicon = JSON.parse(
-      readFileSync(opts.lexiconPath ?? DEFAULT_LEXICON_PATH, "utf8"),
-    ) as LexiconData;
+      readFileSync(opts.guardLexiconPath ?? DEFAULT_GUARD_LEXICON_PATH, "utf8"),
+    ) as GuardLexiconData;
+    this.#commandLexicon = JSON.parse(
+      readFileSync(opts.commandLexiconPath ?? DEFAULT_COMMAND_LEXICON_PATH, "utf8"),
+    ) as CommandLexiconData;
     this.#contractPath = opts.registryPath ?? DEFAULT_REGISTRY_PATH;
+    // Inline shape validation — the guards-family data plane is a closed shape (missing/illegal
+    // fields fail loud at construction, never drift silently into a hollow check).
+    this.#validateShape();
   }
 
-  /** The loaded lexicon (test/assertion surface reads the same data the guard reads). */
-  lexicon(): LexiconData {
+  #validateShape(): void {
+    const fail = (what: string): never => {
+      throw new Error(`guard lexicon shape violation: ${what}`);
+    };
+    const requireStrings = (v: unknown, domain: string, field: string): void => {
+      if (!Array.isArray(v) || v.length === 0 || v.some((x) => typeof x !== "string"))
+        fail(`${domain}.${field} must be a non-empty string array`);
+    };
+    const requireString = (v: unknown, domain: string, field: string): void => {
+      if (typeof v !== "string" || v.length === 0)
+        fail(`${domain}.${field} must be a non-empty string`);
+    };
+    if (typeof this.#lexicon.guards !== "object" || this.#lexicon.guards === null)
+      fail("guards must be an object");
+    const g = this.#lexicon.guards;
+    requireStrings(g.residue.dataSources, "guards.residue", "dataSources");
+    requireStrings(g.residue.tokens, "guards.residue", "tokens");
+    requireString(g.residue.wording, "guards.residue", "wording");
+    requireStrings(g.escape.tokens, "guards.escape", "tokens");
+    requireString(g.escape.wording, "guards.escape", "wording");
+    requireStrings(g.zeroDebt.tokens, "guards.zeroDebt", "tokens");
+    requireString(g.zeroDebt.wording, "guards.zeroDebt", "wording");
+    requireString(g.buildability.evidenceWording, "guards.buildability", "evidenceWording");
+    requireString(g.buildability.wording, "guards.buildability", "wording");
+    requireStrings(g.wording.tokens, "guards.wording", "tokens");
+    requireString(g.wording.wording, "guards.wording", "wording");
+    if (
+      typeof this.#commandLexicon.command !== "object" ||
+      this.#commandLexicon.command === null ||
+      typeof this.#commandLexicon.schema !== "object" ||
+      this.#commandLexicon.schema === null
+    )
+      fail("command and schema must be objects");
+    const c = this.#commandLexicon.command;
+    requireStrings(c.status.vocab, "command.status", "vocab");
+    requireStrings(c.status.axes.judgment, "command.status.axes", "judgment");
+    requireStrings(c.status.axes.work, "command.status.axes", "work");
+    requireStrings(c.capsule.tokens, "command.capsule", "tokens");
+    requireString(c.capsule.readbackWording, "command.capsule", "readbackWording");
+    requireStrings(c.route.routeTokens, "command.route", "routeTokens");
+    if (typeof c.route.stations !== "object" || c.route.stations === null)
+      fail("command.route.stations must be an object");
+    requireString(this.#commandLexicon.schema.anatomy.schemaPath, "schema.anatomy", "schemaPath");
+    requireString(this.#commandLexicon.schema.anatomy.skillsRoot, "schema.anatomy", "skillsRoot");
+  }
+
+  /** The loaded guards-family lexicon (the repository-verification word tables; test/assertion
+   *  surfaces read the same data the guard reads). */
+  lexicon(): GuardLexiconData {
     return this.#lexicon;
+  }
+
+  /** The loaded engine command+schema lexicon (the status vocabulary / capsule + route tokens /
+   *  read-back wording / anatomy reference — the engine-contract facts). */
+  commandLexicon(): CommandLexiconData {
+    return this.#commandLexicon;
   }
 
   /** The loaded harness contract (config/harness-contract.json — the unique harness contract the
@@ -253,7 +430,7 @@ export class ContractLexiconGuard {
   // -------------------------------------------------------------------------
 
   #discoverSkills(): AnatomySkill[] {
-    const root = path.join(ROOT, this.#lexicon.anatomy.skillsRoot);
+    const root = path.join(ROOT, this.#commandLexicon.schema.anatomy.skillsRoot);
     const out: AnatomySkill[] = [];
     for (const ent of readdirSync(root, { withFileTypes: true })) {
       if (ent.isDirectory()) {
@@ -271,10 +448,11 @@ export class ContractLexiconGuard {
    *  The growth report prints to stdout (the validate block's output face, same as the retired
    *  test); the return value is the aggregated findings list (empty = pass). */
   checkAnatomy(skillsOverride?: AnatomySkill[]): AnatomyFinding[] {
-    const schemaPath = path.isAbsolute(this.#lexicon.anatomy.schemaPath)
-      ? this.#lexicon.anatomy.schemaPath
-      : path.join(ROOT, this.#lexicon.anatomy.schemaPath);
-    const ANATOMY = JSON.parse(readFileSync(schemaPath, "utf8"));
+    const schemaPath = path.isAbsolute(this.#commandLexicon.schema.anatomy.schemaPath)
+      ? this.#commandLexicon.schema.anatomy.schemaPath
+      : path.join(ROOT, this.#commandLexicon.schema.anatomy.schemaPath);
+    // JSON.parse boundary: the canonical skill-anatomy schema document (its structure contract).
+    const ANATOMY = JSON.parse(readFileSync(schemaPath, "utf8")) as AnatomySchema;
 
     // Schema description text — the diagnostic wording the checks quote when a failure fires.
     const REGISTRY_RULE = ANATOMY.properties.sectionRegistry.description;
@@ -290,22 +468,32 @@ export class ContractLexiconGuard {
     const PUBLIC_SECTION_KEYS = reg.public.items.enum; // [flowDigraph, nodeDefinitions, invariants, failureModes]
     const CONDITIONAL_SECTION_KEYS = reg.conditional.items.enum; // [skeletonDeltas]
     const SECTION_HEADINGS = Object.fromEntries(
-      Object.entries(reg.sections.properties).map(([key, node]) => [
+      Object.entries(reg.sections.properties).map(([key, node]): [string, string] => [
         key,
         node.properties.heading.const,
       ]),
     );
     const ESCAPED_HEADING = Object.fromEntries(
-      Object.entries(SECTION_HEADINGS).map(([key, h]) => [key, escapeRegExp(h)]),
+      Object.entries(SECTION_HEADINGS).map(([key, h]): [string, string] => [key, escapeRegExp(h)]),
     );
     const SECTION_HEADING_LINE = Object.fromEntries(
-      Object.entries(ESCAPED_HEADING).map(([key, h]) => [key, new RegExp(`^${h}$`, "m")]),
+      Object.entries(ESCAPED_HEADING).map(([key, h]): [string, RegExp] => [
+        key,
+        new RegExp(`^${h}$`, "m"),
+      ]),
     );
     const CONDITIONAL_CARRIERS = Object.fromEntries(
-      CONDITIONAL_SECTION_KEYS.map((key) => [
-        key,
-        reg.sections.properties[key].properties.requiredCarriers.items.enum,
-      ]),
+      CONDITIONAL_SECTION_KEYS.map((key): [string, string[]] => {
+        const carriers = reg.sections.properties[key].properties.requiredCarriers;
+        // The schema requires requiredCarriers on its conditional sections — a missing one is
+        // schema drift the guard must fail loud on, never carry forward as an empty set.
+        if (carriers === undefined) {
+          throw new Error(
+            `skill-anatomy schema: conditional section ${key} missing requiredCarriers`,
+          );
+        }
+        return [key, carriers.items.enum];
+      }),
     );
     const SKELETON_TRIO = CONDITIONAL_CARRIERS.skeletonDeltas;
     const NODE_HEADING_RE = new RegExp(reg.headingKinds.properties.nodeName.pattern, "m");
@@ -319,10 +507,9 @@ export class ContractLexiconGuard {
         (h: string) => new RegExp(`^${escapeRegExp(h)}$`, "m"),
       );
     const ELEMENT_PATTERNS = Object.fromEntries(
-      Object.entries(ANATOMY.properties.nodeElements.properties).map(([key, node]) => [
-        key,
-        new RegExp(node.pattern, "m"),
-      ]),
+      Object.entries(ANATOMY.properties.nodeElements.properties).map(
+        ([key, node]): [string, RegExp] => [key, new RegExp(node.pattern, "m")],
+      ),
     );
 
     const skills = skillsOverride ?? this.#discoverSkills();
@@ -505,21 +692,85 @@ export class ContractLexiconGuard {
    *  the harness contract is the unique harness-data source (the lexicon keeps the pure word
    *  tables), so no mirror drift surface remains. */
   checkResidue(targetsOverride?: string[], facesOverride?: ResidueFace[]): ResidueFinding[] {
-    const token = this.#lexicon.residue.bannedToken;
-    const tokenRe = new RegExp(token);
-    const tokenQuoted = `"${token}"`;
-    const dataSources = this.#lexicon.residue.dataSources;
+    const tokens = this.#lexicon.guards.residue.tokens;
+    const dataSources = this.#lexicon.guards.residue.dataSources;
     const faces: ResidueFace[] = targetsOverride
       ? [{ targets: targetsOverride, includeTests: true }]
       : (facesOverride ?? G2_LIVE_FACES);
     const hits: ResidueFinding[] = [];
     for (const { targets, includeTests } of faces) {
-      for (const { file, lineNo, text } of scanLines(targets, tokenRe, { includeTests })) {
-        if (isDataRow(dataSources, file, text, tokenQuoted)) continue; // data-source data row (the release form)
-        hits.push({
-          label: "cursor binary-name live-face residue (G2 zero-exemption)",
-          file: `${file}:${lineNo}`,
-        });
+      for (const token of tokens) {
+        const tokenRe = new RegExp(escapeRegExp(token));
+        const tokenQuoted = `"${token}"`;
+        for (const { file, lineNo, text } of scanLines(targets, tokenRe, { includeTests })) {
+          if (isDataRow(dataSources, file, text, tokenQuoted)) continue; // data-source data row (the release form)
+          hits.push({
+            label: "cursor binary-name live-face residue (G2 zero-exemption)",
+            file: `${file}:${lineNo}`,
+          });
+        }
+      }
+    }
+    return hits;
+  }
+
+  // -------------------------------------------------------------------------
+  // checkEscape(faces?) / checkMjs(faces?) — the T5 zero-debt source faces
+  // -------------------------------------------------------------------------
+
+  /** checkEscape(faces?) — the escape/retired-token zero-hit (T5 + T7): the two TypeScript escape
+   *  directives plus the retired zero-build toolchain tokens (token set from the lexicon's escape
+   *  domain, never a literal in this body — the guard must not become a carrier) settle to zero
+   *  across the zero-debt source faces (ZERO_DEBT_FACES — engine src · scripts · kairos tests ·
+   *  engine config · the migrated source-config plane, the same face set the source-plane
+   *  prebuilt-module zero-hit rides).
+   *  The lexicon config file carries the tokens as data values — the shared data-row mask
+   *  (isDataRow over the lexicon's residue dataSources) releases them; anything else on the source
+   *  faces fails. The live docs face (CLAUDE.md · the deps ledger · the engine README pair) is
+   *  covered by the T7 docs-face live grep gate in scripts/validate/residue.ts — it calls this
+   *  same check with the docs target set, so the full six-token list rides both gates.
+   *  facesOverride follows the collector injection pattern. */
+  checkEscape(facesOverride?: ResidueFace[]): ResidueFinding[] {
+    const dataSources = this.#lexicon.guards.residue.dataSources;
+    const tokens = this.#lexicon.guards.escape.tokens;
+    const faces = facesOverride ?? ZERO_DEBT_FACES;
+    const hits: ResidueFinding[] = [];
+    for (const { targets, includeTests } of faces) {
+      for (const token of tokens) {
+        const re = new RegExp(escapeRegExp(token));
+        for (const { file, lineNo, text } of scanLines(targets, re, { includeTests })) {
+          if (isDataRow(dataSources, file, text, `"${token}"`)) continue; // lexicon data-value release form
+          hits.push({
+            label: `escape/retired-token zero-hit violation (T5+T7 ban): ${token}`,
+            file: `${file}:${lineNo}`,
+          });
+        }
+      }
+    }
+    return hits;
+  }
+
+  /** checkMjs(faces?) — the whole-repo source-plane prebuilt-module zero-hit (T5 residue-target
+   *  upgrade): the prebuilt-module extension (token from the lexicon's zeroDebt domain) settles to
+   *  zero across the zero-debt source faces (ZERO_DEBT_FACES — engine src · scripts · kairos tests
+   *  · engine config · the migrated source-config plane). The check is file-extension based
+   *  (walkTargetFiles), never a content scan — a comment mention stays legal, a file of the
+   *  banned extension on a source face fails. The product face (the engine's dist/ tree) is outside
+   *  the face set and stays exempt — the published package ships real built artifacts there.
+   *  facesOverride follows the collector injection pattern. */
+  checkMjs(facesOverride?: ResidueFace[]): ResidueFinding[] {
+    const extTokens = this.#lexicon.guards.zeroDebt.tokens;
+    const faces = facesOverride ?? ZERO_DEBT_FACES;
+    const hits: ResidueFinding[] = [];
+    for (const { targets, includeTests } of faces) {
+      for (const abs of walkTargetFiles(targets, { includeTests })) {
+        if (extTokens.some((ext) => abs.endsWith(ext))) {
+          hits.push({
+            label:
+              "source-plane prebuilt-module residue (T5: the plane is all typed sources; the product dist tree excluded)",
+            file: path.relative(ROOT, abs),
+          });
+        }
       }
     }
     return hits;
@@ -529,30 +780,56 @@ export class ContractLexiconGuard {
   // checkWording(skills?) — the C7 shape-restate guard
   // -------------------------------------------------------------------------
 
-  /** checkWording(skills?) — the C7 wording guard: orchestrator skills keep zero engine-shape
-   *  restate. The banned shape names (the old-stdout special-name literals — `3-line return
-   *  block` / `4th line counters` / bare `return block`) come from the lexicon's stdout domain;
-   *  modern contract referents (`output contract` / `handoff` / `findings`) and standalone
-   *  `counters` (absorbed into the handoff namespace) are deliberately not in the set. The scan
+  /** checkWording(skills?) — the C7 wording guard + the T5 zero-debt restate guard: orchestrator
+   *  skills keep zero engine-shape restate AND zero zero-debt vocabulary restate. The banned shape
+   *  names (the old-stdout special-name literals — `3-line return block` / `4th line counters` /
+   *  bare `return block`) come from the lexicon's stdout domain; the T5 zero-debt vocabulary (the
+   *  escape directives / the prebuilt-module extension / the engine read-back annotation) comes
+   *  from the lexicon's escape / zeroDebt / stdout domains (data-derived, never a literal in this
+   *  body). Modern contract referents (`output contract` / `handoff` / `findings`) and standalone
+   *  `counters` (absorbed into the handoff namespace) are deliberately not in the set; the
+   *  read-back annotation rides the actual engine command output (T6 wires it onto the `next:`
+   *  line), so the skill surface keeps zero literal restates (the T5 restate decision). The scan
    *  covers the full file (the safety net beyond the plan's known hit surface). */
   checkWording(skills?: string[]): WordingFinding[] {
     if (!skills || skills.length === 0) return [];
-    const banned = this.#lexicon.stdout.bannedShapeNames;
+    return [
+      ...this.#wordingScan(
+        skills,
+        this.#lexicon.guards.wording.tokens,
+        "engine-shape restate on the orchestrator surface (C7)",
+      ),
+      ...this.#wordingScan(
+        skills,
+        this.#zeroDebtBannedTokens(),
+        "zero-debt restate on the orchestrator surface (T5)",
+      ),
+    ];
+  }
+
+  /** The zero-debt ban set checkWording asserts on the orchestrator skills (T5): the escape
+   *  directives, the prebuilt-module extension, and the engine read-back annotation — sourced from
+   *  the lexicon data, never a literal restate (the guard body is not a carrier). */
+  #zeroDebtBannedTokens(): string[] {
+    return [
+      ...this.#lexicon.guards.escape.tokens,
+      ...this.#lexicon.guards.zeroDebt.tokens,
+      this.#commandLexicon.command.capsule.readbackWording,
+    ];
+  }
+
+  /** One banned-word scan lane: line-level hits for a banned token set under a label kind. A
+   *  matched token that is a substring of another matched token reports only the longer name (the
+   *  dedicated fail name wins over its bare parent — data-derived, never a literal pair in this
+   *  body). */
+  #wordingScan(skills: string[], banned: string[], kind: string): WordingFinding[] {
+    if (banned.length === 0) return [];
     const combined = new RegExp(banned.map((s) => escapeRegExp(s)).join("|"));
     const hits: WordingFinding[] = [];
     for (const { file, lineNo, text } of scanLines(skills, combined)) {
       const matched = banned.filter((shape) => new RegExp(escapeRegExp(shape)).test(text));
-      // The bare `return block` rule is subsumed by the `3-line return block` special name on the
-      // same line (the dedicated fail name wins; the bare form targets unqualified use only).
-      const names =
-        matched.includes("3-line return block") && matched.includes("return block")
-          ? matched.filter((n) => n !== "return block")
-          : matched;
-      hits.push({
-        label: `engine-shape restate on the orchestrator surface (C7): ${names.join(", ")}`,
-        file,
-        line: lineNo,
-      });
+      const names = matched.filter((n) => !matched.some((m) => m !== n && m.includes(n)));
+      hits.push({ label: `${kind}: ${names.join(", ")}`, file, line: lineNo });
     }
     return hits;
   }
@@ -1082,6 +1359,8 @@ function harnessClassesById(harnessSrc: string): Map<string, { body: string }> {
 function detectPredicate(classBody: string): { paramName: string; body: string } | null {
   const sig = classBody.match(/detect\s*\(\s*([A-Za-z_$][\w$]*)\s*:[^;()]*\)\s*:\s*boolean\s*\{/);
   if (!sig) return null;
+  // A successful match always exposes its start index (the regex is non-global here).
+  if (sig.index === undefined) throw new Error("matched regex missing index");
   const open = sig.index + sig[0].length - 1;
   const { body } = braceBody(classBody, open);
   return { paramName: sig[1], body };
@@ -1098,10 +1377,18 @@ function envKeysUsed(src: string, param: string): string[] {
   return keys;
 }
 
+/** The env-channel row shape of the engine-config context-contract (JSON data — each row carries
+ *  either a single `var` key or a `markers` array; other keys are ignored). */
+interface EnvChannelRow {
+  var?: unknown;
+  markers?: unknown;
+}
+
 /** The env-channel key set of a context-contract section (the var / markers union). */
 function configEnvKeys(ctx: Record<string, unknown>): string[] {
-  const env = (ctx.channels as { env?: Record<string, unknown> } | undefined)?.env ?? {};
-  return Object.values(env).flatMap((v: Record<string, unknown>) =>
+  // JSON-derived engine-config data — the channel value map is narrowed to its row shape.
+  const env = (ctx.channels as { env?: Record<string, EnvChannelRow> } | undefined)?.env ?? {};
+  return Object.values(env).flatMap((v) =>
     typeof v.var === "string" ? [v.var] : Array.isArray(v.markers) ? (v.markers as string[]) : [],
   );
 }
@@ -1110,6 +1397,7 @@ function configEnvKeys(ctx: Record<string, unknown>): string[] {
 function loadConfigCtx(engineConfig?: Record<string, unknown>): Record<string, unknown> {
   return (
     engineConfig ??
+    // JSON.parse boundary: the shipped engine-config always carries its contextContract section.
     (
       JSON.parse(
         readFileSync(
@@ -1119,7 +1407,7 @@ function loadConfigCtx(engineConfig?: Record<string, unknown>): Record<string, u
           ),
           "utf8",
         ),
-      ) as { contextContract?: Record<string, unknown> }
+      ) as { contextContract: Record<string, unknown> }
     ).contextContract
   );
 }

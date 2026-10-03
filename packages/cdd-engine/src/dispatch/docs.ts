@@ -67,8 +67,10 @@ export interface DocsLifecycleOptions {
   mode: DispatchOp;
   /** prompt template name ("review" shared shell / canonical fix.{type} fixTemplate) */
   template: string;
-  /** review/fix subtype (spec|plan) → invokeCli (op, type) injection params */
-  type: string;
+  /** review/fix subtype (spec|plan) → invokeCli (op, type) injection params. Optional: the
+   * dry-run and handoffPath-required finish lines never consume it, and a missing type degrades
+   * the injection prefix lookup to a no-op (T2 widening — the CLI producers always pass it). */
+  type?: string;
   /** path to the document being reviewed/fixed */
   doc: string;
   /** explicit findings path for fix mode (round derives from the findings file name) */
@@ -252,6 +254,10 @@ export class DocsLifecycle extends DispatchLifecycle {
     // on-disk hygiene op with zero git-tree impact. The review round is NOT round-stable (round
     // auto-increments per resume) — no rotation needed there.
     if (mode === "fix" && !this.#opts.dryRun) {
+      // The fix lane's handoff path is structurally required (resolveContext's non-dry-run
+      // handoffPath gate already enforced it pre-dispatch) — the narrow asserts the same declared
+      // truth before the stale-carrier rotation reads/removes the file.
+      invariant(handoffPath != null, "docs-runner: handoffPath required");
       const stale = readJson(handoffPath) as { failure_category?: unknown } | null;
       if (stale && typeof stale.failure_category === "string") {
         rmSync(handoffPath);
@@ -297,15 +303,19 @@ export class DocsLifecycle extends DispatchLifecycle {
       //   rc === 0             → the discipline-failure face (agent exited 0 without writing the
       //              handoff — ENGINE_SELF_WRITTEN, never a diagnosed death).
       if (this.#agentRc !== 0 || this.#agentTimedOut) {
+        // type is producer-optional (dry-run / handoffPath-required finish first); the crash lane
+        // resists a missing type with the "" fallback — the round-pattern match then fails closed
+        // to the round-1 no-parse fallback, mirroring a non-canonical name.
+        const crashType = this.#opts.type ?? "";
         // The docs round for the crash record's round-qualified file name (derived from the
         // canonical handoff name — the family round is the either-side contract).
         const roundMatch = path
           .basename(handoffPath)
-          .match(Handoff.roundPattern(this.#opts.mode, this.#opts.type));
+          .match(Handoff.roundPattern(this.#opts.mode, crashType));
         const round = roundMatch ? Number(roundMatch[1]) : 1;
         const crashNext = resumeCommandFor({
           op: this.#opts.mode,
-          type: this.#opts.type,
+          type: crashType,
           doc: this.#opts.doc,
           ...(this.#opts.mode === "fix"
             ? { findingsPath: this.#opts.findingsPath ?? undefined }

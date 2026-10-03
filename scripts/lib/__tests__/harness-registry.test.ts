@@ -13,19 +13,34 @@ import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 import { sourceService } from "../../emit/source.ts";
 import { countSkillsWithMarkdown, EXPECTED } from "../../validate/kairos.ts";
+import type { OscanerFields, PiValidationCtx, PluginSource } from "../harness-registry.ts";
 import { claudeHarness, cursorHarness, harnessRegistry, piHarness } from "../harness-registry.ts";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const OS_PKG_DIR = join(REPO_ROOT, "packages/kairos");
 
 /** The live kairos source.json row (same byte shape the byte pins target). */
-function kairosRow() {
-  return sourceService.derive(REPO_ROOT).plugins.find((p) => p.name === "kairos");
+function kairosRow(): PluginSource {
+  const row = sourceService.derive(REPO_ROOT).plugins.find((p) => p.name === "kairos");
+  if (row === undefined) throw new Error("kairos row not derived from source.json");
+  return row;
+}
+
+/** The manifest builder's version face — the derived kairos row always carries the version slot. */
+function versionOf(row: PluginSource): string {
+  if (row.version === undefined) {
+    throw new Error("derived kairos row is missing its version slot");
+  }
+  return row.version;
 }
 
 /** The live kairos `oscaner` descriptor (the sourceJson input). */
-function kairosOsc() {
-  return JSON.parse(readFileSync(join(OS_PKG_DIR, "package.json"), "utf8")).oscaner;
+function kairosOsc(): OscanerFields {
+  // JSON boundary: package.json parsed as its oscaner descriptor.
+  const pkg = JSON.parse(readFileSync(join(OS_PKG_DIR, "package.json"), "utf8")) as {
+    oscaner: OscanerFields;
+  };
+  return pkg.oscaner;
 }
 
 /** The source.json row key-slot order the registry descriptor slots must produce. */
@@ -43,19 +58,46 @@ const ROW_KEY_ORDER = [
 ];
 
 /**
+ * Assembled source.json plugin row fixture — the key-slot band the registry descriptor slots
+ * produce (cursor after contentRoot, claude after the metadata block, hooks last). All slots
+ * optional for the assemble loop's incremental build.
+ */
+interface PluginRowFixture {
+  name?: string;
+  contentRoot?: string;
+  cursor?: PluginSource["cursor"];
+  version?: string;
+  description?: string;
+  author?: PluginSource["author"];
+  homepage?: string;
+  repository?: string;
+  license?: string;
+  claude?: PluginSource["claude"];
+  hooks?: unknown;
+}
+
+/** Fixture row face: PluginSource plus a display-only hooks.cursor key the manifest never reads. */
+type HooksFixtureRow = PluginSource & { hooks?: { claude?: string; cursor?: string } };
+
+/**
  * Assemble a plugin row the way the T2 source.ts shape layouts it — registry
  * descriptor slots (cursor after contentRoot, claude after the metadata block,
  * hooks last) around the package metadata band.
  */
-function assemblePluginRow(osc, metadata) {
-  const row = {};
-  row.name = metadata.name;
-  row.contentRoot = metadata.contentRoot;
+function assemblePluginRow(osc: OscanerFields, metadata: PluginSource): PluginRowFixture {
+  const row: PluginRowFixture = {
+    name: metadata.name,
+    contentRoot: metadata.contentRoot,
+  };
   const cursorDesc = cursorHarness.sourceJson(osc);
   if (cursorDesc !== undefined) row.cursor = cursorDesc;
-  for (const k of ["version", "description", "author", "homepage", "repository", "license"]) {
-    if (metadata[k] !== undefined) row[k] = metadata[k];
-  }
+  // Metadata band — after contentRoot, before claude (the pinned column order).
+  if (metadata.version !== undefined) row.version = metadata.version;
+  if (metadata.description !== undefined) row.description = metadata.description;
+  if (metadata.author !== undefined) row.author = metadata.author;
+  if (metadata.homepage !== undefined) row.homepage = metadata.homepage;
+  if (metadata.repository !== undefined) row.repository = metadata.repository;
+  if (metadata.license !== undefined) row.license = metadata.license;
   const claudeDesc = claudeHarness.sourceJson(osc);
   if (claudeDesc !== undefined) row.claude = claudeDesc;
   if (osc.hooks !== undefined) row.hooks = osc.hooks;
@@ -118,7 +160,7 @@ test("assertBidirectional passes when the declaration set matches the registry",
 test("ClaudeHarness.manifest byte-pins the .claude-plugin product", () => {
   const row = kairosRow();
   const product = JSON.parse(readFileSync(join(OS_PKG_DIR, ".claude-plugin/plugin.json"), "utf8"));
-  const m = claudeHarness.manifest(row, row.version);
+  const m = claudeHarness.manifest(row, versionOf(row));
   expect(m).toEqual(product);
   expect(Object.keys(m)).toEqual(Object.keys(product));
 });
@@ -126,39 +168,39 @@ test("ClaudeHarness.manifest byte-pins the .claude-plugin product", () => {
 test("CursorHarness.manifest byte-pins the .cursor-plugin product", () => {
   const row = kairosRow();
   const product = JSON.parse(readFileSync(join(OS_PKG_DIR, ".cursor-plugin/plugin.json"), "utf8"));
-  const m = cursorHarness.manifest(row, row.version);
+  const m = cursorHarness.manifest(row, versionOf(row));
   expect(m).toEqual(product);
   expect(Object.keys(m)).toEqual(Object.keys(product));
 });
 
 test("ClaudeHarness.manifest emits hooks only for non-canonical hook files", () => {
-  const row = {
+  const row: HooksFixtureRow = {
     ...kairosRow(),
     hooks: { claude: "./hooks/claude.json", cursor: "./hooks/cursor.json" },
   };
-  expect(claudeHarness.manifest(row, row.version).hooks).toBe("./hooks/claude.json");
+  expect(claudeHarness.manifest(row, versionOf(row)).hooks).toBe("./hooks/claude.json");
   // the canonical ./hooks/hooks.json is auto-loaded by Claude Code and must stay
   // omitted even when `oscaner.hooks.claude` maps to it explicitly
   const canonical = claudeHarness.manifest(
     { ...row, hooks: { claude: "./hooks/hooks.json" } },
-    row.version,
+    versionOf(row),
   );
   expect("hooks" in canonical).toBe(false);
 });
 
 test("ClaudeHarness.manifest omits the skills field under noSkills", () => {
   const row = kairosRow();
-  const m = claudeHarness.manifest(row, row.version, { noSkills: true });
+  const m = claudeHarness.manifest(row, versionOf(row), { noSkills: true });
   expect("skills" in m).toBe(false);
   expect(m.name).toBe("kairos");
 });
 
 test("CursorHarness.manifest never emits a hooks field", () => {
-  const row = {
+  const row: HooksFixtureRow = {
     ...kairosRow(),
     hooks: { claude: "./hooks/claude.json", cursor: "./hooks/cursor.json" },
   };
-  const m = cursorHarness.manifest(row, row.version);
+  const m = cursorHarness.manifest(row, versionOf(row));
   expect("hooks" in m).toBe(false);
 });
 
@@ -199,7 +241,7 @@ test("PiHarness.sourceJson contributes no row slot", () => {
 });
 
 test("PiHarness.manifest is unreachable (pi is an inline distribution)", () => {
-  expect(() => piHarness.manifest({ name: "x" }, "0.0.0")).toThrow(/PiHarness/);
+  expect(() => piHarness.manifest({ name: "x", contentRoot: "." }, "0.0.0")).toThrow(/PiHarness/);
 });
 
 // ---------------------------------------------------------------------------
@@ -218,12 +260,18 @@ test("PiHarness.validatePackage passes the live kairos package (five assertions)
 });
 
 test("claude/cursor harnesses carry the no-op package contract", () => {
-  expect(() => claudeHarness.validatePackage({ pkg: {} }, {})).not.toThrow();
-  expect(() => cursorHarness.validatePackage({ pkg: {} }, {})).not.toThrow();
+  // the no-op contract ignores both faces — real ctx values keep the call type-honest
+  const noopCtx: PiValidationCtx = {
+    pkgRoot: ".",
+    expectedCount: EXPECTED,
+    countSkills: countSkillsWithMarkdown,
+  };
+  expect(() => claudeHarness.validatePackage({}, noopCtx)).not.toThrow();
+  expect(() => cursorHarness.validatePackage({}, noopCtx)).not.toThrow();
 });
 
 /** Seed a `./skills` dir with `count` SKILL.md-bearing subdirectories. */
-function seedSkillsDir(root, count) {
+function seedSkillsDir(root: string, count: number) {
   const dir = join(root, "skills");
   for (let i = 0; i < count; i++) {
     mkdirSync(join(dir, `skill-${i}`), { recursive: true });

@@ -26,6 +26,8 @@
 // (status/commits/artifacts + counters) — commits/artifacts/counters stay in the handoff /
 // progress.json, stdout shows only the status capsule. Constructor injection (Criterion ②): the
 // status derive + next router + convergence judge are all injected, zero module-level singletons.
+
+import { wordTable } from "../infra/word-table.ts";
 import { ConvergenceChecker, type HandoffLike } from "../rules/convergence.ts";
 import { type NextStepArgs, NextStepRouter } from "../rules/next-step.ts";
 import { StatusDeriver } from "../rules/status-deriver.ts";
@@ -41,8 +43,9 @@ export interface ResultFaceEmitCtx {
    *  implement/fix — the agent/engine declared conclusion (BLOCKED → the work axis). */
   status?: string;
   /** the judgment source: review — this round's own findings; fix — the `--findings` INPUT
-   *  findings (the decision source); implement — absent (blocker: 0). */
-  findings?: ReadonlyArray<{ severity?: string }>;
+   *  findings (the decision source); implement — absent (blocker: 0). Findings carry the
+   *  severity selector + the summary prose. */
+  findings?: ReadonlyArray<{ severity?: string; summary?: string }>;
   /** the C5 next-hop derivation input (NextStepRouter.next); absent → no `next:` line. */
   next?: NextStepArgs;
 }
@@ -80,9 +83,16 @@ export class ResultFace {
     const blockers = this.#convergence.blockerCount({
       findings: ctx.findings,
     } satisfies HandoffLike);
-    const out = [`status: ${status} · blocker: ${blockers} · handoff: ${ctx.handoffPath}`];
+    // The capsule keys (status · blocker · handoff) and the `next:` station prefix ride the
+    // contract lexicon — the capsule vocabulary is data (addressed word-table access by semantic
+    // key, never an emission-side literal or a positional destructure), so a vocabulary change is
+    // a data change, not an engine edit.
+    const capsule = wordTable();
+    const out = [
+      `${capsule.capsuleToken("status")}: ${status} · ${capsule.capsuleToken("blocker")}: ${blockers} · ${capsule.capsuleToken("handoff")}: ${ctx.handoffPath}`,
+    ];
     const next = ctx.next ? this.#nextRouter.next(ctx.next) : null;
-    if (next) out.push(`next: ${next}`);
+    if (next) out.push(`${capsule.station("next")} ${next}`);
     return out;
   }
 }

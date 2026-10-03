@@ -4,8 +4,9 @@
 //              template-contract + config/schema/), mirrored to dist/config by the build so the
 //              consumer install resolves the published face first;
 //   templates/ — render/copy content seeds only (report/issue-body.json), shipped as-is.
-// import.meta.url lands at different depths depending on the file state (dev:stub / vitest load
-// from src/** via jiti; the real build bundles into dist/cli.mjs), so every loader resolves the
+// import.meta.url lands at different depths depending on the file state (dev runs src/bin.ts
+// directly via Node native type stripping; the published package runs the tsc-emitted JS under
+// dist/), so every loader resolves the
 // package root via the nearest-ancestor package.json marker walk and the resource BY LOGICAL NAME
 // through resolveResource — the single locator table (dev tree + dist pack tree isomorphic, no
 // scattered path.join(resolvePackageRoot(...), "...") literals) — published (dist) first, source
@@ -107,5 +108,10 @@ export function resolveResourcePublished(
   name: ResourceName,
   fromDir = path.dirname(fileURLToPath(import.meta.url)),
 ): string {
-  return path.join(resolvePackageRoot(fromDir), ...RESOURCE_SPECS[name].published!);
+  const spec: ResourceSpec = RESOURCE_SPECS[name];
+  // The published home is a discriminant of the locator table (resources without a `published`
+  // mirror ship as-is from source and are never addressed through the published face) — asserting
+  // the discriminant is the declared truth for programmer misuse, never a non-null squash.
+  invariant(spec.published !== undefined, `resource has no published home: ${name}`);
+  return path.join(resolvePackageRoot(fromDir), ...spec.published);
 }

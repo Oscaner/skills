@@ -8,6 +8,21 @@ import { HandoffSchemaValidator } from "../../rules/schema.ts";
 
 const schemaValidator = new HandoffSchemaValidator();
 
+/** Loaded handoff-schema fixture shape (the JSON-Schema subset these tests read) — the loader's
+ * `unknown` return is narrowed once at the fixture seam, no per-property casts in the asserts. */
+type SchemaFixture = {
+  description?: string;
+  required?: string[];
+  properties: Record<
+    string,
+    {
+      description?: string;
+      required?: string[];
+      properties?: Record<string, { description?: string }>;
+    }
+  >;
+};
+
 import { TemplateLoader } from "../templates.ts";
 
 const templates = new TemplateLoader();
@@ -20,7 +35,7 @@ const templates = new TemplateLoader();
 
 describe("renderHandoffSchemaJson — schema 可写子集注入 (C4-2)", () => {
   it("stub = 可写子集的 ```json 块：剥 `$schema` 元键 + `review_scope`（注入面零不可写键）", () => {
-    const schema = schemaValidator.loadHandoffSchema("task");
+    const schema = schemaValidator.loadHandoffSchema("task") as SchemaFixture;
     const stub = templates.renderHandoffSchemaJson(schema);
     expect(stub.startsWith("```json\n")).toBe(true); // the carrier is json (not jsonc: the schema itself has no comment lines to copy)
     expect(stub.endsWith("\n```")).toBe(true);
@@ -41,7 +56,7 @@ describe("renderHandoffSchemaJson — schema 可写子集注入 (C4-2)", () => {
 
   it("两份 schema 顶层 + 逐 property 均有 description（写协议规则迁入 schema）", () => {
     for (const name of ["task", "docs"]) {
-      const schema = schemaValidator.loadHandoffSchema(name);
+      const schema = schemaValidator.loadHandoffSchema(name) as SchemaFixture;
       expect(schema.description, name).toMatch(/\S/);
       for (const [key, prop] of Object.entries(schema.properties ?? {})) {
         expect(prop.description, `${name}#${key}`).toMatch(/\S/);
@@ -50,7 +65,7 @@ describe("renderHandoffSchemaJson — schema 可写子集注入 (C4-2)", () => {
   });
 
   it("可写子集删减仅为 $schema + review_scope（其余契约键不增不减）", () => {
-    const schema = schemaValidator.loadHandoffSchema("task");
+    const schema = schemaValidator.loadHandoffSchema("task") as SchemaFixture;
     const parsed = JSON.parse(
       templates
         .renderHandoffSchemaJson(schema)
@@ -73,19 +88,21 @@ describe("renderHandoffSchemaJson — schema 可写子集注入 (C4-2)", () => {
   });
 
   it("commits.head 为 schema 契约键（写协议规则迁入：full 40-char SHA）", () => {
-    const schema = schemaValidator.loadHandoffSchema("task");
-    expect(schema.properties.commits.properties.head.description).toMatch(/40-char|SHort|--short/i);
+    const schema = schemaValidator.loadHandoffSchema("task") as SchemaFixture;
+    expect(schema.properties.commits.properties?.head.description).toMatch(
+      /40-char|SHort|--short/i,
+    );
     // head 是可选的（required 仍只有 base —— branch 派发省略 head 仍合法）
     expect(schema.properties.commits.required).toEqual(["base"]);
   });
 
   it("status 描述承载 engine 派生语义（Write findings, not status）", () => {
-    const schema = schemaValidator.loadHandoffSchema("task");
+    const schema = schemaValidator.loadHandoffSchema("task") as SchemaFixture;
     expect(schema.properties.status.description).toMatch(/findings, not status/i);
   });
 
   it("blocker 描述：无阻塞时省略（非 null）", () => {
-    const schema = schemaValidator.loadHandoffSchema("docs");
+    const schema = schemaValidator.loadHandoffSchema("docs") as SchemaFixture;
     expect(schema.properties.blocker.description).toMatch(/omit|省略/i);
   });
 });
@@ -98,7 +115,7 @@ describe("validateHandoffSchema — 失败形态与磁盘契约一致（不改�
     const r = schemaValidator.validateHandoffSchema(
       { tasks: [1], phase: "review", artifacts: {}, findings: [], review_notes: "x" },
       "task",
-    );
+    ) as { valid: boolean; property?: string; reason?: string };
     expect(r.valid).toBe(false); // existing key names unchanged (three lib consumers + four tests judge via .valid)
     expect(r.property).toBe("review_notes"); // the key added in T5
     expect(r.reason).toMatch(/review_notes/); // 报错文案含违规键名
@@ -124,7 +141,7 @@ describe("normalizeHandoff — 归一化 → 重校验单点（三个 runner 同
       review_notes: "x",
     };
     expect(schemaValidator.validateHandoffSchema(raw, "task").valid).toBe(false);
-    const fixed = normalizeHandoff(raw, "task");
+    const fixed = normalizeHandoff(raw, "task") as Record<string, unknown>;
     expect(fixed).not.toHaveProperty("review_notes");
     expect(schemaValidator.validateHandoffSchema(fixed, "task").valid).toBe(true);
     // findings 全额保留（AC7 类目级要求；不得在恢复路径上被清空）
@@ -140,10 +157,17 @@ describe("normalizeHandoff — 归一化 → 重校验单点（三个 runner 同
   });
   it("review 族缺 status → 按 findings roll-up 派生补上（work 型不补——schema else 分支强制 agent 声明）", () => {
     const base = { tasks: [1], artifacts: {}, findings: [{ severity: "blocker" }] };
-    expect(normalizeHandoff({ ...base, phase: "review" }, "task").status).toBe("CHANGES_REQUESTED");
-    expect(normalizeHandoff({ ...base, phase: "branch-review", findings: [] }, "task").status).toBe(
-      "APPROVED",
-    );
+    expect(
+      (normalizeHandoff({ ...base, phase: "review" }, "task") as Record<string, unknown>).status,
+    ).toBe("CHANGES_REQUESTED");
+    expect(
+      (
+        normalizeHandoff({ ...base, phase: "branch-review", findings: [] }, "task") as Record<
+          string,
+          unknown
+        >
+      ).status,
+    ).toBe("APPROVED");
     // work 型（implement）status 缺省不被补 —— 否则 schema 的 else.required 约束被归一化单点绕过
     expect(normalizeHandoff({ ...base, phase: "implement" }, "task")).not.toHaveProperty("status");
   });
@@ -157,7 +181,7 @@ describe("normalizeHandoff — 归一化 → 重校验单点（三个 runner 同
     // （allOf[0].then.required: []）。旧实现把未校验的 agent 值直接喂 rollupStatus → 归一化单点在
     // CONTRACT_VIOLATION 恢复路径上崩溃（runner 无 catch → exit 2、不写 BLOCKED handoff、findings 全丢）。
     const raw = { tasks: [1], phase: "review", artifacts: {}, findings: "none" };
-    const out = normalizeHandoff(raw, "task");
+    const out = normalizeHandoff(raw, "task") as Record<string, unknown>;
     expect(out.status).toBe("APPROVED"); // the rollup receives the guard's []
     expect(schemaValidator.validateHandoffSchema(out, "task").valid).toBe(false); // normalization cannot save it → the caller goes BLOCKED
     for (const bad of ["x", {}, 7, null]) {
@@ -229,7 +253,10 @@ describe("recoverHandoff — CONTRACT_VIOLATION 恢复单点（三路 runner 同
         artifacts: {},
         blocker: `handoff schema invalid${rec.reason} → fix the handoff JSON and re-dispatch task 1`,
       };
-      const r = schemaValidator.validateHandoffSchema(payload, "task");
+      const r = schemaValidator.validateHandoffSchema(payload, "task") as {
+        valid: boolean;
+        reason?: string;
+      };
       expect(r.valid, `${JSON.stringify(bad)} → ${r.reason}`).toBe(true);
     }
     // 顶层数组不是 findings 字段（收口为 `{}` → 无 findings 可留，与「无 findings 可留 → []」同语义）；
@@ -352,8 +379,8 @@ describe("recoverHandoff 失败分支 → 三处 BLOCKED 载荷恒过校验（en
       blocker: `handoff schema invalid${rec.reason} → ...`,
     };
     expect(schemaValidator.validateHandoffSchema(legacy, "task").valid).toBe(false);
-    expect(schemaValidator.validateHandoffSchema(legacy, "task").reason).toMatch(
-      /notes must be string/,
-    );
+    expect(
+      (schemaValidator.validateHandoffSchema(legacy, "task") as { reason?: string }).reason,
+    ).toMatch(/notes must be string/);
   });
 });

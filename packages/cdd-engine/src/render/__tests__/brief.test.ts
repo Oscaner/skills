@@ -17,7 +17,7 @@ const briefRenderer = new BriefRenderer();
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "../../../../..");
 
-function makePlan(tasks) {
+function makePlan(tasks: Array<[number, string]>) {
   return `${tasks.map(([n, body]) => `### Task ${n}: Task${n}\n${body}`).join("\n\n")}\n`;
 }
 

@@ -4,11 +4,17 @@
 // params C5-2, BLOCKED → no line). Row-by-row mirror of the module header table. T3: migrated to
 // instance-method assertions (the decision table rows are preserved one by one).
 import { describe, expect, it } from "vitest";
+import { wordTable } from "../../infra/word-table.ts";
 import { CRASH_RECOVERY_CAP_ROUNDS, NextStepRouter, SOFT_CAP_S1_ROUNDS } from "../next-step.ts";
 
 const PLAN = "/repo/plan.md";
 const H = "/repo/.kairos/cdd/fixture/tasks-1-review-1.json";
 const DOC = "/repo/spec.md";
+// The review→fix read-back annotation (T6 spec 2.3): the lexicon wording with the `<handoff>`
+// placeholder resolved to the review's own handoff path. The literal pins the current wording
+// contract on the next-line; the dedicated read-only-consumption row (below) proves the router
+// emits the lexicon's wording, not a decoupled literal.
+const readback = (p: string) => ` (read ${p} back to confirm)`;
 
 describe("rules/next-step.ts — review face (C5-1 one-way)", () => {
   it("review task with findings (blocker severity) → one-way cdd fix line", () => {
@@ -22,7 +28,7 @@ describe("rules/next-step.ts — review face (C5-1 one-way)", () => {
         findings: [{ severity: "blocker", summary: "b" }],
         findingsPath: H,
       }),
-    ).toBe(`cdd fix --type task --tasks 1 --plan ${PLAN} --findings ${H}`);
+    ).toBe(`cdd fix --type task --tasks 1 --plan ${PLAN} --findings ${H}${readback(H)}`);
   });
 
   it("review task with warn/nit findings → same one-way fix line (severity does not branch the review)", () => {
@@ -36,7 +42,7 @@ describe("rules/next-step.ts — review face (C5-1 one-way)", () => {
         findings: [{ severity: "warn" }, { severity: "nit" }],
         findingsPath: H,
       }),
-    ).toBe(`cdd fix --type task --tasks 1 --plan ${PLAN} --findings ${H}`);
+    ).toBe(`cdd fix --type task --tasks 1 --plan ${PLAN} --findings ${H}${readback(H)}`);
   });
 
   it("review spec with findings → type-self-describing --spec target", () => {
@@ -49,7 +55,7 @@ describe("rules/next-step.ts — review face (C5-1 one-way)", () => {
         findingsPath: "/repo/.kairos/cdd/fixture/review.spec.1.json",
       }),
     ).toBe(
-      "cdd fix --type spec --spec /repo/spec.md --findings /repo/.kairos/cdd/fixture/review.spec.1.json",
+      `cdd fix --type spec --spec /repo/spec.md --findings /repo/.kairos/cdd/fixture/review.spec.1.json${readback("/repo/.kairos/cdd/fixture/review.spec.1.json")}`,
     );
   });
 
@@ -63,7 +69,7 @@ describe("rules/next-step.ts — review face (C5-1 one-way)", () => {
         findingsPath: "/repo/.kairos/cdd/fixture/review.plan.1.json",
       }),
     ).toBe(
-      "cdd fix --type plan --plan /repo/plan.md --findings /repo/.kairos/cdd/fixture/review.plan.1.json",
+      `cdd fix --type plan --plan /repo/plan.md --findings /repo/.kairos/cdd/fixture/review.plan.1.json${readback("/repo/.kairos/cdd/fixture/review.plan.1.json")}`,
     );
   });
 
@@ -77,8 +83,37 @@ describe("rules/next-step.ts — review face (C5-1 one-way)", () => {
         findingsPath: "/repo/.kairos/cdd/fixture/branch-review-abc1234..def5678-r1.json",
       }),
     ).toBe(
-      "cdd fix --type branch --plan /repo/plan.md --findings /repo/.kairos/cdd/fixture/branch-review-abc1234..def5678-r1.json",
+      `cdd fix --type branch --plan /repo/plan.md --findings /repo/.kairos/cdd/fixture/branch-review-abc1234..def5678-r1.json${readback("/repo/.kairos/cdd/fixture/branch-review-abc1234..def5678-r1.json")}`,
     );
+  });
+
+  it("review→fix read-back annotation rides the contract lexicon wording (T6 read-only consumption — data-sourced, never a decoupled literal)", () => {
+    const lex = wordTable().wording("readback");
+    expect(lex).toBe("(read <handoff> back to confirm)");
+    const out = new NextStepRouter().next({
+      op: "review",
+      type: "task",
+      group: "1",
+      plan: PLAN,
+      status: "CHANGES_REQUESTED",
+      findings: [{ severity: "blocker" }],
+      findingsPath: H,
+    });
+    expect(out).toContain(lex.replace("<handoff>", H));
+    expect(out).toContain(readback(H));
+  });
+
+  it("review with findings + missing findingsPath → the fix line degrades (no read-back annotation)", () => {
+    expect(
+      new NextStepRouter().next({
+        op: "review",
+        type: "task",
+        group: "1",
+        plan: PLAN,
+        status: "CHANGES_REQUESTED",
+        findings: [{ severity: "blocker" }],
+      }),
+    ).toBe(`cdd fix --type task --tasks 1 --plan ${PLAN}`);
   });
 });
 
@@ -346,7 +381,7 @@ describe("rules/next-step.ts — implement + failure lanes", () => {
       findings: [{ severity: "blocker" }],
       findingsPath: H,
     });
-    expect(out).toBe(`cdd fix --type task --findings ${H}`);
+    expect(out).toBe(`cdd fix --type task --findings ${H}${readback(H)}`);
     expect(out).not.toContain("undefined");
   });
 });

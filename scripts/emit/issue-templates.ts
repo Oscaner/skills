@@ -15,13 +15,14 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { renderYml } from "./render-yaml.mjs";
+import { renderYml } from "./render-yaml.ts";
 
 const META_PATH = fileURLToPath(
   new URL("../../packages/cdd-engine/templates/report/issue-body.json", import.meta.url),
 );
 
-// 表单名 = canonical formFieldDefs 对象键（单源；无第二处字面量列表）。
+// Form names = canonical formFieldDefs object keys (single source; no second
+// literal list).
 export class IssueTemplatesEmitter {
   /**
    * Emit `.github/ISSUE_TEMPLATE/*.yml` into `outRoot`.
@@ -29,7 +30,7 @@ export class IssueTemplatesEmitter {
    * @param {unknown} _source unused — forms come from the canonical engine issue-body.json
    * @param {{ generatedPaths: string[] }} opts repo-relative paths produced by this emitter
    */
-  emit(outRoot, _source, { generatedPaths }): void {
+  emit(outRoot: string, _source: unknown, { generatedPaths }: { generatedPaths: string[] }): void {
     const meta = JSON.parse(readFileSync(META_PATH, "utf8"));
     for (const name of Object.keys(meta.formFieldDefs)) {
       const rel = `.github/ISSUE_TEMPLATE/${name}.yml`;

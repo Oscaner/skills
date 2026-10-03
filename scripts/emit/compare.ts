@@ -38,8 +38,8 @@ export const productFiles = [
   ".github/ISSUE_TEMPLATE/enhancement.yml",
 ] as const;
 
-function readJson(committedRoot, rel) {
-  return JSON.parse(readFileSync(join(committedRoot, rel), "utf8"));
+function readJson(committedRoot: string, rel: string): Record<string, unknown> {
+  return JSON.parse(readFileSync(join(committedRoot, rel), "utf8")) as Record<string, unknown>;
 }
 
 export class CompareService {
@@ -47,20 +47,27 @@ export class CompareService {
   // Version consistency (mimic superpowers .version-bump.json)
   // ---------------------------------------------------------------------------
 
-  assertVersionBump(committedRoot): void {
+  assertVersionBump(committedRoot: string): void {
     const plugin = "packages/kairos";
     const bumpPath = join(committedRoot, plugin, ".version-bump.json");
     if (!existsSync(bumpPath)) return;
-    const bump = JSON.parse(readFileSync(bumpPath, "utf8"));
+    const bump = JSON.parse(readFileSync(bumpPath, "utf8")) as {
+      files?: Array<{ path: string; field: string }>;
+    };
     const pkgVersion = readJson(committedRoot, "packages/kairos/package.json").version;
-    for (const f of bump.files) {
+    if (typeof pkgVersion !== "string") {
+      throw new Error(`version drift: kairos package.json lacks a version (run pnpm run emit)`);
+    }
+    for (const f of bump.files ?? []) {
       const abs = join(committedRoot, plugin, f.path);
       if (!existsSync(abs)) continue; // not materialized on disk — checked via --check diff
-      const doc = JSON.parse(readFileSync(abs, "utf8"));
-      const val = f.field.split(".").reduce((o, k) => o?.[k], doc);
+      const doc = JSON.parse(readFileSync(abs, "utf8")) as unknown;
+      const val = f.field
+        .split(".")
+        .reduce((o: unknown, k: string) => (o as Record<string, unknown> | undefined)?.[k], doc);
       if (val !== pkgVersion) {
         throw new Error(
-          `version drift: ${plugin}/${f.path} ${val} != ${pkgVersion} (run pnpm run emit)`,
+          `version drift: ${plugin}/${f.path} ${String(val)} != ${pkgVersion} (run pnpm run emit)`,
         );
       }
     }
@@ -80,7 +87,11 @@ export class CompareService {
    *   repo-relative paths produced by the last emit, plus the cursor wrapper
    *   roots it emitted (folded into the base `BASE_PRODUCT_ROOTS` set)
    */
-  compareTrees(committedRoot, generatedRoot, { generatedPaths, wrapperRoots = [] }): void {
+  compareTrees(
+    committedRoot: string,
+    generatedRoot: string,
+    { generatedPaths, wrapperRoots = [] }: { generatedPaths: string[]; wrapperRoots?: string[] },
+  ): void {
     const generatedSet = new Set(generatedPaths);
     const productRoots = [...BASE_PRODUCT_ROOTS, ...wrapperRoots];
     for (const rel of generatedPaths) {
@@ -98,7 +109,9 @@ export class CompareService {
           cwd: committedRoot,
         });
       } catch (e) {
-        throw new Error(`DRIFT: ${rel}\n${e.stdout?.toString() ?? ""}`);
+        // execaSync throws its result with stdout/stderr — read the face at the catch boundary.
+        const out = (e as { stdout?: Buffer | string }).stdout;
+        throw new Error(`DRIFT: ${rel}\n${out?.toString() ?? ""}`);
       }
     }
     const stale = emitOrchestrator.findStaleCommittedFiles({

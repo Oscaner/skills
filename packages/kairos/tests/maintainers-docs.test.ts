@@ -1,4 +1,4 @@
-// packages/kairos/tests/maintainers-docs.test.mjs — P4.2 Task 9 maintainers-docs probe
+// packages/kairos/tests/maintainers-docs.test.ts — P4.2 Task 9 maintainers-docs probe
 // Asserts the P4.2 Task 9 acceptance: the docs/maintainers family converged from six content docs
 // to five (01 template-doctrine merged; 02 naming / 03 context-caching / 04 program-experience /
 // 05 third-party-dependencies renumbered contiguous), zero old-numbered names on live surfaces,
@@ -8,10 +8,11 @@
 // stays within the plan anchor ≤ 53,000, the P4.4 final-state tokens are
 // registered in 02/05, and the smoke-cdd positioning (landed by P4.2 Task 4 ③) survives in 04.
 // Runs inside the `kairos node:test behavior tree` validate step.
-import { test } from "node:test";
+
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -51,16 +52,16 @@ const LIVE_SURFACES = [
   "packages/cdd-engine/README.zh-CN.md",
 ];
 
-function read(rel) {
+function read(rel: string) {
   return readFileSync(path.join(REPO, rel), "utf8");
 }
 
-function bytesOf(rel) {
+function bytesOf(rel: string) {
   return statSync(path.join(REPO, rel)).size;
 }
 
 /** Resolve a markdown link from its containing file against the repo root. */
-function resolveLink(fromRel, link) {
+function resolveLink(fromRel: string, link: string) {
   const clean = link.split("#")[0].split("?")[0];
   if (!clean.endsWith(".md")) return null; // non-md targets (schemas, dirs) are not plain file links
   return path.posix.normalize(path.posix.join(path.posix.dirname(fromRel), clean));
@@ -69,7 +70,11 @@ function resolveLink(fromRel, link) {
 test("maintainers: content docs are exactly the five new-numbered files, zero old names present", () => {
   const names = readdirSync(MAINTAINERS).filter((n) => n.endsWith(".md"));
   const expected = [...CONTENT_DOCS, "README.md"].sort();
-  assert.deepEqual(names.sort(), expected, `docs/maintainers file set drifted: ${names.join(", ")}`);
+  assert.deepEqual(
+    names.sort(),
+    expected,
+    `docs/maintainers file set drifted: ${names.join(", ")}`,
+  );
 });
 
 for (const f of CONTENT_DOCS) {
@@ -90,7 +95,10 @@ test("maintainers: every markdown link inside docs/maintainers resolves", () => 
       const target = resolveLink(`docs/maintainers/${f}`, link);
       assert.ok(target, `non-file link ${link} in docs/maintainers/${f}`);
       assert.ok(existsSync(target), `unresolved link ${link} in docs/maintainers/${f}`);
-      assert.ok(statSync(target).isFile(), `link target not a file: ${link} in docs/maintainers/${f}`);
+      assert.ok(
+        statSync(target).isFile(),
+        `link target not a file: ${link} in docs/maintainers/${f}`,
+      );
     }
   }
 });
@@ -129,7 +137,10 @@ test("maintainers: total bytes within the plan anchor (≤ 53,000)", () => {
   const total = [...CONTENT_DOCS, "README.md"]
     .map((f) => bytesOf(`docs/maintainers/${f}`))
     .reduce((a, b) => a + b, 0);
-  assert.ok(total <= 53_000, `docs/maintainers total ${total} bytes exceeds the plan anchor 53,000`);
+  assert.ok(
+    total <= 53_000,
+    `docs/maintainers total ${total} bytes exceeds the plan anchor 53,000`,
+  );
 });
 
 test("maintainers: README convergence ledger matches the live files (After cells + anchor)", () => {
@@ -178,7 +189,11 @@ test("maintainers: 02-naming carries the P4.4 final-state terms", () => {
 test("maintainers: 05-deps carries the P4.4 dependency final state", () => {
   const md = read("docs/maintainers/05-third-party-dependencies.md");
   assert.match(md, /@biomejs\/biome/, "biome not registered in the dependency ledger");
-  assert.match(md, /@typescript\/typescript6/, "the @typescript/typescript6 shim not registered");
+  // The TS6-compat shim (and the old build chain) are RETIRED — the ledger must record the
+  // retirement transcription, never re-register the shim as a live dependency (token-muted prose
+  // per the retired/delete face rule).
+  assert.match(md, /TS6-compat shim retired/, "the TS6-compat shim retirement not recorded");
+  assert.match(md, /~~`unbuild`~~ \(retired\)/, "the unbuild retirement row not recorded");
   // the P4.4 rebase versions — each lockfile version string is unique on the surface.
   assert.match(md, /10\.0\.1/, "execa 10.0.1 not registered");
   assert.match(md, /7\.0\.2/, "typescript 7.0.2 not registered");

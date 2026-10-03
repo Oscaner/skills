@@ -15,6 +15,8 @@
 //     process exit): throws a plain Error with the exact message (throw semantics preserved, never
 //     silenced — spec: library invariants go through the invariant factory — throw semantics kept
 //     un-silenced, never converted to a process exit).
+import { wordTable } from "./word-table.ts";
+
 export class ExitRequested extends Error {
   code: number;
   constructor(code: number, message = `cdd exit ${code}`) {
@@ -74,12 +76,14 @@ export function exitOkWith(resultLine: string): never {
 }
 
 export function exitBlocked(msg?: string): never {
-  if (msg) process.stderr.write(`CDD_BLOCKED: ${msg}\n`);
+  // The stderr station channel token comes from the contract lexicon's route stations (the
+  // command-output channels are data-driven — a channel rename is a data change, never an edit).
+  if (msg) process.stderr.write(`${wordTable().station("blocked")} ${msg}\n`);
   throwExit(1);
 }
 
 export function exitCliMissing(msg?: string): never {
-  if (msg) process.stderr.write(`CDD_CLI_MISSING: ${msg}\n`);
+  if (msg) process.stderr.write(`${wordTable().station("cliMissing")} ${msg}\n`);
   throwExit(2);
 }
 

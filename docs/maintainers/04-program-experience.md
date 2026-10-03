@@ -69,7 +69,7 @@ Maintainer-only record of the hard-won lessons from the kairos-overhaul program 
 Operational norms fixed by the consumer-parity P3 rebuild; each item is grep-verifiable. Item numbering continues section 6.
 
 45. **Zero product-path fixtures** — unit/e2e suites are functional verification; no repo product path may serve as a test fixture. Canary evidence belongs to runtime dispatch, never product-path fixtures.
-46. **Zero numbered step anchors** — validate step names are semantic, not opaque numbers (the `5b0` / `5b1` / `5c` / `12.` family is retired); `ci-validate.test.mjs` pins digit-led families at zero residue.
+46. **Zero numbered step anchors** — validate step names are semantic, not opaque numbers (the `5b0` / `5b1` / `5c` / `12.` family is retired); `ci-validate.test.ts` pins digit-led families at zero residue.
 47. **Zero legacy-exemption dead code** — C3-hit code is deleted, never exempted (`plan-spec-anchors`' Class C legacy exemption and `isLegacyRef` were repo-only carve-outs, deleted).
 48. **Phase-id syntax A** — canonical phase ids are dotted numeric `P<digits>(.digits)*` (split phases climb the dot hierarchy, e.g. `P2.1`); letters or hyphens are prohibited.
 49. **Single enforcement face** — the four-table charter adjudication has exactly one implementation: the engine lifecycle; `pnpm run validate` has no four-table block.
@@ -100,7 +100,7 @@ channel for npm-harness packages), validated by the pack allowlist probe + emit 
 
 ## 9. Contract Lexicon (P3, 2026-09-30)
 
-56. **Contract Lexicon single source** — the command-contract vocabulary (harness row keys, status vocab + axes, stdout capsule/route tokens + banned shape names, G2 residue allowance set) lives in `contract-lexicon.json` (ships to `dist/config/`); `ContractLexiconGuard` runs its four check faces as one validate block — change the word table, never the code.
+56. **Contract Lexicon single source** — command-contract vocab (harness keys · status vocab+axes · stdout tokens+banned shapes · G2 residue allowance) in `contract-lexicon.json`; `ContractLexiconGuard` runs its check faces as one validate block — change the word table, never the code. Zero-debt/read-back vocab single-sourced with engine output; orchestrators keep zero restates.
 
 ---
 

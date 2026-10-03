@@ -47,7 +47,7 @@ import { HandoffSchemaValidator } from "../schema.ts";
 
 const schemaValidator = new HandoffSchemaValidator();
 
-function git(repo, ...args) {
+function git(repo: string, ...args: string[]) {
   return execFileSync("git", ["-C", repo, ...args], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "ignore"],
@@ -75,7 +75,7 @@ function setupRepo() {
 }
 
 // seedHandoff —— 在 gitignored cdd/ 下种 handoff（不弄脏 tracked tree）。
-function seedHandoff(repo, task, commits) {
+function seedHandoff(repo: string, task: number, commits: unknown) {
   const dir = path.join(repo, "cdd");
   mkdirSync(dir, { recursive: true });
   const p = path.join(dir, `task-${task}-handoff.json`);
@@ -83,7 +83,7 @@ function seedHandoff(repo, task, commits) {
   return p;
 }
 
-function headOf(repo) {
+function headOf(repo: string) {
   return git(repo, "rev-parse", "HEAD");
 }
 

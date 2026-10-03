@@ -16,7 +16,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { harnessRegistry } from "../lib/harness-registry.ts";
+import { harnessRegistry, type PluginSource } from "../lib/harness-registry.ts";
 import { MarketplaceService } from "../lib/marketplace-utils.ts";
 import { type ManifestService, manifestService } from "./manifests.ts";
 import { type EmitOrchestrator, emitOrchestrator } from "./orchestrate.ts";
@@ -41,7 +41,7 @@ export class PluginManifestEmitter {
     this.writer = writer;
   }
 
-  emit(outRoot, plugin, generatedPaths): void {
+  emit(outRoot: string, plugin: PluginSource, generatedPaths: string[]): void {
     const version = this.marketplace.resolveVersion(plugin).version;
     const contentRoot = plugin.contentRoot;
 

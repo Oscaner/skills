@@ -15,12 +15,11 @@
 //   cdd issue render
 //
 // Unconditional boot (no isMain guard): this artifact is only ever executed directly by node as
-// the CLI entry (package.json bin/main/exports all point at dist/cli.mjs; no library consumer
-// import surface). `unbuild --stub`'s dist/cli.mjs jiti-loads this file at runtime, argv[1] points
-// into dist/ while import.meta.url points into src/, so the import.meta.url main check is always
-// false — unconditional boot is the only reliable way (Task 1 §4.2 placeholder forwarding, same
-// judgment). The leading #! makes the artifact (both build and stub shapes) directly runnable
-// without a node prefix (unbuild passes it through natively, Task 1 §4.6).
+// the CLI entry (package.json bin/main/exports all point at dist/bin.js; no library consumer
+// import surface). Dev invokes the source entry straight (`node packages/cdd-engine/src/bin.ts` —
+// Node ≥22.18 native type stripping); the published artifact runs the tsc-emitted `dist/bin.js`.
+// The leading #! makes the entry artifact directly runnable without a node prefix (tsc passes
+// the source shebang through to the emitted dist/bin.js).
 //
 // process.cwd single-site anchor: the initRoot call below is the ONLY production cwd read in
 // engine src/ (validate's channel audit ① pins it here since the P5 infra/root.mjs retirement

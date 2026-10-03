@@ -14,7 +14,7 @@ import { resolveResource } from "./resource.ts";
 /** The shipped harness-contract file (harness rows + op×type prefix/suffix injection + ship gate).
  * State-independent resolution via the logical-name locator (C7 — the single path truth, dev tree
  * and dist pack tree isomorphic): the published copy at <pkg>/dist/config/harness-contract.json
- * (build.config.ts copy entry — the consumer install's face) first, the source config/ as the dev
+ * (the tsc build's config copy — the consumer install's face) first, the source config/ as the dev
  * fallback. */
 export function resolveRegistryPath(
   fromDir = path.dirname(fileURLToPath(import.meta.url)),
@@ -120,7 +120,14 @@ export class Registry {
   deriveInjection(reg: any, harness: string, op: string, type?: string): string {
     const map = this.derivePrefixMap(reg, harness) as Record<string, unknown>;
     const v = map[op] ?? "";
-    if (v && typeof v === "object") return type ? ((v as Record<string, unknown>)[type] ?? "") : "";
+    // Shape-narrowed slot read: the op value is either the flat injection string or the typed
+    // op×type map (the derivePrefixMap shape) — the object arm is verified by the typeof guard,
+    // then read through the record index (the single cast at the shape boundary); a non-string
+    // slot degrades to "" (the injection slots are strings by construction).
+    if (v && typeof v === "object") {
+      const slot = type != null ? (v as Record<string, unknown>)[type] : undefined;
+      return typeof slot === "string" ? slot : "";
+    }
     return typeof v === "string" ? v : "";
   }
 

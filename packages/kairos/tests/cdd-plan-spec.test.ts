@@ -1,4 +1,4 @@
-// packages/kairos/tests/cdd-plan-spec.test.mjs — content contract for
+// packages/kairos/tests/cdd-plan-spec.test.ts — content contract for
 // the F2 plan-header `**Spec:**` convention (P6 dogfood fix).
 //
 // The cdd-plan `author-plan` node must mandate the plan-document header to
@@ -10,17 +10,18 @@
 //     plan-header `**Spec:**` → overall → Related, with `progress.json#plan` as
 //     the chain's first hop. The SKILL states the first hop as "the workspace
 //     plan record" (guard-clean surface: orchestrating skills must not name
-//     `progress.json` — AC5, residue.mjs INTERNAL_DEP_RE).
-import { test } from "node:test";
+//     `progress.json` — AC5, residue.ts INTERNAL_DEP_RE).
+
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SKILL = path.resolve(HERE, "../skills/cdd-plan/SKILL.md");
 
-function authorPlanNode(text) {
+function authorPlanNode(text: string) {
   // The `author-plan` node block — from its H3 heading to the next H3 heading.
   const start = text.indexOf("### `author-plan`");
   const end = text.indexOf("\n### ", start === -1 ? 0 : start + 1);
@@ -33,6 +34,14 @@ test("author-plan node mandates the plan-header **Spec:** line-2 convention", ()
   assert.match(body, /\*\*Spec:\*\*/, "author-plan Do must require the **Spec:** header line");
   assert.match(body, /line 2/, "convention must pin the header line to line 2");
   assert.match(body, /design\.md/, "convention must link <name>-design.md");
-  assert.match(body, /plan record.*first hop/, "convention must record the cdd-report first-hop dependency");
-  assert.doesNotMatch(body, /resolve-destination/, "deleted resolve-destination node name must not survive in author-plan");
+  assert.match(
+    body,
+    /plan record.*first hop/,
+    "convention must record the cdd-report first-hop dependency",
+  );
+  assert.doesNotMatch(
+    body,
+    /resolve-destination/,
+    "deleted resolve-destination node name must not survive in author-plan",
+  );
 });

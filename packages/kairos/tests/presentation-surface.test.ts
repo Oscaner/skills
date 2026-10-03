@@ -1,4 +1,4 @@
-// packages/kairos/tests/presentation-surface.test.mjs — P4.2 Task 8 presentation-surface probe
+// packages/kairos/tests/presentation-surface.test.ts — P4.2 Task 8 presentation-surface probe
 // Asserts the README family and CLAUDE.md satisfy the P4.2 Task 8 acceptance — the three-stage
 // README skeleton (positioning → philosophy → behavior), the no-harness positioning sentence,
 // the four cdd philosophy anchors, the CLAUDE.md positioning sentence + Non-goal #1 exception +
@@ -15,10 +15,11 @@
 // registry layer — a known residual the P4 consumer story records rather than gates; content-level
 // verification and publish-source reproducibility carry the acceptance semantics (see the
 // pi-harness overall spec P1). This comment is the P4 continuation of that registration.
-import { test } from "node:test";
+
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -49,14 +50,14 @@ const ROOT_BEHAVIOR_HEADINGS = [
 // landing behavior.
 const CDD_SUBCOMMANDS = ["implement", "review", "fix", "base-branch", "schema", "issue"];
 
-function read(rel) {
+function read(rel: string) {
   return readFileSync(path.join(REPO, rel), "utf8");
 }
 
 /** Top-level `## ` headings in document order — the sync statement's "top-level sections
  *  correspond one by one" contract; `###`, the language row and the badge block are not
  *  sections. */
-function headingsOf(md) {
+function headingsOf(md: string) {
   return md
     .split("\n")
     .filter((l) => /^## /.test(l))
@@ -64,7 +65,7 @@ function headingsOf(md) {
 }
 
 /** A section's text from its heading up to the next top-level heading (or EOF). */
-function sectionOf(md, heading) {
+function sectionOf(md: string, heading: string) {
   const start = md.indexOf(heading);
   assert.ok(start !== -1, `heading not found: ${heading}`);
   const next = md.indexOf("\n## ", start + 1);
@@ -147,12 +148,16 @@ test("kairos README: philosophy walkthrough present (cdd as the distributed disc
   assert.match(md, /^## The kairos philosophy$/m, "kairos philosophy section missing");
   const section = sectionOf(md, OSP_PHILOSOPHY_HEADING);
   assert.match(section, /cdd/i, "cdd anchor missing in kairos philosophy");
-  assert.match(section, /implement|review|fix/, "mode-chain/engine anchor missing in kairos philosophy");
+  assert.match(
+    section,
+    /implement|review|fix/,
+    "mode-chain/engine anchor missing in kairos philosophy",
+  );
 });
 
 test("zh mirror set: exactly the root + two package mirrors, zero others", () => {
-  const found = [];
-  const walk = (dir) => {
+  const found: string[] = [];
+  const walk = (dir: string) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
       const p = path.join(dir, entry.name);
@@ -180,7 +185,7 @@ const MIRROR_PAIRS = [
 // rename, reorder, or mistranslation into the wrong slot fails the deep-equal below; derive
 // new sequences only when a legit README rewrite renames the mirrored section (EN + zh
 // together).
-const ZH_HEADING_SEQUENCES = {
+const ZH_HEADING_SEQUENCES: Record<string, string[]> = {
   "README.zh-CN.md": [
     "cdd 理念导览",
     "这是什么",
@@ -203,13 +208,7 @@ const ZH_HEADING_SEQUENCES = {
     "维护者文档",
     "许可",
   ],
-  "packages/cdd-engine/README.zh-CN.md": [
-    "包定位",
-    "安装",
-    "CLI",
-    "开发说明",
-    "许可",
-  ],
+  "packages/cdd-engine/README.zh-CN.md": ["包定位", "安装", "CLI", "开发说明", "许可"],
 };
 
 for (const [en, zh] of MIRROR_PAIRS) {
@@ -241,7 +240,11 @@ test("P4.1 behavior: root README plugin table carries no hand-written version (s
   // Zero hand-written versions (P4.2 "release with no hand-pinned versions"): the README plugin
   // table must not carry a \d+.\d+.\d+ pin — version single source = package.json -> marketplace
   // manifest -> npm (version-sync keeps the machine surface consistent)
-  assert.doesNotMatch(table, /\|\s*\d+\.\d+\.\d+\s*\|/, "README plugin table must not hand-pin a version");
+  assert.doesNotMatch(
+    table,
+    /\|\s*\d+\.\d+\.\d+\s*\|/,
+    "README plugin table must not hand-pin a version",
+  );
 });
 
 test("P4.1 behavior: kairos README skill inventory equals the shipped skills (dir × SKILL.md name double-pin)", () => {
@@ -303,7 +306,11 @@ test("P4.1 behavior: harness claims stay at the verified triple (claude + cursor
     /consumable across multiple AI coding harnesses \(verified on \*\*Claude Code\*\*, \*\*Cursor Agent\*\*, and \*\*Pi\*\*\)/,
     "root README must keep the P6 B1 neutral multi-harness claim with the verified triple",
   );
-  assert.doesNotMatch(root, /8 harnesses|Trae|Vibe|Kiro|OpenCode/, "unverified harness claims leaked back into README.md");
+  assert.doesNotMatch(
+    root,
+    /8 harnesses|Trae|Vibe|Kiro|OpenCode/,
+    "unverified harness claims leaked back into README.md",
+  );
   // The triple-wordings ride the T4-deployed claim surface on all four README claim files (root
   // EN/zh + kairos EN/zh) — a pair-form regression anywhere fails; the foreign-claim ban holds.
   assert.match(
@@ -354,7 +361,7 @@ const OLD_KAIROS_SKILL_NAMES = [
 
 // The kairos README nominal mapping table (## CDD engine CLI) — the per-file section heading
 // differs between the EN source and its zh mirror.
-const NOMINAL_SECTION_HEADING = {
+const NOMINAL_SECTION_HEADING: Record<string, string> = {
   "packages/kairos/README.md": "## CDD engine CLI",
   "packages/kairos/README.zh-CN.md": "## CDD 引擎 CLI",
 };
@@ -363,11 +370,20 @@ const NOMINAL_SECTION_HEADING = {
  *  + host marker from the harness contract (row id + cli + detect — C8: the unique harness-data
  *  source), ship status from the same contract row — `cursor-agent` is legal ONLY as the cursor
  *  binary-column data value. */
-function nominalRow(contract, id) {
+/** One row of the canonical harness contract (packages/cdd-engine/config/harness-contract.json) —
+ *  the nominal-table derivation source (id + cli + detect + ship). */
+interface HarnessContractRow {
+  cli?: unknown;
+  detect?: { env?: string; value?: string };
+  ship?: unknown;
+}
+
+function nominalRow(contract: Record<string, HarnessContractRow>, id: string) {
   const row = contract[id];
-  const detect = row.detect;
   assert.ok(row, `harness contract row missing for harness ${id}`);
+  assert.ok(row.detect, `harness contract row missing detect for harness ${id}`);
   assert.ok(row.ship, `harness contract row missing ship for harness ${id}`);
+  const detect = row.detect;
   return {
     id,
     cli: row.cli,
@@ -378,8 +394,11 @@ function nominalRow(contract, id) {
 
 /** Parse a nominal-table data row (backticked cli + marker cells stripped) into the derived shape;
  *  rows without a backticked second cell (header / separator) return null. */
-function parseNominalRow(line) {
-  const cells = line.split("|").map((c) => c.trim()).filter(Boolean);
+function parseNominalRow(line: string) {
+  const cells = line
+    .split("|")
+    .map((c) => c.trim())
+    .filter(Boolean);
   if (cells.length !== 4 || !cells[1].startsWith("`")) return null;
   return {
     id: cells[0],
@@ -390,7 +409,10 @@ function parseNominalRow(line) {
 }
 
 test("nominal mapping table == the harness contract (row id/cli/detect + ship) data derivation", () => {
-  const contract = JSON.parse(read("packages/cdd-engine/config/harness-contract.json"));
+  const contract = JSON.parse(read("packages/cdd-engine/config/harness-contract.json")) as Record<
+    string,
+    HarnessContractRow
+  >;
   const ids = Object.keys(contract).filter((k) => !["_doc", "dispatch", "refs"].includes(k));
   const expected = ids.map((id) => nominalRow(contract, id));
   for (const rel of Object.keys(NOMINAL_SECTION_HEADING)) {

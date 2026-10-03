@@ -1,5 +1,5 @@
 // packages/cdd-engine/src/dispatch/__tests__/task.test.ts
-// exercised through the merged single CLI (dist/cli.mjs). Invocations map:
+// exercised through the merged single CLI (src/bin.ts). Invocations map:
 //   cdd-task --mode implement    → cdd implement
 //   (legacy review mode)         → cdd review --type task (mode 名归一后 runner CDD_MODE=review)
 //   cdd-task --mode fix          → cdd fix --type task
@@ -30,19 +30,28 @@ import { gitCommit, gitInit } from "../../infra/__tests__/helpers.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..", "..", "..");
-const CDD_MJS = path.join(REPO_ROOT, "packages/cdd-engine/dist/cli.mjs");
+const CDD_TS = path.join(REPO_ROOT, "packages/cdd-engine/src/bin.ts");
 
 // Test env: strip any CDD_* inherited from an orchestrator session, then overlay test extras.
-function cleanEnv(extra) {
-  const env = {};
+function cleanEnv(extra: Record<string, string | undefined> = {}) {
+  const env: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (!k.startsWith("CDD_")) env[k] = v;
   }
   return { ...env, ...extra };
 }
 
+interface RunOpts {
+  noHost?: boolean;
+  cwd?: string;
+}
+
 // Spawn the CLI as a subprocess; returns { status, stdout, stderr }.
-function run(args, extraEnv = {}, opts = {}) {
+function run(
+  args: string[],
+  extraEnv: Record<string, string | undefined> = {},
+  opts: RunOpts = {},
+) {
   const env = cleanEnv(extraEnv);
   // Host detection is ambient-env driven — a test needing a truly host-free env must
   // explicitly delete the host markers (parent session may carry CLAUDE_CODE_SESSION_ID/AI_AGENT) (T3).
@@ -51,7 +60,7 @@ function run(args, extraEnv = {}, opts = {}) {
     delete env.CURSOR_TRACE_ID;
     delete env.AI_AGENT;
   }
-  const res = spawnSync("node", [CDD_MJS, ...args], {
+  const res = spawnSync("node", [CDD_TS, ...args], {
     cwd: opts.cwd ?? REPO_ROOT,
     env,
     encoding: "utf8",

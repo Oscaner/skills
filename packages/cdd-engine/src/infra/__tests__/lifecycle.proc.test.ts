@@ -21,8 +21,8 @@ async function loadModule() {
   proc = await import("../proc.ts");
 }
 
-const markerAlive = (m) => pgrepCount(m); // the bracket trick removes pgrep -f self-matching (helpers.ts, verified on CI Linux)
-const waitFor = async (fn, ms) => {
+const markerAlive = (m: string) => pgrepCount(m); // the bracket trick removes pgrep -f self-matching (helpers.ts, verified on CI Linux)
+const waitFor = async (fn: () => boolean, ms: number) => {
   const t0 = Date.now();
   while (Date.now() - t0 < ms) {
     if (fn()) return;
@@ -170,7 +170,7 @@ describe.skipIf(!GROUP_SUPPORTED)("proc-lifecycle spawnManaged", () => {
   it("reapStale 排除并发引擎在途组 + 逐 slug 独立写回（foreign owner 存活不回收、owner 已死才回收）", async () => {
     const repo = tmpReapRepo(["in-flight", "orphan"]);
     await proc.initRoot(repo);
-    const pgAlive = (pgid) => {
+    const pgAlive = (pgid: number) => {
       try {
         process.kill(-pgid, 0);
         return true;
@@ -191,27 +191,30 @@ describe.skipIf(!GROUP_SUPPORTED)("proc-lifecycle spawnManaged", () => {
       detached: true,
       stdio: "ignore",
     });
+    // spawn just returned — the pids exist; guard the possibly-undefined window (T2 narrowing).
+    const g1p = g1.pid;
+    const g2p = g2.pid;
+    const ownerPid = foreignOwnerAlive.pid;
+    if (g1p == null || g2p == null || ownerPid == null)
+      throw new Error("spawn returned without a pid");
     // Hand-written per-slug registry files: in-flight is owned by a foreign LIVE owner (a concurrent
     // in-flight engine) → skipped; orphan is owned by a dead pid → reaped.
-    writeFileSync(
-      slugLifecycle(repo, "in-flight"),
-      JSON.stringify([{ pgid: g1.pid, ownerPid: foreignOwnerAlive.pid }]),
-    );
+    writeFileSync(slugLifecycle(repo, "in-flight"), JSON.stringify([{ pgid: g1p, ownerPid }]));
     writeFileSync(
       slugLifecycle(repo, "orphan"),
-      JSON.stringify([{ pgid: g2.pid, ownerPid: 99999999 }]),
+      JSON.stringify([{ pgid: g2p, ownerPid: 99999999 }]),
     );
     await proc.reapStale({ graceMs: 300 });
-    expect(pgAlive(g2.pid)).toBe(false); // owner confirmed dead → the orphan is reaped
-    expect(pgAlive(g1.pid)).toBe(true); // owner alive → no collateral kill of concurrent in-flight groups
+    expect(pgAlive(g2p)).toBe(false); // owner confirmed dead → the orphan is reaped
+    expect(pgAlive(g1p)).toBe(true); // owner alive → no collateral kill of concurrent in-flight groups
     // read-filter-kill-write-back runs PER slug file: in-flight keeps its survivor entry, orphan's sweeps.
     expect(JSON.parse(readFileSync(slugLifecycle(repo, "in-flight"), "utf8"))).toHaveLength(1);
     expect(JSON.parse(readFileSync(slugLifecycle(repo, "orphan"), "utf8"))).toEqual([]);
     try {
-      process.kill(-g1.pid, "SIGKILL");
+      process.kill(-g1p, "SIGKILL");
     } catch {}
     try {
-      process.kill(-foreignOwnerAlive.pid, "SIGKILL");
+      process.kill(-ownerPid, "SIGKILL");
     } catch {}
   });
 

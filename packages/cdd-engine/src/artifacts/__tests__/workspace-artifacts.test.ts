@@ -15,7 +15,7 @@ import {
   writeBaseBranch,
 } from "../base-branch.ts";
 
-function tmpDir(prefix) {
+function tmpDir(prefix: string) {
   return mkdtempSync(path.join(tmpdir(), prefix));
 }
 
@@ -55,7 +55,10 @@ it("validateBaseBranch: 合法对象 → {ok:true}", () => {
 });
 
 it("validateBaseBranch: 非法 source → {ok:false, errors} 含具体 message", () => {
-  const res = validateBaseBranch({ ...VALID, source: "conversation" });
+  const res = validateBaseBranch({ ...VALID, source: "conversation" }) as {
+    ok: boolean;
+    errors: string[];
+  };
   expect(res.ok).toBe(false);
   expect(res.errors.length).toBeGreaterThan(0);
   expect(res.errors.some((m) => m.includes("source"))).toBe(true);
@@ -64,13 +67,13 @@ it("validateBaseBranch: 非法 source → {ok:false, errors} 含具体 message",
 
 it("validateBaseBranch: 缺 base → {ok:false, errors}", () => {
   const { base, ...missingBase } = VALID;
-  const res = validateBaseBranch(missingBase);
+  const res = validateBaseBranch(missingBase) as { ok: boolean; errors: string[] };
   expect(res.ok).toBe(false);
   expect(res.errors.some((m) => m.includes("base"))).toBe(true);
 });
 
 it("validateBaseBranch: base 空串 → {ok:false, errors}", () => {
-  const res = validateBaseBranch({ ...VALID, base: "" });
+  const res = validateBaseBranch({ ...VALID, base: "" }) as { ok: boolean; errors: string[] };
   expect(res.ok).toBe(false);
   expect(res.errors.some((m) => m.includes("non-empty"))).toBe(true);
 });
@@ -153,14 +156,17 @@ it("writeBaseBranch: --force → 覆盖（新 base + 新 confirmed_at）", () =>
 
 it("validateBaseBranch: 缺 confirmed_at → {ok:false, errors}（F10 governs 人工旧件，get 不静默放过）", () => {
   const { confirmed_at, ...legacy } = VALID;
-  const res = validateBaseBranch(legacy);
+  const res = validateBaseBranch(legacy) as { ok: boolean; errors: string[] };
   expect(res.ok).toBe(false);
   expect(res.errors.join(" ")).toMatch(/confirmed_at/);
 });
 
 it("validateBaseBranch: confirmed_at null / 非 string → {ok:false, errors}", () => {
   for (const bad of [null, undefined, 12345, {}]) {
-    const res = validateBaseBranch({ ...VALID, confirmed_at: bad });
+    const res = validateBaseBranch({ ...VALID, confirmed_at: bad }) as {
+      ok: boolean;
+      errors: string[];
+    };
     expect(res.ok).toBe(false);
     expect(res.errors.join(" ")).toMatch(/confirmed_at/);
   }
@@ -196,16 +202,20 @@ it("validateBaseBranch: 畸形 confirmed_at → {ok:false, errors}（读取侧�
     base: "develop",
     source: "plan-field",
     confirmed_at: "2026-09-12",
-  });
+  }) as { ok: boolean; errors: string[] };
   expect(r.ok).toBe(false);
   expect(r.errors.join(" ")).toMatch(/confirmed_at/);
 });
 
 it("writeBaseBranch: 漏传 base / 非法 source → 入参 gate 拒绝，不静默落盘坏 artifact", () => {
   const workspace = tmpDir("ws-art-gate-");
-  expect(() =>
-    writeBaseBranch({ source: "plan-field", workspace: Workspace.fromPath(workspace) }),
-  ).toThrow(/base is required/);
+  // Fixture seam: the `base` field is deliberately omitted to probe the input gate (the arg type
+  // guarantees base — the incomplete shape is asserted at the boundary; runtime keeps the omission).
+  const missingBase = {
+    source: "plan-field",
+    workspace: Workspace.fromPath(workspace),
+  } as Parameters<typeof writeBaseBranch>[0];
+  expect(() => writeBaseBranch(missingBase)).toThrow(/base is required/);
   expect(() =>
     writeBaseBranch({ base: "develop", source: "bogus", workspace: Workspace.fromPath(workspace) }),
   ).toThrow(/source must be one of/);

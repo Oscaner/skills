@@ -67,7 +67,7 @@ describe("branch-review dry-run", () => {
       const r = execaSync(
         "node",
         [
-          path.join(REPO_ROOT, "packages/cdd-engine/dist/cli.mjs"),
+          path.join(REPO_ROOT, "packages/cdd-engine/src/bin.ts"),
           "--dry-run",
           "review",
           "--type",

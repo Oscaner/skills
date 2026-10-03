@@ -2,6 +2,7 @@
   "name": "@oscaner-skills/kairos",
   "version": "0.2.0",
   "private": false,
+  "type": "module",
   "description": "Standalone kairos skills: orchestration + cdd-* family + CDD engine.",
   "keywords": [
     "pi-package"

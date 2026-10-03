@@ -9,6 +9,7 @@
     "precommit": "node scripts/run.ts precommit",
     "emit": "node scripts/run.ts emit",
     "emit:check": "node scripts/run.ts emit-check",
+    "typecheck": "tsc --noEmit -p packages/cdd-engine && tsc --noEmit -p scripts && tsc --noEmit -p packages/kairos/tests",
     "biome": "biome check .",
     "biome:fix": "biome check --write .",
     "prepare": "husky",
@@ -17,12 +18,14 @@
   "devDependencies": {
     "@biomejs/biome": "^2.5.14",
     "@changesets/changelog-github": "^1.0.1",
+    "@types/node": "^26.6.2",
     "@changesets/cli": "^3.0.3",
     "@changesets/config": "^4.0.1",
     "@changesets/read": "^1.0.1",
     "citty": "^0.2.2",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
+    "typescript": "^7.0.2",
     "vitest": "^5.0.1",
     "yaml": "^2.9.1"
   },

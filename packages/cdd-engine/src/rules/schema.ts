@@ -14,7 +14,7 @@
 // implementation anywhere (Task 5 ② / Task 6 ④ measurement contract).
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import Ajv, { type ValidateFunction } from "ajv";
+import { Ajv, type ValidateFunction } from "ajv";
 
 import { ConfigLoader } from "../infra/config.ts";
 import { invariant } from "../infra/exit.ts";

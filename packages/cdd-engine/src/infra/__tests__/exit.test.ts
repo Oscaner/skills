@@ -20,7 +20,7 @@ import {
 } from "../exit.ts";
 
 // Capture the ExitRequested(code) that fn(...args) throws + the stderr it wrote; returns { code, stderr }.
-function captureExit(fn, ...args) {
+function captureExit<A extends unknown[]>(fn: (...args: A) => void, ...args: A) {
   const origWrite = process.stderr.write.bind(process.stderr);
   let code = null;
   let stderr = "";

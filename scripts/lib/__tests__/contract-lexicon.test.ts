@@ -12,29 +12,68 @@
 // The scanned lexeme is NEVER written contiguously here (the test position is self-exempt from
 // the scripts face scan — scripts/__tests__ is skipped by default — but the file stays
 // zero-literal so a future scope extension cannot self-bite); it is built by concatenation.
+import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { ORCHESTRATOR_SKILLS } from "../../validate/residue.ts";
-import { ContractLexiconGuard, G2_LIVE_FACES } from "../contract-lexicon.ts";
+import {
+  type AnatomyFinding,
+  ContractLexiconGuard,
+  DOC_ESCAPE_FACES,
+  G2_LIVE_FACES,
+  ZERO_DEBT_FACES,
+} from "../contract-lexicon.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..");
+// The data-source constants the assertion helpers read (the repo config homes).
+const GUARD_LEXICON_SRC = path.join(REPO_ROOT, "scripts/lib/guard-lexicon.json");
+const COMMAND_LEXICON_SRC = path.join(
+  REPO_ROOT,
+  "packages/cdd-engine/config/contract-lexicon.json",
+);
+const CONTRACT_SRC = path.join(REPO_ROOT, "packages/cdd-engine/config/harness-contract.json");
 
 const guard = new ContractLexiconGuard();
 
+// T5 (P5): the guarded zero-debt tokens, built by concatenation — the test position stays
+// zero-literal so a future scope extension (scripts tests included) cannot self-bite.
+const T5_TS_IGNORE = "@ts" + "-ignore";
+const T5_TS_EXPECT_ERROR = "@ts" + "-expect" + "-error";
+const T5_MJS = "." + "mjs";
+const T5_READBACK = "(read <" + "handoff> back to confirm)";
+// T7 (P5): the retired zero-build toolchain tokens ride the escape family's token set — same
+// split-string construction (the scripts test position stays zero-literal).
+const T7_BUILD_CONFIG = "build" + ".config";
+const T7_DEV_STUB = "dev" + ":stub";
+const T7_TS6_PKG = "@typescript" + "/typescript6";
+const T7_GLOBAL_SETUP = "global" + "Setup";
+
 // ---------------------------------------------------------------------------
-// The lexicon itself — five domains exist and agree with the engine facts
+// The word tables — the guards family + the engine command/schema family + the engine forwarding
 // ---------------------------------------------------------------------------
 
-describe("contract-lexicon.json — the pure word-table domains + engine-facts consistency", () => {
-  it("the lexicon carries zero harness domain — the harness contract is the unique harness-data source", () => {
-    const lex = guard.lexicon();
-    // C8: ids/clis/markers all re-homed to config/harness-contract.json; the lexicon keeps only
-    // the pure word tables (status / stdout / residue / anatomy).
-    expect(lex.harness).toBeUndefined();
+describe("guard-lexicon.json + engine contract-lexicon.json — the family word tables + engine-facts consistency", () => {
+  it("the engine lexicon carries zero guards domain and zero harness domain (word-authority split + the unique harness-data source)", () => {
+    // The loaded engine word table (JSON.parse boundary): the ownership split — the guards family
+    // (residue / escape / zeroDebt / buildability / banned-shape words) is NOT part of the engine
+    // file (a guards key is an unknown-key violation), and the harness contract is the unique
+    // harness-data source.
+    const engineData = JSON.parse(readFileSync(COMMAND_LEXICON_SRC, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    expect(Object.keys(engineData).sort()).toEqual(["_doc", "command", "schema"]);
+    expect(engineData.guards).toBeUndefined();
+    const guardData = JSON.parse(readFileSync(GUARD_LEXICON_SRC, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    expect(Object.keys(guardData).sort()).toEqual(["_doc", "guards"]);
+    expect(guardData.command).toBeUndefined();
     const contract = guard.contract();
     expect(Object.keys(contract).sort()).toEqual([
       "_doc",
@@ -49,8 +88,8 @@ describe("contract-lexicon.json — the pure word-table domains + engine-facts c
   });
 
   it("status domain: the five-value vocab + the dual-axis mapping (judgment three states / work COMPLETED)", () => {
-    const lex = guard.lexicon();
-    expect(lex.status.vocab.sort()).toEqual([
+    const lex = guard.commandLexicon();
+    expect(lex.command.status.vocab.sort()).toEqual([
       "APPROVED",
       "BLOCKED",
       "CHANGES_REQUESTED",
@@ -58,42 +97,107 @@ describe("contract-lexicon.json — the pure word-table domains + engine-facts c
       "TIMEOUT",
     ]);
     // The judgment axis owns the review conclusion states; only COMPLETED is the work-axis fold.
-    expect(lex.status.axes.judgment.includes("COMPLETED")).toBe(false);
-    expect(lex.status.axes.work).toEqual(["COMPLETED"]);
+    expect(lex.command.status.axes.judgment.includes("COMPLETED")).toBe(false);
+    expect(lex.command.status.axes.work).toEqual(["COMPLETED"]);
   });
 
-  it("stdout domain: the capsule tokens + route anchors present, banned shape names carry no cursor residue", () => {
-    const lex = guard.lexicon();
-    expect(lex.stdout.capsule).toEqual(["status", "blocker", "handoff"]);
-    for (const tok of ["next:", "CDD_BLOCKED:", "findings"]) {
-      expect(lex.stdout.routeTokens).toContain(tok);
+  it("capsule + route domains: the capsule tokens, the read-back wording and the addressed station channels", () => {
+    const lex = guard.commandLexicon();
+    expect(lex.command.capsule.tokens).toEqual(["status", "blocker", "handoff"]);
+    expect(lex.command.route.stations.next).toBe("next:");
+    for (const station of ["blocked", "warn", "cliMissing"]) {
+      expect(lex.command.route.stations[station]).toContain(":");
     }
-    for (const shape of ["3-line return block", "4th line counters", "return block"]) {
-      expect(lex.stdout.bannedShapeNames).toContain(shape);
-    }
+    expect(lex.command.route.routeTokens).toContain("next:");
   });
 
-  it("residue domain: the data sources are the two config JSONs and the ban token is the cursor cli data value", () => {
+  it("residue domain: the data sources are the two config JSONs + the guard home and the ban token is the cursor cli data value", () => {
     const lex = guard.lexicon();
-    expect(lex.residue.dataSources.sort()).toEqual([
+    expect(lex.guards.residue.dataSources.sort()).toEqual([
       "contract-lexicon.json",
+      "guard-lexicon.json",
       "harness-contract.json",
     ]);
-    // C8: the ban token follows the harness contract's cursor cli (the unique cli source).
-    const contract = guard.contract();
-    expect(lex.residue.bannedToken).toBe((contract as Record<string, any>).cursor.cli);
+    // C8: the ban token follows the harness contract's cursor cli (the unique cli source) — read
+    // from the raw contract data (JSON.parse boundary).
+    const contract = JSON.parse(readFileSync(CONTRACT_SRC, "utf8")) as {
+      cursor: { cli: string };
+    };
+    expect(lex.guards.residue.tokens).toContain(contract.cursor.cli);
   });
 
   it("anatomy domain: the skill-anatomy schema path resolves on disk", () => {
-    const lex = guard.lexicon();
-    const p = path.isAbsolute(lex.anatomy.schemaPath)
-      ? lex.anatomy.schemaPath
-      : path.join(REPO_ROOT, lex.anatomy.schemaPath);
+    const lex = guard.commandLexicon();
+    const p = path.isAbsolute(lex.schema.anatomy.schemaPath)
+      ? lex.schema.anatomy.schemaPath
+      : path.join(REPO_ROOT, lex.schema.anatomy.schemaPath);
     expectExists(p);
+  });
+
+  it("the word tables carry zero retired leaf-name fields (the shape migration is complete)", () => {
+    // The retired pre-split lexicon leaves — a re-appearance on any word-table surface is a
+    // migration regression (the phrasing must go through the new family names). The test position
+    // is self-exempt; this file's own carries of these names are the pattern strings below.
+    const retired = [
+      "bannedToken",
+      "soleAllowed",
+      "mjsToken",
+      "dualEvidence",
+      "bannedShapeNames",
+      "readbackAnnotation",
+    ];
+    const surfaces = [
+      GUARD_LEXICON_SRC,
+      COMMAND_LEXICON_SRC,
+      path.join(REPO_ROOT, "scripts/lib/contract-lexicon.ts"),
+      path.join(REPO_ROOT, "packages/cdd-engine/src/infra/word-table.ts"),
+    ];
+    const violations: string[] = [];
+    for (const rel of surfaces) {
+      const text = readFileSync(rel, "utf8");
+      for (const name of retired) {
+        if (text.includes(name)) violations.push(`${path.relative(REPO_ROOT, rel)}: ${name}`);
+      }
+    }
+    expect(violations).toEqual([]);
   });
 });
 
-function expectExists(p) {
+describe("guard-lexicon.json — the T5 (P5) zero-debt / buildability / read-back domains (guards family)", () => {
+  it("escape domain: the two escape directives + the four retired build tokens + the ban wording are present", () => {
+    const lex = guard.lexicon();
+    expect(lex.guards.escape.tokens).toEqual(
+      expect.arrayContaining([
+        T5_TS_IGNORE,
+        T5_TS_EXPECT_ERROR,
+        T7_BUILD_CONFIG,
+        T7_DEV_STUB,
+        T7_TS6_PKG,
+        T7_GLOBAL_SETUP,
+      ]),
+    );
+    expect(lex.guards.escape.wording.length).toBeGreaterThan(0);
+  });
+
+  it("zeroDebt domain: the prebuilt-module extension token rides the data", () => {
+    expect(guard.lexicon().guards.zeroDebt.tokens).toContain(T5_MJS);
+    expect(guard.lexicon().guards.zeroDebt.wording.length).toBeGreaterThan(0);
+  });
+
+  it("buildability domain: the dual-evidence wording carries the tsc + test tokens (T6 read-only consumption)", () => {
+    const evidenceWording = guard.lexicon().guards.buildability.evidenceWording;
+    expect(evidenceWording.length).toBeGreaterThan(0);
+    expect(evidenceWording).toContain("tsc");
+    expect(evidenceWording).toContain("test");
+    expect(guard.lexicon().guards.buildability.wording.length).toBeGreaterThan(0);
+  });
+
+  it("engine command lexicon: the canonical read-back wording (the T5 restate decision — zero restate on the orchestrator surface)", () => {
+    expect(guard.commandLexicon().command.capsule.readbackWording).toBe(T5_READBACK);
+  });
+});
+
+function expectExists(p: string): void {
   if (!existsSync(p)) throw new Error(`missing expected file: ${p}`);
 }
 
@@ -151,7 +255,13 @@ flowchart TD
 | nope | BLOCKED (no silent fallback) |
 `;
 
-const BREAK_CASES = [
+interface BreakCase {
+  kind: string;
+  expect: RegExp;
+  make: (src: string) => string;
+}
+
+const BREAK_CASES: BreakCase[] = [
   {
     kind: "deleted-node",
     expect: /^digraph-(dangling-node|orphan-section)$/,
@@ -184,7 +294,7 @@ describe("ContractLexiconGuard.checkAnatomy — mkdtemp deliberate-break chains"
   // writers are absent from a single synthetic-file list, growth-crossing-unregistered /
   // consumer-purity-heading / skeleton-shape) are the family-level checks and never fired by the
   // per-skill break chains.
-  const PER_SKILL_SURFACE = (f) =>
+  const PER_SKILL_SURFACE = (f: AnatomyFinding): boolean =>
     ![
       "skeleton-deltas-missing",
       "growth-crossing-unregistered",
@@ -232,8 +342,8 @@ describe("ContractLexiconGuard.checkAnatomy — mkdtemp deliberate-break chains"
 
 describe("ContractLexiconGuard.checkResidue — G2 cursor live-face guard (P3 T2/T4)", () => {
   const CURSOR_BINARY = "cursor" + "-agent";
-  const registryText = (cliValue) => `{ "cursor": { "cli": "${cliValue}" } }\n`;
-  const pathDir = (label) => mkdtempSync(path.join(tmpdir(), label));
+  const registryText = (cliValue: string) => `{ "cursor": { "cli": "${cliValue}" } }\n`;
+  const pathDir = (label: string) => mkdtempSync(path.join(tmpdir(), label));
 
   it("(a) data-source data-value rows are green (the release form)", () => {
     const dir = pathDir("g2-a-");
@@ -292,14 +402,14 @@ describe("ContractLexiconGuard.checkResidue — G2 cursor live-face guard (P3 T2
     }
   });
 
-  it("(b-comp) lexicon-typed data rows release (clis mapping / ban-table rows green); out-of-domain residue still fails", () => {
+  it("(b-comp) lexicon-typed data rows release (first-exemption / ban-table rows green); out-of-domain residue still fails", () => {
     const dir = pathDir("g2-le-");
     writeFileSync(path.join(dir, "harness-contract.json"), registryText(CURSOR_BINARY), "utf8");
-    // contract-lexicon.json is the T4 data source; its harness clis mapping / residue ban-table
-    // rows carry the cli value as data and mask under the same data-row form.
+    // guard-lexicon.json is the guards-family data source; its residue ban-table rows carry the cli
+    // value as data and mask under the data-row form (the dataSources set names the home).
     writeFileSync(
-      path.join(dir, "contract-lexicon.json"),
-      `{ "clis": { "cursor": "${CURSOR_BINARY}" }, "banned": ["${CURSOR_BINARY}"] }\n`,
+      path.join(dir, "guard-lexicon.json"),
+      `{ "guards": { "residue": { "tokens": ["${CURSOR_BINARY}"] } } }\n`,
       "utf8",
     );
     writeFileSync(path.join(dir, "note.md"), `${CURSOR_BINARY} outside the data domain\n`, "utf8");
@@ -384,6 +494,149 @@ describe("ContractLexiconGuard.checkResidue — G2 cursor live-face guard (P3 T2
 });
 
 // ---------------------------------------------------------------------------
+// checkEscape / checkMjs — the T5 zero-debt source faces (five faces, ZERO_DEBT_FACES)
+// ---------------------------------------------------------------------------
+
+describe("ContractLexiconGuard.checkEscape — T5 escape-directive zero-hit (the source faces)", () => {
+  it("live repo: the zero-debt faces carry zero escape directives (incl. engine + kairos test sites)", () => {
+    expect(guard.checkEscape()).toEqual([]);
+  });
+
+  it("an escape directive on a temp source file fails (engine face disposition: test sites included)", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "lex-escape-"));
+    try {
+      mkdirSync(path.join(dir, "__tests__"), { recursive: true });
+      writeFileSync(path.join(dir, "mech.ts"), `// ${T5_TS_IGNORE} restate\n`, "utf8");
+      writeFileSync(
+        path.join(dir, "__tests__", "m.test.ts"),
+        `// ${T5_TS_EXPECT_ERROR} restate\n`,
+        "utf8",
+      );
+      const hits = guard.checkEscape([{ targets: [dir], includeTests: true }]);
+      expect(hits.map((h) => h.file).join(" | ")).toContain("mech.ts");
+      expect(hits.map((h) => h.file).join(" | ")).toContain(path.join("__tests__", "m.test.ts"));
+      expect(hits[0].label).toContain("T5");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("the scripts disposition exempts its __tests__ (the guard's own regression position); a live file fails", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "lex-escape-ts-"));
+    try {
+      mkdirSync(path.join(dir, "__tests__"), { recursive: true });
+      writeFileSync(path.join(dir, "mech.ts"), `// ${T5_TS_IGNORE} restate\n`, "utf8");
+      writeFileSync(
+        path.join(dir, "__tests__", "t.test.ts"),
+        `// ${T5_TS_IGNORE} assertion site\n`,
+        "utf8",
+      );
+      const hits = guard.checkEscape([{ targets: [dir], includeTests: false }]);
+      expect(hits).toHaveLength(1);
+      expect(hits[0].file).toContain("mech.ts");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("the guard-lexicon data rows release (the directives ride data values); an out-of-data line fails", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "lex-escape-rl-"));
+    try {
+      writeFileSync(
+        path.join(dir, "guard-lexicon.json"),
+        `{ "guards": { "escape": { "tokens": ["${T5_TS_IGNORE}", "${T5_TS_EXPECT_ERROR}"] } } }\n`,
+        "utf8",
+      );
+      writeFileSync(
+        path.join(dir, "note.ts"),
+        `// ${T5_TS_IGNORE} outside the data domain\n`,
+        "utf8",
+      );
+      const hits = guard.checkEscape([{ targets: [dir], includeTests: true }]);
+      expect(hits).toHaveLength(1);
+      expect(hits[0].file).toContain("note.ts");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("a retired zero-build token on a temp source file fails (the T7 token rides the same scan)", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "lex-escape-t7-"));
+    try {
+      writeFileSync(path.join(dir, "mech.ts"), `// ${T7_DEV_STUB} restate\n`, "utf8");
+      const hits = guard.checkEscape([{ targets: [dir], includeTests: true }]);
+      expect(hits).toHaveLength(1);
+      expect(hits[0].label).toContain("T7");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("DOC_ESCAPE_FACES pins the four docs live faces and the live repo carries zero tokens on them", () => {
+    expect(DOC_ESCAPE_FACES.flatMap((f) => f.targets)).toEqual([
+      "CLAUDE.md",
+      "docs/maintainers/05-third-party-dependencies.md",
+      "packages/cdd-engine/README.md",
+      "packages/cdd-engine/README.zh-CN.md",
+    ]);
+    expect(DOC_ESCAPE_FACES.every((f) => f.includeTests === false)).toBe(true);
+    expect(guard.checkEscape(DOC_ESCAPE_FACES)).toEqual([]);
+  });
+
+  it("ZERO_DEBT_FACES pins the five source faces + the engine includeTests opt-in (scope shrink = fail)", () => {
+    expect(ZERO_DEBT_FACES.map((f) => f.targets[0])).toEqual([
+      "packages/cdd-engine/src",
+      "scripts",
+      "packages/kairos/tests",
+      "packages/cdd-engine/config",
+      "vitest.config.ts",
+    ]);
+    expect(ZERO_DEBT_FACES[0].includeTests).toBe(true); // engine src zeroing held in test sites
+    expect(ZERO_DEBT_FACES[1].includeTests).toBe(false); // scripts self-exempts its __tests__
+    for (const f of ZERO_DEBT_FACES.slice(2)) expect(Array.isArray(f.targets)).toBe(true);
+    // the source-config face = the T3-migrated config plane (the three .ts config files the
+    // whole-repo .mjs→.ts migration moved) — pinned in full so a config-target change also fails.
+    expect(ZERO_DEBT_FACES[4].targets).toEqual([
+      "vitest.config.ts",
+      "packages/cdd-engine/vitest.config.ts",
+      "lint-staged.config.ts",
+    ]);
+    expect(ZERO_DEBT_FACES[4].includeTests).toBe(false);
+  });
+});
+
+describe("ContractLexiconGuard.checkMjs — T5 whole-repo source-plane prebuilt-module zero-hit", () => {
+  it("live repo: the zero-debt faces carry zero prebuilt-module files", () => {
+    expect(guard.checkMjs()).toEqual([]);
+  });
+
+  it("a file of the banned extension fails by extension (never a content scan); test-site disposition rides the face", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "lex-mjs-"));
+    try {
+      const src = path.join(root, "src");
+      mkdirSync(path.join(src, "__tests__"), { recursive: true });
+      // The product dist tree sits OUTSIDE the faces (a sibling of the scanned src face) and stays
+      // exempt — the published package ships real built artifacts there.
+      mkdirSync(path.join(root, "dist"), { recursive: true });
+      writeFileSync(path.join(src, `bin${T5_MJS}`), "console.log(1)\n", "utf8");
+      writeFileSync(path.join(src, "__tests__", `node${T5_MJS}`), "// retired plane\n", "utf8");
+      writeFileSync(path.join(root, "dist", `out${T5_MJS}`), "// built artifact\n", "utf8");
+      const engineHits = guard.checkMjs([{ targets: [src], includeTests: true }]);
+      expect(engineHits.map((h) => h.file).join(" | ")).toContain(`bin${T5_MJS}`);
+      expect(engineHits.map((h) => h.file).join(" | ")).toContain(
+        path.join("__tests__", `node${T5_MJS}`),
+      );
+      expect(engineHits.map((h) => h.file).join(" | ")).not.toContain("dist");
+      const scriptsHits = guard.checkMjs([{ targets: [src], includeTests: false }]);
+      expect(scriptsHits).toHaveLength(1);
+      expect(scriptsHits[0].file).toContain(`bin${T5_MJS}`);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // checkWording — the C7 shape-restate guard
 // ---------------------------------------------------------------------------
 
@@ -426,6 +679,55 @@ describe("ContractLexiconGuard.checkWording — C7 shape-restate (P3 T4)", () =>
           "- **Read**: output contract — the status capsule and the `next:` suggestion",
           "- the counters recorded in the handoff and its `findings`",
           "- reduce prose after the counters report",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+      expect(guard.checkWording([file])).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // T5 (P5): the zero-debt restate guard — the escape directives / the prebuilt-module extension /
+  // the engine read-back annotation carry zero literal restates on the orchestrator skills (the
+  // read-back hint rides the actual command output; the restate decision = zero restate).
+  it("live orchestrator skills carry zero zero-debt restates (T5)", () => {
+    expect(guard.checkWording(ORCHESTRATOR_SKILLS)).toEqual([]);
+  });
+
+  it("each zero-debt token is intercepted on a temp file with the zero-debt label", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "lex-zd-"));
+    try {
+      const cases = [
+        { line: `the ${T5_TS_IGNORE} restate`, expect: T5_TS_IGNORE },
+        { line: `run the ${T5_MJS} plane`, expect: T5_MJS },
+        { line: `dispatch ${T5_READBACK}`, expect: T5_READBACK },
+      ];
+      for (const [i, c] of cases.entries()) {
+        const file = path.join(dir, `t${i}.md`);
+        writeFileSync(file, `${c.line}\n`, "utf8");
+        const hits = guard.checkWording([file]);
+        const zeroDebt = hits.filter((h) => h.label.includes("zero-debt"));
+        expect(zeroDebt.length).toBeGreaterThan(0);
+        expect(zeroDebt.map((h) => h.label).join(" | ")).toContain(c.expect);
+        expect(zeroDebt[0].line).toBe(1);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("neutral zero-debt behavior prose passes — the bans target the literal restates only (T5)", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "lex-zd-pass-"));
+    try {
+      const file = path.join(dir, "ok.md");
+      writeFileSync(
+        file,
+        [
+          "- read the `next:` suggestion for routing and dispatch per it when continuing directly",
+          "- the plan keeps the source plane fully typed; escaped directives stay banned in the repo",
+          "- read the handoff back to confirm before dispatching the fix",
           "",
         ].join("\n"),
         "utf8",
@@ -479,23 +781,42 @@ describe("ContractLexiconGuard.checkConfig — engine-config channel audit (P3 T
 // ---------------------------------------------------------------------------
 
 const MARKERS_HARNESS_SRC = path.join(REPO_ROOT, "packages/cdd-engine/src/infra/harness.ts");
-const CONTRACT_SRC = path.join(REPO_ROOT, "packages/cdd-engine/config/harness-contract.json");
+
+/** The event-row surface of config/harness-contract.json the break helpers read/mutate (the
+ *  parsed harness-contract.json — a JSON.parse boundary; other row keys ride the index). */
+interface HarnessContractRow {
+  detect?: { env?: string; aiAgentPrefix?: string; value?: string };
+  install?: Record<string, string[]>;
+  [key: string]: unknown;
+}
+/** The harness-contract.json top-level surface the prefix-direction tests mutate. */
+interface HarnessContractSurface {
+  dispatch: Record<string, unknown>;
+  refs: Record<string, Record<string, string>>;
+  claude: HarnessContractRow;
+  cursor: HarnessContractRow;
+  pi: HarnessContractRow;
+}
+type DetectRow = { env?: string; aiAgentPrefix?: string; value?: string };
 
 // Temp-contract break helper: write a harness-contract.json with a harness-row detect mutated and
 // run checkMarkers against it. The detect() source and the engine-config faces stay live — a hit
 // can only come from the contract face.
-function detectHitsWithContract(
-  mutate: (
-    detect: Record<string, { env?: string; aiAgentPrefix?: string; value?: string }>,
-  ) => void,
-) {
+function detectHitsWithContract(mutate: (detect: Record<string, DetectRow>) => void) {
   const dir = mkdtempSync(path.join(tmpdir(), "lex-detect-"));
   try {
-    const contract = JSON.parse(readFileSync(CONTRACT_SRC, "utf8")) as Record<string, any>;
-    const detect: Record<string, { env?: string; aiAgentPrefix?: string; value?: string }> = {};
-    for (const id of ["claude", "cursor", "pi"]) detect[id] = contract[id].detect;
+    const contract = JSON.parse(readFileSync(CONTRACT_SRC, "utf8")) as HarnessContractSurface;
+    const detect: Record<string, DetectRow> = {};
+    for (const id of ["claude", "cursor", "pi"] as const) {
+      // The live contract always carries a detect row on every harness (JSON data).
+      const detectRow = contract[id].detect;
+      assert.ok(detectRow, `live ${id} harness row missing its detect slot`);
+      detect[id] = detectRow;
+    }
     mutate(detect);
-    for (const id of Object.keys(detect)) contract[id].detect = detect[id];
+    // Write the mutated detect rows back — the id set seeded above is exactly the detected
+    // harness ids (no caller in the break cases adds or removes an id).
+    for (const id of ["claude", "cursor", "pi"] as const) contract[id].detect = detect[id];
     const file = path.join(dir, "harness-contract.json");
     writeFileSync(file, JSON.stringify(contract, null, 2), "utf8");
     return new ContractLexiconGuard({ registryPath: file }).checkMarkers();
@@ -635,7 +956,7 @@ describe("ContractLexiconGuard.checkHarness — the four directions (C8)", () =>
   it("the prefix direction: a dispatch slot naming an unregistered ref key fires", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "lex-prefix-"));
     try {
-      const contract = JSON.parse(readFileSync(CONTRACT_SRC, "utf8")) as Record<string, any>;
+      const contract = JSON.parse(readFileSync(CONTRACT_SRC, "utf8")) as HarnessContractSurface;
       contract.dispatch.implement = "superpowers:not-registered";
       const file = path.join(dir, "harness-contract.json");
       writeFileSync(file, JSON.stringify(contract, null, 2), "utf8");
@@ -650,7 +971,7 @@ describe("ContractLexiconGuard.checkHarness — the four directions (C8)", () =>
   it("the prefix direction: a ref form that diverges from the derived per-harness shape fires", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "lex-prefix2-"));
     try {
-      const contract = JSON.parse(readFileSync(CONTRACT_SRC, "utf8")) as Record<string, any>;
+      const contract = JSON.parse(readFileSync(CONTRACT_SRC, "utf8")) as HarnessContractSurface;
       contract.refs["kairos:cdd-plan"].claude = "/kairos:WRONG";
       const file = path.join(dir, "harness-contract.json");
       writeFileSync(file, JSON.stringify(contract, null, 2), "utf8");
@@ -665,8 +986,11 @@ describe("ContractLexiconGuard.checkHarness — the four directions (C8)", () =>
   it("the install direction: a harness install row missing a referenced package fires", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "lex-install-"));
     try {
-      const contract = JSON.parse(readFileSync(CONTRACT_SRC, "utf8")) as Record<string, any>;
-      delete contract.claude.install.superpowers;
+      const contract = JSON.parse(readFileSync(CONTRACT_SRC, "utf8")) as HarnessContractSurface;
+      // The live claude row always declares its install table (JSON data).
+      const install = contract.claude.install;
+      assert.ok(install, "live claude harness row missing its install table");
+      delete install.superpowers;
       const file = path.join(dir, "harness-contract.json");
       writeFileSync(file, JSON.stringify(contract, null, 2), "utf8");
       const hits = new ContractLexiconGuard({ registryPath: file }).checkHarness();

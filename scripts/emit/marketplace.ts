@@ -9,6 +9,7 @@
 
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { PluginSource } from "../lib/harness-registry.ts";
 import { MarketplaceService } from "../lib/marketplace-utils.ts";
 import { generatedBanner } from "./manifests.ts";
 import { type EmitOrchestrator, emitOrchestrator } from "./orchestrate.ts";
@@ -31,7 +32,11 @@ export class MarketplaceDocsEmitter {
    * @returns {string[]} `cursor-plugins/<name>` roots emitted for non-plugin-root
    *   plugins (folded into the drift-check product roots by the caller)
    */
-  emit(outRoot, source, generatedPaths): string[] {
+  emit(
+    outRoot: string,
+    source: { name?: string; metadata?: unknown; owner?: unknown; plugins: PluginSource[] },
+    generatedPaths: string[],
+  ): string[] {
     const claudePlugins = [];
     const cursorMarketplacePlugins = [];
     const wrapperRoots = [];

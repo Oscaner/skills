@@ -22,7 +22,12 @@ import path from "node:path";
 import { expect, it } from "vitest";
 import { captureStderr } from "../../infra/__tests__/helpers.ts";
 import { DRY_RUN_DIRTY_WARN } from "../../rules/commit.ts";
-import { DispatchBlocked, type DispatchHookContext, DispatchLifecycle } from "../base.ts";
+import {
+  DispatchBlocked,
+  type DispatchHookContext,
+  DispatchLifecycle,
+  type DispatchLifecycleOptions,
+} from "../base.ts";
 import { createDispatchHooks } from "../hooks.ts";
 import { PHASE_IDS } from "../phases.ts";
 
@@ -61,14 +66,11 @@ class StubLifecycle extends DispatchLifecycle {
   }
 }
 
-// Type-level probe — directly constructing the abstract class is a compile error. TS erases
-// `abstract` at runtime, so the constraint is compile-time (spec: TS 虚方法编译期约束); this
-// function is never invoked — tsc on this test file proves the @ts-expect-error still catches an
-// error (if the class ever becomes concrete, tsc reverses into "Unused @ts-expect-error").
-function abstractInstantiationProbe(): void {
-  // @ts-expect-error — DispatchLifecycle is abstract; `new` is a compile-time error
-  new DispatchLifecycle({ ctx: { mode: "review", repoRoot: null } });
-}
+// Abstractness is carried by the declaration itself: the `abstract dispatch` member is TS's
+// compile-time constraint (direct `new` is rejected by the language). The old compile-time-negative
+// probe was removed under the escape-token prohibition — no second mechanism is needed;
+// StubLifecycle (the instantiation face overriding that hook) pins it: while the member stays
+// declared abstract, an un-overridden instantiation is impossible.
 
 const EXPECTED_TIMELINE = [
   "pre-flight",
@@ -84,11 +86,6 @@ const EXPECTED_TIMELINE = [
   "commitPostCheck",
   "statusValidate",
 ] as const;
-
-it("abstract: 基类无法实例化（TS 编译期约束；直接 new 为编译错误，经 tsc 对 tests 验证）", () => {
-  // 运行期抽象成员被擦除，编译期拒绝才是约束的证明面 —— probe 不执行构造、仅承载类型断言。
-  expect(typeof abstractInstantiationProbe).toBe("function");
-});
 
 it("minimal stub（仅覆写 dispatch）跑通 run() 全流程 — clean tree + review mode", async () => {
   const repo = setupRepo();
@@ -249,7 +246,11 @@ it("构造注 hooks/ctx: 注入实例被使用（ctx 同实例；dispatch:before
 // audit is never silently skipped — no missing-root WARN + exit-0 idle), dry-run keeps the WARN
 // lane (I7: dry-run never blocks). This is the judgment level; each channel's CDD_BLOCKED +
 // exit-1 face is covered in doc-contract-channels.test.ts (branch face).
-function auditingStubFor(repo: string): typeof DispatchLifecycle {
+function auditingStubFor(
+  repo: string,
+): new (
+  options: DispatchLifecycleOptions,
+) => DispatchLifecycle {
   return class extends DispatchLifecycle {
     protected docAuditTarget(): string | null {
       return path.join(repo, "docs", "kairos", "plans", "plan.md");

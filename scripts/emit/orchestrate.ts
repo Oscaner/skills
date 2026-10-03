@@ -13,7 +13,7 @@ export class EmitOrchestrator {
    * Write a text product into `outRoot` (mkdir -p the parent) and record the
    * repo-relative path in `generatedPaths` so the --check diff sees it.
    */
-  writeText(outRoot, rel, content, generatedPaths): void {
+  writeText(outRoot: string, rel: string, content: string, generatedPaths: string[]): void {
     const p = join(outRoot, rel);
     mkdirSync(dirname(p), { recursive: true });
     writeFileSync(p, content);
@@ -21,7 +21,7 @@ export class EmitOrchestrator {
   }
 
   /** `writeText` for JSON documents (pretty-printed + trailing newline). */
-  writeJsonDoc(outRoot, rel, data, generatedPaths): void {
+  writeJsonDoc(outRoot: string, rel: string, data: unknown, generatedPaths: string[]): void {
     this.writeText(outRoot, rel, `${JSON.stringify(data, null, 2)}\n`, generatedPaths);
   }
 
@@ -43,6 +43,12 @@ export class EmitOrchestrator {
     productFiles,
     extraStale = [],
     root,
+  }: {
+    generatedSet: Set<string>;
+    productRoots: readonly string[];
+    productFiles: readonly string[];
+    extraStale?: readonly string[];
+    root: string;
   }): string[] {
     const stale = [];
     for (const abs of globSync("**/*", { cwd: root, absolute: true, dot: true })) {

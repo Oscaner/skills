@@ -12,9 +12,8 @@
 // development-time full suite (E2② dirty-tree WARN precondition documented in CLAUDE.md).
 // The entry gate itself keeps its real boundary.
 //
-// Composition mirrors scripts/validate/index.ts minus the engine steps (cdd-engine dev stub
-// materialization / engine test suite (vitest)) — the only blocks coupled to working-tree
-// cleanliness. Standalone (`node scripts/validate/pre-commit.ts`) or via `pnpm run precommit`
+// Composition mirrors scripts/validate/index.ts minus the engine step (the cdd-engine engine
+// test suite (vitest)) — the only block coupled to working-tree cleanliness. Standalone (`node scripts/validate/pre-commit.ts`) or via `pnpm run precommit`
 // (run.ts subcommand, same lazy-load contract as validate). The full suite stays
 // intact in index.ts; this subset is pinned by scripts/validate/__tests__/pre-commit.test.ts.
 
@@ -23,7 +22,8 @@ import { steps as kairosSteps } from "./kairos.ts";
 import { steps as libTestsSteps } from "./lib-tests.ts";
 import { steps as marketplaceSteps } from "./marketplace.ts";
 import { steps as residueSteps } from "./residue.ts";
-import { validateRunner } from "./runner.ts";
+import { type StepRun, validateRunner } from "./runner.ts";
+import { steps as typeCheckSteps } from "./type-check.ts";
 import { steps as versionSyncSteps } from "./version-sync.ts";
 
 export const steps = [
@@ -32,10 +32,11 @@ export const steps = [
   ...residueSteps, // engine zero residue + channel audit
   ...marketplaceSteps, // marketplace manifests validate
   ...libTestsSteps, // scripts unit tests (vitest)
+  ...typeCheckSteps, // three-project tsc --noEmit gate (config plane blind spot)
   ...versionSyncSteps, // package version sync
 ];
 
-export function main(stepsArg = steps) {
+export function main(stepsArg: ReadonlyArray<StepRun> = steps) {
   return validateRunner.run(stepsArg);
 }
 

@@ -22,6 +22,27 @@ export function readJson(filePath: string): Record<string, unknown> | null {
   }
 }
 
+/**
+ * Shape-narrowed read of a handoff's nested `commits.base` (a full 40-char SHA — the round's diff
+ * range anchor). The handoff read is `Record<string, unknown> | null`, so the nested base needs
+ * the unknown shape narrowed (`"base" in commits`) before access. Missing/complex commits → null
+ * (the unified miss default). A legal string base is returned verbatim — never coerced or defaulted
+ * here; consumers keep their own empty-string / "unknown" handling downstream (the single home of
+ * the 6-guard commits.base narrow, from rules/write-boundary.ts and dispatch/branch.ts).
+ */
+export function readCommitsBase(commits: unknown): string | null {
+  if (
+    commits != null &&
+    typeof commits === "object" &&
+    !Array.isArray(commits) &&
+    "base" in commits &&
+    typeof commits.base === "string"
+  ) {
+    return commits.base;
+  }
+  return null;
+}
+
 // safeParse alias kept (writeHandoff's historical name; same implementation as readJson).
 function safeParse(filePath: string): Record<string, unknown> | null {
   return readJson(filePath);

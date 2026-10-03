@@ -489,7 +489,7 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
 
     // Consumer face: a fabricated install layout — package root with dist/config/schema mirror
     // and NO source tree (a published package ships only dist/ + templates/ + config/). Walking
-    // up from a bundled dist/cli.mjs must resolve the dist mirror, never the source.
+    // up from a module under the installed dist tree must resolve the dist mirror, never the source.
     const install = mkdtempSync(path.join(tmpdir(), "cdd-consumer-layout-"));
     try {
       const pkg = path.join(install, "node_modules", "@oscaner-skills", "cdd-engine");

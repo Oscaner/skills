@@ -189,7 +189,6 @@ async function runDocs(
       doc,
       handoffPath,
       repoRoot: dir,
-      registryPath: registry(),
       dryRun,
     });
   } catch (e) {

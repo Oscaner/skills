@@ -49,40 +49,44 @@ export abstract class Harness {
 
   #row: HarnessRow | undefined;
 
-  /** Lazy row read through the Registry data facade (untouched by detect — the hot path). */
-  protected row(): HarnessRow {
+  /** Lazy row read through the Registry data facade (untouched by detect — the hot path). The
+   *  undefined-coalesce TRUE form: an absent registry row stays `undefined`; every getter handles
+   *  the absence at its own call site (`?.` + default — no `{}` fallback object anywhere). */
+  protected row(): HarnessRow | undefined {
     if (!this.#row) {
-      this.#row = (new Registry().load(REG_PATH)[this.id] as HarnessRow | undefined) ?? {};
+      this.#row = new Registry().load(REG_PATH)[this.id] as HarnessRow | undefined;
     }
     return this.#row;
   }
 
   get cli(): string {
-    return this.row().cli ?? "";
+    return this.row()?.cli ?? "";
   }
 
   get invoke(): string {
-    return this.row().invoke ?? "";
+    return this.row()?.invoke ?? "";
   }
 
   get output(): string {
-    return this.row().output ?? "";
+    return this.row()?.output ?? "";
   }
 
   get ship(): string {
-    return this.row().ship ?? "";
+    return this.row()?.ship ?? "";
   }
 
   get cache(): CacheProfile | undefined {
-    return this.row().cache;
+    return this.row()?.cache;
   }
 
-  get detect(): LexiconMarkerLike | undefined {
-    return this.row().detect;
+  /** Typed row access for the detect marker (the right side of the `detect` disambiguation — the
+   *  abstract predicate owns the `detect(env)` name). */
+  get hostMarker(): LexiconMarkerLike | undefined {
+    return this.row()?.detect;
   }
 
   get install(): Record<string, string[]> | undefined {
-    return this.row().install;
+    return this.row()?.install;
   }
 }
 

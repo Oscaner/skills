@@ -1,4 +1,4 @@
-// packages/kairos/tests/pi-install-smoke.test.mjs — C4 install smoke (R5 station ①).
+// packages/kairos/tests/pi-install-smoke.test.ts — C4 install smoke (R5 station ①).
 // End-to-end consumer path for the pi harness: npm pack (cwd = the package dir) → tar
 // extract (strip the npm top-level package/ dir) → temp project cwd → `pi install
 // <unpacked-abs-path> --local --approve` → assert the three contract outcomes. The flag
@@ -10,12 +10,13 @@
 // its skills/ is the resolution target the count assertion checks. Zero network: local
 // pack + local directory install only. Missing pi is a hard FAIL with the install command
 // in the message (zero silent skip).
-import { test } from "node:test";
+
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { countSkillsWithMarkdown, EXPECTED } from "../../../scripts/validate/kairos.ts";
@@ -26,11 +27,17 @@ const PI_INSTALL_HINT = "npm i -g @earendil-works/pi-coding-agent";
 
 // Spawn `pi`; a missing binary (ENOENT) becomes an assertion-failing Error whose message
 // carries the install command — the zero silent skip contract.
-function runPi(args, { cwd, env = process.env } = {}) {
+function runPi(
+  args: string[],
+  { cwd, env = process.env }: { cwd?: string; env?: NodeJS.ProcessEnv } = {},
+) {
   const result = spawnSync("pi", args, { cwd, env, encoding: "utf8" });
   if (result.error) {
-    if (result.error.code === "ENOENT") {
-      throw new Error(`pi CLI not found on PATH — install it with: ${PI_INSTALL_HINT} (${result.error.message})`);
+    // errno carries the real code on child-process errors (NodeJS.ErrnoException).
+    if ((result.error as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new Error(
+        `pi CLI not found on PATH — install it with: ${PI_INSTALL_HINT} (${result.error.message})`,
+      );
     }
     throw result.error;
   }
@@ -50,7 +57,11 @@ test("pi install smoke: pack → extract → pi install <dir> --local --approve"
       stdio: ["ignore", "pipe", "pipe"],
     });
     const tarballs = readdirSync(packDir).filter((f) => f.endsWith(".tgz"));
-    assert.strictEqual(tarballs.length, 1, `expected exactly one packed tarball, got: ${tarballs.join(", ")}`);
+    assert.strictEqual(
+      tarballs.length,
+      1,
+      `expected exactly one packed tarball, got: ${tarballs.join(", ")}`,
+    );
     const tarball = path.join(packDir, tarballs[0]);
 
     // 2. Extract, stripping the npm top-level package/ directory.
@@ -86,11 +97,17 @@ test("pi install smoke: pack → extract → pi install <dir> --local --approve"
     // settings file under <project>/.pi/settings.json) — so resolution anchors on
     // path.dirname(settingsPath), the one base both forms share.
     const settingsPath = path.join(project, ".pi", "settings.json");
-    assert.ok(existsSync(settingsPath), "project .pi/settings.json must exist after a --local install");
-    const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
-    const recorded = Array.isArray(settings.packages) ? settings.packages : [];
     assert.ok(
-      recorded.some((entry) => typeof entry === "string" && path.resolve(path.dirname(settingsPath), entry) === unpacked),
+      existsSync(settingsPath),
+      "project .pi/settings.json must exist after a --local install",
+    );
+    const settings = JSON.parse(readFileSync(settingsPath, "utf8")) as { packages?: unknown[] };
+    const recorded = settings.packages ?? [];
+    assert.ok(
+      recorded.some(
+        (entry) =>
+          typeof entry === "string" && path.resolve(path.dirname(settingsPath), entry) === unpacked,
+      ),
       `settings.json packages must record the installed source, got: ${JSON.stringify(recorded)}`,
     );
   } finally {

@@ -22,7 +22,7 @@ export class ManifestService {
    * same `oscaner` gate as every other consumer.
    * @param {string} packagesRoot repo-relative path to the packages/ dir
    */
-  deriveFirstPartyNames(packagesRoot): string[] {
+  deriveFirstPartyNames(packagesRoot: string): string[] {
     return firstPartyNames(packagesRoot);
   }
 }

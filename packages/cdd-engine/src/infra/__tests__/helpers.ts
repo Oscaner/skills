@@ -3,6 +3,7 @@
 import { execFileSync, execSync, spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import type { ExecaMethod } from "execa";
 
 // 进程组回收能力探针（spec §2.6「环境不允许时 skip 保护」）：
 // detached 组 + kill(-pgid) 在部分 CI 容器（Ubuntu runner sandbox）下不可靠 —— 组提升失败或
@@ -14,9 +15,11 @@ export function processGroupReapingSupported() {
       detached: true,
       stdio: "ignore",
     });
+    const pid = child.pid;
+    if (pid == null) return false; // no pid yet → the group semantics cannot be observed
     const observable = (() => {
       try {
-        process.kill(-child.pid, 0);
+        process.kill(-pid, 0);
         return true;
       } catch {
         return false;
@@ -24,7 +27,7 @@ export function processGroupReapingSupported() {
     })();
     const killable = (() => {
       try {
-        process.kill(-child.pid, "SIGKILL");
+        process.kill(-pid, "SIGKILL");
         return true;
       } catch {
         return false;
@@ -39,7 +42,7 @@ export function processGroupReapingSupported() {
 // 标记进程计数（CI 实测：Linux 下 `sh -c "pgrep -f P1LLWC | wc -l"` 的命令行含模式本身会被
 // pgrep -f 自匹配 → 计数恒 ≥1。括号技巧 `[P]1LLWC`：正则仍匹配其他进程里的字面 P1LLWC，
 // 但执行 shell 的 cmdline 是 `[P]1LLWC`（带括号）不匹配 → 自匹配消除，macOS/Linux 行为一致）。
-export function pgrepCount(marker) {
+export function pgrepCount(marker: string) {
   const pat = `[${marker[0]}]${marker.slice(1)}`;
   return Number(execSync(`pgrep -f "${pat}" | wc -l`).toString().trim());
 }
@@ -84,7 +87,7 @@ export function captureStdout() {
   };
 }
 
-export function gitInit(dir) {
+export function gitInit(dir: string) {
   execFileSync("git", ["init", "-q"], { cwd: dir });
   execFileSync("git", [
     "-C",
@@ -103,7 +106,7 @@ export function gitInit(dir) {
 
 // 在已 init 的仓库 add+commit（保持工作树干净——commit-contract 校验）。
 // 同样 -c 内联身份：裸 git commit 在无全局身份的 CI runner 上会失败（PR #177 CI 实测）。
-export function gitCommit(dir, message = "plan") {
+export function gitCommit(dir: string, message = "plan") {
   execFileSync("git", ["-C", dir, "add", "-A"]);
   execFileSync("git", [
     "-C",
@@ -164,7 +167,7 @@ const VALID_OVERALL_BODY = [
  * (default the canonical valid body; a fixture may pass its own planBody) into the repo and commit
  * them (clean tree — commit-contract premise). Returns the plan's repo-relative path. */
 export function commitValidDocs(
-  dir,
+  dir: string,
   planRel = path.join("docs", "kairos", "plans", "plan.md"),
   planBody = VALID_PLAN_BODY,
 ) {
@@ -187,7 +190,7 @@ export function commitValidDocs(
  * branch fixture plan must carry plan → `**Spec:**` → Parent program → overall with a green four
  * tables — the overall's only phase is all-pending, so all six audit faces no-op). Returns the
  * plan's absolute path (the branch fixtures pass it as `--plan`/runBranchReview`.plan). */
-export function writeBranchChain(dir, planName) {
+export function writeBranchChain(dir: string, planName: string) {
   const plansDir = path.join(dir, "docs", "kairos", "plans");
   const specsDir = path.join(dir, "docs", "kairos", "specs");
   mkdirSync(plansDir, { recursive: true });
@@ -251,6 +254,41 @@ export function writeBranchChain(dir, planName) {
 //      三处调用点一律用 thunk 形态，避免同一 helper 出现两种写法。
 //   ② 本 helper 的 import 必须排在**任何 transitively 加载 src/infra/root.ts 的 import 之前**
 //      （如 src/dispatch/task.ts / src/cli/*），否则 `mockRoot` 这个绑定自身在工厂被调用时尚未初始化。
-export function mockRoot(resolve) {
+export function mockRoot(resolve: unknown) {
   return { initRoot: resolve, getRoot: resolve };
+}
+
+// ---- vi.mock surface seams (T2 mechanical surface) ----
+// A `vi.mock("execa", () => ({ execa: vi.fn() }))` factory swaps the module for a bare vi.fn() that
+// static typing still reports as the real ExecaMethod. These seams expose the mock's assert surface
+// once at the framework boundary (a module mock IS the fixture boundary — the cast stays local to
+// the seam, no per-case casts) so case-scope assertions can read them.
+
+/** The child result subset the task/docs lanes read off an execa spill (the mock resolves to it). */
+export interface ChildResult {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  timedOut?: boolean;
+  signal?: string;
+}
+
+/** The mocked execa surface: resolved-value injection (mockResolvedValue/Once — chainable, as
+ * vitest's mocks are) + the calls ledger (the lanes invoke `execa(cli, args, opts)` —
+ * tuple [file, args, opts]). Intersected with the real ExecaMethod so the seam cast stays a plain
+ * `as` (the intersection is assignable to the source — no `unknown` bridge needed). */
+export type MockedExeca = ExecaMethod & {
+  mockResolvedValue(v: ChildResult): MockedExeca;
+  mockResolvedValueOnce(v: ChildResult): MockedExeca;
+  mockImplementation(fn: (...args: unknown[]) => ChildResult | Promise<ChildResult>): MockedExeca;
+  mockClear(): MockedExeca;
+  mock: {
+    calls: Array<[unknown, string[], { cwd?: string; env?: Record<string, string | undefined> }]>;
+  };
+};
+
+/** execa module-mock seam: `execa` post-vi.mock is statically the real ExecaMethod — narrow the
+ * mock surface once here (fixture-boundary cast). */
+export function mockExeca(execa: unknown): MockedExeca {
+  return execa as MockedExeca;
 }

@@ -8,7 +8,6 @@ export default defineConfig({
     // live at scripts/<dir>/__tests__/<file>.test.ts (engine isomorphism, T3).
     include: ["scripts/**/__tests__/**/*.test.ts"],
     maxWorkers: 1,
-    minWorkers: 1,
     fileParallelism: false,
     maxConcurrency: 2,
   },

@@ -45,7 +45,7 @@ import { ReturnBlockParser } from "../artifacts/return-block.ts";
 import { RoundContext } from "../artifacts/round-context.ts";
 import { DOC_TOKENS } from "../documents/tokens.ts";
 import { type TaskGroup, toTaskGroup } from "../domain/task-group.ts";
-import { CddExitError, ExitRequested, exitWithCode } from "../infra/exit.ts";
+import { CddExitError, ExitRequested, exitWithCode, invariant } from "../infra/exit.ts";
 import { type DispatchOp, EngineInvoker } from "../infra/invoke.ts";
 import type { TerminationCause, TerminationConfig } from "../infra/proc.ts";
 import { CddBlockedError, REG_PATH, Registry } from "../infra/registry.ts";
@@ -203,6 +203,9 @@ export function buildPromptParams(
 
 /** TaskRunOptions — runTask's public opts (signature keys only; anything else unused). */
 export interface TaskRunOptions {
+  /** The dispatch op — the legal trio implement / review / fix as the CLI faces emit it, though
+   * the runtime contract keeps the field open: a persisted invalid value is rejected at pre-flight
+   * validateMode (the deliberate-invalid probe surface, T2 widening). */
   mode?: string;
   planFile?: string;
   root?: string;
@@ -358,6 +361,19 @@ export class TaskLifecycle extends DispatchLifecycle {
     return this.#opts.mode ?? "";
   }
 
+  /** The typed dispatch op (the op derivation point — the type-narrowed sibling of #mode()); the
+   *  valid trio is guaranteed post-validateMode (pre-flight step 6 rejects persisted invalids);
+   *  the raw possibly-empty value for that diagnostic stays on #mode() — read directly at its
+   *  single pre-validation consumer (validateMode). */
+  #op(): DispatchOp {
+    const mode = this.#mode();
+    invariant(
+      mode === "implement" || mode === "review" || mode === "fix",
+      `task: invalid dispatch op (got: ${mode})`,
+    );
+    return mode;
+  }
+
   /** Read the `--findings` INPUT findings (fix face, C5-1 — the fix next-hop judges on the input
    *  content, never the fix's own carrier). Missing/unreadable input → [] (the conservative 0-blocker
    *  baseline — the suggestion is a default, never a throw). */
@@ -430,7 +446,7 @@ export class TaskLifecycle extends DispatchLifecycle {
     next?: NextStepArgs,
   ): string[] {
     return this.#resultFace.emit({
-      op: this.#mode() as "implement" | "review" | "fix",
+      op: this.#op(),
       handoffPath: this.#tcx?.handoffPath ?? "",
       status,
       findings,
@@ -978,7 +994,7 @@ export class TaskLifecycle extends DispatchLifecycle {
       this.#done(
         1,
         this.#face("TIMEOUT", undefined, {
-          op: mode,
+          op: this.#op(),
           type: "task",
           group: this.#groupKey,
           plan: ctx.plan,
@@ -1110,7 +1126,7 @@ export class TaskLifecycle extends DispatchLifecycle {
       this.#done(
         1,
         this.#face("BLOCKED", undefined, {
-          op: mode,
+          op: this.#op(),
           type: "task",
           group: this.#groupKey,
           plan: ctx.plan,

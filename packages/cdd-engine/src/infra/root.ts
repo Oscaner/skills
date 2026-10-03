@@ -10,6 +10,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { exitWithCode } from "./exit.ts";
+import { wordTable } from "./word-table.ts";
 
 export { getRoot, initRoot } from "./runtime.ts";
 
@@ -17,7 +18,7 @@ export function resolveDocArg(arg: string, root: string, flag = "path"): string 
   if (path.isAbsolute(arg)) {
     if (existsSync(arg)) return arg;
     process.stderr.write(
-      `CDD_BLOCKED: --${flag} not found: ${arg}\n` +
+      `${wordTable().station("blocked")} --${flag} not found: ${arg}\n` +
         `  Absolute path does not exist.\n` +
         `  Hint: pass a repo-root-relative path instead.\n`,
     );
@@ -26,7 +27,7 @@ export function resolveDocArg(arg: string, root: string, flag = "path"): string 
   const resolved = path.join(root, arg);
   if (existsSync(resolved)) return resolved;
   process.stderr.write(
-    `CDD_BLOCKED: --${flag} not found: ${arg}\n` +
+    `${wordTable().station("blocked")} --${flag} not found: ${arg}\n` +
       `  Tried (against repo root ${root}): ${resolved}\n` +
       `  Hint: cdd resolves paths against the repo root. Verify the path is correct relative to the repo root.\n`,
   );

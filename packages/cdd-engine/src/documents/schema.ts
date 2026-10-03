@@ -3,7 +3,7 @@
 // that define the five CDD doc types (overall / plan / phase-spec / add-phase-protocol /
 // skill-anatomy). The canonical files live at config/schema/ (C7 — the generic schema namespace
 // shared with the handoff + cache-profile schemas) — the single source of truth; `pnpm build`
-// mirrors the config dir to dist/config (build.config.ts copy entry) so the published package
+// mirrors the config dir to dist/config (the tsc build's config copy) so the published package
 // ships the addressable copy. Resolution is published-path-first (the consumer face) via the
 // logical-name locator, with the source tree as the dev fallback. Pure read layer — zero
 // transactional behavior: no writes, no dispatch, no audit.

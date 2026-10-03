@@ -4,24 +4,23 @@
   "description": "CDD engine CLIs: task runner, docs reviewer, branch reviewer, harness selector.",
   "type": "module",
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.18.0"
   },
   "files": [
     "dist/",
-    "templates/",
-    "config/"
+    "config/",
+    "templates/"
   ],
-  "main": "./dist/cli.mjs",
+  "main": "./dist/bin.js",
   "exports": {
-    ".": "./dist/cli.mjs",
+    ".": "./dist/bin.js",
     "./package.json": "./package.json"
   },
   "bin": {
-    "cdd": "./dist/cli.mjs"
+    "cdd": "./dist/bin.js"
   },
   "scripts": {
-    "build": "unbuild",
-    "dev:stub": "unbuild --stub",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && rm -rf dist/config && mkdir -p dist/config && cp -R config/. dist/config/",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -38,9 +37,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.2",
-    "@typescript/typescript6": "^6.0.2",
     "typescript": "^7.0.2",
-    "unbuild": "^3.6.1",
     "vitest": "^5.0.1"
   },
   "repository": {

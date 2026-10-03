@@ -2,7 +2,7 @@
 // (C6): the biome gate and the validate-subset backstop now ride lint-staged.
 // `.husky/pre-commit` is the single `pnpm exec lint-staged` line — the handwritten
 // autofix + re-stage loop is gone (biome:fix stays a manual script; the hook never
-// calls it), and lint-staged.config.mjs declares the two tasks: `biome check` for
+// calls it), and lint-staged.config.ts declares the two tasks: `biome check` for
 // the staged ts domain (no `--write`, so a surviving format/lint violation exits
 // non-zero and blocks the commit — the no-fix intercept) + a `*` catch-all that
 // keeps running `pnpm run precommit` (the tree-independent validate subset) as the
@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const CONFIG_PATH = join(ROOT, "lint-staged.config.mjs");
+const CONFIG_PATH = join(ROOT, "lint-staged.config.ts");
 
 describe("biome gate wiring (C6/no-fix)", () => {
   it("biome.json ships the recommended ts-surface config", () => {

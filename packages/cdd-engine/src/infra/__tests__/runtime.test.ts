@@ -85,7 +85,13 @@ describe("CddRuntime — constructor injection (② the stand-in substitutes the
 
     const isDryRun = vi.fn(() => true); // downgrade lane — never a hard entry BLOCK on a dirty tree
     const getRoot = vi.fn(() => repo);
-    const withLifecycle = vi.fn(<T>(fn: () => Promise<T>): Promise<T> => fn());
+    // vi.fn erases a generic signature's identity (Mock returns Promise<unknown>); keep the mock's
+    // callable matching the interface by intersecting the mock surface with the declared signature
+    // (the intersection is assignable to both — no behavior change; the assertion stays a plain `as`).
+    const withLifecycle = vi.fn(
+      <T>(fn: () => Promise<T>, _opts: { intervalMs?: number; graceMs?: number } = {}) => fn(),
+    ) as ReturnType<typeof vi.fn> &
+      (<T>(fn: () => Promise<T>, opts?: { intervalMs?: number; graceMs?: number }) => Promise<T>);
     const stub: CddRuntimeLike = {
       isDryRun,
       setDryRun: vi.fn(),

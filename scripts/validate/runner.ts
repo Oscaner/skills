@@ -4,7 +4,7 @@
 // ValidateBlock instances — CheckBlock for in-process checks, SubprocessBlock for execa steps —
 // and the ~30-line step-runner loop becomes ValidateRunner.run() (ONE loop; the 11 names / order /
 // grepTargets / channelTargets domain facts stay byte-identical — pinned by
-// packages/kairos/tests/ci-validate.test.mjs). A leaf module (imports nothing from
+// packages/kairos/tests/ci-validate.test.ts). A leaf module (imports nothing from
 // validate/), so importing it from the block modules creates no ESM cycle.
 //
 // run() prints `== <step> ==` + OK per step, `== FAIL: <step> ==` + message and
@@ -21,7 +21,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { execaSync } from "execa";
 
 /** The minimal step face the runner consumes — structural, so a plain `{ name, run }` object
- * (ci-validate.test.mjs feeds one into run()) and every ValidateBlock both run. */
+ * (ci-validate.test.ts feeds one into run()) and every ValidateBlock both run. */
 export interface StepRun {
   name: string;
   run(): unknown;

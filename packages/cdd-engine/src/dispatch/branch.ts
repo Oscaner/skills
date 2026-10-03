@@ -32,9 +32,14 @@ import {
   recoverHandoff,
   writeBlockedCarrier,
 } from "../artifacts/handoff/finalize.ts";
-import { readJson, writeHandoff, writeOwnHandoff } from "../artifacts/handoff/write.ts";
+import {
+  readCommitsBase,
+  readJson,
+  writeHandoff,
+  writeOwnHandoff,
+} from "../artifacts/handoff/write.ts";
 import { Handoff } from "../artifacts/handoff.ts";
-import { exitOk, exitWithCode } from "../infra/exit.ts";
+import { exitOk, exitWithCode, invariant } from "../infra/exit.ts";
 import { EngineInvoker } from "../infra/invoke.ts";
 import { initProcLifecycle, type TerminationCause } from "../infra/proc.ts";
 import { CddBlockedError, REG_PATH, Registry } from "../infra/registry.ts";
@@ -67,14 +72,23 @@ const resultFace = new ResultFace({ nextRouter });
 
 /** Internal common opts — `dryRun` is REQUIRED here (injected by the CLI wrapper); the public
  * BranchReviewOpts / BranchFixOpts surfaces (runBranchReview / runBranchFix params) do NOT carry
- * it, preserving the cli caller contract — the wrapper supplies it at construction. */
+ * it, preserving the cli caller contract — the wrapper supplies it at construction. The channel-
+ * specific `round` (branch review's --round backfill) and `findings` (branch fix's --findings
+ * source review path) ride the shared opts: each lifecycle reads only its own lane's field. */
 export interface BranchLifecycleOpts {
   plan: string;
   harness: string;
-  type: string;
+  /** branch-lane subtype (the CLI callers pass "branch"; the lifecycle itself never consumes it —
+   *  its dispatch facts carry the literal — so the field stays optional for the in-process
+   *  dispatch-probe surface, T2 widening). */
+  type?: string;
   root?: string;
   registryPath?: string;
   dryRun: boolean;
+  /** the CLI --round backfill value (BranchReviewLifecycle's round-conflict check). */
+  round?: string;
+  /** the CLI --findings source-review path (BranchFixLifecycle's round/ref derivation). */
+  findings?: string;
 }
 
 export interface BranchReviewOpts {
@@ -82,7 +96,7 @@ export interface BranchReviewOpts {
   base: string;
   head: string;
   harness: string;
-  type: string;
+  type?: string;
   task?: number;
   round?: string;
   root?: string;
@@ -93,7 +107,7 @@ export interface BranchFixOpts {
   plan: string;
   findings: string;
   harness: string;
-  type: string;
+  type?: string;
   root?: string;
   registryPath?: string;
 }
@@ -644,6 +658,10 @@ export class BranchFixLifecycle extends BranchLifecycle {
   protected override async resolveContext(_hookCtx: DispatchHookContext): Promise<void> {
     this.registryGate();
 
+    // The fix channel's round/ref derivation REQUIRES the --findings source-review path (the CLI
+    // wrapper gates it for non-null before construction; the round-derivation that follows is
+    // meaningless without it — a branching round starts from the source review's file name).
+    invariant(this.opts.findings != null, "branch-fix: --findings required");
     // Root single authority (same injection contract as the review channel): opts.root wins; the
     // black-box path falls back to the initRoot()-initialized singleton.
     this.repoRoot = this.opts.root ?? getRoot();
@@ -741,6 +759,10 @@ export class BranchFixLifecycle extends BranchLifecycle {
     // miss is the caller's coordinate error, exit 1); missing/unknown commits.base → BLOCK (no base
     // = the fix range is underivable, and the fix handoff must declare commits.base for the exit
     // gate).
+    // The source-review path is structurally required on this lane (the CLI wrapper gates it at
+    // construction and resolveContext's round-derivation already read it — the dispatch-time
+    // re-read narrows the same declared truth for the path normalization below).
+    invariant(this.opts.findings != null, "branch-fix: --findings required");
     const findingsPath = resolveDocArg(this.opts.findings, this.repoRoot, "findings");
     // C5-1 (T9 fix): the source-review INPUT path — the fix face derives the return block's `next:`
     // from the `--findings` content (never the fix's own carrier). Stored on the real lane only:
@@ -748,7 +770,10 @@ export class BranchFixLifecycle extends BranchLifecycle {
     // dry-run lane exits earlier (dispatch emits the stub block itself).
     this.findingsPath = findingsPath;
     const src = readJson(findingsPath);
-    const fixBase = src?.commits?.base as string | undefined;
+    // The FIX_BASE (the reviewed range's base — the fix's diff surface): the shared shape-narrowed
+    // read (the one handoff commits.base reader — readCommitsBase, artifacts/handoff/write.ts);
+    // absent/complex → null; the "unknown" sentinel still rejected below.
+    const fixBase = readCommitsBase(src?.commits);
     if (!fixBase || fixBase === "unknown") {
       writeBlockedCarrier(this.handoffPath, {
         tasks: [1],

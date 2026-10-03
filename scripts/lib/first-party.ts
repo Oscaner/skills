@@ -15,7 +15,7 @@ import { join } from "node:path";
  * deterministic output.
  * @param {string} packagesRoot repo-relative path to the packages/ dir
  */
-export function deriveFirstPartyNames(packagesRoot): string[] {
+export function deriveFirstPartyNames(packagesRoot: string): string[] {
   if (!existsSync(packagesRoot)) return [];
   return readdirSync(packagesRoot, { withFileTypes: true })
     .filter((d) => d.isDirectory())

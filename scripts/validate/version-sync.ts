@@ -13,11 +13,22 @@ import { fileURLToPath } from "node:url";
 import { CheckBlock, validateRunner } from "./runner.ts";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const readJson = (rel) => JSON.parse(readFileSync(join(root, rel), "utf8"));
+const readJson = <T>(rel: string): T =>
+  // JSON.parse boundary: the committed repo JSON documents this check reads.
+  JSON.parse(readFileSync(join(root, rel), "utf8")) as T;
+
+// The committed document shapes this check reads (the version-carrying faces only).
+interface MarketplacePluginRow {
+  name: string;
+  version: string;
+}
+interface VersionBumpDoc {
+  files: Array<{ path: string; field: string }>;
+}
 
 function checkVersionSync() {
-  const s = readJson("marketplace/source.json");
-  const m = readJson(".claude-plugin/marketplace.json");
+  const s = readJson<{ plugins: MarketplacePluginRow[] }>("marketplace/source.json");
+  const m = readJson<{ plugins: MarketplacePluginRow[] }>(".claude-plugin/marketplace.json");
 
   // router deleted — router version sync section removed (#209)
 
@@ -26,25 +37,30 @@ function checkVersionSync() {
   // emit` (run before this check). The manifest set is taken from
   // .version-bump.json#files so a newly-added harness manifest can't slip past
   // the equality check.
-  const kairosPkg = readJson("packages/kairos/package.json");
+  const kairosPkg = readJson<{ version: string }>("packages/kairos/package.json");
   const kairosSrc = s.plugins.find((x) => x.name === "kairos");
   const kairosEntry = m.plugins.find((x) => x.name === "kairos");
   const SEMVER = /^\d+\.\d+\.\d+$/;
   if (!SEMVER.test(kairosPkg.version)) {
     throw new Error(`Invalid kairos version format: ${kairosPkg.version}`);
   }
-  const kairosVersions = [kairosPkg.version, kairosSrc.version, kairosEntry.version];
+  const kairosVersions = [kairosPkg.version, kairosSrc?.version, kairosEntry?.version];
   if (new Set(kairosVersions).size !== 1) {
     throw new Error(`kairos version mismatch: ${kairosVersions.join(" ")}`);
   }
-  const kairosBump = readJson("packages/kairos/.version-bump.json");
+  const kairosBump = readJson<VersionBumpDoc>("packages/kairos/.version-bump.json");
   for (const f of kairosBump.files) {
     const abs = join(root, "packages/kairos", f.path);
     if (!existsSync(abs)) {
       throw new Error(`missing generated manifest packages/kairos/${f.path} — run pnpm run emit`);
     }
     const doc = JSON.parse(readFileSync(abs, "utf8"));
-    const val = f.field.split(".").reduce((o, k) => o?.[k], doc);
+    const val = f.field.split(".").reduce<unknown>(
+      // Dotted-path read over the JSON document (JSON.parse data — a mid-traversal segment
+      // value is narrowed to a record so the walk can continue).
+      (o, k) => (o === undefined ? undefined : (o as Record<string, unknown>)[k]),
+      doc,
+    );
     if (val !== kairosPkg.version) {
       throw new Error(`kairos ${f.path} ${val} != ${kairosPkg.version} — run pnpm run emit`);
     }
@@ -56,7 +72,7 @@ function checkVersionSync() {
   // post-version gate `smoke-cdd --expect-version` (P4.2 Task 4) — not duplicated here. Only
   // the declared version format is asserted: strict x.y.z, which also excludes prerelease (-X)
   // and build (+X) suffixes.
-  const cddEnginePkg = readJson("packages/cdd-engine/package.json");
+  const cddEnginePkg = readJson<{ version: string }>("packages/cdd-engine/package.json");
   if (!SEMVER.test(cddEnginePkg.version)) {
     throw new Error(`Invalid cdd-engine version format: ${cddEnginePkg.version}`);
   }

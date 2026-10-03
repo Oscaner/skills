@@ -185,13 +185,16 @@ describe("my-gate 门面去路径化（Task 20 ⑥）：壳散文字节常数，
 });
 
 describe("共享纪律散文（壳 Instructions，跨 mode 同一字节）：evidence gate + commit contract + status 决策", () => {
-  it("evidence gate（指令 7）：behavior_change / command / passed / exit_code 句在 implement + fix + docs fix 渲染内", () => {
+  it("evidence gate（指令 7）：behavior_change / command / passed / exit_code / typecheck 句在 implement + fix + docs fix 渲染内", () => {
     for (const [mode, out] of Object.entries(fixtureRenders())) {
       expect(out, mode).toMatch(/tasks-\{DISPATCH_UNIT\}-test-evidence\.json/);
       expect(out, mode).toContain("behavior_change");
       expect(out, mode).toContain("`command`");
       expect(out, mode).toContain("`passed`");
       expect(out, mode).toContain("`exit_code`");
+      // The typecheck item is a required member of the canonical evidence shape (the
+      // dual-evidence closed loop, T6) — the dispatch instruction tells the implementer to write it.
+      expect(out, mode).toContain("`typecheck`");
     }
   });
 

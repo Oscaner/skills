@@ -16,12 +16,12 @@ import { fileURLToPath } from "node:url";
 import { execaSync } from "execa";
 import { expect, it } from "vitest";
 // Test seam: detectCurrentHarness is exported from cli/shared — the single host-fact source the
-// CLI consumes (the black-box origin cases below verify the real resolution path on the dist CLI).
+// CLI consumes (the black-box origin cases below verify the real resolution path on the source entry).
 import { detectCurrentHarness } from "../shared.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..", "..", "..");
-const CDD_MJS = path.join(REPO_ROOT, "packages/cdd-engine/dist/cli.mjs");
+const CDD_TS = path.join(REPO_ROOT, "packages/cdd-engine/src/bin.ts");
 const PLAN_FIXTURE = path.join(
   REPO_ROOT,
   "packages/cdd-engine/src/cli/__tests__/fixtures/smoke-plan.md",
@@ -30,24 +30,32 @@ const NODE = process.execPath;
 
 // Full-replacement child env from scratch (PATH only + test extras) — parent CDD_* / host
 // markers cannot leak in (extendEnv:false). noHost deletes the three host markers explicitly.
-function runCli(args = [], opts = {}) {
+interface RunCliOpts {
+  env?: Record<string, string | undefined>;
+  cwd?: string;
+  noHost?: boolean;
+}
+function runCli(args: string[] = [], opts: RunCliOpts = {}) {
   const { env: extraEnv = {}, cwd = REPO_ROOT, noHost = false } = opts;
-  const childEnv = { PATH: process.env.PATH, ...extraEnv };
+  const childEnv: Record<string, string | undefined> = { PATH: process.env.PATH, ...extraEnv };
   if (noHost) {
     delete childEnv.CLAUDE_CODE_SESSION_ID;
     delete childEnv.CURSOR_TRACE_ID;
     delete childEnv.AI_AGENT;
   }
   try {
-    const r = execaSync(NODE, [CDD_MJS, ...args], {
+    const r = execaSync(NODE, [CDD_TS, ...args], {
       cwd,
       env: childEnv,
       encoding: "utf8",
       extendEnv: false,
     });
     return { exitCode: r.exitCode ?? 0, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
-  } catch (e) {
-    return { exitCode: e.exitCode ?? 1, stdout: e.stdout ?? "", stderr: e.stderr ?? "" };
+  } catch (e: unknown) {
+    // child_process boundary cast: an execa rejection carries exitCode/stdout/stderr — narrow
+    // once at the seam.
+    const err = e as { exitCode?: number; stdout?: string; stderr?: string };
+    return { exitCode: err.exitCode ?? 1, stdout: err.stdout ?? "", stderr: err.stderr ?? "" };
   }
 }
 

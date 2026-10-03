@@ -30,6 +30,9 @@ const nextRouter = new NextStepRouter();
 export interface FixOpts {
   type: string;
   plan?: string;
+  /** spec document path (type=spec target — D11: --spec is the type-self-describing target
+   * param, consumed via resolveTargetDoc; declared for parse.ts's --spec pass-through). */
+  spec?: string;
   /** The dispatch group (P4.3/4.4) — the whole group fixes as one unit (TaskGroup value). */
   tasks?: number[] | TaskGroup;
   findings?: string;

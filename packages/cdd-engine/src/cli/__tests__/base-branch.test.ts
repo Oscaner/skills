@@ -1,6 +1,6 @@
 // packages/cdd-engine/src/cli/__tests__/base-branch.test.ts
 // `cdd base-branch set/get` CLI blackbox（P5 spec §2.3 / task-3 brief）。
-// 唯一 seam = CLI 公共面（dist/cli.mjs 入口 + base-branch 子命令）：单一 `--plan` 落点、
+// The single seam = the CLI public face (src/bin.ts entry + the base-branch subcommand): the sole `--plan` anchor,
 // schema/flag 校验、幂等 + --force、get JSON 往返、SUBCOMMAND_USAGE 单词键回退。
 // 模块层幂等矩阵由 workspace-artifacts.test.mjs（Task 2）覆盖，
 // 此处只验证 CLI→模块接线 + CLI 自有的 flag 边界与报错面（exit 非零）。
@@ -18,30 +18,36 @@ import { afterAll, describe, expect, it } from "vitest";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..", "..", "..");
-const CDD_MJS = path.join(REPO_ROOT, "packages/cdd-engine/dist/cli.mjs");
+const CDD_TS = path.join(REPO_ROOT, "packages/cdd-engine/src/bin.ts");
 const NODE = process.execPath;
 
 // 与 cdd.test.mjs 同构：剥离继承的 CDD_*，extendEnv:false 防 orchestrator 环境泄漏回 child。
-function cleanEnv(extra) {
-  const env = {};
+function cleanEnv(extra: Record<string, string | undefined> = {}) {
+  const env: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (!k.startsWith("CDD_")) env[k] = v;
   }
   return { ...env, ...extra };
 }
 
-function runCli(args, opts = {}) {
+interface RunCliOpts {
+  cwd?: string;
+}
+function runCli(args: string[] = [], opts: RunCliOpts = {}) {
   const { cwd = REPO_ROOT } = opts;
   try {
-    const r = execaSync(NODE, [CDD_MJS, ...args], {
+    const r = execaSync(NODE, [CDD_TS, ...args], {
       cwd,
       env: cleanEnv(),
       encoding: "utf8",
       extendEnv: false,
     });
     return { exitCode: r.exitCode ?? 0, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
-  } catch (e) {
-    return { exitCode: e.exitCode ?? 1, stdout: e.stdout ?? "", stderr: e.stderr ?? "" };
+  } catch (e: unknown) {
+    // child_process boundary cast: an execa rejection carries exitCode/stdout/stderr — narrow
+    // once at the seam.
+    const err = e as { exitCode?: number; stdout?: string; stderr?: string };
+    return { exitCode: err.exitCode ?? 1, stdout: err.stdout ?? "", stderr: err.stderr ?? "" };
   }
 }
 
@@ -65,18 +71,18 @@ function tmpGitRepo() {
 }
 
 // 在 repo 内建 plan 文件（父目录一并创建：resolveWorkspace 从 dirname(doc) 走 gitToplevel）。
-function seedPlan(repo) {
+function seedPlan(repo: string) {
   const plan = path.join(repo, "plans", "app-plan.md");
   mkdirSync(path.dirname(plan), { recursive: true });
   writeFileSync(plan, "# app plan\n"); // workspaceSlug: app-plan → app
   return plan;
 }
 
-function cddWorkspace(repo) {
+function cddWorkspace(repo: string) {
   return path.join(repo, ".kairos", "cdd", "app");
 }
 
-function readBaseBranch(dir) {
+function readBaseBranch(dir: string) {
   return JSON.parse(readFileSync(path.join(dir, "base-branch.json"), "utf8"));
 }
 

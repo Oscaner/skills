@@ -17,9 +17,10 @@ const REPO_ROOT = path.resolve(import.meta.dirname, "../../../../..");
 // spec §2.4.4 ① 的闭集（4 键：3 宿主识别 + PATH，T26 三 timeout 键已删）—— 由 canonical
 // `channels.env` 派生：`engine-config.json#contextContract` 是白名单的**唯一**声明点，
 // 本文件不留第二份字面（改 canonical 即改守卫，T4 同源）。
-const ALLOWED = Object.values(loadContract().channels.env).flatMap((v) =>
-  v.var ? [v.var] : v.markers,
-);
+const ALLOWED = Object.values(
+  // fixture seam: the env channel rows carry either a singular `var` or a `markers` list.
+  (loadContract().channels as { env: Record<string, { var?: string; markers?: string[] }> }).env,
+).flatMap((v) => (v.var ? [v.var] : (v.markers ?? [])));
 // AC3 的六键零命中（键名，含注释与 spread 形）
 const DELETED = [
   "CDD_LIFECYCLE_PATH",
@@ -46,7 +47,7 @@ function mechanismFiles() {
 
 describe("engine env 面收口", () => {
   it('取值直读键 ⊆ 白名单（覆盖 process.env.X / process.env["X"] / env.X 三形）', () => {
-    const hits = new Set();
+    const hits = new Set<string>();
     for (const f of mechanismFiles()) {
       const src = readFileSync(f, "utf8");
       // 第三支 `(?:^|[^.\w])env\.X` 覆盖收口前的 env.CDD_* 形；前缀约束排除 process.env.X 与 childEnv.X 误伤
@@ -56,7 +57,7 @@ describe("engine env 面收口", () => {
         hits.add(m[1] ?? m[2] ?? m[3]);
       }
     }
-    expect([...hits].filter((k) => !ALLOWED.includes(k))).toEqual([]);
+    expect([...hits].filter((k) => k !== undefined && !ALLOWED.includes(k))).toEqual([]);
   });
   it("零 spread 注入（{ ...process.env, … }）", () => {
     const offenders = mechanismFiles().filter((f) =>

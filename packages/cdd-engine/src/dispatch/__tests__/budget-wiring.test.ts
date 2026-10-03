@@ -53,8 +53,17 @@ vi.mock("../../infra/registry.ts", async () => {
   return { ...actual, Registry: MockRegistry };
 });
 
-import { execa } from "execa";
-import { commitValidDocs, gitInit, writeBranchChain } from "../../infra/__tests__/helpers.ts";
+import { execa as execaImport } from "execa";
+import {
+  commitValidDocs,
+  gitInit,
+  mockExeca,
+  writeBranchChain,
+} from "../../infra/__tests__/helpers.ts";
+
+// vi.mock("execa") swaps the module for a bare vi.fn — the seam exposes the mock surface once.
+const execa = mockExeca(execaImport);
+
 import { ConfigLoader } from "../../infra/config.ts";
 import { ExitRequested } from "../../infra/exit.ts";
 import { type DispatchOp, EngineInvoker } from "../../infra/invoke.ts";
@@ -173,7 +182,7 @@ afterAll(restorePath);
 // return block (commits ground on the repo HEAD) — the task implement run stays green end-to-end.
 function mockAgentReturnBlock(repo: string): void {
   const head = git(repo, "rev-parse", "HEAD");
-  vi.mocked(execa).mockImplementation(async () => ({
+  execa.mockImplementation(async () => ({
     exitCode: 0,
     stdout: `status: APPROVED\ncommits: base=${head} head=${head}\nartifacts: brief=b report=r test_evidence=e\n`,
     stderr: "",
@@ -228,7 +237,7 @@ async function runDocsDispatch(mode: "review" | "fix", repo: string): Promise<un
   const doc = path.join(repo, "docs", "kairos", "specs", "plan-design.md");
   const wsDir = path.join(repo, ".kairos", "cdd", "plan");
   mkdirSync(wsDir, { recursive: true });
-  vi.mocked(execa).mockResolvedValue({
+  execa.mockResolvedValue({
     exitCode: 0,
     stdout: "",
     stderr: "",
@@ -272,7 +281,7 @@ async function runBranchDispatch(mode: "review" | "fix", repo: string): Promise<
   const base = git(repo, "rev-parse", "HEAD~1");
   const base7 = base.slice(0, 7);
   const head7 = head.slice(0, 7);
-  vi.mocked(execa).mockResolvedValue({
+  execa.mockResolvedValue({
     exitCode: 0,
     stdout: "",
     stderr: "",

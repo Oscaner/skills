@@ -37,15 +37,15 @@ Use `cdd <command> --help` for a command's full option list (for example `cdd re
 
 ## Development
 
-The package lives in the [Oscaner/skills](https://github.com/Oscaner/skills) monorepo at `packages/cdd-engine` (TypeScript, built with unbuild, tested with vitest; tests are colocated at `src/**/__tests__/**/*.test.ts`).
+The package lives in the [Oscaner/skills](https://github.com/Oscaner/skills) monorepo at `packages/cdd-engine` (TypeScript, emitted with `tsc -p tsconfig.build.json`, tested with vitest; tests are colocated at `src/**/__tests__/**/*.test.ts`).
 
 ```bash
-pnpm --filter @oscaner-skills/cdd-engine dev:stub   # rebuild the jiti immediate-load dev stub
-node packages/cdd-engine/dist/cli.mjs schema get plan # invoke the engine from the working tree
+node packages/cdd-engine/src/bin.ts schema get plan # invoke the engine source-direct from the working tree (Node ≥22.18 native type stripping)
 pnpm --filter @oscaner-skills/cdd-engine test       # run the engine test suite
+pnpm --filter @oscaner-skills/cdd-engine build      # tsc-emit the published dist/bin.js
 ```
 
-During repository development the engine is invoked straight from the working tree (`dist/cli.mjs`) — never through a global install or link, which can go stale.
+During repository development the engine is invoked straight on the source entry (`node packages/cdd-engine/src/bin.ts`) — never through a global install or link, which can go stale.
 
 ## License
 

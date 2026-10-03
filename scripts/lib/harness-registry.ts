@@ -18,6 +18,45 @@ import { join } from "node:path";
 
 import { generatedBanner } from "./generated-banner.ts";
 
+/** The first-party plugin source row (package-as-source derivation, scripts/emit/source.ts) — the
+ *  face the manifest builders consume. */
+export interface PluginSource {
+  name: string;
+  contentRoot: string;
+  version?: string;
+  description?: string;
+  author?: { name: string } | string;
+  license?: string;
+  homepage?: string;
+  repository?: string;
+  cursor?: { emitMode?: string; displayName?: string; skills?: string; hooks?: string };
+  claude?: { category?: string; keywords?: string[]; tags?: string[]; displayName?: string };
+  hooks?: { claude?: string };
+}
+
+/** The `pkg.oscaner` source.json descriptor field — the sourceJson contribution input. */
+export interface OscanerFields {
+  contentRoot?: string;
+  harnesses?: string[];
+  keywords?: string[];
+  claude?: { category?: string; keywords?: string[]; displayName?: string };
+  hooks?: unknown;
+}
+
+/** Package surface the pi package contract reads (validatePackage's pkg face). */
+export interface PackageJsonSurface {
+  keywords?: string[];
+  files?: string[];
+  pi?: { skills?: unknown; [key: string]: unknown };
+}
+
+/** validatePackage's injected context — keeps this lib free of the validate side's imports. */
+export interface PiValidationCtx {
+  pkgRoot: string;
+  expectedCount: number;
+  countSkills: (dir: string) => number;
+}
+
 export abstract class Harness {
   /** Harness identity — the registry id and the source.json row key slot. */
   abstract readonly id: "claude" | "cursor" | "pi";
@@ -25,11 +64,11 @@ export abstract class Harness {
   abstract readonly product: { rel: string } | undefined;
 
   /** Build this harness's manifest document for a plugin source row + version. */
-  abstract manifest(plugin, version: string): object;
+  abstract manifest(plugin: PluginSource, version: string): object;
   /** source.json descriptor contribution for a plugin's oscaner; `undefined` = no row slot. */
-  abstract sourceJson(osc): object | undefined;
+  abstract sourceJson(osc: OscanerFields): object | undefined;
   /** Package-surface contract; default no-op — claude/cursor carry no package assertions. */
-  validatePackage(_pkg, _ctx): void {
+  validatePackage(_pkg: PackageJsonSurface, _ctx: PiValidationCtx): void {
     // no-op: only PiHarness overrides with its five-assertion guard.
   }
 }
@@ -39,8 +78,8 @@ export class CursorHarness extends Harness {
   readonly product = { rel: ".cursor-plugin/plugin.json" };
 
   /** `.cursor-plugin/plugin.json` — thin manifest, no per-harness skill copy. */
-  manifest(plugin, version) {
-    const m = {
+  manifest(plugin: PluginSource, version: string) {
+    const m: Record<string, unknown> = {
       _generated: generatedBanner,
       name: plugin.name,
       displayName: plugin.cursor?.displayName ?? plugin.name,
@@ -56,7 +95,7 @@ export class CursorHarness extends Harness {
   }
 
   /** First-party plugins ship plugin-root cursor manifests — the emit-mode descriptor. */
-  sourceJson(_osc) {
+  sourceJson(_osc: OscanerFields) {
     return { emitMode: "plugin-root" };
   }
 }
@@ -71,8 +110,8 @@ export class ClaudeHarness extends Harness {
    * trigger router, which ships no skill bodies (kairos keeps
    * `skills: "./skills/"`).
    */
-  manifest(plugin, version, { noSkills = false } = {}) {
-    const m = {
+  manifest(plugin: PluginSource, version: string, { noSkills = false } = {}) {
+    const m: Record<string, unknown> = {
       _generated: generatedBanner,
       name: plugin.name,
       description: plugin.description,
@@ -102,7 +141,7 @@ export class ClaudeHarness extends Harness {
    * `oscaner.keywords` first, then `claude.keywords` — the single D7
    * byte-stable reconciliation point between the two keyword sources.
    */
-  sourceJson(osc) {
+  sourceJson(osc: OscanerFields) {
     if (osc.claude === undefined) return undefined;
     return { ...osc.claude, keywords: osc.keywords ?? osc.claude?.keywords };
   }
@@ -113,12 +152,12 @@ export class PiHarness extends Harness {
   readonly product = undefined;
 
   /** Unreachable — pi is an inline distribution and ships no manifest document. */
-  manifest(_plugin, _version) {
+  manifest(_plugin: PluginSource, _version: string): object {
     throw new Error("PiHarness produces no manifest — pi is an inline distribution");
   }
 
   /** Pi contributes no source.json row slot — it is not part of the emit aggregate. */
-  sourceJson(_osc) {
+  sourceJson(_osc: OscanerFields) {
     return undefined;
   }
 
@@ -130,7 +169,7 @@ export class PiHarness extends Harness {
    * baseline (pkgRoot) and the skills count are injected via ctx so the lib never
    * imports the validate side (count single-truth = scripts/validate/kairos.ts).
    */
-  validatePackage(pkg, ctx) {
+  validatePackage(pkg: PackageJsonSurface, ctx: PiValidationCtx) {
     const declared = pkg.pi?.skills;
 
     // 1. Keywords carry the pi-package marker.
@@ -206,7 +245,7 @@ export class HarnessRegistry {
    * harness is a defect), and every declared id must exist in the registry (a
    * declared-but-unknown id is a defect). Both directions report the offending id.
    */
-  assertBidirectional(declarations) {
+  assertBidirectional(declarations: Record<string, string[]>) {
     const declared = new Set(Object.values(declarations).flat());
     for (const harness of this.#all) {
       if (!declared.has(harness.id)) {
@@ -237,6 +276,6 @@ export const harnessRegistry = new HarnessRegistry([cursorHarness, claudeHarness
  * `if (kw.length)` guard omits the `keywords` field — no `tags` fallback chain
  * (design §2.4: declared-missing = absent, no throw, no fallback).
  */
-function keywordsOf(plugin) {
+function keywordsOf(plugin: PluginSource) {
   return plugin.claude?.keywords ?? [];
 }

@@ -10,7 +10,12 @@ vi.mock("execa", () => ({
   execa: vi.fn(),
 }));
 
-import { execa } from "execa";
+import { execa as execaImport } from "execa";
+import { mockExeca } from "./helpers.ts";
+
+// vi.mock("execa") swaps the module for a bare vi.fn — the seam exposes the mock surface once
+// (framework-boundary fixture cast, shared helper).
+const execa = mockExeca(execaImport);
 
 describe("resolveTerminationConfig", () => {
   it("default implement budget is 6h (canonical timeouts.defaults.implement)", () => {
@@ -96,7 +101,7 @@ describe("invokeCli prefix/suffix injection (operation×type)", () => {
       "/tmp",
       undefined,
     );
-    const promptArg = execa.mock.calls[0][1].at(-1);
+    const promptArg = execa.mock.calls[0][1].at(-1) ?? "";
     expect(promptArg.split("\n")[0]).toBe("/mattpocock-skills:tdd");
     expect(promptArg.split("\n").slice(1).join("\n")).toBe("line one\nline two");
   });
@@ -117,7 +122,7 @@ describe("invokeCli prefix/suffix injection (operation×type)", () => {
       "/tmp",
       undefined,
     );
-    const promptArg = execa.mock.calls[0][1].at(-1);
+    const promptArg = execa.mock.calls[0][1].at(-1) ?? "";
     expect(promptArg.split("\n")[0]).toBe("/mattpocock-skills:code-review");
     expect(promptArg.split("\n")[1]).toBe("review prompt");
   });
@@ -133,7 +138,7 @@ describe("invokeCli prefix/suffix injection (operation×type)", () => {
       "/tmp",
       undefined,
     );
-    const promptArg = execa.mock.calls[0][1].at(-1);
+    const promptArg = execa.mock.calls[0][1].at(-1) ?? "";
     expect(promptArg).toBe("spec prompt");
   });
 
@@ -153,7 +158,7 @@ describe("invokeCli prefix/suffix injection (operation×type)", () => {
       "/tmp",
       undefined,
     );
-    const promptArg = execa.mock.calls[0][1].at(-1);
+    const promptArg = execa.mock.calls[0][1].at(-1) ?? "";
     expect(promptArg.split("\n")[0]).toBe("/mattpocock-skills:tdd");
   });
 
@@ -167,19 +172,19 @@ describe("invokeCli prefix/suffix injection (operation×type)", () => {
       suffix: {},
     };
     await invoker.invokeCli(entry, "legacy prompt", { op: "legacy-review" }, {}, "/tmp", undefined);
-    const promptArg = execa.mock.calls[0][1].at(-1);
+    const promptArg = execa.mock.calls[0][1].at(-1) ?? "";
     expect(promptArg.split("\n")[0]).toBe("/legacy-review");
     // 旧位置 mode 字符串参数也归一 → 同走扁平键兜底
     execa.mockClear();
     await invoker.invokeCli(entry, "legacy prompt", "legacy-review", {}, "/tmp", undefined);
-    expect(execa.mock.calls[0][1].at(-1).split("\n")[0]).toBe("/legacy-review");
+    expect((execa.mock.calls[0][1].at(-1) ?? "").split("\n")[0]).toBe("/legacy-review");
   });
 
   it("entry without prefix/suffix → prompt unchanged", async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: "ok", stderr: "", timedOut: false });
     const entry = { cli: "claude", invoke: "-p", output: "text" };
     await invoker.invokeCli(entry, "plain prompt", { op: "implement" }, {}, "/tmp", undefined);
-    const promptArg = execa.mock.calls[0][1].at(-1);
+    const promptArg = execa.mock.calls[0][1].at(-1) ?? "";
     expect(promptArg).toBe("plain prompt");
   });
 
@@ -193,7 +198,7 @@ describe("invokeCli prefix/suffix injection (operation×type)", () => {
       suffix: { implement: "[END]" },
     };
     await invoker.invokeCli(entry, "middle", { op: "implement" }, {}, "/tmp", undefined);
-    const promptArg = execa.mock.calls[0][1].at(-1);
+    const promptArg = execa.mock.calls[0][1].at(-1) ?? "";
     expect(promptArg).toBe("middle\n[END]");
   });
 
@@ -207,7 +212,7 @@ describe("invokeCli prefix/suffix injection (operation×type)", () => {
       suffix: { implement: "[S]" },
     };
     await invoker.invokeCli(entry, "mid", { op: "implement" }, {}, "/tmp", undefined);
-    const promptArg = execa.mock.calls[0][1].at(-1);
+    const promptArg = execa.mock.calls[0][1].at(-1) ?? "";
     expect(promptArg).toBe("[P]\nmid\n[S]");
   });
 });

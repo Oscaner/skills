@@ -31,6 +31,7 @@
 // singleton → constructor injection (ConvergenceChecker default). Zero bare function exports, zero
 // module-level mutable state (the remaining module consts — SOFT_CAP_S1_ROUNDS / the decision-table
 // literals — are immutable).
+import { wordTable } from "../infra/word-table.ts";
 import { ConvergenceChecker } from "./convergence.ts";
 
 /** The input the derivation draws on — a subset of the dispatch's existing ctx/opts fields (C5-2).
@@ -48,8 +49,9 @@ export interface NextStepArgs {
   round?: number;
   /** the round's concluding status (finalized): BLOCKED/TIMEOUT → no suggestion (null). */
   status?: string;
-  /** findings — review: this round's findings; fix: the `--findings` INPUT content (C5-1). */
-  findings?: ReadonlyArray<{ severity?: string }>;
+  /** findings — review: this round's findings; fix: the `--findings` INPUT content (C5-1).
+   *  Findings carry the severity selector + the summary prose. */
+  findings?: ReadonlyArray<{ severity?: string; summary?: string }>;
   /** the findings handoff path — fix: the `--findings` input path; review: its own review handoff
    *  (the path the next fix round reads on `--findings`). */
   findingsPath?: string;
@@ -160,12 +162,25 @@ export class NextStepRouter {
     return path ? ` --findings ${path}` : "";
   }
 
+  /** The review→fix read-back annotation (T6, spec 2.3): a review's `next:` fix suggestion carries
+   *  the hand-off read-back prompt so the dispatcher confirms the findings before dispatching the
+   *  fix. The wording comes from the contract lexicon (command.capsule.readbackWording — data
+   *  sourced, never a literal restate); the `<handoff>` placeholder resolves to the review's own
+   *  handoff path. Missing path → the annotation degrades away (C5-0: only the present facts land
+   *  on the line). */
+  #readbackArg(path?: string): string {
+    if (!path) return "";
+    return ` ${wordTable().wording("readback").replace("<handoff>", path)}`;
+  }
+
   /** next(input) — the C5 derivation (C5-1 decision table): returns the `next:` line VALUE
    *  (callers prefix `next: `), or null when the round produces NO `next:` line — the BLOCKED /
    *  TIMEOUT failure-mode face (every op; the fix "itself BLOCKED produces no next:" row is the named case).
    *
    *  Table (the pure unit surface — rules/__tests__/next-step.test.ts pins every row):
-   *    review  findings non-empty → cdd fix --type <t> [--tasks <n>] --plan <p> --findings <h>  (one-way)
+   *    review  findings non-empty → cdd fix --type <t> [--tasks <n>] --plan <p> --findings <h>
+   *                                (read <handoff> back to confirm)                       (one-way;
+   *                                the read-back annotation rides the review→fix line — T6 spec 2.3)
    *    review  zero findings     → next: none | cdd implement --tasks <next> | cdd review --type branch …
    *    fix     input blocker>0   → cdd review --type <t> … (re-review, new ref)
    *    fix     input warn/nit    → next: none (closure-round naturalization — no re-review preview)
@@ -199,15 +214,17 @@ export class NextStepRouter {
     if (op === "review") {
       const findings = args.findings ?? [];
       if (findings.length > 0) {
-        // One-way: any findings (any severity) → the fix round (C5-1 — no preview of the fix's own outcome).
+        // One-way: any findings (any severity) → the fix round (C5-1 — no preview of the fix's own
+        // outcome). The review→fix line carries the read-back annotation (T6 spec 2.3): the
+        // dispatcher reads the review's findings handoff back before dispatching the fix round.
         if (type === "task") {
-          return `cdd fix --type task${this.#tasksArg(args.group)}${this.#planArg(args.plan)}${this.#findingsArg(args.findingsPath)}`;
+          return `cdd fix --type task${this.#tasksArg(args.group)}${this.#planArg(args.plan)}${this.#findingsArg(args.findingsPath)}${this.#readbackArg(args.findingsPath)}`;
         }
         if (type === "branch") {
-          return `cdd fix --type branch${this.#planArg(args.plan)}${this.#findingsArg(args.findingsPath)}`;
+          return `cdd fix --type branch${this.#planArg(args.plan)}${this.#findingsArg(args.findingsPath)}${this.#readbackArg(args.findingsPath)}`;
         }
         if (type === "spec" || type === "plan") {
-          return `cdd fix --type ${type}${this.#targetArg(args)}${this.#findingsArg(args.findingsPath)}`;
+          return `cdd fix --type ${type}${this.#targetArg(args)}${this.#findingsArg(args.findingsPath)}${this.#readbackArg(args.findingsPath)}`;
         }
         return NONE;
       }

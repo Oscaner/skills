@@ -12,9 +12,7 @@ import { gitInit } from "./helpers.ts";
 
 let repo: string;
 
-function captureError<T extends Error>(
-  fn: () => T,
-): Promise<{ err: T & { code?: number }; stderr: string }> {
+function captureError(fn: () => unknown): { err: Error & { code?: number }; stderr: string } {
   const origWrite = process.stderr.write.bind(process.stderr);
   let stderr = "";
   process.stderr.write = ((s: unknown) => {
@@ -25,7 +23,7 @@ function captureError<T extends Error>(
     try {
       fn();
     } catch (e) {
-      return { err: e as T & { code?: number }, stderr };
+      return { err: e as Error & { code?: number }, stderr };
     } finally {
       process.stderr.write = origWrite;
     }
@@ -47,7 +45,7 @@ afterEach(() => {
 describe("infra/root.ts — initRoot(cwd)", () => {
   it("getRoot before initRoot → throws (message names initRoot)", () => {
     // module _root starts null; must be asserted BEFORE any initRoot call caches it
-    const { err } = captureError(() => getRoot() as never);
+    const { err } = captureError(() => getRoot());
     expect(String(err.message)).toMatch(/initRoot/);
   });
 
@@ -98,7 +96,7 @@ describe("infra/root.ts — resolveDocArg (same single-coordinate contract as ro
   it("missing repo-root-relative → CDD_BLOCKED 3 lines + ExitRequested 1", () => {
     const { err, stderr } = captureError(() => {
       resolveDocArg("docs/nope.md", repo, "spec");
-      return undefined as never;
+      return undefined;
     });
     expect(err.code).toBe(1);
     const lines = stderr.trimEnd().split("\n");
@@ -111,7 +109,7 @@ describe("infra/root.ts — resolveDocArg (same single-coordinate contract as ro
     const abs = path.join(repo, "docs/nope-abs.md");
     const { err, stderr } = captureError(() => {
       resolveDocArg(abs, repo, "spec");
-      return undefined as never;
+      return undefined;
     });
     expect(err.code).toBe(1);
     expect(stderr).toMatch(/Absolute path does not exist\./);

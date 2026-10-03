@@ -25,7 +25,10 @@ describe("rules/failure.ts — canonical 承重读取（AC14）", () => {
   it("FAILURE_CATEGORIES 与 canonical 逐字一致（全六类，字段同源）", () => {
     expect(Object.keys(FAILURE_CATEGORIES).sort()).toEqual(CATS.map((c) => c.id).sort());
     for (const c of CATS) {
-      const entry = FAILURE_CATEGORIES[String(c.id)] as Record<string, unknown>;
+      const entry = (FAILURE_CATEGORIES as Record<string, unknown>)[String(c.id)] as Record<
+        string,
+        unknown
+      >;
       for (const key of Object.keys(c)) expect(entry[key]).toEqual(c[key]);
     }
   });

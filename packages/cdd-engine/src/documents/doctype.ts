@@ -14,10 +14,11 @@
 //   shape        — the doc-type's full output-schema content (isomorphic to the JSON Schema the
 //                  SchemaFactory projects byte-faithfully onto config/schema/<kind>.json; T3 lands
 //                  the concrete per-type shape).
-//   words        — the shared word-table reference: the engine lexicon content (the `_doc` /
-//                  command.{status,capsule,route} / schema.anatomy wings) the derived
-//                  config/contract-lexicon.json product renders from (T4 lands the concrete
-//                  lexicon content; infra/word-table.ts consuming path unchanged).
+//   words        — the shared engine-lexicon content: the full contract-lexicon content (the `_doc`
+//                  / command.{status,capsule,route} / schema.anatomy wings), ONE shared DocWords
+//                  object every doc type references (words single-source, never copied) — the
+//                  derived config/contract-lexicon.json product renders from it (infra/word-table.ts
+//                  consuming path unchanged).
 //   instructions — the dispatch-packet instruction seam (P5 forward interface — typed but
 //                  unpopulated at P1; InstructionUnit content lands in P5).
 //   refKind      — the doc-revision identity discriminant seam (P5 forward interface — the
@@ -97,14 +98,65 @@ export interface SchemaShape {
 }
 
 /**
- * Words domain — the doc-type's shared word-table reference: the engine lexicon content (the
- * `_doc` / `command.{status,capsule,route}` / `schema.anatomy` wings) that renders the derived
- * `config/contract-lexicon.json` product byte-equivalently (words single-source — Q5).
- * P1 establishes the interface contract; T4 lands the concrete lexicon content.
+ * Words domain — the doc-type's shared engine-lexicon content: the `_doc` explanatory text, the
+ * command family (the status values + their dual-axis mapping · the stdout capsule keys + the review
+ * read-back wording · the stdout route anchors + the stderr station channels) and the schema family
+ * (the skill-anatomy reference) — the full content the derived `config/contract-lexicon.json`
+ * product renders from byte-equivalently (words single-source — Q5). ONE shared instance is
+ * referenced by every doc type (never copied); the concrete content lives in words.ts and the
+ * WordTable consumer path in infra reads the same facts from the derived product file, unchanged.
  */
 export interface DocWords {
-  /** The shared word-table reference identity (the contract-lexicon product this domain renders). */
-  reference: string;
+  /** The doc text of the engine contract word table — the lexicon's `_doc` face. */
+  _doc: string;
+  /** The command family — the engine command-contract vocabulary. */
+  command: {
+    /** The handoff-conclusion status values + their dual-axis mapping. */
+    status: {
+      /** The status vocabulary — the five handoff-conclusion values. */
+      vocab: readonly string[];
+      /** The judgment/work dual-axis subsets the status values map to. */
+      axes: {
+        /** The judgment-axis subset (CHANGES_REQUESTED · REVIEW_FIX · APPROVED). */
+        judgment: readonly string[];
+        /** The work-axis subset (COMPLETED). */
+        work: readonly string[];
+      };
+    };
+    /** The stdout capsule keys + the review read-back wording. */
+    capsule: {
+      /** The capsule keys — the stdout capsule line's tokens (status · blocker · handoff). */
+      tokens: readonly string[];
+      /** The review read-back annotation the engine emits on its `next:` line. */
+      readbackWording: string;
+    };
+    /** The stdout route anchors + the stderr station channels. */
+    route: {
+      /** The stdout route anchors (`next:` · findings). */
+      routeTokens: readonly string[];
+      /** The stderr station channels — the addressed map the engine looks its emitted wording up by. */
+      stations: {
+        /** The `next:` station channel. */
+        next: string;
+        /** The `CDD_BLOCKED:` station channel. */
+        blocked: string;
+        /** The `CDD_WARN:` station channel. */
+        warn: string;
+        /** The `CDD_CLI_MISSING:` station channel. */
+        cliMissing: string;
+      };
+    };
+  };
+  /** The schema family — the reference facts the engine services read. */
+  schema: {
+    /** The skill-anatomy reference (the facts the checkAnatomy surface reads). */
+    anatomy: {
+      /** The skill-anatomy schema path. */
+      schemaPath: string;
+      /** The kairos skills root directory. */
+      skillsRoot: string;
+    };
+  };
 }
 
 /**
@@ -227,7 +279,8 @@ export abstract class DocType {
   /** Shape domain — the output-schema content (T3 lands the concrete per-type shape). */
   readonly shape: SchemaShape;
 
-  /** Words domain — the shared word-table reference (T4 lands the concrete lexicon content). */
+  /** Words domain — the shared engine-lexicon content (one shared DocWords object every doc type
+   *  references — the words single-source the derived contract-lexicon product renders from). */
   readonly words: DocWords;
 
   /** The dispatch-packet instruction seam (P5 forward interface — typed, unpopulated at P1). */

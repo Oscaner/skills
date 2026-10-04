@@ -12,6 +12,7 @@ import { TaskGroup } from "../../domain/task-group.ts";
 import { type DocContext, DocType, type DocValidateFailure } from "../doctype.ts";
 import { docTypeRegistry } from "../registry.ts";
 import { DOC_TOKENS } from "../tokens.ts";
+import { DOC_WORDS } from "../words.ts";
 import type { OverallParse } from "./overall.ts";
 import { PLAN_SHAPE } from "./shapes/plan.ts";
 import {
@@ -144,10 +145,11 @@ export class PlanDocType extends DocType {
     super({
       kind: "plan",
       // Shape domain — the plan output schema content (T3: the concrete per-type shape, the
-      // SchemaFactory's projection source). words / instructions / refKind / bodyView stay the P1
-      // placeholder state (T4/T5/P5 land the concrete content).
+      // SchemaFactory's projection source). Words — the shared engine lexicon content (T4: every
+      // doc type references the same DOC_WORDS object — words single-source). instructions /
+      // refKind / bodyView stay the P1 placeholder state (T5/P5 land the concrete content).
       shape: PLAN_SHAPE,
-      words: { reference: "" },
+      words: DOC_WORDS,
       instructions: [],
       refKind: { kind: "" },
       bodyView: { format: "" },

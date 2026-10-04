@@ -11,6 +11,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { type DocContext, DocType, type DocValidateFailure } from "../doctype.ts";
 import { DOC_TOKENS, escapeRegExp } from "../tokens.ts";
+import { DOC_WORDS } from "../words.ts";
 import { OVERALL_SHAPE } from "./shapes/overall.ts";
 import {
   type ClaimDeclarationTrace,
@@ -141,10 +142,11 @@ export class OverallDocType extends DocType {
     super({
       kind: "overall",
       // Shape domain — the overall output schema content (T3: the concrete per-type shape, the
-      // SchemaFactory's projection source). words / instructions / refKind / bodyView stay the P1
-      // placeholder state (T4/T5/P5 land the concrete content).
+      // SchemaFactory's projection source). Words — the shared engine lexicon content (T4: every
+      // doc type references the same DOC_WORDS object — words single-source). instructions /
+      // refKind / bodyView stay the P1 placeholder state (T5/P5 land the concrete content).
       shape: OVERALL_SHAPE,
-      words: { reference: "" },
+      words: DOC_WORDS,
       instructions: [],
       refKind: { kind: "" },
       bodyView: { format: "" },

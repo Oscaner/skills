@@ -21,6 +21,7 @@ import {
   type RefKindSpec,
   type SchemaShape,
 } from "../doctype.ts";
+import { DOC_WORDS } from "../words.ts";
 
 // A minimal concrete doc type proving the abstract surface is implementable — the file compiles
 // only while every abstract member (detect / validate / parse / lifecycle / parentChain) is
@@ -57,7 +58,9 @@ const SHAPE: SchemaShape = {
   type: "object",
   properties: {},
 };
-const WORDS: DocWords = { reference: "contract-lexicon" };
+// The stub words instance is the shared engine-lexicon content (the abstract contract test only
+// proves field identity — constructor injection — never the content).
+const WORDS: DocWords = DOC_WORDS;
 const INSTRUCTIONS: InstructionUnit[] = [{ source: "stub" }];
 const REF_KIND: RefKindSpec = { kind: "file" };
 const BODY_VIEW: BodyViewSpec = { format: "markdown" };

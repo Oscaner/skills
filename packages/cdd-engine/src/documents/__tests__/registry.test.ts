@@ -15,6 +15,7 @@ import {
   type DocValidateFailure,
 } from "../doctype.ts";
 import { DocTypeRegistry, docTypeRegistry } from "../registry.ts";
+import { DOC_WORDS } from "../words.ts";
 
 // A minimal doc type carrying only the registry-relevant identity (kind); the abstract surface is
 // exercised in the colocated doctype.test.ts.
@@ -51,7 +52,7 @@ function stubDocType(kind: DocKind, route?: DocTypeRoute): StubDocType {
       type: "object",
       properties: {},
     },
-    words: { reference: "contract-lexicon" },
+    words: DOC_WORDS,
     instructions: [],
     refKind: { kind: "file" },
     bodyView: { format: "markdown" },

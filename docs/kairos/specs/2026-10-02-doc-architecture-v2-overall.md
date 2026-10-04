@@ -1,6 +1,6 @@
 # 文档架构方法论 v2（Doc Architecture v2）— Overall Spec
 
-- **Version**: v1.1 · 2026-10-02（spec-review-1 七 finding 落地：Goal 量级校正 · E 组经验债改号（避 Phase P# 双义）· R4 补行 + M4a 处置 · I10 悬空引用按语义改写消解 · File paths 补 archive · 依赖图补 P1→P5 边；**M1 恢复判定**——fix-agent 误取 finding #1 的 revert 分支改指 tdd，违 user 拍板，设计属主恢复 `[mattpocock-skills:implement]` + 上游实存证据 + supersede 登记；v1.0 charter 保持）
+- **Version**: v1.2 · 2026-10-04（P1 起写期裁决（grilling Q6 回填）：'doc-structure schemas' 术语语义收窄 = 三类书面 artifact 形状（phase-spec/plan/overall）入 schema 工厂——add-phase-protocol（注册协议，P6 宪法层关注）/ skill-anatomy（kairos skill 文法注册表，消费面 scripts ContractLexiconGuard）非 doc 结构，留手写 JSON + schema.test 校验；与 A1「三 doc type 实例」对齐，P2/P6 依赖此语义；v1.1 记录保持）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（kairos:cdd-design → grilling 元层）
 - **Constraints**:
@@ -84,7 +84,7 @@ Charter only, zero implementation detail. **Overall approval is not equivalent t
 
 | Phase | Issue (ref) | Title summary |
 |---|---|---|
-| P1 | none | DocType 抽象 + schema 工厂：五域 DocType（shape/words/instructions/refKind/bodyView）· template-contract/lexicon/doc-structure schema 收编为 DocType 字段 · engine `documents/` per-type 手写分支 → DocType 实例方法（Criterion ②）· doc-structure schemas 以 schema 工厂原子化派生 |
+| P1 | none | DocType 抽象 + schema 工厂：五域 DocType（shape/words/instructions/refKind/bodyView）· template-contract/lexicon/doc-structure schema 收编为 DocType 字段 · engine `documents/` per-type 手写分支 → DocType 实例方法（Criterion ②）· doc-structure schemas 以 schema 工厂原子化派生。**（'doc-structure schemas' 语义 = 三类书面 artifact 形状：phase-spec/plan/overall——add-phase-protocol/skill-anatomy 属协议/注册 schema 非 doc 结构，留手写 JSON + schema.test 校验；v1.2 裁决）** |
 | P2 | none | 文档平面瘦身：phase-spec 样板 schema 化（`## Design` + `### Acceptance criteria` 唯一 + `## Constraints` 继承点；增量警告/约束指针/偏差/下游注/评审记录 → schema description + 条件元数据）· plan Task=数据（task `{objective,files,interface,steps,acceptance}` + step checkable 类型约束 + brief 数据渲染）· plan 约束继承 delta-only（宪法 auto-applies，per-plan 复述清零） |
 | P3 | none | TaskGraph 分组派生：task `depends_on`/`atomic_with` → DAG → 拓扑序分组（`## Task Groups` 字面段删除）· plan-parse crisp BLOCK（无环 / union==task set / atomic 闭包）· 「先清底再上闸」= 图性质非文字 |
 | P4 | none | `cdd-doc-review` first-party skill（kairos 第 9 席）：URC（spec 三轴 / plan 三轴）+ writing-plans 自检准则（spec 覆盖/占位扫/类型一致）+ verification evidence + grilling 追问——组合体内化单 skill · skill-anatomy registry 注册 + 目录扫描守卫含新成员 + README/tests/changeset |
@@ -139,3 +139,4 @@ Legend:
 |---|---|---|---|
 | v1.0 | 2026-10-02 | 程序 charter：文档架构方法论 v2——DocType 抽象（五域）/ TaskGraph 分组 / DispatchContract+DispatchPacket / overall 宪法+档案分层 / `cdd-doc-review` 一产化 · 破坏性授权 + **空壳死代码即删常设规则** + 尽量复用上游规则 + 先落留存 P5 后开线 GATE · 全量决策留存（M1–M4 / F1–F5 / R1–R5 / B1–B5 / 经验债 P1–P7 / 上游先例背书）· Issue/Phase inventory ×6 + 依赖图 | [human] · Claude Opus 5 (1M context)（kairos:cdd-design 元层 grilling） |
 | v1.1 | 2026-10-02 | cdd spec-review-1 七 finding 落地（blocker 0）：Goal 量级校正（4 overall / 18 design / 19 plan / pi-harness 单系 28 版本）· E 组改号避双义 · R4 commit-range 补行 + M4a 处置 · I10 悬空引用按语义改写消解 · File paths 补 archive · 依赖图补 P1→P5 · **M1 恢复判定**（fix-agent 误 revert → 设计属主恢复 `mattpocock-skills:implement` + 实存证据 + supersede tdd 登记） | [human] · Claude |
+| v1.2 | 2026-10-04 | **Q6 裁决登记**（doc-architecture-v2 P1 起写期 grilling）：'doc-structure schemas' 语义收窄 = 三类书面 artifact 形状（phase-spec/plan/overall）入 schema 工厂；add-phase-protocol/skill-anatomy 非 doc 结构留手写 JSON + schema.test 校验（对齐 A1 三实例；P2/P6 依赖此语义）——P1 Issue-inventory 行附记同步 | [human] · Claude Opus 5（kairos:cdd-design → grilling） |

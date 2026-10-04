@@ -335,9 +335,13 @@ export class TemplateLoader {
   reviewTypeConfig(type: string): ReviewTypeConfig {
     // spec/plan review config lives on their doc types' bodyView (S7, T5 — the migrated
     // reviews.{spec,plan} content, read through the registry); task/branch keep reading the
-    // retained template-contract reviews surface.
-    if (type === "spec" || type === "plan") {
-      const reviews = docTypeRegistry.resolve(type).bodyView.reviews;
+    // retained template-contract reviews surface. The gate is docTypeRegistry.byReviewType —
+    // the same registry-single discrimination as the CLI review/fix gates + resolveTargetDoc +
+    // next-step rows (task/branch are non-doc-type dispatch types → null → the template-contract
+    // reviews block below).
+    const docType = docTypeRegistry.byReviewType(type);
+    if (docType) {
+      const reviews = docType.bodyView.reviews;
       if (!reviews) invariant(false, `unknown review type: ${type}`);
       return reviews;
     }

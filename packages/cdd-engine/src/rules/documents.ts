@@ -62,6 +62,12 @@ export interface DocValidationOptions {
 // must disambiguate); zero matches are an unknown doc kind (fail-fast throw with the entry text —
 // the retired `return "spec"` fallback that silently selected spec is gone: spec selection is never
 // implicit, spec 2.6). Same fail-fast shape as `resolve(kind)`'s unknown-kind throw.
+//
+// The zero-hit throw is a TYPED error (UnknownDocKindError) — the dispatch fail-open lane
+// (dispatch/base.ts docContractValidate) distinguishes this readable-but-unclassifiable case from a
+// genuinely unreadable chain by `instanceof`, so the skip-warn never mislabels it "unreadable".
+export class UnknownDocKindError extends Error {}
+
 function detectEntryKind(filePath: string): DocKind {
   const content = readFileSync(filePath, "utf8");
   const hits = docTypeRegistry.all().filter((t) => t.detect(path.basename(filePath), content));
@@ -72,7 +78,7 @@ function detectEntryKind(filePath: string): DocKind {
     );
   }
   if (hits.length === 0) {
-    throw new Error(
+    throw new UnknownDocKindError(
       `unknown doc kind for entry ${filePath} — no registered doc type (overall/plan/spec) detects; the spec fallback is retired (spec selection is never implicit)`,
     );
   }

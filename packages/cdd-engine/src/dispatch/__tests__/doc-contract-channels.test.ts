@@ -337,6 +337,44 @@ describe("docs channel — the base-default docContractValidate (audits the revi
       cap.restore();
     }
   });
+
+  it("fail-open lane differentiates the unknown-doc-kind case (readable but unclassifiable chain)", async () => {
+    const dir = setupRepo();
+    mkdirSync(path.join(dir, SPEC_DIR), { recursive: true });
+    // A readable file no registered doc type detects — the retired spec fallback's zero-hit throw
+    // (spec 2.6) flows into the doc-contract gate's fail-open WARN lane with the differentiated
+    // label, not the "unreadable doc chain" label reserved for genuinely unreadable chains.
+    const plain = path.join(dir, SPEC_DIR, "plain.md");
+    writeFileSync(plain, "# no doc-structure features\n");
+    git(dir, "add", "-A");
+    git(
+      dir,
+      "-c",
+      "user.name=dcc-test",
+      "-c",
+      "user.email=dcc-test@example.com",
+      "commit",
+      "-qm",
+      "plain",
+    );
+    const cap = captureStderr();
+    try {
+      const exitCode = await runDocs(
+        dir,
+        plain,
+        path.join(dir, ".kairos", "cdd", "plain", "spec-review-1.json"),
+        { dryRun: true },
+      );
+      expect(exitCode).toBe(0); // fail-open: the gate never crashes the lifecycle
+      expect(cap.text).toContain(
+        "CDD_WARN: doc contract validation skipped (no registered doc type detects the doc chain)",
+      );
+      expect(cap.text).not.toContain("unreadable doc chain");
+      expect(cap.text).toContain("unknown doc kind for entry");
+    } finally {
+      cap.restore();
+    }
+  });
 });
 
 // ---- branch channel ----

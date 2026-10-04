@@ -31,6 +31,7 @@
 // singleton → constructor injection (ConvergenceChecker default). Zero bare function exports, zero
 // module-level mutable state (the remaining module consts — SOFT_CAP_S1_ROUNDS / the decision-table
 // literals — are immutable).
+import { docTypeRegistry } from "../documents/registry.ts";
 import { wordTable } from "../infra/word-table.ts";
 import { ConvergenceChecker } from "./convergence.ts";
 
@@ -153,9 +154,12 @@ export class NextStepRouter {
     return out;
   }
 
-  /** The type-self-describing target arg — type=spec → `--spec <doc>`, type=plan → `--plan <doc>`. */
+  /** The type-self-describing target arg — S6 (T6): the flag comes from the registered doc type's
+   * route metadata (route.targetFlag — `--spec` / `--plan`), never a handwritten `--spec` literal;
+   * a non-routed type yields no flag. */
   #targetArg(args: NextStepArgs): string {
-    return args.type === "spec" ? (args.doc ? ` --spec ${args.doc}` : "") : this.#planArg(args.doc);
+    const flag = docTypeRegistry.byReviewType(args.type ?? "")?.route.targetFlag ?? null;
+    return flag && args.doc ? ` ${flag} ${args.doc}` : "";
   }
 
   #findingsArg(path?: string): string {
@@ -223,7 +227,9 @@ export class NextStepRouter {
         if (type === "branch") {
           return `cdd fix --type branch${this.#planArg(args.plan)}${this.#findingsArg(args.findingsPath)}${this.#readbackArg(args.findingsPath)}`;
         }
-        if (type === "spec" || type === "plan") {
+        // S6 (T6): the docs-family rows gate through the registry (route.reviewType membership) —
+        // the retired type-literal docs branch.
+        if (docTypeRegistry.byReviewType(type ?? "")) {
           return `cdd fix --type ${type}${this.#targetArg(args)}${this.#findingsArg(args.findingsPath)}${this.#readbackArg(args.findingsPath)}`;
         }
         return NONE;
@@ -252,7 +258,7 @@ export class NextStepRouter {
         if (type === "branch") {
           return `cdd review --type branch${this.#planArg(args.plan)}${this.#rangeArg(args)}`;
         }
-        if (type === "spec" || type === "plan") {
+        if (docTypeRegistry.byReviewType(type ?? "")) {
           return `cdd review --type ${type}${this.#targetArg(args)}`;
         }
         return NONE;

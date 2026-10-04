@@ -4,9 +4,11 @@
 // text — the same fail-fast shape as the T6 detect zero-hit rejection), and `all()` exposes the
 // FIXED iteration order [overall, plan, spec] regardless of registration order — the deterministic
 // face the SchemaFactory product derivation (T3), the audit traversal (T6) and the T6 detection
-// scan iterate. Partial registration is tolerated at construction (a registry may hold a subset
-// while the kinds are wired in), but a duplicate kind registration is a wiring error and throws at
-// construction — registration integrity is a construction invariant. Export face: the class + the
+// scan iterate. `byReviewType(type)` is the S4/S6 dispatch gate — the registered doc type serving a
+// review/fix `--type` (route.reviewType match; null for task/branch, the dispatch types). Partial
+// registration is tolerated at construction (a registry may hold a subset while the kinds are wired
+// in), but a duplicate kind registration is a wiring error and throws at construction —
+// registration integrity is a construction invariant. Export face: the class + the
 // `docTypeRegistry` singleton const (Criterion ② — zero bare functions; the same module-level
 // holder pattern as the word-table singleton / CddRuntime's templateCache). T2 registers the three
 // concrete doc types (OverallDocType / PlanDocType / PhaseSpecDocType) — the subclasses compose the
@@ -54,6 +56,18 @@ export class DocTypeRegistry {
   /** Every registered doc type in the fixed iteration order [overall, plan, spec]. */
   all(): readonly DocType[] {
     return this.#ordered;
+  }
+
+  /** The registered doc type serving a review/fix `--type` (the S4/S6 dispatch gate — the type
+   *  whose route.reviewType matches the CLI flag value): spec/plan resolve their routed doc types
+   *  (the type-specific lifecycle dispatch), task/branch are dispatch types (never registered doc
+   *  types) and resolve null — the registry is the single per-type discrimination, zero handwritten
+   *  `"spec"`/`"plan"` branch scatter across the CLI / suggestion-table surfaces. */
+  byReviewType(reviewType: string): DocType | null {
+    for (const type of this.#ordered) {
+      if (type.route.reviewType === reviewType) return type;
+    }
+    return null;
   }
 }
 

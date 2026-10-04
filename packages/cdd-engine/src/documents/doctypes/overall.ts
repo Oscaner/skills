@@ -9,7 +9,12 @@
 
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { type DocContext, DocType, type DocValidateFailure } from "../doctype.ts";
+import {
+  type DocContext,
+  type DocLifecycleFacts,
+  DocType,
+  type DocValidateFailure,
+} from "../doctype.ts";
 import { DOC_TOKENS, escapeRegExp } from "../tokens.ts";
 import { DOC_WORDS } from "../words.ts";
 import { OVERALL_BODY_VIEW } from "./body-views.ts";
@@ -181,10 +186,10 @@ export class OverallDocType extends DocType {
     return this.validateOverallContract(entry, ctx.phaseId ?? null, ctx.pinnedTokens ?? []);
   }
 
-  /** No routed review/fix lifecycle face — the overall is the chain root (S4), the lifecycle
-   *  dispatch key is null. */
-  lifecycle(_entry: string, _ctx: DocContext): unknown {
-    return this.route.reviewType;
+  /** No routed review/fix lifecycle face — the overall is the chain root (S4): the lifecycle
+   *  dispatch key is null and the docs runner never renders doc-type facts for it. */
+  lifecycle(_entry: string, _ctx: DocContext): DocLifecycleFacts | null {
+    return null;
   }
 
   /** The chain root — the overall resolves to ITSELF (the S3 parent-chain walk terminates here).

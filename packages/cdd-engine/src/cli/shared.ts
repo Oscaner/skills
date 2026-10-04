@@ -7,6 +7,7 @@
 // block). existingRoundHandoff is only consumed by runReview → stays private to review.ts
 // (review.ts runReview still imports through this cluster; shared keeps zero reverse dependency).
 import type { ArgDef, ArgsDef } from "citty";
+import { docTypeRegistry } from "../documents/registry.ts";
 import { IllegalTaskTokenError, TaskGroup } from "../domain/task-group.ts";
 import { cliUsageError, exitWithCode } from "../infra/exit.ts";
 import { ORDER } from "../infra/harness.ts";
@@ -59,18 +60,23 @@ export function requireHostHarness(): string {
 // duplication forbidden. Exit normalizes via resolveDocArg (repo-root-relative → absolute;
 // missing → exit 1 three-line diagnostic, §2.4.2) — this is the common `--plan` / `--spec`
 // entry for review/fix, one call site covering four read points.
+// S5 (T6): which option carries the target resolves through the registered doc type's route
+// metadata (route.argKey = the type-self-describing target param key) — the registry is the single
+// per-type discrimination, the retired `opts.type`-literal target picking is gone. task/branch
+// never enter this surface (the docs-lane gate resolves a routed doc type first).
 export function resolveTargetDoc(
   opts: { type: string; spec?: string; plan?: string; root?: string },
   verb: string,
 ): string {
-  const doc = opts.type === "spec" ? opts.spec : opts.plan;
+  const argKey = docTypeRegistry.byReviewType(opts.type)?.route.argKey ?? null;
+  const doc = argKey ? opts[argKey] : undefined;
   if (!doc) {
     process.stderr.write(
       `cdd ${verb} --type ${opts.type}: missing required --${opts.type} <path>\n`,
     );
     exitWithCode(2);
   }
-  return resolveDocArg(doc, opts.root ?? getRoot(), opts.type === "spec" ? "spec" : "plan");
+  return resolveDocArg(doc, opts.root ?? getRoot(), argKey ?? "path");
 }
 
 // Bug A (legacy cdd-task contract) under the P4.3 --tasks list model: the value must parse as

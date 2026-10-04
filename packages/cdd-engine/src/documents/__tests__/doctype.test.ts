@@ -12,6 +12,7 @@ import {
   type BodyViewSpec,
   type DocContext,
   type DocKind,
+  type DocLifecycleFacts,
   DocType,
   type DocTypeOpts,
   type DocTypeRoute,
@@ -39,8 +40,8 @@ class StubDocType extends DocType {
     return { parsed: true };
   }
 
-  lifecycle(_entry: string, _ctx: DocContext): unknown {
-    return { run: true };
+  lifecycle(_entry: string, _ctx: DocContext): DocLifecycleFacts | null {
+    return { reviewPlanLine: "" };
   }
 
   parentChain(entry: string, _root: string): string | null {
@@ -109,7 +110,7 @@ describe("DocType abstract contract", () => {
     expect(docType.detect("plan.txt", "# content")).toBe(false);
     expect(docType.validate("/w/spec.md", { root: "/w" })).toEqual([]);
     expect(docType.parse("/w/spec.md", { root: "/w" })).toEqual({ parsed: true });
-    expect(docType.lifecycle("/w/spec.md", { root: "/w" })).toEqual({ run: true });
+    expect(docType.lifecycle("/w/spec.md", { root: "/w" })).toEqual({ reviewPlanLine: "" });
     expect(docType.parentChain("/w/spec.md", "/w")).toBe("/w/overall.md");
   });
 

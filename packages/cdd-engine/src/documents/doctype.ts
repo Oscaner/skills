@@ -259,6 +259,24 @@ export interface DocContext {
   /** The chain's pinned `vX.Y` version tokens (merged version-lineage) — carried by the Class-B
    *  parent chain; absent for an overall self-audit. */
   pinnedTokens?: readonly string[];
+  /** The caller-supplied upstream design-spec reference (the docs review's `--spec` — D11: a plan
+   *  review carries its design-spec reference in the round context). The plan doc type's lifecycle
+   *  renders REVIEW_PLAN_LINE from it (S4/T6); absent for chain audits / spec-entry validation. */
+  upstreamSpec?: string;
+}
+
+/**
+ * The per-doc-type dispatch facts the review/fix lifecycle contributes (S4/T6 — the type-specific
+ * lifecycle handling the docs runner renders round-context slots with). The docs review's
+ * REVIEW_PLAN_LINE derives here per type: the plan doc type carries its upstream design-spec
+ * reference; the phase-spec (the reviewed doc itself) carries none.
+ */
+export interface DocLifecycleFacts {
+  /** The docs review template's REVIEW_PLAN_LINE — the upstream reference line. For the plan doc
+   *  type, the `**Spec:**` reference of the dispatch's upstream design spec (the caller-supplied
+   *  `--spec` — D11; empty when the dispatch carries none); for the phase-spec type, always empty
+   *  (the reviewed spec is the target, not an upstream reference). */
+  reviewPlanLine: string;
 }
 
 /**
@@ -357,8 +375,12 @@ export abstract class DocType {
   abstract parse(entry: string, ctx: DocContext): unknown;
 
   /** The review/fix `--type` routing's type-specific lifecycle handling (S4 landing point; the
-   *  route metadata feeds the `--type` name). Task/branch routes keep their existing surfaces. */
-  abstract lifecycle(entry: string, ctx: DocContext): unknown;
+   *  route metadata feeds the `--type` name — the docs runner dispatches this method per CLI
+   *  `--type` inside DocsLifecycle.run and renders its facts into the round-context slots, e.g. a
+   *  plan review's REVIEW_PLAN_LINE). Returns the per-type dispatch facts; null = the kind has no
+   *  routed review/fix face (the overall chain root). Task/branch routes keep their existing
+   *  surfaces (they are dispatch types, never registered doc types). */
+  abstract lifecycle(entry: string, ctx: DocContext): DocLifecycleFacts | null;
 
   /** The S3 parent-doc chain walk — resolves the doc's parent along its lineage (overall →
    *  itself; spec → the parent overall; plan → the spec → the parent overall). The concrete

@@ -9,7 +9,12 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { TaskGroup } from "../../domain/task-group.ts";
-import { type DocContext, DocType, type DocValidateFailure } from "../doctype.ts";
+import {
+  type DocContext,
+  type DocLifecycleFacts,
+  DocType,
+  type DocValidateFailure,
+} from "../doctype.ts";
 import { docTypeRegistry } from "../registry.ts";
 import { DOC_TOKENS } from "../tokens.ts";
 import { DOC_WORDS } from "../words.ts";
@@ -193,9 +198,13 @@ export class PlanDocType extends DocType {
     return failures;
   }
 
-  /** The plan's routed review/fix lifecycle dispatch key (S4) — `"plan"` (the review `--type`). */
-  lifecycle(_entry: string, _ctx: DocContext): unknown {
-    return this.route.reviewType;
+  /** The plan's routed review/fix lifecycle handling (S4/T6): the docs review's REVIEW_PLAN_LINE —
+   *  the plan's upstream design-spec reference (the caller-supplied `--spec`, D11 — the
+   *  `**Spec:**`-markered line the review agent reads the upstream against); empty when the
+   *  dispatch carries no upstream reference. */
+  lifecycle(_entry: string, ctx: DocContext): DocLifecycleFacts | null {
+    const upstream = ctx.upstreamSpec ?? "";
+    return { reviewPlanLine: upstream ? `${DOC_TOKENS.specMark} ${upstream}` : "" };
   }
 
   /** The S3 parent walk: the plan's `**Spec:**` spec → the spec's Parent program overall. */

@@ -8,7 +8,12 @@
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { type DocContext, DocType, type DocValidateFailure } from "../doctype.ts";
+import {
+  type DocContext,
+  type DocLifecycleFacts,
+  DocType,
+  type DocValidateFailure,
+} from "../doctype.ts";
 import { docTypeRegistry } from "../registry.ts";
 import { DOC_TOKENS } from "../tokens.ts";
 import { DOC_WORDS } from "../words.ts";
@@ -69,9 +74,10 @@ export class PhaseSpecDocType extends DocType {
     return this.validatePhaseSpecContract(entry, ctx.root, ctx.phaseId ?? null);
   }
 
-  /** The phase-spec's routed review/fix lifecycle dispatch key (S4) — `"spec"` (the review `--type`). */
-  lifecycle(_entry: string, _ctx: DocContext): unknown {
-    return this.route.reviewType;
+  /** The phase-spec's routed review/fix lifecycle handling (S4/T6): the docs review's REVIEW_PLAN_LINE
+   *  is empty — the reviewed spec is the target itself, never an upstream reference. */
+  lifecycle(_entry: string, _ctx: DocContext): DocLifecycleFacts | null {
+    return { reviewPlanLine: "" };
   }
 
   /** The S3 parent walk: the spec's `**Parent program**` → its `*-overall.md`. */

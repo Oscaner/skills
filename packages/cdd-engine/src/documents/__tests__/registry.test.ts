@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   type DocContext,
   type DocKind,
+  type DocLifecycleFacts,
   DocType,
   type DocTypeRoute,
   type DocValidateFailure,
@@ -32,7 +33,7 @@ class StubDocType extends DocType {
     return null;
   }
 
-  lifecycle(_entry: string, _ctx: DocContext): unknown {
+  lifecycle(_entry: string, _ctx: DocContext): DocLifecycleFacts | null {
     return null;
   }
 
@@ -102,6 +103,29 @@ describe("DocTypeRegistry", () => {
       /duplicate doc type registered for kind: plan/,
     );
   });
+
+  it("byReviewType resolves the registered doc type whose route.reviewType matches (the S4/S6 dispatch gate)", () => {
+    const spec = stubDocType("spec", { reviewType: "spec", argKey: "spec", targetFlag: "--spec" });
+    const plan = stubDocType("plan", { reviewType: "plan", argKey: "plan", targetFlag: "--plan" });
+
+    const registry = new DocTypeRegistry([stubDocType("overall"), spec, plan]);
+    expect(registry.byReviewType("spec")).toBe(spec);
+    expect(registry.byReviewType("plan")).toBe(plan);
+  });
+
+  it("byReviewType returns null for the chain root and the dispatch types (overall has no routed face; task/branch are never registered doc types)", () => {
+    const registry = new DocTypeRegistry([
+      stubDocType("overall"),
+      stubDocType("plan", { reviewType: "plan", argKey: "plan", targetFlag: "--plan" }),
+      stubDocType("spec", { reviewType: "spec", argKey: "spec", targetFlag: "--spec" }),
+    ]);
+
+    expect(registry.byReviewType("overall")).toBeNull(); // chain root — no routed review/fix face
+    expect(registry.byReviewType("task")).toBeNull();
+    expect(registry.byReviewType("branch")).toBeNull();
+    expect(registry.byReviewType("bogus")).toBeNull();
+    expect(registry.byReviewType("")).toBeNull();
+  });
 });
 
 describe("docTypeRegistry singleton", () => {
@@ -111,5 +135,13 @@ describe("docTypeRegistry singleton", () => {
     for (const kind of ["overall", "plan", "spec"] as const) {
       expect(docTypeRegistry.resolve(kind).kind).toBe(kind);
     }
+  });
+
+  it("singleton byReviewType: spec/plan route their concrete doc types, overall/task/branch route null", () => {
+    expect(docTypeRegistry.byReviewType("spec")).toBe(docTypeRegistry.resolve("spec"));
+    expect(docTypeRegistry.byReviewType("plan")).toBe(docTypeRegistry.resolve("plan"));
+    expect(docTypeRegistry.byReviewType("overall")).toBeNull(); // chain root — no routed face
+    expect(docTypeRegistry.byReviewType("task")).toBeNull();
+    expect(docTypeRegistry.byReviewType("branch")).toBeNull();
   });
 });

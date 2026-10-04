@@ -6,8 +6,11 @@
 // doc-type registry:
 //
 //   validateDispatchDocuments — the single audit entry → docTypeRegistry.resolve(kind).validate
-//                               (detect still runs through docKindOf at T2 — its removal is T6).
+//                               (kind detected through the registry — the S1 detection scan).
 //   parentOverallOf           — resolve(kind).parentChain (the S3 parent walk per doc type).
+//   detectDocKind             — the registry-scan doc-kind determination (S1 — the retired
+//                               per-kind handwritten scan's replacement; validateDispatchDocuments /
+//                               parentOverallOf route through it).
 //   parseOverall / contract validators / plan extractors / phase-id resolution — the doc types'
 //   per-type instance methods (zero per-type big function bodies remain in this file).
 //
@@ -20,7 +23,7 @@
 // under the old `DocValidationFailure` name — the T2 type convergence).
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import type { DocValidateFailure } from "../documents/doctype.ts";
+import type { DocKind, DocValidateFailure } from "../documents/doctype.ts";
 import type { OverallDocType, OverallParse } from "../documents/doctypes/overall.ts";
 import type { PhaseSpecDocType } from "../documents/doctypes/phase-spec.ts";
 import type { PlanDocType } from "../documents/doctypes/plan.ts";
@@ -31,7 +34,6 @@ import {
   isPendingText as pendingTextOf,
 } from "../documents/doctypes/shared.ts";
 import { docTypeRegistry } from "../documents/registry.ts";
-import { DOC_TOKENS } from "../documents/tokens.ts";
 import type { TaskGroup } from "../domain/task-group.ts";
 
 // The type surface the facade still owns (options + converged failure + the parse/claim shapes the
@@ -53,15 +55,28 @@ export interface DocValidationOptions {
   root: string;
 }
 
-// Doc-type detection for the entry point (lane-declared audit target): an overall by filename or
-// Phase-inventory table, a plan by its task headings, else a design spec. Kept THROUGH T2 — the
-// delegation still runs detect through this file scan (its removal / the docType.detect swap is T6).
-function docKindOf(filePath: string): "plan" | "spec" | "overall" {
-  if (path.basename(filePath).endsWith("-overall.md")) return "overall";
+// Doc-type detection for the entry point (lane-declared audit target, S1/T6 — the retired
+// per-kind handwritten scan): the registered doc types' detect surfaces are iterated in the fixed
+// overall → plan → spec order (docTypeRegistry.all()). Exactly ONE matching type resolves its kind;
+// multiple matches are an ambiguous entry (the dispatch is never a silent first-hit — the author
+// must disambiguate); zero matches are an unknown doc kind (fail-fast throw with the entry text —
+// the retired `return "spec"` fallback that silently selected spec is gone: spec selection is never
+// implicit, spec 2.6). Same fail-fast shape as `resolve(kind)`'s unknown-kind throw.
+function detectEntryKind(filePath: string): DocKind {
   const content = readFileSync(filePath, "utf8");
-  if (content.split("\n").some((l) => DOC_TOKENS.phaseHeaderRe.test(l))) return "overall";
-  if (content.split("\n").some((l) => DOC_TOKENS.taskNumberRe.test(l))) return "plan";
-  return "spec";
+  const hits = docTypeRegistry.all().filter((t) => t.detect(path.basename(filePath), content));
+  if (hits.length > 1) {
+    const kinds = hits.map((t) => t.kind).join(", ");
+    throw new Error(
+      `ambiguous doc kind for entry ${filePath} — multiple registered doc types detect (${kinds}); the doc-kind dispatch is registry single-match`,
+    );
+  }
+  if (hits.length === 0) {
+    throw new Error(
+      `unknown doc kind for entry ${filePath} — no registered doc type (overall/plan/spec) detects; the spec fallback is retired (spec selection is never implicit)`,
+    );
+  }
+  return hits[0].kind;
 }
 
 // The per-kind registry accessors — every delegation below routes through the doc-type singleton
@@ -165,20 +180,29 @@ export class DocumentsValidator {
     return overallType().mdNames(dir);
   }
 
+  /** detectDocKind(entry) — the registry-scan doc-kind determination (S1, the retired handwritten
+   *  scan's replacement): the registered doc types' detect surfaces iterate in the fixed overall →
+   *  plan → spec order (docTypeRegistry.all()); exactly one match resolves its kind, multiple
+   *  matches throw (ambiguous — the dispatch is never a silent first-hit), zero matches throw
+   *  unknown-doc-kind with the entry text (spec selection is never implicit). */
+  detectDocKind(entry: string): DocKind {
+    return detectEntryKind(entry);
+  }
+
   /** Resolve the CLASS-B parent overall for an audit entry — the doc-type-facing S3 chain walk
    *  (overall → itself; spec → Parent program; plan → `**Spec:**` → Parent program), exposed for
    *  the closeout mismatch module (P2 ④). null → chain truncation. */
   parentOverallOf(entry: string, root: string): string | null {
-    return docTypeRegistry.resolve(docKindOf(entry)).parentChain(entry, root);
+    return docTypeRegistry.resolve(detectEntryKind(entry)).parentChain(entry, root);
   }
 
-  /** validateDispatchDocuments — the audit entry: resolve the entry doc's kind (docKindOf, kept
-   *  through T2) and delegate the full audit to the registered doc type's validate surface — the
-   *  doc type walks its own chain (plan → `**Spec:**` spec → the spec's Parent program overall) and
-   *  every per-type face runs where it is checked in. */
+  /** validateDispatchDocuments — the audit entry: resolve the entry doc's kind through the registry
+   *  detection scan (S1 — fail-fast on ambiguous / unknown kinds) and delegate the full audit to the
+   *  registered doc type's validate surface — the doc type walks its own chain (plan → `**Spec:**`
+   *  spec → the spec's Parent program overall) and every per-type face runs where it is checked in. */
   validateDispatchDocuments(options: DocValidationOptions): DocValidationFailure[] {
     const { entry, root } = options;
-    const kind = docKindOf(entry);
+    const kind = detectEntryKind(entry);
     return docTypeRegistry.resolve(kind).validate(entry, { root });
   }
 

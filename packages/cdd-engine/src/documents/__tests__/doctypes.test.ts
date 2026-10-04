@@ -1,9 +1,10 @@
 // packages/cdd-engine/src/documents/__tests__/doctypes.test.ts — the three concrete doc types
 // (P1 T2; plan §T2). Covers the T2 deliverable
-// surfaces: detect determination (per-kind positive/negative + the fallback scan order overall →
-// plan → spec — including the negative that a plan/spec doc carrying the `**Version**` line but no
-// four-table header is NOT an overall), the registered-trio wiring (route metadata + lifecycle
-// dispatch keys — S4, and the S3 parentChain walk), the parse surfaces (the baseline
+// surfaces: detect determination (per-kind positive/negative + the ordered-scan multi-match /
+// zero-hit material — the facade's T6 ambiguity / unknown-doc-kind faces land in
+// rules/__tests__/documents.test.ts; including the negative that a plan/spec doc carrying the
+// `**Version**` line but no four-table header is NOT an overall), the registered-trio wiring (route
+// metadata + lifecycle facts — S4, and the S3 parentChain walk), the parse surfaces (the baseline
 // `phaseIdFromPlan` behavior retained; the overall four-table parse; the phase-spec Version-line
 // check), and validate against the current doc tree — one existing overall/spec/plan doc each (the
 // pi-harness trio) audits clean.
@@ -24,12 +25,22 @@ const pi = {
   plan: `${REPO_ROOT}/docs/kairos/plans/2026-09-27-pi-harness-p5.md`,
 };
 
-/** The T6 detection scan — the fixed iterating order's first-hit walk (overall → plan → spec). */
+/** The T6 single-match judgment over the ordered detect surface (overall → plan → spec): exactly
+ *  one registered type detecting resolves its kind (the facade's contract — rules/documents.ts
+ *  detectDocKind); zero matches resolve null (the facade's unknown-doc-kind throw). Multiple matches
+ *  are the facade's ambiguity material — asserted per-kind in the both-features tests below. */
 function detectKind(fileName: string, content: string): DocKind | null {
-  for (const type of docTypeRegistry.all()) {
-    if (type.detect(fileName, content)) return type.kind;
-  }
-  return null;
+  const matches = docTypeRegistry.all().filter((t) => t.detect(fileName, content));
+  return matches.length === 1 ? matches[0].kind : null;
+}
+
+/** The T6 multi-match surface — every registered type that detects (the ambiguous-entry material
+ *  the facade's all() scan reports). */
+function detectMatches(fileName: string, content: string): DocKind[] {
+  return docTypeRegistry
+    .all()
+    .filter((t) => t.detect(fileName, content))
+    .map((t) => t.kind);
 }
 
 /** The concrete plan doc type — the plan-specific extractor surface (phaseIdFromPlan …) is not on
@@ -80,33 +91,54 @@ describe("doc-type detection (the T6-facing scan surface)", () => {
     expect(docTypeRegistry.resolve("spec").detect("x-design.md", "# no version")).toBe(false);
   });
 
-  it("fallback order: the four-table header wins over task headings (overall → plan → spec)", () => {
-    expect(detectKind("both.md", `${FOUR_TABLE_HEADER}\n\n${TASK_HEADINGS}`)).toBe("overall");
+  it("both features: a Phase-inventory header WITH task headings registers overall AND plan (the facade's ambiguous-entry material — the dispatch never first-hits)", () => {
+    expect(detectMatches("both.md", `${FOUR_TABLE_HEADER}\n\n${TASK_HEADINGS}`)).toEqual([
+      "overall",
+      "plan",
+    ]);
   });
 
-  it("fallback order: task headings win over the spec feature (plan before spec)", () => {
-    expect(detectKind("mixed.md", `${VERSION_LINE}\n${TASK_HEADINGS}`)).toBe("plan");
+  it("both features: a `-design.md` with the `**Version**` line AND task headings registers plan AND spec (the facade's ambiguous-entry material)", () => {
+    expect(detectMatches("mixed-design.md", `${VERSION_LINE}\n${TASK_HEADINGS}`)).toEqual([
+      "plan",
+      "spec",
+    ]);
   });
 
-  it("fallback order: every kind misses → null (the T6 zero-hit rejection shape)", () => {
+  it("zero-hit material: every kind misses → no matching kind (the facade's unknown-doc-kind throw face)", () => {
     expect(detectKind("readme.md", "# no doc-structure features")).toBeNull();
+    expect(detectMatches("readme.md", "# no doc-structure features")).toEqual([]);
   });
 });
 
-describe("route metadata + lifecycle dispatch keys (S4)", () => {
-  it("plan carries the routed review/fix face (`plan` / `--plan`) and the `-plan` lifecycle key", () => {
+describe("route metadata + lifecycle facts (S4 — the dispatched type-specific lifecycle handling)", () => {
+  it("plan carries the routed review/fix face (`plan` / `--plan`) and its lifecycle renders the upstream `**Spec:**` REVIEW_PLAN_LINE", () => {
     const planType = docTypeRegistry.resolve("plan");
     expect(planType.route).toEqual({ reviewType: "plan", argKey: "plan", targetFlag: "--plan" });
-    expect(planType.lifecycle(pi.plan, { root: REPO_ROOT })).toBe("plan");
+    expect(
+      planType.lifecycle(pi.plan, {
+        root: REPO_ROOT,
+        upstreamSpec: "docs/kairos/specs/plan-design.md",
+      }),
+    ).toEqual({ reviewPlanLine: "**Spec:** docs/kairos/specs/plan-design.md" });
+    // no upstream reference supplied → the plan review carries no REVIEW_PLAN_LINE (the D11
+    // optional `--spec` face).
+    expect(planType.lifecycle(pi.plan, { root: REPO_ROOT })).toEqual({ reviewPlanLine: "" });
   });
 
-  it("phase-spec carries the routed review/fix face (`spec` / `--spec`) and the `-spec` lifecycle key", () => {
+  it("phase-spec carries the routed review/fix face (`spec` / `--spec`) and its lifecycle renders NO upstream reference (the reviewed spec is the target)", () => {
     const specType = docTypeRegistry.resolve("spec");
     expect(specType.route).toEqual({ reviewType: "spec", argKey: "spec", targetFlag: "--spec" });
-    expect(specType.lifecycle(pi.spec, { root: REPO_ROOT })).toBe("spec");
+    expect(
+      specType.lifecycle(pi.spec, {
+        root: REPO_ROOT,
+        upstreamSpec: "docs/kairos/specs/other-design.md",
+      }),
+    ).toEqual({ reviewPlanLine: "" });
+    expect(specType.lifecycle(pi.spec, { root: REPO_ROOT })).toEqual({ reviewPlanLine: "" });
   });
 
-  it("overall is the chain root — no routed review/fix face (null across the route surface)", () => {
+  it("overall is the chain root — no routed review/fix face (null across the route surface + null lifecycle)", () => {
     const overallType = docTypeRegistry.resolve("overall");
     expect(overallType.route).toEqual({ reviewType: null, argKey: null, targetFlag: null });
     expect(overallType.lifecycle(pi.overall, { root: REPO_ROOT })).toBeNull();

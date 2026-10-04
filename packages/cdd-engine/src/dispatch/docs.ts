@@ -31,6 +31,7 @@ import {
 import { readJson, writeOwnHandoff } from "../artifacts/handoff/write.ts";
 import { Handoff } from "../artifacts/handoff.ts";
 import { hashFile } from "../artifacts/hash.ts";
+import { docTypeRegistry } from "../documents/registry.ts";
 import { type ExitRequested, exitWithCode, invariant } from "../infra/exit.ts";
 import { GitClient } from "../infra/git.ts";
 import { type DispatchOp, EngineInvoker } from "../infra/invoke.ts";
@@ -83,6 +84,10 @@ export interface DocsLifecycleOptions {
   dryRun?: boolean;
   /** additional template params from --param KEY=VALUE flags */
   params?: Record<string, string>;
+  /** the type-self-describing target's upstream design-spec reference (D11 — a plan review's
+   *  `--spec`); the plan doc type's lifecycle renders the REVIEW_PLAN_LINE round-context slot from
+   *  it (S4). Absent → the docs-review line stays empty. */
+  upstreamSpec?: string;
   /** injected repo root (single root authority); default = engine singleton getRoot() */
   repoRoot?: string | null;
   /** derived workspace (review.ts passes it for the unit seam; this layer never reads it) */
@@ -502,9 +507,26 @@ export class DocsLifecycle extends DispatchLifecycle {
   static run(options: DocsLifecycleOptions & { dryRun?: boolean }): Promise<DocsResult> {
     const { dryRun = false, ...rest } = options;
     return withLifecycle(async () => {
+      // S4 (T6): the review/fix `--type` dispatch enters through the registered doc type's
+      // lifecycle — the type-specific lifecycle handling dispatched by CLI `--type` (the CLI gates
+      // task/branch before this runner). The type's lifecycle contributes the per-type
+      // round-context facts (the docs review's REVIEW_PLAN_LINE — a plan review injects its
+      // `**Spec:**` upstream reference via upstreamSpec); review mode merges them last-wins into
+      // the caller params.
+      const routed = rest.type ? docTypeRegistry.byReviewType(rest.type) : null;
+      const lifecycleFacts = routed
+        ? routed.lifecycle(rest.doc, {
+            root: rest.repoRoot ?? (dryRun ? "" : getRoot()),
+            ...(rest.upstreamSpec ? { upstreamSpec: rest.upstreamSpec } : {}),
+          })
+        : null;
       const lc = new DocsLifecycle({
         ...rest,
         dryRun,
+        params:
+          rest.mode === "review" && lifecycleFacts
+            ? { ...(rest.params ?? {}), REVIEW_PLAN_LINE: lifecycleFacts.reviewPlanLine }
+            : rest.params,
         ctx: {
           mode: rest.mode,
           repoRoot: rest.repoRoot ?? (dryRun ? null : getRoot()),

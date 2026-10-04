@@ -123,6 +123,12 @@ describe("bodyView domain (T5 — the template-contract split surface migrated t
     }
   });
 
+  it("spec/plan share the single docs-family value (DOCS_FAMILY single-source, shared by reference — no duplicated literal)", () => {
+    expect(docTypeRegistry.resolve("spec").bodyView.docFamily).toBe(
+      docTypeRegistry.resolve("plan").bodyView.docFamily,
+    );
+  });
+
   it("overall carries no body forms — zero discriminating formats and no review face", () => {
     const overall = docTypeRegistry.resolve("overall").bodyView;
     expect(overall.docFamily.formats).toEqual([]);

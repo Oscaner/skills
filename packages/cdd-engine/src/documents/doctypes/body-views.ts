@@ -7,7 +7,15 @@
 // S7). The values are the migrated template-contract content verbatim (the render-equivalence
 // contract: reviewTypeConfig(spec/plan) answers exactly what the removed reviews.spec/plan blocks
 // carried). Export face: named content consts (Criterion ② — no bare functions).
-import type { BodyViewSpec } from "../doctype.ts";
+import type { BodyViewDocFamily, BodyViewSpec } from "../doctype.ts";
+
+/** The docs-family shared value — the migrated DOCS_FORMATS member set ("RETURN_JSON" · "DOCS_FIX").
+ *  Single object shared by reference across the spec/plan body views (single-source, no duplication —
+ *  the T5 analog of the T4 DOC_WORDS shared-reference precedent). */
+export const DOCS_FAMILY: BodyViewDocFamily = {
+  label: "docs",
+  formats: ["RETURN_JSON", "DOCS_FIX"],
+};
 
 /** The overall's body view — the chain root has no body forms (zero discriminating formats, the
  *  familyFor fallback label) and no routed review face (reviews null). */
@@ -19,7 +27,7 @@ export const OVERALL_BODY_VIEW: BodyViewSpec = {
 /** The phase-spec's body view — the docs-family body forms (RETURN_JSON · DOCS_FIX — the migrated
  *  DOCS_FORMATS member set) + the spec review config (the migrated reviews.spec content). */
 export const SPEC_BODY_VIEW: BodyViewSpec = {
-  docFamily: { label: "docs", formats: ["RETURN_JSON", "DOCS_FIX"] },
+  docFamily: DOCS_FAMILY,
   reviews: {
     lensEnum: ["completeness", "consistency", "clarity"],
     ref: "doc vs spec",
@@ -31,7 +39,7 @@ export const SPEC_BODY_VIEW: BodyViewSpec = {
 /** The plan's body view — the docs-family body forms (RETURN_JSON · DOCS_FIX) + the plan review
  *  config (the migrated reviews.plan content). */
 export const PLAN_BODY_VIEW: BodyViewSpec = {
-  docFamily: { label: "docs", formats: ["RETURN_JSON", "DOCS_FIX"] },
+  docFamily: DOCS_FAMILY,
   reviews: {
     lensEnum: ["completeness", "decomposition", "buildability"],
     ref: "doc vs spec",

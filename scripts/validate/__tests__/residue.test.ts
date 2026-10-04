@@ -882,10 +882,11 @@ describe("channel audit：⑪ 零「最近一次」残留回读", () => {
     expect(proc).toMatch(/export function latestFileMtimeMs/); // the probe is still present → the whitelist is not vacuous
     expect(proc).toMatch(/mtimeAdvanced/);
   });
-  it("T3 白名单：documents.ts 四表审计目录枚举零残留命中 + glob 语汇仍在（白名单不空置）", () => {
-    // P2 T3: the four-table audit's doc-existence globs + anchor-registry scan enumerate the two
-    // program doc dirs (bounded explicit-path listings — the documents.ts doc-existence carve-out's
-    // doctrine).
+  it("T3 白名单：doc-type 四表审计目录枚举零残留命中 + glob 语汇仍在（白名单不空置）", () => {
+    // P2 T3 + P1 T2: the four-table audit's doc-existence globs + anchor-registry scan enumerate the
+    // two program doc dirs (bounded explicit-path listings — the doc-type doc-existence carve-out's
+    // doctrine). P1 T2 moved the atoms from rules/documents.ts into the OverallDocType — both the
+    // carve-out and its load-bearing selftest follow the audit's home.
     // The whitelist entry must stay load-bearing — the readdirSync atoms remain in the file.
     const here = path.dirname(fileURLToPath(import.meta.url));
     const docsAbs = path.join(
@@ -896,13 +897,16 @@ describe("channel audit：⑪ 零「最近一次」残留回读", () => {
       "packages",
       "cdd-engine",
       "src",
-      "rules",
-      "documents.ts",
+      "documents",
+      "doctypes",
+      "overall.ts",
     );
-    expect(collectResidualRereadHits(["packages/cdd-engine/src/rules/documents.ts"])).toEqual([]);
+    expect(
+      collectResidualRereadHits(["packages/cdd-engine/src/documents/doctypes/overall.ts"]),
+    ).toEqual([]);
     const docs = readFileSync(docsAbs, "utf8");
     expect(docs).toMatch(/mdNames\(dir: string\)/); // the dir-listing atom stays → whitelist not vacated
-    expect(docs).toMatch(/function anchorScanFiles/);
+    expect(docs).toMatch(/#anchorScanFiles/);
   });
 });
 

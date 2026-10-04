@@ -3,9 +3,8 @@
 // `resolve(kind)` throws on an unknown or unregistered kind (the message carries the kind text),
 // and `all()` yields the fixed iteration order [overall, plan, spec] regardless of registration
 // order — the deterministic face the SchemaFactory derivation and the audit traversal iterate.
-// The engine singleton (`docTypeRegistry`) exists from this module; the three concrete doc types
-// land in T2 and are registered then — the P1 singleton is empty by construction (the empty-state
-// assertion below doubles as the T2 wiring sentinel: registering the types turns it red).
+// The engine singleton (`docTypeRegistry`) exists from this module; T2 registers the three concrete
+// doc types (OverallDocType / PlanDocType / PhaseSpecDocType) — the singleton is live from T2 on.
 import { describe, expect, it } from "vitest";
 
 import {
@@ -95,11 +94,11 @@ describe("DocTypeRegistry", () => {
 });
 
 describe("docTypeRegistry singleton", () => {
-  it("is a DocTypeRegistry, empty at P1 — T2 registers the three concrete doc types (wiring sentinel)", () => {
+  it("registers the three concrete doc types — the T2 wiring (fixed order [overall, plan, spec])", () => {
     expect(docTypeRegistry).toBeInstanceOf(DocTypeRegistry);
-    expect(docTypeRegistry.all()).toEqual([]);
-    expect(() => docTypeRegistry.resolve("overall")).toThrow(
-      /no doc type registered for kind: overall/,
-    );
+    expect(docTypeRegistry.all().map((type) => type.kind)).toEqual(["overall", "plan", "spec"]);
+    for (const kind of ["overall", "plan", "spec"] as const) {
+      expect(docTypeRegistry.resolve(kind).kind).toBe(kind);
+    }
   });
 });

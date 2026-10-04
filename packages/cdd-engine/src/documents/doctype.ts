@@ -107,19 +107,27 @@ export interface DocTypeRoute {
 }
 
 /**
- * The doc-type operation context (the validate / parse / lifecycle surfaces). P1 contract — the
- * P2 wiring (T2/T6) widens the surface with the workspace/route fields the per-type
- * implementations need.
+ * The doc-type operation context (the validate / parse / lifecycle surfaces). The P2 wiring (T2/T6)
+ * widens the surface with the fields the per-type implementations need: the workspace root the doc
+ * chain resolves against, plus the chain-carried audit parameters (the dispatch phase id for
+ * four-table face ④, the pinned `vX.Y` tokens for the merged version-lineage).
  */
 export interface DocContext {
   /** The git workspace root the doc chain resolves against. */
   root: string;
+  /** The dispatch phase id (four-table face ④) — carried by a plan-chain audit; absent for a
+   *  docs-lane overall self-audit or a spec review (the registration check is skipped). */
+  phaseId?: string | null;
+  /** The chain's pinned `vX.Y` version tokens (merged version-lineage) — carried by the Class-B
+   *  parent chain; absent for an overall self-audit. */
+  pinnedTokens?: readonly string[];
 }
 
 /**
- * A doc-contract violation reported by the per-doc-type validate surface. Structural mirror of
- * `rules/documents.ts` `DocValidationFailure` — P1 interface contract; T2 converges the two
- * surfaces when the validator's per-type audits migrate into the doc types.
+ * A doc-contract violation reported by the per-doc-type validate surface. The failure surface is
+ * CONVERGED here (P1 T2): the rules plane's `DocValidationFailure` is a type alias of this
+ * interface (rules/documents.ts re-exports it under the old name), so the validator's migrated
+ * per-type audits and the doc-type validate surface share one failure identity.
  */
 export interface DocValidateFailure {
   /** Which contract failed — "plan" | "phase spec" | "overall". */

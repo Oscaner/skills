@@ -882,11 +882,13 @@ export function collectResidualRereadHits(targetsOverride = CDD_ENGINE_BIN) {
     const abs = path.isAbsolute(f) ? f : path.join(ROOT, f);
     if (!readFileSync(abs, "utf8").includes("readdirSync")) continue;
     if (f === LIVENESS_PROBE_FILE) continue; // T14 probe page (whitelist enumerated above)
-    // P2 T3: the four-table audit's doc-existence globs + anchor-registry scan enumerate the two
-    // program doc dirs (specs/ + plans/, both explicit path arguments — never a full-tree find):
-    // same fully-enumerated carve-out doctrine as the runtime.ts T14 probe carve-out (bounded dir
-    // listing in the doc-contract judgment, not a "most recent" residue re-read).
-    if (f === "packages/cdd-engine/src/rules/documents.ts") continue;
+    // P2 T3 + P1 T2: the four-table audit's doc-existence globs + anchor-registry scan enumerate the
+    // two program doc dirs (specs/ + plans/, both explicit path arguments — never a full-tree find).
+    // P1 T2 moves the audit into the OverallDocType (documents/doctypes/overall.ts) — the carve-out
+    // follows the atoms (same fully-enumerated carve-out doctrine as the runtime.ts T14 probe
+    // carve-out; a bounded dir listing in the doc-contract judgment, not a "most recent" residue
+    // re-read). The rules/documents.ts facade no longer holds a directory scan.
+    if (f === "packages/cdd-engine/src/documents/doctypes/overall.ts") continue;
     hits.push({
       label:
         'readdirSync outside the whitelist (a directory scan in place of an explicit path argument is a "most recent" regression)',

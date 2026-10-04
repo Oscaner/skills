@@ -47,7 +47,16 @@ class StubDocType extends DocType {
   }
 }
 
-const SHAPE: SchemaShape = { description: "stub shape" };
+// A minimal stub shape instance with the concrete SchemaShape skeleton — the abstract contract test
+// only proves field identity (constructor injection), never the content.
+const SHAPE: SchemaShape = {
+  $schema: "https://json-schema.org/draft/2020-12/schema",
+  $id: "https://oscaner.dev/schemas/cdd/stub.json",
+  title: "Stub doc structure",
+  description: "stub shape",
+  type: "object",
+  properties: {},
+};
 const WORDS: DocWords = { reference: "contract-lexicon" };
 const INSTRUCTIONS: InstructionUnit[] = [{ source: "stub" }];
 const REF_KIND: RefKindSpec = { kind: "file" };

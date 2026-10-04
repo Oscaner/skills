@@ -11,6 +11,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { type DocContext, DocType, type DocValidateFailure } from "../doctype.ts";
 import { DOC_TOKENS, escapeRegExp } from "../tokens.ts";
+import { OVERALL_SHAPE } from "./shapes/overall.ts";
 import {
   type ClaimDeclarationTrace,
   dottedLegalHint,
@@ -139,9 +140,10 @@ export class OverallDocType extends DocType {
   constructor() {
     super({
       kind: "overall",
-      // The concrete shape / words / instructions / refKind / bodyView domains land at T3/T4/T5 —
-      // the P1 empty state (the T2 deliverable is the per-type behavior surface + route metadata).
-      shape: { description: "" },
+      // Shape domain — the overall output schema content (T3: the concrete per-type shape, the
+      // SchemaFactory's projection source). words / instructions / refKind / bodyView stay the P1
+      // placeholder state (T4/T5/P5 land the concrete content).
+      shape: OVERALL_SHAPE,
       words: { reference: "" },
       instructions: [],
       refKind: { kind: "" },

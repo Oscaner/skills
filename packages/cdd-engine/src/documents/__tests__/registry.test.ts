@@ -43,7 +43,14 @@ class StubDocType extends DocType {
 function stubDocType(kind: DocKind, route?: DocTypeRoute): StubDocType {
   return new StubDocType({
     kind,
-    shape: { description: "stub shape" },
+    shape: {
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      $id: "https://oscaner.dev/schemas/cdd/stub.json",
+      title: "Stub doc structure",
+      description: "stub shape",
+      type: "object",
+      properties: {},
+    },
     words: { reference: "contract-lexicon" },
     instructions: [],
     refKind: { kind: "file" },

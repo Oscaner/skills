@@ -31,7 +31,12 @@
           "properties": {
             "states": {
               "type": "array",
-              "enum": ["Draft", "Approved", "Plan pending", "Shipped"],
+              "enum": [
+                "Draft",
+                "Approved",
+                "Plan pending",
+                "Shipped"
+              ],
               "description": "Phase-spec status states — Draft / Approved / Plan pending / Shipped."
             }
           }
@@ -65,31 +70,55 @@
           "type": "object",
           "description": "Section 0 — Incremental warning: the spec commits to exactly one phase; splitting / reordering a phase's work is not a local edit — phase-inventory rows, dependency edges and a change-history row land in the parent overall first (backfill-as-version).",
           "properties": {
-            "heading": { "type": "string", "pattern": "^## Section 0: Incremental warning$", "description": "Literal heading `## Section 0: Incremental warning`." }
+            "heading": {
+              "type": "string",
+              "pattern": "^## Section 0: Incremental warning$",
+              "description": "Literal heading `## Section 0: Incremental warning`."
+            }
           }
         },
         "section1": {
           "type": "object",
           "description": "Section 1 — Constraints pointer: does not repeat overall conventions; cross-phase rules belong in the overall (overall wins on conflict).",
           "properties": {
-            "heading": { "type": "string", "pattern": "^## Section 1: Constraints pointer$", "description": "Literal heading `## Section 1: Constraints pointer`." }
+            "heading": {
+              "type": "string",
+              "pattern": "^## Section 1: Constraints pointer$",
+              "description": "Literal heading `## Section 1: Constraints pointer`."
+            }
           }
         },
         "section2": {
           "type": "object",
           "description": "Section 2 — Design body: this phase's increment (approaches, architecture, components, data flow, errors, testing) AND the `### Acceptance criteria` subsection (see acceptanceCriteria).",
           "properties": {
-            "heading": { "type": "string", "pattern": "^## Section 2: Design body$", "description": "Literal heading `## Section 2: Design body`." }
+            "heading": {
+              "type": "string",
+              "pattern": "^## Section 2: Design body$",
+              "description": "Literal heading `## Section 2: Design body`."
+            }
           }
         },
         "section3": {
           "type": "object",
           "description": "Section 3 — Deviations from overall: the deviations table (`Overall assumption | Phase decision | Overall updated?`); required when the phase diverges on a cross-phase matter.",
           "properties": {
-            "heading": { "type": "string", "pattern": "^## Section 3: Deviations from overall$", "description": "Literal heading `## Section 3: Deviations from overall`." },
+            "heading": {
+              "type": "string",
+              "pattern": "^## Section 3: Deviations from overall$",
+              "description": "Literal heading `## Section 3: Deviations from overall`."
+            },
             "columns": {
               "type": "array",
-              "items": { "type": "string", "enum": ["Overall assumption", "Phase decision", "Overall updated?"], "description": "One deviation-table column name." },
+              "items": {
+                "type": "string",
+                "enum": [
+                  "Overall assumption",
+                  "Phase decision",
+                  "Overall updated?"
+                ],
+                "description": "One deviation-table column name."
+              },
               "description": "Three deviation-table columns; `Overall updated?` must be `Yes` (with version + date, e.g. `Yes — vX.Y · YYYY-MM-DD`) before review — a divergence not fed back to the overall is a backfill violation."
             }
           }
@@ -98,14 +127,22 @@
           "type": "object",
           "description": "Section 4 — Notes for downstream: later-phase scope shifts; a 'later phases will handle this' note that stays here alone is a dead end — downstream writers read the overall, record the shift in the overall's issue / phase / dependency tables and history, keep the note as a pointer.",
           "properties": {
-            "heading": { "type": "string", "pattern": "^## Section 4: Notes for downstream$", "description": "Literal heading `## Section 4: Notes for downstream`." }
+            "heading": {
+              "type": "string",
+              "pattern": "^## Section 4: Notes for downstream$",
+              "description": "Literal heading `## Section 4: Notes for downstream`."
+            }
           }
         },
         "section5": {
           "type": "object",
           "description": "Section 5 — Review: fresh-subagent review passes before user review and cdd-plan — baseline = committed tree, Review Convergence (blocker > 0 → fix all findings → re-review; blocker = 0 → fix all findings → done, no re-review).",
           "properties": {
-            "heading": { "type": "string", "pattern": "^## Section 5: Review$", "description": "Literal heading `## Section 5: Review`." }
+            "heading": {
+              "type": "string",
+              "pattern": "^## Section 5: Review$",
+              "description": "Literal heading `## Section 5: Review`."
+            }
           }
         }
       }

@@ -31,7 +31,12 @@
           "properties": {
             "states": {
               "type": "array",
-              "enum": ["Draft", "Approved", "In progress", "Complete"],
+              "enum": [
+                "Draft",
+                "Approved",
+                "In progress",
+                "Complete"
+              ],
               "description": "The overall status vocabulary."
             }
           }
@@ -95,7 +100,15 @@
           "properties": {
             "columns": {
               "type": "array",
-              "items": { "type": "string", "enum": ["Phase", "Issue (ref)", "Title summary"], "description": "One Issue-inventory column name." },
+              "items": {
+                "type": "string",
+                "enum": [
+                  "Phase",
+                  "Issue (ref)",
+                  "Title summary"
+                ],
+                "description": "One Issue-inventory column name."
+              },
               "description": "Three content columns — `Phase | Issue (ref) | Title summary`."
             }
           }
@@ -183,12 +196,18 @@
           "properties": {
             "pending": {
               "type": "string",
-              "enum": ["Pending", "[Pending]"],
+              "enum": [
+                "Pending",
+                "[Pending]"
+              ],
               "description": "Unstarted plan-cell placeholder (未开工) — the first state of the three-state Implementation plan column (`[Pending]` → `[In-flight]` → shipped): carries NO plan-doc obligation and no claim. `Pending`/`[Pending]` is the same token in backfill claims."
             },
             "inflight": {
               "type": "string",
-              "enum": ["In-flight", "[In-flight]"],
+              "enum": [
+                "In-flight",
+                "[In-flight]"
+              ],
               "description": "Started-but-not-complete plan cell (已开工) — mid-dispatch rows land here (P4.3 Task 8 #274): the plan-doc existence glob still applies (a non-missing cell) but the phase owes NO closeout claim (reverse-claim carve-out) and is never counted as a mismatch against one."
             },
             "linkCell": {
@@ -246,7 +265,16 @@
           "properties": {
             "columns": {
               "type": "array",
-              "items": { "type": "string", "enum": ["Version", "date", "summary", "author"], "description": "One conventional Change-history header column name — the engine never reads the header's names." },
+              "items": {
+                "type": "string",
+                "enum": [
+                  "Version",
+                  "date",
+                  "summary",
+                  "author"
+                ],
+                "description": "One conventional Change-history header column name — the engine never reads the header's names."
+              },
               "description": "Conventional header cell names only — the engine determines the version cell by POSITION, never by these names: the row's first content cell must carry the `v<major>.<minor>` version token (`row.versionCell`), with the non-empty date and the summary following. A `Version | date | summary` heading (or a leading `version`-named first cell) is skipped as a header row."
             }
           }

@@ -11,6 +11,7 @@ import path from "node:path";
 import { type DocContext, DocType, type DocValidateFailure } from "../doctype.ts";
 import { docTypeRegistry } from "../registry.ts";
 import { DOC_TOKENS } from "../tokens.ts";
+import { PHASE_SPEC_SHAPE } from "./shapes/phase-spec.ts";
 import { isPlaceholderOrTemplateTarget, linksOnLine, resolveAny } from "./shared.ts";
 
 // ---- spec-contract atoms (canonical — documents/tokens.ts) ----
@@ -29,9 +30,10 @@ export class PhaseSpecDocType extends DocType {
   constructor() {
     super({
       kind: "spec",
-      // The concrete shape / words / instructions / refKind / bodyView domains land at T3/T4/T5 —
-      // the P1 empty state (the T2 deliverable is the per-type behavior surface + route metadata).
-      shape: { description: "" },
+      // Shape domain — the phase-spec output schema content (T3: the concrete per-type shape, the
+      // SchemaFactory's projection source). words / instructions / refKind / bodyView stay the P1
+      // placeholder state (T4/T5/P5 land the concrete content).
+      shape: PHASE_SPEC_SHAPE,
       words: { reference: "" },
       instructions: [],
       refKind: { kind: "" },

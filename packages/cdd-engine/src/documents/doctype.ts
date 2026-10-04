@@ -34,17 +34,66 @@
 export type DocKind = "overall" | "plan" | "spec";
 
 /**
+ * A structural node of the doc-type's output JSON Schema (draft 2020-12 — the closed keyword
+ * subset the three schema products actually carry; no index signature, so an untyped keyword stays
+ * a compile-time failure and the concrete shape content stays pinned to the keywords the products
+ * exercise). `properties`/`$defs` recurse; `items` is the inline object form (the products carry no
+ * tuple form).
+ */
+export interface SchemaNode {
+  /** The node's JSON-Schema `type` keyword ("object" / "array" / "string" / "integer"). */
+  type?: string;
+  /** The node's `description` leaf — every structural node of the products carries one (the
+   *  schema.test description-coverage assertion reads this level). */
+  description?: string;
+  /** The `properties` container — child nodes keyed by property name (preserves the schema's
+   *  authored key order, the factory's projection ordering). */
+  properties?: Readonly<Record<string, SchemaNode>>;
+  /** The `items` leaf — an inline array-item schema (object form). */
+  items?: SchemaNode;
+  /** A `pattern` leaf (e.g. the `^## Section N:` heading-form patterns). */
+  pattern?: string;
+  /** A `const` leaf (e.g. the literal `**Version**` / `**Spec:**` marker tokens). */
+  const?: string | number | boolean;
+  /** An `enum` leaf — the string-vocabulary leaves (status states / column names / prose anchors). */
+  enum?: readonly string[];
+  /** The `$defs` container (the plan's taskGroups definitional sub-schema). */
+  $defs?: Readonly<Record<string, SchemaNode>>;
+  /** The `default` leaf (the plan taskGroups empty default). */
+  default?: unknown;
+  /** The `required` leaf (the plan taskGroups item). */
+  required?: readonly string[];
+  /** The `minimum` leaf (the plan task-number bound). */
+  minimum?: number;
+  /** The `minItems` leaf (the plan taskGroups minimum bound). */
+  minItems?: number;
+  /** The `uniqueItems` leaf (the plan taskGroups uniqueness bound). */
+  uniqueItems?: boolean;
+}
+
+/**
  * Shape domain — the doc-type's authoritative doc-structure content: the full JSON-Schema face,
  * isomorphic to the output schema (every properties/pattern/const/enum/description leaf at its
  * original value, zero abstraction loss — the shape domain is the schema itself, not a shadow of it).
  * `SchemaFactory` reads this field to project the `config/schema/<kind>.json` product
- * byte-faithfully (key order + formatting = the only degrees of freedom). P1 establishes the
- * interface contract; T3 lands the concrete per-type shape.
+ * byte-faithfully (key order + formatting = the only degrees of freedom). The concrete shapes land
+ * at T3 (the per-type content under doctypes/shapes/); each subclass passes its own shape in the
+ * constructor, and the derived config/schema/<kind>.json product is pinned byte-equal to this
+ * content by the factory diff-pin tests.
  */
 export interface SchemaShape {
-  /** The output schema's `description` leaf (the three products share the
-   *  `$schema`/`$id`/`title`/`description`/`type`/`properties` skeleton). */
+  /** The output schema's meta-schema reference (draft 2020-12 — the three products share it). */
+  $schema: string;
+  /** The output schema's canonical `$id`. */
+  $id: string;
+  /** The output schema's `title`. */
+  title: string;
+  /** The output schema's root `description`. */
   description: string;
+  /** The root `type` — "object" for the products. */
+  type: "object";
+  /** The root `properties` container — every structural node of the doc structure. */
+  properties: Readonly<Record<string, SchemaNode>>;
 }
 
 /**

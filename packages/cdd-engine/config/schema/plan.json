@@ -87,7 +87,16 @@
           "properties": {
             "anchors": {
               "type": "array",
-              "items": { "type": "string", "enum": ["**口径**：", "**commit 边界机制**：", "**Flow Atomicity**：", "**顺序原则**："], "description": "One prose-anchor label token — bold name + full-width colon." },
+              "items": {
+                "type": "string",
+                "enum": [
+                  "**口径**：",
+                  "**commit 边界机制**：",
+                  "**Flow Atomicity**：",
+                  "**顺序原则**："
+                ],
+                "description": "One prose-anchor label token — bold name + full-width colon."
+              },
               "description": "The four prose anchors (`口径` / `commit 边界机制` / `Flow Atomicity` / `顺序原则`), each a bold paragraph label followed by a full-width-colon block. A qualifier like `**commit 边界机制（本 program 全 phase 生效）**：` still occupies the anchor's slot; adding a suffix (`**commit 边界机制 补充**：`) makes it a different token and never fills the anchor requirement."
             }
           }
@@ -165,7 +174,9 @@
       },
       "items": {
         "type": "object",
-        "required": ["tasks"],
+        "required": [
+          "tasks"
+        ],
         "description": "One declared dispatch group — the plan record of a merged `--tasks <a>,<b>` dispatch. Declared only when 2+ tasks merge; a length-1 group is redundant (the single-group state exists only as the empty default).",
         "properties": {
           "tasks": {

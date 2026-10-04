@@ -1,5 +1,5 @@
 // packages/cdd-engine/src/artifacts/base-branch.ts — workspace artifact single-authority layer
-// (Task 8 port of base-branch.mjs; P5 spec §2.2; ex lib/state/workspace-artifacts.mjs).
+// (Task 8 port of base-branch.mjs; P5 spec §2.2).
 // base-branch path resolution + schema validation single point: one implementation kills the
 // base-branch 3↔4-value drift (source enum takes the SKILL schema's 4 values: plan-field /
 // branch-upstream / conversation-context / user-confirmed). The orchestrator never writes —

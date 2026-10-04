@@ -1,5 +1,5 @@
-// packages/cdd-engine/src/render/brief.ts — BriefRenderer class (Task 8 port of brief.mjs; ex
-// lib/brief.mjs; Task 7 OOP restructure Criterion ② — the task brief generator is an instance-method
+// packages/cdd-engine/src/render/brief.ts — BriefRenderer class (Task 8 port of brief.mjs;
+// Task 7 OOP restructure Criterion ② — the task brief generator is an instance-method
 // class with constructor-injected file/git judgments; `generateBrief` public face → `#render`, zero bare function exports).
 // render: mechanically extract the `### Task N:` sections from the plan (one per requested
 // task — the P4.3 group dispatch briefs the whole group in one file), append TASK_BASE,

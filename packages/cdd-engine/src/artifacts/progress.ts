@@ -1,5 +1,5 @@
 // packages/cdd-engine/src/artifacts/progress.ts — ProgressLedger class (Task 8 port of progress.mjs;
-// ex lib/state/progress.mjs; Task 6 ③ OOP restructure — the six-key progress.json ledger is ONE
+// Task 6 ③ OOP restructure — the six-key progress.json ledger is ONE
 // class: read/write/create/migrate + the round/scope derivations + the rowFor/entryFor single-source
 // pair are instance methods, zero bare function exports). Replaces the progress.md-based
 // timeoutCount with structured JSON. Transparent migration: read auto-migrates progress.md →

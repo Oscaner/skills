@@ -2,18 +2,22 @@
 // (P1 T3; plan §T3 · design C1: byte-faithful deterministic projection + the Q6 closure pin).
 // Coverage:
 //   - diff pins ×3: every rendered product is byte-equal (`Buffer.equals`) to its on-disk
-//     config/schema/{phase-spec,plan,overall}.json golden (read in full) — the Q1 "pin-first" edge: the
-//     moment the shape domain lands, the products are DERIVED, and the pin guards content drift
-//     between the in-code shape and the product file (a manual file edit breaks the pin — the
-//     design-drift signal);
+//     config/schema/{phase-spec,plan,overall}.json golden, read in full. The golden is the CURRENT
+//     DERIVED STATE — the canonical `JSON.stringify(shape, null, 2) + "\n"` projection, the
+//     registered product baseline (factory.ts module header) — NOT the pre-derivation authored
+//     bytes, whose hand-condensed leaf pattern is deliberately not reproduced. The pins are the Q1
+//     "pin-first" edge: the moment the shape domain lands, the products are DERIVED, and a pin
+//     break means shape↔product divergence (a manual file edit, or a shape change not landed by
+//     writeAll) — the design-drift signal;
 //   - determinism: the same source renders byte-identical twice (the projection has no hidden
 //     state — key order + fixed formatting only);
 //   - Q6 closure: the product set is exactly the three ACTIVE doc types (overall / plan / spec);
 //     add-phase-protocol / skill-anatomy are not doc types — zero factory output, and the write
 //     surface lands exactly the three product files (every other schema file untouched);
 //   - the write surface (writeAll into an injected temp dir) reproduces the on-disk bytes exactly.
-// The round's live normalization (the first real writeAll against the source-home config/schema
-// dir) makes these pins green; from then on the diff pins guard divergence only.
+// The derived baseline is the registered program-wide contract (one consistent decision T3..T7 — T4
+// applies the same canonical projection to the contract-lexicon product); these pins guard
+// divergence from that baseline only.
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -40,7 +44,7 @@ function activeProductBytes(): Record<string, Buffer> {
 }
 
 describe("SchemaFactory (P1 T3)", () => {
-  it("diff pins ×3: every rendered product is byte-equal to its on-disk schema file", () => {
+  it("diff pins ×3: every rendered product is byte-equal to its on-disk schema product (the derived baseline)", () => {
     const products = factory.renderAll();
     for (const [file, golden] of Object.entries(activeProductBytes())) {
       expect(Buffer.from(products[file]).equals(golden)).toBe(true);

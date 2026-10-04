@@ -63,7 +63,12 @@ const SHAPE: SchemaShape = {
 const WORDS: DocWords = DOC_WORDS;
 const INSTRUCTIONS: InstructionUnit[] = [{ source: "stub" }];
 const REF_KIND: RefKindSpec = { kind: "file" };
-const BODY_VIEW: BodyViewSpec = { format: "markdown" };
+// The stub body view — the abstract contract test only proves field identity (constructor
+// injection), never the content (the concrete per-type body views live in doctypes/body-views.ts).
+const BODY_VIEW: BodyViewSpec = {
+  docFamily: { label: "docs", formats: ["RETURN_JSON", "DOCS_FIX"] },
+  reviews: { lensEnum: ["completeness"], ref: "doc vs spec", axesGuide: "stub axes guide" },
+};
 const ROUTE: DocTypeRoute = { reviewType: "plan", argKey: "plan", targetFlag: "--plan" };
 
 function stubDocType(kind: DocKind, opts?: Partial<DocTypeOpts>): StubDocType {

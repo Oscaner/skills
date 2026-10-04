@@ -24,9 +24,11 @@
 //   refKind      — the doc-revision identity discriminant seam (P5 forward interface — the
 //                  discriminant slot stays typed but unpopulated at P1; the four discriminations
 //                  land in P5).
-//   bodyView     — the body-form discrimination + template-contract reviews.{spec,plan}
-//                  (axesGuide/lensEnum) + DOCS_FORMATS split-surface (T5 lands the concrete
-//                  surface; TemplateLoader consumption re-wired at T5).
+//   bodyView     — the body-form discrimination + the per-type review-config face (the docs-family
+//                  return-formats discrimination + the reviews.{spec,plan} axesGuide/lensEnum/ref
+//                  content; T5 lands the concrete surface and TemplateLoader re-reads it through the
+//                  registry — the template-contract reviews.spec/plan blocks + the module-level
+//                  DOCS_FORMATS set are gone).
 // The route metadata face is independent of the five domains (S4/S5/S6 convergence carrier): the
 // CLI / suggestion-table routing surface (--spec/--plan target flag · --type name · next-step
 // target flag).
@@ -179,14 +181,49 @@ export interface RefKindSpec {
 }
 
 /**
- * BodyView domain — the body-form discrimination + the template-contract split surface
- * (`reviews.{spec,plan}` axesGuide/lensEnum + the DOCS_FORMATS discrimination migrate here — Q5).
- * P1 establishes the interface contract; T5 lands the concrete surface and re-wires the
- * TemplateLoader consumption.
+ * BodyView domain — the body-form discrimination + the per-type review-config face. The template-
+ * contract split surface collapses here (Q5/S7): the `reviews.{spec,plan}` content (axesGuide /
+ * lensEnum / ref) + the DOCS_FORMATS discrimination (the `["RETURN_JSON","DOCS_FIX"]` return-formats
+ * set that routes the docs family) migrate into the doc types at T5, and TemplateLoader reads the
+ * per-type review config + the shell-family discrimination through the registry (the module-level
+ * DOCS_FORMATS set and the template-contract reviews.spec/plan blocks are gone).
+ */
+export interface BodyViewReviews {
+  /** The review-lens vocabulary — the REVIEW_LENS_GUIDE values (lens-tag labels). */
+  lensEnum: readonly string[];
+  /** The review reference descriptor — task/branch refs are git-range symbols; doc reviews carry
+   *  the relational description "doc vs spec" (the concrete doc path lands on REVIEW_REFERENCE via
+   *  the caller). */
+  ref: string;
+  /** The review axes guide — the REVIEW_AXES wording (the judged axes + the scope axis). */
+  axesGuide: string;
+}
+
+/** The body-form doc-family discrimination — the DOCS_FORMATS criteria migrated from the render
+ *  loader (S7): each doc family carries the return formats its body forms discriminate on, and the
+ *  shell-family result (familyFor) is the membership judgement — a format found in a type's
+ *  docFamily.formats resolves to that family's label. */
+export interface BodyViewDocFamily {
+  /** The doc-family label — "docs" (the spec/plan review-fix body forms) | "task" (the dispatch
+   *  shell — the familyFor fallback). The chain root (overall) contributes no body forms: the
+   *  fallback label with zero formats (the docs-family union never reads a member from it). */
+  label: "docs" | "task";
+  /** The return formats this doc family discriminates on — the migrated DOCS_FORMATS member set
+   *  (RETURN_JSON · DOCS_FIX for the docs family; the task family carries none). */
+  formats: readonly string[];
+}
+
+/**
+ * BodyView domain — the body-form discrimination + the per-type review-config face (`reviews.{spec,
+ * plan}` axesGuide/lensEnum + the DOCS_FORMATS discrimination migrate here — Q5/S7).
  */
 export interface BodyViewSpec {
-  /** The body-form discrimination label — T5 widens the interface to the review-config surface. */
-  format: string;
+  /** The body-form doc-family discrimination (the shell-family routing — the DOCS_FORMATS
+   *  criteria; familyFor judges membership against the registry's doc families). */
+  docFamily: BodyViewDocFamily;
+  /** The per-type review config face (the migrated reviews.{spec,plan} content) — null when the
+   *  doc type has no routed review face (the overall chain root). */
+  reviews: BodyViewReviews | null;
 }
 
 /**
@@ -289,7 +326,9 @@ export abstract class DocType {
   /** The doc-revision identity discriminant seam (P5 forward interface — typed, unpopulated at P1). */
   readonly refKind: RefKindSpec;
 
-  /** BodyView domain — the body-form discrimination + template-contract split surface (T5). */
+  /** BodyView domain — the body-form discrimination + the per-type review-config face (the
+   *  TemplateLoader reads the shell-family routing + the spec/plan review config through this
+   *  field — S7). */
   readonly bodyView: BodyViewSpec;
 
   /** Route metadata face — the CLI / suggestion-table routing surface (S4/S5/S6 carrier). */

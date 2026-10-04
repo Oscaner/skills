@@ -55,7 +55,10 @@ function stubDocType(kind: DocKind, route?: DocTypeRoute): StubDocType {
     words: DOC_WORDS,
     instructions: [],
     refKind: { kind: "file" },
-    bodyView: { format: "markdown" },
+    bodyView: {
+      docFamily: { label: "docs", formats: ["RETURN_JSON", "DOCS_FIX"] },
+      reviews: { lensEnum: ["completeness"], ref: "doc vs spec", axesGuide: "stub axes guide" },
+    },
     route: route ?? { reviewType: null, argKey: null, targetFlag: null },
   });
 }

@@ -12,6 +12,7 @@ import path from "node:path";
 import { type DocContext, DocType, type DocValidateFailure } from "../doctype.ts";
 import { DOC_TOKENS, escapeRegExp } from "../tokens.ts";
 import { DOC_WORDS } from "../words.ts";
+import { OVERALL_BODY_VIEW } from "./body-views.ts";
 import { OVERALL_SHAPE } from "./shapes/overall.ts";
 import {
   type ClaimDeclarationTrace,
@@ -143,13 +144,14 @@ export class OverallDocType extends DocType {
       kind: "overall",
       // Shape domain — the overall output schema content (T3: the concrete per-type shape, the
       // SchemaFactory's projection source). Words — the shared engine lexicon content (T4: every
-      // doc type references the same DOC_WORDS object — words single-source). instructions /
-      // refKind / bodyView stay the P1 placeholder state (T5/P5 land the concrete content).
+      // doc type references the same DOC_WORDS object — words single-source). BodyView — the chain
+      // root carries no body forms (T5: zero discriminating formats, no review face). instructions /
+      // refKind stay the P1 placeholder state (P5 lands the concrete content).
       shape: OVERALL_SHAPE,
       words: DOC_WORDS,
       instructions: [],
       refKind: { kind: "" },
-      bodyView: { format: "" },
+      bodyView: OVERALL_BODY_VIEW,
       // The overall is the chain root — no routed review/fix face (S4): null across the surface.
       route: { reviewType: null, argKey: null, targetFlag: null },
     });

@@ -113,6 +113,44 @@ describe("route metadata + lifecycle dispatch keys (S4)", () => {
   });
 });
 
+describe("bodyView domain (T5 — the template-contract split surface migrated to the doc types)", () => {
+  it("spec/plan carry the docs-family discrimination (the migrated DOCS_FORMATS member set)", () => {
+    for (const kind of ["spec", "plan"] as const) {
+      const family = docTypeRegistry.resolve(kind).bodyView.docFamily;
+      expect(family.label).toBe("docs");
+      expect(family.formats).toContain("RETURN_JSON");
+      expect(family.formats).toContain("DOCS_FIX");
+    }
+  });
+
+  it("overall carries no body forms — zero discriminating formats and no review face", () => {
+    const overall = docTypeRegistry.resolve("overall").bodyView;
+    expect(overall.docFamily.formats).toEqual([]);
+    expect(overall.docFamily.label).toBe("task");
+    expect(overall.reviews).toBeNull();
+  });
+
+  it("DOCS_FORMATS member determination (positive/negative)", () => {
+    const docsFormats = new Set(docTypeRegistry.all().flatMap((t) => t.bodyView.docFamily.formats));
+    for (const member of ["RETURN_JSON", "DOCS_FIX"]) {
+      expect(docsFormats.has(member)).toBe(true);
+    }
+    for (const nonMember of ["RETURN_STDOUT_BLOCK", "NOPE", ""]) {
+      expect(docsFormats.has(nonMember)).toBe(false);
+    }
+  });
+
+  it("spec/plan bodyView reviews carry the migrated axesGuide/lensEnum (the reviews.{spec,plan} content)", () => {
+    const spec = docTypeRegistry.resolve("spec").bodyView.reviews!;
+    expect(spec.lensEnum).toEqual(["completeness", "consistency", "clarity"]);
+    expect(spec.axesGuide).toContain("Follow URC: single-cycle");
+    const plan = docTypeRegistry.resolve("plan").bodyView.reviews!;
+    expect(plan.lensEnum).toEqual(["completeness", "decomposition", "buildability"]);
+    expect(plan.axesGuide).toContain("Follow URC: spec coverage");
+    expect(plan.axesGuide).toContain("changed-surface reasonableness");
+  });
+});
+
 describe("parentChain — the S3 parent-doc walk", () => {
   it("overall resolves to itself (the chain root)", () => {
     expect(docTypeRegistry.resolve("overall").parentChain(pi.overall, REPO_ROOT)).toBe(pi.overall);

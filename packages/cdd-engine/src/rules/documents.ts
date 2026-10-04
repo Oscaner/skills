@@ -127,9 +127,11 @@ export class DocumentsValidator {
   }
 
   /** parseOverall — the canonical four-table parse (single source; exported for the closeout
-   *  mismatch module — P2 ④) — delegated to the overall doc type's parse surface. */
+   *  mismatch module — P2 ④) — delegated to the overall doc type's ctx-free parse surface (the
+   *  overall parse never consumes a DocContext — the chain root carries no phase/pin tokens — so
+   *  the delegation passes no synthesized context). */
   parseOverall(overallPath: string): OverallParse {
-    return overallType().parse(overallPath, { root: "" });
+    return overallType().parseOverall(overallPath);
   }
 
   /** The phase-spec doc-type surface: `**Version**` line + Class B → the parent overall's contract

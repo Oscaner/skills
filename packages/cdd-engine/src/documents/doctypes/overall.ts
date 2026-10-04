@@ -160,9 +160,11 @@ export class OverallDocType extends DocType {
   }
 
   /** The canonical four-table parse — the single source the audit and the closeout mismatch
-   *  surface consume. */
+   *  surface consume. The overall parse reads the FILE ONLY — the DocContext is never consumed
+   *  (the chain root carries no phase-id/pin tokens), so the abstract surface discards ctx and
+   *  defers to the ctx-free parseOverall. */
   parse(entry: string, _ctx: DocContext): OverallParse {
-    return this.#parseOverall(entry);
+    return this.parseOverall(entry);
   }
 
   /** The overall contract face — kernel + row-shape + change-history rules + merged version
@@ -196,7 +198,7 @@ export class OverallDocType extends DocType {
     pinnedTokens: readonly string[] = [],
   ): DocValidateFailure[] {
     const failures: DocValidateFailure[] = [];
-    const o = this.#parseOverall(overallPath);
+    const o = this.parseOverall(overallPath);
     if (!o.kernelOk) {
       failures.push({
         artifact: "overall",
@@ -266,7 +268,11 @@ export class OverallDocType extends DocType {
 
   // ---- the canonical four-table parse (parseOverall semantics) ----
 
-  #parseOverall(overallPath: string): OverallParse {
+  /** The ctx-free four-table parse surface — takes the overall path alone. The overall parse never
+   *  consumes a DocContext (the chain root carries no phase-id/pin tokens — no context exists to
+   *  synthesize), so callers without one — the facade's parseOverall delegation — use this surface
+   *  directly instead of fabricating a `{ root }` literal. */
+  parseOverall(overallPath: string): OverallParse {
     const out: OverallParse = {
       kernelOk: false,
       reason: "",

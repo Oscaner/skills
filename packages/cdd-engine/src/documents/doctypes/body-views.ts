@@ -44,6 +44,6 @@ export const PLAN_BODY_VIEW: BodyViewSpec = {
     lensEnum: ["completeness", "decomposition", "buildability"],
     ref: "doc vs spec",
     axesGuide:
-      "Follow URC: spec coverage (completeness) / task boundaries + interfaces (decomposition) / type consistency + placeholder scan (buildability) + Scope axis (changed-surface reasonableness): the doc edits under review must track the reviewed findings — edits beyond them (or beyond the brief seam) are candidate findings",
+      "Follow URC: spec coverage (completeness) / task boundaries + interfaces (decomposition — the typed `interface{consumes,produces}` slices) / type consistency + placeholder scan (buildability) + Scope axis (changed-surface reasonableness): the doc edits under review must track the reviewed findings — edits beyond them (or beyond the brief seam) are candidate findings",
   },
 };

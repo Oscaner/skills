@@ -1,10 +1,11 @@
 // packages/cdd-engine/src/documents/tokens.ts — canonical doc-structure token surface
-// (P2 T2; design §2.3 AC4 TC single-source evidence · S8). Every engine-side doc-structure TOKEN
+// (P2 T2/T3; design §2.3 AC4 TC single-source evidence · S8). Every engine-side doc-structure TOKEN
 // (the literals and patterns documents.ts / brief.ts / task.ts assert) derives here from the
-// doc-type shape domain — the same DocType.shape content the registry's doc types carry (the shape
-// constants under doctypes/shapes/* plus the P2 T2 body-leaf projections — the phase-spec input
-// authorizes from `PHASE_SPEC_BODY_SHAPE`, the body leaf, since the shape constant retired into the
-// concrete DocBody; the config/schema products are their byte-faithful projections, never re-read). The former hand-written copies in each consumer are these
+// doc-type shape domain — the same DocType.shape content the registry's doc types carry (the overall
+// shape constant + the P2 T2/T3 body-leaf projections — the phase-spec input authorizes from
+// `PHASE_SPEC_BODY_SHAPE` and the plan input from `PLAN_BODY_SHAPE`, the body leaves, since their
+// shape constants retired into the concrete DocBodies; the config/schema products are their
+// byte-faithful projections, never re-read). The former hand-written copies in each consumer are these
 // derivations. Change a shape leaf once → engine validation/extraction follows in the same build —
 // the deriveDocTokens(shapes) pure function is that live link (feed it a doctored shape and the
 // derived token changes).
@@ -27,8 +28,8 @@
 // zero engine modules. The load-order regression is pinned by the colocated load-order.test.ts.
 import type { SchemaShape } from "./doctype.ts";
 import { PHASE_SPEC_BODY_SHAPE } from "./doctypes/body/phase-spec-body.ts";
+import { PLAN_BODY_SHAPE } from "./doctypes/body/plan-body.ts";
 import { OVERALL_SHAPE } from "./doctypes/shapes/overall.ts";
-import { PLAN_SHAPE } from "./doctypes/shapes/plan.ts";
 
 export interface DocTokens {
   // ---- plan ----
@@ -473,9 +474,11 @@ export function deriveDocTokens(shapes: {
 
 /** Production token surface — derived from the doc-type shape domain (the same DocType.shape
  *  content the registry's doc types carry / the SchemaFactory projects onto the derived
- *  config/schema products) on load. The phase-spec input is the body leaf projection (P2 T2). */
+ *  config/schema products) on load. The spec + plan inputs are the body leaf projections (P2 T2/T3 —
+ *  the retired shape constants are gone; the same values the registry's doc types carry via their
+ *  injected bodies). */
 export const DOC_TOKENS: DocTokens = deriveDocTokens({
-  plan: PLAN_SHAPE,
+  plan: PLAN_BODY_SHAPE,
   overall: OVERALL_SHAPE,
   "phase-spec": PHASE_SPEC_BODY_SHAPE,
 });

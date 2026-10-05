@@ -18,9 +18,11 @@ import {
 import { docTypeRegistry } from "../registry.ts";
 import { DOC_TOKENS } from "../tokens.ts";
 import { DOC_WORDS } from "../words.ts";
+import type { PlanBody } from "./body/plan-body.ts";
+import { planBody } from "./body/plan-body.ts";
+import { Task, type TaskStep } from "./body/task.ts";
 import { PLAN_BODY_VIEW } from "./body-views.ts";
 import type { OverallParse } from "./overall.ts";
-import { PLAN_SHAPE } from "./shapes/plan.ts";
 import {
   isPlaceholderOrTemplateTarget,
   linksOnLine,
@@ -119,6 +121,76 @@ const SPEC_PHASE_ID_RE = new RegExp(
   "i",
 );
 
+// ---- task-record atoms (design C3 — the data-shaped task block parse) ----
+
+/** Split a comma-separated list value into its trimmed non-empty items (the files / consumes /
+ *  produces field lists of a data-shaped task record). */
+function splitListValue(value: string): string[] {
+  return value
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
+/** Parse one `### Task N:` block's lines into a Task data record (design C3) — empty return for a
+ *  legacy block carrying no data-field markers (the dual-read contract: the legacy `- **Do**:` face
+ *  is left untouched, a new-shape block's objective/steps/acceptance fields are the single source).
+ *  A step entry that drops the ` — checkable:` separator still parses (its action is kept) with the
+ *  checkable capture empty — the validate face fails on it, the field is never silently dropped. */
+function parseTaskBlock(lines: readonly string[]): Task | null {
+  const slices = planBody.projectSlicePatterns();
+  let objective = "";
+  const files: string[] = [];
+  const consumes: string[] = [];
+  const produces: string[] = [];
+  const steps: TaskStep[] = [];
+  const acceptance: string[] = [];
+  let sawData = false;
+  let mode: "steps" | "acceptance" | null = null;
+  for (const line of lines) {
+    // Field markers take priority (a marker line switches the parse mode / captures its single-line
+    // value) — the acceptance-entry form can never swallow a sibling marker line.
+    if (slices.objective.test(line)) {
+      objective = line.replace(slices.objective, "").trim();
+      sawData = true;
+      mode = null;
+    } else if (slices.files.test(line)) {
+      files.push(...splitListValue(line.replace(slices.files, "").trim()));
+      sawData = true;
+      mode = null;
+    } else if (slices.consumes.test(line)) {
+      consumes.push(...splitListValue(line.replace(slices.consumes, "").trim()));
+      sawData = true;
+      mode = null;
+    } else if (slices.produces.test(line)) {
+      produces.push(...splitListValue(line.replace(slices.produces, "").trim()));
+      sawData = true;
+      mode = null;
+    } else if (slices.steps.test(line)) {
+      sawData = true;
+      mode = "steps";
+    } else if (slices.acceptance.test(line)) {
+      sawData = true;
+      mode = "acceptance";
+    } else if (mode === "steps") {
+      const m = line.match(slices.stepEntry);
+      if (m) steps.push({ action: m[1]!.trim(), checkable: (m[2] ?? "").trim() });
+    } else if (mode === "acceptance") {
+      if (line.match(slices.acceptanceEntry)) {
+        acceptance.push(line.replace(slices.acceptanceEntry, "").trim());
+      }
+    }
+  }
+  if (!sawData) return null; // a legacy block — no data-field markers, no task record
+  return new Task({
+    objective,
+    files,
+    interface: { consumes, produces },
+    steps,
+    acceptance,
+  });
+}
+
 function phaseIdFromSpecBasename(specPath: string): string | null {
   const m = path.basename(specPath).match(SPEC_PHASE_ID_RE);
   // the spec-filename id is lowercased — slice off the leading P to normalize case, the dotted
@@ -147,16 +219,19 @@ export interface PlanParse {
  *  spec chain → the parent overall). The plan is a routed review target (`"plan"` review type).
  */
 export class PlanDocType extends DocType {
-  constructor() {
+  /** The injected body — the shape + slice single source for this doc type's checks (constructor
+   *  injection, no default parameterization: the body is the live wiring of the shape domain). */
+  readonly body: PlanBody;
+
+  constructor(body: PlanBody) {
     super({
       kind: "plan",
-      // Shape domain — the plan output schema content (T3: the concrete per-type shape, the
-      // SchemaFactory's projection source). Words — the shared engine lexicon content (T4: every
-      // doc type references the same DOC_WORDS object — words single-source). BodyView — the
-      // docs-family body forms + the plan review config (T5: the migrated template-contract
-      // reviews.plan content). instructions / refKind stay the P1 placeholder state (P5 lands the
-      // concrete content).
-      shape: PLAN_SHAPE,
+      // Shape domain — the plan output schema content (P2 T3: derived from the injected body's
+      // projectSchemaShape() — the only contract chain DocBody.projectSchemaShape() → DocType.shape →
+      // SchemaFactory; the retired plan shape constant is gone). Words — the shared engine lexicon
+      // content. BodyView — the docs-family body forms + the plan review config. instructions /
+      // refKind stay the P1 placeholder state (P5 lands the concrete content).
+      shape: body.projectSchemaShape(),
       words: DOC_WORDS,
       instructions: [],
       refKind: { kind: "" },
@@ -164,6 +239,7 @@ export class PlanDocType extends DocType {
       // The plan's routed review/fix face (S4): `--type plan` / the `--plan` next-step flag.
       route: { reviewType: "plan", argKey: "plan", targetFlag: "--plan" },
     });
+    this.body = body;
   }
 
   /** Plan detection: the `### Task N:` heading feature (DOC_TOKENS.taskNumberRe) — the fallback
@@ -246,6 +322,32 @@ export class PlanDocType extends DocType {
     return groups;
   }
 
+  /** tasksFromPlan(planFile) — the plan's Task data records (design C3): one record per `### Task N:`
+   * block that carries the data-field markers (objective / steps / acceptance … the body's projected
+   * task-block slice single source). A legacy block (`- **Do**:` face, no data markers) returns no
+   * record — the dual-read contract: the legacy tree parses task-free, the new task-handoff brief
+   * renders from these records. A step entry without its ` — checkable:` separator still parses with
+   * the checkable capture empty — the validate face fails on it, the field is never silently dropped. */
+  tasksFromPlan(planFile: string): Task[] {
+    const lines = readFileSync(planFile, "utf8").split("\n");
+    const slices = this.body.projectSlicePatterns();
+    const blocks: Array<{ start: number; end: number }> = [];
+    let start = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (slices.taskHeading.test(lines[i])) {
+        if (start >= 0) blocks.push({ start, end: i });
+        start = i;
+      }
+    }
+    if (start >= 0) blocks.push({ start, end: lines.length });
+    const tasks: Task[] = [];
+    for (const block of blocks) {
+      const task = parseTaskBlock(lines.slice(block.start, block.end));
+      if (task !== null) tasks.push(task);
+    }
+    return tasks;
+  }
+
   /** effectiveGroups(planPath) — the SINGLE dispatch-group derivation (TaskGroup[]): declared groups
    * ∪ implicit single-task groups for any plan task an empty-or-partial declaration leaves uncovered
    * (`taskGroups.length ? … : singletons` under the P4.3 model — the P4.4 partition keeps the union
@@ -284,7 +386,9 @@ export class PlanDocType extends DocType {
   }
 
   /** plan contract: `### Task N:` continuous extractability · `**Spec:**` exists + resolves ·
-   * constraints source declaration extractable · no placeholders. Necessary subset — always runs. */
+   * constraints source declaration extractable · no placeholders · the data-shaped task steps carry
+   * their checkable (missing checkable = a validate failure, never an author's discretion).
+   * Necessary subset — always runs. */
   validatePlanContract(planPath: string): DocValidateFailure[] {
     const failures: DocValidateFailure[] = [];
     const content = readFileSync(planPath, "utf8");
@@ -344,6 +448,24 @@ export class PlanDocType extends DocType {
         missing: `unfilled template token ${m[0]}`,
         fix: "replace the placeholder with the real content (or drop the template syntax)",
       });
+    }
+
+    // 4. Data-shaped task steps — every parsed step carries its checkable outcome (design C3: the
+    //    step checkable is a validate requirement, never an author's discretion). Legacy blocks
+    //    (no `- **Steps**:` marker) parse no steps — the dual-read tree is unaffected; a step whose
+    //    action line drops the ` — checkable:` separator parses with an empty checkable and fails.
+    for (const task of this.tasksFromPlan(planPath)) {
+      for (const step of task.steps) {
+        if (!step.checkable) {
+          failures.push({
+            artifact: "plan",
+            file: planPath,
+            field: "`checkable`",
+            missing: `task step "${step.action}" carries no checkable outcome`,
+            fix: "end every `- **Steps**:` entry's action with ` — checkable: <outcome>` (the verifiable outcome is the step's acceptance evidence)",
+          });
+        }
+      }
     }
     return failures;
   }

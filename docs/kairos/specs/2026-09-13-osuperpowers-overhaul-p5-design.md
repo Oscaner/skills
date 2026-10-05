@@ -6,34 +6,8 @@
 - **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.27](./2026-09-13-osuperpowers-overhaul-overall.md)（P5 行 scope/acceptance 已含全部 brainstorm 收敛；v1.18–v1.27 十条 Boundary rules 回填行）
 - **Depends on**: P4 shipped（skill 树 + engine 输出契约，PR #262 已 merge 至 develop，2026-09-16）
 
----
-
-## Section 0: Incremental warning
-
-> P5 increment only（report-issue → report-issues 改名与流程精炼）。Cross-phase conventions 见 [overall](./2026-09-13-osuperpowers-overhaul-overall.md)；冲突时 overall 赢。
-> `P4 ->(soft) P5` 已满足（P4 定 skill 树与 engine 输出契约，P5 落实 report-issues 改名与流程）。
-
-**口径（用户 2026-09-13 拍板，overall §目标 skills 架构参考）**：目标流程 = `explore-current-session → collect → reform → confirm → gh dedup（open+closed）→ 单新 issue 聚合 + dedup links + friendly 标题`。P5 的**删除面**（旧双通道评论模型 / master 复用 / per-finding 评论 / report-meta 冗余字段）与**收敛面**（单新 issue 聚合 / 单模式 renderer / labels SOT 单点）一并执行——破坏性变更授权下遗留即删。
-
-**例外边界（精确，v1.27 更新）**：P5 将 cdd-engine **全面重建**（全量 TS + unbuild · CLI 换 citty · 生命周期域抽象基类 + hookable 注册面 · 目录按功能重组 · v1.26 第三方收敛全项），**engine 黑盒契约零变化**（4 子命令 `cdd implement/review/fix/base-branch` 面 · handoff 输出 / 失败类目 / Stopping / commit-contract 判定语义 · session-call 输出）——**skills 与消费者面零感知**（engine 是发布产物，重建仅内部形态）。engine 重构详 §2.13。issue form（ISSUE_TEMPLATE）是 emit 派生面，改动落点 = `finding-meta.json` canonical（formFieldDefs / labels SOT），不在 `.github/` 手改。
-
----
-
-## Section 1: Constraints pointer
-
-- 仓库语言政策：SKILL.md / docs 英文主源；本 spec 中文（Strategy B internal docs）
-- 不 commit 除非用户明确要求；changeset 逐 phase 建
-- vendored 子模块不可改（本 phase 不触达任何 vendor）
-- **破坏性重构已授权**（用户 2026-09-13 / 2026-09-16 重复确认：允许破坏性变更、确保最佳实践、不留技术债务、遗留即删）
-- 所有改动须过 `pnpm run validate` 全绿 + `pnpm run emit:check` 无 drift；skills / emit 源改动后必跑 `pnpm run emit`
-- **不改变引擎评审语义本体**（overall non-goal）：E-8 仅改注入序列化（`JSON.stringify(schema)` 紧凑），不碰 schema 内容 / 校验 / commit-contract / doc_hash
-- **principle 定案（用户 2026-09-17）**：「任何信息保留都必须是面向运维人员的高价值信息」——本 phase 的报删判据：无消费者即删、与平台原生重复即删、兜底概念即删、标注性而非决策性即删；「自动 vs 手动来源可辨性由结构信号天然承载（Report meta + dedup + 聚合形态），零字段成本」
-
----
-
-## Section 2: Design body
-
-### §2.1 问题与根因
+## Design
+**§2.1 问题与根因**
 
 P5 处理的是**一类结构性根因 + 六条实证缺陷（E 族）+ 两条优化**，不是七组独立修补。结构根因是主线，E 族与优化是它的展开。
 
@@ -46,7 +20,7 @@ P5 处理的是**一类结构性根因 + 六条实证缺陷（E 族）+ 两条�
 | **R5（优化，用户 2026-09-16 指示）** | **brainstorming #explore-context 把参考性探索面写成固定 4 渠道** | P4 重写时 Do/Read 写「(code / issues / docs / git log)」——参考性示例被固化为枚举（E-7） |
 | **R6（优化，用户 2026-09-16 量化）** | **提示词注入的 handoff schema 带 2-缩进，占 token** | `renderHandoffStub` = `JSON.stringify(schema, null, 2)`；实测 task 1111→846 tok（省 ~265）、docs 702→545（省 ~157）每次注入（E-8） |
 
-### §2.2 高维度统一骨架
+**§2.2 高维度统一骨架**
 
 P5 不是「改名 + 八条修补」，而是 report 面从「路由+评论模型」收敛为「单管线+单工件」：
 
@@ -61,7 +35,7 @@ collect → filter(scope 谓词) → reform(privacy) → confirm(人闸) → ded
 4. **删除面**——旧双通道（resolve-destination / ensure-session / report-target 缓存 / per-finding 评论）全删；report-meta 冗余字段（kind/date/Source）全删；sessionTypes / session_report 表单 / resolveDropdownOptions 全删
 5. **每字符有消费方**（用户 principle）——遗留的每个字段/分支/枚举都有真实消费方或运维决策价值
 
-### §2.3 改名面（report-issue → report-issues）
+**§2.3 改名面（report-issue → report-issues）**
 
 **改名一处 + 全派生**：`finding-meta.json#components` 枚举 `"osuperpowers:report-issue"` → `"osuperpowers:report-issues"` 是唯一改名源；form 下拉经 emit 派生、`.agents/` 经 emit 派生，均零手改。
 
@@ -77,7 +51,7 @@ collect → filter(scope 谓词) → reform(privacy) → confirm(人闸) → ded
 | tests | `report-templates.test.mjs` components 断言更新（P4 注释「改名归 P5」处落地）· `writing-plans-spec.test.mjs` resolve-destination 提及更新（见上行锚点换锚）· **四文件同步**：`scripts/emit/issue-templates.test.mjs` 三处「3 个 yml」断言（:23 / :140-148 / :165，含 session_report.yml）→ 2 个；`scripts/emit/compare.mjs:39` productFiles 删 `session_report.yml` 项（否则 emit:check 陈旧 walk 报警）；`docs/maintainers/` 全部 `report-issue` 词形逐一同步（maintainer docs 不在 residue 机制 scope 亦不在 AC1 grep 面，无机械守卫兜底——**面级 sweep 接管：验收实测 `grep -rnE '\breport-issue\b' docs/maintainers/` 零命中**，不止枚举文件）：**`data-driven-templates.md` :3 / :90 的 SOT 路径** `packages/osuperpowers/skills/report-issue/templates/finding-meta.json` → `packages/osuperpowers/skills/report-issues/templates/finding-meta.json`（:90 的 renderer 函数行 `renderYml / renderTitle / renderMeta / renderComment / renderMasterBody` 随 §2.5 收敛同步——renderTitle/renderComment/renderMasterBody 删、renderYml 保留、renderMeta 及聚合渲染函数名对齐）· **:91 三表单表**（bug_report/enhancement/session_report）→ 两表单 · **:93 AC12 note**「report-issue finding comment / session master body」→ 新聚合表述（report-issues aggregate body）· **`docs/maintainers/skill-authoring.md:119`** Native 词例 `report-issue` → `report-issues`（Task 11 收口后的唯一边角）；`scripts/validate/residue.mjs`（:703-708 注释）与 `residue.test.mjs:820`/`:878`（ORCHESTRATOR_SKILLS 注释 + 测试描述）的 `report-issue` → `report-issues` |
 | residue 守卫 | stale-lexicon 增 `report-issue`（单数）——**词边界模式** `\breport-issue\b`（见 §2.8 词形守卫细则），复数 `report-issues` 放行；**机制面作用域**（skills 目录 / finding-meta / renderer / emit / README / tests），历史 plan/spec + CHANGELOG 豁免（P1–P3 同范式） |
 
-### §2.4 新聚合流程 digraph（report-issues SKILL.md）
+**§2.4 新聚合流程 digraph（report-issues SKILL.md）**
 
 ```mermaid
 flowchart TD
@@ -109,7 +83,7 @@ flowchart TD
 
 **dev 验证（dedup 查询句）**：实现后以 `gh issue list --state all --limit 100 --search "updated:>=<date -v-90d +%F 产出>"` 实测——(a) 不报 search 语法错误；(b) 结果集含 open+closed 双态（search 端点默认返回双态，验证 `--state all` 与 `--search` 无状态丢失）；(c) 与仓库已知久未更新的 issue 号对照确认窗口生效。此验证并入 dev 计划 T 项（与 label rename 同批）
 
-### §2.5 renderer 改造（report-templates.mjs）
+**§2.5 renderer 改造（report-templates.mjs）**
 
 **目标**：单写点延续（I5 语义），裸调用单入口，入参校验早报。
 
@@ -170,7 +144,7 @@ flowchart TD
 - report-meta **不入独立尾部 heading**：per-finding `Skill:`/`Step:` 紧随该 finding 的 sectionLabels 段；§2.10 聚合测试按此断言 N-finding meta 关联
 - `## Dedup` / `## Related` **恒为单段尾收**（N 条 finding 的全部 open/closed/程序命中汇总一处），不做 per-finding 分段
 
-### §2.6 finding-meta.json 重构
+**§2.6 finding-meta.json 重构**
 
 | 面 | 现状 | 终态 |
 |---|---|---|
@@ -183,19 +157,19 @@ flowchart TD
 | `masterDef.title` | `[Session report] <subject> <YYYY-MM-DD>` | **删**（标题 = 中性 topic 直出）；masterDef 收敛为**两键** `{ sessionTitle: "## Session", harnessRow: "- Harness: <harness>" }`（Session 段 label + Harness 行模板，§2.5 契约） |
 | `reportDef.labels` | — | **新增**（labels SOT 单点 = `["osuperpowers","cdd-engine"]`） |
 
-### §2.7 labels SOT + GitHub label rename
+**§2.7 labels SOT + GitHub label rename**
 
 - **labels SOT 单点**：`reportDef.labels` = `["osuperpowers","cdd-engine"]`（finding-meta 顶层新增），renderer create-issue 消费、其唯一定义点
 - **GitHub label rename**：`gh label edit cdd --name cdd-engine`——**一次性 repo 数据迁移**（dev 计划 T 项执行，非 spec 评审期；历史 issue 标签随迁）；执行后 `gh label list` 有 `cdd-engine` 无 `cdd`
 - **保留面**：harness keyword `cdd`（package.json / .claude-plugin / .cursor-plugin 的发布发现面——非 label，P6 keywords 决策另议）；meta 字段 `cdd` 概念（v1.22 已删字段，此处不复活）
 
-### §2.8 关联面
+**§2.8 关联面**
 
 - **不变式面**（report-issues SKILL.md）：I1 Confirm Gate 保留 · I3 Manual Trigger Only 保留 · I5 Renderer Determinism 保留 · I6 Evidence Contract 保留 · **I7 Kind Enumerated 删**（v1.21）· **新增 I8 Dedup Window**（窗口常量 = **updated within last 90 days** + **单趟拉取**不变式；查询注入用运行期物化的 ISO 绝对日期 `updated:>=<now-90d>`，dev 计划含物化查询句实测，Q10）· **新增 I9 Program Link**（程序归属只在 Related 链接呈现，不引回评论模型）
 - **residue 守卫**：stale-lexicon `report-issue`（单数）——**词边界模式 `\breport-issue\b`（或 `report-issue(?!s)` 负前瞻）**：新复数名 `report-issues` 含前缀 `report-issue`，裸 substring 词形会在机制面内每个 `osuperpowers:report-issues` 引用处自命中、守卫永远无法转绿；同引入轮即放行复数形式（report-issues 乘数注释「复数新名，机制面预期命中排除」）· `--mode comment` / `renderTitle` / `resolveDropdownOptions` / `sessionTypes` 词形守卫（防 renderer 旧模式回渗机制面）· E-8 紧凑注入：engine `templates.test.mjs` 断言 `stub` 无 2-缩进模式（`\n  "` 模式）——格式 drift 守卫
 - **changeset**：`osuperpowers` minor（`p5-report-issues-aggregation`；含 ISSUE_TEMPLATE 瘦身 + renderer 重构 + label 变更说明 + **renderYml/yaml 隔离为 emit-only 模块**——`yaml` 仅入仓库根 devDependencies（emit 工具链），插件 `package.json#dependencies` 零新增，消费者运行时入口保持零依赖，见 §2.13 yaml 行）；`cdd-engine`（E-8 紧凑注入，patch/minor 随版本策略）——逐 phase changeset 纪律（P6 acceptance 复核粒度）
 
-### §2.9 E 族 6 条 → 机制映射（验收锚点）
+**§2.9 E 族 6 条 → 机制映射（验收锚点）**
 
 | E | finding | 处置落点 | 验收锚点 |
 |---|---|---|---|
@@ -206,7 +180,7 @@ flowchart TD
 | E-5 | dedup 每 finding 全量拉取 | §2.4 单趟拉取 + 90d 窗口（`updated:>=<now-90d ISO>` 物化查询句） | SKILL.md dedup 节点声明单趟拉取；窗口常量 + 物化查询形式 |
 | E-6 | labels SOT 漂移 | §2.7 labels 单源 reportDef.labels | finding-meta 唯一 labels 定义点；emit:check drift=0 |
 
-### §2.10 测试面
+**§2.10 测试面**
 
 `report-templates.test.mjs`（现有 5 block + 新用例）：
 
@@ -224,21 +198,7 @@ engine 侧：`templates.test.mjs` 增 E-8 紧凑断言；`templates.content.test
 - yaml：`renderYml` 既有 issue-templates 用例全绿（form YAML 直出，emit:check 作为输出新鲜度守卫）
 - tinyglobby：`naming.mjs` glob 用例全绿（扫描结果集不变）
 
-### §2.11 Acceptance criteria（本 phase 验收）
-
-1. `grep -E '\breport-issue\b'`（单数，**词边界**——不带 \b 的裸词形会 substring 命中新复数名 `report-issues`）机制面零命中（历史 plan/spec + CHANGELOG 豁免；作用域 = skills 目录 / finding-meta / renderer / emit / README / tests；复数 `report-issues` 不在此守卫命中面）
-2. `.github/ISSUE_TEMPLATE` = **bug_report/enhancement 两份表单** + `emit:check` drift=0（`formFieldDefs` 2 键、零 `sessionTypes`/session_report 产物）
-3. **E 族 6 条各有锚点**（§2.9 表逐行对照）
-4. **report-meta 终态 2+1**：metaFields = `skill`·`step` 两字段 + masterDef Session 段 `Harness` 一行；renderer 零 `- Kind:`/`- Date:`/`- Source:` 行；I7 不变式删除
-5. **renderer 零残留**：无 `--mode` 标志 · 零 `renderComment`/`renderTitle`/`resolveDropdownOptions`/`sessionTypes` · 裸调用单入口
-6. **brainstorming #explore-context 零「固定 4 渠道」表述**（E-7）
-7. **handoff schema 紧凑注入**（E-8）：`renderHandoffStub` = `JSON.stringify(schema)`；`templates.test.mjs` 格式 drift 断言绿；task 注入省 ~265 tok 断言（可选）
-8. **repo label rename 已执行**：`gh label list` 有 `cdd-engine` 无 `cdd`；历史 issue 标签随迁
-9. `pnpm run validate` 全绿 + `pnpm run emit:check` 无 drift
-10. **commit 边界管控落地**（AC 10）：`dispatch/task.ts`/`docs.ts` 继承 DispatchLifecycle（`dispatch/base.ts`，落点面 = §2.13 目标树）——入口门（pre-commit 干净树）+ 出口门（post-commit validateCommitContract）为基类模板方法/默认 hook，两实现继承覆写（**docs review/fix dispatch 同消费双门**，见 P5 落点 2/3）· `fix/docs.md` 含提交指令（agent 完成时 commit 被修文档，conventional + 无 attribution + 无改动 skip）· 6 个 review-fix skill 的 review 前「工作树干净」措辞
-11. **第三方依赖收敛落地**（AC 11）：`packages/cdd-engine` src 零 `execFileSync("git")` 手写 git（经 simple-git）· 零 `emitScalar`/`isPlainUnsafe`（osuperpowers 经 `yaml`）· 零 `PLACEHOLDERS` 手写替换循环（经 handlebars）· cdd-engine glob 经 tinyglobby · husky 零 cdd-engine 依赖声明（仅 root devDependencies 存续）· `docs/maintainers/third-party-dependencies.md` 存在且登记全部 pkg（含不引清单与理由）；engine suite 全绿（simple-git/handlebars/yaml 换算后原语义不变）
-
-### §2.12 生命周期 dispatch 阶段 + commit 边界管控（pre-commit / post-commit 双门）
+**§2.12 生命周期 dispatch 阶段 + commit 边界管控（pre-commit / post-commit 双门）**
 
 **第一部分：dispatch 生命周期阶段总览（术语化）**
 
@@ -318,7 +278,7 @@ dispatch lifecycle（engine 单点实现；run-task/run-docs 为**重建前现�
 
 **边界**：本机制**不引入** engine 自动提交的一切形式——engine 不代写 commit、不需要知道 message（subject 语义在产生方）；engine 只做**两扇门**（入口干净树校验 + 出口干净树校验，契约面，符合「engine 服务」原则）。不重建 EventEmitter/事件总线（dispatch 是固定序列非可插拔事件，见 §2.13 不引清单）。
 
-### §2.13 第三方依赖收敛（不保持任何手写）
+**§2.13 第三方依赖收敛（不保持任何手写）**
 
 **原则（用户 2026-09-17 定）**：能用第三方 pkg 就不自己维护，只维护 cdd-engine 功能逻辑；不保持任何手写；允许重组代码/文件/目录便于扩展；第三方 pkg 记入运维文档。
 
@@ -389,7 +349,31 @@ packages/cdd-engine/
 
 ---
 
-## Section 3: Deviations from overall
+### Acceptance criteria
+
+1. `grep -E '\breport-issue\b'`（单数，**词边界**——不带 \b 的裸词形会 substring 命中新复数名 `report-issues`）机制面零命中（历史 plan/spec + CHANGELOG 豁免；作用域 = skills 目录 / finding-meta / renderer / emit / README / tests；复数 `report-issues` 不在此守卫命中面）
+2. `.github/ISSUE_TEMPLATE` = **bug_report/enhancement 两份表单** + `emit:check` drift=0（`formFieldDefs` 2 键、零 `sessionTypes`/session_report 产物）
+3. **E 族 6 条各有锚点**（§2.9 表逐行对照）
+4. **report-meta 终态 2+1**：metaFields = `skill`·`step` 两字段 + masterDef Session 段 `Harness` 一行；renderer 零 `- Kind:`/`- Date:`/`- Source:` 行；I7 不变式删除
+5. **renderer 零残留**：无 `--mode` 标志 · 零 `renderComment`/`renderTitle`/`resolveDropdownOptions`/`sessionTypes` · 裸调用单入口
+6. **brainstorming #explore-context 零「固定 4 渠道」表述**（E-7）
+7. **handoff schema 紧凑注入**（E-8）：`renderHandoffStub` = `JSON.stringify(schema)`；`templates.test.mjs` 格式 drift 断言绿；task 注入省 ~265 tok 断言（可选）
+8. **repo label rename 已执行**：`gh label list` 有 `cdd-engine` 无 `cdd`；历史 issue 标签随迁
+9. `pnpm run validate` 全绿 + `pnpm run emit:check` 无 drift
+10. **commit 边界管控落地**（AC 10）：`dispatch/task.ts`/`docs.ts` 继承 DispatchLifecycle（`dispatch/base.ts`，落点面 = §2.13 目标树）——入口门（pre-commit 干净树）+ 出口门（post-commit validateCommitContract）为基类模板方法/默认 hook，两实现继承覆写（**docs review/fix dispatch 同消费双门**，见 P5 落点 2/3）· `fix/docs.md` 含提交指令（agent 完成时 commit 被修文档，conventional + 无 attribution + 无改动 skip）· 6 个 review-fix skill 的 review 前「工作树干净」措辞
+11. **第三方依赖收敛落地**（AC 11）：`packages/cdd-engine` src 零 `execFileSync("git")` 手写 git（经 simple-git）· 零 `emitScalar`/`isPlainUnsafe`（osuperpowers 经 `yaml`）· 零 `PLACEHOLDERS` 手写替换循环（经 handlebars）· cdd-engine glob 经 tinyglobby · husky 零 cdd-engine 依赖声明（仅 root devDependencies 存续）· `docs/maintainers/third-party-dependencies.md` 存在且登记全部 pkg（含不引清单与理由）；engine suite 全绿（simple-git/handlebars/yaml 换算后原语义不变）
+
+## Constraints
+
+- 仓库语言政策：SKILL.md / docs 英文主源；本 spec 中文（Strategy B internal docs）
+- 不 commit 除非用户明确要求；changeset 逐 phase 建
+- vendored 子模块不可改（本 phase 不触达任何 vendor）
+- **破坏性重构已授权**（用户 2026-09-13 / 2026-09-16 重复确认：允许破坏性变更、确保最佳实践、不留技术债务、遗留即删）
+- 所有改动须过 `pnpm run validate` 全绿 + `pnpm run emit:check` 无 drift；skills / emit 源改动后必跑 `pnpm run emit`
+- **不改变引擎评审语义本体**（overall non-goal）：E-8 仅改注入序列化（`JSON.stringify(schema)` 紧凑），不碰 schema 内容 / 校验 / commit-contract / doc_hash
+- **principle 定案（用户 2026-09-17）**：「任何信息保留都必须是面向运维人员的高价值信息」——本 phase 的报删判据：无消费者即删、与平台原生重复即删、兜底概念即删、标注性而非决策性即删；「自动 vs 手动来源可辨性由结构信号天然承载（Report meta + dedup + 聚合形态），零字段成本」
+
+## Deviations
 
 | Overall assumption | Phase decision | Overall updated? |
 |---|---|---|
@@ -405,17 +389,9 @@ packages/cdd-engine/
 | overall 无此项（新增） | **commit 边界纪律**（双向不变量 + 归属原则；审计确认 task 族已有/docs fix 缺口） | Yes — v1.25 · 2026-09-17 |
 | overall 无此项（新增） | **第三方依赖收敛**（simple-git/yaml/tinyglobby/handlebars 引入 + husky 不进包 + 运维文档） | Yes — v1.26 · 2026-09-17 |
 
----
-
-## Section 4: Notes for downstream
+## Notes for downstream
 
 - **P6（统一收口）**：harness keyword `cdd` 是否随 label rename 统一（发布发现面 vs label 面的命名一致性审查）· `.agents/` emit 面移除 · vendors 撤离 · 其余 engine flake 项。本 phase 不改动这些。
 - **Dedup window 常量**：窗口常量 = **updated within last 90 days**（SKILL.md / report-issues 节点文档化，I8），不建环境变量配置面（沿 P4 环境面收口原则）——若口径调整，改 SKILL.md 一处。**查询句恒用运行期物化的 ISO 绝对日期**（`date -v-90d +%F` → `updated:>=<ISO>`，GitHub search 语法不支持 `90d` 相对写法），物化句实测并入 dev 计划 T 项
 - **GitHub label rename 的执行顺序**：必须在 changeset 前的 dev 段择机执行（一次性 `gh label edit`），spec 评审期不执行任何 repo 外部变更。
 - **writing-plans 提示**：计划需含「label rename 的 gh 命令 + 验证」独立任务（外向操作，不可并入普通重命名任务）。
-
----
-
-## Section 5: Review
-
-Rule: Fresh-Subagent Review Passes must all pass before reaching user review and writing-plans。

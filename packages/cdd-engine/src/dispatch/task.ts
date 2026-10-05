@@ -1503,8 +1503,8 @@ const PLAN_CONSTRAINTS_FILE = "plan-constraints.md";
 const PLAN_CONSTRAINTS_MISSING_BLOCKER =
   "plan-constraints.md missing — run materializer or declare a plan Constraints source";
 
-/** Plan declares no Constraints source (neither a literal `## Constraints` section nor any
- * prose-pointer anchor) — the materializer must BLOCK, never fall back silently. P6 T24 E: the
+/** Plan declares no Constraints source — the literal `## Constraints` section is the single
+ * constraint source — so the materializer must BLOCK, never fall back silently. P6 T24 E: the
  * recoverable run failure rides the CddExitError family (exitCode 1 + kind "run-blocked") — the
  * resolveContext kind-catch recovers it, with the class identity kept so its special-cased
  * message extraction survives. */

@@ -39,7 +39,7 @@ import { PLAN_BODY_VIEW } from "../../body-views.ts";
 import type { PlanDocType, PlanParse } from "../../plan.ts";
 import { OVERALL_SHAPE } from "../../shapes/overall.ts";
 import { DocBody } from "../doc-body.ts";
-import { PHASE_SPEC_BODY_SHAPE } from "../phase-spec-body.ts";
+import { PHASE_SPEC_BODY_SHAPE, phaseSpecBody } from "../phase-spec-body.ts";
 import { PLAN_BODY_SHAPE, PlanBody, planBody } from "../plan-body.ts";
 import type { Task } from "../task.ts";
 
@@ -132,6 +132,16 @@ describe("PlanBody — the concrete body construction contract", () => {
     expect(bare).not.toBeNull();
     expect(bare![1].trim()).toBe("do the work without a checkable");
     expect(bare![2]).toBeUndefined();
+  });
+
+  it("the constraintsHeading slice is the shared body-plane single source (the plan + phase-spec bodies project the same RegExp)", () => {
+    const planSlices = planBody.projectSlicePatterns();
+    const specSlices = phaseSpecBody.projectSlicePatterns();
+    // The two bodies' constraint scans read ONE byte source (BODY_CONSTRAINTS_HEADING_RE) — the
+    // merge-machine canonical read and the spec-skeleton heading can never drift apart.
+    expect(planSlices.constraintsHeading).toBe(specSlices.constraintsHeading);
+    expect(planSlices.constraintsHeading.test("## Constraints")).toBe(true);
+    expect(planSlices.constraintsHeading.test("### Constraints")).toBe(false);
   });
 });
 

@@ -228,13 +228,23 @@ describe("extractor projection single-source — the three parse families derive
         /\/\^## Constraints/,
       );
     }
-    // The body leaf IS the single home of the two parse regexes.
+    // The parse-regex single homes: the plan body leaf owns the plan-only task-heading regex; the
+    // SHARED constraints-heading regex is built in the body-plane root (doc-body.ts — the
+    // `## Constraints` literal const + the derived regex BOTH body leaves spread), so the
+    // constraint-heading scan has one byte source, never a hand-written literal per leaf.
     const bodyLeaf = readFileSync(
       path.join(engineSrc, "documents", "doctypes", "body", "plan-body.ts"),
       "utf8",
     );
     expect(bodyLeaf).toMatch(/taskHeading: \/\^### Task \(\\d\+\):\/m/);
-    expect(bodyLeaf).toMatch(/constraintsHeading: \/\^## Constraints\\s\*\$\/m/);
+    expect(bodyLeaf).toMatch(/constraintsHeading: BODY_CONSTRAINTS_HEADING_RE/);
+    const bodyRoot = readFileSync(
+      path.join(engineSrc, "documents", "doctypes", "body", "doc-body.ts"),
+      "utf8",
+    );
+    expect(bodyRoot).toMatch(/BODY_CONSTRAINTS_HEADING = "## Constraints"/);
+    expect(bodyRoot).toMatch(/BODY_CONSTRAINTS_HEADING_RE = new RegExp/);
+    expect(bodyRoot).toMatch(/escapeRegExp\(BODY_CONSTRAINTS_HEADING\)/);
     // The anchor literals are written exactly once in the engine (the PLAN_FORM_B_ANCHOR_TOKENS
     // const) — deriveDocTokens + the parse family read from it, never re-type it. The only
     // non-leaf mention is the dispatch/task.ts derivation COMMENT (a `:// `-prefixed doc note,

@@ -21,7 +21,7 @@
 // only how a decorated section must look.
 
 import type { SchemaShape } from "../../doctype.ts";
-import { DocBody, type SlicePatternSet } from "./doc-body.ts";
+import { BODY_CONSTRAINTS_HEADING_RE, DocBody, type SlicePatternSet } from "./doc-body.ts";
 
 /** The new-skeleton phase-spec shape domain (P2 T2; design C2) — the projection product
  *  `projectSchemaShape()` serves and the module-level leaf tokens.ts authorizes its DOC_TOKENS
@@ -249,11 +249,14 @@ export const PHASE_SPEC_BODY_SHAPE: SchemaShape = {
 
 /** The new-skeleton parse slice patterns — the concrete body's single-source heading regexes
  *  (design C2): the three permanent heading slices. The `m` flag keeps each pattern matchable on
- *  both a full-content scan and a per-line scan. */
+ *  both a full-content scan and a per-line scan. The `constraintsHeading` slice is the SHARED
+ *  body-plane regex (BODY_CONSTRAINTS_HEADING_RE — the same `## Constraints` byte source the plan
+ *  body's Form-A extraction reads; the inheritance-point assertion and the merge machine can never
+ *  drift apart). */
 const PHASE_SPEC_SLICE_PATTERNS: SlicePatternSet = {
   designHeading: /^## Design\s*$/m,
   acceptanceCriteriaHeading: /^### Acceptance criteria\s*$/m,
-  constraintsHeading: /^## Constraints\s*$/m,
+  constraintsHeading: BODY_CONSTRAINTS_HEADING_RE,
 };
 
 /**

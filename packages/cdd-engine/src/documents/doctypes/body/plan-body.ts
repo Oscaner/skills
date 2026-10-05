@@ -25,7 +25,12 @@
 // from the Task data, zero prose carving — the legacy `- **Do**:` face is gone.
 
 import type { SchemaShape } from "../../doctype.ts";
-import { DocBody, type SlicePatternSet } from "./doc-body.ts";
+import {
+  BODY_CONSTRAINTS_HEADING_RE,
+  DocBody,
+  escapeRegExp,
+  type SlicePatternSet,
+} from "./doc-body.ts";
 import type { Task } from "./task.ts";
 
 /** The Form-B prose-pointer anchor tokens — the SINGLE declaration of the anchor set (the shape
@@ -368,10 +373,12 @@ export const PLAN_BODY_SHAPE: SchemaShape = {
  *  -style declaration-heading line (full-width or ASCII colon accepted; a qualifier in full-width
  *  parens between the anchor name and the closing `**` allowed). Derived from the token — the bare
  *  name strips the bold wrap + trailing colon the same way deriveDocTokens derives `proseAnchors` —
- *  never re-typed in the parse plane. */
+ *  never re-typed in the parse plane. The derived name is regex-escaped before interpolation (the
+ *  body-plane escape atom): a future anchor token carrying a regex metacharacter (e.g. `**v2.1**：`
+ *  or `**C++**：`) stays a literal scan instead of silently corrupting the Form-B parse. */
 function formBAnchorHeadingRe(token: string): RegExp {
   const name = token.replace(/^\*\*/, "").replace(/\*\*[：:].*$/, "");
-  return new RegExp(`^\\*\\*${name}(?:（[^）]*）)?\\*\\*[：:]`);
+  return new RegExp(`^\\*\\*${escapeRegExp(name)}(?:（[^）]*）)?\\*\\*[：:]`);
 }
 
 /** The Form-B anchor family — one `formBAnchor{digit}` slice per canonical anchor in declaration
@@ -389,16 +396,18 @@ function formBAnchorSlices(): Record<string, RegExp> {
 /** The plan's parse slice patterns — the concrete body's single-source regexes (design C3): the
  *  `### Task N:` render surface (the task-heading face the plan detection + the 1..N continuity
  *  contract parse from — the number captured for taskNumbersFromPlan), the Form-A `## Constraints`
- *  heading (the constraint-section extraction's plan-side pattern), the Form-B prose-pointer anchor
- *  family (`formBAnchor1..4` — the extractProseConstraints canonical-order anchor scan), and the
- *  task-block data-field markers (objective / files / consumes / produces / steps / acceptance) the
- *  task-record parser slices the `### Task N:` blocks on. A numbered step entry captures its action
- *  + its optional checkable outcome in one regex — a step line without the `— checkable:`
- *  separator leaves the checkable capture empty (the validate-failing case, never silently
- *  dropped). */
+ *  heading — the SHARED body-plane slice (`BODY_CONSTRAINTS_HEADING_RE`, the same regex the
+ *  phase-spec body projects: the constraint-section extraction's plan-side pattern and the spec
+ *  skeleton assertion read one byte source, never a hand-written duplicate per leaf), the Form-B
+ *  prose-pointer anchor family (`formBAnchor1..4` — the extractProseConstraints canonical-order
+ *  anchor scan), and the task-block data-field markers (objective / files / consumes / produces /
+ *  steps / acceptance) the task-record parser slices the `### Task N:` blocks on. A numbered step
+ *  entry captures its action + its optional checkable outcome in one regex — a step line without
+ *  the `— checkable:` separator leaves the checkable capture empty (the validate-failing case,
+ *  never silently dropped). */
 const PLAN_SLICE_PATTERNS: SlicePatternSet = {
   taskHeading: /^### Task (\d+):/m,
-  constraintsHeading: /^## Constraints\s*$/m,
+  constraintsHeading: BODY_CONSTRAINTS_HEADING_RE,
   objective: /^- \*\*Objective\*\*:[ \t]*/,
   files: /^- \*\*Files\*\*:[ \t]*/,
   consumes: /^- \*\*Consumes\*\*:[ \t]*/,

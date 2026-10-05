@@ -11,7 +11,13 @@
 // and the projection methods are callable on the concrete type.
 import { describe, expect, it } from "vitest";
 import type { SchemaShape } from "../../../doctype.ts";
-import { DocBody, type SlicePatternSet } from "../doc-body.ts";
+import {
+  BODY_CONSTRAINTS_HEADING,
+  BODY_CONSTRAINTS_HEADING_RE,
+  DocBody,
+  escapeRegExp,
+  type SlicePatternSet,
+} from "../doc-body.ts";
 
 // A stub shape instance — the abstract contract test only proves the projection surface
 // (implementable + callable), never the content (the concrete per-type shapes land at T2/T3).
@@ -98,5 +104,25 @@ describe("DocBody — abstract contract surface", () => {
     // stops compiling. The removal direction carries no compile signal: dropping a projection from
     // the base while the stub keeps its method leaves the file compiling with an ordinary method,
     // so that drift is caught on the review axes rather than by tsc.
+  });
+});
+
+describe("the shared body-plane atoms (T5 review hardening — the parse-head single source)", () => {
+  it("escapeRegExp neutralizes regex metacharacters (the leaves' parse-atom escape source)", () => {
+    expect(escapeRegExp("v2.1")).toBe("v2\\.1");
+    expect(escapeRegExp("C++")).toBe("C\\+\\+");
+    // Plain heading literals pass through untouched (no metacharacters to escape).
+    expect(escapeRegExp("## Constraints")).toBe("## Constraints");
+  });
+
+  it("BODY_CONSTRAINTS_HEADING is the single `## Constraints` byte source", () => {
+    expect(BODY_CONSTRAINTS_HEADING).toBe("## Constraints");
+  });
+
+  it("BODY_CONSTRAINTS_HEADING_RE matches the Form-A heading line (derived from the literal const — trailing whitespace allowed, non-`##` levels never match)", () => {
+    expect(BODY_CONSTRAINTS_HEADING_RE.test("## Constraints")).toBe(true);
+    expect(BODY_CONSTRAINTS_HEADING_RE.test("## Constraints   ")).toBe(true);
+    expect(BODY_CONSTRAINTS_HEADING_RE.test("### Constraints")).toBe(false);
+    expect(BODY_CONSTRAINTS_HEADING_RE.test("## Constraints (Form A)")).toBe(false);
   });
 });

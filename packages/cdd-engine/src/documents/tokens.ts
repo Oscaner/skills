@@ -26,10 +26,19 @@
 // the `registry`-first and `tokens`-first load orders resolve (a registry.resolve at module top
 // would TDZ against the doctypes' module-top DOC_TOKENS references). The body leaf modules import
 // zero engine modules. The load-order regression is pinned by the colocated load-order.test.ts.
+// The escaping atom is homed at the body root (doc-body.ts — the leaves build parse regexes from
+// literal consts there, and the law keeps them off this module); tokens re-exports it below so the
+// token-plane consumers keep one escape source. doc-body.ts carries no runtime imports, so this
+// edge adds no back-edge.
 import type { SchemaShape } from "./doctype.ts";
+import { escapeRegExp } from "./doctypes/body/doc-body.ts";
 import { PHASE_SPEC_BODY_SHAPE } from "./doctypes/body/phase-spec-body.ts";
 import { PLAN_BODY_SHAPE } from "./doctypes/body/plan-body.ts";
 import { OVERALL_SHAPE } from "./doctypes/shapes/overall.ts";
+
+/** Re-export of the body-root escape atom (definition home: doc-body.ts — see the load-order note
+ *  above); the existing engine consumers keep importing it from this module. */
+export { escapeRegExp };
 
 export interface DocTokens {
   // ---- plan ----
@@ -143,10 +152,6 @@ export interface DocTokens {
   /** Phase-id token scan (rowShape.idFormat pattern, unanchored + word boundary) — the dependency
    *  graph / dependency-column membership audit's token scanner. */
   phaseTokenScanRe: RegExp;
-}
-
-export function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /** Navigate a DocType.shape object to a node by its `properties` path. A segment is first tried as

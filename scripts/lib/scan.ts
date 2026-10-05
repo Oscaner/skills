@@ -80,6 +80,14 @@ export function isPlanPinDataFile(file: string): boolean {
   return file === PLAN_MIGRATION_PINS_FILE;
 }
 
+/** The pin-data release predicate — a scan hit inside T5/T6 tree-migration pin data is DATA, never a
+ *  code/test regression: the line-scoped spec-verbatim pin map (isSpecVerbatimPinLine) or the
+ *  file-scoped plan-migration pins fixture (isPlanPinDataFile). ONE release policy, single-pointed so
+ *  no guard site copies the disjunction; guards call it per line / per collector alongside isDataRow. */
+export function isScanPinExempt(file: string, lineNo: number): boolean {
+  return isSpecVerbatimPinLine(file, lineNo) || isPlanPinDataFile(file);
+}
+
 export interface ScanLineHit {
   file: string;
   lineNo: number;

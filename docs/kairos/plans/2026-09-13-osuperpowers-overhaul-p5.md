@@ -6,6 +6,8 @@
 - **Depends on**: P4 shipped（skill 树 + engine 输出契约，PR #262 已 merge，2026-09-16）
 - **Base**: develop（finishing read-base 的数据源）
 
+- **Interface 转录注记**: 各任务 `- **Consumes**: 刻意留空（树迁移 B 转录决策）——源 Do 散文未承载独立具名输入事实，consumes（Task 记录 interface 可选项）不填充；任务输入由 DependsOn/AtomicWith 声明边与 objective/steps 承载，consumer-parity p1–p4.1 因承接具名输入事实而全量填充。
+
 ## Constraints
 ### 口径
 

@@ -328,8 +328,7 @@ function assert(cond: boolean, msg: string) {
 import {
   escapeRegExp,
   isDataRow,
-  isPlanPinDataFile,
-  isSpecVerbatimPinLine,
+  isScanPinExempt,
   listTargetFiles,
   scanLines,
   scanTargets,
@@ -658,7 +657,7 @@ export function collectRootResolverHits(targetsOverride?: string[]) {
   for (const { label, re } of ROOT_RESOLVER_TOKENS) {
     const files = new Set<string>();
     for (const { file, lineNo } of scanLines(targets, re, { includeTests: true })) {
-      if (isSpecVerbatimPinLine(file, lineNo) || isPlanPinDataFile(file)) continue; // pin-data occurrence, not a regression
+      if (isScanPinExempt(file, lineNo)) continue; // pin-data occurrence, not a regression
       if (files.has(file)) continue;
       files.add(file);
       hits.push({ label, file });
@@ -684,7 +683,7 @@ export function collectTestSeamHits(targetsOverride?: string[]) {
     for (const { file, lineNo } of scanLines(targetsOverride ?? scope, re, {
       includeTests: true,
     })) {
-      if (isSpecVerbatimPinLine(file, lineNo) || isPlanPinDataFile(file)) continue; // pin-data occurrence, not a test seam
+      if (isScanPinExempt(file, lineNo)) continue; // pin-data occurrence, not a test seam
       if (files.has(file)) continue;
       files.add(file);
       hits.push({ label, file });

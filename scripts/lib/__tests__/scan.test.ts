@@ -7,7 +7,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { isSpecVerbatimPinLine, SPEC_VERBATIM_PIN_FILE } from "../scan.ts";
+import {
+  isScanPinExempt,
+  isSpecVerbatimPinLine,
+  PLAN_MIGRATION_PINS_FILE,
+  SPEC_VERBATIM_PIN_FILE,
+} from "../scan.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..", "..");
@@ -65,5 +70,22 @@ describe("isSpecVerbatimPinLine — the pin-map data-region release is line-scop
 
   it("touches no other file", () => {
     expect(isSpecVerbatimPinLine("scripts/lib/scan.ts", declIdx + 2)).toBe(false);
+  });
+});
+
+describe("isScanPinExempt — the single pin-data release predicate (line-scoped spec verbatim + file-scoped plan pins)", () => {
+  const pinLines = readFileSync(path.join(ROOT, SPEC_VERBATIM_PIN_FILE), "utf8").split("\n");
+  const declIdx = pinLines.findIndex((l) => /^\s*const SPEC_VERBATIM\s*[:=]/.test(l));
+
+  it("releases either pin surface — the spec-verbatim map's data region (line-scoped) or the plan-migration fixture (file-scoped)", () => {
+    // the spec-verbatim strand keeps its line-scoping: a map line releases, the header does not.
+    expect(isScanPinExempt(SPEC_VERBATIM_PIN_FILE, declIdx + 2)).toBe(true);
+    expect(isScanPinExempt(SPEC_VERBATIM_PIN_FILE, 1)).toBe(false);
+    // the plan-migration fixture is a pure data file — every line releases.
+    expect(isScanPinExempt(PLAN_MIGRATION_PINS_FILE, 1)).toBe(true);
+  });
+
+  it("touches no other file", () => {
+    expect(isScanPinExempt("scripts/lib/scan.ts", 1)).toBe(false);
   });
 });

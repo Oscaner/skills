@@ -22,7 +22,7 @@
 import { readFileSync } from "node:fs";
 import { DOC_TOKENS, escapeRegExp } from "../../tokens.ts";
 import { constraintsSectionOf, resolveParentOverall } from "../shared.ts";
-import { planBody } from "./plan-body.ts";
+import { phaseSpecBody } from "./phase-spec-body.ts";
 
 /** The overall's constitutional block — the artifact header `**Constraints**:` marker line +
  *  its following `- ` bullets (one standing rule per bullet; the block is the last header field in
@@ -79,12 +79,13 @@ export function mergeParentConstraints(input: {
  *  the validate face (resolveParentOverall + the docContractValidate linkage), never this read. */
 export function specConstraintsOf(entry: string, root: string): string | null {
   const content = readFileSync(entry, "utf8");
-  // The Form-A heading scan is the plan body's projected `constraintsHeading` slice — the shared
-  // atom's parse-pattern single source (the spec body projects the same literal heading for its
-  // own skeleton assertions; the merge machine reads one canonical pattern).
+  // The Form-A heading scan is the phase-spec body's projected `constraintsHeading` slice — the
+  // shared atom's parse-pattern single source (the plan body projects the same literal heading for
+  // its own side; the merge machine reads one canonical pattern, sourced per-doc-side from its own
+  // body projection).
   const ownDelta = constraintsSectionOf(
     content,
-    planBody.projectSlicePatterns().constraintsHeading,
+    phaseSpecBody.projectSlicePatterns().constraintsHeading,
   );
   if (ownDelta === null) return null; // legacy six-section spec — no `## Constraints` inheritance point
   const parent = resolveParentOverall(entry, root);

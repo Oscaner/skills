@@ -17,6 +17,7 @@
 - **树迁移保真**：任务编号 `1..N` 连续逐字 · Do 形验收原文逐字入 `acceptance[]` · 约束原文逐字（含 `## Global Constraints` → `## Constraints` 换壳）——三者 machine-pin；**4 散文期无验收原文** → acceptance 按正文/文件面推导补全 + tree-migration 显式断言补全产物（不落入逐字 pin 隐式缺省）
 - **迁移队列红窗口**：红窗口自本 spec/plan 提交起即开（p3-design 令 21 design 计数移位但 SPEC_GOLDEN 缺失、本 p3-plan 令 22 plan 计数移位但 PLAN_GOLDEN 缺失——树套件红早于 T3），由 T3 首步重基动作统一收口为「迁移队列期望态」声明（legacy 文档标 pending-migration（BLOCK），canonical / 零迁移对象绿），T5–T7 逐家族翻绿、T8 全绿零排除（47 校验文件 + one-off 容忍）——红窗口是单形态破产的显式过渡态，非隐式静默
 - **one-off 排除**：`2026-09-28-cdd-review-contract-fix.md`（独立 single-spec，无 parent overall / canonical schema，引擎已不识别）为历史 one-off——walk 容忍不迁移、不纳入 41
+- **shipped 描述面零程序历史（用户 2026-10-05 mid-flight backfill，常设）**：schema `description` 值 + 导出类 doc comment 只言语义（字段读写契约 / 格式 / 消费者），**零 program-history / 生命周期词汇**——phase 锚修饰（`P3 edge-model extension bit`）、状态词（`extension bit` / `declared surface` / `zero read/write at P2` / `active read/write`）一律禁止；`P<digits>` 仅域语义角色合法（phase-id 文法 token，如 overall 依赖边——判别式 = 语义性词汇，非 `P\d+` 全禁）；T9 落机器 grep pin（config/schema/*.json description 值 + body/*.ts 导出 doc comment 零命中）
 
 ### commit 边界机制
 
@@ -224,10 +225,12 @@
 - **Steps**:
   - [ ] 1. cdd-plan SKILL.md 撰作面改（英文 · 消费者文本零程序历史——Task Groups 撰作段替换为边声明指导；不叙述迁移历史）
   - [ ] 2. skill-anatomy 校验绿（如涉 section-heading registry）；`pnpm run emit` 重生成 + `emit:check` fresh
+  - [ ] 2b. **shipped 描述面零程序历史 grep pin（backfill 2026-10-05）**：`config/schema/*.json` description 值 + `body/*.ts` 导出成员 doc comment 零生命周期/出处词汇命中（`extension bit`/`declared surface`/`zero read/write`/`P\d+ (edge-model|extension)`——逐字 grep 含注释；`P<digits>` 域语义 token 豁免，非 `P\d+` 全禁）
   - [ ] 3. 终验：`pnpm run validate` 全块 ALL PASS（emit 新鲜 / kairos 插件解析 / cdd-engine 引擎套件 / 零残留 residue + channel / marketplace / scripts / 版本同步）· `pnpm run typecheck` 绿（根级三 tsc 项目：packages/cdd-engine / scripts / packages/kairos/tests——cdd-engine 无独立 typecheck script，typecheck 归根脚本，与 acceptance「typecheck 三项目绿」一致）· biome clean
   - [ ] 4. changesets（先读 `.changeset/README.md` 判定）：`@oscaner-skills/cdd-engine`（TaskGraph + 单形态退役 + 树迁移守卫）+ `kairos`（SKILL 文案视面）
   - [ ] 5. 提交（`feat(engine)/docs(kairos): P3 消费面 + 终验 + changesets`）
 - **Acceptance**:
   - cdd-plan SKILL 撰写面 = 边声明指导（英文零程序历史）；skill-anatomy 绿 · emit fresh
+  - **shipped 描述面零程序历史 grep pin 绿**（config/schema/*.json description + body/*.ts 导出 doc comment 零生命周期/出处词汇——`extension bit`/`declared surface`/`zero read/write`/`P\d+ (edge-model|extension)` 逐字零命中）
   - `pnpm run validate` ALL PASS · typecheck 三项目绿 · biome clean · residue/lexicon guard 连续
   - changesets 已建（cdd-engine + kairos 视面）

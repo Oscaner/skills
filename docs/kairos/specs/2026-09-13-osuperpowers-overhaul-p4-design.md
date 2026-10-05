@@ -7,6 +7,12 @@
 - **Depends on**: P3 shipped（命令面四命令收敛 + `cli-research` 删除，PR #261 已 merge 至 develop，2026-09-15）
 
 ## Design
+**§2.0 口径与例外边界（原 Section 0，转录）**
+
+**口径（用户 2026-09-15 定）**：**overall 的「目标 skills 架构参考」是本 phase 的主体**；legacy skills **只作参考**——仅贡献三类信息：① engine 命令与 artifact 契约 ② 门禁与守卫 ③ 失败语义。legacy 的节点名、节点序列、Invariants 表、failure-mode 长表**一律不作为主体保留**。
+
+**例外边界（精确）**：「不作为主体保留」指的是 legacy 的**载体形态**（节点名 / 节点序列 / 表格逐字），**不是**贡献类 ②③ 的**规则本体**。门禁与守卫（如 Review Stopping）、失败语义（如 legacy I7「硬依赖前序 Design spec = `Done`」）须**重新书写**入新形态——`## Invariants` 行或节点 Fail 字段；**载体换、规则不丢**。故新 skill 的 `## Invariants` 节**存续**，受 `skill-authoring.md` §4 约束（跨节点不变量 / 上限 5 / 超出降级为节点 Fail 字段），详见 §2.7.4。
+
 **§2.1 问题与根因**
 
 P4 处理的是**四类结构性根因 + 一类方法性根因**，不是四组独立修补。
@@ -441,7 +447,7 @@ F -->|entered via blocker=0| H[commit-spec] --> I[handoff-spec]
 **finishing**：`run-finishing-session` → `backfill-overall`（phase program）→ `close-issues` → `APPROVED`。
 
 - **收敛范围仅限真正上游的节点**：`verify-tests` / `read-base` / `present-menu` / `merge-locally` / `push-and-pr` / `force-delete` 是上游 `finishing-a-development-branch` 的流程 → 收敛为一个 `run-finishing-session` 节点（上游步骤不复述）。原稿把 `typed-discard?` 也算进「全部是上游流程」——**该判断不成立**：上游只有 `Type discard to confirm` 一句提示，**严格确认串**（exact `discard`、大小写敏感、无前后空白、其余输入回落 `present-menu` 且**不重置**菜单计数）是本 skill 的 personal rule，见下条改判。
-- **personal-rule 层以 Invariants 存续**（Section 0 例外边界：**载体换、规则不丢**）：
+- **personal-rule 层以 Invariants 存续**（§2.0 例外边界：**载体换、规则不丢**）：
   - **`I1 No Worktrees`**——跳过上游 worktree 检测块与 Step 6 清理；菜单固定 normal-repo 变体；worktree 态属开发前违规（不在 finishing scope）。
   - **`I2 Conventional Commits + No Attribution`**——merge commit / PR 标题走 conventional commits；PR body 仅 `## Summary` + `## Test Plan`；零 trailer / footer / inline attribution。
   - **typed-discard 严格性**（personal 部分）**降级为 `run-finishing-session` 的 Fail 字段**——不单列节点（节点形态不是规则本体，§2.7.4 同判据）。
@@ -477,16 +483,16 @@ K -->|entered via blocker=0| L[handoff-finishing]
 
 **report-issue** —— P4 **只做形态精简**（已是节点锚定式）；**目标流程（单新 issue 聚合）+ 改名归 P5**。
 
-**`## Invariants` 上限 5 的降级处置**（AC11 要求 8 skill 均 ≤ 5；本 skill 现存 **6 条**：`I1` / `I3` / `I4` / `I5` / `I6` / `I7`）：按 `skill-authoring.md` §4 的「跨节点 / 节点内」二分，**`I4` Never Reopen 降级为 `dedup` 节点的 Do/Exit 字段**——其规则本体（`--state all` 全量查询 · 关闭态匹配**绝不重开** · `related` = `Regression / follow-up of #NNN (closed)`）**已经逐字写在 `dedup` 的 Do 内**，Invariants 行是同规则的第二次陈述；降级即消除重复陈述，规则本体零丢失（Section 0 例外边界：**载体换、规则不丢**）。余 **5 条**保留为 Invariants 行，均**跨节点**：`I1` Confirm Gate（门禁）· `I3` Manual Trigger Only（触发面）· `I5` Renderer Determinism（渲染单点，跨 `ensure-session` / `append-comment`）· `I6` Evidence Contract（双向约束全部 finding）· `I7` Kind Enumerated（派生在 `resolve-destination`、消费在 `append-comment`）。**P5 若为目标流程新增跨节点规则，仍受上限 5 约束**——先降级、再有新增。
+**`## Invariants` 上限 5 的降级处置**（AC11 要求 8 skill 均 ≤ 5；本 skill 现存 **6 条**：`I1` / `I3` / `I4` / `I5` / `I6` / `I7`）：按 `skill-authoring.md` §4 的「跨节点 / 节点内」二分，**`I4` Never Reopen 降级为 `dedup` 节点的 Do/Exit 字段**——其规则本体（`--state all` 全量查询 · 关闭态匹配**绝不重开** · `related` = `Regression / follow-up of #NNN (closed)`）**已经逐字写在 `dedup` 的 Do 内**，Invariants 行是同规则的第二次陈述；降级即消除重复陈述，规则本体零丢失（§2.0 例外边界：**载体换、规则不丢**）。余 **5 条**保留为 Invariants 行，均**跨节点**：`I1` Confirm Gate（门禁）· `I3` Manual Trigger Only（触发面）· `I5` Renderer Determinism（渲染单点，跨 `ensure-session` / `append-comment`）· `I6` Evidence Contract（双向约束全部 finding）· `I7` Kind Enumerated（派生在 `resolve-destination`、消费在 `append-comment`）。**P5 若为目标流程新增跨节点规则，仍受上限 5 约束**——先降级、再有新增。
 
 **§2.7.4 `_docs/review.md` 删除 + Review Stopping 形态**
 
 - 删 `skills/_docs/`（`review.md` 唯一内容物）→ `.agents` 副本由 emit 自动 prune
 - Review Stopping 落为**各 skill 的一条 Invariant 行**（非 `### Rule:` 标题）：`blocker=0 → 经 cdd fix 修完全部 findings 即停，不得重跑（engine 拦 spec/plan 同 ref；task/branch 的 ref 会随 fix commit 移动，只能靠此纪律）；修复一律经 cdd fix 派发（cli-fix-all-findings），orchestrator 不得就地编辑代替`
 - 承载者：`writing-single-spec` / `writing-overall-spec` / `writing-phase-spec` / `writing-plans` / `cli-driven-development`
-- **`## Invariants` 节存续**（Section 0 例外边界 → `skill-authoring.md` §4）：8 个新 skill **均保留 `## Invariants` 节**，受三层约束——**跨节点不变量**（节点内可表达的落 Do/Read/Exit/Fail）· **上限 5** · **超出降级为节点 Fail 字段**。**legacy 的 I 编号不继承**（`I1`/`I5`/`I7` 等编号与表格形态是载体，Section 0 已定「一律不作为主体保留」），**规则本体重新书写**：Review Stopping 入 Invariants（上条）；legacy I7（硬依赖前序 Design spec = `Done`）**重新表达为 `brainstorming` 的 `phase-registered?` 节点 Fail 字段**（§2.7.2 已如此落笔），**不入 Invariants 表**——以此回应「规则本体入 Invariant 行 *还是* 节点 Fail 字段」的判定：**按 `skill-authoring.md` §4 的跨节点/节点内二分裁决**，不按 legacy 编号。
+- **`## Invariants` 节存续**（§2.0 例外边界 → `skill-authoring.md` §4）：8 个新 skill **均保留 `## Invariants` 节**，受三层约束——**跨节点不变量**（节点内可表达的落 Do/Read/Exit/Fail）· **上限 5** · **超出降级为节点 Fail 字段**。**legacy 的 I 编号不继承**（`I1`/`I5`/`I7` 等编号与表格形态是载体，§2.0 口径已定「一律不作为主体保留」），**规则本体重新书写**：Review Stopping 入 Invariants（上条）；legacy I7（硬依赖前序 Design spec = `Done`）**重新表达为 `brainstorming` 的 `phase-registered?` 节点 Fail 字段**（§2.7.2 已如此落笔），**不入 Invariants 表**——以此回应「规则本体入 Invariant 行 *还是* 节点 Fail 字段」的判定：**按 `skill-authoring.md` §4 的跨节点/节点内二分裁决**，不按 legacy 编号。
 - 技术契约（round 命名 / `doc_hash` / handoff 输出）→ `docs/maintainers/osuperpowers-plugin.md`（不 shipped）
-- **legacy 规则去向表（全枚举，行 = legacy Invariant；「载体换、规则不丢」的机械核对面）**——Section 0 的例外边界只换载体、不丢规则，故每一条 legacy Invariant 行都必须有显式去向；round-2 前只裁定过四条（Review Stopping / I7 / finishing 的 I1·I2 + typed-discard），其余行处于「无去向」状态，本表补全：
+- **legacy 规则去向表（全枚举，行 = legacy Invariant；「载体换、规则不丢」的机械核对面）**——§2.0 的例外边界只换载体、不丢规则，故每一条 legacy Invariant 行都必须有显式去向；round-2 前只裁定过四条（Review Stopping / I7 / finishing 的 I1·I2 + typed-discard），其余行处于「无去向」状态，本表补全：
 
 | legacy 规则（来源 skill） | 规则本体 | P4 去向 |
 |---|---|---|

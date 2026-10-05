@@ -30,11 +30,41 @@ export interface ScanOptions {
 /** The T5 tree-migration spec-verbatim pin file — carries the ORIGINAL acceptance/constraints text
  *  of the migrated six-section design specs (frozen spec history, the same class as CHANGELOG.md,
  *  embedded as test pin data under the scanned tree). The old-vocabulary occurrences there are
- *  DATA, never a code/test regression: every guard that scans test sites releases this file (the
- *  same release semantics as a data-source data row), so a verbatim pin never misreads as a
- *  regression while the guard's live-face ban stays total everywhere else. */
+ *  DATA, never a code/test regression — but the release is LINE-scoped to the pin map's data region
+ *  (isSpecVerbatimPinLine, the same data-row line-scope semantics as isDataRow), so a banned-token
+ *  occurrence elsewhere in the file stays a real regression while the guard's live-face ban stays
+ *  total everywhere else. */
 export const SPEC_VERBATIM_PIN_FILE =
   "packages/cdd-engine/src/documents/doctypes/__tests__/tree-migration.test.ts";
+
+// The pin map's object-literal span, computed lazily once per process: the SPEC_VERBATIM const
+// declaration line through the first `};` line after it. Only hit lines inside this span are pin
+// data. Deliberately structural (no brace counting — the pinned strings legitimately contain `{`/
+// `}` — so the end is located by the closing `};` line, which the literal's per-entry `},` lines
+// never produce).
+let specVerbatimDataEnd: { start: number; end: number } | null | undefined;
+
+function specVerbatimPinSpan(): { start: number; end: number } | null {
+  if (specVerbatimDataEnd !== undefined) return specVerbatimDataEnd;
+  specVerbatimDataEnd = null;
+  const abs = path.join(ROOT, SPEC_VERBATIM_PIN_FILE);
+  if (!existsSync(abs)) return null;
+  const lines = readFileSync(abs, "utf8").split("\n");
+  const decl = lines.findIndex((l) => /^\s*const SPEC_VERBATIM\s*[:=]/.test(l));
+  const close = decl < 0 ? -1 : lines.findIndex((l, i) => i > decl && /^\s*}\s*;?\s*$/.test(l));
+  if (decl >= 0 && close > decl) specVerbatimDataEnd = { start: decl + 1, end: close + 1 };
+  return specVerbatimDataEnd;
+}
+
+/** A hit line in the SPEC_VERBATIM pin file releases the guarded vocabulary only when it lies inside
+ *  the pin map's data region — so a future banned-token occurrence elsewhere in that file stays a
+ *  real regression (the isDataRow line-scope semantics, applied to the frozen-history pin data).
+ *  Guards call this per line; file-level collectors aggregate its verdict per file. */
+export function isSpecVerbatimPinLine(file: string, lineNo: number): boolean {
+  if (file !== SPEC_VERBATIM_PIN_FILE) return false;
+  const span = specVerbatimPinSpan();
+  return span !== null && lineNo >= span.start && lineNo <= span.end;
+}
 
 export interface ScanLineHit {
   file: string;

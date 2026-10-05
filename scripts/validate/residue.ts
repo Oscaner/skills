@@ -328,8 +328,8 @@ function assert(cond: boolean, msg: string) {
 import {
   escapeRegExp,
   isDataRow,
+  isSpecVerbatimPinLine,
   listTargetFiles,
-  SPEC_VERBATIM_PIN_FILE,
   scanLines,
   scanTargets,
   walkTargetFiles,
@@ -655,9 +655,12 @@ export function collectRootResolverHits(targetsOverride?: string[]) {
   const targets = targetsOverride ?? CHANNEL_ROOT_TARGETS;
   const hits = [];
   for (const { label, re } of ROOT_RESOLVER_TOKENS) {
-    for (const f of scanTargets(targets, re, { includeTests: true })) {
-      if (f === SPEC_VERBATIM_PIN_FILE) continue; // verbatim pin data, not a regression
-      hits.push({ label, file: f });
+    const files = new Set<string>();
+    for (const { file, lineNo } of scanLines(targets, re, { includeTests: true })) {
+      if (isSpecVerbatimPinLine(file, lineNo)) continue; // pin-data occurrence, not a regression
+      if (files.has(file)) continue;
+      files.add(file);
+      hits.push({ label, file });
     }
   }
   return hits;
@@ -676,9 +679,14 @@ const TEST_SEAM_CHECKS = [
 export function collectTestSeamHits(targetsOverride?: string[]) {
   const hits = [];
   for (const { label, re, scope } of TEST_SEAM_CHECKS) {
-    for (const f of scanTargets(targetsOverride ?? scope, re, { includeTests: true })) {
-      if (f === SPEC_VERBATIM_PIN_FILE) continue; // verbatim pin data, not a test seam
-      hits.push({ label, file: f });
+    const files = new Set<string>();
+    for (const { file, lineNo } of scanLines(targetsOverride ?? scope, re, {
+      includeTests: true,
+    })) {
+      if (isSpecVerbatimPinLine(file, lineNo)) continue; // pin-data occurrence, not a test seam
+      if (files.has(file)) continue;
+      files.add(file);
+      hits.push({ label, file });
     }
   }
   return hits;

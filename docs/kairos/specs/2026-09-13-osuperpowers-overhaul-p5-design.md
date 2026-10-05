@@ -7,6 +7,12 @@
 - **Depends on**: P4 shipped（skill 树 + engine 输出契约，PR #262 已 merge 至 develop，2026-09-16）
 
 ## Design
+**§2.0 口径与例外边界（原 Section 0，转录）**
+
+**口径（用户 2026-09-13 拍板，overall §目标 skills 架构参考）**：目标流程 = `explore-current-session → collect → reform → confirm → gh dedup（open+closed）→ 单新 issue 聚合 + dedup links + friendly 标题`。P5 的**删除面**（旧双通道评论模型 / master 复用 / per-finding 评论 / report-meta 冗余字段）与**收敛面**（单新 issue 聚合 / 单模式 renderer / labels SOT 单点）一并执行——破坏性变更授权下遗留即删。
+
+**例外边界（精确，v1.27 更新）**：P5 将 cdd-engine **全面重建**（全量 TS + unbuild · CLI 换 citty · 生命周期域抽象基类 + hookable 注册面 · 目录按功能重组 · v1.26 第三方收敛全项），**engine 黑盒契约零变化**（4 子命令 `cdd implement/review/fix/base-branch` 面 · handoff 输出 / 失败类目 / Stopping / commit-contract 判定语义 · session-call 输出）——**skills 与消费者面零感知**（engine 是发布产物，重建仅内部形态）。engine 重构详 §2.13。issue form（ISSUE_TEMPLATE）是 emit 派生面，改动落点 = `finding-meta.json` canonical（formFieldDefs / labels SOT），不在 `.github/` 手改。
+
 **§2.1 问题与根因**
 
 P5 处理的是**一类结构性根因 + 六条实证缺陷（E 族）+ 两条优化**，不是七组独立修补。结构根因是主线，E 族与优化是它的展开。
@@ -202,7 +208,7 @@ engine 侧：`templates.test.mjs` 增 E-8 紧凑断言；`templates.content.test
 
 **第一部分：dispatch 生命周期阶段总览（术语化）**
 
-每个顶层 cdd 子命令（implement / review / fix / base-branch，4 个）发起一次 **dispatch**——§0 与 overall 命令面一致（无第五个子命令）；docs 面**非独立子命令**：docs 流程经 `cdd review/fix --type spec|plan` 派生，由 docs 执行面承载（重建前 = run-docs.mjs，重建后 = `dispatch/docs.ts`）。engine 把 agent 会话作为子进程执行，生命周期 = 该次 dispatch 从准备到收尾的完整序列。三个阶段，每阶段含若干 engine 步骤：
+每个顶层 cdd 子命令（implement / review / fix / base-branch，4 个）发起一次 **dispatch**——§2.0 与 overall 命令面一致（无第五个子命令）；docs 面**非独立子命令**：docs 流程经 `cdd review/fix --type spec|plan` 派生，由 docs 执行面承载（重建前 = run-docs.mjs，重建后 = `dispatch/docs.ts`）。engine 把 agent 会话作为子进程执行，生命周期 = 该次 dispatch 从准备到收尾的完整序列。三个阶段，每阶段含若干 engine 步骤：
 
 ```
 dispatch lifecycle（engine 单点实现；run-task.mjs / run-docs.mjs 为**重建前现状**文件，P5 落点面见下方 P5 落点 → §2.13 目标树）
@@ -268,7 +274,7 @@ dispatch lifecycle（engine 单点实现；run-task/run-docs 为**重建前现�
 | **docs fix（spec/plan 的 fix）** | **缺口**——`fix/docs.md` 零 commit 指令；`run-docs.mjs` 注释 "No commit-contract" | — |
 | review / branch-review | 无（不产生修改） | **必须**——工作树不干净则 BLOCKED（评审基准错位风险） |
 
-**P5 落点**（落点面统一锚到 §2.13 目标树；**时序 = 先重建后落门**——本 phase 全面重建 engine（§0），双门直接在重建后的 `dispatch/` TS 面上落地，不经历旧 `lib/runner/*.mjs` 落门中间态；上文 diagrams / 现状审计中的 run-task.mjs / run-docs.mjs 为重建前现状文件，随迁移改写为 dispatch/ 面）：
+**P5 落点**（落点面统一锚到 §2.13 目标树；**时序 = 先重建后落门**——本 phase 全面重建 engine（§2.0），双门直接在重建后的 `dispatch/` TS 面上落地，不经历旧 `lib/runner/*.mjs` 落门中间态；上文 diagrams / 现状审计中的 run-task.mjs / run-docs.mjs 为重建前现状文件，随迁移改写为 dispatch/ 面）：
 1. `templates/fix/docs.md` 补提交指令——与 task 族同构：fix agent 修完文档后 commit（`fix:` conventional + 无 attribution；无文档 diff 则 skip；out-of-scope 不碰）（templates/ 目录在目标树保留，该路径不变）
 2. `dispatch/docs.ts`（DocsLifecycle）接 `validateCommitContract("fix", …)` 出口门——docs fix dispatch 出口校验工作树干净（复用 `rules/commit.ts` 判定，零新机制）
 3. `dispatch/base.ts`（DispatchLifecycle 模板方法/默认 hook）增入口门——review dispatch 起点校验 `git status --porcelain` 干净，dirty → BLOCKED（pre-commit 强制；task.ts / docs.ts 继承覆写，**docs 面（docs review/fix dispatch）同消费入口门**，与 AC10 基类双门框架一致）

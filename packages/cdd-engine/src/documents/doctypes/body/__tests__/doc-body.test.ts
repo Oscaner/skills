@@ -1,14 +1,14 @@
 // packages/cdd-engine/src/documents/doctypes/body/__tests__/doc-body.test.ts — abstract DocBody
 // contract surface (P2 T1; plan §T1). The abstract contract's existence IS the test subject, on the
 // same model as documents/__tests__/doctype.test.ts: the type-level proofs are enforced by the repo
-// tsc --noEmit gate (vitest's esbuild transform does not typecheck) — the StubDocBody below
-// compiles only while the two projection members are declared on the abstract face (drop either and
-// the whole test file fails to compile), the projection CALLS only type-check while the members
-// exist on the abstraction, and the keyof NotIn assertion pins the negative contract surface
-// (renderBrief is a PlanBody-side member — the abstract DocBody face exposes none; adding it to the
-// base flips the assertion OFF and the file stops compiling). The runtime assertions pin the
-// construction contract: kind / description carry their injected identity and the projection
-// methods are callable on the concrete type.
+// tsc --noEmit gate (vitest's esbuild transform does not typecheck). The gate is asymmetric — it is
+// compile-gated in the ADDITION direction: an abstract member ADDED to the base that the stub omits
+// breaks the file's compilation, as does lifting renderBrief into the abstract face (that flips the
+// keyof NotIn assertion below OFF and the file stops compiling). The REMOVAL direction (a projection
+// dropped from the base while the stub retains its method) is NOT compile-detected — the stub then
+// carries an ordinary method and the file still compiles, so that drift rides the review axes. The
+// runtime assertions pin the construction contract: kind / description carry their injected identity
+// and the projection methods are callable on the concrete type.
 import { describe, expect, it } from "vitest";
 import type { SchemaShape } from "../../../doctype.ts";
 import { DocBody, type SlicePatternSet } from "../doc-body.ts";
@@ -90,12 +90,13 @@ describe("DocBody — abstract contract surface", () => {
     expect(body).toBeInstanceOf(DocBody);
   });
 
-  it("the abstract gate is a compile-time guarantee — the stub compiles only while BOTH projections are declared (implementing a removed member or omitting a declared one fails the file)", () => {
-    // The guarantee is the subject here: the StubDocBody above implements every abstract member,
-    // and the projection calls in the tests above only type-check while the members exist on the
-    // abstract contract. The tsc gate enforces it (a declared member the stub omits, or a member
-    // reference the stub carries after its removal from the abstraction, breaks compilation).
-    const body = new StubDocBody({ kind: "plan", description: "the plan template prose" });
-    expect(body.projectSlicePatterns().headingRe.source).toBe("^## Design$");
+  it("the abstract gate is an addition-side compile guarantee — a member ADDED to the base that the stub omits fails the file", () => {
+    // The subject is static: the StubDocBody above implements exactly the currently-declared
+    // abstract members, so the file compiles. The gate fires when the base GAINS an abstract member
+    // the stub omits — the stub then fails to implement it and the file stops compiling — and when
+    // renderBrief is added to the base, the keyof NotIn assertion above flips to false and the file
+    // stops compiling. The removal direction carries no compile signal: dropping a projection from
+    // the base while the stub keeps its method leaves the file compiling with an ordinary method,
+    // so that drift is caught on the review axes rather than by tsc.
   });
 });

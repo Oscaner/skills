@@ -281,7 +281,7 @@
           }
         }
       },
-      "description": "Dispatch-group declaration — the plan author's dispatch-grouping decision in `author-plan` (its sole writer), carried by the plan's `## Task Groups` section; every dispatch iteration under `implement-group` reads it. Empty default: `[]` / an absent section ⇒ every `### Task N:` is its own singleton group — effectiveGroups = [[1],[2],…,[N]], exactly the pre-group per-task dispatch (zero migration); non-empty ⇒ effectiveGroups = the declared merged groups ∪ implicit single-task groups for any task a partial declaration leaves uncovered (the union is always the full plan task set). Section-persist rule: the section lands only when a non-trivial merged group exists — no groups → no section → empty default (zero plan churn)."
+      "description": "Dispatch-group declaration — the plan's `## Task Groups` section (one `- **Task 1, 2**: <note>` line per merged group; the section is written only when the plan declares a non-trivial merge). The section is a declared-grouping record validated against this schema — it is not the dispatch-group source: `effectiveGroups` derives the dispatch iteration order from the TaskGraph over the plan's task data records (atomic-closure components in topological order) and never composes this section. Empty default: `[]` / an absent section ⇒ no declared groups. Section-persist rule: the section lands only when a non-trivial merged group exists — no groups → no section → empty default."
     },
     "language": {
       "type": "object",

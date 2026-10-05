@@ -3,9 +3,11 @@
 // records (the literal `## Task Groups` section is no longer part of this derivation). The edge
 // fixture (T2 dependsOn[1] · T3 dependsOn[2]) yields the derived [[1],[2],[3]] (component-DAG
 // topological order); an edge-free new-shape plan yields the byte-identical singleton run; a broken
-// edge model (reverse-rank / out-of-bounds) makes effectiveGroups THROW GraphViolationError (never
-// a silently emitted order); and a plan without the full task-record set (the legacy block face)
-// keeps the per-task singleton fallback.
+// edge model (reverse-rank / out-of-bounds / malformed non-integer) makes effectiveGroups THROW
+// GraphViolationError (never a silently emitted order or a raw TaskGraph throw); task blocks out of
+// ascending FILE order — a TaskGraph mis-map — fall back to the per-task singletons instead; and a
+// plan without the full task-record set (the legacy block face) keeps the per-task singleton
+// fallback.
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -111,6 +113,54 @@ describe("effectiveGroups — the TaskGraph-derived dispatch grouping", () => {
       expect(verdict.failures[0]!.class).toBe("missing-id");
       expect(verdict.failures[0]!.field).toBe("dependsOn");
       expect(verdict.failures[0]!.id).toBe(99);
+    } finally {
+      rmSync(path.dirname(p), { recursive: true, force: true });
+    }
+  });
+
+  it("a malformed dependsOn value (`- **DependsOn**: foo` → NaN) → GraphViolationError (missing-id, never a raw throw)", () => {
+    const p = planFile(
+      [taskRecord(1), taskRecord(2, "- **DependsOn**: foo"), taskRecord(3)].join("\n\n"),
+    );
+    try {
+      const err = capture(() => planType().effectiveGroups(p));
+      expect(err).toBeInstanceOf(GraphViolationError);
+      const verdict = (err as GraphViolationError).verdict;
+      expect(verdict.failures).toHaveLength(1);
+      expect(verdict.failures[0]!.class).toBe("missing-id");
+      expect(verdict.failures[0]!.field).toBe("dependsOn");
+      expect(verdict.failures[0]!.description).toContain("non-integer");
+    } finally {
+      rmSync(path.dirname(p), { recursive: true, force: true });
+    }
+  });
+
+  it("a malformed atomicWith value (`- **AtomicWith**: foo` → NaN) → GraphViolationError (missing-id, never a silent drop)", () => {
+    const p = planFile(
+      [taskRecord(1, "- **AtomicWith**: foo"), taskRecord(2), taskRecord(3)].join("\n\n"),
+    );
+    try {
+      const err = capture(() => planType().effectiveGroups(p));
+      expect(err).toBeInstanceOf(GraphViolationError);
+      const verdict = (err as GraphViolationError).verdict;
+      expect(verdict.failures).toHaveLength(1);
+      expect(verdict.failures[0]!.class).toBe("missing-id");
+      expect(verdict.failures[0]!.field).toBe("atomicWith");
+      expect(verdict.failures[0]!.description).toContain("non-integer");
+    } finally {
+      rmSync(path.dirname(p), { recursive: true, force: true });
+    }
+  });
+
+  it("task blocks out of ascending FILE order → the singleton fallback (never a mis-mapped graph)", () => {
+    // file order 2, 1, 3 — the TaskGraph ascending-array contract would bind T2's atomicWith[3] to
+    // the file-position records (id 1 = the file-first Task 2, id 3 = Task 3) and emit a silent
+    // mis-mapped ["1,3","2"]; the file-order gate falls back to [[1],[2],[3]] instead.
+    const p = planFile(
+      [taskRecord(2, "- **AtomicWith**: 3"), taskRecord(1), taskRecord(3)].join("\n\n"),
+    );
+    try {
+      expect(groupKeys(p)).toEqual(["1", "2", "3"]);
     } finally {
       rmSync(path.dirname(p), { recursive: true, force: true });
     }

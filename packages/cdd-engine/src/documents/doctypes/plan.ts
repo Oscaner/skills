@@ -22,7 +22,13 @@ import { mergeParentConstraints, overallConstraintsOf } from "./body/constraints
 import type { PlanBody } from "./body/plan-body.ts";
 import { planBody } from "./body/plan-body.ts";
 import { Task, type TaskStep } from "./body/task.ts";
-import { TaskGraph } from "./body/task-graph.ts";
+import {
+  type EdgeField,
+  GraphFailure,
+  GraphVerdict,
+  GraphViolationError,
+  TaskGraph,
+} from "./body/task-graph.ts";
 import { PLAN_BODY_VIEW } from "./body-views.ts";
 import type { OverallParse } from "./overall.ts";
 import {
@@ -299,13 +305,22 @@ export class PlanDocType extends DocType {
    * The heading token is the body's projected `taskHeading` slice (the number captured — the same
    * parse-pattern single source `tasksFromPlan` / detection read). */
   taskNumbersFromPlan(planFile: string): number[] {
+    return this.#scanTaskNumbers(planFile).sort((a, b) => a - b);
+  }
+
+  /** Task-heading scan in FILE order (unsorted — the raw heading sequence a plan author wrote).
+   * The graph feed gates on it: TaskGraph's ascending-array contract (index i+1 = task id i+1)
+   * holds only when the `### Task N:` headings run 1..N in file order, so a plan whose blocks leave
+   * ascending order would mis-map every edge — the file-order gate falls back to the per-task
+   * singleton run instead (never a silently wrong dispatch group order). */
+  #scanTaskNumbers(planFile: string): number[] {
     const nums: number[] = [];
     const taskHeading = this.body.projectSlicePatterns().taskHeading;
     for (const line of readFileSync(planFile, "utf8").split("\n")) {
       const m = line.match(taskHeading);
       if (m) nums.push(Number(m[1]));
     }
-    return nums.sort((a, b) => a - b);
+    return nums;
   }
 
   /** Task-Groups section parse: the `## Task Groups` heading (canonical heading token) → the declared
@@ -358,26 +373,60 @@ export class PlanDocType extends DocType {
   /** effectiveGroups(planPath) — the SINGLE dispatch-group derivation (TaskGroup[]), derived from
    *  the TaskGraph over the plan's task data records: the atomic-closure components in the
    *  component-DAG topological order (ties by each group's smallest task number). The graph's
-   *  groups() gate runs first — a broken edge model (missing-id / self-loop / contradiction / cycle
-   *  / duplicate) throws GraphViolationError carrying the GraphVerdict, never a silently emitted
-   *  order. The literal `## Task Groups` section is not part of this derivation (the section is
-   *  read by taskGroupsFromPlan, never composed here) — the dispatch groups are the graph's edge
-   *  declarations. A plan without the full 1..N task-record set (task blocks carrying no data
-   *  markers) has no graph to derive from and yields the per-task singleton run [[1],[2],…,[N]] —
+   *  groups() gate runs first — a broken edge model (missing-id / malformed non-integer / self-loop
+   *  / contradiction / cycle / duplicate) throws GraphViolationError carrying the GraphVerdict,
+   *  never a silently emitted order. The literal `## Task Groups` section is not part of this
+   *  derivation (the section is read by taskGroupsFromPlan, never composed here) — the dispatch
+   *  groups are the graph's edge declarations. A plan without the full 1..N task-record set (task
+   *  blocks carrying no data markers, or the headings not running 1..N in FILE order — a TaskGraph
+   *  mis-map) has no graph to derive from and yields the per-task singleton run [[1],[2],…,[N]] —
    *  the same shape an edge-free full-record plan derives. The iteration surfaces (derivePlanVerdict
    *  / base.ts statusValidate progress lines) consume this one derivation — no second implementation. */
   effectiveGroups(planPath: string): TaskGroup[] {
-    const all = this.taskNumbersFromPlan(planPath); // sorted ascending
+    const fileOrder = this.#scanTaskNumbers(planPath);
     const tasks = this.tasksFromPlan(planPath);
-    // The TaskGraph indexes its task array by the task id (index i+1 = task i+1) — it derives over
-    // the full 1..N record set only. A plan without it (no data markers / a partial record set)
-    // keeps the per-task singleton run [[1],…,[N]], exactly the pre-graph dispatch shape.
-    if (tasks.length !== all.length || !all.every((n, i) => n === i + 1)) {
-      return all.map((n) => TaskGroup.fromNumbers([n]));
+    // The TaskGraph indexes its task array by the task id (index i+1 = task i+1) — the graph feed
+    // needs the full 1..N record set in ascending FILE order. A plan without it (no data markers /
+    // a partial record set / heading numbers out of file order → a mis-mapped graph) keeps the
+    // per-task singleton run [[1],…,[N]], exactly the pre-graph dispatch shape.
+    if (tasks.length !== fileOrder.length || !fileOrder.every((n, i) => n === i + 1)) {
+      return [...fileOrder].sort((a, b) => a - b).map((n) => TaskGroup.fromNumbers([n]));
     }
+    // Edge-model integer gate at the graph feed: a malformed value declaration (a `- **DependsOn**:
+    // foo` non-integer parses to NaN) must surface here as GraphViolationError (missing-id class) —
+    // never a raw TaskGraph throw (the NaN dependsOn reference) or a silently dropped atomic pair.
+    const failures = this.#edgeIntegerFailures(tasks, fileOrder.length);
+    if (failures.length > 0) throw new GraphViolationError(new GraphVerdict(failures));
     // TaskGraph.groups() validates the edge model first — a non-null GraphVerdict throws
     // GraphViolationError (the failures aggregate in the verdict) instead of emitting a broken order.
     return new TaskGraph(tasks).groups();
+  }
+
+  /** Edge-model integer gate (the plan seam — the malformed-value surface): every `dependsOn` /
+   *  atomicWith value is a task id, so a non-integer declaration is broken. The root NaN hole lives
+   *  in TaskGraph.validate (all five checks compare numbers — NaN survives); this gate turns the
+   *  malformed value into the same GraphViolationError block face (missing-id class) instead. */
+  #edgeIntegerFailures(tasks: readonly Task[], taskCount: number): GraphFailure[] {
+    const failures: GraphFailure[] = [];
+    tasks.forEach((task, i) => {
+      const declaring = i + 1;
+      const scan = (field: EdgeField, values: readonly number[]): void => {
+        for (const v of values) {
+          if (Number.isInteger(v)) continue;
+          failures.push(
+            new GraphFailure({
+              class: "missing-id",
+              field,
+              id: v,
+              description: `task ${declaring} declares a non-integer ${field} task id (${v}) — edge ids are integers (1..${taskCount})`,
+            }),
+          );
+        }
+      };
+      scan("dependsOn", task.dependsOn ?? []);
+      scan("atomicWith", task.atomicWith ?? []);
+    });
+    return failures;
   }
 
   /** Deterministic extraction from the plan's declared Constraints source: canonical Form A — a

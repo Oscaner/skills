@@ -198,7 +198,8 @@ describe("PLAN_BODY_SHAPE — the full-field data-shape projection", () => {
     const step = item?.properties?.steps?.items;
     expect(step?.required).toContain("action");
     expect(step?.required).toContain("checkable");
-    // The P3 edge-model extension bits — declared surface only (zero read/write at P2).
+    // The P3 edge-model extension bits — active read/write (the parser fills them, TaskGraph
+    // consumes them).
     expect(item?.properties?.dependsOn).toBeDefined();
     expect(item?.properties?.atomicWith).toBeDefined();
   });

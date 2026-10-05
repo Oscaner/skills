@@ -153,7 +153,7 @@
           "steps",
           "acceptance"
         ],
-        "description": "One plan task record — objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[], with the P3 edge-model extension bits dependsOn?/atomicWith? (declared surface only).",
+        "description": "One plan task record — objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[], with the P3 edge-model extension bits dependsOn? (the tasks this task depends on) and atomicWith? (the tasks this task is atomic with) — active read/write: the task-block parser fills them, TaskGraph consumes them for the grouping + edge validation.",
         "properties": {
           "objective": {
             "type": "string",
@@ -226,7 +226,7 @@
               "minimum": 1,
               "description": "One task id this task depends on (a `### Task N:` id)."
             },
-            "description": "P3 edge-model extension bit — the task ids this task depends on (declared surface; zero read/write at P2)."
+            "description": "P3 edge-model extension bit — the task ids this task depends on; active read/write (the task-block parser fills it from `- **DependsOn**:`, TaskGraph consumes the edges)."
           },
           "atomicWith": {
             "type": "array",
@@ -235,7 +235,7 @@
               "minimum": 1,
               "description": "One task id this task is atomic with (a `### Task N:` id)."
             },
-            "description": "P3 edge-model extension bit — the task ids this task is atomic with (declared surface; zero read/write at P2)."
+            "description": "P3 edge-model extension bit — the task ids this task is atomic with; active read/write (the task-block parser fills it from `- **AtomicWith**:`, TaskGraph consumes the edges)."
           }
         }
       }

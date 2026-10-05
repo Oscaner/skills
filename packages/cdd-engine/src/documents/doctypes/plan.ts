@@ -121,8 +121,10 @@ function splitListValue(value: string): string[] {
 /** Parse one `### Task N:` block's lines into a Task data record (design C3) — empty return for a
  *  legacy block carrying no data-field markers (the dual-read contract: the legacy `- **Do**:` face
  *  is left untouched, a new-shape block's objective/steps/acceptance fields are the single source).
- *  A step entry that drops the ` — checkable:` separator still parses (its action is kept) with the
- *  checkable capture empty — the validate face fails on it, the field is never silently dropped. */
+ *  The P3 edge fields (`- **DependsOn**:` / `- **AtomicWith**:`) read as comma-table number arrays
+ *  into the Task's dependsOn/atomicWith — the TaskGraph edge-model read surface. A step entry that
+ *  drops the ` — checkable:` separator still parses (its action is kept) with the checkable capture
+ *  empty — the validate face fails on it, the field is never silently dropped. */
 function parseTaskBlock(lines: readonly string[]): Task | null {
   const slices = planBody.projectSlicePatterns();
   let objective = "";
@@ -131,6 +133,8 @@ function parseTaskBlock(lines: readonly string[]): Task | null {
   const produces: string[] = [];
   const steps: TaskStep[] = [];
   const acceptance: string[] = [];
+  const dependsOn: number[] = [];
+  const atomicWith: number[] = [];
   let sawData = false;
   let mode: "steps" | "acceptance" | null = null;
   for (const line of lines) {
@@ -150,6 +154,14 @@ function parseTaskBlock(lines: readonly string[]): Task | null {
       mode = null;
     } else if (slices.produces.test(line)) {
       produces.push(...splitListValue(line.replace(slices.produces, "").trim()));
+      sawData = true;
+      mode = null;
+    } else if (slices.dependsOn.test(line)) {
+      dependsOn.push(...splitListValue(line.replace(slices.dependsOn, "").trim()).map(Number));
+      sawData = true;
+      mode = null;
+    } else if (slices.atomicWith.test(line)) {
+      atomicWith.push(...splitListValue(line.replace(slices.atomicWith, "").trim()).map(Number));
       sawData = true;
       mode = null;
     } else if (slices.steps.test(line)) {
@@ -174,6 +186,10 @@ function parseTaskBlock(lines: readonly string[]): Task | null {
     interface: { consumes, produces },
     steps,
     acceptance,
+    // the P3 edge fields are absent-on-default: an empty declaration leaves the extension bits
+    // undefined (task.test.ts pins the absent default).
+    ...(dependsOn.length > 0 ? { dependsOn } : {}),
+    ...(atomicWith.length > 0 ? { atomicWith } : {}),
   });
 }
 
@@ -312,11 +328,12 @@ export class PlanDocType extends DocType {
   }
 
   /** tasksFromPlan(planFile) — the plan's Task data records (design C3): one record per `### Task N:`
-   * block that carries the data-field markers (objective / steps / acceptance … the body's projected
-   * task-block slice single source). A legacy block (`- **Do**:` face, no data markers) returns no
-   * record — the dual-read contract: the legacy tree parses task-free, the new task-handoff brief
-   * renders from these records. A step entry without its ` — checkable:` separator still parses with
-   * the checkable capture empty — the validate face fails on it, the field is never silently dropped. */
+   * block that carries the data-field markers (objective / steps / acceptance / dependsOn /
+   * atomicWith … the body's projected task-block slice single source). A legacy block (`- **Do**:`
+   * face, no data markers) returns no record — the dual-read contract: the legacy tree parses
+   * task-free, the new task-handoff brief renders from these records. A step entry without its
+   * ` — checkable:` separator still parses with the checkable capture empty — the validate face
+   * fails on it, the field is never silently dropped. */
   tasksFromPlan(planFile: string): Task[] {
     const lines = readFileSync(planFile, "utf8").split("\n");
     const slices = this.body.projectSlicePatterns();

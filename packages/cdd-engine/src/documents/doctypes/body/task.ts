@@ -4,8 +4,9 @@
 // through the PlanBody-side renderBrief surface) and the T3 schema-validation face bolts onto: a
 // step's `checkable` is a construction-time type-level constraint (a step omitting it fails to
 // compile — never a runtime guard). `dependsOn` / `atomicWith` are the P3 edge-model extension bits
-// (the plan's `## Task Groups` two-edge model): declared field surface ONLY — zero read / zero write
-// / zero consumption at P2.
+// (the plan's two-edge model): active read/write — the task-block parser fills them from the
+// `- **DependsOn**:` / `- **AtomicWith**:` lines and TaskGraph consumes them for the atomic-closure
+// grouping + the edge-validation BLOCK face.
 
 /** One plan task step — an executable action + its verifiable outcome. */
 export interface TaskStep {
@@ -36,17 +37,20 @@ export interface TaskOpts {
   steps: TaskStep[];
   /** The task's acceptance criteria. */
   acceptance: string[];
-  /** The task ids this task depends on (P3 edge-model extension bit — declared surface, zero read/write at P2). */
+  /** The task ids this task depends on (P3 edge-model extension bit — active read/write:
+   *  `parseTaskBlock` fills it from `- **DependsOn**:`; TaskGraph consumes the edges). */
   dependsOn?: number[];
-  /** The task ids this task is atomic with (P3 edge-model extension bit — declared surface, zero read/write at P2). */
+  /** The task ids this task is atomic with (P3 edge-model extension bit — active read/write:
+   *  `parseTaskBlock` fills it from `- **AtomicWith**:`; TaskGraph consumes the edges). */
   atomicWith?: number[];
 }
 
 /**
  * A plan task (P2 T1; plan §T1 · design C1 — Criterion ②). Every field is constructor-injected on
- * a read-only face; the P3 edge-model extension bits (dependsOn? / atomicWith?) ship as declared
- * surface only. The checkable requirement is enforced at the type level — the T3 schema-validation
- * machinery and the brief render surface consume the same TaskStep shape.
+ * a read-only face; the P3 edge-model extension bits (dependsOn? / atomicWith?) are active
+ * read/write (the task-block parser fills them, TaskGraph consumes them). The checkable requirement
+ * is enforced at the type level — the T3 schema-validation machinery and the brief render surface
+ * consume the same TaskStep shape.
  */
 export class Task {
   /** The task's outcome statement. */

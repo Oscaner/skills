@@ -13,7 +13,8 @@
 // legacy Form B prose pointers are retained only as the T5 dual-read + extractProseConstraints
 // dependency — new docs never use them), the `tasks[]` Task data records (objective / files /
 // interface{consumes,produces} / steps[]{action,checkable} / acceptance[], plus the P3 edge-model
-// extension bits dependsOn?/atomicWith? — declared surface, zero read/write at P2) the brief
+// extension bits dependsOn?/atomicWith? — active read/write: the task-block parser fills them and
+// TaskGraph consumes them for the atomic-closure grouping + the edge-validation BLOCK face) the brief
 // renderer materializes the task-handoff brief from, and the taskGroups dispatch-group declaration
 // (the P3 extension slot; its layout leaves stay exactly where the DOC_TOKENS derivation reads
 // them). The `### Task N:` render surface keeps the colon-form heading const — the deriveDocTokens
@@ -223,7 +224,7 @@ export const PLAN_BODY_SHAPE: SchemaShape = {
         type: "object",
         required: ["objective", "files", "interface", "steps", "acceptance"],
         description:
-          "One plan task record — objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[], with the P3 edge-model extension bits dependsOn?/atomicWith? (declared surface only).",
+          "One plan task record — objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[], with the P3 edge-model extension bits dependsOn? (the tasks this task depends on) and atomicWith? (the tasks this task is atomic with) — active read/write: the task-block parser fills them, TaskGraph consumes them for the grouping + edge validation.",
         properties: {
           objective: {
             type: "string",
@@ -299,7 +300,7 @@ export const PLAN_BODY_SHAPE: SchemaShape = {
               description: "One task id this task depends on (a `### Task N:` id).",
             },
             description:
-              "P3 edge-model extension bit — the task ids this task depends on (declared surface; zero read/write at P2).",
+              "P3 edge-model extension bit — the task ids this task depends on; active read/write (the task-block parser fills it from `- **DependsOn**:`, TaskGraph consumes the edges).",
           },
           atomicWith: {
             type: "array",
@@ -309,7 +310,7 @@ export const PLAN_BODY_SHAPE: SchemaShape = {
               description: "One task id this task is atomic with (a `### Task N:` id).",
             },
             description:
-              "P3 edge-model extension bit — the task ids this task is atomic with (declared surface; zero read/write at P2).",
+              "P3 edge-model extension bit — the task ids this task is atomic with; active read/write (the task-block parser fills it from `- **AtomicWith**:`, TaskGraph consumes the edges).",
           },
         },
       },
@@ -401,7 +402,8 @@ function formBAnchorSlices(): Record<string, RegExp> {
  *  skeleton assertion read one byte source, never a hand-written duplicate per leaf), the Form-B
  *  prose-pointer anchor family (`formBAnchor1..4` — the extractProseConstraints canonical-order
  *  anchor scan), and the task-block data-field markers (objective / files / consumes / produces /
- *  steps / acceptance) the task-record parser slices the `### Task N:` blocks on. A numbered step
+ *  steps / acceptance / dependsOn / atomicWith) the task-record parser slices the `### Task N:`
+ *  blocks on. A numbered step
  *  entry captures its action + its optional checkable outcome in one regex — a step line without
  *  the `— checkable:` separator leaves the checkable capture empty (the validate-failing case,
  *  never silently dropped). */
@@ -416,6 +418,8 @@ const PLAN_SLICE_PATTERNS: SlicePatternSet = {
   stepEntry: /^\s*\d+\.\s+(.+?)(?:\s*—\s*checkable:\s*(.*))?$/,
   acceptance: /^- \*\*Acceptance\*\*:[ \t]*/,
   acceptanceEntry: /^\s*[-*]\s+/,
+  dependsOn: /^- \*\*DependsOn\*\*:[ \t]*/,
+  atomicWith: /^- \*\*AtomicWith\*\*:[ \t]*/,
   ...formBAnchorSlices(),
 };
 

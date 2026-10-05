@@ -251,7 +251,7 @@ describe("extractor projection single-source — the three parse families derive
     // never code).
     const anchorHits = execSync(
       `grep -rnF --include="*.ts" '**口径**：' "${REPO_ROOT}/packages/cdd-engine/src" --exclude-dir="__tests__" || true`,
-      { encoding: "utf8", shell: "/bin/zsh" },
+      { encoding: "utf8" },
     );
     const nonLeafHits = anchorHits
       .split("\n")

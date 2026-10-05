@@ -366,7 +366,9 @@ export class PlanDocType extends DocType {
    * constraints source declaration extractable · no placeholders · the data-shaped task records
    * carry the single-form fields (an orphan block — no data-shaped fields — is a validate failure,
    * never a silently dropped block) and every step carries its checkable (missing checkable = a
-   * validate failure, never an author's discretion). Necessary subset — always runs. */
+   * validate failure, never an author's discretion) · only the declared `## Constraints` top-level
+   * section (an unknown `##` section — a legacy `## Task Groups` face — is a validate failure).
+   * Necessary subset — always runs. */
   validatePlanContract(planPath: string): DocValidateFailure[] {
     const failures: DocValidateFailure[] = [];
     const content = readFileSync(planPath, "utf8");
@@ -456,6 +458,24 @@ export class PlanDocType extends DocType {
         }
       }
     });
+
+    // 5. Top-level sections — the single-form grammar's section face: the plan owns exactly ONE
+    //    top-level `##` section, the declared `## Constraints` source (the plan's own deltas
+    //    container). Any other top-level `##` heading is an unknown section — the retired
+    //    `## Task Groups` dispatch-group declaration is gone with its shape node, so a legacy
+    //    section blocks instead of silently passing.
+    const constraintsHeadingRe = this.body.projectSlicePatterns().constraintsHeading;
+    for (const line of content.split("\n")) {
+      if (/^## [^#]/.test(line) && !constraintsHeadingRe.test(line)) {
+        failures.push({
+          artifact: "plan",
+          file: planPath,
+          field: "Sections",
+          missing: `unknown top-level section "${line.trim()}" — the single-form plan declares only the \`${DOC_TOKENS.constraintsHeading}\` section surface`,
+          fix: `merge the content into the declared \`${DOC_TOKENS.constraintsHeading}\` section or the task data records — a plan owns no other top-level \`##\` section`,
+        });
+      }
+    }
     return failures;
   }
 

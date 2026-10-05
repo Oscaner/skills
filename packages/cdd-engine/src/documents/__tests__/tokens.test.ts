@@ -12,7 +12,7 @@
 //     leaves hold transitively);
 //   - the derived regexes keep their exact parsing semantics (version header, history cell,
 //     task-heading colon form, Phase-inventory header, canonical column, constraints heading,
-//     prose anchors, CLAIM family) — the canary surface for the repo doc set;
+//     CLAIM family) — the canary surface for the repo doc set;
 //   - the engine consumers (documents.ts / brief.ts / task.ts) consume via this module — the
 //     "grep 删除面零残留" engine-side face, checked textually (no literal re-assignment).
 //   - the token-plane deliberate-update verdict (the P2 T6 closure): the shape-domain housing
@@ -84,30 +84,27 @@ describe("deriveDocTokens — live derivation from the shape domain", () => {
     expect(re.versionHeaderRe.test("- **Version**: v1.0 · 2026-09-21")).toBe(false);
   });
 
-  it("doctored plan shape taskGroups heading → the derived section + line tokens follow (P4.3 Task 3)", () => {
-    const doctoredPlan = cloneSchema(PLAN_BODY_SHAPE);
-    (doctoredPlan as any).properties.taskGroups.$defs.section.properties.heading.const =
-      "## Dispatch Groups";
-    const re = deriveDocTokens(schemas({ plan: doctoredPlan }));
-    expect(re.taskGroupsHeading).toBe("## Dispatch Groups");
-    expect(re.taskGroupsHeadingRe.test("## Dispatch Groups")).toBe(true);
-    expect(re.taskGroupsHeadingRe.test("## Task Groups")).toBe(false);
-  });
-
-  it("doctored plan shape taskGroups entry pattern → the group-line regex follows (captured number list)", () => {
-    const doctoredPlan = cloneSchema(PLAN_BODY_SHAPE);
-    (doctoredPlan as any).properties.taskGroups.$defs.section.properties.entry.pattern =
-      "^- \\*\\*Tasks (?:\\d+(?:, \\d+)*)\\*\\*:";
-    const re = deriveDocTokens(schemas({ plan: doctoredPlan }));
-    expect(re.taskGroupsLineRe.exec("- **Tasks 3, 4**: x")![1]).toBe("3, 4");
-    expect(re.taskGroupsLineRe.test("- **Task 3, 4**: x")).toBe(false);
-  });
-
-  it("doctored plan shape taskGroups entry pattern dropping the number-list literal → the token build throws (shape-drift guard)", () => {
-    const doctoredPlan = cloneSchema(PLAN_BODY_SHAPE);
-    (doctoredPlan as any).properties.taskGroups.$defs.section.properties.entry.pattern =
-      "^- \\*\\*Task [0-9, ]+\\*\\*:";
-    expect(() => deriveDocTokens(schemas({ plan: doctoredPlan }))).toThrow(/number-list literal/);
+  it("the taskGroups tokens are retired — the shape node and the derived DOC_TOKENS keys are both gone (T4 deliberate update)", () => {
+    // The dispatch-group declaration shape node is deleted: the plan shape maps no `## Task Groups`
+    // section (the single-form plan owns only the `## Constraints` section), so the derived token
+    // surface can never expose the retired taskGroups family. Pin the absence on BOTH faces — the
+    // shape's root properties and every key deriveDocTokens returns — a re-adding shape edit
+    // (a revoked read surface) fails loudly instead of silently re-authorizing a dead token.
+    const planProps = PLAN_BODY_SHAPE.properties as Readonly<Record<string, unknown>>;
+    expect("taskGroups" in planProps).toBe(false);
+    const derivedKeys = Object.keys(deriveDocTokens(schemas()));
+    for (const retired of [
+      "taskGroupsHeading",
+      "taskGroupsHeadingRe",
+      "taskGroupsLineRe",
+      "taskGroupsMinItems",
+    ]) {
+      expect(derivedKeys).not.toContain(retired);
+    }
+    // The shape still derives the surviving plan-leaf families live (the derivation law holds for
+    // what remains — the Task-heading + `## Constraints` faces).
+    expect(deriveDocTokens(schemas()).taskHeadingFormat).toBe("### Task N:");
+    expect(deriveDocTokens(schemas()).constraintsHeading).toBe("## Constraints");
   });
 
   it("doctored phase-spec shape version marker → the derived leaf follows the page twin; a one-page drift throws", () => {
@@ -214,19 +211,23 @@ describe("DOC_TOKENS — production values equal the shape-domain leaves (single
     expect(DOC_TOKENS.overallConstraintsMark).toBe("**Constraints**:");
   });
 
-  it("taskGroups tokens — section heading + merged-group line + the minItems floor (P4.3 Task 3)", () => {
-    expect(DOC_TOKENS.taskGroupsHeading).toBe("## Task Groups");
-    expect(DOC_TOKENS.taskGroupsHeadingRe.test("## Task Groups")).toBe(true);
-    expect(DOC_TOKENS.taskGroupsHeadingRe.test("### Task Groups")).toBe(false);
-    expect(DOC_TOKENS.taskGroupsHeadingRe.test("# Task Groups")).toBe(false);
-    // one merged-group line — the number list captured as group 1 (the `--tasks a,b` join form)
-    const m = "- **Task 1, 2**: 共享验收面".match(DOC_TOKENS.taskGroupsLineRe);
-    expect(m).not.toBeNull();
-    expect(m![1]).toBe("1, 2");
-    expect("- **Task 5, 6, 7**: merged".match(DOC_TOKENS.taskGroupsLineRe)![1]).toBe("5, 6, 7");
-    expect(DOC_TOKENS.taskGroupsLineRe.test("**Task 1, 2**: no leading dash")).toBe(false);
-    // the canonical per-group floor — a length-1 group is redundant, never written (write-back rule)
-    expect(DOC_TOKENS.taskGroupsMinItems).toBe(2);
+  it("taskGroups tokens — retired from the production surface (the dispatch-group declaration is gone with its shape node)", () => {
+    // The four taskGroups token fields are deleted from the DOC_TOKENS contract — the single-form
+    // plan owns no `## Task Groups` section, so no derived token can name the retired layout.
+    // The absence is pinned on the key set (the interface no longer carries the members), and the
+    // plan leaf families that remain (taskHeading / constraints) keep their production values
+    // (T4 deliberate update — the node deletion removes the members with it).
+    const keys = Object.keys(DOC_TOKENS);
+    for (const retired of [
+      "taskGroupsHeading",
+      "taskGroupsHeadingRe",
+      "taskGroupsLineRe",
+      "taskGroupsMinItems",
+    ]) {
+      expect(keys).not.toContain(retired);
+    }
+    expect(DOC_TOKENS.taskHeadingFormat).toBe("### Task N:");
+    expect(DOC_TOKENS.constraintsHeading).toBe("## Constraints");
   });
 
   it("CLAIM family — the claimClause pattern is derived live and matches representatives", () => {

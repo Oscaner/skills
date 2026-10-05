@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://oscaner.dev/schemas/cdd/plan.json",
   "title": "Phase implementation plan document structure",
-  "description": "Canonical structure of a kairos phase implementation plan — the per-phase executable breakdown of one design spec. This schema is the single structure fact for the plan doc type: the header fields, the `### Task N:` colon-form task headings, the per-task data records (objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[]) the brief renderer materializes the task-handoff brief from — zero prose `- **Do**:` carving — the `## Constraints` delta (the section carries only the plan's own deltas, the single constraint surface), and the `taskGroups` dispatch-group declaration (empty default ⇒ every task its own per-task group). Authoring agents read the properties + descriptions to draft conforming plans; docContractValidate / brief extraction consume the same patterns.",
+  "description": "Canonical structure of a kairos phase implementation plan — the per-phase executable breakdown of one design spec. This schema is the single structure fact for the plan doc type: the header fields, the `### Task N:` colon-form task headings, the per-task data records (objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[]) the brief renderer materializes the task-handoff brief from — zero prose `- **Do**:` carving — and the `## Constraints` delta (the section carries only the plan's own deltas, the single constraint surface). Authoring agents read the properties + descriptions to draft conforming plans; docContractValidate / brief extraction consume the same patterns.",
   "type": "object",
   "properties": {
     "header": {
@@ -219,49 +219,6 @@
           }
         }
       }
-    },
-    "taskGroups": {
-      "type": "array",
-      "default": [],
-      "$defs": {
-        "section": {
-          "type": "object",
-          "description": "The `## Task Groups` section layout — the dispatch-group declaration's plan surface: the section heading const + the one-line entry form per merged group. Written to the plan ONLY when a non-trivial merged group exists (the plan-authoring judgment: a length-1 group never lands on disk — the single-task state exists only as the empty default below).",
-          "properties": {
-            "heading": {
-              "type": "string",
-              "const": "## Task Groups",
-              "description": "The section's top-level `##` heading (bounded like `## Constraints`: the next `#`/`##` heading, a `### Task N:` heading, or a `---` rule)."
-            },
-            "entry": {
-              "type": "string",
-              "pattern": "^- \\*\\*Task (?:\\d+(?:, \\d+)*)\\*\\*:",
-              "description": "One merged-group line — `- **Task 1, 2**: <note>` — the task numbers comma-space separated (the `--tasks <a>,<b>` join form)."
-            }
-          }
-        }
-      },
-      "items": {
-        "type": "object",
-        "required": [
-          "tasks"
-        ],
-        "description": "One declared dispatch group — the plan record of a merged `--tasks <a>,<b>` dispatch. Declared only when 2+ tasks merge; a length-1 group is redundant (the single-group state exists only as the empty default).",
-        "properties": {
-          "tasks": {
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "One task number of the merged group (a `### Task N:` id)."
-            },
-            "minItems": 2,
-            "uniqueItems": true,
-            "description": "The merged group's task numbers — unique and ascending (the deterministic group iteration order). minItems >= 2: a length-1 group is never declared."
-          }
-        }
-      },
-      "description": "Dispatch-group declaration — the plan's `## Task Groups` section (one `- **Task 1, 2**: <note>` line per merged group; the section is written only when the plan declares a non-trivial merge). The section is a declared-grouping record validated against this schema — it is not the dispatch-group source: `effectiveGroups` derives the dispatch iteration order from the TaskGraph over the plan's task data records (atomic-closure components in topological order) and never composes this section. Empty default: `[]` / an absent section ⇒ no declared groups. Section-persist rule: the section lands only when a non-trivial merged group exists — no groups → no section → empty default."
     },
     "language": {
       "type": "object",

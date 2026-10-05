@@ -12,10 +12,11 @@
 //     plan/design) stays PROCESSABLE on every common read face (detect / version parse / task
 //     headings / brief slices) with byte-deterministic parse outputs;
 //   - single-form BLOCK: a NEW document carrying a legacy face (`- **Do**:` task block / Form B
-//     prose anchors / spec `## Section 1`) fails `docContractValidate` — the three-truth skeleton
-//     and the literal `## Constraints` source are the only grammar (the migration-queue state of
-//     the legacy tree lives in tree-migration.test.ts; T5–T7 migrate per family, T8 flips the
-//     terminal state).
+//     prose anchors / `## Task Groups` section / spec `## Section 1`) fails `docContractValidate` —
+//     the three-truth skeleton and the literal `## Constraints` source are the only grammar (the
+//     `## Task Groups` dispatch-group section is blocked by the unknown-section face — the shape
+//     node is deleted with the runtime read; the migration-queue state of the legacy tree lives in
+//     tree-migration.test.ts; T5–T7 migrate per family, T8 flips the terminal state).
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -39,6 +40,14 @@ const PLANS_DIR = path.join(REPO_ROOT, "docs", "kairos", "plans");
 const ORPHAN_TASK_PLAN = path.join(FIXTURES, "orphan-task-block-plan.md");
 const FORM_B_PLAN = path.join(FIXTURES, "form-b-anchor-plan.md");
 const SECTION_1_SPEC = path.join(FIXTURES, "section-1-spec-design.md");
+const NEW_SHAPE_FIXTURE = path.join(
+  HERE,
+  "..",
+  "body",
+  "__tests__",
+  "fixtures",
+  "new-shape-plan.md",
+);
 
 const validator = new DocumentsValidator();
 const planType = (): PlanDocType => docTypeRegistry.resolve("plan") as PlanDocType;
@@ -229,5 +238,56 @@ describe("single-form grammar — a NEW document carrying a legacy face fails do
     } finally {
       rmSync(path.dirname(section1), { recursive: true, force: true });
     }
+  });
+
+  it("a legacy `## Task Groups` dispatch-group section → plan validate fail (unknown section — the shape-node-deleted single-form face)", () => {
+    // The dispatch-group declaration is gone from the shape (T4): the single-form plan owns exactly
+    // the `## Constraints` top-level section, so a NEW document carrying the retired `## Task Groups`
+    // section is an unknown-section BLOCK — never silently parsed or swept under the data records.
+    const taskGroups = tempDoc(
+      [
+        "# Plan",
+        "",
+        "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
+        "",
+        "## Constraints",
+        "",
+        "- delta",
+        "",
+        "## Task Groups",
+        "",
+        "- **Task 1, 2**: merged",
+        "",
+        "### Task 1: x",
+        "- **Objective**: task one",
+        "- **Steps**:",
+        "  1. implement — checkable: done",
+        "- **Acceptance**:",
+        "  - done",
+        "",
+        "### Task 2: y",
+        "- **Objective**: task two",
+        "- **Steps**:",
+        "  1. implement — checkable: done",
+        "- **Acceptance**:",
+        "  - done",
+        "",
+      ].join("\n"),
+    );
+    try {
+      const failures = planType().validate(taskGroups, { root: REPO_ROOT });
+      expect(failures.some((f) => f.field === "Sections")).toBe(true);
+      expect(failures.some((f) => /## Task Groups/.test(f.missing))).toBe(true);
+    } finally {
+      rmSync(path.dirname(taskGroups), { recursive: true, force: true });
+    }
+  });
+
+  it("the p3 canonical plan carries the only legal top-level section — the unknown-section gate stays silent on the declared `## Constraints` surface", () => {
+    // Backstop: the unknown-section gate must not misfire on a conforming plan (the canonical
+    // new-shape fixture carries exactly the `## Constraints` section) — the gate blocks only what the
+    // shape no longer declares.
+    const failures = planType().validate(NEW_SHAPE_FIXTURE, { root: REPO_ROOT });
+    expect(failures.some((f) => f.field === "Sections")).toBe(false);
   });
 });

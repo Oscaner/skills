@@ -9,7 +9,7 @@
 //     consumer-install layout deterministically (no real build needed in the suite);
 //   - canonical token spot-checks pin the contract-critical patterns (task-heading colon form,
 //     CLAIM_RE family, six-content-column Phase-inventory rows,
-//     taskGroups dispatch-group declaration, `### Acceptance criteria` uniqueness) so an
+//     the plan product's zero taskGroups declaration, `### Acceptance criteria` uniqueness) so an
 //     accidental edit of the single source surfaces as a test failure.
 // Zero transactional behavior: this module reads only — no writes, no dispatch, no audit.
 
@@ -127,19 +127,10 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
         // tolerant colon form — the brief extractor's slice surface (`/^### Task \d+:/`); an
         // optional title after the colon is parse-tolerated, so the pin is unanchored at the tail
         expect(get("$.properties.taskHeadings.properties.pattern.pattern")).toBe("^### Task \\d+:");
-        // taskGroups dispatch-group declaration (P4.3 Task 3, spec §2.2): optional array, empty
-        // default [], each item `{ tasks: number[] }` with minItems >= 2 (a length-1 group is
-        // redundant — the singleton state exists only as the empty default), section layout const/pattern
-        expect(get("$.properties.taskGroups.type")).toBe("array");
-        expect(schemaNode(s, "$.properties.taskGroups.default")).toEqual([]);
-        expect(get("$.properties.taskGroups.items.properties.tasks.type")).toBe("array");
-        expect(schemaNode(s, "$.properties.taskGroups.items.properties.tasks.minItems")).toBe(2);
-        expect(get("$.properties.taskGroups.$defs.section.properties.heading.const")).toBe(
-          "## Task Groups",
-        );
-        expect(get("$.properties.taskGroups.$defs.section.properties.entry.pattern")).toBe(
-          "^- \\*\\*Task (?:\\d+(?:, \\d+)*)\\*\\*:",
-        );
+        // taskGroups dispatch-group declaration — RETIRED with the shape node (T4): the plan
+        // product declares zero taskGroups surface (the single-form shape carries no section
+        // declaration beyond `## Constraints`; a legacy `## Task Groups` section blocks at runtime)
+        expect(schemaNode(s, "$.properties.taskGroups")).toBeUndefined();
         // spec marker — any-line findIndex semantics are documented, not position-enforced
         const markerDesc = get(
           "$.properties.header.properties.specRef.properties.marker.description",

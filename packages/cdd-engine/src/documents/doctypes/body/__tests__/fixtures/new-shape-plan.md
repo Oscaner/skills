@@ -19,7 +19,7 @@
 
 - **Objective**: project the new plan record shape onto the SchemaFactory product
 - **Files**: `packages/cdd-engine/src/documents/doctypes/body/plan-body.ts`
-- **Consumes**: plan schema leaves (taskHeadings format / constraints formA / taskGroups layout)
+- **Consumes**: plan schema leaves (taskHeadings format / constraints formA)
 - **Produces**: `config/schema/plan.json` (new golden)
 - **Steps**:
   1. Write the PlanBody leaf projection — checkable: `plan-body.ts` compiles under the new shape

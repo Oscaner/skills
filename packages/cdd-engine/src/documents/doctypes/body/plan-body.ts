@@ -10,15 +10,13 @@
 // The data-shape design (design C3): a metadata header five-tuple (`**Spec:**` — the Class-A marker
 // + the label==basename rule kept — · `**Parent program**` · `**Version**` · `**Depends on**` ·
 // `**Base**`), a delta-only `## Constraints` face (the section carries the plan's own deltas — the
-// single constraint surface), the `tasks[]` Task data
-// records (objective / files / interface{consumes,produces} / steps[]{action,checkable} /
-// acceptance[], plus the optional dependsOn?/atomicWith? edge fields — read/write: the task-block
-// parser fills them and TaskGraph consumes them for the atomic-closure grouping + the edge-validation
-// BLOCK face) the brief renderer materializes the task-handoff brief from, and the taskGroups
-// dispatch-group declaration (an optional section; its layout leaves stay exactly where the
-// DOC_TOKENS derivation reads them). The `### Task N:` render surface keeps the colon-form heading
-// const — the deriveDocTokens taskHeadings leaf and the 1..N continuity contract are byte-unchanged
-// by the re-projection.
+// single constraint surface), the `tasks[]` Task data records (objective / files /
+// interface{consumes,produces} / steps[]{action,checkable} / acceptance[], plus the optional
+// dependsOn?/atomicWith? edge fields — read/write: the task-block parser fills them and TaskGraph
+// consumes them for the atomic-closure grouping + the edge-validation BLOCK face) the brief
+// renderer materializes the task-handoff brief from. The `### Task N:` render surface keeps the
+// colon-form heading const — the deriveDocTokens taskHeadings leaf and the 1..N continuity contract
+// are byte-unchanged by the re-projection.
 //
 // renderBrief(task) carries the plan-only task-brief render surface — deliberately OFF the abstract
 // DocBody contract (the phase-spec body never uses a task brief): the brief content renders the
@@ -32,14 +30,14 @@ import type { Task } from "./task.ts";
 /** The data-shaped plan shape domain (P2 T3; design C3) — the projection product
  *  `projectSchemaShape()` serves and the module-level leaf tokens.ts authorizes its DOC_TOKENS plan
  *  input from. The deriveDocTokens leaf families keep their exact paths/values (taskHeadings
- *  format · constraints formACanonical heading · the taskGroups layout nodes) — the projection
- *  leaves the DOC_TOKENS plan derivation surface byte-unchanged. */
+ *  format · constraints formACanonical heading) — the projection leaves the DOC_TOKENS plan
+ *  derivation surface byte-unchanged. */
 export const PLAN_BODY_SHAPE: SchemaShape = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
   $id: "https://oscaner.dev/schemas/cdd/plan.json",
   title: "Phase implementation plan document structure",
   description:
-    "Canonical structure of a kairos phase implementation plan — the per-phase executable breakdown of one design spec. This schema is the single structure fact for the plan doc type: the header fields, the `### Task N:` colon-form task headings, the per-task data records (objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[]) the brief renderer materializes the task-handoff brief from — zero prose `- **Do**:` carving — the `## Constraints` delta (the section carries only the plan's own deltas, the single constraint surface), and the `taskGroups` dispatch-group declaration (empty default ⇒ every task its own per-task group). Authoring agents read the properties + descriptions to draft conforming plans; docContractValidate / brief extraction consume the same patterns.",
+    "Canonical structure of a kairos phase implementation plan — the per-phase executable breakdown of one design spec. This schema is the single structure fact for the plan doc type: the header fields, the `### Task N:` colon-form task headings, the per-task data records (objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[]) the brief renderer materializes the task-handoff brief from — zero prose `- **Do**:` carving — and the `## Constraints` delta (the section carries only the plan's own deltas, the single constraint surface). Authoring agents read the properties + descriptions to draft conforming plans; docContractValidate / brief extraction consume the same patterns.",
   type: "object",
   properties: {
     header: {
@@ -277,53 +275,6 @@ export const PLAN_BODY_SHAPE: SchemaShape = {
         },
       },
     },
-    taskGroups: {
-      type: "array",
-      default: [],
-      $defs: {
-        section: {
-          type: "object",
-          description:
-            "The `## Task Groups` section layout — the dispatch-group declaration's plan surface: the section heading const + the one-line entry form per merged group. Written to the plan ONLY when a non-trivial merged group exists (the plan-authoring judgment: a length-1 group never lands on disk — the single-task state exists only as the empty default below).",
-          properties: {
-            heading: {
-              type: "string",
-              const: "## Task Groups",
-              description:
-                "The section's top-level `##` heading (bounded like `## Constraints`: the next `#`/`##` heading, a `### Task N:` heading, or a `---` rule).",
-            },
-            entry: {
-              type: "string",
-              pattern: "^- \\*\\*Task (?:\\d+(?:, \\d+)*)\\*\\*:",
-              description:
-                "One merged-group line — `- **Task 1, 2**: <note>` — the task numbers comma-space separated (the `--tasks <a>,<b>` join form).",
-            },
-          },
-        },
-      },
-      items: {
-        type: "object",
-        required: ["tasks"],
-        description:
-          "One declared dispatch group — the plan record of a merged `--tasks <a>,<b>` dispatch. Declared only when 2+ tasks merge; a length-1 group is redundant (the single-group state exists only as the empty default).",
-        properties: {
-          tasks: {
-            type: "array",
-            items: {
-              type: "integer",
-              minimum: 1,
-              description: "One task number of the merged group (a `### Task N:` id).",
-            },
-            minItems: 2,
-            uniqueItems: true,
-            description:
-              "The merged group's task numbers — unique and ascending (the deterministic group iteration order). minItems >= 2: a length-1 group is never declared.",
-          },
-        },
-      },
-      description:
-        "Dispatch-group declaration — the plan's `## Task Groups` section (one `- **Task 1, 2**: <note>` line per merged group; the section is written only when the plan declares a non-trivial merge). The section is a declared-grouping record validated against this schema — it is not the dispatch-group source: `effectiveGroups` derives the dispatch iteration order from the TaskGraph over the plan's task data records (atomic-closure components in topological order) and never composes this section. Empty default: `[]` / an absent section ⇒ no declared groups. Section-persist rule: the section lands only when a non-trivial merged group exists — no groups → no section → empty default.",
-    },
     language: {
       type: "object",
       description:
@@ -413,5 +364,5 @@ export interface PlanBodyOpts {
  *  a re-homed constant). */
 export const planBody = new PlanBody({
   description:
-    "Canonical plan authoring way: a metadata header five-tuple (`**Spec:**` — the Class-A `**Spec:**` marker + label==basename — · `**Parent program**` · `**Version**` · `**Depends on**` · `**Base**`), a delta-only `## Constraints` section (the plan's own deltas — the single constraint surface), the per-task data records (`### Task N:` headings + objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[] — every step carries its checkable outcome), and the optional `## Task Groups` dispatch-group declaration (written only when 2+ tasks merge). The task-handoff brief renders from the task records — zero prose `- **Do**:` carving.",
+    "Canonical plan authoring way: a metadata header five-tuple (`**Spec:**` — the Class-A `**Spec:**` marker + label==basename — · `**Parent program**` · `**Version**` · `**Depends on**` · `**Base**`), a delta-only `## Constraints` section (the plan's own deltas — the single constraint surface), and the per-task data records (`### Task N:` headings + objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[] — every step carries its checkable outcome). The task-handoff brief renders from the task records — zero prose `- **Do**:` carving.",
 });

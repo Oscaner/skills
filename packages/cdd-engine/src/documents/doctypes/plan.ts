@@ -22,6 +22,7 @@ import { mergeParentConstraints, overallConstraintsOf } from "./body/constraints
 import type { PlanBody } from "./body/plan-body.ts";
 import { planBody } from "./body/plan-body.ts";
 import { Task, type TaskStep } from "./body/task.ts";
+import { TaskGraph } from "./body/task-graph.ts";
 import { PLAN_BODY_VIEW } from "./body-views.ts";
 import type { OverallParse } from "./overall.ts";
 import {
@@ -354,30 +355,29 @@ export class PlanDocType extends DocType {
     return tasks;
   }
 
-  /** effectiveGroups(planPath) — the SINGLE dispatch-group derivation (TaskGroup[]): declared groups
-   * ∪ implicit single-task groups for any plan task an empty-or-partial declaration leaves uncovered
-   * (`taskGroups.length ? … : singletons` under the P4.3 model — the P4.4 partition keeps the union
-   * == the full plan task number set). The empty default (no `## Task Groups` section) yields the
-   * per-task singletons [[1],[2],…,[N]] — exactly the pre-P4.3 per-task dispatch (zero migration); a
-   * non-empty declaration replaces the singleton set only for the tasks it covers — an uncovered
-   * plan task still lands as its implicit singleton (by task-number order: groups ordered by their lowest
-   * task number), so the EFFECTIVE partition always covers the full plan task set (the union ==
-   * taskNumbersFromPlan guard asserted by the engine tests, unchanged). A length-1 declared line is
-   * parse-tolerated and surfaces in effectiveGroups as declared — the parser never drops a declared
-   * task; the >= 2 floor is the schema minItems + the write-back judgment (a length-1 group is
-   * redundant and never lands on disk), never this derivation. The iteration surfaces
-   * (derivePlanVerdict / base.ts statusValidate progress lines) consume this one derivation — no
-   * second implementation. */
+  /** effectiveGroups(planPath) — the SINGLE dispatch-group derivation (TaskGroup[]), derived from
+   *  the TaskGraph over the plan's task data records: the atomic-closure components in the
+   *  component-DAG topological order (ties by each group's smallest task number). The graph's
+   *  groups() gate runs first — a broken edge model (missing-id / self-loop / contradiction / cycle
+   *  / duplicate) throws GraphViolationError carrying the GraphVerdict, never a silently emitted
+   *  order. The literal `## Task Groups` section is not part of this derivation (the section is
+   *  read by taskGroupsFromPlan, never composed here) — the dispatch groups are the graph's edge
+   *  declarations. A plan without the full 1..N task-record set (task blocks carrying no data
+   *  markers) has no graph to derive from and yields the per-task singleton run [[1],[2],…,[N]] —
+   *  the same shape an edge-free full-record plan derives. The iteration surfaces (derivePlanVerdict
+   *  / base.ts statusValidate progress lines) consume this one derivation — no second implementation. */
   effectiveGroups(planPath: string): TaskGroup[] {
     const all = this.taskNumbersFromPlan(planPath); // sorted ascending
-    const declared = this.taskGroupsFromPlan(planPath);
-    if (declared.length === 0) return all.map((n) => TaskGroup.fromNumbers([n]));
-    const covered = new Set<number>();
-    for (const g of declared) for (const n of g) covered.add(n);
-    const uncovered = all.filter((n) => !covered.has(n)).map((n) => TaskGroup.fromNumbers([n]));
-    if (uncovered.length === 0) return declared;
-    // by task-number order: declared groups + implicit singletons, ordered by each group's lowest task number.
-    return [...declared, ...uncovered].sort((a, b) => (a.numbers[0] ?? 0) - (b.numbers[0] ?? 0));
+    const tasks = this.tasksFromPlan(planPath);
+    // The TaskGraph indexes its task array by the task id (index i+1 = task i+1) — it derives over
+    // the full 1..N record set only. A plan without it (no data markers / a partial record set)
+    // keeps the per-task singleton run [[1],…,[N]], exactly the pre-graph dispatch shape.
+    if (tasks.length !== all.length || !all.every((n, i) => n === i + 1)) {
+      return all.map((n) => TaskGroup.fromNumbers([n]));
+    }
+    // TaskGraph.groups() validates the edge model first — a non-null GraphVerdict throws
+    // GraphViolationError (the failures aggregate in the verdict) instead of emitting a broken order.
+    return new TaskGraph(tasks).groups();
   }
 
   /** Deterministic extraction from the plan's declared Constraints source: canonical Form A — a

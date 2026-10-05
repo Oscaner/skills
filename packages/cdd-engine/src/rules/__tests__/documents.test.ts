@@ -218,7 +218,7 @@ describe("taskGroupsFromPlan / effectiveGroups — dispatch-group declaration (P
     expect(documentsValidator.taskGroupsFromPlan(p).map((g) => g.key())).toEqual(["1,2"]);
   });
 
-  it("declared groups replace the singleton set verbatim → effectiveGroups = the declared groups", () => {
+  it("the literal `## Task Groups` section no longer feeds effectiveGroups — a section-declared plan (marker-less blocks) yields the per-task singletons", () => {
     const p = planFile(
       [
         "# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n\n### Task 3: c\nbody\n\n### Task 4: d\nbody\n",
@@ -229,11 +229,16 @@ describe("taskGroupsFromPlan / effectiveGroups — dispatch-group declaration (P
         "",
       ].join("\n"),
     );
-    // effectiveGroups derives from the section, never fabricating singletons in the declared branch
-    expect(documentsValidator.effectiveGroups(p).map((g) => g.key())).toEqual(["1,2", "3,4"]);
+    // The section read stays alive and byte-identical (taskGroupsFromPlan is a separate surface from
+    // this derivation)…
+    expect(documentsValidator.taskGroupsFromPlan(p).map((g) => g.key())).toEqual(["1,2", "3,4"]);
+    // …but effectiveGroups derives from the TaskGraph over the task records: these blocks carry no
+    // data markers (no records), so the derivation is the per-task singleton run — the section is
+    // never composed.
+    expect(documentsValidator.effectiveGroups(p).map((g) => g.key())).toEqual(["1", "2", "3", "4"]);
   });
 
-  it("a length-1 declared line is parse-tolerated and surfaces in effectiveGroups — the >= 2 floor is schema minItems + write-back, never the parser", () => {
+  it("a length-1 declared line stays parse-tolerated in the taskGroupsFromPlan read — the >= 2 floor is schema minItems + write-back, never the parser", () => {
     const p = planFile(
       [
         "# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n\n### Task 3: c\nbody\n",
@@ -244,13 +249,14 @@ describe("taskGroupsFromPlan / effectiveGroups — dispatch-group declaration (P
         "",
       ].join("\n"),
     );
-    // Reader tolerance: the length-1 group parses and surfaces verbatim — taskGroupsFromPlan /
-    // effectiveGroups never drop a declared task. The >= 2 floor lives in plan.json
+    // Reader tolerance in the section read: the length-1 group parses and surfaces verbatim —
+    // taskGroupsFromPlan never drops a declared task. The >= 2 floor lives in plan.json
     // taskGroups.items.tasks.minItems + the adjudication write-back judgment (plan.json description:
     // a length-1 group never lands on disk — the single-group state exists only as the empty
-    // default), not in this derivation.
+    // default), not in this parse. effectiveGroups does not compose the section: the same
+    // marker-less plan derives the per-task singleton run.
     expect(documentsValidator.taskGroupsFromPlan(p).map((g) => g.key())).toEqual(["1", "2,3"]);
-    expect(documentsValidator.effectiveGroups(p).map((g) => g.key())).toEqual(["1", "2,3"]);
+    expect(documentsValidator.effectiveGroups(p).map((g) => g.key())).toEqual(["1", "2", "3"]);
   });
 
   it("有效分区 == 全 task 号集覆盖 guard (P4.4: the effective-group union is the plan task set — declared or empty-default)", () => {

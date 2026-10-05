@@ -1408,6 +1408,71 @@ describe("entry forms — the per-doc-type audit surfaces", () => {
   });
 });
 
+describe("doc-kind detection (T6 S1 — the registry-scan determination, the retired per-kind scan)", () => {
+  it("plan entry detects 'plan' (the `### Task N:` feature)", () => {
+    const c = writeChain();
+    expect(documentsValidator.detectDocKind(c.plan)).toBe("plan");
+  });
+
+  it("spec entry detects 'spec' (the `-design.md` basename + `**Version**` line feature)", () => {
+    const c = writeChain();
+    expect(documentsValidator.detectDocKind(c.spec)).toBe("spec");
+  });
+
+  it("overall entry detects 'overall' (the `-overall.md` basename feature)", () => {
+    const c = writeChain();
+    expect(documentsValidator.detectDocKind(c.overall)).toBe("overall");
+  });
+
+  it("validateDispatchDocuments / parentOverallOf route the same registry detection (a plan entry walks the plan chain)", () => {
+    const c = writeChain({
+      spec: validSpec("- **Parent program**: [plan-overall.md v9.9](./plan-overall.md)"),
+    });
+    expect(documentsValidator.detectDocKind(c.plan)).toBe("plan");
+    expect(documentsValidator.parentOverallOf(c.plan, c.repo)).toBe(c.overall);
+    // the entry is audited as a plan (Class-A + the reached overall face) — the registry detection
+    // single-match governs the chain walk.
+    const f = documentsValidator.validateDispatchDocuments({ entry: c.plan, root: c.repo });
+    expect(f.some((x) => x.artifact === "overall")).toBe(true);
+  });
+
+  it("zero-hit negative: a doc no registered type detects throws unknown-doc-kind with the entry text (the spec fallback is retired — spec selection is never implicit)", () => {
+    const c = writeChain();
+    const plain = path.join(c.repo, "docs", "kairos", "specs", "readme.md");
+    writeFileSync(plain, "# no doc-structure features\n");
+    expect(() => documentsValidator.detectDocKind(plain)).toThrow(/unknown doc kind/);
+    expect(() => documentsValidator.detectDocKind(plain)).toThrow(plain); // the entry text rides the throw
+    expect(() => documentsValidator.detectDocKind(plain)).toThrow(/no registered doc type/);
+    // the audit entry and the parent walk share the same fail-fast detection.
+    expect(() =>
+      documentsValidator.validateDispatchDocuments({ entry: plain, root: c.repo }),
+    ).toThrow(/unknown doc kind/);
+    expect(() => documentsValidator.parentOverallOf(plain, c.repo)).toThrow(/unknown doc kind/);
+  });
+
+  it("ambiguous entry: a doc more than one registered type detects throws the explicit ambiguity error (both kinds named)", () => {
+    const c = writeChain();
+    const both = path.join(c.repo, "docs", "kairos", "specs", "both.md");
+    // a Phase-inventory header-open line AND `### Task N:` headings — overall and plan both detect.
+    writeFileSync(
+      both,
+      [
+        "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+        "| P1 | phase one | [Pending] | Pending | | none |",
+        "### Task 1: x",
+        "body",
+        "",
+      ].join("\n"),
+    );
+    expect(() => documentsValidator.detectDocKind(both)).toThrow(/ambiguous doc kind/);
+    expect(() => documentsValidator.detectDocKind(both)).toThrow(/overall/);
+    expect(() => documentsValidator.detectDocKind(both)).toThrow(/plan/);
+    expect(() =>
+      documentsValidator.validateDispatchDocuments({ entry: both, root: c.repo }),
+    ).toThrow(/ambiguous doc kind/);
+  });
+});
+
 describe("formatDocFailures — the guidance line (artifact · file · field · missing · fix)", () => {
   it("one failure line carries artifact / file / field / missing / fix in order", () => {
     const c = writeChain({ plan: "# Plan\n\n### Task 1: x\nbody\n" });

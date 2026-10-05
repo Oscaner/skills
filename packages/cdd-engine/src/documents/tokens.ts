@@ -1,21 +1,26 @@
 // packages/cdd-engine/src/documents/tokens.ts — canonical doc-structure token surface
-// (P2 T2 ①②; design §2.3 AC4 TC 单源实证). Every engine-side doc-structure TOKEN (the literals
-// and patterns documents.ts / brief.ts / task.ts assert) derives here from the canonical
-// doc-structure JSON Schemas (documents/schema/*.json, loaded via loadDocSchema). The former
-// hand-written copies in each consumer are these derivations. Change a canonical definition once →
-// engine validation/extraction follows in the same build — the deriveDocTokens(schemas) pure
-// function is that live link (feed it a doctored schema and the derived token changes).
+// (P2 T2; design §2.3 AC4 TC single-source evidence · S8). Every engine-side doc-structure TOKEN
+// (the literals and patterns documents.ts / brief.ts / task.ts assert) derives here from the
+// doc-type shape domain — the same DocType.shape content the registry's doc types carry (the shape
+// constants under doctypes/shapes/*; the config/schema products are their byte-faithful
+// projections, never re-read). The former hand-written copies in each consumer are these
+// derivations. Change a shape leaf once → engine validation/extraction follows in the same build —
+// the deriveDocTokens(shapes) pure function is that live link (feed it a doctored shape and the
+// derived token changes).
 //
 // Derivation shapes:
 //   - const  → the literal token directly
 //   - pattern → compiled as a regex; capture groups are parse mechanics inserted at the version
-//               token (the engine needs `(v\d+\.\d+)` where the schema stores the pattern shape);
-//   - "N" in task-heading format → the canonical number placeholder (schema description).
-//   - phase-spec marker → the shared version marker's page twin: derived from phase-spec.json and
-//     asserted equal to the overall marker at load, so the two pages cannot silently drift.
+//               token (the engine needs `(v\d+\.\d+)` where the shape stores the pattern form);
+//   - "N" in task-heading format → the canonical number placeholder (shape description).
+//   - phase-spec marker → the shared version marker's page twin: derived from the phase-spec shape
+//     and asserted equal to the overall marker at load, so the two pages cannot silently drift.
 // Generic markdown/link/placeholder atoms (LINK_RE, PLACEHOLDER_RE) stay engine-local — they are
 // parsing primitives, not doc-structure definitions.
-import { loadDocSchema } from "./schema.ts";
+import type { SchemaShape } from "./doctype.ts";
+import { OVERALL_SHAPE } from "./doctypes/shapes/overall.ts";
+import { PHASE_SPEC_SHAPE } from "./doctypes/shapes/phase-spec.ts";
+import { PLAN_SHAPE } from "./doctypes/shapes/plan.ts";
 
 export interface DocTokens {
   // ---- plan ----
@@ -132,8 +137,8 @@ export function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** Navigate a loaded schema JSON to a node by its `properties` path. A segment is first tried as a
- * `properties` child (the schema-tree idiom), falling back to a DIRECT key on the current node
+/** Navigate a DocType.shape object to a node by its `properties` path. A segment is first tried as
+ * a `properties` child (the schema-tree idiom), falling back to a DIRECT key on the current node
  * (for non-property keywords like `items` / `enum` / `const` used as navigation steps). */
 function nodeAt(schema: unknown, props: readonly string[]): Record<string, unknown> {
   let cur = schema as Record<string, unknown>;
@@ -191,12 +196,12 @@ function phaseRefCapturing(pattern: string, token: string, flags = ""): RegExp {
   return new RegExp(body.split(token).join(tile), flags);
 }
 
-export function deriveDocTokens(schemas: {
-  plan: unknown;
-  overall: unknown;
-  "phase-spec": unknown;
+export function deriveDocTokens(shapes: {
+  plan: SchemaShape;
+  overall: SchemaShape;
+  "phase-spec": SchemaShape;
 }): DocTokens {
-  const { plan, overall, "phase-spec": phaseSpec } = schemas;
+  const { plan, overall, "phase-spec": phaseSpec } = shapes;
 
   const specMark = leaf<string>(plan, ["header", "specRef", "marker"], "const");
   const parentMark = leaf<string>(plan, ["header", "parentProgram", "marker"], "const");
@@ -458,9 +463,11 @@ export function deriveDocTokens(schemas: {
   };
 }
 
-/** Production token surface — derived from the canonical doc-structure schemas on load. */
+/** Production token surface — derived from the doc-type shape domain (the same DocType.shape
+ *  content the registry's doc types carry / the SchemaFactory projects onto the derived
+ *  config/schema products) on load. */
 export const DOC_TOKENS: DocTokens = deriveDocTokens({
-  plan: loadDocSchema("plan"),
-  overall: loadDocSchema("overall"),
-  "phase-spec": loadDocSchema("phase-spec"),
+  plan: PLAN_SHAPE,
+  overall: OVERALL_SHAPE,
+  "phase-spec": PHASE_SPEC_SHAPE,
 });

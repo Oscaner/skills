@@ -9,6 +9,7 @@ import path from "node:path";
 import { readJson } from "../artifacts/handoff/write.ts";
 import { Handoff } from "../artifacts/handoff.ts";
 import { DispatchBlocked } from "../dispatch/base.ts";
+import { docTypeRegistry } from "../documents/registry.ts";
 import type { TaskGroup } from "../domain/task-group.ts";
 import { exitOk, exitOkWith, exitWithCode } from "../infra/exit.ts";
 import { initProcLifecycle, withLifecycle } from "../infra/proc.ts";
@@ -125,9 +126,11 @@ export async function runFix(opts: FixOpts): Promise<void> {
       for (const line of lc.returnBlock) process.stdout.write(`${line}\n`);
       exitWithCode(lc.exitCode);
     }
-    // spec/plan: the fix template comes from the canonical fix.{type} family fixTemplate
+    // spec/plan: the docs-fix lane gate resolves through the registered doc type (S4 — the CLI's
+    // `--type` dispatch is the registry's route.reviewType membership; task/branch never route a
+    // doc type). The docs fix template comes from the canonical fix.{type} family fixTemplate
     // (after the T2 axis cut, template-contract.json#reviews no longer carries the artifact axis).
-    if (opts.type !== "spec" && opts.type !== "plan") {
+    if (!docTypeRegistry.byReviewType(opts.type)) {
       process.stderr.write(`unknown fix --type: ${opts.type}\n`);
       exitWithCode(2);
     }

@@ -10,16 +10,29 @@
         "TIMEOUT"
       ],
       "axes": {
-        "judgment": ["CHANGES_REQUESTED", "REVIEW_FIX", "APPROVED"],
-        "work": ["COMPLETED"]
+        "judgment": [
+          "CHANGES_REQUESTED",
+          "REVIEW_FIX",
+          "APPROVED"
+        ],
+        "work": [
+          "COMPLETED"
+        ]
       }
     },
     "capsule": {
-      "tokens": ["status", "blocker", "handoff"],
+      "tokens": [
+        "status",
+        "blocker",
+        "handoff"
+      ],
       "readbackWording": "(read <handoff> back to confirm)"
     },
     "route": {
-      "routeTokens": ["next:", "findings"],
+      "routeTokens": [
+        "next:",
+        "findings"
+      ],
       "stations": {
         "next": "next:",
         "blocked": "CDD_BLOCKED:",

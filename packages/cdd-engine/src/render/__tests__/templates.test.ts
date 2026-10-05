@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { docTypeRegistry } from "../../documents/registry.ts";
 import { HandoffSchemaValidator } from "../../rules/schema.ts";
 
 const schemaValidator = new HandoffSchemaValidator();
@@ -145,7 +146,7 @@ describe("template-contract 单点消费 + zone-tagged token registry（Task 20 
       expect(String(body).trim(), key).toBeTruthy();
       expect(String(body), key).not.toContain("{{"); // clauses have zero moustache (strict compile safety + assembly atomicity)
     }
-    expect(Object.keys(contract.reviews)).toEqual(["task", "branch", "spec", "plan"]);
+    expect(Object.keys(contract.reviews)).toEqual(["task", "branch"]); // the reviews.{spec,plan} blocks migrated out into DocType.bodyView (T5)
     // 与磁盘真身一致（单点）
     const onDisk = JSON.parse(
       readFileSync(path.join(CONFIG_DIR, "template-contract.json"), "utf8"),
@@ -461,9 +462,9 @@ describe("D1.2/E2⑤ 纪律条款入库（Task 12）：clauses 单源 + 4 模板
 });
 
 describe("review type config (Task 4: 模板数据化)", () => {
-  it("loadReviews returns the four review types (from template-contract.json#reviews)", async () => {
+  it("loadReviews returns the retained review types (task/branch — reviews.{spec,plan} now live on DocType.bodyView)", async () => {
     const loadReviews = templates.loadReviews.bind(templates);
-    expect(Object.keys(loadReviews())).toEqual(["task", "branch", "spec", "plan"]);
+    expect(Object.keys(loadReviews())).toEqual(["task", "branch"]);
   });
 
   it("reviews 纯内容契约：无 artifact 字段（T2 裁轴；Task 5 单文件入 template-contract.json#reviews）", () => {
@@ -526,6 +527,40 @@ describe("review type config (Task 4: 模板数据化)", () => {
     expect(retIdx).toBeGreaterThan(handoffIdx);
     expect(roundIdx).toBeGreaterThan(retIdx);
     expect(out).not.toContain("{{"); // r2-r3 leak regression: the rendered output has zero residual moustache
+  });
+});
+
+describe("T5: spec/plan review config + familyFor discrimination route through DocType.bodyView (S7)", () => {
+  it("reviewTypeConfig(spec/plan) reads the migrated config back through the doc types (render-equivalent source)", () => {
+    const reviewTypeConfig = templates.reviewTypeConfig.bind(templates);
+    const specReviews = docTypeRegistry.resolve("spec").bodyView.reviews;
+    const planReviews = docTypeRegistry.resolve("plan").bodyView.reviews;
+    expect(specReviews).not.toBeNull();
+    expect(planReviews).not.toBeNull();
+    // The loader's answer equals the doc-type source — the spec/plan config single-source is
+    // DocType.bodyView after the reviews.{spec,plan} blocks migrated out (S7 convergence).
+    expect(reviewTypeConfig("spec")).toEqual(specReviews);
+    expect(reviewTypeConfig("plan")).toEqual(planReviews);
+    expect(reviewTypeConfig("spec").axesGuide).toContain("Follow URC: single-cycle");
+    expect(reviewTypeConfig("plan").axesGuide).toContain("changed-surface reasonableness");
+  });
+
+  it("familyFor discriminates through DocType.bodyView.docFamily formats (docs members → docs shell; non-members → task fallback)", () => {
+    const renderTemplate = templates.renderTemplate.bind(templates);
+    const resetTemplateCaches = templates.resetTemplateCaches.bind(templates);
+    resetTemplateCaches();
+    const docsBlock = templates.renderHandoffSchemaJson(schemaValidator.loadHandoffSchema("docs"));
+    const taskBlock = templates.renderHandoffSchemaJson(schemaValidator.loadHandoffSchema("task"));
+    const staticZone = (prompt: string): string => prompt.slice(0, heading(prompt, "Return"));
+    for (const fmt of ["RETURN_JSON", "DOCS_FIX"]) {
+      const out = renderTemplate("review", { MODE: "review", RETURN_FORMAT: fmt }, "test");
+      expect(staticZone(out), fmt).toContain(docsBlock); // a docs-family member renders the docs shell
+    }
+    for (const fmt of ["RETURN_STDOUT_BLOCK"]) {
+      const out = renderTemplate("review", { MODE: "review", RETURN_FORMAT: fmt }, "test");
+      expect(staticZone(out), fmt).toContain(taskBlock); // a non-member renders the task shell
+      expect(staticZone(out), fmt).not.toContain(docsBlock);
+    }
   });
 });
 

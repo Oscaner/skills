@@ -122,8 +122,10 @@ describe("AC7 (1) no plan-only leftover — the reverse-direction rule is a sing
     expect(f).toHaveLength(1); // the rest of the chain is clean — nothing else fires on this fixture
   });
 
-  it("grep: the missing-claim surface text lives once, in the single audit entry (rules/documents.ts)", () => {
-    const docs = readSrc("rules/documents.ts");
+  it("grep: the missing-claim surface text lives once, in the single audit entry (the overall doc type's four-table audit)", () => {
+    // The audit's home moved to the doc-type layer (P1 T2) — the reverse-direction rule now fires
+    // from the OverallDocType four-table audit (documents/doctypes/overall.ts), still exactly once.
+    const docs = readSrc("documents/doctypes/overall.ts");
     expect(docs.match(/no matching plan claim/g)).toHaveLength(1);
     expect(docs.match(/no matching design claim/g)).toHaveLength(1);
     // no other rules/dispatch module carries a second (plan-only) implementation of either phrase

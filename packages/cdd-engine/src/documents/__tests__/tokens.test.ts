@@ -1,10 +1,13 @@
 // packages/cdd-engine/src/documents/__tests__/tokens.test.ts — canonical doc-structure tokens
-// (P2 T2 ①②; design §2.3 AC4 TC 单源实证). Every engine-side structure token derives from the
-// canonical doc-structure schemas (documents/schema/*.json via deriveDocTokens) — the "改 canonical
-// 定义一处 → engine 校验/抽取同步生效" evidence:
-//   - deriveDocTokens(schemas) is pure: feed it a doctored canonical schema → the derived token
-//     changes (the derivation is LIVE, not a second hand-written copy);
-//   - the production DOC_TOKENS values equal the on-disk canonical leaves (spot-pinned);
+// (P2 T2; design §2.3 AC4 TC single-source evidence · S8). Every engine-side structure token
+// derives from the doc-type shape domain (doctypes/shapes/* — the same DocType.shape content the
+// registry serves, passed into deriveDocTokens) — the "edit one canonical leaf → engine
+// validation/extraction follow in the same build" evidence:
+//   - deriveDocTokens(shapes) is pure: feed it a doctored shape → the derived token changes (the
+//     derivation is LIVE, not a second hand-written copy);
+//   - the production DOC_TOKENS values equal the shape-domain leaves (spot-pinned — the on-disk
+//     config/schema products are the byte-faithful projections of these shapes, so the same
+//     leaves hold transitively);
 //   - the derived regexes keep their exact parsing semantics (version header, history cell,
 //     task-heading colon form, Phase-inventory header, canonical column, constraints heading,
 //     prose anchors, CLAIM family) — the canary surface for the repo doc set;
@@ -16,38 +19,43 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { loadDocSchema } from "../schema.ts";
+import type { SchemaShape } from "../doctype.ts";
+import { OVERALL_SHAPE } from "../doctypes/shapes/overall.ts";
+import { PHASE_SPEC_SHAPE } from "../doctypes/shapes/phase-spec.ts";
+import { PLAN_SHAPE } from "../doctypes/shapes/plan.ts";
+import { docTypeRegistry } from "../registry.ts";
 import { DOC_TOKENS, deriveDocTokens } from "../tokens.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 // packages/cdd-engine/src/documents/__tests__ → the engine src root (2 hops up from __tests__)
 const ENGINE_SRC = path.resolve(HERE, "..", "..");
-const _PLAN = loadDocSchema("plan");
-const _OVERALL = loadDocSchema("overall");
-const _PHASE_SPEC = loadDocSchema("phase-spec");
 
-/** The four schemas deriveDocTokens needs — doctorable per-test. */
-function schemas(overrides: { plan?: unknown; overall?: unknown; phase?: unknown } = {}) {
+/** The three shape-domain faces deriveDocTokens needs — doctorable per-test. The base content is
+ *  the shared shape constants (the same objects DOC_TOKENS and the registry's doc types carry) —
+ *  the shape domain is the single source; the derived config/schema products are never re-read. */
+function schemas(
+  overrides: { plan?: SchemaShape; overall?: SchemaShape; phase?: SchemaShape } = {},
+) {
   return {
-    plan: overrides.plan ?? (loadDocSchema("plan") as Record<string, unknown>),
-    overall: overrides.overall ?? (loadDocSchema("overall") as Record<string, unknown>),
-    "phase-spec": overrides.phase ?? (loadDocSchema("phase-spec") as Record<string, unknown>),
+    plan: overrides.plan ?? PLAN_SHAPE,
+    overall: overrides.overall ?? OVERALL_SHAPE,
+    "phase-spec": overrides.phase ?? PHASE_SPEC_SHAPE,
   };
 }
 
-/** Deep-clone a loaded schema (structuredClone of the parsed JSON). */
-function cloneSchema<T extends object>(schema: T): T {
+/** Deep-clone a DocType.shape object (the writable mutation surface for doctored-shape tests). */
+function cloneSchema<T extends SchemaShape>(schema: T): T {
   return JSON.parse(JSON.stringify(schema)) as T;
 }
 
-describe("deriveDocTokens — live derivation from the canonical schemas", () => {
-  it("doctored canonical schema → derived tokens change (TC single-source实证)", () => {
+describe("deriveDocTokens — live derivation from the shape domain", () => {
+  it("doctored shape → derived tokens change (TC single-source实证)", () => {
     const base = deriveDocTokens(schemas());
     expect(base.specMark).toBe("**Spec:**");
     expect(base.versionHeaderRe.source).toContain("Version");
 
-    // Doctored plan: the specRef marker const changes → the derived SPEC_MARK follows.
-    const doctoredPlan = cloneSchema(loadDocSchema("plan") as Record<string, unknown>);
+    // Doctored plan shape: the specRef marker const changes → the derived SPEC_MARK follows.
+    const doctoredPlan = cloneSchema(PLAN_SHAPE);
     (doctoredPlan as any).properties.header.properties.specRef.properties.marker.const =
       "**Spec source:**";
     const re = deriveDocTokens(schemas({ plan: doctoredPlan }));
@@ -55,8 +63,8 @@ describe("deriveDocTokens — live derivation from the canonical schemas", () =>
     expect(re.specField).toBe("`**Spec source:**`");
   });
 
-  it("doctored overall version line pattern → the version regex follows", () => {
-    const doctored = cloneSchema(loadDocSchema("overall") as Record<string, unknown>);
+  it("doctored overall shape version line pattern → the version regex follows", () => {
+    const doctored = cloneSchema(OVERALL_SHAPE);
     (doctored as any).properties.header.properties.version.properties.line.pattern =
       "^\\s*-?\\s*\\*\\*Program version\\*\\*:\\s*v\\d+\\.\\d+";
     const re = deriveDocTokens(schemas({ overall: doctored }));
@@ -65,8 +73,8 @@ describe("deriveDocTokens — live derivation from the canonical schemas", () =>
     expect(re.versionHeaderRe.test("- **Version**: v1.0 · 2026-09-21")).toBe(false);
   });
 
-  it("doctored plan taskGroups heading → the derived section + line tokens follow (P4.3 Task 3)", () => {
-    const doctoredPlan = cloneSchema(loadDocSchema("plan") as Record<string, unknown>);
+  it("doctored plan shape taskGroups heading → the derived section + line tokens follow (P4.3 Task 3)", () => {
+    const doctoredPlan = cloneSchema(PLAN_SHAPE);
     (doctoredPlan as any).properties.taskGroups.$defs.section.properties.heading.const =
       "## Dispatch Groups";
     const re = deriveDocTokens(schemas({ plan: doctoredPlan }));
@@ -75,8 +83,8 @@ describe("deriveDocTokens — live derivation from the canonical schemas", () =>
     expect(re.taskGroupsHeadingRe.test("## Task Groups")).toBe(false);
   });
 
-  it("doctored plan taskGroups entry pattern → the group-line regex follows (captured number list)", () => {
-    const doctoredPlan = cloneSchema(loadDocSchema("plan") as Record<string, unknown>);
+  it("doctored plan shape taskGroups entry pattern → the group-line regex follows (captured number list)", () => {
+    const doctoredPlan = cloneSchema(PLAN_SHAPE);
     (doctoredPlan as any).properties.taskGroups.$defs.section.properties.entry.pattern =
       "^- \\*\\*Tasks (?:\\d+(?:, \\d+)*)\\*\\*:";
     const re = deriveDocTokens(schemas({ plan: doctoredPlan }));
@@ -84,20 +92,20 @@ describe("deriveDocTokens — live derivation from the canonical schemas", () =>
     expect(re.taskGroupsLineRe.test("- **Task 3, 4**: x")).toBe(false);
   });
 
-  it("doctored plan taskGroups entry pattern dropping the number-list literal → the token build throws (schema-drift guard)", () => {
-    const doctoredPlan = cloneSchema(loadDocSchema("plan") as Record<string, unknown>);
+  it("doctored plan shape taskGroups entry pattern dropping the number-list literal → the token build throws (shape-drift guard)", () => {
+    const doctoredPlan = cloneSchema(PLAN_SHAPE);
     (doctoredPlan as any).properties.taskGroups.$defs.section.properties.entry.pattern =
       "^- \\*\\*Task [0-9, ]+\\*\\*:";
     expect(() => deriveDocTokens(schemas({ plan: doctoredPlan }))).toThrow(/number-list literal/);
   });
 
-  it("doctored phase-spec version marker → the derived leaf follows the page twin; a one-page drift throws", () => {
+  it("doctored phase-spec shape version marker → the derived leaf follows the page twin; a one-page drift throws", () => {
     // Phase-spec pages the shared version marker as its own const leaf. Doctoring BOTH pages to a
-    // new value keeps them equal — the derived phase-spec leaf follows live from the canonical edit.
-    const doctoredOverall = cloneSchema(loadDocSchema("overall") as Record<string, unknown>);
+    // new value keeps them equal — the derived phase-spec leaf follows live from the shape edit.
+    const doctoredOverall = cloneSchema(OVERALL_SHAPE);
     (doctoredOverall as any).properties.header.properties.version.properties.marker.const =
       "**Program version**";
-    const doctoredPhase = cloneSchema(loadDocSchema("phase-spec") as Record<string, unknown>);
+    const doctoredPhase = cloneSchema(PHASE_SPEC_SHAPE);
     (doctoredPhase as any).properties.header.properties.version.properties.marker.const =
       "**Program version**";
     const re = deriveDocTokens(schemas({ overall: doctoredOverall, phase: doctoredPhase }));
@@ -111,7 +119,31 @@ describe("deriveDocTokens — live derivation from the canonical schemas", () =>
   });
 });
 
-describe("DOC_TOKENS — production values equal the canonical leaves (single source)", () => {
+describe("deriveDocTokens — the DocType.shape-domain wiring (S8)", () => {
+  it("DOC_TOKENS derives from the exact shape objects the registry's doc types carry (single source)", () => {
+    // The identity is the single-source pin: the shapes DOC_TOKENS derives from ARE the DocType.shape
+    // fields the registered doc types present — derivation and factory projection read the same content.
+    expect(docTypeRegistry.resolve("plan").shape).toBe(PLAN_SHAPE);
+    expect(docTypeRegistry.resolve("overall").shape).toBe(OVERALL_SHAPE);
+    expect(docTypeRegistry.resolve("spec").shape).toBe(PHASE_SPEC_SHAPE);
+    // Deriving through the registry's DocType.shape accessors reproduces the production surface —
+    // every value token exact; the only functions are the parse-mechanics closures over the same
+    // leaves (per-journey regex construction), so those are structurally skipped.
+    const fromRegistry = deriveDocTokens({
+      plan: docTypeRegistry.resolve("plan").shape,
+      overall: docTypeRegistry.resolve("overall").shape,
+      "phase-spec": docTypeRegistry.resolve("spec").shape,
+    });
+    for (const key of Object.keys(DOC_TOKENS)) {
+      const production = (DOC_TOKENS as unknown as Record<string, unknown>)[key];
+      const wired = (fromRegistry as unknown as Record<string, unknown>)[key];
+      if (typeof production === "function" && typeof wired === "function") continue;
+      expect(wired).toEqual(production);
+    }
+  });
+});
+
+describe("DOC_TOKENS — production values equal the shape-domain leaves (single source)", () => {
   it("plan markers: specMark / parentMark / taskHeading / constraints / prose anchors", () => {
     expect(DOC_TOKENS.specMark).toBe("**Spec:**");
     expect(DOC_TOKENS.parentMark).toBe("**Parent program**");
@@ -251,6 +283,12 @@ describe("engine consumers consume via the derived tokens (grep 删除面零残�
     expect(src).not.toMatch(/const PARENT_MARK\s*=\s*["'`]\*\*Parent program\*\*/);
     expect(src).not.toMatch(/const VERSION_HEADER_RE\s*=\s*\/\^\\s\*-/);
     expect(src).not.toMatch(/const HISTORY_VERSION_CELL_RE\s*=\s*\/\^\\s\*\\\|/);
+  });
+
+  it("tokens.ts derives from the DocType.shape domain — no config/schema re-read via loadDocSchema (S8)", () => {
+    const src = readFileSync(path.join(ENGINE_SRC, "documents/tokens.ts"), "utf8");
+    expect(src).not.toMatch(/loadDocSchema/);
+    expect(src).not.toMatch(/documents\/schema\//);
   });
 });
 

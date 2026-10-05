@@ -22,7 +22,7 @@ import { CddExitError } from "../infra/exit.ts";
 import { WorkspaceRoot } from "../infra/workspace.ts";
 import { CloseoutChecker, type CloseoutResult } from "../rules/closeout.ts";
 import { CommitChecker } from "../rules/commit.ts";
-import { DocumentsValidator } from "../rules/documents.ts";
+import { DocumentsValidator, UnknownDocKindError } from "../rules/documents.ts";
 import { StatusJudge } from "../rules/status.ts";
 import { ChangedSurfaceAuditor } from "../rules/write-boundary.ts";
 import { createDispatchHooks, type DispatchHookContext, type DispatchHooks } from "./hooks.ts";
@@ -234,11 +234,18 @@ export abstract class DispatchLifecycle {
     try {
       result = closeout.deriveCloseoutMismatches({ entry, root });
     } catch (e) {
-      // fail-open: an unreadable doc chain must never crash the lifecycle (the plan existence
-      // gate in resolveContext already surfaced the missing-plan case there) — but never silent:
-      // surface a one-line diagnostic on the throw path (real and dry-run lanes alike).
+      // fail-open: an unreadable or unclassifiable doc chain must never crash the lifecycle (the
+      // plan existence gate in resolveContext already surfaced the missing-plan case there) — but
+      // never silent: surface a one-line diagnostic on the throw path (real and dry-run lanes
+      // alike). The T6 zero-hit unknown-doc-kind throw (the retired spec fallback's replacement,
+      // spec 2.6) marks a READABLE but unclassifiable chain — the typed error distinguishes the
+      // label from a genuinely unreadable chain so the skip-warn never mislabels it "unreadable".
+      const label =
+        e instanceof UnknownDocKindError
+          ? "no registered doc type detects the doc chain"
+          : "unreadable doc chain";
       process.stderr.write(
-        `CDD_WARN: doc contract validation skipped (unreadable doc chain): ${(e as Error).message}\n`,
+        `CDD_WARN: doc contract validation skipped (${label}): ${(e as Error).message}\n`,
       );
       return;
     }

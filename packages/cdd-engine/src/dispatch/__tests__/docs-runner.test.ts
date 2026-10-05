@@ -284,6 +284,51 @@ describe("runDocsTask", () => {
     expect(promptArg.split("\n")[1]).toBe("mocked docs review prompt");
   });
 
+  it("S4 lifecycle-facts merge (docs.ts:528): review params carry REVIEW_PLAN_LINE derived from the registered type's lifecycle — plan + upstreamSpec renders the upstream `**Spec:**` line, spec stays empty", async () => {
+    const execa = mockExeca((await import("execa")).execa);
+    execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
+
+    const upstream = "docs/kairos/specs/plan-design.md";
+    vi.resetModules();
+    const { DocsLifecycle } = await import("../docs.ts");
+    // plan review — the runner resolves type "plan" via docTypeRegistry.byReviewType and merges the
+    // plan lifecycle's fact last-wins: the REVIEW_PLAN_LINE round-context slot carries the upstream
+    // `**Spec:**` reference (the D11 `--spec`).
+    await DocsLifecycle.run({
+      harness: "claude",
+      mode: "review",
+      template: "review",
+      type: "plan",
+      doc: "/repo/root/docs/kairos/plans/my-plan.md",
+      params: { REVIEW_TYPE: "plan" },
+      upstreamSpec: upstream,
+      handoffPath: "/repo/root/.kairos/cdd/foo/plan-review-1.json",
+      repoRoot: "/repo/root",
+      dryRun: false,
+    });
+    const planParams = docsRenderSpy.mock.calls.at(-1)?.[1] as Record<string, unknown> | undefined;
+    expect(planParams?.REVIEW_PLAN_LINE).toBe(`**Spec:** ${upstream}`);
+
+    // spec companion — the reviewed spec is the target, never an upstream reference: the spec
+    // lifecycle renders an empty slot even with upstreamSpec supplied (the discrimination the
+    // acceptance spike currently guards manually).
+    docsRenderSpy.mockClear();
+    await DocsLifecycle.run({
+      harness: "claude",
+      mode: "review",
+      template: "review",
+      type: "spec",
+      doc: "/repo/root/docs/kairos/specs/my-spec.md",
+      params: { REVIEW_TYPE: "spec" },
+      upstreamSpec: upstream,
+      handoffPath: "/repo/root/.kairos/cdd/foo/spec-review-1.json",
+      repoRoot: "/repo/root",
+      dryRun: false,
+    });
+    const specParams = docsRenderSpy.mock.calls.at(-1)?.[1] as Record<string, unknown> | undefined;
+    expect(specParams?.REVIEW_PLAN_LINE).toBe("");
+  });
+
   it("Task 18 review-1 finding 2: fix 族 HARD_GATE = docsFixHardGate 写盘门（review 的 json-return 门不被挪用）", async () => {
     const execa = mockExeca((await import("execa")).execa);
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });

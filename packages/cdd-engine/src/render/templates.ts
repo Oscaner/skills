@@ -26,6 +26,7 @@ import { resolveResource } from "../infra/resource.ts";
 const compile = hb.compile;
 
 import { Handoff } from "../artifacts/handoff.ts";
+import { docTypeRegistry } from "../documents/registry.ts";
 import { invariant } from "../infra/exit.ts";
 import { runtime, type TemplateCacheSlots, type TemplateCacheStats } from "../infra/runtime.ts";
 import { HandoffSchemaValidator } from "../rules/schema.ts";
@@ -73,7 +74,7 @@ export const LINE_BUDGETS = Object.freeze({
 });
 
 export interface ReviewTypeConfig {
-  lensEnum: string[];
+  lensEnum: readonly string[];
   ref: string;
   axesGuide: string;
 }
@@ -85,10 +86,9 @@ function joinLines(lines: string[]): string {
 }
 
 // returnFormat → shell family: the docs family owns RETURN_JSON (spec/plan review) and DOCS_FIX
-// (spec/plan fix); everything else (RETURN_STDOUT_BLOCK / absent) is the task family. No
-// switch-statement — a const discriminator map (residue guard: templates.ts is switch-free, and
-// writing the forbidden token's literal shape here trips the guard's own scan).
-const DOCS_FORMATS = Object.freeze(["RETURN_JSON", "DOCS_FIX"]);
+// (spec/plan fix); everything else (RETURN_STDOUT_BLOCK / absent) is the task family. The
+// discrimination set lives on the doc types' bodyView (S7/T5 — the module-level DOCS_FORMATS set
+// migrated there); #familyFor judges membership against the registry's doc-family formats:
 
 // Legacy double-stash → triple-stash (raw, un-escaped values): strict compile with {{{X}}}
 // preserves the three-line return contract (`status: <APPROVED|BLOCKED>`), the gate (`> ⚠️ …`) and
@@ -269,9 +269,15 @@ export class TemplateLoader {
   }
 
   #familyFor(returnFormat: unknown): string {
-    return typeof returnFormat === "string" && DOCS_FORMATS.includes(returnFormat)
-      ? "docs"
-      : "task";
+    if (typeof returnFormat !== "string") return "task";
+    // S7 convergence (T5): the docs-family discrimination judges membership against the doc types'
+    // bodyView doc-family formats (the migrated DOCS_FORMATS criteria) — the registry is the
+    // single authority, the module-level DOCS_FORMATS set is gone.
+    for (const type of docTypeRegistry.all()) {
+      const family = type.bodyView.docFamily;
+      if (family.formats.includes(returnFormat)) return family.label;
+    }
+    return "task";
   }
 
   #defaultReturnFormat(): string {
@@ -313,7 +319,7 @@ export class TemplateLoader {
     return out;
   }
 
-  // ---- Review template data-driven (template-contract.json#reviews per-type config + shared shell) ----
+  // ---- Review type config (spec/plan — DocType.bodyView · task/branch — template-contract.json#reviews retained face + shared shell) ----
 
   loadReviews(): Record<string, unknown> {
     return this.loadTemplateContract().reviews;
@@ -321,10 +327,24 @@ export class TemplateLoader {
 
   // #reviews[type] → pure content contract { lensEnum, ref, axesGuide } (T2 axis cut:
   // returnFormat/handoffType/fixTemplate moved to canonical; artifact reads go through
-  // reviewArtifactConfig). task/branch refs are git-range symbols (REVIEW_REFERENCE ← concrete
-  // FIXED_POINT..HEAD / BASE..HEAD); spec/plan refs are relational descriptions (doc vs spec), the
-  // actual doc path lands on REVIEW_REFERENCE via the caller.
+  // reviewArtifactConfig). T5 (S7): the spec/plan members migrated to their doc types' bodyView
+  // (read through the registry); task/branch keep the retained template-contract reviews block.
+  // task/branch refs are git-range symbols (REVIEW_REFERENCE ← concrete FIXED_POINT..HEAD /
+  // BASE..HEAD); spec/plan refs are relational descriptions (doc vs spec), the actual doc path
+  // lands on REVIEW_REFERENCE via the caller.
   reviewTypeConfig(type: string): ReviewTypeConfig {
+    // spec/plan review config lives on their doc types' bodyView (S7, T5 — the migrated
+    // reviews.{spec,plan} content, read through the registry); task/branch keep reading the
+    // retained template-contract reviews surface. The gate is docTypeRegistry.byReviewType —
+    // the same registry-single discrimination as the CLI review/fix gates + resolveTargetDoc +
+    // next-step rows (task/branch are non-doc-type dispatch types → null → the template-contract
+    // reviews block below).
+    const docType = docTypeRegistry.byReviewType(type);
+    if (docType) {
+      const reviews = docType.bodyView.reviews;
+      if (!reviews) invariant(false, `unknown review type: ${type}`);
+      return reviews;
+    }
     const cfg = this.loadReviews()[type] as ReviewTypeConfig | undefined;
     if (!cfg) invariant(false, `unknown review type: ${type}`);
     return cfg;

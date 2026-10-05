@@ -209,24 +209,6 @@
       ],
       "ref": "BASE..HEAD",
       "axesGuide": "Same four axes as task (branch-wide health: diff BASE..HEAD + plan conformance) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — `tsc --noEmit`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): branch review IS the full diff — every changed file must be attributable to a finding, a plan requirement, or the reviewed intent; unrelated surface = candidate finding (severity by your judgment), normal finding → fix loop"
-    },
-    "spec": {
-      "lensEnum": [
-        "completeness",
-        "consistency",
-        "clarity"
-      ],
-      "ref": "doc vs spec",
-      "axesGuide": "Follow URC: single-cycle; lens-tag every finding (completeness / consistency / clarity) + Scope axis (changed-surface reasonableness): the doc edits under review must track the reviewed findings — edits beyond them (or beyond the brief seam) are candidate findings"
-    },
-    "plan": {
-      "lensEnum": [
-        "completeness",
-        "decomposition",
-        "buildability"
-      ],
-      "ref": "doc vs spec",
-      "axesGuide": "Follow URC: spec coverage (completeness) / task boundaries + interfaces (decomposition) / type consistency + placeholder scan (buildability) + Scope axis (changed-surface reasonableness): the doc edits under review must track the reviewed findings — edits beyond them (or beyond the brief seam) are candidate findings"
     }
   }
 }

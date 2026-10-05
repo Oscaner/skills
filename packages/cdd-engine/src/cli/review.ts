@@ -13,7 +13,7 @@ import path from "node:path";
 import { Handoff } from "../artifacts/handoff.ts";
 import { hashFile } from "../artifacts/hash.ts";
 import { RoundContext } from "../artifacts/round-context.ts";
-import { DOC_TOKENS } from "../documents/tokens.ts";
+import { docTypeRegistry } from "../documents/registry.ts";
 import { type TaskGroup, toTaskGroup } from "../domain/task-group.ts";
 import { exitOkWith, exitWithCode } from "../infra/exit.ts";
 import { initProcLifecycle, withLifecycle } from "../infra/proc.ts";
@@ -137,7 +137,10 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
       return;
     }
 
-    if (opts.type === "spec" || opts.type === "plan") {
+    // spec/plan: the docs-lane gate resolves through the registered doc type (S4 — the CLI's
+    // `--type` dispatch is the registry's route.reviewType membership: spec/plan route a doc type,
+    // task/branch never do). The type-specific lifecycle handling runs inside DocsLifecycle.run.
+    if (docTypeRegistry.byReviewType(opts.type)) {
       // D11: type-self-describing target param — type=spec reviews the --spec doc;
       // type=plan reviews the --plan doc (optional --spec carries the upstream reference).
       const doc = resolveTargetDoc(opts, "review");
@@ -210,11 +213,14 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
           REVIEW_REFERENCE: doc,
           REVIEW_AXES: cfg.axesGuide,
           RETURN_FORMAT: art.returnFormat,
-          // type=plan: REVIEW_PLAN_LINE injects the upstream spec reference; type=spec has no plan
-          // reference, stays empty. The `**Spec:**` marker comes from the canonical token surface.
-          REVIEW_PLAN_LINE:
-            opts.type === "plan" && opts.spec ? `${DOC_TOKENS.specMark} ${opts.spec}` : "",
+          // REVIEW_PLAN_LINE is a doc-type lifecycle fact (S4) — DocsLifecycle.run derives it from
+          // the registered type's lifecycle (a plan review injects its `**Spec:**` upstream
+          // reference via upstreamSpec; a spec review carries none) and merges it last-wins.
         },
+        // The type-self-describing target's upstream reference — type=plan carries its `--spec`;
+        // type=spec (the target itself) keeps it empty. DocsLifecycle.run hands it to the plan doc
+        // type's lifecycle for the REVIEW_PLAN_LINE round-context slot.
+        upstreamSpec: opts.spec,
         workspace: workspace.path,
         repoRoot: root,
         dryRun: DRY_RUN(),

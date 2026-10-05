@@ -2,14 +2,12 @@
 
 > **Scope:** every template-shaped content — text that is data-izable, referenced by multiple consumers, and drift-prone. Large to small: `template-contract.json`, `harness-contract.json`, `issue-body.json` and `.github/ISSUE_TEMPLATE/*.yml`, down to emit-derived marketplace manifests (`.claude-plugin/`, `.cursor-plugin/`, `marketplace/source.json`). This is the methodological contract (AC12).
 
-The single-source-of-truth convention for template body text — cited whenever a new skill introduces template body text or an emit-derived product needs drift guarding.
-
 ## 1. The two template planes
 
 | Plane | Files | Product |
 |---|---|---|
 | Engine prompt templates | `packages/cdd-engine/templates/` — `engine-config.json` + `template-contract.json` + `schema/` (`task-handoff-schema.json` · `docs-handoff-schema.json` · `cache-profile-schema.json`) | prompts injected into dispatches |
-| Skill document templates | `packages/kairos/skills/*/docs/` — `base-branch.md` (methodology only; doc-structure content is canonical JSON Schemas — see §9) | artifact scaffolds + methodology the skills ship |
+| Skill document templates | `packages/kairos/skills/*/docs/` — `base-branch.md` (methodology only; doc-structure content derives from the engine DocBody model — see §9) | artifact scaffolds + methodology the skills ship |
 
 ## 2. The five-node digraph
 
@@ -81,9 +79,9 @@ The segment attribute (C1) is the cache contract's landing spot: the shell (`## 
 
 ## 9. Experience baking
 
-Skill document templates additionally bake in the program's experience asset (see `04-program-experience.md`): four-table sync mechanics, clean-tree prerequisite, session-call semantics, backfill-as-version, no-claim-without-enforcement, anti-residue guards, capability claims.
+Skill document templates additionally bake in the program's experience asset (see `04-program-experience.md`).
 
-> **Doc-structure templates are canonical JSON Schemas** in `packages/cdd-engine/config/schema/` (surface: `cdd schema get <type>` reads them straight to stdout); skills consume them via `read-schema`, and the engine's `docContractValidate` asserts the same tokens. `base-branch.md` is methodology only.
+> **Doc-structure content derives from the engine DocBody model** — one concrete body per doc type (`src/documents/doctypes/body/*.ts`) projects three derived planes: the schema product (`projectSchemaShape()` → the diff-pinned `config/schema/*.json`), the parse slabber (`projectSlicePatterns()` → the `docContractValidate`/extractor regexes), the token plane (body leaf → `DOC_TOKENS`). Skills consume the schema face via `cdd schema get <type>`. Content edits land in the body, never the derived files. `base-branch.md` is methodology only.
 
 ## 10. Exemplars
 
@@ -98,4 +96,5 @@ Skill document templates additionally bake in the program's experience asset (se
 
 ## Change history
 
+- 2026-10-05 · doc-structure surface re-converged on the DocBody model single source (§9).
 - 2026-09-26 · merged the retired data-driven-templates + template-doctrine pair into this single template-face document.

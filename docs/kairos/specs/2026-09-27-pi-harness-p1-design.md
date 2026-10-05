@@ -6,26 +6,12 @@
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.3](2026-09-27-pi-harness-overall.md)
 - **Depends on**: 无（program 起点）
 
-## Section 0: Incremental warning
-
-本 spec 承诺恰好一个 phase（P1 包侧 pi 分发面）。若实施中发现需要拆分 / 重排 P1 的工作，不是本文件的局部编辑——phase inventory 行、依赖边、change-history 行必须先回填 parent overall（backfill-as-version）再继续。P1 之后的 phase（P2 emit 注册表 / P3 engine 数据面 / P4 文档收口）各归其 spec。
-
-## Section 1: Constraints pointer
-
-跨 phase 约定以 parent overall v1.3 为准（overall wins on conflict），本 phase 不重复表述，仅指针：
-- **D2 源侧手维护**：`pi` 字段与 `version`/`description`/`files` 同源，emit 产物面零新增（pi 无独立 manifest 文件）
-- **D4 事实/规则**：`AI_AGENT=pi` 即宿主检测，检测链路归 P3；本 phase 零运行时扩展、零 peerDependencies
-- **harness 命名统一**：`claude` / `cursor` / `pi`（`cursor-agent` 退役归 P3）
-- **开发期引擎直调** `node packages/cdd-engine/dist/cli.mjs`；spec 中文（Strategy B）
-- 仓库 language policy / commit discipline / changeset 义务不因本 phase 变更
-
-## Section 2: Design body
-
-#### 2.1 目标与范围
+## Design
+**2.1 目标与范围**
 
 P1 使 `@oscaner-skills/osuperpowers` 成为 pi 一等 pi-package：manifest 正式化 + 分发闭包守卫 + 安装验收（C4 validate 单站）。现状实证（grilling fact-finder）：`npm:@oscaner-skills/osuperpowers@0.2.0` 已可被 pi 凭借 conventional `skills/` 布局加载（user settings 中已安装），P1 是"把隐式可用固化为显式声明 + 加守卫"而非首次可达。范围外：任何 `.pi/` 运行时产物、emit 产物面变更、engine 数据面、harness 标识符 rename。
 
-#### 2.2 组件
+**2.2 组件**
 
 锚点图例：R/Q = grilling 定案轮次锚点（R5 覆盖验收站：C4 validate 站①；②站已于 v1.4 裁定删除；Q1′ 为 validate 接线债定案轮）；编号非连续、非必经枚举——缺失编号（如 R2）仅表示该轮未直接产出本 spec 组件，不构成漏项。锚点仅供本 spec 内部溯源，Issue inventory 与 parent overall 均无对应登记（P1 issue ref = none）。
 
@@ -66,11 +52,11 @@ P1 使 `@oscaner-skills/osuperpowers` 成为 pi 一等 pi-package：manifest 正
 
 **C6 release 站（R5 站②）— 已删除（v1.4 裁定）**：post-publish npm 路径 smoke 整体删除——① **detect-only 无门控**（changesets publish 已发生，失败只能 hotfix 二次发版，拦不住任何东西）；② **内容与 C4 同构**（同一 `files` 白名单同一棵树，无发布期变换，C4 已证 8-skill 落盘 + settings 写入）；③ **harness 一致性**：claude/cursor 均无 post-publish smoke（设计评审 user #1-4，2026-09-27）。release.yml 恢复至 C6 前状态；npm-source 解析风险（pi 对 scoped 包 registry 层的接受）记录为已知残余——P4 消费故事 / publish 前人工抽查承接。
 
-#### 2.3 数据流
+**2.3 数据流**
 
 `packages/osuperpowers/package.json`（源侧手维护）→ C2 静态守卫（validate step）↔ C3 契约 pin（test）→ C4 安装 smoke（pack → 解包 → pi install --local --approve → 断言）。全程单站（C6 release 站已删于 v1.4，见 2.2）、无运行时扩展、无 emit 产物面。
 
-#### 2.4 错误与边界
+**2.4 错误与边界**
 
 - `npm pack` 产物名 `oscaner-skills-osuperpowers-<ver>.tgz` 含版本——smoke 用 `--pack-destination` + 动态定位，不硬编码版本字面
 - `pi install` 本地目录源传绝对路径；`--local` 落项目 `.pi/settings.json`（**需 `--approve`**——0.87.1 实测 trust gate：`--no-approve` 与 `--local` 不兼容 exit 1，信任按项目不持久）；`--approve` 非交互自动批准（CI 安全，临时项目即弃）
@@ -78,7 +64,7 @@ P1 使 `@oscaner-skills/osuperpowers` 成为 pi 一等 pi-package：manifest 正
 - files 闭包 glob 展开语义（目录前缀 vs 文件集）：实现以「strip `./` 后目录/文件前缀覆盖」判定，plan 阶段以既有 files 实证
 - smoke 全流程零网络（本地 pack + 本地目录 install）
 
-#### 2.5 测试
+**2.5 测试**
 
 - 新测试自动进 behavior glob：`pi-package.test.mjs`（C3 静态契约）· `pi-install-smoke.test.mjs`（C4 pack→install 断言三连）
 - 守卫：`checkPiPackageWellFormed` 经新 CheckBlock 入 validate + precommit 双面
@@ -95,7 +81,16 @@ P1 使 `@oscaner-skills/osuperpowers` 成为 pi 一等 pi-package：manifest 正
 - `.github/workflows/release.yml` **不含** pi smoke 步骤（C6 已删于 v1.4；npm-source 解析风险 = 已知残余，P4 承接）
 - `pnpm run validate` 全块全绿（新增守卫与测试在内）
 
-## Section 3: Deviations from overall
+## Constraints
+
+- 跨 phase 约定以 parent overall v1.3 为准（overall wins on conflict），本 phase 不重复表述，仅指针：
+- **D2 源侧手维护**：`pi` 字段与 `version`/`description`/`files` 同源，emit 产物面零新增（pi 无独立 manifest 文件）
+- **D4 事实/规则**：`AI_AGENT=pi` 即宿主检测，检测链路归 P3；本 phase 零运行时扩展、零 peerDependencies
+- **harness 命名统一**：`claude` / `cursor` / `pi`（`cursor-agent` 退役归 P3）
+- **开发期引擎直调** `node packages/cdd-engine/dist/cli.mjs`；spec 中文（Strategy B）
+- 仓库 language policy / commit discipline / changeset 义务不因本 phase 变更
+
+## Deviations
 
 | Overall assumption | Phase decision | Overall updated? |
 |---|---|---|
@@ -104,14 +99,10 @@ P1 使 `@oscaner-skills/osuperpowers` 成为 pi 一等 pi-package：manifest 正
 
 无未回填偏差——全部 grilling 定案已随 overall v1.3 sync-before-write 落地。
 
-## Section 4: Notes for downstream
+## Notes for downstream
 
 - **P2（emit 分发注册表）**：消费 `package.json#pi` 作为 pi 分发条目注册的契约输入；本 phase 只固化源字段，不建注册表（P2 硬依赖 P1）
 - **P3（engine 数据面）**：`pi` registry 行 + `AI_AGENT=pi` 检测，不触碰 package 侧字段；`pi-install` 行为与 engine spawn 通道（`pi -p` print 形态）无重叠，per-op 形态 P3 自行定稿
 - **C6 已删（v1.4 裁定）**：release.yml 恢复原状，无修改面；npm-source 解析风险（pi 对 scoped 包 registry 层的接受）= 已知残余——P4 消费故事 / publish 前人工抽查承接
 - **残留记录（consumer 面）**：pi 运行时技能清单无 CLI 内省，skill 可见性由 publish 前人工抽查 + P4 D5 消费故事（包序 override 语义）文档化
 - **#302（独立 single-spec 程序，非本程序产物）**：Review Convergence 判读规则改动归其 spec；P3/P4 若触碰 Review Convergence 文案以 #302 程序定案为准
-
-## Section 5: Review
-
-Fresh-subagent review passes on the committed baseline, then user review, then writing-plans. Review Convergence（I1）：blocker > 0 → fix 全 findings 后 re-review；blocker = 0 → fix 全 findings → done（不再 re-review）。Entry 前树必须 clean（engine entry gate）。

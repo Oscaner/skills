@@ -161,24 +161,16 @@ describe("DOC_TOKENS — production values equal the shape-domain leaves (single
   // The golds below ARE the registered production values — byte-identical to the pre-P2 gold, so
   // the deliberate-update verdict is the unchanged-evidence declaration, never a re-pin (P2 T6).
   // Edit a gold here only when the shape-domain leaf it derives from changes for real.
-  it("plan markers: specMark / parentMark / taskHeading / constraints / prose anchors", () => {
+  it("plan markers: specMark / parentMark / taskHeading / constraints", () => {
     expect(DOC_TOKENS.specMark).toBe("**Spec:**");
     expect(DOC_TOKENS.parentMark).toBe("**Parent program**");
     expect(DOC_TOKENS.taskHeadingFormat).toBe("### Task N:");
     expect(DOC_TOKENS.taskHeadingFor(7)).toBe("### Task 7:");
     expect(DOC_TOKENS.constraintsHeading).toBe("## Constraints");
-    expect(DOC_TOKENS.proseAnchors).toEqual([
-      "口径",
-      "commit 边界机制",
-      "Flow Atomicity",
-      "顺序原则",
-    ]);
-    expect(DOC_TOKENS.proseAnchorTokens).toEqual([
-      "**口径**：",
-      "**commit 边界机制**：",
-      "**Flow Atomicity**：",
-      "**顺序原则**：",
-    ]);
+    // The Form-B prose-anchor tokens are retired — the single constraint surface is the literal
+    // `## Constraints` section (the token face holds no prose-anchor leaf).
+    expect("proseAnchors" in DOC_TOKENS).toBe(false);
+    expect("proseAnchorTokens" in DOC_TOKENS).toBe(false);
   });
 
   it("phase-spec version marker page-twin equals the overall leaf (canonical identity pinned)", () => {
@@ -214,10 +206,9 @@ describe("DOC_TOKENS — production values equal the shape-domain leaves (single
     expect(DOC_TOKENS.changeHistoryHeadingRe.test("## Change history")).toBe(true);
   });
 
-  it("constraints heading + prose-anchor quad", () => {
+  it("constraints heading — the single constraint surface token", () => {
     expect(DOC_TOKENS.constraintsHeadingRe.test("## Constraints")).toBe(true);
     expect(DOC_TOKENS.constraintsHeadingRe.test("### Constraint")).toBe(false);
-    expect(DOC_TOKENS.proseAnchorTokens[1]).toBe("**commit 边界机制**：");
     // the overall header constraints-block marker (the constitutional block the new-shape
     // spec/plan inherits — P2 T4) derives from the overall shape header.constraints.marker
     expect(DOC_TOKENS.overallConstraintsMark).toBe("**Constraints**:");

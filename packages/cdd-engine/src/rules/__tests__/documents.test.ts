@@ -65,7 +65,24 @@ const VALID_OVERALL = [
 function validSpec(
   parent = "- **Parent program**: [plan-overall.md v1.0](./plan-overall.md)",
 ): string {
-  return ["- **Version**: v1.0 · 2026-09-21", "", parent, ""].join("\n");
+  // A three-truth skeleton spec — the single spec grammar (T3): `## Design` + the unique
+  // `### Acceptance criteria` subsection + the `## Constraints` inheritance point.
+  return [
+    "- **Version**: v1.0 · 2026-09-21",
+    "",
+    parent,
+    "",
+    "## Design",
+    "",
+    "### Acceptance criteria",
+    "",
+    "- `criterion one`",
+    "",
+    "## Constraints",
+    "",
+    "- spec delta one",
+    "",
+  ].join("\n");
 }
 
 function validPlan(): string {
@@ -80,10 +97,20 @@ function validPlan(): string {
     "- boundary two",
     "",
     "### Task 1: x",
-    "body",
+    "",
+    "- **Objective**: task one",
+    "- **Steps**:",
+    "  1. implement — checkable: done",
+    "- **Acceptance**:",
+    "  - done",
     "",
   ].join("\n");
 }
+
+// A data-shaped single-task block tail — the inline plan fixtures that assert on specific
+// plan-face failures (or a zero-failure chain) must not trip the orphan task-block gate.
+const DATA_BLOCK =
+  "### Task 1: x\n\n- **Objective**: task one\n- **Steps**:\n  1. implement — checkable: done\n- **Acceptance**:\n  - done";
 
 /** write the three-doc chain; a null member falls back to the valid default for that doc (mutators
  *  pass a doctored version to build the invalid fixture). planName controls the phase id token. */
@@ -130,7 +157,10 @@ describe("validatePlanContract — the plan face (necessary subset, always runs)
 
   it("plan: `**Spec:**` target does not resolve → failure", () => {
     const c = writeChain({
-      plan: "# Plan\n\n**Spec:** [missing-design.md](docs/kairos/specs/missing-design.md)\n\n## Constraints\n\n- c\n\n### Task 1: x\nbody\n",
+      plan:
+        "# Plan\n\n**Spec:** [missing-design.md](docs/kairos/specs/missing-design.md)\n\n## Constraints\n\n- c\n\n" +
+        DATA_BLOCK +
+        "\n",
     });
     const f = run(c);
     expect(f[0].field).toBe("`**Spec:**`");
@@ -139,7 +169,10 @@ describe("validatePlanContract — the plan face (necessary subset, always runs)
 
   it("plan: `**Spec:**` link label ≠ resolved basename (label drift) → failure", () => {
     const c = writeChain({
-      plan: "# Plan\n\n**Spec:** [wrong-name.md](docs/kairos/specs/plan-design.md)\n\n## Constraints\n\n- c\n\n### Task 1: x\nbody\n",
+      plan:
+        "# Plan\n\n**Spec:** [wrong-name.md](docs/kairos/specs/plan-design.md)\n\n## Constraints\n\n- c\n\n" +
+        DATA_BLOCK +
+        "\n",
     });
     expect(fieldNames(c)).toContain("`**Spec:**`");
   });
@@ -170,7 +203,7 @@ describe("validatePlanContract — the plan face (necessary subset, always runs)
   });
 });
 
-describe("taskGroupsFromPlan / effectiveGroups — dispatch-group declaration (P4.3 Task 3, spec §2.2)", () => {
+describe("effectiveGroups — the single dispatch-group derivation (the `## Task Groups` section read is retired)", () => {
   function planFile(body: string): string {
     const dir = mkdtempSync(path.join(tmpdir(), "cdd-groups-"));
     const p = path.join(dir, "plan.md");
@@ -179,46 +212,12 @@ describe("taskGroupsFromPlan / effectiveGroups — dispatch-group declaration (P
   }
   const TASKS = "# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n\n### Task 3: c\nbody\n";
 
-  it("no `## Task Groups` section → empty default: [] declared + per-task singleton groups (pre-P4.3 equivalence)", () => {
+  it("a marker-less block plan (no data records / no edges) → the per-task singleton run (the empty default)", () => {
     const p = planFile(TASKS);
-    expect(documentsValidator.taskGroupsFromPlan(p)).toEqual([]);
     expect(documentsValidator.effectiveGroups(p).map((g) => g.key())).toEqual(["1", "2", "3"]);
   });
 
-  it("merged groups parse — one `- **Task 1, 2**:` bullet per group, number list ascending + deduped", () => {
-    const p = planFile(
-      [
-        TASKS,
-        "## Task Groups",
-        "",
-        "- **Task 1, 2**: 共享验收面",
-        "- **Task 3**: reader-tolerated verbatim (length-1 line is schema-invalid — the write-back judgment keeps such groups off the plan)",
-        "",
-      ].join("\n"),
-    );
-    expect(documentsValidator.taskGroupsFromPlan(p).map((g) => g.key())).toEqual(["1,2", "3"]);
-  });
-
-  it("section boundary — the next `##` heading / `---` rule / prose without a group line terminates the parse", () => {
-    const p = planFile(
-      [
-        TASKS,
-        "## Task Groups",
-        "",
-        "- **Task 1, 2**: merged",
-        "",
-        "## Next section",
-        "",
-        "- unrelated bullet",
-        "",
-        "---",
-        "tail",
-      ].join("\n"),
-    );
-    expect(documentsValidator.taskGroupsFromPlan(p).map((g) => g.key())).toEqual(["1,2"]);
-  });
-
-  it("the literal `## Task Groups` section no longer feeds effectiveGroups — a section-declared plan (marker-less blocks) yields the per-task singletons", () => {
+  it("the literal `## Task Groups` section is NOT read by effectiveGroups — a plan declaring the section derives the per-task singletons from its marker-less blocks", () => {
     const p = planFile(
       [
         "# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n\n### Task 3: c\nbody\n\n### Task 4: d\nbody\n",
@@ -229,37 +228,13 @@ describe("taskGroupsFromPlan / effectiveGroups — dispatch-group declaration (P
         "",
       ].join("\n"),
     );
-    // The section read stays alive and byte-identical (taskGroupsFromPlan is a separate surface from
-    // this derivation)…
-    expect(documentsValidator.taskGroupsFromPlan(p).map((g) => g.key())).toEqual(["1,2", "3,4"]);
-    // …but effectiveGroups derives from the TaskGraph over the task records: these blocks carry no
-    // data markers (no records), so the derivation is the per-task singleton run — the section is
-    // never composed.
+    // effectiveGroups derives from the TaskGraph over the task records: these blocks carry no data
+    // markers (no records with edges), so the derivation is the per-task singleton run — the
+    // declared section never composes it (the runtime read of the section is retired).
     expect(documentsValidator.effectiveGroups(p).map((g) => g.key())).toEqual(["1", "2", "3", "4"]);
   });
 
-  it("a length-1 declared line stays parse-tolerated in the taskGroupsFromPlan read — the >= 2 floor is schema minItems + write-back, never the parser", () => {
-    const p = planFile(
-      [
-        "# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n\n### Task 3: c\nbody\n",
-        "## Task Groups",
-        "",
-        "- **Task 1**: length-1 line (schema-invalid — tolerated read-only, never written back)",
-        "- **Task 2, 3**: conformant merged group",
-        "",
-      ].join("\n"),
-    );
-    // Reader tolerance in the section read: the length-1 group parses and surfaces verbatim —
-    // taskGroupsFromPlan never drops a declared task. The >= 2 floor lives in plan.json
-    // taskGroups.items.tasks.minItems + the adjudication write-back judgment (plan.json description:
-    // a length-1 group never lands on disk — the single-group state exists only as the empty
-    // default), not in this parse. effectiveGroups does not compose the section: the same
-    // marker-less plan derives the per-task singleton run.
-    expect(documentsValidator.taskGroupsFromPlan(p).map((g) => g.key())).toEqual(["1", "2,3"]);
-    expect(documentsValidator.effectiveGroups(p).map((g) => g.key())).toEqual(["1", "2", "3"]);
-  });
-
-  it("有效分区 == 全 task 号集覆盖 guard (P4.4: the effective-group union is the plan task set — declared or empty-default)", () => {
+  it("有效分区 == 全 task 号集覆盖 guard (the effective-group union is the plan task set — declared or empty-default)", () => {
     const declared = planFile(
       [
         "# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n\n### Task 3: c\nbody\n\n### Task 4: d\nbody\n",
@@ -289,28 +264,40 @@ describe("lineage truncation — the spec's own face + necessary subset, four ta
     expect(f.some((x) => x.artifact === "phase spec" && x.field === "`**Version**`")).toBe(true);
   });
 
-  it("spec: no `**Parent program**` line → chain truncation — the four-table audit no-ops and the chain passes (necessary subset only)", () => {
-    // The plan/spec are otherwise valid; the parent cannot be reached → no overall 契約, no four
-    // tables (AC1: lineage 未 resolve → 四表 no-op、necessary-subset 恒跑).
+  it("spec: no `**Parent program**` line → the inheritance-point linkage fails (the spec's `## Constraints` single source demands the parent)", () => {
+    // The three-truth skeleton is the only assertion surface: a spec whose Class-B pointer cannot
+    // reach an `*-overall.md` is a validate failure — the legacy truncation no-op is gone. The
+    // overall contract + four tables are still never audited (the truncation early-returns before them).
     const c = writeChain({ spec: "- **Version**: v1.0 · 2026-09-21\n" });
-    expect(run(c)).toEqual([]);
+    const f = run(c);
+    expect(f.some((x) => x.artifact === "phase spec" && x.field === "`**Parent program**`")).toBe(
+      true,
+    );
+    expect(f.some((x) => x.artifact === "overall")).toBe(false);
   });
 
-  it("spec: Parent program target unresolvable → chain truncation (no four-table failure, necessary subset proceeds)", () => {
+  it("spec: Parent program target unresolvable → the inheritance-point linkage fails (no four-table audit)", () => {
     const c = writeChain({
       spec: validSpec("- **Parent program**: [missing-overall.md v1.0](./missing-overall.md)"),
     });
-    expect(run(c)).toEqual([]);
+    const f = run(c);
+    expect(f.some((x) => x.artifact === "phase spec" && x.field === "`**Parent program**`")).toBe(
+      true,
+    );
+    expect(f.some((x) => x.artifact === "overall")).toBe(false);
   });
 
-  it("spec: Parent program target is not a `*-overall.md` → chain truncation", () => {
+  it("spec: Parent program target is not a `*-overall.md` → the inheritance-point linkage fails", () => {
     const c = writeChain({
       spec: validSpec("- **Parent program**: [plan-design.md](./plan-design.md)"),
     });
-    expect(run(c)).toEqual([]);
+    const f = run(c);
+    expect(f.some((x) => x.artifact === "phase spec" && x.field === "`**Parent program**`")).toBe(
+      true,
+    );
   });
 
-  it("lineage truncated + plan invalid → only the plan-face failures surface (never overall faces)", () => {
+  it("lineage truncated + plan invalid → the plan + spec own faces surface, never overall faces (the truncation early-return)", () => {
     const c = writeChain({
       plan: "# Plan\n\n**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)\n\n### Task 1: x\nbody\n", // no Constraints source
       spec: "- **Version**: v1.0 · 2026-09-21\n", // no parent line → overall never audited
@@ -318,6 +305,7 @@ describe("lineage truncation — the spec's own face + necessary subset, four ta
     });
     const f = run(c);
     expect(f.some((x) => x.artifact === "plan")).toBe(true);
+    expect(f.some((x) => x.artifact === "phase spec")).toBe(true);
     expect(f.some((x) => x.artifact === "overall")).toBe(false);
   });
 });
@@ -707,7 +695,7 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
     // preserved (a ridge-blind scan would return the base P2).
     const specName = "2026-09-21-plan-p2.1-design.md";
     const c = writeChain({
-      plan: `# Plan\n\n**Spec:** [${specName}](docs/kairos/specs/${specName})\n\n## Constraints\n\n- c\n\n### Task 1: x\nbody\n`,
+      plan: `# Plan\n\n**Spec:** [${specName}](docs/kairos/specs/${specName})\n\n## Constraints\n\n- c\n\n### Task 1: x\n\n- **Objective**: task one\n- **Steps**:\n  1. implement — checkable: done\n- **Acceptance**:\n  - done\n`,
       spec: "- **Version**: v1.0 · 2026-09-21\n\n- **Parent program**: [plan-overall.md v1.0](./plan-overall.md)\n",
       overall: [
         "- **Version**: v1.1 · 2026-09-21",

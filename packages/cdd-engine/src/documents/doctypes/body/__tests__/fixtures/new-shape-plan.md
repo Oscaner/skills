@@ -1,6 +1,6 @@
 # Fixture Plan — Task Data Shape
 
-**Spec:** [2026-09-27-pi-harness-p5-design.md](docs/kairos/specs/2026-09-27-pi-harness-p5-design.md)
+**Spec:** [2026-10-02-doc-architecture-v2-p3-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3-design.md)
 
 **Parent program:** [2026-09-27-pi-harness-overall.md v1.2](docs/kairos/specs/2026-09-27-pi-harness-overall.md)
 

@@ -68,6 +68,16 @@ const SPEC = [
   "",
   "- **Parent program**: [2026-01-01-demo-overall.md v1.0](./2026-01-01-demo-overall.md)",
   "",
+  "## Design",
+  "",
+  "### Acceptance criteria",
+  "",
+  "- `criterion one`",
+  "",
+  "## Constraints",
+  "",
+  "- spec delta one",
+  "",
 ].join("\n");
 
 /** Plan-doc body pointing back at its design spec (the plan → spec → overall lineage). */
@@ -82,7 +92,12 @@ function planBody(specBasename: string): string {
     "- boundary one",
     "",
     "### Task 1: x",
-    "body",
+    "",
+    "- **Objective**: task one",
+    "- **Steps**:",
+    "  1. implement — checkable: done",
+    "- **Acceptance**:",
+    "  - done",
     "",
   ].join("\n");
 }

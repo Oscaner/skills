@@ -86,10 +86,6 @@ export interface DocTokens {
   /** 2 — the canonical per-group minimum task count (plan.json taskGroups items tasks minItems) —
    *  the length-1-redundant floor (single-group state exists only as the empty default). */
   taskGroupsMinItems: number;
-  /** The four Form-B prose-anchor tokens verbatim (plan schema enum). */
-  proseAnchorTokens: string[];
-  /** The four bare anchor names (tokens stripped of `**` wraps + colon) for regex building. */
-  proseAnchors: string[];
   // ---- overall ----
   /** `/^\s*-?\s*\*\*Version\*\*:\s*(v\d+\.\d+)/m` — version line + captured token. */
   versionHeaderRe: RegExp;
@@ -278,7 +274,7 @@ export function deriveDocTokens(shapes: {
   const taskGroupsHeadingRe = new RegExp(`^${escapeRegExp(taskGroupsHeading)}\\s*$`);
   // The capture-wrap below needs the schema's exact number-list literal `\d+(?:, \d+)*`. If the
   // entry pattern ever loses it, replace() would silently no-op, the capture group would vanish and
-  // taskGroupsFromPlan would throw on undefined m[1] at plan-parse time. Fail here, at token-build
+  // a consumer of group 1 would read undefined at parse time. Fail here, at token-build
   // time, on the schema-drift edit instead — the live-derivation law fails loudly, not at a parse.
   if (!taskGroupsEntryPattern.includes("\\d+(?:, \\d+)*")) {
     throw new Error(
@@ -292,15 +288,6 @@ export function deriveDocTokens(shapes: {
     plan,
     ["taskGroups", "items", "properties", "tasks"],
     "minItems",
-  );
-
-  const proseAnchorTokens = leaf<string[]>(
-    plan,
-    ["constraints", "formBProseAnchors", "anchors", "items"],
-    "enum",
-  );
-  const proseAnchors = proseAnchorTokens.map((t) =>
-    t.replace(/^\*\*/, "").replace(/\*\*[：:].*$/, ""),
   );
 
   const versionToken = versionTokenBody(overall);
@@ -457,8 +444,6 @@ export function deriveDocTokens(shapes: {
     taskGroupsHeadingRe,
     taskGroupsLineRe,
     taskGroupsMinItems,
-    proseAnchorTokens,
-    proseAnchors,
     versionHeaderRe,
     historyVersionCellRe,
     versionTokenRe,

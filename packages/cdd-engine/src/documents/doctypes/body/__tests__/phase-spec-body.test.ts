@@ -15,9 +15,9 @@
 //     conditional surface (condition=true lands the sections) and zero-residue (condition=false
 //     leaves no section) — pass validate, and the decorated-section structural consequences fail:
 //     a `## Deviations` section without an `Overall updated?` = `Yes` answer, a duplicated
-//     `### Acceptance criteria`, and a missing `## Constraints` inheritance point. Legacy
-//     six-section docs (no `## Design` — the new-skeleton gate) stay on the P1 acceptance path
-//     (dual-read contract);
+//     `### Acceptance criteria`, and a missing `## Constraints` inheritance point. The three-truth
+//     skeleton is the ONLY assertion surface — a legacy six-section spec (no `## Design`) fails
+//     the skeleton too (its BLOCK state is pinned in tree-migration.test.ts / dual-read.test.ts);
 //   - the dead-shell discipline: `doctypes/shapes/phase-spec.ts` is gone (zero existence — the
 //     grep included).
 import { execSync } from "node:child_process";

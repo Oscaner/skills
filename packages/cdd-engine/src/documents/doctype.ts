@@ -60,7 +60,8 @@ export interface SchemaNode {
   const?: string | number | boolean;
   /** An `enum` leaf — the string-vocabulary leaves (status states / column names / prose anchors). */
   enum?: readonly string[];
-  /** The `$defs` container (the plan's taskGroups definitional sub-schema). */
+  /** The `$defs` container — definitional sub-schemas (the plan's taskGroups section-layout
+   *  sub-schema; the dispatch-group runtime read is retired, the leaf feeds the derived tokens). */
   $defs?: Readonly<Record<string, SchemaNode>>;
   /** The `default` leaf (the plan taskGroups empty default). */
   default?: unknown;

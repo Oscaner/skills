@@ -1502,11 +1502,6 @@ const PLAN_CONSTRAINTS_FILE = "plan-constraints.md";
 // never returns with it absent).
 const PLAN_CONSTRAINTS_MISSING_BLOCKER =
   "plan-constraints.md missing — run materializer or declare a plan Constraints source";
-// Legacy prose-pointer anchors, canonical order — extraction order is this constant, never plan
-// line order (byte-determinism). The bare names derive from the canonical plan schema's Form-B
-// anchor tokens (tokens.ts; `**口径**：` → `口径`); the canonical form (literal `## Constraints`)
-// wins over this.
-const PROSE_ANCHORS = DOC_TOKENS.proseAnchors as readonly string[];
 
 /** Plan declares no Constraints source (neither a literal `## Constraints` section nor any
  * prose-pointer anchor) — the materializer must BLOCK, never fall back silently. P6 T24 E: the
@@ -1547,7 +1542,7 @@ export function materializePlanConstraints(plan: string, workspace: string, root
   const content = new DocumentsValidator().planConstraintsOf(plan, root);
   if (content === null) {
     throw new ConstraintsSourceUndeclared(
-      `plan Constraints source undeclared — declare a literal “${DOC_TOKENS.constraintsHeading}” section (canonical) or the prose pointer headings (${PROSE_ANCHORS.join(" / ")}) so cdd implement can materialize ${PLAN_CONSTRAINTS_FILE}`,
+      `plan Constraints source undeclared — declare a literal “${DOC_TOKENS.constraintsHeading}” section (the single constraint source) so cdd implement can materialize ${PLAN_CONSTRAINTS_FILE}`,
     );
   }
   writeFileSync(outPath, constraintsHeader(plan, hashFile(plan)) + content, "utf8");

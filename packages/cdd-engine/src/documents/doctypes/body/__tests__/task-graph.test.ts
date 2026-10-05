@@ -141,8 +141,9 @@ describe("TaskGraph — the five-failure-class validate BLOCK (each fixture hits
 });
 
 describe("the edge-field parse — parseTaskBlock reads the DependsOn / AtomicWith lines", () => {
-  /** Write a minimal plan with two blocks (a new-shape one + a legacy `- **Do**:` one) and return
-   *  the parsed Task records — the dual-read contract stays: the legacy block yields no record. */
+  /** Write a minimal plan with two blocks (a data-shaped one + a legacy `- **Do**:` one) and return
+   *  the parsed Task records — the single-form grammar parses EVERY block: the legacy block yields
+   *  an empty orphan record (a validate failure, never a silently dropped block). */
   function parsed(): Task[] {
     const dir = mkdtempSync(path.join(tmpdir(), "task-graph-parse-"));
     try {
@@ -170,10 +171,12 @@ describe("the edge-field parse — parseTaskBlock reads the DependsOn / AtomicWi
     }
   }
 
-  it("`- **DependsOn**: 3, 5` / `- **AtomicWith**: 4, 5` land as number[] on the Task record", () => {
+  it("`- **DependsOn**: 3, 5` / `- **AtomicWith**: 4, 5` land as number[] on the Task record (the Do block parses to an empty orphan record)", () => {
     const tasks = parsed();
-    expect(tasks).toHaveLength(1); // the legacy Do block carries no data markers → no record
+    expect(tasks).toHaveLength(2); // every block parses a record — the Do block is an orphan (empty)
     expect(tasks[0]!.dependsOn).toEqual([3, 5]);
     expect(tasks[0]!.atomicWith).toEqual([4, 5]);
+    expect(tasks[1]!.objective).toBe("");
+    expect(tasks[1]!.steps).toEqual([]);
   });
 });

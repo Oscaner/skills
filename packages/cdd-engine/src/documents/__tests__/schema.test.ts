@@ -8,7 +8,7 @@
 //     back to the source tree (dev face); the resolver is exercised against a fabricated
 //     consumer-install layout deterministically (no real build needed in the suite);
 //   - canonical token spot-checks pin the contract-critical patterns (task-heading colon form,
-//     CLAIM_RE family, six-content-column Phase-inventory rows, prose-anchor quad,
+//     CLAIM_RE family, six-content-column Phase-inventory rows,
 //     taskGroups dispatch-group declaration, `### Acceptance criteria` uniqueness) so an
 //     accidental edit of the single source surfaces as a test failure.
 // Zero transactional behavior: this module reads only — no writes, no dispatch, no audit.
@@ -127,17 +127,6 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
         // tolerant colon form — the brief extractor's slice surface (`/^### Task \d+:/`); an
         // optional title after the colon is parse-tolerated, so the pin is unanchored at the tail
         expect(get("$.properties.taskHeadings.properties.pattern.pattern")).toBe("^### Task \\d+:");
-        // constraints Form B prose-anchor quad
-        const anchors = schemaNode(
-          s,
-          "$.properties.constraints.properties.formBProseAnchors.properties.anchors.items.enum",
-        ) as string[];
-        expect(anchors).toEqual([
-          "**口径**：",
-          "**commit 边界机制**：",
-          "**Flow Atomicity**：",
-          "**顺序原则**：",
-        ]);
         // taskGroups dispatch-group declaration (P4.3 Task 3, spec §2.2): optional array, empty
         // default [], each item `{ tasks: number[] }` with minItems >= 2 (a length-1 group is
         // redundant — the singleton state exists only as the empty default), section layout const/pattern

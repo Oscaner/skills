@@ -4,16 +4,15 @@
 //     injected read-only, an instance of the abstract DocBody);
 //   - the full-field shape projection — the metadata header five-tuple (specRef — the Class-A
 //     `**Spec:**` + label==basename kept — · parentProgram · version · dependsOn · base), the
-//     delta-only `## Constraints` (Form B prose pointers banned for new docs, retained for the
-//     legacy dual-read tree only), the `tasks[]` Task data shape (objective / files / interface
+//     delta-only `## Constraints` (the single constraint surface — the literal top-level section
+//     carrying the plan's own deltas), the `tasks[]` Task data shape (objective / files / interface
 //     {consumes,produces} / steps[]{action,checkable} / acceptance[] + the optional dependsOn?/
 //     atomicWith? edge fields), the taskGroups dispatch-group declaration (an optional section — the
 //     DOC_TOKENS layout leaves preserved) and the `language` authoring-language policy note (the
 //     plan is a Strategy B internal doc — prose in the working language, value tokens neutral);
-//   - the DOC_TOKENS derived-leaf invariant: the re-projection keeps the four deriveDocTokens leaf
-//     paths/values (taskHeadings.format · constraints.formACanonical.heading ·
-//     constraints.formBProseAnchors.anchors.items.enum · the taskGroups layout nodes) — deriveDocTokens
-//     keeps resolving at module load with production values unchanged;
+//   - the DOC_TOKENS derived-leaf invariant: the re-projection keeps the deriveDocTokens leaf
+//     paths/values (taskHeadings.format · constraints.formACanonical.heading · the taskGroups layout
+//     nodes) — deriveDocTokens keeps resolving at module load with production values unchanged;
 //   - the parse slice-pattern projection (the `### Task N:` render surface + the task-block field
 //     markers — objective/steps/acceptance single source);
 //   - the leaf-binding identity: `projectSchemaShape()` returns the module-level `PLAN_BODY_SHAPE`
@@ -156,25 +155,18 @@ describe("PLAN_BODY_SHAPE — the full-field data-shape projection", () => {
     expect(constAt(["header", "parentProgram", "marker"])).toBe("**Parent program**");
   });
 
-  it("`## Constraints` is delta-only — the section carries the plan's own deltas; Form B is a legacy-only read face", () => {
+  it("`## Constraints` is delta-only — the literal section carries the plan's own deltas (the single constraint surface)", () => {
     expect(pat(["constraints", "formACanonical", "heading"])).toBe("^## Constraints\\s*$");
     // The new form's description states the delta-only semantics (new docs never restate inherited
-    // conventions; Form B prose pointers are banned for new docs).
+    // conventions).
     const formADesc = node(["constraints", "formACanonical"]).description ?? "";
     expect(formADesc).toMatch(/delta/i);
     expect(formADesc).toMatch(/own/);
-    const formBDesc = node(["constraints", "formBProseAnchors"]).description ?? "";
-    expect(formBDesc).toMatch(/legacy/i);
-    // The Form-B anchor quad is retained verbatim (the T5 legacy dual-read + extractProseConstraints
-    // dependency — the four anchors stay the same tokens).
-    const anchors = node(["constraints", "formBProseAnchors", "anchors"]).items
-      ?.enum as readonly string[];
-    expect(anchors).toEqual([
-      "**口径**：",
-      "**commit 边界机制**：",
-      "**Flow Atomicity**：",
-      "**顺序原则**：",
-    ]);
+    // The plan shape carries no Form-B leaf — the legacy prose-pointer surface is gone.
+    const constraintsProps = node(["constraints"]).properties as Readonly<
+      Record<string, SchemaNode>
+    >;
+    expect(Object.keys(constraintsProps)).not.toContain("formBProseAnchors");
   });
 
   it("taskHeadings keeps the colon-form render surface (the DOC_TOKENS taskHeading leaf path)", () => {
@@ -223,10 +215,10 @@ describe("PLAN_BODY_SHAPE — the full-field data-shape projection", () => {
   });
 });
 
-describe("DOC_TOKENS derived-leaf invariant (the T3 re-projection keeps all four leaf paths)", () => {
+describe("DOC_TOKENS derived-leaf invariant (the re-projection keeps the derivation leaves)", () => {
   it("deriveDocTokens keeps resolving off the new plan shape with production values unchanged", () => {
     // The module-level DOC_TOKENS already ran at import (a broken leaf path throws at load) — this
-    // test re-derives off the LIVE registry shape and pins the four leaf families explicitly.
+    // test re-derives off the LIVE registry shape and pins the leaf families explicitly.
     expect(() =>
       deriveDocTokens({
         plan: docTypeRegistry.resolve("plan").shape,
@@ -239,16 +231,12 @@ describe("DOC_TOKENS derived-leaf invariant (the T3 re-projection keeps all four
     // 2 · constraints.formACanonical.heading
     expect(DOC_TOKENS.constraintsHeading).toBe("## Constraints");
     expect(DOC_TOKENS.constraintsHeadingRe.test("## Constraints")).toBe(true);
-    // 3 · constraints.formBProseAnchors.anchors.items.enum
-    expect(DOC_TOKENS.proseAnchorTokens).toEqual([
-      "**口径**：",
-      "**commit 边界机制**：",
-      "**Flow Atomicity**：",
-      "**顺序原则**：",
-    ]);
-    // 4 · the taskGroups layout nodes
+    // 3 · the taskGroups layout nodes
     expect(DOC_TOKENS.taskGroupsHeading).toBe("## Task Groups");
     expect(DOC_TOKENS.taskGroupsMinItems).toBe(2);
+    // 4 · the Form-B prose-anchor tokens are retired (the shape leaf + its derivation are gone)
+    expect("proseAnchorTokens" in DOC_TOKENS).toBe(false);
+    expect("proseAnchors" in DOC_TOKENS).toBe(false);
   });
 });
 
@@ -319,7 +307,6 @@ describe("the new-shape plan fixture — parse + validate + tasksFromPlan (desig
   it("parse 全绿: the data-shape fixture's task headings stay the contiguous 1..N render surface", () => {
     const parsed = planType().parse(NEW_SHAPE, { root: REPO_ROOT }) as PlanParse;
     expect(parsed.taskNumbers).toEqual([1, 2]);
-    expect(parsed.taskGroups).toEqual([]);
   });
 
   it("validate 全绿: the full new-shape fixture audits clean (plan contract + data-shape steps + Class A)", () => {

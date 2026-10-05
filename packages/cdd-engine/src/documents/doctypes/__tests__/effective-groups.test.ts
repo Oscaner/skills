@@ -166,7 +166,7 @@ describe("effectiveGroups — the TaskGraph-derived dispatch grouping", () => {
     }
   });
 
-  it("a plan carrying no task data records (the legacy block face) → the per-task singleton fallback [[1],[2]]", () => {
+  it("a plan with orphan blocks (records with no data fields, no edges) → the per-task singleton run [[1],[2]]", () => {
     const p = planFile("# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n");
     try {
       expect(groupKeys(p)).toEqual(["1", "2"]);

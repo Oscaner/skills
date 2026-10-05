@@ -4,7 +4,11 @@
 // branch (validatePhaseSpecContract semantics) homes here: the spec's own `**Version` line, then the
 // Class-B Parent program resolution → the parent overall's contract + four tables (composed through
 // the registry — the S3 parent walk). The phase-spec is a routed review target (`"spec"` review
-// type — S4); it has no dedicated structure parse beyond the Version-line check.
+// type — S4); it has no dedicated structure parse beyond the Version-line check. P2 T2 adds the
+// new-skeleton body injection (the shape domain derives from `PhaseSpecBody.projectSchemaShape()`
+// — the intended Projection source, never a re-homed constant) and the new-skeleton structural
+// assertions (design C2: the three-truth skeleton existence + the decorated-conditional-section
+// consequences).
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -13,12 +17,13 @@ import {
   type DocLifecycleFacts,
   DocType,
   type DocValidateFailure,
+  type SchemaShape,
 } from "../doctype.ts";
 import { docTypeRegistry } from "../registry.ts";
 import { DOC_TOKENS } from "../tokens.ts";
 import { DOC_WORDS } from "../words.ts";
+import type { PhaseSpecBody } from "./body/phase-spec-body.ts";
 import { SPEC_BODY_VIEW } from "./body-views.ts";
-import { PHASE_SPEC_SHAPE } from "./shapes/phase-spec.ts";
 import { isPlaceholderOrTemplateTarget, linksOnLine, resolveAny } from "./shared.ts";
 
 // ---- spec-contract atoms (canonical — documents/tokens.ts) ----
@@ -27,6 +32,29 @@ const VERSION_FIELD = DOC_TOKENS.versionField;
 const VERSION_TOKEN_RE = DOC_TOKENS.versionTokenRe;
 const PARENT_MARK = DOC_TOKENS.parentMark;
 
+/** One structural-pattern leaf of a body's projected shape, navigated by its `properties` path —
+ *  the docContractValidate reads the same schema leaves the authors draft against (the schema is
+ *  the single structure fact; module-private — exactly one consumer, the skeleton assertions). The
+ *  walk is the same properties-first collection idiom as tokens.ts nodeAt. */
+function shapePattern(shape: SchemaShape, props: readonly string[]): string {
+  let node: Readonly<Record<string, unknown>> = shape as unknown as Readonly<
+    Record<string, unknown>
+  >;
+  for (const key of props) {
+    const viaProps = (node.properties as Readonly<Record<string, unknown>> | undefined)?.[key];
+    const next = viaProps ?? node[key];
+    if (next === null || next === undefined || typeof next !== "object") {
+      throw new Error(`phase-spec shape pattern node not found: ${props.join(".")}`);
+    }
+    node = next as Readonly<Record<string, unknown>>;
+  }
+  const pattern = node.pattern;
+  if (typeof pattern !== "string") {
+    throw new Error(`phase-spec shape pattern not found at: ${props.join(".")}`);
+  }
+  return pattern;
+}
+
 /** The phase-spec doc type — `-design.md` basename + `**Version**` line detection (the spec's
  *  structural feature — a plan/spec doc with the Version line but no four-table header is never
  *  judged an overall), the Version-line check parse, and the spec contract face (Version STRICTLY
@@ -34,16 +62,19 @@ const PARENT_MARK = DOC_TOKENS.parentMark;
  *  routed review target (`"spec"` review type).
  */
 export class PhaseSpecDocType extends DocType {
-  constructor() {
+  /** The injected body — the shape + slice single source for this doc type's checks (constructor
+   *  injection, no default parameterization: the body is the live wiring of the shape domain). */
+  readonly body: PhaseSpecBody;
+
+  constructor(body: PhaseSpecBody) {
     super({
       kind: "spec",
-      // Shape domain — the phase-spec output schema content (T3: the concrete per-type shape, the
-      // SchemaFactory's projection source). Words — the shared engine lexicon content (T4: every
-      // doc type references the same DOC_WORDS object — words single-source). BodyView — the
-      // docs-family body forms + the spec review config (T5: the migrated template-contract
-      // reviews.spec content). instructions / refKind stay the P1 placeholder state (P5 lands the
-      // concrete content).
-      shape: PHASE_SPEC_SHAPE,
+      // Shape domain — the phase-spec output schema content (P2 T2: derived from the injected body's
+      // projectSchemaShape() — the only contract chain DocBody.projectSchemaShape() → DocType.shape →
+      // SchemaFactory; the retired phase-spec shape constant is gone). Words — the shared engine
+      // lexicon content. BodyView — the docs-family body forms + the spec review config. instructions
+      // / refKind stay the P1 placeholder state (P5 lands the concrete content).
+      shape: body.projectSchemaShape(),
       words: DOC_WORDS,
       instructions: [],
       refKind: { kind: "" },
@@ -51,6 +82,7 @@ export class PhaseSpecDocType extends DocType {
       // The phase-spec's routed review/fix face (S4): `--type spec` / the `--spec` next-step flag.
       route: { reviewType: "spec", argKey: "spec", targetFlag: "--spec" },
     });
+    this.body = body;
   }
 
   /** Phase-spec detection: the `-design.md` basename form AND the `**Version**` line contract
@@ -85,9 +117,10 @@ export class PhaseSpecDocType extends DocType {
     return this.#resolveParentOverall(entry, root).overallPath;
   }
 
-  /** The phase-spec doc-type surface: `**Version**` line (the spec's own structural face) then Class B
-   * → the parent overall's contract face + four tables (version-lineage merged in). phaseId is the
-   * dispatch plan's phase (a spec-entry audit has none). */
+  /** The phase-spec doc-type surface: `**Version**` line (the spec's own structural face) + the
+   * new-skeleton structural assertions (P2 T2) then Class B → the parent overall's contract face +
+   * four tables (version-lineage merged in). phaseId is the dispatch plan's phase (a spec-entry
+   * audit has none). */
   validatePhaseSpecContract(
     specPath: string,
     root: string,
@@ -104,6 +137,7 @@ export class PhaseSpecDocType extends DocType {
         fix: `add a \`- ${DOC_TOKENS.versionMark}: vX.Y · <date>\` line at the document head`,
       });
     }
+    failures.push(...this.#skeletonFailures(content, specPath));
     const parent = this.#resolveParentOverall(specPath, root);
     if (!parent.overallPath) return failures; // chain truncation — the four tables + overall contract no-op
     failures.push(
@@ -113,6 +147,83 @@ export class PhaseSpecDocType extends DocType {
         pinnedTokens: parent.pinnedTokens,
       }),
     );
+    return failures;
+  }
+
+  /** The new-skeleton structural assertions (P2 T2; design C2): a phase-spec in the NEW skeleton
+   *  shape — recognized by the `## Design` heading (a marker no legacy Section 0–5 skeleton carries)
+   *  — must carry the full three-truth skeleton (unique `### Acceptance criteria` inside `## Design`
+   *  · `## Constraints`), and a DECORATED conditional section must carry its structural marker
+   *  (`## Deviations` demands an `Overall updated?` answer of `Yes` — a decorated section must
+   *  carry its marker). Legacy six-section docs (no `## Design`) keep the P1 acceptance path
+   *  unchanged — both shapes are read (dual-read contract). Whether a section's semantic condition
+   *  holds is the author's declared judgment (the schema descriptions carry the criteria) — the
+   *  machine asserts only how a decorated section must look, never the condition's truth. */
+  #skeletonFailures(content: string, specPath: string): DocValidateFailure[] {
+    const slices = this.body.projectSlicePatterns();
+    const lines = content.split("\n");
+    const lineHas = (re: RegExp): boolean => lines.some((l) => re.test(l));
+    // The new-skeleton gate: `## Design` is the new shape's marker (legacy Section 0–5 docs never
+    // carry it) — only a new-shape spec runs the assertion family (dual-read).
+    if (!lineHas(slices.designHeading)) return [];
+    const failures: DocValidateFailure[] = [];
+    const push = (field: string, missing: string, fix: string) => {
+      failures.push({ artifact: "phase spec", file: specPath, field, missing, fix });
+    };
+    // 1. The unique `### Acceptance criteria` subsection inside `## Design` — present exactly once
+    //    (the unique-constraint kept from the retired Section 2 skeleton).
+    const acceptanceHits = lines.filter((l) => slices.acceptanceCriteriaHeading.test(l));
+    if (acceptanceHits.length === 0) {
+      push(
+        "`### Acceptance criteria`",
+        "no `### Acceptance criteria` subsection in the `## Design` body",
+        "add the unique `### Acceptance criteria` subsection (`- ` code-span-prefixed acceptance entries) inside `## Design`",
+      );
+    } else if (acceptanceHits.length > 1) {
+      push(
+        "`### Acceptance criteria`",
+        "the `### Acceptance criteria` subsection appears more than once",
+        "keep `### Acceptance criteria` the unique subsection (`- ` code-span-prefixed entries)",
+      );
+    }
+    // 2. The `## Constraints` inheritance point — the non-conditional third of the three-truth
+    //    skeleton (the parent-overall conventions auto-apply; the section carries the spec's own
+    //    delta + the `**Parent program**` pointer, never a restatement).
+    if (!lineHas(slices.constraintsHeading)) {
+      push(
+        "`## Constraints`",
+        "no `## Constraints` inheritance-point section",
+        "add a `## Constraints` section carrying the spec's own delta + the `**Parent program**` pointer (the parent-overall conventions auto-apply)",
+      );
+    }
+    // 3. Conditional-section structural consequence — a DECORATED `## Deviations` section must carry
+    //    the `Overall updated?` = `Yes` marker. The heading + the answer form derive live from the
+    //    projected shape (the schema is the single structure fact).
+    const spine = this.body.projectSchemaShape();
+    const deviationsHeadingRe = new RegExp(shapePattern(spine, ["deviations", "heading"]));
+    const deviationsIdx = lines.findIndex((l) => deviationsHeadingRe.test(l));
+    if (deviationsIdx !== -1) {
+      // The schema's answer pattern is the anchored `^Yes` face; the section scan is an unanchored
+      // contains-search (parse mechanics — the `Yes` token stays the canonical leaf).
+      const updatedRe = new RegExp(
+        shapePattern(spine, ["deviations", "updated"]).replace(/^\^/, ""),
+      );
+      let sectionEnd = lines.length;
+      for (let i = deviationsIdx + 1; i < lines.length; i++) {
+        if (/^## /.test(lines[i]!)) {
+          sectionEnd = i;
+          break;
+        }
+      }
+      const section = lines.slice(deviationsIdx + 1, sectionEnd).join("\n");
+      if (!updatedRe.test(section)) {
+        push(
+          "`Overall updated?`",
+          "a `## Deviations` section exists but no `Overall updated?` row answers `Yes`",
+          "answer every deviations-table `Overall updated?` row `Yes` (with version + date, e.g. `Yes — vX.Y · YYYY-MM-DD`) before review, or remove the section when the deviation has been fed back to the overall",
+        );
+      }
+    }
     return failures;
   }
 

@@ -16,6 +16,7 @@
 // lazily inside their instance methods (never at module-evaluation time — the registration cycle is
 // safe by construction).
 import type { DocKind, DocType } from "./doctype.ts";
+import { phaseSpecBody } from "./doctypes/body/phase-spec-body.ts";
 import { OverallDocType } from "./doctypes/overall.ts";
 import { PhaseSpecDocType } from "./doctypes/phase-spec.ts";
 import { PlanDocType } from "./doctypes/plan.ts";
@@ -79,5 +80,8 @@ export class DocTypeRegistry {
 export const docTypeRegistry = new DocTypeRegistry([
   new OverallDocType(),
   new PlanDocType(),
-  new PhaseSpecDocType(),
+  // The phase-spec wiring (P2 T2): the doc type carries the injected body singleton — its
+  // `shape` field is `phaseSpecBody.projectSchemaShape()` (the body-leaf projection), never a
+  // re-homed constant.
+  new PhaseSpecDocType(phaseSpecBody),
 ]);

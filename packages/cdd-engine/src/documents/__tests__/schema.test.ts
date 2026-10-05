@@ -271,19 +271,39 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
         expect(claimClauseDesc).toMatch(/prose|hint|diagnos/i);
       }
       if (name === "phase-spec") {
-        // `### Acceptance criteria` is the unique subsection (const heading + fixed location)
-        expect(get("$.properties.acceptanceCriteria.properties.heading.const")).toBe(
-          "### Acceptance criteria",
-        );
+        // Three-truth skeleton (P2 T2 — the new-skeleton shape): `## Design` (with the unique
+        // `### Acceptance criteria` subsection) · `## Constraints` inheritance point · the `- `
+        // code-span acceptance entry face.
+        expect(get("$.properties.design.properties.heading.pattern")).toBe("^## Design$");
+        expect(get("$.properties.constraints.properties.heading.pattern")).toBe("^## Constraints$");
+        expect(get("$.properties.acceptance.properties.entry.pattern")).toBe("^- `");
+        // `### Acceptance criteria` — the unique subsection nested inside `## Design` (const heading
+        // + parent — the unique-constraint kept from the retired Section 2 skeleton).
         expect(
-          get("$.properties.acceptanceCriteria.properties.location.properties.parent.const"),
-        ).toBe("Section 2 (Design body)");
-        // Section 0–5 skeleton headings
-        for (const n of [0, 1, 2, 3, 4, 5]) {
-          expect(
-            get(`$.properties.sections.properties.section${n}.properties.heading.pattern`),
-          ).toContain(`^## Section ${n}:`);
+          get("$.properties.design.properties.acceptanceCriteria.properties.heading.const"),
+        ).toBe("### Acceptance criteria");
+        expect(
+          get(
+            "$.properties.design.properties.acceptanceCriteria.properties.location.properties.parent.const",
+          ),
+        ).toBe("## Design");
+        // Conditional sections — the four fields each carry a dependentRequired face; the deviations
+        // section's `Overall updated?` answer must read `Yes` (the decorated ⇒ marker consequence).
+        for (const field of [
+          "deviations",
+          "incrementalWarning",
+          "downstreamNotes",
+          "reviewRecord",
+        ]) {
+          expect(schemaNode(s, `$.properties.${field}.dependentRequired`)).toBeDefined();
         }
+        expect(get("$.properties.deviations.properties.updated.pattern")).toBe("^Yes");
+        expect(schemaNode(s, "$.properties.deviations.dependentRequired")).toEqual({
+          heading: ["updated"],
+        });
+        // Root if/then — the three-truth skeleton consequence (design ⇒ acceptance + constraints).
+        expect(schemaNode(s, "$.if.required")).toEqual(["design"]);
+        expect(schemaNode(s, "$.then.required")).toEqual(["acceptance", "constraints"]);
       }
       if (name === "add-phase-protocol") {
         // registration checklist structure — hard edge + anchored form

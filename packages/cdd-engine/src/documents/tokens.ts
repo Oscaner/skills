@@ -2,8 +2,9 @@
 // (P2 T2; design §2.3 AC4 TC single-source evidence · S8). Every engine-side doc-structure TOKEN
 // (the literals and patterns documents.ts / brief.ts / task.ts assert) derives here from the
 // doc-type shape domain — the same DocType.shape content the registry's doc types carry (the shape
-// constants under doctypes/shapes/*; the config/schema products are their byte-faithful
-// projections, never re-read). The former hand-written copies in each consumer are these
+// constants under doctypes/shapes/* plus the P2 T2 body-leaf projections — the phase-spec input
+// authorizes from `PHASE_SPEC_BODY_SHAPE`, the body leaf, since the shape constant retired into the
+// concrete DocBody; the config/schema products are their byte-faithful projections, never re-read). The former hand-written copies in each consumer are these
 // derivations. Change a shape leaf once → engine validation/extraction follows in the same build —
 // the deriveDocTokens(shapes) pure function is that live link (feed it a doctored shape and the
 // derived token changes).
@@ -17,9 +18,16 @@
 //     and asserted equal to the overall marker at load, so the two pages cannot silently drift.
 // Generic markdown/link/placeholder atoms (LINK_RE, PLACEHOLDER_RE) stay engine-local — they are
 // parsing primitives, not doc-structure definitions.
+// ---- load-order note (P2 T2) ---- //
+// DOC_TOKENS authorizes its shape inputs from the BODY LEAF projections (e.g. `PHASE_SPEC_BODY_SHAPE`
+// — the same value the registry's doc type carries via its injected body), never from
+// `docTypeRegistry` itself: the registry → doctypes → tokens module graph has no back-edge, so both
+// the `registry`-first and `tokens`-first load orders resolve (a registry.resolve at module top
+// would TDZ against the doctypes' module-top DOC_TOKENS references). The body leaf modules import
+// zero engine modules. The load-order regression is pinned by the colocated load-order.test.ts.
 import type { SchemaShape } from "./doctype.ts";
+import { PHASE_SPEC_BODY_SHAPE } from "./doctypes/body/phase-spec-body.ts";
 import { OVERALL_SHAPE } from "./doctypes/shapes/overall.ts";
-import { PHASE_SPEC_SHAPE } from "./doctypes/shapes/phase-spec.ts";
 import { PLAN_SHAPE } from "./doctypes/shapes/plan.ts";
 
 export interface DocTokens {
@@ -465,9 +473,9 @@ export function deriveDocTokens(shapes: {
 
 /** Production token surface — derived from the doc-type shape domain (the same DocType.shape
  *  content the registry's doc types carry / the SchemaFactory projects onto the derived
- *  config/schema products) on load. */
+ *  config/schema products) on load. The phase-spec input is the body leaf projection (P2 T2). */
 export const DOC_TOKENS: DocTokens = deriveDocTokens({
   plan: PLAN_SHAPE,
   overall: OVERALL_SHAPE,
-  "phase-spec": PHASE_SPEC_SHAPE,
+  "phase-spec": PHASE_SPEC_BODY_SHAPE,
 });

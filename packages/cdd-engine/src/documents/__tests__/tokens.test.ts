@@ -1,7 +1,8 @@
 // packages/cdd-engine/src/documents/__tests__/tokens.test.ts — canonical doc-structure tokens
 // (P2 T2; design §2.3 AC4 TC single-source evidence · S8). Every engine-side structure token
-// derives from the doc-type shape domain (doctypes/shapes/* — the same DocType.shape content the
-// registry serves, passed into deriveDocTokens) — the "edit one canonical leaf → engine
+// derives from the doc-type shape domain (doctypes/shapes/* + the P2 T2 body-leaf projection for
+// the phase-spec face — the same DocType.shape content the registry serves, passed into
+// deriveDocTokens) — the "edit one canonical leaf → engine
 // validation/extraction follow in the same build" evidence:
 //   - deriveDocTokens(shapes) is pure: feed it a doctored shape → the derived token changes (the
 //     derivation is LIVE, not a second hand-written copy);
@@ -20,8 +21,8 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import type { SchemaShape } from "../doctype.ts";
+import { PHASE_SPEC_BODY_SHAPE } from "../doctypes/body/phase-spec-body.ts";
 import { OVERALL_SHAPE } from "../doctypes/shapes/overall.ts";
-import { PHASE_SPEC_SHAPE } from "../doctypes/shapes/phase-spec.ts";
 import { PLAN_SHAPE } from "../doctypes/shapes/plan.ts";
 import { docTypeRegistry } from "../registry.ts";
 import { DOC_TOKENS, deriveDocTokens } from "../tokens.ts";
@@ -31,15 +32,17 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ENGINE_SRC = path.resolve(HERE, "..", "..");
 
 /** The three shape-domain faces deriveDocTokens needs — doctorable per-test. The base content is
- *  the shared shape constants (the same objects DOC_TOKENS and the registry's doc types carry) —
- *  the shape domain is the single source; the derived config/schema products are never re-read. */
+ *  the shape-domain sources the production DOC_TOKENS and the registry's doc types carry (the
+ *  shape constants / the P2 T2 body-leaf projection) — the shape domain is the single source; the
+ *  derived config/schema products are never re-read. The phase-spec face reads through the registry
+ *  (test-body access, never module-top — the load-order graph stays one-way). */
 function schemas(
   overrides: { plan?: SchemaShape; overall?: SchemaShape; phase?: SchemaShape } = {},
 ) {
   return {
     plan: overrides.plan ?? PLAN_SHAPE,
     overall: overrides.overall ?? OVERALL_SHAPE,
-    "phase-spec": overrides.phase ?? PHASE_SPEC_SHAPE,
+    "phase-spec": overrides.phase ?? docTypeRegistry.resolve("spec").shape,
   };
 }
 
@@ -105,7 +108,7 @@ describe("deriveDocTokens — live derivation from the shape domain", () => {
     const doctoredOverall = cloneSchema(OVERALL_SHAPE);
     (doctoredOverall as any).properties.header.properties.version.properties.marker.const =
       "**Program version**";
-    const doctoredPhase = cloneSchema(PHASE_SPEC_SHAPE);
+    const doctoredPhase = cloneSchema(docTypeRegistry.resolve("spec").shape);
     (doctoredPhase as any).properties.header.properties.version.properties.marker.const =
       "**Program version**";
     const re = deriveDocTokens(schemas({ overall: doctoredOverall, phase: doctoredPhase }));
@@ -125,7 +128,9 @@ describe("deriveDocTokens — the DocType.shape-domain wiring (S8)", () => {
     // fields the registered doc types present — derivation and factory projection read the same content.
     expect(docTypeRegistry.resolve("plan").shape).toBe(PLAN_SHAPE);
     expect(docTypeRegistry.resolve("overall").shape).toBe(OVERALL_SHAPE);
-    expect(docTypeRegistry.resolve("spec").shape).toBe(PHASE_SPEC_SHAPE);
+    // The phase-spec face is the body-leaf binding (P2 T2): the doc type's shape IS the body's
+    // projected shape leaf — the same value tokens.ts authorizes its DOC_TOKENS input from.
+    expect(docTypeRegistry.resolve("spec").shape).toBe(PHASE_SPEC_BODY_SHAPE);
     // Deriving through the registry's DocType.shape accessors reproduces the production surface —
     // every value token exact; the only functions are the parse-mechanics closures over the same
     // leaves (per-journey regex construction), so those are structurally skipped.

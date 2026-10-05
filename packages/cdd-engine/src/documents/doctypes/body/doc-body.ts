@@ -1,18 +1,19 @@
 // packages/cdd-engine/src/documents/doctypes/body/doc-body.ts — the DocBody abstract contract
 // (P2 T1; plan §T1 · design C1, Criterion ②). The doc-body plane is the projected-shape source for
-// the parse/brief shape split the T2/T3 concrete bodies materialize: every concrete body
-// (PhaseSpecBody / PlanBody — the old shapes/ phase-spec.ts / plan.ts constants retire into them)
-// re-derives the DocType.shape domain and the parse-slice regexes from its own two projection
-// members, so the output-schema content and the parse surface can never drift apart. This module
-// establishes the abstract base + the contract types ONLY — the concrete bodies land at T2/T3 as
-// full classes (dead-shell discipline: no empty placeholder classes). The plan-only task-brief
-// render surface (renderBrief(task)) is deliberately OFF the abstract contract: the base declaring
-// it would force every concrete body — including PhaseSpecBody, which has no task brief — to
-// implement a surface it can never use; the PlanBody-side member lands with its class at T3.
+// the parse/brief shape split the concrete bodies materialize: every concrete body
+// (PhaseSpecBody at T2, PlanBody at T3) re-derives the DocType.shape domain and the parse-slice
+// regexes from its own two projection members, so the output-schema content and the parse surface
+// can never drift apart (the retired shape-domain constants are gone — dead-shell discipline). This
+// module establishes the abstract base + the contract types ONLY; the plan-only task-brief render
+// surface (renderBrief(task)) is deliberately OFF the abstract contract: the base declaring it
+// would force every concrete body — including PhaseSpecBody, which has no task brief — to implement
+// a surface it can never use; the PlanBody-side member lands with its class at T3.
 //
-// TIMELINE — T1 is pure-new-module (zero wiring): the docTypeRegistry / SchemaFactory / tokens /
-// doctypes tree is untouched, the shape constants stay in place, and tokens/SchemaFactory keep
-// reading DocType.shape until T2/T3 switch the derivation to projectSchemaShape().
+// TIMELINE — T1 established the base with zero wiring (the docTypeRegistry / SchemaFactory / tokens
+// tree untouched, the shape constants in place). T2 lands PhaseSpecBody and the phase-spec
+// derivation switch: the registry's spec doc type carries the injected body singleton, tokens.ts
+// loads the body leaf, and the shape-domain constant retires. T3 lands PlanBody with the plan-side
+// switch. The base's forward contract stays stable across both switches.
 
 import type { SchemaShape } from "../../doctype.ts";
 

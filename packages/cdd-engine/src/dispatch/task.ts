@@ -648,7 +648,7 @@ export class TaskLifecycle extends DispatchLifecycle {
       // gate-family semantics).
       if (!this.#dryRun && mode === "implement") {
         try {
-          materializePlanConstraints(planWorkspace.plan, ctx.workspace.path);
+          materializePlanConstraints(planWorkspace.plan, ctx.workspace.path, this.#root);
         } catch (e) {
           throw new CddExitError(
             e instanceof ConstraintsSourceUndeclared
@@ -1533,15 +1533,18 @@ function constraintsHeader(planPath: string, hash: string): string {
 }
 
 /** Regenerate plan-constraints.md in the workspace from the plan's declared Constraints source
- * (T22/§T7.1). Unconditional: every call overwrites the file with the fresh extraction — equal
- * plans rewrite equal bytes (the deterministic header keeps the source-plan hash as provenance),
- * so the implement pre-flight can call this at every task-group start to land mid-backfill edits
- * to the plan's Constraints on disk; no generate-once existence skip. A plan declaring no
- * Constraints source throws ConstraintsSourceUndeclared — never a silent fallback (the derived
- * artifact is the implement pre-flight's non-negotiable input). Returns the artifact path. */
-export function materializePlanConstraints(plan: string, workspace: string): string {
+ * (T22/§T7.1; P2 T4 — the Form-A materialize now carries the MERGED presentation: the plan's own
+ * `## Constraints` delta joined with the parent overall's conventions — the inherited constitution
+ * auto-applies; root is the git root the plan's Class-A/B chain resolves against). Unconditional:
+ * every call overwrites the file with the fresh extraction — equal plans rewrite equal bytes (the
+ * deterministic header keeps the source-plan hash as provenance), so the implement pre-flight can
+ * call this at every task-group start to land mid-backfill edits to the plan's Constraints on
+ * disk; no generate-once existence skip. A plan declaring no Constraints source throws
+ * ConstraintsSourceUndeclared — never a silent fallback (the derived artifact is the implement
+ * pre-flight's non-negotiable input). Returns the artifact path. */
+export function materializePlanConstraints(plan: string, workspace: string, root: string): string {
   const outPath = path.join(workspace, PLAN_CONSTRAINTS_FILE);
-  const content = new DocumentsValidator().extractPlanConstraints(readFileSync(plan, "utf8"));
+  const content = new DocumentsValidator().planConstraintsOf(plan, root);
   if (content === null) {
     throw new ConstraintsSourceUndeclared(
       `plan Constraints source undeclared — declare a literal “${DOC_TOKENS.constraintsHeading}” section (canonical) or the prose pointer headings (${PROSE_ANCHORS.join(" / ")}) so cdd implement can materialize ${PLAN_CONSTRAINTS_FILE}`,

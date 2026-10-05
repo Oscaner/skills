@@ -18,12 +18,14 @@ import {
 import { docTypeRegistry } from "../registry.ts";
 import { DOC_TOKENS } from "../tokens.ts";
 import { DOC_WORDS } from "../words.ts";
+import { mergeParentConstraints, overallConstraintsOf } from "./body/constraints.ts";
 import type { PlanBody } from "./body/plan-body.ts";
 import { planBody } from "./body/plan-body.ts";
 import { Task, type TaskStep } from "./body/task.ts";
 import { PLAN_BODY_VIEW } from "./body-views.ts";
 import type { OverallParse } from "./overall.ts";
 import {
+  constraintsSectionOf,
   isPlaceholderOrTemplateTarget,
   linksOnLine,
   ownDesignToken,
@@ -39,8 +41,9 @@ const PLACEHOLDER_RE = /{{\s*[^{}>\n]+\s*}}/g;
 // The standard section stop set — the structural boundary that closes a `##`-level section: a
 // `#`/`##` heading or a `---` rule (the `### Task ` heading clause — DOC_TOKENS.taskHeadingPrefixRe —
 // rides alongside where the section must not swallow task atoms). ONE shared definition for every
-// section parser (task-groups / literal constraints / the prose-block boundary array), so a
-// boundary edit lands once instead of drifting per-parser.
+// section parser (task-groups / the prose-block boundary array), so a boundary edit lands once
+// instead of drifting per-parser. The Form-A constraints-section extractor lives on the shared
+// doctype atoms (constraintsSectionOf — the same `/^(#{1,2}\s|---\s*$)/` boundary).
 const PLAN_SECTION_BOUNDARY = /^(#{1,2}\s|---\s*$)/;
 
 // Block boundary for the prose-pointer form (composes the shared PLAN_SECTION_BOUNDARY set): a
@@ -52,35 +55,10 @@ const PROSE_BLOCK_STOP = [
   /^\*\*[^*]+\*\*[：:]/,
 ] as const;
 
-// Deterministic extraction for the canonical form: `## Constraints` heading + content to the first
-// structural boundary — a `#`/`##` heading, a `### Task ` heading (the brief-extraction atom the
-// constraints section must not swallow), or a `---` rule (the preamble/task separator). `###`
-// sub-sections stay inside. An empty section → null (declared-but-empty is not a constraint
-// declaration).
-function extractLiteralConstraints(content: string): string | null {
-  const lines = content.split("\n");
-  let start = -1;
-  for (let i = 0; i < lines.length; i++) {
-    if (DOC_TOKENS.constraintsHeadingRe.test(lines[i])) {
-      start = i;
-      break;
-    }
-  }
-  if (start < 0) return null;
-  let end = lines.length;
-  for (let i = start + 1; i < lines.length; i++) {
-    if (PLAN_SECTION_BOUNDARY.test(lines[i]) || DOC_TOKENS.taskHeadingPrefixRe.test(lines[i])) {
-      end = i;
-      break;
-    }
-  }
-  const body = lines
-    .slice(start + 1, end)
-    .join("\n")
-    .trimEnd();
-  if (!body) return null;
-  return `${lines[start]}\n${body}\n`;
-}
+// The canonical Form-A constraints-section extraction — the shared doctype atom
+// (`constraintsSectionOf` in shared.ts: the literal top-level `## Constraints` section, bounded by
+// the next `#`/`##` heading, a `### Task ` heading or a `---` rule; `###` sub-sections stay
+// inside; an empty section → null).
 
 // Prose-pointer anchor heading regex: `**<anchor>(?:（qualifier）)?**：` — the in-repo qualifier
 // forms are full-width parentheticals; a bare `**<anchor>**：` matches too (the `(?:…)` group is a
@@ -380,9 +358,32 @@ export class PlanDocType extends DocType {
    * constraints body verbatim (single trailing newline) or null when the plan declares no constraint
    * source (the BLOCK face). */
   extractPlanConstraints(planContent: string): string | null {
-    const literal = extractLiteralConstraints(planContent);
+    const literal = constraintsSectionOf(planContent);
     if (literal !== null) return literal;
     return extractProseConstraints(planContent);
+  }
+
+  /** The plan's merged constraints read (design C4 — the plan side of the delta-only inheritance
+   *  machine): Form A — the plan's own `## Constraints` delta joined with the parent overall's
+   *  conventions (the constitution auto-applies; the chain = Class-A `**Spec:**` → the spec's
+   *  Class-B `**Parent program**` → the overall's `**Constraints**:` block). Form B (legacy) — the
+   *  prose-pointer extraction, unchanged (the dual-read exemption: legacy Form B plans keep their
+   *  old read with no merge). A chain that cannot resolve the parent overall degrades to the
+   *  plan's own delta — resolution is the validate face (Class A/B + the spec's inheritance-point
+   *  linkage), never this read. Returns the merged presentation or null when the plan declares no
+   *  Constraints source (the BLOCK face — the facade's ConstraintsSourceUndeclared materializer). */
+  planConstraintsOf(planPath: string, root: string): string | null {
+    const content = readFileSync(planPath, "utf8");
+    const ownDelta = constraintsSectionOf(content);
+    if (ownDelta === null) return extractProseConstraints(content); // legacy Form B — unchanged read
+    const { specPath } = this.#resolveSpecOf(planPath, root);
+    const overallPath = specPath
+      ? docTypeRegistry.resolve("spec").parentChain(specPath, root)
+      : null;
+    const parentConstraints = overallPath
+      ? overallConstraintsOf(readFileSync(overallPath, "utf8"))
+      : null;
+    return mergeParentConstraints({ ownDelta, parentConstraints });
   }
 
   /** plan contract: `### Task N:` continuous extractability · `**Spec:**` exists + resolves ·
@@ -466,6 +467,25 @@ export class PlanDocType extends DocType {
           });
         }
       }
+    }
+
+    // 5. Form-B prohibition on new-shape plans (design C4 — the delta-only constraint surface):
+    //    the Form B prose-pointer headings are the LEGACY constraint read. A new-shape plan —
+    //    recognized by the data-shaped task records (the T3 Task data face) or the literal
+    //    `## Constraints` delta section — must never declare Form B: the delta section is the
+    //    single new-shape surface (the inherited spec/overall conventions auto-apply). The legacy
+    //    tree keeps the dual-read exemption — a plan with neither marker (the Form B prose-pointer
+    //    era docs) is untouched.
+    const newShape =
+      this.tasksFromPlan(planPath).length > 0 || constraintsSectionOf(content) !== null;
+    if (newShape && extractProseConstraints(content) !== null) {
+      failures.push({
+        artifact: "plan",
+        file: planPath,
+        field: "Constraints source",
+        missing: `a new-shape plan declares the legacy Form B prose pointer headings (${DOC_TOKENS.proseAnchorTokens.map((t) => `\`${t}\``).join(" / ")})`,
+        fix: `drop the Form B prose headings and declare the plan's delta under a literal ${DOC_TOKENS.constraintsHeading} section (the parent-overall conventions auto-apply)`,
+      });
     }
     return failures;
   }

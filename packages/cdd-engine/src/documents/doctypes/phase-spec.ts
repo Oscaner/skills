@@ -11,7 +11,6 @@
 // consequences).
 
 import { readFileSync } from "node:fs";
-import path from "node:path";
 import {
   type DocContext,
   type DocLifecycleFacts,
@@ -24,13 +23,11 @@ import { DOC_TOKENS } from "../tokens.ts";
 import { DOC_WORDS } from "../words.ts";
 import type { PhaseSpecBody } from "./body/phase-spec-body.ts";
 import { SPEC_BODY_VIEW } from "./body-views.ts";
-import { isPlaceholderOrTemplateTarget, linksOnLine, resolveAny } from "./shared.ts";
+import { resolveParentOverall } from "./shared.ts";
 
 // ---- spec-contract atoms (canonical — documents/tokens.ts) ----
 const VERSION_HEADER_RE = DOC_TOKENS.versionHeaderRe;
 const VERSION_FIELD = DOC_TOKENS.versionField;
-const VERSION_TOKEN_RE = DOC_TOKENS.versionTokenRe;
-const PARENT_MARK = DOC_TOKENS.parentMark;
 
 /** One structural-pattern leaf of a body's projected shape, navigated by its `properties` path —
  *  the docContractValidate reads the same schema leaves the authors draft against (the schema is
@@ -114,7 +111,7 @@ export class PhaseSpecDocType extends DocType {
 
   /** The S3 parent walk: the spec's `**Parent program**` → its `*-overall.md`. */
   parentChain(entry: string, root: string): string | null {
-    return this.#resolveParentOverall(entry, root).overallPath;
+    return resolveParentOverall(entry, root).overallPath;
   }
 
   /** The phase-spec doc-type surface: `**Version**` line (the spec's own structural face) + the
@@ -138,8 +135,29 @@ export class PhaseSpecDocType extends DocType {
       });
     }
     failures.push(...this.#skeletonFailures(content, specPath));
-    const parent = this.#resolveParentOverall(specPath, root);
-    if (!parent.overallPath) return failures; // chain truncation — the four tables + overall contract no-op
+    const parent = resolveParentOverall(specPath, root);
+    if (!parent.overallPath) {
+      // The inheritance-point linkage (P2 T4; design C4): a spec that declares the `## Constraints`
+      // inheritance point (the constraints-pointer semantics merged — parent-overall conventions
+      // auto-apply) must have that Class-B pointer RESOLVE to an existing `*-overall.md`. Chain
+      // truncation is a validate failure on a new-skeleton spec — the legacy no-op applies only to
+      // legacy six-section docs, which carry no `## Constraints` inheritance point.
+      const slices = this.body.projectSlicePatterns();
+      const declaresConstraints = content
+        .split("\n")
+        .some((l) => slices.constraintsHeading.test(l));
+      if (declaresConstraints) {
+        failures.push({
+          artifact: "phase spec",
+          file: specPath,
+          field: DOC_TOKENS.parentField,
+          missing:
+            "the `## Constraints` inheritance point cannot resolve its `**Parent program**` pointer to an existing `*-overall.md`",
+          fix: `make the ${DOC_TOKENS.parentMark} pointer resolve to the parent overall (e.g. \`- ${DOC_TOKENS.parentMark}: [<slug>-overall.md vX.Y](docs/kairos/specs/<slug>-overall.md)\`)`,
+        });
+      }
+      return failures; // chain truncation — the four tables + overall contract no-op
+    }
     failures.push(
       ...docTypeRegistry.resolve("overall").validate(parent.overallPath, {
         root,
@@ -246,29 +264,5 @@ export class PhaseSpecDocType extends DocType {
       }
     }
     return failures;
-  }
-
-  /** Class B — the spec's Parent program → its `*-overall.md`. Chain truncation (no parent line /
-   * placeholder / unresolvable / not an overall) yields { overallPath: null } and the FOUR-TABLE +
-   * overall contract faces no-op (AC1: lineage not resolved → the four tables no-op, the necessary
-   * subset always runs) — the overall is only ever audited against a reached parent doc. Pinned
-   * version tokens ride the resolution for the merged version-lineage check. */
-  #resolveParentOverall(
-    specPath: string,
-    root: string,
-  ): { overallPath: string | null; pinnedTokens: string[] } {
-    const lines = readFileSync(specPath, "utf8").split("\n");
-    const parentIdx = lines.findIndex((l) => l.includes(PARENT_MARK));
-    if (parentIdx === -1) return { overallPath: null, pinnedTokens: [] };
-    const links = linksOnLine(lines[parentIdx]);
-    if (links.length === 0) return { overallPath: null, pinnedTokens: [] };
-    const { target } = links[0];
-    if (isPlaceholderOrTemplateTarget(target)) return { overallPath: null, pinnedTokens: [] };
-    const resolved = resolveAny(target, [path.dirname(specPath), root]);
-    if (!resolved) return { overallPath: null, pinnedTokens: [] };
-    if (!path.basename(resolved).endsWith("-overall.md"))
-      return { overallPath: null, pinnedTokens: [] };
-    const pinnedTokens = [...lines[parentIdx].matchAll(VERSION_TOKEN_RE)].map((m) => m[0]);
-    return { overallPath: resolved, pinnedTokens };
   }
 }

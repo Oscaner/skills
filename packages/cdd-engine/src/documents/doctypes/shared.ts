@@ -7,7 +7,7 @@
 // claim family / plan-cell equivalence / link-target resolution that used to sit in
 // rules/documents.ts converge here so the subclass methods never reach back into the rules plane.
 
-import { statSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { DOC_TOKENS, escapeRegExp } from "../tokens.ts";
 
@@ -53,6 +53,77 @@ export function resolveAny(target: string, bases: readonly string[]): string | n
     if (hit) return hit;
   }
   return null;
+}
+
+// ---- Class-B parent walk + the shared Form-A constraints-section extractor (P2 T4; design C4 —
+// both cross-type atoms: the spec doc type + the constraint-inheritance machine consume them) ----
+
+/** Class B — the spec's Parent program → its `*-overall.md` (extracted from PhaseSpecDocType in
+ *  P2 T4 — the shared face the spec doc type, the plan's merged constraints read and the
+ *  constraint-inheritance machine all consume; the spec's private copy is retired). Chain
+ *  truncation (no parent line / placeholder / unresolvable / not an overall) yields
+ *  { overallPath: null } and the FOUR-TABLE + overall contract faces no-op (AC1: lineage not
+ *  resolved → the four tables no-op, the necessary subset always runs) — the overall is only ever
+ *  audited against a reached parent doc. Pinned version tokens ride the resolution for the merged
+ *  version-lineage check. */
+export function resolveParentOverall(
+  specPath: string,
+  root: string,
+): { overallPath: string | null; pinnedTokens: string[] } {
+  const lines = readFileSync(specPath, "utf8").split("\n");
+  const parentIdx = lines.findIndex((l) => l.includes(DOC_TOKENS.parentMark));
+  if (parentIdx === -1) return { overallPath: null, pinnedTokens: [] };
+  const links = linksOnLine(lines[parentIdx]);
+  if (links.length === 0) return { overallPath: null, pinnedTokens: [] };
+  const { target } = links[0];
+  if (isPlaceholderOrTemplateTarget(target)) return { overallPath: null, pinnedTokens: [] };
+  const resolved = resolveAny(target, [path.dirname(specPath), root]);
+  if (!resolved) return { overallPath: null, pinnedTokens: [] };
+  if (!path.basename(resolved).endsWith("-overall.md"))
+    return { overallPath: null, pinnedTokens: [] };
+  const pinnedTokens = [...lines[parentIdx].matchAll(DOC_TOKENS.versionTokenRe)].map((m) => m[0]);
+  return { overallPath: resolved, pinnedTokens };
+}
+
+// The standard section stop set — the structural boundary that closes a `##`-level section: a
+// `#`/`##` heading or a `---` rule. ONE shared definition for the Form-A constraints-section
+// extractor (the task-heading stop rides alongside — the brief-extraction atom a constraints
+// section must not swallow; specs carry no `### Task N:` headings, the stop is harmless there).
+const CONSTRAINTS_SECTION_BOUNDARY = /^(#{1,2}\s|---\s*$)/;
+
+/** Deterministic extraction of the canonical Form-A constraint source — a literal top-level
+ *  `## Constraints` section (heading + content to the first structural boundary: a `#`/`##`
+ *  heading, a `### Task N:` heading, or a `---` rule; `###` sub-sections stay inside). This is the
+ *  shared read face of the new-shape inheritance machine — the plan's delta extraction and the
+ *  phase-spec's `## Constraints` inheritance-point read land on the same section semantics (the
+ *  delta-only section the merge function joins with the parent-overall conventions). An empty
+ *  section → null (declared-but-empty is not a constraint declaration). */
+export function constraintsSectionOf(content: string): string | null {
+  const lines = content.split("\n");
+  let start = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (DOC_TOKENS.constraintsHeadingRe.test(lines[i])) {
+      start = i;
+      break;
+    }
+  }
+  if (start < 0) return null;
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    if (
+      CONSTRAINTS_SECTION_BOUNDARY.test(lines[i]) ||
+      DOC_TOKENS.taskHeadingPrefixRe.test(lines[i])
+    ) {
+      end = i;
+      break;
+    }
+  }
+  const body = lines
+    .slice(start + 1, end)
+    .join("\n")
+    .trimEnd();
+  if (!body) return null;
+  return `${lines[start]}\n${body}\n`;
 }
 
 // ---- plan-cell three-state + claim equivalence (P4.3 Task 8 #274 — the shared cell/claim faces) ----

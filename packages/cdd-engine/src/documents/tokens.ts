@@ -64,6 +64,9 @@ export interface DocTokens {
   constraintsHeading: string;
   /** `/^## Constraints\s*$/` — Form-A heading match. */
   constraintsHeadingRe: RegExp;
+  /** `**Constraints**:` — the overall header constraints-block marker (overall.json
+   *  header.constraints.marker const — the constitutional block a new-shape spec/plan inherits). */
+  overallConstraintsMark: string;
   /** `## Task Groups` — the taskGroups section heading (plan.json taskGroups section layout const). */
   taskGroupsHeading: string;
   /** `/^## Task Groups\s*$/` — the taskGroups section-heading match. */
@@ -247,6 +250,11 @@ export function deriveDocTokens(shapes: {
   );
   const constraintsHeading = constraintsHeadingPattern.replace(/^\^/, "").replace(/\\s\*\$$/, "");
   const constraintsHeadingRe = new RegExp(constraintsHeadingPattern);
+  const overallConstraintsMark = leaf<string>(
+    overall,
+    ["header", "constraints", "marker"],
+    "const",
+  );
 
   // taskGroups (P4.3 Task 3, spec §2.2) — the dispatch-group declaration: the section heading
   // const, the merged-group entry pattern with the comma-space number list wrapped in ONE capture
@@ -439,6 +447,7 @@ export function deriveDocTokens(shapes: {
     taskHeadingPrefixRe,
     constraintsHeading,
     constraintsHeadingRe,
+    overallConstraintsMark,
     taskGroupsHeading,
     taskGroupsHeadingRe,
     taskGroupsLineRe,

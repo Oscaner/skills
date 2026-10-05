@@ -24,6 +24,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import type { DocKind, DocValidateFailure } from "../documents/doctype.ts";
+import { specConstraintsOf as mergedSpecConstraintsOf } from "../documents/doctypes/body/constraints.ts";
 import type { OverallDocType, OverallParse } from "../documents/doctypes/overall.ts";
 import type { PhaseSpecDocType } from "../documents/doctypes/phase-spec.ts";
 import type { PlanDocType } from "../documents/doctypes/plan.ts";
@@ -128,6 +129,21 @@ export class DocumentsValidator {
    *  — delegated to the plan doc type (the canonical extractor's home). */
   extractPlanConstraints(planContent: string): string | null {
     return planType().extractPlanConstraints(planContent);
+  }
+
+  /** The plan's merged constraints read (design C4 — the plan side of the delta-only inheritance
+   *  machine) — delegated to the plan doc type: the plan's Form-A `## Constraints` delta joined
+   *  with the parent overall's conventions (the constitution auto-applies); legacy Form B reads
+   *  unchanged. */
+  planConstraintsOf(planPath: string, root: string): string | null {
+    return planType().planConstraintsOf(planPath, root);
+  }
+
+  /** The phase-spec's merged constraints read (design C4 — the spec side) — the spec's `##
+   *  Constraints` delta joined with the parent overall's conventions along the Class-B `**Parent
+   *  program**` chain (the spec-parse single consumption face; legacy six-section specs → null). */
+  specConstraintsOf(entry: string, root: string): string | null {
+    return mergedSpecConstraintsOf(entry, root);
   }
 
   /** plan contract: `### Task N:` continuous extractability · `**Spec:**` exists + resolves ·

@@ -208,6 +208,9 @@ describe("DOC_TOKENS — production values equal the shape-domain leaves (single
     expect(DOC_TOKENS.constraintsHeadingRe.test("## Constraints")).toBe(true);
     expect(DOC_TOKENS.constraintsHeadingRe.test("### Constraint")).toBe(false);
     expect(DOC_TOKENS.proseAnchorTokens[1]).toBe("**commit 边界机制**：");
+    // the overall header constraints-block marker (the constitutional block the new-shape
+    // spec/plan inherits — P2 T4) derives from the overall shape header.constraints.marker
+    expect(DOC_TOKENS.overallConstraintsMark).toBe("**Constraints**:");
   });
 
   it("taskGroups tokens — section heading + merged-group line + the minItems floor (P4.3 Task 3)", () => {

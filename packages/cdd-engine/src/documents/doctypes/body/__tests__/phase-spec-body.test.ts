@@ -17,8 +17,11 @@
 //     a `## Deviations` section without an `Overall updated?` = `Yes` answer, a duplicated
 //     `### Acceptance criteria`, and a missing `## Constraints` inheritance point. Legacy
 //     six-section docs (no `## Design` — the new-skeleton gate) stay on the P1 acceptance path
-//     (dual-read contract).
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+//     (dual-read contract);
+//   - the dead-shell discipline: `doctypes/shapes/phase-spec.ts` is gone (zero existence — the
+//     grep included).
+import { execSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -259,5 +262,18 @@ describe("new-skeleton docContractValidate (design C2) — fixture evidence", ()
       const failures = specType().validate(p, { root: REPO_ROOT });
       expect(failures.some((f) => f.field.includes("`## Constraints`"))).toBe(true);
     });
+  });
+});
+
+describe("dead-shell discipline — shapes/phase-spec.ts is gone", () => {
+  it("doctypes/shapes/phase-spec.ts does not exist (grep included)", () => {
+    expect(existsSync(path.join(HERE, "..", "..", "shapes", "phase-spec.ts"))).toBe(false);
+    // No surviving reference to the retired constant anywhere in the non-test engine src.
+    const root = path.resolve(import.meta.dirname, "..", "..", "..", ".."); // src root
+    const hits = execSync(
+      `grep -rn --include="*.ts" "shapes/phase-spec" "${root}" --exclude-dir="__tests__" || true`,
+      { encoding: "utf8" },
+    );
+    expect(hits.trim()).toBe("");
   });
 });

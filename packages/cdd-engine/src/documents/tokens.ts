@@ -490,7 +490,10 @@ export function deriveDocTokens(shapes: {
  *  content the registry's doc types carry / the SchemaFactory projects onto the derived
  *  config/schema products) on load. The spec + plan inputs are the body leaf projections (P2 T2/T3 —
  *  the retired shape constants are gone; the same values the registry's doc types carry via their
- *  injected bodies). */
+ *  injected bodies). P2 T6 — unchanged-evidence registration: the housing change left every
+ *  deriveDocTokens leaf byte-identical (verified against the pre-P2 schema products), so these
+ *  production values ARE the pre-P2 gold, byte-unchanged — the deliberate-update verdict is
+ *  unchanged evidence, not a re-pin. */
 export const DOC_TOKENS: DocTokens = deriveDocTokens({
   plan: PLAN_BODY_SHAPE,
   overall: OVERALL_SHAPE,

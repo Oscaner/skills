@@ -15,6 +15,13 @@
 //     prose anchors, CLAIM family) — the canary surface for the repo doc set;
 //   - the engine consumers (documents.ts / brief.ts / task.ts) consume via this module — the
 //     "grep 删除面零残留" engine-side face, checked textually (no literal re-assignment).
+//   - the token-plane deliberate-update verdict (the P2 T6 closure): the shape-domain housing
+//     changed (the phase-spec / plan constants retired into the body-leaf projections), yet every
+//     deriveDocTokens leaf stayed byte-identical — verified leaf-by-leaf against the pre-P2
+//     schema products (31/31 leaves unchanged; `header.constraints.marker` included). The golds
+//     pinned under "production values" below therefore hold verbatim from the pre-P2 gold — a
+//     byte-unchanged token plane registers as unchanged evidence, never as a forced re-pin; the
+//     derivation chain (DocType.shape → tokens) is what re-sources, not the values.
 
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -151,6 +158,9 @@ describe("deriveDocTokens — the DocType.shape-domain wiring (S8)", () => {
 });
 
 describe("DOC_TOKENS — production values equal the shape-domain leaves (single source)", () => {
+  // The golds below ARE the registered production values — byte-identical to the pre-P2 gold, so
+  // the deliberate-update verdict is the unchanged-evidence declaration, never a re-pin (P2 T6).
+  // Edit a gold here only when the shape-domain leaf it derives from changes for real.
   it("plan markers: specMark / parentMark / taskHeading / constraints / prose anchors", () => {
     expect(DOC_TOKENS.specMark).toBe("**Spec:**");
     expect(DOC_TOKENS.parentMark).toBe("**Parent program**");

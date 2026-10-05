@@ -17,7 +17,13 @@
 //   - the infra consumer path (infra↔documents zero reverse dependency): the RENDERED product loads
 //     through the WordTable constructor's Ajv self-validation (the shape authority's
 //     additionalProperties: false) with its accessors serving the same facts — infra consumes the
-//     derived file's bytes, never the documents plane.
+//     derived file's bytes, never the documents plane;
+//   - the word-plane independence pin (P2 T6 — unchanged-evidence registration): the WORD plane
+//     (`DOC_WORDS` → WordsWriter → config/contract-lexicon.json) is an independent constant face
+//     with zero derivation edges into the shape domain (`DocType.shape` → deriveDocTokens) —
+//     words.ts carries no shape-domain / token-plane import, so a shape-domain content change can
+//     never drive the word product (the byte pin above proves the product derives from DOC_WORDS
+//     alone).
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -32,6 +38,8 @@ import { DOC_WORDS, WordsWriter, wordsWriter } from "../words.ts";
 const LEXICON = resolveResourceSrc("contract-lexicon");
 /** The shape-authority schema the WordTable construction validates the rendered product against. */
 const SCHEMA = path.join(resolveResourceSrc("schema"), "contract-lexicon.json");
+/** The engine src root — …/src/documents/__tests__ → two hops up (the text-scan guard below). */
+const ENGINE_SRC = path.resolve(import.meta.dirname, "..", "..");
 
 describe("WordsWriter (P1 T4)", () => {
   it("byte pin: the rendered product is byte-equal to the on-disk contract-lexicon product (the derived baseline)", () => {
@@ -92,6 +100,16 @@ describe("WordsWriter (P1 T4)", () => {
       expect(wt.ref("schema.anatomy.skillsRoot")).toBe(DOC_WORDS.schema.anatomy.skillsRoot);
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("word-plane independence: words.ts carries zero shape-domain / token-plane import edges (P2 T6 不变实证 — DOC_WORDS is a self-contained constant face, no DocType.shape derivation)", () => {
+    const src = readFileSync(path.join(ENGINE_SRC, "documents/words.ts"), "utf8");
+    // The import surface only — the DOC_WORDS CONTENT deliberately contains words like `tokens`
+    // (vocabulary leaves); the independence claim is about import edges, not content bytes.
+    const imports = [...src.matchAll(/^import[^\n]*$/gm)].map((m) => m[0]);
+    for (const line of imports) {
+      expect(line).not.toMatch(/doctypes|deriveDocTokens|tokens/);
     }
   });
 });

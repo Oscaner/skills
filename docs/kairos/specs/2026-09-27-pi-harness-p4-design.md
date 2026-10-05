@@ -6,28 +6,12 @@
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.22](2026-09-27-pi-harness-overall.md)
 - **Depends on**: P2（Done）· P3（Done）——见 parent overall 依赖图（P2 →(hard) P4、P3 →(hard) P4）
 
-## Section 0: Incremental warning
-
-本 spec 承诺恰好一个 phase（P4 技能改名 + 命名退役 + 文档·测试·收口）。若实施中发现需要拆分 / 重排 P4 的工作，不是本文件的局部编辑——phase inventory 行、依赖边、change-history 行必须先回填 parent overall（backfill-as-version）再继续。P4 是程序收口 phase；P4 之后的程序级尾巴（release / Version PR / publish）归 release 流程，不在本 phase 的文档承诺内。
-
-## Section 1: Constraints pointer
-
-跨 phase 约定以 parent overall v1.22 为准（overall wins on conflict），本 phase 不重复表述，仅指针：
-- **P4 破坏性变更授权**（Constraints v1.22）：技能全量改名 `cdd-*`——8 skills 三 harness breaking（changeset 记 major）· **命名全面退役 `osuperpowers` → `kairos`**：插件包 `@oscaner-skills/kairos` / namespace `/kairos:` / workspace 根 `.kairos`（engine-config 单源）/ 程序文档树 `docs/kairos/` —— `cdd`·`cdd-engine`·CLI 保留（方法论层）；**零存量迁移**（实现当时 `git mv` 直迁，不建迁移机制）· 允许破坏性变更 / 重写代码 / 重组目录 · 约束 = 高维思考 / 抽象统一 / 最佳实践 / 零技术债务
-- **D5 事实（复核于 2026-10-01）**：pi 对同名 skill 按确定性 first-wins 处置（从不拒绝；败者静默丢弃 + warning）；**pi 无命名空间修饰技能引用**（仅 `/skill:<bare-name>`）→ 改名理由 = flat-namespace 下 bare-name 唯一性最佳实践，非「pi 不许同名」
-- **D2 / D4**：`pi` 字段源侧手维护 · `AI_AGENT=pi` 宿主检测（P3 已闭环，本 phase 不动 engine 运行面）
-- **命名机制授权**：SKILL.md `name` = 单一事实源 + 目录扫描守卫（README / 测试派生断言零手写名单）；不建镜像注册面
-- **分层纪律**：技能名 = kairos 包面（不归 engine lexicon）；harness markers = engine 语义（归 lexicon harness 域）——两域分居，Non-goal #2 不可破
-- **消费面纯度**：SKILL.md 是零程序历史指令文档；改名 rationale / 决策历史只落本 spec 与 docs/maintainers，不进消费面
-- 仓库 language policy / commit discipline / changeset 义务不因本 phase 变更
-
-## Section 2: Design body
-
-#### 2.1 目标与范围
+## Design
+**2.1 目标与范围**
 
 P4 使 kairos（前 osuperpowers）的**技能身份**完成程序级统一：8 技能全量改名 `cdd-*`（含 `skills/` 目录名——单身份零债务，user 裁定；三 harness invocation 面同步变，breaking），配套命名机制（SKILL.md `name` 单源 + 目录扫描守卫），并把 pi 身份落到消费者文档面（README 家族矩阵 + `pi install` 段 + 名义映射表数据渲染 + D5 消费故事改写），最后以测试延展 + changeset 收口。现状实证（grilling fact-finder）：README 家族 6 文件全线 pre-pi（零 `pi` / `pi-package` 提及，per-harness 表只有 claude/cursor 两行）；live 面 `cursor-agent` 系 osuperpowers README CDD engine CLI 表行（EN `README.md:72` + zh 镜像 `README.zh-CN.md:74` 同形，共 4 token）；名义映射表任何位置不存在（只有 spec 承诺）；D5 故事零 live 呈现。范围外：engine 运行逻辑（detect / spawn / registry 面）零改动（P3 已闭环）；不合并 engine 与 emit 注册表（Non-goal #2）；不做结构性技能合并（3 个 writing-* 并 1 带 mode——裁定拒，rationale 见 2.2 C1 裁定备注）。**范围增项（v1.5/v1.6 backfill-after-discussion，user 2026-10-01 拍板）**：① engine 静态数据面重组（C7）——配置·注册表·词汇·契约·schema JSON 收编为 `config/` 单一数据家，`templates/` 只留内容渲染种子（`report/issue-body.json`），`resolveResource()` 唯一路径真相（dev 树 ↔ dist 打包树同构、零路径分叉零散落硬编码）；② **harness 契约收敛（C8）**——registry 行增 detect/install/refs、prefix 删除改派生、lexicon 瘦身为纯词表、守卫泛化 `checkHarness`、SKILL 文本与 README 照数据渲染；C7 与 C8 同组 atomic（布局先行，T8 为 T7 提供 config/ 之家），`cdd init` 未来消费同一契约。
 
-#### 2.2 组件
+**2.2 组件**
 
 锚点图例：G = grilling 定案轮（G1 改名形态 · G2 命名机制 · G3 高维复核裁定 · G4 名义映射表 markers · G5 铺设面 · G6 测试 · G7 changeset）；编号非连续、非必经枚举；锚点仅供本 spec 内部溯源，Issue inventory 与 parent overall 均无对应登记（P4 issues ref = none）。
 
@@ -97,11 +81,11 @@ P4 使 kairos（前 osuperpowers）的**技能身份**完成程序级统一：8 
 - **re-anchor 面**：T3 markers 数据家换（lexicon → registry.detect）+ T4/T5 pin 源换（presentation-surface 名义表 / contract-lexicon.test checkMarkers）——机械面，测试兜底
 - **边界**：emit 分发注册表（`scripts/lib/harness-registry.ts`）不并入（Non-goal #2）——分发产物构建面 vs 运行时契约面，C7 以 `harness-contract.json` 命名消歧
 
-#### 2.3 数据流
+**2.3 数据流**
 
 `skills/` SKILL.md `name`（单源）→ 目录扫描守卫（测试）→ README 清单 / pi 包面 pin；`contract-lexicon.json` `markers`（engine 数据）→ `checkMarkers` 三方一致 → README 名义表数据派生 + 漂移守卫；`cdd-*` 改名 → `pnpm run emit` 重生成 manifests / marketplace / source.json；changeset（major + patch）→ Version PR `changeset version && emit` → CHANGELOG + 版本重 stamp。
 
-#### 2.4 错误与边界
+**2.4 错误与边界**
 
 - **改名 breaking 迁移**：README 与 changeset 各自明确新名 + breaking 声明；消费侧用户按新 invocation 面（`/kairos:cdd-*`）调用；`osuperpowers` → `kairos` 迁移零存量机制——实现当时 `git mv` 直迁
 - **旧词残留 vs 上游 import**：`brainstorming` / `writing-plans` 等作为词合法出现于 `/superpowers:*` import 面——pin 精确到 kairos 技能身份，词级禁会误伤
@@ -110,7 +94,7 @@ P4 使 kairos（前 osuperpowers）的**技能身份**完成程序级统一：8 
 - **双镜像**：zh 结构 parallel（既有声明机制）+ 时间戳校准；命名 pin 覆盖 EN 面，zh 结构自查依托 mirror 声明（该声明维护惯例写入 C4）
 - emit 产物重生成必须在改名后立即执行且 `emit:check` 零漂移（CI/pre-commit 把关）
 
-#### 2.5 测试
+**2.5 测试**
 
 - 三文件延展（C5）：presentation-surface（声称 + 扫描 + 名义表）· pi-package（字段集）· contract-lexicon.test（markers 三方 + 漂移）
 - 回归面：`pnpm run validate` 13 块全绿（含 engine vitest 1173+ / scripts 286+ / residue / contract-lexicon）+ precommit 全绿 + `emit:check` 零漂移
@@ -132,7 +116,18 @@ P4 使 kairos（前 osuperpowers）的**技能身份**完成程序级统一：8 
 - **engine 静态数据面重组（v1.5 增）**：`config/` 落位（读作数据全归位——engine-config / harness-contract / contract-lexicon / template-contract + `schema/` 子目全部 JSON Schema：doc 5 / handoff 2 / cache-profile）且 `templates/` 仅含内容种子（issue-body.json）；`resolveResource()` = 唯一路径真相——engine 六消费面零散落 `path.join(pkgRoot, "…")` 硬编码、smoke-cdd / residue / contract-lexicon pin 全从 locator 数据派生、dev 树 ↔ dist 打包树 `config/` 同构（旧 `dist/resources` 零残留）；`package.json#files` 随发 config；engine/scripts 测试 + precommit 全绿（T6 终验兜）
 - **harness 契约收敛（v1.6 增）**：registry = 唯一 harness 契约（行含 detect/install/refs · prefix 零字面改派生 · cli 单源）；lexicon 纯词表（harness 域零残留）；`checkHarness` 四向全绿（detect ↔ 谓词 ↔ 白名单 · refs ↔ SKILL 文本 26 处双形态 · prefix 派生 ↔ 注入 · install ↔ README 渲染）；SKILL 文本引用全双形态 + 零裸 `/ns:name` 残留（pin）；README 上游依赖表 = install/refs 数据渲染零手写（用户提供命令只此一份）；T3/T4/T5 交付面 re-anchor 全绿（presentation-surface 名义表数据源 lexicon→registry · checkMarkers 家换）；`cdd init` 就绪（未来 phase 消费同一契约）
 
-## Section 3: Deviations from overall
+## Constraints
+
+- 跨 phase 约定以 parent overall v1.22 为准（overall wins on conflict），本 phase 不重复表述，仅指针：
+- **P4 破坏性变更授权**（Constraints v1.22）：技能全量改名 `cdd-*`——8 skills 三 harness breaking（changeset 记 major）· **命名全面退役 `osuperpowers` → `kairos`**：插件包 `@oscaner-skills/kairos` / namespace `/kairos:` / workspace 根 `.kairos`（engine-config 单源）/ 程序文档树 `docs/kairos/` —— `cdd`·`cdd-engine`·CLI 保留（方法论层）；**零存量迁移**（实现当时 `git mv` 直迁，不建迁移机制）· 允许破坏性变更 / 重写代码 / 重组目录 · 约束 = 高维思考 / 抽象统一 / 最佳实践 / 零技术债务
+- **D5 事实（复核于 2026-10-01）**：pi 对同名 skill 按确定性 first-wins 处置（从不拒绝；败者静默丢弃 + warning）；**pi 无命名空间修饰技能引用**（仅 `/skill:<bare-name>`）→ 改名理由 = flat-namespace 下 bare-name 唯一性最佳实践，非「pi 不许同名」
+- **D2 / D4**：`pi` 字段源侧手维护 · `AI_AGENT=pi` 宿主检测（P3 已闭环，本 phase 不动 engine 运行面）
+- **命名机制授权**：SKILL.md `name` = 单一事实源 + 目录扫描守卫（README / 测试派生断言零手写名单）；不建镜像注册面
+- **分层纪律**：技能名 = kairos 包面（不归 engine lexicon）；harness markers = engine 语义（归 lexicon harness 域）——两域分居，Non-goal #2 不可破
+- **消费面纯度**：SKILL.md 是零程序历史指令文档；改名 rationale / 决策历史只落本 spec 与 docs/maintainers，不进消费面
+- 仓库 language policy / commit discipline / changeset 义务不因本 phase 变更
+
+## Deviations
 
 | Overall assumption | Phase decision | Overall updated? |
 |---|---|---|
@@ -143,14 +138,10 @@ P4 使 kairos（前 osuperpowers）的**技能身份**完成程序级统一：8 
 
 无未回填偏差——全部 grilling 定案已随 overall v1.20 sync-before-write + v1.21 review-fix 落地，命名退役（user 拍板）随 v1.22 单项回填。
 
-## Section 4: Notes for downstream
+## Notes for downstream
 
 - **程序收口**：P4 后无规划 phase；release 流程（Version PR / publish / tags）承接 changeset + CHANGELOG + emit 重 stamp，本 phase 不建 release 站（v1.4 裁定一致）
 - **命名纪律延续**：任何未来新增 kairos skill 必须沿用 `cdd-*` 命名（flat-namespace 唯一性纪律）；SKILL.md `name` 增删即目录扫描守卫自动覆盖
 - **#302（独立 single-spec 程序）**：Review Convergence 判读规则改动归其 spec；本 phase 不触碰
 - **npm-source 解析风险**：pi 对 scoped 包 registry 层的接受 = 已知残余，publish 前人工抽查承接（C5 记录）
 - **双镜像声明时间戳**：每次 README 家族编辑后校准声明时间戳（维护惯例提醒）
-
-## Section 5: Review
-
-Fresh-subagent review passes on the committed baseline, then user review, then writing-plans. Review Convergence（I1）：blocker > 0 → fix 全 findings 后 re-review；blocker = 0 → fix 全 findings → done（不再 re-review）。Entry 前树必须 clean（engine entry gate）。

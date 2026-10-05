@@ -6,30 +6,10 @@
 - **Parent program**: [2026-09-21-consumer-parity-overall.md](./2026-09-21-consumer-parity-overall.md) · v1.17
 - **Depends on**: P2（shipped，PR #272 `39ed65a8`）；P2 design v1.4 Approved；grilling 合流（2026-09-22，v1.14 回填）
 
----
-
-## Section 0: Incremental warning
-
-> P3 增量仅限本 phase。跨 phase 约定见 [overall v1.17](./2026-09-21-consumer-parity-overall.md)；overall 冲突时 overall 胜。
-
-本 spec 只做 **P3（本仓校验面重建）** 的设计增量：repo 侧四表守卫退役（S1/S2 + 42 用例 + `canary-dogfood.test.ts`）· validate 接线净化（steps 语义名、无四表 block、12→11 块）· canonical phase-id 语法 A · S3 残留簇改写 · F8a 盲区自消 · consumer-sim 升级挂 release 门 · skills 输出零过滤 + fix 边界条款 · **docs-family 命令出口统一（结果可见性 + exit.ts 出口）** · 运维规范落档。engine 判据面（P2 产物）与发布动作（P4）不属于本 phase，仅以「已就绪输入 / 下流交接物」形式出现。
-
-## Section 1: Constraints pointer
-
-> 不重复 overall 约定；overall 冲突时 overall 胜。
-
-引下列 overall v1.17 条目，不重述正文：
-- **判据定式**（C1 可达性 / C2 结构性 / C3 退化——useless 必删、无历史叙述豁免）：overall v1.8 Cross-cutting「判据定式」段
-- **Non-goals**：不新增 cdd CLI 子命令（唯一例外 `cdd help` 已于 P2 落地）· 不改 emit/marketplace/changeset 内部流水 · 不把本仓 GitHub issue 注册语义强加消费者 · 不改 README/CLAUDE.md harness 宣称类
-- **约束**：允许 breaking · 唯一执法面 = engine lifecycle（本仓无 scripts 侧兜底）· spec/plan 结构定义同源派生（canonical schema 单源）· engine 零文档写入 · 本仓=canary（运行期形态）
-- **语言**：Strategy B（spec/plan 中文）
-- **2026-09-22 用户裁决（binding，v1.14/v1.15/v1.16 回填）**：unit/e2e 测试 = 功能性验证，**零本仓产物为 fixture**（产物删即测试废 = 耦合病）· **零编号 anchor**（`5b0/5b1/5b/12.` 族退役，steps 语义名，不利运维）· **canonical phase-id 语法严格 A**（`^P\d+(\.\d+)*$` 点分分层，弃字母后缀）· **零 legacy 豁免死代码**（C3 直接命中）· 运维规范落档 docs/maintainers · **skills 调用 cdd 输出零过滤**（禁 `tail`/`head`/`2>&1 \|`/`EXIT=$?`——cdd 已自身优化输出长度，v1.15 补充）· **命令级出口统一走 exit.ts**（引擎所有运行函数成功路径禁止裸 `return;`，exit.ts 统一出口族 + 结果可见性——§2.9，v1.16 补充）
-
-## Section 2: Design body
-
+## Design
 本 phase 增量 = **repo 侧四表守卫整面删除 + validate 净化 + canonical phase-id 语法 A + 残留改写 + consumer-sim**。核心命题：**四表判据面唯一实现 = engine lifecycle（P2 已建），本仓运行期每步 dispatch 自身被审——canary 实证回归其运行期本位，不落测试、不进 validate**。
 
-### 2.1 判据面现状清算（退役面 vs 唯一实现面）
+**2.1 判据面现状清算（退役面 vs 唯一实现面）**
 
 **退役面（本 phase 删除）**：
 
@@ -46,7 +26,7 @@
 
 **42 行逐案对照表（本 design 产物，P3 执行面复核）**：`scripts/validate/__tests__/` 的 42 条 repo 断言逐一映射到 engine 对应用例（文件:行），判定「判据面已由 engine 测试覆盖 → 删」——证实删面零功能损失。对照表**✔ 已落盘（P3 T2）**——42 行映射见本 design §2.1 后 `### Appendix: 42-row cross-reference`（overall v1.14 规约；T2 落表、零迁入），AC1「42 行逐案对照表落盘本 design」复核由 T2 验收承接，非笼统「并入或删除」。
 
-### Appendix: 42-row cross-reference（AC1 逐案论证物，P3 T2 落盘）
+**Appendix: 42-row cross-reference（AC1 逐案论证物，P3 T2 落盘）**
 
 `scripts/validate/__tests__/` 的 42 条 repo 断言（27 overall-consistency + 15 plan-spec-anchors）逐条映射到 engine 对应用例（`文件:行`），判定「判据面已由 engine 测试覆盖 → 删」——证实删面零功能损失、零迁入。行号均已 `sed -n` 复验存在（2026-09-22 branch-review fix 复验更新：T4 新增 sub-phase 依赖用例致行号漂移，D:/K: 锚点全表按现状校准）；映射以 engine 测试自造链语义为准（不要求 repo 断言与 engine 用例逐字对应）。engine 路径缩写：D = `packages/cdd-engine/src/rules/__tests__/documents.test.ts` · CC = `packages/cdd-engine/src/dispatch/__tests__/doc-contract-channels.test.ts` · CO = `packages/cdd-engine/src/rules/__tests__/closeout.test.ts` · LV = `packages/cdd-engine/src/dispatch/__tests__/lifecycle-validation.test.ts` · K = `packages/cdd-engine/src/rules/documents.ts`（判据唯一实现 kernel）· SCH = `packages/cdd-engine/src/documents/schema/overall.json`（canonical claimPatterns 单源）。
 
@@ -104,7 +84,7 @@
 | 41 | makeBasenameIndex + isRescuedByBasename — 迁入 governed 面同名文档 rescues | K:346-352 resolveSpecFromPlan（label==basename 身份判定——basename 机制）+ D:138（label drift 逆面）+ D:115（成功面） | 判据面已由 engine 测试覆盖 → 删 |
 | 42 | 既有 spec/plan 全量锚对实态零漂移（A/B/C 三类） | CC:140（clean four tables → gate 通过）+ D:266（audit-clean 零失败）+ §2.2 运行期 canary（P3 自身链全程 dispatch 审计 = 实态零漂移的续存形态） | 判据面已由 engine 测试覆盖 → 删 |
 
-### 2.2 canary 回归运行期本位（canary-dogfood.test.ts 删除）
+**2.2 canary 回归运行期本位（canary-dogfood.test.ts 删除）**
 
 **病灶**：P2 T6④ 把「本仓 = canary 自证」从**一次性发布期实证**做成**常驻测试**（硬编码 `docs/osuperpowers/specs/2026-09-21-*.md` 三条真实路径 + 断言存在 + 断言过审计）。产物删除/改名/程序完结归档 → 测试验证一个不存在的产品 = 死断言。
 
@@ -120,7 +100,7 @@
 
 **验收线（grep 实证）**：`packages/cdd-engine/src/**/__tests__/**/*.ts` 中 `2026-09-21-consumer-parity`（本仓程序产物标识）引用 = 0（engine 测试面零本仓产物 fixture）。**排除口径**：`docs/osuperpowers` **布局字符串**不属产物引用——14 个 engine 测试文件（handoff-naming / progress-owner / cdd / lifecycle-validation / docs-runner / plan-constraints / doc-contract-channels / helpers / runner / root / infra.root / templates.cache / closeout-fixtures / documents）以 `docs/osuperpowers/specs/...` 相对路径在 mkdtemp 临时仓内**复刻消费者等效布局**，是合成 fixture 不是本仓产物——此面合法保留、不属删除面。
 
-### 2.3 canonical phase-id 语法 A（2026-09-22 用户裁决）
+**2.3 canonical phase-id 语法 A（2026-09-22 用户裁决）**
 
 **现状缺陷**（canonical overall.json 实测）：
 ```
@@ -165,7 +145,7 @@ phaseId  `^P\d+(\.\d+)*$`
 - 文件名尾：`-p<digits>(.digits)*.md`（plan）· `-p<digits>(.digits)*-design.md`（design）——与 phaseId 同源小写化
 - 本仓存量文档（overall P1–P4 · 各 phase spec/plan 头）——全 bare，零迁移
 
-### 2.4 validate 接线净化（零接线 + steps 语义名）
+**2.4 validate 接线净化（零接线 + steps 语义名）**
 
 **目标形状**：validate **无四表 block**（判据面唯一实现 = engine dispatch + 套件，repo 侧不落第二个触发点）——12 块 → 11 块。
 
@@ -196,7 +176,7 @@ phaseId  `^P\d+(\.\d+)*$`
 
 **block 数语义**：11 = emit / osuperpowers(4) / engine(2) / residue(1) / marketplace(1) / scripts-unit(1) / version-sync(1) = 11；ci-validate 钉死 11。
 
-### 2.5 S3 残留簇 + F8a（守卫退役后的执法位表述改写）
+**2.5 S3 残留簇 + F8a（守卫退役后的执法位表述改写）**
 
 **S3 活文档残留簇**（P1 design §2.2 登记 file:line；P3 删除后改写）：
 
@@ -209,7 +189,7 @@ phaseId  `^P\d+(\.\d+)*$`
 
 **F8a（`\bH1\b` 守卫扫面盲区）**：盲区 = `ALL_MECH_POSITIONS` 不含 `scripts/`（residue.ts）——退役词写回 scripts/ 不漏扫。**处置（v1.14 裁）**：不扩 `ALL_MECH_POSITIONS`（扩面引入守卫自豁免复杂化）——P3 删除整体守卫文件（`overall-consistency.ts` / `plan-spec-anchors.ts`）后，`scripts/validate/` 面上的 charter 退役词 `H1` 随文件消失；残留扫面语义 = **「scripts/ 面不再持有 charter 退役词 H1 的使用（守卫自身 `\bH1\b` 定义与测试除外——`residue.ts` / `residue.test.ts` 是 H1 语汇守卫本体，不属于残留）」**。
 
-### 2.6 consumer-sim（smoke-cdd 升级）
+**2.6 consumer-sim（smoke-cdd 升级）**
 
 **形态**：`scripts/validate/smoke-cdd.ts` 重写为 consumer-sim——**消费者视角黑盒**。
 
@@ -229,7 +209,7 @@ phaseId  `^P\d+(\.\d+)*$`
 
 **验收**：consumer-sim 在发布门可跑并输出消费者等效结果（pack → install → 消费者链全绿）；`npm pack` 内容 = 发布品即校验品。
 
-### 2.7 运维规范落档（docs/maintainers）
+**2.7 运维规范落档（docs/maintainers）**
 
 运维规范落档（**八项**——grilling 六项裁决 + v1.15 cdd 输出零过滤 + v1.16 docs-family 命令出口统一；新 section 或 program-experience 条目扩展；**sequencing：第 8 项在 §2.9 落地后写入**——结果面与出口实现在场才可落档，与 overall 落档八项口径一致）：
 
@@ -244,7 +224,7 @@ phaseId  `^P\d+(\.\d+)*$`
 
 落点：`docs/maintainers/program-experience.md`（新条目 + `docs/maintainers/skill-authoring.md` 若涉 skill 面）——英文主源（Strategy B extension）。
 
-### 2.8 skills 调用 cdd 输出零过滤（2026-09-22 用户裁决，P3 补充需求）
+**2.8 skills 调用 cdd 输出零过滤（2026-09-22 用户裁决，P3 补充需求）**
 
 **裁决**：cdd CLI 已对命令输出做信息长度优化——任何 skill 在调用 cdd 时，**禁止 `| tail` / `| head` / `2>&1 |` / `; echo "EXIT=$?"` 等过滤包装**；编排者直读完整 stdout/stderr，cdd 自身裁剪。
 
@@ -257,7 +237,7 @@ phaseId  `^P\d+(\.\d+)*$`
 
 **验收**：grep 零命中（见上）；`pnpm run validate` 全绿；emit 产物重生成（SKILL.md 是 emit 源）零 drift。
 
-### 2.9 docs-family 命令出口统一：结果可见性 + exit.ts 出口（2026-09-22 用户裁决，P3 补充）
+**2.9 docs-family 命令出口统一：结果可见性 + exit.ts 出口（2026-09-22 用户裁决，P3 补充）**
 
 **背景（P3 spec-review r1 实证）**：docs-family `cdd review --type spec|plan` 完成后 **stdout 零结果面**（`review.ts:170` 裸 `return;`，`cdd.test.ts:121` 只断 exit 0 不断 stdout）——编排者必须翻 `.osuperpowers/cdd/*/spec-review-1.json` 才知道 status/findings，与 task-family 的 return-block stdout 契约（`cdd.test.ts:127` 断言 `status: APPROVED`）不对称。本次偏离根因之一：**编排者看不到 review 结果 → 被迫读 handoff 文件 → 读到 findings 后「自己改」的湿滑斜坡**。
 
@@ -273,7 +253,7 @@ phaseId  `^P\d+(\.\d+)*$`
 
 **验收**：docs-family review/fix 完成后 stdout 含 result 面（`status:` 行可 grep）；`cli/*.ts` 命令级裸 return 零命中（`grep -rn "^\s*return;$" packages/cdd-engine/src/cli/*.ts` = 0）；`exit.ts` 统一出口族为 cli 层唯一出口调用面（grep 实证）；exit table 0/1/2/3 不变；engine vitest 全绿（含 cdd.test docs-family stdout 断言面更新）。
 
-### 2.10 mid-flight backfill 协议（2026-09-22 用户裁决，P3 补充需求）
+**2.10 mid-flight backfill 协议（2026-09-22 用户裁决，P3 补充需求）**
 
 **触发**：dispatch 进行中（implement/review/fix 任意一栈），用户侧产生相关讨论需回填 overall/spec/plan 文档。本 P3 运行期实证（用户其他项目遇到）：CDD 派发后专题讨论需回填，无指导时直接回填 → 树脏 → 下一 review 入口门 BLOCKED——「不做则卡关」与「做了堵关」两难。
 
@@ -293,6 +273,11 @@ phaseId  `^P\d+(\.\d+)*$`
 
 **验收**：五件 SKILL.md Invariants 表各含「Mid-Flight Backfill」（`grep -L "Mid-Flight Backfill" packages/osuperpowers/skills/{cli-driven-development,writing-overall-spec,writing-phase-spec,writing-single-spec,writing-plans}/SKILL.md` = 空）+ cdd 件含「Entry gate reads the tree」；`pnpm run emit` + `emit:check` 零 drift；`pnpm run validate` 全绿。
 
+| Overall assumption（v1.13） | Phase decision | Overall updated? |
+|---|---|---|
+| P3 scope「smoke-cdd 升级 consumer-sim 挂 release 门」 | 保留原裁（Q6）：release 门 + PR 门双挂；入口 = run.ts `smoke-cdd` 语义化 | 保持（v1.14 无变化） |
+| 依赖图 `P2 -> P3 -> P4` | 不变（P2 shipped → P3 可启；P4 依赖 consumer-sim 实测） | 保持 |
+
 ### Acceptance criteria
 
 - AC1 **守卫退役零残留**：`scripts/validate/overall-consistency.ts` / `plan-spec-anchors.ts` / `__tests__/{overall-consistency,plan-spec-anchors}.test.ts` 删除；`grep -rE "overall-consistency|plan-spec-anchors" scripts/` 零命中（`-E` 交替，非 BRE 字面 `|`）；42 行逐案对照表由 P3 plan T2 落盘本 design（每条 repo 断言 → engine 对应用例:行 → 覆盖判定，证实零功能损失——本版未落表，T2 落表后收口复核）
@@ -306,30 +291,33 @@ phaseId  `^P\d+(\.\d+)*$`
 - AC9 **docs-family 出口统一（§2.9）**：docs-family review/fix 完成后 stdout 含 result 面（`status:` 行；`cdd.test.ts` docs-family 断言面同步更新为断 stdout status/blocker/handoff）；`grep -rn "^\s*return;$" packages/cdd-engine/src/cli/*.ts` = 0（命令级裸 return 零命中）；`cli/*.ts` 出口统一走 `exit.ts` 族（`exitOkWith`/`exitWithCode`/`exitOk` 等，grep 实证 cli 层出口调用面 = exit.ts 单源）；exit table 0/1/2/3 不变；engine vitest 全绿
 - AC10 **全链收口**：`pnpm run validate` 全绿（11 块，干净已提交树）· `emit:check` 零 drift · precommit 11 块绿灯 · engine vitest 全绿 · AC1–AC9 逐条可复核
 
-## Section 3: Deviations from overall
+## Constraints
+
+- 不重复 overall 约定；overall 冲突时 overall 胜。
+
+- 引下列 overall v1.17 条目，不重述正文：
+- **判据定式**（C1 可达性 / C2 结构性 / C3 退化——useless 必删、无历史叙述豁免）：overall v1.8 Cross-cutting「判据定式」段
+- **Non-goals**：不新增 cdd CLI 子命令（唯一例外 `cdd help` 已于 P2 落地）· 不改 emit/marketplace/changeset 内部流水 · 不把本仓 GitHub issue 注册语义强加消费者 · 不改 README/CLAUDE.md harness 宣称类
+- **约束**：允许 breaking · 唯一执法面 = engine lifecycle（本仓无 scripts 侧兜底）· spec/plan 结构定义同源派生（canonical schema 单源）· engine 零文档写入 · 本仓=canary（运行期形态）
+- **语言**：Strategy B（spec/plan 中文）
+- **2026-09-22 用户裁决（binding，v1.14/v1.15/v1.16 回填）**：unit/e2e 测试 = 功能性验证，**零本仓产物为 fixture**（产物删即测试废 = 耦合病）· **零编号 anchor**（`5b0/5b1/5b/12.` 族退役，steps 语义名，不利运维）· **canonical phase-id 语法严格 A**（`^P\d+(\.\d+)*$` 点分分层，弃字母后缀）· **零 legacy 豁免死代码**（C3 直接命中）· 运维规范落档 docs/maintainers · **skills 调用 cdd 输出零过滤**（禁 `tail`/`head`/`2>&1 \|`/`EXIT=$?`——cdd 已自身优化输出长度，v1.15 补充）· **命令级出口统一走 exit.ts**（引擎所有运行函数成功路径禁止裸 `return;`，exit.ts 统一出口族 + 结果可见性——§2.9，v1.16 补充）
+
+## Deviations
 
 | Overall assumption（v1.13） | Phase decision | Overall updated? |
 |---|---|---|
 | P3 scope「42 用例并入 engine 套件或删除」 | **全删零迁入**——判据面 engine 自造链测试已覆盖（P2 建），42 条 repo 断言逐案对照后证实零功能损失；「并入」= 搬瓜皮，双写 | Yes — v1.14（2026-09-22 grilling 合流） |
 | P3 scope「本仓 own 程序四表合规 = 跑 engine lifecycle 审计同路径（validate 中可见）」 | **零接线**——不建 validate 四表 block；判据面唯一实现 = engine（dispatch 运行时 + 套件）；canary 回归运行期形态；validate「可见」改由「engine 套件即 validate 5b1 + 程序运行期实证」满足 | Yes — v1.14 |
-| P3 scope「smoke-cdd 升级 consumer-sim 挂 release 门」 | 保留原裁（Q6）：release 门 + PR 门双挂；入口 = run.ts `smoke-cdd` 语义化 | 保持（v1.14 无变化） |
 | null（新需求） | 2026-09-22 用户裁决新增：canonical phase-id 语法严格 A · steps 语义名零编号 anchor · 零产物 fixture · 运维规范落档 | Yes — v1.14 新增 |
 | null（P3 补充需求，2026-09-22） | **skills 调用 cdd 输出零过滤**——禁止 `tail`/`head`/`2>&1 \|`/`EXIT=$?` 包装，cdd 已自身优化输出长度（§2.8）；P3 scope cell 同步列入 | Yes — v1.15 回填（P3 补充） |
 | null（P3 补充需求，2026-09-22） | **docs-family 命令出口统一**——docs review 完成后 stdout result 面（`status:`/`blocker:`/`handoff:` 行，编排者可直读、不翻 handoff）；`cli/*.ts` 命令级出口统一走 `exit.ts` 族、禁裸 `return;`、exit table 0/1/2/3 不变（§2.9）+ **fix 边界条款**——review 后编排者只读 status/blocker 计数、findings 全文由 `cdd fix` fix-agent 消费、不得 inline 应用 findings（§2.2，defect②修复）；P3 scope cell 同步列入 | Yes — v1.16 回填（P3 补充） |
 | null（P3 补充需求，2026-09-22） | **mid-flight backfill 协议**——当前 `cdd` dispatch 返回即刻回填（热上下文，不延迟到循环闭合）+ 回填随独立 commit 落地（else 下一 review 入口门 BLOCKED）+ 消费者面五个 SKILL.md（cdd + writing-* 四件）各增「Mid-Flight Backfill」条目 + cdd Engine Semantics 增「entry gate reads the tree, not the range」语义（§2.10）；P3 scope cell 同步列入 | Yes — v1.18 回填（P3 补充） |
-| 依赖图 `P2 -> P3 -> P4` | 不变（P2 shipped → P3 可启；P4 依赖 consumer-sim 实测） | 保持 |
 
 > `Overall updated?` 全为 Yes（v1.14 grilling 合流 + v1.15/v1.16 spec-review r1 回填；overall v1.17 探针修正 = **spec-review-4/fix-4**——AC4 探针改 `[A-Za-z(]` 正向后缀 + node 断言，change-history v1.17 条目头已标「spec-review-4 修正探针」）——无未登记偏差。
 >
 > **探针转义告警（防父面白绿）**：parent overall v1.17 的 P3 acceptance cell 与 change-history v1.17 条目中探针以 markdown 表格转义写入（`(?:^\| )\b(?:[0-9]+\.\|5b\d*\|5c\|8-10)[. ]+[A-Za-z(]`）——`\|` 形态无交替运算符，node 实测对纯步名与 `| 12. overall consistency |` 表行形式均零命中，照字面复制为验证 grep 即白绿；验证 grep 须先把 `\|` 还原为 `|`（还原后 = 本 design AC4 已被实证探针：现名全命中 / 语义名全 miss），或与 overall 同步换无 `|` 形态（整体修订时）。
 
-## Section 4: Notes for downstream
+## Notes for downstream
 
 - **P4（发布闭环）**：输入 = .changeset ×2（本程序 cdd-engine major + osuperpowers）版本化 + 旧程序 osuperpowers-overhaul ×9 changesets 版本化 + cdd-engine major breaking 发布面（P2 全部变更）+ **consumer-sim release 门实测通过**（P3 AC6 产物）+ pack 内容审计（cdd-engine `npm pack` 内容 = `dist/` + `templates/`（+ package.json；README/LICENSE 有则随包——files 面外 npm 自动携带面），**无 `skills/`**——`skills/` 属 osuperpowers 插件包面，若审计须单独列其包名；tarball 实际断言 = 真实 `dist/cli.mjs` + `templates/` + `dist/documents/schema/`，见 AC6；不含仓内 tests/、scripts/ 治理残件）。
 - 本 phase 无「later phases 会处理」悬空项——所有跨 phase 移交均落上游 overall v1.17 或本 §4 指针。
-
-## Section 5: Review
-
-- **Baseline = committed tree**：进入 review 前工作树干净（entry gate）；review 读 dispatch 入口时的 committed tree。
-- **Convergence**：blocker > 0 → fix 全部 findings → 重审；blocker = 0 → fix 全部（warn/nit 含）→ 停，不再审（Review Convergence，CLAUDE.md）。
-- 本 spec 经 `cdd review --type spec --spec docs/osuperpowers/specs/2026-09-21-consumer-parity-p3-design.md` 单轮收敛。

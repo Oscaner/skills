@@ -12,11 +12,11 @@
 // `**Base**`), a delta-only `## Constraints` face (the section carries the plan's own deltas; the
 // legacy Form B prose pointers are retained only as the T5 dual-read + extractProseConstraints
 // dependency — new docs never use them), the `tasks[]` Task data records (objective / files /
-// interface{consumes,produces} / steps[]{action,checkable} / acceptance[], plus the P3 edge-model
-// extension bits dependsOn?/atomicWith? — active read/write: the task-block parser fills them and
-// TaskGraph consumes them for the atomic-closure grouping + the edge-validation BLOCK face) the brief
+// interface{consumes,produces} / steps[]{action,checkable} / acceptance[], plus the optional
+// dependsOn?/atomicWith? edge fields — read/write: the task-block parser fills them and TaskGraph
+// consumes them for the atomic-closure grouping + the edge-validation BLOCK face) the brief
 // renderer materializes the task-handoff brief from, and the taskGroups dispatch-group declaration
-// (the P3 extension slot; its layout leaves stay exactly where the DOC_TOKENS derivation reads
+// (an optional section; its layout leaves stay exactly where the DOC_TOKENS derivation reads
 // them). The `### Task N:` render surface keeps the colon-form heading const — the deriveDocTokens
 // taskHeadings leaf and the 1..N continuity contract are byte-unchanged by the re-projection.
 //
@@ -224,7 +224,7 @@ export const PLAN_BODY_SHAPE: SchemaShape = {
         type: "object",
         required: ["objective", "files", "interface", "steps", "acceptance"],
         description:
-          "One plan task record — objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[], with the P3 edge-model extension bits dependsOn? (the tasks this task depends on) and atomicWith? (the tasks this task is atomic with) — active read/write: the task-block parser fills them, TaskGraph consumes them for the grouping + edge validation.",
+          "One plan task record — objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[], plus the optional dependsOn? (the tasks this task depends on) and atomicWith? (the tasks this task is atomic with) edge fields — read/write: the task-block parser fills them from their `- **DependsOn**:` / `- **AtomicWith**:` comma lists, TaskGraph consumes them for the grouping + edge validation.",
         properties: {
           objective: {
             type: "string",
@@ -300,7 +300,7 @@ export const PLAN_BODY_SHAPE: SchemaShape = {
               description: "One task id this task depends on (a `### Task N:` id).",
             },
             description:
-              "P3 edge-model extension bit — the task ids this task depends on; active read/write (the task-block parser fills it from `- **DependsOn**:`, TaskGraph consumes the edges).",
+              "The task ids this task depends on — the `- **DependsOn**:` comma list (read/write: the task-block parser fills it; TaskGraph consumes the edges).",
           },
           atomicWith: {
             type: "array",
@@ -310,7 +310,7 @@ export const PLAN_BODY_SHAPE: SchemaShape = {
               description: "One task id this task is atomic with (a `### Task N:` id).",
             },
             description:
-              "P3 edge-model extension bit — the task ids this task is atomic with; active read/write (the task-block parser fills it from `- **AtomicWith**:`, TaskGraph consumes the edges).",
+              "The task ids this task is atomic with — the `- **AtomicWith**:` comma list (read/write: the task-block parser fills it; TaskGraph consumes the edges).",
           },
         },
       },

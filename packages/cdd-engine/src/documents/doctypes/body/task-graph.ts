@@ -1,4 +1,4 @@
-// packages/cdd-engine/src/documents/doctypes/body/task-graph.ts — TaskGraph (P3 plan T1): the
+// packages/cdd-engine/src/documents/doctypes/body/task-graph.ts — TaskGraph: the
 // plan-wide single grouping derivation. Groups are the connected components of the atomic
 // closure (atomicWith = undirected symmetric edges → transitive closure), ordered by a
 // topological order of the component DAG (dependsOn edges between components; ties ordered by the
@@ -6,7 +6,7 @@
 // any failure → a GraphVerdict (null = valid), and `groups()` validates first — a non-null verdict
 // throws GraphViolationError instead of silently emitting an order. The class is constructor-
 // injected read-only over the plan's Task[] (the `### Task N:` ascending array — index i+1 = task
-// id i+1) and is deliberately wiring-free at T1 (the dispatch substitution lands at T2).
+// id i+1) and is deliberately wiring-free — a pure grouping derivation over the task array.
 
 import { TaskGroup } from "../../../domain/task-group.ts";
 import type { Task } from "./task.ts";
@@ -187,33 +187,10 @@ export class TaskGraph {
       }
     }
 
-    // The remaining (inter-component) dependsOn edges form the component DAG — cycle check by
-    // topological counting: any component Kahn's never consumes is trapped in a cycle.
-    const indeg = new Array<number>(groups.length).fill(0);
-    const adj: Array<Set<number>> = groups.map(() => new Set<number>());
-    for (let n = 1; n <= N; n++) {
-      for (const v of this.#edgeValues(n, "dependsOn")) {
-        if (v < 1 || v > N || v === n) continue;
-        if (broken.has(key(n, v))) continue;
-        if (find(n) === find(v)) continue; // intra-closure — already reported above
-        const from = this.#compIndexOf(groups, find, v);
-        const to = this.#compIndexOf(groups, find, n);
-        if (adj[from]!.has(to)) continue;
-        adj[from]!.add(to);
-        indeg[to]!++;
-      }
-    }
-    const consumed = new Array<boolean>(groups.length).fill(false);
-    const ready = groups.map((_, i) => i).filter((i) => indeg[i] === 0);
-    while (ready.length > 0) {
-      ready.sort((a, b) => groups[a]![0]! - groups[b]![0]!); // ties: smallest task number first
-      const c = ready.shift()!;
-      consumed[c] = true;
-      for (const t of adj[c]!) {
-        indeg[t]!--;
-        if (indeg[t] === 0) ready.push(t);
-      }
-    }
+    // The remaining (inter-component, non-broken) dependsOn edges form the component DAG — cycle
+    // check by topological counting: any component the shared Kahn sweep never consumes is trapped
+    // in a cycle.
+    const { consumed } = this.#componentPass(N, groups, find, (n, v) => broken.has(key(n, v)));
     const leftover = groups.filter((_, i) => !consumed[i]);
     if (leftover.length > 0) {
       const members = leftover.flat().sort((a, b) => a - b);
@@ -240,13 +217,38 @@ export class TaskGraph {
     if (verdict !== null) throw new GraphViolationError(verdict);
     const { groups, find } = this.#atomicPartition();
 
-    // The component DAG (all edges are clean post-validation) — Kahn's topological order.
+    // The component DAG (all edges are clean post-validation) — the shared Kahn sweep emits the
+    // topological order.
+    const { order, consumed } = this.#componentPass(
+      this.#tasks.length,
+      groups,
+      find,
+      (n, v) => find(n) === find(v),
+    );
+    if (!consumed.every(Boolean)) {
+      throw new Error("TaskGraph.groups(): post-validation component DAG still contains a cycle");
+    }
+    return order.map((i) => TaskGroup.fromNumbers(groups[i]!));
+  }
+
+  /** The component-DAG construction + Kahn sweep — ONE shared pass both grouping consumers run
+   *  (validate() reads `consumed` to block the leftover cycle subgraph; groups() emits `order`).
+   *  The DAG is built over the atomic components from the dependsOn edges that survive
+   *  `isExcluded` (validate() skips the already-broken and intra-component edges; groups()
+   *  post-validation skips only the intra-component ones). Ready ties leave in smallest-task-number
+   *  order — every emitted component is pushed to `order` and marked in `consumed`. */
+  #componentPass(
+    taskCount: number,
+    groups: number[][],
+    find: (n: number) => number,
+    isExcluded: (n: number, v: number) => boolean,
+  ): { order: number[]; consumed: boolean[] } {
     const indeg = new Array<number>(groups.length).fill(0);
     const adj: Array<Set<number>> = groups.map(() => new Set<number>());
-    for (let n = 1; n <= this.#tasks.length; n++) {
+    for (let n = 1; n <= taskCount; n++) {
       for (const v of this.#edgeValues(n, "dependsOn")) {
-        if (v < 1 || v > this.#tasks.length || v === n) continue; // impossible post-validation
-        if (find(n) === find(v)) continue; // impossible post-validation
+        if (v < 1 || v > taskCount || v === n) continue;
+        if (isExcluded(n, v)) continue;
         const from = this.#compIndexOf(groups, find, v);
         const to = this.#compIndexOf(groups, find, n);
         if (adj[from]!.has(to)) continue;
@@ -254,20 +256,20 @@ export class TaskGraph {
         indeg[to]!++;
       }
     }
-    const ready = groups.map((_, i) => i).filter((i) => indeg[i] === 0);
+    const consumed = new Array<boolean>(groups.length).fill(false);
     const order: number[] = [];
+    const ready = groups.map((_, i) => i).filter((i) => indeg[i] === 0);
     while (ready.length > 0) {
       ready.sort((a, b) => groups[a]![0]! - groups[b]![0]!); // ties: smallest task number first
       const c = ready.shift()!;
+      consumed[c] = true;
       order.push(c);
       for (const t of adj[c]!) {
         indeg[t]!--;
         if (indeg[t] === 0) ready.push(t);
       }
     }
-    if (order.length !== groups.length)
-      throw new Error("TaskGraph.groups(): post-validation component DAG still contains a cycle");
-    return order.map((i) => TaskGroup.fromNumbers(groups[i]!));
+    return { order, consumed };
   }
 
   /** One task's declared edge values for a field (empty when the field is absent). */

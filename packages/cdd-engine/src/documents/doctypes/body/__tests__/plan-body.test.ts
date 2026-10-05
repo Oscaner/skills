@@ -6,8 +6,8 @@
 //     `**Spec:**` + label==basename kept — · parentProgram · version · dependsOn · base), the
 //     delta-only `## Constraints` (Form B prose pointers banned for new docs, retained for the
 //     legacy dual-read tree only), the `tasks[]` Task data shape (objective / files / interface
-//     {consumes,produces} / steps[]{action,checkable} / acceptance[] + the P3 dependsOn?/atomicWith?
-//     extension bits), the taskGroups dispatch-group declaration (the P3 extension slot — the
+//     {consumes,produces} / steps[]{action,checkable} / acceptance[] + the optional dependsOn?/
+//     atomicWith? edge fields), the taskGroups dispatch-group declaration (an optional section — the
 //     DOC_TOKENS layout leaves preserved) and the `language` authoring-language policy note (the
 //     plan is a Strategy B internal doc — prose in the working language, value tokens neutral);
 //   - the DOC_TOKENS derived-leaf invariant: the re-projection keeps the four deriveDocTokens leaf
@@ -183,7 +183,7 @@ describe("PLAN_BODY_SHAPE — the full-field data-shape projection", () => {
     expect(node(["taskHeadings", "continuity"])).toBeDefined();
   });
 
-  it("tasks[] carries the Task data shape — objective/files/interface{consumes,produces}/steps[]{action,checkable}/acceptance + the P3 extension bits", () => {
+  it("tasks[] carries the Task data shape — objective/files/interface{consumes,produces}/steps[]{action,checkable}/acceptance + the edge fields", () => {
     expect(node(["tasks"]).type).toBe("array");
     const item = node(["tasks"]).items;
     const required = item?.required as readonly string[] | undefined;
@@ -198,8 +198,7 @@ describe("PLAN_BODY_SHAPE — the full-field data-shape projection", () => {
     const step = item?.properties?.steps?.items;
     expect(step?.required).toContain("action");
     expect(step?.required).toContain("checkable");
-    // The P3 edge-model extension bits — active read/write (the parser fills them, TaskGraph
-    // consumes them).
+    // The edge fields — read/write (the parser fills them, TaskGraph consumes them).
     expect(item?.properties?.dependsOn).toBeDefined();
     expect(item?.properties?.atomicWith).toBeDefined();
   });

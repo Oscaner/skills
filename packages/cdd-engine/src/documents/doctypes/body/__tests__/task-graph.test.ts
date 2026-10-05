@@ -1,5 +1,5 @@
-// packages/cdd-engine/src/documents/doctypes/body/__tests__/task-graph.test.ts — TaskGraph
-// (P3 plan T1): the plan-wide single grouping derivation. Groups are the atomic-closure connected
+// packages/cdd-engine/src/documents/doctypes/body/__tests__/task-graph.test.ts — TaskGraph: the
+// plan-wide single grouping derivation. Groups are the atomic-closure connected
 // components (atomicWith = undirected symmetric edges → transitive closure), ordered by a
 // topological order of the component DAG (dependsOn edges between components; ties ordered by the
 // group's smallest task number ascending). `validate()` carries the five-failure-class BLOCK face

@@ -121,10 +121,10 @@ function splitListValue(value: string): string[] {
 /** Parse one `### Task N:` block's lines into a Task data record (design C3) — empty return for a
  *  legacy block carrying no data-field markers (the dual-read contract: the legacy `- **Do**:` face
  *  is left untouched, a new-shape block's objective/steps/acceptance fields are the single source).
- *  The P3 edge fields (`- **DependsOn**:` / `- **AtomicWith**:`) read as comma-table number arrays
- *  into the Task's dependsOn/atomicWith — the TaskGraph edge-model read surface. A step entry that
- *  drops the ` — checkable:` separator still parses (its action is kept) with the checkable capture
- *  empty — the validate face fails on it, the field is never silently dropped. */
+ *  The optional edge fields (`- **DependsOn**:` / `- **AtomicWith**:`) read as comma-table number
+ *  arrays into the Task's dependsOn/atomicWith — the TaskGraph edge-model read surface. A step entry
+ *  that drops the ` — checkable:` separator still parses (its action is kept) with the checkable
+ *  capture empty — the validate face fails on it, the field is never silently dropped. */
 function parseTaskBlock(lines: readonly string[]): Task | null {
   const slices = planBody.projectSlicePatterns();
   let objective = "";
@@ -186,8 +186,8 @@ function parseTaskBlock(lines: readonly string[]): Task | null {
     interface: { consumes, produces },
     steps,
     acceptance,
-    // the P3 edge fields are absent-on-default: an empty declaration leaves the extension bits
-    // undefined (task.test.ts pins the absent default).
+    // the edge fields are absent-on-default: an empty declaration leaves the field undefined
+    // (task.test.ts pins the absent default).
     ...(dependsOn.length > 0 ? { dependsOn } : {}),
     ...(atomicWith.length > 0 ? { atomicWith } : {}),
   });

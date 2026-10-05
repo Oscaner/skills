@@ -3,10 +3,10 @@
 // brief renderer reads (the handoff materializes objective + steps{action,checkable} + acceptance
 // through the PlanBody-side renderBrief surface) and the T3 schema-validation face bolts onto: a
 // step's `checkable` is a construction-time type-level constraint (a step omitting it fails to
-// compile — never a runtime guard). `dependsOn` / `atomicWith` are the P3 edge-model extension bits
-// (the plan's two-edge model): active read/write — the task-block parser fills them from the
-// `- **DependsOn**:` / `- **AtomicWith**:` lines and TaskGraph consumes them for the atomic-closure
-// grouping + the edge-validation BLOCK face.
+// compile — never a runtime guard). `dependsOn` / `atomicWith` are the plan's two edge-model fields
+// (directed dependency + undirected atomic pairing): read/write — the task-block parser fills them
+// from the `- **DependsOn**:` / `- **AtomicWith**:` comma lists and TaskGraph consumes them for the
+// atomic-closure grouping + the edge-validation BLOCK face.
 
 /** One plan task step — an executable action + its verifiable outcome. */
 export interface TaskStep {
@@ -25,7 +25,8 @@ export interface TaskInterface {
   produces: string[];
 }
 
-/** Constructor options for a plan task — the full field family + the optional P3 extension bits. */
+/** Constructor options for a plan task — the full field family + the optional dependsOn? /
+ *  atomicWith? edge fields. */
 export interface TaskOpts {
   /** The task's outcome statement. */
   objective: string;
@@ -37,20 +38,20 @@ export interface TaskOpts {
   steps: TaskStep[];
   /** The task's acceptance criteria. */
   acceptance: string[];
-  /** The task ids this task depends on (P3 edge-model extension bit — active read/write:
-   *  `parseTaskBlock` fills it from `- **DependsOn**:`; TaskGraph consumes the edges). */
+  /** The task ids this task depends on — read/write (the task-block parser fills it from the
+   *  `- **DependsOn**:` comma list; TaskGraph consumes the edges). */
   dependsOn?: number[];
-  /** The task ids this task is atomic with (P3 edge-model extension bit — active read/write:
-   *  `parseTaskBlock` fills it from `- **AtomicWith**:`; TaskGraph consumes the edges). */
+  /** The task ids this task is atomic with — read/write (the task-block parser fills it from the
+   *  `- **AtomicWith**:` comma list; TaskGraph consumes the edges). */
   atomicWith?: number[];
 }
 
 /**
  * A plan task (P2 T1; plan §T1 · design C1 — Criterion ②). Every field is constructor-injected on
- * a read-only face; the P3 edge-model extension bits (dependsOn? / atomicWith?) are active
- * read/write (the task-block parser fills them, TaskGraph consumes them). The checkable requirement
- * is enforced at the type level — the T3 schema-validation machinery and the brief render surface
- * consume the same TaskStep shape.
+ * a read-only face; the optional dependsOn? / atomicWith? edge fields are read/write (the
+ * task-block parser fills them, TaskGraph consumes them). The checkable requirement is enforced at
+ * the type level — the T3 schema-validation machinery and the brief render surface consume the same
+ * TaskStep shape.
  */
 export class Task {
   /** The task's outcome statement. */
@@ -63,9 +64,9 @@ export class Task {
   readonly steps: TaskStep[];
   /** The task's acceptance criteria. */
   readonly acceptance: string[];
-  /** The task ids this task depends on (P3 edge-model extension bit). */
+  /** The task ids this task depends on. */
   readonly dependsOn?: number[];
-  /** The task ids this task is atomic with (P3 edge-model extension bit). */
+  /** The task ids this task is atomic with. */
   readonly atomicWith?: number[];
 
   constructor(opts: TaskOpts) {

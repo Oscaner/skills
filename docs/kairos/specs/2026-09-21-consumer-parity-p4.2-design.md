@@ -6,22 +6,8 @@
 - **Parent program**: [2026-09-21-consumer-parity-overall.md v1.44](2026-09-21-consumer-parity-overall.md)
 - **Depends on**: P4.4（shipped · [p4.4-design v1.9](2026-09-21-consumer-parity-p4.4-design.md)）
 
-## Section 0: Incremental warning
-
-本 spec 只提交 **P4.2 一个 phase** 的增量：发布一致性闭环。它横跨版本管线、发布门/CI、engine 渲染面、宣讲定位面、运维文档与首次发布执行六簇；六簇同属一个 phase 的六组 task groups（phase-size = fit，P4.4 同尺度先例——单 phase spec + task groups 分批），任何拆分/重排 = parent overall 的 phase-inventory 行 + 依赖边 + change-history 先行（backfill-as-version），不是本 spec 的局部编辑。
-
-## Section 1: Constraints pointer
-
-跨 phase 约定看 parent overall（overall wins on conflict）：
-- **宪章 Non-goal #1**（**v1.44 修订后**）：不新增 cdd CLI 子命令，唯一例外 = 信息发现型 `cdd schema get <type>` + 纯渲染型 `cdd issue render` **零执法**子命令；除外仍零新增（执法型）子命令
-- **宪章宪法语**（v1.44）：repo scripts → engine 单向依赖铁律——repo 治理面可依赖 engine；**shipped 包 → repo scripts 禁止**，shipped 包必须自包含消费者面
-- **宪章主句**（v1.44）：repo 定位改述「基于 cdd 理念的方法论」，harness 宣称面维持 P6 B1 中性「多 harness 可消费」，定位叙事零 harness 枚举
-- 语言政策：spec/plans 中文（Strategy B）；README/skills/docs 英文-primary（Strategy A）
-- 发布纪律：版本动作 = 原生 `changeset version`（main 上 changesets/action）；`.` 手写版本一律不做
-
-## Section 2: Design body
-
-### §1 版本管线重构（R1/R2）
+## Design
+**§1 版本管线重构（R1/R2）**
 
 **裁决基线**：自研版本计算整体退役，版本数学全交原生 `changeset version`。技术事实（P4.2 brainstorm 沙箱实证，changesets v3.0.3）：**原生 `changeset version` 对 0.x 包 + `major` changeset 产出 `1.0.0`**（modern changesets 不把 0.x major 折成 minor；`semver.inc("0.1.0","major") = "1.0.0"`）。因此「0.1.0 降值 + 原生 major 集合」= **cdd-engine 1.0.0 首次稳定开版 = 原生自动产出**，既不需要自研折弯，也不产生 2.0.0。
 
@@ -42,7 +28,7 @@
 
 **1.6 version-sync 补 cdd-engine 覆盖（原生管线下）**：`scripts/validate/version-sync.ts` 增 cdd-engine 段——(a) package.json 声明 semver 格式断言；(b) 发布态版本身份断言经 `smoke-cdd --expect-version`（§2.2）承担，不重复造产物（cdd-engine 无 emit 产物，不伪造 sync 面）。
 
-### §2 发布门 + workflows 三层重构（R3）
+**§2 发布门 + workflows 三层重构（R3）**
 
 **2.1 consumer-sim 定位**：`smoke-cdd`（scripts/validate/smoke-cdd.ts）消费者黑盒**专属 cdd-engine**（真实 build → pack → tarball 断言 → 消费者仓安装 → 五命令 dry-run 链 → return-block 契约）。osuperpowers **走正常 npm 发版**（为 pi 类 npm-harness 预留的通道），其发布品校验 = §3 pack 内容面审计 + emit 产物 + version-sync，不做插件安装面的伪消费者模拟。
 
@@ -56,7 +42,7 @@
 - **push 覆盖模型**：validate 在 PR 面全覆盖（develop→main PR + changeset-release/* 的 base-main PR 都跑 pr-validate）；push→main 本身不跑 validate——发布面 = emit 新鲜度（release.yml 预步）+ 双 consumer 门（pre 基线 + post --expect-version）；覆盖边界写入 release.yml 注释与 docs/maintainers
 - **sync-main-to-develop**：维持（workflow_call 复用，释放回流）
 
-### §3 pack 内容面审计 → 数据面单源（R4）
+**§3 pack 内容面审计 → 数据面单源（R4）**
 
 **根因**（P4.2 brainstorm 实证）：`packages/osuperpowers` 现整包含 `tests/` ×6 + 包内 `scripts/`（report-templates.mjs · render-yaml.mjs）+ `bin/utils/exit.mjs` 死代码 + `.version-bump.json` + **开发残留 `.superpowers/cdd/skill-digraph-refactor-p1/`（gitignored 但 `npm pack` 照装）**。其中 `scripts/report-templates.mjs` 是 **shipped 技能 `report-issues` 的运行期依赖**（I5 契约：`node "${pluginRoot}/scripts/report-templates.mjs"` 直出 body）——scope 原文「scripts/ 治理残件」表述错误，根修 = **迁 engine**（依赖方向铁律）。
 
@@ -79,7 +65,7 @@
 
 **3.6 Non-goal #1 例外修订**：已随 overall v1.44 同步（「唯一 = schema get」→「发现型 schema get + 纯渲染型 issue render」）——本 phase 落地其一。
 
-### §7 plan-constraints 再生语义（2026-09-26 mid-backfill 追加）
+**§7 plan-constraints 再生语义（2026-09-26 mid-backfill 追加）**
 
 **根因**：T22/§T7.1 的 plan-constraints.md 材料化为 **generate-once**——implement pre-flight（`task.ts` line ~487）为纯 `existsSync` 门：TG1 生成后，后续 TG 全部跳过（`materializePlanConstraints` 自身也是 `if (existsSync) return {generated:false}`）。`isPlanConstraintsStale`（plan-hash anchor 比对）已实现但**零接线**——plan Constraints 的 mid-backfill 更新永远不会刷进派生产物。
 
@@ -90,7 +76,7 @@
 - plan-constraints.test.ts / runner.test.ts 的 generate-once 断言面反转为「无条件再生」语义（同 plan 二次调用覆写同字节 = 确定性保持）；T22 注释同步
 - 非 breaking：CLI/字段面零变化，仅派生产物再生语义
 
-### §4 宣讲定位面（R5/R6/R8）
+**§4 宣讲定位面（R5/R6/R8）**
 
 **4.1 README 三段式骨架**：**定位（R8）→ 理念（R6）→ 行为（P4.1 成果）**——理念导览成第一读层：
 - **定位句**（CLAUDE.md + README 共用，English-primary）：`A cdd-first methodology: continuously-discovered development as the core discipline, AI coding skills as the distribution vehicle.`（无 harness 字样；未来加 harness 零约束）
@@ -103,7 +89,7 @@
 
 **4.4 CLAUDE.md 定位句**：同步改述（repo 定位句 + Non-goal #1 例外表述 + 单一来源措辞不回归）。
 
-### §5 运维文档精炼（R7）
+**§5 运维文档精炼（R7）**
 
 - **合并**：`01-data-driven-templates.md` + `02-template-doctrine.md` → 单文档 `01-template-doctrine.md`（template 面一个文档；02 槽位随合并消失）
 - **重编号**：剩余五件**连续重编号 01-05**（有意不留断号）——`03-naming-conventions.md` → **02** · `04-context-caching-doctrine.md` → **03** · `05-program-experience.md` → **04** · `06-third-party-dependencies.md` → **05**；下文与 Acceptance 引用一律用新号 → 内容文档 6 → **5**
@@ -114,7 +100,7 @@
 - **补位**：smoke-cdd 定位说明（P4.2 dogfood：owner 不确定其用途 → 在 docs/maintainers 写明「consumer-sim = cdd-engine 发布品消费者黑盒」）
 - **净目标**：62.6KB → ~42KB（-33%）、6 → 5 内容文档；验收 = 收敛前后对照 + 链接探针
 
-### §6 首次发布执行（R1–R8 收口）
+**§6 首次发布执行（R1–R8 收口）**
 
 版本目标推导——**cdd-engine**：现声明 0.1.0（1.1 降值）+ 累计 major changesets → 原生 `changeset version` 产出 **1.0.0**（§1 裁决基线，0.x major 不前折）；**osuperpowers**：现声明 **0.1.1**（已发布、npm + git tag 均存在）+ 累计 minor changesets（p3 / p4 / p5-report-issues / p6-osuperpowers-surface，及 p4.3 / p4.4 系列，均 osuperpowers minor）→ minor 折叠 → **0.2.0**（沙箱实证 Method 与 §1 同源：changesets v3.0.3，`0.1.0 + major → 1.0.0`、`0.1.1 + minor → 0.2.0`）。
 
@@ -141,7 +127,16 @@
 - **plan-constraints 每 TG 再生实证（mid-backfill 追加）**：`materializePlanConstraints` 无 generate-once 早退 · implement pre-flight 无 `existsSync` 跳过（每 implement dispatch 必调）· `isPlanConstraintsStale` 零残留（grep 断言）· 同 plan 二次调用覆写同字节（确定性保持）· engine 测试全绿（`pnpm --filter @oscaner-skills/cdd-engine test`）
 - 首次发布执行：`cdd-engine@1.0.0` / `osuperpowers@0.2.0` 双 tag + GH Release ×2 + npm 发布实证（`npm view` 可达）
 
-## Section 3: Deviations from overall
+## Constraints
+
+- 跨 phase 约定看 parent overall（overall wins on conflict）：
+- **宪章 Non-goal #1**（**v1.44 修订后**）：不新增 cdd CLI 子命令，唯一例外 = 信息发现型 `cdd schema get <type>` + 纯渲染型 `cdd issue render` **零执法**子命令；除外仍零新增（执法型）子命令
+- **宪章宪法语**（v1.44）：repo scripts → engine 单向依赖铁律——repo 治理面可依赖 engine；**shipped 包 → repo scripts 禁止**，shipped 包必须自包含消费者面
+- **宪章主句**（v1.44）：repo 定位改述「基于 cdd 理念的方法论」，harness 宣称面维持 P6 B1 中性「多 harness 可消费」，定位叙事零 harness 枚举
+- 语言政策：spec/plans 中文（Strategy B）；README/skills/docs 英文-primary（Strategy A）
+- 发布纪律：版本动作 = 原生 `changeset version`（main 上 changesets/action）；`.` 手写版本一律不做
+
+## Deviations
 
 | Overall assumption | Phase decision | Overall updated? |
 |---|---|---|
@@ -151,13 +146,8 @@
 | version-sync 块补 cdd-engine 覆盖（防 P6 遗留「engine changeset 记录不落地」） | 自研版本管线整删、版本数学交原生 changeset version；version-sync 语义 = 声明 semver + 发布态版本身份断言 | Yes — v1.44 · 2026-09-26 |
 | README 定位/宣讲承接 v1.31 理念篇幅 + v1.33 repo 改述（记录待分析） | 三段式骨架（定位→理念→行为）+ 定位句（无 harness 字样）+ gh 元信息（description/topics，homepage 留空） | Yes — v1.44 · 2026-09-26 |
 
-## Section 4: Notes for downstream
+## Notes for downstream
 
 - consumer-parity 后续（如有 P4.x）：repo 定位改述的宣讲面承接在 README 理念导览之上增量；homepage 站点未来上线时挂 gh 元信息——本 phase 明确留空非遗漏
 - `cdd issue render` 的 future：若未来出现第二个纯渲染消费者，Non-goal #1「纯渲染型」例外是**原则性**豁免（非逐案枚举）——同一形态直接扩，不需再走宪章讨论
 - smoke-cdd 的 `--expect-version` 与 pack 白名单探针 = 发布门机械化；日常开发 PR 面已无消费者黑盒（validate 足矣），恢复语句见 docs/maintainers
-
-## Section 5: Review
-
-- 基线：committed tree（overall v1.44 已单独提交）
-- 评审轮：P4.2 发布一致性闭环 · Review Convergence（blocker > 0 → fix 全部 → re-review；blocker = 0 → fix 全部 → 收敛，无 re-review）

@@ -66,6 +66,20 @@ export function isSpecVerbatimPinLine(file: string, lineNo: number): boolean {
   return span !== null && lineNo >= span.start && lineNo <= span.end;
 }
 
+/** The T6 tree-migration plan-migration pin fixture — the acceptance (per task) + constraints body
+ *  + dispatch-group expectations of the 17 migrated Do-form plans, captured verbatim from the
+ *  pre-transcription state (frozen plan history, the same data class as SPEC_VERBATIM). Every line
+ *  of this JSON fixture is pin data (it is a pure data file, never code), so the whole file
+ *  releases the guarded vocabulary — the data-row semantics, file-scoped. */
+export const PLAN_MIGRATION_PINS_FILE =
+  "packages/cdd-engine/src/documents/doctypes/__tests__/fixtures/plan-migration-pins.json";
+
+/** A pin-data file verdict — the plan-migration pins fixture (whole-file data release). Guards call
+ *  this per line / per collector alongside isSpecVerbatimPinLine. */
+export function isPlanPinDataFile(file: string): boolean {
+  return file === PLAN_MIGRATION_PINS_FILE;
+}
+
 export interface ScanLineHit {
   file: string;
   lineNo: number;

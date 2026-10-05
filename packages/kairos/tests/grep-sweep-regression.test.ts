@@ -66,8 +66,9 @@ test('grep sweep: "--prompt" in live code (excl. engine tests) → 0 hits', () =
   // The tree-migration.test.ts exclusion: T5's spec-verbatim pins carry the ORIGINAL acceptance
   // text of the migrated legacy specs (frozen spec history — the same class as CHANGELOG.md),
   // and osuperpowers-overhaul P2's AC4 verbatim mentions the `--prompt` sweep. The pin carries
-  // history, it does not introduce the retired convention into live code.
-  const cmd = `grep -rn "\\-\\-prompt" packages/ --include="*.md" --include="*.json" --include="*.ts" 2>/dev/null | grep -v "/CHANGELOG.md" | grep -v "bin/engine/tests/" | grep -v "grep-sweep-regression.test.ts" | grep -v "tree-migration.test.ts" | wc -l`;
+  // history, it does not introduce the retired convention into live code. T6's plan-migration
+  // pins fixture (plan-migration-pins.json) carries the same frozen-history class on the plan side.
+  const cmd = `grep -rn "\\-\\-prompt" packages/ --include="*.md" --include="*.json" --include="*.ts" 2>/dev/null | grep -v "/CHANGELOG.md" | grep -v "bin/engine/tests/" | grep -v "grep-sweep-regression.test.ts" | grep -v "tree-migration.test.ts" | grep -v "plan-migration-pins.json" | wc -l`;
   const count = parseInt(execSync(cmd, { cwd: REPO, encoding: "utf8" }).trim(), 10);
   assert.equal(count, 0, `"--prompt" has ${count} live-code hits`);
 });

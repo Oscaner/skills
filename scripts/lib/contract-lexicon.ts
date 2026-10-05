@@ -30,6 +30,7 @@ import { resolveResourceSrc } from "../../packages/cdd-engine/src/infra/resource
 import {
   escapeRegExp,
   isDataRow,
+  isPlanPinDataFile,
   isSpecVerbatimPinLine,
   scanLines,
   walkTargetFiles,
@@ -709,7 +710,7 @@ export class ContractLexiconGuard {
         const tokenRe = new RegExp(escapeRegExp(token));
         const tokenQuoted = `"${token}"`;
         for (const { file, lineNo, text } of scanLines(targets, tokenRe, { includeTests })) {
-          if (isSpecVerbatimPinLine(file, lineNo)) continue; // verbatim pin-map data line
+          if (isSpecVerbatimPinLine(file, lineNo) || isPlanPinDataFile(file)) continue; // pin data line
           if (isDataRow(dataSources, file, text, tokenQuoted)) continue; // data-source data row (the release form)
           hits.push({
             label: "cursor binary-name live-face residue (G2 zero-exemption)",
@@ -746,7 +747,7 @@ export class ContractLexiconGuard {
       for (const token of tokens) {
         const re = new RegExp(escapeRegExp(token));
         for (const { file, lineNo, text } of scanLines(targets, re, { includeTests })) {
-          if (isSpecVerbatimPinLine(file, lineNo)) continue; // verbatim pin-map data line
+          if (isSpecVerbatimPinLine(file, lineNo) || isPlanPinDataFile(file)) continue; // pin data line
           if (isDataRow(dataSources, file, text, `"${token}"`)) continue; // lexicon data-value release form
           hits.push({
             label: `escape/retired-token zero-hit violation (T5+T7 ban): ${token}`,

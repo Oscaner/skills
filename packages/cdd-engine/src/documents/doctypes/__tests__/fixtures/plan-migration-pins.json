@@ -1,0 +1,1145 @@
+{
+  "acceptance": {
+    "2026-09-13-osuperpowers-overhaul-p5.md": {
+      "1": [
+        "`pnpm --filter @oscaner-skills/cdd-engine build` 产出 `dist/`；`unbuild --stub` 后 `node packages/cdd-engine/dist/cli.mjs --help` 可运行（经占位入口转发现有 commander 命令面——`--version` 非现有执行面，parse.mjs 无 `.version()` 声明，属 unknown option，不作验收锚点）；engine suite 现存测试（JS 态）全绿（转换前的基线）"
+      ],
+      "2": [
+        "`pnpm install` 解析成功；各包可 `import`；`commander` 零残留的验收锚点移到 Task 9（本 Task 结束时刻意保留 commander——Task 9 迁 CLI 后 cdd-engine package.json 零残留）"
+      ],
+      "3": [
+        "`git mv` + 测试路径迁移后全部既有测试（engine suite + validate 各块）仍绿——8 个测试文件定义 CDD_MJS（约 13 处 exec 常量，cli-shape/host-detection/docs-task/base-branch/lifecycle.wiring/branch-review/root/task/cdd 等）改指 `dist/cli.mjs`、114 处 `../lib/` 导入（26 文件，含 vi.mock）改指 `../src/` 后零 ENOENT/断链；**纯搬移不改逻辑**，零行为变化（迁移护栏）"
+      ],
+      "4": [
+        "`infra/git.ts`/`root.ts`/`log.ts` 建成且为新实现的唯一依赖点（**本 Task 只建不拆**——旧调用随 Task 5/8 更换时改指，Task 4 结束边界旧实现仍驻留 `src/`，存量不要求归零）；既有 contract/commit 语义测试全绿（dirty→BLOCKED / head mismatch / review skip / fail-open）——**基线不回归 claim，非 API 换底**（换底唯一 owner = Task 5）；repo 级零残留指标（`execFileSync(\"git\")` 零残留 → Task 5；`process.cwd()` 计数 = 1 / 零 `console.log` 散用 → Task 8/9）在此结清归属、不在 Task 4 claim"
+      ],
+      "5": [
+        "既有 commit-contract 语义测试全绿（dirty→BLOCKED / head mismatch / review skip / fail-open —— 仅底层换 simple-git，**API 换底 claim 唯一 owner**）；**手写 git `execFileSync(\"git\")` 在 `src/` 零残留——repo 级 git 零残留指标唯一落点（Task 4 已结清归属）**；failure/stopping 语义零变化（400+ tests 护栏）——入口门/出口门**生命周期用例**不在此 claim（判定挂载与用例单一 owner = Task 7 基类实现级测试；Task 10 只持 docs-fix 出口门用例）"
+      ],
+      "6": [
+        "hooks 实例可 `callHook('dispatch:before')` / 注册 handler 触发；phases 表结构可读可测（阶段 id 枚举、序、责任注释）；测试覆盖 hook 点触发顺序（before → phases → after）"
+      ],
+      "7": [
+        "基类无法实例化（abstract）；子类只需覆写关注 hook 即可运行（测试用最小 stub 子类跑通 run() 全流程）；模板方法序断言（pre → dispatch → post + commit 双门卷入）；**入口门用例（review 起点 dirty → BLOCKED）——单一 owner（本 Task 基类实现级测试；Task 5/10 不重复 claim）**"
+      ],
+      "8": [
+        "`cdd review --type spec|plan`（docs）与 `cdd implement/fix`（task）经新生命周期跑通——engine 黑盒契约（4 子命令 / handoff 输出）零变化；双门在 docs 面生效（docs review 起点 dirty → BLOCKED）；既有 task/docs 测试全绿；artifacts/render 全量 TS 化 + `naming` glob 经 tinyglobby——既有 naming/progress/base-branch/handoff/brief 测试转换后仍绿（AC11 全量 TS 兜底）；**`process.cwd()` 计数 = 1（root.ts 唯一）+ 零 `console.log` 散用（经 consola）——repo 级 cwd/log 零残留指标在此达成**（旧消费面随本 Task 全量 TS 化改指 infra；Task 9 CLI 重建继续经 `infra/root.ts` + `infra/log.ts`，零回渗）"
+      ],
+      "9": [
+        "`cdd --help` 子命令集合 = implement/review/fix/base-branch（基线断言更新）；implement/review/fix/**base-branch** 四子命令黑盒行为与 commander 版一致——**base-branch 含嵌套 set/get 面**（parse.mjs 现状二级命令 set/get，经 citty 声明保留或随 SUBCOMMAND_USAGE/parse 迁移行明确列出），既有黑盒测试全绿（含 base-branch.test.mjs）；SUBCOMMAND_USAGE/parse 相关测试迁移到 citty 声明；`cdd-engine/package.json` `commander` 零残留（Task 2 验收改指的锚点在此达成）"
+      ],
+      "10": [
+        "docs fix 出口门用例（docs fix 后 dirty → BLOCKED）——本 Task 唯一用例（入口门用例 owner 已归 Task 7，不重复）；`templates.content.test.mjs` 断言 fix/docs.md 含提交指令；dispatch/docs.ts 中若保留 \"No commit-contract\" 注释则删除（旧 run-docs.mjs 已成重建前文件，无需单独处理）；**六个 SKILL.md 逐个断言**（每 skill 一条）review-fix 循环措辞含「进入 review 前确保工作树干净」"
+      ],
+      "11": [
+        "`grep report-issue`（单数，词边界）机制面零命中（历史 plan/spec + CHANGELOG 豁免；作用域 = skills / finding-meta / renderer / emit / README / tests）；`pnpm run emit` + `emit:check` drift=0"
+      ],
+      "12": [
+        "机制面 + maintainer docs 面零 `report-issue` 词形残留（含 `skills/report-issue/` 路径形）；**实测 `grep -rnE '\\breport-issue\\b' docs/maintainers/` 零命中**（面级兜底，未枚举文件同受检）；writing-plans-spec 测试换锚后绿"
+      ],
+      "13": [
+        "finding-meta JSON 形状 = spec §2.6 终态表逐行；`reportDef.labels` 唯一 labels 定义点；emit:check drift=0（表单 emit 后同步）；issue-templates.test.mjs「3 个 yml」断言改「2 个 yml」绿 + compare.mjs productFiles 同步后陈旧 walk 零报警"
+      ],
+      "14": [
+        "`report-templates.test.mjs`——入参校验用例（空/非法 → exit 1 + 字段路径）；聚合渲染用例（N-finding meta 关联：逐 finding 断言四段后紧随 Skill/Step 归属正确）；dedup/related 渲染用例（open → Dedup 行 / closed → Regression / program → Related）；零 `--mode`/`renderComment`/`renderTitle`/`resolveDropdownOptions`/`sessionTypes` 残留；**聚合 body 裸调用入口零 `yaml` import**（消费者运行时零新增依赖——yaml 只经 emit-only 模块）"
+      ],
+      "15": [
+        "SKILL.md 含完整新 digraph + 节点定义；零 `resolve-destination`/`ensure-session`/`append-comment`/master 复用/`[Session report] <slug> <date>` 壳前缀残留；零 `--mode`/`renderComment`/`renderTitle` 词形残留（renderer 已裸调用单入口，Task 14 删面——消费者按旧 SKILL.md 调用将撞死接口）；`standalone` 兜底桶概念零表述"
+      ],
+      "16": [
+        "`gh label list` 有 `cdd-engine` 无 `cdd`；机制面词形守卫零命中（复数 `report-issues` 放行）；residue 测试绿；dedup 查询句实测三判据 (a)/(b)/(c) 逐条通过（与 label rename 同批完成）"
+      ],
+      "17": [
+        "CLAUDE.md dev 调用链可直接复制执行（stub 后 clitty CLI 可用）；third-party-dependencies.md 覆盖全部 pkg + 不引清单，且显式记录 yaml 隔离边界（仅 emit-only 模块 render-yaml.mjs 消费 · 仅 root devDependencies · 消费者运行时零第三方依赖——renderer 入口不得 import yaml；禁经 osuperpowers 发布为运行时依赖）；README 零 report-issue 残留"
+      ],
+      "18": [
+        "注入 stub 为紧凑 JSON（`JSON.parse(stub) === schema` 保持）；无 2-缩进断言绿；brainstorming #explore-context 零「固定 4 渠道」表述"
+      ],
+      "19": [
+        "各 phase changeset 齐备（P6 acceptance 复核粒度）；`pnpm run validate`（全块）ALL PASS + emit:check 无 drift（不带块数措辞——仓库编排块数与注释自报存分歧，spec AC9 终态已收敛为无块数表述）；engine suite（TS 化后）+ osuperpowers suite 全绿"
+      ]
+    },
+    "2026-09-13-osuperpowers-overhaul-p6.md": {
+      "1": [
+        "README/zh/CLAUDE.md 零「8 harness」宣称、零 `gate-install` 死引用；`keywords` 零 droid/pi、package.json 零 `#pi` 字段；`packages/osuperpowers/.agents/` git **零跟踪**、emit 零产出、src/emit 代码零 `emitAgentsSkillsCopy`/`pruneStaleAgentsNamespaces` 引用；CLAUDE.md 零「`.agents/` is derived」派生提示；`pnpm run emit:check` 无 drift；`pnpm run validate` 相关块全绿"
+      ],
+      "2": [
+        "零 `submodule-sync.yml`/`submodule-bump.yml` 配置 · zero release `publish-vendor` 步 · validate **12 块** · checkout 零 `submodules: recursive` · 零 `publish-vendor`（代码/workflow/步/子命令）· `.gitmodules` 零条目 + `vendors/` 目录不存在 · marketplace/source.json 与 emit 产物零 vendor 条目 · version-sync 零 `resolveVendorVersion`/superpowers 检查 · 防回渗守卫零命中；`pnpm run validate` 12 块全绿（块数断言）"
+      ],
+      "3": [
+        "`git status` 零 `tests/` 残留（退役）；engine suite 全绿（迁移为纯搬移零行为变化——迁移护栏）；vitest include 收敛后套件仍全量发现；residue/结构守卫断言 src 恒真 0 `.mjs` + tests 0 `.mjs` 通过；内存守卫配置断言（maxWorkers=1/fileParallelism=false/maxConcurrency=2）就位；文档引用零陈旧"
+      ],
+      "4": [
+        "`node scripts/run.ts validate` 12 块全绿（type-stripping 直跑零 loader）；`scripts/` 编排层 `.mjs` **44→0**（零残留，留存例外为零且理由零）；CI workflow 调用名全部改指 `.ts`；`pnpm run validate` + `emit:check` 全绿"
+      ],
+      "5": [
+        "4 模板抗骨架数据校验一致（章节序/段名/segments 归属恒等）；条款零重复（clauses 单源）；token registry 全收敛（18 令牌 → 新命名规范，**零遗留旧态名**：H1_BLOCK / HANDOFF 三义旧名 / TYPE / LENS_GUIDE…）；`engine-config.json`/`template-contract.json` 存在且消费方程单点（config.ts/templates.ts）；schemas 独立且字节契约保留（`JSON.parse(stub)===schema` 测试仍绿）；测试引用路径随迁全绿；`pnpm run validate` 全绿"
+      ],
+      "6": [
+        "组装序恒为「registry prefix → 静态壳 → 变体载荷」（守卫测试绿）；重派发零重渲染（memoize 断言）；同 (harness,op,type) 派发集逐字节同集（断言绿）；registry 条目含 cache profile 且 schema 校验过；dev 观测脚本就位且**连续同类型 round read tok > 0 可测（观测脚本默认追加 `--debug` 实测；`/cost` 仅交互手动）**（记录实测值，诚实边界入文档：TTL 窗口内主张、跨时段不承诺）"
+      ],
+      "7": [
+        "4 文件统一骨架（段序/shape 一致性）；经验烘焙条目与 program-experience.md/§2.6 一一对应（零裸骨架段落）；命名面达标；`pnpm run emit` 后 `.agents/` 不因本 Task 产生（T1 已移除——免 emit 往返验证）+ `emit:check` 无 drift"
+      ],
+      "8": [
+        "skill-authoring.md 含 flow 变更纪律节；validate 三断言全绿（现有 8 skill 零孤儿/零未登记 delta）；节点/边计数报告含于 validate 输出；`pnpm run validate` 相关块全绿"
+      ],
+      "9": [
+        "`cdd fix --type branch` 可用（branch review findings 全 engine 闭环——BRB 实测：branch-review → branch-fix → re-review 走通，零编排 inline）；cli-driven-development digraph 为 canon shape（与族 loop 同构——风格审查/断言）；`branch-fix-loop` 零残留；软上限记录；**cli-driven-development SKILL.md 的全部 P6 描写（branch-loop/dry-run WARN/pending-acceptance/Review Convergence 术语）尽在本 Task 产物——T11/T18 对该文件零认领（其条目降为审计确认本产物零旧措辞）**；`pnpm run validate` 全绿"
+      ],
+      "10": [
+        "`dry-run`（review/fix/spec/plan 各型）在脏树 **EXIT 0 + stderr 脏树 WARN 可断言**（dry-run 黑盒全绿——docs-task/cli-shape 相关用例转绿）；真实 dispatch 干净树门判语义不变（dirty→BLOCKED 用例仍绿）；**dry-run 路径零 liveness 介入断言；TIMEOUT 扩张仅真实 dispatch 断言（与 T14 接口消歧验证）**；前置文档化三面就位；`pnpm run validate` 全绿"
+      ],
+      "11": [
+        "plan 文档结构含 pending-acceptance-patch 区定义 + 样例；writing-plans 文档载明「fix agent 零 plan 修改权、收编权归 orchestrator」；cli-driven-development/SKILL.md 零本 Task 改动（T9 产物已含 pending-acceptance 措辞——审计确认）；跨 Task findings 走收编（实证：T11/T14-fix 类越界场景走 findings 报 orchestrator 而非擅改 plan）；`pnpm run validate` 全绿"
+      ],
+      "12": [
+        "clauses 单源全 7 条落库；4 模板零内联纪律散文（条款引用覆盖）；行为变更一处生效（条款文本单点断言）；E2⑤ 纪律与 T1/砂面产出互洽；`pnpm run validate` 全绿"
+      ],
+      "13": [
+        "校验器新增锚点断言绿（零漂移）；既有 spec/plan 全量锚对实态通过；T17/T18 类 review 不再报锚点；`pnpm run validate` 全绿"
+      ],
+      "14": [
+        "liveness monitor 双信号判据测试绿（静止超窗被杀 · 活跃不误杀）；TIMEOUT handoff blocker 含清偿指引；无整过程 90min 拖死事件（dev 实证记录）；`pnpm run validate` 全绿"
+      ],
+      "15": [
+        "6 skill 19 处零虚假 run 措辞（内联消费 + 产物记载）；skill-authoring session-call 原语定义修订落地；digraph 三断言（T8）在改写前后均绿；`pnpm run emit` 后 `emit:check` 无 drift；`pnpm run validate` 全绿"
+      ],
+      "16": [
+        "两 skill 流程含需求全量枚举步骤（先枚举后 frontier——措辞可断言）；validate 脚本边界记录于 maintainer docs + writing-overall-spec；`pnpm run validate` 全绿"
+      ],
+      "17": [
+        "**pre-commit 在脏树零结构性失败**（`git add <file> && git commit` 通过——dry-run WARN + 黑盒隔离/树无关子集生效）；CI 全量含黑盒（干净检出全绿）；CLAUDE.md dev 段记录提交流程（树无关前置）；`pnpm run validate` 12 块全绿"
+      ],
+      "18": [
+        "`Review Convergence` 全 live 面就位（**4 skill 16 处本 Task 改写 + cli-driven-development 1 处 T9 产物审计确认** · CLAUDE.md · overall · maintainer docs · `rules/convergence.ts`）；`review-cycle-cap`/`dispatch-timeout-cap` 就位；src 零 `stopping` 模块/标识符；residue 旧词断言全绿；naming-conventions 含 terminology registry（mechanismNames）；**H1 内容级零残留（v1.4 登记；v1.5 上移 Task 23，本条审计确认）**——prompt 正文（contract sections 全三区）零 `H1` 单词（RETURN_STDOUT_BLOCK/return block 语义名）+ src 零 `h1` 前缀标识符 + `\\bH1\\b` residue 守卫零命中（Task 23 产物审计确认）；**历史 changelog/spec-plan 豁免**（v1.28–v1.44 行 + 历史程序文档不重写）；`pnpm run validate` 全绿"
+      ],
+      "19": [
+        "12 块全绿 + `emit:check` 无 drift；changeset 齐备 + 版本落地已验证；锚点/残留/术语残留全断言零；方法论 doc 与落地一致；F7 重组完成（无用文档零/重划后引用面全绿）；**零纸面宣称总校验通过**（映射表核对零未执法项）；`pnpm run validate` + `emit:check` 为 final gate"
+      ],
+      "20": [
+        "四 `.md` 零手写模板文件（或 emit 派生校验 + drift=0）；段序恒为「壳 → Return → Round context」且 Return 字节常数（动态区唯一绝对尾）；token zone 归属断言「壳零注入 + 槽仅现所属区」全绿；C4 壳无参常数（staticShellKey 消除、重派发零重渲染断言强化）；跨模板字面头字节恒等断言绿；`WORKSPACE_SLUG` 就位（plan/spec 收敛）；`pnpm run emit` 后 `.agents/` 不因本 Task 产生 + `emit:check` 无 drift；engine suite 全绿 + `pnpm run validate` 12 块全绿"
+      ],
+      "21": [
+        "scripts/ 零 Commander + 零手写 parseArgs（run.ts/observe-cache 全 citty）；退出码与 engine 表一致（usage/parse exit 2 · 失败 exit 1 断言）；scripts 测试 100% `__tests__/` 就近（`find scripts -name '*.test.ts' -not -path '*/__tests__/*'` = 0）；root vitest include 收敛后套件全量发现（scripts 全部测试绿）；observe-cache presence 语义 + run.ts 子命令值传断言全绿；commander 根 dep 零引用；`pnpm run validate` 12 块全绿"
+      ],
+      "22": [
+        "`cdd implement`（真实非 dry-run）pre-flight 必含 constraints 存在性门：缺失 → exit 1 + 可行动 blocker（非静默 fallback）；`plan-constraints.md` 自 plan 声明源确定性生成（含 plan hash 锚）；dry-run 豁免（走通零 BLOCK）；全 workspace 历史 note「plan-constraints.md 不存在 → brief 唯一权威」零复发（grep 新报告零同款）；validate 12 块全绿 + engine suite 全绿"
+      ],
+      "23": [
+        "`unverifiable`/`plan_conflicts` 折 BLOCKED 时必带 `failure_category` + 真实 blocker（裸折零残留——单测 + T14 复现场景红→绿）；schema description 承载 unverifiable/dev-measured 语义（task/docs 双 schema 断言 + prompt 零散文验证——`renderHandoffSchemaJson` 输出即权威）；真·unverifiable review → BLOCKED + UNVERIFIABLE + blocker 含「未验什么/为什么」（黑盒）；§口径 dev-measured review 零 BLOCK 零 unverifiable（T14「90min 无拖死」类实证）；BLOCKED 任何通道 exit 1 + APPROVED/CHANGES_REQUESTED exit 0（T14 现场用例反转红→绿）；schema `allOf` BLOCKED 强制校验绿 + `defaultBlockerFor` 伪造零残留；`\\bH1\\b` residue 守卫零命中 + src 零 `h1*` 标识符 + prompt 正文零 `H1`；engine suite 全绿 + `pnpm run validate` 12 块全绿"
+      ],
+      "24": [
+        "branch 族继承 DispatchLifecycle（branch-review/branch-fix 零手写 lifecycle——withLifecycle 内联零、writeBranchBlocked/writeBranchFixBlocked 单点化）；rules⇄artifacts 直接循环依赖零（schema⇄finalize / failure⇄progress 拆——vite 循环依赖断言或 graph 检查）；Convergence / writeBlocked / workspace / return-block / hashFile 各单点（同逻辑复制零——grep 断言）；rules/convergence.ts 孤岛（若删）· infra/log · cli/review 死 import 零；**全部手动 throw 经 exit.ts**（生产代码 `throw new Error` 裸用零——全部换 CddExitError 家族 / invariant 工厂；grep 断言）；退出码表 0/1/2/3 不变（黑盒 exit-code 断言原样绿）；运维文档含架构三纪律（program-experience「架构纪律」节 + osuperpowers-plugin 引用）；engine suite 全绿 + `pnpm run validate` 12 块全绿"
+      ],
+      "25": [
+        "EXECUTION_FAILURE/TIMEOUT + 树脏 → recovery carrier 含 stash ref + 规模（黑盒 + 单测）；`git stash list` 可见快照、apply 后 diff 与死前一致（可抢救实证）；fix 轮 diff 越 findings 文件集 → 结构化 finding/BLOCK（T23/branch-fix 复现场景红→绿）；recovery schema field 双 schema（task/docs）description 承载 + prompt 零散文验证；EXECUTION_FAILURE blocker 区分 exit 1 / 143 / TIMEOUT；旧「discard or commit」残留文案零（grep）；**注入面零阶段 anchor**——template-contract/schema description grep `T\\d+|P\\d+` 零命中（residue 守卫断言 + §35 执法）；engine suite 全绿 + `pnpm run validate` 12 块全绿"
+      ],
+      "26": [
+        "`spawnManaged` 单一 termination 判定层（stall/budget 两信号、cause 化 blocker——stalled/over-budget 黑盒可区分）+ `resolveTerminationConfig` 单点；三 env 键零读取（grep 断言）+ config 无 perMode/globalOverride 两段 + execa 无 timeout 通道；**续传黑盒**——TIMEOUT 保全 → re-dispatch → WIP 出现在新工作树 + brief 含 residue 附言 + agent 增量改动（复现 T25 场景：从 0 行到 727 行再续作，非重写）；**legacy 检索兜底黑盒**——`recovery.residue_ref` 缺失的历史 TIMEOUT handoff（stash message 带 `cdd-<op>-<type>-<task>-<round>-<cause>` 标注）→ 检索匹配 → WIP 恢复；recovery.residue_ref 契约双 Task 一致（T25/T26 衔接断言）；退出码表 0/1/2/3 不变；engine suite 全绿 + `pnpm run validate` 12 块全绿；**恢复轮声明 base 采纳（v1.10 契约）**——重新派发 implement 时 TASK_BASE==HEAD（恢复签名）→ agent return-block `commits:` 行声明的真实范围起点被引擎采纳（≠HEAD + 祖先校验）→ review 范围 = `声明..HEAD` 全量（T26 实证：bde88ec5..HEAD 非空，杜绝空范围零审查）"
+      ],
+      "27": [
+        "progress.json tasks[N].scope_base 存在且 earliest-wins（重派实现车不覆盖实证）；恢复轮声明 base 被引擎采纳（祖先校验 + ≠HEAD + fresh 拒绝三车道黑盒）；review/fix 固定点 = 账本值（T26 实证：REVIEW_REFERENCE = `bde88ec5..HEAD` 非空）；settleResidue 记 recovery.scope_base；常规任务（无恢复）review/fix 行为零变化（全量 suite 绿）；注入面零阶段 anchor（§35 residue 守卫零命中）；退出码表 0/1/2/3 不变；engine suite 全绿 + validate 12 块全绿"
+      ],
+      "28": [
+        "artifacts/residue.ts 为 save 唯一 owner（rules/residue.ts 不存在、`gitStashPreserve` 零定义、`cdd residue:` 零残留）；implement TIMEOUT 黑盒恰一张 stash + `residue_ref` 指向标准化 message 的 stash + re-dispatch resume 还原成功（既有 T26 resume 黑盒复用）；template 钩子 + 车道共存幂等（preserved 守卫单测）；base 钩子 / branch 内联 / task 车道三路径同契约（标准化 message 断言）；CONTRACT_VIOLATION 不自动吞（既有守卫）；注入面零阶段 anchor（residue 守卫断言零命中）；退出码表 0/1/2/3 不变；engine suite 全绿 + validate 12 块全绿"
+      ],
+      "29": [
+        "implement/review/fix 每轮自动跑 docContractValidate（无效物料 → blocked exit 1 + 指导信息；三类 doc 各一 invalid fixture 黑盒）· statusValidate 每轮输出六态当前状态 + 计划裁决（T14 类 needs-re-review 显式可行动）· 「plan Done」终态声明对应引擎裁决 all-complete · 退出码表 0/1/2/3 不变 · 引擎 suite 全绿（新增被钩子触达的用例）+ `pnpm run validate` 12 块全绿 · 零新 CLI 面/零文档写入/零 schema 变更（grep 断言）"
+      ],
+      "30": [
+        "deriveTaskState 唯一 TaskState 来源（grep：progress tasks[N].status 写入/读取点归零——仅 readProgressJSON 迁移兼容读取）；T29 复现场景翻转（28 个合法终局 → complete，T14 类 needs-re-review 保留）；progress 行写回后无 status 字段；readProgressJSON 对含 status 旧行零报错（迁移兼容）；退出码表 0/1/2/3 不变；engine suite 全绿 + validate 12 块全绿"
+      ],
+      "31": [
+        "residue 锚首检查零违规（引擎 src 无任何注释以阶段锚开头——67 处清零）；合法 trailing 溯源后缀与文件头形态不被误报（守卫用例绿）；§35 注入面零锚首守卫不变；engine suite 全绿 + validate 12 块全绿"
+      ]
+    },
+    "2026-09-21-consumer-parity-p1.md": {
+      "1": [
+        "① 上述 4 处改写落地（`git diff` 仅触及主张句，版本/日期/行结构零破坏）；② `grep -rnE \"overall-consistency|plan-spec-anchors\" docs/osuperpowers/specs/2026-09-13-* docs/osuperpowers/plans/2026-09-13-*` **命中面双口径 pin 后逐行划类**——J2/J3 保留面 22 行恒定命中；J1 4 处改写因 design §2.3 示例中性句不强制保留 token，命中与否分两口径：改写句保留 token（含 `overall-consistency` / `plan-spec-anchors`）→ 命中面维持 26 行（含 4 行已中性化 J1 行），token 随改写脱落 → 命中面 22 行（J1 行脱出命中面）；部分保留则为 22–26 之间。无论哪一口径，J1 改写态划类均以 design §2.3 provenance 为据（改写即中性态，非 grep residency），grep 断言面 = **零未划类命中、零 J1 现行主张残留**（两口径恒成立）；③ block 12 自检 2/2 canonical overall 仍绿（overhaul overall 表结构完整）；④ J2/J3 保留行与 design §2.3 登记面一致（零漂移）。"
+      ],
+      "2": [
+        "`scripts/run.ts:89` 描述与 smoke-cdd.ts 五命令一致；`pnpm run validate` scripts unit 面（`scripts/__tests__/run.test.ts` 等）全绿；`scripts/run.ts` 与 `scripts/validate/smoke-cdd.ts` 描述/注释零 `\\bH1\\b` 退役词残留（F8a 语义化：return block）。"
+      ],
+      "3": [
+        "`pnpm run validate` 全绿（12 块全量门，CI 同口径；干净已提交树）——do ② 的 scripts unit 面仅作 AC4 复核局部口径，全量 12 块门只在此验收执行；AC1–AC5 逐条可复核；变更面零 package 内容（记录裁决）；block 12 2/2。"
+      ]
+    },
+    "2026-09-21-consumer-parity-p2.md": {
+      "1": [
+        "`cdd help` 输出 CLI 绝对目录 + schemas/templates 目录且路径实测存在（dev 直调与模拟消费者安装两态）；schema 文件符合 draft 2020-12 校验（description 全覆盖四个 doc 类型结构面）；help 不触发审计、exit 0；`packages/cdd-engine` vitest 就近用例绿（AC5）；新 schema/document 目录零事务性行为。"
+      ],
+      "2": [
+        "TC 单源实证——改 canonical 定义一处 → engine 校验/抽取同步生效（派生 token 断言：`grep` 删除面零残留）；`grep` 零 md 模板副本 / 零第二处手工 token（scope：engine 包内手动 token 面 + SKILL.md 散文 token 面 + repo/skill md 模板副本；`scripts/validate` 侧残留归 §4 P3 退役面，非本任务断言对象——design AC4 scope 限定）；skill `cdd help` 引导路径可执行（消费者面零硬编码路径）；engine vitest（schema 派生 token 断言 + read-schema / brief 抽取等模板退役后的额外消费面）全绿；`pnpm run validate` 全绿（含 5c residue / block 12 自检——本仓现存 spec/plan 集经新解析路径零新增失败，**plans/*.md 全集作 plan-schema 解析语义 canary**：`**Spec:**` 任意行 findIndex · `**Version**` 仅 phase-spec 严格——既有契约语义承接）。"
+      ],
+      "3": [
+        "AC1——任意 dispatch（implement/review/fix/docs/branch 家族——含 branch-review/branch-fix）涉 parent overall 四表结构性不合法 → BLOCKED + 指引；lineage 未 resolve → 四表 no-op、necessary-subset 仍跑；dry-run 降级 CDD_WARN 且 exit 0；AC2 部分（docContractValidate 面）——三通道 docContractValidate 均生效（base 默认 override 测试断言）、overall 自审边界用例（AC2 的 statusValidate 半面挂点见 T4 验收）；四表面逐面非法态用例（①–⑥ each → BLOCK）；Class B 归并 + version-lineage 并入处置回归（documents.ts 单实现断言——AC7「无双重实现」）；engine vitest 就近全绿 + `pnpm run validate` 全绿。"
+      ],
+      "4": [
+        "AC3——声明源 ↔ 列双向全列（forward + reverse，plan + design，无 plan-only 遗留）且 engine 派生终态并入声明源（终态源 = parent overall 下所有 plan workspace 枚举）；mismatch 集单一推断模块（改一处、pre/post 两通道行为同变——同源回归断言）；结构性 mismatch → BLOCK + 指引；**终态欠账 mismatch → pre-flight BLOCKED（含 branch-review 用例：plan-done ∧ 未回填 → BLOCKED；已回填 → 放行）+ post-flight 高亮回填 recommand（stdout 可捕获断言，exit 语义不变）**；AC2 部分（statusValidate 面）——task/docs/branch 三通道 statusValidate base 默认生效（含 post-flight 高亮单通道行为断言）；无死锁回归——回填时序前置（backfill 编辑路径不自我挡）+ fresh checkout 用例；**finishing SKILL.md 无 backfill-overall 残留（grep 断言）+ emit 产物零 drift**；engine 零文档写入（回填不落 engine 代码——设计约束断言）；engine vitest 就近全绿 + `pnpm run validate` 全绿（block 12 自检仍 2/2）。"
+      ],
+      "5": [
+        "AC6——docs-handoff `commits{base,head}` 落地（逆转旧声明段，schema 校验通过）；round-context docs base token 渲染落地（canonical 派生）；同契约束轮次行为一致测试（commit → APPROVED；未 commit → BLOCKED + stdout 可见诊断）；`blocker` 单数统一 + docs status TIMEOUT 归属声明（breaking 面记录进 changeset 范围）；AC7——handoff schema 无双核心块（单源断言）、base 默认 override 全通道生效（复用 Task 3/4 断言）；`pnpm run validate` 全绿 + engine vitest 全绿。"
+      ],
+      "6": [
+        "AC8——breaking 版本面明确（major bump 变更面清单与发布面一致）；零债断言全项绿（可 grep/断言复现）；`pnpm run validate` 全绿（12 块，干净已提交树）；AC1–AC9 逐条可复核（回收 Task 1–5 验收面 + 本任务收口面）；engine vitest 全绿；本仓 program 文档链（plan → design → overall）过 engine 审计零误伤（dogfood 实证）。"
+      ]
+    },
+    "2026-09-21-consumer-parity-p3.md": {
+      "1": [
+        "`grep -rE \"overall-consistency|plan-spec-anchors\" scripts/` 零命中（`-E` 交替，非 BRE 字面 `|`）；`index.ts`/`pre-commit.ts` 无 `overallConsistencySteps` import；steps 全语义名（`grep -rn \"\\\"5b\\.\\|0\\. unified\\|12\\. overall\" scripts/validate/*.ts` 零命中类探针绿）；ci-validate.test.mjs / pre-commit.test.ts 钉死值 11 且无旧名断言；AC4 探针 node 断言绿（现名全命中 / 语义名全 miss）；F8a 实证（`\\bH1\\b` 仅守卫自身）；`pnpm run validate` 全绿（11 块）· engine vitest 不受影响。"
+      ],
+      "2": [
+        "对照表 42 行 = 27 + 15 无缺漏（行数与标题枚举对账）；每行含 engine 对应用例（file:line 存在性抽查——`sed -n` 复验行号）+ 覆盖判定；无「判据面未覆盖需迁入」行（有则立即回填 design 再判——预期全「判据面已覆盖 → 删」）；`grep -rE \"overall-consistency|plan-spec-anchors\" scripts/` 仍零命中；`pnpm run validate` 全绿；AC1 复核成立（删面零功能损失实证可复现）。"
+      ],
+      "3": [
+        "文件从工作树消失（`git show HEAD:packages/cdd-engine/src/rules/__tests__/canary-dogfood.test.ts` 存在、工作树无）；grep `2026-09-21-consumer-parity packages/cdd-engine/src/**/__tests__/` 零命中；engine vitest 全绿；`pnpm run validate` 全绿。"
+      ],
+      "4": [
+        "canonical overall.json 全 8 处 pattern 迁移 + description 全写（`grep -n \"P\\\\\\\\d+(?![0-9])\\[a-z\\]\\?\" packages/cdd-engine/src/documents/schema/overall.json` 零命中——旧语法并存禁止）；engine 消费面（tokens/documents）从新 pattern 派生、零硬编码第二处；split-phase 测试全量 `P2.1` 化 + 依赖边新用例绿；**本仓存量文档零迁移**（overall P1–P4 · 各 phase spec/plan 头全 bare——过 engine 审计零新增失败，canary：P1/P2/p3 文档链 dispatch 审计零误伤）；`pnpm run validate` 全绿 + engine vitest 全绿。"
+      ],
+      "5": [
+        "AC8 grep 零命中——`grep -rE \"cdd[^\\\"']{0,40}(tail|head|EXIT=|2>&1[[:space:]]*\\|)\" packages/osuperpowers/skills/*/SKILL.md` = 0；八个 SKILL.md 的 cdd 调用节点含直接调用表述（抽查：含 cdd 调用指引的节点数 ≥ 「read the full output」表述计数）；五件 fix 节点含 fix 边界条款措辞（grep「只读 status」或等价）；五件 SKILL.md Invariants 表现在含「Mid-Flight Backfill」（`grep -L \"Mid-Flight Backfill\" packages/osuperpowers/skills/{cli-driven-development,writing-overall-spec,writing-phase-spec,writing-single-spec,writing-plans}/SKILL.md` = 空）且 cdd 件含「Entry gate reads the tree」；`pnpm run emit` 后 `emit:check` 零 drift；`pnpm run validate` 全绿。"
+      ],
+      "6": [
+        "AC9——docs-family review/fix 完成 stdout 含 result 面（`status:` 行可 grep；cdd.test.ts docs-family 断言面已同步更新）；`cli/*.ts` 命令级裸 return 零命中；exit.ts 族 = cli 层唯一出口调用面（grep 实证）；exit table 0/1/2/3 不变；engine vitest 全绿 + `pnpm run validate` 全绿。"
+      ],
+      "7": [
+        "AC6——`prepare` 已移除（package.json `grep -n prepare` 零命中）；`pnpm pack` 后 tarball 与工作树 dist 均保持真实产物（tarball 内 stub 标识零命中 + 字节实证）；consumer-sim PR 面 / release 门可跑（`node scripts/run.ts smoke-cdd` 全绿——pack → install → 消费者链全绿 + tarball 断言 + fixture plan 临时仓生成 + 零仓内路径）；`cdd help` 安装面 schema 目录可寻址实测；engine vitest 全绿（globalSetup 兜底）+ `pnpm run validate` 全绿。"
+      ],
+      "8": [
+        "AC5——overall 四处 + osuperpowers-plugin.md + CLAUDE.md + SKILL:54 改写为 engine 执法位/历史时态；`grep \"scripts/validate.*guard\\|block 12.*consisten\"` shipped docs/skills 面零现行主张（历史时态句允许）；AC7——program-experience 八项条目英文主源、各自可 grep Verify（第 8 项于本任务（T6 后）写入）；AC10——validate 11 全绿 · emit:check 零 drift · precommit 9 绿灯（pre-commit 子集 = 全量 11 − 5b0/5b1 = 9）· engine vitest 全绿 · AC1–AC9 逐条复核清单交付；overall v1.18 四表一致性（change-history 行与列态互证）。"
+      ]
+    },
+    "2026-09-21-consumer-parity-p4.1.md": {
+      "1": [
+        "`docs/maintainers/` 下内容文件全部命中 `^[0-9]{2}-`（8 件，grep -E，反例零）且 `README.md` 未编号；`README.md` 含编号表（表头一行 + ≥8 数据行）；node 遍历 `docs/maintainers/` 与 `packages/osuperpowers/README.md` 全部相对 `.md` 链接目标存在（零断裂）；`packages/osuperpowers/README.md` 的 maintainers 链接指向新文件名（grep 命中 >=1）"
+      ],
+      "2": [
+        "每文件顶层 section 编号连续无缺号（node 断言）；`docs/maintainers/` 全族互链零断裂（Task 1 探针复跑全绿）；`pnpm run emit:check` 无 drift；映射清单已产出并落定 `.osuperpowers/cdd/2026-09-21-consumer-parity-p4.1/task-2-migration-manifest.md`，含全部源 section → 新文件/编号逐行（grep 对账表头 + 行数，review 层以其逐一核对迁移保真）"
+      ],
+      "3": [
+        "`CLAUDE.md` 目标顶层 5 段标题（仓库目的 / emit / 命令 / 架构 / 约定——按 section 名 grep 全命中、旧式冗余章节标题零残留）；治理关键词 `emit` · `memory` · `worktree` · `changeset` 各 ≥1 mention；语言政策「mirror 仅 README.zh-CN.md」表述命中（grep）；**流程规范零散文**（Review Convergence 定义式 / entry gate 机制描述在 CLAUDE.md 零命中或仅指向——用户裁决 2026-09-23，断言面由 Task 6 探针执行）；`skill-authoring.md` 语言主张与 `packages/osuperpowers/README.md` 引用口径核对结果记档（提交说明节录；核出 mismatch 已在本 task 修正）"
+      ],
+      "4": [
+        "`README.md` 目标顶层 8 段标题逐条 grep 命中；`README.zh-CN.md` 头部含 mirror 声明行（grep `mirror`）；`README.zh-CN.md` 顶层章节标题集合与 `README.md` 一致（node 断言镜像）；宣称面对照表（harness 支持面 · 安装/来源声明 · 行为描述类陈述 3 类）逐条核对完成（完成断言与记档唯一归属本 task——记档于 task 提交说明或 review 记档；Task 5 仅合入复核）；README 开发节零 skill/engine 流程规范散文（grep 零命中或仅指向）"
+      ],
+      "5": [
+        "四件包级文件存在（ls）；`packages/osuperpowers/README.zh-CN.md` 章节标题集合与其 `.md` 一致（node 断言镜像）；`packages/cdd-engine/README.md` 宣称面与落地 cdd CLI 零分歧（`cdd help` 子命令面抽样对照记档）；宣称面 docs（README 族 · CLAUDE.md · docs/maintainers）grep「一方」（显式 `-E`，排除第三方）零命中（含根 zh-CN）；specs/plans 零用法性「一方」（禁用式引用除外）；`03-naming-conventions.md` 含第一方 zh gloss 行（grep）；`pnpm run emit:check` 零 drift（四件均非 emit 输入，scripts/emit grep 零 README 引用实证）"
+      ],
+      "6": [
+        "各探针命令产出零 FAIL（输出节录存档于提交说明）；`pnpm run validate` 输出 ALL PASS；`pnpm run emit:check` 零 drift、exit 0；全仓 `.zh-CN.md` = 根 + 两包三件零其他（grep 三分命中）；Task 4/5 宣称面对照表完成态复核并合入 review 记档（记档）"
+      ],
+      "7": [
+        "`CLAUDE.md` grep：`Review Convergence` 仅指向引用零定义式、entry gate / `entryGateCleanTree` 机制描述零命中；`docs/maintainers/` grep：`cdd review --type` / review digraph 重述零命中（仅指向）；`pnpm run emit:check` 零 drift（CLAUDE.md / docs/maintainers 非 emit 输入）；`pnpm run validate` 11 块全绿；探针输出节录存档提交说明"
+      ],
+      "8": [
+        "**accepts pending-acceptance-patch**（task-ref `### Task 8:` · patch: backfill-overall 基线 = overall **v1.21**（P4.3 注册已 bump）→ 产出 **v1.22**，change-history v1.22 行含 P4.1 shipped 回填声明，升序相邻 v1.21→v1.22）；overall 版本行 **v1.22**（grep）；change-history **v1.22** 行存在且含 P4.1 回填声明（grep）；P4.1 行 Design-spec 列为 link、Implementation plan 列为 `Done`（grep/目检）；change-history 升序无重复（**v1.21→v1.22** 相邻）"
+      ],
+      "9": [
+        "`docs/maintainers/` 内容文件编号连续无缺号（`^[0-9]{2}-` 全命中、反例零），总件数 < 现状 8 件（精简实证）；`docs/maintainers/07-osuperpowers-plugin.md` 不存在（ls 反例）；live 面（CLAUDE.md · packages README · docs/maintainers）grep `07-osuperpowers-plugin|osuperpowers-plugin.md` 零命中（显式 `-E`；frozen specs/plans 豁免——其历史引用可留）；`.changeset/README.md` 含 §Release flow 全量步骤（grep Release flow ≥1）；互链零断裂（node 探针全绿）；`pnpm run emit:check` exit 0 · `pnpm run validate` 11 块 ALL PASS"
+      ],
+      "10": [
+        "根 + 两包三件 `README.md` 的 line 3 语言切换行 = `[English](README.md) | [中文](README.zh-CN.md)`（node 断言三件一致；grep `[中文](README.zh-CN.md)` 命中 3）；`Simplified Chinese` 字面在三件 English README 零命中（显式 `-E`）；三件 `.zh-CN.md` 无 diff（git diff 空）；`pnpm run emit:check` exit 0 · `pnpm run validate` 11 块全绿"
+      ]
+    },
+    "2026-09-21-consumer-parity-p4.3.md": {
+      "1": [
+        "`cdd implement --tasks 1` 与 `--tasks 1,2` 走同一 dispatch 路径、解析正确（engine 测试绿 + 实证）",
+        "`--tasks 1, 2` 容忍空格（trim）· `--tasks 1,1` 去重 · `--tasks 1,`（尾逗号空 slice）exit 2 拒绝 · `--tasks abc` 非整数 exit 2（Bug-A 升级消息 `must be comma-separated integers`）",
+        "engine 既有 `--task` T1 面全量迁 `--tasks`（parse/usage 声明 · review.ts:190 / fix.ts:41 必填错误串 · engine 用例随迁面），该面 grep `--task` 零命中（frozen 除外）；`packages/cdd-engine/src` 全量零命中在 Task 2 验收（re-dispatch 串迁移后可达）",
+        "residue Row-9/10 守卫绿（parse.ts ↔ engine-config argv `tasks` 通道锁步）"
+      ],
+      "2": [
+        "`--tasks 1` 与 `--tasks 1,2` 同一 dispatch 路径行为实证（成功 · 超界 BLOCK + 缺失列示 · round/handoff/进度/残差按组一份）",
+        "`cdd review --type task --tasks 1,2` 一轮审整组（round/blocker/findings 组级归因）；`cdd fix --type task --tasks 1,2 --findings <handoff>` 整组修（agent 自判归因）",
+        "re-dispatch 建议串为整组面（`cdd fix --tasks 1,2` 形态，无子集）",
+        "`packages/cdd-engine/src` grep `--task` 全量零命中（frozen 除外；T1 面 + 本任务 re-dispatch 两处 failure.ts:117-121 / dispatch/task.ts:760-761 迁移后可达）",
+        "handoff 命名 `tasks-{a}-{b}-*` 落地（engine 测试断言 artifact 名）；task-handoff-schema 组引用字段落位、顶层 `task` 字段零存在（grep `\"task\"` top-level 面零命中，required 面 = `tasks` 组引用；`findings[].task` 归因保留）"
+      ],
+      "3": [
+        "plan 无 taskGroups 节（空默认）时 loop 逐 `--tasks 1`、`--tasks 2` 推进且与 P4.3 前现状等价（实证）；非空 taskGroups 按声明组 dispatch",
+        "`plan.json` schema 含 `taskGroups`（`optional` · `default: []` · item `minItems ≥ 2`）；`effectiveGroups` 单处派生、无第二实现（grep）",
+        "taskGroups 写盘判定：长度 1 组不落盘（合并组字典 minItems ≥ 2 与裁定节点写盘一致）"
+      ],
+      "4": [
+        "flow digraph 含 task-groups 裁定节点（`C --> T{task groups 裁定}` 边）、`{more-groups?}` 判定、loop 入口以用户确认门控（拒答 BLOCKED）；组列表流入 `cdd implement --tasks a,b`",
+        "task-groups 裁定节点职责链齐备（非平凡合并组 → 写 plan taskGroups 节 → 独立 commit → 干净树 → 才进 loop；树脏 BLOCK；写盘 commit 复用 I4 独立 commit 纪律）",
+        "三节点调用串 `--tasks`（`packages/osuperpowers/skills/cli-driven-development/SKILL.md` grep `--task` 零命中）",
+        "节点定义与 digraph 一一对应（无 dangling / 无 orphan）；`pnpm run emit` 后 `emit:check` 无 drift"
+      ],
+      "5": [
+        "`cdd schema get phase-spec` stdout 与 `dist/documents/schema/phase-spec.json` 同字节（engine 测试断言）；四件枚举均可用",
+        "未知 doc-type → usage exit 2 + 可用名枚举（四件、与注册表同源）",
+        "零执法逻辑（黑盒断言无校验面）；`cli/schema.ts` 无裸 return、exit.ts 出口族",
+        "`cdd help` 功能不回归（本 task 后仍三行目录面——Task 7 简化为两行）"
+      ],
+      "6": [
+        "I4 文本五面同文（grep 五面逐字节一致断言）+ 四点顺序语义齐备（措辞核对）",
+        "三件 schema-bearing read-schema 改 `cdd schema get <type>`（grep 三件命中）；writing-single-spec read-schema N/A 入文",
+        "`cdd help` → `schemas:` 目录 / `cdd help` → `overall.json` / `phase-spec.json` / `plan.json` 定位串零残留",
+        "`pnpm run emit` 后 `emit:check` 无 drift"
+      ],
+      "7": [
+        "`cdd help` 子命令零存在（`cli/help.ts` / `bin.ts` help 拦截块 / `parse.ts` helpCmd / `help.test.ts` 四面删除，`cdd help` 引擎面 grep 零命中）",
+        "`--help` 旗标面不回归（usage 渲染绿）；`pnpm run validate` 11 块全绿（smoke-cdd consumer-sim 改锚 `cdd schema get plan` 后 AC6 安装面 addressability 实测通过）",
+        "Non-goal #1 单发现型修订落地（`cdd schema get` 唯一豁免）；`docs/maintainers/` / `documents/schema.ts` 注释零 `cdd help` 残留"
+      ],
+      "8": [
+        "`[In-flight]` 计划列状态合法（`isInflightText` · 无 reverse claim 义务 · 非 mismatch cell）；`[Pending]` → `[In-flight]` → `**Done**` 三态 + claim 只在 closeout 出现（engine 测试自造链 + P3.8 触发现场回归形态）",
+        "Link 形态 plan cell 与 claim 双向等值（ownDesignToken 对齐，link 指向同一 plan 文档即等）；子句 prose 提及 phase 不再整体作 claim 目标（诊断提示到位）",
+        "overall.json claimPatterns / plan cell 描述与 enforcement 同形（对拍断言）"
+      ],
+      "9": [
+        "overall.json 描述与 `documents.ts` / `tokens.ts` enforcement 三处同形（对拍断言）；照 schema 描述所写形态不再被 doc-contract gate 拒绝（回归用例）",
+        "三处报错附 `should look like:` 正确形态（bad/empty version · unrecognized issue ref · not a Phase-inventory id）",
+        "误导的 7 列 header 提示移除（live 面 grep 零命中，frozen 豁免）"
+      ],
+      "10": [
+        "两包 README live 面 `--task` 零命中（`packages/cdd-engine/README.md` / `README.zh-CN.md` grep；frozen 豁免）且 zh-CN mirror 与 EN 同步",
+        "residue.test.ts fixture 迁移完成、retired-`brief` anti-reintroduce 守卫断言保留（行为断言不删）",
+        "smoke-cdd consumer-sim 链 `--tasks 1` 跑通（黑盒消费者等效输出）",
+        "`.changeset/` 新 changeset 文件就位（`pnpm run changeset` 生成，两包条目）；`pnpm run validate` 11 块全绿",
+        "本 plan 终结态落地后 P4.3 四表由 orchestration backfill-overall（branch-review 前置义务，plan complete → v-bump + 列回填）"
+      ],
+      "11": [
+        "`cdd schema get skill-anatomy` stdout 与 `dist/documents/schema/skill-anatomy.json` 同字节（engine 测试断言）；DOC_SCHEMA_NAMES 五件、未知 doc-type exit 2 枚举含 `skill-anatomy`",
+        "8 件 SKILL.md 经 skill-anatomy schema 机器校验全过（validate 绿）；**严格 allowlist**——现有 8 件标题面全 ∈ 注册表（对照通过：4 公共 + 2 条件，`## Engine Semantics` 独立节已在 cdd 径并入 Invariants、`## Session Context` 顶层章节已在 report-issues 径并入 `explore-current-session` 节点内联、`Pending Acceptance Patch` 变体已统一单标题），注册表外标题（如演进叙述段 `Flow size note`/`Full Flow Refactor Rationale`）→ BLOCK；**digraph 节仅 mermaid 块零 prose**（8 件逐件断言 mermaid 后续行 = 空/下一 `##`；`report-issues` 节点陈述行已删，grep 零命中）；`## Session Context`/`Session Context (snapshot…`/`## Engine Semantics` 顶层章节 live 面 grep 零命中（并入节点/Invariants 后）（engine 测试 mkdtemp 自造链故意破坏用例：删节点/断四要素/加未注册章节/在 digraph 后加 prose → 全拦下，零本仓产物 fixture）",
+        "digraph-consistency.test.mjs 断言面 schema 驱动化（grep 手写断言面与 schema 单源对拍，growth 15/17 常量来自 schema 非测试字面量）；e2e anti-white-green 断言保留（行为断言不删）",
+        "`git rm docs/maintainers/06-skill-authoring.md` 落地；`06-skill-authoring` live 面 grep 零命中（frozen 豁免）；CLAUDE.md 清理后结构指导零残留、治理面（语言政策/purity 铁律/提交纪律）保留",
+        "`pnpm run validate` 11 块全绿；本 plan 二次终结态落地后 P4.3 四表由 orchestration 二次 backfill-overall（reopen → re-close，v-bump + 列回填 + change-history 二次 claim）"
+      ]
+    },
+    "2026-09-27-pi-harness-p1.md": {
+      "1": [
+        "`packages/osuperpowers/package.json` 含 `keywords: [\"pi-package\"]` 与 `pi: { skills: [\"./skills\"] }`（无 extensions/prompts）；`scripts/validate/osuperpowers.ts` 模块级 `EXPECTED` 已导出（T1 测试与 T2 守卫共享同一单一真相）；`pi-package.test.mjs` 在 behavior glob 内通过（计数断言取该导出、无字面 8）；`pnpm run emit:check` 仍 fresh（零 emit 产物变更）。"
+      ],
+      "2": [
+        "validate 输出含新 CheckBlock 且对当前树全过（checkPiPackageWellFormed 五断言）；`ci-validate.test.mjs` 与 `pre-commit.test.ts` 以 name-set（非 count）断言 validate steps（含「osuperpowers pi-package well-formed」）；`pnpm run validate` 全绿 + precommit 全绿。"
+      ],
+      "3": [
+        "`pi-install-smoke.test.mjs` 在本机（pi 0.87.1）behavior glob 内通过：pack→解包→`pi install <dir> --local --approve` 退出 0 · 安装产物含恰 8 个 `SKILL.md` · 项目 `.pi/settings.json` 写入该包；缺 pi 路径失败信息含安装命令；`.github/actions/validate` 装配备 pi 安装 step。"
+      ],
+      "4": [
+        "`release.yml` 不再含 pi smoke（grep `pi install` 零命中）；`.github/actions/validate` 装配含 `@latest`（grep `pi-coding-agent@` 版本字面零命中）；`pnpm run validate` + precommit 全绿。"
+      ]
+    },
+    "2026-09-27-pi-harness-p2.md": {
+      "1": [
+        "`scripts/lib/harness-registry.ts` 含 `Harness`/`CursorHarness`/`ClaudeHarness`/`PiHarness`/`HarnessRegistry`/`harnessRegistry` 全导出；`harness-registry.test.ts` 全绿（vitest scripts unit glob 内）；既有树零改动（ManifestService 两 builder 暂留——其删除归 T3，T1 字节 pin 保证两侧一致防漂移）；`pnpm run emit:check` 仍 fresh。"
+      ],
+      "2": [
+        "`packages/osuperpowers/package.json` 以 `oscaner` 键声明（harnesses 三含 / keywords 单源 / claude category / 零 `harnessesNote`）；`scripts/emit/source.ts` 零 `FIRST_PARTY_CURSOR` 引用、经 `harnessRegistry` 派生；`git diff` 确认重 emit 产物面字节零变化（D7）；`emit.test.ts` 全绿（含 `Object.keys` 序断言）；`pnpm run emit:check` fresh；precommit 面绿。"
+      ],
+      "3": [
+        "`scripts/emit/plugin-manifests.ts` 存在且 `OsuperpowersEmitter`/`osuperpowersEmitter` 字样零残留；`all.ts` 无 name-dispatch 分支；`manifests.ts` 仅含 `deriveFirstPartyNames`（委托）+ `generatedBanner`，`keywords()` 与两 builder 删除；重 emit 产物字节零变化 + `emit:check` fresh；scripts unit 全绿。"
+      ],
+      "4": [
+        "validate 输出含「emit harness registry consistency」且对当前树全过（三断言）；`checkPiPackageWellFormed` 五断言在 `PiHarness.validatePackage` 宿主下全绿（block 5b 薄代理 + 日志形态不变）；`pi-package.test.mjs` 原样通过；ci-validate name-set 含新 step；`pnpm run validate` 全绿 + precommit 全绿；deliberate-break 实证记录于任务产出（双射两向 + 未知 id 均 fail）。"
+      ],
+      "5": [
+        "live 面（CLAUDE.md / README 家族 / marketplace/README / scripts 源码与测试 / package.json）零 `oscaner-plugin` 残留（grep 实证，历史豁免文件除外）；`README.zh-CN.md` 与 `README.md` 镜像同步（zh mirror sync checks 绿）；changeset 文件存在（breaking 声明）；`pnpm run validate` 全块全绿（emit freshness 在内）。"
+      ],
+      "6": [
+        "`.husky/pre-commit` 内容 = `pnpm exec lint-staged`（单行，手写 biome/restage 零残留）；`lint-staged.config.mjs` 存在（`*.ts → biome check` 无 `--write` · `* → pnpm run precommit`）；`biome-wiring.test.ts` 重写全绿（pin no-fix + catch-all 保留）；`biome:fix` 保留手动、hook 零调用；staged TS violation 提交被拦实证一次（任务产出记录）；`pnpm run validate` 全块全绿（含新提交门）。"
+      ]
+    },
+    "2026-09-27-pi-harness-p3.md": {
+      "1": [
+        "`harness.ts` 含 `Harness`/`CursorHarness`/`ClaudeHarness`/`PiHarness`/`ORDER` 导出，零裸函数导出；`harness-registry.json` 行键恰 `{claude, cursor, pi}` 且 `cursor` 行 `cli` = `\"cursor-agent\"`、`pi` 行 `cli` = `\"pi\"` + `invoke` = `\"-p --mode text\"` + cache pending 三字段；`detectCurrentHarness` 对 `{CURSOR_TRACE_ID:\"1\"}` → `\"cursor\"`、`{AI_AGENT:\"pi\"}` → `\"pi\"`、`{}` → `\"\"`（T2 表驱动全量另验）；engine `pnpm test` + `scripts` vitest 该面全绿（测试面键引用随 rename 同落，见 Do）；precommit 面绿。"
+      ],
+      "2": [
+        "host-detection 表驱动全绿（单 marker 五 case + 优先级矩阵三 case + `{}` empty）；registry 测试 name-set 恰 `{claude, cursor, pi}` 全绿（正向 T1 同落 + 无杂键反向）；registry.cache 全行迭代含 pi 行过 schema；invoke.dispatch-set 无 `cursor-agent` 引用；host-marker 白名单恰 4 键断言（`context.test.ts` / `infra.context.test.ts`）保持绿；residue G2 守卫三回归用例全绿 + 三面有效扫面零命中（engine src 含测试 / scripts live（非 `__tests__`）/ docs/maintainers 全扫，唯一允许 registry `cli`——守卫自身回归测试位属默认自豁免、不构成漏扫；docs/maintainers 03:48 行键镜像随守卫同落零化）；engine `pnpm test` 全绿；`pnpm run validate` 服务面全绿；precommit 面绿。"
+      ],
+      "3": [
+        "三组件（StatusDeriver/NextStepRouter/ResultFace）全导出、零裸函数、构造注入（无模块级单例）；review 输出判定轴 + 自身 findings blocker（`status: CHANGES_REQUESTED · blocker: 1 · handoff: …`）；implement/fix 输出工作轮（`status: COMPLETED`）、fix 的 `blocker:` = `--findings` 输入计数（非自报空数组）且 implement 的 `blocker:` = 0（无判定源，D2）；task/docs 两族单胶囊同形；`next:` 行 C5 决策表语义逐行不变（next-step.test 迁移后全绿）；engine `pnpm test` 全绿（含 result-face.test）；`dev:stub` 后 `node dist/cli.mjs review --type spec --spec <实际 spec 路径> --dry-run` 冒烟输出单胶囊（`--spec <path>` 操作数必填——缺失时 `resolveTargetDoc` 对 type=spec 直接 exit 2 `missing required --spec <path>`，按字面命令走不到输出面；叠加 `--dry-run` 轻量断言胶囊形状、不触发真实 review dispatch，对齐 parse.ts `--dry-run` 主令声明；冒烟在 host env（如 `CLAUDE_CODE_SESSION_ID=1`，对齐 smoke-cdd 先例）+ 干净树前置下执行，缺一即前置 BLOCK）；precommit 面绿。"
+      ],
+      "4": [
+        "`contract-lexicon.json` 五域词表存在且与引擎事实一致（harness 三元组 / status 五元 + 双轴映射（判定轴三态/工作轮 COMPLETED）/ stdout 胶囊 / residue 禁令 / anatomy registry），`dist/resources/contract-lexicon.json` 随 build copy entry 物化存在（dev:stub / build 后）；`ContractLexiconGuard` 四方法全绿（checkAnatomy 等价 digraph-consistency / checkResidue 等价 residue 收集器（词表数据行并入放行集合后等价性与既存回归同绿）/ checkWording 零形状 restate（SKILL.md `:59` / `:119` / `:108` 已同任务零化/改锚，fail-set 粒度按 Do 钉死）/ checkConfig 等价 channel audit）——三先例 test 入口收敛后断言经 guard 同源通过；validate 单 block 下全绿（`pnpm run validate`——守卫 + 词表共存：词表 harness `clis` / residue 禁令表数据行放行、词表非数据域 `cursor-agent` 残留仍 fail，G2 三面零命中成立）；`pnpm run emit:check` fresh（词表 = engine 数据面，非 manifest 产物）；precommit 面绿。"
+      ],
+      "5": [
+        "`cli-driven-development/SKILL.md` 零引擎形状 restate（`3-line return block` / `4th line counters` 类字面量清零），仅锚路由 token；docs/maintainers 全家族与契约面/词表一致、行键镜像零 cursor-agent（G2 三面扫描含 docs/maintainers 零命中）；根 CLAUDE.md emit/validate/engine 契约描述更新；C4 核对：`packages/cdd-engine/templates/report/issue-body.json:202` `masterDef.harnessRow`（`- Harness: <harness>`）字段零改动、Host 行不被引擎行键改写（坐标分层成立）；`pnpm run emit` + `emit:check` 零漂移；changeset 存在（cdd-engine，breaking/patch 按 scheme）；`pnpm run validate` 全块全绿；precommit 面绿。"
+      ],
+      "6": [
+        "`src/infra/workspace.ts` 含 `WorkspaceRoot`/`Workspace` 全导出、零裸函数；`.osuperpowers/.gitignore`（根级 `*`）自守卫——新 repo 首次 cdd 运行即存在；`lifecycle.json` 落 `<workspaceRoot>/<slug>/` 而非 repo 级（无 `.osuperpowers/cdd/lifecycle.json` 单文件；bin.ts:114 启动 repo 级绑定已删除、启动清扫改枚举形）；`naming.ts` 删除、10 项导出逐项归位 + 转接面（src 非测试 13 + 测试面）全部闭合后零引用（grep 零命中）；6 处散装 `mkdirSync` 归零（`Workspace.ensure()` 单点）；根 `.gitignore` 无 `.superpowers` 行；`pnpm run validate` 全绿（含 workspace 新 suite + lifecycle reap 枚举等价）+ precommit 面绿。"
+      ],
+      "7": [
+        "`failureCategories` 含 `HARNESS_ABORT`（harnessAbortCount / harness-abort / `BLOCKED: harness-abort-exhausted`）；child 异常退出（无 handoff）→ child stdout/stderr 尾部保留 + crash-only snapshot commit + crash record 落 `Workspace.crashPath(lane, round)`（字段齐：exitCode/stderrTail/stdoutTail/snapshotSha/attemptedHandoff/next）+ BLOCKED capsule `status: BLOCKED · … · next: <同命令 resume>`；`NextStepRouter` 决策表含 crash-record 行（next-step.test 钉死）；**stash 平面零残留**——按命名面逐一闭合（apply 侧 / 保留侧 / camelCase 方法族 / 注释措辞 / JSON 属性键 / 教训条目 / 话术面，Do 枚举即边界），字面 grep（短语 / camelCase / JSON 键）降为兜底扫描而非边界：`stash apply` · `stashApply` · `stashPush` · `stashMessage` · `recovery.residue_ref` · 「git stash drop」 · `stash_message` · `residue_scope` · `wip_stat` · `preserved` 零命中（engine src/tests + templates/schema + skills + maintainers + CLAUDE.md）；`pnpm run validate` 全绿（含 channel-audit harnessAbortCount 计数）+ precommit 面绿。"
+      ],
+      "8": [
+        "teardown 触发谓词 = **任意 exit gate 前终止**（非 child-exit 独占）——over-budget/timeout 终止 → snapshot + crash record（含 `cause`）+ BLOCKED capsule `next:` 同命令 resume，与 child-exit **同一实现路径**（teardown 矩阵测试钉死，非并行第二套）；crash record 含 `cause` 字段且行为零分叉；crash record 三方统一（teardown 写 / resume 读 / reapStale 枚举 stale records）；`recovery.residue_ref` / 旧独立 recovery 持久化面零残留（grep 零命中 + channel-audit 断言）；resume 软帽 3 次 → `BLOCKED: crash-recovery-cap`（FailureResolver 类别 cap 面不动）；`pnpm run validate` 全绿（含渠道审计）+ precommit 面绿。"
+      ],
+      "9": [
+        "`timeouts.defaults` 恰 `{implement: 21600000, review: 10800000, fix: 21600000}` 且**无 `task` key**（config 读断言 + grep 兜底）；`cdd review --type task` 预算 = review 默认 3h（接线断言钉死，T7 事故根因即此）· branch-fix = fix 默认 6h；三岛接线断言全绿（7 个 op 组合——spawn 传出 budget = 对应 op 默认值）；resolver 单测迁完（`\"task\"` budget 断言零残留）；`DEFAULT_TIMEOUTS` 类型面 union 化；`pnpm run validate` 全绿（含 channel-audit）+ precommit 面绿。"
+      ]
+    },
+    "2026-09-28-cdd-review-contract-fix.md": {
+      "1": [
+        "return-block 零 `blocker:` 行（单测 + grep `blockerDefaultFor` /「blocker: none」零残存）；外壳模板面措辞 grep pin——「four lines」/「`blocker:` listing」在 `template-contract.json#sections.shell` 共享 Instructions 面零残存；smoke-cdd 断言 4-key（status/commits/artifacts/counters）；finalize 材料化解构 3 行重接无 4 槽错位；task 面 BLOCKED 理由经 stderr/failure_category 可寻址（`returnFromHandoff` 两串兜底理由不静默丢失）；`pnpm run validate` + precommit 全绿（engine 套件 + smoke-cdd 更新面）。"
+      ],
+      "2": [
+        "5 份 SKILL.md 零「blocker count」判读措辞、Review Convergence 以 status 锚定（precommit digraph 套件 + 措辞 grep pin 绿）；等价单测通过（`CHANGES_REQUESTED` ⟺ ≥1 `severity=blocker`）。"
+      ],
+      "3": [
+        "`§3.2` bounded 行落 + `§3.5` 零 `blocker` + `§3.3` 迁移行齐全；precommit 全绿（maintainers 一致性检查）。"
+      ],
+      "4": [
+        "判别/range/语法三面 engine 单测全绿；#274 残留形态回归 pin 成立；字母后缀报非法而非吞父行（#304(b) 实测链精确回归）。"
+      ],
+      "5": [
+        "诊断载荷单测全绿（五要素断言）；range 声明（声明位）诊断面列出展开相位清单（⑥ 验收「诊断附展开清单」逐字可测）；排障引导面直达根因——语法类引导到合法形态与定位、prose 类引导到肇事原文（零误导错误信息兑现，#304(b) 三轮盲修实证消除）。"
+      ],
+      "6": [
+        "branch-review 真实 mode stdout 含 return block（status/commits/artifacts + counters，零 `blocker:`）单测断言；缺根真实 mode → `CDD_BLOCKED` + exit 1、dry-run → WARN（双 lane）；`cdd review/fix/implement --root <path>` 可用（parse 白名单）；branch-review 黑盒路径零「doc contract validation skipped (no repo root)」WARN（doc-audit 门实跑——C2 审计面在终闸生效）；`pnpm run validate` + precommit 全绿（engine 套件 + smoke-cdd 更新面）。"
+      ],
+      "7": [
+        "branch-fix 修已 commit + 无代码面错误 → APPROVED 收据（单测断言，不 BLOCKED）；注入 schema 可写子集（grep `$schema`/`review_scope` 注入面零命中）；仍败面 blocker 附期望形态；`pnpm run validate` + precommit 全绿（engine 套件 + smoke-cdd 更新面）。"
+      ],
+      "8": [
+        "三输出面（docs face / task / branch return block）各含 `next:` 行（单测 + smoke-cdd 5-key pin）；fix 面下一跳判定全表单测绿（输入 blocker>0 → `next: review` / 仅 warn/nit → `next: none` 收口 / cap → `next: BLOCKED: review-cycle-cap`）；`parse.ts`/usage 零变更（grep `--next` 零命中）；`pnpm run validate` + precommit 全绿（engine 套件 + smoke-cdd 更新面）。"
+      ],
+      "9": [
+        "5 份 SKILL.md 零 S1/S2/S3 路由复述（grep pin——仅保留不变式中的收敛语义引用）；判读措辞统一引用 `next:` 建议（含 I6 mid-backfill 兼容句）；precommit digraph 套件 + 措辞 grep pin 全绿。"
+      ]
+    },
+    "2026-10-02-doc-architecture-v2-p1.md": {
+      "1": [
+        "`src/documents/doctype.ts` 含 `abstract DocType`（五域字段 + route 元数据 + detect/validate/parse/lifecycle 抽象 + parentChain 骨架）；`src/documents/registry.ts` 含 `DocTypeRegistry` + `docTypeRegistry` 单例（resolve 未知即 throw · all() 迭代序 `[overall, plan, spec]`）；colocated 测试全绿（vitest）；既有树零改动（T1 纯新模块）；`pnpm run emit:check` fresh。"
+      ],
+      "2": [
+        "三子类交付（detect 判定特征+fallback 序 · validate/parse/lifecycle/parentChain 实现 · route 元数据）；`validateDispatchDocuments` 现经注册表 `resolve(kind).validate`（S2 收敛，grep 实证）；per-type 私有裸函数迁出子类实例方法（grep 实证——`DocumentsValidator` 内零 per-type 大函数体）；`rules/__tests__` 全绿（对外行为零回归）；现存文档树 sample validate 全绿；`pnpm run emit:check` fresh。"
+      ],
+      "3": [
+        "`SchemaFactory` 渲染产物与 `config/schema/{phase-spec,plan,overall}.json` **逐字节相等**（diff 钉 ×3 全绿）；确定性投影（同源渲染字节恒等）；工厂闭包 = 三活动型（add-phase-protocol / skill-anatomy 零产出 + schema.test 仍绿）；`pnpm run validate` 的 engine 测试块绿（schema.test / tokens.test 零回归）。"
+      ],
+      "4": [
+        "`DocType.words` 承载 engine lexicon 翼全内容（单字段单源、三实例同对象）；words 渲染产物 = `config/contract-lexicon.json` **字节等价**；`infra/word-table.ts` 零改动（git diff 实证）+ WordTable 既有测试全绿（消费路径不变 → infra↔documents 零反向依赖）；`pnpm run emit:check` fresh。"
+      ],
+      "5": [
+        "bodyView 域含 reviews.{spec,plan} 配置 + DOCS_FORMATS 判别集；`config/template-contract.json` reviews.{spec,plan} 块迁出、shell/tokens/clauses/reviews.{task,branch} 保留起来（`validateTemplateStructure` 仍绿——zone 规则不变）；`TemplateLoader` 渲染输出等价（templates 测试全绿）；`familyFor` 判别经 DocType.bodyView（S7 收敛，grep 实证 + 测试）。"
+      ],
+      "6": [
+        "`docKindOf` 删除（grep 零命中）；detect 判定经 `docTypeRegistry`（overall→plan→spec 序 + 二义显式报错 + 零命中 fail-fast throw）；CLI review/fix `--type` spec/plan 面经 `resolve(type).lifecycle`（task/branch 现路由保持）；`resolveTargetDoc` / NextStep 建议表经 `DocType.route` 元数据；`cli`/`rules`/`next-step` 测试全绿；validate 全块绿（spike 展示：分支归零后 docs-review 行为与前一致）。"
+      ],
+      "7": [
+        "`deriveDocTokens` live 派生经 `DocType.shape` 域访问器承载（tokens.test 等价回归 + doctored-shape live 测试全绿）；DOC_TOKENS 值不变；死牵引零残留（grep 双模式 `src/documents/schema/` ∪ `documents/schema/` 在 CLAUDE.md + src/ 注释面零命中 · `ex lib/` 残留清理）；`pnpm run validate` 全块全绿；changeset 已建（cdd-engine）。"
+      ]
+    },
+    "2026-10-02-doc-architecture-v2-p2.md": {
+      "1": [
+        "`body/doc-body.ts` 含 `abstract DocBody`（二投影契约面 + kind + description；renderBrief 不列 abstract 基类契约）；`body/task.ts` 含 `Task`（全字段 + checkable 类型约束 + dependsOn?/atomicWith? 扩展位）；colocated 测试全绿（vitest）；既有树零改动（T1 纯新模块）；`pnpm run emit:check` fresh；引擎 suite 零回归"
+      ],
+      "2": [
+        "`PhaseSpecBody` 全字段投影（元数据头五元 + 三真骨架 + 四条件字段 dependentRequired）；`DocType.shape` 经投影（`shapes/phase-spec.ts` 零存在·grep 零命中含注释）；新形 fixture 过 validate（条件段正反例）；factory.test 新 golden 绿；装饰段结构性断言（缺 `Overall updated?` → fail）；schema.test 零回归（plan/overall shape 未动）；tokens.test phase-spec 派生面 **deliberate update 重 pin**（新 golden 断言）或字节未变实证——视 shape 域实际变更而定、**样本值级 golden 终裁留 T6 收口**，不以「零回归」硬性断言；tokens.ts phase-spec 接线改经 body 叶子投影面（`shapes/phase-spec.ts` import 零残存 + 加载序回归测试两序绿）；tokens.test.ts 符号面换源绿（`PHASE_SPEC_SHAPE` 符号引用零残存 + L128 身份钉改叶子绑定断言）；registry.ts 接线（`new PhaseSpecDocType(phaseSpecBody)`）；`pnpm run emit:check` fresh"
+      ],
+      "3": [
+        "`PlanBody` 全字段投影（元数据头五元 + delta-only constraints + tasks[] Task 数据形 + taskGroups?）；brief = Task 数据渲染零 `- **Do**:` 面（新形 fixture 断言）；step checkable 缺失 fail；bodyView decomposition 轴断言吃 interface 字段；`shapes/plan.ts` 零存在（grep 含注释）；factory.test 新 golden 绿；`### Task N:` 连续编号语义不变（`taskNumbersFromPlan` 既有测试——dispatch/__tests__/runner.test.ts——保持绿）；DOC_TOKENS 派生叶不变量保持（deriveDocTokens 模块期无 throw，四条叶路径/值断言绿）；tokens.test.ts plan 符号面换源绿（`PLAN_SHAPE` 符号引用零残存 + L126 身份钉改叶子绑定断言）；registry.ts 接线（`new PlanDocType(planBody)`）；DOC_TOKENS plan 派生面接线改经 body 叶子投影面（叶子接线实证）+ 样本值级 golden 重 pin（deliberate update，T6 收口终裁兜底）；`pnpm run emit:check` fresh"
+      ],
+      "4": [
+        "双侧读+合并机器面全绿（fixtures 断言）；`plan-constraints.md` materialize = 合并内容（宪法 auto-applies 实证）；spec 侧接口落点存在（`body/constraints.ts` 的 `mergeParentConstraints` + `specConstraintsOf`，grep 断言）+ `resolveParentOverall` 共享抽取（`shared.ts` 导出、phase-spec.ts `#` 私有零残存）；Form B 禁断言 + legacy 豁免；继承点解析断言；既有 plan/spec 文档树 validate 零回归；`pnpm run emit:check` fresh"
+      ],
+      "5": [
+        "双读契约全绿（legacy 六段 / Form B fixtures）；既有文档树 validate 全绿零改动——**全量树 = `docs/kairos/specs|plans/*` 全部**（含本 program p1/p2 自身旧形，实计 20 design + 21 plan，以实际全量树为准）；18/19 仅为双读口径的对比基线、不构成 validate 范围限定；extractor 零手写重复（投影单源 grep 断言）；`pnpm run emit:check` fresh；residue/lexicon guard 连续（A4）"
+      ],
+      "6": [
+        "DOC_TOKENS 生产值 = 新 golden（deliberate update 登记）；tokens.test / schema.test 全绿；grep 死牵引零命中；词表平面不变实证（`DOC_WORDS` / words.ts → contract-lexicon.json 零改动、零重 pin——与 shape 域无派生关系）；`deriveDocTokens` 纯函数签名不变（diff 断言：签名面零 diff，DOC_TOKENS 初始化输入面 = body 叶子投影面，同源同值 `DocType.shape`，加载序回归测试收口绿）；validate 全块绿；`pnpm run emit:check` fresh"
+      ],
+      "7": [
+        "SKILL.md 骨架指导语 = 三真骨架 + 条件元数据（English，零程序历史）；skill-anatomy registry 校验绿；emit 重生成 fresh；`pnpm run validate` ALL PASS · typecheck ×3 绿 · biome clean；changesets 已建（cdd-engine + kairos 视变）；residue/lexicon guard 零回归"
+      ]
+    },
+    "2026-09-21-consumer-parity-p4.2.md": {
+      "1": [
+        "`packages/cdd-engine/package.json` version 字段 = `0.1.0`（grep 断言）",
+        "`.changeset/consumer-parity-p2-major.md` 无 `1.0.0 → 2.0.0`、无 `归 P4，` 字样；含「1.0.0 首次稳定开版」表述（grep 断言）",
+        "`git ls-files .changeset/backlog-*` = 空（六件占位符零残留）",
+        "无 pending changeset 内容被误删（overhaul 族 ×9（p1–p6）+ consumer-parity-p4.3 + p4.4 族 ×5 = **15 件原样在场**，与 Task 11 ② 计数同形；backlog ×6 之外零删除；改写后的 `consumer-parity-p2-major.md` 保留）"
+      ],
+      "2": [
+        "`scripts/release/version-packages.ts` / `scripts/lib/version-utils.ts` 零存在（git ls-files 断言）",
+        "`scripts/run.ts version` 入口已退役（`scripts/run.ts` 无 `version` 子命令声明；run.ts help 面不含）",
+        "`.changeset/versioned-plugins.json` 机制零残留（grep `.changeset/` + `.github/workflows/release.yml`）",
+        "`.github/workflows/release.yml` `version:` = `pnpm exec changeset version && pnpm run emit`（grep 断言）",
+        "`.changeset/README.md` 与 docs/maintainers 发布面无 version-packages / versioned-plugins / `run.ts version` / `node scripts/run.ts version` 字样（grep 断言；release-flow 述只述原生 `changeset version` 流程，`pnpm run version` 已随自研管线整删）",
+        "precommit 全绿（删除后 `node scripts/run.ts precommit` 6 组 9 块过）"
+      ],
+      "3": [
+        "release.yml `release-plugin` 矩阵含 `cdd-engine` 条目（grep 断言）+ versioned-plugins.json 读取逻辑零残留",
+        "判据脚本 dry-run 双态实证：① `osuperpowers@0.1.1` 现 tag 存在 → `version > tag` → versioned 判定自洽（本地 shell 演练）；② cdd-engine 零 tag 首版（`git tag --list \"cdd-engine@*\" | sort -V | tail -1` 为空）→ **versioned=true** 首版分支起效（本地 shell 演练双态；判据值与 Task 4 ② post 门 `--expect-version 1.0.0` 同值——本组仅演练判据双态，**不执行** `--expect-version`，该参数面属 TG2）",
+        "`version-sync.ts` 含 cdd-engine 段断言（对 0.1.0 声明合法、非法格式报错实证）",
+        "`node scripts/run.ts precommit` 全绿"
+      ],
+      "4": [
+        "`node scripts/run.ts smoke-cdd --expect-version 0.1.0`（当前树）全通；`--expect-version 9.9.9` 显式 FAIL（tarball 实际 version 上报）——过/堵双向实证；consumer 安装态断言段（已装 `node_modules/@oscaner-skills/cdd-engine/package.json` version == 期望值）同双侧实证",
+        "release.yml 含 `changeset status` 判定步 + `if:` 门步 + `--expect-version 1.0.0`（grep 断言）；门步位于 action 之前",
+        "docs/maintainers 有 smoke-cdd 定位说明（grep 断言）",
+        "release.yml YAML 语法有效（`actionlint` 或等价解析实证）"
+      ],
+      "5": [
+        "`pr-validate.yml` = 三步 compose（无 `link-cdd-engine`、无 `smoke-cdd` 步骤，grep 断言）+ `permissions: contents: read`",
+        "`.github/actions/link-cdd-engine/` 目录零存在（git ls-files 断言）",
+        "`.github/workflows/*.yml` + `.github/actions/*/action.yml` 全树 `npm link` 字样零命中（grep 断言）",
+        "release.yml 无 `node-version` 22 / 无手工 setup-node 的 node 版本指明（改走 setup action；grep 断言）",
+        "4 个 workflow YAML 语法有效 + actions compose 引用解析（`actionlint` 或等价实证）"
+      ],
+      "6": [
+        "`node packages/cdd-engine/dist/cli.mjs issue render < findings.json`（合法入参）→ stdout 聚合 body 与原 report-templates 黄金样本**同字节**（含 mixed type / N-finding / dedup 尾收等全断言面）",
+        "入参非法（空 findings / type 非法 / 字段缺失）→ exit 1 + 字段路径（原契约面零回归）",
+        "`packages/osuperpowers/skills/report-issues/SKILL.md` 无 `scripts/report-templates.mjs`、无 `pluginRoot` 寻址表述（grep 断言）；I5 指向 `cdd issue render`",
+        "迁移面落位：`git ls-files 'packages/osuperpowers/tests/*.mjs'` 无 `report-templates*` 残留（退役件随 [6,7] 组原子落地；断言于 Task 7 验收复核）",
+        "engine 测试套件全绿（`pnpm --filter @oscaner-skills/cdd-engine test`）",
+        "`DOC_SCHEMA_NAMES` 零新增（schema get 枚举面不变）"
+      ],
+      "7": [
+        "`packages/osuperpowers/` 内 `scripts/` + `bin/` 面零残留（grep/ls 断言）+ `.superpowers/` 不存在",
+        "`scripts/emit/issue-templates.ts` 无 `packages/osuperpowers/skills/report-issues/templates/finding-meta.json` 直引（改 engine import；grep 断言）；`issue-templates.ts` + `scripts/emit/__tests__/issue-templates.test.ts` 无 `packages/osuperpowers/scripts/render-yaml.mjs` 直引（两处 import 重指 `scripts/emit/render-yaml.mjs`；grep 断言）",
+        "`npm pack --dry-run`（osuperpowers）文件集合 == 白名单 7 项（探针实证：零 tests/、bin/、scripts/、.superpowers/、.version-bump.json）",
+        "`git ls-files 'packages/osuperpowers/tests/*.mjs'` 无 `report-templates*` 残留 + `git ls-files packages/osuperpowers/scripts packages/osuperpowers/bin` 为空（退役件 + 包面整件清零；grep/ls 断言）",
+        "`pnpm run emit` 后 `emit:check` 零 drift（ISSUE_TEMPLATE 产物重生成同位）",
+        "`node scripts/run.ts smoke-cdd` 全通（含新增 osuperpowers pack 审计段）",
+        "`node scripts/run.ts precommit` 全绿（含 osuperpowers node:test 行为树 `node --test packages/osuperpowers/tests/*.test.mjs` + scripts unit vitest `scripts/emit/__tests__` 两处断链面）"
+      ],
+      "8": [
+        "README 三段式骨架 grep 断言（定位句/理念导览/行为承接有序出现）+ 定位句无 harness 字样",
+        "CLAUDE.md 含定位句 + Non-goal #1 例外（schema get + `cdd issue render`）+ **单一来源措辞不回归**（`Package-as-source` / 单一来源核心表述仍存，grep 断言）",
+        "cdd 理念导览章节含：cdd 是什么 · 设计动机 · 三种模式链 · 收敛纪律（grep 断言四个锚点）",
+        "zh mirror 三件与英文主源同步（`emit:check` + mirror 一致性探针；P4.1 mirror 集 = 根 + 两包三件零其他）",
+        "P4.1 行为面零重写回归（README 行为声明与落地行为零分歧，grep/sweep 实证）"
+      ],
+      "9": [
+        "`docs/maintainers` 内容文档 6 → 5（01 合并落盘；五件新号断言：`01-template-doctrine.md` · `02-naming-conventions.md` · `03-context-caching-doctrine.md` · `04-program-experience.md` · `05-third-party-dependencies.md` 在场，零旧号 `02-template-doctrine.md` / 旧 `03`–`06` 文件名残留；grep/ls 断言）",
+        "收敛前后对照：总字节 62.6KB → **≤53KB**（编辑集推导下限：合并 01+02（14,308B → ≤11.5KB · 省 ≥2.8KB）+ 精简 04（19,548B → 12,000B · 省 7.5KB）+ index README 收敛（→ ~2.1KB）+ 03 活契约保留（8,706B）+ 02/05 终态登记净增（→ ~8.3KB / ~10.1KB）≈ **51–53KB**；±10% 容差实证 + 逐文件对照表落盘于 `docs/maintainers/README.md`；spec 净目标 42KB（-33%）上界 46.2KB 外不可达——03-context-caching 活契约保留不动 + 02/05 终态登记净增先验固定，偏离登记 Constraints「spec 目标偏离」（spec 冻结、待 spec fix 轮修订 §5/§6 42KB → ≤53KB；探针判据绑定 plan 锚 ≤53KB，不按 spec 旧值判不合格））",
+        "`02`/`05`（原 03/06）含 P4.4 终态 token（`REVIEW_FIX` / `group-*` / `biome` / `@types/typescript6` 等 grep 断言）",
+        "互链完整性探针：`docs/maintainers/` 内 markdown 链接 + CLAUDE.md 引用全部 resolve（重编号新号引用一一可证——`03`→`02` · `04`→`03` · `05`→`04` · `06`→`05`；浩零断裂）",
+        "`node scripts/run.ts precommit` 全绿"
+      ],
+      "10": [
+        "`gh repo view Oscaner/skills --json description,topics` = 裁决值（description / topics 实证；homepageUrl 为 null）",
+        "宣讲面 grep 探针全绿（spec §4 锚点断言脚本化）",
+        "README/CLAUDE.md 与落地行为零分歧（行为描述 + 宣称面校验论断成立）",
+        "gh 外发操作留档（PR/issue 或本 plan 变更记录可见）"
+      ],
+      "11": [
+        "`pnpm run validate` 11 块全绿（含 emit:check / version-sync / scripts unit / marketplace）",
+        "`node scripts/run.ts smoke-cdd` 全通；`changeset status` 输出 pending 清单核对一致（backlog 零）",
+        "新增 changeset 落盘（`.changeset/consumer-parity-p4.2-*.md` ×2，规范头 + EOF 换行）",
+        "overall P4.2 行 Implementation plan 列 = **Done** + change-history v-bump 行（四表 closeout 一致性：plan 列 Done ⇔ round 内可证子集 claim + 外部 post-publish 态有主——见验收⑥，声明源不外扩到未执行面）",
+        "P4.2 交付面 = spec §6 验收探针 **round 内可证子集** 全绿（版本基线、原生管线实证、issue render 确定性、白名单、workflows、宣讲、**maintainers 收敛（判据 = plan 锚 ≤53KB，绑定 Constraints「spec 目标偏离」声明——spec §6 旧值 42KB 不判不合格，spec 修订以 spec fix 轮落盘为准）**、gh 元信息）"
+      ],
+      "12": [
+        "`materializePlanConstraints` 二次调用（同 plan）重写同字节（确定性保持）；`generated:false` / existsSync 早退路径零残留（grep/代码断言）",
+        "implement pre-flight 无 `existsSync(ctx.constraintsPath)` 跳过（每 dispatch 必调；grep 断言）",
+        "`isPlanConstraintsStale` 零残留（src + tests；grep 断言）",
+        "`plan-constraints.test.ts` / `runner.test.ts` generate-once 断言面全改「无条件再生」语义（接口细节同字节断言在）",
+        "`pnpm --filter @oscaner-skills/cdd-engine test` 全绿 + `node scripts/run.ts precommit` 全绿"
+      ]
+    },
+    "2026-09-21-consumer-parity-p4.4.md": {
+      "1": [
+        "`pnpm outdated` 零落后（execa 10.0.1 · typescript 7.0.2 · vitest 5.0.1 · @types/node 26.6.2 + 全树 floor 最新，grep/实跑）",
+        "4 major 破坏行为逐项实证登记（engine 测试绿 + dispatch 实证 + changelog 登记面）",
+        "4 个 dependabot PR 已 closed（gh 断言，superseded by P4.4）",
+        "`pnpm install --frozen-lockfile` 零 diff；engine/scripts 测试全绿；`pnpm run precommit` 绿"
+      ],
+      "2": [
+        "`biome.json` 随仓发布（grep）+ husky pre-commit 触发 `biome check --write`（pre-commit 输出断言）",
+        "全仓 ts 面 `biome check` 零违规（Task 11 复核断言）；lint 配置随仓（消费者面可复现）",
+        "门先行实证：Task 3+ 的 commit 均在 biome 门下（pre-commit 链含 biome 步）"
+      ],
+      "3": [
+        "`TaskGroup#key()` 规范序列化 `\"1,2\"` 单源实证：旧 `tasks-1-2-*` 六个命名面 + `1-2` 组键形零活残留（grep（frozen 豁免）· 六面全 `tasks-1,2-*` 断言）",
+        "契约 token 面更名落地（template-contract.json tokens[] 无 `TASK_*`/`DOCS_*` 旧名 · shell clause #1/#3/#7 + 描述面同步 · clause #7 evidence 命名与引擎实读同字节）· 描述/注释面零旧 token 旧键字样（源码注释 + 契约描述 grep）",
+        "键文法单源实证（`GROUP_KEY_PATTERN` 被 roundPattern 消费 · 零硬编码扫描正则）；`--tasks 1-2` exit 2（parse 测试断言）",
+        "有效分区 == 全 task 号集覆盖断言（engine 测试，guard 不变）；bin 入口 argv 契约（`--tasks` / `--type` / `--plan` / `--findings`）字面保持",
+        "`cli-shape` / `schema` / `templates.*` / `runner` 消费测试同改为新 token；engine 套件全绿；breaking 登记 changelog"
+      ],
+      "4": [
+        "模块级可变态全收 `CddRuntime`（sweep 零模块级 `let` 可变态面 · 含 templates CACHE 迁入）",
+        "构造注入替身测试绿（engine 测试注入 `CddRuntime` 替身实证 dryRun/root/proc 均经类面）",
+        "`CddRuntime` 为唯一可变态面（域接口经类传递）"
+      ],
+      "5": [
+        "域接口零裸 `Record` 穿行（grep/sweep 实证）",
+        "零空壳 class（代码评审实证：typed 载体无空方法壳）",
+        "handoff schema 校验仍在 schema 面（无双实现实证）"
+      ],
+      "6": [
+        "buildCtx 类公共面实证（裸函数 `buildCtx` → `TaskLifecycle` 类公共方法 · ctx 装配经类面）；`cli/*.ts` 组合根保持回归断言（runReview/runFix 现状 withLifecycle 薄包装不退化 · 无转发壳 · 判定标准⑤）；branch 族薄壳并入组合根实证（`cli/branch-review.ts` / `cli/branch-fix.ts` 删除 · review/fix 组合根 type 路由覆盖 branch 派发）",
+        "`RoundContext`/`ProgressLedger`/`Handoff`/`ResidueManager` 类落地 + 测试绿",
+        "progress 六 key + `rowFor/entryFor` 单源不变量保持；handoff 命名/finalize 行为经类面等价（engine 测试）"
+      ],
+      "7": [
+        "域规则服务类全落地 + infra 面类化实证（`GitClient`/`Registry`/`ConfigLoader`/`EngineInvoker`/`ReturnBlockParser`/`TemplateLoader` 落地）：**执法集**内 ts 面零独立纯函数导出模块——rules/ 全目录收敛（含 commit/schema/write-boundary 随 `CommitChecker`/`HandoffSchemaValidator`/`ChangedSurfaceAuditor` 类化归零）· parse/brief · infra/ 的 config/invoke/registry/git · artifacts/return-block · render/templates 均无裸函数导出；**命名豁免清单**（infra 原语/运行时工具面——非域规则，判定标准② 执法范围为域规则模块；强制类化违反工程常理，不建单方法空壳 class——判定标准⑥）：`infra/exit.ts`（invariant/exitOk/exitWithCode 进程退出原语）· `infra/log.ts`（setLogLevel）· `infra/resource.ts`（resolvePackageRoot）· `infra/context.ts`（loadContract）· `artifacts/hash.ts`（hashFile）· `documents/tokens.ts`（escapeRegExp/deriveDocTokens）· `dispatch/hooks.ts`（createDispatchHooks/registerDispatchPlugin）· `cli/result-face.ts`（docsResultFace）——**不扩表**（新增豁免须经 review 裁定）；spec §2.1「零模块级裸函数模块」口径按执法集 + 豁免清单落定",
+        "`BriefRenderer` 化实证（`generateBrief` 公开面 → `#render` 方法；test 面改消费类实例）",
+        "导出函数面破坏性重排到位 + engine 测试全绿；docContractValidate 行为无损（四表/结构断言）；argv 契约面回归：`--tasks`/`--type`/`--plan`/`--findings` 经 bin 入口现场 dispatch 实证零回归（skills 经 CLI 调用 · spec §2.4 + AC 对应面）"
+      ],
+      "8": [
+        "状态词汇三值实证（handoff `status` enum 含 `REVIEW_FIX` · `finalize` 三值产出 · `deriveTaskState` 路由：S2 收口态 → fix 轮 complete 无 re-review、S3 零 finding 直通）",
+        "S2 复用现有 `cdd fix --findings`、零 per-finding behavior、零 tag 过滤（当前 task 有 findings 即修全）",
+        "历史终态不回滚（旧 `APPROVED`+findings → complete 终态保留）",
+        "breaking 登记：`REVIEW_FIX` 词汇新值入 changelog、1.0.0 收口就绪"
+      ],
+      "9": [
+        "`Command` 类族 + `ValidateBlock` 类族落地；`scripts/__tests__/run.test.ts` 命令树断言同域对齐",
+        "11 步域事实保持（`ci-validate.test.mjs` 断言全绿，或同域演化后对齐）",
+        "scripts vitest 全绿（228+ 用例随类化零回归）"
+      ],
+      "10": [
+        "五面文本三段表述同形（grep `REVIEW_FIX` × 五件 + 措辞核对）；`emit:check` 无 drift",
+        "PAP 移除面零活残留（zone / `accepts pending-acceptance-patch` / `targets later task` / `## Pending Acceptance Patch` heading 零活面 grep（frozen 豁免）· plan.json 无 `pendingAcceptancePatch` 节点 · skill-anatomy 注册表无该条件节 · cli-development 无 I6 且 I7 改指 Plan Sole Writer · 两 SKILL.md fix 节点 tag 句删 · engine tests 断言随删 · growth 注册表无 cli-development 越界条目）；**跨 task 裁决直写实证**：orchestrator 直写目标 task 的 **Do** 与 **验收** → brief 抽取逐字携带（行为入 Do · 验证入 验收，spec §2.10 AC 对应面）",
+        "裁定迁移实证（writing-plans 无 AskUserQuestion 且含 authoring 期裁定落盘语义 · cli-development digraph 无 `adjudicate-task-groups` / 无 `task-groups-undecided` · `C → D` 直连 · 节点更名 group-*（`implement-group` / `run-group-review` / `fix-group`）· `more-groups?` 保留）",
+        "零白绿：digraph-consistency 断言（双向完备/同构/growth）全绿"
+      ],
+      "11": [
+        "`pnpm run validate` 11 块全绿 · `emit:check` 无 drift",
+        "changeset 存在（cdd-engine major breaking · osuperpowers 变更面归属清晰）",
+        "破坏面登记 changelog（1.0.0 收口就绪）",
+        "P4.4 行四表回填实证（Design-spec link · Implementation plan `Done` · change-history claim 双向一致）",
+        "零残面 sweep 全绿 + biome 全仓零违规复核通过"
+      ]
+    },
+    "2026-09-27-pi-harness-p4.md": {
+      "1": [
+        "`skills/` 下 8 目录名 == 各 `SKILL.md` `name:` == cdd-\\* 八名集合（目录×name 双钉成立）；含旧名测试文件已全部 git mv（`git ls-files` 零旧名文件名）；live 面 `git grep` 旧名/旧目录零命中（历史正文除外）；三目录迁移完成（`packages/osuperpowers`→`packages/kairos` · `docs/osuperpowers`→`docs/kairos` · workspace 根 value → `.kairos`）；live 面零 `osuperpowers`（历史正文除外）；validate step 名已换 kairos 且 ci-validate name-set 绿；改名后既有测试全绿（node:test + scripts vitest + engine vitest——engine 面若有引用随扫同落）；`pnpm run precommit` 绿（含 emit 新鲜——见 Task 2 同组闭合）"
+      ],
+      "2": [
+        "`emit:check` 零漂移；issue 表单选项含 8 个 cdd-* + 其余 emit 产物零旧名残留；`pnpm run precommit` 绿"
+      ],
+      "3": [
+        "`checkMarkers` 全绿（三方一致 + 单侧改异反例 + 4 键 pin）；lexicon vitest 全绿；validate step-9 块绿；`pnpm run precommit` 绿"
+      ],
+      "4": [
+        "README 家族零 `cursor-agent`（豁免锚已废；二进制列数据值除外——名义表二进制列含 `cursor-agent` 属 registry `cli` 数据值，合法）；neutral verified 声称 triple 四声明面实际落笔（root EN / osuperpowers EN / zh 双镜像，pair→triple 补 Pi）；zh 双镜像结构 parallel + 声明时间戳 `2026-10-01`；名义表与 lexicon/registry 数据一致（人工过目 + T5 守卫）；pi 安装段含命令 + 安装后事实 + cdd- 缘由一行；D5 节含零冲突叙事 + harness 条件化语义；`pnpm run precommit` 绿"
+      ],
+      "5": [
+        "`presentation-surface.test.mjs` / `pi-package.test.mjs` 全绿（triple + 清单双钉 + 名义派生 + 禁令 + 零旧名/零 `osuperpowers` 残留 + pi 集合断言）；validate step-4 块绿；ci-validate 零扰动；`pnpm run precommit` 绿"
+      ],
+      "6": [
+        "两个 changeset 文件在 `.changeset/` 且 bump 类型正确（kairos `major` / cdd-engine `patch`，含 manifest-pin 包字段重定向）；`pnpm run validate` ALL PASS；`pnpm run precommit` 绿；四表回填一致（P4 收口 claim 归本 plan 提交后的 closeout，见注）"
+      ],
+      "7": [
+        "registry 行 = 唯一 harness 契约（detect/install/refs 在位 · prefix 零字面 · cli 单源）；lexicon harness 域零残留（纯词表）；checkHarness 四向全绿（detect/refs/prefix/install）；SKILL 文本引用全双形态 + 零裸 ns 残留（pin）；README 上游表数据渲染与 install 一致；engine/scripts 测试 + precommit 绿"
+      ],
+      "8": [
+        "`config/` 落位（读作数据全归位）+ `harness-contract.json` 命名落地（engine 契约 vs emit 分发注册表消歧）+ `templates/` 仅内容种子（issue-body.json）；`resolveResource()` = 唯一路径真相——engine 六消费面零散落 `path.join(pkgRoot, \"…\")` 硬编码、smoke-cdd / residue / contract-lexicon pin 全数据派生、dev↔dist `config/` 同构（`dist/resources` 零残留）；`package.json#files` 随发 config；engine/scripts 测试 + precommit 全绿；CLI 面与数据语义零变化（纯内部结构 + 命名，patch 级）"
+      ]
+    },
+    "2026-09-27-pi-harness-p5.md": {
+      "1": [
+        "`./packages/cdd-engine/node_modules/.bin/tsc --noEmit -p packages/cdd-engine/tsconfig.json` 全部报错**位于 `src/**/__tests__/**`**（src 非测试面零错误；`__tests__` 存量归属 T2）",
+        "`@ts-ignore` / `@ts-expect-error` 于 engine src（非 `__tests__`）零命中",
+        "`pnpm --filter @oscaner-skills/cdd-engine test` 全绿（零行为变化）· `pnpm run precommit` 绿"
+      ],
+      "2": [
+        "`./packages/cdd-engine/node_modules/.bin/tsc --noEmit -p packages/cdd-engine/tsconfig.json` **exit 0**（787→0 终态）",
+        "`pnpm --filter @oscaner-skills/cdd-engine test` 全绿 · `pnpm run precommit` 绿（零行为变化护栏）"
+      ],
+      "3": [
+        "kairos 测试面（node:test 经 validate SubprocessBlock / `node --test`）全绿 · root vitest（scripts）全绿 · engine vitest 全绿",
+        "`git ls-files | grep '\\.mjs$'` 排除 `dist/` 产物面后**零命中**（源面 `.mjs` 清零）",
+        "迁移输出面符合 T4 目标 tsconfig（nodenext + erasableSyntaxOnly）语义：import 全 `.ts` 后缀 · 零目录 index 导入（机械 grep 可判）；**类型清零不归本任务**——迁移产生的 TS7006 隐式 any 族由 T4 结算（类型清零所有权见 Task 4 Do）"
+      ],
+      "4": [
+        "`pnpm run typecheck` exit 0（engine/scripts/kairos-tests 三项目零错误）",
+        "`pnpm run precommit` 绿（含新 type-check 块）· `node scripts/run.ts validate`（或对应块级别）type-check 块 OK",
+        "validate step 名断言（若存在 name-set/lockstep pin）同步后全绿"
+      ],
+      "5": [
+        "guard 对四消费面断言全绿（root 相应 validate 块 + `pnpm --filter @oscaner-skills/cdd-engine test`）",
+        "guard 逃逸零命中（engine src + scripts + kairos tests + 源配置面）· 源面 `.mjs` 零命中（产物面除外）· 全量 live 面（含 docs 面）逃逸 token 零命中由 T7 live 面 grep 闸验收兜底",
+        "`pnpm run precommit` 绿",
+        "WordTable 内核落地：三族分层 json 形态 · `config/schema/contract-lexicon.json` 存在且 validate 适配 · 引擎 word-table 视图访问器消费（capsule 出词自数据）· `guards` 零引擎包残留（`scripts/lib/guard-lexicon.json` 在位）· 全仓零 lexicon 旧字段字面（grep 断言）"
+      ],
+      "6": [
+        "engine suite 全绿（含新断言：lensEnum 成员 + axesGuide 文句 + evidence `typecheck` 字段结构 + 缺项→BLOCKED 读回）",
+        "`templates.test.ts`/`registry.test.ts` 新断言绿 · contract-lexicon guard 绿 · `pnpm run precommit` 绿",
+        "review `next:` fix 建议载 `(read <handoff> back to confirm)`（NextStepRouter next-line 断言绿）"
+      ],
+      "7": [
+        "engine suite 全绿（黑盒经 `src/bin.ts` spawn——`CDD_MJS` 族改指后零 `dist/cli.mjs` 引用）· root vitest 绿 · `pnpm run precommit` 绿",
+        "live 面 grep 零命中：`build.config` / `dev:stub` / `@typescript/typescript6` / `globalSetup` / `@ts-ignore` / `@ts-expect-error`（live 面 = CLAUDE.md · `docs/maintainers/05` · engine README 对 · 源面/config 面——逃逸 token 并入本列表，与 T5 guard 合计 = 完整 live 面；历史 spec/plan 正文与发布面 schema/产物除外，live 面定义同 Constraints 契约）",
+        "`node packages/cdd-engine/src/bin.ts --help` exit 0"
+      ],
+      "8": [
+        "`tsc -p tsconfig.build.json` exit 0（发布 emit）· 产物 `dist/bin.js` shebang 保留 + 相对 import 全 `.js`（无 `.ts` 残留引用）",
+        "`pnpm pack` 产物含 `package/dist/bin.js`、**不含 `package/src/`**；临时安装 `.bin/cdd --help` exit 0",
+        "engine README 对 live 面零 `dev:stub`/`dist/cli.mjs`（grep；发布面 schema/产物除外）",
+        "engine suite 全绿 · `pnpm run precommit` 绿"
+      ],
+      "9": [
+        "`pnpm run validate` **ALL PASS**",
+        "`.changeset/*.md` 存在（cdd-engine patch + kairos patch）· P5 plan closeout 链（branch-review 预条件）满足",
+        "overall v1.28 四表一致（Issue inventory P5 计数修正 · Phase inventory P5 两列 Done · 依赖图不变 · change-history v1.28）"
+      ]
+    }
+  },
+  "constraints": {
+    "2026-09-13-osuperpowers-overhaul-p5.md": [
+      "### 口径",
+      "### commit 边界机制（本 program 全 phase 生效）"
+    ],
+    "2026-09-13-osuperpowers-overhaul-p6.md": [
+      "### 口径",
+      "### v1.2 回填（overall v1.45 / spec v1.8 同窗，用户 2026-09-18 TTL-free 升维指示）",
+      "### v1.3 回填（overall v1.46 / spec v1.9 同窗，用户 2026-09-19 指示）",
+      "### v1.4 回填（overall v1.47 / spec v1.10 同窗，用户 2026-09-19 指示）",
+      "### v1.5 回填（overall v1.48 / spec v1.11 同窗，用户 2026-09-19 终审实证指示）",
+      "### v1.6 回填（overall v1.50 / spec v1.12 同窗，用户 2026-09-20 编排实证授权）",
+      "### v1.7 回填（overall v1.51 / spec v1.13 同窗，用户 2026-09-20 全面复盘授权）",
+      "### v1.8 回填（overall v1.52 / spec v1.14 同窗，用户 2026-09-20 T25 TIMEOUT 实证 + 统一抽象授权）",
+      "### v1.9 回填（overall v1.53 / spec v1.15 同窗，用户 2026-09-20 验收缺陷记录）",
+      "### v1.10 回填（overall v1.54 / spec v1.16 同窗，用户 2026-09-20 T26 恢复轮 base==head 实证 + 统一抽象授权）",
+      "### v1.11 回填（overall v1.55 / spec v1.17 同窗）",
+      "### v1.12 回填（overall v1.56 / spec v1.18 同窗）",
+      "### v1.13 回填（overall v1.58 / spec v1.19 同窗）",
+      "### v1.14 回填（overall v1.59 / spec v1.20 同窗）",
+      "### v1.15 回填（overall v1.60 / spec v1.21 同窗）",
+      "### commit 边界机制（本 program 全 phase 生效）",
+      "### Flow Atomicity（本 phase 强化）",
+      "### 顺序原则（spec §2.4）"
+    ],
+    "2026-09-21-consumer-parity-p1.md": [
+      "### 口径",
+      "P1 是**审计 + 处置 phase**：实现面 = 13 件 frozen 文档 J1 主张改写（4 处）+ J2/J3 保留登记实证（26 命中行/8 文件）+ S5 单行修正（`scripts/run.ts:89`）；**零 engine 源码改动、零新 CLI 子命令、零守卫退役**（退役 = P3）。所有改动 `pnpm run validate` 相关块全绿 + block 12 自检 2/2 + `emit:check` 无 drift（13 件为 specs/plans 不触 emit；S5 为 scripts 文本描述不触 emit）。判定表/shim 清单已随 design 落盘（AC1），不进本 plan 实施面。",
+      "### commit 边界机制",
+      "dispatch 两端门——入口门（进入 review 前工作树干净：主 agent 产物已提交、dispatch 期零写树）+ 出口门（产生修改的 dispatch 后修改已提交）；主 agent 处理的由主 agent commit；本 plan 各 Task 的 review/fix 环均遵守。**已知缺口**（overall v1.4 P2 登记项）：docs-family fix 通道 commit 义务未 concretize——spec-fix r1 BLOCKED（未提交）/ r2 APPROVED（agent 提交）同契约异行为实证再现（2026-09-21 P1 design 两轮 review）；本 phase fix round 后编排者核验 handoff `commits` 字段，缺失则补提交（canary 实证登记）。",
+      "### Flow Atomicity",
+      "13 件 J1 改写为**单 task 整批**（Task 1，避免逐处零散提交）；J2/J3 保留面**只登记不改写**（历史叙述不伪造）；S5 独立 task（Task 2）；收口验证 + changeset 裁决独立 task（Task 3）。",
+      "### 顺序原则",
+      "Task 1（J1 改写 4 处 + grep 零主张实证）→ Task 2（S5 单行）→ Task 3（AC1–AC5 收口复核 + changeset 裁决登记）。Task 1 为本 phase 主体；Task 2/3 为闭环面（先改写主体再收口，避免验证空跑）。"
+    ],
+    "2026-09-21-consumer-parity-p2.md": [
+      "### 口径",
+      "P2 是 **engine 实现 phase（breaking）**：实现面 = canonical doc-structure schema 单源 + `cdd help` 子命令 + engine 同构消费迁移 + 全量 charter 审计 + closeout 统一规则 + harness 契约单源 + breaking major 版本面；**零新增执法 CLI 子命令**（唯一例外 = `cdd help`，零执法逻辑）。所有 engine 改动 `pnpm run validate` 12 块全绿 + block 12 自检 2/2 + `emit:check` 零 drift（本仓自用程序四表仍受 scripts 守卫直至 P3——本 phase 不得破坏该面）。engine 零文档写入（回填由 orchestration 执行）；SKILL.md / docs 英文主源；schema canonical 先落 → 消费迁移 → 审计/契约接线（顺序原则）。",
+      "### commit 边界机制",
+      "dispatch 两端门——入口门（进入 review 前工作树干净）+ 出口门（产生修改的 dispatch 后修改已提交）。**known gap**（overall v1.4 登记 · P2 自身设计承载）：T5 落地前 docs-handoff schema 显式声明「无 commits 字段」→ 本 plan 的 review/fix 轮次（T1–T5 前）fix agent 无法在 handoff 声明 commits → **编排者核验 handoff + 缺则补提交**（canary 实证）；T5 落地后由新契约承载（与 task-family 同面）。changeset：P2 = engine package 面 → **收口建 1 个 major changeset**（breaking 面，overall「changeset 逐 phase 建」；P1 无 package 面不建空 changeset 的裁决不适用于本 phase）。",
+      "### Flow Atomicity",
+      "六任务线性链、逐任务可独立验证：T1（schema + `cdd help`）→ T2（engine 同构消费迁移 + md 模板退役）→ T3（全量审计 + base 默认 override）→ T4（closeout 统一规则）→ T5（harness 契约单源）→ T6（breaking 版本 + 零债收口）。每任务引擎测试就近落（`src/**/__tests__/**/*.test.ts`）；任务间不放跨任务悬空项（发现即回填 spec/overall 再继续）。",
+      "### 顺序原则",
+      "canonical（T1）先于消费迁移（T2）——审计 token 一律从 schema 派生，避免手写 token 两代共存；审计基础设施（T3）先于 closeout 规则（T4）——mismatch 推断模块消费审计面；契约单源（T5）为修改面、可与审计并行但按依赖置后；T6 收口聚合零债断言 + 版本面。每步 validate 保持全绿。"
+    ],
+    "2026-09-21-consumer-parity-p3.md": [
+      "### 口径",
+      "P3 是**本仓校验面重建 phase（允许破坏性变更）**：repo 侧四表守卫整体退役（S1/S2 + 42 用例 + canary-dogfood）· validate 接线净化（零四表 block、steps 12→11、全语义名零编号 anchor）· canonical phase-id 语法严格 A（`^P\\d+(\\.\\d+)*$`）· S3 残留簇改写 · consumer-sim 升级挂 release 门 · skills 输出零过滤 + fix 边界条款 · docs-family 命令出口统一（结果可见性 + exit.ts 出口单源）· 运维规范落档。**判据面唯一实现 = engine lifecycle（dispatch 运行时 + engine 套件）——repo 侧零第二触发点**；engine 判据不动，只删 repo 侧（C1/C3）。所有 engine 改动 `pnpm run validate` 11 块全绿 + `emit:check` 零 drift + engine vitest 全绿。engine 零文档写入（overall 回填由 orchestration 执行，closeout 折叠 S3 改写）。SKILL.md / docs / docs/maintainers 英文主源；本 plan 中文（Strategy B）。**changeset：P3 不建**——版本化发布归 P4（overall §4 输入 = `.changeset ×2`）；P3 对发作面（schema patterns / stdout 结果面 / prepare 移除）随既有 `consumer-parity-p2-major.md` changeset 在 P4 版本化（P4 若判定需补记，P4 任务承载）。",
+      "**计划期决策（design 授权 plan 定，记录第一类）**：",
+      "D1（§2.6 fixture 二选一）→ **临时仓内生成**：consumer-sim 从安装面 schema/templates 派生一份合法 plan 写入 mkdtemp（不把 smoke-plan 移入 `templates/`——不向消费者包面塞 engine 测试 fixture；同时实证「schema→authoring」消费者路径）",
+      "D2（§2.9 exit.ts 命名）→ 补 **`exitOkWith(resultLine: string): never`**（成功 + stdout 结果面一次调用）；result 面 line 由共享 helper 构建；docs-family review/fix 完成三处出口统一",
+      "D3（AC4 探针二选一）→ **前缀锚定探针 + node 断言**落 `ci-validate.test.mjs`（探针 `(?:^| )\\b(?:[0-9]+\\.|5b\\d*|5c|8-10)[. ]+[A-Za-z(]` 对 step-name 面零残留 + 现名全命中/语义名全 miss 防白绿）",
+      "D4（§2.6 prepare 移除的接线变化）→ engine vitest 增 `globalSetup`（`dist/cli.mjs` 缺则显式 `dev:stub`，独立面自给；validate 5b0 已覆盖 CI 面）",
+      "### commit 边界机制",
+      "dispatch 两端门——入口门（进入 review 前工作树干净）+ 出口门（产生修改的 dispatch 后修改已提交）。跨任务连续性：T1 删除守卫与 index.ts/pre-commit.ts 接线改写**同任务原子化**（validate 每任务末保持全绿，中间不落红）；T4 schema pattern 迁移与 tokens/documents 消费迁移同任务闭环（engine 套件同任务末全绿）；T5/T8 编辑 SKILL.md/docs 后同任务内 `pnpm run emit` 重生成 + `emit:check`（emit 产物是派生物，禁止手改）。**overall 回填（v1.18）** = branch-review 前置义务（overall v1.12 时序模型）——T8 完成后才进 branch-review/finishing；S3 中 overall 四处改写折入同一回填。",
+      "### Flow Atomicity",
+      "八任务线性链、逐任务可独立验证：T1（守卫退役 + 接线净化）→ T2（42 行逐案对照表落盘）→ T3（canary-dogfood 删除）→ T4（phase-id 语法 A）→ T5（skills 零过滤 + fix 边界条款）→ T6（docs-family 出口统一）→ T7（consumer-sim）→ T8（S3 残留改写 + 运维规范落档 + 全链收口）。每任务引擎测试就近落（`src/**/__tests__/**/*.test.ts`）；任务间不放跨任务悬空项（发现即回填 spec/overall 再继续）。",
+      "### 顺序原则",
+      "守卫删除与接线同任务（避免 validate 中间红）；42 行对照表在守卫删除后从 `git show HEAD^:` 读取（T2 起始 HEAD 恰为 T1 提交——两测试文件已被 T1 从 HEAD 树整体删除，`git show HEAD:` 报 path does not exist，须回退紧邻提交；文件已删，映射内容不变）；phase-id 语法 A 的 schema 迁移先于消费迁移（pattern 单源先行，tokens/documents 从新 pattern 派生，杜绝两代 token 并存）；skill/doc 面编辑先 emit 后验 drift；docs-family 出口统一（T6）先于运维规范第 8 项落档（T8）——结果面与出口实现在场才可落档（design §2.7 sequencing）；T7 的 `prepare` 移除先于 release.yml 插桩（consumer-sim 前置）；T8 = 收口（overall 回填 + 全量复核），此后仅剩 branch-review/finishing。每步 validate 保持全绿。"
+    ],
+    "2026-09-21-consumer-parity-p4.1.md": [
+      "### 继承（parent overall v1.25，overall wins on conflict）",
+      "Non-goal #4 已修订：README/CLAUDE.md 全面重写归 P4.1，覆盖全部宣称面（harness 支持面 · 安装/来源宣称 · 行为描述类陈述），重写后与落地行为零分歧；README.zh-CN.md = 同步 mirror（repo 对外宣讲面）",
+      "四表纪律：**回填 = branch-review 前置义务**（Task 6 closeout backfill-overall，engine 终态欠账硬门）；结构性 mismatch → BLOCK",
+      "判据三定式（C1 可达性 / C2 结构性 / C3 退化）适用于一切处置判断；超出文档面的分歧 → finding/backfill 上抛，不在本 phase 改代码",
+      "开发期引擎调用直调：`node packages/cdd-engine/dist/cli.mjs <subcommand>`（禁 global cdd）",
+      "### 语言与来源",
+      "程序文档中文主源（Strategy B）；README / CLAUDE.md / docs/maintainers 英文主源（Strategy A / B extension）；**mirror = 根 `README.zh-CN.md` + 各包宣讲面 `packages/osuperpowers/README.zh-CN.md` · `packages/cdd-engine/README.zh-CN.md`**（政策修订随本 phase 落笔；全仓其余零 `.zh-CN.md`）；术语：first-party 中文译名统一「**第一方**」（「一方」禁用，2026-09-23 用户裁决）",
+      "值 token（phase-id · 布局路径 · grep 探针）locale-neutral，照字面复制",
+      "### 文档面边界",
+      "本 phase 零 engine 变更、零 scripts/validate 变更；改动限 `docs/maintainers/`、根 `README.md`、`README.zh-CN.md`、`CLAUDE.md` + 范围例外 (1) parent overall backfill-overall（Task 6）(2) `packages/osuperpowers/README.md` 入链引用口径同步（rename 后零断裂所需，非包内容面变更、非 emit 输入面）；v1.4 增补面均在既述面内（docs/maintainers 精简删除重编号 · 根/包级 README 切换行语言清扫 · CLAUDE.md/maintainers 索引的 07 引用移除）",
+      "本 phase 预期零 emit 输入（误触处置见下节『错误处理 if-then gate』）",
+      "docs/maintainers 整理 = **重新整理重新编号，包括精简与删除**（2026-09-23 用户裁决修正 v1.20「内容保真迁移」口径——非仅换分布，需实质精简裁切与删除；`07-osuperpowers-plugin.md` 删除，其唯一值面 release 流程由 `.changeset/README.md` §Release flow 承载）",
+      "### 错误处理 if-then gate（镜像 spec §2 错误处理词表）",
+      "互链断裂（rename/重组后全族相对 `.md` 链接解析失败，scan 验证不过）→ **task BLOCK**：修复后重跑验证再继续",
+      "声称漂移（README/CLAUDE.md 写 A、落地行为是 B，宣传面对照表演化举证）→ **task BLOCK**：超出文档面即 finding/backfill 上抛，不在本 phase 改代码",
+      "重写误伤治理要项（emit 警示 / no-worktree / changeset 义务遗漏）→ **review 层 BLOCK**",
+      "误触 emit 输入面（SKILL.md / package.json / emit 相关 docs）→ **先回填 overall 再动**",
+      "### 验收探针规范",
+      "grep 探针显式带 `-E`；防白绿——语义名/现名全命中 + 旧名/反例全 miss 双面断言",
+      "node 断言探针（互链解析 · section 编号连续 · 骨架标题镜像）一律以**临时 node 脚本**落 `.osuperpowers/cdd/2026-09-21-consumer-parity-p4.1/probes/`（gitignored、**不 commit**；输出节录存档于 Task 5 提交说明）——本 phase 零 `scripts/validate` 变更，不新增提交式探针测试",
+      "`pnpm run validate`（11 块）与 `pnpm run emit:check` 每任务收尾复跑；dirty-tree 黑盒注意（提交后再跑全量）",
+      "### commit 边界机制",
+      "每 task 输出独立 conventional commit（`docs(...):`）；spec/plan 文档改动**一般不** commit（用户无请求时零 commit）——**唯 Task 6 的 backfill-overall 产物豁免此条，独立提交**（`docs(program):` 前缀 conventional commit；overall v1.21 需在树可见以作 branch-review 复核基线）；**v1.4 收尾修正回填（overall v1.24 + design v1.4 + plan v1.4）同豁免，独立提交**（移除 07 live 引用后 branch-review 复核基线所需）",
+      "不 push；不建 PR（integration 决策归用户 / finishing）",
+      "禁止 git worktree；禁止 attribution trailer"
+    ],
+    "2026-09-21-consumer-parity-p4.3.md": [
+      "### 破坏性变更窗口（breaking allowed）",
+      "cdd-engine 0.1.0 基准，P4.2 1.0.0 首次稳定开版前为破口窗口；`--task` → `--tasks` 全替换零别名、`[In-flight]` 状态、schema get 均属 breaking/新增面，随 P4.2 收 changelog。",
+      "### 四表纪律",
+      "回填 = branch-review 前置义务（backfill-overall 由 orchestration 于 branch-review 前执行）；结构性 mismatch → BLOCK；本 plan 终结态（plan complete）落地后 P4.3 行 Design-spec / Implementation plan 列按 closeout 规则回填。",
+      "### 语言政策",
+      "本 plan 中文主源（Strategy B）；SKILL.md / docs 英文主源（Strategy A）——I4 文本重写为英文原文面；值 token（phase id / tag / SHA / 路径）中立。",
+      "### engine 直调与零过滤",
+      "`node packages/cdd-engine/dist/cli.mjs`（dev:stub 材料化；不走 global register）；skills 调用 cdd 输出零过滤（禁 `tail`/`head`/`2>&1 |`/`EXIT=$?`）。",
+      "### emit 输入面",
+      "skills/ 改动（Task 4/6）后必须 `pnpm run emit` + `emit:check` 无 drift + 产物重生成。",
+      "### 零产物 fixture",
+      "engine 测试不得以本仓产物为 fixture（P3 裁决）——#274/#276 回归用 mkdtemp 自造链（smoke-overall 行形）。",
+      "### 死代码即删",
+      "空壳、死代码随拆即删（无过渡 shim · 无别名 · 无历史叙述豁免）；frozen 历史 docs（overhaul 族 / p3-p6 历史行）不动。"
+    ],
+    "2026-09-27-pi-harness-p1.md": [
+      "### 口径",
+      "**机制口径**：C4 本地安装旗标**已实测**（pi 0.87.1，T3 测量）：`--local` 写项目 `.pi/settings.json` 需 `--approve`（trust gate——`--no-approve` 与 `--local` 不兼容，exit 1 \"Project is not trusted. Use --approve to modify local package config.\"，按项目信任不持久）→ smoke 一律 `--local --approve`；残余实测不符仍按 verified-vs-probe 口径交 orchestrator（Plan Sole Writer）判定 spec 回填后再继续，实现 agent 不改 spec/plan",
+      "**pi 版本策略**：`@latest` 不固定版本——pi-package 契约须对移动 pi 生态验证；固定旧版 = 守卫随 pi 生态衰减失效（v1.4 裁定，validate CI 装配 + 测试提示命令一致）",
+      "**A3 债吸收口径**：residue.ts A3 的 pi 分支为死代码（守卫前提\"pi 在该 package.json 是死残留\"被本程序整体取代）——整体退役，不设精确正则、不缩 scope、不盲放行；`\\bdroid\\b` 分支前提未变、保留；residue.test.ts 断言翻转为放行端态（pi 形 → false）并作新世界态 pin（droid 保持 true）",
+      "**单一真相**：skills 计数单一真相 = `scripts/validate/osuperpowers.ts` 模块级 `EXPECTED`（T1 将 `checkOsuperpowersSkillsCount` 内局部 `const EXPECTED = 8` 提升至模块级并导出 count getter，函数体消费同源；既有实现该常量为函数内局部、无导出）——守卫/测试行为断言统一复用该导出、不硬编码字面 8；字面 8 仅保留在 C4 消费者可见验收与 T1 注闭包实测描述（现状实证、非行为断言，豁免）",
+      "**闭包口径**：files 闭包 = 静态 subset（strip `./` 后目录/文件前缀覆盖判定），validate 循环零 pack 子进程；pack-truth 归 C4 smoke 解包处",
+      "**零网络**：validate 站本地 install 流程不触网（单站验收）",
+      "### commit 边界机制",
+      "实现提交按任务粒度（conventional commits，无 attribution trailers）",
+      "spec/plan 文档仅由 orchestrator（Plan Sole Writer）与 cdd fix-agent 修改；implement agent 零文档修改权",
+      "`package.json#pi` 字段为源侧手维护（D2），本 phase 唯一被实现的 manifest 变更；emit 产物不手改（`pnpm run emit:check` 保持 fresh）",
+      "**changeset 义务**：逐 phase 建 changeset（`pnpm run changeset`）——P1 = `@oscaner-skills/osuperpowers`（patch/minor 由 changeset 规则定）；用户若提醒即违例 → dogfood issue",
+      "### Flow Atomicity",
+      "单任务原子：Task 3 实测先行——实测结果与 spec 不符时该任务不\"带伤闭合\"，不符点以任务产出报告交 orchestrator 判定",
+      "串行 dispatch：T1→T2→T3→T4，全 singleton 组（无 `## Task Groups` 合并）",
+      "### 顺序原则",
+      "T1（源字段+契约 pin）→ T2（一等守卫+命名 pin 升级）→ T3（安装 smoke）→ T4（C6 撤销 + 全局 unpin）：T2 断言 T1 字段、T3 消费 T1 清单形态 + pi 机制实测、T4 收尾回退（设计评审裁定 v1.4）",
+      "每任务 end-to-end：实现 → 该任务面测试绿 → 相关 validate 面绿",
+      "### 仓库纪律",
+      "node：`fnm use`（.nvmrc v24）；引擎调用 `node packages/cdd-engine/dist/cli.mjs` 直调（`dev:stub` 后），不走 global cdd",
+      "language policy：代码/测试 English-primary（本计划为 internal docs，中文豁免 Strategy B）；无 attribution trailers",
+      "消费面零程序叙事（iron rule）：SKILL.md / 消费者侧文件不带本程序 phase/issue 叙事",
+      "引擎 `.mjs` plane zero：新增测试用 node:test `.test.mjs`，src 不落 `.mjs`"
+    ],
+    "2026-09-27-pi-harness-p2.md": [
+      "### 口径",
+      "**字节稳定口径（D7）**：`marketplace/source.json` 与 `.claude-plugin/plugin.json` / `.cursor-plugin/plugin.json` 字节与回填前（v1.8 世代）**完全一致**——重 emit 后 `git diff` 产物面零变化；唯一允许的产物变更 = 零（`source.json` 键序 name, contentRoot, cursor, [version/description/author/homepage/repository/license], claude, [hooks] 由 `Object.keys` 测试钉死）",
+      "**声明接缝（C2）**：emit 侧与 validate 侧同读 `pkg.oscaner.harnesses` 同一声明集合——声明集**不经 source.json row 传递**（Non-goal「source.json 面不扩键」）；emitter 内部 `join(root, plugin.contentRoot, \"package.json\")` 回读",
+      "**单一真相**：skills 计数单一真相 = `scripts/validate/osuperpowers.ts` 模块级 `EXPECTED` / `countSkillsWithMarkdown`（P1 已导出）；`PiHarness.validatePackage` 不 import validate 侧——计数与 `pkgRoot` 由调用侧 ctx 注入（防 lib→validate 反依赖）",
+      "**零残留口径**：`oscaner-plugin` 零残留仅覆盖 live 面（CLAUDE.md / README 家族 / marketplace/README / scripts 源码与测试 / package.json）；`CHANGELOG.md` / `2026-09-13 overhaul family` 为历史豁免（Non-goal「历史记录不 retro-rename」）；`2026-09-27` specs/plans（overall 已随 v1.9 回填 / design / 本计划）的 rename 记录属冻结程序文档（Strategy B），非 live 面——不改不扫",
+      "**lib 共享口径**：validate 侧新增消费仅限于 `scripts/lib`（`harness-registry.ts` + 迁移后的 `deriveFirstPartyNames`）——validate 不 import `scripts/emit`；`deriveFirstPartyNames`（包发现，非 harness 关注点）迁 `scripts/lib` 共享驻留，`ManifestService` 委托保留 emit 侧既有导出面",
+      "### commit 边界机制",
+      "实现提交按任务粒度（conventional commits，无 attribution trailers）",
+      "spec/plan 文档仅由 orchestrator（Plan Sole Writer）与 cdd fix-agent 修改；implement agent 零文档修改权",
+      "产物重 emit 只发生在任务内原子变更之后（每个任务闭合时 `pnpm run emit:check` 必须 fresh；产物面零 diff 时无需额外产物提交）",
+      "**pre-commit 无 fix 语义（C6）**：T6 迁移后 hook = `pnpm exec lint-staged` 单行——biome check（无 `--write`，staged TS 域）violation 即挡；`* → pnpm run precommit` catch-all 继续门控；`biome:fix` 仅手动自查（hook 不调）；T1–T5 期间旧 hook 仍生效（基线不变），T6 自身提交走新 hook 自证",
+      "**changeset 义务**：P2 终验任务（T6）建 changeset——`@oscaner-skills/osuperpowers` breaking（`oscaner` key rename 发布面破坏性；0.x 下 bump 类型按 `.changeset/README.md` version scheme 判定，先读再判）",
+      "### Flow Atomicity",
+      "单任务原子：每个任务闭合前该任务面测试 + 相关 validate 面全绿；T2/T3 自适应字节 pin 回归（emit.test / harness-registry.test 的 `Object.keys` 序断言 + 产物字节 pin——任一 pin 破即是设计漂移信号，报告 orchestrator 判定而非\"带伤闭合\"）",
+      "串行 dispatch：T1→T2→T3→T4→T5，全 singleton 组（无 `## Task Groups` 合并）",
+      "### 顺序原则",
+      "T1（C1 抽象模块独立建 + 字节 pin）→ T2（C4 包侧声明 + source.ts registry 派生，原子 rename 束）→ T3（C2 emitter 泛化 + C3 命名 + keywords 单源收编）→ T4（C5 validate 一致守卫 + P1 守卫折叠 + wiring）→ T5（文档 sweep + 零残留 + changeset + 终验）→ T6（提交门工具链：lint-staged + no-fix）",
+      "T6 置末位：P2 验收的 commit 门条目以 T6 为验收主体（T5 终验不含提交门）；T6 自身提交走新 hook 自证",
+      "每任务 end-to-end：实现 → 该任务面测试绿 → `pnpm run emit:check` fresh → precommit 面绿",
+      "### 仓库纪律",
+      "node：`fnm use`（.nvmrc v24）；引擎调用 `node packages/cdd-engine/dist/cli.mjs` 直调（`dev:stub` 后），不走 global cdd",
+      "language policy：代码/测试 English-primary（本计划为 internal docs，中文豁免 Strategy B）；无 attribution trailers",
+      "消费面零程序叙事（iron rule）：SKILL.md / 消费者侧文件不带本程序 phase/issue 叙事",
+      "引擎 `.mjs` plane zero：新增测试用 `.test.ts`（vitest）/ `.test.mjs`（node:test），src 不落 `.mjs`"
+    ],
+    "2026-09-27-pi-harness-p3.md": [
+      "### 口径",
+      "**单一真相（G1）**：engine harness 标识符行键集合恰 `{claude, cursor, pi}`——`harness-registry.json` 行键 + 测试 name-set 断言同源；`cursor-agent` 唯一合法暴露点 = registry `cli` 字段数据值（外部二进制名，不可改）",
+      "**零残留不豁免（G2，用户拍板）**：守卫扫 live 面零 `cursor-agent`（唯一允许命中 = registry `cli` 数据值所在行 + contract-lexicon.json 同源数据行——词表 harness `clis` 映射 / residue 禁令表数据行，守卫读词表即单源、数据行随词表引入同具放行形态）；历史正文（2026-09-13 family / change-history 行）即史实，不 retro-rename、无豁免机制；P3 扫面 = engine src/tests + scripts + docs/maintainers 三面（scripts 面测试位默认排除、守卫自身测试自豁免——逐面 `__tests__` 处置见 T2），README 家族与 osuperpowers tests 残留面零化随 P4 激活（零化序列：T1 随 rename 同落清零 engine src/tests + scripts 活动引用，T2 随守卫部署同落清零 docs/maintainers——自 T2 起每任务闭合三面零命中，唯一允许 = registry `cli` 数据值所在行 +（T4 起）contract-lexicon.json 数据行，放行集合随数据源推导、仍是数据派生白名单而非人改豁免清单）",
+      "**OOP 抽象统一（C1/C5/C6）**：Criterion ②——行为收敛为 instance methods、零裸函数导出；C5 收编 next-step.ts / result-face.ts / finalize.ts 三处裸函数为 `StatusDeriver` / `NextStepRouter` / `ResultFace`，模块级单例收敛为构造注入；C6 收编四个独立守卫入口为 `ContractLexiconGuard` 单类",
+      "**命令契约双轴（D1–D3）**：review 判定轴（CHANGES_REQUESTED/REVIEW_FIX/APPROVED 引擎推导）独占；implement/fix 工作轮统一 `COMPLETED`；`blocker:` 判定源计数（fix = `--findings` 输入 review 计数）；stdout 全 op 单胶囊 `status · blocker · handoff` + `next:`",
+      "**host-marker 白名单恰 4 键不变**：`[\"AI_AGENT\",\"CLAUDE_CODE_SESSION_ID\",\"CURSOR_TRACE_ID\"]` + `PATH`（context.test.ts 钉死）——pi 复用 `AI_AGENT` 通道零新键",
+      "**分层不破（Non-goal）**：engine registry（spawn 契约面）与 emit 分发注册表 `scripts/lib/harness-registry.ts`（分发 manifest 面）不合并；本 phase 不触碰 emit 侧",
+      "**消费面零引擎形状 restate（C7，iron rule）**：orchestrator skills 只锚路由 token（`next:` / `CDD_BLOCKED:` / handoff `findings`），`3-line return block` / `4th line counters` 类字面量清零；契约词表单一事实源后，形状改动零 skill 面漂移",
+      "### commit 边界机制",
+      "实现提交按任务粒度（conventional commits，无 attribution trailers）",
+      "spec/plan 文档仅由 orchestrator（Plan Sole Writer）与 cdd fix-agent 修改；implement agent 零文档修改权",
+      "**engine 数据面变更需 changeset**：`harness-registry.json` renaming + pi 行 + `contract-lexicon.json` 随包发布（build.config copy → dist/resources/）+ T6 workspace 域收编（lifecycle 落点变更 = engine 行为面）——changeset 记 cdd-engine（类型按 `.changeset/README.md` version scheme 判定，先读再判）",
+      "每任务闭合面测试绿 + `pnpm run precommit` 绿；engine 改面用 `pnpm --filter @oscaner-skills/cdd-engine test`（T3 后需 `dev:stub` 重跑以承接新契约面）",
+      "无 emit 产物面变更（Contract Lexicon 词表 = engine 数据面，非分发 manifest）——`pnpm run emit:check` 保持 fresh",
+      "### Flow Atomicity",
+      "单任务原子：每个任务闭合前该任务面测试 + 相关 validate 面全绿；name-set / byte / 白名单 pin 破即是设计漂移信号，报告 orchestrator 判定而非\"带伤闭合\"",
+      "串行 dispatch：T1→T2→T3→T4→T5→T6→T7→T8→T9，全 singleton 组（无 `## Task Groups` 合并）",
+      "T3（命令契约面）闭合必跑 `dev:stub` 使后续 dispatch 消费新契约面；T4 词表接线后 validate 单 block 是验收主体",
+      "### 顺序原则",
+      "T1（C1+C2 engine 数据面核心：harness.ts 抽象 + registry rename + pi 行）→ T2（C3 测试接线：三元组 name-set + 优先级矩阵 + residue G2 守卫）→ T3（C5 命令契约面：StatusDeriver/NextStepRouter/ResultFace + 调用面）→ T4（C6 Contract Lexicon：contract-lexicon.json + ContractLexiconGuard 收敛）→ T5（C7 消费面措辞 + C4 声明 + 运维文档/CLAUDE.md + changeset + 终验 validate 全绿）→ T6（Workspace 域收编：WorkspaceRoot/Workspace 双类 + 双源灭绝 + 死壳删除 + lifecycle 归位，用户拍板追加）→ T7（崩溃恢复健壮性：HARNESS_ABORT + crash-only snapshot + stash 平面删除，消费 T6 Workspace 域）→ T8（统一终止模型：exit gate 前终止全类覆盖 + crash record 三方统一 + cause + resume 软帽 + 类别/机制解耦，用户拍板追加）",
+      "T6→T7 置尾：workspace 数据面收编依赖前五任务的实际产物面（contract lexicon / 契约面已落），且 bootstrap 保证（`.osuperpowers/.gitignore` 自守卫）+ lifecycle 归位 slug 是全程序 workspace 落点的统一收口；T7 崩镜记录/恢复（crash record 落盘 + crash-only snapshot + 恢复路由）依赖 T6 Workspace 域承接（`crashPath` / `writeJson` / snapshot 落点），顺序必在 T6 之后——T6 收编为 T7 铺平单一落点",
+      "T7→T8 置尾：T8 在 T7 落地物上增量（crash record 形状 / teardown 单路机制已具），T7 通用谓词天然兜住 over-budget/timeout（engine terminated child = 非零退出 + 无 handoff），T8 仅正式化 cause 归类 + 三方统一 + 软帽——**零空窗**；T8 顺序必在 T7 之后",
+      "T8→T9 置尾：T9（预算维度统一）在 T8 落地物上增量——T8 大改 task.ts（teardown 单路化），T9 再动同一岛 spawn 点的 mode 传参（一行增量零冲突）；T9 修复的正是预算接线 bug（task island 硬编码 `\"task\"` 使 `review --type task` 错读实施预算），op 维度与 T8 的 cause `engine-over-budget` 语义对齐；T9 顺序必在 T8 之后",
+      "每任务 end-to-end：实现 → 该任务面测试绿 → precommit 面绿",
+      "### 仓库纪律",
+      "node：`fnm use`（.nvmrc）；引擎调用 `node packages/cdd-engine/dist/cli.mjs` 直调（`dev:stub` 后），不走 global cdd",
+      "language policy：代码/测试 English-primary（本计划为 internal docs，中文豁免 Strategy B）；无 attribution trailers",
+      "消费面零程序叙事（iron rule）：SKILL.md / 消费者侧文件不带本程序 phase/issue 叙事——C7 措辞更新只删形状 restate，不注入程序笔法",
+      "引擎 `.mjs` plane zero：新增测试用 `.test.ts`（vitest）/ `.test.mjs`（node:test），src 不落 `.mjs`",
+      "pi invoke 事实（O2）：`-p --mode text`（本机 `pi --help` 实证，pi 无 `--force`/`--output-format` 形态）——不臆造 pi 无证据的 spawn 面"
+    ],
+    "2026-09-28-cdd-review-contract-fix.md": [
+      "### 口径",
+      "**status 路由判据**：S1/S2/S3 收敛判据 = `status`（`CHANGES_REQUESTED` ⟺ ≥1 `severity=blocker` finding，`finalize.ts` 汇总编码）——orchestrator 读 `status:` 行路由，不再判读 stdout `blocker` 字段；findings 全文仍只经 `cdd fix --findings <handoff>` 交 fix-agent（I5 零新增 carve-out）。engine 侧 `reviewConvergenceGuard` / `blockerCount` 机器守门不变。",
+      "**一义一词（blocker）**：`blocker` 一词全仓唯一锚定 review finding 严重级（M1）；BLOCKED 状态（M4）与 docs 面结果行 `blocker: <n>`（M2 计数）随 spec ③ bounded 映射；stdout return-block `blocker:` 行与 `blockerDefaultFor`/「none」删除。",
+      "**M3 载体裁定**：task/branch 面 BLOCKED 理由单一化为 stderr `CDD_BLOCKED:` + `failure_category`（task handoff `blocker` 字段空置、schema allOf 仅 failure_category 支撑）；docs 面 handoff `blocker` 字段保持（allOf 不变）。删列后任一 BLOCKED 轮非空理由线索不静默丢失（engine 单测断言）。",
+      "**行数契约**：agent 输出契约 = 3 行（`status:` / `commits:` / `artifacts:`，agent 永不自产 counters）；引擎 stdout = 4 行（+ `counters:`，`returnCountersLine` 独占构造点）。`RETURN_STDOUT_BLOCK` 族随之收敛，防 prompt 更新者按 4 行要求 agent 自产 counters。",
+      "**判别结构性**：claim 声明判别 = clause 头部 token（`Pending`/`[Pending]`，`^` 锚语义）+ 非括注内联——结构性规则，引导词不作词典成员判定；range 由判别前置（声明位=多目标、prose 位不声明）。",
+      "**语法不宽容**：字母后缀 phase-id（`P3.10a`）报非法 + 引导合法点分式（`P3.10.1`），不回退父行——「P3.10a-e → P3.10.1-.5」正名债随行兑现，不反向放宽正则。",
+      "**等价单测唯一锚**：status ↔ severity 等价断言锚 `finalize.ts` rollup / convergence 单测（防 SP-4 pass-through 等旁路稀释语义）。",
+      "**changeset 义务**：本 program 双包各一 changeset（`pnpm run changeset`）——`@oscaner-skills/cdd-engine` patch + `@oscaner-skills/osuperpowers` patch（skills 文档随包）；收口时建（实现 commit 后 orchestrator 落）。",
+      "**C3 通道契约（v1.2 backfill）**：branch-review 输出通道两条裁定（spec C3）——C3-a 递归 root 注入（`cli/review.ts` branch ctx `repoRoot` = 解析后 root，黑盒恒真；`base.ts` 缺根真实 mode BLOCK/dry-run WARN；`parse.ts` 三命令 `--root` 白名单）；C3-b result-line 存在性（branch-review 真实 mode 经 `returnFromHandoff` emit return block，吃 4 行新契约）。**T6 须在本程序终闸 branch-review 前落地**（否则 C2 审计被跳过 + C1 status 路由无信号）。",
+      "**C4 收据契约（v1.3 backfill）**：branch-fix 关闭 handoff 由 engine 从机器事实重造（spec C4）——`finalizeHandoff` mode \"fix\" 透传 → 事实重造（commits/phase/status 权威 + agent 输入剥离）；修已 commit + 无代码面错误 → 收据自愈 APPROVED；注入 schema 收敛可写子集（剥 `$schema` + dispatch-盖章字段）。**T7 须在本程序终闸 branch-fix 前落地**（否则终闸 branch-fix 同撞收据闸）。",
+      "**C5 next-step 统一抽象（v1.4 backfill）**：三输出面（docs face / task / branch return block——branch 面消费 T6 emit 层）各追加 `next:` 建议行（spec C5）——C5-0 suggestion 语义（非 hard action，mid-backfill / Plan Sole Writer / 用户裁决可覆盖）+ C5-1 责任单一（**fix 面为 re-review/收口的唯一判定点**——按输入 `--findings` 严重级给 `next: review` 或 `next: none` 收口）+ C5-2 **零新 CLI 参数**（`next-step.ts` 纯读既有 ctx/opts + `convergence.blockerCount`）+ soft-cap 标记。**T8（engine core）/ T9（skills 精简）须在终闸前落地**（T8 依赖 T6 emit 层）。",
+      "### commit 边界机制",
+      "实现提交按任务粒度（conventional commits，无 attribution trailers）",
+      "spec/plan 文档仅由 orchestrator（Plan Sole Writer）与 cdd fix-agent 修改；implement agent 零文档修改权",
+      "C1 engine 变更与 C2 `documents.ts` 变更分任务落地，不混 commit；docs 面 `result-face.ts` / `result-face.test.ts` 保持不动（M2 计数）",
+      "SKILL.md / maintainers 文档 English-primary（消费面零程序叙事 iron rule）；spec/plan 中文（Strategy B 豁免）",
+      "引擎 `.mjs` plane zero：新测试 node:test `*.test.mjs` 或 colocated vitest `__tests__/*.test.ts`（随被覆盖模块）",
+      "不触 emit 面（`pnpm run emit:check` 保持 fresh）——本 program 无 emit 产物变更",
+      "### Flow Atomicity",
+      "T1 契约破坏先行——return-block 删列与 smoke-cdd pin / finalize 重接 / 单测同任务内落地，validate/precommit 全绿后才进入 T2",
+      "单任务原子：实测与 spec 不符 → 不符点记录为任务产出报告交 orchestrator 判定（Plan Sole Writer），不「带伤闭合」",
+      "串行 dispatch：T1→T2→T3→T4→T5→T6→T7→T8→T9 全 singleton 组（无 `## Task Groups` 合并）",
+      "### 顺序原则",
+      "T1（engine kernel：删列 + M3 载体裁定 + smoke-cdd pin）→ T2（status 路由 + skills ×5 重锚 + 等价单测）→ T3（命名档案收编）→ T4（C2 判别/range/语法）→ T5（C2 诊断三件套）→ T6（C3 branch-review 通道契约收口，v1.2 backfill）→ T7（C4 branch-fix 收据契约，v1.3 backfill）→ T8（C5 engine core：`next:` 输出面）→ T9（C5 skills 精简）：T2 依赖 T1 世界态（判读措辞引用新行数契约）、T3 依赖 T2 语义、T4/T5 独立于 C1 面但串行收口、**T6 必须在终闸 branch-review 前落地**（spec C3 依赖裁定）、**T7 必须在终闸 branch-fix 前落地**（spec C4 依赖裁定）、**T8 依赖 T6 emit 层 + 终闸前落地**、**T9 依赖 T8 且终闸前落地**（spec C5 依赖裁定）",
+      "每任务 end-to-end：实现 → 该任务面测试绿 → 相关 validate 面绿",
+      "### 仓库纪律",
+      "node：`fnm use`（.nvmrc v24）；引擎调用 `node packages/cdd-engine/dist/cli.mjs` 直调（`dev:stub` 后），不走 global cdd",
+      "引擎调用直接读完整 stdout/stderr，零输出过滤（无 `tail`/`head`/`2>&1 |`/`EXIT=$?` 捕获）",
+      "预提交门 `pnpm run precommit`；完整 12 块 validate 在 CI 净检出上跑，本地提交后 `pnpm run validate` 全量核对"
+    ],
+    "2026-10-02-doc-architecture-v2-p1.md": [
+      "### 口径",
+      "**字节保真口径（Q1/Q2）**：`SchemaFactory` 派生产物 = `config/schema/{phase-spec,plan,overall}.json` 与回填前**逐字节一致**（diff 钉 ×3）；`DocType.words` 渲染产物 = `config/contract-lexicon.json` **字节等价**。产物面自 P1 起为**派生面**——改内容走 `DocType.shape` / `.words` 描述，手动编辑 = 下一工厂/守卫覆盖",
+      "**shape 同构口径（spec v1.1 finding #2 落定）**：shape 域 = 与产出 schema **同构的完整内容**（全部 `properties`/`pattern`/`const`/`enum`/`description` 以原值落位、零抽象损耗）；工厂 = **字节保真确定性投影**（key 序 + 格式 = 唯一自由度）",
+      "**words 单源口径（Q5）**：词表单源 = `DocType.words`（engine lexicon 翼 `_doc` / `command.{status,capsule,route}` / `schema.anatomy`）；`config/contract-lexicon.json` = 派生产物；`infra/word-table.ts` **零改动**（消费路径不变，构造 Ajv 自校验防回归——infra↔documents 零反向依赖红线）",
+      "**分型面口径（Q5）**：`reviews.{spec,plan}`（axesGuide/lensEnum）+ `DOCS_FORMATS` 判别迁入 `DocType.bodyView`；`config/template-contract.json` 保留 shell/tokens/clauses/round-context 与 `reviews.{task,branch}`；`TemplateLoader` 渲染输出等价（templates 测试全绿 = 断言，非文件字节 diff——reviews 块迁出是预期结构变更）",
+      "**消费者零回归口径**：`cdd schema get`（`DOC_SCHEMA_NAMES` 五型门不变）· `deriveDocTokens`（DOC_TOKENS 生产单例值不变）· `DocumentsValidator` 对外行为 · scripts `ContractLexiconGuard#checkAnatomy`（skill-anatomy 不在工厂面，读原文件）全部零回归",
+      "**超纲线零越界（Q6）**：add-phase-protocol / skill-anatomy 手写 JSON 原样保留 + schema.test 全绿；P2 样板 / P3 TaskGraph / P5 DispatchPacket 正文（instructions/refKind 接缝内容）零实现",
+      "### commit 边界机制",
+      "实现提交按任务粒度（conventional commits，无 attribution trailers）；spec/plan 文档仅由 orchestrator（Plan Sole Writer）与 cdd fix-agent 修改；implement agent 零文档修改权",
+      "每个任务闭合前该任务面测试 + 相关 validate 面全绿；`pnpm run emit:check` fresh 保持（P1 不触碰 emit 产物面）",
+      "**changeset 义务**：P1 终验任务（Task 7）建 changeset——`@oscaner-skills/cdd-engine`（内部重构、字节等价、消费者零变更；bump 类型按 `.changeset/README.md` version scheme 判定，先读再判）",
+      "### Flow Atomicity",
+      "单任务原子：每任务闭合前该任务面测试全绿 + 相关 validate 面（schema.test / tokens.test / rules/__tests__ / cli/__tests__）零回归",
+      "**字节 pin = 漂移信号（T3/T4）**：任一 diff 钉 / 字节断言破 = 设计漂移（shape 描述与共识偏离），报告 orchestrator 判定而非带伤闭合",
+      "串行 dispatch：T1→T2→T3→T4→T5→T6→T7，全 singleton 组（无 `## Task Groups` 合并——各任务独立验收面）",
+      "### 顺序原则",
+      "T1（框架核心：abstract DocType 五域 + route/lifecycle 骨架 + registry + singleton）→ T2（三子类 + per-type validate/parse 收编 + S2/S3 收敛）→ T3（shape 域 + SchemaFactory + diff 钉 ×3）→ T4（words 域 + contract-lexicon.json 派生化）→ T5（bodyView 分型面 + TemplateLoader 消费重接 + S7）→ T6（收敛接线 S1/S4/S5/S6：detect / CLI --type / resolveTargetDoc / next-step）→ T7（S8 tokens shape 域 + 死牵引 + 终验 + changeset）",
+      "依赖：T2/T3/T4/T5/T6/T7 均依赖 T1（DocType 骨架）；T6 依赖 T2（detect/validate/lifecycle 在位）；T7 依赖 T1+T3（shape 域访问器）",
+      "每任务 end-to-end：实现 → 该任务面测试绿 → `pnpm run emit:check` fresh → precommit 面绿",
+      "### 仓库纪律",
+      "node：`fnm use`（.nvmrc v24）；引擎调用 `node packages/cdd-engine/src/bin.ts` 直调（零构建 dev face），不走 global cdd",
+      "language policy：代码/测试 English-primary（本计划为 internal docs，中文豁免 Strategy B）；无 attribution trailers",
+      "**引擎 `.mjs` plane zero**：新增测试用 colocated `__tests__/*.test.ts`（vitest）；src 不落 `.mjs`",
+      "**Criterion ②**：新抽象 = 类 + 构造注入，export 面无裸函数（`abstract DocType` / 三子类 / `DocTypeRegistry` / `SchemaFactory` 全部类形态）"
+    ],
+    "2026-10-02-doc-architecture-v2-p2.md": [
+      "### 口径",
+      "**DocBody 投影派生口径（spec C1）**：唯一契约链 = `DocBody.projectSchemaShape() → DocType.shape 重派生 → SchemaFactory → config/schema/{phase-spec,plan}.json`；deriveDocTokens 续接 `DocType.shape` live 派生——**机制收窄定义 = 纯函数 `deriveDocTokens(shapes)` 签名不变**（P1 S8/T7 功能面）；DOC_TOKENS 模块求值的 shape 输入随 shapes 常量退役在 T2/T3 改经**环安全叶子绑定**（spec C1 只要求续接 DocType.shape 内容、未指定 registry 顶层求值路径，机制为计划侧裁决）：投影 shape 值在 `body/plan-body.ts` / `body/phase-spec-body.ts` 叶子面直接导出（叶子模块零 import tokens/registry，见 T1 零接线），tokens.ts 顶层 `DOC_TOKENS` 初始化授自叶子投影（内容与 `DocType.shape` 同源同值）——**不 import `docTypeRegistry`**：模块期 `docTypeRegistry.resolve(kind).shape` 会与 doctypes 顶层解引用 `DOC_TOKENS`（plan.ts/phase-spec.ts/overall.ts 模块顶层常量）互撞 TDZ（tokens→registry→doctypes→tokens 两加载序均断）；叶子绑定把 import 环拆成单向链（tokens → body 叶子；registry → doctypes → tokens，无回边）；tokens.ts 随之卸下 plan/phase-spec 常量 import（tokens.ts 结构面仅限此接线更新）；overall 型 shape 常量（`shapes/overall.ts`）本体不动（P6 宪法层面，P2 零触碰）；**加载序回归测试**：`registry` 先加载 / `tokens` 先加载两序均解析 DOC_TOKENS + docTypeRegistry（T2 布测试、T6 收口）。**deliberate update 口径（spec 2.6 / P1 Q1「先钉后退役」）**：任一 diff 钉 / DOC_TOKENS 生产值随 shape 域内容变更而变 = P2 意向变更——**变更登记放行，非意向漂移拦截**；历史 P1 golden（diff 钉 tokens.test/schema.test）以新 golden 替换并登记",
+      "**双读口径（spec C5/C6）**：legacy 六段 / Form B 的 validate + parse 必须双接受保持——既有文档树零改动（**计数基底 = 本 program 自身 doc-architecture-v2 p1/p2 两平面之外**：18 design + 19 plan；P1 plan `2026-10-02-doc-architecture-v2-p1.md`（Form A 已对齐 slug）属本 program 消费面、不在既有树计数内，仍须双读可消费）；新形 fixture 与 legacy fixture 同存",
+      "**零越界口径（spec 2.1）**：P3 边模型（`depends_on`/`atomic_with` 仅 `dependsOn?`/`atomicWith?` 字段面声明、**零读写零消费**）/ `## Task Groups` 字面段删除 / P5 DispatchPacket join·子集过滤·InstructionUnit / P4 acceptance 机械化 全部零实现；约束继承机器面止于「读整体 + delta 合并呈现」",
+      "**自身 doc 旧形口径（spec Q6）**：P2 自身 spec/plan 按当前规范形（六段 Section 0–5 / Form A）书写——本 plan 即例；新骨架实证 = engine fixtures + tests，首个真实采用 = P3 起文档",
+      "**消费者零回归口径**：`cdd schema get`（五型门不变）· `deriveDocTokens`（纯函数签名不变，生产值重 pin）· `DocumentsValidator` 对外行为 · scripts `ContractLexiconGuard` 全部零回归",
+      "### commit 边界机制",
+      "实现提交按任务粒度（conventional commits，无 attribution trailers）；spec/plan 文档仅由 orchestrator（Plan Sole Writer）与 cdd fix-agent 修改；implement agent 零文档修改权",
+      "每个任务闭合前该任务面测试 + 相关 validate 面全绿；`pnpm run emit:check` fresh 保持（SKILL 文案变面在 T7 统一重生成）",
+      "**changeset 义务**：P2 终验任务（Task 7）建 changeset——`@oscaner-skills/cdd-engine`（重构面：DocBody 模型 + shape 域重派生 + parse/brief 重接）与 `kairos`（SKILL 文案面视变）各按 `.changeset/README.md` version scheme 判定，先读再判",
+      "### Flow Atomicity",
+      "单任务原子：每任务闭合前该任务面测试全绿 + 相关 validate 面（schema.test / tokens.test / doctypes.test / factory.test / rules/__tests__ / dispatch/__tests__）零回归",
+      "**字节 pin = 漂移信号（T2/T3/T6）**：任一 diff 钉 / DOC_TOKENS 字节断言破且无 deliberate update 登记 = 设计漂移，报告 orchestrator 判定而非带伤闭合；P2 变更为**意向变更登记**（T2/T3/T6 各自带的 golden 更新即登记）",
+      "串行 dispatch：T1→T2→T3→T4→T5→T6→T7，全 singleton 组（无 `## Task Groups` 合并——各任务独立验收面）",
+      "### 顺序原则",
+      "T1（DocBody 框架核心 + Task 模型，零接线）→ T2（PhaseSpecBody 具体化：三真骨架 + 条件段 + phase-spec shape 投影切换 + diff 钉 deliberate update）→ T3（PlanBody 具体化：Task 数据化 + brief 数据渲染 + plan shape 投影切换 + step checkable + bodyView 同步 + diff 钉 deliberate update）→ T4（约束继承 delta-only 机器面双侧）→ T5（双读契约 + extractor 重接 + 树零回归）→ T6（DOC_TOKENS 重 pin + schema.test 对齐 + 死牵引清理）→ T7（SKILL 文案 + skill-anatomy + emit + 终验 + changesets）",
+      "依赖：T2/T3 依赖 T1（DocBody 抽象 + Task 模型）；T4 依赖 T2/T3（spec 侧 PhaseSpecBody = T2 · plan 侧 PlanBody = T3 的新骨架派生面）；T5 依赖 T2–T4（新形 + 约束面 + 双读对照）；T6 依赖 T2/T3（shape 域变更的 token 派生面）；T7 依赖全量",
+      "每任务 end-to-end：实现 → 该任务面测试绿 → `pnpm run emit:check` fresh → precommit 面绿",
+      "### 仓库纪律",
+      "node：`fnm use`（.nvmrc v24）；引擎调用 `node packages/cdd-engine/src/bin.ts` 直调（零构建 dev face），不走 global cdd",
+      "language policy：代码/测试 English-primary（本计划为 internal docs，中文豁免 Strategy B）；无 attribution trailers",
+      "**引擎 `.mjs` plane zero**：新增测试用 colocated `__tests__/*.test.ts`（vitest）；src 不落 `.mjs`",
+      "**Criterion ②**：新抽象类（`abstract DocBody` / `PhaseSpecBody` / `PlanBody` / `Task`）全部类形态 + 构造注入只读；`SlicePatternSet` 为类型化投影契约（索引形映射，非类）；export 面无裸函数；**空壳死代码即删**（`shapes/phase-spec.ts`/`shapes/plan.ts` 常量退役 = 删除，不留壳）"
+    ],
+    "2026-09-21-consumer-parity-p4.2.md": [
+      "### 破坏性变更窗口（收口终局）",
+      "P4.4 已在 1.0.0 门前收齐全部 breaking（OOP restructure / 4 major deps / REVIEW_FIX 词汇 / PAP 移除）；本 phase **不再开新的 breaking 面**——`cdd issue render` 为**新增面**（Non-goal #1 例外扩入，非 breaking）；版本管线换血为 repo 侧治理变更（不落消费者包 changelog 语义面）；cdd-engine 首次稳定开版 = `0.1.0 + pending majors → 1.0.0`（原生 changesets 自然产出，不起跳 2.0.0）。历史终态不回滚。",
+      "### 发布零手工版本",
+      "任何版本号不得手写——版本动作 = 原生 `changeset version`（main 上 changesets/action）；本 phase 唯一手动版本动作 = Task 1 的 cdd-engine 声明值降值（修正从未发布的预定值）。`--expect-version` 断言值 1.0.0 由设计定死。",
+      "### 依赖方向铁律（repo → engine 单向）",
+      "repo 治理面（scripts/emit · scripts/validate · release.yml）可依赖 engine；**shipped 包（osuperpowers / cdd-engine）→ repo scripts 禁止**——finding-meta 迁 engine 后 osuperpowers 包内 scripts/bin 面零残留；render-yaml.mjs 迁 repo 治理面后不再被包消费。",
+      "### 四表纪律",
+      "回填 = branch-review 前置义务（backfill-overall 由 orchestration 于 branch-review 前执行）；结构性 mismatch → BLOCK；本 plan 终结态（plan complete）落地后 P4.2 行 Design-spec（已完成 v1.1）/ Implementation plan 列按 closeout 规则回填（Task 11 收口位）。",
+      "### spec 目标偏离（maintainers 收敛锚）",
+      "Task 9 的 **≤53KB** 锚（编辑集推导下限：03-context-caching 活契约保留不动 + 02/05 终态登记净增 = 不可动先验）与已批准 spec（v1.1 freeze）§5 净目标「62.6KB → ~42KB（-33%）」/ §6 Acceptance「62.6KB → ~42KB」**同面异值**——plan 单方重锚了 spec 承诺的验收面（plan-review-1 F2 授权「重锚为可由编辑集推出的值」，未授权取代 spec 验收数字）；spec 冻结无法就地吸收。本声明登记偏离并路由裁决：42KB 上界 46.2KB 在保留 03 活契约 + 02/05 登记净增的先验下**不可达**（删 03 / 砍 02/05 均 out of scope），**待 orchestrator 开 spec fix 轮**将 spec §5/§6 的 42KB（-33%）修订为 ≤53KB 推导值；修订前 Task 9 验收与 Task 11 ⑤ 探针一律以 **plan 锚 ≤53KB** 为判据（不按 spec 旧值判不合格，四表 closeout 口径一致）；spec 修订落盘后回填本声明。",
+      "### 语言政策",
+      "本 plan 中文主源（Strategy B）；SKILL.md / docs / README 英文主源（Strategy A）——宣讲面（Task 8）为英文原文面，zh mirror 三件全量同步；docs/maintainers 遵循 English-primary。值 token（phase id / tag / SHA / 路径）中立。",
+      "### engine 直调与零过滤",
+      "`node packages/cdd-engine/dist/cli.mjs`（`pnpm --filter @oscaner-skills/cdd-engine dev:stub` 材料化；不走 global register）；skills 调用 cdd 输出零过滤（禁 `tail`/`head`/`2>&1 |`/`EXIT=$?`）。",
+      "### emit 输入面",
+      "report-issues SKILL.md I5 改述（**Task 6 ④**：body 由 `cdd issue render` 直出 + pluginRoot 寻址删除；全形 `packages/osuperpowers/skills/report-issues`）+ **Task 7** 包内 `scripts/`+`bin/` 整删 + emit repoint（issue-templates import 重指，不涉技能文本）× README/CLAUDE.md 宣讲面（Task 8）为 emit 输入面/引用面——改动后核对 `pnpm run emit` 需求与 `emit:check` 无 drift；`.claude-plugin/`、`marketplace/` 等产物不手改。",
+      "### gh 外发",
+      "Task 10 对 GitHub 仓库元信息（description / topics）做外发变更——gh 操作显式 `--repo Oscaner/skills`；homepageUrl 留空非遗漏（无独立站点）。",
+      "### 死代码即删",
+      "空壳、死代码随拆即删（无过渡 shim · 无别名 · 无历史叙述豁免）；frozen 历史 docs（overhaul 族 / 已 shipped plan 与 overall change-history）不动；pack 白名单包住后留给消费者的面 = 纯技能 + 宣讲 + manifest。"
+    ],
+    "2026-09-21-consumer-parity-p4.4.md": [
+      "### 破坏性变更窗口（breaking allowed）",
+      "cdd-engine 0.1.0 基准，P4.2 1.0.0 首次稳定开版前为破口窗口；本 phase breaking 四面全收 changelog = **全面 OOP restructure（engine 导出函数面重排）** · **4 major deps**（execa 9→10 · typescript 5→7 · vitest 3→5 · @types/node 22→26）· **`REVIEW_FIX` 状态词汇新值**（#278 三段结案）· **Pending Acceptance Patch 移除面**（plan.json/skill-anatomy 节点删 · 标签约定出技能文本，#279）。历史终态不回滚。",
+      "### 四表纪律",
+      "回填 = branch-review 前置义务（backfill-overall 由 orchestration 于 branch-review 前执行）；结构性 mismatch → BLOCK；本 plan 终结态（plan complete）落地后 P4.4 行 Design-spec / Implementation plan 列按 closeout 规则回填（Task 11 收口位）。",
+      "### 语言政策",
+      "本 plan 中文主源（Strategy B）；SKILL.md / docs / README 英文主源（Strategy A）——skill 文本变更（Task 10）为英文原文面；值 token（phase id / tag / SHA / 路径）中立。",
+      "### engine 直调与零过滤",
+      "`node packages/cdd-engine/dist/cli.mjs`（`pnpm --filter @oscaner-skills/cdd-engine dev:stub` 材料化；不走 global register）；skills 调用 cdd 输出零过滤（禁 `tail`/`head`/`2>&1 |`/`EXIT=$?`）。",
+      "### emit 输入面",
+      "skills/ 改动（Task 10）后必须 `pnpm run emit` + `emit:check` 无 drift + 产物重生成。",
+      "### 零产物 fixture",
+      "engine 测试不得以本仓产物为 fixture（P3 裁决）——三段结案路由 / 载体类化回归用 mkdtemp 自造链。",
+      "### 全面 OOP 判定标准（六条）",
+      "① 有状态/生命周期/不变量 → 状态类；② 纯计算规则 → 无状态域服务类（零纯函数模块）；③ 裸 `number[]`/裸 `Record` 域接口 = 残面归零；④ 模块级可变状态 = 残面全收 `CddRuntime`；⑤ 转发壳/空壳/中间态 = 缺陷即删；⑥ 只读纯数据收 typed 载体不建空壳 class。",
+      "### biome 静态门",
+      "Task 2 落地后 pre-commit 触发 `biome check --write`（format autofix + lint 违规拦）零违规，与既有 `pnpm run precommit` 校验链并列；重构全程（Task 3–11）在门下走。",
+      "### 死代码即删",
+      "空壳、死代码随拆即删（无过渡 shim · 无别名 · 无历史叙述豁免）；frozen 历史 docs（overhaul 族 / 已 shipped plan 与 overall change-history）不动。"
+    ],
+    "2026-09-27-pi-harness-p4.md": [
+      "### 口径",
+      "**单身份（G1）**：每个 skill 的目录名 == `SKILL.md` front-matter `name:` == 三 harness invocation token——三者合一，任何一者偏移即 FAIL；新名集合恰 8 个：`cdd-design` / `cdd-spec` / `cdd-charter` / `cdd-phase` / `cdd-plan` / `cdd-dev` / `cdd-close` / `cdd-report`；命名空间随命名退役改 `kairos`（`/kairos:cdd-*`，见 G4）",
+      "**全改令（G2，user 2026-10-01 拍板）**：改名是全仓原子面——**所有测试（含文件名内嵌旧 skill 名者）、各种文件名、字面量（字符串 / 路径 glob / 标识符 / 声称字面量）一并改**，不允许只改 `name:` 字段留旧面；live 面（kairos src/tests + scripts live + README 家族 + CLAUDE.md + docs/maintainers + engine src）零旧名/旧目录；**历史正文不 retro-rename**（docs/osuperpowers/specs|plans 既有行、CHANGELOG、既有 changeset = 史实）",
+      "**命名退役 token 同扫（G4，user 2026-10-01）**：`osuperpowers` → `kairos`——插件包 npm 名/namespace `/kairos:`/marketplace/安装命令/release 流/lockfile/engine schema 描述字符串/scripts 标识符（`osuperpowersPkg/Row/Steps/Versions/Osc/Src/Entry/Bump`）+ validate step 名（ci-validate name-set 同步）+ **三目录 `git mv`**（`packages/osuperpowers/`→`packages/kairos/` · `docs/osuperpowers/`→`docs/kairos/` · `.osuperpowers`→`.kairos`（`engine-config.json#handoffNamespace.workspaceRoot` 单源 + 根 .gitignore + biome includes））——**零存量迁移**（user：不建兼容机制，实现当时 git mv 直迁；存量 `.osuperpowers/` 磁盘态 gitignored 惰性、零处理）；`cdd`/`cdd-engine`/CLI `cdd` 保留（方法论层）；live 面零 `osuperpowers`（历史正文除外）",
+      "**上游 import 不动**：`/superpowers:*` / `/mattpocock-skills:*` 引用原样保留（它们不属于 kairos 身份面）；flow 内 `/osuperpowers:*` 互引随命名退役 + 新名（→ `/kairos:cdd-*`）",
+      "**markers 三方一致（C3）**：contract-lexicon `markers` ↔ `harness.ts` detect() 谓词 ↔ engine-config env 白名单（恰 4 键 `[AI_AGENT, CLAUDE_CODE_SESSION_ID, CURSOR_TRACE_ID, PATH]`）",
+      "**零手写重复（C2/C3）**：名义映射表 = lexicon/registry 数据派生（guard 钉零漂移）；技能清单 = 目录 × name 双钉扫描（guard 钉零手写名单）；不建镜像注册面",
+      "**分层不破（Non-goal #2）**：技能名 = kairos 包面；harness markers = engine 语义（归 lexicon）；engine 与 emit 注册表不合并",
+      "**消费面纯度（iron rule）**：SKILL.md / 消费者侧文件零程序叙事、零改名 rationale 笔法——rationale 只落本程序 docs",
+      "**D5 事实（已核实 2026-10-01）**：pi 对同名技能按确定性 first-wins（败者静默丢弃 + warning，从不拒绝）；**pi 无命名空间修饰语法**（仅 `/skill:<bare-name>`）——`cdd-*` 是 flat-namespace 下 bare-name 唯一性最佳实践，非「pi 不许同名」",
+      "引擎调用 `node packages/cdd-engine/dist/cli.mjs` 直调（`dev:stub` 后），不走 global cdd",
+      "### commit 边界机制",
+      "实现提交按任务/合并组粒度（conventional commits，无 attribution trailers）",
+      "spec/plan 文档仅由 orchestrator（Plan Sole Writer）与 cdd fix-agent 修改；implement agent 零文档修改权",
+      "**T3 起 engine 数据面变更需 changeset**（contract-lexicon.json 随包发布）+ cdd-engine `dev:stub` 重跑；T6 统一建 changeset（kairos major + cdd-engine patch）",
+      "每任务闭合面测试绿 + `pnpm run precommit` 绿；`pnpm run validate` 为终验（T6）",
+      "emit 产物 = 派生（永不手工编辑）；T1/T2 合并组的改名面改动后立即 `pnpm run emit`",
+      "### Flow Atomicity",
+      "单任务/合并组原子：闭合前该面测试 + 相关 validate 面全绿；目录×name 双钉 / 三方一致 / 声称字面量 pin 破 = 设计漂移信号，报告 orchestrator 判定而非带伤闭合",
+      "串行 dispatch：`--tasks 1,2` → 3 → `--tasks 4,5` → `--tasks 7,8` → 6（T6 = changeset + validate 终验收尾、实现任务全结束后才跑；T1/T2 与 T4/T5 与 T7/T8 各自同一原子单位——T7/T8 一原子内布局步骤先行（git mv + resolveResource）再契约收敛）",
+      "**T1/T2 必须同组**：改名面改动立即使 emit 产物 stale——`.github/ISSUE_TEMPLATE/*.yml`（emit-checked）数据源 `templates/report/issue-body.json` 技能选项含旧名，issue-body.json 改名后不重生成即漂移，分开 dispatch 中间态 emit:check 全链红（`./skills/<dir>` 键说法不成立——claude/cursor plugin manifests 的 `skills` = 常数 glob `\"./skills/\"` 相对 contentRoot，改名不改其内容；改名分步提交时 checkAnatomy/树守卫同样红）；**v1.2 拓展**：改名面含包身份（`osuperpowers` → `kairos`，source.json name/contentRoot 随 emit）与 workspace 根（`.osuperpowers` → `.kairos`，engine-config 单源 + engine dev:stub 重写 + 锁文件重写）——全部折入同原子单位",
+      "**T4/T5 必须同组**：README 铺设即破既有声称 pin（presentation-surface 的 pair 声称面），pin 延展必须与铺设同时闭合",
+      "**T7/T8 必须同组（v1.5）**：契约文件（harness-contract / contract-lexicon / config/schema）**布局与内容同一文件集**——分开则同一批文件两次触改（先搬一次再改一次）+ 双轮 review/fix 翻倍、中间态 = 无意义的纯搬移里程碑；新 schema 落 T8 之家、T7 内容在最终家写作，一原子内天然消解顺序依赖（布局步骤先行）",
+      "### 顺序原则",
+      "T1/T2（改名原子单位：目录 + name + 引用 + 测试文件名 + 字面量 + emit 重生成）→ T3（markers 数据 + checkMarkers guard）→ T4/T5（README 铺设 + pin 延展，名义表消耗 T3 markers 数据）→ T7/T8（harness 契约面成型：config/ 布局 + 契约收敛一原子，布局步骤先行）→ T6（changeset + validate 终验收尾）",
+      "T1 必为首：全仓后续引用全用新名；T3 先于 T4：名义表渲染依赖 `markers` 数据就位；T4 先于 T5（同组内）：pin 断言 README 产物",
+      "### 仓库纪律",
+      "node：`fnm use`（.nvmrc）；引擎调用 `node packages/cdd-engine/dist/cli.mjs` 直调；引擎 `.mjs` plane zero（新增测试用 `.test.ts`/`.test.mjs`）",
+      "language policy：代码/测试 English-primary（本计划 internal docs，中文豁免 Strategy B）；无 attribution trailers",
+      "D2/D4 事实沿用：`pi` 字段源侧手维护 · `AI_AGENT=pi` 宿主检测（本 phase 零 engine 运行面改动）"
+    ],
+    "2026-09-27-pi-harness-p5.md": [
+      "### 口径",
+      "**零债/死壳即删（P5 破坏性授权，user 2026-10-02）**：允许破坏性变更 / 重写代码 / 重组目录；约束 = 高维思考 / OOP 抽象统一 / 最佳实践 / **零技术债务 + 死壳即删**（空壳、死代码、已废构建面删除不留残壳）",
+      "**真相优先（spec 2.2）**：类型债修复 = 契约如实收窄/扩字段/OOP 消歧，非抹平——无散落 `!`、无下游 cast、无 `{}` fallback；**零行为变化护栏**（结算纯类型面，行为由既有测试全绿守，不顺手重构）",
+      "**逃逸禁令（spec 2.1/2.2，入 contract-lexicon + guard）**：`@ts-ignore`/`@ts-expect-error` 结算清零且全禁；显式 `any` / `as unknown as X` 默认禁（框架真实边界逐案评审登记）；`!` 限单一类型化 assert helper；fixture 边界 `as T`（`{}` → 真实接口）允许",
+      "**判官单源（spec 2.1/2.4）**：全仓单 `typescript@^7`（root devDeps 新增 + engine devDeps 保留）；`@typescript/typescript6` 删除（零 d.ts 需求 = 零 JS-API 消费实证）；unbuild / jiti / dev-stub / globalSetup 删除（本地直调实证：`node packages/cdd-engine/src/bin.ts --help` exit 0）",
+      "**dev/CI 引擎调用（P5 新链）**：`node packages/cdd-engine/src/bin.ts <subcommand>` 直调（Node ≥22.18 原生 strip），不走 global cdd；**发布面必为编译 JS**（Node 对 `node_modules` 下类型剥离永久禁止——`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING` 实测 + 官方设计意图 + tracker #57215 closed-as-not-planned）——禁止把 `.ts` 源面写入 npm 包",
+      "**先清底再上闸（spec 2.2）**：结算（T1/T2）先行，门禁上闸（T4）在后；发布 `tsc --emit` 前置 = 结算完成（emit 也吃 48 条 src 债）",
+      "**live 面 grep 契约（spec 2.4/acceptance）**：`build.config` / `dev:stub` / `@typescript/typescript6` / `globalSetup` / `@ts-ignore` / `@ts-expect-error` **零命中**（live 面 = CLAUDE.md · `docs/maintainers/05` · engine README 对 · 源面/config 面；历史 spec/plan 正文与发布面 schema/产物除外）；**retired/删除登记不得携带被禁 token 原文**（转述——如「the old dev-stub chain」「the TS6-compat shim」）",
+      "**引擎调用输出零过滤**：无 `tail`/`head`/`2>&1 |`/`EXIT=$?` capture；spec/plan 文档仅 orchestrator（Plan Sole Writer）与 cdd fix-agent 修改，implement agent 零文档修改权（**唯一豁免：T9 overall closeout 回填**——branch-review 预条件 backfill-overall，独立 `docs(kairos):` 提交，见 Task 9）",
+      "### commit 边界机制",
+      "实现提交按任务/合并组粒度（conventional commits，无 attribution trailers）",
+      "T7/T8 同组原子：删除链与发布面同组落地（删除中间态不可验收）；布局/删除步骤先行，发布面跟进",
+      "T9 统一建 changeset：**cdd-engine patch**（bin/files/main/exports/engines 为消费者可见非 breaking——bin 命令名 `cdd` 不变 · 零 API 消费者）；kairos 面改一轮（`type: module` ESM 前置，T4）→ **kairos patch changeset** 一并建（plugin/SKILL 面无 CJS 运行时模块，非 breaking）——并解「kairos 无面不改」原口径",
+      "每任务闭合面测试绿 + `pnpm run precommit` 绿；`pnpm run validate` 为终验（T9）",
+      "### Flow Atomicity",
+      "**T7 → T8**：零构建 arch 收敛 = dev/CI 面（黑盒 re-point + 删除链）与发布面（emit + manifest + README + 实证锚）**同组 `7,8` atomic dispatch**；步骤序 = engine 黑盒 re-point/删除先行（T7 面），发布面跟进（T8 面）",
+      "**T1 → T2**：结算两段（src 结构性 → `__tests__` 机械）独立闸（engine tsconfig 含 `__tests__`，T2 为全树 exit 0 终态）；T1 的 src-零错以「报错全数位于 `__tests__`」为中间判据",
+      "### 顺序原则",
+      "结算（T1/T2）→ 全仓 .mjs→.ts 迁移（T3）→ 三项目闸 + type-check 块（T4）→ 守卫/词表（T5）→ buildability 双证据（T6）→ 零构建收敛（T7/T8 同组）→ 终验 + changeset + closeout 回填（T9）——先清底再上闸；emit 前置 = 结算完成"
+    ]
+  },
+  "groups": {
+    "2026-09-21-consumer-parity-p4.2.md": [
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        4,
+        5
+      ],
+      [
+        6,
+        7
+      ],
+      [
+        8
+      ],
+      [
+        9
+      ],
+      [
+        10
+      ],
+      [
+        11
+      ],
+      [
+        12
+      ]
+    ],
+    "2026-09-21-consumer-parity-p4.4.md": [
+      [
+        1
+      ],
+      [
+        2
+      ],
+      [
+        3,
+        4,
+        5
+      ],
+      [
+        6,
+        7,
+        8
+      ],
+      [
+        9
+      ],
+      [
+        10,
+        11
+      ]
+    ],
+    "2026-09-27-pi-harness-p4.md": [
+      [
+        1,
+        2
+      ],
+      [
+        3
+      ],
+      [
+        4,
+        5
+      ],
+      [
+        6
+      ],
+      [
+        7,
+        8
+      ]
+    ],
+    "2026-09-27-pi-harness-p5.md": [
+      [
+        1
+      ],
+      [
+        2
+      ],
+      [
+        3
+      ],
+      [
+        4
+      ],
+      [
+        5
+      ],
+      [
+        6
+      ],
+      [
+        7,
+        8
+      ],
+      [
+        9
+      ]
+    ]
+  }
+}

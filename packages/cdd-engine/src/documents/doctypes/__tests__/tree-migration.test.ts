@@ -4,9 +4,16 @@
 // so every tree document is in one declared migration state —
 //   - canonical (zero migration objects): the documents ALREADY carrying the single grammar (this
 //     program's p3 plan = the data-shaped task form, the p3 design = the new three-truth skeleton,
-//     AND — since T5 — the 20 transcribed six-section design specs) → validate clean on their own
-//     single-form surface;
-//   - pending-migration: the legacy plans (21) → validate BLOCK until T6 migrates them per family;
+//     the 20 transcribed six-section design specs (T5), AND — since T6 — the 17 transcribed Do-form
+//     plans = the data-shaped task records) → validate clean on their own single-form surface;
+//   - pending-migration: the legacy prose-period plans (4 — osuperpowers p1–p4) → validate BLOCK
+//     until T7 migrates them, plus the legacy plan family pre-T6 (21) was BLOCK until this round;
+//   - the one-off spec (2026-09-28-cdd-review-contract-fix.md — no parent overall / canonical
+//     schema, the engine no longer recognises it) is walked but tolerated: never counted, never
+//     migrated, never in the canonical set. Its plan-side twin (docs/kairos/plans/
+//     2026-09-28-cdd-review-contract-fix.md) IS a normal plan and migrates at T6 (its validate
+//     chain carries the one-off spec's documented 4 failures — recorded by the plan-Do family
+//     assertion, never T6 scope).
 //   - the one-off spec (2026-09-28-cdd-review-contract-fix.md — no parent overall / canonical
 //     schema, the engine no longer recognises it) is walked but tolerated: never counted, never
 //     migrated, never in the canonical set.
@@ -23,7 +30,13 @@ import { describe, expect, it } from "vitest";
 import { DocumentsValidator, UnknownDocKindError } from "../../../rules/documents.ts";
 import { docTypeRegistry } from "../../registry.ts";
 import { phaseSpecBody } from "../body/phase-spec-body.ts";
-import { resolveParentOverall } from "../shared.ts";
+import type { PlanDocType } from "../plan.ts";
+import {
+  isPlaceholderOrTemplateTarget,
+  linksOnLine,
+  resolveAny,
+  resolveParentOverall,
+} from "../shared.ts";
 
 const HERE = import.meta.dirname; // …/documents/doctypes/__tests__
 // The repo root — 6 levels up from src/documents/doctypes/__tests__ (the real docs tree the
@@ -42,23 +55,23 @@ const PLAN_MIGRATION: Readonly<Record<string, MigrationState>> = {
   "2026-09-13-osuperpowers-overhaul-p2.md": "pending",
   "2026-09-13-osuperpowers-overhaul-p3.md": "pending",
   "2026-09-13-osuperpowers-overhaul-p4.md": "pending",
-  "2026-09-13-osuperpowers-overhaul-p5.md": "pending",
-  "2026-09-13-osuperpowers-overhaul-p6.md": "pending",
-  "2026-09-21-consumer-parity-p1.md": "pending",
-  "2026-09-21-consumer-parity-p2.md": "pending",
-  "2026-09-21-consumer-parity-p3.md": "pending",
-  "2026-09-21-consumer-parity-p4.1.md": "pending",
-  "2026-09-21-consumer-parity-p4.2.md": "pending",
-  "2026-09-21-consumer-parity-p4.3.md": "pending",
-  "2026-09-21-consumer-parity-p4.4.md": "pending",
-  "2026-09-27-pi-harness-p1.md": "pending",
-  "2026-09-27-pi-harness-p2.md": "pending",
-  "2026-09-27-pi-harness-p3.md": "pending",
-  "2026-09-27-pi-harness-p4.md": "pending",
-  "2026-09-27-pi-harness-p5.md": "pending",
-  "2026-09-28-cdd-review-contract-fix.md": "pending",
-  "2026-10-02-doc-architecture-v2-p1.md": "pending",
-  "2026-10-02-doc-architecture-v2-p2.md": "pending",
+  "2026-09-13-osuperpowers-overhaul-p5.md": "canonical",
+  "2026-09-13-osuperpowers-overhaul-p6.md": "canonical",
+  "2026-09-21-consumer-parity-p1.md": "canonical",
+  "2026-09-21-consumer-parity-p2.md": "canonical",
+  "2026-09-21-consumer-parity-p3.md": "canonical",
+  "2026-09-21-consumer-parity-p4.1.md": "canonical",
+  "2026-09-21-consumer-parity-p4.2.md": "canonical",
+  "2026-09-21-consumer-parity-p4.3.md": "canonical",
+  "2026-09-21-consumer-parity-p4.4.md": "canonical",
+  "2026-09-27-pi-harness-p1.md": "canonical",
+  "2026-09-27-pi-harness-p2.md": "canonical",
+  "2026-09-27-pi-harness-p3.md": "canonical",
+  "2026-09-27-pi-harness-p4.md": "canonical",
+  "2026-09-27-pi-harness-p5.md": "canonical",
+  "2026-09-28-cdd-review-contract-fix.md": "canonical",
+  "2026-10-02-doc-architecture-v2-p1.md": "canonical",
+  "2026-10-02-doc-architecture-v2-p2.md": "canonical",
   "2026-10-02-doc-architecture-v2-p3.md": "canonical",
 };
 
@@ -568,7 +581,7 @@ const SPEC_VERBATIM: Readonly<
 };
 
 const validator = new DocumentsValidator();
-const planType = () => docTypeRegistry.resolve("plan");
+const planType = (): PlanDocType => docTypeRegistry.resolve("plan") as PlanDocType;
 const specType = () => docTypeRegistry.resolve("spec");
 const overallType = () => docTypeRegistry.resolve("overall");
 
@@ -611,10 +624,13 @@ describe("迁移队列期望态 — the single-form tree's migration state table
     for (const f of designs)
       expect(SPEC_MIGRATION[f], `${f} missing from SPEC_MIGRATION`).toBeDefined();
     // The design-spec family is FULLY canonical in its terminal T5 state (20 migrated + the p3
-    // zero-migration design). The plan side keeps exactly one canonical member (p3) until T6.
+    // zero-migration design). The plan side flipped 17 Do-form plans pending → canonical at T6
+    // (osuperpowers p5/p6 · consumer-parity p1–p4.4 · pi-harness p1–p5 ·
+    // cdd-review-contract-fix · doc-architecture-v2 p1/p2); only the 4 prose-period plans
+    // (osuperpowers p1–p4, T7's family) stay pending + the p3 zero-migration plan canonical.
     expect(SPEC_MIGRATION["2026-10-02-doc-architecture-v2-p3-design.md"]).toBe("canonical");
     expect(PLAN_MIGRATION["2026-10-02-doc-architecture-v2-p3.md"]).toBe("canonical");
-    expect(Object.values(PLAN_MIGRATION).filter((s) => s === "canonical")).toHaveLength(1);
+    expect(Object.values(PLAN_MIGRATION).filter((s) => s === "canonical")).toHaveLength(18);
     expect(Object.values(SPEC_MIGRATION).filter((s) => s === "canonical")).toHaveLength(21);
   });
 
@@ -638,6 +654,147 @@ describe("迁移队列期望态 — the single-form tree's migration state table
       expect(failures.length, `${file} pending-migration must block`).toBeGreaterThan(0);
     }
     expect(Object.values(SPEC_MIGRATION).some((s) => s === "pending")).toBe(false);
+  });
+});
+
+describe("the migrated plan-Do family — 17 data-shaped plans (内容保真 transcription, T6)", () => {
+  // The shared pin source for the plan family: the plan-migration pins fixture carries, per migrated
+  // plan, the pre-transcription acceptance (per task number) + the constraints body (canon'd) +
+  // the dispatch-group expectations of the 4 ## Task Groups plans. It is DATA (a JSON fixture under
+  // the scanned tree), so the guard-release site (isPlanPinDataFile) releases it wholesale — the
+  // frozen legacy vocabulary the pins carry (the retired singular task flag / the F8a stage token /
+  // the C6 internal-framework tokens / the renamed plugin namespace) is history, never a live-code
+  // regression (the guard sites spell the released tokens without carrying them in this body).
+  const PLAN_PINS = JSON.parse(
+    readFileSync(path.join(HERE, "fixtures", "plan-migration-pins.json"), "utf8"),
+  ) as {
+    acceptance: Readonly<Record<string, Readonly<Record<number, readonly string[]>>>>;
+    constraints: Readonly<Record<string, readonly string[]>>;
+    groups: Readonly<Record<string, readonly (readonly number[])[]>>;
+  };
+
+  // The migrated canonical plans — every PLAN_MIGRATION row flipped pending → canonical at T6
+  // (all but the p3 zero-migration plan, which was already canonical).
+  const MIGRATED_PLANS = Object.keys(PLAN_MIGRATION).filter(
+    (f) => f !== "2026-10-02-doc-architecture-v2-p3.md" && PLAN_MIGRATION[f] === "canonical",
+  );
+
+  /** Resolve the plan's `**Spec:**` target to its spec file — repo-root form primary, file-relative
+   *  fallback, holder targets skipped (the same Class-A bases the plan doc-type walks). */
+  function resolveSpecFromPlan(planPath: string): string {
+    const lines = readFileSync(planPath, "utf8").split("\n");
+    const lineIdx = lines.findIndex((l) => l.includes("**Spec:**"));
+    expect(lineIdx, `${planPath} must carry a **Spec:** line`).toBeGreaterThanOrEqual(0);
+    for (const { target } of linksOnLine(lines[lineIdx]!)) {
+      if (isPlaceholderOrTemplateTarget(target)) continue;
+      const resolved = resolveAny(target, [REPO_ROOT, path.dirname(planPath)]);
+      if (resolved) return resolved;
+    }
+    throw new Error(`no resolvable **Spec:** link in ${planPath}`);
+  }
+
+  /** The migrated plan's `## Constraints` section body, canonicalized — `###` sub-heading lines kept
+   *  structural (verbatim), prose lines shell-normalized (bullet/blockquote shells stripped) — the
+   *  compare atom of the constraints pin. */
+  function constraintsBody(content: string): string[] {
+    const lines = content.split("\n");
+    const start = lines.findIndex((l) => /^## Constraints\s*$/.test(l.trim()));
+    if (start < 0) return [];
+    const end = lines.findIndex(
+      (l, i) => i > start && (/^### Task \d+:/.test(l) || /^## [^#]/.test(l)),
+    );
+    const out: string[] = [];
+    for (let i = start + 1; i < (end < 0 ? lines.length : end); i++) {
+      const t = lines[i].trim();
+      if (t === "" || t === "---") continue;
+      if (t.startsWith("### ")) out.push(t);
+      else out.push(canonLine(lines[i]));
+    }
+    return out;
+  }
+
+  it("every migrated plan keeps contiguous 1..N task numbering (the numbers verbatim)", () => {
+    for (const file of MIGRATED_PLANS) {
+      const planPath = path.join(PLANS_DIR, file);
+      const nums = planType().taskNumbersFromPlan(planPath);
+      const max = Math.max(...nums, 0);
+      expect(nums, file).toEqual(Array.from({ length: max }, (_, i) => i + 1));
+    }
+  });
+
+  it("acceptance is token-verbatim under the `- **Acceptance**:` data field — the parsed per-task acceptance equals the pinned pre-transcription text", () => {
+    for (const file of MIGRATED_PLANS) {
+      const planPath = path.join(PLANS_DIR, file);
+      const tasks = planType().tasksFromPlan(planPath);
+      for (let i = 0; i < tasks.length; i++) {
+        const n = i + 1;
+        expect(tasks[i]!.acceptance, `${file} task ${n} acceptance`).toEqual(
+          PLAN_PINS.acceptance[file]![n] ?? [],
+        );
+      }
+    }
+  });
+
+  it("constraints text is verbatim under ## Constraints (re-shelled — ### 口径 / prose)", () => {
+    for (const file of MIGRATED_PLANS) {
+      const content = readFileSync(path.join(PLANS_DIR, file), "utf8");
+      expect(constraintsBody(content), file).toEqual(PLAN_PINS.constraints[file]);
+    }
+  });
+
+  it("single-form docContractValidate green — zero plan-owned failures; the chain carries EXACTLY the resolved spec's own validate output (the documented residue, never a transcription-introduced failure)", () => {
+    for (const file of MIGRATED_PLANS) {
+      const planPath = path.join(PLANS_DIR, file);
+      const failures = planType().validate(planPath, { root: REPO_ROOT });
+      // (a) the plan's OWN single-form face is clean — the legacy Do-face / unknown-section BLOCK is
+      //     gone (the p3 zero-migration plan stays the documented clean baseline, excluded here).
+      expect(
+        failures.filter((f) => f.file === planPath),
+        `${file} plan-owned failures`,
+      ).toEqual([]);
+      // (b) the chain = exactly the resolved spec's own validate output — a one-off spec (the
+      //     cdd-review-contract-fix plan's parent) carries the documented 4 one-off failures, a
+      //     clean-parent spec zero, a legacy-overall spec the frozen backfill-claim residue.
+      const specPath = resolveSpecFromPlan(planPath);
+      expect(specPath, `${file} spec must resolve`).not.toBeNull();
+      const specFails = specType().validate(specPath, { root: REPO_ROOT });
+      const chain = failures.filter((f) => f.file !== planPath);
+      expect(chain, `${file} chain`).toEqual(specFails);
+    }
+  });
+
+  it("the 4 ## Task Groups plans moved their group semantics into edges — the graph-derived groups equal the original merged groups (group 等势)", () => {
+    for (const [file, expected] of Object.entries(PLAN_PINS.groups)) {
+      const planPath = path.join(PLANS_DIR, file);
+      const groups = planType()
+        .effectiveGroups(planPath)
+        .map((g) => [...g.numbers]);
+      expect(groups, file).toEqual(expected);
+    }
+    expect(Object.keys(PLAN_PINS.groups).length).toBe(4);
+  });
+
+  it("`## Task Groups` holds zero line-anchored-heading presence across the 17 migration targets (^## Task Groups\\s*$ — the engine heading token's family)", () => {
+    const re = /^## Task Groups\s*$/;
+    for (const file of MIGRATED_PLANS) {
+      const lines = readFileSync(path.join(PLANS_DIR, file), "utf8").split("\n");
+      expect(
+        lines.some((l) => re.test(l)),
+        file,
+      ).toBe(false);
+    }
+  });
+
+  it("the pending-migration set narrowed to the 4 prose-period plans (osuperpowers p1–p4 — T7's family) while the migrated 17 validate BLOCK-free", () => {
+    const pending = Object.entries(PLAN_MIGRATION)
+      .filter(([, s]) => s === "pending")
+      .map(([f]) => f);
+    expect(pending).toEqual([
+      "2026-09-13-osuperpowers-overhaul-p1.md",
+      "2026-09-13-osuperpowers-overhaul-p2.md",
+      "2026-09-13-osuperpowers-overhaul-p3.md",
+      "2026-09-13-osuperpowers-overhaul-p4.md",
+    ]);
   });
 });
 

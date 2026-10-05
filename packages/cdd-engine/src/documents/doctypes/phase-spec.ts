@@ -198,16 +198,15 @@ export class PhaseSpecDocType extends DocType {
     }
     // 3. Conditional-section structural consequence — a DECORATED `## Deviations` section must carry
     //    the `Overall updated?` = `Yes` marker. The heading + the answer form derive live from the
-    //    projected shape (the schema is the single structure fact).
+    //    projected shape (the schema is the single structure fact). The marker scan is anchored to
+    //    the deviations table's answer column — every data row's final cell must read the canonical
+    //    `^Yes` leaf (the anchored schema pattern, never a stripped contains-search): an incidental
+    //    `Yes` elsewhere in the section cannot satisfy the assertion.
     const spine = this.body.projectSchemaShape();
     const deviationsHeadingRe = new RegExp(shapePattern(spine, ["deviations", "heading"]));
     const deviationsIdx = lines.findIndex((l) => deviationsHeadingRe.test(l));
     if (deviationsIdx !== -1) {
-      // The schema's answer pattern is the anchored `^Yes` face; the section scan is an unanchored
-      // contains-search (parse mechanics — the `Yes` token stays the canonical leaf).
-      const updatedRe = new RegExp(
-        shapePattern(spine, ["deviations", "updated"]).replace(/^\^/, ""),
-      );
+      const updatedRe = new RegExp(shapePattern(spine, ["deviations", "updated"]));
       let sectionEnd = lines.length;
       for (let i = deviationsIdx + 1; i < lines.length; i++) {
         if (/^## /.test(lines[i]!)) {
@@ -215,11 +214,33 @@ export class PhaseSpecDocType extends DocType {
           break;
         }
       }
-      const section = lines.slice(deviationsIdx + 1, sectionEnd).join("\n");
-      if (!updatedRe.test(section)) {
+      // The row-anchored column scan: table rows are `|`-prefixed lines. The header row (its final
+      // cell is the `Overall updated?` column name) and the separator row (every cell dashes) are
+      // structural table faces, never the marker. Every remaining data row's answer cell must match
+      // `^Yes`, and at least one data row must exist — a decorated section missing the answer
+      // entirely is a backfill violation. A `No` answer cell fails even when the word `Yes` appears
+      // in another cell of the same row or elsewhere in the section (the finding's false-positive
+      // probe: a contains-scan over the full section validated green on incidental `Yes`).
+      let sawDataRow = false;
+      let allAnswersYes = true;
+      for (const row of lines
+        .slice(deviationsIdx + 1, sectionEnd)
+        .filter((l) => l.startsWith("|"))) {
+        const cells = row
+          .split("|")
+          .map((c) => c.trim())
+          .slice(1);
+        if (cells[cells.length - 1] === "") cells.pop();
+        if (cells.length === 0) continue;
+        if (cells[cells.length - 1] === "Overall updated?") continue; // the header row
+        if (cells.every((c) => /^[-:]+$/.test(c))) continue; // the `|---|---|` separator row
+        sawDataRow = true;
+        if (!updatedRe.test(cells[cells.length - 1]!)) allAnswersYes = false;
+      }
+      if (!sawDataRow || !allAnswersYes) {
         push(
           "`Overall updated?`",
-          "a `## Deviations` section exists but no `Overall updated?` row answers `Yes`",
+          "a `## Deviations` table row's `Overall updated?` answer is not `Yes`",
           "answer every deviations-table `Overall updated?` row `Yes` (with version + date, e.g. `Yes — vX.Y · YYYY-MM-DD`) before review, or remove the section when the deviation has been fed back to the overall",
         );
       }

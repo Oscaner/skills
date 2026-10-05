@@ -194,6 +194,44 @@ describe("new-skeleton docContractValidate (design C2) — fixture evidence", ()
     });
   });
 
+  it("an incidental `Yes` elsewhere in the deviations section cannot satisfy the assertion — the marker scan is anchored to the answer column (the false-positive probe)", () => {
+    // The answer cell reads `No` while an unrelated cell in the section reads `Yes`: only the
+    // answer-column scan (every data row's final cell vs the anchored `^Yes` leaf) passes verdicts —
+    // a section-wide contains-search would validate green (the P1 scan's false-positive).
+    const incidental = readFileSync(NEW_SHAPE, "utf8")
+      .replace(
+        "P2 keeps the dual-read skeleton for the legacy tree",
+        "Yes, dual-read kept for the legacy tree",
+      )
+      .replace("Yes — v1.3 · 2026-10-05", "No — not fed back yet");
+    doctored(incidental, (p) => {
+      const failures = specType().validate(p, { root: REPO_ROOT });
+      expect(failures.some((f) => f.field.includes("`Overall updated?`"))).toBe(true);
+    });
+  });
+
+  it("a later deviations-table row answering `No` fails even when an earlier row answers `Yes` — every data row's answer cell is the marker", () => {
+    const twoRows = readFileSync(NEW_SHAPE, "utf8").replace(
+      "| Whole-program conventions win on conflict | P2 keeps the dual-read skeleton for the legacy tree | Yes — v1.3 · 2026-10-05 |",
+      "| Whole-program conventions win on conflict | P2 keeps the dual-read skeleton for the legacy tree | Yes — v1.3 · 2026-10-05 |\n| A second divergence | Not yet reflected | No — pending |",
+    );
+    doctored(twoRows, (p) => {
+      const failures = specType().validate(p, { root: REPO_ROOT });
+      expect(failures.some((f) => f.field.includes("`Overall updated?`"))).toBe(true);
+    });
+  });
+
+  it("a `## Deviations` table carrying no data rows → fail — the decorated section still lacks the `Overall updated?` marker (缺 Overall updated? → fail)", () => {
+    const noRows = readFileSync(NEW_SHAPE, "utf8").replace(
+      "| Whole-program conventions win on conflict | P2 keeps the dual-read skeleton for the legacy tree | Yes — v1.3 · 2026-10-05 |",
+      "",
+    );
+    doctored(noRows, (p) => {
+      const failures = specType().validate(p, { root: REPO_ROOT });
+      expect(failures.some((f) => f.field.includes("`Overall updated?`"))).toBe(true);
+    });
+  });
+
   it("a duplicated `### Acceptance criteria` subsection → fail (the unique-constraint kept)", () => {
     const dup = readFileSync(NEW_SHAPE, "utf8").replace(
       "### Acceptance criteria",

@@ -72,6 +72,10 @@ export interface SchemaNode {
   minItems?: number;
   /** The `uniqueItems` leaf (the plan taskGroups uniqueness bound). */
   uniqueItems?: boolean;
+  /** The `dependentRequired` leaf — the use-dependent structural consequence (P2 T2; design C2:
+   *  the phase-spec conditional-section consequence, e.g. the deviations section's `heading`
+   *  requiring its `Overall updated?` answer leaf — a decorated section carries its marker). */
+  dependentRequired?: Readonly<Record<string, readonly string[]>>;
 }
 
 /**
@@ -97,6 +101,21 @@ export interface SchemaShape {
   type: "object";
   /** The root `properties` container — every structural node of the doc structure. */
   properties: Readonly<Record<string, SchemaNode>>;
+  /** The `if` condition subschema — the conditional structural-consequence anchor's guard (P2 T2;
+   *  design C2: the phase-spec three-truth skeleton consequence — `if` a `## Design` section is
+   *  present, `then` the acceptance + constraints sections are structurally required). */
+  if?: SchemaConsequence;
+  /** The `then` consequence subschema — the structural outcome the `if` condition demands. */
+  then?: SchemaConsequence;
+}
+
+/**
+ * A root-level structural-consequence subschema (the `if` / `then` keyword pair the phase-spec
+ * shape projection carries — the closed keyword the conditional anchor needs; no index signature).
+ */
+export interface SchemaConsequence {
+  /** The `required` leaf — the property set the consequence demands of the instance. */
+  required: readonly string[];
 }
 
 /**

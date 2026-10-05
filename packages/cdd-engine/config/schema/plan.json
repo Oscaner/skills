@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://oscaner.dev/schemas/cdd/plan.json",
   "title": "Phase implementation plan document structure",
-  "description": "Canonical structure of a kairos phase implementation plan — the per-phase executable breakdown of one design spec. This schema is the single structure fact for the plan doc type: the header fields, the `### Task N:` colon-form task headings the brief extractor slices on, the per-task acceptance bullets, the Constraints source the dispatcher materializes plan-constraints.md from (canonical Form A literal `## Constraints` or legacy Form B prose pointers), and the `taskGroups` dispatch-group declaration the plan author writes (empty default ⇒ every task its own per-task group). Authoring agents read the properties + descriptions to draft conforming plans; docContractValidate / brief extraction consume the same patterns.",
+  "description": "Canonical structure of a kairos phase implementation plan — the per-phase executable breakdown of one design spec. This schema is the single structure fact for the plan doc type: the header fields, the `### Task N:` colon-form task headings, the per-task data records (objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[]) the brief renderer materializes the task-handoff brief from — zero prose `- **Do**:` carving — the `## Constraints` delta (the section carries only the plan's own deltas; the legacy Form B prose pointers are retained for the dual-read tree but never used by new docs), and the `taskGroups` dispatch-group declaration (empty default ⇒ every task its own per-task group). Authoring agents read the properties + descriptions to draft conforming plans; docContractValidate / brief extraction consume the same patterns.",
   "type": "object",
   "properties": {
     "header": {
@@ -68,22 +68,33 @@
     },
     "constraints": {
       "type": "object",
-      "description": "The plan's constraint surface — what `cdd implement` materializes plan-constraints.md from. Two declared sources (Form A or Form B); declaring neither is a plan-constraints-source-undeclared block (no silent fallback).",
+      "description": "The plan's constraint surface — what `cdd implement` materializes plan-constraints.md from. The canonical form is DELTA-ONLY: the literal top-level `## Constraints` section carries the plan's own delta constraints, never a restatement of the inherited spec/overall conventions (which auto-apply). The legacy Form B prose pointers are retained as a read face for the existing doc tree only — new-form plans never use them (no silent fallback either: declaring neither source is a plan-constraints-source-undeclared block).",
       "properties": {
         "formACanonical": {
           "type": "object",
-          "description": "Form A (canonical, preferred): a literal top-level `## Constraints` section with the constraint body as `###` sub-sections under it.",
+          "description": "Form A (canonical): the literal top-level `## Constraints` section — DELTA-ONLY, carrying the plan's own delta constraints as `###` sub-sections under it. The plan never owns a restated copy of the inherited conventions (the parent spec/overall conventions auto-apply and win on conflict).",
           "properties": {
             "heading": {
               "type": "string",
               "pattern": "^## Constraints\\s*$",
               "description": "The literal `## Constraints` heading (the section is bounded by the next `##`/`#` heading, a `### Task` heading, or a `---` rule; `###` sub-sections stay inside)."
+            },
+            "delta": {
+              "type": "object",
+              "description": "The delta-only rule — the section's content is the plan's own delta constraint set.",
+              "properties": {
+                "rule": {
+                  "type": "string",
+                  "const": "delta-only",
+                  "description": "The section carries ONLY the plan's own delta constraints; the inherited spec/overall conventions auto-apply and are never restated."
+                }
+              }
             }
           }
         },
         "formBProseAnchors": {
           "type": "object",
-          "description": "Form B (legacy): prose-pointer bold paragraphs in the preamble — the four canonical anchor names, each with a bold label + full-width colon.",
+          "description": "Form B (legacy — retained ONLY as the dual-read + extractProseConstraints read face for the existing plan tree): prose-pointer bold paragraphs in the preamble declare the constraint deltas under the four canonical anchor names. NEW-form plans must not use this form — the literal Form A `## Constraints` section is the single new-shape constraint surface.",
           "properties": {
             "anchors": {
               "type": "array",
@@ -105,12 +116,12 @@
     },
     "taskHeadings": {
       "type": "object",
-      "description": "Task headings — the brief extractor's slice surface (`/^### Task \\d+:/`).",
+      "description": "Task headings — the `### Task N:` render surface every task record sits under.",
       "properties": {
         "format": {
           "type": "string",
           "const": "### Task N:",
-          "description": "Colon format — `### Task N:` with an ASCII colon. A title after the colon is permitted and parse-tolerated (the extractor's slice surface `/^### Task \\d+:/` ignores everything after the colon); only a non-`:` delimiter after the number (em dash, Chinese colon, bare space) fails brief extraction at dispatch time."
+          "description": "Colon format — `### Task N:` with an ASCII colon. A title after the colon is permitted and parse-tolerated (the task-heading scan `/^### Task \\d+:/` ignores everything after the colon); only a non-`:` delimiter after the number (em dash, Chinese colon, bare space) fails the heading parse at dispatch time."
         },
         "pattern": {
           "type": "string",
@@ -124,30 +135,108 @@
             "rule": {
               "type": "string",
               "const": "contiguous from 1",
-              "description": "extractTaskNumbers reads every `### Task N:` heading; the plan contract requires the extracted sequence to be exactly 1..N."
+              "description": "taskNumbersFromPlan reads every `### Task N:` heading; the plan contract requires the extracted sequence to be exactly 1..N."
             }
           }
         }
       }
     },
-    "taskBlock": {
-      "type": "object",
-      "description": "A per-task block under its `### Task N:` heading — the bullets the brief slices and the acceptance the plan carries.",
-      "properties": {
-        "do": {
-          "type": "string",
-          "pattern": "^- \\*\\*Do\\*\\*:",
-          "description": "`- **Do**:` — the do-brief for the task (what to implement)."
-        },
-        "acceptance": {
-          "type": "string",
-          "pattern": "^- \\*\\*验收\\*\\*:",
-          "description": "`- **验收**:` — the acceptance lines for the task; the brief extractor carries every acceptance line into the task brief verbatim."
-        },
-        "note": {
-          "type": "string",
-          "pattern": "^- \\*\\*注\\*\\*:",
-          "description": "`- **注**:` — optional task note."
+    "tasks": {
+      "type": "array",
+      "description": "The plan's tasks — one task record per `### Task N:` block, the C3 data shape the brief renderer materializes the task-handoff brief from (renderBrief: objective + steps[action+checkable] + acceptance). Every task record's steps carry their checkable outcome (a step without a checkable fails validation).",
+      "items": {
+        "type": "object",
+        "required": [
+          "objective",
+          "files",
+          "interface",
+          "steps",
+          "acceptance"
+        ],
+        "description": "One plan task record — objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[], with the P3 edge-model extension bits dependsOn?/atomicWith? (declared surface only).",
+        "properties": {
+          "objective": {
+            "type": "string",
+            "description": "`- **Objective**: …` — the task's outcome statement (what the task delivers; the brief's lead line)."
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "One file the task touches."
+            },
+            "description": "`- **Files**: …` — the files the task touches."
+          },
+          "interface": {
+            "type": "object",
+            "description": "`- **Consumes**:` / `- **Produces**:` — the task's typed interface surface: the consumed inputs and produced outputs the decomposition review judges the task boundaries by.",
+            "properties": {
+              "consumes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "description": "One consumed input slice — the task's typed dependency on an upstream slice."
+                },
+                "description": "The task's consumed inputs."
+              },
+              "produces": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "description": "One produced output slice — the task's typed deliverable surface."
+                },
+                "description": "The task's produced outputs."
+              }
+            }
+          },
+          "steps": {
+            "type": "array",
+            "description": "`- **Steps**:` — the ordered implementation steps; every step carries its verifiable outcome (checkable) — a step whose action has no checkable outcome fails validation (never an author's discretion).",
+            "items": {
+              "type": "object",
+              "required": [
+                "action",
+                "checkable"
+              ],
+              "description": "One step — an executable action + its verifiable outcome.",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "description": "The step's executable action."
+                },
+                "checkable": {
+                  "type": "string",
+                  "description": "The step's verifiable outcome — required: the action line ends with ` — checkable: <outcome>` (the outcome is the step's acceptance evidence; a step missing it fails validation)."
+                }
+              }
+            }
+          },
+          "acceptance": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "One acceptance criterion for the task."
+            },
+            "description": "`- **Acceptance**:` — the task's acceptance criteria."
+          },
+          "dependsOn": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "One task id this task depends on (a `### Task N:` id)."
+            },
+            "description": "P3 edge-model extension bit — the task ids this task depends on (declared surface; zero read/write at P2)."
+          },
+          "atomicWith": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "One task id this task is atomic with (a `### Task N:` id)."
+            },
+            "description": "P3 edge-model extension bit — the task ids this task is atomic with (declared surface; zero read/write at P2)."
+          }
         }
       }
     },

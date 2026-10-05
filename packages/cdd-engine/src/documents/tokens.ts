@@ -1,9 +1,11 @@
 // packages/cdd-engine/src/documents/tokens.ts — canonical doc-structure token surface
-// (P2 T2; design §2.3 AC4 TC single-source evidence · S8). Every engine-side doc-structure TOKEN
+// (P2 T2/T3; design §2.3 AC4 TC single-source evidence · S8). Every engine-side doc-structure TOKEN
 // (the literals and patterns documents.ts / brief.ts / task.ts assert) derives here from the
-// doc-type shape domain — the same DocType.shape content the registry's doc types carry (the shape
-// constants under doctypes/shapes/*; the config/schema products are their byte-faithful
-// projections, never re-read). The former hand-written copies in each consumer are these
+// doc-type shape domain — the same DocType.shape content the registry's doc types carry (the overall
+// shape constant + the P2 T2/T3 body-leaf projections — the phase-spec input authorizes from
+// `PHASE_SPEC_BODY_SHAPE` and the plan input from `PLAN_BODY_SHAPE`, the body leaves, since their
+// shape constants retired into the concrete DocBodies; the config/schema products are their
+// byte-faithful projections, never re-read). The former hand-written copies in each consumer are these
 // derivations. Change a shape leaf once → engine validation/extraction follows in the same build —
 // the deriveDocTokens(shapes) pure function is that live link (feed it a doctored shape and the
 // derived token changes).
@@ -17,10 +19,26 @@
 //     and asserted equal to the overall marker at load, so the two pages cannot silently drift.
 // Generic markdown/link/placeholder atoms (LINK_RE, PLACEHOLDER_RE) stay engine-local — they are
 // parsing primitives, not doc-structure definitions.
+// ---- load-order note (P2 T2) ---- //
+// DOC_TOKENS authorizes its shape inputs from the BODY LEAF projections (e.g. `PHASE_SPEC_BODY_SHAPE`
+// — the same value the registry's doc type carries via its injected body), never from
+// `docTypeRegistry` itself: the registry → doctypes → tokens module graph has no back-edge, so both
+// the `registry`-first and `tokens`-first load orders resolve (a registry.resolve at module top
+// would TDZ against the doctypes' module-top DOC_TOKENS references). The body leaf modules import
+// zero engine modules. The load-order regression is pinned by the colocated load-order.test.ts.
+// The escaping atom is homed at the body root (doc-body.ts — the leaves build parse regexes from
+// literal consts there, and the law keeps them off this module); tokens re-exports it below so the
+// token-plane consumers keep one escape source. doc-body.ts carries no runtime imports, so this
+// edge adds no back-edge.
 import type { SchemaShape } from "./doctype.ts";
+import { escapeRegExp } from "./doctypes/body/doc-body.ts";
+import { PHASE_SPEC_BODY_SHAPE } from "./doctypes/body/phase-spec-body.ts";
+import { PLAN_BODY_SHAPE } from "./doctypes/body/plan-body.ts";
 import { OVERALL_SHAPE } from "./doctypes/shapes/overall.ts";
-import { PHASE_SPEC_SHAPE } from "./doctypes/shapes/phase-spec.ts";
-import { PLAN_SHAPE } from "./doctypes/shapes/plan.ts";
+
+/** Re-export of the body-root escape atom (definition home: doc-body.ts — see the load-order note
+ *  above); the existing engine consumers keep importing it from this module. */
+export { escapeRegExp };
 
 export interface DocTokens {
   // ---- plan ----
@@ -55,6 +73,9 @@ export interface DocTokens {
   constraintsHeading: string;
   /** `/^## Constraints\s*$/` — Form-A heading match. */
   constraintsHeadingRe: RegExp;
+  /** `**Constraints**:` — the overall header constraints-block marker (overall.json
+   *  header.constraints.marker const — the constitutional block a new-shape spec/plan inherits). */
+  overallConstraintsMark: string;
   /** `## Task Groups` — the taskGroups section heading (plan.json taskGroups section layout const). */
   taskGroupsHeading: string;
   /** `/^## Task Groups\s*$/` — the taskGroups section-heading match. */
@@ -131,10 +152,6 @@ export interface DocTokens {
   /** Phase-id token scan (rowShape.idFormat pattern, unanchored + word boundary) — the dependency
    *  graph / dependency-column membership audit's token scanner. */
   phaseTokenScanRe: RegExp;
-}
-
-export function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /** Navigate a DocType.shape object to a node by its `properties` path. A segment is first tried as
@@ -238,6 +255,11 @@ export function deriveDocTokens(shapes: {
   );
   const constraintsHeading = constraintsHeadingPattern.replace(/^\^/, "").replace(/\\s\*\$$/, "");
   const constraintsHeadingRe = new RegExp(constraintsHeadingPattern);
+  const overallConstraintsMark = leaf<string>(
+    overall,
+    ["header", "constraints", "marker"],
+    "const",
+  );
 
   // taskGroups (P4.3 Task 3, spec §2.2) — the dispatch-group declaration: the section heading
   // const, the merged-group entry pattern with the comma-space number list wrapped in ONE capture
@@ -430,6 +452,7 @@ export function deriveDocTokens(shapes: {
     taskHeadingPrefixRe,
     constraintsHeading,
     constraintsHeadingRe,
+    overallConstraintsMark,
     taskGroupsHeading,
     taskGroupsHeadingRe,
     taskGroupsLineRe,
@@ -465,9 +488,14 @@ export function deriveDocTokens(shapes: {
 
 /** Production token surface — derived from the doc-type shape domain (the same DocType.shape
  *  content the registry's doc types carry / the SchemaFactory projects onto the derived
- *  config/schema products) on load. */
+ *  config/schema products) on load. The spec + plan inputs are the body leaf projections (P2 T2/T3 —
+ *  the retired shape constants are gone; the same values the registry's doc types carry via their
+ *  injected bodies). P2 T6 — unchanged-evidence registration: the housing change left every
+ *  deriveDocTokens leaf byte-identical (verified against the pre-P2 schema products), so these
+ *  production values ARE the pre-P2 gold, byte-unchanged — the deliberate-update verdict is
+ *  unchanged evidence, not a re-pin. */
 export const DOC_TOKENS: DocTokens = deriveDocTokens({
-  plan: PLAN_SHAPE,
+  plan: PLAN_BODY_SHAPE,
   overall: OVERALL_SHAPE,
-  "phase-spec": PHASE_SPEC_SHAPE,
+  "phase-spec": PHASE_SPEC_BODY_SHAPE,
 });

@@ -223,7 +223,7 @@ describe("materializePlanConstraints — unconditional regeneration (TG8)", () =
   it("writes plan-constraints.md with a deterministic plan-hash anchor header", () => {
     const plan = tmpPlan(PROSE_PLAN);
     const ws = mkdtempSync(path.join(tmpdir(), "cdd-plan-ws-"));
-    const outPath = materializePlanConstraints(plan, ws);
+    const outPath = materializePlanConstraints(plan, ws, path.dirname(path.dirname(plan)));
     expect(outPath).toBe(path.join(ws, "plan-constraints.md"));
     const text = readFileSync(outPath, "utf8");
     // anchor: plan hash + basename only (never the absolute root — machine-independent bytes)
@@ -238,7 +238,7 @@ describe("materializePlanConstraints — unconditional regeneration (TG8)", () =
     const plan = tmpPlan(PROSE_PLAN);
     const ws = mkdtempSync(path.join(tmpdir(), "cdd-plan-ws-"));
     writeFileSync(path.join(ws, "plan-constraints.md"), "operator legible content\n");
-    const outPath = materializePlanConstraints(plan, ws);
+    const outPath = materializePlanConstraints(plan, ws, path.dirname(path.dirname(plan)));
     const text = readFileSync(outPath, "utf8");
     expect(text).not.toContain("operator legible content");
     expect(text).toContain(`plan hash: ${hashFile(plan)}`);
@@ -250,8 +250,8 @@ describe("materializePlanConstraints — unconditional regeneration (TG8)", () =
   it("second call with the same plan rewrites identical bytes (determinism preserved)", () => {
     const plan = tmpPlan(PROSE_PLAN);
     const ws = mkdtempSync(path.join(tmpdir(), "cdd-plan-ws-"));
-    const first = materializePlanConstraints(plan, ws);
-    const second = materializePlanConstraints(plan, ws);
+    const first = materializePlanConstraints(plan, ws, path.dirname(path.dirname(plan)));
+    const second = materializePlanConstraints(plan, ws, path.dirname(path.dirname(plan)));
     expect(second).toBe(first);
     expect(readFileSync(second, "utf8")).toBe(readFileSync(first, "utf8"));
   });
@@ -259,12 +259,12 @@ describe("materializePlanConstraints — unconditional regeneration (TG8)", () =
   it("plan content change between calls → the next call reflects the new extraction", () => {
     const plan = tmpPlan(PROSE_PLAN);
     const ws = mkdtempSync(path.join(tmpdir(), "cdd-plan-ws-"));
-    materializePlanConstraints(plan, ws);
+    materializePlanConstraints(plan, ws, path.dirname(path.dirname(plan)));
     writeFileSync(
       plan,
       PROSE_PLAN.replace("mouthpiece constraint", "mouthpiece constraint — revised"),
     );
-    const outPath = materializePlanConstraints(plan, ws);
+    const outPath = materializePlanConstraints(plan, ws, path.dirname(path.dirname(plan)));
     const text = readFileSync(outPath, "utf8");
     expect(text).toContain("mouthpiece constraint — revised");
     expect(text).not.toContain("mouthpiece constraint\n");
@@ -275,7 +275,9 @@ describe("materializePlanConstraints — unconditional regeneration (TG8)", () =
   it("plan with no constraint source → throws ConstraintsSourceUndeclared, writes nothing", () => {
     const plan = tmpPlan(NO_SOURCE_PLAN);
     const ws = mkdtempSync(path.join(tmpdir(), "cdd-plan-ws-"));
-    expect(() => materializePlanConstraints(plan, ws)).toThrow(ConstraintsSourceUndeclared);
+    expect(() => materializePlanConstraints(plan, ws, path.dirname(path.dirname(plan)))).toThrow(
+      ConstraintsSourceUndeclared,
+    );
     expect(existsSync(path.join(ws, "plan-constraints.md"))).toBe(false);
   });
 });

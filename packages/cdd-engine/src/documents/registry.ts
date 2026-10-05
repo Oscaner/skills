@@ -16,6 +16,8 @@
 // lazily inside their instance methods (never at module-evaluation time — the registration cycle is
 // safe by construction).
 import type { DocKind, DocType } from "./doctype.ts";
+import { phaseSpecBody } from "./doctypes/body/phase-spec-body.ts";
+import { planBody } from "./doctypes/body/plan-body.ts";
 import { OverallDocType } from "./doctypes/overall.ts";
 import { PhaseSpecDocType } from "./doctypes/phase-spec.ts";
 import { PlanDocType } from "./doctypes/plan.ts";
@@ -77,7 +79,10 @@ export class DocTypeRegistry {
  *  singleton is the live S2/S4 dispatch entry from T2 on.
  */
 export const docTypeRegistry = new DocTypeRegistry([
+  // The shape-domain wiring (P2 T2/T3): the doc types carry their injected body singletons — each
+  // `shape` field is the body's projected shape (phaseSpecBody / planBody leaf projections), never a
+  // re-homed constant.
   new OverallDocType(),
-  new PlanDocType(),
-  new PhaseSpecDocType(),
+  new PlanDocType(planBody),
+  new PhaseSpecDocType(phaseSpecBody),
 ]);

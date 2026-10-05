@@ -2,12 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://oscaner.dev/schemas/cdd/phase-spec.json",
   "title": "Phase design spec document structure",
-  "description": "Canonical structure of a kairos phase design spec — one phase's increment of a program; the program-level charter lives in the parent overall (whole-program conventions win on conflict). This schema is the single structure fact for the phase-spec doc type: the artifact header block, the fixed Section 0–5 skeleton (skeleton isomorphism — do not insert sections mid-sequence, each number is one semantic), the unique `### Acceptance criteria` subsection inside Section 2, and the deviations table whose `Overall updated?` column must be `Yes` before review. Authoring agents read the properties + descriptions to draft conforming specs; docContractValidate consumes the same patterns (`**Version**` strictly required, Class-B parent-program lineage).",
+  "description": "Canonical structure of a kairos phase design spec — one phase's increment of a program; the program-level charter lives in the parent overall (whole-program conventions win on conflict). This schema is the single structure fact for the phase-spec doc type: the artifact header five-tuple (`**Version**` — strictly required, the detect feature / backfill-as-version anchor — · `**Status**` · `**Author**` · `**Parent program**` (Class-B) · `**Depends on**`), the permanent three-truth skeleton (`## Design` with the unique `### Acceptance criteria` subsection · `## Constraints` — the inheritance point where the parent-overall conventions auto-apply and the constraints-pointer semantics merge), and the conditional sections (incremental warning / deviations / notes for downstream / review record) written only when their condition holds — zero residue otherwise. The schema's `dependentRequired` / `if-then` carry the structural consequence anchored on a section being present (a decorated section must carry its marker — e.g. the deviations table's `Overall updated?` must be `Yes` before review); whether the section's semantic condition truly holds is the author's declared judgment (the descriptions carry the criteria). Authoring agents read the properties + descriptions to draft conforming specs; docContractValidate consumes the same patterns (`**Version**` strictly required, Class-B parent-program lineage, the skeleton + conditional consequences).",
   "type": "object",
   "properties": {
     "header": {
       "type": "object",
-      "description": "Artifact header block — metadata at the top of the artifact, a bullet block, not a `##` section. The `**Version**` line is STRICTLY required here (the phase-spec Version check); every remaining field is part of the block.",
+      "description": "Artifact header block — the metadata five-tuple at the top of the artifact, a bullet block, not a `##` section. The `**Version**` line is STRICTLY required here (the phase-spec Version check — the detect feature / backfill-as-version / the R2 versionToken anchor line); every remaining field is part of the block.",
       "properties": {
         "version": {
           "type": "object",
@@ -62,111 +62,48 @@
         }
       }
     },
-    "sections": {
+    "design": {
       "type": "object",
-      "description": "The fixed Section 0–5 skeleton — Section 0–5 artifact body, each number one semantic, fixed order (skeleton isomorphism — no mid-sequence insertion; the 'Section N' labels belong to the family skeleton, each artifact section is authored under its literal `## Section N: <name>` heading).",
+      "description": "`## Design` — the phase's design body: this phase's increment (approaches, architecture, components, data flow, errors, testing) AND the unique `### Acceptance criteria` subsection (see design.acceptanceCriteria) — the first of the permanent three-truth skeleton sections.",
       "properties": {
-        "section0": {
-          "type": "object",
-          "description": "Section 0 — Incremental warning: the spec commits to exactly one phase; splitting / reordering a phase's work is not a local edit — phase-inventory rows, dependency edges and a change-history row land in the parent overall first (backfill-as-version).",
-          "properties": {
-            "heading": {
-              "type": "string",
-              "pattern": "^## Section 0: Incremental warning$",
-              "description": "Literal heading `## Section 0: Incremental warning`."
-            }
-          }
+        "heading": {
+          "type": "string",
+          "pattern": "^## Design$",
+          "description": "Literal heading `## Design`."
         },
-        "section1": {
+        "acceptanceCriteria": {
           "type": "object",
-          "description": "Section 1 — Constraints pointer: does not repeat overall conventions; cross-phase rules belong in the overall (overall wins on conflict).",
+          "description": "`### Acceptance criteria` — the ONLY subsection, and it lives inside `## Design`: verifiable completion conditions, each independently testable. An acceptance criterion is a claim: a claim that cannot be mechanically verified on the shipped tree is a paper claim.",
           "properties": {
             "heading": {
               "type": "string",
-              "pattern": "^## Section 1: Constraints pointer$",
-              "description": "Literal heading `## Section 1: Constraints pointer`."
-            }
-          }
-        },
-        "section2": {
-          "type": "object",
-          "description": "Section 2 — Design body: this phase's increment (approaches, architecture, components, data flow, errors, testing) AND the `### Acceptance criteria` subsection (see acceptanceCriteria).",
-          "properties": {
-            "heading": {
-              "type": "string",
-              "pattern": "^## Section 2: Design body$",
-              "description": "Literal heading `## Section 2: Design body`."
-            }
-          }
-        },
-        "section3": {
-          "type": "object",
-          "description": "Section 3 — Deviations from overall: the deviations table (`Overall assumption | Phase decision | Overall updated?`); required when the phase diverges on a cross-phase matter.",
-          "properties": {
-            "heading": {
-              "type": "string",
-              "pattern": "^## Section 3: Deviations from overall$",
-              "description": "Literal heading `## Section 3: Deviations from overall`."
+              "const": "### Acceptance criteria",
+              "description": "Literal subsection heading `### Acceptance criteria` — unique: no other subsection exists anywhere in the doc."
             },
-            "columns": {
-              "type": "array",
-              "items": {
-                "type": "string",
-                "enum": [
-                  "Overall assumption",
-                  "Phase decision",
-                  "Overall updated?"
-                ],
-                "description": "One deviation-table column name."
-              },
-              "description": "Three deviation-table columns; `Overall updated?` must be `Yes` (with version + date, e.g. `Yes — vX.Y · YYYY-MM-DD`) before review — a divergence not fed back to the overall is a backfill violation."
-            }
-          }
-        },
-        "section4": {
-          "type": "object",
-          "description": "Section 4 — Notes for downstream: later-phase scope shifts; a 'later phases will handle this' note that stays here alone is a dead end — downstream writers read the overall, record the shift in the overall's issue / phase / dependency tables and history, keep the note as a pointer.",
-          "properties": {
-            "heading": {
+            "location": {
+              "type": "object",
+              "description": "Location rule — the subsection sits inside `## Design`.",
+              "properties": {
+                "parent": {
+                  "type": "string",
+                  "const": "## Design",
+                  "description": "`### Acceptance criteria` is nested directly under `## Design`."
+                }
+              }
+            },
+            "entry": {
               "type": "string",
-              "pattern": "^## Section 4: Notes for downstream$",
-              "description": "Literal heading `## Section 4: Notes for downstream`."
-            }
-          }
-        },
-        "section5": {
-          "type": "object",
-          "description": "Section 5 — Review: fresh-subagent review passes before user review and cdd-plan — baseline = committed tree, Review Convergence (blocker > 0 → fix all findings → re-review; blocker = 0 → fix all findings → done, no re-review).",
-          "properties": {
-            "heading": {
-              "type": "string",
-              "pattern": "^## Section 5: Review$",
-              "description": "Literal heading `## Section 5: Review`."
+              "pattern": "^- `",
+              "description": "Acceptance entries — `- ` code-span-prefixed bullets, each an independently testable condition (e.g. `- artifact X exists at path Y with property Z`)."
             }
           }
         }
       }
     },
-    "acceptanceCriteria": {
+    "acceptance": {
       "type": "object",
-      "description": "`### Acceptance criteria` — the ONLY subsection, and it lives inside Section 2 (Design body): verifiable completion conditions, each independently testable. An acceptance criterion is a claim: a claim that cannot be mechanically verified on the shipped tree is a paper claim.",
+      "description": "The acceptance-claim entry form — the `### Acceptance criteria` code-span conditional-sentence entries (`- ` code-span 条件句): the shared entry leaf the design.acceptanceCriteria subsection carries, each an independently testable claim (a claim that cannot be mechanically verified on the shipped tree is a paper claim).",
       "properties": {
-        "heading": {
-          "type": "string",
-          "const": "### Acceptance criteria",
-          "description": "Literal subsection heading `### Acceptance criteria` — unique: no other subsection exists anywhere in the doc."
-        },
-        "location": {
-          "type": "object",
-          "description": "Location rule — the subsection sits inside Section 2 (Design body).",
-          "properties": {
-            "parent": {
-              "type": "string",
-              "const": "Section 2 (Design body)",
-              "description": "`### Acceptance criteria` is nested directly under `## Section 2: Design body`."
-            }
-          }
-        },
         "entry": {
           "type": "string",
           "pattern": "^- `",
@@ -174,9 +111,112 @@
         }
       }
     },
-    "language": {
+    "constraints": {
       "type": "object",
-      "description": "Repo authoring policy applies to the spec prose — specs at docs/kairos/specs/ are internal program docs in the working language (Strategy B), value tokens (phase ids / tags / SHAs / paths) stay locale-neutral."
+      "description": "`## Constraints` — the inheritance point (non-conditional section): the parent overall's conventions auto-apply (delta-only); this section carries the spec's own delta + the `**Parent program**` pointer — the constraints-pointer semantics merge here, a spec never restates overall conventions (whole-program conventions win on conflict).",
+      "properties": {
+        "heading": {
+          "type": "string",
+          "pattern": "^## Constraints$",
+          "description": "Literal heading `## Constraints`."
+        },
+        "entry": {
+          "type": "string",
+          "pattern": "^- ",
+          "description": "Constraint entries — the spec's self-owned delta bullets (`- …`), each a phase-local constraint the parent overall's conventions do not already cover (no restatement)."
+        }
+      }
+    },
+    "deviations": {
+      "type": "object",
+      "description": "`## Deviations` — conditional section: written ONLY when the phase diverges on a cross-phase matter (condition = 有 cross-phase divergence; zero residue otherwise — the section is absent). `Overall updated?` must be `Yes` before review — a divergence not fed back to the overall is a backfill violation. Decorated ⇒ the marker consequence holds (dependentRequired): the section's heading demands its `updated` answer.",
+      "properties": {
+        "heading": {
+          "type": "string",
+          "pattern": "^## Deviations$",
+          "description": "Literal heading `## Deviations`."
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "Overall assumption",
+              "Phase decision",
+              "Overall updated?"
+            ],
+            "description": "One deviation-table column name."
+          },
+          "description": "The three deviation-table column names; `Overall updated?` must be `Yes` (with version + date, e.g. `Yes — vX.Y · YYYY-MM-DD`) before review."
+        },
+        "updated": {
+          "type": "string",
+          "pattern": "^Yes",
+          "description": "The `Overall updated?` answer form — a fed-back deviation reads `Yes` (e.g. `Yes — vX.Y · YYYY-MM-DD`); a divergence not fed back to the overall is a backfill violation."
+        }
+      },
+      "required": [
+        "heading",
+        "columns"
+      ],
+      "dependentRequired": {
+        "heading": [
+          "updated"
+        ]
+      }
+    },
+    "incrementalWarning": {
+      "type": "object",
+      "description": "`## Incremental warning` — conditional section: written ONLY when the phase commits to an increment-boundary-crossing declaration (condition = 有 increment 边界跨越声明; zero residue otherwise). The phase commits to exactly one phase; splitting / reordering a phase's work is not a local edit — phase-inventory rows, dependency edges and a change-history row land in the parent overall first (backfill-as-version). The section's structural marker is its heading alone (dependentRequired).",
+      "properties": {
+        "heading": {
+          "type": "string",
+          "pattern": "^## Incremental warning$",
+          "description": "Literal heading `## Incremental warning`."
+        }
+      },
+      "dependentRequired": {
+        "heading": []
+      }
+    },
+    "downstreamNotes": {
+      "type": "object",
+      "description": "`## Notes for downstream` — conditional section: written ONLY when the phase hands a downstream-phase note over (condition = 有下游 phase 交接 note; zero residue otherwise). A 'later phases will handle this' note that stays here alone is a dead end — downstream writers read the overall, record the shift in the overall's issue / phase / dependency tables and history, keep the note as a pointer. The section's structural marker is its heading alone (dependentRequired).",
+      "properties": {
+        "heading": {
+          "type": "string",
+          "pattern": "^## Notes for downstream$",
+          "description": "Literal heading `## Notes for downstream`."
+        }
+      },
+      "dependentRequired": {
+        "heading": []
+      }
+    },
+    "reviewRecord": {
+      "type": "object",
+      "description": "`## Review record` — conditional section: written ONLY when the phase records a review conclusion (condition = 有评审结论要记录; zero residue otherwise). Fresh-subagent review passes before user review and cdd-plan — baseline = committed tree, Review Convergence (blocker > 0 → fix all findings → re-review; blocker = 0 → fix all findings → done, no re-review). The section's structural marker is its heading alone (dependentRequired).",
+      "properties": {
+        "heading": {
+          "type": "string",
+          "pattern": "^## Review record$",
+          "description": "Literal heading `## Review record`."
+        }
+      },
+      "dependentRequired": {
+        "heading": []
+      }
     }
+  },
+  "if": {
+    "required": [
+      "design"
+    ]
+  },
+  "then": {
+    "required": [
+      "acceptance",
+      "constraints"
+    ]
   }
 }

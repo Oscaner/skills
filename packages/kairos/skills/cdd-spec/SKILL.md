@@ -43,7 +43,7 @@ flowchart TD
 
 ### `author-spec`
 
-- **Do**: Write the spec document to `docs/kairos/specs/` from the session output. **No canonical structure schema (single variant) — free-form authoring** (no Section 0–5 skeleton), but carry the `- **Version**: vX.Y · <date>` header line at the document head — the docs-lane doc-contract gate asserts it on every reviewed spec (a Version-less single spec is BLOCKED at review)
+- **Do**: Write the spec document to `docs/kairos/specs/` from the session output. **No canonical structure schema (single variant) — free-form authoring** (no canonical document skeleton), but carry the `- **Version**: vX.Y · <date>` header line at the document head — the docs-lane doc-contract gate asserts it on every reviewed spec (a Version-less single spec is BLOCKED at review)
 - **Read**: Session output
 - **Exit**: File written → `spec-review`
 - **Fail**: Session output unusable or write error → BLOCKED (missing design input)

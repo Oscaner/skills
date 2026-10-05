@@ -18,14 +18,19 @@ import {
 import { docTypeRegistry } from "../registry.ts";
 import { DOC_TOKENS } from "../tokens.ts";
 import { DOC_WORDS } from "../words.ts";
+import { mergeParentConstraints, overallConstraintsOf } from "./body/constraints.ts";
+import type { PlanBody } from "./body/plan-body.ts";
+import { planBody } from "./body/plan-body.ts";
+import { Task, type TaskStep } from "./body/task.ts";
 import { PLAN_BODY_VIEW } from "./body-views.ts";
 import type { OverallParse } from "./overall.ts";
-import { PLAN_SHAPE } from "./shapes/plan.ts";
 import {
+  constraintsSectionOf,
   isPlaceholderOrTemplateTarget,
   linksOnLine,
   ownDesignToken,
   resolveAny,
+  sectionBoundaryRe,
 } from "./shared.ts";
 
 // ---- plan-contract atoms (module-private — one consumer: the plan doc type) ----
@@ -34,70 +39,53 @@ const SPEC_MARK = DOC_TOKENS.specMark;
 const SPEC_FIELD = DOC_TOKENS.specField;
 const PLACEHOLDER_RE = /{{\s*[^{}>\n]+\s*}}/g;
 
+// The projected Form-B anchor-family slice prefix — `formBAnchor{digit}` in canonical declaration
+// order (the plan body leaf is the single source; the extractor reads the family off
+// `planBody.projectSlicePatterns()`, never re-types an anchor literal).
+const FORM_B_ANCHOR_SLICE_PREFIX = "formBAnchor";
+
 // The standard section stop set — the structural boundary that closes a `##`-level section: a
 // `#`/`##` heading or a `---` rule (the `### Task ` heading clause — DOC_TOKENS.taskHeadingPrefixRe —
-// rides alongside where the section must not swallow task atoms). ONE shared definition for every
-// section parser (task-groups / literal constraints / the prose-block boundary array), so a
+// rides alongside where the section must not swallow task atoms). The base set is the SHARED
+// doctype-layer constant (sectionBoundaryRe in shared.ts — ONE definition for every section parser:
+// the Form-A constraints-section extractor / this prose-block array / the task-groups walk), so a
 // boundary edit lands once instead of drifting per-parser.
-const PLAN_SECTION_BOUNDARY = /^(#{1,2}\s|---\s*$)/;
 
-// Block boundary for the prose-pointer form (composes the shared PLAN_SECTION_BOUNDARY set): a
+// Block boundary for the prose-pointer form (composes the shared sectionBoundaryRe set): a
 // `---` rule or a `#`/`##` heading, a `### Task ` heading — or another `**…**：` declaration heading
 // (any prose-pointer-style bold heading begins a new declaration block).
 const PROSE_BLOCK_STOP = [
-  PLAN_SECTION_BOUNDARY,
+  sectionBoundaryRe,
   DOC_TOKENS.taskHeadingPrefixRe,
   /^\*\*[^*]+\*\*[：:]/,
 ] as const;
 
-// Deterministic extraction for the canonical form: `## Constraints` heading + content to the first
-// structural boundary — a `#`/`##` heading, a `### Task ` heading (the brief-extraction atom the
-// constraints section must not swallow), or a `---` rule (the preamble/task separator). `###`
-// sub-sections stay inside. An empty section → null (declared-but-empty is not a constraint
-// declaration).
-function extractLiteralConstraints(content: string): string | null {
-  const lines = content.split("\n");
-  let start = -1;
-  for (let i = 0; i < lines.length; i++) {
-    if (DOC_TOKENS.constraintsHeadingRe.test(lines[i])) {
-      start = i;
-      break;
-    }
-  }
-  if (start < 0) return null;
-  let end = lines.length;
-  for (let i = start + 1; i < lines.length; i++) {
-    if (PLAN_SECTION_BOUNDARY.test(lines[i]) || DOC_TOKENS.taskHeadingPrefixRe.test(lines[i])) {
-      end = i;
-      break;
-    }
-  }
-  const body = lines
-    .slice(start + 1, end)
-    .join("\n")
-    .trimEnd();
-  if (!body) return null;
-  return `${lines[start]}\n${body}\n`;
-}
+// The canonical Form-A constraints-section extraction — the shared doctype atom
+// (`constraintsSectionOf` in shared.ts: the literal top-level `## Constraints` section, bounded by
+// the next `#`/`##` heading, a `### Task ` heading or a `---` rule; `###` sub-sections stay
+// inside; an empty section → null).
 
-// Prose-pointer anchor heading regex: `**<anchor>(?:（qualifier）)?**：` — the in-repo qualifier
-// forms are full-width parentheticals; a bare `**<anchor>**：` matches too (the `(?:…)` group is a
-// REAL regex group and optional — `（[^）]*）?` would quantify only the closing paren and demand a
-// literal `（`). No gap is allowed between the anchor and the closing `**`, so a prefix-collision
-// heading (`**<anchor> 补充**：`) can never occupy the anchor's slot.
-function proseAnchorRe(anchor: string): RegExp {
-  return new RegExp(`^\\*\\*${anchor}(?:（[^）]*）)?\\*\\*[：:]`);
-}
+// The canonical Form-A constraints-section extraction — the shared doctype atom
+// (`constraintsSectionOf` in shared.ts: the literal top-level `## Constraints` section, bounded by
+// the next `#`/`##` heading, a `### Task ` heading or a `---` rule; `###` sub-sections stay
+// inside; an empty section → null). The heading scan is the plan body's projected
+// `constraintsHeading` slice (the body leaf is the parse-pattern single source).
 
 // Legacy prose-pointer extraction: the anchored `**<anchor>…**：` lines in canonical order, each
 // followed by its continuation paragraphs — a body spanning blank-line-separated paragraphs is
 // captured in FULL. Block boundaries: the next declaration heading (or structural boundary) ends
 // the block; present anchors are taken verbatim (first match per anchor), missing ones omitted.
+// The anchor headings are the plan body's projected `formBAnchor{digit}` slice family (the body
+// leaf is the anchor single source — the same PLAN_FORM_B_ANCHOR_TOKENS the shape enum reads).
 function extractProseConstraints(content: string): string | null {
   const lines = content.split("\n");
   const out: string[] = [];
-  for (const anchor of DOC_TOKENS.proseAnchors) {
-    const re = proseAnchorRe(anchor);
+  // canonical declaration order — the `formBAnchor{digit}` family, numerically keyed
+  const anchorSlices = Object.entries(planBody.projectSlicePatterns())
+    .filter(([key]) => key.startsWith(FORM_B_ANCHOR_SLICE_PREFIX))
+    .sort(([a], [b]) => a.localeCompare(b, "en", { numeric: true }))
+    .map(([, re]) => re);
+  for (const re of anchorSlices) {
     const start = lines.findIndex((line) => re.test(line));
     if (start < 0) continue;
     const block: string[] = [lines[start]];
@@ -118,6 +106,76 @@ const SPEC_PHASE_ID_RE = new RegExp(
   `-(${DOC_TOKENS.phaseTokenScanRe.source.replace(/^\b/, "")})-design\\.md$`,
   "i",
 );
+
+// ---- task-record atoms (design C3 — the data-shaped task block parse) ----
+
+/** Split a comma-separated list value into its trimmed non-empty items (the files / consumes /
+ *  produces field lists of a data-shaped task record). */
+function splitListValue(value: string): string[] {
+  return value
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
+/** Parse one `### Task N:` block's lines into a Task data record (design C3) — empty return for a
+ *  legacy block carrying no data-field markers (the dual-read contract: the legacy `- **Do**:` face
+ *  is left untouched, a new-shape block's objective/steps/acceptance fields are the single source).
+ *  A step entry that drops the ` — checkable:` separator still parses (its action is kept) with the
+ *  checkable capture empty — the validate face fails on it, the field is never silently dropped. */
+function parseTaskBlock(lines: readonly string[]): Task | null {
+  const slices = planBody.projectSlicePatterns();
+  let objective = "";
+  const files: string[] = [];
+  const consumes: string[] = [];
+  const produces: string[] = [];
+  const steps: TaskStep[] = [];
+  const acceptance: string[] = [];
+  let sawData = false;
+  let mode: "steps" | "acceptance" | null = null;
+  for (const line of lines) {
+    // Field markers take priority (a marker line switches the parse mode / captures its single-line
+    // value) — the acceptance-entry form can never swallow a sibling marker line.
+    if (slices.objective.test(line)) {
+      objective = line.replace(slices.objective, "").trim();
+      sawData = true;
+      mode = null;
+    } else if (slices.files.test(line)) {
+      files.push(...splitListValue(line.replace(slices.files, "").trim()));
+      sawData = true;
+      mode = null;
+    } else if (slices.consumes.test(line)) {
+      consumes.push(...splitListValue(line.replace(slices.consumes, "").trim()));
+      sawData = true;
+      mode = null;
+    } else if (slices.produces.test(line)) {
+      produces.push(...splitListValue(line.replace(slices.produces, "").trim()));
+      sawData = true;
+      mode = null;
+    } else if (slices.steps.test(line)) {
+      sawData = true;
+      mode = "steps";
+    } else if (slices.acceptance.test(line)) {
+      sawData = true;
+      mode = "acceptance";
+    } else if (mode === "steps") {
+      const m = line.match(slices.stepEntry);
+      if (m) steps.push({ action: m[1]!.trim(), checkable: (m[2] ?? "").trim() });
+    } else if (mode === "acceptance") {
+      if (line.match(slices.acceptanceEntry)) {
+        acceptance.push(line.replace(slices.acceptanceEntry, "").trim());
+      }
+    }
+  }
+  if (!sawData) return null; // a legacy block — no data-field markers, no task record
+  return new Task({
+    objective,
+    files,
+    interface: { consumes, produces },
+    steps,
+    acceptance,
+  });
+}
 
 function phaseIdFromSpecBasename(specPath: string): string | null {
   const m = path.basename(specPath).match(SPEC_PHASE_ID_RE);
@@ -147,16 +205,19 @@ export interface PlanParse {
  *  spec chain → the parent overall). The plan is a routed review target (`"plan"` review type).
  */
 export class PlanDocType extends DocType {
-  constructor() {
+  /** The injected body — the shape + slice single source for this doc type's checks (constructor
+   *  injection, no default parameterization: the body is the live wiring of the shape domain). */
+  readonly body: PlanBody;
+
+  constructor(body: PlanBody) {
     super({
       kind: "plan",
-      // Shape domain — the plan output schema content (T3: the concrete per-type shape, the
-      // SchemaFactory's projection source). Words — the shared engine lexicon content (T4: every
-      // doc type references the same DOC_WORDS object — words single-source). BodyView — the
-      // docs-family body forms + the plan review config (T5: the migrated template-contract
-      // reviews.plan content). instructions / refKind stay the P1 placeholder state (P5 lands the
-      // concrete content).
-      shape: PLAN_SHAPE,
+      // Shape domain — the plan output schema content (P2 T3: derived from the injected body's
+      // projectSchemaShape() — the only contract chain DocBody.projectSchemaShape() → DocType.shape →
+      // SchemaFactory; the retired plan shape constant is gone). Words — the shared engine lexicon
+      // content. BodyView — the docs-family body forms + the plan review config. instructions /
+      // refKind stay the P1 placeholder state (P5 lands the concrete content).
+      shape: body.projectSchemaShape(),
       words: DOC_WORDS,
       instructions: [],
       refKind: { kind: "" },
@@ -164,12 +225,15 @@ export class PlanDocType extends DocType {
       // The plan's routed review/fix face (S4): `--type plan` / the `--plan` next-step flag.
       route: { reviewType: "plan", argKey: "plan", targetFlag: "--plan" },
     });
+    this.body = body;
   }
 
-  /** Plan detection: the `### Task N:` heading feature (DOC_TOKENS.taskNumberRe) — the fallback
-   *  scan order (overall → plan → spec) asks this type second. */
+  /** Plan detection: the `### Task N:` heading feature (the body's projected `taskHeading` slice —
+   *  the same parse-pattern single source the continuity scan reads) — the fallback scan order
+   *  (overall → plan → spec) asks this type second. */
   detect(_fileName: string, content: string): boolean {
-    return content.split("\n").some((l) => DOC_TOKENS.taskNumberRe.test(l));
+    const taskHeading = this.body.projectSlicePatterns().taskHeading;
+    return content.split("\n").some((l) => taskHeading.test(l));
   }
 
   /** The plan parse surface — the basename phase-id scans + the task extractors (the dispatch
@@ -215,11 +279,13 @@ export class PlanDocType extends DocType {
   }
 
   /** Task-heading scan (`^### Task N:` → numeric sort; tolerant titles after the colon are kept).
-   * The heading token is schema-derived (plan schema taskHeadings pattern). */
+   * The heading token is the body's projected `taskHeading` slice (the number captured — the same
+   * parse-pattern single source `tasksFromPlan` / detection read). */
   taskNumbersFromPlan(planFile: string): number[] {
     const nums: number[] = [];
+    const taskHeading = this.body.projectSlicePatterns().taskHeading;
     for (const line of readFileSync(planFile, "utf8").split("\n")) {
-      const m = line.match(DOC_TOKENS.taskNumberRe);
+      const m = line.match(taskHeading);
       if (m) nums.push(Number(m[1]));
     }
     return nums.sort((a, b) => a - b);
@@ -229,21 +295,46 @@ export class PlanDocType extends DocType {
    * merged groups as TaskGroup[] — one `- **Task 1, 2**: <note>` line per group (the captured comma-
    * space number list, the `--tasks <a>,<b>` join form), each parsed to sorted unique integers.
    * No section / empty section → [] (the empty default — the section is written ONLY when a
-   * non-trivial merged group exists, so its absence IS the default). Section boundary = the standard
-   * PLAN_SECTION_BOUNDARY stop set (a `#`/`##` heading, a `### Task ` heading, or a `---` rule). */
+   * non-trivial merged group exists, so its absence IS the default). Section boundary = the shared
+   * sectionBoundaryRe stop set (a `#`/`##` heading, a `### Task ` heading, or a `---` rule). */
   taskGroupsFromPlan(planFile: string): TaskGroup[] {
     const lines = readFileSync(planFile, "utf8").split("\n");
     const start = lines.findIndex((l) => DOC_TOKENS.taskGroupsHeadingRe.test(l));
     if (start === -1) return [];
     const groups: TaskGroup[] = [];
     for (let i = start + 1; i < lines.length; i++) {
-      if (PLAN_SECTION_BOUNDARY.test(lines[i]) || DOC_TOKENS.taskHeadingPrefixRe.test(lines[i]))
-        break;
+      if (sectionBoundaryRe.test(lines[i]) || DOC_TOKENS.taskHeadingPrefixRe.test(lines[i])) break;
       const m = lines[i].match(DOC_TOKENS.taskGroupsLineRe);
       if (!m) continue;
       groups.push(TaskGroup.fromNumbers(m[1].split(",").map((s) => Number(s.trim()))));
     }
     return groups;
+  }
+
+  /** tasksFromPlan(planFile) — the plan's Task data records (design C3): one record per `### Task N:`
+   * block that carries the data-field markers (objective / steps / acceptance … the body's projected
+   * task-block slice single source). A legacy block (`- **Do**:` face, no data markers) returns no
+   * record — the dual-read contract: the legacy tree parses task-free, the new task-handoff brief
+   * renders from these records. A step entry without its ` — checkable:` separator still parses with
+   * the checkable capture empty — the validate face fails on it, the field is never silently dropped. */
+  tasksFromPlan(planFile: string): Task[] {
+    const lines = readFileSync(planFile, "utf8").split("\n");
+    const slices = this.body.projectSlicePatterns();
+    const blocks: Array<{ start: number; end: number }> = [];
+    let start = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (slices.taskHeading.test(lines[i])) {
+        if (start >= 0) blocks.push({ start, end: i });
+        start = i;
+      }
+    }
+    if (start >= 0) blocks.push({ start, end: lines.length });
+    const tasks: Task[] = [];
+    for (const block of blocks) {
+      const task = parseTaskBlock(lines.slice(block.start, block.end));
+      if (task !== null) tasks.push(task);
+    }
+    return tasks;
   }
 
   /** effectiveGroups(planPath) — the SINGLE dispatch-group derivation (TaskGroup[]): declared groups
@@ -278,13 +369,44 @@ export class PlanDocType extends DocType {
    * constraints body verbatim (single trailing newline) or null when the plan declares no constraint
    * source (the BLOCK face). */
   extractPlanConstraints(planContent: string): string | null {
-    const literal = extractLiteralConstraints(planContent);
+    const literal = constraintsSectionOf(
+      planContent,
+      this.body.projectSlicePatterns().constraintsHeading,
+    );
     if (literal !== null) return literal;
     return extractProseConstraints(planContent);
   }
 
+  /** The plan's merged constraints read (design C4 — the plan side of the delta-only inheritance
+   *  machine): Form A — the plan's own `## Constraints` delta joined with the parent overall's
+   *  conventions (the constitution auto-applies; the chain = Class-A `**Spec:**` → the spec's
+   *  Class-B `**Parent program**` → the overall's `**Constraints**:` block). Form B (legacy) — the
+   *  prose-pointer extraction, unchanged (the dual-read exemption: legacy Form B plans keep their
+   *  old read with no merge). A chain that cannot resolve the parent overall degrades to the
+   *  plan's own delta — resolution is the validate face (Class A/B + the spec's inheritance-point
+   *  linkage), never this read. Returns the merged presentation or null when the plan declares no
+   *  Constraints source (the BLOCK face — the facade's ConstraintsSourceUndeclared materializer). */
+  planConstraintsOf(planPath: string, root: string): string | null {
+    const content = readFileSync(planPath, "utf8");
+    const ownDelta = constraintsSectionOf(
+      content,
+      this.body.projectSlicePatterns().constraintsHeading,
+    );
+    if (ownDelta === null) return extractProseConstraints(content); // legacy Form B — unchanged read
+    const { specPath } = this.#resolveSpecOf(planPath, root);
+    const overallPath = specPath
+      ? docTypeRegistry.resolve("spec").parentChain(specPath, root)
+      : null;
+    const parentConstraints = overallPath
+      ? overallConstraintsOf(readFileSync(overallPath, "utf8"))
+      : null;
+    return mergeParentConstraints({ ownDelta, parentConstraints });
+  }
+
   /** plan contract: `### Task N:` continuous extractability · `**Spec:**` exists + resolves ·
-   * constraints source declaration extractable · no placeholders. Necessary subset — always runs. */
+   * constraints source declaration extractable · no placeholders · the data-shaped task steps carry
+   * their checkable (missing checkable = a validate failure, never an author's discretion).
+   * Necessary subset — always runs. */
   validatePlanContract(planPath: string): DocValidateFailure[] {
     const failures: DocValidateFailure[] = [];
     const content = readFileSync(planPath, "utf8");
@@ -343,6 +465,44 @@ export class PlanDocType extends DocType {
         field: "placeholders",
         missing: `unfilled template token ${m[0]}`,
         fix: "replace the placeholder with the real content (or drop the template syntax)",
+      });
+    }
+
+    // 4. Data-shaped task steps — every parsed step carries its checkable outcome (design C3: the
+    //    step checkable is a validate requirement, never an author's discretion). Legacy blocks
+    //    (no `- **Steps**:` marker) parse no steps — the dual-read tree is unaffected; a step whose
+    //    action line drops the ` — checkable:` separator parses with an empty checkable and fails.
+    for (const task of this.tasksFromPlan(planPath)) {
+      for (const step of task.steps) {
+        if (!step.checkable) {
+          failures.push({
+            artifact: "plan",
+            file: planPath,
+            field: "`checkable`",
+            missing: `task step "${step.action}" carries no checkable outcome`,
+            fix: "end every `- **Steps**:` entry's action with ` — checkable: <outcome>` (the verifiable outcome is the step's acceptance evidence)",
+          });
+        }
+      }
+    }
+
+    // 5. Form-B prohibition on new-shape plans (design C4 — the delta-only constraint surface):
+    //    the Form B prose-pointer headings are the LEGACY constraint read. A new-shape plan —
+    //    recognized by the data-shaped task records (the T3 Task data face) or the literal
+    //    `## Constraints` delta section — must never declare Form B: the delta section is the
+    //    single new-shape surface (the inherited spec/overall conventions auto-apply). The legacy
+    //    tree keeps the dual-read exemption — a plan with neither marker (the Form B prose-pointer
+    //    era docs) is untouched.
+    const newShape =
+      this.tasksFromPlan(planPath).length > 0 ||
+      constraintsSectionOf(content, this.body.projectSlicePatterns().constraintsHeading) !== null;
+    if (newShape && extractProseConstraints(content) !== null) {
+      failures.push({
+        artifact: "plan",
+        file: planPath,
+        field: "Constraints source",
+        missing: `a new-shape plan declares the legacy Form B prose pointer headings (${DOC_TOKENS.proseAnchorTokens.map((t) => `\`${t}\``).join(" / ")})`,
+        fix: `drop the Form B prose headings and declare the plan's delta under a literal ${DOC_TOKENS.constraintsHeading} section (the parent-overall conventions auto-apply)`,
       });
     }
     return failures;

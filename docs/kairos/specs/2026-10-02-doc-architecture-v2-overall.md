@@ -1,6 +1,6 @@
 # 文档架构方法论 v2（Doc Architecture v2）— Overall Spec
 
-- **Version**: v1.2 · 2026-10-04（P1 起写期裁决（grilling Q6 回填）：'doc-structure schemas' 术语语义收窄 = 三类书面 artifact 形状（phase-spec/plan/overall）入 schema 工厂——add-phase-protocol（注册协议，P6 宪法层关注）/ skill-anatomy（kairos skill 文法注册表，消费面 scripts ContractLexiconGuard）非 doc 结构，留手写 JSON + schema.test 校验；与 A1「三 doc type 实例」对齐，P2/P6 依赖此语义；v1.1 记录保持）
+- **Version**: v1.5 · 2026-10-05（P2 计划完成回填（engine CLOSEOUT：branch-review 预条件）：Phase inventory P2 行 design/plan Done + plan-link claim + Acceptance 交付记录；v1.4 注册保持）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（kairos:cdd-design → grilling 元层）
 - **Constraints**:
@@ -84,23 +84,25 @@ Charter only, zero implementation detail. **Overall approval is not equivalent t
 
 | Phase | Issue (ref) | Title summary |
 |---|---|---|
-| P1 | none | DocType 抽象 + schema 工厂：五域 DocType（shape/words/instructions/refKind/bodyView）· template-contract/lexicon/doc-structure schema 收编为 DocType 字段 · engine `documents/` per-type 手写分支 → DocType 实例方法（Criterion ②）· doc-structure schemas 以 schema 工厂原子化派生。**（'doc-structure schemas' 语义 = 三类书面 artifact 形状：phase-spec/plan/overall——add-phase-protocol/skill-anatomy 属协议/注册 schema 非 doc 结构，留手写 JSON + schema.test 校验；v1.2 裁决）** |
-| P2 | none | 文档平面瘦身：phase-spec 样板 schema 化（`## Design` + `### Acceptance criteria` 唯一 + `## Constraints` 继承点；增量警告/约束指针/偏差/下游注/评审记录 → schema description + 条件元数据）· plan Task=数据（task `{objective,files,interface,steps,acceptance}` + step checkable 类型约束 + brief 数据渲染）· plan 约束继承 delta-only（宪法 auto-applies，per-plan 复述清零） |
+| P1 | none | DocType 抽象 + schema 工厂：五域 DocType（shape/words/instructions/refKind/bodyView）· template-contract/lexicon/doc-structure schema 收编为 DocType 字段 · engine `documents/` per-type 手写分支 → DocType 实例方法（Criterion ②）· doc-structure schemas 以 schema 工厂原子化派生。**（'doc-structure schemas' 语义 = 三类书面 artifact 形状：phase-spec/plan/overall——add-phase-protocol/skill-anatomy 属协议/注册 schema 非 doc 结构，留手写 JSON + schema.test 校验；v1.2 裁决）。P1 全量落地（2026-10-05）：design v1.1 · plan v1.1 · 实现 T1–T7 merged #315，documents/ 分支归零 · 派生产物字节保真 · 验收全绿。** |
+| P2 | none | 文档平面瘦身：phase-spec 样板 schema 化（`## Design` + `### Acceptance criteria` 唯一 + `## Constraints` 继承点；增量警告/约束指针/偏差/下游注/评审记录 → schema description + 条件元数据）· plan Task=数据（task `{objective,files,interface,steps,acceptance}` + step checkable 类型约束 + brief 数据渲染）· plan 约束继承 delta-only（宪法 auto-applies，per-plan 复述清零）。**P2 全量落地（2026-10-05）：design v1.1 · plan v1.1 · 实现 T1–T7 全闭环——DocBody 模型 + 三真骨架 + Task 数据化 + delta-only 双侧 + 双读。** |
 | P3 | none | TaskGraph 分组派生：task `depends_on`/`atomic_with` → DAG → 拓扑序分组（`## Task Groups` 字面段删除）· plan-parse crisp BLOCK（无环 / union==task set / atomic 闭包）· 「先清底再上闸」= 图性质非文字 |
 | P4 | none | `cdd-doc-review` first-party skill（kairos 第 9 席）：URC（spec 三轴 / plan 三轴）+ writing-plans 自检准则（spec 覆盖/占位扫/类型一致）+ verification evidence + grilling 追问——组合体内化单 skill · skill-anatomy registry 注册 + 目录扫描守卫含新成员 + README/tests/changeset |
 | P5 | none | DispatchContract + DispatchPacket：harness-contract `dispatch` 域重构（skills 有序链 + `capabilities` per-harness 子代理面 + `refKind` commit-set/commit-range/doc-revision/graph-node + bodyView）· ref 机制（R1 handoff ledger·R2 doc-revision 双层收敛·R3 一体）· DispatchPacket 正文（InstructionUnit 结构化 + return/evidence schema 引用 + BodyView 分型 + convergence 数据 + constraints 子集过滤）· 三处禁文删除（harness-contract:94,98 + template-contract axesGuide）· M1 supersede 落地（dispatch.implement 自 tdd 改指 mattpocock-skills:implement + refs 域登记，规格锚 M1 行「P5 待办」） |
 | P6 | none | overall 宪法/档案分层：宪法本体（Goal/Standing rules 规范化折叠/Cross-cutting/Phase inventory/Dependency graph）+ `*-archive.md`（issue/history 结构化 record + doc-revision ref 机械化 backfill）· **「空壳、死代码即删」入 Standing rules 常态化** · 版本行 lineage 散文消解 |
+| P7 | none | **engine token 翻译能力（English-primary + 中文支持）**（用户 2026-10-05 拍板，P2 实现会话 mid-flight backfill）：doc 结构 token 面（DOC_TOKENS / shape 标记如 `- **验收**:` · `- **注**:` · Form B 锚名）全 English-primary 化 + 翻译层（中文别名 ↔ 英文规范型双向识别，legacy 中文标记保持可解析）· 词表 / 胶囊输出词面 locale 支持（locale-normalized 消费）· 新骨架 schema / DOC_TOKENS description 零中英混杂机器标记 |
 
 ## Phase inventory
 
 | # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |
 |---|---|---|---|---|---|---|
-| P1 | DocType 抽象 + schema 工厂 | 五域 DocType + doc-structure schema 工厂 + template-contract/lexicon 收编 + documents/ 分支收敛 | [Pending] | [Pending] | 三 doc type 以 DocType 实例落地；schema 工厂产出与现 schema 语义等价（validate 全绿）；documents/ per-type 手写分支归零（Criterion ② 类面无裸函数）；residue/lexicon guard 零回归 | 无（program 起点） |
-| P2 | 文档平面瘦身 | phase-spec 样板 schema 化 + plan Task=数据 + 约束继承 delta-only | [Pending] | [Pending] | 新 phase-spec 骨架 = `## Design`+`### Acceptance criteria`+`## Constraints`；样板文字零 per-doc 残留（旧文档渐进迁移交割面定义）；plan Task 数据化后 brief = 数据渲染（零散文雕刻）；per-plan 宪法复述清零 | P1 ->(hard) |
+| P1 | DocType 抽象 + schema 工厂 | 五域 DocType + doc-structure schema 工厂 + template-contract/lexicon 收编 + documents/ 分支收敛 | Done | Done | 落地交付记录：五域 DocType 抽象 + DocTypeRegistry（resolve 未知 throw · all() 固定序 [overall,plan,spec]）+ 三子类 per-type validate/parse 收编 · shape 域 + SchemaFactory（config/schema/*.json 派生化字节保真，diff 钉 ×3）· words 域 + contract-lexicon.json 派生化字节等价 · bodyView 分型面（reviews.{spec,plan} 迁 doctypes/body-views.ts）+ TemplateLoader 重接 · 收敛接线 S1/S4/S5/S6（docKindOf 删除 · detect 注册表有序扫描 · CLI --type 经 DocType.lifecycle）· S8 tokens shape 域（deriveDocTokens 经 DocType.shape，DOC_TOKENS 字节不变）——documents/ per-type 手写分支归零（Criterion ② 类面无裸函数）；engine 1263/1263 绿 · validate ALL PASS（residue/lexicon guard 零回归）· typecheck 三项目绿 · biome clean · emit 新鲜 | 无（program 起点） |
+| P2 | 文档平面瘦身 | phase-spec 样板 schema 化 + plan Task=数据 + 约束继承 delta-only | Done | Done | 落地交付记录：DocBody 类型化正文模型（PhaseSpecBody 三真骨架 + 条件段 / PlanBody Task 数据化 + brief 数据渲染 + SlicePattern 投影 + `dependsOn?`/`atomicWith?` P3 扩展位）· DOC_TOKENS 环安全叶子绑定（body 叶子投影 → DocType.shape + tokens 同源同值）+ 加载序回归 · 约束继承 delta-only 双侧（plan/spec 读整体 + 合并呈现 · Form B 新 doc 禁 · legacy 双读）· legacy 六段/Form B 双读契约 + extractor 投影单源（taskNumbersFromPlan）· DOC_TOKENS deliberate update 重 pin · SKILL 骨架指导语同步 + skill-anatomy · changesets——engine suite 全绿 + validate ALL PASS；P2 自身 spec/plan 按当前规范形（Section 0–5 / Form A）写成 | P1 ->(hard) |
 | P3 | TaskGraph 分组派生 | task 边模型 + 拓扑序分组 + plan-parse 校验 + 字面段删除 | [Pending] | [Pending] | `depends_on`/`atomic_with` 声明 → 派生组与意图一致（含负例：无环断言、union==task set、原子闭包 crisp BLOCK 测试）；字面 `## Task Groups` 段零存在（新文档）；「先清底再上闸」拓扑性质测试钉 | P1 ->(hard) |
 | P4 | `cdd-doc-review` 一产化 | URC + 三纪律组合 skill（kairos 第 9 席） | [Pending] | [Pending] | SKILL.md 方法论完整（URC 三/三轴 + writing-plans 自检 + verification + grilling 组合）；skill-anatomy registry 注册 + 目录扫描守卫绿；README/测试/changeset 随 | P2 ->(hard) |
 | P5 | DispatchContract + DispatchPacket | harness-contract dispatch 域重构 + ref 统一 + 正文类型化 | [Pending] | [Pending] | skills 有序链渲染（多 `/xxxx`/`/skill:` form）· capabilities per-harness 声明（claude=parallel 实测子代理面）· refKind 四型推导（commit-set ledger / commit-range / doc-revision 双层收敛 / graph-node）· 三处「并行禁」禁文删除 · DispatchPacket 正文 = InstructionUnit + schema 引用 + BodyView + convergence 数据（原尺寸 -30~50% 断言）· engine suite 全绿 | P1 ->(hard) · P3 ->(hard) · P4 ->(hard) |
 | P6 | overall 宪法/档案分层 | Constitution + archive 分层 + Standing rules「空壳死代码即删」常态化 | [Pending] | [Pending] | 新整体以宪法/档案双层落地（issue/history 结构化 record 零 prose 格）；backfill-as-version 机械化（archive doc-revision ref）；Standing rules 含「空壳、死代码即删」；版本行 lineage 散文消解（修订记录结构化）；历史正文零 retro-rename | P1 ->(hard) |
+| P7 | Engine token 翻译能力 | doc/shape token English-primary + 翻译层 + 词面 locale 支持 | [Pending] | [Pending] | 机器可识别标记全 English-primary（新骨架 schema / DOC_TOKENS description 零中英混杂，grep 断言含注释）；中文别名 ↔ 英文规范型双向解析（legacy 中文标记 doc 仍可 parse/validate）；词表 / 胶囊输出 locale-normalized 消费（如有）；既有中文标记文档树零改动（双读保持）；validate 全绿 | P2 ->(hard) · P5 ->(hard) |
 
 ## Dependency graph (ASCII)
 
@@ -112,13 +114,15 @@ P1 -> P6   (hard: archive doc-revision ref 依赖 DocType refKind 面)
 P2 -> P4   (hard: cdd-doc-review 依赖 P2 的 acceptance claim 形态与文档瘦身面)
 P3 -> P5   (hard: DispatchContract graph-node ref 依赖 TaskGraph)
 P4 -> P5   (hard: dispatch skills[] 引用 cdd-doc-review 需 skill 在位)
+P2 -> P7   (hard: token 翻译层改造对象 = P2 重派生的 doc token 面)
+P5 -> P7   (hard: 引擎输出词面 locale 依赖 P5 dispatch 词面契约)
 ```
 
 Legend:
 - `->` = hard block（依赖前置 phase 发布后方可启动）
 - `-> (soft)` = suggestion only（本图无边）
 
-执行序：P1 →（P2 ‖ P3 ‖ P6 可按依赖并行注册但执行按注册序串行）→ P4 → P5；本整体执行线押后（pi-harness P5 结束）+ 按注册序串行。
+执行序：P1 →（P2 ‖ P3 ‖ P6 可按依赖并行注册但执行按注册序串行）→ P4 → P5 → P7；本整体执行线押后（pi-harness P5 结束）+ 按注册序串行。
 
 ## Boundary rules
 
@@ -140,3 +144,6 @@ Legend:
 | v1.0 | 2026-10-02 | 程序 charter：文档架构方法论 v2——DocType 抽象（五域）/ TaskGraph 分组 / DispatchContract+DispatchPacket / overall 宪法+档案分层 / `cdd-doc-review` 一产化 · 破坏性授权 + **空壳死代码即删常设规则** + 尽量复用上游规则 + 先落留存 P5 后开线 GATE · 全量决策留存（M1–M4 / F1–F5 / R1–R5 / B1–B5 / 经验债 P1–P7 / 上游先例背书）· Issue/Phase inventory ×6 + 依赖图 | [human] · Claude Opus 5 (1M context)（kairos:cdd-design 元层 grilling） |
 | v1.1 | 2026-10-02 | cdd spec-review-1 七 finding 落地（blocker 0）：Goal 量级校正（4 overall / 18 design / 19 plan / pi-harness 单系 28 版本）· E 组改号避双义 · R4 commit-range 补行 + M4a 处置 · I10 悬空引用按语义改写消解 · File paths 补 archive · 依赖图补 P1→P5 · **M1 恢复判定**（fix-agent 误 revert → 设计属主恢复 `mattpocock-skills:implement` + 实存证据 + supersede tdd 登记） | [human] · Claude |
 | v1.2 | 2026-10-04 | **Q6 裁决登记**（doc-architecture-v2 P1 起写期 grilling）：'doc-structure schemas' 语义收窄 = 三类书面 artifact 形状（phase-spec/plan/overall）入 schema 工厂；add-phase-protocol/skill-anatomy 非 doc 结构留手写 JSON + schema.test 校验（对齐 A1 三实例；P2/P6 依赖此语义）——P1 Issue-inventory 行附记同步 | [human] · Claude Opus 5（kairos:cdd-design → grilling） |
+| v1.3 | 2026-10-05 | **P1 完成回填**（doc-architecture-v2 P2 会话开线同步）：P1 Implementation plan 列回填：Pending → Done（plan [2026-10-02-doc-architecture-v2-p1.md v1.1](docs/kairos/plans/2026-10-02-doc-architecture-v2-p1.md)）· P1 Design spec 列回填 `Done` 完成标记（design v1.1 已批形态）· Acceptance 列落实际交付记录 · Issue inventory P1 附记 · P1 plan 文件名对齐 program slug 惯例（补 `-p1` 后缀）——serial-phase 门槛（P1 Design spec ≠ Done 读法）经回填消解，P2 grilling 干净开线 | [human] · Claude Opus 5（kairos:cdd-design） |
+| v1.4 | 2026-10-05 | **P7 注册**（doc-architecture-v2 P2 实现会话 mid-flight backfill，用户 2026-10-05 拍板）：新增 Issue/Phase inventory P7「engine token 翻译能力」——doc 结构 token 面（DOC_TOKENS/shape 标记 · Form B 锚名）English-primary 化 + 翻译层（中文别名 ↔ 英文规范型双向识别，legacy 中文标记保持可解析）+ 词表/胶囊输出词面 locale 支持；依赖图补 P2→P7 · P5→P7（hard）+ 执行序 P5 后串行 | [human] · Claude Opus 5（kairos:cdd-design） |
+| v1.5 | 2026-10-05 | **P2 计划完成回填**（engine CLOSEOUT：branch-review 预条件）：P2 Implementation plan 列回填：Pending → Done（plan [2026-10-02-doc-architecture-v2-p2.md v1.1](docs/kairos/plans/2026-10-02-doc-architecture-v2-p2.md)）· P2 Design spec 列回填 Done 完成标记（design v1.1 已批，spec-review 全落地）· Acceptance 列落交付记录 · Issue inventory P2 附记 —— P2 cdd 链 7/7 全闭环 | [human] · Claude Opus 5（kairos:cdd-design） |

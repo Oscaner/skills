@@ -7,8 +7,9 @@
 //     delta-only `## Constraints` (Form B prose pointers banned for new docs, retained for the
 //     legacy dual-read tree only), the `tasks[]` Task data shape (objective / files / interface
 //     {consumes,produces} / steps[]{action,checkable} / acceptance[] + the P3 dependsOn?/atomicWith?
-//     extension bits) and the taskGroups dispatch-group declaration (the P3 extension slot — the
-//     DOC_TOKENS layout leaves preserved);
+//     extension bits), the taskGroups dispatch-group declaration (the P3 extension slot — the
+//     DOC_TOKENS layout leaves preserved) and the `language` authoring-language policy note (the
+//     plan is a Strategy B internal doc — prose in the working language, value tokens neutral);
 //   - the DOC_TOKENS derived-leaf invariant: the re-projection keeps the four deriveDocTokens leaf
 //     paths/values (taskHeadings.format · constraints.formACanonical.heading ·
 //     constraints.formBProseAnchors.anchors.items.enum · the taskGroups layout nodes) — deriveDocTokens
@@ -202,6 +203,13 @@ describe("PLAN_BODY_SHAPE — the full-field data-shape projection", () => {
       "^- \\*\\*Task (?:\\d+(?:, \\d+)*)\\*\\*:",
     );
     expect(node(["taskGroups", "items", "properties", "tasks"]).minItems).toBe(2);
+  });
+
+  it("language carries the authoring-language policy guidance (the plan is a Strategy B internal doc)", () => {
+    expect(node(["language"]).type).toBe("object");
+    const desc = node(["language"]).description ?? "";
+    expect(desc).toMatch(/working language/);
+    expect(desc).toMatch(/Strategy B/);
   });
 });
 

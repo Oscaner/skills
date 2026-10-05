@@ -346,6 +346,11 @@ export const PLAN_BODY_SHAPE: SchemaShape = {
       description:
         "Dispatch-group declaration — the plan author's dispatch-grouping decision in `author-plan` (its sole writer), carried by the plan's `## Task Groups` section; every dispatch iteration under `implement-group` reads it. Empty default: `[]` / an absent section ⇒ every `### Task N:` is its own singleton group — effectiveGroups = [[1],[2],…,[N]], exactly the pre-group per-task dispatch (zero migration); non-empty ⇒ effectiveGroups = the declared merged groups ∪ implicit single-task groups for any task a partial declaration leaves uncovered (the union is always the full plan task set). Section-persist rule: the section lands only when a non-trivial merged group exists — no groups → no section → empty default (zero plan churn).",
     },
+    language: {
+      type: "object",
+      description:
+        "Repo authoring policy applies to the plan's prose — the plan at docs/kairos/plans/ is an internal program doc written in the working language (Strategy B), value tokens (ids / tags / SHAs / paths) stay locale-neutral.",
+    },
   },
 };
 

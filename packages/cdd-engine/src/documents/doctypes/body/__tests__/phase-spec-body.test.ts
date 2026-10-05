@@ -170,12 +170,19 @@ describe("new-skeleton docContractValidate (design C2) — fixture evidence", ()
   });
 
   /** Write a doctored spec to a temp file and run the phase-spec validate against it (the doc
-   *  contract reads the file — the doctoring surface for the structural-consequence negatives). */
+   *  contract reads the file — the doctoring surface for the structural-consequence negatives).
+   *  The deterministic sibling `parent-overall.md` fixture is copied alongside, so the doctored
+   *  spec's `**Parent program**` pointer keeps resolving — the negatives fail on their intended
+   *  axis only, never on the inheritance-point linkage. */
   function doctored(content: string, run: (specPath: string) => void): void {
     const dir = mkdtempSync(path.join(tmpdir(), "phase-spec-body-"));
     try {
       const specPath = path.join(dir, "doctored-phase-spec-design.md");
       writeFileSync(specPath, content);
+      writeFileSync(
+        path.join(dir, "parent-overall.md"),
+        readFileSync(path.join(FIXTURES, "parent-overall.md"), "utf8"),
+      );
       run(specPath);
     } finally {
       rmSync(dir, { recursive: true, force: true });

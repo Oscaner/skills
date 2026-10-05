@@ -3,7 +3,7 @@
 - **Version**: v1.0 · 2026-10-05
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5
-- **Parent program**: [2026-09-27-pi-harness-overall.md v1.29](docs/kairos/specs/2026-09-27-pi-harness-overall.md)
+- **Parent program**: [parent-overall.md v1.0](./parent-overall.md)
 - **Depends on**: P1（shipped）
 
 ## Design

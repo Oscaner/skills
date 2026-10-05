@@ -30,6 +30,7 @@ import {
   linksOnLine,
   ownDesignToken,
   resolveAny,
+  sectionBoundaryRe,
 } from "./shared.ts";
 
 // ---- plan-contract atoms (module-private — one consumer: the plan doc type) ----
@@ -40,17 +41,16 @@ const PLACEHOLDER_RE = /{{\s*[^{}>\n]+\s*}}/g;
 
 // The standard section stop set — the structural boundary that closes a `##`-level section: a
 // `#`/`##` heading or a `---` rule (the `### Task ` heading clause — DOC_TOKENS.taskHeadingPrefixRe —
-// rides alongside where the section must not swallow task atoms). ONE shared definition for every
-// section parser (task-groups / the prose-block boundary array), so a boundary edit lands once
-// instead of drifting per-parser. The Form-A constraints-section extractor lives on the shared
-// doctype atoms (constraintsSectionOf — the same `/^(#{1,2}\s|---\s*$)/` boundary).
-const PLAN_SECTION_BOUNDARY = /^(#{1,2}\s|---\s*$)/;
+// rides alongside where the section must not swallow task atoms). The base set is the SHARED
+// doctype-layer constant (sectionBoundaryRe in shared.ts — ONE definition for every section parser:
+// the Form-A constraints-section extractor / this prose-block array / the task-groups walk), so a
+// boundary edit lands once instead of drifting per-parser.
 
-// Block boundary for the prose-pointer form (composes the shared PLAN_SECTION_BOUNDARY set): a
+// Block boundary for the prose-pointer form (composes the shared sectionBoundaryRe set): a
 // `---` rule or a `#`/`##` heading, a `### Task ` heading — or another `**…**：` declaration heading
 // (any prose-pointer-style bold heading begins a new declaration block).
 const PROSE_BLOCK_STOP = [
-  PLAN_SECTION_BOUNDARY,
+  sectionBoundaryRe,
   DOC_TOKENS.taskHeadingPrefixRe,
   /^\*\*[^*]+\*\*[：:]/,
 ] as const;
@@ -283,16 +283,15 @@ export class PlanDocType extends DocType {
    * merged groups as TaskGroup[] — one `- **Task 1, 2**: <note>` line per group (the captured comma-
    * space number list, the `--tasks <a>,<b>` join form), each parsed to sorted unique integers.
    * No section / empty section → [] (the empty default — the section is written ONLY when a
-   * non-trivial merged group exists, so its absence IS the default). Section boundary = the standard
-   * PLAN_SECTION_BOUNDARY stop set (a `#`/`##` heading, a `### Task ` heading, or a `---` rule). */
+   * non-trivial merged group exists, so its absence IS the default). Section boundary = the shared
+   * sectionBoundaryRe stop set (a `#`/`##` heading, a `### Task ` heading, or a `---` rule). */
   taskGroupsFromPlan(planFile: string): TaskGroup[] {
     const lines = readFileSync(planFile, "utf8").split("\n");
     const start = lines.findIndex((l) => DOC_TOKENS.taskGroupsHeadingRe.test(l));
     if (start === -1) return [];
     const groups: TaskGroup[] = [];
     for (let i = start + 1; i < lines.length; i++) {
-      if (PLAN_SECTION_BOUNDARY.test(lines[i]) || DOC_TOKENS.taskHeadingPrefixRe.test(lines[i]))
-        break;
+      if (sectionBoundaryRe.test(lines[i]) || DOC_TOKENS.taskHeadingPrefixRe.test(lines[i])) break;
       const m = lines[i].match(DOC_TOKENS.taskGroupsLineRe);
       if (!m) continue;
       groups.push(TaskGroup.fromNumbers(m[1].split(",").map((s) => Number(s.trim()))));

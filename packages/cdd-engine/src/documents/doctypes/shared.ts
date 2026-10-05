@@ -86,10 +86,13 @@ export function resolveParentOverall(
 }
 
 // The standard section stop set — the structural boundary that closes a `##`-level section: a
-// `#`/`##` heading or a `---` rule. ONE shared definition for the Form-A constraints-section
-// extractor (the task-heading stop rides alongside — the brief-extraction atom a constraints
-// section must not swallow; specs carry no `### Task N:` headings, the stop is harmless there).
-const CONSTRAINTS_SECTION_BOUNDARY = /^(#{1,2}\s|---\s*$)/;
+// `#`/`##` heading or a `---` rule. ONE shared definition across the doctype-layer section parsers
+// — the Form-A constraints-section extractor here + the plan's prose-block stop and task-groups
+// walk (plan.ts imports the same constant), so a boundary edit lands once instead of drifting
+// per-parser. The task-heading stop rides alongside where a section must not swallow a
+// `### Task N:` heading (the brief-extraction atom a constraints section must not swallow; specs
+// carry no `### Task N:` headings, the stop is harmless there).
+export const sectionBoundaryRe = /^(#{1,2}\s|---\s*$)/;
 
 /** Deterministic extraction of the canonical Form-A constraint source — a literal top-level
  *  `## Constraints` section (heading + content to the first structural boundary: a `#`/`##`
@@ -110,10 +113,7 @@ export function constraintsSectionOf(content: string): string | null {
   if (start < 0) return null;
   let end = lines.length;
   for (let i = start + 1; i < lines.length; i++) {
-    if (
-      CONSTRAINTS_SECTION_BOUNDARY.test(lines[i]) ||
-      DOC_TOKENS.taskHeadingPrefixRe.test(lines[i])
-    ) {
+    if (sectionBoundaryRe.test(lines[i]) || DOC_TOKENS.taskHeadingPrefixRe.test(lines[i])) {
       end = i;
       break;
     }

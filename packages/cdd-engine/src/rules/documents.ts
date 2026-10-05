@@ -125,8 +125,12 @@ export class DocumentsValidator {
     return planType().effectiveGroups(planPath);
   }
 
-  /** Deterministic extraction from the plan's declared Constraints source (Form A / legacy Form B)
-   *  — delegated to the plan doc type (the canonical extractor's home). */
+  /** LEGACY raw read — deterministic extraction from the plan's declared Constraints source (Form A
+   *  literal delta section / legacy Form B prose pointer): delta-only, NO inherited-constitution
+   *  join — delegated to the plan doc type (the canonical extractor's home). Kept byte-identical
+   *  for the legacy consumers / zero-regression bar; new-shape consumers that need the merged
+   *  presentation (the own delta + the auto-applied parent-overall conventions) must call
+   *  planConstraintsOf instead. */
   extractPlanConstraints(planContent: string): string | null {
     return planType().extractPlanConstraints(planContent);
   }

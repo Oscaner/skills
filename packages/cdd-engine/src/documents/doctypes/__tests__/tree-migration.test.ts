@@ -14,9 +14,6 @@
 //     2026-09-28-cdd-review-contract-fix.md) IS a normal plan and migrates at T6 (its validate
 //     chain carries the one-off spec's documented 4 failures — recorded by the plan-Do family
 //     assertion, never T6 scope).
-//   - the one-off spec (2026-09-28-cdd-review-contract-fix.md — no parent overall / canonical
-//     schema, the engine no longer recognises it) is walked but tolerated: never counted, never
-//     migrated, never in the canonical set.
 // T5 flips the ENTIRE design-spec family pending → canonical (20 six-section specs → the
 // three-truth skeleton, content-faithful transcription). A canonical spec validates green on its
 // OWN surface (zero spec-owned failures); the 13 specs whose parent overall is a frozen legacy

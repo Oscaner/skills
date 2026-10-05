@@ -273,7 +273,7 @@ Task 10 对 GitHub 仓库元信息（description / topics）做外发变更—�
 - **Steps**:
   1. ① P4.2 变更登记 changeset——cdd-engine（`cdd issue render` new surface = minor，随 pending majors 集成发版至 1.0.0）+ osuperpowers（宣讲/pack 面 = patch/minor）各一 — checkable: 新增 changeset 落盘（`.changeset/consumer-parity-p4.2-*.md` ×2，规范头 + EOF 换行）
   2. ② **发布预案本地验证**：`pnpm run validate` 11 块全绿 + `node scripts/run.ts smoke-cdd`（pre 基线门形态）全通 + `changeset status` 演练（pending 清单正确：overhaul ×9 + p2-major + p4.3 + p4.4 ×5 + P4.2 ×2；backlog ×6 已清） — checkable: `pnpm run validate` 11 块全绿；`node scripts/run.ts smoke-cdd` 全通；`changeset status` 输出 pending 清单核对一致（backlog 零）
-  3. ③ 收口回填：overall P4.2 行 Implementation plan 列 [Pending] → **Done** + change-history 行（backfill-overall，branch-review 前置义务）；`pnpm run changeset` 与 changeset 文件规范；④ 发布执行交棒 main（Version PR → publish → post 门 --expect-version → 双 tag + GH Release ×2 + sync）；本 task 验收 = **发布就绪态 + 收口回填**——spec §6 的**外部 post-publish 态**在 CI 执行前**非本 round 可达**，登记为 CI 后程序级外验项（owner = 收口复核或后续 dispatch） — checkable: overall P4.2 行 Implementation plan 列 = **Done** + change-history v-bump 行（四表 closeout 一致性）；P4.2 交付面 = spec §6 验收探针 **round 内可证子集** 全绿；**外部 post-publish 态登记有主**（npm 发布实证 + GitHub Release ×2 落盘 = CI 后程序级外验项，本 round 不执行、不宣称，四表 Done 声明范围与此对齐）
+  3. ③ 收口回填：overall P4.2 行 Implementation plan 列 [Pending] → **Done** + change-history 行（backfill-overall，branch-review 前置义务）；`pnpm run changeset` 与 changeset 文件规范；④ 发布执行交棒 main（Version PR → publish → post 门 --expect-version → 双 tag + GH Release ×2 + sync）；本 task 验收 = **发布就绪态 + 收口回填**——spec §6 的**外部 post-publish 态**在 CI 执行前**非本 round 可达**，登记为 CI 后程序级外验项（owner = 收口复核或后续 dispatch） — checkable: overall P4.2 行 Implementation plan 列 = **Done** + change-history v-bump 行（四表 closeout 一致性）；P4.2 交付面 = spec §6 验收探针 **round 内可证子集** 全绿；**外部 post-publish 态登记有主**（= 验收⑥ 登记项，本 round 不执行、不宣称）
 
 - **Acceptance**:
   - `pnpm run validate` 11 块全绿（含 emit:check / version-sync / scripts unit / marketplace）
@@ -281,6 +281,7 @@ Task 10 对 GitHub 仓库元信息（description / topics）做外发变更—�
   - 新增 changeset 落盘（`.changeset/consumer-parity-p4.2-*.md` ×2，规范头 + EOF 换行）
   - overall P4.2 行 Implementation plan 列 = **Done** + change-history v-bump 行（四表 closeout 一致性：plan 列 Done ⇔ round 内可证子集 claim + 外部 post-publish 态有主——见验收⑥，声明源不外扩到未执行面）
   - P4.2 交付面 = spec §6 验收探针 **round 内可证子集** 全绿（版本基线、原生管线实证、issue render 确定性、白名单、workflows、宣讲、**maintainers 收敛（判据 = plan 锚 ≤53KB，绑定 Constraints「spec 目标偏离」声明——spec §6 旧值 42KB 不判不合格，spec 修订以 spec fix 轮落盘为准）**、gh 元信息）
+  - **外部 post-publish 态登记有主**：npm 发布实证（`npm view` 可达）+ GitHub Release ×2 落盘 = CI 执行后的程序级外验项（owner = 收口复核 / 后续 dispatch）；本 round 不执行、不宣称，四表 Done 声明范围与此对齐
 
 
 ### Task 12: plan-constraints 每 TG 再生 — 彻底去 generate-once（TG8 · 2026-09-26 mid-backfill 追加）

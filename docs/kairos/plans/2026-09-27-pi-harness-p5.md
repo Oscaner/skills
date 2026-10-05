@@ -184,7 +184,7 @@
 - **Steps**:
   1. 新建 `packages/cdd-engine/tsconfig.build.json`：nodenext · rewriteRelativeImportExtensions · noEmit: false · outDir dist · rootDir src · exclude `**/__tests__/**` · typeRoots 显式 engine node_modules/@types · verbatimModuleSyntax/erasableSyntaxOnly/strict/skipLibCheck 保持 — checkable: `tsc -p tsconfig.build.json` exit 0（发布 emit）· 产物 `dist/bin.js` shebang 保留 + 相对 import 全 `.js`（无 .ts 残留引用）
   2. engine `package.json`：`bin` → `{"cdd": "dist/bin.js"}` · `main`/`exports["."]` → `./dist/bin.js` · `files` → `["dist/","config/","templates/"]`（**`src/` 零 ship**——发布必 JS）· `engines` → `>=22.18.0` · 重建 `"build"` script = `tsc -p tsconfig.build.json && <config→dist/config copy>`；engine README 对 toolchain/dev-invocation 段 → `node packages/cdd-engine/src/bin.ts`、移除 dev:stub/dist/cli.mjs 引用 — checkable: `pnpm pack` 产物含 `package/dist/bin.js`、**不含 `package/src/`**；engine README 对 live 面零 `dev:stub`/`dist/cli.mjs`（grep；发布面 schema/产物除外）
-  3. **实证锚**：`pnpm pack`（packages/cdd-engine，目标 files/bin）→ 临时项目 `npm install <tgz>` → `.bin/cdd --help` exit 0（走真实引擎栈；dev 面 node src/bin.ts 冒烟已在 T7 验） — checkable: 临时安装 `.bin/cdd --help` exit 0；engine suite 全绿 · `pnpm run precommit` 绿（注：发布 tsc --emit 前置 = T2 结算；`dist/cli.mjs` 名随 unbuild 退役）
+  3. **实证锚**：`pnpm pack`（packages/cdd-engine，目标 files/bin）→ 临时项目 `npm install <tgz>` → `.bin/cdd --help` + `schema get overall` 走真实引擎栈（包装面双探针；dev 面 node src/bin.ts 冒烟已在 T7 验） — checkable: 临时安装 `.bin/cdd --help` exit 0（`schema get overall` 同栈探针）；engine suite 全绿 · `pnpm run precommit` 绿（注：发布 tsc --emit 前置 = T2 结算；`dist/cli.mjs` 名随 unbuild 退役）
 
 - **AtomicWith**: 7
 

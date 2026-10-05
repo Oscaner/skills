@@ -7,60 +7,77 @@
 - **Base**: develop（finishing read-base 的数据源）
 
 ## Constraints
-
 ### 口径
 
+- P6 是**终局收口 phase**，承载 §2.0 收敛论点——**每一项删除面有残留守卫、每一项收敛面有机械断言、每一项纪律有执法位（零纸面宣称）**。七域执行（A 能力宣称收缩 · B vendors 全撤 · C 测试就近+M1–M7 · D 模板系统化+C1–C7+双平面 · E 流程原子性+cdd 六缺口+stall · F 收口复核 F1–F8 · G 自省四修 G1–G4）。**诚实边界**：cache 验收为 dev 侧实测（CI 无 harness 不 gate）；术语改名（Review Convergence）历史 changelog/spec-plan 豁免。所有改动 `pnpm run validate` 全绿 + `emit:check` 无 drift。
 
 ### v1.2 回填（overall v1.45 / spec v1.8 同窗，用户 2026-09-18 TTL-free 升维指示）
 
+- 新增 **Task 20「模板系统化终态（C1-max 字节布局层）」**——统一壳 + 槽级三段制（`壳 → Return → Round context 绝对末尾`）+ 渲染数据平面单文件（四 `.md` 并入 template-contract.json `sections`，`.md` 删除/派生）+ token `zone` 归属 + C4 升格（壳=无参常数）+ 门面去路径化 + `WORKSPACE_SLUG`（plan/spec 收敛）。**编号说明**：engine brief 提取为 `/^### Task \d+:/`（整数契约），不采用小数主号——Task 20 为追加号，**实施时序位于 T8 之后、T9 之前**（T8 三断言先立 → C1-max 落终态布局 → T9/T12/T18 直接落终态，零二次改动）。
 
 ### v1.3 回填（overall v1.46 / spec v1.9 同窗，用户 2026-09-19 指示）
 
+- 新增 **Task 21「scripts/ 与 cdd-engine 统一 CLI 框架 + 测试就近 `__tests__` 化」**——scripts/run.ts 弃 Commander 改 citty（engine 同款）+ observe-cache.ts 手写 parseArgs 归 citty argsDef（boolean presence 语义保留）+ 退出码 table 对齐 engine（P5 §2.4.2）+ commander 根 devDep 移除 + citty 入根 devDeps；scripts 测试全迁 `__tests__/`（<dir>/__tests__/ + 顶层 scripts/__tests__/）+ root vitest include 收敛 `scripts/**/__tests__/**/*.test.ts`（T3 内存守卫不变）。
 
 ### v1.4 回填（overall v1.47 / spec v1.10 同窗，用户 2026-09-19 指示）
 
+- 新增 **Task 22「plan-constraints 物料化契约」**（`cdd implement` pre-flight 自本 plan 声明源生成 plan-constraints.md（惜缺即生成 · 存在性门缺失/不可解均 BLOCK · dry-run 豁免）。**Constraints 源（两形态）**：canonical = 字面 `## Constraints` 一等段（由 writing-plans 模板强制——未来 plan 天然带段）；既有散文 plan = 声明指针提取面（本 plan v1.4 现状）：**口径** · **commit 边界机制** · **Flow Atomicity** · **顺序原则** 四标题锚切片；四段收敛为字面 `## Constraints` 段（段内四小节）原定 T22 实施；T22 收尾时该收敛**记录为延期项**——本 plan 现行为散文指针声明源（materializer 以 Form B 提取四段，契约先行、本 plan 提取精确），收敛动作（四段整并入字面 `## Constraints` 一等段 + 段内四小节化）留待后续 plan-doc round 执行，届时 materializer 自动改读 Form A）；**Task 18 扩段（H1 内容级三件）**——prompt bullet ×2 + src 标识符/阶段标题 rename + `\bH1\b` residue 机制面守卫。
 
 ### v1.5 回填（overall v1.48 / spec v1.11 同窗，用户 2026-09-19 终审实证指示）
 
+- 新增 **Task 23「lifecycle 状态正交化 + H1 名称语义化」**（P6 终审实时 = T14 review 现场：`unverifiable` 被 `deriveReviewStatus` 裸折 `BLOCKED` 且不写 `failure_category`/`blocker` → `h1FromHandoff#defaultBlockerFor` 兜底伪造 gate 文案 + exit 0 自相矛盾，编排路由被带回重评歧路）。**修复语义（三面正交）**：`status`（本轮结论）· `failure_category`（失败机制通道：TIMEOUT/CONTRACT_VIOLATION/ENGINE_SELF_WRITTEN/EXECUTION_FAILURE/UNVERIFIABLE/PLAN_CONFLICT）· `unverifiable[]`/`plan_conflicts[]`（内容级附注）不再折叠混淆；**契约写入 schema field description**（schema 经 `renderHandoffSchemaJson` 原样注入 prompt——prompt 零散文、prompt/schema 永不掉线）；真·unverifiable → BLOCKED + `failure_category=UNVERIFIABLE` + 真实 blocker（未验什么/为什么）→ 编排者上报用户仲裁（skill failure-modes UNVERIFIABLE 条目生效）；plan-constraints §口径 dev-measured 验收项按 evidence-contract accepted-noted 不复位评审；**BLOCKED（任何通道）→ exit 1**（APPROVED/CHANGES_REQUESTED → 0——T14 现场 exit 0+BLOCKED 反转为红→绿）；`defaultBlockerFor` 伪造杀手（写位留真）；schema `allOf` 强制「BLOCKED ⇒ blocker 非空 or failure_category 存在」+ H1 永不伪造 gate 文案断言；**H1 无语义命名并入本 Task（T18⑤ 上移）**——src 标识符 `h1*`→`return*`（returnFourLines/returnFromHandoff/returnCountersLine/artifactsFromReturnLine/implementStatusFromReturnLine）+ 阶段标题「H1 four-line parse」→「return block parse」+ `\bH1\b` 入 residue 机制面守卫（零豁免）——拒绝「先命名后语义」的两阶段残留（与状态正交化同命中 h1FromHandoff/H1 呈现层）。
 
 ### v1.6 回填（overall v1.50 / spec v1.12 同窗，用户 2026-09-20 编排实证授权）
 
+- 新增 **Task 24「执行层 WIP 保全合同」**（两次大型派发中途死亡实证：T23 implement attempt-1 exit 1 · branch-fix exit 143 SIGTERM——branch-fix 修 1 条 CJK warn 漂 15 引擎文件 +179/−169，confirmed-scope 溃坝）。**三个结构性缺口**：① 死亡即全损（未提交=非产物对，但「非提交」≠「必然销毁」——缺保全/可抢救路径）② fix findings-scope 无锁（T11 pending-acceptance 已锁 plan 侧、代码侧无执法位）③ 死亡诊断不足（blocker 仅「exited N」，无 WIP 规模/死因/产物线索）。**修复三件**：WIP 保全（非 exit-0+树脏 → engine 自动 `git stash push -u` + BLOCKED blocker 带 stash ref/规模，可 apply 评审/抢救/丢弃）· findings-scope lock（fix 注入 findings 文件集 + finalize diff 越界 BLOCK）· 死亡诊断三件（exit code + WIP 快照 ref + 规模 + 死因线索）。定序 = plan T19 之后、branch-fix 重派之前（scope-lock 生效前重派同 findings 会反复漂移）。
 
 ### v1.7 回填（overall v1.51 / spec v1.13 同窗，用户 2026-09-20 全面复盘授权）
 
+- **Task 24 重写为「派发岛收敛 + 机制上链 + 错误收编」**——全面复盘（依赖矩阵 + 手查双证据）确认 DispatchLifecycle 抽象只覆盖半壁：task/docs 两岛继承，**branch 族 = 第三个手写实现岛**（未继承 Lifecycle，全套手写 round/Convergence/BLOCKED/schema/finalize/exit——T14 liveness / T23 carrier / 残局三代修复全碰不到它 = T23/branch-fix 143 事故的架构根因）；rules⇄artifacts 纠缠带（schema⇄finalize / failure⇄progress 两直接循环 + 六互引边）；Convergence 三定义、writeBlocked 四派、workspace 双处、return-block 四处半、手动 throw 47 处。六阶段收敛：**A 岛收编**（BranchLifecycle extends DispatchLifecycle）· **B 纠缠拆解**（status 推导族归 finalize、计数器族归 failure 单点、schema 只校验）· **C 机制单点**（Convergence / writeBlocked / workspace / return-block / hashFile）· **D 死代码清理**（convergence 孤岛 0 入度 / infra/log 零消费 / review 死 import）· **E 载体成熟（分 Task 25）**（settleResidue / writeBoundary / recovery carrier 入模板方法）· **F 错误收编**（全部手动 throw 归 exit.ts：面向编排者可恢复错误 → CddExitError 家族【exitCode+kind，bin 统一落码】；库内断言 → invariant() 工厂）· **G 架构纪律回写运维文档**（分层 / 机制锚点 / 错误收编三纪律）。新增 **Task 25「载体成熟」**（E 阶段：settleResidue / writeBoundary / recovery carrier 落地——原 Task 24 三件套基于收编后的 Lifecycle 重设计）。
 
 ### v1.8 回填（overall v1.52 / spec v1.14 同窗，用户 2026-09-20 T25 TIMEOUT 实证 + 统一抽象授权）
 
+- 新增 **Task 26「派发终止契约 + 续传」**——timeout（预算）与 liveness（活性）= 同一终止判据的两信号被拆成两套实现（同一 TIMEOUT 语义、两条判定路径），并为一个 `termination monitor`（spawnManaged 挂点）：信号① stall（活性 primary，CPU+workspace mtime idleWindow 无推进）· 信号② budget（last-resort cap，墙钟 elapsed——liveness 失效面 + 活跃永不完成的唯一防线）→ killGroup + TIMEOUT + cause 化 blocker（stalled/over-budget/SIGTERM）；**删除面**：三 env 键（CDD_TASK/REVIEW/CLI_TIMEOUT）· config perModeOverride/globalOverride 两段 · execa timeout/forceKillAfterDelay 通道 · resolver 并一 · 三岛两参并一参；**保留**：idleWindow 15min · budget cap（task 3h【180min，T25/T26 双 TIMEOUT 实证后 canon，v1.11】/review 60min 重定位为 cap）· TIMEOUT 分类/blocker 单点/退出码表 0/1/2/3；**resume-from-residue（续传，T25 实证缺陷修复）**——T25 TIMEOUT 后 stash 保全 727 行但不落回 → 重派从零 → 90min token 全烧（termination 是单向闸缺对称续传）；re-dispatch pre-flight 读上轮 recovery.residue_ref → git stash apply 恢复 WIP → brief 附「residue 现状附言」（render/brief.ts 读 recovery carrier）→ 新 agent 审计续作而非重写；**接口契约**：T25 settleResidue 输出（recovery.residue_ref + stash 命名）≡ T26 resume 输入；termination = 终止→保全→续传完整闭环。
 
 ### v1.9 回填（overall v1.53 / spec v1.15 同窗，用户 2026-09-20 验收缺陷记录）
 
+- **T26 resume legacy 检索兜底**——T25 首轮 TIMEOUT 保全发生在 settleResidue 落地前（编排者手工 stash，`recovery.residue_ref` 未写入 handoff——schema 无此字段）= resume schema 驱动路径对历史 handoff 失效（真实验收盲区）；T26 resume 增补兜底：`recovery.residue_ref` 缺失时按标准化 stash message（`cdd-<op>-<type>-<task>-<round>-<cause>`）扫描 `git stash list` 匹配恢复；T25 settleResidue 机械保全用同格式 message——新轮走 schema 主路径、历史轮走检索兜底，同一续传语义；T25 重派推迟至 T26 落地后 = resume 首个真实黑盒实证（从 stash@{0} 727 行续传而非 0 重写）。
 
 ### v1.10 回填（overall v1.54 / spec v1.16 同窗，用户 2026-09-20 T26 恢复轮 base==head 实证 + 统一抽象授权）
 
+- 新增 **Task 27「任务级 scope 账本（roundBase/scopeBase 分离）」**——T26 恢复轮（交付物 ea5d8433+3063e274 在 TIMEOUT 下先行提交 → re-dispatch TASK_BASE=HEAD → carrier `commits.base==head==3063e274`）使 review 固定点推导链（`prev.commits.base → TASK_FIXED_POINT → REVIEW_REFERENCE=${TASK_FIXED_POINT}..HEAD`）塌缩空范围 = 真实交付物（`bde88ec5..HEAD`，29 文件 +1445/−435）零审查关闭的实证缺陷；统一抽象：`base` 一名两义拆分（roundBase=本轮 commit 座位每轮快照 · scopeBase=task 贡献真实起点须跨轮稳定穿越轮死亡）+ progress 账本 `tasks[N].scope_base`（引擎自有、earliest-wins）+ 恢复轮 return-block 声明 base 采纳（base==head 信号 + 祖先校验 + fresh 永不采纳） + review/fix 固定点读账本（legacy 回落）+ settleResidue 记 `recovery.scope_base`；T26 恢复轮 #2（声明 base=bde88ec5）→ 全范围 review 依赖本 Task 落地。
 
 ### v1.11 回填（overall v1.55 / spec v1.17 同窗）
 
+- **task 预算 3h canon 化修正**——T26 fix-1 将 review finding（3063e274 预算变更缺 frozen 文档回填）方向读反：回退 engine-config 至 90min；按用户裁决恢复 `defaults.task`=10_800_000（T25/T26 双 TIMEOUT 实证）+ 5 断言同步 + Task 26 Do budget 表述 90min→3h；其余 7 finding 处理不变。
 
 ### v1.12 回填（overall v1.56 / spec v1.18 同窗）
 
+- 新增 **Task 28「residue save 侧单点收敛」**——T25 resume 续作把 T24 前草稿 rules/residue.ts 接入为 save side，与 T26 shipped artifacts/residue.ts 同机制双 owner（双 stash-message 契约 + 双 git helper + task 车道与模板钩子同轮双 stash）；收敛 save 全族归 artifacts 单 owner（preserved 幂等 + settleFromCarrier adapter + 统一标准化 message），删 rules 副本 + gitStashPreserve + 死 helper；write-boundary 为新物保留。
 
 ### v1.13 回填（overall v1.58 / spec v1.19 同窗）
 
+- 新增 **Task 29「引擎 lifecycle 统一校验」**——closeout 三轮复盘定稿（用户 2026-09-21）：核心在引擎、注入 lifecycle、零子命令；DispatchLifecycle 增两钩子（docContractValidate 物料格式校验 → blocked exit+guidance · statusValidate 六态状态机 + 计划裁决 → CDD_INFO）；零 CLI 面/零文档写入/零 schema 变更。
 
 ### v1.14 回填（overall v1.59 / spec v1.20 同窗）
 
+- 新增 **Task 30「TaskState 单源统一 + 状态判定修正」**——T29 首个 statusValidate 裁决暴露双缺陷：判定优先级错位（合法终局误判 needs-re-review）+ TaskState 双源（progress 存储 status vs 六态派生）；统一 = 状态纯派生账本只存事实（deriveTaskState 唯一实现 + progress tasks[N].status 删除 + 消费迁移）。
 
 ### v1.15 回填（overall v1.60 / spec v1.21 同窗）
 
+- 新增 **Task 31「src 注释锚首清零执法」**——§35 第二半无执法位 → residue 守卫扩展「src 注释禁锚首」+ 引擎 67 处注释语义前置排修。
 
 ### commit 边界机制（本 program 全 phase 生效）
 
+- dispatch 两端门——入口门（进入 review 前主 agent 产物已提交、dispatch 期零写树）+ 出口门（产生修改的 dispatch 后修改已提交）；主 agent 处理的由主 agent commit。计划各 Task 的 review/fix 环均遵守。
 
 ### Flow Atomicity（本 phase 强化）
 
+- 任何 skill 内部流程/文档变更 = 整 skill 统一调整（无局部补丁）；cli-driven-development 的全部 P6 描写（branch-loop / dry-run WARN / pending-acceptance / 术语）在 Task 9 一次性整 skill 改齐。
 
 ### 顺序原则（spec §2.4）
 
+- 删除面先行（T1 A → T2 B）→ 目标布局落地（T3 测试就近 + T4 scripts .ts）→ 机制增量落新布局（T5–T14）→ **域 G 与 D-2 同窗（随 T1 .agents 移除后：T7/T15–T17 均在 T1 之后）** → 收口复核（T18 术语 · T19）；**C1-max（Task 20）定序 = T8 之后、T9 之前**（spec §2.4 顺序注：晚于 T5 骨架、早于 T7——branch-loop/clauses 入库/术语清扫直接落终态；T8 三断言先立使模板变更受其约束）。**scripts 统一（Task 21）定序 = C1-max（Task 20）之后、收口复核（T18 术语 · T19）之前**（repo 一致性收尾；engine 与 scripts 测试/CLI 惯例同批收敛）。；**constraints 物料化（Task 22）定序 = T10（dry-run 门判 WARN 化）之后、T11 之前**（同为 implement pre-flight 门面——先 WARN 化再上 constraints 存在性门；本 plan 的 Constraints 源 = 口径/commit 边界机制/Flow Atomicity/顺序原则 四段声明面）。**lifecycle 状态正交化（Task 23）定序 = T14（stall 探测器，实证源）fix 收口之后、T18（术语清扫）之前**——实证驱动的终审项（unverifiable→BLOCKED 通道混淆现场），紧邻收口复核保持终态语义直达；T18⑤（H1 内容级 rename）随之上移 Task 23，T18⑤ 条目降级为 Audit（T23 产物零回退确认）。**派发岛收敛（Task 24）定序 = T19（收口复核）之后、T25 之前**——收口后编排侧重构项（T23/branch-fix 143 事故架构根因）：branch 岛收编（A）→ 纠缠拆解（B）→ 机制单点（C）→ 死代码清理（D）→ 错误收编（F）→ 运维文档（G），每阶段 validate 全绿推进；T11/T12 同族互补：plan 修改权锁已落（T11）、纪律条款已落（T12）、本 Task 补机制上链 + 错误收编两执法位。**载体成熟（Task 25）定序 = Task 24 之后**——branch 岛收编完成、机制单点就位后，settleResidue/writeBoundary/recovery carrier 才有统一挂点（原 Task 24 WIP 保全三件套并入本 Task E 阶段）。**派发终止契约 + 续传（Task 26）定序 = Task 25 之后**——settleResidue/recovery carrier 是 resume 的输入契约（T25 输出 ≡ T26 输入，衔接面 spec T7.5 钉死）；本 Task 实证源 = T25 TIMEOUT（70min 后 stash 727 行但不落回 → 重派从零 → token 白烧）。**执行层 WIP 保全合同（Task 24）定序 = T19（收口复核）之后、branch-fix 重派之前**——2026-09-20 编排实证（T23 attempt-1 exit 1 · branch-fix exit 143 SIGTERM 15 文件 scope 漂移）；findings-scope lock 生效前重派 branch-fix 会让同一 findings 反复驱动 agent 漂移，故本 Task 先落地再重派；与 T11（pending-acceptance 收编权）同族——plan 侧锁已落，本 Task 补代码侧锁。**任务级 scope 账本（Task 27）定序 = Task 26 之后（T26 恢复轮 #2 重派之前）**——T26 恢复轮 base==head 使 review 范围塌缩 = T26 恢复机制的自身生命周期缺口（settleResidue/resume 只快照轮、无任务级 scope 概念）；本 Task 落地后 T26 恢复轮 #2（声明 base=bde88ec5）→ 全范围 review → 关闭；T25 重派（混合味：部分提交 + WIP）同样受益。
 
 ### Task 1: 能力宣称收缩（spec 域 A，A1–A8）
 

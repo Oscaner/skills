@@ -7,12 +7,13 @@
 - **Base**: develop（finishing read-base 的数据源）
 
 ## Constraints
-
 ### 口径
 
+- P5 是**双主营**——① report-issues 改名与流程精炼（用户初始流程 + E 族 6 条）② cdd-engine 生命周期重建（全量 TS + unbuild · CLI 换 citty · DispatchLifecycle 抽象基类 + hookable 注册面 · commit 边界双门 · 目录依赖单向轴 · 第三方收敛全项）。engine 黑盒契约（4 子命令面 / handoff 输出 / 失败类目）零变化——重建仅内部形态。所有改动 `pnpm run validate` 全绿 + `emit:check` 无 drift。
 
 ### commit 边界机制（本 program 全 phase 生效）
 
+- dispatch 两端门——入口门（进入 review 前主 agent 产物已提交、dispatch 期零写树）+ 出口门（产生修改的 dispatch 后修改已提交）；主 agent 处理的由主 agent commit。计划各 Task 的 review/fix 环均遵守。
 
 ### Task 1: cdd-engine 包转型 TypeScript + unbuild 构建骨架
 

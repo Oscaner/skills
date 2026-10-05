@@ -42,26 +42,71 @@
 - 消费面零程序叙事（iron rule）：SKILL.md / 消费者侧文件不带本程序 phase/issue 叙事
 - 引擎 `.mjs` plane zero：新增测试用 node:test `.test.mjs`，src 不落 `.mjs`
 
+
 ### Task 1: C1 源字段 + C3 契约 pin 测试（合并 C1+C3，共享 manifest 契约面）
 
-- **Do**: 在 `packages/osuperpowers/package.json` 增源侧字段 `keywords: ["pi-package"]`（最小集，charter 定）与 `pi: { skills: ["./skills"] }`（D2 手维护；不触 emit 产物与 `.version-bump.json`）。前置改动 `scripts/validate/osuperpowers.ts`：将 `checkOsuperpowersSkillsCount` 内局部 `const EXPECTED = 8` 提升为模块级并导出（或导出 count getter）、函数体消费同源——该文件新增为 T1 提交/ledger 的 changed 面（既有实现 `checkOsuperpowersSkillsCount` 与 `EXPECTED` 均无导出，T1 测试的计数复用依赖此导出先落地）。新建 `packages/osuperpowers/tests/pi-package.test.mjs`（纯静态 fs + node:assert，零子进程零引擎依赖）断言活 package.json：`keywords` 含字面 `pi-package`；`pi.skills` deepEqual `["./skills"]`；`pi` 无 `extensions`/`prompts` 键（R0 不变式守门）；`./skills` 解析 EXPECTED 个 `SKILL.md`（EXPECTED 从 `scripts/validate/osuperpowers.ts` 导出计数复用，测试内不硬编码字面 8）；files 闭包静态规则成立（`pi` 声明路径展开集 ⊆ `pkg.files` 白名单展开集）。运行 `node --test packages/osuperpowers/tests/*.test.mjs` 确认新测试在 behavior glob 内通过。**A3 债吸收（并入本任务）**：退役 `scripts/validate/residue.ts` A3 守卫的 pi 分支（`\bpi\b` 移除；label 改为「droid keyword regression (A3 package.json)」；注释记录 supersession——P1 pi-harness 使 `pi` 成为该 package.json 的 live 分发字段、原残留前提坍塌）；`scripts/validate/__tests__/residue.test.ts` A3 套件同步——pi 形断言（`"keywords": ["ped", "pi"]` 与 `"#pi": {…}`）翻转为放行（false）端态 pin，`"droid"` 保持命中（true），临时文件 droid 用例保持。
-- **验收**: `packages/osuperpowers/package.json` 含 `keywords: ["pi-package"]` 与 `pi: { skills: ["./skills"] }`（无 extensions/prompts）；`scripts/validate/osuperpowers.ts` 模块级 `EXPECTED` 已导出（T1 测试与 T2 守卫共享同一单一真相）；`pi-package.test.mjs` 在 behavior glob 内通过（计数断言取该导出、无字面 8）；`pnpm run emit:check` 仍 fresh（零 emit 产物变更）。
-- **注**: 闭包现状已实证（`npm pack --dry-run` 含 `skills/` 全 8 SKILL.md——8 为闭包现状实测描述、非行为断言，豁免于字面硬编码禁令）——本任务不需改 `files`；manifest 契约 pin 即使守卫后续被误删仍独立失败（anti-white-green）。
+- **Objective**: C1 源字段（`keywords: ["pi-package"]` + `pi: { skills: ["./skills"] }`）+ C3 契约 pin 测试（合并 C1+C3，共享 manifest 契约面）+ A3 债吸收（residue pi 分支退役）
+
+- **Produces**: 源侧 pi 字段落位；`scripts/validate/osuperpowers.ts` 模块级 EXPECTED 导出；`pi-package.test.mjs` 通过 behavior glob；residue A3 pi 分支退役
+
+- **Files**: packages/osuperpowers/package.json, scripts/validate/osuperpowers.ts, packages/osuperpowers/tests/pi-package.test.mjs, scripts/validate/residue.ts, scripts/validate/__tests__/residue.test.ts
+
+- **Steps**:
+  1. 在 `packages/osuperpowers/package.json` 增源侧字段 `keywords: ["pi-package"]`（最小集，charter 定）与 `pi: { skills: ["./skills"] }`（D2 手维护；不触 emit 产物与 `.version-bump.json`） — checkable: `package.json` 含 `keywords: ["pi-package"]` 与 `pi: { skills: ["./skills"] }`（无 extensions/prompts）
+  2. 前置改动 `scripts/validate/osuperpowers.ts`：将 `checkOsuperpowersSkillsCount` 内局部 `const EXPECTED = 8` 提升为模块级并导出（或导出 count getter）、函数体消费同源 — checkable: 模块级 `EXPECTED` 已导出（T1 测试与 T2 守卫共享同一单一真相）
+  3. 新建 `packages/osuperpowers/tests/pi-package.test.mjs`（纯静态 fs + node:assert，零子进程零引擎依赖）断言活 package.json：`keywords` 含字面 `pi-package`；`pi.skills` deepEqual `["./skills"]`；`pi` 无 `extensions`/`prompts` 键（R0 不变式守门）；`./skills` 解析 EXPECTED 个 `SKILL.md`（EXPECTED 从 validate 导出复用，测试内不硬编码 8）；files 闭包静态规则成立。运行 `node --test packages/osuperpowers/tests/*.test.mjs` 确认通过 — checkable: `pi-package.test.mjs` 在 behavior glob 内通过（计数断言取该导出、无字面 8）；`pnpm run emit:check` fresh（零 emit 产物变更）
+  4. **A3 债吸收**：退役 `scripts/validate/residue.ts` A3 守卫的 pi 分支（`\bpi\b` 移除；label 改「droid keyword regression (A3 package.json)」）；`residue.test.ts` A3 套件同步——pi 形断言翻转为放行（false）端态 pin，`droid` 保持命中（true） — checkable: residue A3 套件 pi 放行端态 pin + droid 保持 true（新世界态 pin）
+
+- **Acceptance**:
+  - `packages/osuperpowers/package.json` 含 `keywords: ["pi-package"]` 与 `pi: { skills: ["./skills"] }`（无 extensions/prompts）；`scripts/validate/osuperpowers.ts` 模块级 `EXPECTED` 已导出（T1 测试与 T2 守卫共享同一单一真相）；`pi-package.test.mjs` 在 behavior glob 内通过（计数断言取该导出、无字面 8）；`pnpm run emit:check` 仍 fresh（零 emit 产物变更）。
+
 
 ### Task 2: C2 一等守卫 + C5 命名 pin 升级（合并 C2+C5，共享 validate 接线面）
 
-- **Do**: `scripts/validate/osuperpowers.ts` 增 `checkPiPackageWellFormed(pkgRoot)`（五断言：keywords 含 `pi-package`；`pi.skills` 非空 `string[]` 且每项 `./<path>` glob 形态；`pi` 无 extensions/prompts；`./skills` 解析 EXPECTED 个 `SKILL.md`——EXPECTED 复用既有计数导出，守卫内零硬编码字面；files 闭包静态 subset）+ 新 CheckBlock 步骤「osuperpowers pi-package well-formed」入 `osuperpowersSteps`（自动进 validate + precommit 双面）。同步 `packages/osuperpowers/tests/ci-validate.test.mjs`（~L170-172）与 `scripts/validate/__tests__/pre-commit.test.ts`（L43-51）的 count pin（`==11`）升级为 **name-set 断言**（逐一断言每个期望 step 名出现，含新 step；先读两文件全文核实既有断言内容，避免重复/冲突断言）。`pnpm run validate` 与 precommit 全绿（validate blocks 11→12）。
-- **验收**: validate 输出含新 CheckBlock 且对当前树全过（checkPiPackageWellFormed 五断言）；`ci-validate.test.mjs` 与 `pre-commit.test.ts` 以 name-set（非 count）断言 validate steps（含「osuperpowers pi-package well-formed」）；`pnpm run validate` 全绿 + precommit 全绿。
-- **注**: 守卫为静态检查（零子进程、零引擎依赖），与既有 `checkOsuperpowersSkillsCount` 同构；skills 计数与其共享单一真相（EXPECTED）。
+- **Objective**: C2 一等守卫 `checkPiPackageWellFormed`（五断言）+ C5 命名 pin 升级（count pin → name-set）
+
+- **Produces**: `checkPiPackageWellFormed(pkgRoot)` 五断言 + 新 CheckBlock step（validate + precommit 双面）；ci-validate/pre-commit count pin 升级 name-set
+
+- **Files**: scripts/validate/osuperpowers.ts, packages/osuperpowers/tests/ci-validate.test.mjs, scripts/validate/__tests__/pre-commit.test.ts
+
+- **Steps**:
+  1. `scripts/validate/osuperpowers.ts` 增 `checkPiPackageWellFormed(pkgRoot)`（五断言：keywords 含 `pi-package`；`pi.skills` 非空 `string[]` 且每项 `./<path>` glob 形态；`pi` 无 extensions/prompts；`./skills` 解析 EXPECTED 个 `SKILL.md`——EXPECTED 复用既有计数导出、守卫内零硬编码字面；files 闭包静态 subset）+ 新 CheckBlock step「osuperpowers pi-package well-formed」入 `osuperpowersSteps` — checkable: validate 输出含新 CheckBlock 且对当前树全过（checkPiPackageWellFormed 五断言）
+  2. 同步 `packages/osuperpowers/tests/ci-validate.test.mjs` 与 `scripts/validate/__tests__/pre-commit.test.ts` 的 count pin（`==11`）升级为 **name-set 断言**（逐一断言每个期望 step 名出现，含新 step；先读两文件全文核实既有断言内容避免重复/冲突） — checkable: `ci-validate.test.mjs` 与 `pre-commit.test.ts` 以 name-set（非 count）断言 validate steps（含「osuperpowers pi-package well-formed」）
+  3. `pnpm run validate` 与 precommit 全绿（validate blocks 11→12） — checkable: `pnpm run validate` 全绿 + precommit 全绿
+
+- **Acceptance**:
+  - validate 输出含新 CheckBlock 且对当前树全过（checkPiPackageWellFormed 五断言）；`ci-validate.test.mjs` 与 `pre-commit.test.ts` 以 name-set（非 count）断言 validate steps（含「osuperpowers pi-package well-formed」）；`pnpm run validate` 全绿 + precommit 全绿。
+
 
 ### Task 3: C4 安装 smoke（R5 站①，含验证中机制实测）
 
-- **Do**: 新建 `packages/osuperpowers/tests/pi-install-smoke.test.mjs`：流程 = `npm pack --pack-destination <mkdtemp>`（cwd `packages/osuperpowers`，产物动态定位不硬编码版本）→ tar 解包（剥离顶层包目录）→ 另建临时「项目」目录作 cwd → `pi install <解包绝对路径> --local --approve` → 断言三连：退出码 0 · 安装产物 `skills/` 含恰 8 个 `SKILL.md`（落点为实现期实测确认路径）· 项目 `.pi/settings.json` 写入该包 source。**旗标已实测定案**（0.87.1：`--local` 需 `--approve`，`--no-approve` 弃用——spec v1.3 已回填）；其余机制（产物落点）以本任务实现期探针实测为准，实测与 spec 描述不符 → 不符点记录为任务产出并交 orchestrator 判定 spec 回填（Plan Sole Writer）。无 `pi` 二进制 → 断言 FAIL 且错误信息含 `npm i -g @earendil-works/pi-coding-agent`（零静默 skip）。`.github/actions/validate` 装配增 `npm i -g @earendil-works/pi-coding-agent` step（版本按 smoke 验收时实测为准）。
-- **验收**: `pi-install-smoke.test.mjs` 在本机（pi 0.87.1）behavior glob 内通过：pack→解包→`pi install <dir> --local --approve` 退出 0 · 安装产物含恰 8 个 `SKILL.md` · 项目 `.pi/settings.json` 写入该包；缺 pi 路径失败信息含安装命令；`.github/actions/validate` 装配备 pi 安装 step。
-- **注**: 本地目录 install 全流程零网络；断言落点与旗标以实测为准（C4 verified-vs-probe 口径）；`pi` 运行时技能清单无 CLI 内省，LLM 可见性不在本测试覆盖——残留记录明示于 docs（spec C4）：落点 = T3 任务产出报告（owner = orchestrator 判定），保留 publish 前人工抽查承诺，P4 D5 消费故事补足。
+- **Objective**: C4 安装 smoke（R5 站①，含验证中机制实测）：新建 pi-install-smoke.test.mjs + validate 装配 pi 安装 step
+
+- **Produces**: `pi-install-smoke.test.mjs`（pack → 解包 → `pi install <dir> --local --approve` → 三连断言）；`.github/actions/validate` 增 `npm i -g @earendil-works/pi-coding-agent` step
+
+- **Files**: packages/osuperpowers/tests/pi-install-smoke.test.mjs, .github/actions/validate/action.yml
+
+- **Steps**:
+  1. 新建 `packages/osuperpowers/tests/pi-install-smoke.test.mjs`：流程 = `npm pack --pack-destination <mkdtemp>`（cwd `packages/osuperpowers`）→ tar 解包（剥离顶层包目录）→ 另建临时「项目」目录作 cwd → `pi install <解包绝对路径> --local --approve` → 断言三连：退出码 0 · 安装产物 `skills/` 含恰 8 个 `SKILL.md` · 项目 `.pi/settings.json` 写入该包 source — checkable: `pi-install-smoke.test.mjs` 在本机（pi 0.87.1）behavior glob 内通过：pack→解包→`pi install <dir> --local --approve` 退出 0 · 安装产物含恰 8 个 `SKILL.md` · 项目 `.pi/settings.json` 写入该包
+  2. 旗标已实测定案（0.87.1：`--local` 需 `--approve`，`--no-approve` 弃用）；其余机制（产物落点）以本任务实现期探针实测为准，实测与 spec 描述不符 → 不符点记录为任务产出并交 orchestrator 判定 spec 回填 — checkable: 无 `pi` 二进制 → 断言 FAIL 且错误信息含 `npm i -g @earendil-works/pi-coding-agent`（零静默 skip）
+  3. `.github/actions/validate` 装配增 `npm i -g @earendil-works/pi-coding-agent` step（版本按 smoke 验收时实测为准） — checkable: `.github/actions/validate` 装配备 pi 安装 step
+
+- **Acceptance**:
+  - `pi-install-smoke.test.mjs` 在本机（pi 0.87.1）behavior glob 内通过：pack→解包→`pi install <dir> --local --approve` 退出 0 · 安装产物含恰 8 个 `SKILL.md` · 项目 `.pi/settings.json` 写入该包；缺 pi 路径失败信息含安装命令；`.github/actions/validate` 装配备 pi 安装 step。
+
 
 ### Task 4: C6 撤销 + 全局 unpin（设计评审裁定 v1.4）
 
-- **Do**: 撤销 C6 release 站：`.github/workflows/release.yml` 移除 smoke 段（pi install step + smoke step + 版本提取逻辑 + 相关 gate/if），恢复至 C6 前的 release 链状态（**先 `git show 9872cf2f^:.github/workflows/release.yml` 对照原始版保证精确还原，不留 smoke 残迹**）；`.github/actions/validate` 装配的 pi install 改 `npm i -g @earendil-works/pi-coding-agent@latest`（删「Pinned to the version measured at smoke acceptance」注释，改注明 @latest 不固定版本的理由）；release.yml 中同款 pin 一并清理。不含其他 release 链变更。裁定依据（user #1-4）：post-publish smoke = detect-only 无门控 + 内容与 C4 同构 + claude/cursor 无 post-publish smoke 一致性；pi 契约对移动生态验证。
-- **验收**: `release.yml` 不再含 pi smoke（grep `pi install` 零命中）；`.github/actions/validate` 装配含 `@latest`（grep `pi-coding-agent@` 版本字面零命中）；`pnpm run validate` + precommit 全绿。
-- **注**: npm-source 解析风险（pi 对 scoped 包 registry 层的接受）= 已知残余，P4 消费故事记录；C4 内容级验证 + 发布同源可复现性承接验收语义。
+- **Objective**: C6 撤销 + 全局 unpin（设计评审裁定 v1.4）：release smoke 站移除 + @latest 不固定版本
+
+- **Produces**: release.yml 恢复 C6 前状态（pi smoke 段移除）；actions/validate pi install 改 `@latest`（理由注明）
+
+- **Files**: .github/workflows/release.yml, .github/actions/validate/action.yml
+
+- **Steps**:
+  1. 撤销 C6 release 站：`.github/workflows/release.yml` 移除 smoke 段（pi install step + smoke step + 版本提取逻辑 + 相关 gate/if），恢复至 C6 前的 release 链状态（**先 `git show 9872cf2f^:.github/workflows/release.yml` 对照原始版保证精确还原，不留 smoke 残迹**） — checkable: `release.yml` 不再含 pi smoke（grep `pi install` 零命中）
+  2. `.github/actions/validate` 装配的 pi install 改 `npm i -g @earendil-works/pi-coding-agent@latest`（删「Pinned to the version measured at smoke acceptance」注释，改注明 @latest 不固定版本的理由）；release.yml 中同款 pin 一并清理 — checkable: `.github/actions/validate` 装配含 `@latest`（grep `pi-coding-agent@` 版本字面零命中）
+  3. `pnpm run validate` + precommit 全绿（不含其他 release 链变更——裁定依据：post-publish smoke = detect-only 无门控 + 内容与 C4 同构 + claude/cursor 无 post-publish smoke 一致性） — checkable: `pnpm run validate` + precommit 全绿
+
+- **Acceptance**:
+  - `release.yml` 不再含 pi smoke（grep `pi install` 零命中）；`.github/actions/validate` 装配含 `@latest`（grep `pi-coding-agent@` 版本字面零命中）；`pnpm run validate` + precommit 全绿。

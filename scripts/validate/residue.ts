@@ -329,6 +329,7 @@ import {
   escapeRegExp,
   isDataRow,
   listTargetFiles,
+  SPEC_VERBATIM_PIN_FILE,
   scanLines,
   scanTargets,
   walkTargetFiles,
@@ -654,7 +655,10 @@ export function collectRootResolverHits(targetsOverride?: string[]) {
   const targets = targetsOverride ?? CHANNEL_ROOT_TARGETS;
   const hits = [];
   for (const { label, re } of ROOT_RESOLVER_TOKENS) {
-    for (const f of scanTargets(targets, re, { includeTests: true })) hits.push({ label, file: f });
+    for (const f of scanTargets(targets, re, { includeTests: true })) {
+      if (f === SPEC_VERBATIM_PIN_FILE) continue; // verbatim pin data, not a regression
+      hits.push({ label, file: f });
+    }
   }
   return hits;
 }
@@ -672,8 +676,10 @@ const TEST_SEAM_CHECKS = [
 export function collectTestSeamHits(targetsOverride?: string[]) {
   const hits = [];
   for (const { label, re, scope } of TEST_SEAM_CHECKS) {
-    for (const f of scanTargets(targetsOverride ?? scope, re, { includeTests: true }))
+    for (const f of scanTargets(targetsOverride ?? scope, re, { includeTests: true })) {
+      if (f === SPEC_VERBATIM_PIN_FILE) continue; // verbatim pin data, not a test seam
       hits.push({ label, file: f });
+    }
   }
   return hits;
 }

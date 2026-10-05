@@ -27,6 +27,15 @@ export interface ScanOptions {
   includeTests?: boolean;
 }
 
+/** The T5 tree-migration spec-verbatim pin file — carries the ORIGINAL acceptance/constraints text
+ *  of the migrated six-section design specs (frozen spec history, the same class as CHANGELOG.md,
+ *  embedded as test pin data under the scanned tree). The old-vocabulary occurrences there are
+ *  DATA, never a code/test regression: every guard that scans test sites releases this file (the
+ *  same release semantics as a data-source data row), so a verbatim pin never misreads as a
+ *  regression while the guard's live-face ban stays total everywhere else. */
+export const SPEC_VERBATIM_PIN_FILE =
+  "packages/cdd-engine/src/documents/doctypes/__tests__/tree-migration.test.ts";
+
 export interface ScanLineHit {
   file: string;
   lineNo: number;

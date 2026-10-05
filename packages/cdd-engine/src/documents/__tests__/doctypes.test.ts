@@ -204,19 +204,19 @@ describe("parentChain — the S3 parent-doc walk", () => {
 });
 
 describe("validate on the current doc tree (the pi-harness sample trio — the migration-queue state)", () => {
-  // The single-form grammar (T3) makes every legacy tree document pending-migration: its parse
-  // surfaces stay processable (see dual-read.test.ts), its validate BLOCKS (see
-  // tree-migration.test.ts). The overall self-audit stays clean (the four-table contract is
-  // unaffected by the runtime retirement).
+  // The six-section design-spec family was migrated to the three-truth skeleton by T5: the
+  // pi-harness p5 design now validates clean (its clean parent chain). The legacy PLAN face stays
+  // pending-migration (its parse surfaces stay processable — see dual-read.test.ts — its validate
+  // BLOCKS, see tree-migration.test.ts). The overall self-audit stays clean (the four-table
+  // contract is unaffected by the runtime retirement / the spec transcription).
   it("overall self-audit: 2026-09-27-pi-harness-overall.md audits clean", () => {
     expect(docTypeRegistry.resolve("overall").validate(pi.overall, { root: REPO_ROOT })).toEqual(
       [],
     );
   });
 
-  it("phase-spec: 2026-09-27-pi-harness-p5-design.md is pending-migration (legacy six-section — the three-truth skeleton BLOCKS)", () => {
-    const failures = docTypeRegistry.resolve("spec").validate(pi.spec, { root: REPO_ROOT });
-    expect(failures.length).toBeGreaterThan(0);
+  it("phase-spec: 2026-09-27-pi-harness-p5-design.md validates clean after T5 (the three-truth skeleton — the clean pi-harness parent chain)", () => {
+    expect(docTypeRegistry.resolve("spec").validate(pi.spec, { root: REPO_ROOT })).toEqual([]);
   });
 
   it("plan: 2026-09-27-pi-harness-p5.md is pending-migration (legacy task blocks — the single-form record face BLOCKS)", () => {

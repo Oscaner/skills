@@ -20,8 +20,9 @@
 // never to an engine-side pull module (the registry → doctypes → tokens graph stays acyclic).
 
 import { readFileSync } from "node:fs";
-import { DOC_TOKENS } from "../../tokens.ts";
+import { DOC_TOKENS, escapeRegExp } from "../../tokens.ts";
 import { constraintsSectionOf, resolveParentOverall } from "../shared.ts";
+import { planBody } from "./plan-body.ts";
 
 /** The overall's constitutional block — the artifact header `**Constraints**:` marker line +
  *  its following `- ` bullets (one standing rule per bullet; the block is the last header field in
@@ -53,10 +54,14 @@ export function mergeParentConstraints(input: {
   ownDelta: string | null;
   parentConstraints: string | null;
 }): string | null {
-  const own = input.ownDelta?.replace(/^## Constraints\s*\n/, "").trim() ?? null;
+  // The section heading is the schema-derived token (DOC_TOKENS.constraintsHeading — the body
+  // shape projection's leaf), never a hand-written duplicate: the strip removes the section
+  // heading the extractor included, the render re-emits the canonical heading.
+  const stripHeading = new RegExp(`^${escapeRegExp(DOC_TOKENS.constraintsHeading)}\\s*\\n`);
+  const own = input.ownDelta?.replace(stripHeading, "").trim() ?? null;
   const parent = input.parentConstraints?.trim() ?? null;
   if (!own && !parent) return null;
-  const out: string[] = ["## Constraints"];
+  const out: string[] = [DOC_TOKENS.constraintsHeading];
   if (own) out.push("", own);
   if (parent) {
     out.push("", "---", "", "### Parent overall — inherited (auto-applies)", "", parent);
@@ -74,7 +79,13 @@ export function mergeParentConstraints(input: {
  *  the validate face (resolveParentOverall + the docContractValidate linkage), never this read. */
 export function specConstraintsOf(entry: string, root: string): string | null {
   const content = readFileSync(entry, "utf8");
-  const ownDelta = constraintsSectionOf(content);
+  // The Form-A heading scan is the plan body's projected `constraintsHeading` slice — the shared
+  // atom's parse-pattern single source (the spec body projects the same literal heading for its
+  // own skeleton assertions; the merge machine reads one canonical pattern).
+  const ownDelta = constraintsSectionOf(
+    content,
+    planBody.projectSlicePatterns().constraintsHeading,
+  );
   if (ownDelta === null) return null; // legacy six-section spec — no `## Constraints` inheritance point
   const parent = resolveParentOverall(entry, root);
   const parentConstraints =

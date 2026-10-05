@@ -99,13 +99,15 @@ export const sectionBoundaryRe = /^(#{1,2}\s|---\s*$)/;
  *  heading, a `### Task N:` heading, or a `---` rule; `###` sub-sections stay inside). This is the
  *  shared read face of the new-shape inheritance machine — the plan's delta extraction and the
  *  phase-spec's `## Constraints` inheritance-point read land on the same section semantics (the
- *  delta-only section the merge function joins with the parent-overall conventions). An empty
- *  section → null (declared-but-empty is not a constraint declaration). */
-export function constraintsSectionOf(content: string): string | null {
+ *  delta-only section the merge function joins with the parent-overall conventions). The heading
+ *  scan is INJECTED (a body-projected `constraintsHeading` slice — the T5 extractor re-homing: the
+ *  plan/spec bodies are the parse-pattern single source, never a hand-written literal here). An
+ *  empty section → null (declared-but-empty is not a constraint declaration). */
+export function constraintsSectionOf(content: string, headingRe: RegExp): string | null {
   const lines = content.split("\n");
   let start = -1;
   for (let i = 0; i < lines.length; i++) {
-    if (DOC_TOKENS.constraintsHeadingRe.test(lines[i])) {
+    if (headingRe.test(lines[i])) {
       start = i;
       break;
     }

@@ -28,6 +28,19 @@ import type { SchemaShape } from "../../doctype.ts";
 import { DocBody, type SlicePatternSet } from "./doc-body.ts";
 import type { Task } from "./task.ts";
 
+/** The Form-B prose-pointer anchor tokens — the SINGLE declaration of the anchor set (the shape
+ *  enum leaf `constraints.formBProseAnchors.anchors.items.enum` and the parse anchor scans both
+ *  read it: one anchor edit lands in the authoring schema and the parse face together — zero
+ *  duplicated anchor literals). In canonical declaration order (`口径` / `commit 边界机制` /
+ *  `Flow Atomicity` / `顺序原则`, the data operands) — the order extraction presents the anchors
+ *  in. */
+export const PLAN_FORM_B_ANCHOR_TOKENS = [
+  "**口径**：",
+  "**commit 边界机制**：",
+  "**Flow Atomicity**：",
+  "**顺序原则**：",
+] as const;
+
 /** The data-shaped plan shape domain (P2 T3; design C3) — the projection product
  *  `projectSchemaShape()` serves and the module-level leaf tokens.ts authorizes its DOC_TOKENS plan
  *  input from. The four deriveDocTokens leaf families keep their exact paths/values (taskHeadings
@@ -154,12 +167,9 @@ export const PLAN_BODY_SHAPE: SchemaShape = {
               type: "array",
               items: {
                 type: "string",
-                enum: [
-                  "**口径**：",
-                  "**commit 边界机制**：",
-                  "**Flow Atomicity**：",
-                  "**顺序原则**：",
-                ],
+                // The anchor set is the shared PLAN_FORM_B_ANCHOR_TOKENS declaration (one anchor
+                // edit lands in the authoring schema AND the parse anchor scans together).
+                enum: [...PLAN_FORM_B_ANCHOR_TOKENS],
                 description: "One prose-anchor label token — bold name + full-width colon.",
               },
               description:
@@ -354,15 +364,41 @@ export const PLAN_BODY_SHAPE: SchemaShape = {
   },
 };
 
+/** The Form-B prose-pointer anchor heading scan for one anchor token — `**<name>(?:（qualifier）)?**：`
+ *  -style declaration-heading line (full-width or ASCII colon accepted; a qualifier in full-width
+ *  parens between the anchor name and the closing `**` allowed). Derived from the token — the bare
+ *  name strips the bold wrap + trailing colon the same way deriveDocTokens derives `proseAnchors` —
+ *  never re-typed in the parse plane. */
+function formBAnchorHeadingRe(token: string): RegExp {
+  const name = token.replace(/^\*\*/, "").replace(/\*\*[：:].*$/, "");
+  return new RegExp(`^\\*\\*${name}(?:（[^）]*）)?\\*\\*[：:]`);
+}
+
+/** The Form-B anchor family — one `formBAnchor{digit}` slice per canonical anchor in declaration
+ *  order (`formBAnchor1` = `**口径**：` … `formBAnchor4` = `**顺序原则**：`): the extractProseConstraints
+ *  canonical-order walk reads this family off `projectSlicePatterns()` (the body leaf stays the
+ *  anchor single source — the shape enum and these scans share PLAN_FORM_B_ANCHOR_TOKENS). */
+function formBAnchorSlices(): Record<string, RegExp> {
+  const out: Record<string, RegExp> = {};
+  PLAN_FORM_B_ANCHOR_TOKENS.forEach((token, i) => {
+    out[`formBAnchor${i + 1}`] = formBAnchorHeadingRe(token);
+  });
+  return out;
+}
+
 /** The plan's parse slice patterns — the concrete body's single-source regexes (design C3): the
  *  `### Task N:` render surface (the task-heading face the plan detection + the 1..N continuity
- *  contract parse from — the taskNumbersFromPlan semantics unchanged) and the task-block data-field
- *  markers (objective / files / consumes / produces / steps / acceptance) the task-record parser
- *  slices the `### Task N:` blocks on. A numbered step entry captures its action + its optional
- *  checkable outcome in one regex — a step line without the `— checkable:` separator leaves the
- *  checkable capture empty (the validate-failing case, never silently dropped). */
+ *  contract parse from — the number captured for taskNumbersFromPlan), the Form-A `## Constraints`
+ *  heading (the constraint-section extraction's plan-side pattern), the Form-B prose-pointer anchor
+ *  family (`formBAnchor1..4` — the extractProseConstraints canonical-order anchor scan), and the
+ *  task-block data-field markers (objective / files / consumes / produces / steps / acceptance) the
+ *  task-record parser slices the `### Task N:` blocks on. A numbered step entry captures its action
+ *  + its optional checkable outcome in one regex — a step line without the `— checkable:`
+ *  separator leaves the checkable capture empty (the validate-failing case, never silently
+ *  dropped). */
 const PLAN_SLICE_PATTERNS: SlicePatternSet = {
-  taskHeading: /^### Task \d+:/m,
+  taskHeading: /^### Task (\d+):/m,
+  constraintsHeading: /^## Constraints\s*$/m,
   objective: /^- \*\*Objective\*\*:[ \t]*/,
   files: /^- \*\*Files\*\*:[ \t]*/,
   consumes: /^- \*\*Consumes\*\*:[ \t]*/,
@@ -371,6 +407,7 @@ const PLAN_SLICE_PATTERNS: SlicePatternSet = {
   stepEntry: /^\s*\d+\.\s+(.+?)(?:\s*—\s*checkable:\s*(.*))?$/,
   acceptance: /^- \*\*Acceptance\*\*:[ \t]*/,
   acceptanceEntry: /^\s*[-*]\s+/,
+  ...formBAnchorSlices(),
 };
 
 /**

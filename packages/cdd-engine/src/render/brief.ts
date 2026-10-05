@@ -11,6 +11,7 @@
 //   the git judgment rides the injected GitClient (Task 5 bottom-swap: infra/git.ts simple-git
 //   single point, no hand-written git helpers).
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { planBody } from "../documents/doctypes/body/plan-body.ts";
 import { DOC_TOKENS } from "../documents/tokens.ts";
 import { invariant } from "../infra/exit.ts";
 import { GitClient } from "../infra/git.ts";
@@ -46,10 +47,15 @@ export class BriefRenderer {
     const numList = Array.isArray(tasks) ? tasks : [tasks];
     // Index every task heading once (the group's disk-read task count): each entry is the
     // [line of `### Task N:`, line of the next task heading / EOF) range. No re-scan per request.
+    // The heading scan is the plan body's projected `taskHeading` slice — the brief extraction
+    // reads the same parse-pattern single source as taskNumbersFromPlan / detection (the
+    // `DOC_TOKENS.taskHeadingFor(n)` header uses the schema-derived format const — the same body
+    // leaf's shape projection, one module, no hand-written pattern).
+    const taskHeading = planBody.projectSlicePatterns().taskHeading;
     const ranges: Array<{ start: number; end: number }> = [];
     let headStart = -1;
     for (let i = 0; i < lines.length; i++) {
-      if (DOC_TOKENS.taskHeadingRe.test(lines[i])) {
+      if (taskHeading.test(lines[i])) {
         if (headStart >= 0) ranges.push({ start: headStart, end: i });
         headStart = i;
       }

@@ -39,6 +39,11 @@ const SPEC_MARK = DOC_TOKENS.specMark;
 const SPEC_FIELD = DOC_TOKENS.specField;
 const PLACEHOLDER_RE = /{{\s*[^{}>\n]+\s*}}/g;
 
+// The projected Form-B anchor-family slice prefix — `formBAnchor{digit}` in canonical declaration
+// order (the plan body leaf is the single source; the extractor reads the family off
+// `planBody.projectSlicePatterns()`, never re-types an anchor literal).
+const FORM_B_ANCHOR_SLICE_PREFIX = "formBAnchor";
+
 // The standard section stop set — the structural boundary that closes a `##`-level section: a
 // `#`/`##` heading or a `---` rule (the `### Task ` heading clause — DOC_TOKENS.taskHeadingPrefixRe —
 // rides alongside where the section must not swallow task atoms). The base set is the SHARED
@@ -60,24 +65,27 @@ const PROSE_BLOCK_STOP = [
 // the next `#`/`##` heading, a `### Task ` heading or a `---` rule; `###` sub-sections stay
 // inside; an empty section → null).
 
-// Prose-pointer anchor heading regex: `**<anchor>(?:（qualifier）)?**：` — the in-repo qualifier
-// forms are full-width parentheticals; a bare `**<anchor>**：` matches too (the `(?:…)` group is a
-// REAL regex group and optional — `（[^）]*）?` would quantify only the closing paren and demand a
-// literal `（`). No gap is allowed between the anchor and the closing `**`, so a prefix-collision
-// heading (`**<anchor> 补充**：`) can never occupy the anchor's slot.
-function proseAnchorRe(anchor: string): RegExp {
-  return new RegExp(`^\\*\\*${anchor}(?:（[^）]*）)?\\*\\*[：:]`);
-}
+// The canonical Form-A constraints-section extraction — the shared doctype atom
+// (`constraintsSectionOf` in shared.ts: the literal top-level `## Constraints` section, bounded by
+// the next `#`/`##` heading, a `### Task ` heading or a `---` rule; `###` sub-sections stay
+// inside; an empty section → null). The heading scan is the plan body's projected
+// `constraintsHeading` slice (the body leaf is the parse-pattern single source).
 
 // Legacy prose-pointer extraction: the anchored `**<anchor>…**：` lines in canonical order, each
 // followed by its continuation paragraphs — a body spanning blank-line-separated paragraphs is
 // captured in FULL. Block boundaries: the next declaration heading (or structural boundary) ends
 // the block; present anchors are taken verbatim (first match per anchor), missing ones omitted.
+// The anchor headings are the plan body's projected `formBAnchor{digit}` slice family (the body
+// leaf is the anchor single source — the same PLAN_FORM_B_ANCHOR_TOKENS the shape enum reads).
 function extractProseConstraints(content: string): string | null {
   const lines = content.split("\n");
   const out: string[] = [];
-  for (const anchor of DOC_TOKENS.proseAnchors) {
-    const re = proseAnchorRe(anchor);
+  // canonical declaration order — the `formBAnchor{digit}` family, numerically keyed
+  const anchorSlices = Object.entries(planBody.projectSlicePatterns())
+    .filter(([key]) => key.startsWith(FORM_B_ANCHOR_SLICE_PREFIX))
+    .sort(([a], [b]) => a.localeCompare(b, "en", { numeric: true }))
+    .map(([, re]) => re);
+  for (const re of anchorSlices) {
     const start = lines.findIndex((line) => re.test(line));
     if (start < 0) continue;
     const block: string[] = [lines[start]];
@@ -220,10 +228,12 @@ export class PlanDocType extends DocType {
     this.body = body;
   }
 
-  /** Plan detection: the `### Task N:` heading feature (DOC_TOKENS.taskNumberRe) — the fallback
-   *  scan order (overall → plan → spec) asks this type second. */
+  /** Plan detection: the `### Task N:` heading feature (the body's projected `taskHeading` slice —
+   *  the same parse-pattern single source the continuity scan reads) — the fallback scan order
+   *  (overall → plan → spec) asks this type second. */
   detect(_fileName: string, content: string): boolean {
-    return content.split("\n").some((l) => DOC_TOKENS.taskNumberRe.test(l));
+    const taskHeading = this.body.projectSlicePatterns().taskHeading;
+    return content.split("\n").some((l) => taskHeading.test(l));
   }
 
   /** The plan parse surface — the basename phase-id scans + the task extractors (the dispatch
@@ -269,11 +279,13 @@ export class PlanDocType extends DocType {
   }
 
   /** Task-heading scan (`^### Task N:` → numeric sort; tolerant titles after the colon are kept).
-   * The heading token is schema-derived (plan schema taskHeadings pattern). */
+   * The heading token is the body's projected `taskHeading` slice (the number captured — the same
+   * parse-pattern single source `tasksFromPlan` / detection read). */
   taskNumbersFromPlan(planFile: string): number[] {
     const nums: number[] = [];
+    const taskHeading = this.body.projectSlicePatterns().taskHeading;
     for (const line of readFileSync(planFile, "utf8").split("\n")) {
-      const m = line.match(DOC_TOKENS.taskNumberRe);
+      const m = line.match(taskHeading);
       if (m) nums.push(Number(m[1]));
     }
     return nums.sort((a, b) => a - b);
@@ -357,7 +369,10 @@ export class PlanDocType extends DocType {
    * constraints body verbatim (single trailing newline) or null when the plan declares no constraint
    * source (the BLOCK face). */
   extractPlanConstraints(planContent: string): string | null {
-    const literal = constraintsSectionOf(planContent);
+    const literal = constraintsSectionOf(
+      planContent,
+      this.body.projectSlicePatterns().constraintsHeading,
+    );
     if (literal !== null) return literal;
     return extractProseConstraints(planContent);
   }
@@ -373,7 +388,10 @@ export class PlanDocType extends DocType {
    *  Constraints source (the BLOCK face — the facade's ConstraintsSourceUndeclared materializer). */
   planConstraintsOf(planPath: string, root: string): string | null {
     const content = readFileSync(planPath, "utf8");
-    const ownDelta = constraintsSectionOf(content);
+    const ownDelta = constraintsSectionOf(
+      content,
+      this.body.projectSlicePatterns().constraintsHeading,
+    );
     if (ownDelta === null) return extractProseConstraints(content); // legacy Form B — unchanged read
     const { specPath } = this.#resolveSpecOf(planPath, root);
     const overallPath = specPath
@@ -476,7 +494,8 @@ export class PlanDocType extends DocType {
     //    tree keeps the dual-read exemption — a plan with neither marker (the Form B prose-pointer
     //    era docs) is untouched.
     const newShape =
-      this.tasksFromPlan(planPath).length > 0 || constraintsSectionOf(content) !== null;
+      this.tasksFromPlan(planPath).length > 0 ||
+      constraintsSectionOf(content, this.body.projectSlicePatterns().constraintsHeading) !== null;
     if (newShape && extractProseConstraints(content) !== null) {
       failures.push({
         artifact: "plan",

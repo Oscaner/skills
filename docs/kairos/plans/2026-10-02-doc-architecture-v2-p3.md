@@ -3,7 +3,7 @@
 **Spec:** [2026-10-02-doc-architecture-v2-p3-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3-design.md)
 
 - **Parent program**: [2026-10-02-doc-architecture-v2-overall.md v1.6](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.1 · 2026-10-05（plan-fix-1 八 finding 落地，待 re-review）
+- **Version**: v1.2 · 2026-10-05（plan-fix-2 四 finding 落地，待 re-review）
 - **Depends on**: P3 design v1.1 Approved（spec-review-1 九 finding 全落地 · committed a502d31d）
 - **Base**: develop
 
@@ -12,10 +12,10 @@
 ### 口径
 
 - **文档形态单一化适用范围**：engine 只认一种 grammar——T3 删 runtime 读面、T4 删 shape/token 面；双读面退役后，新文档携带 legacy 面（`- **Do**:` 任务块 / Form B 锚 / `## Task Groups` 段 / spec `## Section 1`）= `docContractValidate` BLOCK
-- **rank := 任务编号 1..N**：`dependsOn` 声明边只许指向**更小编号**（任务 N 的 `dependsOn` 项必须 < N）——逆序边归 ③ 矛盾边 crisp BLOCK（「先清底再上闸」编号前向，plan 级判定非属性测试）
+- **rank := 任务编号 1..N**：`dependsOn` 声明边只许指向**更小编号**（任务 N 的 `dependsOn` 项必须 < N）——边方向定义与 spec §1 公式 rank(源)<rank(目标) 取齐：**边源 = 被引依赖项（更小编号端）→ 边目标 = 依赖方任务（更高编号端）**，即「依赖边只许指向更高编号任务」指向的正是依赖方；故「任务 N 的 dependsOn 项必须 < N」与 spec 措辞同式非镜像——逆序边归 ③ 矛盾边 crisp BLOCK（「先清底再上闸」编号前向，plan 级判定非属性测试）
 - **TaskGraph 契约**：`validate(): GraphVerdict | null`（null = valid；GraphVerdict = 失败聚合 `{ failures: { class, field, id, description }[] }`，首个违规不短路）→ `groups(): TaskGroup[]`（先 validate 后 groups，非空即 throw `GraphViolationError`，不静默出序）；构造注入 `Task[]`（按 `### Task N:` 升序，下标 i+1 = 任务 id）
 - **树迁移保真**：任务编号 `1..N` 连续逐字 · Do 形验收原文逐字入 `acceptance[]` · 约束原文逐字（含 `## Global Constraints` → `## Constraints` 换壳）——三者 machine-pin；**4 散文期无验收原文** → acceptance 按正文/文件面推导补全 + tree-migration 显式断言补全产物（不落入逐字 pin 隐式缺省）
-- **迁移队列红窗口**：红窗口自本 spec/plan 提交起即开（p3-design 令 21 design 计数移位但 SPEC_GOLDEN 缺失、本 p3-plan 令 22 plan 计数移位但 PLAN_GOLDEN 缺失——树套件红早于 T3），由 T3 首步重基动作统一收口为「迁移队列期望态」声明（legacy 文档标 pending-migration（BLOCK），canonical / 零迁移对象绿），T5–T7 逐家族翻绿、T8 全绿零排除——红窗口是单形态破产的显式过渡态，非隐式静默
+- **迁移队列红窗口**：红窗口自本 spec/plan 提交起即开（p3-design 令 21 design 计数移位但 SPEC_GOLDEN 缺失、本 p3-plan 令 22 plan 计数移位但 PLAN_GOLDEN 缺失——树套件红早于 T3），由 T3 首步重基动作统一收口为「迁移队列期望态」声明（legacy 文档标 pending-migration（BLOCK），canonical / 零迁移对象绿），T5–T7 逐家族翻绿、T8 全绿零排除（47 校验文件 + one-off 容忍）——红窗口是单形态破产的显式过渡态，非隐式静默
 - **one-off 排除**：`2026-09-28-cdd-review-contract-fix.md`（独立 single-spec，无 parent overall / canonical schema，引擎已不识别）为历史 one-off——walk 容忍不迁移、不纳入 41
 
 ### commit 边界机制
@@ -100,18 +100,19 @@
   - Modify: `packages/cdd-engine/src/documents/doctypes/body/constraints.ts`（删 `extractProseConstraints` · `specConstraintsOf` Section-1 读路径（constraints.ts:80）——spec 约束单源 = 字面 `## Constraints`）
   - Modify: `packages/cdd-engine/src/documents/doctypes/phase-spec.ts`（删六段 legacy 豁免路径：no `## Design` → P1 acceptance path（:176）· `## Constraints` legacy no-op（:143）——三真骨架 = 唯一断言面）
   - Modify: `packages/cdd-engine/src/documents/doctype.ts`（taskGroups schema-leaf accessor 注释）
-  - Modify: `packages/cdd-engine/src/documents/doctypes/__tests__/dual-read.test.ts`（**首步**：重资为单形态树套件——compositions 改全树 48 walk set（22 plan + 21 design + 4 overall + 1 one-off，plans/ 含本 p3-plan）· `SPEC_GOLDEN` 退役 · 每文档期望态委派 `tree-migration.test.ts` = canonical 绿（含本 p3-plan 数据形，零迁移对象）/ legacy pending-migration / one-off 容忍）
+  - Modify: `packages/cdd-engine/src/documents/doctypes/__tests__/dual-read.test.ts`（**首步**：重资为单形态树套件——compositions 改全树 48 walk set（22 plan + 21 design + 4 overall + 1 one-off，plans/ 含本 p3-plan）· `SPEC_GOLDEN` / `PLAN_GOLDEN` 一并退役 · 每文档期望态委派 `tree-migration.test.ts` = canonical 绿（含本 p3-plan 数据形，零迁移对象）/ legacy pending-migration / one-off 容忍）
   - **Test Create**: `documents/doctypes/__tests__/tree-migration.test.ts`（迁移队列期望态表 + 基础断言骨架；T5–T7 逐家族扩展 · T8 转全绿终态）
   - Delete fixtures: `documents/doctypes/__tests__/fixtures/legacy-six-section-spec-design.md` · `.../fixtures/form-b-plan.md`
   - Test: 新形 fixture——含 `- **Do**:` 任务块 / Form B 锚 / spec `## Section 1` → validate fail（orphan / 约束未声明 BLOCK）
   - Modify/pin: `documents/doctypes/body/__tests__/plan-body.test.ts` · `phase-spec-body.test.ts` · `constraints-inheritance.test.ts`（审计对删除符号——Form B 锚切片 / 六段豁免路径 / extractProseConstraints / Section-1 读——的引用，随删随 pin，并入 deliberate update 登记）
 - **Steps**:
-  - [ ] 1. **首步重资树套件**（红窗口恢复声明动作 · 收口自本 spec/plan 提交起的红窗口）：dual-read.test.ts 改单形态——compositions 断言全树 48 文件（22 plan + 21 design + 4 overall + 1 one-off，plans/ 含本 p3-plan）、`SPEC_GOLDEN` 退役；**显式 Create `tree-migration.test.ts`**，迁入「迁移队列期望态」表（p3-design 新形 / 本 p3-plan 数据形 = canonical 绿（零迁移对象）· 20 六段 + 21 plan = pending-migration · one-off 容忍）+ 基础断言骨架——本步使树套件在**删除前**对全树 48 文件构成一致期望，T5–T7 逐家族扩展、T8 转全绿终态
+  - [ ] 1. **首步重资树套件**（红窗口恢复声明动作 · 收口自本 spec/plan 提交起的红窗口）：dual-read.test.ts 改单形态——compositions 断言全树 48 文件（22 plan + 21 design + 4 overall + 1 one-off，plans/ 含本 p3-plan）、`SPEC_GOLDEN` 与 `PLAN_GOLDEN`（每文件 {count,src,merged} 表 :54-79 + 「every plan」golden 断言 :277-314）**一并退役**——「every plan」golden 期望委派 `tree-migration.test.ts` 期望态表；**显式 Create `tree-migration.test.ts`**，迁入「迁移队列期望态」表（p3-design 新形 / 本 p3-plan 数据形 = canonical 绿（零迁移对象）· 20 六段 + 21 plan = pending-migration · one-off 容忍）+ 基础断言骨架——本步使树套件在**删除前**对全树 48 文件构成一致期望，T5–T7 逐家族扩展、T8 转全绿终态
   - [ ] 2. 删除 runtime 面（plan-body/plan/constraints/phase-spec/doctype 上述符号）+ legacy fixture 删除；新增孤儿/BLOCK fixture + 断言（`- **Do**:` 任务块 validate fail · Form B 锚约束未声明 BLOCK · spec `## Section 1` fail——三真骨架断言缺失）
   - [ ] 3. engine colocated suite 绿（树套件红窗口 = 迁移队列期望，符合）
   - [ ] 4. 提交（`refactor(engine): 双读面 runtime 退役——单形态 grammar（树迁移队列开窗）`）
 - **Acceptance**:
-  - runtime 面 grep 零命中（engine src 含注释）：`PLAN_FORM_B_ANCHOR_TOKENS` / `formBAnchor·` / `formBProseAnchors` / `taskGroupsFromPlan` / `extractProseConstraints` / `specConstraintsOf` Section-1 读 / 六段 legacy 豁免路径 / `parseTaskBlock` Do 分支
+  - runtime 面 grep 零命中（engine src 含注释）：`PLAN_FORM_B_ANCHOR_TOKENS` / `formBAnchorHeadingRe` / `formBAnchorSlices` / `formBProseAnchors` / `taskGroupsFromPlan` / `extractProseConstraints` / `specConstraintsOf` Section-1 读 / 六段 legacy 豁免路径 / `parseTaskBlock` Do 分支
+  - `SPEC_GOLDEN` 与 `PLAN_GOLDEN` 一并退役零存在（「every plan」golden 断言委派 `tree-migration.test.ts` 期望态表）
   - 新文档携带 legacy 面 = validate fail（孤儿任务块 · Form B 约束未声明 · spec `## Section 1`）
   - 树套件 = 单形态迁移队列（48 期望态一致，`tree-migration.test.ts` 建置）；legacy fixtures 零存在
 
@@ -138,7 +139,7 @@
 - **Acceptance**:
   - `config/schema/plan.json` taskGroups / Form-B 面零存在（grep + schema get 实证）；DOC_TOKENS 四 taskGroups token + proseAnchors 零存在
   - smoke-cdd consumer 链绿（新数据形 fixture 派生）；dist 镜像更新（本地 `schema get` 显示新形）
-  - **删除集并集 grep 零命中（engine src 含注释）**：`PLAN_FORM_B_ANCHOR_TOKENS` · `formBAnchor·` · `formBProseAnchors` · `taskGroupsFromPlan` · `DOC_TOKENS.taskGroups·` · `parseTaskBlock` Do 面 · `extractProseConstraints` · 六段 legacy 豁免路径 · `## Section 1` 读
+  - **删除集并集 grep 零命中（engine src 含注释）**：`PLAN_FORM_B_ANCHOR_TOKENS` · `formBAnchorHeadingRe` · `formBAnchorSlices` · `formBProseAnchors` · `taskGroupsFromPlan` · `taskGroupsHeading` · `taskGroupsHeadingRe` · `taskGroupsLineRe` · `taskGroupsMinItems` · `parseTaskBlock` Do 面 · `extractProseConstraints` · 六段 legacy 豁免路径 · `## Section 1` 读
   - `## Task Groups` 新文档 BLOCK；加载序两序回归绿
 
 ### Task 5: 全树迁移 A —— 20 六段 design → 三真骨架（内容保真）
@@ -196,19 +197,19 @@
   - 4 plan 单形态 validate 绿；约束原文逐字（Global Constraints 换壳）· 任务编号连续 · acceptance 补全产物断言过
   - `## Global Constraints` 零命中 = 同 T6 断言定义（**行锚定标题匹配** `^## Global Constraints\s*$` · 扫描范围 = 迁移目标 plan 文档集合），迁移后零命中
 
-### Task 8: 全树单形态收口（48 文件零排除绿）
+### Task 8: 全树单形态收口（47 校验文件零排除绿 · one-off 容忍）
 
-- **Objective**: 全树 48 文件单形态 validate 全绿（zero exclusion）——树套件全断面绿，红窗口闭合
+- **Objective**: walk set 48 文件（22 plan + 21 design + 4 overall + 1 one-off）中 47 校验文件（22 plan + 21 design + 4 overall）单形态 validate 全绿（zero exclusion 作用于校验文件）——one-off 容忍关断、不参与绿/红断言——树套件全断面绿，红窗口闭合
 - **Consumes**: T5–T7 迁移产物（41 个迁移对象——20 spec + 21 plan——全部 canonical）；T3 建置 `tree-migration.test.ts` 骨架（转全绿终态标的）
-- **Produces**: 全树单形态全绿终态（48 文件零排除）· 树套件终态断言（pending-migration 断面清零）· 红窗口闭合
+- **Produces**: 全树单形态全绿终态（47 校验文件零排除 + one-off 容忍）· 树套件终态断言（pending-migration 断面清零）· 红窗口闭合
 - **Files**:
   - Modify: `documents/doctypes/__tests__/tree-migration.test.ts` / 单形态树套件（迁移队列期望态 → 全绿终态）
 - **Steps**:
-  - [ ] 1. 树套件终态断言：48 文件（22 plan + 21 design + 4 overall + 1 one-off，plans/ 含本 p3-plan）全单形态 docContractValidate 绿零排除（pending-migration 断面清零）
+  - [ ] 1. 树套件终态断言：47 校验文件（22 plan + 21 design + 4 overall，plans/ 含本 p3-plan）单形态 docContractValidate 绿零排除 + one-off（specs/2026-09-28-cdd-review-contract-fix.md）容忍关断（不参与绿/红断言）——pending-migration 断面清零
   - [ ] 2. 运行全绿（引擎 suite 全量 + 树套件全绿）
-  - [ ] 3. 提交（`test(engine): 全树单形态 48 文件零排除绿（迁移队列闭合）`）
+  - [ ] 3. 提交（`test(engine): 全树单形态 47 校验文件零排除绿（one-off 容忍 · 迁移队列闭合）`）
 - **Acceptance**:
-  - 树套件全绿（48 零排除）；`pnpm --filter @oscaner-skills/cdd-engine test` 全量绿
+  - 树套件全绿（47 校验文件零排除 + one-off 容忍）；`pnpm --filter @oscaner-skills/cdd-engine test` 全量绿
 
 ### Task 9: 消费面同步 + 终验 + changesets
 

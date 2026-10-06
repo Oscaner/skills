@@ -65,6 +65,13 @@ interface PlaneExtraction {
   /** The per-run item counts of a within-scoped records extraction (each within-run's anchored item
    *  count, in run order) — the presence.perRun judge demands every count > 0. */
   runCounts?: readonly number[];
+  /** The maximum numeric within-run bound across the section's runs — the enclosing surface's
+   *  id range (a `### Task N:` run family's top task number: ids are 1..maxBound). The selfBounded
+   *  exemption reads it — a reference value beyond the range (> maxBound) is the graph plane's
+   *  past-the-edge missing-id case, never the anti-dependency contradiction (the plan constraints'
+   *  out-of-range exemption mirrored at the doc-contract plane). Absent when no run captured a numeric
+   *  bound — the selfBounded judgment then stays range-less and judges every in-run ref. */
+  maxBound?: number;
 }
 
 /** Compile the anchor source with the scan flags — the `m` line-anchoring (the rule author writes
@@ -122,6 +129,7 @@ function extractPlaneItems(content: string, plane: StructurePlane): PlaneExtract
       let inRun = false;
       let fieldCloser = false;
       let runBound: number | undefined;
+      let maxBound: number | undefined;
       let runCount = 0;
       for (const line of lines) {
         if (inRun) {
@@ -150,10 +158,12 @@ function extractPlaneItems(content: string, plane: StructurePlane): PlaneExtract
           const m = opener.exec(line);
           const captured = m && m[1] !== undefined && m[1] !== "" ? Number(m[1]) : undefined;
           runBound = captured !== undefined && Number.isInteger(captured) ? captured : undefined;
+          if (runBound !== undefined)
+            maxBound = maxBound === undefined ? runBound : Math.max(maxBound, runBound);
         }
       }
       if (inRun) runCounts.push(runCount);
-      return { items, runCounts };
+      return { items, runCounts, maxBound };
     }
     for (const line of lines) {
       const m = line.match(anchor);
@@ -302,6 +312,10 @@ function evaluateInvariant(
       // enclosing run's OWN number (a ref ≥ the bound — a forward or self reference — fails).
       // Non-integer ref tokens (`none`/empty/`abc`) carry no ref and are skipped (the NaN /
       // integer-gate rejection is the graph plane's); a bound-less run judges nothing (vacuous).
+      // A ref value BEYOND the enclosing surface's id range (> the extraction's maxBound — the
+      // plan's task range) is exempt: a past-the-edge reference is the graph plane's missing-id
+      // class, never the anti-dependency contradiction (the plan constraints' out-of-range exemption).
+      const maxN = extraction.maxBound;
       for (const item of items) {
         if (item.bound === undefined) continue;
         for (const token of item.value.split(",")) {
@@ -309,6 +323,7 @@ function evaluateInvariant(
           if (t === "" || t === "none") continue;
           const n = Number(t);
           if (!Number.isInteger(n)) continue;
+          if (maxN !== undefined && n > maxN) continue;
           if (n >= item.bound) return false;
         }
       }

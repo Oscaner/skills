@@ -132,12 +132,14 @@ function writeChain(
   );
 }
 
-/** run a review dispatch through the TaskLifecycle; real (non-dry) unless dryRun — review mode keeps
- * the implement-only constraints/pre-submit pre-flight out of the way so the doc-contract gate is
- * the sole downstream judge. */
-async function runReview(
+/** run a task-lane dispatch through the TaskLifecycle; real (non-dry) unless dryRun. The lane's mode
+ * selects the pre-flight surface: review keeps the implement-only constraints/pre-submit pre-flight
+ * out of the way so the doc-contract gate is the sole downstream judge, while implement adds the
+ * plan-constraints materializer + brief generation — both pass on a conformant `## Constraints`
+ * fixture plan, so the gate stays the sole judge there too (the acceptance C4 dual-command surface). */
+async function runLane(
   repo: string,
-  { dryRun = false } = {},
+  { mode = "review", dryRun = false }: { mode?: string; dryRun?: boolean } = {},
 ): Promise<{
   exitCode: number;
   diagnostic: { prefix: string; msg: string } | null;
@@ -148,14 +150,14 @@ async function runReview(
     harness: "ctr",
     group: TaskGroup.fromNumbers([1]),
     opts: {
-      mode: "review",
+      mode,
       dryRun,
       noExit: true,
       root: repo,
       planFile: path.join(PLAN_DIR, "plan.md"),
       registryPath: registry(),
     },
-    ctx: { mode: "review", repoRoot: repo, handoffPath: "", dryRun },
+    ctx: { mode, repoRoot: repo, handoffPath: "", dryRun },
   });
   try {
     await lc.run();
@@ -163,6 +165,14 @@ async function runReview(
     cap.restore();
   }
   return { exitCode: lc.result.exitCode, diagnostic: lc.diagnostic, stderr: cap.text };
+}
+
+function runReview(repo: string, opts: { dryRun?: boolean } = {}): ReturnType<typeof runLane> {
+  return runLane(repo, { mode: "review", ...opts });
+}
+
+function runImplement(repo: string): ReturnType<typeof runLane> {
+  return runLane(repo, { mode: "implement" });
 }
 
 describe("docContractValidate — three invalid doc contracts block the real dispatch (exit 1 + guidance)", () => {
@@ -203,6 +213,36 @@ describe("docContractValidate — three invalid doc contracts block the real dis
       ].join("\n"),
     });
     const r = await runReview(repo);
+    expect(r.exitCode).toBe(1);
+    expect(r.diagnostic?.prefix).toBe("CDD_BLOCKED");
+    expect(r.diagnostic?.msg).toMatch(/doc contract validation failed/);
+    expect(r.diagnostic?.msg).toContain("- [structure] plan.edge");
+    expect(r.diagnostic?.msg).toContain("DependsOn");
+  });
+
+  it("plan invalid: the same missing-edge plan → `cdd implement` pre-flight blocks identically (acceptance C4 names both dispatch commands; docContractValidate is the shared base pre-flight step every task mode inherits)", async () => {
+    const repo = setupRepo();
+    writeChain(repo, {
+      plan: [
+        "# Plan",
+        "",
+        "**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)",
+        "",
+        "## Constraints",
+        "",
+        "- boundary one",
+        "",
+        "### Task 1: x",
+        "",
+        "- **Objective**: task one",
+        "- **Steps**:",
+        "  1. implement — checkable: done",
+        "- **Acceptance**:",
+        "  - done",
+        "",
+      ].join("\n"),
+    });
+    const r = await runImplement(repo);
     expect(r.exitCode).toBe(1);
     expect(r.diagnostic?.prefix).toBe("CDD_BLOCKED");
     expect(r.diagnostic?.msg).toMatch(/doc contract validation failed/);

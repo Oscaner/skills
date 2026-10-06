@@ -185,7 +185,7 @@ export const PLAN_BODY_SHAPE: SchemaShape = {
     tasks: {
       type: "array",
       description:
-        "The plan's tasks — one task record per `### Task N:` block, the C3 data shape the brief renderer materializes the task-handoff brief from (renderBrief: objective + steps[action+checkable] + acceptance). Every task record's steps carry their checkable outcome (a step without a checkable fails validation). The bilateral edge declaration is retired — the single directed edge `- **DependsOn**:` is mandatory on every block (the edge completeness rule; `none`/empty = the explicit no-dependency declaration; a missing line fails as the missing-edge sixth failure class).",
+        "The plan's tasks — one task record per `### Task N:` block, the C3 data shape the brief renderer materializes the task-handoff brief from (renderBrief: objective + steps[action+checkable] + acceptance). Every task record's steps carry their checkable outcome (a step without a checkable fails validation). `- **DependsOn**:` is the plan's single directed edge — mandatory on every task block; `none`/empty is the explicit no-dependency declaration and a missing line is the missing-edge failure.",
       items: {
         type: "object",
         required: ["objective", "files", "interface", "steps", "acceptance", "dependsOn"],

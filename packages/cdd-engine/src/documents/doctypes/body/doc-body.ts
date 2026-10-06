@@ -144,7 +144,10 @@ export type StructureInvariant =
    *  item's comma-split integer refs are compared against the run bound; a ref ≥ the bound fails
    *  (a self reference included). Non-integer ref tokens (`none`/empty/`abc`) carry no bound and
    *  are skipped (the NaN/integer-gate rejection is the graph plane's). A run without a numeric
-   *  bound judges nothing (vacuous — the rule only becomes active under a numbered run opener). */
+   *  bound judges nothing (vacuous — the rule only becomes active under a numbered run opener).
+   *  A ref value BEYOND the enclosing id range (> the extraction's maxBound — the plan's task
+   *  count) is exempt: the past-the-edge reference is the graph plane's missing-id class, never
+   *  the anti-dependency contradiction (the plan constraints' out-of-range exemption, P3.1 T3 fix). */
   | { type: "selfBounded" };
 
 /** A doc-structure rule — one judgment plane + its invariant bundle + the rule's scope severity

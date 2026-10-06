@@ -445,6 +445,38 @@ describe("the unilateral edge rules — plan.edge (missing-edge sixth class) + p
     expect(findings.map((f) => f.id)).not.toContain("plan.edge"); // every block declares its line
   });
 
+  it("an out-of-bounds reference (`T2 dependsOn 99` — beyond the plan's 2-task range) does NOT trip the anti-dependency rule (the out-of-range exemption mirrors the graph plane's missing-id class)", () => {
+    const plan = [
+      "# Plan",
+      "",
+      "## Constraints",
+      "",
+      "- delta",
+      "",
+      "### Task 1: x",
+      "- **Objective**: task one",
+      "- **DependsOn**: none",
+      "- **Steps**:",
+      "  1. implement — checkable: done",
+      "- **Acceptance**:",
+      "  - done",
+      "",
+      "### Task 2: y",
+      "- **Objective**: task two",
+      "- **DependsOn**: 99",
+      "- **Steps**:",
+      "  1. implement — checkable: done",
+      "- **Acceptance**:",
+      "  - done",
+      "",
+    ].join("\n");
+    const findings = runStructureRules(plan, planBody.structureRules());
+    // the gate survives on a genuinely out-of-range ref — a past-the-edge value is the graph
+    // plane's missing-id failure, never the anti-dependency contradiction (task-graph pins 99 → missing-id).
+    expect(findings.map((f) => f.id)).not.toContain("plan.antiDependency");
+    expect(findings.map((f) => f.id)).not.toContain("plan.edge"); // every block declares its line
+  });
+
   it("a self reference (`### Task 5:` block with `- **DependsOn**: 5`) also trips the anti-dependency rule (引用 ≥ 自身 BLOCK)", () => {
     const plan = [
       "# Plan",

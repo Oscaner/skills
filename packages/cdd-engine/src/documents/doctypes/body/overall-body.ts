@@ -471,6 +471,10 @@ export const OVERALL_SHAPE: SchemaShape = {
 const OVERALL_SLICE_PATTERNS: SlicePatternSet = {
   /** `/^\|\s*#\s*\|\s*Phase\s*\|/` — the Phase-inventory header-open (the kernel face). */
   phaseInventoryHeader: /^\|\s*#\s*\|\s*Phase\s*\|/m,
+  /** The Phase-inventory section heading — the membership cross-link target's section scope (the
+   *  graph-token rules resolve against the rows under this heading only, never a same-form
+   *  `| P… |` row elsewhere — see the rule-scope note). */
+  phaseInventoryHeading: /^## Phase inventory\s*$/m,
   /** The canonical-form header row — the header-open + the `Implementation plan` marker column. */
   canonicalInventoryHeader: /^\|\s*#\s*\|\s*Phase\s*\|[^\n]*\|\s*Implementation plan\s*\|/m,
   /** A change-history row — the `Version` header cell or a `v<major>.<minor>` version cell leading. */
@@ -501,13 +505,17 @@ function planeRule(
 const tableRule = planeRule.bind(null, "tableRows");
 const recordRule = planeRule.bind(null, "records");
 
-/** The membership cross-link target — every Phase-inventory / Issue-inventory row's own id cell
- *  (the capture group makes the crossed value the id token, never the whole row). */
+/** The membership cross-link target — a Phase-inventory row's own id cell (the capture group makes
+ *  the crossed value the id token, never the whole row). The graph rules scope this target to the
+ *  `## Phase inventory` section run (`targetWithin`) — membership resolves against the inventory
+ *  rows ALONE, exactly the retired ③ walker's `idsLower` set: a same-form `| P… |` row in the
+ *  Issue inventory (or any other table) can never self-resolve a dangling graph token. */
 const INVENTORY_TARGET = "^\\|\\s*(P\\d+(?:\\.\\d+)*)\\s*\\|";
 
 /** The four-table rules (design §2.2 — the kernel + the table rows the content pass can judge):
  *  the Phase-inventory kernel header + canonical column presence, the change-history version /
- *  order / date numerics, the dependency-graph membership cross-links (③) and the issue-inventory
+ *  order / date numerics, the dependency-graph membership cross-links (③ — targets scoped to the
+ *  `## Phase inventory` section, the retired `idsLower` membership face) and the issue-inventory
  *  phase-registration cross-link (⑥). Severity BLOCK (the four tables are constitutional — a
  *  malformed table blocks the gate). Every rule fires zero on the current 4-overall tree (the
  *  tree-walk delta-zero contract). */
@@ -550,24 +558,42 @@ const OVERALL_RULES: readonly StructureRule[] = [
   recordRule(
     "overall.graph",
     OVERALL_SLICE_PATTERNS.graphSourceRow,
-    [{ type: "crosslink", targetAnchor: INVENTORY_TARGET }],
+    [
+      {
+        type: "crosslink",
+        targetAnchor: INVENTORY_TARGET,
+        targetWithin: OVERALL_SLICE_PATTERNS.phaseInventoryHeading.source,
+      },
+    ],
     "BLOCK",
     "the dependency graph references a phase that is not in the Phase inventory (dangling graph token)",
   ),
   recordRule(
     "overall.graphTarget",
     OVERALL_SLICE_PATTERNS.graphTargetRow,
-    [{ type: "crosslink", targetAnchor: INVENTORY_TARGET }],
+    [
+      {
+        type: "crosslink",
+        targetAnchor: INVENTORY_TARGET,
+        targetWithin: OVERALL_SLICE_PATTERNS.phaseInventoryHeading.source,
+      },
+    ],
     "BLOCK",
     "the dependency graph references a phase that is not in the Phase inventory (dangling graph token)",
   ),
 ];
 
-// NOTE — the ⑥ issue-inventory phase-membership face is not on this rule plane: the membership
-// cross-link target (`| P… |` rows) matches the issue rows THEMSELVES, so an unregistered phase in
-// an issue row self-satisfies the resolution (the rule can never fire). The face stays on the
-// overall doc type, section-scoped to the parsed `## Issue inventory` rows (like the ref-form
-// face) — see overall.ts #fourTableAudit.
+// NOTE — the ⑥ issue-inventory face is not on this rule plane, for two reasons. (1) Its membership
+// judgment is one serial combined per-row judgment — membership against the Phase inventory, then
+// the ref-form check on the SAME row (a membership failure `continue`s past the ref-form) — and the
+// ref-form half reads CELLS (anchored `#NNN#…` / bare `#NNN` / wrapped / `none` / parenthetical), a
+// positional read the line-anchored rule vocabulary cannot carry; splitting the combined judgment
+// across two surfaces would double-report. (2) Unlike the graph rules (whose targets now scope to
+// the `## Phase inventory` section — a dangling graph token can no longer self-resolve against an
+// Issue-inventory row), ⑥ has no dangling-token hazard: an unregistered issue phase STAYS
+// unregistered — the membership face keeps producing its failure on that row. The face stays on the
+// overall doc type, section-scoped to the parsed `## Issue inventory` rows — see overall.ts
+// #fourTableAudit.
 
 /**
  * The overall concrete body (P3.1 T2; design §2.2/2.5 — Criterion ②: class + constructor

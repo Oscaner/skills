@@ -110,8 +110,10 @@ export interface StructurePlane {
  *  the items' captured values against the declared pattern / sequence / target surface. */
 export type StructureInvariant =
   /** presence — the anchored plane must carry at least one item (`## Design` · `## Constraints` ·
-   *  charter facets). */
-  | { type: "presence" }
+   *  charter facets). With `perRun` (a within-scoped records plane) the demand becomes EVERY run
+   *  must carry at least one item — the empty-task-block face (a `### Task N:` block whose run has
+   *  zero data-shaped fields fails; a plan with no runs judges nothing, vacuous true). */
+  | { type: "presence"; perRun?: boolean }
   /** uniqueness — the anchored plane must carry exactly one item (`### Acceptance criteria` · a
    *  phase id present once). */
   | { type: "uniqueness" }
@@ -121,8 +123,10 @@ export type StructureInvariant =
   | { type: "domain"; valuePattern: string }
   /** crosslink — every item's captured ref must resolve to a target under the target anchor (graph
    *  token → Phase inventory · issue ref → Issue inventory); an unresolved ref is a dangling
-   *  anchor. */
-  | { type: "crosslink"; targetAnchor: string }
+   *  anchor. `targetWithin` scopes the target scan to the section run under a heading anchor (the
+   *  section-scoped target plane — the graph token resolves against the Phase-inventory rows only,
+   *  never a same-form `| P… |` row elsewhere in the document, e.g. an Issue-inventory row). */
+  | { type: "crosslink"; targetAnchor: string; targetWithin?: string }
   /** order — the item sequence's captured values must ascend, strictly (change-history version
    *  lineage, mono ascending); `compare` selects the ascent comparator (numeric default — the
    *  segment-aware version compare for the change-history face). */

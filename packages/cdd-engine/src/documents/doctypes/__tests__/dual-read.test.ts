@@ -216,6 +216,28 @@ describe("single-form grammar — a NEW document carrying a legacy face fails th
     expect(structureHits("plan", ORPHAN_TASK_PLAN)).toContain("plan.recordData");
   });
 
+  it("a field-less task block: an EMPTY `### Task N:` block (no data-shaped fields at all) → the record-presence face fires (the T0 orphan semantic restored — the rule fires on any orphan block, not just the legacy `- **Do**:` face)", () => {
+    const empty = tempDoc(
+      [
+        "# Plan",
+        "",
+        "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
+        "",
+        "## Constraints",
+        "",
+        "- delta",
+        "",
+        "### Task 1: x",
+        "",
+      ].join("\n"),
+    );
+    try {
+      expect(structureHits("plan", empty)).toContain("plan.recordData");
+    } finally {
+      rmSync(path.dirname(empty), { recursive: true, force: true });
+    }
+  });
+
   it("Form B constraints: prose-anchor declarations declare NO `## Constraints` source → the constraints-source rule fires (source undeclared BLOCK)", () => {
     expect(structureHits("plan", FORM_B_PLAN)).toContain("plan.constraints");
   });

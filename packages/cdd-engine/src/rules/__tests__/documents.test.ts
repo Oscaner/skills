@@ -1522,7 +1522,7 @@ describe("P4.3 Task 9 #276 — error UX guidance + schema-described authoring sh
     expect(hits).toContain("overall.historyVersion");
   });
 
-  it("not-a-Phase-inventory-id issue phase → the issue-phase rule fires (P3.1 T2 — the registration judgment rides the structure plane)", () => {
+  it("not-a-Phase-inventory-id issue phase → the contextual Issue-inventory membership face fires (P3.1 T2 — the registration judgment stays on the doc type, section-scoped to the parsed issue rows)", () => {
     const c = writeChain({
       overall: [
         "- **Version**: v1.0 · 2026-09-21",

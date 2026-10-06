@@ -302,6 +302,11 @@ export const PLAN_BODY_SHAPE: SchemaShape = {
 const PLAN_SLICE_PATTERNS: SlicePatternSet = {
   taskHeading: /^### Task (\d+):/m,
   constraintsHeading: BODY_CONSTRAINTS_HEADING_RE,
+  /** The data-shaped task-record field markers — the fields whose presence makes a `### Task N:`
+   *  block a data record the brief can render (the retired orphan-task-block check's
+   *  `!objective && steps.length === 0 && acceptance.length === 0` — a block carrying none of the
+   *  three is an orphan, whether it wears the legacy `- **Do**:` face or carries no fields at all). */
+  taskField: /^- \*\*(?:Objective|Steps|Acceptance)\*\*:[ \t]*/m,
   objective: /^- \*\*Objective\*\*:[ \t]*/,
   files: /^- \*\*Files\*\*:[ \t]*/,
   consumes: /^- \*\*Consumes\*\*:[ \t]*/,
@@ -340,11 +345,15 @@ export class PlanBody extends DocBody {
   }
 
   /** The plan structure-rule data (P3.1 T2 — the retired plan-contract text-assertion migration,
-   *  design §2.2): task continuity + record presence (the data-shaped record face, every step's
-   *  checkable) + constraints source + legacy residue, as rule data the ONE interpreter runs at the
-   *  doc-contract gate. The anchors derive from the projected slices (`.source` — the parse-pattern
-   *  single source, never a re-typed literal; the legacy-section / placeholder / Do-face residues
-   *  are the retired faces' own anchors). The checkable rule is section-scoped (`within` — the
+   *  design §2.2): task continuity + record presence (the data-shaped record face, every task block
+   *  carries objective/steps/acceptance — and every step's checkable) + constraints source + legacy
+   *  residue, as rule data the ONE interpreter runs at the doc-contract gate. The anchors derive
+   *  from the projected slices (`.source` — the parse-pattern single source, never a re-typed
+   *  literal; the legacy-section / placeholder residues are the retired faces' own anchors). The
+   *  record-data rule is the within-scoped per-run presence face (a `### Task N:` heading opens a
+   *  run; the run must carry at least one data-shaped field — a legacy `- **Do**:` block or a
+   *  field-less empty block is an orphan, the retired `!objective && steps.length === 0 &&
+   *  acceptance.length === 0` face restored). The checkable rule is section-scoped (`within` — the
    *  interpreter's run-closed records plane): a numbered step counts as a checkable-judgment target
    *  only under a `- **Steps**:` field, exactly the retired contract's parsed-steps scope — a
    *  numbered line in Constraints prose or a code fence never demands a checkable. The Class-A
@@ -363,11 +372,15 @@ export class PlanBody extends DocBody {
       },
       {
         id: "plan.recordData",
-        plane: { kind: "records", anchor: "^- \\*\\*Do\\*\\*:" },
-        invariants: [{ type: "residue" }],
+        plane: {
+          kind: "records",
+          anchor: heading(PLAN_SLICE_PATTERNS.taskField),
+          within: heading(PLAN_SLICE_PATTERNS.taskHeading),
+        },
+        invariants: [{ type: "presence", perRun: true }],
         severity: "BLOCK",
         message:
-          "a task block carrying the legacy `- **Do**:` face carries no data-shaped fields — shape the block as a data record (`- **Objective**:` / `- **Files**:` / `- **Interface**:`{consumes,produces} / `- **Steps**:` / `- **Acceptance**:`)",
+          "a `### Task N:` block carries no data-shaped fields (`- **Objective**:` / `- **Steps**:` / `- **Acceptance**:`) — an orphan block (a legacy `- **Do**:` body or a field-less empty block) the brief cannot render; shape it as a data record",
       },
       {
         id: "plan.checkable",

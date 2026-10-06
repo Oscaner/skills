@@ -240,6 +240,108 @@ describe("the plane/anchor families (three decidable plane kinds)", () => {
     expect(runStructureRules(proseTarget, [rule])).toHaveLength(0);
   });
 
+  it("crosslink targetWithin — the target scan scopes to a `##`-section run, so a same-form target row outside the section never resolves a ref (a graph token present only as an Issue-inventory row stays dangling — the P3.1 T2 fix)", () => {
+    const rule: StructureRule = {
+      id: "overall.graphScoped",
+      // The graph-edge TARGET token (the `overall.graphTarget` face — the dangling edge's target).
+      plane: { kind: "records", anchor: "^\\s*P\\d+(?:\\.\\d+)*\\s*->\\s*(P\\d+(?:\\.\\d+)*)" },
+      invariants: [
+        {
+          type: "crosslink",
+          targetAnchor: "^\\|\\s*(P\\d+(?:\\.\\d+)*)\\s*\\|",
+          targetWithin: "^## Phase inventory\\s*$",
+        },
+      ],
+      severity: "BLOCK",
+      message: "the dependency graph references a phase outside the Phase inventory",
+    };
+    // The dangling edge target appears ONLY as an Issue-inventory row (BEFORE the Phase-inventory
+    // section) — the unscoped target would self-resolve the dangling graph token; the
+    // section-scoped target keeps membership to the Phase-inventory ids (the retired `idsLower`
+    // set) → the finding fires.
+    const maskedByIssueRow = [
+      "## Issue inventory",
+      "",
+      "| Phase | Issue (ref) | Title summary |",
+      "|---|---|---|",
+      "| P9 | none | issue one |",
+      "",
+      "## Phase inventory",
+      "",
+      "| # | Phase | Scope |",
+      "|---|---|---|",
+      "| P1 | phase one |",
+      "",
+      "## Dependency graph",
+      "",
+      "```",
+      "P1 -> P9",
+      "```",
+    ].join("\n");
+    expect(runStructureRules(maskedByIssueRow, [rule])).toHaveLength(1);
+    // The contrast — the SAME content judged by the unscoped crosslink (no targetWithin) resolves
+    // P9 against the Issue-inventory row and stays silent: exactly the mask the fix closes.
+    const unscoped: StructureRule = {
+      ...rule,
+      invariants: [{ type: "crosslink", targetAnchor: "^\\|\\s*(P\\d+(?:\\.\\d+)*)\\s*\\|" }],
+    };
+    expect(runStructureRules(maskedByIssueRow, [unscoped])).toHaveLength(0);
+    // A token registered INSIDE the Phase-inventory section resolves under the scoped target → none.
+    const resolved = [
+      "## Phase inventory",
+      "",
+      "| # | Phase | Scope |",
+      "|---|---|---|",
+      "| P1 | phase one |",
+      "| P2 | phase two |",
+      "",
+      "## Dependency graph",
+      "",
+      "```",
+      "P1 -> P2",
+      "```",
+    ].join("\n");
+    expect(runStructureRules(resolved, [rule])).toHaveLength(0);
+  });
+
+  it("presence perRun — every heading-opened within-run carries at least one anchored item (a field-less empty `### Task N:` block fires; populated sequential blocks pass — the P3.1 T2 orphan-task-block face)", () => {
+    const rule: StructureRule = {
+      id: "plan.recordData",
+      plane: {
+        kind: "records",
+        anchor: "^- \\*\\*(?:Objective|Steps|Acceptance)\\*\\*:",
+        within: "^### Task \\d+:",
+      },
+      invariants: [{ type: "presence", perRun: true }],
+      severity: "BLOCK",
+      message: "a task block must carry data-shaped fields",
+    };
+    // The first block carries no data-shaped fields at all (its run closes with zero items) — per-run
+    // presence fires even though the second block (a sequential heading-run of its own) is
+    // populated.
+    const withEmptyBlock = [
+      "### Task 1:",
+      "body prose only",
+      "### Task 2:",
+      "- **Objective**: a",
+      "- **Acceptance**:",
+      "  - done",
+    ].join("\n");
+    expect(runStructureRules(withEmptyBlock, [rule])).toHaveLength(1);
+    // Sequential blocks whose runs all carry at least one data-shaped field → no finding (the
+    // field-marker lines are items inside the heading-run, never closers).
+    const populated = [
+      "### Task 1:",
+      "- **Objective**: a",
+      "- **Acceptance**:",
+      "  - done",
+      "### Task 2:",
+      "- **Steps**:",
+      "  1. act — checkable: ok",
+    ].join("\n");
+    expect(runStructureRules(populated, [rule])).toHaveLength(0);
+  });
+
   it("the seven invariants are expressible as typed instances — the design §2.1 vocabulary, no wildcard DSL", () => {
     const instances: readonly StructureInvariant[] = [
       { type: "presence" },

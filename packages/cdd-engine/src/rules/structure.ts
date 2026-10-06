@@ -14,12 +14,17 @@
 //                        capture group 1 — when present — is the per-item value; presence /
 //                        uniqueness / residue judge the item count, domain / crosslink / order /
 //                        continuity judge the values). A records rule may scope its scan to a
-//                        section via StructurePlane.within (the section-scoped plane — a `- **Steps**:`
-//                        field run, a `##` section): the run opens at a `within`-anchored line and
-//                        closes at the structural-boundary family (heading / `- **` marker / `---`).
+//                        section via StructurePlane.within (the section-scoped plane — a `##`-run
+//                        opened at a heading, or a field run opened at a `- **Steps**:`-style
+//                        marker line): a heading-opened run opens at a heading line and closes at
+//                        the heading/`---` boundary family (its data-field marker lines are ITEMS,
+//                        never closers), a field-opened run closes at the full boundary family
+//                        (heading / field marker / `---`). The extraction also carries each run's
+//                        item count — the per-run presence judge's surface (presence.perRun).
 //   evaluateInvariant — each declared invariant decides against the SAME extracted item list (no
-//                       re-parse per invariant; crosslink's target scan is the one second pass).
-//   Findings           — ONE finding per failing rule: {id, severity, message} — severity maps from
+//                       re-parse per invariant; crosslink's target scan is the one second pass,
+//                       optionally scoped to a section run by crosslink.targetWithin).
+//   Findings          — ONE finding per failing rule: {id, severity, message} — severity maps from
 //                       the rule and the message is the rule's declared copy, VERBATIM (the
 //                       interpreter never assembles messages: zero runtime concatenation). An empty
 //                       rule set (or a rule with zero invariants) judges nothing.
@@ -47,6 +52,17 @@ interface PlaneItem {
   value: string;
 }
 
+/** One plane extraction — the item list + the per-run item counts of a within-scoped records scan
+ *  (the per-run presence judge's surface; absent for unscoped planes — presence.perRun only makes
+ *  sense over within-scoped records runs). */
+interface PlaneExtraction {
+  /** The anchored items, in content order. */
+  items: PlaneItem[];
+  /** The per-run item counts of a within-scoped records extraction (each within-run's anchored item
+   *  count, in run order) — the presence.perRun judge demands every count > 0. */
+  runCounts?: readonly number[];
+}
+
 /** Compile the anchor source with the scan flags — the `m` line-anchoring (the rule author writes
  *  the `^`-anchored line form; never a global search — extraction is per-line). */
 function compile(source: string): RegExp {
@@ -63,12 +79,20 @@ function isSeparatorRow(row: string): boolean {
   return cells.length > 0 && cells.every((c) => /^[-:]+$/.test(c));
 }
 
-/** The structural-boundary family that CLOSES a `within`-scoped records run: a heading line, a
- *  `- **Field**:` marker line (the sibling record plane's field family), or a `---` rule. The
- *  closer itself is never an item; a run left open at the end of the content ends at the last line.
- *  A within-anchor line that ALSO matches the closer is impossible by contract (the run opener is
- *  checked only while OUTSIDE a run — the opener line is consumed by the open, never closed). */
+/** The structural-boundary family that CLOSES a field-opened `within`-scoped records run: a heading
+ *  line, a `- **Field**:` marker line (the sibling record plane's field family), or a `---` rule.
+ *  The closer itself is never an item; a run left open at the end of the content ends at the last
+ *  line. A within-anchor line that ALSO matches the closer is impossible by contract (the run opener
+ *  is checked only while OUTSIDE a run — the opener line is consumed by the open, never closed). */
 const WITHIN_CLOSE_RE = /^\s*(?:#{1,6}\s|-+\s+\*\*|---+\s*$)/;
+
+/** The boundary family that closes a HEADING-opened within-run (P3.1 T2 fix — the heading-run
+ *  plane): a heading line or a `---` rule — the data-field marker lines of a heading-run are ITEMS,
+ *  never closers (a `### Task N:` block's `- **Objective**:` lines must count inside the run). The
+ *  opener line classifies its run: a line matching this heading family (a `### Task N:` heading)
+ *  opens a heading-run; any other opener (a `- **Steps**:` field marker) opens a field-run closed
+ *  by the full family above. */
+const HEADING_CLOSE_RE = /^\s*(?:#{1,6}\s|---+\s*$)/;
 
 /** The plane's item extraction — ONE line scan per rule: headingLeads / records select the anchored
  *  lines (value = anchor capture group 1, trimmed); tableRows locate each header anchor match then
@@ -77,34 +101,53 @@ const WITHIN_CLOSE_RE = /^\s*(?:#{1,6}\s|-+\s+\*\*|---+\s*$)/;
  *  anchor to each data row for its captured value. A records rule carrying `within` scopes its
  *  items to the runs under a `within`-matching opener line (the section-scoped plane — see
  *  StructurePlane.within): while inside a run the closer family ends it first, then the anchor
- *  selects items; outside a run only the opener line re-enters. */
-function extractPlaneItems(content: string, plane: StructurePlane): PlaneItem[] {
+ *  selects items; outside a run only the opener line re-enters. The opener LINE classifies its run
+ *  (a heading line opens a heading-run closed by the heading/`---` family, its field-marker lines
+ *  counted as items; any other opener opens a field-run closed by the full boundary family), and
+ *  each run's item count is recorded for the per-run presence judge. A heading-run closed by a
+ *  heading line that is also a run opener (the next `### Task N:`) re-enters immediately — the
+ *  sequential task blocks never lose their runs. */
+function extractPlaneItems(content: string, plane: StructurePlane): PlaneExtraction {
   const lines = content.split("\n");
   const anchor = compile(plane.anchor);
   const items: PlaneItem[] = [];
   if (plane.kind === "headingLeads" || plane.kind === "records") {
     if (plane.within !== undefined) {
       const opener = compile(plane.within);
+      const runCounts: number[] = [];
       let inRun = false;
+      let fieldCloser = false;
+      let runCount = 0;
       for (const line of lines) {
         if (inRun) {
-          if (WITHIN_CLOSE_RE.test(line)) {
+          if ((fieldCloser ? WITHIN_CLOSE_RE : HEADING_CLOSE_RE).test(line)) {
+            runCounts.push(runCount);
             inRun = false;
+            runCount = 0;
+            // fall through — the closer line may itself be a run opener (the next `### Task N:`)
+          } else {
+            const m = line.match(anchor);
+            if (m) {
+              items.push({ line, value: (m[1] ?? "").trim() });
+              runCount++;
+            }
             continue;
           }
-          const m = line.match(anchor);
-          if (m) items.push({ line, value: (m[1] ?? "").trim() });
-          continue;
         }
-        if (opener.test(line)) inRun = true;
+        if (opener.test(line)) {
+          inRun = true;
+          runCount = 0;
+          fieldCloser = !HEADING_CLOSE_RE.test(line);
+        }
       }
-      return items;
+      if (inRun) runCounts.push(runCount);
+      return { items, runCounts };
     }
     for (const line of lines) {
       const m = line.match(anchor);
       if (m) items.push({ line, value: (m[1] ?? "").trim() });
     }
-    return items;
+    return { items };
   }
   for (let i = 0; i < lines.length; i++) {
     if (!anchor.test(lines[i]!)) continue; // no header row here — keep scanning
@@ -123,7 +166,32 @@ function extractPlaneItems(content: string, plane: StructurePlane): PlaneItem[] 
     }
     i = k - 1; // continue the scan AFTER the consumed table (a later separate table's header still finds its own run)
   }
-  return items;
+  return { items };
+}
+
+/** The crosslink target lines — the content's lines restricted to the `targetWithin` section run
+ *  when present (the section-scoped target plane): the run opens at a targetWithin-matching line
+ *  and closes at the heading/`---` boundary family, so a same-form target row elsewhere in the
+ *  document (an Issue-inventory `| P… |` row) can never resolve a Phase-inventory membership ref.
+ *  Absent → the whole content (the unscoped target scan). */
+function crosslinkTargetLines(content: string, targetWithin: string | undefined): string[] {
+  const lines = content.split("\n");
+  if (targetWithin === undefined) return lines;
+  const opener = compile(targetWithin);
+  const scoped: string[] = [];
+  let inRun = false;
+  for (const line of lines) {
+    if (inRun) {
+      if (HEADING_CLOSE_RE.test(line)) {
+        inRun = false;
+        continue;
+      }
+      scoped.push(line);
+      continue;
+    }
+    if (opener.test(line)) inRun = true;
+  }
+  return scoped;
 }
 
 /** Split a version token into its segment parts — the leading `v`/`V` stripped so numeric segments
@@ -162,15 +230,24 @@ function compareValues(a: string, b: string, compare: "numeric" | "version"): nu
 /** Decide one invariant against the extracted items. The count-judging invariants (presence /
  *  uniqueness / residue) read the item list; the value-judging ones (domain / crosslink / order /
  *  continuity) read the items' captured values — vacuous over an empty item list (presence owns
- *  the "must exist" demand). */
+ *  the "must exist" demand; presence.perRun owns the per-task-run emptiness demand). */
 function evaluateInvariant(
   invariant: StructureInvariant,
-  items: readonly PlaneItem[],
+  extraction: PlaneExtraction,
   content: string,
 ): boolean {
+  const items = extraction.items;
   switch (invariant.type) {
-    case "presence":
+    case "presence": {
+      if (invariant.perRun === true) {
+        // Per-run presence — every within-run of the section-scoped records plane must carry at
+        // least one anchored item (a `### Task N:` block with zero data-shaped fields fails); a
+        // plan with no runs (no task blocks at all) judges nothing — the vacuous true state.
+        const counts = extraction.runCounts;
+        return counts === undefined || counts.every((n) => n > 0);
+      }
       return items.length > 0;
+    }
     case "uniqueness":
       return items.length === 1;
     case "domain": {
@@ -181,8 +258,7 @@ function evaluateInvariant(
     case "crosslink": {
       if (items.length === 0) return true;
       const targetRe = compile(invariant.targetAnchor);
-      const targets = content
-        .split("\n")
+      const targets = crosslinkTargetLines(content, invariant.targetWithin)
         .map((line) => line.match(targetRe))
         .filter((m) => m !== null) as RegExpMatchArray[];
       // Resolution: some target line's captured value equals the item's ref (dangling = none).
@@ -212,9 +288,9 @@ function evaluateInvariant(
 }
 
 /** runStructureRules — the single structure interpreter: each rule's plane is extracted once (the
- *  single content pass per rule), its invariants decide against the same item list, and every rule
- *  with a failing invariant emits ONE finding carrying the rule's identity, severity and fixed
- *  message copy. An empty rule set yields zero findings. */
+ *  single content pass per rule), its invariants decide against the same extracted item list, and
+ *  every rule with a failing invariant emits ONE finding carrying the rule's identity, severity and
+ *  fixed message copy. An empty rule set yields zero findings. */
 export function runStructureRules(
   content: string,
   rules: readonly StructureRule[],
@@ -222,9 +298,9 @@ export function runStructureRules(
   const findings: StructureFinding[] = [];
   for (const rule of rules) {
     if (rule.invariants.length === 0) continue; // zero demands — nothing to judge
-    const items = extractPlaneItems(content, rule.plane);
+    const extraction = extractPlaneItems(content, rule.plane);
     const failed = !rule.invariants.every((invariant) =>
-      evaluateInvariant(invariant, items, content),
+      evaluateInvariant(invariant, extraction, content),
     );
     if (failed) {
       findings.push({ id: rule.id, severity: rule.severity, message: rule.message });

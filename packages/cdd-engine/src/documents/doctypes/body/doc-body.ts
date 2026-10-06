@@ -19,7 +19,11 @@
 // single-source here (the plan and phase-spec bodies projected the same heading regex by hand, and
 // the leaf load-order law keeps them off tokens.ts — the atomics live at the body root instead,
 // re-exported by tokens.ts for its token-plane consumers). The base's forward contract stays stable
-// across both switches.
+// across both switches. P3.1 T1 (doc-architecture-v2 P3.1) widens the abstract contract with the
+// structure-rule DATA seam: the rule-data plane (StructureRule / StructurePlane /
+// StructureInvariant / StructureFinding — the seven typed invariants) lands at the body root — the
+// rule-data home, zero interpreter reverse-imports (the unified-engine-boundary constraint) — with
+// the concrete per-type rule sets landing at the P3.1 rule-migration tasks.
 
 import type { SchemaShape } from "../../doctype.ts";
 
@@ -61,6 +65,94 @@ export const BODY_CONSTRAINTS_HEADING_RE = new RegExp(
   "m",
 );
 
+// ---- the structure-rule data contract (P3.1 F6 — the body-plane rules-data type family) ----
+
+// The rule-data plane's type contract lives HERE at the body root, never in the interpreter: the
+// doc bodies are the rule-data home (each concrete body declares `structureRules()`), and the
+// load-order law keeps them off `rules/structure.ts` (zero interpreter reverse-imports — the
+// engine's one rule-type definition, one rule-data home). `rules/structure.ts` type-imports this
+// contract and re-exports it as the produced surface, so the rule DATA authors (the bodies) and
+// the interpreter consumer read ONE type definition, never a re-home.
+
+/** The three anchor kinds of the structure-rule plane (design §2.1 — the leaf-plane classes):
+ *  `headingLeads` (line-leading heading anchors — `### Task N:` · `#### N.M` design items · charter
+ *  facets), `tableRows` (table-header anchors + row extraction — the four-table rows), `records`
+ *  (task-record field markers — the task-block fields). */
+export type StructurePlaneKind = "headingLeads" | "tableRows" | "records";
+
+/** A rule's judgment plane — which structural surface the invariants scan, and the anchor regex
+ *  source selecting it. The anchor is the single extraction spec: its capture group 1 — when
+ *  present — is the per-item value the value-judging invariants (domain / crosslink / order /
+ *  continuity) decide against; an anchor without a capture yields an empty value (presence /
+ *  uniqueness / residue judge the item count alone). */
+export interface StructurePlane {
+  /** The plane kind — the surface class the anchor selects on. */
+  kind: StructurePlaneKind;
+  /** The anchor regex source (`m`-compiled by the interpreter — the rule author writes the
+   *  `^`-anchored line form; headingLeads/records match anchored lines, tableRows matches the
+   *  header row and its data rows). */
+  anchor: string;
+}
+
+/** The invariant vocabulary of the structure-rule plane (design §2.1 — seven declared invariants,
+ *  no wildcard DSL). Each member's payload is the ONLY machine-readable judgment parameter the
+ *  interpreter reads: presence / uniqueness / residue judge the anchored item count, the rest judge
+ *  the items' captured values against the declared pattern / sequence / target surface. */
+export type StructureInvariant =
+  /** presence — the anchored plane must carry at least one item (`## Design` · `## Constraints` ·
+   *  charter facets). */
+  | { type: "presence" }
+  /** uniqueness — the anchored plane must carry exactly one item (`### Acceptance criteria` · a
+   *  phase id present once). */
+  | { type: "uniqueness" }
+  /** domain — every item's captured value must full-match the value pattern (edge values
+   *  `none`/empty/positive integers · version `v<digits>.<digits>`). The pattern is wrapped by the
+   *  interpreter into an anchored full-match. */
+  | { type: "domain"; valuePattern: string }
+  /** crosslink — every item's captured ref must resolve to a target under the target anchor (graph
+   *  token → Phase inventory · issue ref → Issue inventory); an unresolved ref is a dangling
+   *  anchor. */
+  | { type: "crosslink"; targetAnchor: string }
+  /** order — the item sequence's captured values must ascend, strictly (change-history version
+   *  lineage, mono ascending); `compare` selects the ascent comparator (numeric default — the
+   *  segment-aware version compare for the change-history face). */
+  | { type: "order"; compare?: "numeric" | "version" }
+  /** continuity — the item sequence's captured numbers must be the exact 1..N set, in order (task
+   *  1..N — no gaps, no duplicates, no offset). */
+  | { type: "continuity" }
+  /** residue — the anchored plane must carry ZERO items (pseudo-headings · legacy faces such as
+   *  `## Task Groups` / Form-B). */
+  | { type: "residue" };
+
+/** A doc-structure rule — one judgment plane + its invariant bundle + the rule's scope severity
+ *  and its fixed message copy (the reusable wording findings carry VERBATIM — the interpreter
+ *  never assembles messages at runtime, zero external concatenation). */
+export interface StructureRule {
+  /** The rule id — the registry-style identity (e.g. "plan.edges" · "spec.designItems" ·
+   *  "overall.charterFacets"). */
+  id: string;
+  /** The judgment plane — the surface + anchor the invariants scan. */
+  plane: StructurePlane;
+  /** The invariant bundle — the declared structural demands (the seven typed invariant
+   *  vocabulary). */
+  invariants: readonly StructureInvariant[];
+  /** The rule's scope severity — the finding's severity for any failing invariant. */
+  severity: "BLOCK" | "WARN";
+  /** The fixed message copy — the finding's message, byte-identical to this declaration. */
+  message: string;
+}
+
+/** One structure finding — the rule identity + severity + the rule's fixed message copy (no
+ *  per-run assembly: the interpreter emits the declared rule message verbatim). */
+export interface StructureFinding {
+  /** The failing rule's id. */
+  id: string;
+  /** The failing rule's severity. */
+  severity: "BLOCK" | "WARN";
+  /** The failing rule's fixed message copy. */
+  message: string;
+}
+
 /** Constructor options for a doc body — the identity kind + the template-prose description. */
 export interface DocBodyOpts {
   /** The body's kind identity — the concrete family this body belongs to. */
@@ -99,4 +191,14 @@ export abstract class DocBody {
   /** The parse slice-pattern single source — every parse regex this body's document shape
    *  recognizes, keyed per concrete body (no preset keys on the abstract face). */
   abstract projectSlicePatterns(): SlicePatternSet;
+
+  /** The body's structure-rule data seam (P3.1 F6 — the rule-data plane): the concrete bodies
+   *  declare their structural demands as rule DATA (the `StructureRule[]` the single interpreter
+   *  `runStructureRules` consumes — the rule-data home here at the body root, zero interpreter
+   *  reverse-imports). The abstract face defaults to `[]` — a body with no rules contributes zero
+   *  structure findings (the T1 no-behavior-change state until the concrete rule sets land at
+   *  T2+). */
+  structureRules(): StructureRule[] {
+    return [];
+  }
 }

@@ -105,28 +105,29 @@
   - `- ` dispatch pre-flight（`cdd implement`/`cdd review`）覆盖边完备（dry-run 负例）；engine suite + 树套件全绿
   - `- ` 存量 plans steps 面规范化：未解析步骤行零残留（每步 `N. … — checkable:` 全解析）· 补充条例死壳清理断言
 
-### Task 4: designItems 结构面（spec 骨架 + 全树 specs 结构秩迁移）
+### Task 4: designItems 结构面（统一大纲模型 —— 全树 specs 双层迁移）
 
-- **Objective**: `####` 登记叶切片 + designItems 规则（计数/空体/hollow/伪标题残留 BLOCK）+ 全树 21 份 specs 中 19 份 171 处独立 bold 伪标题 → `####` 逐字（含 `§`）+ tree-migration 结构秩 pin——design body 从无登记叶平面变机器可见
-- **Consumes**: T2 spec 骨架规则集 · `designItemHeading` 切片
-- **Produces**: designItems 判定（计数/空体/hollow/伪标题残留）· 全树 0 伪标题全状态——T7 消费面（SKILL 撰作指导）依赖
+- **Objective**: **双层登记叶**（`### N.` 分组头 + `#### N.M` 项叶 · `### Acceptance criteria` 锚唯一）+ designItems 规则（分组头连续性/项归属/计数/空体/hollow/伪标题残留 BLOCK）+ 全树 21 份 specs 中 19 份 171 处独立 bold 伪标题 → `#### N.M` 逐字（含 `§`）**并按 N 归组补 `### N.` 分组头** + tree-migration 双层层级 pin——design body 从无登记叶平面变机器可见，作者以大纲心智撰写（消费导向）
+- **Consumes**: T2 spec 骨架规则集 · 双层切片（`groupHeading`/`designItemHeading`）
+- **Produces**: 双层层级判定（连续性/归属/count/空体/hollow/伪标题残留）· 全树 0 伪标题全状态——T7 消费面（SKILL 撰作指导）依赖
 - **DependsOn**: 2
 - **Files**:
-  - Modify: `packages/cdd-engine/src/documents/doctypes/body/phase-spec-body.ts`（SlicePatternSet += `designItemHeading: /^#### /m` · `structureRules()` += designItems 规则 · PHASE_SPEC_BODY_SHAPE description 更新）
+  - Modify: `packages/cdd-engine/src/documents/doctypes/body/phase-spec-body.ts`（SlicePatternSet += `groupHeading: /^### \d+\. /m` · `designItemHeading: /^#### \d+\.\d+ /m` · `structureRules()` += 双层层级规则（分组头连续性 presence/order · 项归属 crosslink · 空体/hollow · 伪标题残留）· PHASE_SPEC_BODY_SHAPE description 更新——`###` 契约从「全类唯一」升「`### N.` 分组头 + `### Acceptance criteria` 唯一锚」）
   - Modify: `packages/cdd-engine/config/schema/phase-spec.json`（派生产物字节保真更新）
-  - Modify: `packages/cdd-engine/src/documents/doctypes/__tests__/tree-migration.test.ts`（结构秩 pin）· `__tests__/dual-read.test.ts`
-  - Modify: `packages/cdd-engine/src/documents/doctypes/body/__tests__/phase-spec-body.test.ts`（designItems 用例）· `__tests__/fixtures/`（spec fixtures 核查）
-  - 迁移: `docs/kairos/specs/*-design.md`（19 份，171 处）
+  - Modify: `packages/cdd-engine/src/documents/doctypes/__tests__/tree-migration.test.ts`（双层 pin）· `__tests__/dual-read.test.ts`
+  - Modify: `packages/cdd-engine/src/documents/doctypes/body/__tests__/phase-spec-body.test.ts`（双层用例）· `__tests__/fixtures/`（spec fixtures 核查）
+  - 迁移: `docs/kairos/specs/*-design.md`（19 份，171 处 + 补分组头）
 - **Steps**:
-  - 1. 切片 + 规则——checkable: `designItemHeading: /^#### /m` 进 slices（与 `### Acceptance criteria`/`## Design` exact-anchor 零碰撞——既有唯一性断言保持）；designItems 规则 = 空体 BLOCK / hollow 叶 BLOCK / 独立 bold 行残留 BLOCK（严格 pattern 命中且 ∉ 显式豁免清单——2 条豁免散文流水逐行 pin、不迁移）/ 计数可枚举
+  - 1. 双层切片 + 规则——checkable: `groupHeading: /^### \d+\. /m` + `designItemHeading: /^#### \d+\.\d+ /m` 进 slices（与 `### Acceptance criteria`/`## Design` exact-anchor 零碰撞——锚唯一断言保持）；规则 = 分组头连续性（`### N.` 单调）BLOCK / 项归属（`#### N.M` 的 N ∈ 已声明分组）BLOCK / 空体 BLOCK / hollow 叶 BLOCK / 独立 bold 行残留 BLOCK（严格 pattern 命中且 ∉ 显式豁免清单——2 条豁免散文流水逐行 pin、不迁移）/ 计数可枚举
   - 2. 伪标题 pattern 负例保护——checkable: 2 份零独立文件（cp-p4.1 / doc-arch-p3）在 pattern 下零命中（全 lead-in 合法）——pattern 无误伤断言；行内 lead-in bold / code span `**` 零误判
-  - 3. 全树 19 份 specs 迁移——checkable: 迁移对象 = 严格 pattern 命中 173 中除 2 条豁免散文外的 171 处独立 bold（编号式 78 · § 式 87 · 其他式 6）→ `#### <原文本逐字>`（含 `§` 原文保留）；2 条豁免散文（osuperpowers-overhaul-p1 L113 核对清单断言「All Overall updated? = Yes before review.」 · osuperpowers-overhaul-p5 L88 删除面 bold-bookend）逐行 pin、不迁移；文件可混式逐字处理；2 份零独立文件不动
-  - 4. fixtures 核查——checkable: 正例 spec fixtures（`new-shape-phase-spec-design` / `zero-residue-phase-spec-design`）在 rules 下零命中；负例夹具 `section-1-spec-design.md`（Constraints 第 3 条规范名）仅原失败轴（伪标题残留面若命中 → 回填 conformant 面保持单轴语义，不改原命中面）
-  - 5. designItems 开枪负例 + pre-flight 可达范围——checkable: 新增负例夹具 `pseudo-heading-design.md`（一条独立 bold 行 → 伪标题残留 BLOCK）与 `hollow-item-design.md`（`####` 叶空体/hollow → 空体/hollow BLOCK），落 `packages/cdd-engine/src/documents/doctypes/body/__tests__/fixtures/`，经 docContractValidate 断言 BLOCK finding；dispatch pre-flight 可达范围显式注明：`cdd implement`/`cdd review` 解析 plan 型，spec/overall 型规则经 docContractValidate 各 doc type 挂载（T1 步骤3 已挂钩），其 firing 负例落于验证器/树套件层——spec 验收第 7 条「pre-flight 覆盖全部新规则」据此覆盖全规则，不缩水为仅 edges
-  - 6. 结构秩 pin——checkable: 19 份文件 `####` 计数 + 标题逐字 pin；迁移后 pin = specs 面严格 pattern 命中且仅 2 条豁免散文（逐行 pin）· 全树（50 文件）= 且仅 3 条豁免（增 cdd-review-contract-fix L22 bold-bookend 流水），法外零残留；空体/hollow 零；tree-migration 套件全绿
+  - 3. 全树 19 份 specs 迁移（双层）——checkable: 迁移对象 = 严格 pattern 命中 173 中除 2 条豁免散文外的 171 处独立 bold（编号式 78 · § 式 87 · 其他式 6）→ `#### N.M <原文本逐字>`（含 `§` 原文保留），**并按 N 归组在其前补 `### N.` 分组头**（组名取该 § 主题，源自各 spec 段落）；2 条豁免散文（osuperpowers-overhaul-p1 L113 核对清单断言 · osuperpowers-overhaul-p5 L88 删除面 bold-bookend）逐行 pin、不迁移；文件可混式逐字处理；2 份零独立文件不动
+  - 4. fixtures 核查——checkable: 正例 spec fixtures（`new-shape-phase-spec-design` / `zero-residue-phase-spec-design`）在 rules 下零命中；负例夹具 `section-1-spec-design.md` 仅原失败轴
+  - 5. designItems 开枪负例 + pre-flight 可达范围——checkable: 新增负例夹具 `pseudo-heading-design.md`（一条独立 bold 行 → 伪标题残留 BLOCK）与 `hollow-item-design.md`（分组头/项叶空体→ BLOCK）与 `misbound-item-design.md`（`#### N.M` 归属未声明分组 → 归属 BLOCK），落 `body/__tests__/fixtures/`，经 docContractValidate 断言 BLOCK finding；dispatch pre-flight 可达范围同 spec（plan 型 dispatch · spec 型规则落验证器/树套件层）
+  - 6. 双层层级 pin——checkable: 19 份文件 `### N.` 分组头连续性 + `#### N.M` 归属 + 标题逐字 pin；迁移后残留 = specs 面严格 pattern 命中且仅 2 条豁免散文 · 全树（50 文件）= 且仅 3 条豁免（增 cdd-review-contract-fix L22 bold-bookend 流水），法外零残留；空体/hollow 零；tree-migration 套件全绿
   - 7. 提交——checkable: 提交，pre-commit 通过
 - **Acceptance**:
-  - `- ` design spec `####` items 计数 + 标题逐字 pin；空体/hollow 零；独立 bold 行伪标题零残留（pattern grep 命中 = 且仅 2 条豁免散文逐行 pin · 法外零残留）
+  - `- ` design spec 双层层级：`### N.` 分组头连续性 + `#### N.M` 归属断言 + 计数 + 标题逐字 pin；空体/hollow 零；独立 bold 行伪标题零残留（pattern grep 命中 = 且仅 2 条豁免散文逐行 pin · 法外零残留）
+  - `- ` `###` 契约升级在位：Acceptance 唯一锚 + 分组头 allowlist（双层层级负例/misbound-fixture 断言）
   - `- ` pattern 无误伤：2 份零独立文件 + lead-in/code-span 负例零命中
   - `- ` `phase-spec.json` 派生字节保真；engine suite + 树套件全绿
 

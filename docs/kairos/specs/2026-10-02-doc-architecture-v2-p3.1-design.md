@@ -8,6 +8,8 @@
 
 ## Design
 
+### 1. 盲区、动因与范围
+
 #### 1.1 盲区、动因与范围
 
 P3 shipped 暴露两个机器面盲区、一个程序级散文平面、以及一个结构判定双复制面：
@@ -20,6 +22,8 @@ P3 shipped 暴露两个机器面盲区、一个程序级散文平面、以及一
 | 结构判定面双复制 | checks（skeletonFailures · overall 四表审计 · plan 契约 = 手写文本遍历 ~1,700 行）+ tests（tree-migration 989 + dual-read 293 两套全树 re-walk） | 每新增一条结构规则 = 一个手写 walker + 一个测试 re-walk |
 
 范围（overall v1.9 注册）：**统一 StructureRule 规则引擎 + 登记叶完备（plan 边 · designItems · charter facets）+ overall charter 结构秩 + 全树迁移 + 消费面**。**P6 边界**：宪法/档案分层与版本行散文消解不动；**P5 边界**：跨文档链规则（Class-A/B lineage · resolveSpecFromPlan · phaseIdForDispatch）不并入。
+
+### 2. 统一抽象：登记叶与 StructureRule（F6）
 
 #### 2.1 统一抽象：登记叶与 StructureRule（F6）
 
@@ -74,13 +78,15 @@ function runStructureRules(content: string, rules: readonly StructureRule[]): St
 - **TaskGraph 静态面**：`validate()` 重建 = P3 crisp 集（id 越界/自引/矛盾边退役/环/重复）+ missing-edge + 反依赖门；`batches(): TaskBatch[]` 波次推导（编号升序就绪层 · 波次内可并行 = capability 面 M3，与图无关）
 - **引用 lint**（WARN，兜底防忘写软门）：扫描面 = `objective`/`acceptance` 明文；token = `\bTask\s+([1-9]\d*)\b` 或 `\bT([1-9]\d*)\b`；越界 N 豁免；逐块对在界 N 去重后 N ≠ i 且 ∉ 本块 `DependsOn` 声明 → 一条聚合 WARN；兜底 = plan-review 必答问题
 
-#### 2.4 登记叶 ②：designItems（F3）
+#### 2.4 登记叶 ②：designItems（F3 统一大纲模型）
 
-- 叶切片 `designItemHeading: /^#### /m` 进 phase-spec body slices（exact-anchor 天然不碰 `### Acceptance criteria` / `## Design`）
-- **伪标题 pattern（精确、无误伤——对树零误伤，对账详见下条）**：独立 bold 行 = 行首 `**`、行尾仅空白（`^\*\*.+\*\*\s*$` 严格 pattern）**命中且 ∉ 显式豁免清单**（2 条散文流水逐行 pin）→ 伪标题 · 残留 = **BLOCK**（这正是 P3 shipped 的缺陷形态，比 WARN 强）；豁免外零合法散文命中（对 50 文件树实测）。bold-bookend 散文（`**A**：…**B…**` 起承转合）与行内 lead-in bold（bold 后同行有正文）均属合法散文——前者可用「内容含第二个 `**` 内嵌粗体对」识别作辅助判据，但不入定义（编号式 cp-p2 L77 标题内含 globe `**` 对仍是伪标题）
-- 空体（`## Design` → `### Acceptance criteria` 间零内容）BLOCK；hollow 叶（`####` 与下一标题/节界间零内容）BLOCK（空壳即删）
-- 全树 21 份 spec 核查、19 份提秩：独立 bold 伪标题合计 **171 处**——编号式 `**N.M …**` 78 处（13 份文件）· § 式 `**§N.M …**` 87 处（7 份文件）· 其他式（`**第一部分：…**`/`**第二部分：…**`/`**Appendix: …**`/`**A. …**`/`**前置原则…**` 等）6 处（3 份文件；文件可混式，如 cp-p1 兼有编号/§）→ 一律 `#### <原文本逐字>`（含 `§` 原文保留）；2 份零独立（cp-p4.1 与 doc-arch-p3）→ 自然合法、零提秩（doc-arch-p3 设计体全为行内 lead-in bold，按本 pattern 属合法散文）
-- **计数对账（从树可复现计量）**：严格 pattern 在 19 份文件命中 **173** = 伪标题 **171** + 2 条豁免散文；171 = 编号式 78（13 份文件）· § 式 87（7 份文件）· 其他式 6（3 份文件）。两条豁免散文流水（逐行 pin、不迁移、原样保留）：osuperpowers-overhaul-p1 L113 核对清单断言「**All Overall updated? = Yes before review.**」（Deviations 表格后结语句——单粗体 run 命中但语义是断言、非标题）与 osuperpowers-overhaul-p5 L88 删除面流水（`**删除面**（旧模型归零）：…`——bold-bookend，内容含第二个 `**` 对）。迁移后残留 pin：specs 面严格 pattern 命中 = 且仅 2 条豁免散文 · 全树（50 文件）严格 pattern 命中 = 且仅 3 条豁免散文（增 cdd-review-contract-fix L22 的 bold-bookend 流水）——逐行 pin，法外零残留
+**消费心智导向**（2026-10-06 用户裁决：双层的可写性 > 单层的机器便利——agent 作者写 design 时「`### N.` 起一组、组内 `#### N.M` 写项」的大纲心智，比解码单层编号的隐式分组省上下文；读者可扫描大纲，无需推理 N 的语义）：**spec/plan/overall 三类型共享大纲模型**——`###` 分组头 + `####` 项叶是通识认知；机器断言以锚切片为唯一权威，物理秩只是视觉载体。
+
+- **叶结构（双层，spec 侧）**：`## Design` 体 = `### N. <分组>` 分组头（`^### \d+\. ` 切片）+ `#### N.M <项>` 项叶（`^#### \d+\.\d+ ` 切片 · M 归属 N）+ 尾部 `### Acceptance criteria`。**`###` 契约升级**：「`###` 全类唯一」为 P2 六段遗留、随本定案退役；`###` 现合法形态 = 分组头（`^### \d+\. `）+ 唯一 `### Acceptance criteria`（锚级唯一不变式）
+- **不变式**：分组头连续性（`### N.` 编号单调）· 项归属（`#### N.M` 的 N 必须 ∈ 已声明分组 · crosslink 断言——归属性从「作者推理」转「机器断言」，正是消费者心智负担的落点）· Acceptance 唯一 · 计数/逐字/空壳（空体 = `## Design` → `### Acceptance criteria` 间零内容 BLOCK · hollow 叶 = 分组头/项叶与下一标题间零内容 BLOCK）
+- **伪标题 pattern（精确、无误伤——对树零误伤，对账详见下条）**：独立 bold 行 = 行首 `**`、行尾仅空白（`^\*\*.+\*\*\s*$` 严格 pattern）**命中且 ∉ 显式豁免清单** → 伪标题 · 残留 = **BLOCK**；豁免外零合法散文命中（50 文件树实测）。bold-bookend 与行内 lead-in bold 属合法散文（后者可用「内容含第二个 `**` 内嵌粗体对」辅助判据，不入定义）
+- **全树 21 份 spec 核查、19 份提秩**：独立 bold 伪标题 **171 处**——编号式 **78**（13 份）· § 式 **87**（7 份）· 其他式 **6**（3 份）→ 一律 `#### N.M <原文本逐字>`（含 `§` 原文保留）**并按 N 归组补 `### N.` 分组头**（组名取该 § 主题，源自各 spec 段落）；2 份零独立（cp-p4.1 与 doc-arch-p3）→ 自然合法、零迁移（doc-arch-p3 全为行内 lead-in bold）
+- **计数对账（从树可复现计量）**：严格 pattern 19 份文件命中 **173** = 伪标题 **171** + 2 条豁免散文（逐行 pin、不迁移：osuperpowers-overhaul-p1 L113 核对断言 + osuperpowers-overhaul-p5 L88 删除面流水）；迁移后残留 = 且仅 2 条豁免散文 · 全树（50 文件）= 且仅 3 条（增 cdd-review-contract-fix L22 bold-bookend 流水）——逐行 pin，法外零残留
 
 #### 2.5 登记叶 ③：overall charter 结构秩（F7）
 
@@ -108,6 +114,8 @@ interface TaskGraph {
 - **代替边界**：代替「状态判定」（下一组/同环路由/组序 = 拓扑序），保留「契约 + 异常面」（skill 仍是入口与兜底）
 - P5 的 group-next 段摘出交还本 phase（overall v1.12 同步）；P5 其余（DispatchContract/Packet/ref 四型/capabilities）不动，其 graph-node ref 以本 phase `frontier` 为消费底座
 
+### 3. 全树文档迁移
+
 #### 3.1 全树文档迁移（F7）
 
 一次全树、机器 pin 兜底：
@@ -115,10 +123,12 @@ interface TaskGraph {
 | 面 | 数量 | 迁移 |
 |---|---|---|
 | plans 边行 | 22 plans / 214 task 块 | 单边化已由 **T3 落地**（c87d19bd：214 块 `- **DependsOn**:` 单边行全在位，真实值或 `none`，缺行 = missing-edge BLOCK 现役）；**剩余动作 = `- **AtomicWith**:` 行全树删除**（死壳即删，214/214 行、仅 4 plan 保留真实值；既有 atomicWith 语义经波次推导天然覆盖）；反依赖全树核查（现有边全编号升序，零违规） |
-| specs 结构秩 | 21 | 核查 19 份提秩：171 处独立 bold 伪标题 → `####`（逐字；78 编号 + 87 § + 6 其他，分解见 §2.4 计数对账）；2 份零独立不迁移 · 迁移后 specs 面严格 pattern 命中 = 且仅 2 条豁免散文（逐行 pin）· 全树 0 伪标题残留 |
+| specs 结构秩 | 21 | 核查 19 份提秩：171 处独立 bold 伪标题 → `#### N.M`（逐字；78 编号 + 87 § + 6 其他，分解见 §2.4 计数对账）**并按 N 归组补 `### N.` 分组头**；2 份零独立不迁移 · 迁移后 specs 面严格 pattern 命中 = 且仅 2 条豁免散文（逐行 pin）· 全树 0 伪标题残留 |
 | overalls charter | 4 | 各 overall 既有 bold-flat 标记按类型升秩（facets `###`，决策留存 `###`，决策组/背书 `####`）· 逐字（锚名按 §2.5 家族枚举：osuperpowers-overhaul goal 以开篇散文 + 服务化主线标记锚定、cp/osuperpowers 的「Cross-cutting constraints」原样升 `###`）；另三份仅三 facets 升秩 |
 
-tree-migration 扩展 pin：每块边行存在 · 19 份提秩文件 `####` 计数 + 标题逐字 · 全树独立 bold 伪标题零残留（严格 pattern grep 命中 = 且仅 3 条豁免散文，逐行 pin——见 §2.4 计数对账）· 各 overall 既有 charter 标记按家族锚名升秩在位。50 文件树套件（23 plans + 22 specs + 4 overalls + 1 one-off）零排除绿保持。
+tree-migration 扩展 pin：每块边行存在 · 19 份提秩文件 `### N.` 分组头连续性 + `#### N.M` 归属断言 + 标题逐字 · 全树独立 bold 伪标题零残留（严格 pattern grep 命中 = 且仅 3 条豁免散文，逐行 pin——见 §2.4 计数对账）· 各 overall 既有 charter 标记按家族锚名升秩在位。50 文件树套件（23 plans + 22 specs + 4 overalls + 1 one-off）零排除绿保持。
+
+### 4. 消费面同步
 
 #### 4.1 消费面同步
 
@@ -135,7 +145,7 @@ tree-migration 扩展 pin：每块边行存在 · 19 份提秩文件 `####` 计�
 - `- ` `Task.dependsOn` 非可选（缺省 `[]`）；`atomicWith`/`taskGroups` 声明面全树退役零残留（读取面 · 对称闭包 · schema 字段 · 夹具 · pins · SKILL 双边描述 grep 零命中）
 - `- ` TaskGraph `batches()` 波次推导：P3.1 raise-specs 波次拆分断言（如 T3‖T4‖T5 同波次）· `effectiveGroups` 切波次消费（声明面退役）；`frontier(done)` 动态面可用（给定完成集 → 下一就绪波次）· `next:` 组间 default = 同环优先 ∧ frontier（skills 编排精简依据）
 - `- ` 技能编排精简：cdd-dev flow loop 判定（`more-groups?`/下一组）改为 `next:` 消费 · 异常/人工面保留（HARNESS_ABORT 恢复 · backfill 暂停 · adjudication 覆盖 · Plan Sole Writer）· SKILL 文本 English-primary 零程序历史
-- `- ` 全树 design specs：`####` items 计数 + 标题逐字 pin · 空体/hollow 零 · 独立 bold 行伪标题零残留（pattern grep 命中 = 仅豁免散文逐行 pin，见 §2.4）
+- `- ` 全树 design specs：`### N.` 分组头连续性 + `#### N.M` items 归属 + 计数 + 标题逐字 pin · 空体/hollow 零 · 独立 bold 行伪标题零残留（pattern grep 命中 = 仅豁免散文逐行 pin，见 §2.4）
 - `- ` 全树 overalls：各 overall 既有 charter 标记按家族锚名升秩在位（doc-arch：facets + 决策留存 `###`、决策组/背书 `####`；另三份：三 facets `###` 按 §2.5 锚名）· 法外零残留
 - `- ` `cdd implement` / `cdd review` pre-flight 走 docContractValidate 覆盖全部新规则（dry-run 负例断言）
 - `- ` 引用 lint WARN 有断言 + 负例（窄化 pattern 按 §2.3 定稿）：明文 `Task 3`/`T3` 无边 → WARN（每块至多一条）；code span 内 `T3`、`files` 面参照、越界 N（0 或 > taskCount）、已声明边 → 零 WARN

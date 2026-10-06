@@ -2,7 +2,7 @@
 
 **Spec:** [2026-09-13-osuperpowers-overhaul-p3-design.md](docs/kairos/specs/2026-09-13-osuperpowers-overhaul-p3-design.md)
 
-- **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.10](../specs/2026-09-13-osuperpowers-overhaul-overall.md)
+- **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.11](../specs/2026-09-13-osuperpowers-overhaul-overall.md)
 - **Depends on**: P1 shipped（runtime 布局 `.osuperpowers/cdd` + standalone 移除，2026-09-14）；P2 shipped（docs 单根，2026-09-14）
 - **Base**: develop
 

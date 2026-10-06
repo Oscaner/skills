@@ -2,7 +2,7 @@
 
 **Spec:** [2026-09-13-osuperpowers-overhaul-p4-design.md](docs/kairos/specs/2026-09-13-osuperpowers-overhaul-p4-design.md)
 
-- **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.13](../specs/2026-09-13-osuperpowers-overhaul-overall.md)
+- **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.14](../specs/2026-09-13-osuperpowers-overhaul-overall.md)
 - **Depends on**: P3 shipped（命令面四命令收敛 + `cli-research` 删除，PR #261 已 merge 至 develop，2026-09-15）
 - **Base**: develop
 

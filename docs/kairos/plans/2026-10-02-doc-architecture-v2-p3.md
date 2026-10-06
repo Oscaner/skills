@@ -214,23 +214,26 @@
 
 ### Task 9: 消费面同步 + 终验 + changesets
 
-- **Objective**: cdd-plan SKILL 撰作面改（Task Groups → 边声明指导）· skill-anatomy · emit fresh · 全量 validate · changesets
+- **Objective**: cdd-plan + cdd-dev SKILL 面改（Task Groups → 边声明指导）· skill-anatomy · emit fresh · 全量 validate · changesets
 - **Consumes**: T1–T8 全部产物（engine 单形态 + 树全绿基线）；`.changeset/README.md`（changeset 判定前置读）
-- **Produces**: cdd-plan SKILL 边声明撰作面（英文零程序历史）· skill-anatomy 更新 · `pnpm run emit` 再生成产物 · changeset 文件（cdd-engine + kairos 两包）· `pnpm run validate` / typecheck / biome 全绿证据
+- **Produces**: cdd-plan + cdd-dev SKILL 边声明撰作面（英文零程序历史）· skill-anatomy 更新 · `pnpm run emit` 再生成产物 · changeset 文件（cdd-engine + kairos 两包）· `pnpm run validate` / typecheck / biome 全绿证据
 - **Files**:
   - Modify: `packages/kairos/skills/cdd-plan/SKILL.md`（`## Task Groups` 段撰作指导 → 边声明数据字段指导（`- **DependsOn**:`/`- **AtomicWith**:` · rank 前向纪律 · 全单例默认）——English-primary · 零程序历史）
   - Modify: `packages/cdd-engine/config/schema/skill-anatomy.json`（视面，`ContractLexiconGuard#checkAnatomy` 绿）
-  - Modify: `docs/maintainers/01-template-doctrine.md`（doc 结构面随行：单形态 + 边模型 + 迁移队列）
+  - Modify: `packages/kairos/skills/cdd-dev/SKILL.md`（`implement-group` 仍述 retired `## Task Groups`/`taskGroups` 机制 → 边描述：effectiveGroups 由 TaskGraph 于 task records 的 dependsOn/atomicWith 边派生；零 retired 面引用）
+  - Modify: `docs/maintainers/01-template-doctrine.md`（doc 结构面随行：单形态 + 边模型 + 迁移队列；**锚冻结裁决（orchestrator 2026-10-06）**：三分事实最小化措辞落 §9，≤53,000B 锚不动 = 预算由家族压缩自筹——改锚 / 改 ledger 「≤ 53,000」文案 = 越 P4.2 acceptance，禁止）
   - Test: scripts 单测（charter guard 全绿）· `pnpm run emit` / `emit:check` fresh
 - **Steps**:
   - [ ] 1. cdd-plan SKILL.md 撰作面改（英文 · 消费者文本零程序历史——Task Groups 撰作段替换为边声明指导；不叙述迁移历史）
+  - [ ] 1b. cdd-dev SKILL.md `implement-group` 同步（同 retired 面：`## Task Groups`/`taskGroups` 机制句 → TaskGraph 边派生描述——effectiveGroups 源自 task records 的 dependsOn/atomicWith 边，`taskGroups` record 与 `## Task Groups` 段均 retired）
   - [ ] 2. skill-anatomy 校验绿（如涉 section-heading registry）；`pnpm run emit` 重生成 + `emit:check` fresh
   - [ ] 2b. **shipped 描述面零程序历史 grep pin（backfill 2026-10-05）**：`config/schema/*.json` description 值 + `body/*.ts` 导出成员 doc comment 零生命周期/出处词汇命中（`extension bit`/`declared surface`/`zero read/write`/`P\d+ (edge-model|extension)`——逐字 grep 含注释；`P<digits>` 域语义 token 豁免，非 `P\d+` 全禁）
   - [ ] 3. 终验：`pnpm run validate` 全块 ALL PASS（emit 新鲜 / kairos 插件解析 / cdd-engine 引擎套件 / 零残留 residue + channel / marketplace / scripts / 版本同步）· `pnpm run typecheck` 绿（根级三 tsc 项目：packages/cdd-engine / scripts / packages/kairos/tests——cdd-engine 无独立 typecheck script，typecheck 归根脚本，与 acceptance「typecheck 三项目绿」一致）· biome clean
   - [ ] 4. changesets（先读 `.changeset/README.md` 判定）：`@oscaner-skills/cdd-engine`（TaskGraph + 单形态退役 + 树迁移守卫）+ `kairos`（SKILL 文案视面）
   - [ ] 5. 提交（`feat(engine)/docs(kairos): P3 消费面 + 终验 + changesets`）
 - **Acceptance**:
-  - cdd-plan SKILL 撰写面 = 边声明指导（英文零程序历史）；skill-anatomy 绿 · emit fresh
+  - cdd-plan + cdd-dev SKILL 撰写面 = 边声明指导（英文零程序历史；cdd-dev `## Task Groups`/`taskGroups` 零引用）；skill-anatomy 绿 · emit fresh
+  - 01 三分事实最小化落 §9（单形态 + 边模型 + 迁移队列）· maintainers 家族实测 ≤53,000B（锚未动）· README ledger After 胞 = live
   - **shipped 描述面零程序历史 grep pin 绿**（config/schema/*.json description + body/*.ts 导出 doc comment 零生命周期/出处词汇——`extension bit`/`declared surface`/`zero read/write`/`P\d+ (edge-model|extension)` 逐字零命中）
   - `pnpm run validate` ALL PASS · typecheck 三项目绿 · biome clean · residue/lexicon guard 连续
   - changesets 已建（cdd-engine + kairos 视面）

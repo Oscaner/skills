@@ -3,7 +3,7 @@
 **Spec:** [2026-10-02-doc-architecture-v2-p3.1-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3.1-design.md)
 
 - **Parent program**: [doc-architecture-v2-overall.md v1.9](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.1 · 2026-10-06
+- **Version**: v1.2 · 2026-10-06
 - **Depends on**: P3（shipped · [p3-design v1.1](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3-design.md)）
 - **Base**: develop
 
@@ -18,6 +18,7 @@
   - `none`/空与 integer gate 边界——`none`/空 → `[]`；`abc`、`1;2` 等非法 token 保持 NaN 拒绝，绝不静默吞；T3 负例集
   - 伪标题 pattern 误伤面——独立 bold 行唯一定义；行内 lead-in bold / code span 不误判；T4 对 2 份零独立文件（cp-p4.1 / doc-arch-p3）断言零命中
   - 引用 lint 噪音面——`files`/`steps`/code span 不计；越界 N 豁免；已声明边不重复告警；每块至多一条聚合 WARN；T6 负例集
+- 死代码/空壳全平面清理（P3.1 补充条例 2026-10-06 用户）：各迁移/引擎任务先删后验——退役符号/废弃夹具/空壳叶零残留；存量 plan 未解析 steps 面（`- [ ]` 散文行）在 T3 一并规范化 `N. … — checkable:`（每步含 checkable）
 
 ---
 
@@ -73,7 +74,7 @@
 
 ### Task 3: plan 边完备（missing-edge 第六类 + 全树 plans 边行迁移）
 
-- **Objective**: 边字段 mandatory（每任务块必带 `- **DependsOn**:`/`- **AtomicWith**:` 两行 · `none`/空 → `[]` · 缺行 = 第六 failure class missing-edge BLOCK）+ Task 非可选化 + 全树 22 份存量 plans / 214 块补边行 + tree-migration pin——使「忘写边」从静默默认变成显式 BLOCK
+- **Objective**: 边字段 mandatory（每任务块必带 `- **DependsOn**:`/`- **AtomicWith**:` 两行 · `none`/空 → `[]` · 缺行 = 第六 failure class missing-edge BLOCK）+ Task 非可选化 + 全树 22 份存量 plans / 214 块补边行 + tree-migration pin——使「忘写边」从静默默认变成显式 BLOCK；补充条例面：存量 plans 未解析 steps 面（`- [ ]` 散文行 → `N. … — checkable:`）一并规范化（死壳清理）
 - **Consumes**: T1 引擎 + T2 plan 规则集
 - **Produces**: `missing-edge` 第六 failure class 判定 · `none` 词法解析 · `Task.dependsOn/atomicWith: number[]`（非可选）——T6 引用 lint 与 T8 终验依赖
 - **DependsOn**: 2
@@ -92,7 +93,7 @@
   - 2. Task 非可选化 + shape required——checkable: `Task` 构造字段非可选（缺省 `[]`）；PLAN_BODY_SHAPE `required` += 两字段；`plan.json` 派生产物字节保真更新（factory diff pin 绿）
   - 3. 负例/正例测试 + dispatch pre-flight 负例——checkable: 缺边行 → `missing-edge` BLOCK 负例；`none` → `[]`；空 → `[]`；非法 token NaN 拒绝；task.test.ts absent-default pin 退役；dispatch 层负例（缺边 plan → `cdd implement`/`cdd review` pre-flight 经 docContractValidate BLOCK——dry-run 负例断言）
   - 4. 夹具迁移——checkable: 正例夹具（`new-shape-plan` / `smoke-plan` / `edge-plan` 等）补齐边行后全绿；负例夹具（`orphan-task-block-plan` / `form-b-anchor-plan`）补 `none` 两行以保持「仅孤块/legacy 单轴失败」语义（dual-read 单轴断言不破）
-  - 5. 全树 22 plans 迁移——checkable: 22 份存量 plans 每个任务块补两行（真实值保留既有 `AtomicWith`；无真实边者 `none`）——214 块两边行齐备；本 P3.1 plan 已 conformant 不迁移
+  - 5. 全树 22 plans 迁移——checkable: 22 份存量 plans 每个任务块补两行（真实值保留既有 `AtomicWith`；无真实边者 `none`）——214 块两边行齐备；本 P3.1 plan 已 conformant 不迁移；同批次规范化未解析 steps 面——每任务块 steps 段全解析（`N. … — checkable:` 每步含 checkable），零未解析行
   - 6. tree-migration pin 更新——checkable: 每 plan 任务块两边行存在断言 + 各文件边行计数 pin；tree-migration 20/20 绿
   - 7. 提交——checkable: 提交（engine + 树），pre-commit 通过
 - **Acceptance**:
@@ -100,6 +101,7 @@
   - `- ` `none`/空 → `[]` · 非法边 token 保持 NaN 拒绝（负例集断言）
   - `- ` `Task.dependsOn/atomicWith` 非可选（缺省 `[]`）；`plan.json` 派生字节保真
   - `- ` dispatch pre-flight（`cdd implement`/`cdd review`）覆盖边完备（dry-run 负例）；全树 plans 边行齐备（tree-migration pin）；engine suite + 树套件全绿
+  - `- ` 存量 plans steps 面规范化：未解析步骤行零残留（每步 `N. … — checkable:` 全解析）· 补充条例死壳清理断言
 
 ### Task 4: designItems 结构面（spec 骨架 + 全树 specs 结构秩迁移）
 

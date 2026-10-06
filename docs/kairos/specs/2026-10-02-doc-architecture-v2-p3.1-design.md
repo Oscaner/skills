@@ -1,6 +1,6 @@
 # 文档架构方法论 v2 —— P3.1 Design
 
-- **Version**: v1.2 · 2026-10-06
+- **Version**: v1.3 · 2026-10-06
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（kairos:cdd-design → grilling → cdd-phase）
 - **Parent program**: [doc-architecture-v2-overall.md v1.9](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
@@ -116,6 +116,7 @@ tree-migration 扩展 pin：每块边行存在 · 19 份提秩文件 `####` 计�
 - `- ` 引用 lint WARN 有断言 + 负例（窄化 pattern 按 §2.3 定稿）：明文 `Task 3`/`T3` 无边 → WARN（每块至多一条）；code span 内 `T3`、`files` 面参照、越界 N（0 或 > taskCount）、已声明边 → 零 WARN
 - `- ` 消费面：三 schema description 更新派生产物字节保真 · cdd-plan/cdd-dev SKILL 撰作面更新 · shipped 零程序历史 grep pin（扩展面）零命中
 - `- ` changesets（cdd-engine minor + kairos patch）· validate ALL PASS（engine suite + 树套件 + typecheck ×3 + biome + emit freshness）
+- `- ` 死壳零残留：迁移/引擎面退役符号 · 废弃夹具 · 空壳叶 · 未解析 text 面 grep 零命中；存量 plan 未解析 steps 面规范化后全解析（每步 `N. … — checkable:` 含 checkable）
 
 ## Constraints
 
@@ -124,6 +125,7 @@ tree-migration 扩展 pin：每块边行存在 · 19 份提秩文件 `####` 计�
 - 统一引擎边界：graph 科学（环/矛盾/拓扑/原子闭包）留 TaskGraph，不改动；跨文档链（Class-A/B lineage · resolveSpecFromPlan · phaseIdForDispatch）留 P5，本次不并入
 - bodies load-order 安全：规则数据在 body 叶（惰性数据）、解释器在 `rules/structure.ts`；bodies 零解释器反向 import（tokens.ts 环链不破）
 - 消费面零程序历史：shipped SKILL/schema 描述面 zero P 编号/phase 叙事（grep pin 扩展）
+- 死代码/空壳全平面清理（Standing 铁律 · P3.1 补充条例 2026-10-06）：迁移与引擎任务先删后验——退役符号、废弃夹具、空壳叶、未解析 text 面零残留进任务验收；存量 plan 未解析 steps 面（`- [ ]` 散文行）在 T3 规范化 `N. … — checkable:`（死壳清理）
 
 ## Notes for downstream
 

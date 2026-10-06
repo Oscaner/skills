@@ -232,8 +232,10 @@ export class DocumentsValidator {
 
   /** The structure-rule audit face (P3.1 F6 — the `runStructureRules` hook of the doc-contract
    *  validation surface): the body-homed rule data for the resolved doc type of the given kind, run
-   *  through the single interpreter. Zero rules → zero findings — the T1 state (every body defaults
-   *  `[]`), so the surface stays inert until the T2–T6 rule sets land on the bodies. */
+   *  through the single interpreter. Consumed by the closeout single inference
+   *  (deriveCloseoutMismatches) which carries the plane into the dispatch doc-contract gate — empty
+   *  at T1 (every body defaults `[]`), so the surface yields zero findings until the T2–T6 rule
+   *  sets land on the bodies. */
   structureFindings(docKind: DocKind, content: string): StructureFinding[] {
     return runStructureRules(content, structureRulesOf(docTypeRegistry.resolve(docKind)));
   }
@@ -254,6 +256,13 @@ export class DocumentsValidator {
     return failures
       .map((f) => `- [${f.artifact}] ${f.file} — ${f.field}: ${f.missing} → ${f.fix}`)
       .join("\n");
+  }
+
+  /** formatStructureFindings — the structure-rule guidance block (P3.1 F6 — the runStructureRules
+   *  surface): one `- [structure] <id>: <message>` line per finding. Distinct from
+   *  formatDocFailures — the structure plane carries its own {id, severity, message} carrier. */
+  formatStructureFindings(findings: readonly StructureFinding[]): string {
+    return findings.map((f) => `- [structure] ${f.id}: ${f.message}`).join("\n");
   }
 
   /** ① Claim extraction (the change-history window scan) — the shared doctype atom under the

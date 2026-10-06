@@ -19,11 +19,20 @@
 // The program fixtures + engine-workspace writers live in ./closeout-fixtures.ts (shared with
 // dispatch/__tests__/closeout-channels.test.ts — single source, no drift between the two faces).
 
-import { existsSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { WorkspaceRoot } from "../../infra/workspace.ts";
 import { CloseoutChecker } from "../closeout.ts";
+import type { DocumentsValidator } from "../documents.ts";
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+
+/** Source read for the wiring greps — the closeout.ts facts the structure surface tests pin. */
+function readSrc(rel: string): string {
+  return readFileSync(path.join(HERE, rel), "utf8");
+}
 
 const closeoutChecker = new CloseoutChecker();
 
@@ -132,6 +141,45 @@ describe("deriveCloseoutMismatches — the single module (both surfaces, 同源)
     expect([readdirSync(p.repo), readdirSync(path.join(p.repo, "docs", "kairos"))].flat()).toEqual(
       preTree,
     );
+  });
+});
+
+describe("the structure surface (P3.1 F6 — the runStructureRules hook wired into the single inference)", () => {
+  it("carrier exposes the structure plane — zero findings at T1 (every body rule set is [] → the gate stays behavior-neutral)", () => {
+    const p = writeProgram();
+    const r = closeoutChecker.deriveCloseoutMismatches({ entry: p.plan1, root: p.repo });
+    expect(r.structure).toEqual([]);
+  });
+
+  it("the seam fires — deriveCloseoutMismatches surfaces the resolved doc type's structure findings (a stub validator's findings ride the carrier, proving the interpreter call is not delivery-only)", () => {
+    const p = writeProgram();
+    // The stub sets parentOverallOf → null (the debt member no-ops) and carries a declared finding
+    // set — the real wiring (structureFindings over the resolved doc type) is what the other
+    // carriers above exercise through the real validator.
+    const stub = {
+      parentOverallOf: () => null,
+      validateDispatchDocuments: () => [],
+      detectDocKind: () => "plan",
+      structureFindings: () => [
+        { id: "plan.tasks", severity: "BLOCK", message: "plan tasks must run 1..N" },
+        { id: "plan.lint", severity: "WARN", message: "plan lint residue" },
+      ],
+    } as unknown as DocumentsValidator;
+    const r = new CloseoutChecker(stub).deriveCloseoutMismatches({
+      entry: p.plan1,
+      root: p.repo,
+    });
+    expect(r.structure).toEqual([
+      { id: "plan.tasks", severity: "BLOCK", message: "plan tasks must run 1..N" },
+      { id: "plan.lint", severity: "WARN", message: "plan lint residue" },
+    ]);
+  });
+
+  it("grep: the inference wires the interpreter — deriveCloseoutMismatches consumes structureFindings on the entry's resolved kind and the carrier declares the plane", () => {
+    const src = readSrc("../closeout.ts");
+    expect(src).toMatch(/structureFindings\(/);
+    expect(src).toMatch(/detectDocKind\(options\.entry\)/);
+    expect(src).toMatch(/structure: StructureFinding\[\]/);
   });
 });
 

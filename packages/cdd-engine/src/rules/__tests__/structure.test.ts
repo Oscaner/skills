@@ -342,4 +342,17 @@ describe("DocumentsValidator.structureFindings — the docContractValidate hook 
       expect(validator.structureFindings(kind, content)).toEqual([]);
     }
   });
+
+  it("source pin — the dispatch doc-contract gate consumes the plane: closeout.ts wires structureFindings into the single inference and base.ts judges result.structure by severity", () => {
+    // The brief's step-3 checkable requires the doc-contract gate to invoke runStructureRules for
+    // the resolved doc type — a production-call fact, not a facade availability. The carrier must
+    // call the interpreter and the gate must read the plane (both empty at T1, behavior-neutral).
+    const closeout = read("rules/closeout.ts");
+    expect(closeout).toMatch(/structureFindings\(/);
+    expect(closeout).toMatch(/detectDocKind\(options\.entry\)/);
+    expect(closeout).toMatch(/structure: StructureFinding\[\]/);
+    const gate = read("dispatch/base.ts");
+    expect(gate).toMatch(/result\.structure\.filter\(/);
+    expect(gate).toMatch(/f\.severity === "BLOCK"/);
+  });
 });

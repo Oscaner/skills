@@ -14,7 +14,7 @@
 - 引擎规则一律经 body 叶规则数据 + `rules/structure.ts` 单解释器；手写文本遍历零新增（spec 约束「统一引擎边界」继承适用，graph 科学留 TaskGraph、跨文档链留 P5）
 - 风险钉（全树绿 · 负例单轴 · 词法边界 · 伪标题无误伤 · lint 噪音）归任务：
   - 规则引擎挂载后存量树未迁移即红——T3/T4/T5 各自「规则 + 全树迁移 + pin」同任务落地（首条），T8 终验断言全树绿
-  - 负例夹具单轴失败语义——`orphan-task-block-plan` / `form-b-anchor-plan` / `section-1-spec-design` 仅 legacy/孤块轴失败；T3/T4 补 conformant 面保持单轴
+  - 负例夹具单轴失败语义——`orphan-task-block-plan` / `form-b-anchor-plan` / `section-1-spec-design.md` 仅 legacy/孤块轴失败；T3/T4 补 conformant 面保持单轴
   - `none`/空与 integer gate 边界——`none`/空 → `[]`；`abc`、`1;2` 等非法 token 保持 NaN 拒绝，绝不静默吞；T3 负例集
   - 伪标题 pattern 误伤面——独立 bold 行唯一定义；行内 lead-in bold / code span 不误判；T4 对 2 份零独立文件（cp-p4.1 / doc-arch-p3）断言零命中
   - 引用 lint 噪音面——`files`/`steps`/code span 不计；越界 N 豁免；已声明边不重复告警；每块至多一条聚合 WARN；T6 负例集
@@ -62,9 +62,9 @@
 - **Steps**:
   - 1. spec 骨架规则化——checkable: `#skeletonFailures` 五个断言（Design 在 / Acceptance 唯一二重 / Constraints 在 / Deviations 行锚 Yes）转 phase-spec-body `structureRules()`；对现行 21 份 `-design.md` 运行结果与 T0 `#skeletonFailures` 输出逐条等价（树套件 delta 零）
   - 2. overall-body 落地 + 四表审计规则化——checkable: `overall-body.ts` 承载 OVERALL_SHAPE（schema 派生字节不变，diff pin 绿）+ slices + 四表规则（kernel / ①–⑥）；`overall.ts` 手写遍历删除（grep 旧符号零残留）；`tokens.ts` 重指后 DOC_TOKENS 派生结果字节不变
-  - 3. plan 契约规则化——checkable: `validatePlanContract` 文本断言（continuity / Class-A `**Spec:**` / constraints source / placeholder residue）转 plan-body 规则；行为等价
+  - 3. plan 契约规则化——checkable: `validatePlanContract` 文本断言面（task headings 连续性 / Constraints source / placeholders / 数据形 task records + checkable / 未知顶层 `##` 节）转 plan-body `structureRules()` 四项（task continuity / record presence / constraints source / legacy residue，与 Files 列表逐项对应）；行为等价——Class-A `**Spec:**` 不属文本断言面：`#resolveSpecOf`（plan→spec→overall Phase inventory，需 ctx.root）为跨文档链，留 validate/builders 不动（P5 边界）
   - 4. 树套件重构消费同一引擎——checkable: `tree-migration` / `dual-read` 的 48 文件行走改调 `structureFindings`（命中集断言 = 0 或 pin）；内容保真逐字 pin 保留为 pin；迁移队列闭合断言照旧；20/20 + dual-read 绿
-  - 5. engine suite 全量回归——checkable: `pnpm --filter @oscaner-skills/cdd-engine test` 全绿（现 1394 例，行为等价零漂移）
+  - 5. engine suite 全量回归——checkable: `pnpm --filter @oscaner-skills/cdd-engine test` 全绿（行为等价零漂移）
   - 6. 提交——checkable: 提交（engine 域），pre-commit 通过
 - **Acceptance**:
   - `- ` 三手写遍历面零残留：`#skeletonFailures` / overall 四表手写 walker / plan 契约断言符号 grep 零命中（旧方法/旧路径不存活）
@@ -118,9 +118,10 @@
   - 1. 切片 + 规则——checkable: `designItemHeading: /^#### /m` 进 slices（与 `### Acceptance criteria`/`## Design` exact-anchor 零碰撞——既有唯一性断言保持）；designItems 规则 = 空体 BLOCK / hollow 叶 BLOCK / 独立 bold 行残留 BLOCK / 计数可枚举
   - 2. 伪标题 pattern 负例保护——checkable: 2 份零独立文件（cp-p4.1 / doc-arch-p3）在 pattern 下零命中（全 lead-in 合法）——pattern 无误伤断言；行内 lead-in bold / code span `**` 零误判
   - 3. 全树 19 份 specs 迁移——checkable: 171 处独立 bold（编号式 77 · § 式 87 · 其他式 7）→ `#### <原文本逐字>`（含 `§` 原文保留）；文件可混式逐字处理；2 份零独立文件不动
-  - 4. fixtures 核查——checkable: 正例 spec fixtures（`new-shape-phase-spec-design` / `zero-residue-phase-spec-design`）在 rules 下零命中；负例夹具（`legacy-six-section` / `section-1-spec`）仅原失败轴（伪标题残留面若命中 → 补 conformant 面保持单轴）
-  - 5. 结构秩 pin——checkable: 19 份文件 `####` 计数 + 标题逐字 pin；全树独立 bold 零残留（严格 pattern grep 0）；空体/hollow 零；tree-migration 20/20 绿
-  - 6. 提交——checkable: 提交，pre-commit 通过
+  - 4. fixtures 核查——checkable: 正例 spec fixtures（`new-shape-phase-spec-design` / `zero-residue-phase-spec-design`）在 rules 下零命中；负例夹具 `section-1-spec-design.md`（Constraints 第 3 条规范名）仅原失败轴（伪标题残留面若命中 → 回填 conformant 面保持单轴语义，不改原命中面）
+  - 5. designItems 开枪负例 + pre-flight 可达范围——checkable: 新增负例夹具 `pseudo-heading-design.md`（一条独立 bold 行 → 伪标题残留 BLOCK）与 `hollow-item-design.md`（`####` 叶空体/hollow → 空体/hollow BLOCK），落 `packages/cdd-engine/src/documents/doctypes/body/__tests__/fixtures/`，经 docContractValidate 断言 BLOCK finding；dispatch pre-flight 可达范围显式注明：`cdd implement`/`cdd review` 解析 plan 型，spec/overall 型规则经 docContractValidate 各 doc type 挂载（T1 步骤3 已挂钩），其 firing 负例落于验证器/树套件层——spec 验收第 7 条「pre-flight 覆盖全部新规则」据此覆盖全规则，不缩水为仅 edges
+  - 6. 结构秩 pin——checkable: 19 份文件 `####` 计数 + 标题逐字 pin；全树独立 bold 零残留（严格 pattern grep 0）；空体/hollow 零；tree-migration 20/20 绿
+  - 7. 提交——checkable: 提交，pre-commit 通过
 - **Acceptance**:
   - `- ` design spec `####` items 计数 + 标题逐字 pin；空体/hollow 零；独立 bold 行零残留（pattern grep 0）
   - `- ` pattern 无误伤：2 份零独立文件 + lead-in/code-span 负例零命中
@@ -137,12 +138,14 @@
   - Modify: `packages/cdd-engine/src/documents/doctypes/body/overall-body.ts`（`structureRules()` += charter facet 规则；`projectSlicePatterns()` += charter facet 切片）
   - Modify: `packages/cdd-engine/config/schema/overall.json`（派生产物字节保真更新——charter facet 域/描述）
   - Modify: `packages/cdd-engine/src/documents/doctypes/__tests__/tree-migration.test.ts`（charter pin）
+  - Modify: `packages/cdd-engine/src/documents/doctypes/body/__tests__/fixtures/`（charter 负例夹具 `pseudo-heading-overall.md`）
   - 迁移: `docs/kairos/specs/*-overall.md`（4 份）
 - **Steps**:
   - 1. charter 规则——checkable: Goal/Non-goals/Cross-cutting facets presence 恒为不变式；决策留存/决策组/背书「存在才执法」（doc-arch 全量枚举 · 另三份无此面不枚举）；伪标题残留 BLOCK（与 T4 同 pattern，overall 侧）
   - 2. 全树 4 overalls 迁移——checkable: doc-arch overall 10 标记升秩（facets `###` · 决策留存 `###` · 决策组/背书 `####`，逐字含 `§` 类原文）；另三份三 facets → `###`（逐字）；`## Boundary rules`/`## Maintenance` 不动
   - 3. pin + schema 派生——checkable: tree-migration 增 charter 升秩在位断言（各 overall 既有标记升秩后逐字在校）；全树零法外独立 bold（pattern grep 0）；`overall.json` 派生字节保真（factory diff pin 绿）
-  - 4. 提交——checkable: 提交，pre-commit 通过
+  - 4. overall 侧开枪负例 + pre-flight 可达范围——checkable: 新增 overall 负例夹具 `pseudo-heading-overall.md`（一条独立 bold 行 → charter 伪标题残留 BLOCK）落 `packages/cdd-engine/src/documents/doctypes/body/__tests__/fixtures/`，经 docContractValidate 断言 BLOCK finding；「存在才执法」负例由三份 legacy overall 无决策面零命中覆盖（树套件）；dispatch pre-flight 可达范围同 T4：`cdd implement`/`cdd review` 解析 plan 型，overall 型规则经 docContractValidate 各 doc type 挂载（T1 步骤3），firing 负例落验证器/树套件层——spec 验收第 7 条据此不缩水为仅 edges
+  - 5. 提交——checkable: 提交，pre-commit 通过
 - **Acceptance**:
   - `- ` 全树 4 overalls 既有 charter 标记升秩在位（逐字）；法外独立 bold 零残留
   - `- ` Goal/Non-goals/Cross-cutting presence 断言 + 「存在才执法」负例（三份 legacy overall 无决策面零命中）
@@ -168,7 +171,7 @@
 
 ### Task 7: 消费面同步（SKILL 撰作面 + schema 终核 + 零程序历史 pin）
 
-- **Objective**: cdd-plan/cdd-dev SKILL 撰作面（边行 mandatory · designItems `####` 指导 · plan-review 必答问题）+ 三 schema description 终核（零程序历史）+ shipped grep pin 扩展——消费者拿到新政的完整撰作/修复指导
+- **Objective**: cdd-plan/cdd-dev SKILL 撰作面（边行 mandatory · designItems `####` 指导 · charter facets 指导 · plan-review 必答问题）+ 三 schema description 终核（零程序历史）+ shipped grep pin 扩展——消费者拿到新政的完整撰作/修复指导
 - **Consumes**: T3/T4/T5 的 schema 派生与规则形态 · 三 body description
 - **Produces**: shipped 撰作面（consumer 可执行指导）· grep pin 扩展
 - **DependsOn**: 3, 4, 5
@@ -180,13 +183,13 @@
   - Modify: `packages/cdd-engine/src/documents/doctypes/body/*.ts`（三 schema description 终核）
   - 运行: `pnpm run emit`（SKILL.md 变更后必跑）
 - **Steps**:
-  - 1. cdd-plan SKILL 撰作面——checkable: author-plan 指导含「每个任务块必带 `- **DependsOn**:`/`- **AtomicWith**:` 两行（`none` 显式）· design body 以 `#### N.M` item 叶撰作」；plan-review 必答问题文在「尚未答复」态不可放行——文本 English-primary、零 P 编号叙事
-  - 2. cdd-dev SKILL 同步——checkable: implement/fix 面指导语携带边行强制 + designItems 形态；零程序历史
+  - 1. cdd-plan SKILL 撰作面——checkable: author-plan 指导含「每个任务块必带 `- **DependsOn**:`/`- **AtomicWith**:` 两行（`none` 显式）· design body 以 `#### N.M` item 叶撰作」；charter facets 撰作指导（facets/决策留存 `###` · 决策组/背书 `####`）载入 cdd-plan 撰作面；plan-review 必答问题文在「尚未答复」态不可放行——文本 English-primary、零 P 编号叙事
+  - 2. cdd-dev SKILL 同步——checkable: implement/fix 面指导语携带边行强制 + designItems 形态 + charter facets 结构秩指导（program overall 升秩后的撰作/修复落点）；零程序历史
   - 3. grep pin 扩展 + schema 终核——checkable: `grep-sweep-regression.test.ts` 新 token（P3.1 面叙事 / 伪标题指导）零命中断言；三 schema description 与 body 派生一致（factory diff pin 绿）
   - 4. emit + 回归——checkable: `pnpm run emit` 后 `pnpm run emit:check` 干净（无 drift）；precommit 过
   - 5. 提交——checkable: 提交，pre-commit 通过
 - **Acceptance**:
-  - `- ` cdd-plan/cdd-dev SKILL 撰作面更新（边行强制 + designItems `####` + plan-review 必答问题）· English-primary
+  - `- ` cdd-plan/cdd-dev SKILL 撰作面更新（边行强制 + designItems `####` + charter facets 指导 + plan-review 必答问题）· English-primary
   - `- ` shipped 零程序历史 grep pin（扩展面）零命中；emit 干净
   - `- ` 三 schema 派生一致（字节保真）
 
@@ -202,7 +205,7 @@
   - 终验: `pnpm run validate` · `pnpm --filter @oscaner-skills/cdd-engine test` · typecheck ×3 · `pnpm exec biome check` · `pnpm run emit:check`
 - **Steps**:
   - 1. changesets——checkable: `cdd-engine` minor（new rules + schema 语义 + validate 面扩展）· `kairos` patch（SKILL 撰作面）——两 changeset 文件落 `.changeset/`，内容 zero 程序历史
-  - 2. engine suite 全绿——checkable: `pnpm --filter @oscaner-skills/cdd-engine test` 全绿（原 1394 例 + 新增）
+  - 2. engine suite 全绿——checkable: `pnpm --filter @oscaner-skills/cdd-engine test` 全绿（含新增用例）
   - 3. 全量 validate——checkable: `pnpm run validate` ALL PASS（emit freshness · plugin resolution · 行为测试 · engine 零 residue + channel audit · marketplace · scripts unit · version sync）
   - 4. typecheck/biome/emit——checkable: 三项目 typecheck 绿 · biome 绿 · `emit:check` 无 drift
   - 5. 提交——checkable: 提交 changesets（若有前任务残留则合并），pre-commit 通过

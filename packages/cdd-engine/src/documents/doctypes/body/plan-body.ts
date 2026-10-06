@@ -24,7 +24,12 @@
 // from the Task data, zero prose carving — the legacy `- **Do**:` face is gone.
 
 import type { SchemaShape } from "../../doctype.ts";
-import { BODY_CONSTRAINTS_HEADING_RE, DocBody, type SlicePatternSet } from "./doc-body.ts";
+import {
+  BODY_CONSTRAINTS_HEADING_RE,
+  DocBody,
+  type SlicePatternSet,
+  type StructureRule,
+} from "./doc-body.ts";
 import type { Task } from "./task.ts";
 
 /** The data-shaped plan shape domain (P2 T3; design C3) — the projection product
@@ -332,6 +337,67 @@ export class PlanBody extends DocBody {
    *  markers (the task-record parser's single source). */
   projectSlicePatterns(): SlicePatternSet {
     return PLAN_SLICE_PATTERNS;
+  }
+
+  /** The plan structure-rule data (P3.1 T2 — the retired plan-contract text-assertion migration,
+   *  design §2.2): task continuity + record presence (the data-shaped record face, every step's
+   *  checkable) + constraints source + legacy residue, as rule data the ONE interpreter runs at the
+   *  doc-contract gate. The anchors derive from the projected slices (`.source` — the parse-pattern
+   *  single source, never a re-typed literal; the legacy-section / placeholder / Do-face residues
+   *  are the retired faces' own anchors). The Class-A `**Spec:**` cross-document chain is NOT on
+   *  this plane — `#resolveSpecOf` stays on the plan doc type (P5 boundary). */
+  structureRules(): readonly StructureRule[] {
+    const heading = (re: RegExp): string => re.source;
+    return [
+      {
+        id: "plan.tasks",
+        plane: { kind: "headingLeads", anchor: heading(PLAN_SLICE_PATTERNS.taskHeading) },
+        invariants: [{ type: "presence" }, { type: "continuity" }],
+        severity: "BLOCK",
+        message:
+          "task headings must run `### Task 1:` … `### Task N:` — present at least once, 1-indexed and contiguous (no gaps / duplicates / offset)",
+      },
+      {
+        id: "plan.recordData",
+        plane: { kind: "records", anchor: "^- \\*\\*Do\\*\\*:" },
+        invariants: [{ type: "residue" }],
+        severity: "BLOCK",
+        message:
+          "a task block carrying the legacy `- **Do**:` face carries no data-shaped fields — shape the block as a data record (`- **Objective**:` / `- **Files**:` / `- **Interface**:`{consumes,produces} / `- **Steps**:` / `- **Acceptance**:`)",
+      },
+      {
+        id: "plan.checkable",
+        plane: { kind: "records", anchor: "^\\s*\\d+\\.\\s+(.*)$" },
+        invariants: [{ type: "domain", valuePattern: ".*—\\s*checkable:\\s*.+" }],
+        severity: "BLOCK",
+        message:
+          "every `- **Steps**:` entry must end with ` — checkable: <outcome>` (the verifiable outcome is the step's acceptance evidence)",
+      },
+      {
+        id: "plan.constraints",
+        plane: { kind: "headingLeads", anchor: heading(PLAN_SLICE_PATTERNS.constraintsHeading) },
+        invariants: [{ type: "presence" }],
+        severity: "BLOCK",
+        message:
+          "plan declares no Constraints source — add a literal `## Constraints` section carrying the plan's deltas (the single constraint source)",
+      },
+      {
+        id: "plan.legacySections",
+        plane: { kind: "headingLeads", anchor: "^## (?!Constraints\\s*$)[^#]" },
+        invariants: [{ type: "residue" }],
+        severity: "BLOCK",
+        message:
+          "unknown top-level `##` section — the single-form plan owns exactly the declared `## Constraints` section surface (a legacy `## Task Groups` face is retired)",
+      },
+      {
+        id: "plan.placeholders",
+        plane: { kind: "records", anchor: "\\{\\{\\s*[^{}>\\n]+\\s*\\}\\}" },
+        invariants: [{ type: "residue" }],
+        severity: "BLOCK",
+        message:
+          "unfilled template token `{{…}}` — replace the placeholder with the real content (or drop the template syntax); `{{> …}}` handlebars partials are the in-repo mechanism and stay exempt",
+      },
+    ];
   }
 
   /** The task-handoff brief content, rendered from the Task data (design C3): the objective

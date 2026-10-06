@@ -27,8 +27,9 @@
 
 import type { SchemaShape } from "../../doctype.ts";
 
-/** The doc-body kind identity — the concrete body family's discriminant ("phase-spec" | "plan"). */
-export type DocBodyKind = "phase-spec" | "plan";
+/** The doc-body kind identity — the concrete body family's discriminant ("phase-spec" | "plan" |
+ *  "overall"; the overall joins at P3.1 T2 — the chain root's shape + rules home on its body). */
+export type DocBodyKind = "phase-spec" | "plan" | "overall";
 
 /** The parse slice-pattern projection contract — the concrete body's single-source parse regexes,
  *  keyed by slice (an index-shaped mapping: the abstract surface presets NO concrete slice keys —
@@ -196,9 +197,8 @@ export abstract class DocBody {
    *  declare their structural demands as rule DATA (the `StructureRule[]` the single interpreter
    *  `runStructureRules` consumes — the rule-data home here at the body root, zero interpreter
    *  reverse-imports). The abstract face defaults to `[]` — a body with no rules contributes zero
-   *  structure findings (the T1 no-behavior-change state until the concrete rule sets land at
-   *  T2+). */
-  structureRules(): StructureRule[] {
+   *  structure findings (the T2 rule migrations land the concrete sets on the three bodies). */
+  structureRules(): readonly StructureRule[] {
     return [];
   }
 }

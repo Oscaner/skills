@@ -25,6 +25,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { runStructureRules, type StructureFinding } from "../../../../rules/structure.ts";
 import type { DocType, SchemaNode } from "../../../doctype.ts";
 import { docTypeRegistry } from "../../../registry.ts";
 import { DocBody } from "../doc-body.ts";
@@ -242,15 +243,21 @@ describe("new-skeleton docContractValidate (design C2) — fixture evidence", ()
     });
   });
 
+  /** The spec body rule set interpreted over a content string — the P3.1 T2 structure-surface
+   *  seam (the skeleton axes fire here; the doc type's DocValidateFailure surface kept only the
+   *  section-scoped deviations axis — see the skeleton-rule migrate note). */
+  function structureOf(content: string): StructureFinding[] {
+    return runStructureRules(content, phaseSpecBody.structureRules());
+  }
+
   it("a duplicated `### Acceptance criteria` subsection → fail (the unique-constraint kept)", () => {
     const dup = readFileSync(NEW_SHAPE, "utf8").replace(
       "### Acceptance criteria",
       "### Acceptance criteria\n### Acceptance criteria",
     );
-    doctored(dup, (p) => {
-      const failures = specType().validate(p, { root: REPO_ROOT });
-      expect(failures.some((f) => f.field.includes("`### Acceptance criteria`"))).toBe(true);
-    });
+    const findings = structureOf(dup);
+    expect(findings.map((f) => f.id)).toContain("spec.acceptance");
+    expect(findings[0]!.severity).toBe("BLOCK");
   });
 
   it("a missing `## Constraints` inheritance point → fail (the three-truth skeleton existence)", () => {
@@ -258,10 +265,9 @@ describe("new-skeleton docContractValidate (design C2) — fixture evidence", ()
       "## Constraints",
       "## Removed constraints",
     );
-    doctored(missing, (p) => {
-      const failures = specType().validate(p, { root: REPO_ROOT });
-      expect(failures.some((f) => f.field.includes("`## Constraints`"))).toBe(true);
-    });
+    const findings = structureOf(missing);
+    expect(findings.map((f) => f.id)).toContain("spec.constraints");
+    expect(findings[0]!.severity).toBe("BLOCK");
   });
 });
 

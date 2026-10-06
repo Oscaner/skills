@@ -1,12 +1,37 @@
-// packages/cdd-engine/src/documents/doctypes/shapes/overall.ts — the overall doc type's shape domain
-// content (P1 T3): the full JSON-Schema face of config/schema/overall.json as authored — every
-// properties/pattern/const/enum/description leaf at its original value, key order preserved (zero
-// abstraction loss, isomorphic). The SchemaFactory projects this content byte-faithfully onto the
-// derived config/schema/overall.json product; edit content here, never the derived file.
-import type { SchemaShape } from "../../doctype.ts";
+// packages/cdd-engine/src/documents/doctypes/body/overall-body.ts — the overall concrete body
+// (P3.1 T2; plan §T2 · design §2.2/2.5, Criterion ②): the chain root joins the doc-body plane. The
+// overall's output-schema shape domain (`OVERALL_SHAPE` — the SchemaFactory derives config/schema/
+// overall.json from it, byte-faithfully), the four-table parse/judgment slice patterns, and the
+// four-table structure-rule data (`structureRules()` — the kernel + the single-content table faces
+// the interpreter can judge) home on the concrete body, so the overall doc type is no longer a wild
+// shape + handwritten entire-audit node (design 2.5: the doc type sheds its handwritten four-table
+// structural walkers in the same action the rule plane takes them over). This module is the
+// LOAD-ORDER-SAFE leaf (the overall sibling of phase-spec-body / plan-body): it imports zero engine
+// runtime modules (type-only doctype import + the abstract DocBody + its rule-data type contract),
+// so tokens.ts authorizes its DOC_TOKENS overall shape input from the module-level leaf without
+// re-entering the doctypes plane (tokens → body leaf is a one-way chain; no TDZ back-edge).
+//
+// Rule-scope note (what the four-table RULES carry vs what stays on the doc type): the rule plane
+// is a per-document content pass — it carries the four tables' single-document structural judgments
+// (the kernel inventory-header/canonical-column presence, the change-history version lineage
+// numerics, the dependency-graph membership cross-links ③, the issue-inventory phase registration
+// cross-link ⑥). The four-table faces that need context the content pass cannot see — the backfill-
+// claim machine ① (cross-row clause parsing), the document-existence globs ② (directory reads), the
+// dispatch-phase registration ④ (DocContext.phaseId), the anchor-registry scan ⑤ (sibling program
+// docs), the row-shape guard (positional cell-count reads) and the issue-ref FORM domain (section-
+// scoped: a content-wide ref-form rule would misfire on the legacy`## Requirement inventory` table)
+// — stay on the overall doc type as its validate surfaces (same class as the plan doc type's
+// Class-A `#resolveSpecOf` chain, which the plan keeps for P5). The tree-walk delta-zero contract
+// (T2 step 2) is the guard: every rule below fires zero on the current 4-overall tree.
 
-/** The overall output schema's full structure (config/schema/overall.json) — the SchemaFactory's
- *  projection source (byte-faithful product derivation). */
+import type { SchemaShape } from "../../doctype.ts";
+import {
+  DocBody,
+  type SlicePatternSet,
+  type StructureInvariant,
+  type StructureRule,
+} from "./doc-body.ts";
+
 export const OVERALL_SHAPE: SchemaShape = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
   $id: "https://oscaner.dev/schemas/cdd/overall.json",
@@ -434,3 +459,161 @@ export const OVERALL_SHAPE: SchemaShape = {
     },
   },
 };
+
+// ---- the four-table parse/judgment slices (the concrete body's single-source anchors) ----
+
+/** The overall's four-table anchor slices (design §2.2 — the judgment-surface single source): the
+ *  Phase-inventory header-open + canonical-column forms (the kernel faces), the change-history row
+ *  form (the version-lineage numerics), the dependency-graph edge line forms (the membership
+ *  anchors) and the issue-inventory P-first row form (the registration anchor). The rule anchors
+ *  derive from these slices (`.source`), never a re-typed literal. All `m`-compiled like the
+ *  sibling bodies' slices — matchable on both a full-content and a per-line scan. */
+const OVERALL_SLICE_PATTERNS: SlicePatternSet = {
+  /** `/^\|\s*#\s*\|\s*Phase\s*\|/` — the Phase-inventory header-open (the kernel face). */
+  phaseInventoryHeader: /^\|\s*#\s*\|\s*Phase\s*\|/m,
+  /** The canonical-form header row — the header-open + the `Implementation plan` marker column. */
+  canonicalInventoryHeader: /^\|\s*#\s*\|\s*Phase\s*\|[^\n]*\|\s*Implementation plan\s*\|/m,
+  /** A change-history row — the `Version` header cell or a `v<major>.<minor>` version cell leading. */
+  changeHistoryRow: /^\| (Version|v\d+(?:\.\d+)*) \|/m,
+  /** The version cell + the date cell of a change-history row (the date domain face). */
+  changeHistoryDateRow: /^\| (?:Version|v\d+(?:\.\d+)*) \| ([^|\n]*)\|/m,
+  /** A dependency-graph edge line — the source token captured. */
+  graphSourceRow: /^\s*(P\d+(?:\.\d+)*)\s*->/m,
+  /** A dependency-graph edge line — the target token captured (both ends of the edge judged). */
+  graphTargetRow: /^\s*P\d+(?:\.\d+)*\s*->\s*(P\d+(?:\.\d+)*)/m,
+};
+
+// ---- the four-table structure-rule data (P3.1 T2 — the kernel + single-content faces) ----
+
+const WARN_BLOCK: "BLOCK" = "BLOCK";
+
+/** The one shared factory for a table-anchored rule — the rule-data atom of the four-table plane
+ *  (the graph-edge rows ride the `records` plane — a graph is a fenced block, not a `|`-row table). */
+function planeRule(
+  kind: "tableRows" | "records",
+  id: string,
+  slice: RegExp,
+  invariants: readonly StructureInvariant[],
+  severity: "BLOCK" | "WARN",
+  message: string,
+): StructureRule {
+  return { id, plane: { kind, anchor: slice.source }, invariants, severity, message };
+}
+
+const tableRule = planeRule.bind(null, "tableRows");
+const recordRule = planeRule.bind(null, "records");
+
+/** The membership cross-link target — every Phase-inventory / Issue-inventory row's own id cell
+ *  (the capture group makes the crossed value the id token, never the whole row). */
+const INVENTORY_TARGET = "^\\|\\s*(P\\d+(?:\\.\\d+)*)\\s*\\|";
+
+/** The four-table rules (design §2.2 — the kernel + the table rows the content pass can judge):
+ *  the Phase-inventory kernel header + canonical column presence, the change-history version /
+ *  order / date numerics, the dependency-graph membership cross-links (③) and the issue-inventory
+ *  phase-registration cross-link (⑥). Severity BLOCK (the four tables are constitutional — a
+ *  malformed table blocks the gate). Every rule fires zero on the current 4-overall tree (the
+ *  tree-walk delta-zero contract). */
+const OVERALL_RULES: readonly StructureRule[] = [
+  tableRule(
+    "overall.inventoryHeader",
+    OVERALL_SLICE_PATTERNS.phaseInventoryHeader,
+    [{ type: "presence" }],
+    WARN_BLOCK,
+    "no Phase-inventory header (`| # | Phase | …`) — the overall must carry the canonical Phase inventory table",
+  ),
+  tableRule(
+    "overall.canonicalColumn",
+    OVERALL_SLICE_PATTERNS.canonicalInventoryHeader,
+    [{ type: "presence" }],
+    WARN_BLOCK,
+    "non-canonical Phase-inventory header — the `Implementation plan` marker column is missing (the canonical-form marker the engine keys on)",
+  ),
+  tableRule(
+    "overall.historyVersion",
+    OVERALL_SLICE_PATTERNS.changeHistoryRow,
+    [{ type: "domain", valuePattern: "(?:Version|v\\d+(?:\\.\\d+)*)" }],
+    WARN_BLOCK,
+    "a change-history row's version cell is malformed — every row's first content cell must carry the `v<major>.<minor>` token",
+  ),
+  tableRule(
+    "overall.historyOrder",
+    OVERALL_SLICE_PATTERNS.changeHistoryRow,
+    [{ type: "order", compare: "version" }],
+    WARN_BLOCK,
+    "change-history versions must ascend strictly (`v<major>.<minor>` — duplicates and out-of-order rows fail)",
+  ),
+  tableRule(
+    "overall.historyDate",
+    OVERALL_SLICE_PATTERNS.changeHistoryDateRow,
+    [{ type: "domain", valuePattern: "(?:date|\\d{4}-\\d{2}-\\d{2})" }],
+    WARN_BLOCK,
+    "a change-history row's date cell is empty or malformed — the date cell must be non-empty ISO `YYYY-MM-DD`",
+  ),
+  recordRule(
+    "overall.graph",
+    OVERALL_SLICE_PATTERNS.graphSourceRow,
+    [{ type: "crosslink", targetAnchor: INVENTORY_TARGET }],
+    WARN_BLOCK,
+    "the dependency graph references a phase that is not in the Phase inventory (dangling graph token)",
+  ),
+  recordRule(
+    "overall.graphTarget",
+    OVERALL_SLICE_PATTERNS.graphTargetRow,
+    [{ type: "crosslink", targetAnchor: INVENTORY_TARGET }],
+    WARN_BLOCK,
+    "the dependency graph references a phase that is not in the Phase inventory (dangling graph token)",
+  ),
+];
+
+// NOTE — the ⑥ issue-inventory phase-membership face is not on this rule plane: the membership
+// cross-link target (`| P… |` rows) matches the issue rows THEMSELVES, so an unregistered phase in
+// an issue row self-satisfies the resolution (the rule can never fire). The face stays on the
+// overall doc type, section-scoped to the parsed `## Issue inventory` rows (like the ref-form
+// face) — see overall.ts #fourTableAudit.
+
+/**
+ * The overall concrete body (P3.1 T2; design §2.2/2.5 — Criterion ②: class + constructor
+ * injection). Carries the overall kind identity + authoring-way description and projects the two
+ * concrete surfaces: the overall output schema shape (the DocType.shape derivation source for the
+ * SchemaFactory product — the retired overall shape constant's new home) and the four-table
+ * anchor slices (the rule data + judgment single source). The rule data (`structureRules()`) is the
+ * four-table structural plane the single interpreter carries at the doc-contract gate.
+ */
+export class OverallDocBody extends DocBody {
+  constructor(opts: OverallDocBodyOpts) {
+    super({ kind: "overall", description: opts.description });
+  }
+
+  /** The shape-domain projection — the overall output-schema content (the module-level leaf;
+   *  identity with the exported `OVERALL_SHAPE` — the same projection product every consumer
+   *  reads). */
+  projectSchemaShape(): SchemaShape {
+    return OVERALL_SHAPE;
+  }
+
+  /** The slice-pattern projection — the four-table anchors. */
+  projectSlicePatterns(): SlicePatternSet {
+    return OVERALL_SLICE_PATTERNS;
+  }
+
+  /** The four-table rule data (P3.1 T2) — the kernel + the single-content table faces. */
+  structureRules(): readonly StructureRule[] {
+    return OVERALL_RULES;
+  }
+}
+
+/** Constructor options for the overall body — the authoring-way description (the kind identity is
+ *  pinned to "overall" by the class, never caller-supplied). */
+export interface OverallDocBodyOpts {
+  /** The overall authoring-way prose (the DocBody.description single source). */
+  description: string;
+}
+
+/** The overall body singleton — the constructor-injected doc-type wiring target (registry.ts passes
+ *  it to `new OverallDocType(overallBody)`; the doc-type's `shape` field is the body's projected
+ *  shape, never a re-homed constant; tokens.ts authorizes its DOC_TOKENS overall shape input from
+ *  this same leaf). */
+export const overallBody = new OverallDocBody({
+  description:
+    "Canonical overall authoring way: the program charter document — an artifact header block, the four enforcement tables (Issue inventory · Phase inventory · Dependency graph · Change history — the validator-keyed vocabularies the four-table audit reads) and the charter/scope/rule sections. The four tables are the engine-side audit vocabulary: rename a heading and you rename the validator with it.",
+});

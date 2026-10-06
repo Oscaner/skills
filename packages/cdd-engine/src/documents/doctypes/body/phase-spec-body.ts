@@ -21,7 +21,12 @@
 // only how a decorated section must look.
 
 import type { SchemaShape } from "../../doctype.ts";
-import { BODY_CONSTRAINTS_HEADING_RE, DocBody, type SlicePatternSet } from "./doc-body.ts";
+import {
+  BODY_CONSTRAINTS_HEADING_RE,
+  DocBody,
+  type SlicePatternSet,
+  type StructureRule,
+} from "./doc-body.ts";
 
 /** The new-skeleton phase-spec shape domain (P2 T2; design C2) — the projection product
  *  `projectSchemaShape()` serves and the module-level leaf tokens.ts authorizes its DOC_TOKENS
@@ -259,6 +264,63 @@ const PHASE_SPEC_SLICE_PATTERNS: SlicePatternSet = {
   constraintsHeading: BODY_CONSTRAINTS_HEADING_RE,
 };
 
+/** The phase-spec structure-rule data (P3.1 T2 — the retired skeleton-walker migration, design §2.2):
+ *  the three-truth skeleton's existence/uniqueness assertions as rule data (the ONE interpreter
+ *  `runStructureRules` consumes them at the doc-contract gate — the judgmental surface the retired
+ *  handwritten skeleton walker fed). Each anchor derives from the projected slice regexes
+ *  (`.source` — the parse-pattern single source, never a re-typed literal). The rule-construction
+ *  atom is deliberately local: the slice source of a projected heading key, so a heading rename in
+ *  the projection re-anchors the rule in the same build.
+ *
+ *  Scope note (the delegated deviations axis): the `## Deviations` row-anchor `Yes` consequence is
+ *  NOT on this plane — it stays on the doc type (phase-spec.ts `#deviationsFailures`), section-
+ *  scoped to the `## Deviations` section. The rule interpreter is section-blind (a rule's plane
+ *  scans the whole content), and the tree's legacy specs carry incidental `Yes`/`No`-starting cells
+ *  inside non-deviations tables (a legacy program's p2-design Q&A rows) — a content-wide
+ *  answer-row rule would false-fire there and break the tree-walk delta-zero contract (T2 step 1). */
+function specHeadingAnchor(re: RegExp): string {
+  return re.source;
+}
+
+/** The phase-spec structure rules — the three-truth skeleton (design §2.2): `## Design` presence →
+ *  `### Acceptance criteria` uniqueness → `## Constraints` presence. Severity BLOCK (the skeleton
+ *  is the skeleton — a missing permanent member blocks the gate). */
+const PHASE_SPEC_RULES: readonly StructureRule[] = [
+  {
+    id: "spec.design",
+    plane: {
+      kind: "headingLeads",
+      anchor: specHeadingAnchor(PHASE_SPEC_SLICE_PATTERNS.designHeading),
+    },
+    invariants: [{ type: "presence" }],
+    severity: "BLOCK",
+    message:
+      "no `## Design` section (the three-truth skeleton's first member — add the section carrying the phase's design body + the unique `### Acceptance criteria` subsection)",
+  },
+  {
+    id: "spec.acceptance",
+    plane: {
+      kind: "headingLeads",
+      anchor: specHeadingAnchor(PHASE_SPEC_SLICE_PATTERNS.acceptanceCriteriaHeading),
+    },
+    invariants: [{ type: "uniqueness" }],
+    severity: "BLOCK",
+    message:
+      "the `### Acceptance criteria` subsection must appear exactly once inside `## Design` (`- ` code-span-prefixed acceptance entries)",
+  },
+  {
+    id: "spec.constraints",
+    plane: {
+      kind: "headingLeads",
+      anchor: specHeadingAnchor(PHASE_SPEC_SLICE_PATTERNS.constraintsHeading),
+    },
+    invariants: [{ type: "presence" }],
+    severity: "BLOCK",
+    message:
+      "no `## Constraints` inheritance-point section (add the section carrying the spec's own delta + the `**Parent program**` pointer — the parent-overall conventions auto-apply)",
+  },
+];
+
 /**
  * The phase-spec concrete body (P2 T2; design C1/C2 — Criterion ②: class + constructor injection).
  * Carries the phase-spec kind identity + authoring-way description and projects the two concrete
@@ -279,6 +341,14 @@ export class PhaseSpecBody extends DocBody {
   /** The parse slice-pattern projection — the three permanent heading regexes. */
   projectSlicePatterns(): SlicePatternSet {
     return PHASE_SPEC_SLICE_PATTERNS;
+  }
+
+  /** The phase-spec structure-rule data (P3.1 T2): the three-truth skeleton rules — the planner's
+   *  single-interpreter surface the doc-contract gate judges (the retired skeleton walker
+   *  heading walker). The Deviations answer-axis stays on the doc type (section-scoped — see the
+   *  module note above). */
+  structureRules(): readonly StructureRule[] {
+    return PHASE_SPEC_RULES;
   }
 }
 

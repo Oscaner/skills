@@ -28,17 +28,17 @@
 //     task boundary slices;
 //   - the dead-shell discipline: `doctypes/shapes/plan.ts` is gone (zero existence — grep included).
 import { execSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { runStructureRules } from "../../../../rules/structure.ts";
 import type { SchemaNode } from "../../../doctype.ts";
 import { docTypeRegistry } from "../../../registry.ts";
 import { DOC_TOKENS, deriveDocTokens } from "../../../tokens.ts";
 import { PLAN_BODY_VIEW } from "../../body-views.ts";
 import type { PlanDocType, PlanParse } from "../../plan.ts";
-import { OVERALL_SHAPE } from "../../shapes/overall.ts";
 import { DocBody } from "../doc-body.ts";
+import { OVERALL_SHAPE } from "../overall-body.ts";
 import { PHASE_SPEC_BODY_SHAPE, phaseSpecBody } from "../phase-spec-body.ts";
 import { PLAN_BODY_SHAPE, PlanBody, planBody } from "../plan-body.ts";
 import type { Task } from "../task.ts";
@@ -342,36 +342,19 @@ describe("the new-shape plan fixture — parse + validate + tasksFromPlan (desig
     expect(second.steps.every((s) => s.checkable.length > 0)).toBe(true);
   });
 
-  /** Write a doctored plan to a temp file and run the plan validate against it (the doc contract
-   *  reads the file — the doctoring surface for the data-shape negatives). */
-  function doctored(content: string, run: (planPath: string) => void): void {
-    const dir = mkdtempSync(path.join(tmpdir(), "plan-body-"));
-    try {
-      const planPath = path.join(dir, "doctored-plan-new-shape.md");
-      writeFileSync(planPath, content);
-      run(planPath);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  }
-
-  it("a task step dropping its checkable → validate fail (step checkable is a validate failure, never author discretion)", () => {
+  it("a task step dropping its checkable → structure-finding fail (P3.1 T2: the step checkable is a rule-data judgment at the gate — never author discretion)", () => {
     const missingCheckable = readFileSync(NEW_SHAPE, "utf8").replace(
       "2. Re-derive the schema product — checkable: `plan.json` is byte-faithful to the projection",
       "2. Re-derive the schema product",
     );
-    doctored(missingCheckable, (p) => {
-      const failures = planType().validate(p, { root: REPO_ROOT });
-      expect(failures.some((f) => f.field.includes("`checkable`"))).toBe(true);
-      expect(failures.some((f) => f.fix.includes("checkable"))).toBe(true);
-    });
+    const findings = runStructureRules(missingCheckable, planBody.structureRules());
+    expect(findings.map((f) => f.id)).toContain("plan.checkable");
+    expect(findings.find((f) => f.id === "plan.checkable")!.severity).toBe("BLOCK");
   });
 
   it("every step keeps its checkable in the untouched fixture — no spurious data-shape failure", () => {
-    doctored(readFileSync(NEW_SHAPE, "utf8"), (p) => {
-      const failures = planType().validate(p, { root: REPO_ROOT });
-      expect(failures.some((f) => f.field.includes("`checkable`"))).toBe(false);
-    });
+    const findings = runStructureRules(readFileSync(NEW_SHAPE, "utf8"), planBody.structureRules());
+    expect(findings.map((f) => f.id)).not.toContain("plan.checkable");
   });
 });
 

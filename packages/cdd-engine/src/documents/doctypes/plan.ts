@@ -1,10 +1,12 @@
 // packages/cdd-engine/src/documents/doctypes/plan.ts — the PlanDocType subclass (P1 T2; plan §T2
 // · design C1: the plan doc type — `### Task N:` detection + the plan contract face + the dispatch
-// phase-id/group extractors). The DocumentsValidator's per-type plan branch (validatePlanContract /
-// Class-A `**Spec:**` resolution / task extractors / phase-id resolution) homes here as instance
-// methods; the full plan-entry audit (validate) composes its own plan faces then reaches the spec
-// chain through the registry (the S3 parent walk — spec → parent overall). The plan holds the
-// routed review/fix face (`"plan"` review type — S4).
+// phase-id/group extractors). The DocumentsValidator's per-type plan branch (Class-A `**Spec:**`
+// resolution / task extractors / phase-id resolution) homes here as instance methods; the plan's
+// contract assertion face (task continuity · record data + checkable · constraints source · legacy
+// sections + placeholders) migrated to the plan body's rule data at P3.1 T2 (body/plan-body.ts
+// structureRules — the single-interpreter plane); the full plan-entry audit (validate) composes the
+// Class-A surface then reaches the spec chain through the registry (the S3 parent walk — spec →
+// parent overall). The plan holds the routed review/fix face (`"plan"` review type — S4).
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -43,7 +45,6 @@ import {
 
 const SPEC_MARK = DOC_TOKENS.specMark;
 const SPEC_FIELD = DOC_TOKENS.specField;
-const PLACEHOLDER_RE = /{{\s*[^{}>\n]+\s*}}/g;
 
 // Segment-preserving spec→phase identity (④'s own-token strand): the canonical phase-id token in
 // its spec-filename form — `…-p2.1-design.md` owns `P2.1`, never its numeric base P2.
@@ -196,10 +197,14 @@ export class PlanDocType extends DocType {
     };
   }
 
-  /** The full plan-entry audit — the necessary subset (plan contract + Class A) always runs, then
-   *  the reached spec chain carries the spec face + the parent overall contract + four tables. */
+  /** The full plan-entry audit — the necessary subset (the Class-A `**Spec:**` surface) always
+   *  runs, then the reached spec chain carries the spec face + the parent overall contract + four
+   *  tables. The plan-contract structural assertion face (task continuity / record data / checkable
+   *  / constraints source / legacy sections / placeholders) migrated to the plan body's rule data
+   *  (`plan-body.structureRules` — the P3.1 T2 single-interpreter plane the doc-contract gate
+   *  judges); the Class-A `**Spec:**` chain stays here (cross-document — P5 boundary). */
   validate(entry: string, ctx: DocContext): DocValidateFailure[] {
-    const failures: DocValidateFailure[] = [...this.validatePlanContract(entry)];
+    const failures: DocValidateFailure[] = [];
     const { specPath, failures: specRefFailures } = this.#resolveSpecOf(entry, ctx.root);
     failures.push(...specRefFailures);
     if (!specPath) return failures;
@@ -363,123 +368,6 @@ export class PlanDocType extends DocType {
       ? overallConstraintsOf(readFileSync(overallPath, "utf8"))
       : null;
     return mergeParentConstraints({ ownDelta, parentConstraints });
-  }
-
-  /** plan contract: `### Task N:` continuous extractability · `**Spec:**` exists + resolves ·
-   * constraints source declaration extractable · no placeholders · the data-shaped task records
-   * carry the single-form fields (an orphan block — no data-shaped fields — is a validate failure,
-   * never a silently dropped block) and every step carries its checkable (missing checkable = a
-   * validate failure, never an author's discretion) · only the declared `## Constraints` top-level
-   * section (an unknown `##` section — a legacy `## Task Groups` face — is a validate failure).
-   * Necessary subset — always runs. */
-  validatePlanContract(planPath: string): DocValidateFailure[] {
-    const failures: DocValidateFailure[] = [];
-    const content = readFileSync(planPath, "utf8");
-
-    // 1. Task headings — continuously extractable (canonical taskNumbersFromPlan).
-    const tasks = this.taskNumbersFromPlan(planPath);
-    const taskHeadingLbl = `\`${DOC_TOKENS.taskHeadingFormat}\``;
-    if (tasks.length === 0) {
-      failures.push({
-        artifact: "plan",
-        file: planPath,
-        field: "Task headings",
-        missing: `no ${taskHeadingLbl} headings in the plan`,
-        fix: `add ${taskHeadingLbl} task headings, 1-indexed and contiguous (e.g. \`### Task 1:\` through \`### Task N:\`)`,
-      });
-    } else if (new Set(tasks).size !== tasks.length) {
-      failures.push({
-        artifact: "plan",
-        file: planPath,
-        field: "Task headings",
-        missing: `duplicate task heading(s): ${tasks.join(", ")}`,
-        fix: `make each ${taskHeadingLbl} heading present exactly once`,
-      });
-    } else {
-      const max = tasks[tasks.length - 1];
-      const expected = Array.from({ length: max }, (_, i) => i + 1);
-      if (tasks.length !== expected.length || tasks.some((n, i) => n !== expected[i])) {
-        failures.push({
-          artifact: "plan",
-          file: planPath,
-          field: "Task headings",
-          missing: `task headings not contiguous from 1 (got ${tasks.join(", ")}; expected 1..${max})`,
-          fix: `renumber the task headings so every ${taskHeadingLbl} from 1 to the max is present exactly once`,
-        });
-      }
-    }
-
-    // 2. Constraints source — the declared source must be extractable (the materializer's own face;
-    //    the implement non-dry existence gate already blocks on it; this check is mode-independent).
-    if (this.extractPlanConstraints(content) === null) {
-      failures.push({
-        artifact: "plan",
-        file: planPath,
-        field: "Constraints source",
-        missing: "plan declares no Constraints source",
-        fix: `declare a literal \`${DOC_TOKENS.constraintsHeading}\` section carrying the plan's deltas (the single constraint source)`,
-      });
-    }
-
-    // 3. Placeholders — unfilled template tokens (`{{…}}`) are authoring debt; handlebars partials
-    //    `{{> …}}` are the in-repo template mechanism and stay exempt.
-    for (const m of content.matchAll(PLACEHOLDER_RE)) {
-      failures.push({
-        artifact: "plan",
-        file: planPath,
-        field: "placeholders",
-        missing: `unfilled template token ${m[0]}`,
-        fix: "replace the placeholder with the real content (or drop the template syntax)",
-      });
-    }
-
-    // 4. Data-shaped task records — the single-form grammar's task face: every `### Task N:` block
-    //    must carry the data-shaped fields (objective / steps / acceptance / files — a legacy
-    //    `- **Do**:`-face block parses to an EMPTY record → an orphan task block, a validate
-    //    failure). Every parsed step additionally carries its checkable outcome (design C3: the
-    //    step checkable is a validate requirement — a step whose action line drops the
-    //    ` — checkable:` separator parses with an empty checkable and fails).
-    this.tasksFromPlan(planPath).forEach((task, i) => {
-      if (!task.objective && task.steps.length === 0 && task.acceptance.length === 0) {
-        failures.push({
-          artifact: "plan",
-          file: planPath,
-          field: "Task records",
-          missing: `orphan task block ${i + 1} — the ${taskHeadingLbl} block carries no data-shaped fields (a legacy \`- **Do**:\` face is retired)`,
-          fix: `shape the task block as a data record: \`- **Objective**:\` / \`- **Files**:\` / \`- **Interface**:\`{consumes,produces} / \`- **Steps**:\` (each with its \` — checkable:\` outcome) / \`- **Acceptance**:\``,
-        });
-      }
-      for (const step of task.steps) {
-        if (!step.checkable) {
-          failures.push({
-            artifact: "plan",
-            file: planPath,
-            field: "`checkable`",
-            missing: `task step "${step.action}" carries no checkable outcome`,
-            fix: "end every `- **Steps**:` entry's action with ` — checkable: <outcome>` (the verifiable outcome is the step's acceptance evidence)",
-          });
-        }
-      }
-    });
-
-    // 5. Top-level sections — the single-form grammar's section face: the plan owns exactly ONE
-    //    top-level `##` section, the declared `## Constraints` source (the plan's own deltas
-    //    container). Any other top-level `##` heading is an unknown section — the retired
-    //    `## Task Groups` dispatch-group declaration is gone with its shape node, so a legacy
-    //    section blocks instead of silently passing.
-    const constraintsHeadingRe = this.body.projectSlicePatterns().constraintsHeading;
-    for (const line of content.split("\n")) {
-      if (/^## [^#]/.test(line) && !constraintsHeadingRe.test(line)) {
-        failures.push({
-          artifact: "plan",
-          file: planPath,
-          field: "Sections",
-          missing: `unknown top-level section "${line.trim()}" — the single-form plan declares only the \`${DOC_TOKENS.constraintsHeading}\` section surface`,
-          fix: `merge the content into the declared \`${DOC_TOKENS.constraintsHeading}\` section or the task data records — a plan owns no other top-level \`##\` section`,
-        });
-      }
-    }
-    return failures;
   }
 
   /** phaseIdFromPlan(planPath) — the basename-scan phase id (`…-p<digits>(.digits)*`, the canonical

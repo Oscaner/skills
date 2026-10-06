@@ -158,12 +158,6 @@ export class DocumentsValidator {
     return mergedSpecConstraintsOf(entry, root);
   }
 
-  /** plan contract: `### Task N:` continuous extractability · `**Spec:**` exists + resolves ·
-   *  constraints source declaration extractable · no placeholders — delegated to the plan doc type. */
-  validatePlanContract(planPath: string): DocValidationFailure[] {
-    return planType().validatePlanContract(planPath);
-  }
-
   /** phaseIdFromPlan(planPath) — the basename-scan phase id — delegated to the plan doc type. */
   phaseIdFromPlan(planPath: string): string | null {
     return planType().phaseIdFromPlan(planPath);

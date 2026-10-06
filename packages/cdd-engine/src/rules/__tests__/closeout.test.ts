@@ -99,9 +99,11 @@ describe("deriveTerminalDebt — plan-complete unbackfilled (the terminal-debt s
 });
 
 describe("deriveCloseoutMismatches — the single module (both surfaces, 同源)", () => {
-  it("structural surface mirrors the single audit entry (missing cell / missing claim)", () => {
+  it("structural + structure surfaces mirror the single audit entry (missing cell / missing claim / dangling graph)", () => {
     const p = writeProgram();
-    // Doctor a dangling dependency graph (face ③ illegal state) — the structural surface carries it.
+    // Doctor a dangling dependency graph (face ③ illegal state) — the chain structural surface
+    // carries it (the plan entry audits its parent overall through the four-table audit); the
+    // rule plane parallels it for overall entries + the tree walk.
     const broken = OVERALL_CLEAN.replace("\n```\nP1 -> P2\n```", "\n```\nP1 -> P9\n```");
     writeFileSync(p.overall, broken);
     const r = closeoutChecker.deriveCloseoutMismatches({ entry: p.plan1, root: p.repo });

@@ -6,6 +6,18 @@
 // (./shared.ts). The overall is the chain root: parentChain yields the entry itself and the route
 // surface carries null across (no routed review/fix face — S4). SplitCells/sectionRange-style table
 // atoms stay module-private (single-type atoms stay in their own file), exactly one consumer.
+//
+// P3.1 T2 (doc-architecture-v2 P3.1) — the four-table STRUCTURE plane rides the overall body's
+// rule data (body/overall-body.ts — the kernel inventory-header/canonical-column presence, the
+// change-history numerics, the dependency-graph membership, judged by the ONE interpreter
+// `runStructureRules` at the doc-contract gate for OVERALL entries + the tree walk). The chain
+// accounting surface here keeps the T0 audit intact: a plan/spec entry audits its parent overall
+// through this validate (the gate's structure plane runs the ENTRY's rules only), so the four-table
+// walkers (kernel numerics · ③ graph/dependency membership · the contextual faces ① claims · ②
+// doc-existence · ④ registration · ⑤ anchor registry · ⑥ issue rows) all still run here — the rule
+// plane parallels, never replaces, the chain's judgment surface (the contextual faces cannot be
+// content rules at all — ① is a cross-row clause machine, ②⑤ read directories/sibling docs, ④
+// needs DocContext.phaseId, the issue faces are section-scoped).
 
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -17,8 +29,8 @@ import {
 } from "../doctype.ts";
 import { DOC_TOKENS, escapeRegExp } from "../tokens.ts";
 import { DOC_WORDS } from "../words.ts";
+import type { OverallDocBody } from "./body/overall-body.ts";
 import { OVERALL_BODY_VIEW } from "./body-views.ts";
-import { OVERALL_SHAPE } from "./shapes/overall.ts";
 import {
   type ClaimDeclarationTrace,
   dottedLegalHint,
@@ -141,18 +153,25 @@ export interface OverallParse {
 /** The overall doc type — the chain root (parentChain = itself). Detection: the `-overall.md`
  *  filename form ∨ the Phase-inventory header-open line (`| # | Phase |` — the four-table feature,
  *  spec C2). Parse: the canonical four-table parse. Validate: the overall contract face (kernel
- *  row-shape + version lineage) + the four-table audit faces ①-⑥.
+ *  row-shape + version lineage) + the four-table audit's contextual faces ①-⑥ (the structural
+ *  faces ③⑥ + kernel numerics now ride the body rule data — see the module note).
  */
 export class OverallDocType extends DocType {
-  constructor() {
+  /** The injected body — the shape + slice + rule data single source for this doc type's checks
+   *  (constructor injection, no default parameterization: the body is the live wiring of the
+   *  shape domain — the P3.1 T2 chain-root sibling of the plan/spec bodies). */
+  readonly body: OverallDocBody;
+
+  constructor(body: OverallDocBody) {
     super({
       kind: "overall",
-      // Shape domain — the overall output schema content (T3: the concrete per-type shape, the
-      // SchemaFactory's projection source). Words — the shared engine lexicon content (T4: every
-      // doc type references the same DOC_WORDS object — words single-source). BodyView — the chain
-      // root carries no body forms (T5: zero discriminating formats, no review face). instructions /
-      // refKind stay the P1 placeholder state (P5 lands the concrete content).
-      shape: OVERALL_SHAPE,
+      // Shape domain — the overall output schema content (P3.1 T2: derived from the injected body's
+      // projectSchemaShape() — the only contract chain DocBody.projectSchemaShape() → DocType.shape →
+      // SchemaFactory; the retired overall shape constant is gone). Words — the shared engine
+      // lexicon content. BodyView — the chain root carries no body forms (T5: zero discriminating
+      // formats, no review face). instructions / refKind stay the P1 placeholder state (P5 lands the
+      // concrete content).
+      shape: body.projectSchemaShape(),
       words: DOC_WORDS,
       instructions: [],
       refKind: { kind: "" },
@@ -160,6 +179,7 @@ export class OverallDocType extends DocType {
       // The overall is the chain root — no routed review/fix face (S4): null across the surface.
       route: { reviewType: null, argKey: null, targetFlag: null },
     });
+    this.body = body;
   }
 
   /** Overall detection: the `-overall.md` basename form ∨ a Phase-inventory header-open line
@@ -198,11 +218,11 @@ export class OverallDocType extends DocType {
     return entry;
   }
 
-  /** overall contract: canonical header · row-shape guard · change-history ascending/unique/dates —
-   *  plus the merged version-lineage (the chain's pinned vX.Y tokens ∈ the overall's lineage,
-   *  canonical change-history version rules carry over) — plus the four-table audit faces ①-⑥.
-   *  A phase-less plan (phaseId null) skips ④'s dispatch-phase registration; the structural faces
-   *  still run fully. */
+  /** overall contract: canonical header · row-shape guard · the merged version-lineage (the chain's
+   *  pinned vX.Y tokens ∈ the overall's lineage) — plus the four-table audit's contextual faces
+   *  ①-⑥. The change-history version/order/date numerics + the structural ③⑥ faces migrate to the
+   *  body rule data (overall-body.structureRules — the interpreter plane); a phase-less plan
+   *  (phaseId null) skips ④'s dispatch-phase registration; the contextual faces still run fully. */
   validateOverallContract(
     overallPath: string,
     phaseId: string | null,
@@ -431,8 +451,10 @@ export class OverallDocType extends DocType {
     return files;
   }
 
-  /** ①-⑥ four-table audit on the resolved parent overall. Every face surfaces guidance-shaped
-   *  failures; faces with nothing to audit (no anchors / no claims / no graph / no issue rows) no-op. */
+  /** The four-table audit (the full T0 chain surface — faces ①-⑥; the body rule plane parallels it
+   *  for overall entries + the tree walk, it never replaces the chain judgment a plan/spec entry
+   *  composes through this validate). Every face surfaces guidance-shaped failures; faces with
+   *  nothing to audit (no anchors / no claims / no graph / no issue rows) no-op. */
   #fourTableAudit(
     o: OverallParse,
     overallPath: string,
@@ -466,8 +488,13 @@ export class OverallDocType extends DocType {
       });
     }
 
-    // ⑥ Issue-inventory rows well-formed: phase ∈ ids + a recognizable ref form (anchored `#NNN#…`,
-    // bare `#NNN`, wrapped `[#NNN](…)`, `none`, or a parenthetical note).
+    // ⑥ Issue-inventory rows well-formed — the phase-membership + the REF-FORM faces, both
+    // section-scoped to the parsed `## Issue inventory` rows (a content-wide membership rule
+    // self-satisfies — the unregistered phase row itself matches the cross-link target — and a
+    // content-wide ref-form rule would misfire on the legacy `## Requirement inventory` table,
+    // whose ref cells are prose, not issue-ref forms): a registered phase ∈ inventory ids (the
+    // membership face the structure plane cannot carry) + a recognizable ref form (anchored
+    // `#NNN#…`, bare `#NNN`, wrapped `[#NNN](…)`, `none`, or a parenthetical note).
     for (const r of o.issues) {
       if (!idsLower.has(r.phase.trim().toLowerCase())) {
         failures.push({
@@ -530,8 +557,11 @@ export class OverallDocType extends DocType {
       }
     }
 
-    // ③ dependency-graph membership: every graph token AND every Phase-inventory Dependency-cell
-    // predecessor must exist in the Phase inventory.
+    // ③ dependency-graph membership — graph tokens AND Phase-inventory Dependency-cell
+    // predecessors must exist in the Phase inventory. The chain surface (a plan/spec entry audits
+    // its parent overall through this validate) keeps the walkers EXACTLY as T0 — the body rule
+    // plane (`overall.graph`/`overall.graphTarget`) parallels them for overall entries and the
+    // tree walk (P3.1 T2), it never replaces the chain's accounting surface.
     for (const tok of o.graphTokens) {
       if (!idsLower.has(tok.toLowerCase())) {
         failures.push({

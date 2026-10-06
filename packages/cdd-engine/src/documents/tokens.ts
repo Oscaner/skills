@@ -32,9 +32,9 @@
 // edge adds no back-edge.
 import type { SchemaShape } from "./doctype.ts";
 import { escapeRegExp } from "./doctypes/body/doc-body.ts";
+import { OVERALL_SHAPE } from "./doctypes/body/overall-body.ts";
 import { PHASE_SPEC_BODY_SHAPE } from "./doctypes/body/phase-spec-body.ts";
 import { PLAN_BODY_SHAPE } from "./doctypes/body/plan-body.ts";
-import { OVERALL_SHAPE } from "./doctypes/shapes/overall.ts";
 
 /** Re-export of the body-root escape atom (definition home: doc-body.ts — see the load-order note
  *  above); the existing engine consumers keep importing it from this module. */

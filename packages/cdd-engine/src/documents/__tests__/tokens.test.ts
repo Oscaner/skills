@@ -29,9 +29,9 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import type { SchemaShape } from "../doctype.ts";
+import { OVERALL_SHAPE } from "../doctypes/body/overall-body.ts";
 import { PHASE_SPEC_BODY_SHAPE } from "../doctypes/body/phase-spec-body.ts";
 import { PLAN_BODY_SHAPE } from "../doctypes/body/plan-body.ts";
-import { OVERALL_SHAPE } from "../doctypes/shapes/overall.ts";
 import { docTypeRegistry } from "../registry.ts";
 import { DOC_TOKENS, deriveDocTokens } from "../tokens.ts";
 

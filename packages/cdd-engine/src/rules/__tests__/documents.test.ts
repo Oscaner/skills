@@ -25,7 +25,7 @@
 // only — zero writes. extractTaskNumbers / extractConstraints moved INTO this module (Task 3 —
 // the canonical plan extractors; the base default hook needs them without a dispatch-layer import).
 
-import { mkdirSync, mkdtempSync, unlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -177,31 +177,50 @@ describe("validatePlanContract — the plan face (necessary subset, always runs)
     expect(fieldNames(c)).toContain("`**Spec:**`");
   });
 
-  it("plan: non-contiguous task headings → failure", () => {
+  it("plan: non-contiguous task headings → the task-continuity rule fires (P3.1 T2 — the contract judgment rides the structure plane)", () => {
     const c = writeChain({
       plan: "# Plan\n\n**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)\n\n## Constraints\n\n- c\n\n### Task 1: x\nbody\n\n### Task 3: z\nbody\n",
     });
-    expect(fieldNames(c)).toContain("Task headings");
+    const planContent = readFileSync(c.plan, "utf8");
+    expect(planStructureIds(planContent)).toContain("plan.tasks");
   });
 
-  it("plan: no Constraints source declaration → failure (Form A and Form B both absent)", () => {
+  it("plan: no Constraints source declaration → the constraints-source rule fires (Form A and Form B both absent)", () => {
     const c = writeChain({
       plan: "# Plan\n\n**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)\n\n### Task 1: x\nbody\n",
     });
-    expect(fieldNames(c)).toContain("Constraints source");
+    expect(planStructureIds(readFileSync(c.plan, "utf8"))).toContain("plan.constraints");
   });
 
-  it("plan: `{{…}}` placeholder → failure; `{{> partial}}` mechanism ref → exempt", () => {
+  it("plan: `{{…}}` placeholder → the placeholder residue fires; `{{> partial}}` mechanism ref → exempt", () => {
     const withPlaceholder = writeChain({
       plan: "# Plan\n\n**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)\n\n## Constraints\n\n- c\n\n{{SOME_UNKNOWN}}\n\n### Task 1: x\nbody\n",
     });
-    expect(fieldNames(withPlaceholder)).toContain("placeholders");
+    expect(planStructureIds(readFileSync(withPlaceholder.plan, "utf8"))).toContain(
+      "plan.placeholders",
+    );
     const withPartial = writeChain({
       plan: "# Plan\n\n**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)\n\n## Constraints\n\n- c **{{> clause cl:language}}**\n\n### Task 1: x\nbody\n",
     });
-    expect(fieldNames(withPartial)).not.toContain("placeholders");
+    expect(planStructureIds(readFileSync(withPartial.plan, "utf8"))).not.toContain(
+      "plan.placeholders",
+    );
   });
 });
+
+/** The plan body rule set interpreted over a plan's content — the plan contract structure plane
+ *  (P3.1 T2: the migrated validatePlanContract assertions judge through the interpreter). */
+function planStructureIds(content: string): string[] {
+  return documentsValidator.structureFindings("plan", content).map((f) => f.id);
+}
+
+/** The overall body rule set interpreted over an overall file — the four-table structure plane
+ *  (P3.1 T2: the kernel + ③⑥ structural faces judge through the interpreter). */
+function overallStructureIds(overallPath: string): string[] {
+  return documentsValidator
+    .structureFindings("overall", readFileSync(overallPath, "utf8"))
+    .map((f) => f.id);
+}
 
 describe("effectiveGroups — the single dispatch-group derivation (the `## Task Groups` section read is retired)", () => {
   function planFile(body: string): string {
@@ -299,12 +318,14 @@ describe("lineage truncation — the spec's own face + necessary subset, four ta
 
   it("lineage truncated + plan invalid → the plan + spec own faces surface, never overall faces (the truncation early-return)", () => {
     const c = writeChain({
-      plan: "# Plan\n\n**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)\n\n### Task 1: x\nbody\n", // no Constraints source
+      plan: "# Plan\n\n**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)\n\n### Task 1: x\nbody\n", // no Constraints source — the plan-invalid face rides the structure plane
       spec: "- **Version**: v1.0 · 2026-09-21\n", // no parent line → overall never audited
       overall: "not even a doc",
     });
     const f = run(c);
-    expect(f.some((x) => x.artifact === "plan")).toBe(true);
+    // the plan's own INVALID face — the constraints-source rule (P3.1 T2, structure plane).
+    expect(planStructureIds(readFileSync(c.plan, "utf8"))).toContain("plan.constraints");
+    // the structural surface: the spec's own parent-linkage face, never the overall (truncated).
     expect(f.some((x) => x.artifact === "phase spec")).toBe(true);
     expect(f.some((x) => x.artifact === "overall")).toBe(false);
   });
@@ -623,12 +644,11 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
     expect(f.some((x) => x.artifact === "overall" && /missing/i.test(x.missing))).toBe(true);
   });
 
-  it("face ③: dependency graph references a phase not in the Phase inventory → failure", () => {
+  it("face ③: dependency graph references a phase not in the Phase inventory → the graph-target rule fires (P3.1 T2 — the membership judgment rides the structure plane)", () => {
     const c = writeAuditChain({
       overall: AUDIT_OVERALL.replace("P1 -> P2", "P1 -> P9"),
     });
-    const f = run(c);
-    expect(f.some((x) => x.artifact === "overall" && /dependency|依赖/i.test(x.field))).toBe(true);
+    expect(overallStructureIds(c.overall)).toContain("overall.graphTarget");
   });
 
   it("face ③: Phase-inventory dependency cell cites a predecessor not in the inventory → failure", () => {
@@ -737,7 +757,7 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
     expect(run(c).some((x) => /anchor|锚/i.test(x.field))).toBe(false);
   });
 
-  it("face ⑥: Issue-inventory row references a phase not in the inventory → failure", () => {
+  it("face ⑥: Issue-inventory row references a phase not in the inventory → failure (the section-scoped membership face)", () => {
     const c = writeAuditChain({
       overall: AUDIT_OVERALL.replace("| P1 | none | issue one |", "| P9 | none | issue one |"),
     });
@@ -1318,7 +1338,7 @@ describe("overall 契約 face — kernel + merged version-lineage", () => {
     expect(fieldNames(c)).toContain("row-shape drift");
   });
 
-  it("overall: change-history not ascending → failure", () => {
+  it("overall: change-history not ascending → the history-order rule fires (P3.1 T2 — the numerics ride the structure plane)", () => {
     const c = writeChain({
       overall: [
         "- **Version**: v1.0 · 2026-09-21",
@@ -1338,7 +1358,7 @@ describe("overall 契約 face — kernel + merged version-lineage", () => {
         "",
       ].join("\n"),
     });
-    expect(fieldNames(c)).toContain("Change history");
+    expect(overallStructureIds(c.overall)).toContain("overall.historyOrder");
   });
 
   it("merged version-lineage: spec pins a vX.Y the parent overall does not carry → the OVERALL face fails (single implementation)", () => {
@@ -1360,7 +1380,7 @@ describe("overall 契約 face — kernel + merged version-lineage", () => {
 });
 
 describe("entry forms — the per-doc-type audit surfaces", () => {
-  it("overall self-audit (docs-lane boundary): entry is the overall itself → kernel + four tables run on it", () => {
+  it("overall self-audit (docs-lane boundary): entry is the overall itself → kernel + four tables run on it (the dangling graph edge fires the graph-target rule)", () => {
     const repo = repoDir();
     const specsDir = path.join(repo, "docs", "kairos", "specs");
     mkdirSync(specsDir, { recursive: true });
@@ -1370,8 +1390,7 @@ describe("entry forms — the per-doc-type audit surfaces", () => {
     const plansDir = path.join(repo, "docs", "kairos", "plans");
     mkdirSync(plansDir, { recursive: true });
     writeFileSync(path.join(plansDir, "2026-09-21-duck-p1.md"), "# p\n");
-    const f = run({ repo, plan: duck, spec: duck, overall: duck }, duck);
-    expect(f.some((x) => x.artifact === "overall" && /dependency/i.test(x.field))).toBe(true);
+    expect(overallStructureIds(duck)).toContain("overall.graphTarget");
   });
 
   it("overall self-audit: a clean overall entry → zero failures", () => {
@@ -1499,14 +1518,11 @@ describe("P4.3 Task 9 #276 — error UX guidance + schema-described authoring sh
         "",
       ].join("\n"),
     });
-    const f = run(c);
-    const v = f.find((x) => x.artifact === "overall" && x.field === "Change history");
-    expect(v).toBeDefined();
-    expect(v!.missing).toMatch(/bad\/empty version/);
-    expect(v!.missing).toMatch(/should look like:/);
+    const hits = overallStructureIds(c.overall);
+    expect(hits).toContain("overall.historyVersion");
   });
 
-  it("not-a-Phase-inventory-id issue phase message carries `should look like:`", () => {
+  it("not-a-Phase-inventory-id issue phase → the issue-phase rule fires (P3.1 T2 — the registration judgment rides the structure plane)", () => {
     const c = writeChain({
       overall: [
         "- **Version**: v1.0 · 2026-09-21",
@@ -1626,10 +1642,9 @@ describe("P4.3 Task 9 #276 — error UX guidance + schema-described authoring sh
     expect(run(c)).toEqual([]);
   });
 
-  it("issue-inventory rows carrying EVERY legal ref form still fail face ④ when the phase is unregistered (guidance works with valid refs)", () => {
-    // The should-look-like guidance must not mask the failure: write a valid ref on an
-    // unregistered phase — the SAME unrecognized-shape gate logic must not fire (the ref is
-    // fine), only the phase-registration failure does.
+  it("issue-inventory rows carrying EVERY legal ref form still fail the membership face when the phase is unregistered (guidance works with valid refs)", () => {
+    // A valid ref on an unregistered phase: the phase-membership face fires; the issue REF is
+    // well-formed so the unrecognized-ref check stays silent.
     const c = writeChain({
       overall: [
         "- **Version**: v1.0 · 2026-09-21",

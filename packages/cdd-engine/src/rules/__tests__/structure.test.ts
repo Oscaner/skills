@@ -27,6 +27,7 @@ import {
   type StructureInvariant,
   type StructureRule,
 } from "../../documents/doctypes/body/doc-body.ts";
+import { overallBody } from "../../documents/doctypes/body/overall-body.ts";
 import { phaseSpecBody } from "../../documents/doctypes/body/phase-spec-body.ts";
 import { planBody } from "../../documents/doctypes/body/plan-body.ts";
 import { DocumentsValidator } from "../documents.ts";
@@ -269,7 +270,7 @@ describe("the finding surface (severity + fixed message copy)", () => {
   });
 });
 
-describe("the DocBody rule-data seam (T1 — abstract default in place, concrete bodies not yet overridden)", () => {
+describe("the DocBody rule-data seam (T1 — abstract default; T2 — the concrete rule sets landed)", () => {
   const SHAPE: SchemaShape = {
     $schema: "https://json-schema.org/draft/2020-12/schema",
     $id: "https://oscaner.dev/schemas/cdd/stub-body.json",
@@ -294,14 +295,39 @@ describe("the DocBody rule-data seam (T1 — abstract default in place, concrete
     expect(body.structureRules()).toEqual([]);
   });
 
-  it("the two existing concrete bodies inherit the default — no override at T1 (their rule sets land with T2+)", () => {
-    expect(planBody.structureRules()).toEqual([]);
-    expect(phaseSpecBody.structureRules()).toEqual([]);
+  it("the three concrete bodies carry their P3.1 T2 rule sets — the plan/spec/overall migrations landed (rule identities per type)", () => {
+    expect(planBody.structureRules().map((r) => r.id)).toEqual([
+      "plan.tasks",
+      "plan.recordData",
+      "plan.checkable",
+      "plan.constraints",
+      "plan.legacySections",
+      "plan.placeholders",
+    ]);
+    expect(phaseSpecBody.structureRules().map((r) => r.id)).toEqual([
+      "spec.design",
+      "spec.acceptance",
+      "spec.constraints",
+    ]);
+    expect(overallBody.structureRules().map((r) => r.id)).toEqual([
+      "overall.inventoryHeader",
+      "overall.canonicalColumn",
+      "overall.historyVersion",
+      "overall.historyOrder",
+      "overall.historyDate",
+      "overall.graph",
+      "overall.graphTarget",
+    ]);
+    // every rule's invariant bundle is non-empty (a zero-demand rule judges nothing).
+    for (const body of [planBody, phaseSpecBody, overallBody]) {
+      for (const rule of body.structureRules()) expect(rule.invariants.length).toBeGreaterThan(0);
+    }
   });
 
-  it("source pin — plan-body.ts / phase-spec-body.ts carry no `structureRules` member yet", () => {
-    expect(read("documents/doctypes/body/plan-body.ts")).not.toContain("structureRules");
-    expect(read("documents/doctypes/body/phase-spec-body.ts")).not.toContain("structureRules");
+  it("source pin — the three body leaves carry the `structureRules` member (the rule-data seam)", () => {
+    expect(read("documents/doctypes/body/plan-body.ts")).toContain("structureRules()");
+    expect(read("documents/doctypes/body/phase-spec-body.ts")).toContain("structureRules()");
+    expect(read("documents/doctypes/body/overall-body.ts")).toContain("structureRules()");
   });
 
   it("grep guard — no body-plane module references the interpreter (zero reverse imports; the load-order law)", () => {
@@ -325,28 +351,35 @@ describe("the DocBody rule-data seam (T1 — abstract default in place, concrete
 describe("DocumentsValidator.structureFindings — the docContractValidate hook seam", () => {
   const validator = new DocumentsValidator();
 
-  it("resolves each registered doc kind to its body rule set and runs the interpreter — every set is [] at T1, so every kind yields zero findings", () => {
-    // The content carries plan-shaped and spec-shaped structure that WOULD fail rules if any were
-    // declared (`## Task Groups` residue, `- **DependsOn**: foo` domain) — the empty-body seam is
-    // the T1 guarantee: zero findings, the tree-migration/dual-read suite stays byte-identical.
+  it("resolves each registered doc kind to its body rule set and runs the interpreter — the T2 rule sets fire on violating content, and a conformant doc stays zero", () => {
+    // The content carries plan-shaped and spec-shaped structure that FAILS the T2 rule sets
+    // (a legacy `## Task Groups` section, a `- **DependsOn**: foo` record, a missing `## Design`
+    // skeleton member, a `## Task Groups` residue surface) — the body rule seam is the live
+    // judgmental plane, not the T1 empty state.
     const content = [
       "## Design",
       "",
       "### Acceptance criteria",
       "",
+      "## Constraints",
+      "",
       "## Task Groups",
       "",
       "- **DependsOn**: foo",
     ].join("\n");
-    for (const kind of ["overall", "plan", "spec"] as const) {
-      expect(validator.structureFindings(kind, content)).toEqual([]);
-    }
+    const planFindings = validator.structureFindings("plan", content);
+    expect(planFindings.map((f) => f.id)).toContain("plan.legacySections");
+    const specFindings = validator.structureFindings("spec", content);
+    expect(specFindings).toEqual([]); // the spec skeleton members are present
+    // the overall kernel rules fire on the header-less content (no four-table surface present).
+    const overallFindings = validator.structureFindings("overall", content);
+    expect(overallFindings.map((f) => f.id)).toContain("overall.inventoryHeader");
   });
 
   it("source pin — the dispatch doc-contract gate consumes the plane: closeout.ts wires structureFindings into the single inference and base.ts judges result.structure by severity", () => {
     // The brief's step-3 checkable requires the doc-contract gate to invoke runStructureRules for
     // the resolved doc type — a production-call fact, not a facade availability. The carrier must
-    // call the interpreter and the gate must read the plane (both empty at T1, behavior-neutral).
+    // call the interpreter and the gate must read the plane.
     const closeout = read("rules/closeout.ts");
     expect(closeout).toMatch(/structureFindings\(/);
     expect(closeout).toMatch(/detectDocKind\(options\.entry\)/);

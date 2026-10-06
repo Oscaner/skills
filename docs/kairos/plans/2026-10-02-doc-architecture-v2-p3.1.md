@@ -12,16 +12,12 @@
 - 每任务保持树全绿：规则迁移、其对应文档迁移、pin 更新三件同任务落地（中间态零红——引擎 `missing-edge`/designItems/charter 规则一经挂上即执法，全树必须已 conformant 或同任务迁完）
 - 本 P3.1 plan 自证新政：所有任务块双边行已在位（真实依赖或 `none`）；P3.1 design 已是 `####` 秩——全树迁移任务（T3/T4/T5）的存量面不含本家族文档，但 tree-migration pin 覆盖之
 - 引擎规则一律经 body 叶规则数据 + `rules/structure.ts` 单解释器；手写文本遍历零新增（spec 约束「统一引擎边界」继承适用，graph 科学留 TaskGraph、跨文档链留 P5）
-
-## Review Focus
-
-以下五类输入/失败模式是 spec 隐含、但无单任务测试覆盖、最可能咬到使用者的问题——逐条钉到所属任务：
-
-1. **规则引擎挂载后，存量树未迁移即红**——三条新规则（missing-edge / designItems / charter facets）一旦在 docContractValidate 生效，48 文件树任何不 conformant 文档都会 BLOCK 全量 validate。钉：T3/T4/T5 各自「规则 + 全树迁移 + pin」同任务落地（约束首条），T8 终验断言全树绿。
-2. **负例夹具的单轴失败语义被新规则打破**——`orphan-task-block-plan` / `form-b-anchor-plan` / `section-1-spec-design` 等负例夹具必须「仅在其 legacy/孤块轴失败」；新规则（缺边 / 伪标题残留）若在它们身上也失败会打爆 dual-read 单轴断言。钉：T3/T4 步骤「负例夹具补齐 conformant 面，保持单轴失败」。
-3. **`none` 词法与空值进入 integer gate 的边界**——`- **DependsOn**: none` 与空行必须归 `[]`，而 `1, 2` 等真值走 Number 门；`none`/空之外的非法 token（`abc`、`1;2`）保持 NaN 拒绝，绝不静默吞。钉：T3 负例集。
-4. **伪标题 pattern 的误伤面**——「独立 bold 行」只该打真实伪标题；行内 lead-in bold（`**约束**：…同一行有正文）与 code span 内 `**` 不可误判。doc-arch-p3 全 lead-in 体证明确认 pattern 安全。钉：T4 对 2 份零独立文件（cp-p4.1 / doc-arch-p3）显式断言零命中。
-5. **引用 lint 的噪音面**——`files` 面路径、`steps` action、code span（如 `T3` 型 token 在 backtick 内）都不得触发 WARN；越界 N（0 / > taskCount）豁免；已声明边不重复告警；一任务块至多一条聚合 WARN。钉：T6 负例集（spec §2.3 定稿 pattern）。
+- 风险钉（全树绿 · 负例单轴 · 词法边界 · 伪标题无误伤 · lint 噪音）归任务：
+  - 规则引擎挂载后存量树未迁移即红——T3/T4/T5 各自「规则 + 全树迁移 + pin」同任务落地（首条），T8 终验断言全树绿
+  - 负例夹具单轴失败语义——`orphan-task-block-plan` / `form-b-anchor-plan` / `section-1-spec-design` 仅 legacy/孤块轴失败；T3/T4 补 conformant 面保持单轴
+  - `none`/空与 integer gate 边界——`none`/空 → `[]`；`abc`、`1;2` 等非法 token 保持 NaN 拒绝，绝不静默吞；T3 负例集
+  - 伪标题 pattern 误伤面——独立 bold 行唯一定义；行内 lead-in bold / code span 不误判；T4 对 2 份零独立文件（cp-p4.1 / doc-arch-p3）断言零命中
+  - 引用 lint 噪音面——`files`/`steps`/code span 不计；越界 N 豁免；已声明边不重复告警；每块至多一条聚合 WARN；T6 负例集
 
 ---
 

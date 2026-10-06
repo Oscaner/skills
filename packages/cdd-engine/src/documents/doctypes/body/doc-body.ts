@@ -93,6 +93,15 @@ export interface StructurePlane {
    *  `^`-anchored line form; headingLeads/records match anchored lines, tableRows matches the
    *  header row and its data rows). */
   anchor: string;
+  /** Records-kind section scoping (P3.1 T2 — the section-scoped plane): when present, record items
+   *  count only INSIDE a run opened by a line matching this anchor and closed by the interpreter's
+   *  structural-boundary family (a heading line / a `- **Field**:` marker line / a `---` rule — the
+   *  closer itself is never an item). The rule author uses it when an anchored line is only a
+   *  judgment target within its owning section — e.g. a numbered step entry is a valid checkable
+   *  target only under a `- **Steps**:` field, never a numbered line in Constraints prose or a code
+   *  fence. Absent → the whole-content line scan (the T1 semantics — optional, backward
+   *  compatible). */
+  within?: string;
 }
 
 /** The invariant vocabulary of the structure-rule plane (design §2.1 — seven declared invariants,

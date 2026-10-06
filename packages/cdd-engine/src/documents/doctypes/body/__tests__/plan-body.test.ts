@@ -352,6 +352,34 @@ describe("the new-shape plan fixture — parse + validate + tasksFromPlan (desig
     expect(findings.find((f) => f.id === "plan.checkable")!.severity).toBe("BLOCK");
   });
 
+  it("a numbered line outside a `- **Steps**:` block (Constraints prose / a code fence) never demands a checkable — the checkable rule is section-scoped (P3.1 T2: behavior-equivalence with the retired contract's parsed-steps scope)", () => {
+    const scoped = [
+      "# Plan",
+      "",
+      "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
+      "",
+      "## Constraints",
+      "",
+      "- boundary one",
+      "1. a numbered constraint line without a checkable (prose, never a step)",
+      "",
+      "### Task 1: x",
+      "",
+      "- **Objective**: task one",
+      "- **Steps**:",
+      "  1. implement — checkable: done",
+      "- **Acceptance**:",
+      "  - done",
+      "",
+      "```",
+      "1. a numbered line in a code fence (never a step)",
+      "```",
+      "",
+    ].join("\n");
+    const findings = runStructureRules(scoped, planBody.structureRules());
+    expect(findings.map((f) => f.id)).not.toContain("plan.checkable");
+  });
+
   it("every step keeps its checkable in the untouched fixture — no spurious data-shape failure", () => {
     const findings = runStructureRules(readFileSync(NEW_SHAPE, "utf8"), planBody.structureRules());
     expect(findings.map((f) => f.id)).not.toContain("plan.checkable");

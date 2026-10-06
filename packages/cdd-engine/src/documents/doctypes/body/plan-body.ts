@@ -344,8 +344,12 @@ export class PlanBody extends DocBody {
    *  checkable) + constraints source + legacy residue, as rule data the ONE interpreter runs at the
    *  doc-contract gate. The anchors derive from the projected slices (`.source` — the parse-pattern
    *  single source, never a re-typed literal; the legacy-section / placeholder / Do-face residues
-   *  are the retired faces' own anchors). The Class-A `**Spec:**` cross-document chain is NOT on
-   *  this plane — `#resolveSpecOf` stays on the plan doc type (P5 boundary). */
+   *  are the retired faces' own anchors). The checkable rule is section-scoped (`within` — the
+   *  interpreter's run-closed records plane): a numbered step counts as a checkable-judgment target
+   *  only under a `- **Steps**:` field, exactly the retired contract's parsed-steps scope — a
+   *  numbered line in Constraints prose or a code fence never demands a checkable. The Class-A
+   *  `**Spec:**` cross-document chain is NOT on this plane — `#resolveSpecOf` stays on the plan doc
+   *  type (P5 boundary). */
   structureRules(): readonly StructureRule[] {
     const heading = (re: RegExp): string => re.source;
     return [
@@ -367,7 +371,11 @@ export class PlanBody extends DocBody {
       },
       {
         id: "plan.checkable",
-        plane: { kind: "records", anchor: "^\\s*\\d+\\.\\s+(.*)$" },
+        plane: {
+          kind: "records",
+          anchor: "^\\s*\\d+\\.\\s+(.*)$",
+          within: heading(PLAN_SLICE_PATTERNS.steps),
+        },
         invariants: [{ type: "domain", valuePattern: ".*—\\s*checkable:\\s*.+" }],
         severity: "BLOCK",
         message:

@@ -485,8 +485,6 @@ const OVERALL_SLICE_PATTERNS: SlicePatternSet = {
 
 // ---- the four-table structure-rule data (P3.1 T2 — the kernel + single-content faces) ----
 
-const WARN_BLOCK: "BLOCK" = "BLOCK";
-
 /** The one shared factory for a table-anchored rule — the rule-data atom of the four-table plane
  *  (the graph-edge rows ride the `records` plane — a graph is a fenced block, not a `|`-row table). */
 function planeRule(
@@ -518,49 +516,49 @@ const OVERALL_RULES: readonly StructureRule[] = [
     "overall.inventoryHeader",
     OVERALL_SLICE_PATTERNS.phaseInventoryHeader,
     [{ type: "presence" }],
-    WARN_BLOCK,
+    "BLOCK",
     "no Phase-inventory header (`| # | Phase | …`) — the overall must carry the canonical Phase inventory table",
   ),
   tableRule(
     "overall.canonicalColumn",
     OVERALL_SLICE_PATTERNS.canonicalInventoryHeader,
     [{ type: "presence" }],
-    WARN_BLOCK,
+    "BLOCK",
     "non-canonical Phase-inventory header — the `Implementation plan` marker column is missing (the canonical-form marker the engine keys on)",
   ),
   tableRule(
     "overall.historyVersion",
     OVERALL_SLICE_PATTERNS.changeHistoryRow,
     [{ type: "domain", valuePattern: "(?:Version|v\\d+(?:\\.\\d+)*)" }],
-    WARN_BLOCK,
+    "BLOCK",
     "a change-history row's version cell is malformed — every row's first content cell must carry the `v<major>.<minor>` token",
   ),
   tableRule(
     "overall.historyOrder",
     OVERALL_SLICE_PATTERNS.changeHistoryRow,
     [{ type: "order", compare: "version" }],
-    WARN_BLOCK,
+    "BLOCK",
     "change-history versions must ascend strictly (`v<major>.<minor>` — duplicates and out-of-order rows fail)",
   ),
   tableRule(
     "overall.historyDate",
     OVERALL_SLICE_PATTERNS.changeHistoryDateRow,
     [{ type: "domain", valuePattern: "(?:date|\\d{4}-\\d{2}-\\d{2})" }],
-    WARN_BLOCK,
+    "BLOCK",
     "a change-history row's date cell is empty or malformed — the date cell must be non-empty ISO `YYYY-MM-DD`",
   ),
   recordRule(
     "overall.graph",
     OVERALL_SLICE_PATTERNS.graphSourceRow,
     [{ type: "crosslink", targetAnchor: INVENTORY_TARGET }],
-    WARN_BLOCK,
+    "BLOCK",
     "the dependency graph references a phase that is not in the Phase inventory (dangling graph token)",
   ),
   recordRule(
     "overall.graphTarget",
     OVERALL_SLICE_PATTERNS.graphTargetRow,
     [{ type: "crosslink", targetAnchor: INVENTORY_TARGET }],
-    WARN_BLOCK,
+    "BLOCK",
     "the dependency graph references a phase that is not in the Phase inventory (dangling graph token)",
   ),
 ];

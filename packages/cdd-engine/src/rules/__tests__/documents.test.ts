@@ -140,7 +140,7 @@ function fieldNames(c: Chain, entry?: string): string[] {
   return run(c, entry).map((f) => f.field);
 }
 
-describe("validatePlanContract — the plan face (necessary subset, always runs)", () => {
+describe("the plan contract surface — the plan-entry audit (Class-A `**Spec:**` chain + the single-form contract faces, P3.1 T2)", () => {
   it("valid chain → zero failures", () => {
     const c = writeChain();
     expect(run(c)).toEqual([]);
@@ -1298,7 +1298,7 @@ describe("C2 ⑧ diagnostic trio — the mismatch/BLOCKED output payload carries
 });
 
 describe("overall 契約 face — kernel + merged version-lineage", () => {
-  it("overall: non-canonical Phase inventory header → failure", () => {
+  it("overall: non-canonical Phase inventory header → the canonical-column rule fires (P3.1 T2 — the kernel structural faces ride the structure plane, the walker is silent)", () => {
     const c = writeChain({
       overall: [
         "- **Version**: v1.0 · 2026-09-21",
@@ -1311,8 +1311,8 @@ describe("overall 契約 face — kernel + merged version-lineage", () => {
         "",
       ].join("\n"),
     });
-    const f = run(c);
-    expect(f.some((x) => x.artifact === "overall" && /canonical/.test(x.missing))).toBe(true);
+    expect(overallStructureIds(c.overall)).toContain("overall.canonicalColumn");
+    expect(run(c).some((x) => x.artifact === "overall" && /canonical/.test(x.missing))).toBe(false);
   });
 
   it("overall: row-shape drift → failure", () => {
@@ -1586,7 +1586,7 @@ describe("P4.3 Task 9 #276 — error UX guidance + schema-described authoring sh
     expect(issue!.missing).toMatch(/should look like:/);
   });
 
-  it("non-canonical Phase inventory header failure no longer offers the 7-column hint and names the actual gate", () => {
+  it("non-canonical Phase inventory header rule message uses the fixed copy — no 7-column hint, names the canonical marker (P3.1 T2: the structure plane owns the kernel face)", () => {
     const c = writeChain({
       overall: [
         "- **Version**: v1.0 · 2026-09-21",
@@ -1599,12 +1599,15 @@ describe("P4.3 Task 9 #276 — error UX guidance + schema-described authoring sh
         "",
       ].join("\n"),
     });
-    const f = run(c);
-    const ph = f.find((x) => x.artifact === "overall" && x.field === "Phase inventory");
+    const findings = documentsValidator.structureFindings(
+      "overall",
+      readFileSync(c.overall, "utf8"),
+    );
+    const ph = findings.find((f) => f.id === "overall.canonicalColumn");
     expect(ph).toBeDefined();
-    expect(ph!.missing).toMatch(/non-canonical/);
-    expect(ph!.fix).not.toMatch(/7-column/);
-    expect(ph!.fix).toMatch(/Implementation plan/);
+    expect(ph!.message).toMatch(/non-canonical/);
+    expect(ph!.message).not.toMatch(/7-column/);
+    expect(ph!.message).toMatch(/Implementation plan/);
   });
 
   it("every chapter of the schema-described authoring surface passes the doc-contract gate (regression — §验收 ②)", () => {

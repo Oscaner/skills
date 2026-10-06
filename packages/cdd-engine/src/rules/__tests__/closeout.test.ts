@@ -99,15 +99,20 @@ describe("deriveTerminalDebt — plan-complete unbackfilled (the terminal-debt s
 });
 
 describe("deriveCloseoutMismatches — the single module (both surfaces, 同源)", () => {
-  it("structural + structure surfaces mirror the single audit entry (missing cell / missing claim / dangling graph)", () => {
+  it("chain structural enforcement rides the structure plane — a plan entry surfaces its parent overall's dangling graph-token defect as an overall rule finding (P3.1 T2: the four-table walker zeroed, the parent's structural faces judged by the ONE interpreter)", () => {
     const p = writeProgram();
-    // Doctor a dangling dependency graph (face ③ illegal state) — the chain structural surface
-    // carries it (the plan entry audits its parent overall through the four-table audit); the
-    // rule plane parallels it for overall entries + the tree walk.
+    // Doctor a dangling dependency graph edge (face ③ illegal state): the graph-token membership is
+    // now a body rule (`overall.graphTarget`) — the gate's chain-compounding face interprets the
+    // parent overall's rule set on the chained doc's content, so the plan entry's result.structure
+    // carries the parent's structural defect (single verdict — the walker is gone, no double-fire).
     const broken = OVERALL_CLEAN.replace("\n```\nP1 -> P2\n```", "\n```\nP1 -> P9\n```");
     writeFileSync(p.overall, broken);
     const r = closeoutChecker.deriveCloseoutMismatches({ entry: p.plan1, root: p.repo });
-    expect(r.structural.some((f) => f.field === "Dependency graph")).toBe(true);
+    expect(r.structure.map((f) => f.id)).toContain("overall.graphTarget");
+    expect(r.structure.some((f) => f.severity === "BLOCK")).toBe(true);
+    // the walker side is silent — the plan entry's contextual chain carries no Dependency-graph
+    // field failure for the fence edge (the dependency-cell predecessor face never fires here).
+    expect(r.structural.some((f) => f.field === "Dependency graph")).toBe(false);
   });
 
   it("terminal-debt surface merged into the result (plan-complete unbackfilled)", () => {

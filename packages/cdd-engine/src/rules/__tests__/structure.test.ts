@@ -204,6 +204,42 @@ describe("the plane/anchor families (three decidable plane kinds)", () => {
     expect(runStructureRules(withTable, [rule])).toHaveLength(0);
   });
 
+  it("within — a section-scoped records rule judges anchored lines only INSIDE a run opened by the within-anchor (a numbered line in the Steps block fires; the same line in prose / a later code fence does not — the P3.1 T2 section-scoped plane)", () => {
+    const rule: StructureRule = {
+      id: "plan.checkableScoped",
+      plane: {
+        kind: "records",
+        anchor: "^\\s*\\d+\\.\\s+(.*)$",
+        within: "^\\s*-\\s+\\*\\*Steps\\*\\*:\\s*$",
+      },
+      invariants: [{ type: "domain", valuePattern: ".*—\\s*checkable:\\s*.+" }],
+      severity: "BLOCK",
+      message: "every steps entry must end with a checkable",
+    };
+    // A checkable-less numbered line INSIDE the `- **Steps**:` run → the item is judged → finding.
+    const scopedTarget = [
+      "- **Steps**:",
+      "  1. implement bare",
+      "- **Acceptance**:",
+      "  - done",
+    ].join("\n");
+    // The SAME line before any run opens (prose) or after the run closed (a code fence) is never an
+    // item — the checkable demand is scoped to the steps run exactly.
+    const proseTarget = [
+      "1. a numbered prose line before any Steps field",
+      "- **Steps**:",
+      "  1. implement — checkable: done",
+      "- **Acceptance**:",
+      "  - done",
+      "",
+      "```",
+      "1. a numbered line in a later code fence",
+      "```",
+    ].join("\n");
+    expect(runStructureRules(scopedTarget, [rule])).toHaveLength(1);
+    expect(runStructureRules(proseTarget, [rule])).toHaveLength(0);
+  });
+
   it("the seven invariants are expressible as typed instances — the design §2.1 vocabulary, no wildcard DSL", () => {
     const instances: readonly StructureInvariant[] = [
       { type: "presence" },

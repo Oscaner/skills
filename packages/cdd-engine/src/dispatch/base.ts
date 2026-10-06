@@ -253,10 +253,11 @@ export abstract class DispatchLifecycle {
     // channel's plan workspace is absent → the member no-ops (absent-source semantic, not an
     // exemption constant) and the backfill edit path always passes this face.
     const debtActive = this.dispatchPlanPath() !== null && result.terminalDebt.length > 0;
-    // Structure surface (P3.1 F6 — the runStructureRules hook of the doc-contract gate): the rule
-    // plane judges by severity — BLOCK → a doc-contract violation (the gate blocks, like the
-    // structural face); WARN → the warn lane (non-blocking). Empty at T1 (every body rule set is
-    // []), so the plane is behavior-neutral until the T2–T6 rule migrations populate it.
+    // Structure surface (P3.1 F6/T2 — the runStructureRules hook of the doc-contract gate): the
+    // rule plane judges by severity — BLOCK → a doc-contract violation (the gate blocks, like the
+    // structural face); WARN → the warn lane (non-blocking). The three body rule sets are live (the
+    // T2 migrations populated plan/spec/overall); the entry's own findings + a chained parent
+    // overall's ride `result.structure` via deriveCloseoutMismatches.
     const structureBlocks = result.structure.filter((f) => f.severity === "BLOCK");
     const structureWarns = result.structure.filter((f) => f.severity === "WARN");
     if (dryRun) {

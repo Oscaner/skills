@@ -190,7 +190,7 @@ describe("docContractValidate — three invalid doc contracts block the real dis
     expect(r.diagnostic?.msg).toContain("add a `- **Version**");
   });
 
-  it("overall invalid: non-canonical Phase inventory header → blocked with overall guidance", async () => {
+  it("overall invalid: non-canonical Phase inventory header → blocked with structure-plane guidance (the canonical-column face rides the overall rule plane at the gate)", async () => {
     const repo = setupRepo();
     writeChain(repo, {
       overall: [
@@ -206,9 +206,8 @@ describe("docContractValidate — three invalid doc contracts block the real dis
     });
     const r = await runReview(repo);
     expect(r.exitCode).toBe(1);
-    expect(r.diagnostic?.msg).toContain("- [overall]");
-    expect(r.diagnostic?.msg).toContain("plan-overall.md");
-    expect(r.diagnostic?.msg).toMatch(/canonical|Implementation plan/);
+    expect(r.diagnostic?.msg).toContain("- [structure] overall.canonicalColumn");
+    expect(r.diagnostic?.msg).toMatch(/non-canonical|Implementation plan/);
   });
 
   it("dry-run WARN lane: the same invalid plan does NOT exit 1 — the check warns and the simulation completes", async () => {

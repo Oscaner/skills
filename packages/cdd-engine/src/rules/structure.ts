@@ -13,7 +13,10 @@
 //                        the rule's plane kind (the anchor regex is the single extraction spec: its
 //                        capture group 1 — when present — is the per-item value; presence /
 //                        uniqueness / residue judge the item count, domain / crosslink / order /
-//                        continuity judge the values).
+//                        continuity judge the values). A records rule may scope its scan to a
+//                        section via StructurePlane.within (the section-scoped plane — a `- **Steps**:`
+//                        field run, a `##` section): the run opens at a `within`-anchored line and
+//                        closes at the structural-boundary family (heading / `- **` marker / `---`).
 //   evaluateInvariant — each declared invariant decides against the SAME extracted item list (no
 //                       re-parse per invariant; crosslink's target scan is the one second pass).
 //   Findings           — ONE finding per failing rule: {id, severity, message} — severity maps from
@@ -60,16 +63,43 @@ function isSeparatorRow(row: string): boolean {
   return cells.length > 0 && cells.every((c) => /^[-:]+$/.test(c));
 }
 
+/** The structural-boundary family that CLOSES a `within`-scoped records run: a heading line, a
+ *  `- **Field**:` marker line (the sibling record plane's field family), or a `---` rule. The
+ *  closer itself is never an item; a run left open at the end of the content ends at the last line.
+ *  A within-anchor line that ALSO matches the closer is impossible by contract (the run opener is
+ *  checked only while OUTSIDE a run — the opener line is consumed by the open, never closed). */
+const WITHIN_CLOSE_RE = /^\s*(?:#{1,6}\s|-+\s+\*\*|---+\s*$)/;
+
 /** The plane's item extraction — ONE line scan per rule: headingLeads / records select the anchored
  *  lines (value = anchor capture group 1, trimmed); tableRows locate each header anchor match then
  *  collect the contiguous `|-rows` below it (the separator row skipped, and data rows that re-match
  *  the anchor are consumed by the run — never re-treated as nested table headers), re-applying the
- *  anchor to each data row for its captured value. */
+ *  anchor to each data row for its captured value. A records rule carrying `within` scopes its
+ *  items to the runs under a `within`-matching opener line (the section-scoped plane — see
+ *  StructurePlane.within): while inside a run the closer family ends it first, then the anchor
+ *  selects items; outside a run only the opener line re-enters. */
 function extractPlaneItems(content: string, plane: StructurePlane): PlaneItem[] {
   const lines = content.split("\n");
   const anchor = compile(plane.anchor);
   const items: PlaneItem[] = [];
   if (plane.kind === "headingLeads" || plane.kind === "records") {
+    if (plane.within !== undefined) {
+      const opener = compile(plane.within);
+      let inRun = false;
+      for (const line of lines) {
+        if (inRun) {
+          if (WITHIN_CLOSE_RE.test(line)) {
+            inRun = false;
+            continue;
+          }
+          const m = line.match(anchor);
+          if (m) items.push({ line, value: (m[1] ?? "").trim() });
+          continue;
+        }
+        if (opener.test(line)) inRun = true;
+      }
+      return items;
+    }
     for (const line of lines) {
       const m = line.match(anchor);
       if (m) items.push({ line, value: (m[1] ?? "").trim() });

@@ -212,15 +212,15 @@ async function runTaskReview(
 }
 
 describe("task channel — the base-default docContractValidate (four-table audit active)", () => {
-  it("four-table-dangling overall (face ③) → BLOCKED exit 1 + guidance", async () => {
+  it("four-table-dangling overall (face ③) → BLOCKED exit 1 + structure-plane guidance (the graph-token membership rides the overall rule plane at the gate)", async () => {
     const repo = setupRepo();
     writeChain(repo, DANGLING_OVERALL);
     const r = await runTaskReview(repo);
     expect(r.exitCode).toBe(1);
     expect(r.diagnostic?.prefix).toBe("CDD_BLOCKED");
     expect(r.diagnostic?.msg).toMatch(/doc contract validation failed/);
-    expect(r.diagnostic?.msg).toContain("Dependency graph");
-    expect(r.diagnostic?.msg).toContain("P9");
+    expect(r.diagnostic?.msg).toContain("overall.graphTarget");
+    expect(r.diagnostic?.msg).toContain("dangling graph token");
   });
 
   it("clean four tables → the gate passes and the round proceeds (dry-run APPROVED stub)", async () => {
@@ -285,7 +285,7 @@ async function runDocs(
 }
 
 describe("docs channel — the base-default docContractValidate (audits the reviewed doc's chain)", () => {
-  it("reviewing a spec whose parent overall's four tables are dangling → BLOCKED exit 1", async () => {
+  it("reviewing a spec whose parent overall's four tables are dangling → BLOCKED exit 1 (structure-plane guidance — the graph-token membership rides the overall rule plane)", async () => {
     const dir = setupRepo();
     writeChain(dir, DANGLING_OVERALL);
     const cap = captureStderr();
@@ -297,13 +297,14 @@ describe("docs channel — the base-default docContractValidate (audits the revi
       );
       expect(exitCode).toBe(1);
       expect(cap.text).toMatch(/CDD_BLOCKED: doc contract validation failed/);
-      expect(cap.text).toContain("P9");
+      expect(cap.text).toContain("- [structure] overall.graphTarget");
+      expect(cap.text).toContain("dangling graph token");
     } finally {
       cap.restore();
     }
   });
 
-  it("docs-lane overall self-audit boundary: the reviewed doc IS the overall → its own four tables run", async () => {
+  it("docs-lane overall self-audit boundary: the reviewed doc IS the overall → its own four tables run (the structure-plane gate fires on the entry)", async () => {
     const dir = setupRepo();
     // The chain is clean except the overall self-audit target: a separate broken overall document
     // committed (the entry gate requires a clean tree before the audit runs).
@@ -330,7 +331,7 @@ describe("docs channel — the base-default docContractValidate (audits the revi
       );
       expect(exitCode).toBe(1);
       expect(cap.text).toMatch(/CDD_BLOCKED: doc contract validation failed/);
-      expect(cap.text).toContain("broken-overall.md");
+      expect(cap.text).toContain("- [structure] overall.graphTarget");
     } finally {
       cap.restore();
     }
@@ -348,7 +349,7 @@ describe("docs channel — the base-default docContractValidate (audits the revi
         { dryRun: true },
       );
       expect(exitCode).toBe(0);
-      expect(cap.text).toMatch(/CDD_WARN: doc contract invalid \(dry-run\)/);
+      expect(cap.text).toMatch(/CDD_WARN: doc structure invalid \(dry-run\)/);
     } finally {
       cap.restore();
     }
@@ -421,13 +422,13 @@ async function runBranch(
 }
 
 describe("branch channel — the base-default docContractValidate (audits its `--plan` ref)", () => {
-  it("four-table-dangling parent overall → BLOCKED exit 1 + guidance (no handoff written)", async () => {
+  it("four-table-dangling parent overall → BLOCKED exit 1 + structure-plane guidance (no handoff written)", async () => {
     const dir = setupRepo();
     writeChain(dir, DANGLING_OVERALL);
     const r = await runBranch(dir, path.join(dir, PLAN_DIR, "plan.md"));
     expect(r.exitCode).toBe(1);
     expect(r.stderr).toMatch(/CDD_BLOCKED: doc contract validation failed/);
-    expect(r.stderr).toContain("Dependency graph");
+    expect(r.stderr).toContain("overall.graphTarget");
   });
 
   it("clean chain → the doc gate passes (no doc-contract BLOCK; the round fails downstream, never the gate face)", async () => {

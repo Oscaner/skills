@@ -694,7 +694,7 @@ describe("迁移队列期望态 — the single-form tree's migration state table
       expect(PLAN_MIGRATION[f], `${f} missing from PLAN_MIGRATION`).toBeDefined();
     for (const f of designs)
       expect(SPEC_MIGRATION[f], `${f} missing from SPEC_MIGRATION`).toBeDefined();
-    // The 40 migrated objects (20 six-section specs + 20 migrated plans) and the p3 + p3.1
+    // The 37 migrated objects (20 migrated specs + 17 migrated plans) and the p3 + p3.1
     // zero-migration pairs are FULLY canonical in the T8 terminal state — every validation file is
     // single-form green and the queue holds zero pending-migration documents.
     expect(SPEC_MIGRATION["2026-10-02-doc-architecture-v2-p3-design.md"]).toBe("canonical");
@@ -703,7 +703,7 @@ describe("迁移队列期望态 — the single-form tree's migration state table
     expect(PLAN_MIGRATION["2026-10-02-doc-architecture-v2-p3.1.md"]).toBe("canonical");
     expect(Object.values(PLAN_MIGRATION).filter((s) => s === "canonical")).toHaveLength(23);
     expect(Object.values(SPEC_MIGRATION).filter((s) => s === "canonical")).toHaveLength(22);
-    // Every canonical plan + spec (the 41 migrated + the 2 zero-migration pairs) validates zero
+    // Every canonical plan + spec (the 37 migrated + the p3/p3.1 zero-migration pairs) validates zero
     // plan/spec-owned failures — the validate surfaces pin the per-file green baseline.
     for (const f of plans) {
       if (PLAN_MIGRATION[f] !== "canonical") continue;

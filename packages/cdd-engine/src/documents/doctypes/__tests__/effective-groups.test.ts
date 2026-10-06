@@ -130,6 +130,10 @@ describe("effectiveGroups — the TaskGraph-derived dispatch grouping", () => {
       expect(verdict.failures[0]!.class).toBe("missing-id");
       expect(verdict.failures[0]!.field).toBe("dependsOn");
       expect(verdict.failures[0]!.description).toContain("non-integer");
+      // GraphFailure.id stays a real number — the declaring task id, never the NaN literal ("foo"
+      // → NaN would serialize as null against the id's number contract).
+      expect(verdict.failures[0]!.id).toBe(2);
+      expect(Number.isInteger(verdict.failures[0]!.id)).toBe(true);
     } finally {
       rmSync(path.dirname(p), { recursive: true, force: true });
     }
@@ -147,6 +151,10 @@ describe("effectiveGroups — the TaskGraph-derived dispatch grouping", () => {
       expect(verdict.failures[0]!.class).toBe("missing-id");
       expect(verdict.failures[0]!.field).toBe("atomicWith");
       expect(verdict.failures[0]!.description).toContain("non-integer");
+      // GraphFailure.id stays a real number — the declaring task id, never the NaN literal ("foo"
+      // → NaN would serialize as null against the id's number contract).
+      expect(verdict.failures[0]!.id).toBe(1);
+      expect(Number.isInteger(verdict.failures[0]!.id)).toBe(true);
     } finally {
       rmSync(path.dirname(p), { recursive: true, force: true });
     }

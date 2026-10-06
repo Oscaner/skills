@@ -556,6 +556,20 @@ describe("DocumentsValidator.structureFindings — the docContractValidate hook 
     expect(overallFindings.map((f) => f.id)).toContain("overall.inventoryHeader");
   });
 
+  it("`pseudo-heading-overall.md` fires overall.pseudoHeading — an independent bold pseudo-heading survives in the charter (BLOCK residue)", () => {
+    // The T5 step-4 negative fixture wired through the same docContractValidate seam the phase-spec
+    // side uses: `validator.structureFindings` resolves the overall body's rule set and runs the
+    // interpreter, mirroring the pseudo-heading-design single-axis assertion.
+    const ids = validator
+      .structureFindings(
+        "overall",
+        read("documents/doctypes/body/__tests__/fixtures/pseudo-heading-overall.md"),
+      )
+      .map((f) => f.id);
+    expect(ids).toContain("overall.pseudoHeading");
+    expect(ids.every((id) => id === "overall.pseudoHeading")).toBe(true); // single-axis
+  });
+
   it("source pin — the dispatch doc-contract gate consumes the plane: closeout.ts wires structureFindings into the single inference and base.ts judges result.structure by severity", () => {
     // The brief's step-3 checkable requires the doc-contract gate to invoke runStructureRules for
     // the resolved doc type — a production-call fact, not a facade availability. The carrier must

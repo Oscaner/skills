@@ -54,6 +54,7 @@ Task 10 对 GitHub 仓库元信息（description / topics）做外发变更—�
   2. ② `.changeset/consumer-parity-p2-major.md` 声称改写——删「`1.0.0 → 2.0.0`；版本化发布动作归 P4」表述，改「P2 breaking 随 0.1.0 基线并入 **1.0.0 首次稳定开版**、不起跳 2.0.0；版本化发布动作归 P4.2」；`major` 类型保持 — checkable: `.changeset/consumer-parity-p2-major.md` 无 `1.0.0 → 2.0.0`、无 `归 P4，` 字样；含「1.0.0 首次稳定开版」表述（grep 断言）
   3. ③ `.changeset/backlog-{cdd-engine,osuperpowers}-{major,minor,patch}.md` 六件占位符 `git rm`（内容已被 overhaul p1–p6 真实 changeset 覆盖；零发布痕迹——不复写、不消费） — checkable: `git ls-files .changeset/backlog-*` = 空（六件占位符零残留）；无 pending changeset 内容被误删（overhaul 族 ×9 + consumer-parity-p4.3 + p4.4 族 ×5 = **15 件原样在场**，与 Task 11 ② 计数同形）
 
+- **DependsOn**: none
 - **AtomicWith**: 2, 3
 
 - **Acceptance**:
@@ -76,6 +77,7 @@ Task 10 对 GitHub 仓库元信息（description / topics）做外发变更—�
   2. ② `.github/workflows/release.yml` 的 changesets/action `version:` 命令改 **`pnpm exec changeset version && pnpm run emit`**（原生 version 消费 changesets + 双包 CHANGELOG + bump package.json；emit 重 stamp osuperpowers 发布产物使 Version PR 上 version-sync 绿；cdd-engine 无 emit 产物、版本只落自身 package.json） — checkable: `.github/workflows/release.yml` `version:` = `pnpm exec changeset version && pnpm run emit`（grep 断言）
   3. ③ `.changeset/README.md`（Release flow 述）与 docs/maintainers 发布面文档随改述原生流程；④ 确认 `changeset version` 在 CI approve-path 可用（工作区 `pnpm exec changeset version --help` 实证；沙箱双腿版本推导引用 spec 已裁决证据——cdd-engine 0.1.0 + major → **1.0.0** · osuperpowers 0.1.1 + minor → **0.2.0**） — checkable: `.changeset/README.md` 与 docs/maintainers 发布面零 version-packages / versioned-plugins / `run.ts version` 字样（grep）；precommit 全绿（删除后 6 组 9 块过）
 
+- **DependsOn**: none
 - **AtomicWith**: 1, 3
 
 - **Acceptance**:
@@ -100,6 +102,7 @@ Task 10 对 GitHub 仓库元信息（description / topics）做外发变更—�
   2. ② 矩阵扩**双包条目**（osuperpowers tag_prefix `osuperpowers@` + cdd-engine tag_prefix `cdd-engine@`）；③ `scripts/validate/version-sync.ts` 增 cdd-engine 段——package.json 声明 semver 格式断言（`^\d+\.\d+\.\d+$` + 无 prerelease/build）；发布态版本身份断言经 `smoke-cdd --expect-version`（Task 4）承担不重复 — checkable: 判据脚本 dry-run 双态实证（① osuperpowers@0.1.1 现 tag 存在 → version > tag → versioned 自洽；② cdd-engine 零 tag 首版 → **versioned=true** 首版分支起效）；`version-sync.ts` 含 cdd-engine 段断言（对 0.1.0 声明合法、非法格式报错实证）
   3. ④ 注释写明 push 覆盖模型（validate 全覆盖于 PR 面；push→main = emit 新鲜度 + 双 consumer 门） — checkable: `node scripts/run.ts precommit` 全绿
 
+- **DependsOn**: none
 - **AtomicWith**: 1, 2
 
 - **Acceptance**:
@@ -122,6 +125,7 @@ Task 10 对 GitHub 仓库元信息（description / topics）做外发变更—�
   2. ② `.github/workflows/release.yml` 接线 post-version 门：changesets/action **前**新增 `pnpm exec changeset status --output=<tmp>` 步判定 `hasChangesets=false` → `if:` 限定该 false push 于 action 前执行 `node scripts/run.ts smoke-cdd --expect-version 1.0.0`——Version PR 合并后的再 push（tree 已 1.0.0 发布态）上「发布品即校验品」字面兑现、拦截在 `changeset publish` 之前；true push 不触发 — checkable: release.yml 含 `changeset status` 判定步 + `if:` 门步 + `--expect-version 1.0.0`（grep 断言）；门步位于 action 之前；release.yml YAML 语法有效（`actionlint` 或等价解析实证）
   3. ③ smoke-cdd 定位说明补位（docs/maintainers；Constraints「gh 外发」外——P4.2 dogfood：写明「consumer-sim = cdd-engine 发布品消费者黑盒」）；④ 现有 pre-version 基线门（无 expect-version、action 前）保留 — checkable: docs/maintainers 有 smoke-cdd 定位说明（grep 断言）
 
+- **DependsOn**: none
 - **AtomicWith**: 5
 
 - **Acceptance**:
@@ -144,6 +148,7 @@ Task 10 对 GitHub 仓库元信息（description / topics）做外发变更—�
   2. ② `.github/actions/link-cdd-engine/action.yml` **整删**（`npm link` = 治理违规；P3 后 smoke-cdd 自包含、全局 cdd 零消费者） — checkable: `.github/actions/link-cdd-engine/` 目录零存在（git ls-files 断言）；`.github/workflows/*.yml` + `.github/actions/*/action.yml` 全树 `npm link` 字样零命中（grep 断言）
   3. ③ `actions/setup` 收口 node 24；`release.yml` 删手工 `setup-node node-version: 22`、改复用 setup action（engines 之上全树统一 24）；④ sync-main-to-develop 维持（workflow_call 复用） — checkable: release.yml 无 `node-version` 22 / 无手工 setup-node 指明（改走 setup action；grep 断言）；4 个 workflow YAML 语法有效 + actions compose 引用解析（actionlint 或等价实证）
 
+- **DependsOn**: none
 - **AtomicWith**: 4
 
 - **Acceptance**:
@@ -167,6 +172,7 @@ Task 10 对 GitHub 仓库元信息（description / topics）做外发变更—�
   2. ③ 原 `report-templates.mjs` 的确定性测试（黄金样本/入参校验/CLI 裸调用）**迁移到 engine 侧** `.test.ts`——同字节断言、字段路径错误面保持；`packages/osuperpowers/tests/report-templates.test.mjs` **整件退役**（renderYml 断言面随 render-yaml 并入 `scripts/emit/__tests__`，退役在 [6,7] 组内原子完成） — checkable: `packages/osuperpowers/skills/report-issues/SKILL.md` 无 `scripts/report-templates.mjs`、无 `pluginRoot` 寻址表述（grep）；I5 指向 `cdd issue render`；engine 测试套件全绿；DOC_SCHEMA_NAMES 零新增
   3. ④ `report-issues/SKILL.md` I5 表述改「body 由 `cdd issue render` 直出」+ **pluginRoot-ascending 文件寻址机制删除**（不再就近找 `.claude-plugin/plugin.json` → scripts/） — checkable: `git ls-files 'packages/osuperpowers/tests/*.mjs'` 无 `report-templates*` 残留（退役件随 [6,7] 组原子落地，Task 7 验收复核）
 
+- **DependsOn**: none
 - **AtomicWith**: 7
 
 - **Acceptance**:
@@ -191,6 +197,7 @@ Task 10 对 GitHub 仓库元信息（description / topics）做外发变更—�
   2. ② `scripts/emit/issue-templates.ts` 改从 **engine** import finding-meta 权威（repo → engine 单向依赖铁律）；两处 render-yaml import 重指 `./render-yaml.mjs`；③ `packages/osuperpowers/package.json` 增 **files 白名单 7 项**（skills/ · .claude-plugin/ · .cursor-plugin/ · README.md · README.zh-CN.md · CHANGELOG.md · package.json） — checkable: `scripts/emit/issue-templates.ts` 无 `packages/osuperpowers/...finding-meta.json` 直引（grep）；两处 import 重指 `scripts/emit/render-yaml.mjs`（grep）；`npm pack --dry-run`（osuperpowers）文件集合 == 白名单 7 项
   3. ④ `packages/osuperpowers/.superpowers/` 开发残留目录删除；⑤ 白名单探针进 `smoke-cdd`（osuperpowers pack 审计段：`npm pack --dry-run` 文件集合 == 7 项白名单，零 tests/bin/scripts/.superpowers/.version-bump.json）；⑥ `report-templates.test.mjs` **整件退役** — checkable: `git ls-files 'packages/osuperpowers/tests/*.mjs'` 无 `report-templates*` + `git ls-files packages/osuperpowers/scripts packages/osuperpowers/bin` 为空；`pnpm run emit` 后 `emit:check` 零 drift；`node scripts/run.ts smoke-cdd` 全通 + precommit 全绿
 
+- **DependsOn**: none
 - **AtomicWith**: 6
 
 - **Acceptance**:
@@ -206,6 +213,8 @@ Task 10 对 GitHub 仓库元信息（description / topics）做外发变更—�
 ### Task 8: 宣讲定位面 — README 三段式 + 定位句 + zh mirror（TG4）
 
 - **Objective**: 宣讲定位面 — README 三段式 + 定位句 + zh mirror（TG4）：定位→理念→行为骨架 + cdd 理念导览
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: README 三段式骨架（定位 R8 → 理念 R6 → 行为 P4.1 成果零重写）；定位句落 CLAUDE.md + README（`A cdd-first methodology: continuously-discovered development as the core discipline, AI coding skills as the distribution vehicle.` 无 harness 字样）；cdd 理念导览章节（是什么 · 为什么 · 三模式链 · 收敛纪律）；zh mirror 三件同步
 
@@ -227,6 +236,8 @@ Task 10 对 GitHub 仓库元信息（description / topics）做外发变更—�
 ### Task 9: docs/maintainers 运维文档精炼（TG5）
 
 - **Objective**: docs/maintainers 运维文档精炼（TG5）：01+02 合并 + 重编号 + 精简 + 互链零断裂
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: 01-data-driven-templates + 02-template-doctrine 合并为 01-template-doctrine；剩余五件连续重编号（03→02 · 04→03 · 05→04 · 06→05）；04-program-experience 精简 19.5KB → ~12KB；02/05 更新 P4.4 终态；总字节 62.6KB → ≤53KB（spec 偏离登记）
 
@@ -248,6 +259,8 @@ Task 10 对 GitHub 仓库元信息（description / topics）做外发变更—�
 ### Task 10: gh 元信息 + 一致性验证（TG6）
 
 - **Objective**: gh 元信息 + 一致性验证（TG6）：description/topics 外发 + 宣讲面探针全跑
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: 仓库 description = `A cdd-first methodology repo — continuously-discovered development as the core discipline, AI coding skills as the carrier.` + topics 六枚 + homepageUrl 留空（gh 显式 `--repo Oscaner/skills`）；README/CLAUDE.md 零分歧验证 + 宣讲面探针
 
@@ -267,6 +280,8 @@ Task 10 对 GitHub 仓库元信息（description / topics）做外发变更—�
 ### Task 11: 首次发布执行 + 收口（TG7）
 
 - **Objective**: 首次发布执行 + 收口（TG7）：变更登记 changeset + 发布预案本地验证 + 收口回填（发布就绪态，外部 post-publish 态登记有主）
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: P4.2 变更登记 changeset ×2（cdd-engine minor/pending + osuperpowers patch/minor）；发布预案本地验证（validate 11 块 + smoke-cdd + changeset status 清单）；overall P4.2 行 Implementation plan → Done + change-history（收口回填；外部 post-publish 态 = CI 后程序级外验项）
 
@@ -289,6 +304,8 @@ Task 10 对 GitHub 仓库元信息（description / topics）做外发变更—�
 ### Task 12: plan-constraints 每 TG 再生 — 彻底去 generate-once（TG8 · 2026-09-26 mid-backfill 追加）
 
 - **Objective**: plan-constraints 每 TG 再生 — 彻底去 generate-once（TG8 · 2026-09-26 mid-backfill 追加）：无条件再生 + 存在性门收紧
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: `materializePlanConstraints` 去 generate-once 早退（无条件重新提取覆写，header 含 plan basename + hash provenance）；implement pre-flight 去 existsSync 跳过（每 TG 起点必调）；`isPlanConstraintsStale` + 其测试删除；generate-once 断言面反转「无条件再生」
 

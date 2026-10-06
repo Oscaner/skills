@@ -20,6 +20,8 @@
 ### Task 1: cdd-engine 包转型 TypeScript + unbuild 构建骨架
 
 - **Objective**: cdd-engine 包转型 TypeScript + unbuild 构建骨架（最小 src/bin.ts 占位入口，真实命令面归 Task 9）
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: `tsconfig.json` + `build.config.ts`(unbuild) + package.json main/exports/bin 指 dist + files 含 dist/templates + vitest TS 支持 + build/dev-stub/test scripts + 最小 `src/bin.ts` 占位入口
 
@@ -36,6 +38,8 @@
 ### Task 2: 第三方依赖引入（simple-git / yaml / tinyglobby / handlebars / consola / hookable / citty）
 
 - **Objective**: 第三方依赖引入（simple-git / yaml / tinyglobby / handlebars / consola / hookable / citty）
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: 根 devDependencies 增 yaml（emit 工具链，不进 osuperpowers dependencies）；cdd-engine dependencies 增 six；commander 保留（Task 9 移除）
 
@@ -51,6 +55,8 @@
 ### Task 3: 目录按依赖单向轴重组（cli → dispatch → {rules, artifacts, render} → infra）
 
 - **Objective**: 目录按依赖单向轴重组（cli → dispatch → {rules, artifacts, render} → infra）+ 测试路径同步迁移（一任务内完成）
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: `lib/` → `src/` 按 spec §2.13 目录树重组（cli/dispatch/rules/artifacts/render/infra）；`bin/cdd.mjs` → `src/bin.ts`；build.config 入口对齐；测试路径同步（CDD_MJS exec 常量改指 dist/cli.mjs + ../lib/*.mjs 改指 ../src/）
 
@@ -67,6 +73,8 @@
 ### Task 4: `infra/` 基础设施层（git / proc / invoke / root / context / registry / exit / log）
 
 - **Objective**: `infra/` 基础设施层（git / proc / invoke / root / context / registry / exit / log）——只建不拆
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: `infra/git.ts`（simple-git 单点封装）· proc.ts · invoke.ts · root.ts（repoRoot 唯一 cwd 点）· context.ts · registry.ts · exit.ts · log.ts（consola）；既有旧实现驻留 src/ 存量
 
@@ -83,6 +91,8 @@
 ### Task 5: `rules/` CDD 判定层（commit 双门 / stopping / failure / schema）
 
 - **Objective**: `rules/` CDD 判定层（commit 双门 / stopping / failure / schema）——API 换底唯一 owner
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: `rules/commit.ts`（commit 边界双门：入口门 clean-tree dirty→BLOCKED + 出口门 validateCommitContract 语义经 infra/git.ts simple-git）；`rules/stopping.ts`；`rules/failure.ts`（失败六类 + 配额隔离 + maybeExhaust）；`rules/schema.ts`（handoff JSON schema 校验）
 
@@ -99,6 +109,8 @@
 ### Task 6: `dispatch/hooks.ts` hookable 注册面 + `dispatch/phases.ts` 阶段表
 
 - **Objective**: `dispatch/hooks.ts` hookable 注册面 + `dispatch/phases.ts` 阶段表
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: `dispatch/hooks.ts`（hookable 实例 + 固定 hook 点声明 dispatch:before/dispatch:after + commit 门 hook + 外部插件注册入口）；`dispatch/phases.ts`（PHASES 阶段表数据化：pre-flight/dispatch/post-flight 三阶段）
 
@@ -115,6 +127,8 @@
 ### Task 7: `dispatch/base.ts` DispatchLifecycle 抽象基类（模板方法骨架）
 
 - **Objective**: `dispatch/base.ts` DispatchLifecycle 抽象基类（模板方法骨架）：run() = pre-flight → dispatch → post-flight + commit 双门默认 hook
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: `DispatchLifecycle` 抽象类（run() 模板方法 + 默认 hook 实现 commitPreCheck → resolveContext → validateMode → dispatch abstract → schemaValidate → normalizeResult → commitPostCheck；构造注 hooks/ctx）；入口门用例（review 起点 dirty → BLOCKED）
 
@@ -131,6 +145,8 @@
 ### Task 8: `dispatch/task.ts` + `dispatch/docs.ts` 功能生命周期（继承覆写）
 
 - **Objective**: `dispatch/task.ts` + `dispatch/docs.ts` 功能生命周期（继承覆写）+ artifacts/render 剩余模块同步 TS 化
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: `TaskLifecycle extends DispatchLifecycle`（resolveContext 含 brief 生成/fixed-point 派生 · dispatch render→spawn agent · postFlight H1 四行/exit 归一 · 双门继承基类）；`DocsLifecycle`（docs 面同消费双门）；`artifacts/` + `render/` TS 化（handoff/progress/base-branch/brief，naming glob 经 tinyglobby）
 
@@ -147,6 +163,8 @@
 ### Task 9: CLI 换 citty（`src/bin.ts` + `cli/` 命令面）
 
 - **Objective**: CLI 换 citty（`src/bin.ts` + `cli/` 命令面）+ commander 随本 Task 移除
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: `bin.ts` defineMainCommand + implement/review/fix/base-branch 四子命令；`cli/` 各 action 装配 DispatchLifecycle 子类；`--dry-run` program 级；commander 零残留
 
@@ -163,6 +181,8 @@
 ### Task 10: commit 双门全接线 + `templates/fix/docs.md` 补提交指令
 
 - **Objective**: commit 双门全接线 + `templates/fix/docs.md` 补提交指令 + 六个 SKILL.md review-fix 循环措辞统一
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: 入口门经基类默认 hook 自动生效（本 Task 只验证生效面）；出口门负 dispatch 返回后校验（含 docs fix）；`templates/fix/docs.md` 补提交指令；六 skill review-fix 措辞「进入 review 前确保工作树干净」
 
@@ -180,6 +200,8 @@
 ### Task 11: report-issues 改名面（report-issue → report-issues）
 
 - **Objective**: report-issues 改名面（report-issue → report-issues）：git mv + name/description + finding-meta 唯一改名源 + 解析路径四处随迁
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: `git mv skills/report-issue/ skills/report-issues/` + SKILL frontmatter + finding-meta components 枚举（唯一改名源）+ 解析路径四处随改 + 引用面（SKILL ×3 / writing-plans ×1 / README / residue 注释）
 
@@ -196,6 +218,8 @@
 ### Task 12: `writing-plans` 存活句重写 + maintainer docs 全量词形同步
 
 - **Objective**: `writing-plans` 存活句重写 + maintainer docs 全量词形同步（report-issue 词形零残留）
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: `writing-plans/SKILL.md:44` 存活句整体重写（report-issues resolves program attribution through progress.json#plan → **Spec:** → overall → Related 链接）+ writing-plans-spec.test 换锚；docs/maintainers 全量词形同步
 
@@ -212,6 +236,8 @@
 ### Task 13: `finding-meta.json` 重构（report-meta 2+1 / formFieldDefs 2 键 / reportDef / masterDef）
 
 - **Objective**: `finding-meta.json` 重构（report-meta 2+1 / formFieldDefs 2 键 / reportDef / masterDef）+ 表单 emit 连带同步
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: metaFields 6→2（skill·step）+ kinds/sessionTypes 枚举删 + formFieldDefs 3→2 键 + reportDef.labels 两枚 + masterDef 收敛 {sessionTitle, harnessRow}；issue-templates.test「3 个 yml」→ 2；compare.mjs productFiles 删 session_report.yml
 
@@ -229,6 +255,8 @@
 ### Task 14: renderer 重写（`report-templates.mjs` 裸调用单模式 + yaml + 入参校验）
 
 - **Objective**: renderer 重写（`report-templates.mjs` 裸调用单模式 + yaml + 入参校验）：先生明渲染 + findings 分型 + dedup/related
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: 删 `--mode`（裸调用单入口）· 删 renderComment/renderTitle/resolveDropdownOptions/sessionTypes 注入分支；renderYml 隔离 emit-only 模块（render-yaml.mjs）改 yaml.stringify；聚合 body 渲染；CLI 入参结构校验
 
@@ -246,6 +274,8 @@
 ### Task 15: report-issues SKILL.md 重写（新聚合流程 digraph）
 
 - **Objective**: report-issues SKILL.md 重写（新聚合流程 digraph）：explore → collect → reform → confirm → dedup → create-issue? 链
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: 新 digraph + 节点定义（工具链 scope 过滤 · 中性 topic 提炼 ≤60 chars · 单趟 dedup updated:>90d window · 不建空 issue 门）；不动式 I1/I3/I5/I6 保留、I7 删、I8/I9 新增；report-meta 终态 2+1
 
@@ -262,6 +292,8 @@
 ### Task 16: GitHub label rename + residue 防回渗守卫
 
 - **Objective**: GitHub label rename + residue 防回渗守卫（report-issue 词边界 + 五词形 + git guard + dedup 查询句实测）
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: `gh label edit cdd --name cdd-engine`；residue stale-lexicon 增词形守卫（`\breport-issue\b` + --mode/renderComment/renderTitle/resolveDropdownOptions/sessionTypes + execFileSync("git") guard）；dedup 查询句实测三判据
 
@@ -279,6 +311,8 @@
 ### Task 17: README 更新 + CLAUDE.md dev 调用链 + 运维文档 third-party-dependencies.md
 
 - **Objective**: README 更新 + CLAUDE.md dev 调用链 + 运维文档 third-party-dependencies.md
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: osuperpowers README 技能表 + engine 面同步；CLAUDE.md dev 段（dev:stub + dist/cli.mjs 直调，不 npm link）；`docs/maintainers/third-party-dependencies.md`（全部第三方 pkg 登记 + 不引清单 + yaml 隔离边界）
 
@@ -295,6 +329,8 @@
 ### Task 18: E-8 schema 紧凑注入 + E-7 explore-context 措辞
 
 - **Objective**: E-8 schema 紧凑注入 + E-7 explore-context 措辞（renderHandoffStub 紧凑 + brainstorming 去枚举化）
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: `renderHandoffStub` 紧凑 `JSON.stringify(schema)`（handlebars triple-stash）；templates.test 紧凑格式断言；`brainstorming/SKILL.md` #explore-context 措辞去枚举化
 
@@ -311,6 +347,8 @@
 ### Task 19: changeset + 全量验证收口
 
 - **Objective**: changeset + 全量验证收口：双 changeset + validate ALL PASS + emit:check 无 drift
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: `.changeset/p5-report-issues-aggregation.md`（osuperpowers minor）+ `.changeset/p5-engine-rebuild-ts-lifecycle.md`（cdd-engine）；全量 validate（全块）+ emit:check
 

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://oscaner.dev/schemas/cdd/plan.json",
   "title": "Phase implementation plan document structure",
-  "description": "Canonical structure of a kairos phase implementation plan — the per-phase executable breakdown of one design spec. This schema is the single structure fact for the plan doc type: the header fields, the `### Task N:` colon-form task headings, the per-task data records (objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[]) the brief renderer materializes the task-handoff brief from — zero prose `- **Do**:` carving — and the `## Constraints` delta (the section carries only the plan's own deltas, the single constraint surface). Authoring agents read the properties + descriptions to draft conforming plans; docContractValidate / brief extraction consume the same patterns.",
+  "description": "Canonical structure of a kairos phase implementation plan — the per-phase executable breakdown of one design spec. This schema is the single structure fact for the plan doc type: the header fields, the `### Task N:` colon-form task headings, the per-task data records (objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[] + the MANDATORY dependsOn / atomicWith edge fields — every task block declares both `- **DependsOn**:` / `- **AtomicWith**:` lines, `none` / an empty value the no-edge declaration, a missing line the missing-edge failure class) the brief renderer materializes the task-handoff brief from — zero prose `- **Do**:` carving — and the `## Constraints` delta (the section carries only the plan's own deltas, the single constraint surface). Authoring agents read the properties + descriptions to draft conforming plans; docContractValidate / brief extraction consume the same patterns.",
   "type": "object",
   "properties": {
     "header": {
@@ -131,9 +131,11 @@
           "files",
           "interface",
           "steps",
-          "acceptance"
+          "acceptance",
+          "dependsOn",
+          "atomicWith"
         ],
-        "description": "One plan task record — objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[], plus the optional dependsOn? (the tasks this task depends on) and atomicWith? (the tasks this task is atomic with) edge fields — read/write: the task-block parser fills them from their `- **DependsOn**:` / `- **AtomicWith**:` comma lists, TaskGraph consumes them for the grouping + edge validation.",
+        "description": "One plan task record — objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[], with the MANDATORY dependsOn (the tasks this task depends on) and atomicWith (the tasks this task is atomic with) edge fields — every task block declares both edge lines (the two-line edge surface; `none` / an empty value is the no-edge declaration): read/write — the task-block parser fills them from their `- **DependsOn**:` / `- **AtomicWith**:` comma lists, TaskGraph consumes them for the grouping + edge validation. A block missing either edge line is the missing-edge failure class.",
         "properties": {
           "objective": {
             "type": "string",
@@ -206,7 +208,7 @@
               "minimum": 1,
               "description": "One task id this task depends on (a `### Task N:` id)."
             },
-            "description": "The task ids this task depends on — the `- **DependsOn**:` comma list (read/write: the task-block parser fills it; TaskGraph consumes the edges)."
+            "description": "The task ids this task depends on — the `- **DependsOn**:` comma list (MANDATORY line in every task block; `none` / an empty value lexes to `[]` — the no-edge declaration; read/write: the task-block parser fills it, TaskGraph consumes the edges)."
           },
           "atomicWith": {
             "type": "array",
@@ -215,7 +217,7 @@
               "minimum": 1,
               "description": "One task id this task is atomic with (a `### Task N:` id)."
             },
-            "description": "The task ids this task is atomic with — the `- **AtomicWith**:` comma list (read/write: the task-block parser fills it; TaskGraph consumes the edges)."
+            "description": "The task ids this task is atomic with — the `- **AtomicWith**:` comma list (MANDATORY line in every task block; `none` / an empty value lexes to `[]` — the no-edge declaration; read/write: the task-block parser fills it, TaskGraph consumes the edges)."
           }
         }
       }

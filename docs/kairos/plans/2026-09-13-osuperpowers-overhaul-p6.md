@@ -84,6 +84,8 @@
 ### Task 1: 能力宣称收缩（spec 域 A，A1–A8）
 
 - **Objective**: 能力宣称收缩（spec 域 A，A1–A8）：README/zh/CLAUDE.md 去 8-harness + pi 死字段删 + `.agents/` emit 面移除
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: README/zh/CLAUDE.md 零「8 harness」宣称、零 gate-install 死引用；keywords 零 droid/pi；`.agents/` 零跟踪零产出零引用；CLAUDE.md 派生提示改写；emit:check 无 drift
 
@@ -101,6 +103,8 @@
 ### Task 2: vendors 自维护面全撤（spec 域 B，B1–B12）
 
 - **Objective**: vendors 自维护面全撤（spec 域 B，B1–B12）：submodule 相关删净 + submodule 本体撤离 + 语汇守卫
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: 零 submodule-sync/bump 配置 · zero publish-vendor · validate 12 块 · `.gitmodules` 零条目 + `vendors/` 不存在 · marketplace/vendor 零条目 · version-sync 零 resolveVendorVersion · 守卫零命中
 
@@ -118,6 +122,8 @@
 ### Task 3: cdd-engine 测试就近迁移 + tests/ 退役 + 内存守卫复核（spec 域 C，M1–M7）
 
 - **Objective**: cdd-engine 测试就近迁移 + tests/ 退役 + 内存守卫复核（spec 域 C，M1–M7）
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: tests/ 拓扑全量就近迁移（53 文件 = 48 测试 + helpers + fixtures）；helpers → infra/__tests__/helpers.ts；vitest include 收敛 `src/**/__tests__/**/*.test.ts`；`.mjs` 终态断言（src 恒真 0 · tests 0）；内存守卫复核；运维文档同步
 
@@ -135,6 +141,8 @@
 ### Task 4: repo `scripts/` 编排层全量 `.ts` 化（spec 域 C/Q2-B）
 
 - **Objective**: repo `scripts/` 编排层全量 `.ts` 化（spec 域 C/Q2-B）：44 个 .mjs → .ts + 显式 .ts 扩展导入
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: `scripts/{emit,validate,lib,release,rulesets,run}.mjs`（44 个）→ `.ts`；`node scripts/run.ts validate` 直跑（原生 strip）；CI 调用名随迁；scripts 面 `.mjs` 44→0
 
@@ -151,6 +159,8 @@
 ### Task 5: 模板系统化第一平面（engine 提示词：骨架/条款/token/JSON 归并/rename/两段制）
 
 - **Objective**: 模板系统化第一平面（engine 提示词：骨架/条款/token/JSON 归并/rename/两段制）
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: 文件布局归一（review.md→docs/review.md 等）；JSON 归并（engine-config.json 3 并 1 · template-contract.json 4 族合 1；schemas 独立保留）；rename 规范化（18 令牌 → 新命名规范零遗留）；骨架 registry（sections + segments）；配置单点消费（config.ts/templates.ts）
 
@@ -168,6 +178,8 @@
 ### Task 6: cache-first C1–C7 + registry cache profile（spec 域 D-3 + 数据面）
 
 - **Objective**: cache-first C1–C7 + registry cache profile（spec 域 D-3 + 数据面）
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: C1 组装序不变式 + C2 结构单源 + C3 确定性序列化 + C4 re-dispatch 字节复用 + C5 派发集恒定 + C6 写费经济 + C7 每 harness 观测 + 字节不变式守卫测试
 
@@ -184,6 +196,8 @@
 ### Task 7: skill 文档模板系统化第二平面（spec D-2，4 文件；随 T1 .agents 移除后）
 
 - **Objective**: skill 文档模板系统化第二平面（spec D-2，4 文件；随 T1 .agents 移除后）
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: 四文件统一骨架（Header + Section 0–N 固定段序）；占位/token 引用条款；P1–P6 经验烘焙；命名规范
 
@@ -200,6 +214,8 @@
 ### Task 8: skill 流程原子性三断言 + flow 变更纪律（spec E1，Q3 升级）
 
 - **Objective**: skill 流程原子性三断言 + flow 变更纪律（spec E1，Q3 升级）
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: skill-authoring.md 增「流程调整回顾整流程」守则节；validate 新增 digraph↔节点完整性三断言（双向完整 · 骨架同构 · 增长信号）
 
@@ -216,6 +232,8 @@
 ### Task 9: cdd 六缺口①——`cdd fix --type branch` 命令面 + branch 级 review-fix loop 全形（spec E2①）
 
 - **Objective**: cdd 六缺口①——`cdd fix --type branch` 命令面 + branch 级 review-fix loop 全形（spec E2①）+ cli-driven-development digraph 一次改齐
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: engine `cli/fix.ts` branch type 分支 + dispatch/phases 增 branch 阶段表 + Stopping 语义（ref = BASE..HEAD）；`cli-driven-development/SKILL.md` 整 skill 一次改齐（canon shape digraph K→J→L + branch-fix-loop 改名 + dry-run WARN/pending-acceptance/术语一次描齐）
 
@@ -232,6 +250,8 @@
 ### Task 10: cdd 六缺口②③——dry-run 门判 WARN 化 + 黑盒干净树前置文档化（spec E2②③/G4①）
 
 - **Objective**: cdd 六缺口②③——dry-run 门判 WARN 化 + 黑盒干净树前置文档化（spec E2②③/G4①）
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: dry-run 门判 WARN 化（commitPreCheck dryRun 降级：stderr 脏树 WARN + exit 0 走完模拟）；接口消歧（dry-run 走 pre-flight 早退，不经 spawnManaged）；黑盒干净树前置文档化三面
 
@@ -248,6 +268,8 @@
 ### Task 11: cdd 六缺口④——跨 Task findings 收编（pending-acceptance-patch，spec E2④）
 
 - **Objective**: cdd 六缺口④——跨 Task findings 收编（pending-acceptance-patch，spec E2④）+ orchestrator 收编权
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: review findings「targets later task」tag 约定（零 schema 变更）；plan 增 `pending-acceptance-patch` 区（task-ref + patch 描述；orchestrator 唯一写者——writing-plans 文档写明）；后续 task 验收承接（mechanically assertable）
 
@@ -264,6 +286,8 @@
 ### Task 12: cdd 六缺口⑤——纪律条款入库（spec E2⑤/D1.2）
 
 - **Objective**: cdd 六缺口⑤——纪律条款入库（spec E2⑤/D1.2）：clauses 单源全 7 条 + 模板零内联纪律散文
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: `template-contract.json#clauses` 落地 v1.29–v1.31 全部纪律条款（cl:english-comments · cl:eof-newline · cl:no-full-tree-find · cl:bash-stall-limit · cl:plan-freeze · cl:atomic-commit · cl:self-validate）；4 模板以 `{{> clause cl:xxx}}` 引用
 
@@ -280,6 +304,8 @@
 ### Task 13: cdd 六缺口⑥——plan/spec 锚点终态校验（spec E2⑥/F1）
 
 - **Objective**: cdd 六缺口⑥——plan/spec 锚点终态校验（spec E2⑥/F1）：路径/版本锚点对实态 git 树校验
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: residue/一致性扩展——spec/plan 内引用的路径/版本锚点（`**Spec:**` 链接 · Parent program 链接 · 文件路径）对实态 git 树校验；「docs 与落地一致」的锚点面
 
@@ -295,6 +321,8 @@
 ### Task 14: stall 探测器三件套（spec E3）
 
 - **Objective**: stall 探测器三件套（spec E3）：spawnManaged liveness monitor + invoke 透传 + TIMEOUT 语义扩展 + 恢复路径契约化
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: `infra/proc.ts` spawnManaged 派发期 liveness monitor（每 ~60s 采样 CPU + workspace mtime，IDLE_WINDOW 内无推进 → 杀进程组 → TIMEOUT handoff）；infra/invoke.ts 透传 idle 参数；`rules/failure.ts` TIMEOUT 语义扩展；DEFAULT_TIMEOUTS 配置面
 
@@ -311,6 +339,8 @@
 ### Task 15: 自省四修 G1——session-call 语义诚实化（spec G1，全域 19 处）
 
 - **Objective**: 自省四修 G1——session-call 语义诚实化（spec G1，全域 19 处）
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: skill-authoring session-call 原语定义修订；6 skill ~19 处「Run a /」全改（内联消费 + 产物记载 + 路由）
 
@@ -327,6 +357,8 @@
 ### Task 16: 自省四修 G2/G3——grilling 需求全量清单 + validate 脚本 maintainer-only 边界
 
 - **Objective**: 自省四修 G2/G3——grilling 需求全量清单 + validate 脚本 maintainer-only 边界
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: G2 grilling 需求全量清单前置（brainstorming / writing-phase-spec 流程定义）；G3 validate 脚本 maintainer-only 边界文档化（写入 maintainer docs + writing-overall-spec）
 
@@ -343,6 +375,8 @@
 ### Task 17: 自省四修 G4——pre-commit 结构性修复（spec G4③）
 
 - **Objective**: 自省四修 G4——pre-commit 结构性修复（spec G4③）：黑盒隔离 + pre-commit 树无关子集 + CI 全量
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: 黑盒树依赖用例迁 mkdtemp 真仓隔离或 CI-only；pre-commit 钩子收敛树无关目标（6 组 9 块）；CI 全量（pr-validate 全 12 块含树依赖黑盒）
 
@@ -359,6 +393,8 @@
 ### Task 18: F8 术语优化——Review Convergence 全仓 rename（spec F8）
 
 - **Objective**: F8 术语优化——Review Convergence 全仓 rename（spec F8）：术语制度 + 改名清单 + 代码/文件名同步 + 残留守卫
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: naming-conventions 增 terminology registry + 仲裁规则；`Review Stopping` → **Review Convergence**（4 skill 16 处本 Task + T9 1 处审计）；`fix-loop-exhausted`→`review-cycle-cap` · `timeout-exhausted`→`dispatch-timeout-cap`；`src/rules/stopping.ts` → convergence.ts；residue 守卫扩展
 
@@ -376,6 +412,8 @@
 ### Task 19: 收口复核 F1–F6/F7/F8（spec 域 F）
 
 - **Objective**: 收口复核 F1–F6/F7/F8（spec 域 F）：锚点/残留/changeset/validate/方法论 doc/F7 整理/F8 验证
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: F1 锚点终态校验全量 + F2 残留守卫扩展 + F3 changeset 复核/版本落地 + F4 命名制度对照 + F5 全绿 + F6 方法论 doc 核对 + F7 运维文档整理重组 + F8 术语收口验证
 
@@ -393,6 +431,8 @@
 ### Task 20: 模板系统化终态（spec D-3 C1-max 字节布局层；overall v1.45 / spec v1.8 回填）
 
 - **Objective**: 模板系统化终态（spec D-3 C1-max 字节布局层；overall v1.45 / spec v1.8 回填）：统一壳 + 槽级三段制 + 渲染数据平面单文件 + C4 升格
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: 统一壳（四模板归并字面常数壳，零注入槽）；槽级三段制（壳 → Return 字节常数 → Round context 绝对末尾唯一动态区）；渲染数据平面单文件（四 .md 并入 template-contract.json sections）；token registry `zone` 归属；C4 壳无参常数（staticShellKey 消除）；门面去路径化；WORKSPACE_SLUG
 
@@ -410,6 +450,8 @@
 ### Task 21: scripts/ 与 cdd-engine 统一 CLI 框架 + 测试就近 `__tests__` 化（spec 域 C M8/M9；overall v1.46 / spec v1.9 回填）
 
 - **Objective**: scripts/ 与 cdd-engine 统一 CLI 框架 + 测试就近 `__tests__` 化（spec 域 C M8/M9）：citty 单框架 + observe-cache argsDef + scripts 测试 100% 就近
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: scripts/run.ts 弃 Commander 改 citty（与 engine 同构）；observe-cache.ts 手写 parseArgs 归 citty argsDef；commander 根 devDep 移除 + citty 入根；scripts 测试全迁 __tests__/；root vitest include 收敛
 
@@ -427,6 +469,8 @@
 ### Task 22: plan-constraints 物料化契约（spec E2/T7.1；overall v1.47 / spec v1.10 回填）
 
 - **Objective**: plan-constraints 物料化契约（spec E2/T7.1）：materializePlanConstraints + 存在性门 + dry-run 豁免 + stale 锚
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: `materializePlanConstraints(plan, workspace)`（自 plan 声明源确定性生成 + plan hash 头锚）；存在性门（缺失 → BLOCK 可行动 blocker）；dry-run 豁免；stale 检测选；materializer 单测 + 黑盒
 
@@ -443,6 +487,8 @@
 ### Task 23: lifecycle 状态正交化 + H1 名称语义化（spec T7.2；overall v1.48 / spec v1.11 回填）
 
 - **Objective**: lifecycle 状态正交化 + H1 名称语义化（spec T7.2）：status·failure_category·unverifiable/plan_conflicts 三面正交 + BLOCKED exit 1 + 契约入 schema + H1 rename
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: 三面正交化（deriveReviewStatus/rollupStatus 不再裸折 BLOCKED——必带 failure_category + 真实 blocker）；契约入 schema field description（prompt 零散文）；BLOCKED（任何通道）→ exit 1；defaultBlockerFor 伪造杀手；H1 无语义命名 rename（h1*→return*）+ `\bH1\b` 入 residue 机制面守卫
 
@@ -460,6 +506,8 @@
 ### Task 24: 派发岛收敛 + 机制上链 + 错误收编（架构级统一抽象，spec T7.3；overall v1.51 / spec v1.13 回填）
 
 - **Objective**: 派发岛收敛 + 机制上链 + 错误收编（架构级统一抽象，spec T7.3）：BranchLifecycle 收编 + 纠缠拆解 + 机制单点 + 死代码清理 + 错误收编
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: A 派发状态机补全（BranchLifecycle extends DispatchLifecycle）；B 纠缠带拆解（status 推导族归 finalize · 计数器族归 failure · schema 只校验）；C 机制单点（Convergence/writeBlocked/workspace/return-block/hashFile）；D 死代码清理；F 错误收编（CddExitError 家族 + invariant 工厂）；G 架构纪律回写
 
@@ -477,6 +525,8 @@
 ### Task 25: 载体成熟——settleResidue / writeBoundary / recovery carrier（spec T7.4；overall v1.51 / spec v1.13 回填）
 
 - **Objective**: 载体成熟——settleResidue / writeBoundary / recovery carrier（spec T7.4）：残局归属 + 纯软归属记账 + 恢复 carrier
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: settleResidue（EXECUTION_FAILURE/TIMEOUT + 树脏 → git stash push -u → recovery carrier 含 ref + 规模）；writeBoundary（changes[] 归属记账 + diff⊄changes[] → CDD_WARN 绝不 BLOCK + scope-composition 轴）；recovery carrier（结构化 recovery 字段 + §35 语义自足零阶段 anchor）
 
@@ -494,6 +544,8 @@
 ### Task 26: 派发终止契约 + 续传——termination monitor + resume-from-residue（spec T7.5；overall v1.52 / spec v1.14 回填）
 
 - **Objective**: 派发终止契约 + 续传——termination monitor + resume-from-residue（spec T7.5）：stall/budget 两信号合一 + resume 续传 + legacy 检索兜底
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: termination monitor 统一（信号① stall · 信号② budget → killGroup + TIMEOUT + cause 化 blocker；SIGTERM 外部信号并入 cause）；删除面（三 env 键 · perMode/globalOverride 两段 · execa timeout 通道 · resolver 并一）；resume-from-residue（recovery.residue_ref → git stash apply + brief residue 附言 + legacy stash 检索兜底）
 
@@ -511,6 +563,8 @@
 ### Task 27: 任务级 scope 账本——roundBase/scopeBase 分离（spec T7.6；overall v1.54 / spec v1.16 回填）
 
 - **Objective**: 任务级 scope 账本——roundBase/scopeBase 分离（spec T7.6）：scope_base earliest-wins + 恢复轮声明采纳 + fixed-point 源改读账本
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: progress tasks[N] 增 `scope_base`（引擎唯一写者、earliest-wins · 恢复声明 base 严格早于当前账本值才允许前移）；finalizeImplement 恢复轮声明采纳（≠HEAD + 祖先校验，fresh 永不采纳）；review/fix 固定点读账本（legacy 回落）；settleResidue 记 recovery.scope_base
 
@@ -528,6 +582,8 @@
 ### Task 28: residue save 侧单点收敛——双 owner 归一（spec T7.7；overall v1.56 / spec v1.18 回填）
 
 - **Objective**: residue save 侧单点收敛——双 owner 归一（spec T7.7）：save 全族归 artifacts + 幂等守卫 + adapter + 标准化 message
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: `artifacts/residue.ts` 收 save 全族（recoveryEligible · RESIDUE_PRESERVED_CAUSES · preserveAndAnnounceResidue + `preserved` 幂等守卫)；`settleFromCarrier` adapter（自 carrier + 文件名派生 op/type/task/round/cause）；`rules/residue.ts` 整删 · `gitStashPreserve` 删；标准化 stash message
 
@@ -544,6 +600,8 @@
 ### Task 29: 引擎 lifecycle 统一校验——docContractValidate + statusValidate（spec T7.8；overall v1.58 / spec v1.19 回填）
 
 - **Objective**: 引擎 lifecycle 统一校验——docContractValidate + statusValidate（spec T7.8）：三类必要契约 + 六态收敛状态机 + 双钩子
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: 共享校验模块（plan/phase spec/overall 三类必要契约）；`docContractValidate` 钩子（pre-flight，failures → blocked exit 1 + guidance；dry-run 同检 WARN）；`deriveTaskState` 六态收敛状态机 + `statusValidate` 钩子（post-flight，CDD_INFO 状态 + 计划裁决）
 
@@ -561,6 +619,8 @@
 ### Task 30: TaskState 单源统一 + 状态判定修正（spec T7.9；overall v1.59 / spec v1.20 回填）
 
 - **Objective**: TaskState 单源统一 + 状态判定修正（spec T7.9）：deriveTaskState 判定修正 + progress status 字段删除
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: deriveTaskState 判定修正（以最后 review 状态为第一信号）；progress.json `tasks[N].status` 字段删除（TaskState 纯派生、账本只存事实）；消费迁移（所有读 progress-row status 处改走 deriveTaskState）
 
@@ -577,6 +637,8 @@
 ### Task 31: src 注释锚首清零执法——residue 守卫扩展 + 67 处排修（spec T7.10；overall v1.60 / spec v1.21 回填）
 
 - **Objective**: src 注释锚首清零执法——residue 守卫扩展 + 67 处排修（spec T7.10）
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: residue 守卫新增「src 注释禁锚首」检查（`packages/cdd-engine/src/**/*.ts` 注释首个有效 token ∈ 阶段锚 regex 族 → FAIL；合法 trailing/文件头保留）；引擎 67 处锚首注释改为语义前置
 

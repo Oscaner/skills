@@ -779,6 +779,33 @@ describe("迁移队列期望态 — the single-form tree's migration state table
   });
 });
 
+describe("the edge-completeness face (P3.1 T3 — the two-line edge surface, 214 blocks migrated)", () => {
+  it("every plan's task blocks carry both mandatory edge lines — the per-file edge-line count equals its task-block count (DependsOn and AtomicWith each), zero gaps across the whole tree", () => {
+    for (const file of Object.keys(PLAN_MIGRATION)) {
+      const content = readFileSync(path.join(PLANS_DIR, file), "utf8");
+      const taskCount = (content.match(/^### Task \d+:/gm) ?? []).length;
+      const depCount = (content.match(/^- \*\*DependsOn\*\*:/gm) ?? []).length;
+      const atoCount = (content.match(/^- \*\*AtomicWith\*\*:/gm) ?? []).length;
+      expect(taskCount, `${file} must carry task blocks`).toBeGreaterThan(0);
+      expect(depCount, `${file} DependsOn line count == task count`).toBe(taskCount);
+      expect(atoCount, `${file} AtomicWith line count == task count`).toBe(taskCount);
+    }
+  });
+
+  it("every plan's task records carry the non-optional edge arrays and zero missing-edge records (the parse-level face: absent → `[]` — no-edge default — and every block declares both lines)", () => {
+    for (const file of Object.keys(PLAN_MIGRATION)) {
+      const planPath = path.join(PLANS_DIR, file);
+      const tasks = planType().tasksFromPlan(planPath);
+      expect(tasks.length, `${file} task records`).toBeGreaterThan(0);
+      for (let i = 0; i < tasks.length; i++) {
+        expect(Array.isArray(tasks[i]!.dependsOn), `${file} task ${i + 1} dependsOn`).toBe(true);
+        expect(Array.isArray(tasks[i]!.atomicWith), `${file} task ${i + 1} atomicWith`).toBe(true);
+        expect(tasks[i]!.missingEdge, `${file} task ${i + 1} missing-edge record`).toBe(false);
+      }
+    }
+  });
+});
+
 /** The migration-queue pins fixture — the plan family's shared pin source: per migrated plan, the
  *  pre-transcription acceptance (per task number) + the constraints body (canon'd) + the
  *  dispatch-group expectations of the 4 ## Task Groups plans. For the 17 Do-form targets it carries

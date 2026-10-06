@@ -41,6 +41,8 @@ Task 2 落地后 pre-commit 触发 `biome check --write`（format autofix + lint
 ### Task 1: 全树 deps 升最新（R7 · TG1 先行）
 
 - **Objective**: 全树 deps 升最新（R7 · TG1 先行）：4 major（execa/vitest/typescript/@types/node）+ 全树 caret floor 刷新 + dependabot PR close
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: 全树 deps latest（execa 10.0.1 · typescript 7.0.2 · vitest 5.0.1 · @types/node 26.6.2 + caret floor）；4 major 破坏面逐项消化登记；4 个 dependabot PR closed；frozen-lockfile 零 diff
 
@@ -61,6 +63,8 @@ Task 2 落地后 pre-commit 触发 `biome check --write`（format autofix + lint
 ### Task 2: biomejs 全面接入（TG2 · 门先行）
 
 - **Objective**: biomejs 全面接入（TG2 · 门先行）：biome.json 随仓 + husky biome check + 首轮收敛
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: `biome.json`（recommended ruleset + formatter，覆盖 src + scripts + 全仓 ts 面）；root biome script + husky pre-commit `biome check --write`；首轮格式收敛（零手工风格债）；自本 task 起 commit 前零违规常态
 
@@ -89,6 +93,7 @@ Task 2 落地后 pre-commit 触发 `biome check --write`（format autofix + lint
   2. ② **五签名统一 + 六命名面**：`--tasks` 解析 · effectiveGroups（rules/documents.ts）· progress ledger key（`{task}|{group:"1,2"}`）· handoff 文件名（`tasks-{tasks}-*`）· `TaskLifecycle#tasks/#groupKey` · **命名面六统一**（brief / implement·review·fix handoff / report/evidence → 全 `tasks-1,2-*`）；**删除 `tasksKey()`（名实双清）**④ **契约 token 面（template-contract.json）**：`TASK_NUMBER/TASK_BRIEF/TASK_FINDINGS/TASK_FIXED_POINT/TASK_CONSTRAINTS/TASK_WORKSPACE/DOCS_DOC/DOCS_FINDINGS/DOCS_FIXED_POINT` 塌缩为 **DISPATCH_UNIT** · **BRIEF** · **FINDINGS** · **FIXED_POINT** · **CONSTRAINTS** · **WORKSPACE** · **DOC**（保留 HANDOFF_TARGET / HANDOFF_WRITE_GATE / MODE / REVIEW_TYPE / REVIEW_REFERENCE / REVIEW_AXES / REVIEW_LENS_GUIDE / REVIEW_PLAN_LINE / RETURN_FORMAT） — checkable: 契约 token 面更名落地（templates templates tokens[] 无 `TASK_*`/`DOCS_*` 旧名 · shell clause #1/#3/#7 + 描述面同步 · clause #7 evidence 命名与引擎实读同字节）
   3. ③ **roundPattern 扫描正则单源化**：naming.ts 硬编码 `\d+(?:-\d+)*` → 从 `TaskGroup.GROUP_KEY_PATTERN` 派生；⑤ **描述/注释面全同步**（契约 shell clause 符号枚举改新名 · 源码注释 8 处换新形——`1-2` 组键字面零活残留）；⑥ **breaking/残面面**：`--tasks 1-2` 连字符形非法（token 非整数 → exit 2）· residue/channel-audit 命名 token 同步 · 全 token 更名 + 键形变入 breaking 桶 — checkable: 键文法单源实证（`GROUP_KEY_PATTERN` 被 roundPattern 消费 · 零硬编码扫描正则）；`--tasks 1-2` exit 2（parse 测试断言）；描述/注释面零旧 token 旧键字样；有效分区 == 全 task 号集覆盖断言（guard 不变）；breaking 登记 changelog
 
+- **DependsOn**: none
 - **AtomicWith**: 4, 5
 
 - **Acceptance**:
@@ -111,6 +116,7 @@ Task 2 落地后 pre-commit 触发 `biome check --write`（format autofix + lint
   1. **`class CddRuntime`** 收编模块级可变态——`dryRun`/`DRY_RUN()`/`setDryRun()`（cli/shared.ts）· `_root` 单例（infra/root.ts）· proc 全局 `registry/diskPath/idleTimer`（infra/proc.ts）· `signalExitCode`（bin.ts）· memo `cacheProfileValidator`（infra/registry.ts）· memo `templateContract` 缓存（render/templates.ts 模块级 CACHE 态随 TemplateLoader 类化迁入（Task 7 ①）） — checkable: 模块级可变态全收 `CddRuntime`（sweep 零模块级 `let` 可变态面 · 含 templates CACHE 迁入）
   2. **构造注入**（engine 测试经替身注入实证；scripts 面同款可测）；solo 模块级可变态（`let` 声明）面归零（sweep 实证）；proc 生命周期收进类封装 — checkable: 构造注入替身测试绿（engine 测试注入 `CddRuntime` 替身实证 dryRun/root/proc 均经类面）；`CddRuntime` 为唯一可变态面
 
+- **DependsOn**: none
 - **AtomicWith**: 3, 5
 
 - **Acceptance**:
@@ -131,6 +137,7 @@ Task 2 落地后 pre-commit 触发 `biome check --write`（format autofix + lint
   1. would-be 纯数据载体收 **typed 载体**（纯只读保持 interface/type，**不建空壳 class**——判定标准⑥）：`TaskDispatchContext`/`TaskRunOptions` · `DispatchContext`/`DispatchLifecycleOptions` · `ReviewOpts`/`FixOpts` · `ProgressData`/`TaskLedgerRow`/`LedgerKey` · `HandoffParams` · `TaskStatusRow`/`PlanVerdict` · `WipStat` — checkable: 域接口零裸 `Record` 穿行（grep/sweep 实证）
   2. ② 裸 `Record<string, unknown>` handoff 读取面 → typed 载体（16-prop task-handoff-schema 校验仍留 engine schema 面、**不做第二执法实现**）；③ `cli/parse.ts` 组合根静态可导入、零副作用约束保持 — checkable: 零空壳 class（代码评审实证：typed 载体无空方法壳）；handoff schema 校验仍在 schema 面（无双实现实证）
 
+- **DependsOn**: none
 - **AtomicWith**: 3, 4
 
 - **Acceptance**:
@@ -151,6 +158,7 @@ Task 2 落地后 pre-commit 触发 `biome check --write`（format autofix + lint
   1. `buildCtx`（task.ts）迁入 `TaskLifecycle` 类公共面（ctx 装配随类构造经注入接管）+ branch 族薄壳**并入组合根**：`runBranchReview` / `runBranchFix` 的 withLifecycle 薄转发逻辑并入 review/fix 组合根 type 路由，**删两文件**（判定标准⑤ · 死代码即删）；`cli/*.ts` 保持组合根（argv 解析 + 构造 + dispatch + 出口）——无转发壳 — checkable: buildCtx 类公共面实证；branch 族薄壳并入组合根实证（`cli/branch-review.ts` / `cli/branch-fix.ts` 删除 · review/fix 组合根覆盖 branch 派发）
   2. ② **`RoundContext`** 类（round 基准 · base token · 轮次锚）；③ **`ProgressLedger`** 类（六 key 账本 · `rowFor/entryFor` 单源 + 写入不变量）；④ **`Handoff`** typed 载体类（构建/命名/落盘/终态化；schema 校验归 schema 面）；⑤ **`ResidueManager`** 类（residue 检测/结算/恢复状态机；`RecoveryInfo/DeadCarrierRead/ResidueAppendixInput` 收编）；⑥ engine 测试随类化同步改造（breaking 允许） — checkable: `RoundContext`/`ProgressLedger`/`Handoff`/`ResidueManager` 类落地 + 测试绿；progress 六 key + rowFor/entryFor 单源不变量保持；handoff 命名/finalize 行为经类面等价
 
+- **DependsOn**: none
 - **AtomicWith**: 7, 8
 
 - **Acceptance**:
@@ -172,6 +180,7 @@ Task 2 落地后 pre-commit 触发 `biome check --write`（format autofix + lint
   2. ② engine 导出函数面随类化重排（`runTask` → `TaskLifecycle.run` · `runDocsTask` → `DocsLifecycle.run` · `generateBrief` → `BriefRenderer#render`）——**无薄壳转发保红线**（判定标准⑤）；③ engine 测试套件随导出面改造；④ docContractValidate 四表/结构抽取行为经类化后不变 — checkable: `BriefRenderer` 化实证（generateBrief 公开面 → #render 方法）；导出函数面破坏性重排到位 + engine 测试全绿；docContractValidate 行为无损；argv 契约面回归（--tasks/--type/--plan/--findings 经 bin 入口现场 dispatch 实证零回归）
   3. **命名豁免清单**（infra 原语/运行时工具面——不建单方法空壳 class，不扩表）：infra/exit.ts · infra/log.ts · infra/resource.ts · infra/context.ts · artifacts/hash.ts · documents/tokens.ts · dispatch/hooks.ts · cli/result-face.ts — checkable: 豁免清单八项不扩表（新增豁免须经 review 裁定）；spec §2.1「零模块级裸函数模块」口径按执法集 + 豁免清单落定
 
+- **DependsOn**: none
 - **AtomicWith**: 6, 8
 
 - **Acceptance**:
@@ -192,6 +201,7 @@ Task 2 落地后 pre-commit 触发 `biome check --write`（format autofix + lint
   1. ① `finalize.ts` 状态派生族产出**第三状态值**——blocker>0 → `CHANGES_REQUESTED` · blocker=0∧warn/nit>0 → **`REVIEW_FIX`（收口态）** · 零 → `APPROVED`；② `rules/status.ts` `deriveTaskState`：`REVIEW_FIX` → **fix 轮路由 → complete**（与 S1 needs-fix→needs-re-review 区分 · **无 re-review**）；S3 零 finding → APPROVED → complete（fast path 不变） — checkable: 状态词汇三值实证（handoff `status` enum 含 REVIEW_FIX · finalize 三值产出 · deriveTaskState 路由：S2 收口态 → fix 轮 complete 无 re-review、S3 零 finding 直通）
   2. ③ fix dispatch 对收口态放行（与 needs-fix 同 gate）——**fix 行为零改动**（无 per-finding disposition 新机制 · 无 tag 过滤）；④ handoff docs+task schema `status` enum 增 `REVIEW_FIX`；⑤ engine 测试自造链（mkdtemp）：S1 blocker 循环回归 · S2 收口态 → `cdd fix --findings` → complete 无 re-review · S3 零 finding fast path；⑥ stdout status 行呈现收口态 — checkable: S2 复用现有 `cdd fix --findings`、零 per-finding behavior、零 tag 过滤；历史终态不回滚（旧 APPROVED+findings → complete 终态保留）；breaking 登记：REVIEW_FIX 词汇新值入 changelog、1.0.0 收口就绪
 
+- **DependsOn**: none
 - **AtomicWith**: 6, 7
 
 - **Acceptance**:
@@ -204,6 +214,8 @@ Task 2 落地后 pre-commit 触发 `biome check --write`（format autofix + lint
 ### Task 9: scripts 编排类化（TG5）
 
 - **Objective**: scripts 编排类化（TG5）：Command 类族 + ValidateBlock 类族 + run.ts 命令树类化
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: `run.ts` citty 命令树 → `Command` 类族（装配 + invoke + meta）+ validate `steps` → `ValidateBlock` 类族 + `ValidateRunner`（单循环）；11 步名/序/域事实字节保持；scripts/lib 纯工具类化
 
@@ -232,6 +244,7 @@ Task 2 落地后 pre-commit 触发 `biome check --write`（format autofix + lint
   2. ② **Pending Acceptance Patch 移除面**：`writing-plans` 删 `## Pending Acceptance Patch` 条件节 · I3 改述（authority 句改写「跨 task 裁决由 orchestrator 以 Plan Sole Writer **直写目标 task 的 Do 与验收**；fix/implement agents 零 plan 修改权」）· fix 节点 tag 句删；`cli-driven-development` **I6 整条删** · fix 节点 tag 句删 · I7 改指 Plan Sole Writer；④ schema 面：`plan.json` 删 `pendingAcceptancePatch` 节点 · `skill-anatomy.json` 条件节注册表删条目 + **growth 注册表删 cli-driven-development 越界条目** — checkable: PAP 移除面零活残留（zone / `accepts pending-acceptance-patch` / `targets later task` / `## Pending Acceptance Patch` heading 零活面 grep · plan.json 无节点 · skill-anatomy 注册表无条件节 · cli-development 无 I6 且 I7 改指 Plan Sole Writer；**跨 task 裁决直写实证**：orchestrator 直写 Do 与 验收 → brief 抽取逐字携带）
   3. ③ **裁定迁移 + loop 更名**：`writing-plans` 文本（author-plan 内**非交互**裁定分组落盘「Task Groups」节 + plan `taskGroups` 声明 · 无 AskUserQuestion · 零分组无节）；`cli-driven-development` 移除 `adjudicate-task-groups` 节点与定义 + `task-groups-undecided` 终端（`C → D` 直连）· **loop 更名 group-***（`implement-group` / `run-group-review` / `fix-group` · `more-groups?` 保留 · 组列表 = 声明合并组 ∪ 未覆盖任务单组） — checkable: 裁定迁移实证（writing-plans 无 AskUserQuestion 且含 authoring 期裁定落盘语义 · cli-development digraph 无 adjudicate-task-groups / 无 task-groups-undecided · `C → D` 直连 · 节点更名 group-* · more-groups? 保留）；零白绿：digraph-consistency 断言全绿
 
+- **DependsOn**: none
 - **AtomicWith**: 11
 
 - **Acceptance**:
@@ -254,6 +267,7 @@ Task 2 落地后 pre-commit 触发 `biome check --write`（format autofix + lint
   2. ② **破坏面 changelog 登记就绪**（cdd-engine breaking 四面：OOP restructure · 4 major deps · REVIEW_FIX 词汇 · PAP 移除面；osuperpowers：skills 文本变更）；③ changeset 落盘（cdd-engine major · osuperpowers feature/docs）；④ **plan complete 后四表回填**（backfill-overall——branch-review 前置义务）：P4.4 行 Design-spec 列 → `[p4.4-design v1.8]` link · Implementation plan 列 → `Done` · change-history v-bump + closeout claim — checkable: changeset 存在（cdd-engine major breaking · osuperpowers 变更面归属清晰）；破坏面登记 changelog（1.0.0 收口就绪）；P4.4 行四表回填实证（Design-spec link · Implementation plan Done · change-history claim 双向一致）
   3. ⑤ 零残面 sweep——按 Task 7 验收执法集 + 命名豁免清单口径执行（执法集内零模块级裸函数导出 · 域接口零裸标量/裸 Record · 零模块级可变态 · 零转发壳 · 零空壳 class）；⑥ `biome check` 全仓零违规复核（Task 2 门终态确认） — checkable: 零残面 sweep 全绿 + biome 全仓零违规复核通过
 
+- **DependsOn**: none
 - **AtomicWith**: 10
 
 - **Acceptance**:

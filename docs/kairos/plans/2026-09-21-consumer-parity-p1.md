@@ -27,6 +27,8 @@
 ### Task 1: 13 件 frozen 文档 J1 主张改写 + 保留面实证（design §2.3/§2.5）
 
 - **Objective**: 执行 design §2.3 处置表与 §2.5 文字改动面的 **J1 主张改写 4 处**（守卫归属主张 → 历史时态中性句），并将 J2/J3 保留面 22 行按 design §2.3/§2.3.1 划类登记为实证——本 Task 为 P1 主体
+- **DependsOn**: none
+- **AtomicWith**: none
 - **Consumes**: design §2.3 处置表与 §2.5 文字改动面；13 件 frozen 文档的 J1/J2/J3 主张面（overall / 既有 specs 与 plans）
 - **Produces**: J1 4 处改写落地（`git diff` 仅触及主张句）；J2/J3 保留面 22 行划类登记实证
 - **Files**: `docs/kairos/specs/2026-09-13-osuperpowers-overhaul-overall.md`, `docs/kairos/specs/2026-09-13-osuperpowers-overhaul-p6-design.md`, `docs/kairos/plans/2026-09-13-osuperpowers-overhaul-p6.md`, `docs/kairos/plans/2026-09-13-osuperpowers-overhaul-p2.md`, `docs/kairos/specs/2026-09-13-osuperpowers-overhaul-p2-design.md`, `docs/kairos/specs/2026-09-13-osuperpowers-overhaul-p3-design.md`, `docs/kairos/plans/2026-09-13-osuperpowers-overhaul-p3.md`, `docs/kairos/plans/2026-09-13-osuperpowers-overhaul-p4.md`
@@ -42,6 +44,8 @@
 ### Task 2: S5 单行修正（design §2.4）
 
 - **Objective**: 修正 `scripts/run.ts:89` `smoke-cdd` 子命令描述 `(4-command H1 chain)` → `(5-command chain)`，与 smoke-cdd.ts 实际五命令一致
+- **DependsOn**: none
+- **AtomicWith**: none
 - **Consumes**: `scripts/run.ts:89` 现有描述（stale 4-command）；smoke-cdd.ts 实际五命令面
 - **Produces**: `scripts/run.ts` 与 `scripts/validate/smoke-cdd.ts` 描述/注释零 `\bH1\b` 退役词残留（F8a 语义化：return block）
 - **Files**: `scripts/run.ts` · `scripts/validate/smoke-cdd.ts`
@@ -54,6 +58,8 @@
 ### Task 3: AC1–AC5 收口复核 + changeset 裁决登记
 
 - **Objective**: 收口复核 AC1–AC5（grep 零 J1 现行主张 + block 12 2/2 + `run.ts:89` 一致 + 零实现改动断言），并作 P1 **changeset 裁决**登记
+- **DependsOn**: none
+- **AtomicWith**: none
 - **Consumes**: Task 1/2 产物（J1 改写 + J2/J3 登记 + `run.ts` 单行）；design AC1–AC5 验收面
 - **Produces**: AC1–AC5 逐条可复核的收口证据；changeset 裁决登记（P1 零 package 内容 → 不建空 changeset）
 - **Files**: 13 件 J1 改写 + J2/J3 登记 + `scripts/run.ts`（收口复核的变更面）

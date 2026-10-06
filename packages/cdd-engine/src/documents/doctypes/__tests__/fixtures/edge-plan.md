@@ -6,6 +6,8 @@ TaskGraph grouping derivation: task 2 depends on task 1, task 3 depends on task 
 ### Task 1: root
 
 - **Objective**: the root task of the edge plan
+- **DependsOn**: none
+- **AtomicWith**: none
 - **Files**: packages/cdd-engine/src/documents/doctypes/body/root.ts
 - **Consumes**: - none -
 - **Produces**: root output
@@ -18,6 +20,7 @@ TaskGraph grouping derivation: task 2 depends on task 1, task 3 depends on task 
 
 - **Objective**: the second task of the edge plan
 - **DependsOn**: 1
+- **AtomicWith**: none
 - **Steps**:
   1. implement the dependent — checkable: done
 - **Acceptance**:
@@ -27,6 +30,7 @@ TaskGraph grouping derivation: task 2 depends on task 1, task 3 depends on task 
 
 - **Objective**: the third task of the edge plan
 - **DependsOn**: 2
+- **AtomicWith**: none
 - **Steps**:
   1. implement the tail — checkable: done
 - **Acceptance**:

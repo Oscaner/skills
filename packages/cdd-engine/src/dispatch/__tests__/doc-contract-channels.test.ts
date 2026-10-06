@@ -122,6 +122,30 @@ const PLAN = [
   "### Task 1: x",
   "",
   "- **Objective**: task one",
+  "- **DependsOn**: none",
+  "- **AtomicWith**: none",
+  "- **Steps**:",
+  "  1. implement — checkable: done",
+  "- **Acceptance**:",
+  "  - done",
+  "",
+].join("\n");
+
+// A MISSING-EDGE plan (P3.1 T3 — the sixth failure class): the task block carries its data fields
+// but neither one of the two mandatory edge lines — the doc-contract gate's structure plane
+// judges it a missing-edge BLOCK (never a silent no-edge default).
+const MISSING_EDGE_PLAN = [
+  "# Plan",
+  "",
+  "**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)",
+  "",
+  "## Constraints",
+  "",
+  "- boundary one",
+  "",
+  "### Task 1: x",
+  "",
+  "- **Objective**: task one",
   "- **Steps**:",
   "  1. implement — checkable: done",
   "- **Acceptance**:",
@@ -155,11 +179,16 @@ const CLEAN_OVERALL = [
 ].join("\n");
 const DANGLING_OVERALL = CLEAN_OVERALL.replace("\n```\nP1\n```", "\n```\nP1 -> P9\n```");
 
-/** write the committed doc chain; `overallBody` selects the four-table state (clean default). */
-function writeChain(repo: string, overallBody: string = CLEAN_OVERALL): void {
+/** write the committed doc chain; `overallBody` selects the four-table state (clean default),
+ *  `planBody` the plan content (the conformant default). */
+function writeChain(
+  repo: string,
+  overallBody: string = CLEAN_OVERALL,
+  planBody: string = PLAN,
+): void {
   mkdirSync(path.join(repo, SPEC_DIR), { recursive: true });
   mkdirSync(path.join(repo, PLAN_DIR), { recursive: true });
-  writeFileSync(path.join(repo, PLAN_DIR, "plan.md"), PLAN);
+  writeFileSync(path.join(repo, PLAN_DIR, "plan.md"), planBody);
   writeFileSync(path.join(repo, SPEC_DIR, "plan-design.md"), SPEC);
   writeFileSync(path.join(repo, SPEC_DIR, "plan-overall.md"), overallBody);
   git(repo, "add", "-A");
@@ -253,6 +282,41 @@ describe("task channel — the base-default docContractValidate (four-table audi
     const r = await runTaskReview(repo, true, null);
     expect(r.exitCode).toBe(0);
     expect(r.stderr).toContain("CDD_WARN: doc contract validation skipped (no repo root)");
+  });
+});
+
+describe("task channel — the missing-edge gate pre-flight (P3.1 T3 — the sixth failure class)", () => {
+  it("a plan whose task block declares neither edge line → the gate blocks pre-flight via the structure plane (dry-run: the missing-edge findings ride the WARN lane — the asserted negative)", async () => {
+    const repo = setupRepo();
+    writeChain(repo, CLEAN_OVERALL, MISSING_EDGE_PLAN);
+    // The dry-run negative (I7: dry-run never blocks): the missing-edge BLOCKs lower to CDD_WARN,
+    // the stderr carries the finding ids — the forgot-an-edge → explicit-BLOCK face asserted on
+    // the channel.
+    const r = await runTaskReview(repo, true);
+    expect(r.exitCode).toBe(0);
+    expect(r.stderr).toContain("CDD_WARN: doc structure invalid (dry-run)");
+    expect(r.stderr).toContain("- [structure] plan.missingEdgeDependsOn");
+    expect(r.stderr).toContain("- [structure] plan.missingEdgeAtomicWith");
+  });
+
+  it("real mode: the same missing-edge plan → CDD_BLOCKED + exit 1 (the edge-completeness BLOCK, never a silent no-edge dispatch)", async () => {
+    const repo = setupRepo();
+    writeChain(repo, CLEAN_OVERALL, MISSING_EDGE_PLAN);
+    const r = await runTaskReview(repo);
+    expect(r.exitCode).toBe(1);
+    expect(r.diagnostic?.prefix).toBe("CDD_BLOCKED");
+    expect(r.diagnostic?.msg).toMatch(/doc contract validation failed/);
+    expect(r.diagnostic?.msg).toContain("plan.missingEdgeDependsOn");
+    expect(r.diagnostic?.msg).toContain("plan.missingEdgeAtomicWith");
+  });
+
+  it("the conformant two-edge-line plan passes the gate — zero missing-edge findings on the clean chain (the negative-negative)", async () => {
+    const repo = setupRepo();
+    writeChain(repo);
+    const r = await runTaskReview(repo, true);
+    expect(r.exitCode).toBe(0);
+    expect(r.stderr).not.toContain("plan.missingEdge");
+    expect(r.stderr).not.toContain("doc structure invalid");
   });
 });
 

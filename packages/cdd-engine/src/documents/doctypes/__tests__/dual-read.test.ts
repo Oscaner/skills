@@ -171,6 +171,22 @@ describe("full-tree single-form walk — the entire docs/kairos tree (50 files, 
         ).toBe(true);
       }
     }
+    // The edge-line face (P3.1 T3 — 48-file walk carrying the two-line edge surface): every task
+    // block declares both mandatory edge lines (the structure plane enforces it — the per-file
+    // counts pin lives in tree-migration.test.ts; this walk's structureFindings = 0 assertion
+    // fails the missing-edge rules, and the presence counts stay explicit here).
+    for (const file of readdirSync(PLANS_DIR).filter((f) => f.endsWith(".md"))) {
+      const content = readFileSync(path.join(PLANS_DIR, file), "utf8");
+      const blockCount = (content.match(/^### Task \d+:/gm) ?? []).length;
+      expect(
+        (content.match(/^- \*\*DependsOn\*\*:/gm) ?? []).length,
+        `${file} DependsOn edge-line count == task-block count`,
+      ).toBe(blockCount);
+      expect(
+        (content.match(/^- \*\*AtomicWith\*\*:/gm) ?? []).length,
+        `${file} AtomicWith edge-line count == task-block count`,
+      ).toBe(blockCount);
+    }
   });
 
   it("every design spec stays processable: detect + the version-line parse (the validate state table lives in tree-migration.test.ts)", () => {

@@ -437,6 +437,8 @@ describe("the DocBody rule-data seam (T1 — abstract default; T2 — the concre
     expect(planBody.structureRules().map((r) => r.id)).toEqual([
       "plan.tasks",
       "plan.recordData",
+      "plan.missingEdgeDependsOn",
+      "plan.missingEdgeAtomicWith",
       "plan.checkable",
       "plan.constraints",
       "plan.legacySections",

@@ -49,6 +49,8 @@
 ### Task 1: C1 Harness 抽象（scripts/lib/harness-registry.ts + 单测）
 
 - **Objective**: C1 Harness 抽象（scripts/lib/harness-registry.ts + 单测）：Harness 五类 + registry 双射 + 字节 pin
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: `scripts/lib/harness-registry.ts`（Harness/CursorHarness/ClaudeHarness/PiHarness/HarnessRegistry/harnessRegistry）+ `harness-registry.test.ts` 全绿；既有树零改动（ManifestService 两 builder 暂留）
 
@@ -66,6 +68,8 @@
 ### Task 2: C4 包侧声明 + source.ts registry 派生（原子 rename 束）
 
 - **Objective**: C4 包侧声明 + source.ts registry 派生（原子 rename 束）：oscaner key rename + deriveFirstPartyNames 迁移
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: `oscaner-plugin` → `oscaner` key rename（harnesses 三含 / keywords 单源 / claude category / 零 harnessesNote）+ `scripts/lib/first-party.ts` + source.ts 经 registry 派生；重 emit 产物字节零变化（D7）
 
@@ -84,6 +88,8 @@
 ### Task 3: C2 emitter 泛化 + C3 命名 + keywords 单源收编
 
 - **Objective**: C2 emitter 泛化 + C3 命名 + keywords 单源收编（PluginManifestEmitter + name-dispatch 删除 + 两 builder 删除）
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: `scripts/emit/plugin-manifests.ts`（PluginManifestEmitter，声明集直读包侧 harnesses）；`all.ts` 零 name-dispatch；`manifests.ts` 仅余 deriveFirstPartyNames 委托 + generatedBanner
 
@@ -101,6 +107,8 @@
 ### Task 4: C5 validate 一致守卫 + P1 守卫折叠 + wiring name-set
 
 - **Objective**: C5 validate 一致守卫 + P1 守卫折叠 + wiring name-set（emit harness registry consistency 三断言）
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: `emit harness registry consistency` CheckBlock（resolve / assertBidirectional / product-exists 三断言）；`checkPiPackageWellFormed` 折叠为 PiHarness.validatePackage 薄代理；ci-validate name-set 增新 step 名
 
@@ -118,6 +126,8 @@
 ### Task 5: 文档 sweep + 零残留 + changeset + 终验收口
 
 - **Objective**: 文档 sweep + 零残留 + changeset + 终验收口（oscaner-plugin → oscaner 词形清扫 7 文件 + changeset 建）
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: live 面（CLAUDE.md / README 家族 / marketplace/README / scripts / package.json）零 `oscaner-plugin` 残留；changeset 文件（osuperpowers breaking）；终验（validate 全块 + precommit + emit:check fresh + D7 产物零 diff）
 
@@ -135,6 +145,8 @@
 ### Task 6: C6 提交门工具链（lint-staged · no-fix，2026-09-29 用户拍板并入）
 
 - **Objective**: C6 提交门工具链（lint-staged · no-fix）：pre-commit 迁 `pnpm exec lint-staged` 单行 + biome no-fix 门
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Produces**: `.husky/pre-commit` = `pnpm exec lint-staged` 单行；`lint-staged.config.mjs`（`*.ts → biome check` 无 `--write` · `* → pnpm run precommit`）；`biome-wiring.test.ts` 重写；lint-staged devDependency
 

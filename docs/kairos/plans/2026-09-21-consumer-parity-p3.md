@@ -35,6 +35,8 @@ dispatch 两端门——入口门（进入 review 前工作树干净）+ 出口�
 ### Task 1: S1/S2 守卫退役 + validate 接线净化（design §2.1/§2.4 · AC1/AC4）
 
 - **Objective**: S1/S2 守卫整体退役（overall-consistency · plan-spec-anchors）+ validate 接线净化（steps 12→11 全语义名 + 钉死面同步 + AC4 探针）
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Consumes**: design §2.1/§2.4 退役清单；`scripts/validate/` 现状接线（index.ts · pre-commit.ts · ci-validate.test.mjs 钉死面）
 
@@ -57,6 +59,8 @@ dispatch 两端门——入口门（进入 review 前工作树干净）+ 出口�
 ### Task 2: 42 行逐案对照表落盘（design §2.1 · AC1 后半）
 
 - **Objective**: 42 行 repo 断言逐案恢复（git show HEAD^: 两测试文件）并逐案映射 engine 对应用例（file:line + 覆盖判定），落盘对照表
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Consumes**: T1 删除后的 HEAD 树（两测试文件已删）；`git show HEAD^:scripts/validate/__tests__/overall-consistency.test.ts`（27 条）与 plan-spec-anchors.test.ts（15 条）
 
@@ -76,6 +80,8 @@ dispatch 两端门——入口门（进入 review 前工作树干净）+ 出口�
 ### Task 3: canary-dogfood.test.ts 删除 + engine 套件零产物 fixture 实证（design §2.2 · AC2）
 
 - **Objective**: 删除 canary-dogfood.test.ts（产物 fixture 耦合病）并实证 engine 套件零本仓产物 fixture
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Consumes**: `packages/cdd-engine/src/rules/__tests__/canary-dogfood.test.ts`（79 行，硬编码 `docs/osuperpowers/specs/2026-09-21-consumer-parity-*.md` 三条真实路径为 fixture）
 
@@ -95,6 +101,8 @@ dispatch 两端门——入口门（进入 review 前工作树干净）+ 出口�
 ### Task 4: canonical phase-id 语法严格 A（design §2.3 · AC3）
 
 - **Objective**: canonical phase-id 语法严格 A 落地（overall.json 全 8 处 pattern 迁移 + description 全写 + engine 消费面改造 + split-phase 测试全量 P2.1 化）
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Consumes**: `packages/cdd-engine/src/documents/schema/overall.json` 现状 8 处 phase-id pattern；tokens.ts deriveDocTokens / documents.ts ownDesignToken / phaseIdFromPlan 消费面
 
@@ -115,6 +123,8 @@ dispatch 两端门——入口门（进入 review 前工作树干净）+ 出口�
 ### Task 5: skills 调用 cdd 输出零过滤 + fix 边界条款 + mid-flight backfill 落点（design §2.8/§2.2/§2.10 · AC8）
 
 - **Objective**: skills 调用 cdd 输出零过滤指引落地 + fix 边界条款（编排者只读 status/blocker、findings 交 fix-agent）+ mid-flight backfill 落点（五件 SKILL.md Invariants + entry-gate 句）
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Consumes**: design §2.8/§2.2/§2.10 措辞；八件 `packages/osuperpowers/skills/*/SKILL.md` 的 cdd 调用指引节点
 
@@ -135,6 +145,8 @@ dispatch 两端门——入口门（进入 review 前工作树干净）+ 出口�
 ### Task 6: docs-family 命令出口统一 + exit.ts 出口单源（design §2.9 · AC9）
 
 - **Objective**: docs-family 命令出口统一（exit.ts 增 exitOkWith + result-face 构建 + cli 双通道接线）+ 命令级裸 return 零命中
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Consumes**: design §2.9（D2）；`packages/cdd-engine/src/infra/exit.ts` 现状出口族；`cli/review.ts` / `cli/fix.ts` 的 docs 面裸 return 点
 
@@ -154,6 +166,8 @@ dispatch 两端门——入口门（进入 review 前工作树干净）+ 出口�
 ### Task 7: consumer-sim（smoke-cdd 升级 · 挂 release 门）（design §2.6 · AC6）
 
 - **Objective**: consumer-sim（smoke-cdd 升级 · 挂 release 门）：prepare 钩子移除 + tarball 内容断言 + mkdtemp 消费者链 + 5-command dry-run 链
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Consumes**: design §2.6（AC6）；`packages/cdd-engine/package.json` prepare 钩子 / `scripts/validate/smoke-cdd.ts`（157 行）；`.github/workflows/release.yml` / `pr-validate.yml` 挂点
 
@@ -174,6 +188,8 @@ dispatch 两端门——入口门（进入 review 前工作树干净）+ 出口�
 ### Task 8: S3 残留改写 + 运维规范落档 + 全链收口（design §2.5/§2.7 · AC5/AC7/AC10）
 
 - **Objective**: S3 残留簇改写（engine 执法位 / 历史时态）+ 运维规范八项落档 + overall v1.18 回填 + 全链收口复核
+- **DependsOn**: none
+- **AtomicWith**: none
 
 - **Consumes**: design §2.5/§2.7（AC5/AC7/AC10）；overall 四处现行 claim / `docs/maintainers/osuperpowers-plugin.md:116-120` / `CLAUDE.md:47` / `writing-overall-spec/SKILL.md:54`
 

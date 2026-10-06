@@ -1,11 +1,12 @@
 // packages/cdd-engine/src/documents/doctypes/body/__tests__/task.test.ts — the plan task data model
 // (P2 T1; plan §T1 · Criterion ②). Covers the T1 task-model deliverable surface: the full field
 // family (objective / files / interface{consumes,produces} / steps{action,checkable} / acceptance
-// + the optional dependsOn?/atomicWith? edge fields) carries constructor-injected identity on a
-// read-only face; the optional edge fields are absent-on-default (no declaration leaves them
-// undefined); and the required step.checkable is a type-level constraint — enforced by the repo
-// tsc --noEmit gate (the NotAssignable assertion below), never by a runtime guard (the schema-
-// validation machine face the T3 PlanBody brief render consumes).
+// + the NON-OPTIONAL dependsOn/atomicWith edge fields) carries constructor-injected identity on a
+// read-only face; the edge fields default to `[]` on absence (the no-edge default — the P3.1 T3
+// absent-default pin retirement) and the missing-edge record defaults false; and the required
+// step.checkable is a type-level constraint — enforced by the repo tsc --noEmit gate (the
+// NotAssignable assertion below), never by a runtime guard (the schema- validation machine face the
+// T3 PlanBody brief render consumes).
 import { describe, expect, it } from "vitest";
 import { Task, type TaskStep } from "../task.ts";
 
@@ -67,9 +68,10 @@ describe("Task — the plan task data model", () => {
     expect(task.acceptance).toEqual(["doc-body.ts carries the two projection contract surfaces"]);
     expect(task.dependsOn).toEqual([2]);
     expect(task.atomicWith).toEqual([3]);
+    expect(task.missingEdge).toBe(false);
   });
 
-  it("the edge fields are optional — absent by default", () => {
+  it("the edge fields are non-optional — absent declarations default to `[]` (the P3.1 T3 absent-default pin retirement: `toBe([])` replaces the retired `toBeUndefined()`)", () => {
     const task = new Task({
       objective: "Minimal task without the edge-model bits",
       files: [],
@@ -77,8 +79,9 @@ describe("Task — the plan task data model", () => {
       steps: [],
       acceptance: [],
     });
-    expect(task.dependsOn).toBeUndefined();
-    expect(task.atomicWith).toBeUndefined();
+    expect(task.dependsOn).toEqual([]);
+    expect(task.atomicWith).toEqual([]);
+    expect(task.missingEdge).toBe(false);
   });
 
   it("a checkable-carrying step constructs (the accept side of the step contract)", () => {

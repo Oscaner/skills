@@ -3,7 +3,7 @@
 **Spec:** [2026-10-02-doc-architecture-v2-p3.1-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3.1-design.md)（spec v1.6）
 
 - **Parent program**: [doc-architecture-v2-overall.md v1.14](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.6 · 2026-10-07
+- **Version**: v1.7 · 2026-10-07
 - **Depends on**: P3（shipped · [p3-design v1.1](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3-design.md)）
 - **Base**: develop
 
@@ -21,7 +21,7 @@
   - 反依赖门误伤面——编号单调断言只拦 `DependsOn` 引用 ≥ 自身；`none`/空/越界（> taskCount）不触发反依赖；T3 负例集
 - 死代码/空壳全平面清理（P3.1 补充条例 2026-10-06 用户）：各迁移/引擎任务先删后验——退役符号/废弃夹具/空壳叶零残留；存量 plan 未解析 steps 面（`- [ ]` 散文行）在 T3 一并规范化 `N. … — checkable:`（每步含 checkable）
 - **编排状态机一体重建（spec v1.6 · 用户 2026-10-06 拍板）**：边模型单边化（`DependsOn` 唯一 · `AtomicWith`/`taskGroups` 退役）+ 反依赖门 + TaskGraph `batches()`/`frontier(done)` 两面 + `next:` 组间推荐 + skills 编排精简一体落地本 phase（group-next 从 P5 摘回）；同行变更经 overall v1.14 / spec v1.6 登记
-- **父面消解待办登记（交编排方随父面下轮修订落位 · 本 plan 冻结期不并改冻结父面）**：(a) 父 overall v1.14（本 plan 锚定面）P3.1 执行序行「统一引擎落地（F9）」与 F1–F7 清单不符（F6 = 统一结构规则引擎）——修订为 F6 或删除；(b) 父 overall v1.12 change-history ②「`DependsOn` 不用 `none`（缺行 = 无边）」与本 phase 词法（none/空均合法，见本 plan「全树每块单边绑定」）字面矛盾——T7 向 cdd-plan SKILL 写「`none` 显式」撰作指导前须先消解：none 词法 / 留空二选一；（a)/(b) 均纳入 T8 终验 / branch-review 检查面复核在位，防待办随阶段丢失
+- **父面消解待办登记（交编排方随父面下轮修订落位 · 本 plan 冻结期不并改冻结父面）**：(a) 父 overall v1.14（本 plan 锚定面）P3.1 执行序行「统一引擎落地（F9）」与 F1–F7 清单不符（F6 = 统一结构规则引擎）——修订为 F6 或删除；(b) 父 overall v1.12 change-history ②「`DependsOn` 不用 `none`（缺行 = 无边）」与本 phase 词法（none/空均合法，见本 plan「全树每块单边绑定」）字面矛盾——none/留空词法已随本 plan 定例（实施按 spec §2.3 执行：none 与空均合法 → `[]`，撰作面 `none` 显式，不做 T7 实施前置、不 gate 撰作面），剩余消解 = 父 overall v1.12 change-history ② 历史文字修订（交编排方随父面下轮修订落位）；（a)/(b) 均纳入 T8 终验 / branch-review 检查面复核在位，防待办随阶段丢失
 
 ---
 
@@ -164,31 +164,31 @@
 
 ### Task 7: 编排动态面 + next 路由器 + ExecutionState + skills 精简（消费面同步）
 
-- **Objective**: TaskGraph 动态面 `frontier(done)` + `next:` 路由器单点 `nextStep(state, ref)`（同环优先 ∧ closure→frontier）+ ExecutionState 查询面（ProgressLedger 升 `doneTasks()`/`readyBatch()`）+ skills 编排精简（cdd-dev loop 判定 → next 消费 · cdd-spec/plan/phase/charter 三态循环同路由——cdd-spec/phase/charter 零文案改动，收敛全在 engine 侧 `nextStep`）+ 撰作面（单边 · 反依赖指导 · designItems/charter）+ 三 schema description 终核（零程序历史）+ shipped grep pin 扩展 + emit——engine 成为「计划自执行状态机」，skills 收薄为「入口 + 异常面」
+- **Objective**: TaskGraph 动态面 `frontier(done)` + `next:` 路由器单点 `NextStepRouter.next`（`NextStepArgs` 输入面 · 同环优先 ∧ closure→frontier，符号名沿用现役不减不增）+ ExecutionState 查询面（ProgressLedger 升 `doneTasks()`/`readyBatch()`）+ skills 编排精简（cdd-dev loop 判定 → next 消费 · cdd-spec/plan/phase/charter 三态循环同路由——cdd-spec/phase/charter 零文案改动，收敛全在 engine 侧 `NextStepRouter`）+ 撰作面（单边 · 反依赖指导 · designItems/charter）+ 三 schema description 终核（零程序历史）+ shipped grep pin 扩展 + emit——engine 成为「计划自执行状态机」，skills 收薄为「入口 + 异常面」
 - **Consumes**: T3 `validate`/`batches` · T4/T5 迁移 · T6 lint · 现有 ProgressLedger / dispatch next 拼装面
-- **Produces**: `frontier(done): TaskBatch` 动态面 · `nextStep(state, ref)` 路由器（同环优先 + closure→frontier）· ExecutionState 查询面（`doneTasks()`/`readyBatch()`）· skills 编排精简面——P5 graph-node ref 消费底座
+- **Produces**: `frontier(done): TaskBatch` 动态面 · `NextStepRouter.next` 路由器单点（`NextStepArgs` 输入面 · 同环优先 + closure→frontier，符号名沿用现役不减不增）· ExecutionState 查询面（`doneTasks()`/`readyBatch()`）· skills 编排精简面——P5 graph-node ref 消费底座
 - **DependsOn**: 3, 4, 5, 6
 - **Files**:
   - Modify: `packages/cdd-engine/src/documents/doctypes/body/task-graph.ts`（`frontier(done: DoneSet): TaskBatch`——最小编号未完成且 DependsOn ⊆ done 的任务集 = 下一就绪波次）
-  - Modify: `packages/cdd-engine/src/rules/next-step.ts`（`nextStep` 路由器单点——**已现役**（T3 期已建：C5 `next:` 决策表 + spec/plan docHash ref · task/branch commit-range ref 同路由，dispatch/task|branch · cli/review|fix · result-face 已接线），T7 扩展 closure→`frontier(done)` 动态面——非 Create）
+  - Modify: `packages/cdd-engine/src/rules/next-step.ts`（`NextStepRouter.next` 路由器单点——**已现役**（T3 期已建：C5 `next:` 决策表 + spec/plan docHash ref · task/branch commit-range ref 同路由，dispatch/task|branch · cli/review|fix · result-face 已接线），T7 扩展 closure→`frontier(done)` 动态面——非 Create）
   - Modify: `packages/cdd-engine/src/dispatch/task.ts` + `dispatch/docs.ts` + `dispatch/branch.ts` + `cli/review.ts` + `cli/fix.ts` + `rules/result-face.ts`（`next:` 拼装 6+ 处 → 同一路由器单点（docs 面同收：现仅 crash 恢复行）；旧拼装符号 grep 零残留）
   - Modify: `packages/cdd-engine/src/artifacts/progress.ts`（ProgressLedger 升图友好查询面：`doneTasks(): Set<number>` 每轮 handoff 结论收敛 · `readyBatch(): TaskBatch` = frontier 直接来源；`base-branch`/`crash`/`handoff` 三 artifact 面不动）
   - Modify: `packages/kairos/skills/cdd-dev/SKILL.md`（flow 精简：loop 判定 → next 消费 · 异常/人工面保留——HARNESS_ABORT 恢复 · backfill 暂停 · adjudication 覆盖 · Plan Sole Writer）
   - Modify: `packages/kairos/skills/cdd-plan/SKILL.md`（author-plan 撰作面：`DependsOn` 单边行必带 · `none` 显式 · 反依赖指导 · designItems `####` 撰作 · charter facets 指导 · plan-review 必答问题「所有边已声明」）
-  - 零文案改动声明: cdd-spec / cdd-phase / cdd-charter 三 SKILL 不在编辑清单——本任务零改动（既有 `next:` 消费已就位，路由收敛全在 engine 侧 `nextStep`，无文案面需动）
+  - 零文案改动声明: cdd-spec / cdd-phase / cdd-charter 三 SKILL 不在编辑清单——本任务零改动（既有 `next:` 消费已就位，路由收敛全在 engine 侧 `NextStepRouter`，无文案面需动）
   - Modify: `packages/kairos/tests/grep-sweep-regression.test.ts`（shipped 零程序历史 pin 扩展新 token）
   - Modify: `packages/cdd-engine/src/documents/doctypes/body/*.ts`（三 schema description 终核）
   - 运行: `pnpm run emit`（SKILL.md 变更后必跑）
 - **Steps**:
   - 1. frontier 动态面——checkable: `TaskGraph.frontier(done)` 返回下一就绪波次（最小编号未完成 + DependsOn ⊆ done）；推进序列断言（P3.1 自身：∅ → {T1} → {T2} → {T3,T4,T5} → {T6} → {T7} → {T8}）；行为 = `batches()` 流式版（done 全完跑 = batches 全序列）
-  - 2. next 路由器单点——checkable: `nextStep(state, ref)` 统一推导；同环优先（review CHANGES_REQUESTED/REVIEW_FIX → fix · fix 后 blocker>0 → re-review · closure → frontier）；spec/plan（docHash ref）与 task/branch（commit-range ref）同一路由器；旧拼装面删除（grep 零残留）
-  - 3. ExecutionState 查询面——checkable: ProgressLedger 增 `doneTasks()`/`readyBatch()`（APPROVED/COMPLETED 闭合组计入 DoneSet）；三 artifact 面（base-branch/crash/handoff）确认零改动（已是单所有权，无重复）
-  - 4. skills 编排精简——checkable: cdd-dev flow 的 loop 判定（`more-groups?`/下一组选择）改为 `next:` 消费；异常/人工面保留（HARNESS_ABORT 恢复 · backfill 暂停 · adjudication 覆盖 · Plan Sole Writer）；cdd-spec/phase/charter 零文案改动（消费端已就位，既有 `next:` 已指 fix/commit）· cdd-dev/cdd-plan 文案按 Files 清单更新——三态循环同路由收敛全在 engine 侧 `nextStep`；文本 English-primary、零程序历史
+  - 2. next 路由器单点——checkable: `NextStepRouter.next` 统一推导（`NextStepArgs` 输入面 · 符号名沿用现役不减不增，不新建 `nextStep` 包装/重命名符号）；同环优先（review CHANGES_REQUESTED/REVIEW_FIX → fix · fix 后 blocker>0 → re-review · closure → frontier）；spec/plan（docHash ref）与 task/branch（commit-range ref）同一路由器；旧拼装面删除（grep 零残留）
+  - 3. ExecutionState 查询面——checkable: ProgressLedger 增 `doneTasks()`/`readyBatch()`（APPROVED/COMPLETED 闭合组计入 DoneSet；按 spec §2.6 以 commit/ref 边界锚定——当前分支 commit-range 内 handoff 结论 + changes[] 收敛方计入，防 stale workspace 遗留 handoff 跨分支串态误计）；三 artifact 面（base-branch/crash/handoff）确认零改动（已是单所有权，无重复）
+  - 4. skills 编排精简——checkable: cdd-dev flow 的 loop 判定（`more-groups?`/下一组选择）改为 `next:` 消费；异常/人工面保留（HARNESS_ABORT 恢复 · backfill 暂停 · adjudication 覆盖 · Plan Sole Writer）；cdd-spec/phase/charter 零文案改动（消费端已就位，既有 `next:` 已指 fix/commit）· cdd-dev/cdd-plan 文案按 Files 清单更新——三态循环同路由收敛全在 engine 侧 `NextStepRouter`；文本 English-primary、零程序历史
   - 5. 撰作面 + schema 终核——checkable: author-plan 指导含「每任务块必带 `- **DependsOn**:` 单行（`none` 显式）· 反依赖（仅可引用更小编号）· design body 以 `#### N.M` item 叶撰作 · charter facets 撰作（facets/决策留存 `###` · 决策组/背书 `####`）」；plan-review 必答问题「所有边已声明」在「尚未答复」态不可放行；`grep-sweep-regression.test.ts` 新 token（P3.1 面叙事 / 伪标题指导）零命中；三 schema description 与 body 派生一致（factory diff pin 绿）
   - 6. emit + 回归——checkable: `pnpm run emit` 后 `pnpm run emit:check` 干净（无 drift）；precommit 过
   - 7. 提交——checkable: 提交，pre-commit 通过
 - **Acceptance**:
-  - `- ` `frontier(done)` 动态面断言（P3.1 推进序列）· `nextStep` 路由器单点（旧拼装符号 grep 零残留）
+  - `- ` `frontier(done)` 动态面断言（P3.1 推进序列）· `NextStepRouter.next` 路由器单点（符号名沿用现役不减不增 · 旧拼装符号 grep 零残留）
   - `- ` ExecutionState 查询面（`doneTasks()`/`readyBatch()`）落地 · 三 artifact 面零改动
   - `- ` skills 编排精简：cdd-dev loop 判定 → next 消费 · 异常/人工面保留 · cdd-spec/phase/charter 零文案改动（同路由 next 消费已就位）· cdd-dev/cdd-plan 文案按清单更新 · English-primary 零程序历史
   - `- ` cdd-plan/cdd-dev SKILL 撰作面更新（单边行 + 反依赖 + designItems `####` + charter facets + plan-review 必答）· English-primary

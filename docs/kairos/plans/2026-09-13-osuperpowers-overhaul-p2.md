@@ -25,6 +25,7 @@
 ### Task 1: docs 根迁移 — 39 文件 git-mv + 54 次内容重写 + 空目录清理
 
 - **Objective**: docs 根迁移 — 39 文件 git-mv + 54 次内容重写 + 空目录清理（docs 单根收敛至 `docs/osuperpowers/{specs,plans}`）
+- **DependsOn**: none
 
 - **Consumes**: P2 design §2.1 迁移面
 
@@ -53,6 +54,7 @@
 ### Task 2: validator 单根收敛 + 新 overall guard 归一
 
 - **Objective**: validator 单根收敛 + 新 overall guard 归一（`SPECS_DIR`/`PLANS_DIR` 单根 + 新 overall canonical 4-table 列归一）
+- **DependsOn**: 1
 
 - **Consumes**: Task 1（docs 已落新根）
 
@@ -77,6 +79,7 @@
 ### Task 3: engine — `rootFromDocPath` 新布局识别 + 夹具迁移
 
 - **Objective**: engine `rootFromDocPath` 新布局识别 + 夹具迁移（marker 翻新为 `["docs","osuperpowers"]` 严格配对 + 假路径夹具全迁移）
+- **DependsOn**: 2
 
 - **Consumes**: Task 1（新根已落）
 
@@ -100,6 +103,7 @@
 ### Task 4: active 约定文档路径同步 + tickets 死引用移除 + emit
 
 - **Objective**: active 约定文档路径同步 + tickets 死引用移除 + emit（零 `docs/superpowers` + 零 `ticket`/`tickets` 引用）
+- **DependsOn**: 3
 
 - **Consumes**: Task 1-3
 
@@ -125,6 +129,7 @@
 ### Task 5: residue 守卫 + grep-sweep 过滤收敛
 
 - **Objective**: residue 守卫 + grep-sweep 过滤收敛（`docs/superpowers` stale-lexicon 守卫 + 过滤器重指向新根）
+- **DependsOn**: 4
 
 - **Consumes**: Task 1-4（机制 + active 面已清零——守卫在清零后接入）
 
@@ -150,6 +155,7 @@
 ### Task 6: changeset + 全量收口
 
 - **Objective**: changeset + 全量收口（`@oscaner-skills/cdd-engine` minor changeset；残留 grep 口径校验；validate 13 块 + emit:check）
+- **DependsOn**: 5
 
 - **Consumes**: Task 1-5（全量落地）
 

@@ -146,7 +146,7 @@ describe("full-tree single-form walk — the entire docs/kairos tree (50 files, 
     }
   });
 
-  it("every plan stays processable: detect + contiguous 1..N task headings + parse + brief-slice (no golden — the per-file state table lives in tree-migration.test.ts)", () => {
+  it("every plan stays processable: detect + contiguous 1..N task headings + parse + brief-slice + the unilateral edge-line face (P3.1 T3 — every task block carries its `- **DependsOn**:` line, `none`/empty/real values; no golden — the per-file state table lives in tree-migration.test.ts)", () => {
     for (const file of readdirSync(PLANS_DIR).filter((f) => f.endsWith(".md"))) {
       const planPath = path.join(PLANS_DIR, file);
       // detect + parse (no throw) + contiguous task numbers == the heading count.
@@ -160,6 +160,13 @@ describe("full-tree single-form walk — the entire docs/kairos tree (50 files, 
         (planType().parse(planPath, { root: REPO_ROOT }) as PlanParse).taskNumbers,
         file,
       ).toEqual(nums);
+      // The unilateral edge-line face (P3.1 T3): every task record carries its line-present fact —
+      // a missing `- **DependsOn**:` line is the missing-edge BLOCK (the single-directed-edge walk).
+      const tasks = planType().tasksFromPlan(planPath);
+      expect(tasks, `${file} task records`).toHaveLength(nums.length);
+      for (let i = 0; i < tasks.length; i++) {
+        expect(tasks[i]!.hasDependsOn, `${file} Task ${i + 1} edge line missing`).toBe(true);
+      }
       // The brief's exact-header slice match works for every task (the scan + the header both
       // resolve — the same surface BriefRenderer runs per dispatch).
       const content = readFileSync(planPath, "utf8");

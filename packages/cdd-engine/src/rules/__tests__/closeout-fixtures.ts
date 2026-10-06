@@ -94,6 +94,7 @@ function planBody(specBasename: string): string {
     "### Task 1: x",
     "",
     "- **Objective**: task one",
+    "- **DependsOn**: none",
     "- **Steps**:",
     "  1. implement — checkable: done",
     "- **Acceptance**:",

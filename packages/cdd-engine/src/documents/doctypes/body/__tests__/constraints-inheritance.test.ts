@@ -405,6 +405,7 @@ describe("the Form-B retirement — prose-anchor declarations are no longer a Co
         "### Task 1: x",
         "",
         "- **Objective**: task one",
+        "- **DependsOn**: none",
         "- **Steps**:",
         "  1. implement — checkable: done",
         "- **Acceptance**:",

@@ -1,24 +1,32 @@
-// packages/cdd-engine/src/documents/doctypes/body/task-graph.ts — TaskGraph: the
-// plan-wide single grouping derivation. Groups are the connected components of the atomic
-// closure (atomicWith = undirected symmetric edges → transitive closure), ordered by a
-// topological order of the component DAG (dependsOn edges between components; ties ordered by the
-// group's smallest task number ascending). `validate()` carries the five-failure-class BLOCK face:
-// any failure → a GraphVerdict (null = valid), and `groups()` validates first — a non-null verdict
-// throws GraphViolationError instead of silently emitting an order. The class is constructor-
-// injected read-only over the plan's Task[] (the `### Task N:` ascending array — index i+1 = task
-// id i+1) and is deliberately wiring-free — a pure grouping derivation over the task array.
+// packages/cdd-engine/src/documents/doctypes/body/task-graph.ts — TaskGraph: the plan-wide single
+// edge-model derivation (P3.1 T3 — the unilateral rebuild: `- **DependsOn**:` is the plan's only
+// directed edge). The static face serves two
+// derivations over the plan's Task[] (the `### Task N:` ascending array — index i+1 = task id i+1):
+// `validate()` — the six-failure-class BLOCK face (missing-edge · missing-id · self-loop ·
+// contradiction (the anti-dependency gate) · cycle · duplicate) — and `batches()` — the wave
+// derivation (ready layers by ascending task number; the ties within a wave stay ascending). Any
+// non-null verdict makes `batches()` throw GraphViolationError instead of silently emitting an
+// order. The class is constructor-injected read-only and deliberately wiring-free — a pure
+// derivation over the task array.
+//
+// The anti-dependency gate (§2.3): a `DependsOn` reference may only point at a LOWER-numbered task
+// (target < source) — the numbering order is the topological-linearization anchor (task numbering
+// ascends the legal execution order). A bounded forward reference (target > source) is the
+// `contradiction` failure class; a self reference is the more specific `self-loop`; both BLOCK.
+// Owing to the gate, a parsed edge sequence can never form a cycle (every edge strictly decreases),
+// but the cycle check stays as the crisp set's defensive member — a directly-constructed TaskGraph
+// can still carry one.
 
 import { TaskGroup } from "../../../domain/task-group.ts";
 import type { Task } from "./task.ts";
 
-/** The two edge-model declaration fields — the plan's directed `dependsOn` + undirected `atomicWith`. */
-export const EDGE_FIELDS = ["dependsOn", "atomicWith"] as const;
+/** The edge-model field identity — the single directed edge's discriminator (the GraphFailure.field
+ *  carrier). */
+export type EdgeField = "dependsOn";
 
-/** The edge-model field identity — the GraphFailure.field discriminator. */
-export type EdgeField = (typeof EDGE_FIELDS)[number];
-
-/** The five failure classes of the edge-model validate BLOCK face. */
+/** The six failure classes of the edge-model validate BLOCK face. */
 export type GraphFailureClass =
+  | "missing-edge"
   | "missing-id"
   | "self-loop"
   | "contradiction"
@@ -30,9 +38,10 @@ export type GraphFailureClass =
 export class GraphFailure {
   /** The violation class — which BLOCK the edge model tripped. */
   readonly class: GraphFailureClass;
-  /** The declaring field — which edge-model line carried the defective declaration. */
+  /** The declaring field — the edge line that carried the defective declaration. */
   readonly field: EdgeField;
-  /** The offending task id (the referenced / duplicated id, or the smallest id trapped in a cycle). */
+  /** The offending task id (the referenced / duplicated id, the declaring task of a missing edge,
+   *  or the smallest id trapped in a cycle). */
   readonly id: number;
   /** One-sentence human-readable statement of the violation. */
   readonly description: string;
@@ -60,25 +69,30 @@ export class GraphVerdict {
   }
 }
 
-/** The groups() guard — groups() throws this instead of emitting an order for a broken graph. */
+/** The batches() guard — batches() throws this instead of emitting an order for a broken graph. */
 export class GraphViolationError extends Error {
-  /** The verdict that blocked the grouping. */
+  /** The verdict that blocked the batches. */
   readonly verdict: GraphVerdict;
 
   constructor(verdict: GraphVerdict) {
-    super(`TaskGraph is invalid — ${verdict.failures.length} edge violation(s) block the grouping`);
+    super(`TaskGraph is invalid — ${verdict.failures.length} edge violation(s) block the batches`);
     this.name = "GraphViolationError";
     this.verdict = verdict;
   }
 }
 
+/** One derived batch — the wave's task ids in ascending order (the tasks that become ready
+ *  together; the whole wave is one dispatch group — one implement dispatch delivers the whole ready
+ *  wave). */
+export type TaskBatch = readonly number[];
+
 /**
- * TaskGraph — the plan's atomic-closure grouping derivation (constructor injection over the
- * `### Task N:` ascending Task[] — index i+1 is the task id). Group identity = TaskGroup
- * (numbers sorted ascending); group order = a topological order of the component DAG with ties
- * ordered by each group's smallest task number. Before grouping, `validate()` runs the five-class
- * BLOCK face (missing-id / self-loop / contradiction / cycle / duplicate) — a non-null verdict
- * makes `groups()` throw instead of silently emitting a broken order.
+ * TaskGraph — the plan's edge-model derivation (constructor injection over the `### Task N:`
+ * ascending Task[] — index i+1 is the task id). `validate()` runs the six-class BLOCK face
+ * (missing-edge / missing-id / self-loop / contradiction (the anti-dependency gate) / cycle /
+ * duplicate); `batches()` — the wave derivation (each wave = the same-depth ready layer, ascending
+ * task numbers) — validates first: a non-null verdict makes it throw instead of silently emitting a
+ * broken order.
  */
 export class TaskGraph {
   readonly #tasks: readonly Task[];
@@ -93,93 +107,81 @@ export class TaskGraph {
   }
 
   /** Validate the edge model — null when the graph is valid, else the aggregate GraphVerdict.
-   *  Detection order is deterministic: per-declaration checks (duplicate → missing-id → self-loop →
-   *  reverse-rank contradiction) over every task in ascending id order, then the component passes
-   *  (intra-closure contradiction, then the contracted-DAG cycle). */
+   *  Detection order is deterministic: per-task the missing-edge class first (a line-less block
+   *  carries no edge values to judge), then the per-value checks in priority order (duplicate →
+   *  missing-id → self-loop → the anti-dependency contradiction over every task in ascending id
+   *  order), then the remaining task-DAG cycle sweep. */
   validate(): GraphVerdict | null {
     const N = this.#tasks.length;
     const failures: GraphFailure[] = [];
-    const broken = new Set<string>(); // "n:v" — dependsOn edges already reported (never double-report)
+    const broken = new Set<string>(); // "n:v" — edges already reported (never double-report)
     const key = (n: number, v: number): string => `${n}:${v}`;
 
-    // Per-declaration checks, in priority order — a single declaration produces ONE failure:
-    // duplicate (a value repeated within one field list) → missing-id (a reference outside 1..N) →
-    // self-loop (target == the declaring task) → reverse-rank contradiction (a bounded, non-self
-    // dependsOn edge pointing at a HIGHER task id — rank(dependent) < rank(reference); never
-    // evaluated for an edge an atomic pair already covers, which contradicts more specifically as
-    // an intra-closure edge in the component pass below).
     for (let n = 1; n <= N; n++) {
-      for (const field of EDGE_FIELDS) {
-        const seen = new Set<number>();
-        for (const v of this.#edgeValues(n, field)) {
-          if (seen.has(v)) {
-            failures.push(
-              new GraphFailure({
-                class: "duplicate",
-                field,
-                id: v,
-                description: `task ${n} declares task ${v} more than once in its ${field} list`,
-              }),
-            );
-            continue;
-          }
-          seen.add(v);
-          if (v < 1 || v > N) {
-            failures.push(
-              new GraphFailure({
-                class: "missing-id",
-                field,
-                id: v,
-                description: `task ${n} declares task ${v}, outside the plan's 1..${N} task range`,
-              }),
-            );
-            if (field === "dependsOn") broken.add(key(n, v));
-            continue;
-          }
-          if (v === n) {
-            failures.push(
-              new GraphFailure({
-                class: "self-loop",
-                field,
-                id: v,
-                description: `task ${n} declares itself in its ${field} list (a task cannot ${
-                  field === "dependsOn" ? "depend on" : "be atomic with"
-                } itself)`,
-              }),
-            );
-            if (field === "dependsOn") broken.add(key(n, v));
-            continue;
-          }
-          if (field === "dependsOn" && v > n && !this.#atomicPairHas(n, v)) {
-            failures.push(
-              new GraphFailure({
-                class: "contradiction",
-                field,
-                id: v,
-                description: `reverse-rank dependency: task ${n} depends on the higher-numbered task ${v} — a dependsOn edge must declare a lower task id`,
-              }),
-            );
-            broken.add(key(n, v));
-          }
-        }
+      const task = this.#tasks[n - 1];
+      if (!task) continue;
+      // missing-edge — the sixth failure class: the block declares no `- **DependsOn**:` line (a
+      // line-less edge model is a structural error — the plan's forgotten dependency edge, BLOCK).
+      if (!task.hasDependsOn) {
+        failures.push(
+          new GraphFailure({
+            class: "missing-edge",
+            field: "dependsOn",
+            id: n,
+            description: `task ${n} declares no \`- **DependsOn**:\` line — every task block must declare its dependency edge (a \`none\`/empty list when the task has no dependency)`,
+          }),
+        );
+        continue; // a line-less block declares no values — nothing else to judge
       }
-    }
-
-    // Component passes over the atomic closure (valid atomicWith pairs only — a broken atomic edge
-    // was already reported and is excluded from the closure).
-    const { groups, find } = this.#atomicPartition();
-
-    for (let n = 1; n <= N; n++) {
-      for (const v of this.#edgeValues(n, "dependsOn")) {
-        if (v < 1 || v > N || v === n) continue; // already broken above
-        if (broken.has(key(n, v))) continue;
-        if (find(n) === find(v)) {
+      // Per-declaration checks, in priority order — a single declaration produces ONE failure:
+      // duplicate (a value repeated within the list) → missing-id (a reference outside 1..N) →
+      // self-loop (target == the declaring task) → the anti-dependency contradiction (a bounded,
+      // non-self dependsOn edge pointing at a HIGHER task id — rank(dependent) < rank(reference)).
+      const seen = new Set<number>();
+      for (const v of task.dependsOn) {
+        if (seen.has(v)) {
+          failures.push(
+            new GraphFailure({
+              class: "duplicate",
+              field: "dependsOn",
+              id: v,
+              description: `task ${n} declares task ${v} more than once in its dependsOn list`,
+            }),
+          );
+          continue;
+        }
+        seen.add(v);
+        if (v < 1 || v > N) {
+          failures.push(
+            new GraphFailure({
+              class: "missing-id",
+              field: "dependsOn",
+              id: v,
+              description: `task ${n} declares task ${v}, outside the plan's 1..${N} task range`,
+            }),
+          );
+          broken.add(key(n, v));
+          continue;
+        }
+        if (v === n) {
+          failures.push(
+            new GraphFailure({
+              class: "self-loop",
+              field: "dependsOn",
+              id: v,
+              description: `task ${n} declares itself in its dependsOn list (a task cannot depend on itself)`,
+            }),
+          );
+          broken.add(key(n, v));
+          continue;
+        }
+        if (v > n) {
           failures.push(
             new GraphFailure({
               class: "contradiction",
               field: "dependsOn",
               id: v,
-              description: `task ${n} depends on task ${v}, but the two share one atomic component — atomic tasks cannot also depend on one another`,
+              description: `forward dependency: task ${n} depends on the higher-numbered task ${v} — a dependsOn edge must declare a lower task id (numbering order is the topological-linearization anchor)`,
             }),
           );
           broken.add(key(n, v));
@@ -187,21 +189,43 @@ export class TaskGraph {
       }
     }
 
-    // The remaining (inter-component, non-broken) dependsOn edges form the component DAG — cycle
-    // check by topological counting: any component the shared Kahn sweep never consumes is trapped
-    // in a cycle.
-    const { consumed } = this.#componentPass(N, groups, find, (n, v) => broken.has(key(n, v)));
-    const leftover = groups.filter((_, i) => !consumed[i]);
+    // The remaining (non-broken) dependsOn edges form the task DAG — the cycle sweep by
+    // topological counting: any task the sweep never consumes is trapped in a cycle. Under the
+    // anti-dependency gate every parsed edge strictly decreases, so a parsed plan never reaches
+    // this failure — a directly-constructed TaskGraph can.
+    const consumed = new Array<boolean>(N + 1).fill(false);
+    const indeg = new Array<number>(N + 1).fill(0);
+    const adj: Array<Set<number> | undefined> = new Array(N + 1);
+    for (let n = 1; n <= N; n++) {
+      const seen = new Set<number>(); // the DAG edges dedupe per task (a duplicate declaration is ONE edge)
+      for (const v of this.#tasks[n - 1]?.dependsOn ?? []) {
+        if (seen.has(v)) continue;
+        seen.add(v);
+        if (broken.has(key(n, v))) continue;
+        if (v < 1 || v > N || v === n) continue;
+        if (!adj[v]) adj[v] = new Set<number>();
+        adj[v]!.add(n);
+        indeg[n]!++;
+      }
+    }
+    const ready = Array.from({ length: N }, (_, i) => i + 1).filter((n) => indeg[n] === 0);
+    while (ready.length > 0) {
+      ready.sort((a, b) => a - b); // ascending id — deterministic consumption
+      const n = ready.shift()!;
+      consumed[n] = true;
+      for (const t of adj[n] ?? []) {
+        indeg[t]!--;
+        if (indeg[t] === 0) ready.push(t);
+      }
+    }
+    const leftover = Array.from({ length: N }, (_, i) => i + 1).filter((n) => !consumed[n]);
     if (leftover.length > 0) {
-      const members = leftover.flat().sort((a, b) => a - b);
       failures.push(
         new GraphFailure({
           class: "cycle",
           field: "dependsOn",
-          id: members[0]!,
-          description: `the group dependency graph contains a cycle involving tasks ${members.join(
-            ", ",
-          )} — atomic groupings + dependsOn edges must form a DAG`,
+          id: leftover[0]!,
+          description: `the dependency graph contains a cycle involving tasks ${leftover.join(", ")} — dependsOn edges must form a DAG`,
         }),
       );
     }
@@ -209,124 +233,35 @@ export class TaskGraph {
     return failures.length === 0 ? null : new GraphVerdict(failures);
   }
 
-  /** The derived groups — the atomic-closure components in topological order (ties by smallest
-   *  task number). Validates first: a non-null verdict throws GraphViolationError (never a silent
-   *  order for a broken graph). */
-  groups(): TaskGroup[] {
+  /** The derived batches — the wave decomposition in deterministic order (each wave = the ready
+   *  layer's tasks at the same depth, ascending task numbers; waves in ascending depth order).
+   *  Validates first: a non-null verdict throws GraphViolationError (never a silent order for a
+   *  broken graph). */
+  batches(): TaskBatch[] {
     const verdict = this.validate();
     if (verdict !== null) throw new GraphViolationError(verdict);
-    const { groups, find } = this.#atomicPartition();
-
-    // The component DAG (all edges are clean post-validation) — the shared Kahn sweep emits the
-    // topological order.
-    const { order, consumed } = this.#componentPass(
-      this.#tasks.length,
-      groups,
-      find,
-      (n, v) => find(n) === find(v),
-    );
-    if (!consumed.every(Boolean)) {
-      throw new Error("TaskGraph.groups(): post-validation component DAG still contains a cycle");
+    const N = this.#tasks.length;
+    // Depth = the longest-path layer: a task's depth is one past its deepest dependency, so every
+    // edge spans strictly decreasing layers (validate() guarantees backward edges) and tasks at
+    // the same depth become ready together — the wave (ready layers in ascending task-number order).
+    const depth = new Array<number>(N + 1).fill(0);
+    for (let n = 1; n <= N; n++) {
+      let maxDep = -1;
+      for (const v of this.#tasks[n - 1]?.dependsOn ?? []) maxDep = Math.max(maxDep, depth[v]!);
+      depth[n] = maxDep + 1;
     }
-    return order.map((i) => TaskGroup.fromNumbers(groups[i]!));
+    const waves = new Map<number, number[]>();
+    for (let n = 1; n <= N; n++) {
+      const d = depth[n]!;
+      if (!waves.has(d)) waves.set(d, []);
+      waves.get(d)!.push(n); // the ascending scan keeps each wave ascending
+    }
+    return [...waves.entries()].sort((a, b) => a[0]! - b[0]!).map(([, nums]) => nums);
   }
 
-  /** The component-DAG construction + Kahn sweep — ONE shared pass both grouping consumers run
-   *  (validate() reads `consumed` to block the leftover cycle subgraph; groups() emits `order`).
-   *  The DAG is built over the atomic components from the dependsOn edges that survive
-   *  `isExcluded` (validate() skips the already-broken and intra-component edges; groups()
-   *  post-validation skips only the intra-component ones). Ready ties leave in smallest-task-number
-   *  order — every emitted component is pushed to `order` and marked in `consumed`. */
-  #componentPass(
-    taskCount: number,
-    groups: number[][],
-    find: (n: number) => number,
-    isExcluded: (n: number, v: number) => boolean,
-  ): { order: number[]; consumed: boolean[] } {
-    const indeg = new Array<number>(groups.length).fill(0);
-    const adj: Array<Set<number>> = groups.map(() => new Set<number>());
-    for (let n = 1; n <= taskCount; n++) {
-      for (const v of this.#edgeValues(n, "dependsOn")) {
-        if (v < 1 || v > taskCount || v === n) continue;
-        if (isExcluded(n, v)) continue;
-        const from = this.#compIndexOf(groups, find, v);
-        const to = this.#compIndexOf(groups, find, n);
-        if (adj[from]!.has(to)) continue;
-        adj[from]!.add(to);
-        indeg[to]!++;
-      }
-    }
-    const consumed = new Array<boolean>(groups.length).fill(false);
-    const order: number[] = [];
-    const ready = groups.map((_, i) => i).filter((i) => indeg[i] === 0);
-    while (ready.length > 0) {
-      ready.sort((a, b) => groups[a]![0]! - groups[b]![0]!); // ties: smallest task number first
-      const c = ready.shift()!;
-      consumed[c] = true;
-      order.push(c);
-      for (const t of adj[c]!) {
-        indeg[t]!--;
-        if (indeg[t] === 0) ready.push(t);
-      }
-    }
-    return { order, consumed };
-  }
-
-  /** One task's declared edge values for a field (empty when the field is absent). */
-  #edgeValues(n: number, field: EdgeField): readonly number[] {
-    const task = this.#tasks[n - 1];
-    if (!task) return [];
-    return field === "dependsOn" ? (task.dependsOn ?? []) : (task.atomicWith ?? []);
-  }
-
-  /** Direct-pair atomic test — either task declares the other in an atomicWith list (the symmetry
-   *  of the undirected atomic edge). */
-  #atomicPairHas(a: number, b: number): boolean {
-    return (
-      this.#edgeValues(a, "atomicWith").includes(b) || this.#edgeValues(b, "atomicWith").includes(a)
-    );
-  }
-
-  /** The atomic closure partition — the connected components of the undirected atomicWith graph
-   *  over the VALID pairs (out-of-bounds / self-loop atomic declarations are already broken and
-   *  excluded). Groups sorted ascending members + sorted by smallest member; `find` is the live
-   *  union-find root function every component pass reads. */
-  #atomicPartition(): { groups: number[][]; find: (n: number) => number } {
-    const parent = Array.from({ length: this.#tasks.length + 1 }, (_, i) => i);
-    const find = (x: number): number => {
-      let root = x;
-      while (parent[root] !== root) {
-        parent[root] = parent[parent[root]!]!; // path halving
-        root = parent[root]!;
-      }
-      return root;
-    };
-    const union = (a: number, b: number): void => {
-      const ra = find(a);
-      const rb = find(b);
-      if (ra !== rb) parent[ra] = rb;
-    };
-    for (let n = 1; n <= this.#tasks.length; n++) {
-      for (const v of this.#edgeValues(n, "atomicWith")) {
-        if (v >= 1 && v <= this.#tasks.length && v !== n) union(Math.min(n, v), Math.max(n, v));
-      }
-    }
-    const buckets = new Map<number, number[]>();
-    for (let n = 1; n <= this.#tasks.length; n++) {
-      const r = find(n);
-      if (!buckets.has(r)) buckets.set(r, []);
-      buckets.get(r)!.push(n);
-    }
-    const groups = [...buckets.values()]
-      .map((members) => members.sort((a, b) => a - b))
-      .sort((a, b) => a[0]! - b[0]!);
-    return { groups, find };
-  }
-
-  /** The component index of a task id — the group list is indexed by its smallest-member order. */
-  #compIndexOf(groups: number[][], find: (n: number) => number, n: number): number {
-    const members = groups.find((g) => g.includes(find(n)));
-    if (!members) throw new Error("TaskGraph: task component not found");
-    return groups.indexOf(members);
+  /** TaskGroup view of the wave derivation — each batch becomes one dispatch group (group = wave;
+   *  the effectiveGroups single derivation the dispatch schedule consumes). */
+  groupBatches(): TaskGroup[] {
+    return this.batches().map((batch) => TaskGroup.fromNumbers(batch));
   }
 }

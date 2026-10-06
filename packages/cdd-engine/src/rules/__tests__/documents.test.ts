@@ -29,7 +29,7 @@ import { mkdirSync, mkdtempSync, readFileSync, unlinkSync, writeFileSync } from 
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-
+import { GraphViolationError } from "../../documents/doctypes/body/task-graph.ts";
 import { DocumentsValidator } from "../documents.ts";
 
 const documentsValidator = new DocumentsValidator();
@@ -222,49 +222,47 @@ function overallStructureIds(overallPath: string): string[] {
     .map((f) => f.id);
 }
 
-describe("effectiveGroups — the single dispatch-group derivation (the `## Task Groups` section read is retired)", () => {
+describe("effectiveGroups — the single dispatch-group derivation (waves; declared grouping read retired)", () => {
   function planFile(body: string): string {
     const dir = mkdtempSync(path.join(tmpdir(), "cdd-groups-"));
     const p = path.join(dir, "plan.md");
     writeFileSync(p, body);
     return p;
   }
-  const TASKS = "# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n\n### Task 3: c\nbody\n";
+  const TASKS =
+    "# Plan\n\n### Task 1: a\n\n- **DependsOn**: none\n\n### Task 2: b\n\n- **DependsOn**: none\n\n### Task 3: c\n\n- **DependsOn**: none\n";
 
-  it("a marker-less block plan (no data records / no edges) → the per-task singleton run (the empty default)", () => {
+  it("an all-none plan (every block declares its edge line, zero refs) → the single root wave (同层 = 同组 — the empty-default singleton run is retired)", () => {
     const p = planFile(TASKS);
-    expect(documentsValidator.effectiveGroups(p).map((g) => g.key())).toEqual(["1", "2", "3"]);
+    expect(documentsValidator.effectiveGroups(p).map((g) => g.key())).toEqual(["1,2,3"]);
   });
 
-  it("the literal `## Task Groups` section is NOT read by effectiveGroups — a plan declaring the section derives the per-task singletons from its marker-less blocks", () => {
+  it("a block without its `- **DependsOn**:` line → effectiveGroups throws GraphViolationError (the missing-edge sixth class — the previous silent-singleton face is gone)", () => {
     const p = planFile(
-      [
-        "# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n\n### Task 3: c\nbody\n\n### Task 4: d\nbody\n",
-        "## Task Groups",
-        "",
-        "- **Task 1, 2**: 共享验收面",
-        "- **Task 3, 4**: second merged group",
-        "",
-      ].join("\n"),
+      "# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n\n### Task 3: c\nbody\n",
     );
-    // effectiveGroups derives from the TaskGraph over the task records: these blocks carry no data
-    // markers (no records with edges), so the derivation is the per-task singleton run — the
-    // declared section never composes it (the runtime read of the section is retired).
-    expect(documentsValidator.effectiveGroups(p).map((g) => g.key())).toEqual(["1", "2", "3", "4"]);
+    expect(() => documentsValidator.effectiveGroups(p)).toThrow(GraphViolationError);
+    try {
+      documentsValidator.effectiveGroups(p);
+    } catch (err) {
+      const verdict = (err as GraphViolationError).verdict;
+      expect(verdict.failures.map((f) => f.class)).toEqual([
+        "missing-edge",
+        "missing-edge",
+        "missing-edge",
+      ]);
+    }
   });
 
   it("有效分区 == 全 task 号集覆盖 guard (the effective-group union is the plan task set — declared or empty-default)", () => {
     const declared = planFile(
       [
-        "# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n\n### Task 3: c\nbody\n\n### Task 4: d\nbody\n",
-        "## Task Groups",
-        "",
-        "- **Task 1, 2**: merged",
-        "- **Task 3**: length-1 line tolerated",
-        "",
+        "# Plan\n\n### Task 1: a\n- **DependsOn**: none\n\n### Task 2: b\n- **DependsOn**: 1\n\n### Task 3: c\n- **DependsOn**: 1\n\n### Task 4: d\n- **DependsOn**: 2\n",
       ].join("\n"),
     );
-    const empty = planFile("# Plan\n\n### Task 1: a\n\n### Task 2: b\n\n### Task 3: c\n");
+    const empty = planFile(
+      "# Plan\n\n### Task 1: a\n- **DependsOn**: none\n\n### Task 2: b\n- **DependsOn**: none\n\n### Task 3: c\n- **DependsOn**: none\n",
+    );
     for (const p of [declared, empty]) {
       const union = [...new Set(documentsValidator.effectiveGroups(p).flatMap((g) => [...g]))].sort(
         (a, b) => a - b,

@@ -116,11 +116,20 @@ describe("PlanBody — the concrete body construction contract", () => {
     expect(slices.taskHeading.test("### Task 1: x")).toBe(true);
     expect(slices.taskHeading.test("## Task Groups")).toBe(false);
     // The task-block data-field markers (objective / steps / acceptance single source).
-    for (const key of ["objective", "files", "consumes", "produces", "steps", "acceptance"])
+    for (const key of [
+      "objective",
+      "files",
+      "consumes",
+      "produces",
+      "steps",
+      "acceptance",
+      "dependsOn",
+    ])
       expect(slices[key]).toBeInstanceOf(RegExp);
     expect(slices.objective.test("- **Objective**: x")).toBe(true);
     expect(slices.steps.test("- **Steps**:")).toBe(true);
     expect(slices.acceptance.test("- **Acceptance**:")).toBe(true);
+    expect(slices.dependsOn.test("- **DependsOn**: none")).toBe(true);
     // A numbered step entry captures the action + the optional checkable outcome.
     const m = slices.stepEntry.exec("1. do the work — checkable: it works");
     expect(m).not.toBeNull();
@@ -177,13 +186,15 @@ describe("PLAN_BODY_SHAPE — the full-field data-shape projection", () => {
     expect(node(["taskHeadings", "continuity"])).toBeDefined();
   });
 
-  it("tasks[] carries the Task data shape — objective/files/interface{consumes,produces}/steps[]{action,checkable}/acceptance + the edge fields", () => {
+  it("tasks[] carries the Task data shape — objective/files/interface{consumes,produces}/steps[]{action,checkable}/acceptance + the mandatory dependsOn edge (the bilateral pairing plane is retired)", () => {
     expect(node(["tasks"]).type).toBe("array");
     const item = node(["tasks"]).items;
     const required = item?.required as readonly string[] | undefined;
     expect(required).toContain("objective");
     expect(required).toContain("steps");
     expect(required).toContain("acceptance");
+    // the single directed edge is a REQUIRED record member (the edge-completeness contract).
+    expect(required).toContain("dependsOn");
     // interface {consumes,produces} — the typed task boundary slices.
     expect(item?.properties?.interface?.properties?.consumes?.type).toBe("array");
     expect(item?.properties?.interface?.properties?.produces?.type).toBe("array");
@@ -192,9 +203,11 @@ describe("PLAN_BODY_SHAPE — the full-field data-shape projection", () => {
     const step = item?.properties?.steps?.items;
     expect(step?.required).toContain("action");
     expect(step?.required).toContain("checkable");
-    // The edge fields — read/write (the parser fills them, TaskGraph consumes them).
+    // The edge field — the mandatory single directed dependsOn (read/write: the parser fills it,
+    // TaskGraph consumes it for the wave batches); the retired pairing property carries zero shape
+    // presence (a re-added node would fail this pin).
     expect(item?.properties?.dependsOn).toBeDefined();
-    expect(item?.properties?.atomicWith).toBeDefined();
+    expect(item?.properties?.atomicWith).toBeUndefined();
   });
 
   it("the plan shape declares zero taskGroups node — the retired dispatch-group layout surface is gone (single-form)", () => {
@@ -278,6 +291,8 @@ describe("renderBrief — the task-handoff brief rendered from Task data (zero `
         { action: "prove zero Do carving", checkable: "the output has no legacy Do marker" },
       ],
       acceptance: ["the brief carries objective", "the brief carries every checkable"],
+      dependsOn: [],
+      hasDependsOn: true,
     };
     const brief = planBody.renderBrief(task);
     expect(brief).toContain("ship the data-shaped brief");
@@ -386,6 +401,102 @@ describe("the new-shape plan fixture — parse + validate + tasksFromPlan (desig
   });
 });
 
+describe("the unilateral edge rules — plan.edge (missing-edge sixth class) + plan.antiDependency (the gate)", () => {
+  it("a task block without its `- **DependsOn**:` line → the edge-completeness rule fires (BLOCK)", () => {
+    const missing = [
+      "# Plan",
+      "",
+      "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
+      "",
+      "## Constraints",
+      "",
+      "- delta",
+      "",
+      "### Task 1: x",
+      "- **Objective**: task one",
+      "- **Steps**:",
+      "  1. implement — checkable: done",
+      "- **Acceptance**:",
+      "  - done",
+      "",
+    ].join("\n");
+    const findings = runStructureRules(missing, planBody.structureRules());
+    expect(findings.map((f) => f.id)).toContain("plan.edge");
+    expect(findings.find((f) => f.id === "plan.edge")!.severity).toBe("BLOCK");
+    // single-axis: the anti-dependency rule judges nothing on a line-less plan (no items).
+    expect(findings.map((f) => f.id)).not.toContain("plan.antiDependency");
+  });
+
+  it("a forward reference (`T5 dependsOn 10`) → the anti-dependency rule fires (BLOCK); `none` stays silent", () => {
+    const blockLines: string[] = [];
+    for (let n = 1; n <= 10; n++) {
+      blockLines.push(`### Task ${n}: t${n}`);
+      blockLines.push(`- **Objective**: task ${n}`);
+      blockLines.push(n === 5 ? "- **DependsOn**: 10" : "- **DependsOn**: none");
+      blockLines.push("- **Steps**:");
+      blockLines.push("  1. implement — checkable: done");
+      blockLines.push("- **Acceptance**:");
+      blockLines.push("  - done");
+      blockLines.push("");
+    }
+    const plan = ["# Plan", "", "## Constraints", "", "- delta", "", ...blockLines].join("\n");
+    const findings = runStructureRules(plan, planBody.structureRules());
+    expect(findings.map((f) => f.id)).toContain("plan.antiDependency");
+    expect(findings.map((f) => f.id)).not.toContain("plan.edge"); // every block declares its line
+  });
+
+  it("a self reference (`### Task 5:` block with `- **DependsOn**: 5`) also trips the anti-dependency rule (引用 ≥ 自身 BLOCK)", () => {
+    const plan = [
+      "# Plan",
+      "",
+      "## Constraints",
+      "",
+      "- delta",
+      "",
+      "### Task 5: lonely",
+      "- **Objective**: task five",
+      "- **DependsOn**: 5",
+      "- **Steps**:",
+      "  1. implement — checkable: done",
+      "- **Acceptance**:",
+      "  - done",
+      "",
+    ].join("\n");
+    const findings = runStructureRules(plan, planBody.structureRules());
+    expect(findings.map((f) => f.id)).toContain("plan.antiDependency");
+  });
+
+  it("a conforming all-`none` plan carries zero edge findings (the tree's migrated quiet baseline)", () => {
+    const plan = [
+      "# Plan",
+      "",
+      "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
+      "",
+      "## Constraints",
+      "",
+      "- delta",
+      "",
+      "### Task 1: x",
+      "- **Objective**: task one",
+      "- **DependsOn**: none",
+      "- **Steps**:",
+      "  1. implement — checkable: done",
+      "- **Acceptance**:",
+      "  - done",
+      "",
+      "### Task 2: y",
+      "- **Objective**: task two",
+      "- **DependsOn**: 1",
+      "- **Steps**:",
+      "  1. implement — checkable: done",
+      "- **Acceptance**:",
+      "  - done",
+      "",
+    ].join("\n");
+    expect(runStructureRules(plan, planBody.structureRules())).toEqual([]);
+  });
+});
+
 describe("dead-shell discipline — shapes/plan.ts is gone", () => {
   it("doctypes/shapes/plan.ts does not exist (grep included)", () => {
     expect(existsSync(path.join(import.meta.dirname, "..", "..", "shapes", "plan.ts"))).toBe(false);
@@ -417,6 +528,15 @@ describe("deletion-set union — the retired shape/token surface holds zero pres
     "taskGroupsLineRe",
     "taskGroupsMinItems",
     "extractProseConstraints",
+    // The unilateral-rebuild symbols: the pairing field's read surface, its symmetric transitive
+    // closure + the contradiction-edge component passes (the atomic plan is gone).
+    "atomicPairHas",
+    "atomicPartition",
+    "componentPass",
+    "compIndexOf",
+    // the bare-word sweep — the pairing marker's zero presence in the non-test engine src
+    // (COMMENTS included, the deletion-set discipline) guards the declaration face's retirement.
+    "atomicWith",
   ];
   const grepNontest = (needle: string): string =>
     execSync(
@@ -439,13 +559,14 @@ describe("deletion-set union — the retired shape/token surface holds zero pres
     expect(hits.trim(), "a `## Section` heading reference survives in the engine src").toBe("");
   });
 
-  it("the regenerated plan schema golden carries zero taskGroups / Form-B surface", () => {
+  it("the regenerated plan schema golden carries zero taskGroups / pairing-field surface", () => {
     const planJson = readFileSync(
       path.join(ENGINE_SRC, "..", "config", "schema", "plan.json"),
       "utf8",
     );
     expect(planJson).not.toMatch(/taskGroups/i);
     expect(planJson).not.toMatch(/Task Groups/);
+    expect(planJson).not.toMatch(/atomicWith/i);
     expect(planJson).not.toMatch(/formB|proseAnchors/i);
   });
 });

@@ -1050,6 +1050,127 @@ describe("the four overalls walk with zero exclusion — the rule plane judges t
   });
 });
 
+describe("the unilateral wave model — every plan's batch split pin (P3.1 T3: 组 = 波次)", () => {
+  // The per-plan wave decomposition (effectiveGroups = TaskGraph.batches → one dispatch group per
+  // wave, ascending task numbers). The 4 real-value plans' waves preserve their retired pairing
+  // components same-layer (the group-equal-power face — pinned above per plan); the sequential plans run
+  // the task-number chain; p3.1 (this program's own) derives its declared schedule
+  // T1→T2→{T3,T4,T5}→T6→T7→T8 → six waves.
+  const WAVE_SPLITS: Readonly<Record<string, readonly (readonly number[])[]>> = {
+    "2026-09-13-osuperpowers-overhaul-p1.md": [[1], [2], [3], [4], [5]],
+    "2026-09-13-osuperpowers-overhaul-p2.md": [[1], [2], [3], [4], [5], [6]],
+    "2026-09-13-osuperpowers-overhaul-p3.md": [[1], [2], [3], [4], [5], [6]],
+    "2026-09-13-osuperpowers-overhaul-p4.md": [
+      [1],
+      [2],
+      [3],
+      [4],
+      [5],
+      [6],
+      [7],
+      [8],
+      [9],
+      [10],
+      [11],
+      [12],
+      [13],
+      [14],
+      [15],
+      [16],
+      [17],
+      [18],
+    ],
+    "2026-09-13-osuperpowers-overhaul-p5.md": [
+      [1],
+      [2],
+      [3],
+      [4],
+      [5],
+      [6],
+      [7],
+      [8],
+      [9],
+      [10],
+      [11],
+      [12],
+      [13],
+      [14],
+      [15],
+      [16],
+      [17],
+      [18],
+      [19],
+    ],
+    "2026-09-13-osuperpowers-overhaul-p6.md": [
+      [1],
+      [2],
+      [3],
+      [4],
+      [5],
+      [6],
+      [7],
+      [8],
+      [9],
+      [10],
+      [11],
+      [12],
+      [13],
+      [14],
+      [15],
+      [16],
+      [17],
+      [18],
+      [19],
+      [20],
+      [21],
+      [22],
+      [23],
+      [24],
+      [25],
+      [26],
+      [27],
+      [28],
+      [29],
+      [30],
+      [31],
+    ],
+    "2026-09-21-consumer-parity-p1.md": [[1], [2], [3]],
+    "2026-09-21-consumer-parity-p2.md": [[1], [2], [3], [4], [5], [6]],
+    "2026-09-21-consumer-parity-p3.md": [[1], [2], [3], [4], [5], [6], [7], [8]],
+    "2026-09-21-consumer-parity-p4.1.md": [[1], [2], [3], [4], [5], [6], [7], [8], [9], [10]],
+    "2026-09-21-consumer-parity-p4.2.md": [[1, 2, 3], [4, 5], [6, 7], [8], [9], [10], [11], [12]],
+    "2026-09-21-consumer-parity-p4.3.md": [[1], [2], [3], [4], [5], [6], [7], [8], [9], [10], [11]],
+    "2026-09-21-consumer-parity-p4.4.md": [[1], [2], [3, 4, 5], [6, 7, 8], [9], [10, 11]],
+    "2026-09-27-pi-harness-p1.md": [[1], [2], [3], [4]],
+    "2026-09-27-pi-harness-p2.md": [[1], [2], [3], [4], [5], [6]],
+    "2026-09-27-pi-harness-p3.md": [[1], [2], [3], [4], [5], [6], [7], [8], [9]],
+    "2026-09-27-pi-harness-p4.md": [[1, 2], [3], [4, 5], [6], [7, 8]],
+    "2026-09-27-pi-harness-p5.md": [[1], [2], [3], [4], [5], [6], [7, 8], [9]],
+    "2026-09-28-cdd-review-contract-fix.md": [[1], [2], [3], [4], [5], [6], [7], [8], [9]],
+    "2026-10-02-doc-architecture-v2-p1.md": [[1], [2], [3], [4], [5], [6], [7]],
+    "2026-10-02-doc-architecture-v2-p2.md": [[1], [2], [3], [4], [5], [6], [7]],
+    "2026-10-02-doc-architecture-v2-p3.md": [[1], [2], [3], [4], [5], [6], [7], [8], [9]],
+    "2026-10-02-doc-architecture-v2-p3.1.md": [[1], [2], [3, 4, 5], [6], [7], [8]],
+  };
+
+  it("every migration-target plan's effectiveGroups derives exactly its pinned wave split (the wave = the dispatch group)", () => {
+    for (const [file, expected] of Object.entries(WAVE_SPLITS)) {
+      const groups = planType()
+        .effectiveGroups(path.join(PLANS_DIR, file))
+        .map((g) => [...g.numbers]);
+      expect(groups, file).toEqual(expected);
+    }
+    expect(Object.keys(WAVE_SPLITS).length).toBe(23); // every plan in the tree is pinned
+  });
+
+  it("the p3.1 plan itself derives the six-wave schedule (T1→T2→{T3,T4,T5}→T6→T7→T8 — 3‖4‖5 same wave)", () => {
+    const groups = planType()
+      .effectiveGroups(path.join(PLANS_DIR, "2026-10-02-doc-architecture-v2-p3.1.md"))
+      .map((g) => [...g.numbers]);
+    expect(groups).toEqual([[1], [2], [3, 4, 5], [6], [7], [8]]);
+  });
+});
+
 describe("the one-off spec is the sole tolerated non-canonical tree doc — never counted, detect only", () => {
   it("the one-off spec (2026-09-28-cdd-review-contract-fix.md) throws unknown-doc-kind — absent from the canonical counts", () => {
     const oneOffPath = path.join(SPECS_DIR, ONE_OFF);

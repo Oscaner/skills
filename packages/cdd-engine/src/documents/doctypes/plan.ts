@@ -24,13 +24,7 @@ import { mergeParentConstraints, overallConstraintsOf } from "./body/constraints
 import type { PlanBody } from "./body/plan-body.ts";
 import { planBody } from "./body/plan-body.ts";
 import { Task, type TaskStep } from "./body/task.ts";
-import {
-  type EdgeField,
-  GraphFailure,
-  GraphVerdict,
-  GraphViolationError,
-  TaskGraph,
-} from "./body/task-graph.ts";
+import { GraphFailure, GraphVerdict, GraphViolationError, TaskGraph } from "./body/task-graph.ts";
 import { PLAN_BODY_VIEW } from "./body-views.ts";
 import type { OverallParse } from "./overall.ts";
 import {
@@ -67,11 +61,12 @@ function splitListValue(value: string): string[] {
 /** Parse one `### Task N:` block's lines into a Task data record (design C3) — the single-form
  *  grammar: EVERY task block is a data-shaped record, so the parse always returns a Task (a block
  *  carrying no data-field markers parses to an empty record — the ORPHAN task block, a validate
- *  failure, never a silently dropped block). The optional edge fields (`- **DependsOn**:` /
- *  `- **AtomicWith**:`) read as comma-table number arrays into the Task's dependsOn/atomicWith —
- *  the TaskGraph edge-model read surface. A step entry that drops the ` — checkable:` separator
- *  still parses (its action is kept) with the checkable capture empty — the validate face fails on
- *  it, the field is never silently dropped. */
+ *  failure, never a silently dropped block). The single directed edge `- **DependsOn**:` (P3.1 T3
+ *  — the unilateral edge model) reads as a comma-table number
+ *  array into the Task's dependsOn — `none`/empty → `[]`, and a block whose line is ABSENT carries
+ *  `hasDependsOn: false` (the TaskGraph missing-edge record — the sixth failure class). A step
+ *  entry that drops the ` — checkable:` separator still parses (its action is kept) with the
+ *  checkable capture empty — the validate face fails on it, the field is never silently dropped. */
 function parseTaskBlock(lines: readonly string[]): Task {
   const slices = planBody.projectSlicePatterns();
   let objective = "";
@@ -81,7 +76,7 @@ function parseTaskBlock(lines: readonly string[]): Task {
   const steps: TaskStep[] = [];
   const acceptance: string[] = [];
   const dependsOn: number[] = [];
-  const atomicWith: number[] = [];
+  let hasDependsOn = false;
   let mode: "steps" | "acceptance" | null = null;
   for (const line of lines) {
     // Field markers take priority (a marker line switches the parse mode / captures its single-line
@@ -99,10 +94,14 @@ function parseTaskBlock(lines: readonly string[]): Task {
       produces.push(...splitListValue(line.replace(slices.produces, "").trim()));
       mode = null;
     } else if (slices.dependsOn.test(line)) {
-      dependsOn.push(...splitListValue(line.replace(slices.dependsOn, "").trim()).map(Number));
-      mode = null;
-    } else if (slices.atomicWith.test(line)) {
-      atomicWith.push(...splitListValue(line.replace(slices.atomicWith, "").trim()).map(Number));
+      hasDependsOn = true;
+      const value = line.replace(slices.dependsOn, "").trim();
+      // `none`/empty → the empty edge list (the explicit no-dependency declaration); any other
+      // token passes through the Number gate (a non-integer `abc`/`1;2` parses to NaN — the
+      // effectiveGroups integer gate rejects it, never silently swallowed).
+      if (value !== "" && value !== "none") {
+        dependsOn.push(...splitListValue(value).map(Number));
+      }
       mode = null;
     } else if (slices.steps.test(line)) {
       mode = "steps";
@@ -123,10 +122,10 @@ function parseTaskBlock(lines: readonly string[]): Task {
     interface: { consumes, produces },
     steps,
     acceptance,
-    // the edge fields are absent-on-default: an empty declaration leaves the field undefined
-    // (task.test.ts pins the absent default).
-    ...(dependsOn.length > 0 ? { dependsOn } : {}),
-    ...(atomicWith.length > 0 ? { atomicWith } : {}),
+    // the edge field is default-`[]`: a `none`/empty declaration lands the empty list; the
+    // line-presence fact rides hasDependsOn (missing → the TaskGraph missing-edge BLOCK).
+    dependsOn,
+    hasDependsOn,
   });
 }
 
@@ -255,10 +254,10 @@ export class PlanDocType extends DocType {
   }
 
   /** tasksFromPlan(planFile) — the plan's Task data records (design C3): one record per `### Task N:`
-   * block (objective / files / steps / acceptance / dependsOn / atomicWith … the body's projected
-   * task-block slice single source). Under the single-form grammar EVERY block is a data-shaped
-   * record — a block carrying no data markers parses to an EMPTY record (the orphan task block, a
-   * validate failure — never a silently dropped block). A step entry without its
+   * block (objective / files / steps / acceptance / the single directed dependsOn … the body's
+   * projected task-block slice single source). Under the single-form grammar EVERY block is a
+   * data-shaped record — a block carrying no data markers parses to an EMPTY record (the orphan
+   * task block, a validate failure — never a silently dropped block). A step entry without its
    * ` — checkable:` separator still parses with the checkable capture empty — the validate face
    * fails on it, the field is never silently dropped. */
   tasksFromPlan(planFile: string): Task[] {
@@ -277,17 +276,17 @@ export class PlanDocType extends DocType {
   }
 
   /** effectiveGroups(planPath) — the SINGLE dispatch-group derivation (TaskGroup[]), derived from
-   *  the TaskGraph over the plan's task data records: the atomic-closure components in the
-   *  component-DAG topological order (ties by each group's smallest task number). The graph's
-   *  groups() gate runs first — a broken edge model (missing-id / malformed non-integer / self-loop
-   *  / contradiction / cycle / duplicate) throws GraphViolationError carrying the GraphVerdict,
-   *  never a silently emitted order. The literal `## Task Groups` section is NOT part of this
-   *  derivation (its runtime read is retired — the dispatch groups are the graph's edge
-   *  declarations, nothing else composes them). A plan without the full 1..N task-record set (the
-   *  headings not running 1..N in FILE order — a TaskGraph mis-map) yields the per-task singleton
-   *  run [[1],[2],…,[N]] — the same shape an edge-free full-record plan derives. The iteration
-   *  surfaces (derivePlanVerdict / base.ts statusValidate progress lines) consume this one
-   *  derivation — no second implementation. */
+   *  the TaskGraph wave batches over the plan's task data records: the wave is the dispatch group — each becomes one
+   *  dispatch group (ascending task numbers within a wave; waves in ascending depth order). The
+   *  dispatch groups are the graph's edge declarations — nothing else composes them. The graph's
+   *  batches() gate runs first — a broken edge model (missing-edge / missing-id / malformed
+   *  non-integer / self-loop / contradiction (anti-dependency) / cycle / duplicate) throws
+   *  GraphViolationError carrying the GraphVerdict, never a silently emitted order. A plan without
+   *  the full 1..N task-record set (the headings not running 1..N in FILE order — a TaskGraph
+   *  mis-map) yields the per-task singleton run [[1],[2],…,[N]] — never a silently mis-mapped wave.
+   *  The iteration surfaces (derivePlanVerdict / base.ts statusValidate progress lines / the
+   *  next-step router) consume this one derivation —
+   *  no second implementation. */
   effectiveGroups(planPath: string): TaskGroup[] {
     const fileOrder = this.#scanTaskNumbers(planPath);
     const tasks = this.tasksFromPlan(planPath);
@@ -299,40 +298,36 @@ export class PlanDocType extends DocType {
     }
     // Edge-model integer gate at the graph feed: a malformed value declaration (a `- **DependsOn**:
     // foo` non-integer parses to NaN) must surface here as GraphViolationError (missing-id class) —
-    // never a raw TaskGraph throw (the NaN dependsOn reference) or a silently dropped atomic pair.
+    // never a raw TaskGraph throw.
     const failures = this.#edgeIntegerFailures(tasks, fileOrder.length);
     if (failures.length > 0) throw new GraphViolationError(new GraphVerdict(failures));
-    // TaskGraph.groups() validates the edge model first — a non-null GraphVerdict throws
+    // TaskGraph.batches() validates the edge model first — a non-null GraphVerdict throws
     // GraphViolationError (the failures aggregate in the verdict) instead of emitting a broken order.
-    return new TaskGraph(tasks).groups();
+    return new TaskGraph(tasks).groupBatches();
   }
 
-  /** Edge-model integer gate (the plan seam — the malformed-value surface): every `dependsOn` /
-   *  atomicWith value is a task id, so a non-integer declaration is broken. The root NaN hole lives
-   *  in TaskGraph.validate (all five checks compare numbers — NaN survives); this gate turns the
-   *  malformed value into the same GraphViolationError block face (missing-id class) instead. The
-   *  failure anchors `id` to the declaring task id — a real number (the malformed value parses to
-   *  NaN, which would serialize as null against GraphFailure.id's number contract; the offending
-   *  literal already rides the description). */
+  /** Edge-model integer gate (the plan seam — the malformed-value surface): every dependsOn value is
+   *  a task id, so a non-integer declaration is broken. The root NaN hole lives in TaskGraph.validate
+   *  (all five checks compare numbers — NaN survives); this gate turns the malformed value into the
+   *  same GraphViolationError block face (missing-id class) instead. The failure anchors `id` to the
+   *  declaring task id — a real number (the malformed value parses to NaN, which would serialize as
+   *  null against GraphFailure.id's number contract; the offending literal already rides the
+   *  description). */
   #edgeIntegerFailures(tasks: readonly Task[], taskCount: number): GraphFailure[] {
     const failures: GraphFailure[] = [];
     tasks.forEach((task, i) => {
       const declaring = i + 1;
-      const scan = (field: EdgeField, values: readonly number[]): void => {
-        for (const v of values) {
-          if (Number.isInteger(v)) continue;
-          failures.push(
-            new GraphFailure({
-              class: "missing-id",
-              field,
-              id: declaring,
-              description: `task ${declaring} declares a non-integer ${field} task id (${v}) — edge ids are integers (1..${taskCount})`,
-            }),
-          );
-        }
-      };
-      scan("dependsOn", task.dependsOn ?? []);
-      scan("atomicWith", task.atomicWith ?? []);
+      for (const v of task.dependsOn) {
+        if (Number.isInteger(v)) continue;
+        failures.push(
+          new GraphFailure({
+            class: "missing-id",
+            field: "dependsOn",
+            id: declaring,
+            description: `task ${declaring} declares a non-integer dependsOn task id (${v}) — edge ids are integers (1..${taskCount})`,
+          }),
+        );
+      }
     });
     return failures;
   }

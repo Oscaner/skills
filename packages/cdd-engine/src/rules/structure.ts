@@ -50,6 +50,10 @@ interface PlaneItem {
   line: string;
   /** The item's judged value — the anchor's capture group 1 (trimmed) when present, else "". */
   value: string;
+  /** The enclosing within-run's numeric bound — the run opener's capture group 1 (a `### Task N:`
+   *  opener captures its number); undefined when the run opener captures no number or the plane is
+   *  unscoped (the selfBounded invariant reads it — a bound-less item judges nothing). */
+  bound?: number;
 }
 
 /** One plane extraction — the item list + the per-run item counts of a within-scoped records scan
@@ -117,6 +121,7 @@ function extractPlaneItems(content: string, plane: StructurePlane): PlaneExtract
       const runCounts: number[] = [];
       let inRun = false;
       let fieldCloser = false;
+      let runBound: number | undefined;
       let runCount = 0;
       for (const line of lines) {
         if (inRun) {
@@ -124,11 +129,12 @@ function extractPlaneItems(content: string, plane: StructurePlane): PlaneExtract
             runCounts.push(runCount);
             inRun = false;
             runCount = 0;
+            runBound = undefined;
             // fall through — the closer line may itself be a run opener (the next `### Task N:`)
           } else {
             const m = line.match(anchor);
             if (m) {
-              items.push({ line, value: (m[1] ?? "").trim() });
+              items.push({ line, value: (m[1] ?? "").trim(), bound: runBound });
               runCount++;
             }
             continue;
@@ -138,6 +144,12 @@ function extractPlaneItems(content: string, plane: StructurePlane): PlaneExtract
           inRun = true;
           runCount = 0;
           fieldCloser = !HEADING_CLOSE_RE.test(line);
+          // The run's numeric bound — the opener's captured identifier when present (a `### Task N:`
+          // heading captures its task number — the selfBounded judgment's own-number reference; a
+          // non-numeric capture leaves the bound undefined → the selfBounded judgment stays vacuous).
+          const m = opener.exec(line);
+          const captured = m && m[1] !== undefined && m[1] !== "" ? Number(m[1]) : undefined;
+          runBound = captured !== undefined && Number.isInteger(captured) ? captured : undefined;
         }
       }
       if (inRun) runCounts.push(runCount);
@@ -284,6 +296,24 @@ function evaluateInvariant(
     }
     case "residue":
       return items.length === 0;
+    case "selfBounded": {
+      if (items.length === 0) return true;
+      // The anti-dependency gate: every comma-split integer ref must be strictly below the
+      // enclosing run's OWN number (a ref ≥ the bound — a forward or self reference — fails).
+      // Non-integer ref tokens (`none`/empty/`abc`) carry no ref and are skipped (the NaN /
+      // integer-gate rejection is the graph plane's); a bound-less run judges nothing (vacuous).
+      for (const item of items) {
+        if (item.bound === undefined) continue;
+        for (const token of item.value.split(",")) {
+          const t = token.trim();
+          if (t === "" || t === "none") continue;
+          const n = Number(t);
+          if (!Number.isInteger(n)) continue;
+          if (n >= item.bound) return false;
+        }
+      }
+      return true;
+    }
   }
 }
 

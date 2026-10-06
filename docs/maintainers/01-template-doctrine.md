@@ -81,7 +81,7 @@ The segment attribute (C1) is the cache contract's landing spot: the shell (`## 
 
 Skill document templates additionally bake in the program's experience asset (see `04-program-experience.md`). Doc-structure content derives from the engine DocBody model — one concrete body per doc type (`src/documents/doctypes/body/*.ts`) projects three derived planes: the schema product (`projectSchemaShape()` → the diff-pinned `config/schema/*.json`), the parse slabber (`projectSlicePatterns()` → the `docContractValidate`/extractor regexes), the token plane (body leaf → `DOC_TOKENS`); skills consume the schema face via `cdd schema get <type>`. Content edits land in the body, never the derived files. `base-branch.md` is methodology only.
 
-**Single grammar · edge groups · migration queue** — one plan/spec shape: legacy faces (`- **Do**:` blocks / Form B anchors / `## Task Groups` / `## Section 1`) BLOCK at `docContractValidate`; dispatch groups derive from task-record edges (`- **DependsOn**:` / `- **AtomicWith**:`, rank-forward); legacy docs migrate into the canonical grammar until zero residue.
+**Single grammar · unilateral edge · migration queue** — one plan/spec shape: legacy faces (`- **Do**:` blocks / Form B anchors / `## Task Groups` / `## Section 1`) BLOCK at `docContractValidate`; dispatch groups derive from the tasks' single `- **DependsOn**:` edge (lower-numbered only); legacy docs migrate into the canonical grammar until zero residue.
 
 ## 10. Exemplars
 

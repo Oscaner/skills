@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://oscaner.dev/schemas/cdd/plan.json",
   "title": "Phase implementation plan document structure",
-  "description": "Canonical structure of a kairos phase implementation plan — the per-phase executable breakdown of one design spec. This schema is the single structure fact for the plan doc type: the header fields, the `### Task N:` colon-form task headings, the per-task data records (objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[]) the brief renderer materializes the task-handoff brief from — zero prose `- **Do**:` carving — and the `## Constraints` delta (the section carries only the plan's own deltas, the single constraint surface). Authoring agents read the properties + descriptions to draft conforming plans; docContractValidate / brief extraction consume the same patterns.",
+  "description": "Canonical structure of a kairos phase implementation plan — the per-phase executable breakdown of one design spec. This schema is the single structure fact for the plan doc type: the header fields, the `### Task N:` colon-form task headings, the per-task data records (objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[] / dependsOn[] — the mandatory single directed edge, `none`/empty = the explicit no-dependency declaration, a missing line = the missing-edge failure) the brief renderer materializes the task-handoff brief from — zero prose `- **Do**:` carving — and the `## Constraints` delta (the section carries only the plan's own deltas, the single constraint surface). Authoring agents read the properties + descriptions to draft conforming plans; docContractValidate / brief extraction consume the same patterns.",
   "type": "object",
   "properties": {
     "header": {
@@ -123,7 +123,7 @@
     },
     "tasks": {
       "type": "array",
-      "description": "The plan's tasks — one task record per `### Task N:` block, the C3 data shape the brief renderer materializes the task-handoff brief from (renderBrief: objective + steps[action+checkable] + acceptance). Every task record's steps carry their checkable outcome (a step without a checkable fails validation).",
+      "description": "The plan's tasks — one task record per `### Task N:` block, the C3 data shape the brief renderer materializes the task-handoff brief from (renderBrief: objective + steps[action+checkable] + acceptance). Every task record's steps carry their checkable outcome (a step without a checkable fails validation). The bilateral edge declaration is retired — the single directed edge `- **DependsOn**:` is mandatory on every block (the edge completeness rule; `none`/empty = the explicit no-dependency declaration; a missing line fails as the missing-edge sixth failure class).",
       "items": {
         "type": "object",
         "required": [
@@ -131,9 +131,10 @@
           "files",
           "interface",
           "steps",
-          "acceptance"
+          "acceptance",
+          "dependsOn"
         ],
-        "description": "One plan task record — objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[], plus the optional dependsOn? (the tasks this task depends on) and atomicWith? (the tasks this task is atomic with) edge fields — read/write: the task-block parser fills them from their `- **DependsOn**:` / `- **AtomicWith**:` comma lists, TaskGraph consumes them for the grouping + edge validation.",
+        "description": "One plan task record — objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[] / dependsOn[] (the single directed edge — `- **DependsOn**:` comma list, `none`/empty → `[]`; the edge model is unilateral — TaskGraph consumes the dependsOn edges for the wave batches + the edge-validation BLOCK face (missing-edge · anti-dependency · …).",
         "properties": {
           "objective": {
             "type": "string",
@@ -204,18 +205,9 @@
             "items": {
               "type": "integer",
               "minimum": 1,
-              "description": "One task id this task depends on (a `### Task N:` id)."
+              "description": "One task id this task depends on (a `### Task N:` id — must be lower than the declaring task's own number: the anti-dependency gate)."
             },
-            "description": "The task ids this task depends on — the `- **DependsOn**:` comma list (read/write: the task-block parser fills it; TaskGraph consumes the edges)."
-          },
-          "atomicWith": {
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "One task id this task is atomic with (a `### Task N:` id)."
-            },
-            "description": "The task ids this task is atomic with — the `- **AtomicWith**:` comma list (read/write: the task-block parser fills it; TaskGraph consumes the edges)."
+            "description": "The task ids this task depends on — the `- **DependsOn**:` comma list (mandatory per block: `none`/empty → `[]`; a missing line is the missing-edge sixth failure class; references point at lower-numbered tasks only — a forward reference ≥ the declaring task's own number blocks as the anti-dependency violation)."
           }
         }
       }

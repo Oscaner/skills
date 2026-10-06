@@ -433,11 +433,15 @@ describe("the DocBody rule-data seam (T1 — abstract default; T2 — the concre
     expect(body.structureRules()).toEqual([]);
   });
 
-  it("the three concrete bodies carry their P3.1 T2 rule sets — the plan/spec/overall migrations landed (rule identities per type)", () => {
+  it("the three concrete bodies carry their rule sets — the plan/spec/overall migrations landed (rule identities per type, the unilateral edge faces included)", () => {
     expect(planBody.structureRules().map((r) => r.id)).toEqual([
       "plan.tasks",
       "plan.recordData",
       "plan.checkable",
+      // The unilateral edge faces: the per-block edge completeness (missing-edge sixth class) + the
+      // anti-dependency gate (selfBounded run-context invariant).
+      "plan.edge",
+      "plan.antiDependency",
       "plan.constraints",
       "plan.legacySections",
       "plan.placeholders",

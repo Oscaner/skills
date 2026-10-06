@@ -44,6 +44,7 @@
 ### Task 1: 类型债结算——engine src 结构性面（48 → src 零错）
 
 - **Objective**: 类型债结算——engine src 结构性面（48 → src 零错）：真相优先修复 finalize/branch/harness/task/docs 等 48 处，零行为变化
+- **DependsOn**: none
 
 - **Produces**: `packages/cdd-engine/src/**`（非 __tests__）48 处类型错误真相优先结算（finalize agentHandoff null ×28 · branch 契约如实扩字段 ×8 · harness OOP 消歧 ×4 · task DispatchOp ×2 · docs/registry/resource/write-boundary ×6）；`@ts-ignore`/`@ts-expect-error` 于 src 非 __tests__ 零命中
 
@@ -63,6 +64,7 @@
 ### Task 2: 类型债结算——`__tests__` 机械面（739 → engine tsc exit 0 = 787→0）
 
 - **Objective**: 类型债结算——`__tests__` 机械面（739 → engine tsc exit 0 = 787→0）：隐式 any/`{}`/catch-unknown/fixture 接口结算
+- **DependsOn**: 1
 
 - **Produces**: `__tests__/*.test.ts` 面 739 错误机械结算（TS7006/18046/7031 隐式 any · TS7053/2339 `{}` 上取属性 → fixture 接口 · catch-unknown 收窄 · possible-null 解构 · mock 函数签名）；`@ts-ignore`/`@ts-expect-error` 全仓 engine 面清零；tsc exit 0
 
@@ -80,6 +82,7 @@
 ### Task 3: 全仓源面 `.mjs→.ts` 迁移（全代码 TS 化 iron rule）
 
 - **Objective**: 全仓源面 `.mjs→.ts` 迁移（全代码 TS 化 iron rule）：kairos tests 10+1 · render-yaml · vitest/lint-staged configs，产物面零迁移
+- **DependsOn**: 2
 
 - **Produces**: kairos tests（10 *.test.mjs + helpers.mjs）→ .test.ts/.ts（import 全 `.ts` 后缀 · 零目录 index 导入）；`scripts/emit/render-yaml.mjs` → .ts；`vitest.config.mjs` / `lint-staged.config.mjs` → .ts；源面 `.mjs` 清零（产物面除外）
 
@@ -99,6 +102,7 @@
 ### Task 4: 三项目 tsc 闸 + type-check 块（validate/precommit 双接点）
 
 - **Objective**: 三项目 tsc 闸 + type-check 块（validate/precommit 双接点）+ ESM 检测前置（kairos type:module）+ 迁移 kairos 测试类型清零
+- **DependsOn**: 3
 
 - **Produces**: engine tsconfig `erasableSyntaxOnly` + scripts/kairos-tests 两 tsconfig；root typecheck 脚本（三项目 tsc --noEmit）；`scripts/validate/type-check.ts`（SubprocessBlock 双接点）；`packages/kairos/package.json` `"type": "module"`；迁移 kairos 测试类型清零（TS7006/nodenext import 语义）
 
@@ -118,6 +122,7 @@
 ### Task 5: 逃逸禁令 + residue/lexicon 守卫升级
 
 - **Objective**: 逃逸禁令 + residue/lexicon 守卫升级（WordTable 内核 + 所有权分裂 + 三族分层）
+- **DependsOn**: 4
 
 - **Produces**: ContractLexiconGuard 扩逃逸零命中 + residue 目标升全仓源面零 .mjs + checkWording 零债措辞；`contract-lexicon.json` 三族分层（command/guards/schema）+ 统一叶约定；`scripts/lib/guard-lexicon.json`（guards 迁出）；`src/infra/word-table.ts` 类型化视图 + `config/schema/contract-lexicon.json`（第 9 schema）；死代码即删
 
@@ -138,6 +143,7 @@
 ### Task 6: cdd 闭环 buildability 双证据（evidence + lensEnum + axesGuide + 断言）
 
 - **Objective**: cdd 闭环 buildability 双证据（evidence + lensEnum + axesGuide + review next: 读回提示）
+- **DependsOn**: 5
 
 - **Produces**: reviews.task/branch `lensEnum` 增 `"buildability"` + axesGuide buildability 轴（tsc+test 双证据）；implement Evidence gate 扩 `typecheck` 项（缺 → BLOCKED）；`NextStepRouter` next-line 附 `(read <handoff> back to confirm)`；测试断言（templates.test / registry.test 只读消费）
 
@@ -157,6 +163,7 @@
 ### Task 7: 零构建 dev/CI 面 + 删除层（与 Task 8 同组 dispatch）
 
 - **Objective**: 零构建 dev/CI 面 + 删除层（与 Task 8 同组 dispatch）：黑盒 re-point src/bin.ts + unbuild/dev-stub 删除 + live 面 grep 禁止 token 零命中
+- **DependsOn**: 6
 
 - **Produces**: engine vitest 黑盒（9 CDD_MJS · 11 execa）全改指 `node packages/cdd-engine/src/bin.ts`；`globalSetup` self-stub 删除；smoke-cdd pin 改指 src/bin.ts；删除层（unbuild + @typescript/typescript6 + build.config.ts + build/dev:stub scripts）；CLAUDE.md / maintainers 05 转述更新
 
@@ -167,7 +174,6 @@
   2. **删除层（死壳即删）**：engine devDependencies 删 `unbuild` + `@typescript/typescript6`（typescript@^7.0.2 保留）· 删 `packages/cdd-engine/build.config.ts` · engine package.json 删 `build`/`dev:stub` scripts（后续 T8 重建 build = tsc emit）· `pnpm install` 重写锁文件 · engine tsconfig include 移除 build.config.ts 行 — checkable: live 面 grep 零命中：`build.config` / `dev:stub` / `@typescript/typescript6` / `globalSetup` / `@ts-ignore` / `@ts-expect-error`（live 面 = CLAUDE.md · maintainers 05 · engine README 对 · 源面/config 面；历史 spec/plan 正文与发布面 schema/产物除外）
   3. CLAUDE.md「Development-time CDD invocation」→ **`node packages/cdd-engine/src/bin.ts <subcommand>`** 直调（dev:stub 叙述删除）；`docs/maintainers/05-third-party-dependencies.md` unbuild 登记改 **retired** + TS6 prose 转述——**不得携带被禁 token 原文** — checkable: root vitest 绿 · `pnpm run precommit` 绿（注：本任务删目录面，但发布面（T8）仍在同组——删除中态不可验收，同组 atomic）
 
-- **AtomicWith**: 8
 
 - **Acceptance**:
   - engine suite 全绿（黑盒经 `src/bin.ts` spawn——`CDD_MJS` 族改指后零 `dist/cli.mjs` 引用）· root vitest 绿 · `pnpm run precommit` 绿
@@ -178,6 +184,7 @@
 ### Task 8: 发布面（tsc-emit 单工具）+ 实证锚（与 Task 7 同组 dispatch）
 
 - **Objective**: 发布面（tsc-emit 单工具）+ 实证锚（与 Task 7 同组 dispatch）：tsconfig.build + bin/main/exports/files/engines + pack→install 实证
+- **DependsOn**: 6
 
 - **Produces**: `tsconfig.build.json`（rewriteRelativeImportExtensions + outDir dist + exclude __tests__）；engine package.json（`bin` → dist/bin.js · main/exports → dist/bin.js · files → [dist/config/templates] · engines ≥22.18.0 · build = tsc -p）；engine README 对更新；实证锚（pack → 临时仓 install → .bin/cdd --help exit 0）
 
@@ -188,7 +195,6 @@
   2. engine `package.json`：`bin` → `{"cdd": "dist/bin.js"}` · `main`/`exports["."]` → `./dist/bin.js` · `files` → `["dist/","config/","templates/"]`（**`src/` 零 ship**——发布必 JS）· `engines` → `>=22.18.0` · 重建 `"build"` script = `tsc -p tsconfig.build.json && <config→dist/config copy>`；engine README 对 toolchain/dev-invocation 段 → `node packages/cdd-engine/src/bin.ts`、移除 dev:stub/dist/cli.mjs 引用 — checkable: `pnpm pack` 产物含 `package/dist/bin.js`、**不含 `package/src/`**；engine README 对 live 面零 `dev:stub`/`dist/cli.mjs`（grep；发布面 schema/产物除外）
   3. **实证锚**：`pnpm pack`（packages/cdd-engine，目标 files/bin）→ 临时项目 `npm install <tgz>` → `.bin/cdd --help` + `schema get overall` 走真实引擎栈（包装面双探针；dev 面 node src/bin.ts 冒烟已在 T7 验） — checkable: 临时安装 `.bin/cdd --help` exit 0（`schema get overall` 同栈探针）；engine suite 全绿 · `pnpm run precommit` 绿（注：发布 tsc --emit 前置 = T2 结算；`dist/cli.mjs` 名随 unbuild 退役）
 
-- **AtomicWith**: 7
 
 - **Acceptance**:
   - `tsc -p tsconfig.build.json` exit 0（发布 emit）· 产物 `dist/bin.js` shebang 保留 + 相对 import 全 `.js`（无 `.ts` 残留引用）
@@ -200,6 +206,7 @@
 ### Task 9: 终验 + changeset + overall closeout 回填
 
 - **Objective**: 终验 + changeset + overall closeout 回填（validate ALL PASS + cdd-engine/kairos patch changesets + P5 closeout v1.28）
+- **DependsOn**: 7
 
 - **Produces**: `pnpm run validate` 全块全绿（type-check 块 · engine suite · scripts suite · kairos tests（.ts 迁后）· residue/lexicon guard · emit 面）；changesets（cdd-engine patch + kairos patch）；overall v1.28 closeout 回填（两列 Done + change-history + v1.27 计数修正）
 

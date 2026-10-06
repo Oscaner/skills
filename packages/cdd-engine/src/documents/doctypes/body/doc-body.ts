@@ -136,7 +136,16 @@ export type StructureInvariant =
   | { type: "continuity" }
   /** residue — the anchored plane must carry ZERO items (pseudo-headings · legacy faces such as
    *  `## Task Groups` / Form-B). */
-  | { type: "residue" };
+  | { type: "residue" }
+  /** selfBounded — every captured reference value must be strictly below the enclosing run's OWN
+   *  identifier (P3.1 T3 — the plan anti-dependency gate: a `- **DependsOn**:` reference may only
+   *  point at a lower-numbered task; numbering order is the topological-linearization anchor). Set
+   *  on a within-scoped records rule whose run opener captures the run's number — each anchored
+   *  item's comma-split integer refs are compared against the run bound; a ref ≥ the bound fails
+   *  (a self reference included). Non-integer ref tokens (`none`/empty/`abc`) carry no bound and
+   *  are skipped (the NaN/integer-gate rejection is the graph plane's). A run without a numeric
+   *  bound judges nothing (vacuous — the rule only becomes active under a numbered run opener). */
+  | { type: "selfBounded" };
 
 /** A doc-structure rule — one judgment plane + its invariant bundle + the rule's scope severity
  *  and its fixed message copy (the reusable wording findings carry VERBATIM — the interpreter

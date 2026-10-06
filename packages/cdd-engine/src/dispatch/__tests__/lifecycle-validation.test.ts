@@ -101,6 +101,7 @@ const PLAN = [
   "### Task 1: x",
   "",
   "- **Objective**: task one",
+  "- **DependsOn**: none",
   "- **Steps**:",
   "  1. implement — checkable: done",
   "- **Acceptance**:",
@@ -179,6 +180,36 @@ describe("docContractValidate — three invalid doc contracts block the real dis
     expect(r.diagnostic?.msg).toMatch(/→ add a|→ declare/); // actionable fix prose
   });
 
+  it("plan invalid: a data-shaped task block without its `- **DependsOn**:` line → blocked with the missing-edge structure guidance (P3.1 T3 — the dispatch pre-flight covers edge completeness)", async () => {
+    const repo = setupRepo();
+    writeChain(repo, {
+      plan: [
+        "# Plan",
+        "",
+        "**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)",
+        "",
+        "## Constraints",
+        "",
+        "- boundary one",
+        "",
+        "### Task 1: x",
+        "",
+        "- **Objective**: task one",
+        "- **Steps**:",
+        "  1. implement — checkable: done",
+        "- **Acceptance**:",
+        "  - done",
+        "",
+      ].join("\n"),
+    });
+    const r = await runReview(repo);
+    expect(r.exitCode).toBe(1);
+    expect(r.diagnostic?.prefix).toBe("CDD_BLOCKED");
+    expect(r.diagnostic?.msg).toMatch(/doc contract validation failed/);
+    expect(r.diagnostic?.msg).toContain("- [structure] plan.edge");
+    expect(r.diagnostic?.msg).toContain("DependsOn");
+  });
+
   it("spec invalid: missing `**Version**` line → blocked with phase-spec guidance", async () => {
     const repo = setupRepo();
     writeChain(repo, { spec: "- **Parent program**: [plan-overall.md v1.0](./plan-overall.md)\n" });
@@ -230,7 +261,7 @@ describe("statusValidate — CDD_INFO six-state line + plan verdict on a normal 
     expect(r.stderr).toContain("CDD_INFO: 0/1 complete — pending: task 1 (in-flight)");
   });
 
-  it("a plan with a `## Task Groups` section (marker-less blocks) → statusValidate walks every task via the single derivation (the section is not composed)", async () => {
+  it("a plan with a `## Task Groups` section (single-edge blocks) → statusValidate walks every task via the single derivation (the section is not composed)", async () => {
     const repo = setupRepo();
     const groupedPlan = [
       "# Plan",
@@ -242,10 +273,16 @@ describe("statusValidate — CDD_INFO six-state line + plan verdict on a normal 
       "- boundary one",
       "",
       "### Task 1: x",
-      "body",
+      "- **Objective**: task one",
+      "- **DependsOn**: none",
+      "- **Acceptance**:",
+      "  - done",
       "",
       "### Task 2: y",
-      "body",
+      "- **Objective**: task two",
+      "- **DependsOn**: 1",
+      "- **Acceptance**:",
+      "  - done",
       "",
       "## Task Groups",
       "",

@@ -68,7 +68,7 @@ Maintainer-only record of the hard-won lessons from the kairos-overhaul program 
 
 Operational norms fixed by the consumer-parity P3 rebuild; each item is grep-verifiable. Item numbering continues section 6.
 
-45. **Zero product-path fixtures** — unit/e2e suites are functional verification; no repo product path may serve as a test fixture. Canary evidence belongs to runtime dispatch, never product-path fixtures.
+45. **Zero product-path fixtures** — unit/e2e suites are functional verification; no repo product path may serve as a test fixture. Canary evidence belongs to runtime dispatch, never fixtures.
 46. **Zero numbered step anchors** — validate step names are semantic, not opaque numbers (the `5b0` / `5b1` / `5c` / `12.` family is retired); `ci-validate.test.ts` pins digit-led families at zero residue.
 47. **Zero legacy-exemption dead code** — C3-hit code is deleted, never exempted (`plan-spec-anchors`' Class C legacy exemption and `isLegacyRef` were repo-only carve-outs, deleted).
 48. **Phase-id syntax A** — canonical phase ids are dotted numeric `P<digits>(.digits)*` (split phases climb the dot hierarchy, e.g. `P2.1`); letters or hyphens are prohibited.

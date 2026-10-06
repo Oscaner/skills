@@ -695,8 +695,6 @@ describe("迁移队列期望态 — the single-form tree's migration state table
     expect(PLAN_MIGRATION["2026-10-02-doc-architecture-v2-p3.md"]).toBe("canonical");
     expect(Object.values(PLAN_MIGRATION).filter((s) => s === "canonical")).toHaveLength(22);
     expect(Object.values(SPEC_MIGRATION).filter((s) => s === "canonical")).toHaveLength(21);
-    expect(Object.values(PLAN_MIGRATION).some((s) => s === "pending")).toBe(false);
-    expect(Object.values(SPEC_MIGRATION).some((s) => s === "pending")).toBe(false);
   });
 
   it("the zero-migration canonical pair validates clean (the p3 plan + the p3 design)", () => {
@@ -713,11 +711,6 @@ describe("迁移队列期望态 — the single-form tree's migration state table
   });
 
   it("the migration queue is closed — zero pending-migration documents remain (plan + spec families, the T8 terminal state)", () => {
-    for (const [file, state] of Object.entries(PLAN_MIGRATION)) {
-      if (state !== "pending") continue;
-      const failures = planType().validate(path.join(PLANS_DIR, file), { root: REPO_ROOT });
-      expect(failures.length, `${file} pending-migration must block`).toBeGreaterThan(0);
-    }
     expect(Object.values(PLAN_MIGRATION).some((s) => s === "pending")).toBe(false);
     expect(Object.values(SPEC_MIGRATION).some((s) => s === "pending")).toBe(false);
   });

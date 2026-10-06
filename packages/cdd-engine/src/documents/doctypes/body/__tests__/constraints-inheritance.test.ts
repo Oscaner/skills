@@ -9,16 +9,19 @@
 //     program chain → the overall's `**Constraints**:` block) and the materializer's merged
 //     plan-constraints.md (the constitution auto-applies — materialize evidence);
 //   - the spec side: specConstraintsOf (the spec's `## Constraints` delta + its Parent program
-//     chain); legacy six-section specs → null (no merge, the dual-read exemption);
-//   - the Form-B prohibition: a NEW-shape plan declaring Form B prose pointers fails validate, a
-//     legacy Form B plan stays green (dual-read exemption);
+//     chain); a spec without the literal `## Constraints` section → null (the undeclared face);
+//   - the Form-B retirement: Form B prose-anchor declarations are no longer a Constraints source —
+//     a plan carrying them fails validate (source undeclared, the single-form grammar);
 //   - the inheritance-point linkage: a spec declaring `## Constraints` whose Class-B Parent program
 //     pointer does not resolve fails validate.
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { materializePlanConstraints } from "../../../../dispatch/task.ts";
+import {
+  ConstraintsSourceUndeclared,
+  materializePlanConstraints,
+} from "../../../../dispatch/task.ts";
 import { DocumentsValidator } from "../../../../rules/documents.ts";
 import { docTypeRegistry } from "../../../registry.ts";
 import { mergeParentConstraints, overallConstraintsOf } from "../constraints.ts";
@@ -73,8 +76,9 @@ const NEW_SPEC = [
   "",
 ].join("\n");
 
-// Legacy six-section spec — the P1-era shape; its constraint source is the `## Section 1:
-// Constraints pointer` prose (dual-read exemption — no merge, specConstraintsOf returns null).
+// Legacy six-section spec — the P1-era shape; it carries no literal `## Constraints` section, so
+// the spec merged read has no delta to merge (specConstraintsOf returns null — the undeclared
+// face). The three-truth skeleton validation is what such a spec fails, never this read.
 const LEGACY_SPEC = [
   "- **Version**: v1.0 · 2026-09-21",
   "- **Parent program**: [plan-overall.md v1.0](./plan-overall.md)",
@@ -103,7 +107,12 @@ const NEW_PLAN = [
   "- plan delta two",
   "",
   "### Task 1: x",
-  "body",
+  "",
+  "- **Objective**: task one",
+  "- **Steps**:",
+  "  1. implement — checkable: done",
+  "- **Acceptance**:",
+  "  - done",
   "",
 ].join("\n");
 
@@ -211,7 +220,7 @@ describe("planConstraintsOf — the plan's merged read (Form-A delta + the inher
     }
   });
 
-  it("Form B (legacy): the prose-pointer extraction, unchanged — no merge (dual-read exemption)", () => {
+  it("Form B (retired): a prose-anchor plan declares no `## Constraints` source → the merged read is null (no fallback)", () => {
     const plan = tmpFile(
       [
         "# Plan",
@@ -230,11 +239,9 @@ describe("planConstraintsOf — the plan's merged read (Form-A delta + the inher
       ].join("\n"),
     );
     try {
-      const merged = validator.planConstraintsOf(plan, path.dirname(path.dirname(plan)));
-      expect(merged).toBe(
-        "**口径**：mouthpiece constraint\n\n**顺序原则**：ordering-principle constraint\n",
-      );
-      expect(merged!).not.toContain("Parent overall — inherited");
+      // The literal `## Constraints` section is the plan's single constraint source — the retired
+      // prose-pointer read never applies.
+      expect(validator.planConstraintsOf(plan, path.dirname(path.dirname(plan)))).toBeNull();
     } finally {
       rmSync(path.dirname(plan), { recursive: true, force: true });
     }
@@ -262,7 +269,7 @@ describe("materializePlanConstraints — the merged plan-constraints.md (the con
     }
   });
 
-  it("a Form-B plan materializes the legacy prose extraction (unchanged)", () => {
+  it("a Form B prose-anchor plan cannot materialize — the retired face throws ConstraintsSourceUndeclared", () => {
     const plan = tmpFile(
       [
         "# Plan",
@@ -270,6 +277,8 @@ describe("materializePlanConstraints — the merged plan-constraints.md (the con
         "**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)",
         "",
         "**口径**：mouthpiece constraint",
+        "",
+        "**顺序原则**：ordering-principle constraint",
         "",
         "---",
         "",
@@ -280,10 +289,10 @@ describe("materializePlanConstraints — the merged plan-constraints.md (the con
     );
     const ws = mkdtempSync(path.join(tmpdir(), "cdd-constraints-ws-"));
     try {
-      const outPath = materializePlanConstraints(plan, ws, path.dirname(path.dirname(plan)));
-      const text = readFileSync(outPath, "utf8");
-      expect(text).toContain("**口径**：mouthpiece constraint");
-      expect(text).not.toContain("Parent overall — inherited");
+      expect(() => materializePlanConstraints(plan, ws, path.dirname(path.dirname(plan)))).toThrow(
+        ConstraintsSourceUndeclared,
+      );
+      expect(existsSync(path.join(ws, "plan-constraints.md"))).toBe(false);
     } finally {
       rmSync(path.dirname(plan), { recursive: true, force: true });
       rmSync(ws, { recursive: true, force: true });
@@ -306,7 +315,7 @@ describe("specConstraintsOf — the spec's merged read along the Class-B chain",
     }
   });
 
-  it("legacy six-section spec: no `## Constraints` inheritance point → null (dual-read exemption, no merge)", () => {
+  it("a spec without the literal `## Constraints` section has no delta to merge → null (the undeclared face)", () => {
     const chain = writeChain(OVERALL, NEW_PLAN, LEGACY_SPEC);
     try {
       expect(validator.specConstraintsOf(chain.spec, chain.root)).toBeNull();
@@ -316,15 +325,15 @@ describe("specConstraintsOf — the spec's merged read along the Class-B chain",
   });
 });
 
-describe("the Form-B prohibition — new-shape plans must never declare the legacy prose pointer", () => {
-  it("NEW-shape plan (data-shaped task records) declaring Form B prose pointers → validate fails", () => {
+describe("the Form-B retirement — prose-anchor declarations are no longer a Constraints source", () => {
+  it("a plan declaring Form B prose anchors (no `## Constraints`) → validate fails: source undeclared (the single-form grammar)", () => {
     const plan = tmpFile(
       [
         "# Plan",
         "",
         "**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)",
         "",
-        "**口径**：prose pointer used by a new-shape plan",
+        "**口径**：prose pointer used by a plan",
         "",
         "### Task 1: x",
         "",
@@ -338,17 +347,16 @@ describe("the Form-B prohibition — new-shape plans must never declare the lega
     );
     try {
       const failures = validator.validatePlanContract(plan);
-      const ban = failures.find(
-        (f) => f.field === "Constraints source" && /legacy Form B/.test(f.missing),
-      );
-      expect(ban).toBeDefined();
-      expect(ban!.fix).toContain("## Constraints");
+      const source = failures.find((f) => f.field === "Constraints source");
+      expect(source).toBeDefined();
+      expect(source!.missing).toMatch(/declares no Constraints source/);
+      expect(source!.fix).toContain("## Constraints");
     } finally {
       rmSync(path.dirname(plan), { recursive: true, force: true });
     }
   });
 
-  it("legacy Form B plan → green (the dual-read exemption: prose-only, no new-shape marker)", () => {
+  it("a legacy Form B prose-anchor plan → BLOCK (pending-migration): the anchors no longer declare any source", () => {
     const plan = tmpFile(
       [
         "# Plan",
@@ -371,13 +379,14 @@ describe("the Form-B prohibition — new-shape plans must never declare the lega
       ].join("\n"),
     );
     try {
-      expect(validator.validatePlanContract(plan)).toEqual([]);
+      const failures = validator.validatePlanContract(plan);
+      expect(failures.some((f) => f.field === "Constraints source")).toBe(true);
     } finally {
       rmSync(path.dirname(plan), { recursive: true, force: true });
     }
   });
 
-  it("a legacy Form-A plan (with `## Constraints`) carries no prose pointers → green (no false Form-B hit)", () => {
+  it("a Form-A plan (with `## Constraints`) carries no Form-B message — failures come from the data-shaped record face, never a Form-B prohibition", () => {
     const plan = tmpFile(
       [
         "# Plan",
@@ -390,13 +399,19 @@ describe("the Form-B prohibition — new-shape plans must never declare the lega
         "- boundary two",
         "",
         "### Task 1: x",
-        "body",
+        "",
+        "- **Objective**: task one",
+        "- **Steps**:",
+        "  1. implement — checkable: done",
+        "- **Acceptance**:",
+        "  - done",
         "",
       ].join("\n"),
     );
     try {
       const failures = validator.validatePlanContract(plan);
-      expect(failures.some((f) => /legacy Form B/.test(f.missing))).toBe(false);
+      expect(failures.some((f) => /Form B|prose pointer/.test(f.missing))).toBe(false);
+      expect(failures).toEqual([]);
     } finally {
       rmSync(path.dirname(plan), { recursive: true, force: true });
     }
@@ -435,12 +450,12 @@ describe("the inheritance-point linkage — `## Constraints` demands a resolvabl
     }
   });
 
-  it("a legacy six-section spec (no `## Constraints`) with a truncated chain stays green (the legacy no-op retained)", () => {
+  it("a six-section spec fails the three-truth skeleton — the legacy no-op is gone (skeleton assertions fire regardless of the parent linkage)", () => {
     const chain = writeChain(OVERALL, NEW_PLAN, LEGACY_SPEC);
     try {
-      expect(docTypeRegistry.resolve("spec").validate(chain.spec, { root: chain.root })).toEqual(
-        [],
-      );
+      const failures = docTypeRegistry.resolve("spec").validate(chain.spec, { root: chain.root });
+      expect(failures.some((f) => f.field === "`## Design`")).toBe(true);
+      expect(failures.some((f) => f.field === "`## Constraints`")).toBe(true);
     } finally {
       rmSync(chain.root, { recursive: true, force: true });
     }

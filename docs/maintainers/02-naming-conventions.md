@@ -24,7 +24,7 @@ Maintainer-only guidance for naming across the repository's authorable surfaces 
 | Issue surface | `issue` — the pure-rendering CLI row (`cdd issue render`: stdin JSON → aggregate body → stdout, Non-goal #1 exception) + emit issue form yml from the same `formFieldDefs` | `IssueReportRenderer` · `issue-body.json` · `.github/ISSUE_TEMPLATE/*.yml` · `renderYml` |
 | Command-contract wording | single-sourced in the Contract Lexicon (`contract-lexicon.json`) | `ContractLexiconGuard` four check faces (checkAnatomy/checkResidue/checkWording/checkConfig) |
 
-**Return-format discriminators are constants, not injection slots.** `RETURN_STDOUT_BLOCK` / `RETURN_JSON` / `DOCS_FIX` are the `RETURN_FORMAT` discriminator's values (`template-contract.json#sections.return`); they surface as literal labels, not moustaches — never registry tokens. Only `round-context` slots are injected. The handoff status enum (`APPROVED` / `BLOCKED` / `CHANGES_REQUESTED` / `REVIEW_FIX` / `TIMEOUT`) is the same constant class (schema values, never template tokens).
+**Return-format discriminators are constants, not injection slots.** `RETURN_STDOUT_BLOCK` / `RETURN_JSON` / `DOCS_FIX` are the `RETURN_FORMAT` discriminator's values (`template-contract.json#sections.return`); they surface as literal labels, not moustaches — never registry tokens. Only `round-context` slots are injected. The handoff status enum (`APPROVED` / `BLOCKED` / `CHANGES_REQUESTED` / `REVIEW_FIX` / `TIMEOUT`) is the same constant class (schema values).
 
 ## 3. Terminology registry
 

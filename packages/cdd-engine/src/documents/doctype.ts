@@ -40,7 +40,7 @@ export type DocKind = "overall" | "plan" | "spec";
  * A structural node of the doc-type's output JSON Schema (draft 2020-12 — the closed keyword
  * subset the three schema products actually carry; no index signature, so an untyped keyword stays
  * a compile-time failure and the concrete shape content stays pinned to the keywords the products
- * exercise). `properties`/`$defs` recurse; `items` is the inline object form (the products carry no
+ * exercise). `properties` recurse; `items` is the inline object form (the products carry no
  * tuple form).
  */
 export interface SchemaNode {
@@ -54,24 +54,18 @@ export interface SchemaNode {
   properties?: Readonly<Record<string, SchemaNode>>;
   /** The `items` leaf — an inline array-item schema (object form). */
   items?: SchemaNode;
-  /** A `pattern` leaf (e.g. the `^## Section N:` heading-form patterns). */
+  /** A `pattern` leaf (e.g. the `^### Task \d+:` task-heading form patterns). */
   pattern?: string;
   /** A `const` leaf (e.g. the literal `**Version**` / `**Spec:**` marker tokens). */
   const?: string | number | boolean;
-  /** An `enum` leaf — the string-vocabulary leaves (status states / column names / prose anchors). */
+  /** An `enum` leaf — the string-vocabulary leaves (the three-state plan-column cells / the
+   *  claim-link words). */
   enum?: readonly string[];
-  /** The `$defs` container (the plan's taskGroups definitional sub-schema). */
-  $defs?: Readonly<Record<string, SchemaNode>>;
-  /** The `default` leaf (the plan taskGroups empty default). */
-  default?: unknown;
-  /** The `required` leaf (the plan taskGroups item). */
+  /** The `required` leaf — the property set a node demands of its instance (the task-item
+   *  record's `objective`/`steps`/`acceptance` set, the `if`/`then` consequence). */
   required?: readonly string[];
-  /** The `minimum` leaf (the plan task-number bound). */
+  /** The `minimum` leaf (the task-edge id bound). */
   minimum?: number;
-  /** The `minItems` leaf (the plan taskGroups minimum bound). */
-  minItems?: number;
-  /** The `uniqueItems` leaf (the plan taskGroups uniqueness bound). */
-  uniqueItems?: boolean;
   /** The `dependentRequired` leaf — the use-dependent structural consequence (P2 T2; design C2:
    *  the phase-spec conditional-section consequence, e.g. the deviations section's `heading`
    *  requiring its `Overall updated?` answer leaf — a decorated section carries its marker). */

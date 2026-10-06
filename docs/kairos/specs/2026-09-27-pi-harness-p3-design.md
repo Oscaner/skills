@@ -6,24 +6,8 @@
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.17](2026-09-27-pi-harness-overall.md)
 - **Depends on**: P1（shipped · [p1-design v1.5](2026-09-27-pi-harness-p1-design.md)）；P2（shipped · 契约面定案——`{claude, cursor, pi}` 三元组行键集）
 
-## Section 0: Incremental warning
-
-本 spec 承诺恰好一个 phase（P3 engine 数据面 + 命令契约面）。若实施中发现需要拆分 / 重排 P3 的工作，不是本文件的局部编辑——phase inventory 行、依赖边、change-history 行必须先回填 parent overall（backfill-as-version）再继续。P3 之后的 phase（P4 文档·测试·收口）归其 spec；本 phase 的全部破坏性定案已于 overall v1.12/v1.13 回填生效（P3 破坏性变更授权 + 豁免概念废除 + `cdd` 记录/h·id 显示值空壳废除 + pi 行形态定稿 + 命令契约面 D1–D4 + Contract Lexicon 机制）。
-
-## Section 1: Constraints pointer
-
-跨 phase 约定以 parent overall v1.13 为准（overall wins on conflict），本 phase 不重复表述，仅指针：
-- **P3 破坏性变更授权（2026-09-29，Constraints 登记）**：engine 数据面可重写代码 / 重整文件——约束 = 高维思考 / 抽象统一（OOP）/ 最佳实践 / 零技术债务
-- **命令契约面授权（2026-09-29，v1.13 Constraints 登记）**：implement/review/fix 语义双轴分离（判定轴 review 独占 / 工作轮 implement·fix 打 `COMPLETED`）· `blocker:` 判定源计数 · 全 op 单胶囊 stdout 面 · Contract Lexicon 机制（contract-lexicon.json 单词表 + `ContractLexiconGuard` OOP 守卫）· 消费面（orchestrator skills）零引擎形状 restate · 运维文档 + CLAUDE.md 同步交付
-- **豁免概念废除**：守卫扫 live 面（engine src/tests + scripts + docs/maintainers + README 家族 + osuperpowers tests）零 `cursor-agent`，唯一允许命中 = registry `cli` 数据值；历史正文（2026-09-13 family / change-history 行）即史实，不 retro-rename、无豁免机制。**P3 分期实施**：守卫扫面率先落三面（engine src/tests + scripts + docs/maintainers，本 phase 可归零面），README 家族与 osuperpowers tests 随 P4 文档统一验收纳入——program 终态五面归零定律不破（见 G2/C3/§4）
-- **CLI 二进制名不可改**（外部事实）：`cli` 字段保留 `claude` / `cursor-agent` / `pi`；名义映射表（标识符 ↔ 二进制 ↔ 宿主 marker）P4 落 README 渲染
-- **Non-goal：注册表分层不破**——本 phase 的 engine registry（spawn 契约面）与 emit 分发注册表 `scripts/lib/harness-registry.ts`（分发 manifest 面）不合并（P2 定案延续）
-- **host-marker 白名单恰 4 键不变**：`channels.env.hostHarness.markers` = `["AI_AGENT","CLAUDE_CODE_SESSION_ID","CURSOR_TRACE_ID"]` + `PATH`（engine-config.json:80-87，`context.test.ts:36` 钉死）——pi 检测复用 `AI_AGENT` 通道，零新键
-- 开发期引擎直调 `node packages/cdd-engine/dist/cli.mjs`；spec/plans 中文（Strategy B）；changeset/commit 纪律不因本 phase 变更
-
-## Section 2: Design body
-
-#### 2.1 目标与范围
+## Design
+**2.1 目标与范围**
 
 P3 把 engine 数据面收敛到与 P2 已定的分发契约同构：`harness-registry.json` 行键 `cursor-agent`→`cursor`（追平三元组 `{claude, cursor, pi}`），`detectCurrentHarness` 硬编码 if 链改 **OOP 多态**（Harness 抽象 + 子类 `detect(env)` 谓词 + 注册序 first-match），新增 `pi` 行（`cli` 二进制 `pi` · ship full · invoke `-p --mode text` · cache 未实测态）；并借 P3 破坏性授权（用户拍板 2026-09-29）扩展到**命令契约面**——implement/review/fix 语义双轴分离、单胶囊 stdout 面、Contract Lexicon 机制、消费面措辞同步、运维文档/CLAUDE.md 同步。范围外：engine 记录/artifacts 数据面（空壳废除声明，见 C4）、emit 分发注册表（Non-goal 分层）、README 家族收口与 osuperpowers tests 残留面（`tests/helpers.mjs:16` / `tests/presentation-surface.test.mjs:274`）零化（P4 文档·测试·收口——P3 守卫扫面不含此二面，见 G2/C3）。
 
@@ -92,7 +76,7 @@ P3 把 engine 数据面收敛到与 P2 已定的分发契约同构：`harness-re
 - **docs/maintainers 同步**：01-template-doctrine（harness-registry 行键镜像 cursor + pi）· 02-naming-conventions（契约措辞指针）· 03-context-caching-doctrine（Baseline entries 随 C2）· 04-program-experience（Contract Lexicon 机制记录）——行键镜像零 cursor-agent（G2 验收）
 - **根 CLAUDE.md 同步**：`pnpm run emit`/validate 描述随 Contract Lexicon 单 block 更新；engine 调用面（dev:stub / cdd CLI）契约措辞随 C5 单胶囊更新；commit/validate 流程描述不因本 phase 变更
 
-#### 2.2 崩溃恢复健壮性（crash recovery — 用户拍板追加 T7）
+**2.2 崩溃恢复健壮性（crash recovery — 用户拍板追加 T7）**
 
 事故复盘（P3 T6 implement，上游模型 403 杀死内层 agent → `cli exited 1 and handoff missing`）暴露五缺陷：
 ① 无报错保留（child 403 trace 丢失）② resume 流程绕（stash-residue 恢复误命中 P4.4 过期 stash，apply
@@ -128,7 +112,7 @@ record），恢复 = 同命令重跑即续作**。
   failure-mode 表同步
 - **收敛法自洽**：快照 commit 移动 BASE..HEAD ref → re-review 新 ref = 新 review（I3），快照零特权
 
-#### 2.3 统一终止模型（fold A–D — 用户拍板追加 T8）
+**2.3 统一终止模型（fold A–D — 用户拍板追加 T8）**
 
 §2.2 窄谓词（child 非零退出 && handoff 未写）收住 child-exit/child-signal；高维复盘折叠把模型升为**对偶全量**（§2.2 为地基，本节约为层加宽；允许破坏性/重写/重组/死壳即删）：
 
@@ -140,7 +124,7 @@ record），恢复 = 同命令重跑即续作**。
 - **cause 字段**：crash record 增 `cause`：`child-exit` / `child-signal` / `engine-over-budget` / `engine-timeout` / `unknown`——postmortem 专用、**行为零分叉**（resume 不因 cause 不同路）
 - **边界自检**：engine 自身 liveness（engine 进程内内存泄漏面）属 liveness monitor 另轨，本模型只管 **child 终止面**；`dispatchIncomplete`（CONTRACT_VIOLATION / ENGINE_SELF_WRITTEN：部分 handoff = 合同违约面）语义保留，不并入终止面
 
-#### 2.4 预算维度统一（op 维度抽象 — 用户拍板追加 T9）
+**2.4 预算维度统一（op 维度抽象 — 用户拍板追加 T9）**
 
 §2.3 把终止面收为对偶 artifact；预算（wall-clock hard cap，`timeouts.defaults`）是 termination 的触发源之一（cause `engine-over-budget`）。预算配置对象当前挂在**岛名**上（`{task, review}`）——task island 一个 call site 承载 implement/review/fix 三 op、`resolveTerminationConfig("task")` 硬编码 → `review --type task` **错读实施预算**（T7 task review 已 2h 未被 review 1h 掐掉即为该错读的直接后果）；branch-fix 同样错读 `"review"`。预算本质是 **op 维度**（工作轮资源上限），岛/type 是平行通道、与资源需求无关（同一轮 review 花在 task 或 branch 上预算应同）：
 
@@ -167,7 +151,18 @@ record），恢复 = 同命令重跑即续作**。
 - **T8 统一终止模型全绿**：teardown 触发谓词 = **任意 exit gate 前终止**——over-budget/timeout 与 child-exit/child-signal **同一实现路径**（teardown 矩阵测试：四类终止模拟 → 同路 snapshot + crash record（含 `cause`）+ BLOCKED capsule next 同命令 resume，非并行第二套）· crash record 含 `cause`（child-exit/child-signal/engine-over-budget/engine-timeout/unknown）且行为零分叉 · crash record 三方统一（teardown 写 / resume 读 / reapStale 枚举 stale crash records，`WorkspaceRoot.enumerate()` 复用）· `recovery.residue_ref` / 旧独立 recovery 持久化面零残留（grep 零命中 + channel-audit 计数断言）· resume 软帽：3 次 → `BLOCKED: crash-recovery-cap` 用户裁决，FailureResolver 类别 cap 面不动 · `pnpm run validate` 全绿 + precommit 面绿
 - **T9 预算维度统一全绿**：`timeouts.defaults` = `{implement: 21600000, review: 10800000, fix: 21600000}` 且**无 `task` key**（config 读断言 + grep 兜底）· 三岛接线断言全绿（7 op 组合 spawn 传出 budget = 对应 op 默认值——task.implement 6h / task.review 3h / task.fix 6h / branch.review 3h / branch.fix 6h / docs.review 3h / docs.fix 6h）· resolver 单测迁完（`"task"` budget 断言零残留）· `DispatchOp` union 编译期禁 `"unknown"`（unknown 防御语义保留为 config 缺 key fail-safe）· `pnpm run validate` 全绿 + precommit 面绿
 
-## Section 3: Deviations from overall
+## Constraints
+
+- 跨 phase 约定以 parent overall v1.13 为准（overall wins on conflict），本 phase 不重复表述，仅指针：
+- **P3 破坏性变更授权（2026-09-29，Constraints 登记）**：engine 数据面可重写代码 / 重整文件——约束 = 高维思考 / 抽象统一（OOP）/ 最佳实践 / 零技术债务
+- **命令契约面授权（2026-09-29，v1.13 Constraints 登记）**：implement/review/fix 语义双轴分离（判定轴 review 独占 / 工作轮 implement·fix 打 `COMPLETED`）· `blocker:` 判定源计数 · 全 op 单胶囊 stdout 面 · Contract Lexicon 机制（contract-lexicon.json 单词表 + `ContractLexiconGuard` OOP 守卫）· 消费面（orchestrator skills）零引擎形状 restate · 运维文档 + CLAUDE.md 同步交付
+- **豁免概念废除**：守卫扫 live 面（engine src/tests + scripts + docs/maintainers + README 家族 + osuperpowers tests）零 `cursor-agent`，唯一允许命中 = registry `cli` 数据值；历史正文（2026-09-13 family / change-history 行）即史实，不 retro-rename、无豁免机制。**P3 分期实施**：守卫扫面率先落三面（engine src/tests + scripts + docs/maintainers，本 phase 可归零面），README 家族与 osuperpowers tests 随 P4 文档统一验收纳入——program 终态五面归零定律不破（见 G2/C3/§4）
+- **CLI 二进制名不可改**（外部事实）：`cli` 字段保留 `claude` / `cursor-agent` / `pi`；名义映射表（标识符 ↔ 二进制 ↔ 宿主 marker）P4 落 README 渲染
+- **Non-goal：注册表分层不破**——本 phase 的 engine registry（spawn 契约面）与 emit 分发注册表 `scripts/lib/harness-registry.ts`（分发 manifest 面）不合并（P2 定案延续）
+- **host-marker 白名单恰 4 键不变**：`channels.env.hostHarness.markers` = `["AI_AGENT","CLAUDE_CODE_SESSION_ID","CURSOR_TRACE_ID"]` + `PATH`（engine-config.json:80-87，`context.test.ts:36` 钉死）——pi 检测复用 `AI_AGENT` 通道，零新键
+- 开发期引擎直调 `node packages/cdd-engine/dist/cli.mjs`；spec/plans 中文（Strategy B）；changeset/commit 纪律不因本 phase 变更
+
+## Deviations
 
 | Overall assumption | Phase decision | Overall updated? |
 |---|---|---|
@@ -178,7 +173,7 @@ record），恢复 = 同命令重跑即续作**。
 | P3 原 scope 无命令契约面 | 命令契约面统一（D1–D4）：语义双轴 + blocker 判定源计数 + 单胶囊 stdout 面 + OOP 三组件 + Contract Lexicon 机制 + 消费面措辞同步 + 运维文档/CLAUDE.md——P3 契约面增项 | Yes — v1.13 · 2026-09-29 |
 | 三先例（skill-anatomy / residue / engine-config）各自成系 | 收敛为 `contract-lexicon.json` 单词表 + `ContractLexiconGuard` 单守卫 + validate 单 block（原子化：三先例 + contract-wording 合一） | Yes — v1.13 · 2026-09-29 |
 
-## Section 4: Notes for downstream
+## Notes for downstream
 
 - **P4 名义映射表**：标识符 ↔ 二进制 ↔ 宿主 marker 三面映射的**数据**已由 P3（registry 行内 `cli`/`invoke` 数据 + OOP detect 谓词）承载；P4 README 家族只做**渲染**（registry 数据导出），零手写重复映射——P4 spec 消费本 phase 的 `harness.ts` 实例化面
 - **P4 文档统一验收**：docs/maintainers 已在 P3 随 C2 归零；P4 将守卫扫面扩展纳入 README 家族（`packages/osuperpowers/README.md:72` / `README.zh-CN.md:74` 行键格 `cursor-agent`→`cursor`）与 osuperpowers tests（`tests/helpers.mjs:16` 注释 / `tests/presentation-surface.test.mjs:274` 测试名）零化，并**定案 README Harness 表 cli 列二进制名 `cursor-agent` 渲染与守卫字面零化的关系**——守卫白名单单点 = registry `cli` 数据值，cli 列是数据导出渲染面（非豁免清单），P4 spec 设计其放行语义（root README 家族已零命中，仅复核）；历史正文即史实、无豁免；P4 需注意 `report-issues/SKILL.md:34` 的宿主自报名示例（`claude-code`）属于自报名坐标系，与 registry 行键分层（该不变量 P3 已声明，P4 渲染沿用）
@@ -188,11 +183,3 @@ record），恢复 = 同命令重跑即续作**。
 - **Contract Lexicon 与 emit 的关系**：`contract-lexicon.json` 若放 engine templates/schema（`../../cdd-engine` 引用面），emit 产物面不新增文件（词表 = engine 数据面，非分发 manifest）；CLAUDE.md/`pnpm run emit` 描述随 validate block 更新（emit:check 零漂移）
 - **T7 波及面（崩溃恢复）**：`HARNESS_ABORT` 类别与 crash record 是新增横切——validate 的 channel-audit 需将 harnessAbortCount 纳入逐类计数断言（零泄漏）；`--no-verify` 快照语义写入 maintainers（hook 旁路的唯一正当理由 = crash-only snapshot）；P4 收口若引擎形状再变，ContractLexiconGuard.checkWording 机械拦截（零漂移）；crash record 属于工作区状态族，不参与消费面 restate
 - **T8 波及面（统一终止模型）**：resume 软帽进入 state 面（progress/lifecycle 持久化 crash 恢复计数，逐任务独立）；reapStale 枚举面扩为 crash records + lifecycle 全部工作区 artifact（T6 enum 基座直接复用）；`recovery.residue_ref` 删除面 = progress 字段 + SKILL 措辞 + 测试（channel-audit 断言随删）；类别/机制解耦后 failureCategories 表增 `HARNESS_ABORT` 的身份面测试维持、机制层单路测试新增——类别身份与机制测试分面、互不耦合
-
-## Section 5: Review
-
-Review Convergence 应用方：`cdd review --type spec --spec docs/osuperpowers/specs/2026-09-27-pi-harness-p3-design.md`。
-- blocker > 0 → fix 全部 findings → `cdd fix` 后 re-review
-- blocker = 0 → fix 全部 findings（warn + nit）→ done，不 re-review（Review Convergence 规则详见 parent overall section/各 orchestrator Invariants）
-- commit 前提：Review 收敛（status = APPROVED / REVIEW_FIX 走 fix 闭环后），spec approved = commit immediately
-- 本文件备选的偏离面已全部经 overall v1.12/v1.13/v1.16/v1.17 回填（Section 3 各行 `Overall updated?` = Yes；T7 崩溃恢复经 overall v1.16、T8 统一终止模型经 overall v1.17 登记）

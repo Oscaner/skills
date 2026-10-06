@@ -483,10 +483,32 @@ it("runTask: group [1,2] implement failure → tasks-1,2-implement.json BLOCKED 
   // a two-task plan so the group brief is in-bounds (task 1 + task 2 both exist); commitValidDocs
   // is called with the custom body (commitPlan would clobber it with the default single-task body)
   const twoTaskPlanRel = "docs/kairos/plans/plan-two.md";
-  const twoTaskBody = readFileSync(
-    path.join(repo, "docs", "kairos", "plans", "plan.md"),
-    "utf8",
-  ).replace("### Task 1: x", "### Task 1: x\n\n### Task 2: y");
+  const twoTaskBody = [
+    "# Plan",
+    "",
+    "**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)",
+    "",
+    "## Constraints",
+    "",
+    "- boundary one",
+    "",
+    "### Task 1: x",
+    "",
+    "- **Objective**: task one",
+    "- **Steps**:",
+    "  1. implement — checkable: done",
+    "- **Acceptance**:",
+    "  - done",
+    "",
+    "### Task 2: y",
+    "",
+    "- **Objective**: task two",
+    "- **Steps**:",
+    "  1. implement — checkable: done",
+    "- **Acceptance**:",
+    "  - done",
+    "",
+  ].join("\n");
   commitValidDocs(repo, twoTaskPlanRel, twoTaskBody);
   const twoTaskPlan = path.join(repo, twoTaskPlanRel);
   const wsTwo = path.join(repo, ".kairos", "cdd", "plan-two");
@@ -1943,30 +1965,37 @@ function t22Workspace(planContent: string) {
   return { repo, planFile: PLAN_REL, ws, binDir, regPath };
 }
 
-// A committed plan carrying the prose-pointer constraint anchors (the four **bold** paragraphs) —
-// the plan-declared Constraints source the materializer extracts deterministically.
-const T22_PROSE_PLAN = [
+// A committed plan carrying the literal `## Constraints` section — the plan-declared Constraints
+// source the materializer extracts deterministically (the single constraint source).
+const T22_PLAN = [
   "# Plan",
   "",
   "**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)",
   "",
-  "**口径**：mouthpiece constraint",
+  "## Constraints",
   "",
-  "**commit 边界机制**：commit-boundary constraint",
+  "### 口径",
   "",
-  "**Flow Atomicity**：flow-atomicity constraint",
+  "mouthpiece constraint",
   "",
-  "**顺序原则**：ordering-principle constraint",
+  "### 顺序原则",
+  "",
+  "ordering-principle constraint",
   "",
   "---",
   "",
   "### Task 1: x",
-  "body",
+  "",
+  "- **Objective**: task one",
+  "- **Steps**:",
+  "  1. implement — checkable: done",
+  "- **Acceptance**:",
+  "  - done",
 ].join("\n");
 
 // 黑盒 ①：implement pre-flight 无 plan-constraints.md → 自 plan 声明源生成（含 plan hash 锚）→ 门过 → 绿色。
 it("runTask T22: implement pre-flight 缺失 constraints → 自 plan 声明源物料化 + 门过 + 绿色", async () => {
-  const t22 = t22Workspace(T22_PROSE_PLAN);
+  const t22 = t22Workspace(T22_PLAN);
   const report = path.join(t22.ws, "tasks-1-report.md");
   const tev = path.join(t22.ws, "tasks-1-test-evidence.json");
   writeFileSync(report, "report body\n");
@@ -1997,8 +2026,9 @@ it("runTask T22: implement pre-flight 缺失 constraints → 自 plan 声明源�
     expect(existsSync(cpPath)).toBe(true);
     const text = readFileSync(cpPath, "utf8");
     expect(text).toMatch(/plan hash: [0-9a-f]{64}/);
-    expect(text).toContain("**口径**：mouthpiece constraint");
-    expect(text).toContain("**顺序原则**：ordering-principle constraint");
+    expect(text).toContain("## Constraints");
+    expect(text).toContain("mouthpiece constraint");
+    expect(text).toContain("ordering-principle constraint");
     expect(text).not.toContain(t22.repo);
     // dispatch 照常完成（实体化 handoff 同样落地）
     expect(existsSync(path.join(t22.ws, "tasks-1-implement.json"))).toBe(true);
@@ -2011,7 +2041,7 @@ it("runTask T22: implement pre-flight 缺失 constraints → 自 plan 声明源�
 // dispatch — the generate-once existsSync skip is gone; operator content is replaced by the
 // plan-declared extraction (equal plans → equal bytes).
 it("runTask T22/TG8: implement pre-flight overwrites a pre-existing plan-constraints.md every dispatch", async () => {
-  const t22 = t22Workspace(T22_PROSE_PLAN);
+  const t22 = t22Workspace(T22_PLAN);
   const cpPath = path.join(t22.ws, "plan-constraints.md");
   writeFileSync(cpPath, "operator legible content\n"); // pre-existing artifact — stale face
   const report = path.join(t22.ws, "tasks-1-report.md");
@@ -2042,8 +2072,9 @@ it("runTask T22/TG8: implement pre-flight overwrites a pre-existing plan-constra
     const text = readFileSync(cpPath, "utf8");
     expect(text).not.toContain("operator legible content");
     expect(text).toMatch(/plan hash: [0-9a-f]{64}/);
-    expect(text).toContain("**口径**：mouthpiece constraint");
-    expect(text).toContain("**顺序原则**：ordering-principle constraint");
+    expect(text).toContain("## Constraints");
+    expect(text).toContain("mouthpiece constraint");
+    expect(text).toContain("ordering-principle constraint");
     expect(text).not.toContain(t22.repo);
   } finally {
     restore();

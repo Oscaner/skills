@@ -4,16 +4,16 @@
 //     injected read-only, an instance of the abstract DocBody);
 //   - the full-field shape projection — the metadata header five-tuple (specRef — the Class-A
 //     `**Spec:**` + label==basename kept — · parentProgram · version · dependsOn · base), the
-//     delta-only `## Constraints` (Form B prose pointers banned for new docs, retained for the
-//     legacy dual-read tree only), the `tasks[]` Task data shape (objective / files / interface
-//     {consumes,produces} / steps[]{action,checkable} / acceptance[] + the P3 dependsOn?/atomicWith?
-//     extension bits), the taskGroups dispatch-group declaration (the P3 extension slot — the
-//     DOC_TOKENS layout leaves preserved) and the `language` authoring-language policy note (the
-//     plan is a Strategy B internal doc — prose in the working language, value tokens neutral);
-//   - the DOC_TOKENS derived-leaf invariant: the re-projection keeps the four deriveDocTokens leaf
-//     paths/values (taskHeadings.format · constraints.formACanonical.heading ·
-//     constraints.formBProseAnchors.anchors.items.enum · the taskGroups layout nodes) — deriveDocTokens
-//     keeps resolving at module load with production values unchanged;
+//     delta-only `## Constraints` (the single constraint surface — the literal top-level section
+//     carrying the plan's own deltas), the `tasks[]` Task data shape (objective / files / interface
+//     {consumes,produces} / steps[]{action,checkable} / acceptance[] + the optional dependsOn?/
+//     atomicWith? edge fields), the zero taskGroups surface (the retired dispatch-group declaration
+//     node is gone) and the `language` authoring-language policy note (the plan is a Strategy B
+//     internal doc — prose in the working language, value tokens neutral);
+//   - the DOC_TOKENS derived-leaf invariant: the re-projection keeps the deriveDocTokens leaf
+//     paths/values (taskHeadings.format · constraints.formACanonical.heading) — deriveDocTokens
+//     keeps resolving at module load with production values unchanged, and the retired taskGroups /
+//     Form-B token families hold zero presence;
 //   - the parse slice-pattern projection (the `### Task N:` render surface + the task-block field
 //     markers — objective/steps/acceptance single source);
 //   - the leaf-binding identity: `projectSchemaShape()` returns the module-level `PLAN_BODY_SHAPE`
@@ -156,25 +156,19 @@ describe("PLAN_BODY_SHAPE — the full-field data-shape projection", () => {
     expect(constAt(["header", "parentProgram", "marker"])).toBe("**Parent program**");
   });
 
-  it("`## Constraints` is delta-only — the section carries the plan's own deltas; Form B is a legacy-only read face", () => {
+  it("`## Constraints` is delta-only — the literal section carries the plan's own deltas (the single constraint surface)", () => {
     expect(pat(["constraints", "formACanonical", "heading"])).toBe("^## Constraints\\s*$");
     // The new form's description states the delta-only semantics (new docs never restate inherited
-    // conventions; Form B prose pointers are banned for new docs).
+    // conventions).
     const formADesc = node(["constraints", "formACanonical"]).description ?? "";
     expect(formADesc).toMatch(/delta/i);
     expect(formADesc).toMatch(/own/);
-    const formBDesc = node(["constraints", "formBProseAnchors"]).description ?? "";
-    expect(formBDesc).toMatch(/legacy/i);
-    // The Form-B anchor quad is retained verbatim (the T5 legacy dual-read + extractProseConstraints
-    // dependency — the four anchors stay the same tokens).
-    const anchors = node(["constraints", "formBProseAnchors", "anchors"]).items
-      ?.enum as readonly string[];
-    expect(anchors).toEqual([
-      "**口径**：",
-      "**commit 边界机制**：",
-      "**Flow Atomicity**：",
-      "**顺序原则**：",
-    ]);
+    // The plan shape carries no Form-B leaf — the single constraint surface is exactly the one
+    // Form-A declaration (a re-added prose-pointer leaf would fail this exact-keys pin).
+    const constraintsProps = node(["constraints"]).properties as Readonly<
+      Record<string, SchemaNode>
+    >;
+    expect(Object.keys(constraintsProps)).toEqual(["formACanonical"]);
   });
 
   it("taskHeadings keeps the colon-form render surface (the DOC_TOKENS taskHeading leaf path)", () => {
@@ -183,7 +177,7 @@ describe("PLAN_BODY_SHAPE — the full-field data-shape projection", () => {
     expect(node(["taskHeadings", "continuity"])).toBeDefined();
   });
 
-  it("tasks[] carries the Task data shape — objective/files/interface{consumes,produces}/steps[]{action,checkable}/acceptance + the P3 extension bits", () => {
+  it("tasks[] carries the Task data shape — objective/files/interface{consumes,produces}/steps[]{action,checkable}/acceptance + the edge fields", () => {
     expect(node(["tasks"]).type).toBe("array");
     const item = node(["tasks"]).items;
     const required = item?.required as readonly string[] | undefined;
@@ -198,21 +192,17 @@ describe("PLAN_BODY_SHAPE — the full-field data-shape projection", () => {
     const step = item?.properties?.steps?.items;
     expect(step?.required).toContain("action");
     expect(step?.required).toContain("checkable");
-    // The P3 edge-model extension bits — declared surface only (zero read/write at P2).
+    // The edge fields — read/write (the parser fills them, TaskGraph consumes them).
     expect(item?.properties?.dependsOn).toBeDefined();
     expect(item?.properties?.atomicWith).toBeDefined();
   });
 
-  it("taskGroups keeps the dispatch-group layout nodes (the DOC_TOKENS taskGroups leaf paths)", () => {
-    expect(node(["taskGroups"]).type).toBe("array");
-    expect(node(["taskGroups"]).default).toEqual([]);
-    expect(constAt(["taskGroups", "$defs", "section", "properties", "heading"])).toBe(
-      "## Task Groups",
-    );
-    expect(pat(["taskGroups", "$defs", "section", "properties", "entry"])).toBe(
-      "^- \\*\\*Task (?:\\d+(?:, \\d+)*)\\*\\*:",
-    );
-    expect(node(["taskGroups", "items", "properties", "tasks"]).minItems).toBe(2);
+  it("the plan shape declares zero taskGroups node — the retired dispatch-group layout surface is gone (single-form)", () => {
+    // The `## Task Groups` dispatch-group declaration node is deleted with the runtime read — the
+    // shape's root properties hold no taskGroups member (T4 deliberate update: a re-added node
+    // would fail this pin and re-open the retired layout contract).
+    const props = PLAN_BODY_SHAPE.properties as Readonly<Record<string, SchemaNode>>;
+    expect("taskGroups" in props).toBe(false);
   });
 
   it("language carries the authoring-language policy guidance (the plan is a Strategy B internal doc)", () => {
@@ -223,10 +213,10 @@ describe("PLAN_BODY_SHAPE — the full-field data-shape projection", () => {
   });
 });
 
-describe("DOC_TOKENS derived-leaf invariant (the T3 re-projection keeps all four leaf paths)", () => {
+describe("DOC_TOKENS derived-leaf invariant (the re-projection keeps the derivation leaves)", () => {
   it("deriveDocTokens keeps resolving off the new plan shape with production values unchanged", () => {
     // The module-level DOC_TOKENS already ran at import (a broken leaf path throws at load) — this
-    // test re-derives off the LIVE registry shape and pins the four leaf families explicitly.
+    // test re-derives off the LIVE registry shape and pins the leaf families explicitly.
     expect(() =>
       deriveDocTokens({
         plan: docTypeRegistry.resolve("plan").shape,
@@ -239,16 +229,20 @@ describe("DOC_TOKENS derived-leaf invariant (the T3 re-projection keeps all four
     // 2 · constraints.formACanonical.heading
     expect(DOC_TOKENS.constraintsHeading).toBe("## Constraints");
     expect(DOC_TOKENS.constraintsHeadingRe.test("## Constraints")).toBe(true);
-    // 3 · constraints.formBProseAnchors.anchors.items.enum
-    expect(DOC_TOKENS.proseAnchorTokens).toEqual([
-      "**口径**：",
-      "**commit 边界机制**：",
-      "**Flow Atomicity**：",
-      "**顺序原则**：",
-    ]);
-    // 4 · the taskGroups layout nodes
-    expect(DOC_TOKENS.taskGroupsHeading).toBe("## Task Groups");
-    expect(DOC_TOKENS.taskGroupsMinItems).toBe(2);
+    // 3 · the retired taskGroups tokens hold zero presence on the derived surface (T4 deliberate
+    //    update — the node deletion removes the DOC_TOKENS members with it)
+    const keys = Object.keys(DOC_TOKENS);
+    for (const retired of [
+      "taskGroupsHeading",
+      "taskGroupsHeadingRe",
+      "taskGroupsLineRe",
+      "taskGroupsMinItems",
+    ]) {
+      expect(keys).not.toContain(retired);
+    }
+    // 4 · the Form-B prose-anchor tokens are retired (the shape leaf + its derivation are gone)
+    expect("proseAnchorTokens" in DOC_TOKENS).toBe(false);
+    expect("proseAnchors" in DOC_TOKENS).toBe(false);
   });
 });
 
@@ -319,7 +313,6 @@ describe("the new-shape plan fixture — parse + validate + tasksFromPlan (desig
   it("parse 全绿: the data-shape fixture's task headings stay the contiguous 1..N render surface", () => {
     const parsed = planType().parse(NEW_SHAPE, { root: REPO_ROOT }) as PlanParse;
     expect(parsed.taskNumbers).toEqual([1, 2]);
-    expect(parsed.taskGroups).toEqual([]);
   });
 
   it("validate 全绿: the full new-shape fixture audits clean (plan contract + data-shape steps + Class A)", () => {
@@ -392,5 +385,56 @@ describe("dead-shell discipline — shapes/plan.ts is gone", () => {
       { encoding: "utf8" },
     );
     expect(hits.trim()).toBe("");
+  });
+});
+
+describe("deletion-set union — the retired shape/token surface holds zero presence (T3+T4, engine src incl. comments)", () => {
+  // The T3+T4 deletion-set union (the acceptance's union surface): every symbol the single-form
+  // re-base retired must hold zero hits in the engine src (COMMENTS included — a comment that still
+  // names a retired symbol re-opens the deleted surface; __tests__ excluded — the BLOCK fixtures
+  // legitimately carry the legacy content they test against). The runtime/token/shape symbols
+  // below are the whole acceptance list.
+  const ENGINE_SRC = path.resolve(import.meta.dirname, "..", "..", "..", "..");
+  const DELETION_SET = [
+    "PLAN_FORM_B_ANCHOR_TOKENS",
+    "formBAnchorHeadingRe",
+    "formBAnchorSlices",
+    "formBProseAnchors",
+    "taskGroupsFromPlan",
+    "taskGroupsHeading",
+    "taskGroupsHeadingRe",
+    "taskGroupsLineRe",
+    "taskGroupsMinItems",
+    "extractProseConstraints",
+  ];
+  const grepNontest = (needle: string): string =>
+    execSync(
+      `grep -rn -e "${needle}" "${ENGINE_SRC}" --include="*.ts" --exclude-dir="__tests__" || true`,
+      { encoding: "utf8" },
+    );
+
+  it.each(DELETION_SET)("%s — zero hits across the engine src", (sym) => {
+    const hits = grepNontest(sym);
+    expect(hits.trim(), `deletion-set symbol "${sym}" still referenced in the engine src`).toBe("");
+  });
+
+  it("the legacy spec Section-1 heading READ is gone (no `## Section` top-level heading in the non-test src)", () => {
+    // The six-section legacy spec skeleton's heading read is retired with the dual-read runtime — a
+    // `## Section N:` top-level heading string in the engine src would re-open the retired read face.
+    const hits = execSync(
+      `grep -rn -e '^## Section' "${ENGINE_SRC}" --include="*.ts" --exclude-dir="__tests__" || true`,
+      { encoding: "utf8" },
+    );
+    expect(hits.trim(), "a `## Section` heading reference survives in the engine src").toBe("");
+  });
+
+  it("the regenerated plan schema golden carries zero taskGroups / Form-B surface", () => {
+    const planJson = readFileSync(
+      path.join(ENGINE_SRC, "..", "config", "schema", "plan.json"),
+      "utf8",
+    );
+    expect(planJson).not.toMatch(/taskGroups/i);
+    expect(planJson).not.toMatch(/Task Groups/);
+    expect(planJson).not.toMatch(/formB|proseAnchors/i);
   });
 });

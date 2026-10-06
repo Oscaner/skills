@@ -68,7 +68,7 @@ Maintainer-only record of the hard-won lessons from the kairos-overhaul program 
 
 Operational norms fixed by the consumer-parity P3 rebuild; each item is grep-verifiable. Item numbering continues section 6.
 
-45. **Zero product-path fixtures** — unit/e2e suites are functional verification; no repo product path may serve as a test fixture. Canary evidence belongs to runtime dispatch, never product-path fixtures.
+45. **Zero product-path fixtures** — unit/e2e suites are functional verification; no repo product path may serve as a test fixture. Canary evidence belongs to runtime dispatch, never fixtures.
 46. **Zero numbered step anchors** — validate step names are semantic, not opaque numbers (the `5b0` / `5b1` / `5c` / `12.` family is retired); `ci-validate.test.ts` pins digit-led families at zero residue.
 47. **Zero legacy-exemption dead code** — C3-hit code is deleted, never exempted (`plan-spec-anchors`' Class C legacy exemption and `isLegacyRef` were repo-only carve-outs, deleted).
 48. **Phase-id syntax A** — canonical phase ids are dotted numeric `P<digits>(.digits)*` (split phases climb the dot hierarchy, e.g. `P2.1`); letters or hyphens are prohibited.
@@ -81,26 +81,22 @@ Operational norms fixed by the consumer-parity P3 rebuild; each item is grep-ver
 
 ## 8. Consumer-sim release gate (P4.2, 2026-09-26)
 
-**smoke-cdd positioning** — `smoke-cdd` (`scripts/validate/smoke-cdd.ts`, run as `node scripts/run.ts
-smoke-cdd`) is the **consumer-sim = the cdd-engine published-artifact consumer black-box**: real
-build → pack → tarball assertions → consumer install → `cdd schema get` + 5-command dry-run chain.
-It is the only CI face installing the packed artifact into an ephemeral consumer repo (zero
-in-repo paths; runtime resources resolve under `node_modules`). It is
-**exclusive to cdd-engine**; kairos publishes through a normal npm release (the reserved
-channel for npm-harness packages), validated by the pack allowlist probe + emit products + version-sync, never a pseudo-consumer install.
+**smoke-cdd positioning** — `smoke-cdd` (`scripts/validate/smoke-cdd.ts`) is the **consumer-sim = the cdd-engine published-artifact consumer black-box**: real build → pack → tarball → consumer install → `cdd schema get` + 5-command dry-run chain; the only CI face installing the packed artifact into an ephemeral consumer repo. Exclusive to cdd-engine; kairos ships via normal npm (pack allowlist + emit + version-sync).
 
-**Release-only gate** — the full build + pack + install cost keeps it OFF the daily PR surface; push→main instead runs emit freshness + the dual consumer gates in `release.yml`, wired **before** the changesets action:
+**Release-only gate** — build + pack + install cost keeps it off the daily PR surface; push→main runs emit freshness + the dual consumer gates in `release.yml`, wired **before** the changesets action:
 
 - pre-version baseline gate — `node scripts/run.ts smoke-cdd` (version-agnostic); failure leaves a clean tree to roll back from;
-- post-version gate — `changeset status` (zero pending = the Version PR merged onto a 1.0.0 tree) then `smoke-cdd --expect-version 1.0.0` asserts the tarball + installed package.json both `== 1.0.0`, ahead of `changeset publish` — the released artifact is the verified artifact.
+- post-version gate — `changeset status` (zero pending) then `smoke-cdd --expect-version 1.0.0` (tarball + installed package.json `== 1.0.0`), ahead of `changeset publish` — the released artifact is the verified artifact.
 
-**Restore statement** — to move the consumer black-box back onto the daily PR face, add the `smoke-cdd` step to `pr-validate.yml` and drop the pre-version gate from `release.yml`.
+**Restore** — to move the consumer black-box back onto the daily PR face, add `smoke-cdd` to `pr-validate.yml` and drop the pre-version gate from `release.yml`.
 
 55. **Validate ↔ smoke-cdd serial discipline** — both write `packages/cdd-engine/dist/` (validate materializes the dev stub, the engine suite reads dist; smoke-cdd rebuilds the directory): a P4.2 concurrent run ENOENTed the engine suite (reproduced; serial re-run green). Run `pnpm run validate` + `node scripts/run.ts smoke-cdd` serially.
 
 ## 9. Contract Lexicon (P3, 2026-09-30)
 
 56. **Contract Lexicon single source** — command-contract vocab (harness keys · status vocab+axes · stdout tokens+banned shapes · G2 residue allowance) in `contract-lexicon.json`; `ContractLexiconGuard` runs its check faces as one validate block — change the word table, never the code. Zero-debt/read-back vocab single-sourced with engine output; orchestrators keep zero restates.
+
+57. **Consumer-facing description strings carry zero program history** — schema `description` values and exported doc comments state semantics only: phase-anchor adjectives and lifecycle words (`extension bit`/`declared surface`/`zero read/write at P2`) barred; `P<digits>` legal in domain-role (phase-id grammar). Mirrors 35/44; pinned at P3 T9.
 
 ---
 

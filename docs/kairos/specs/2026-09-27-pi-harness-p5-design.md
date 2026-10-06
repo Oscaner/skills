@@ -6,20 +6,8 @@
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.27](2026-09-27-pi-harness-overall.md)
 - **Depends on**: P4（shipped · [p4-design v1.6](2026-09-27-pi-harness-p4-design.md)）——hard 前驱 Design spec = Done / Implementation plan = Done（v1.25 closeout）
 
-## Section 0: Incremental warning
-
-本 spec 承诺恰好一个 phase（P5 编译面收敛与结算）。P5 的分割/重排不是本地编辑——phase inventory 行、依赖边与 change-history 行先落 parent overall（backfill-as-version），再动 spec。v1.27 已落地本 phase 全量 scope 定案；本 spec 仅记录 increment 的实现形态。
-
-## Section 1: Constraints pointer
-
-Cross-phase 约定属 parent overall，本 spec 不复述（overall wins on conflict）。引用要点：
-- **P5 破坏性变更授权**（overall Constraints v1.27 登记，2026-10-02 用户拍板）：允许破坏性变更 / 重写代码 / 重组目录；约束 = 高维思考 / OOP 抽象统一 / 最佳实践 / **零技术债务 + 死壳即删**
-- 事实定稿（v1.27 Constraints）：Node `node_modules` 下类型剥离永久禁止（发布必 JS）· Node ≥22.18 strip 默认（dev 零构建）· `typescript@7` 单工具兼判官 + 发射
-- 不 commit 除非用户明确要求；spec 交付除外（I2 立即提交）· changeset 逐 phase 建
-
-## Section 2: Design body
-
-### 2.1 编译面门禁（`tsc --noEmit` 一等 gate + 三项目闸 + 全仓源面 ts 化）
+## Design
+**2.1 编译面门禁（`tsc --noEmit` 一等 gate + 三项目闸 + 全仓源面 ts 化）**
 
 **根因**（v1.26 复盘 + 本 session 补证）：precommit 子集排除 engine 两块 · vitest esbuild 转译不查型 · unbuild 不查型 · scripts 零 tsconfig · 全仓零 `tsc --noEmit`。补证：root 零 typescript（engine tsconfig 存在但零接线）；dev 面可零构建直跑（2.4）；`typescript@7` 原生 CLI 判官形态（`@typescript/typescript6` = JS-API 线，本仓零消费）。
 
@@ -41,7 +29,7 @@ Cross-phase 约定属 parent overall，本 spec 不复述（overall wins on conf
 
 **守卫升级**：residue `.mjs` 守卫目标扩为「全仓源面零 .mjs」（engine src + scripts + kairos tests + configs）；逃逸禁令 `@ts-ignore`/`@ts-expect-error` 零命中入 ContractLexiconGuard/新 grep 面（2.2 零债口径）。
 
-### 2.2 类型债全量结算（787 → 0，真相优先）
+**2.2 类型债全量结算（787 → 0，真相优先）**
 
 **判据**：`tsc --noEmit` engine 全树 **exit 0**（上闸前先清底；结算与门禁同 phase 落）。
 
@@ -61,7 +49,7 @@ Cross-phase 约定属 parent overall，本 spec 不复述（overall wins on conf
 
 **零行为变化护栏**：结算 = 纯类型面修改；行为由既有测试全绿守（对标 P5 系迁移护栏先例「0 行为变化，纯搬移/纯类型不改逻辑」）。结算不入新逻辑、不顺手重构。
 
-### 2.3 cdd 闭环 buildability 双证据
+**2.3 cdd 闭环 buildability 双证据**
 
 **现状**：implement 侧 Evidence gate（template-contract clause 7）记 `test-evidence.json`（`command`/`exit_code`/`passed`，engine 读回机检）；review 侧 `reviews.task/branch` axesGuide = Standards/Spec/Scope 三轴，**零 buildability 措辞**（「测试能跑」只是 implement 证据的间接读取）。
 
@@ -73,7 +61,7 @@ Cross-phase 约定属 parent overall，本 spec 不复述（overall wins on conf
 - **路由说明（engine 输出面，user 2026-10-02 mid-flight）**：review 的 `next:` fix 建议附 **`(read <handoff> back to confirm)`** 说明——派发者在 fix 前读回 findings handoff 确认再 dispatch（C5 `NextStepRouter` next-line 生成 + result-face 测试 + contract-lexicon 通道措辞同步）；本 phase 亲历暴露（plan-review-1 先手读 handoff 之实态为证）
 - **ESM 检测前置（kairos-tests 面，2.1 联动）**：`packages/kairos/package.json` 增 `"type": "module"`（kairos-tests nodenext 面 TS1470 消除前提；T9 changeset 并解「kairos 无面不改」口径）
 
-### 2.4 零构建架构收敛（单工具 `typescript@7`）+ 死壳即删
+**2.4 零构建架构收敛（单工具 `typescript@7`）+ 死壳即删**
 
 **实证链（本 session 端到端）**：① `node packages/cdd-engine/src/bin.ts --help` exit 0（Node 24.21 原生 strip，零 unbuild/jiti）② `dist/cli.mjs` dev 态 = unbuild `--stub` 的 jiti 载入器（`createJiti` → `jiti.import(src/bin.ts)` + 自引用别名）——冗余层 ③ Node 对 `node_modules` 下 strip **永久禁止**（`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING` 实测；Node 官方「discourage publishing packages written in TypeScript」；tracker #57215 closed-as-not-planned）→ **发布必 JS** ④ `tsc --emit`（`tsconfig.build.json`：`module: nodenext` + `rewriteRelativeImportExtensions`）端到端跑通：shebang 保留、`.ts→.js` 重写、零残留 `.ts` 引用；staged pack → 消费安装 → `.bin/cdd` → `--help` + `schema get overall` 走真实引擎栈。
 
@@ -84,7 +72,7 @@ Cross-phase 约定属 parent overall，本 spec 不复述（overall wins on conf
 - **retired/删除登记措辞（live 面 grep 契约）**：`docs/maintainers/05` 等登记文本**不得携带被禁 token 原文**（`build.config` / `dev:stub` / `@typescript/typescript6` / `globalSetup`——已被 acceptance live 面 grep 判为目标污点，retired 登记若保留原文即自败于本 phase 验收）；一律转述——如「the old dev-stub chain」「the TS6-compat shim」，05 现存的 `@typescript/typescript6` 相关 prose 行同此处理（现 05:21 unbuild 行含 `build.config.ts`/`dev:stub` 原文、05:25 含包名原文，改 retired 时逐行转述）
 - **实证锚（P5 验收）**：`pnpm pack`（target files/bin）→ 临时项目 `npm install` → `.bin/cdd` 执行（已手跑通过——成为 plan/CI 验收）
 
-### 2.5 测试与验证面
+**2.5 测试与验证面**
 
 - type-check 闸：validate + precommit 双接点全绿；root `pnpm run typecheck` 三项目 exit 0
 - engine suite：结算后全绿（0 行为变化）+ 新断言（evidence `typecheck` 字段结构 / task+branch lensEnum 含 buildability + review 指令文本含 buildability + tsc + test / 黑盒 exec 全指 `src/bin.ts`）
@@ -108,25 +96,22 @@ Cross-phase 约定属 parent overall，本 spec 不复述（overall wins on conf
 - engine vitest 黑盒 exec 全指 `src/bin.ts`（live 面 `dist/cli.mjs` 引用零命中，发布面 schema/产物除外）
 - `pnpm run validate` 全绿
 
-## Section 3: Deviations from overall
+## Constraints
+
+- Cross-phase 约定属 parent overall，本 spec 不复述（overall wins on conflict）。引用要点：
+- **P5 破坏性变更授权**（overall Constraints v1.27 登记，2026-10-02 用户拍板）：允许破坏性变更 / 重写代码 / 重组目录；约束 = 高维思考 / OOP 抽象统一 / 最佳实践 / **零技术债务 + 死壳即删**
+- 事实定稿（v1.27 Constraints）：Node `node_modules` 下类型剥离永久禁止（发布必 JS）· Node ≥22.18 strip 默认（dev 零构建）· `typescript@7` 单工具兼判官 + 发射
+- 不 commit 除非用户明确要求；spec 交付除外（I2 立即提交）· changeset 逐 phase 建
+
+## Deviations
 
 | Overall assumption | Phase decision | Overall updated? |
 |---|---|---|
 | 无（本 phase 全量决策已随 overall v1.27 grilling 定案回填——零构建收敛 / 全仓 .mjs→ts / 三项目闸 / 死壳即删验收均落四表） | 与 overall 无偏差 | Yes — v1.27 · 2026-10-02 |
 
-## Section 4: Notes for downstream
+## Notes for downstream
 
 - **P6（若存在）**：`cdd init` 未来 phase 消费同一 harness 契约（overall v1.24 定）——本 phase 的 type-check 面与零构建形态是其前置基建；engine-config 不建 buildability 命令配置面（YAGNI——review 指令用转译描述，消费仓自洽），若未来需要再建为独立 phase
 - 发布面 `tsc --emit` 依赖结算完成（emit 也吃 48 条 src 债）→ **publish 前置 = 结算完成**，先清底再上闸
 - `typescript@7` 原生 CLI 无 JS-API——若未来 kairos/cdd-engine 需要程序化嵌 TS（如 dts）需另引入 JS-API 线（本 phase 零需求，登记为已知边界）
 - **overall v1.27 计数修正（backfill-as-version 待办）**：overall 正文「kairos tests×11 + helpers」（scope 行 72 与 change-history 行 143）实为 **10 个 `*.test.mjs` + 1 `helpers.mjs`**——本 spec 2.1 已以 10 为准；approved overall 冻结，本 phase 不动原文，下次 overall backfill-as-version 时随 P5 落地一并修正
-
-## Section 5: Review
-
-- **spec-review 循环记录**（Review Convergence I1，`cdd review --type spec` 逐循环）：
-  - **r1**（v1.0，base `13ec3860`）：`CHANGES_REQUESTED · blocker 1`（+3 warn +3 nit）→ `cdd fix`（`spec-fix-1`，commit `ba60cfa2`）——blocker = 发布面 `files` 丢 `dist/` 且带 `src/`（与 bin/发布必 JS 矛盾）→ 修指 `["dist/","config/","templates/"]` + bin/main/exports 改指 `dist/bin.js`；warns = engine 缺 `erasableSyntaxOnly`（主 strip 运行时镜像）→ 补；配置面不入闸 → scripts include 扩 root configs + engine include 扩 `vitest.config.ts`；kairos-tests 计数 11→10+1；engine README 对入改面；nits = 05 retired 转述措辞、main/exports re-point
-  - **r2**（fix-1 后，base `ba60cfa2`）：`REVIEW_FIX · blocker 0`（1 warn + 1 nit）→ `cdd fix`（`spec-fix-2`，commit `b6e141f6`）——warn = `buildability` 未入 `reviews.task/branch.lensEnum`（REVIEW_LENS_GUIDE 由 lensEnum 派生，lens-tag 需可强制）→ 补 + 守卫并判成员；nit = CDD_MJS「~13 处」→ 实测 9 定义 · 11 调用
-  - **v1.3 design backfill**（plan-review-1 驱动，非新评审轮）：src 48 精确枚举修正 · kairos `type: module` ESM 前置规则 · review `next:` 附 `(read <handoff> back to confirm)` 说明（user 2026-10-02 mid-flight）
-
-  - **closure**：blocker = 0 → fix 全 → done 无 re-review；评审记录终状 = 11 findings 全落地、零 blocker 残
-- 基线 = committed tree（v1.27 overall（`db489699`）· spec v1.0（`13ec3860`）· fix-1（`ba60cfa2`）· fix-2（`b6e141f6`））；Review Convergence：blocker > 0 → fix 全 finding → re-review；blocker = 0 → fix 全 finding → done，无 re-review

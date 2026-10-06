@@ -6,25 +6,7 @@
 - **Parent program**: [consumer-parity overall v1.30](2026-09-21-consumer-parity-overall.md)
 - **Depends on**: P4.1（shipped · [p4.1-design v1.5](2026-09-21-consumer-parity-p4.1-design.md)）
 
-## Section 0: Incremental warning
-
-本 phase 承载六块增量：① cdd CLI `--task` → `--tasks` 多 task 模式（单数据模型）② cli-driven-development 正式 enter loop 前新增 **task groups 裁定**节点 ③ **Mid-Flight Backfill 语义歧义修复**（I4 文本五面重写）④⑤ **cdd-engine doc-contract gate 修复**（#274/#276，2026-09-24 用户裁决并入）⑥ **`cdd schema get` 发现型子命令 + skills read-schema 直取 + `cdd help` 简化**（2026-09-24 用户裁决并入）——scope 扩展已回填 overall v1.28（Issue inventory 锚点行 #274/#276 · P4.3 行 scope/AC ④⑤⑥ · change-history v1.27/v1.28 行）并续至 v1.29/v1.30（行形状矫正 · ⑥ 细化（help 简化 · 四件枚举）回填——⑥ 的 change-history 轨迹完整）；engine breaking 面均属 1.0.0 前窗口。P4.4（`scripts/` + cdd-engine 全面 OOP 化）已注册为独立 phase（overall v1.26，serial gate：P4.3 Design spec 非 `[Pending]` 前不释放其 grilling）——本 phase 的抽象升级**止于 `--tasks` 面必需的最小改造**（TaskGroup 单数据模型），不越界开展全层类重构（那属 P4.4）；范围变更先回填 parent overall（backfill-as-version）再继续。
-
-## Section 1: Constraints pointer
-
-Cross-phase 规则以 parent overall v1.30 为准（overall wins on conflict）：
-
-- **允许破坏性变更**（charter 约束 bullet）：cdd-engine 0.1.0 基准，P4.2 1.0.0 首次稳定开版前为破口窗口；breaking 收进 P4.2 changelog
-- 判据三定式（C1 可达性 / C2 结构性 / C3 退化）适用于本 phase 一切处置判断
-- 四表纪律：回填 = branch-review 前置义务；结构性 mismatch → BLOCK
-- 语言政策：本 spec 中文主源（Strategy B 内部程序文档）；SKILL.md / docs 英文主源（Strategy A）——I4 文本重写为英文原文面
-- `skills/` 是 **emit 输入面**：SKILL.md 改动后必须 `pnpm run emit` + `emit:check` 无 drift + 产物重生成（AC 已含）
-- engine 直调：`node packages/cdd-engine/dist/cli.mjs`（dev:stub 材料化，不走 global register）；skills 调用 cdd **输出零过滤**（P3 裁决：禁 `tail`/`head`/`2>&1 |`/`EXIT=$?`）
-- 零产物 fixture：engine 测试不得以本仓产物为 fixture（P3 裁决）
-- 相续 phase 边界：P4.4 全面 OOP 化承接 TaskGroup 扩展；P4.2 发布面消费 `--tasks`/flow 修订完成态
-
-## Section 2: Design body
-
+## Design
 **设计主干 = 一个数据模型 + 一个落盘 + 一处重写 + 一份产出面清单 + 一张死码判定表**。
 
 **2.1 CLI 契约：`--tasks` 单数据模型**（2026-09-24 grilling 裁决）
@@ -122,7 +104,20 @@ Cross-phase 规则以 parent overall v1.30 为准（overall wins on conflict）�
 - writing-* read-schema 直取：三件 schema-bearing 技能（writing-overall-spec / writing-phase-spec / writing-plans）read-schema 节点改 `cdd schema get <type>`；writing-single-spec read-schema 显式 N/A（零 canonical 结构 schema）、无改。（grep：三件命中 `cdd schema get` · 零残留 `cdd help` 定位串——`cdd help` → `schemas:` directory 与 `cdd help` → `overall.json` / `phase-spec.json` / `plan.json`（read-schema 节点 + 节点外 role-note、pending-patch zone 全清））+ `pnpm run emit` 后 `emit:check` 无 drift
 - Non-goal #1 双发现型修订落地（`cdd help` + `cdd schema get` 均零执法逻辑；其余零新增子命令不变，grep 断言）
 
-## Section 3: Deviations from overall
+## Constraints
+
+- Cross-phase 规则以 parent overall v1.30 为准（overall wins on conflict）：
+
+- **允许破坏性变更**（charter 约束 bullet）：cdd-engine 0.1.0 基准，P4.2 1.0.0 首次稳定开版前为破口窗口；breaking 收进 P4.2 changelog
+- 判据三定式（C1 可达性 / C2 结构性 / C3 退化）适用于本 phase 一切处置判断
+- 四表纪律：回填 = branch-review 前置义务；结构性 mismatch → BLOCK
+- 语言政策：本 spec 中文主源（Strategy B 内部程序文档）；SKILL.md / docs 英文主源（Strategy A）——I4 文本重写为英文原文面
+- `skills/` 是 **emit 输入面**：SKILL.md 改动后必须 `pnpm run emit` + `emit:check` 无 drift + 产物重生成（AC 已含）
+- engine 直调：`node packages/cdd-engine/dist/cli.mjs`（dev:stub 材料化，不走 global register）；skills 调用 cdd **输出零过滤**（P3 裁决：禁 `tail`/`head`/`2>&1 |`/`EXIT=$?`）
+- 零产物 fixture：engine 测试不得以本仓产物为 fixture（P3 裁决）
+- 相续 phase 边界：P4.4 全面 OOP 化承接 TaskGroup 扩展；P4.2 发布面消费 `--tasks`/flow 修订完成态
+
+## Deviations
 
 | Overall assumption | Phase decision | Overall updated? |
 |---|---|---|
@@ -130,11 +125,7 @@ Cross-phase 规则以 parent overall v1.30 为准（overall wins on conflict）�
 | Non-goal #1（P2 裁决：`cdd help` 唯一新增子命令 · 发现型信息面） | 例外扩为 `cdd help` + `cdd schema get <type>` 双发现型子命令（均零执法逻辑；schema get 直出内容、免跨系统文件查找）；其余「零新增子命令」豁免不变 | Yes — v1.28 · 2026-09-24 |
 | （其余全部设计裁决已随 overall v1.27 回填：P4.3 行 scope/AC ①–⑤同步 · P4.4 注册 · 依赖图 `P3 → P4.1 → P4.3 → P4.4 → P4.2`，见 v1.26/v1.27 change-history 行） | 同上 | Yes — v1.27 · 2026-09-24 |
 
-## Section 4: Notes for downstream
+## Notes for downstream
 
 - **P4.4（全面 OOP 化）**：承接 §2.1/§2.5 的 TaskGroup 单数据模型与组键命名面，扩展为 cdd-engine 全层类抽象 + `scripts/` 编排面同构；本 phase 留白的标量残面（handoff/进度命名）为其实践输入（overall 已登记，serial gate：P4.3 Design 非 `[Pending]` 前不释放其 grilling）
 - **P4.2（发布闭环）**：1.0.0 首次稳定开版收进 `--tasks` breaking 与 flow 修订（依赖图 `P4.4 -> P4.2` 已登记）
-
-## Section 5: Review
-
-Fresh-subagent review passes before user review and writing-plans — baseline = committed tree, Review Convergence（blocker > 0 → fix all findings → re-review；blocker = 0 → fix all findings → done，no re-review）。spec 批准即 commit（I2），不等 dev 合并。

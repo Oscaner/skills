@@ -8,6 +8,8 @@
 - **开线 GATE**: pi-harness P5 closeout 未完成前不起 P1 执行线（与整体 Boundary rules 同步——overall Boundary rules 与 p1-design Section 1 均明确该 GATE 生效点）
 - **Base**: develop
 
+- **Interface 转录注记**: 各任务 `- **Consumes**: 刻意留空（树迁移 B 转录决策）——源 Do 散文未承载独立具名输入事实，consumes（Task 记录 interface 可选项）不填充；任务输入由 DependsOn/AtomicWith 声明边与 objective/steps 承载，consumer-parity p1–p4.1 因承接具名输入事实而全量填充。
+
 ## Constraints
 
 ### 口径
@@ -44,73 +46,121 @@
 - **引擎 `.mjs` plane zero**：新增测试用 colocated `__tests__/*.test.ts`（vitest）；src 不落 `.mjs`
 - **Criterion ②**：新抽象 = 类 + 构造注入，export 面无裸函数（`abstract DocType` / 三子类 / `DocTypeRegistry` / `SchemaFactory` 全部类形态）
 
+
 ### Task 1: DocType 框架核心（doctype.ts + registry.ts）
 
-- **Do**: 新建 `packages/cdd-engine/src/documents/doctype.ts`——`abstract class DocType`（构造注入只读字段）：
-  - 五域字段：`shape: SchemaShape`（T3 落具体型，T1 立字段+接口契约）· `words: DocWords`（T4 落，共享词表引用）· `instructions`（**接缝**：InstructionUnit 前瞻接口——P5 填，P1 立类型接口）· `refKind`（**接缝**：RefKindSpec 判别槽接口——P5 填，P1 立占位型）· `bodyView: BodyViewSpec`（T5 落具体型，T1 立接口契约）
-  - `route` 路由元数据面（独立于五域字段）：`reviewType: "spec" | "plan" | null` · `argKey`（`spec`/`plan`——resolveTargetDoc 参数取回）· `targetFlag`（`--spec`/`--plan`——next-step #targetArg）
-  - 公共骨架：`abstract detect(fileName: string, content: string): boolean` · `abstract validate(entry, ctx): …` · `abstract parse(entry, ctx): …` · `abstract lifecycle(entry, ctx): …`（review/fix `--type` 路由的型特定生命周期处理，S4 落点）· `parentChain(entry, root)`（S3 骨架，子类实现链走）
-  - 类型：`export type DocKind = "overall" | "plan" | "spec"`
-- 新建 `packages/cdd-engine/src/documents/registry.ts`——`class DocTypeRegistry`：构造收 `DocType[]`；`resolve(kind: DocKind): DocType` 未知 → throw（含 kind 文本）· `all(): DocType[]` **固定迭代序 `[overall, plan, spec]`**（工厂派生 + 审计遍历确定性面）；`export const docTypeRegistry` 单例（与 `wordTable()` / `templateCache` 同级模式）
-- 新建 colocated `__tests__/doctype.test.ts` + `registry.test.ts`（vitest）：`docTypeRegistry.all()` 迭代序 `[overall, plan, spec]` · `resolve("bogus" as DocKind)` throw（含 kind 文本）· abstract 契约存在性（五域字段 + route + detect/validate/parse/lifecycle 抽象面——unimplemented 即 TS 编译期失败）
-- T1 零接线：detect 不接 `docKindOf`（归 T6）、validate 不接 `DocumentsValidator`（归 T2）
-- **验收**: `src/documents/doctype.ts` 含 `abstract DocType`（五域字段 + route 元数据 + detect/validate/parse/lifecycle 抽象 + parentChain 骨架）；`src/documents/registry.ts` 含 `DocTypeRegistry` + `docTypeRegistry` 单例（resolve 未知即 throw · all() 迭代序 `[overall, plan, spec]`）；colocated 测试全绿（vitest）；既有树零改动（T1 纯新模块）；`pnpm run emit:check` fresh。
-- **注**: 五域中 shape/words/bodyView 的具体内容型由 T3/T4/T5 落位——T1 先立字段与接口契约（占位型亦合法），instructions/refKind 为 P5 接缝只立类型接口；本模块 export 面 = 类 + `docTypeRegistry` 单例 const（Criterion ② 零裸函数）。
+- **Objective**: DocType 框架核心（doctype.ts + registry.ts）：abstract DocType 五域 + route + 抽象骨架 + DocTypeRegistry 单例，零接线
+
+- **Produces**: `src/documents/doctype.ts`（abstract DocType：五域字段 + route 元数据 + detect/validate/parse/lifecycle 抽象 + parentChain 骨架）；`src/documents/registry.ts`（DocTypeRegistry + docTypeRegistry 单例，resolve 未知 throw · all() 序 [overall, plan, spec]）；colocated 测试
+
+- **Files**: packages/cdd-engine/src/documents/doctype.ts, packages/cdd-engine/src/documents/registry.ts, packages/cdd-engine/src/documents/__tests__/doctype.test.ts, packages/cdd-engine/src/documents/__tests__/registry.test.ts
+
+- **Steps**:
+  1. 新建 `packages/cdd-engine/src/documents/doctype.ts`——`abstract class DocType`（构造注入只读字段）：五域字段（shape · words · instructions（接缝）· refKind（接缝）· bodyView）+ `route` 路由元数据面（reviewType / argKey / targetFlag）+ 公共骨架（detect / validate / parse / lifecycle / parentChain）+ 类型（DocKind = "overall" | "plan" | "spec"） — checkable: `doctype.ts` 含 abstract DocType 全契约面（unimplemented 即 TS 编译期失败）
+  2. 新建 `packages/cdd-engine/src/documents/registry.ts`——`class DocTypeRegistry`：构造收 `DocType[]`；`resolve(kind)` 未知 → throw（含 kind 文本）；`all()` 固定迭代序 `[overall, plan, spec]`；`export const docTypeRegistry` 单例 — checkable: `registry.ts` 含 DocTypeRegistry + 单例；colocated 测试绿（all() 序 / resolve throw / abstract 契约存在性）
+  3. T1 零接线：detect 不接 `docKindOf`（归 T6）、validate 不接 `DocumentsValidator`（归 T2）；既有树零改动（T1 纯新模块）；`pnpm run emit:check` fresh — checkable: 既有树零改动；`pnpm run emit:check` fresh（注：五域中 shape/words/bodyView 具体型由 T3/T4/T5 落位；export 面 = 类 + 单例 const，Criterion ② 零裸函数）
+
+- **Acceptance**:
+  - `src/documents/doctype.ts` 含 `abstract DocType`（五域字段 + route 元数据 + detect/validate/parse/lifecycle 抽象 + parentChain 骨架）；`src/documents/registry.ts` 含 `DocTypeRegistry` + `docTypeRegistry` 单例（resolve 未知即 throw · all() 迭代序 `[overall, plan, spec]`）；colocated 测试全绿（vitest）；既有树零改动（T1 纯新模块）；`pnpm run emit:check` fresh。
+
 
 ### Task 2: 三子类 + per-type validate/parse 收编（S2/S3 收敛）
 
-- **Do**: 新建 `src/documents/doctypes/overall.ts` / `plan.ts` / `phase-spec.ts`：
-  - `class OverallDocType extends DocType`——detect = basename endsWith `-overall.md` ∨ 内容含四表表头行（`DOC_TOKENS.phaseHeaderRe`——phase-inventory `| # | Phase |` 表头，对齐 spec C2「四表特征」）；`parse` = 现 `parseOverall` 语义（kernelOk/shapeDrift/versionProblems/ids/rows/dupIds/historyRows）；`validate` = 现 `validateOverallContract` 语义（kernel 行形 + 版本 lineage）+ `fourTableAudit`（face ①-⑥）；`parentChain` = 自身即 root
-  - `class PlanDocType extends DocType`——detect = `### Task N:` 连续标题特征（`DOC_TOKENS.taskNumberRe`）；`parse` = `phaseIdFromPlan`/`phaseIdForDispatch` 语义（basename `-p<digits>` 规范 id）+ `taskNumbersFromPlan`/`taskGroupsFromPlan`；`validate` = 现 `validatePlanContract` 语义（任务连续性 / `**Spec:**` Class-A 解析 / Form A|B 约束可提取 / 模板占位符零残留）；`parentChain` = `resolveSpecFromPlan` → `resolveParentOverall` 链走
-  - `class PhaseSpecDocType extends DocType`——detect = basename endsWith `-design.md` + `**Version**` 行契约特征；无专用 parse（Version 行检查）；`validate` = 现 `validatePhaseSpecContract` 语义（Version STRICTLY 行 + Class-B Parent program → 父 overall `validateOverallContract` + 四表）；`parentChain` = `resolveParentOverall` 链走
-  - 三子类 `route`/`lifecycle` 元数据：overall→null（非 CLI review-type）· plan→(`"plan"`,`plan`,`--plan`) · phase-spec→(`"spec"`,`spec`,`--spec`)（即 `--type` 派发键——T6 S4 钉 `DocsLifecycle.run` 按此经 `resolve(type).lifecycle` 调度）
-  - `DocumentsValidator`（`src/rules/documents.ts:1114`）改委托：`validateDispatchDocuments` 入口 → `docTypeRegistry.resolve(kind).validate(...)`（S2 收敛）；per-type 私有裸函数（`fourTableAudit` / `resolveParentOverall` / `resolveSpecFromPlan` / plan/overall 契约助手）迁出为子类实例方法；跨型通用助手（如 `splitCells`/`sectionRange`）留模块私有；对外公开方法签名与行为不变
-  - `docKindOf`（:798）**暂留**（delegate 仍用）——其删除归 T6
-  - Tests：colocated `__tests__/doctypes.test.ts`——detect 判定（overall/plan/phase-spec 各正/负例 + fallback 序；反例含「plan/spec doc 具 `**Version**` 行但无四表表头 → 不判 overall」）、`validate` 对现文档树实测（spec/plan/overall 各抽现存 doc 如 `2026-09-27-pi-harness-overall.md`/`-p5-design.md`/`-p5.md` 全绿）、`phaseIdFromPlan` 行为保持；`rules/__tests__`（doc-contract / contract）零回归
-- **验收**: 三子类交付（detect 判定特征+fallback 序 · validate/parse/lifecycle/parentChain 实现 · route 元数据）；`validateDispatchDocuments` 现经注册表 `resolve(kind).validate`（S2 收敛，grep 实证）；per-type 私有裸函数迁出子类实例方法（grep 实证——`DocumentsValidator` 内零 per-type 大函数体）；`rules/__tests__` 全绿（对外行为零回归）；现存文档树 sample validate 全绿；`pnpm run emit:check` fresh。
-- **注**: 迁移 = 行为等价搬运（既有立测试钉回归，禁顺手改语义）；`docKindOf` 未删——S1 收敛归 T6；overall 为 chain root（`parentChain` 即自身），plan/spec 链经 spec→overall 解析。
+- **Objective**: 三子类 + per-type validate/parse 收编（Overall/Plan/PhaseSpecDocType + DocumentsValidator 委托注册表，S2/S3 收敛）
+
+- **Produces**: `overall.ts` / `plan.ts` / `phase-spec.ts` 三子类（detect 特征 + validate/parse/lifecycle/parentChain + route 元数据）；`validateDispatchDocuments` 经注册表 resolve(kind).validate；per-type 私有裸函数迁子类实例方法
+
+- **Files**: packages/cdd-engine/src/documents/doctypes/overall.ts, packages/cdd-engine/src/documents/doctypes/plan.ts, packages/cdd-engine/src/documents/doctypes/phase-spec.ts, packages/cdd-engine/src/rules/documents.ts, packages/cdd-engine/src/documents/doctypes/__tests__/doctypes.test.ts
+
+- **Steps**:
+  1. 新建三子类——`OverallDocType`（detect = basename endsWith `-overall.md` ∨ 四表表头特征；parse/validate = 现语义 + fourTableAudit；parentChain 自身即 root）；`PlanDocType`（detect = `### Task N:` 特征；parse = phaseId/phaseIdForDispatch + taskNumbers/taskGroups；validate = validatePlanContract；parentChain = resolveSpecFromPlan → resolveParentOverall）；`PhaseSpecDocType`（detect = `-design.md` + `**Version**`；validate = validatePhaseSpecContract；parentChain = resolveParentOverall）；三子类 route 元数据：overall→null · plan→(`"plan"`,`plan`,`--plan`) · phase-spec→(`"spec"`,`spec`,`--spec`) — checkable: 三子类交付（detect 判定特征 + fallback 序 · validate/parse/lifecycle/parentChain · route 元数据）；现存文档树 sample validate 全绿
+  2. `DocumentsValidator` 改委托：`validateDispatchDocuments` 入口 → `docTypeRegistry.resolve(kind).validate(...)`（S2 收敛）；per-type 私有裸函数迁出为子类实例方法；跨型通用助手留模块私有；对外公开方法签名与行为不变；`docKindOf` 暂留（删除归 T6） — checkable: `validateDispatchDocuments` 现经注册表 resolve(kind).validate（grep 实证）；DocumentsValidator 内零 per-type 大函数体；`rules/__tests__` 全绿（对外行为零回归）
+  3. Tests：colocated `doctypes.test.ts`——detect 判定（正/负例 + fallback 序；反例含「plan/spec doc 具 `**Version**` 行但无四表表头 → 不判 overall」）+ validate 对现文档树 sample 全绿 + phaseIdFromPlan 行为保持 — checkable: `doctypes.test.ts` 全绿；`pnpm run emit:check` fresh（注：迁移 = 行为等价搬运，禁顺手改语义）
+
+- **Acceptance**:
+  - 三子类交付（detect 判定特征+fallback 序 · validate/parse/lifecycle/parentChain 实现 · route 元数据）；`validateDispatchDocuments` 现经注册表 `resolve(kind).validate`（S2 收敛，grep 实证）；per-type 私有裸函数迁出子类实例方法（grep 实证——`DocumentsValidator` 内零 per-type 大函数体）；`rules/__tests__` 全绿（对外行为零回归）；现存文档树 sample validate 全绿；`pnpm run emit:check` fresh。
+
 
 ### Task 3: shape 域 + SchemaFactory + diff 钉 ×3（Q1/Q2 主面）
 
-- **Do**: `src/documents/doctype.ts` shape 域具体型落位——`SchemaShape` = 现 `config/schema/{phase-spec,plan,overall}.json` **解析内容**（同构完整：全部 properties/pattern/const/enum/description 原值落位、形状不变、零抽象损耗）；三子类构造传入各自 schema 内容
-  - 新建 `src/documents/factory.ts`——`class SchemaFactory`：遍历 `docTypeRegistry.all()`，以 `docType.shape` **字节保真确定性投影**渲染 JSON Schema 产物（key 序 + 2-space 缩进 + 尾换行与现状文件完全一致——`JSON.stringify(shape, null, 2) + "\n"`，若与现状字节不符则序列化器微调至逐字节相等）；落 `config/schema/{phase-spec,plan,overall}.json` **原位**（路径零迁移）
-  - 新建 colocated `__tests__/factory.test.ts`：**diff 钉 ×3**——渲染产物 vs 回填前 `config/schema/{phase-spec,plan,overall}.json` 逐字节 `Buffer.equals` 断言（golden = 现状文件全量读取）；`all()` 迭代序驱动锁定产物集 = 三活动型（add-phase-protocol / skill-anatomy **零产出**——Q6 闭包列守）；确定性（同源两次渲染字节恒等）
-  - `deriveDocTokens` **暂不重路**（S8 归 T7——T3 期间 tokens 仍直读配置面，保证 diff 钉纯净）
-- **验收**: `SchemaFactory` 渲染产物与 `config/schema/{phase-spec,plan,overall}.json` **逐字节相等**（diff 钉 ×3 全绿）；确定性投影（同源渲染字节恒等）；工厂闭包 = 三活动型（add-phase-protocol / skill-anatomy 零产出 + schema.test 仍绿）；`pnpm run validate` 的 engine 测试块绿（schema.test / tokens.test 零回归）。
-- **注**: 本任务是「schema 工厂原子化派生」语义钉——shape = 同构内容全量收编（非抽象生成），工厂 = 字节保真投影（Q1「先钉」面）；diff-pin 破 = 设计漂移信号（Flow Atomicity 上报 orchestrator 判定）。
+- **Objective**: shape 域 + SchemaFactory + diff 钉 ×3（Q1/Q2 主面）：SchemaShape 同构完整内容 + 字节保真确定性投影
+
+- **Produces**: `doctype.ts` shape 域具体型（三型同构内容）；`src/documents/factory.ts`（SchemaFactory：字节保真投影 → config/schema 原位）；factory.test diff 钉 ×3
+
+- **Files**: packages/cdd-engine/src/documents/doctype.ts, packages/cdd-engine/src/documents/factory.ts, packages/cdd-engine/src/documents/__tests__/factory.test.ts, packages/cdd-engine/config/schema/phase-spec.json, packages/cdd-engine/config/schema/plan.json, packages/cdd-engine/config/schema/overall.json
+
+- **Steps**:
+  1. `doctype.ts` shape 域具体型落位——`SchemaShape` = 现 `config/schema/{phase-spec,plan,overall}.json` **解析内容**（同构完整：全部 properties/pattern/const/enum/description 原值落位、形状不变、零抽象损耗）；三子类构造传入各自 schema 内容 — checkable: shape 域 = 同构完整内容（Q2）
+  2. 新建 `src/documents/factory.ts`——`class SchemaFactory`：遍历 `docTypeRegistry.all()`，以 `docType.shape` **字节保真确定性投影**渲染 JSON Schema 产物（`JSON.stringify(shape, null, 2) + "\n"`，若与现状字节不符则序列化器微调至逐字节相等）；落 `config/schema/{phase-spec,plan,overall}.json` **原位**（路径零迁移） — checkable: `SchemaFactory` 渲染产物与现状文件**逐字节相等**（diff 钉 ×3 全绿）；确定性投影（同源两次渲染字节恒等）
+  3. 新建 colocated `factory.test.ts`：diff 钉 ×3（渲染产物 vs 现状文件逐字节 `Buffer.equals`）+ `all()` 迭代序驱动锁定产物集 = 三活动型（add-phase-protocol / skill-anatomy **零产出**）+ 确定性断言 — checkable: factory.test 全绿（三活动型零产出闭包 + schema.test 零回归）；`pnpm run validate` engine 测试块绿
+
+- **Acceptance**:
+  - `SchemaFactory` 渲染产物与 `config/schema/{phase-spec,plan,overall}.json` **逐字节相等**（diff 钉 ×3 全绿）；确定性投影（同源渲染字节恒等）；工厂闭包 = 三活动型（add-phase-protocol / skill-anatomy 零产出 + schema.test 仍绿）；`pnpm run validate` 的 engine 测试块绿（schema.test / tokens.test 零回归）。
+
 
 ### Task 4: words 域 + contract-lexicon.json 派生化
 
-- **Do**: `src/documents/doctype.ts` words 域具体型落位——`DocWords` = engine lexicon 翼内容（`config/contract-lexicon.json` 解析：`_doc` / `command.{status,capsule,route}`——内含 `status.vocab` 词表数组 / `schema.anatomy`）收编为单字段；**共享单例**（三实例 words 域引用同一 `DocWords` 对象——词表单源，不复制）
-  - 新建 `src/documents/words.ts`——words 渲染器：`DocWords` → `config/contract-lexicon.json` **字节等价**派生（key 序 + 格式与现状一致）
-  - Tests：colocated `__tests__/words.test.ts`——渲染产物 vs 现状 `config/contract-lexicon.json` 字节断言；`infra/word-table.ts` **零改动**（grep 实证）+ WordTable 构造 Ajv 自校验 + 访问器行为测试全绿（word-table 既有测试）；更新 `registry.all()` 迭代序下 words 渲染覆盖三实例同源引用断言
-- **验收**: `DocType.words` 承载 engine lexicon 翼全内容（单字段单源、三实例同对象）；words 渲染产物 = `config/contract-lexicon.json` **字节等价**；`infra/word-table.ts` 零改动（git diff 实证）+ WordTable 既有测试全绿（消费路径不变 → infra↔documents 零反向依赖）；`pnpm run emit:check` fresh。
-- **注**: guard 翼（`scripts/lib/guard-lexicon.json`）不在本任务范围（引擎包零 guard 词，spec 显式列守）；防循环红线 = documents/ 不 import infra/word-table.ts（words 内容自身承载，infra 侧消费产物文件不变）。
+- **Objective**: words 域 + contract-lexicon.json 派生化（DocWords 单字段单源 + words 渲染器字节等价）
+
+- **Produces**: `DocType.words` 承载 engine lexicon 翼内容（共享单例）；`src/documents/words.ts` 渲染器（字节等价派生 config/contract-lexicon.json）；words.test
+
+- **Files**: packages/cdd-engine/src/documents/doctype.ts, packages/cdd-engine/src/documents/words.ts, packages/cdd-engine/src/documents/__tests__/words.test.ts
+
+- **Steps**:
+  1. `doctype.ts` words 域具体型落位——`DocWords` = engine lexicon 翼内容（`config/contract-lexicon.json` 解析：`_doc` / `command.{status,capsule,route}` / `schema.anatomy`）收编为单字段；**共享单例**（三实例 words 域引用同一对象——词表单源不复制） — checkable: `DocType.words` 承载 engine lexicon 翼全内容（单字段单源、三实例同对象）
+  2. 新建 `src/documents/words.ts`——words 渲染器：`DocWords` → `config/contract-lexicon.json` **字节等价**派生（key 序 + 格式与现状一致） — checkable: words 渲染产物 = contract-lexicon.json **字节等价**
+  3. Tests：colocated `words.test.ts`——渲染产物 vs 现状字节断言；`infra/word-table.ts` **零改动**（grep 实证）+ WordTable 既有测试全绿；`pnpm run emit:check` fresh — checkable: `infra/word-table.ts` 零改动（git diff 实证）+ 既有测试全绿（消费路径不变 → infra↔documents 零反向依赖）；`pnpm run emit:check` fresh
+
+- **Acceptance**:
+  - `DocType.words` 承载 engine lexicon 翼全内容（单字段单源、三实例同对象）；words 渲染产物 = `config/contract-lexicon.json` **字节等价**；`infra/word-table.ts` 零改动（git diff 实证）+ WordTable 既有测试全绿（消费路径不变 → infra↔documents 零反向依赖）；`pnpm run emit:check` fresh。
+
 
 ### Task 5: bodyView 分型面（template-contract 迁移 + TemplateLoader 消费重接，S7）
 
-- **Do**: `src/documents/doctype.ts` bodyView 域具体型落位——`BodyViewSpec`：`docFamily` 判别接口（现 `DOCS_FORMATS = ["RETURN_JSON","DOCS_FIX"]` 判别集迁入）· per-type reviews 配置面（现 `config/template-contract.json` `reviews.{spec,plan}` 的 `axesGuide`/`lensEnum` 值迁入）
-  - `config/template-contract.json`：**reviews.spec / reviews.plan 块迁出**（值迁 DocType.bodyView）；**DOCS_FORMATS 定义迁出**；保留 `$version`/skeleton/sections(shell,return,round-context)/tokens/clauses + `reviews.{task,branch}`
-  - `src/render/templates.ts`：`TemplateLoader` per-type review 配置改经 `docTypeRegistry` 读取（spec/plan → `resolve(type).bodyView`；task/branch → template-contract 保留面）；`familyFor`/`DOCS_FORMATS` 判别改经 bodyView 判别集（S7 收敛落点）；shell/return/round-context 装配逻辑不动
-  - Tests：templates 现有测试（`templates.test` / `templates.cache.test` / `templates.content.test`）**全绿 = 渲染输出等价断言**（spec/plan review 配置值经 DocType 等价注入）；新增 bodyView 判别测试（DOCS_FORMATS 成员判定正向/负向 + spec/plan axesGuide 读回）
-- **验收**: bodyView 域含 reviews.{spec,plan} 配置 + DOCS_FORMATS 判别集；`config/template-contract.json` reviews.{spec,plan} 块迁出、shell/tokens/clauses/reviews.{task,branch} 保留起来（`validateTemplateStructure` 仍绿——zone 规则不变）；`TemplateLoader` 渲染输出等价（templates 测试全绿）；`familyFor` 判别经 DocType.bodyView（S7 收敛，grep 实证 + 测试）。
-- **注**: 分型面边界 = reviews 分型值迁 DocType，shell/tokens/clauses 是流程 prompt 面（与 doc type 正交）保留渲染数据面（Q5 定案，spec C6）；等价断言 = 渲染输出等价非 template-contract.json 文件字节（reviews 块迁出 = 预期结构变更）。
+- **Objective**: bodyView 分型面（template-contract 迁移 + TemplateLoader 消费重接，S7）：reviews.{spec,plan} + DOCS_FORMATS 迁入 DocType.bodyView
+
+- **Produces**: `BodyViewSpec`（docFamily 判别接口 + per-type reviews 配置面）；`config/template-contract.json` reviews.spec/plan 块迁出；`TemplateLoader` 经 docTypeRegistry 读 per-type review 配置；templates 测试全绿（渲染输出等价）
+
+- **Files**: packages/cdd-engine/src/documents/doctype.ts, packages/cdd-engine/config/template-contract.json, packages/cdd-engine/src/render/templates.ts
+
+- **Steps**:
+  1. `doctype.ts` bodyView 域具体型落位——`BodyViewSpec`：`docFamily` 判别接口（现 `DOCS_FORMATS = ["RETURN_JSON","DOCS_FIX"]` 判别集迁入）· per-type reviews 配置面（现 template-contract `reviews.{spec,plan}` 的 axesGuide/lensEnum 值迁入） — checkable: bodyView 域含 reviews.{spec,plan} 配置 + DOCS_FORMATS 判别集
+  2. `config/template-contract.json`：reviews.spec / reviews.plan 块迁出（值迁 DocType.bodyView）；DOCS_FORMATS 定义迁出；保留 `$version`/skeleton/sections/tokens/clauses + `reviews.{task,branch}` — checkable: template-contract reviews.{spec,plan} 块迁出、shell/tokens/clauses/reviews.{task,branch} 保留（validateTemplateStructure 仍绿）
+  3. `src/render/templates.ts`：`TemplateLoader` per-type review 配置改经 `docTypeRegistry` 读取（spec/plan → resolve(type).bodyView；task/branch → template-contract 保留面）；`familyFor`/DOCS_FORMATS 判别改经 bodyView；Tests：templates 测试全绿（渲染输出等价断言）+ 新增 bodyView 判别测试 — checkable: `TemplateLoader` 渲染输出等价（templates 测试全绿）；`familyFor` 判别经 DocType.bodyView（S7 收敛，grep 实证 + 测试）
+
+- **Acceptance**:
+  - bodyView 域含 reviews.{spec,plan} 配置 + DOCS_FORMATS 判别集；`config/template-contract.json` reviews.{spec,plan} 块迁出、shell/tokens/clauses/reviews.{task,branch} 保留起来（`validateTemplateStructure` 仍绿——zone 规则不变）；`TemplateLoader` 渲染输出等价（templates 测试全绿）；`familyFor` 判别经 DocType.bodyView（S7 收敛，grep 实证 + 测试）。
+
 
 ### Task 6: 收敛接线 S1/S4/S5/S6（detect / CLI --type / resolveTargetDoc / next-step）
 
-- **Do**: S1——`docKindOf`（`src/rules/documents.ts:798`）**删除**：判定改经 `docTypeRegistry.all()` 按序迭代 `detect(fileName, content)`（overall→plan→spec 判定序；三型 detect 均零命中 → **fail-fast throw** unknown-doc-kind（含 entry 文本，与 `resolve(kind)` 未知即 throw 同构——不落 spec fallback，spec 2.6 不静默选型）；`validateDispatchDocuments`/`parentOverallOf` 内部改经注册表 + `resolve(kind).parentChain`
-  - S4——CLI review/fix `--type` 路由（`src/cli/review.ts:103,140,253` + `fix.ts` 同形）：spec/plan 面改经 `docTypeRegistry.resolve(type).lifecycle(entry, ctx)`（型特定生命周期处理——**调用点 = `DocsLifecycle.run`（`src/dispatch/docs.ts:502`）内按 CLI `--type` 调度**；round 命名/胶囊/证据门/写盘编排公共面保持 `DocsLifecycle`，CLI 入口不变）；task/branch 面保持现路由（非 doc-type，不纳入注册表）
-  - S5——`resolveTargetDoc`（`src/cli/shared.ts:62-74`）：spec/plan 参数取回改经 `docType.route` 元数据（`argKey` `spec`/`plan`）
-  - S6——NextStep 建议表（`src/rules/next-step.ts:158,220-257`）：`#targetArg`（`--spec`/`--plan`）+ 三路建议改经 `docType.route`（`targetFlag`）+ 注册表类型门
-  - Tests：`cli/__tests__` + `rules/__tests__`（review/fix/next-step 面）全绿；detect 判定序测试（overall/plan/spec 正负例 + 二义显式报错 + **零命中负例**——注册表解析 throw unknown-doc-kind，spec 2.6 不静默选型）；**A3 grep 实证**：S1/S4/S5/S6 面零 per-type 手写分支（`docKindOf` 零存在 · `opts.type === "spec"` 式散点归零，仅经注册表调度）
-- **验收**: `docKindOf` 删除（grep 零命中）；detect 判定经 `docTypeRegistry`（overall→plan→spec 序 + 二义显式报错 + 零命中 fail-fast throw）；CLI review/fix `--type` spec/plan 面经 `resolve(type).lifecycle`（task/branch 现路由保持）；`resolveTargetDoc` / NextStep 建议表经 `DocType.route` 元数据；`cli`/`rules`/`next-step` 测试全绿；validate 全块绿（spike 展示：分支归零后 docs-review 行为与前一致）。
-- **注**: task/branch 是派发类型非 doc type——不纳入 DocType 注册表（spec 调）；S2/S3/S7 已于 T2/T5 收敛，本任务闭合剩余 4 散点即 A3「8 散点全口径」收敛完成（S8 归 T7）。
+- **Objective**: 收敛接线 S1/S4/S5/S6（detect 经注册表 + CLI --type 路由 + resolveTargetDoc + next-step，A3 8 散点收敛）
+
+- **Produces**: `docKindOf` 删除（detect 经 docTypeRegistry.all() 迭代 + 零命中 fail-fast throw）；CLI review/fix --type 经 `resolve(type).lifecycle`；resolveTargetDoc / NextStep 建议表经 DocType.route
+
+- **Files**: packages/cdd-engine/src/rules/documents.ts, packages/cdd-engine/src/cli/review.ts, packages/cdd-engine/src/cli/fix.ts, packages/cdd-engine/src/cli/shared.ts, packages/cdd-engine/src/rules/next-step.ts, packages/cdd-engine/src/dispatch/docs.ts
+
+- **Steps**:
+  1. S1——`docKindOf`（`src/rules/documents.ts:798`）**删除**：判定改经 `docTypeRegistry.all()` 按序迭代 `detect(fileName, content)`（overall→plan→spec 判定序；三型 detect 均零命中 → **fail-fast throw** unknown-doc-kind，不落 spec fallback）；validateDispatchDocuments / parentOverallOf 改经注册表 + resolve(kind).parentChain — checkable: `docKindOf` 删除（grep 零命中）；detect 判定经 docTypeRegistry（判定序 + 零命中 fail-fast throw）
+  2. S4——CLI review/fix `--type` 路由：spec/plan 面经 `docTypeRegistry.resolve(type).lifecycle(entry, ctx)`（调用点 = `DocsLifecycle.run` 内按 CLI `--type` 调度）；task/branch 面保持现路由；S5——`resolveTargetDoc` spec/plan 参数取回经 `docType.route.argKey`；S6——NextStep 建议表 `#targetArg` + 三路建议经 `docType.route.targetFlag` + 注册表类型门 — checkable: CLI review/fix `--type` spec/plan 面经 resolve(type).lifecycle（task/branch 现路由保持）；resolveTargetDoc / NextStep 经 DocType.route 元数据
+  3. Tests：`cli/__tests__` + `rules/__tests__`（review/fix/next-step 面）全绿；detect 判定序测试（正负例 + 二义显式报错 + 零命中负例）；**A3 grep 实证**：S1/S4/S5/S6 面零 per-type 手写分支（`docKindOf` 零存在 · `opts.type === "spec"` 式散点归零） — checkable: validate 全块绿（分支归零后 docs-review 行为与前一致）（注：task/branch 是派发类型非 doc type——不纳入注册表）
+
+- **Acceptance**:
+  - `docKindOf` 删除（grep 零命中）；detect 判定经 `docTypeRegistry`（overall→plan→spec 序 + 二义显式报错 + 零命中 fail-fast throw）；CLI review/fix `--type` spec/plan 面经 `resolve(type).lifecycle`（task/branch 现路由保持）；`resolveTargetDoc` / NextStep 建议表经 `DocType.route` 元数据；`cli`/`rules`/`next-step` 测试全绿；validate 全块绿（spike 展示：分支归零后 docs-review 行为与前一致）。
+
 
 ### Task 7: S8 tokens shape 域 + 死牵引 + 终验（A4 + changeset）
 
-- **Do**: S8——`src/documents/tokens.ts` `deriveDocTokens`：live 派生语义保留（path 导航 `leaf()`/`nodeAt()`），源改经 `docTypeRegistry` 的 shape 域访问器（不再 `loadDocSchema` 重读配置面——三 schema 同构内容经 DocType.shape 取）；DOC_TOKENS 生产单例值不变；tokens.test live 测试保留（doctored shape → derived token 变化实证）+ 等价回归全绿
-  - 死牵引清理：CLAUDE.md `packages/cdd-engine/src/documents/schema/skill-anatomy.json` 引用改指 `packages/cdd-engine/config/schema/skill-anatomy.json`；`tokens.ts` 陈旧注释（`documents/schema/*.json` 指代）改指 `config/schema/`；`ex lib/…` 残留注释清理
-  - 终验：`pnpm run validate` 全块全绿（emit fresh / kairos 树 + wiring / engine 测试 / residue + channel / marketplace / scripts unit / version sync）——A4 residue/lexicon guard 零回归；超纲线复查（add-phase-protocol / skill-anatomy 原样 + schema.test 绿 · P2/P3/P5 内容零越界 grep）
-  - changeset：读 `.changeset/README.md` version scheme 判 bump 类型（cdd-engine 内部重构、字节等价、消费者零变更）→ 落 `.changeset/<slug>.md`
-- **验收**: `deriveDocTokens` live 派生经 `DocType.shape` 域访问器承载（tokens.test 等价回归 + doctored-shape live 测试全绿）；DOC_TOKENS 值不变；死牵引零残留（grep 双模式 `src/documents/schema/` ∪ `documents/schema/` 在 CLAUDE.md + src/ 注释面零命中 · `ex lib/` 残留清理）；`pnpm run validate` 全块全绿；changeset 已建（cdd-engine）。
-- **注**: 终验是 A2/A4 的最终闸——任何 validate 块红 = 任务未闭合（带红不提交）；changeset bump 类型判定先读 `.changeset/README.md` 再判（0.x 下规则按 scheme）；本计划全 singleton 组——不落 `## Task Groups` 段（每 `### Task N:` 自带验收面独立派发）。
+- **Objective**: S8 tokens shape 域 + 死牵引 + 终验（A4 + changeset）：deriveDocTokens 源改经 DocType.shape 访问器
+
+- **Produces**: `deriveDocTokens` live 派生经 DocType.shape 域访问器（DOC_TOKENS 生产单例值不变）；死牵引清理（CLAUDE.md / tokens.ts 注释）；changeset（cdd-engine）
+
+- **Files**: packages/cdd-engine/src/documents/tokens.ts, CLAUDE.md, packages/cdd-engine/src/documents/__tests__/tokens.test.ts
+
+- **Steps**:
+  1. S8——`src/documents/tokens.ts` `deriveDocTokens`：live 派生语义保留（path 导航 `leaf()`/`nodeAt()`），源改经 `docTypeRegistry` 的 shape 域访问器（三 schema 同构内容经 DocType.shape 取）；DOC_TOKENS 生产单例值不变；tokens.test live 测试保留（doctored shape → derived token 变化实证）+ 等价回归全绿 — checkable: `deriveDocTokens` live 派生经 DocType.shape 域访问器承载（tokens.test 等价回归 + doctored-shape live 测试全绿）；DOC_TOKENS 值不变
+  2. 死牵引清理：CLAUDE.md `packages/cdd-engine/src/documents/schema/skill-anatomy.json` 引用改指 `config/schema/`；`tokens.ts` 陈旧注释改指；`ex lib/…` 残留注释清理 — checkable: 死牵引零残留（grep 双模式 `src/documents/schema/` ∪ `documents/schema/` 在 CLAUDE.md + src 注释面零命中）
+  3. 终验：`pnpm run validate` 全块全绿（A4 residue/lexicon guard 零回归）；超纲线复查（add-phase-protocol / skill-anatomy 原样 + schema.test 绿 · P2/P3/P5 内容零越界 grep）；changeset：读 `.changeset/README.md` scheme 判 bump 类型 → 落 `.changeset/<slug>.md` — checkable: `pnpm run validate` 全块全绿；changeset 已建（cdd-engine）（注：本计划全 singleton 组——不落 `## Task Groups` 段）
+
+- **Acceptance**:
+  - `deriveDocTokens` live 派生经 `DocType.shape` 域访问器承载（tokens.test 等价回归 + doctored-shape live 测试全绿）；DOC_TOKENS 值不变；死牵引零残留（grep 双模式 `src/documents/schema/` ∪ `documents/schema/` 在 CLAUDE.md + src/ 注释面零命中 · `ex lib/` 残留清理）；`pnpm run validate` 全块全绿；changeset 已建（cdd-engine）。

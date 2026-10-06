@@ -6,27 +6,12 @@
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.9](2026-09-27-pi-harness-overall.md)
 - **Depends on**: P1（shipped · [p1-design v1.5](2026-09-27-pi-harness-p1-design.md)）
 
-## Section 0: Incremental warning
-
-本 spec 承诺恰好一个 phase（P2 emit 分发注册表）。若实施中发现需要拆分 / 重排 P2 的工作，不是本文件的局部编辑——phase inventory 行、依赖边、change-history 行必须先回填 parent overall（backfill-as-version）再继续。P2 之后的 phase（P3 engine 数据面 / P4 文档收口）各归其 spec；本 phase 的全部破坏性定案已于 overall v1.9 回填生效。
-
-## Section 1: Constraints pointer
-
-跨 phase 约定以 parent overall v1.9 为准（overall wins on conflict），本 phase 不重复表述，仅指针：
-- **破坏性授权（2026-09-29，Constraints 登记）**：`oscaner-plugin` → `oscaner` key rename（发布面 breaking，changeset 记 breaking）+ `oscaner.harnesses` 全配送面语义 + P1 pi-package 守卫宿主迁移
-- **Non-goal：注册表分层不破**——新注册表是 emit/脚本分发面产物，不合并 engine `harness-registry.json`（反向耦合破坏包边界）
-- **Non-goal：source.json 面不扩 pi 条目**（它服务于 claude/cursor 两个 marketplace）——pi 描述子 undefined 即此语义的机器表达
-- **D2 源侧手维护**：`pi` 字段 + 顶层 `keywords: ["pi-package"]` 与 `version`/`description`/`files` 同源；emit 产物面零新增 pi 文件（pi 的 manifest = 发布 package.json 的 `pi` 字段本体）
-- **D4 检测链路归 P3**：本 phase 不触碰 engine 宿主检测面
-- 开发期引擎直调 `node packages/cdd-engine/dist/cli.mjs`；spec 中文（Strategy B）；changeset/commit 纪律不因本 phase 变更
-
-## Section 2: Design body
-
-#### 2.1 目标与范围
+## Design
+**2.1 目标与范围**
 
 P2 把 emit 分发面的"包侧声明 ↔ 实现"差距归零：`oscaner-plugin.harnesses` 死字段（harnessesNote 明言 no script consumes）转真消费，三处硬编码（`source.ts FIRST_PARTY_CURSOR` / `OsuperpowersEmitter` 无条件双写 / `manifests.ts` 两 builder）收编为一个 OOP 统一 `Harness` 抽象 + `HarnessRegistry`，三 harness（claude / cursor / pi）以多态表达各自的产物形态。用户前提（2026-09-29）抬升本 phase 为**抽象统一重构**：允许破坏性变更、高维 OOP、零技术债——D5 毗邻债（keywords fallback 链 + name-dispatch 单包分支）拉入本面一并清除；C6 提交门工具链（husky pre-commit 手写 shell → lint-staged · no-fix 检查）同轮并入。范围外：engine 数据面（Non-goal 分层）、source.json 产物 shape（D7 字节稳定）、`.github/ISSUE_TEMPLATE` / marketplace 文档产物。
 
-#### 2.2 抽象与组件
+**2.2 抽象与组件**
 
 锚点图例：R/Q = grilling 定案轮次锚点（R1 覆盖统一重构蓝图正文、Q1 覆盖 D6 rename）；D 编号连续、非必经枚举——仅列本文实际引用的定案，并内部消歧（每号恰指一义，不含 parent overall 的 D2/D4/D5 同号异义）。锚点仅供本 spec 内部溯源：
 
@@ -89,11 +74,11 @@ P2 把 emit 分发面的"包侧声明 ↔ 实现"差距归零：`oscaner-plugin.
 - 测试重写：`scripts/validate/__tests__/biome-wiring.test.ts` 现 pin hook 内 `biome:fix`（L25），改 pin 新形态——hook 含 `lint-staged`、config 含 `biome check`（**断言无 `--write`**）、validate catch-all 保留
 - CLAUDE.md「Validation and commit flows」段 pre-commit 描述随行更新（lint-staged + no-fix 语义）
 
-#### 2.3 数据流
+**2.3 数据流**
 
 `packages/osuperpowers/package.json`（`oscaner` 声明：harnesses 全配送面 + keywords 单源 + claude category）→ `harnessRegistry`（C1，emit/validate 双侧共享）→ `source.ts` 派生 source.json（**字节不变**）→ `PluginManifestEmitter` 按声明 harness 写 `.claude-plugin/` + `.cursor-plugin/`（**字节不变**）→ validate block 6 一致守卫（声明↔注册表双射 + 产物存在）＋ block 5b `PiHarness.validatePackage`（断言面不变）。
 
-#### 2.4 错误与边界
+**2.4 错误与边界**
 
 - `registry.resolve(id)` 未知 harness → emit throw（`pnpm run emit` 与 `emit-check` 双fail；漂移守卫块 0 拦截）；一致守卫同断言在 validate 侧独立可达（双面防白绿）
 - 一致守卫 fail → CheckBlock 结构化报错（包名 + 声明 id + 期望/实际）
@@ -101,7 +86,7 @@ P2 把 emit 分发面的"包侧声明 ↔ 实现"差距归零：`oscaner-plugin.
 - `deriveFirstPartyNames` 已排无 `oscaner` 键的目录（现判据为 `pkg["oscaner-plugin"]` 存在性门，随 C4 rename 迁为 `pkg.oscaner` 存在性门，语义不变）
 - 历史豁免：`CHANGELOG.md` / `2026-09-13 overhaul family` 保留 `oscaner-plugin` 原文（Non-goal「历史记录不 retro-rename」）；`pi-harness-overall.md` 已随 v1.9 回填更新
 
-#### 2.5 测试
+**2.5 测试**
 
 - 新增 `scripts/lib/__tests__/harness-registry.test.ts`（vitest，自动进 scripts unit glob）：resolve 未知 throw · assertBidirectional（注册未接线 / 声明未注册各 fail）· Claude/Cursor `manifest()` 字节对照现有 `.claude-plugin/plugin.json` / `.cursor-plugin/plugin.json` 产物 · PiHarness.validatePackage 五断言对活 package.json 全过 · sourceJson 描述子（cursor `{emitMode}` / claude override 聚合 / pi undefined）· deriveSource row 键序 `Object.keys` 断言（`cursor` 第三位、`claude` 末位）
 - `scripts/emit/__tests__/emit.test.ts` 更新：fixture 键名 `oscaner`、断言面向 registry（产物字节 pin 保持）；source.json 顶层键序 `Object.keys` 序断言（像素级键位 pin，非仅 JSON 语义 pin）
@@ -122,7 +107,17 @@ P2 把 emit 分发面的"包侧声明 ↔ 实现"差距归零：`oscaner-plugin.
 - commit 门：`.husky/pre-commit` 单行 `pnpm exec lint-staged` + `lint-staged.config.mjs`（`*.ts → biome check` **无 `--write`** · `* → pnpm run precommit`）；staged TS 带 format/lint violation 提交 → 拦截 fail 实证一次；`biome-wiring.test.ts` 重写全绿（pin no-fix + validate catch-all）；`pnpm run precommit` 门控保持全绿
 - `pnpm run validate` 全块全绿（新守卫在内）；changeset 建（breaking——osuperpowers 按 version scheme 判定）
 
-## Section 3: Deviations from overall
+## Constraints
+
+- 跨 phase 约定以 parent overall v1.9 为准（overall wins on conflict），本 phase 不重复表述，仅指针：
+- **破坏性授权（2026-09-29，Constraints 登记）**：`oscaner-plugin` → `oscaner` key rename（发布面 breaking，changeset 记 breaking）+ `oscaner.harnesses` 全配送面语义 + P1 pi-package 守卫宿主迁移
+- **Non-goal：注册表分层不破**——新注册表是 emit/脚本分发面产物，不合并 engine `harness-registry.json`（反向耦合破坏包边界）
+- **Non-goal：source.json 面不扩 pi 条目**（它服务于 claude/cursor 两个 marketplace）——pi 描述子 undefined 即此语义的机器表达
+- **D2 源侧手维护**：`pi` 字段 + 顶层 `keywords: ["pi-package"]` 与 `version`/`description`/`files` 同源；emit 产物面零新增 pi 文件（pi 的 manifest = 发布 package.json 的 `pi` 字段本体）
+- **D4 检测链路归 P3**：本 phase 不触碰 engine 宿主检测面
+- 开发期引擎直调 `node packages/cdd-engine/dist/cli.mjs`；spec 中文（Strategy B）；changeset/commit 纪律不因本 phase 变更
+
+## Deviations
 
 | Overall assumption | Phase decision | Overall updated? |
 |---|---|---|
@@ -132,12 +127,8 @@ P2 把 emit 分发面的"包侧声明 ↔ 实现"差距归零：`oscaner-plugin.
 
 无未回填偏差——全部 grilling 定案（D1–D7，编号见 §2.2 锚点图例）已随 overall v1.9 sync-before-write 落地。
 
-## Section 4: Notes for downstream
+## Notes for downstream
 
 - **P3（engine 数据面）**：命名统一 `cursor-agent` → `cursor`（engine 注册表 / 检测面 / validate pin 面）与 P2 emit 注册表三面 token（`claude` / `cursor` / `pi`）对齐；两注册表分层不破（Non-goal）——P3 不消费 `scripts/lib/harness-registry.ts`（这是 emit 分发面，非 spawn 契约面）
 - **P4（文档·测试·收口）**：P2 的 `oscaner` key rename 是发布面 breaking——P4 CHANGELOG 文案记录 + 历史豁免清单注册（Non-goal「历史记录不 retro-rename」）；P4 命名 pin 测试可续挂 P2 一致守卫产物；`release.yml` 无 pi smoke（v1.4 裁定）
 - **消费面残留**：`oscaner` 字段 = 新发布契约——已安装旧包的消费者升级路径（breaking config 键）提示归 P4 消费故事
-
-## Section 5: Review
-
-Fresh-subagent review passes on the committed baseline, then user review, then writing-plans. Review Convergence（I1）：blocker > 0 → fix 全 findings 后 re-review；blocker = 0 → fix 全 findings → done（不再 re-review）。Entry 前树必须 clean（engine entry gate）。

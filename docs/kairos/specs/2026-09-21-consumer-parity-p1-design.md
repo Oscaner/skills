@@ -6,29 +6,10 @@
 - **Parent program**: [2026-09-21-consumer-parity-overall.md](./2026-09-21-consumer-parity-overall.md) · v1.8
 - **Depends on**: 无（program 起点）
 
----
-
-## Section 0: Incremental warning
-
-> P1 增量仅限本 phase。跨 phase 约定见 [overall v1.8](./2026-09-21-consumer-parity-overall.md)；overall 冲突时 overall 胜。
-
-本 spec 只做 **P1（分歧面审计 + 判定登记 + 13 件 frozen 文档清理 + S5 单行修正）** 的设计增量。engine 执法改动（P2 全量审计）、仓库面退役（P3）、发布闭环（P4）不属于本 phase，仅以"上游输入契约 / 下游交接物"形式出现。
-
-## Section 1: Constraints pointer
-
-> 不重复 overall 约定；overall 冲突时 overall 胜。
-
-引下列 overall v1.8 条目，不重述正文：
-- **判据定式**（C1 可达性 / C2 结构性 / C3 退化——useless 必删、无历史叙述豁免）：overall v1.8 Program charter · Cross-cutting constraints「判据定式」段（三判据操作性定义完整落点；P1 逐项 triage 与 P2/P3 处置的记在案判定规则）
-- **Non-goals**：不新增 cdd CLI 子命令 · 不改 emit/marketplace/changeset 内部流水（doc-structure 渲染目标例外）· 不把本仓 GitHub issue 注册语义强加消费者 · 不改 README/CLAUDE.md harness 宣称类
-- **约束**：允许 breaking · 唯一执法面 = engine lifecycle（本仓无 scripts 侧兜底）· spec/plan 结构定义同源派生（P2 载体）· engine 零文档写入 · 本仓=canary
-- **语言**：Strategy B（spec/plan 中文）
-
-## Section 2: Design body
-
+## Design
 本 phase 增量 = **分歧面逐项审计 + 判定登记（triage 判定表）+ shim 清单 + 13 件 frozen 文档清理（裁决 A）+ S5 修正**。核心产出物是**判定表与处置表的落盘**——执法改动不在此 phase 实现（P2），仓库面退役不在此 phase（P3）。
 
-### 2.1 判据应用（overall v1.8 定式；本 spec 只给裁定结论）
+**2.1 判据应用（overall v1.8 定式；本 spec 只给裁定结论）**
 
 判据操作性定义简写（完整定义见 [overall v1.8 Cross-cutting「判据定式」段](./2026-09-21-consumer-parity-overall.md)——P1 逐项 triage 与 P2/P3 处置的记在案判定规则）：
 - **C1 可达性**——一条 charter 合规断言，只要消费者环境（纯包 + 无 `scripts/`、无可安装 validate）也应得到同等执法 → 归 engine lifecycle（docContractValidate / statusValidate）；落 repo scripts 侧第二实现 = 违规。
@@ -48,7 +29,7 @@
 
 **未镜像集 = P2 全量审计的精确 delta**（上表"新增/扩全"六行（新增 5 + 扩全 1）及 Class C 通用路径锚点）——本判表是 P2 scope 的机械输入契约。
 
-### 2.2 Shim 清单（S1–S6，四分类）
+**2.2 Shim 清单（S1–S6，四分类）**
 
 | # | shim 项 | 类别 | 处置 | 责任 phase |
 |---|---|---|---|---|
@@ -61,7 +42,7 @@
 
 **排除项（观察项，不入 shim 清单）**：engine 黑盒测试 `cwd=REPO_ROOT`（E2②/G4① dirty-tree 降级）——测试基建文档化行为，非绕产品面短路面。
 
-### 2.3 13 件 frozen 文档清理处置表（裁决 A：无历史叙述豁免，useless 必删）
+**2.3 13 件 frozen 文档清理处置表（裁决 A：无历史叙述豁免，useless 必删）**
 
 **处置判据**：
 - **J1 主张性引用**——把 scripts-side 守卫表述为**现行/本仓 charter 执法主体、maintainer-mode dogfood 归属**的句子 → **改写为历史时态中性句**（陈述"当时由 repo 侧守卫承担；已于 consumer-parity 归位 engine lifecycle"），或删除（无保留价值）。
@@ -89,7 +70,7 @@
 
 > 合计：**26 命中行 / 8 文件**（committed tree `HEAD 7d2f8d20` 实测；J1 改写 4 处 + J2/J3 保留 22 行，13 件 = 8 命中件 + 5 零命中件）。
 
-#### §2.3.1 p2-plan AC2 命中 9 处划类明细（J2/J3，保留不改）
+**§2.3.1 p2-plan AC2 命中 9 处划类明细（J2/J3，保留不改）**
 
 | 行 | 内容概要 | 划类 | 理由 |
 |---|---|---|---|
@@ -105,11 +86,11 @@
 
 p2-plan 另有 8 处守卫叙述行（:34 · :88 · :112 · :146 · :149 · :306-307 · :401——"block 12" / residue.mjs 散文叙述，**不含 AC2 pattern**，非 grep 命中面）：作为历史执行记录保留不改写，不入 AC2 登记面、不计数。
 
-### 2.4 S5 单行修正（`scripts/run.ts:89`）
+**2.4 S5 单行修正（`scripts/run.ts:89`）**
 
 `run.ts` 中 `smoke-cdd` 的 command 描述当前为「(4-command H1 chain)」，实际 smoke-cdd.ts 执行**五命令** dry-run 链（implement / review task / fix task / review branch / fix branch）。单行改为「(5-command H1 chain)」。改后 `pnpm run validate` 的 scripts unit 套件（`scripts/__tests__/run.test.ts` 等）不依赖该描述文本 → 无测试改动面。
 
-### 2.5 文字改动面汇总（经 cdd 链 review，验收③）
+**2.5 文字改动面汇总（经 cdd 链 review，验收③）**
 
 | 改动 | 文件 | 判据 | phase |
 |---|---|---|---|
@@ -125,7 +106,17 @@ p2-plan 另有 8 处守卫叙述行（:34 · :88 · :112 · :146 · :149 · :306
 - AC4 **S5 落地**：`scripts/run.ts:89` 描述与 smoke-cdd.ts 实际五命令一致；`pnpm run validate`（scripts unit 面）全绿。
 - AC5 **零实现改动**：P1 不触碰 engine 源码、不新增 CLI 子命令、不退役守卫代码（退役 = P3）；唯一代码面改动 = S5 单行文本。
 
-## Section 3: Deviations from overall
+## Constraints
+
+- 不重复 overall 约定；overall 冲突时 overall 胜。
+
+- 引下列 overall v1.8 条目，不重述正文：
+- **判据定式**（C1 可达性 / C2 结构性 / C3 退化——useless 必删、无历史叙述豁免）：overall v1.8 Program charter · Cross-cutting constraints「判据定式」段（三判据操作性定义完整落点；P1 逐项 triage 与 P2/P3 处置的记在案判定规则）
+- **Non-goals**：不新增 cdd CLI 子命令 · 不改 emit/marketplace/changeset 内部流水（doc-structure 渲染目标例外）· 不把本仓 GitHub issue 注册语义强加消费者 · 不改 README/CLAUDE.md harness 宣称类
+- **约束**：允许 breaking · 唯一执法面 = engine lifecycle（本仓无 scripts 侧兜底）· spec/plan 结构定义同源派生（P2 载体）· engine 零文档写入 · 本仓=canary
+- **语言**：Strategy B（spec/plan 中文）
+
+## Deviations
 
 | Overall assumption | Phase decision | Overall updated? |
 |---|---|---|
@@ -135,15 +126,9 @@ p2-plan 另有 8 处守卫叙述行（:34 · :88 · :112 · :146 · :149 · :306
 
 > `Overall updated?` 全为 Yes（v1.7 裁决回填；判据定式操作性定义落点补全后续回填于 v1.8——本 spec r1 review F3）——无未登记偏差。
 
-## Section 4: Notes for downstream
+## Notes for downstream
 
 - **P2（engine lifecycle 统一抽象）**：输入契约 = §2.1「未镜像集」表（新增 ②③⑤⑥ + 扩全 ④ + Class C）+ S1/S2 并入面；harness 契约统一（docs-family fix commit 义务 concretize）为本程序 v1.4 既有登记项，不在本表内。
 - **P3（仓库面退役）**：输入 = S1/S2 退役 + S3 活文档残留簇（file:line 已列）+ S4 consumer-sim + 42 用例迁移面（27+15，`scripts/validate/__tests__/`）。
 - **P4（发布闭环）**：输入 = S6（两 changeset）+ ×9 旧 changesets 版本化 + pack 内容审计。
 - 本 phase 无「later phases 会处理」悬空项——所有跨 phase 移交均落上游 overall（v1.8）或本 §4 指针。
-
-## Section 5: Review
-
-- **Baseline = committed tree**：进入 review 前工作树干净（entry gate）；review 读 dispatch 入口时的 committed tree。
-- **Convergence**：blocker > 0 → fix 全部 findings → 重审；blocker = 0 → fix 全部（warn/nit 含）→ 停，不再审（Review Convergence，CLAUDE.md）。
-- 本 spec 经 `cdd review --type spec --spec docs/osuperpowers/specs/2026-09-21-consumer-parity-p1-design.md` 单轮收敛。

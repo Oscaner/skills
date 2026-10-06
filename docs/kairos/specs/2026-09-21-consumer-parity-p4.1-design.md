@@ -6,22 +6,7 @@
 - **Parent program**: [consumer-parity overall v1.25](2026-09-21-consumer-parity-overall.md)
 - **Depends on**: P3（shipped · [p3-design v1.2](2026-09-21-consumer-parity-p3-design.md)）
 
-## Section 0: Incremental warning
-
-P4 已按用户裁决拆点分 `P4.1`（文档治理）/ `P4.2`（发布闭环），本次 spec 只承载 **P4.1 增量**；P4.2 发布面（版本基准整备 · ×9 changesets 版本化整合 · consumer-sim release 门实测 · pack 内容面审计）落入独立 `…-p4.2-design.md`。本 phase 不再拆分；范围变更需先回填 parent overall（backfill-as-version）再继续。
-
-## Section 1: Constraints pointer
-
-Cross-phase 规则以 parent overall v1.25 为准（overall wins on conflict）：
-
-- Charter Non-goal #4 已修订（v1.19/v1.20）：README/CLAUDE.md 全面重写归 P4.1 承担，覆盖全部宣称面（harness 支持面 · 安装/来源宣称 · 行为描述类陈述），重写后与落地行为零分歧；README.zh-CN.md = 同步 mirror（repo 对外宣讲面）
-- 判据三定式（C1 可达性 / C2 结构性 / C3 退化）适用于本 phase 一切处置判断
-- 四表纪律：回填 = branch-review 前置义务；结构性 mismatch → BLOCK
-- 语言政策：程序文档中文主源（Strategy B）；maintainers / README / CLAUDE.md 英文主源（Strategy A / B extension），**mirror = 根 `README.zh-CN.md` + 各包宣讲面（osuperpowers / cdd-engine 各 `README.zh-CN.md`），全仓其余零 `.zh-CN.md`**（政策修订随本 phase 落笔）
-- 本 phase 零 engine 变更、零 scripts/validate 变更——纯文档面；改动限 `docs/maintainers/`、根 `README.md`、`README.zh-CN.md`、`CLAUDE.md` + **包级宣讲面**（`packages/osuperpowers/README.md` 重写 · `packages/osuperpowers/README.zh-CN.md` 新建 · `packages/cdd-engine/README.md` 新建 · `packages/cdd-engine/README.zh-CN.md` 新建），均非 emit 派生输入（scripts/emit grep 零 README 引用实证；aff5c809 实证：docs/maintainers 修改后 precommit emit freshness 全绿）。**范围例外一条**（原二条中 (2) 升格为主面，见 §3 deviation）：(1) parent overall（`2026-09-21-consumer-parity-overall.md`）的 backfill-overall / v-bump 更新——AC6 · 四表纪律的 branch-review 前前置义务；包级 README 的 maintainers 入链引用口径同步随其重写一体承办
-
-## Section 2: Design body
-
+## Design
 **工作分解：三块 + 一个前置**——A. charter v1.20 基线确认（程内已落地；本案撰写期不再 bump 版本、按需履行四表保卫——overall 版本变动统一由 branch-review 前的 backfill-overall 承担，见 AC6）；B. `docs/maintainers/` 重组 + 编号；C. `README.md` / `CLAUDE.md` 全面重写 + `README.zh-CN.md` 同步 mirror。
 
 **docs/maintainers 重组设计**——现状 9 件：`README.md`（索引）· `context-caching-doctrine.md` · `data-driven-templates.md` · `naming-conventions.md` · `template-doctrine.md` · `osuperpowers-plugin.md` · `program-experience.md` · `skill-authoring.md` · `third-party-dependencies.md`。
@@ -47,6 +32,12 @@ Cross-phase 规则以 parent overall v1.25 为准（overall wins on conflict）�
 
 **测试面**——机械守卫：`pnpm run validate` 全绿（11 块含 emit freshness）、`pnpm run emit:check` 无 drift；断言面：文件名编号 grep 断言、相对链接 node 解析断言、`.zh-CN.md` 唯一性 grep 断言、目标骨架章节标题命中断言；人工抽检：宣称面对照表逐条。
 
+| Overall assumption | Phase decision | Overall updated? |
+|---|---|---|
+| CLAUDE.md 骨架承载 cdd-engine 直调开发链路 + Review Convergence 流程规范 | **流程规范零散文**（用户裁决 2026-09-23）：CLAUDE.md / maintainers 不承载 skills/cdd-engine 流程规范，单源 SKILL.md + engine schema，仅 repo 事实 · 命令引用 · 指向 | No（phase 内内容修正——overall P4.1 scope 未涉 CLAUDE.md 骨架细则） |
+| mirror 仅根 `README.zh-CN.md`（语言政策 v1.20） | mirror 扩展 = 根 + 各包宣讲面（osuperpowers / cdd-engine 各 `README.zh-CN.md`，全仓其余零）——用户裁决 2026-09-23 | No（phase 内 scope 细化——overall P4.1 scope 未逐文件枚举） |
+| P4.1 scope 未含包级 README（仅根 README 三件 + CLAUDE.md） | `packages/osuperpowers/README.md` 重写 + `packages/cdd-engine/README.md` 新建（+ 各包 zh-CN mirror）入列；原 §1 例外 (2) 升格主面（互链随重写一体承办） | No（同上） |
+
 ### Acceptance criteria
 
 - `docs/maintainers/` 内容文件全部为 `NN-name.md` 形式（`^[0-9]{2}-` 两位零填充编号；`README.md` 例外为索引），`README.md` 内含全族编号表（编号 · 文件名 · 定位 · 读者块）
@@ -59,20 +50,27 @@ Cross-phase 规则以 parent overall v1.25 为准（overall wins on conflict）�
 - docs/maintainers 整理后编号连续无缺号、总件数 < 迁移后现值（精简实证）、`07-osuperpowers-plugin.md` 已删除（ls 反例）且 live 引用零残留（frozen specs/plans 豁免）；唯一值面 release 流程仍由 `.changeset/README.md` 承载
 - 根 + 两包 `README.md` 语言切换行维持 `[English](README.md) | [中文](README.zh-CN.md)` 原样（node 断言三件一致）；English README 面 `Simplified Chinese` 零命中（显式 `-E`；切换行豁免 claim）
 
-## Section 3: Deviations from overall
+## Constraints
+
+- Cross-phase 规则以 parent overall v1.25 为准（overall wins on conflict）：
+
+- Charter Non-goal #4 已修订（v1.19/v1.20）：README/CLAUDE.md 全面重写归 P4.1 承担，覆盖全部宣称面（harness 支持面 · 安装/来源宣称 · 行为描述类陈述），重写后与落地行为零分歧；README.zh-CN.md = 同步 mirror（repo 对外宣讲面）
+- 判据三定式（C1 可达性 / C2 结构性 / C3 退化）适用于本 phase 一切处置判断
+- 四表纪律：回填 = branch-review 前置义务；结构性 mismatch → BLOCK
+- 语言政策：程序文档中文主源（Strategy B）；maintainers / README / CLAUDE.md 英文主源（Strategy A / B extension），**mirror = 根 `README.zh-CN.md` + 各包宣讲面（osuperpowers / cdd-engine 各 `README.zh-CN.md`），全仓其余零 `.zh-CN.md`**（政策修订随本 phase 落笔）
+- 本 phase 零 engine 变更、零 scripts/validate 变更——纯文档面；改动限 `docs/maintainers/`、根 `README.md`、`README.zh-CN.md`、`CLAUDE.md` + **包级宣讲面**（`packages/osuperpowers/README.md` 重写 · `packages/osuperpowers/README.zh-CN.md` 新建 · `packages/cdd-engine/README.md` 新建 · `packages/cdd-engine/README.zh-CN.md` 新建），均非 emit 派生输入（scripts/emit grep 零 README 引用实证；aff5c809 实证：docs/maintainers 修改后 precommit emit freshness 全绿）。**范围例外一条**（原二条中 (2) 升格为主面，见 §3 deviation）：(1) parent overall（`2026-09-21-consumer-parity-overall.md`）的 backfill-overall / v-bump 更新——AC6 · 四表纪律的 branch-review 前前置义务；包级 README 的 maintainers 入链引用口径同步随其重写一体承办
+
+## Deviations
 
 | Overall assumption | Phase decision | Overall updated? |
 |---|---|---|
 | Non-goal #4：不改 README/CLAUDE.md 的 harness 宣称类内容 | P4.1 全面重写（含宣称面），废除旧限制、改正向零分歧约束 | Yes — v1.19/v1.20 · 2026-09-23 |
 | P4 = 发布一致性闭环（原 scope，单 phase） | P4 拆点分 P4.1 文档治理 / P4.2 发布闭环（phase-id 语法 A 点分） | Yes — v1.19 · 2026-09-23 |
 | maintainers 重组「弃现有章节分布与内容」 | 弃章节分布、**内容保真迁移**（v1.20 spec-review-4 修正口径，非弃内容） | Yes — v1.20 · 2026-09-23 |
-| CLAUDE.md 骨架承载 cdd-engine 直调开发链路 + Review Convergence 流程规范 | **流程规范零散文**（用户裁决 2026-09-23）：CLAUDE.md / maintainers 不承载 skills/cdd-engine 流程规范，单源 SKILL.md + engine schema，仅 repo 事实 · 命令引用 · 指向 | No（phase 内内容修正——overall P4.1 scope 未涉 CLAUDE.md 骨架细则） |
-| mirror 仅根 `README.zh-CN.md`（语言政策 v1.20） | mirror 扩展 = 根 + 各包宣讲面（osuperpowers / cdd-engine 各 `README.zh-CN.md`，全仓其余零）——用户裁决 2026-09-23 | No（phase 内 scope 细化——overall P4.1 scope 未逐文件枚举） |
-| P4.1 scope 未含包级 README（仅根 README 三件 + CLAUDE.md） | `packages/osuperpowers/README.md` 重写 + `packages/cdd-engine/README.md` 新建（+ 各包 zh-CN mirror）入列；原 §1 例外 (2) 升格主面（互链随重写一体承办） | No（同上） |
 | maintainers 重组 v1.20「内容保真迁移、非弃内容」口径 | **重新整理 = 精简 + 删除 + 重编号**（用户裁决 2026-09-23，PR #275 评审回馈）：`07-osuperpowers-plugin.md` 删除（值面由 `.changeset/README.md` 承载）· 冗余裁切 · 编号重排连续 | Yes — v1.24 · 2026-09-23 |
 | 英文 README 语言切换行沿用「中文」标签（v1.24 裁定零 CJK） | 撤销（用户裁决 2026-09-24：language switch 不用改）——「中文」为语言切换 UI 合法原生标签，切换行维持原样；v1.24 改向 `[Simplified Chinese]` 回滚 | Yes — v1.25 · 2026-09-24 |
 
-## Section 4: Notes for downstream
+## Notes for downstream
 
 - P4.2（发布闭环）消费 P4.1 重写产物：README/CLAUDE.md 一致性验收已前移至 P4.1；P4.2 保留版本基准整备（cdd-engine `1.0.0 → 0.1.0` 降值 · p2-major 声称改写 · backlog-6 清除 · version-sync 补 cdd-engine）与 pack 审计（osuperpowers files 白名单）——改后 P4.2 相对独立
 - 语言政策修订（mirror 仅 README.zh-CN）随 CLAUDE.md 重写落笔；需同步核 `docs/maintainers/skill-authoring.md` 语言主张与 `packages/osuperpowers/README.md` 中的引用口径——核出 mismatch 即在本 phase 修正（`packages/osuperpowers/README.md` 入链更新属 §1 例外 (2)，不属包内容面变更）
@@ -80,7 +78,3 @@ Cross-phase 规则以 parent overall v1.25 为准（overall wins on conflict）�
 - **用户裁决 2026-09-23（流程规范零散文）**：CLAUDE.md / docs/maintainers 零 skill/engine 流程规范散文（Review Convergence · cdd 直调链路机制 · entry gate/handoff 契约）——单源 SKILL.md + engine；只留 repo 事实 + 命令引用 + 指向。落地：新 Task 7（剥除断言面）+ Task 3 文案修正 + README 开发节引用式（Task 4）
 - **用户裁决 2026-09-23（包级 README + 术语）**：packages/osuperpowers + packages/cdd-engine 各 README.md/.zh-CN 重写/新建（宣讲面一体，mirror 政策扩为根 + 各包，全仓 `.zh-CN.md` 三件零其他）；first-party 中文译名统一「第一方」（「一方」禁用）。落地：新 Task 5 + 探针 zh-CN 三件集 + CLAUDE.md/06-skill-authoring 政策行同步
 - **用户裁决 2026-09-23（P4.1 收尾修正 · PR #275 评审回馈三条）**：① docs/maintainers **重新整理**——重新整理重新编号、**包括精简与删除**（纠正 v1.20 内容保真迁移口径）；② `07-osuperpowers-plugin.md` **删除**（唯一值面 release 流程由 `.changeset/README.md` §Release flow 承载；live 引用清扫：CLAUDE.md ×2 · packages/osuperpowers/README.md · maintainers README 索引；frozen specs/plans 历史引用豁免）；③ 英文 README 语言切换行**不改**（用户裁决 2026-09-24：language switch 不用改——`[中文]` 为合法切换标签，v1.24 的 `[Simplified Chinese]` 改向撤销回滚）。落地：overall v1.25 修正 + 新 Task 9（maintainers 整理）+ 新 Task 10（维持 `[中文]` 原样）
-
-## Section 5: Review
-
-基于已提交树的 fresh-subagent review（`cdd review --type spec --spec …p4.1-design.md`）→ Review Convergence：blocker=0 → fix 全部 findings（blocker + warn + nit）不再 re-review。spec 经 cdd 链 review 后 commit 即交付 writing-plans。

@@ -720,7 +720,7 @@ describe("derivePlanVerdict — group iteration (P4.3 Task 3: the effectiveGroup
   it("declared merged groups → the verdict iterates the group union (the group is the dispatch unit)", () => {
     const plan = planFile("# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n");
     const ws = workspace(EMPTY_PROGRESS);
-    // mirror taskGroupsFromPlan for a merged `- **Task 1, 2**:` section
+    // inject a merged group (the single derivation's caller surface — the group is the dispatch unit)
     const mergedGroups = (_planPath: string) => [TaskGroup.fromNumbers([1, 2])];
     const v = statusJudge.derivePlanVerdict(
       plan,

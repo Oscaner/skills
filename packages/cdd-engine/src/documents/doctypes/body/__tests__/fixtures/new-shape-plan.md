@@ -1,8 +1,8 @@
 # Fixture Plan — Task Data Shape
 
-**Spec:** [2026-09-27-pi-harness-p5-design.md](docs/kairos/specs/2026-09-27-pi-harness-p5-design.md)
+**Spec:** [2026-10-02-doc-architecture-v2-p3-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3-design.md)
 
-**Parent program:** [2026-09-27-pi-harness-overall.md v1.2](docs/kairos/specs/2026-09-27-pi-harness-overall.md)
+**Parent program:** [2026-10-02-doc-architecture-v2-overall.md v1.6](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
 
 **Version:** v1.0 · 2026-10-05
 
@@ -19,7 +19,7 @@
 
 - **Objective**: project the new plan record shape onto the SchemaFactory product
 - **Files**: `packages/cdd-engine/src/documents/doctypes/body/plan-body.ts`
-- **Consumes**: plan schema leaves (taskHeadings format / constraints formA / taskGroups layout)
+- **Consumes**: plan schema leaves (taskHeadings format / constraints formA)
 - **Produces**: `config/schema/plan.json` (new golden)
 - **Steps**:
   1. Write the PlanBody leaf projection — checkable: `plan-body.ts` compiles under the new shape

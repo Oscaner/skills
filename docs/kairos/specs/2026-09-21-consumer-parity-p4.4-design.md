@@ -6,25 +6,8 @@
 - **Parent program**: [consumer-parity overall v1.42](2026-09-21-consumer-parity-overall.md)
 - **Depends on**: P4.3（shipped · [p4.3-design v1.7](2026-09-21-consumer-parity-p4.3-design.md)）
 
-## Section 0: Incremental warning
-
-本 spec 承诺单一 phase（P4.4）的增量。phase-size 裁决 = **fit（单 phase spec）**：四面并作（engine 全面 OOP 化 · `scripts/` 编排面同构 · 全树 deps 升最新 · biomejs 全面接入）在单 phase 内以 **task groups 分批**推进，**不拆子 phase**——任何拆/序变更须先回填 parent overall（backfill-as-version）再继续，不允许实现期绕过。
-
-## Section 1: Constraints pointer
-
-Cross-phase 约定以 parent overall（v1.42）为准，conflict 时 overall wins（此处不重复）。本 phase 生效的整体约定：
-
-- **允许破坏性变更**（charter bullet）：cdd-engine 0.1.0 基准，P4.2 1.0.0 首次稳定开版前为破口窗口；本 phase breaking（OOP restructure + 4 major deps + review 三段结案状态词汇新值 `REVIEW_FIX` + Pending Acceptance Patch 移除）登记 changelog、1.0.0 收口
-- 本仓文档合规判据面 = engine lifecycle（dispatch 运行时审计 + engine 套件），无 repo 侧 charter 守卫
-- 语言政策：spec/plan 中文（Strategy B）· SKILL.md / docs / README 英文主源
-- 不 commit 除非用户明确要求；spec/plan 交付除外（I2 立即提交）
-- changeset 逐 phase 建；breaking 变更面归属清晰
-- 开发期引擎调用：`node packages/cdd-engine/dist/cli.mjs` 直调（`pnpm --filter @oscaner-skills/cdd-engine dev:stub` 后），不走 global register
-- 零新增执法子命令（charter Non-goal #1；唯一发现型 = `cdd schema get`）
-
-## Section 2: Design body
-
-### 2.1 统一抽象：全面 OOP 化（用户 2026-09-25 裁决 · 判定标准终版）
+## Design
+**2.1 统一抽象：全面 OOP 化（用户 2026-09-25 裁决 · 判定标准终版）**
 
 全仓产品源码 ts 面**不再有模块级裸函数模块**（含纯计算规则面）——每一域概念 = 类：**状态类**（承接状态/生命周期/不变量）或**无状态域服务类**（承接纯计算规则，方法即规则、协同对象构造注入）。判定标准六条：
 
@@ -35,7 +18,7 @@ Cross-phase 约定以 parent overall（v1.42）为准，conflict 时 overall win
 5. **转发壳 / 空壳 / 中间态（仅为兼容而设的薄层）= 缺陷**，即删
 6. 只读纯数据收 **typed 载体**（type/interface），不建空壳 class
 
-### 2.2 类谱（最终 taxonomy）
+**2.2 类谱（最终 taxonomy）**
 
 | 面 | 类（承载面） | 来源 / 落点 |
 |---|---|---|
@@ -48,37 +31,37 @@ Cross-phase 约定以 parent overall（v1.42）为准，conflict 时 overall win
 | Infra | `Registry` · `GitClient`（WipStat）· proc 生命周期类 | infra/ 面类化 |
 | scripts 同构 | `Command` 类族（citty 命令树 + invocationArgs meta）· `ValidateBlock` 类族 + `ValidateRunner` | run.ts（scripts/run.ts:49-93）· validate（runner.ts:20-27）· scripts/lib 纯工具 → 无状态域服务类 |
 
-### 2.3 模块级态收编（残面→RuntimeContext）
+**2.3 模块级态收编（残面→RuntimeContext）**
 
 上表来源列五个模块级可变态全数收编 `CddRuntime`：solo 模块级可变态（`let` 声明）面归零，构造注入 —— engine 测试与 scripts 测试经替身注入实证；`cli/shared.ts:84 parseTaskList` → `TaskListParser` 类化落点（不在 rules/ 面），`cli/parse.ts` 组合根静态可导入、零副作用约束保持（cli-shape.test.ts / schema.test.ts 随破坏面改造，允许 breaking）。
 
-### 2.4 破坏面（breaking — 1.0.0 收口）
+**2.4 破坏面（breaking — 1.0.0 收口）**
 
 - **engine 导出函数面重排**：`runTask` · `runDocsTask` · `generateBrief` · `buildCtx` · `parseTaskList` 随类化移至类公共面（`TaskLifecycle.run` · `TaskGroup.parse` · `BriefRenderer.render` 等）；**不做薄壳转发保红线**（判定标准 ⑤）；engine 测试套件随类化同步改造（breaking 允许）
 - **CLI argv 契约不变**：`--tasks` / `--type` / `--plan` / `--findings` 等 bin 入口面稳定（skills 与消费者经 CLI 调用，零回归）
 - **4 major deps 破坏行为逐项实证**：execa 9→10（API 删除/破坏面）· vitest 3→5（配置/API 迁移）· typescript 5→7（编译/类型行为）· @types/node 22→26（类型面）——逐项实证登记 changelog
 - **1.0.0 收口**：以上全部进 P4.2 发布 changelog（发布面消费 OOP 化完成态 + 全树 latest 基线）
 
-### 2.5 `scripts/` 编排面同构
+**2.5 `scripts/` 编排面同构**
 
 - `run.ts` citty 命令树（mainCommand + 7 子命令 + `invocationArgs` 契约表）→ **`Command` 类族**（装配 + invoke + meta）；命令文件 = 组合根，非转发壳
 - validate `steps: StepDescriptor[]`（11 块）→ **`ValidateBlock` 类族** + `ValidateRunner`（单循环）；**11 步名/序/`grepTargets`/`channelTargets` 域事实保持**——`ci-validate.test.mjs:171` 钉死的名/序/元面不因类化漂移（域事实，非 facade 保留；若类化揭示 legacy 步名则当场改名 + 守卫同域演化）
 - `scripts/lib/`（version-utils · doc-root · marketplace-utils · observe-cache）→ 无状态域服务类
 
-### 2.6 biomejs 全面接入（2026-09-24 用户裁决）
+**2.6 biomejs 全面接入（2026-09-24 用户裁决）**
 
 - **biome.json 随仓发布**：`recommended` ruleset + formatter；scope = **src + scripts + 全仓 ts 面**（含 engine `__tests__` 与 scripts `__tests__`）
 - **husky pre-commit**：新增 `biome check --write`（format 自动改 + lint 违规拦截 = 门），与既有 `pnpm run precommit` 校验链并列
 - 门先行于重构（task group 次序 TG2），重构全程在静态门下走；零违规为 commit 前常态
 
-### 2.7 全树 deps 升最新（R7 · 2026-09-25 用户裁决纳入）
+**2.7 全树 deps 升最新（R7 · 2026-09-25 用户裁决纳入）**
 
 - **4 个 major**（= 4 个 dependabot PR 内容）：「execa `^9.6.1`→`10.0.1`（root + cdd-engine）· vitest `^3.2.7`→`5.0.1`（root devDep + cdd-engine devDep）· typescript `^5.9.3`→`7.0.2`（cdd-engine devDep）· @types/node `^22.20.3`→`26.6.2`（cdd-engine devDep）」
 - **全树 caret floor 刷新**：`pnpm update --latest`（`^0.2`→`^0.2.2` · `^7`→`^7.8.5` 等 floor 落定，lockfile 一次收口）；osuperpowers 无第三方依赖（仅 workspace:*）
 - **执行通道**：P4.4 工作树直接 `pnpm update --latest` 落地 → 4 个 dependabot PR（Oscaner/skills #238/#266/#267/#268，base=develop 已漂移）gh close（superseded by P4.4）
 - **先行独立 task group**（TG1）：major 兼容问题最早暴露，OOP 重构站在干净依赖上
 
-### 2.8 task groups 编排（writing-plans 非交互裁定输入 · 建议分组）
+**2.8 task groups 编排（writing-plans 非交互裁定输入 · 建议分组）**
 
 **task groups 裁定节点迁移（2026-09-25 用户裁决：这是 writing-plans 的工作）**——Task Groups 裁定从 `cli-driven-development` 迁至 `writing-plans`（分组裁决 = plan 撰写期结构工作，非执行期）：
 
@@ -98,7 +81,7 @@ Cross-phase 约定以 parent overall（v1.42）为准，conflict 时 overall win
 
 每 TG 独立 commit；clean-tree 纪律全程保持（engine 入口 gate：dirty → BLOCKED）。
 
-### 2.9 三段结案（review status 词汇三分 · #278 · 2026-09-25 用户裁决并入）
+**2.9 三段结案（review status 词汇三分 · #278 · 2026-09-25 用户裁决并入）**
 
 Review 判定从两态（CHANGES_REQUESTED / APPROVED）划为**三态**，消除「APPROVED 携带 warn/nit 却跳过 fix 直接 complete」的心智误判面——**行为本质与既有 I3「blocker=0 → fix all findings，do not re-run」一致**，仅把状态划分变显式、由状态机而非 agent 自觉执行：
 
@@ -117,7 +100,7 @@ Skills 面（emit 输入面）：五件 Review Convergence 文本改三段表述
 
 Breaking：handoff `status` 词汇新增第三值（`REVIEW_FIX`）→ 1.0.0 收口（P4.2 changelog）；历史 workspace 已落定终态（APPROVED+findings → complete）**不回滚**
 
-### 2.10 Pending Acceptance Patch 移除（#279 · 2026-09-25 用户裁决）
+**2.10 Pending Acceptance Patch 移除（#279 · 2026-09-25 用户裁决）**
 
 zone + `accepts pending-acceptance-patch` carry 约定 + `targets later task` 标签约定**整体退役**——以**移除**收口（#279 提案的「补双向 doc-contract 校验」被删除取代：第二副本删除使 zone↔carry 漏写与摘要漂移两缺口**构造性消失**）：
 
@@ -147,7 +130,19 @@ zone + `accepts pending-acceptance-patch` carry 约定 + `targets later task` �
 - 跨 task 裁决直写 Do/验收实证（orchestrator 直写目标 task `**Do**` 与 `**验收**` 后 brief 逐字携带——行为入 Do · 验证入 验收）
 - task groups 裁定迁移实证（writing-plans author-plan 内 tasks 写毕即**非交互**裁定分组落盘「Task Groups」节 + plan `taskGroups` 声明 · 无 AskUserQuestion · 零分组无节；cli-driven-development digraph 无 `adjudicate-task-groups` 节点 / 无 `task-groups-undecided` 终端 · `C → D` 直连 · **loop 节点更名 group-*（`implement-group` / `run-group-review` / `fix-group`）** · `{more-groups?}` 循环内保留 · 组列表自 plan 记录读取 · skill-anatomy growth 注册表不再携带 cli-driven-development 越界 rationale（移除后 13 节点/17 边落回边界内、注册条目删除）；两件 skill `pnpm run emit` 后 `emit:check` 无 drift）
 
-## Section 3: Deviations from overall
+## Constraints
+
+- Cross-phase 约定以 parent overall（v1.42）为准，conflict 时 overall wins（此处不重复）。本 phase 生效的整体约定：
+
+- **允许破坏性变更**（charter bullet）：cdd-engine 0.1.0 基准，P4.2 1.0.0 首次稳定开版前为破口窗口；本 phase breaking（OOP restructure + 4 major deps + review 三段结案状态词汇新值 `REVIEW_FIX` + Pending Acceptance Patch 移除）登记 changelog、1.0.0 收口
+- 本仓文档合规判据面 = engine lifecycle（dispatch 运行时审计 + engine 套件），无 repo 侧 charter 守卫
+- 语言政策：spec/plan 中文（Strategy B）· SKILL.md / docs / README 英文主源
+- 不 commit 除非用户明确要求；spec/plan 交付除外（I2 立即提交）
+- changeset 逐 phase 建；breaking 变更面归属清晰
+- 开发期引擎调用：`node packages/cdd-engine/dist/cli.mjs` 直调（`pnpm --filter @oscaner-skills/cdd-engine dev:stub` 后），不走 global register
+- 零新增执法子命令（charter Non-goal #1；唯一发现型 = `cdd schema get`）
+
+## Deviations
 
 | Overall assumption | Phase decision | Overall updated? |
 |---|---|---|
@@ -157,12 +152,8 @@ zone + `accepts pending-acceptance-patch` carry 约定 + `targets later task` �
 | P4.3 ② task groups 裁定节点置于 cli-driven-development（2026-09-24 裁决：正式 enter loop 前裁定） | 裁定节点迁 writing-plans（2026-09-25 用户裁决：分组裁决属 plan 撰写期工作）——author-plan 内 tasks 写毕即**非交互**裁定分组落盘「Task Groups」节 + plan `taskGroups` 声明（**无 AskUserQuestion** · 零分组无节）；cli-driven-development 移除裁定节点与 `task-groups-undecided` 拒答终端（`C → D` 直连 · **loop 更名 group-implement-review-fix** · `{more-groups?}` 循环内保留 · 组列表自 plan 记录读取） | Yes — v1.41/v1.42 · 2026-09-25 |
 | （其余全部设计裁决已随 overall v1.38/v1.39/v1.40/v1.41/v1.42 回填：P4.4 行 scope/AC · Issue inventory P4.4 行 +#278/#279 锚点行 · change-history v1.38/v1.39/v1.40/v1.41/v1.42，见 overall 变更基准） | 本 spec 不偏离 charter；实施细节见 §2.1–§2.10 | Yes — v1.42 · 2026-09-25 |
 
-## Section 4: Notes for downstream
+## Notes for downstream
 
 - **P4.2（发布闭环）**：1.0.0 首次稳定开版收进本 phase breaking 面（OOP restructure + 4 major deps + review 三段结案状态词汇新值 #278 + Pending Acceptance Patch 移除——plan.json/skill-anatomy 节点删 · 标签约定出技能文本）；发布面消费 OOP 化完成态与全树 latest 基线（依赖图 `P4.4 ->(hard) P4.2` 已登记）
 - **biomejs 静态门**：P4.2 起 husky pre-commit 静态质量门常驻（与既有 precommit 校验链并列）
 - **repo 定位改述 cdd 方法论（v1.33 记录）**：待 P4.2 阶段启动分析落地，本 phase 不处理
-
-## Section 5: Review
-
-Fresh-subagent review passes before user review and writing-plans — baseline = committed tree, Review Convergence（三段结案：blocker > 0 → fix 后 re-review；blocker = 0 ∧ warn/nit > 0 → fix 收口轮、无 re-review；零 finding → 批准收敛）。spec 批准即 commit（I2），不等 dev 合并。

@@ -137,25 +137,19 @@ export class PhaseSpecDocType extends DocType {
     failures.push(...this.#skeletonFailures(content, specPath));
     const parent = resolveParentOverall(specPath, root);
     if (!parent.overallPath) {
-      // The inheritance-point linkage (P2 T4; design C4): a spec that declares the `## Constraints`
-      // inheritance point (the constraints-pointer semantics merged — parent-overall conventions
-      // auto-apply) must have that Class-B pointer RESOLVE to an existing `*-overall.md`. Chain
-      // truncation is a validate failure on a new-skeleton spec — the legacy no-op applies only to
-      // legacy six-section docs, which carry no `## Constraints` inheritance point.
-      const slices = this.body.projectSlicePatterns();
-      const declaresConstraints = content
-        .split("\n")
-        .some((l) => slices.constraintsHeading.test(l));
-      if (declaresConstraints) {
-        failures.push({
-          artifact: "phase spec",
-          file: specPath,
-          field: DOC_TOKENS.parentField,
-          missing:
-            "the `## Constraints` inheritance point cannot resolve its `**Parent program**` pointer to an existing `*-overall.md`",
-          fix: `make the ${DOC_TOKENS.parentMark} pointer resolve to the parent overall (e.g. \`- ${DOC_TOKENS.parentMark}: [<slug>-overall.md vX.Y](docs/kairos/specs/<slug>-overall.md)\`)`,
-        });
-      }
+      // The inheritance-point linkage (P2 T4; design C4): a spec's `## Constraints` inheritance
+      // point is the constraint single source — the parent-overall conventions auto-apply through
+      // the Class-B pointer, so a spec whose `**Parent program**` does NOT resolve to an existing
+      // `*-overall.md` is a validate failure. The three-truth skeleton is the only assertion
+      // surface — the legacy six-section no-op is gone.
+      failures.push({
+        artifact: "phase spec",
+        file: specPath,
+        field: DOC_TOKENS.parentField,
+        missing:
+          "the `**Parent program**` pointer cannot resolve to an existing `*-overall.md` (the `## Constraints` inheritance point demands the parent-overall conventions)",
+        fix: `make the ${DOC_TOKENS.parentMark} pointer resolve to the parent overall (e.g. \`- ${DOC_TOKENS.parentMark}: [<slug>-overall.md vX.Y](docs/kairos/specs/<slug>-overall.md)\`)`,
+      });
       return failures; // chain truncation — the four tables + overall contract no-op
     }
     failures.push(
@@ -168,26 +162,32 @@ export class PhaseSpecDocType extends DocType {
     return failures;
   }
 
-  /** The new-skeleton structural assertions (P2 T2; design C2): a phase-spec in the NEW skeleton
-   *  shape — recognized by the `## Design` heading (a marker no legacy Section 0–5 skeleton carries)
-   *  — must carry the full three-truth skeleton (unique `### Acceptance criteria` inside `## Design`
-   *  · `## Constraints`), and a DECORATED conditional section must carry its structural marker
-   *  (`## Deviations` demands an `Overall updated?` answer of `Yes` — a decorated section must
-   *  carry its marker). Legacy six-section docs (no `## Design`) keep the P1 acceptance path
-   *  unchanged — both shapes are read (dual-read contract). Whether a section's semantic condition
-   *  holds is the author's declared judgment (the schema descriptions carry the criteria) — the
-   *  machine asserts only how a decorated section must look, never the condition's truth. */
+  /** The three-truth skeleton structural assertions (P2 T2; design C2): every phase-spec carries
+   *  the permanent skeleton (`## Design` — with the unique `### Acceptance criteria` subsection
+   *  inside it — · `## Constraints`), and a DECORATED conditional section must carry its structural
+   *  marker (`## Deviations` demands an `Overall updated?` answer of `Yes` — a decorated section
+   *  must carry its marker). The three-truth skeleton is the ONLY assertion surface — the legacy
+   *  six-section gate is gone (a doc without `## Design` fails every skeleton member). Whether a
+   *  section's semantic condition holds is the author's declared judgment (the schema descriptions
+   *  carry the criteria) — the machine asserts only how a decorated section must look, never the
+   *  condition's truth. */
   #skeletonFailures(content: string, specPath: string): DocValidateFailure[] {
     const slices = this.body.projectSlicePatterns();
     const lines = content.split("\n");
     const lineHas = (re: RegExp): boolean => lines.some((l) => re.test(l));
-    // The new-skeleton gate: `## Design` is the new shape's marker (legacy Section 0–5 docs never
-    // carry it) — only a new-shape spec runs the assertion family (dual-read).
-    if (!lineHas(slices.designHeading)) return [];
     const failures: DocValidateFailure[] = [];
     const push = (field: string, missing: string, fix: string) => {
       failures.push({ artifact: "phase spec", file: specPath, field, missing, fix });
     };
+    // 0. `## Design` — the skeleton's first permanent member (its absence is a failure, no shape
+    //    is exempt — the legacy six-section exemption is retired).
+    if (!lineHas(slices.designHeading)) {
+      push(
+        "`## Design`",
+        "no `## Design` section (the three-truth skeleton's first member)",
+        "add a `## Design` section carrying the phase's design body + the unique `### Acceptance criteria` subsection",
+      );
+    }
     // 1. The unique `### Acceptance criteria` subsection inside `## Design` — present exactly once
     //    (the unique-constraint kept from the retired Section 2 skeleton).
     const acceptanceHits = lines.filter((l) => slices.acceptanceCriteriaHeading.test(l));

@@ -6,34 +6,14 @@
 - **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.13](./2026-09-13-osuperpowers-overhaul-overall.md)（req 3 / req 5 / req 7 / req 8 + cdd 运行根约定 + 本次新增 A/B/C/D 族）→ 本 phase 回填至 **v1.15**
 - **Depends on**: P3 shipped（命令面四命令收敛 + `cli-research` 删除，PR #261 已 merge 至 develop，2026-09-15）
 
----
-
-## Section 0: Incremental warning
-
-> P4 increment only（skills 全面重写 + engine 契约面收敛）。Cross-phase conventions 见 [overall](./2026-09-13-osuperpowers-overhaul-overall.md)；冲突时 overall 赢。
-> `P3 ->(soft) P4` 已满足。P4 →(soft) P5（engine 输出契约与失败类目定案后，P5 承接 report-issues 的目标流程）。
+## Design
+**§2.0 口径与例外边界（原 Section 0，转录）**
 
 **口径（用户 2026-09-15 定）**：**overall 的「目标 skills 架构参考」是本 phase 的主体**；legacy skills **只作参考**——仅贡献三类信息：① engine 命令与 artifact 契约 ② 门禁与守卫 ③ 失败语义。legacy 的节点名、节点序列、Invariants 表、failure-mode 长表**一律不作为主体保留**。
 
 **例外边界（精确）**：「不作为主体保留」指的是 legacy 的**载体形态**（节点名 / 节点序列 / 表格逐字），**不是**贡献类 ②③ 的**规则本体**。门禁与守卫（如 Review Stopping）、失败语义（如 legacy I7「硬依赖前序 Design spec = `Done`」）须**重新书写**入新形态——`## Invariants` 行或节点 Fail 字段；**载体换、规则不丢**。故新 skill 的 `## Invariants` 节**存续**，受 `skill-authoring.md` §4 约束（跨节点不变量 / 上限 5 / 超出降级为节点 Fail 字段），详见 §2.7.4。
 
----
-
-## Section 1: Constraints pointer
-
-- 仓库语言政策：SKILL.md / docs 英文主源；本 spec 中文（Strategy B internal docs）
-- 不 commit 除非用户明确要求；changeset 逐 phase 建
-- vendored 子模块不可改（`superpowers` / `mattpocock-skills` / `impeccable` 的 skill 属其自身资产）
-- **破坏性重构已授权**（用户 2026-09-13 / 2026-09-15 重复确认：允许破坏性变更、确保最佳实践、不留技术债务、遗留即删）
-- 所有改动须过 `pnpm run validate`（13 块）+ `pnpm run emit:check` 无 drift；skills / emit 源改动后必跑 `pnpm run emit`
-- **不改变引擎评审语义本体**（overall non-goal）：review/fix/handoff 生命周期、**Review Stopping 的判据**、commit-contract、`doc_hash` 双签名不动。P4 对引擎的实质改动限定在**契约面**（输入信道 / 输出契约 / 失败类目 / 超时分类），不改判定逻辑
-- **legacy 只作参考，不作主体**（用户 2026-09-15）
-
----
-
-## Section 2: Design body
-
-### §2.1 问题与根因
+**§2.1 问题与根因**
 
 P4 处理的是**四类结构性根因 + 一类方法性根因**，不是四组独立修补。
 
@@ -59,7 +39,7 @@ P4 处理的是**四类结构性根因 + 一类方法性根因**，不是四组�
 
 **R6 的浓缩证据**：`blocker` 字段——engine 写侧**省略字段**（`finalize` 的 H1 `blocker:` 缺省语义）、`cdd-handoff-schema.json` 声明 `type: string`、agent 自然写 `null` → **同一契约三种表达，无人对齐**（#260[5]）。
 
-### §2.2 Grilling 决策记录
+**§2.2 Grilling 决策记录**
 
 | # | 决策 | 依据 |
 |---|---|---|
@@ -75,9 +55,9 @@ P4 处理的是**四类结构性根因 + 一类方法性根因**，不是四组�
 | **Q10** | **族 A/B/C/D 并入 P4；族 E 留 P5** | 用户确认 |
 | **口径** | **overall 定型流程为主体，legacy 仅作参考** | 用户 2026-09-15 定 |
 
-### §2.3 统一抽象
+**§2.3 统一抽象**
 
-#### §2.3.1 输入闭包（Input Closure）
+**§2.3.1 输入闭包（Input Closure）**
 
 > **一次 `cdd` 调用的行为，完全由它声明的接口决定。任何不在这三者之内的读取都是缺陷——要么提升为接口，要么删除。**
 
@@ -91,7 +71,7 @@ P4 处理的是**四类结构性根因 + 一类方法性根因**，不是四组�
 
 **生成规则**：① **单源**（每事实一个信道 + 一个派生点）② **坐标系一**（仓根相对）③ **派生单向**（引擎自算值只向前流，不得回流为输入）④ **无形状推断**（只从 git 这类声明式权威推断）⑤ **隔离经边界**（测试隔离走真实边界，不在生产接口开后门缝）。
 
-#### §2.3.2 输出契约单源（Output Contract Singularity）—— 输入闭包的边对对偶
+**§2.3.2 输出契约单源（Output Contract Singularity）—— 输入闭包的边对对偶**
 
 > **所有跨边界的信息（进与出）只有一个 SOT、一个派生点、一个校验点、一个失败类目。**
 
@@ -100,7 +80,7 @@ P4 处理的是**四类结构性根因 + 一类方法性根因**，不是四组�
 3. **写者唯一 + 序列化单点**——agent 不再手写 JSON（格式由 engine 派生的 stub/脚手架承载）；engine 写侧走同一序列化函数（`JSON.stringify` 全转义）。
 4. **推论：已知事实不得在派生层被缺省覆盖**（输入闭包的直接推论）——`progress.json#plan` 上游已解析却在下游硬编码 `""` 即违反。
 
-#### §2.3.3 `cdd context`
+**§2.3.3 `cdd context`**
 
 **一次调用的全部已知信息收敛为一个显式对象 `context`，三层**：
 
@@ -139,9 +119,9 @@ P4 处理的是**四类结构性根因 + 一类方法性根因**，不是四组�
 
 **消费形态**：**运行期组合**（`lib/context.mjs` 读 canonical 构造内存 context——flag 名 / env 白名单 / timeout 默认值取自 canonical，故 canonical **承重**）；**守卫**（单一 validate 块）。**不生成** `SUBCOMMAND_USAGE` 文本（避免自创模板语言），改由守卫断言「usage 内 flag ⊆ canonical argv 声明」；**亦不生成 maintainer 文档表**——按 §2.7.6 的「**唯一执法点**」判据，机检部分交守卫、文档只承载不可机检的内容，`docs/maintainers/osuperpowers-plugin.md` 以**手写**一节索引该 canonical（非 emit 产物、无 drift 面）。
 
-### §2.4 Engine 段 A：信道收口
+**§2.4 Engine 段 A：信道收口**
 
-#### §2.4.1 `lib/root.mjs`（唯一 `process.cwd()` 调用点）
+**§2.4.1 `lib/root.mjs`（唯一 `process.cwd()` 调用点）**
 
 ```js
 // packages/cdd-engine/lib/root.mjs —— engine bin+lib 内唯一的 cwd → repoRoot 转换点。
@@ -164,7 +144,7 @@ export function getRoot() {
 
 **`resolveRepoRoot()` 整函数删除**（目标形态的唯一声明点，消歧 Q1 / §2.4.2 / §2.5.4）：其三个输入 `{ planFile, env, ledgerPath }` 在 Q1 + §2.4.4 下**全部消失**——plan 来自 argv、env 通道删净（`CDD_LEDGER` 在「去 env 化 → `ctx`」9 项内）、ledger 由 workspace 纯派生。故不存在「新签名」，而是**调用点改写**：`run-task.mjs:304` 的 `resolveRepoRoot({ planFile, env: baseEnv, ledgerPath })` → `resolveDocArg(planFile, getRoot(), "plan")`。守卫断言**全仓零 `resolveRepoRoot`**（含 tests）。
 
-#### §2.4.2 `resolveDocArg(arg, root, flag)`（唯一坐标系统）
+**§2.4.2 `resolveDocArg(arg, root, flag)`（唯一坐标系统）**
 
 - 绝对路径 → 直用（不存在 → BLOCKED）
 - 否则 `path.join(root, arg)`；**不存在 → exit 1 + BLOCKED 诊断**：① `CDD_BLOCKED: --<flag> not found: <arg>` ② `Tried (against repo root <root>): <abs>` ③ `Hint: cdd resolves paths against the repo root. Verify the path is correct relative to the repo root.`
@@ -183,11 +163,11 @@ export function getRoot() {
 - **路径不存在取 1、不取 2**——与既有语义一致（现行 `RunBlocked: plan file not found` 即 exit 1，`run-task.mjs:75`）；2 专表**用法 / 环境**错，路径写错属「本次调用不可继续」而非「命令行用错」。
 - **skills 不靠 code 区分具体原因**：code 只作粗分流（0/1/2/3）；具体路由读 stderr **首行前缀**（`CDD_BLOCKED:` / `CDD_CLI_MISSING:`）+ 首行正文。
 
-#### §2.4.3 `resolveWorkspace(doc, root)` 收注入 root
+**§2.4.3 `resolveWorkspace(doc, root)` 收注入 root**
 
 签名变更（`doc` → `doc, root`）；**`rootFromDocPath` 整段删除**（含其 canonical 布局推导 + 与 `scripts/lib/doc-root.mjs` 的同步注释）——它是「按路径形状猜仓库根」的第二权威，正是幽灵根来源。
 
-#### §2.4.4 环境面收口（γ）
+**§2.4.4 环境面收口（γ）**
 
 **engine `bin`+`lib` 内 `process.env` 的接触面按三种形态分别收口**——三者的守卫断言不同，不得混为「直读白名单」一句：
 
@@ -237,9 +217,9 @@ export function getRoot() {
 
 **测试脚手架改造**：`runner.test.mjs:44-46` 的 `filteredEnv()`（剥离 `CDD_*` / `PLAN_FILE` 的补丁式防御，注释自陈「leaked `CDD_HANDOFF_PATH` etc. would cause runTask to write to real workspaces」）**删除**；用例改 `mkdtemp` **真 git 仓**（`base-branch.test.mjs:7` 现成先例）+ 显式 `planFile`；`directWorkspaceCase` 等直设分支用例随分支删除。
 
-### §2.5 Engine 段 B：输出契约单源与失败类目
+**§2.5 Engine 段 B：输出契约单源与失败类目**
 
-#### §2.5.1 契约单源（§2.3.2 第 1 条）
+**§2.5.1 契约单源（§2.3.2 第 1 条）**
 
 > **本小节经用户 2026-09-16 裁定修正（dev 期发现；Boundary rules 回填，overall v1.15）**：原措辞「注入内容**由 schema 全形派生**」被 T5 实现为 **schema 的手写解释器**（`stubAnnotation` / `satisfiesProp` / `patternSample` / `requiredKeys` / `stubScalar`）——task-review 实证其「忠实但仍是第二实现」：含**越权的第二校验器**（`satisfiesProp` 重实现 `enum`/`const`/`pattern`/`minimum`/`type` 判定）、**形状受限的正则展开器**（`patternSample` 只认 `^\[<char-class>\]\{n\}$`）、**漏 `items` 分支**（数组元素形状不进骨架）、并产出**违反自身 schema** 的占位值（`base: ""` 违反 `pattern: ^[0-9a-f]{40}$`；`task: 0` 违反 `minimum: 1`）。
 > **裁定**：不得手写「简洁版」**也不得手写「忠实版」渲染器** → **schema 原样注入**（`JSON.stringify`）。任何 render 都不再对契约有编辑权。
@@ -254,7 +234,7 @@ export function getRoot() {
 
 **T5 的 renderer 由 T18 取代**——**有计划的替换，非遗留债务**：T5 交付的其余四面（归一化后重校验 · 保留 findings · 报错含违规键名 · 序列化全转义）在 T18 之后**存续**。
 
-#### §2.5.2 失败类目化与配额隔离（§2.3.2 第 2 条）
+**§2.5.2 失败类目化与配额隔离（§2.3.2 第 2 条）**
 
 **现状**：`run-task.mjs` 的 `timedOut = res.timedOut === true`（`:402`）是**唯一**超时判定，来源 `proc.mjs:97` 的 `res.timedOut ?? false`——**execa 语义**，引擎无自持判定。实证（#260[4]）：dispatch 在 30 分钟量级被 SIGTERM（`exit 143`），落入 `:475` 的 `agentRc !== 0 && !existsSync(handoff)` → `status: BLOCKED` + `blocker: "cli exited 143 without writing handoff"`，而 `timeoutCount` **停在 0**（`:411 if (timedOut)` 未进入）。后果：① `timeout-decision` 节点（职责正为读 `timeoutCount` 并给「调大超时」指引）**永不触发**；② 该 BLOCKED 自增 `engineRecoveryCount`（与真正执行失败**共享**的额度），两次即终态 `BLOCKED: engine-error`。
 
@@ -299,15 +279,15 @@ export function getRoot() {
 
 > **stall 兜底（方案 e）已考虑未采纳**：以「stdout 无进展 N 分钟即判 TIMEOUT」解耦「长任务」与「挂死」——不采纳理由：属新增引擎 lifecycle 机制（撞 overall non-goal），且会与本 phase 已背的 engine 重构叠加。仅记录备选。
 
-#### §2.5.3 写者唯一与序列化（§2.3.2 第 3 条）
+**§2.5.3 写者唯一与序列化（§2.3.2 第 3 条）**
 
 `#250[1]`：handoff 的 `summary` 含未转义中文引号 → 标准 JSON 解析失败（两次实证）。根因：写者不止一个（agent 手写 + engine 写），而格式保证只在 engine 侧。→ agent 侧改由**engine 派生的 stub/脚手架**承载格式；engine 侧统一 `JSON.stringify` 全转义；补 schema 校验单测（回拾 #219）。
 
-#### §2.5.4 `progress.json#plan` 透传（§2.3.2 第 4 条 / `#260[2]`）
+**§2.5.4 `progress.json#plan` 透传（§2.3.2 第 4 条 / `#260[2]`）**
 
 `lib/state/progress.mjs` 的 `migrateIfNeeded(progressDir)` 无 plan 参数，「两者都不存在」分支硬编码 `createEmptyProgress("")`；而 `--plan` 在上游**已解析出**真实 plan（Q1 后该解析由 `resolveDocArg(planFile, getRoot(), "plan")` 承接）——**路径在上游可得，却在 progress 初始化时被丢弃**（`createEmptyProgress(plan)` 本身支持真实 plan，故该参数在此路径上是死参数）。后果：report-issue 的 program chain **首跳即断**，`resolve-destination` 恒 fail-open 退化到 session 通道 → program 通道永不触发。→ `migrateIfNeeded` 增 plan 参数并透传；补断言 `progress.json#plan` 与 `--plan` 一致。
 
-#### §2.5.5 templates 结构与命名单源（用户 2026-09-16 裁定；overall v1.15）
+**§2.5.5 templates 结构与命名单源（用户 2026-09-16 裁定；overall v1.15）**
 
 **实证现状——4 层不一致**：
 
@@ -338,9 +318,9 @@ export function getRoot() {
 
 **收益（one truth）**：Handoff Rules 由「模板内多地维护、可各自漂移」变为「**schema 单点声明 + 随注入同行**」——改契约只改 schema。
 
-### §2.6 单源收敛与删除
+**§2.6 单源收敛与删除**
 
-#### §2.6.1 `finding-meta.json` 枚举单源化（R3）
+**§2.6.1 `finding-meta.json` 枚举单源化（R3）**
 
 canonical 顶层 `components` / `sessionTypes` 为**唯一来源**；form 定义内**不再写 `options`**（只留 `id` + 标签）；**单一渲染器** `packages/osuperpowers/scripts/report-templates.mjs:60`（`renderYml`）在渲染 dropdown 时**注入**枚举——不存在「两份实现需对齐」的同步面；emit 侧 `scripts/emit/issue-templates.mjs:34` 是**唯一消费方**（锚点见 §2.6.4 行 3–4）。**round-trip 保证**：`emit:check` + `issue-templates.test.mjs` 两阶段 round-trip **机械证明 `.github/ISSUE_TEMPLATE/*.yml` 渲染结果字节不变**。
 
@@ -348,7 +328,7 @@ canonical 顶层 `components` / `sessionTypes` 为**唯一来源**；form 定义
 
 **因此「渲染字节不变」在 P4 的口径收窄为**：**同一 canonical 枚举输入 → 同一字节**（证明单源化重构行为中性）；而 `.github/ISSUE_TEMPLATE/*.yml` 的**内容**因取值同步而**确实变更**——预期之内，由 `pnpm run emit` 重渲染、由 `emit:check` 固化。**两条断言并不互斥**：前者约束渲染器重构，后者记录取值同步。
 
-#### §2.6.2 init 删除 + 版本戳机制删除（R2）
+**§2.6.2 init 删除 + 版本戳机制删除（R2）**
 
 | 动作 | 对象 |
 |---|---|
@@ -375,13 +355,13 @@ canonical 顶层 `components` / `sessionTypes` 为**唯一来源**；form 定义
 | `packages/osuperpowers/README.md:20` | skills 表内 `init` 行（Utility / Marketplace installation guide） | 删该行（树 6 → 8，表中不含 `init`） |
 | `packages/osuperpowers/README.md:34` | 安装步骤 2 `Run /init in each project…` | 同上改写为内联 marketplace 安装 |
 
-#### §2.6.3 `handoff-schema.md` 删除（R4 同类）
+**§2.6.3 `handoff-schema.md` 删除（R4 同类）**
 
 整文件删除 + **四处连带**（三处引用注释 + 一处死路径）——**引用注释一律去 cite 或改指 engine canonical**：① `lib/handoff/write.mjs:2,22` ② `tests/contract.test.mjs:10`（改指 `templates/handoff-namespace.json` 的命名/workspace 语义）③ **`lib/handoff/finalize.mjs:53`**（`// findings[] roll-up → handoff status（对齐 handoff-schema「Severity → status mapping」表）`——该处 cite 的映射表随整文件删除而悬空；roll-up 规则本体即 `finalize.mjs#rollupStatus` 自身，故**去 cite**，或改指 `templates/handoff-namespace.json` 的 status 语义）；④ `docs/maintainers/osuperpowers-plugin.md:173` 的死路径（`skills/_templates/docs-handoff-schema.json` 不存在）改为 `packages/cdd-engine/templates/schema/docs-handoff-schema.json`；**守卫 scope 扩容 + 正则同步收敛**——`old mode task-review`（`scripts/validate/residue.mjs:59`）scope 由 `CDD_ENGINE` 扩到 `ALL_MECH_POSITIONS`，**同时**把无锚子串正则 `/task-review/` 改为 **`/(?<!run-)task-review/`**。
 
 > **为何必须同时改正则**（round-2 blocker）：scope 扩到 `ALL_MECH_POSITIONS` 即含 `packages/osuperpowers/skills`，而无锚子串会命中 §2.7.3 本 phase 自己的新语汇——节点名 `E[run-task-review]` 与其 Exit 正文的 `run-task-review` ——**本 phase 的交付物必然触发本 phase 新增的守卫**（block 5c 红 → AC13「validate 全绿」在规格层面不可达）。负向后顾 `(?<!run-)` 豁免新语汇、保留「旧 mode 名（含散文形）」的全部覆盖面；裸子串守卫把「合法新语汇」与「旧 mode 名」混为一谈的问题随之消解。守卫的 wiring 面（`ci-validate.test.mjs` 断言 `grepTargets`）只钉 scope、不钉正则，故无需随迁。
 
-#### §2.6.4 机械同步面（无字符串可循的耦合，P3 同类盲区）
+**§2.6.4 机械同步面（无字符串可循的耦合，P3 同类盲区）**
 
 | # | 位置 | 变更 | 为何易漏 |
 |---|---|---|---|
@@ -391,9 +371,9 @@ canonical 顶层 `components` / `sessionTypes` 为**唯一来源**；form 定义
 | 4 | `packages/osuperpowers/scripts/report-templates.mjs:60`（`renderYml` **全仓唯一定义点**）+ `:19`（canonical 装载行 `const { sectionLabels, masterDef } = findingMeta;`） | **单一渲染器**：枚举注入落在 `renderYml` 内（§2.6.1）；emit（行 3）是**唯一消费方**——不存在「两份渲染器须同源」的同步面 | 无第二份实现可对照，「注入是否真的发生」不体现在产物字节上（单源化前后同字节，见 §2.6.1 round-trip 口径） |
 | 5 | `packages/osuperpowers/.agents/skills/osuperpowers/{init,_docs,…}` | emit **自动 prune**（namespace 级 `rmSync` + `cpSync`） | 不需手改，但验收须确认已消失 |
 
-### §2.7 skills 面重写
+**§2.7 skills 面重写**
 
-#### §2.7.1 树与形态（6 → 8）
+**§2.7.1 树与形态（6 → 8）**
 
 | # | skill | 类 | 上游 session | 出口 |
 |---|---|---|---|---|
@@ -410,7 +390,7 @@ canonical 顶层 `components` / `sessionTypes` 为**唯一来源**；form 定义
 **session-call 原语**：`Run a /<plugin>:<skill> session`（harness 加载该 skill 并按**其**流程执行）。**明确排除**：「读上游 SKILL.md 文件并照做」（legacy read-upstream 机制）与「读 `vendors/` 下文件」。**缺上游（插件未安装）→ BLOCKED（install 指引）**，不降级、不跳过、不内联复述。
 **收敛准则（委托型）**：通用工作流 → **一个** `run-<upstream>-session` 节点；osuperpowers 特有编排（engine 调用 / artifact 落点 / 门禁）→ 展开为节点。**上游步骤不复述**。
 
-#### §2.7.2 委托型 digraph
+**§2.7.2 委托型 digraph**
 
 **brainstorming**（含 legacy 贡献的**门禁**）——门禁**模式感知**（legacy I6 逐字保留）：
 ```
@@ -467,13 +447,13 @@ F -->|entered via blocker=0| H[commit-spec] --> I[handoff-spec]
 **finishing**：`run-finishing-session` → `backfill-overall`（phase program）→ `close-issues` → `APPROVED`。
 
 - **收敛范围仅限真正上游的节点**：`verify-tests` / `read-base` / `present-menu` / `merge-locally` / `push-and-pr` / `force-delete` 是上游 `finishing-a-development-branch` 的流程 → 收敛为一个 `run-finishing-session` 节点（上游步骤不复述）。原稿把 `typed-discard?` 也算进「全部是上游流程」——**该判断不成立**：上游只有 `Type discard to confirm` 一句提示，**严格确认串**（exact `discard`、大小写敏感、无前后空白、其余输入回落 `present-menu` 且**不重置**菜单计数）是本 skill 的 personal rule，见下条改判。
-- **personal-rule 层以 Invariants 存续**（Section 0 例外边界：**载体换、规则不丢**）：
+- **personal-rule 层以 Invariants 存续**（§2.0 例外边界：**载体换、规则不丢**）：
   - **`I1 No Worktrees`**——跳过上游 worktree 检测块与 Step 6 清理；菜单固定 normal-repo 变体；worktree 态属开发前违规（不在 finishing scope）。
   - **`I2 Conventional Commits + No Attribution`**——merge commit / PR 标题走 conventional commits；PR body 仅 `## Summary` + `## Test Plan`；零 trailer / footer / inline attribution。
   - **typed-discard 严格性**（personal 部分）**降级为 `run-finishing-session` 的 Fail 字段**——不单列节点（节点形态不是规则本体，§2.7.4 同判据）。
 - **零 personal rule 被丢弃**：上列均落在 §2.7.4 的 `## Invariants` 节（受 `skill-authoring.md` §4 约束：跨节点不变量 / 上限 5 / 超出降级为节点 Fail 字段）；承载形态变更已在 Section 3 登记。
 
-#### §2.7.3 原生型
+**§2.7.3 原生型**
 
 **cli-driven-development** —— digraph 与 overall 主干**同形**（Q3-γ）。fix 一律经 `cdd fix` 派发：
 
@@ -503,16 +483,16 @@ K -->|entered via blocker=0| L[handoff-finishing]
 
 **report-issue** —— P4 **只做形态精简**（已是节点锚定式）；**目标流程（单新 issue 聚合）+ 改名归 P5**。
 
-**`## Invariants` 上限 5 的降级处置**（AC11 要求 8 skill 均 ≤ 5；本 skill 现存 **6 条**：`I1` / `I3` / `I4` / `I5` / `I6` / `I7`）：按 `skill-authoring.md` §4 的「跨节点 / 节点内」二分，**`I4` Never Reopen 降级为 `dedup` 节点的 Do/Exit 字段**——其规则本体（`--state all` 全量查询 · 关闭态匹配**绝不重开** · `related` = `Regression / follow-up of #NNN (closed)`）**已经逐字写在 `dedup` 的 Do 内**，Invariants 行是同规则的第二次陈述；降级即消除重复陈述，规则本体零丢失（Section 0 例外边界：**载体换、规则不丢**）。余 **5 条**保留为 Invariants 行，均**跨节点**：`I1` Confirm Gate（门禁）· `I3` Manual Trigger Only（触发面）· `I5` Renderer Determinism（渲染单点，跨 `ensure-session` / `append-comment`）· `I6` Evidence Contract（双向约束全部 finding）· `I7` Kind Enumerated（派生在 `resolve-destination`、消费在 `append-comment`）。**P5 若为目标流程新增跨节点规则，仍受上限 5 约束**——先降级、再有新增。
+**`## Invariants` 上限 5 的降级处置**（AC11 要求 8 skill 均 ≤ 5；本 skill 现存 **6 条**：`I1` / `I3` / `I4` / `I5` / `I6` / `I7`）：按 `skill-authoring.md` §4 的「跨节点 / 节点内」二分，**`I4` Never Reopen 降级为 `dedup` 节点的 Do/Exit 字段**——其规则本体（`--state all` 全量查询 · 关闭态匹配**绝不重开** · `related` = `Regression / follow-up of #NNN (closed)`）**已经逐字写在 `dedup` 的 Do 内**，Invariants 行是同规则的第二次陈述；降级即消除重复陈述，规则本体零丢失（§2.0 例外边界：**载体换、规则不丢**）。余 **5 条**保留为 Invariants 行，均**跨节点**：`I1` Confirm Gate（门禁）· `I3` Manual Trigger Only（触发面）· `I5` Renderer Determinism（渲染单点，跨 `ensure-session` / `append-comment`）· `I6` Evidence Contract（双向约束全部 finding）· `I7` Kind Enumerated（派生在 `resolve-destination`、消费在 `append-comment`）。**P5 若为目标流程新增跨节点规则，仍受上限 5 约束**——先降级、再有新增。
 
-#### §2.7.4 `_docs/review.md` 删除 + Review Stopping 形态
+**§2.7.4 `_docs/review.md` 删除 + Review Stopping 形态**
 
 - 删 `skills/_docs/`（`review.md` 唯一内容物）→ `.agents` 副本由 emit 自动 prune
 - Review Stopping 落为**各 skill 的一条 Invariant 行**（非 `### Rule:` 标题）：`blocker=0 → 经 cdd fix 修完全部 findings 即停，不得重跑（engine 拦 spec/plan 同 ref；task/branch 的 ref 会随 fix commit 移动，只能靠此纪律）；修复一律经 cdd fix 派发（cli-fix-all-findings），orchestrator 不得就地编辑代替`
 - 承载者：`writing-single-spec` / `writing-overall-spec` / `writing-phase-spec` / `writing-plans` / `cli-driven-development`
-- **`## Invariants` 节存续**（Section 0 例外边界 → `skill-authoring.md` §4）：8 个新 skill **均保留 `## Invariants` 节**，受三层约束——**跨节点不变量**（节点内可表达的落 Do/Read/Exit/Fail）· **上限 5** · **超出降级为节点 Fail 字段**。**legacy 的 I 编号不继承**（`I1`/`I5`/`I7` 等编号与表格形态是载体，Section 0 已定「一律不作为主体保留」），**规则本体重新书写**：Review Stopping 入 Invariants（上条）；legacy I7（硬依赖前序 Design spec = `Done`）**重新表达为 `brainstorming` 的 `phase-registered?` 节点 Fail 字段**（§2.7.2 已如此落笔），**不入 Invariants 表**——以此回应「规则本体入 Invariant 行 *还是* 节点 Fail 字段」的判定：**按 `skill-authoring.md` §4 的跨节点/节点内二分裁决**，不按 legacy 编号。
+- **`## Invariants` 节存续**（§2.0 例外边界 → `skill-authoring.md` §4）：8 个新 skill **均保留 `## Invariants` 节**，受三层约束——**跨节点不变量**（节点内可表达的落 Do/Read/Exit/Fail）· **上限 5** · **超出降级为节点 Fail 字段**。**legacy 的 I 编号不继承**（`I1`/`I5`/`I7` 等编号与表格形态是载体，§2.0 口径已定「一律不作为主体保留」），**规则本体重新书写**：Review Stopping 入 Invariants（上条）；legacy I7（硬依赖前序 Design spec = `Done`）**重新表达为 `brainstorming` 的 `phase-registered?` 节点 Fail 字段**（§2.7.2 已如此落笔），**不入 Invariants 表**——以此回应「规则本体入 Invariant 行 *还是* 节点 Fail 字段」的判定：**按 `skill-authoring.md` §4 的跨节点/节点内二分裁决**，不按 legacy 编号。
 - 技术契约（round 命名 / `doc_hash` / handoff 输出）→ `docs/maintainers/osuperpowers-plugin.md`（不 shipped）
-- **legacy 规则去向表（全枚举，行 = legacy Invariant；「载体换、规则不丢」的机械核对面）**——Section 0 的例外边界只换载体、不丢规则，故每一条 legacy Invariant 行都必须有显式去向；round-2 前只裁定过四条（Review Stopping / I7 / finishing 的 I1·I2 + typed-discard），其余行处于「无去向」状态，本表补全：
+- **legacy 规则去向表（全枚举，行 = legacy Invariant；「载体换、规则不丢」的机械核对面）**——§2.0 的例外边界只换载体、不丢规则，故每一条 legacy Invariant 行都必须有显式去向；round-2 前只裁定过四条（Review Stopping / I7 / finishing 的 I1·I2 + typed-discard），其余行处于「无去向」状态，本表补全：
 
 | legacy 规则（来源 skill） | 规则本体 | P4 去向 |
 |---|---|---|
@@ -552,7 +532,7 @@ K -->|entered via blocker=0| L[handoff-finishing]
 
   替换形态一律为**该 skill 自身的 Invariant 行／节点 Exit 字段**（上条），不留任何跨文件锚点：`_docs/` 整目录随本 phase 删除，**凡残留即 shipped 死链**。§2.8 有对应守卫行（含裸提及，机械可查）。
 
-#### §2.7.5 模板与 docs 迁移
+**§2.7.5 模板与 docs 迁移**
 
 | 物件 | 去向 |
 |---|---|
@@ -563,14 +543,14 @@ K -->|entered via blocker=0| L[handoff-finishing]
 | `cli-driven-development/docs/base-branch.md` | 保留（本 skill 方法学） |
 | `cli-driven-development/docs/handoff-schema.md` | **整文件删除**（§2.6.3） |
 
-#### §2.7.6 `skill-authoring.md` 重写（唯一执法点判据）
+**§2.7.6 `skill-authoring.md` 重写（唯一执法点判据）**
 
 - **机检部分**（§2 图约定、§8 四清单）→ 一句 + 指向 `digraph-consistency.test.mjs`（**测试是执法者，文档是索引**）
 - **文档只承载不可机检的内容**：session-call 原语 + 委托型/原生型两类形态 + §6 Block policy 的 session-call 语义 + §10 反模式
 - **删 §7**（init 豁免）、**删 §9**（「P3 Specific」phase-scoped 临时节）
 - **§4 收敛为规则**：删「上限 5 + 依 spec 授权例外」的例外口子——该例外本身违反 §10 的「Issue-Number as Behavioral Baseline」反模式
 
-#### §2.7.7 治理测试同步
+**§2.7.7 治理测试同步**
 
 | 测试 | 处置 |
 |---|---|
@@ -581,7 +561,7 @@ K -->|entered via blocker=0| L[handoff-finishing]
 | `ci-validate.test.mjs` | `grepTargets` wiring 随新守卫条目同步（断言点 `packages/osuperpowers/tests/ci-validate.test.mjs:107-114`） |
 | `scripts/validate/residue.mjs` | 并入新增守卫 |
 
-### §2.8 守卫（单一 validate 块）
+**§2.8 守卫（单一 validate 块）**
 
 | 断言 | 覆盖 |
 |---|---|
@@ -607,7 +587,7 @@ K -->|entered via blocker=0| L[handoff-finishing]
 | **shipped 非 emit 面（`skills/**` · 插件 README）零版本字面量**——scope 定义与 §2.6.2 反向守卫行逐字同一（**发布面**；`.changeset/README.md` 属协作者面，不在本断言 scope 内） | §2.6.2 |
 | `old mode task-review`（`residue.mjs:59`）scope 扩至 `ALL_MECH_POSITIONS`，**且正则收敛为 `/(?<!run-)task-review/`**（豁免本 phase 新语汇 `run-task-review`；wiring 面只钉 scope、不钉正则，无需随迁） | §2.6.3 |
 
-### §2.9 overall 回填（Boundary rules，v1.13 → v1.15）
+**§2.9 overall 回填（Boundary rules，v1.13 → v1.15）**
 
 | 表 | 变更 |
 |---|---|
@@ -619,7 +599,7 @@ K -->|entered via blocker=0| L[handoff-finishing]
 | **Dependency graph** | `P4 ->(soft) P5` 理由更新（engine 输出契约与失败类目定案后 P5 承接 report-issues 流程） |
 | **Change history** | 追加 v1.15 |
 
-### §2.10 验证
+**§2.10 验证**
 
 - `cdd --help` 子命令集合仍为四命令；`cdd --dry-run` 为合法 flag（**program 级全局 flag，位于子命令之前**：`cdd --dry-run <subcommand> …` 四命令皆可解析；子命令后重复声明不需要）
 - **子目录回归**：cwd=子目录 + 仓根相对 `--spec` → artifact 落仓根 workspace、零幽灵 `.osuperpowers`、exit 0；**负例（路径不存在）→ exit 1 + BLOCKED 三行诊断**（§2.4.2 退出码表：1 = 运行期不可继续；2 专表用法 / 环境错）
@@ -627,6 +607,14 @@ K -->|entered via blocker=0| L[handoff-finishing]
 - `pnpm run validate` 13 块全绿 + `pnpm run emit:check` 无 drift
 - `pnpm run version --dry-run`：init 删除后 stamp 同步不报错（stamp 机制已删）
 - `.github/ISSUE_TEMPLATE/*.yml`：**同一 canonical 枚举输入 → 渲染字节不变**（单源化行为中性）；**内容**因取值同步（删 `osuperpowers:init` / 加 3 个新 spec-writer）而变更，由 `pnpm run emit` 重渲染 + `emit:check` 固化（见 §2.6.1）
+
+---
+
+| Overall assumption | Phase decision | Overall updated? |
+|---|---|---|
+| — | `finishing` 的 personal-rule 层（`I1 No Worktrees` / `I2 Conventional Commits + No Attribution` / typed-discard 严格性）**换载体不丢规则**——Invariants 节 + 节点 Fail 字段承载，节点名与序列不保留 | No — 相位内承载形态，overall 无需改 |
+| — | **两条 legacy 规则有意丢弃**（`Read, not Skill-invoke`：brainstorming `I1` / writing-plans `I1` / finishing `I3`；`Research requires user confirmation`：brainstorming `I2`）——前者立论随 `overrides` router 机制消失而失效（R4），后者目标流程无 research 节点。**这是「载体换、规则不丢」的例外（非遗漏）**，逐条去向见 §2.7.4 表 | No — 相位内规则处置，overall 无需改 |
+| overall v1.4 定序「phase scope 有变更 → **先** Run `writing-overall-spec` sync、**再** Run `writing-phase-spec`」（表述在 §brainstorming 分支内） | 定序本体不变、**承载位下移**：该步由 brainstorming 侧整体移入 `writing-phase-spec` 内部的首个判据节点 `B2{scope changed?}`（§2.7.2 骨架）；overall §brainstorming 的文字表述仍逐字成立（「先 sync 后写」未被改动），变的只是承载位 | No — 定序语义不变，承载位属相位内实现形态 |
 
 ### Acceptance criteria
 
@@ -646,9 +634,17 @@ K -->|entered via blocker=0| L[handoff-finishing]
 - **AC14** **失败类目 canonical**：类目表落 `packages/cdd-engine/templates/failure-categories.json`（类目 / 是否计入 Stopping / 各自计数器 / 恢复策略）；**engine 侧从 canonical 读取**（承重，非装饰）；**skills 侧**短 Failure Modes 表的**类目名集合 ⊆ canonical**，且不复述类目语义（见 §2.5.2 通道 ② 两条断言）
 - **AC15** **templates 结构与命名单源**（§2.5.5）：4 个提示词模板**同一文档骨架**（段名与段序一致：`# Title` / `## Instructions` / `## Handoff` / `## Return`；功能差异只在 `## Instructions`；`Self-validate` 并入 `## Handoff`；`review/doc-fix.md` 补齐 `## Return`）；`## Handoff` 与 `## Return` **各为一份共享壳**；**Handoff 段为 schema 原样注入**（`JSON.stringify`）；**engine 内零手写 render**（零 `stubAnnotation` / `satisfiesProp` / `patternSample` / `requiredKeys` / `stubScalar`，零第二校验器，零手写 schema 字段清单）；两份 schema **均含 `description`** 且模板内**零重复 Handoff Rules**；schema 前缀统一为作用域名（`task-handoff-schema.json` / `docs-handoff-schema.json`）；模板目录分组与 (op,type) 派发面对齐
 
----
+## Constraints
 
-## Section 3: Deviations from overall
+- 仓库语言政策：SKILL.md / docs 英文主源；本 spec 中文（Strategy B internal docs）
+- 不 commit 除非用户明确要求；changeset 逐 phase 建
+- vendored 子模块不可改（`superpowers` / `mattpocock-skills` / `impeccable` 的 skill 属其自身资产）
+- **破坏性重构已授权**（用户 2026-09-13 / 2026-09-15 重复确认：允许破坏性变更、确保最佳实践、不留技术债务、遗留即删）
+- 所有改动须过 `pnpm run validate`（13 块）+ `pnpm run emit:check` 无 drift；skills / emit 源改动后必跑 `pnpm run emit`
+- **不改变引擎评审语义本体**（overall non-goal）：review/fix/handoff 生命周期、**Review Stopping 的判据**、commit-contract、`doc_hash` 双签名不动。P4 对引擎的实质改动限定在**契约面**（输入信道 / 输出契约 / 失败类目 / 超时分类），不改判定逻辑
+- **legacy 只作参考，不作主体**（用户 2026-09-15）
+
+## Deviations
 
 | Overall assumption | Phase decision | Overall updated? |
 |---|---|---|
@@ -663,23 +659,10 @@ K -->|entered via blocker=0| L[handoff-finishing]
 | P4 原设「提示词注入由 schema **全形派生**」 | 修正为 **schema 原样注入**（`JSON.stringify`）——T5 的「全形派生」实为 schema 的**手写解释器**（含越权的第二校验器 `satisfiesProp`、形状受限的 `patternSample`、漏 `items`、产出违反自身 schema 的占位值），用户 2026-09-16 裁定**不得手写任何 render** | Yes — v1.15 |
 | — | **templates 结构与命名单源**（4 层不一致：段名三种 / 段序两套 / Return 段名两种且一处缺失 / 标题形四种；schema 前缀三种；`doc-fix.md` 目录错位）→ 同一骨架 + 共享壳 + 命名统一 + schema `description` 补全 | Yes — v1.15 |
 | — | T5 的 renderer **由新增 T18 取代**（有计划的替换，非遗留债务） | Yes — v1.15 |
-| — | `finishing` 的 personal-rule 层（`I1 No Worktrees` / `I2 Conventional Commits + No Attribution` / typed-discard 严格性）**换载体不丢规则**——Invariants 节 + 节点 Fail 字段承载，节点名与序列不保留 | No — 相位内承载形态，overall 无需改 |
-| — | **两条 legacy 规则有意丢弃**（`Read, not Skill-invoke`：brainstorming `I1` / writing-plans `I1` / finishing `I3`；`Research requires user confirmation`：brainstorming `I2`）——前者立论随 `overrides` router 机制消失而失效（R4），后者目标流程无 research 节点。**这是「载体换、规则不丢」的例外（非遗漏）**，逐条去向见 §2.7.4 表 | No — 相位内规则处置，overall 无需改 |
-| overall v1.4 定序「phase scope 有变更 → **先** Run `writing-overall-spec` sync、**再** Run `writing-phase-spec`」（表述在 §brainstorming 分支内） | 定序本体不变、**承载位下移**：该步由 brainstorming 侧整体移入 `writing-phase-spec` 内部的首个判据节点 `B2{scope changed?}`（§2.7.2 骨架）；overall §brainstorming 的文字表述仍逐字成立（「先 sync 后写」未被改动），变的只是承载位 | No — 定序语义不变，承载位属相位内实现形态 |
 
----
-
-## Section 4: Notes for downstream
+## Notes for downstream
 
 - **P5**：report-issues 目标流程（单新 issue 聚合）+ 改名 + E 族 6 条 finding + `finding-meta` 改名（单源后为**一处编辑**）；engine 输出契约与失败类目已由 P4 定案，P5 不再改 engine 契约面
 - **P6**：`renderHandoffStub` 的 schema 派生扩展点已在 P4 段 1 显式化（**P6 不再重开 P4 产物**）；`.agents/` emit 面移除；harness 宣称收缩；flake follow-up（smoke workspace 并发 / `resolveVendorVersion`）
 - **本 phase 的 CDD 自伤风险**：段 1（尤其族 A/B）未落地前，P4 自身 task 仍可能踩 `additionalProperties` 拒绝与超时误分类——**这是把段 1 排最前的直接理由**
 - **下游 phase 不得回渗**：`cdd brief` / `cdd research`（P3 守卫）、`CDD_LIFECYCLE_PATH`、上游文档 read、`rootFromDocPath`、手写 schema 字段清单
-
----
-
-## Section 5: Review
-
-Rule: Single-cycle `cdd review --type spec` must pass before user review and writing-plans — single dispatch, lens-tagged findings; blocker=0 → fix all findings (`cdd fix`, blocker + warn + nit) → stop, no re-run after blocker=0 (§2.7.4).
-
-> 措辞按 R4/R5 的判据更新：`Fresh-Subagent Review Passes` 是 `_docs/review.md` §Eliminated 已删机制（多轮 pass / fan-out）的词汇，本 phase 正是删除它的一相，spec 头不得自相矛盾。**兄弟 spec 的同一行 boilerplate 不在本 phase 触达面**（历史文档冻结），列为 follow-up。

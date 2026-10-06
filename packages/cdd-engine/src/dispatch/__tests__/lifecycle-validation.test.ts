@@ -78,6 +78,16 @@ const SPEC = [
   "",
   "- **Parent program**: [plan-overall.md v1.0](./plan-overall.md)",
   "",
+  "## Design",
+  "",
+  "### Acceptance criteria",
+  "",
+  "- `criterion one`",
+  "",
+  "## Constraints",
+  "",
+  "- spec delta one",
+  "",
 ].join("\n");
 const PLAN = [
   "# Plan",
@@ -89,7 +99,12 @@ const PLAN = [
   "- boundary one",
   "",
   "### Task 1: x",
-  "body",
+  "",
+  "- **Objective**: task one",
+  "- **Steps**:",
+  "  1. implement — checkable: done",
+  "- **Acceptance**:",
+  "  - done",
   "",
 ].join("\n");
 
@@ -216,7 +231,7 @@ describe("statusValidate — CDD_INFO six-state line + plan verdict on a normal 
     expect(r.stderr).toContain("CDD_INFO: 0/1 complete — pending: task 1 (in-flight)");
   });
 
-  it("a `## Task Groups` merged section → statusValidate iterates per declared group (all member state lines + grouped verdict)", async () => {
+  it("a plan with a `## Task Groups` section (marker-less blocks) → statusValidate walks every task via the single derivation (the section is not composed)", async () => {
     const repo = setupRepo();
     const groupedPlan = [
       "# Plan",

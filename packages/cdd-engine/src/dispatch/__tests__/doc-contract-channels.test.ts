@@ -7,7 +7,8 @@
 //   - the four-table audit BLOCKs a real dispatch on every channel (four-table-dangling overall)
 //   - docs-lane overall self-audit boundary (the reviewed doc IS an overall → its own faces run)
 //   - dry-run lowers to CDD_WARN + exit 0 on every channel
-//   - lineage-unresolved chains pass (four tables no-op, necessary subset only)
+//   - lineage-unresolved chains BLOCK on the spec's own face (the inheritance-point linkage — the
+//     three-truth skeleton is the only assertion surface; the four tables are never audited)
 
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -98,6 +99,16 @@ const SPEC = [
   "",
   "- **Parent program**: [plan-overall.md v1.0](./plan-overall.md)",
   "",
+  "## Design",
+  "",
+  "### Acceptance criteria",
+  "",
+  "- `criterion one`",
+  "",
+  "## Constraints",
+  "",
+  "- spec delta one",
+  "",
 ].join("\n");
 const PLAN = [
   "# Plan",
@@ -109,7 +120,12 @@ const PLAN = [
   "- boundary one",
   "",
   "### Task 1: x",
-  "body",
+  "",
+  "- **Objective**: task one",
+  "- **Steps**:",
+  "  1. implement — checkable: done",
+  "- **Acceptance**:",
+  "  - done",
   "",
 ].join("\n");
 
@@ -503,8 +519,8 @@ describe("branch channel — the base-default docContractValidate (audits its `-
   });
 });
 
-describe("lineage-unresolved — four tables no-op, the necessary subset still gated per-channel", () => {
-  it("task: a spec chain with no Parent program passes the gate (no WARN, clean dry-run)", async () => {
+describe("lineage-unresolved — the spec's own face fails (the inheritance-point linkage); four tables never audited", () => {
+  it("task: a spec chain with no Parent program fails the gate (dry-run WARN — the legacy truncation no-op is gone)", async () => {
     const repo = setupRepo();
     mkdirSync(path.join(repo, SPEC_DIR), { recursive: true });
     mkdirSync(path.join(repo, PLAN_DIR), { recursive: true });
@@ -526,7 +542,9 @@ describe("lineage-unresolved — four tables no-op, the necessary subset still g
       "truncated",
     );
     const r = await runTaskReview(repo, true);
-    expect(r.exitCode).toBe(0);
-    expect(r.stderr).not.toContain("doc contract invalid"); // four tables never audited
+    expect(r.exitCode).toBe(0); // dry-run never blocks
+    expect(r.stderr).toContain("CDD_WARN: doc contract invalid (dry-run)");
+    expect(r.stderr).toContain("`**Parent program**`"); // the spec's own face fails — never the overall
+    expect(r.stderr).not.toContain("plan-overall.md"); // the four tables were never audited
   });
 });

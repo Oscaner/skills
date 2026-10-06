@@ -6,28 +6,8 @@
 - **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.10](./2026-09-13-osuperpowers-overhaul-overall.md)（req 4 / req 6 / req 7）
 - **Depends on**: P1 shipped（runtime 布局 `.osuperpowers/cdd` + standalone 移除，2026-09-14）；P2 shipped（docs 单根，2026-09-14）
 
----
-
-## Section 0: Incremental warning
-
-> P3 increment only（cdd 命令面与契约收敛）。Cross-phase conventions 见 [overall](./2026-09-13-osuperpowers-overhaul-overall.md)；冲突时 overall 赢。P3 →(soft) P4（research CLI 移除先行）——P4 的 skills 全面重写以本 phase 的命令面收敛结果为输入。
-
----
-
-## Section 1: Constraints pointer
-
-- 仓库语言政策：SKILL.md / docs 英文主源；本 spec 中文（Strategy B internal docs）
-- 不 commit 除非用户明确要求；changeset 逐 phase 建
-- vendored 子模块不可改（`vendors/mattpocock-skills` 的 `research` skill 属其自身资产，本 phase 不触碰）
-- **破坏性重构已授权**（2026-09-13 用户显式：允许破坏性变更、确保最佳实践、不留技术债务、遗留即删）——本 phase 的两处删除、级联死配置连根、backlog changeset 归并均在此授权内
-- 所有改动须过 `pnpm run validate`（13 块）+ `pnpm run emit:check` 无 drift；skills 改动后必跑 `pnpm run emit`
-- **不改变引擎评审语义本体**（overall non-goal）：review/fix/handoff 生命周期、Stopping 判定、commit-contract、doc_hash 双签名不动；本 phase 仅收敛命令面与随删死配置
-
----
-
-## Section 2: Design body
-
-### §2.1 问题与根因
+## Design
+**§2.1 问题与根因**
 
 `cdd` 现暴露 6 个子命令，其中两个**零真实消费者**：
 
@@ -40,7 +20,7 @@
 
 **删除安全性不变量**（无需新增回归测试）：`tests/task.test.mjs:94`（`implement --plan` 无前置 brief → 自给 + `TASK_BASE:`）、`:109`（`CDD_TASK_BRIEF` override 写/读同源）、`:128`（越界 → BLOCKED exit 1）已钉死该语义。
 
-### §2.2 Grilling 决策记录
+**§2.2 Grilling 决策记录**
 
 | # | 决策 | 依据 |
 |---|---|---|
@@ -51,7 +31,7 @@
 | Q5 | **engine minor + osuperpowers minor**，正文显式记录「实为 breaking / engine 版本效果不落地」 | 对齐 overall P6 既定口径；把失真声明转为可追踪的 P6 复核项 |
 | Q6 | **存量 backlog 全量归并**（charter「不留技术债务」） | 用户 2026-09-14 以 charter 原则定；本程序 per-phase changeset 保留（P6 复核粒度，非债务） |
 
-### §2.3 Engine 命令面收敛（删除面清单）
+**§2.3 Engine 命令面收敛（删除面清单）**
 
 **2.3.1 命令注册面** — `lib/cli/parse.mjs`：
 - 删 `import { runResearch } from "./research.mjs"`（L9）与 `import { runBriefCli } from "./brief.mjs"`（L11）
@@ -66,7 +46,7 @@
 
 **2.3.4 保留面** — `lib/brief.mjs#generateBrief` 保留（`run-task.mjs:17` 消费）；该文件头部注释两处同步清理：① 引用已删 CLI 的段落（L5-6「CLI 处理器…已迁 lib/cli/brief.mjs」）；② L4 `validateBrief: check brief contains TASK_BASE: line.`（§2.4 删 `validateBrief` 后该行必须同删）。
 
-### §2.4 级联死配置连根（Q3=A）
+**§2.4 级联死配置连根（Q3=A）**
 
 | 死配置 | 位置 | 唯一消费者 |
 |---|---|---|
@@ -81,7 +61,7 @@
 - `lib/lifecycle/proc.mjs:176` — 「六个派发模块（run-task / run-docs / review / branch-review / fix / research）」→ 五个（**非守卫命中面**：bare `research` 刻意放行，本条属说明文字同步，不改则静默留存为陈旧注释）
 - `lib/cli/review.mjs:5` — 「4 消费方（fix/parse/branch-review/research）」→ 3（同上，非守卫命中面）
 
-### §2.5 测试面
+**§2.5 测试面**
 
 | 动作 | 对象 |
 |---|---|
@@ -105,7 +85,7 @@
 
 ② **黑盒** —— `cdd brief` / `cdd research` → unknown command **exit 2**。
 
-### §2.6 Skill 面 — `cli-research` 删除（Q1）
+**§2.6 Skill 面 — `cli-research` 删除（Q1）**
 
 `git rm -r packages/osuperpowers/skills/cli-research/` → `pnpm run emit` 自动 prune **`packages/osuperpowers/.agents/skills/osuperpowers/cli-research/SKILL.md`**（无手写清理）。
 
@@ -118,7 +98,7 @@
 
 **过渡态**：`cli-driven-development/SKILL.md` 磁盘版**不含** `cdd brief` 调用（其 `dispatch-mode` 步骤 1 是 review-diff 生成），故 P3 交付后 skills 面无悬空调用；该 skill 的全面重写仍归 P4。
 
-### §2.7 防回渗守卫（Q4=A）
+**§2.7 防回渗守卫（Q4=A）**
 
 `scripts/validate/residue.mjs` 的 `STALE_LEXICON_CHECKS` 追加两条：
 
@@ -133,7 +113,7 @@
 - 文件头注释的语义枚举同步更新（该头注释是 P4/P6 迁移终态的单一索引）。
 - `scripts/validate/residue.test.mjs`：新增 describe 块——正例命中（`cdd research --brief …`、`CDD_RESEARCH_TIMEOUT=…`）+ 反射例零误报（`/mattpocock-skills:research`、`brief-dependent plan sections`、`CDD_TASK_TIMEOUT`）。字面**经字符串拼接构造**（P2 先例：守卫测试自身不得成为被守卫语汇的载体，否则全仓 grep 多出命中类）。live-repo 零残留由既有 `collectStaleLexiconHits() === []` 覆盖，不新增。
 
-### §2.8 changeset
+**§2.8 changeset**
 
 **8.1 本程序** — 新增一条**双包** `.changeset/p3-cdd-command-surface.md`：`@oscaner-skills/cdd-engine: minor` + `@oscaner-skills/osuperpowers: minor`（对齐 `p3-cdd-engine-overhaul.md` 的既有多包先例）。正文显式记录：**命令删除实为 breaking（semver 应为 major），但 engine changeset 的版本效果不落地**（`scripts/release/version-packages.mjs:82` 只处理 `packages/osuperpowers/package.json`；`.changeset/versioned-plugins.json = ["osuperpowers"]` 实证）→ 该项随 **P6** 统一复核。 **本仓内部理由（`version-packages.mjs:82` 路径 / `versioned-plugins.json` 内容 / P6 排期）刻意只留在本 spec，不进 changeset 正文**——changeset 会被 `version-packages.mjs:96-115` 渲染进 `packages/osuperpowers/CHANGELOG.md`（发布包内、消费者可见），而 CLAUDE.md「Consumer perspective」条明载消费环境无 monorepo 布局、无本仓工具链（T6 review-1 nit 收敛）。
 
@@ -152,7 +132,7 @@
 
 **8.3 本程序 per-phase 保留** — `p1-cdd-runtime-layout-singleton.md` / `p2-docs-root-migration.md` / 新增 `p3-cdd-command-surface.md` 各一条不动。理由：P6 acceptance 明载「各 phase changeset 齐备无遗漏」，per-phase 粒度是 P6 的复核依据，不是技术债务。
 
-### §2.9 overall 回填（Boundary rules）
+**§2.9 overall 回填（Boundary rules）**
 
 | 表 | 变更 |
 |---|---|
@@ -166,13 +146,19 @@
 | Change history | 追加 v1.11 |
 | File paths | 无变化 |
 
-### §2.10 验证
+**§2.10 验证**
 
 - `cdd --help` 实跑：子命令集合恰为四命令
 - `pnpm --filter @oscaner-skills/cdd-engine test` 全绿（删除面收敛后用例数下降属预期；**含 `tests/lifecycle.wiring.test.mjs` 的 withLifecycle 接线守卫**——§2.3.3 整删 `lib/cli/research.mjs` 后该文件不删即 ENOENT 整文件红）
 - `pnpm run validate` 13 块全绿（含块 12 `overall-consistency` 于回填后的 overall 上通过、块 5c 新守卫 live-repo 零残留）
 - `pnpm run emit:check` 无 drift
 - `pnpm run version --dry-run` 复核：归并后 **next 版本仍为 `1.0.0`**（归并不得改变版本结果——可机器判定）
+
+---
+
+| Overall assumption | Phase decision | Overall updated? |
+|---|---|---|
+| engine changeset 版本效果（P2 遗留 follow-up） | P3 记 minor 并在 changeset 正文显式记录「实为 breaking / 版本效果不落地」→ 随 P6 统一复核 | 否（P6 已有该 follow-up 登记，本 phase 仅补强证据） |
 
 ### Acceptance criteria
 
@@ -184,9 +170,16 @@
 - **AC6** `.changeset/` 无裸包名 `"osuperpowers"`；本程序 P1/P2/P3 各一条；归并后仍含全部 `closes #NNN`；`pnpm run version --dry-run` 的 next 版本仍为 `1.0.0`
 - **AC7** overall 四表同步至 v1.11，`overall-consistency`（块 12）通过
 
----
+## Constraints
 
-## Section 3: Deviations from overall
+- 仓库语言政策：SKILL.md / docs 英文主源；本 spec 中文（Strategy B internal docs）
+- 不 commit 除非用户明确要求；changeset 逐 phase 建
+- vendored 子模块不可改（`vendors/mattpocock-skills` 的 `research` skill 属其自身资产，本 phase 不触碰）
+- **破坏性重构已授权**（2026-09-13 用户显式：允许破坏性变更、确保最佳实践、不留技术债务、遗留即删）——本 phase 的两处删除、级联死配置连根、backlog changeset 归并均在此授权内
+- 所有改动须过 `pnpm run validate`（13 块）+ `pnpm run emit:check` 无 drift；skills 改动后必跑 `pnpm run emit`
+- **不改变引擎评审语义本体**（overall non-goal）：review/fix/handoff 生命周期、Stopping 判定、commit-contract、doc_hash 双签名不动；本 phase 仅收敛命令面与随删死配置
+
+## Deviations
 
 | Overall assumption | Phase decision | Overall updated? |
 |---|---|---|
@@ -194,19 +187,10 @@
 | P3 acceptance「零 brief/research 残留引用（历史 plan/spec 文档除外）」 | 作用域补限定为 engine 机制位置 + `packages/osuperpowers/skills`（`packages/osuperpowers/.agents/` 由 emit 派生收敛） | Yes — v1.11 · 2026-09-14 |
 | P3 scope「usage / README CDD CLI 表同步」 | 本仓不存在 README CDD CLI 表 → 收敛为 usage 面 + maintainer doc 复核 | Yes — v1.11 · 2026-09-14 |
 | P6「逐 phase changeset 复核（P1–P3 engine patch/minor、P4/P5 osuperpowers minor）」 | P3 现触及 osuperpowers（skill 删除）；新增存量 backlog 归并复核项 | Yes — v1.11 · 2026-09-14 |
-| engine changeset 版本效果（P2 遗留 follow-up） | P3 记 minor 并在 changeset 正文显式记录「实为 breaking / 版本效果不落地」→ 随 P6 统一复核 | 否（P6 已有该 follow-up 登记，本 phase 仅补强证据） |
 
----
-
-## Section 4: Notes for downstream
+## Notes for downstream
 
 - **P4（skills 全面重写）**：本 phase 交付后 skills 侧零 `cdd brief` / `cdd research` 引用，且守卫已钉死——P4 的新 skill 树不得回渗这两个命令。`/mattpocock-skills:research` 会话调用**不受影响**（守卫为命令形）。
 - **P4 的 8-skill 新树**以四命令面（implement/review/fix/base-branch）为编排基元。
 - **P6**：继承两项——① engine changeset 版本效果不落地（本 phase 补强证据：`versioned-plugins.json` 仅 osuperpowers）；② `packages/osuperpowers/.agents/` emit 面移除（本 phase 的 `cli-research` prune 是该面的最后一次目录级删除）。
 - **P6 存量 changeset 复核**：归并后本程序 per-phase 三条 + backlog 六条，共九条待消费。
-
----
-
-## Section 5: Review
-
-Rule: Fresh-Subagent Review Passes must all pass before reaching user review and writing-plans.

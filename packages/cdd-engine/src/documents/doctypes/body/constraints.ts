@@ -12,8 +12,8 @@
 //     block, the inherited conventions the plan side joins through the same Class-A/B chain.
 //
 // The Form-A section extraction lives on the shared doctype atoms (constraintsSectionOf in
-// shared.ts — one section semantic for both doc sides; legacy Form B stays plan-side, unchanged).
-//
+// shared.ts — one section semantic for both doc sides).
+
 // NOT a load-order-safe body leaf: this module imports the shared doctype atoms (shared.ts →
 // tokens.ts). That is safe because nothing on the tokens → body-leaf chain imports it back — the
 // leaf doctrine applies to the modules tokens.ts authorizes from (plan-body / phase-spec-body),
@@ -72,11 +72,12 @@ export function mergeParentConstraints(input: {
 /** The phase-spec's merged constraints read (design C4 — the spec side): the spec's own
  *  `## Constraints` delta joined with the parent overall's conventions along the Class-B
  *  `**Parent program**` chain → the merged presentation the spec review/validate gate consumes.
- *  Legacy six-section specs (no literal `## Constraints` inheritance point — their constraint
- *  source stays the `## Section 1: Constraints pointer` prose) return null: the dual-read
- *  exemption keeps the legacy read path machine-free, no merge. A new-shape spec whose parent
- *  chain truncates still returns the delta-only presentation — the inheritance-point RESOLUTION is
- *  the validate face (resolveParentOverall + the docContractValidate linkage), never this read. */
+ *  The literal `## Constraints` section is the spec constraint SINGLE source — a spec without it
+ *  (the legacy six-section face) has no delta to merge and returns null: the undeclared face (the
+ *  three-truth skeleton validation is what blocks such a spec, never this read). A new-shape spec
+ *  whose parent chain truncates still returns the delta-only presentation — the inheritance-point
+ *  RESOLUTION is the validate face (resolveParentOverall + the docContractValidate linkage), never
+ *  this read. */
 export function specConstraintsOf(entry: string, root: string): string | null {
   const content = readFileSync(entry, "utf8");
   // The Form-A heading scan is the phase-spec body's projected `constraintsHeading` slice — the
@@ -87,7 +88,7 @@ export function specConstraintsOf(entry: string, root: string): string | null {
     content,
     phaseSpecBody.projectSlicePatterns().constraintsHeading,
   );
-  if (ownDelta === null) return null; // legacy six-section spec — no `## Constraints` inheritance point
+  if (ownDelta === null) return null; // no `## Constraints` delta → no merged presentation (the undeclared face)
   const parent = resolveParentOverall(entry, root);
   const parentConstraints =
     parent.overallPath !== null

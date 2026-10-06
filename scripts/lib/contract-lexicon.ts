@@ -27,7 +27,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { resolveResourceSrc } from "../../packages/cdd-engine/src/infra/resource.ts";
-import { escapeRegExp, isDataRow, scanLines, walkTargetFiles } from "./scan.ts";
+import { escapeRegExp, isDataRow, isScanPinExempt, scanLines, walkTargetFiles } from "./scan.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..");
@@ -703,6 +703,7 @@ export class ContractLexiconGuard {
         const tokenRe = new RegExp(escapeRegExp(token));
         const tokenQuoted = `"${token}"`;
         for (const { file, lineNo, text } of scanLines(targets, tokenRe, { includeTests })) {
+          if (isScanPinExempt(file, lineNo)) continue; // pin-data line — T5/T6 frozen-history, never a regression
           if (isDataRow(dataSources, file, text, tokenQuoted)) continue; // data-source data row (the release form)
           hits.push({
             label: "cursor binary-name live-face residue (G2 zero-exemption)",
@@ -739,6 +740,7 @@ export class ContractLexiconGuard {
       for (const token of tokens) {
         const re = new RegExp(escapeRegExp(token));
         for (const { file, lineNo, text } of scanLines(targets, re, { includeTests })) {
+          if (isScanPinExempt(file, lineNo)) continue; // pin-data line — T5/T6 frozen-history, never a regression
           if (isDataRow(dataSources, file, text, `"${token}"`)) continue; // lexicon data-value release form
           hits.push({
             label: `escape/retired-token zero-hit violation (T5+T7 ban): ${token}`,

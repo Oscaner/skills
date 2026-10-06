@@ -10,4 +10,8 @@
 
 ### Task 1: dry-run smoke
 
-no-op fixture
+- **Objective**: dry-run smoke
+- **Steps**:
+  1. run the dry-run — checkable: the round completes
+- **Acceptance**:
+  - dry-run completes

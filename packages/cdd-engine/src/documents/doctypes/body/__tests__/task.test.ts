@@ -1,9 +1,9 @@
 // packages/cdd-engine/src/documents/doctypes/body/__tests__/task.test.ts — the plan task data model
 // (P2 T1; plan §T1 · Criterion ②). Covers the T1 task-model deliverable surface: the full field
 // family (objective / files / interface{consumes,produces} / steps{action,checkable} / acceptance
-// + the P3 extension bits dependsOn?/atomicWith?) carries constructor-injected identity on a
-// read-only face; the optional extension bits are absent-on-default (their P3 read/write consumes
-// nothing at T1); and the required step.checkable is a type-level constraint — enforced by the repo
+// + the optional dependsOn?/atomicWith? edge fields) carries constructor-injected identity on a
+// read-only face; the optional edge fields are absent-on-default (no declaration leaves them
+// undefined); and the required step.checkable is a type-level constraint — enforced by the repo
 // tsc --noEmit gate (the NotAssignable assertion below), never by a runtime guard (the schema-
 // validation machine face the T3 PlanBody brief render consumes).
 import { describe, expect, it } from "vitest";
@@ -69,7 +69,7 @@ describe("Task — the plan task data model", () => {
     expect(task.atomicWith).toEqual([3]);
   });
 
-  it("the P3 extension bits are optional — absent by default (zero read/write at T1)", () => {
+  it("the edge fields are optional — absent by default", () => {
     const task = new Task({
       objective: "Minimal task without the edge-model bits",
       files: [],

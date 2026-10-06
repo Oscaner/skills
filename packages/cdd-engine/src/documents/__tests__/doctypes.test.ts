@@ -203,19 +203,25 @@ describe("parentChain — the S3 parent-doc walk", () => {
   });
 });
 
-describe("validate on the current doc tree (the pi-harness sample trio — all clean)", () => {
+describe("validate on the current doc tree (the pi-harness sample trio — the migration-queue state)", () => {
+  // The six-section design-spec family was migrated to the three-truth skeleton by T5 and the
+  // Do-form plan family to the data-shaped task records by T6: the pi-harness p5 design AND the
+  // pi-harness p5 plan both validate clean (clean parent chain, zero plan-owned failures). The
+  // overall self-audit stays clean (the four-table contract is unaffected by the runtime retirement
+  // / the spec transcription).
   it("overall self-audit: 2026-09-27-pi-harness-overall.md audits clean", () => {
     expect(docTypeRegistry.resolve("overall").validate(pi.overall, { root: REPO_ROOT })).toEqual(
       [],
     );
   });
 
-  it("phase-spec: 2026-09-27-pi-harness-p5-design.md audits clean (Version line + parent overall)", () => {
+  it("phase-spec: 2026-09-27-pi-harness-p5-design.md validates clean after T5 (the three-truth skeleton — the clean pi-harness parent chain)", () => {
     expect(docTypeRegistry.resolve("spec").validate(pi.spec, { root: REPO_ROOT })).toEqual([]);
   });
 
-  it("plan: 2026-09-27-pi-harness-p5.md audits clean — the full entry walk (plan contract + Class A + spec + parent overall)", () => {
-    expect(docTypeRegistry.resolve("plan").validate(pi.plan, { root: REPO_ROOT })).toEqual([]);
+  it("plan: 2026-09-27-pi-harness-p5.md validates clean after T6 (the data-shaped task records — the single-form plan face, zero own failures)", () => {
+    const failures = docTypeRegistry.resolve("plan").validate(pi.plan, { root: REPO_ROOT });
+    expect(failures.filter((f) => f.file === pi.plan)).toEqual([]);
   });
 });
 
@@ -228,15 +234,13 @@ describe("parse surfaces", () => {
     expect(parsed.ids).toContain("P5");
   });
 
-  it("plan parse aggregates the phase-id + task extractors", () => {
+  it("plan parse aggregates the phase-id + task-heading extractors", () => {
     const parsed = docTypeRegistry.resolve("plan").parse(pi.plan, {
       root: REPO_ROOT,
     }) as PlanParse;
     expect(parsed.phaseId).toBe("P5");
     expect(parsed.dispatchPhaseId).toBe("P5");
     expect(parsed.taskNumbers.length).toBeGreaterThan(0);
-    // the plan's declared `## Task Groups` section (one merged group 7,8) surfaces verbatim
-    expect(parsed.taskGroups.map((g) => g.key())).toEqual(["7,8"]);
   });
 
   it("phase-spec parse returns the pinned version token (the Version-line check)", () => {

@@ -114,38 +114,32 @@ export class DocumentsValidator {
     return planType().taskNumbersFromPlan(planFile);
   }
 
-  /** Task-Groups section parse — delegated to the plan doc type (the canonical extractor's home). */
-  taskGroupsFromPlan(planFile: string): TaskGroup[] {
-    return planType().taskGroupsFromPlan(planFile);
-  }
-
   /** effectiveGroups(planPath) — the SINGLE dispatch-group derivation — delegated to the plan doc
    *  type (the iteration surfaces consume this one derivation, no second implementation). */
   effectiveGroups(planPath: string): TaskGroup[] {
     return planType().effectiveGroups(planPath);
   }
 
-  /** LEGACY raw read — deterministic extraction from the plan's declared Constraints source (Form A
-   *  literal delta section / legacy Form B prose pointer): delta-only, NO inherited-constitution
-   *  join — delegated to the plan doc type (the canonical extractor's home). Kept byte-identical
-   *  for the legacy consumers / zero-regression bar; new-shape consumers that need the merged
-   *  presentation (the own delta + the auto-applied parent-overall conventions) must call
-   *  planConstraintsOf instead. */
+  /** Raw read — deterministic extraction from the plan's declared Constraints source (the literal
+   *  `## Constraints` delta section — the single source; the legacy Form B prose-pointer read is
+   *  retired): delta-only, NO inherited-constitution join — delegated to the plan doc type (the
+   *  canonical extractor's home). New-shape consumers that need the merged presentation (the own
+   *  delta + the auto-applied parent-overall conventions) must call planConstraintsOf instead. */
   extractPlanConstraints(planContent: string): string | null {
     return planType().extractPlanConstraints(planContent);
   }
 
   /** The plan's merged constraints read (design C4 — the plan side of the delta-only inheritance
    *  machine) — delegated to the plan doc type: the plan's Form-A `## Constraints` delta joined
-   *  with the parent overall's conventions (the constitution auto-applies); legacy Form B reads
-   *  unchanged. */
+   *  with the parent overall's conventions (the constitution auto-applies). */
   planConstraintsOf(planPath: string, root: string): string | null {
     return planType().planConstraintsOf(planPath, root);
   }
 
   /** The phase-spec's merged constraints read (design C4 — the spec side) — the spec's `##
    *  Constraints` delta joined with the parent overall's conventions along the Class-B `**Parent
-   *  program**` chain (the spec-parse single consumption face; legacy six-section specs → null). */
+   *  program**` chain (the spec-parse single consumption face; a spec without the literal
+   *  `## Constraints` section → null — the undeclared face). */
   specConstraintsOf(entry: string, root: string): string | null {
     return mergedSpecConstraintsOf(entry, root);
   }

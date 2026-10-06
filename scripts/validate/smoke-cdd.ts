@@ -329,20 +329,6 @@ function deriveFixture(consumerRoot: string, installed: string): Fixture {
     "format",
     "const",
   ]); // ### Task N:
-  const doPattern = schemaToken(planSchema, [
-    "properties",
-    "taskBlock",
-    "properties",
-    "do",
-    "pattern",
-  ]); // ^- \*\*Do\*\*:
-  const acceptPattern = schemaToken(planSchema, [
-    "properties",
-    "taskBlock",
-    "properties",
-    "acceptance",
-    "pattern",
-  ]); // ^- \*\*验收\*\*:
   const versionMark = schemaToken(phaseSpecSchema, [
     "properties",
     "header",
@@ -396,9 +382,12 @@ function deriveFixture(consumerRoot: string, installed: string): Fixture {
 
   const spec = "fixture-design.md";
   // The spec doc the plan's **Spec:** line must resolve to (the audit's Class-A target). It carries
-  // the spec's own face (a **Version** line — the phase-spec schema's own required surface) and NO
-  // Parent program line — the four-table audit no-ops on the truncated lineage, making the consumer
-  // chain's doc-existence path deterministic.
+  // the full three-truth skeleton (the phase-spec's current contract face: a `**Version**` line, a
+  // `## Design` section with the unique `### Acceptance criteria` subsection, a `## Constraints`
+  // inheritance point) and a RESOLVABLE `**Parent program**` pointer (the `## Constraints`
+  // inheritance point demands the parent-overall conventions — the pointer reaches fixture-overall.md,
+  // whose empty Phase-inventory table keeps every four-table / overall-contract face a no-op, making
+  // the consumer chain's doc-existence path deterministic).
   writeFileSync(
     path.join(consumerRoot, spec),
     [
@@ -406,7 +395,17 @@ function deriveFixture(consumerRoot: string, installed: string): Fixture {
       "",
       `- ${versionMark}: v1.0 · 2026-09-22`,
       "",
-      "Fixture design spec derived from the shipped cdd-engine doc-structure schemas for the consumer-sim.",
+      `- ${parentMark}: [fixture-overall.md v1.0](fixture-overall.md)`,
+      "",
+      `## Design`,
+      "",
+      `### Acceptance criteria`,
+      "",
+      "- `the consumer-sim chain audits clean`",
+      "",
+      `## Constraints`,
+      "",
+      "- fixture design spec delta — the parent-overall conventions auto-apply.",
       "",
     ].join("\n"),
     "utf8",
@@ -437,20 +436,14 @@ function deriveFixture(consumerRoot: string, installed: string): Fixture {
   );
 
   const plan = planName;
-  // Form-A plan (canonical ## Constraints) — the structural markers are the schema-derived tokens;
-  // the task bullet lines use the canonical marker spellings and are CONFORMANCE-checked against
-  // the shipped do/acceptance patterns below (drift → the consumer-sim fails loud, never silent).
-  const taskHeading = taskHeadingFormat.replace("N", "1");
-  const doLine = "- **Do**: exercise the installed cdd engine under dry-run in a consumer layout";
-  const acceptLine = "- **验收**: the dry-run chain prints the status capsule contract (T3)";
-  assertTrue(
-    new RegExp(doPattern).test(doLine),
-    `fixture Do line does not match the shipped pattern ${doPattern}: ${doLine}`,
-  );
-  assertTrue(
-    new RegExp(acceptPattern).test(acceptLine),
-    `fixture acceptance line does not match the shipped pattern ${acceptPattern}: ${acceptLine}`,
-  );
+  // The single-form data-shaped plan (canonical `## Constraints` + the `### Task N:` data records):
+  // the structural markers (`**Spec:**` / `**Parent program**` / `## Constraints`) are the
+  // schema-derived tokens; the task data-field markers (`- **Objective**:` / `- **Steps**:` with
+  // the ` — checkable:` outcome / `- **Acceptance**:` / the `- **DependsOn**:` edge declaration)
+  // are the canonical marker spellings — their conformance is enforced downstream by the consumer
+  // chain's docContractValidate gate (every dispatched command audits the plan), the schema pieces
+  // no marker leaf for the data-shaped record fields.
+  const taskHeading = (n: number): string => taskHeadingFormat.replace("N", String(n));
   writeFileSync(
     path.join(consumerRoot, plan),
     [
@@ -462,14 +455,26 @@ function deriveFixture(consumerRoot: string, installed: string): Fixture {
       "",
       `${constraintsHeading}`,
       "",
-      `### 口径`,
+      `- Consumer-sim fixture constraints materialized into the temp repo.`,
       "",
-      `Consumer-sim fixture constraints materialized into the temp repo.`,
+      `${taskHeading(1)} fixture task`,
       "",
-      `${taskHeading} fixture task`,
+      "- **Objective**: exercise the installed cdd engine under dry-run in a consumer layout",
+      "- **Files**: fixture-plan.md",
+      "- **Steps**:",
+      "  1. run the installed engine under dry-run — checkable: the five-command dry-run chain completes",
+      "- **Acceptance**:",
+      "  - the dry-run chain prints the status capsule contract",
       "",
-      doLine,
-      acceptLine,
+      `${taskHeading(2)} fixture edge declaration`,
+      "",
+      "- **Objective**: exercise the data-shaped task record's edge-declaration face",
+      "- **Files**: fixture-plan.md",
+      "- **DependsOn**: 1",
+      "- **Steps**:",
+      "  1. declare the forward dependency edge — checkable: task 2's dependsOn parses as [1]",
+      "- **Acceptance**:",
+      "  - the TaskGraph validates the task-2 → task-1 dependency edge",
       "",
     ].join("\n"),
     "utf8",

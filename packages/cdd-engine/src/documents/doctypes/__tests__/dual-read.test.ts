@@ -1,28 +1,26 @@
-// packages/cdd-engine/src/documents/doctypes/__tests__/dual-read.test.ts — the dual-read contract
-// + extractor re-homing + full-tree zero-regression (P2 T5; plan §T5 · design C5/C6). Covers the
-// T5 deliverable surface:
-//   - legacy six-section spec fixture: validate + parse green (the P1-era shape — constraint source
-//     stays the `## Section 1: Constraints pointer` prose) and the legacy constraint read KEPT
-//     (specConstraintsOf null — no merged read ever applies to the legacy face, the presentation
-//     never changes because of the spec-side merge surface);
-//   - Form B plan fixture: validate + parse green (prose-pointer constraint deltas + legacy task
-//     bodies) — the dual-read exemption's plan face, with extractPlanConstraints / planConstraintsOf
-//     / brief extraction all producing the legacy read unchanged;
-//   - extractor re-homing (projection single source): taskNumbersFromPlan / the brief heading scan /
-//     the constraints extraction all read the plan body's `projectSlicePatterns()` — the three parse
-//     families (`### Task N:` / `## Constraints` / the Form-B anchors) derive from the body leaf and
-//     never hand-write a duplicate pattern (grep assertion);
-//   - full-tree zero-regression: the ENTIRE docs/kairos/specs|plans/* tree (actual count: 21 plans +
-//     20 design specs + 4 overalls + 1 one-off spec = 46 files — including this program's own p1/p2
-//     legacy-form docs, the 18/19 count is only the dual-read comparison baseline, never a validate
-//     scope limitation) processes with outcomes byte-identical to the TASK_BASE golden (the tree is
-//     untouched — zero rewiring-induced regressions on every rewired surface).
-import { execSync } from "node:child_process";
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+// packages/cdd-engine/src/documents/doctypes/__tests__/dual-read.test.ts — the single-form tree
+// suite (T3 re-base: the dual-read contract + extractor re-homing + the 46-file zero-regression
+// golden all retired in one action). The engine's runtime read surface is single-grammar from T3
+// on — the common read faces (the `### Task N:` headings / the Form-A `## Constraints` section /
+// the phase-spec version line / the design-spec three-truth skeleton) — and this file covers the
+// deliverable surface:
+//   - extractor projection single source (the task-heading + Form-A constraint-heading slices —
+//     the parse families read the plan body's `projectSlicePatterns()` and never hand-write a
+//     duplicate pattern; the Form-B anchor family is gone with the dual-read runtime);
+//   - the full-tree walk: the ENTIRE docs/kairos/specs|plans/* tree (actual count: 22 plans + 21
+//     design specs + 4 overalls + 1 one-off spec = 48 files — including this program's own p3
+//     plan/design) stays PROCESSABLE on every common read face (detect / version parse / task
+//     headings / brief slices) with byte-deterministic parse outputs;
+//   - single-form BLOCK: a NEW document carrying a legacy face (`- **Do**:` task block / Form B
+//     prose anchors / `## Task Groups` section / spec `## Section 1`) fails `docContractValidate` —
+//     the three-truth skeleton and the literal `## Constraints` source are the only grammar (the
+//     `## Task Groups` dispatch-group section is blocked by the unknown-section face — the shape
+//     node is deleted with the runtime read; the migration-queue state of the legacy tree lives in
+//     tree-migration.test.ts; T5–T7 migrate per family, T8 flips the terminal state).
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { BriefRenderer } from "../../../render/brief.ts";
 import { DocumentsValidator } from "../../../rules/documents.ts";
 import { docTypeRegistry } from "../../registry.ts";
 import { DOC_TOKENS } from "../../tokens.ts";
@@ -32,76 +30,32 @@ import type { PlanDocType, PlanParse } from "../plan.ts";
 const HERE = import.meta.dirname; // …/documents/doctypes/__tests__
 const FIXTURES = path.join(HERE, "fixtures");
 // The repo root — 6 levels up from src/documents/doctypes/__tests__ (the real docs tree the
-// full-tree zero-regression walks).
+// full-tree walk covers).
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..", "..", "..", "..");
 const SPECS_DIR = path.join(REPO_ROOT, "docs", "kairos", "specs");
 const PLANS_DIR = path.join(REPO_ROOT, "docs", "kairos", "plans");
 
-const LEGACY_SPEC = path.join(FIXTURES, "legacy-six-section-spec-design.md");
-const FORM_B_PLAN = path.join(FIXTURES, "form-b-plan.md");
+// The single-form BLOCK fixtures — new documents carrying a legacy face (each fails validate on
+// its legacy axis only, the single-form grammar's BLOCK surface).
+const ORPHAN_TASK_PLAN = path.join(FIXTURES, "orphan-task-block-plan.md");
+const FORM_B_PLAN = path.join(FIXTURES, "form-b-anchor-plan.md");
+const SECTION_1_SPEC = path.join(FIXTURES, "section-1-spec-design.md");
+const NEW_SHAPE_FIXTURE = path.join(
+  HERE,
+  "..",
+  "body",
+  "__tests__",
+  "fixtures",
+  "new-shape-plan.md",
+);
 
 const validator = new DocumentsValidator();
 const planType = (): PlanDocType => docTypeRegistry.resolve("plan") as PlanDocType;
 const specType = () => docTypeRegistry.resolve("spec");
 
-// The tree golden (frozen at TASK_BASE 534a321d — the tree is untouched by T5, so the rewired
-// surfaces must produce exactly these outcomes). Per plan: the contiguous task-count, the declared
-// Constraints source (`null` = the pre-existing `## Global Constraints`-era plans declare neither
-// Form A nor the Form-B prose pointers — unchanged), and the merged-read outcome (`merged` = the
-// planConstraintsOf non-null face; the legacy Form B plans read unmerged). Per design spec: the
-// parsed version token + whether the full audit is green (the 13 non-green historical specs carry
-// pre-existing four-table claim results — frozen, never part of the T5 rewiring scope).
-const PLAN_GOLDEN: Record<
-  string,
-  { count: number; src: "declared" | null; merged: "declared" | null }
-> = {
-  "2026-09-13-osuperpowers-overhaul-p1.md": { count: 5, src: null, merged: null },
-  "2026-09-13-osuperpowers-overhaul-p2.md": { count: 6, src: null, merged: null },
-  "2026-09-13-osuperpowers-overhaul-p3.md": { count: 6, src: null, merged: null },
-  "2026-09-13-osuperpowers-overhaul-p4.md": { count: 18, src: null, merged: null },
-  "2026-09-13-osuperpowers-overhaul-p5.md": { count: 19, src: "declared", merged: "declared" },
-  "2026-09-13-osuperpowers-overhaul-p6.md": { count: 31, src: "declared", merged: "declared" },
-  "2026-09-21-consumer-parity-p1.md": { count: 3, src: "declared", merged: "declared" },
-  "2026-09-21-consumer-parity-p2.md": { count: 6, src: "declared", merged: "declared" },
-  "2026-09-21-consumer-parity-p3.md": { count: 8, src: "declared", merged: "declared" },
-  "2026-09-21-consumer-parity-p4.1.md": { count: 10, src: "declared", merged: "declared" },
-  "2026-09-21-consumer-parity-p4.2.md": { count: 12, src: "declared", merged: "declared" },
-  "2026-09-21-consumer-parity-p4.3.md": { count: 11, src: "declared", merged: "declared" },
-  "2026-09-21-consumer-parity-p4.4.md": { count: 11, src: "declared", merged: "declared" },
-  "2026-09-27-pi-harness-p1.md": { count: 4, src: "declared", merged: "declared" },
-  "2026-09-27-pi-harness-p2.md": { count: 6, src: "declared", merged: "declared" },
-  "2026-09-27-pi-harness-p3.md": { count: 9, src: "declared", merged: "declared" },
-  "2026-09-27-pi-harness-p4.md": { count: 8, src: "declared", merged: "declared" },
-  "2026-09-27-pi-harness-p5.md": { count: 9, src: "declared", merged: "declared" },
-  "2026-09-28-cdd-review-contract-fix.md": { count: 9, src: "declared", merged: "declared" },
-  "2026-10-02-doc-architecture-v2-p1.md": { count: 7, src: "declared", merged: "declared" },
-  "2026-10-02-doc-architecture-v2-p2.md": { count: 7, src: "declared", merged: "declared" },
-};
-
-const SPEC_GOLDEN: Record<string, { version: string | null; green: boolean }> = {
-  "2026-09-13-osuperpowers-overhaul-p1-design.md": { version: "v1.0", green: false },
-  "2026-09-13-osuperpowers-overhaul-p2-design.md": { version: "v1.0", green: false },
-  "2026-09-13-osuperpowers-overhaul-p3-design.md": { version: "v1.2", green: false },
-  "2026-09-13-osuperpowers-overhaul-p4-design.md": { version: "v1.0", green: false },
-  "2026-09-13-osuperpowers-overhaul-p5-design.md": { version: "v1.0", green: false },
-  "2026-09-13-osuperpowers-overhaul-p6-design.md": { version: "v1.21", green: false },
-  "2026-09-21-consumer-parity-p1-design.md": { version: "v1.1", green: false },
-  "2026-09-21-consumer-parity-p2-design.md": { version: "v1.4", green: false },
-  "2026-09-21-consumer-parity-p3-design.md": { version: "v1.2", green: false },
-  "2026-09-21-consumer-parity-p4.1-design.md": { version: "v1.5", green: false },
-  "2026-09-21-consumer-parity-p4.2-design.md": { version: "v1.2", green: false },
-  "2026-09-21-consumer-parity-p4.3-design.md": { version: "v1.7", green: false },
-  "2026-09-21-consumer-parity-p4.4-design.md": { version: "v1.9", green: false },
-  "2026-09-27-pi-harness-p1-design.md": { version: "v1.5", green: true },
-  "2026-09-27-pi-harness-p2-design.md": { version: "v1.2", green: true },
-  "2026-09-27-pi-harness-p3-design.md": { version: "v1.6", green: true },
-  "2026-09-27-pi-harness-p4-design.md": { version: "v1.6", green: true },
-  "2026-09-27-pi-harness-p5-design.md": { version: "v1.3", green: true },
-  "2026-10-02-doc-architecture-v2-p1-design.md": { version: "v1.1", green: true },
-  "2026-10-02-doc-architecture-v2-p2-design.md": { version: "v1.1", green: true },
-};
-
-// The pre-rewire extractor files — the negative grep scope (see the projection-single-source suite).
+// The pre-rewire extractor files — the negative grep scope (see the projection-single-source
+// suite). The task-heading / constraints-heading regex literals must not be hand-written in the
+// extractor planes — the readers use the body projection.
 const EXTRACTOR_FILES = [
   "documents/doctypes/plan.ts",
   "documents/doctypes/shared.ts",
@@ -109,72 +63,8 @@ const EXTRACTOR_FILES = [
   "render/brief.ts",
 ];
 
-describe("legacy six-section spec — the dual-read spec face", () => {
-  it("detect + validate + parse all green (the P1-era shape, no `## Design` marker)", () => {
-    expect(validator.detectDocKind(LEGACY_SPEC)).toBe("spec");
-    expect(specType().validate(LEGACY_SPEC, { root: REPO_ROOT })).toEqual([]);
-    expect(specType().parse(LEGACY_SPEC, { root: REPO_ROOT })).toBe("v1.0");
-    // The six-section fixture carries no `## Design` — the new-skeleton assertions never fire.
-    expect(readFileSync(LEGACY_SPEC, "utf8")).not.toMatch(/\n## Design\s*\n/);
-  });
-
-  it("legacy constraint read kept — no merged read ever applies (specConstraintsOf null, the Section 1 prose untouched)", () => {
-    // The old read path is the doc's own `## Section 1: Constraints pointer` prose — the merge
-    // machine (specConstraintsOf) returns null for a legacy spec, so the constraint presentation
-    // does not change because of the spec-side merge surface.
-    expect(validator.specConstraintsOf(LEGACY_SPEC, REPO_ROOT)).toBeNull();
-    const content = readFileSync(LEGACY_SPEC, "utf8");
-    expect(content).toContain("## Section 1: Constraints pointer");
-    expect(content).toMatch(/仅指针/);
-    // No merged-inherited presentation is ever injected into the legacy read.
-    expect(content).not.toContain("Parent overall — inherited");
-  });
-});
-
-describe("Form B plan — the dual-read plan face", () => {
-  it("detect + validate + parse all green (prose-pointer deltas + legacy `- **Do**:` bodies)", () => {
-    expect(validator.detectDocKind(FORM_B_PLAN)).toBe("plan");
-    expect(planType().validate(FORM_B_PLAN, { root: REPO_ROOT })).toEqual([]);
-    const parsed = planType().parse(FORM_B_PLAN, { root: REPO_ROOT }) as PlanParse;
-    expect(parsed.taskNumbers).toEqual([1, 2]);
-    // The legacy block (no data-field markers) parses no Task record — the brief still renders
-    // from the section text (the legacy face is left untouched).
-    expect(planType().tasksFromPlan(FORM_B_PLAN)).toEqual([]);
-  });
-
-  it("Form B constraints extraction kept — the prose-pointer deltas in canonical order, unmerged", () => {
-    const content = readFileSync(FORM_B_PLAN, "utf8");
-    const expected = [
-      "**口径**：mouthpiece constraint",
-      "",
-      "**commit 边界机制（本 program 全 phase 生效）**：commit-boundary constraint",
-      "",
-      "**Flow Atomicity**：flow-atomicity constraint",
-      "",
-      "**顺序原则（spec §2.4）**：ordering-principle constraint",
-      "",
-    ].join("\n");
-    expect(planType().extractPlanConstraints(content)).toBe(expected);
-    expect(validator.planConstraintsOf(FORM_B_PLAN, REPO_ROOT)).toBe(expected);
-  });
-
-  it("brief extraction keeps slicing legacy `### Task N:` sections (both tasks, one base)", async () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "dual-read-brief-"));
-    const out = path.join(dir, "tasks-1,2-brief.md");
-    try {
-      await new BriefRenderer().render(FORM_B_PLAN, [1, 2], out, REPO_ROOT);
-      const text = readFileSync(out, "utf8");
-      expect(text).toMatch(/^### Task 1: keep the legacy read/m);
-      expect(text).toMatch(/^### Task 2: keep the task-heading parse/m);
-      expect(text).toMatch(/^TASK_BASE: [0-9a-f]{40}$/m);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-});
-
-describe("extractor projection single-source — the three parse families derive from the plan body", () => {
-  it("the projected slice set carries the task-heading (number-capturing) + Form-A heading + the Form-B anchor family", () => {
+describe("extractor projection single source — the common parse families derive from the plan body", () => {
+  it("the projected slice set carries the task-heading (number-capturing) + the Form-A constraints heading", () => {
     const slices = planBody.projectSlicePatterns();
     // `### Task N:` — the number captured (taskNumbersFromPlan's read face).
     expect(slices.taskHeading.source).toBe("^### Task (\\d+):");
@@ -184,37 +74,6 @@ describe("extractor projection single-source — the three parse families derive
     // `## Constraints` — the Form-A section heading (the shared extraction's injected pattern).
     expect(slices.constraintsHeading.test("## Constraints")).toBe(true);
     expect(slices.constraintsHeading.test("## Global Constraints")).toBe(false);
-    // The Form-B anchor family — `formBAnchor1..4` in canonical declaration order, each scanning
-    // its anchor's heading with the optional qualifier slot.
-    expect(slices.formBAnchor1.test("**口径**：prose")).toBe(true);
-    expect(slices.formBAnchor1.test("**commit 边界机制**：prose")).toBe(false);
-    expect(slices.formBAnchor2.test("**commit 边界机制（本 program 全 phase 生效）**：prose")).toBe(
-      true,
-    );
-    expect(slices.formBAnchor3.test("**Flow Atomicity**：prose")).toBe(true);
-    expect(slices.formBAnchor4.test("**顺序原则（spec §2.4）**：prose")).toBe(true);
-  });
-
-  it("one anchor declaration feeds the shape enum, the DOC_TOKENS tokens and the parse family (zero duplicated literals)", () => {
-    // Walk the projected shape's `constraints.formBProseAnchors.anchors.items` enum leaf (the same
-    // properties-first walk tokens.ts uses).
-    const node = (props: readonly string[]): Record<string, unknown> => {
-      let cur = planBody.projectSchemaShape() as unknown as Record<string, unknown>;
-      for (const key of props) {
-        const viaProps = (cur.properties as Record<string, unknown> | undefined)?.[key];
-        cur = (viaProps ?? cur[key]) as Record<string, unknown>;
-      }
-      return cur;
-    };
-    const enumTokens = node(["constraints", "formBProseAnchors", "anchors", "items"])
-      .enum as readonly string[];
-    expect(enumTokens).toEqual(DOC_TOKENS.proseAnchorTokens);
-    // The four projected anchor slices match the four declared tokens, in order.
-    for (let i = 0; i < enumTokens.length; i++) {
-      expect(planBody.projectSlicePatterns()[`formBAnchor${i + 1}`].test(enumTokens[i]!)).toBe(
-        true,
-      );
-    }
   });
 
   it("grep: no hand-written family regex literal in the extractor files (plan / shared / constraints / brief)", () => {
@@ -245,44 +104,28 @@ describe("extractor projection single-source — the three parse families derive
     expect(bodyRoot).toMatch(/BODY_CONSTRAINTS_HEADING = "## Constraints"/);
     expect(bodyRoot).toMatch(/BODY_CONSTRAINTS_HEADING_RE = new RegExp/);
     expect(bodyRoot).toMatch(/escapeRegExp\(BODY_CONSTRAINTS_HEADING\)/);
-    // The anchor literals are written exactly once in the engine (the PLAN_FORM_B_ANCHOR_TOKENS
-    // const) — deriveDocTokens + the parse family read from it, never re-type it. The only
-    // non-leaf mention is the dispatch/task.ts derivation COMMENT (a `:// `-prefixed doc note,
-    // never code).
-    const anchorHits = execSync(
-      `grep -rnF --include="*.ts" '**口径**：' "${REPO_ROOT}/packages/cdd-engine/src" --exclude-dir="__tests__" || true`,
-      { encoding: "utf8" },
-    );
-    const nonLeafHits = anchorHits
-      .split("\n")
-      .filter(Boolean)
-      .filter((l) => !l.includes("plan-body.ts") && !/:\d+:\/\//.test(l));
-    expect(nonLeafHits).toEqual([]);
   });
 });
 
-describe("full-tree zero-regression — the entire docs/kairos tree (zero changes, zero exclusions)", () => {
-  it("the actual tree composition: 21 plans + 20 design specs + 4 overalls + 1 one-off spec = 46 files", () => {
+describe("full-tree single-form walk — the entire docs/kairos tree (48 files, zero exclusions)", () => {
+  it("the actual tree composition: 22 plans + 21 design specs + 4 overalls + 1 one-off spec = 48 files", () => {
     const plans = readdirSync(PLANS_DIR).filter((f) => f.endsWith(".md"));
     const specs = readdirSync(SPECS_DIR).filter((f) => f.endsWith(".md"));
     const designs = specs.filter((f) => f.endsWith("-design.md"));
     const overalls = specs.filter((f) => f.endsWith("-overall.md"));
     const oneOffs = specs.filter((f) => !f.endsWith("-design.md") && !f.endsWith("-overall.md"));
-    expect(plans).toHaveLength(21);
-    expect(designs).toHaveLength(20);
+    expect(plans).toHaveLength(22);
+    expect(designs).toHaveLength(21);
     expect(overalls).toHaveLength(4);
     expect(oneOffs).toEqual(["2026-09-28-cdd-review-contract-fix.md"]);
   });
 
-  it("every plan: detect + parse + task-heading + constraints-extraction + brief-slice outcomes are the frozen golden (contiguous 1..N)", () => {
+  it("every plan stays processable: detect + contiguous 1..N task headings + parse + brief-slice (no golden — the per-file state table lives in tree-migration.test.ts)", () => {
     for (const file of readdirSync(PLANS_DIR).filter((f) => f.endsWith(".md"))) {
       const planPath = path.join(PLANS_DIR, file);
-      const golden = PLAN_GOLDEN[file];
-      expect(golden, `${file} must be in the tree golden`).toBeDefined();
-      // detect + parse (no throw) + contiguous task numbers == the golden count.
+      // detect + parse (no throw) + contiguous task numbers == the heading count.
       expect(validator.detectDocKind(planPath), file).toBe("plan");
       const nums = planType().taskNumbersFromPlan(planPath);
-      expect(nums.length, file).toBe(golden.count);
       expect(
         nums.every((n, i) => n === i + 1),
         `${file} headings must be contiguous 1..N`,
@@ -291,18 +134,9 @@ describe("full-tree zero-regression — the entire docs/kairos tree (zero change
         (planType().parse(planPath, { root: REPO_ROOT }) as PlanParse).taskNumbers,
         file,
       ).toEqual(nums);
-      // The constraints extraction + merged read keep their golden outcome (legacy Form B reads
-      // unmerged; the four `## Global Constraints`-era plans keep declaring no source — the
-      // pre-existing state the rewire must not change).
-      const content = readFileSync(planPath, "utf8");
-      const src = planType().extractPlanConstraints(content) === null ? null : "declared";
-      expect(src, `${file} constraints source`).toBe(golden.src);
-      expect(
-        validator.planConstraintsOf(planPath, REPO_ROOT) === null ? null : "declared",
-        `${file} merged read`,
-      ).toBe(golden.merged);
       // The brief's exact-header slice match works for every task (the scan + the header both
       // resolve — the same surface BriefRenderer runs per dispatch).
+      const content = readFileSync(planPath, "utf8");
       const lines = content.split("\n");
       for (const n of nums) {
         expect(
@@ -313,18 +147,11 @@ describe("full-tree zero-regression — the entire docs/kairos tree (zero change
     }
   });
 
-  it("every design spec: detect + parse + validate outcomes are the frozen golden (green set unchanged)", () => {
+  it("every design spec stays processable: detect + the version-line parse (the validate state table lives in tree-migration.test.ts)", () => {
     for (const file of readdirSync(SPECS_DIR).filter((f) => f.endsWith("-design.md"))) {
       const specPath = path.join(SPECS_DIR, file);
-      const golden = SPEC_GOLDEN[file];
-      expect(golden, `${file} must be in the golden`).toBeDefined();
       expect(validator.detectDocKind(specPath), file).toBe("spec");
-      expect(specType().parse(specPath, { root: REPO_ROOT }), file).toBe(golden.version);
-      const failures = specType().validate(specPath, { root: REPO_ROOT });
-      // Every design spec's full-audit outcome is byte-frozen: the 7 green specs (pi-harness p1–p5
-      // + this program's p1/p2 — the `自身旧形` docs) stay green; the 13 historical specs carry
-      // pre-existing four-table claim results that T5 must not touch.
-      expect(failures.length === 0, `${file} validate outcome`).toBe(golden.green);
+      expect(specType().parse(specPath, { root: REPO_ROOT }), file).toMatch(/^v\d+\.\d+$/);
     }
   });
 
@@ -334,10 +161,133 @@ describe("full-tree zero-regression — the entire docs/kairos tree (zero change
     }
   });
 
-  it("the one-off spec (2026-09-28-cdd-review-contract-fix.md) is the sole pre-existing non-detecting tree doc — documented, not silently excluded", () => {
+  it("the one-off spec (2026-09-28-cdd-review-contract-fix.md) is the sole non-detecting tree doc — documented, not silently excluded", () => {
     // The one-off single-spec (neither a `-design.md` phase spec nor a plan) matches no registered
-    // doc type — the pre-T5 state, kept out of the dual-read coverage by shape, not by exclusion.
+    // doc type — the tree-migration tolerance (kept out of the canonical count by shape, never by
+    // silent exclusion).
     const oneOff = path.join(SPECS_DIR, "2026-09-28-cdd-review-contract-fix.md");
     expect(() => validator.detectDocKind(oneOff)).toThrow(/no registered doc type/);
+  });
+});
+
+describe("single-form grammar — a NEW document carrying a legacy face fails docContractValidate (T3 BLOCK)", () => {
+  /** Write a doc to a temp dir and return its path (the inline single-form negatives — the same
+   *  doctored-file surface the body tests use). The caller removes the dir. */
+  function tempDoc(content: string, name: string = "doctored.md"): string {
+    const dir = mkdtempSync(path.join(tmpdir(), "single-form-"));
+    const p = path.join(dir, name);
+    writeFileSync(p, content);
+    return p;
+  }
+
+  it("orphan task block: a `- **Do**:`-face `### Task N:` block (no data-shaped fields) → plan validate fail", () => {
+    const failures = planType().validate(ORPHAN_TASK_PLAN, { root: REPO_ROOT });
+    expect(failures.length).toBeGreaterThan(0);
+    expect(failures.some((f) => /orphan task block/i.test(f.missing))).toBe(true);
+  });
+
+  it("Form B constraints: prose-anchor declarations declare NO `## Constraints` source → plan validate fail (source undeclared BLOCK)", () => {
+    const failures = planType().validate(FORM_B_PLAN, { root: REPO_ROOT });
+    expect(failures.some((f) => f.field === "Constraints source")).toBe(true);
+  });
+
+  it("spec `## Section 1`: a six-section spec (no `## Design` three-truth skeleton) → spec validate fail (skeleton assertions fire)", () => {
+    const failures = specType().validate(SECTION_1_SPEC, { root: REPO_ROOT });
+    expect(failures.some((f) => f.field === "`## Design`")).toBe(true);
+    expect(failures.some((f) => f.field === "`### Acceptance criteria`")).toBe(true);
+    expect(failures.some((f) => f.field === "`## Constraints`")).toBe(true);
+  });
+
+  it("an inline `- **Do**:` plan and an inline `## Section 1` spec reproduce the fixture verdicts (no fixture-only trap)", () => {
+    const orphan = tempDoc(
+      [
+        "# Plan",
+        "",
+        "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
+        "",
+        "## Constraints",
+        "",
+        "- delta",
+        "",
+        "### Task 1: x",
+        "- **Do**: legacy action",
+        "",
+      ].join("\n"),
+    );
+    try {
+      const failures = planType().validate(orphan, { root: REPO_ROOT });
+      expect(failures.some((f) => /orphan task block/i.test(f.missing))).toBe(true);
+    } finally {
+      rmSync(path.dirname(orphan), { recursive: true, force: true });
+    }
+    const section1 = tempDoc(
+      [
+        "# Demo P1 — Phase Spec",
+        "",
+        "- **Version**: v1.0 · 2026-09-21",
+        "",
+        "## Section 1: Constraints pointer",
+        "",
+        "cross-phase conventions live in the parent overall — pointer only.",
+        "",
+      ].join("\n"),
+    );
+    try {
+      const failures = specType().validate(section1, { root: REPO_ROOT });
+      expect(failures.some((f) => f.field === "`## Design`")).toBe(true);
+    } finally {
+      rmSync(path.dirname(section1), { recursive: true, force: true });
+    }
+  });
+
+  it("a legacy `## Task Groups` dispatch-group section → plan validate fail (unknown section — the shape-node-deleted single-form face)", () => {
+    // The dispatch-group declaration is gone from the shape (T4): the single-form plan owns exactly
+    // the `## Constraints` top-level section, so a NEW document carrying the retired `## Task Groups`
+    // section is an unknown-section BLOCK — never silently parsed or swept under the data records.
+    const taskGroups = tempDoc(
+      [
+        "# Plan",
+        "",
+        "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
+        "",
+        "## Constraints",
+        "",
+        "- delta",
+        "",
+        "## Task Groups",
+        "",
+        "- **Task 1, 2**: merged",
+        "",
+        "### Task 1: x",
+        "- **Objective**: task one",
+        "- **Steps**:",
+        "  1. implement — checkable: done",
+        "- **Acceptance**:",
+        "  - done",
+        "",
+        "### Task 2: y",
+        "- **Objective**: task two",
+        "- **Steps**:",
+        "  1. implement — checkable: done",
+        "- **Acceptance**:",
+        "  - done",
+        "",
+      ].join("\n"),
+    );
+    try {
+      const failures = planType().validate(taskGroups, { root: REPO_ROOT });
+      expect(failures.some((f) => f.field === "Sections")).toBe(true);
+      expect(failures.some((f) => /## Task Groups/.test(f.missing))).toBe(true);
+    } finally {
+      rmSync(path.dirname(taskGroups), { recursive: true, force: true });
+    }
+  });
+
+  it("the p3 canonical plan carries the only legal top-level section — the unknown-section gate stays silent on the declared `## Constraints` surface", () => {
+    // Backstop: the unknown-section gate must not misfire on a conforming plan (the canonical
+    // new-shape fixture carries exactly the `## Constraints` section) — the gate blocks only what the
+    // shape no longer declares.
+    const failures = planType().validate(NEW_SHAPE_FIXTURE, { root: REPO_ROOT });
+    expect(failures.some((f) => f.field === "Sections")).toBe(false);
   });
 });

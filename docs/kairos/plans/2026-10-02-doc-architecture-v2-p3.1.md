@@ -3,7 +3,7 @@
 **Spec:** [2026-10-02-doc-architecture-v2-p3.1-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3.1-design.md)（spec v1.6）
 
 - **Parent program**: [doc-architecture-v2-overall.md v1.14](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.5 · 2026-10-07
+- **Version**: v1.6 · 2026-10-07
 - **Depends on**: P3（shipped · [p3-design v1.1](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3-design.md)）
 - **Base**: develop
 
@@ -21,6 +21,7 @@
   - 反依赖门误伤面——编号单调断言只拦 `DependsOn` 引用 ≥ 自身；`none`/空/越界（> taskCount）不触发反依赖；T3 负例集
 - 死代码/空壳全平面清理（P3.1 补充条例 2026-10-06 用户）：各迁移/引擎任务先删后验——退役符号/废弃夹具/空壳叶零残留；存量 plan 未解析 steps 面（`- [ ]` 散文行）在 T3 一并规范化 `N. … — checkable:`（每步含 checkable）
 - **编排状态机一体重建（spec v1.6 · 用户 2026-10-06 拍板）**：边模型单边化（`DependsOn` 唯一 · `AtomicWith`/`taskGroups` 退役）+ 反依赖门 + TaskGraph `batches()`/`frontier(done)` 两面 + `next:` 组间推荐 + skills 编排精简一体落地本 phase（group-next 从 P5 摘回）；同行变更经 overall v1.14 / spec v1.6 登记
+- **父面消解待办登记（交编排方随父面下轮修订落位 · 本 plan 冻结期不并改冻结父面）**：(a) 父 overall v1.14（本 plan 锚定面）P3.1 执行序行「统一引擎落地（F9）」与 F1–F7 清单不符（F6 = 统一结构规则引擎）——修订为 F6 或删除；(b) 父 overall v1.12 change-history ②「`DependsOn` 不用 `none`（缺行 = 无边）」与本 phase 词法（none/空均合法，见本 plan「全树每块单边绑定」）字面矛盾——T7 向 cdd-plan SKILL 写「`none` 显式」撰作指导前须先消解：none 词法 / 留空二选一；（a)/(b) 均纳入 T8 终验 / branch-review 检查面复核在位，防待办随阶段丢失
 
 ---
 
@@ -113,10 +114,10 @@
   - 3. 全树 19 份 specs 迁移（双层）——checkable: 迁移对象 = 严格 pattern 命中 173 中除 2 条豁免散文外的 171 处独立 bold（编号式 78 · § 式 87 · 其他式 6）→ `#### N.M <原文本逐字>`（含 `§` 原文保留），**并按 N 归组在其前补 `### N.` 分组头**（组名取该 § 主题，源自各 spec 段落）；2 条豁免散文（osuperpowers-overhaul-p1 L113 核对清单断言 · osuperpowers-overhaul-p5 L88 删除面 bold-bookend）逐行 pin、不迁移；文件可混式逐字处理；2 份零独立文件不动
   - 4. fixtures 核查——checkable: 正例 spec fixtures（`new-shape-phase-spec-design` / `zero-residue-phase-spec-design`）在 rules 下零命中；负例夹具 `section-1-spec-design.md` 仅原失败轴
   - 5. designItems 开枪负例 + pre-flight 可达范围——checkable: 新增负例夹具 `pseudo-heading-design.md`（一条独立 bold 行 → 伪标题残留 BLOCK）与 `hollow-item-design.md`（分组头/项叶空体→ BLOCK）与 `misbound-item-design.md`（`#### N.M` 归属未声明分组 → 归属 BLOCK），落 `body/__tests__/fixtures/`，经 docContractValidate 断言 BLOCK finding；dispatch pre-flight 可达范围同 spec（plan 型 dispatch · spec 型规则落验证器/树套件层）
-  - 6. 双层层级 pin——checkable: 19 份文件 `### N.` 分组头连续性 + `#### N.M` 归属 + 标题逐字 pin；迁移后残留 = specs 面严格 pattern 命中且仅 2 条豁免散文（逐行 pin）· 全树（50 文件）= 且仅 2 条豁免散文，法外零残留；空体/hollow 零；tree-migration 套件全绿
+  - 6. 双层层级 pin——checkable: 19 份文件 `### N.` 分组头连续性 + `#### N.M` 归属 + 标题逐字 pin；迁移后残留 = specs 面严格 pattern 命中且仅 2 条豁免散文（逐行 pin）· 全树（50 文件）= 且仅 3 条豁免散文（逐行 pin，增 cdd-review-contract-fix L22 bold-bookend 流水），法外零残留；空体/hollow 零；tree-migration 套件全绿
   - 7. 提交——checkable: 提交，pre-commit 通过
 - **Acceptance**:
-  - `- ` design spec 双层层级：`### N.` 分组头连续性 + `#### N.M` 归属断言 + 计数 + 标题逐字 pin；空体/hollow 零；独立 bold 行伪标题零残留（pattern grep 命中 = 且仅 2 条豁免散文逐行 pin · 法外零残留）
+  - `- ` design spec 双层层级：`### N.` 分组头连续性 + `#### N.M` 归属断言 + 计数 + 标题逐字 pin；空体/hollow 零；独立 bold 行伪标题零残留（pattern grep 命中 = 且仅 3 条豁免散文逐行 pin · 法外零残留——第三条 = cdd-review-contract-fix L22 bold-bookend 流水，spec §2.4 计数对账）
   - `- ` `###` 契约升级在位：Acceptance 唯一锚 + 分组头 allowlist（双层层级负例/misbound-fixture 断言）
   - `- ` pattern 无误伤：2 份零独立文件 + lead-in/code-span 负例零命中
   - `- ` `phase-spec.json` 派生字节保真；engine suite + 树套件全绿
@@ -136,7 +137,7 @@
 - **Steps**:
   - 1. charter 规则——checkable: facets presence 恒为不变式，锚名按家族参数化（doc-arch：`Goal`/`Non-goals`/`Cross-cutting`；pi-harness：`Goal`/`Non-goals`/`Cross-cutting`（行尾后缀注解原文保留）；consumer-parity：`Goal`/`Non-goals`/`Cross-cutting constraints`；osuperpowers-overhaul：goal 锚 = charter 开篇散文 +「cdd-engine 服务化主线（2026-09-13 用户升维）」标记、`Non-goals`、`Cross-cutting constraints`）——升秩后以各自原文为 `###` 锚、presence 按之执法；overall-body slice 的 anchor pattern 允许行尾后缀注解（避免把「**Cross-cutting**（…）」误判）；决策留存/决策组/背书「存在才执法」（doc-arch 全量枚举 · 另三份无此面不枚举）；伪标题残留 BLOCK（与 T4 同 pattern，overall 侧）
   - 2. 全树 4 overalls 迁移——checkable: doc-arch overall 10 标记升秩（facets `###` · 决策留存 `###` · 决策组/背书 `####`，逐字含 `§` 类原文）；另三份三 facets → `###`（逐字，锚名按步骤1 家族表原样升秩——pi-harness「Cross-cutting（后缀注解）」原文保留 · consumer-parity/osuperpowers「Cross-cutting constraints」原样 · osuperpowers-overhaul goal 以开篇散文 + 服务化主线标记锚定）；`## Boundary rules`/`## Maintenance` 不动
-  - 3. pin + schema 派生——checkable: tree-migration 增 charter 升秩在位断言（各 overall 既有标记按家族锚名升秩后逐字在校）；全树严格 pattern 命中 = 且仅 2 条豁免散文（逐行 pin），法外零残留；`overall.json` 派生字节保真（factory diff pin 绿）
+  - 3. pin + schema 派生——checkable: tree-migration 增 charter 升秩在位断言（各 overall 既有标记按家族锚名升秩后逐字在校）；全树严格 pattern 命中 = 且仅 3 条豁免散文（逐行 pin，增 cdd-review-contract-fix L22 bold-bookend 流水——spec §2.4 计数对账），法外零残留；`overall.json` 派生字节保真（factory diff pin 绿）
   - 4. overall 侧开枪负例 + pre-flight 可达范围——checkable: 新增 overall 负例夹具 `pseudo-heading-overall.md`（一条独立 bold 行 → charter 伪标题残留 BLOCK）落 `packages/cdd-engine/src/documents/doctypes/body/__tests__/fixtures/`，经 docContractValidate 断言 BLOCK finding；「存在才执法」负例由三份 legacy overall 无决策面零命中覆盖（树套件）；dispatch pre-flight 可达范围同 T4：`cdd implement`/`cdd review` 解析 plan 型，overall 型规则经 docContractValidate 各 doc type 挂载（T1 步骤3），firing 负例落验证器/树套件层——spec 验收第 7 条据此不缩水为仅 edges
   - 5. 提交——checkable: 提交，pre-commit 通过
 - **Acceptance**:

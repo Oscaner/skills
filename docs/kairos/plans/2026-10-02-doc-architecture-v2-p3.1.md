@@ -3,14 +3,14 @@
 **Spec:** [2026-10-02-doc-architecture-v2-p3.1-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3.1-design.md)
 
 - **Parent program**: [doc-architecture-v2-overall.md v1.9](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.2 · 2026-10-06
+- **Version**: v1.3 · 2026-10-06
 - **Depends on**: P3（shipped · [p3-design v1.1](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3-design.md)）
 - **Base**: develop
 
 ## Constraints
 
 - 每任务保持树全绿：规则迁移、其对应文档迁移、pin 更新三件同任务落地（中间态零红——引擎 `missing-edge`/designItems/charter 规则一经挂上即执法，全树必须已 conformant 或同任务迁完）
-- 本 P3.1 plan 自证新政：所有任务块双边行已在位（真实依赖或 `none`）；P3.1 design 已是 `####` 秩——全树迁移任务（T3/T4/T5）的存量面不含本家族文档，但 tree-migration pin 覆盖之
+- 本 P3.1 plan 自证新政：所有任务块单边 `- **DependsOn**:` 行已在位（真实依赖或 `none`）；P3.1 design 已是 `####` 秩——全树迁移任务（T3/T4/T5）的存量面不含本家族文档，但 tree-migration pin 覆盖之
 - 引擎规则一律经 body 叶规则数据 + `rules/structure.ts` 单解释器；手写文本遍历零新增（spec 约束「统一引擎边界」继承适用，graph 科学留 TaskGraph、跨文档链留 P5）
 - 风险钉（全树绿 · 负例单轴 · 词法边界 · 伪标题无误伤 · lint 噪音）归任务：
   - 规则引擎挂载后存量树未迁移即红——T3/T4/T5 各自「规则 + 全树迁移 + pin」同任务落地（首条），T8 终验断言全树绿
@@ -18,7 +18,9 @@
   - `none`/空与 integer gate 边界——`none`/空 → `[]`；`abc`、`1;2` 等非法 token 保持 NaN 拒绝，绝不静默吞；T3 负例集
   - 伪标题 pattern 误伤面——独立 bold 行唯一定义；行内 lead-in bold / code span 不误判；T4 对 2 份零独立文件（cp-p4.1 / doc-arch-p3）断言零命中
   - 引用 lint 噪音面——`files`/`steps`/code span 不计；越界 N 豁免；已声明边不重复告警；每块至多一条聚合 WARN；T6 负例集
+  - 反依赖门误伤面——编号单调断言只拦 `DependsOn` 引用 ≥ 自身；`none`/空/越界（> taskCount）不触发反依赖；T3 负例集
 - 死代码/空壳全平面清理（P3.1 补充条例 2026-10-06 用户）：各迁移/引擎任务先删后验——退役符号/废弃夹具/空壳叶零残留；存量 plan 未解析 steps 面（`- [ ]` 散文行）在 T3 一并规范化 `N. … — checkable:`（每步含 checkable）
+- **编排状态机一体重建（spec v1.4 · 用户 2026-10-06 拍板）**：边模型单边化（`DependsOn` 唯一 · `AtomicWith`/`taskGroups` 退役）+ 反依赖门 + TaskGraph `batches()`/`frontier(done)` 两面 + `next:` 组间推荐 + skills 编排精简一体落地本 phase（group-next 从 P5 摘回）；同行变更经 overall v1.12 / spec v1.4 登记
 
 ---
 
@@ -28,7 +30,6 @@
 - **Consumes**: `DocBody` / `SlicePatternSet`（doc-body.ts）· `DocType`（doctype.ts）· `docTypeRegistry`（registry.ts）
 - **Produces**: `StructureRule` / `StructurePlane` / `StructureInvariant` / `StructureFinding` / `runStructureRules(content, rules): StructureFinding[]`——T2–T6 规则集与 T8 终验依赖此签名
 - **DependsOn**: none
-- **AtomicWith**: none
 - **Files**:
   - Create: `packages/cdd-engine/src/rules/structure.ts`
   - Modify: `packages/cdd-engine/src/documents/doctypes/body/doc-body.ts`（DocBody 增 `structureRules(): StructureRule[]`，默认 `[]`）
@@ -51,7 +52,6 @@
 - **Consumes**: T1 的 `runStructureRules` / `StructureRule` / DocBody 缝
 - **Produces**: 三类型 `structureRules()` 全量规则集（行为等价于 T0 手写面）· `DocumentsValidator.structureFindings` 成为树套件唯一判定入口——T3–T6 的新规则（边完备/designItems/charter/引用 lint）以其为挂载点
 - **DependsOn**: 1
-- **AtomicWith**: none
 - **Files**:
   - Create: `packages/cdd-engine/src/documents/doctypes/body/overall-body.ts`（OVERALL_SHAPE 归位 + slices + 四表规则）
   - Modify: `packages/cdd-engine/src/documents/doctypes/phase-spec.ts`（`#skeletonFailures` → body 规则）
@@ -74,33 +74,35 @@
 
 ### Task 3: plan 边完备（missing-edge 第六类 + 全树 plans 边行迁移）
 
-- **Objective**: 边字段 mandatory（每任务块必带 `- **DependsOn**:`/`- **AtomicWith**:` 两行 · `none`/空 → `[]` · 缺行 = 第六 failure class missing-edge BLOCK）+ Task 非可选化 + 全树 22 份存量 plans / 214 块补边行 + tree-migration pin——使「忘写边」从静默默认变成显式 BLOCK；补充条例面：存量 plans 未解析 steps 面（`- [ ]` 散文行 → `N. … — checkable:`）一并规范化（死壳清理）
+- **Objective**: TaskGraph 静态面重建（边模型单边化 + validate 重建 + 波次推导 + 全树 plans 单边化迁移）——`- **AtomicWith**:`/`taskGroups` 声明面退役（死壳即删：读取面/对称闭包/矛盾边检查/schema 字段/夹具/pins/SKILL 双边描述零残留）· `- **DependsOn**:` 唯一有向边（`none`/空/真实值 · 缺行 = 第六 failure class missing-edge BLOCK）· **反依赖门**（仅可引用更小编号 · 引用 ≥ 自身 = BLOCK——编号序 = 拓扑线性化锚）· `batches()` 波次推导（编号升序就绪层）· `effectiveGroups` 切波次消费 + 全树 22 份存量 plans 单边化迁移 + tree-migration pin——分组 = 波次（分 groups 初衷 = 减 implement 轮次），声明分组退役；补充条例面：存量 plans 未解析 steps 面（`- [ ]` 散文行 → `N. … — checkable:`）一并规范化（死壳清理）
 - **Consumes**: T1 引擎 + T2 plan 规则集
-- **Produces**: `missing-edge` 第六 failure class 判定 · `none` 词法解析 · `Task.dependsOn/atomicWith: number[]`（非可选）——T6 引用 lint 与 T8 终验依赖
+- **Produces**: `validate()` 重建（crisp 集 + missing-edge + 反依赖门）· `batches()` 波次推导 · `effectiveGroups` 波次消费 · 全树单边化状态（`AtomicWith` 全树零残留 grep）——T6 引用 lint 与 T7 frontier/next 路由器依赖
 - **DependsOn**: 2
-- **AtomicWith**: none
 - **Files**:
-  - Modify: `packages/cdd-engine/src/documents/doctypes/plan.ts`（`parseTaskBlock` 缺边行 → missingEdge · `none`/空 → `[]` · integer gate 保留）
-  - Modify: `packages/cdd-engine/src/documents/doctypes/body/task.ts`（`TaskOpts.dependsOn/atomicWith` 非可选，缺省 `[]`）
-  - Modify: `packages/cdd-engine/src/documents/doctypes/body/plan-body.ts`（PLAN_BODY_SHAPE task `required` += `dependsOn`/`atomicWith` + description 更新 + `structureRules()` += 边完备规则）
-  - Modify: `packages/cdd-engine/config/schema/plan.json`（SchemaFactory 派生产物字节保真更新——经 body shape 派生动线，非手写）
-  - Modify: `packages/cdd-engine/src/documents/doctypes/__tests__/tree-migration.test.ts`（pin += 每块两边行存在 + 各 plan 边行计数）· `__tests__/dual-read.test.ts`（48 文件行走含边行面）
-  - Modify: `packages/cdd-engine/src/documents/doctypes/body/__tests__/task.test.ts`（absent-default pin 退役）· `body/__tests__/plan-body.test.ts`（新词法用例）
-  - Modify: `packages/cdd-engine/src/documents/doctypes/__tests__/fixtures/` + `body/__tests__/fixtures/` + `packages/cdd-engine/src/cli/__tests__/fixtures/smoke-plan.md`（正例夹具补边行；负例夹具保持单轴失败语义）
-  - 迁移: `docs/kairos/plans/*.md`（22 份存量，214 块）
+  - Modify: `packages/cdd-engine/src/documents/doctypes/body/task-graph.ts`（`validate` 重建：P3 crisp 集 + missing-edge + 反依赖门；`batches(): TaskBatch[]` 波次；atomicWith 读取面/对称传递闭包/矛盾边检查删除）
+  - Modify: `packages/cdd-engine/src/documents/doctypes/plan.ts`（`parseTaskBlock` 单边扫描 `DependsOn` · `none`/空 → `[]` · integer gate 保留 · missingEdge 记录）
+  - Modify: `packages/cdd-engine/src/documents/doctypes/body/task.ts`（`TaskOpts.dependsOn` 非可选缺省 `[]` · `atomicWith` 字段删除）
+  - Modify: `packages/cdd-engine/src/documents/doctypes/body/plan-body.ts`（PLAN_BODY_SHAPE task `required` += `dependsOn` · description 更新 · `structureRules()` += 边完备 + 反依赖规则）
+  - Modify: `packages/cdd-engine/config/schema/plan.json`（SchemaFactory 派生产物字节保真更新——单边面，非手写）
+  - Modify: `packages/cdd-engine/src/dispatch/base.ts` + `dispatch/task.ts` + `rules/closeout.ts` + `rules/status.ts`（`effectiveGroups` 改消费 `batches()` 波次 · taskGroups record 退役）
+  - Modify: `packages/cdd-engine/src/documents/doctypes/__tests__/tree-migration.test.ts`（pin：每块单边行 + 波次拆分断言）· `__tests__/dual-read.test.ts`（48 文件行走单边边行面）
+  - Modify: `packages/cdd-engine/src/documents/doctypes/body/__tests__/task.test.ts`（absent-default pin 退役）· `body/__tests__/plan-body.test.ts`（单边词法 + 反依赖用例）· `body/__tests__/task-graph.test.ts`（validate 重建 + batches）
+  - Modify: `body/__tests__/fixtures/` + `dispatch/__tests__/fixtures/`（原子分量类夹具按波次核对）+ 新增 `forward-edge-plan` 负例夹具
+  - 迁移: `docs/kairos/plans/*.md`（22 份存量，214 块——`AtomicWith` 行全树删除 · `DependsOn` 单行保留/补全）
 - **Steps**:
-  - 1. 词法与缺行——checkable: `parseTaskBlock` 对每块扫描两边行；缺任一 → `missingEdge` 记录（新 failure class）；`none`/空值 → `[]`；`1, 2` 走 Number 门；非法 token（`abc`/`1;2`）NaN 拒绝保持
-  - 2. Task 非可选化 + shape required——checkable: `Task` 构造字段非可选（缺省 `[]`）；PLAN_BODY_SHAPE `required` += 两字段；`plan.json` 派生产物字节保真更新（factory diff pin 绿）
-  - 3. 负例/正例测试 + dispatch pre-flight 负例——checkable: 缺边行 → `missing-edge` BLOCK 负例；`none` → `[]`；空 → `[]`；非法 token NaN 拒绝；task.test.ts absent-default pin 退役；dispatch 层负例（缺边 plan → `cdd implement`/`cdd review` pre-flight 经 docContractValidate BLOCK——dry-run 负例断言）
-  - 4. 夹具迁移——checkable: 正例夹具（`new-shape-plan` / `smoke-plan` / `edge-plan` 等）补齐边行后全绿；负例夹具（`orphan-task-block-plan` / `form-b-anchor-plan`）补 `none` 两行以保持「仅孤块/legacy 单轴失败」语义（dual-read 单轴断言不破）
-  - 5. 全树 22 plans 迁移——checkable: 22 份存量 plans 每个任务块补两行（真实值保留既有 `AtomicWith`；无真实边者 `none`）——214 块两边行齐备；本 P3.1 plan 已 conformant 不迁移；同批次规范化未解析 steps 面——每任务块 steps 段全解析（`N. … — checkable:` 每步含 checkable），零未解析行
-  - 6. tree-migration pin 更新——checkable: 每 plan 任务块两边行存在断言 + 各文件边行计数 pin；tree-migration 20/20 绿
+  - 1. 单边词法 + 缺行——checkable: `parseTaskBlock` 对每块扫描 `- **DependsOn**:` 单行；缺行 → `missingEdge` 记录（第六 failure class）；`none`/空 → `[]`；`1, 2` 走 Number 门；非法 token（`abc`/`1;2`）NaN 拒绝保持
+  - 2. 反依赖门——checkable: `validate()` 断言每条边引用目标编号 < 源编号；新增负例夹具 `forward-edge-plan`（T5 依赖 T10）→ BLOCK；越界 N（> taskCount）/`none`/空不触发反依赖；P3.1 自身树核查零违规
+  - 3. 波次推导 + effectiveGroups 切波次——checkable: `batches()` 对 P3.1 自身 DependsOn（T1→T2→{T3,T4,T5}→T6→T7→T8）产出 6 波次拆分断言；`effectiveGroups` 改调 `batches()`（taskGroups record 退役）；atomicWith 读取面/对称闭包/矛盾边检查删除（grep 零残留）
+  - 4. 负例/正例测试 + dispatch pre-flight 负例——checkable: 缺边 → `missing-edge` BLOCK 负例；`none` → `[]`；空 → `[]`；非法 token NaN 拒绝；task.test.ts absent-default pin 退役；dry-run 负例（缺边 plan → `cdd implement`/`cdd review` pre-flight 经 docContractValidate BLOCK）
+  - 5. 全树 22 plans 单边化迁移——checkable: `- **AtomicWith**:` 行全树删除（3 份真实值 plan 的对称分量随波次推导天然同层覆盖）；`DependsOn` 单行保留/补全（真实值或 `none`）——214 块单边行齐备；全树反依赖核查零违规；同批次 steps 规范化（`N. … — checkable:` 每步含 checkable，零未解析行）
+  - 6. 死壳清理 + tree-migration pin——checkable: atomicWith/taskGroups 读取面 · 对称闭包 · 矛盾边检查 · schema 字段 · 夹具 · pins · SKILL 双边描述 grep 零命中；每 plan 任务块单边行存在 + 各 plan 波次拆分 pin；tree-migration 20/20 绿
   - 7. 提交——checkable: 提交（engine + 树），pre-commit 通过
 - **Acceptance**:
-  - `- ` 每 plan 任务块两边行存在（`none`/空/真实值合法）；缺行 = plan validate BLOCK（第六 failure class 负例断言）
-  - `- ` `none`/空 → `[]` · 非法边 token 保持 NaN 拒绝（负例集断言）
-  - `- ` `Task.dependsOn/atomicWith` 非可选（缺省 `[]`）；`plan.json` 派生字节保真
-  - `- ` dispatch pre-flight（`cdd implement`/`cdd review`）覆盖边完备（dry-run 负例）；全树 plans 边行齐备（tree-migration pin）；engine suite + 树套件全绿
+  - `- ` 每 plan 任务块单边 `DependsOn` 行存在（`none`/空/真实值合法）；缺行 = plan validate BLOCK（missing-edge 第六类负例断言）
+  - `- ` 反依赖门：引用目标 ≥ 源编号 = BLOCK（`forward-edge-plan` 负例）· 全树现有边零违规
+  - `- ` `batches()` 波次拆分断言（P3.1 自身 6 波次）· `effectiveGroups` 切波次消费（taskGroups/atomicWith 声明面退役）· `AtomicWith` 全树零残留（grep 断言）
+  - `- ` `Task.dependsOn` 非可选（缺省 `[]`）；`plan.json` 派生字节保真
+  - `- ` dispatch pre-flight（`cdd implement`/`cdd review`）覆盖边完备（dry-run 负例）；engine suite + 树套件全绿
   - `- ` 存量 plans steps 面规范化：未解析步骤行零残留（每步 `N. … — checkable:` 全解析）· 补充条例死壳清理断言
 
 ### Task 4: designItems 结构面（spec 骨架 + 全树 specs 结构秩迁移）
@@ -109,7 +111,6 @@
 - **Consumes**: T2 spec 骨架规则集 · `designItemHeading` 切片
 - **Produces**: designItems 判定（计数/空体/hollow/伪标题残留）· 全树 0 伪标题全状态——T7 消费面（SKILL 撰作指导）依赖
 - **DependsOn**: 2
-- **AtomicWith**: none
 - **Files**:
   - Modify: `packages/cdd-engine/src/documents/doctypes/body/phase-spec-body.ts`（SlicePatternSet += `designItemHeading: /^#### /m` · `structureRules()` += designItems 规则 · PHASE_SPEC_BODY_SHAPE description 更新）
   - Modify: `packages/cdd-engine/config/schema/phase-spec.json`（派生产物字节保真更新）
@@ -135,7 +136,6 @@
 - **Consumes**: T2 overall-body（shape/slices/四表规则）· T1 引擎
 - **Produces**: charter facet 规则 + 全树 overalls 升秩状态——T7 消费面依赖
 - **DependsOn**: 2
-- **AtomicWith**: none
 - **Files**:
   - Modify: `packages/cdd-engine/src/documents/doctypes/body/overall-body.ts`（`structureRules()` += charter facet 规则；`projectSlicePatterns()` += charter facet 切片）
   - Modify: `packages/cdd-engine/config/schema/overall.json`（派生产物字节保真更新——charter facet 域/描述）
@@ -159,7 +159,6 @@
 - **Consumes**: T3 边模型（声明集）· T1 `StructureFinding` severity
 - **Produces**: WARN 级引用 lint 判定 + 断言
 - **DependsOn**: 3
-- **AtomicWith**: none
 - **Files**:
   - Modify: `packages/cdd-engine/src/documents/doctypes/body/plan-body.ts`（`structureRules()` += 引用 lint WARN 规则）
   - Test: `packages/cdd-engine/src/documents/doctypes/body/__tests__/plan-body.test.ts`（或专属 lint 测试文件）
@@ -171,29 +170,35 @@
 - **Acceptance**:
   - `- ` 引用 lint WARN 有断言 + 负例（spec §2.3 pattern 全项）；engine suite 全绿
 
-### Task 7: 消费面同步（SKILL 撰作面 + schema 终核 + 零程序历史 pin）
+### Task 7: 编排动态面 + next 路由器 + ExecutionState + skills 精简（消费面同步）
 
-- **Objective**: cdd-plan/cdd-dev SKILL 撰作面（边行 mandatory · designItems `####` 指导 · charter facets 指导 · plan-review 必答问题）+ 三 schema description 终核（零程序历史）+ shipped grep pin 扩展——消费者拿到新政的完整撰作/修复指导
-- **Consumes**: T3/T4/T5 的 schema 派生与规则形态 · 三 body description
-- **Produces**: shipped 撰作面（consumer 可执行指导）· grep pin 扩展
-- **DependsOn**: 3, 4, 5
-- **AtomicWith**: none
+- **Objective**: TaskGraph 动态面 `frontier(done)` + `next:` 路由器单点 `nextStep(state, ref)`（同环优先 ∧ closure→frontier）+ ExecutionState 查询面（ProgressLedger 升 `doneTasks()`/`readyBatch()`）+ skills 编排精简（cdd-dev loop 判定 → next 消费 · cdd-spec/plan/phase/charter 三态循环同路由）+ 撰作面（单边 · 反依赖指导 · designItems/charter）+ 三 schema description 终核（零程序历史）+ shipped grep pin 扩展 + emit——engine 成为「计划自执行状态机」，skills 收薄为「入口 + 异常面」
+- **Consumes**: T3 `validate`/`batches` · T4/T5 迁移 · T6 lint · 现有 ProgressLedger / dispatch next 拼装面
+- **Produces**: `frontier(done): TaskBatch` 动态面 · `nextStep(state, ref)` 路由器（同环优先 + closure→frontier）· ExecutionState 查询面（`doneTasks()`/`readyBatch()`）· skills 编排精简面——P5 graph-node ref 消费底座
+- **DependsOn**: 3, 4, 5, 6
 - **Files**:
-  - Modify: `packages/kairos/skills/cdd-plan/SKILL.md`（author-plan 指导语：两边行必带 · `none` 显式 · designItems `####` 撰作 · plan-review 必答问题「所有边已声明」）
-  - Modify: `packages/kairos/skills/cdd-dev/SKILL.md`（implement/fix 面同步）
+  - Modify: `packages/cdd-engine/src/documents/doctypes/body/task-graph.ts`（`frontier(done: DoneSet): TaskBatch`——最小编号未完成且 DependsOn ⊆ done 的任务集 = 下一就绪波次）
+  - Modify: `packages/cdd-engine/src/dispatch/task.ts` + `dispatch/docs.ts` + `dispatch/branch.ts` + `cli/review.ts` + `cli/fix.ts` + `rules/result-face.ts`（`next:` 拼装 6+ 处 → `nextStep` 路由器单点；旧拼装符号 grep 零残留）
+  - Modify: `packages/cdd-engine/src/artifacts/progress.ts`（ProgressLedger 升图友好查询面：`doneTasks(): Set<number>` 每轮 handoff 结论收敛 · `readyBatch(): TaskBatch` = frontier 直接来源；`base-branch`/`crash`/`handoff` 三 artifact 面不动）
+  - Modify: `packages/kairos/skills/cdd-dev/SKILL.md`（flow 精简：loop 判定 → next 消费 · 异常/人工面保留——HARNESS_ABORT 恢复 · backfill 暂停 · adjudication 覆盖 · Plan Sole Writer）
+  - Modify: `packages/kairos/skills/cdd-plan/SKILL.md`（author-plan 撰作面：`DependsOn` 单边行必带 · `none` 显式 · 反依赖指导 · designItems `####` 撰作 · charter facets 指导 · plan-review 必答问题「所有边已声明」）
   - Modify: `packages/kairos/tests/grep-sweep-regression.test.ts`（shipped 零程序历史 pin 扩展新 token）
   - Modify: `packages/cdd-engine/src/documents/doctypes/body/*.ts`（三 schema description 终核）
   - 运行: `pnpm run emit`（SKILL.md 变更后必跑）
 - **Steps**:
-  - 1. cdd-plan SKILL 撰作面——checkable: author-plan 指导含「每个任务块必带 `- **DependsOn**:`/`- **AtomicWith**:` 两行（`none` 显式）· design body 以 `#### N.M` item 叶撰作」；charter facets 撰作指导（facets/决策留存 `###` · 决策组/背书 `####`）载入 cdd-plan 撰作面；plan-review 必答问题文在「尚未答复」态不可放行——文本 English-primary、零 P 编号叙事
-  - 2. cdd-dev SKILL 同步——checkable: implement/fix 面指导语携带边行强制 + designItems 形态 + charter facets 结构秩指导（program overall 升秩后的撰作/修复落点）；零程序历史
-  - 3. grep pin 扩展 + schema 终核——checkable: `grep-sweep-regression.test.ts` 新 token（P3.1 面叙事 / 伪标题指导）零命中断言；三 schema description 与 body 派生一致（factory diff pin 绿）
-  - 4. emit + 回归——checkable: `pnpm run emit` 后 `pnpm run emit:check` 干净（无 drift）；precommit 过
-  - 5. 提交——checkable: 提交，pre-commit 通过
+  - 1. frontier 动态面——checkable: `TaskGraph.frontier(done)` 返回下一就绪波次（最小编号未完成 + DependsOn ⊆ done）；推进序列断言（P3.1 自身：∅ → {T1} → {T2} → {T3,T4,T5} → {T6} → {T7} → {T8}）；行为 = `batches()` 流式版（done 全完跑 = batches 全序列）
+  - 2. next 路由器单点——checkable: `nextStep(state, ref)` 统一推导；同环优先（review CHANGES_REQUESTED/REVIEW_FIX → fix · fix 后 blocker>0 → re-review · closure → frontier）；spec/plan（docHash ref）与 task/branch（commit-range ref）同一路由器；旧拼装面删除（grep 零残留）
+  - 3. ExecutionState 查询面——checkable: ProgressLedger 增 `doneTasks()`/`readyBatch()`（APPROVED/COMPLETED 闭合组计入 DoneSet）；三 artifact 面（base-branch/crash/handoff）确认零改动（已是单所有权，无重复）
+  - 4. skills 编排精简——checkable: cdd-dev flow 的 loop 判定（`more-groups?`/下一组选择）改为 `next:` 消费；异常/人工面保留（HARNESS_ABORT 恢复 · backfill 暂停 · adjudication 覆盖 · Plan Sole Writer）；cdd-spec/plan/phase/charter 的 review→fix→commit 三态循环同路由 next（现有 `next:` 已指 fix/commit——仅文案与路由收敛）；文本 English-primary、零程序历史
+  - 5. 撰作面 + schema 终核——checkable: author-plan 指导含「每任务块必带 `- **DependsOn**:` 单行（`none` 显式）· 反依赖（仅可引用更小编号）· design body 以 `#### N.M` item 叶撰作 · charter facets 撰作（facets/决策留存 `###` · 决策组/背书 `####`）」；plan-review 必答问题「所有边已声明」在「尚未答复」态不可放行；`grep-sweep-regression.test.ts` 新 token（P3.1 面叙事 / 伪标题指导）零命中；三 schema description 与 body 派生一致（factory diff pin 绿）
+  - 6. emit + 回归——checkable: `pnpm run emit` 后 `pnpm run emit:check` 干净（无 drift）；precommit 过
+  - 7. 提交——checkable: 提交，pre-commit 通过
 - **Acceptance**:
-  - `- ` cdd-plan/cdd-dev SKILL 撰作面更新（边行强制 + designItems `####` + charter facets 指导 + plan-review 必答问题）· English-primary
-  - `- ` shipped 零程序历史 grep pin（扩展面）零命中；emit 干净
-  - `- ` 三 schema 派生一致（字节保真）
+  - `- ` `frontier(done)` 动态面断言（P3.1 推进序列）· `nextStep` 路由器单点（旧拼装符号 grep 零残留）
+  - `- ` ExecutionState 查询面（`doneTasks()`/`readyBatch()`）落地 · 三 artifact 面零改动
+  - `- ` skills 编排精简：cdd-dev loop 判定 → next 消费 · 异常/人工面保留 · cdd-spec/plan/phase/charter 同路由 · English-primary 零程序历史
+  - `- ` cdd-plan/cdd-dev SKILL 撰作面更新（单边行 + 反依赖 + designItems `####` + charter facets + plan-review 必答）· English-primary
+  - `- ` shipped 零程序历史 grep pin（扩展面）零命中；emit 干净；三 schema 派生一致（字节保真）
 
 ### Task 8: changesets + 终验
 
@@ -201,7 +206,6 @@
 - **Consumes**: T1–T7 全部产物
 - **Produces**: P3.1 交付记录（changesets + 全绿证据）——branch-review/closeout 依据
 - **DependsOn**: 1, 2, 3, 4, 5, 6, 7
-- **AtomicWith**: none
 - **Files**:
   - Create: `.changeset/cdd-engine-structure-rules.md` + `.changeset/kairos-edge-authoring.md`（`pnpm run changeset`）
   - 终验: `pnpm run validate` · `pnpm --filter @oscaner-skills/cdd-engine test` · typecheck ×3 · `pnpm exec biome check` · `pnpm run emit:check`

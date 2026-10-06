@@ -55,8 +55,6 @@
 ### Task 1: C1+C2 engine 数据面核心（harness.ts 抽象 + registry rename + pi 行）
 
 - **Objective**: C1+C2 engine 数据面核心（harness.ts 抽象 + registry rename + pi 行）：Harness 四类 + cli 单源 + row 键三元组
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Produces**: `src/infra/harness.ts`（Harness/CursorHarness/ClaudeHarness/PiHarness/ORDER，零裸函数导出）；`harness-registry.json` 行键 `cursor-agent` → `cursor`（cli 值保持）+ pi 行；`detectCurrentHarness` 按 ORDER 遍历；测试面键引用同落
 
@@ -74,8 +72,6 @@
 ### Task 2: C3 测试接线 + residue G2 守卫
 
 - **Objective**: C3 测试接线 + residue G2 守卫（host-detection 表驱动 + 三元组 name-set 反向 + live 面 cursor-agent 守卫）
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Produces**: host-detection 表驱动（单 marker 五 case + 优先级矩阵）；registry name-set `{claude,cursor,pi}` 正反双向；registry.cache pi 行 profile；residue G2 守卫（三面零 cursor-agent，唯一允许 registry cli 数据行）；docs/maintainers 03:48 行键镜像
 
@@ -94,8 +90,6 @@
 ### Task 3: C5 命令契约面（StatusDeriver / NextStepRouter / ResultFace）
 
 - **Objective**: C5 命令契约面（StatusDeriver / NextStepRouter / ResultFace）：判定轴/工作轮双轴 + 单胶囊 stdout + 构造注入
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Produces**: `StatusDeriver`（deriveReviewStatus 判定轴 + workStatus 工作轮 COMPLETED）；`NextStepRouter`（next instance-method，决策表原样迁移）；`ResultFace`（全 op 单胶囊）三组件零裸函数、构造注入；调用面同步（review/fix/task/branch/docs）
 
@@ -114,8 +108,6 @@
 ### Task 4: C6 Contract Lexicon（contract-lexicon.json + ContractLexiconGuard）
 
 - **Objective**: C6 Contract Lexicon（contract-lexicon.json + ContractLexiconGuard）：五域词表 + 四检查单守卫 + checkWording 零形状 restate
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Produces**: `contract-lexicon.json`（五域：harness / status / stdout / residue / anatomy）；build.config copy entry 扩展；`ContractLexiconGuard`（checkAnatomy / checkResidue / checkWording / checkConfig）四方法；validate 单 block 收敛；SKILL.md :59/:119/:108 改锚
 
@@ -133,8 +125,6 @@
 ### Task 5: C7 消费面措辞 + C4 声明 + 运维文档/CLAUDE.md + changeset + 终验
 
 - **Objective**: C7 消费面措辞 + C4 声明 + 运维文档/CLAUDE.md + changeset + 终验（消费面零引擎形状 restate）
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Produces**: 其余 orchestrator skills 零形状 restate 复核；docs/maintainers（01/02/03/04）契约措辞同步；根 CLAUDE.md emit/validate/engine 契约描述；cdd-engine changeset；终验 validate 全绿
 
@@ -152,8 +142,6 @@
 ### Task 6: Workspace 域收编（WorkspaceRoot/Workspace 双类 + 双源灭绝 + lifecycle 归位，用户拍板 2026-09-30）
 
 - **Objective**: Workspace 域收编（WorkspaceRoot/Workspace 双类 + 双源灭绝 + lifecycle 归位 slug + naming.ts 死壳删除）
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Produces**: `src/infra/workspace.ts`（WorkspaceRoot.from/ensure/gitignore/for/enumerate + Workspace readJson/writeJson/lifecyclePath）；lifecycle 归位 `<workspaceRoot>/<slug>/lifecycle.json`（reapStale 改枚举形）；`naming.ts` 删除（10 项导出逐项归位）；6 处散装 mkdirSync 归零；根 .gitignore `.superpowers` 退役
 
@@ -171,8 +159,6 @@
 ### Task 7: 崩溃恢复健壮性（HARNESS_ABORT + crash-only snapshot + stash 平面删除，用户拍板 2026-09-30）
 
 - **Objective**: 崩溃恢复健壮性（HARNESS_ABORT + crash-only snapshot + crash record）：失败分类 + teardown + commitSnapshot + stash 平面删除
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Produces**: failureCategories 增 `HARNESS_ABORT`（harnessAbortCount / harness-abort terminal）；teardown（孤儿处理：tail + snapshot + crash record + BLOCKED capsule）；`commitSnapshot()`（--no-verify 唯一正当理由注释）；crash record（crashPath(lane, round)）；NextStepRouter crash-record 行；stash 平面零残留
 
@@ -190,8 +176,6 @@
 ### Task 8: 统一终止模型（fold A–D：exit gate 前终止全类覆盖 + crash record 三方统一 + cause + resume 软帽 + 类别/机制解耦，用户拍板 2026-09-30）
 
 - **Objective**: 统一终止模型（fold A–D：exit gate 前终止全类覆盖 + crash record 三方统一 + cause + resume 软帽）
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Produces**: teardown 谓词加宽 = 任意 exit gate 前终止（同一实现路径）；crash record `cause`（child-exit/child-signal/engine-over-budget/engine-timeout/unknown）；crash record 三方统一（teardown 写 / resume 读 / reapStale 枚举 stale records）；`recovery.residue_ref` 删除；resume 软帽 3 次 → crash-recovery-cap
 
@@ -209,8 +193,6 @@
 ### Task 9: 预算维度统一（op 维度抽象：timeouts.defaults {implement/review/fix} + 三岛按 op 接线 + DispatchOp union + 接线层测试，用户拍板 2026-09-30）
 
 - **Objective**: 预算维度统一（op 维度抽象：timeouts.defaults {implement/review/fix} + 三岛按 op 接线 + DispatchOp union）
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Produces**: `timeouts.defaults` `{task, review}` → `{implement: 21600000, review: 10800000, fix: 21600000}`（删 task key）；三岛 spawn 按实际 op 传参（task.ts/docs.ts/branch.ts 删硬编码）；`DispatchOp` union + `DEFAULT_TIMEOUTS` 类型化；三岛接线断言（7 op 组合）
 

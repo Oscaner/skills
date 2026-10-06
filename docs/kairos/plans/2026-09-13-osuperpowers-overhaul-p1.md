@@ -23,8 +23,6 @@
 ### Task 1: runtime 单源翻转 — `.superpowers/cdd` → `.osuperpowers/cdd` 全迁移
 
 - **Objective**: runtime 单源翻转 — `.superpowers/cdd` → `.osuperpowers/cdd` 全迁移（`templates/handoff-namespace.json#workspaceRoot` 单源翻转 + 全 literal 迁移；standalone 概念整体移除、旧根死档全量删除、残留守卫防回渗）
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Consumes**: P1 design §2.2 迁移面
 
@@ -50,8 +48,6 @@
 ### Task 2: standalone 收缩 — `cdd base-branch` 单调 `--plan`
 
 - **Objective**: standalone 收缩 — `cdd base-branch` 单调 `--plan`（STANDALONE_ROOT + standalone 分支删除、`--scope`/`--slug` flag 删除、相关用例裁剪）
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Consumes**: Task 1（engine 已落新根；base-branch CDD 侧随单源自动新根）
 
@@ -76,8 +72,6 @@
 ### Task 3: 残留守卫 — residue.mjs stale-lexicon 防回渗
 
 - **Objective**: 残留守卫 — residue.mjs stale-lexicon 新增两条（`.superpowers/cdd` + `.superpowers/standalone`）防回渗（`.superpowers/sdd` 保留面不设守卫）
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Consumes**: Task 1（`.superpowers/cdd` 已从机制位置清空）、Task 2（`.superpowers/standalone` 已从机制位置清空）
 
@@ -100,8 +94,6 @@
 ### Task 4: 存量处置 — 旧根死档全量删除
 
 - **Objective**: 存量处置 — 旧根死档全量删除（`.superpowers/cdd/*` 与 `.superpowers/docs-review/` 运行时删除，gitignored 无 git 痕迹）
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Consumes**: Task 1（flip 已 commit，resolveWorkspace 全走新根——删除时序约束满足）
 
@@ -128,8 +120,6 @@
 ### Task 5: changeset + 全量收口
 
 - **Objective**: changeset + 全量收口（`@oscaner-skills/cdd-engine` minor changeset 落盘；validate 13 块 + emit:check 收口）
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Consumes**: Task 1-4（全量落地）
 

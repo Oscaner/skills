@@ -15,8 +15,6 @@
 ### Task 1: x
 
 - **Objective**: task one
-- **DependsOn**: none
-- **AtomicWith**: none
 - **Steps**:
   1. implement — checkable: done
 - **Acceptance**:

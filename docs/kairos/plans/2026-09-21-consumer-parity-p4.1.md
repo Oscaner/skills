@@ -49,8 +49,6 @@
 ### Task 1: docs/maintainers 文件名编号迁移（rename + 索引编号表 + 互链全量更新）
 
 - **Objective**: docs/maintainers 8 件内容文件重命名为 `NN-name.md`（编号映射钉死 + README.md 00-索引重建）+ 全族互链与族外入链同批更新
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Consumes**: docs/maintainers 现状 8 件内容文件 + README.md 索引 + `packages/osuperpowers/README.md`「Docs for maintainers」入链节
 
@@ -71,8 +69,6 @@
 ### Task 2: docs/maintainers 章节重组 + 内容保真迁移
 
 - **Objective**: docs/maintainers 章节重组 + 内容保真迁移（step-0 骨架冻结 → 逐文件重排 → 映射清单落定）
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Consumes**: Task 1 重命名产物；每文件现状章节分布
 
@@ -92,8 +88,6 @@
 ### Task 3: CLAUDE.md 全面重写（5 段骨架 + 语言政策修订）
 
 - **Objective**: CLAUDE.md 全面重写（5 段骨架 + 语言政策修订 + 流程规范零承载）
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Consumes**: §2 目标骨架；治理要项清单（emit-after-change · 零 session-memory · no worktree · 不 commit 除非请求 · 消费者视角）
 
@@ -113,8 +107,6 @@
 ### Task 4: README.md 全面重写（8 段骨架）+ README.zh-CN.md 同步 mirror
 
 - **Objective**: README.md 全面重写（8 段骨架）+ README.zh-CN.md 同步 mirror（宣称面对照三类专项逐条记档）
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Consumes**: §2 目标骨架；现有 README/README.zh-CN.md；宣称面三类专项（harness 支持面 · 安装/来源 · 行为描述类陈述）
 
@@ -134,8 +126,6 @@
 ### Task 5: 包级 README 重写/新建 + 「一方→第一方」术语清扫（osuperpowers / cdd-engine 宣讲面）
 
 - **Objective**: 包级 README 重写/新建（osuperpowers 重写 · osuperpowers/cdd-engine zh mirror 两件新建）+ 「一方→第一方」术语清扫
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Consumes**: 用户裁决 2026-09-23（包级 README 纳入 scope；mirror 政策扩展；first-party 中文译名「一方」→「第一方」）；各包现状 README 与落地行为
 
@@ -155,8 +145,6 @@
 ### Task 6: 验收探针落地 + 宣称面对照 + 全量校验
 
 - **Objective**: 验收探针落地 + 宣称面对照复核合入 + 全量校验（11 块 + emit:check 复跑）
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Consumes**: Task 1–5 产物；探针规范（临时 node 脚本 / grep 带 -E 防白绿)
 
@@ -176,8 +164,6 @@
 ### Task 7: skill/engine 流程规范零散文剥除（CLAUDE.md + maintainers audit）
 
 - **Objective**: skill/engine 流程规范零散文剥除（CLAUDE.md + docs/maintainers audit）+ 语言政策行更新
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Consumes**: 用户裁决 2026-09-23（CLAUDE.md 与 docs/maintainers 不承载 skills/cdd-engine 流程规范——单源 = SKILL.md + engine schema）
 
@@ -197,8 +183,6 @@
 ### Task 8: closeout backfill-overall（branch-review 前置义务）
 
 - **Objective**: closeout backfill-overall（branch-review 前置义务）：overall v1.21→v1.22 回填（P4.1 行两列 + change-history claim）
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Consumes**: overall 现状 v1.21（P4.3 注册已 bump）；P4.1 行 Design-spec / Implementation plan 列
 
@@ -216,8 +200,6 @@
 ### Task 9: docs/maintainers 重新整理（精简 + 删除 + 重编号）+ 07 删除 + 引用清扫
 
 - **Objective**: docs/maintainers 重新整理（精简 + 删除 + 重编号）+ 07 删除 + 引用清扫
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Consumes**: 用户裁决 2026-09-23 · PR #275 评审回馈（现 01-08 + README 索引基线）；`.changeset/README.md` §Release flow 全量承载面
 
@@ -237,8 +219,6 @@
 ### Task 10: 英文 README 语言切换行维持 `[中文]`（用户裁决：language switch 不用改）
 
 - **Objective**: 英文 README 语言切换行维持 `[中文]`（原方向撤销——用户裁决不用改，恢复 `[Simplified Chinese]` 改动）
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Consumes**: 用户裁决 2026-09-24（language switch 不用改；`[中文]` 为合法原生标签）
 

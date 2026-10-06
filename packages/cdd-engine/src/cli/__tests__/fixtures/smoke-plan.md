@@ -11,8 +11,6 @@
 ### Task 1: dry-run smoke
 
 - **Objective**: dry-run smoke
-- **DependsOn**: none
-- **AtomicWith**: none
 - **Steps**:
   1. run the dry-run — checkable: the round completes
 - **Acceptance**:

@@ -52,8 +52,6 @@
 ### Task 1: 边声明读写面激活 + TaskGraph 类（原子闭包分量 + 五负例 BLOCK + 拓扑序组序）
 
 - **Objective**: 将 P2 声明的 `dependsOn?`/`atomicWith?` 扩展位激活为读写面，新增 `TaskGraph` 类落地唯一分组派生（组件 = 原子闭包分量 · 组序 = 分量 DAG 拓扑序）
-- **DependsOn**: none
-- **AtomicWith**: none
 - **Consumes**: `Task` 类字段（`body/task.ts`，P2 已声明 dependsOn?/atomicWith?）；`TaskGroup`（`domain/task-group.ts`，类已存在）
 - **Produces**: `class TaskGraph`（`body/task-graph.ts`）：`constructor(tasks: Task[])`（tasks 按 `### Task N:` 升序、下标 i+1 = 任务 id）· `validate(): GraphVerdict | null` · `groups(): TaskGroup[]`；`GraphFailure { class: "missing-id"|"self-loop"|"contradiction"|"cycle"|"duplicate"; field: "dependsOn"|"atomicWith"; id: number; description: string }`；`GraphVerdict { failures: GraphFailure[] }`（类 + 构造注入）
 - **Files**:
@@ -63,11 +61,11 @@
   - Modify: `packages/cdd-engine/src/documents/doctypes/plan.ts`（`parseTaskBlock` plan.ts:126 增边字段读取——`- **DependsOn**: 3, 5` / `- **AtomicWith**: 4, 5` 逗号表 → `number[]`，接 Task opts；legacy Do 块仍返回 null，不建立新块）
   - Test: `packages/cdd-engine/src/documents/doctypes/body/__tests__/task-graph.test.ts`
 - **Steps**:
-  1. 写失败测试（task-graph.test.ts）：① 闭包正例——T2 atomicWith[1]、T3 atomicWith[2] → `groups() === [[1,2,3]]`；② 无边三任务 → `[[1],[2],[3]]`；③ 链 T1→(dependsOn[])T2 dependsOn[1]、T3 dependsOn[2] → `groups() === [[1],[2],[3]]`（组序 = 拓扑序）；④ 扇出 T2 dependsOn[1]、T3 dependsOn[1] → 组序并列按最小任务编号升序稳定 `[[1],[2],[3]]`；⑤ BLOCK ×5，各 fixture 精确命中唯一目标 class（判定优先级：目标越界与 target==源 自引先于编号逆序判定——逆序判定只作用于有界且异号的边）——越界 `T2 dependsOn[99]` → 仅 `missing-id` · 自引 `T2 dependsOn[2]` → 仅 `self-loop` · 矛盾 `T1 atomicWith[2]+dependsOn[2]`（同对 atomic∧depends）→ 仅 `contradiction` · 环改为不触发逆序边的分量间 DAG——T1 atomicWith[4] ∧ T2 atomicWith[3] ∧ T3 dependsOn[1] ∧ T4 dependsOn[2]（分量 {1,4}↔{2,3} 互指，无逆序边 / 分量内 dependsOn）→ 仅 `cycle` · 重复 `T1 atomicWith[2,2]` → 仅 `duplicate`——各 `validate()` 非 null 且**精确 class 集合 = 目标 class** — checkable: task-graph.test.ts 五用例红（五负例各 fixture 精确命中唯一目标 class）
-  2. 运行确认红（`pnpm --filter @oscaner-skills/cdd-engine test -- task-graph`）——module 不存在即红 — checkable: task-graph 过滤测试红（module 不存在）
-  3. 实现 `task-graph.ts`：原子闭包（atomicWith 无向单侧 → 对称+传递闭包 → 连通分量）→ 分量 DAG（dependsOn 边 = 分量间）→ 拓扑序（并列按最小任务编号升序）+ 五负例 validate（越界/自引/矛盾（同对 atomic∧depends · 闭包分量内 dependsOn · 编号逆序 rank(目标)<rank(源)）/环（收缩后 DAG）/重复）；`parseTaskBlock` 边字段解析 + `PLAN_SLICE_PATTERNS` 两切片（plan-body.ts） — checkable: task-graph.ts 类落地（原子闭包 → 分量 DAG → 拓扑序 · 五负例 validate 判定）· parseTaskBlock 边字段解析生效
-  4. 运行全绿（task-graph.test.ts 全过 + 既有 dual-read/doctypes 套件零回归——additive） — checkable: task-graph.test.ts 全过 · dual-read/doctypes 套件零回归
-  5. 提交（`feat(engine): TaskGraph 原子闭包分组 + 边读写面激活`） — checkable: T1 提交落库（conventional · 无 attribution）
+  - [ ] 1. 写失败测试（task-graph.test.ts）：① 闭包正例——T2 atomicWith[1]、T3 atomicWith[2] → `groups() === [[1,2,3]]`；② 无边三任务 → `[[1],[2],[3]]`；③ 链 T1→(dependsOn[])T2 dependsOn[1]、T3 dependsOn[2] → `groups() === [[1],[2],[3]]`（组序 = 拓扑序）；④ 扇出 T2 dependsOn[1]、T3 dependsOn[1] → 组序并列按最小任务编号升序稳定 `[[1],[2],[3]]`；⑤ BLOCK ×5，各 fixture 精确命中唯一目标 class（判定优先级：目标越界与 target==源 自引先于编号逆序判定——逆序判定只作用于有界且异号的边）——越界 `T2 dependsOn[99]` → 仅 `missing-id` · 自引 `T2 dependsOn[2]` → 仅 `self-loop` · 矛盾 `T1 atomicWith[2]+dependsOn[2]`（同对 atomic∧depends）→ 仅 `contradiction` · 环改为不触发逆序边的分量间 DAG——T1 atomicWith[4] ∧ T2 atomicWith[3] ∧ T3 dependsOn[1] ∧ T4 dependsOn[2]（分量 {1,4}↔{2,3} 互指，无逆序边 / 分量内 dependsOn）→ 仅 `cycle` · 重复 `T1 atomicWith[2,2]` → 仅 `duplicate`——各 `validate()` 非 null 且**精确 class 集合 = 目标 class**
+  - [ ] 2. 运行确认红（`pnpm --filter @oscaner-skills/cdd-engine test -- task-graph`）——module 不存在即红
+  - [ ] 3. 实现 `task-graph.ts`：原子闭包（atomicWith 无向单侧 → 对称+传递闭包 → 连通分量）→ 分量 DAG（dependsOn 边 = 分量间）→ 拓扑序（并列按最小任务编号升序）+ 五负例 validate（越界/自引/矛盾（同对 atomic∧depends · 闭包分量内 dependsOn · 编号逆序 rank(目标)<rank(源)）/环（收缩后 DAG）/重复）；`parseTaskBlock` 边字段解析 + `PLAN_SLICE_PATTERNS` 两切片（plan-body.ts）
+  - [ ] 4. 运行全绿（task-graph.test.ts 全过 + 既有 dual-read/doctypes 套件零回归——additive）
+  - [ ] 5. 提交（`feat(engine): TaskGraph 原子闭包分组 + 边读写面激活`）
 - **Acceptance**:
   - task-graph.test.ts 全绿：闭包对称/传递 · 连通分量 = 组 · 无边 → 全单例 · 拓扑序组序（并列最小编号升序）· BLOCK 五负例精确 class 断言（各 fixture 仅命中目标 class）
   - `parseTaskBlock` 读 `- **DependsOn**:`/`- **AtomicWith**:` → Task 数据记录字段；legacy Do 块仍 null（dual-read 未变）
@@ -76,19 +74,17 @@
 ### Task 2: effectiveGroups 派生源切换（graph 派生 · rank 前向 plan 级 BLOCK · dispatch 零回归）
 
 - **Objective**: `effectiveGroups(planPath)` 派生源自字面 `taskGroupsFromPlan` 切换为 `TaskGraph.groups()`（先 validate 后 groups）；dispatch 四处消费点零改
-- **DependsOn**: none
-- **AtomicWith**: none
 - **Consumes**: Task 1 的 `TaskGraph` / `parseTaskBlock` 边读；`taskNumbersFromPlan`（既有序号扫描）
 - **Produces**: `effectiveGroups` 新语义 = 图派生组（`taskGroupsFromPlan` 暂存，T3 删）；`GraphViolationError`（carry `GraphVerdict.failures`）
 - **Files**:
   - Modify: `packages/cdd-engine/src/documents/doctypes/plan.ts`（`effectiveGroups` plan.ts:354 重实现）
   - Test Create: `packages/cdd-engine/src/documents/doctypes/__tests__/effective-groups.test.ts` + 新形 fixture（带边）
 - **Steps**:
-  1. 写失败测试：新形边 fixture（T2 dependsOn[1]、T3 dependsOn[2]）→ `effectiveGroups === [[1],[2],[3]]`（派生序）；无边新形 fixture → `[[1]..[N]]`（与旧序字节一致）；逆序边 fixture（T1 dependsOn[3]）→ `effectiveGroups` throw `GraphViolationError` — checkable: effective-groups.test.ts 三用例红（派生序/无边字节一致/逆序 throw GraphViolationError）
-  2. 运行确认红 — checkable: effective-groups 过滤测试红
-  3. 实现：`effectiveGroups` = `taskNumbersFromPlan`（序）→ `tasksFromPlan`（数据记录，按下标 = id）→ `new TaskGraph(tasks)` → `validate()` 非 null → throw `GraphViolationError`（失败聚合入 message）→ `groups()`；无边/无记录 plan → 全单例（任务编号升序，与旧行为一致） — checkable: effectiveGroups 图派生落地（validate 非 null 即 throw · 无边无记录全单例与旧行为一致）
-  4. 运行全绿：effective-groups.test.ts 全过 + `dispatch/__tests__/runner.test.ts` 零回归（dispatch/base·task·closeout·status 消费零 diff） — checkable: effective-groups 全过 · dispatch/__tests__/runner.test.ts 零回归
-  5. 提交（`feat(engine): effectiveGroups 图派生 + rank 前向 crisp BLOCK`） — checkable: T2 提交落库（conventional · 无 attribution）
+  - [ ] 1. 写失败测试：新形边 fixture（T2 dependsOn[1]、T3 dependsOn[2]）→ `effectiveGroups === [[1],[2],[3]]`（派生序）；无边新形 fixture → `[[1]..[N]]`（与旧序字节一致）；逆序边 fixture（T1 dependsOn[3]）→ `effectiveGroups` throw `GraphViolationError`
+  - [ ] 2. 运行确认红
+  - [ ] 3. 实现：`effectiveGroups` = `taskNumbersFromPlan`（序）→ `tasksFromPlan`（数据记录，按下标 = id）→ `new TaskGraph(tasks)` → `validate()` 非 null → throw `GraphViolationError`（失败聚合入 message）→ `groups()`；无边/无记录 plan → 全单例（任务编号升序，与旧行为一致）
+  - [ ] 4. 运行全绿：effective-groups.test.ts 全过 + `dispatch/__tests__/runner.test.ts` 零回归（dispatch/base·task·closeout·status 消费零 diff）
+  - [ ] 5. 提交（`feat(engine): effectiveGroups 图派生 + rank 前向 crisp BLOCK`）
 - **Acceptance**:
   - effectiveGroups = 图派生组序（拓扑序）；无边 plan 组序字节一致（既有 dispatch 测试绿）
   - 逆序边 / 越界 / 环 → `GraphViolationError`（effectiveGroups 不静默出序）
@@ -97,8 +93,6 @@
 ### Task 3: 双读面 runtime 退役（Form B 锚 · 约束双读 · taskGroupsFromPlan · Do 面 · 六段 legacy 路径）
 
 - **Objective**: 删除全部 legacy runtime 读面；首步重基树套件为单形态迁移队列；legacy fixtures 删除；孤儿任务块 BLOCK
-- **DependsOn**: none
-- **AtomicWith**: none
 - **Consumes**: T2 的 `effectiveGroups` 图派生（violate 已 throw）；删除对象——`taskGroupsFromPlan` / `PLAN_FORM_B_ANCHOR_TOKENS` + formBAnchor 锚读 / `extractProseConstraints` + `specConstraintsOf` Section-1 读 / 六段豁免路径 / `parseTaskBlock` Do 分支
 - **Produces**: 单形态 grammar（runtime 读面全删净）；迁移队列树套件（dual-read 单形态重资 + **Create `tree-migration.test.ts`**）；孤儿任务块 / Form B 约束未声明 / spec `## Section 1` BLOCK 语义；legacy fixtures 零存在
 - **Files**:
@@ -113,10 +107,10 @@
   - Test: 新形 fixture——含 `- **Do**:` 任务块 / Form B 锚 / spec `## Section 1` → validate fail（orphan / 约束未声明 BLOCK）
   - Modify/pin: `documents/doctypes/body/__tests__/plan-body.test.ts` · `phase-spec-body.test.ts` · `constraints-inheritance.test.ts`（审计对删除符号——Form B 锚切片 / 六段豁免路径 / extractProseConstraints / Section-1 读——的引用，随删随 pin，并入 deliberate update 登记）
 - **Steps**:
-  1. **首步重资树套件**（红窗口恢复声明动作 · 收口自本 spec/plan 提交起的红窗口）：dual-read.test.ts 改单形态——compositions 断言全树 48 文件（22 plan + 21 design + 4 overall + 1 one-off，plans/ 含本 p3-plan）、`SPEC_GOLDEN` 与 `PLAN_GOLDEN`（每文件 {count,src,merged} 表 :54-79 + 「every plan」golden 断言 :277-314）**一并退役**——「every plan」golden 期望委派 `tree-migration.test.ts` 期望态表；**显式 Create `tree-migration.test.ts`**，迁入「迁移队列期望态」表（p3-design 新形 / 本 p3-plan 数据形 = canonical 绿（零迁移对象）· 20 六段 + 21 plan = pending-migration · one-off 容忍）+ 基础断言骨架——本步使树套件在**删除前**对全树 48 文件构成一致期望，T5–T7 逐家族扩展、T8 转全绿终态 — checkable: dual-read.test.ts 单形态重资落地面（48 walk set · SPEC_GOLDEN/PLAN_GOLDEN 退役）· tree-migration.test.ts 建置（迁移队列期望态表）
-  2. 删除 runtime 面（plan-body/plan/constraints/phase-spec/doctype 上述符号）+ legacy fixture 删除；新增孤儿/BLOCK fixture + 断言（`- **Do**:` 任务块 validate fail · Form B 锚约束未声明 BLOCK · spec `## Section 1` fail——三真骨架断言缺失） — checkable: runtime 删除面 grep 零命中（engine src 含注释）· 孤儿/Form B/六段 legacy BLOCK fixture 断言绿
-  3. engine colocated suite 绿（树套件红窗口 = 迁移队列期望，符合） — checkable: engine colocated suite 全绿（树套件红窗口 = 迁移队列期望，符合）
-  4. 提交（`refactor(engine): 双读面 runtime 退役——单形态 grammar（树迁移队列开窗）`） — checkable: T3 提交落库（conventional · 无 attribution）
+  - [ ] 1. **首步重资树套件**（红窗口恢复声明动作 · 收口自本 spec/plan 提交起的红窗口）：dual-read.test.ts 改单形态——compositions 断言全树 48 文件（22 plan + 21 design + 4 overall + 1 one-off，plans/ 含本 p3-plan）、`SPEC_GOLDEN` 与 `PLAN_GOLDEN`（每文件 {count,src,merged} 表 :54-79 + 「every plan」golden 断言 :277-314）**一并退役**——「every plan」golden 期望委派 `tree-migration.test.ts` 期望态表；**显式 Create `tree-migration.test.ts`**，迁入「迁移队列期望态」表（p3-design 新形 / 本 p3-plan 数据形 = canonical 绿（零迁移对象）· 20 六段 + 21 plan = pending-migration · one-off 容忍）+ 基础断言骨架——本步使树套件在**删除前**对全树 48 文件构成一致期望，T5–T7 逐家族扩展、T8 转全绿终态
+  - [ ] 2. 删除 runtime 面（plan-body/plan/constraints/phase-spec/doctype 上述符号）+ legacy fixture 删除；新增孤儿/BLOCK fixture + 断言（`- **Do**:` 任务块 validate fail · Form B 锚约束未声明 BLOCK · spec `## Section 1` fail——三真骨架断言缺失）
+  - [ ] 3. engine colocated suite 绿（树套件红窗口 = 迁移队列期望，符合）
+  - [ ] 4. 提交（`refactor(engine): 双读面 runtime 退役——单形态 grammar（树迁移队列开窗）`）
 - **Acceptance**:
   - runtime 面 grep 零命中（engine src 含注释）：`PLAN_FORM_B_ANCHOR_TOKENS` / `formBAnchorHeadingRe` / `formBAnchorSlices` / `formBProseAnchors` / `taskGroupsFromPlan` / `extractProseConstraints` / `specConstraintsOf` Section-1 读 / 六段 legacy 豁免路径 / `parseTaskBlock` Do 分支
   - `SPEC_GOLDEN` 与 `PLAN_GOLDEN` 一并退役零存在（「every plan」golden 断言委派 `tree-migration.test.ts` 期望态表）
@@ -126,8 +120,6 @@
 ### Task 4: schema/token/product 重基（shape 节点删除 · DOC_TOKENS · plan.json 新 golden · smoke-cdd 新数据形 · 删除集并集 grep 零命中）
 
 - **Objective**: 删除 shape/token 面（taskGroups + Form B schema 节点 / 四 token），重派生 plan.json + tokens golden，刷新发布面（smoke-cdd + dist）；落地 spec 的「硬删除 grep 零命中」并集验收
-- **DependsOn**: none
-- **AtomicWith**: none
 - **Consumes**: T3 删除集（runtime 面符号——formBAnchors / taskGroupsFromPlan / Section-1 读，作为删除集**并集** grep 的 T3 侧）；T3 树套件基线（48 walk set）；P2 SchemaFactory 重派生机制
 - **Produces**: `plan.json` 新 golden（taskGroups / Form-B 面零存在）· `DOC_TOKENS` 四 token + proseAnchors 裁剪 · `dist/` 镜像刷新 · 删除集并集 grep 零命中断言（T3+T4 全符号集）；body/spec 三测试文件重 pin 绿
 - **Files**:
@@ -138,13 +130,13 @@
   - Test: `documents/__tests__/schema.test.ts` · `tokens.test.ts` · `documents/doctypes/body/__tests__/plan-body.test.ts` 重 pin（plan-body 现断言 T4 将删的 taskGroups/Form-B schema 节点——deliberate update 登记；phase-spec-body/constraints-inheritance 已在 T3 随删随 pin）· 新形 fixture：`## Task Groups` 段在新文档 → validate fail（shape 面无 → unknown section）
   - Test Create: 删除集 grep 零命中断言（vitest 或 scripts 单测——engine src 含注释扫描）
 - **Steps**:
-  1. plan-body.ts 删 shape 节点 + description 收口（单形态：## Constraints 唯一约束面 · taskGroups 零存在） — checkable: plan-body.ts taskGroups/Form-B shape 节点零存在 + description 单形态
-  2. tokens.ts 删四 token + proseAnchors 派生叶 + 守卫；`DOC_TOKENS` 接口裁剪 — checkable: tokens.ts 四 taskGroups token + proseAnchors 派生叶 + 守卫零残留
-  3. 重派生 `config/schema/plan.json`（P2 SchemaFactory 重派生机制）→ `pnpm --filter @oscaner-skills/cdd-engine build` 刷新 dist 镜像 → `cdd schema get plan` = 新形（taskGroups/FormB 零存在） — checkable: plan.json 重派生（taskGroups/FormB 零存在）· cdd schema get plan 新形可寻址
-  4. schema.test / tokens.test / plan-body.test 重 pin 绿（deliberate update 登记）+ deriveDocTokens 两加载序回归（tokens 先 / registry 先） — checkable: 三测试文件重 pin 绿 · deriveDocTokens 两加载序回归绿
-  5. smoke-cdd `deriveFixture` 新数据形改造 + 消费者链绿（`node scripts/run.ts smoke-cdd`） — checkable: smoke-cdd 消费者链绿（新数据形 fixture 派生）
-  6. `## Task Groups` 新文档 BLOCK fixture + 断言；删除集**并集 grep 零命中**断言（T3+T4 全符号集） — checkable: `## Task Groups` 新文档 BLOCK 断言绿 · 删除集并集 grep 零命中（T3+T4 全符号集）
-  7. 提交（`refactor(engine): shape/token 单形态重基——plan.json 新 golden · smoke-cdd 新数据形`） — checkable: T4 提交落库（conventional · 无 attribution）
+  - [ ] 1. plan-body.ts 删 shape 节点 + description 收口（单形态：## Constraints 唯一约束面 · taskGroups 零存在）
+  - [ ] 2. tokens.ts 删四 token + proseAnchors 派生叶 + 守卫；`DOC_TOKENS` 接口裁剪
+  - [ ] 3. 重派生 `config/schema/plan.json`（P2 SchemaFactory 重派生机制）→ `pnpm --filter @oscaner-skills/cdd-engine build` 刷新 dist 镜像 → `cdd schema get plan` = 新形（taskGroups/FormB 零存在）
+  - [ ] 4. schema.test / tokens.test / plan-body.test 重 pin 绿（deliberate update 登记）+ deriveDocTokens 两加载序回归（tokens 先 / registry 先）
+  - [ ] 5. smoke-cdd `deriveFixture` 新数据形改造 + 消费者链绿（`node scripts/run.ts smoke-cdd`）
+  - [ ] 6. `## Task Groups` 新文档 BLOCK fixture + 断言；删除集**并集 grep 零命中**断言（T3+T4 全符号集）
+  - [ ] 7. 提交（`refactor(engine): shape/token 单形态重基——plan.json 新 golden · smoke-cdd 新数据形`）
 - **Acceptance**:
   - `config/schema/plan.json` taskGroups / Form-B 面零存在（grep + schema get 实证）；DOC_TOKENS 四 taskGroups token + proseAnchors 零存在
   - smoke-cdd consumer 链绿（新数据形 fixture 派生）；dist 镜像更新（本地 `schema get` 显示新形）
@@ -154,8 +146,6 @@
 ### Task 5: 全树迁移 A —— 20 六段 design → 三真骨架（内容保真）
 
 - **Objective**: 20 份六段 spec 转录至规范形（`## Design` + 唯一 `### Acceptance criteria` + `## Constraints` + 条件段），验收原文/约束原文逐字；per-doc 单形态 validate 绿
-- **DependsOn**: none
-- **AtomicWith**: none
 - **Consumes**: T3/T4 单形态 engine（spec 三真骨架唯一断言）；T3 建置的 `tree-migration.test.ts` 骨架
 - **Produces**: 20 份三真骨架 spec（canonical 绿）；tree-migration spec 家族断言（扩展）；pending-migration 集首度收窄（20 spec 断面翻绿）
 - **Files**（迁移对象，Plan Sole Writer 全量编辑）:
@@ -165,10 +155,10 @@
   - `docs/kairos/specs/2026-10-02-doc-architecture-v2-p{1,2}-design.md`
   - Test Modify: `documents/doctypes/__tests__/tree-migration.test.ts`（T3 建置 → 扩展 spec 家族断言）
 - **Steps**:
-  1. tree-migration.test.ts 增 spec 家族断言：每迁移 spec 含 `## Design` + 唯一 `### Acceptance criteria` + `## Constraints`；验收/测试段落原文 token 逐字 § `### Acceptance criteria` 条目（机 pin）；单形态 docContractValidate 绿 — checkable: tree-migration spec 家族断言绿（三真骨架 + 验收/约束逐字机 pin + 单形态 validate）
-  2. 转录 20 份（六段映射：设计正文 → `## Design`；验收/测试段 → `### Acceptance criteria`（原文逐字）；`## Section 1: Constraints pointer` → `## Constraints`（引用/指针原文逐字换壳）；条件写面识别——deviations/incremental/downstream 按条件落/不落；header 五元保持 + `**Version**` 行保留；每份转录独立提交） — checkable: 20 份六段 spec 转录完成 · 每份单形态 validate 绿
-  3. 树套件家族断面翻绿（20 spec = canonical 绿；pending-migration 集同步收窄） — checkable: 20 spec canonical 断面翻绿 · pending-migration 集同步收窄
-  4. 提交（`docs(kairos): p3 树迁移 A — 20 六段 specs → 三真骨架（内容保真转录）`） — checkable: 树迁移 A 提交落库
+  - [ ] 1. tree-migration.test.ts 增 spec 家族断言：每迁移 spec 含 `## Design` + 唯一 `### Acceptance criteria` + `## Constraints`；验收/测试段落原文 token 逐字 § `### Acceptance criteria` 条目（机 pin）；单形态 docContractValidate 绿
+  - [ ] 2. 转录 20 份（六段映射：设计正文 → `## Design`；验收/测试段 → `### Acceptance criteria`（原文逐字）；`## Section 1: Constraints pointer` → `## Constraints`（引用/指针原文逐字换壳）；条件写面识别——deviations/incremental/downstream 按条件落/不落；header 五元保持 + `**Version**` 行保留；每份转录独立提交）
+  - [ ] 3. 树套件家族断面翻绿（20 spec = canonical 绿；pending-migration 集同步收窄）
+  - [ ] 4. 提交（`docs(kairos): p3 树迁移 A — 20 六段 specs → 三真骨架（内容保真转录）`）
 - **Acceptance**:
   - 20 spec 全单形态 validate 绿（tree-migration spec 家族断言全过）
   - 验收/约束原文逐字机 pin（token 保真断言）；任务编号不适用（spec 无任务）
@@ -176,8 +166,6 @@
 ### Task 6: 全树迁移 B —— 17 Do 形 plan → 数据形（验收逐字 pin · Task Groups → 边）
 
 - **Objective**: 17 份 Do 形 plan（含 4 份带 `## Task Groups`）转录至数据形（Objective/Files/Interface/Steps{checkable}/Acceptance + 边声明）；验收原文逐字
-- **DependsOn**: none
-- **AtomicWith**: none
 - **Consumes**: T1/T2 边模型（`- **DependsOn**:`/`- **AtomicWith**:` 数据字段已读）；T3/T4 单形态 engine；T3 建置 `tree-migration.test.ts` 骨架（plan-Do 家族扩展标的）
 - **Produces**: 17 份数据形 plan（canonical 绿）；tree-migration plan-Do 家族断言；`## Task Groups` 段零存在达成（行锚定标题匹配）；pending-migration 集再收窄；组语义边转译（4 份组等势断言）
 - **Files**（迁移对象）:
@@ -185,10 +173,10 @@
   - 带 Task Groups（4）: `consumer-parity-p{4.2,4.4}.md` · `pi-harness-p{4,5}.md`
   - Test Modify: `tree-migration.test.ts`（T3 建置 → 增 plan-Do 家族断言）
 - **Steps**:
-  1. tree-migration.test.ts 增 plan-Do 家族断言：每迁移 plan——任务编号 `1..N` 连续逐字 · 验收原文 token 逐字 `acceptance[]` · 约束原文逐字 · 单形态 docContractValidate 绿 · 边声明转译后的图派生组与原文 `## Task Groups` 段落合并语义一致（4 份断言） — checkable: tree-migration plan-Do 家族断言绿（编号连续 · 验收逐字 · 约束逐字 · 组转译等势）
-  2. 转录 17 份（Do 散文 → objective + steps{action,checkable} + interface{consumes,produces} + acceptance（验收逐字）+ 边声明（Task Groups 段 → atomicWith/dependsOn 语义转译 · 无段 → 委托依赖序判断）；`## Section 1/2` 段删（内容并入数据面）；Form B 散文锚 → `## Constraints` 子节（原文逐字换壳）——每份转录独立提交） — checkable: 17 份 Do 形 plan 转录完成 · 每份单形态 validate 绿
-  3. 树套件 plan-Do 家族断面翻绿（pending-migration 集再收窄） — checkable: 17 plan canonical 断面翻绿 · pending-migration 集再收窄
-  4. 提交（`docs(kairos): p3 树迁移 B — 17 Do 形 plans → 数据形（验收逐字 pin · 组转译边）`） — checkable: 树迁移 B 提交落库
+  - [ ] 1. tree-migration.test.ts 增 plan-Do 家族断言：每迁移 plan——任务编号 `1..N` 连续逐字 · 验收原文 token 逐字 `acceptance[]` · 约束原文逐字 · 单形态 docContractValidate 绿 · 边声明转译后的图派生组与原文 `## Task Groups` 段落合并语义一致（4 份断言）
+  - [ ] 2. 转录 17 份（Do 散文 → objective + steps{action,checkable} + interface{consumes,produces} + acceptance（验收逐字）+ 边声明（Task Groups 段 → atomicWith/dependsOn 语义转译 · 无段 → 委托依赖序判断）；`## Section 1/2` 段删（内容并入数据面）；Form B 散文锚 → `## Constraints` 子节（原文逐字换壳）——每份转录独立提交）
+  - [ ] 3. 树套件 plan-Do 家族断面翻绿（pending-migration 集再收窄）
+  - [ ] 4. 提交（`docs(kairos): p3 树迁移 B — 17 Do 形 plans → 数据形（验收逐字 pin · 组转译边）`）
 - **Acceptance**:
   - 17 plan 全单形态 validate 绿；验收逐字 pin 断言全过 · 任务编号连续性断言全过
   - 4 份 Task Groups 段零存在——零命中断言 = **行锚定标题匹配** `^## Task Groups\s*$`（与 engine heading token 同族）· 扫描范围 = 迁移目标 plan 文档集合（本 p3-plan 等非迁移文档的 prose 内联引用豁免）——且组语义 = 边转译（tree-migration 断言组等势）
@@ -196,18 +184,16 @@
 ### Task 7: 全树迁移 C —— 4 散文期 plan（osuperpowers p1–p4 · Global Constraints 换壳 · acceptance 推导补全）
 
 - **Objective**: 4 份散文期 plan（osuperpowers p1–p4）转录至数据形；`## Global Constraints` → `## Constraints`（原文逐字换壳）；无验收原文 → acceptance 推导补全（显式断言补全产物）
-- **DependsOn**: none
-- **AtomicWith**: none
 - **Consumes**: T3/T4 单形态 engine；T6 数据形先例；T3 建置 `tree-migration.test.ts` 骨架（散文期家族扩展标的）
 - **Produces**: 4 份数据形 plan（canonical 绿）；tree-migration 散文期家族断言；pending-migration 集清零（全部迁移对象绿）；`## Global Constraints` 行锚定零存在达成
 - **Files**:
   - `docs/kairos/plans/2026-09-13-osuperpowers-overhaul-p{1,2,3,4}.md`
   - Test Modify: `tree-migration.test.ts`（T3 建置 → 增散文期家族断言）
 - **Steps**:
-  1. tree-migration.test.ts 增散文期断言：每迁移 plan——`### Task N:` 连续 · `## Global Constraints` 零存在（`## Constraints` 换壳）· 约束原文逐字 · acceptance 补全产物断言（非逐字 pin：断言 acceptance[] 非空、覆盖该任务正文声明的可验证成果、无占位符） — checkable: tree-migration 散文期断言绿（Global Constraints 换壳逐字 · acceptance 补全产物断言）
-  2. 转录 4 份（任务体 `**Files:**`/`**Interfaces:**` → files/interface{consumes,produces} · 正文任务描述 → objective + steps{action,checkable} · acceptance 按正文/文件面推导补全 · `## Global Constraints` → `## Constraints`（子节壳形，原文逐字）· 每份独立提交） — checkable: 4 份散文期 plan 转录完成 · 每份单形态 validate 绿
-  3. 树套件散文期家族翻绿（pending-migration 集空——全部迁移对象绿） — checkable: 4 plan canonical 断面翻绿 · pending-migration 集清零
-  4. 提交（`docs(kairos): p3 树迁移 C — 4 散文期 plans → 数据形（Global Constraints 换壳 · acceptance 推导补全）`） — checkable: 树迁移 C 提交落库
+  - [ ] 1. tree-migration.test.ts 增散文期断言：每迁移 plan——`### Task N:` 连续 · `## Global Constraints` 零存在（`## Constraints` 换壳）· 约束原文逐字 · acceptance 补全产物断言（非逐字 pin：断言 acceptance[] 非空、覆盖该任务正文声明的可验证成果、无占位符）
+  - [ ] 2. 转录 4 份（任务体 `**Files:**`/`**Interfaces:**` → files/interface{consumes,produces} · 正文任务描述 → objective + steps{action,checkable} · acceptance 按正文/文件面推导补全 · `## Global Constraints` → `## Constraints`（子节壳形，原文逐字）· 每份独立提交）
+  - [ ] 3. 树套件散文期家族翻绿（pending-migration 集空——全部迁移对象绿）
+  - [ ] 4. 提交（`docs(kairos): p3 树迁移 C — 4 散文期 plans → 数据形（Global Constraints 换壳 · acceptance 推导补全）`）
 - **Acceptance**:
   - 4 plan 单形态 validate 绿；约束原文逐字（Global Constraints 换壳）· 任务编号连续 · acceptance 补全产物断言过
   - `## Global Constraints` 零命中 = 同 T6 断言定义（**行锚定标题匹配** `^## Global Constraints\s*$` · 扫描范围 = 迁移目标 plan 文档集合），迁移后零命中
@@ -215,24 +201,20 @@
 ### Task 8: 全树单形态收口（47 校验文件零排除绿 · one-off 容忍）
 
 - **Objective**: walk set 48 文件（22 plan + 21 design + 4 overall + 1 one-off）中 47 校验文件（22 plan + 21 design + 4 overall）单形态 validate 全绿（zero exclusion 作用于校验文件）——one-off 容忍关断、不参与绿/红断言——树套件全断面绿，红窗口闭合
-- **DependsOn**: none
-- **AtomicWith**: none
 - **Consumes**: T5–T7 迁移产物（41 个迁移对象——20 spec + 21 plan——全部 canonical）；T3 建置 `tree-migration.test.ts` 骨架（转全绿终态标的）
 - **Produces**: 全树单形态全绿终态（47 校验文件零排除 + one-off 容忍）· 树套件终态断言（pending-migration 断面清零）· 红窗口闭合
 - **Files**:
   - Modify: `documents/doctypes/__tests__/tree-migration.test.ts` / 单形态树套件（迁移队列期望态 → 全绿终态）
 - **Steps**:
-  1. 树套件终态断言：47 校验文件（22 plan + 21 design + 4 overall，plans/ 含本 p3-plan）单形态 docContractValidate 绿零排除 + one-off（specs/2026-09-28-cdd-review-contract-fix.md）容忍关断（不参与绿/红断言）——pending-migration 断面清零 — checkable: tree-migration 终态断言绿（47 校验文件单形态零排除 · one-off 容忍 · pending 清零）
-  2. 运行全绿（引擎 suite 全量 + 树套件全绿） — checkable: engine suite 全量 + 树套件全绿
-  3. 提交（`test(engine): 全树单形态 47 校验文件零排除绿（one-off 容忍 · 迁移队列闭合）`） — checkable: T8 提交落库
+  - [ ] 1. 树套件终态断言：47 校验文件（22 plan + 21 design + 4 overall，plans/ 含本 p3-plan）单形态 docContractValidate 绿零排除 + one-off（specs/2026-09-28-cdd-review-contract-fix.md）容忍关断（不参与绿/红断言）——pending-migration 断面清零
+  - [ ] 2. 运行全绿（引擎 suite 全量 + 树套件全绿）
+  - [ ] 3. 提交（`test(engine): 全树单形态 47 校验文件零排除绿（one-off 容忍 · 迁移队列闭合）`）
 - **Acceptance**:
   - 树套件全绿（47 校验文件零排除 + one-off 容忍）；`pnpm --filter @oscaner-skills/cdd-engine test` 全量绿
 
 ### Task 9: 消费面同步 + 终验 + changesets
 
 - **Objective**: cdd-plan + cdd-dev SKILL 面改（Task Groups → 边声明指导）· skill-anatomy · emit fresh · 全量 validate · changesets
-- **DependsOn**: none
-- **AtomicWith**: none
 - **Consumes**: T1–T8 全部产物（engine 单形态 + 树全绿基线）；`.changeset/README.md`（changeset 判定前置读）
 - **Produces**: cdd-plan + cdd-dev SKILL 边声明撰作面（英文零程序历史）· skill-anatomy 更新 · `pnpm run emit` 再生成产物 · changeset 文件（cdd-engine + kairos 两包）· `pnpm run validate` / typecheck / biome 全绿证据
 - **Files**:
@@ -242,13 +224,13 @@
   - Modify: `docs/maintainers/01-template-doctrine.md`（doc 结构面随行：单形态 + 边模型 + 迁移队列；**锚冻结裁决（orchestrator 2026-10-06）**：三分事实最小化措辞落 §9，≤53,000B 锚不动 = 预算由家族压缩自筹——改锚 / 改 ledger 「≤ 53,000」文案 = 越 P4.2 acceptance，禁止）
   - Test: scripts 单测（charter guard 全绿）· `pnpm run emit` / `emit:check` fresh
 - **Steps**:
-  1. cdd-plan SKILL.md 撰作面改（英文 · 消费者文本零程序历史——Task Groups 撰作段替换为边声明指导；不叙述迁移历史） — checkable: cdd-plan SKILL.md 边声明撰作面落地（英文 · 零程序历史 · `## Task Groups` 撰作段零存在）
-  2. cdd-dev SKILL.md `implement-group` 同步（同 retired 面：`## Task Groups`/`taskGroups` 机制句 → TaskGraph 边派生描述——effectiveGroups 源自 task records 的 dependsOn/atomicWith 边，`taskGroups` record 与 `## Task Groups` 段均 retired） — checkable: cdd-dev SKILL.md `implement-group` 零 retired 面引用（taskGroups record / `## Task Groups` 机制句零存在）
-  3. skill-anatomy 校验绿（如涉 section-heading registry）；`pnpm run emit` 重生成 + `emit:check` fresh — checkable: skill-anatomy 校验绿（如涉）· emit 重生成后 emit:check fresh
-  4. **shipped 描述面零程序历史 grep pin（backfill 2026-10-05）**：`config/schema/*.json` description 值 + `body/*.ts` 导出成员 doc comment 零生命周期/出处词汇命中（`extension bit`/`declared surface`/`zero read/write`/`P\d+ (edge-model|extension)`——逐字 grep 含注释；`P<digits>` 域语义 token 豁免，非 `P\d+` 全禁） — checkable: shipped 描述面零程序历史 grep pin 绿（schema description 值 + body 导出 doc comment 零生命周期/出处词汇）
-  5. 终验：`pnpm run validate` 全块 ALL PASS（emit 新鲜 / kairos 插件解析 / cdd-engine 引擎套件 / 零残留 residue + channel / marketplace / scripts / 版本同步）· `pnpm run typecheck` 绿（根级三 tsc 项目：packages/cdd-engine / scripts / packages/kairos/tests——cdd-engine 无独立 typecheck script，typecheck 归根脚本，与 acceptance「typecheck 三项目绿」一致）· biome clean — checkable: pnpm run validate 全块 ALL PASS · pnpm run typecheck 三项目绿 · biome clean
-  6. changesets（先读 `.changeset/README.md` 判定）：`@oscaner-skills/cdd-engine`（TaskGraph + 单形态退役 + 树迁移守卫）+ `kairos`（SKILL 文案视面） — checkable: changesets 已建（cdd-engine + kairos 视面）
-  7. 提交（`feat(engine)/docs(kairos): P3 消费面 + 终验 + changesets`） — checkable: T9 提交落库
+  - [ ] 1. cdd-plan SKILL.md 撰作面改（英文 · 消费者文本零程序历史——Task Groups 撰作段替换为边声明指导；不叙述迁移历史）
+  - [ ] 1b. cdd-dev SKILL.md `implement-group` 同步（同 retired 面：`## Task Groups`/`taskGroups` 机制句 → TaskGraph 边派生描述——effectiveGroups 源自 task records 的 dependsOn/atomicWith 边，`taskGroups` record 与 `## Task Groups` 段均 retired）
+  - [ ] 2. skill-anatomy 校验绿（如涉 section-heading registry）；`pnpm run emit` 重生成 + `emit:check` fresh
+  - [ ] 2b. **shipped 描述面零程序历史 grep pin（backfill 2026-10-05）**：`config/schema/*.json` description 值 + `body/*.ts` 导出成员 doc comment 零生命周期/出处词汇命中（`extension bit`/`declared surface`/`zero read/write`/`P\d+ (edge-model|extension)`——逐字 grep 含注释；`P<digits>` 域语义 token 豁免，非 `P\d+` 全禁）
+  - [ ] 3. 终验：`pnpm run validate` 全块 ALL PASS（emit 新鲜 / kairos 插件解析 / cdd-engine 引擎套件 / 零残留 residue + channel / marketplace / scripts / 版本同步）· `pnpm run typecheck` 绿（根级三 tsc 项目：packages/cdd-engine / scripts / packages/kairos/tests——cdd-engine 无独立 typecheck script，typecheck 归根脚本，与 acceptance「typecheck 三项目绿」一致）· biome clean
+  - [ ] 4. changesets（先读 `.changeset/README.md` 判定）：`@oscaner-skills/cdd-engine`（TaskGraph + 单形态退役 + 树迁移守卫）+ `kairos`（SKILL 文案视面）
+  - [ ] 5. 提交（`feat(engine)/docs(kairos): P3 消费面 + 终验 + changesets`）
 - **Acceptance**:
   - cdd-plan + cdd-dev SKILL 撰写面 = 边声明指导（英文零程序历史；cdd-dev `## Task Groups`/`taskGroups` 零引用）；skill-anatomy 绿 · emit fresh
   - 01 三分事实最小化落 §9（单形态 + 边模型 + 迁移队列）· maintainers 家族实测 ≤53,000B（锚未动）· README ledger After 胞 = live

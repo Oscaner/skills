@@ -64,28 +64,14 @@ function splitListValue(value: string): string[] {
     .filter(Boolean);
 }
 
-/** Parse one edge-field value (`- **DependsOn**:` / `- **AtomicWith**:` — P3.1 T3: the mandated
- *  two-line edge surface): `none` / an empty value → `[]` (the no-edge declaration — the edge
- *  fields stay mandatory at the LINE level, the value declares no edge); a comma table → the
- *  Number gate (each item maps through Number — an illegal token (`abc` / `1;2`) survives as NaN,
- *  the graph feed's integer gate rejects it, never a silent drop). */
-function parseEdgeList(raw: string): number[] {
-  const trimmed = raw.trim();
-  if (trimmed === "" || trimmed === "none") return [];
-  return splitListValue(trimmed).map(Number);
-}
-
 /** Parse one `### Task N:` block's lines into a Task data record (design C3) — the single-form
  *  grammar: EVERY task block is a data-shaped record, so the parse always returns a Task (a block
  *  carrying no data-field markers parses to an empty record — the ORPHAN task block, a validate
- *  failure, never a silently dropped block). The mandated edge lines (`- **DependsOn**:` /
- *  `- **AtomicWith**:` — P3.1 T3: both mandatory in every block) read as comma-table number arrays
- *  into the Task's dependsOn/atomicWith — `none` / an empty value lexes to `[]`, and a block
- *  declaring neither one of the two lines records the missing-edge face (Task.missingEdge — the
- *  sixth failure class, a doc-contract gate BLOCK; the TaskGraph edge-model read surface stays
- *  lenient: an absent line parses to the no-edge `[]`). A step entry that drops the
- *  ` — checkable:` separator still parses (its action is kept) with the checkable capture empty —
- *  the validate face fails on it, the field is never silently dropped. */
+ *  failure, never a silently dropped block). The optional edge fields (`- **DependsOn**:` /
+ *  `- **AtomicWith**:`) read as comma-table number arrays into the Task's dependsOn/atomicWith —
+ *  the TaskGraph edge-model read surface. A step entry that drops the ` — checkable:` separator
+ *  still parses (its action is kept) with the checkable capture empty — the validate face fails on
+ *  it, the field is never silently dropped. */
 function parseTaskBlock(lines: readonly string[]): Task {
   const slices = planBody.projectSlicePatterns();
   let objective = "";
@@ -96,7 +82,6 @@ function parseTaskBlock(lines: readonly string[]): Task {
   const acceptance: string[] = [];
   const dependsOn: number[] = [];
   const atomicWith: number[] = [];
-  const edgeDeclared = { dependsOn: false, atomicWith: false };
   let mode: "steps" | "acceptance" | null = null;
   for (const line of lines) {
     // Field markers take priority (a marker line switches the parse mode / captures its single-line
@@ -114,12 +99,10 @@ function parseTaskBlock(lines: readonly string[]): Task {
       produces.push(...splitListValue(line.replace(slices.produces, "").trim()));
       mode = null;
     } else if (slices.dependsOn.test(line)) {
-      dependsOn.push(...parseEdgeList(line.replace(slices.dependsOn, "")));
-      edgeDeclared.dependsOn = true;
+      dependsOn.push(...splitListValue(line.replace(slices.dependsOn, "").trim()).map(Number));
       mode = null;
     } else if (slices.atomicWith.test(line)) {
-      atomicWith.push(...parseEdgeList(line.replace(slices.atomicWith, "")));
-      edgeDeclared.atomicWith = true;
+      atomicWith.push(...splitListValue(line.replace(slices.atomicWith, "").trim()).map(Number));
       mode = null;
     } else if (slices.steps.test(line)) {
       mode = "steps";
@@ -140,11 +123,10 @@ function parseTaskBlock(lines: readonly string[]): Task {
     interface: { consumes, produces },
     steps,
     acceptance,
-    dependsOn,
-    atomicWith,
-    // the edge-mandatory record: a block declaring neither one of the two edge lines trips the
-    // missing-edge face (the doc-contract gate's sixth failure class — never a silent absence).
-    missingEdge: !edgeDeclared.dependsOn || !edgeDeclared.atomicWith,
+    // the edge fields are absent-on-default: an empty declaration leaves the field undefined
+    // (task.test.ts pins the absent default).
+    ...(dependsOn.length > 0 ? { dependsOn } : {}),
+    ...(atomicWith.length > 0 ? { atomicWith } : {}),
   });
 }
 
@@ -349,8 +331,8 @@ export class PlanDocType extends DocType {
           );
         }
       };
-      scan("dependsOn", task.dependsOn);
-      scan("atomicWith", task.atomicWith);
+      scan("dependsOn", task.dependsOn ?? []);
+      scan("atomicWith", task.atomicWith ?? []);
     });
     return failures;
   }

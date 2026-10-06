@@ -28,8 +28,7 @@
 //     task boundary slices;
 //   - the dead-shell discipline: `doctypes/shapes/plan.ts` is gone (zero existence — grep included).
 import { execSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { runStructureRules } from "../../../../rules/structure.ts";
@@ -178,17 +177,13 @@ describe("PLAN_BODY_SHAPE — the full-field data-shape projection", () => {
     expect(node(["taskHeadings", "continuity"])).toBeDefined();
   });
 
-  it("tasks[] carries the Task data shape — objective/files/interface{consumes,produces}/steps[]{action,checkable}/acceptance + the mandatory edge fields", () => {
+  it("tasks[] carries the Task data shape — objective/files/interface{consumes,produces}/steps[]{action,checkable}/acceptance + the edge fields", () => {
     expect(node(["tasks"]).type).toBe("array");
     const item = node(["tasks"]).items;
     const required = item?.required as readonly string[] | undefined;
     expect(required).toContain("objective");
     expect(required).toContain("steps");
     expect(required).toContain("acceptance");
-    // The edge fields are MANDATORY (P3.1 T3 — the two-line edge surface): the task record shape
-    // requires both dependsOn and atomicWith (every block declares both edge lines).
-    expect(required).toContain("dependsOn");
-    expect(required).toContain("atomicWith");
     // interface {consumes,produces} — the typed task boundary slices.
     expect(item?.properties?.interface?.properties?.consumes?.type).toBe("array");
     expect(item?.properties?.interface?.properties?.produces?.type).toBe("array");
@@ -283,10 +278,6 @@ describe("renderBrief — the task-handoff brief rendered from Task data (zero `
         { action: "prove zero Do carving", checkable: "the output has no legacy Do marker" },
       ],
       acceptance: ["the brief carries objective", "the brief carries every checkable"],
-      // The non-optional edge fields (P3.1 T3 — a Task always carries both; no-edge → []).
-      dependsOn: [],
-      atomicWith: [],
-      missingEdge: false,
     };
     const brief = planBody.renderBrief(task);
     expect(brief).toContain("ship the data-shaped brief");
@@ -392,198 +383,6 @@ describe("the new-shape plan fixture — parse + validate + tasksFromPlan (desig
   it("every step keeps its checkable in the untouched fixture — no spurious data-shape failure", () => {
     const findings = runStructureRules(readFileSync(NEW_SHAPE, "utf8"), planBody.structureRules());
     expect(findings.map((f) => f.id)).not.toContain("plan.checkable");
-  });
-});
-
-describe("the edge-completeness surface (P3.1 T3 — the missing-edge sixth failure class)", () => {
-  /** Write a plan to a temp dir and return its path (the inline edge-completeness fixtures). */
-  function tempPlan(content: string): string {
-    const dir = mkdtempSync(path.join(tmpdir(), "cdd-edge-"));
-    const p = path.join(dir, "plan.md");
-    writeFileSync(p, content);
-    return p;
-  }
-
-  it("a task block missing either edge line → BOTH missing-edge structure findings fire (BLOCK severity, the sixth failure class — never a silent no-edge default)", () => {
-    const missing = tempPlan(
-      [
-        "# Plan",
-        "",
-        "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
-        "",
-        "## Constraints",
-        "",
-        "- delta",
-        "",
-        "### Task 1: x",
-        "",
-        "- **Objective**: task one",
-        "- **Steps**:",
-        "  1. implement — checkable: done",
-        "- **Acceptance**:",
-        "  - done",
-        "",
-      ].join("\n"),
-    );
-    try {
-      const findings = runStructureRules(readFileSync(missing, "utf8"), planBody.structureRules());
-      const ids = findings.map((f) => f.id);
-      expect(ids).toContain("plan.missingEdgeDependsOn");
-      expect(ids).toContain("plan.missingEdgeAtomicWith");
-      for (const f of findings.filter((f) => f.id.startsWith("plan.missingEdge"))) {
-        expect(f.severity).toBe("BLOCK");
-      }
-    } finally {
-      rmSync(path.dirname(missing), { recursive: true, force: true });
-    }
-  });
-
-  it("a task block declaring BOTH edge lines (`none` or a real list) → zero missing-edge findings (the two-line edge surface is the conforming state)", () => {
-    const conformant = tempPlan(
-      [
-        "# Plan",
-        "",
-        "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
-        "",
-        "## Constraints",
-        "",
-        "- delta",
-        "",
-        "### Task 1: x",
-        "",
-        "- **Objective**: task one",
-        "- **DependsOn**: none",
-        "- **AtomicWith**: none",
-        "- **Steps**:",
-        "  1. implement — checkable: done",
-        "- **Acceptance**:",
-        "  - done",
-        "",
-      ].join("\n"),
-    );
-    try {
-      const findings = runStructureRules(
-        readFileSync(conformant, "utf8"),
-        planBody.structureRules(),
-      );
-      expect(findings.map((f) => f.id)).not.toContain("plan.missingEdgeDependsOn");
-      expect(findings.map((f) => f.id)).not.toContain("plan.missingEdgeAtomicWith");
-    } finally {
-      rmSync(path.dirname(conformant), { recursive: true, force: true });
-    }
-  });
-
-  it("lexing: `none` → `[]` · `1, 3` → [1, 3] through the Number gate · empty value → `[]` — and an illegal token (`abc` / `1;2`) survives as NaN for the graph gate, never a silent drop", () => {
-    const plan = tempPlan(
-      [
-        "# Plan",
-        "",
-        "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
-        "",
-        "## Constraints",
-        "",
-        "- delta",
-        "",
-        "### Task 1: no dependency",
-        "",
-        "- **Objective**: none declaration",
-        "- **DependsOn**: none",
-        "- **AtomicWith**: none",
-        "- **Steps**:",
-        "  1. implement — checkable: done",
-        "- **Acceptance**:",
-        "  - done",
-        "",
-        "### Task 2: number table",
-        "",
-        "- **Objective**: a comma table through the Number gate",
-        "- **DependsOn**: 1, 3",
-        "- **AtomicWith**: none",
-        "- **Steps**:",
-        "  1. implement — checkable: done",
-        "- **Acceptance**:",
-        "  - done",
-        "",
-        "### Task 3: empty value",
-        "",
-        "- **Objective**: an empty declaration",
-        "- **DependsOn**:",
-        "- **AtomicWith**: none",
-        "- **Steps**:",
-        "  1. implement — checkable: done",
-        "- **Acceptance**:",
-        "  - done",
-        "",
-        "### Task 4: illegal token",
-        "",
-        "- **Objective**: a malformed declaration",
-        "- **DependsOn**: abc",
-        "- **AtomicWith**: 1;2",
-        "- **Steps**:",
-        "  1. implement — checkable: done",
-        "- **Acceptance**:",
-        "  - done",
-        "",
-      ].join("\n"),
-    );
-    try {
-      const tasks = planType().tasksFromPlan(plan);
-      expect(tasks).toHaveLength(4);
-      // `none` → [] (the no-edge declaration); the edge lines are PRESENT → no missing-edge record.
-      expect(tasks[0]!.dependsOn).toEqual([]);
-      expect(tasks[0]!.atomicWith).toEqual([]);
-      expect(tasks[0]!.missingEdge).toBe(false);
-      // `1, 3` → the Number-gated number array.
-      expect(tasks[1]!.dependsOn).toEqual([1, 3]);
-      expect(tasks[1]!.atomicWith).toEqual([]);
-      // an empty value → [].
-      expect(tasks[2]!.dependsOn).toEqual([]);
-      // an illegal token survives as NaN (the value level, never a silent drop) — the graph feed's
-      // integer gate rejects it (missing-id BLOCK), and the line presence keeps missingEdge false.
-      expect(tasks[3]!.dependsOn).toEqual([Number.NaN]);
-      expect(tasks[3]!.atomicWith).toEqual([Number.NaN]);
-      expect(tasks[3]!.missingEdge).toBe(false);
-      // every task record carries both edge fields (non-optional number[] — the P3.1 T3 shape).
-      for (const task of tasks) {
-        expect(Array.isArray(task.dependsOn)).toBe(true);
-        expect(Array.isArray(task.atomicWith)).toBe(true);
-      }
-    } finally {
-      rmSync(path.dirname(plan), { recursive: true, force: true });
-    }
-  });
-
-  it("the parse-level missingEdge record fires on a block declaring NO edge lines (the `parseTaskBlock` scan face — tasksFromPlan exposes it)", () => {
-    const missing = tempPlan(
-      [
-        "# Plan",
-        "",
-        "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
-        "",
-        "## Constraints",
-        "",
-        "- delta",
-        "",
-        "### Task 1: x",
-        "",
-        "- **Objective**: task one",
-        "- **Steps**:",
-        "  1. implement — checkable: done",
-        "- **Acceptance**:",
-        "  - done",
-        "",
-      ].join("\n"),
-    );
-    try {
-      const tasks = planType().tasksFromPlan(missing);
-      expect(tasks).toHaveLength(1);
-      // absent edge lines default the fields to [] AND record the missing-edge face.
-      expect(tasks[0]!.dependsOn).toEqual([]);
-      expect(tasks[0]!.atomicWith).toEqual([]);
-      expect(tasks[0]!.missingEdge).toBe(true);
-    } finally {
-      rmSync(path.dirname(missing), { recursive: true, force: true });
-    }
   });
 });
 

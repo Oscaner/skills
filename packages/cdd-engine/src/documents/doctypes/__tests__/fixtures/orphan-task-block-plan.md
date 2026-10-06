@@ -8,8 +8,6 @@
 
 ### Task 1: legacy Do-form block
 
-- **DependsOn**: none
-- **AtomicWith**: none
 - **Do**: a legacy `- **Do**:` task body carries none of the data-shaped fields (no `- **Objective**:`
   / `- **Steps**:` / `- **Acceptance**:`) — under the single-form grammar the block is an orphan
   and the plan fails validation.

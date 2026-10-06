@@ -54,8 +54,6 @@
 ### Task 1: C1 ② return-block 删 `blocker:` 列 + M3 载体裁定（engine kernel）
 
 - **Objective**: C1 ② return-block 删 `blocker:` 列 + M3 载体裁定（engine kernel）：三行契约 + CDD_BLOCKED 单通道 + schema/模板面同步
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Produces**: `returnFourLines` 3 keys / `assembleReturnBlock` + `counters` / `dryRunBlock` 删行 / `returnFromHandoff` 删行 + 兜底理由重定位 stderr；`blockerDefaultFor`/`returnBlocker` 删除；task-handoff-schema `blocker` 空置 + allOf 仅 failure_category；agent 模板 RETURN_STDOUT_BLOCK 三行化；smoke-cdd 4-key pin；engine 单测
 
@@ -74,8 +72,6 @@
 ### Task 2: C1 ①④ status 路由判据 + skills ×5 重锚 + 等价单测
 
 - **Objective**: C1 ①④ status 路由判据 + skills ×5 重锚 + 等价单测（Review Convergence / 流程 digraph 的 `{blocker=0?}` 判据改 status 术语）
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Produces**: 五份 SKILL.md 改 status 判据（CHANGES_REQUESTED ⇒ S1 必 re-review / REVIEW_FIX ⇒ S2 收口 / APPROVED ⇒ S3）+ 输出契约 Read 面 3/4 行同步 + Failure-Modes M4 语义；engine 等价单测（status ⟺ severity 汇总）
 
@@ -92,8 +88,6 @@
 ### Task 3: C1 ③ 命名档案收编
 
 - **Objective**: C1 ③ 命名档案收编（naming-conventions §3.2 bounded 映射 + §3.3 mechanismNames 迁移行 + §3.5 去 blocker）
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Produces**: `docs/maintainers/02-naming-conventions.md` §3.2 bounded 映射行（blocker = M1 唯一词义 / BLOCKED = M4 / handoff blocker 字段 / CDD_BLOCKED 单通道 / docs 结果行计数）+ §3.3 迁移行 + §3.5 零 blocker
 
@@ -109,8 +103,6 @@
 ### Task 4: C2 ⑤⑥⑦ claim 判别 + range 语义 + 语法显式化（documents.ts）
 
 - **Objective**: C2 ⑤⑥⑦ claim 判别 + range 语义 + 语法显式化（documents.ts）
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Produces**: 判别结构性规则（`Pending`/`[Pending]` 头部 token + 非括注内联）；range 声明位多目标 + prose 位不声明（phaseIdsIn 展开清单）；字母后缀 phase-id 报非法（不进父行归 #304(b) precis）
 
@@ -126,8 +118,6 @@
 ### Task 5: C2 ⑧ 诊断三件套
 
 - **Objective**: C2 ⑧ 诊断三件套（肇事上下文 + 按类别分派建议 + 可执行动作）落地 documents.ts 输出面
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Produces**: mismatch/BLOCKED 输出升级三件套（clause 摘录 + 解析相位 + 机理 · 类别分派建议 · 可执行动作）；range 声明诊断附展开相位清单；`proseHintSuffix` 替换
 
@@ -144,8 +134,6 @@
 ### Task 6: C3 branch-review 通道契约收口（spec v1.3 backfill：#305 + #306）
 
 - **Objective**: C3 branch-review 通道契约收口（spec v1.3 backfill：#305 + #306）——repoRoot 注入 + 缺根 BLOCK/dry-run WARN + `--root` 白名单 + branch-review result-line
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Produces**: `cli/review.ts` branch ctx repoRoot = 解析后 root；`dispatch/base.ts` 缺根面真实 mode BLOCK / dry-run WARN；`cli/parse.ts` 三命令 `--root` flag；`dispatch/branch.ts` branch-review 真实 mode 经 returnFromHandoff emit return block
 
@@ -162,8 +150,6 @@
 ### Task 7: C4 branch-fix 收据契约（spec v1.4 backfill：#307）
 
 - **Objective**: C4 branch-fix 收据契约（spec v1.4 backfill：#307）——finalizeHandoff 事实重造 + 注入 schema 可写子集
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Produces**: `finalizeHandoff` mode "fix" 从原样透传改 engine 事实重造（commits/phase/status 权威 + agent 输入剥离）；修已 commit + 无代码面错误 → 收据自愈 APPROVED；`renderHandoffSchemaJson` 注入面收敛可写子集（剥 `$schema` + dispatch-盖章字段）
 
@@ -180,8 +166,6 @@
 ### Task 8: C5 engine core — `next:` 输出面（spec v1.5 backfill）
 
 - **Objective**: C5 engine core — `next:` 输出面（spec v1.5 backfill）：nextStepFor 纯派生 + 三输出面统一追加 next 行 + smoke-cdd 5-key
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Produces**: `rules/next-step.ts` `nextStepFor(ctx)`（零新 CLI 参数）；task/docs/branch 三输出面各含 `next:` 行；`scripts/validate/smoke-cdd.ts` 4-key → 5-key（+next）；engine 单测全表
 
@@ -198,8 +182,6 @@
 ### Task 9: C5 skills ×5 精简（spec v1.5 backfill，T8 世界态）
 
 - **Objective**: C5 skills ×5 精简（spec v1.5 backfill，T8 世界态）：S1/S2/S3 路由散文坍缩为 `next:` 共享引用
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Produces**: 五份 SKILL.md 零 S1/S2/S3 路由复述（判读措辞统一「读 `next:` 建议」；五处长散文收编为一处共享引用；I5/I7/I2 不变式与 digraph 原样保留）
 

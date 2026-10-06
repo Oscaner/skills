@@ -4,13 +4,9 @@
 // through the PlanBody-side renderBrief surface) and the T3 schema-validation face bolts onto: a
 // step's `checkable` is a construction-time type-level constraint (a step omitting it fails to
 // compile — never a runtime guard). `dependsOn` / `atomicWith` are the plan's two edge-model fields
-// (directed dependency + undirected atomic pairing), NON-OPTIONAL since P3.1 T3 — every constructed
-// task carries both as number[] (absent → `[]`, the no-edge default; the task-block parser fills
-// them from the `- **DependsOn**:` / `- **AtomicWith**:` comma lists — `none` / an empty value
-// lexes to `[]` — and TaskGraph consumes them for the atomic-closure grouping + the edge-validation
-// BLOCK face). `missingEdge` is the parse-level record of the edge-mandatory face: true when the
-// task block declares neither one of the two edge lines (the missing-edge failure class — a BLOCK
-// at the doc-contract gate, never a silent absence).
+// (directed dependency + undirected atomic pairing): read/write — the task-block parser fills them
+// from the `- **DependsOn**:` / `- **AtomicWith**:` comma lists and TaskGraph consumes them for the
+// atomic-closure grouping + the edge-validation BLOCK face.
 
 /** One plan task step — an executable action + its verifiable outcome. */
 export interface TaskStep {
@@ -29,10 +25,8 @@ export interface TaskInterface {
   produces: string[];
 }
 
-/** Constructor options for a plan task — the full field family + the constructor-defaulted
- *  dependsOn? / atomicWith? edge fields (absent → the constructed Task's NON-OPTIONAL number[]
- *  fields default to `[]` — the no-edge default) and the optional missingEdge? parse record
- *  (absent → false). */
+/** Constructor options for a plan task — the full field family + the optional dependsOn? /
+ *  atomicWith? edge fields. */
 export interface TaskOpts {
   /** The task's outcome statement. */
   objective: string;
@@ -45,26 +39,19 @@ export interface TaskOpts {
   /** The task's acceptance criteria. */
   acceptance: string[];
   /** The task ids this task depends on — read/write (the task-block parser fills it from the
-   *  `- **DependsOn**:` comma list — `none` / an empty value lexes to `[]`; TaskGraph consumes
-   *  the edges). Absent → `[]` (the no-edge default). */
+   *  `- **DependsOn**:` comma list; TaskGraph consumes the edges). */
   dependsOn?: number[];
   /** The task ids this task is atomic with — read/write (the task-block parser fills it from the
-   *  `- **AtomicWith**:` comma list — `none` / an empty value lexes to `[]`; TaskGraph consumes
-   *  the edges). Absent → `[]` (the no-edge default). */
+   *  `- **AtomicWith**:` comma list; TaskGraph consumes the edges). */
   atomicWith?: number[];
-  /** True when the task block declares neither one of the two edge lines (the parse-level
-   *  missing-edge record — the doc-contract gate's BLOCK face, see the plan-body rule data).
-   *  Absent → false. */
-  missingEdge?: boolean;
 }
 
 /**
  * A plan task (P2 T1; plan §T1 · design C1 — Criterion ②). Every field is constructor-injected on
- * a read-only face; the dependsOn / atomicWith edge fields are NON-OPTIONAL number[] (absent → `[]`
- * — the no-edge default; absent-at-construction never undefined), read/write (the task-block
- * parser fills them, TaskGraph consumes them). `missingEdge` records the parse-level edge-mandatory
- * face (a block declaring no edge line). The checkable requirement is enforced at the type level —
- * the T3 schema-validation machinery and the brief render surface consume the same TaskStep shape.
+ * a read-only face; the optional dependsOn? / atomicWith? edge fields are read/write (the
+ * task-block parser fills them, TaskGraph consumes them). The checkable requirement is enforced at
+ * the type level — the T3 schema-validation machinery and the brief render surface consume the same
+ * TaskStep shape.
  */
 export class Task {
   /** The task's outcome statement. */
@@ -77,13 +64,10 @@ export class Task {
   readonly steps: TaskStep[];
   /** The task's acceptance criteria. */
   readonly acceptance: string[];
-  /** The task ids this task depends on — non-optional (absent → `[]`, the no-edge default). */
-  readonly dependsOn: number[];
-  /** The task ids this task is atomic with — non-optional (absent → `[]`, the no-edge default). */
-  readonly atomicWith: number[];
-  /** True when the task block declared neither one of the two edge lines (the parse-level
-   *  missing-edge record). */
-  readonly missingEdge: boolean;
+  /** The task ids this task depends on. */
+  readonly dependsOn?: number[];
+  /** The task ids this task is atomic with. */
+  readonly atomicWith?: number[];
 
   constructor(opts: TaskOpts) {
     this.objective = opts.objective;
@@ -91,8 +75,7 @@ export class Task {
     this.interface = opts.interface;
     this.steps = opts.steps;
     this.acceptance = opts.acceptance;
-    this.dependsOn = opts.dependsOn ?? [];
-    this.atomicWith = opts.atomicWith ?? [];
-    this.missingEdge = opts.missingEdge === true;
+    this.dependsOn = opts.dependsOn;
+    this.atomicWith = opts.atomicWith;
   }
 }

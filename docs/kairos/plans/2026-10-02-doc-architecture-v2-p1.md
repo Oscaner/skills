@@ -50,8 +50,6 @@
 ### Task 1: DocType 框架核心（doctype.ts + registry.ts）
 
 - **Objective**: DocType 框架核心（doctype.ts + registry.ts）：abstract DocType 五域 + route + 抽象骨架 + DocTypeRegistry 单例，零接线
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Produces**: `src/documents/doctype.ts`（abstract DocType：五域字段 + route 元数据 + detect/validate/parse/lifecycle 抽象 + parentChain 骨架）；`src/documents/registry.ts`（DocTypeRegistry + docTypeRegistry 单例，resolve 未知 throw · all() 序 [overall, plan, spec]）；colocated 测试
 
@@ -69,8 +67,6 @@
 ### Task 2: 三子类 + per-type validate/parse 收编（S2/S3 收敛）
 
 - **Objective**: 三子类 + per-type validate/parse 收编（Overall/Plan/PhaseSpecDocType + DocumentsValidator 委托注册表，S2/S3 收敛）
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Produces**: `overall.ts` / `plan.ts` / `phase-spec.ts` 三子类（detect 特征 + validate/parse/lifecycle/parentChain + route 元数据）；`validateDispatchDocuments` 经注册表 resolve(kind).validate；per-type 私有裸函数迁子类实例方法
 
@@ -88,8 +84,6 @@
 ### Task 3: shape 域 + SchemaFactory + diff 钉 ×3（Q1/Q2 主面）
 
 - **Objective**: shape 域 + SchemaFactory + diff 钉 ×3（Q1/Q2 主面）：SchemaShape 同构完整内容 + 字节保真确定性投影
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Produces**: `doctype.ts` shape 域具体型（三型同构内容）；`src/documents/factory.ts`（SchemaFactory：字节保真投影 → config/schema 原位）；factory.test diff 钉 ×3
 
@@ -107,8 +101,6 @@
 ### Task 4: words 域 + contract-lexicon.json 派生化
 
 - **Objective**: words 域 + contract-lexicon.json 派生化（DocWords 单字段单源 + words 渲染器字节等价）
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Produces**: `DocType.words` 承载 engine lexicon 翼内容（共享单例）；`src/documents/words.ts` 渲染器（字节等价派生 config/contract-lexicon.json）；words.test
 
@@ -126,8 +118,6 @@
 ### Task 5: bodyView 分型面（template-contract 迁移 + TemplateLoader 消费重接，S7）
 
 - **Objective**: bodyView 分型面（template-contract 迁移 + TemplateLoader 消费重接，S7）：reviews.{spec,plan} + DOCS_FORMATS 迁入 DocType.bodyView
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Produces**: `BodyViewSpec`（docFamily 判别接口 + per-type reviews 配置面）；`config/template-contract.json` reviews.spec/plan 块迁出；`TemplateLoader` 经 docTypeRegistry 读 per-type review 配置；templates 测试全绿（渲染输出等价）
 
@@ -145,8 +135,6 @@
 ### Task 6: 收敛接线 S1/S4/S5/S6（detect / CLI --type / resolveTargetDoc / next-step）
 
 - **Objective**: 收敛接线 S1/S4/S5/S6（detect 经注册表 + CLI --type 路由 + resolveTargetDoc + next-step，A3 8 散点收敛）
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Produces**: `docKindOf` 删除（detect 经 docTypeRegistry.all() 迭代 + 零命中 fail-fast throw）；CLI review/fix --type 经 `resolve(type).lifecycle`；resolveTargetDoc / NextStep 建议表经 DocType.route
 
@@ -164,8 +152,6 @@
 ### Task 7: S8 tokens shape 域 + 死牵引 + 终验（A4 + changeset）
 
 - **Objective**: S8 tokens shape 域 + 死牵引 + 终验（A4 + changeset）：deriveDocTokens 源改经 DocType.shape 访问器
-- **DependsOn**: none
-- **AtomicWith**: none
 
 - **Produces**: `deriveDocTokens` live 派生经 DocType.shape 域访问器（DOC_TOKENS 生产单例值不变）；死牵引清理（CLAUDE.md / tokens.ts 注释）；changeset（cdd-engine）
 

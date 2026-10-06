@@ -7,13 +7,14 @@
 - **Depends on**: P5 shipped（report-issues 改名 + engine 生命周期重建 + TS 化，PR #263）；P1–P4 shipped（hard 链完整）
 
 ## Design
-**前置原则（原 Section 0，转录）**
+### 2. 收口与自省设计
+#### 2.7 前置原则（原 Section 0，转录）
 
 **设计原则（overall Constraints v1.35–v1.37）**：高维度抽象统一 · 可变更代码结构和目录 · 允许破坏性变更 · 不留技术债务。**不是打补丁**——每一项都是 §2.0 收敛论点的执法实例。
 
 **诚实边界（跨厂商检索定）**：prompt caching 的引擎杠杆是**字节面**非断点面（CLI 传文本时断点由 harness CLI 决定）；自有 user-block 命中受 block 粒度影响——受益主张收敛为「连续同类型 round 读 tok > 0 可测」，跨时段/绝对命中率不承诺；不可观测或低于触发阈的 harness 明示不测量。
 
-**§2.0 收敛论点（Claim-Reality Convergence）**
+#### 2.0 收敛论点（Claim-Reality Convergence）
 
 > **储存在本仓库的每一项「宣称」——表述 / 守则 / 契约 / 能力声明 / 流程描述——要么有机械强制执行，要么诚实撤回。纸面宣称不存在（No claim without enforcement）。**
 
@@ -30,7 +31,7 @@ P6 不是十一项修复，是**一个收敛程序的六类执法实例**。所�
 
 **两个化学（φ）**：**工件单源化学**（一切可预期的工件/数据/契约有且仅有一个字节原子来源——壳、条款、schema、配置文件、锚点）· **skill 流程化学**（节点锚定流程是形状本体，变更即整 shape 变更，无局部补丁）。P6 的设计与验收以此为双公理。
 
-**§2.1 根因（两根因轴）**
+#### 2.1 根因（两根因轴）
 
 一切根因归二轴，无第三类：
 
@@ -48,7 +49,7 @@ P6 不是十一项修复，是**一个收敛程序的六类执法实例**。所�
 | | R10 tests 平铺与 src 脱节 | 53 文件（48 测试节点 + 边件）vs 六域 |
 | | R11 v1.13 follow-up 无主 | smoke flake · changeset 版本不落地 |
 
-**§2.2 高维度统一骨架 — Bounded-plane 模型**
+#### 2.2 高维度统一骨架 — Bounded-plane 模型
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -66,9 +67,9 @@ P6 不是十一项修复，是**一个收敛程序的六类执法实例**。所�
 - **机械守卫优先主线程**：每个删除面配守卫（残留 stale-lexicon）、每个收敛面配不变式（字节/digraph/锚点/内存/pre-commit 子集）——「零纸面宣称」是全局总不变量（§2.5）。
 - **「docs 与落地一致」是收口统一验收**：每个登记项落地 = maintainer docs / CLAUDE.md 有同步记录，且落地面零陈旧引用。
 
-**§2.3 七域设计（域 A–F 为六设计域，域 G = meta 自省域，不计六数；每域首句 = 承载宣称 → 执法）**
+#### 2.3 七域设计（域 A–F 为六设计域，域 G = meta 自省域，不计六数；每域首句 = 承载宣称 → 执法）
 
-**§2.3.1 域 A — 能力宣称收缩（宣称撤回 + 数据化）**
+#### 2.8 §2.3.1 域 A — 能力宣称收缩（宣称撤回 + 数据化）
 
 | 项 | 设计 | 落点 |
 |---|---|---|
@@ -81,7 +82,7 @@ P6 不是十一项修复，是**一个收敛程序的六类执法实例**。所�
 | A7 | harness-registry 精简审计（保持 claude/cursor-agent 两实扛，零死条目）+ 后续 cache profile 数据面（域 D） | infra/harness-registry.json |
 | A8 | emit:check drift=0 | `pnpm run emit:check` |
 
-**§2.3.2 域 B — vendors 自维护面全撤（宣称撤回，不留死代码债务）**
+#### 2.9 §2.3.2 域 B — vendors 自维护面全撤（宣称撤回，不留死代码债务）
 
 | 面 | 现状 | 动作 |
 |---|---|---|
@@ -100,7 +101,7 @@ P6 不是十一项修复，是**一个收敛程序的六类执法实例**。所�
 
 > 顺序：先删机制引用再拆 submodule，防孤儿引用。
 
-**§2.3.3 域 C — 测试就近迁移 + `.mjs` 终态（可靠性收口，项 M1–M7）**
+#### 2.10 §2.3.3 域 C — 测试就近迁移 + `.mjs` 终态（可靠性收口，项 M1–M7）
 
 > 域 C 项目编号 **M1–M7**（Migration），与域 D 的 cache 契约 **C1–C7** 消歧（R1-3 warn 修）。
 
@@ -118,7 +119,7 @@ P6 不是十一项修复，是**一个收敛程序的六类执法实例**。所�
 
 `.mjs`/`.ts` 双平面显式裁定：cdd-engine src 全 TS（恒真）· cdd-engine tests 全部 `.ts`（M1–M5）· **osuperpowers scripts 保留 `.mjs` 隔离（Q1-A）**——report-templates 消费者环境零依赖裸 node 发布面 + **render-yaml 属 osuperpowers scripts 保留面**（`packages/osuperpowers/scripts/render-yaml.mjs`，被 `.mjs` 编排层 `scripts/emit/*` 直引——T4 repo scripts/ 44→0 **不含它**），显式留存记录于 third-party-dependencies.md · **repo scripts/ 全量 `.ts`（Q2-B）**——44→0，Node24 原生 strip-types，CI 调用名随迁。
 
-**§2.3.4 域 D — 模板系统化 + cache-first 组装契约（工件单源化学主战场）**
+#### 2.11 §2.3.4 域 D — 模板系统化 + cache-first 组装契约（工件单源化学主战场）
 
 > 承载命题：**「4 模板同一骨架」必须从散文约定升为数据强制**；cache 重构是容器化时机，不是散文重排。
 
@@ -195,7 +196,7 @@ osuperpowers skills 的 artifact/methodology 文档模板同病（结构乱、�
 
 成本（诚实面）：op/workspace 从头部移尾（Round context 标签明示，agent 首读代价小）· 门面散文去路径化（gate 函数 + 调用点迁移）· 位置敏感测试迁移（templates.content / handoff-stub / renderModePrompt / docs-runner）×4 · validateShippedTemplates 从「validate .md 对 contract」退化为「contract 自洽」。
 
-**§2.3.5 域 E — skill 流程化学 + engine 机制增量**
+#### 2.12 §2.3.5 域 E — skill 流程化学 + engine 机制增量
 
 **E1 · skill 流程原子性（Q3 升级吸收，B2）**：
 - **flow 变更纪律（process）**：任何 skill 内部流程变更走整 skill 重读——`变更触发 → 全 skill 重读（digraph+节点+失败面）→ 形状适配判断（既有模式实例 / 新形状 / 膨胀信号）→ 统一调整 sibling → 才落点`；膨胀信号（节点/边显著增长）必须给出全 flow 重构理由。入 skill-authoring.md。
@@ -221,7 +222,7 @@ osuperpowers skills 的 artifact/methodology 文档模板同病（结构乱、�
 
 **E5 · v1.13 收口**：smoke workspace 并发 flake 排查（归黑盒稳定化）· engine changeset 版本落地验证（归域 F changeset 复核）。
 
-**§2.3.6 域 F — 收口复核**
+#### 2.13 §2.3.6 域 F — 收口复核
 
 | 项 | 设计 |
 |---|---|
@@ -235,7 +236,7 @@ osuperpowers skills 的 artifact/methodology 文档模板同病（结构乱、�
 | F7 | **运维文档整体整理与重组（用户 2026-09-18 增需）**：写运维文档时对全部 `docs/maintainers/`（8 份：4 新方法论 + 4 旧核心）做内容整理优化——删无用（准则：整档删除仅当零读者+内容完全被取代；节级删除 stale 引用 `.agents/`/vendors/旧路径 与重复段落）· 按内容域重划文件/目录（工程原则域 ↔ 插件运维域；目录 or 平铺+索引裁定在计划期按引用成本）· 全引用同步（CLAUDE.md 4 处链接 · validate doc-surface · 跨 doc 链接）；重组后每 doc 重新锚对实态（与「docs 与落地一致」缝合）；与 skill-authoring 吸收（G1/Q3）、data-driven-templates↔template-doctrine 交叉引用合并副本 |
 | F5 | `pnpm run validate` 12 块（submodule 块删）+ `emit:check` 全绿 + **零纸面宣称总校验**（§2.5）|
 
-**§2.3.7 域 G — 自省四修（程序对自身执法）**
+#### 2.14 §2.3.7 域 G — 自省四修（程序对自身执法）
 
 | # | 项 | 设计 | 落点 |
 |---|---|---|---|
@@ -244,7 +245,7 @@ osuperpowers skills 的 artifact/methodology 文档模板同病（结构乱、�
 | G3 | **validate 脚本 maintainer-only 边界文档化** | `scripts/validate/*` = 发布根仓内部编排面（消费者无、非打包面）；当时裁决：overall-consistency 由 `scripts/validate/` 承担 charter 四表守卫，brainstorm 期调用 = maintainer-mode（本仓 dogfood）——该守卫归属系当时状态，现已被 consumer-parity 取代并归位 engine lifecycle| maintainer docs + writing-overall-spec 流程 |
 | G4 | **pre-commit 结构性矛盾修复** | 三件：① **dry-run 门判 WARN 化**（=E2②——不跳过，脏树 warn 不 BLOCK）② 黑盒树依赖用例迁 mkdtemp 隔离或 CI-only ③ pre-commit 钩子收敛树无关子集（emit-check/residue/consistency/unit）+ CI 全量 | infra 门判 · vitest 套件 · .husky/pre-commit · CLAUDE.md dev 段 |
 
-**§2.4 task 组织（序，plan 期可细化）**
+#### 2.4 task 组织（序，plan 期可细化）
 
 > 顺序原则：删除面先行（A→B）→ 目标布局落地（C 就近 + Q2-B 前置）→ 机制增量落新布局（D/E）→ **域 G 与 D-2 同窗**（随 T1/A5 `.agents/` 移除后执行——G1 改 6 skill SKILL.md、D-2 改 skill docs 均受 emit 面影响，移除后免 emit 往返；G4 的 pre-commit 修复树无关可由 T10 覆盖）→ 收口复核（F）。改动各自 validate 单点 + 全量在收口。**C1-max（T5.1）定序**：晚于 T5（contract 骨架/segments 已在）· 早于 T7（branch-loop 需落终态模板）；计划实施载体 = plan **Task 20**，排 plan T8（流程原子性三断言先立，模板变更即受其约束）之后、plan T9（branch-loop）之前——令 branch-loop/clauses 入库（T12）/术语清扫（T18）直接落终态布局，零二次改动。**T5.2（scripts 统一）定序**：紧随 T5.1 之后（同为收口前一致性收尾）、收口复核（spec 层 T9）之前——计划载体 = plan **Task 21**（C1-max 之后、术语/收口复核之前落地）。**T7.1（constraints 物料化）定序**：紧随 T7（六缺口同域）之后、计划载体 = plan **Task 22**（T10 dry-run 门判面之后、T11 之前落地——同为 implement pre-flight 门面，先 WARN 化再上 constraints 门）。**T7.2（lifecycle 状态正交化）定序**：T14 实施实证驱动的终审项（unverifiable 折 BLOCKED 通道混淆现场）、计划载体 = plan **Task 23**——排 plan T14（stall 探测器，实证源）fix 收口之后、plan T18（术语清扫）之前落地（T18⑤ H1 内容级 rename 上移本 Task，T18⑤ 降级为审计确认）；紧邻收口复核（spec T9 / plan T19）之前，命终态语义直达收口。**T7.3（派发岛收敛 + 机制上链 + 错误收编）定序**：P6 收口复核（plan T19）之后编排侧重构项（T23/branch-fix 143 事故的架构根因 = branch 岛未继承 Lifecycle 导致三代修复进不去）、计划载体 = plan **Task 24**（重写）——重构先行（A–D + F + G）、机制后落（E → Task 25）；与 T11/T12 同族：plan 修改权锁已落（T11）、纪律条款已落（T12）、本 Task 补「机制上链 + 错误收编」两执法位。**T7.4（载体成熟）定序** = Task 24（A–D 重构）之后——branch 岛收编完成、机制单点就位后，settleResidue/writeBoundary/recovery 才有统一挂点；计划载体 = plan **Task 25**。**T7.5（派发终止契约 + 续传）定序** = Task 25（载体成熟）之后——settleResidue/recovery carrier 是 resume 的输入契约（T25 输出 ≡ T26 输入，衔接面 spec 钉死）；T25 TIMEOUT 实证（stash 不落回 = token 白烧）是本 Task 的实证源；计划载体 = plan **Task 26**。**T7.6（任务级 scope 账本）定序** = T7.5（派发终止契约 + 续传）之后——恢复轮 base==head = T26 恢复机制的自身生命周期缺口（T26 恢复轮实证即本 Task 实证源，任务级 scope 概念缺失让 resume/settleResidue 只快照轮）；计划载体 = plan **Task 27**（T26 关闭前落地——T26 恢复轮 #2 重派依赖本 Task 的声明采纳逻辑）。
 
@@ -274,7 +275,7 @@ osuperpowers skills 的 artifact/methodology 文档模板同病（结构乱、�
 | T9 | F | 收口复核（F1–F8：锚点终态 · 残留守卫 · changeset+版本落地 · **naming-conventions 对照** · **4 份方法论 doc** · **F7 运维文档整理重组** · **F8 术语优化【Review Convergence 改名全同步】· validate 12 块 + emit:check + 零纸面宣称总校验）| validate 全链 · .changeset/ · naming-conventions.md · context-caching-doctrine.md · template-doctrine.md · program-experience.md |
 | T10 | G | 自省四修（G1 session-call 全域 **19 节点** + authoring 原语 · G2 需求全量清单 · G3 validate 边界 · G4 pre-commit 修复三件）| 6 skills · skill-authoring.md · writing-overall-spec 流程 · .husky/pre-commit · infra 门判 · vitest 套件 |
 
-**§2.6 P1→P6 经验清单（模板重写输入，用户 2026-09-18 指示）**
+#### 2.6 P1→P6 经验清单（模板重写输入，用户 2026-09-18 指示）
 
 程序全链经验总结（全文落 `program-experience.md`，此为本 spec 的烘焙输入）。skill 文档模板重写（D-2）与一切 P6 设计以此为单位一致性判断：
 

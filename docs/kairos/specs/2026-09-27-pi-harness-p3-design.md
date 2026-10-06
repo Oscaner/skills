@@ -7,7 +7,8 @@
 - **Depends on**: P1（shipped · [p1-design v1.5](2026-09-27-pi-harness-p1-design.md)）；P2（shipped · 契约面定案——`{claude, cursor, pi}` 三元组行键集）
 
 ## Design
-**2.1 目标与范围**
+### 2. engine 数据面 · 命令契约面设计
+#### 2.1 目标与范围
 
 P3 把 engine 数据面收敛到与 P2 已定的分发契约同构：`harness-registry.json` 行键 `cursor-agent`→`cursor`（追平三元组 `{claude, cursor, pi}`），`detectCurrentHarness` 硬编码 if 链改 **OOP 多态**（Harness 抽象 + 子类 `detect(env)` 谓词 + 注册序 first-match），新增 `pi` 行（`cli` 二进制 `pi` · ship full · invoke `-p --mode text` · cache 未实测态）；并借 P3 破坏性授权（用户拍板 2026-09-29）扩展到**命令契约面**——implement/review/fix 语义双轴分离、单胶囊 stdout 面、Contract Lexicon 机制、消费面措辞同步、运维文档/CLAUDE.md 同步。范围外：engine 记录/artifacts 数据面（空壳废除声明，见 C4）、emit 分发注册表（Non-goal 分层）、README 家族收口与 osuperpowers tests 残留面（`tests/helpers.mjs:16` / `tests/presentation-surface.test.mjs:274`）零化（P4 文档·测试·收口——P3 守卫扫面不含此二面，见 G2/C3）。
 
@@ -76,7 +77,7 @@ P3 把 engine 数据面收敛到与 P2 已定的分发契约同构：`harness-re
 - **docs/maintainers 同步**：01-template-doctrine（harness-registry 行键镜像 cursor + pi）· 02-naming-conventions（契约措辞指针）· 03-context-caching-doctrine（Baseline entries 随 C2）· 04-program-experience（Contract Lexicon 机制记录）——行键镜像零 cursor-agent（G2 验收）
 - **根 CLAUDE.md 同步**：`pnpm run emit`/validate 描述随 Contract Lexicon 单 block 更新；engine 调用面（dev:stub / cdd CLI）契约措辞随 C5 单胶囊更新；commit/validate 流程描述不因本 phase 变更
 
-**2.2 崩溃恢复健壮性（crash recovery — 用户拍板追加 T7）**
+#### 2.2 崩溃恢复健壮性（crash recovery — 用户拍板追加 T7）
 
 事故复盘（P3 T6 implement，上游模型 403 杀死内层 agent → `cli exited 1 and handoff missing`）暴露五缺陷：
 ① 无报错保留（child 403 trace 丢失）② resume 流程绕（stash-residue 恢复误命中 P4.4 过期 stash，apply
@@ -112,7 +113,7 @@ record），恢复 = 同命令重跑即续作**。
   failure-mode 表同步
 - **收敛法自洽**：快照 commit 移动 BASE..HEAD ref → re-review 新 ref = 新 review（I3），快照零特权
 
-**2.3 统一终止模型（fold A–D — 用户拍板追加 T8）**
+#### 2.3 统一终止模型（fold A–D — 用户拍板追加 T8）
 
 §2.2 窄谓词（child 非零退出 && handoff 未写）收住 child-exit/child-signal；高维复盘折叠把模型升为**对偶全量**（§2.2 为地基，本节约为层加宽；允许破坏性/重写/重组/死壳即删）：
 
@@ -124,7 +125,7 @@ record），恢复 = 同命令重跑即续作**。
 - **cause 字段**：crash record 增 `cause`：`child-exit` / `child-signal` / `engine-over-budget` / `engine-timeout` / `unknown`——postmortem 专用、**行为零分叉**（resume 不因 cause 不同路）
 - **边界自检**：engine 自身 liveness（engine 进程内内存泄漏面）属 liveness monitor 另轨，本模型只管 **child 终止面**；`dispatchIncomplete`（CONTRACT_VIOLATION / ENGINE_SELF_WRITTEN：部分 handoff = 合同违约面）语义保留，不并入终止面
 
-**2.4 预算维度统一（op 维度抽象 — 用户拍板追加 T9）**
+#### 2.4 预算维度统一（op 维度抽象 — 用户拍板追加 T9）
 
 §2.3 把终止面收为对偶 artifact；预算（wall-clock hard cap，`timeouts.defaults`）是 termination 的触发源之一（cause `engine-over-budget`）。预算配置对象当前挂在**岛名**上（`{task, review}`）——task island 一个 call site 承载 implement/review/fix 三 op、`resolveTerminationConfig("task")` 硬编码 → `review --type task` **错读实施预算**（T7 task review 已 2h 未被 review 1h 掐掉即为该错读的直接后果）；branch-fix 同样错读 `"review"`。预算本质是 **op 维度**（工作轮资源上限），岛/type 是平行通道、与资源需求无关（同一轮 review 花在 task 或 branch 上预算应同）：
 

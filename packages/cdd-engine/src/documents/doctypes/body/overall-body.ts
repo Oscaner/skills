@@ -435,7 +435,38 @@ export const OVERALL_SHAPE: SchemaShape = {
     programCharter: {
       type: "object",
       description:
-        "Section 3 — Program charter: goal (1–3 sentences), non-goals, cross-cutting constraints; acceptance criteria / API shapes / tasks excluded (charter only). Claims shrink, they do not inflate — what the program cannot prove it will not claim.",
+        "Section 3 — Program charter: the charter facets ranked `###` (Goal / Non-goals / Cross-cutting — the facet anchor names follow each overall family: `### Goal` · `### cdd-engine 服务化主线（…）` for the overhaul family · `### Non-goals` · `### Cross-cutting( constraints)` — the anchor pattern tolerates a trailing annotation, never a bold-flat leftover) + the decision-retention / decision-group / endorsement facets (`### 设计决策留存…` / `#### M 组…` groups / `#### 上游先例背书` — existence-only enforcement: a doc carrying a decision face must carry it at the ranked form). Acceptance criteria / API shapes / tasks excluded (charter only). Claims shrink, they do not inflate — what the program cannot prove it will not claim.",
+    },
+    charterFacets: {
+      type: "object",
+      description:
+        "The charter facet anchors — the `###`-ranked facets under `## Program charter`: `Goal` / `Non-goals` / `Cross-cutting` (with the family-specific anchor names: `Cross-cutting constraints` for the legacy families, `cdd-engine 服务化主线（…）` as the overhaul family's goal anchor) — each a permanent presence: every overall carries its three facets.",
+      properties: {
+        goal: {
+          type: "string",
+          pattern: "^### (?:Goal|cdd-engine 服务化主线（2026-09-13 用户升维）)",
+          description:
+            "The Goal facet anchor — `### Goal` on the doc-architecture / pi-harness / consumer-parity families, `### cdd-engine 服务化主线（2026-09-13 用户升维）` (the overhaul family's goal anchored on its service-line marker, standing for the charter opening prose).",
+        },
+        nonGoals: {
+          type: "string",
+          pattern: "^### Non-goals",
+          description:
+            "The Non-goals facet anchor — `### Non-goals` (a trailing annotation such as `（非目标…）` is tolerated).",
+        },
+        crossCutting: {
+          type: "string",
+          pattern: "^### Cross-cutting",
+          description:
+            "The Cross-cutting facet anchor — `### Cross-cutting` on the doc-architecture / pi-harness families, `### Cross-cutting constraints` on the legacy families; a trailing annotation is tolerated.",
+        },
+        decisionGroup: {
+          type: "string",
+          pattern: "^#### [MFRBEN] 组|^#### 上游先例背书",
+          description:
+            "A decision-group / endorsement leaf — `#### M 组（…）` / `#### F 组（…）` / … / `#### 上游先例背书`: the `####`-ranked leaves under the decision-retention facets (existence-only — judged when the doc carries them).",
+        },
+      },
     },
     documentScope: {
       type: "object",
@@ -485,6 +516,17 @@ const OVERALL_SLICE_PATTERNS: SlicePatternSet = {
   graphSourceRow: /^\s*(P\d+(?:\.\d+)*)\s*->/m,
   /** A dependency-graph edge line — the target token captured (both ends of the edge judged). */
   graphTargetRow: /^\s*P\d+(?:\.\d+)*\s*->\s*(P\d+(?:\.\d+)*)/m,
+  /** The Goal charter-facet anchor (P3.1 T5 — the F7 charter rank): `### Goal` on the
+   *  doc-architecture / pi-harness / consumer-parity families, and the overhaul family's goal
+   *  anchored on its up-ranked `cdd-engine service-line marker` heading (the charter opening prose
+   *  stands above it as the lead paragraph). The `###`-level charter rank is what presence judges. */
+  charterGoal: /^### (?:Goal|cdd-engine 服务化主线（2026-09-13 用户升维）)/m,
+  /** The Non-goals charter-facet anchor — `### Non-goals`, trailing annotation tolerated
+   *  (`### Non-goals（非目标…）` on pi-harness). */
+  charterNonGoals: /^### Non-goals/m,
+  /** The Cross-cutting charter-facet anchor — `### Cross-cutting` / `### Cross-cutting
+   *  constraints` (the two legacy families), trailing annotation tolerated on the pi-harness form. */
+  charterCrossCutting: /^### Cross-cutting/m,
 };
 
 // ---- the four-table structure-rule data (P3.1 T2 — the kernel + single-content faces) ----
@@ -581,6 +623,61 @@ const OVERALL_RULES: readonly StructureRule[] = [
     "BLOCK",
     "the dependency graph references a phase that is not in the Phase inventory (dangling graph token)",
   ),
+  // ---- the charter-structure rules (P3.1 T5 — the F7 charter rank) ----
+  // The charter facets' permanent presence (anchored per family — the anchor names follow each
+  // overall family's own wording, and the anchor pattern tolerates a trailing annotation so a
+  // `### Cross-cutting（…）` heading is the facet, not a misrank), + the legacy bold-flat residue
+  // (a charter facet / decision group left in the retired `**Goal**：`/`**M 组（…）**：` flat form
+  // BLOCKS) + the strict independent-bold pseudo-heading residue (the same `^**…**$` face the spec
+  // body enforces). The decision-retention / decision-group faces are existence-only: they are NOT
+  // a permanent presence (the three legacy overalls carry no decision face), and their `###`/`####`
+  // rank enactment is pinned per-doc in tree-migration.test.ts (the doc-arch family enumerates its
+  // full decision face; the other three overalls carry none — the non-enumeration state) — the
+  // rule plane judges the retired flat forms' residue.
+  {
+    id: "overall.charterGoal",
+    plane: { kind: "headingLeads", anchor: OVERALL_SLICE_PATTERNS.charterGoal.source },
+    invariants: [{ type: "presence" }],
+    severity: "BLOCK",
+    message:
+      "no `### Goal` charter facet — every overall carries its Goal ranked at the `###` charter-facet level (`### Goal`, or the overhaul family's `### cdd-engine 服务化主线（…）` service-line-marker anchor)",
+  },
+  {
+    id: "overall.charterNonGoals",
+    plane: { kind: "headingLeads", anchor: OVERALL_SLICE_PATTERNS.charterNonGoals.source },
+    invariants: [{ type: "presence" }],
+    severity: "BLOCK",
+    message:
+      "no `### Non-goals` charter facet — every overall carries its Non-goals ranked at the `###` charter-facet level",
+  },
+  {
+    id: "overall.charterCrossCutting",
+    plane: { kind: "headingLeads", anchor: OVERALL_SLICE_PATTERNS.charterCrossCutting.source },
+    invariants: [{ type: "presence" }],
+    severity: "BLOCK",
+    message:
+      "no `### Cross-cutting` charter facet — every overall carries its Cross-cutting ranked at the `###` charter-facet level (`### Cross-cutting` / `### Cross-cutting constraints`)",
+  },
+  {
+    id: "overall.charterBoldFlat",
+    plane: {
+      kind: "headingLeads",
+      anchor:
+        "^\\*\\*(?:Goal|Non-goals|Cross-cutting|设计决策留存|[MFRBEN] 组|上游先例背书|cdd-engine 服务化主线)",
+    },
+    invariants: [{ type: "residue" }],
+    severity: "BLOCK",
+    message:
+      "a bold-flat charter marker survives (`**Goal**：` / `**M 组（…）**：`-style flat form) — promote the facet to its `###` rank and a decision group to its `####` rank (the retired flat charter structure is BLOCK residue)",
+  },
+  {
+    id: "overall.pseudoHeading",
+    plane: { kind: "headingLeads", anchor: "^\\*\\*.+\\*\\*\\s*$" },
+    invariants: [{ type: "residue" }],
+    severity: "BLOCK",
+    message:
+      "an independent bold pseudo-heading survives in the overall — a `**…**`-framed line is a flattened section header; rank it (`###` facet / `####` decision leaf) or write it as prose",
+  },
 ];
 
 // NOTE — the ⑥ issue-inventory face is not on this rule plane, for two reasons. (1) Its membership
@@ -639,5 +736,5 @@ export interface OverallDocBodyOpts {
  *  this same leaf). */
 export const overallBody = new OverallDocBody({
   description:
-    "Canonical overall authoring way: the program charter document — an artifact header block, the four enforcement tables (Issue inventory · Phase inventory · Dependency graph · Change history — the validator-keyed vocabularies the four-table audit reads) and the charter/scope/rule sections. The four tables are the engine-side audit vocabulary: rename a heading and you rename the validator with it.",
+    "Canonical overall authoring way: the program charter document — an artifact header block, the four enforcement tables (Issue inventory · Phase inventory · Dependency graph · Change history — the validator-keyed vocabularies the four-table audit reads), the `## Program charter` section with its charter facets ranked `###` (Goal / Non-goals / Cross-cutting — presence-anchored) and its decision-retention / decision-group / endorsement leaves ranked `###`/`####` (existence-only), and the charter/scope/rule sections. The four tables are the engine-side audit vocabulary: rename a heading and you rename the validator with it.",
 });

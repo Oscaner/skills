@@ -1,11 +1,12 @@
 // packages/cdd-engine/src/rules/__tests__/structure.test.ts — the StructureRule single-interpreter
 // contract (P3.1 T1; design §2.1 — the unified engine boundary). The interpreter is the ONE
 // structure-judgment face every migrated doc assertion consumes: a rule declares a judgment plane
-// (headingLeads / tableRows / records — the leaf-plane classes) + an invariant bundle (the seven
-// typed invariants: presence / uniqueness / domain / crosslink / order / continuity / residue) +
+// (headingLeads / tableRows / records — the leaf-plane classes) + an invariant bundle (the typed
+// invariants: presence / uniqueness / domain / crosslink / order / continuity / residue /
+// selfBounded / hollow) +
 // a BLOCK|WARN severity, and `runStructureRules` emits one finding per failing rule carrying the
 // rule's fixed message copy. This file pins the T1 contract surface:
-//   - the interpreter decides all three plane kinds + all seven invariants, each factor with a
+//   - the interpreter decides all three plane kinds + every invariant, each factor with a
 //     positive and a negative instance (the brief's checkable factors);
 //   - the finding surface is exactly {id, severity, message} — severity maps from the rule, the
 //     message passes through verbatim (zero runtime assembly);
@@ -63,7 +64,7 @@ function recordRule(
   return { id, plane: { kind: "records", anchor }, invariants, severity, message };
 }
 
-describe("runStructureRules — the seven invariants, each decidable in both directions", () => {
+describe("runStructureRules — the invariant vocabulary, each decidable in both directions", () => {
   it("presence — the anchored heading must exist (a missing `## Design` is a finding; present → none)", () => {
     const rule = headingRule("spec.design", "^## Design\\s*$", [{ type: "presence" }]);
     const absent = ["## Constraints", "", "body text"].join("\n");
@@ -177,6 +178,26 @@ describe("runStructureRules — the seven invariants, each decidable in both dir
     const clean = ["# Plan", "", "## Constraints"].join("\n");
     expect(runStructureRules(legacy, [rule])).toHaveLength(1);
     expect(runStructureRules(clean, [rule])).toHaveLength(0);
+  });
+
+  it("hollow — an anchored heading must own a body: a blank-only run to the next heading is a finding, a content line satisfies it (the P3.1 T4 empty-body / hollow-leaf face)", () => {
+    const rule = headingRule("spec.itemHollow", "^#### (\\d+)\\.\\d+ ", [{ type: "hollow" }]);
+    const hollow = ["#### 2.1 Empty", "", "#### 2.2 Next"].join("\n");
+    const bounded = ["#### 2.1 Empty", "", "## Constraints"].join("\n");
+    const withBody = ["#### 2.1 Item", "", "the item's substance"].join("\n");
+    expect(runStructureRules(hollow, [rule])).toHaveLength(1);
+    expect(runStructureRules(bounded, [rule])).toHaveLength(1);
+    expect(runStructureRules(withBody, [rule])).toHaveLength(0);
+  });
+
+  it("hollow children — a child-item line satisfies the anchored heading before the heading boundary closes it (a `### N.` group whose first content is a `#### N.M` item is not hollow; a group closing at a higher heading with no item is a finding)", () => {
+    const rule = headingRule("spec.groupHollow", "^### (\\d+)\\. ", [
+      { type: "hollow", children: "^#### (\\d+)\\.\\d+ " },
+    ]);
+    const withChild = ["### 2. Group", "", "#### 2.1 Item"].join("\n");
+    const emptyGroup = ["### 2. Group", "", "## Constraints"].join("\n");
+    expect(runStructureRules(withChild, [rule])).toHaveLength(0);
+    expect(runStructureRules(emptyGroup, [rule])).toHaveLength(1);
   });
 });
 
@@ -342,7 +363,7 @@ describe("the plane/anchor families (three decidable plane kinds)", () => {
     expect(runStructureRules(populated, [rule])).toHaveLength(0);
   });
 
-  it("the seven invariants are expressible as typed instances — the design §2.1 vocabulary, no wildcard DSL", () => {
+  it("the invariant vocabulary is expressible as typed instances — the design §2.1 vocabulary (grown at P3.1 T3 selfBounded / T4 hollow), no wildcard DSL", () => {
     const instances: readonly StructureInvariant[] = [
       { type: "presence" },
       { type: "uniqueness" },
@@ -351,6 +372,8 @@ describe("the plane/anchor families (three decidable plane kinds)", () => {
       { type: "order", compare: "version" },
       { type: "continuity" },
       { type: "residue" },
+      { type: "selfBounded" },
+      { type: "hollow", children: "^#### (\\d+)\\.\\d+ " },
     ];
     expect(instances.map((i) => i.type)).toEqual([
       "presence",
@@ -360,6 +383,8 @@ describe("the plane/anchor families (three decidable plane kinds)", () => {
       "order",
       "continuity",
       "residue",
+      "selfBounded",
+      "hollow",
     ]);
   });
 });
@@ -450,6 +475,12 @@ describe("the DocBody rule-data seam (T1 — abstract default; T2 — the concre
       "spec.design",
       "spec.acceptance",
       "spec.constraints",
+      "spec.designGroups",
+      "spec.designItemOwnership",
+      "spec.designBodyEmpty",
+      "spec.designGroupEmpty",
+      "spec.designItemHollow",
+      "spec.pseudoHeading",
     ]);
     expect(overallBody.structureRules().map((r) => r.id)).toEqual([
       "overall.inventoryHeader",
@@ -459,6 +490,11 @@ describe("the DocBody rule-data seam (T1 — abstract default; T2 — the concre
       "overall.historyDate",
       "overall.graph",
       "overall.graphTarget",
+      "overall.charterGoal",
+      "overall.charterNonGoals",
+      "overall.charterCrossCutting",
+      "overall.charterBoldFlat",
+      "overall.pseudoHeading",
     ]);
     // every rule's invariant bundle is non-empty (a zero-demand rule judges nothing).
     for (const body of [planBody, phaseSpecBody, overallBody]) {
@@ -500,6 +536,8 @@ describe("DocumentsValidator.structureFindings — the docContractValidate hook 
     // judgmental plane, not the T1 empty state.
     const content = [
       "## Design",
+      "",
+      "the design body's testable increment (a non-shell `## Design` — the P3.1 T4 empty-body face)",
       "",
       "### Acceptance criteria",
       "",

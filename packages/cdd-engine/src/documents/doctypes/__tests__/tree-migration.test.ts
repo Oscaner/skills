@@ -796,6 +796,16 @@ const PLAN_PINS = JSON.parse(
   groups: Readonly<Record<string, readonly (readonly number[])[]>>;
 };
 
+// The double-layer migration pins (P3.1 T4 — the 22 design specs' design-body heading sequence:
+// the `### N.` group heading + every `#### N.M` item, in document order, EXACT). Pins the count
+// (171 migrated items + one group per migrated file + the p3.1 zero-migration pair's already-ranked
+// groups/items), the group numbers, the item ownership (each item's N is its group's), and the
+// title text verbatim (a title-edit breaks this pin). It is a JSON fixture under the scanned tree,
+// like PLAN_PINS — DATA, released wholesale at the guard-release sites.
+const SPEC_DOUBLE_LAYER_PINS = JSON.parse(
+  readFileSync(path.join(HERE, "fixtures", "spec-double-layer-pins.json"), "utf8"),
+) as Readonly<Record<string, readonly string[]>>;
+
 describe("the migrated plan-Do family — 17 data-shaped plans (内容保真 transcription, T6)", () => {
   // The Do-form family's migrated canonical plans — every PLAN_MIGRATION row flipped pending →
   // canonical at T6 (all but the p3 zero-migration plan, which was already canonical), EXCLUDING
@@ -1022,6 +1032,190 @@ describe("the migrated design-spec family — 20 three-truth skeletons (内容�
       //     two legacy overalls (osuperpowers-overhaul: 7 · consumer-parity: 14) — a spec under a
       //     clean parent (pi-harness / doc-architecture-v2) has ZERO chain residue.
       for (const f of chain) expect(f.field, `${file} residue class`).toBe("backfill claim");
+    }
+  });
+});
+
+describe("the double-layer design-item plane — 22 designs ranked (P3.1 T4: 19 份双层迁移 + p3.1 已秩化 + p3 零独立)", () => {
+  it("every design's design-body heading sequence equals the double-layer pin — `### N.` group(s) + `#### N.M` items, in document order, EXACT (count 171 + group numbers + ownership + titles verbatim)", () => {
+    for (const file of readdirSync(SPECS_DIR).filter((f) => f.endsWith("-design.md"))) {
+      const content = readFileSync(path.join(SPECS_DIR, file), "utf8");
+      const lines = content.split("\n");
+      let inDesign = false;
+      const heads: string[] = [];
+      for (const l of lines) {
+        if (/^## Design/.test(l)) {
+          inDesign = true;
+          continue;
+        }
+        if (inDesign && /^### Acceptance criteria/.test(l)) break;
+        if (inDesign && /^(?:### \d+\. |#### \d+\.\d+ )/.test(l)) heads.push(l);
+      }
+      expect(heads, file).toEqual(SPEC_DOUBLE_LAYER_PINS[file]);
+      // Ownership is the pin's structural side: every `#### N.M` item's `N` matches its group.
+      // The machine assertion rides the rule-plane walk (structureFindings = 0 above); the pin here
+      // makes the per-file surface explicit.
+    }
+  });
+
+  it("the migration count reconciles the spec §2.4 count-reconciliation — 19 files x 171 migrated items (numbered 78 / section-mark 87 / other 6)", () => {
+    // Numbered leader 78 (13 files) + section-mark leader 87 (7 files incl. the deep-leader items) + other 6 (3 files) =
+    // 171; the two zero-independent files (cp-p4.1 / doc-arch-p3 — the lead-in-bold-only pair) and
+    // the already-ranked p3/p3.1 designs carry no migration (their pin rows are zero-item or the
+    // p3.1 already-ranked items — excluded from the migrated count below).
+    const MIGRATED_FILES = Object.keys(SPEC_MIGRATION).filter(
+      (f) =>
+        f !== "2026-10-02-doc-architecture-v2-p3-design.md" &&
+        f !== "2026-10-02-doc-architecture-v2-p3.1-design.md",
+    );
+    let migratedTotal = 0;
+    for (const file of MIGRATED_FILES) {
+      migratedTotal += SPEC_DOUBLE_LAYER_PINS[file]!.filter((h) => /^#### /.test(h)).length;
+    }
+    expect(migratedTotal).toBe(171);
+    expect(
+      MIGRATED_FILES.filter((f) => SPEC_DOUBLE_LAYER_PINS[f]!.some((h) => /^#### /.test(h))).length,
+    ).toBe(19);
+    expect(SPEC_DOUBLE_LAYER_PINS["2026-09-21-consumer-parity-p4.1-design.md"]).toEqual([]);
+    expect(SPEC_DOUBLE_LAYER_PINS["2026-10-02-doc-architecture-v2-p3-design.md"]).toEqual([]);
+  });
+
+  it("whole-tree pseudo-heading zero-residue — the strict pattern `^**…**s*$` hits EXACTLY the 3 pinned exempt prose lines (2 in-tree specs + the one-off), 法外零残留 (spec §2.4 计数对账)", () => {
+    const STRICT = /^\*\*.+\*\*\s*$/;
+    const exempt: readonly [string, string, number][] = [
+      // [file, exact line content, original line number (pinned)]
+      [
+        "2026-09-13-osuperpowers-overhaul-p1-design.md",
+        "**All Overall updated? = Yes before review.**",
+        113,
+      ],
+      [
+        "2026-09-13-osuperpowers-overhaul-p5-design.md",
+        "**删除面**（旧模型归零）：`resolve-destination` 节点（程序归属降为 Related 链接，不入 digraph）· `ensure-session`（无 master 复用）· `append-comment`（无 per-finding 评论）· report-target 缓存 schema（含 kind）· 「master」概念改名 → 「aggregate issue / report issue」· **`.superpowers/sdd/*/progress.md` ledger 源（归 superpowers 域，collect 不再扫描）**",
+        88,
+      ],
+      [
+        "2026-09-28-cdd-review-contract-fix.md",
+        "**实测根因（#302 原文叙述需修正）**: stdout `blocker:` 不是「执行层契约计数」——执行层失败计数器在 task/branch 面的 `counters:` 行。真正碰撞是 **跨 face 同 token 异义**：docs 面 `blocker:` = M2 计数；task/branch 面 `blocker:` = M3 prose（非 BLOCKED 轮默认 `none`，`returnFromHandoff:180` 经 `blockerDefaultFor` 输出）。实测证据按 face 分列两条、各自标注来源：status 面首行 **`status: CHANGES_REQUESTED`**（task return-block 第一行）——由 ≥1 blocker-severity finding 汇总而来（`finalize.ts` `classifySeverity`/`rollupStatus`）；prose 面 **`blocker: none`**（M3 默认值，`blockerDefaultFor` 输出）——不是 docs 结果行 `status: <s> · blocker: <n>` 的「· 分隔」记法（该行只印 M2 数值计数、从不印 none）。歧义由此产生：orchestrator 按判读指令「读 blocker count」命中 M3 prose 行（`none`）而非 M2 计数 → 得到 0 → 误路由 S2（收口轮不 re-review）。**task/branch 评审的 S1「必 re-review」守门被静默禁用。**",
+        22,
+      ],
+    ];
+    const all = readdirSync(SPECS_DIR).filter((f) => f.endsWith(".md"));
+    const hits: Array<[string, number, string]> = [];
+    for (const f of all) {
+      readFileSync(path.join(SPECS_DIR, f), "utf8")
+        .split("\n")
+        .forEach((l, i) => {
+          if (STRICT.test(l)) hits.push([f, i + 1, l]);
+        });
+    }
+    expect(hits).toHaveLength(3);
+    expect(hits.map(([f]) => f).sort()).toEqual(exempt.map(([f]) => f).sort());
+    for (const [f, exemptContent, originalLine] of exempt) {
+      const actual = hits.find(([hf]) => hf === f)!;
+      expect(actual[2], `${f} exempt line content`).toBe(exemptContent);
+      // The line number is pinned at the ORIGINAL pre-migration position (the migration moves each
+      // file's lines by the inserted group heading(s) — the pinned content is the source of truth).
+      void originalLine;
+    }
+  });
+});
+
+describe("the four overalls' charter rank — the facets `###` / decision leaves `####` (P3.1 T5: F7 charter 结构秩)", () => {
+  it("each overall's `## Program charter` carries its facet headings at the `###` rank (the family-parameterized anchor names — presence is what the rule plane judges)", () => {
+    const expected: Readonly<Record<string, readonly string[]>> = {
+      "2026-10-02-doc-architecture-v2-overall.md": [
+        "### Goal",
+        "### Non-goals",
+        "### Cross-cutting（程序级横切约束，先立后执行）",
+      ],
+      "2026-09-27-pi-harness-overall.md": [
+        "### Goal",
+        "### Non-goals（非目标，明确不发散）",
+        "### Cross-cutting（程序级横切约束，先立后执行）",
+      ],
+      "2026-09-21-consumer-parity-overall.md": [
+        "### Goal",
+        "### Non-goals",
+        "### Cross-cutting constraints",
+      ],
+      "2026-09-13-osuperpowers-overhaul-overall.md": [
+        "### cdd-engine 服务化主线（2026-09-13 用户升维）",
+        "### Non-goals",
+        "### Cross-cutting constraints",
+      ],
+    };
+    for (const [name, facets] of Object.entries(expected)) {
+      const lines = readFileSync(path.join(SPECS_DIR, name), "utf8").split("\n");
+      let inCharter = false;
+      const charterHeads: string[] = [];
+      for (const l of lines) {
+        if (/^## Program charter/.test(l)) inCharter = true;
+        else if (inCharter && /^## /.test(l)) inCharter = false;
+        if (inCharter && /^### /.test(l)) charterHeads.push(l.trim());
+      }
+      for (const facet of facets) expect(charterHeads, `${name} facets`).toContain(facet);
+    }
+  });
+
+  it("doc-architecture-v2's decision-retention face is ranked (the 决策留存 `###` + the decision-group / endorsement leaves `####`) — the family with the full decision surface (存在才执法 enumeration)", () => {
+    const lines = readFileSync(
+      path.join(SPECS_DIR, "2026-10-02-doc-architecture-v2-overall.md"),
+      "utf8",
+    ).split("\n");
+    let inCharter = false;
+    const heads: string[] = [];
+    for (const l of lines) {
+      if (/^## Program charter/.test(l)) inCharter = true;
+      else if (inCharter && /^## /.test(l)) inCharter = false;
+      if (inCharter && /^(###|####) /.test(l)) heads.push(l);
+    }
+    expect(heads).toContain(
+      "### 设计决策留存（brainstorm grilling 定案 2026-10-02 —— 全量记录，不遗漏细节）",
+    );
+    for (const g of [
+      "M 组（skill-ref 映射，M1–M4 全关）",
+      "F 组（文档平面结构，提案）",
+      "R 组（ref 统一身份，提案）",
+      "B 组（正文内容，提案）",
+      "E 组（经验债，驱动本整体）",
+    ]) {
+      expect(heads, `decision group ${g}`).toContain(`#### ${g}`);
+    }
+    expect(heads, "endorsement leaf").toContain("#### 上游先例背书");
+  });
+
+  it("the three legacy overalls carry NO decision-retention face (existence-only — the absence is the documented non-enumeration state)", () => {
+    for (const name of [
+      "2026-09-27-pi-harness-overall.md",
+      "2026-09-21-consumer-parity-overall.md",
+      "2026-09-13-osuperpowers-overhaul-overall.md",
+    ]) {
+      const lines = readFileSync(path.join(SPECS_DIR, name), "utf8").split("\n");
+      let inCharter = false;
+      const heads: string[] = [];
+      for (const l of lines) {
+        if (/^## Program charter/.test(l)) inCharter = true;
+        else if (inCharter && /^## /.test(l)) inCharter = false;
+        if (inCharter && /^(###|####) /.test(l)) heads.push(l);
+      }
+      expect(
+        heads.some((h) => h.includes("决策留存")),
+        name,
+      ).toBe(false);
+      expect(
+        heads.every(
+          (h) =>
+            h === "### Goal" ||
+            h === "### Non-goals" ||
+            h === "### Cross-cutting" ||
+            /^### Cross-cutting（/.test(h) ||
+            /^### Non-goals（/.test(h) ||
+            h === "### cdd-engine 服务化主线（2026-09-13 用户升维）" ||
+            h === "### Cross-cutting constraints",
+        ),
+        name,
+      ).toBe(true);
     }
   });
 });

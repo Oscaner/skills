@@ -24,6 +24,7 @@ import { describe, expect, it } from "vitest";
 import { DocumentsValidator } from "../../../rules/documents.ts";
 import { docTypeRegistry } from "../../registry.ts";
 import { DOC_TOKENS } from "../../tokens.ts";
+import { phaseSpecBody } from "../body/phase-spec-body.ts";
 import { planBody } from "../body/plan-body.ts";
 import type { PlanDocType, PlanParse } from "../plan.ts";
 
@@ -185,6 +186,34 @@ describe("full-tree single-form walk — the entire docs/kairos tree (50 files, 
       const specPath = path.join(SPECS_DIR, file);
       expect(validator.detectDocKind(specPath), file).toBe("spec");
       expect(specType().parse(specPath, { root: REPO_ROOT }), file).toMatch(/^v\d+\.\d+$/);
+    }
+  });
+
+  it("the double-layer design face is processable tree-wide (P3.1 T4) — every design-body `### N.` / `#### N.M` line matches the projected slices, and every item's `N` resolves to a declared group (the migration targets + the zero-migration pairs walk the same registration-leaf plane)", () => {
+    const slices = phaseSpecBody.projectSlicePatterns();
+    for (const file of readdirSync(SPECS_DIR).filter((f) => f.endsWith("-design.md"))) {
+      const lines = readFileSync(path.join(SPECS_DIR, file), "utf8").split("\n");
+      let inDesign = false;
+      const groups = new Set<string>();
+      const items: Array<{ n: string; line: string }> = [];
+      for (const l of lines) {
+        if (/^## Design/.test(l)) {
+          inDesign = true;
+          continue;
+        }
+        if (inDesign && /^### Acceptance criteria/.test(l)) break;
+        if (!inDesign) continue;
+        const g = slices.groupHeading.exec(l);
+        if (g) {
+          groups.add(g[1]!);
+          continue;
+        }
+        const item = slices.designItemHeading.exec(l);
+        if (item) items.push({ n: item[1]!, line: l });
+      }
+      for (const { n, line } of items) {
+        expect(groups.has(n), `${file} misbound item ${line}`).toBe(true);
+      }
     }
   });
 

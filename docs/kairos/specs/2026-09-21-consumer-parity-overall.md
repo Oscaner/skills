@@ -26,7 +26,9 @@ Charter only — no implementation detail.
 
 ## Program charter
 
-**Goal**：消除本仓使用 osuperpowers（skills + 插件）+ cdd-engine 与消费者安装使用产品之间的行为分歧——文档/charter 合法性的执法位归位到 **engine lifecycle**（docContractValidate / statusValidate 全自动，零新增执法子命令，唯一例外 = `cdd schema get` 发现型（`cdd help` 子命令 v1.32 整体移除）），本仓自己的程序与消费者走同一执法路径，本仓 = 产品缺陷首发 canary，行为校验面收敛到消费者等价面，发布的内容即被校验的内容。
+### Goal
+
+消除本仓使用 osuperpowers（skills + 插件）+ cdd-engine 与消费者安装使用产品之间的行为分歧——文档/charter 合法性的执法位归位到 **engine lifecycle**（docContractValidate / statusValidate 全自动，零新增执法子命令，唯一例外 = `cdd schema get` 发现型（`cdd help` 子命令 v1.32 整体移除）），本仓自己的程序与消费者走同一执法路径，本仓 = 产品缺陷首发 canary，行为校验面收敛到消费者等价面，发布的内容即被校验的内容。
 
 四表纪律（charter 合法性面；docContractValidate 全量审计 + closeout 统一规则，与 P1 triage / P2 全量审计逐项对应）——「四表」＝ 双向 backfill 声明 ↔ 列、plan/design 文档存在性、依赖图成员、锚点注册域（锚点 ∈ overall 文档 Issue inventory 表行，无锚 no-op）四张表状执法面（下述第 1/2/3/5 条）；phase 注册完整性（第 4 条）与 issue 行 well-formed（第 6 条）随必要子集并入全量审计与 engine 判据面，不单列、不计入四表：
 1. 双向 backfill 声明 ↔ 列
@@ -37,13 +39,13 @@ Charter only — no implementation detail.
 6. issue 行 well-formed（并入 engine 判据面）
 7. closeout 统一规则：声明源 ↔ 列双向全列（含 engine 派生终态并入声明源）；**时序模型（v1.12，2026-09-21 用户裁决——撤销 v1.11 lane 边界）**：**回填 = branch-review 前置义务**——plan complete（engine 终态）后、branch-review 前，orchestration 必须完成 backfill-overall（version bump + change-history claim + 四表列回填；finishing **撤销**回填机制，仅存 merge/PR 决策 + close-issues）；**终态欠账硬门**——branch-review（含一切 plan-bearing dispatch）在「其 resolve 的 parent overall 下存在 plan-complete 未回填终态」时 pre-flight BLOCKED + 指引（先 backfill-overall）；post-flight plan-complete 且未回填 → 高亮回填 recommand（回填由 orchestration 执行）；结构性面（缺失 cell / 缺 claim）mismatch 非空 → BLOCK + 指引（不变）；v1.11 lane 边界（branch 排除终态成员）**一笔勾销**——branch-review 前提 = plan 已结束 → 回填义务已到期 → 拦 = 正确行为
 
-**Non-goals**：
+### Non-goals
 - **不新增 cdd CLI 子命令**（2026-09-21 用户拍板，执法走 lifecycle 自动执行；**唯一例外 = 信息发现型 `cdd schema get <type>` + 纯渲染型 `cdd issue render` 零执法子命令**（2026-09-26 P4.2 用户裁决扩入渲染面——issue body 渲染：报告数据面单源归位，osuperpowers 包内 scripts/ 面随迁退役）：发现型——`cdd schema get <doc-type>` 直出 canonical schema 原文（doc-type 枚举随 engine `DOC_SCHEMA_NAMES` 全量四件：overall · plan · phase-spec · add-phase-protocol；2026-09-24 P4.3 用户裁决确立，废除「help 定位目录 + Read 文件」的跨系统查找面）；`cdd help` 子命令 v1.32 **整体移除**（其发现面唯消费者 read-schema 已全改 schema get 直取，cli/templates/schemas 三行目录面全空消费者；`--help` 旗标 = citty usage 渲染面，非子命令、不受豁免清单约束）；**零执法逻辑**，除外仍零新增（执法型）子命令；`cdd issue render` = stdin findings JSON → stdout issue body，确定性渲染 + 零执法，finding-meta 权威迁 engine templates 单源（2026-09-26 P4.2 决议））
 - 不改 emit / marketplace / changeset 内部流水（范围边界：产品面 + 校验面）——v1.10 收窄：emit 对 doc-structure 的参与面**归零**（canonical = engine 包内 JSON Schema 随包发布、skills 直取成文，emit 不渲染 doc-structure 模板、无 md 模板产物；v1.2 同源派生表述据此修订，2026-09-21 grilling 裁决）；marketplace / changeset 流水仍不动
 - 不把本仓 GitHub issue 注册数据语义强加给消费者（锚点注册域并入 engine 通用自证、无锚 no-op；本仓只保留 issue **数据**本体，不再是本仓侧检查）
 - README / CLAUDE.md **全面重写**由 P4.1 承担（含 **README.zh-CN.md = 同步 mirror**、repo 对外宣讲面——与主源同承零分歧保证；2026-09-23 P4 brainstorm 裁决，废除本节旧限制）：写入内容覆盖全部宣称面（harness 支持面 · 安装/来源宣称 · 行为描述类陈述），重写后与落地行为零分歧；是整文档重写（弃现有章节分布与内容），非行为描述类增量
 
-**Cross-cutting constraints**：
+### Cross-cutting constraints
 - 破坏性变更允许；从高维度统一抽象，确保最佳实践，**不留技术债务**（必要子集透镜并入全量审计，无双实现；必要子集——即现 docContractValidate 的 necessary 子集校验（rules/documents.ts；overhaul v1.58 落地）——作为全量审计的必要成员并入，不单列）
 - **spec/plan 结构定义同源派生**（用户 2026-09-21 要求，沿 data-driven-template 约定）：doc-structure 单源 = engine 包内 **canonical JSON Schema + descriptions**（v1.10：schema 唯一结构事实）→ skills 经 **`cdd schema get <type>` 直取 schema 成文（v1.28 起，doc-structure 内容面唯经 `cdd schema get`；`cdd help` 目录发现面——`schemas:` 行 v1.30 删、子命令整体 v1.32 移除——唯消费者 read-schema 已全切 schema get，死面即删；`--help` 旗标 usage 面保留）** + engine 侧 docContractValidate / brief 抽取**同构运行时消费**——零双维护、零 md 模板副本；emit 对 doc-structure 参与面归零（无 emit:check 该面守卫，见 Non-goal #2）；运行时组合校验兜底
 - engine 零文档写入保持——引擎只判只指引，回填由作者执行

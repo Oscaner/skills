@@ -74,10 +74,16 @@ export function isSpecVerbatimPinLine(file: string, lineNo: number): boolean {
 export const PLAN_MIGRATION_PINS_FILE =
   "packages/cdd-engine/src/documents/doctypes/__tests__/fixtures/plan-migration-pins.json";
 
+/** The P3.1 T4 tree-migration double-layer pin fixture — the 22 design specs' design-body heading
+ *  sequences (the `### N.` group + every `#### N.M` item, exact), mirroring the plan-migration pins'
+ *  data class: a pure JSON data file whose every line is pin data, released whole-file. */
+export const SPEC_DOUBLE_LAYER_PINS_FILE =
+  "packages/cdd-engine/src/documents/doctypes/__tests__/fixtures/spec-double-layer-pins.json";
+
 /** A pin-data file verdict — the plan-migration pins fixture (whole-file data release). Guards call
  *  this per line / per collector alongside isSpecVerbatimPinLine. */
 export function isPlanPinDataFile(file: string): boolean {
-  return file === PLAN_MIGRATION_PINS_FILE;
+  return file === PLAN_MIGRATION_PINS_FILE || file === SPEC_DOUBLE_LAYER_PINS_FILE;
 }
 
 /** The pin-data release predicate — a scan hit inside T5/T6 tree-migration pin data is DATA, never a

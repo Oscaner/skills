@@ -26,24 +26,26 @@ Charter only, zero implementation detail. **Overall approval is not equivalent t
 
 ## Program charter
 
-**Goal**：把跨 4 个 overall 家族 / ~20 phase（18 份 design + 19 份 plan）/ pi-harness 单系 28 个 change-history 版本积累的**文档内容组织方法论**蒸馏为类型化对象模型——**DocType 抽象**（shape/words/instructions/refKind/bodyView 五域合一）+ **TaskGraph 任务图**（分组由图派生、约束继承 delta-only）+ **DispatchContract / DispatchPacket**（skill 链 / capability / ref / 类型化正文）+ **overall 宪法/档案分层** + **一产化 `cdd-doc-review`**——达成「更精炼、不损失质量、零债务、可演化」的文档平面；并保持消费者链（engine CLI 面、上游 skill 引用、现有 schema 校验）渐进兼容、历史零 retro-rename。
+### Goal
 
-**Non-goals**：
+把跨 4 个 overall 家族 / ~20 phase（18 份 design + 19 份 plan）/ pi-harness 单系 28 个 change-history 版本积累的**文档内容组织方法论**蒸馏为类型化对象模型——**DocType 抽象**（shape/words/instructions/refKind/bodyView 五域合一）+ **TaskGraph 任务图**（分组由图派生、约束继承 delta-only）+ **DispatchContract / DispatchPacket**（skill 链 / capability / ref / 类型化正文）+ **overall 宪法/档案分层** + **一产化 `cdd-doc-review`**——达成「更精炼、不损失质量、零债务、可演化」的文档平面；并保持消费者链（engine CLI 面、上游 skill 引用、现有 schema 校验）渐进兼容、历史零 retro-rename。
+
+### Non-goals
 - 不 retro-rename 既有 all overall/phase/plan/CHANGELOG 正文（历史即史实）
 - 不重写已 shipped 内容——新模型以**新 schema 形态**落地；旧文档**全量形迁移**（**P3 落地**：20 design + 21 plan 内容保真转录至新形态——任务编号/验收/约束原文逐字保留 + 机 pin 无损断言；双读面全量退役，engine 单形态；新文档带 legacy 面 = BLOCK）
 - 不与上游强绑：skill-ref 仅在上游方法论 ⊆ op 需要时引用；无 fit 一律一产化（cdd-doc-review 先例）——不硬凑 ref、不因上游形态冲突降级静默
 - 不新增无限增生的散文面：改造方向 = 样板 schema 化 / 数据化 / 派生化——任何 new 长散文节 = 反模式
 
-**Cross-cutting**（程序级横切约束，先立后执行）：
+### Cross-cutting（程序级横切约束，先立后执行）
 - **`doc word = code word = engine token` 升为 `object word = ref word`**：文档身份、ref 身份、技能引用、正文视图同一契约面（DocContract），零手写重复映射
 - **拟合规则 fit(skill, op) = skill 方法论 ⊆ op 需要**：⊆ 真 → ref=skill；∅ → 一产化；冲突 → capability-resolved（非规则 override）
 - **派发粒度 = 单进程外层 + 内层并行 capability-resolved**：engine 外层始终单进程；并行 sub-agents 是派发 agent 内行为，由 harness-contract `capabilities` 域逐 harness 声明（M3）
 - **接受上游规则为默认**：code-review 并行双轴（claude 面）、implement-spec/tickets 任务图先例——本程序模型是对既有最佳实践的**抽象统一**，非发明新方法论
 - **Criterion ②（零裸函数）延续**：所有新抽象（DocType / TaskGraph / DispatchRef / BodyView / InstructionUnit）以类 + 构造注入落地，engine `documents/` 手写 per-type 分支收敛为 DocType 实例方法
 
-**设计决策留存（brainstorm grilling 定案 2026-10-02 —— 全量记录，不遗漏细节）**：
+### 设计决策留存（brainstorm grilling 定案 2026-10-02 —— 全量记录，不遗漏细节）
 
-**M 组（skill-ref 映射，M1–M4 全关）**：
+#### M 组（skill-ref 映射，M1–M4 全关）
 | op | skills（有序链） | 依据 |
 |---|---|---|
 | implement | `[mattpocock-skills:implement]`（spec/tickets→交付面——**supersede 既定 `dispatch.implement = tdd` 映射**；tdd 仅作真行为变更的条件纪律，经 B1 `appliesTo` 表达、非恒常进链） | M1（user 拍板）：上游实存证据 = 安装目录 `~/.claude/plugins/marketplaces/mattpocock/skills/engineering/implement/SKILL.md`（安装版本 v1.2.3；「Implement a piece of work based on a spec or set of tickets」——原始读取）；spec/tickets→交付面 ⊇ tdd 纯 test-first 面；harness-contract `dispatch.implement` 槽自 tdd 改指 + `refs` 域登记 `mattpocock-skills:implement` 为本程序 P5 待办 |
@@ -55,7 +57,7 @@ Charter only, zero implementation detail. **Overall approval is not equivalent t
 - **M4a 处置**：M4a（review.spec/plan 映射候选线）随目录实测结论并入 M4b 一产化定案（唯一真 fit，见下）——M 组决策序号 M1–M4 连续、可审计
 - **目录实测结论**：无单上游 skill 是「设计文档评审」；spec/plan review 的方法论 = 程序自有 URC + 三纪律组合——一产化是唯一真 fit（M4b）
 
-**F 组（文档平面结构，提案）**：
+#### F 组（文档平面结构，提案）
 - F1 TaskGraph 分组派生（`depends_on` → DAG → 拓扑序分组；字面 `## Task Groups` 段删除；plan-parse crisp BLOCK）——**P3 grilling 定案（v1.6）**：组 = 原子闭包分量（atomicWith 无向单侧声明 + 对称传递闭包自动补全），组执行序 = 分量 DAG 拓扑序；「先清底再上闸」= 拓扑性质（每条边 rank(源) < rank(目标) 断言）；**P3.1 一体重建定案（2026-10-06 用户三连裁决）**：边模型单边化（`DependsOn` 唯一有向边 · `- **AtomicWith**:` 行与 `taskGroups` 声明面退役——分组初衷 = 减 implement 轮次，非声明）+ `missing-edge` 第六 failure class（边行缺省 = plan validate BLOCK · 防「忘写 → 放错波次 → 过早 dispatch → 面对缺失前置产物」执行序故障）+ **反依赖门**（边仅可引用更小编号 · 编号序 = 拓扑线性化锚 · 引用 ≥ 自身 = BLOCK）+ 组 = **波次**（编号升序扫描就绪层 · 同层同组 · 波次内可并行 = capability 面 M3）+ 静态面 `batches()` 波次推导 与 动态面 `frontier(done)`（下一就绪波次 = group-next 唯一实现）；crisp BLOCK 全套 = id 越界 / 自引用 / 环（收缩后 DAG）/ 重复声明 / missing-edge / 反依赖
 - F2 overall 宪法/档案分层（Standing rules 规范化折叠；issue/history 迁 `*-archive.md` 结构化 record）
 - F3 phase-spec 样板 schema 化（真骨架 = `## Design` + `### Acceptance criteria` + `## Constraints` 继承点；样板 → schema description + 条件元数据）；**P3.1 定案（2026-10-06）**：+ `## Design` 体**统一大纲模型**（消费心智导向——`### N.` 分组头 + `#### N.M` designItems 登记叶 · 项归属/分组连续性断言 · `###` 契约升「`### N.` 分组头 + 唯一 `### Acceptance criteria` 锚」 · 计数/标题逐字/空壳 pin · 结构秩恢复）
@@ -64,23 +66,27 @@ Charter only, zero implementation detail. **Overall approval is not equivalent t
 - F6 统一结构规则引擎（StructureRule，**2026-10-06 P3.1 grilling 定案**）：doc 平面语义元素 = 类型化叶平面（presence/uniqueness/domain/crosslink/order/continuity/residue 不变式）；overall/plan/spec 三类型结构判定 → 声明式规则集 + 单解释器（手写遍历 + 测试 re-walk 归零 · docContractValidate 单调用）；graph 科学留 TaskGraph · 跨文档链留 P5；bodies load-order 安全（规则数据 ≠ 解释器引入）
 - F7 overall charter 结构秩（**2026-10-06 P3.1 定案**）：`## Program charter` 内 charter facets（Goal/Non-goals/Cross-cutting/决策留存）升 `###` · 决策组（M/F/R/B/E/上游先例背书）升 `####` 叶；全树 4 overalls 迁移（内容逐字 · 容器只移）；OverallDocBody 补齐（shape+slices+rules 三件套并肩 plan/spec）；P6 宪法/档案分层边界不动
 
-**R 组（ref 统一身份，提案）**：
+#### R 组（ref 统一身份，提案）
 - R1 task ref = handoff ledger `commit-set`（去 HEAD 环境依赖：提交身份从环境不变量推导转为显式记账）
 - R2 spec/plan/overall = 一等 `doc-revision` ref（`{docPath, versionToken, bodyHash}` 双层收敛：version bump 或 body 变更 = new ref）；backfill-as-version 机械化 = archive 的 doc-revision ref
 - R3 DispatchPacket 正文一体（ref + bodyView + convergence + constraints）
 - R4 review/fix 轮的评审范围 = `commit-range` ref（`base..head` 两提交身份界定评审/修复范围，随 handoff `commits{base,head}` 固化——refKind 四型之 commit-range，与 R1 commit-set 基型不同、互不取代）
 - R5 v2 TaskGraph 派发 = `graph-node` ref
 
-**B 组（正文内容，提案）**：
+#### B 组（正文内容，提案）
 - B1 InstructionUnit 结构化（`{id, appliesTo, kind, requirement, machineCheck, failBehavior}`）——clauses 散文原子升 typed，按 appliesTo 过滤渲染
 - B2 return/evidence = schema 引用（正文零格式散文）；evidence 绑定 ref 可追溯
 - B3 BodyView 分型（spec/plan/task/branch 各一形）+ convergence 数据面
 - B4 约束继承 + 子集过滤（每 dispatch 只带适用规则，正文 -30~50%）
 - B5 task step 类型约束（每步 = action + checkable，schema 校验非作者自觉）
 
-**E 组（经验债，驱动本整体）**：E1 overall append-only 增生（143 行 · history 28 行 · issue 18 行 prose）· E2 phase-spec 六段五样板 · E3 plan 约束再述 · E4 Task Do 长散文 + brief 散文雕刻 · E5 Task Groups 字面行静默偏差（格式漂移丢组 / 节界截断 / 越界延迟爆 / 意图无回读 / 双写认知）· E6 schema/template-contract/lexicon 三面无统一抽象 · E7 版本行 lineage 散文。编号独立于 Phase inventory 的 P#（债源自既有程序阶段线，非一一对应），两系仅组号字面相近、无映射关系。
+#### E 组（经验债，驱动本整体）
 
-**上游先例背书**：`implement-spec`（tickets = task graph + frontier + 指针通信 ≈ v2 TaskGraph 分组 + DispatchPacket 指针式正文）· `to-tickets`（blocking edges ≈ 任务边）· `code-review`（双轴并行——本程序 capability 模型后照用）
+E1 overall append-only 增生（143 行 · history 28 行 · issue 18 行 prose）· E2 phase-spec 六段五样板 · E3 plan 约束再述 · E4 Task Do 长散文 + brief 散文雕刻 · E5 Task Groups 字面行静默偏差（格式漂移丢组 / 节界截断 / 越界延迟爆 / 意图无回读 / 双写认知）· E6 schema/template-contract/lexicon 三面无统一抽象 · E7 版本行 lineage 散文。编号独立于 Phase inventory 的 P#（债源自既有程序阶段线，非一一对应），两系仅组号字面相近、无映射关系。
+
+#### 上游先例背书
+
+`implement-spec`（tickets = task graph + frontier + 指针通信 ≈ v2 TaskGraph 分组 + DispatchPacket 指针式正文）· `to-tickets`（blocking edges ≈ 任务边）· `code-review`（双轴并行——本程序 capability 模型后照用）
 
 ## Issue inventory
 

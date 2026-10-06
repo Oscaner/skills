@@ -38,15 +38,17 @@ Charter only — no implementation detail。
 
 将 osuperpowers 插件 + cdd-engine 从「多根命名、读上游基线的大体积 SKILL、冗余命令面」收敛为「**单根 artifact 布局（`.osuperpowers/` 运行时 + `docs/osuperpowers/` 文档）、命令面精简（implement/review/fix/base-branch）、session-call 简洁 skill 树（不读上游、纯 `/xxx` 调用、保留节点锚定骨架）**」的收敛程序。九项需求（req 1–9，含用户初始 skills 箭头流程）全部源自用户 2026-09-13 的 new-program 脑暴；skills 的目标架构（含 `writing-single-spec` / `writing-overall-spec` / `writing-phase-spec` 新 skill 与 report-issues 改名）定案于本 program charter，P4/P5 按其执行。
 
-**cdd-engine 服务化主线（2026-09-13 用户升维）**：本程序**包括 cdd-engine 的重构**——engine 不是被路径/命令清理的被动对象，而是重构为**服务整个体系的底层服务层**：workspace 布局（单根 `.osuperpowers/cdd/<slug>` + standalone 并入）→ 命令面（implement/review/fix/base-branch 四命令收敛）→ host harness 检测自包含 → 渲染/模板数据化 → artifact 写权全归 engine。skills 全面变薄后，engine 是唯一 artifact 写者 + 唯一 harness 解析者 + 唯一命令持有者——「engine 服务，skills 编排」是本次重构的边界原则。
+### cdd-engine 服务化主线（2026-09-13 用户升维）
 
-**Non-goals**：
+本程序**包括 cdd-engine 的重构**——engine 不是被路径/命令清理的被动对象，而是重构为**服务整个体系的底层服务层**：workspace 布局（单根 `.osuperpowers/cdd/<slug>` + standalone 并入）→ 命令面（implement/review/fix/base-branch 四命令收敛）→ host harness 检测自包含 → 渲染/模板数据化 → artifact 写权全归 engine。skills 全面变薄后，engine 是唯一 artifact 写者 + 唯一 harness 解析者 + 唯一命令持有者——「engine 服务，skills 编排」是本次重构的边界原则。
+
+### Non-goals
 - 不修改 vendored 子模块（superpowers / mattpocock-skills / impeccable）
 - **不改变引擎评审语义本体**：review/fix/handoff 生命周期、Convergence 判定、commit-contract、doc_hash 双签名等判定逻辑不动——本程序仅收敛路径 / 命名 / 命令面 / 编排 skill 层
 - 不引入新增 **引擎/lifecycle** 流程节点——cdd 引擎生命周期（implement/review/fix 循环、Convergence、commit-contract）不变；skill 树允许新增 session-call **编排壳**（writing-single-spec / writing-overall-spec / writing-phase-spec 属编排壳，非新流程节点；brainstorming / writing-plans / cli-driven-development 结构不变，仅 skill 形态重写）
 - 不承载 #246 之后的消费方新 report（另行走 report-issue 通道；本程序不含 GH issue 创建）
 
-**Cross-cutting constraints**：
+### Cross-cutting constraints
 - **节点锚定式规则保留**：简洁模式 ≠ 无结构——所有 SKILL.md 仍须 digraph + 节点定义 + exit/fail 语义（skill-authoring 已确立的骨架不变），只是 Content 改为 session-call 命令链
 - **skills 内容全重写**：不再读上游 skill 文档；完全依赖 `Run a /xxx session` 调用（grill-me 范本：frontmatter + 命令链）；删除旧规则机械（read-upstream 基线、Invariants 冗余表、failure-mode 长表、`_docs/review.md` URC）
 - **artifacts 单落点**：`.osuperpowers/cdd/<slug>/`（standalone 并入，不同 feature 独立 base-branch）；文档单根 `docs/osuperpowers/{specs,plans}`

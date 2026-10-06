@@ -54,6 +54,10 @@ interface PlaneItem {
    *  opener captures its number); undefined when the run opener captures no number or the plane is
    *  unscoped (the selfBounded invariant reads it — a bound-less item judges nothing). */
   bound?: number;
+  /** The item line's index in the content's line array — the hollow judge's position anchor (the
+   *  body-line scan starts AFTER the heading line; indexOf-value equality can never substitute for
+   *  the positional read when two anchored lines carry identical text). */
+  index: number;
 }
 
 /** One plane extraction — the item list + the per-run item counts of a within-scoped records scan
@@ -131,7 +135,8 @@ function extractPlaneItems(content: string, plane: StructurePlane): PlaneExtract
       let runBound: number | undefined;
       let maxBound: number | undefined;
       let runCount = 0;
-      for (const line of lines) {
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]!;
         if (inRun) {
           if ((fieldCloser ? WITHIN_CLOSE_RE : HEADING_CLOSE_RE).test(line)) {
             runCounts.push(runCount);
@@ -142,7 +147,7 @@ function extractPlaneItems(content: string, plane: StructurePlane): PlaneExtract
           } else {
             const m = line.match(anchor);
             if (m) {
-              items.push({ line, value: (m[1] ?? "").trim(), bound: runBound });
+              items.push({ line, value: (m[1] ?? "").trim(), bound: runBound, index: i });
               runCount++;
             }
             continue;
@@ -165,9 +170,9 @@ function extractPlaneItems(content: string, plane: StructurePlane): PlaneExtract
       if (inRun) runCounts.push(runCount);
       return { items, runCounts, maxBound };
     }
-    for (const line of lines) {
-      const m = line.match(anchor);
-      if (m) items.push({ line, value: (m[1] ?? "").trim() });
+    for (let i = 0; i < lines.length; i++) {
+      const m = lines[i]!.match(anchor);
+      if (m) items.push({ line: lines[i]!, value: (m[1] ?? "").trim(), index: i });
     }
     return { items };
   }
@@ -184,7 +189,7 @@ function extractPlaneItems(content: string, plane: StructurePlane): PlaneExtract
       const row = lines[j]!;
       if (isSeparatorRow(row)) continue; // the `|---|---|` face is structural, never an item
       const m = row.match(anchor);
-      items.push({ line: row, value: (m?.[1] ?? "").trim() });
+      items.push({ line: row, value: (m?.[1] ?? "").trim(), index: j });
     }
     i = k - 1; // continue the scan AFTER the consumed table (a later separate table's header still finds its own run)
   }
@@ -306,6 +311,30 @@ function evaluateInvariant(
     }
     case "residue":
       return items.length === 0;
+    case "hollow": {
+      // Every anchored heading must own a body: before the next heading / `---` rule / EOF it must
+      // reach either a non-empty content line or (when the rule declares `children`) a child-item
+      // line — a `#### N.M` item satisfied by its child items, a `### N.` group satisfied by its
+      // child `#### N.M` items. A blank-only run between the heading and the next heading is an
+      // empty shell (the P3.1 T4 empty-body / hollow-leaf face) — BLOCK. The children check comes
+      // FIRST: a child-item line is the object's content, never the boundary that ends it (an item
+      // heading closes a group run only when the group has no children). Blank lines between the
+      // heading and its content are structural, never content; an empty plane judges nothing.
+      if (items.length === 0) return true;
+      const lines = content.split("\n");
+      const headingRe = /^\s*#{1,6}\s/;
+      const ruleRe = /^\s*---+$/;
+      const childrenRe = invariant.children === undefined ? undefined : compile(invariant.children);
+      return items.every((item) => {
+        for (let i = item.index + 1; i < lines.length; i++) {
+          const t = lines[i]!;
+          if (childrenRe?.test(t)) return true; // a child item is content
+          if (headingRe.test(t) || ruleRe.test(t)) return false; // the next heading / rule closes the body empty
+          if (t.trim() !== "") return true; // a non-blank content line — the object has a body
+        }
+        return false; // EOF without reaching content
+      });
+    }
     case "selfBounded": {
       if (items.length === 0) return true;
       // The anti-dependency gate: every comma-split integer ref must be strictly below the

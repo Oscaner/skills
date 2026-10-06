@@ -74,6 +74,8 @@ function validSpec(
     "",
     "## Design",
     "",
+    "The design body — the fixture's testable increment (non-shell `## Design`).",
+    "",
     "### Acceptance criteria",
     "",
     "- `criterion one`",

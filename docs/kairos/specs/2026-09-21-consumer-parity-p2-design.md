@@ -9,7 +9,8 @@
 ## Design
 P2 增量 = **engine lifecycle 统一抽象（breaking）**，四大设计面 + breaking/测试面。全部判定已随 overall v1.10–v1.12 落盘；本节给机械形态、组件边界与验收。
 
-**2.1 全量 charter 审计（docContractValidate 扩面）**
+### 2. engine lifecycle 统一抽象设计
+#### 2.1 全量 charter 审计（docContractValidate 扩面）
 
 **现状基线**（P1 实证）：`dispatch/base.ts:117` 的 pre-flight hook `docContractValidate` 仅 `TaskLifecycle`（`dispatch/task.ts:515`）override；docs / branch 通道继承 base no-op → 改 spec/plan 文档不经过任何契约校验。necessary subset 现承载于 `rules/documents.ts`（`validateDispatchDocuments`：plan 契约 → Class A `**Spec:**` 解析 + label==basename → Class B `**Parent program**` → `-overall.md` + version lineage → overall 契约：canonical 表头 / row-shape / change-history 严格递增）；Class B phase 注册检查**仅当 plan basename 带 `P\d+`** 时触发。
 
@@ -29,7 +30,7 @@ P2 增量 = **engine lifecycle 统一抽象（breaking）**，四大设计面 + 
 5. **失败语义（overall 验收原样）**：非 dry-run **结构性 mismatch（缺失 cell / 缺 claim）非空 → BLOCKED（exit 1）+ 逐项指引**（`formatDocFailures` 形状：`- [artifact] file — 字段: missing → fix`）；**终态欠账（plan-complete 未回填）→ plan-bearing dispatch（含 branch-review）pre-flight BLOCKED + 指引**（两门面皆硬门，见 §2.2）；dry-run → stderr **CDD_WARN、exit 0**；退出码语义不变。
 6. **边界**：无 parent overall → 四表 no-op、necessary-subset 恒跑；engine 派生终态声明源仅当 plan workspace 存在时可得（见 2.2，非豁免——声明源缺席）。
 
-**2.2 closeout 统一规则（声明源 ↔ 列，overall v1.12 #7）**
+#### 2.2 closeout 统一规则（声明源 ↔ 列，overall v1.12 #7）
 
 **模型**：审计合法状态 = **声明源 ↔ 列，双向全列**。声明源 ＝ `{change-history claims} ∪ {engine 派生终态}`：
 
@@ -44,7 +45,7 @@ P2 增量 = **engine lifecycle 统一抽象（breaking）**，四大设计面 + 
 
 **无死锁论证**（设计约束，v1.3 时序反转）：`done` 仅终态触发（全部 task complete + review APPROVED；Review Convergence 后不跨 round 重审）。**回填时序 = branch-review 前置**（2026-09-21 用户裁决）：plan-done 后、branch-review 前，orchestration 先执行 backfill-overall（docs 编辑 overall + commit——该编辑经 docs 通道、无 plan workspace → 终态声明源缺席 → 回填动作不自我挡）；branch-review pre-flight 时欠账已清 → 放行；**未回填 → BLOCKED 为正确行为**（branch-review 前提 = plan 已结束 → 回填义务已到期）。**v1.11 lane 边界（branch 排除终态成员）撤销**——不再需要时序排除论证。`task` 通道 dispatch 期间 plan 未 done → **该 plan 自身**终态成员零命中（跨 phase 别的 plan 未回填终态仍按全局枚举 BLOCK，见同段末句）；`docs` 通道无 plan workspace → engine 终态声明源缺席 → 该成员天然 no-op（声明源缺席语义，非豁免；backfill 编辑路径恒放行）；fresh checkout 无 progress.json → `derivePlanVerdict.done=false` → 零误伤。终态源 = 该 parent overall 下**所有 plan workspace**（plan-bearing dispatch 可枚举）——跨 phase 欠账（上一 phase 已 done 未回填）在任一后续 plan-bearing dispatch 亦 BLOCK。
 
-**2.3 doc-structure 同源派生（schema 唯一结构事实）**
+#### 2.3 doc-structure 同源派生（schema 唯一结构事实）
 
 **canonical**：engine 包内 **JSON Schema（draft 2020-12）+ `description`**（description = 写作指引，取代 md 模板散文角色）。覆盖 doc 类型：
 - **overall schema**：`## Issue inventory` / `## Phase inventory` / `## Dependency graph` / `## Change history` 表头 + 列名（7 列 header）、行形（cell count）、claim 模式（`CLAIM_RE` 族 / plan+design 链接词）、change-history 版本规则；
@@ -60,7 +61,7 @@ P2 增量 = **engine lifecycle 统一抽象（breaking）**，四大设计面 + 
 
 **漂移闭环**：agent 按 schema 成文 → 后续 dispatch docContractValidate 依同一 schema 校验；结构 token 无第二副本（grep 零 md 模板副本可机械断言，overall 验收「doc-structure 单源实证」）。**scope 限定**：零第二副本断言仅覆盖 engine 包内手动 token 面 + SKILL.md 散文 token 面 + repo/skill 侧 md 模板副本；`scripts/validate/overall-consistency.ts` 之手写结构 token 残留属 till-P3 退役面（§4 S1/S2 + F8a 处置位），不在本 phase 断言范围。
 
-**2.4 harness 契约单源（lifecycle 契约统一）**
+#### 2.4 harness 契约单源（lifecycle 契约统一）
 
 **一个 lifecycle 契约**：task / docs / branch 三通道共享——handoff schema 核心块统一：`status`（APPROVED/BLOCKED/CHANGES_REQUESTED/**TIMEOUT**——统一契约使 docs-family status enum 增 TIMEOUT：现行 docs-handoff-schema status = [APPROVED, CHANGES_REQUESTED, BLOCKED] 无 TIMEOUT，升级为与 task-family 同枚举 = docs 面 breaking，随本节 breaking 版本面 + AC6/docs 逆转面声明）· `commits{base,head}`（base `^[0-9a-f]{40}$`）· `artifacts` · `findings` · `failure_category` · `blocker` …；lane 差异仅**边界物**（docs: `doc_path`/`doc_hash`；task: `task`/progress；branch: `--base/--head` ref 语义）。
 
@@ -74,7 +75,7 @@ P2 增量 = **engine lifecycle 统一抽象（breaking）**，四大设计面 + 
 
 **breaking 版本面**：handoff schema + round-context + lifecycle 契约结构升级 = **cdd-engine major bump**（overall「breaking 版本面 = major」）；`templates/` 与 schema 变更随包发布（消费者面契约变化，P4 发布闭环承载版本化）。
 
-**2.5 测试面与零债断言（engine colocated，vitest，`src/**/__tests__/**/*.test.ts`）**
+#### 2.5 测试面与零债断言（engine colocated，vitest，`src/**/__tests__/**/*.test.ts`）
 
 1. **全量审计**：四表各面非法态 → BLOCKED + 指引（含 lineage no-op 场景、dry-run CDD_WARN 降级）；全通道（task/docs/branch）挂门断言；overall 自审边界。
 2. **closeout 统一推断**：mismatch 集计算正确性（forward / reverse plan+design / engine 终态面——含 program 级 workspace 枚举）；pre-flight 门输出（结构性 + 终态欠账两门面）；**branch-review 拦未回填**（plan-done ∧ 未回填 → branch-review BLOCKED；已回填 → 放行）happy-path 回归；post-flight 高亮输出可捕获（stdout 断言）；同源——改推断一处、两通道行为同变（回归断言）。

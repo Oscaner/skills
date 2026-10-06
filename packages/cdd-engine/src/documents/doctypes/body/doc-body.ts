@@ -148,7 +148,15 @@ export type StructureInvariant =
    *  A ref value BEYOND the enclosing id range (> the extraction's maxBound — the plan's task
    *  count) is exempt: the past-the-edge reference is the graph plane's missing-id class, never
    *  the anti-dependency contradiction (the plan constraints' out-of-range exemption, P3.1 T3 fix). */
-  | { type: "selfBounded" };
+  | { type: "selfBounded" }
+  /** hollow — every anchored heading line must own a body: before the next heading / `---` rule /
+   *  EOF it must reach either a NON-EMPTY, non-heading content line or — when `children` is set — a
+   *  child-item line matching the children pattern (the P3.1 T4 empty-body / hollow-leaf face: a
+   *  `#### N.M` design item with zero body content is an empty shell; a `### N.` group satisfied by
+   *  its child `#### N.M` items; a `## Design` body satisfied by its groups/items). A blank-only run
+   *  between the heading and the next heading is hollow — BLOCK. An empty plane judges nothing
+   *  (vacuous). */
+  | { type: "hollow"; children?: string };
 
 /** A doc-structure rule — one judgment plane + its invariant bundle + the rule's scope severity
  *  and its fixed message copy (the reusable wording findings carry VERBATIM — the interpreter

@@ -367,7 +367,33 @@
     },
     "programCharter": {
       "type": "object",
-      "description": "Section 3 — Program charter: goal (1–3 sentences), non-goals, cross-cutting constraints; acceptance criteria / API shapes / tasks excluded (charter only). Claims shrink, they do not inflate — what the program cannot prove it will not claim."
+      "description": "Section 3 — Program charter: the charter facets ranked `###` (Goal / Non-goals / Cross-cutting — the facet anchor names follow each overall family: `### Goal` · `### cdd-engine 服务化主线（…）` for the overhaul family · `### Non-goals` · `### Cross-cutting( constraints)` — the anchor pattern tolerates a trailing annotation, never a bold-flat leftover) + the decision-retention / decision-group / endorsement facets (`### 设计决策留存…` / `#### M 组…` groups / `#### 上游先例背书` — existence-only enforcement: a doc carrying a decision face must carry it at the ranked form). Acceptance criteria / API shapes / tasks excluded (charter only). Claims shrink, they do not inflate — what the program cannot prove it will not claim."
+    },
+    "charterFacets": {
+      "type": "object",
+      "description": "The charter facet anchors — the `###`-ranked facets under `## Program charter`: `Goal` / `Non-goals` / `Cross-cutting` (with the family-specific anchor names: `Cross-cutting constraints` for the legacy families, `cdd-engine 服务化主线（…）` as the overhaul family's goal anchor) — each a permanent presence: every overall carries its three facets.",
+      "properties": {
+        "goal": {
+          "type": "string",
+          "pattern": "^### (?:Goal|cdd-engine 服务化主线（2026-09-13 用户升维）)",
+          "description": "The Goal facet anchor — `### Goal` on the doc-architecture / pi-harness / consumer-parity families, `### cdd-engine 服务化主线（2026-09-13 用户升维）` (the overhaul family's goal anchored on its service-line marker, standing for the charter opening prose)."
+        },
+        "nonGoals": {
+          "type": "string",
+          "pattern": "^### Non-goals",
+          "description": "The Non-goals facet anchor — `### Non-goals` (a trailing annotation such as `（非目标…）` is tolerated)."
+        },
+        "crossCutting": {
+          "type": "string",
+          "pattern": "^### Cross-cutting",
+          "description": "The Cross-cutting facet anchor — `### Cross-cutting` on the doc-architecture / pi-harness families, `### Cross-cutting constraints` on the legacy families; a trailing annotation is tolerated."
+        },
+        "decisionGroup": {
+          "type": "string",
+          "pattern": "^#### [MFRBEN] 组|^#### 上游先例背书",
+          "description": "A decision-group / endorsement leaf — `#### M 组（…）` / `#### F 组（…）` / … / `#### 上游先例背书`: the `####`-ranked leaves under the decision-retention facets (existence-only — judged when the doc carries them)."
+        }
+      }
     },
     "documentScope": {
       "type": "object",

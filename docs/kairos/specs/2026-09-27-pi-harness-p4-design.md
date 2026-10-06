@@ -7,11 +7,12 @@
 - **Depends on**: P2（Done）· P3（Done）——见 parent overall 依赖图（P2 →(hard) P4、P3 →(hard) P4）
 
 ## Design
-**2.1 目标与范围**
+### 2. 技能改名 + 命名退役 + 收口设计
+#### 2.1 目标与范围
 
 P4 使 kairos（前 osuperpowers）的**技能身份**完成程序级统一：8 技能全量改名 `cdd-*`（含 `skills/` 目录名——单身份零债务，user 裁定；三 harness invocation 面同步变，breaking），配套命名机制（SKILL.md `name` 单源 + 目录扫描守卫），并把 pi 身份落到消费者文档面（README 家族矩阵 + `pi install` 段 + 名义映射表数据渲染 + D5 消费故事改写），最后以测试延展 + changeset 收口。现状实证（grilling fact-finder）：README 家族 6 文件全线 pre-pi（零 `pi` / `pi-package` 提及，per-harness 表只有 claude/cursor 两行）；live 面 `cursor-agent` 系 osuperpowers README CDD engine CLI 表行（EN `README.md:72` + zh 镜像 `README.zh-CN.md:74` 同形，共 4 token）；名义映射表任何位置不存在（只有 spec 承诺）；D5 故事零 live 呈现。范围外：engine 运行逻辑（detect / spawn / registry 面）零改动（P3 已闭环）；不合并 engine 与 emit 注册表（Non-goal #2）；不做结构性技能合并（3 个 writing-* 并 1 带 mode——裁定拒，rationale 见 2.2 C1 裁定备注）。**范围增项（v1.5/v1.6 backfill-after-discussion，user 2026-10-01 拍板）**：① engine 静态数据面重组（C7）——配置·注册表·词汇·契约·schema JSON 收编为 `config/` 单一数据家，`templates/` 只留内容渲染种子（`report/issue-body.json`），`resolveResource()` 唯一路径真相（dev 树 ↔ dist 打包树同构、零路径分叉零散落硬编码）；② **harness 契约收敛（C8）**——registry 行增 detect/install/refs、prefix 删除改派生、lexicon 瘦身为纯词表、守卫泛化 `checkHarness`、SKILL 文本与 README 照数据渲染；C7 与 C8 同组 atomic（布局先行，T8 为 T7 提供 config/ 之家），`cdd init` 未来消费同一契约。
 
-**2.2 组件**
+#### 2.2 组件
 
 锚点图例：G = grilling 定案轮（G1 改名形态 · G2 命名机制 · G3 高维复核裁定 · G4 名义映射表 markers · G5 铺设面 · G6 测试 · G7 changeset）；编号非连续、非必经枚举；锚点仅供本 spec 内部溯源，Issue inventory 与 parent overall 均无对应登记（P4 issues ref = none）。
 
@@ -81,11 +82,11 @@ P4 使 kairos（前 osuperpowers）的**技能身份**完成程序级统一：8 
 - **re-anchor 面**：T3 markers 数据家换（lexicon → registry.detect）+ T4/T5 pin 源换（presentation-surface 名义表 / contract-lexicon.test checkMarkers）——机械面，测试兜底
 - **边界**：emit 分发注册表（`scripts/lib/harness-registry.ts`）不并入（Non-goal #2）——分发产物构建面 vs 运行时契约面，C7 以 `harness-contract.json` 命名消歧
 
-**2.3 数据流**
+#### 2.3 数据流
 
 `skills/` SKILL.md `name`（单源）→ 目录扫描守卫（测试）→ README 清单 / pi 包面 pin；`contract-lexicon.json` `markers`（engine 数据）→ `checkMarkers` 三方一致 → README 名义表数据派生 + 漂移守卫；`cdd-*` 改名 → `pnpm run emit` 重生成 manifests / marketplace / source.json；changeset（major + patch）→ Version PR `changeset version && emit` → CHANGELOG + 版本重 stamp。
 
-**2.4 错误与边界**
+#### 2.4 错误与边界
 
 - **改名 breaking 迁移**：README 与 changeset 各自明确新名 + breaking 声明；消费侧用户按新 invocation 面（`/kairos:cdd-*`）调用；`osuperpowers` → `kairos` 迁移零存量机制——实现当时 `git mv` 直迁
 - **旧词残留 vs 上游 import**：`brainstorming` / `writing-plans` 等作为词合法出现于 `/superpowers:*` import 面——pin 精确到 kairos 技能身份，词级禁会误伤
@@ -94,7 +95,7 @@ P4 使 kairos（前 osuperpowers）的**技能身份**完成程序级统一：8 
 - **双镜像**：zh 结构 parallel（既有声明机制）+ 时间戳校准；命名 pin 覆盖 EN 面，zh 结构自查依托 mirror 声明（该声明维护惯例写入 C4）
 - emit 产物重生成必须在改名后立即执行且 `emit:check` 零漂移（CI/pre-commit 把关）
 
-**2.5 测试**
+#### 2.5 测试
 
 - 三文件延展（C5）：presentation-surface（声称 + 扫描 + 名义表）· pi-package（字段集）· contract-lexicon.test（markers 三方 + 漂移）
 - 回归面：`pnpm run validate` 13 块全绿（含 engine vitest 1173+ / scripts 286+ / residue / contract-lexicon）+ precommit 全绿 + `emit:check` 零漂移

@@ -7,7 +7,8 @@
 - **Depends on**: P1 shipped（runtime 布局 `.osuperpowers/cdd` + standalone 移除，2026-09-14）；P2 shipped（docs 单根，2026-09-14）
 
 ## Design
-**§2.1 问题与根因**
+### 2. 命令面收敛设计
+#### 2.1 问题与根因
 
 `cdd` 现暴露 6 个子命令，其中两个**零真实消费者**：
 
@@ -20,7 +21,7 @@
 
 **删除安全性不变量**（无需新增回归测试）：`tests/task.test.mjs:94`（`implement --plan` 无前置 brief → 自给 + `TASK_BASE:`）、`:109`（`CDD_TASK_BRIEF` override 写/读同源）、`:128`（越界 → BLOCKED exit 1）已钉死该语义。
 
-**§2.2 Grilling 决策记录**
+#### 2.2 Grilling 决策记录
 
 | # | 决策 | 依据 |
 |---|---|---|
@@ -31,7 +32,7 @@
 | Q5 | **engine minor + osuperpowers minor**，正文显式记录「实为 breaking / engine 版本效果不落地」 | 对齐 overall P6 既定口径；把失真声明转为可追踪的 P6 复核项 |
 | Q6 | **存量 backlog 全量归并**（charter「不留技术债务」） | 用户 2026-09-14 以 charter 原则定；本程序 per-phase changeset 保留（P6 复核粒度，非债务） |
 
-**§2.3 Engine 命令面收敛（删除面清单）**
+#### 2.3 Engine 命令面收敛（删除面清单）
 
 **2.3.1 命令注册面** — `lib/cli/parse.mjs`：
 - 删 `import { runResearch } from "./research.mjs"`（L9）与 `import { runBriefCli } from "./brief.mjs"`（L11）
@@ -46,7 +47,7 @@
 
 **2.3.4 保留面** — `lib/brief.mjs#generateBrief` 保留（`run-task.mjs:17` 消费）；该文件头部注释两处同步清理：① 引用已删 CLI 的段落（L5-6「CLI 处理器…已迁 lib/cli/brief.mjs」）；② L4 `validateBrief: check brief contains TASK_BASE: line.`（§2.4 删 `validateBrief` 后该行必须同删）。
 
-**§2.4 级联死配置连根（Q3=A）**
+#### 2.4 级联死配置连根（Q3=A）
 
 | 死配置 | 位置 | 唯一消费者 |
 |---|---|---|
@@ -61,7 +62,7 @@
 - `lib/lifecycle/proc.mjs:176` — 「六个派发模块（run-task / run-docs / review / branch-review / fix / research）」→ 五个（**非守卫命中面**：bare `research` 刻意放行，本条属说明文字同步，不改则静默留存为陈旧注释）
 - `lib/cli/review.mjs:5` — 「4 消费方（fix/parse/branch-review/research）」→ 3（同上，非守卫命中面）
 
-**§2.5 测试面**
+#### 2.5 测试面
 
 | 动作 | 对象 |
 |---|---|
@@ -85,7 +86,7 @@
 
 ② **黑盒** —— `cdd brief` / `cdd research` → unknown command **exit 2**。
 
-**§2.6 Skill 面 — `cli-research` 删除（Q1）**
+#### 2.6 Skill 面 — `cli-research` 删除（Q1）
 
 `git rm -r packages/osuperpowers/skills/cli-research/` → `pnpm run emit` 自动 prune **`packages/osuperpowers/.agents/skills/osuperpowers/cli-research/SKILL.md`**（无手写清理）。
 
@@ -98,7 +99,7 @@
 
 **过渡态**：`cli-driven-development/SKILL.md` 磁盘版**不含** `cdd brief` 调用（其 `dispatch-mode` 步骤 1 是 review-diff 生成），故 P3 交付后 skills 面无悬空调用；该 skill 的全面重写仍归 P4。
 
-**§2.7 防回渗守卫（Q4=A）**
+#### 2.7 防回渗守卫（Q4=A）
 
 `scripts/validate/residue.mjs` 的 `STALE_LEXICON_CHECKS` 追加两条：
 
@@ -113,7 +114,7 @@
 - 文件头注释的语义枚举同步更新（该头注释是 P4/P6 迁移终态的单一索引）。
 - `scripts/validate/residue.test.mjs`：新增 describe 块——正例命中（`cdd research --brief …`、`CDD_RESEARCH_TIMEOUT=…`）+ 反射例零误报（`/mattpocock-skills:research`、`brief-dependent plan sections`、`CDD_TASK_TIMEOUT`）。字面**经字符串拼接构造**（P2 先例：守卫测试自身不得成为被守卫语汇的载体，否则全仓 grep 多出命中类）。live-repo 零残留由既有 `collectStaleLexiconHits() === []` 覆盖，不新增。
 
-**§2.8 changeset**
+#### 2.8 changeset
 
 **8.1 本程序** — 新增一条**双包** `.changeset/p3-cdd-command-surface.md`：`@oscaner-skills/cdd-engine: minor` + `@oscaner-skills/osuperpowers: minor`（对齐 `p3-cdd-engine-overhaul.md` 的既有多包先例）。正文显式记录：**命令删除实为 breaking（semver 应为 major），但 engine changeset 的版本效果不落地**（`scripts/release/version-packages.mjs:82` 只处理 `packages/osuperpowers/package.json`；`.changeset/versioned-plugins.json = ["osuperpowers"]` 实证）→ 该项随 **P6** 统一复核。 **本仓内部理由（`version-packages.mjs:82` 路径 / `versioned-plugins.json` 内容 / P6 排期）刻意只留在本 spec，不进 changeset 正文**——changeset 会被 `version-packages.mjs:96-115` 渲染进 `packages/osuperpowers/CHANGELOG.md`（发布包内、消费者可见），而 CLAUDE.md「Consumer perspective」条明载消费环境无 monorepo 布局、无本仓工具链（T6 review-1 nit 收敛）。
 
@@ -132,7 +133,7 @@
 
 **8.3 本程序 per-phase 保留** — `p1-cdd-runtime-layout-singleton.md` / `p2-docs-root-migration.md` / 新增 `p3-cdd-command-surface.md` 各一条不动。理由：P6 acceptance 明载「各 phase changeset 齐备无遗漏」，per-phase 粒度是 P6 的复核依据，不是技术债务。
 
-**§2.9 overall 回填（Boundary rules）**
+#### 2.9 overall 回填（Boundary rules）
 
 | 表 | 变更 |
 |---|---|
@@ -146,7 +147,7 @@
 | Change history | 追加 v1.11 |
 | File paths | 无变化 |
 
-**§2.10 验证**
+#### 2.10 验证
 
 - `cdd --help` 实跑：子命令集合恰为四命令
 - `pnpm --filter @oscaner-skills/cdd-engine test` 全绿（删除面收敛后用例数下降属预期；**含 `tests/lifecycle.wiring.test.mjs` 的 withLifecycle 接线守卫**——§2.3.3 整删 `lib/cli/research.mjs` 后该文件不删即 ENOENT 整文件红）

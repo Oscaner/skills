@@ -7,13 +7,14 @@
 - **Depends on**: P4 shipped（skill 树 + engine 输出契约，PR #262 已 merge 至 develop，2026-09-16）
 
 ## Design
-**§2.0 口径与例外边界（原 Section 0，转录）**
+### 2. report-issues 重写与收敛设计
+#### 2.0 口径与例外边界（原 Section 0，转录）
 
 **口径（用户 2026-09-13 拍板，overall §目标 skills 架构参考）**：目标流程 = `explore-current-session → collect → reform → confirm → gh dedup（open+closed）→ 单新 issue 聚合 + dedup links + friendly 标题`。P5 的**删除面**（旧双通道评论模型 / master 复用 / per-finding 评论 / report-meta 冗余字段）与**收敛面**（单新 issue 聚合 / 单模式 renderer / labels SOT 单点）一并执行——破坏性变更授权下遗留即删。
 
 **例外边界（精确，v1.27 更新）**：P5 将 cdd-engine **全面重建**（全量 TS + unbuild · CLI 换 citty · 生命周期域抽象基类 + hookable 注册面 · 目录按功能重组 · v1.26 第三方收敛全项），**engine 黑盒契约零变化**（4 子命令 `cdd implement/review/fix/base-branch` 面 · handoff 输出 / 失败类目 / Stopping / commit-contract 判定语义 · session-call 输出）——**skills 与消费者面零感知**（engine 是发布产物，重建仅内部形态）。engine 重构详 §2.13。issue form（ISSUE_TEMPLATE）是 emit 派生面，改动落点 = `finding-meta.json` canonical（formFieldDefs / labels SOT），不在 `.github/` 手改。
 
-**§2.1 问题与根因**
+#### 2.1 问题与根因
 
 P5 处理的是**一类结构性根因 + 六条实证缺陷（E 族）+ 两条优化**，不是七组独立修补。结构根因是主线，E 族与优化是它的展开。
 
@@ -26,7 +27,7 @@ P5 处理的是**一类结构性根因 + 六条实证缺陷（E 族）+ 两条�
 | **R5（优化，用户 2026-09-16 指示）** | **brainstorming #explore-context 把参考性探索面写成固定 4 渠道** | P4 重写时 Do/Read 写「(code / issues / docs / git log)」——参考性示例被固化为枚举（E-7） |
 | **R6（优化，用户 2026-09-16 量化）** | **提示词注入的 handoff schema 带 2-缩进，占 token** | `renderHandoffStub` = `JSON.stringify(schema, null, 2)`；实测 task 1111→846 tok（省 ~265）、docs 702→545（省 ~157）每次注入（E-8） |
 
-**§2.2 高维度统一骨架**
+#### 2.2 高维度统一骨架
 
 P5 不是「改名 + 八条修补」，而是 report 面从「路由+评论模型」收敛为「单管线+单工件」：
 
@@ -41,7 +42,7 @@ collect → filter(scope 谓词) → reform(privacy) → confirm(人闸) → ded
 4. **删除面**——旧双通道（resolve-destination / ensure-session / report-target 缓存 / per-finding 评论）全删；report-meta 冗余字段（kind/date/Source）全删；sessionTypes / session_report 表单 / resolveDropdownOptions 全删
 5. **每字符有消费方**（用户 principle）——遗留的每个字段/分支/枚举都有真实消费方或运维决策价值
 
-**§2.3 改名面（report-issue → report-issues）**
+#### 2.3 改名面（report-issue → report-issues）
 
 **改名一处 + 全派生**：`finding-meta.json#components` 枚举 `"osuperpowers:report-issue"` → `"osuperpowers:report-issues"` 是唯一改名源；form 下拉经 emit 派生、`.agents/` 经 emit 派生，均零手改。
 
@@ -57,7 +58,7 @@ collect → filter(scope 谓词) → reform(privacy) → confirm(人闸) → ded
 | tests | `report-templates.test.mjs` components 断言更新（P4 注释「改名归 P5」处落地）· `writing-plans-spec.test.mjs` resolve-destination 提及更新（见上行锚点换锚）· **四文件同步**：`scripts/emit/issue-templates.test.mjs` 三处「3 个 yml」断言（:23 / :140-148 / :165，含 session_report.yml）→ 2 个；`scripts/emit/compare.mjs:39` productFiles 删 `session_report.yml` 项（否则 emit:check 陈旧 walk 报警）；`docs/maintainers/` 全部 `report-issue` 词形逐一同步（maintainer docs 不在 residue 机制 scope 亦不在 AC1 grep 面，无机械守卫兜底——**面级 sweep 接管：验收实测 `grep -rnE '\breport-issue\b' docs/maintainers/` 零命中**，不止枚举文件）：**`data-driven-templates.md` :3 / :90 的 SOT 路径** `packages/osuperpowers/skills/report-issue/templates/finding-meta.json` → `packages/osuperpowers/skills/report-issues/templates/finding-meta.json`（:90 的 renderer 函数行 `renderYml / renderTitle / renderMeta / renderComment / renderMasterBody` 随 §2.5 收敛同步——renderTitle/renderComment/renderMasterBody 删、renderYml 保留、renderMeta 及聚合渲染函数名对齐）· **:91 三表单表**（bug_report/enhancement/session_report）→ 两表单 · **:93 AC12 note**「report-issue finding comment / session master body」→ 新聚合表述（report-issues aggregate body）· **`docs/maintainers/skill-authoring.md:119`** Native 词例 `report-issue` → `report-issues`（Task 11 收口后的唯一边角）；`scripts/validate/residue.mjs`（:703-708 注释）与 `residue.test.mjs:820`/`:878`（ORCHESTRATOR_SKILLS 注释 + 测试描述）的 `report-issue` → `report-issues` |
 | residue 守卫 | stale-lexicon 增 `report-issue`（单数）——**词边界模式** `\breport-issue\b`（见 §2.8 词形守卫细则），复数 `report-issues` 放行；**机制面作用域**（skills 目录 / finding-meta / renderer / emit / README / tests），历史 plan/spec + CHANGELOG 豁免（P1–P3 同范式） |
 
-**§2.4 新聚合流程 digraph（report-issues SKILL.md）**
+#### 2.4 新聚合流程 digraph（report-issues SKILL.md）
 
 ```mermaid
 flowchart TD
@@ -89,7 +90,7 @@ flowchart TD
 
 **dev 验证（dedup 查询句）**：实现后以 `gh issue list --state all --limit 100 --search "updated:>=<date -v-90d +%F 产出>"` 实测——(a) 不报 search 语法错误；(b) 结果集含 open+closed 双态（search 端点默认返回双态，验证 `--state all` 与 `--search` 无状态丢失）；(c) 与仓库已知久未更新的 issue 号对照确认窗口生效。此验证并入 dev 计划 T 项（与 label rename 同批）
 
-**§2.5 renderer 改造（report-templates.mjs）**
+#### 2.5 renderer 改造（report-templates.mjs）
 
 **目标**：单写点延续（I5 语义），裸调用单入口，入参校验早报。
 
@@ -150,7 +151,7 @@ flowchart TD
 - report-meta **不入独立尾部 heading**：per-finding `Skill:`/`Step:` 紧随该 finding 的 sectionLabels 段；§2.10 聚合测试按此断言 N-finding meta 关联
 - `## Dedup` / `## Related` **恒为单段尾收**（N 条 finding 的全部 open/closed/程序命中汇总一处），不做 per-finding 分段
 
-**§2.6 finding-meta.json 重构**
+#### 2.6 finding-meta.json 重构
 
 | 面 | 现状 | 终态 |
 |---|---|---|
@@ -163,19 +164,19 @@ flowchart TD
 | `masterDef.title` | `[Session report] <subject> <YYYY-MM-DD>` | **删**（标题 = 中性 topic 直出）；masterDef 收敛为**两键** `{ sessionTitle: "## Session", harnessRow: "- Harness: <harness>" }`（Session 段 label + Harness 行模板，§2.5 契约） |
 | `reportDef.labels` | — | **新增**（labels SOT 单点 = `["osuperpowers","cdd-engine"]`） |
 
-**§2.7 labels SOT + GitHub label rename**
+#### 2.7 labels SOT + GitHub label rename
 
 - **labels SOT 单点**：`reportDef.labels` = `["osuperpowers","cdd-engine"]`（finding-meta 顶层新增），renderer create-issue 消费、其唯一定义点
 - **GitHub label rename**：`gh label edit cdd --name cdd-engine`——**一次性 repo 数据迁移**（dev 计划 T 项执行，非 spec 评审期；历史 issue 标签随迁）；执行后 `gh label list` 有 `cdd-engine` 无 `cdd`
 - **保留面**：harness keyword `cdd`（package.json / .claude-plugin / .cursor-plugin 的发布发现面——非 label，P6 keywords 决策另议）；meta 字段 `cdd` 概念（v1.22 已删字段，此处不复活）
 
-**§2.8 关联面**
+#### 2.8 关联面
 
 - **不变式面**（report-issues SKILL.md）：I1 Confirm Gate 保留 · I3 Manual Trigger Only 保留 · I5 Renderer Determinism 保留 · I6 Evidence Contract 保留 · **I7 Kind Enumerated 删**（v1.21）· **新增 I8 Dedup Window**（窗口常量 = **updated within last 90 days** + **单趟拉取**不变式；查询注入用运行期物化的 ISO 绝对日期 `updated:>=<now-90d>`，dev 计划含物化查询句实测，Q10）· **新增 I9 Program Link**（程序归属只在 Related 链接呈现，不引回评论模型）
 - **residue 守卫**：stale-lexicon `report-issue`（单数）——**词边界模式 `\breport-issue\b`（或 `report-issue(?!s)` 负前瞻）**：新复数名 `report-issues` 含前缀 `report-issue`，裸 substring 词形会在机制面内每个 `osuperpowers:report-issues` 引用处自命中、守卫永远无法转绿；同引入轮即放行复数形式（report-issues 乘数注释「复数新名，机制面预期命中排除」）· `--mode comment` / `renderTitle` / `resolveDropdownOptions` / `sessionTypes` 词形守卫（防 renderer 旧模式回渗机制面）· E-8 紧凑注入：engine `templates.test.mjs` 断言 `stub` 无 2-缩进模式（`\n  "` 模式）——格式 drift 守卫
 - **changeset**：`osuperpowers` minor（`p5-report-issues-aggregation`；含 ISSUE_TEMPLATE 瘦身 + renderer 重构 + label 变更说明 + **renderYml/yaml 隔离为 emit-only 模块**——`yaml` 仅入仓库根 devDependencies（emit 工具链），插件 `package.json#dependencies` 零新增，消费者运行时入口保持零依赖，见 §2.13 yaml 行）；`cdd-engine`（E-8 紧凑注入，patch/minor 随版本策略）——逐 phase changeset 纪律（P6 acceptance 复核粒度）
 
-**§2.9 E 族 6 条 → 机制映射（验收锚点）**
+#### 2.9 E 族 6 条 → 机制映射（验收锚点）
 
 | E | finding | 处置落点 | 验收锚点 |
 |---|---|---|---|
@@ -186,7 +187,7 @@ flowchart TD
 | E-5 | dedup 每 finding 全量拉取 | §2.4 单趟拉取 + 90d 窗口（`updated:>=<now-90d ISO>` 物化查询句） | SKILL.md dedup 节点声明单趟拉取；窗口常量 + 物化查询形式 |
 | E-6 | labels SOT 漂移 | §2.7 labels 单源 reportDef.labels | finding-meta 唯一 labels 定义点；emit:check drift=0 |
 
-**§2.10 测试面**
+#### 2.10 测试面
 
 `report-templates.test.mjs`（现有 5 block + 新用例）：
 
@@ -204,9 +205,9 @@ engine 侧：`templates.test.mjs` 增 E-8 紧凑断言；`templates.content.test
 - yaml：`renderYml` 既有 issue-templates 用例全绿（form YAML 直出，emit:check 作为输出新鲜度守卫）
 - tinyglobby：`naming.mjs` glob 用例全绿（扫描结果集不变）
 
-**§2.12 生命周期 dispatch 阶段 + commit 边界管控（pre-commit / post-commit 双门）**
+#### 2.12 生命周期 dispatch 阶段 + commit 边界管控（pre-commit / post-commit 双门）
 
-**第一部分：dispatch 生命周期阶段总览（术语化）**
+#### 2.14 第一部分：dispatch 生命周期阶段总览（术语化）
 
 每个顶层 cdd 子命令（implement / review / fix / base-branch，4 个）发起一次 **dispatch**——§2.0 与 overall 命令面一致（无第五个子命令）；docs 面**非独立子命令**：docs 流程经 `cdd review/fix --type spec|plan` 派生，由 docs 执行面承载（重建前 = run-docs.mjs，重建后 = `dispatch/docs.ts`）。engine 把 agent 会话作为子进程执行，生命周期 = 该次 dispatch 从准备到收尾的完整序列。三个阶段，每阶段含若干 engine 步骤：
 
@@ -244,7 +245,7 @@ dispatch lifecycle（engine 单点实现；run-task.mjs / run-docs.mjs 为**重�
 
 **阶段责任划分原则**：pre-flight 与 post-flight 的 engine 步骤负责**机械性收尾**（上下文装载 / 校验 / 归一）——均无 agent 语义；dispatch 阶段是唯一的 agent 语义黑盒。commit 管控（本文第二部分）正是落在两端的引擎门。
 
-**第二部分：commit 边界管控（pre-commit / post-commit 双门）**
+#### 2.15 第二部分：commit 边界管控（pre-commit / post-commit 双门）
 
 **第一性原理**：commit-contract 已确立「dispatch 出口干净树」不变量（task 族强制）。P4 两次 dirty-tree BLOCKED（dispatch 期间改树 → 返回时 commit-contract 判 dirty → handoff 改写 BLOCKED）证明**仅凭出口后验不足**——需要**入口门**使出口必然干净。P5 把「谁产物谁提交」的归属直觉收敛为**一个统一机制**：dispatch 生命周期的**两端各一扇门**，engine 机械强制，**不区分产物归属**（主 agent 或 cdd 产物 — 生命周期不关心，只保证边界干净）。
 
@@ -284,7 +285,7 @@ dispatch lifecycle（engine 单点实现；run-task/run-docs 为**重建前现�
 
 **边界**：本机制**不引入** engine 自动提交的一切形式——engine 不代写 commit、不需要知道 message（subject 语义在产生方）；engine 只做**两扇门**（入口干净树校验 + 出口干净树校验，契约面，符合「engine 服务」原则）。不重建 EventEmitter/事件总线（dispatch 是固定序列非可插拔事件，见 §2.13 不引清单）。
 
-**§2.13 第三方依赖收敛（不保持任何手写）**
+#### 2.13 第三方依赖收敛（不保持任何手写）
 
 **原则（用户 2026-09-17 定）**：能用第三方 pkg 就不自己维护，只维护 cdd-engine 功能逻辑；不保持任何手写；允许重组代码/文件/目录便于扩展；第三方 pkg 记入运维文档。
 

@@ -18,18 +18,6 @@ export default defineConfig({
     maxWorkers: 1,
     fileParallelism: false,
     maxConcurrency: 2,
-    // Explicit include for the migrated colocated suite (P6 Task 3): every test node now
-    // lives at src/**/__tests__/**/*.test.ts (tests/ retired; .mjs plane is zero).
-    // All tests are TypeScript (vitest transforms TS via esbuild); any .mjs regressing
-    // back into the engine is caught by the residue mjs-terminal-state guard (block 5c).
-    include: ["src/**/__tests__/**/*.test.ts"],
-    // 5b CLI black-box cases depend on the entry-gate sense of a clean tree (E2②/G4①/P6 T10 —
-    // documented prerequisite): some dry-run cases in cdd.test.ts / docs-task.test.ts / cli-shape.test.ts
-    // run black-box with REPO_ROOT as cwd — the entry gate passes in either of two states: a genuinely
-    // clean tree, or the CDD_WARN downgrade of dirty + dry-run. Do not run this suite's black-box cases
-    // with a dirty dev tree (uncommitted changes) unless you expect them to assert the CDD_WARN downgrade
-    // path; semantic changes to the entry gate / dry-run protocol must sync-review the case expectations
-    // of these three files.
     // G4③ (P6 Task 17) closure: the real (non-dry-run) dispatch cases — lifecycle.wiring.test.ts's CLI
     // signal cases — run on a standalone mkdtemp clean temp repo (cwd = the temp repo; the entry gate
     // resolves the temp repo's worktree), so the suite is insensitive to the current worktree state (the
@@ -40,5 +28,36 @@ export default defineConfig({
     // default 5s budget without masking genuinely stuck tests.
     testTimeout: 20000,
     coverage: { provider: "v8" },
+    // P3.2 dual-face build (T1): the new tree (src-next/) runs as an independent vitest
+    // project alongside the old tree (src/). Vitest's `projects` mode makes the root test
+    // config a shared base merged into every listed project, so each face's include set
+    // lives on its own project (a root-level include would bleed into every project). Both
+    // projects inherit the pool/parallelism/timeout defaults above and must stay green on
+    // every commit until the cutover (the plan's dual-face build constraint).
+    projects: [
+      {
+        test: {
+          name: "src",
+          // Explicit include for the migrated colocated suite (P6 Task 3): every test node now
+          // lives at src/**/__tests__/**/*.test.ts (tests/ retired; .mjs plane is zero).
+          // All tests are TypeScript (vitest transforms TS via esbuild); any .mjs regressing
+          // back into the engine is caught by the residue mjs-terminal-state guard (block 5c).
+          include: ["src/**/__tests__/**/*.test.ts"],
+          // 5b CLI black-box cases depend on the entry-gate sense of a clean tree (E2②/G4①/P6 T10 —
+          // documented prerequisite): some dry-run cases in cdd.test.ts / docs-task.test.ts / cli-shape.test.ts
+          // run black-box with REPO_ROOT as cwd — the entry gate passes in either of two states: a genuinely
+          // clean tree, or the CDD_WARN downgrade of dirty + dry-run. Do not run this suite's black-box cases
+          // with a dirty dev tree (uncommitted changes) unless you expect them to assert the CDD_WARN downgrade
+          // path; semantic changes to the entry gate / dry-run protocol must sync-review the case expectations
+          // of these three files.
+        },
+      },
+      {
+        test: {
+          name: "src-next",
+          include: ["src-next/**/__tests__/**/*.test.ts"],
+        },
+      },
+    ],
   },
 });

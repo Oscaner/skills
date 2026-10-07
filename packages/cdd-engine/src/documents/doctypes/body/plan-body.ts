@@ -362,6 +362,15 @@ export class PlanBody extends DocBody {
     // reference lint's declared-reference anchor (the block's declared edge set) share ONE byte
     // source, never a re-typed literal per rule.
     const dependsOnValues = "^- \\*\\*DependsOn\\*\\*:[ \\t]*(.*)$";
+    // The reference-lint scan-surface markers — the Objective / Acceptance marker lines whose
+    // trailing text the lint scans. Single-sourced from the projected slices: the anchor arms and
+    // the plane's `referenceSurface` co-derive from this ONE list — a renamed prose field drifts
+    // the anchor AND the scan surface together, never silently (the interpreter reads the
+    // surface, never a re-typed field name).
+    const referenceMarkers = [
+      heading(PLAN_SLICE_PATTERNS.objective),
+      heading(PLAN_SLICE_PATTERNS.acceptance),
+    ];
     return [
       {
         id: "plan.tasks",
@@ -424,17 +433,23 @@ export class PlanBody extends DocBody {
         plane: {
           kind: "records",
           // The reference surface — FIELD-DEFINED (spec §2.3): the Objective / Acceptance marker
-          // lines (their trailing text — the marker arms derive from the projected slices, never a
-          // re-typed literal) + the acceptance bullets; steps entries (numbered) and the files /
-          // consumes / produces bullets are constructively excluded (the `(?!\d+\.)` guard keeps a
-          // numbered step entry off the bullet face; the owning-field walk keeps non-acceptance
-          // bullets off the prose face — a backward task reference inside a Files bullet is a path,
-          // never a dependency intent).
-          anchor: `${heading(PLAN_SLICE_PATTERNS.objective)}.*$|${heading(PLAN_SLICE_PATTERNS.acceptance)}.*$|^\\s+[-*]\\s+(?!\\d+\\.).*$`,
+          // lines (their trailing text — the marker arms co-derived with `referenceSurface` below,
+          // never a re-typed literal) + the acceptance bullets; steps entries (numbered) and the
+          // files / consumes / produces bullets are constructively excluded (the `(?!\d+\.)` guard
+          // keeps a numbered step entry off the bullet face; the owning-field walk keeps
+          // non-acceptance bullets off the prose face — a backward task reference inside a Files
+          // bullet is a path, never a dependency intent).
+          anchor: `${referenceMarkers.map((marker) => `${marker}.*$`).join("|")}|^\\s+[-*]\\s+(?!\\d+\\.).*$`,
           within: heading(PLAN_SLICE_PATTERNS.taskHeading),
           // The run's declared reference set — the block's own `- **DependsOn**:` values (a cited
           // task already declared as an edge is never a missing-edge suspicion).
           declaredReferences: dependsOnValues,
+          // The scan-surface vocabulary the interpreter reads — the markers to scan + the
+          // acceptance-owned bullet family (never a re-typed interpreter literal).
+          referenceSurface: {
+            markers: referenceMarkers,
+            bulletOwners: [heading(PLAN_SLICE_PATTERNS.acceptance)],
+          },
         },
         invariants: [{ type: "referenceLint" }],
         severity: "WARN",

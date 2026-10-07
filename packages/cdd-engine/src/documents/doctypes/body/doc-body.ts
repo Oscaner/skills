@@ -81,6 +81,22 @@ export const BODY_CONSTRAINTS_HEADING_RE = new RegExp(
  *  (task-record field markers — the task-block fields). */
 export type StructurePlaneKind = "headingLeads" | "tableRows" | "records";
 
+/** The reference-lint scan surface (P3.1 T6 review — the field-defined prose face): the field
+ *  vocabulary the reference-lint invariant classifies its anchored items by — which marker lines
+ *  are scanned as prose and whose bullets are scanned as prose. The sources are single-sourced
+ *  regexes (the same plan slices the rule's anchor arms derive from — the interpreter compiles
+ *  them and never re-types the plan-specific field names). */
+export interface StructureReferenceSurface {
+  /** The marker line sources — a line matching one is scanned prose (its trailing text IS scanned:
+   *  the plan's Objective / Acceptance marker lines). */
+  markers: readonly string[];
+  /** The owning bullet-field marker sources — a bullet item is scanned prose only when its nearest
+   *  preceding `- **Field**:` marker line matches one (the acceptance-owned bullet family); the
+   *  other fields' bullets (files / consumes / produces / steps) are constructively excluded by
+   *  the owning-field walk. */
+  bulletOwners: readonly string[];
+}
+
 /** A rule's judgment plane — which structural surface the invariants scan, and the anchor regex
  *  source selecting it. The anchor is the single extraction spec: its capture group 1 — when
  *  present — is the per-item value the value-judging invariants (domain / crosslink / order /
@@ -109,6 +125,13 @@ export interface StructurePlane {
    *  references the run's own declaration lines already claim (the plan's `- **DependsOn**:`
    *  values). Absent → no stamping (the other within-scoped records rules unchanged). */
   declaredReferences?: string;
+  /** The reference-lint scan surface (P3.1 T6 review — the field-defined prose face): the marker
+   *  line sources + the owning bullet-field marker sources the reference-lint invariant classifies
+   *  its items by — read from rule data, never re-typed field-name literals in the interpreter
+   *  (the plan side derives it from the same projected slices as the anchor arms — a renamed
+   *  surface field drifts the anchor AND the scan together, never silently). Absent → the
+   *  reference-lint invariant judges nothing (documented vacuity over a surface-less plane). */
+  referenceSurface?: StructureReferenceSurface;
 }
 
 /** The invariant vocabulary of the structure-rule plane (design §2.1 — ten declared invariants,
@@ -171,8 +194,9 @@ export type StructureInvariant =
    *  self reference is structurally undeclareable) and absent from the run's declared reference set
    *  (its `declaredReferences`-anchor values). The interpreter emits ONE finding PER OFFENDING RUN
    *  (a block's suspects dedupe — at most one WARN per task block), each carrying the rule's fixed
-   *  message copy. The rule's plane carries the scan surface (anchor + within + declaredReferences);
-   *  a run without a numeric bound judges nothing (vacuous). */
+   *  message copy. The rule's plane carries the scan surface (`within` + `declaredReferences` +
+   *  `referenceSurface`); a plane without a `referenceSurface` or a run without a numeric bound
+   *  judges nothing (vacuous). */
   | { type: "referenceLint" };
 
 /** A doc-structure rule — one judgment plane + its invariant bundle + the rule's scope severity

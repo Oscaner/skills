@@ -400,6 +400,12 @@ describe("the plane/anchor families (three decidable plane kinds)", () => {
           "^- \\*\\*Objective\\*\\*:.*$|^- \\*\\*Acceptance\\*\\*:.*$|^\\s+[-*]\\s+(?!\\d+\\.).*$",
         within: "^### Task (\\d+):", // the run opener captures the block's own number (the backward bound)
         declaredReferences: "^- \\*\\*DependsOn\\*\\*:[ \\t]*(.*)$",
+        // The scan surface — the interpreter's item classification reads THIS data (the markers to
+        // scan + the acceptance-owned bullet family), never a re-typed field name.
+        referenceSurface: {
+          markers: ["^- \\*\\*Objective\\*\\*:[ \\t]*", "^- \\*\\*Acceptance\\*\\*:[ \\t]*"],
+          bulletOwners: ["^- \\*\\*Acceptance\\*\\*:[ \\t]*"],
+        },
       },
       invariants: [{ type: "referenceLint" }],
       severity: "WARN",
@@ -442,6 +448,37 @@ describe("the plane/anchor families (three decidable plane kinds)", () => {
       "",
     );
     expect(runStructureRules(silent, [rule])).toEqual([]);
+  });
+
+  it("referenceLint without a declared referenceSurface — the observation face judges nothing (documented vacuity over a surface-less plane; the field vocabulary is the plane's data, never an interpreter default)", () => {
+    const surfaceLess: StructureRule = {
+      id: "plan.referenceLint",
+      plane: {
+        kind: "records",
+        anchor:
+          "^- \\*\\*Objective\\*\\*:.*$|^- \\*\\*Acceptance\\*\\*:.*$|^\\s+[-*]\\s+(?!\\d+\\.).*$",
+        within: "^### Task (\\d+):",
+        declaredReferences: "^- \\*\\*DependsOn\\*\\*:[ \\t]*(.*)$",
+      },
+      invariants: [{ type: "referenceLint" }],
+      severity: "WARN",
+      message: "suspected missing edge",
+    };
+    const suspicious = [
+      "### Task 1: a",
+      "- **Objective**: task one",
+      "- **DependsOn**: none",
+      "- **Acceptance**:",
+      "  - done",
+      "",
+      "### Task 2: b",
+      "- **Objective**: extends Task 1",
+      "- **DependsOn**: none",
+      "- **Acceptance**:",
+      "  - done",
+      "",
+    ].join("\n");
+    expect(runStructureRules(suspicious, [surfaceLess])).toEqual([]);
   });
 });
 

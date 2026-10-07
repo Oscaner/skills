@@ -35,6 +35,7 @@ import type {
   StructureFinding,
   StructureInvariant,
   StructurePlane,
+  StructureReferenceSurface,
   StructureRule,
 } from "../documents/doctypes/body/doc-body.ts";
 
@@ -44,6 +45,7 @@ export type {
   StructureFinding,
   StructureInvariant,
   StructurePlane,
+  StructureReferenceSurface,
   StructureRule,
 } from "../documents/doctypes/body/doc-body.ts";
 
@@ -123,18 +125,17 @@ const HEADING_CLOSE_RE = /^\s*(?:#{1,6}\s|---+\s*$)/;
  *  guards both directions (a `Task` inside `someTask` or a `T3` inside `T34` never matches). */
 const REFERENCE_TOKEN_RE = /(?:\bTask\s+([1-9]\d*)\b|\bT([1-9]\d*)\b)(?!\.\d+)/g;
 
-/** The owning data field of a line — the nearest preceding `- **Field**:` marker (the walk stops at
- *  a structural boundary — a heading / `---` rule — a line with no owning field returns ""). The
- *  reference surface is FIELD-DEFINED: only the acceptance-field bullets are prose to scan; the
- *  files / consumes / produces / steps bullets are constructively excluded. */
-function owningField(lines: readonly string[], index: number): string {
+/** The owning data-field MARKER LINE of a line — the nearest preceding `- **Field**:` marker line
+ *  (the walk stops at a structural boundary — a heading / `---` rule — a line with no owning field
+ *  returns undefined). The reference surface is FIELD-DEFINED: only the acceptance-field bullets
+ *  are prose to scan; the files / consumes / produces / steps bullets are constructively excluded. */
+function owningFieldLine(lines: readonly string[], index: number): string | undefined {
   for (let k = index - 1; k >= 0; k--) {
     const line = lines[k]!;
-    const m = /^- \*\*([A-Za-z][A-Za-z ]*)\*\*:/.exec(line);
-    if (m) return m[1]!.trim();
-    if (/^\s*(?:#{1,6}\s|---+\s*$)/.test(line)) return "";
+    if (/^- \*\*[A-Za-z][A-Za-z ]*\*\*:/.test(line)) return line;
+    if (/^\s*(?:#{1,6}\s|---+\s*$)/.test(line)) return undefined;
   }
-  return "";
+  return undefined;
 }
 
 /** Strip the inline code spans of a line (backtick-delimited) — a reference inside a code span
@@ -154,11 +155,25 @@ function referenceNumbers(line: string): number[] {
   return nums;
 }
 
-/** Is the anchored line part of the reference surface — an Objective/Acceptance MARKER line (its
- *  trailing text IS scanned) or an acceptance-field bullet (the owning-field walk above)? */
-function isReferenceSurfaceLine(lines: readonly string[], item: PlaneItem): boolean {
-  if (/^- \*\*(?:Objective|Acceptance)\*\*:/.test(item.line)) return true;
-  return owningField(lines, item.index) === "Acceptance";
+/** The compiled reference-surface classifier inputs — the plane's scan-surface sources compiled
+ *  ONCE per reference-lint evaluation (the marker + bullet-owner regexes, never per item). */
+interface CompiledSurface {
+  markers: readonly RegExp[];
+  bulletOwners: readonly RegExp[];
+}
+
+/** Is the anchored line part of the reference surface — a marker line (one of the plane's surface
+ *  markers — its trailing text IS scanned) or an owning-field bullet (its nearest preceding
+ *  `- **Field**:` marker line opens a scanned bullet face)? The vocabulary is the plane's
+ *  `referenceSurface` rule data, never re-typed field names in the interpreter. */
+function isReferenceSurfaceLine(
+  lines: readonly string[],
+  item: PlaneItem,
+  surface: CompiledSurface,
+): boolean {
+  if (surface.markers.some((m) => m.test(item.line))) return true;
+  const owning = owningFieldLine(lines, item.index);
+  return owning !== undefined && surface.bulletOwners.some((m) => m.test(owning));
 }
 
 /** The reference-lint judgment (P3.1 T6 — the WARN observation face): per task run, the cited task
@@ -167,9 +182,22 @@ function isReferenceSurfaceLine(lines: readonly string[], item: PlaneItem): bool
  *  anti-dependency gate makes a forward edge non-declarable, never a missing-edge suspicion) and
  *  absent from the run's declared reference set (its `- **DependsOn**:` declarations). The run's
  *  suspects dedupe; a run with a non-empty suspect set is ONE offender — the per-block aggregation
- *  (at most one WARN per block). Returns the offender count — how many findings the interpreter
- *  emits for the rule. A run without a numeric bound judges nothing (vacuous). */
-function evaluateReferenceLint(extraction: PlaneExtraction, content: string): number {
+ *  (at most one WARN per block). The scan-surface vocabulary is the plane's `referenceSurface`
+ *  rule data (compiled once — the marker + owning bullet-field membership, never a re-typed field
+ *  name); a plane without one judges nothing (vacuous). Returns the offender count — how many
+ *  findings the interpreter emits for the rule. A run without a numeric bound judges nothing. */
+function evaluateReferenceLint(
+  extraction: PlaneExtraction,
+  content: string,
+  referenceSurface: StructureReferenceSurface | undefined,
+): number {
+  // A reference-lint plane without a declared scan surface judges nothing (documented vacuity —
+  // the field vocabulary is the plane's data, never an interpreter default).
+  if (referenceSurface === undefined) return 0;
+  const surface: CompiledSurface = {
+    markers: referenceSurface.markers.map((source) => compile(source)),
+    bulletOwners: referenceSurface.bulletOwners.map((source) => compile(source)),
+  };
   const byRun = new Map<number, PlaneItem[]>();
   for (const item of extraction.items) {
     if (item.bound === undefined) continue; // bound-less run — no own-number context to judge against
@@ -185,7 +213,7 @@ function evaluateReferenceLint(extraction: PlaneExtraction, content: string): nu
     const declared = run[0]?.declared ?? [];
     const suspects = new Set<number>();
     for (const item of run) {
-      if (!isReferenceSurfaceLine(lines, item)) continue;
+      if (!isReferenceSurfaceLine(lines, item, surface)) continue;
       for (const n of referenceNumbers(item.line)) {
         if (maxN !== undefined && n > maxN) continue; // out-of-range exemption (past-the-edge id)
         if (n >= bound) continue; // forward / self reference — undeclareable, never a missing-edge suspicion
@@ -374,18 +402,27 @@ function compareValues(a: string, b: string, compare: "numeric" | "version"): nu
   return n < m ? -1 : n > m ? 1 : 0;
 }
 
-/** Decide one invariant against the extracted items. The count-judging invariants (presence /
- *  uniqueness / residue) read the item list; the value-judging ones (domain / crosslink / order /
- *  continuity) read the items' captured values — vacuous over an empty item list (presence owns
- *  the "must exist" demand; presence.perRun owns the per-task-run emptiness demand). The
- *  reference-lint observation face (P3.1 T6) returns the OFFENDER RUN COUNT — 0 when every run's
- *  cited backward refs are declared (the interpreter emits one finding per offender run, the
- *  multi-finding face). */
+/** One invariant's verdict — the discriminated result channel (P3.1 T6 review): a single-finding
+ *  invariant decides `{ kind: "verdict", passed }`; the reference-lint observation face (the
+ *  multi-finding WARN) is `{ kind: "offenders", count }` — the offender RUN count (one finding per
+ *  offending run). The channel is TYPED — the observation face never shares an undifferentiated
+ *  boolean/count return with the pass/fail face (a 0-count observation is a pass BY CONTRACT,
+ *  never a boolean read by coincidence). */
+type InvariantVerdict = { kind: "verdict"; passed: boolean } | { kind: "offenders"; count: number };
+
+/** Decide one invariant against the extracted items — the discriminated verdict channel above. The
+ *  count-judging invariants (presence / uniqueness / residue) read the item list; the value-judging
+ *  ones (domain / crosslink / order / continuity) read the items' captured values — vacuous over an
+ *  empty item list (presence owns the "must exist" demand; presence.perRun owns the per-task-run
+ *  emptiness demand). The reference-lint observation face (P3.1 T6) decides through the `offenders`
+ *  channel — 0 when every run's cited backward refs are declared (the interpreter emits one finding
+ *  per offender run, the multi-finding face). */
 function evaluateInvariant(
   invariant: StructureInvariant,
   extraction: PlaneExtraction,
+  referenceSurface: StructureReferenceSurface | undefined,
   content: string,
-): boolean | number {
+): InvariantVerdict {
   const items = extraction.items;
   switch (invariant.type) {
     case "presence": {
@@ -394,46 +431,51 @@ function evaluateInvariant(
         // least one anchored item (a `### Task N:` block with zero data-shaped fields fails); a
         // plan with no runs (no task blocks at all) judges nothing — the vacuous true state.
         const counts = extraction.runCounts;
-        return counts === undefined || counts.every((n) => n > 0);
+        return { kind: "verdict", passed: counts === undefined || counts.every((n) => n > 0) };
       }
-      return items.length > 0;
+      return { kind: "verdict", passed: items.length > 0 };
     }
     case "uniqueness":
-      return items.length === 1;
+      return { kind: "verdict", passed: items.length === 1 };
     case "domain": {
-      if (items.length === 0) return true;
+      if (items.length === 0) return { kind: "verdict", passed: true };
       const valueRe = new RegExp(`^(?:${invariant.valuePattern})$`);
-      return items.every((item) => valueRe.test(item.value));
+      return { kind: "verdict", passed: items.every((item) => valueRe.test(item.value)) };
     }
     case "crosslink": {
-      if (items.length === 0) return true;
+      if (items.length === 0) return { kind: "verdict", passed: true };
       const targetRe = compile(invariant.targetAnchor);
       const targets = crosslinkTargetLines(content, invariant.targetWithin)
         .map((line) => line.match(targetRe))
         .filter((m) => m !== null) as RegExpMatchArray[];
       // Resolution: some target line's captured value equals the item's ref (dangling = none).
-      return items.every((item) =>
-        targets.some((m) => {
-          const target = (m[1] ?? m[0]).trim();
-          return target === item.value;
-        }),
-      );
+      return {
+        kind: "verdict",
+        passed: items.every((item) =>
+          targets.some((m) => {
+            const target = (m[1] ?? m[0]).trim();
+            return target === item.value;
+          }),
+        ),
+      };
     }
     case "order": {
-      if (items.length === 0) return true;
+      if (items.length === 0) return { kind: "verdict", passed: true };
       const compare = invariant.compare ?? "numeric";
       for (let i = 1; i < items.length; i++) {
-        if (compareValues(items[i]!.value, items[i - 1]!.value, compare) <= 0) return false;
+        if (compareValues(items[i]!.value, items[i - 1]!.value, compare) <= 0)
+          return { kind: "verdict", passed: false };
       }
-      return true;
+      return { kind: "verdict", passed: true };
     }
     case "continuity": {
-      if (items.length === 0) return true;
+      if (items.length === 0) return { kind: "verdict", passed: true };
       const nums = items.map((item) => Number(item.value));
-      return nums.every((n, i) => n === i + 1); // the exact 1..N in-order set (gaps/dupes/offset fail)
+      // the exact 1..N in-order set (gaps/dupes/offset fail)
+      return { kind: "verdict", passed: nums.every((n, i) => n === i + 1) };
     }
     case "residue":
-      return items.length === 0;
+      return { kind: "verdict", passed: items.length === 0 };
     case "hollow": {
       // Every anchored heading must own a body: before the next heading / `---` rule / EOF it must
       // reach either a non-empty content line or (when the rule declares `children`) a child-item
@@ -443,23 +485,26 @@ function evaluateInvariant(
       // FIRST: a child-item line is the object's content, never the boundary that ends it (an item
       // heading closes a group run only when the group has no children). Blank lines between the
       // heading and its content are structural, never content; an empty plane judges nothing.
-      if (items.length === 0) return true;
+      if (items.length === 0) return { kind: "verdict", passed: true };
       const lines = content.split("\n");
       const headingRe = /^\s*#{1,6}\s/;
       const ruleRe = /^\s*---+$/;
       const childrenRe = invariant.children === undefined ? undefined : compile(invariant.children);
-      return items.every((item) => {
-        for (let i = item.index + 1; i < lines.length; i++) {
-          const t = lines[i]!;
-          if (childrenRe?.test(t)) return true; // a child item is content
-          if (headingRe.test(t) || ruleRe.test(t)) return false; // the next heading / rule closes the body empty
-          if (t.trim() !== "") return true; // a non-blank content line — the object has a body
-        }
-        return false; // EOF without reaching content
-      });
+      return {
+        kind: "verdict",
+        passed: items.every((item) => {
+          for (let i = item.index + 1; i < lines.length; i++) {
+            const t = lines[i]!;
+            if (childrenRe?.test(t)) return true; // a child item is content
+            if (headingRe.test(t) || ruleRe.test(t)) return false; // the next heading / rule closes the body empty
+            if (t.trim() !== "") return true; // a non-blank content line — the object has a body
+          }
+          return false; // EOF without reaching content
+        }),
+      };
     }
     case "selfBounded": {
-      if (items.length === 0) return true;
+      if (items.length === 0) return { kind: "verdict", passed: true };
       // The anti-dependency gate: every comma-split integer ref must be strictly below the
       // enclosing run's OWN number (a ref ≥ the bound — a forward or self reference — fails).
       // Non-integer ref tokens (`none`/empty/`abc`) carry no ref and are skipped (the NaN /
@@ -476,13 +521,16 @@ function evaluateInvariant(
           const n = Number(t);
           if (!Number.isInteger(n)) continue;
           if (maxN !== undefined && n > maxN) continue;
-          if (n >= item.bound) return false;
+          if (n >= item.bound) return { kind: "verdict", passed: false };
         }
       }
-      return true;
+      return { kind: "verdict", passed: true };
     }
     case "referenceLint":
-      return evaluateReferenceLint(extraction, content);
+      return {
+        kind: "offenders",
+        count: evaluateReferenceLint(extraction, content, referenceSurface),
+      };
   }
 }
 
@@ -501,9 +549,14 @@ export function runStructureRules(
     if (rule.invariants.length === 0) continue; // zero demands — nothing to judge
     const extraction = extractPlaneItems(content, rule.plane);
     for (const invariant of rule.invariants) {
-      const verdict = evaluateInvariant(invariant, extraction, content);
-      if (typeof verdict === "boolean") {
-        if (verdict) continue;
+      const verdict = evaluateInvariant(
+        invariant,
+        extraction,
+        rule.plane.referenceSurface,
+        content,
+      );
+      if (verdict.kind === "verdict") {
+        if (verdict.passed) continue;
         // ONE finding per failing single-finding invariant — the rule's fixed message copy (the
         // historical per-rule contract: a rule with any failing invariant emits once).
         findings.push({ id: rule.id, severity: rule.severity, message: rule.message });
@@ -511,7 +564,7 @@ export function runStructureRules(
       }
       // The multi-finding observation face (P3.1 T6 — referenceLint): one WARN per offending run,
       // each carrying the rule's fixed message copy (never assembled).
-      for (let i = 0; i < verdict; i++) {
+      for (let i = 0; i < verdict.count; i++) {
         findings.push({ id: rule.id, severity: rule.severity, message: rule.message });
       }
     }

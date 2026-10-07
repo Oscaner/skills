@@ -561,15 +561,26 @@ describe("plan.referenceLint — the reference-lint WARN observation (P3.1 T6 ·
   const lint = (plan: string) =>
     runStructureRules(plan, planBody.structureRules()).filter((f) => f.id === "plan.referenceLint");
 
-  it("the rule is registered as a WARN observation with the field-defined reference surface (anchor + declaredReferences — the DependsOn declarations)", () => {
+  it("the rule is registered as a WARN observation with the field-defined reference surface (anchor + declaredReferences + the scan surface — single-sourced from the projected slices)", () => {
     const rule = planBody.structureRules().find((r) => r.id === "plan.referenceLint");
     expect(rule).toBeDefined();
     expect(rule!.severity).toBe("WARN");
     expect(rule!.invariants).toEqual([{ type: "referenceLint" }]);
     expect(rule!.plane.within).toBe("^### Task (\\d+):");
     expect(rule!.plane.declaredReferences).toContain("DependsOn");
-    // the anchor's constructive exclusions: numbered step entries never enter the bullet face.
-    expect(rule!.plane.anchor).toContain("(?!\\d+\\.)");
+    // The scan surface is rule data single-sourced from the projected slices — the interpreter
+    // reads the marker / bullet vocabulary from HERE, never a re-typed field name (P3.1 T6 fix).
+    const slices = planBody.projectSlicePatterns();
+    expect(rule!.plane.referenceSurface).toEqual({
+      markers: [slices.objective.source, slices.acceptance.source],
+      bulletOwners: [slices.acceptance.source],
+    });
+    // The anchor's marker arms co-derive from the SAME surface markers (a renamed prose field
+    // drifts the anchor AND the scan together, never silently), and its constructive exclusion
+    // keeps numbered step entries off the bullet face.
+    expect(rule!.plane.anchor).toBe(
+      `${slices.objective.source}.*$|${slices.acceptance.source}.*$|^\\s+[-*]\\s+(?!\\d+\\.).*$`,
+    );
   });
 
   it("a backward `Task N` citation with no matching edge → exactly one WARN (the suspected missing edge)", () => {

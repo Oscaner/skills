@@ -2,7 +2,7 @@
 // T10 — the single word table (design spec §1.2: one table, one derivation chain).
 // The five-way lexicon split of the old tree (words content → contract-lexicon.json
 // → schema shape → word-table accessor → guard-lexicon) converges into ONE word
-// table with three families served by one class:
+// table with four families served by one class:
 //
 //   doc   — the document structural words: the T2 registries' anchor lexicon
 //           (derived through the projection face — the DOC_TOKENS plane, never a
@@ -16,11 +16,20 @@
 //           table's data-source face — the guard scan releases these rows as its
 //           own data, so the words can live in the shipped table (the
 //           data-row-release stance of the retired residue guard).
+//   locale — the locale face (T19, the P7 translation system): each row carries
+//           `{ en: canonical, zh?: Chinese alias }`, the locale key set is the `langs`
+//           projection source (locale-consuming faces derive from it, never a
+//           hardcoded list), and the issue-label rows are the human-readable
+//           rendering face's locale words. The Translator (contract/translate.ts)
+//           speaks the whole plane from this face — the word table is the single
+//           translation data (a new word is a new data row, never a code branch).
 //
 // The vocabulary is English-primary and death-stable: v1 keeps the same word face
 // the consumers already read (status · blocker · handoff · next:) — a steady state,
 // never a compatibility shim. The capsule class reads ALL its words through this
 // instance (constructor injection) — the guaranteed "one table, zero second table".
+// The capsule machine face (status · next: · CDD_BLOCKED:) is never a locale row —
+// the machine surface stays English-constant, never localizeable.
 //
 // Module-level exports are types / the declared word data / the class — zero
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
@@ -28,6 +37,7 @@
 import { declaredRegistries } from "../contract/declare.ts";
 import type { DocKey } from "../contract/project.ts";
 import { Projector } from "../contract/project.ts";
+import type { LocalizedWord, WordLocaleFace } from "../contract/translate.ts";
 
 // ---------------------------------------------------------------------------
 // capsule — the station-word family (the declared steady word face)
@@ -107,14 +117,49 @@ export const GUARD_BAN_WORDS = {
 /** The guard-ban family keys (stale / gate / shape). */
 export type GuardFamily = keyof typeof GUARD_BAN_WORDS;
 
+// ---------------------------------------------------------------------------
+// locale — the word-table locale face (the P7 translation-system data plane)
+// ---------------------------------------------------------------------------
+
+/** The locale key set — the word table's declared language keys. This is the
+ *  `langs` projection source: every locale-consuming face derives its language
+ *  vocabulary from this set (and its aliases from the rows below), never from a
+ *  hardcoded list — a locale-key change here re-projects the whole plane. */
+export const LOCALE_KEYS = ["en", "zh"] as const;
+
+/** One locale word row id — the issue-label family's word-id shape (`${type}.${segment}`). */
+export type LocaleWordId = `${string}.${string}`;
+
+/** The issue-body label rows — the human-readable rendering face's locale words, one
+ *  row per finding type × segment (keyed `${type}.${segment}`). Every label value the
+ *  issue renderer emits rides these rows — the word table's locale family (the label
+ *  set is data, never a second rendering table). The finding type × segment matrix is
+ *  complete (word-table test pins it); the capsule machine words are deliberately
+ *  absent — the machine face is not a translation surface. */
+export const ISSUE_LABEL_WORDS = {
+  "bug.context": { en: "## Context", zh: "## 场景" },
+  "bug.problem": { en: "## Problem", zh: "## 问题" },
+  "bug.impact": { en: "## Impact", zh: "## 影响" },
+  "bug.suggestedFix": { en: "## Suggested fix", zh: "## 建议修复" },
+  "enhancement.context": { en: "## Context", zh: "## 场景" },
+  "enhancement.problem": { en: "## Gap", zh: "## 差距" },
+  "enhancement.impact": { en: "## Impact", zh: "## 影响" },
+  "enhancement.suggestedFix": { en: "## Suggested direction", zh: "## 建议方向" },
+  "chore.context": { en: "## Context", zh: "## 场景" },
+  "chore.problem": { en: "## Gap", zh: "## 差距" },
+  "chore.impact": { en: "## Impact", zh: "## 影响" },
+  "chore.suggestedFix": { en: "## Suggested direction", zh: "## 建议方向" },
+} as const satisfies Readonly<Record<LocaleWordId, LocalizedWord>>;
+
 /**
  * Words — the single word table + accessor face. One instance serves every family:
  * the doc words (derived from the T2 registries through the projection face), the
- * capsule station words (declared steady data) and the guard ban words (declared
- * data). The capsule reads its whole vocabulary through this class — the second
- * table is excluded by construction.
+ * capsule station words (declared steady data), the guard ban words (declared data)
+ * and the locale words (the translation/label data — the WordLocaleFace the
+ * Translator and the locale consumers read). The capsule reads its whole vocabulary
+ * through this class — the second table is excluded by construction.
  */
-export class Words {
+export class Words implements WordLocaleFace {
   /** The projection face the doc words derive through (T3 — the DOC_TOKENS plane). */
   readonly #projector: Projector;
 
@@ -165,6 +210,28 @@ export class Words {
   /** One route classifier word (`none` / `review` / `fix`). */
   routeWord(kind: RouteWordKind): string {
     return CAPSULE_WORDS.routeWords[kind];
+  }
+
+  // -------------------------------------------------------------------------
+  // locale — the word-table locale face (the langs projection + the label rows)
+  // -------------------------------------------------------------------------
+
+  /** The locale key set — the word table's declared languages (the `langs`
+   *  projection every locale-consuming face derives its vocabulary from). */
+  localeKeys(): readonly string[] {
+    return LOCALE_KEYS;
+  }
+
+  /** Every locale row of the word table, flat (the Translator's row index source —
+   *  the single translation data, zero second table). */
+  localeRows(): readonly LocalizedWord[] {
+    return Object.values(ISSUE_LABEL_WORDS);
+  }
+
+  /** One locale row by its word id (`${type}.${segment}`); null for an unknown id. */
+  localeRow(id: string): LocalizedWord | null {
+    const row = (ISSUE_LABEL_WORDS as Readonly<Record<string, LocalizedWord>>)[id];
+    return row ?? null;
   }
 
   // -------------------------------------------------------------------------

@@ -1,8 +1,9 @@
 // packages/cdd-engine/src-next/face/__tests__/cli.test.ts
 // T11 Cli + composition-root suite (design spec §3.3):
 //   · the command face — the six steady subcommand words (implement / review / fix /
-//     schema / issue / base-branch with their nested leaves) and the usage lines the
-//     consumers read;
+//     schema / issue / base with their nested leaves) and the usage lines the
+//     consumers read (T20: the base command face — `cdd base set|get` — converges
+//     the six-command surface);
 //   · parse — the tokenizer + component-value validation (int-list tasks, enum type /
 //     source, sha base/head, int round) + the guardArgs unknown-flag rejection (the
 //     acceptance's unknown-flag BLOCK) and the program scopes (--dry-run / --help);
@@ -11,7 +12,8 @@
 //     and land the canonical artifacts (brief / handoffs / progress); the phase gate
 //     refuses an unreachable round without dispatching a phantom;
 //   · the pure-command E2E — schema get (the derived doc-key vocabulary), issue render
-//     (stdin body), base-branch set/get (the single → artifact);
+//     (stdin body — the subcommand face; the renderer's own suite lives in
+//     render/__tests__/render.test.ts, its T19 home), base set/get (the single → artifact);
 //   · the composition root + HarnessDispatch — host detection, the dispatch prompt
 //     (template data plane), the child return-block parse (block + JSON).
 // Fixtures are hermetic mkdtemp repos (git-inited for the dry-run HEAD); the io is
@@ -129,7 +131,7 @@ describe("the command face — the six steady subcommand words", () => {
       "implement",
       "review",
       "fix",
-      "base-branch",
+      "base",
       "schema",
       "issue",
     ]);
@@ -140,15 +142,15 @@ describe("the command face — the six steady subcommand words", () => {
     expect(CLI_USAGE.review).toContain("--type <task|branch|spec|plan>");
     expect(CLI_USAGE.review).toContain("branch: --base <sha> --head <sha>");
     expect(CLI_USAGE.fix).toContain("--type <task|branch|spec|plan>");
-    expect(CLI_USAGE["base-branch"]).toContain("<set|get>");
+    expect(CLI_USAGE.base).toContain("<set|get>");
     expect(CLI_USAGE.schema).toContain("get <type>");
     expect(CLI_USAGE.issue).toContain("render");
   });
 
-  it("declares the nested leaf surfaces — base-branch set|get · schema get · issue render", () => {
+  it("declares the nested leaf surfaces — base set|get · schema get · issue render", () => {
     const leavesOf = (verb: string) =>
       CLI_COMMANDS.find((c) => c.name === verb)!.leaves!.map((l) => l.name);
-    expect(leavesOf("base-branch")).toEqual(["set", "get"]);
+    expect(leavesOf("base")).toEqual(["set", "get"]);
     expect(leavesOf("schema")).toEqual(["get"]);
     expect(leavesOf("issue")).toEqual(["render"]);
   });
@@ -187,7 +189,7 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
       /--type must be one of task \| branch \| spec \| plan/,
     );
     expect(() =>
-      cli().parse(["base-branch", "set", "--plan", "p", "--base", "d", "--source", "nope"]),
+      cli().parse(["base", "set", "--plan", "p", "--base", "d", "--source", "nope"]),
     ).toThrow(
       /--source must be one of plan-field \| branch-upstream \| conversation-context \| user-confirmed/,
     );
@@ -220,9 +222,9 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
     expect(() => cli().parse(["review", "--tasks", "1"])).toThrow(/missing required --type/);
   });
 
-  it("parses the nested leaves — base-branch set|get · schema get · issue render", () => {
+  it("parses the nested leaves — base set|get · schema get · issue render", () => {
     const set = cli().parse([
-      "base-branch",
+      "base",
       "set",
       "--plan",
       "p.md",
@@ -231,10 +233,10 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
       "--source",
       "plan-field",
     ]);
-    expect(set.verb).toBe("base-branch");
+    expect(set.verb).toBe("base");
     expect(set.leaf).toBe("set");
     expect(set.args.base).toBe("dev");
-    const get = cli().parse(["base-branch", "get", "--plan", "p.md"]);
+    const get = cli().parse(["base", "get", "--plan", "p.md"]);
     expect(get.leaf).toBe("get");
     const schema = cli().parse(["schema", "get", "plan"]);
     expect(schema.verb).toBe("schema");
@@ -249,8 +251,8 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
   });
 
   it("rejects a missing leaf, an unknown leaf and an extra positional", () => {
-    expect(() => cli().parse(["base-branch"])).toThrow(/missing subcommand — set \| get/);
-    expect(() => cli().parse(["base-branch", "reset"])).toThrow(/unknown subcommand: reset/);
+    expect(() => cli().parse(["base"])).toThrow(/missing subcommand — set \| get/);
+    expect(() => cli().parse(["base", "reset"])).toThrow(/unknown subcommand: reset/);
     expect(() => cli().parse(["schema", "get", "plan", "extra"])).toThrow(
       /unexpected argument: extra/,
     );
@@ -267,10 +269,10 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
     );
   });
 
-  it("a help flag on a leaf command pre-empts the required leaf word — base-branch --help", () => {
-    const parsed = cli().parse(["base-branch", "--help"]);
+  it("a help flag on a leaf command pre-empts the required leaf word — base --help", () => {
+    const parsed = cli().parse(["base", "--help"]);
     expect(parsed.help).toBe(true);
-    expect(parsed.verb).toBe("base-branch");
+    expect(parsed.verb).toBe("base");
     expect(parsed.leaf).toBeNull();
   });
 
@@ -278,17 +280,8 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
     const flags = ["--force", "--no-force"];
     for (const flag of flags) {
       expect(
-        cli().parse([
-          "base-branch",
-          "set",
-          "--plan",
-          "p",
-          "--base",
-          "d",
-          "--source",
-          "plan-field",
-          flag,
-        ]).args.force,
+        cli().parse(["base", "set", "--plan", "p", "--base", "d", "--source", "plan-field", flag])
+          .args.force,
       ).toBe(flag === "--force" ? "true" : "false");
     }
   });
@@ -631,10 +624,10 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
 });
 
 // ---------------------------------------------------------------------------
-// the pure commands — schema / issue / base-branch (the dry-run E2E surface)
+// the pure commands — schema / issue / base (the dry-run E2E surface)
 // ---------------------------------------------------------------------------
 
-describe("the pure commands — schema / issue / base-branch", () => {
+describe("the pure commands — schema / issue / base", () => {
   it("schema get <plan> — the derived doc-structure schema to stdout", async () => {
     const { command, io, cleanup } = fixture();
     try {
@@ -667,7 +660,7 @@ describe("the pure commands — schema / issue / base-branch", () => {
     }
   });
 
-  it("issue render — stdin findings JSON → the deterministic aggregate body", async () => {
+  it("issue render — stdin findings JSON → the aggregate body on stdout (the subcommand face)", async () => {
     const input = {
       harness: "claude",
       findings: [
@@ -691,13 +684,11 @@ describe("the pure commands — schema / issue / base-branch", () => {
     try {
       const code = await command.runArgv(["issue", "render"]);
       expect(code).toBe(0);
+      // the subcommand face — the body and a label land on stdout (the renderer's
+      // own deep suite — labels/langs/dedup — lives in render/__tests__/render.test.ts)
+      expect(io.stdoutText).toContain("# CDD aggregate issue");
       expect(io.stdoutText).toContain("- Harness: claude");
       expect(io.stdoutText).toContain("## Context\n\nc");
-      expect(io.stdoutText).toContain("## Problem\n\np");
-      expect(io.stdoutText).toContain("- Skill: cdd-dev");
-      expect(io.stdoutText).toContain("- Dedup → #1 (open)：cdd · dup");
-      expect(io.stdoutText).toContain("- Regression / follow-up of #9 (closed)");
-      expect(io.stdoutText).toContain("- Program: #2");
     } finally {
       cleanup();
     }
@@ -716,12 +707,12 @@ describe("the pure commands — schema / issue / base-branch", () => {
     invalid.cleanup();
   });
 
-  it("base-branch set/get — the single --plan artifact write-through + the force gate", async () => {
+  it("base set/get — the single --plan artifact write-through + the force gate (T20 face)", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       const plan = planFor(repoRoot);
       const setCode = await command.runArgv([
-        "base-branch",
+        "base",
         "set",
         "--plan",
         plan,
@@ -731,19 +722,19 @@ describe("the pure commands — schema / issue / base-branch", () => {
         "plan-field",
       ]);
       expect(setCode).toBe(0);
-      expect(io.stdoutText).toContain("base-branch.json");
+      expect(io.stdoutText).toContain("base.json");
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       const artifact = readJson<{ base: string; source: string }>(
-        path.join(workspace, "base-branch.json"),
+        path.join(workspace, "base.json"),
       );
       expect(artifact.base).toBe("develop");
       expect(artifact.source).toBe("plan-field");
       io.stdoutText = "";
-      const getCode = await command.runArgv(["base-branch", "get", "--plan", plan]);
+      const getCode = await command.runArgv(["base", "get", "--plan", plan]);
       expect(getCode).toBe(0);
       expect(io.stdoutText).toContain('"base": "develop"');
       const conflict = await command.runArgv([
-        "base-branch",
+        "base",
         "set",
         "--plan",
         plan,
@@ -756,7 +747,7 @@ describe("the pure commands — schema / issue / base-branch", () => {
       expect(io.stderrText).toContain("--force");
       io.stderrText = "";
       const forced = await command.runArgv([
-        "base-branch",
+        "base",
         "set",
         "--plan",
         plan,
@@ -768,7 +759,7 @@ describe("the pure commands — schema / issue / base-branch", () => {
       ]);
       expect(forced).toBe(0);
       const getMissing = await command.runArgv([
-        "base-branch",
+        "base",
         "get",
         "--plan",
         "docs/kairos/plans/missing.md",

@@ -8,11 +8,16 @@
 //     and the optional `next:` line byte-stably (every route row rendered);
 //   · the word-face comparison — the v1 emitted face is byte-identical to the
 //     existing consumed word face (status · blocker · handoff · next:) — same
-//     words, no re-judgment: a steady state, not a compatibility shim.
+//     words, no re-judgment: a steady state, not a compatibility shim;
+//   · the locale face (T19) — the word table's locale columns: the locale key set
+//     (the langs projection source), the issue-label rows (one per finding type ×
+//     segment), and the machine-face immunity — the capsule words carry zero locale
+//     aliases (the machine surface is English-constant, never localized).
 // The type assertion at the bottom pins the T8 run seam (CapsuleFace) — the
 // interaction point the lifecycle attaches.
 
 import { describe, expect, it } from "vitest";
+import { Translator } from "../../contract/translate.ts";
 import { FIX_READBACK_SUFFIX } from "../../session/next.ts";
 import type { CapsuleFace } from "../../session/run.ts";
 import { Capsule } from "../capsule.ts";
@@ -184,5 +189,42 @@ describe("the T8 run seam — the capsule plugs into the lifecycle interaction p
       "status: APPROVED · blocker: 0 · handoff: /ws/tasks-1-implement.json",
       "next: none",
     ]);
+  });
+});
+
+describe("the locale face — the word-table locale columns (T19, the P7 translation data)", () => {
+  it("the locale key set — the langs projection source (the declared language keys)", () => {
+    expect(words.localeKeys()).toEqual(["en", "zh"]);
+  });
+
+  it("the issue-label rows — one per finding type × segment (the label values ride the rows)", () => {
+    expect(words.localeRow("bug.context")).toEqual({ en: "## Context", zh: "## 场景" });
+    expect(words.localeRow("bug.problem")?.en).toBe("## Problem");
+    expect(words.localeRow("enhancement.problem")?.en).toBe("## Gap");
+    expect(words.localeRow("chore.suggestedFix")?.zh).toBe("## 建议方向");
+    expect(words.localeRow("bug.bogus")).toBeNull();
+  });
+
+  it("the whole translation data flows from the one table — localeRows is the flat face", () => {
+    const flat = words.localeRows();
+    // the declared label matrix: 3 finding types × 4 segments = 12 rows, all single-sourced
+    expect(flat.length).toBe(12);
+    // every row's canonical is the en face and carries a zh alias (the two-locale steady face)
+    for (const row of flat) {
+      expect(row.en.length).toBeGreaterThan(0);
+      expect(row.zh?.length ?? 0).toBeGreaterThan(0);
+    }
+  });
+
+  it("the machine-face immunity — the capsule words carry zero locale aliases (never localized)", () => {
+    const translator = new Translator(words);
+    // the capsule machine words are not translation rows: normalize/localize over
+    // the machine surface is null — the machine face is English-constant.
+    expect(translator.normalize(words.station("next"))).toBeNull();
+    expect(translator.normalize(words.station("blocked"))).toBeNull();
+    expect(translator.localize("status", "zh")).toBeNull();
+    expect(translator.localize("APPROVED", "zh")).toBeNull();
+    // the byte pin stays English — the capsule emits the machine words verbatim
+    expect(capsule.emit("APPROVED", "0", "/h.json", { kind: "none" })[1]).toBe("next: none");
   });
 });

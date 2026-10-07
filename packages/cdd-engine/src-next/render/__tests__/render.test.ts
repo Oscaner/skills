@@ -2,9 +2,17 @@
 // T12 render suite — the brief's checkables: template assembly over the
 // template-contract data plane (with the hard gates) + the task-brief data
 // rendering with the step-checkable gate.
+// T19 lands the IssueBodyRenderer suite here — the renderer's home is render/ (the
+// P7 translation-system render landing): the body render (en/zh label faces through
+// the Translator), the langs projection (the word-table locale key projection —
+// never a hardcoded list), the input validation, and the type × segment label-data
+// completeness pin over the word table.
 
 import { describe, expect, it } from "vitest";
+import { Translator } from "../../contract/translate.ts";
+import { Words } from "../../face/words.ts";
 import { BriefRenderer } from "../brief.ts";
+import { IssueBodyRenderer, type IssueReportInput } from "../issue-body.ts";
 import { TemplateAssembler } from "../templates.ts";
 
 /** The full per-dispatch slot values — every declared template token, optional
@@ -136,5 +144,141 @@ describe("BriefRenderer — the brief data rendering + the checkable gate", () =
     expect(out).toContain("### Task 1: one");
     expect(out).toContain("- **Objective**: objective");
     expect(out.endsWith(`TASK_BASE: ${sha}\n`)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// the issue-body renderer suite (T19 — the renderer's home is render/, the P7
+// translation-system render landing; migrated from the cli.test.ts renderer tests)
+// ---------------------------------------------------------------------------
+
+describe("IssueBodyRenderer — the aggregate issue body (the P7 render face)", () => {
+  const words = new Words();
+  const translator = new Translator(words);
+  const renderer = new IssueBodyRenderer(words, translator);
+
+  /** The canonical en-aggregate input — one bug finding + the dedup/related tails. */
+  const EN_INPUT: IssueReportInput = {
+    harness: "claude",
+    findings: [
+      {
+        type: "bug",
+        lang: "en",
+        context: "c",
+        problem: "p",
+        impact: "i",
+        suggestedFix: "f",
+        meta: { skill: "cdd-dev", step: "implement" },
+      },
+    ],
+    related: {
+      open: [{ issue: 1, component: "cdd", reason: "dup" }],
+      closed: [{ issue: 9 }],
+      program: { issue: 2 },
+    },
+  };
+
+  it("renders the deterministic body — harness line, the en four-segment labels, attribution, dedup, related", () => {
+    const out = renderer.renderBody(EN_INPUT);
+    expect(out).toContain("# CDD aggregate issue");
+    expect(out).toContain("- Harness: claude");
+    expect(out).toContain("## Context\n\nc");
+    expect(out).toContain("## Problem\n\np");
+    expect(out).toContain("## Impact\n\ni");
+    expect(out).toContain("## Suggested fix\n\nf");
+    expect(out).toContain("- Skill: cdd-dev\n- Step: implement");
+    expect(out).toContain("- Dedup → #1 (open)：cdd · dup");
+    expect(out).toContain("- Regression / follow-up of #9 (closed)");
+    expect(out).toContain("- Program: #2");
+  });
+
+  it("renders the zh labels through the translation layer (the locale-normalized render face)", () => {
+    const zh = renderer.renderBody({
+      harness: "claude",
+      findings: [
+        {
+          type: "bug",
+          lang: "zh",
+          context: "c",
+          problem: "p",
+          impact: "i",
+          suggestedFix: "f",
+          meta: { skill: "s", step: "t" },
+        },
+      ],
+    });
+    expect(zh).toContain("## 场景\n\nc");
+    expect(zh).toContain("## 问题\n\np");
+    expect(zh).toContain("## 影响\n\ni");
+    expect(zh).toContain("## 建议修复\n\nf");
+  });
+
+  it("the type × lang label variants — enhancement carries the Gap + Suggested direction wording", () => {
+    const out = renderer.renderBody({
+      harness: "claude",
+      findings: [
+        {
+          type: "enhancement",
+          lang: "en",
+          context: "c",
+          problem: "p",
+          impact: "i",
+          suggestedFix: "f",
+          meta: { skill: "s", step: "t" },
+        },
+      ],
+    });
+    expect(out).toContain("## Gap\n\np");
+    expect(out).toContain("## Suggested direction\n\nf");
+  });
+
+  it("langs — the projected language vocabulary (the word-table locale key projection, never a hardcoded list)", () => {
+    expect(renderer.langs()).toEqual(words.localeKeys());
+    // the validation rides the projection — a lang outside the project keys is refused
+    // with the data-derived vocabulary message
+    const errors = renderer.validateInput({
+      harness: "claude",
+      findings: [
+        {
+          type: "bug",
+          lang: "fr",
+          context: "c",
+          problem: "p",
+          impact: "i",
+          suggestedFix: "f",
+          meta: { skill: "s", step: "t" },
+        },
+      ],
+    });
+    expect(errors).toContain("findings[0].lang: must be one of en | zh");
+  });
+
+  it("validateInput — field-path errors for the type/enum and the segment/meta shapes", () => {
+    expect(
+      renderer.validateInput({
+        harness: "claude",
+        findings: [{ type: "bogus", lang: "en", meta: {} }],
+      }),
+    ).toEqual([
+      "findings[0].type: must be one of bug | enhancement | chore",
+      "findings[0].context: non-empty string required",
+      "findings[0].problem: non-empty string required",
+      "findings[0].impact: non-empty string required",
+      "findings[0].suggestedFix: non-empty string required",
+      "findings[0].meta.skill: non-empty string required",
+      "findings[0].meta.step: non-empty string required",
+    ]);
+    expect(renderer.validateInput("bogus")).toEqual([
+      "input: expected an object with harness / findings / related?",
+    ]);
+  });
+
+  it("the label data is complete — every declared type × segment resolves on the word table", () => {
+    const segments = ["context", "problem", "impact", "suggestedFix"];
+    for (const type of renderer.types) {
+      for (const segment of segments) {
+        expect(words.localeRow(`${type}.${segment}`), `${type}.${segment}`).not.toBeNull();
+      }
+    }
   });
 });

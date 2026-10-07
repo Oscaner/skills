@@ -1,10 +1,11 @@
 // packages/cdd-engine/src-next/face/cli.ts
 // T11 — the command face + composition root (design spec §3.3: the cdd CLI command
-// surface — implement / review / fix / schema / issue / base-branch — is kept as a
-// steady word face). This module is the new tree's SOLE BARE ENTRY: the `cli`
-// composition root (the module's one bare-function export, admitted by the plan's
-// zero-bare-function discipline for composition roots) wires the contract / session /
-// face objects into the ONE CLI the bin thin entry boots.
+// surface — implement / review / fix / schema / issue / base — is kept as a steady
+// word face; T20 converges the base command face to `base` — the six-command surface
+// unchanged in count). This module is the new tree's SOLE BARE ENTRY: the
+// `cli` composition root (the module's one bare-function export, admitted by the
+// plan's zero-bare-function discipline for composition roots) wires the contract /
+// session / face objects into the ONE CLI the bin thin entry boots.
 //
 //   · the command registry — the six subcommand declarations (name · usage · the
 //     declared arg keys). The flag spellings, value types and enum domains are NOT
@@ -16,8 +17,10 @@
 //   · Cli#run — dispatch the parsed command to its run body. The work commands
 //     (implement / review / fix) assemble the lifecycle (session/run), the capsule +
 //     words (face), the ledger (session/ledger) and the task graph (contract parse)
-//     and advance the requested phase; schema / issue / base-branch run their pure
-//     artifact surfaces through the same assembled objects.
+//     and advance the requested phase; schema / issue / base run their pure
+//     artifact surfaces through the same assembled objects (the issue body is
+//     rendered by the IssueBodyRenderer the root assembles — render/issue-body.ts,
+//     the P7 translation-system render landing).
 //   · HarnessDispatch — the lifecycle's dispatch-seam production default: assembles
 //     the dispatch prompt (the render/template-contract data plane) from the frame
 //     and runs the host harness CLI (the harness-contract rows) with the child's
@@ -34,10 +37,12 @@ import { declaredRegistries } from "../contract/declare.ts";
 import { PlanDocType } from "../contract/doc.ts";
 import type { DocKey } from "../contract/project.ts";
 import { Projector } from "../contract/project.ts";
+import { Translator } from "../contract/translate.ts";
 import { ConfigLoader } from "../infra/config.ts";
 import { GitClient } from "../infra/git.ts";
 import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
+import { IssueBodyRenderer, type IssueReportInput } from "../render/issue-body.ts";
 import type { TemplateValues } from "../render/templates.ts";
 import { TemplateAssembler } from "../render/templates.ts";
 import type { DispatchPhase, TargetFace, TargetType } from "../session/faces.ts";
@@ -57,8 +62,9 @@ import { Words } from "./words.ts";
 // ---------------------------------------------------------------------------
 
 /** The six subcommand words — the CLI command face (steady: implement · review ·
- *  fix · schema · issue · base-branch). */
-export type CliVerb = "implement" | "review" | "fix" | "schema" | "issue" | "base-branch";
+ *  fix · schema · issue · base). T20 converges the base command face: `cdd base
+ *  set|get` rides the six-command surface (unchanged in count). */
+export type CliVerb = "implement" | "review" | "fix" | "schema" | "issue" | "base";
 
 /** The nested leaf words — the sub-command surfaces of the pure commands. */
 export type CliLeafName = "get" | "set" | "render";
@@ -70,8 +76,7 @@ export const CLI_USAGE: Record<CliVerb, string> = {
   review:
     "usage: cdd review --type <task|branch|spec|plan> [--tasks <n|n,n,…>] (--plan <path> | --spec <path> | branch: --base <sha> --head <sha>) [--round <n>]",
   fix: "usage: cdd fix --type <task|branch|spec|plan> [--tasks <n|n,n,…>] [--findings <path>] (--plan <path> | --spec <path>)",
-  "base-branch":
-    "usage: cdd base-branch <set|get> --plan <path> [set: --base <branch> --source <source>] [--force]",
+  base: "usage: cdd base <set|get> --plan <path> [set: --base <branch> --source <source>] [--force]",
   schema: "usage: cdd schema get <type>",
   issue: "usage: cdd issue render",
 };
@@ -96,7 +101,7 @@ export interface ChannelArg {
 // ---------------------------------------------------------------------------
 
 /** A per-command value-type override — a declared key whose value shape differs
- *  from the channel's global typing for that key (base-branch set's `--base` carries
+ *  from the channel's global typing for that key (base set's `--base` carries
  *  a branch name, never the review range's 40-char sha). */
 export type CliValueOverride = "branch";
 
@@ -110,7 +115,7 @@ export interface CliArgSpec {
   valueType?: CliValueOverride;
 }
 
-/** One nested leaf command (base-branch set|get · schema get · issue render). */
+/** One nested leaf command (base set|get · schema get · issue render). */
 export interface CliLeafSpec {
   name: CliLeafName;
   usage: string;
@@ -130,7 +135,7 @@ export interface CliCommandSpec {
 }
 
 /** The six subcommand declarations — implement, review, fix (the lifecycle work
- *  commands) plus the pure base-branch / schema / issue artifact commands. */
+ *  commands) plus the pure base / schema / issue artifact commands. */
 export const CLI_COMMANDS: readonly CliCommandSpec[] = [
   {
     name: "implement",
@@ -167,15 +172,15 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
     ],
   },
   {
-    name: "base-branch",
-    usage: CLI_USAGE["base-branch"],
-    description: "read/write base-branch.json (single CDD --plan target)",
+    name: "base",
+    usage: CLI_USAGE.base,
+    description: "read/write base.json (single CDD --plan target)",
     keys: [],
     leaves: [
       {
         name: "set",
-        usage: CLI_USAGE["base-branch"],
-        description: "write the base-branch artifact",
+        usage: CLI_USAGE.base,
+        description: "write the base artifact",
         keys: [
           { key: "plan", required: true },
           { key: "base", required: true, valueType: "branch" },
@@ -185,8 +190,8 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
       },
       {
         name: "get",
-        usage: CLI_USAGE["base-branch"],
-        description: "read the base-branch artifact",
+        usage: CLI_USAGE.base,
+        description: "read the base artifact",
         keys: [{ key: "plan", required: true }],
       },
     ],
@@ -256,180 +261,20 @@ export interface CliIo {
 }
 
 // ---------------------------------------------------------------------------
-// the pure artifact surfaces — the base-branch artifact + the issue body
+// the pure artifact surfaces — the base artifact + the issue body
 // ---------------------------------------------------------------------------
 
-/** The base-branch artifact schema — the sole CDD --plan target's read/write row. */
-export interface BaseBranchArtifact {
+/** The base artifact schema — the sole CDD --plan target's read/write row (the
+ *  artifact file carries the `base` face: the base branch the plan's line rides). */
+export interface BaseArtifact {
   /** The base branch name. */
   base: string;
-  /** The base-branch source (the engine-config source enum). */
+  /** The base's source channel (the engine-config source enum). */
   source: string;
   /** The plan path the artifact serves. */
   plan: string;
   /** The ISO write timestamp. */
   recordedAt: string;
-}
-
-/** One finding row of the issue-report input. */
-export interface ReportFindingInput {
-  type: string;
-  lang: string;
-  context: string;
-  problem: string;
-  impact: string;
-  suggestedFix: string;
-  meta: { skill: string; step: string };
-}
-
-/** The issue-report input contract — the stdin findings plane. */
-export interface IssueReportInput {
-  harness: string;
-  findings: readonly ReportFindingInput[];
-  related?: {
-    open?: readonly { issue: number; component: string; reason: string }[];
-    closed?: readonly { issue: number }[];
-    program?: { issue: number };
-  };
-}
-
-/**
- * The issue-body renderer — the aggregate issue body's first-version steady renderer
- * (the finding type/lang vocabularies and the segment labels are declared data, never
- * a second source): Session block → per-finding four-segment blocks with attribution →
- * Dedup (open hits) → Related (closed hits + program). Pure deterministic text.
- */
-export class IssueBodyRenderer {
-  /** The finding-type vocabulary (the canonical type set). */
-  readonly types: readonly string[] = ["bug", "enhancement", "chore"];
-  /** The finding-language vocabulary (the canonical lang set). */
-  readonly langs: readonly string[] = ["en", "zh"];
-  /** The canonical segment labels per type × lang. */
-  readonly #labels: Record<string, Record<string, Record<string, string>>> = {
-    bug: {
-      en: {
-        context: "## Context",
-        problem: "## Problem",
-        impact: "## Impact",
-        suggestedFix: "## Suggested fix",
-      },
-      zh: {
-        context: "## 场景",
-        problem: "## 问题",
-        impact: "## 影响",
-        suggestedFix: "## 建议修复",
-      },
-    },
-    enhancement: {
-      en: {
-        context: "## Context",
-        problem: "## Gap",
-        impact: "## Impact",
-        suggestedFix: "## Suggested direction",
-      },
-      zh: {
-        context: "## 场景",
-        problem: "## 差距",
-        impact: "## 影响",
-        suggestedFix: "## 建议方向",
-      },
-    },
-    chore: {
-      en: {
-        context: "## Context",
-        problem: "## Gap",
-        impact: "## Impact",
-        suggestedFix: "## Suggested direction",
-      },
-      zh: {
-        context: "## 场景",
-        problem: "## 差距",
-        impact: "## 影响",
-        suggestedFix: "## 建议方向",
-      },
-    },
-  };
-  /** The four text-segment keys, in the render order. */
-  readonly #segments: readonly string[] = ["context", "problem", "impact", "suggestedFix"];
-
-  /** The canonical `meta` bullet lines of one finding (the two attribution rows). */
-  #metaOf(meta: { skill: string; step: string }): string {
-    return `- Skill: ${meta.skill}\n- Step: ${meta.step}`;
-  }
-
-  /** One finding's block — the four labeled segments plus the attribution. */
-  #findingOf(finding: ReportFindingInput): string {
-    const labels = this.#labels[finding.type][finding.lang];
-    const parts = this.#segments.map(
-      (segment) => `${labels[segment]}\n\n${String(finding[segment as keyof ReportFindingInput])}`,
-    );
-    return [...parts, this.#metaOf(finding.meta)].join("\n\n");
-  }
-
-  /** Render the aggregate issue body — deterministic: the Session block (harness
-   *  line), the findings in input order, then the Dedup / Related tails. */
-  renderBody(input: IssueReportInput): string {
-    const parts: string[] = [`# CDD aggregate issue\n\n- Harness: ${input.harness}`];
-    for (const finding of input.findings) parts.push(this.#findingOf(finding));
-    const open = input.related?.open ?? [];
-    if (open.length > 0) {
-      parts.push(
-        `## Dedup\n${open.map((hit) => `- Dedup → #${hit.issue} (open)：${hit.component} · ${hit.reason}`).join("\n")}`,
-      );
-    }
-    const closed = input.related?.closed ?? [];
-    const program = input.related?.program;
-    if (closed.length > 0 || program !== undefined) {
-      const lines: string[] = [];
-      for (const hit of closed) lines.push(`- Regression / follow-up of #${hit.issue} (closed)`);
-      if (program !== undefined) lines.push(`- Program: #${program.issue}`);
-      parts.push(`## Related\n${lines.join("\n")}`);
-    }
-    return parts.join("\n\n");
-  }
-
-  /** Input-shape validation — the E-3 early-report contract (field paths, empty =
-   *  pass). The canonical type/lang sets are the single declared vocabularies. */
-  validateInput(raw: unknown): string[] {
-    const errors: string[] = [];
-    if (typeof raw !== "object" || raw === null || Array.isArray(raw))
-      return ["input: expected an object with harness / findings / related?"];
-    const input = raw as { harness?: unknown; findings?: unknown; related?: unknown };
-    if (typeof input.harness !== "string" || input.harness.length === 0)
-      errors.push("harness: non-empty string required");
-    if (!Array.isArray(input.findings) || input.findings.length === 0) {
-      errors.push("findings: non-empty array of findings required");
-    } else {
-      input.findings.forEach((rawFinding, i) => {
-        const finding = rawFinding as Record<string, unknown> | null;
-        const base = `findings[${i}]`;
-        if (typeof finding !== "object" || finding === null) {
-          errors.push(
-            `${base}: object with type/lang/context/problem/impact/suggestedFix/meta expected`,
-          );
-          return;
-        }
-        if (!this.types.includes(String(finding.type)))
-          errors.push(`${base}.type: must be one of ${this.types.join(" | ")}`);
-        if (!this.langs.includes(String(finding.lang)))
-          errors.push(`${base}.lang: must be one of ${this.langs.join(" | ")}`);
-        for (const field of this.#segments) {
-          if (typeof finding[field] !== "string" || (finding[field] as string).length === 0)
-            errors.push(`${base}.${field}: non-empty string required`);
-        }
-        const meta = finding.meta as Record<string, unknown> | null | undefined;
-        if (typeof meta !== "object" || meta === null || Array.isArray(meta)) {
-          errors.push(`${base}.meta: object with skill / step required`);
-        } else {
-          if (typeof meta.skill !== "string" || meta.skill.length === 0)
-            errors.push(`${base}.meta.skill: non-empty string required`);
-          if (typeof meta.step !== "string" || meta.step.length === 0)
-            errors.push(`${base}.meta.step: non-empty string required`);
-        }
-      });
-    }
-    return errors;
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -767,6 +612,7 @@ export interface CliOptions {
   config?: ConfigLoader;
   projector?: Projector;
   words?: Words;
+  translator?: Translator;
   git?: GitClient;
   sync?: SyncProcess;
   cwd?: string;
@@ -810,6 +656,7 @@ export class Cli {
   readonly #brief: BriefRenderer;
   readonly #stdinRead: () => string;
   readonly #issue: IssueBodyRenderer;
+  readonly #translator: Translator;
   readonly #channels: Record<string, ChannelArg>;
   readonly #docKeys: readonly string[];
 
@@ -830,7 +677,8 @@ export class Cli {
     this.#template = opts.template ?? new TemplateAssembler(this.#config);
     this.#brief = opts.brief ?? new BriefRenderer();
     this.#stdinRead = opts.stdinRead ?? (() => readFileSync(0, "utf8"));
-    this.#issue = new IssueBodyRenderer();
+    this.#translator = opts.translator ?? new Translator(this.#words);
+    this.#issue = new IssueBodyRenderer(this.#words, this.#translator);
     this.#channels = this.#channelTable();
     this.#docKeys = Object.keys(this.#projector.registries().schema);
   }
@@ -869,7 +717,7 @@ export class Cli {
       throw this.#usage(
         typeof verbWord === "string"
           ? `unknown command: ${verbWord}`
-          : "missing command — expected implement | review | fix | base-branch | schema | issue",
+          : "missing command — expected implement | review | fix | base | schema | issue",
         "usage: cdd <command> [options]",
       );
     }
@@ -878,7 +726,7 @@ export class Cli {
     // The help pre-screen — a help flag anywhere pre-empts the leaf/argument scan
     // (the steady `cdd <command> --help` face renders the command's usage, never a
     // missing-subcommand or required-value error on top of the help the user asked
-    // for — `cdd base-branch --help` shows the leaf command's usage, no leaf word).
+    // for — `cdd base --help` shows the leaf command's usage, no leaf word).
     if (help) {
       return {
         verb: spec.name,
@@ -891,7 +739,7 @@ export class Cli {
       };
     }
 
-    // The nested leaf (base-branch set|get · schema get · issue render).
+    // The nested leaf (base set|get · schema get · issue render).
     let leafSpec: CliLeafSpec | null = null;
     if (spec.leaves !== undefined) {
       const leafWord = toks[index];
@@ -1003,8 +851,8 @@ export class Cli {
         return this.#runSchema(parsed);
       case "issue":
         return this.#runIssue(parsed);
-      case "base-branch":
-        return this.#runBaseBranch(parsed);
+      case "base":
+        return this.#runBase(parsed);
     }
   }
 
@@ -1401,7 +1249,7 @@ export class Cli {
   }
 
   // ---------------------------------------------------------------------------
-  // the pure commands — schema / issue / base-branch
+  // the pure commands — schema / issue / base
   // ---------------------------------------------------------------------------
 
   /** `cdd schema get <type>` — the derived doc-structure schema JSON to stdout (the
@@ -1439,13 +1287,14 @@ export class Cli {
     return 0;
   }
 
-  /** `cdd base-branch <set|get> --plan <path>` — the base-branch artifact read/write. */
-  async #runBaseBranch(parsed: ParsedCommand): Promise<number> {
+  /** `cdd base <set|get> --plan <path>` — the base artifact read/write (T20: the
+   *  command face `base`; the artifact file carries the base face too). */
+  async #runBase(parsed: ParsedCommand): Promise<number> {
     const planPath = parsed.args.plan;
     if (planPath === undefined) {
       throw new CliUsageError(
-        "cdd base-branch: missing --plan — the sole target is --plan <path>",
-        CLI_USAGE["base-branch"],
+        "cdd base: missing --plan — the sole target is --plan <path>",
+        CLI_USAGE.base,
       );
     }
     const workspace = new Workspace(
@@ -1455,39 +1304,31 @@ export class Cli {
       ),
       Workspace.slugFromDoc(planPath),
     ).ensure();
-    const path = workspace.resolve("base-branch.json");
-    if (parsed.leaf === "set") return this.#baseBranchSet(parsed, workspace, planPath, path);
-    if (parsed.leaf === "get") return this.#baseBranchGet(path);
-    throw new CliUsageError(
-      "cdd base-branch: missing <set|get> subcommand",
-      CLI_USAGE["base-branch"],
-    );
+    const path = workspace.resolve("base.json");
+    if (parsed.leaf === "set") return this.#baseSet(parsed, workspace, planPath, path);
+    if (parsed.leaf === "get") return this.#baseGet(path);
+    throw new CliUsageError("cdd base: missing <set|get> subcommand", CLI_USAGE.base);
   }
 
   /** The `set` body — base/source required, a different existing base refuses without
    *  --force (the write-through artifact single-author). */
-  #baseBranchSet(
-    parsed: ParsedCommand,
-    workspace: Workspace,
-    planPath: string,
-    path: string,
-  ): number {
+  #baseSet(parsed: ParsedCommand, workspace: Workspace, planPath: string, path: string): number {
     const base = parsed.args.base;
     const source = parsed.args.source;
     if (base === undefined || source === undefined) {
       throw new CliUsageError(
-        "cdd base-branch set: required --base <branch> and --source <source>",
-        CLI_USAGE["base-branch"],
+        "cdd base set: required --base <branch> and --source <source>",
+        CLI_USAGE.base,
       );
     }
-    const existing = this.#readBaseBranch(path);
+    const existing = this.#readBase(path);
     if (existing !== null && existing.base !== base && parsed.args.force !== "true") {
       throw new CliUsageError(
-        `cdd base-branch set: base-branch already set to ${existing.base} — pass --force to override`,
-        CLI_USAGE["base-branch"],
+        `cdd base set: base already set to ${existing.base} — pass --force to override`,
+        CLI_USAGE.base,
       );
     }
-    const artifact: BaseBranchArtifact = {
+    const artifact: BaseArtifact = {
       base,
       source,
       plan: planPath,
@@ -1501,18 +1342,18 @@ export class Cli {
 
   /** The `get` body — read + validate + print the artifact JSON (exit 2 when the
    *  artifact is missing or corrupt — the orchestrator's inference-chain input). */
-  #baseBranchGet(path: string): number {
-    const artifact = this.#readBaseBranch(path);
+  #baseGet(path: string): number {
+    const artifact = this.#readBase(path);
     if (artifact === null) {
-      this.#io.stderr(`cdd base-branch get: missing or corrupt base-branch artifact at ${path}\n`);
+      this.#io.stderr(`cdd base get: missing or corrupt base artifact at ${path}\n`);
       return 2;
     }
     this.#io.stdout(`${JSON.stringify(artifact, null, 2)}\n`);
     return 0;
   }
 
-  /** Read + validate the base-branch artifact; null when missing or malformed. */
-  #readBaseBranch(path: string): BaseBranchArtifact | null {
+  /** Read + validate the base artifact; null when missing or malformed. */
+  #readBase(path: string): BaseArtifact | null {
     try {
       const parsed = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
       if (

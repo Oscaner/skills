@@ -327,6 +327,23 @@ const SPEC_PSEUDO_HEADING_ANCHOR = [
   "\\*\\*.+\\*\\*\\s*$",
 ].join("");
 
+/** The `###`-heading allowlist residue anchor (P3.1 T4 — the F3 `###` contract's unranked face):
+ *  the phase-spec's `### ` heading surface admits EXACTLY the registered group ranks (`### N. ` —
+ *  the groupHeading slice) and the unique acceptance anchor (`### Acceptance criteria` — the
+ *  acceptanceCriteriaHeading slice); any other `### `-prefixed line is an unregistered ragged
+ *  heading — structure residue BLOCKed by `spec.designHeadingResidue`. The negative lookaheads
+ *  exclude the two allowlisted forms structurally (each derived from its slice source, the shared
+ *  `^### ` leader stripped — single-source, never a re-typed literal), so only genuinely
+ *  unregistered headings remain items. */
+const SPEC_HEADING_ALLOWLIST_ANCHOR = [
+  "^### (?!(?:",
+  specHeadingAnchor(PHASE_SPEC_SLICE_PATTERNS.groupHeading).replace(/^\^### /, ""),
+  ")|(?:",
+  specHeadingAnchor(PHASE_SPEC_SLICE_PATTERNS.acceptanceCriteriaHeading).replace(/^\^### /, ""),
+  "))",
+  ".+$",
+].join("");
+
 /** The phase-spec structure-rule data (P3.1 T2 — the retired skeleton-walker migration, design §2.2):
  *  the three-truth skeleton's existence/uniqueness assertions as rule data (the ONE interpreter
  *  `runStructureRules` consumes them at the doc-contract gate — the judgmental surface the retired
@@ -394,8 +411,19 @@ const PHASE_SPEC_RULES: readonly StructureRule[] = [
       "the design body's `### N.` group headings must ascend strictly (the double-layer outline is read top-down; renumber the groups in order)",
   },
   {
+    id: "spec.designHeadingResidue",
+    plane: { kind: "headingLeads", anchor: SPEC_HEADING_ALLOWLIST_ANCHOR },
+    invariants: [{ type: "residue" }],
+    severity: "BLOCK",
+    message:
+      "an unregistered `### ` heading survives — the `###` contract admits exactly the `### N.` group ranks and the unique `### Acceptance criteria` anchor; a ragged `###` heading (neither form) is structure residue — promote it to an `### N.` group rank or fold its prose into a group",
+  },
+  {
     id: "spec.designItemOwnership",
-    plane: { kind: "headingLeads", anchor: "^#### (\\d+)\\." },
+    plane: {
+      kind: "headingLeads",
+      anchor: specHeadingAnchor(PHASE_SPEC_SLICE_PATTERNS.designItemHeading),
+    },
     invariants: [
       {
         type: "crosslink",

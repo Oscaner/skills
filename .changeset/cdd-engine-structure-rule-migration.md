@@ -1,5 +1,5 @@
 ---
-"@oscaner-skills/cdd-engine": major
+"@oscaner-skills/cdd-engine": minor
 ---
 
 feat: doc-architecture-v2 P3.1 — the doc-contract gate enforces the document tree's structural rules through the single body-rule interpreter; the plan/spec/overall contract structural faces migrate to the rule plane and the handwritten four-table walkers are zeroed.

@@ -308,7 +308,7 @@ export class PlanDocType extends DocType {
 
   /** Edge-model integer gate (the plan seam — the malformed-value surface): every dependsOn value is
    *  a task id, so a non-integer declaration is broken. The root NaN hole lives in TaskGraph.validate
-   *  (all five checks compare numbers — NaN survives); this gate turns the malformed value into the
+   *  (all six checks compare numbers — NaN survives); this gate turns the malformed value into the
    *  same GraphViolationError block face (missing-id class) instead. The failure anchors `id` to the
    *  declaring task id — a real number (the malformed value parses to NaN, which would serialize as
    *  null against GraphFailure.id's number contract; the offending literal already rides the

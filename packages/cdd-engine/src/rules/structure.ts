@@ -3,7 +3,7 @@
 // doc assertion consumes: the doc bodies declare their structural demands as rule DATA
 // (`structureRules(): StructureRule[]` — the rule-data home at the body root), and THIS module
 // interprets any rule set over a document — the same interpreter the T2–T6 rule migrations and the
-// T8 gate share. The interpreter is deliberately dependency-free at runtime: its only imports are
+// T7 wrap-up gate share. The interpreter is deliberately dependency-free at runtime: its only imports are
 // the rule-data type contract from the doc-body root (type-only, erased), re-exported under the
 // same names as the produced surface, so the module adds no edge to the eval graph (the tokens.ts
 // load-order law: bodies declare rule data lazily, zero interpreter reverse-imports).
@@ -39,7 +39,7 @@ import type {
   StructureRule,
 } from "../documents/doctypes/body/doc-body.ts";
 
-// The produced type surface — the rule-data contract the T2–T8 consumers import from this module
+// The produced type surface — the rule-data contract the T2–T7 consumers import from this module
 // (the interpreter's type-import + re-export keeps ONE definition home, the body root).
 export type {
   StructureFinding,

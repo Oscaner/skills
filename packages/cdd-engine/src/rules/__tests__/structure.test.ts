@@ -571,6 +571,7 @@ describe("the DocBody rule-data seam (T1 — abstract default; T2 — the concre
       "spec.acceptance",
       "spec.constraints",
       "spec.designGroups",
+      "spec.designHeadingResidue",
       "spec.designItemOwnership",
       "spec.designBodyEmpty",
       "spec.designGroupEmpty",

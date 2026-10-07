@@ -94,11 +94,12 @@ const planType = (): PlanDocType => docTypeRegistry.resolve("plan") as PlanDocTy
 const specType = (): PhaseSpecDocType => docTypeRegistry.resolve("spec") as PhaseSpecDocType;
 
 /** The body-homed structure-rule data of a resolved doc type (P3.1 F6 — the rule seam's consumer):
- *  the plan/spec doc types carry their injected DocBody leaf (`body` — the constructor-injected
- *  face, the same live wiring the doc types read their shapes from); the overall — the chain root
- *  with no body leaf yet — carries zero rules until its body trio lands. The read is a structural
- *  `body` access on the registry-returned singleton (the S2 delegation pattern the accessors
- *  above use) — deliberately NO value import of the concrete classes: a direct import would pull
+ *  every registered doc type carries its injected DocBody leaf (`body` — the constructor-injected
+ *  face, the same live wiring the doc types read their shapes from): the plan/spec/overall bodies
+ *  all declare their structureRules() at the gate — the overall's injected `overallBody` is the
+ *  chain-root rule home since T2, no doc type is body-less. The read is a structural `body` access
+ *  on the registry-returned singleton (the S2 delegation pattern the accessors above use) —
+ *  deliberately NO value import of the concrete classes: a direct import would pull
  *  the doc-type modules into this facade's eval order ahead of the registry (the load-order law:
  *  the registry constructs the singletons first; the rule data stays lazy). */
 function structureRulesOf(type: DocType): readonly StructureRule[] {

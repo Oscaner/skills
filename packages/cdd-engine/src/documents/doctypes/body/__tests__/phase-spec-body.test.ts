@@ -349,6 +349,22 @@ describe("the double-layer design-item plane (P3.1 T4 — F3 统一大纲模型)
     expect(ids.every((id) => id === "spec.designItemOwnership")).toBe(true); // single-axis
   });
 
+  it("`ragged-heading-design.md` fires spec.designHeadingResidue — an unregistered `### ` heading (neither `### N.` nor `### Acceptance criteria`) survives (BLOCK allowlist residue)", () => {
+    const findings = structureOf(
+      readFileSync(path.join(FIXTURES, "ragged-heading-design.md"), "utf8"),
+    );
+    const ids = findings.map((f) => f.id);
+    expect(ids).toContain("spec.designHeadingResidue");
+    expect(ids.every((id) => id === "spec.designHeadingResidue")).toBe(true); // single-axis
+  });
+
+  it("the allowlisted `### ` forms stay clean — a `### N.` group rank and the `### Acceptance criteria` anchor never trigger the residue rule (the negative-lookahead carve)", () => {
+    const clean = ["## Design", "", "### 1. Group", "", "#### 1.1 Item", "", "text", ""].join("\n");
+    expect(structureOf(clean).map((f) => f.id)).not.toContain("spec.designHeadingResidue");
+    const acceptanceOnly = ["## Design", "", "### Acceptance criteria", "", "- `done`"].join("\n");
+    expect(structureOf(acceptanceOnly).map((f) => f.id)).not.toContain("spec.designHeadingResidue");
+  });
+
   it("an empty `## Design` body (blank-run to the acceptance anchor) fires spec.designBodyEmpty — the empty-body face", () => {
     const empty = ["## Design", "", "### Acceptance criteria", "", "- `done`"].join("\n");
     expect(structureOf(empty).map((f) => f.id)).toContain("spec.designBodyEmpty");

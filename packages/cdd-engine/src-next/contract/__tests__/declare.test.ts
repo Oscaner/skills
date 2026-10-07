@@ -12,9 +12,11 @@
 // The legal value vocabularies are pinned here as the spec-side source of truth
 // (an independent authority from the implementation): the guard or the data may
 // never drift outside these domains. The negative type checks (a missing home,
-// a missing elements surface) are validated by the `tsc -p packages/cdd-engine
-// --noEmit` gate, which fails on an unused @ts-expect-error — so the compile
-// surface is pinned even though vitest transforms types away.
+// a missing elements surface) are pinned by expectTypeOf(...).not.toMatchTypeOf
+// assertions: if a required field ever stopped being required, the incomplete
+// shapes below would satisfy the type and the assertion itself would become a
+// compile error, which the `tsc -p packages/cdd-engine --noEmit` gate fails on —
+// so the compile surface is pinned even though vitest transforms types away.
 
 import { describe, expect, expectTypeOf, it } from "vitest";
 import type { ElementRegistry, Home, Presence, RefKind, RegistryElement } from "../declare.ts";

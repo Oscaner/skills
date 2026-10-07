@@ -376,6 +376,16 @@
   - round = fix（fix 面）的 next: 渲染行尾含 `(first read <findings> back to confirm)`（词面断言）；review 面 next: 行不含；测试全绿
 - **DependsOn**: 7, 11
 
+---
+
+## 记录 · 新树基线（T13 落盘 · 双面构建期）
+
+T13 起的新树自测基线（后续 T14–T23 以此为准；旧树 count pin 漂移为 plan-owned 基线，见任务报告）：
+
+- **新树自测基线（文件/用例数）**：生产面 **25 文件**（contract 7 · session 6 · face 3 · render 3 · infra 5 · 根 bin.ts 1）· 测试面 **16 文件**（contract 6 · session 4 · face 2 · render 1 · infra 1 · 根 `__tests__` 2）· **251 用例**（src-next 独立 project 全绿）。`node src-next/bin.ts` 六命令黑盒可用（schema get 输出派生 schema · issue render 聚合正文 · base set/get 工件读写 · implement/review/fix dry-run 胶囊 + handoff）。
+- **零裸函数全树断言面（自 T13 基线起即全树；T18 收面协议）**：`grep -rn "^export function" src-next --include="*.ts"`（排除 `__tests__`）= **1 命中**——`src-next/face/cli.ts` 组合根 `cli()`（组合根装载面豁免）；非豁免行为面零。
+- **净减账基线（T13 起记）**：新树生产面 **7,618 行**（T17 出具 29k → −20%± 净减账，真实值为准）。
+
 ## Constraints
 
 - **新旧零依赖（贯穿 T1–T23）**：`src-next` ↔ 旧树双向零 import；新树全量按新架构/OOP 单范式重写，不借用旧符号/旧 helper/旧目录形状；**数据面归位（T21，v1.4）**：三稳态 JSON 收敛为 typed 平面成员（infra/runtime · face/host · render/templates）——新树零 JSON 读取、零读旧 `config/` 路径（grep 断言），`config/` 整目录随 T15 cutover 删除零重建；schema/lexicon 派生产物由新树自派生（并行期测试不读旧派生产物）

@@ -14,6 +14,9 @@ import { expect, it } from "vitest";
 const SRC_NEXT = fileURLToPath(new URL("../", import.meta.url));
 const SRC = fileURLToPath(new URL("../../src/", import.meta.url));
 
+// The two-tree plane discriminant: which tree a module specifier addresses.
+type TreePlane = "src" | "src-next";
+
 // Module specifier patterns: `from "..."` (static import + re-export), dynamic
 // `import("...")`, and side-effect `import "..."`.
 const SPECIFIER_PATTERN = /(?:from\s+|import\s*\(\s*)(['"])([^'"]+)\1/g;
@@ -21,6 +24,9 @@ const SIDE_EFFECT_PATTERN = /^\s*import\s+(['"])([^'"]+)\1/gm;
 
 // Strip comments conservatively (line + block) while keeping string literals, so
 // prose that quotes a `from "../src/x"` idiom never trips the guard.
+// Heuristic boundary: comment elision applies only in code scope — string-literal
+// contents are kept verbatim, and nested template literals are not tracked (a
+// backtick inside `${ }` prematurely closes the outer template).
 function stripComments(code: string): string {
   let out = "";
   let i = 0;
@@ -82,7 +88,7 @@ function extractSpecifiers(text: string): string[] {
 
 // Result: the tree a module specifier addresses, or null when it addresses neither
 // tree (bare package, node: builtin, external module).
-function addressedTree(specifier: string, importer: string): "src" | "src-next" | null {
+function addressedTree(specifier: string, importer: string): TreePlane | null {
   if (specifier === "src" || specifier.startsWith("src/")) return "src";
   if (specifier === "src-next" || specifier.startsWith("src-next/")) return "src-next";
   if (!specifier.startsWith("./") && !specifier.startsWith("../") && !specifier.startsWith("/")) {

@@ -59,18 +59,17 @@ describe("TaskGraph — the wave derivation (batches)", () => {
     ]);
   });
 
-  it("the P3.1 schedule T1→T2→{T3,T4,T5}→T6→T7→T8 derives the six waves [[1],[2],[3,4,5],[6],[7],[8]]", () => {
+  it("the P3.1 schedule T1→T2→{T3,T4,T5}→T6→T7 derives the five waves [[1],[2],[3,4,5],[6],[7]] (DependsOn 1–6 per plan v1.10)", () => {
     const graph = [
       task(),
       task({ dependsOn: [1] }),
       task({ dependsOn: [2] }),
       task({ dependsOn: [2] }),
       task({ dependsOn: [2] }),
-      task({ dependsOn: [3, 4, 5] }),
-      task({ dependsOn: [6] }),
-      task({ dependsOn: [7] }),
+      task({ dependsOn: [3] }),
+      task({ dependsOn: [1, 2, 3, 4, 5, 6] }),
     ];
-    expect(batches(graph)).toEqual([[1], [2], [3, 4, 5], [6], [7], [8]]);
+    expect(batches(graph)).toEqual([[1], [2], [3, 4, 5], [6], [7]]);
   });
 
   it("a fan-out keeps the wave's ascending task order — T2→T1, T3→T1, T4→T2 → [[1],[2,3],[4]]", () => {

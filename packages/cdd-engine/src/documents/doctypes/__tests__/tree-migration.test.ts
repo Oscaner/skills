@@ -1257,7 +1257,7 @@ describe("the unilateral wave model — every plan's batch split pin (P3.1 T3: �
   // wave, ascending task numbers). The 4 real-value plans' waves preserve their retired pairing
   // components same-layer (the group-equal-power face — pinned above per plan); the sequential plans run
   // the task-number chain; p3.1 (this program's own) derives its declared schedule
-  // T1→T2→{T3,T4,T5}→T6→T7→T8 → six waves.
+  // T1→T2→{T3,T4,T5}→T6→T7 → five waves.
   const WAVE_SPLITS: Readonly<Record<string, readonly (readonly number[])[]>> = {
     "2026-09-13-osuperpowers-overhaul-p1.md": [[1], [2], [3], [4], [5]],
     "2026-09-13-osuperpowers-overhaul-p2.md": [[1], [2], [3], [4], [5], [6]],
@@ -1352,7 +1352,7 @@ describe("the unilateral wave model — every plan's batch split pin (P3.1 T3: �
     "2026-10-02-doc-architecture-v2-p1.md": [[1], [2], [3], [4], [5], [6], [7]],
     "2026-10-02-doc-architecture-v2-p2.md": [[1], [2], [3], [4], [5], [6], [7]],
     "2026-10-02-doc-architecture-v2-p3.md": [[1], [2], [3], [4], [5], [6], [7], [8], [9]],
-    "2026-10-02-doc-architecture-v2-p3.1.md": [[1], [2], [3, 4, 5], [6], [7], [8]],
+    "2026-10-02-doc-architecture-v2-p3.1.md": [[1], [2], [3, 4, 5], [6], [7]],
   };
 
   it("every migration-target plan's effectiveGroups derives exactly its pinned wave split (the wave = the dispatch group)", () => {
@@ -1365,11 +1365,11 @@ describe("the unilateral wave model — every plan's batch split pin (P3.1 T3: �
     expect(Object.keys(WAVE_SPLITS).length).toBe(23); // every plan in the tree is pinned
   });
 
-  it("the p3.1 plan itself derives the six-wave schedule (T1→T2→{T3,T4,T5}→T6→T7→T8 — 3‖4‖5 same wave)", () => {
+  it("the p3.1 plan itself derives the five-wave schedule (T1→T2→{T3,T4,T5}→T6→T7 — 3‖4‖5 same wave)", () => {
     const groups = planType()
       .effectiveGroups(path.join(PLANS_DIR, "2026-10-02-doc-architecture-v2-p3.1.md"))
       .map((g) => [...g.numbers]);
-    expect(groups).toEqual([[1], [2], [3, 4, 5], [6], [7], [8]]);
+    expect(groups).toEqual([[1], [2], [3, 4, 5], [6], [7]]);
   });
 });
 

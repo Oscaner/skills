@@ -1,4 +1,4 @@
-# 文档架构方法论 v2 — P3.2 Design Spec v1.1（全系统从零重建 · 判定单家 · 工作流归一）
+# 文档架构方法论 v2 — P3.2 Design Spec v1.2（全系统从零重建 · 判定单家 · 工作流归一）
 
 - **Version**: v1.2 · 2026-10-07（spec review round 九 finding 落地：§2.1 四分量行数自洽 ~485 · §4.2 五链 digraph 自环例外 + digraph 一致断言 · §6.1 基线按实树校订 72/顶面 8-5 · shape 五表达面投影一致 · 词汇条 word 残句修正）
 - **Status**: Draft

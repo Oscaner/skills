@@ -1,9 +1,9 @@
-# 文档架构方法论 v2 — P3.2 Design Spec v1.2（全系统从零重建 · 判定单家 · 工作流归一）
+# 文档架构方法论 v2 — P3.2 Design Spec v1.4（全系统从零重建 · 判定单家 · 工作流归一）
 
 - **Version**: v1.4 · 2026-10-07（前置 v1.3 = P7 提前承接 backfill——翻译系统全量核心入 §1.3 · CLI 命令面 `base-branch`→`base` · capsule 机面英文恒定 · 渲染器归位 render；**v1.4 = P4/P5/P6/P7 全吸收 + 数据面归位 backfill**——用户 2026-10-07 拍板「config-next 完成以后删除 config」升华：**数据面归位**（三稳态 JSON → typed 平面 infra/runtime · face/host · render/templates · P4 review 准则/P5 M1+禁文 承接净入 §6.4 · skill-anatomy 归守卫 T14 · `config/` 整目录随 cutover 删除零重建 · 新树零 JSON/零 config/ 路径）· **P6 宪法化承接**（宪法/档案双层 · 版本行散文消解 · Standing rules 成典 · 全树 4 overalls）入 §6.5——plan v1.4 · overall v1.23 随）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5（kairos:cdd-phase · 决策源 = kairos:cdd-design grilling 收敛 + 用户 2026-10-07 greenfield 拍板）
-- **Parent program**: [doc-architecture-v2-overall.md v1.21](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
+- **Parent program**: [doc-architecture-v2-overall.md v1.23](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
 - **Depends on**: P3.1（Done · [p3.1-design v1.10](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3.1-design.md) · [p3.1-plan v1.11](docs/kairos/plans/2026-10-02-doc-architecture-v2-p3.1.md) —— serial-phase GATE 满足，P3.2 可开线）
 
 ## Design
@@ -62,7 +62,7 @@ task/branch/docs 三个 near-同构 lifecycle（旧 3.6k 行）收敛为**参数
 
 | skill | 角色 | 说明 |
 |---|---|---|
-| cdd-design | 编排 | brainstorm 路由（mode/register/size 语义门显式）· 内部 run-cdd-charter · sync / run-cdd-charter 两 charter 节点 + run-cdd-spec / run-cdd-phase 两近同 dispatch 节点击碎为参数化单模板 |
+| cdd-design | 编排 | brainstorm 路由（mode/register/size 语义门显式）· 内部 run-cdd-charter · sync / run-cdd-charter 两 charter 节点 + run-cdd-spec / run-cdd-phase 两近同 dispatch 节点收敛为参数化单模板 |
 | **cdd-spec-writer** | spec-writer | **single / phase-spec / overall 合一参数化**流（schema 目标 + scope-gates + author + handoff 参数）——旧 cdd-spec/phase/charter 三文件并入，重复体（review-loop 子图 · fix-spec 逐字节相同 · Invariants 表）单源 |
 | cdd-plan | 编排 | plan writer（backfill-design 门 · Plan Sole Writer）· review loop 接入共享 spec-writer 循环体 |
 | cdd-dev | 执行链 | implement/review/fix 三态 + branch 终面；全由 next: 驱动；`more-groups?` 退役 |
@@ -107,8 +107,9 @@ packages/cdd-engine/src-next/
     words.ts                  #   词汇表单源（doc 词 + 胶囊词 + 守卫词 一家）
     capsule.ts                #   status · blocker · handoff · next 单胶囊面
     cli.ts                    #   implement · review · fix · schema · issue · base（base set|get）
+    host.ts                   #   harness-contract typed 面（dispatch.review 行 · P4 评审准则数据）
   render/                     # templates + brief（活则留）
-  infra/                      # 真基建（resource/config · git · process · workspace，≤5 文件）
+  infra/                      # 真基建（runtime（config 面 · 前 resource.ts）· git · process · workspace，≤5 文件）
 ```
 
 **新旧零依赖（硬规则）**：新树自包含——`src-next/**` 零 import 旧树（双向：旧树亦零 import 新树；grep 断言钉死），新树连基建（infra/）、词表（face/words）、派生（contract/project）全部**重新实现**，不借用任何旧符号/旧分组/旧 helper；**数据面归位（v1.4 承接）**——外部契约 JSON（engine-config / harness-contract / template-contract）**不作为外部文件读取**，收敛为新树 **typed 平面成员**（`infra/runtime.ts` · `face/host.ts` · `render/templates.ts` · §6.4），新树零 JSON 读取、零读旧 `config/` 路径（grep 断言）——「按同址读取」旧妥协取消（引擎外零外部 JSON 消费者：仅本 repo 自有 kairos tests + 将删旧 scripts，全由 P3.2 接管）；schema / lexicon / tokens 等**派生产物由新树自派生**——并行期新树测试只用自派生数据，不读旧派生产物。两树共存的唯一共同物 = 方法论本身（消费规范与词面土层），代码级互为透明。
@@ -149,7 +150,7 @@ P6（overall 宪法/档案分层）**吸收进 P3.2 尾部**（用户 2026-10-07
 - TaskGraph + frontier + ExecutionState 查询面（doneTasks()/readyBatch() 为方法，不新增独立类）；缺边/反依赖唯一家在 TaskGraph，doc-contract parse 早拦负例断言
 - `NextStepRouter` 单点：next 生成单面（负例：warn/nit→`next: none` · blocker>0→re-review · BLOCKED 无 next 行）；胶囊 `status · blocker · handoff · next:` 词面字节 pin 稳态
 - dispatch 单 lifecycle 参数化落地（task/branch/spec/plan 数据表驱动）；CLI 命令面（implement/review/fix/schema/issue/base——base set|get）保持
-- 技能集 8 → 6 落地：cdd-spec-writer 合一（single/phase/overall 参数化）；五链 digraph 单 next-loop 自环（cdd-report 一次性上报工具链例外）+ 边零状态标签；digraph 节点名 ↔ Node Definitions heading ↔ 文本引用一致断言；节点锚定零残留；skill-anatomy 注册（6 集）+ 目录扫描守卫 + `pnpm run emit` 再生 + 零程序历史 pin；上游 import 面/编排语义门/Review Convergence 纪律保持
+- 技能集 8 → 6 落地：cdd-spec-writer 合一（single/phase/overall 参数化）；四链 digraph（design/spec-writer/plan/dev）单 next-loop 自环 · cdd-close 止于 finish 编排语义门 + 终端 · cdd-report 一次性上报工具链例外 + 边零状态标签；digraph 节点名 ↔ Node Definitions heading ↔ 文本引用一致断言；节点锚定零残留；skill-anatomy 注册（6 集）+ 目录扫描守卫 + `pnpm run emit` 再生 + 零程序历史 pin；上游 import 面/编排语义门/Review Convergence 纪律保持
 - scripts 重写：guard 消费引擎元数据（residue 正则 ban 表 → 词表数据行零残留 · channel 字面引擎导出）；单一 emit/validate 编排器；旧 wrapper/双 Orchestrator 零残留
 - 两代过渡：新树 **5 平面拓扑**（contract/session/face/render/infra · 文件 72→~30-38 · 顶面 8→5）落地于 `src-next/` + `scripts-next/` → 入口切换 → **旧树/旧技能零残留（grep 断言）** → validate ALL PASS · typecheck ×3 · biome · emit 新鲜 · changesets（cdd-engine major / kairos major）· 净减账（29k → 目标 −20%±）入验收
 - **新旧零依赖断言**：`src-next` ↔ `src` 双向零 import（grep）；新树自包含全量重写（无旧符号/旧 helper/旧分组索引）· **数据面归位（v1.4）**：三稳态 JSON → typed 平面成员（infra/runtime · face/host · render/templates）零残留（grep）；`src-next` 面 `config/` slash 路径零命中；派生产物自派生（并行期测试不读旧派生产物）

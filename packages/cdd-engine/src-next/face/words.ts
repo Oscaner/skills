@@ -147,12 +147,6 @@ export class Words {
     return CAPSULE_WORDS.keys;
   }
 
-  /** One capsule emit key by its semantic kind — the addressed lookup into the
-   *  pinned emit-order row (the emit never destructures the keys positionally). */
-  capsuleKey(kind: CapsuleKey): string {
-    return CAPSULE_WORDS.keys[CAPSULE_WORDS.keys.indexOf(kind)];
-  }
-
   /** The `·`-separator token of the capsule line. */
   capsuleSeparator(): string {
     return CAPSULE_WORDS.separator;

@@ -3,9 +3,9 @@
 // lifecycle). The three old near-isomorphic lifecycles (task / branch / docs)
 // converge into ONE lifecycle class whose per-type variance lives in this table:
 // each target type (task | branch | spec | plan) carries its audit target, the
-// product face (the phases it drives + the review-lead round mode) and the next-hop
-// consumption semantics. The lifecycle reads the row through the same class — a new
-// target type is a table row, never a lifecycle edit.
+// product face (the review-lead round mode) and the next-hop consumption semantics.
+// The lifecycle reads the row through the same class — a new target type is a table
+// row, never a lifecycle edit.
 //
 // Module-level exports are types / the table const — zero behavior-carrying bare
 // functions (the plan's zero-bare-function discipline).
@@ -43,11 +43,13 @@ export interface TargetFace {
   type: TargetType;
   /** The audit target — how the open dispatch item resolves. */
   audit: AuditFace;
-  /** The product face — the phases the type's lifecycle drives and the review-lead
-   *  mode its rounds count under. */
+  /** The product face — the review-lead round mode the line's rounds count under.
+   *  The phase progression itself is the universal three-role shape (opening work →
+   *  review lead → fix → re-review) every type shares — the parameterized
+   *  lifecycle's variance is the audit descriptor + this mode + the next semantics,
+   *  never the phase order (design spec §3.3: the review/fix/implement process is
+   *  homogeneous). */
   product: {
-    /** The line's dispatch phases, in drive order. */
-    phases: readonly DispatchPhase[];
     /** The review-lead round mode — the review-family increment whose count the
      *  fix round sources its number from (branch runs branch-review; the others
      *  review). */
@@ -66,25 +68,25 @@ export const targetFaces: Record<TargetType, TargetFace> = {
   task: {
     type: "task",
     audit: { kind: "task-graph" },
-    product: { phases: ["implement", "review", "fix"], reviewLead: "review" },
+    product: { reviewLead: "review" },
     nextSemantics: { batch: true },
   },
   branch: {
     type: "branch",
     audit: { kind: "branch-range" },
-    product: { phases: ["branch-review", "fix"], reviewLead: "branch-review" },
+    product: { reviewLead: "branch-review" },
     nextSemantics: { batch: false },
   },
   spec: {
     type: "spec",
     audit: { kind: "doc-path" },
-    product: { phases: ["review", "fix"], reviewLead: "review" },
+    product: { reviewLead: "review" },
     nextSemantics: { batch: false },
   },
   plan: {
     type: "plan",
     audit: { kind: "doc-path" },
-    product: { phases: ["review", "fix"], reviewLead: "review" },
+    product: { reviewLead: "review" },
     nextSemantics: { batch: false },
   },
 };

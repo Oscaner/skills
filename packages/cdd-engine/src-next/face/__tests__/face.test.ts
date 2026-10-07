@@ -37,9 +37,6 @@ describe("the word table — one table, three families", () => {
 
   it("the capsule family — the pinned keys, the stations, the status vocabulary", () => {
     expect(words.capsuleKeys()).toEqual(["status", "blocker", "handoff"]);
-    expect(words.capsuleKey("status")).toBe("status");
-    expect(words.capsuleKey("blocker")).toBe("blocker");
-    expect(words.capsuleKey("handoff")).toBe("handoff");
     expect(words.capsuleSeparator()).toBe(" · ");
     expect(words.statusVocab()).toEqual([
       "APPROVED",

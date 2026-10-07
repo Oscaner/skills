@@ -1,8 +1,8 @@
 // packages/cdd-engine/src-next/session/__tests__/run.test.ts
 // T8 Lifecycle suite (design spec §3.3) — the parameterized single lifecycle:
 //   · the faces table — one row per target type (task / branch / spec / plan) with
-//     the audit descriptor, the phases, the review-lead mode and the batch next
-//     semantics (the design spec §3.3 divergence parameters);
+//     the audit descriptor, the review-lead mode and the batch next semantics (the
+//     design spec §3.3 divergence parameters);
 //   · the four-type end-to-end small loops — advance() as one dispatch step
 //     (frontier → dispatch → bookkeeping → next routing) over a hermetic ledger,
 //     driven to the line's closure;
@@ -101,27 +101,24 @@ describe("the faces table — one row per target type", () => {
     }
   });
 
-  it("task — the task-graph audit, implement/review/fix, the review lead, batch continuation", () => {
+  it("task — the task-graph audit, the review lead, batch continuation", () => {
     const face = targetFaces.task as TargetFace;
     expect(face.audit).toEqual({ kind: "task-graph" });
-    expect(face.product.phases).toEqual(["implement", "review", "fix"]);
     expect(face.product.reviewLead).toBe("review");
     expect(face.nextSemantics.batch).toBe(true);
   });
 
-  it("branch — the branch-range audit, branch-review/fix, the branch-review lead, no batch", () => {
+  it("branch — the branch-range audit, the branch-review lead, no batch", () => {
     const face = targetFaces.branch as TargetFace;
     expect(face.audit).toEqual({ kind: "branch-range" });
-    expect(face.product.phases).toEqual(["branch-review", "fix"]);
     expect(face.product.reviewLead).toBe("branch-review");
     expect(face.nextSemantics.batch).toBe(false);
   });
 
-  it("spec/plan — the doc-path audit, review/fix, the review lead, no batch", () => {
+  it("spec/plan — the doc-path audit, the review lead, no batch", () => {
     for (const type of ["spec", "plan"] as const) {
       const face = targetFaces[type];
       expect(face.audit).toEqual({ kind: "doc-path" });
-      expect(face.product.phases).toEqual(["review", "fix"]);
       expect(face.product.reviewLead).toBe("review");
       expect(face.nextSemantics.batch).toBe(false);
     }
@@ -263,6 +260,32 @@ describe("the task small loop — implement → review → the next ready group"
       expect(fix!.route).toEqual({ kind: "none" });
       expect(graph.doneTasks()).toEqual(new Set([1]));
       expect(run.advance()).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a BLOCKED review round never closes the task — the C5 route is the single terminal verdict", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = taskGraph([task(1, "none")]);
+      const dispatch = stub((frame) =>
+        frame.phase === "implement" ? APPROVED_IMPLEMENT : { status: "BLOCKED" },
+      );
+      const run = new Lifecycle({
+        face: targetFaces.task,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+      });
+
+      run.advance();
+      const blocked = run.advance();
+      expect(blocked!.frame.phase).toBe("review");
+      // BLOCKED → no next line (the CDD_BLOCKED channel owns the face) and no
+      // done-marking — a failed round is not a closure, whatever its findings hold
+      expect(blocked!.route).toBeNull();
+      expect(graph.doneTasks()).toEqual(new Set());
     } finally {
       cleanup();
     }

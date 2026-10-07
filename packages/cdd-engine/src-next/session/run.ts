@@ -115,10 +115,13 @@ export interface StepResult {
  *
  *   frontier  — resolve the open frame from the face's audit descriptor;
  *   dispatch  — run the injected dispatch instruction, capture the outcome;
- *   bookkeep  — persist the handoff carrier + record the progress round (+ mark
- *               the task done when the round concludes its line);
- *   route     — read the recorded round back through the ledger and derive the C5
- *               next-hop Route.
+ *   bookkeep  — persist the handoff carrier + record the progress round;
+ *   close     — the recorded round's C5 route is the single closure verdict: the
+ *               lifecycle marks the task done when the route kind closes the line
+ *               (desync-proof — the router's point, never a folded table);
+ *   route     — the delivered C5 next-hop Route, re-judged with the closed task out
+ *               of the ready batch (a closing review routes `none`, not a phantom
+ *               next-group of the just-closed task).
  */
 export class Lifecycle {
   /** The target face this instance drives — the row of the faces table. */
@@ -177,6 +180,13 @@ export class Lifecycle {
     if (frame === null) return null;
     const outcome = this.#dispatch(frame);
     const round = this.#bookkeep(frame, outcome);
+    // The closure verdict rides the recorded round's C5 route — mark the task done
+    // when the route kind says the line closed (the router's single point, never a
+    // folded copy of the closure table).
+    this.#markTerminal(frame, this.#routeNext(frame));
+    // The delivered route re-judges the batch AFTER the done-marking: a closing
+    // review empties the ready batch, so the step routes `none`, not a phantom
+    // next-group of the just-closed task.
     const route = this.#routeNext(frame);
     return {
       frame,
@@ -365,10 +375,9 @@ export class Lifecycle {
   // dispatch → result → bookkeeping
   // -------------------------------------------------------------------------
 
-  /** Bookkeeping — persist the round's handoff carrier, record the progress round
-   *  and, for the task face, mark the task done when the round concludes its line
-   *  (so the frontier's ready batch excludes the closed task before the next route).
-   *  Returns the round count on record. */
+  /** Bookkeeping — persist the round's handoff carrier and record the progress
+   *  round. Returns the round count on record (the task done-marking rides the
+   *  step's C5 route — #markTerminal, after #routeNext). */
   #bookkeep(frame: OpenFrame, outcome: DispatchOutcome): number {
     const op = this.#opOf(frame.phase);
     const carrier = this.#ledger.buildHandoff(op, frame.type, frame.params, {
@@ -378,26 +387,20 @@ export class Lifecycle {
     });
     if (outcome.status !== undefined) carrier.status = outcome.status;
     this.#ledger.persistHandoff(op, frame.type, frame.params, carrier);
-    const round = this.#ledger.recordRound(frame.key, frame.phase);
-    if (this.#terminal(frame)) {
-      const taskTarget = frame.target as { kind: "task"; task: number };
-      this.#state.markDone(taskTarget.task);
-    }
-    return round;
+    return this.#ledger.recordRound(frame.key, frame.phase);
   }
 
-  /** Whether one round concludes its task line — a review with zero findings, or a
-   *  fix whose SOURCE review carried no blockers (C5-1: the recorded fix round's
-   *  findings ARE the source review's). A review with findings — any severity —
-   *  routes the fix and never closes the line; an implement round is never terminal
-   *  (the review awaits). */
-  #terminal(frame: OpenFrame): boolean {
-    if (frame.type !== "task" || frame.phase === "implement") return false;
-    const op = this.#opOf(frame.phase);
-    const carried = this.#ledger.round(op, frame.type, frame.params, frame.round);
-    if (carried === null) return false;
-    if (frame.phase === "review") return carried.findings.length === 0;
-    return !carried.findings.some((finding) => finding.severity === "blocker");
+  /** Mark the task done when the concluding route says its line closed — the C5
+   *  verdict is the single closure gate (terminal ⇔ route.kind ∈ {none,
+   *  next-group}): a clean review or a blocker-free fix closes the task, while a
+   *  re-review / soft-cap / a null route (BLOCKED/TIMEOUT, a missing base) holds
+   *  it. Marking the done task lets the next frontier pass exclude the closed
+   *  line. The task-less faces never mark — for them the route IS the gate. */
+  #markTerminal(frame: OpenFrame, route: Route | null): void {
+    if (frame.type !== "task") return;
+    if (route === null || (route.kind !== "none" && route.kind !== "next-group")) return;
+    const taskTarget = frame.target as { kind: "task"; task: number };
+    this.#state.markDone(taskTarget.task);
   }
 
   /** The handoff-family op of a phase — branch-review rides the review family. */

@@ -1,11 +1,12 @@
 // packages/cdd-engine/src/documents/doctypes/body/__tests__/task.test.ts — the plan task data model
 // (P2 T1; plan §T1 · Criterion ②). Covers the T1 task-model deliverable surface: the full field
 // family (objective / files / interface{consumes,produces} / steps{action,checkable} / acceptance
-// + the optional dependsOn?/atomicWith? edge fields) carries constructor-injected identity on a
-// read-only face; the optional edge fields are absent-on-default (no declaration leaves them
-// undefined); and the required step.checkable is a type-level constraint — enforced by the repo
-// tsc --noEmit gate (the NotAssignable assertion below), never by a runtime guard (the schema-
-// validation machine face the T3 PlanBody brief render consumes).
+// + the single directed dependsOn edge — the P3.1 T3 unilateral rebuild: the edge field is
+// non-optional with the constructor's `[]` default and line-presence `hasDependsOn`, the pairing
+// field plane is gone) carries constructor-injected identity on a read-only face; and the required
+// step.checkable is a type-level constraint — enforced by the repo tsc --noEmit gate (the
+// NotAssignable assertion below), never by a runtime guard (the schema-validation machine face the
+// T3 PlanBody brief render consumes).
 import { describe, expect, it } from "vitest";
 import { Task, type TaskStep } from "../task.ts";
 
@@ -46,7 +47,7 @@ describe("Task — the plan task data model", () => {
       ],
       acceptance: ["doc-body.ts carries the two projection contract surfaces"],
       dependsOn: [2],
-      atomicWith: [3],
+      hasDependsOn: true,
     });
     expect(task.objective).toBe("Deliver the DocBody framework core");
     expect(task.files).toEqual(["src/documents/doctypes/body/doc-body.ts"]);
@@ -66,10 +67,10 @@ describe("Task — the plan task data model", () => {
     ]);
     expect(task.acceptance).toEqual(["doc-body.ts carries the two projection contract surfaces"]);
     expect(task.dependsOn).toEqual([2]);
-    expect(task.atomicWith).toEqual([3]);
+    expect(task.hasDependsOn).toBe(true);
   });
 
-  it("the edge fields are optional — absent by default", () => {
+  it("dependsOn is non-optional — the absent-value default is [] (the edge model is default-empty); hasDependsOn defaults false (the line-presence missing-edge fact)", () => {
     const task = new Task({
       objective: "Minimal task without the edge-model bits",
       files: [],
@@ -77,8 +78,8 @@ describe("Task — the plan task data model", () => {
       steps: [],
       acceptance: [],
     });
-    expect(task.dependsOn).toBeUndefined();
-    expect(task.atomicWith).toBeUndefined();
+    expect(task.dependsOn).toEqual([]);
+    expect(task.hasDependsOn).toBe(false);
   });
 
   it("a checkable-carrying step constructs (the accept side of the step contract)", () => {

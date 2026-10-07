@@ -28,6 +28,7 @@
 ### Task 1: `cdd research` 全量移除 — 命令面 + 级联死配置 + 关联测试 + 注释枚举
 
 - **Objective**: `cdd research` 全量移除 — 命令面 + 级联死配置 + 关联测试 + 注释枚举（命令注册 / `lib/cli/research.mjs` / 两测试文件 / timeout 级联死配置 / 注释枚举全删）
+- **DependsOn**: none
 
 - **Consumes**: P3 design §2.3 / §2.4 / §2.5
 
@@ -63,6 +64,7 @@
 ### Task 2: `cdd brief` 全量移除 — 命令面 + `validateBrief` 零生产者导出 + 测试裁剪
 
 - **Objective**: `cdd brief` 全量移除 — 命令面 + `validateBrief` 零生产者导出 + 测试裁剪为 generateBrief-only
+- **DependsOn**: 1
 
 - **Consumes**: T1 的 parse.mjs 末态（description = `implement/review/fix/brief/base-branch`）
 
@@ -98,6 +100,7 @@
 ### Task 3: 命令面形态收口 — 顶层命令集合静态断言 + `-h` help 断言
 
 - **Objective**: 命令面形态收口 — 顶层命令集合静态断言 + `-h` help 断言（`program.commands` 集合相等 + help 正负向断言）
+- **DependsOn**: 2
 
 - **Consumes**: T1 + T2 的 parse.mjs 末态（顶层命令恰为四）
 
@@ -123,6 +126,7 @@
 ### Task 4: `cli-research` skill 删除 + emit（`.agents/` 派生副本自动 prune）
 
 - **Objective**: `cli-research` skill 删除 + emit（`.agents/` 派生副本自动 prune + skills-count 常量收敛）
+- **DependsOn**: 3
 
 - **Consumes**: T1/T2（命令已不存在，skill 的 `cdd research` 调用链已断）
 
@@ -152,6 +156,7 @@
 ### Task 5: 防回渗守卫 — 已删 cdd 子命令（命令形）+ research timeout env
 
 - **Objective**: 防回渗守卫 — 已删 cdd 子命令（命令形）+ research timeout env（第三条 stale-lexicon 守卫）
+- **DependsOn**: 4
 
 - **Consumes**: T1（清空 engine 内 `cdd research` / `CDD_RESEARCH_TIMEOUT` / `RESEARCH_TIMEOUT` 全部字面）+ T2（清空 `cdd brief`）+ T4（清空 skills 内 `cli-research`）
 
@@ -178,6 +183,7 @@
 ### Task 6: changeset — 本 phase 双包声明 + 存量 backlog 归并（14 → 6）
 
 - **Objective**: changeset — 本 phase 双包声明 + 存量 backlog 归并（14 → 6，含裸包名静默丢声明修复）
+- **DependsOn**: 5
 
 - **Consumes**: T1–T5 的全部交付面（命令面四收敛 + skill 删除 + 守卫）
 

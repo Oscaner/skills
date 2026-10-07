@@ -36,16 +36,18 @@ Charter only — no implementation detail.
 
 ## Program charter
 
-**Goal**：kairos（前 osuperpowers，经 P4 命名全面退役）成为第三 harness 面 pi 上的一等分发物——npm 原生 pi-package（`pi` 字段 + `keywords: ["pi-package"]`）直接 `pi install` 消费，八 skill 全量可见；以本次新 harness 为杠杆，把全仓 harness 命名统一为 `claude` / `cursor` / `pi`（`cursor-agent` 标识符退役，仅 CLI 二进制名残存），并把 emit 分发的 per-harness 硬编码升级为 registry 化（`harnessesNote` 死字段债清除）。engine 数据面同步加 `pi` 行 + `AI_AGENT=pi` 宿主检测（registrate 三面命名一致的唯一事实源）。验收即消费者视角：`pi install npm:@oscaner-skills/kairos` 后八 skill 可加载；claude / cursor / pi 三面命名一致、文档标识符面（README 家族 + CLAUDE.md + docs/maintainers live 档）零 `cursor-agent` 残留（历史面零守卫、零豁免登记，唯一结构例外 = registry `cli` 数据值承载外部二进制名）；`pnpm run validate` 全绿。
+### Goal
 
-**Non-goals**（非目标，明确不发散）：
+kairos（前 osuperpowers，经 P4 命名全面退役）成为第三 harness 面 pi 上的一等分发物——npm 原生 pi-package（`pi` 字段 + `keywords: ["pi-package"]`）直接 `pi install` 消费，八 skill 全量可见；以本次新 harness 为杠杆，把全仓 harness 命名统一为 `claude` / `cursor` / `pi`（`cursor-agent` 标识符退役，仅 CLI 二进制名残存），并把 emit 分发的 per-harness 硬编码升级为 registry 化（`harnessesNote` 死字段债清除）。engine 数据面同步加 `pi` 行 + `AI_AGENT=pi` 宿主检测（registrate 三面命名一致的唯一事实源）。验收即消费者视角：`pi install npm:@oscaner-skills/kairos` 后八 skill 可加载；claude / cursor / pi 三面命名一致、文档标识符面（README 家族 + CLAUDE.md + docs/maintainers live 档）零 `cursor-agent` 残留（历史面零守卫、零豁免登记，唯一结构例外 = registry `cli` 数据值承载外部二进制名）；`pnpm run validate` 全绿。
+
+### Non-goals（非目标，明确不发散）
 - 技能名零冲突由构造保证——`cdd-*` 唯一命名（pi 为 flat namespace 且无命名空间修饰语法，bare-name 唯一性即最佳实践），不依托包序 override 语义（09-27 first-wins 事实精确成立且非本包叙事）；上游旧名引进的 metoo 命名风险一并消除（`brainstorming` / `writing-plans` 借名词不再与本包同名）
 - 不合并 engine `harness-registry.json` 与 emit 分发注册表——分层不可破：cdd-engine 是 kairos 的依赖，反向耦合破坏包边界（engine 注册表 = spawn 契约面，emit 注册表 = 分发 manifest 面，各自整形）
 - 不写 kairos pi 运行时扩展——D4 事实：`AI_AGENT=pi` 环境标记即宿主检测（engine `detectCurrentHarness` 已消费 `AI_AGENT`），kairos 无 bootstrap 注入需求（上游 superpowers extension 的存在理由在本包不成立）
 - 不给 pi.dev 长廊建本仓聚合 manifest——pi 分发 = npm 原生 + `keywords` 即发现键；`marketplace/source.json` 面不扩 pi 条目（它服务于 claude/cursor 两个 marketplace）
 - 历史记录不 retro-rename——CHANGELOG 既有条目、2026-09-13 家族 spec/plan 是当时事实的忠实记录（**豁免清单概念废除**：live 面零豁免机制，守卫只扫 live 面——engine src/tests + scripts + docs/maintainers + README 家族 + osuperpowers tests；历史面零守卫、零豁免登记，唯一结构例外 = registry `cli` 数据值承载外部二进制名）
 
-**Cross-cutting**（程序级横切约束，先立后执行）：
+### Cross-cutting（程序级横切约束，先立后执行）
 - **harness 命名一致性**：标识符 `claude`/`cursor`/`pi` ↔ 二进制 `claude`/`cursor-agent`/`pi` ↔ 宿主 marker `CLAUDE_CODE_SESSION_ID` · `AI_AGENT=claude-code*` / `CURSOR_TRACE_ID` / `AI_AGENT=pi`——三面映射表（名义映射表）P4 落 README，**markers 数据入 lexicon harness 域渲染**（guard 三方一致 ↔ detect() ↔ engine-config，零手写重复映射）
 - **D2 来源归属**：`pi` 字段 + `keywords` 源侧手维护（与 `version`/`description`/`files` 同源）；validate 加 pi-package well-formed 守卫；否决 emit 自反写回 package.json（源==产物自反破坏 changeset/version-sync 工作流）
 - **D4 检测链路**：`detectCurrentHarness(env)` 增 `AI_AGENT === "pi"` → `pi`；`harness-registry.json` 增 `pi` 行（`cli`/`ship: "full"`/per-op prefix+suffix/cache profile——过 `registry.cache.test.ts` 全行迭代 schema 校验）；D4 事实：pi 二进制无 headless 非交互 spawn 通道（区别于 claude/cursor 的 `-p`/`--print` invoke 面）；引擎对 pi 的 spawn 采用 `pi -p` 风格 print 模式（per-op 形态 P3 phase spec 定稿）

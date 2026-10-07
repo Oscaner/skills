@@ -35,6 +35,7 @@ engine 测试不得以本仓产物为 fixture（P3 裁决）——#274/#276 回�
 ### Task 1: engine CLI `--tasks` 单数据模型（parse 层 + canonical argv 锁步）
 
 - **Objective**: engine CLI `--tasks` 单数据模型（parse 层 + canonical argv 锁步）：`--task` → `--tasks` + parseTaskList 边界 + residue 锁步
+- **DependsOn**: none
 
 - **Produces**: `parseTaskList`（split/map trim/逐 token 整数校验 + 去重 + 空 slice 拒绝；Bug-A 消息升级）；parse.ts 三 SUBCOMMAND_USAGE + 三个 arg 声明；engine-config argv `tasks` int-list 通道；`--task` 零命中（面）
 
@@ -55,6 +56,7 @@ engine 测试不得以本仓产物为 fixture（P3 裁决）——#274/#276 回�
 ### Task 2: dispatch 组载体（TaskLifecycle 组 · handoff 组键 · 超界 · re-dispatch 串）
 
 - **Objective**: dispatch 组载体（TaskLifecycle 组 · handoff 组键 · 超界 · re-dispatch 串）：组语义化 + tasks-{a}-{b} 命名 + schema 组引用
+- **DependsOn**: 1
 
 - **Produces**: TaskLifecycle 组载体（tasks 列表）；brief/handoff 组级键（`tasks-{a}-{b}-*`）；超界检查升组级；handoff schema 组引用（删顶层 task 标量）；re-dispatch 建议串整组面
 
@@ -76,6 +78,7 @@ engine 测试不得以本仓产物为 fixture（P3 裁决）——#274/#276 回�
 ### Task 3: plan schema `taskGroups` + effectiveGroups 单处派生（空默认）
 
 - **Objective**: plan schema `taskGroups` + effectiveGroups 单处派生（空默认）= 每 task 一组等价
+- **DependsOn**: 2
 
 - **Produces**: `plan.json` `taskGroups` 属性（optional · default [] · items minItems ≥ 2）；`effectiveGroups = taskGroups.length ? taskGroups : singletons(...)` 单处派生
 
@@ -94,6 +97,7 @@ engine 测试不得以本仓产物为 fixture（P3 裁决）——#274/#276 回�
 ### Task 4: cli-driven-development digraph 改造（task-groups 裁定节点 + --tasks 调用串）
 
 - **Objective**: cli-driven-development digraph 改造（task-groups 裁定节点 + --tasks 调用串）
+- **DependsOn**: 3
 
 - **Produces**: digraph `C --> T{task groups 裁定}` 边 + `H{more-groups?}` + loop 用户确认门控；节点定义补 task-groups 裁定职责链；implement/run-task-review/fix-task 三节点调用串 `--tasks` 组列表
 
@@ -114,6 +118,7 @@ engine 测试不得以本仓产物为 fixture（P3 裁决）——#274/#276 回�
 ### Task 5: `cdd schema get` 命令（发现型 · 零执法）
 
 - **Objective**: `cdd schema get` 命令（发现型 · 零执法）：type 四件枚举 + stdout 直出 canonical + 未知 exit 2
+- **DependsOn**: 4
 
 - **Produces**: `cli/schema.ts`（`cdd schema get <type>` 子命令组，四件枚举对齐 DOC_SCHEMA_NAMES，stdout 直出 schema JSON；未知 doc-type → exit 2 + 可用名枚举）；parse.ts 声明 + exit.ts 出口族
 
@@ -133,6 +138,7 @@ engine 测试不得以本仓产物为 fixture（P3 裁决）——#274/#276 回�
 ### Task 6: skills 五件收口（I4 五面重写 · read-schema 直取 · 残留定位串清扫）
 
 - **Objective**: skills 五件收口（I4 五面重写 · read-schema 直取 · 残留定位串清扫）
+- **DependsOn**: 5
 
 - **Produces**: 五件 SKILL.md Mid-Flight Backfill 文本重写（四点 + 显式顺序，行体逐字节一致）；三件 schema-bearing 技能 read-schema 改 `cdd schema get <type>`；writing-single-spec read-schema 显式 N/A；`cdd help` 定位串清扫；emit 重生成
 
@@ -152,6 +158,7 @@ engine 测试不得以本仓产物为 fixture（P3 裁决）——#274/#276 回�
 ### Task 7: `cdd help` 子命令整体移除（--help 旗标保留）
 
 - **Objective**: `cdd help` 子命令整体移除（--help 旗标保留）：help.ts 删除 + smokes-cdd 改锚 schema get
+- **DependsOn**: 6
 
 - **Produces**: `cli/help.ts` 整删 + bin.ts pre-boot 拦截块删 + parse.ts helpCmd 删 + help.test.ts 删；smoke-cdd 三行断言改锚 `cdd schema get plan`；Non-goal #1 双发现型缩为单 `cdd schema get`
 
@@ -170,6 +177,7 @@ engine 测试不得以本仓产物为 fixture（P3 裁决）——#274/#276 回�
 ### Task 8: #274 — doc-contract plan 列中间态 + claim 等值 + 诊断
 
 - **Objective**: #274 — doc-contract plan 列中间态 + claim 等值 + 诊断（isInflightText · link 等值放宽 · 判别精确）
+- **DependsOn**: 7
 
 - **Produces**: `[Pending]` → `[In-flight]` → `**Done**` 三态（in-flight 无 reverse claim 义务）；claim 双向等值放宽（link 指向同一 plan 文档即等）；claim 解析只认显式结构；overall.json 描述同步
 
@@ -189,6 +197,7 @@ engine 测试不得以本仓产物为 fixture（P3 裁决）——#274/#276 回�
 ### Task 9: #276 — overall.json 描述↔enforcement 对齐 + 报错 UX
 
 - **Objective**: #276 — overall.json 描述↔enforcement 对齐 + 报错 UX（三处描述改向实读形态 + should look like 提示）
+- **DependsOn**: 8
 
 - **Produces**: overall.json 三处描述改向 enforcement 实读形态（changeHistory header 首格 version · issueRef 合法枚举 · 6 内容列行形一致）；三处报错附 `should look like:` 正确形态 + 误导 7 列提示移除
 
@@ -207,6 +216,7 @@ engine 测试不得以本仓产物为 fixture（P3 裁决）——#274/#276 回�
 ### Task 10: 宣讲面 · 守卫 fixture · smoke-cdd · changeset · validate 收口
 
 - **Objective**: 宣讲面 · 守卫 fixture · smoke-cdd · changeset · validate 收口（--task → --tasks 全残留清扫）
+- **DependsOn**: 9
 
 - **Produces**: 两包 README live `--task` 零命中 + zh mirror 同步；residue.test fixture 迁 `--tasks`（anti-reintroduce 保留）；smoke-cdd consumer-sim 链 `--tasks 1` + group 命名迁；changesets；validate 11 块全绿
 
@@ -228,6 +238,7 @@ engine 测试不得以本仓产物为 fixture（P3 裁决）——#274/#276 回�
 ### Task 11: skill-anatomy 骨架 schema（canonical 单源）+ validate 机器校验 + 文本指导清理
 
 - **Objective**: skill-anatomy 骨架 schema（canonical 单源）+ validate 机器校验 + 文本指导清理（06-skill-authoring 删除）
+- **DependsOn**: 10
 
 - **Produces**: `skill-anatomy.json` 新增（结构契约：digraph/nodeDefinitions/四要素/Invariants/Failure Modes/BLOCKED/Skeleton deltas/growth 15/17 + 消费者 purity 禁 growth 叙述 heading）；DOC_SCHEMA_NAMES 五件；digraph-consistency 三断言 schema 驱动（严格 allowlist）；`## Engine Semantics`/`## Session Context` 章节改并入；`git rm 06-skill-authoring.md`
 

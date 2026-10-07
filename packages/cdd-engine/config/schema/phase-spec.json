@@ -64,21 +64,53 @@
     },
     "design": {
       "type": "object",
-      "description": "`## Design` — the phase's design body: this phase's increment (approaches, architecture, components, data flow, errors, testing) AND the unique `### Acceptance criteria` subsection (see design.acceptanceCriteria) — the first of the permanent three-truth skeleton sections.",
+      "description": "`## Design` — the phase's design body, the double-layer outline model: `### N. <group>` group headings (consecutive `#### N.M <item>` design-item leaves grouped under them) + the unique `### Acceptance criteria` subsection (see design.acceptanceCriteria) — the first of the permanent three-truth skeleton sections. The design body is the registration-leaf plane: every `#### N.M` item's `N` must resolve to a declared `### N.` group, the groups run 1..K in order, and no independent bold pseudo-heading (`**…**` line pseudo-section) survives. The `###` contract (design-body scope): `###`-level lines are legal in exactly the `### N.` group-heading allowlist + the single `### Acceptance criteria` anchor — the legacy `###`-everywhere free form is retired (plan `### Task N:` and overall charter `###`/`####` stay legal, governed by their own bodies' rule sets).",
       "properties": {
         "heading": {
           "type": "string",
           "pattern": "^## Design$",
           "description": "Literal heading `## Design`."
         },
+        "groupHeading": {
+          "type": "object",
+          "description": "`### N. <group>` — the double-layer group headings: `^### \\d+\\. ` line form, the first `###`-legal design-body form. Groups run in strictly ascending order; each declares the group number every `#### N.M` item's `N` must resolve to.",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "pattern": "^### \\d+\\. ",
+              "description": "Group-heading line form — `### N. ` + a group name; `N` is the group number the design items' ownership crosslink resolves against."
+            },
+            "order": {
+              "type": "string",
+              "const": "strictly ascending",
+              "description": "Group order rule — `### N.` group numbers ascend strictly through the design body (a non-monotonic group numbering blocks: the double-layer outline is read top-down)."
+            }
+          }
+        },
+        "designItem": {
+          "type": "object",
+          "description": "`#### N.M <item>` — the double-layer item leaves: `^#### \\d+\\.\\d+ ` line form, `M` the item's number within group `N`. Every `#### N.M` heading must resolve its `N` to a declared `### N.` group (item ownership — the machine assertion that replaces the author's group-reasoning burden).",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "pattern": "^#### \\d+\\.\\d+ ",
+              "description": "Design-item line form — `#### N.M ` + an item title; `N.M` the two-level rank (group `N`, item `M`)."
+            },
+            "ownership": {
+              "type": "string",
+              "const": "N ∈ declared groups",
+              "description": "Item-ownership rule — each `#### N.M` item's `N` must be a declared `### N.` group number (a misbound item — an undeclared group reference — blocks)."
+            }
+          }
+        },
         "acceptanceCriteria": {
           "type": "object",
-          "description": "`### Acceptance criteria` — the ONLY subsection, and it lives inside `## Design`: verifiable completion conditions, each independently testable. An acceptance criterion is a claim: a claim that cannot be mechanically verified on the shipped tree is a paper claim.",
+          "description": "`### Acceptance criteria` — the ONLY non-numbered `###` subsection, and it lives inside `## Design`: verifiable completion conditions, each independently testable. The `###` contract (design-body scope): within `## Design` a `###`-level line is legal in exactly two forms — the double-layer group headings `### N. <group>` (`^### \\d+\\. `) and this unique `### Acceptance criteria` anchor. An acceptance criterion is a claim: a claim that cannot be mechanically verified on the shipped tree is a paper claim.",
           "properties": {
             "heading": {
               "type": "string",
               "const": "### Acceptance criteria",
-              "description": "Literal subsection heading `### Acceptance criteria` — unique: no other subsection exists anywhere in the doc."
+              "description": "Literal subsection heading `### Acceptance criteria` — the unique `###`-level anchor (the design body's `###` allowlist = the `### N.` group-heading form + this anchor; no other `###`-level line is legal inside `## Design`)."
             },
             "location": {
               "type": "object",

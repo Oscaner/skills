@@ -19,7 +19,8 @@
 - **canonical argv 通道锁步**：`templates/engine-config.json` `channels.argv.task {flag: "--task", type: "int"}` → `"tasks" {flag: "--tasks", type: "int-list"}`——与 parse.ts 同改同提（residue Row-9/10 守卫从它派生 CANONICAL_ARGV_FLAGS）
 - **组件改动面**（Explore 实证清单）：`parse.ts`（SUBCOMMAND_USAGE ×3 · 三个 arg 声明 `tasks` · dispatch 调用点 `intTask` → `parseTaskList`）、`shared.ts`（`intTask` 内核复用于逐 token 校验 + 消息升级）、`review.ts:190` / `fix.ts:41` 缺失必填错误串、`bin.ts:9` 头注释、`dispatch/task.ts`（TaskLifecycle `#taskNum` 标量 → 组载体）、`rules/failure.ts:117-121` 与 `dispatch/task.ts:760-761` re-dispatch 建议串、`render/brief.ts:33-36` 超界检查（组级校验面）
 
-**2.2 task groups 裁定节点 + plan 落盘（含空默认语义）**
+### 2. cdd 多 task 模式 + task groups 裁定 + I4 修复设计
+#### 2.2 task groups 裁定节点 + plan 落盘（含空默认语义）
 
 - **裁定节点**（cli-driven-development，正式 enter loop 前）：task groups 界定 → 用户确认 → 才进 implement→review→fix loop；门控镜像 `determine-base`（AskUserQuestion；拒答 → BLOCKED）
 - **digraph 改造**：`C --> T{task groups 裁定}` 新节点于 `set-base-branch → implement-task` 边（确认后组列表流入 D 的 `--tasks`）；`H{more-tasks?}` → `{more-groups?}`
@@ -29,7 +30,7 @@
 - **消化面单处派生**：`effectiveGroups = taskGroups.length ? taskGroups : singletons(taskNumbersFromPlan(plan))`（`rules/documents.ts` · `dispatch/base.ts` 迭代随组）——无第二实现
 - **CLI 与 plan 记录关系**：`--tasks` = dispatch 指令（源 truth）；plan `taskGroups` = 编排记录（默认空 → per-task）。**分歧支配规则**：`taskGroups` 唯一写者为裁定节点，任何合并组（列表长度 ≥ 2）dispatch 前「Task Groups」节已落盘（§2.2 落盘规则）——CLI 与记录恒一致、无漂移态，re-dispatch 分组不丢；`--tasks 1` 单组与空默认 singletons 同态，分歧不成立
 
-**2.3 Mid-Flight Backfill I4 语义修复（五面重写）**
+#### 2.3 Mid-Flight Backfill I4 语义修复（五面重写）
 
 - **承载面 = 五件**（v1.26 已把 AC「三件」改述）：writing-single-spec **I3** · writing-overall-spec **I3** · writing-phase-spec **I4** · writing-plans **I4** · cli-driven-development **I7**——行体现同文，改后仍逐字节一致（编号差异保留，不统一）
 - **重写语义四点 + 显式顺序**（现文缺「暂停/恢复」时序）：任何 dispatch（implement/review/fix）返回 → **立地落地 backfill** → **独立 commit** → **循环暂停至树净** → **恢复后下一轮 review in-band 审计**（changed-surface booking，非 block）；pending-acceptance sole-writer 路径保留
@@ -60,7 +61,7 @@
 
 **测试面**——engine 测试：`--tasks 1` 与 `--tasks 1,2` 同一 dispatch 路径行为实证（成功 · 超界 BLOCK · 去重 · trim · 空 slice 拒绝 · 非整数 exit 2）、组 review/fix 一轮整组、re-dispatch 串整组断言、现有 `--task` 用例全量迁 `--tasks`；`smoke-cdd` consumer-sim 链随迁；skills 面：`pnpm run emit` + `emit:check` 无 drift、I4 五面同文 grep 断言、digraph 节点/边新判据接线。
 
-**2.6 doc-contract gate 修复（#274 / #276，2026-09-24 用户裁决并入 · engine breaking 面 · 1.0.0 前窗口）**
+#### 2.6 doc-contract gate 修复（#274 / #276，2026-09-24 用户裁决并入 · engine breaking 面 · 1.0.0 前窗口）
 
 **#274 — plan 列中间态 + claim 等值 + 诊断**（issue #274）
 

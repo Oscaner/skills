@@ -28,6 +28,12 @@ import { mergeParentConstraints, overallConstraintsOf } from "../constraints.ts"
 
 const validator = new DocumentsValidator();
 
+/** The plan structure findings of a plan file — the P3.1 T2 structure-plane surface (the plan
+ *  contract judgments ride the interpreter; validate() keeps only the Class-A chain). */
+function structureFindingsOf(planPath: string) {
+  return validator.structureFindings("plan", readFileSync(planPath, "utf8"));
+}
+
 // ---- the parent overall — a valid overall header carrying the constitutional `**Constraints**:`
 // block (the block + the four-table kernel the spec validate re-audits as the parent chain). ----
 const OVERALL = [
@@ -326,7 +332,7 @@ describe("specConstraintsOf — the spec's merged read along the Class-B chain",
 });
 
 describe("the Form-B retirement — prose-anchor declarations are no longer a Constraints source", () => {
-  it("a plan declaring Form B prose anchors (no `## Constraints`) → validate fails: source undeclared (the single-form grammar)", () => {
+  it("a plan declaring Form B prose anchors (no `## Constraints`) → the constraints-source rule fires (P3.1 T2 — the structure plane judges the source)", () => {
     const plan = tmpFile(
       [
         "# Plan",
@@ -346,17 +352,16 @@ describe("the Form-B retirement — prose-anchor declarations are no longer a Co
       ].join("\n"),
     );
     try {
-      const failures = validator.validatePlanContract(plan);
-      const source = failures.find((f) => f.field === "Constraints source");
-      expect(source).toBeDefined();
-      expect(source!.missing).toMatch(/declares no Constraints source/);
-      expect(source!.fix).toContain("## Constraints");
+      const finding = structureFindingsOf(plan).find((f) => f.id === "plan.constraints");
+      expect(finding).toBeDefined();
+      expect(finding!.severity).toBe("BLOCK");
+      expect(finding!.message).toContain("## Constraints");
     } finally {
       rmSync(path.dirname(plan), { recursive: true, force: true });
     }
   });
 
-  it("a legacy Form B prose-anchor plan → BLOCK (pending-migration): the anchors no longer declare any source", () => {
+  it("a legacy Form B prose-anchor plan → source-undeclared BLOCK (the anchors no longer declare any source)", () => {
     const plan = tmpFile(
       [
         "# Plan",
@@ -379,14 +384,13 @@ describe("the Form-B retirement — prose-anchor declarations are no longer a Co
       ].join("\n"),
     );
     try {
-      const failures = validator.validatePlanContract(plan);
-      expect(failures.some((f) => f.field === "Constraints source")).toBe(true);
+      expect(structureFindingsOf(plan).map((f) => f.id)).toContain("plan.constraints");
     } finally {
       rmSync(path.dirname(plan), { recursive: true, force: true });
     }
   });
 
-  it("a Form-A plan (with `## Constraints`) carries no Form-B message — failures come from the data-shaped record face, never a Form-B prohibition", () => {
+  it("a Form-A plan (with `## Constraints`) carries no constraints finding — the structure plane is silent on conforming records (never a Form-B prohibition)", () => {
     const plan = tmpFile(
       [
         "# Plan",
@@ -401,6 +405,7 @@ describe("the Form-B retirement — prose-anchor declarations are no longer a Co
         "### Task 1: x",
         "",
         "- **Objective**: task one",
+        "- **DependsOn**: none",
         "- **Steps**:",
         "  1. implement — checkable: done",
         "- **Acceptance**:",
@@ -409,9 +414,7 @@ describe("the Form-B retirement — prose-anchor declarations are no longer a Co
       ].join("\n"),
     );
     try {
-      const failures = validator.validatePlanContract(plan);
-      expect(failures.some((f) => /Form B|prose pointer/.test(f.missing))).toBe(false);
-      expect(failures).toEqual([]);
+      expect(structureFindingsOf(plan)).toEqual([]);
     } finally {
       rmSync(path.dirname(plan), { recursive: true, force: true });
     }
@@ -450,12 +453,12 @@ describe("the inheritance-point linkage — `## Constraints` demands a resolvabl
     }
   });
 
-  it("a six-section spec fails the three-truth skeleton — the legacy no-op is gone (skeleton assertions fire regardless of the parent linkage)", () => {
+  it("a six-section spec fails the three-truth skeleton — the legacy no-op is gone (the skeleton rules fire regardless of the parent linkage)", () => {
     const chain = writeChain(OVERALL, NEW_PLAN, LEGACY_SPEC);
     try {
-      const failures = docTypeRegistry.resolve("spec").validate(chain.spec, { root: chain.root });
-      expect(failures.some((f) => f.field === "`## Design`")).toBe(true);
-      expect(failures.some((f) => f.field === "`## Constraints`")).toBe(true);
+      const findings = validator.structureFindings("spec", readFileSync(chain.spec, "utf8"));
+      expect(findings.map((f) => f.id)).toContain("spec.design");
+      expect(findings.map((f) => f.id)).toContain("spec.constraints");
     } finally {
       rmSync(chain.root, { recursive: true, force: true });
     }

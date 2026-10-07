@@ -48,6 +48,7 @@
 ### Task 1: DocBody 框架核心 + Task 模型（body/ 目录，零接线）
 
 - **Objective**: DocBody 框架核心 + Task 模型（body/ 目录，零接线）：abstract DocBody 二投影 + renderBrief 契约定名 + Task 类全字段
+- **DependsOn**: none
 
 - **Produces**: `body/doc-body.ts`（abstract DocBody：projectSchemaShape/projectSlicePatterns + kind + description；renderBrief 为 PlanBody 侧非基类契约）；`body/task.ts`（Task 全字段 + checkable 类型约束 + dependsOn?/atomicWith? 扩展位）；colocated 测试；既有树零改动
 
@@ -65,6 +66,7 @@
 ### Task 2: PhaseSpecBody 具体化（三真骨架 + 条件段 + shape 投影切换）
 
 - **Objective**: PhaseSpecBody 具体化（三真骨架 + 条件段 + shape 投影切换 + SchemaFactory deliberate update）
+- **DependsOn**: 1
 
 - **Produces**: `PhaseSpecBody extends DocBody`（元数据头五元 + 三真骨架 + 四条件字段 dependentRequired + 叶子投影导出）；phase-spec.ts shape 经 body 投影（构造注入）；`shapes/phase-spec.ts` 删除；tokens.ts 授自叶子；factory.test 新 golden
 
@@ -83,6 +85,7 @@
 ### Task 3: PlanBody + Task 数据化（brief 数据渲染 + bodyView 同步 + shape 投影切换）
 
 - **Objective**: PlanBody + Task 数据化（brief 数据渲染 + bodyView 同步 + shape 投影切换 + DOC_TOKENS 派生叶不变量）
+- **DependsOn**: 2
 
 - **Produces**: `PlanBody extends DocBody`（元数据头五元 + delta-only constraints + tasks[] Task 数据形 + 叶子投影导出 + renderBrief 数据渲染）；plan.ts shape 经投影 + task 切片重接 + step checkable 约束；`shapes/plan.ts` 删除；bodyView decomposition 轴吃 interface；factory.test deliberate update
 
@@ -100,6 +103,7 @@
 ### Task 4: 约束继承 delta-only 机器面（plan/spec 双侧读+合并）
 
 - **Objective**: 约束继承 delta-only 机器面（plan/spec 双侧读+合并）：mergeParentConstraints + specConstraintsOf + resolveParentOverall 共享抽取
+- **DependsOn**: 3
 
 - **Produces**: `body/constraints.ts`（`mergeParentConstraints({ownDelta, parentConstraints})` 共享纯函数 + spec 侧 `specConstraintsOf(entry, root)`）；`resolveParentOverall` 抽取 doctypes/shared.ts 共享导出；plan-parse 读整体+delta 合并呈现；Form B 禁（新 doc）+ legacy 双读豁免；继承点断言；constraints-inheritance.test
 
@@ -117,6 +121,7 @@
 ### Task 5: 双读契约 + extractor 重接 + 树零回归
 
 - **Objective**: 双读契约 + extractor 重接 + 树零回归（legacy 六段/Form B fixture 双接受 + DocBody 投影单源）
+- **DependsOn**: 4
 
 - **Produces**: 双读契约实证（legacy 六段 spec / Form B plan fixture 过 validate + parse）；extractor 重接 DocBody.projectSlicePatterns() 投影单源；树零回归实测（docs/kairos 全量）
 
@@ -134,6 +139,7 @@
 ### Task 6: DOC_TOKENS 重 pin + schema.test 对齐 + 死牵引清理
 
 - **Objective**: DOC_TOKENS 重 pin + schema.test 对齐 + 死牵引清理（T2/T3 已按口径重接，本任务收口校验 + deliberate update 重 pin）
+- **DependsOn**: 5
 
 - **Produces**: DOC_TOKENS 生产值 = 新 golden（deliberate update 登记）；tokens.test 更新（金值断言 + 派生链钉断言）；词表平面不变实证；死牵引 grep 零命中
 
@@ -151,6 +157,7 @@
 ### Task 7: 消费面同步 + skill-anatomy + 终验 + changesets
 
 - **Objective**: 消费面同步 + skill-anatomy + 终验 + changesets（cdd-spec/cdd-phase SKILL 骨架指导语 + template-doctrine + emit/typecheck/biome + changesets）
+- **DependsOn**: 6
 
 - **Produces**: cdd-spec/cdd-phase SKILL.md 三真骨架指导语（English 零程序历史）；skill-anatomy 校验绿；`docs/maintainers/01-template-doctrine.md` 随行；`pnpm run emit` 重生成 fresh；validate ALL PASS + typecheck ×3 + biome；changesets（cdd-engine + kairos）
 

@@ -7,7 +7,8 @@
 - **Depends on**: 无（program 起点）
 
 ## Design
-**2.1 背景与根因**
+### 2. Runtime 布局收敛设计
+#### 2.1 背景与根因
 
 cdd-engine 生成的运行时 artifact（handoffs / progress / lifecycle / base-branch / report-target）全部落在 `.superpowers/cdd/<slug>/`，另有一个**从未真实使用**的 standalone 第二根（`.superpowers/standalone/`）。历史累积三类问题：
 
@@ -15,7 +16,7 @@ cdd-engine 生成的运行时 artifact（handoffs / progress / lifecycle / base-
 2. **standalone 伪功能**：P5 引入 standalone scope 后**零真实派发**——本仓 `.superpowers/standalone/` 目录从未创建、13 个历史 `base-branch.json` 全在 `cdd/` 下、其唯一调用方 finishing 的正常入口（cli-driven-development → handoff-finishing）必经 CDD workspace。standalone 分支写的是一个**永远不会被读**的 base-branch.json（base-branch.json 唯一读者 = finishing 自身，而 finishing 是一次性收尾）。
 3. **死档累积**：`.superpowers/docs-review/`、`.superpowers/cdd/.archive-2026-09-08`、`.superpowers/cdd/.archive-2026-09-09`、18 个历史程序 workspace、smoke workspace、旧 lifecycle.json——全部 gitignored、无 reader 的死数据。
 
-**2.2 workspace 布局单源化（`.superpowers/cdd` → `.osuperpowers/cdd`）**
+#### 2.2 workspace 布局单源化（`.superpowers/cdd` → `.osuperpowers/cdd`）
 
 **单源翻转**：`templates/handoff-namespace.json#workspaceRoot` 值 `".superpowers/cdd"` → `".osuperpowers/cdd"`。
 `naming.mjs`（`workspaceRoot` / `resolveWorkspace`）、run-task、review.mjs、docs-runner、base-branch CDD 侧全部经此单源自动随迁——engine 零布局逻辑复制。
@@ -34,7 +35,7 @@ cdd-engine 生成的运行时 artifact（handoffs / progress / lifecycle / base-
 
 **明确不动**：`naming.mjs rootFromDocPath` 的 `docs/superpowers` 段识别 fallback——docs 根迁移属 P2 职责。
 
-**2.3 standalone 收缩（CLI 单调 `--plan` + finishing read-base 语义）**
+#### 2.3 standalone 收缩（CLI 单调 `--plan` + finishing read-base 语义）
 
 standalone 概念整体移除：
 
@@ -46,7 +47,7 @@ standalone 概念整体移除：
 - **测试**：base-branch.test.mjs standalone 用例删除、新落点断言同步。
 - **report-issue 语义裁定**（standalone 概念重构的边界）：「standalone 概念整体移除」作用于 **CLI/base-branch 面**（`kind: "standalone"` report-target 分类与 report-issue 的「a standalone run has no run slug」prose **保留**——无 plan 会话的 classification 在 no-artifact 路径下仍是活场景），rename 至 P5 report-issues 重写时再议，P1 不做。
 
-**2.4 存量处置 + gitignore**
+#### 2.4 存量处置 + gitignore
 
 **全量删除**（全部 gitignored runtime 死档，`rm -rf`，无 git 痕迹）：
 
@@ -64,7 +65,7 @@ standalone 概念整体移除：
 
 **验收面**：删除完成后 `.superpowers/` 下仅存 `sdd/`；engine 运行期零 `.superpowers` 写入（resolveWorkspace 全走新根，构造保证）。
 
-**2.5 残留守卫（防回渗）**
+#### 2.5 残留守卫（防回渗）
 
 `scripts/validate/residue.mjs` STALE_LEXICON_CHECKS 新增两条（机制位置零豁免：engine bin/lib/templates + osuperpowers skills），regex 匹配以下路径段字面（转义细节按现有 stale-lexicon 惯例在 engine 实现，spec 只表达字面意图 `.superpowers/cdd` 与 `.superpowers/standalone`）：
 - `{ label: "old runtime root .superpowers/cdd", pattern: 含 `.superpowers/cdd` 路径段, scope: ALL_MECH_POSITIONS }`
@@ -72,14 +73,14 @@ standalone 概念整体移除：
 
 现存「flat docs-review root 回退」stale-lexicon 守卫保留（pattern 匹配 `.superpowers/docs-review` 路径字面；docs-review 删除后仍防复发）。`.superpowers/sdd` 不设守卫——sdd 是 superpowers 生态保留面，doc 位置引用合法。守卫只扫机制位置，不影响 `.superpowers/sdd` doc 引用。
 
-**2.6 测试与验证**
+#### 2.6 测试与验证
 
 - engine tests 路径 literal 全面更新（§2.2 面）后，现有断言（handoff-naming / runner / cli-shared / docs-runner / cdd…）天然覆盖新根。
 - `smoke-cdd.mjs` 两处 `.superpowers` literal → `.osuperpowers`；smoke workspace 落新根。
 - **新增守卫测试**：residue.test.mjs 断言两条新 stale-lexicon 命中/放行正确（`.superpowers/cdd`、`.superpowers/standalone` 命中；`.superpowers/sdd` 放行）。**注意**：现有负向断言 `residue.test.mjs:54` 的 `.superpowers/cdd/foo/spec-review-1.json`（当时以「flat docs-review root 回退」守卫 scope 下规范家族名不误报）在新 `.superpowers/cdd` 守卫下翻转——该用例须改为正向命中断言（或降级为 `.superpowers/sdd` 风格放行用例），与新断言同步更新，防 CI 回归。
 - 全量 `pnpm run validate`（13 块）+ `pnpm run emit:check` 无 drift。
 
-**2.7 changeset**
+#### 2.7 changeset
 
 cdd-engine **minor**（`.superpowers` → `.osuperpowers` 属行为变更；standalone CLI 面移除属删减）。osuperpowers skills 路径文本随 engine 面同步，本次不单独 bump（P4 skills 重写时再计 changeset）。
 

@@ -7,11 +7,12 @@
 - **Depends on**: 无（program 起点）
 
 ## Design
-**2.1 目标与范围**
+### 2. 包侧 pi 分发面设计
+#### 2.1 目标与范围
 
 P1 使 `@oscaner-skills/osuperpowers` 成为 pi 一等 pi-package：manifest 正式化 + 分发闭包守卫 + 安装验收（C4 validate 单站）。现状实证（grilling fact-finder）：`npm:@oscaner-skills/osuperpowers@0.2.0` 已可被 pi 凭借 conventional `skills/` 布局加载（user settings 中已安装），P1 是"把隐式可用固化为显式声明 + 加守卫"而非首次可达。范围外：任何 `.pi/` 运行时产物、emit 产物面变更、engine 数据面、harness 标识符 rename。
 
-**2.2 组件**
+#### 2.2 组件
 
 锚点图例：R/Q = grilling 定案轮次锚点（R5 覆盖验收站：C4 validate 站①；②站已于 v1.4 裁定删除；Q1′ 为 validate 接线债定案轮）；编号非连续、非必经枚举——缺失编号（如 R2）仅表示该轮未直接产出本 spec 组件，不构成漏项。锚点仅供本 spec 内部溯源，Issue inventory 与 parent overall 均无对应登记（P1 issue ref = none）。
 
@@ -52,11 +53,11 @@ P1 使 `@oscaner-skills/osuperpowers` 成为 pi 一等 pi-package：manifest 正
 
 **C6 release 站（R5 站②）— 已删除（v1.4 裁定）**：post-publish npm 路径 smoke 整体删除——① **detect-only 无门控**（changesets publish 已发生，失败只能 hotfix 二次发版，拦不住任何东西）；② **内容与 C4 同构**（同一 `files` 白名单同一棵树，无发布期变换，C4 已证 8-skill 落盘 + settings 写入）；③ **harness 一致性**：claude/cursor 均无 post-publish smoke（设计评审 user #1-4，2026-09-27）。release.yml 恢复至 C6 前状态；npm-source 解析风险（pi 对 scoped 包 registry 层的接受）记录为已知残余——P4 消费故事 / publish 前人工抽查承接。
 
-**2.3 数据流**
+#### 2.3 数据流
 
 `packages/osuperpowers/package.json`（源侧手维护）→ C2 静态守卫（validate step）↔ C3 契约 pin（test）→ C4 安装 smoke（pack → 解包 → pi install --local --approve → 断言）。全程单站（C6 release 站已删于 v1.4，见 2.2）、无运行时扩展、无 emit 产物面。
 
-**2.4 错误与边界**
+#### 2.4 错误与边界
 
 - `npm pack` 产物名 `oscaner-skills-osuperpowers-<ver>.tgz` 含版本——smoke 用 `--pack-destination` + 动态定位，不硬编码版本字面
 - `pi install` 本地目录源传绝对路径；`--local` 落项目 `.pi/settings.json`（**需 `--approve`**——0.87.1 实测 trust gate：`--no-approve` 与 `--local` 不兼容 exit 1，信任按项目不持久）；`--approve` 非交互自动批准（CI 安全，临时项目即弃）
@@ -64,7 +65,7 @@ P1 使 `@oscaner-skills/osuperpowers` 成为 pi 一等 pi-package：manifest 正
 - files 闭包 glob 展开语义（目录前缀 vs 文件集）：实现以「strip `./` 后目录/文件前缀覆盖」判定，plan 阶段以既有 files 实证
 - smoke 全流程零网络（本地 pack + 本地目录 install）
 
-**2.5 测试**
+#### 2.5 测试
 
 - 新测试自动进 behavior glob：`pi-package.test.mjs`（C3 静态契约）· `pi-install-smoke.test.mjs`（C4 pack→install 断言三连）
 - 守卫：`checkPiPackageWellFormed` 经新 CheckBlock 入 validate + precommit 双面

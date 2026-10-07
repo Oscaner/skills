@@ -18,6 +18,7 @@
 ### Task 1: Task data shape projection
 
 - **Objective**: project the new plan record shape onto the SchemaFactory product
+- **DependsOn**: none
 - **Files**: `packages/cdd-engine/src/documents/doctypes/body/plan-body.ts`
 - **Consumes**: plan schema leaves (taskHeadings format / constraints formA)
 - **Produces**: `config/schema/plan.json` (new golden)
@@ -31,6 +32,7 @@
 ### Task 2: renderBrief from task data
 
 - **Objective**: render the task-handoff brief from the Task record
+- **DependsOn**: 1
 - **Files**: `packages/cdd-engine/src/documents/doctypes/body/plan-body.ts`
 - **Consumes**: the Task data model (objective / steps / acceptance)
 - **Produces**: the handoff brief content

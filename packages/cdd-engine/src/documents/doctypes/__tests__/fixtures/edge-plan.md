@@ -9,6 +9,7 @@ TaskGraph grouping derivation: task 2 depends on task 1, task 3 depends on task 
 - **Files**: packages/cdd-engine/src/documents/doctypes/body/root.ts
 - **Consumes**: - none -
 - **Produces**: root output
+- **DependsOn**: none
 - **Steps**:
   1. implement the root — checkable: done
 - **Acceptance**:

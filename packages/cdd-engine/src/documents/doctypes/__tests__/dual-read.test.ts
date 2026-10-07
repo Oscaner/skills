@@ -24,6 +24,7 @@ import { describe, expect, it } from "vitest";
 import { DocumentsValidator } from "../../../rules/documents.ts";
 import { docTypeRegistry } from "../../registry.ts";
 import { DOC_TOKENS } from "../../tokens.ts";
+import { phaseSpecBody } from "../body/phase-spec-body.ts";
 import { planBody } from "../body/plan-body.ts";
 import type { PlanDocType, PlanParse } from "../plan.ts";
 
@@ -107,20 +108,48 @@ describe("extractor projection single source — the common parse families deriv
   });
 });
 
-describe("full-tree single-form walk — the entire docs/kairos tree (48 files, zero exclusions)", () => {
-  it("the actual tree composition: 22 plans + 21 design specs + 4 overalls + 1 one-off spec = 48 files", () => {
+describe("full-tree single-form walk — the entire docs/kairos tree (50 files, zero exclusions)", () => {
+  it("the actual tree composition: 23 plans + 22 design specs + 4 overalls + 1 one-off spec = 50 files", () => {
     const plans = readdirSync(PLANS_DIR).filter((f) => f.endsWith(".md"));
     const specs = readdirSync(SPECS_DIR).filter((f) => f.endsWith(".md"));
     const designs = specs.filter((f) => f.endsWith("-design.md"));
     const overalls = specs.filter((f) => f.endsWith("-overall.md"));
     const oneOffs = specs.filter((f) => !f.endsWith("-design.md") && !f.endsWith("-overall.md"));
-    expect(plans).toHaveLength(22);
-    expect(designs).toHaveLength(21);
+    expect(plans).toHaveLength(23);
+    expect(designs).toHaveLength(22);
     expect(overalls).toHaveLength(4);
     expect(oneOffs).toEqual(["2026-09-28-cdd-review-contract-fix.md"]);
   });
 
-  it("every plan stays processable: detect + contiguous 1..N task headings + parse + brief-slice (no golden — the per-file state table lives in tree-migration.test.ts)", () => {
+  it("every validation file walks the rule plane: structureFindings(kind, content) = 0 at BLOCK severity — the tree's structural judgments are the body rule sets, never a self-written walk (P3.1 T2 step 4; BLOCK-only caliber since P3.1 T6 — referenceLint WARN is a legal tree observation, asserted by the lint unit tests)", () => {
+    // The composition split: 23 plans + 22 design specs + 4 overalls (the one-off single-spec is
+    // detect-only, never counted — the walk excludes it by shape). The rule plane asserts the
+    // whole-tree structural hit-set (0 or pin); the frozen overalls' backfill-claim residue is the
+    // ACCOUNTING face — asserted separately in tree-migration.test.ts on the validate side, never
+    // part of this structural walk.
+    const plans = readdirSync(PLANS_DIR).filter((f) => f.endsWith(".md"));
+    const specs = readdirSync(SPECS_DIR).filter((f) => f.endsWith(".md"));
+    const designs = specs.filter((f) => f.endsWith("-design.md"));
+    const overalls = specs.filter((f) => f.endsWith("-overall.md"));
+    const oneOffs = specs.filter((f) => !f.endsWith("-design.md") && !f.endsWith("-overall.md"));
+    expect(oneOffs).toEqual(["2026-09-28-cdd-review-contract-fix.md"]);
+    const validationFiles = [
+      ...plans.map((f) => ({ kind: "plan" as const, file: f })),
+      ...designs.map((f) => ({ kind: "spec" as const, file: f })),
+      ...overalls.map((f) => ({ kind: "overall" as const, file: f })),
+    ];
+    expect(validationFiles).toHaveLength(49);
+    for (const { kind, file } of validationFiles) {
+      const dir = kind === "plan" ? PLANS_DIR : SPECS_DIR;
+      const content = readFileSync(path.join(dir, file), "utf8");
+      const findings = validator
+        .structureFindings(kind, content)
+        .filter((f) => f.severity === "BLOCK");
+      expect(findings, `${file} structure findings must be zero`).toEqual([]);
+    }
+  });
+
+  it("every plan stays processable: detect + contiguous 1..N task headings + parse + brief-slice + the unilateral edge-line face (P3.1 T3 — every task block carries its `- **DependsOn**:` line, `none`/empty/real values; no golden — the per-file state table lives in tree-migration.test.ts)", () => {
     for (const file of readdirSync(PLANS_DIR).filter((f) => f.endsWith(".md"))) {
       const planPath = path.join(PLANS_DIR, file);
       // detect + parse (no throw) + contiguous task numbers == the heading count.
@@ -134,6 +163,13 @@ describe("full-tree single-form walk — the entire docs/kairos tree (48 files, 
         (planType().parse(planPath, { root: REPO_ROOT }) as PlanParse).taskNumbers,
         file,
       ).toEqual(nums);
+      // The unilateral edge-line face (P3.1 T3): every task record carries its line-present fact —
+      // a missing `- **DependsOn**:` line is the missing-edge BLOCK (the single-directed-edge walk).
+      const tasks = planType().tasksFromPlan(planPath);
+      expect(tasks, `${file} task records`).toHaveLength(nums.length);
+      for (let i = 0; i < tasks.length; i++) {
+        expect(tasks[i]!.hasDependsOn, `${file} Task ${i + 1} edge line missing`).toBe(true);
+      }
       // The brief's exact-header slice match works for every task (the scan + the header both
       // resolve — the same surface BriefRenderer runs per dispatch).
       const content = readFileSync(planPath, "utf8");
@@ -155,6 +191,34 @@ describe("full-tree single-form walk — the entire docs/kairos tree (48 files, 
     }
   });
 
+  it("the double-layer design face is processable tree-wide (P3.1 T4) — every design-body `### N.` / `#### N.M` line matches the projected slices, and every item's `N` resolves to a declared group (the migration targets + the zero-migration pairs walk the same registration-leaf plane)", () => {
+    const slices = phaseSpecBody.projectSlicePatterns();
+    for (const file of readdirSync(SPECS_DIR).filter((f) => f.endsWith("-design.md"))) {
+      const lines = readFileSync(path.join(SPECS_DIR, file), "utf8").split("\n");
+      let inDesign = false;
+      const groups = new Set<string>();
+      const items: Array<{ n: string; line: string }> = [];
+      for (const l of lines) {
+        if (/^## Design/.test(l)) {
+          inDesign = true;
+          continue;
+        }
+        if (inDesign && /^### Acceptance criteria/.test(l)) break;
+        if (!inDesign) continue;
+        const g = slices.groupHeading.exec(l);
+        if (g) {
+          groups.add(g[1]!);
+          continue;
+        }
+        const item = slices.designItemHeading.exec(l);
+        if (item) items.push({ n: item[1]!, line: l });
+      }
+      for (const { n, line } of items) {
+        expect(groups.has(n), `${file} misbound item ${line}`).toBe(true);
+      }
+    }
+  });
+
   it("the overalls detect as the overall kind (the enclosing four-table chain stays enumerable)", () => {
     for (const file of readdirSync(SPECS_DIR).filter((f) => f.endsWith("-overall.md"))) {
       expect(validator.detectDocKind(path.join(SPECS_DIR, file)), file).toBe("overall");
@@ -170,7 +234,7 @@ describe("full-tree single-form walk — the entire docs/kairos tree (48 files, 
   });
 });
 
-describe("single-form grammar — a NEW document carrying a legacy face fails docContractValidate (T3 BLOCK)", () => {
+describe("single-form grammar — a NEW document carrying a legacy face fails the rule plane (T3 BLOCK, judged as structure findings from P3.1 T2)", () => {
   /** Write a doc to a temp dir and return its path (the inline single-form negatives — the same
    *  doctored-file surface the body tests use). The caller removes the dir. */
   function tempDoc(content: string, name: string = "doctored.md"): string {
@@ -180,22 +244,47 @@ describe("single-form grammar — a NEW document carrying a legacy face fails do
     return p;
   }
 
-  it("orphan task block: a `- **Do**:`-face `### Task N:` block (no data-shaped fields) → plan validate fail", () => {
-    const failures = planType().validate(ORPHAN_TASK_PLAN, { root: REPO_ROOT });
-    expect(failures.length).toBeGreaterThan(0);
-    expect(failures.some((f) => /orphan task block/i.test(f.missing))).toBe(true);
+  /** The structural findings of a doc's content on its kind's body rule set — the doc-contract
+   *  gate's structure plane (the single-form judgments ride here from T2 on). */
+  function structureHits(kind: "plan" | "spec", file: string): string[] {
+    return validator.structureFindings(kind, readFileSync(file, "utf8")).map((f) => f.id);
+  }
+
+  it("orphan task block: a `- **Do**:`-face `### Task N:` block (no data-shaped fields) → the record-data residue fires", () => {
+    expect(structureHits("plan", ORPHAN_TASK_PLAN)).toContain("plan.recordData");
   });
 
-  it("Form B constraints: prose-anchor declarations declare NO `## Constraints` source → plan validate fail (source undeclared BLOCK)", () => {
-    const failures = planType().validate(FORM_B_PLAN, { root: REPO_ROOT });
-    expect(failures.some((f) => f.field === "Constraints source")).toBe(true);
+  it("a field-less task block: an EMPTY `### Task N:` block (no data-shaped fields at all) → the record-presence face fires (the T0 orphan semantic restored — the rule fires on any orphan block, not just the legacy `- **Do**:` face)", () => {
+    const empty = tempDoc(
+      [
+        "# Plan",
+        "",
+        "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
+        "",
+        "## Constraints",
+        "",
+        "- delta",
+        "",
+        "### Task 1: x",
+        "",
+      ].join("\n"),
+    );
+    try {
+      expect(structureHits("plan", empty)).toContain("plan.recordData");
+    } finally {
+      rmSync(path.dirname(empty), { recursive: true, force: true });
+    }
   });
 
-  it("spec `## Section 1`: a six-section spec (no `## Design` three-truth skeleton) → spec validate fail (skeleton assertions fire)", () => {
-    const failures = specType().validate(SECTION_1_SPEC, { root: REPO_ROOT });
-    expect(failures.some((f) => f.field === "`## Design`")).toBe(true);
-    expect(failures.some((f) => f.field === "`### Acceptance criteria`")).toBe(true);
-    expect(failures.some((f) => f.field === "`## Constraints`")).toBe(true);
+  it("Form B constraints: prose-anchor declarations declare NO `## Constraints` source → the constraints-source rule fires (source undeclared BLOCK)", () => {
+    expect(structureHits("plan", FORM_B_PLAN)).toContain("plan.constraints");
+  });
+
+  it("spec `## Section 1`: a six-section spec (no `## Design` three-truth skeleton) → the skeleton rules fire", () => {
+    const hits = structureHits("spec", SECTION_1_SPEC);
+    expect(hits).toContain("spec.design");
+    expect(hits).toContain("spec.acceptance");
+    expect(hits).toContain("spec.constraints");
   });
 
   it("an inline `- **Do**:` plan and an inline `## Section 1` spec reproduce the fixture verdicts (no fixture-only trap)", () => {
@@ -215,8 +304,7 @@ describe("single-form grammar — a NEW document carrying a legacy face fails do
       ].join("\n"),
     );
     try {
-      const failures = planType().validate(orphan, { root: REPO_ROOT });
-      expect(failures.some((f) => /orphan task block/i.test(f.missing))).toBe(true);
+      expect(structureHits("plan", orphan)).toContain("plan.recordData");
     } finally {
       rmSync(path.dirname(orphan), { recursive: true, force: true });
     }
@@ -233,14 +321,13 @@ describe("single-form grammar — a NEW document carrying a legacy face fails do
       ].join("\n"),
     );
     try {
-      const failures = specType().validate(section1, { root: REPO_ROOT });
-      expect(failures.some((f) => f.field === "`## Design`")).toBe(true);
+      expect(structureHits("spec", section1)).toContain("spec.design");
     } finally {
       rmSync(path.dirname(section1), { recursive: true, force: true });
     }
   });
 
-  it("a legacy `## Task Groups` dispatch-group section → plan validate fail (unknown section — the shape-node-deleted single-form face)", () => {
+  it("a legacy `## Task Groups` dispatch-group section → the legacy-section residue fires (unknown section — the shape-node-deleted single-form face)", () => {
     // The dispatch-group declaration is gone from the shape (T4): the single-form plan owns exactly
     // the `## Constraints` top-level section, so a NEW document carrying the retired `## Task Groups`
     // section is an unknown-section BLOCK — never silently parsed or swept under the data records.
@@ -275,19 +362,16 @@ describe("single-form grammar — a NEW document carrying a legacy face fails do
       ].join("\n"),
     );
     try {
-      const failures = planType().validate(taskGroups, { root: REPO_ROOT });
-      expect(failures.some((f) => f.field === "Sections")).toBe(true);
-      expect(failures.some((f) => /## Task Groups/.test(f.missing))).toBe(true);
+      expect(structureHits("plan", taskGroups)).toContain("plan.legacySections");
     } finally {
       rmSync(path.dirname(taskGroups), { recursive: true, force: true });
     }
   });
 
-  it("the p3 canonical plan carries the only legal top-level section — the unknown-section gate stays silent on the declared `## Constraints` surface", () => {
-    // Backstop: the unknown-section gate must not misfire on a conforming plan (the canonical
-    // new-shape fixture carries exactly the `## Constraints` section) — the gate blocks only what the
-    // shape no longer declares.
-    const failures = planType().validate(NEW_SHAPE_FIXTURE, { root: REPO_ROOT });
-    expect(failures.some((f) => f.field === "Sections")).toBe(false);
+  it("the p3 canonical plan carries the only legal top-level section — the legacy-section residue stays silent on the declared `## Constraints` surface", () => {
+    // Backstop: the legacy-section rule must not misfire on a conforming plan (the canonical
+    // new-shape fixture carries exactly the `## Constraints` section) — the residue fires only on
+    // what the shape no longer declares.
+    expect(structureHits("plan", NEW_SHAPE_FIXTURE)).not.toContain("plan.legacySections");
   });
 });

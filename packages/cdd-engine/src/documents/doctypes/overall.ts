@@ -6,6 +6,20 @@
 // (./shared.ts). The overall is the chain root: parentChain yields the entry itself and the route
 // surface carries null across (no routed review/fix face — S4). SplitCells/sectionRange-style table
 // atoms stay module-private (single-type atoms stay in their own file), exactly one consumer.
+//
+// P3.1 T2 (doc-architecture-v2 P3.1) — the four-table STRUCTURE plane rides the overall body's
+// rule data (body/overall-body.ts — the kernel inventory-header/canonical-column presence, the
+// change-history version/order/date numerics, the ③ graph-token membership — judged by the ONE
+// interpreter `runStructureRules` at the doc-contract gate for the OVERALL entry and, through the
+// gate's chain-compounding face (rules/closeout.ts deriveCloseoutMismatches), for the parent
+// overall a plan/spec entry reaches). The chain accounting surface here shrank to its irreducible
+// CONTEXTUAL residue — the faces that cannot be content rules at all: ① the cross-row claim-clause
+// machine, ② the document-existence globs, ④ the registration face (needs DocContext.phaseId) + the
+// duplicate-row face, ⑤ the anchor-registry scan over sibling docs, ⑥ the section-scoped issue-row
+// forms, the positional row-shape guard, the merged version-lineage and the parse-gate kernel's
+// file-existence face (an unreadable-overall failure). The structural faces the rule plane owns —
+// the kernel header/canonical-column presence, the change-history numerics, the dependency-graph
+// token membership — were dropped with the walkers: one verdict, one interpreter, zero double-fire.
 
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -17,8 +31,8 @@ import {
 } from "../doctype.ts";
 import { DOC_TOKENS, escapeRegExp } from "../tokens.ts";
 import { DOC_WORDS } from "../words.ts";
+import type { OverallDocBody } from "./body/overall-body.ts";
 import { OVERALL_BODY_VIEW } from "./body-views.ts";
-import { OVERALL_SHAPE } from "./shapes/overall.ts";
 import {
   type ClaimDeclarationTrace,
   dottedLegalHint,
@@ -40,7 +54,6 @@ const CHANGE_HISTORY_SECTION_RE = DOC_TOKENS.changeHistoryHeadingRe;
 const PHASE_ROW_OPEN_RE = DOC_TOKENS.phaseRowOpenRe;
 const PHASE_ROW_CELL_COUNT = DOC_TOKENS.phaseRowCellCount;
 const VERSION_CELL_NUMERIC_RE = DOC_TOKENS.versionNumericRe;
-const DEPENDENCY_GRAPH_HEADING_RE = DOC_TOKENS.dependencyGraphHeadingRe;
 const ISSUE_ANCHOR_RE = DOC_TOKENS.issueAnchorFormRe;
 const PHASE_TOKEN_RE = DOC_TOKENS.phaseTokenScanRe;
 const VERSION_HEADER_RE = DOC_TOKENS.versionHeaderRe;
@@ -124,7 +137,10 @@ interface IssueRow {
 }
 
 /** The canonical four-table parse result (single source — the overall contract + four-table audit
- *  and the closeout mismatch surface consume the same parse, never a second one). */
+ *  and the closeout mismatch surface consume the same parse, never a second one). The change-history
+ *  version/order/date numerics and the dependency-graph token membership are NOT parse products —
+ *  those structure faces ride the body rule data (overall-body.structureRules — the single
+ *  interpreter) and no longer surface here. */
 export interface OverallParse {
   kernelOk: boolean; // readable AND canonical Phase inventory header
   reason: string; // unreadable / missing header / non-canonical
@@ -132,27 +148,34 @@ export interface OverallParse {
   dupIds: string[]; // phase ids registered more than once (④ registration incompleteness)
   rows: PhaseRow[]; // Phase-inventory cell rows (design/plan/dependency — the audit's column face)
   issues: IssueRow[];
-  graphTokens: string[];
-  historyRows: HistoryRow[];
+  historyRows: HistoryRow[]; // change-history rows (the ① claim-clause machine's surface)
   shapeDrift: Array<{ id: string; cells: number; expected: number }>;
-  versionProblems: string[];
 }
 
 /** The overall doc type — the chain root (parentChain = itself). Detection: the `-overall.md`
  *  filename form ∨ the Phase-inventory header-open line (`| # | Phase |` — the four-table feature,
- *  spec C2). Parse: the canonical four-table parse. Validate: the overall contract face (kernel
- *  row-shape + version lineage) + the four-table audit faces ①-⑥.
+ *  spec C2). Parse: the canonical four-table parse. Validate: the overall contract's CONTEXTUAL
+ *  faces only — the parse-gate kernel's file-existence face, row-shape guard, merged version
+ *  lineage + the four-table audit's faces ①-⑥ (the structural kernel / change-history / graph-token
+ *  faces ride the body rule data — overall-body.structureRules, judged by the single interpreter;
+ *  see the module note).
  */
 export class OverallDocType extends DocType {
-  constructor() {
+  /** The injected body — the shape + slice + rule data single source for this doc type's checks
+   *  (constructor injection, no default parameterization: the body is the live wiring of the
+   *  shape domain — the P3.1 T2 chain-root sibling of the plan/spec bodies). */
+  readonly body: OverallDocBody;
+
+  constructor(body: OverallDocBody) {
     super({
       kind: "overall",
-      // Shape domain — the overall output schema content (T3: the concrete per-type shape, the
-      // SchemaFactory's projection source). Words — the shared engine lexicon content (T4: every
-      // doc type references the same DOC_WORDS object — words single-source). BodyView — the chain
-      // root carries no body forms (T5: zero discriminating formats, no review face). instructions /
-      // refKind stay the P1 placeholder state (P5 lands the concrete content).
-      shape: OVERALL_SHAPE,
+      // Shape domain — the overall output schema content (P3.1 T2: derived from the injected body's
+      // projectSchemaShape() — the only contract chain DocBody.projectSchemaShape() → DocType.shape →
+      // SchemaFactory; the retired overall shape constant is gone). Words — the shared engine
+      // lexicon content. BodyView — the chain root carries no body forms (T5: zero discriminating
+      // formats, no review face). instructions / refKind stay the P1 placeholder state (P5 lands the
+      // concrete content).
+      shape: body.projectSchemaShape(),
       words: DOC_WORDS,
       instructions: [],
       refKind: { kind: "" },
@@ -160,6 +183,7 @@ export class OverallDocType extends DocType {
       // The overall is the chain root — no routed review/fix face (S4): null across the surface.
       route: { reviewType: null, argKey: null, targetFlag: null },
     });
+    this.body = body;
   }
 
   /** Overall detection: the `-overall.md` basename form ∨ a Phase-inventory header-open line
@@ -178,10 +202,12 @@ export class OverallDocType extends DocType {
     return this.parseOverall(entry);
   }
 
-  /** The overall contract face — kernel + row-shape + change-history rules + merged version
-   *  lineage + the four-table audit (faces ①-⑥). phaseId (four-table face ④ — a phase-less audit
-   *  skips the registration check) and pinnedTokens (the merged version-lineage face) ride the
-   *  doc context, carried by the plan/spec chain. */
+  /** The overall contract face — the CONTEXTUAL residue only: the parse-gate kernel's
+   *  file-existence face (an unreadable overall) + row-shape guard + merged version lineage + the
+   *  four-table audit (faces ①-⑥). phaseId (four-table face ④ — a phase-less audit skips the
+   *  registration check) and pinnedTokens (the merged version-lineage face) ride the doc context,
+   *  carried by the plan/spec chain. The structural kernel/change-history/graph-token faces are the
+   *  body rule plane's (overall-body.structureRules — the doc-contract gate interprets them). */
   validate(entry: string, ctx: DocContext): DocValidateFailure[] {
     return this.validateOverallContract(entry, ctx.phaseId ?? null, ctx.pinnedTokens ?? []);
   }
@@ -198,11 +224,14 @@ export class OverallDocType extends DocType {
     return entry;
   }
 
-  /** overall contract: canonical header · row-shape guard · change-history ascending/unique/dates —
-   *  plus the merged version-lineage (the chain's pinned vX.Y tokens ∈ the overall's lineage,
-   *  canonical change-history version rules carry over) — plus the four-table audit faces ①-⑥.
-   *  A phase-less plan (phaseId null) skips ④'s dispatch-phase registration; the structural faces
-   *  still run fully. */
+  /** overall contract — contextual residue only: parse-gate kernel file-existence + row-shape guard
+   *  + the merged version-lineage (the chain's pinned vX.Y tokens ∈ the overall's lineage) — plus
+   *  the four-table audit's contextual faces ①-⑥. The change-history version/order/date numerics
+   *  and the ③ graph-token membership migrated to the body rule data (overall-body.structureRules
+   *  — the interpreter plane; the doc-contract gate interprets them over this overall for BOTH the
+   *  overall entry and a plan/spec entry's chained parent); the dependency-cell predecessor face
+   *  stays here (a positional Phase-inventory read). A phase-less plan (phaseId null) skips ④'s
+   *  dispatch-phase registration; the contextual faces still run fully. */
   validateOverallContract(
     overallPath: string,
     phaseId: string | null,
@@ -211,15 +240,19 @@ export class OverallDocType extends DocType {
     const failures: DocValidateFailure[] = [];
     const o = this.parseOverall(overallPath);
     if (!o.kernelOk) {
-      failures.push({
-        artifact: "overall",
-        file: overallPath,
-        field: "Phase inventory",
-        missing: o.reason,
-        fix: o.reason.includes("non-canonical")
-          ? `add the \`${DOC_TOKENS.canonicalColumn}\` column to the Phase inventory header (the canonical-form marker the engine keys on; the \`| # | Phase |\` header open must stay)`
-          : "make sure the overall file exists and carries a canonical Phase inventory table",
-      });
+      // Parse gate + the file-existence face: an UNREADABLE overall is a contextual failure (there
+      // is no content to rule on); the kernel structural faces (header presence · canonical column)
+      // are body-rule findings now — the early return stops the row-based audit, never the rule
+      // plane (the gate interprets the rules over this overall's content either way).
+      if (o.reason.startsWith("overall file unreadable")) {
+        failures.push({
+          artifact: "overall",
+          file: overallPath,
+          field: "Phase inventory",
+          missing: o.reason,
+          fix: "make sure the overall file exists and is readable",
+        });
+      }
       return failures;
     }
     for (const d of o.shapeDrift) {
@@ -229,15 +262,6 @@ export class OverallDocType extends DocType {
         field: "row-shape drift",
         missing: `${d.id}: ${d.cells} cells ≠ file norm ${d.expected}`,
         fix: "re-merge split/extra cells so every Phase-inventory `| P… |` row carries the same column count",
-      });
-    }
-    for (const p of o.versionProblems) {
-      failures.push({
-        artifact: "overall",
-        file: overallPath,
-        field: "Change history",
-        missing: p,
-        fix: "format change-history rows as strictly ascending unique `v<major>.<minor>` versions with non-empty dates",
       });
     }
     // Merged version-lineage: the dispatch chain's OWN pinned vX.Y must be a version the overall
@@ -291,10 +315,8 @@ export class OverallDocType extends DocType {
       dupIds: [],
       rows: [],
       issues: [],
-      graphTokens: [],
       historyRows: [],
       shapeDrift: [],
-      versionProblems: [],
     };
     let raw: string;
     try {
@@ -362,52 +384,18 @@ export class OverallDocType extends DocType {
       }
     }
 
-    // Dependency graph (③ face): the ASCII fence's `P<n>` tokens (the graph rows may carry inline
-    // annotations after the edges — the token scan reads the whole fenced block).
-    const graphRange = sectionRange(lines, DEPENDENCY_GRAPH_HEADING_RE);
-    if (graphRange) {
-      const tokens = new Set<string>();
-      let inBlock = false;
-      for (let i = graphRange.start + 1; i < graphRange.end; i++) {
-        const t = lines[i].trim();
-        if (t.startsWith("```")) {
-          if (inBlock) break;
-          inBlock = true;
-          continue;
-        }
-        if (inBlock) for (const m of t.matchAll(PHASE_TOKEN_RE)) tokens.add(m[0]);
-      }
-      out.graphTokens = [...tokens];
-    }
-
-    // Change-history rows (① claims + the kernel ③ ascending/unique/date rules).
+    // Change-history rows (① the claim-clause machine's row surface — the version/order/date
+    // NUMERICS are body-rule findings now (overall.historyVersion/Order/Date), never a parse row).
     const range = sectionRange(lines, CHANGE_HISTORY_SECTION_RE);
     if (range) {
-      const seen = new Set<string>();
-      let prev: [number, number] | null = null;
       for (const c of tableRows(lines, range)) {
         if (isSeparatorRow(c) || c[1]?.trim().toLowerCase() === "version") continue;
         const m = (c[1] ?? "").match(VERSION_CELL_NUMERIC_RE);
-        let version: [number, number] | null = null;
-        if (!m) {
-          out.versionProblems.push(
-            `bad/empty version: ${JSON.stringify(c[1])} — should look like: \`| v1.0 | <date> | <summary> |\` (the first content cell must carry the \`v<major>.<minor>\` token)`,
-          );
-        } else {
-          version = [+m[1], +m[2]];
-          if (!(c[2] ?? "").trim())
-            out.versionProblems.push(`version v${m[1]}.${m[2]} has an empty date`);
-          const key = `${m[1]}.${m[2]}`;
-          if (seen.has(key)) out.versionProblems.push(`duplicate version v${key}`);
-          seen.add(key);
-          if (prev && (version[0] < prev[0] || (version[0] === prev[0] && version[1] <= prev[1]))) {
-            out.versionProblems.push(
-              `not ascending: v${prev[0]}.${prev[1]} → v${version[0]}.${version[1]}`,
-            );
-          }
-          prev = version;
-        }
-        out.historyRows.push({ version, date: c[2] ?? "", summary: c[3] ?? "" });
+        out.historyRows.push({
+          version: m ? [+m[1], +m[2]] : null,
+          date: c[2] ?? "",
+          summary: c[3] ?? "",
+        });
       }
     }
     return out;
@@ -431,8 +419,10 @@ export class OverallDocType extends DocType {
     return files;
   }
 
-  /** ①-⑥ four-table audit on the resolved parent overall. Every face surfaces guidance-shaped
-   *  failures; faces with nothing to audit (no anchors / no claims / no graph / no issue rows) no-op. */
+  /** The four-table audit — the CONTEXTUAL faces ①-⑥ (the structural kernel / change-history /
+   *  graph-token faces are the body rule plane's — see the module note; this surface never
+   *  re-judges them). Every face surfaces guidance-shaped failures; faces with nothing to audit
+   *  (no anchors / no claims / no dependency cells / no issue rows) no-op. */
   #fourTableAudit(
     o: OverallParse,
     overallPath: string,
@@ -466,8 +456,13 @@ export class OverallDocType extends DocType {
       });
     }
 
-    // ⑥ Issue-inventory rows well-formed: phase ∈ ids + a recognizable ref form (anchored `#NNN#…`,
-    // bare `#NNN`, wrapped `[#NNN](…)`, `none`, or a parenthetical note).
+    // ⑥ Issue-inventory rows well-formed — the phase-membership + the REF-FORM faces, both
+    // section-scoped to the parsed `## Issue inventory` rows (a content-wide membership rule
+    // self-satisfies — the unregistered phase row itself matches the cross-link target — and a
+    // content-wide ref-form rule would misfire on the legacy `## Requirement inventory` table,
+    // whose ref cells are prose, not issue-ref forms): a registered phase ∈ inventory ids (the
+    // membership face the structure plane cannot carry) + a recognizable ref form (anchored
+    // `#NNN#…`, bare `#NNN`, wrapped `[#NNN](…)`, `none`, or a parenthetical note).
     for (const r of o.issues) {
       if (!idsLower.has(r.phase.trim().toLowerCase())) {
         failures.push({
@@ -530,19 +525,12 @@ export class OverallDocType extends DocType {
       }
     }
 
-    // ③ dependency-graph membership: every graph token AND every Phase-inventory Dependency-cell
-    // predecessor must exist in the Phase inventory.
-    for (const tok of o.graphTokens) {
-      if (!idsLower.has(tok.toLowerCase())) {
-        failures.push({
-          artifact: "overall",
-          file: overallPath,
-          field: "Dependency graph",
-          missing: `dependency graph references ${tok}, which is not in the Phase inventory (dangling graph token)`,
-          fix: "add a Phase-inventory row for the phase or fix the graph reference",
-        });
-      }
-    }
+    // ③ dependency-graph membership — the ASCII fence's graph-TOKEN membership migrated to the
+    // body rule plane (`overall.graph`/`overall.graphTarget` — the interpreter's crosslink face,
+    // judged for the overall entry AND a plan/spec entry's chained parent at the gate). What stays
+    // here is the Phase-inventory Dependency-cell predecessor face — a positional cell read the
+    // graph-edge line rules cannot cover (an inventory row's `->` rides inside the row, never on a
+    // line-anchored edge form): every predecessor token must exist in the Phase inventory.
     for (const r of o.rows) {
       for (const m of (r.dependency ?? "").matchAll(PHASE_TOKEN_RE)) {
         if (!idsLower.has(m[0].toLowerCase())) {

@@ -25,6 +25,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { runStructureRules, type StructureFinding } from "../../../../rules/structure.ts";
 import type { DocType, SchemaNode } from "../../../doctype.ts";
 import { docTypeRegistry } from "../../../registry.ts";
 import { DocBody } from "../doc-body.ts";
@@ -88,12 +89,14 @@ describe("PhaseSpecBody — the concrete body construction contract", () => {
     expect(phaseSpecBody.projectSchemaShape()).toBe(PHASE_SPEC_BODY_SHAPE);
   });
 
-  it("the slice projection exposes the new-skeleton heading regexes (permanent three)", () => {
+  it("the slice projection exposes the new-skeleton heading regexes (permanent three + the double-layer pair, P3.1 T4)", () => {
     const slices = phaseSpecBody.projectSlicePatterns();
     expect(Object.keys(slices).sort()).toEqual([
       "acceptanceCriteriaHeading",
       "constraintsHeading",
       "designHeading",
+      "designItemHeading",
+      "groupHeading",
     ]);
     expect(slices.designHeading.test("## Design")).toBe(true);
     expect(slices.designHeading.test("## Section 2: Design body")).toBe(false);
@@ -101,6 +104,21 @@ describe("PhaseSpecBody — the concrete body construction contract", () => {
     expect(slices.acceptanceCriteriaHeading.test("## Acceptance criteria")).toBe(false);
     expect(slices.constraintsHeading.test("## Constraints")).toBe(true);
     expect(slices.constraintsHeading.test("### Constraints")).toBe(false);
+    // The double-layer slices (P3.1 T4 — the F3 unified-outline model): `### N.` groups and
+    // `#### N.M` items.
+    // The number classes keep the exact anchors collision-free — `### Acceptance criteria` is
+    // never a group-heading hit, `## Design` never a design-item hit (the anchor-uniqueness
+    // surface the `spec.acceptance` single-hit verdict depends on).
+    expect(slices.groupHeading.test("### 2. 设计")).toBe(true);
+    expect(slices.groupHeading.test("### Acceptance criteria")).toBe(false);
+    expect(slices.groupHeading.test("### Task 1: x")).toBe(false);
+    expect(slices.designItemHeading.test("#### 2.1 目标与范围")).toBe(true);
+    expect(slices.designItemHeading.test("#### 2 Continuation")).toBe(false);
+    expect(slices.designItemHeading.test("### 2.1 misplaced")).toBe(false);
+    const g = slices.groupHeading.exec("### 2. 设计");
+    expect(g?.[1]).toBe("2");
+    const it1 = slices.designItemHeading.exec("#### 2.1 目标与范围");
+    expect(it1?.[1]).toBe("2");
   });
 });
 
@@ -242,15 +260,21 @@ describe("new-skeleton docContractValidate (design C2) — fixture evidence", ()
     });
   });
 
+  /** The spec body rule set interpreted over a content string — the P3.1 T2 structure-surface
+   *  seam (the skeleton axes fire here; the doc type's DocValidateFailure surface kept only the
+   *  section-scoped deviations axis — see the skeleton-rule migrate note). */
+  function structureOf(content: string): StructureFinding[] {
+    return runStructureRules(content, phaseSpecBody.structureRules());
+  }
+
   it("a duplicated `### Acceptance criteria` subsection → fail (the unique-constraint kept)", () => {
     const dup = readFileSync(NEW_SHAPE, "utf8").replace(
       "### Acceptance criteria",
       "### Acceptance criteria\n### Acceptance criteria",
     );
-    doctored(dup, (p) => {
-      const failures = specType().validate(p, { root: REPO_ROOT });
-      expect(failures.some((f) => f.field.includes("`### Acceptance criteria`"))).toBe(true);
-    });
+    const findings = structureOf(dup);
+    expect(findings.map((f) => f.id)).toContain("spec.acceptance");
+    expect(findings[0]!.severity).toBe("BLOCK");
   });
 
   it("a missing `## Constraints` inheritance point → fail (the three-truth skeleton existence)", () => {
@@ -258,10 +282,115 @@ describe("new-skeleton docContractValidate (design C2) — fixture evidence", ()
       "## Constraints",
       "## Removed constraints",
     );
-    doctored(missing, (p) => {
-      const failures = specType().validate(p, { root: REPO_ROOT });
-      expect(failures.some((f) => f.field.includes("`## Constraints`"))).toBe(true);
-    });
+    const findings = structureOf(missing);
+    expect(findings.map((f) => f.id)).toContain("spec.constraints");
+    expect(findings[0]!.severity).toBe("BLOCK");
+  });
+});
+
+describe("the double-layer design-item plane (P3.1 T4 — F3 统一大纲模型): the `### N.` group / `#### N.M` item rules + the pseudo-heading residue", () => {
+  /** The spec body rule set interpreted over a content string — the structure plane the negative
+   *  fixtures judge (the same seam as the skeleton axes above). */
+  function structureOf(content: string): StructureFinding[] {
+    return runStructureRules(content, phaseSpecBody.structureRules());
+  }
+
+  it("a conformant double-layer design body walks the rule plane clean (the group order + item ownership + non-empty + zero-pseudo-heading faces)", () => {
+    const conformant = [
+      "## Design",
+      "",
+      "### 1. Group",
+      "",
+      "#### 1.1 Item",
+      "",
+      "item substance",
+      "",
+      "### 2. Group two",
+      "",
+      "#### 2.1 Item",
+      "",
+      "more substance",
+      "",
+      "### Acceptance criteria",
+      "",
+      "- `done`",
+      "",
+      "## Constraints",
+      "",
+      "- delta",
+    ].join("\n");
+    expect(structureOf(conformant)).toEqual([]);
+  });
+
+  it("`pseudo-heading-design.md` fires spec.pseudoHeading — an independent bold pseudo-heading survives (BLOCK residue)", () => {
+    const findings = structureOf(
+      readFileSync(path.join(FIXTURES, "pseudo-heading-design.md"), "utf8"),
+    );
+    const ids = findings.map((f) => f.id);
+    expect(ids).toContain("spec.pseudoHeading");
+    expect(ids.every((id) => id === "spec.pseudoHeading")).toBe(true); // single-axis
+  });
+
+  it("`hollow-item-design.md` fires spec.designItemHollow + spec.designGroupEmpty — the hollow item leaf and the item-less group (BLOCK)", () => {
+    const findings = structureOf(
+      readFileSync(path.join(FIXTURES, "hollow-item-design.md"), "utf8"),
+    );
+    const ids = findings.map((f) => f.id);
+    expect(ids).toContain("spec.designItemHollow");
+    expect(ids).toContain("spec.designGroupEmpty");
+  });
+
+  it("`misbound-item-design.md` fires spec.designItemOwnership — a `#### N.M` item's N references an undeclared group (BLOCK crosslink)", () => {
+    const findings = structureOf(
+      readFileSync(path.join(FIXTURES, "misbound-item-design.md"), "utf8"),
+    );
+    const ids = findings.map((f) => f.id);
+    expect(ids).toContain("spec.designItemOwnership");
+    expect(ids.every((id) => id === "spec.designItemOwnership")).toBe(true); // single-axis
+  });
+
+  it("`ragged-heading-design.md` fires spec.designHeadingResidue — an unregistered `### ` heading (neither `### N.` nor `### Acceptance criteria`) survives (BLOCK allowlist residue)", () => {
+    const findings = structureOf(
+      readFileSync(path.join(FIXTURES, "ragged-heading-design.md"), "utf8"),
+    );
+    const ids = findings.map((f) => f.id);
+    expect(ids).toContain("spec.designHeadingResidue");
+    expect(ids.every((id) => id === "spec.designHeadingResidue")).toBe(true); // single-axis
+  });
+
+  it("the allowlisted `### ` forms stay clean — a `### N.` group rank and the `### Acceptance criteria` anchor never trigger the residue rule (the negative-lookahead carve)", () => {
+    const clean = ["## Design", "", "### 1. Group", "", "#### 1.1 Item", "", "text", ""].join("\n");
+    expect(structureOf(clean).map((f) => f.id)).not.toContain("spec.designHeadingResidue");
+    const acceptanceOnly = ["## Design", "", "### Acceptance criteria", "", "- `done`"].join("\n");
+    expect(structureOf(acceptanceOnly).map((f) => f.id)).not.toContain("spec.designHeadingResidue");
+  });
+
+  it("an empty `## Design` body (blank-run to the acceptance anchor) fires spec.designBodyEmpty — the empty-body face", () => {
+    const empty = ["## Design", "", "### Acceptance criteria", "", "- `done`"].join("\n");
+    expect(structureOf(empty).map((f) => f.id)).toContain("spec.designBodyEmpty");
+  });
+
+  it("a non-monotonic `### N.` sequence fires spec.designGroups — the group order face (2 before 1)", () => {
+    const desc = [
+      "## Design",
+      "",
+      "### 2. Second",
+      "",
+      "#### 2.1 Item",
+      "",
+      "body",
+      "",
+      "### 1. First",
+      "",
+      "#### 1.1 Item",
+      "",
+      "body",
+      "",
+      "### Acceptance criteria",
+      "",
+      "- `done`",
+    ].join("\n");
+    expect(structureOf(desc).map((f) => f.id)).toContain("spec.designGroups");
   });
 });
 

@@ -28,17 +28,17 @@
 //     task boundary slices;
 //   - the dead-shell discipline: `doctypes/shapes/plan.ts` is gone (zero existence — grep included).
 import { execSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { runStructureRules } from "../../../../rules/structure.ts";
 import type { SchemaNode } from "../../../doctype.ts";
 import { docTypeRegistry } from "../../../registry.ts";
 import { DOC_TOKENS, deriveDocTokens } from "../../../tokens.ts";
 import { PLAN_BODY_VIEW } from "../../body-views.ts";
 import type { PlanDocType, PlanParse } from "../../plan.ts";
-import { OVERALL_SHAPE } from "../../shapes/overall.ts";
 import { DocBody } from "../doc-body.ts";
+import { OVERALL_SHAPE } from "../overall-body.ts";
 import { PHASE_SPEC_BODY_SHAPE, phaseSpecBody } from "../phase-spec-body.ts";
 import { PLAN_BODY_SHAPE, PlanBody, planBody } from "../plan-body.ts";
 import type { Task } from "../task.ts";
@@ -116,11 +116,20 @@ describe("PlanBody — the concrete body construction contract", () => {
     expect(slices.taskHeading.test("### Task 1: x")).toBe(true);
     expect(slices.taskHeading.test("## Task Groups")).toBe(false);
     // The task-block data-field markers (objective / steps / acceptance single source).
-    for (const key of ["objective", "files", "consumes", "produces", "steps", "acceptance"])
+    for (const key of [
+      "objective",
+      "files",
+      "consumes",
+      "produces",
+      "steps",
+      "acceptance",
+      "dependsOn",
+    ])
       expect(slices[key]).toBeInstanceOf(RegExp);
     expect(slices.objective.test("- **Objective**: x")).toBe(true);
     expect(slices.steps.test("- **Steps**:")).toBe(true);
     expect(slices.acceptance.test("- **Acceptance**:")).toBe(true);
+    expect(slices.dependsOn.test("- **DependsOn**: none")).toBe(true);
     // A numbered step entry captures the action + the optional checkable outcome.
     const m = slices.stepEntry.exec("1. do the work — checkable: it works");
     expect(m).not.toBeNull();
@@ -177,13 +186,15 @@ describe("PLAN_BODY_SHAPE — the full-field data-shape projection", () => {
     expect(node(["taskHeadings", "continuity"])).toBeDefined();
   });
 
-  it("tasks[] carries the Task data shape — objective/files/interface{consumes,produces}/steps[]{action,checkable}/acceptance + the edge fields", () => {
+  it("tasks[] carries the Task data shape — objective/files/interface{consumes,produces}/steps[]{action,checkable}/acceptance + the mandatory dependsOn edge (the bilateral pairing plane is retired)", () => {
     expect(node(["tasks"]).type).toBe("array");
     const item = node(["tasks"]).items;
     const required = item?.required as readonly string[] | undefined;
     expect(required).toContain("objective");
     expect(required).toContain("steps");
     expect(required).toContain("acceptance");
+    // the single directed edge is a REQUIRED record member (the edge-completeness contract).
+    expect(required).toContain("dependsOn");
     // interface {consumes,produces} — the typed task boundary slices.
     expect(item?.properties?.interface?.properties?.consumes?.type).toBe("array");
     expect(item?.properties?.interface?.properties?.produces?.type).toBe("array");
@@ -192,9 +203,11 @@ describe("PLAN_BODY_SHAPE — the full-field data-shape projection", () => {
     const step = item?.properties?.steps?.items;
     expect(step?.required).toContain("action");
     expect(step?.required).toContain("checkable");
-    // The edge fields — read/write (the parser fills them, TaskGraph consumes them).
+    // The edge field — the mandatory single directed dependsOn (read/write: the parser fills it,
+    // TaskGraph consumes it for the wave batches); the retired pairing property carries zero shape
+    // presence (a re-added node would fail this pin).
     expect(item?.properties?.dependsOn).toBeDefined();
-    expect(item?.properties?.atomicWith).toBeDefined();
+    expect(item?.properties?.atomicWith).toBeUndefined();
   });
 
   it("the plan shape declares zero taskGroups node — the retired dispatch-group layout surface is gone (single-form)", () => {
@@ -278,6 +291,8 @@ describe("renderBrief — the task-handoff brief rendered from Task data (zero `
         { action: "prove zero Do carving", checkable: "the output has no legacy Do marker" },
       ],
       acceptance: ["the brief carries objective", "the brief carries every checkable"],
+      dependsOn: [],
+      hasDependsOn: true,
     };
     const brief = planBody.renderBrief(task);
     expect(brief).toContain("ship the data-shaped brief");
@@ -342,36 +357,338 @@ describe("the new-shape plan fixture — parse + validate + tasksFromPlan (desig
     expect(second.steps.every((s) => s.checkable.length > 0)).toBe(true);
   });
 
-  /** Write a doctored plan to a temp file and run the plan validate against it (the doc contract
-   *  reads the file — the doctoring surface for the data-shape negatives). */
-  function doctored(content: string, run: (planPath: string) => void): void {
-    const dir = mkdtempSync(path.join(tmpdir(), "plan-body-"));
-    try {
-      const planPath = path.join(dir, "doctored-plan-new-shape.md");
-      writeFileSync(planPath, content);
-      run(planPath);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  }
-
-  it("a task step dropping its checkable → validate fail (step checkable is a validate failure, never author discretion)", () => {
+  it("a task step dropping its checkable → structure-finding fail (P3.1 T2: the step checkable is a rule-data judgment at the gate — never author discretion)", () => {
     const missingCheckable = readFileSync(NEW_SHAPE, "utf8").replace(
       "2. Re-derive the schema product — checkable: `plan.json` is byte-faithful to the projection",
       "2. Re-derive the schema product",
     );
-    doctored(missingCheckable, (p) => {
-      const failures = planType().validate(p, { root: REPO_ROOT });
-      expect(failures.some((f) => f.field.includes("`checkable`"))).toBe(true);
-      expect(failures.some((f) => f.fix.includes("checkable"))).toBe(true);
-    });
+    const findings = runStructureRules(missingCheckable, planBody.structureRules());
+    expect(findings.map((f) => f.id)).toContain("plan.checkable");
+    expect(findings.find((f) => f.id === "plan.checkable")!.severity).toBe("BLOCK");
+  });
+
+  it("a numbered line outside a `- **Steps**:` block (Constraints prose / a code fence) never demands a checkable — the checkable rule is section-scoped (P3.1 T2: behavior-equivalence with the retired contract's parsed-steps scope)", () => {
+    const scoped = [
+      "# Plan",
+      "",
+      "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
+      "",
+      "## Constraints",
+      "",
+      "- boundary one",
+      "1. a numbered constraint line without a checkable (prose, never a step)",
+      "",
+      "### Task 1: x",
+      "",
+      "- **Objective**: task one",
+      "- **Steps**:",
+      "  1. implement — checkable: done",
+      "- **Acceptance**:",
+      "  - done",
+      "",
+      "```",
+      "1. a numbered line in a code fence (never a step)",
+      "```",
+      "",
+    ].join("\n");
+    const findings = runStructureRules(scoped, planBody.structureRules());
+    expect(findings.map((f) => f.id)).not.toContain("plan.checkable");
   });
 
   it("every step keeps its checkable in the untouched fixture — no spurious data-shape failure", () => {
-    doctored(readFileSync(NEW_SHAPE, "utf8"), (p) => {
-      const failures = planType().validate(p, { root: REPO_ROOT });
-      expect(failures.some((f) => f.field.includes("`checkable`"))).toBe(false);
+    const findings = runStructureRules(readFileSync(NEW_SHAPE, "utf8"), planBody.structureRules());
+    expect(findings.map((f) => f.id)).not.toContain("plan.checkable");
+  });
+});
+
+describe("the unilateral edge rules — plan.edge (missing-edge sixth class) + plan.antiDependency (the gate)", () => {
+  it("a task block without its `- **DependsOn**:` line → the edge-completeness rule fires (BLOCK)", () => {
+    const missing = [
+      "# Plan",
+      "",
+      "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
+      "",
+      "## Constraints",
+      "",
+      "- delta",
+      "",
+      "### Task 1: x",
+      "- **Objective**: task one",
+      "- **Steps**:",
+      "  1. implement — checkable: done",
+      "- **Acceptance**:",
+      "  - done",
+      "",
+    ].join("\n");
+    const findings = runStructureRules(missing, planBody.structureRules());
+    expect(findings.map((f) => f.id)).toContain("plan.edge");
+    expect(findings.find((f) => f.id === "plan.edge")!.severity).toBe("BLOCK");
+    // single-axis: the anti-dependency rule judges nothing on a line-less plan (no items).
+    expect(findings.map((f) => f.id)).not.toContain("plan.antiDependency");
+  });
+
+  it("a forward reference (`T5 dependsOn 10`) → the anti-dependency rule fires (BLOCK); `none` stays silent", () => {
+    const blockLines: string[] = [];
+    for (let n = 1; n <= 10; n++) {
+      blockLines.push(`### Task ${n}: t${n}`);
+      blockLines.push(`- **Objective**: task ${n}`);
+      blockLines.push(n === 5 ? "- **DependsOn**: 10" : "- **DependsOn**: none");
+      blockLines.push("- **Steps**:");
+      blockLines.push("  1. implement — checkable: done");
+      blockLines.push("- **Acceptance**:");
+      blockLines.push("  - done");
+      blockLines.push("");
+    }
+    const plan = ["# Plan", "", "## Constraints", "", "- delta", "", ...blockLines].join("\n");
+    const findings = runStructureRules(plan, planBody.structureRules());
+    expect(findings.map((f) => f.id)).toContain("plan.antiDependency");
+    expect(findings.map((f) => f.id)).not.toContain("plan.edge"); // every block declares its line
+  });
+
+  it("an out-of-bounds reference (`T2 dependsOn 99` — beyond the plan's 2-task range) does NOT trip the anti-dependency rule (the out-of-range exemption mirrors the graph plane's missing-id class)", () => {
+    const plan = [
+      "# Plan",
+      "",
+      "## Constraints",
+      "",
+      "- delta",
+      "",
+      "### Task 1: x",
+      "- **Objective**: task one",
+      "- **DependsOn**: none",
+      "- **Steps**:",
+      "  1. implement — checkable: done",
+      "- **Acceptance**:",
+      "  - done",
+      "",
+      "### Task 2: y",
+      "- **Objective**: task two",
+      "- **DependsOn**: 99",
+      "- **Steps**:",
+      "  1. implement — checkable: done",
+      "- **Acceptance**:",
+      "  - done",
+      "",
+    ].join("\n");
+    const findings = runStructureRules(plan, planBody.structureRules());
+    // the gate survives on a genuinely out-of-range ref — a past-the-edge value is the graph
+    // plane's missing-id failure, never the anti-dependency contradiction (task-graph pins 99 → missing-id).
+    expect(findings.map((f) => f.id)).not.toContain("plan.antiDependency");
+    expect(findings.map((f) => f.id)).not.toContain("plan.edge"); // every block declares its line
+  });
+
+  it("a self reference (`### Task 5:` block with `- **DependsOn**: 5`) also trips the anti-dependency rule (引用 ≥ 自身 BLOCK)", () => {
+    const plan = [
+      "# Plan",
+      "",
+      "## Constraints",
+      "",
+      "- delta",
+      "",
+      "### Task 5: lonely",
+      "- **Objective**: task five",
+      "- **DependsOn**: 5",
+      "- **Steps**:",
+      "  1. implement — checkable: done",
+      "- **Acceptance**:",
+      "  - done",
+      "",
+    ].join("\n");
+    const findings = runStructureRules(plan, planBody.structureRules());
+    expect(findings.map((f) => f.id)).toContain("plan.antiDependency");
+  });
+
+  it("a conforming all-`none` plan carries zero edge findings (the tree's migrated quiet baseline)", () => {
+    const plan = [
+      "# Plan",
+      "",
+      "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
+      "",
+      "## Constraints",
+      "",
+      "- delta",
+      "",
+      "### Task 1: x",
+      "- **Objective**: task one",
+      "- **DependsOn**: none",
+      "- **Steps**:",
+      "  1. implement — checkable: done",
+      "- **Acceptance**:",
+      "  - done",
+      "",
+      "### Task 2: y",
+      "- **Objective**: task two",
+      "- **DependsOn**: 1",
+      "- **Steps**:",
+      "  1. implement — checkable: done",
+      "- **Acceptance**:",
+      "  - done",
+      "",
+    ].join("\n");
+    expect(runStructureRules(plan, planBody.structureRules())).toEqual([]);
+  });
+});
+
+describe("plan.referenceLint — the reference-lint WARN observation (P3.1 T6 · spec §2.3 宽松观测面，非门面)", () => {
+  /** The structure-clean plan baseline the reference lint observes over: edge lines present,
+   *  checkables present, no legacy faces — any finding left is a reference-lint observation. */
+  function lintPlan(blocks: string[]): string {
+    return ["# Plan", "", "## Constraints", "", "- delta", "", ...blocks].join("\n");
+  }
+
+  /** One task block — objective / dependsOn / steps / acceptance; extra field bodies (files /
+   *  consumes…) inject via extras (a file bullet or a numbered step after the marker). */
+  function lintBlock(
+    n: number,
+    objective: string,
+    dependsOn: string,
+    acceptance: string[],
+    extras: string[] = [],
+  ): string {
+    return [
+      `### Task ${n}: t${n}`,
+      `- **Objective**: ${objective}`,
+      ...extras,
+      `- **DependsOn**: ${dependsOn}`,
+      "- **Steps**:",
+      "  1. implement — checkable: done",
+      "- **Acceptance**:",
+      ...acceptance.map((a) => `  - ${a}`),
+      "",
+    ].join("\n");
+  }
+
+  const lint = (plan: string) =>
+    runStructureRules(plan, planBody.structureRules()).filter((f) => f.id === "plan.referenceLint");
+
+  it("the rule is registered as a WARN observation with the field-defined reference surface (anchor + declaredReferences + the scan surface — single-sourced from the projected slices)", () => {
+    const rule = planBody.structureRules().find((r) => r.id === "plan.referenceLint");
+    expect(rule).toBeDefined();
+    expect(rule!.severity).toBe("WARN");
+    expect(rule!.invariants).toEqual([{ type: "referenceLint" }]);
+    expect(rule!.plane.within).toBe("^### Task (\\d+):");
+    expect(rule!.plane.declaredReferences).toContain("DependsOn");
+    // The scan surface is rule data single-sourced from the projected slices — the interpreter
+    // reads the marker / bullet vocabulary from HERE, never a re-typed field name (P3.1 T6 fix).
+    const slices = planBody.projectSlicePatterns();
+    expect(rule!.plane.referenceSurface).toEqual({
+      markers: [slices.objective.source, slices.acceptance.source],
+      bulletOwners: [slices.acceptance.source],
     });
+    // The anchor's marker arms co-derive from the SAME surface markers (a renamed prose field
+    // drifts the anchor AND the scan together, never silently), and its constructive exclusion
+    // keeps numbered step entries off the bullet face.
+    expect(rule!.plane.anchor).toBe(
+      `${slices.objective.source}.*$|${slices.acceptance.source}.*$|^\\s+[-*]\\s+(?!\\d+\\.).*$`,
+    );
+  });
+
+  it("a backward `Task N` citation with no matching edge → exactly one WARN (the suspected missing edge)", () => {
+    const plan = lintPlan([
+      lintBlock(1, "task one", "none", ["done"]),
+      lintBlock(2, "task two", "none", ["done"]),
+      lintBlock(3, "extends Task 1", "none", ["done"]),
+    ]);
+    expect(lint(plan)).toHaveLength(1);
+    expect(lint(plan)[0]!.severity).toBe("WARN");
+  });
+
+  it("the short `T<N>` form triggers the same observation (a cited backward task, no edge)", () => {
+    const plan = lintPlan([
+      lintBlock(1, "task one", "none", ["done"]),
+      lintBlock(2, "task two", "none", ["done"]),
+      lintBlock(3, "reuses T1", "none", ["done"]),
+    ]);
+    expect(lint(plan)).toHaveLength(1);
+  });
+
+  it("aggregation — multiple suspect references in one block collapse into a single WARN (每块至多一条)", () => {
+    const plan = lintPlan([
+      lintBlock(1, "task one", "none", ["done"]),
+      lintBlock(2, "task two", "none", ["done"]),
+      lintBlock(3, "spans Task 1 and Task 2", "none", ["done"]),
+    ]);
+    expect(lint(plan)).toHaveLength(1);
+  });
+
+  it("per-block granularity — two suspect blocks emit two WARNs (each block at most one)", () => {
+    const plan = lintPlan([
+      lintBlock(1, "task one", "none", ["done"]),
+      lintBlock(2, "reuses Task 1", "none", ["done"]),
+      lintBlock(3, "reuses Task 1", "none", ["done"]),
+    ]);
+    expect(lint(plan)).toHaveLength(2);
+  });
+
+  it("a forward reference (ref ≥ the block's own number) and a self reference are exempt — the anti-dependency gate makes them undeclareable, never a missing-edge suspicion", () => {
+    const plan = lintPlan([
+      lintBlock(1, "continues Task 3", "none", ["done"]),
+      lintBlock(2, "task two", "none", ["done"]),
+      lintBlock(3, "about Task 3 itself", "none", ["done"]),
+    ]);
+    expect(lint(plan)).toEqual([]);
+  });
+
+  it("the spec-item word form (`T7.1`) is excluded — a design-item reference is never a task reference (a `T3.1` in a lower block would otherwise be suspect)", () => {
+    const plan = lintPlan([
+      lintBlock(1, "task one", "none", ["done"]),
+      lintBlock(2, "task two", "none", ["done"]),
+      lintBlock(3, "task three", "none", ["done"]),
+      lintBlock(4, "per T3.1", "none", ["done"]),
+    ]);
+    expect(lint(plan)).toEqual([]);
+  });
+
+  it("a reference inside a code span cites a symbol, never prose intent — `T3` / `Task 1` inside a span stay silent", () => {
+    const plan = lintPlan([
+      lintBlock(1, "task one", "none", ["done"]),
+      lintBlock(2, "task two", "none", ["done"]),
+      lintBlock(3, "reads `T3` and `Task 1`", "none", ["done"]),
+    ]);
+    expect(lint(plan)).toEqual([]);
+  });
+
+  it("the scan surface is FIELD-defined — references in the Files / Steps faces are constructively outside the objective/acceptance prose (a would-be suspect inside a file bullet or a numbered step stays silent)", () => {
+    const plan = lintPlan([
+      lintBlock(1, "task one", "none", ["done"]),
+      lintBlock(
+        2,
+        "task two",
+        "none",
+        ["done"],
+        [
+          "- **Files**:",
+          "  - Modify: src/Task 1 seam",
+          "- **Steps**:",
+          "  - 1. wire the T1 seam — checkable: done",
+        ],
+      ),
+    ]);
+    expect(lint(plan)).toEqual([]);
+  });
+
+  it("an out-of-range reference is exempt — a past-the-edge id (0 or > taskCount) is the graph plane's missing-id class, never a dependency hint", () => {
+    const plan = lintPlan([
+      lintBlock(1, "task one", "none", ["done"]),
+      lintBlock(2, "mirrors Task 42 and Task 0", "none", ["done"]),
+    ]);
+    expect(lint(plan)).toEqual([]);
+  });
+
+  it("a reference the block itself declares as an edge is never a suspicion (已声明边 → zero)", () => {
+    const plan = lintPlan([
+      lintBlock(1, "task one", "none", ["done"]),
+      lintBlock(2, "spans Task 1", "1", ["done"]),
+    ]);
+    expect(lint(plan)).toEqual([]);
+  });
+
+  it("a conformant plan with zero references observes zero — the lint adds no noise to a clean record", () => {
+    const plan = lintPlan([
+      lintBlock(1, "task one", "none", ["done"]),
+      lintBlock(2, "task two", "1", ["done"]),
+    ]);
+    expect(lint(plan)).toEqual([]);
   });
 });
 
@@ -406,6 +723,15 @@ describe("deletion-set union — the retired shape/token surface holds zero pres
     "taskGroupsLineRe",
     "taskGroupsMinItems",
     "extractProseConstraints",
+    // The unilateral-rebuild symbols: the pairing field's read surface, its symmetric transitive
+    // closure + the contradiction-edge component passes (the atomic plan is gone).
+    "atomicPairHas",
+    "atomicPartition",
+    "componentPass",
+    "compIndexOf",
+    // the bare-word sweep — the pairing marker's zero presence in the non-test engine src
+    // (COMMENTS included, the deletion-set discipline) guards the declaration face's retirement.
+    "atomicWith",
   ];
   const grepNontest = (needle: string): string =>
     execSync(
@@ -428,13 +754,14 @@ describe("deletion-set union — the retired shape/token surface holds zero pres
     expect(hits.trim(), "a `## Section` heading reference survives in the engine src").toBe("");
   });
 
-  it("the regenerated plan schema golden carries zero taskGroups / Form-B surface", () => {
+  it("the regenerated plan schema golden carries zero taskGroups / pairing-field surface", () => {
     const planJson = readFileSync(
       path.join(ENGINE_SRC, "..", "config", "schema", "plan.json"),
       "utf8",
     );
     expect(planJson).not.toMatch(/taskGroups/i);
     expect(planJson).not.toMatch(/Task Groups/);
+    expect(planJson).not.toMatch(/atomicWith/i);
     expect(planJson).not.toMatch(/formB|proseAnchors/i);
   });
 });

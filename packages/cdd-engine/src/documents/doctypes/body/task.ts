@@ -3,10 +3,12 @@
 // brief renderer reads (the handoff materializes objective + steps{action,checkable} + acceptance
 // through the PlanBody-side renderBrief surface) and the T3 schema-validation face bolts onto: a
 // step's `checkable` is a construction-time type-level constraint (a step omitting it fails to
-// compile — never a runtime guard). `dependsOn` / `atomicWith` are the plan's two edge-model fields
-// (directed dependency + undirected atomic pairing): read/write — the task-block parser fills them
-// from the `- **DependsOn**:` / `- **AtomicWith**:` comma lists and TaskGraph consumes them for the
-// atomic-closure grouping + the edge-validation BLOCK face.
+// compile — never a runtime guard). `dependsOn` is the plan's single directed edge field: the
+// task-block parser fills it from the `- **DependsOn**:` comma list (`none`/empty → `[]`;
+// line absent → `hasDependsOn` false — the TaskGraph missing-edge BLOCK face) and TaskGraph
+// consumes the edges for the wave batches + the edge-validation BLOCK face. The unilateral edge
+// model (P3.1 T3): the edge model is unilateral — the plan owns exactly one edge declaration per
+// task block.
 
 /** One plan task step — an executable action + its verifiable outcome. */
 export interface TaskStep {
@@ -25,8 +27,7 @@ export interface TaskInterface {
   produces: string[];
 }
 
-/** Constructor options for a plan task — the full field family + the optional dependsOn? /
- *  atomicWith? edge fields. */
+/** Constructor options for a plan task — the full field family + the edge field refers. */
 export interface TaskOpts {
   /** The task's outcome statement. */
   objective: string;
@@ -38,20 +39,22 @@ export interface TaskOpts {
   steps: TaskStep[];
   /** The task's acceptance criteria. */
   acceptance: string[];
-  /** The task ids this task depends on — read/write (the task-block parser fills it from the
-   *  `- **DependsOn**:` comma list; TaskGraph consumes the edges). */
+  /** The task ids this task depends on (the single directed edge — `- **DependsOn**:` comma list;
+   *  absent → the default `[]`). */
   dependsOn?: number[];
-  /** The task ids this task is atomic with — read/write (the task-block parser fills it from the
-   *  `- **AtomicWith**:` comma list; TaskGraph consumes the edges). */
-  atomicWith?: number[];
+  /** Whether the task block declared a `- **DependsOn**:` line (the parse-level missing-edge fact —
+   *  a block whose line is absent carries `hasDependsOn: false`, the TaskGraph missing-edge BLOCK
+   *  source; a `none`/empty declaration is a PRESENT line with an empty edge list). */
+  hasDependsOn?: boolean;
 }
 
 /**
  * A plan task (P2 T1; plan §T1 · design C1 — Criterion ②). Every field is constructor-injected on
- * a read-only face; the optional dependsOn? / atomicWith? edge fields are read/write (the
- * task-block parser fills them, TaskGraph consumes them). The checkable requirement is enforced at
- * the type level — the T3 schema-validation machinery and the brief render surface consume the same
- * TaskStep shape.
+ * a read-only face; `dependsOn` is the single directed edge field (non-optional — the default `[]`
+ * is the constructor's absent-value behavior; the edge model is unilateral) and
+ * `hasDependsOn` records the task block's edge-line presence (the missing-edge source). The
+ * checkable requirement is enforced at the type level — the T3 schema-validation machinery and the
+ * brief render surface consume the same TaskStep shape.
  */
 export class Task {
   /** The task's outcome statement. */
@@ -64,10 +67,11 @@ export class Task {
   readonly steps: TaskStep[];
   /** The task's acceptance criteria. */
   readonly acceptance: string[];
-  /** The task ids this task depends on. */
-  readonly dependsOn?: number[];
-  /** The task ids this task is atomic with. */
-  readonly atomicWith?: number[];
+  /** The task ids this task depends on — non-optional (default `[]`). */
+  readonly dependsOn: number[];
+  /** The task block's edge-line presence — false when the block declares no `- **DependsOn**:`
+   *  line (the missing-edge BLOCK source). */
+  readonly hasDependsOn: boolean;
 
   constructor(opts: TaskOpts) {
     this.objective = opts.objective;
@@ -75,7 +79,7 @@ export class Task {
     this.interface = opts.interface;
     this.steps = opts.steps;
     this.acceptance = opts.acceptance;
-    this.dependsOn = opts.dependsOn;
-    this.atomicWith = opts.atomicWith;
+    this.dependsOn = opts.dependsOn ?? [];
+    this.hasDependsOn = opts.hasDependsOn ?? false;
   }
 }

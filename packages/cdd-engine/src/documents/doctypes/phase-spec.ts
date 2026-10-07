@@ -8,7 +8,9 @@
 // new-skeleton body injection (the shape domain derives from `PhaseSpecBody.projectSchemaShape()`
 // — the intended Projection source, never a re-homed constant) and the new-skeleton structural
 // assertions (design C2: the three-truth skeleton existence + the decorated-conditional-section
-// consequences).
+// consequences). P3.1 T2 migrates the skeleton judgment to rule data (the body's `structureRules()`
+// — the single interpreter plane); this module keeps only the section-scoped deviations answer
+// consequence (see `#deviationsFailures` — the section-blind rule plane cannot scope the axis).
 
 import { readFileSync } from "node:fs";
 import {
@@ -16,7 +18,6 @@ import {
   type DocLifecycleFacts,
   DocType,
   type DocValidateFailure,
-  type SchemaShape,
 } from "../doctype.ts";
 import { docTypeRegistry } from "../registry.ts";
 import { DOC_TOKENS } from "../tokens.ts";
@@ -28,29 +29,6 @@ import { resolveParentOverall } from "./shared.ts";
 // ---- spec-contract atoms (canonical — documents/tokens.ts) ----
 const VERSION_HEADER_RE = DOC_TOKENS.versionHeaderRe;
 const VERSION_FIELD = DOC_TOKENS.versionField;
-
-/** One structural-pattern leaf of a body's projected shape, navigated by its `properties` path —
- *  the docContractValidate reads the same schema leaves the authors draft against (the schema is
- *  the single structure fact; module-private — exactly one consumer, the skeleton assertions). The
- *  walk is the same properties-first collection idiom as tokens.ts nodeAt. */
-function shapePattern(shape: SchemaShape, props: readonly string[]): string {
-  let node: Readonly<Record<string, unknown>> = shape as unknown as Readonly<
-    Record<string, unknown>
-  >;
-  for (const key of props) {
-    const viaProps = (node.properties as Readonly<Record<string, unknown>> | undefined)?.[key];
-    const next = viaProps ?? node[key];
-    if (next === null || next === undefined || typeof next !== "object") {
-      throw new Error(`phase-spec shape pattern node not found: ${props.join(".")}`);
-    }
-    node = next as Readonly<Record<string, unknown>>;
-  }
-  const pattern = node.pattern;
-  if (typeof pattern !== "string") {
-    throw new Error(`phase-spec shape pattern not found at: ${props.join(".")}`);
-  }
-  return pattern;
-}
 
 /** The phase-spec doc type — `-design.md` basename + `**Version**` line detection (the spec's
  *  structural feature — a plan/spec doc with the Version line but no four-table header is never
@@ -134,7 +112,7 @@ export class PhaseSpecDocType extends DocType {
         fix: `add a \`- ${DOC_TOKENS.versionMark}: vX.Y · <date>\` line at the document head`,
       });
     }
-    failures.push(...this.#skeletonFailures(content, specPath));
+    failures.push(...this.#deviationsFailures(content, specPath));
     const parent = resolveParentOverall(specPath, root);
     if (!parent.overallPath) {
       // The inheritance-point linkage (P2 T4; design C4): a spec's `## Constraints` inheritance
@@ -162,106 +140,82 @@ export class PhaseSpecDocType extends DocType {
     return failures;
   }
 
-  /** The three-truth skeleton structural assertions (P2 T2; design C2): every phase-spec carries
-   *  the permanent skeleton (`## Design` — with the unique `### Acceptance criteria` subsection
-   *  inside it — · `## Constraints`), and a DECORATED conditional section must carry its structural
-   *  marker (`## Deviations` demands an `Overall updated?` answer of `Yes` — a decorated section
-   *  must carry its marker). The three-truth skeleton is the ONLY assertion surface — the legacy
-   *  six-section gate is gone (a doc without `## Design` fails every skeleton member). Whether a
-   *  section's semantic condition holds is the author's declared judgment (the schema descriptions
-   *  carry the criteria) — the machine asserts only how a decorated section must look, never the
-   *  condition's truth. */
-  #skeletonFailures(content: string, specPath: string): DocValidateFailure[] {
-    const slices = this.body.projectSlicePatterns();
+  /** The decorated-conditional-section consequence (P2 T2 design C2; P3.1 T2 — the sole survivor of
+   *  the retired skeleton walker): a `## Deviations` section — when PRESENT — must carry its
+   *  structural marker. The section-scoped scan is deliberate: the section-blind rule plane cannot
+   *  scope the axis (a content-wide `Yes`-answer-row rule would false-fire on the tree's legacy
+   *  specs' incidental `Yes`/`No` cells in non-deviations tables), so the axis stays here as the
+   *  doc type's section-bound judgment feeding the DocValidateFailure surface. The other skeleton
+   *  assertions (## Design / unique ### Acceptance criteria / ## Constraints) migrated to the body
+   *  rule data (phase-spec-body.structureRules) — the single interpreter consumes them at the gate.
+   *  The heading + the answer form derive live from the projected shape (the schema is the single
+   *  structure fact — the same shape walk the retired skeleton used for `deviations.heading`
+   *  / `deviations.updated`). The marker scan is anchored to the deviations table's answer column —
+   *  every data row's final cell must read the canonical `^Yes` leaf (the anchored schema pattern,
+   *  never a stripped contains-search): an incidental `Yes` elsewhere in the section cannot satisfy
+   *  the assertion. */
+  #deviationsFailures(content: string, specPath: string): DocValidateFailure[] {
     const lines = content.split("\n");
-    const lineHas = (re: RegExp): boolean => lines.some((l) => re.test(l));
     const failures: DocValidateFailure[] = [];
     const push = (field: string, missing: string, fix: string) => {
       failures.push({ artifact: "phase spec", file: specPath, field, missing, fix });
     };
-    // 0. `## Design` — the skeleton's first permanent member (its absence is a failure, no shape
-    //    is exempt — the legacy six-section exemption is retired).
-    if (!lineHas(slices.designHeading)) {
-      push(
-        "`## Design`",
-        "no `## Design` section (the three-truth skeleton's first member)",
-        "add a `## Design` section carrying the phase's design body + the unique `### Acceptance criteria` subsection",
-      );
-    }
-    // 1. The unique `### Acceptance criteria` subsection inside `## Design` — present exactly once
-    //    (the unique-constraint kept from the retired Section 2 skeleton).
-    const acceptanceHits = lines.filter((l) => slices.acceptanceCriteriaHeading.test(l));
-    if (acceptanceHits.length === 0) {
-      push(
-        "`### Acceptance criteria`",
-        "no `### Acceptance criteria` subsection in the `## Design` body",
-        "add the unique `### Acceptance criteria` subsection (`- ` code-span-prefixed acceptance entries) inside `## Design`",
-      );
-    } else if (acceptanceHits.length > 1) {
-      push(
-        "`### Acceptance criteria`",
-        "the `### Acceptance criteria` subsection appears more than once",
-        "keep `### Acceptance criteria` the unique subsection (`- ` code-span-prefixed entries)",
-      );
-    }
-    // 2. The `## Constraints` inheritance point — the non-conditional third of the three-truth
-    //    skeleton (the parent-overall conventions auto-apply; the section carries the spec's own
-    //    delta + the `**Parent program**` pointer, never a restatement).
-    if (!lineHas(slices.constraintsHeading)) {
-      push(
-        "`## Constraints`",
-        "no `## Constraints` inheritance-point section",
-        "add a `## Constraints` section carrying the spec's own delta + the `**Parent program**` pointer (the parent-overall conventions auto-apply)",
-      );
-    }
-    // 3. Conditional-section structural consequence — a DECORATED `## Deviations` section must carry
-    //    the `Overall updated?` = `Yes` marker. The heading + the answer form derive live from the
-    //    projected shape (the schema is the single structure fact). The marker scan is anchored to
-    //    the deviations table's answer column — every data row's final cell must read the canonical
-    //    `^Yes` leaf (the anchored schema pattern, never a stripped contains-search): an incidental
-    //    `Yes` elsewhere in the section cannot satisfy the assertion.
+    // The heading + the answer form derive live from the projected shape (the schema is the single
+    // structure fact — the same shape walk the retired skeleton used for
+    // `deviations.heading` / `deviations.updated`).
     const spine = this.body.projectSchemaShape();
-    const deviationsHeadingRe = new RegExp(shapePattern(spine, ["deviations", "heading"]));
-    const deviationsIdx = lines.findIndex((l) => deviationsHeadingRe.test(l));
-    if (deviationsIdx !== -1) {
-      const updatedRe = new RegExp(shapePattern(spine, ["deviations", "updated"]));
-      let sectionEnd = lines.length;
-      for (let i = deviationsIdx + 1; i < lines.length; i++) {
-        if (/^## /.test(lines[i]!)) {
-          sectionEnd = i;
-          break;
+    const pattern = (path: readonly string[]): string => {
+      let node: Readonly<Record<string, unknown>> = spine as unknown as Readonly<
+        Record<string, unknown>
+      >;
+      for (const key of path) {
+        const viaProps = (node.properties as Readonly<Record<string, unknown>> | undefined)?.[key];
+        const next = viaProps ?? node[key];
+        if (next === null || next === undefined || typeof next !== "object") {
+          throw new Error(`phase-spec shape pattern node not found: ${path.join(".")}`);
         }
+        node = next as Readonly<Record<string, unknown>>;
       }
-      // The row-anchored column scan: table rows are `|`-prefixed lines. The header row (its final
-      // cell is the `Overall updated?` column name) and the separator row (every cell dashes) are
-      // structural table faces, never the marker. Every remaining data row's answer cell must match
-      // `^Yes`, and at least one data row must exist — a decorated section missing the answer
-      // entirely is a backfill violation. A `No` answer cell fails even when the word `Yes` appears
-      // in another cell of the same row or elsewhere in the section (the finding's false-positive
-      // probe: a contains-scan over the full section validated green on incidental `Yes`).
-      let sawDataRow = false;
-      let allAnswersYes = true;
-      for (const row of lines
-        .slice(deviationsIdx + 1, sectionEnd)
-        .filter((l) => l.startsWith("|"))) {
-        const cells = row
-          .split("|")
-          .map((c) => c.trim())
-          .slice(1);
-        if (cells[cells.length - 1] === "") cells.pop();
-        if (cells.length === 0) continue;
-        if (cells[cells.length - 1] === "Overall updated?") continue; // the header row
-        if (cells.every((c) => /^[-:]+$/.test(c))) continue; // the `|---|---|` separator row
-        sawDataRow = true;
-        if (!updatedRe.test(cells[cells.length - 1]!)) allAnswersYes = false;
+      return node.pattern as string;
+    };
+    const deviationsHeadingRe = new RegExp(pattern(["deviations", "heading"]));
+    const deviationsIdx = lines.findIndex((l) => deviationsHeadingRe.test(l));
+    if (deviationsIdx === -1) return failures;
+    // The row-anchored column scan: table rows are `|`-prefixed lines. The header row (its final
+    // cell is the `Overall updated?` column name) and the separator row (every cell dashes) are
+    // structural table faces, never the marker. Every remaining data row's answer cell must match
+    // `^Yes`, and at least one data row must exist — a decorated section missing the answer
+    // entirely is a backfill violation. A `No` answer cell fails even when the word `Yes` appears
+    // in another cell of the same row or elsewhere in the section (the finding's false-positive
+    // probe: a contains-scan over the full section validated green on incidental `Yes`).
+    let sectionEnd = lines.length;
+    for (let i = deviationsIdx + 1; i < lines.length; i++) {
+      if (/^## /.test(lines[i]!)) {
+        sectionEnd = i;
+        break;
       }
-      if (!sawDataRow || !allAnswersYes) {
-        push(
-          "`Overall updated?`",
-          "a `## Deviations` table row's `Overall updated?` answer is not `Yes`",
-          "answer every deviations-table `Overall updated?` row `Yes` (with version + date, e.g. `Yes — vX.Y · YYYY-MM-DD`) before review, or remove the section when the deviation has been fed back to the overall",
-        );
-      }
+    }
+    let sawDataRow = false;
+    let allAnswersYes = true;
+    const updatedRe = new RegExp(pattern(["deviations", "updated"]));
+    for (const row of lines.slice(deviationsIdx + 1, sectionEnd).filter((l) => l.startsWith("|"))) {
+      const cells = row
+        .split("|")
+        .map((c) => c.trim())
+        .slice(1);
+      if (cells[cells.length - 1] === "") cells.pop();
+      if (cells.length === 0) continue;
+      if (cells[cells.length - 1] === "Overall updated?") continue; // the header row
+      if (cells.every((c) => /^[-:]+$/.test(c))) continue; // the `|---|---|` separator row
+      sawDataRow = true;
+      if (!updatedRe.test(cells[cells.length - 1]!)) allAnswersYes = false;
+    }
+    if (!sawDataRow || !allAnswersYes) {
+      push(
+        "`Overall updated?`",
+        "a `## Deviations` table row's `Overall updated?` answer is not `Yes`",
+        "answer every deviations-table `Overall updated?` row `Yes` (with version + date, e.g. `Yes — vX.Y · YYYY-MM-DD`) before review, or remove the section when the deviation has been fed back to the overall",
+      );
     }
     return failures;
   }

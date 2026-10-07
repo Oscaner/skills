@@ -1,10 +1,12 @@
 // packages/cdd-engine/src/documents/doctypes/plan.ts — the PlanDocType subclass (P1 T2; plan §T2
 // · design C1: the plan doc type — `### Task N:` detection + the plan contract face + the dispatch
-// phase-id/group extractors). The DocumentsValidator's per-type plan branch (validatePlanContract /
-// Class-A `**Spec:**` resolution / task extractors / phase-id resolution) homes here as instance
-// methods; the full plan-entry audit (validate) composes its own plan faces then reaches the spec
-// chain through the registry (the S3 parent walk — spec → parent overall). The plan holds the
-// routed review/fix face (`"plan"` review type — S4).
+// phase-id/group extractors). The DocumentsValidator's per-type plan branch (Class-A `**Spec:**`
+// resolution / task extractors / phase-id resolution) homes here as instance methods; the plan's
+// contract assertion face (task continuity · record data + checkable · constraints source · legacy
+// sections + placeholders) migrated to the plan body's rule data at P3.1 T2 (body/plan-body.ts
+// structureRules — the single-interpreter plane); the full plan-entry audit (validate) composes the
+// Class-A surface then reaches the spec chain through the registry (the S3 parent walk — spec →
+// parent overall). The plan holds the routed review/fix face (`"plan"` review type — S4).
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -22,13 +24,7 @@ import { mergeParentConstraints, overallConstraintsOf } from "./body/constraints
 import type { PlanBody } from "./body/plan-body.ts";
 import { planBody } from "./body/plan-body.ts";
 import { Task, type TaskStep } from "./body/task.ts";
-import {
-  type EdgeField,
-  GraphFailure,
-  GraphVerdict,
-  GraphViolationError,
-  TaskGraph,
-} from "./body/task-graph.ts";
+import { GraphFailure, GraphVerdict, GraphViolationError, TaskGraph } from "./body/task-graph.ts";
 import { PLAN_BODY_VIEW } from "./body-views.ts";
 import type { OverallParse } from "./overall.ts";
 import {
@@ -43,7 +39,6 @@ import {
 
 const SPEC_MARK = DOC_TOKENS.specMark;
 const SPEC_FIELD = DOC_TOKENS.specField;
-const PLACEHOLDER_RE = /{{\s*[^{}>\n]+\s*}}/g;
 
 // Segment-preserving spec→phase identity (④'s own-token strand): the canonical phase-id token in
 // its spec-filename form — `…-p2.1-design.md` owns `P2.1`, never its numeric base P2.
@@ -66,11 +61,12 @@ function splitListValue(value: string): string[] {
 /** Parse one `### Task N:` block's lines into a Task data record (design C3) — the single-form
  *  grammar: EVERY task block is a data-shaped record, so the parse always returns a Task (a block
  *  carrying no data-field markers parses to an empty record — the ORPHAN task block, a validate
- *  failure, never a silently dropped block). The optional edge fields (`- **DependsOn**:` /
- *  `- **AtomicWith**:`) read as comma-table number arrays into the Task's dependsOn/atomicWith —
- *  the TaskGraph edge-model read surface. A step entry that drops the ` — checkable:` separator
- *  still parses (its action is kept) with the checkable capture empty — the validate face fails on
- *  it, the field is never silently dropped. */
+ *  failure, never a silently dropped block). The single directed edge `- **DependsOn**:` (P3.1 T3
+ *  — the unilateral edge model) reads as a comma-table number
+ *  array into the Task's dependsOn — `none`/empty → `[]`, and a block whose line is ABSENT carries
+ *  `hasDependsOn: false` (the TaskGraph missing-edge record — the sixth failure class). A step
+ *  entry that drops the ` — checkable:` separator still parses (its action is kept) with the
+ *  checkable capture empty — the validate face fails on it, the field is never silently dropped. */
 function parseTaskBlock(lines: readonly string[]): Task {
   const slices = planBody.projectSlicePatterns();
   let objective = "";
@@ -80,7 +76,7 @@ function parseTaskBlock(lines: readonly string[]): Task {
   const steps: TaskStep[] = [];
   const acceptance: string[] = [];
   const dependsOn: number[] = [];
-  const atomicWith: number[] = [];
+  let hasDependsOn = false;
   let mode: "steps" | "acceptance" | null = null;
   for (const line of lines) {
     // Field markers take priority (a marker line switches the parse mode / captures its single-line
@@ -98,10 +94,14 @@ function parseTaskBlock(lines: readonly string[]): Task {
       produces.push(...splitListValue(line.replace(slices.produces, "").trim()));
       mode = null;
     } else if (slices.dependsOn.test(line)) {
-      dependsOn.push(...splitListValue(line.replace(slices.dependsOn, "").trim()).map(Number));
-      mode = null;
-    } else if (slices.atomicWith.test(line)) {
-      atomicWith.push(...splitListValue(line.replace(slices.atomicWith, "").trim()).map(Number));
+      hasDependsOn = true;
+      const value = line.replace(slices.dependsOn, "").trim();
+      // `none`/empty → the empty edge list (the explicit no-dependency declaration); any other
+      // token passes through the Number gate (a non-integer `abc`/`1;2` parses to NaN — the
+      // effectiveGroups integer gate rejects it, never silently swallowed).
+      if (value !== "" && value !== "none") {
+        dependsOn.push(...splitListValue(value).map(Number));
+      }
       mode = null;
     } else if (slices.steps.test(line)) {
       mode = "steps";
@@ -122,10 +122,10 @@ function parseTaskBlock(lines: readonly string[]): Task {
     interface: { consumes, produces },
     steps,
     acceptance,
-    // the edge fields are absent-on-default: an empty declaration leaves the field undefined
-    // (task.test.ts pins the absent default).
-    ...(dependsOn.length > 0 ? { dependsOn } : {}),
-    ...(atomicWith.length > 0 ? { atomicWith } : {}),
+    // the edge field is default-`[]`: a `none`/empty declaration lands the empty list; the
+    // line-presence fact rides hasDependsOn (missing → the TaskGraph missing-edge BLOCK).
+    dependsOn,
+    hasDependsOn,
   });
 }
 
@@ -196,10 +196,14 @@ export class PlanDocType extends DocType {
     };
   }
 
-  /** The full plan-entry audit — the necessary subset (plan contract + Class A) always runs, then
-   *  the reached spec chain carries the spec face + the parent overall contract + four tables. */
+  /** The full plan-entry audit — the necessary subset (the Class-A `**Spec:**` surface) always
+   *  runs, then the reached spec chain carries the spec face + the parent overall contract + four
+   *  tables. The plan-contract structural assertion face (task continuity / record data / checkable
+   *  / constraints source / legacy sections / placeholders) migrated to the plan body's rule data
+   *  (`plan-body.structureRules` — the P3.1 T2 single-interpreter plane the doc-contract gate
+   *  judges); the Class-A `**Spec:**` chain stays here (cross-document — P5 boundary). */
   validate(entry: string, ctx: DocContext): DocValidateFailure[] {
-    const failures: DocValidateFailure[] = [...this.validatePlanContract(entry)];
+    const failures: DocValidateFailure[] = [];
     const { specPath, failures: specRefFailures } = this.#resolveSpecOf(entry, ctx.root);
     failures.push(...specRefFailures);
     if (!specPath) return failures;
@@ -250,10 +254,10 @@ export class PlanDocType extends DocType {
   }
 
   /** tasksFromPlan(planFile) — the plan's Task data records (design C3): one record per `### Task N:`
-   * block (objective / files / steps / acceptance / dependsOn / atomicWith … the body's projected
-   * task-block slice single source). Under the single-form grammar EVERY block is a data-shaped
-   * record — a block carrying no data markers parses to an EMPTY record (the orphan task block, a
-   * validate failure — never a silently dropped block). A step entry without its
+   * block (objective / files / steps / acceptance / the single directed dependsOn … the body's
+   * projected task-block slice single source). Under the single-form grammar EVERY block is a
+   * data-shaped record — a block carrying no data markers parses to an EMPTY record (the orphan
+   * task block, a validate failure — never a silently dropped block). A step entry without its
    * ` — checkable:` separator still parses with the checkable capture empty — the validate face
    * fails on it, the field is never silently dropped. */
   tasksFromPlan(planFile: string): Task[] {
@@ -272,17 +276,17 @@ export class PlanDocType extends DocType {
   }
 
   /** effectiveGroups(planPath) — the SINGLE dispatch-group derivation (TaskGroup[]), derived from
-   *  the TaskGraph over the plan's task data records: the atomic-closure components in the
-   *  component-DAG topological order (ties by each group's smallest task number). The graph's
-   *  groups() gate runs first — a broken edge model (missing-id / malformed non-integer / self-loop
-   *  / contradiction / cycle / duplicate) throws GraphViolationError carrying the GraphVerdict,
-   *  never a silently emitted order. The literal `## Task Groups` section is NOT part of this
-   *  derivation (its runtime read is retired — the dispatch groups are the graph's edge
-   *  declarations, nothing else composes them). A plan without the full 1..N task-record set (the
-   *  headings not running 1..N in FILE order — a TaskGraph mis-map) yields the per-task singleton
-   *  run [[1],[2],…,[N]] — the same shape an edge-free full-record plan derives. The iteration
-   *  surfaces (derivePlanVerdict / base.ts statusValidate progress lines) consume this one
-   *  derivation — no second implementation. */
+   *  the TaskGraph wave batches over the plan's task data records: the wave is the dispatch group — each becomes one
+   *  dispatch group (ascending task numbers within a wave; waves in ascending depth order). The
+   *  dispatch groups are the graph's edge declarations — nothing else composes them. The graph's
+   *  batches() gate runs first — a broken edge model (missing-edge / missing-id / malformed
+   *  non-integer / self-loop / contradiction (anti-dependency) / cycle / duplicate) throws
+   *  GraphViolationError carrying the GraphVerdict, never a silently emitted order. A plan without
+   *  the full 1..N task-record set (the headings not running 1..N in FILE order — a TaskGraph
+   *  mis-map) yields the per-task singleton run [[1],[2],…,[N]] — never a silently mis-mapped wave.
+   *  The iteration surfaces (derivePlanVerdict / base.ts statusValidate progress lines / the
+   *  next-step router) consume this one derivation —
+   *  no second implementation. */
   effectiveGroups(planPath: string): TaskGroup[] {
     const fileOrder = this.#scanTaskNumbers(planPath);
     const tasks = this.tasksFromPlan(planPath);
@@ -294,40 +298,36 @@ export class PlanDocType extends DocType {
     }
     // Edge-model integer gate at the graph feed: a malformed value declaration (a `- **DependsOn**:
     // foo` non-integer parses to NaN) must surface here as GraphViolationError (missing-id class) —
-    // never a raw TaskGraph throw (the NaN dependsOn reference) or a silently dropped atomic pair.
+    // never a raw TaskGraph throw.
     const failures = this.#edgeIntegerFailures(tasks, fileOrder.length);
     if (failures.length > 0) throw new GraphViolationError(new GraphVerdict(failures));
-    // TaskGraph.groups() validates the edge model first — a non-null GraphVerdict throws
+    // TaskGraph.batches() validates the edge model first — a non-null GraphVerdict throws
     // GraphViolationError (the failures aggregate in the verdict) instead of emitting a broken order.
-    return new TaskGraph(tasks).groups();
+    return new TaskGraph(tasks).groupBatches();
   }
 
-  /** Edge-model integer gate (the plan seam — the malformed-value surface): every `dependsOn` /
-   *  atomicWith value is a task id, so a non-integer declaration is broken. The root NaN hole lives
-   *  in TaskGraph.validate (all five checks compare numbers — NaN survives); this gate turns the
-   *  malformed value into the same GraphViolationError block face (missing-id class) instead. The
-   *  failure anchors `id` to the declaring task id — a real number (the malformed value parses to
-   *  NaN, which would serialize as null against GraphFailure.id's number contract; the offending
-   *  literal already rides the description). */
+  /** Edge-model integer gate (the plan seam — the malformed-value surface): every dependsOn value is
+   *  a task id, so a non-integer declaration is broken. The root NaN hole lives in TaskGraph.validate
+   *  (all six checks compare numbers — NaN survives); this gate turns the malformed value into the
+   *  same GraphViolationError block face (missing-id class) instead. The failure anchors `id` to the
+   *  declaring task id — a real number (the malformed value parses to NaN, which would serialize as
+   *  null against GraphFailure.id's number contract; the offending literal already rides the
+   *  description). */
   #edgeIntegerFailures(tasks: readonly Task[], taskCount: number): GraphFailure[] {
     const failures: GraphFailure[] = [];
     tasks.forEach((task, i) => {
       const declaring = i + 1;
-      const scan = (field: EdgeField, values: readonly number[]): void => {
-        for (const v of values) {
-          if (Number.isInteger(v)) continue;
-          failures.push(
-            new GraphFailure({
-              class: "missing-id",
-              field,
-              id: declaring,
-              description: `task ${declaring} declares a non-integer ${field} task id (${v}) — edge ids are integers (1..${taskCount})`,
-            }),
-          );
-        }
-      };
-      scan("dependsOn", task.dependsOn ?? []);
-      scan("atomicWith", task.atomicWith ?? []);
+      for (const v of task.dependsOn) {
+        if (Number.isInteger(v)) continue;
+        failures.push(
+          new GraphFailure({
+            class: "missing-id",
+            field: "dependsOn",
+            id: declaring,
+            description: `task ${declaring} declares a non-integer dependsOn task id (${v}) — edge ids are integers (1..${taskCount})`,
+          }),
+        );
+      }
     });
     return failures;
   }
@@ -363,123 +363,6 @@ export class PlanDocType extends DocType {
       ? overallConstraintsOf(readFileSync(overallPath, "utf8"))
       : null;
     return mergeParentConstraints({ ownDelta, parentConstraints });
-  }
-
-  /** plan contract: `### Task N:` continuous extractability · `**Spec:**` exists + resolves ·
-   * constraints source declaration extractable · no placeholders · the data-shaped task records
-   * carry the single-form fields (an orphan block — no data-shaped fields — is a validate failure,
-   * never a silently dropped block) and every step carries its checkable (missing checkable = a
-   * validate failure, never an author's discretion) · only the declared `## Constraints` top-level
-   * section (an unknown `##` section — a legacy `## Task Groups` face — is a validate failure).
-   * Necessary subset — always runs. */
-  validatePlanContract(planPath: string): DocValidateFailure[] {
-    const failures: DocValidateFailure[] = [];
-    const content = readFileSync(planPath, "utf8");
-
-    // 1. Task headings — continuously extractable (canonical taskNumbersFromPlan).
-    const tasks = this.taskNumbersFromPlan(planPath);
-    const taskHeadingLbl = `\`${DOC_TOKENS.taskHeadingFormat}\``;
-    if (tasks.length === 0) {
-      failures.push({
-        artifact: "plan",
-        file: planPath,
-        field: "Task headings",
-        missing: `no ${taskHeadingLbl} headings in the plan`,
-        fix: `add ${taskHeadingLbl} task headings, 1-indexed and contiguous (e.g. \`### Task 1:\` through \`### Task N:\`)`,
-      });
-    } else if (new Set(tasks).size !== tasks.length) {
-      failures.push({
-        artifact: "plan",
-        file: planPath,
-        field: "Task headings",
-        missing: `duplicate task heading(s): ${tasks.join(", ")}`,
-        fix: `make each ${taskHeadingLbl} heading present exactly once`,
-      });
-    } else {
-      const max = tasks[tasks.length - 1];
-      const expected = Array.from({ length: max }, (_, i) => i + 1);
-      if (tasks.length !== expected.length || tasks.some((n, i) => n !== expected[i])) {
-        failures.push({
-          artifact: "plan",
-          file: planPath,
-          field: "Task headings",
-          missing: `task headings not contiguous from 1 (got ${tasks.join(", ")}; expected 1..${max})`,
-          fix: `renumber the task headings so every ${taskHeadingLbl} from 1 to the max is present exactly once`,
-        });
-      }
-    }
-
-    // 2. Constraints source — the declared source must be extractable (the materializer's own face;
-    //    the implement non-dry existence gate already blocks on it; this check is mode-independent).
-    if (this.extractPlanConstraints(content) === null) {
-      failures.push({
-        artifact: "plan",
-        file: planPath,
-        field: "Constraints source",
-        missing: "plan declares no Constraints source",
-        fix: `declare a literal \`${DOC_TOKENS.constraintsHeading}\` section carrying the plan's deltas (the single constraint source)`,
-      });
-    }
-
-    // 3. Placeholders — unfilled template tokens (`{{…}}`) are authoring debt; handlebars partials
-    //    `{{> …}}` are the in-repo template mechanism and stay exempt.
-    for (const m of content.matchAll(PLACEHOLDER_RE)) {
-      failures.push({
-        artifact: "plan",
-        file: planPath,
-        field: "placeholders",
-        missing: `unfilled template token ${m[0]}`,
-        fix: "replace the placeholder with the real content (or drop the template syntax)",
-      });
-    }
-
-    // 4. Data-shaped task records — the single-form grammar's task face: every `### Task N:` block
-    //    must carry the data-shaped fields (objective / steps / acceptance / files — a legacy
-    //    `- **Do**:`-face block parses to an EMPTY record → an orphan task block, a validate
-    //    failure). Every parsed step additionally carries its checkable outcome (design C3: the
-    //    step checkable is a validate requirement — a step whose action line drops the
-    //    ` — checkable:` separator parses with an empty checkable and fails).
-    this.tasksFromPlan(planPath).forEach((task, i) => {
-      if (!task.objective && task.steps.length === 0 && task.acceptance.length === 0) {
-        failures.push({
-          artifact: "plan",
-          file: planPath,
-          field: "Task records",
-          missing: `orphan task block ${i + 1} — the ${taskHeadingLbl} block carries no data-shaped fields (a legacy \`- **Do**:\` face is retired)`,
-          fix: `shape the task block as a data record: \`- **Objective**:\` / \`- **Files**:\` / \`- **Interface**:\`{consumes,produces} / \`- **Steps**:\` (each with its \` — checkable:\` outcome) / \`- **Acceptance**:\``,
-        });
-      }
-      for (const step of task.steps) {
-        if (!step.checkable) {
-          failures.push({
-            artifact: "plan",
-            file: planPath,
-            field: "`checkable`",
-            missing: `task step "${step.action}" carries no checkable outcome`,
-            fix: "end every `- **Steps**:` entry's action with ` — checkable: <outcome>` (the verifiable outcome is the step's acceptance evidence)",
-          });
-        }
-      }
-    });
-
-    // 5. Top-level sections — the single-form grammar's section face: the plan owns exactly ONE
-    //    top-level `##` section, the declared `## Constraints` source (the plan's own deltas
-    //    container). Any other top-level `##` heading is an unknown section — the retired
-    //    `## Task Groups` dispatch-group declaration is gone with its shape node, so a legacy
-    //    section blocks instead of silently passing.
-    const constraintsHeadingRe = this.body.projectSlicePatterns().constraintsHeading;
-    for (const line of content.split("\n")) {
-      if (/^## [^#]/.test(line) && !constraintsHeadingRe.test(line)) {
-        failures.push({
-          artifact: "plan",
-          file: planPath,
-          field: "Sections",
-          missing: `unknown top-level section "${line.trim()}" — the single-form plan declares only the \`${DOC_TOKENS.constraintsHeading}\` section surface`,
-          fix: `merge the content into the declared \`${DOC_TOKENS.constraintsHeading}\` section or the task data records — a plan owns no other top-level \`##\` section`,
-        });
-      }
-    }
-    return failures;
   }
 
   /** phaseIdFromPlan(planPath) — the basename-scan phase id (`…-p<digits>(.digits)*`, the canonical

@@ -11,9 +11,10 @@
 // + the label==basename rule kept — · `**Parent program**` · `**Version**` · `**Depends on**` ·
 // `**Base**`), a delta-only `## Constraints` face (the section carries the plan's own deltas — the
 // single constraint surface), the `tasks[]` Task data records (objective / files /
-// interface{consumes,produces} / steps[]{action,checkable} / acceptance[], plus the optional
-// dependsOn?/atomicWith? edge fields — read/write: the task-block parser fills them and TaskGraph
-// consumes them for the atomic-closure grouping + the edge-validation BLOCK face) the brief
+// interface{consumes,produces} / steps[]{action,checkable} / acceptance[] / dependsOn[] — the
+// mandatory single directed edge, read/write: the task-block parser fills it from the
+// `- **DependsOn**:` comma list (`none`/empty → `[]`; a missing line is the missing-edge failure),
+// and TaskGraph consumes it for the wave batches + the edge-validation BLOCK face) the brief
 // renderer materializes the task-handoff brief from. The `### Task N:` render surface keeps the
 // colon-form heading const — the deriveDocTokens taskHeadings leaf and the 1..N continuity contract
 // are byte-unchanged by the re-projection.
@@ -24,7 +25,12 @@
 // from the Task data, zero prose carving — the legacy `- **Do**:` face is gone.
 
 import type { SchemaShape } from "../../doctype.ts";
-import { BODY_CONSTRAINTS_HEADING_RE, DocBody, type SlicePatternSet } from "./doc-body.ts";
+import {
+  BODY_CONSTRAINTS_HEADING_RE,
+  DocBody,
+  type SlicePatternSet,
+  type StructureRule,
+} from "./doc-body.ts";
 import type { Task } from "./task.ts";
 
 /** The data-shaped plan shape domain (P2 T3; design C3) — the projection product
@@ -37,7 +43,7 @@ export const PLAN_BODY_SHAPE: SchemaShape = {
   $id: "https://oscaner.dev/schemas/cdd/plan.json",
   title: "Phase implementation plan document structure",
   description:
-    "Canonical structure of a kairos phase implementation plan — the per-phase executable breakdown of one design spec. This schema is the single structure fact for the plan doc type: the header fields, the `### Task N:` colon-form task headings, the per-task data records (objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[]) the brief renderer materializes the task-handoff brief from — zero prose `- **Do**:` carving — and the `## Constraints` delta (the section carries only the plan's own deltas, the single constraint surface). Authoring agents read the properties + descriptions to draft conforming plans; docContractValidate / brief extraction consume the same patterns.",
+    "Canonical structure of a kairos phase implementation plan — the per-phase executable breakdown of one design spec. This schema is the single structure fact for the plan doc type: the header fields, the `### Task N:` colon-form task headings, the per-task data records (objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[] / dependsOn[] — the mandatory single directed edge, `none`/empty = the explicit no-dependency declaration, a missing line = the missing-edge failure) the brief renderer materializes the task-handoff brief from — zero prose `- **Do**:` carving — and the `## Constraints` delta (the section carries only the plan's own deltas, the single constraint surface). Authoring agents read the properties + descriptions to draft conforming plans; docContractValidate / brief extraction consume the same patterns.",
   type: "object",
   properties: {
     header: {
@@ -179,12 +185,12 @@ export const PLAN_BODY_SHAPE: SchemaShape = {
     tasks: {
       type: "array",
       description:
-        "The plan's tasks — one task record per `### Task N:` block, the C3 data shape the brief renderer materializes the task-handoff brief from (renderBrief: objective + steps[action+checkable] + acceptance). Every task record's steps carry their checkable outcome (a step without a checkable fails validation).",
+        "The plan's tasks — one task record per `### Task N:` block, the C3 data shape the brief renderer materializes the task-handoff brief from (renderBrief: objective + steps[action+checkable] + acceptance). Every task record's steps carry their checkable outcome (a step without a checkable fails validation). `- **DependsOn**:` is the plan's single directed edge — mandatory on every task block; `none`/empty is the explicit no-dependency declaration and a missing line is the missing-edge failure.",
       items: {
         type: "object",
-        required: ["objective", "files", "interface", "steps", "acceptance"],
+        required: ["objective", "files", "interface", "steps", "acceptance", "dependsOn"],
         description:
-          "One plan task record — objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[], plus the optional dependsOn? (the tasks this task depends on) and atomicWith? (the tasks this task is atomic with) edge fields — read/write: the task-block parser fills them from their `- **DependsOn**:` / `- **AtomicWith**:` comma lists, TaskGraph consumes them for the grouping + edge validation.",
+          "One plan task record — objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[] / dependsOn[] — the single directed edge — `- **DependsOn**:` comma list, `none`/empty → `[]`; the edge model is unilateral — TaskGraph consumes the dependsOn edges for the wave batches + the edge-validation BLOCK face (missing-edge · anti-dependency · …).",
         properties: {
           objective: {
             type: "string",
@@ -257,20 +263,11 @@ export const PLAN_BODY_SHAPE: SchemaShape = {
             items: {
               type: "integer",
               minimum: 1,
-              description: "One task id this task depends on (a `### Task N:` id).",
+              description:
+                "One task id this task depends on (a `### Task N:` id — must be lower than the declaring task's own number: the anti-dependency gate).",
             },
             description:
-              "The task ids this task depends on — the `- **DependsOn**:` comma list (read/write: the task-block parser fills it; TaskGraph consumes the edges).",
-          },
-          atomicWith: {
-            type: "array",
-            items: {
-              type: "integer",
-              minimum: 1,
-              description: "One task id this task is atomic with (a `### Task N:` id).",
-            },
-            description:
-              "The task ids this task is atomic with — the `- **AtomicWith**:` comma list (read/write: the task-block parser fills it; TaskGraph consumes the edges).",
+              "The task ids this task depends on — the `- **DependsOn**:` comma list (mandatory per block: `none`/empty → `[]`; a missing line is the missing-edge sixth failure class; references point at lower-numbered tasks only — a forward reference ≥ the declaring task's own number blocks as the anti-dependency violation).",
           },
         },
       },
@@ -290,13 +287,18 @@ export const PLAN_BODY_SHAPE: SchemaShape = {
  *  phase-spec body projects: the constraint-section extraction's plan-side pattern and the spec
  *  skeleton assertion read one byte source, never a hand-written duplicate per leaf), and the
  *  task-block data-field markers (objective / files / consumes / produces / steps / acceptance /
- *  dependsOn / atomicWith) the task-record parser slices the `### Task N:` blocks on. A numbered
- *  step entry captures its action + its optional checkable outcome in one regex — a step line
- *  without the `— checkable:` separator leaves the checkable capture empty (the validate-failing
- *  case, never silently dropped). */
+ *  dependsOn — the single directed edge) the task-record
+ *  parser slices the `### Task N:` blocks on. A numbered step entry captures its action + its
+ *  optional checkable outcome in one regex — a step line without the `— checkable:` separator
+ *  leaves the checkable capture empty (the validate-failing case, never silently dropped). */
 const PLAN_SLICE_PATTERNS: SlicePatternSet = {
   taskHeading: /^### Task (\d+):/m,
   constraintsHeading: BODY_CONSTRAINTS_HEADING_RE,
+  /** The data-shaped task-record field markers — the fields whose presence makes a `### Task N:`
+   *  block a data record the brief can render (the retired orphan-task-block check's
+   *  `!objective && steps.length === 0 && acceptance.length === 0` — a block carrying none of the
+   *  three is an orphan, whether it wears the legacy `- **Do**:` face or carries no fields at all). */
+  taskField: /^- \*\*(?:Objective|Steps|Acceptance)\*\*:[ \t]*/m,
   objective: /^- \*\*Objective\*\*:[ \t]*/,
   files: /^- \*\*Files\*\*:[ \t]*/,
   consumes: /^- \*\*Consumes\*\*:[ \t]*/,
@@ -306,7 +308,6 @@ const PLAN_SLICE_PATTERNS: SlicePatternSet = {
   acceptance: /^- \*\*Acceptance\*\*:[ \t]*/,
   acceptanceEntry: /^\s*[-*]\s+/,
   dependsOn: /^- \*\*DependsOn\*\*:[ \t]*/,
-  atomicWith: /^- \*\*AtomicWith\*\*:[ \t]*/,
 };
 
 /**
@@ -332,6 +333,154 @@ export class PlanBody extends DocBody {
    *  markers (the task-record parser's single source). */
   projectSlicePatterns(): SlicePatternSet {
     return PLAN_SLICE_PATTERNS;
+  }
+
+  /** The plan structure-rule data (P3.1 T2 — the retired plan-contract text-assertion migration,
+   *  design §2.2): task continuity + record presence (the data-shaped record face, every task block
+   *  carries objective/steps/acceptance — and every step's checkable) + edge completeness (every
+   *  block carries its single `- **DependsOn**:` line — the missing-edge sixth failure class) +
+   *  the anti-dependency gate (a `DependsOn` reference ≥ the declaring block's own number, the
+   *  selfBounded run-context invariant — P3.1 T3) + the reference lint (P3.1 T6 — the WARN
+   *  observation face: a backward `Task N`/`T<N>` citation in the objective/acceptance prose with no
+   *  matching declared edge is a suspected missing edge, observed not gated) + constraints source +
+   *  legacy residue, as rule
+   *  data the ONE interpreter runs at the doc-contract gate. The anchors derive from the projected
+   *  slices (`.source` — the parse-pattern single source, never a re-typed literal; the
+   *  legacy-section / placeholder residues are the retired faces' own anchors). The record-data rule
+   *  is the within-scoped per-run presence face (a `### Task N:` heading opens a run; the run must
+   *  carry at least one data-shaped field — a legacy `- **Do**:` block or a field-less empty block
+   *  is an orphan, the retired `!objective && steps.length === 0 && acceptance.length === 0` face
+   *  restored). The checkable rule is section-scoped (`within` — the interpreter's run-closed
+   *  records plane): a numbered step counts as a checkable-judgment target only under a
+   *  `- **Steps**:` field, exactly the retired contract's parsed-steps scope — a numbered line in
+   *  Constraints prose or a code fence never demands a checkable. The Class-A `**Spec:**`
+   *  cross-document chain is NOT on this plane — `#resolveSpecOf` stays on the plan doc type (P5
+   *  boundary). */
+  structureRules(): readonly StructureRule[] {
+    const heading = (re: RegExp): string => re.source;
+    // The `- **DependsOn**:` VALUES anchor — the anti-dependency rule's item anchor AND the
+    // reference lint's declared-reference anchor (the block's declared edge set) share ONE byte
+    // source, never a re-typed literal per rule.
+    const dependsOnValues = "^- \\*\\*DependsOn\\*\\*:[ \\t]*(.*)$";
+    // The reference-lint scan-surface markers — the Objective / Acceptance marker lines whose
+    // trailing text the lint scans. Single-sourced from the projected slices: the anchor arms and
+    // the plane's `referenceSurface` co-derive from this ONE list — a renamed prose field drifts
+    // the anchor AND the scan surface together, never silently (the interpreter reads the
+    // surface, never a re-typed field name).
+    const referenceMarkers = [
+      heading(PLAN_SLICE_PATTERNS.objective),
+      heading(PLAN_SLICE_PATTERNS.acceptance),
+    ];
+    return [
+      {
+        id: "plan.tasks",
+        plane: { kind: "headingLeads", anchor: heading(PLAN_SLICE_PATTERNS.taskHeading) },
+        invariants: [{ type: "presence" }, { type: "continuity" }],
+        severity: "BLOCK",
+        message:
+          "task headings must run `### Task 1:` … `### Task N:` — present at least once, 1-indexed and contiguous (no gaps / duplicates / offset)",
+      },
+      {
+        id: "plan.recordData",
+        plane: {
+          kind: "records",
+          anchor: heading(PLAN_SLICE_PATTERNS.taskField),
+          within: heading(PLAN_SLICE_PATTERNS.taskHeading),
+        },
+        invariants: [{ type: "presence", perRun: true }],
+        severity: "BLOCK",
+        message:
+          "a `### Task N:` block carries no data-shaped fields (`- **Objective**:` / `- **Steps**:` / `- **Acceptance**:`) — an orphan block (a legacy `- **Do**:` body or a field-less empty block) the brief cannot render; shape it as a data record",
+      },
+      {
+        id: "plan.checkable",
+        plane: {
+          kind: "records",
+          anchor: "^\\s*\\d+\\.\\s+(.*)$",
+          within: heading(PLAN_SLICE_PATTERNS.steps),
+        },
+        invariants: [{ type: "domain", valuePattern: ".*—\\s*checkable:\\s*.+" }],
+        severity: "BLOCK",
+        message:
+          "every `- **Steps**:` entry must end with ` — checkable: <outcome>` (the verifiable outcome is the step's acceptance evidence)",
+      },
+      {
+        id: "plan.edge",
+        plane: {
+          kind: "records",
+          anchor: heading(PLAN_SLICE_PATTERNS.dependsOn),
+          within: heading(PLAN_SLICE_PATTERNS.taskHeading),
+        },
+        invariants: [{ type: "presence", perRun: true }],
+        severity: "BLOCK",
+        message:
+          "a `### Task N:` block declares no `- **DependsOn**:` line — the missing-edge sixth failure: every task block must declare its single directed dependency edge (`none`/empty = the explicit no-dependency declaration)",
+      },
+      {
+        id: "plan.antiDependency",
+        plane: {
+          kind: "records",
+          anchor: dependsOnValues,
+          within: heading(PLAN_SLICE_PATTERNS.taskHeading),
+        },
+        invariants: [{ type: "selfBounded" }],
+        severity: "BLOCK",
+        message:
+          "a `- **DependsOn**:` reference points at a task number ≥ the declaring block's own number — the anti-dependency violation: only lower-numbered tasks are referenceable (numbering order is the topological-linearization anchor)",
+      },
+      {
+        id: "plan.referenceLint",
+        plane: {
+          kind: "records",
+          // The reference surface — FIELD-DEFINED (spec §2.3): the Objective / Acceptance marker
+          // lines (their trailing text — the marker arms co-derived with `referenceSurface` below,
+          // never a re-typed literal) + the acceptance bullets; steps entries (numbered) and the
+          // files / consumes / produces bullets are constructively excluded (the `(?!\d+\.)` guard
+          // keeps a numbered step entry off the bullet face; the owning-field walk keeps
+          // non-acceptance bullets off the prose face — a backward task reference inside a Files
+          // bullet is a path, never a dependency intent).
+          anchor: `${referenceMarkers.map((marker) => `${marker}.*$`).join("|")}|^\\s+[-*]\\s+(?!\\d+\\.).*$`,
+          within: heading(PLAN_SLICE_PATTERNS.taskHeading),
+          // The run's declared reference set — the block's own `- **DependsOn**:` values (a cited
+          // task already declared as an edge is never a missing-edge suspicion).
+          declaredReferences: dependsOnValues,
+          // The scan-surface vocabulary the interpreter reads — the markers to scan + the
+          // acceptance-owned bullet family (never a re-typed interpreter literal).
+          referenceSurface: {
+            markers: referenceMarkers,
+            bulletOwners: [heading(PLAN_SLICE_PATTERNS.acceptance)],
+          },
+        },
+        invariants: [{ type: "referenceLint" }],
+        severity: "WARN",
+        message:
+          "a `### Task N:` block's Objective/Acceptance prose references a lower-numbered task with no matching `- **DependsOn**:` declaration — a suspected missing edge: declare the edge, or treat the reference as prose (WARN — a loose observation, never a gate; the author's intent is authoritative)",
+      },
+      {
+        id: "plan.constraints",
+        plane: { kind: "headingLeads", anchor: heading(PLAN_SLICE_PATTERNS.constraintsHeading) },
+        invariants: [{ type: "presence" }],
+        severity: "BLOCK",
+        message:
+          "plan declares no Constraints source — add a literal `## Constraints` section carrying the plan's deltas (the single constraint source)",
+      },
+      {
+        id: "plan.legacySections",
+        plane: { kind: "headingLeads", anchor: "^## (?!Constraints\\s*$)[^#]" },
+        invariants: [{ type: "residue" }],
+        severity: "BLOCK",
+        message:
+          "unknown top-level `##` section — the single-form plan owns exactly the declared `## Constraints` section surface (a legacy `## Task Groups` face is retired)",
+      },
+      {
+        id: "plan.placeholders",
+        plane: { kind: "records", anchor: "\\{\\{\\s*[^{}>\\n]+\\s*\\}\\}" },
+        invariants: [{ type: "residue" }],
+        severity: "BLOCK",
+        message:
+          "unfilled template token `{{…}}` — replace the placeholder with the real content (or drop the template syntax); `{{> …}}` handlebars partials are the in-repo mechanism and stay exempt",
+      },
+    ];
   }
 
   /** The task-handoff brief content, rendered from the Task data (design C3): the objective
@@ -364,5 +513,5 @@ export interface PlanBodyOpts {
  *  a re-homed constant). */
 export const planBody = new PlanBody({
   description:
-    "Canonical plan authoring way: a metadata header five-tuple (`**Spec:**` — the Class-A `**Spec:**` marker + label==basename — · `**Parent program**` · `**Version**` · `**Depends on**` · `**Base**`), a delta-only `## Constraints` section (the plan's own deltas — the single constraint surface), and the per-task data records (`### Task N:` headings + objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[] — every step carries its checkable outcome). The task-handoff brief renders from the task records — zero prose `- **Do**:` carving.",
+    "Canonical plan authoring way: a metadata header five-tuple (`**Spec:**` — the Class-A `**Spec:**` marker + label==basename — · `**Parent program**` · `**Version**` · `**Depends on**` · `**Base**`), a delta-only `## Constraints` section (the plan's own deltas — the single constraint surface), and the per-task data records (`### Task N:` headings + objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[] + the mandatory single directed edge `- **DependsOn**:` — `none`/empty = the explicit no-dependency declaration, a missing line = the missing-edge failure, references point at lower-numbered tasks only. Every step carries its checkable outcome). The task-handoff brief renders from the task records — zero prose `- **Do**:` carving.",
 });

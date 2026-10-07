@@ -21,7 +21,12 @@
 // only how a decorated section must look.
 
 import type { SchemaShape } from "../../doctype.ts";
-import { BODY_CONSTRAINTS_HEADING_RE, DocBody, type SlicePatternSet } from "./doc-body.ts";
+import {
+  BODY_CONSTRAINTS_HEADING_RE,
+  DocBody,
+  type SlicePatternSet,
+  type StructureRule,
+} from "./doc-body.ts";
 
 /** The new-skeleton phase-spec shape domain (P2 T2; design C2) — the projection product
  *  `projectSchemaShape()` serves and the module-level leaf tokens.ts authorizes its DOC_TOKENS
@@ -99,23 +104,61 @@ export const PHASE_SPEC_BODY_SHAPE: SchemaShape = {
     design: {
       type: "object",
       description:
-        "`## Design` — the phase's design body: this phase's increment (approaches, architecture, components, data flow, errors, testing) AND the unique `### Acceptance criteria` subsection (see design.acceptanceCriteria) — the first of the permanent three-truth skeleton sections.",
+        "`## Design` — the phase's design body, the double-layer outline model: `### N. <group>` group headings (consecutive `#### N.M <item>` design-item leaves grouped under them) + the unique `### Acceptance criteria` subsection (see design.acceptanceCriteria) — the first of the permanent three-truth skeleton sections. The design body is the registration-leaf plane: every `#### N.M` item's `N` must resolve to a declared `### N.` group, the groups run 1..K in order, and no independent bold pseudo-heading (`**…**` line pseudo-section) survives. The `###` contract (design-body scope): `###`-level lines are legal in exactly the `### N.` group-heading allowlist + the single `### Acceptance criteria` anchor — the legacy `###`-everywhere free form is retired (plan `### Task N:` and overall charter `###`/`####` stay legal, governed by their own bodies' rule sets).",
       properties: {
         heading: {
           type: "string",
           pattern: "^## Design$",
           description: "Literal heading `## Design`.",
         },
+        groupHeading: {
+          type: "object",
+          description:
+            "`### N. <group>` — the double-layer group headings: `^### \\d+\\. ` line form, the first `###`-legal design-body form. Groups run in strictly ascending order; each declares the group number every `#### N.M` item's `N` must resolve to.",
+          properties: {
+            pattern: {
+              type: "string",
+              pattern: "^### \\d+\\. ",
+              description:
+                "Group-heading line form — `### N. ` + a group name; `N` is the group number the design items' ownership crosslink resolves against.",
+            },
+            order: {
+              type: "string",
+              const: "strictly ascending",
+              description:
+                "Group order rule — `### N.` group numbers ascend strictly through the design body (a non-monotonic group numbering blocks: the double-layer outline is read top-down).",
+            },
+          },
+        },
+        designItem: {
+          type: "object",
+          description:
+            "`#### N.M <item>` — the double-layer item leaves: `^#### \\d+\\.\\d+ ` line form, `M` the item's number within group `N`. Every `#### N.M` heading must resolve its `N` to a declared `### N.` group (item ownership — the machine assertion that replaces the author's group-reasoning burden).",
+          properties: {
+            pattern: {
+              type: "string",
+              pattern: "^#### \\d+\\.\\d+ ",
+              description:
+                "Design-item line form — `#### N.M ` + an item title; `N.M` the two-level rank (group `N`, item `M`).",
+            },
+            ownership: {
+              type: "string",
+              const: "N ∈ declared groups",
+              description:
+                "Item-ownership rule — each `#### N.M` item's `N` must be a declared `### N.` group number (a misbound item — an undeclared group reference — blocks).",
+            },
+          },
+        },
         acceptanceCriteria: {
           type: "object",
           description:
-            "`### Acceptance criteria` — the ONLY subsection, and it lives inside `## Design`: verifiable completion conditions, each independently testable. An acceptance criterion is a claim: a claim that cannot be mechanically verified on the shipped tree is a paper claim.",
+            "`### Acceptance criteria` — the ONLY non-numbered `###` subsection, and it lives inside `## Design`: verifiable completion conditions, each independently testable. The `###` contract (design-body scope): within `## Design` a `###`-level line is legal in exactly two forms — the double-layer group headings `### N. <group>` (`^### \\d+\\. `) and this unique `### Acceptance criteria` anchor. An acceptance criterion is a claim: a claim that cannot be mechanically verified on the shipped tree is a paper claim.",
           properties: {
             heading: {
               type: "string",
               const: "### Acceptance criteria",
               description:
-                "Literal subsection heading `### Acceptance criteria` — unique: no other subsection exists anywhere in the doc.",
+                "Literal subsection heading `### Acceptance criteria` — the unique `###`-level anchor (the design body's `###` allowlist = the `### N.` group-heading form + this anchor; no other `###`-level line is legal inside `## Design`).",
             },
             location: {
               type: "object",
@@ -255,9 +298,199 @@ export const PHASE_SPEC_BODY_SHAPE: SchemaShape = {
  *  drift apart). */
 const PHASE_SPEC_SLICE_PATTERNS: SlicePatternSet = {
   designHeading: /^## Design\s*$/m,
+  /** The double-layer group-heading slice (P3.1 T4 — the unified outline model): `### N. <group>` —
+   *  the design body's group rank, `N` captured (the group-number source of the order + ownership
+   *  rules). The `\d+` number class keeps the `### Acceptance criteria` anchor untouched (zero
+   *  collision — the exact-anchor uniqueness rule keeps its single-hit verdict). */
+  groupHeading: /^### (\d+)\. /m,
+  /** The double-layer design-item leaf slice (P3.1 T4): `#### N.M <item>` — the item rank, `N`
+   *  captured (the ownership rule's group reference). Two-level ranks only — a deeper `#### N.M.K`
+   *  leaf is outside the registration grammar (the outline model's two-level contract). */
+  designItemHeading: /^#### (\d+)\.\d+ /m,
   acceptanceCriteriaHeading: /^### Acceptance criteria\s*$/m,
   constraintsHeading: BODY_CONSTRAINTS_HEADING_RE,
 };
+
+/** The independent-bold pseudo-heading residue anchor (P3.1 T4 — design §2.4): a line that opens
+ *  with `**` and closes with `**` and trailing whitespace only (`^\*\*.+\*\*\s*$`) is a pseudo-
+ *  heading — the flattened section header a `#### N.M` rank replaces — BLOCK residue. Two legacy
+ *  prose lines on the current tree match the strict pattern yet are legal exempt prose, not headings
+ *  (pinned flush lines — the two exempt prose lines the spec §2.4 count-reconciliation pins, never
+ *  migrated): the overhaul family's p1-design L113 `**All Overall updated? = Yes before review.**`
+ *  (a checklist assertion callout) and its p5-design L88 deletion-plane prose bookend (a prose line
+ *  that — because it opens AND closes with `**` — is exactly why the exemption is pinned). The
+ *  anchor carves them out with leading-token negative lookaheads — everything else on the strict
+ *  pattern is a pseudo-heading BLOCK. */
+const SPEC_PSEUDO_HEADING_ANCHOR = [
+  "^(?!\\*\\*All Overall updated\\? = Yes before review\\.\\*\\*\\s*$)",
+  "(?!\\*\\*删除面\\*\\*（旧模型归零）)",
+  "\\*\\*.+\\*\\*\\s*$",
+].join("");
+
+/** The `###`-heading allowlist residue anchor (P3.1 T4 — the F3 `###` contract's unranked face):
+ *  the phase-spec's `### ` heading surface admits EXACTLY the registered group ranks (`### N. ` —
+ *  the groupHeading slice) and the unique acceptance anchor (`### Acceptance criteria` — the
+ *  acceptanceCriteriaHeading slice); any other `### `-prefixed line is an unregistered ragged
+ *  heading — structure residue BLOCKed by `spec.designHeadingResidue`. The negative lookaheads
+ *  exclude the two allowlisted forms structurally (each derived from its slice source, the shared
+ *  `^### ` leader stripped — single-source, never a re-typed literal), so only genuinely
+ *  unregistered headings remain items. */
+const SPEC_HEADING_ALLOWLIST_ANCHOR = [
+  "^### (?!(?:",
+  specHeadingAnchor(PHASE_SPEC_SLICE_PATTERNS.groupHeading).replace(/^\^### /, ""),
+  ")|(?:",
+  specHeadingAnchor(PHASE_SPEC_SLICE_PATTERNS.acceptanceCriteriaHeading).replace(/^\^### /, ""),
+  "))",
+  ".+$",
+].join("");
+
+/** The phase-spec structure-rule data (P3.1 T2 — the retired skeleton-walker migration, design §2.2):
+ *  the three-truth skeleton's existence/uniqueness assertions as rule data (the ONE interpreter
+ *  `runStructureRules` consumes them at the doc-contract gate — the judgmental surface the retired
+ *  handwritten skeleton walker fed). Each anchor derives from the projected slice regexes
+ *  (`.source` — the parse-pattern single source, never a re-typed literal). The rule-construction
+ *  atom is deliberately local: the slice source of a projected heading key, so a heading rename in
+ *  the projection re-anchors the rule in the same build.
+ *
+ *  Scope note (the delegated deviations axis): the `## Deviations` row-anchor `Yes` consequence is
+ *  NOT on this plane — it stays on the doc type (phase-spec.ts `#deviationsFailures`), section-
+ *  scoped to the `## Deviations` section. The rule interpreter is section-blind (a rule's plane
+ *  scans the whole content), and the tree's legacy specs carry incidental `Yes`/`No`-starting cells
+ *  inside non-deviations tables (a legacy program's p2-design Q&A rows) — a content-wide
+ *  answer-row rule would false-fire there and break the tree-walk delta-zero contract (T2 step 1). */
+function specHeadingAnchor(re: RegExp): string {
+  return re.source;
+}
+
+/** The phase-spec structure rules — the three-truth skeleton (design §2.2): `## Design` presence →
+ *  `### Acceptance criteria` uniqueness → `## Constraints` presence. Severity BLOCK (the skeleton
+ *  is the skeleton — a missing permanent member blocks the gate). */
+const PHASE_SPEC_RULES: readonly StructureRule[] = [
+  {
+    id: "spec.design",
+    plane: {
+      kind: "headingLeads",
+      anchor: specHeadingAnchor(PHASE_SPEC_SLICE_PATTERNS.designHeading),
+    },
+    invariants: [{ type: "presence" }],
+    severity: "BLOCK",
+    message:
+      "no `## Design` section (the three-truth skeleton's first member — add the section carrying the phase's design body + the unique `### Acceptance criteria` subsection)",
+  },
+  {
+    id: "spec.acceptance",
+    plane: {
+      kind: "headingLeads",
+      anchor: specHeadingAnchor(PHASE_SPEC_SLICE_PATTERNS.acceptanceCriteriaHeading),
+    },
+    invariants: [{ type: "uniqueness" }],
+    severity: "BLOCK",
+    message:
+      "the `### Acceptance criteria` subsection must appear exactly once inside `## Design` (`- ` code-span-prefixed acceptance entries)",
+  },
+  {
+    id: "spec.constraints",
+    plane: {
+      kind: "headingLeads",
+      anchor: specHeadingAnchor(PHASE_SPEC_SLICE_PATTERNS.constraintsHeading),
+    },
+    invariants: [{ type: "presence" }],
+    severity: "BLOCK",
+    message:
+      "no `## Constraints` inheritance-point section (add the section carrying the spec's own delta + the `**Parent program**` pointer — the parent-overall conventions auto-apply)",
+  },
+  {
+    id: "spec.designGroups",
+    plane: {
+      kind: "headingLeads",
+      anchor: specHeadingAnchor(PHASE_SPEC_SLICE_PATTERNS.groupHeading),
+    },
+    invariants: [{ type: "order" }],
+    severity: "BLOCK",
+    message:
+      "the design body's `### N.` group headings must ascend strictly (the double-layer outline is read top-down; renumber the groups in order)",
+  },
+  {
+    id: "spec.designHeadingResidue",
+    plane: { kind: "headingLeads", anchor: SPEC_HEADING_ALLOWLIST_ANCHOR },
+    invariants: [{ type: "residue" }],
+    severity: "BLOCK",
+    message:
+      "an unregistered `### ` heading survives — the `###` contract admits exactly the `### N.` group ranks and the unique `### Acceptance criteria` anchor; a ragged `###` heading (neither form) is structure residue — promote it to an `### N.` group rank or fold its prose into a group",
+  },
+  {
+    id: "spec.designItemOwnership",
+    plane: {
+      kind: "headingLeads",
+      anchor: specHeadingAnchor(PHASE_SPEC_SLICE_PATTERNS.designItemHeading),
+    },
+    invariants: [
+      {
+        type: "crosslink",
+        targetAnchor: specHeadingAnchor(PHASE_SPEC_SLICE_PATTERNS.groupHeading),
+      },
+    ],
+    severity: "BLOCK",
+    message:
+      "a `#### N.M` design item references an undeclared group number (the item's `N` must resolve to a declared `### N.` group — the item-ownership crosslink)",
+  },
+  {
+    id: "spec.designBodyEmpty",
+    plane: {
+      kind: "headingLeads",
+      anchor: specHeadingAnchor(PHASE_SPEC_SLICE_PATTERNS.designHeading),
+    },
+    invariants: [
+      {
+        type: "hollow",
+        children: `(?:${specHeadingAnchor(PHASE_SPEC_SLICE_PATTERNS.groupHeading)}|${specHeadingAnchor(PHASE_SPEC_SLICE_PATTERNS.designItemHeading)})`,
+      },
+    ],
+    severity: "BLOCK",
+    message:
+      "the `## Design` body is empty — the empty-body face: between `## Design` and `### Acceptance criteria` there must be content (the double-layer groups/items or the design prose), never a blank-only shell",
+  },
+  {
+    id: "spec.designGroupEmpty",
+    plane: {
+      kind: "headingLeads",
+      anchor: specHeadingAnchor(PHASE_SPEC_SLICE_PATTERNS.groupHeading),
+    },
+    invariants: [
+      {
+        type: "hollow",
+        children: specHeadingAnchor(PHASE_SPEC_SLICE_PATTERNS.designItemHeading),
+      },
+    ],
+    severity: "BLOCK",
+    message:
+      "a `### N.` group is hollow — the empty-group face: a declared group must carry at least one `#### N.M` item (or design prose), never a blank-only shell before the next heading",
+  },
+  {
+    id: "spec.designItemHollow",
+    plane: {
+      kind: "headingLeads",
+      anchor: specHeadingAnchor(PHASE_SPEC_SLICE_PATTERNS.designItemHeading),
+    },
+    invariants: [
+      {
+        type: "hollow",
+        children: specHeadingAnchor(PHASE_SPEC_SLICE_PATTERNS.designItemHeading),
+      },
+    ],
+    severity: "BLOCK",
+    message:
+      "a `#### N.M` design item has an empty body — the hollow-leaf face: the item heading must be followed by at least one non-empty content line (or a sibling `#### N.M` item — a parent carrier whose substance is its following items) before any group-level / `##` heading, `---` rule, or the end of the document; a blank-only dangling item is an empty shell",
+  },
+  {
+    id: "spec.pseudoHeading",
+    plane: { kind: "headingLeads", anchor: SPEC_PSEUDO_HEADING_ANCHOR },
+    invariants: [{ type: "residue" }],
+    severity: "BLOCK",
+    message:
+      "an independent bold pseudo-heading survives (a `**…**`-framed line standing as a section header) — promote it to the double-layer item rank `#### N.M` under its `### N.` group",
+  },
+];
 
 /**
  * The phase-spec concrete body (P2 T2; design C1/C2 — Criterion ②: class + constructor injection).
@@ -280,6 +513,14 @@ export class PhaseSpecBody extends DocBody {
   projectSlicePatterns(): SlicePatternSet {
     return PHASE_SPEC_SLICE_PATTERNS;
   }
+
+  /** The phase-spec structure-rule data (P3.1 T2): the three-truth skeleton rules — the planner's
+   *  single-interpreter surface the doc-contract gate judges (the retired skeleton walker
+   *  heading walker). The Deviations answer-axis stays on the doc type (section-scoped — see the
+   *  module note above). */
+  structureRules(): readonly StructureRule[] {
+    return PHASE_SPEC_RULES;
+  }
 }
 
 /** Constructor options for the phase-spec body — the authoring-way description (the kind identity
@@ -294,5 +535,5 @@ export interface PhaseSpecBodyOpts {
  *  projected shape, never a re-homed constant). */
 export const phaseSpecBody = new PhaseSpecBody({
   description:
-    "Canonical phase-spec authoring way: a metadata header five-tuple (`**Version**` strictly required — the detect feature / backfill-as-version / R2 versionToken anchor line — · `**Status**` · `**Author**` · `**Parent program**` (Class-B) · `**Depends on**`), a three-truth skeleton (`## Design` carrying the unique `### Acceptance criteria` subsection · `## Constraints` — the inheritance point where parent-overall conventions auto-apply and the constraints-pointer semantics merge), and the conditional sections (incremental warning / deviations — `Overall updated?` must be `Yes` — / notes for downstream / review record) written only when their condition holds — zero residue otherwise.",
+    "Canonical phase-spec authoring way: a metadata header five-tuple (`**Version**` strictly required — the detect feature / backfill-as-version / R2 versionToken anchor line — · `**Status**` · `**Author**` · `**Parent program**` (Class-B) · `**Depends on**`), a three-truth skeleton (`## Design` — the double-layer outline model: `### N.` group headings + `#### N.M` design-item leaves under them, the `###` contract = the `### N.` allowlist + the unique `### Acceptance criteria` anchor — · `## Constraints` — the inheritance point where parent-overall conventions auto-apply and the constraints-pointer semantics merge), and the conditional sections (incremental warning / deviations — `Overall updated?` must be `Yes` — / notes for downstream / review record) written only when their condition holds — zero residue otherwise.",
 });

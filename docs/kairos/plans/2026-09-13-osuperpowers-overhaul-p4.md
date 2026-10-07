@@ -41,6 +41,7 @@
 ### Task 1: 单根权威 — `lib/root.mjs` + `process.cwd()` 收口 + lifecycle 路径纯派生
 
 - **Objective**: 单根权威 — `lib/root.mjs` + `process.cwd()` 收口为 1 处 + lifecycle 路径纯派生（engine 唯一 cwd 转换点 + `preAction` 钩子定序）
+- **DependsOn**: none
 
 - **Consumes**: design §2.4.1；`lib/contract/commit.mjs#gitToplevel`
 
@@ -70,6 +71,7 @@
 ### Task 2: 单一坐标系 — `resolveDocArg` + `resolveWorkspace(doc, root)` + 删 `rootFromDocPath`
 
 - **Objective**: 单一坐标系 — `resolveDocArg` + `resolveWorkspace(doc, root)` + 删 `rootFromDocPath`（路径类实参唯一归一 + 全部机制位置清零）
+- **DependsOn**: 1
 
 - **Consumes**: T1 的 `getRoot()`
 
@@ -103,6 +105,7 @@
 ### Task 3: 环境面收口（γ）— 9 项去 env 化 + `PLAN_FILE` 改参数 + `CDD_DRY_RUN` 升 argv + 缝删净 + 测试脚手架改真仓
 
 - **Objective**: 环境面收口 — 9 项去 env 化 + `PLAN_FILE` 改参数 + `CDD_DRY_RUN` 升 program 级 argv + 测试缝删净 + 测试脚手架改真仓
+- **DependsOn**: 2
 
 - **Consumes**: T1 `getRoot()`、T2 `resolveDocArg`
 
@@ -134,6 +137,7 @@
 ### Task 4: `context-contract.json` canonical + `lib/context.mjs` 运行期组合
 
 - **Objective**: `context-contract.json` canonical + `lib/context.mjs` 运行期组合（timeout 默认值 / per-mode env 名单源）
+- **DependsOn**: 3
 
 - **Consumes**: T3 的 `ctx` 形态
 
@@ -161,6 +165,7 @@
 ### Task 5: 输出契约单源 — schema 注入 + 写侧同源 + 校验失败保留 findings + 序列化
 
 - **Objective**: 输出契约单源 — schema 注入 + 写侧同源 + 校验失败保留 findings + 序列化（`renderHandoffStub` 手写 render 由 T18 取代；本任务交付四面存续）
+- **DependsOn**: 4
 
 - **Consumes**: T4 canonical
 
@@ -194,6 +199,7 @@
 ### Task 6: 失败类目 canonical + 六类化 + 配额隔离 + 超时判定自持
 
 - **Objective**: 失败类目 canonical + 六类化 + 配额隔离 + 超时判定自持（`failure-categories.json` + `lib/failure.mjs` 承重 + 孤立计数器 + 自持计时）
+- **DependsOn**: 5
 
 - **Consumes**: T5 的 `validateHandoffSchema` 失败形态（`{ valid: false， reason， property }`）
 
@@ -226,6 +232,7 @@
 ### Task 7: `progress.json#plan` 透传 + `counters` 输出行
 
 - **Objective**: `progress.json#plan` 透传 + `counters` 输出行（plan 恒等于 `--plan` 入参 + H1 块新增 counters 第 5 行）
+- **DependsOn**: 6
 
 - **Consumes**: T6 的计数器字段
 
@@ -252,6 +259,7 @@
 ### Task 8: 守卫块（单一 validate 块）— design §2.8 全 21 行落点（本任务落 12 条 engine 侧，其余 9 行显式指派他任务）
 
 - **Objective**: 守卫块（单一 validate 块）— design §2.8 全 21 行落点（`collectChannelAuditHits()` 本任务落 12 条 engine 侧，其余 9 行显式指派）
+- **DependsOn**: 7
 
 - **Consumes**: T1–T7 的全部形态
 
@@ -276,6 +284,7 @@
 ### Task 9: `finding-meta.json` 枚举单源 + 渲染器注入 + 取值同步
 
 - **Objective**: `finding-meta.json` 枚举单源 + 渲染器注入 + 取值同步（枚举只留顶层 + `renderYml(formDef, enums)` 注入）
+- **DependsOn**: 8
 
 - **Consumes**: 无（可与段 ① 并行，但排在段 ① 后以保持 engine-first 序）
 
@@ -300,6 +309,7 @@
 ### Task 10: `init` 删除 + 版本戳机制删除 + 反向守卫
 
 - **Objective**: `init` 删除 + 版本戳机制删除 + 反向守卫（`skills/init/` 删除 + `osuperpowers-version` 戳删除 + shipped 面零版本字面量 / 零 `/init` 引用）
+- **DependsOn**: 9
 
 - **Consumes**: 无
 
@@ -328,6 +338,7 @@
 ### Task 11: `handoff-schema.md` 删除 + 连带引用（行 14 守卫同 commit；行 21 守卫归 T15）
 
 - **Objective**: `handoff-schema.md` 删除 + 连带引用（`(?<!-)handoff-schema` 零命中守卫同 commit）
+- **DependsOn**: 10
 
 - **Consumes**: 无
 
@@ -352,6 +363,7 @@
 ### Task 12: 新树骨架 — 3 个 spec-writer 新建 + 模板迁移
 
 - **Objective**: 新树骨架 — 3 个 spec-writer（writing-single-spec / writing-overall-spec / writing-phase-spec）新建 + 模板就近迁移
+- **DependsOn**: 11
 
 - **Consumes**: design §2.7.1 / §2.7.2 的骨架与四项差异表
 
@@ -381,6 +393,7 @@
 ### Task 13: 委托型重写 — brainstorming / writing-plans / finishing
 
 - **Objective**: 委托型重写 — brainstorming / writing-plans / finishing（模式感知门禁 + 节点定义小节 + Invariants 收敛）
+- **DependsOn**: 12
 
 - **Consumes**: T12 骨架形
 
@@ -405,6 +418,7 @@
 ### Task 14: 原生型重写 — cli-driven-development + report-issue 形态精简
 
 - **Objective**: 原生型重写 — cli-driven-development + report-issue 形态精简（digraph 与整体主干同形 + 零裸 mode 名 + Invariants 收敛 ≤5）
+- **DependsOn**: 13
 
 - **Consumes**: T7 的 `counters` 输出行、T6 的 `failure-categories.json` 类目集
 
@@ -432,6 +446,7 @@
 ### Task 15: `_docs/review.md` 删除 + Review Stopping 入 Invariants（+ 行 21 守卫同 commit）
 
 - **Objective**: `_docs/review.md` 删除 + Review Stopping 入 Invariants（+ 行 21 old mode task-review 守卫扩容同 commit）
+- **DependsOn**: 14
 
 - **Consumes**: T14
 
@@ -458,6 +473,7 @@
 ### Task 16: `skill-authoring.md` 重写 + 治理测试同步 + skills 面守卫
 
 - **Objective**: `skill-authoring.md` 重写 + 治理测试同步 + skills 面守卫（唯一执法点判据 + rule-reference 删除 + 五条 skills 面守卫）
+- **DependsOn**: 15
 
 - **Consumes**: T15（零 `### Rule:` 前提）
 
@@ -486,6 +502,7 @@
 ### Task 17: changeset — 本 phase 双包声明
 
 - **Objective**: changeset — 本 phase 双包声明（cdd-engine minor + osuperpowers minor）
+- **DependsOn**: 16
 
 - **Consumes**: T16
 
@@ -506,6 +523,7 @@
 ### Task 18: templates 结构与命名单源 — schema 原样注入 + 共享 Handoff/Return 壳 + schema description
 
 - **Objective**: templates 结构与命名单源 — schema 原样注入 + 共享 Handoff/Return 壳 + schema description（取代 T5 的 renderer；T5 交付四面存续）
+- **DependsOn**: 17
 
 - **Consumes**: T5 的 `normalizeHandoff` / `recoverHandoff`（存续）
 

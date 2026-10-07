@@ -7,7 +7,8 @@
 - **Depends on**: P4.4（shipped · [p4.4-design v1.9](2026-09-21-consumer-parity-p4.4-design.md)）
 
 ## Design
-**§1 版本管线重构（R1/R2）**
+### 1. 发布一致性闭环设计
+#### 1.1 §1 版本管线重构（R1/R2）
 
 **裁决基线**：自研版本计算整体退役，版本数学全交原生 `changeset version`。技术事实（P4.2 brainstorm 沙箱实证，changesets v3.0.3）：**原生 `changeset version` 对 0.x 包 + `major` changeset 产出 `1.0.0`**（modern changesets 不把 0.x major 折成 minor；`semver.inc("0.1.0","major") = "1.0.0"`）。因此「0.1.0 降值 + 原生 major 集合」= **cdd-engine 1.0.0 首次稳定开版 = 原生自动产出**，既不需要自研折弯，也不产生 2.0.0。
 
@@ -28,7 +29,7 @@
 
 **1.6 version-sync 补 cdd-engine 覆盖（原生管线下）**：`scripts/validate/version-sync.ts` 增 cdd-engine 段——(a) package.json 声明 semver 格式断言；(b) 发布态版本身份断言经 `smoke-cdd --expect-version`（§2.2）承担，不重复造产物（cdd-engine 无 emit 产物，不伪造 sync 面）。
 
-**§2 发布门 + workflows 三层重构（R3）**
+#### 1.2 §2 发布门 + workflows 三层重构（R3）
 
 **2.1 consumer-sim 定位**：`smoke-cdd`（scripts/validate/smoke-cdd.ts）消费者黑盒**专属 cdd-engine**（真实 build → pack → tarball 断言 → 消费者仓安装 → 五命令 dry-run 链 → return-block 契约）。osuperpowers **走正常 npm 发版**（为 pi 类 npm-harness 预留的通道），其发布品校验 = §3 pack 内容面审计 + emit 产物 + version-sync，不做插件安装面的伪消费者模拟。
 
@@ -42,7 +43,7 @@
 - **push 覆盖模型**：validate 在 PR 面全覆盖（develop→main PR + changeset-release/* 的 base-main PR 都跑 pr-validate）；push→main 本身不跑 validate——发布面 = emit 新鲜度（release.yml 预步）+ 双 consumer 门（pre 基线 + post --expect-version）；覆盖边界写入 release.yml 注释与 docs/maintainers
 - **sync-main-to-develop**：维持（workflow_call 复用，释放回流）
 
-**§3 pack 内容面审计 → 数据面单源（R4）**
+#### 1.3 §3 pack 内容面审计 → 数据面单源（R4）
 
 **根因**（P4.2 brainstorm 实证）：`packages/osuperpowers` 现整包含 `tests/` ×6 + 包内 `scripts/`（report-templates.mjs · render-yaml.mjs）+ `bin/utils/exit.mjs` 死代码 + `.version-bump.json` + **开发残留 `.superpowers/cdd/skill-digraph-refactor-p1/`（gitignored 但 `npm pack` 照装）**。其中 `scripts/report-templates.mjs` 是 **shipped 技能 `report-issues` 的运行期依赖**（I5 契约：`node "${pluginRoot}/scripts/report-templates.mjs"` 直出 body）——scope 原文「scripts/ 治理残件」表述错误，根修 = **迁 engine**（依赖方向铁律）。
 
@@ -65,7 +66,7 @@
 
 **3.6 Non-goal #1 例外修订**：已随 overall v1.44 同步（「唯一 = schema get」→「发现型 schema get + 纯渲染型 issue render」）——本 phase 落地其一。
 
-**§7 plan-constraints 再生语义（2026-09-26 mid-backfill 追加）**
+#### 1.4 §7 plan-constraints 再生语义（2026-09-26 mid-backfill 追加）
 
 **根因**：T22/§T7.1 的 plan-constraints.md 材料化为 **generate-once**——implement pre-flight（`task.ts` line ~487）为纯 `existsSync` 门：TG1 生成后，后续 TG 全部跳过（`materializePlanConstraints` 自身也是 `if (existsSync) return {generated:false}`）。`isPlanConstraintsStale`（plan-hash anchor 比对）已实现但**零接线**——plan Constraints 的 mid-backfill 更新永远不会刷进派生产物。
 
@@ -76,7 +77,7 @@
 - plan-constraints.test.ts / runner.test.ts 的 generate-once 断言面反转为「无条件再生」语义（同 plan 二次调用覆写同字节 = 确定性保持）；T22 注释同步
 - 非 breaking：CLI/字段面零变化，仅派生产物再生语义
 
-**§4 宣讲定位面（R5/R6/R8）**
+#### 1.5 §4 宣讲定位面（R5/R6/R8）
 
 **4.1 README 三段式骨架**：**定位（R8）→ 理念（R6）→ 行为（P4.1 成果）**——理念导览成第一读层：
 - **定位句**（CLAUDE.md + README 共用，English-primary）：`A cdd-first methodology: continuously-discovered development as the core discipline, AI coding skills as the distribution vehicle.`（无 harness 字样；未来加 harness 零约束）
@@ -89,7 +90,7 @@
 
 **4.4 CLAUDE.md 定位句**：同步改述（repo 定位句 + Non-goal #1 例外表述 + 单一来源措辞不回归）。
 
-**§5 运维文档精炼（R7）**
+#### 1.6 §5 运维文档精炼（R7）
 
 - **合并**：`01-data-driven-templates.md` + `02-template-doctrine.md` → 单文档 `01-template-doctrine.md`（template 面一个文档；02 槽位随合并消失）
 - **重编号**：剩余五件**连续重编号 01-05**（有意不留断号）——`03-naming-conventions.md` → **02** · `04-context-caching-doctrine.md` → **03** · `05-program-experience.md` → **04** · `06-third-party-dependencies.md` → **05**；下文与 Acceptance 引用一律用新号 → 内容文档 6 → **5**
@@ -100,7 +101,7 @@
 - **补位**：smoke-cdd 定位说明（P4.2 dogfood：owner 不确定其用途 → 在 docs/maintainers 写明「consumer-sim = cdd-engine 发布品消费者黑盒」）
 - **净目标**：62.6KB → ~42KB（-33%）、6 → 5 内容文档；验收 = 收敛前后对照 + 链接探针
 
-**§6 首次发布执行（R1–R8 收口）**
+#### 1.7 §6 首次发布执行（R1–R8 收口）
 
 版本目标推导——**cdd-engine**：现声明 0.1.0（1.1 降值）+ 累计 major changesets → 原生 `changeset version` 产出 **1.0.0**（§1 裁决基线，0.x major 不前折）；**osuperpowers**：现声明 **0.1.1**（已发布、npm + git tag 均存在）+ 累计 minor changesets（p3 / p4 / p5-report-issues / p6-osuperpowers-surface，及 p4.3 / p4.4 系列，均 osuperpowers minor）→ minor 折叠 → **0.2.0**（沙箱实证 Method 与 §1 同源：changesets v3.0.3，`0.1.0 + major → 1.0.0`、`0.1.1 + minor → 0.2.0`）。
 

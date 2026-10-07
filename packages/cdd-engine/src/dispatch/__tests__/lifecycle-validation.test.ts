@@ -60,6 +60,20 @@ const PLAN_DIR = "docs/kairos/plans";
 const OVERALL = [
   "- **Version**: v1.0 · 2026-09-21",
   "",
+  "## Program charter",
+  "",
+  "### Goal",
+  "",
+  "demo goal prose",
+  "",
+  "### Non-goals",
+  "",
+  "- not a goal",
+  "",
+  "### Cross-cutting",
+  "",
+  "demo cross-cutting prose",
+  "",
   "## Phase inventory",
   "",
   "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
@@ -79,6 +93,8 @@ const SPEC = [
   "- **Parent program**: [plan-overall.md v1.0](./plan-overall.md)",
   "",
   "## Design",
+  "",
+  "The design body — the fixture's testable increment (non-shell `## Design`).",
   "",
   "### Acceptance criteria",
   "",
@@ -101,6 +117,7 @@ const PLAN = [
   "### Task 1: x",
   "",
   "- **Objective**: task one",
+  "- **DependsOn**: none",
   "- **Steps**:",
   "  1. implement — checkable: done",
   "- **Acceptance**:",
@@ -131,12 +148,14 @@ function writeChain(
   );
 }
 
-/** run a review dispatch through the TaskLifecycle; real (non-dry) unless dryRun — review mode keeps
- * the implement-only constraints/pre-submit pre-flight out of the way so the doc-contract gate is
- * the sole downstream judge. */
-async function runReview(
+/** run a task-lane dispatch through the TaskLifecycle; real (non-dry) unless dryRun. The lane's mode
+ * selects the pre-flight surface: review keeps the implement-only constraints/pre-submit pre-flight
+ * out of the way so the doc-contract gate is the sole downstream judge, while implement adds the
+ * plan-constraints materializer + brief generation — both pass on a conformant `## Constraints`
+ * fixture plan, so the gate stays the sole judge there too (the acceptance C4 dual-command surface). */
+async function runLane(
   repo: string,
-  { dryRun = false } = {},
+  { mode = "review", dryRun = false }: { mode?: string; dryRun?: boolean } = {},
 ): Promise<{
   exitCode: number;
   diagnostic: { prefix: string; msg: string } | null;
@@ -147,14 +166,14 @@ async function runReview(
     harness: "ctr",
     group: TaskGroup.fromNumbers([1]),
     opts: {
-      mode: "review",
+      mode,
       dryRun,
       noExit: true,
       root: repo,
       planFile: path.join(PLAN_DIR, "plan.md"),
       registryPath: registry(),
     },
-    ctx: { mode: "review", repoRoot: repo, handoffPath: "", dryRun },
+    ctx: { mode, repoRoot: repo, handoffPath: "", dryRun },
   });
   try {
     await lc.run();
@@ -162,6 +181,14 @@ async function runReview(
     cap.restore();
   }
   return { exitCode: lc.result.exitCode, diagnostic: lc.diagnostic, stderr: cap.text };
+}
+
+function runReview(repo: string, opts: { dryRun?: boolean } = {}): ReturnType<typeof runLane> {
+  return runLane(repo, { mode: "review", ...opts });
+}
+
+function runImplement(repo: string): ReturnType<typeof runLane> {
+  return runLane(repo, { mode: "implement" });
 }
 
 describe("docContractValidate — three invalid doc contracts block the real dispatch (exit 1 + guidance)", () => {
@@ -179,6 +206,66 @@ describe("docContractValidate — three invalid doc contracts block the real dis
     expect(r.diagnostic?.msg).toMatch(/→ add a|→ declare/); // actionable fix prose
   });
 
+  it("plan invalid: a data-shaped task block without its `- **DependsOn**:` line → blocked with the missing-edge structure guidance (P3.1 T3 — the dispatch pre-flight covers edge completeness)", async () => {
+    const repo = setupRepo();
+    writeChain(repo, {
+      plan: [
+        "# Plan",
+        "",
+        "**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)",
+        "",
+        "## Constraints",
+        "",
+        "- boundary one",
+        "",
+        "### Task 1: x",
+        "",
+        "- **Objective**: task one",
+        "- **Steps**:",
+        "  1. implement — checkable: done",
+        "- **Acceptance**:",
+        "  - done",
+        "",
+      ].join("\n"),
+    });
+    const r = await runReview(repo);
+    expect(r.exitCode).toBe(1);
+    expect(r.diagnostic?.prefix).toBe("CDD_BLOCKED");
+    expect(r.diagnostic?.msg).toMatch(/doc contract validation failed/);
+    expect(r.diagnostic?.msg).toContain("- [structure] plan.edge");
+    expect(r.diagnostic?.msg).toContain("DependsOn");
+  });
+
+  it("plan invalid: the same missing-edge plan → `cdd implement` pre-flight blocks identically (acceptance C4 names both dispatch commands; docContractValidate is the shared base pre-flight step every task mode inherits)", async () => {
+    const repo = setupRepo();
+    writeChain(repo, {
+      plan: [
+        "# Plan",
+        "",
+        "**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)",
+        "",
+        "## Constraints",
+        "",
+        "- boundary one",
+        "",
+        "### Task 1: x",
+        "",
+        "- **Objective**: task one",
+        "- **Steps**:",
+        "  1. implement — checkable: done",
+        "- **Acceptance**:",
+        "  - done",
+        "",
+      ].join("\n"),
+    });
+    const r = await runImplement(repo);
+    expect(r.exitCode).toBe(1);
+    expect(r.diagnostic?.prefix).toBe("CDD_BLOCKED");
+    expect(r.diagnostic?.msg).toMatch(/doc contract validation failed/);
+    expect(r.diagnostic?.msg).toContain("- [structure] plan.edge");
+    expect(r.diagnostic?.msg).toContain("DependsOn");
+  });
+
   it("spec invalid: missing `**Version**` line → blocked with phase-spec guidance", async () => {
     const repo = setupRepo();
     writeChain(repo, { spec: "- **Parent program**: [plan-overall.md v1.0](./plan-overall.md)\n" });
@@ -190,7 +277,7 @@ describe("docContractValidate — three invalid doc contracts block the real dis
     expect(r.diagnostic?.msg).toContain("add a `- **Version**");
   });
 
-  it("overall invalid: non-canonical Phase inventory header → blocked with overall guidance", async () => {
+  it("overall invalid: non-canonical Phase inventory header → blocked with structure-plane guidance (the canonical-column face rides the overall rule plane at the gate)", async () => {
     const repo = setupRepo();
     writeChain(repo, {
       overall: [
@@ -206,9 +293,8 @@ describe("docContractValidate — three invalid doc contracts block the real dis
     });
     const r = await runReview(repo);
     expect(r.exitCode).toBe(1);
-    expect(r.diagnostic?.msg).toContain("- [overall]");
-    expect(r.diagnostic?.msg).toContain("plan-overall.md");
-    expect(r.diagnostic?.msg).toMatch(/canonical|Implementation plan/);
+    expect(r.diagnostic?.msg).toContain("- [structure] overall.canonicalColumn");
+    expect(r.diagnostic?.msg).toMatch(/non-canonical|Implementation plan/);
   });
 
   it("dry-run WARN lane: the same invalid plan does NOT exit 1 — the check warns and the simulation completes", async () => {
@@ -218,6 +304,45 @@ describe("docContractValidate — three invalid doc contracts block the real dis
     expect(r.exitCode).toBe(0); // warn-not-block (E2② entry-gate precedent)
     expect(r.stderr).toContain("CDD_WARN: doc contract invalid (dry-run)");
     expect(r.stderr).toContain("`**Spec:**`");
+  });
+
+  it("a structurally valid plan carrying a reference-lint WARN (an undeclared backward citation) → the WARN is presented and the dry-run dispatch completes exit 0 (WARN observes, never gates — P3.1 T6)", async () => {
+    const repo = setupRepo();
+    writeChain(repo, {
+      plan: [
+        "# Plan",
+        "",
+        "**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)",
+        "",
+        "## Constraints",
+        "",
+        "- boundary one",
+        "",
+        "### Task 1: x",
+        "",
+        "- **Objective**: task one",
+        "- **DependsOn**: none",
+        "- **Steps**:",
+        "  1. implement — checkable: done",
+        "- **Acceptance**:",
+        "  - done",
+        "",
+        "### Task 2: y",
+        "",
+        "- **Objective**: extend Task 1",
+        "- **DependsOn**: none",
+        "- **Steps**:",
+        "  1. implement — checkable: done",
+        "- **Acceptance**:",
+        "  - done",
+        "",
+      ].join("\n"),
+    });
+    const r = await runReview(repo, { dryRun: true });
+    expect(r.exitCode).toBe(0); // warn-not-block — the observation never gates
+    expect(r.stderr).toContain("CDD_WARN: doc structure warnings:");
+    expect(r.stderr).toContain("plan.referenceLint");
+    expect(r.stderr).toMatch(/suspected missing edge/);
   });
 });
 
@@ -231,7 +356,7 @@ describe("statusValidate — CDD_INFO six-state line + plan verdict on a normal 
     expect(r.stderr).toContain("CDD_INFO: 0/1 complete — pending: task 1 (in-flight)");
   });
 
-  it("a plan with a `## Task Groups` section (marker-less blocks) → statusValidate walks every task via the single derivation (the section is not composed)", async () => {
+  it("a plan with a `## Task Groups` section (single-edge blocks) → statusValidate walks every task via the single derivation (the section is not composed)", async () => {
     const repo = setupRepo();
     const groupedPlan = [
       "# Plan",
@@ -243,10 +368,16 @@ describe("statusValidate — CDD_INFO six-state line + plan verdict on a normal 
       "- boundary one",
       "",
       "### Task 1: x",
-      "body",
+      "- **Objective**: task one",
+      "- **DependsOn**: none",
+      "- **Acceptance**:",
+      "  - done",
       "",
       "### Task 2: y",
-      "body",
+      "- **Objective**: task two",
+      "- **DependsOn**: 1",
+      "- **Acceptance**:",
+      "  - done",
       "",
       "## Task Groups",
       "",

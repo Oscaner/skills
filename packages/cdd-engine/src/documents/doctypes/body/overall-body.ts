@@ -1,12 +1,37 @@
-// packages/cdd-engine/src/documents/doctypes/shapes/overall.ts — the overall doc type's shape domain
-// content (P1 T3): the full JSON-Schema face of config/schema/overall.json as authored — every
-// properties/pattern/const/enum/description leaf at its original value, key order preserved (zero
-// abstraction loss, isomorphic). The SchemaFactory projects this content byte-faithfully onto the
-// derived config/schema/overall.json product; edit content here, never the derived file.
-import type { SchemaShape } from "../../doctype.ts";
+// packages/cdd-engine/src/documents/doctypes/body/overall-body.ts — the overall concrete body
+// (P3.1 T2; plan §T2 · design §2.2/2.5, Criterion ②): the chain root joins the doc-body plane. The
+// overall's output-schema shape domain (`OVERALL_SHAPE` — the SchemaFactory derives config/schema/
+// overall.json from it, byte-faithfully), the four-table parse/judgment slice patterns, and the
+// four-table structure-rule data (`structureRules()` — the kernel + the single-content table faces
+// the interpreter can judge) home on the concrete body, so the overall doc type is no longer a wild
+// shape + handwritten entire-audit node (design 2.5: the doc type sheds its handwritten four-table
+// structural walkers in the same action the rule plane takes them over). This module is the
+// LOAD-ORDER-SAFE leaf (the overall sibling of phase-spec-body / plan-body): it imports zero engine
+// runtime modules (type-only doctype import + the abstract DocBody + its rule-data type contract),
+// so tokens.ts authorizes its DOC_TOKENS overall shape input from the module-level leaf without
+// re-entering the doctypes plane (tokens → body leaf is a one-way chain; no TDZ back-edge).
+//
+// Rule-scope note (what the four-table RULES carry vs what stays on the doc type): the rule plane
+// is a per-document content pass — it carries the four tables' single-document structural judgments
+// (the kernel inventory-header/canonical-column presence, the change-history version lineage
+// numerics, the dependency-graph membership cross-links ③, the issue-inventory phase registration
+// cross-link ⑥). The four-table faces that need context the content pass cannot see — the backfill-
+// claim machine ① (cross-row clause parsing), the document-existence globs ② (directory reads), the
+// dispatch-phase registration ④ (DocContext.phaseId), the anchor-registry scan ⑤ (sibling program
+// docs), the row-shape guard (positional cell-count reads) and the issue-ref FORM domain (section-
+// scoped: a content-wide ref-form rule would misfire on the legacy`## Requirement inventory` table)
+// — stay on the overall doc type as its validate surfaces (same class as the plan doc type's
+// Class-A `#resolveSpecOf` chain, which the plan keeps for P5). The tree-walk delta-zero contract
+// (T2 step 2) is the guard: every rule below fires zero on the current 4-overall tree.
 
-/** The overall output schema's full structure (config/schema/overall.json) — the SchemaFactory's
- *  projection source (byte-faithful product derivation). */
+import type { SchemaShape } from "../../doctype.ts";
+import {
+  DocBody,
+  type SlicePatternSet,
+  type StructureInvariant,
+  type StructureRule,
+} from "./doc-body.ts";
+
 export const OVERALL_SHAPE: SchemaShape = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
   $id: "https://oscaner.dev/schemas/cdd/overall.json",
@@ -410,7 +435,38 @@ export const OVERALL_SHAPE: SchemaShape = {
     programCharter: {
       type: "object",
       description:
-        "Section 3 — Program charter: goal (1–3 sentences), non-goals, cross-cutting constraints; acceptance criteria / API shapes / tasks excluded (charter only). Claims shrink, they do not inflate — what the program cannot prove it will not claim.",
+        "Section 3 — Program charter: the charter facets ranked `###` (Goal / Non-goals / Cross-cutting — the facet anchor names follow each overall family: `### Goal` · `### cdd-engine 服务化主线（…）` for the overhaul family · `### Non-goals` · `### Cross-cutting( constraints)` — the anchor pattern tolerates a trailing annotation, never a bold-flat leftover) + the decision-retention / decision-group / endorsement facets (`### 设计决策留存…` / `#### M 组…` groups / `#### 上游先例背书` — existence-only enforcement: a doc carrying a decision face must carry it at the ranked form). Acceptance criteria / API shapes / tasks excluded (charter only). Claims shrink, they do not inflate — what the program cannot prove it will not claim.",
+    },
+    charterFacets: {
+      type: "object",
+      description:
+        "The charter facet anchors — the `###`-ranked facets under `## Program charter`: `Goal` / `Non-goals` / `Cross-cutting` (with the family-specific anchor names: `Cross-cutting constraints` for the legacy families, `cdd-engine 服务化主线（…）` as the overhaul family's goal anchor) — each a permanent presence: every overall carries its three facets.",
+      properties: {
+        goal: {
+          type: "string",
+          pattern: "^### (?:Goal|cdd-engine 服务化主线（2026-09-13 用户升维）)",
+          description:
+            "The Goal facet anchor — `### Goal` on the doc-architecture / pi-harness / consumer-parity families, `### cdd-engine 服务化主线（2026-09-13 用户升维）` (the overhaul family's goal anchored on its service-line marker, standing for the charter opening prose).",
+        },
+        nonGoals: {
+          type: "string",
+          pattern: "^### Non-goals",
+          description:
+            "The Non-goals facet anchor — `### Non-goals` (a trailing annotation such as `（非目标…）` is tolerated).",
+        },
+        crossCutting: {
+          type: "string",
+          pattern: "^### Cross-cutting",
+          description:
+            "The Cross-cutting facet anchor — `### Cross-cutting` on the doc-architecture / pi-harness families, `### Cross-cutting constraints` on the legacy families; a trailing annotation is tolerated.",
+        },
+        decisionGroup: {
+          type: "string",
+          pattern: "^#### [MFRBEN] 组|^#### 上游先例背书",
+          description:
+            "A decision-group / endorsement leaf — `#### M 组（…）` / `#### F 组（…）` / … / `#### 上游先例背书`: the `####`-ranked leaves under the decision-retention facets (existence-only — judged when the doc carries them).",
+        },
+      },
     },
     documentScope: {
       type: "object",
@@ -434,3 +490,251 @@ export const OVERALL_SHAPE: SchemaShape = {
     },
   },
 };
+
+// ---- the four-table parse/judgment slices (the concrete body's single-source anchors) ----
+
+/** The overall's four-table anchor slices (design §2.2 — the judgment-surface single source): the
+ *  Phase-inventory header-open + canonical-column forms (the kernel faces), the change-history row
+ *  form (the version-lineage numerics), the dependency-graph edge line forms (the membership
+ *  anchors) and the issue-inventory P-first row form (the registration anchor). The rule anchors
+ *  derive from these slices (`.source`), never a re-typed literal. All `m`-compiled like the
+ *  sibling bodies' slices — matchable on both a full-content and a per-line scan. */
+const OVERALL_SLICE_PATTERNS: SlicePatternSet = {
+  /** `/^\|\s*#\s*\|\s*Phase\s*\|/` — the Phase-inventory header-open (the kernel face). */
+  phaseInventoryHeader: /^\|\s*#\s*\|\s*Phase\s*\|/m,
+  /** The Phase-inventory section heading — the membership cross-link target's section scope (the
+   *  graph-token rules resolve against the rows under this heading only, never a same-form
+   *  `| P… |` row elsewhere — see the rule-scope note). */
+  phaseInventoryHeading: /^## Phase inventory\s*$/m,
+  /** The canonical-form header row — the header-open + the `Implementation plan` marker column. */
+  canonicalInventoryHeader: /^\|\s*#\s*\|\s*Phase\s*\|[^\n]*\|\s*Implementation plan\s*\|/m,
+  /** A change-history row — the `Version` header cell or a `v<major>.<minor>` version cell leading. */
+  changeHistoryRow: /^\| (Version|v\d+(?:\.\d+)*) \|/m,
+  /** The version cell + the date cell of a change-history row (the date domain face). */
+  changeHistoryDateRow: /^\| (?:Version|v\d+(?:\.\d+)*) \| ([^|\n]*)\|/m,
+  /** A dependency-graph edge line — the source token captured. */
+  graphSourceRow: /^\s*(P\d+(?:\.\d+)*)\s*->/m,
+  /** A dependency-graph edge line — the target token captured (both ends of the edge judged). */
+  graphTargetRow: /^\s*P\d+(?:\.\d+)*\s*->\s*(P\d+(?:\.\d+)*)/m,
+  /** The Goal charter-facet anchor (P3.1 T5 — the F7 charter rank): `### Goal` on the
+   *  doc-architecture / pi-harness / consumer-parity families, and the overhaul family's goal
+   *  anchored on its up-ranked `cdd-engine service-line marker` heading (the charter opening prose
+   *  stands above it as the lead paragraph). The `###`-level charter rank is what presence judges. */
+  charterGoal: /^### (?:Goal|cdd-engine 服务化主线（2026-09-13 用户升维）)/m,
+  /** The Non-goals charter-facet anchor — `### Non-goals`, trailing annotation tolerated
+   *  (`### Non-goals（非目标…）` on pi-harness). */
+  charterNonGoals: /^### Non-goals/m,
+  /** The Cross-cutting charter-facet anchor — `### Cross-cutting` / `### Cross-cutting
+   *  constraints` (the two legacy families), trailing annotation tolerated on the pi-harness form. */
+  charterCrossCutting: /^### Cross-cutting/m,
+};
+
+// ---- the four-table structure-rule data (P3.1 T2 — the kernel + single-content faces) ----
+
+/** The one shared factory for a table-anchored rule — the rule-data atom of the four-table plane
+ *  (the graph-edge rows ride the `records` plane — a graph is a fenced block, not a `|`-row table). */
+function planeRule(
+  kind: "tableRows" | "records",
+  id: string,
+  slice: RegExp,
+  invariants: readonly StructureInvariant[],
+  severity: "BLOCK" | "WARN",
+  message: string,
+): StructureRule {
+  return { id, plane: { kind, anchor: slice.source }, invariants, severity, message };
+}
+
+const tableRule = planeRule.bind(null, "tableRows");
+const recordRule = planeRule.bind(null, "records");
+
+/** The membership cross-link target — a Phase-inventory row's own id cell (the capture group makes
+ *  the crossed value the id token, never the whole row). The graph rules scope this target to the
+ *  `## Phase inventory` section run (`targetWithin`) — membership resolves against the inventory
+ *  rows ALONE, exactly the retired ③ walker's `idsLower` set: a same-form `| P… |` row in the
+ *  Issue inventory (or any other table) can never self-resolve a dangling graph token. */
+const INVENTORY_TARGET = "^\\|\\s*(P\\d+(?:\\.\\d+)*)\\s*\\|";
+
+/** The four-table rules (design §2.2 — the kernel + the table rows the content pass can judge):
+ *  the Phase-inventory kernel header + canonical column presence, the change-history version /
+ *  order / date numerics, the dependency-graph membership cross-links (③ — targets scoped to the
+ *  `## Phase inventory` section, the retired `idsLower` membership face) and the issue-inventory
+ *  phase-registration cross-link (⑥). Severity BLOCK (the four tables are constitutional — a
+ *  malformed table blocks the gate). Every rule fires zero on the current 4-overall tree (the
+ *  tree-walk delta-zero contract). */
+const OVERALL_RULES: readonly StructureRule[] = [
+  tableRule(
+    "overall.inventoryHeader",
+    OVERALL_SLICE_PATTERNS.phaseInventoryHeader,
+    [{ type: "presence" }],
+    "BLOCK",
+    "no Phase-inventory header (`| # | Phase | …`) — the overall must carry the canonical Phase inventory table",
+  ),
+  tableRule(
+    "overall.canonicalColumn",
+    OVERALL_SLICE_PATTERNS.canonicalInventoryHeader,
+    [{ type: "presence" }],
+    "BLOCK",
+    "non-canonical Phase-inventory header — the `Implementation plan` marker column is missing (the canonical-form marker the engine keys on)",
+  ),
+  tableRule(
+    "overall.historyVersion",
+    OVERALL_SLICE_PATTERNS.changeHistoryRow,
+    [{ type: "domain", valuePattern: "(?:Version|v\\d+(?:\\.\\d+)*)" }],
+    "BLOCK",
+    "a change-history row's version cell is malformed — every row's first content cell must carry the `v<major>.<minor>` token",
+  ),
+  tableRule(
+    "overall.historyOrder",
+    OVERALL_SLICE_PATTERNS.changeHistoryRow,
+    [{ type: "order", compare: "version" }],
+    "BLOCK",
+    "change-history versions must ascend strictly (`v<major>.<minor>` — duplicates and out-of-order rows fail)",
+  ),
+  tableRule(
+    "overall.historyDate",
+    OVERALL_SLICE_PATTERNS.changeHistoryDateRow,
+    [{ type: "domain", valuePattern: "(?:date|\\d{4}-\\d{2}-\\d{2})" }],
+    "BLOCK",
+    "a change-history row's date cell is empty or malformed — the date cell must be non-empty ISO `YYYY-MM-DD`",
+  ),
+  recordRule(
+    "overall.graph",
+    OVERALL_SLICE_PATTERNS.graphSourceRow,
+    [
+      {
+        type: "crosslink",
+        targetAnchor: INVENTORY_TARGET,
+        targetWithin: OVERALL_SLICE_PATTERNS.phaseInventoryHeading.source,
+      },
+    ],
+    "BLOCK",
+    "the dependency graph references a phase that is not in the Phase inventory (dangling graph token)",
+  ),
+  recordRule(
+    "overall.graphTarget",
+    OVERALL_SLICE_PATTERNS.graphTargetRow,
+    [
+      {
+        type: "crosslink",
+        targetAnchor: INVENTORY_TARGET,
+        targetWithin: OVERALL_SLICE_PATTERNS.phaseInventoryHeading.source,
+      },
+    ],
+    "BLOCK",
+    "the dependency graph references a phase that is not in the Phase inventory (dangling graph token)",
+  ),
+  // ---- the charter-structure rules (P3.1 T5 — the F7 charter rank) ----
+  // The charter facets' permanent presence (anchored per family — the anchor names follow each
+  // overall family's own wording, and the anchor pattern tolerates a trailing annotation so a
+  // `### Cross-cutting（…）` heading is the facet, not a misrank), + the legacy bold-flat residue
+  // (a charter facet / decision group left in the retired `**Goal**：`/`**M 组（…）**：` flat form
+  // BLOCKS) + the strict independent-bold pseudo-heading residue (the same `^**…**$` face the spec
+  // body enforces). The decision-retention / decision-group faces are existence-only: they are NOT
+  // a permanent presence (the three legacy overalls carry no decision face), and their `###`/`####`
+  // rank enactment is pinned per-doc in tree-migration.test.ts (the doc-arch family enumerates its
+  // full decision face; the other three overalls carry none — the non-enumeration state) — the
+  // rule plane judges the retired flat forms' residue.
+  {
+    id: "overall.charterGoal",
+    plane: { kind: "headingLeads", anchor: OVERALL_SLICE_PATTERNS.charterGoal.source },
+    invariants: [{ type: "presence" }],
+    severity: "BLOCK",
+    message:
+      "no `### Goal` charter facet — every overall carries its Goal ranked at the `###` charter-facet level (`### Goal`, or the overhaul family's `### cdd-engine 服务化主线（…）` service-line-marker anchor)",
+  },
+  {
+    id: "overall.charterNonGoals",
+    plane: { kind: "headingLeads", anchor: OVERALL_SLICE_PATTERNS.charterNonGoals.source },
+    invariants: [{ type: "presence" }],
+    severity: "BLOCK",
+    message:
+      "no `### Non-goals` charter facet — every overall carries its Non-goals ranked at the `###` charter-facet level",
+  },
+  {
+    id: "overall.charterCrossCutting",
+    plane: { kind: "headingLeads", anchor: OVERALL_SLICE_PATTERNS.charterCrossCutting.source },
+    invariants: [{ type: "presence" }],
+    severity: "BLOCK",
+    message:
+      "no `### Cross-cutting` charter facet — every overall carries its Cross-cutting ranked at the `###` charter-facet level (`### Cross-cutting` / `### Cross-cutting constraints`)",
+  },
+  {
+    id: "overall.charterBoldFlat",
+    plane: {
+      kind: "headingLeads",
+      anchor:
+        "^\\*\\*(?:Goal|Non-goals|Cross-cutting|设计决策留存|[MFRBEN] 组|上游先例背书|cdd-engine 服务化主线)",
+    },
+    invariants: [{ type: "residue" }],
+    severity: "BLOCK",
+    message:
+      "a bold-flat charter marker survives (`**Goal**：` / `**M 组（…）**：`-style flat form) — promote the facet to its `###` rank and a decision group to its `####` rank (the retired flat charter structure is BLOCK residue)",
+  },
+  {
+    id: "overall.pseudoHeading",
+    plane: { kind: "headingLeads", anchor: "^\\*\\*.+\\*\\*\\s*$" },
+    invariants: [{ type: "residue" }],
+    severity: "BLOCK",
+    message:
+      "an independent bold pseudo-heading survives in the overall — a `**…**`-framed line is a flattened section header; rank it (`###` facet / `####` decision leaf) or write it as prose",
+  },
+];
+
+// NOTE — the ⑥ issue-inventory face is not on this rule plane, for two reasons. (1) Its membership
+// judgment is one serial combined per-row judgment — membership against the Phase inventory, then
+// the ref-form check on the SAME row (a membership failure `continue`s past the ref-form) — and the
+// ref-form half reads CELLS (anchored `#NNN#…` / bare `#NNN` / wrapped / `none` / parenthetical), a
+// positional read the line-anchored rule vocabulary cannot carry; splitting the combined judgment
+// across two surfaces would double-report. (2) Unlike the graph rules (whose targets now scope to
+// the `## Phase inventory` section — a dangling graph token can no longer self-resolve against an
+// Issue-inventory row), ⑥ has no dangling-token hazard: an unregistered issue phase STAYS
+// unregistered — the membership face keeps producing its failure on that row. The face stays on the
+// overall doc type, section-scoped to the parsed `## Issue inventory` rows — see overall.ts
+// #fourTableAudit.
+
+/**
+ * The overall concrete body (P3.1 T2; design §2.2/2.5 — Criterion ②: class + constructor
+ * injection). Carries the overall kind identity + authoring-way description and projects the two
+ * concrete surfaces: the overall output schema shape (the DocType.shape derivation source for the
+ * SchemaFactory product — the retired overall shape constant's new home) and the four-table
+ * anchor slices (the rule data + judgment single source). The rule data (`structureRules()`) is the
+ * four-table structural plane the single interpreter carries at the doc-contract gate.
+ */
+export class OverallDocBody extends DocBody {
+  constructor(opts: OverallDocBodyOpts) {
+    super({ kind: "overall", description: opts.description });
+  }
+
+  /** The shape-domain projection — the overall output-schema content (the module-level leaf;
+   *  identity with the exported `OVERALL_SHAPE` — the same projection product every consumer
+   *  reads). */
+  projectSchemaShape(): SchemaShape {
+    return OVERALL_SHAPE;
+  }
+
+  /** The slice-pattern projection — the four-table anchors. */
+  projectSlicePatterns(): SlicePatternSet {
+    return OVERALL_SLICE_PATTERNS;
+  }
+
+  /** The four-table rule data (P3.1 T2) — the kernel + the single-content table faces. */
+  structureRules(): readonly StructureRule[] {
+    return OVERALL_RULES;
+  }
+}
+
+/** Constructor options for the overall body — the authoring-way description (the kind identity is
+ *  pinned to "overall" by the class, never caller-supplied). */
+export interface OverallDocBodyOpts {
+  /** The overall authoring-way prose (the DocBody.description single source). */
+  description: string;
+}
+
+/** The overall body singleton — the constructor-injected doc-type wiring target (registry.ts passes
+ *  it to `new OverallDocType(overallBody)`; the doc-type's `shape` field is the body's projected
+ *  shape, never a re-homed constant; tokens.ts authorizes its DOC_TOKENS overall shape input from
+ *  this same leaf). */
+export const overallBody = new OverallDocBody({
+  description:
+    "Canonical overall authoring way: the program charter document — an artifact header block, the four enforcement tables (Issue inventory · Phase inventory · Dependency graph · Change history — the validator-keyed vocabularies the four-table audit reads), the `## Program charter` section with its charter facets ranked `###` (Goal / Non-goals / Cross-cutting — presence-anchored) and its decision-retention / decision-group / endorsement leaves ranked `###`/`####` (existence-only), and the charter/scope/rule sections. The four tables are the engine-side audit vocabulary: rename a heading and you rename the validator with it.",
+});

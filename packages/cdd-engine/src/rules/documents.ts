@@ -23,7 +23,7 @@
 // under the old `DocValidationFailure` name — the T2 type convergence).
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import type { DocKind, DocValidateFailure } from "../documents/doctype.ts";
+import type { DocKind, DocType, DocValidateFailure } from "../documents/doctype.ts";
 import { specConstraintsOf as mergedSpecConstraintsOf } from "../documents/doctypes/body/constraints.ts";
 import type { OverallDocType, OverallParse } from "../documents/doctypes/overall.ts";
 import type { PhaseSpecDocType } from "../documents/doctypes/phase-spec.ts";
@@ -36,6 +36,7 @@ import {
 } from "../documents/doctypes/shared.ts";
 import { docTypeRegistry } from "../documents/registry.ts";
 import type { TaskGroup } from "../domain/task-group.ts";
+import { runStructureRules, type StructureFinding, type StructureRule } from "./structure.ts";
 
 // The type surface the facade still owns (options + converged failure + the parse/claim shapes the
 // doctype modules now define — re-exported under the historical names so consumers never move).
@@ -92,6 +93,20 @@ const overallType = (): OverallDocType => docTypeRegistry.resolve("overall") as 
 const planType = (): PlanDocType => docTypeRegistry.resolve("plan") as PlanDocType;
 const specType = (): PhaseSpecDocType => docTypeRegistry.resolve("spec") as PhaseSpecDocType;
 
+/** The body-homed structure-rule data of a resolved doc type (P3.1 F6 — the rule seam's consumer):
+ *  every registered doc type carries its injected DocBody leaf (`body` — the constructor-injected
+ *  face, the same live wiring the doc types read their shapes from): the plan/spec/overall bodies
+ *  all declare their structureRules() at the gate — the overall's injected `overallBody` is the
+ *  chain-root rule home since T2, no doc type is body-less. The read is a structural `body` access
+ *  on the registry-returned singleton (the S2 delegation pattern the accessors above use) —
+ *  deliberately NO value import of the concrete classes: a direct import would pull
+ *  the doc-type modules into this facade's eval order ahead of the registry (the load-order law:
+ *  the registry constructs the singletons first; the rule data stays lazy). */
+function structureRulesOf(type: DocType): readonly StructureRule[] {
+  const body = (type as DocType & { body?: { structureRules(): StructureRule[] } }).body;
+  return body ? body.structureRules() : [];
+}
+
 /** DocumentsValidator — the single doc-chain audit entry facade (Criterion ②; every judgment below
  *  delegates to the registered doc-type home — zero per-type function bodies remain in this class).
  */
@@ -142,12 +157,6 @@ export class DocumentsValidator {
    *  `## Constraints` section → null — the undeclared face). */
   specConstraintsOf(entry: string, root: string): string | null {
     return mergedSpecConstraintsOf(entry, root);
-  }
-
-  /** plan contract: `### Task N:` continuous extractability · `**Spec:**` exists + resolves ·
-   *  constraints source declaration extractable · no placeholders — delegated to the plan doc type. */
-  validatePlanContract(planPath: string): DocValidationFailure[] {
-    return planType().validatePlanContract(planPath);
   }
 
   /** phaseIdFromPlan(planPath) — the basename-scan phase id — delegated to the plan doc type. */
@@ -216,6 +225,16 @@ export class DocumentsValidator {
     return docTypeRegistry.resolve(detectEntryKind(entry)).parentChain(entry, root);
   }
 
+  /** The structure-rule audit face (P3.1 F6 — the `runStructureRules` hook of the doc-contract
+   *  validation surface): the body-homed rule data for the resolved doc type of the given kind, run
+   *  through the single interpreter. Consumed by the closeout single inference
+   *  (deriveCloseoutMismatches) which carries the plane into the dispatch doc-contract gate — empty
+   *  at T1 (every body defaults `[]`), so the surface yields zero findings until the T2–T6 rule
+   *  sets land on the bodies. */
+  structureFindings(docKind: DocKind, content: string): StructureFinding[] {
+    return runStructureRules(content, structureRulesOf(docTypeRegistry.resolve(docKind)));
+  }
+
   /** validateDispatchDocuments — the audit entry: resolve the entry doc's kind through the registry
    *  detection scan (S1 — fail-fast on ambiguous / unknown kinds) and delegate the full audit to the
    *  registered doc type's validate surface — the doc type walks its own chain (plan → `**Spec:**`
@@ -232,6 +251,13 @@ export class DocumentsValidator {
     return failures
       .map((f) => `- [${f.artifact}] ${f.file} — ${f.field}: ${f.missing} → ${f.fix}`)
       .join("\n");
+  }
+
+  /** formatStructureFindings — the structure-rule guidance block (P3.1 F6 — the runStructureRules
+   *  surface): one `- [structure] <id>: <message>` line per finding. Distinct from
+   *  formatDocFailures — the structure plane carries its own {id, severity, message} carrier. */
+  formatStructureFindings(findings: readonly StructureFinding[]): string {
+    return findings.map((f) => `- [structure] ${f.id}: ${f.message}`).join("\n");
   }
 
   /** ① Claim extraction (the change-history window scan) — the shared doctype atom under the

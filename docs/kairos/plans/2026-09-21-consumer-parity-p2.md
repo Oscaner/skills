@@ -26,6 +26,7 @@
 ### Task 1: canonical doc-structure JSON Schema + `cdd help` 子命令（design §2.3 · AC5）
 
 - **Objective**: engine 包内新建 canonical doc-structure 定义（JSON Schema draft 2020-12 + description 覆盖四个 doc 类型），并新增 `cdd help` 子命令打通资源发现通道（本任务只建 canonical + 发现通道，**不迁移任何消费方**——T2 起步时才迁移）
+- **DependsOn**: none
 - **Consumes**: existing doc-structure 解析语义（`resolveSpecFromPlan` findIndex · `**Version**` 仅 phase-spec 严格 required · `### Task N:` 冒号形 · Section 0–5 骨架）；四个 doc 类型现状（overall / plan / phase-spec / add-phase-protocol）
 - **Produces**: `packages/cdd-engine/src/documents/schema/` canonical JSON Schema 四型；`cdd help` 子命令（打印 CLI 绝对目录 + schemas/templates 目录）；engine 单点 schema 加载器
 - **Files**: `packages/cdd-engine/src/documents/schema/`（overall / plan / phase-spec / add-phase-protocol 四型 schema）· `packages/cdd-engine/src/cli/`（`cdd help` 子命令）
@@ -40,6 +41,7 @@
 ### Task 2: engine 同构消费迁移 + 存量 md 模板退役（design §2.3 · AC4/AC9）
 
 - **Objective**: 将 engine 的文档结构消费面（`rules/documents.ts` 结构 token · brief 抽取 · 模板执法位）迁移到 canonical schema 单源，并退役三个存量 md 模板（结构事实归 canonical）
+- **DependsOn**: 1
 - **Consumes**: Task 1 canonical doc-structure schema（`**Spec:**`/`**Parent program**`/`**Version**` 等 token 单源）；`rules/documents.ts` 现有手写硬编码（SPEC_MARK/PARENT_MARK/VERSION_HEADER_RE/HISTORY_VERSION_CELL_RE/CLAIM 模式）
 - **Produces**: schema 派生 token 消费面（validateDispatchDocuments / brief 抽取 / plan-constraints READ）；三件 md 模板删除；skills `read-template` → `read-schema` 改写（`cdd help` 引导路径）
 - **Files**: `packages/cdd-engine/src/rules/documents.ts` · `packages/cdd-engine/src/render/brief.ts` · `packages/cdd-engine/src/dispatch/task.ts` · `packages/osuperpowers/skills/writing-overall-spec/docs/overall-spec-template.md` · `packages/osuperpowers/skills/writing-phase-spec/docs/phase-spec-template.md` · `packages/osuperpowers/skills/writing-overall-spec/docs/add-phase-protocol.md` · 五件 skills SKILL.md（read-template → read-schema）
@@ -55,6 +57,7 @@
 ### Task 3: 全量 charter 审计 + base 默认 override（design §2.1 · AC1/AC2）
 
 - **Objective**: 全量 charter 审计（lineage 驱动的四表一次齐查 + 六附带面）接入 dispatch 全通道，`validateDispatchDocuments` 重构为单一审计入口，`docContractValidate` 提升 base 生命周期默认钩子
+- **DependsOn**: 2
 - **Consumes**: Task 1 canonical schema（审计 token 单源）；Task 2 迁移后的 documents.ts；dispatch 三通道（task / docs / branch）接线面
 - **Produces**: lineage 驱动触发 + 四表审计 + necessary 子集透镜并入的单一审计入口；`docContractValidate` base 默认 override（'task/docs/branch 全通道生效）
 - **Files**: `packages/cdd-engine/src/rules/documents.ts` · `packages/cdd-engine/src/dispatch/base.ts`
@@ -70,6 +73,7 @@
 ### Task 4: closeout 统一规则（design §2.2 · AC3 · AC7 部分）
 
 - **Objective**: closeout 统一规则机械——mismatch 单一推断模块 + 两门面硬门接线 + lane 边界撤销 + post-flight 高亮 recommand + finishing 撤销回填机制
+- **DependsOn**: 3
 - **Consumes**: Task 3 审计面（结构性面）；`derivePlanVerdict.done`（终态源枚举）；docs 通道无 plan workspace 语义（声明源缺席）
 - **Produces**: mismatch 单一推断模块（结构性 + 终态欠账两门面）；pre-flight 硬门 + post-flight 高亮 recommand；`finishing` SKILL.md backfill-overall 节点移除
 - **Files**: `packages/cdd-engine/src/rules/documents.ts`（mismatch 推断）· `packages/cdd-engine/src/dispatch/base.ts`（pre/post 门接线）· `packages/cdd-engine/src/dispatch/docs.ts` · `packages/osuperpowers/skills/finishing/SKILL.md`
@@ -86,6 +90,7 @@
 ### Task 5: harness 契约单源（design §2.4 · AC6 · breaking 面）
 
 - **Objective**: handoff lifecycle 契约核心块统一 + docs-handoff `commits{base,head}` 逆转 + round-context docs base token + 出口门契约确定性——本任务是 T1–T4 之后唯一的 contract schema 修改面
+- **DependsOn**: 4
 - **Consumes**: Task 1–4 接线面；现 `templates/schema/docs-handoff-schema.json`（「Docs rounds carry no commits field」显式声明段待逆转）
 - **Produces**: 统一核心块（status 增 TIMEOUT · commits{base,head} · artifacts · findings · failure_category · blocker 单数 · changes · round）；docs-handoff commits 逆转 + round-context docs base token；契约确定性测试
 - **Files**: `packages/cdd-engine/templates/schema/task-handoff-schema.json` · `packages/cdd-engine/templates/schema/docs-handoff-schema.json` · `packages/cdd-engine/config/template-contract.json`（round-context zone）· `packages/cdd-engine/src/dispatch/docs.ts`
@@ -101,6 +106,7 @@
 ### Task 6: breaking 版本面 + 零债收口（design §2.5 · AC8 · 零债断言聚合）
 
 - **Objective**: cdd-engine major breaking 版本面（changeset）+ 零债断言聚合 + 全量收口复核 + 本仓 = canary 自证
+- **DependsOn**: 5
 - **Consumes**: Task 1–5 全部产物（schema + 契约 + 审计 + closeout + harness 契约）；AC7 全项机械断言面
 - **Produces**: cdd-engine major changeset（收口建）；零债断言聚合全项绿；canary 自证（本仓 program 文档链过 engine 新审计路径）
 - **Files**: `.changeset/consumer-parity-p2-major.md`（收口建）· 本仓 program 文档链（P2 plan → P2 design → consumer-parity overall）

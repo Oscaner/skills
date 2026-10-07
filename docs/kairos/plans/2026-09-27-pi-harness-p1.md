@@ -48,6 +48,7 @@
 ### Task 1: C1 源字段 + C3 契约 pin 测试（合并 C1+C3，共享 manifest 契约面）
 
 - **Objective**: C1 源字段（`keywords: ["pi-package"]` + `pi: { skills: ["./skills"] }`）+ C3 契约 pin 测试（合并 C1+C3，共享 manifest 契约面）+ A3 债吸收（residue pi 分支退役）
+- **DependsOn**: none
 
 - **Produces**: 源侧 pi 字段落位；`scripts/validate/osuperpowers.ts` 模块级 EXPECTED 导出；`pi-package.test.mjs` 通过 behavior glob；residue A3 pi 分支退役
 
@@ -66,6 +67,7 @@
 ### Task 2: C2 一等守卫 + C5 命名 pin 升级（合并 C2+C5，共享 validate 接线面）
 
 - **Objective**: C2 一等守卫 `checkPiPackageWellFormed`（五断言）+ C5 命名 pin 升级（count pin → name-set）
+- **DependsOn**: 1
 
 - **Produces**: `checkPiPackageWellFormed(pkgRoot)` 五断言 + 新 CheckBlock step（validate + precommit 双面）；ci-validate/pre-commit count pin 升级 name-set
 
@@ -83,6 +85,7 @@
 ### Task 3: C4 安装 smoke（R5 站①，含验证中机制实测）
 
 - **Objective**: C4 安装 smoke（R5 站①，含验证中机制实测）：新建 pi-install-smoke.test.mjs + validate 装配 pi 安装 step
+- **DependsOn**: 2
 
 - **Produces**: `pi-install-smoke.test.mjs`（pack → 解包 → `pi install <dir> --local --approve` → 三连断言）；`.github/actions/validate` 增 `npm i -g @earendil-works/pi-coding-agent` step
 
@@ -100,6 +103,7 @@
 ### Task 4: C6 撤销 + 全局 unpin（设计评审裁定 v1.4）
 
 - **Objective**: C6 撤销 + 全局 unpin（设计评审裁定 v1.4）：release smoke 站移除 + @latest 不固定版本
+- **DependsOn**: 3
 
 - **Produces**: release.yml 恢复 C6 前状态（pi smoke 段移除）；actions/validate pi install 改 `@latest`（理由注明）
 

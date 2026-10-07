@@ -9,9 +9,19 @@
 //          StatusJudge.derivePlanVerdict.done over EVERY plan workspace under the parent overall —
 //          the effectiveGroups dispatch-group iteration, the same single derivation as the progress
 //          surface (the group-following iteration covers the closeout terminal-debt verdict too).
-// Output = the mismatch set on two surfaces:
+// Output = the mismatch set on three surfaces:
 //   structural    — missing cell / missing claim: the single audit entry (validateDispatchDocuments)
 //                   consumed verbatim (Task 3 failure semantics; no second implementation).
+//   structure     — the runStructureRules hook (P3.1 F6 / T1 step 3: the dispatch doc-contract gate
+//                   wired to the single interpreter): the entry doc's RESOLVED body rule set
+//                   interpreted on the entry content (structureFindings → runStructureRules(content,
+//                   type.body.structureRules())) PLUS — the P3.1 T2 chain-compounding face — the
+//                   parent overall's body rule set interpreted on the chained doc's content when a
+//                   plan/spec entry reaches one (an overall entry's parentChain resolves to itself —
+//                   chain identity, never a duplicate run; this is what preserves the plan/spec →
+//                   parent-overall STRUCTURAL enforcement after the four-table walker zeroing).
+//                   The plane doesn't judge by itself: the pre-flight gate filters by severity
+//                   (BLOCK blocks, WARN warns).
 //   terminal-debt — plan-complete but the overall carries no backfill claim for the phase
 //                   (v1.12 user ruling: 回填 = branch-review 前置义务 — an unpaid completed plan is
 //                   a hard-gated debt until the orchestration backfills the overall; no lane
@@ -21,11 +31,12 @@
 // Read-only by construction: a plan workspace without progress.json (fresh checkout / undispatched
 // plan) is treated as not-done — 零误伤 and the module never materializes a workspace nor writes
 // any doc (engine 零文档写入 — the backfill edit is orchestration's, never engine code's).
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { WorkspaceRoot } from "../infra/workspace.ts";
 import { DocumentsValidator, type DocValidationFailure } from "./documents.ts";
 import { StatusJudge } from "./status.ts";
+import type { StructureFinding } from "./structure.ts";
 
 export interface CloseoutMismatch {
   surface: "structural" | "terminal-debt";
@@ -44,6 +55,12 @@ export interface CloseoutMismatch {
 export interface CloseoutResult {
   /** structural surface — the single audit entry output (missing cell / missing claim). */
   structural: DocValidationFailure[];
+  /** structure surface — the runStructureRules hook output (P3.1 F6): the entry doc's resolved body
+   *  rule set interpreted on its content, plus — when the entry's chain reaches a parent overall —
+   *  the parent overall's rule set on the chained doc's content (the P3.1 T2 chain-compounding
+   *  face; an overall entry's parentChain resolves to itself, so no duplicate run). The pre-flight
+   *  gate judges the plane by severity (BLOCK blocks, WARN warns). */
+  structure: StructureFinding[];
   /** terminal-debt surface — plan-complete unbackfilled members. */
   terminalDebt: CloseoutMismatch[];
   /** the resolved parent overall (Class B lineage) — shapes the debt guidance path; null on
@@ -121,17 +138,43 @@ export class CloseoutChecker {
   }
 
   /** deriveCloseoutMismatches — the single inference module: structural surface = the single audit
-   *  entry (validateDispatchDocuments), terminal-debt surface = the engine-terminal merge
-   *  (deriveTerminalDebt over the resolved parent overall). Pre-flight (docContractValidate) and
-   *  post-flight (statusValidate) BOTH consume this function — one inference, two channels. */
+   *  entry (validateDispatchDocuments), structure surface = the runStructureRules hook (the entry
+   *  doc's resolved body rule set on its content, COMPOUNDED by the chained parent overall's rule
+   *  set on the parent's content — P3.1 T2: the plan/spec → parent-overall structural enforcement
+   *  migration after the four-table walker zeroing), terminal-debt surface = the engine-terminal
+   *  merge (deriveTerminalDebt over the resolved parent overall). Pre-flight
+   *  (docContractValidate) and post-flight (statusValidate) BOTH consume this function — one
+   *  inference, two channels. */
   deriveCloseoutMismatches(options: { entry: string; root: string }): CloseoutResult {
     const overallPath = this.#documents.parentOverallOf(options.entry, options.root);
-    const structural = this.#documents.validateDispatchDocuments({
-      entry: options.entry,
-      root: options.root,
-    });
+    const structural = this.#documents.validateDispatchDocuments(options);
+    // The structure surface: structureFindings resolves the entry's doc kind → the resolved doc
+    // type's body rule data → runStructureRules(content, type.body.structureRules()). The entry is
+    // proven readable by the two calls above; an unreadable chain still fails open at the gate.
+    const entryFindings = this.#documents.structureFindings(
+      this.#documents.detectDocKind(options.entry),
+      readFileSync(options.entry, "utf8"),
+    );
+    // The chain-compounding face (P3.1 T2 — the walker-zeroed chain): a plan/spec entry's gate ALSO
+    // interprets the parent overall's rule set on the chained doc's content, so the structural faces
+    // the overall's own entry gets still fire for the chain. An overall entry's parentChain resolves
+    // to itself (chain identity — never a duplicate run). The read is fail-open: an unreadable
+    // overall already surfaced as the validate face's file-existence failure; the chain contributes
+    // only what it can read.
+    let chainFindings: StructureFinding[] = [];
+    if (overallPath && overallPath !== options.entry) {
+      try {
+        chainFindings = this.#documents.structureFindings(
+          "overall",
+          readFileSync(overallPath, "utf8"),
+        );
+      } catch {
+        // fail-open read — the contextual validate already flagged the unreadable overall
+      }
+    }
+    const structure = [...entryFindings, ...chainFindings];
     const terminalDebt = overallPath ? this.deriveTerminalDebt(overallPath, options.root) : [];
-    return { structural, terminalDebt, overallPath };
+    return { structural, structure, terminalDebt, overallPath };
   }
 
   /** Operator-facing guidance block for the terminal-debt surface (pre-flight BLOCK face): the

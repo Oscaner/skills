@@ -4,17 +4,21 @@
 // so every tree document validates on its own single-form surface — carrying a legacy face
 // (`- **Do**:` task block / Form B anchor / `## Task Groups` section / spec `## Section 1`) BLOCKS
 // (decommissioned surface, never ignored).
-//   - The walk set = 48 files: 22 plan + 21 design + 4 overall + 1 one-off. Of these, 47 are the
-//     validation files (22 + 21 + 4 — plans/ includes this program's own p3 plan). The one-off
-//     (specs/2026-09-28-cdd-review-contract-fix.md — a historical single-spec with no parent
-//     overall / canonical schema, the engine no longer recognises it) is detached from the
+//   - The walk set = 50 files: 23 plan + 22 design + 4 overall + 1 one-off. Of these, 49 are the
+//     validation files (23 + 22 + 4 — plans/ includes this program's own p3 + p3.1 plans). The
+//     one-off (specs/2026-09-28-cdd-review-contract-fix.md — a historical single-spec with no
+//     parent overall / canonical schema, the engine no longer recognises it) is detached from the
 //     green/red assertions: walked, detect-only, never counted, never migrated.
-//   - All 47 validation files are canonical — the queue holds zero pending-migration documents.
-//     Every plan (22) and design (21) validates clean on its OWN surface (zero owned failures) and
-//     its validate chain carries EXACTLY its resolved parent's own output (the one-off spec's
-//     documented 4 failures ride the cdd-review-contract-fix plan's chain — one-off tolerance,
-//     never a plan-owned failure; the frozen legacy overalls' backfill-claim residue rides their
-//     child designs' chains — recorded below, never a transcription-introduced failure).
+//   - All 49 validation files are canonical — the queue holds zero pending-migration documents.
+//     Every plan (23) and design (22) validates clean on its OWN validate surface (zero owned
+//     failures) and its validate chain carries EXACTLY its resolved parent's own output (the
+//     one-off spec's documented 4 failures ride the cdd-review-contract-fix plan's chain — one-off
+//     tolerance, never a plan-owned failure; the frozen legacy overalls' backfill-claim residue rides
+//     their child designs' chains — recorded below, never a transcription-introduced failure).
+//   - The rule plane (P3.1 T2 step 4): the walk judgs every validation file's STRUCTURE through
+//     structureFindings(kind, content) — the tree's structural judgments are the body rule sets,
+//     never a self-written walk; content-fidelity pins and the migration-queue closure assertions
+//     stay as direct reads/pins.
 //   - The 4 overalls walk with zero exclusion: pi-harness + doc-architecture-v2 validate clean;
 //     the two frozen legacy overalls (osuperpowers-overhaul · consumer-parity) carry exactly their
 //     documented pre-existing backfill-claim residue (7 / 14 — the closeout-accounting axis, not a
@@ -69,6 +73,7 @@ const PLAN_MIGRATION: Readonly<Record<string, MigrationState>> = {
   "2026-10-02-doc-architecture-v2-p1.md": "canonical",
   "2026-10-02-doc-architecture-v2-p2.md": "canonical",
   "2026-10-02-doc-architecture-v2-p3.md": "canonical",
+  "2026-10-02-doc-architecture-v2-p3.1.md": "canonical",
 };
 
 // The T7 prose-period plan family — the 4 pre-Do-form osuperpowers plans the prose-period describe
@@ -141,6 +146,7 @@ const SPEC_MIGRATION: Readonly<Record<string, MigrationState>> = {
   "2026-10-02-doc-architecture-v2-p1-design.md": "canonical",
   "2026-10-02-doc-architecture-v2-p2-design.md": "canonical",
   "2026-10-02-doc-architecture-v2-p3-design.md": "canonical",
+  "2026-10-02-doc-architecture-v2-p3.1-design.md": "canonical",
 };
 
 const ONE_OFF = "2026-09-28-cdd-review-contract-fix.md";
@@ -669,45 +675,108 @@ function sectionBody(content: string, headingRe: RegExp): string[] {
 }
 
 describe("迁移队列期望态 — the single-form tree's migration state table (T8 terminal)", () => {
-  it("the walk set is the full tree: 48 files = 22 plan + 21 design + 4 overall + 1 one-off; the 47 validation files are declared canonical with zero exclusions", () => {
+  it("the walk set is the full tree: 50 files = 23 plan + 22 design + 4 overall + 1 one-off; the 49 validation files are declared canonical with zero exclusions", () => {
     const plans = readdirSync(PLANS_DIR).filter((f) => f.endsWith(".md"));
     const designs = readdirSync(SPECS_DIR).filter((f) => f.endsWith("-design.md"));
     const overalls = readdirSync(SPECS_DIR).filter((f) => f.endsWith("-overall.md"));
     const oneOffs = readdirSync(SPECS_DIR).filter(
       (f) => f.endsWith(".md") && !f.endsWith("-design.md") && !f.endsWith("-overall.md"),
     );
-    expect(plans).toHaveLength(22);
-    expect(designs).toHaveLength(21);
+    expect(plans).toHaveLength(23);
+    expect(designs).toHaveLength(22);
     expect(overalls).toHaveLength(4);
     expect(oneOffs).toEqual([ONE_OFF]);
-    // validation files = the walk set minus the one-off tolerance (47 = 22 + 21 + 4); every
+    // validation files = the walk set minus the one-off tolerance (49 = 23 + 22 + 4); every
     // validation file is declared on the migration tables — a missing row breaks the
     // zero-exclusion coverage claim (no file is walked around).
-    expect(plans.length + designs.length + overalls.length).toBe(47);
+    expect(plans.length + designs.length + overalls.length).toBe(49);
     for (const f of plans)
       expect(PLAN_MIGRATION[f], `${f} missing from PLAN_MIGRATION`).toBeDefined();
     for (const f of designs)
       expect(SPEC_MIGRATION[f], `${f} missing from SPEC_MIGRATION`).toBeDefined();
-    // The 41 migrated objects (20 six-section specs + 21 plans) and the p3 zero-migration pair are
-    // FULLY canonical in the T8 terminal state — every validation file is single-form green and the
-    // queue holds zero pending-migration documents.
+    // The 37 migrated objects (20 migrated specs + 17 migrated plans) and the p3 + p3.1
+    // zero-migration pairs are FULLY canonical in the T8 terminal state — every validation file is
+    // single-form green and the queue holds zero pending-migration documents.
     expect(SPEC_MIGRATION["2026-10-02-doc-architecture-v2-p3-design.md"]).toBe("canonical");
     expect(PLAN_MIGRATION["2026-10-02-doc-architecture-v2-p3.md"]).toBe("canonical");
-    expect(Object.values(PLAN_MIGRATION).filter((s) => s === "canonical")).toHaveLength(22);
-    expect(Object.values(SPEC_MIGRATION).filter((s) => s === "canonical")).toHaveLength(21);
+    expect(SPEC_MIGRATION["2026-10-02-doc-architecture-v2-p3.1-design.md"]).toBe("canonical");
+    expect(PLAN_MIGRATION["2026-10-02-doc-architecture-v2-p3.1.md"]).toBe("canonical");
+    expect(Object.values(PLAN_MIGRATION).filter((s) => s === "canonical")).toHaveLength(23);
+    expect(Object.values(SPEC_MIGRATION).filter((s) => s === "canonical")).toHaveLength(22);
+    // Every canonical plan + spec (the 37 migrated + the p3/p3.1 zero-migration pairs) validates zero
+    // plan/spec-owned failures — the validate surfaces pin the per-file green baseline.
+    for (const f of plans) {
+      if (PLAN_MIGRATION[f] !== "canonical") continue;
+      expect(
+        planType()
+          .validate(path.join(PLANS_DIR, f), { root: REPO_ROOT })
+          .filter((x) => x.file === path.join(PLANS_DIR, f)),
+        `${f} plan-owned validate failure`,
+      ).toEqual([]);
+    }
+    for (const f of designs) {
+      if (SPEC_MIGRATION[f] !== "canonical") continue;
+      expect(
+        specType()
+          .validate(path.join(SPECS_DIR, f), { root: REPO_ROOT })
+          .filter((x) => x.file === path.join(SPECS_DIR, f)),
+        `${f} spec-owned validate failure`,
+      ).toEqual([]);
+    }
   });
 
-  it("the zero-migration canonical pair validates clean (the p3 plan + the p3 design)", () => {
-    expect(
-      planType().validate(path.join(PLANS_DIR, "2026-10-02-doc-architecture-v2-p3.md"), {
-        root: REPO_ROOT,
-      }),
-    ).toEqual([]);
-    expect(
-      specType().validate(path.join(SPECS_DIR, "2026-10-02-doc-architecture-v2-p3-design.md"), {
-        root: REPO_ROOT,
-      }),
-    ).toEqual([]);
+  it("the rule plane walks the whole 49-file validation tree — structureFindings(kind, content) = 0 at BLOCK severity (BLOCK-only caliber since P3.1 T6: the reference-lint WARN is a tree-legal observation, asserted by the lint unit tests, never gating tree green)", () => {
+    const plans = readdirSync(PLANS_DIR).filter((f) => f.endsWith(".md"));
+    const designs = readdirSync(SPECS_DIR).filter((f) => f.endsWith("-design.md"));
+    const overalls = readdirSync(SPECS_DIR).filter((f) => f.endsWith("-overall.md"));
+    expect(plans.length + designs.length + overalls.length).toBe(49);
+    for (const file of plans) {
+      expect(
+        validator
+          .structureFindings("plan", readFileSync(path.join(PLANS_DIR, file), "utf8"))
+          .filter((f) => f.severity === "BLOCK"),
+        `${file} plan structure findings`,
+      ).toEqual([]);
+    }
+    for (const file of designs) {
+      expect(
+        validator
+          .structureFindings("spec", readFileSync(path.join(SPECS_DIR, file), "utf8"))
+          .filter((f) => f.severity === "BLOCK"),
+        `${file} spec structure findings`,
+      ).toEqual([]);
+    }
+    for (const file of overalls) {
+      expect(
+        validator
+          .structureFindings("overall", readFileSync(path.join(SPECS_DIR, file), "utf8"))
+          .filter((f) => f.severity === "BLOCK"),
+        `${file} overall structure findings`,
+      ).toEqual([]);
+    }
+  });
+
+  it("the zero-migration canonical pairs validate clean (the p3 + p3.1 plans and designs)", () => {
+    for (const f of [
+      "2026-10-02-doc-architecture-v2-p3.md",
+      "2026-10-02-doc-architecture-v2-p3.1.md",
+    ]) {
+      expect(
+        planType().validate(path.join(PLANS_DIR, f), {
+          root: REPO_ROOT,
+        }),
+      ).toEqual([]);
+    }
+    for (const f of [
+      "2026-10-02-doc-architecture-v2-p3-design.md",
+      "2026-10-02-doc-architecture-v2-p3.1-design.md",
+    ]) {
+      expect(
+        specType().validate(path.join(SPECS_DIR, f), {
+          root: REPO_ROOT,
+        }),
+      ).toEqual([]);
+    }
   });
 
   it("the migration queue is closed — zero pending-migration documents remain (plan + spec families, the T8 terminal state)", () => {
@@ -733,13 +802,25 @@ const PLAN_PINS = JSON.parse(
   groups: Readonly<Record<string, readonly (readonly number[])[]>>;
 };
 
+// The double-layer migration pins (P3.1 T4 — the 22 design specs' design-body heading sequence:
+// the `### N.` group heading + every `#### N.M` item, in document order, EXACT). Pins the count
+// (171 migrated items + one group per migrated file + the p3.1 zero-migration pair's already-ranked
+// groups/items), the group numbers, the item ownership (each item's N is its group's), and the
+// title text verbatim (a title-edit breaks this pin). It is a JSON fixture under the scanned tree,
+// like PLAN_PINS — DATA, released wholesale at the guard-release sites.
+const SPEC_DOUBLE_LAYER_PINS = JSON.parse(
+  readFileSync(path.join(HERE, "fixtures", "spec-double-layer-pins.json"), "utf8"),
+) as Readonly<Record<string, readonly string[]>>;
+
 describe("the migrated plan-Do family — 17 data-shaped plans (内容保真 transcription, T6)", () => {
   // The Do-form family's migrated canonical plans — every PLAN_MIGRATION row flipped pending →
   // canonical at T6 (all but the p3 zero-migration plan, which was already canonical), EXCLUDING
-  // the 4 prose-period plans (their assertions live in the prose-period describe below).
+  // the 4 prose-period plans (their assertions live in the prose-period describe below) and the
+  // p3.1 zero-migration plan (this program's own — never a migration target).
   const MIGRATED_PLANS = Object.keys(PLAN_MIGRATION).filter(
     (f) =>
       f !== "2026-10-02-doc-architecture-v2-p3.md" &&
+      f !== "2026-10-02-doc-architecture-v2-p3.1.md" &&
       !PROSE_PERIOD_PLANS.includes(f) &&
       PLAN_MIGRATION[f] === "canonical",
   );
@@ -895,24 +976,17 @@ describe("the migrated prose-period plan family — osuperpowers p1–p4 (约束
 });
 
 describe("the migrated design-spec family — 20 three-truth skeletons (内容保真 transcription, T5)", () => {
-  it("every migrated spec carries the three-truth skeleton: ## Design + the unique ### Acceptance criteria inside it + ## Constraints + the Version line", () => {
-    const slices = phaseSpecBody.projectSlicePatterns();
+  it("every migrated spec walks the rule plane clean (the three-truth skeleton = the body rule set — ## Design presence · unique ### Acceptance criteria · ## Constraints presence)", () => {
     for (const file of Object.keys(SPEC_VERBATIM)) {
       const content = readFileSync(path.join(SPECS_DIR, file), "utf8");
+      expect(
+        validator.structureFindings("spec", content).filter((f) => f.severity === "BLOCK"),
+        `${file} spec skeleton structure findings`,
+      ).toEqual([]);
+      // the acceptance subsection sits inside ## Design and before ## Constraints (the layout pin —
+      // the rule plane judges existence/uniqueness, never the nested position).
+      const slices = phaseSpecBody.projectSlicePatterns();
       const lines = content.split("\n");
-      expect(
-        lines.some((l) => slices.designHeading.test(l)),
-        `${file} ## Design`,
-      ).toBe(true);
-      expect(
-        lines.filter((l) => slices.acceptanceCriteriaHeading.test(l)),
-        `${file} unique ### Acceptance criteria`,
-      ).toHaveLength(1);
-      expect(
-        lines.some((l) => slices.constraintsHeading.test(l)),
-        `${file} ## Constraints`,
-      ).toBe(true);
-      // the acceptance subsection sits inside ## Design and before ## Constraints.
       const designIdx = lines.findIndex((l) => slices.designHeading.test(l));
       const accIdx = lines.findIndex((l) => slices.acceptanceCriteriaHeading.test(l));
       const constraintsIdx = lines.findIndex((l) => slices.constraintsHeading.test(l));
@@ -938,11 +1012,17 @@ describe("the migrated design-spec family — 20 three-truth skeletons (内容�
 
   it("single-form docContractValidate green — zero spec-owned failures; the only residue is the frozen parent-overall backfill-claim results (13 docs, recorded — never T5 scope)", () => {
     for (const [file, state] of Object.entries(SPEC_MIGRATION)) {
-      if (state !== "canonical" || file === "2026-10-02-doc-architecture-v2-p3-design.md") continue;
+      if (
+        state !== "canonical" ||
+        file === "2026-10-02-doc-architecture-v2-p3-design.md" ||
+        file === "2026-10-02-doc-architecture-v2-p3.1-design.md"
+      )
+        continue;
       const specPath = path.join(SPECS_DIR, file);
       const failures = specType().validate(specPath, { root: REPO_ROOT });
-      // (a) the migrated spec's OWN single-form face is clean — the legacy six-section BLOCK
-      //     (missing ## Design / acceptance / constraints) is gone.
+      // (a) the migrated spec's OWN single-form surface is clean — the spec's own validate faces
+      //     (version line · deviations · parent linkage) emit zero; the skeleton judgment rides the
+      //     rule-plane walk asserted above.
       expect(
         failures.filter((f) => f.file === specPath),
         `${file} spec-owned single-form failures`,
@@ -962,8 +1042,203 @@ describe("the migrated design-spec family — 20 three-truth skeletons (内容�
   });
 });
 
-describe("the four overalls walk with zero exclusion — the two frozen legacy overalls carry exactly their documented backfill-claim residue, the rest validate clean (T8 terminal)", () => {
-  it("pi-harness + doc-architecture-v2 validate clean; the frozen osuperpowers-overhaul (7) and consumer-parity (14) carry ONLY the recorded backfill-claim residue (the closeout-accounting face — the walk asserts the full 4-overall family, no exclusion, no silent skip)", () => {
+describe("the double-layer design-item plane — 22 designs ranked (P3.1 T4: 19 份双层迁移 + p3.1 已秩化 + p3 零独立)", () => {
+  it("every design's design-body heading sequence equals the double-layer pin — `### N.` group(s) + `#### N.M` items, in document order, EXACT (count 171 + group numbers + ownership + titles verbatim)", () => {
+    for (const file of readdirSync(SPECS_DIR).filter((f) => f.endsWith("-design.md"))) {
+      const content = readFileSync(path.join(SPECS_DIR, file), "utf8");
+      const lines = content.split("\n");
+      let inDesign = false;
+      const heads: string[] = [];
+      for (const l of lines) {
+        if (/^## Design/.test(l)) {
+          inDesign = true;
+          continue;
+        }
+        if (inDesign && /^### Acceptance criteria/.test(l)) break;
+        if (inDesign && /^(?:### \d+\. |#### \d+\.\d+ )/.test(l)) heads.push(l);
+      }
+      expect(heads, file).toEqual(SPEC_DOUBLE_LAYER_PINS[file]);
+      // Ownership is the pin's structural side: every `#### N.M` item's `N` matches its group.
+      // The machine assertion rides the rule-plane walk (structureFindings = 0 above); the pin here
+      // makes the per-file surface explicit.
+    }
+  });
+
+  it("the migration count reconciles the spec §2.4 count-reconciliation — 19 files x 171 migrated items (numbered 78 / section-mark 87 / other 6)", () => {
+    // Numbered leader 78 (13 files) + section-mark leader 87 (7 files incl. the deep-leader items) + other 6 (3 files) =
+    // 171; the two zero-independent files (cp-p4.1 / doc-arch-p3 — the lead-in-bold-only pair) and
+    // the already-ranked p3/p3.1 designs carry no migration (their pin rows are zero-item or the
+    // p3.1 already-ranked items — excluded from the migrated count below).
+    const MIGRATED_FILES = Object.keys(SPEC_MIGRATION).filter(
+      (f) =>
+        f !== "2026-10-02-doc-architecture-v2-p3-design.md" &&
+        f !== "2026-10-02-doc-architecture-v2-p3.1-design.md",
+    );
+    let migratedTotal = 0;
+    for (const file of MIGRATED_FILES) {
+      migratedTotal += SPEC_DOUBLE_LAYER_PINS[file]!.filter((h) => /^#### /.test(h)).length;
+    }
+    expect(migratedTotal).toBe(171);
+    expect(
+      MIGRATED_FILES.filter((f) => SPEC_DOUBLE_LAYER_PINS[f]!.some((h) => /^#### /.test(h))).length,
+    ).toBe(19);
+    expect(SPEC_DOUBLE_LAYER_PINS["2026-09-21-consumer-parity-p4.1-design.md"]).toEqual([]);
+    expect(SPEC_DOUBLE_LAYER_PINS["2026-10-02-doc-architecture-v2-p3-design.md"]).toEqual([]);
+  });
+
+  it("whole-tree pseudo-heading zero-residue — the strict pattern `^**…**s*$` hits EXACTLY the 3 pinned exempt prose lines (2 in-tree specs + the one-off), 法外零残留 (spec §2.4 计数对账)", () => {
+    const STRICT = /^\*\*.+\*\*\s*$/;
+    const exempt: readonly [string, string, number][] = [
+      // [file, exact line content, original line number (pinned)]
+      [
+        "2026-09-13-osuperpowers-overhaul-p1-design.md",
+        "**All Overall updated? = Yes before review.**",
+        113,
+      ],
+      [
+        "2026-09-13-osuperpowers-overhaul-p5-design.md",
+        "**删除面**（旧模型归零）：`resolve-destination` 节点（程序归属降为 Related 链接，不入 digraph）· `ensure-session`（无 master 复用）· `append-comment`（无 per-finding 评论）· report-target 缓存 schema（含 kind）· 「master」概念改名 → 「aggregate issue / report issue」· **`.superpowers/sdd/*/progress.md` ledger 源（归 superpowers 域，collect 不再扫描）**",
+        88,
+      ],
+      [
+        "2026-09-28-cdd-review-contract-fix.md",
+        "**实测根因（#302 原文叙述需修正）**: stdout `blocker:` 不是「执行层契约计数」——执行层失败计数器在 task/branch 面的 `counters:` 行。真正碰撞是 **跨 face 同 token 异义**：docs 面 `blocker:` = M2 计数；task/branch 面 `blocker:` = M3 prose（非 BLOCKED 轮默认 `none`，`returnFromHandoff:180` 经 `blockerDefaultFor` 输出）。实测证据按 face 分列两条、各自标注来源：status 面首行 **`status: CHANGES_REQUESTED`**（task return-block 第一行）——由 ≥1 blocker-severity finding 汇总而来（`finalize.ts` `classifySeverity`/`rollupStatus`）；prose 面 **`blocker: none`**（M3 默认值，`blockerDefaultFor` 输出）——不是 docs 结果行 `status: <s> · blocker: <n>` 的「· 分隔」记法（该行只印 M2 数值计数、从不印 none）。歧义由此产生：orchestrator 按判读指令「读 blocker count」命中 M3 prose 行（`none`）而非 M2 计数 → 得到 0 → 误路由 S2（收口轮不 re-review）。**task/branch 评审的 S1「必 re-review」守门被静默禁用。**",
+        22,
+      ],
+    ];
+    const all = readdirSync(SPECS_DIR).filter((f) => f.endsWith(".md"));
+    const hits: Array<[string, number, string]> = [];
+    for (const f of all) {
+      readFileSync(path.join(SPECS_DIR, f), "utf8")
+        .split("\n")
+        .forEach((l, i) => {
+          if (STRICT.test(l)) hits.push([f, i + 1, l]);
+        });
+    }
+    expect(hits).toHaveLength(3);
+    expect(hits.map(([f]) => f).sort()).toEqual(exempt.map(([f]) => f).sort());
+    for (const [f, exemptContent, originalLine] of exempt) {
+      const actual = hits.find(([hf]) => hf === f)!;
+      expect(actual[2], `${f} exempt line content`).toBe(exemptContent);
+      // The line number is pinned at the ORIGINAL pre-migration position (the migration moves each
+      // file's lines by the inserted group heading(s) — the pinned content is the source of truth).
+      void originalLine;
+    }
+  });
+});
+
+describe("the four overalls' charter rank — the facets `###` / decision leaves `####` (P3.1 T5: F7 charter 结构秩)", () => {
+  it("each overall's `## Program charter` carries its facet headings at the `###` rank (the family-parameterized anchor names — presence is what the rule plane judges)", () => {
+    const expected: Readonly<Record<string, readonly string[]>> = {
+      "2026-10-02-doc-architecture-v2-overall.md": [
+        "### Goal",
+        "### Non-goals",
+        "### Cross-cutting（程序级横切约束，先立后执行）",
+      ],
+      "2026-09-27-pi-harness-overall.md": [
+        "### Goal",
+        "### Non-goals（非目标，明确不发散）",
+        "### Cross-cutting（程序级横切约束，先立后执行）",
+      ],
+      "2026-09-21-consumer-parity-overall.md": [
+        "### Goal",
+        "### Non-goals",
+        "### Cross-cutting constraints",
+      ],
+      "2026-09-13-osuperpowers-overhaul-overall.md": [
+        "### cdd-engine 服务化主线（2026-09-13 用户升维）",
+        "### Non-goals",
+        "### Cross-cutting constraints",
+      ],
+    };
+    for (const [name, facets] of Object.entries(expected)) {
+      const lines = readFileSync(path.join(SPECS_DIR, name), "utf8").split("\n");
+      let inCharter = false;
+      const charterHeads: string[] = [];
+      for (const l of lines) {
+        if (/^## Program charter/.test(l)) inCharter = true;
+        else if (inCharter && /^## /.test(l)) inCharter = false;
+        if (inCharter && /^### /.test(l)) charterHeads.push(l.trim());
+      }
+      for (const facet of facets) expect(charterHeads, `${name} facets`).toContain(facet);
+    }
+  });
+
+  it("doc-architecture-v2's decision-retention face is ranked (the 决策留存 `###` + the decision-group / endorsement leaves `####`) — the family with the full decision surface (存在才执法 enumeration)", () => {
+    const lines = readFileSync(
+      path.join(SPECS_DIR, "2026-10-02-doc-architecture-v2-overall.md"),
+      "utf8",
+    ).split("\n");
+    let inCharter = false;
+    const heads: string[] = [];
+    for (const l of lines) {
+      if (/^## Program charter/.test(l)) inCharter = true;
+      else if (inCharter && /^## /.test(l)) inCharter = false;
+      if (inCharter && /^(###|####) /.test(l)) heads.push(l);
+    }
+    expect(heads).toContain(
+      "### 设计决策留存（brainstorm grilling 定案 2026-10-02 —— 全量记录，不遗漏细节）",
+    );
+    for (const g of [
+      "M 组（skill-ref 映射，M1–M4 全关）",
+      "F 组（文档平面结构，提案）",
+      "R 组（ref 统一身份，提案）",
+      "B 组（正文内容，提案）",
+      "E 组（经验债，驱动本整体）",
+    ]) {
+      expect(heads, `decision group ${g}`).toContain(`#### ${g}`);
+    }
+    expect(heads, "endorsement leaf").toContain("#### 上游先例背书");
+  });
+
+  it("the three legacy overalls carry NO decision-retention face (existence-only — the absence is the documented non-enumeration state)", () => {
+    for (const name of [
+      "2026-09-27-pi-harness-overall.md",
+      "2026-09-21-consumer-parity-overall.md",
+      "2026-09-13-osuperpowers-overhaul-overall.md",
+    ]) {
+      const lines = readFileSync(path.join(SPECS_DIR, name), "utf8").split("\n");
+      let inCharter = false;
+      const heads: string[] = [];
+      for (const l of lines) {
+        if (/^## Program charter/.test(l)) inCharter = true;
+        else if (inCharter && /^## /.test(l)) inCharter = false;
+        if (inCharter && /^(###|####) /.test(l)) heads.push(l);
+      }
+      expect(
+        heads.some((h) => h.includes("决策留存")),
+        name,
+      ).toBe(false);
+      expect(
+        heads.every(
+          (h) =>
+            h === "### Goal" ||
+            h === "### Non-goals" ||
+            h === "### Cross-cutting" ||
+            /^### Cross-cutting（/.test(h) ||
+            /^### Non-goals（/.test(h) ||
+            h === "### cdd-engine 服务化主线（2026-09-13 用户升维）" ||
+            h === "### Cross-cutting constraints",
+        ),
+        name,
+      ).toBe(true);
+    }
+  });
+});
+
+describe("the four overalls walk with zero exclusion — the rule plane judges the four tables' structure clean; the frozen legacy overalls carry exactly their documented backfill-claim residue on the accounting validate side (T8 terminal)", () => {
+  it("the rule plane walks all four overalls — structureFindings(overall, content) = 0 (the four tables' structural judgment; the frozen overalls' STRUCTURE is clean, no exclusion, no silent skip)", () => {
+    for (const name of readdirSync(SPECS_DIR).filter((f) => f.endsWith("-overall.md"))) {
+      expect(
+        validator
+          .structureFindings("overall", readFileSync(path.join(SPECS_DIR, name), "utf8"))
+          .filter((f) => f.severity === "BLOCK"),
+        `${name} overall structure findings`,
+      ).toEqual([]);
+    }
+  });
+
+  it("the frozen osuperpowers-overhaul (7) and consumer-parity (14) carry ONLY the recorded backfill-claim residue on the accounting validate surface (the closeout-accounting face — the plan's documented terminal boundary); pi-harness + doc-architecture-v2 validate clean", () => {
     for (const name of readdirSync(SPECS_DIR).filter((f) => f.endsWith("-overall.md"))) {
       const fails = overallType().validate(path.join(SPECS_DIR, name), { root: REPO_ROOT });
       const expected = FROZEN_OVERALL_RESIDUE[name];
@@ -974,6 +1249,127 @@ describe("the four overalls walk with zero exclusion — the two frozen legacy o
         for (const f of fails) expect(f.field, name).toBe("backfill claim");
       }
     }
+  });
+});
+
+describe("the unilateral wave model — every plan's batch split pin (P3.1 T3: 组 = 波次)", () => {
+  // The per-plan wave decomposition (effectiveGroups = TaskGraph.batches → one dispatch group per
+  // wave, ascending task numbers). The 4 real-value plans' waves preserve their retired pairing
+  // components same-layer (the group-equal-power face — pinned above per plan); the sequential plans run
+  // the task-number chain; p3.1 (this program's own) derives its declared schedule
+  // T1→T2→{T3,T4,T5}→T6→T7 → five waves.
+  const WAVE_SPLITS: Readonly<Record<string, readonly (readonly number[])[]>> = {
+    "2026-09-13-osuperpowers-overhaul-p1.md": [[1], [2], [3], [4], [5]],
+    "2026-09-13-osuperpowers-overhaul-p2.md": [[1], [2], [3], [4], [5], [6]],
+    "2026-09-13-osuperpowers-overhaul-p3.md": [[1], [2], [3], [4], [5], [6]],
+    "2026-09-13-osuperpowers-overhaul-p4.md": [
+      [1],
+      [2],
+      [3],
+      [4],
+      [5],
+      [6],
+      [7],
+      [8],
+      [9],
+      [10],
+      [11],
+      [12],
+      [13],
+      [14],
+      [15],
+      [16],
+      [17],
+      [18],
+    ],
+    "2026-09-13-osuperpowers-overhaul-p5.md": [
+      [1],
+      [2],
+      [3],
+      [4],
+      [5],
+      [6],
+      [7],
+      [8],
+      [9],
+      [10],
+      [11],
+      [12],
+      [13],
+      [14],
+      [15],
+      [16],
+      [17],
+      [18],
+      [19],
+    ],
+    "2026-09-13-osuperpowers-overhaul-p6.md": [
+      [1],
+      [2],
+      [3],
+      [4],
+      [5],
+      [6],
+      [7],
+      [8],
+      [9],
+      [10],
+      [11],
+      [12],
+      [13],
+      [14],
+      [15],
+      [16],
+      [17],
+      [18],
+      [19],
+      [20],
+      [21],
+      [22],
+      [23],
+      [24],
+      [25],
+      [26],
+      [27],
+      [28],
+      [29],
+      [30],
+      [31],
+    ],
+    "2026-09-21-consumer-parity-p1.md": [[1], [2], [3]],
+    "2026-09-21-consumer-parity-p2.md": [[1], [2], [3], [4], [5], [6]],
+    "2026-09-21-consumer-parity-p3.md": [[1], [2], [3], [4], [5], [6], [7], [8]],
+    "2026-09-21-consumer-parity-p4.1.md": [[1], [2], [3], [4], [5], [6], [7], [8], [9], [10]],
+    "2026-09-21-consumer-parity-p4.2.md": [[1, 2, 3], [4, 5], [6, 7], [8], [9], [10], [11], [12]],
+    "2026-09-21-consumer-parity-p4.3.md": [[1], [2], [3], [4], [5], [6], [7], [8], [9], [10], [11]],
+    "2026-09-21-consumer-parity-p4.4.md": [[1], [2], [3, 4, 5], [6, 7, 8], [9], [10, 11]],
+    "2026-09-27-pi-harness-p1.md": [[1], [2], [3], [4]],
+    "2026-09-27-pi-harness-p2.md": [[1], [2], [3], [4], [5], [6]],
+    "2026-09-27-pi-harness-p3.md": [[1], [2], [3], [4], [5], [6], [7], [8], [9]],
+    "2026-09-27-pi-harness-p4.md": [[1, 2], [3], [4, 5], [6], [7, 8]],
+    "2026-09-27-pi-harness-p5.md": [[1], [2], [3], [4], [5], [6], [7, 8], [9]],
+    "2026-09-28-cdd-review-contract-fix.md": [[1], [2], [3], [4], [5], [6], [7], [8], [9]],
+    "2026-10-02-doc-architecture-v2-p1.md": [[1], [2], [3], [4], [5], [6], [7]],
+    "2026-10-02-doc-architecture-v2-p2.md": [[1], [2], [3], [4], [5], [6], [7]],
+    "2026-10-02-doc-architecture-v2-p3.md": [[1], [2], [3], [4], [5], [6], [7], [8], [9]],
+    "2026-10-02-doc-architecture-v2-p3.1.md": [[1], [2], [3, 4, 5], [6], [7]],
+  };
+
+  it("every migration-target plan's effectiveGroups derives exactly its pinned wave split (the wave = the dispatch group)", () => {
+    for (const [file, expected] of Object.entries(WAVE_SPLITS)) {
+      const groups = planType()
+        .effectiveGroups(path.join(PLANS_DIR, file))
+        .map((g) => [...g.numbers]);
+      expect(groups, file).toEqual(expected);
+    }
+    expect(Object.keys(WAVE_SPLITS).length).toBe(23); // every plan in the tree is pinned
+  });
+
+  it("the p3.1 plan itself derives the five-wave schedule (T1→T2→{T3,T4,T5}→T6→T7 — 3‖4‖5 same wave)", () => {
+    const groups = planType()
+      .effectiveGroups(path.join(PLANS_DIR, "2026-10-02-doc-architecture-v2-p3.1.md"))
+      .map((g) => [...g.numbers]);
+    expect(groups).toEqual([[1], [2], [3, 4, 5], [6], [7]]);
   });
 });
 

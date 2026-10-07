@@ -6,6 +6,9 @@
 
 ## Design
 
+The smoke chain's design body — the doc-contract gate's non-shell `## Design` (the P3.1 T4
+empty-body face).
+
 ### Acceptance criteria
 
 - `the smoke chain audits clean`

@@ -7,7 +7,8 @@
 - **Depends on**: P1（shipped · [p1-design v1.1](2026-10-02-doc-architecture-v2-p1-design.md) · plan v1.1 · 实现 T1–T7 merged #315）
 
 ## Design
-**2.1 目标与范围**
+### 2. 文档平面瘦身设计
+#### 2.1 目标与范围
 
 P2 把文档平面的「样板散文增生 + 结构知识三面无统一抽象 + Task 散文面」归零：phase-spec 六段五样板（E2）→ 三真骨架 + 条件元数据；plan 约束再述（E3）→ delta-only；Task Do 长散文 + brief 散文雕刻（E4）→ Task 数据化渲染；schema/解析/渲染的结构知识手写重复（E6 doc 结构翼）→ DocBody 类型化正文模型单源派生。
 
@@ -15,7 +16,7 @@ P2 把文档平面的「样板散文增生 + 结构知识三面无统一抽象 +
 
 **范围外（零越界线）**：P3 TaskGraph 边模型（`depends_on`/`atomic_with` 只在 Task 模型留扩展位）/ `## Task Groups` 字面段删除 / 图性质 BLOCK 不实现；P5 DispatchPacket（约束 join/子集过滤 / InstructionUnit / ref 统一）不实现——P2 机器面止于「读整体约束 + delta 合并呈现」；P4 `cdd-doc-review` 与 acceptance 机械化判定不实现——P2 只定义 acceptance claim 形态（`Task.acceptance[]` 数据面 + phase-spec acceptance code-span 条件句）；overall schema 零触碰（宪法层归 P6）；doc 文件路径面零触碰；P2 自身 spec/plan 按当前规范形（Section 0–5 / Form A）书写（Q6 过渡定案）。
 
-**2.2 锚点（grilling 定案，本 phase 会话六轮裁决）**
+#### 2.2 锚点（grilling 定案，本 phase 会话六轮裁决）
 
 | 锚点 | 定案内容 |
 |---|---|
@@ -26,7 +27,7 @@ P2 把文档平面的「样板散文增生 + 结构知识三面无统一抽象 +
 | Q5 | **delta-only 机器面边界**：新 plan `## Constraints` 仅 delta；宪法 auto-applies；P2 机器面 = plan-parse 读 parent overall 约束 + delta 合并呈现 + schema 禁 Form B（新 doc）· legacy Form B 双读；join/子集过滤 = P5 零越界 |
 | Q6 | **自身 doc 过渡**：doc-contract gate 是 base dispatch 共享面（spec 评审即跑），新骨架在 P2 implementation 后才存在 ⇒ P2 spec/plan 按当前规范形（Section 0–5 / Form A）书写（评审 gate 顺绿 · document era 即史实）；新骨架实证 = engine fixtures（新形 spec/plan fixture 过 validate + SchemaFactory 派生产物断言）+ tests；首个真实采用 = P3 起的 phase 文档 |
 
-**2.3 现状与收敛面（E 组经验债 P2 面归零清单）**
+#### 2.3 现状与收敛面（E 组经验债 P2 面归零清单）
 
 | # | 债面 | 现状锚点 | 收敛方向 |
 |---|---|---|---|
@@ -39,7 +40,7 @@ P2 把文档平面的「样板散文增生 + 结构知识三面无统一抽象 +
 
 **既有健康面（不拆不改）**：detect 特征（phase-spec = `-design.md` basename + `**Version**` 行 · plan = `### Task N:` 连续标题——新形不触碰，改名零影响）；SchemaFactory 派生管道与 diff 钉机制（投影源升级、钉 deliberate update 登记）；legacy 六段 / Form B 的 validate / parse；`cdd schema get` 五型门；overall schema（P6 宪法层面）；`infra/word-table.ts` 消费路径。
 
-**2.4 设计**
+#### 2.4 设计
 
 **C1 `DocBody` 类型化正文模型**（`src/documents/doctypes/body/`，类 + 构造注入）——doc 正文结构知识单源：
 - `abstract DocBody`：`projectSchemaShape()`（shape 域投影源——**唯一契约链：DocBody.projectSchemaShape() → `DocType.shape` 重派生 → SchemaFactory → `config/schema/{phase-spec,plan}.json`**；`deriveDocTokens` 续接 `DocType.shape` live 派生（P1 S8），DOC_TOKENS 生产值随 shape 域内容变更以 deliberate update 重 pin（字节保真指渲染面，token 面变动由 tokens.test 钉断言））· `projectSlicePatterns()`（parse 切片正则面单源）· 字段 `description` 即样板散文单源（消费方读 DocBody 即读法）
@@ -62,7 +63,7 @@ P2 把文档平面的「样板散文增生 + 结构知识三面无统一抽象 +
 
 **C7 消费连带**——SKILL.md（cdd-spec / cdd-phase 骨架指导语 English-primary 随新骨架同步——六段描述改三真骨架 + 条件元数据）；skill-anatomy heading registry（若 anatomy schema 引 heading 名则登记新段）；docs/maintainers 01-template-doctrine（doc 结构面随行）；changesets（`@oscaner-skills/cdd-engine` 重构面 + kairos 文案面视变）。
 
-**2.5 数据流（doc 结构知识单源 → 三派生面）**
+#### 2.5 数据流（doc 结构知识单源 → 三派生面）
 
 ```
 DocBody 模型（PhaseSpecBody / PlanBody）---+--project---> DocType.shape（shapes 域重派生）---> SchemaFactory ---> config/schema/{phase-spec,plan}.json（派生 · deliberate update · 新 diff 钉守卫）
@@ -73,7 +74,7 @@ DocBody 模型（PhaseSpecBody / PlanBody）---+--project---> DocType.shape（sh
 bodyView（reviews.plan decomposition 轴）<--- interface{consumes,produces} 字段源
 ```
 
-**2.6 错误处理**
+#### 2.6 错误处理
 
 - `Task.steps` 缺 `checkable` → schema 校验 fail（B5，validate 期拦，非作者自觉）
 - 新 doc 出现 Form B 约束散文指针 → docContractValidate fail（禁；legacy 双读豁免旧文档）
@@ -81,7 +82,7 @@ bodyView（reviews.plan decomposition 轴）<--- interface{consumes,produces} �
 - legacy 形无法 parse/validate → validate fail（双读契约破 = 缺陷，不静默退化）
 - diff 钉 / 字节断言破 → deliberate update 审查登记（P1 漂移纪律：意向变更登记放行 · 非意向漂移拦截）
 
-**2.7 测试**
+#### 2.7 测试
 
 - **新形 fixtures**：新 phase-spec fixture（三真骨架 + 条件段正反例 ×2：condition=true 落盘 ✓ / condition=false 零残留段 ✓）过 docContractValidate；新 plan fixture（Task 数据化）parse + brief 渲染断言
 - **双读契约**：legacy 六段 spec / Form B plan fixture 仍过 validate + parse（既有 18 design + 19 plan 树零改动实证）

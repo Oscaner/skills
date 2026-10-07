@@ -7,7 +7,8 @@
 - **Depends on**: 无（program 起点）
 
 ## Design
-**2.1 目标与范围**
+### 2. DocType 抽象 + schema 工厂设计
+#### 2.1 目标与范围
 
 P1 把 doc-type 处理面的「三平面异构 + per-type 分支散点」归零为一个 DocType 对象模型 + schema 工厂：doc-structure schema（`config/schema/{phase-spec,plan,overall}.json`）、lexicon engine 翼（`config/contract-lexicon.json`）、template-contract 分型面（`config/template-contract.json` 的 `reviews.spec/plan` + `DOCS_FORMATS` 判别）收编为 DocType 五域字段；engine 面 per-type 手写分支收敛为 DocType 实例方法。
 
@@ -15,7 +16,7 @@ P1 把 doc-type 处理面的「三平面异构 + per-type 分支散点」归零�
 
 **范围外（超纲线）**：P2 样板 schema 化 / plan Task=数据不动；P3 TaskGraph 不实现（空间仅限 seam）；P5 DispatchContract / DispatchPacket / InstructionUnit 正文 / refKind 四型内容不实现；add-phase-protocol / skill-anatomy 不入工厂、不删（Q6，留手写 JSON + schema.test 校验）；scripts 侧 guard 词表（`scripts/lib/guard-lexicon.json`）与 `ContractLexiconGuard` 不动。
 
-**2.2 锚点图例**
+#### 2.2 锚点图例
 
 Q/R = grilling 定案轮次锚点（Q1–Q6 对应本会话六个前沿轮次裁决）；锚点仅供本 spec 内部溯源：
 
@@ -28,7 +29,7 @@ Q/R = grilling 定案轮次锚点（Q1–Q6 对应本会话六个前沿轮次裁
 | Q5 | **收编映射**：doc-structure schema → `shape` 域 · lexicon engine 翼 → `words` 域 · template-contract 分型面（reviews.spec/plan + DOCS_FORMATS）→ bodyView/review 面；shell/tokens/clauses 留渲染数据面；guard 翼不动 |
 | Q6 | **工厂覆盖**：三活动型（phase-spec/plan/overall）入厂；add-phase-protocol/skill-anatomy 非 doc 结构留手写 JSON（overall v1.2 登记） |
 
-**2.3 现状与收敛面（A3 归零清单）**
+#### 2.3 现状与收敛面（A3 归零清单）
 
 per-type 手写分支持平（agent 实测锚点，收敛对象）：
 
@@ -47,7 +48,7 @@ per-type 手写分支持平（agent 实测锚点，收敛对象）：
 
 **既有健康面（不拆不改，维持）**：`src/documents/schema.ts`（逻辑名定位器 + 惰性缓存读取）、`infra/resource.ts`（单一路径定位真源）、`cdd schema get` CLI（type gate + raw bytes）。`src/lib/` 已退休（注释残留 `ex lib/…` = 死牵引）。
 
-**2.4 DocType 框架**
+#### 2.4 DocType 框架
 
 **C1 `abstract class DocType`**（`src/documents/doctype.ts`，类 + 构造注入）——五域为一身，本 phase 自持契约：
 
@@ -75,7 +76,7 @@ per-type 手写分支持平（agent 实测锚点，收敛对象）：
 
 **C6 template-contract 分型面**——`reviews.{spec,plan}`（axesGuide/lens）+ `DOCS_FORMATS` 判别迁入 `DocType.bodyView`；`config/template-contract.json` 保留 shell/tokens/clauses/round-context（流程 prompt 面，与 doc type 正交，收编它 = 增生抽象）；`TemplateLoader` per-type review 配置改经 `DocType` 读取——**渲染输出等价**（templates 测试全绿为等价断言，非文件字节 diff；template-contract.json reviews 块迁出 = 预期结构变更，Q5）。
 
-**2.5 数据流（三收编路径 + 消费面）**
+#### 2.5 数据流（三收编路径 + 消费面）
 
 ```
 shape 源(五域字段) ---> SchemaFactory ---> config/schema/{phase-spec,plan,overall}.json（派生·入库·diff 钉守卫）
@@ -85,14 +86,14 @@ words 源(DocType.words) ---> 渲染 ---> config/contract-lexicon.json（派生�
 分型面(DocType.bodyView) ---> TemplateLoader per-type review 配置（渲染输出等价，templates 测试绿）
 ```
 
-**2.6 错误处理**
+#### 2.6 错误处理
 
 - 注册表 `resolve(kind)` 未知 → throw（emit/review 时即 fail，不留静默分支）
 - 工厂渲染与回填前 schema 偏离 → diff 钉测试 fail（等价断言即守卫，block 0 拦截）
 - `detect` 多型命中（命名/内容交叠）→ 判定序固定（overall → plan → phase-spec）+ 二义显式报错，不静默选型
 - 消费者路径零变更 → 无新增错误面；既有 invariants/exit 纪律不变
 
-**2.7 测试**
+#### 2.7 测试
 
 - **diff 钉测试**：`SchemaFactory` 渲染产物 vs 回填前 `config/schema/{phase-spec,plan,overall}.json` 字节断言 ×3（Q1「先钉」面；P2 迁移启动退役）
 - **words 等价**：`DocType.words` 渲染 vs `config/contract-lexicon.json` 字节断言

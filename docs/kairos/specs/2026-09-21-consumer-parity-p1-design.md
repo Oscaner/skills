@@ -9,7 +9,8 @@
 ## Design
 本 phase 增量 = **分歧面逐项审计 + 判定登记（triage 判定表）+ shim 清单 + 13 件 frozen 文档清理（裁决 A）+ S5 修正**。核心产出物是**判定表与处置表的落盘**——执法改动不在此 phase 实现（P2），仓库面退役不在此 phase（P3）。
 
-**2.1 判据应用（overall v1.8 定式；本 spec 只给裁定结论）**
+### 2. 分歧面审计与判定登记设计
+#### 2.1 判据应用（overall v1.8 定式；本 spec 只给裁定结论）
 
 判据操作性定义简写（完整定义见 [overall v1.8 Cross-cutting「判据定式」段](./2026-09-21-consumer-parity-overall.md)——P1 逐项 triage 与 P2/P3 处置的记在案判定规则）：
 - **C1 可达性**——一条 charter 合规断言，只要消费者环境（纯包 + 无 `scripts/`、无可安装 validate）也应得到同等执法 → 归 engine lifecycle（docContractValidate / statusValidate）；落 repo scripts 侧第二实现 = 违规。
@@ -29,7 +30,7 @@
 
 **未镜像集 = P2 全量审计的精确 delta**（上表"新增/扩全"六行（新增 5 + 扩全 1）及 Class C 通用路径锚点）——本判表是 P2 scope 的机械输入契约。
 
-**2.2 Shim 清单（S1–S6，四分类）**
+#### 2.2 Shim 清单（S1–S6，四分类）
 
 | # | shim 项 | 类别 | 处置 | 责任 phase |
 |---|---|---|---|---|
@@ -42,7 +43,7 @@
 
 **排除项（观察项，不入 shim 清单）**：engine 黑盒测试 `cwd=REPO_ROOT`（E2②/G4① dirty-tree 降级）——测试基建文档化行为，非绕产品面短路面。
 
-**2.3 13 件 frozen 文档清理处置表（裁决 A：无历史叙述豁免，useless 必删）**
+#### 2.3 13 件 frozen 文档清理处置表（裁决 A：无历史叙述豁免，useless 必删）
 
 **处置判据**：
 - **J1 主张性引用**——把 scripts-side 守卫表述为**现行/本仓 charter 执法主体、maintainer-mode dogfood 归属**的句子 → **改写为历史时态中性句**（陈述"当时由 repo 侧守卫承担；已于 consumer-parity 归位 engine lifecycle"），或删除（无保留价值）。
@@ -70,7 +71,7 @@
 
 > 合计：**26 命中行 / 8 文件**（committed tree `HEAD 7d2f8d20` 实测；J1 改写 4 处 + J2/J3 保留 22 行，13 件 = 8 命中件 + 5 零命中件）。
 
-**§2.3.1 p2-plan AC2 命中 9 处划类明细（J2/J3，保留不改）**
+#### 2.6 §2.3.1 p2-plan AC2 命中 9 处划类明细（J2/J3，保留不改）
 
 | 行 | 内容概要 | 划类 | 理由 |
 |---|---|---|---|
@@ -86,11 +87,11 @@
 
 p2-plan 另有 8 处守卫叙述行（:34 · :88 · :112 · :146 · :149 · :306-307 · :401——"block 12" / residue.mjs 散文叙述，**不含 AC2 pattern**，非 grep 命中面）：作为历史执行记录保留不改写，不入 AC2 登记面、不计数。
 
-**2.4 S5 单行修正（`scripts/run.ts:89`）**
+#### 2.4 S5 单行修正（`scripts/run.ts:89`）
 
 `run.ts` 中 `smoke-cdd` 的 command 描述当前为「(4-command H1 chain)」，实际 smoke-cdd.ts 执行**五命令** dry-run 链（implement / review task / fix task / review branch / fix branch）。单行改为「(5-command H1 chain)」。改后 `pnpm run validate` 的 scripts unit 套件（`scripts/__tests__/run.test.ts` 等）不依赖该描述文本 → 无测试改动面。
 
-**2.5 文字改动面汇总（经 cdd 链 review，验收③）**
+#### 2.5 文字改动面汇总（经 cdd 链 review，验收③）
 
 | 改动 | 文件 | 判据 | phase |
 |---|---|---|---|

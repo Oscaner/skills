@@ -7,14 +7,18 @@
 // artifact is only ever executed as the CLI entry, never imported.
 import process from "node:process";
 
-import { cli } from "./face/cli.ts";
-
 // The environment pre-flight — the engine's `engines` floor (package.json#engines
-// ">=22.18.0"): below it the dev face's `./face/cli.ts` import itself fails to
-// type-strip, so the guard runs BEFORE the cli load and exits with a
-// self-explaining message instead of a Node parse crash. The published artifact
-// (the tsc-emitted dist/bin.js) is plain JS, where the guard is a no-op — the check
-// is floor-consistent, never over-strict.
+// ">=22.18.0"). It is the first thing this module body runs and covers every
+// configuration where the entry's JS actually loads — the published artifact (the
+// tsc-emitted dist/bin.js, plain JS) on any below-floor Node, and dev-face setups
+// that load the `.ts` entry behind the type-stripping flag while still below 22.18.
+// On those surfaces it exits with a self-explaining message + exit 1 before the
+// cli face loads — the cli is `await import`ed only after the check, so that
+// ordering is real where reachable. It cannot cover the plain `node src-next/bin.ts`
+// dev face on a below-22.18 Node: there the loader itself rejects the `.ts` entry
+// (native type stripping), so no engine JS — including this guard — ever runs; that
+// crash is inherent to a `.ts` entry on old Node. On the published artifact the
+// guard is a no-op — floor-consistent, never over-strict.
 const NODE_FLOOR = { major: 22, minor: 18 } as const;
 
 function bootEnvironmentProblem(): string | null {
@@ -33,8 +37,10 @@ if (environmentProblem !== null) {
 
 // The CLI face — runArgv owns the usage-error normalization (exit code 0 / 1 / 2,
 // the steady exit-code table); the boot wrapper only maps an unexpected
-// composition-root crash to the message + exit 1, never an unhandled rejection.
+// composition-root load/crash to the message + exit 1, never an unhandled
+// rejection. `await import` keeps the environment pre-flight ahead of the load.
 try {
+  const { cli } = await import("./face/cli.ts");
   const exitCode = await cli().runArgv(process.argv.slice(2));
   process.exit(exitCode);
 } catch (raw) {

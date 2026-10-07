@@ -400,7 +400,7 @@ T13 起的新树自测基线（后续 T14–T24 以此为准；旧树 count pin 
 
 - **新树自测基线（文件/用例数）**：生产面 **25 文件**（contract 7 · session 6 · face 3 · render 3 · infra 5 · 根 bin.ts 1）· 测试面 **16 文件**（contract 6 · session 4 · face 2 · render 1 · infra 1 · 根 `__tests__` 2）· **251 用例**（src-next 独立 project 全绿）。`node src-next/bin.ts` 六命令黑盒可用（schema get 输出派生 schema · issue render 聚合正文 · base set/get 工件读写 · implement/review/fix dry-run 胶囊 + handoff）。
 - **零裸函数全树断言面（自 T13 基线起即全树；T18 收面协议）**：`grep -rn "^export function" src-next --include="*.ts"`（排除 `__tests__`）= **1 命中**——`src-next/face/cli.ts` 组合根 `cli()`（组合根装载面豁免）；非豁免行为面零。
-- **净减账基线（T13 起记）**：新树生产面 **7,618 行**（T17 出具 29k → −20%± 净减账，真实值为准）。
+- **净减账基线（T13 起记）**：新树生产面 **7,619 行**（T17 出具 29k → −20%± 净减账，真实值为准）。
 
 ## Constraints
 

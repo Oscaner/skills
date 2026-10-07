@@ -3,7 +3,7 @@
 **Spec:** [2026-10-02-doc-architecture-v2-p3.2-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3.2-design.md)
 
 - **Parent program**: [2026-10-02-doc-architecture-v2-overall.md v1.21](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.5 · 2026-10-08（**T23 next fix 面 readback 后缀**——用户 2026-10-08 拍板「NextStepRouter `kind: fix` 时补 `(first read <findings> back to confirm)`」：旧树 readbackWording 设计意图于新架构落地为纯文案提示 · 机械防线由 ledger round/C5-1 兜 · 编排方是否遵守非强约束——plan review-2 闭合后追加）；前置 v1.4 · 2026-10-07（前置 v1.3 = P7 提前承接 backfill——T19 翻译系统 · T20 base 命令面；**v1.4 = P4/P5/P6/P7 全吸收 + 数据面归位 backfill**——用户 2026-10-07 拍板「config-next 完成以后删除 config」+「都是一体的」+「吸收进 P3.2」升华：**T21 数据面归位**（三稳态 JSON → typed 平面 infra/runtime · face/host · render/templates，P4/P5 承接净入——M1 supersede · refs 登记 · 三处禁文删除 · review 准则收口 · 零读 config/ · 导出面保持）· **T22 宪法化承接（P6）**（overall 拆宪法/archive · 版本行散文消解 · Standing rules 成典 · 全树 4 overalls）· **T15 扩域删 config/**（整目录零残留，零重建）· T14 认领 skill-anatomy 归位 · T16 CLAUDE.md/README 数据面同步——overall v1.23 · spec v1.4 随））
+- **Version**: v1.6 · 2026-10-08（**`next:` 形式补钉**——用户 2026-10-08 拍板「先落补钉再执行」：胶囊 `next:` 渲染 = Route 事实（kind+载荷 · 非完整 cdd 命令）显式钉入 T7 验收，T16 技能面以「事实 → 命令映射」为消费前提——旧树命令式提示取消的涌现形态补为决策）；前置 v1.5 · 2026-10-08（**T23 next fix 面 readback 后缀**——用户 2026-10-08 拍板「NextStepRouter `kind: fix` 时补 `(first read <findings> back to confirm)`」：旧树 readbackWording 设计意图于新架构落地为纯文案提示 · 机械防线由 ledger round/C5-1 兜 · 编排方是否遵守非强约束——plan review-2 闭合后追加）；前置 v1.4 · 2026-10-07（前置 v1.3 = P7 提前承接 backfill——T19 翻译系统 · T20 base 命令面；**v1.4 = P4/P5/P6/P7 全吸收 + 数据面归位 backfill**——用户 2026-10-07 拍板「config-next 完成以后删除 config」+「都是一体的」+「吸收进 P3.2」升华：**T21 数据面归位**（三稳态 JSON → typed 平面 infra/runtime · face/host · render/templates，P4/P5 承接净入——M1 supersede · refs 登记 · 三处禁文删除 · review 准则收口 · 零读 config/ · 导出面保持）· **T22 宪法化承接（P6）**（overall 拆宪法/archive · 版本行散文消解 · Standing rules 成典 · 全树 4 overalls）· **T15 扩域删 config/**（整目录零残留，零重建）· T14 认领 skill-anatomy 归位 · T16 CLAUDE.md/README 数据面同步——overall v1.23 · spec v1.4 随）））
 - **Depends on**: P3.1（Done）· P3.2 design spec v1.2（Approved · 2026-10-07）
 - **Base**: develop
 
@@ -119,7 +119,7 @@
   - 软帽建议（"BLOCKED: review-cycle-cap" 语）— checkable: 软帽测试绿
   - commit `feat(engine): session next 单点`
 - **Acceptance**:
-  - next() 是唯一 next: 生成面；语义表负例全绿
+  - next() 是唯一 next: 生成面；语义表负例全绿；**胶囊 `next:` 渲染 = Route 事实（kind+载荷，非完整 cdd 命令）——T16 技能面按事实映射命令（v1.6 钉）**
 - **DependsOn**: 6, 4
 
 ### Task 8: session · run——参数化单 lifecycle
@@ -246,7 +246,7 @@
 
 ### Task 16: 技能 8→6 重写 + skill-anatomy + emit 再生 + README
 
-- **Objective**: `packages/kairos/skills/` 重写为 6 集（cdd-design · cdd-spec-writer · cdd-plan · cdd-dev · cdd-close · cdd-report）；**五链 digraph（design/spec-writer/plan/dev/close）统一骨架** = 一次性执行节点 + NEXT-LOOP 单自环（边零状态标签），**两项例外**——cdd-close 止于 finish 编排语义门 + 终端（无 review 自环）· cdd-report 一次性上报工具链（无自环）；**cdd-design 收敛参数化单模板**（spec §4.1：run-cdd-charter 双节点 + run-cdd-spec/run-cdd-phase 两近同 dispatch 节点合一）；skill-anatomy 注册 6 集（经 T14 归位的引擎契约面导出）+ 目录扫描守卫；emit 再生 (.claude/.cursor/marketplace)；README 随 6 集重写
+- **Objective**: `packages/kairos/skills/` 重写为 6 集（cdd-design · cdd-spec-writer · cdd-plan · cdd-dev · cdd-close · cdd-report）；**五链 digraph（design/spec-writer/plan/dev/close）统一骨架** = 一次性执行节点 + NEXT-LOOP 单自环（边零状态标签），**两项例外**——cdd-close 止于 finish 编排语义门 + 终端（无 review 自环）· cdd-report 一次性上报工具链（无自环）；**cdd-design 收敛参数化单模板**（spec §4.1：run-cdd-charter 双节点 + run-cdd-spec/run-cdd-phase 两近同 dispatch 节点合一）；skill-anatomy 注册 6 集（经 T14 归位的引擎契约面导出）+ 目录扫描守卫；emit 再生 (.claude/.cursor/marketplace)；README 随 6 集重写；**next: 消费前提（v1.6 钉）**——技能按 `next:` Route 事实（五态 kind+载荷）映射具体命令，非命令文本（渲染 = 事实见 T7 验收）
 - **Files**: `packages/kairos/skills/*/SKILL.md`（8→6 重写）· `src-next/contract/skill-anatomy.ts`（改：6 集注册；T14 归位面）· `.claude-plugin/`·`.cursor-plugin/`·`marketplace/`（emit 产物）· `packages/kairos/README.md`（改）· `packages/kairos/README.zh-CN.md`（镜像同步，README 三件 mirror 政策同更）· **`CLAUDE.md`（改：skill-anatomy 链接 → 引擎契约面）+ `docs/maintainers/04-program-experience.md`（改：路径引用同步）**
 - **Consumes**: T15 新引擎语义（next: 单环路 / 胶囊词面）· T14 `scripts/`（checkAnatomy 经引擎导出——T15 改名后终态名）· T20 `cdd base` 命令面（技能文本 seam：`cdd base` 词面同步落）
 - **Produces**: 6 集 SKILL.md（spec-writer 合一参数化 · next-loop 折叠）· skill-anatomy 6 集注册 · emit 产物再生

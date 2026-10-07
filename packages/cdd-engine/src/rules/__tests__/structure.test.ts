@@ -9,7 +9,8 @@
 //   - the interpreter decides all three plane kinds + every invariant, each factor with a
 //     positive and a negative instance (the brief's checkable factors);
 //   - the finding surface is exactly {id, severity, message} — severity maps from the rule, the
-//     message passes through verbatim (zero runtime assembly);
+//     message passes through verbatim (zero runtime assembly); the reference-lint observation face
+//     (P3.1 T6) emits one finding per offending run (the per-block aggregation);
 //   - an empty rule set yields zero findings (the T1 no-behavior-change state);
 //   - the DocBody rule-data seam defaults to [] on the abstract face AND on the two existing
 //     concrete bodies (plan-body / phase-spec-body do not override at T1 — source-pinned);
@@ -374,6 +375,7 @@ describe("the plane/anchor families (three decidable plane kinds)", () => {
       { type: "residue" },
       { type: "selfBounded" },
       { type: "hollow", children: "^#### (\\d+)\\.\\d+ " },
+      { type: "referenceLint" },
     ];
     expect(instances.map((i) => i.type)).toEqual([
       "presence",
@@ -385,7 +387,61 @@ describe("the plane/anchor families (three decidable plane kinds)", () => {
       "residue",
       "selfBounded",
       "hollow",
+      "referenceLint",
     ]);
+  });
+
+  it("referenceLint — the WARN observation face: a backward reference absent from the run's declared edge set is observed ONCE; forward / spec-item / code-span refs stay silent (P3.1 T6)", () => {
+    const rule: StructureRule = {
+      id: "plan.referenceLint",
+      plane: {
+        kind: "records",
+        anchor:
+          "^- \\*\\*Objective\\*\\*:.*$|^- \\*\\*Acceptance\\*\\*:.*$|^\\s+[-*]\\s+(?!\\d+\\.).*$",
+        within: "^### Task (\\d+):", // the run opener captures the block's own number (the backward bound)
+        declaredReferences: "^- \\*\\*DependsOn\\*\\*:[ \\t]*(.*)$",
+      },
+      invariants: [{ type: "referenceLint" }],
+      severity: "WARN",
+      message: "suspected missing edge",
+    };
+    const blocks = (...lines: string[]) => lines.join("\n");
+    // The suspicious face — a backward citation of `Task 1` inside Task 2's objective, with no
+    // declared edge, fires the missing-edge suspicion exactly once (the per-block aggregation).
+    const suspicious = blocks(
+      "### Task 1: a",
+      "- **Objective**: task one",
+      "- **DependsOn**: none",
+      "- **Acceptance**:",
+      "  - done",
+      "",
+      "### Task 2: b",
+      "- **Objective**: extends Task 1 and Task 1 again",
+      "- **DependsOn**: none",
+      "- **Acceptance**:",
+      "  - done",
+      "",
+    );
+    expect(runStructureRules(suspicious, [rule])).toEqual([
+      { id: "plan.referenceLint", severity: "WARN", message: "suspected missing edge" },
+    ]);
+    // The silent face — a forward ref (`Task 5` ≥ the block's own number), a spec-item word form
+    // (`T1.1`), and a code-span citation (`` `T1` ``) are each structurally exempt.
+    const silent = blocks(
+      "### Task 1: a",
+      "- **Objective**: task one",
+      "- **DependsOn**: none",
+      "- **Acceptance**:",
+      "  - done",
+      "",
+      "### Task 2: b",
+      "- **Objective**: sees the `T1` seam, Task 5 and T1.1",
+      "- **DependsOn**: none",
+      "- **Acceptance**:",
+      "  - done",
+      "",
+    );
+    expect(runStructureRules(silent, [rule])).toEqual([]);
   });
 });
 
@@ -464,9 +520,11 @@ describe("the DocBody rule-data seam (T1 — abstract default; T2 — the concre
       "plan.recordData",
       "plan.checkable",
       // The unilateral edge faces: the per-block edge completeness (missing-edge sixth class) + the
-      // anti-dependency gate (selfBounded run-context invariant).
+      // anti-dependency gate (selfBounded run-context invariant) + the reference lint (P3.1 T6 —
+      // the WARN observation face, at most one WARN per offending block).
       "plan.edge",
       "plan.antiDependency",
+      "plan.referenceLint",
       "plan.constraints",
       "plan.legacySections",
       "plan.placeholders",

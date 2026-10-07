@@ -21,7 +21,7 @@
 // re-exported by tokens.ts for its token-plane consumers). The base's forward contract stays stable
 // across both switches. P3.1 T1 (doc-architecture-v2 P3.1) widens the abstract contract with the
 // structure-rule DATA seam: the rule-data plane (StructureRule / StructurePlane /
-// StructureInvariant / StructureFinding — the seven typed invariants) lands at the body root — the
+// StructureInvariant / StructureFinding — the ten typed invariants) lands at the body root — the
 // rule-data home, zero interpreter reverse-imports (the unified-engine-boundary constraint) — with
 // the concrete per-type rule sets landing at the P3.1 rule-migration tasks.
 
@@ -102,9 +102,16 @@ export interface StructurePlane {
    *  fence. Absent → the whole-content line scan (the T1 semantics — optional, backward
    *  compatible). */
   within?: string;
+  /** The within-run declared-reference anchor (P3.1 T6 — the reference-lint correlation face): when
+   *  present on a within-scoped records plane, every line inside a run matching this anchor
+   *  contributes its captured value (comma-split positive integers) to the run's declared reference
+   *  set, stamped onto each item of the run. The reference-lint invariant reads it to exempt the
+   *  references the run's own declaration lines already claim (the plan's `- **DependsOn**:`
+   *  values). Absent → no stamping (the other within-scoped records rules unchanged). */
+  declaredReferences?: string;
 }
 
-/** The invariant vocabulary of the structure-rule plane (design §2.1 — seven declared invariants,
+/** The invariant vocabulary of the structure-rule plane (design §2.1 — ten declared invariants,
  *  no wildcard DSL). Each member's payload is the ONLY machine-readable judgment parameter the
  *  interpreter reads: presence / uniqueness / residue judge the anchored item count, the rest judge
  *  the items' captured values against the declared pattern / sequence / target surface. */
@@ -156,7 +163,17 @@ export type StructureInvariant =
    *  its child `#### N.M` items; a `## Design` body satisfied by its groups/items). A blank-only run
    *  between the heading and the next heading is hollow — BLOCK. An empty plane judges nothing
    *  (vacuous). */
-  | { type: "hollow"; children?: string };
+  | { type: "hollow"; children?: string }
+  /** referenceLint — the WARN observation face (P3.1 T6 — the plan reference lint: a loose
+   *  observation surface, never a gate): every reference token in the run's reference-surface prose
+   *  (`Objective`/`Acceptance` marker lines + acceptance bullets — the field-defined scan) is a
+   *  missing-edge SUSPECT when it is in-range, backward (below the run's own number — a forward or
+   *  self reference is structurally undeclareable) and absent from the run's declared reference set
+   *  (its `declaredReferences`-anchor values). The interpreter emits ONE finding PER OFFENDING RUN
+   *  (a block's suspects dedupe — at most one WARN per task block), each carrying the rule's fixed
+   *  message copy. The rule's plane carries the scan surface (anchor + within + declaredReferences);
+   *  a run without a numeric bound judges nothing (vacuous). */
+  | { type: "referenceLint" };
 
 /** A doc-structure rule — one judgment plane + its invariant bundle + the rule's scope severity
  *  and its fixed message copy (the reusable wording findings carry VERBATIM — the interpreter
@@ -167,7 +184,7 @@ export interface StructureRule {
   id: string;
   /** The judgment plane — the surface + anchor the invariants scan. */
   plane: StructurePlane;
-  /** The invariant bundle — the declared structural demands (the seven typed invariant
+  /** The invariant bundle — the declared structural demands (the ten typed invariant
    *  vocabulary). */
   invariants: readonly StructureInvariant[];
   /** The rule's scope severity — the finding's severity for any failing invariant. */

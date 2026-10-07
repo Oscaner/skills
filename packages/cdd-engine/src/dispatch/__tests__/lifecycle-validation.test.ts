@@ -305,6 +305,45 @@ describe("docContractValidate — three invalid doc contracts block the real dis
     expect(r.stderr).toContain("CDD_WARN: doc contract invalid (dry-run)");
     expect(r.stderr).toContain("`**Spec:**`");
   });
+
+  it("a structurally valid plan carrying a reference-lint WARN (an undeclared backward citation) → the WARN is presented and the dry-run dispatch completes exit 0 (WARN observes, never gates — P3.1 T6)", async () => {
+    const repo = setupRepo();
+    writeChain(repo, {
+      plan: [
+        "# Plan",
+        "",
+        "**Spec:** [plan-design.md](docs/kairos/specs/plan-design.md)",
+        "",
+        "## Constraints",
+        "",
+        "- boundary one",
+        "",
+        "### Task 1: x",
+        "",
+        "- **Objective**: task one",
+        "- **DependsOn**: none",
+        "- **Steps**:",
+        "  1. implement — checkable: done",
+        "- **Acceptance**:",
+        "  - done",
+        "",
+        "### Task 2: y",
+        "",
+        "- **Objective**: extend Task 1",
+        "- **DependsOn**: none",
+        "- **Steps**:",
+        "  1. implement — checkable: done",
+        "- **Acceptance**:",
+        "  - done",
+        "",
+      ].join("\n"),
+    });
+    const r = await runReview(repo, { dryRun: true });
+    expect(r.exitCode).toBe(0); // warn-not-block — the observation never gates
+    expect(r.stderr).toContain("CDD_WARN: doc structure warnings:");
+    expect(r.stderr).toContain("plan.referenceLint");
+    expect(r.stderr).toMatch(/suspected missing edge/);
+  });
 });
 
 describe("statusValidate — CDD_INFO six-state line + plan verdict on a normal dispatch", () => {

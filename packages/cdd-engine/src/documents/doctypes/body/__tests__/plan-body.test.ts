@@ -529,6 +529,158 @@ describe("the unilateral edge rules — plan.edge (missing-edge sixth class) + p
   });
 });
 
+describe("plan.referenceLint — the reference-lint WARN observation (P3.1 T6 · spec §2.3 宽松观测面，非门面)", () => {
+  /** The structure-clean plan baseline the reference lint observes over: edge lines present,
+   *  checkables present, no legacy faces — any finding left is a reference-lint observation. */
+  function lintPlan(blocks: string[]): string {
+    return ["# Plan", "", "## Constraints", "", "- delta", "", ...blocks].join("\n");
+  }
+
+  /** One task block — objective / dependsOn / steps / acceptance; extra field bodies (files /
+   *  consumes…) inject via extras (a file bullet or a numbered step after the marker). */
+  function lintBlock(
+    n: number,
+    objective: string,
+    dependsOn: string,
+    acceptance: string[],
+    extras: string[] = [],
+  ): string {
+    return [
+      `### Task ${n}: t${n}`,
+      `- **Objective**: ${objective}`,
+      ...extras,
+      `- **DependsOn**: ${dependsOn}`,
+      "- **Steps**:",
+      "  1. implement — checkable: done",
+      "- **Acceptance**:",
+      ...acceptance.map((a) => `  - ${a}`),
+      "",
+    ].join("\n");
+  }
+
+  const lint = (plan: string) =>
+    runStructureRules(plan, planBody.structureRules()).filter((f) => f.id === "plan.referenceLint");
+
+  it("the rule is registered as a WARN observation with the field-defined reference surface (anchor + declaredReferences — the DependsOn declarations)", () => {
+    const rule = planBody.structureRules().find((r) => r.id === "plan.referenceLint");
+    expect(rule).toBeDefined();
+    expect(rule!.severity).toBe("WARN");
+    expect(rule!.invariants).toEqual([{ type: "referenceLint" }]);
+    expect(rule!.plane.within).toBe("^### Task (\\d+):");
+    expect(rule!.plane.declaredReferences).toContain("DependsOn");
+    // the anchor's constructive exclusions: numbered step entries never enter the bullet face.
+    expect(rule!.plane.anchor).toContain("(?!\\d+\\.)");
+  });
+
+  it("a backward `Task N` citation with no matching edge → exactly one WARN (the suspected missing edge)", () => {
+    const plan = lintPlan([
+      lintBlock(1, "task one", "none", ["done"]),
+      lintBlock(2, "task two", "none", ["done"]),
+      lintBlock(3, "extends Task 1", "none", ["done"]),
+    ]);
+    expect(lint(plan)).toHaveLength(1);
+    expect(lint(plan)[0]!.severity).toBe("WARN");
+  });
+
+  it("the short `T<N>` form triggers the same observation (a cited backward task, no edge)", () => {
+    const plan = lintPlan([
+      lintBlock(1, "task one", "none", ["done"]),
+      lintBlock(2, "task two", "none", ["done"]),
+      lintBlock(3, "reuses T1", "none", ["done"]),
+    ]);
+    expect(lint(plan)).toHaveLength(1);
+  });
+
+  it("aggregation — multiple suspect references in one block collapse into a single WARN (每块至多一条)", () => {
+    const plan = lintPlan([
+      lintBlock(1, "task one", "none", ["done"]),
+      lintBlock(2, "task two", "none", ["done"]),
+      lintBlock(3, "spans Task 1 and Task 2", "none", ["done"]),
+    ]);
+    expect(lint(plan)).toHaveLength(1);
+  });
+
+  it("per-block granularity — two suspect blocks emit two WARNs (each block at most one)", () => {
+    const plan = lintPlan([
+      lintBlock(1, "task one", "none", ["done"]),
+      lintBlock(2, "reuses Task 1", "none", ["done"]),
+      lintBlock(3, "reuses Task 1", "none", ["done"]),
+    ]);
+    expect(lint(plan)).toHaveLength(2);
+  });
+
+  it("a forward reference (ref ≥ the block's own number) and a self reference are exempt — the anti-dependency gate makes them undeclareable, never a missing-edge suspicion", () => {
+    const plan = lintPlan([
+      lintBlock(1, "continues Task 3", "none", ["done"]),
+      lintBlock(2, "task two", "none", ["done"]),
+      lintBlock(3, "about Task 3 itself", "none", ["done"]),
+    ]);
+    expect(lint(plan)).toEqual([]);
+  });
+
+  it("the spec-item word form (`T7.1`) is excluded — a design-item reference is never a task reference (a `T3.1` in a lower block would otherwise be suspect)", () => {
+    const plan = lintPlan([
+      lintBlock(1, "task one", "none", ["done"]),
+      lintBlock(2, "task two", "none", ["done"]),
+      lintBlock(3, "task three", "none", ["done"]),
+      lintBlock(4, "per T3.1", "none", ["done"]),
+    ]);
+    expect(lint(plan)).toEqual([]);
+  });
+
+  it("a reference inside a code span cites a symbol, never prose intent — `T3` / `Task 1` inside a span stay silent", () => {
+    const plan = lintPlan([
+      lintBlock(1, "task one", "none", ["done"]),
+      lintBlock(2, "task two", "none", ["done"]),
+      lintBlock(3, "reads `T3` and `Task 1`", "none", ["done"]),
+    ]);
+    expect(lint(plan)).toEqual([]);
+  });
+
+  it("the scan surface is FIELD-defined — references in the Files / Steps faces are constructively outside the objective/acceptance prose (a would-be suspect inside a file bullet or a numbered step stays silent)", () => {
+    const plan = lintPlan([
+      lintBlock(1, "task one", "none", ["done"]),
+      lintBlock(
+        2,
+        "task two",
+        "none",
+        ["done"],
+        [
+          "- **Files**:",
+          "  - Modify: src/Task 1 seam",
+          "- **Steps**:",
+          "  - 1. wire the T1 seam — checkable: done",
+        ],
+      ),
+    ]);
+    expect(lint(plan)).toEqual([]);
+  });
+
+  it("an out-of-range reference is exempt — a past-the-edge id (0 or > taskCount) is the graph plane's missing-id class, never a dependency hint", () => {
+    const plan = lintPlan([
+      lintBlock(1, "task one", "none", ["done"]),
+      lintBlock(2, "mirrors Task 42 and Task 0", "none", ["done"]),
+    ]);
+    expect(lint(plan)).toEqual([]);
+  });
+
+  it("a reference the block itself declares as an edge is never a suspicion (已声明边 → zero)", () => {
+    const plan = lintPlan([
+      lintBlock(1, "task one", "none", ["done"]),
+      lintBlock(2, "spans Task 1", "1", ["done"]),
+    ]);
+    expect(lint(plan)).toEqual([]);
+  });
+
+  it("a conformant plan with zero references observes zero — the lint adds no noise to a clean record", () => {
+    const plan = lintPlan([
+      lintBlock(1, "task one", "none", ["done"]),
+      lintBlock(2, "task two", "1", ["done"]),
+    ]);
+    expect(lint(plan)).toEqual([]);
+  });
+});
+
 describe("dead-shell discipline — shapes/plan.ts is gone", () => {
   it("doctypes/shapes/plan.ts does not exist (grep included)", () => {
     expect(existsSync(path.join(import.meta.dirname, "..", "..", "shapes", "plan.ts"))).toBe(false);

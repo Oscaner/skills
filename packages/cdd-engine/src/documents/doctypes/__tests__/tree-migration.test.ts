@@ -725,26 +725,32 @@ describe("迁移队列期望态 — the single-form tree's migration state table
     }
   });
 
-  it("the rule plane walks the whole 49-file validation tree — structureFindings(kind, content) = 0 (the tree's structural judgments are the body rule set, never a self-written walk; P3.1 T2 step 4)", () => {
+  it("the rule plane walks the whole 49-file validation tree — structureFindings(kind, content) = 0 at BLOCK severity (BLOCK-only caliber since P3.1 T6: the reference-lint WARN is a tree-legal observation, asserted by the lint unit tests, never gating tree green)", () => {
     const plans = readdirSync(PLANS_DIR).filter((f) => f.endsWith(".md"));
     const designs = readdirSync(SPECS_DIR).filter((f) => f.endsWith("-design.md"));
     const overalls = readdirSync(SPECS_DIR).filter((f) => f.endsWith("-overall.md"));
     expect(plans.length + designs.length + overalls.length).toBe(49);
     for (const file of plans) {
       expect(
-        validator.structureFindings("plan", readFileSync(path.join(PLANS_DIR, file), "utf8")),
+        validator
+          .structureFindings("plan", readFileSync(path.join(PLANS_DIR, file), "utf8"))
+          .filter((f) => f.severity === "BLOCK"),
         `${file} plan structure findings`,
       ).toEqual([]);
     }
     for (const file of designs) {
       expect(
-        validator.structureFindings("spec", readFileSync(path.join(SPECS_DIR, file), "utf8")),
+        validator
+          .structureFindings("spec", readFileSync(path.join(SPECS_DIR, file), "utf8"))
+          .filter((f) => f.severity === "BLOCK"),
         `${file} spec structure findings`,
       ).toEqual([]);
     }
     for (const file of overalls) {
       expect(
-        validator.structureFindings("overall", readFileSync(path.join(SPECS_DIR, file), "utf8")),
+        validator
+          .structureFindings("overall", readFileSync(path.join(SPECS_DIR, file), "utf8"))
+          .filter((f) => f.severity === "BLOCK"),
         `${file} overall structure findings`,
       ).toEqual([]);
     }
@@ -974,7 +980,7 @@ describe("the migrated design-spec family — 20 three-truth skeletons (内容�
     for (const file of Object.keys(SPEC_VERBATIM)) {
       const content = readFileSync(path.join(SPECS_DIR, file), "utf8");
       expect(
-        validator.structureFindings("spec", content),
+        validator.structureFindings("spec", content).filter((f) => f.severity === "BLOCK"),
         `${file} spec skeleton structure findings`,
       ).toEqual([]);
       // the acceptance subsection sits inside ## Design and before ## Constraints (the layout pin —
@@ -1224,7 +1230,9 @@ describe("the four overalls walk with zero exclusion — the rule plane judges t
   it("the rule plane walks all four overalls — structureFindings(overall, content) = 0 (the four tables' structural judgment; the frozen overalls' STRUCTURE is clean, no exclusion, no silent skip)", () => {
     for (const name of readdirSync(SPECS_DIR).filter((f) => f.endsWith("-overall.md"))) {
       expect(
-        validator.structureFindings("overall", readFileSync(path.join(SPECS_DIR, name), "utf8")),
+        validator
+          .structureFindings("overall", readFileSync(path.join(SPECS_DIR, name), "utf8"))
+          .filter((f) => f.severity === "BLOCK"),
         `${name} overall structure findings`,
       ).toEqual([]);
     }

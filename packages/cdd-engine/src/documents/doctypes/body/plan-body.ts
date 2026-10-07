@@ -340,7 +340,10 @@ export class PlanBody extends DocBody {
    *  carries objective/steps/acceptance — and every step's checkable) + edge completeness (every
    *  block carries its single `- **DependsOn**:` line — the missing-edge sixth failure class) +
    *  the anti-dependency gate (a `DependsOn` reference ≥ the declaring block's own number, the
-   *  selfBounded run-context invariant — P3.1 T3) + constraints source + legacy residue, as rule
+   *  selfBounded run-context invariant — P3.1 T3) + the reference lint (P3.1 T6 — the WARN
+   *  observation face: a backward `Task N`/`T<N>` citation in the objective/acceptance prose with no
+   *  matching declared edge is a suspected missing edge, observed not gated) + constraints source +
+   *  legacy residue, as rule
    *  data the ONE interpreter runs at the doc-contract gate. The anchors derive from the projected
    *  slices (`.source` — the parse-pattern single source, never a re-typed literal; the
    *  legacy-section / placeholder residues are the retired faces' own anchors). The record-data rule
@@ -355,6 +358,10 @@ export class PlanBody extends DocBody {
    *  boundary). */
   structureRules(): readonly StructureRule[] {
     const heading = (re: RegExp): string => re.source;
+    // The `- **DependsOn**:` VALUES anchor — the anti-dependency rule's item anchor AND the
+    // reference lint's declared-reference anchor (the block's declared edge set) share ONE byte
+    // source, never a re-typed literal per rule.
+    const dependsOnValues = "^- \\*\\*DependsOn\\*\\*:[ \\t]*(.*)$";
     return [
       {
         id: "plan.tasks",
@@ -404,13 +411,35 @@ export class PlanBody extends DocBody {
         id: "plan.antiDependency",
         plane: {
           kind: "records",
-          anchor: "^- \\*\\*DependsOn\\*\\*:[ \\t]*(.*)$",
+          anchor: dependsOnValues,
           within: heading(PLAN_SLICE_PATTERNS.taskHeading),
         },
         invariants: [{ type: "selfBounded" }],
         severity: "BLOCK",
         message:
           "a `- **DependsOn**:` reference points at a task number ≥ the declaring block's own number — the anti-dependency violation: only lower-numbered tasks are referenceable (numbering order is the topological-linearization anchor)",
+      },
+      {
+        id: "plan.referenceLint",
+        plane: {
+          kind: "records",
+          // The reference surface — FIELD-DEFINED (spec §2.3): the Objective / Acceptance marker
+          // lines (their trailing text — the marker arms derive from the projected slices, never a
+          // re-typed literal) + the acceptance bullets; steps entries (numbered) and the files /
+          // consumes / produces bullets are constructively excluded (the `(?!\d+\.)` guard keeps a
+          // numbered step entry off the bullet face; the owning-field walk keeps non-acceptance
+          // bullets off the prose face — a backward task reference inside a Files bullet is a path,
+          // never a dependency intent).
+          anchor: `${heading(PLAN_SLICE_PATTERNS.objective)}.*$|${heading(PLAN_SLICE_PATTERNS.acceptance)}.*$|^\\s+[-*]\\s+(?!\\d+\\.).*$`,
+          within: heading(PLAN_SLICE_PATTERNS.taskHeading),
+          // The run's declared reference set — the block's own `- **DependsOn**:` values (a cited
+          // task already declared as an edge is never a missing-edge suspicion).
+          declaredReferences: dependsOnValues,
+        },
+        invariants: [{ type: "referenceLint" }],
+        severity: "WARN",
+        message:
+          "a `### Task N:` block's Objective/Acceptance prose references a lower-numbered task with no matching `- **DependsOn**:` declaration — a suspected missing edge: declare the edge, or treat the reference as prose (WARN — a loose observation, never a gate; the author's intent is authoritative)",
       },
       {
         id: "plan.constraints",

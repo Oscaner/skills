@@ -121,7 +121,7 @@ describe("full-tree single-form walk — the entire docs/kairos tree (50 files, 
     expect(oneOffs).toEqual(["2026-09-28-cdd-review-contract-fix.md"]);
   });
 
-  it("every validation file walks the rule plane: structureFindings(kind, content) = 0 — the tree's structural judgments are the body rule sets, never a self-written walk (P3.1 T2 step 4)", () => {
+  it("every validation file walks the rule plane: structureFindings(kind, content) = 0 at BLOCK severity — the tree's structural judgments are the body rule sets, never a self-written walk (P3.1 T2 step 4; BLOCK-only caliber since P3.1 T6 — referenceLint WARN is a legal tree observation, asserted by the lint unit tests)", () => {
     // The composition split: 23 plans + 22 design specs + 4 overalls (the one-off single-spec is
     // detect-only, never counted — the walk excludes it by shape). The rule plane asserts the
     // whole-tree structural hit-set (0 or pin); the frozen overalls' backfill-claim residue is the
@@ -142,7 +142,9 @@ describe("full-tree single-form walk — the entire docs/kairos tree (50 files, 
     for (const { kind, file } of validationFiles) {
       const dir = kind === "plan" ? PLANS_DIR : SPECS_DIR;
       const content = readFileSync(path.join(dir, file), "utf8");
-      const findings = validator.structureFindings(kind, content);
+      const findings = validator
+        .structureFindings(kind, content)
+        .filter((f) => f.severity === "BLOCK");
       expect(findings, `${file} structure findings must be zero`).toEqual([]);
     }
   });

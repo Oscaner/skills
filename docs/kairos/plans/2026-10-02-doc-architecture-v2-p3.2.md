@@ -2,9 +2,9 @@
 
 **Spec:** [2026-10-02-doc-architecture-v2-p3.2-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3.2-design.md)
 
-- **Parent program**: [2026-10-02-doc-architecture-v2-overall.md v1.21](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.6 · 2026-10-08（**`next:` 形式补钉**——用户 2026-10-08 拍板「先落补钉再执行」：胶囊 `next:` 渲染 = Route 事实（kind+载荷 · 非完整 cdd 命令）显式钉入 T7 验收，T16 技能面以「事实 → 命令映射」为消费前提——旧树命令式提示取消的涌现形态补为决策）；前置 v1.5 · 2026-10-08（**T23 next fix 面 readback 后缀**——用户 2026-10-08 拍板「NextStepRouter `kind: fix` 时补 `(first read <findings> back to confirm)`」：旧树 readbackWording 设计意图于新架构落地为纯文案提示 · 机械防线由 ledger round/C5-1 兜 · 编排方是否遵守非强约束——plan review-2 闭合后追加）；前置 v1.4 · 2026-10-07（前置 v1.3 = P7 提前承接 backfill——T19 翻译系统 · T20 base 命令面；**v1.4 = P4/P5/P6/P7 全吸收 + 数据面归位 backfill**——用户 2026-10-07 拍板「config-next 完成以后删除 config」+「都是一体的」+「吸收进 P3.2」升华：**T21 数据面归位**（三稳态 JSON → typed 平面 infra/runtime · face/host · render/templates，P4/P5 承接净入——M1 supersede · refs 登记 · 三处禁文删除 · review 准则收口 · 零读 config/ · 导出面保持）· **T22 宪法化承接（P6）**（overall 拆宪法/archive · 版本行散文消解 · Standing rules 成典 · 全树 4 overalls）· **T15 扩域删 config/**（整目录零残留，零重建）· T14 认领 skill-anatomy 归位 · T16 CLAUDE.md/README 数据面同步——overall v1.23 · spec v1.4 随）））
-- **Depends on**: P3.1（Done）· P3.2 design spec v1.2（Approved · 2026-10-07）
+- **Parent program**: [2026-10-02-doc-architecture-v2-overall.md v1.23](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
+- **Version**: v1.6 · 2026-10-08（**`next:` 形式补钉**——用户 2026-10-08 拍板「先落补钉再执行」：胶囊 `next:` 渲染 = Route 事实（kind+载荷 · 非完整 cdd 命令）——Route 事实型钉入 T7 · 渲染断言钉入 T10 capsule 面，T16 技能面以「事实 → 命令映射」为消费前提——旧树命令式提示取消的涌现形态补为决策）；前置 v1.5 · 2026-10-08（**T23 next fix 面 readback 后缀**——用户 2026-10-08 拍板「NextStepRouter `kind: fix` 时补 `(first read <findings> back to confirm)`」：旧树 readbackWording 设计意图于新架构落地为纯文案提示 · 机械防线由 ledger round/C5-1 兜 · 编排方是否遵守非强约束——plan review-2 闭合后追加）；前置 v1.4 · 2026-10-07（前置 v1.3 = P7 提前承接 backfill——T19 翻译系统 · T20 base 命令面；**v1.4 = P4/P5/P6/P7 全吸收 + 数据面归位 backfill**——用户 2026-10-07 拍板「config-next 完成以后删除 config」+「都是一体的」+「吸收进 P3.2」升华：**T21 数据面归位**（三稳态 JSON → typed 平面 infra/runtime · face/host · render/templates，P4/P5 承接净入——M1 supersede · refs 登记 · 三处禁文删除 · review 准则收口 · 零读 config/ · 导出面保持）· **T22 宪法化承接（P6）**（overall 拆宪法/archive · 版本行散文消解 · Standing rules 成典 · 全树 4 overalls）· **T15 扩域删 config/**（整目录零残留，零重建）· T14 认领 skill-anatomy 归位 · T16 CLAUDE.md/README 数据面同步——overall v1.23 · spec v1.4 随）））
+- **Depends on**: P3.1（Done）· P3.2 design spec v1.4（Approved · 2026-10-07）
 - **Base**: develop
 
 执行序：新树 `src-next` 自底向上建齐（骨架 → contract → session → face → infra/render → bin）→ 引擎测试全绿 → `scripts-next` 重写 → cutover（入口切换 + 删旧树 + **`scripts-next` → `scripts` 改名**）→ 技能 8→6 → 终验。新旧零依赖贯穿全计划（T1 起 grep 断言、每任务自测）。
@@ -114,12 +114,12 @@
 - **Consumes**: T6 frontier/ExecutionState · T4 Finding 严重度面
 - **Produces**: `NextStepRouter#next(state, ref): Route|null`（决策表单点）
 - **Steps**:
-  - 定义 Route/软帽（soft-cap 3 轮）常量 — checkable: 类型测试过
+  - 定义 Route 型（kind 枚举 = {none, next-group, review} + payload 事实载荷字段，非完整 cdd 命令）与软帽（soft-cap 3 轮）常量；轮次上下文 round（implement/review/fix）为 next() 输入面（dispatch 会话注入），与 Route.kind 分离——kind 专指路由决策枚举 — checkable: 类型测试过（kind 域内 · payload 必有 · round 域内）
   - next() 决策表（含 fix 面 blocker>0/warn-nit 分支 + 零 findings → `next: none | next-group`）— checkable: 正例/负例测试绿（warn/nit → `next: none` · blocker>0 → review · BLOCKED 无 next）
   - 软帽建议（"BLOCKED: review-cycle-cap" 语）— checkable: 软帽测试绿
   - commit `feat(engine): session next 单点`
 - **Acceptance**:
-  - next() 是唯一 next: 生成面；语义表负例全绿；**胶囊 `next:` 渲染 = Route 事实（kind+载荷，非完整 cdd 命令）——T16 技能面按事实映射命令（v1.6 钉）**
+  - next() 是唯一 next: 生成面；语义表负例全绿；**`next()` 返回 Route 事实：kind 枚举 {none, next-group, review} + payload 载荷字段（kind 枚举于步骤钉死）；BLOCKED/TIMEOUT 无 next（非 next 面）；胶囊 `next:` 渲染断言在 T10 capsule 面（v1.6 钉——T7 自身作用域可验证，非跨任务）**
 - **DependsOn**: 6, 4
 
 ### Task 8: session · run——参数化单 lifecycle
@@ -155,15 +155,15 @@
 
 - **Objective**: `src-next/face/words.ts` 词汇表单源（doc 词 + 胶囊词 + 守卫词一家）+ `capsule.ts` 单胶囊面（status · blocker · handoff · next）
 - **Files**: `src-next/face/words.ts`（新建）· `src-next/face/capsule.ts`（新建）· `src-next/face/__tests__/face.test.ts`（新建）
-- **Consumes**: T2 登记表（词面锚）· T7 next（next: 站词）
+- **Consumes**: T2 登记表（词面锚）· T7 next（Route 型 · next 事实）
 - **Produces**: `Words`（单词表 + 存取器合一）· `Capsule#emit(status, blocker, handoff, next)`（`status · blocker · handoff · next:` 词面字节稳定，首版即钉 pin）
 - **Steps**:
   - Words 类：doc 词 + 胶囊站词 + 守卫 ban 词并入一词表数据 — checkable: 词表测试绿（无第二词表）
-  - Capsule.emit 单一输出面 — checkable: 胶囊字节快照 pin 测试绿
+  - Capsule.emit 单一输出面；`next:` 渲染 = Route 事实（kind+载荷 · 非完整 cdd 命令）——经 T7 Route 型消费 — checkable: 胶囊字节快照 pin 测试绿（next: 行按 Route 事实渲染、零命令文本）
   - v1 词面与既有消费词面一致（同词不改判，非兼容而是稳态）— checkable: 词面对照测试绿
   - commit `feat(engine): face words+capsule`
 - **Acceptance**:
-  - 一词表单源（无并行词表）；胶囊词面字节 pin 绿
+  - 一词表单源（无并行词表）；胶囊词面字节 pin 绿；capsule `next:` 渲染 = Route 事实（kind+载荷 · 非命令文本，字节断言）
 - **DependsOn**: 2, 7
 
 ### Task 11: face · cli——组合根
@@ -246,9 +246,9 @@
 
 ### Task 16: 技能 8→6 重写 + skill-anatomy + emit 再生 + README
 
-- **Objective**: `packages/kairos/skills/` 重写为 6 集（cdd-design · cdd-spec-writer · cdd-plan · cdd-dev · cdd-close · cdd-report）；**五链 digraph（design/spec-writer/plan/dev/close）统一骨架** = 一次性执行节点 + NEXT-LOOP 单自环（边零状态标签），**两项例外**——cdd-close 止于 finish 编排语义门 + 终端（无 review 自环）· cdd-report 一次性上报工具链（无自环）；**cdd-design 收敛参数化单模板**（spec §4.1：run-cdd-charter 双节点 + run-cdd-spec/run-cdd-phase 两近同 dispatch 节点合一）；skill-anatomy 注册 6 集（经 T14 归位的引擎契约面导出）+ 目录扫描守卫；emit 再生 (.claude/.cursor/marketplace)；README 随 6 集重写；**next: 消费前提（v1.6 钉）**——技能按 `next:` Route 事实（五态 kind+载荷）映射具体命令，非命令文本（渲染 = 事实见 T7 验收）
+- **Objective**: `packages/kairos/skills/` 重写为 6 集（cdd-design · cdd-spec-writer · cdd-plan · cdd-dev · cdd-close · cdd-report）；**五链 digraph（design/spec-writer/plan/dev/close）统一骨架** = 一次性执行节点 + NEXT-LOOP 单自环（边零状态标签），**两项例外**——cdd-close 止于 finish 编排语义门 + 终端（无 review 自环）· cdd-report 一次性上报工具链（无自环）；**cdd-design 收敛参数化单模板**（spec §4.1：run-cdd-charter 双节点 + run-cdd-spec/run-cdd-phase 两近同 dispatch 节点合一）；skill-anatomy 注册 6 集（经 T14 归位的引擎契约面导出）+ 目录扫描守卫；emit 再生 (.claude/.cursor/marketplace)；README 随 6 集重写；**next: 消费前提（v1.6 钉）**——技能按 `next:` Route 事实映射具体命令：Route.kind 枚举 = {none, next-group, review}（T7 钉）按 kind+载荷映射 cdd 命令，非命令文本；BLOCKED/TIMEOUT 为非 next 面（无 next 行），技能不消费 `next:`
 - **Files**: `packages/kairos/skills/*/SKILL.md`（8→6 重写）· `src-next/contract/skill-anatomy.ts`（改：6 集注册；T14 归位面）· `.claude-plugin/`·`.cursor-plugin/`·`marketplace/`（emit 产物）· `packages/kairos/README.md`（改）· `packages/kairos/README.zh-CN.md`（镜像同步，README 三件 mirror 政策同更）· **`CLAUDE.md`（改：skill-anatomy 链接 → 引擎契约面）+ `docs/maintainers/04-program-experience.md`（改：路径引用同步）**
-- **Consumes**: T15 新引擎语义（next: 单环路 / 胶囊词面）· T14 `scripts/`（checkAnatomy 经引擎导出——T15 改名后终态名）· T20 `cdd base` 命令面（技能文本 seam：`cdd base` 词面同步落）
+- **Consumes**: T15 新引擎语义（next: 单环路 / 胶囊词面）· T7 Route 型（next 事实 · 技能映射断言消费）· T14 `scripts/`（checkAnatomy 经引擎导出——T15 改名后终态名）· T20 `cdd base` 命令面（技能文本 seam：`cdd base` 词面同步落）
 - **Produces**: 6 集 SKILL.md（spec-writer 合一参数化 · next-loop 折叠）· skill-anatomy 6 集注册 · emit 产物再生
 - **Steps**:
   - 六款 SKILL.md 重写（**五链 digraph 统一骨架**：design/spec-writer/plan/dev 四链 NEXT-LOOP 单自环 + cdd-close 止于 finish 编排语义门 + 终端 + cdd-report 一次性上报工具链——两项例外显式（无自环）· digraph 边零状态标签；Node Definitions 零路由自述 · 纪律全数归 Invariants；上游 import 面保持——superpowers:brainstorming / writing-plans / finishing-a-development-branch / mattpocock-skills:grilling，M 组 fit 映射不动；零程序历史 pin——SKILL.md 无程序叙事段/反历史块；cdd-spec-writer 参数化 single/phase/overall + **cdd-design 参数化单模板**（双 run-cdd-charter 节点 + run-cdd-spec/run-cdd-phase 近同节点收敛，spec §4.1））— checkable: 六文件结构自查（digraph↔defs 一致 + 边零状态标签）+ 上游 import 面与程序历史零残留 grep
@@ -256,9 +256,10 @@
   - `node scripts/run.ts emit` 再生清单 — checkable: emit 产物与 `emit-check` 零漂移
   - README 消费面随 6 集重写（技能表/upstream 安装表/独立入口说明）+ `packages/kairos/README.zh-CN.md` 镜像同步 — checkable: README 表与目录扫描深度一致；镜像与英文面一致（README 三件 mirror 政策）
   - CLAUDE.md + maintainers 文档 skill-anatomy 路径引用 → 引擎契约面（T14 归位面）— checkable: 引用 grep 新路径一致
+  - next: 消费断言——6 集 SKILL.md 对 `next:` 站词的消费为 Route 事实（kind→命令映射，kind 取自 T7 枚举；BLOCKED/TIMEOUT 非 next 面不消费），零命令文本 `next:` 引用（grep/结构自查：无整条 cdd 命令续在 next: 站词后）— checkable: 事实映射 grep 断言绿（v1.6 消费前提 checkable 面）
   - commit `feat(kairos): 技能 8→6 + skill-anatomy + emit 再生`（governed by precommit/validate）
 - **Acceptance**:
-  - 6 集 SKILL.md 落地；五链 digraph 统一骨架（四链 NEXT-LOOP 自环 · cdd-close 止于 finish 编排语义门 + 终端 · cdd-report 无自环——两项例外）+ 边零状态标签 + digraph↔defs↔text 一致断言绿；cdd-design 参数化单模板（charter 双节点 + spec/phase 近同节点收敛）断言绿；skill-anatomy 6 集 + 注册守卫；emit 新鲜；README 一致（含 `README.zh-CN.md` 镜像同步）；CLAUDE.md/maintainers 路径引用同步；上游 import 面保持 + 零程序历史 pin 保持（grep 断言）
+  - 6 集 SKILL.md 落地；五链 digraph 统一骨架（四链 NEXT-LOOP 自环 · cdd-close 止于 finish 编排语义门 + 终端 · cdd-report 无自环——两项例外）+ 边零状态标签 + digraph↔defs↔text 一致断言绿；cdd-design 参数化单模板（charter 双节点 + spec/phase 近同节点收敛）断言绿；skill-anatomy 6 集 + 注册守卫；emit 新鲜；README 一致（含 `README.zh-CN.md` 镜像同步）；CLAUDE.md/maintainers 路径引用同步；上游 import 面保持 + 零程序历史 pin 保持（grep 断言）；next: 消费断言绿（SKILL.md 按 Route 事实 kind→命令映射、零命令文本 `next:` 引用——v1.6 消费前提验收面）
 - **DependsOn**: 15, 20
 
 ### Task 17: 终验 + 消费面同步 + changesets + 净减账
@@ -363,17 +364,17 @@
 
 ### Task 23: next fix 面 readback 后缀
 
-- **Objective**: 用户 2026-10-08 拍板——`NextStepRouter` `kind: fix` 时，capsule `next:` 渲染行尾追加 **`(first read <findings> back to confirm)`**（纯文案提示 · 编排方是否遵守非强约束）：旧树 `readbackWording`「(read <handoff> back to confirm)」的设计意图在新架构落地为文案提示——防盲目 fix 的机械防线由 ledger round/C5-1 兜，后缀仅为编排者确认提示
-- **Files**: `src-next/session/next.ts`（改：fix 路由携带 readback 文案）· `src-next/face/cli.ts`（改：next: 渲染行尾追加）· `src-next/session/__tests__/next.test.ts`（改：fix 面 next: 行含后缀断言）
-- **Consumes**: T7 next 路由器（kind: fix 现面）· T11 cli 渲染
+- **Objective**: 用户 2026-10-08 拍板——`NextStepRouter` 于 **round = fix（fix 面路由）**时，capsule `next:` 渲染行尾追加 **`(first read <findings> back to confirm)`**（纯文案提示 · 编排方是否遵守非强约束）：旧树 `readbackWording`「(read <handoff> back to confirm)」的设计意图在新架构落地为文案提示——防盲目 fix 的机械防线由 ledger round/C5-1 兜，后缀仅为编排者确认提示；round 为 next() 输入面轮次上下文（T7 钉），与 Route.kind 路由决策枚举分离（kind ≠ 轮次）
+- **Files**: `src-next/session/next.ts`（改：fix 面路由携带 readback 文案）· `src-next/face/cli.ts`（改：next: 渲染行尾追加）· `src-next/session/__tests__/next.test.ts`（改：fix 面 next: 行含后缀断言）
+- **Consumes**: T7 next 路由器（fix 面现面）· T11 cli 渲染
 - **Produces**: fix 面 next: 渲染行尾后缀
 - **Steps**:
-  - next route `kind: fix` → 渲染追加 `(first read <findings> back to confirm)` — checkable: next.test 断言（fix 面含后缀 · review 面不含）
+  - round = fix 时路由 → 渲染追加 `(first read <findings> back to confirm)` — checkable: next.test 断言（fix 面含后缀 · review 面不含）
   - cli capsule 渲染接入 — checkable: cli 面 next: 行含后缀
   - commit `feat(engine): next fix 面 readback 后缀`
 - **Acceptance**:
-  - `kind: fix` 的 next: 渲染行尾含 `(first read <findings> back to confirm)`（词面断言）；review 面 next: 行不含；测试全绿
-- **DependsOn**: 7
+  - round = fix（fix 面）的 next: 渲染行尾含 `(first read <findings> back to confirm)`（词面断言）；review 面 next: 行不含；测试全绿
+- **DependsOn**: 7, 11
 
 ## Constraints
 

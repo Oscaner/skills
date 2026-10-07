@@ -66,9 +66,9 @@ export type CliLeafName = "get" | "set" | "render";
 /** The per-command usage lines — the steady consumption face (byte-stable across
  *  the tree generations; a typo in a usage line is a red consumer-side test). */
 export const CLI_USAGE: Record<CliVerb, string> = {
-  implement: "usage: cdd implement --tasks <n|n,n,…> [--plan <path>]",
+  implement: "usage: cdd implement --tasks <n|n,n,…> --plan <path>",
   review:
-    "usage: cdd review --type <task|branch|spec|plan> [--tasks <n|n,n,…>] (--plan <path> | --spec <path>) [--base <sha> --head <sha>] [--round <n>]",
+    "usage: cdd review --type <task|branch|spec|plan> [--tasks <n|n,n,…>] (--plan <path> | --spec <path> | branch: --base <sha> --head <sha>) [--round <n>]",
   fix: "usage: cdd fix --type <task|branch|spec|plan> [--tasks <n|n,n,…>] [--findings <path>] (--plan <path> | --spec <path>)",
   "base-branch":
     "usage: cdd base-branch <set|get> --plan <path> [set: --base <branch> --source <source>] [--force]",
@@ -610,8 +610,16 @@ export class HarnessDispatch {
     const dispatch = contract.dispatch as Record<string, unknown>;
     let ref: unknown = null;
     if (frame.phase === "review" || frame.phase === "branch-review") {
+      // The task/branch rows are object-shaped {ref, note} (the note rides REVIEW_AXES);
+      // the spec/plan rows stay the URC prose string. The slash form resolves from the
+      // row's ref either way, falling back to null for the prose rows (REVIEW_AXES only).
       const entry = (dispatch.review as Record<string, unknown>)[frame.type];
-      ref = typeof entry === "string" && entry.startsWith("mattpocock-skills:") ? entry : null;
+      const declaredRef =
+        typeof entry === "string" ? entry : (entry as { ref?: unknown } | null)?.ref;
+      ref =
+        typeof declaredRef === "string" && declaredRef.startsWith("mattpocock-skills:")
+          ? declaredRef
+          : null;
     } else {
       const value = dispatch[frame.phase];
       ref = typeof value === "string" ? value : null;
@@ -867,6 +875,22 @@ export class Cli {
     }
     index += 1;
 
+    // The help pre-screen — a help flag anywhere pre-empts the leaf/argument scan
+    // (the steady `cdd <command> --help` face renders the command's usage, never a
+    // missing-subcommand or required-value error on top of the help the user asked
+    // for — `cdd base-branch --help` shows the leaf command's usage, no leaf word).
+    if (help) {
+      return {
+        verb: spec.name,
+        leaf: null,
+        leafSpec: null,
+        args: {},
+        positionals: [],
+        dryRun,
+        help,
+      };
+    }
+
     // The nested leaf (base-branch set|get · schema get · issue render).
     let leafSpec: CliLeafSpec | null = null;
     if (spec.leaves !== undefined) {
@@ -883,21 +907,6 @@ export class Cli {
       index += 1;
     }
     const surface = leafSpec ?? spec;
-
-    // The help pre-screen — a help flag anywhere pre-empts the argument scan (the
-    // steady `cdd <command> --help` face renders the command's usage, never a
-    // required-value error on top of the help the user asked for).
-    if (help) {
-      return {
-        verb: spec.name,
-        leaf: leafSpec?.name ?? null,
-        leafSpec,
-        args: {},
-        positionals: [],
-        dryRun,
-        help,
-      };
-    }
 
     // The flag/positional scan.
     const args: Record<string, string> = {};
@@ -1607,7 +1616,9 @@ export class Cli {
           throw this.#usage(`cdd ${spec.name}: --${key} must be an integer`, surface.usage);
         return value;
       case "bool":
-        return "true";
+        // the value already carries the parsed spelling ("true" for --force · "false"
+        // for --no-force) — pass it through, never force the positive.
+        return value;
       case "path":
       case "string":
         return value;

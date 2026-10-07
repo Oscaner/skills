@@ -136,8 +136,9 @@ describe("the command face — the six steady subcommand words", () => {
   });
 
   it("the usage lines carry the steady consumption face (verb + leaf words included)", () => {
-    expect(CLI_USAGE.implement).toBe("usage: cdd implement --tasks <n|n,n,…> [--plan <path>]");
+    expect(CLI_USAGE.implement).toBe("usage: cdd implement --tasks <n|n,n,…> --plan <path>");
     expect(CLI_USAGE.review).toContain("--type <task|branch|spec|plan>");
+    expect(CLI_USAGE.review).toContain("branch: --base <sha> --head <sha>");
     expect(CLI_USAGE.fix).toContain("--type <task|branch|spec|plan>");
     expect(CLI_USAGE["base-branch"]).toContain("<set|get>");
     expect(CLI_USAGE.schema).toContain("get <type>");
@@ -264,6 +265,32 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
     expect(cli().parse(["implement", "--no-dry-run", "--tasks", "1", "--plan", "x"]).dryRun).toBe(
       false,
     );
+  });
+
+  it("a help flag on a leaf command pre-empts the required leaf word — base-branch --help", () => {
+    const parsed = cli().parse(["base-branch", "--help"]);
+    expect(parsed.help).toBe(true);
+    expect(parsed.verb).toBe("base-branch");
+    expect(parsed.leaf).toBeNull();
+  });
+
+  it("the bool negation spelling — --no-force yields args.force 'false', --force 'true'", () => {
+    const flags = ["--force", "--no-force"];
+    for (const flag of flags) {
+      expect(
+        cli().parse([
+          "base-branch",
+          "set",
+          "--plan",
+          "p",
+          "--base",
+          "d",
+          "--source",
+          "plan-field",
+          flag,
+        ]).args.force,
+      ).toBe(flag === "--force" ? "true" : "false");
+    }
   });
 
   it("runArgv exits 2 with the usage line + the message (a bad flag never runs a dispatch)", async () => {
@@ -783,6 +810,15 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     key: "docs/kairos/specs/s1-design.md",
   };
 
+  const taskReviewFrame: OpenFrame = {
+    type: "task",
+    phase: "review",
+    round: 1,
+    target: { kind: "task", task: 1 },
+    params: { tasks: "1", round: 1 },
+    key: 1,
+  };
+
   it("detects the host from the harness-contract detect markers (claude > cursor > pi)", () => {
     const { repoRoot, cleanup } = fixture();
     try {
@@ -859,6 +895,31 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const call = sync.calls[0];
       expect(call.args).not.toContain("/mattpocock-skills:code-review");
       expect(call.args[call.args.length - 1]).toContain("Follow URC:");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a task review appends the review skill ref — the object {ref, note} row's slash form", () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new FakeSync();
+      sync.stdout = "status: REVIEW_FIX\n";
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      const outcome = dispatch.step()(taskReviewFrame);
+      expect(outcome.status).toBe("REVIEW_FIX");
+      const call = sync.calls[0];
+      // the task/branch review rows are object-shaped {ref, note} — the slash form
+      // comes from the row's ref, and the note rides REVIEW_AXES like the docs review
+      expect(call.args).toContain("/mattpocock-skills:code-review");
+      expect(call.args[call.args.length - 1]).toContain("single agent, dual axis");
     } finally {
       cleanup();
     }

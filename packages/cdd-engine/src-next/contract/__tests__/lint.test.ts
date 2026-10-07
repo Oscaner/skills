@@ -77,7 +77,6 @@ const lintPass = new LintPass();
 
 function lintPlan(content: string): ReturnType<LintPass["run"]> {
   return lintPass.run({
-    docKey: "plan",
     path: PLAN_PATH,
     parsed: parseDoc("plan", content.split("\n")),
   });
@@ -87,7 +86,8 @@ function lintParsed(
   docKey: "overall" | "plan" | "phaseSpec",
   lines: readonly string[],
 ): ReturnType<LintPass["run"]> {
-  return lintPass.run({ docKey, path: PLAN_PATH, parsed: parseDoc(docKey, lines) });
+  // docKey selects the parser only — the lint input carries no re-typed doc key.
+  return lintPass.run({ path: PLAN_PATH, parsed: parseDoc(docKey, lines) });
 }
 
 /** The shared parse — the composition root consumers reuse (parse-once discipline). */
@@ -258,7 +258,6 @@ describe("the cross-doc reference observation (Class-B label drift)", () => {
       "- `c`",
     ];
     const warns = lintPass.run({
-      docKey: "phaseSpec",
       path: SPEC_PATH,
       parsed: parseDoc("phaseSpec", lines),
     });

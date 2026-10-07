@@ -120,6 +120,12 @@ describe("the six validate classes — one negative fixture each", () => {
     const graph = graphOf([task(1, "none"), task(2, "1"), task(3, "1, 2")]);
     expect(graph.validate()).toEqual([]);
   });
+
+  it("a malformed edge value carries no edge — the whole-token token domain shared with the lint refuses `1.2`", () => {
+    const graph = graphOf([task(1, "none"), task(2, "1.2"), task(3, "2")]);
+    expect(graph.validate()).toEqual([]); // no edge parsed out of "1.2"
+    expect(graph.batches()).toEqual([[1, 2], [3]]); // task 2 joins the no-dependency wave
+  });
 });
 
 describe("batches() — the topological wave decomposition", () => {

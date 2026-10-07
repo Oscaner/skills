@@ -27,7 +27,7 @@
 import path from "node:path";
 import type { ChainLink, ParsedDoc, PlanParsed, TaskBlock } from "./doc.ts";
 import { MarkdownPrimitives } from "./doc.ts";
-import type { DocKey, ReferenceEntry } from "./project.ts";
+import type { ReferenceEntry } from "./project.ts";
 import { projectReference } from "./project.ts";
 
 /** One reference-lint warning — a WARN-only observation, never a judge Finding. */
@@ -44,10 +44,10 @@ export interface Warn {
   kind: "reference-lint";
 }
 
-/** The lint input — the doc's identity + the shared doc.ts parse instance. */
+/** The lint input — the document's path + the shared doc.ts parse instance (the
+ *  doc type rides the parsed record's docType, never a re-typed key — no field
+ *  the pass does not read). */
 export interface LintInput {
-  /** The doc-type record key of the document under lint. */
-  docKey: DocKey;
   /** The document's file path (message attribution). */
   path: string;
   /** The shared parsed record — the same instance the dispatch and the graph read. */

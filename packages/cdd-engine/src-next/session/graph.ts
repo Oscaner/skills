@@ -20,6 +20,8 @@
 // functions (the plan's zero-bare-function discipline).
 
 import type { PlanParsed, TaskBlock } from "../contract/doc.ts";
+import type { ReferenceEntry } from "../contract/project.ts";
+import { projectReference } from "../contract/project.ts";
 import type { ExecutionState, Frontier } from "./state.ts";
 
 /** The six edge-validation classes — the TaskGraph's judgment vocabulary. */
@@ -69,9 +71,16 @@ export class TaskGraph implements Frontier, ExecutionState {
   readonly #edges: ReadonlyMap<number, EdgeRecord>;
   /** The run's completed task ids — the ExecutionState carrier (markDone). */
   readonly #done: Set<number> = new Set();
+  /** The derived `DependsOn id` value pattern (whole-token — the declared-edge
+   *  values; the SAME derived pattern the reference lint reads, so both edge
+   *  consumers share one task-id token domain, never a re-typed literal). */
+  readonly #depIdToken: RegExp;
 
   /** Build from a shared plan parse — the same instance the dispatch and the lint read. */
   constructor(parsed: PlanParsed) {
+    this.#depIdToken = new RegExp(
+      TaskGraph.#valuePatternOf(projectReference().plan.entries, "DependsOn id"),
+    );
     this.#nodes = parsed.taskBlocks.map((block) => block.id).sort((a, b) => a - b);
     const edges = new Map<number, EdgeRecord>();
     for (const block of parsed.taskBlocks) {
@@ -264,17 +273,33 @@ export class TaskGraph implements Frontier, ExecutionState {
     return this.#edges.get(task)?.deps ?? [];
   }
 
-  /** One block's declared edge record — the `**DependsOn**` field's numeric values
-   *  (the `[1-9]\d*` task-id domain: `none`/empty carries zero edges; the field's
-   *  absence is recorded separately for the missing-edge class). */
+  /** One block's declared edge record — the `**DependsOn**` field's whole-token
+   *  numeric values (the derived `DependsOn id` domain — the same pattern the
+   *  reference lint reads, so a malformed value like `1.2` the lint refuses also
+   *  carries no edge here); `none`/empty carries zero edges; the field's absence
+   *  is recorded separately for the missing-edge class. */
   #edgeOf(block: TaskBlock): EdgeRecord {
     const field = block.fields.find((entry) => entry.key === "DependsOn");
     if (field === undefined) return { declared: false, deps: [] };
     const deps: number[] = [];
     for (const line of field.lines) {
-      for (const match of line.matchAll(/[1-9]\d*/g)) deps.push(Number(match[0]));
+      for (const token of line.split(/[,\s]+/)) {
+        const candidate = token.trim();
+        if (this.#depIdToken.test(candidate)) deps.push(Number(candidate));
+      }
     }
     return { declared: true, deps: deps.sort((a, b) => a - b) };
+  }
+
+  /** The value pattern of a registered reference entry — a lookup that fails
+   *  loudly when the declaration renames an anchor the graph consumes (the same
+   *  loud-lookup contract the reference lint's edge scan keeps). */
+  static #valuePatternOf(entries: readonly ReferenceEntry[], anchor: string): string {
+    const entry = entries.find((row) => row.anchor === anchor);
+    if (entry === undefined) {
+      throw new Error(`task graph requires the registered reference entry "${anchor}"`);
+    }
+    return entry.valuePattern ?? "";
   }
 
   /** One constructed issue (the single message/fix assembly point of the graph). */

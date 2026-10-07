@@ -13,6 +13,7 @@
 // interaction point the lifecycle attaches.
 
 import { describe, expect, it } from "vitest";
+import { FIX_READBACK_SUFFIX } from "../../session/next.ts";
 import type { CapsuleFace } from "../../session/run.ts";
 import { Capsule } from "../capsule.ts";
 import { CAPSULE_WORDS, GUARD_BAN_WORDS, Words } from "../words.ts";
@@ -115,7 +116,7 @@ describe("the capsule byte pin — the single output face", () => {
       }),
     ).toEqual([
       "status: CHANGES_REQUESTED · blocker: 1 · handoff: /h.json",
-      "next: tasks-1-review-1.json (first read <findings> back to confirm)",
+      `next: tasks-1-review-1.json ${FIX_READBACK_SUFFIX}`,
     ]);
     // a fix route without its input renders the bare classifier
     expect(capsule.emit("CHANGES_REQUESTED", "1", "/h.json", { kind: "fix" })).toEqual([

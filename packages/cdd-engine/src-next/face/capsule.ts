@@ -12,14 +12,16 @@
 // instance) is the `·` separator, the `next:` station anchor and the route/status
 // vocabulary — a second table is excluded by construction. The `next:` value is
 // either a caller-rendered string or the C5 Route rendered through the route-word
-// table (`none` / the next group key / the re-review ref / the fix findings input /
-// the soft-cap message verbatim — only present facts land).
+// table (`none` / the next group key / the re-review ref / the fix findings input
+// with its readback suffix / the soft-cap message verbatim — only present facts
+// land; the route-borne prose — the readback suffix · the soft-cap message — rides
+// declared constants from session/next.ts, rendered by reference, never restated).
 //
 // The class satisfies the session/run.ts CapsuleFace seam (T8's interaction point) —
 // the capsule plugs into the lifecycle's attachCapsule contact, byte-identically.
 // Module-level exports are the class — zero behavior-carrying bare functions.
 
-import type { Route } from "../session/next.ts";
+import { FIX_READBACK_SUFFIX, type Route } from "../session/next.ts";
 import type { CapsuleKey, Words } from "./words.ts";
 
 /**
@@ -73,9 +75,7 @@ export class Capsule {
       case "review":
         return `${words.routeWord("review")} ${route.base.slice(0, 7)}`;
       case "fix":
-        return route.findings
-          ? `${route.findings} (first read <findings> back to confirm)`
-          : words.routeWord("fix");
+        return route.findings ? `${route.findings} ${FIX_READBACK_SUFFIX}` : words.routeWord("fix");
       case "soft-cap":
         return route.message;
     }

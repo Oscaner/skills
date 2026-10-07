@@ -13,7 +13,9 @@
 // The table judges the round carrier (ledger.ts — the fix round's own findings are
 // the source review's input, C5-1) against the execution state (state.ts — the
 // ready batch decides none vs next-group). The Route output carries the structured
-// facts the capsule face renders into the `next:` line. Module-level exports are
+// facts the capsule face renders into the `next:` line — including the fix-route
+// readback copy, authored here once as FIX_READBACK_SUFFIX (the declared wording
+// the capsule renders verbatim, never a literal restate). Module-level exports are
 // types / constants / the class — zero behavior-carrying bare functions (the
 // plan's zero-bare-function discipline).
 
@@ -40,6 +42,12 @@ export const REVIEW_CYCLE_CAP = 3;
 
 /** The review-cycle soft-cap suggestion (the C5-0 suggestion face — user adjudicates). */
 export const SOFT_CAP_SUGGESTION = "BLOCKED: review-cycle-cap — user adjudicates";
+
+/** The fix-route readback suffix — appended verbatim to the fix findings path on the
+ *  route's `next:` render (`(first read <findings> back to confirm)`), a pure wording
+ *  prompt: the anti-blind-fix mechanical guard is the ledger round / C5-1, the suffix
+ *  only asks the orchestrator to confirm the input findings back (non-binding). */
+export const FIX_READBACK_SUFFIX = "(first read <findings> back to confirm)";
 
 /** The failure face — a BLOCKED/TIMEOUT round goes the stderr CDD_BLOCKED channel and
  *  produces no `next:` line on any op. */

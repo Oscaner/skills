@@ -6,6 +6,8 @@
 //   · fix warn/nit only → none (closure — no re-review preview);
 //   · the review-cycle soft cap → the "BLOCKED: review-cycle-cap" suggestion (outranks the
 //     blocker row); REVIEW_CYCLE_CAP + the suggestion wording are the pinned constants;
+//   · the fix-route readback suffix — FIX_READBACK_SUFFIX — the declared single-source
+//     wording the capsule appends to the fix hop's `next:` render (verbatim, by reference);
 //   · BLOCKED/TIMEOUT → null (no next line — the failure face), every phase;
 //   · implement → the group's review (base = the task base); branch-review → closure / fix.
 // The type assertions at the bottom pin the public surface compile-time (the brief's
@@ -14,7 +16,12 @@
 import { describe, expect, it } from "vitest";
 import type { Round, RoundPhase } from "../ledger.ts";
 import type { Route } from "../next.ts";
-import { NextStepRouter, REVIEW_CYCLE_CAP, SOFT_CAP_SUGGESTION } from "../next.ts";
+import {
+  FIX_READBACK_SUFFIX,
+  NextStepRouter,
+  REVIEW_CYCLE_CAP,
+  SOFT_CAP_SUGGESTION,
+} from "../next.ts";
 import type { ExecutionState } from "../state.ts";
 
 /** A minimal execution-state stub — the router reads only readyBatch(). */
@@ -175,6 +182,17 @@ describe("the pinned surface — Route/soft-cap constants (the brief's type-chec
   it("the soft-cap constant is the literal 3 and the wording is stable", () => {
     expect(REVIEW_CYCLE_CAP).toBe(3);
     expect(SOFT_CAP_SUGGESTION).toBe("BLOCKED: review-cycle-cap — user adjudicates");
+  });
+
+  it("the fix-route readback suffix is the declared single-source wording", () => {
+    expect(FIX_READBACK_SUFFIX).toBe("(first read <findings> back to confirm)");
+  });
+
+  it("the readback suffix keeps its literal type at compile time", () => {
+    // Compile-time pin — fails under `tsc --noEmit` if the constant's declared type
+    // drifts from the render the capsule appends verbatim (exact suffix wording).
+    const suffix: "(first read <findings> back to confirm)" = FIX_READBACK_SUFFIX;
+    expect(suffix).toBe(FIX_READBACK_SUFFIX);
   });
 
   it("the soft-cap constants keep their literal types at compile time", () => {

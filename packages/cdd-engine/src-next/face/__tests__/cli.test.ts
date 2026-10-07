@@ -25,6 +25,7 @@ import { describe, expect, it } from "vitest";
 import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { Ledger } from "../../session/ledger.ts";
+import { FIX_READBACK_SUFFIX } from "../../session/next.ts";
 import type { OpenFrame } from "../../session/run.ts";
 import type { CliIo, CliOptions, DispatchScene, SyncProcess } from "../cli.ts";
 import { CLI_COMMANDS, CLI_USAGE, cli, HarnessDispatch } from "../cli.ts";
@@ -377,6 +378,58 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       expect(io.stdoutText).toContain("next: none");
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       expect(existsSync(path.join(workspace, "tasks-1-review-1.json"))).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("review with findings — the fix-route next: line carries the readback suffix", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({
+      dispatch: (frame: OpenFrame) =>
+        frame.phase === "review"
+          ? {
+              status: "CHANGES_REQUESTED",
+              findings: [{ severity: "blocker", summary: "drift" }],
+            }
+          : { status: "APPROVED" },
+    });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      expect(
+        await command.runArgv([
+          "implement",
+          "--tasks",
+          "1",
+          "--plan",
+          plan,
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).toBe(0);
+      io.stdoutText = "";
+      const code = await command.runArgv([
+        "review",
+        "--type",
+        "task",
+        "--tasks",
+        "1",
+        "--plan",
+        plan,
+        "--dry-run",
+        "--root",
+        repoRoot,
+      ]);
+      expect(code).toBe(0);
+      // the review's findings route the one-way fix hop — the capsule next: line
+      // names the review handoff (the resolved workspace path) and rides the
+      // readback suffix (the cli face checkable)
+      expect(io.stdoutText).toContain("status: CHANGES_REQUESTED · blocker: 1 · handoff: ");
+      const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
+      expect(io.stdoutText).toContain(
+        `next: ${path.join(workspace, "tasks-1-review-1.json")} ${FIX_READBACK_SUFFIX}`,
+      );
     } finally {
       cleanup();
     }

@@ -3,7 +3,7 @@
 **Spec:** [2026-10-02-doc-architecture-v2-p3.2-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3.2-design.md)
 
 - **Parent program**: [2026-10-02-doc-architecture-v2-overall.md v1.21](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.4 · 2026-10-07（前置 v1.3 = P7 提前承接 backfill——T19 翻译系统 · T20 base 命令面；**v1.4 = P4/P5/P6/P7 全吸收 + 数据面归位 backfill**——用户 2026-10-07 拍板「config-next 完成以后删除 config」+「都是一体的」+「吸收进 P3.2」升华：**T21 数据面归位**（三稳态 JSON → typed 平面 infra/runtime · face/host · render/templates，P4/P5 承接净入——M1 supersede · refs 登记 · 三处禁文删除 · review 准则收口 · 零读 config/ · 导出面保持）· **T22 宪法化承接（P6）**（overall 拆宪法/archive · 版本行散文消解 · Standing rules 成典 · 全树 4 overalls）· **T15 扩域删 config/**（整目录零残留，零重建）· T14 认领 skill-anatomy 归位 · T16 CLAUDE.md/README 数据面同步——overall v1.23 · spec v1.4 随）
+- **Version**: v1.5 · 2026-10-08（**T23 next fix 面 readback 后缀**——用户 2026-10-08 拍板「NextStepRouter `kind: fix` 时补 `(first read <findings> back to confirm)`」：旧树 readbackWording 设计意图于新架构落地为纯文案提示 · 机械防线由 ledger round/C5-1 兜 · 编排方是否遵守非强约束——plan review-2 闭合后追加）；前置 v1.4 · 2026-10-07（前置 v1.3 = P7 提前承接 backfill——T19 翻译系统 · T20 base 命令面；**v1.4 = P4/P5/P6/P7 全吸收 + 数据面归位 backfill**——用户 2026-10-07 拍板「config-next 完成以后删除 config」+「都是一体的」+「吸收进 P3.2」升华：**T21 数据面归位**（三稳态 JSON → typed 平面 infra/runtime · face/host · render/templates，P4/P5 承接净入——M1 supersede · refs 登记 · 三处禁文删除 · review 准则收口 · 零读 config/ · 导出面保持）· **T22 宪法化承接（P6）**（overall 拆宪法/archive · 版本行散文消解 · Standing rules 成典 · 全树 4 overalls）· **T15 扩域删 config/**（整目录零残留，零重建）· T14 认领 skill-anatomy 归位 · T16 CLAUDE.md/README 数据面同步——overall v1.23 · spec v1.4 随））
 - **Depends on**: P3.1（Done）· P3.2 design spec v1.2（Approved · 2026-10-07）
 - **Base**: develop
 
@@ -361,9 +361,23 @@
   - 宪法/档案双层落地 + 4 overalls 迁移；版本行散文零残留（grep）；Standing rules 成典；archive 命名定；新引擎 doc-contract 门对新形绿；历史正文零 retro-rename
 - **DependsOn**: 15
 
+### Task 23: next fix 面 readback 后缀
+
+- **Objective**: 用户 2026-10-08 拍板——`NextStepRouter` `kind: fix` 时，capsule `next:` 渲染行尾追加 **`(first read <findings> back to confirm)`**（纯文案提示 · 编排方是否遵守非强约束）：旧树 `readbackWording`「(read <handoff> back to confirm)」的设计意图在新架构落地为文案提示——防盲目 fix 的机械防线由 ledger round/C5-1 兜，后缀仅为编排者确认提示
+- **Files**: `src-next/session/next.ts`（改：fix 路由携带 readback 文案）· `src-next/face/cli.ts`（改：next: 渲染行尾追加）· `src-next/session/__tests__/next.test.ts`（改：fix 面 next: 行含后缀断言）
+- **Consumes**: T7 next 路由器（kind: fix 现面）· T11 cli 渲染
+- **Produces**: fix 面 next: 渲染行尾后缀
+- **Steps**:
+  - next route `kind: fix` → 渲染追加 `(first read <findings> back to confirm)` — checkable: next.test 断言（fix 面含后缀 · review 面不含）
+  - cli capsule 渲染接入 — checkable: cli 面 next: 行含后缀
+  - commit `feat(engine): next fix 面 readback 后缀`
+- **Acceptance**:
+  - `kind: fix` 的 next: 渲染行尾含 `(first read <findings> back to confirm)`（词面断言）；review 面 next: 行不含；测试全绿
+- **DependsOn**: 7
+
 ## Constraints
 
-- **新旧零依赖（贯穿 T1–T22）**：`src-next` ↔ 旧树双向零 import；新树全量按新架构/OOP 单范式重写，不借用旧符号/旧 helper/旧目录形状；**数据面归位（T21，v1.4）**：三稳态 JSON 收敛为 typed 平面成员（infra/runtime · face/host · render/templates）——新树零 JSON 读取、零读旧 `config/` 路径（grep 断言），`config/` 整目录随 T15 cutover 删除零重建；schema/lexicon 派生产物由新树自派生（并行期测试不读旧派生产物）
+- **新旧零依赖（贯穿 T1–T23）**：`src-next` ↔ 旧树双向零 import；新树全量按新架构/OOP 单范式重写，不借用旧符号/旧 helper/旧目录形状；**数据面归位（T21，v1.4）**：三稳态 JSON 收敛为 typed 平面成员（infra/runtime · face/host · render/templates）——新树零 JSON 读取、零读旧 `config/` 路径（grep 断言），`config/` 整目录随 T15 cutover 删除零重建；schema/lexicon 派生产物由新树自派生（并行期测试不读旧派生产物）
 - **双面构建纪律**：cutover 前旧树保持活跃（入口未切）；每任务自测绿（该任务面 vitest/独立断言）再交下任务；新树 vitest project 与旧树并存且各自全绿
 - **每任务一个提交**：conventional commit（feat/refactor/docs/chore 前缀）；precommit（lint-staged）绿才提交；历史文档正文零 retro-rename（docs/kairos/specs 既往版本行不动）
 - **净减账为方向证明**：T13 起记录新树行数基线，T17 出具 29k → −20%± 的净减账（真实值为准，不架构假账）

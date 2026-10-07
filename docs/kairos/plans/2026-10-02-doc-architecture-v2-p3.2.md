@@ -3,7 +3,7 @@
 **Spec:** [2026-10-02-doc-architecture-v2-p3.2-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3.2-design.md)
 
 - **Parent program**: [2026-10-02-doc-architecture-v2-overall.md v1.21](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.2 · 2026-10-07（零裸函数裁决落地：新增 **T18 全平面收类**——project 六投影 + escapeRegExp → `Projector` 类 · declare 守卫 → `RegistryGuard` 类 · 全契约平面模块级导出仅 类型/常量数据/类；T2/T3 派生签名以 T18 方法面为最终形态）
+- **Version**: v1.3 · 2026-10-07（v1.2 零裸函数裁决落 T18 已闭合；v1.3 = P7 提前承接 backfill——**T19 翻译系统**（词表 locale 面 + 双向翻译层 + langs 派生 + 渲染器归位 render · 全量核心）· **T20 CLI `base` 命令面**（base-branch set|get → base set|get · T16 技能面调用在重写时同步落 `cdd base`）——overall v1.22 · spec v1.3 随）
 - **Depends on**: P3.1（Done）· P3.2 design spec v1.2（Approved · 2026-10-07）
 - **Base**: develop
 
@@ -168,7 +168,7 @@
 
 ### Task 11: face · cli——组合根
 
-- **Objective**: `src-next/face/cli.ts` 组合根：implement/review/fix/schema/issue/base-branch 子命令面（词面稳态），装配 contract/session/face 各对象为唯一裸入口
+- **Objective**: `src-next/face/cli.ts` 组合根：implement/review/fix/schema/issue/base-branch 子命令面（词面稳态；**base-branch 形态在 T20 收敛为 `base set|get`**），装配 contract/session/face 各对象为唯一裸入口
 - **Files**: `src-next/face/cli.ts`（新建，唯一裸入口·组合根）· `src-next/bin.ts`（装载 cli）· `src-next/face/__tests__/cli.test.ts`（新建）
 - **Consumes**: T8 lifecycle · T10 capsule/words · T9 ledger
 - **Produces**: `cli(parse/run)` 子命令面（6 命令 · 部件参数校验零未知 flag）
@@ -291,6 +291,37 @@
 - **Acceptance**:
   - `Projector`/`RegistryGuard` 类落地；`contract/**`（除 `__tests__`）模块级导出仅 类型/常量数据/类；零裸函数 grep 零命中；消费面（judge/doc/lint/project/declare 测试）全绿
 - **DependsOn**: 6
+
+### Task 19: 翻译系统——P7 全量核心（词表 locale 面 + 双向翻译层 + langs 派生 + 渲染器归位）
+
+- **Objective**: 用户 2026-10-07 拍板「IssueBodyRenderer.langs 升级为翻译系统，P7 提前」——单词表（T10)加 **locale 面**（每条词挂 `{ en: 规范型, zh?: 中文别名 }`）· 单一**双向翻译层 `Translator`**（`normalize(输入)→规范 token` 中文别名↔英文规范型 · doc parse/判定消费；`localize(token,locale)→输出词` · 人类可读渲染面 locale-normalized）· **`langs` 投影派生**（`["en","zh"]` 硬编码归零 = 词表 locale 键集投影）· **IssueBodyRenderer 从 face/cli 迁 render/** + 语言表数据化；capsule 机面 `status/next:/CDD_BLOCKED:` 英文恒定不 locale 化（机器面非人类文本）；P7 原「doc token English-primary 化」转换半随 greenfield 消解（新树首版锚即英文）· 识别半由翻译层承接，「legacy 中文标记可解析」随旧树删除消解
+- **Files**: `src-next/face/words.ts`（改：locale 列 + 翻译层数据）· `src-next/contract/translate.ts`（新建：`Translator` 类，词表驱动零 switch）· `src-next/render/issue-body.ts`（新建：IssueBodyRenderer 迁入 render/）· `src-next/face/cli.ts`（改：渲染器移出组合根）· `src-next/face/__tests__/face.test.ts`（改）· `src-next/render/__tests__/render.test.ts`（改：渲染器测试归位）· `src-next/contract/__tests__/translate.test.ts`（新建）
+- **Consumes**: T10 单词表 · T3/T18 `Projector` 派生 · T11 cli（渲染器现落印）
+- **Produces**: `Translator` 类（normalize/localize）· Words locale 面（词条目 alias 数据）· `langs` 投影派生 · render/issue-body.ts（IssueBodyRenderer 归位 · 语言表数据驱动）
+- **Steps**:
+  - Words locale 面：词条目允许 `{ en, zh? }` — checkable: 词表测试绿（无第二词表）
+  - `Translator` 类：normalize（中文别名↔规范型双向）+ localize（locale-normalized 输出），词表驱动零 switch、零裸函数 — checkable: translate.test 正/负例绿（含中文别名识别）
+  - `langs` 派生：语言键集 = 词表 locale 键集投影；IssueBodyRenderer 校验改投影包含 — checkable: langs 投影测试绿（无硬编码 `["en","zh"]`）
+  - IssueBodyRenderer 迁 `render/issue-body.ts`（face/cli 仅装配）：段标签数据化 + 渲染器测试归位 — checkable: render.test + cli.test 绿
+  - capsule 机面英文恒定断言（status/next:/CDD_BLOCKED: 不 locale 化）— checkable: 胶囊字节 pin 仍绿
+  - commit `feat(engine): 翻译系统——词表 locale + Translator 双向层 + langs 派生`（自测绿后）
+- **Acceptance**:
+  - `Translator` 类 + Words locale 面落地；`langs` 投影派生（零 `["en","zh"]` 硬编码 grep）；IssueBodyRenderer 归位 render/（cli 零渲染器成员）；capsule 机面英文恒定；双向识别正/负例绿；零裸函数与 zero-dep 断言保持绿
+- **DependsOn**: 3, 10, 11
+
+### Task 20: CLI `base` 命令面收敛
+
+- **Objective**: `base-branch set|get` → **`base set|get`**（用户 2026-10-07 拍板「base-branch set|get 可以升级成为 base set|get」）——六命令面（implement/review/fix/schema/issue/base）；技能面调用（cdd-dev/cdd-close 的 `cdd base-branch get/set`）在 T16 重写时同步落 `cdd base`，本任务不动技能文件
+- **Files**: `src-next/face/cli.ts`（改：base-branch 子命令 → base set|get）· `src-next/face/__tests__/cli.test.ts`（改）
+- **Consumes**: T11 cli（base-branch 现面）
+- **Produces**: `cli` 面 base set|get 子命令（T11 的 base-branch 形态替换）
+- **Steps**:
+  - cli.ts base-branch set|get → base set|get（argv 解析 · 词面同步；`cdd base set --plan … --base …` / `cdd base get --plan …`）— checkable: cli.test 六命令面 + base 正/负例绿
+  - 消费点随改（ledger/run 读 base 命令路径）— checkable: 测试全绿
+  - commit `feat(engine): CLI base set|get 命令面收敛`（自测绿后）
+- **Acceptance**:
+  - `cdd base set|get` 生效且 `base-branch` 命令面新树零残留（grep）；六命令面完整；测试全绿
+- **DependsOn**: 11
 
 ## Constraints
 

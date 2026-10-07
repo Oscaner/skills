@@ -1,6 +1,6 @@
 # 文档架构方法论 v2 — P3.2 Design Spec v1.2（全系统从零重建 · 判定单家 · 工作流归一）
 
-- **Version**: v1.2 · 2026-10-07（spec review round 九 finding 落地：§2.1 四分量行数自洽 ~485 · §4.2 五链 digraph 自环例外 + digraph 一致断言 · §6.1 基线按实树校订 72/顶面 8-5 · shape 五表达面投影一致 · 词汇条 word 残句修正）
+- **Version**: v1.3 · 2026-10-07（v1.2 spec-review 九 finding 已落；v1.3 = P7 提前承接 backfill——翻译系统全量核心入 §1.3 · CLI 命令面 `base-branch`→`base` · capsule 机面英文恒定 · 渲染器归位 render）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5（kairos:cdd-phase · 决策源 = kairos:cdd-design grilling 收敛 + 用户 2026-10-07 greenfield 拍板）
 - **Parent program**: [doc-architecture-v2-overall.md v1.21](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
@@ -19,6 +19,14 @@
 #### 1.2 词汇单源
 
 doc 结构词（DOC_TOKENS 面）+ 胶囊词（`status`/`next:`/`CDD_BLOCKED:` 站）+ 守卫词（residue/escape/gate ban 词）并入**单一词汇表**（一词表一派生链），终结 lexicon 五家（words.ts → contract-lexicon.json → schema shape → word-table.ts accessor → guard-lexicon.json）的分散面。词表 English-primary，词汇面稳态（此非兼容义务，而是消费词面本来就是方法论机器面）。
+
+#### 1.3 翻译层（P7 提前承接 · 用户 2026-10-07「langs 升级为翻译系统，P7 提前」）
+
+单词表加 **locale 面**（每条词挂 `{ en: 规范型, zh?: 中文别名 }`——doc 结构锚 · capsule 站词 · 守卫 ban 词 · issue body 段标签同一张表）+ 单一**双向翻译层 `Translator`**（词表驱动 · 零裸函数 · 零 switch 分发）：`normalize(输入) → 规范 token`（中文别名 ↔ 英文规范型双向识别 · doc parse/判定消费）· `localize(token, locale) → 输出词`（人类可读渲染面——issue body/brief/模板——locale-normalized 消费）。**`langs` 投影派生**：`["en","zh"]` 硬编码归零，语言键集 = 词表 locale 键集投影，校验 = 投影包含。
+
+- **P7 原「doc 结构 token English-primary 化」两半处理**：转换半（旧中文结构标记→英文）随 greenfield 旧树删除天然消解（新树首版锚即英文，零转换工作量）；识别半（中文别名↔英文规范型）由翻译层承接。**「legacy 中文标记保持可解析」随旧树删除消解**——双读/兼容层不进新树。
+- **capsule 机器面英文恒定**：`status`/`next:`/`CDD_BLOCKED:` 是状态机消费的 token 非人类文本——不 locale 化；locale 面只服务人类可读面（issue body/brief/模板）。
+- **渲染器归位**：`IssueBodyRenderer` 从 face/cli（组合根）移出 → **render/ 面**；`langs` 语言键 = 词表 locale 投影（零 `["en","zh"]` 硬编码）；段标签数据表驱动。
 
 ### 2. 判定面：单一解释器 + 上下文缝不变式
 
@@ -46,7 +54,7 @@ TaskGraph（六类 validate：missing-edge / duplicate / missing-id / self-loop 
 
 #### 3.3 dispatch 三 lifecycle 合一
 
-task/branch/docs 三个 near-同构 lifecycle（旧 3.6k 行）收敛为**参数化单 lifecycle**（目标类型 task|branch|spec|plan 数据表驱动：review/fix/implement 流程同构，差异 = 审计目标/产物面/next 语义参数）。CLI 子命令面（implement / review / fix / schema / issue / base-branch）保持。
+task/branch/docs 三个 near-同构 lifecycle（旧 3.6k 行）收敛为**参数化单 lifecycle**（目标类型 task|branch|spec|plan 数据表驱动：review/fix/implement 流程同构，差异 = 审计目标/产物面/next 语义参数）。CLI 子命令面（implement / review / fix / schema / issue / base——`base set|get` 承 `base-branch set|get`，用户 2026-10-07 拍板收敛）保持。
 
 ### 4. 编排面（技能）：工作流归一
 
@@ -98,7 +106,7 @@ packages/cdd-engine/src-next/
   face/                       # 操作面 = 词表 + 胶囊 + 命令
     words.ts                  #   词汇表单源（doc 词 + 胶囊词 + 守卫词 一家）
     capsule.ts                #   status · blocker · handoff · next 单胶囊面
-    cli.ts                    #   implement · review · fix · schema · issue · base-branch
+    cli.ts                    #   implement · review · fix · schema · issue · base（base set|get）
   render/                     # templates + brief（活则留）
   infra/                      # 真基建（resource/config · git · process · workspace，≤5 文件）
 ```
@@ -123,7 +131,7 @@ packages/cdd-engine/src-next/
 - 不变式 = 策略类族（`abstract Invariant.evaluate()` 多态 · `Contract.validate()` 协调器零 switch-case 判定分发断言）· 零裸函数（新树行为面 grep 裸函数零残留 —— 模块级导出仅类型/常量/类/组合根）
 - TaskGraph + frontier + ExecutionState 查询面（doneTasks()/readyBatch() 为方法，不新增独立类）；缺边/反依赖唯一家在 TaskGraph，doc-contract parse 早拦负例断言
 - `NextStepRouter` 单点：next 生成单面（负例：warn/nit→`next: none` · blocker>0→re-review · BLOCKED 无 next 行）；胶囊 `status · blocker · handoff · next:` 词面字节 pin 稳态
-- dispatch 单 lifecycle 参数化落地（task/branch/spec/plan 数据表驱动）；CLI 命令面（implement/review/fix/schema/issue/base-branch）保持
+- dispatch 单 lifecycle 参数化落地（task/branch/spec/plan 数据表驱动）；CLI 命令面（implement/review/fix/schema/issue/base——base set|get）保持
 - 技能集 8 → 6 落地：cdd-spec-writer 合一（single/phase/overall 参数化）；五链 digraph 单 next-loop 自环（cdd-report 一次性上报工具链例外）+ 边零状态标签；digraph 节点名 ↔ Node Definitions heading ↔ 文本引用一致断言；节点锚定零残留；skill-anatomy 注册（6 集）+ 目录扫描守卫 + `pnpm run emit` 再生 + 零程序历史 pin；上游 import 面/编排语义门/Review Convergence 纪律保持
 - scripts 重写：guard 消费引擎元数据（residue 正则 ban 表 → 词表数据行零残留 · channel 字面引擎导出）；单一 emit/validate 编排器；旧 wrapper/双 Orchestrator 零残留
 - 两代过渡：新树 **5 平面拓扑**（contract/session/face/render/infra · 文件 72→~30-38 · 顶面 8→5）落地于 `src-next/` + `scripts-next/` → 入口切换 → **旧树/旧技能零残留（grep 断言）** → validate ALL PASS · typecheck ×3 · biome · emit 新鲜 · changesets（cdd-engine major / kairos major）· 净减账（29k → 目标 −20%±）入验收
@@ -134,7 +142,7 @@ packages/cdd-engine/src-next/
 
 - **两代并存过渡闸**：新树测试全绿旧树才可删（并行构建 + 入口切换，切换后立即删旧）
 - **新旧零依赖**：`src-next`/`scripts-next` 自包含，零 import 旧树（双向 grep 断言）；新树按新架构新思路全量重写，无旧符号/旧分组/旧 helper 复用；外部契约 JSON 以稳态数据同址读取，派生产物由新树自派生（并行期不读旧派生产物）
-- **消费面稳态（非兼容义务）**：capsule 词面（`status`/`next:`/`CDD_BLOCKED:`）与 cdd CLI 命令面保持——既是方法论机器面也是消费词面，greenfield 不为其做旧面保留，但新树首版即同词面
+- **消费面稳态（非兼容义务）**：capsule 词面（`status`/`next:`/`CDD_BLOCKED:` 英文恒定）与 cdd CLI 命令面（含 `base set|get`）保持——既是方法论机器面也是消费词面，greenfield 不为其做旧面保留，但新树首版即同词面
 - **单数据真相**：元素登记表 + 词汇表 = 唯一声明家；派生投影零手写副本
 - **判定单家**：一切结构判定走上下文缝解释器；doctype 类只 parse+投影
 - **零裸函数（Criterion ② 全平面正位）**：新树行为/判定/派生全为类成员——三大职责对象（Contract / Session / Face）+ 不变式策略类族；模块级导出仅类型/常量数据/类/组合根，无携带行为的裸函数（旧函数解释器 + 游离 helper 不复现）

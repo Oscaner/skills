@@ -1,9 +1,9 @@
-# 文档架构方法论 v2 — P3.2 Implementation Plan v1.0（全系统从零重建 greenfield）
+# 文档架构方法论 v2 — P3.2 Implementation Plan v1.1（全系统从零重建 greenfield）
 
 **Spec:** [2026-10-02-doc-architecture-v2-p3.2-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3.2-design.md)
 
 - **Parent program**: [2026-10-02-doc-architecture-v2-overall.md v1.21](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.0 · 2026-10-07
+- **Version**: v1.1 · 2026-10-07（plan review 十一 finding 落地：解析层归口 doc.ts · project 五投影 · 依赖边闭合（T8→9 / T13→5）· root 构建链重连 + cutover 提交走新 precommit）
 - **Depends on**: P3.1（Done）· P3.2 design spec v1.2（Approved · 2026-10-07）
 - **Base**: develop
 
@@ -34,45 +34,47 @@
 - **Produces**: `ElementRegistry` 类型 + `declaredRegistries: { overall, plan, phaseSpec }`（声明数据，判定/派生/消费的单一真相）
 - **Steps**:
   - 定义 `ElementRegistry` 接口（element: { anchor, presence, valuePattern?, refKind?, home }）+ 类型守卫 — checkable: 类型测试过
-  - 三份登记表数据（overall 约 N 元素 · plan 约 N · phase-spec 约 N；锚取自方法论文档骨架语义，不得从旧树拷贝代码）— checkable: 三表非空且每元素过类型校验
+  - 三份登记表数据（overall/plan/phase-spec 各 20–40 元素，量级按方法论文档骨架枚举——overall 章节面 · plan 任务块+头字段 · phase-spec 骨架面，登记表只多不少；锚取自骨架语义，不得从旧树拷贝代码）— checkable: 每型 ≥20 元素（计数断言）且每元素过类型校验
   - 写 declare.test：登记表完整性（presence 合法域 · 锚唯一 · refKind 枚举内）— checkable: test 绿
   - commit `feat(engine): contract/declare 三登记表`（自测绿后）
 - **Acceptance**:
-  - 三登记表存在；每元素五字段齐全；锚唯一性测试绿
+  - 三登记表存在；每元素五字段齐全；锚唯一性测试绿；每型 ≥20 元素（计数断言入 acceptance，防少写）
   - 零 import 旧树（zero-dep 测试仍绿）
 - **DependsOn**: 1
 
-### Task 3: contract · project——派生投影（schema/slices/tokens/reference）
+### Task 3: contract · project——派生投影（shape/schema/slices/tokens/reference）
 
-- **Objective**: `src-next/contract/project.ts` 从登记表派生四投影：JSON schema（字节从新树首版即钉）· slices 解析 regex · tokens · reference 词汇
+- **Objective**: `src-next/contract/project.ts` 从登记表派生五投影：shape 投影（section 结构面，旧 955 行散文不继承）· JSON schema（字节从新树首版即钉）· slices 解析 regex · tokens · reference 词汇
 - **Files**: `packages/cdd-engine/src-next/contract/project.ts`（新建）· `src-next/contract/__tests__/project.test.ts`（新建）
 - **Consumes**: T2 `declaredRegistries`
-- **Produces**: `projectRegistries()`（{schema, slices, tokens, reference} 四投影，全派生、零手写副本）
+- **Produces**: `projectRegistries()`（{shape, schema, slices, tokens, reference} 五投影，全派生、零手写副本）
 - **Steps**:
   - `projectSchema()`：登记表 → 三 doc JSON schema 结构（含属性/必填描述）— checkable: 输出的 schema 对象可 JSON.stringify 且字节快照入测试
-  - `projectSlices()`：锚 → 解析用 regex 面（与 tokens 同源过期渠道）— checkable: 每个登记元素 slice 可解析其锚
+  - `projectShape()`：登记表 → 三 doc section 结构面（shape 投影；旧 955 行 shape 散文不继承，纯派生零手写）— checkable: shape 元素与登记表一一对应且快照入测试
+  - `projectSlices()`：锚 → 解析用 regex 面（与 tokens 同源、共享派生链）— checkable: 每个登记元素 slice 可解析其锚
   - `projectTokens()` / `projectReference()`：词面/reference 词汇派生 — checkable: tokens/reference 与登记表元素一一对应
-  - 测试钉字节快照（首版 pin）— checkable: project.test 绿且快照稳定
-  - commit `feat(engine): contract/project 四投影派生`
+  - 测试钉字节快照（首版 pin，含 shape/schema 双快照）— checkable: project.test 绿且快照稳定
+  - commit `feat(engine): contract/project 五投影派生`
 - **Acceptance**:
-  - 四投影从登记表纯派生（project.test 快照 pin）；无手写 shape 散文
+  - 五投影从登记表纯派生（shape/schema 快照 pin）；shape 面 = `projectShape()` 派生，新树零手写 shape 散文（grep 断言）
 - **DependsOn**: 2
 
 ### Task 4: contract · judge——单解释器 + 上下文缝不变式策略类族
 
-- **Objective**: `src-next/contract/judge.ts` 单解释器 `Contract.validate()` 协调器 + 不变式策略类族（presence/uniqueness/domain/crosslink/order/continuity/residue/hollow/selfBounded/file-existence/sibling-scan/cross-doc-chain/section-scoped-domain），零 switch-case 判定分发
-- **Files**: `src-next/contract/judge.ts`（新建）· `src-next/contract/invariants.ts`（新建，策略类族）· `src-next/contract/__tests__/judge.test.ts`（新建）
-- **Consumes**: T2 登记表 · T3 reference 投影（crosslink/ref 判定）
-- **Produces**: `Invariant` 抽象基类 + 十三实现 · `Contract#validate(doc): Finding[]` 协调器
+- **Objective**: `src-next/contract/judge.ts` 单解释器 `Contract.validate()` 协调器 + 不变式策略类族（presence/uniqueness/domain/crosslink/order/continuity/residue/hollow/selfBounded/file-existence/sibling-scan/cross-doc-chain/section-scoped-domain），零 switch-case 判定分发；解析层 `doc.ts`（三 doc 类型 parse + 跨文档链根）归口本任务（spec §2.2：doctype 类只留 parse+投影，judge/graph/run 消费）
+- **Files**: `src-next/contract/doc.ts`（新建，解析层：三 DocType parse + 跨文档链根，类面零判定方法）· `src-next/contract/judge.ts`（新建）· `src-next/contract/invariants.ts`（新建，策略类族）· `src-next/contract/__tests__/doc.test.ts`（新建，解析层测试）· `src-next/contract/__tests__/judge.test.ts`（新建）
+- **Consumes**: T2 登记表 · T3 投影（slices 解析 regex + reference 词汇；shape/schema 结构面供 doc.ts parse 消费）
+- **Produces**: doc.ts 解析层（三 DocType parse + 跨文档链根）· `Invariant` 抽象基类 + 十三实现 · `Contract#validate(doc): Finding[]` 协调器
 - **Steps**:
   - 定义 `Invariant` 基类（evaluate(ctx): Finding[]）+ JudgeContext 类型 — checkable: 类型测试过
+  - `doc.ts` 解析层：overall/plan/phase-spec 三 DocType parse（overall 四表 · plan 任务块+四表 · phase-spec 骨架抽取）+ 跨文档链根（Class-A/B 解析留接口，判定归 cross-doc-chain 不变式）— checkable: parse 正例测试绿（四表/任务块/骨架/链根）
   - 基础九不变式类（presence…selfBounded），各以登记表为判定源 — checkable: judge.test 每类负例通过
-  - 上下文缝四不变式类（file-existence/sibling-scan/cross-doc-chain/section-scoped-domain）— checkable: 四类负例测试过
-  - `Contract#validate` 协调器：按登记表组配策略集顺序运行、汇总 Finding — checkable: 协调器测试（多不变式混合）绿
-  - 零裸函数自检：judge/invariants 无导出的行为裸函数（仅类成员）— checkable: grep 断言绿
-  - commit `feat(engine): contract/judge 单解释器 + 不变式策略类族`
+  - 上下文缝四不变式类（file-existence/sibling-scan/cross-doc-chain/section-scoped-domain，cross-doc-chain 消费 doc.ts 链根）— checkable: 四类负例测试过
+  - `Contract#validate` 协调器：按登记表组配策略集顺序运行（ctx 装载走 doc.ts parse）、汇总 Finding — checkable: 协调器测试（多不变式混合）绿
+  - 零裸函数自检：doc/judge/invariants 无导出的行为裸函数（仅类成员）— checkable: grep 断言绿
+  - commit `feat(engine): contract doc+judge 解析层 + 单解释器 + 不变式策略类族`
 - **Acceptance**:
-  - 十三不变式策略类 + 协调器；判定分发零 switch-case（grep）；全部负例测试绿
+  - 十三不变式策略类 + 协调器；判定分发零 switch-case（grep）；全部负例测试绿；doc.ts 三 DocType 类零判定方法（类面 grep 判定符号零残留，spec §2.2 断言面）
 - **DependsOn**: 2, 3
 
 ### Task 5: contract · lint——reference lint 独立 WARN pass
@@ -94,16 +96,16 @@
 
 - **Objective**: `src-next/session/graph.ts` TaskGraph（六类 validate：missing-edge/duplicate/missing-id/self-loop/contradiction/cycle + `batches()` 波次 + 反依赖门）+ `frontier(done)` 动态面 + `state.ts` ExecutionState 查询面
 - **Files**: `src-next/session/graph.ts`（新建）· `src-next/session/state.ts`（新建）· `src-next/session/__tests__/graph.test.ts`（新建）
-- **Consumes**: T2 登记表（task 块解析锚）· T1 骨架
+- **Consumes**: T1 骨架 · T4 doc.ts（plan DocType.parse：`### Task N:` 块 + DependsOn 边解析归口 doc.ts，Graph 复用同一解析实例）
 - **Produces**: `TaskGraph`（validate/batches/frontier）· `ExecutionState`（doneTasks(): Set<number> / readyBatch() 为方法，非独立新类）
 - **Steps**:
-  - `TaskGraph` 类：以登记表锚解析 `### Task N:` 块 + `DependsOn` 边 — checkable: 解析测试过
+  - `TaskGraph` 类：消费 doc.ts 的 plan parse（`### Task N:` 块 + `DependsOn` 边——解析单家在 doc.ts，Graph 不再自解析）→ 加工边校验 — checkable: 解析结果消费测试过
   - 六类 validate + 反依赖门 + batches 波次推导 — checkable: 六负例 + 波次断言测试绿
   - `frontier(done)` + `ExecutionState`（查询面）— checkable: frontier 就绪波次测试绿
   - commit `feat(engine): session graph+state`
 - **Acceptance**:
   - 六类 validate 与波次负例全绿；缺边/反依赖单家在此（无第二处 edge 判定）
-- **DependsOn**: 1, 2
+- **DependsOn**: 1, 2, 4
 
 ### Task 7: session · next——NextStepRouter 单点
 
@@ -113,7 +115,7 @@
 - **Produces**: `NextStepRouter#next(state, ref): Route|null`（决策表单点）
 - **Steps**:
   - 定义 Route/软帽（soft-cap 3 轮）常量 — checkable: 类型测试过
-  - next() 决策表（含 fix 面 blocker>0/warn-nit 分支 + 零 findings 组next）— checkable: 正例/负例测试绿（warn/nit → `next: none` · blocker>0 → review · BLOCKED 无 next）
+  - next() 决策表（含 fix 面 blocker>0/warn-nit 分支 + 零 findings → `next: none | next-group`）— checkable: 正例/负例测试绿（warn/nit → `next: none` · blocker>0 → review · BLOCKED 无 next）
   - 软帽建议（"BLOCKED: review-cycle-cap" 语）— checkable: 软帽测试绿
   - commit `feat(engine): session next 单点`
 - **Acceptance**:
@@ -129,11 +131,11 @@
 - **Steps**:
   - faces 数据表（task/branch/spec/plan 各自的审计目标 + 产物面 + next 消费语义）— checkable: faces 表测试过
   - Lifecycle.advance()（frontier→派发→结果→记账→next 路由）— checkable: 四类型端到端小循环测试绿
-  - 胶囊交互点（经 face/capsule，见 T10）留接口 — checkable: 接口类型测试绿
+  - 胶囊交互点（经 face/capsule，见 T10）留接口——非硬消费（T10 建成即接，本任务不建立面向 T10 的硬依赖，无缺失边）— checkable: 接口类型测试绿
   - commit `feat(engine): session run 单 lifecycle`
 - **Acceptance**:
   - 单一 lifecycle 类覆盖四目标类型；端到端 advance 测试全绿
-- **DependsOn**: 6, 7
+- **DependsOn**: 6, 7, 9（依赖边完整性由 T6 TaskGraph missing-edge validate 承诺校验——缺边即缺边负例失败）
 
 ### Task 9: session · ledger——会话账本
 
@@ -207,7 +209,7 @@
   - commit `feat(engine): bin 接线 + 新树测试全绿`
 - **Acceptance**:
   - `node src-next/bin.ts` 六命令可用；src-next project vitest 全绿；旧 src 测试保持绿（双面同时绿）
-- **DependsOn**: 11, 12
+- **DependsOn**: 5, 11, 12（lint 闭包 {3,4} 经 5 直达；8/9 经 11 传递闭包含入）
 
 ### Task 14: scripts-next 重写——守卫消费引擎元数据 + 单编排器
 
@@ -226,33 +228,34 @@
 
 ### Task 15: cutover——入口切换 + 删旧树
 
-- **Objective**: 入口切换（package.json#exports/bin + tsconfig include → `src-next`；`.kairos`/run 链 → scripts-next），随后**删除旧树**（`src/` 旧平面 · `scripts/` 旧工具），旧技能文件移除在 T16 一并
-- **Files**: `packages/cdd-engine/package.json`（改 exports/bin）· `packages/cdd-engine/tsconfig.json`（改 include → src-next）· `packages/cdd-engine/vitest.config.ts`（改）· `scripts/`（删）· `packages/cdd-engine/src/`（删）
+- **Objective**: 入口切换（cdd-engine package.json#exports/bin + tsconfig include → `src-next`；root package.json scripts 重连 → scripts-next/run.ts，`.kairos`/run 链随新树命中），随后**删除旧树**（`src/` 旧平面 · `scripts/` 旧工具），旧技能文件移除在 T16 一并
+- **Files**: `packages/cdd-engine/package.json`（改 exports/bin）· `packages/cdd-engine/tsconfig.json`（改 include → src-next）· `packages/cdd-engine/vitest.config.ts`（改）· root `package.json`（改 scripts：validate/precommit/emit/emit:check → `node scripts-next/run.ts …`，commit 链随新树命中）· `scripts/`（删）· `packages/cdd-engine/src/`（删）
 - **Consumes**: T13 新树全绿 · T14 scripts-next 全绿
 - **Produces**: 切点后的活跃树 = 新树；旧树/旧脚本零残留
 - **Steps**:
-  - 出口切换 package.json/tsconfig/vitest → src-next + scripts-next — checkable: `node packages/cdd-engine/src-next/bin.ts implement --help` 等从新入口可跑
-  - 删旧 `src/` 旧平面目录 + `scripts/` 旧工具 — checkable: 目录不存在（`test ! -d`）
-  - 零残留 grep（旧符号/旧分组/旧 helper 名全树零命中）— checkable: 残留 grep 断言绿
-  - commit `refactor(engine): cutover 切 src-next + 删旧树`（大删）
+  - 出口切换 cdd-engine package.json/tsconfig/vitest → src-next + scripts-next — checkable: `node packages/cdd-engine/src-next/bin.ts implement --help` 等从新入口可跑
+  - root package.json 四项 scripts 重连至 scripts-next/run.ts（validate/precommit/emit/emit:check；husky→lint-staged→`pnpm run precommit` 链随新树命中，关键命令不死亡）— checkable: `pnpm run validate`/`pnpm run emit` 经新链绿
+  - 删旧 `src/` 旧平面目录 + `scripts/` 旧工具 — checkable: 目录不存在（`test ! -d`）；删除提交本身走新 precommit 面（链已重连，无 ENOENT）
+  - 零残留 grep 作用于引擎/脚本面（cdd-engine 旧符号 · scripts/ 旧分组/旧 helper 名，新树面零命中）— checkable: 引擎/脚本面残留 grep 断言绿（技能文件残留归 T16/T17 swap，不在本 grep 作用域）
+  - commit `refactor(engine): cutover 切 src-next + 删旧树`（大删，经重连后的新 precommit 面提交）
 - **Acceptance**:
-  - 活跃入口全指新树；`src/`、`scripts/` 旧树零残留（grep 断言）；更新后引擎 CLI 从新树跑通六命令
+  - 活跃入口全指新树；引擎/脚本面旧树零残留（grep 断言）；更新后引擎 CLI 从新树跑通六命令；root `pnpm run validate/precommit/emit` 经 scripts-next 新链绿——删除旧树提交即走新 precommit 面
 - **DependsOn**: 14
 
 ### Task 16: 技能 8→6 重写 + skill-anatomy + emit 再生 + README
 
 - **Objective**: `packages/kairos/skills/` 重写为 6 集（cdd-design · cdd-spec-writer · cdd-plan · cdd-dev · cdd-close · cdd-report）；全链 digraph = 执行节点 + 单 next-loop 自环（边零状态标签）；skill-anatomy 注册 6 集 + 目录扫描守卫；emit 再生 (.claude/.cursor/marketplace)；README 随 6 集重写
-- **Files**: `packages/kairos/skills/*/SKILL.md`（8→6 重写）· `packages/cdd-engine/config/schema/skill-anatomy.json`（改 6 集注册）· `.claude-plugin/`·`.cursor-plugin/`·`marketplace/`（emit 产物）· `packages/kairos/README.md`（改）
+- **Files**: `packages/kairos/skills/*/SKILL.md`（8→6 重写）· `packages/cdd-engine/config/schema/skill-anatomy.json`（改 6 集注册）· `.claude-plugin/`·`.cursor-plugin/`·`marketplace/`（emit 产物）· `packages/kairos/README.md`（改）· `packages/kairos/README.zh-CN.md`（镜像同步，README 三件 mirror 政策同更）
 - **Consumes**: T15 新引擎语义（next: 单环路 / 胶囊词面）· T14 scripts-next（checkAnatomy）
 - **Produces**: 6 集 SKILL.md（spec-writer 合一参数化 · next-loop 折叠）· skill-anatomy 6 集注册 · emit 产物再生
 - **Steps**:
-  - 六链 SKILL.md 重写（digraph 单 next-loop 自环 · Node Definitions 零路由自述 · 纪律全数归 Invariants；cdd-spec-writer 参数化 single/phase/overall）— checkable: 六文件结构自查（digraph↔defs 一致）
+  - 六链 SKILL.md 重写（digraph 单 next-loop 自环 · Node Definitions 零路由自述 · 纪律全数归 Invariants；上游 import 面保持——superpowers:brainstorming / writing-plans / finishing-a-development-branch / mattpocock-skills:grilling，M 组 fit 映射不动；零程序历史 pin——SKILL.md 无程序叙事段/反历史块；cdd-spec-writer 参数化 single/phase/overall）— checkable: 六文件结构自查（digraph↔defs 一致）+ 上游 import 面与程序历史零残留 grep
   - skill-anatomy 注册 6 集 + 目录扫描守卫期望更新 — checkable: `node scripts-next/... validate` guard 绿（或新树校验面）
   - `node scripts-next/run.ts emit` 再生清单 — checkable: emit 产物与 `emit-check` 零漂移
-  - README 消费面随 6 集重写（技能表/upstream 安装表/独立入口说明）— checkable: README 表与目录扫描深度一致
+  - README 消费面随 6 集重写（技能表/upstream 安装表/独立入口说明）+ `packages/kairos/README.zh-CN.md` 镜像同步 — checkable: README 表与目录扫描深度一致；镜像与英文面一致（README 三件 mirror 政策）
   - commit `feat(kairos): 技能 8→6 + skill-anatomy + emit 再生`（governed by precommit/validate）
 - **Acceptance**:
-  - 6 集 SKILL.md 落地；digraph↔defs↔text 一致断言绿；skill-anatomy 6 集 + 注册守卫；emit 新鲜；README 一致
+  - 6 集 SKILL.md 落地；digraph↔defs↔text 一致断言绿；skill-anatomy 6 集 + 注册守卫；emit 新鲜；README 一致（含 `README.zh-CN.md` 镜像同步）；上游 import 面保持 + 零程序历史 pin 保持（grep 断言）
 - **DependsOn**: 15
 
 ### Task 17: 终验 + 消费面同步 + changesets + 净减账

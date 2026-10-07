@@ -1,6 +1,6 @@
 # 文档架构方法论 v2 —— P3.1 Design
 
-- **Version**: v1.7 · 2026-10-07（T6 窄化消解：引用 lint 定稿为宽松观测面——扫描面逐 field 界定（steps 排除）、`T7.1` spec-item 词形排除、前向引用豁免（反依赖门不可声明＝非缺边嫌疑）、树套件 BLOCK-only 口径；v1.6 · 2026-10-06 = F3 双层模型定稿与 review-3 七 finding 落地；v1.5 曾双态——d2a7b346 六 finding 态 与 F3 提交面实质改写态，父 overall v1.14「spec v1.5 随」记后者，v1.6 升号消同号二义）
+- **Version**: v1.8 · 2026-10-07（§2.2 增 severity 判据：事实判定 → BLOCK / 意图推断 → WARN，全规则集唯一分界——referenceLint 落 WARN 的依据；v1.7 · 2026-10-07 = T6 窄化消解：引用 lint 定稿为宽松观测面——扫描面逐 field 界定（steps 排除）、`T7.1` spec-item 词形排除、前向引用豁免（反依赖门不可声明＝非缺边嫌疑）、树套件 BLOCK-only 口径；v1.6 · 2026-10-06 = F3 双层模型定稿与 review-3 七 finding 落地；v1.5 曾双态——d2a7b346 六 finding 态 与 F3 提交面实质改写态，父 overall v1.14「spec v1.5 随」记后者，v1.6 升号消同号二义）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（kairos:cdd-design → grilling → cdd-phase）
 - **Parent program**: [doc-architecture-v2-overall.md v1.14](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
@@ -68,6 +68,8 @@ function runStructureRules(content: string, rules: readonly StructureRule[]): St
 | overall | kernel · 四表 facet ①–⑥ · **charter facets（条件化）**——Goal/Non-goals/Cross-cutting 恒为 presence 不变式（锚名按家族参数化，见 §2.5）；决策留存/决策组/背书按存在才执法（doc-arch overall 全量，另三份仅三 facets） | `overall.ts` 四表审计全部 |
 
 测试面：`tree-migration` / `dual-read` 的行走 → **消费同一引擎**（每 doc type 规则集喂 50 文件树，断言命中 = 0 或 pin）；内容保真逐字 pin 保留为 pin（非行走）。净效果：结构判定引擎面 ≈ 减 40%，每新增规则边际成本 = 一行数据 + 一条断言。
+
+**segment severity 判据（事实判定 vs 意图推断——2026-10-07 用户拍板，全规则集唯一分界）**：规则按"判定对象是否机械可证"二分——**事实判定 → BLOCK**（字段在不在 / 编号连不连续 / 锚解不解析 / 独立 bold 行整行 / 数字单调 / token 悬空——描述"文档是什么"，不可争辩 → 硬门，engine 消费面 + 迁移契约）；**意图推断 → WARN**（从 prose 推断作者写作意图——"引用 `Task N` 是不是暗示未声明边"——只有作者知道那句引用是依赖 / 叙述 / 历史 / 同组说明，且上游 SKILL 散文习惯不可实时同步 → 宽松观测，只提示不 gate 树绿）。一致性检验：现有 26 条结构规则全部符合该分界（fact → BLOCK · 意图 → 仅 `plan.referenceLint` 一条 WARN）；树套件全树零残留断言按此只对 BLOCK 级生效（WARN 由单测断言其正确触发，不进树绿）。
 
 #### 2.3 登记叶 ①：plan 边完备（F1 重建——单边化 + 反依赖门 + 波次分组）
 

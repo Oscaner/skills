@@ -1,9 +1,9 @@
 # 文档架构方法论 v2 —— P3.1 实施计划
 
-**Spec:** [2026-10-02-doc-architecture-v2-p3.1-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3.1-design.md)（spec v1.7）
+**Spec:** [2026-10-02-doc-architecture-v2-p3.1-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3.1-design.md)（spec v1.8）
 
 - **Parent program**: [doc-architecture-v2-overall.md v1.14](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.8 · 2026-10-07（T6 宽松观测面口径：引用 lint 定稿为「后向可声明缺边」WARN + 前向/spec-item/steps 豁免 + 树套件 BLOCK-only——align spec v1.7，T6 implement 第一轮 BLOCKED 的窄化消解）
+- **Version**: v1.9 · 2026-10-07（T6 宽松观测面口径 + severity 判据锚 spec v1.8：事实判定 → BLOCK / 意图推断 → WARN——referenceLint 落 WARN；前向/spec-item/steps 豁免 · 树套件 BLOCK-only）
 - **Depends on**: P3（shipped · [p3-design v1.1](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3-design.md)）
 - **Base**: develop
 

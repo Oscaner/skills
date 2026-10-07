@@ -26,6 +26,7 @@ import type {
   SectionBlock,
   TaskBlock,
 } from "./doc.ts";
+import { MarkdownPrimitives } from "./doc.ts";
 import type { DocKey, DocShape, DocSlices, ElementSlice } from "./project.ts";
 
 // ---------------------------------------------------------------------------
@@ -107,23 +108,14 @@ export interface JudgeContext {
 // the abstract strategy base
 // ---------------------------------------------------------------------------
 
-/** The one task-field surface: a required key a task block must carry. */
-const TASK_FIELD_KEYS = [
-  "Objective",
-  "Files",
-  "Consumes",
-  "Produces",
-  "Steps",
-  "Acceptance",
-  "DependsOn",
-] as const;
-
 /**
  * The abstract invariant — one strategy = one structural judgment. Subclasses
  * implement evaluate(ctx) and read all judgment data from the declared registries
- * + the parse face carried by the context.
+ * + the parse face carried by the context. The base extends MarkdownPrimitives:
+ * the link/token/table-row parsers shared with the parse face live in one home
+ * (doc.ts), never re-declared here.
  */
-export abstract class Invariant {
+export abstract class Invariant extends MarkdownPrimitives {
   /** The invariant's name — the finding attribution label. */
   abstract readonly name: string;
   /** Run the strategy — the single evaluation entry. */
@@ -164,20 +156,34 @@ export abstract class Invariant {
     return ctx.lines.filter((line) => this.lineCarries(slice, line));
   }
 
-  /** The `v<major>.<minor>` tokens on a line. */
-  protected versionTokens(line: string): readonly string[] {
-    const tokens: string[] = [];
-    for (const match of line.matchAll(/v\d+\.\d+/g)) tokens.push(match[0]);
-    return tokens;
+  /** The lines that carry the element as a real structural occurrence — a line whose
+   *  anchor only appears as a citation (a backticked code span, or a table cell of a
+   *  non-table element) is not a carrier and is never judged as a value. */
+  protected carrierLines(ctx: JudgeContext, slice: ElementSlice): readonly string[] {
+    return ctx.lines.filter(
+      (line) => this.lineCarries(slice, line) && this.#isStructuralCarrier(line, slice),
+    );
   }
 
-  /** The `[label](target)` links on a line. */
-  protected linksOnLine(line: string): readonly ChainLink[] {
-    const links: ChainLink[] = [];
-    for (const match of line.matchAll(/\[([^\]]*)\]\(([^)]+)\)/g)) {
-      links.push({ label: match[1], target: match[2] });
-    }
-    return links;
+  #isStructuralCarrier(line: string, slice: ElementSlice): boolean {
+    if (this.#isTableRow(line) && slice.home !== "table") return false;
+    if (!line.includes(slice.anchor)) return true;
+    return !this.#everyAnchorMentionIsCodeSpan(line, slice.anchor);
+  }
+
+  #isTableRow(line: string): boolean {
+    const trimmed = line.trim();
+    return trimmed.startsWith("|") && trimmed.endsWith("|");
+  }
+
+  /** Whether every literal anchor mention on the line stays inside a backtick code span. */
+  #everyAnchorMentionIsCodeSpan(line: string, anchor: string): boolean {
+    return !this.#withoutCodeSpans(line).includes(anchor);
+  }
+
+  /** The line with its backtick-delimited inline code spans removed. */
+  #withoutCodeSpans(line: string): string {
+    return line.replace(/`+[^`\n]*`+/g, "");
   }
 
   /** The parsed overall record — when the judged doc is an overall. */
@@ -239,6 +245,7 @@ export class PresenceInvariant extends Invariant {
       if (PRESENCE_HOMES.has(element.home) === false) continue;
       const slice = this.sliceOf(ctx, element.anchor);
       if (slice === undefined) continue;
+      if (this.#derivedPresenceHolds(ctx, slice)) continue;
       if (this.occurrenceLines(ctx, slice).length === 0) {
         findings.push(
           this.finding(
@@ -254,6 +261,30 @@ export class PresenceInvariant extends Invariant {
     return findings;
   }
 
+  /** A required surface whose occurrence is established by the parsed structure rather
+   *  than a line scan — the plan's `Task id token` only ever appears inside the
+   *  `### Task N:` headings, so it is present iff a task block exists. */
+  #derivedPresenceHolds(ctx: JudgeContext, slice: ElementSlice): boolean {
+    if (slice.home !== "task-block" || slice.anchor.startsWith("#")) return false;
+    return (this.plan(ctx)?.taskBlocks.length ?? 0) > 0;
+  }
+
+  /** The per-task-block required field keys — derived from the plan registry's
+   *  task-field elements (the bold `**Key**` markers; the `File path token` and
+   *  DependsOn-value leaves carry non-key anchors, and `Step action` lives on the
+   *  task-step home). Single-source: a field key added to the registry is enforced
+   *  per task block automatically. */
+  #requiredFieldKeys(ctx: JudgeContext): readonly string[] {
+    return this.elementsOf(ctx)
+      .filter(
+        (element) =>
+          element.home === "task-field" &&
+          element.anchor.startsWith("**") &&
+          element.anchor.endsWith("**"),
+      )
+      .map((element) => element.anchor.slice(2, -2));
+  }
+
   /** The per-task-block field surface — every required task-field key of a plan. */
   private taskFieldPresence(ctx: JudgeContext): Finding[] {
     const data = this.plan(ctx);
@@ -261,7 +292,7 @@ export class PresenceInvariant extends Invariant {
     const findings: Finding[] = [];
     for (const block of data.taskBlocks) {
       const keys = new Set(block.fields.map((field) => field.key));
-      for (const key of TASK_FIELD_KEYS) {
+      for (const key of this.#requiredFieldKeys(ctx)) {
         if (!keys.has(key)) {
           findings.push(
             this.finding(
@@ -386,9 +417,11 @@ export class DomainInvariant extends Invariant {
     for (const element of this.elementsOf(ctx)) {
       const slice = this.sliceOf(ctx, element.anchor);
       if (slice === undefined || slice.valuePattern === undefined) continue;
-      // The element is judged by the SHAPE of the lines that literally carry its
-      // anchor token — a `**Status**: Draft` line must match its declared pattern.
-      for (const line of this.anchorLines(ctx, element.anchor)) {
+      // The element is judged by the SHAPE of the lines that carry it structurally —
+      // a `**Status**: Draft` line must match its declared pattern. A prose citation
+      // (a backticked code-span mention, or a table cell of a non-table element) is
+      // not a carrier and is never judged as a value.
+      for (const line of this.carrierLines(ctx, slice)) {
         if (!slice.valuePattern.test(line)) {
           findings.push(
             this.finding(
@@ -573,7 +606,8 @@ export class OrderInvariant extends Invariant {
     return findings;
   }
 
-  /** The overall's change-history rows must be version-descending (newest first). */
+  /** The overall's change-history rows must be version-ascending — oldest first, the
+   *  latest revision last (the canonical repo format). */
   private historyOrder(ctx: JudgeContext): Finding[] {
     const data = this.overall(ctx);
     if (data === null) return [];
@@ -582,18 +616,18 @@ export class OrderInvariant extends Invariant {
       .map((row) => this.#versionPair(row[0] ?? ""))
       .filter((pair) => pair !== null) as readonly { major: number; minor: number }[];
     for (let i = 1; i < versions.length; i++) {
-      const higher = versions[i - 1];
-      const lower = versions[i];
+      const earlier = versions[i - 1];
+      const later = versions[i];
       if (
-        higher.major < lower.major ||
-        (higher.major === lower.major && higher.minor < lower.minor)
+        earlier.major > later.major ||
+        (earlier.major === later.major && earlier.minor > later.minor)
       ) {
         findings.push(
           this.finding(
             ctx,
             "Change history",
-            `change-history rows are not version-descending (v${higher.major}.${higher.minor} below v${lower.major}.${lower.minor})`,
-            "order the Change-history rows newest-first",
+            `change-history rows are not version-ascending (v${earlier.major}.${earlier.minor} above v${later.major}.${later.minor})`,
+            "order the Change-history rows oldest-first",
           ),
         );
         break;
@@ -757,7 +791,7 @@ export class HollowInvariant extends Invariant {
       const headingExists = this.anchorLines(ctx, anchor).length > 0;
       if (!headingExists) continue;
       const section = data.sections.find((s) => s.heading.includes(anchor.replace(/^## /, "")));
-      const tableRows = section === undefined ? [] : this.#dataRows(section);
+      const tableRows = section === undefined ? [] : this.tableRows(section.lines).slice(1);
       if (tableRows.length === 0) {
         findings.push(
           this.finding(
@@ -828,22 +862,6 @@ export class HollowInvariant extends Invariant {
     }
     return findings;
   }
-
-  #dataRows(section: SectionBlock): readonly string[][] {
-    const rows: string[][] = [];
-    for (const line of section.lines) {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) continue;
-      if (/^\|[\s:|-]+\|$/.test(trimmed)) continue;
-      rows.push(
-        trimmed
-          .split("|")
-          .slice(1, -1)
-          .map((cell) => cell.trim()),
-      );
-    }
-    return rows.slice(1); // the first non-separator row is the column header
-  }
 }
 
 /** selfBounded — the doc's own-scope lineage stays consistent with itself. */
@@ -859,12 +877,13 @@ export class SelfBoundedInvariant extends Invariant {
       .filter((version) => version !== null) as readonly string[];
     if (headerVersion === null || historyVersions.length === 0) return [];
     const findings: Finding[] = [];
-    if (headerVersion !== historyVersions[0]) {
+    const newest = this.#newestVersion(historyVersions);
+    if (headerVersion !== newest) {
       findings.push(
         this.finding(
           ctx,
           "**Version**",
-          `the header version ${headerVersion} is not the change-history's newest row (${historyVersions[0]})`,
+          `the header version ${headerVersion} is not the change-history's newest row (${newest})`,
           "bump both the **Version** header and the newest Change-history row together",
         ),
       );
@@ -893,6 +912,24 @@ export class SelfBoundedInvariant extends Invariant {
   #firstVersion(text: string): string | null {
     const match = text.match(/v\d+\.\d+/);
     return match === null ? null : match[0];
+  }
+
+  /** The newest lineage version — the numerically greatest (major, minor) row. */
+  #newestVersion(versions: readonly string[]): string {
+    let best = versions[0];
+    for (const version of versions) {
+      const [bestMajor, bestMinor] = this.#versionNumber(best);
+      const [currentMajor, currentMinor] = this.#versionNumber(version);
+      if (currentMajor > bestMajor || (currentMajor === bestMajor && currentMinor > bestMinor)) {
+        best = version;
+      }
+    }
+    return best;
+  }
+
+  #versionNumber(version: string): readonly [number, number] {
+    const match = version.match(/v(\d+)\.(\d+)/);
+    return match === null ? [0, 0] : [Number(match[1]), Number(match[2])];
   }
 }
 

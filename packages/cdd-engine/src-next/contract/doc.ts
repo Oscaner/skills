@@ -212,6 +212,58 @@ export interface PhaseSpecParsed {
 export type ParsedDoc = OverallParsed | PlanParsed | PhaseSpecParsed;
 
 // ---------------------------------------------------------------------------
+// the shared markdown primitives — one home for the link/token/table-row parsers
+// ---------------------------------------------------------------------------
+
+/**
+ * The shared extraction primitives: `[label](target)` links, `v<n>.<m>` version
+ * tokens and `|…|` table-row parsing. Both the parse face (DocType) and the
+ * judgment face (the Invariant base in invariants.ts) extend this base — the
+ * link/token/table parse logic lives in exactly one place of the new tree.
+ */
+export abstract class MarkdownPrimitives {
+  /** The `[label](target)` pairs parsed from one line. */
+  protected linksOnLine(line: string): readonly ChainLink[] {
+    const links: ChainLink[] = [];
+    const linkPattern = /\[([^\]]*)\]\(([^)]+)\)/g;
+    for (const match of line.matchAll(linkPattern)) {
+      links.push({ label: match[1], target: match[2] });
+    }
+    return links;
+  }
+
+  /** The `v<major>.<minor>` tokens on one line. */
+  protected versionTokens(line: string): readonly string[] {
+    const tokens: string[] = [];
+    const tokenPattern = /v\d+\.\d+/g;
+    for (const match of line.matchAll(tokenPattern)) tokens.push(match[0]);
+    return tokens;
+  }
+
+  /** The cells of one `|…|` table line (trimmed, wrapper bars excluded); null for a
+   *  non-table line or a separator row. */
+  protected tableRowCells(line: string): readonly string[] | null {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) return null;
+    if (/^\|[\s:|-]+\|$/.test(trimmed)) return null; // separator row
+    return trimmed
+      .split("|")
+      .slice(1, -1)
+      .map((cell) => cell.trim());
+  }
+
+  /** The non-separator `|…|` rows of a line run (the first row is the column header). */
+  protected tableRows(lines: readonly string[]): readonly string[][] {
+    const rows: string[][] = [];
+    for (const line of lines) {
+      const cells = this.tableRowCells(line);
+      if (cells !== null) rows.push([...cells]);
+    }
+    return rows;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // the DocType base — parse + projection consumption + chain root
 // ---------------------------------------------------------------------------
 
@@ -222,7 +274,7 @@ export type ParsedDoc = OverallParsed | PlanParsed | PhaseSpecParsed;
  * table rows, header lines, `[label](target)` link parsing) as class methods: the
  * class face stays judgment-free (zero validate/audit/detect methods).
  */
-export abstract class DocType<P extends ParsedDoc> {
+export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
   /** The doc-type record key — the projection-face identity. */
   readonly key: DocKey;
   /** The derived parse face (per-element anchor slices) of this doc type. */
@@ -236,6 +288,7 @@ export abstract class DocType<P extends ParsedDoc> {
   readonly #slicesByAnchor: ReadonlyMap<string, ElementSlice>;
 
   constructor(key: DocKey) {
+    super();
     this.key = key;
     this.slices = projectSlices()[key];
     this.shape = projectShape()[key];
@@ -359,43 +412,9 @@ export abstract class DocType<P extends ParsedDoc> {
 
   /** Parse a section's table: the column-header row + the data rows. */
   protected parseTable(lines: readonly string[]): ParsedTable {
-    const rows: string[][] = [];
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) continue;
-      if (/^\|[\s:|-]+\|$/.test(trimmed)) continue; // separator row
-      rows.push(
-        trimmed
-          .split("|")
-          .slice(1, -1)
-          .map((cell) => cell.trim()),
-      );
-    }
+    const rows = this.tableRows(lines);
     const headerRow = rows.length > 0 ? rows[0] : null;
     return { heading: "", headerRow, rows: rows.slice(1) };
-  }
-
-  /** The data rows of a table section — the non-separator `|…|` lines. */
-  protected tableRows(lines: readonly string[]): readonly string[][] {
-    return this.parseTable(lines).rows;
-  }
-
-  /** The `[label](target)` pairs parsed from one line. */
-  protected linksOnLine(line: string): readonly ChainLink[] {
-    const links: ChainLink[] = [];
-    const linkPattern = /\[([^\]]*)\]\(([^)]+)\)/g;
-    for (const match of line.matchAll(linkPattern)) {
-      links.push({ label: match[1], target: match[2] });
-    }
-    return links;
-  }
-
-  /** The `v<major>.<minor>` tokens on one line. */
-  protected versionTokens(line: string): readonly string[] {
-    const tokens: string[] = [];
-    const tokenPattern = /v\d+\.\d+/g;
-    for (const match of line.matchAll(tokenPattern)) tokens.push(match[0]);
-    return tokens;
   }
 
   /** The first `**Marker**:`-style header line by its literal marker. */
@@ -504,14 +523,13 @@ export class OverallDocType extends DocType<OverallParsed> {
     for (let index = 0; index < table.headerRow.length; index++) {
       columns.set(table.headerRow[index].toLowerCase(), index);
     }
-    const phaseIdx = columns.get("phase");
     const designIdx = columns.get("design spec");
     const planIdx = columns.get("implementation plan");
     const dependencyIdx = columns.get("dependency");
-    if (phaseIdx === undefined) return [];
+    if (columns.get("phase") === undefined) return [];
     const phases: ChainPhase[] = [];
     for (const row of table.rows) {
-      const id = row[phaseIdx]?.trim() ?? "";
+      const id = this.#phaseId(row);
       if (id === "") continue;
       phases.push({
         id,
@@ -521,6 +539,14 @@ export class OverallDocType extends DocType<OverallParsed> {
       });
     }
     return phases;
+  }
+
+  /** The phase id of a Phase-inventory data row — the cell carrying a phase-id token
+   *  (the first `#` column cell in the canonical repo row form, where the `Phase`
+   *  column holds the phase name). A numeric-led row falls back to its `Phase` cell. */
+  #phaseId(row: readonly string[]): string {
+    const idCell = row.find((cell) => /^P\d+(\.\d+)*$/.test(cell.trim()));
+    return idCell === undefined ? "" : idCell.trim();
   }
 
   /** The parsed table of one overall table section (empty when the section is absent). */

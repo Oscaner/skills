@@ -87,7 +87,7 @@
     },
     "Deviations row": {
       "type": "string",
-      "pattern": "^\\| ",
+      "pattern": "^\\|\\s*[^|]+\\s*\\|\\s*[^|]+\\s*\\|\\s*(Yes|No)\\b",
       "description": "presence: conditional · home: conditional · ref: none"
     },
     "Overall updated answer": {

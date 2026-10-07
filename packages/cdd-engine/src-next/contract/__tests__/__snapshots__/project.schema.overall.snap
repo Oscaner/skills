@@ -162,7 +162,7 @@
     },
     "Graph legend": {
       "type": "string",
-      "pattern": "^-> = hard block|^-> \\(soft\\) = suggestion only",
+      "pattern": "^(?:- )?`?->\\s*(?:\\(soft\\))?\\s*`? = hard block|^(?:- )?`?->\\s*\\(soft\\)\\s*`? = suggestion only",
       "description": "presence: required · home: graph · ref: none"
     },
     "File path row": {

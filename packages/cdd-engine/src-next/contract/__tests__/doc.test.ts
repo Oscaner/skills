@@ -48,8 +48,8 @@ const OVERALL = [
   "## Phase inventory",
   "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
   "| --- | --- | --- | --- | --- | --- | --- |",
-  "| 1 | P1 | scope a | [P1-design](docs/kairos/specs/x-p1-design.md) | [P1 plan](docs/kairos/plans/x-p1.md) | criteria a |  |",
-  "| 2 | P2 | scope b | P2-design | [P2 plan](docs/kairos/plans/x-p2.md) | criteria b |  |",
+  "| P1 | DocType 抽象 + schema 工厂 | scope a | [P1-design](docs/kairos/specs/x-p1-design.md) | [P1 plan](docs/kairos/plans/x-p1.md) | criteria a |  |",
+  "| P2 | 判定面 + 协调器 | scope b | P2-design | [P2 plan](docs/kairos/plans/x-p2.md) | criteria b |  |",
   "",
   "## Dependency graph (ASCII)",
   "P1 -> P2",
@@ -64,8 +64,8 @@ const OVERALL = [
   "## Change history",
   "| Version | Date | Summary |",
   "| --- | --- | --- |",
-  "| v1.21 | 2026-10-07 | merged change |",
   "| v1.20 | 2026-10-06 | prior change |",
+  "| v1.21 | 2026-10-07 | merged change |",
 ];
 
 /** A conforming plan — the header chain anchors + the `### Task N:` blocks. */
@@ -169,7 +169,7 @@ describe("OverallDocType.parse — the four tables + the chain root", () => {
     ]);
   });
 
-  it("parses the Phase-inventory table (header-driven columns -> chain phases)", () => {
+  it("parses the Phase-inventory table (id from the canonical first-column cell -> chain phases)", () => {
     const table = parsed.tables["Phase inventory"];
     expect(table.rows).toHaveLength(2);
     expect(parsed.chain.phases.map((phase) => phase.id)).toEqual(["P1", "P2"]);
@@ -181,7 +181,7 @@ describe("OverallDocType.parse — the four tables + the chain root", () => {
 
   it("parses the Change-history rows with their version tokens", () => {
     const table = parsed.tables["Change history"];
-    expect(table.rows.map((row) => row[0])).toEqual(["v1.21", "v1.20"]);
+    expect(table.rows.map((row) => row[0])).toEqual(["v1.20", "v1.21"]);
   });
 
   it("parses the dependency-graph edge lines into from/to tokens", () => {

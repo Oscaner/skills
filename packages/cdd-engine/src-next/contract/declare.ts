@@ -381,7 +381,8 @@ const OVERALL_ELEMENTS = [
   {
     anchor: "Graph legend",
     presence: "required",
-    valuePattern: "^-> = hard block|^-> \\(soft\\) = suggestion only",
+    valuePattern:
+      "^(?:- )?`?->\\s*(?:\\(soft\\))?\\s*`? = hard block|^(?:- )?`?->\\s*\\(soft\\)\\s*`? = suggestion only",
     refKind: "none",
     home: "graph",
   },
@@ -742,7 +743,7 @@ const PHASE_SPEC_ELEMENTS = [
   {
     anchor: "Deviations row",
     presence: "conditional",
-    valuePattern: "^\\| ",
+    valuePattern: "^\\|\\s*[^|]+\\s*\\|\\s*[^|]+\\s*\\|\\s*(Yes|No)\\b",
     refKind: "none",
     home: "conditional",
   },

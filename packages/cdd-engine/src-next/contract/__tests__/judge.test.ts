@@ -50,12 +50,12 @@ const GOOD_OVERALL = [
   "## Phase inventory",
   "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
   "| --- | --- | --- | --- | --- | --- | --- |",
-  "| 1 | P1 | scope a | [P1-design](docs/kairos/specs/x-p1-design.md) | [P1 plan](docs/kairos/plans/x-p1.md) | criteria a |  |",
-  "| 2 | P2 | scope b | P2-design | [P2 plan](docs/kairos/plans/x-p2.md) | criteria b |  |",
+  "| P1 | DocType 抽象 + schema 工厂 | scope a | [P1-design](docs/kairos/specs/x-p1-design.md) | [P1 plan](docs/kairos/plans/x-p1.md) | criteria a |  |",
+  "| P2 | 判定面 + 协调器 | scope b | P2-design | [P2 plan](docs/kairos/plans/x-p2.md) | criteria b |  |",
   "",
   "## Dependency graph",
   "P1 -> P2",
-  "-> = hard block",
+  "- `->` = hard block（依赖前置 phase 发布后方可启动）",
   "",
   "## Boundary rules",
   "- boundary rule",
@@ -66,8 +66,8 @@ const GOOD_OVERALL = [
   "## Change history",
   "| Version | Date | Summary |",
   "| --- | --- | --- |",
-  "| v1.21 | 2026-10-07 | merged change |",
   "| v1.20 | 2026-10-06 | prior change |",
+  "| v1.21 | 2026-10-07 | merged change |",
 ].join("\n");
 
 const OVERALL_PATH = "docs/kairos/specs/x-overall.md";
@@ -236,6 +236,117 @@ describe("base nine invariants — one negative case each", () => {
     );
     const findings = judge("overall", content, GOOD_OVERALL_FS);
     expect(withKind(findings, "selfBounded", "**Version**")).toBe(true);
+  });
+});
+
+describe("the canonical repo forms (no false positives on real conventions)", () => {
+  it("presence: the token-in-heading task id is satisfied by the parsed task blocks (not a line scan)", () => {
+    const content = [
+      "# Test Plan",
+      "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
+      "- **Parent program**: [x-overall.md v1.21](docs/kairos/specs/x-overall.md)",
+      "",
+      ...planTask(1),
+    ].join("\n");
+    const findings = judge("plan", content, EMPTY_FS);
+    expect(withKind(findings, "presence", "Task id token")).toBe(false);
+  });
+
+  it("presence: the graph legend tolerates the canonical backticked form — and its absence is reported", () => {
+    const removed = GOOD_OVERALL.replace(
+      "- `->` = hard block（依赖前置 phase 发布后方可启动）",
+      "P1 -> P1b",
+    );
+    expect(withKind(judge("overall", removed, GOOD_OVERALL_FS), "presence", "Graph legend")).toBe(
+      true,
+    );
+  });
+
+  it("presence: a task block missing a registry-declared task field is reported (derived field set)", () => {
+    const content = [
+      "# Test Plan",
+      "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
+      "- **Parent program**: [x-overall.md v1.21](docs/kairos/specs/x-overall.md)",
+      "",
+      "### Task 1: task",
+      "- **Objective**: objective",
+      "- **Files**: file",
+      "- **Consumes**: consumes",
+      "- **Produces**: produces",
+      "- **Steps**:",
+      "  - step one",
+      "- **DependsOn**: none",
+    ].join("\n");
+    const findings = judge("plan", content, EMPTY_FS);
+    expect(withKind(findings, "presence", "**Acceptance**")).toBe(true);
+  });
+
+  it("domain: a backticked citation of an anchor literal is not judged as a value", () => {
+    const content = [
+      "# Test Plan",
+      "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
+      "- **Parent program**: [x-overall.md v1.21](docs/kairos/specs/x-overall.md)",
+      "- **Consumes**: T1 骨架 · doc.ts（plan DocType.parse：`### Task N:` 块归口 doc.ts）",
+      "",
+      ...planTask(1),
+    ].join("\n");
+    const findings = judge("plan", content, EMPTY_FS);
+    expect(withKind(findings, "domain", "### Task N:")).toBe(false);
+  });
+
+  it("domain: a table-cell citation of a section anchor is not judged as a value", () => {
+    const content = GOOD_OVERALL.replace(
+      "| v1.20 | 2026-10-06 | prior change |",
+      "| v1.20 | 2026-10-06 | `## Program charter` 重构 |",
+    );
+    const findings = judge("overall", content, GOOD_OVERALL_FS);
+    expect(withKind(findings, "domain", "## Program charter")).toBe(false);
+  });
+
+  it("order: the change-history rows must be version-ascending (canonical oldest-first)", () => {
+    const content = GOOD_OVERALL.replace(
+      ["| v1.20 | 2026-10-06 | prior change |", "| v1.21 | 2026-10-07 | merged change |"].join(
+        "\n",
+      ),
+      ["| v1.21 | 2026-10-07 | merged change |", "| v1.20 | 2026-10-06 | prior change |"].join(
+        "\n",
+      ),
+    );
+    const findings = judge("overall", content, GOOD_OVERALL_FS);
+    expect(withKind(findings, "order", "Change history")).toBe(true);
+  });
+
+  it("residue: a legitimate design-body table does not count as Deviations residue", () => {
+    const content = [
+      "# Test Spec",
+      "- **Version**: v1.0",
+      "- **Status**: Draft",
+      "- **Author**: x",
+      "- **Parent program**: [x-overall.md v1.0](docs/kairos/specs/x-overall.md)",
+      "- **Depends on**: P1",
+      "",
+      "## Design",
+      "",
+      "### 1. 数据面",
+      "#### 1.1 技能集合",
+      "| skill | 角色 | 说明 |",
+      "| --- | --- | --- |",
+      "| cdd-design | 编排 | brainstorm 路由 |",
+      "| cdd-analysis | spec-writer | 参数化模板 |",
+      "",
+      "### Acceptance criteria",
+      "",
+      "- `c`",
+      "",
+      "## Constraints",
+      "",
+      "- delta",
+      "",
+      "## Review record",
+      "- review note",
+    ].join("\n");
+    const findings = judge("phaseSpec", content, EMPTY_FS);
+    expect(withKind(findings, "residue")).toBe(false);
   });
 });
 

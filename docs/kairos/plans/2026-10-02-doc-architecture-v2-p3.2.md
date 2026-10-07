@@ -1,4 +1,4 @@
-# 文档架构方法论 v2 — P3.2 Implementation Plan v1.1（全系统从零重建 greenfield）
+# 文档架构方法论 v2 — P3.2 Implementation Plan（全系统从零重建 greenfield）
 
 **Spec:** [2026-10-02-doc-architecture-v2-p3.2-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3.2-design.md)
 
@@ -7,7 +7,7 @@
 - **Depends on**: P3.1（Done）· P3.2 design spec v1.2（Approved · 2026-10-07）
 - **Base**: develop
 
-执行序：新树 `src-next` 自底向上建齐（骨架 → contract → session → face → infra/render → bin）→ 引擎测试全绿 → cutover（入口切换 + 删旧树）→ scripts-next → 技能 8→6 → 终验。新旧零依赖贯穿全计划（T1 起 grep 断言、每任务自测）。
+执行序：新树 `src-next` 自底向上建齐（骨架 → contract → session → face → infra/render → bin）→ 引擎测试全绿 → `scripts-next` 重写 → cutover（入口切换 + 删旧树 + **`scripts-next` → `scripts` 改名**）→ 技能 8→6 → 终验。新旧零依赖贯穿全计划（T1 起 grep 断言、每任务自测）。
 
 ### Task 1: 骨架——src-next 5 平面 + 双面构建 + 零依赖断言
 
@@ -205,10 +205,10 @@
 - **Steps**:
   - bin.ts 完整（环境检测 + cli 装载 + exit 语义）— checkable: `node src-next/bin.ts schema get plan` 输出规范 schema
   - 补齐新树测试缺口（每平面 __tests__ 全绿）— checkable: `pnpm --filter @oscaner-skills/cdd-engine test` 含 src-next project 全绿
-  - 新树自测基线记录（文件/用例数）入计划 — checkable: 基线表落盘
+  - 新树自测基线记录（文件/用例数）入计划 + **零裸函数全树断言面收账**（`grep -rn "^export function" src-next --include="*.ts"`，排除 `__tests__`——session/face/render/infra 平面一并入基线账，T18 全树 grep 断言面自此基线确立）— checkable: 基线表落盘 · 断言面记录
   - commit `feat(engine): bin 接线 + 新树测试全绿`
 - **Acceptance**:
-  - `node src-next/bin.ts` 六命令可用；src-next project vitest 全绿；旧 src 测试保持绿（双面同时绿）
+  - `node src-next/bin.ts` 六命令可用；src-next project vitest 全绿；旧 src 测试保持绿（双面同时绿）；零裸函数全树断言面并入基线账
 - **DependsOn**: 5, 11, 12（lint 闭包 {3,4} 经 5 直达；8/9 经 11 传递闭包含入）
 
 ### Task 14: scripts-next 重写——守卫消费引擎元数据 + 单编排器
@@ -229,49 +229,50 @@
 
 ### Task 15: cutover——入口切换 + 删旧树
 
-- **Objective**: 入口切换（cdd-engine package.json#exports/bin + tsconfig include → `src-next`；root package.json scripts 重连 → scripts-next/run.ts，`.kairos`/run 链随新树命中），随后**删除旧树**（`src/` 旧平面 · `scripts/` 旧工具）· **旧数据面 `config/` 整目录删除**（v1.4 数据面归位——13 文件 ~150K 零残留，零重建：T21 后新树零读 config/，此处纯删），旧技能文件移除在 T16 一并
-- **Files**: `packages/cdd-engine/package.json`（改 exports/bin）· `packages/cdd-engine/tsconfig.json`（改 include → src-next）· `packages/cdd-engine/vitest.config.ts`（改）· root `package.json`（改 scripts：validate/precommit/emit/emit:check → `node scripts-next/run.ts …`，commit 链随新树命中）· `scripts/`（删）· `packages/cdd-engine/src/`（删）· **`packages/cdd-engine/config/`（删：engine-config/harness-contract/template-contract/contract-lexicon + schema/ 九文件 —— T21 数据面归位后无读者）**
+- **Objective**: 入口切换（cdd-engine package.json#exports/bin + tsconfig include → `src-next`；root package.json scripts 重连 → scripts-next/run.ts，`.kairos`/run 链随新树命中），随后**删除旧树**（`src/` 旧平面 · `scripts/` 旧工具）· 工具链终态**`scripts-next` → `scripts` 改名**（spec §6.1——先删旧 `scripts/` 再占回规范名，新工具链终态恒为 `scripts/`）· **旧数据面 `config/` 整目录删除**（v1.4 数据面归位——13 文件 ~150K 零残留，零重建：T21 后新树零读 config/，此处纯删），旧技能文件移除在 T16 一并
+- **Files**: `packages/cdd-engine/package.json`（改 exports/bin）· `packages/cdd-engine/tsconfig.json`（改 include → src-next）· `packages/cdd-engine/vitest.config.ts`（改）· root `package.json`（改 scripts：validate/precommit/emit/emit:check → 先连 `node scripts-next/run.ts …`、改名后单点更新为 `node scripts/run.ts …`，commit 链随新树命中）· `scripts-next/`（改名 → `scripts/` 占回规范名，spec §6.1）· `scripts/`（删）· `packages/cdd-engine/src/`（删）· **`packages/cdd-engine/config/`（删：engine-config/harness-contract/template-contract/contract-lexicon + schema/ 九文件 —— T21 数据面归位后无读者）**
 - **Consumes**: T13 新树全绿 · T14 scripts-next 全绿（skill-anatomy 已归位引擎导出，config/schema 无残留读者）· T21 数据面归位（config/ 读取面清零）
 - **Produces**: 切点后的活跃树 = 新树；旧树/旧脚本/旧数据面零残留
 - **Steps**:
   - 出口切换 cdd-engine package.json/tsconfig/vitest → src-next + scripts-next — checkable: `node packages/cdd-engine/src-next/bin.ts implement --help` 等从新入口可跑
   - root package.json 四项 scripts 重连至 scripts-next/run.ts（validate/precommit/emit/emit:check；husky→lint-staged→`pnpm run precommit` 链随新树命中，关键命令不死亡）— checkable: `pnpm run validate`/`pnpm run emit` 经新链绿
   - 删旧 `src/` 旧平面目录 + `scripts/` 旧工具 + `config/` 旧数据面（skill-anatomy 无读者——T14 已归位引擎导出）— checkable: 三目录不存在（`test ! -d`）；删除提交本身走新 precommit 面（链已重连，无 ENOENT）
-  - 零残留 grep 作用于引擎/脚本/**数据面**（cdd-engine 旧符号 · scripts/ 旧分组/旧 helper 名 · `config/` slash 路径形在 src-next 面零命中——新树零 config 引用面，T21 后已清零） — checkable: 引擎/脚本/数据面残留 grep 断言绿（技能文件残留归 T16/T17 swap，不在本 grep 作用域）
-  - commit `refactor(engine): cutover 切 src-next + 删旧树·旧数据面`（大删，经重连后的新 precommit 面提交）
+  - `scripts-next` → `scripts` 改名（spec §6.1 工具链终态占回规范名：旧 `scripts/` 已删无同名冲突；root package.json 四项 scripts 的 `scripts-next/run.ts` 引用随之单点更新为 `scripts/run.ts`，与 CLAUDE.md 关键命令面 `scripts/run.ts emit` 命令面一致）— checkable: `test ! -d scripts-next` · `pnpm run validate/emit` 经 `scripts/run.ts` 新链绿
+  - 零残留 grep 作用于引擎/脚本/**数据面**（cdd-engine 旧符号 · scripts/ 旧分组/旧 helper 名 · `scripts-next` 名零残留——唯一工具链名为 `scripts/` · `config/` slash 路径形在 src-next 面零命中——新树零 config 引用面，T21 后已清零） — checkable: 引擎/脚本/数据面残留 grep 断言绿（技能文件残留归 T16/T17 swap，不在本 grep 作用域）
+  - commit `refactor(engine): cutover 切 src-next + 删旧树·旧数据面 + scripts-next→scripts 改名`（大删 + 改名，经重连后的新 precommit 面提交）
 - **Acceptance**:
-  - 活跃入口全指新树；引擎/脚本/**数据面**旧树零残留（grep 断言：src-next 无 `config/` slash 路径命中 · `config/` 目录不存在）；更新后引擎 CLI 从新树跑通六命令；root `pnpm run validate/precommit/emit` 经 scripts-next 新链绿——删除旧树提交即走新 precommit 面
-- **DependsOn**: 14
+  - 活跃入口全指新树；引擎/脚本/**数据面**旧树零残留（grep 断言：src-next 无 `config/` slash 路径命中 · `config/` 目录不存在 · `scripts-next` 改名后零残留）；**T21 数据面归位先于 T15 达成**（DependsOn 21 为硬前置——config/ 零读面清零后才删）；更新后引擎 CLI 从新树跑通六命令；root `pnpm run validate/precommit/emit` 经 `scripts/run.ts` 新链绿（**`scripts/run.ts` 为唯一工具链名**）——删除旧树提交即走新 precommit 面
+- **DependsOn**: 14, 21
 
 ### Task 16: 技能 8→6 重写 + skill-anatomy + emit 再生 + README
 
-- **Objective**: `packages/kairos/skills/` 重写为 6 集（cdd-design · cdd-spec-writer · cdd-plan · cdd-dev · cdd-close · cdd-report）；全链 digraph = 执行节点 + 单 next-loop 自环（边零状态标签）；skill-anatomy 注册 6 集（经 T14 归位的引擎契约面导出）+ 目录扫描守卫；emit 再生 (.claude/.cursor/marketplace)；README 随 6 集重写
+- **Objective**: `packages/kairos/skills/` 重写为 6 集（cdd-design · cdd-spec-writer · cdd-plan · cdd-dev · cdd-close · cdd-report）；**五链 digraph（design/spec-writer/plan/dev/close）统一骨架** = 一次性执行节点 + NEXT-LOOP 单自环（边零状态标签），**两项例外**——cdd-close 止于 finish 编排语义门 + 终端（无 review 自环）· cdd-report 一次性上报工具链（无自环）；**cdd-design 收敛参数化单模板**（spec §4.1：run-cdd-charter 双节点 + run-cdd-spec/run-cdd-phase 两近同 dispatch 节点合一）；skill-anatomy 注册 6 集（经 T14 归位的引擎契约面导出）+ 目录扫描守卫；emit 再生 (.claude/.cursor/marketplace)；README 随 6 集重写
 - **Files**: `packages/kairos/skills/*/SKILL.md`（8→6 重写）· `src-next/contract/skill-anatomy.ts`（改：6 集注册；T14 归位面）· `.claude-plugin/`·`.cursor-plugin/`·`marketplace/`（emit 产物）· `packages/kairos/README.md`（改）· `packages/kairos/README.zh-CN.md`（镜像同步，README 三件 mirror 政策同更）· **`CLAUDE.md`（改：skill-anatomy 链接 → 引擎契约面）+ `docs/maintainers/04-program-experience.md`（改：路径引用同步）**
-- **Consumes**: T15 新引擎语义（next: 单环路 / 胶囊词面）· T14 scripts-next（checkAnatomy 经引擎导出）
+- **Consumes**: T15 新引擎语义（next: 单环路 / 胶囊词面）· T14 `scripts/`（checkAnatomy 经引擎导出——T15 改名后终态名）· T20 `cdd base` 命令面（技能文本 seam：`cdd base` 词面同步落）
 - **Produces**: 6 集 SKILL.md（spec-writer 合一参数化 · next-loop 折叠）· skill-anatomy 6 集注册 · emit 产物再生
 - **Steps**:
-  - 六链 SKILL.md 重写（digraph 单 next-loop 自环 · Node Definitions 零路由自述 · 纪律全数归 Invariants；上游 import 面保持——superpowers:brainstorming / writing-plans / finishing-a-development-branch / mattpocock-skills:grilling，M 组 fit 映射不动；零程序历史 pin——SKILL.md 无程序叙事段/反历史块；cdd-spec-writer 参数化 single/phase/overall）— checkable: 六文件结构自查（digraph↔defs 一致）+ 上游 import 面与程序历史零残留 grep
-  - skill-anatomy 注册 6 集（引擎契约面改）+ 目录扫描守卫期望更新 — checkable: `node scripts-next/... validate` guard 绿（或新树校验面）
-  - `node scripts-next/run.ts emit` 再生清单 — checkable: emit 产物与 `emit-check` 零漂移
+  - 六款 SKILL.md 重写（**五链 digraph 统一骨架**：design/spec-writer/plan/dev 四链 NEXT-LOOP 单自环 + cdd-close 止于 finish 编排语义门 + 终端 + cdd-report 一次性上报工具链——两项例外显式（无自环）· digraph 边零状态标签；Node Definitions 零路由自述 · 纪律全数归 Invariants；上游 import 面保持——superpowers:brainstorming / writing-plans / finishing-a-development-branch / mattpocock-skills:grilling，M 组 fit 映射不动；零程序历史 pin——SKILL.md 无程序叙事段/反历史块；cdd-spec-writer 参数化 single/phase/overall + **cdd-design 参数化单模板**（双 run-cdd-charter 节点 + run-cdd-spec/run-cdd-phase 近同节点收敛，spec §4.1））— checkable: 六文件结构自查（digraph↔defs 一致 + 边零状态标签）+ 上游 import 面与程序历史零残留 grep
+  - skill-anatomy 注册 6 集（引擎契约面改）+ 目录扫描守卫期望更新 — checkable: `node scripts/... validate` guard 绿（或新树校验面）
+  - `node scripts/run.ts emit` 再生清单 — checkable: emit 产物与 `emit-check` 零漂移
   - README 消费面随 6 集重写（技能表/upstream 安装表/独立入口说明）+ `packages/kairos/README.zh-CN.md` 镜像同步 — checkable: README 表与目录扫描深度一致；镜像与英文面一致（README 三件 mirror 政策）
   - CLAUDE.md + maintainers 文档 skill-anatomy 路径引用 → 引擎契约面（T14 归位面）— checkable: 引用 grep 新路径一致
   - commit `feat(kairos): 技能 8→6 + skill-anatomy + emit 再生`（governed by precommit/validate）
 - **Acceptance**:
-  - 6 集 SKILL.md 落地；digraph↔defs↔text 一致断言绿；skill-anatomy 6 集 + 注册守卫；emit 新鲜；README 一致（含 `README.zh-CN.md` 镜像同步）；CLAUDE.md/maintainers 路径引用同步；上游 import 面保持 + 零程序历史 pin 保持（grep 断言）
-- **DependsOn**: 15
+  - 6 集 SKILL.md 落地；五链 digraph 统一骨架（四链 NEXT-LOOP 自环 · cdd-close 止于 finish 编排语义门 + 终端 · cdd-report 无自环——两项例外）+ 边零状态标签 + digraph↔defs↔text 一致断言绿；cdd-design 参数化单模板（charter 双节点 + spec/phase 近同节点收敛）断言绿；skill-anatomy 6 集 + 注册守卫；emit 新鲜；README 一致（含 `README.zh-CN.md` 镜像同步）；CLAUDE.md/maintainers 路径引用同步；上游 import 面保持 + 零程序历史 pin 保持（grep 断言）
+- **DependsOn**: 15, 20
 
 ### Task 17: 终验 + 消费面同步 + changesets + 净减账
 
 - **Objective**: 全量终验（validate ALL PASS · typecheck ×3 · biome · emit 新鲜）· 三 schema description 与登记表一致（派生同步）· changesets（cdd-engine major / kairos major）· 净减账落档（29k → −20%±）· 历史文档零 retro-rename 复核
 - **Files**: `.changeset/*.md`（新建）· `docs/kairos/specs/*.md`（只读复核，不改历史正文）· 净减账记录（计划/文档面）
-- **Consumes**: T16 技能/emit · T15 新树 · T14 scripts-next
+- **Consumes**: T16 技能/emit · T15 新树 · T14 `scripts/`
 - **Produces**: validate ALL PASS · changesets · 净减账记录
 - **Steps**:
-  - 全量终验链 — checkable: `node scripts-next/run.ts validate`（或 precommit 等价）ALL PASS
+  - 全量终验链 — checkable: `node scripts/run.ts validate`（或 precommit 等价）ALL PASS
   - typecheck ×3 + biome — checkable: 全绿
   - 三 schema description 与登记表一致性复核（派生对账）— checkable: 对账断言绿
   - `pnpm run changeset` 建 changeset（cdd-engine major · kairos major）— checkable: .changeset/* 落盘
-  - 零残留全树 grep（旧符号/旧技能数 8→6 残留）· 净减账（新树 src-next 行数 vs 旧基线）— checkable: grep 零 + 净减行数入记录
+  - 零残留全树 grep（旧符号/旧技能数 8→6 残留/`scripts-next` 名——唯一工具链名 `scripts/`）· 净减账（新树 src-next 行数 vs 旧基线）— checkable: grep 零 + 净减行数入记录
   - 历史文档零 retro-rename 复核（docs/kairos/specs 既往版本行不动）— checkable: git log 对比复核通过
   - commit `chore: P3.2 终验 + changesets + 净减账`
 - **Acceptance**:
@@ -283,28 +284,28 @@
 - **Objective**: 全契约平面归零模块级裸函数（用户 2026-10-07 裁决「我不希望有裸函数」）：`contract/project.ts` 六投影函数 + `escapeRegExp` → **`Projector` 类**（构造注入 `declaredRegistries` · 方法面 shape/schema/slices/tokens/reference/registries · escapeRegExp 私有静态）；`contract/declare.ts` 两守卫 → **`RegistryGuard` 类静态方法**（type predicate 收类成员）；judge/doc/lint 消费面随构造注入；全树模块级导出仅 类型/常量数据/类/组合根（grep 断言钉死）
 - **Files**: `src-next/contract/project.ts`（改：收类）· `src-next/contract/declare.ts`（改：守卫收类）· `src-next/contract/judge.ts`（改：`Projector` 构造注入消费）· `src-next/contract/doc.ts`（改：`Projector` 消费）· `src-next/contract/lint.ts`（改：`Projector` 消费）· `src-next/contract/__tests__/{project,declare}.test.ts`（改：类方法面）· `src-next/contract/__tests__/zero-dep-related`（无新增）
 - **Consumes**: T2 登记表 · T3 投影（裸函数现面）· T4 judge/doc（裸函数消费）· T5 lint（裸函数消费）
-- **Produces**: `Projector` 类 + `RegistryGuard` 类；全契约平面（`contract/**` 除 `__tests__`）模块级 `export function` 零命中
+- **Produces**: `Projector` 类 + `RegistryGuard` 类；**全树**（`src-next/**` 除 `__tests__`）模块级 `export function` 零命中（唯一豁免 = 组合根装载面 bin.ts/cli.ts，spec §2.1）
 - **Steps**:
   - `Projector` 类（构造注入 registries；方法 shape/schema/slices/tokens/reference/registries；escapeRegExp 私有静态）— checkable: 类面测试绿
   - `RegistryGuard.isElement()` / `RegistryGuard.isRegistry()` 静态谓词（原 isRegistryElement/isElementRegistry 语义）— checkable: 守卫测试绿
   - judge/doc/lint 三消费面改 `new Projector(declaredRegistries)` 注入与 `.xxx()` 方法调用 — checkable: 波及测试全绿（src-next vitest 全绿）
-  - 零裸函数 grep 断言入 acceptance：`grep -rn "^export function" src-next/contract --include="*.ts"`（排除 `__tests__`）零命中 — checkable: grep 绿
+  - 零裸函数 grep 断言入 acceptance：`grep -rn "^export function" src-next --include="*.ts"`（排除 `__tests__`；组合根装载面 bin.ts/cli.ts 豁免，spec §2.1「…/组合根」）零命中 — checkable: grep 绿（session/face/render/infra 平面随同收面，断言面自 T13 基线起即全树）
   - commit `refactor(engine): Contract 派生/守卫面收类——零裸函数全平面`
 - **Acceptance**:
-  - `Projector`/`RegistryGuard` 类落地；`contract/**`（除 `__tests__`）模块级导出仅 类型/常量数据/类；零裸函数 grep 零命中；消费面（judge/doc/lint/project/declare 测试）全绿
-- **DependsOn**: 6
+  - `Projector`/`RegistryGuard` 类落地；`src-next/**`（除 `__tests__`）模块级导出仅 类型/常量数据/类/组合根（装载面豁免）；零裸函数 grep 零命中（全树断言）；消费面（judge/doc/lint/project/declare 测试）全绿
+- **DependsOn**: 3, 5, 6
 
 ### Task 19: 翻译系统——P7 全量核心（词表 locale 面 + 双向翻译层 + langs 派生 + 渲染器归位）
 
 - **Objective**: 用户 2026-10-07 拍板「IssueBodyRenderer.langs 升级为翻译系统，P7 提前」——单词表（T10)加 **locale 面**（每条词挂 `{ en: 规范型, zh?: 中文别名 }`）· 单一**双向翻译层 `Translator`**（`normalize(输入)→规范 token` 中文别名↔英文规范型 · doc parse/判定消费；`localize(token,locale)→输出词` · 人类可读渲染面 locale-normalized）· **`langs` 投影派生**（`["en","zh"]` 硬编码归零 = 词表 locale 键集投影）· **IssueBodyRenderer 从 face/cli 迁 render/** + 语言表数据化；capsule 机面 `status/next:/CDD_BLOCKED:` 英文恒定不 locale 化（机器面非人类文本）；P7 原「doc token English-primary 化」转换半随 greenfield 消解（新树首版锚即英文）· 识别半由翻译层承接，「legacy 中文标记可解析」随旧树删除消解
-- **Files**: `src-next/face/words.ts`（改：locale 列 + 翻译层数据）· `src-next/contract/translate.ts`（新建：`Translator` 类，词表驱动零 switch）· `src-next/render/issue-body.ts`（新建：IssueBodyRenderer 迁入 render/）· `src-next/face/cli.ts`（改：渲染器移出组合根）· `src-next/face/__tests__/face.test.ts`（改）· `src-next/render/__tests__/render.test.ts`（改：渲染器测试归位）· `src-next/contract/__tests__/translate.test.ts`（新建）
+- **Files**: `src-next/face/words.ts`（改：locale 列 + 翻译层数据）· `src-next/contract/translate.ts`（新建：`Translator` 类，词表驱动零 switch）· `src-next/render/issue-body.ts`（新建：IssueBodyRenderer 迁入 render/）· `src-next/face/cli.ts`（改：渲染器移出组合根）· `src-next/face/__tests__/face.test.ts`（改：词表 locale 面测试）· `src-next/face/__tests__/cli.test.ts`（改：渲染器测试移出 → render.test.ts 归位）· `src-next/render/__tests__/render.test.ts`（新建：渲染器测试归位）· `src-next/contract/__tests__/translate.test.ts`（新建）
 - **Consumes**: T10 单词表 · T3/T18 `Projector` 派生 · T11 cli（渲染器现落印）
 - **Produces**: `Translator` 类（normalize/localize）· Words locale 面（词条目 alias 数据）· `langs` 投影派生 · render/issue-body.ts（IssueBodyRenderer 归位 · 语言表数据驱动）
 - **Steps**:
   - Words locale 面：词条目允许 `{ en, zh? }` — checkable: 词表测试绿（无第二词表）
   - `Translator` 类：normalize（中文别名↔规范型双向）+ localize（locale-normalized 输出），词表驱动零 switch、零裸函数 — checkable: translate.test 正/负例绿（含中文别名识别）
   - `langs` 派生：语言键集 = 词表 locale 键集投影；IssueBodyRenderer 校验改投影包含 — checkable: langs 投影测试绿（无硬编码 `["en","zh"]`）
-  - IssueBodyRenderer 迁 `render/issue-body.ts`（face/cli 仅装配）：段标签数据化 + 渲染器测试归位 — checkable: render.test + cli.test 绿
+  - IssueBodyRenderer 迁 `render/issue-body.ts`（face/cli 仅装配）：段标签数据化 + 渲染器测试归位（原 cli.test.ts 内渲染器测试随迁 `render.test.ts` 新建；cli.test.ts 只留子命令面测试）— checkable: render.test + cli.test 绿
   - capsule 机面英文恒定断言（status/next:/CDD_BLOCKED: 不 locale 化）— checkable: 胶囊字节 pin 仍绿
   - commit `feat(engine): 翻译系统——词表 locale + Translator 双向层 + langs 派生`（自测绿后）
 - **Acceptance**:
@@ -362,7 +363,7 @@
 
 ## Constraints
 
-- **新旧零依赖（贯穿 T1–T17）**：`src-next` ↔ 旧树双向零 import；新树全量按新架构/OOP 单范式重写，不借用旧符号/旧 helper/旧目录形状；**数据面归位（T21，v1.4）**：三稳态 JSON 收敛为 typed 平面成员（infra/runtime · face/host · render/templates）——新树零 JSON 读取、零读旧 `config/` 路径（grep 断言），`config/` 整目录随 T15 cutover 删除零重建；schema/lexicon 派生产物由新树自派生（并行期测试不读旧派生产物）
+- **新旧零依赖（贯穿 T1–T22）**：`src-next` ↔ 旧树双向零 import；新树全量按新架构/OOP 单范式重写，不借用旧符号/旧 helper/旧目录形状；**数据面归位（T21，v1.4）**：三稳态 JSON 收敛为 typed 平面成员（infra/runtime · face/host · render/templates）——新树零 JSON 读取、零读旧 `config/` 路径（grep 断言），`config/` 整目录随 T15 cutover 删除零重建；schema/lexicon 派生产物由新树自派生（并行期测试不读旧派生产物）
 - **双面构建纪律**：cutover 前旧树保持活跃（入口未切）；每任务自测绿（该任务面 vitest/独立断言）再交下任务；新树 vitest project 与旧树并存且各自全绿
 - **每任务一个提交**：conventional commit（feat/refactor/docs/chore 前缀）；precommit（lint-staged）绿才提交；历史文档正文零 retro-rename（docs/kairos/specs 既往版本行不动）
 - **净减账为方向证明**：T13 起记录新树行数基线，T17 出具 29k → −20%± 的净减账（真实值为准，不架构假账）

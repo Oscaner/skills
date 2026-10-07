@@ -1,6 +1,6 @@
 # 文档架构方法论 v2 —— P3.1 Design
 
-- **Version**: v1.8 · 2026-10-07（§2.2 增 severity 判据：事实判定 → BLOCK / 意图推断 → WARN，全规则集唯一分界——referenceLint 落 WARN 的依据；v1.7 · 2026-10-07 = T6 窄化消解：引用 lint 定稿为宽松观测面——扫描面逐 field 界定（steps 排除）、`T7.1` spec-item 词形排除、前向引用豁免（反依赖门不可声明＝非缺边嫌疑）、树套件 BLOCK-only 口径；v1.6 · 2026-10-06 = F3 双层模型定稿与 review-3 七 finding 落地；v1.5 曾双态——d2a7b346 六 finding 态 与 F3 提交面实质改写态，父 overall v1.14「spec v1.5 随」记后者，v1.6 升号消同号二义）
+- **Version**: v1.9 · 2026-10-07（§2.6 编排状态机 + §3.1 验收 T7 面缩域：frontier/next 路由器/ExecutionState/skills 编排精简并入 P3.2 实现——用户 2026-10-07 拍板「T7/T8 并入 P3.2」，避免在即将重构的统一面上先实现一遍；P3.1 收尾 = changesets + 全量终验；v1.8 · 2026-10-07 = §2.2 severity 判据——事实判定 → BLOCK / 意图推断 → WARN，referenceLint 落 WARN 的依据；v1.7 · 2026-10-07 = T6 窄化消解：引用 lint 定稿为宽松观测面——扫描面逐 field 界定（steps 排除）、`T7.1` spec-item 词形排除、前向引用豁免（反依赖门不可声明＝非缺边嫌疑）、树套件 BLOCK-only 口径；v1.6 · 2026-10-06 = F3 双层模型定稿与 review-3 七 finding 落地；v1.5 曾双态——d2a7b346 六 finding 态 与 F3 提交面实质改写态，父 overall v1.14「spec v1.5 随」记后者，v1.6 升号消同号二义）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（kairos:cdd-design → grilling → cdd-phase）
 - **Parent program**: [doc-architecture-v2-overall.md v1.14](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
@@ -97,7 +97,9 @@ function runStructureRules(content: string, rules: readonly StructureRule[]): St
 - 机器检查：facets presence 恒为不变式，锚名按家族参数化（枚举 4 份 overall 实际锚名——doc-arch：`Goal`/`Non-goals`/`Cross-cutting`；pi-harness：`Goal`/`Non-goals`/`Cross-cutting`（后缀注解原文保留）；consumer-parity：`Goal`/`Non-goals`/`Cross-cutting constraints`；osuperpowers-overhaul：goal 锚 = charter 开篇散文 +「cdd-engine 服务化主线（2026-09-13 用户升维）」标记、`Non-goals`、`Cross-cutting constraints`——重命名标记家族升秩后以各自原文为 `###` 锚，presence 按之执法）· 「存在才执法」（doc-arch overall 全量枚举，另三份 overall 无此面、不枚举）· 伪标题残留 BLOCK（overall 侧同 pattern）
 - 全树 4 份 overalls 迁移（内容逐字 · 容器只移）；`## Boundary rules` / `## Maintenance` 已是正规 `##` 节，不动
 
-#### 2.6 编排状态机：frontier 动态面 + `next:` 推荐 + skills 编排精简（T7 扩域）
+#### 2.6 编排状态机：frontier 动态面 + `next:` 推荐 + skills 编排精简（**并入 P3.2 实现——2026-10-07 用户拍板「T7/T8 并入 P3.2」**）
+
+本节的编排状态机设计意图随 P3.2 实现（与引擎结构收敛同事务，避免在即将重构的统一面上先实现一遍再重构）；P3.1 不实现本节。
 
 TaskGraph 从「静态图」升为「编排状态机」，`next:` 是它的投影：
 
@@ -114,7 +116,7 @@ interface TaskGraph {
 - **next 路由器单点（一并收）**：`next:` 生成从 6+ 处散布（dispatch/task · docs · branch · cli/review · fix · result-face）收敛为 `nextStep(state, ref)` 一个函数——同环优先（review→fix→re-review closure 判定）∧ closure→`frontier(done)`；spec/plan（docHash ref）与 task/branch（commit-range ref）经同一路由器，skill 全链消费
 - **skills 编排精简**（2026-10-06 用户拍板：最大程度代替 skills）：cdd-dev flow 的 loop 判定（`more-groups?` / 下一组选择）→ `next:` 消费——编排方不写「下一组是什么」，只读 `next:` 派发；cdd-spec/plan/phase/charter 的 review→fix→commit 三态循环同路由 next 驱动；**异常/人工面保留**：HARNESS_ABORT 恢复 / mid-flight backfill 暂停 / user adjudication 覆盖 / Plan Sole Writer（跨任务修订）不依赖 engine 推荐
 - **代替边界**：代替「状态判定」（下一组/同环路由/组序 = 拓扑序），保留「契约 + 异常面」（skill 仍是入口与兜底）
-- P5 的 group-next 段摘出交还本 phase（overall v1.12 同步）；P5 其余（DispatchContract/Packet/ref 四型/capabilities）不动，其 graph-node ref 以本 phase `frontier` 为消费底座
+- P5 的 group-next 段摘出交还本 phase（overall v1.12 同步 · v1.16 后随 P3.2 实现）；P5 其余（DispatchContract/Packet/ref 四型/capabilities）不动，其 graph-node ref 以 P3.2 落地后的 `frontier` 为消费底座
 
 ### 3. 全树文档迁移
 
@@ -145,8 +147,8 @@ tree-migration 扩展 pin：每块边行存在 · 19 份提秩文件 `### N.` �
 - `- ` 每 plan 任务块单边行存在（`DependsOn`: `none`/空/真实值合法）· 缺行 = plan validate BLOCK（missing-edge 第六 failure class 负例）· `none` 解析 → `[]` · 非法 token 保持 NaN 拒绝
 - `- ` 反依赖门：`DependsOn` 仅可引用更小编号 · 引用 ≥ 自身 = BLOCK（`forward-edge-plan` 负例夹具断言）· 全树现有边核查零违规
 - `- ` `Task.dependsOn` 非可选（缺省 `[]`）；`atomicWith`/`taskGroups` 声明面全树退役零残留（读取面 · 对称闭包 · schema 字段 · 夹具 · pins · SKILL 双边描述 grep 零命中）
-- `- ` TaskGraph `batches()` 波次推导：P3.1 raise-specs 波次拆分断言（如 T3‖T4‖T5 同波次）· `effectiveGroups` 切波次消费（声明面退役）；`frontier(done)` 动态面可用（给定完成集 → 下一就绪波次）· `next:` 组间 default = 同环优先 ∧ frontier（skills 编排精简依据）
-- `- ` 技能编排精简：cdd-dev flow loop 判定（`more-groups?`/下一组）改为 `next:` 消费 · 异常/人工面保留（HARNESS_ABORT 恢复 · backfill 暂停 · adjudication 覆盖 · Plan Sole Writer）· SKILL 文本 English-primary 零程序历史
+- `- ` TaskGraph `batches()` 波次推导：P3.1 raise-specs 波次拆分断言（如 T3‖T4‖T5 同波次）· `effectiveGroups` 切波次消费（声明面退役）；`frontier(done)`/`next:` 路由器/ExecutionState 随 P3.2 实现（本 phase 验收不含——P3.1 T7 并入 P3.2）
+- `- ` 技能编排精简：**随 P3.2**（P3.1 不实现——frontier/next/ExecutionState/skills 精简一体移入 P3.2，避免在结构收敛前先实现一遍）；P3.1 消费面 = plan/spec SKILL 撰作面 + shipped 零程序历史 grep pin（§4.1，单边/designItems/charter 指导早已就位）
 - `- ` 全树 design specs：`### N.` 分组头连续性 + `#### N.M` items 归属 + 计数 + 标题逐字 pin · 空体/hollow 零 · 独立 bold 行伪标题零残留（pattern grep 命中 = 仅豁免散文逐行 pin，见 §2.4）
 - `- ` 全树 overalls：各 overall 既有 charter 标记按家族锚名升秩在位（doc-arch：facets + 决策留存 `###`、决策组/背书 `####`；另三份：三 facets `###` 按 §2.5 锚名）· 法外零残留
 - `- ` `cdd implement` / `cdd review` pre-flight 走 docContractValidate 覆盖全部新规则（dry-run 负例断言）
@@ -167,7 +169,7 @@ tree-migration 扩展 pin：每块边行存在 · 19 份提秩文件 `### N.` �
 ## Notes for downstream
 
 - **P4（cdd-doc-review 一产化）**：plan-review 必答问题机制（F5 兜底）落位在本 phase 消费面；P4 的 cdd-doc-review 评审轴应将「边完备 + 登记叶结构」纳入 URC 检查面
-- **P5（DispatchContract/DispatchPacket）**：本 phase 声明「跨文档链不并入」；group-next 段已交还本 phase（§2.6 frontier 落地）；P5 承接时，StructureRule 的 crosslink 不变式可作 doc-revision 底座，graph-node ref 以本 phase `frontier(done)` 为消费底座（TaskGraph 状态机动态面）
+- **P5（DispatchContract/DispatchPacket）**：本 phase 声明「跨文档链不并入」；group-next 段已交还本 phase（§2.6 frontier 落地，v1.16 后随 P3.2 实现）；P5 承接时，StructureRule 的 crosslink 不变式可作 doc-revision 底座，graph-node ref 以 P3.2 落地后的 `frontier(done)` 为消费底座（TaskGraph 状态机动态面）
 - **P6（宪法/档案分层）**：本 phase 只做结构秩不动分层；P6 承接已秩化的 charter 底座 + OverallDocBody 三件套做宪法化与 issue/history 归档
 - **P7（token 翻译）**：DOC_TOKENS 新增叶切片（designItemHeading / charterFacets）随本 phase 进 token 面，P7 翻译层承接
 - **父面消解待办（交编排方，随父面下轮修订落位；本 design 冻结期不并改父面）**：(a) 父 overall（v1.14）P3.1 执行序行「统一引擎落地（F9）」与 F1–F7 清单不符（F6 = 统一结构规则引擎）——修订为 F6 或删除（见 §2.1）；(b) 父 overall v1.12 change-history ②「`DependsOn` 不用 `none`（缺行 = 无边）」与父 P3.1 行「空/`none` 合法」相反字面——none 词法 / 留空二选一消解（见 §2.3 登记）；(c) plan v1.4 T4 的 171/pin 措辞随本 spec §2.4/§3.1 修订同步——已随 plan v1.4 T4 双层迁移定义落地（173 = 171 处迁移 + 2 条豁免散文逐行 pin，口径与本 spec 计数对账一致），本待办消解

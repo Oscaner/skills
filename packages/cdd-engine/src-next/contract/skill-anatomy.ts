@@ -1,8 +1,7 @@
 // packages/cdd-engine/src-next/contract/skill-anatomy.ts
 // T14 — the skill-anatomy contract typed export: skill-anatomy.json's content
 // relocates into this typed constant module (the engine contract plane). The old
-// JSON home is retired — the guard (scripts-next) consumes THIS export, never a
-// JSON path.
+// JSON home is retired — the guard (scripts) consumes THIS export, never a JSON path.
 //
 // The contract: the node-anchored skill (SKILL.md) document structure — the
 // section-heading registry (a STRICT allowlist), the `## Flow Digraph` mermaid

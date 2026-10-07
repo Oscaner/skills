@@ -1,21 +1,36 @@
 // packages/cdd-engine/src-next/__tests__/zero-dep.test.ts
-// P3.2 zero-dependency guard (T1): while the old tree (src/) and the new tree
-// (src-next/) coexist, they must stay mutually import-free (the plan's zero-dependency
-// constraint, T1-T17). This test scans both trees' module specifiers - static imports, imports
-// with side effects, re-exports and dynamic import() - and fails if any specifier
-// resolves into the sibling tree, in either direction. Every src-next file importing
-// an old-tree symbol, or any old src file importing src-next, is a hard violation.
+// P3.2 zero-dependency guard (T1 → cutover): during the two-tree coexistence window the
+// old tree (src) and the new tree (src-next) had to stay mutually import-free. The
+// cutover (T15) deleted the old tree — the guard now pins the post-cutover terminal
+// state: the retired planes of this package (the src and config planes) are absent from
+// disk, and no src-next module specifier may address them (a dangling reference into a
+// deleted plane is a hard violation of the plan's zero-residue constraint). The two-way
+// scan becomes one-way: src-next is the only live plane left.
 
 import { readdirSync, readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
 
 const SRC_NEXT = fileURLToPath(new URL("../", import.meta.url));
-const SRC = fileURLToPath(new URL("../../src/", import.meta.url));
+const PKG_ROOT = fileURLToPath(new URL("../../", import.meta.url)); // packages/cdd-engine/
 
-// The two-tree plane discriminant: which tree a module specifier addresses.
-type TreePlane = "src" | "src-next";
+// The retired-plane discriminant: which deleted plane a module specifier addresses.
+// The bare dirnames (no trailing slash — a slash-prefixed form would itself trip the
+// cutover's zero-residue grep) are the only retired-plane tokens the guard names.
+type RetiredPlane = "src" | "config";
+const RETIRED_PLANES: readonly RetiredPlane[] = ["src", "config"];
+
+/** Which retired plane a first path segment names, or null. */
+function retiredBySegment(head: string | undefined): RetiredPlane | null {
+  return head === "src" || head === "config" ? head : null;
+}
+
+/** The retired plane a resolved path falls into (by the package-root-relative first
+ *  segment), or null when the path lives in a live plane or outside the package. */
+function retiredByResolved(resolved: string): RetiredPlane | null {
+  return retiredBySegment(relative(PKG_ROOT, resolved).split(sep)[0]);
+}
 
 // Module specifier patterns: `from "..."` (static import + re-export), dynamic
 // `import("...")`, and side-effect `import "..."`.
@@ -86,33 +101,35 @@ function extractSpecifiers(text: string): string[] {
   return [...specifiers];
 }
 
-// Result: the tree a module specifier addresses, or null when it addresses neither
-// tree (bare package, node: builtin, external module).
-function addressedTree(specifier: string, importer: string): TreePlane | null {
-  if (specifier === "src" || specifier.startsWith("src/")) return "src";
-  if (specifier === "src-next" || specifier.startsWith("src-next/")) return "src-next";
+// Result: the retired plane a module specifier addresses, or null when it addresses
+// neither (a live plane, a bare package, a node: builtin, or an external module).
+function addressedRetiredPlane(specifier: string, importer: string): RetiredPlane | null {
   if (!specifier.startsWith("./") && !specifier.startsWith("../") && !specifier.startsWith("/")) {
-    return null;
+    return retiredBySegment(specifier.split("/")[0]);
   }
   const resolved = specifier.startsWith("/") ? specifier : resolve(dirname(importer), specifier);
-  if (resolved.startsWith(SRC)) return "src";
-  if (resolved.startsWith(SRC_NEXT)) return "src-next";
-  return null;
+  return retiredByResolved(resolved);
 }
 
-it("src-next and src stay mutually import-free (bidirectional zero-dependency guard)", () => {
-  const files = [...listTsFiles(SRC_NEXT, []), ...listTsFiles(SRC, [])];
+it("the retired src and config planes are deleted from the package (the cutover terminal pin)", () => {
+  const entries = readdirSync(PKG_ROOT);
+  for (const name of RETIRED_PLANES) {
+    expect(entries, `deleted plane ${name} must be absent from the package root`).not.toContain(
+      name,
+    );
+  }
+});
+
+it("src-next carries zero module specifiers addressing the retired src or config planes", () => {
+  const files = listTsFiles(SRC_NEXT, []);
   const violations: string[] = [];
   for (const file of files) {
-    const fromNext = file.startsWith(SRC_NEXT);
     for (const specifier of extractSpecifiers(readFileSync(file, "utf8"))) {
-      const target = addressedTree(specifier, file);
-      if (target === null) continue;
-      const crossing = fromNext ? target === "src" : target === "src-next";
-      if (crossing) violations.push(`${file} imports "${specifier}"`);
+      const target = addressedRetiredPlane(specifier, file);
+      if (target !== null) violations.push(`${file} imports "${specifier}"`);
     }
   }
   const message =
-    violations.length > 0 ? violations.join("\n") : "src-next <-> src are import-free";
+    violations.length > 0 ? violations.join("\n") : "src-next has no retired-plane references";
   expect(violations, message).toEqual([]);
 });

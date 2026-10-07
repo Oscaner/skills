@@ -7,20 +7,19 @@
     "node": ">=22.18.0"
   },
   "files": [
-    "dist/",
-    "config/",
+    "src-next/",
     "templates/"
   ],
-  "main": "./dist/bin.js",
+  "main": "./src-next/bin.ts",
   "exports": {
-    ".": "./dist/bin.js",
+    ".": "./src-next/bin.ts",
     "./package.json": "./package.json"
   },
   "bin": {
-    "cdd": "./dist/bin.js"
+    "cdd": "./src-next/bin.ts"
   },
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json && rm -rf dist/config && mkdir -p dist/config && cp -R config/. dist/config/",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "test": "vitest run",
     "test:watch": "vitest"
   },

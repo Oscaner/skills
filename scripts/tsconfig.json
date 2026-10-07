@@ -9,5 +9,5 @@
     "erasableSyntaxOnly": true,
     "types": ["node"]
   },
-  "include": ["**/*.ts", "../vitest.config.ts", "../lint-staged.config.ts"]
+  "include": ["**/*.ts"]
 }

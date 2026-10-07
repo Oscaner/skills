@@ -6,12 +6,20 @@ import { execSync } from "node:child_process";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { DOC_ROOT_EXCLUDE_PATHS, DOC_ROOT_SEGMENTS } from "../../../scripts/lib/doc-root.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..", "..", "..");
 
-// Docs root single source (scripts/lib/doc-root.ts) — exclusion suffixes derive from it, never hand-written in the chain.
+// The docs-root exclusion suffixes — the historical spec/plan records under
+// `docs/kairos/` legitimately carry the swept tokens (frozen history), so the sweeps
+// must exclude them. Single source: these grep sweeps are the only consumer (the old
+// scripts/lib/doc-root.ts helper died with the cutover — the values fold here).
+const DOC_ROOT_SEGMENTS = ["docs", "kairos"] as const;
+const DOC_ROOT_EXCLUDE_PATHS = ["specs", "plans"].map(
+  (seg) => `${DOC_ROOT_SEGMENTS.join("/")}/${seg}/`,
+);
+
+// Exclusion suffixes derive from the segments, never hand-written in the chain.
 const DOC_ROOT_EXCLUDES = DOC_ROOT_EXCLUDE_PATHS.map((p) => `| grep -v "${p}" `).join("");
 const DOC_ROOT_PREFIX = `| grep -v "${DOC_ROOT_SEGMENTS.join("/")}/" `;
 

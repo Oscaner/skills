@@ -2,9 +2,9 @@
 // Pins the live packages/kairos/package.json manifest contract for the pi harness:
 // the `pi-package` keyword, the `pi.skills` declaration, the R0 invariant (no extensions /
 // prompts keys), the skills-count truth (the shared countSkillsWithMarkdown + module-level
-// EXPECTED export from scripts/validate/kairos.ts — never a local literal), and the
-// static files closure (pi-declared paths ⊆ pkg.files whitelist). Pure static fs +
-// node:assert; zero subprocesses, zero engine invocation at runtime.
+// EXPECTED export from scripts/lib/guard.ts — the re-homed single source, never a local
+// literal), and the static files closure (pi-declared paths ⊆ pkg.files whitelist). Pure
+// static fs + node:assert; zero subprocesses, zero engine invocation at runtime.
 
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -12,7 +12,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { countSkillsWithMarkdown, EXPECTED } from "../../../scripts/validate/kairos.ts";
+import { countSkillsWithMarkdown, EXPECTED } from "../../../scripts/lib/guard.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG_DIR = path.resolve(HERE, "..");

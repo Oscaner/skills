@@ -1,6 +1,6 @@
 # 文档架构方法论 v2 — P3.2 Design Spec v1.2（全系统从零重建 · 判定单家 · 工作流归一）
 
-- **Version**: v1.3 · 2026-10-07（v1.2 spec-review 九 finding 已落；v1.3 = P7 提前承接 backfill——翻译系统全量核心入 §1.3 · CLI 命令面 `base-branch`→`base` · capsule 机面英文恒定 · 渲染器归位 render）
+- **Version**: v1.4 · 2026-10-07（前置 v1.3 = P7 提前承接 backfill——翻译系统全量核心入 §1.3 · CLI 命令面 `base-branch`→`base` · capsule 机面英文恒定 · 渲染器归位 render；**v1.4 = P4/P5/P6/P7 全吸收 + 数据面归位 backfill**——用户 2026-10-07 拍板「config-next 完成以后删除 config」升华：**数据面归位**（三稳态 JSON → typed 平面 infra/runtime · face/host · render/templates · P4 review 准则/P5 M1+禁文 承接净入 §6.4 · skill-anatomy 归守卫 T14 · `config/` 整目录随 cutover 删除零重建 · 新树零 JSON/零 config/ 路径）· **P6 宪法化承接**（宪法/档案双层 · 版本行散文消解 · Standing rules 成典 · 全树 4 overalls）入 §6.5——plan v1.4 · overall v1.23 随）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5（kairos:cdd-phase · 决策源 = kairos:cdd-design grilling 收敛 + 用户 2026-10-07 greenfield 拍板）
 - **Parent program**: [doc-architecture-v2-overall.md v1.21](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
@@ -77,7 +77,7 @@ task/branch/docs 三个 near-同构 lifecycle（旧 3.6k 行）收敛为**参数
 
 #### 5.1 守卫单源
 
-scripts 全重写：guard **consumes engine metadata**（通道审计 / 词汇面 / 结构断言全部走引擎导出或词表单源派生），并行正则世界关闭。residue 词 ban 表（STALE/GATE）→ 词表单源数据行；channel-audit 字面（env/argv/解析文件名）→ 引擎导出。checkAnatomy 语义**保留**（技能结构契约 = 方法论机器化，Q6 判例），实现随技能 6 集重写。
+scripts 全重写：guard **consumes engine metadata**（通道审计 / 词汇面 / 结构断言全部走引擎导出或词表单源派生），并行正则世界关闭。residue 词 ban 表（STALE/GATE）→ 词表单源数据行；channel-audit 字面（env/argv/解析文件名）→ 引擎导出。checkAnatomy 语义**保留**（技能结构契约 = 方法论机器化，Q6 判例），实现随技能 6 集重写；**skill-anatomy 契约随守卫归位引擎契约面**（v1.4：`config/schema/skill-anatomy.json` → typed 导出 · guard 消费导出非 JSON 路径 · config 旧址随 T15 cutover 删除）——守卫的数据/契约消费 = 引擎导出，零 JSON 路径。
 
 #### 5.2 emit/validate 单一编排
 
@@ -111,7 +111,7 @@ packages/cdd-engine/src-next/
   infra/                      # 真基建（resource/config · git · process · workspace，≤5 文件）
 ```
 
-**新旧零依赖（硬规则）**：新树自包含——`src-next/**` 零 import 旧树（双向：旧树亦零 import 新树；grep 断言钉死），新树连基建（infra/）、词表（face/words）、派生（contract/project）全部**重新实现**，不借用任何旧符号/旧分组/旧 helper；外部契约 JSON（engine-config / harness-contract / template-contract）作为**稳态数据**按同址读取（数据消费，非代码依赖），而 schema / lexicon / tokens 等**派生产物由新树自派生**——并行期新树测试只用自派生数据，不读旧派生产物。两树共存的唯一共同物 = 方法论本身（消费规范与词面土层，以数据形态存在），代码级互为透明。
+**新旧零依赖（硬规则）**：新树自包含——`src-next/**` 零 import 旧树（双向：旧树亦零 import 新树；grep 断言钉死），新树连基建（infra/）、词表（face/words）、派生（contract/project）全部**重新实现**，不借用任何旧符号/旧分组/旧 helper；**数据面归位（v1.4 承接）**——外部契约 JSON（engine-config / harness-contract / template-contract）**不作为外部文件读取**，收敛为新树 **typed 平面成员**（`infra/runtime.ts` · `face/host.ts` · `render/templates.ts` · §6.4），新树零 JSON 读取、零读旧 `config/` 路径（grep 断言）——「按同址读取」旧妥协取消（引擎外零外部 JSON 消费者：仅本 repo 自有 kairos tests + 将删旧 scripts，全由 P3.2 接管）；schema / lexicon / tokens 等**派生产物由新树自派生**——并行期新树测试只用自派生数据，不读旧派生产物。两树共存的唯一共同物 = 方法论本身（消费规范与词面土层），代码级互为透明。
 
 组织原则从「按文件类型归档」（旧 cli/dispatch/artifacts/documents/domain/rules/render/infra 八目录 + bin.ts 入口面——doctypes/body 为 documents/ 下的嵌套层，非顶面）改为「按职责语义聚合」：**contract / session / face 三大职责 + render/infra 两服务**。跨面碎片归位——胶囊散在 rules/result-face+next-step、词表散在 documents/words+infra/word-table、账本散在 artifacts/×9 → 各归其家。文件数 **72 → ~30-38**，顶平面 **8 → 5**。
 
@@ -121,7 +121,24 @@ packages/cdd-engine/src-next/
 
 #### 6.3 净减与验收账
 
-生产面基线 ≈ 29k 行（engine 18.7k · scripts 7.0k · kairos 0.84k · config 2.5k）→ 目标 **−20% 内左右**（工作流重复体 + 双判定面 + 五家词表 + 三 lifecycle 合一的最大来源）；净减行为入验收；旧树/旧符号/旧技能文件**零残留 grep**；消费面（capsule 词面 · 三真骨架 schema 语义 · cdd CLI 命令面）保持稳态。changesets cdd-engine major + kairos major · README 与消费面文档随 6 集重写。
+生产面基线 ≈ 29k 行（engine 18.7k · scripts 7.0k · kairos 0.84k · config 2.5k）→ 目标 **−20% 内左右**（工作流重复体 + 双判定面 + 五家词表 + 三 lifecycle 合一的最大来源）；净减行为入验收；**数据面归位入净减账（v1.4）**——`config/` 整目录（13 文件 ~150K）随 cutover 删除零重建；旧树/旧符号/旧技能文件**零残留 grep**；消费面（capsule 词面 · 三真骨架 schema 语义 · cdd CLI 命令面）保持稳态。changesets cdd-engine major + kairos major · README 与消费面文档随 6 集重写。
+
+#### 6.4 承接 P4/P5——数据面归位（v1.4）
+
+P4（`cdd-doc-review` 一产化）/ P5（DispatchContract + DispatchPacket）**超前吸收**（用户 2026-10-07 拍板「都是一体的」）：两者在新机体中的形态 = **数据面内容**而非独立 phase——依赖图上原来 `P2→P4 · P3→P5 · P3.1→P5 · P4→P5（hard）` 全改 `P3.2 ->(承接)`，执行序后置 phase 移除。
+
+- **P4 承接**：评审准则（URC spec/plan 三轴 · writing-plans 自检——spec 覆盖/占位扫/类型一致 · verification evidence）作为 **typed 数据**落 `face/host.ts`（dispatch.review 行）+ `render/templates.ts`（axesGuide），由 review 装配面引用；「kairos 第 9 席技能」前提随技能 6 集封闭集作废——准则归数据，评审归引擎装配
+- **P5 承接**：DispatchPacket 概念被 capsule + handoff + 模板数据面**取代**（新树无 packet——提示词由模板面 + frame 值装配）；ref 机制由新 ledger + review ref（commit-range / doc_hash 双层）落地；残留三件 = **M1 supersede**（`dispatch.implement` tdd → `mattpocock-skills:implement` + `refs` 域登记）· **三处禁文删除**（review.task/branch note「parallel sub-agents forbidden」×2 + axesGuide「no parallel sub-agents」）· dispatch/refs 域收敛——全部为 typed 数据内容
+- **数据面形态**：engine-config → `infra/runtime.ts`（contextContract · handoffNamespace · $version——failureCategories/slugRule 死字段剔除）· harness-contract → `face/host.ts` · template-contract → `render/templates.ts`；`resource.ts` 路径表/JSON 解析/`$schema`/`_doc` 散文面删除；新树零 JSON、零 `config/` 路径（grep）；**`config/` 整目录（13 文件 ~150K）随 cutover 删除零重建**；skill-anatomy 归 T14（引擎契约面 typed 导出）
+
+#### 6.5 承接 P6——宪法/档案分层（v1.4）
+
+P6（overall 宪法/档案分层）**吸收进 P3.2 尾部**（用户 2026-10-07 拍板「吸收进 P3.2 是明确的」）：新机制下 overall 结构 = **登记表行 + 投影**——宪法化 = 登记表行更新 + 文档迁移（零引擎结构代码）。依赖从 `P1→P6（hard）` 改为 `P3.2 ->(承接)`。
+
+- overall 本体拆「**宪法**（Goal / Standing rules 规范化折叠 / Cross-cutting / Phase inventory / Dependency graph）+ **`*-archive.md`**（issue/history 结构化 record + doc-revision ref 机械化 backfill）」
+- **版本行 lineage 散文消解** → 结构化修订记录（telescope 尾链断）；change-history 巨型 cell → 结构化 record
+- **Standing rules「空壳、死代码即删」成典常态化**（P3.2 自身实证——T15 删旧树/旧数据面）
+- archive 精确命名（v1.0「Archive 命名归 P6 定义」承诺通道）落地；全树 4 overalls 同口径迁移（内容逐字 · 容器改造 · 历史正文零 retro-rename）
 
 ### Acceptance criteria
 
@@ -135,13 +152,14 @@ packages/cdd-engine/src-next/
 - 技能集 8 → 6 落地：cdd-spec-writer 合一（single/phase/overall 参数化）；五链 digraph 单 next-loop 自环（cdd-report 一次性上报工具链例外）+ 边零状态标签；digraph 节点名 ↔ Node Definitions heading ↔ 文本引用一致断言；节点锚定零残留；skill-anatomy 注册（6 集）+ 目录扫描守卫 + `pnpm run emit` 再生 + 零程序历史 pin；上游 import 面/编排语义门/Review Convergence 纪律保持
 - scripts 重写：guard 消费引擎元数据（residue 正则 ban 表 → 词表数据行零残留 · channel 字面引擎导出）；单一 emit/validate 编排器；旧 wrapper/双 Orchestrator 零残留
 - 两代过渡：新树 **5 平面拓扑**（contract/session/face/render/infra · 文件 72→~30-38 · 顶面 8→5）落地于 `src-next/` + `scripts-next/` → 入口切换 → **旧树/旧技能零残留（grep 断言）** → validate ALL PASS · typecheck ×3 · biome · emit 新鲜 · changesets（cdd-engine major / kairos major）· 净减账（29k → 目标 −20%±）入验收
-- **新旧零依赖断言**：`src-next` ↔ `src` 双向零 import（grep）；新树自包含全量重写（无旧符号/旧 helper/旧分组索引）· 外部契约 JSON 稳态读取、派生产物自派生（并行期测试不读旧派生产物）
+- **新旧零依赖断言**：`src-next` ↔ `src` 双向零 import（grep）；新树自包含全量重写（无旧符号/旧 helper/旧分组索引）· **数据面归位（v1.4）**：三稳态 JSON → typed 平面成员（infra/runtime · face/host · render/templates）零残留（grep）；`src-next` 面 `config/` slash 路径零命中；派生产物自派生（并行期测试不读旧派生产物）
+- **四 phase 承接全落（v1.4）**：P4/P5/P6/P7 四行 → Done（P3.2 承接）；grep：三 JSON 零残留 · review 禁文零残留 · `dispatch.implement` = `mattpocock-skills:implement` · `config/` 整目录零残留（`test ! -d`）· 版本行散文零残留 · 宪法/档案双层落地
 - 历史文档零 retro-rename（docs/kairos 方法论记录不动）；消费面 SKILL.md/README 随 6 集重写
 
 ## Constraints
 
 - **两代并存过渡闸**：新树测试全绿旧树才可删（并行构建 + 入口切换，切换后立即删旧）
-- **新旧零依赖**：`src-next`/`scripts-next` 自包含，零 import 旧树（双向 grep 断言）；新树按新架构新思路全量重写，无旧符号/旧分组/旧 helper 复用；外部契约 JSON 以稳态数据同址读取，派生产物由新树自派生（并行期不读旧派生产物）
+- **新旧零依赖**：`src-next`/`scripts-next` 自包含，零 import 旧树（双向 grep 断言）；新树按新架构新思路全量重写，无旧符号/旧分组/旧 helper 复用；**数据面归位（v1.4）**——三稳态 JSON 收敛 typed 平面（零 JSON/零 `config/` 路径 grep），`config/` 整目录随 cutover 删除零重建，派生产物由新树自派生（并行期不读旧派生产物）
 - **消费面稳态（非兼容义务）**：capsule 词面（`status`/`next:`/`CDD_BLOCKED:` 英文恒定）与 cdd CLI 命令面（含 `base set|get`）保持——既是方法论机器面也是消费词面，greenfield 不为其做旧面保留，但新树首版即同词面
 - **单数据真相**：元素登记表 + 词汇表 = 唯一声明家；派生投影零手写副本
 - **判定单家**：一切结构判定走上下文缝解释器；doctype 类只 parse+投影

@@ -115,7 +115,7 @@ describe("the capsule byte pin — the single output face", () => {
       }),
     ).toEqual([
       "status: CHANGES_REQUESTED · blocker: 1 · handoff: /h.json",
-      "next: tasks-1-review-1.json",
+      "next: tasks-1-review-1.json (first read <findings> back to confirm)",
     ]);
     // a fix route without its input renders the bare classifier
     expect(capsule.emit("CHANGES_REQUESTED", "1", "/h.json", { kind: "fix" })).toEqual([

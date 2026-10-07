@@ -73,7 +73,9 @@ export class Capsule {
       case "review":
         return `${words.routeWord("review")} ${route.base.slice(0, 7)}`;
       case "fix":
-        return route.findings ?? words.routeWord("fix");
+        return route.findings
+          ? `${route.findings} (first read <findings> back to confirm)`
+          : words.routeWord("fix");
       case "soft-cap":
         return route.message;
     }

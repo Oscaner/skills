@@ -1,6 +1,6 @@
-# 文档架构方法论 v2 — P3.2 Design Spec v1.4（全系统从零重建 · 判定单家 · 工作流归一）
+# 文档架构方法论 v2 — P3.2 Design Spec v1.5（全系统从零重建 · 判定单家 · 工作流归一）
 
-- **Version**: v1.4 · 2026-10-07（前置 v1.3 = P7 提前承接 backfill——翻译系统全量核心入 §1.3 · CLI 命令面 `base-branch`→`base` · capsule 机面英文恒定 · 渲染器归位 render；**v1.4 = P4/P5/P6/P7 全吸收 + 数据面归位 backfill**——用户 2026-10-07 拍板「config-next 完成以后删除 config」升华：**数据面归位**（三稳态 JSON → typed 平面 infra/runtime · face/host · render/templates · P4 review 准则/P5 M1+禁文 承接净入 §6.4 · skill-anatomy 归守卫 T14 · `config/` 整目录随 cutover 删除零重建 · 新树零 JSON/零 config/ 路径）· **P6 宪法化承接**（宪法/档案双层 · 版本行散文消解 · Standing rules 成典 · 全树 4 overalls）入 §6.5——plan v1.4 · overall v1.23 随）
+- **Version**: v1.5 · 2026-10-08（**反依赖门放开 backfill——边违约六类收五类 + 环活门**——用户 2026-10-08 拍板「放开『任务只能依赖更小编号』约束，Wave 编排完全基于 DependsOn 推导」：§3.1 contradiction 边违约类退役 · **前向引用合法**（`- **DependsOn**:` 可指向任意现存任务 id）· **cycle 类为活门**（环 = 具名 plan 违约 · doc-contract 早拦/评审派发 BLOCK）· **编号降级为 ID + 波内升序 tiebreak** · referenceLint 新增**编号/拓扑序 advisory WARN**（只警不拦 · 作者「编号 ≈ 阅读序」引导保留）· 现 plan 全低编号边 = 纯 widening 零迁移——plan v1.7 随）；前置 v1.4 · 2026-10-07（前置 v1.3 = P7 提前承接 backfill——翻译系统全量核心入 §1.3 · CLI 命令面 `base-branch`→`base` · capsule 机面英文恒定 · 渲染器归位 render；**v1.4 = P4/P5/P6/P7 全吸收 + 数据面归位 backfill**——用户 2026-10-07 拍板「config-next 完成以后删除 config」升华：**数据面归位**（三稳态 JSON → typed 平面 infra/runtime · face/host · render/templates · P4 review 准则/P5 M1+禁文 承接净入 §6.4 · skill-anatomy 归守卫 T14 · `config/` 整目录随 cutover 删除零重建 · 新树零 JSON/零 config/ 路径）· **P6 宪法化承接**（宪法/档案双层 · 版本行散文消解 · Standing rules 成典 · 全树 4 overalls）入 §6.5——plan v1.4 · overall v1.23 随））
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5（kairos:cdd-phase · 决策源 = kairos:cdd-design grilling 收敛 + 用户 2026-10-07 greenfield 拍板）
 - **Parent program**: [doc-architecture-v2-overall.md v1.23](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
@@ -46,7 +46,7 @@ reference 词汇随一声明派生；`referenceLint` 作为独立 WARN-only lint
 
 #### 3.1 TaskGraph + 编排状态机
 
-TaskGraph（六类 validate：missing-edge / duplicate / missing-id / self-loop / contradiction / cycle + `batches()` 波次 + 反依赖门）为执行序单家；`frontier(done)` 动态面 + `ExecutionState` 查询面（`doneTasks(): Set<number>` / `readyBatch()` 为 TaskGraph/ProgressLedger 方法，不新增独立类）。缺边/反依赖唯一家在 TaskGraph，doc-contract gate parse 建图早拦、dispatch 复用同一实例。
+TaskGraph（**边违约五类** validate：missing-edge / duplicate / missing-id / self-loop / **cycle —— 反依赖门取消（v1.5）：前向引用合法，`- **DependsOn**:` 可指向任意现存任务 id** · 编号降级为 **ID + 波内升序 tiebreak** + `batches()` 波次）为执行序单家——边判定唯一判断「是否 DAG」：cycle 类为活门（环 = 具名 plan 违约 · doc-contract 早拦/评审派发 BLOCK）；`frontier(done)` 动态面 + `ExecutionState` 查询面（`doneTasks(): Set<number>` / `readyBatch()` 为 TaskGraph/ProgressLedger 方法，不新增独立类）。边判定唯一家在 TaskGraph，doc-contract gate parse 建图早拦、dispatch 复用同一实例；referenceLint 侧**编号/拓扑序 advisory WARN**（编号未随拓扑序仅建议重排以利阅读——只警不拦，作者「编号 ≈ 阅读序」引导保留）。
 
 #### 3.2 NextStepRouter 单点
 
@@ -98,7 +98,7 @@ packages/cdd-engine/src-next/
     judge.ts                  #   Contract.validate() 协调器 + 不变式策略类族
     lint.ts                   #   reference lint（WARN pass）
   session/                    # 会话机 = 状态机 + 账本
-    graph.ts                  #   TaskGraph（边 · 波次 · 反依赖）
+    graph.ts                  #   TaskGraph（边违约五类 · 波次）
     state.ts                  #   frontier + ExecutionState 查询面
     next.ts                   #   NextStepRouter 单点
     run.ts                    #   参数化单 lifecycle（task/branch/spec/plan faces 数据表）
@@ -147,7 +147,7 @@ P6（overall 宪法/档案分层）**吸收进 P3.2 尾部**（用户 2026-10-07
 - 词表单源（doc 词 + 胶囊词 + 守卫词 · 一词表一派生链）：旧 lexicon 五家（words.ts/json/shape/word-table/guard-lexicon 分家）零残留（grep 断言）
 - 解释器 = 唯一判定器：上下文缝不变式（file-existence / sibling-scan / cross-doc-chain / section-scoped-domain）落地有负例断言；doctype 类零判定方法（类面 grep 判定符号零残留）；`InvariantVerdict`/`declared`/`CompiledSurface` 概念零残留
 - 不变式 = 策略类族（`abstract Invariant.evaluate()` 多态 · `Contract.validate()` 协调器零 switch-case 判定分发断言）· 零裸函数（新树行为面 grep 裸函数零残留 —— 模块级导出仅类型/常量/类/组合根）
-- TaskGraph + frontier + ExecutionState 查询面（doneTasks()/readyBatch() 为方法，不新增独立类）；缺边/反依赖唯一家在 TaskGraph，doc-contract parse 早拦负例断言
+- TaskGraph + frontier + ExecutionState 查询面（doneTasks()/readyBatch() 为方法，不新增独立类）；边判定（五类——缺边/重复/缺失 id/自环/环）唯一家在 TaskGraph，doc-contract parse 早拦负例断言；前向引用合法（contradiction 负例转正 · 环具名违约 BLOCK 负例）
 - `NextStepRouter` 单点：next 生成单面（负例：warn/nit→`next: none` · blocker>0→re-review · BLOCKED 无 next 行）；胶囊 `status · blocker · handoff · next:` 词面字节 pin 稳态
 - dispatch 单 lifecycle 参数化落地（task/branch/spec/plan 数据表驱动）；CLI 命令面（implement/review/fix/schema/issue/base——base set|get）保持
 - 技能集 8 → 6 落地：cdd-spec-writer 合一（single/phase/overall 参数化）；四链 digraph（design/spec-writer/plan/dev）单 next-loop 自环 · cdd-close 止于 finish 编排语义门 + 终端 · cdd-report 一次性上报工具链例外 + 边零状态标签；digraph 节点名 ↔ Node Definitions heading ↔ 文本引用一致断言；节点锚定零残留；skill-anatomy 注册（6 集）+ 目录扫描守卫 + `pnpm run emit` 再生 + 零程序历史 pin；上游 import 面/编排语义门/Review Convergence 纪律保持

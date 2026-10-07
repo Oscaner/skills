@@ -1,6 +1,6 @@
 # 文档架构方法论 v2 —— P3.1 Design
 
-- **Version**: v1.6 · 2026-10-06（F3 双层模型定稿与 review-3 七 finding 落地；v1.5 曾双态——d2a7b346 六 finding 态 与 F3 提交面实质改写态，父 overall v1.14「spec v1.5 随」记后者，本稿升 v1.6 消同号二义）
+- **Version**: v1.7 · 2026-10-07（T6 窄化消解：引用 lint 定稿为宽松观测面——扫描面逐 field 界定（steps 排除）、`T7.1` spec-item 词形排除、前向引用豁免（反依赖门不可声明＝非缺边嫌疑）、树套件 BLOCK-only 口径；v1.6 · 2026-10-06 = F3 双层模型定稿与 review-3 七 finding 落地；v1.5 曾双态——d2a7b346 六 finding 态 与 F3 提交面实质改写态，父 overall v1.14「spec v1.5 随」记后者，v1.6 升号消同号二义）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（kairos:cdd-design → grilling → cdd-phase）
 - **Parent program**: [doc-architecture-v2-overall.md v1.14](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
@@ -76,7 +76,7 @@ function runStructureRules(content: string, rules: readonly StructureRule[]): St
 - **反依赖门（新增硬门）**：`DependsOn` 仅可引用编号 < 自身的任务（`T5 依赖 T10` = 编号序 ≠ 执行序 = 反依赖 · BLOCK）。编号序 = 拓扑线性化锚——编号升序即合法执行序子序
 - 归因（2026-10-06 用户三连裁决）：① 同层 = 同组（组 = **波次**：编号升序扫描就绪集，一次 implement dispatch 做完全部就绪任务——分组初衷 = 减 implement 轮次，非声明）；② 跨层同批需求 = 计划拆分错误（应合并任务，不为 atomicWith 重开表达口）；③ `missing-edge` 硬门保留——防忘写 = 防「任务被放错波次 → 过早 dispatch → implementer 面对缺失前置产物」的执行序故障
 - **TaskGraph 静态面**：`validate()` 重建 = P3 crisp 集（id 越界/自引/矛盾边退役/环/重复）+ missing-edge + 反依赖门；`batches(): TaskBatch[]` 波次推导（编号升序就绪层 · 波次内可并行 = capability 面 M3，与图无关）
-- **引用 lint**（WARN，兜底防忘写软门）：扫描面 = `objective`/`acceptance` 明文；token = `\bTask\s+([1-9]\d*)\b` 或 `\bT([1-9]\d*)\b`；越界 N 豁免；逐块对在界 N 去重后 N ≠ i 且 ∉ 本块 `DependsOn` 声明 → 一条聚合 WARN；兜底 = plan-review 必答问题
+- **引用 lint**（WARN，观测面非门面——宽松检测：必要信息 = task 块/边声明/锚；prose 引用属作者自由面，上游 SKILL 无法实时同步 → WARN 只提示不阻塞不 gate 树绿）：扫描面 = `objective`/`acceptance` 明文（**逐 field 界定**——`Objective` marker 行 + `Acceptance` marker 行 + acceptance 条目 bullet；steps/files/marker 行构造性排除，`referenceSurface` 不再作为并集 anchor 吞 steps）；token = `\bTask\s+([1-9]\d*)\b` 或 `\bT([1-9]\d*)\b` 且**后续跟 `.` 数字的 spec-item 词形（`T7.1`）排除**；越界 N 豁免；**前向引用豁免**（ref ≥ 自身编号——反依赖门使前向边结构性不可声明，非「忘写边」嫌疑）；逐块对在界、后向 N 去重后 N ∉ 本块 `DependsOn` 声明 → 一条聚合 WARN；兜底 = plan-review 必答问题；**树套件口径 = BLOCK-only**（全树零残留断言只对 BLOCK 级规则，WARN 级由单测断言其正确触发、不进树绿）
 
 #### 2.4 登记叶 ②：designItems（F3 统一大纲模型）
 
@@ -148,7 +148,7 @@ tree-migration 扩展 pin：每块边行存在 · 19 份提秩文件 `### N.` �
 - `- ` 全树 design specs：`### N.` 分组头连续性 + `#### N.M` items 归属 + 计数 + 标题逐字 pin · 空体/hollow 零 · 独立 bold 行伪标题零残留（pattern grep 命中 = 仅豁免散文逐行 pin，见 §2.4）
 - `- ` 全树 overalls：各 overall 既有 charter 标记按家族锚名升秩在位（doc-arch：facets + 决策留存 `###`、决策组/背书 `####`；另三份：三 facets `###` 按 §2.5 锚名）· 法外零残留
 - `- ` `cdd implement` / `cdd review` pre-flight 走 docContractValidate 覆盖全部新规则（dry-run 负例断言）
-- `- ` 引用 lint WARN 有断言 + 负例（窄化 pattern 按 §2.3 定稿）：明文 `Task 3`/`T3` 无边 → WARN（每块至多一条）；code span 内 `T3`、`files` 面参照、越界 N（0 或 > taskCount）、已声明边 → 零 WARN
+- `- ` 引用 lint WARN 有断言 + 负例（宽松口径按 §2.3 定稿——观测面非门面）：后向明文 `Task 3`/`T3` 无边 → WARN（每块至多一条）；前向引用、`T7.1` spec-item 词形、code span 内 `T3`、`files`/`steps` 面参照、越界 N（0 或 > taskCount）、已声明边 → 零 WARN；树套件 BLOCK-only 口径（referenceLint 不进全树零残留断言）
 - `- ` 消费面：三 schema description 更新派生产物字节保真 · cdd-plan/cdd-dev SKILL 撰作面更新 · shipped 零程序历史 grep pin（扩展面）零命中
 - `- ` changesets（cdd-engine minor + kairos patch）· validate ALL PASS（engine suite + 树套件 + typecheck ×3 + biome + emit freshness）
 - `- ` 死壳零残留：迁移/引擎面退役符号 · 废弃夹具 · 空壳叶 · 未解析 text 面 grep 零命中；存量 plan 未解析 steps 面规范化后全解析（每步 `N. … — checkable:` 含 checkable）

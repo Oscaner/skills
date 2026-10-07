@@ -1,9 +1,9 @@
 # 文档架构方法论 v2 —— P3.1 实施计划
 
-**Spec:** [2026-10-02-doc-architecture-v2-p3.1-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3.1-design.md)（spec v1.6）
+**Spec:** [2026-10-02-doc-architecture-v2-p3.1-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3.1-design.md)（spec v1.7）
 
 - **Parent program**: [doc-architecture-v2-overall.md v1.14](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.7 · 2026-10-07
+- **Version**: v1.8 · 2026-10-07（T6 宽松观测面口径：引用 lint 定稿为「后向可声明缺边」WARN + 前向/spec-item/steps 豁免 + 树套件 BLOCK-only——align spec v1.7，T6 implement 第一轮 BLOCKED 的窄化消解）
 - **Depends on**: P3（shipped · [p3-design v1.1](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3-design.md)）
 - **Base**: develop
 
@@ -17,7 +17,7 @@
   - 负例夹具单轴失败语义——`orphan-task-block-plan` / `form-b-anchor-plan` / `section-1-spec-design.md` 仅 legacy/孤块轴失败；T3/T4 补 conformant 面保持单轴
   - `none`/空与 integer gate 边界——`none`/空 → `[]`；`abc`、`1;2` 等非法 token 保持 NaN 拒绝，绝不静默吞；T3 负例集
   - 伪标题 pattern 误伤面——独立 bold 行唯一定义；行内 lead-in bold / code span 不误判；T4 对 2 份零独立文件（cp-p4.1 / doc-arch-p3）断言零命中
-  - 引用 lint 噪音面——`files`/`steps`/code span 不计；越界 N 豁免；已声明边不重复告警；每块至多一条聚合 WARN；T6 负例集
+  - 引用 lint 噪音面——`files`/`steps`/code span 不计（逐 field 扫描面界定）；前向引用（ref ≥ 自身）与 `T7.1` spec-item 词形豁免（反依赖门不可声明 ≠ 缺边嫌疑）；越界 N 豁免；已声明边不重复告警；每块至多一条聚合 WARN；树套件 BLOCK-only 口径（WARN 由单测断言，不进树绿）；T6 负例集
   - 反依赖门误伤面——编号单调断言只拦 `DependsOn` 引用 ≥ 自身；`none`/空/越界（> taskCount）不触发反依赖；T3 负例集
 - 死代码/空壳全平面清理（P3.1 补充条例 2026-10-06 用户）：各迁移/引擎任务先删后验——退役符号/废弃夹具/空壳叶零残留；存量 plan 未解析 steps 面（`- [ ]` 散文行）在 T3 一并规范化 `N. … — checkable:`（每步含 checkable）
 - **编排状态机一体重建（spec v1.6 · 用户 2026-10-06 拍板）**：边模型单边化（`DependsOn` 唯一 · `AtomicWith`/`taskGroups` 退役）+ 反依赖门 + TaskGraph `batches()`/`frontier(done)` 两面 + `next:` 组间推荐 + skills 编排精简一体落地本 phase（group-next 从 P5 摘回）；同行变更经 overall v1.14 / spec v1.6 登记
@@ -145,22 +145,24 @@
   - `- ` Goal/Non-goals/Cross-cutting presence 断言 + 「存在才执法」负例（三份 legacy overall 无决策面零命中）
   - `- ` `overall.json` 派生字节保真；engine suite + 树套件全绿
 
-### Task 6: 引用 lint WARN（pattern 定稿）
+### Task 6: 引用 lint WARN（宽松观测面 · pattern 定稿）
 
-- **Objective**: task 记录文本 `Task N`/`T<N>` 显式引用无边声明 → WARN「疑似缺边」（窄化 pattern 按 spec §2.3 定稿）+ 断言/负例——「忘写边」的可观测触发
+- **Objective**: task 记录文本后向 `Task N`/`T<N>` 显式引用无边声明 → WARN「疑似缺边」——**宽松观测面非门面**（必要信息 = task 块/边声明/锚 · prose 引用属作者自由面）：扫描面逐 field 界定（`Objective` marker + `Acceptance` marker + acceptance 条目，steps/files 排除）+ spec-item 词形（`T7.1`）排除 + 前向/越界/已声明/code-span 豁免 + 断言/负例——「忘写边」（后向可声明遗漏）的可观测触发；树套件 BLOCK-only 口径
 - **Consumes**: T3 边模型（声明集）· T1 `StructureFinding` severity
 - **Produces**: WARN 级引用 lint 判定 + 断言
 - **DependsOn**: 3
 - **Files**:
   - Modify: `packages/cdd-engine/src/documents/doctypes/body/plan-body.ts`（`structureRules()` += 引用 lint WARN 规则）
+  - Modify: `packages/cdd-engine/src/rules/structure.ts`（`declaredReferences` 判定 + 词形/前向/字段面豁免）
   - Test: `packages/cdd-engine/src/documents/doctypes/body/__tests__/plan-body.test.ts`（或专属 lint 测试文件）
+  - Modify: `packages/cdd-engine/src/documents/doctypes/__tests__/tree-migration.test.ts` + `dual-read.test.ts`（树套件 BLOCK-only 口径——structureFindings 零残留断言只按 BLOCK 级过滤，WARN 由 lint 单测断言）
   - Modify: `packages/cdd-engine/src/dispatch/__tests__/lifecycle-validation.test.ts`（dispatch 呈现 WARN）——如适用
 - **Steps**:
-  - 1. 实现规则——checkable: 扫描面 = `objective`/`acceptance` 明文；token `\bTask\s+([1-9]\d*)\b` / `\bT([1-9]\d*)\b`（词边界）；越界 N（0 / > taskCount）豁免；判定 = 逐块对在界 N 去重，N ≠ i 且 ∉ 本块边声明 → 一条聚合 WARN（每块至多一条）
-  - 2. 断言 + 负例——checkable: `Task 3`/`T3` 明文无边 → WARN；code span 内 `T3`、`files` 面参照、越界 N、已声明边 → 零 WARN；聚合（多嫌疑 N → 一条）
+  - 1. 实现规则——checkable: 扫描面逐 field 界定（`Objective`/`Acceptance` marker 行 + acceptance 条目 bullet，steps/files/marker 构造性排除——不吞 steps）；token `\bTask\s+([1-9]\d*)\b` / `\bT([1-9]\d*)\b`（词边界）+ `(?!\.\d+)` spec-item 词形排除；越界 N（0 / > taskCount）豁免；**前向引用豁免**（ref ≥ 自身编号——反依赖门不可声明，非缺边嫌疑）；判定 = 逐块对在界、后向 N 去重，∉ 本块边声明 → 一条聚合 WARN（每块至多一条）
+  - 2. 断言 + 负例——checkable: 后向 `Task 3`/`T3` 明文无边 → WARN；前向引用、`T7.1` spec-item、code span 内 `T3`、`files`/`steps` 面参照、越界 N、已声明边 → 零 WARN；聚合（多嫌疑 N → 一条）；树套件改 BLOCK-only 口径（referenceLint 不进全树零残留断言）
   - 3. 提交——checkable: 提交，pre-commit 通过
 - **Acceptance**:
-  - `- ` 引用 lint WARN 有断言 + 负例（spec §2.3 pattern 全项）；engine suite 全绿
+  - `- ` 引用 lint WARN 有断言 + 负例（spec §2.3 pattern 全项——宽松观测面口径）；engine suite 全绿（树套件 BLOCK-only：全树 WARN 呈现合法，不 gate 树绿）
 
 ### Task 7: 编排动态面 + next 路由器 + ExecutionState + skills 精简（消费面同步）
 

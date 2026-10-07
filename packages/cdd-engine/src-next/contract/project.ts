@@ -153,7 +153,7 @@ export interface SchemaProperty {
   description: string;
 }
 
-/** One doc type's derived JSON Schema — every registered anchor is a property; the required set is the required-presence anchors. */
+/** One doc type's derived JSON Schema — one property per registered element that declares a value pattern; the required set is the required-presence anchors. */
 export interface DocSchema {
   /** The doc-type identity the projection derives from. */
   docType: DocType;
@@ -165,7 +165,7 @@ export interface DocSchema {
   description: string;
   /** The manifest is an object over the declared anchor keys. */
   type: "object";
-  /** One property per registered element, in registry order. */
+  /** One property per registered element that declares a value pattern, in registry order (required-presence anchors appear in `required` regardless of a declared pattern). */
   properties: Record<string, SchemaProperty>;
   /** The anchors a conforming document must carry, in registry order. */
   required: string[];

@@ -3,7 +3,7 @@
 **Spec:** [2026-10-02-doc-architecture-v2-p3.2-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3.2-design.md)
 
 - **Parent program**: [2026-10-02-doc-architecture-v2-overall.md v1.21](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.1 · 2026-10-07（plan review 十一 finding 落地：解析层归口 doc.ts · project 五投影 · 依赖边闭合（T8→9 / T13→5）· root 构建链重连 + cutover 提交走新 precommit）
+- **Version**: v1.2 · 2026-10-07（零裸函数裁决落地：新增 **T18 全平面收类**——project 六投影 + escapeRegExp → `Projector` 类 · declare 守卫 → `RegistryGuard` 类 · 全契约平面模块级导出仅 类型/常量数据/类；T2/T3 派生签名以 T18 方法面为最终形态）
 - **Depends on**: P3.1（Done）· P3.2 design spec v1.2（Approved · 2026-10-07）
 - **Base**: develop
 
@@ -47,7 +47,7 @@
 - **Objective**: `src-next/contract/project.ts` 从登记表派生五投影：shape 投影（section 结构面，旧 955 行散文不继承）· JSON schema（字节从新树首版即钉）· slices 解析 regex · tokens · reference 词汇
 - **Files**: `packages/cdd-engine/src-next/contract/project.ts`（新建）· `src-next/contract/__tests__/project.test.ts`（新建）
 - **Consumes**: T2 `declaredRegistries`
-- **Produces**: `projectRegistries()`（{shape, schema, slices, tokens, reference} 五投影，全派生、零手写副本）
+- **Produces**: `projectRegistries()`（{shape, schema, slices, tokens, reference} 五投影，全派生、零手写副本）——五投影**最终以 `Projector` 类方法面落地**（构造注入登记表 · 方法 shape/schema/slices/tokens/reference/registries · escapeRegExp 私有静态），裸函数形态由 T18 一次收净
 - **Steps**:
   - `projectSchema()`：登记表 → 三 doc JSON schema 结构（含属性/必填描述）— checkable: 输出的 schema 对象可 JSON.stringify 且字节快照入测试
   - `projectShape()`：登记表 → 三 doc section 结构面（shape 投影；旧 955 行 shape 散文不继承，纯派生零手写）— checkable: shape 元素与登记表一一对应且快照入测试
@@ -275,6 +275,22 @@
 - **Acceptance**:
   - validate ALL PASS · typecheck ×3 · biome · emit 新鲜；changesets 落盘；净减账达标（或记录真实值）；历史正文零 retro-rename
 - **DependsOn**: 16
+
+### Task 18: 零裸函数全平面整改——Contract 派生/判定面收类
+
+- **Objective**: 全契约平面归零模块级裸函数（用户 2026-10-07 裁决「我不希望有裸函数」）：`contract/project.ts` 六投影函数 + `escapeRegExp` → **`Projector` 类**（构造注入 `declaredRegistries` · 方法面 shape/schema/slices/tokens/reference/registries · escapeRegExp 私有静态）；`contract/declare.ts` 两守卫 → **`RegistryGuard` 类静态方法**（type predicate 收类成员）；judge/doc/lint 消费面随构造注入；全树模块级导出仅 类型/常量数据/类/组合根（grep 断言钉死）
+- **Files**: `src-next/contract/project.ts`（改：收类）· `src-next/contract/declare.ts`（改：守卫收类）· `src-next/contract/judge.ts`（改：`Projector` 构造注入消费）· `src-next/contract/doc.ts`（改：`Projector` 消费）· `src-next/contract/lint.ts`（改：`Projector` 消费）· `src-next/contract/__tests__/{project,declare}.test.ts`（改：类方法面）· `src-next/contract/__tests__/zero-dep-related`（无新增）
+- **Consumes**: T2 登记表 · T3 投影（裸函数现面）· T4 judge/doc（裸函数消费）· T5 lint（裸函数消费）
+- **Produces**: `Projector` 类 + `RegistryGuard` 类；全契约平面（`contract/**` 除 `__tests__`）模块级 `export function` 零命中
+- **Steps**:
+  - `Projector` 类（构造注入 registries；方法 shape/schema/slices/tokens/reference/registries；escapeRegExp 私有静态）— checkable: 类面测试绿
+  - `RegistryGuard.isElement()` / `RegistryGuard.isRegistry()` 静态谓词（原 isRegistryElement/isElementRegistry 语义）— checkable: 守卫测试绿
+  - judge/doc/lint 三消费面改 `new Projector(declaredRegistries)` 注入与 `.xxx()` 方法调用 — checkable: 波及测试全绿（src-next vitest 全绿）
+  - 零裸函数 grep 断言入 acceptance：`grep -rn "^export function" src-next/contract --include="*.ts"`（排除 `__tests__`）零命中 — checkable: grep 绿
+  - commit `refactor(engine): Contract 派生/守卫面收类——零裸函数全平面`
+- **Acceptance**:
+  - `Projector`/`RegistryGuard` 类落地；`contract/**`（除 `__tests__`）模块级导出仅 类型/常量数据/类；零裸函数 grep 零命中；消费面（judge/doc/lint/project/declare 测试）全绿
+- **DependsOn**: 6
 
 ## Constraints
 

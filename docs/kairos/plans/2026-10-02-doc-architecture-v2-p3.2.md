@@ -3,8 +3,8 @@
 **Spec:** [2026-10-02-doc-architecture-v2-p3.2-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3.2-design.md)
 
 - **Parent program**: [2026-10-02-doc-architecture-v2-overall.md v1.23](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.6 · 2026-10-08（**`next:` 形式补钉**——用户 2026-10-08 拍板「先落补钉再执行」：胶囊 `next:` 渲染 = Route 事实（kind+载荷 · 非完整 cdd 命令）——Route 事实型钉入 T7 · 渲染断言钉入 T10 capsule 面，T16 技能面以「事实 → 命令映射」为消费前提——旧树命令式提示取消的涌现形态补为决策）；前置 v1.5 · 2026-10-08（**T23 next fix 面 readback 后缀**——用户 2026-10-08 拍板「NextStepRouter `kind: fix` 时补 `(first read <findings> back to confirm)`」：旧树 readbackWording 设计意图于新架构落地为纯文案提示 · 机械防线由 ledger round/C5-1 兜 · 编排方是否遵守非强约束——plan review-2 闭合后追加）；前置 v1.4 · 2026-10-07（前置 v1.3 = P7 提前承接 backfill——T19 翻译系统 · T20 base 命令面；**v1.4 = P4/P5/P6/P7 全吸收 + 数据面归位 backfill**——用户 2026-10-07 拍板「config-next 完成以后删除 config」+「都是一体的」+「吸收进 P3.2」升华：**T21 数据面归位**（三稳态 JSON → typed 平面 infra/runtime · face/host · render/templates，P4/P5 承接净入——M1 supersede · refs 登记 · 三处禁文删除 · review 准则收口 · 零读 config/ · 导出面保持）· **T22 宪法化承接（P6）**（overall 拆宪法/archive · 版本行散文消解 · Standing rules 成典 · 全树 4 overalls）· **T15 扩域删 config/**（整目录零残留，零重建）· T14 认领 skill-anatomy 归位 · T16 CLAUDE.md/README 数据面同步——overall v1.23 · spec v1.4 随）））
-- **Depends on**: P3.1（Done）· P3.2 design spec v1.4（Approved · 2026-10-07）
+- **Version**: v1.7 · 2026-10-08（**反依赖门放开 backfill——T24 边违约五类收编 + 环活门**——用户 2026-10-08 拍板「放开『任务只能依赖更小编号』约束，Wave 编排完全基于 DependsOn 推导」：TaskGraph contradiction 边违约类退役 · **前向引用合法**（`- **DependsOn**:` 可指向任意现存任务 id）· **cycle 类活门**（环 = 具名违约 · doc-contract 早拦/评审派发 BLOCK）· **编号降级 ID + 波内升序 tiebreak** · referenceLint 新增**编号/拓扑序 advisory WARN**（只警不拦）· 引擎面 = **新任务 T24（W12 · DependsOn 2,5,6,15）** · 技能面 cdd-plan 作者句随波收敛——spec v1.5 随 · 现 plan 全低编号边零迁移）；前置 v1.6 · 2026-10-08（**`next:` 形式补钉**——用户 2026-10-08 拍板「先落补钉再执行」：胶囊 `next:` 渲染 = Route 事实（kind+载荷 · 非完整 cdd 命令）——Route 事实型钉入 T7 · 渲染断言钉入 T10 capsule 面，T16 技能面以「事实 → 命令映射」为消费前提——旧树命令式提示取消的涌现形态补为决策）；前置 v1.5 · 2026-10-08（**T23 next fix 面 readback 后缀**——用户 2026-10-08 拍板「NextStepRouter `kind: fix` 时补 `(first read <findings> back to confirm)`」：旧树 readbackWording 设计意图于新架构落地为纯文案提示 · 机械防线由 ledger round/C5-1 兜 · 编排方是否遵守非强约束——plan review-2 闭合后追加）；前置 v1.4 · 2026-10-07（前置 v1.3 = P7 提前承接 backfill——T19 翻译系统 · T20 base 命令面；**v1.4 = P4/P5/P6/P7 全吸收 + 数据面归位 backfill**——用户 2026-10-07 拍板「config-next 完成以后删除 config」+「都是一体的」+「吸收进 P3.2」升华：**T21 数据面归位**（三稳态 JSON → typed 平面 infra/runtime · face/host · render/templates，P4/P5 承接净入——M1 supersede · refs 登记 · 三处禁文删除 · review 准则收口 · 零读 config/ · 导出面保持）· **T22 宪法化承接（P6）**（overall 拆宪法/archive · 版本行散文消解 · Standing rules 成典 · 全树 4 overalls）· **T15 扩域删 config/**（整目录零残留，零重建）· T14 认领 skill-anatomy 归位 · T16 CLAUDE.md/README 数据面同步——overall v1.23 · spec v1.4 随））））
+- **Depends on**: P3.1（Done）· P3.2 design spec v1.5（Approved · 2026-10-08）
 - **Base**: develop
 
 执行序：新树 `src-next` 自底向上建齐（骨架 → contract → session → face → infra/render → bin）→ 引擎测试全绿 → `scripts-next` 重写 → cutover（入口切换 + 删旧树 + **`scripts-next` → `scripts` 改名**）→ 技能 8→6 → 终验。新旧零依赖贯穿全计划（T1 起 grep 断言、每任务自测）。
@@ -376,11 +376,27 @@
   - round = fix（fix 面）的 next: 渲染行尾含 `(first read <findings> back to confirm)`（词面断言）；review 面 next: 行不含；测试全绿
 - **DependsOn**: 7, 11
 
+### Task 24: 反依赖门放开——边违约五类收编 + 环活门
+
+- **Objective**: 用户 2026-10-08 拍板「放开『任务只能依赖更小编号』约束，Wave 编排完全基于 DependsOn 推导」（spec §3.1 v1.5）——TaskGraph 反依赖门退役：**前向引用合法**（`- **DependsOn**:` 可指向任意现存任务 id）· **cycle 类为活门**（环 = 具名 plan 违约 · doc-contract 早拦/评审派发 BLOCK）· **编号降级为 ID + 波内升序 tiebreak**（波内 ascending 派发保持）· referenceLint 侧新增**编号/拓扑序 advisory WARN**（编号未随拓扑仅建议重排——只警不拦 · 作者「编号≈阅读序」引导保留）——Wave 推导纯边驱动，编排器零手动位移（T13 型 off-ledger deferral 类消灭）；语义改动定 cutover 后动（不混入 T15 切波 · 改动落定型新树——T13 基线教训同源，以边声明为本不复现模糊面）
+- **Files**: `src-next/session/graph.ts`（改：contradiction 边违约类退役 · 五类收编 · `batches()` 纯边推导 · header「linearization anchor」注释改写）· `src-next/contract/lint.ts`（改：编号/拓扑序 advisory WARN）· `src-next/contract/declare.ts`（改：598 行边声明注释收敛）· 测试（`src-next/session/__tests__/graph.test.ts` 改：contradiction 负例 → 前向引用正例 + 环具名违约 · `src-next/contract/__tests__/lint.test.ts` 改：advisory WARN 用例）· `packages/kairos/skills/cdd-plan/SKILL.md`（改：作者规则句「may only list lower-numbered tasks」收敛/删除）
+- **Consumes**: T2 declare（边声明登记面）· T5 lint（reference lint 面）· T6 graph（六类现面）· T11 cli（schema get plan 消费面）· T16 技能重写（cdd-plan 文本面——W12 同波 16→22→24 升序殿后见最终形态，非硬依赖）
+- **Produces**: 五类边违约 TaskGraph · 前向引用合法 · cycle 活门 · 编号 advisory lint · 技能作者句无「lower-numbered」残留
+- **Steps**:
+  - graph.ts contradiction 类退役（类型面/校验/错误文案/`batches()`/header 注释）· 前向引用合法 · cycle 活门具名报错 — checkable: graph.test 前向引用正例绿 + 环用例具名违约 + 五类类型面
+  - lint.ts 编号/拓扑序 advisory WARN（只警不拦）— checkable: lint.test advisory 用例绿 · 非 BLOCK
+  - declare.ts 边声明注释收敛 · `schema get plan` 输出面无「反依赖」描述 — checkable: 注释/schema 输出 grep + doc-contract 前向引用负例转正
+  - cdd-plan SKILL.md 作者句更新（「may only list lower-numbered tasks」零残留）— checkable: 技能面 grep + skill-anatomy 结构绿
+  - commit `refactor(engine): 反依赖门放开——边违约五类收编 + 环活门`（自测绿后）
+- **Acceptance**:
+  - TaskGraph 边违约五类（missing-edge / duplicate / missing-id / self-loop / cycle）；前向引用合法（原 contradiction 负例转正 · `contradiction`/「反依赖」零残留 grep）；cycle 活门具名违约（BLOCK · 负例断言）；编号 = ID + 波内 ascending tiebreak 保持；lint advisory 只警不拦；新树测试全绿
+- **DependsOn**: 2, 5, 6, 15（T13 基线教训——语义改动落 cutover 后定型树；W12 同波 T16/T22，升序 24 殿后见技能重写最终形态）
+
 ---
 
 ## 记录 · 新树基线（T13 落盘 · 双面构建期）
 
-T13 起的新树自测基线（后续 T14–T23 以此为准；旧树 count pin 漂移为 plan-owned 基线，见任务报告）：
+T13 起的新树自测基线（后续 T14–T24 以此为准；旧树 count pin 漂移为 plan-owned 基线，见任务报告）：
 
 - **新树自测基线（文件/用例数）**：生产面 **25 文件**（contract 7 · session 6 · face 3 · render 3 · infra 5 · 根 bin.ts 1）· 测试面 **16 文件**（contract 6 · session 4 · face 2 · render 1 · infra 1 · 根 `__tests__` 2）· **251 用例**（src-next 独立 project 全绿）。`node src-next/bin.ts` 六命令黑盒可用（schema get 输出派生 schema · issue render 聚合正文 · base set/get 工件读写 · implement/review/fix dry-run 胶囊 + handoff）。
 - **零裸函数全树断言面（自 T13 基线起即全树；T18 收面协议）**：`grep -rn "^export function" src-next --include="*.ts"`（排除 `__tests__`）= **1 命中**——`src-next/face/cli.ts` 组合根 `cli()`（组合根装载面豁免）；非豁免行为面零。
@@ -388,7 +404,7 @@ T13 起的新树自测基线（后续 T14–T23 以此为准；旧树 count pin 
 
 ## Constraints
 
-- **新旧零依赖（贯穿 T1–T23）**：`src-next` ↔ 旧树双向零 import；新树全量按新架构/OOP 单范式重写，不借用旧符号/旧 helper/旧目录形状；**数据面归位（T21，v1.4）**：三稳态 JSON 收敛为 typed 平面成员（infra/runtime · face/host · render/templates）——新树零 JSON 读取、零读旧 `config/` 路径（grep 断言），`config/` 整目录随 T15 cutover 删除零重建；schema/lexicon 派生产物由新树自派生（并行期测试不读旧派生产物）
+- **新旧零依赖（贯穿 T1–T24）**：`src-next` ↔ 旧树双向零 import；新树全量按新架构/OOP 单范式重写，不借用旧符号/旧 helper/旧目录形状；**数据面归位（T21，v1.4）**：三稳态 JSON 收敛为 typed 平面成员（infra/runtime · face/host · render/templates）——新树零 JSON 读取、零读旧 `config/` 路径（grep 断言），`config/` 整目录随 T15 cutover 删除零重建；schema/lexicon 派生产物由新树自派生（并行期测试不读旧派生产物）
 - **双面构建纪律**：cutover 前旧树保持活跃（入口未切）；每任务自测绿（该任务面 vitest/独立断言）再交下任务；新树 vitest project 与旧树并存且各自全绿
 - **每任务一个提交**：conventional commit（feat/refactor/docs/chore 前缀）；precommit（lint-staged）绿才提交；历史文档正文零 retro-rename（docs/kairos/specs 既往版本行不动）
 - **净减账为方向证明**：T13 起记录新树行数基线，T17 出具 29k → −20%± 的净减账（真实值为准，不架构假账）

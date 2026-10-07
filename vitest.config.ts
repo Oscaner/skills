@@ -6,7 +6,7 @@ export default defineConfig({
     // processes (emit / gh / test runners); keep workers low so validate never
     // OOMs alongside the engine suite. Colocation-glob (Task 21): scripts tests
     // live at scripts/<dir>/__tests__/<file>.test.ts (engine isomorphism, T3).
-    include: ["scripts/**/__tests__/**/*.test.ts"],
+    include: ["scripts/**/__tests__/**/*.test.ts", "scripts-next/**/__tests__/**/*.test.ts"],
     maxWorkers: 1,
     fileParallelism: false,
     maxConcurrency: 2,

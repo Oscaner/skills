@@ -9,7 +9,7 @@
     "precommit": "node scripts/run.ts precommit",
     "emit": "node scripts/run.ts emit",
     "emit:check": "node scripts/run.ts emit-check",
-    "typecheck": "tsc --noEmit -p packages/cdd-engine && tsc --noEmit -p scripts && tsc --noEmit -p packages/kairos/tests",
+    "typecheck": "tsc --noEmit -p packages/cdd-engine && tsc --noEmit -p scripts && tsc --noEmit -p scripts-next && tsc --noEmit -p packages/kairos/tests",
     "biome": "biome check .",
     "biome:fix": "biome check --write .",
     "prepare": "husky",

@@ -3,14 +3,16 @@
 //
 // The five projections (shape / schema / slices / tokens / reference) are the
 // derived surfaces of the declared registries — this suite pins the brief's
-// checkables:
-//   · projectSchema — every schema is JSON-stringify-able and its bytes are
+// checkables through the Projector class surface (the derivation carrier
+// constructed on the declared registries; its method face is
+// shape/schema/slices/tokens/reference/registries, escapeRegExp private):
+//   · Projector.schema — every schema is JSON-stringify-able and its bytes are
 //     snapshot-pinned from the new tree's first version;
-//   · projectShape — the shape elements correspond 1:1 with the registered
+//   · Projector.shape — the shape elements correspond 1:1 with the registered
 //     elements (grouped into the section skeleton), also snapshot-pinned;
-//   · projectSlices — every declared element's slice parses its own anchor;
-//   · projectTokens / projectReference — both surfaces correspond 1:1 with the
-//     registered elements.
+//   · Projector.slices — every declared element's slice parses its own anchor;
+//   · Projector.tokens / Projector.reference — both surfaces correspond 1:1
+//     with the registered elements.
 // Every projection is derived: the registered declaration and known-good anchor
 // literals (never module output) are the independent sources of truth, so a
 // hand-written copy or a derivation drift fails a byte or equality assertion.
@@ -18,15 +20,7 @@
 import { describe, expect, it } from "vitest";
 import type { ElementRegistry } from "../declare.ts";
 import { declaredRegistries } from "../declare.ts";
-import {
-  escapeRegExp,
-  projectReference,
-  projectRegistries,
-  projectSchema,
-  projectShape,
-  projectSlices,
-  projectTokens,
-} from "../project.ts";
+import { Projector } from "../project.ts";
 
 const DOC_KEYS = ["overall", "plan", "phaseSpec"] as const;
 const REGISTRIES = [
@@ -34,6 +28,9 @@ const REGISTRIES = [
   declaredRegistries.plan,
   declaredRegistries.phaseSpec,
 ] as const satisfies readonly ElementRegistry[];
+
+/** The shared projection carrier the suite derives every surface from. */
+const PROJECTOR = new Projector(declaredRegistries);
 
 // The exact serialization the snapshots pin: projection JSON with two-space
 // indentation and exactly one trailing newline (the package's EOF-newline rule).
@@ -50,8 +47,8 @@ const REF_KINDS = new Set([
   "task-id",
 ]);
 
-describe("schema projection (projectSchema)", () => {
-  const schemas = projectSchema();
+describe("schema projection (Projector.schema)", () => {
+  const schemas = PROJECTOR.schema();
 
   it("emits a JSON-stringify-able schema per doc type that round-trips byte-identically", () => {
     for (const [index, registry] of REGISTRIES.entries()) {
@@ -103,8 +100,8 @@ describe("schema projection (projectSchema)", () => {
   });
 });
 
-describe("shape projection (projectShape)", () => {
-  const shapes = projectShape();
+describe("shape projection (Projector.shape)", () => {
+  const shapes = PROJECTOR.shape();
 
   it("corresponds 1:1 with the registered elements (a bijection over the registry rows)", () => {
     for (const [index, registry] of REGISTRIES.entries()) {
@@ -160,8 +157,8 @@ describe("shape projection (projectShape)", () => {
   });
 });
 
-describe("slices projection (projectSlices)", () => {
-  const slices = projectSlices();
+describe("slices projection (Projector.slices)", () => {
+  const slices = PROJECTOR.slices();
 
   it("gives every declared element a slice that parses its own anchor", () => {
     for (const [index, registry] of REGISTRIES.entries()) {
@@ -183,14 +180,10 @@ describe("slices projection (projectSlices)", () => {
 
   it("derives the anchor pattern from the anchor literal (known-good escapes)", () => {
     const overall = slices.overall;
-    const overallRegistry = declaredRegistries.overall;
     // No metacharacters: the anchor is its own pattern.
     expect(overall.slices[0].anchorPattern.source).toBe("# Title");
     // `**Version**` — every `*` escaped.
     expect(overall.slices[1].anchorPattern.source).toBe("\\*\\*Version\\*\\*");
-    expect(overall.slices[1].anchorPattern.source).toBe(
-      escapeRegExp(overallRegistry.elements[1].anchor),
-    );
     // `#### [MFRBEN] 组` — brackets escaped, non-ASCII anchors kept verbatim.
     const mfrben = overall.slices.find((slice) => slice.anchor === "#### [MFRBEN] 组")!;
     expect(mfrben.anchorPattern.source).toBe("#### \\[MFRBEN\\] 组");
@@ -211,8 +204,8 @@ describe("slices projection (projectSlices)", () => {
   });
 });
 
-describe("tokens projection (projectTokens)", () => {
-  const tokens = projectTokens();
+describe("tokens projection (Projector.tokens)", () => {
+  const tokens = PROJECTOR.tokens();
 
   it("corresponds 1:1 with the registered elements", () => {
     for (const [index, registry] of REGISTRIES.entries()) {
@@ -239,8 +232,8 @@ describe("tokens projection (projectTokens)", () => {
   });
 });
 
-describe("reference projection (projectReference)", () => {
-  const reference = projectReference();
+describe("reference projection (Projector.reference)", () => {
+  const reference = PROJECTOR.reference();
 
   it("corresponds 1:1 with the registered elements, carrying refKind and value pattern", () => {
     for (const [index, registry] of REGISTRIES.entries()) {
@@ -268,18 +261,18 @@ describe("reference projection (projectReference)", () => {
   });
 });
 
-describe("projectRegistries — the composed five-projection surface", () => {
+describe("Projector.registries — the composed five-projection surface", () => {
   it("returns all five projections derived from the individual faces", () => {
-    const projected = projectRegistries();
-    expect(projected.shape).toEqual(projectShape());
-    expect(projected.schema).toEqual(projectSchema());
-    expect(projected.slices).toEqual(projectSlices());
-    expect(projected.tokens).toEqual(projectTokens());
-    expect(projected.reference).toEqual(projectReference());
+    const projected = PROJECTOR.registries();
+    expect(projected.shape).toEqual(PROJECTOR.shape());
+    expect(projected.schema).toEqual(PROJECTOR.schema());
+    expect(projected.slices).toEqual(PROJECTOR.slices());
+    expect(projected.tokens).toEqual(PROJECTOR.tokens());
+    expect(projected.reference).toEqual(PROJECTOR.reference());
   });
 
   it("carries each doc type's declaration identity (docType field)", () => {
-    const projected = projectRegistries();
+    const projected = PROJECTOR.registries();
     expect(projected.shape.overall.docType).toBe("overall");
     expect(projected.schema.plan.docType).toBe("plan");
     expect(projected.tokens.phaseSpec.docType).toBe("phase-spec");

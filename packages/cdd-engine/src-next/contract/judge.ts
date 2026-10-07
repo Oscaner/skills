@@ -29,7 +29,7 @@ import {
   UniquenessInvariant,
 } from "./invariants.ts";
 import type { DocKey } from "./project.ts";
-import { projectShape, projectSlices } from "./project.ts";
+import { Projector } from "./project.ts";
 
 /** The three doc-type record keys — the policy-composition identity. */
 const DOC_KEYS: readonly DocKey[] = ["overall", "plan", "phaseSpec"];
@@ -63,9 +63,12 @@ export class Contract {
    *  per-key sets are the same ordered family; the record keying is what a future
    *  per-type ordering/selection change would carry. */
   readonly #strategies: Record<DocKey, readonly Invariant[]>;
+  /** The projection carrier — the derived parse/skeleton faces the judgment reads. */
+  readonly #projector: Projector;
 
   constructor() {
     this.#strategies = Contract.#buildPolicy();
+    this.#projector = new Projector(declaredRegistries);
   }
 
   /** validate(doc) — parse, compose, run, aggregate. The single judgment entry. */
@@ -78,8 +81,8 @@ export class Contract {
       lines,
       path: input.path,
       root: input.root,
-      slices: projectSlices()[input.docKey],
-      shape: projectShape()[input.docKey],
+      slices: this.#projector.slices()[input.docKey],
+      shape: this.#projector.shape()[input.docKey],
       registries: declaredRegistries,
       phaseId: input.phaseId,
       chainDocs: input.chainDocs,

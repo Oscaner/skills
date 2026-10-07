@@ -3,27 +3,33 @@
 // tokens / reference) are projected from the declared registries (declare.ts)
 // through one shared derivation chain.
 //
-// Every surface is pure derivation from `declaredRegistries` — zero hand-written
-// shape prose, zero duplicated data. The chain: each registry row is projected
-// onto a derived identity (anchor · presence · ref-kind · home · value pattern),
-// and the five projection functions each select the face their consumers need:
-//   · shape      — the section skeleton: registry rows grouped by home surface
-//                  in first-occurrence order (the interpreter's structure walk);
-//   · schema     — a JSON Schema per doc type (properties keyed by anchor, the
-//                  required set from the required-presence elements, property
-//                  descriptions carrying presence · home · ref-kind);
-//   · slices     — the parse face: every element's anchor-literal slice (escaped
-//                  anchor, closed under parsing — each slice parses its anchor)
-//                  plus the declared value pattern compiled for line/cell
-//                  matching;
-//   · tokens     — the flat anchor lexicon, one token per registered element;
-//   · reference  — the per-element reference vocabulary (ref-kind + value
-//                  pattern), one entry per registered element.
-// The schema/shape bytes are pinned from the new tree's first version by the
-// test suite (byte snapshots) — both serializations are insertion-order
-// deterministic, so the pinned bytes are stable across runs.
+// Every surface is pure derivation from the registries injected at construction —
+// zero hand-written shape prose, zero duplicated data. The chain: each registry
+// row is projected onto a derived identity (anchor · presence · ref-kind · home ·
+// value pattern), and the five projection methods each select the face their
+// consumers need:
+//   · shape       — the section skeleton: registry rows grouped by home surface
+//                   in first-occurrence order (the interpreter's structure walk);
+//   · schema      — a JSON Schema per doc type (properties keyed by anchor, the
+//                   required set from the required-presence elements, property
+//                   descriptions carrying presence · home · ref-kind);
+//   · slices      — the parse face: every element's anchor-literal slice (escaped
+//                   anchor, closed under parsing — each slice parses its anchor)
+//                   plus the declared value pattern compiled for line/cell
+//                   matching;
+//   · tokens      — the flat anchor lexicon, one token per registered element;
+//   · reference   — the per-element reference vocabulary (ref-kind + value
+//                   pattern), one entry per registered element.
+//
+// The module's whole behavior surface is the Projector class (the zero-bare-
+// function discipline: module-level exports are types / the class — the projection
+// helpers and the escape primitive are private members). The schema/shape bytes are
+// pinned from the new tree's first version by the test suite (byte snapshots) —
+// both serializations are insertion-order deterministic, so the pinned bytes are
+// stable across runs.
 
 import type {
+  DeclaredRegistries,
   DocType,
   ElementRegistry,
   Home,
@@ -31,20 +37,9 @@ import type {
   RefKind,
   RegistryElement,
 } from "./declare.ts";
-import { declaredRegistries } from "./declare.ts";
 
 /** The projection record keys — mirrors the declared-registries record shape ({ overall, plan, phaseSpec }). */
 export type DocKey = "overall" | "plan" | "phaseSpec";
-
-/**
- * Escape a literal so it can be embedded verbatim in a RegExp — the
- * anchor-literal → parse-regex derivation the slices face is built on. Every
- * declared anchor escapes to a pattern that matches the anchor itself (the
- * "each slice parses its anchor" checkable).
- */
-export function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
 
 // ---------------------------------------------------------------------------
 // shared derivation chain
@@ -62,31 +57,6 @@ interface DerivedElement {
   home: Home;
   /** The declared value shape, when the element carries one. */
   valuePattern?: string;
-}
-
-/** Project one registry row onto the derived identity (refKind materialized to its "none" default). */
-function deriveElement(element: RegistryElement): DerivedElement {
-  return {
-    anchor: element.anchor,
-    presence: element.presence,
-    refKind: element.refKind ?? "none",
-    home: element.home,
-    valuePattern: element.valuePattern,
-  };
-}
-
-/** Derive the whole registry rows of one doc type. */
-function deriveRegistry(registry: ElementRegistry): DerivedElement[] {
-  return registry.elements.map(deriveElement);
-}
-
-/** Map a per-registry projector across the three declared registries, keyed by their record identity. */
-function projectAll<T>(project: (registry: ElementRegistry) => T): Record<DocKey, T> {
-  return {
-    overall: project(declaredRegistries.overall),
-    plan: project(declaredRegistries.plan),
-    phaseSpec: project(declaredRegistries.phaseSpec),
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -117,26 +87,6 @@ export interface DocShape {
   docType: DocType;
   /** The section skeleton: non-empty groups in first home-occurrence order. */
   structure: readonly ShapeGroup[];
-}
-
-/** Project one registry onto its section-structure face (one shape element per registered element). */
-function projectDocShape(registry: ElementRegistry): DocShape {
-  const groups: ShapeGroup[] = [];
-  const groupSlotOf = new Map<Home, number>();
-  for (const element of deriveRegistry(registry)) {
-    let slot = groupSlotOf.get(element.home);
-    if (slot === undefined) {
-      slot = groups.length;
-      groupSlotOf.set(element.home, slot);
-      groups.push({ home: element.home, elements: [] });
-    }
-    (groups[slot].elements as ShapeElement[]).push({
-      anchor: element.anchor,
-      presence: element.presence,
-      refKind: element.refKind,
-    });
-  }
-  return { docType: registry.docType, structure: groups };
 }
 
 // ---------------------------------------------------------------------------
@@ -171,32 +121,6 @@ export interface DocSchema {
   required: string[];
 }
 
-/** Project one registry onto its JSON Schema face. */
-function projectDocSchema(registry: ElementRegistry): DocSchema {
-  const elements = deriveRegistry(registry);
-  const properties: Record<string, SchemaProperty> = {};
-  const required: string[] = [];
-  for (const element of elements) {
-    if (element.valuePattern !== undefined) {
-      properties[element.anchor] = {
-        type: "string",
-        pattern: element.valuePattern,
-        description: `presence: ${element.presence} · home: ${element.home} · ref: ${element.refKind}`,
-      };
-    }
-    if (element.presence === "required") required.push(element.anchor);
-  }
-  return {
-    docType: registry.docType,
-    $schema: "https://json-schema.org/draft/2020-12/schema",
-    title: `${registry.docType} document structure`,
-    description: `Derived JSON Schema — ${elements.length} declared elements · ${required.length} required`,
-    type: "object",
-    properties,
-    required,
-  };
-}
-
 // ---------------------------------------------------------------------------
 // slices — the parse face
 // ---------------------------------------------------------------------------
@@ -227,22 +151,6 @@ export interface DocSlices {
   slices: readonly ElementSlice[];
 }
 
-/** Project one registry onto its parse-regex face. */
-function projectDocSlices(registry: ElementRegistry): DocSlices {
-  const slices: ElementSlice[] = [];
-  for (const element of deriveRegistry(registry)) {
-    slices.push({
-      anchor: element.anchor,
-      presence: element.presence,
-      home: element.home,
-      anchorPattern: new RegExp(escapeRegExp(element.anchor)),
-      valuePattern:
-        element.valuePattern === undefined ? undefined : new RegExp(element.valuePattern),
-    });
-  }
-  return { docType: registry.docType, slices };
-}
-
 // ---------------------------------------------------------------------------
 // tokens — the anchor lexicon
 // ---------------------------------------------------------------------------
@@ -267,19 +175,6 @@ export interface DocTokens {
   tokens: readonly DocToken[];
 }
 
-/** Project one registry onto its anchor-lexicon face. */
-function projectDocTokens(registry: ElementRegistry): DocTokens {
-  return {
-    docType: registry.docType,
-    tokens: deriveRegistry(registry).map((element) => ({
-      anchor: element.anchor,
-      presence: element.presence,
-      home: element.home,
-      refKind: element.refKind,
-    })),
-  };
-}
-
 // ---------------------------------------------------------------------------
 // reference — the reference vocabulary
 // ---------------------------------------------------------------------------
@@ -300,18 +195,6 @@ export interface DocReference {
   docType: DocType;
   /** The reference rows, in registry order. */
   entries: readonly ReferenceEntry[];
-}
-
-/** Project one registry onto its reference-vocabulary face. */
-function projectDocReference(registry: ElementRegistry): DocReference {
-  return {
-    docType: registry.docType,
-    entries: deriveRegistry(registry).map((element) => ({
-      anchor: element.anchor,
-      refKind: element.refKind,
-      valuePattern: element.valuePattern,
-    })),
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -338,38 +221,186 @@ export interface ProjectedRegistries {
   reference: ReferenceProjection;
 }
 
-/** Derive all three doc types' section-skeleton faces. */
-export function projectShape(): ShapeProjection {
-  return projectAll(projectDocShape);
-}
+/**
+ * The projection carrier — the registered registries' single derivation surface.
+ * Constructed on the declared registries (the domain's `declaredRegistries`),
+ * its six methods project the five faces (shape / schema / slices / tokens /
+ * reference) and their composed record. Every surface is pure derivation from
+ * the injected registries; construction is cheap and the instance is stateless
+ * after construction, so sharing one instance across the consumers (the parsers,
+ * the contract, the lint, the graph) composes safely.
+ */
+export class Projector {
+  /** The declared registries every projection derives from — the construction input. */
+  readonly #registries: DeclaredRegistries;
 
-/** Derive all three doc types' JSON Schema faces. */
-export function projectSchema(): SchemaProjection {
-  return projectAll(projectDocSchema);
-}
+  constructor(registries: DeclaredRegistries) {
+    this.#registries = registries;
+  }
 
-/** Derive all three doc types' parse-regex faces. */
-export function projectSlices(): SlicesProjection {
-  return projectAll(projectDocSlices);
-}
+  /** Derive all three doc types' section-skeleton faces. */
+  shape(): ShapeProjection {
+    return this.#projectAll((registry) => this.#projectDocShape(registry));
+  }
 
-/** Derive all three doc types' anchor lexicons. */
-export function projectTokens(): TokensProjection {
-  return projectAll(projectDocTokens);
-}
+  /** Derive all three doc types' JSON Schema faces. */
+  schema(): SchemaProjection {
+    return this.#projectAll((registry) => this.#projectDocSchema(registry));
+  }
 
-/** Derive all three doc types' reference vocabularies. */
-export function projectReference(): ReferenceProjection {
-  return projectAll(projectDocReference);
-}
+  /** Derive all three doc types' parse-regex faces. */
+  slices(): SlicesProjection {
+    return this.#projectAll((registry) => this.#projectDocSlices(registry));
+  }
 
-/** The composed projection face — all five derived surfaces over the three declared registries. */
-export function projectRegistries(): ProjectedRegistries {
-  return {
-    shape: projectShape(),
-    schema: projectSchema(),
-    slices: projectSlices(),
-    tokens: projectTokens(),
-    reference: projectReference(),
-  };
+  /** Derive all three doc types' anchor lexicons. */
+  tokens(): TokensProjection {
+    return this.#projectAll((registry) => this.#projectDocTokens(registry));
+  }
+
+  /** Derive all three doc types' reference vocabularies. */
+  reference(): ReferenceProjection {
+    return this.#projectAll((registry) => this.#projectDocReference(registry));
+  }
+
+  /** The composed projection face — all five derived surfaces over the injected registries. */
+  registries(): ProjectedRegistries {
+    return {
+      shape: this.shape(),
+      schema: this.schema(),
+      slices: this.slices(),
+      tokens: this.tokens(),
+      reference: this.reference(),
+    };
+  }
+
+  /**
+   * Escape a literal so it can be embedded verbatim in a RegExp — the
+   * anchor-literal → parse-regex derivation the slices face is built on. Every
+   * declared anchor escapes to a pattern that matches the anchor itself (the
+   * "each slice parses its anchor" checkable).
+   */
+  static #escapeRegExp(text: string): string {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  // -------------------------------------------------------------------------
+  // shared derivation chain — the chain root every projection selects from
+  // -------------------------------------------------------------------------
+
+  /** Project one registry row onto the derived identity (refKind materialized to its "none" default). */
+  #deriveElement(element: RegistryElement): DerivedElement {
+    return {
+      anchor: element.anchor,
+      presence: element.presence,
+      refKind: element.refKind ?? "none",
+      home: element.home,
+      valuePattern: element.valuePattern,
+    };
+  }
+
+  /** Derive the whole registry rows of one doc type. */
+  #deriveRegistry(registry: ElementRegistry): DerivedElement[] {
+    return registry.elements.map((element) => this.#deriveElement(element));
+  }
+
+  /** Map a per-registry projector across the three injected registries, keyed by their record identity. */
+  #projectAll<T>(project: (registry: ElementRegistry) => T): Record<DocKey, T> {
+    return {
+      overall: project(this.#registries.overall),
+      plan: project(this.#registries.plan),
+      phaseSpec: project(this.#registries.phaseSpec),
+    };
+  }
+
+  // -------------------------------------------------------------------------
+  // the per-face projectors
+  // -------------------------------------------------------------------------
+
+  /** Project one registry onto its section-structure face (one shape element per registered element). */
+  #projectDocShape(registry: ElementRegistry): DocShape {
+    const groups: ShapeGroup[] = [];
+    const groupSlotOf = new Map<Home, number>();
+    for (const element of this.#deriveRegistry(registry)) {
+      let slot = groupSlotOf.get(element.home);
+      if (slot === undefined) {
+        slot = groups.length;
+        groupSlotOf.set(element.home, slot);
+        groups.push({ home: element.home, elements: [] });
+      }
+      (groups[slot].elements as ShapeElement[]).push({
+        anchor: element.anchor,
+        presence: element.presence,
+        refKind: element.refKind,
+      });
+    }
+    return { docType: registry.docType, structure: groups };
+  }
+
+  /** Project one registry onto its JSON Schema face. */
+  #projectDocSchema(registry: ElementRegistry): DocSchema {
+    const elements = this.#deriveRegistry(registry);
+    const properties: Record<string, SchemaProperty> = {};
+    const required: string[] = [];
+    for (const element of elements) {
+      if (element.valuePattern !== undefined) {
+        properties[element.anchor] = {
+          type: "string",
+          pattern: element.valuePattern,
+          description: `presence: ${element.presence} · home: ${element.home} · ref: ${element.refKind}`,
+        };
+      }
+      if (element.presence === "required") required.push(element.anchor);
+    }
+    return {
+      docType: registry.docType,
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      title: `${registry.docType} document structure`,
+      description: `Derived JSON Schema — ${elements.length} declared elements · ${required.length} required`,
+      type: "object",
+      properties,
+      required,
+    };
+  }
+
+  /** Project one registry onto its parse-regex face. */
+  #projectDocSlices(registry: ElementRegistry): DocSlices {
+    const slices: ElementSlice[] = [];
+    for (const element of this.#deriveRegistry(registry)) {
+      slices.push({
+        anchor: element.anchor,
+        presence: element.presence,
+        home: element.home,
+        anchorPattern: new RegExp(Projector.#escapeRegExp(element.anchor)),
+        valuePattern:
+          element.valuePattern === undefined ? undefined : new RegExp(element.valuePattern),
+      });
+    }
+    return { docType: registry.docType, slices };
+  }
+
+  /** Project one registry onto its anchor-lexicon face. */
+  #projectDocTokens(registry: ElementRegistry): DocTokens {
+    return {
+      docType: registry.docType,
+      tokens: this.#deriveRegistry(registry).map((element) => ({
+        anchor: element.anchor,
+        presence: element.presence,
+        home: element.home,
+        refKind: element.refKind,
+      })),
+    };
+  }
+
+  /** Project one registry onto its reference-vocabulary face. */
+  #projectDocReference(registry: ElementRegistry): DocReference {
+    return {
+      docType: registry.docType,
+      entries: this.#deriveRegistry(registry).map((element) => ({
+        anchor: element.anchor,
+        refKind: element.refKind,
+        valuePattern: element.valuePattern,
+      })),
+    };
+  }
 }

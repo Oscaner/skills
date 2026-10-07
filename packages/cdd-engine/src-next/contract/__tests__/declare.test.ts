@@ -20,7 +20,7 @@
 
 import { describe, expect, expectTypeOf, it } from "vitest";
 import type { ElementRegistry, Home, Presence, RefKind, RegistryElement } from "../declare.ts";
-import { declaredRegistries, isElementRegistry, isRegistryElement } from "../declare.ts";
+import { declaredRegistries, RegistryGuard } from "../declare.ts";
 
 const PRESENCE_VALUES = [
   "required",
@@ -122,7 +122,7 @@ describe("declared registries", () => {
   });
 });
 
-describe("type guards", () => {
+describe("RegistryGuard type guards", () => {
   it("accepts a well-formed registry element and rejects malformed shapes", () => {
     const element = {
       anchor: "## Goal",
@@ -131,11 +131,11 @@ describe("type guards", () => {
       refKind: "none",
       home: "facet",
     } satisfies RegistryElement;
-    expect(isRegistryElement(element)).toBe(true);
+    expect(RegistryGuard.isElement(element)).toBe(true);
 
     // Missing the required home surface.
     expect(
-      isRegistryElement({
+      RegistryGuard.isElement({
         anchor: "## Goal",
         presence: "required",
         valuePattern: "^## Goal$",
@@ -143,14 +143,16 @@ describe("type guards", () => {
       }),
     ).toBe(false);
     // Presence outside the legal domain.
-    expect(isRegistryElement({ anchor: "## Goal", presence: "sometimes", home: "facet" })).toBe(
+    expect(
+      RegistryGuard.isElement({ anchor: "## Goal", presence: "sometimes", home: "facet" }),
+    ).toBe(false);
+    // Empty anchor token.
+    expect(RegistryGuard.isElement({ anchor: "", presence: "required", home: "facet" })).toBe(
       false,
     );
-    // Empty anchor token.
-    expect(isRegistryElement({ anchor: "", presence: "required", home: "facet" })).toBe(false);
     // Ref kind outside the legal enum.
     expect(
-      isRegistryElement({
+      RegistryGuard.isElement({
         anchor: "## Goal",
         presence: "required",
         refKind: "elsewhere",
@@ -158,21 +160,21 @@ describe("type guards", () => {
       }),
     ).toBe(false);
     // Non-object inputs.
-    expect(isRegistryElement(null)).toBe(false);
-    expect(isRegistryElement("## Goal")).toBe(false);
+    expect(RegistryGuard.isElement(null)).toBe(false);
+    expect(RegistryGuard.isElement("## Goal")).toBe(false);
   });
 
   it("recognizes the three declared registries and rejects registry-shaped non-registries", () => {
-    expect(isElementRegistry(declaredRegistries.overall)).toBe(true);
-    expect(isElementRegistry(declaredRegistries.plan)).toBe(true);
-    expect(isElementRegistry(declaredRegistries.phaseSpec)).toBe(true);
+    expect(RegistryGuard.isRegistry(declaredRegistries.overall)).toBe(true);
+    expect(RegistryGuard.isRegistry(declaredRegistries.plan)).toBe(true);
+    expect(RegistryGuard.isRegistry(declaredRegistries.phaseSpec)).toBe(true);
     // Missing the elements surface.
-    expect(isElementRegistry({ docType: "overall" })).toBe(false);
+    expect(RegistryGuard.isRegistry({ docType: "overall" })).toBe(false);
     // Unknown doc type.
-    expect(isElementRegistry({ docType: "unknown", elements: [] })).toBe(false);
+    expect(RegistryGuard.isRegistry({ docType: "unknown", elements: [] })).toBe(false);
     // A registry whose element fails the element guard is not a registry.
     expect(
-      isElementRegistry({
+      RegistryGuard.isRegistry({
         docType: "overall",
         elements: [{ anchor: "## X", presence: "sometimes", home: "section" }],
       }),
@@ -203,7 +205,7 @@ describe("type-level contract", () => {
       refKind: "none",
       home: "facet",
     };
-    if (isRegistryElement(candidate)) {
+    if (RegistryGuard.isElement(candidate)) {
       expectTypeOf(candidate).toMatchTypeOf<RegistryElement>();
     }
   });

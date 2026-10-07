@@ -108,45 +108,52 @@ const HOME_VALUES = [
 const DOC_TYPE_VALUES = ["overall", "plan", "phase-spec"] as const satisfies readonly DocType[];
 
 /**
- * Narrow a candidate to a well-formed registry element: anchor token, presence,
- * value pattern, ref kind and home all inside their legal domains.
+ * The registry guards — the runtime contract that narrows an unknown candidate
+ * to a registry element or a full element registry. A static predicate class
+ * (zero instance state): every guard reads its legal vocabulary from the
+ * declared constants above, so a domain drift fails the guard tests.
  */
-export function isRegistryElement(value: unknown): value is RegistryElement {
-  if (typeof value !== "object" || value === null) return false;
-  const candidate = value as Record<string, unknown>;
-  if (typeof candidate.anchor !== "string" || candidate.anchor.length === 0) return false;
-  if (
-    typeof candidate.presence !== "string" ||
-    !(PRESENCE_VALUES as readonly string[]).includes(candidate.presence)
-  )
-    return false;
-  if (candidate.valuePattern !== undefined && typeof candidate.valuePattern !== "string")
-    return false;
-  if (
-    candidate.refKind !== undefined &&
-    (typeof candidate.refKind !== "string" ||
-      !(REF_KIND_VALUES as readonly string[]).includes(candidate.refKind))
-  )
-    return false;
-  if (
-    typeof candidate.home !== "string" ||
-    !(HOME_VALUES as readonly string[]).includes(candidate.home)
-  )
-    return false;
-  return true;
-}
+// biome-ignore lint/complexity/noStaticOnlyClass: the plan-mandated static guard surface — the zero-bare-function discipline admits no standalone predicate functions.
+export class RegistryGuard {
+  /** Narrow a candidate to a well-formed registry element: anchor token, presence,
+   *  value pattern, ref kind and home all inside their legal domains. */
+  static isElement(value: unknown): value is RegistryElement {
+    if (typeof value !== "object" || value === null) return false;
+    const candidate = value as Record<string, unknown>;
+    if (typeof candidate.anchor !== "string" || candidate.anchor.length === 0) return false;
+    if (
+      typeof candidate.presence !== "string" ||
+      !(PRESENCE_VALUES as readonly string[]).includes(candidate.presence)
+    )
+      return false;
+    if (candidate.valuePattern !== undefined && typeof candidate.valuePattern !== "string")
+      return false;
+    if (
+      candidate.refKind !== undefined &&
+      (typeof candidate.refKind !== "string" ||
+        !(REF_KIND_VALUES as readonly string[]).includes(candidate.refKind))
+    )
+      return false;
+    if (
+      typeof candidate.home !== "string" ||
+      !(HOME_VALUES as readonly string[]).includes(candidate.home)
+    )
+      return false;
+    return true;
+  }
 
-/** Narrow a candidate to a full element registry (doc type + all elements well-formed). */
-export function isElementRegistry(value: unknown): value is ElementRegistry {
-  if (typeof value !== "object" || value === null) return false;
-  const candidate = value as Record<string, unknown>;
-  if (
-    typeof candidate.docType !== "string" ||
-    !(DOC_TYPE_VALUES as readonly string[]).includes(candidate.docType)
-  )
-    return false;
-  if (!Array.isArray(candidate.elements)) return false;
-  return (candidate.elements as unknown[]).every((element) => isRegistryElement(element));
+  /** Narrow a candidate to a full element registry (doc type + all elements well-formed). */
+  static isRegistry(value: unknown): value is ElementRegistry {
+    if (typeof value !== "object" || value === null) return false;
+    const candidate = value as Record<string, unknown>;
+    if (
+      typeof candidate.docType !== "string" ||
+      !(DOC_TYPE_VALUES as readonly string[]).includes(candidate.docType)
+    )
+      return false;
+    if (!Array.isArray(candidate.elements)) return false;
+    return (candidate.elements as unknown[]).every((element) => RegistryGuard.isElement(element));
+  }
 }
 
 // ---------------------------------------------------------------------------

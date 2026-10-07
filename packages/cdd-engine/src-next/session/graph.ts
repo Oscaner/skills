@@ -19,9 +19,10 @@
 // Module-level exports are types / the class — zero behavior-carrying bare
 // functions (the plan's zero-bare-function discipline).
 
+import { declaredRegistries } from "../contract/declare.ts";
 import type { PlanParsed, TaskBlock } from "../contract/doc.ts";
 import type { ReferenceEntry } from "../contract/project.ts";
-import { projectReference } from "../contract/project.ts";
+import { Projector } from "../contract/project.ts";
 import type { ExecutionState, Frontier } from "./state.ts";
 
 /** The six edge-validation classes — the TaskGraph's judgment vocabulary. */
@@ -79,7 +80,10 @@ export class TaskGraph implements Frontier, ExecutionState {
   /** Build from a shared plan parse — the same instance the dispatch and the lint read. */
   constructor(parsed: PlanParsed) {
     this.#depIdToken = new RegExp(
-      TaskGraph.#valuePatternOf(projectReference().plan.entries, "DependsOn id"),
+      TaskGraph.#valuePatternOf(
+        new Projector(declaredRegistries).reference().plan.entries,
+        "DependsOn id",
+      ),
     );
     this.#nodes = parsed.taskBlocks.map((block) => block.id).sort((a, b) => a - b);
     const edges = new Map<number, EdgeRecord>();

@@ -2,7 +2,7 @@
 // T5 — the reference lint WARN pass (design spec §2.3): an independent observation
 // face that runs at the dispatch gate, never part of the judgment definition.
 // The reference vocabulary it applies is the derived projection (project.ts —
-// `projectReference()`, the per-element reference rows) — zero self-copied
+// `Projector.reference()`, the per-element reference rows) — zero self-copied
 // reference patterns. The lint consumes the SAME doc.ts parse record the dispatch
 // and the graph read (parse once, reuse everywhere), so its observations are
 // anchored on the parsed task blocks and the chain root, never a re-scan of raw
@@ -25,10 +25,11 @@
 // bare functions (the plan's zero-bare-function discipline).
 
 import path from "node:path";
+import { declaredRegistries } from "./declare.ts";
 import type { ChainLink, ParsedDoc, PlanParsed, TaskBlock } from "./doc.ts";
 import { MarkdownPrimitives } from "./doc.ts";
-import type { ReferenceEntry } from "./project.ts";
-import { projectReference } from "./project.ts";
+import type { ReferenceEntry, ReferenceProjection } from "./project.ts";
+import { Projector } from "./project.ts";
 
 /** One reference-lint warning — a WARN-only observation, never a judge Finding. */
 export interface Warn {
@@ -63,7 +64,7 @@ export interface LintInput {
  */
 export class LintPass extends MarkdownPrimitives {
   /** The derived reference vocabulary — the single source the lint applies. */
-  readonly #reference: ReturnType<typeof projectReference>;
+  readonly #reference: ReferenceProjection;
   /** The derived `Task prose reference` token pattern (global — matchAll over prose lines). */
   readonly #proseToken: RegExp;
   /** The derived `DependsOn id` value pattern (whole-token — the declared-edge values). */
@@ -73,7 +74,7 @@ export class LintPass extends MarkdownPrimitives {
 
   constructor() {
     super();
-    this.#reference = projectReference();
+    this.#reference = new Projector(declaredRegistries).reference();
     const planEntries = this.#reference.plan.entries;
     this.#proseToken = new RegExp(this.#valuePatternOf(planEntries, "Task prose reference"), "g");
     this.#depIdToken = new RegExp(this.#valuePatternOf(planEntries, "DependsOn id"));

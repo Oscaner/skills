@@ -23,8 +23,13 @@
 // Module-level exports are types / the class family / one composition root — zero
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
+import { declaredRegistries } from "./declare.ts";
 import type { DocKey, DocShape, DocSlices, ElementSlice } from "./project.ts";
-import { projectShape, projectSlices } from "./project.ts";
+import { Projector } from "./project.ts";
+
+/** The projection carrier — one Projector instance over the declared registries,
+ *  shared by the three parser classes (each binds its own doc-type faces). */
+const projector = new Projector(declaredRegistries);
 
 // ---------------------------------------------------------------------------
 // shared structural types
@@ -290,8 +295,8 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
   constructor(key: DocKey) {
     super();
     this.key = key;
-    this.slices = projectSlices()[key];
-    this.shape = projectShape()[key];
+    this.slices = projector.slices()[key];
+    this.shape = projector.shape()[key];
     this.#slicesByAnchor = new Map(this.slices.slices.map((slice) => [slice.anchor, slice]));
   }
 

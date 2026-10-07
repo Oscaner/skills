@@ -91,6 +91,27 @@ describe("checkWords — the guard-ban vocabulary from the word-table export", (
     }
   });
 
+  it("excludes whole files by path prefix — the per-file skip never leaks mid-file hits", () => {
+    const ban = GUARD_BAN_WORDS.stale[0]!.token;
+    const dir = mkdtempSync(path.join(tmpdir(), "guard-exclude-"));
+    try {
+      const kept = path.join(dir, "kept.ts");
+      const dropped = path.join(dir, "vendor", "drop.ts");
+      mkdirSync(path.join(dir, "vendor"), { recursive: true });
+      writeFileSync(kept, `const w = "${ban}" + "y";\n`, "utf8");
+      // Multiple token-bearing lines inside an excluded path — the whole file must be
+      // skipped (a mid-loop break would silently drop the lines past the first hit).
+      writeFileSync(dropped, `const a = "${ban}" + "a";\nconst b = "${ban}" + "b";\n`, "utf8");
+      const hits = scanToken([dir], ban, "/", {
+        excludePaths: [path.posix.relative("/", path.join(dir, "vendor"))],
+      });
+      expect(hits.some((h) => h.file.endsWith("vendor/drop.ts"))).toBe(false);
+      expect(hits.some((h) => h.file.endsWith("kept.ts"))).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("exposes the ban families as exported data (the consumption-face assert)", () => {
     expect(GUARD_BAN_WORDS.stale.map((r) => r.token)).toContain(".mjs");
     expect(GUARD_BAN_WORDS.gate.map((r) => r.token)).toContain("CDD_GATE");

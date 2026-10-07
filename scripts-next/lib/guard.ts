@@ -478,10 +478,11 @@ export class GuardLibrary {
    * checkChannels() — the channel audit: the CLI channel closure (every command-
    * declared key resolves in the runtime argv channel, and every non-program argv
    * channel key is declared by a command), the host-marker closure (detect env keys
-   * ∪ PATH — derived from the harness detect rows, single source), and the dispatch/
-   * refs derivation (every dispatch-slot ref registered + every per-harness slash
-   * form derived: pi `/skill:<bare>`, claude/cursor `/<ref>`). All asserted against
-   * the typed exports — zero parallel allowlist.
+   * ∪ PATH — derived from the harness detect rows as the live single source,
+   * compared against a pinned half-update oracle, documented in-check), and the
+   * dispatch/refs derivation (every dispatch-slot ref registered + every per-harness
+   * slash form derived: pi `/skill:<bare>`, claude/cursor `/<ref>`). All asserted
+   * against the typed exports — zero parallel allowlist beyond the host-marker pin.
    */
   checkChannels(): GuardFinding[] {
     const findings: GuardFinding[] = [];
@@ -514,7 +515,12 @@ export class GuardLibrary {
       });
     }
 
-    // 2. The host-marker closure — detect env keys ∪ PATH, single-sourced from HOSTS.
+    // 2. The host-marker closure — detect env keys ∪ PATH. The derived array is the
+    //    live single source (every HOSTS detect row's env key); `pinned` is the
+    //    deliberate half-update oracle — the frozen expected enumeration the closure
+    //    must equal, hand-updated only when the detect surface intentionally grows
+    //    (a new harness / renamed env key). The comparison is what catches accidental
+    //    drift — the pin is the check's expectation half, not a parallel list.
     const markerKeys = Object.values(this.#hosts).map((row) => row.detect.env);
     const expectedClosure = [...markerKeys, "PATH"].sort();
     const pinned = ["AI_AGENT", "CLAUDE_CODE_SESSION_ID", "CURSOR_TRACE_ID", "PATH"].sort();

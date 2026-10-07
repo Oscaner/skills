@@ -1,9 +1,10 @@
 // scripts-next/validate.ts — the single validate orchestrator (T14): ONE data-table
 // runner over the composed step set — emit freshness (the scripts-next emit byte
 // check), the guard triune (anatomy · word-face · channels — the new-tree export
-// consumption), the engine vitest suite, the kairos behavior tree, the type-check
-// gate and the package version sync. The thin single-purpose wrapper modules of the
-// old validate tree fold into this module; the step set IS the data table.
+// consumption), the engine vitest suite, the scripts + scripts-next vitest suite,
+// the kairos behavior tree, the type-check gate and the package version sync. The
+// thin single-purpose wrapper modules of the old validate tree fold into this module;
+// the step set IS the data table.
 //
 // The runner: one loop over `{ name, run() }` steps, `== <name> ==` + OK per step,
 // `== FAIL: <name> ==` + message + exit 1 on error, ALL PASS + 0 when green.
@@ -174,6 +175,11 @@ export const steps = [
     name: "cdd-engine engine test suite (vitest, src + src-next projects)",
     cmd: "pnpm",
     args: ["-C", "packages/cdd-engine", "test"],
+  }),
+  new SubprocessBlock({
+    name: "scripts + scripts-next unit tests (root vitest run)",
+    cmd: "pnpm",
+    args: ["exec", "vitest", "run"],
   }),
   new SubprocessBlock({
     name: "kairos node:test behavior tree",

@@ -58,12 +58,14 @@ export function scanToken(
   const excludePaths = opts.excludePaths ?? [];
   for (const target of targets) {
     for (const file of walkTarget(target, root)) {
+      const relative = path.relative(root, file);
+      // Exclusions are a per-file fact — skip the whole file, never abort the line
+      // loop mid-file (a `break` here would silently drop the file's remaining lines).
+      if (excludePaths.some((prefix) => relative.startsWith(`${prefix}/`))) continue;
       const lines = readFileSync(file, "utf8").split("\n");
       for (let i = 0; i < lines.length; i++) {
         const text = lines[i]!;
         if (!text.includes(token)) continue;
-        const relative = path.relative(root, file);
-        if (excludePaths.some((prefix) => relative.startsWith(`${prefix}/`))) break;
         if (releaseFiles.includes(relative) && isQuotedDataRow(text, token)) continue;
         hits.push({ file: relative, line: i + 1, text });
       }

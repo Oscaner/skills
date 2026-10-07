@@ -43,13 +43,14 @@ describe("ValidateRunner — the single data-table runner", () => {
     expect(() => block.run()).not.toThrow();
   });
 
-  it("the composed step set is the data table — the eight steps in order", () => {
+  it("the composed step set is the data table — the nine steps in order", () => {
     expect(steps.map((s) => s.name)).toEqual([
       "emit freshness (scripts-next emit, byte-checked)",
       "kairos skill anatomy (the typed skill-anatomy contract)",
       "word-face audit (the guard-ban vocabulary from the word-table export)",
       "engine channel audit (CLI × runtime · host markers · dispatch/refs)",
       "cdd-engine engine test suite (vitest, src + src-next projects)",
+      "scripts + scripts-next unit tests (root vitest run)",
       "kairos node:test behavior tree",
       "type-check (tsc --noEmit × 4 projects)",
       "package version sync",

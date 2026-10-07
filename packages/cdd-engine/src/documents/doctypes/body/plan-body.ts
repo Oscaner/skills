@@ -190,7 +190,7 @@ export const PLAN_BODY_SHAPE: SchemaShape = {
         type: "object",
         required: ["objective", "files", "interface", "steps", "acceptance", "dependsOn"],
         description:
-          "One plan task record — objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[] / dependsOn[] (the single directed edge — `- **DependsOn**:` comma list, `none`/empty → `[]`; the edge model is unilateral — TaskGraph consumes the dependsOn edges for the wave batches + the edge-validation BLOCK face (missing-edge · anti-dependency · …).",
+          "One plan task record — objective / files / interface{consumes,produces} / steps[]{action,checkable} / acceptance[] / dependsOn[] — the single directed edge — `- **DependsOn**:` comma list, `none`/empty → `[]`; the edge model is unilateral — TaskGraph consumes the dependsOn edges for the wave batches + the edge-validation BLOCK face (missing-edge · anti-dependency · …).",
         properties: {
           objective: {
             type: "string",

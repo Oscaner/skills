@@ -398,7 +398,9 @@ export class Ledger {
    *  A fix round carries the SOURCE review's findings (C5-1: the `--findings` input
    *  content, never its own carrier) + the fix's own commits; the consecutive-S1 run is
    *  walked from the review history. Missing/corrupt evaluated handoff → null (no round
-   *  on record). */
+   *  on record) — a fix round whose source review is unreadable is null too, never a
+   *  zero-findings fabrication: a round whose blocker set was never read must not be
+   *  judged clean. */
   round(
     op: "implement" | "review" | "fix",
     type: "task" | "branch" | "spec" | "plan",
@@ -428,17 +430,20 @@ export class Ledger {
         consecutiveS1: this.#consecutiveS1Run(type, params, round),
       };
     }
-    // op === "fix" — the C5-1 fingerprint: the fix round judges the source review's input findings.
+    // op === "fix" — the C5-1 fingerprint: the fix round judges the source review's input
+    // findings. Missing/corrupt source review OR fix carrier → null (no round on record),
+    // matching the review branch's contract: a fix whose blocker set was never read must
+    // not be judged a clean zero-findings round — the next-hop derivation cannot close a
+    // line it could not read.
     const reviewParams = { ...params, round };
     const reviewCarrier = this.readHandoff("review", type, reviewParams);
     const fixCarrier = this.readHandoff("fix", type, reviewParams);
-    if (fixCarrier === null) return null;
+    if (reviewCarrier === null || fixCarrier === null) return null;
     return {
       phase: "fix",
       status: fixCarrier.status as RoundStatus | undefined,
-      findings: reviewCarrier === null ? [] : this.#findingsOf(reviewCarrier),
-      findingsPath:
-        reviewCarrier === null ? undefined : this.handoffPath("review", type, reviewParams),
+      findings: this.#findingsOf(reviewCarrier),
+      findingsPath: this.handoffPath("review", type, reviewParams),
       commits: fixCarrier.commits as { base: string; head?: string } | undefined,
       consecutiveS1: this.#consecutiveS1Run(type, params, round),
     };

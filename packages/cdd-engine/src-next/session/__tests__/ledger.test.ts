@@ -305,6 +305,39 @@ describe("round — the round carrier", () => {
     }
   });
 
+  it("a fix round whose source review is unreadable is null — never a zero-findings fabrication", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // the fix carrier is on record but the source review it judges (C5-1) is missing
+      ledger.persistHandoff(
+        "fix",
+        "task",
+        { tasks: "7,9", round: 1 },
+        { phase: "fix", findings: [], commits: { base: BASE, head: HEAD } },
+      );
+      // missing source review → no round on record (matching the review branch): the next-hop
+      // derivation cannot close a line whose blocker set was never read
+      expect(ledger.round("fix", "task", { tasks: "7,9" }, 1)).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a fix round whose own carrier is missing is null too — unreadable either side", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      ledger.persistHandoff(
+        "review",
+        "task",
+        { tasks: "1", round: 1 },
+        { findings: [{ severity: "blocker" }] },
+      );
+      expect(ledger.round("fix", "task", { tasks: "1" }, 1)).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
   it("walks the consecutive-S1 run newest-first, stopping at the first clean review", () => {
     const { ledger, cleanup } = fixture();
     try {

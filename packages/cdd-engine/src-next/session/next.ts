@@ -7,6 +7,8 @@
 //   fix      warn/nit only  → none (closure — no APPROVED-mandated re-review, #278)
 //   fix      soft cap       → the "BLOCKED: review-cycle-cap" suggestion (user adjudicates)
 //   BLOCKED/TIMEOUT         → null (no next line — the CDD_BLOCKED channel owns the face)
+//   missing base            → null (only present facts land — a next hop never carries a
+//                           synthetic empty base: absent commits degrade the line to null)
 //
 // The table judges the round carrier (ledger.ts — the fix round's own findings are
 // the source review's input, C5-1) against the execution state (state.ts — the
@@ -55,10 +57,15 @@ export class NextStepRouter {
     if (ref.status !== undefined && FAILED_STATUS.has(ref.status)) return null;
 
     switch (ref.phase) {
-      case "implement":
+      case "implement": {
         // The implement round completes → the group's review is the next hop (the reviewed
-        // range base = the implement round's task base).
-        return { kind: "review", base: ref.commits?.base ?? "" };
+        // range base = the implement round's task base). Only present facts land: a missing
+        // base never invents a next line (an implement round without commits is abnormal) —
+        // an empty base would be indistinguishable from a real one in the rendered next:.
+        const base = ref.commits?.base;
+        if (base === undefined) return null;
+        return { kind: "review", base };
+      }
       case "review":
         // One-way: any findings (any severity) → the fix round — a review never previews
         // what the fix will do (C5-1).
@@ -75,7 +82,10 @@ export class NextStepRouter {
         }
         if (this.#blockerCount(ref) > 0) {
           // Blockers remain in the input findings → re-review at a new ref (the fix head).
-          return { kind: "review", base: ref.commits?.head ?? "" };
+          // Only present facts land: a fix without a head commit never invents the re-review.
+          const base = ref.commits?.head;
+          if (base === undefined) return null;
+          return { kind: "review", base };
         }
         // No blockers → closure-round naturalization: no re-review preview.
         return { kind: "none" };

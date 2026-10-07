@@ -111,13 +111,24 @@ describe("fix rounds — the re-review / closure decision point (C5-1)", () => {
     ).toEqual({ kind: "soft-cap", message: SOFT_CAP_SUGGESTION });
   });
 
-  it("below the cap, blockers still route the re-review", () => {
+  it("below the cap, blockers still route the re-review (base = the fix round's head)", () => {
     expect(
       router.next(
         state([]),
-        round({ phase: "fix", findings: [finding("blocker")], consecutiveS1: 2 }),
+        round({
+          phase: "fix",
+          findings: [finding("blocker")],
+          consecutiveS1: 2,
+          commits: { base: "a".repeat(40), head: "b".repeat(40) },
+        }),
       )!.kind,
     ).toBe("review");
+  });
+
+  it("a fix round with blockers but no head commit degrades to null — no invented re-review base", () => {
+    expect(
+      router.next(state([]), round({ phase: "fix", findings: [finding("blocker")] })),
+    ).toBeNull();
   });
 });
 
@@ -129,6 +140,10 @@ describe("implement / branch-review — the lifecycle rows", () => {
         round({ phase: "implement", commits: { base: "a".repeat(40), head: "b".repeat(40) } }),
       ),
     ).toEqual({ kind: "review", base: "a".repeat(40) });
+  });
+
+  it("an implement round without commits degrades to null — no invented next hop for a missing base", () => {
+    expect(router.next(state([]), round({ phase: "implement" }))).toBeNull();
   });
 
   it("branch-review zero findings → none; findings → the fix hop", () => {

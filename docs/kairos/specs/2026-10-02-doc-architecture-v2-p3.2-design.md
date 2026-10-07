@@ -1,6 +1,6 @@
 # 文档架构方法论 v2 — P3.2 Design Spec v1.1（全系统从零重建 · 判定单家 · 工作流归一）
 
-- **Version**: v1.1 · 2026-10-07
+- **Version**: v1.2 · 2026-10-07（spec review round 九 finding 落地：§2.1 四分量行数自洽 ~485 · §4.2 五链 digraph 自环例外 + digraph 一致断言 · §6.1 基线按实树校订 72/顶面 8-5 · shape 五表达面投影一致 · 词汇条 word 残句修正）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5（kairos:cdd-phase · 决策源 = kairos:cdd-design grilling 收敛 + 用户 2026-10-07 greenfield 拍板）
 - **Parent program**: [doc-architecture-v2-overall.md v1.21](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
@@ -8,7 +8,7 @@
 
 ## Design
 
-用户 2026-10-07 拍板：**可完全不用在意兼容现有代码；可在新目录从零写、随后删除现有代码；方法论/体系已清晰，零老版本兼容义务，只要求最佳实践**。P3.2 从「引擎剥壳 + 五链重写」升为**全系统从零重建**：以既定架构（四层 + 单一数据真相 + next: 单环路）为目标架构，在并行新平面建齐 → 入口切换 → 删除旧树 → validate 全绿。绿色构建不背负旧补丁层、旧目录形状、旧技能重复体。
+用户 2026-10-07 拍板：**可完全不用在意兼容现有代码；可在新目录从零写、随后删除现有代码；方法论/体系已清晰，零老版本兼容义务，只要求最佳实践**。P3.2 从「引擎剥壳 + 五链重写」升为**全系统从零重建**：以既定架构（三大职责 + 两服务 = 5 平面拓扑 + 单一数据真相 + next: 单环路）为目标架构，在并行新平面建齐 → 入口切换 → 删除旧树 → validate 全绿。绿色构建不背负旧补丁层、旧目录形状、旧技能重复体。
 
 ### 1. 数据面：元素登记表 = 唯一声明源
 
@@ -24,7 +24,7 @@ doc 结构词（DOC_TOKENS 面）+ 胶囊词（`status`/`next:`/`CDD_BLOCKED:` �
 
 #### 2.1 解释器为唯一判定器 + 策略类族（零裸函数）
 
-新解释器 = 全部结构判定唯一入口（docContractValidate 单调用）。判定多态以**不变式策略类族**落地（`abstract class Invariant { evaluate(ctx): Finding[] }`；presence/uniqueness/domain/crosslink/order/continuity/residue/hollow/selfBounded + **file-existence / sibling-scan / cross-doc-chain / section-scoped-domain** 各成一类），`Contract.validate()` 是**协调器**——按登记表组配策略集运行，无手写 switch-case 判定分发。**零裸函数**：行为/判定/派生全为类成员，模块级导出仅类型/常量数据/类/组合根（旧 `runStructureRules` 函数解释器 + 游离 extract/compare helper 不复现）。上下文缝四不变式吸收旧 doctype 类上 ~520 行判定（fourTableAudit 280 · deviations 65 · Class-A/B 碳文档链 105 · effectiveGroups 边门 35）。
+新解释器 = 全部结构判定唯一入口（docContractValidate 单调用）。判定多态以**不变式策略类族**落地（`abstract class Invariant { evaluate(ctx): Finding[] }`；presence/uniqueness/domain/crosslink/order/continuity/residue/hollow/selfBounded + **file-existence / sibling-scan / cross-doc-chain / section-scoped-domain** 各成一类），`Contract.validate()` 是**协调器**——按登记表组配策略集运行，无手写 switch-case 判定分发。**零裸函数**：行为/判定/派生全为类成员，模块级导出仅类型/常量数据/类/组合根（旧 `runStructureRules` 函数解释器 + 游离 extract/compare helper 不复现）。上下文缝四不变式吸收旧 doctype 类上 ~485 行判定（fourTableAudit 280 · deviations 65 · Class-A/B 跨文档链 105 · effectiveGroups 边门 35 —— 四分量合计 485）。
 
 #### 2.2 doctype 类瘦身为 parse+投影
 
@@ -54,16 +54,16 @@ task/branch/docs 三个 near-同构 lifecycle（旧 3.6k 行）收敛为**参数
 
 | skill | 角色 | 说明 |
 |---|---|---|
-| cdd-design | 编排 | brainstorm 路由（mode/register/size 语义门显式）· 内部 2×charter + 3 近同 dispatch 节点击碎为参数化单模板 |
+| cdd-design | 编排 | brainstorm 路由（mode/register/size 语义门显式）· 内部 run-cdd-charter · sync / run-cdd-charter 两 charter 节点 + run-cdd-spec / run-cdd-phase 两近同 dispatch 节点击碎为参数化单模板 |
 | **cdd-spec-writer** | spec-writer | **single / phase-spec / overall 合一参数化**流（schema 目标 + scope-gates + author + handoff 参数）——旧 cdd-spec/phase/charter 三文件并入，重复体（review-loop 子图 · fix-spec 逐字节相同 · Invariants 表）单源 |
 | cdd-plan | 编排 | plan writer（backfill-design 门 · Plan Sole Writer）· review loop 接入共享 spec-writer 循环体 |
 | cdd-dev | 执行链 | implement/review/fix 三态 + branch 终面；全由 next: 驱动；`more-groups?` 退役 |
-| cdd-close | 编排 | 分支收尾（upstream finish flow + 4 选项门）· typed-discard 门不变 |
-| cdd-report | 工具 | 聚合 issue 上报（gh CLI · dedup · 确认门）· 独立无重叠 |
+| cdd-close | 编排 | 分支收尾（upstream finish flow + 4 选项门）· 终面 = finish 编排语义门 + 终端（人工决策面，非 next 驱动 · 无 review 自环）· typed-discard 门不变 |
+| cdd-report | 工具 | 聚合 issue 上报（gh CLI · dedup · 确认门）· 独立无重叠 · 一次性上报链路（无 NEXT-LOOP 自环）|
 
 #### 4.2 全链 digraph = 执行节点 + 单 next-loop 自环
 
-六链 digraph 统一为：一次性动作节点 + `NEXT-LOOP` ⇄（自环，`next:` 单条件派发）+ 终端（commit/handoff）；digraph 边**零状态标签**。显式节点三类：一次性动作 / 终端 / 编排语义门（design mode/register/size · close finish）。Review Convergence（review-unskippable · 新 ref 即新 review · CLI 评审替代禁令）等纪律全数归 Invariants 段，digraph 与 Node Definitions 零路由自述。上游 import 面保持（superpowers:brainstorming / writing-plans / finishing-a-development-branch / mattpocock-skills:grilling，M 组 fit 映射不动）。
+五链 digraph（cdd-design / cdd-spec-writer / cdd-plan / cdd-dev / cdd-close）统一骨架为：一次性动作节点 + `NEXT-LOOP` ⇄（自环，`next:` 单条件派发）+ 终端（commit/handoff）——`NEXT-LOOP` 自环覆盖 review→fix 循环链（cdd-design 编排回收 · cdd-spec-writer · cdd-plan · cdd-dev 三态），**cdd-close 止于 finish 编排语义门 + 终端、cdd-report 为一次性上报工具链（均无自环）**；digraph 边**零状态标签**。显式节点三类：一次性动作 / 终端 / 编排语义门（design mode/register/size · close finish——人工决策面，非 next 驱动）。Review Convergence（review-unskippable · 新 ref 即新 review · CLI 评审替代禁令）等纪律全数归 Invariants 段，digraph 与 Node Definitions 零路由自述；**digraph 节点名 ↔ Node Definitions heading ↔ 文本引用一致断言钉住（多链共享节点名不漂移）**。上游 import 面保持（superpowers:brainstorming / writing-plans / finishing-a-development-branch / mattpocock-skills:grilling，M 组 fit 映射不动）。
 
 ### 5. 工具链（scripts/）：守卫消费引擎元数据
 
@@ -86,7 +86,7 @@ packages/cdd-engine/src-next/
   bin.ts                      # CLI 入口（薄）
   contract/                   # 文档契约 = 一份数据的四种消费
     declare.ts                #   三 doc 类型元素登记表（typed 声明数据）
-    project.ts                #   派生投影（schema · slices · tokens · reference）
+    project.ts                #   派生投影（shape · schema · slices · tokens · reference 五面）
     judge.ts                  #   Contract.validate() 协调器 + 不变式策略类族
     lint.ts                   #   reference lint（WARN pass）
   session/                    # 会话机 = 状态机 + 账本
@@ -105,7 +105,7 @@ packages/cdd-engine/src-next/
 
 **新旧零依赖（硬规则）**：新树自包含——`src-next/**` 零 import 旧树（双向：旧树亦零 import 新树；grep 断言钉死），新树连基建（infra/）、词表（face/words）、派生（contract/project）全部**重新实现**，不借用任何旧符号/旧分组/旧 helper；外部契约 JSON（engine-config / harness-contract / template-contract）作为**稳态数据**按同址读取（数据消费，非代码依赖），而 schema / lexicon / tokens 等**派生产物由新树自派生**——并行期新树测试只用自派生数据，不读旧派生产物。两树共存的唯一共同物 = 方法论本身（消费规范与词面土层，以数据形态存在），代码级互为透明。
 
-组织原则从「按文件类型归档」（旧 cli/dispatch/artifacts/documents/doctypes/body/rules/render/infra/domain 十平面）改为「按职责语义聚合」：**contract / session / face 三大职责 + render/infra 两服务**。跨面碎片归位——胶囊散在 rules/result-face+next-step、词表散在 documents/words+infra/word-table、账本散在 artifacts/×9 → 各归其家。文件数 **73 → ~30-38**，顶平面 **10 → 5**。
+组织原则从「按文件类型归档」（旧 cli/dispatch/artifacts/documents/domain/rules/render/infra 八目录 + bin.ts 入口面——doctypes/body 为 documents/ 下的嵌套层，非顶面）改为「按职责语义聚合」：**contract / session / face 三大职责 + render/infra 两服务**。跨面碎片归位——胶囊散在 rules/result-face+next-step、词表散在 documents/words+infra/word-table、账本散在 artifacts/×9 → 各归其家。文件数 **72 → ~30-38**，顶平面 **8 → 5**。
 
 #### 6.2 过渡纪律
 
@@ -117,16 +117,16 @@ packages/cdd-engine/src-next/
 
 ### Acceptance criteria
 
-- 三 doc 类型元素登记表存在（每元素含锚 token · presence · value pattern · ref kind · 归属面）；schema/slices/tokens/reference 全由登记表派生，schema 字节 pin 自首版钉住；shape 散文面零残留（grep）
-- 词表单源（doc 词 + 胶囊词 + 守卫词一家one chain）：旧 lexicon 五家（words.ts/json/shape/word-table/guard-lexicon 分家）零残留（grep 断言）
+- 三 doc 类型元素登记表存在（每元素含锚 token · presence · value pattern · ref kind · 归属面）；shape/schema/slices/tokens/reference 五表达面全由登记表派生，schema 字节 pin 自首版钉住；shape 散文面（~955 行散文体）零残留（grep）
+- 词表单源（doc 词 + 胶囊词 + 守卫词 · 一词表一派生链）：旧 lexicon 五家（words.ts/json/shape/word-table/guard-lexicon 分家）零残留（grep 断言）
 - 解释器 = 唯一判定器：上下文缝不变式（file-existence / sibling-scan / cross-doc-chain / section-scoped-domain）落地有负例断言；doctype 类零判定方法（类面 grep 判定符号零残留）；`InvariantVerdict`/`declared`/`CompiledSurface` 概念零残留
 - 不变式 = 策略类族（`abstract Invariant.evaluate()` 多态 · `Contract.validate()` 协调器零 switch-case 判定分发断言）· 零裸函数（新树行为面 grep 裸函数零残留 —— 模块级导出仅类型/常量/类/组合根）
 - TaskGraph + frontier + ExecutionState 查询面（doneTasks()/readyBatch() 为方法，不新增独立类）；缺边/反依赖唯一家在 TaskGraph，doc-contract parse 早拦负例断言
 - `NextStepRouter` 单点：next 生成单面（负例：warn/nit→`next: none` · blocker>0→re-review · BLOCKED 无 next 行）；胶囊 `status · blocker · handoff · next:` 词面字节 pin 稳态
 - dispatch 单 lifecycle 参数化落地（task/branch/spec/plan 数据表驱动）；CLI 命令面（implement/review/fix/schema/issue/base-branch）保持
-- 技能集 8 → 6 落地：cdd-spec-writer 合一（single/phase/overall 参数化）；全链 digraph 单 next-loop 自环 + 边零状态标签；节点锚定零残留；skill-anatomy 注册（6 集）+ 目录扫描守卫 + `pnpm run emit` 再生 + 零程序历史 pin；上游 import 面/编排语义门/Review Convergence 纪律保持
+- 技能集 8 → 6 落地：cdd-spec-writer 合一（single/phase/overall 参数化）；五链 digraph 单 next-loop 自环（cdd-report 一次性上报工具链例外）+ 边零状态标签；digraph 节点名 ↔ Node Definitions heading ↔ 文本引用一致断言；节点锚定零残留；skill-anatomy 注册（6 集）+ 目录扫描守卫 + `pnpm run emit` 再生 + 零程序历史 pin；上游 import 面/编排语义门/Review Convergence 纪律保持
 - scripts 重写：guard 消费引擎元数据（residue 正则 ban 表 → 词表数据行零残留 · channel 字面引擎导出）；单一 emit/validate 编排器；旧 wrapper/双 Orchestrator 零残留
-- 两代过渡：新树 **5 平面拓扑**（contract/session/face/render/infra · 文件 73→~30-38 · 顶面 10→5）落地于 `src-next/` + `scripts-next/` → 入口切换 → **旧树/旧技能零残留（grep 断言）** → validate ALL PASS · typecheck ×3 · biome · emit 新鲜 · changesets（cdd-engine major / kairos major）· 净减账（29k → 目标 −20%±）入验收
+- 两代过渡：新树 **5 平面拓扑**（contract/session/face/render/infra · 文件 72→~30-38 · 顶面 8→5）落地于 `src-next/` + `scripts-next/` → 入口切换 → **旧树/旧技能零残留（grep 断言）** → validate ALL PASS · typecheck ×3 · biome · emit 新鲜 · changesets（cdd-engine major / kairos major）· 净减账（29k → 目标 −20%±）入验收
 - **新旧零依赖断言**：`src-next` ↔ `src` 双向零 import（grep）；新树自包含全量重写（无旧符号/旧 helper/旧分组索引）· 外部契约 JSON 稳态读取、派生产物自派生（并行期测试不读旧派生产物）
 - 历史文档零 retro-rename（docs/kairos 方法论记录不动）；消费面 SKILL.md/README 随 6 集重写
 

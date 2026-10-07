@@ -21,6 +21,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { HOSTS, type HostId } from "../../cdd-engine/src-next/face/host.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..", "..", "..");
@@ -370,7 +371,7 @@ const NOMINAL_SECTION_HEADING: Record<string, string> = {
  *  + host marker from the harness contract (row id + cli + detect — C8: the unique harness-data
  *  source), ship status from the same contract row — `cursor-agent` is legal ONLY as the cursor
  *  binary-column data value. */
-/** One row of the canonical harness contract (packages/cdd-engine/config/harness-contract.json) —
+/** One row of the canonical harness contract (the typed host plane, src-next/face/host.ts) —
  *  the nominal-table derivation source (id + cli + detect + ship). */
 interface HarnessContractRow {
   cli?: unknown;
@@ -409,11 +410,10 @@ function parseNominalRow(line: string) {
 }
 
 test("nominal mapping table == the harness contract (row id/cli/detect + ship) data derivation", () => {
-  const contract = JSON.parse(read("packages/cdd-engine/config/harness-contract.json")) as Record<
-    string,
-    HarnessContractRow
-  >;
-  const ids = Object.keys(contract).filter((k) => !["_doc", "dispatch", "refs"].includes(k));
+  const contract = HOSTS as unknown as Record<string, HarnessContractRow>;
+  const ids = Object.keys(contract).filter(
+    (k): k is HostId => k === "claude" || k === "cursor" || k === "pi",
+  );
   const expected = ids.map((id) => nominalRow(contract, id));
   for (const rel of Object.keys(NOMINAL_SECTION_HEADING)) {
     const md = read(rel);

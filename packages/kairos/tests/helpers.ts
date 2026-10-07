@@ -4,31 +4,27 @@
 // Distinct layer from the engine module unit tests (their helpers are inline): this file serves
 // the behavior/integration test tree under packages/kairos/tests/ (bash boundary tests).
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { mkdtempSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { HOSTS } from "../../cdd-engine/src-next/face/host.ts";
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-// C8/C7: the harness data lives in the engine harness contract (config/harness-contract.json) —
-// the row `cli` fields are what the free-path filter must drop from PATH.
-const REG_PATH = path.resolve(HERE, "../../cdd-engine/config/harness-contract.json");
+// T21: the harness data lives in the engine's typed host contract (src-next/face/host.ts) — the
+// row `cli` fields are what the free-path filter must drop from PATH (the new data plane's home;
+// the old config-dir JSON is retired from this plane).
 
 // harness_free_path — drop every PATH directory that contains a registry CLI binary, so the
 // host's real CLIs (claude/cursor-agent/droid/pi/codex/...) cannot leak through a mock-PATH
-// scenario. Reads the real registry + process.env.PATH by default; registryPath / pathValue
+// scenario. Reads the real registry + process.env.PATH by default; pathValue / cliOverride
 // overrides match the inline versions' semantics.
 export function harnessFreePath({
-  registryPath = REG_PATH,
+  cliValues = Object.values(HOSTS).map((row) => row.cli),
   pathValue = process.env.PATH,
 }: {
-  registryPath?: string;
+  cliValues?: readonly string[];
   pathValue?: string;
 } = {}) {
-  const reg = JSON.parse(readFileSync(registryPath, "utf8")) as Record<string, { cli?: string }>;
-  const clis = Object.values(reg)
-    .map((e) => e.cli)
-    .filter((b): b is string => Boolean(b));
+  const clis = cliValues.filter((b): b is string => Boolean(b));
   // PATH is always set under Node; the guard mirrors the old `.split` crash if it is not.
   if (pathValue === undefined) throw new Error("PATH is not set");
   return pathValue

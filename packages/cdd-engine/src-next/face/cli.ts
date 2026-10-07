@@ -55,6 +55,14 @@ import { NextStepRouter } from "../session/next.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame, RunState } from "../session/run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../session/run.ts";
 import { Capsule } from "./capsule.ts";
+import {
+  DISPATCH,
+  HOSTS,
+  type HostDetectSpec,
+  type HostId,
+  type HostReferenceTable,
+  REFS,
+} from "./host.ts";
 import { Words } from "./words.ts";
 
 // ---------------------------------------------------------------------------
@@ -360,7 +368,7 @@ export class HarnessDispatch {
     this.#cwd = opts.cwd ?? process.cwd();
     this.#sync = opts.sync ?? new SyncRunner();
     this.#config = opts.config ?? new ConfigLoader();
-    this.#template = opts.template ?? new TemplateAssembler(this.#config);
+    this.#template = opts.template ?? new TemplateAssembler();
     this.#io = opts.io ?? {
       stdout: (t) => process.stdout.write(t),
       stderr: (t) => process.stderr.write(t),
@@ -370,19 +378,13 @@ export class HarnessDispatch {
   }
 
   /** The host-harness id detected from the env — "claude" | "cursor" | "pi" | "" —
-   *  the first harness-contract detect row that matches (the detection priority:
-   *  specific markers first, the generic AI_AGENT last). One row detects by its
-   *  primary marker (a session env, presence/enum — a UUID CLAUDE_CODE_SESSION_ID
-   *  is claude by presence) or by the AI_AGENT prefix (AI_AGENT=claude-code-…). */
+   *  the first host detect row that matches (the detection priority: specific markers
+   *  first, the generic AI_AGENT last). One row detects by its primary marker (a
+   *  session env, presence/enum — a UUID CLAUDE_CODE_SESSION_ID is claude by presence)
+   *  or by the AI_AGENT prefix (AI_AGENT=claude-code-…). */
   detectHost(env: ProcessEnvLike = this.#env): string {
-    const contract = this.#config.harnessContract();
     for (const id of ["claude", "cursor", "pi"] as const) {
-      const detect = (
-        contract[id] as
-          | { detect?: { env?: string; value?: string; aiAgentPrefix?: string } }
-          | undefined
-      )?.detect;
-      if (detect === undefined) continue;
+      const detect: HostDetectSpec = HOSTS[id].detect;
       if (detect.env !== undefined && detect.env !== "") {
         const marker = env[detect.env];
         if (marker !== undefined && marker.length > 0) {
@@ -416,9 +418,9 @@ export class HarnessDispatch {
     }
     const format = this.#returnFormat(frame);
     const prompt = this.#template.render(format, this.#valuesOf(frame, format));
-    const entry = this.#config.harnessContract()[host] as { cli?: string; invoke?: string };
-    const cliName = entry.cli ?? "";
-    const args = [...(entry.invoke ?? "").split(" ").filter((part) => part.length > 0)];
+    const row = HOSTS[host as HostId];
+    const cliName = row.cli;
+    const args = [...row.invoke.split(" ").filter((part) => part.length > 0)];
     const ref = this.#skillRef(host, frame);
     if (ref !== null) args.push(ref);
     const result = this.#sync.run(cliName, [...args, prompt], this.#cwd);
@@ -451,39 +453,37 @@ export class HarnessDispatch {
    *  etc.); null when the dispatch table names a URC prose instead of a ref (the
    *  spec/plan reviews — the prose rides REVIEW_AXES, no slash arg). */
   #skillRef(host: string, frame: OpenFrame): string | null {
-    const contract = this.#config.harnessContract();
-    const dispatch = contract.dispatch as Record<string, unknown>;
+    const dispatch = DISPATCH;
     let ref: unknown = null;
     if (frame.phase === "review" || frame.phase === "branch-review") {
-      // The task/branch rows are object-shaped {ref, note} (the note rides REVIEW_AXES);
-      // the spec/plan rows stay the URC prose string. The slash form resolves from the
-      // row's ref either way, falling back to null for the prose rows (REVIEW_AXES only).
-      const entry = (dispatch.review as Record<string, unknown>)[frame.type];
-      const declaredRef =
-        typeof entry === "string" ? entry : (entry as { ref?: unknown } | null)?.ref;
+      // The task/branch rows are object-shaped {ref}; the spec/plan rows stay the URC
+      // prose string. The slash form resolves from the row's ref either way, falling
+      // back to null for the prose rows (REVIEW_AXES only).
+      const entry = dispatch.review[frame.type];
+      const declaredRef = typeof entry === "string" ? entry : entry.ref;
       ref =
         typeof declaredRef === "string" && declaredRef.startsWith("mattpocock-skills:")
           ? declaredRef
           : null;
     } else {
-      const value = dispatch[frame.phase];
+      const value = dispatch[frame.phase as "implement" | "fix"];
       ref = typeof value === "string" ? value : null;
     }
     if (typeof ref !== "string") return null;
-    const hostForm = (contract.refs as Record<string, Record<string, string>>)[ref]?.[host];
+    const hostForm = (REFS as HostReferenceTable)[ref]?.[host as HostId];
     return hostForm ?? null;
   }
 
-  /** The review-axes text — the harness-contract dispatch.review row's URC prose
-   *  (spec/plan) or its note (task/branch); empty outside review frames. */
+  /** The review-axes text — the typed review criteria the assembly face references:
+   *  the task/branch axes guide (render/templates.ts — the four axes + the
+   *  verification-evidence duty) or the spec/plan URC prose row (the dispatch table,
+   *  host.ts); empty outside review frames. */
   #reviewAxes(frame: OpenFrame): string {
-    const dispatch = (
-      this.#config.harnessContract().dispatch as { review?: Record<string, unknown> }
-    ).review;
-    const entry = dispatch?.[frame.type];
-    if (typeof entry === "string") return entry;
-    const note = (entry as { note?: unknown } | null)?.note;
-    return typeof note === "string" ? note : "";
+    if (frame.type === "task" || frame.type === "branch") {
+      return this.#template.reviewGuide(frame.type).axesGuide;
+    }
+    const entry = DISPATCH.review[frame.type];
+    return typeof entry === "string" ? entry : "";
   }
 
   /** The round-context zone values of the dispatch prompt — every template token
@@ -674,7 +674,7 @@ export class Cli {
     this.#repoRoot = opts.repoRoot ?? null;
     this.#dryRun = opts.dryRun ?? false;
     this.#dispatch = opts.dispatch ?? null;
-    this.#template = opts.template ?? new TemplateAssembler(this.#config);
+    this.#template = opts.template ?? new TemplateAssembler();
     this.#brief = opts.brief ?? new BriefRenderer();
     this.#stdinRead = opts.stdinRead ?? (() => readFileSync(0, "utf8"));
     this.#translator = opts.translator ?? new Translator(this.#words);

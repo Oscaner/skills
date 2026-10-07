@@ -848,7 +848,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const call = sync.calls[0];
       expect(call.command).toBe("claude");
       expect(call.args).toContain("-p");
-      expect(call.args).toContain("/mattpocock-skills:tdd");
+      expect(call.args).toContain("/mattpocock-skills:implement");
       const prompt = call.args[call.args.length - 1];
       expect(prompt).toContain("- `MODE`: implement");
       expect(prompt).toContain(`- \`WORKSPACE\`: ${scene.workspace.path}`);
@@ -907,10 +907,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const outcome = dispatch.step()(taskReviewFrame);
       expect(outcome.status).toBe("REVIEW_FIX");
       const call = sync.calls[0];
-      // the task/branch review rows are object-shaped {ref, note} — the slash form
-      // comes from the row's ref, and the note rides REVIEW_AXES like the docs review
+      // the task/branch review rows are object-shaped {ref} (the P5 note deletion) — the
+      // slash form comes from the row's ref, and REVIEW_AXES carries the typed axes guide
       expect(call.args).toContain("/mattpocock-skills:code-review");
-      expect(call.args[call.args.length - 1]).toContain("single agent, dual axis");
+      expect(call.args[call.args.length - 1]).toContain("Standards axis");
+      expect(call.args[call.args.length - 1]).toContain("dual evidence");
+      expect(call.args[call.args.length - 1]).not.toContain("parallel sub-agents");
     } finally {
       cleanup();
     }

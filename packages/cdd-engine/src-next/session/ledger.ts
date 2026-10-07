@@ -22,6 +22,7 @@
 // carrying bare functions (the plan's zero-bare-function discipline).
 
 import type { ConfigLoader } from "../infra/config.ts";
+import type { HandoffFamily } from "../infra/runtime.ts";
 import type { Workspace } from "../infra/workspace.ts";
 
 // ---------------------------------------------------------------------------
@@ -105,10 +106,6 @@ export interface ProgressData {
 /** The ledger lookup key — a scalar task id or the group key string. */
 export type LedgerKey = number | string;
 
-// ---------------------------------------------------------------------------
-// crash — the lane-crash recovery record
-// ---------------------------------------------------------------------------
-
 /** The lane-crash cause vocabulary — postmortem classification of why a dispatch
  *  terminated before the exit gate (zero behavior fork: resume never routes on it). */
 export type CrashCause =
@@ -154,16 +151,6 @@ export interface HandoffParams {
   round?: number | string;
 }
 
-/** One handoff-family record of the engine-config handoff namespace. */
-export interface HandoffFamily {
-  /** The canonical file name — the `{placeholder}` pattern the ledger fills. */
-  name: string;
-  /** The family's round policy (fixed / increment / source). */
-  round?: "fixed" | "increment" | "source";
-  /** The dispatch phase the family carries (implement/review/fix/branch-review). */
-  phase?: string;
-}
-
 // ---------------------------------------------------------------------------
 // the ledger
 // ---------------------------------------------------------------------------
@@ -181,7 +168,7 @@ export class Ledger {
 
   constructor(workspace: Workspace, config: ConfigLoader) {
     this.#workspace = workspace;
-    this.#families = config.handoffNamespace().families as Readonly<Record<string, HandoffFamily>>;
+    this.#families = config.handoffNamespace().families;
   }
 
   // ---- the single author's write/read primitives ----

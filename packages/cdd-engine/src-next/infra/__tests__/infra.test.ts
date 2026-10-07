@@ -1,65 +1,87 @@
 // packages/cdd-engine/src-next/infra/__tests__/infra.test.ts
-// T12 infra suite — the brief's checkables:
-//   · resource+config — the logical-name path location (RESOURCE_SPECS-style) +
-//     the steady-data config reads (path-location green);
+// T12 infra suite + T21 typed-plane migration:
+//   · runtime — the typed engine-config surface (the argv channel table + the handoff
+//     namespace: workspace-root segment + the family naming table), single-source
+//     asserts (the data lives in the typed module — zero config-home reads);
+//   · config — the ConfigLoader typed accessor facade (the consumer surface the
+//     retired loader kept: engineConfig / harnessContract / templateContract /
+//     handoffNamespace — now the typed planes' single home);
 //   · git — the single git seam over a real temp repo;
 //   · process — the subprocess seam (fail-open results);
 //   · workspace — the root/workspace pair + the slug rule + the JSON read/write.
-// Fixtures live under mkdtemp (hermetic); the steady-data asserts read the
-// living config files (the external contract JSONs are read-as-data, allowed —
-// never the old tree's derived products).
 
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { DISPATCH, HOSTS, REFS } from "../../face/host.ts";
+import { REVIEWS, TEMPLATE_PROMPT } from "../../render/templates.ts";
 import { ConfigLoader } from "../config.ts";
 import { GitClient } from "../git.ts";
 import { ProcessRunner } from "../process.ts";
-import type { ResourceName } from "../resource.ts";
-import { RESOURCE_SPECS, ResourceResolver } from "../resource.ts";
+import { ARGV_CHANNEL, ENGINE_RUNTIME, HANDOFF_FAMILIES } from "../runtime.ts";
 import { Workspace, WorkspaceRoot } from "../workspace.ts";
 
-describe("resource — the logical-name path location (RESOURCE_SPECS-style)", () => {
-  it("resolves every logical resource to its source home under the package root", () => {
-    const resolver = new ResourceResolver();
-    const root = resolver.packageRoot();
-    for (const name of Object.keys(RESOURCE_SPECS) as ResourceName[]) {
-      expect(resolver.resolve(name)).toBe(path.join(root, ...RESOURCE_SPECS[name].source));
-      expect(resolver.has(name), name).toBe(true);
+describe("runtime — the typed engine-config surface (the typed data plane)", () => {
+  it("carries the engine runtime facts — version, the argv channel, the handoff namespace", () => {
+    expect(ENGINE_RUNTIME.$version).toBeGreaterThanOrEqual(1);
+    expect(ENGINE_RUNTIME.handoffNamespace.workspaceRoot).toBe(".kairos/cdd");
+    // The CLI channel table — the flag/type/enum single source (tasks / type enum).
+    expect(ARGV_CHANNEL.tasks).toEqual({ flag: "--tasks", type: "int-list" });
+    expect(ARGV_CHANNEL.type.values).toEqual(["task", "branch", "spec", "plan"]);
+    expect(ARGV_CHANNEL.help).toEqual({
+      flag: "--help",
+      alias: "-h",
+      type: "bool",
+      scope: "program",
+    });
+  });
+
+  it("carries the handoff family naming table — every op.type the ledger resolves", () => {
+    expect(HANDOFF_FAMILIES["implement.task"].name).toBe("tasks-{tasks}-implement.json");
+    expect(HANDOFF_FAMILIES["review.task"].name).toBe("tasks-{tasks}-review-{round}.json");
+    expect(HANDOFF_FAMILIES["review.branch"].returnFormat).toBe("RETURN_STDOUT_BLOCK");
+    expect(HANDOFF_FAMILIES["fix.plan"].returnFormat).toBe("RETURN_JSON");
+    for (const key of [
+      "implement.task",
+      "review.task",
+      "fix.task",
+      "review.spec",
+      "fix.spec",
+      "review.plan",
+      "fix.plan",
+      "review.branch",
+      "fix.branch",
+    ] as const satisfies readonly (keyof typeof HANDOFF_FAMILIES)[]) {
+      expect(HANDOFF_FAMILIES[key], key).toBeDefined();
     }
   });
 
-  it("walks up from a fabricated install layout to the carrying package root", () => {
-    const root = mkdtempSync(path.join(tmpdir(), "infra-pkg-"));
-    try {
-      mkdirSync(path.join(root, "config"), { recursive: true });
-      writeFileSync(path.join(root, "package.json"), "{}");
-      writeFileSync(
-        path.join(root, "config", "engine-config.json"),
-        JSON.stringify({ handoffNamespace: { workspaceRoot: "test/ws" } }),
-      );
-      const resolver = new ResourceResolver(path.join(root, "config"));
-      expect(resolver.packageRoot()).toBe(root);
-      expect(resolver.resolve("engine-config")).toBe(
-        path.join(root, "config", "engine-config.json"),
-      );
-    } finally {
-      rmSync(root, { recursive: true, force: true });
+  it("declares the single-source channel/marker facts with zero duplication (host markers in host.ts only)", () => {
+    // The host-marker closure derives from the harness detect rows (face/host.ts) —
+    // the runtime carries the argv channel only; the marker env keys appear in no
+    // runtime/argv row (single source, no second declaration).
+    const argvText = JSON.stringify(ARGV_CHANNEL);
+    for (const marker of ["CLAUDE_CODE_SESSION_ID", "CURSOR_TRACE_ID", "AI_AGENT"]) {
+      expect(argvText, marker).not.toContain(marker);
     }
   });
 });
 
-describe("config — the steady-data reads", () => {
-  it("reads the engine-config handoff-namespace (the workspace-root single source)", () => {
+describe("config — the typed accessor facade (one no-I/O route per face)", () => {
+  it("routes the engine-config face — the handoff namespace + version", () => {
     const loader = new ConfigLoader();
     expect(loader.handoffNamespace().workspaceRoot).toBe(".kairos/cdd");
     expect(loader.engineConfig().$version).toBeGreaterThanOrEqual(1);
   });
 
-  it("reads the harness + template contracts as steady data", () => {
+  it("routes the harness + template faces — the typed host contract + dispatch prompt", () => {
     const loader = new ConfigLoader();
-    expect(loader.harnessContract().claude).toBeDefined();
+    expect(loader.harnessContract().hosts.claude.detect.env).toBe("CLAUDE_CODE_SESSION_ID");
+    expect(loader.harnessContract().dispatch.implement).toBe("mattpocock-skills:implement");
+    expect(loader.harnessContract().refs["mattpocock-skills:code-review"].pi).toBe(
+      "/skill:code-review",
+    );
     const template = loader.templateContract();
     expect(template.skeleton.order).toEqual(["shell", "return", "round-context"]);
     expect(Object.keys(template.sections.return)).toEqual([
@@ -67,6 +89,33 @@ describe("config — the steady-data reads", () => {
       "RETURN_JSON",
       "DOCS_FIX",
     ]);
+  });
+
+  it("carries the P5 review criteria — the typed dispatch rows + axes guides with zero forbidden prose", () => {
+    // The task/branch dispatch rows name their ref only (the parallel-sub-agents note is deleted).
+    expect(DISPATCH.review.task).toEqual({ ref: "mattpocock-skills:code-review" });
+    expect(DISPATCH.review.branch).toEqual({ ref: "mattpocock-skills:code-review" });
+    // The spec/plan rows carry the URC three axes + the writing-plans self-check + the
+    // verification-evidence duty.
+    expect(DISPATCH.review.spec).toContain("completeness/consistency/clarity");
+    expect(DISPATCH.review.spec).toContain("writing-plans self-check");
+    expect(DISPATCH.review.spec).toContain("verification evidence");
+    expect(DISPATCH.review.plan).toContain("completeness/decomposition/buildability");
+    // The implement slot is the M1 supersede — mattpocock-skills:implement, registered in refs.
+    expect(DISPATCH.implement).toBe("mattpocock-skills:implement");
+    expect(REFS["mattpocock-skills:implement"].claude).toBe("/mattpocock-skills:implement");
+    expect(REFS["mattpocock-skills:implement"].pi).toBe("/skill:implement");
+    // The forbidden prose is gone from every review surface.
+    const reviewText = JSON.stringify({ ...DISPATCH.review, ...REVIEWS });
+    expect(reviewText).not.toContain("parallel sub-agents");
+    // The axes guides carry the verification-evidence duty.
+    expect(REVIEWS.task.axesGuide).toContain("dual evidence");
+    expect(REVIEWS.branch.axesGuide).toContain("dual evidence");
+    expect(TEMPLATE_PROMPT.sections.shell.join("\n")).toContain("mattpocock-skills:implement");
+    // Zero $schema/_doc prose in the typed planes.
+    expect(JSON.stringify(ENGINE_RUNTIME)).not.toContain("$schema");
+    expect(JSON.stringify(ENGINE_RUNTIME)).not.toContain('"_doc"');
+    expect(JSON.stringify(HOSTS)).not.toContain("$schema");
   });
 });
 

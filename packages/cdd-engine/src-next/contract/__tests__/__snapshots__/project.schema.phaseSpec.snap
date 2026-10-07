@@ -1,0 +1,129 @@
+{
+  "docType": "phase-spec",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "phase-spec document structure",
+  "description": "Derived JSON Schema — 21 declared elements · 13 required",
+  "type": "object",
+  "properties": {
+    "# Title": {
+      "type": "string",
+      "pattern": "^# \\S.*$",
+      "description": "presence: required · home: header · ref: none"
+    },
+    "**Version**": {
+      "type": "string",
+      "pattern": "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+",
+      "description": "presence: required · home: header · ref: version-lineage"
+    },
+    "**Status**": {
+      "type": "string",
+      "pattern": "^- \\*\\*Status\\*\\*: (Draft|Approved|Plan pending|Shipped)$",
+      "description": "presence: required · home: header · ref: none"
+    },
+    "**Author**": {
+      "type": "string",
+      "pattern": "^- \\*\\*Author\\*\\*:",
+      "description": "presence: required · home: header · ref: none"
+    },
+    "**Parent program**": {
+      "type": "string",
+      "pattern": "^- \\*\\*Parent program\\*\\*:? \\[[^\\]]+\\]\\([^)]+\\)",
+      "description": "presence: required · home: header · ref: parent-program"
+    },
+    "**Depends on**": {
+      "type": "string",
+      "pattern": "^- \\*\\*Depends on\\*\\*:",
+      "description": "presence: required · home: header · ref: none"
+    },
+    "Depends on ref": {
+      "type": "string",
+      "pattern": "^P\\d+(\\.\\d+)*",
+      "description": "presence: conditional · home: header · ref: phase-id"
+    },
+    "## Design": {
+      "type": "string",
+      "pattern": "^## Design$",
+      "description": "presence: required · home: design-body · ref: none"
+    },
+    "### N. group heading": {
+      "type": "string",
+      "pattern": "^### \\d+\\. ",
+      "description": "presence: required · home: design-body · ref: none"
+    },
+    "#### N.M item heading": {
+      "type": "string",
+      "pattern": "^#### \\d+\\.\\d+ ",
+      "description": "presence: required · home: design-body · ref: none"
+    },
+    "### Acceptance criteria": {
+      "type": "string",
+      "pattern": "^### Acceptance criteria$",
+      "description": "presence: required · home: design-body · ref: none"
+    },
+    "Acceptance entry": {
+      "type": "string",
+      "pattern": "^- `",
+      "description": "presence: required · home: design-body · ref: none"
+    },
+    "## Constraints": {
+      "type": "string",
+      "pattern": "^## Constraints$",
+      "description": "presence: required · home: section · ref: none"
+    },
+    "Constraint delta bullet": {
+      "type": "string",
+      "pattern": "^- ",
+      "description": "presence: required · home: section · ref: none"
+    },
+    "## Deviations": {
+      "type": "string",
+      "pattern": "^## Deviations$",
+      "description": "presence: conditional · home: conditional · ref: none"
+    },
+    "Deviations columns": {
+      "type": "string",
+      "pattern": "^\\| Overall assumption \\| Phase decision \\| Overall updated\\? \\|$",
+      "description": "presence: conditional · home: conditional · ref: none"
+    },
+    "Deviations row": {
+      "type": "string",
+      "pattern": "^\\| ",
+      "description": "presence: conditional · home: conditional · ref: none"
+    },
+    "Overall updated answer": {
+      "type": "string",
+      "pattern": "^Yes",
+      "description": "presence: conditional · home: conditional · ref: none"
+    },
+    "## Incremental warning": {
+      "type": "string",
+      "pattern": "^## Incremental warning$",
+      "description": "presence: conditional · home: conditional · ref: none"
+    },
+    "## Notes for downstream": {
+      "type": "string",
+      "pattern": "^## Notes for downstream$",
+      "description": "presence: conditional · home: conditional · ref: none"
+    },
+    "## Review record": {
+      "type": "string",
+      "pattern": "^## Review record$",
+      "description": "presence: conditional · home: conditional · ref: none"
+    }
+  },
+  "required": [
+    "# Title",
+    "**Version**",
+    "**Status**",
+    "**Author**",
+    "**Parent program**",
+    "**Depends on**",
+    "## Design",
+    "### N. group heading",
+    "#### N.M item heading",
+    "### Acceptance criteria",
+    "Acceptance entry",
+    "## Constraints",
+    "Constraint delta bullet"
+  ]
+}

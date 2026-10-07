@@ -1,0 +1,225 @@
+{
+  "docType": "overall",
+  "structure": [
+    {
+      "home": "header",
+      "elements": [
+        {
+          "anchor": "# Title",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "**Version**",
+          "presence": "required",
+          "refKind": "version-lineage"
+        },
+        {
+          "anchor": "**Status**",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "**Author**",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "**Constraints**",
+          "presence": "required",
+          "refKind": "none"
+        }
+      ]
+    },
+    {
+      "home": "section",
+      "elements": [
+        {
+          "anchor": "## Document scope",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "## File paths",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "## Program charter",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "## Issue inventory",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "## Phase inventory",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "## Dependency graph",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "## Boundary rules",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "## Maintenance",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "## Change history",
+          "presence": "required",
+          "refKind": "none"
+        }
+      ]
+    },
+    {
+      "home": "facet",
+      "elements": [
+        {
+          "anchor": "### Goal",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "### Non-goals",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "### Cross-cutting",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "#### [MFRBEN] 组",
+          "presence": "optional",
+          "refKind": "none"
+        },
+        {
+          "anchor": "#### 上游先例背书",
+          "presence": "optional",
+          "refKind": "none"
+        }
+      ]
+    },
+    {
+      "home": "table",
+      "elements": [
+        {
+          "anchor": "Issue inventory columns",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "Issue row",
+          "presence": "required",
+          "refKind": "issue-ref"
+        },
+        {
+          "anchor": "Issue ref cell",
+          "presence": "required",
+          "refKind": "issue-ref"
+        },
+        {
+          "anchor": "issuecomment anchor",
+          "presence": "conditional",
+          "refKind": "issue-ref"
+        },
+        {
+          "anchor": "Phase inventory columns",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "Phase row",
+          "presence": "required",
+          "refKind": "phase-id"
+        },
+        {
+          "anchor": "Phase id token",
+          "presence": "required",
+          "refKind": "phase-id"
+        },
+        {
+          "anchor": "Implementation plan cell",
+          "presence": "required",
+          "refKind": "markdown-link"
+        },
+        {
+          "anchor": "Design spec cell",
+          "presence": "required",
+          "refKind": "spec-ref"
+        },
+        {
+          "anchor": "Dependency cell",
+          "presence": "required",
+          "refKind": "phase-id"
+        },
+        {
+          "anchor": "File path row",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "Change history row",
+          "presence": "required",
+          "refKind": "version-lineage"
+        },
+        {
+          "anchor": "Version token",
+          "presence": "required",
+          "refKind": "version-lineage"
+        },
+        {
+          "anchor": "Change history date",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "Backfill clause",
+          "presence": "conditional",
+          "refKind": "version-lineage"
+        },
+        {
+          "anchor": "Design claim token",
+          "presence": "conditional",
+          "refKind": "spec-ref"
+        },
+        {
+          "anchor": "Phase range ref",
+          "presence": "optional",
+          "refKind": "phase-id"
+        }
+      ]
+    },
+    {
+      "home": "graph",
+      "elements": [
+        {
+          "anchor": "Hard edge",
+          "presence": "required",
+          "refKind": "phase-id"
+        },
+        {
+          "anchor": "Soft edge",
+          "presence": "optional",
+          "refKind": "phase-id"
+        },
+        {
+          "anchor": "Graph legend",
+          "presence": "required",
+          "refKind": "none"
+        }
+      ]
+    }
+  ]
+}

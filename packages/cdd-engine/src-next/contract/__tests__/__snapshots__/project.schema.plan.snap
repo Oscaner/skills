@@ -1,0 +1,148 @@
+{
+  "docType": "plan",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "plan document structure",
+  "description": "Derived JSON Schema — 24 declared elements · 17 required",
+  "type": "object",
+  "properties": {
+    "# Title": {
+      "type": "string",
+      "pattern": "^# \\S.*$",
+      "description": "presence: required · home: header · ref: none"
+    },
+    "**Spec:**": {
+      "type": "string",
+      "pattern": "^\\*\\*Spec:\\*\\*\\s+\\[[^\\]]+\\]\\([^)]+\\)$",
+      "description": "presence: required · home: header · ref: spec-ref"
+    },
+    "**Parent program**": {
+      "type": "string",
+      "pattern": "^- \\*\\*Parent program\\*\\*:? \\[[^\\]]+\\]\\([^)]+\\)",
+      "description": "presence: required · home: header · ref: parent-program"
+    },
+    "**Version**": {
+      "type": "string",
+      "pattern": "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+",
+      "description": "presence: optional · home: header · ref: version-lineage"
+    },
+    "**Depends on**": {
+      "type": "string",
+      "pattern": "^- \\*\\*Depends on\\*\\*:",
+      "description": "presence: optional · home: header · ref: phase-id"
+    },
+    "**Base**": {
+      "type": "string",
+      "pattern": "^- \\*\\*Base\\*\\*:",
+      "description": "presence: optional · home: header · ref: none"
+    },
+    "## Constraints": {
+      "type": "string",
+      "pattern": "^## Constraints$",
+      "description": "presence: required · home: section · ref: none"
+    },
+    "Constraint delta bullet": {
+      "type": "string",
+      "pattern": "^- ",
+      "description": "presence: required · home: section · ref: none"
+    },
+    "Constraint delta sub-heading": {
+      "type": "string",
+      "pattern": "^### ",
+      "description": "presence: optional · home: section · ref: none"
+    },
+    "### Task N:": {
+      "type": "string",
+      "pattern": "^### Task \\d+:$",
+      "description": "presence: required · home: task-block · ref: none"
+    },
+    "Task id token": {
+      "type": "string",
+      "pattern": "^\\d+$",
+      "description": "presence: required · home: task-block · ref: task-id"
+    },
+    "**Objective**": {
+      "type": "string",
+      "pattern": "^- \\*\\*Objective\\*\\*:",
+      "description": "presence: required · home: task-field · ref: none"
+    },
+    "**Files**": {
+      "type": "string",
+      "pattern": "^- \\*\\*Files\\*\\*:",
+      "description": "presence: required · home: task-field · ref: none"
+    },
+    "File path token": {
+      "type": "string",
+      "pattern": "^[\\w./-]+",
+      "description": "presence: required · home: task-field · ref: none"
+    },
+    "**Consumes**": {
+      "type": "string",
+      "pattern": "^- \\*\\*Consumes\\*\\*:",
+      "description": "presence: required · home: task-field · ref: none"
+    },
+    "**Produces**": {
+      "type": "string",
+      "pattern": "^- \\*\\*Produces\\*\\*:",
+      "description": "presence: required · home: task-field · ref: none"
+    },
+    "**Steps**": {
+      "type": "string",
+      "pattern": "^- \\*\\*Steps\\*\\*:",
+      "description": "presence: required · home: task-field · ref: none"
+    },
+    "Step action": {
+      "type": "string",
+      "pattern": "^- ",
+      "description": "presence: required · home: task-step · ref: none"
+    },
+    "Step checkable": {
+      "type": "string",
+      "pattern": "—\\s*checkable:\\s*\\S",
+      "description": "presence: required · home: task-step · ref: none"
+    },
+    "**Acceptance**": {
+      "type": "string",
+      "pattern": "^- \\*\\*Acceptance\\*\\*:",
+      "description": "presence: required · home: task-field · ref: none"
+    },
+    "**DependsOn**": {
+      "type": "string",
+      "pattern": "^- \\*\\*DependsOn\\*\\*:",
+      "description": "presence: required · home: task-field · ref: none"
+    },
+    "DependsOn none": {
+      "type": "string",
+      "pattern": "^(none|\\s*)$",
+      "description": "presence: optional · home: task-field · ref: none"
+    },
+    "DependsOn id": {
+      "type": "string",
+      "pattern": "^[1-9]\\d*$",
+      "description": "presence: optional · home: task-field · ref: task-id"
+    },
+    "Task prose reference": {
+      "type": "string",
+      "pattern": "\\b(?:Task|T)\\s*([1-9]\\d*)\\b(?!\\.\\d)",
+      "description": "presence: optional · home: task-field · ref: task-id"
+    }
+  },
+  "required": [
+    "# Title",
+    "**Spec:**",
+    "**Parent program**",
+    "## Constraints",
+    "Constraint delta bullet",
+    "### Task N:",
+    "Task id token",
+    "**Objective**",
+    "**Files**",
+    "File path token",
+    "**Consumes**",
+    "**Produces**",
+    "**Steps**",
+    "Step action",
+    "Step checkable",
+    "**Acceptance**",
+    "**DependsOn**"
+  ]
+}

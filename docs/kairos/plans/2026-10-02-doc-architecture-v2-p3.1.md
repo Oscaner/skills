@@ -3,7 +3,7 @@
 **Spec:** [2026-10-02-doc-architecture-v2-p3.1-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3.1-design.md)（spec v1.9）
 
 - **Parent program**: [doc-architecture-v2-overall.md v1.14](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.10 · 2026-10-07（T7/T8 缩域：原 T7 编排状态机面（frontier/next/ExecutionState/skills 编排精简）并入 P3.2——用户拍板「T7/T8 并入 P3.2」避免在结构收敛前先实现一遍；原 T8 收尾（changesets + 终验 + wave pin 同步 5 波次）重编号 T7；overall v1.16）
+- **Version**: v1.11 · 2026-10-07（分支终审 r1 措辞收敛——编排方 per S2/S4，实现零改动：T1 不变式计数 七→十 · T3 波次验收 6→5 对齐 shipped 5 波次 wave pin · T2 迁移面措辞收敛至实际缝——content-rule 面归零 vs doc-type 上下文残留；前置 v1.10 · 2026-10-07（T7/T8 缩域：原 T7 编排状态机面（frontier/next/ExecutionState/skills 编排精简）并入 P3.2——用户拍板「T7/T8 并入 P3.2」避免在结构收敛前先实现一遍；原 T8 收尾（changesets + 终验 + wave pin 同步 5 波次）重编号 T7；overall v1.16））
 - **Depends on**: P3（shipped · [p3-design v1.1](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3-design.md)）
 - **Base**: develop
 
@@ -27,7 +27,7 @@
 
 ### Task 1: StructureRule 引擎核心（解释器 + 接线缝）——已落地
 
-- **Objective**: **已落地（engine 面现役，无新增实施量）**——`rules/structure.ts` 单解释器（StructureRule 类型 + 七不变式 + `runStructureRules`）+ DocBody 规则数据缝 + docContractValidate 挂钩已全部在位（规则集为空时零行为变化、与现状等价的契约经 tree-migration/dual-read 保持）；剩余 = 验证-only 面（T7 终验承接），本任务不再派发实施
+- **Objective**: **已落地（engine 面现役，无新增实施量）**——`rules/structure.ts` 单解释器（StructureRule 类型 + 十不变式 + `runStructureRules`）+ DocBody 规则数据缝 + docContractValidate 挂钩已全部在位（规则集为空时零行为变化、与现状等价的契约经 tree-migration/dual-read 保持）；剩余 = 验证-only 面（T7 终验承接），本任务不再派发实施
 - **Consumes**: `DocBody` / `SlicePatternSet`（doc-body.ts）· `DocType`（doctype.ts）· `docTypeRegistry`（registry.ts）——读面已就位
 - **Produces**: `StructureRule` / `StructurePlane` / `StructureInvariant` / `StructureFinding` / `runStructureRules(content, rules): StructureFinding[]`——已产出，T4–T7 规则集与终验以其为消费底座
 - **DependsOn**: none
@@ -37,17 +37,17 @@
   - 已就位: `packages/cdd-engine/src/rules/documents.ts`（`structureFindings(kind, content)` + docContractValidate 每 doc type 调一次 `runStructureRules`）
   - 验证: `packages/cdd-engine/src/rules/__tests__/structure.test.ts`（全绿保持）
 - **Steps**:
-  - 1. 现役面核查——checkable: `rules/structure.ts` 存在且三锚型 + 七不变式类型化实例在规则数据中；docContractValidate 对每 doc type 调一次 `runStructureRules`（grep `runStructureRules` 于 `documents.ts`）
+  - 1. 现役面核查——checkable: `rules/structure.ts` 存在且三锚型 + 十不变式类型化实例在规则数据中；docContractValidate 对每 doc type 调一次 `runStructureRules`（grep `runStructureRules` 于 `documents.ts`）
   - 2. 空规则集零行为验证——checkable: 空规则集下 `structureFindings` 零新增 finding；50 文件树套件 validate 结果与基线逐字节相同（tree-migration/dual-read 保持全绿）
   - 3. 回归——checkable: `pnpm --filter @oscaner-skills/cdd-engine test` 全绿；本任务面零改动（引擎面已落地，不重做）
 - **Acceptance**:
-  - `- ` `runStructureRules` 契约可用：三锚型 + 七不变式全部可判（`structure.test.ts` 断言保持）
+  - `- ` `runStructureRules` 契约可用：三锚型 + 十不变式全部可判（`structure.test.ts` 断言保持）
   - `- ` 空规则集零行为变化：docContractValidate 结果与基线一致，tree-migration/dual-read 套件绿
   - `- ` body 缝就位且 load-order 安全：bodies 零解释器反向 import（grep 断言 `structure.ts` 不被 bodies 引用）
 
 ### Task 2: 既有结构判定规则化（checks/walks 归零）——已落地
 
-- **Objective**: **已落地（engine 面现役，无新增实施量）**——三手写判定面（`#skeletonFailures` · overall 四表审计 ①–⑥ · plan 契约文本断言）已迁移为三类型 `structureRules()` 规则集数据（plan-body / phase-spec-body / overall-body 覆写均现役），`tree-migration`/`dual-read` 全树行走已重构为消费同一引擎（`structureFindings` 唯一入口）——手写遍历面归零（Criterion ②，落地 commits 见 Files）；剩余 = 验证-only 面（旧符号零残留 grep + 行为等价套件保持，T7 终验承接）
+- **Objective**: **已落地（engine 面现役，无新增实施量）**——三手写判定面（`#skeletonFailures` · overall 四表审计 ①–⑥ · plan 契约文本断言）已迁移为三类型 `structureRules()` 规则集数据（plan-body / phase-spec-body / overall-body 覆写均现役），`tree-migration`/`dual-read` 全树行走已重构为消费同一引擎（`structureFindings` 唯一入口）——手写遍历面归零于迁移面（content-rule 面：`#skeletonFailures` · 四表 facet ①–⑥ · plan 契约文本断言 → 规则数据；四表 irreducible contextual residue——行 shape 守卫 · merge 版本行世系 · file-existence kernel 面 · backfill-claim/doc-existence/registration/anchor/issue-row 面——按设计保留为 doc-type 代码，模块 Rule-scope 注释记录该缝 · **S2 措辞收敛**）；剩余 = 验证-only 面（旧符号零残留 grep + 行为等价套件保持，T7 终验承接）
 - **Consumes**: T1 的 `runStructureRules` / `StructureRule` / DocBody 缝——已落地
 - **Produces**: 三类型 `structureRules()` 全量规则集（行为等价于 T0 手写面）· `DocumentsValidator.structureFindings` 为树套件唯一判定入口——已产出，T4–T6 新规则（边完备/designItems/charter/引用 lint）以其为挂载点
 - **DependsOn**: 1
@@ -91,7 +91,7 @@
 - **Acceptance**:
   - `- ` 每 plan 任务块单边 `DependsOn` 行存在（`none`/空/真实值合法）；缺行 = plan validate BLOCK（missing-edge 第六类负例断言）
   - `- ` 反依赖门：引用目标 ≥ 源编号 = BLOCK（`forward-edge-plan` 负例）· 全树现有边零违规（反依赖全树核查）
-  - `- ` `batches()` 波次拆分断言（P3.1 自身 6 波次）· `effectiveGroups` 切波次消费（taskGroups/atomicWith 声明面退役）· `AtomicWith` 全树零残留（grep 断言）
+  - `- ` `batches()` 波次拆分断言（P3.1 自身 5 波次）· `effectiveGroups` 切波次消费（taskGroups/atomicWith 声明面退役）· `AtomicWith` 全树零残留（grep 断言）
   - `- ` `Task.dependsOn` 非可选（缺省 `[]`）；`plan.json` 派生字节保真
   - `- ` dispatch pre-flight（`cdd implement`/`cdd review`）覆盖边完备（dry-run 负例）；engine suite + 树套件全绿
   - `- ` 存量 plans steps 面规范化：未解析步骤行零残留（每步 `N. … — checkable:` 全解析）· 补充条例死壳清理断言

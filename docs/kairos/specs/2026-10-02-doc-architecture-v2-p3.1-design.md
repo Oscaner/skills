@@ -1,6 +1,6 @@
 # 文档架构方法论 v2 —— P3.1 Design
 
-- **Version**: v1.9 · 2026-10-07（§2.6 编排状态机 + §3.1 验收 T7 面缩域：frontier/next 路由器/ExecutionState/skills 编排精简并入 P3.2 实现——用户 2026-10-07 拍板「T7/T8 并入 P3.2」，避免在即将重构的统一面上先实现一遍；P3.1 收尾 = changesets + 全量终验；v1.8 · 2026-10-07 = §2.2 severity 判据——事实判定 → BLOCK / 意图推断 → WARN，referenceLint 落 WARN 的依据；v1.7 · 2026-10-07 = T6 窄化消解：引用 lint 定稿为宽松观测面——扫描面逐 field 界定（steps 排除）、`T7.1` spec-item 词形排除、前向引用豁免（反依赖门不可声明＝非缺边嫌疑）、树套件 BLOCK-only 口径；v1.6 · 2026-10-06 = F3 双层模型定稿与 review-3 七 finding 落地；v1.5 曾双态——d2a7b346 六 finding 态 与 F3 提交面实质改写态，父 overall v1.14「spec v1.5 随」记后者，v1.6 升号消同号二义）
+- **Version**: v1.10 · 2026-10-07（分支终审 r1 措辞收敛——编排方 per S2/S4，实现零改动：§2.1 不变式词汇 七→十（hollow/selfBounded/referenceLint 并入词汇表，与 engine 十种 vocabulary 对齐）· §2.2 overall 迁移面措辞收敛至实际缝——content-rule 面迁规则数据 · 四表 contextual residue 按设计保留为 doc-type 代码（含 spec deviations 回答轴）；前置 v1.9 · 2026-10-07（§2.6 编排状态机 + §3.1 验收 T7 面缩域：frontier/next 路由器/ExecutionState/skills 编排精简并入 P3.2 实现——用户 2026-10-07 拍板「T7/T8 并入 P3.2」，避免在即将重构的统一面上先实现一遍；P3.1 收尾 = changesets + 全量终验；v1.8 · 2026-10-07 = §2.2 severity 判据——事实判定 → BLOCK / 意图推断 → WARN，referenceLint 落 WARN 的依据；v1.7 · 2026-10-07 = T6 窄化消解：引用 lint 定稿为宽松观测面——扫描面逐 field 界定（steps 排除）、`T7.1` spec-item 词形排除、前向引用豁免（反依赖门不可声明＝非缺边嫌疑）、树套件 BLOCK-only 口径；v1.6 · 2026-10-06 = F3 双层模型定稿与 review-3 七 finding 落地；v1.5 曾双态——d2a7b346 六 finding 态 与 F3 提交面实质改写态，父 overall v1.14「spec v1.5 随」记后者，v1.6 升号消同号二义））
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（kairos:cdd-design → grilling → cdd-phase）
 - **Parent program**: [doc-architecture-v2-overall.md v1.14](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
@@ -33,7 +33,7 @@ P3 shipped 暴露两个机器面盲区、一个程序级散文平面、以及一
 - `tableRows`（四表）——表头锚 + 行格抽取
 - `records`（task 记录字段）——字段锚
 
-不变式词汇七种（声明式，非通配 DS L）：
+不变式词汇十种（声明式，非通配 DS L）：
 
 | 不变式 | 语义 | 实例 |
 |---|---|---|
@@ -44,13 +44,16 @@ P3 shipped 暴露两个机器面盲区、一个程序级散文平面、以及一
 | order | 单调 | change-history 版本升序 |
 | continuity | 编号连续 | task 1..N 无缺无重 |
 | residue | 禁面 | 伪标题（独立 bold 行）· legacy 面（Form B / `## Task Groups` / `## Section 1`） |
+| hollow | 空壳叶 | 空体（`## Design` 与 `### Acceptance criteria` 间零内容）· 分组头/项叶与下一标题间零内容 |
+| selfBounded | 自界 | `DependsOn` 引用编号 < 自身（反依赖门——编号序 = 拓扑线性化锚） |
+| referenceLint | 引用 lint（宽松观测） | prose 后向 `Task N`/`T N` 基准内无边引用 → 单条聚合 WARN（观测面非门面 · 树套件 BLOCK-only 口径） |
 
 ```ts
 // rules/structure.ts —— 单解释器的规则类型契约（本 phase 落地）
 interface StructureRule {
   id: string;                        // "plan.edges" · "spec.designItems" · "overall.charterFacets" …
   plane: { kind: "headingLeads" | "tableRows" | "records"; anchor: string };
-  invariants: StructureInvariant[];  // 上述七不变式的类型化实例
+  invariants: StructureInvariant[];  // 上述十不变式的类型化实例
   severity: "BLOCK" | "WARN";
   message: string;                   // 固定文案 —— 与 fail 词汇共用，永不散写
 }
@@ -65,7 +68,7 @@ function runStructureRules(content: string, rules: readonly StructureRule[]): St
 |---|---|---|
 | plan | task continuity · record presence/domain · **edge completeness（= 第六 failure class）** · constraints source · residue（legacy 面） | `validatePlanContract` 文本断言面 |
 | spec | 三真骨架 · **designItems（计数/逐字/空壳/空体/伪标题残留 · 分组头连续性 `### N.` 编号单调 · 项归属 `#### N.M` 的 N ∈ 已声明分组 · `###` 契约升级：分组头 allowlist + 唯一 Acceptance 锚）** · deviations 行锚 Yes | `#skeletonFailures` 全部 |
-| overall | kernel · 四表 facet ①–⑥ · **charter facets（条件化）**——Goal/Non-goals/Cross-cutting 恒为 presence 不变式（锚名按家族参数化，见 §2.5）；决策留存/决策组/背书按存在才执法（doc-arch overall 全量，另三份仅三 facets） | `overall.ts` 四表审计全部 |
+| overall | kernel · 四表 facet ①–⑥ · **charter facets（条件化）**——Goal/Non-goals/Cross-cutting 恒为 presence 不变式（锚名按家族参数化，见 §2.5）；决策留存/决策组/背书按存在才执法（doc-arch overall 全量，另三份仅三 facets） | `overall.ts` 四表审计 content-rule 面（kernel 头 · change-history 版本序/日期数值 · dependency-graph token 成员）；四表 contextual residue（行 shape 守卫 · merge 版本行世系 · file-existence kernel 面 · backfill-claim/doc-existence/registration/anchor/issue-row 面）+ spec deviations 回答轴（section-blind 解释器无法缩轴）按设计保留为 doc-type 代码——行为等价 · 模块 Rule-scope 注释记录该缝（S2 措辞收敛） |
 
 测试面：`tree-migration` / `dual-read` 的行走 → **消费同一引擎**（每 doc type 规则集喂 50 文件树，断言命中 = 0 或 pin）；内容保真逐字 pin 保留为 pin（非行走）。净效果：结构判定引擎面 ≈ 减 40%，每新增规则边际成本 = 一行数据 + 一条断言。
 

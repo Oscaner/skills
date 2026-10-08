@@ -14,8 +14,9 @@ flowchart TD
   A[run-writing-spec-session] --> B[author-spec]
   A --> Z1((BLOCKED: install superpowers — see README 'Upstream dependency install'))
   B --> L[NEXT-LOOP]
-  L --> L
-  L --> C[commit-spec]
+  L -->|until next=done| L
+  L -->|next=done| C[commit-spec]
+  L -->|no next| Z2((BLOCKED))
   C --> H[handoff-cdd-plan]
 ```
 
@@ -41,10 +42,10 @@ flowchart TD
 
 ### `NEXT-LOOP`
 
-- **Do**: Run the review-fix rhythm for the authored spec — one review per pass. Ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch). Dispatch the review round on the current ref (`cdd review --type spec --spec <path>`). Read the output's `next:` route fact — a findings fact → dispatch the fix round from the captured findings handoff (`--findings <path>`, never a new review invocation, never self-applied inline edits) and repeat the pass (the self-loop); `none` → closure → `commit-spec`. BLOCKED/TIMEOUT rounds carry no `next:` line — the stderr `CDD_BLOCKED:` channel owns their face, and they are not consumed as next steps. Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
+- **Do**: Run the review-fix rhythm for the authored spec — one review per pass. Ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch). Dispatch the review round on the current ref (`cdd review --type spec --spec <path>`). Read the output's `next:` route fact — a `fix` fact (the findings handoff) → dispatch the fix round from the captured findings handoff (`--findings <path>`, never a new review invocation, never self-applied inline edits) and repeat the pass (the self-loop stays live while the route is not done); a `done` fact → closure → `commit-spec`; `no next` (BLOCKED/TIMEOUT) → the stderr `CDD_BLOCKED:` channel owns the face — these rounds carry no `next:` line and are not consumed as next steps. Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
 - **Read**: the review output contract (the `status · blocker · handoff` capsule + the `next:` route fact + the findings handoff path)
-- **Exit**: closure via the `next:` fact → `commit-spec`; each fix pass re-enters this hub (the self-loop)
-- **Fail**: Re-running a review after a closure conclusion → violates the Review Convergence invariant (stop + report)
+- **Exit**: a `done` route fact → `commit-spec`; each fix pass re-enters this hub while the route is not done (the `until next=done` self-loop)
+- **Fail**: Re-running a review after a closure conclusion → violates the Review Convergence invariant (stop + report); a completed round without a `next:` line that is not BLOCKED/TIMEOUT → hard error face (report the `CDD_BLOCKED:` reason, re-run the same command to continue)
 
 ### `commit-spec`
 
@@ -64,7 +65,7 @@ flowchart TD
 
 | # | Invariant |
 |---|---|
-| I1 | **Review Convergence (routes are facts)** — a review closes by its conclusion `status` (APPROVED / CHANGES_REQUESTED / REVIEW_FIX), and the output's `next:` line carries the engine's default next-step suggestion — read the `next:` suggestion and dispatch per it when continuing directly; the suggestion is a Route fact (kind + payload: `none` · the next group's task list · a re-review base · the fix findings input + a readback suffix), never a command string on the `next:` token — kind + payload map to the concrete dispatch command. A mid-backfill or a user adjudication that lands governs over the suggestion (current world state wins). Fixes always dispatch via the fix round; the orchestrator must not edit in place as a substitute; a re-review of a moved ref is a new review |
+| I1 | **Review Convergence (routes are facts)** — a review closes by its conclusion `status` (APPROVED / CHANGES_REQUESTED / REVIEW_FIX), and the output's `next:` line carries the engine's default next-step suggestion — read the `next:` suggestion and dispatch per it when continuing directly; the suggestion is a Route fact (kind + payload: `done` · the next wave's task list · a re-review base · the fix findings input + a readback suffix · the soft-cap message), never a command string on the `next:` token — kind + payload map to the concrete dispatch command. A mid-backfill or a user adjudication that lands governs over the suggestion (current world state wins). Fixes always dispatch via the fix round; the orchestrator must not edit in place as a substitute; a re-review of a moved ref is a new review |
 | I2 | **Spec commit discipline** — spec approved = commit immediately; do not wait for dev merge |
 | I3 | **Mid-Flight Backfill** — a user-raised backfill of overall/spec/plan docs surfaced while a dispatch is in flight lands through four ordered steps on the current call's return: (1) **land immediately** — hot context, no deferral; (2) **commit on its own** — a standalone change, never mixed with implementation commits; (3) **pause the loop until clean** — an uncommitted backfill trips the next review's entry gate (dirty → BLOCKED); (4) **audit in-band on resume** — the next review audits the backfill in-band; a backfill rewriting the current task's own plan/spec text routes through the orchestrator as Plan Sole Writer |
 

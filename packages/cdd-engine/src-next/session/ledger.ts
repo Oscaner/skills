@@ -24,6 +24,9 @@
 import type { ConfigLoader } from "../infra/config.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
 import type { Workspace } from "../infra/workspace.ts";
+import type { Route } from "./next.ts";
+import { NextStepRouter } from "./next.ts";
+import { EMPTY_RUN_STATE } from "./run.ts";
 
 // ---------------------------------------------------------------------------
 // the round carrier — what NextStepRouter.next (T7) judges
@@ -84,9 +87,11 @@ export const PROGRESS_COUNTER_ZERO = {
 /** The counter member keys — the derived literal union (never re-typed). */
 export type ProgressCounterKey = keyof typeof PROGRESS_COUNTER_ZERO;
 
-/** One progress row — keyed by a scalar task id or the group key string (the key
- *  IS the group identity: `--tasks 1` → the task row, `--tasks 1,2` → the group row). */
-export type ProgressRow = ({ task: number } | { group: string }) & {
+/** One progress row — keyed by a scalar task id or the wave key string (the key
+ *  IS the wave identity: `--tasks 1` → the task row, `--tasks 1,2` → the wave row.
+ *  v1.20 group→wave word sweep: the merged-dispatch row key is `wave` — the
+ *  "组 = 波" one-word-one-meaning; the retired `group` key never rides a live row). */
+export type ProgressRow = ({ task: number } | { wave: string }) & {
   /** The completed rounds per mode (review/fix) — the done record on disk. */
   rounds?: Record<string, number>;
 };
@@ -169,6 +174,9 @@ export class Ledger {
   readonly #workspace: Workspace;
   /** The handoff-family records, keyed by `op.type` — the naming truth the ledger fills. */
   readonly #families: Readonly<Record<string, HandoffFamily>>;
+  /** The C5 next router — the closure-side judge of the round carriers (stateless;
+   *  the `closedTasks()` read face and the wave gate share the same router). */
+  readonly #router = new NextStepRouter();
 
   constructor(workspace: Workspace, config: ConfigLoader) {
     this.#workspace = workspace;
@@ -206,20 +214,20 @@ export class Ledger {
     this.#persist("progress.json", data);
   }
 
-  /** The ledger-row lookup single point — a scalar key (or the single-task group key `"1"`)
-   *  resolves the `{ task }` row; a multi-task group key (`"1,2"`) the `{ group }` row. */
+  /** The ledger-row lookup single point — a scalar key (or the single-task wave key
+   *  `"1"`) resolves the `{ task }` row; a multi-task wave key (`"1,2"`) the `{ wave }` row. */
   rowFor(data: ProgressData, key: LedgerKey): ProgressRow | undefined {
     if (typeof key === "number" || /^\d+$/.test(key)) {
       const id = Number(key);
       return data.tasks.find((row) => "task" in row && row.task === id);
     }
-    return data.tasks.find((row) => "group" in row && row.group === key);
+    return data.tasks.find((row) => "wave" in row && row.wave === key);
   }
 
-  /** The fresh row for an absent key (scalar → task row; group key → group row). */
+  /** The fresh row for an absent key (scalar → task row; wave key → wave row). */
   entryFor(key: LedgerKey): ProgressRow {
     if (typeof key === "number" || /^\d+$/.test(key)) return { task: Number(key) };
-    return { group: String(key) };
+    return { wave: String(key) };
   }
 
   /** The last completed round of a dispatch key + mode — 0 when none on record. */
@@ -247,6 +255,66 @@ export class Ledger {
   /** Read one counter — a failure-category count on record (0 when the file is missing). */
   counterOf(key: ProgressCounterKey): number {
     return this.readProgress()?.[key] ?? 0;
+  }
+
+  // -------------------------------------------------------------------------
+  // closedTasks — the closure single read face (v1.20)
+  // -------------------------------------------------------------------------
+
+  /**
+   * The session's closed task ids — the C5 closure single read face (v1.20): a task
+   * is closed exactly when the C5 route of its LATEST recorded round lies on the
+   * closure side ({done, next-wave} — the SAME terminal predicate the lifecycle's
+   * #markTerminal applies). The retired "any ledger row is done" row-read is gone:
+   * an implement-only row NEVER closes (a recorded implement round is not a closure
+   * verdict — the structural root of the phantom-closure fix), and a historical
+   * merged-wave row naturalizes through its own review/fix pair (the wave row's C5
+   * route, never a per-member read). The frontier consumers (the wave gate · the
+   * plan-graph board) read this face — one closed set, one source.
+   */
+  closedTasks(): Set<number> {
+    const closed = new Set<number>();
+    const data = this.readProgress();
+    if (data === null) return closed;
+    for (const row of data.tasks) {
+      if ("task" in row) {
+        if (this.#rowClosed({ tasks: String(row.task) }, row)) closed.add(row.task);
+        continue;
+      }
+      if ("wave" in row && this.#rowClosed({ tasks: row.wave }, row)) {
+        for (const id of row.wave.split(",").map((part) => Number(part))) closed.add(id);
+      }
+    }
+    return closed;
+  }
+
+  /** Whether one progress row's line is closed — the LATEST recorded round's C5 route
+   *  lies on the closure side ({done, next-wave}). The latest round is the last
+   *  recorded fix round when one exists; the last review round otherwise; a row with
+   *  no review round yet (implement-only or scheduled) holds the line open. */
+  #rowClosed(params: HandoffParams, row: ProgressRow): boolean {
+    const reviews = row.rounds?.review ?? 0;
+    const fixes = row.rounds?.fix ?? 0;
+    if (fixes > 0) {
+      const route = this.#roundRoute("fix", params, Math.min(fixes, reviews));
+      return Ledger.#closedBy(route);
+    }
+    if (reviews > 0) return Ledger.#closedBy(this.#roundRoute("review", params, reviews));
+    return false;
+  }
+
+  /** The C5 route of one recorded round — null when the round is unreadable (a
+   *  line whose round was never read cannot be judged closed: only present facts). */
+  #roundRoute(op: "review" | "fix", params: HandoffParams, round: number): Route | null {
+    const carried = this.round(op, "task", params, round);
+    if (carried === null) return null;
+    return this.#router.next(EMPTY_RUN_STATE, carried);
+  }
+
+  /** The closure-side predicate — route.kind ∈ {done, next-wave} (the v1.20 terminal
+   *  side, byte-identical to the lifecycle's #markTerminal gate). */
+  static #closedBy(route: Route | null): boolean {
+    return route !== null && (route.kind === "done" || route.kind === "next-wave");
   }
 
   // -------------------------------------------------------------------------

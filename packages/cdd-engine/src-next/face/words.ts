@@ -49,8 +49,22 @@ export type CapsuleKey = "status" | "blocker" | "handoff";
 /** The route station kinds — the addressed channels of the command surface. */
 export type StationKind = "next" | "blocked" | "warn" | "cliMissing";
 
-/** The route classifier words — the station vocabulary the `next:` line renders. */
-export type RouteWordKind = "none" | "review" | "fix";
+/** The route classifier words — the station vocabulary the `next:` line renders
+ *  (v1.20: the `none` word is retired — closure is `done`, never "no suggestion"). */
+export type RouteWordKind = "done" | "review" | "fix";
+
+/** The wave-gate BLOCK wording rows — the vocabulary the WaveGate verdicts render
+ *  (v1.21 词表钉: the gate's prompt wording rides the word table, never a CLI literal).
+ *  Each row is a placeholder template verbatim-filled by the wave gate; the braces
+ *  ({requested}/{open}/{phase}/{map}) are the fill slots, part of the row. */
+export interface WaveGateWords {
+  /** The split/subset BLOCK — a `--tasks` set that splits or mismatches the derived wave. */
+  split: string;
+  /** The wrong-phase BLOCK — the open wave is at a phase different from the requested verb. */
+  wrongPhase: string;
+  /** The heterogeneous-phase BLOCK — the open wave holds tasks at mixed phases (ledger anomaly). */
+  heterogeneous: string;
+}
 
 /** The capsule word rows — every word the capsule face emits, one table. */
 export const CAPSULE_WORDS = {
@@ -69,10 +83,18 @@ export const CAPSULE_WORDS = {
   } as const,
   /** The route classifier words of the `next:` line. */
   routeWords: {
-    none: "none",
+    done: "done",
     review: "review",
     fix: "fix",
   } as const,
+  /** The wave-gate BLOCK wording rows (v1.21) — the highest-arity pre-flight refusal
+   *  vocabulary, single-sourced (the gate fills the placeholders, never a re-type). */
+  waveGate: {
+    split:
+      "the requested wave ({requested}) splits/mismatches the derived wave ({open}) — dispatch the full derived wave",
+    wrongPhase: "the open wave is at {phase} — run cdd {phase} first",
+    heterogeneous: "the open wave holds mixed phases ({map}) — a named ledger anomaly",
+  } as const satisfies WaveGateWords,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -207,9 +229,15 @@ export class Words implements WordLocaleFace {
     return CAPSULE_WORDS.stations[kind];
   }
 
-  /** One route classifier word (`none` / `review` / `fix`). */
+  /** One route classifier word (`done` / `review` / `fix`). */
   routeWord(kind: RouteWordKind): string {
     return CAPSULE_WORDS.routeWords[kind];
+  }
+
+  /** The wave-gate BLOCK wording rows — the vocabulary the WaveGate verdicts render
+   *  (single source: the gate fills the placeholders from these rows, never re-types). */
+  waveGateWords(): WaveGateWords {
+    return CAPSULE_WORDS.waveGate;
   }
 
   // -------------------------------------------------------------------------

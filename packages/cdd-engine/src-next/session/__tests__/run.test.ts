@@ -151,7 +151,7 @@ describe("the task small loop — implement → review → the next ready group"
       const step2 = run.advance();
       expect(step2!.frame.phase).toBe("review");
       expect(step2!.frame.round).toBe(1);
-      expect(step2!.route).toEqual({ kind: "next-group", tasks: "2" });
+      expect(step2!.route).toEqual({ kind: "next-wave", tasks: "2" });
 
       const step3 = run.advance();
       expect(step3!.frame.phase).toBe("implement");
@@ -160,7 +160,7 @@ describe("the task small loop — implement → review → the next ready group"
       const step4 = run.advance();
       expect(step4!.frame.phase).toBe("review");
       expect(step4!.frame.round).toBe(1);
-      expect(step4!.route).toEqual({ kind: "none" });
+      expect(step4!.route).toEqual({ kind: "done" });
 
       expect(run.advance()).toBeNull();
 
@@ -226,7 +226,7 @@ describe("the task small loop — implement → review → the next ready group"
       const review2 = run.advance();
       expect(review2!.frame.phase).toBe("review");
       expect(review2!.frame.round).toBe(2);
-      expect(review2!.route).toEqual({ kind: "none" });
+      expect(review2!.route).toEqual({ kind: "done" });
       expect(graph.doneTasks()).toEqual(new Set([1]));
 
       expect(run.advance()).toBeNull();
@@ -257,7 +257,7 @@ describe("the task small loop — implement → review → the next ready group"
       run.advance(); // the nit review
       const fix = run.advance();
       expect(fix!.frame.phase).toBe("fix");
-      expect(fix!.route).toEqual({ kind: "none" });
+      expect(fix!.route).toEqual({ kind: "done" });
       expect(graph.doneTasks()).toEqual(new Set([1]));
       expect(run.advance()).toBeNull();
     } finally {
@@ -328,7 +328,7 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
         const review2 = run.advance();
         expect(review2!.frame.phase).toBe("review");
         expect(review2!.frame.round).toBe(2);
-        expect(review2!.route).toEqual({ kind: "none" });
+        expect(review2!.route).toEqual({ kind: "done" });
 
         expect(run.advance()).toBeNull();
         // the canonical doc handoff names are on record (round increments ride the family)
@@ -354,7 +354,7 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
       });
       const step = run.advance();
       expect(step!.frame.phase).toBe("review");
-      expect(step!.route).toEqual({ kind: "none" });
+      expect(step!.route).toEqual({ kind: "done" });
       expect(run.advance()).toBeNull();
     } finally {
       cleanup();
@@ -398,7 +398,7 @@ describe("the branch small loop — branch-review → fix → closure", () => {
       expect(fix!.frame.phase).toBe("fix");
       expect(fix!.frame.round).toBe(1);
       // the warn/nit input closes — the closure round, no re-review preview
-      expect(fix!.route).toEqual({ kind: "none" });
+      expect(fix!.route).toEqual({ kind: "done" });
 
       expect(run.advance()).toBeNull();
       // the canonical branch family names ride the r{round} increment

@@ -14,11 +14,11 @@ flowchart TD
   A[explore-current-session] --> B[collect]
   B --> C[reform]
   C --> D{confirm}
-  D --> E[dedup]
-  D --> Z1((BLOCKED: user-reject))
+  D -->|confirmed| E[dedup]
+  D -->|rejected| Z1((BLOCKED: user-reject))
   E --> G{create-issue?}
-  G --> H[create-issue]
-  G --> I[report-links-only]
+  G -->|any new finding| H[create-issue]
+  G -->|all matched| I[report-links-only]
   H --> J[report]
   I --> J
   J --> K((APPROVED: report))

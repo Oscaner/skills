@@ -71,7 +71,7 @@ describe("progress — the fixed key set", () => {
     }
   });
 
-  it("rowFor resolves the task/group key dichotomy; entryFor creates the matching fresh row", () => {
+  it("rowFor resolves the task/wave key dichotomy; entryFor creates the matching fresh row (v1.20)", () => {
     const { ledger, cleanup } = fixture();
     try {
       const data = ledger.emptyProgress();
@@ -79,7 +79,7 @@ describe("progress — the fixed key set", () => {
       data.tasks.push(ledger.entryFor("1,2"));
       expect(ledger.rowFor(data, 1)).toEqual({ task: 1 });
       expect(ledger.rowFor(data, "1")).toEqual({ task: 1 }); // single-task group key → task row
-      expect(ledger.rowFor(data, "1,2")).toEqual({ group: "1,2" });
+      expect(ledger.rowFor(data, "1,2")).toEqual({ wave: "1,2" });
       expect(ledger.rowFor(data, "missing")).toBeUndefined();
     } finally {
       cleanup();

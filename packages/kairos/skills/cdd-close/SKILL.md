@@ -13,8 +13,8 @@ Development branch close-out: the imported upstream flow decides merge / PR / ke
 flowchart TD
   A[run-cdd-close-session] --> F{finish?}
   A --> Z1((BLOCKED: install superpowers — see README 'Upstream dependency install'))
-  F --> C[close-issues]
-  F --> Z2((BLOCKED: menu exhausted))
+  F -->|decided| C[close-issues]
+  F -->|menu exhausted| Z2((BLOCKED: menu exhausted))
   C --> K((APPROVED))
 ```
 

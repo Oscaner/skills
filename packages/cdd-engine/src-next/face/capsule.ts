@@ -12,7 +12,7 @@
 // instance) is the `·` separator, the `next:` station anchor and the route/status
 // vocabulary — a second table is excluded by construction. The `next:` value is
 // either a caller-rendered string or the C5 Route rendered through the route-word
-// table (`none` / the next group key / the re-review ref / the fix findings input
+// table (`done` / the next wave key / the re-review ref / the fix findings input
 // with its readback suffix / the soft-cap message verbatim — only present facts
 // land; the route-borne prose — the readback suffix · the soft-cap message — rides
 // declared constants from session/next.ts, rendered by reference, never restated).
@@ -64,13 +64,14 @@ export class Capsule {
 
   /** The route → `next:` text render — one classifier per C5 route row (only
    *  present facts land: a route without its optional payload renders the bare
-   *  classifier). */
+   *  classifier). The v1.20 closure face: `done` is the terminal word — the
+   *  retired `none` never renders. */
   #routeText(route: Route): string {
     const words = this.#words;
     switch (route.kind) {
-      case "none":
-        return words.routeWord("none");
-      case "next-group":
+      case "done":
+        return words.routeWord("done");
+      case "next-wave":
         return route.tasks;
       case "review":
         return `${words.routeWord("review")} ${route.base.slice(0, 7)}`;

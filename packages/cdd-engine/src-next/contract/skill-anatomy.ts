@@ -40,6 +40,12 @@ export interface AnatomyDigraph {
   /** The unified-skeleton facts — the shared NEXT-LOOP hub + the terminal name
    *  prefixes the loop-family shapes assert (the multi-chain shared names). */
   loopHubNode: { name: string; rowPrefixes: readonly string[] };
+  /** The engine-lexicon pinned loop-condition phrases (v1.20 词表钉) — the ONLY
+   *  condition labels the loop-family NEXT-LOOP hub's out-edges may carry (the
+   *  `until next=done` self-loop · the `next=done` closure exit · the `no next`
+   *  failure face — the static digraph truth shares ONE word table with the runtime
+   *  `next:` instance, mechanically anti-drift). */
+  nextLoopConditions: readonly string[];
 }
 
 /** The per-node four-element contract — the `### `node`` definitions' bullet fields. */
@@ -91,6 +97,13 @@ export interface SkillAnatomyContract {
   consumerPurity: AnatomyConsumerPurity;
   skills: { registry: Readonly<Record<string, SkillRosterRow>> };
   wording: Readonly<Record<string, string>>;
+  /** The engine-lexicon pinned condition words (v1.20 词表钉) — the phrase set the
+   *  digraph's loop/closure decision edges may carry (the NEXT-LOOP phrases + the
+   *  decision status words + the Route-kind words). The static digraph truth and the
+   *  runtime `next:` instance share this one list — the guard asserts every NEXT-LOOP
+   *  out-edge label ∈ this set, and the wording test pins the set's derivation from
+   *  the engine word table/Route lexicon (mechanical anti-drift, never a re-type). */
+  edgeConditionWords: readonly string[];
 }
 
 /** The section-heading registry — the strict `## `/`### ` allowlist (public +
@@ -136,6 +149,11 @@ export const SKILL_ANATOMY = {
     // The five-chain unified skeleton — one shared hub + terminals across the loop
     // family; the close/onepass families are the explicit no-self-loop exceptions.
     loopHubNode: { name: "NEXT-LOOP", rowPrefixes: ["handoff-"] },
+    // The v1.20 restored loop conditions — the pinned word face of the NEXT-LOOP hub's
+    // three out-edges (the digraph's static branch truth, one table with the runtime
+    // `next:` instance: `until next=done` self-loop · `next=done` closure exit · the
+    // `no next` failure face. Each label must be one of these — the guard asserts it).
+    nextLoopConditions: ["until next=done", "next=done", "no next"],
   },
   nodeDefinitions: {
     sectionHeading: "## Node Definitions",
@@ -157,7 +175,17 @@ export const SKILL_ANATOMY = {
   growthBoundary: {
     nodeLimit: 15,
     edgeLimit: 17,
-    registry: { crossings: {} },
+    // The registered-growth rationale registry — a digraph crossing the boundary is
+    // admitted here (never narrated inside the consumer SKILL.md). cdd-design carries
+    // the parameterized single template (the double charter nodes + the merged
+    // spec/phase dispatch + the four size-exits), which crosses the edge limit by
+    // definition — the rationale lives in the contract, zero consumer trace.
+    registry: {
+      crossings: {
+        "cdd-design":
+          "the parameterized single-template digraph necessarily carries: the double charter nodes (sync + terminal write), the merged spec/phase dispatch node and the four explicit size-exit edges — 19 condition-labeled edges at 14 nodes (registered v1.20; the rationale lives here, never in the shipped skill)",
+      } as Record<string, string>,
+    },
   },
   consumerPurity: {
     forbiddenNarrativeHeads: ["## Flow size note", "## Full Flow Refactor Rationale"],
@@ -184,12 +212,35 @@ export const SKILL_ANATOMY = {
     closedSetRule:
       "the kairos skills are a CLOSED six-set registered in this contract's roster — the directory scan must carry exactly these members (9th seat vacant): an extra member is a new skill entering without registration, a missing member is a retired skill leaving without a plan entry",
     loopShapeRule:
-      "the five-chain unified skeleton — every loop-family skill digraph carries the shared NEXT-LOOP hub with its single self-loop + a commit-* terminal + a handoff-* terminal (digraph↔Node Definitions↔text-reference consistency, shared node names must never drift)",
+      "the five-chain unified skeleton — every loop-family skill digraph carries the shared NEXT-LOOP hub with its three pinned out-edges (the `until next=done` self-loop · the `next=done` closure exit · the `no next` BLOCKED face) + a commit-* terminal + a handoff-* terminal (digraph↔Node Definitions↔text-reference consistency, shared node names must never drift)",
     enderShapeRule:
       "the explicit no-self-loop exceptions — cdd-close ends at the finish semantic gate + terminal, cdd-report is a one-shot toolchain; a NEXT-LOOP self-loop in either is a shape violation",
-    labelFreeRule:
-      "the digraph edges carry ZERO state labels — the loop condition is the next: route fact, never an edge label (the retired review-fix loop node anchoring)",
+    edgeConditionRule:
+      "decision edges carry explicit condition labels — the NEXT-LOOP hub's three out-edges ARE the pinned loop conditions (`until next=done` → self-loop · `next=done` → terminal · `no next` → BLOCKED) and every edge out of a decision node is condition-labeled; an unlabeled decision edge, a bare NEXT-LOOP self-loop, or a NEXT-LOOP out-edge count/condition that deviates is a shape violation (the edge-zero-state-label rule retired v1.20)",
+    loopConditionPinRule:
+      "the digraph static branch truth and the next: runtime instance share ONE word table — every NEXT-LOOP hub out-edge label must be an engine-lexicon pinned phrase (edgeConditionWords), never a re-typed local literal (mechanical anti-drift); the branch-review loop of the executor chain is an INDEPENDENT closed loop (branch-review↔branch-fix), never a re-entry into the NEXT-LOOP hub",
+    branchLoopRule:
+      "the executor chain's branch-review loop is its own `until next=done` closed loop — the branch-review↔branch-fix edges form the independent cycle and branch-fix never routes into the NEXT-LOOP hub (the implementation loop and the branch loop are separate closures)",
     routeFactRule:
       "next: is consumed as a Route fact (kind + payload) mapped to the concrete command — a full cdd command string never follows the next: token on a line; BLOCKED/TIMEOUT carry no next line and are not consumed as next steps",
   },
+  // The engine-lexicon pinned condition words (v1.20 词表钉) — the phrase set the
+  // digraph's loop/closure decision edges may carry: the NEXT-LOOP phrases + the
+  // decision status words (the review-closure status vocabulary) + the Route-kind
+  // words (the `next:` lexical domain). Sorted lexicographically, documented by
+  // edition; the wording test (face/words + session/next) pins the derivation — a
+  // drifted engine word fails the pin, never a silent second list.
+  edgeConditionWords: [
+    "until next=done",
+    "next=done",
+    "no next",
+    "APPROVED",
+    "CHANGES_REQUESTED",
+    "REVIEW_FIX",
+    "done",
+    "next-wave",
+    "review",
+    "fix",
+    "soft-cap",
+  ],
 } as const satisfies SkillAnatomyContract;

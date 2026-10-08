@@ -55,7 +55,7 @@ describe("the word table — one table, three families", () => {
     expect(words.station("blocked")).toBe("CDD_BLOCKED:");
     expect(words.station("warn")).toBe("CDD_WARN:");
     expect(words.station("cliMissing")).toBe("CDD_CLI_MISSING:");
-    expect(words.routeWord("none")).toBe("none");
+    expect(words.routeWord("done")).toBe("done");
     expect(words.routeWord("review")).toBe("review");
     expect(words.routeWord("fix")).toBe("fix");
   });
@@ -102,11 +102,11 @@ describe("the capsule byte pin — the single output face", () => {
 
   it("renders the `next:` line per the C5 route row (each kind, only present facts)", () => {
     const base = "a".repeat(40);
-    expect(capsule.emit("APPROVED", "0", "/h.json", { kind: "none" })).toEqual([
+    expect(capsule.emit("APPROVED", "0", "/h.json", { kind: "done" })).toEqual([
       "status: APPROVED · blocker: 0 · handoff: /h.json",
-      "next: none",
+      "next: done",
     ]);
-    expect(capsule.emit("APPROVED", "0", "/h.json", { kind: "next-group", tasks: "7,9" })).toEqual([
+    expect(capsule.emit("APPROVED", "0", "/h.json", { kind: "next-wave", tasks: "7,9" })).toEqual([
       "status: APPROVED · blocker: 0 · handoff: /h.json",
       "next: 7,9",
     ]);
@@ -184,10 +184,10 @@ describe("the T8 run seam — the capsule plugs into the lifecycle interaction p
     // Compile-time pin — fails under `tsc --noEmit` if the capsule's emit surface
     // drifts from the seam the run attaches (status · blocker · handoff · next).
     const seam: CapsuleFace = capsule;
-    const lines = seam.emit("APPROVED", "0", "/ws/tasks-1-implement.json", { kind: "none" });
+    const lines = seam.emit("APPROVED", "0", "/ws/tasks-1-implement.json", { kind: "done" });
     expect(lines).toEqual([
       "status: APPROVED · blocker: 0 · handoff: /ws/tasks-1-implement.json",
-      "next: none",
+      "next: done",
     ]);
   });
 });
@@ -225,6 +225,6 @@ describe("the locale face — the word-table locale columns (T19, the P7 transla
     expect(translator.localize("status", "zh")).toBeNull();
     expect(translator.localize("APPROVED", "zh")).toBeNull();
     // the byte pin stays English — the capsule emits the machine words verbatim
-    expect(capsule.emit("APPROVED", "0", "/h.json", { kind: "none" })[1]).toBe("next: none");
+    expect(capsule.emit("APPROVED", "0", "/h.json", { kind: "done" })[1]).toBe("next: done");
   });
 });

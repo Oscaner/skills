@@ -28,6 +28,7 @@ import { fileURLToPath } from "node:url";
 import {
   SKILL_ANATOMY,
   type SkillAnatomyContract,
+  type SkillRosterRow,
 } from "../../packages/cdd-engine/src-next/contract/skill-anatomy.ts";
 import { CLI_COMMANDS } from "../../packages/cdd-engine/src-next/face/cli.ts";
 import {
@@ -363,15 +364,9 @@ export class GuardLibrary {
         );
       }
 
-      // The zero-state-label rule + the next: route-fact consumption scan.
-      for (const edge of an.edges) {
-        if (edge.label !== "") {
-          findings.push({
-            label: `${skill.name}: labeled edge ${edge.from} -${edge.to} ("${edge.label}") — ${anatomy.wording.labelFreeRule}`,
-            file: skill.path,
-          });
-        }
-      }
+      // The edge-condition contract (v1.20 — the label-free rule reversed) + the
+      // next: route-fact consumption scan.
+      findings.push(...this.#edgeConditionFindings(skill.name, skill.path, an, anatomy, row));
       for (const line of an.src.split("\n")) {
         const station = line.indexOf("next:");
         if (station === -1) continue;
@@ -490,6 +485,112 @@ export class GuardLibrary {
         });
       }
     }
+    return findings;
+  }
+
+  /** The edge-condition contract findings (v1.20 — the label-free rule reversed): every
+   *  edge out of a decision node carries an explicit condition label; the loop family's
+   *  NEXT-LOOP hub carries EXACTLY the three pinned out-edges (the `until next=done`
+   *  self-loop · the `next=done` closure exit · the `no next` BLOCKED face), each label
+   *  an engine-lexicon pinned phrase (edgeConditionWords — the 词表钉, one word table
+   *  shared with the runtime `next:` instance); the executor chain's branch-review loop
+   *  is an INDEPENDENT closed loop (branch-review↔branch-fix), never a route through
+   *  the implementation hub. */
+  #edgeConditionFindings(
+    name: string,
+    skillPath: string,
+    an: AnalyzedSkill,
+    anatomy: SkillAnatomyContract,
+    row: SkillRosterRow | undefined,
+  ): GuardFinding[] {
+    const findings: GuardFinding[] = [];
+    const labelId = new Map<string, string>();
+    const idLabel = new Map<string, string>();
+    for (const node of an.nodes) {
+      labelId.set(node.label, node.id);
+      idLabel.set(node.id, node.label);
+    }
+    const diamondIds = new Set(an.nodes.filter((n) => n.type === "diamond").map((n) => n.id));
+
+    // 决策边条件必带 — every edge out of a decision node carries an explicit condition.
+    for (const edge of an.edges) {
+      if (diamondIds.has(edge.from) && edge.label === "") {
+        findings.push({
+          label: `${name}: unlabeled decision edge ${edge.from} → ${edge.to} — ${anatomy.wording.edgeConditionRule}`,
+          file: skillPath,
+        });
+      }
+    }
+
+    if (row === undefined || row.family !== "loop") return findings;
+
+    const hub = anatomy.digraph.loopHubNode.name;
+    const hubId = labelId.get(hub);
+    if (hubId === undefined) return findings; // the missing-hub finding is the family shape's row
+    const conditions = anatomy.digraph.nextLoopConditions;
+    const branchLoop = row.role === "executor";
+    const out = an.edges.filter((e) => e.from === hubId);
+
+    // The 三出边断言 + 词表钉 — the loop hub's exactly-three pinned out-edges.
+    const selfLoop = an.edges.find((e) => e.from === hubId && e.to === hubId);
+    const doneExit = out.find((e) => e.label === "next=done");
+    const noNext = out.find((e) => e.label === "no next");
+    if (selfLoop === undefined || selfLoop.label !== "until next=done") {
+      findings.push({
+        label: `${name}: the ${hub} self-loop must carry the pinned condition label "until next=done" — ${anatomy.wording.edgeConditionRule}`,
+        file: skillPath,
+      });
+    }
+    if (doneExit === undefined || (idLabel.get(doneExit.to) ?? "").startsWith("BLOCKED")) {
+      findings.push({
+        label: `${name}: the ${hub} closure exit must be the "next=done" edge into a terminal node — ${anatomy.wording.edgeConditionRule}`,
+        file: skillPath,
+      });
+    }
+    if (noNext === undefined || !(idLabel.get(noNext.to) ?? "").startsWith("BLOCKED")) {
+      findings.push({
+        label: `${name}: the ${hub} failure face must be the "no next" edge into the BLOCKED terminal — ${anatomy.wording.edgeConditionRule}`,
+        file: skillPath,
+      });
+    }
+    if (out.length !== 3) {
+      findings.push({
+        label: `${name}: the ${hub} hub carries ${out.length} out-edge(s), expected exactly the three pinned (until next=done · next=done · no next) — ${anatomy.wording.edgeConditionRule}`,
+        file: skillPath,
+      });
+    }
+    for (const edge of out) {
+      if (!conditions.includes(edge.label)) {
+        findings.push({
+          label: `${name}: the ${hub} out-edge label "${edge.label}" is outside the engine-lexicon pinned phrases — ${anatomy.wording.loopConditionPinRule}`,
+          file: skillPath,
+        });
+      }
+    }
+
+    // The branch 环形状断言 — the executor's independent branch-review closed loop.
+    if (branchLoop) {
+      const reviewId = labelId.get("branch-review");
+      const fixId = labelId.get("branch-fix");
+      if (
+        reviewId === undefined ||
+        fixId === undefined ||
+        !an.edges.some((e) => e.from === reviewId && e.to === fixId) ||
+        !an.edges.some((e) => e.from === fixId && e.to === reviewId)
+      ) {
+        findings.push({
+          label: `${name}: the executor chain is missing the independent branch-review↔branch-fix closed loop — ${anatomy.wording.branchLoopRule}`,
+          file: skillPath,
+        });
+      }
+      if (fixId !== undefined && an.edges.some((e) => e.from === fixId && e.to === hubId)) {
+        findings.push({
+          label: `${name}: the branch-fix node routes into the ${hub} hub — the branch loop must close on itself (until next=done), never through the implementation loop — ${anatomy.wording.branchLoopRule}`,
+          file: skillPath,
+        });
+      }
+    }
+
     return findings;
   }
 

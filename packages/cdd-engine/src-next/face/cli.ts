@@ -57,6 +57,7 @@ import type { Route } from "../session/next.ts";
 import { NextStepRouter } from "../session/next.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame, RunState } from "../session/run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../session/run.ts";
+import { WaveGate } from "../session/wave.ts";
 import { Capsule } from "./capsule.ts";
 import { GraphView } from "./graph-view.ts";
 import {
@@ -888,6 +889,8 @@ export class Cli {
   readonly #docKeys: readonly string[];
   /** The plan-graph display (the schema get plan-graph + the pre-flight face). */
   readonly #graphView: GraphView;
+  /** The three-verb unified wave gate (the task-face dispatch pre-flight). */
+  readonly #waveGate: WaveGate;
 
   constructor(opts: CliOptions = {}) {
     this.#io = opts.io ?? {
@@ -911,6 +914,7 @@ export class Cli {
     this.#channels = this.#channelTable();
     this.#docKeys = Object.keys(this.#projector.registries().schema);
     this.#graphView = new GraphView();
+    this.#waveGate = new WaveGate();
   }
 
   // ---------------------------------------------------------------------------
@@ -1142,11 +1146,14 @@ export class Cli {
       for (const id of planIds) if (!group.has(id)) scene.state.markDone(id);
     }
 
-    // The wave pre-flight gate (§3.8 / T24) — the plan graph must validate before ANY
-    // dispatch: a violation (missing-edge / missing-id / self-loop / cycle) BLOCKs with
-    // the named edge issues (the task-loss class dies here, never silently), and the
-    // implement verb must dispatch the FULL derived wave — a manual `--tasks` split
-    // BLOCKs (the strict-wave discipline is engine-forced, not an orchestrator habit).
+    // The wave pre-flight gate (v1.21 — the three-verb unified wave gate): the plan
+    // graph must validate before ANY dispatch (a violation — missing-edge / missing-id
+    // / self-loop / cycle — BLOCKs with the named edge issues; the task-loss class
+    // dies here, never silently), and the task face's `--tasks` must be EXACTLY the
+    // derived open wave at the requested verb's phase. A split/subset `--tasks`, a
+    // wrong-phase request, or a mixed-phase wave BLOCKs for implement AND review AND
+    // fix alike (the implement-only strict-wave check + the #taskGate phase lock fuse
+    // into the single WaveGate.vet — never a variant gate per verb).
     if ((type === "task" || type === "plan") && scene.planText !== null) {
       const parsedPlan = new PlanDocType("plan").parse(scene.planText.split("\n"));
       const graph = new TaskGraph(parsedPlan);
@@ -1159,33 +1166,28 @@ export class Cli {
           this.#io.stderr(`  ${issue.kind}@T${issue.task}: ${issue.message}\n`);
         return 1;
       }
-      if (verb === "implement") {
-        // The wave-done set = every task with a ledger record (a task-row or a
-        // member-row of a merged group) — the historical merged groups carry no
-        // per-task implement rows, so wave-done reads the ROW record, never the
-        // per-task round counts.
-        const closed = new Set<number>();
-        const data = scene.ledger.readProgress();
-        if (data !== null) {
-          for (const row of data.tasks) {
-            if ("task" in row) closed.add(row.task);
-            else if ("group" in row)
-              for (const id of row.group.split(",").map((part) => Number(part))) closed.add(id);
-          }
-        }
-        const ready = [...graph.frontier(closed)].sort((a, b) => a - b);
-        const requested = [...(group ?? [])].sort((a, b) => a - b);
-        const exact =
-          requested.length === ready.length && requested.every((id) => ready.includes(id));
-        if (!exact) {
+      if (type === "task" && group !== null) {
+        const verdict = this.#waveGate.vet(
+          group,
+          verb as "implement" | "review" | "fix",
+          graph,
+          scene.ledger,
+          this.#words,
+        );
+        if (!verdict.ok) {
           this.#io.stderr(
-            `cdd implement: --tasks {${requested.join(",")}} splits/mismatches the derived wave — dispatch the full derived group {${ready.join(",")}} (strict-wave §3.8)\n`,
+            `cdd ${verb}: ${verdict.message ?? "the dispatch gate refused the request"}\n`,
           );
-          if (this.#graphView !== null) {
-            for (const line of this.#graphView
-              .render(graph.report(closed), `plan-graph: ${scene.planPath ?? ""}`)
-              .split("\n"))
-              this.#io.stderr(`  ${line}\n`);
+          if (verdict.reason === "split") {
+            // The full-wave hint + the wave-board — the board's done face rides the
+            // SAME closedTasks() read the gate judged (one closed set, one source).
+            if (this.#graphView !== null) {
+              const closed = scene.ledger.closedTasks();
+              for (const line of this.#graphView
+                .render(graph.report(closed), `plan-graph: ${scene.planPath ?? ""}`)
+                .split("\n"))
+                this.#io.stderr(`  ${line}\n`);
+            }
           }
           return 1;
         }
@@ -1215,23 +1217,26 @@ export class Cli {
       capsule: new Capsule(this.#words),
     });
 
-    // The requested-phase gate — the line's current open phase must BE the requested
-    // verb's round before any advance (a review before implement refrains, never a
-    // phantom implement round).
-    const open = group !== null ? this.#taskGate(scene, group, expected) : this.#lineGate(scene);
-    if (open !== expected) {
-      this.#io.stderr(
-        `cdd ${verb}: cannot dispatch a ${expected} round — ${open === null ? "the line holds no open round" : `the next round is ${open}${this.#phaseHint(open)}`}\n`,
-      );
-      return 1;
+    // The requested-phase gate — the line faces (branch/spec/plan) keep the
+    // line-phase readiness check; the task face needs no second gate (the WaveGate's
+    // wrong-phase verdict above IS the phase authority for the requested wave).
+    if (group === null) {
+      const open = this.#lineGate(scene);
+      if (open !== expected) {
+        this.#io.stderr(
+          `cdd ${verb}: cannot dispatch a ${expected} round — ${open === null ? "the line holds no open round" : `the next round is ${open}${this.#phaseHint(open)}`}\n`,
+        );
+        return 1;
+      }
     }
 
-    // Advance the requested phase across the group (one dispatch per frame — the
+    // Advance the requested phase across the wave (one dispatch per frame — the
     // lifecycle's "one dispatch, one advance" step), keeping only the LAST step's
     // capsule for the invocation's single stdout face (the per-step intermediate
-    // next-group lines stay in the router, never on the CLI face).
+    // next-wave lines stay in the router, never on the CLI face).
     let dispatched = 0;
     let latest: readonly string[] = [];
+    let lastStatus: RoundStatus | null = null;
     for (;;) {
       const step = run.advance();
       if (step === null) break;
@@ -1250,9 +1255,20 @@ export class Cli {
       }
       dispatched += 1;
       latest = step.capsuleLines;
+      lastStatus = statuses[statuses.length - 1] ?? null;
       if (taskId !== null && group !== null) scene.state.markDone(taskId);
-      if (statuses.some((status) => status === "BLOCKED" || status === "TIMEOUT")) {
+      if (lastStatus === "BLOCKED" || lastStatus === "TIMEOUT") {
         for (const line of latest) this.#io.stdout(`${line}\n`);
+        return 1;
+      }
+      // The no-next hard error (v1.20): a completed non-failed round must produce a
+      // `next:` line — null after a passed BLOCKED/TIMEOUT check is an abnormal
+      // completion, never a silent approved-without-next.
+      if (step.route === null) {
+        for (const line of latest) this.#io.stdout(`${line}\n`);
+        this.#io.stderr(
+          `${this.#words.station("blocked")} the round concluded ${lastStatus ?? "APPROVED"} with no next: line — a completed non-failed round must yield a next-hop route (re-run the same command to continue)\n`,
+        );
         return 1;
       }
     }
@@ -1314,48 +1330,11 @@ export class Cli {
   // the requested-phase gate — the work commands' readiness check
   // ---------------------------------------------------------------------------
 
-  /** The group's current open phase — the gate's verdict for a task-face group: the
-   *  requested phase, or the phase the line is actually at (null = a closed line).
-   *  Every group task must be at the same open phase — a mixed group (one task
-   *  already advanced) is refused as a stale group re-run. */
-  #taskGate(
-    scene: WorkScene,
-    group: ReadonlySet<number>,
-    expected: DispatchPhase,
-  ): DispatchPhase | null {
-    let verdict: DispatchPhase | null = expected;
-    for (const task of group) {
-      const phase = this.#taskPhase(scene.ledger, scene.router, task);
-      if (phase !== expected) {
-        verdict = phase ?? null;
-        if (phase !== null) return verdict;
-      }
-    }
-    return verdict;
-  }
-
-  /** The single-target line's current open phase (spec/plan/branch). */
+  /** The single-target line's current open phase (spec/plan/branch). The task face
+   *  holds no separate gate here: the WaveGate's wrong-phase verdict (the pre-flight)
+   *  IS the task-face phase authority — the retired #taskGate folded into it. */
   #lineGate(scene: WorkScene): DispatchPhase | null {
     return this.#linePhase(scene);
-  }
-
-  /**
-   * The ledger-derived open phase of a task — the requested-phase gate's rule: the
-   * implement → review → fix → re-review progression read through the SAME ledger and
-   * the SAME stateless NextStepRouter the lifecycle (T8) judges. This gate is the
-   * CLI's refusal authority, never a second phase table — the phase-sequence tests
-   * pin it against the lifecycle's own opening behavior, so a drift fails loudly.
-   */
-  #taskPhase(ledger: Ledger, router: NextStepRouter, task: number): DispatchPhase | null {
-    const implemented = ledger.roundCount(task, "implement");
-    const reviews = ledger.roundCount(task, "review");
-    const fixes = ledger.roundCount(task, "fix");
-    if (implemented === 0) return "implement";
-    if (reviews === 0) return "review";
-    if (fixes < reviews) return "fix";
-    const carried = ledger.round("fix", "task", { tasks: String(task) }, reviews);
-    if (carried === null) return null;
-    return router.next(EMPTY_RUN_STATE, carried)?.kind === "review" ? "review" : null;
   }
 
   /** The single-target line's current open phase — fix-awaits / re-review / closure
@@ -1545,10 +1524,11 @@ export class Cli {
   }
 
   /** `cdd schema get plan-graph --plan <path>` — the plan-graph read (§3.8): the task
-   *  graph + the derived wave chain + the ledger progress, rendered as the terminal
-   *  box-drawing DAG (GraphView over beautiful-mermaid). A Graph validate failure
-   *  BLOCKs the read with the named edge violations — the wave-preflight gate
-   *  surfaces as a discovery read. */
+   *  graph + the derived wave chain + the ledger progress, rendered as the engine-held
+   *  wave-board (GraphView — one deterministic row per wave, zero third-party layout;
+   *  beautiful-mermaid retired as tech debt). A Graph validate failure BLOCKs the read
+   *  with the named edge violations — the wave-preflight gate surfaces as a discovery
+   *  read. The board's done face is the same closedTasks() the pre-flight gates judge. */
   async #runPlanGraph(parsed: ParsedCommand): Promise<number> {
     const planPath = parsed.args.plan;
     if (planPath === undefined) {
@@ -1572,18 +1552,9 @@ export class Cli {
       Workspace.slugFromDoc(planPath),
     ).ensure();
     const ledger = new Ledger(workspace, this.#config);
-    const done = new Set<number>();
-    // wave-done = every task with a ledger record (a task-row or a member of a
-    // merged group) — the historical merged groups carry no per-task implement rows,
-    // so the progress reads the ROW record, never the per-task round closures.
-    const data = ledger.readProgress();
-    if (data !== null) {
-      for (const row of data.tasks) {
-        if ("task" in row) done.add(row.task);
-        else if ("group" in row)
-          for (const id of row.group.split(",").map((part) => Number(part))) done.add(id);
-      }
-    }
+    // The board's done face = the C5 closure single read (v1.20): closedTasks() — the
+    // same set the pre-flight gates judge, never "any ledger row is done".
+    const done = ledger.closedTasks();
     this.#io.stdout(`${this.#graphView.render(graph.report(done), `plan-graph: ${planPath}`)}\n`);
     return 0;
   }

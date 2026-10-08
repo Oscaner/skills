@@ -15,7 +15,10 @@
 import type { TaskGraphReport } from "../session/graph.ts";
 
 /** GraphView — the wave-board display: one deterministic row per derived wave, the
- *  band's tasks inline with progress markers, the incoming source bands noted. */
+ *  band's tasks inline with progress markers, the incoming source bands noted.
+ *  v1.20 — the in-wave marker mix: the done set rides `closedTasks()` (the report's
+ *  done projection, never "any ledger row"), and a current-wave task that is already
+ *  done shows ✔, never a swallowed whole-row ▶. */
 export class GraphView {
   /** render(report, title) → the wave-board + the legend (the plan read and the
    *  pre-flight display call the same face). */
@@ -25,7 +28,9 @@ export class GraphView {
     const markers = new Map<number, string>();
     for (const [index, wave] of report.waves.entries()) {
       for (const id of wave) {
-        markers.set(id, index === currentIndex ? "▶" : done.has(id) ? "✔" : "○");
+        // The per-task marker, done first: a completed task shows ✔ even inside the
+        // current wave (the mix), a not-done current-wave task shows ▶, the rest ○.
+        markers.set(id, done.has(id) ? "✔" : index === currentIndex ? "▶" : "○");
       }
     }
     const rows = report.waves

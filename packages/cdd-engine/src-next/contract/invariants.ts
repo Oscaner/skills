@@ -6,7 +6,7 @@
 //   context    — file-existence / sibling-scan / cross-doc-chain /
 //                section-scoped-domain (the four seam strategies that absorb the
 //                old doctype classes' contextual judgment — fourTableAudit,
-//                deviations, Class-A/B, effectiveGroups).
+//                deviations, Class-A/B, effectiveWaves).
 // Each strategy is one subclass of `abstract Invariant { evaluate(ctx) }`; the
 // judgment data is always the declared registries + the derived parse face (never
 // a hand-written structure prose). Judgment dispatch is the coordinator's

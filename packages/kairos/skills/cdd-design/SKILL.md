@@ -14,18 +14,21 @@ flowchart TD
   A[run-cdd-design-session] --> B[explore-context]
   A --> Z1((BLOCKED: install superpowers — see README 'Upstream dependency install'))
   B --> M{mode?}
-  M --> G[run-grilling-session]
-  M --> P{phase-registered?}
-  P --> S[run-cdd-charter · sync]
+  M -->|new-program| G[run-grilling-session]
+  M -->|phase-within-program| P{phase-registered?}
+  P -->|not registered| S[run-cdd-charter · sync]
   S --> P
-  P --> G
+  P -->|registered| G[run-grilling-session]
   G --> Z2((BLOCKED: install mattpocock-skills — see README 'Upstream dependency install'))
   G --> X{size?}
-  X --> W[run-cdd-spec-writer]
-  X --> C[run-cdd-charter]
+  X -->|single| W[run-cdd-spec-writer]
+  X -->|fit| W[run-cdd-spec-writer]
+  X -->|multi| C[run-cdd-charter]
+  X -->|oversized| C[run-cdd-charter]
   W --> L[NEXT-LOOP]
-  L --> L
-  L --> H[handoff-next]
+  L -->|until next=done| L
+  L -->|next=done| H[handoff-next]
+  L -->|no next| Z3((BLOCKED))
   C --> H[handoff-next]
 ```
 
@@ -82,17 +85,17 @@ flowchart TD
 
 ### `run-cdd-spec-writer`
 
-- **Do**: Import `/kairos:cdd-spec-writer`（pi：/skill:cdd-spec-writer） — its flow is consumed inline as this session's baseline, parameterized by the target: it authors, reviews and commits the single spec or the phase spec (target = session parameter), landing the committed spec as the terminal artifact. The imported flow's review-fix rhythm expects a clean start — ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch). Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
+- **Do**: Import `/kairos:cdd-spec-writer`（pi：/skill:cdd-spec-writer） — its flow is consumed inline as this session's baseline, parameterized by the target (single / phase-spec — the two near-identical spec dispatch variants are ONE node): it authors, reviews and commits the single spec or the phase spec, landing the committed spec as the terminal artifact. The imported flow's review-fix rhythm expects a clean start — ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch). Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
 - **Read**: grilling output + exploration context
 - **Exit**: Handoff executed → `NEXT-LOOP`
 - **Fail**: Target skill missing → BLOCKED (install kairos — see the kairos README's 'Upstream dependency install' table)
 
 ### `NEXT-LOOP`
 
-- **Do**: Run the design continuation recycle — the single hub after a delegated writer flow lands (a committed single / phase spec): read the session's `next:` route fact — a further design task → dispatch again (the self-loop); `none` → closure → `handoff-next`. Ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch). A mid-backfill or a user adjudication that lands governs over the suggestion (current world state wins). Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
+- **Do**: Run the design continuation recycle — the single hub after a delegated writer flow lands (a committed single / phase spec): read the session's `next:` route fact — a further design dispatch → re-enter this hub (the self-loop stays live while the route is not done); a `done` fact → closure → `handoff-next`; `no next` (BLOCKED/TIMEOUT) → the stderr `CDD_BLOCKED:` channel owns the face — these rounds carry no `next:` line and are not consumed as next steps. Ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch). A mid-backfill or a user adjudication that lands governs over the suggestion (current world state wins). Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
 - **Read**: the landed delegated flow's output contract (the `next:` route fact + the committed artifact)
-- **Exit**: a further design dispatch re-enters this hub (the self-loop); closure → `handoff-next`
-- **Fail**: BLOCKED/TIMEOUT rounds carry no `next:` line — the stderr `CDD_BLOCKED:` channel owns their face, and they are not consumed as next steps
+- **Exit**: a `done` route fact → `handoff-next`; each further design dispatch re-enters this hub while the route is not done (the `until next=done` self-loop)
+- **Fail**: a completed round without a `next:` line that is not BLOCKED/TIMEOUT → hard error face (report the `CDD_BLOCKED:` reason, re-run the same command to continue); BLOCKED/TIMEOUT rounds are never consumed as next steps
 
 ### `run-cdd-charter`
 
@@ -113,7 +116,7 @@ flowchart TD
 | # | Invariant |
 |---|---|
 | I1 | **Design first** — zero implementation dispatch: no code commits, no implement dispatch; the flow ends in the delegated writer flows, never in implementation |
-| I2 | **Review Convergence (routes are facts)** — a review closes by its conclusion `status` (APPROVED / CHANGES_REQUESTED / REVIEW_FIX), and the output's `next:` line carries the engine's default next-step suggestion — read the `next:` suggestion and dispatch per it when continuing directly; the suggestion is a Route fact (kind + payload: `none` · the next group's task list · a re-review base · the fix findings input + a readback suffix), never a command string on the `next:` token — kind + payload map to the concrete dispatch command. A mid-backfill or a user adjudication that lands governs over the suggestion (current world state wins). Fixes always dispatch via the fix round; the orchestrator must not edit in place as a substitute; a re-review of a moved ref is a new review |
+| I2 | **Review Convergence (routes are facts)** — a review closes by its conclusion `status` (APPROVED / CHANGES_REQUESTED / REVIEW_FIX), and the output's `next:` line carries the engine's default next-step suggestion — read the `next:` suggestion and dispatch per it when continuing directly; the suggestion is a Route fact (kind + payload: `done` · the next wave's task list · a re-review base · the fix findings input + a readback suffix · the soft-cap message), never a command string on the `next:` token — kind + payload map to the concrete dispatch command. A mid-backfill or a user adjudication that lands governs over the suggestion (current world state wins). Fixes always dispatch via the fix round; the orchestrator must not edit in place as a substitute; a re-review of a moved ref is a new review |
 | I3 | **Spec commit discipline** — spec approved = commit immediately; do not wait for dev merge (enforced inside the delegated writer flows) |
 | I4 | **Mid-Flight Backfill** — a user-raised backfill of overall/spec/plan docs surfaced while a dispatch is in flight lands through four ordered steps on the current call's return: (1) **land immediately** — hot context, no deferral; (2) **commit on its own** — a standalone change, never mixed with implementation commits; (3) **pause the loop until clean** — an uncommitted backfill trips the next review's entry gate (dirty → BLOCKED); (4) **audit in-band on resume** — the next review audits the backfill in-band; a backfill rewriting the current task's own plan/spec text routes through the orchestrator as Plan Sole Writer |
 

@@ -108,7 +108,7 @@ export interface StepResult {
   /** The round count on record after bookkeeping. */
   round: number;
   /** The C5 next-hop route after this step (consumed per the face's next
-   *  semantics: a next-group advances the task batch — batch faces only). */
+   *  semantics: a next-wave advances the task batch — batch faces only). */
   route: Route | null;
   /** The capsule lines rendered at the interaction point (empty when no capsule is
    *  attached — the seam is non-hard). */
@@ -124,10 +124,11 @@ export interface StepResult {
  *   bookkeep  — persist the handoff carrier + record the progress round;
  *   close     — the recorded round's C5 route is the single closure verdict: the
  *               lifecycle marks the task done when the route kind closes the line
- *               (desync-proof — the router's point, never a folded table);
+ *               (terminal ⇔ route.kind ∈ {done, next-wave} — desync-proof, the
+ *               router's point, never a folded table);
  *   route     — the delivered C5 next-hop Route, re-judged with the closed task out
- *               of the ready batch (a closing review routes `none`, not a phantom
- *               next-group of the just-closed task).
+ *               of the ready batch (a closing review routes `done`, not a phantom
+ *               next-wave of the just-closed task).
  */
 export class Lifecycle {
   /** The target face this instance drives — the row of the faces table. */
@@ -191,8 +192,8 @@ export class Lifecycle {
     // folded copy of the closure table).
     this.#markTerminal(frame, this.#routeNext(frame));
     // The delivered route re-judges the batch AFTER the done-marking: a closing
-    // review empties the ready batch, so the step routes `none`, not a phantom
-    // next-group of the just-closed task.
+    // review empties the ready batch, so the step routes `done` (an exhausted run),
+    // not a phantom next-wave of the just-closed task.
     const route = this.#routeNext(frame);
     return {
       frame,
@@ -237,7 +238,7 @@ export class Lifecycle {
 
   /** The next phase of one task line — driven by the ledger progress + the C5 route
    *  of the latest recorded round (implement → review → fix → re-review → closure).
-   *  Null when the line is closed (its latest round's route is none / next-group /
+   *  Null when the line is closed (its latest round's route is done / next-wave /
    *  soft-cap — the soft cap defers to the user). */
   #nextTaskPhase(task: number): DispatchPhase | null {
     const implemented = this.#ledger.roundCount(task, "implement");
@@ -414,14 +415,14 @@ export class Lifecycle {
   }
 
   /** Mark the task done when the concluding route says its line closed — the C5
-   *  verdict is the single closure gate (terminal ⇔ route.kind ∈ {none,
-   *  next-group}): a clean review or a blocker-free fix closes the task, while a
-   *  re-review / soft-cap / a null route (BLOCKED/TIMEOUT, a missing base) holds
-   *  it. Marking the done task lets the next frontier pass exclude the closed
+   *  verdict is the single closure gate (terminal ⇔ route.kind ∈ {done, next-wave},
+   *  the v1.20 closure side): a clean review or a blocker-free fix closes the task,
+   *  while a re-review / soft-cap / a null route (BLOCKED/TIMEOUT, a missing base)
+   *  holds it. Marking the done task lets the next frontier pass exclude the closed
    *  line. The task-less faces never mark — for them the route IS the gate. */
   #markTerminal(frame: OpenFrame, route: Route | null): void {
     if (frame.type !== "task") return;
-    if (route === null || (route.kind !== "none" && route.kind !== "next-group")) return;
+    if (route === null || (route.kind !== "done" && route.kind !== "next-wave")) return;
     const taskTarget = frame.target as { kind: "task"; task: number };
     this.#state.markDone(taskTarget.task);
   }

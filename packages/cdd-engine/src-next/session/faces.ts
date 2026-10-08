@@ -57,7 +57,7 @@ export interface TargetFace {
   };
   /** The next consumption semantics — how a C5 Route is consumed on this face. */
   nextSemantics: {
-    /** Whether a `next-group` route advances the task batch (task only — the
+    /** Whether a `next-wave` route advances the task batch (task only — the
      *  branch/spec/plan lines are single-target with an empty ready batch). */
     batch: boolean;
   };

@@ -121,6 +121,43 @@ function readJson<T>(file: string): T {
   return JSON.parse(readFileSync(file, "utf8")) as T;
 }
 
+/** A plan with N independent tasks (no deps — a single root wave of N members). */
+function independentPlan(repoRoot: string, name: string, count: number): string {
+  const file = path.join(repoRoot, "docs", "kairos", "plans", name);
+  mkdirSync(path.dirname(file), { recursive: true });
+  const blocks: string[] = [];
+  for (let id = 1; id <= count; id += 1) {
+    blocks.push(
+      `### Task ${id}: task ${id}`,
+      "- **Objective**: objective",
+      "- **Files**: `a.ts`",
+      "- **Consumes**: x",
+      "- **Produces**: y",
+      "- **Steps**:",
+      "  - step — checkable: green",
+      "- **Acceptance**: ok",
+      "- **DependsOn**: none",
+      "",
+    );
+  }
+  writeFileSync(
+    file,
+    [
+      "# Test Plan",
+      "**Spec:** [p3-design.md](docs/kairos/specs/p3-design.md)",
+      "- **Parent program**: [p3-overall.md v1.0](docs/kairos/specs/p3-overall.md)",
+      "",
+      "## Constraints",
+      "",
+      "- delta",
+      "",
+      ...blocks,
+    ].join("\n"),
+    "utf8",
+  );
+  return file;
+}
+
 // ---------------------------------------------------------------------------
 // the command face — the steady subcommand words
 // ---------------------------------------------------------------------------
@@ -335,15 +372,33 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     }
   });
 
-  it("implement — strict-wave dispatch: one derived wave per invocation (task 2 waits for task 1)", async () => {
+  it("implement — strict-wave dispatch: one derived wave per invocation (the C5 closure advances the wave)", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot, 2);
-      // the root wave {1} first (task 2's dep sits in wave 1)
+      // The root wave {1} first (task 2's dep sits in wave 1). Implementing task 1 does
+      // NOT close it (implement rounds are never a closure — v1.20 closedTasks), so the
+      // wave advances only through the review's C5 closure: review 1 must land before
+      // task 2 becomes dispatchable.
       expect(
         await command.runArgv([
           "implement",
+          "--tasks",
+          "1",
+          "--plan",
+          plan,
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).toBe(0);
+      io.stdoutText = "";
+      expect(
+        await command.runArgv([
+          "review",
+          "--type",
+          "task",
           "--tasks",
           "1",
           "--plan",
@@ -367,7 +422,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       expect(code).toBe(0);
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       const progress = readJson<{ tasks: unknown[] }>(path.join(workspace, "progress.json"));
-      expect(progress.tasks).toContainEqual({ task: 1, rounds: { implement: 1 } });
+      expect(progress.tasks).toContainEqual({ task: 1, rounds: { implement: 1, review: 1 } });
       expect(progress.tasks).toContainEqual({ task: 2, rounds: { implement: 1 } });
       // the invocation's single stdout face — only the LAST step's capsule
       expect(io.stdoutText.split("status: APPROVED").length - 1).toBe(1);
@@ -385,7 +440,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         repoRoot,
       ]);
       expect(split).toBe(1);
-      expect(io.stderrText).toContain("derived group");
+      expect(io.stderrText).toContain("derived wave");
     } finally {
       cleanup();
     }
@@ -423,7 +478,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       ]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 · handoff: ");
-      expect(io.stdoutText).toContain("next: none");
+      expect(io.stdoutText).toContain("next: done");
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       expect(existsSync(path.join(workspace, "tasks-1-review-1.json"))).toBe(true);
     } finally {
@@ -433,13 +488,15 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
 
   it("review with findings — the fix-route next: line carries the readback suffix", async () => {
     const { command, io, repoRoot, cleanup } = fixture({
-      dispatch: (frame: OpenFrame) =>
-        frame.phase === "review"
+      dispatch: (frame: OpenFrame) => {
+        const commits = { base: "a".repeat(40), head: "b".repeat(40) };
+        return frame.phase === "review"
           ? {
               status: "CHANGES_REQUESTED",
               findings: [{ severity: "blocker", summary: "drift" }],
             }
-          : { status: "APPROVED" },
+          : { status: "APPROVED", commits };
+      },
     });
     try {
       gitInit(repoRoot);
@@ -544,7 +601,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       ]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 ·");
-      expect(io.stdoutText).toContain("next: none");
+      expect(io.stdoutText).toContain("next: done");
       const workspace = path.join(
         repoRoot,
         ".kairos",
@@ -576,7 +633,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         repoRoot,
       ]);
       expect(specCode).toBe(0);
-      expect(io.stdoutText).toContain("next: none");
+      expect(io.stdoutText).toContain("next: done");
       expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "s1", "spec-review-1.json"))).toBe(
         true,
       );
@@ -618,9 +675,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         repoRoot,
       ]);
       expect(code).toBe(1);
-      expect(io.stderrText).toContain(
-        "cannot dispatch a review round — the next round is implement",
-      );
+      expect(io.stderrText).toContain("the open wave is at implement");
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       expect(existsSync(path.join(workspace, "tasks-1-implement.json"))).toBe(false);
       expect(existsSync(path.join(workspace, "progress.json"))).toBe(false);
@@ -645,6 +700,146 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       ]);
       expect(code).toBe(1);
       expect(io.stdoutText).toContain("status: BLOCKED");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the WaveGate blocks the three verbs against a split/subset request (v1.21)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      // Two no-dependency tasks open the single root wave {1,2} — a half-wave request
+      // (review 1 alone / fix 2 alone) is the structural subset the gate refuses.
+      const planPath = independentPlan(repoRoot, "two.md", 2);
+      io.stderrText = "";
+      // review of a subset {1} while the wave sits at {1,2} → the split BLOCK (review is
+      // gated like implement — the half-wave review is structurally refused)
+      expect(
+        await command.runArgv([
+          "review",
+          "--type",
+          "task",
+          "--tasks",
+          "1",
+          "--plan",
+          planPath,
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).toBe(1);
+      expect(io.stderrText).toContain("splits/mismatches the derived wave");
+      io.stderrText = "";
+      // fix of a subset {2} before its implement → the split BLOCK (fix shares the gate)
+      expect(
+        await command.runArgv([
+          "fix",
+          "--type",
+          "task",
+          "--tasks",
+          "2",
+          "--plan",
+          planPath,
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).toBe(1);
+      expect(io.stderrText).toContain("splits/mismatches the derived wave");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the wave gate names the ledger anomaly when the open wave holds mixed phases", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const planPath = independentPlan(repoRoot, "two.md", 2);
+      // task 1 implemented only → its phase is review; task 2 unimplemented → implement;
+      // a single wave {1,2} at mixed phases is a named ledger anomaly, not a dispatch.
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "two").ensure();
+      new Ledger(workspace, new ConfigLoader()).recordRound(1, "implement");
+      io.stderrText = "";
+      expect(
+        await command.runArgv([
+          "implement",
+          "--tasks",
+          "1,2",
+          "--plan",
+          planPath,
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).toBe(1);
+      expect(io.stderrText).toContain("mixed phases");
+      expect(io.stderrText).toContain("T1:review");
+      expect(io.stderrText).toContain("T2:implement");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a completed non-failed round with no next: line is a hard error (CDD_BLOCKED · exit 1)", async () => {
+    // An implement round that concludes APPROVED without commits produces a null route —
+    // the v1.20 no-next hard error (a silent approved-without-next is gone).
+    const { command, io, repoRoot, cleanup } = fixture({
+      dispatch: () => ({ status: "APPROVED" }),
+    });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const code = await command.runArgv([
+        "implement",
+        "--tasks",
+        "1",
+        "--plan",
+        plan,
+        "--dry-run",
+        "--root",
+        repoRoot,
+      ]);
+      expect(code).toBe(1);
+      expect(io.stdoutText).toContain("status: APPROVED");
+      expect(io.stderrText).toContain("CDD_BLOCKED:");
+      expect(io.stderrText).toContain("no next: line");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("plan-graph — the board shows the in-wave ✔/▶ mix from closedTasks", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const planPath = independentPlan(repoRoot, "two.md", 2);
+      // Seed task 1's full C5 closure record (implement + a clean review) and leave
+      // task 2 unrecorded — both sit in the single root wave {1,2}, so the board's
+      // current wave holds the MIX: task 1 done (✔), task 2 in-flight (▶). The v1.20
+      // marker fix — a done task shows ✔ INSIDE the current wave, never a swallowed
+      // whole-row ▶ ("any ledger row is done" is retired: the closed set = closedTasks).
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "two").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader());
+      ledger.recordRound(1, "implement");
+      ledger.persistHandoff(
+        "review",
+        "task",
+        { tasks: "1", round: 1 },
+        {
+          tasks: [1],
+          phase: "review",
+          findings: [],
+          commits: { base: "a".repeat(40), head: "b".repeat(40) },
+        },
+      );
+      ledger.recordRound(1, "review");
+      io.stdoutText = "";
+      const code = await command.runArgv(["schema", "get", "plan-graph", "--plan", planPath]);
+      expect(code).toBe(0);
+      expect(io.stdoutText).toContain("T1✔ · T2▶");
+      expect(io.stdoutText).toContain("wave board:");
     } finally {
       cleanup();
     }

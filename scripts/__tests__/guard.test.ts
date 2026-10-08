@@ -10,7 +10,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { SKILL_ANATOMY } from "../../packages/cdd-engine/src-next/contract/skill-anatomy.ts";
 import { DISPATCH } from "../../packages/cdd-engine/src-next/face/host.ts";
-import { GUARD_BAN_WORDS } from "../../packages/cdd-engine/src-next/face/words.ts";
+import { CAPSULE_WORDS, GUARD_BAN_WORDS } from "../../packages/cdd-engine/src-next/face/words.ts";
 import { GuardLibrary, guardLibrary } from "../lib/guard.ts";
 import { scanToken } from "../lib/scan.ts";
 import { analyticsSkillFixture } from "./helpers/anatomy-fixture.ts";
@@ -52,8 +52,30 @@ describe("checkAnatomy — the typed skill-anatomy contract consumption", () => 
     expect(SKILL_ANATOMY.consumerPurity.forbiddenNarrativeHeads).toContain(
       "## Full Flow Refactor Rationale",
     );
-    // The contract carries zero registered crossings today.
-    expect(Object.keys(SKILL_ANATOMY.growthBoundary.registry.crossings)).toEqual([]);
+    // The registered crossing — cdd-design carries the parameterized single-template
+    // digraph (the double charter nodes + the merged spec/phase dispatch + the four
+    // size-exits), which crosses the edge limit by definition; the rationale lives in
+    // the contract, never inside the shipped skill.
+    expect(Object.keys(SKILL_ANATOMY.growthBoundary.registry.crossings)).toEqual(["cdd-design"]);
+  });
+
+  it("the edge-condition word pin — the NEXT-LOOP phrases + status/route words derive from the engine word table (the 词表钉)", () => {
+    const conditions = SKILL_ANATOMY.edgeConditionWords;
+    // The three pinned NEXT-LOOP loop-condition phrases.
+    for (const phrase of ["until next=done", "next=done", "no next"] as const) {
+      expect(conditions).toContain(phrase);
+    }
+    // The decision status words ⊆ the engine's status vocabulary.
+    for (const status of ["APPROVED", "CHANGES_REQUESTED", "REVIEW_FIX"] as const) {
+      expect(conditions).toContain(status);
+      expect(CAPSULE_WORDS.status).toContain(status);
+    }
+    // The Route-kind words ⊆ the engine's next: lexicon.
+    for (const kind of ["done", "next-wave", "review", "fix", "soft-cap"] as const) {
+      expect(conditions).toContain(kind);
+    }
+    // The retired `none` never rides the condition vocabulary.
+    expect(conditions).not.toContain("none");
   });
 });
 

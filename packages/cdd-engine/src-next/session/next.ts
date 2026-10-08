@@ -1,18 +1,28 @@
 // packages/cdd-engine/src-next/session/next.ts
 // T7 — NextStepRouter single point (design spec §3.2): the ONLY `next:` generation
-// face of the new tree. The C5 decision table (the spec's pinned semantics):
-//   review   zero findings  → none | next-group (the batch continues or the run completes)
+// face of the new tree. The C5 decision table (the spec's pinned semantics, v1.20:
+// the closure single-verdict — close() is the one closure point every review/fix
+// approval shares):
+//   review   zero findings  → close(state) — the ready batch decides next-wave | done
 //   review   findings       → fix (one-way — a review never previews what a fix will do)
 //   fix      blocker>0      → review at a new ref (base = the fix round's head)
-//   fix      warn/nit only  → none (closure — no APPROVED-mandated re-review, #278)
+//   fix      blocker==0     → close(state) — the warn/nit-only / clean closure (#278,
+//                             no APPROVED-mandated re-review)
 //   fix      soft cap       → the "BLOCKED: review-cycle-cap" suggestion (user adjudicates)
 //   BLOCKED/TIMEOUT         → null (no next line — the CDD_BLOCKED channel owns the face)
 //   missing base            → null (only present facts land — a next hop never carries a
-//                           synthetic empty base: absent commits degrade the line to null)
+//                             synthetic empty base: absent commits degrade the line to null)
+//
+// close(state) — the v1.20 unified closure terminal: every closure point (a review
+// with zero findings / a fix whose source blockers cleared) renders the SAME route
+// family — `next-wave` when another wave is ready, `done` when the run is exhausted.
+// The `none` word is RETIRED (closure is `done`, never "no suggestion"), and a
+// completed non-failed round producing null is now a hard error on the dispatch face
+// (no next line = abnormal) — never a silent approved-without-next.
 //
 // The table judges the round carrier (ledger.ts — the fix round's own findings are
 // the source review's input, C5-1) against the execution state (state.ts — the
-// ready batch decides none vs next-group). The Route output carries the structured
+// ready batch decides next-wave vs done). The Route output carries the structured
 // facts the capsule face renders into the `next:` line — including the fix-route
 // readback copy, authored here once as FIX_READBACK_SUFFIX (the declared wording
 // the capsule renders verbatim, never a literal restate). Module-level exports are
@@ -24,10 +34,10 @@ import type { ExecutionState } from "./state.ts";
 
 /** The next-hop suggestion — the decision table's output (null = no next line). */
 export type Route =
-  /** closure — no useful next hop within this dispatch's line (`next: none`). */
-  | { kind: "none" }
-  /** review zero findings + a further group is ready — the next dispatch group key. */
-  | { kind: "next-group"; tasks: string }
+  /** closure — the run is exhausted (`next: done`, the v1.20 terminal word). */
+  | { kind: "done" }
+  /** closure — another wave is ready: the next dispatch wave's task ids. */
+  | { kind: "next-wave"; tasks: string }
   /** re-review at a new ref — base = the reviewed range's new start (the fix round's head). */
   | { kind: "review"; base: string }
   /** the one-way fix hop — findingsPath = the review handoff the fix reads (`--findings`). */
@@ -76,12 +86,10 @@ export class NextStepRouter {
       }
       case "review":
         // One-way: any findings (any severity) → the fix round — a review never previews
-        // what the fix will do (C5-1).
+        // what the fix will do (C5-1). Zero findings (approved) → the unified closure: the
+        // ready batch decides whether the next wave continues or the run is exhausted.
         if (ref.findings.length > 0) return { kind: "fix", findings: ref.findingsPath };
-        // Zero findings (approved) → the batch continues or the run completes.
-        return state.readyBatch().length > 0
-          ? { kind: "next-group", tasks: state.readyBatch().join(",") }
-          : { kind: "none" };
+        return this.#close(state);
       case "fix": {
         // C5-1: the fix face is the re-review / closure decision point. The soft cap
         // outranks the blocker row — a capped run defers to the user, never auto-loops.
@@ -95,15 +103,25 @@ export class NextStepRouter {
           if (base === undefined) return null;
           return { kind: "review", base };
         }
-        // No blockers → closure-round naturalization: no re-review preview.
-        return { kind: "none" };
+        // No blockers → the unified closure: the ready batch decides next-wave | done
+        // (a warn/nit-only fix closes — the #278 REVIEW_FIX state, no re-review preview).
+        return this.#close(state);
       }
       case "branch-review":
-        // The branch terminal face — findings route the fix; zero findings close the line.
+        // The branch terminal face — findings route the fix; zero findings close the line
+        // through the same unified closure terminal.
         return ref.findings.length > 0
           ? { kind: "fix", findings: ref.findingsPath }
-          : { kind: "none" };
+          : this.#close(state);
     }
+  }
+
+  /** The unified closure terminal (v1.20) — the single way a review/fix closure renders
+   *  its next hop: the ready batch decides `next-wave` vs `done` (a closing review with
+   *  another wave ready continues the run; an exhausted run reports `done`). */
+  #close(state: ExecutionState): Route {
+    const ready = state.readyBatch();
+    return ready.length > 0 ? { kind: "next-wave", tasks: ready.join(",") } : { kind: "done" };
   }
 
   /** The blocker count of the round's findings — the C5-1 severity count. */

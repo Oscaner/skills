@@ -25,7 +25,7 @@ export class GraphView {
     const done = new Set(report.done);
     const currentIndex = report.waves.findIndex((wave) => wave.some((id) => !done.has(id)));
     const current = new Set(report.waves[currentIndex] ?? []);
-    const lines: string[] = ["flowchart LR"];
+    const lines: string[] = ["flowchart TB"];
     for (const [task, deps] of Object.entries(report.edges)) {
       const id = Number(task);
       const marker = current.has(id) ? " ▶" : done.has(id) ? " ✔" : "";
@@ -33,13 +33,14 @@ export class GraphView {
       for (const dep of deps) lines.push(`  T${dep} --> T${id}`);
     }
     const mermaid = lines.join("\n");
-    // Clean Unicode box-drawing at a tuned scale (tight box padding + modest node
-    // spacing); the wave bands are NOT mermaid subgraphs — they tangle the ELK
-    // layout at the plan scale, so the wave chain rides its own line below.
+    // Clean Unicode box-drawing, TB (top-bottom) laid out — the plan DAG fans out
+    // heavily (T2/T4/T6 multi-cast), and TB reads the long chains naturally while
+    // the ASCII ladder routing stays legible; LR merges the fan-out glyphs at this
+    // density.
     let ascii = renderMermaidASCII(mermaid, {
       useAscii: false,
-      paddingX: 4,
-      paddingY: 3,
+      paddingX: 6,
+      paddingY: 2,
       boxBorderPadding: 0,
       colorMode: "none",
     });

@@ -4,10 +4,11 @@
 //
 //   · checkAnatomy  — the skill structure contract: the node-anchored SKILL.md
 //     assertions (section-heading registry · digraph-consistency · the four-element
-//     contract · skeleton isomorphism · growth boundary · consumer purity), driven
-//     by the typed skill-anatomy contract (src-next/contract/skill-anatomy.ts) —
-//     every heading, pattern and limit is that contract's data, never a literal
-//     restate in this body.
+//     contract · the closed-set roster · the unified-skeleton family shape · the
+//     zero-state-label rule · the next: route-fact consumption · growth boundary ·
+//     consumer purity), driven by the typed skill-anatomy contract
+//     (src-next/contract/skill-anatomy.ts) — every heading, pattern and limit is
+//     that contract's data, never a literal restate in this body.
 //   · checkWords    — The word-face audit: the guard-ban vocabulary (stale / gate /
 //     shape families) is the word table's export (src-next/face/words.ts, the ban
 //     table's data-source face); the scan releases those rows as data, so the live
@@ -24,7 +25,10 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { SKILL_ANATOMY } from "../../packages/cdd-engine/src-next/contract/skill-anatomy.ts";
+import {
+  SKILL_ANATOMY,
+  type SkillAnatomyContract,
+} from "../../packages/cdd-engine/src-next/contract/skill-anatomy.ts";
 import { CLI_COMMANDS } from "../../packages/cdd-engine/src-next/face/cli.ts";
 import {
   DISPATCH,
@@ -89,9 +93,10 @@ export function countSkillsWithMarkdown(dir: string): number {
   ).length;
 }
 
-/** The authoritative kairos skills count — module-level single source of truth shared
- *  by the pi-package behavior tests (never a local literal). */
-export const EXPECTED = 8;
+/** The authoritative kairos skills count — the closed six-set's cardinality from the
+ *  typed skill-anatomy roster (never a local literal); shared by the directory-scan
+ *  guard + the pi-package behavior tests (a definition change is a roster edit). */
+export const EXPECTED = Object.keys(SKILL_ANATOMY.skills.registry).length;
 
 // ---------------------------------------------------------------------------
 // The anatomy analysis helpers — SKILL.md parsing (structure extraction)
@@ -246,17 +251,9 @@ export class GuardLibrary {
     const findings: GuardFinding[] = [];
 
     const PUBLIC_SECTION_KEYS = reg.public;
-    const CONDITIONAL_SECTION_KEYS = reg.conditional;
     const SECTION_HEADINGS = Object.fromEntries(
       Object.entries(reg.sections).map(([key, node]) => [key, node.heading]),
     ) as Record<string, string>;
-    const CONDITIONAL_CARRIERS = Object.fromEntries(
-      CONDITIONAL_SECTION_KEYS.map((key): [string, string[]] => {
-        const carriers = reg.sections[key]?.requiredCarriers ?? [];
-        return [key, [...carriers]];
-      }),
-    );
-    const SKELETON_TRIO = CONDITIONAL_CARRIERS.skeletonDeltas ?? [];
     const NODE_HEADING_RE = new RegExp(reg.headingKinds.nodeName.pattern, "m");
     const GROWTH_NODE_LIMIT = anatomy.growthBoundary.nodeLimit;
     const GROWTH_EDGE_LIMIT = anatomy.growthBoundary.edgeLimit;
@@ -290,17 +287,6 @@ export class GuardLibrary {
         if (!an.headings.h2.includes(SECTION_HEADINGS[key]!)) {
           findings.push({
             label: `${skill.name}: missing public section \`${SECTION_HEADINGS[key]}\` — ${anatomy.wording.registryRule}`,
-            file: skill.path,
-          });
-        }
-      }
-      for (const key of CONDITIONAL_SECTION_KEYS) {
-        if (
-          CONDITIONAL_CARRIERS[key]?.includes(skill.name) &&
-          !an.headings.h2.includes(SECTION_HEADINGS[key]!)
-        ) {
-          findings.push({
-            label: `${skill.name}: missing required conditional section \`${SECTION_HEADINGS[key]}\` (carrier of a conditional section) — ${anatomy.wording.registryRule}`,
             file: skill.path,
           });
         }
@@ -367,26 +353,52 @@ export class GuardLibrary {
         });
       }
 
-      // Assertion 2 (skeleton isomorphism) — the deltas-table carriers.
-      if (this.#hasSection(an.src, SECTION_HEADINGS.skeletonDeltas!)) {
-        findings.push(...skeletonIsomorphismFindings(an, SECTION_HEADINGS));
+      // The unified-skeleton family shape — the loop hub / the no-self-loop
+      // exceptions (Assertion 2, §4.2: shared node names never drift across the
+      // five chains).
+      const row = anatomy.skills.registry[skill.name];
+      if (row !== undefined) {
+        findings.push(
+          ...this.#familyShapeFindings(skill.name, skill.path, an, row.family, anatomy),
+        );
+      }
+
+      // The zero-state-label rule + the next: route-fact consumption scan.
+      for (const edge of an.edges) {
+        if (edge.label !== "") {
+          findings.push({
+            label: `${skill.name}: labeled edge ${edge.from} -${edge.to} ("${edge.label}") — ${anatomy.wording.labelFreeRule}`,
+            file: skill.path,
+          });
+        }
+      }
+      for (const line of an.src.split("\n")) {
+        const station = line.indexOf("next:");
+        if (station === -1) continue;
+        if (/cdd (implement|review|fix|base|schema|issue)(\s|[`"])/.test(line.slice(station))) {
+          findings.push({
+            label: `${skill.name}: a full command string follows the next: token on the line — ${anatomy.wording.routeFactRule}`,
+            file: skill.path,
+          });
+        }
       }
     }
 
-    // The skeleton-family guard — every spec-writer must carry the deltas table.
-    // The family chain needs the whole discovered tree (a per-skill injection face
-    // cannot testify about the spec-writer trio — the guard runs it against the
-    // live discovery only).
+    // The closed-set guard — the directory scan must equal the roster exactly (the
+    // live discovery only; the per-skill injection face cannot testify about the tree).
     if (skillsOverride === undefined) {
-      const withTables = new Set(
-        analyzed
-          .filter(({ an }) => this.#hasSection(an.src, SECTION_HEADINGS.skeletonDeltas!))
-          .map(({ an }) => an.name),
-      );
-      for (const s of SKELETON_TRIO.filter((s) => !withTables.has(s))) {
+      const registered = Object.keys(anatomy.skills.registry).sort();
+      const discovered = analyzed.map(({ skill }) => skill.name).sort();
+      for (const name of registered.filter((name) => !discovered.includes(name))) {
         findings.push({
-          label: `spec-writer(s) missing the Skeleton deltas table: ${s} — ${anatomy.wording.registryRule}`,
-          file: path.join(SKILLS_ROOT, s, "SKILL.md"),
+          label: `missing registered skill: ${name} — ${anatomy.wording.closedSetRule}`,
+          file: path.join(SKILLS_ROOT, name, "SKILL.md"),
+        });
+      }
+      for (const name of discovered.filter((name) => !registered.includes(name))) {
+        findings.push({
+          label: `unregistered skill directory: ${name} — ${anatomy.wording.closedSetRule}`,
+          file: path.join(SKILLS_ROOT, name, "SKILL.md"),
         });
       }
     }
@@ -423,9 +435,62 @@ export class GuardLibrary {
     return findings;
   }
 
-  /** Whether the source carries the exact section heading line. */
-  #hasSection(src: string, heading: string): boolean {
-    return new RegExp(`^${escapeRegExp(heading)}$`, "m").test(src);
+  /** The unified-skeleton family-shape findings (§4.2) — the loop family carries the
+   *  shared NEXT-LOOP hub + its single self-loop + the commit-* and handoff-*
+   *  terminals; the close/onepass families are the explicit no-self-loop exceptions
+   *  (cdd-close ends at the finish semantic gate + terminal · cdd-report one-shot
+   *  toolchain). A registered skill that violates its family shape fails — the
+   *  shared node names are registry data, never a re-typed literal. */
+  #familyShapeFindings(
+    name: string,
+    skillPath: string,
+    an: AnalyzedSkill,
+    family: "loop" | "close" | "onepass",
+    anatomy: SkillAnatomyContract,
+  ): GuardFinding[] {
+    const findings: GuardFinding[] = [];
+    const hub = anatomy.digraph.loopHubNode.name;
+    const hubNode = an.nodes.find((n) => n.label === hub);
+    const hubSelfLoop =
+      hubNode !== undefined && an.edges.some((e) => e.from === hubNode.id && e.to === hubNode.id);
+    if (family === "loop") {
+      if (hubNode === undefined) {
+        findings.push({
+          label: `${name}: missing the shared ${hub} hub — ${anatomy.wording.loopShapeRule}`,
+          file: skillPath,
+        });
+      } else if (!hubSelfLoop) {
+        findings.push({
+          label: `${name}: the ${hub} hub carries no single self-loop — ${anatomy.wording.loopShapeRule}`,
+          file: skillPath,
+        });
+      }
+      for (const prefix of anatomy.digraph.loopHubNode.rowPrefixes) {
+        if (!an.nodes.some((n) => n.type === "rect" && n.label.startsWith(prefix))) {
+          findings.push({
+            label: `${name}: missing the ${prefix}* terminal — ${anatomy.wording.loopShapeRule}`,
+            file: skillPath,
+          });
+        }
+      }
+    } else {
+      if (hubSelfLoop) {
+        findings.push({
+          label: `${name}: the no-self-loop family carries a ${hub} self-loop — ${anatomy.wording.enderShapeRule}`,
+          file: skillPath,
+        });
+      }
+      if (
+        family === "close" &&
+        !an.nodes.some((n) => n.type === "diamond" && n.label.startsWith("finish"))
+      ) {
+        findings.push({
+          label: `${name}: the close family is missing its finish semantic gate — ${anatomy.wording.enderShapeRule}`,
+          file: skillPath,
+        });
+      }
+    }
+    return findings;
   }
 
   // -------------------------------------------------------------------------
@@ -582,131 +647,6 @@ export class GuardLibrary {
 
     return findings;
   }
-}
-
-// ---------------------------------------------------------------------------
-// Assertion 2 — the skeleton-isomorphism findings (the deltas-table carriers)
-// ---------------------------------------------------------------------------
-
-/** The spec-writer-trio shared skeleton facts — the canonical review-loop/commit/
- *  handoff shape the deltas tables' carriers must draw. */
-const SKELETON_CHECKS: ReadonlyArray<[label: string, ok: (an: AnalyzedSkill) => boolean]> = [
-  [
-    "spec-review node missing",
-    (an) => an.nodes.some((n) => n.type === "rect" && n.label === "spec-review"),
-  ],
-  [
-    "status? decision missing",
-    (an) => an.nodes.some((n) => n.type === "diamond" && n.label === "status?"),
-  ],
-  [
-    "fix-spec node missing",
-    (an) => an.nodes.some((n) => n.type === "rect" && n.label === "fix-spec"),
-  ],
-  [
-    "commit-spec node missing",
-    (an) => an.nodes.some((n) => n.type === "rect" && n.label === "commit-spec"),
-  ],
-  [
-    "handoff-* node missing",
-    (an) => an.nodes.some((n) => n.type === "rect" && /^handoff-/.test(n.label)),
-  ],
-  ["spec-review → status? edge missing", (an) => edgeExists(an, "spec-review", "status?", "")],
-  ["status? → fix-spec edge missing", (an) => edgeExists(an, "status?", "fix-spec", "")],
-  [
-    "status? --APPROVED--> commit-spec bypass edge missing (S3)",
-    (an) => edgeExists(an, "status?", "commit-spec", "APPROVED"),
-  ],
-  [
-    "fix-spec --entered via CHANGES_REQUESTED--> spec-review back-edge missing (S1)",
-    (an) => edgeExists(an, "fix-spec", "spec-review", "entered via CHANGES_REQUESTED"),
-  ],
-  [
-    "fix-spec --entered via REVIEW_FIX--> commit-spec edge missing (S2)",
-    (an) => edgeExists(an, "fix-spec", "commit-spec", "entered via REVIEW_FIX"),
-  ],
-  ["commit-spec → handoff-* edge missing", (an) => edgeExists(an, "commit-spec", /^handoff-/, "")],
-];
-
-/** Whether the digraph draws an edge from a node label to a target (label or regex). */
-function edgeExists(
-  an: AnalyzedSkill,
-  fromLabel: string,
-  toLabel: string | RegExp,
-  edgeLabel: string,
-): boolean {
-  const nodesById = new Map(an.nodes.map((n) => [n.id, n]));
-  return an.edges.some((e) => {
-    const s = nodesById.get(e.from);
-    const d = nodesById.get(e.to);
-    if (s === undefined || d === undefined || s.label !== fromLabel) return false;
-    const dstOk = toLabel instanceof RegExp ? toLabel.test(d.label) : d.label === toLabel;
-    if (!dstOk) return false;
-    return edgeLabel === "" || e.label === edgeLabel;
-  });
-}
-
-/** The deltas-table rows — `| cell | cell |` under the Skeleton deltas heading. */
-function skeletonDeltaRows(
-  src: string,
-  sections: Record<string, string>,
-): Array<{ key: string; value: string }> {
-  const m = src.match(
-    new RegExp(`${escapeRegExp(sections.skeletonDeltas!)}\n([\\s\\S]*?)(?=\n## )`),
-  );
-  if (m === null) return [];
-  const rows: Array<{ key: string; value: string }> = [];
-  const rowRe = /^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|$/gm;
-  for (const r of m[1]!.matchAll(rowRe)) rows.push({ key: r[1]!.trim(), value: r[2]!.trim() });
-  return rows;
-}
-
-/** Assertion 2 (skeleton isomorphism) findings for one deltas-table carrier. */
-function skeletonIsomorphismFindings(
-  an: AnalyzedSkill,
-  sections: Record<string, string>,
-): GuardFinding[] {
-  const findings: GuardFinding[] = [];
-  for (const [label, ok] of SKELETON_CHECKS) {
-    if (!ok(an)) findings.push({ label: `${an.name}: ${label}`, file: "" });
-  }
-  const rows = skeletonDeltaRows(an.src, sections);
-  const observedHandoff = an.nodes.find(
-    (n) => n.type === "rect" && /^handoff-/.test(n.label),
-  )?.label;
-  const handoffRow = rows.find((r) => r.key.toLowerCase().includes("handoff"));
-  if (handoffRow === undefined) {
-    findings.push({
-      label: `${an.name}: Skeleton deltas table has no "handoff-spec" row`,
-      file: "",
-    });
-  } else {
-    const declared = handoffRow.value.match(/`([^`]+)`/);
-    if (declared === null) {
-      findings.push({
-        label: `${an.name}: handoff-spec row declares no backticked node name`,
-        file: "",
-      });
-    } else if (declared[1] !== observedHandoff) {
-      findings.push({
-        label: `${an.name}: digraph handoff node "${observedHandoff}" differs from the registered "${declared[1]}"`,
-        file: "",
-      });
-    }
-  }
-  const loopRow = rows.find((r) => r.key.toLowerCase().includes("review loop"));
-  if (loopRow === undefined) {
-    findings.push({
-      label: `${an.name}: Skeleton deltas table has no "review loop" row`,
-      file: "",
-    });
-  } else if (!/shared shape|no delta/i.test(loopRow.value)) {
-    findings.push({
-      label: `${an.name}: review-loop row does not declare the shared shape`,
-      file: "",
-    });
-  }
-  return findings;
 }
 
 // ---------------------------------------------------------------------------

@@ -1,10 +1,13 @@
 // packages/cdd-engine/src-next/session/__tests__/graph.test.ts
-// T6 TaskGraph + ExecutionState suite (design spec §3.1):
+// T6 TaskGraph + ExecutionState suite (design spec §3.1 · §3.8 the normalization
+// chain):
 //   · the shared parse consumption — the graph is built from the SAME doc.ts plan
 //     parse instance the dispatch and the lint read (never a re-parse);
-//   · the six validate classes — missing-edge / duplicate / missing-id /
-//     self-loop / contradiction / cycle, one negative fixture each, plus the
-//     anti-dependency gate (a forward DependsOn edge is a contradiction);
+//   · the four validate classes — missing-edge / missing-id / self-loop / cycle,
+//     all judged on the NORMALIZED edges (the extraction layer dedupes, so the
+//     author's repeated declaration is never adjudicated — the duplicate class is
+//     retired); one negative fixture each, plus the forward-reference legality
+//     (the anti-dependency gate retired);
 //   · batches() — the topological wave decomposition, plus the halt-safe window
 //     when a dependency can never be satisfied;
 //   · frontier(done) — the pure dynamic readiness face;
@@ -72,18 +75,11 @@ describe("the shared doc.ts parse consumption", () => {
   });
 });
 
-describe("the six validate classes — one negative fixture each", () => {
+describe("the four validate classes — one negative fixture each", () => {
   it("missing-edge — a task block declaring no **DependsOn** field", () => {
     const graph = graphOf([task(1, "none"), task(2, null)]);
     const issues = graph.validate();
     expect(kindsOf(issues)).toEqual(["missing-edge"]);
-    expect(issues[0]!.task).toBe(2);
-  });
-
-  it("duplicate — the same dependency id declared twice in one block's edge", () => {
-    const graph = graphOf([task(1, "none"), task(2, "1, 1")]);
-    const issues = graph.validate();
-    expect(kindsOf(issues)).toEqual(["duplicate"]);
     expect(issues[0]!.task).toBe(2);
   });
 
@@ -115,7 +111,7 @@ describe("the six validate classes — one negative fixture each", () => {
     expect(graph.batches()).toEqual([[1], [2]]);
   });
 
-  it("cycle — a directed dependency cycle among the declared edges", () => {
+  it("cycle — a directed dependency cycle among the edges (the live gate)", () => {
     const graph = graphOf([task(1, "2"), task(2, "1")]); // 1 ⇄ 2
     const issues = graph.validate();
     expect(kindsOf(issues)).toContain("cycle"); // no contradiction class — the forward edge is legal now
@@ -130,6 +126,35 @@ describe("the six validate classes — one negative fixture each", () => {
     const graph = graphOf([task(1, "none"), task(2, "1.2"), task(3, "2")]);
     expect(graph.validate()).toEqual([]); // no edge parsed out of "1.2"
     expect(graph.batches()).toEqual([[1, 2], [3]]); // task 2 joins the no-dependency wave
+  });
+});
+
+describe("the normalized edge surface (T24 — dedupe at extraction, four classes on the normalized face)", () => {
+  it("a duplicated declared dependency is deduped at the extraction layer — never a judgment", () => {
+    const graph = graphOf([task(1, "none"), task(2, "1, 1")]);
+    expect(graph.validate()).toEqual([]); // no duplicate class — the author's repetition is normalized away
+    expect(graph.batches()).toEqual([[1], [2]]);
+    expect(graph.reduction()[2]).toEqual([1]);
+  });
+
+  it("the per-block classes judge the normalized edge — a redundant declaration never manufactures a class (§3.8)", () => {
+    // 2 declares [1, 2]: the 2→1 edge is redundant (2 reaches 1 via itself) — the
+    // reduction drops it, the self-loop survives; validate reports self-loop ONLY.
+    const graph = graphOf([task(1, "none"), task(2, "2, 1")]);
+    const issues = graph.validate();
+    expect(kindsOf(issues)).toEqual(["self-loop"]);
+    expect(graph.batches()).toEqual([[1]]); // task 2 never becomes ready (self-loop)
+  });
+
+  it("the reduction preserves cycles — a redundant edge inside a cycle can never hide it", () => {
+    // 1 declares [2, 3]; 3 is already reachable from the declared 2→1 edge (2→1→3),
+    // so the direct 1→3 edge is redundant and dropped; the 2⇄1 cycle is preserved
+    // on the reduced face.
+    const graph = graphOf([task(1, "2, 3"), task(2, "1"), task(3, "none")]);
+    const issues = graph.validate();
+    expect(kindsOf(issues)).toEqual(expect.arrayContaining(["cycle"]));
+    expect(graph.reduction()[1]).toEqual([2]); // the redundant 1→3 normalized away
+    expect(graph.batches()).toEqual([[3]]); // the cycle leaves no fully-ready task
   });
 });
 

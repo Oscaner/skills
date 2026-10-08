@@ -62,7 +62,7 @@ test("files closure: pi-declared paths are a static subset of the files whitelis
   }
 });
 
-test("pi.skills glob resolution set == the {dir, name} scan set (exactly 8 cdd-*)", () => {
+test("pi.skills glob resolution set == the {dir, name} scan set (exactly the roster count)", () => {
   const pkg = loadPackage();
   const skillsDir = path.join(PKG_DIR, "skills");
   // Anchor the glob side to the canonical skills face it must resolve: project every
@@ -91,7 +91,11 @@ test("pi.skills glob resolution set == the {dir, name} scan set (exactly 8 cdd-*
     .filter((e) => e.isDirectory() && existsSync(path.join(skillsDir, e.name, "SKILL.md")))
     .map((e) => e.name)
     .sort();
-  assert.equal(resolved.length, 8, "pi.skills globs must resolve exactly the 8 shipped skills");
+  assert.equal(
+    resolved.length,
+    EXPECTED,
+    "pi.skills globs must resolve exactly the roster-count skills",
+  );
   assert.deepEqual(
     resolved,
     scanned,

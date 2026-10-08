@@ -1,7 +1,7 @@
-// packages/kairos/tests/review-loop-clean-tree.test.ts — P5 T10 assertion (one per skill):
-// the six orchestrator SKILL.md review-fix loop wordings uniformly carry the clean-tree
+// packages/kairos/tests/review-loop-clean-tree.test.ts — P5 T10 assertion (one per loop chain):
+// the four loop-chain SKILL.md review-fix loop wordings uniformly carry the clean-tree
 // obligation — ensure the working tree is clean before entering review (spec §2.12 落点 4 + AC10).
-// Each assertion is scoped to the review-fix node's own block (split on `### ` headings), not the
+// Each assertion is scoped to the loop hub's own block (split on `### ` headings), not the
 // whole file — a future edit that moves the obligation out of the loop node would fail here.
 // The mechanism is enforced by the engine's entry gate (dispatch/base.ts commitPreCheck — dirty →
 // BLOCKED); the skills only state the obligation and must not re-implement it.
@@ -16,16 +16,14 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SKILLS_ROOT = path.resolve(HERE, "..", "skills");
 
 // Skill → the node(s) running its review-fix loop, where the clean-tree obligation sentence
-// belongs (cdd-close has no review-fix loop and is intentionally not in the set). For
-// cdd-design the loop lives in the three delegated cdd-* writer sessions, so its nodes carry a
-// delegation-flavored sentence.
+// belongs (cdd-close ends at the finish gate and cdd-report is a one-shot chain — neither has a
+// review-fix loop and both are intentionally not in the set). Under the unified skeleton the
+// review-fix rhythm lives in each loop family's shared NEXT-LOOP hub.
 const REVIEW_LOOP_NODES = {
-  "cdd-phase": ["spec-review"],
-  "cdd-spec": ["spec-review"],
-  "cdd-charter": ["spec-review"],
-  "cdd-plan": ["plan-review"],
-  "cdd-dev": ["run-group-review", "branch-review"],
-  "cdd-design": ["run-cdd-spec", "run-cdd-charter", "run-cdd-phase"],
+  "cdd-spec-writer": ["NEXT-LOOP"],
+  "cdd-plan": ["NEXT-LOOP"],
+  "cdd-dev": ["NEXT-LOOP"],
+  "cdd-design": ["NEXT-LOOP"],
 };
 
 const CLEAN_TREE_PHRASE = /ensure the working tree is clean before entering review/i;

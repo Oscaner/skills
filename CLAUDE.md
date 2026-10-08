@@ -43,7 +43,7 @@ Adding a new first-party plugin: create `packages/<name>/package.json` with an `
 
 - [`packages/kairos/README.md`](packages/kairos/README.md) — kairos plugin user guide
 - [`.changeset/README.md`](.changeset/README.md) — changeset & release-flow reference for the first-party packages (version scheme, Release flow)
-- [skill-anatomy schema](packages/cdd-engine/config/schema/skill-anatomy.json) — canonical SKILL.md structure contract (node-anchored format, English primary); the machine check [`ContractLexiconGuard#checkAnatomy`](scripts/lib/contract-lexicon.ts) validates all 8 kairos skills against it
+- [skill-anatomy contract](packages/cdd-engine/src-next/contract/skill-anatomy.ts) — the engine contract plane's canonical SKILL.md structure contract (node-anchored format, English primary, the closed 6-skill roster); the machine check [`GuardLibrary#checkAnatomy`](scripts/lib/guard.ts) validates all 6 kairos skills against it
 
 ### Data-driven templates
 
@@ -96,7 +96,7 @@ Three strategies implement this, depending on file type:
 
 ### Review convergence
 
-The unified review convergence rule lives as the `Review Convergence` entry in each orchestrator skill's `## Invariants` — `packages/kairos/skills/*/SKILL.md` (cdd-spec / cdd-charter / cdd-phase / cdd-plan / cdd-dev). That entry is the single source; this section intentionally carries no restatement of the rule.
+The unified review convergence rule lives as the `Review Convergence` entry in each orchestrator skill's `## Invariants` — `packages/kairos/skills/*/SKILL.md` (cdd-design · cdd-spec-writer · cdd-plan · cdd-dev · cdd-close). That entry is the single source; this section intentionally carries no restatement of the rule.
 
 ## Conventions
 
@@ -118,7 +118,7 @@ Changes to rule text and docs shipped with the plugin must be reviewed from the 
 
 ### Consumer surface purity (iron rule — zero program history in shipped skill text)
 
-An iron rule, hard-won: **consumer-shipped skill text carries zero program history.** SKILL.md (and every file that ships to harness consumers) is an instruction document — its sections are executable direction or self-describing structure, never program narrative. Phase/issue numbers, evolution rationales, refactor justifications, mid-flight decisions, growth-guide notes, and "why X was rejected" history are meaningless to consumers with none of this repo's program context — misplaced content is a defect, and this rule recurs whenever a fix/backfill narrates its own history into a skill. **No one-line pointer or neutral note substitutes for removal**: if a consumer would not act on the section, the section does not belong in the shipped file. Such content belongs in `docs/maintainers/` (repo-shared, maintainer-positioned). Machine enforcement: the skill-anatomy schema ([`packages/cdd-engine/config/schema/skill-anatomy.json`](packages/cdd-engine/config/schema/skill-anatomy.json)) carries the section-heading registry — the strict allowlist [`ContractLexiconGuard#checkAnatomy`](scripts/lib/contract-lexicon.ts) enforces: it fails any SKILL.md carrying a growth/refactor narrative heading in any form (`## Flow size note`, `## Full Flow Refactor Rationale`, …) or any registry-external heading, and requires a growth-boundary crossing's rationale to be registered in the schema's growth registry instead.
+An iron rule, hard-won: **consumer-shipped skill text carries zero program history.** SKILL.md (and every file that ships to harness consumers) is an instruction document — its sections are executable direction or self-describing structure, never program narrative. Phase/issue numbers, evolution rationales, refactor justifications, mid-flight decisions, growth-guide notes, and "why X was rejected" history are meaningless to consumers with none of this repo's program context — misplaced content is a defect, and this rule recurs whenever a fix/backfill narrates its own history into a skill. **No one-line pointer or neutral note substitutes for removal**: if a consumer would not act on the section, the section does not belong in the shipped file. Such content belongs in `docs/maintainers/` (repo-shared, maintainer-positioned). Machine enforcement: the skill-anatomy contract ([`packages/cdd-engine/src-next/contract/skill-anatomy.ts`](packages/cdd-engine/src-next/contract/skill-anatomy.ts)) carries the section-heading registry — the strict allowlist [`GuardLibrary#checkAnatomy`](scripts/lib/guard.ts) enforces: it fails any SKILL.md carrying a growth/refactor narrative heading in any form (`## Flow size note`, `## Full Flow Refactor Rationale`, …) or any registry-external heading, and requires a growth-boundary crossing's rationale to be registered in the contract's growth registry instead.
 
 ### Session-memory policy
 

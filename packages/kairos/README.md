@@ -14,24 +14,23 @@ kairos is the distribution vehicle for a cdd-first methodology: it packages the 
 
 ## What it does
 
-Three skill families:
+Six `cdd-*` skills across three families:
 
-- **kairos orchestration** — flow orchestrators that read upstream `superpowers` baselines and apply this plugin's personal rules (clarifying questions via `grilling`, spec review via fresh subagent passes, and so on)
-- **`cdd-*` CDD engine family** — plan executor plus the `cdd` engine CLI (`@oscaner-skills/cdd-engine`): the implement / review / fix chain and the base-branch artifact, dispatching each phase to the host harness CLI
-- **cdd-report** — repository development utility that files one aggregate GitHub issue for CDD-session bugs and enhancement opportunities (gh CLI, dedup-aware, manual trigger)
+- **kairos orchestration** — flow orchestrators that read upstream `superpowers` baselines and apply this plugin's personal rules (clarifying questions via `grilling`, the spec review-fix rhythm under the engine's `next:` route facts, and so on): `cdd-design` (brainstorm routing + a parameterized spec-writer dispatch), `cdd-plan` (plan authoring), `cdd-close` (branch finish)
+- **`cdd-spec-writer`** — the parameterized spec-writer (single / phase-spec / overall under one merged flow): authors, reviews, and commits the target spec
+- **`cdd-dev`** — the plan executor: the `cdd` engine CLI (`@oscaner-skills/cdd-engine`) implements / reviews / fixes each wave, driven by the engine's `next:` route facts
+- **cdd-report** — repository development utility that files one aggregate GitHub issue for CDD-session bugs and enhancement opportunities (gh CLI, dedup-aware, manual trigger, one-shot chain)
 
 ## Skills
 
 | Skill | Type | Description |
 |-------|------|-------------|
-| `cdd-design` | Orchestrator | Delegates discovery to `grilling`; subagent spec review; routes to the overall/phase spec writers |
-| `cdd-charter` | Orchestrator | Writes the program charter (overall spec) from a design session; cdd spec review-fix; hands off to the next phase |
-| `cdd-phase` | Orchestrator | Writes a phase spec increment; syncs scope changes to the parent overall first; cdd spec review-fix; hands off to `cdd-plan` |
-| `cdd-spec` | Orchestrator | Writes a single (non-phase) spec free-form; cdd spec review-fix; hands off to `cdd-plan` |
-| `cdd-plan` | Orchestrator | Section-by-section plan writes + review |
-| `cdd-dev` | Orchestrator + Engine | Plan executor (CLI-only); dispatches the three-mode chain (`cdd implement` / `cdd review` / `cdd fix`) + `cdd base-branch` artifact; final branch review |
-| `cdd-close` | Orchestrator | Branch finish / PR; no worktrees; conventional commits |
-| `cdd-report` | Utility | Files one aggregate GitHub issue for CDD-session bugs and enhancement opportunities (gh CLI, dedup-aware); manual trigger |
+| `cdd-design` | Orchestrator | Brainstorm routing (mode/register/size gates); dispatches the parameterized spec-writer (single / phase-spec / overall charter) |
+| `cdd-spec-writer` | Spec-writer | The merged single / phase-spec / overall writer: authors, reviews, and commits the target spec under one parameterized flow |
+| `cdd-plan` | Orchestrator | Plan authoring (backfill-design gate · Plan Sole Writer); plan review-fix rhythm; hands off to `cdd-dev` |
+| `cdd-dev` | Orchestrator + Engine | Plan executor (CLI-only); dispatches the implement / review / fix chain + the `cdd base` artifact; final branch review |
+| `cdd-close` | Orchestrator | Branch finish / PR; ends at the finish gate + terminal; no worktrees; conventional commits |
+| `cdd-report` | Utility | Files one aggregate GitHub issue for CDD-session bugs and enhancement opportunities (gh CLI, dedup-aware); one-shot chain; manual trigger |
 
 ## Installation
 
@@ -48,7 +47,7 @@ claude plugin install kairos@oscaner-skills
 pi install npm:@oscaner-skills/kairos
 ```
 
-Installs the latest release and writes pi's project settings. The eight `cdd-*` skills are then visible under their bare names in pi's flat namespace — `cdd-design`, `cdd-plan`, and the rest.
+Installs the latest release and writes pi's project settings. The six `cdd-*` skills are then visible under their bare names in pi's flat namespace — `cdd-design`, `cdd-plan`, and the rest.
 
 ## Quick start
 
@@ -68,7 +67,7 @@ Installs the latest release and writes pi's project settings. The eight `cdd-*` 
 
 ## CDD engine CLI
 
-The CDD engine ships as the standalone `@oscaner-skills/cdd-engine` package; its single CLI runner is `cdd` (implement / review / fix / base-branch / schema / issue). It dispatches each phase to the host harness CLI via the engine's embedded harness registry (per-harness invocation and output contract):
+The CDD engine ships as the standalone `@oscaner-skills/cdd-engine` package; its single CLI runner is `cdd` (implement / review / fix / base / schema / issue). It dispatches each phase to the host harness CLI via the engine's embedded harness registry (per-harness invocation and output contract):
 
 | Identifier | CLI binary | Host marker | Ship |
 |------------|------------|-------------|------|

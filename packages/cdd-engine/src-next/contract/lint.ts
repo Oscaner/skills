@@ -12,9 +12,9 @@
 //   · missing-edge suspect (plan) — a backward `Task N` / `T<N>` prose reference
 //     inside a task's Objective/Acceptance value that has no matching
 //     `- **DependsOn**:` declaration. The graph's edge classes never fire here:
-//     unregistered targets (missing-id) and forward/self edges (contradiction /
-//     self-loop) stay silent — a suspect is always an existing, lower-numbered
-//     task whose edge was simply not declared.
+//     unregistered targets (missing-id) and self-edges (self-loop) stay silent —
+//     a suspect is always an existing task with a lower id whose edge was simply
+//     not declared (forward references are legal — no contradiction class).
 //   · cross-doc label drift (plan / phase-spec) — the Class-B `**Parent
 //     program**` link whose label (version tokens stripped) drifts from the
 //     target's basename. The Class-A `**Spec:**` drift is the cross-doc-chain

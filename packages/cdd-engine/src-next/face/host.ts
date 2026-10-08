@@ -254,20 +254,10 @@ export const REFS = {
     cursor: "/kairos:cdd-design",
     pi: "/skill:cdd-design",
   },
-  "kairos:cdd-spec": {
-    claude: "/kairos:cdd-spec",
-    cursor: "/kairos:cdd-spec",
-    pi: "/skill:cdd-spec",
-  },
-  "kairos:cdd-charter": {
-    claude: "/kairos:cdd-charter",
-    cursor: "/kairos:cdd-charter",
-    pi: "/skill:cdd-charter",
-  },
-  "kairos:cdd-phase": {
-    claude: "/kairos:cdd-phase",
-    cursor: "/kairos:cdd-phase",
-    pi: "/skill:cdd-phase",
+  "kairos:cdd-spec-writer": {
+    claude: "/kairos:cdd-spec-writer",
+    cursor: "/kairos:cdd-spec-writer",
+    pi: "/skill:cdd-spec-writer",
   },
   "kairos:cdd-plan": {
     claude: "/kairos:cdd-plan",

@@ -595,7 +595,9 @@ const PLAN_ELEMENTS = [
     refKind: "none",
     home: "task-field",
   },
-  // The single directed edge — declares which lower-numbered tasks this one depends on.
+  // The single directed edge — declares which other tasks this one depends on
+  // (any existing task id; forward references are legal — the anti-dependency gate
+  // retired, T24; the value prefix carries the list, §3.8).
   {
     anchor: "**DependsOn**",
     presence: "required",

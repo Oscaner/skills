@@ -1143,7 +1143,7 @@ export class Cli {
     }
 
     // The wave pre-flight gate (§3.8 / T24) — the plan graph must validate before ANY
-    // dispatch: a violation (duplicate / missing-id / self-loop / cycle) BLOCKs with
+    // dispatch: a violation (missing-edge / missing-id / self-loop / cycle) BLOCKs with
     // the named edge issues (the task-loss class dies here, never silently), and the
     // implement verb must dispatch the FULL derived wave — a manual `--tasks` split
     // BLOCKs (the strict-wave discipline is engine-forced, not an orchestrator habit).

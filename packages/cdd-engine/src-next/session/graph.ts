@@ -3,18 +3,17 @@
 // graph consumes the SAME doc.ts plan parse instance the dispatch and the lint
 // read — the `### Task N:` blocks and their `- **DependsOn**:` fields (the parse
 // single home in doc.ts) — and never re-parses the document text. It owns the
-// six edge-validation classes (missing-edge / duplicate / missing-id / self-loop /
-// contradiction / cycle), the anti-dependency gate (only lower-numbered tasks are
-// referenceable — numbering order is the topological-linearization anchor), the
+// four edge-validation classes (missing-edge / missing-id / self-loop / cycle —
+// judged on the NORMALIZED edges: the author's literal is never adjudicated), the
 // `batches()` wave decomposition and the `frontier(done)` dynamic face (state.ts's
 // Frontier contract). The ExecutionState query surface (doneTasks() / readyBatch()
 // as methods — never a standalone state class) is carried here as the run-state
 // home (markDone) until the round ledger attests it.
 //
-// Edge judgment is single-homed here: the six classes are the ONLY edge
+// Edge judgment is single-homed here: the four classes are the ONLY edge
 // judgments of the new tree — nothing else decides whether an edge is missing,
-// duplicated, dangling, looping, forward or cyclic (the lint reads a block's
-// declared values only to know what NOT to suspect, and judges nothing).
+// dangling, looping or cyclic (the lint reads a block's declared values only to
+// know what NOT to suspect, and judges nothing).
 //
 // Module-level exports are types / the class — zero behavior-carrying bare
 // functions (the plan's zero-bare-function discipline).
@@ -25,19 +24,18 @@ import type { ReferenceEntry } from "../contract/project.ts";
 import { Projector } from "../contract/project.ts";
 import type { ExecutionState, Frontier } from "./state.ts";
 
-/** The five edge-validation classes — the TaskGraph's judgment vocabulary (§3.1
- *  v1.5: the anti-dependency `contradiction` class retired — forward references are
- *  legal; the cycle stays the live gate, T24). */
+/** The four edge-validation classes — the TaskGraph's judgment vocabulary, all
+ *  judged on the NORMALIZED edges (dedupe at the extraction layer + the transitive
+ *  reduction — §3.8 the normalization chain; the author's literal declaration is
+ *  never adjudicated — a repeated declaration is normalized away, T24). */
 export type GraphIssueClass =
   /** a task block declares no `- **DependsOn**:` field (`none`/empty = the explicit no-dependency declaration) */
   | "missing-edge"
-  /** the same dependency id is declared twice in one block's edge */
-  | "duplicate"
   /** an edge references a task id absent from the plan */
   | "missing-id"
   /** a task depends on itself */
   | "self-loop"
-  /** a directed dependency cycle among the declared edges */
+  /** a directed dependency cycle among the edges */
   | "cycle";
 
 /** One edge validation issue — a single failure class bound to an offending task. */
@@ -56,7 +54,8 @@ export interface GraphIssue {
 interface EdgeRecord {
   /** Whether the block declares a `- **DependsOn**:` field (absent = the missing-edge class). */
   declared: boolean;
-  /** The declared dependency ids (parse order, sorted ascending — duplicates retained for the duplicate class). */
+  /** The dependency ids, DEDUPED at the extraction layer + sorted ascending (the
+   *  author's repeated declaration is normalized away — never adjudicated). */
   deps: readonly number[];
 }
 
@@ -148,22 +147,18 @@ export class TaskGraph implements Frontier, ExecutionState {
   }
 
   // -------------------------------------------------------------------------
-  // the six-class validate
+  // the four-class validate (all judged on the normalized edges)
   // -------------------------------------------------------------------------
 
   /** validate — every failure class of every task, in block order, with the cycle
-   *  class last (the graph-level judgment). */
+   *  class last (the graph-level judgment). The per-block classes read the
+   *  NORMALIZED edge surface (`#depsOf` — the deduped, transitive-reduced form the
+   *  consumers read); the author's literal declaration is never adjudicated. */
   validate(): GraphIssue[] {
     const issues: GraphIssue[] = [];
     const registered = new Set(this.#nodes);
     for (const blockId of this.#nodes) {
-      issues.push(
-        ...this.#blockIssues(
-          this.#edges.get(blockId) ?? { declared: false, deps: [] },
-          blockId,
-          registered,
-        ),
-      );
+      issues.push(...this.#blockIssues(blockId, registered));
     }
     const cycleTask = this.#cycleMember();
     if (cycleTask !== null) {
@@ -177,9 +172,11 @@ export class TaskGraph implements Frontier, ExecutionState {
     return issues;
   }
 
-  /** The per-block failure classes, in a stable order (missing-edge, duplicate,
-   *  missing-id, self-loop). */
-  #blockIssues(edge: EdgeRecord, blockId: number, registered: ReadonlySet<number>): GraphIssue[] {
+  /** The per-block failure classes, in a stable order (missing-edge, missing-id,
+   *  self-loop) — judged on the block's NORMALIZED edge (`#depsOf`); a missing
+   *  **DependsOn** field is the missing-edge class, judged before the edges. */
+  #blockIssues(blockId: number, registered: ReadonlySet<number>): GraphIssue[] {
+    const edge = this.#edges.get(blockId) ?? { declared: false, deps: [] };
     if (!edge.declared) {
       return [
         this.#issue(
@@ -191,20 +188,8 @@ export class TaskGraph implements Frontier, ExecutionState {
       ];
     }
     const issues: GraphIssue[] = [];
-    const duplicates = TaskGraph.#unique(
-      edge.deps.filter((id, index) => edge.deps.indexOf(id) !== index),
-    );
-    if (duplicates.length > 0) {
-      issues.push(
-        this.#issue(
-          "duplicate",
-          blockId,
-          `task ${blockId} declares the dependency${TaskGraph.#plural(duplicates)} ${TaskGraph.#toList(duplicates)} twice`,
-          `declare each dependency id once in the block's **DependsOn** (${TaskGraph.#toList(duplicates)})`,
-        ),
-      );
-    }
-    const missing = TaskGraph.#unique(edge.deps.filter((id) => !registered.has(id)));
+    const deps = this.#depsOf(blockId); // the normalized surface (dedupe + reduction)
+    const missing = TaskGraph.#unique(deps.filter((id) => !registered.has(id)));
     if (missing.length > 0) {
       issues.push(
         this.#issue(
@@ -215,7 +200,7 @@ export class TaskGraph implements Frontier, ExecutionState {
         ),
       );
     }
-    if (edge.deps.includes(blockId)) {
+    if (deps.includes(blockId)) {
       issues.push(
         this.#issue(
           "self-loop",
@@ -229,7 +214,10 @@ export class TaskGraph implements Frontier, ExecutionState {
   }
 
   /** The cycle class — the lowest task closing a directed cycle (self-loops
-   *  excluded: they own the self-loop class); null when the edge graph is a DAG. */
+   *  excluded: they own the self-loop class); null when the edge graph is a DAG.
+   *  Reads the NORMALIZED edge surface (`#depsOf`) — the same face every consumer
+   *  reads; the reduction preserves closure, so a cycle can never be normalized
+   *  away. */
   #cycleMember(): number | null {
     const indegree = new Map<number, number>();
     const dependents = new Map<number, Set<number>>();
@@ -238,9 +226,7 @@ export class TaskGraph implements Frontier, ExecutionState {
       dependents.set(id, new Set());
     }
     for (const id of this.#nodes) {
-      const edge = this.#edges.get(id);
-      if (edge === undefined) continue;
-      for (const dep of TaskGraph.#unique(edge.deps.filter((value) => value !== id))) {
+      for (const dep of TaskGraph.#unique(this.#depsOf(id).filter((value) => value !== id))) {
         if (!indegree.has(dep)) continue; // a phantom can never join a real cycle
         indegree.set(id, indegree.get(id)! + 1); // id carries one more dependency
         dependents.get(dep)!.add(id); // when dep resolves, id's indegree drops
@@ -374,8 +360,10 @@ export class TaskGraph implements Frontier, ExecutionState {
    *  taken from the field's VALUE PREFIX only (the first `(`/`（` truncates: the
    *  trailing parenthetical rationale is prose — zero participation, §3.8's value
    *  domain contract; a round number in the rationale can never become a phantom
-   *  dependency). `none`/empty carries zero edges; the field's absence is recorded
-   *  separately for the missing-edge class. */
+   *  dependency). The extraction layer DEDUPES (a repeated declaration is
+   *  normalized away — the author's literal is never adjudicated, §3.8 the
+   *  normalization chain). `none`/empty carries zero edges; the field's absence is
+   *  recorded separately for the missing-edge class. */
   #edgeOf(block: TaskBlock): EdgeRecord {
     const field = block.fields.find((entry) => entry.key === "DependsOn");
     if (field === undefined) return { declared: false, deps: [] };
@@ -387,7 +375,7 @@ export class TaskGraph implements Frontier, ExecutionState {
         if (this.#depIdToken.test(candidate)) deps.push(Number(candidate));
       }
     }
-    return { declared: true, deps: deps.sort((a, b) => a - b) };
+    return { declared: true, deps: [...new Set(deps)].sort((a, b) => a - b) };
   }
 
   /** The value pattern of a registered reference entry — a lookup that fails
@@ -414,11 +402,6 @@ export class TaskGraph implements Frontier, ExecutionState {
   /** The unique values of a candidate list, in first-occurrence order. */
   static #unique(values: readonly number[]): readonly number[] {
     return [...new Set(values)];
-  }
-
-  /** A small plural suffix for the aggregate messages. */
-  static #plural(values: readonly number[]): string {
-    return values.length === 1 ? "" : "s";
   }
 
   /** The `1, 2`-style list renderer for the aggregate messages. */

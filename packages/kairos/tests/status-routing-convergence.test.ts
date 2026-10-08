@@ -1,14 +1,15 @@
 // packages/kairos/tests/status-routing-convergence.test.ts — C1 ①④ + C5 (T9) wording grep pin.
-// The routing criterion's consumer-facing anchor: the five convergence-carrier SKILL.md files must
+// The routing criterion's consumer-facing anchor: the four convergence-carrier SKILL.md files must
 // carry ZERO retired "blocker count" reading vocabulary and ZERO self-narrated S1/S2/S3 status→dispatch
 // routing restatement (the retired "review closes in three segments … S1 → fix + re-review / S2 → fix
 // closing round / S3 → done" prose and the retired "reads `status:` for routing" reading) — routing is
-// read off the output's `next:` suggestion line (the engine's default next-step, C5-0: dispatch per it
+// read off the output's `next:` route fact (the engine's default next-step, C5-0: dispatch per it
 // when continuing directly; a mid-backfill or a user adjudication that lands governs over it). The
-// status vocabulary survives only as the structural + closure anchors (the `{status?}` digraph decision
-// node and the status edge labels, preserved verbatim), never as narrated routing. The check reads the
-// skill files directly (pure node:test, no shell grep chain) and asserts the required anchors so a
-// future convergence rewrite that drops the `next:` reading fails here.
+// status vocabulary survives only as the closure anchors in the Review Convergence wording (the
+// loop is the unified NEXT-LOOP hub — the retired `{status?}` decision node is gone, §4.2), never
+// as narrated routing. The check reads the skill files directly (pure node:test, no shell grep
+// chain) and asserts the required anchors so a future convergence rewrite that drops the `next:`
+// reading fails here.
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -19,10 +20,10 @@ import { fileURLToPath } from "node:url";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SKILLS_ROOT = path.resolve(HERE, "..", "skills");
 
-// The convergence carriers — the C1 ①④ status-routing re-anchor set (the five skills whose Review
-// Convergence words the orchestrator surface). Scope is self-describing: this is the set that
-// carries the convergence discipline, not an arbitrary file list.
-const CARRIERS = ["cdd-dev", "cdd-spec", "cdd-charter", "cdd-phase", "cdd-plan"];
+// The convergence carriers — the C1 ①④ status-routing re-anchor set (the four loop-chain skills
+// whose Review Convergence words the orchestrator surface). Scope is self-describing: this is the
+// set that carries the convergence discipline, not an arbitrary file list.
+const CARRIERS = ["cdd-dev", "cdd-spec-writer", "cdd-design", "cdd-plan"];
 
 // Retired wording — the "blocker count" read-interpretation vocabulary (M1/M3), the "three segments"
 // S1/S2/S3 self-narrated status→dispatch routing restatement (C5/T9), and the retired `status:` reading
@@ -43,12 +44,12 @@ const FORBIDDEN: Array<[string, RegExp]> = [
   ["the retired status→dispatch exit mapping", /routes CHANGES_REQUESTED \/ REVIEW_FIX/],
 ];
 
-// Required anchors — the status criterion's structural anchors (the `{status?}` digraph decision node
-// and the status vocabulary, surviving in the digraph edge labels) plus the `next:`-based routing
-// vocabulary that must be present in every carrier: the unified reading wording, the engine's-default
-// shared reference, the dispatch-per-it directive, and the I6 mid-backfill compatibility sentence.
+// Required anchors — the convergence vocabulary that must be present in every carrier: the unified
+// loop hub (the NEXT-LOOP digraph node), the status closure vocabulary, the `next:`-based routing
+// vocabulary (the unified reading wording, the engine's-default shared reference, the dispatch-per-it
+// directive, and the I6 mid-backfill compatibility sentence).
 const REQUIRED: Array<[string, RegExp]> = [
-  ["`{status?}` digraph decision node", /status\?/],
+  ["the unified NEXT-LOOP loop hub", /NEXT-LOOP/],
   ["S1 status anchor CHANGES_REQUESTED", /\bCHANGES_REQUESTED\b/],
   ["S2 status anchor REVIEW_FIX", /\bREVIEW_FIX\b/],
   ["S3 status anchor APPROVED", /\bAPPROVED\b/],

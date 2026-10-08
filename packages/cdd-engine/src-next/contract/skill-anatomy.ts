@@ -37,6 +37,9 @@ export interface AnatomyDigraph {
   mermaidFence: string;
   nodeTypes: Readonly<Record<string, { pattern: string }>>;
   terminalStates: Readonly<Record<string, string>>;
+  /** The unified-skeleton facts — the shared NEXT-LOOP hub + the terminal name
+   *  prefixes the loop-family shapes assert (the multi-chain shared names). */
+  loopHubNode: { name: string; rowPrefixes: readonly string[] };
 }
 
 /** The per-node four-element contract — the `### `node`` definitions' bullet fields. */
@@ -64,6 +67,17 @@ export interface AnatomyConsumerPurity {
   zeroTraceRule: string;
 }
 
+/** The six-skill roster row — one shipped kairos skill (the P4 closed set's data). */
+export interface SkillRosterRow {
+  /** The skill's role in the workflow normalization (§4.1). */
+  role: "orchestrator" | "spec-writer" | "executor" | "utility";
+  /** The flow family — the digraph-shape family the guard asserts:
+   *  `loop` = the five-chain unified skeleton (NEXT-LOOP hub + self-loop + terminals);
+   *  `close` = ends at the finish gate + terminal (no self-loop);
+   *  `onepass` = one-shot toolchain (no self-loop). */
+  family: "loop" | "close" | "onepass";
+}
+
 /** The full skill-anatomy contract — the typed structure facts the guard consumes. */
 export interface SkillAnatomyContract {
   sectionRegistry: AnatomySectionRegistry;
@@ -75,6 +89,7 @@ export interface SkillAnatomyContract {
   blockedTerminal: { stateToken: string; requires: readonly string[] };
   growthBoundary: AnatomyGrowthBoundary;
   consumerPurity: AnatomyConsumerPurity;
+  skills: { registry: Readonly<Record<string, SkillRosterRow>> };
   wording: Readonly<Record<string, string>>;
 }
 
@@ -82,19 +97,27 @@ export interface SkillAnatomyContract {
  *  conditional sections + the node-name heading grammar). */
 const SECTION_REGISTRY = {
   public: ["flowDigraph", "nodeDefinitions", "invariants", "failureModes"],
-  conditional: ["skeletonDeltas"],
+  conditional: [],
   sections: {
     flowDigraph: { heading: "## Flow Digraph" },
     nodeDefinitions: { heading: "## Node Definitions" },
     invariants: { heading: "## Invariants" },
     failureModes: { heading: "## Failure Modes" },
-    skeletonDeltas: {
-      heading: "## Skeleton deltas",
-      requiredCarriers: ["cdd-spec", "cdd-phase", "cdd-charter"],
-    },
   },
   headingKinds: { nodeName: { pattern: "^### `[^`]+`$" } },
 } as const;
+
+/** The six-skill roster — the P4 closed set: exactly these members ship, the 9th
+ *  seat is vacant (a directory scan may carry zero more, zero missing); the family
+ *  facts drive the digraph-shape assertions (consistency over the five chains). */
+const SKILL_ROSTER: Readonly<Record<string, SkillRosterRow>> = {
+  "cdd-design": { role: "orchestrator", family: "loop" },
+  "cdd-spec-writer": { role: "spec-writer", family: "loop" },
+  "cdd-plan": { role: "orchestrator", family: "loop" },
+  "cdd-dev": { role: "executor", family: "loop" },
+  "cdd-close": { role: "orchestrator", family: "close" },
+  "cdd-report": { role: "utility", family: "onepass" },
+};
 
 /** The skill-anatomy contract — one typed constant: the structure facts + the
  *  diagnostic wording the checks quote (single source, never a guard literal). */
@@ -110,6 +133,9 @@ export const SKILL_ANATOMY = {
       terminal: { pattern: "^\\w+\\(\\(.*\\)\\)$" },
     },
     terminalStates: { blocked: "BLOCKED", approved: "APPROVED", handoff: "HANDOFF" },
+    // The five-chain unified skeleton — one shared hub + terminals across the loop
+    // family; the close/onepass families are the explicit no-self-loop exceptions.
+    loopHubNode: { name: "NEXT-LOOP", rowPrefixes: ["handoff-"] },
   },
   nodeDefinitions: {
     sectionHeading: "## Node Definitions",
@@ -137,6 +163,7 @@ export const SKILL_ANATOMY = {
     forbiddenNarrativeHeads: ["## Flow size note", "## Full Flow Refactor Rationale"],
     zeroTraceRule: "zero trace in the consumer skill",
   },
+  skills: { registry: SKILL_ROSTER },
   // The check-facing diagnostic wording — the prose the anatomy assertions quote
   // when a structure rule fires (the contract's self-describing face).
   wording: {
@@ -154,5 +181,15 @@ export const SKILL_ANATOMY = {
       "crossing the growth boundary requires a rationale registered in this contract's growth registry — NEVER inside the consumer-shipped SKILL.md (consumer-surface purity)",
     purityRule:
       "SKILL.md is an instruction document — growth/refactor narrative headings are forbidden in ANY form; the rationale surface lives here, the consumer skill carries zero trace",
+    closedSetRule:
+      "the kairos skills are a CLOSED six-set registered in this contract's roster — the directory scan must carry exactly these members (9th seat vacant): an extra member is a new skill entering without registration, a missing member is a retired skill leaving without a plan entry",
+    loopShapeRule:
+      "the five-chain unified skeleton — every loop-family skill digraph carries the shared NEXT-LOOP hub with its single self-loop + a commit-* terminal + a handoff-* terminal (digraph↔Node Definitions↔text-reference consistency, shared node names must never drift)",
+    enderShapeRule:
+      "the explicit no-self-loop exceptions — cdd-close ends at the finish semantic gate + terminal, cdd-report is a one-shot toolchain; a NEXT-LOOP self-loop in either is a shape violation",
+    labelFreeRule:
+      "the digraph edges carry ZERO state labels — the loop condition is the next: route fact, never an edge label (the retired review-fix loop node anchoring)",
+    routeFactRule:
+      "next: is consumed as a Route fact (kind + payload) mapped to the concrete command — a full cdd command string never follows the next: token on a line; BLOCKED/TIMEOUT carry no next line and are not consumed as next steps",
   },
 } as const satisfies SkillAnatomyContract;

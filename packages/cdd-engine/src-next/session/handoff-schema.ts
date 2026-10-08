@@ -118,7 +118,7 @@ const CARRIER_FINDINGS: SchemaNode = {
 
 /** The test-evidence file schema — the evidence gate's engine read-back contract
  *  (the second fix for a prose-only claim: the old prompt asserted an engine read-back
- *  that the engine never performed; now both projections perform it). A task-family
+ *  that the engine never performed; now both projections are real). A task-family
  *  work round missing or violating this file rewrites the round to BLOCKED. */
 const EVIDENCE: SchemaNode = {
   type: "object",
@@ -183,7 +183,7 @@ export class HandoffSchema {
 
   /** Projection ② — validate a child draft against a face's writable subset. Every
    *  problem is a read-back BLOCK; the draft is left untouched for the child's
-   *  resume (不覆盖 — the engine never clobbers a child's work). */
+   *  resume (never overwritten — the engine never clobbers a child's work). */
   violations(face: HandoffSchemaFace, value: unknown): string[] {
     const problems: SchemaProblem[] = [];
     this.#check(BY_FACE[face], value, "", problems);

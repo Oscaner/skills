@@ -14,15 +14,15 @@
 //     rows ride the dispatch table (face/host.ts) with the writing-plans self-check
 //     + the verification-evidence duty, and this guide carries the task/branch face.
 //
-// T15 v1.8 (the mode 分派表 — §3.5) restructures the prompt from "one all-mode
+// T15 v1.8 (the mode dispatch table — §3.5) restructures the prompt from "one all-mode
 // manual + dynamic zone" to the per-mode dispatch table:
 //   · MODE_PROMPTS — one row per work-mode (implement / fix / review / docs-fix):
 //     the mode's FIXED prefix (its own instruction shell + the injected writable-
 //     subset schema at the shell's tail — byte-identical for every dispatch of the
 //     mode, so the prompt-cache prefix groups by mode) + the mode's REDUCED round-
 //     context subset (only the keys the mode consumes; a key whose value is empty is
-//     not emitted — 空值键不发).
-//   · the normalized token vocabulary (§3.5 规整命名): INPUT_* (read-side) /
+//     not emitted — empty-valued keys are dropped).
+//   · the normalized token vocabulary (§3.5 normalized naming): INPUT_* (read-side) /
 //     OUTPUT_* (write-side) / WORKSPACE_* (environment) / FIX_BASE (the fix anchor) /
 //     ROLE + SCOPE (the nominative identity). The pre-v1.8 token names are gone
 //     (zero old-name residue).
@@ -73,7 +73,7 @@ export interface ModePromptRow {
    *  writable-subset fence): byte-identical for every dispatch of the mode. */
   shell: readonly string[];
   /** The mode's REDUCED round-context subset — the only dynamic region; a key
-   *  whose value is empty is not emitted (空值键不发). */
+   *  whose value is empty is not emitted (empty-valued keys are dropped). */
   roundContext: readonly string[];
 }
 
@@ -81,7 +81,7 @@ export interface ModePromptRow {
  *  contract + the token registry + the clause partials. */
 export interface TemplatePrompt {
   $version: number;
-  /** The mode 分派表 — one row per work-mode (§3.5). */
+  /** The mode dispatch table — one row per work-mode (§3.5). */
   modes: Readonly<Record<WorkMode, ModePromptRow>>;
   /** The `## Return` zone — the single block contract (v1.9). */
   return: ReturnZone;
@@ -181,7 +181,7 @@ const DOCS_FIX_SHELL: readonly string[] = [
   ...SCHEMA_SECTION,
 ];
 
-/** The mode 分派表 — one row per work-mode (§3.5): the mode's fixed prefix + its
+/** The mode dispatch table — one row per work-mode (§3.5): the mode's fixed prefix + its
  *  reduced round-context subset. */
 const MODE_PROMPTS: Readonly<Record<WorkMode, ModePromptRow>> = {
   implement: {
@@ -271,7 +271,7 @@ const RETURN_ZONE: ReturnZone = {
 };
 
 /** The token registry — the union across every mode's round context + the shell's
- *  schema slot (the v1.8 规整命名 vocabulary; the assembly face supplies every
+ *  schema slot (the v1.8 normalized naming vocabulary; the assembly face supplies every
  *  declared slot, empty where the mode does not consume it — the round-context
  *  renderer drops the empty-valued lines). */
 const TOKENS: readonly TemplateToken[] = [
@@ -313,7 +313,7 @@ export const CLAUSES = {
 } as const;
 
 /** The dispatch-prompt data plane — the typed template-contract surface. $version 5
- *  marks the v1.8 分派表 reparametrization (per-mode fixed prefixes + reduced round
+ *  marks the v1.8 dispatch-table reparametrization (per-mode fixed prefixes + reduced round
  *  contexts + the INPUT_/OUTPUT_/WORKSPACE_/FIX_BASE/ROLE/SCOPE vocabulary) over the
  *  v1.9 single-return + schema-injection base (§3.5 · §3.6). */
 export const TEMPLATE_PROMPT = {
@@ -381,7 +381,7 @@ export class TemplateAssembler {
 
   /** Assemble the full dispatch template for a role with the slot values — the
    *  mode's fixed prefix + the single return contract + the mode's reduced round
-   *  context (empty-value keys omitted — 空值键不发). */
+   *  context (empty-value keys omitted). */
   render(values: TemplateValues): string {
     this.#gate(values);
     const row = this.#contract.modes[values.ROLE as WorkMode];

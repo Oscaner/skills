@@ -510,7 +510,7 @@ export class HarnessDispatch {
   /** The round-context zone values of the dispatch prompt (the v1.8 naming contract:
    *  ROLE/SCOPE nominatives · INPUT_* read-side · OUTPUT_* write-side · WORKSPACE_*
    *  environment · FIX_BASE anchor). Every declared token supplied — a mode's
-   *  non-consumed slots stay empty and are NOT emitted by the assembler (空值键不发),
+   *  non-consumed slots stay empty and are NOT emitted by the assembler (empty-valued keys are dropped),
    *  so each mode's round context carries only the facts the mode reads. */
   #valuesOf(frame: OpenFrame): TemplateValues {
     const scene = this.#scene;
@@ -619,11 +619,11 @@ export class HarnessDispatch {
    *  place (agent draft → finalized, full-replace at the same path — the engine
    *  remains the carrier's single author). A missing or schema-violating draft →
    *  BLOCK over the CDD_BLOCKED channel + a crash record + the draft untouched
-   *  (失败不覆盖 — the child's work is never clobbered; resume re-runs the same
+   *  (on failure, no overwrite — the child's work is never clobbered; resume re-runs the same
    *  command, which re-offers the round). The test-evidence file (task-family work
    *  rounds only) is read back with the same stakes: a missing/violating file
    *  rewrites the carrier to BLOCKED (persisted — the child's work is kept, marked
-   *  bad), the second散文虚设补钉. */
+   *  bad), the second fix for a prose-only claim. */
   #reconstruct(frame: OpenFrame, block: DispatchOutcome): DispatchOutcome {
     const scene = this.#scene;
     const op = this.#opOf(frame);

@@ -25,11 +25,18 @@ export class GraphView {
     const done = new Set(report.done);
     const currentIndex = report.waves.findIndex((wave) => wave.some((id) => !done.has(id)));
     const current = new Set(report.waves[currentIndex] ?? []);
+    const waveOf = new Map<number, number>();
+    report.waves.forEach((wave, index) => {
+      for (const id of wave) waveOf.set(id, index);
+    });
     const lines: string[] = ["flowchart TB"];
     for (const [task, deps] of Object.entries(report.edges)) {
       const id = Number(task);
       const marker = current.has(id) ? " ▶" : done.has(id) ? " ✔" : "";
-      lines.push(`  T${id}["T${id}${marker}"]`);
+      // every node's box carries its WAVE index — the renderer's placement is its
+      // own; the wave membership rides the node, never the row it lands in (the
+      // label avoids brackets — they trip the mermaid node-bracket parser).
+      lines.push(`  T${id}["T${id}${marker} · W${waveOf.get(id) ?? ""}"]`);
       for (const dep of deps) lines.push(`  T${dep} --> T${id}`);
     }
     const mermaid = lines.join("\n");

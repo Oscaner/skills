@@ -944,16 +944,17 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         findings: [{ severity: "blocker", lens: "spec", summary: "drift" }],
         status: "CHANGES_REQUESTED",
       });
-      // the URC prose rides INPUT_CRITERIA (the spec review has no slash ref)
+      // the URC criteria ride the review prompt's fixed prefix (the spec review has
+      // no slash ref) — the criteria/lens are folded in, never round-context values
       const call = sync.calls[0];
       expect(call.args).not.toContain("/mattpocock-skills:code-review");
       const prompt = call.args[call.args.length - 1];
       expect(prompt).toContain("Follow URC:");
       expect(prompt).toContain("- `ROLE`: review");
-      expect(prompt).toContain("- `INPUT_CRITERIA`:");
       expect(prompt).toContain("- `INPUT_RANGE`: docs/kairos/specs/s1-design.md");
       // the v1.8 per-mode 精简: a review context carries no fix/work keys
       expect(prompt).not.toContain("- `INPUT_FINDINGS`");
+      expect(prompt).not.toContain("- `INPUT_CRITERIA`");
     } finally {
       cleanup();
     }
@@ -989,8 +990,8 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const call = sync.calls[0];
       // the task/branch review rows are object-shaped {ref} (the P5 note deletion) — the
       // slash form prefixes the single prompt argument (not a standalone positional —
-      // the harness CLI consumes the first positional as the whole prompt), and
-      // INPUT_CRITERIA carries the typed axes guide inside the same prompt
+      // the harness CLI consumes the first positional as the whole prompt), and the
+      // task variant's fixed prefix carries the typed axes guide inside the same prompt
       expect(call.args).not.toContain("/mattpocock-skills:code-review");
       const prompt = call.args[call.args.length - 1];
       expect(prompt.startsWith("/mattpocock-skills:code-review ")).toBe(true);

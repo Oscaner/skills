@@ -91,14 +91,21 @@ export interface ReviewDispatchRow {
   ref: string;
 }
 
-/** The dispatch table — the phase/type → skill-ref (or URC prose) resolution. */
+/**
+ * The dispatch table — the phase/type → skill-ref (or URC prose) resolution.
+ * v1.8 closeout: the spec/plan review criteria migrated to the template plane's
+ * REVIEWS (render/templates.ts) — the dispatch review rows are the task/branch ref
+ * keys only; a spec/plan review resolves no skill ref (the URC prose rides the
+ * review prompt's criteria body).
+ */
 export interface DispatchTable {
   /** The implement phase's ref key (M1 supersede: mattpocock-skills:implement). */
   implement: string;
   /** The fix phase's ref key. */
   fix: string;
-  /** The review phase rows — task/branch name ref keys, spec/plan the URC prose. */
-  review: Readonly<Record<"task" | "branch" | "spec" | "plan", string | ReviewDispatchRow>>;
+  /** The review phase rows — the task/branch ref keys (the spec/plan rows carry no
+   *  skill ref — the review criteria live in the template plane). */
+  review: Readonly<Record<"task" | "branch", ReviewDispatchRow>>;
 }
 
 /** The per-harness slash reference forms of one ref key. */
@@ -187,20 +194,18 @@ export const HOSTS = {
   },
 } as const satisfies Readonly<Record<HostId, HostRow>>;
 
-/** The dispatch table — the phase/type → ref-key (or URC prose) resolution. The
- *  implement slot is the M1 supersede (P5): it names the upstream
- *  `mattpocock-skills:implement` skill — the tdd alias is retired from the dispatch.
- *  The task/branch review rows name their ref keys only (the parallel-sub-agents
- *  note prose is deleted — P5 forbidden text); the spec/plan rows carry the URC
- *  review criteria (three axes + writing-plans self-check + verification evidence). */
+/** The dispatch table — the phase/type → skill-ref resolution. The implement slot
+ *  is the M1 supersede (P5): it names the upstream `mattpocock-skills:implement`
+ *  skill — the tdd alias is retired from the dispatch. The REVIEW rows are the
+ *  task/branch ref keys only (the spec/plan rows' URC review criteria migrated to
+ *  the template plane's REVIEWS at the v1.8 closeout — their single typed home;
+ *  the parallel-sub-agents note prose is deleted — P5 forbidden text). */
 export const DISPATCH = {
   implement: "mattpocock-skills:implement",
   fix: "mattpocock-skills:tdd",
   review: {
     task: { ref: "mattpocock-skills:code-review" },
     branch: { ref: "mattpocock-skills:code-review" },
-    spec: "Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence",
-    plan: "Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence",
   },
 } as const satisfies DispatchTable;
 

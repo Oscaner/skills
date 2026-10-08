@@ -17,20 +17,21 @@ import { TemplateAssembler } from "../templates.ts";
 
 /** The full per-dispatch slot values — every declared template token (the v1.8
  *  INPUT_/OUTPUT_/WORKSPACE_/FIX_BASE/ROLE/SCOPE vocabulary), optional slots
- *  legitimately empty (an implement dispatch carries no review/fix slots). */
+ *  legitimately empty (an implement dispatch carries no review/fix slots; the
+ *  review criteria/lens are NOT values — they fold into the review type's fixed
+ *  prefix, §3.7). */
 const ALL_VALUES: Record<string, string> = {
   ROLE: "implement",
   SCOPE: "4,12",
   INPUT_TASK: "/ws/tasks-4,12-brief.md",
   INPUT_RULES: "/ws/plan-constraints.md",
   INPUT_FINDINGS: "",
-  INPUT_CRITERIA: "",
   INPUT_RANGE: "",
-  INPUT_LENS: "",
   INPUT_PLAN: "",
   INPUT_DOC: "",
   OUTPUT_HANDOFF: "/ws/tasks-4,12-implement.json",
   FIX_BASE: "",
+  REVIEW_TYPE: "",
   WORKSPACE_DIR: "/ws",
   WORKSPACE_ID: "2026-10-02-x",
   HANDOFF_SCHEMA: "$$SCHEMA$$",
@@ -40,12 +41,15 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
   const assembler = new TemplateAssembler();
 
   it("declares the four-mode dispatch table and the token registry", () => {
-    // v1.8 — the mode 分派表; v1.9 — RETURN_JSON / DOCS_FIX retired.
+    // v1.8 — the mode dispatch table; v1.9 — RETURN_JSON / DOCS_FIX retired; the
+    // review criteria/lens tokens are gone (§3.7).
     expect(assembler.workModes()).toEqual(["implement", "fix", "review", "docs-fix"]);
     expect(assembler.returnFormats()).toEqual(["RETURN_STDOUT_BLOCK"]);
     expect(assembler.declaredTokens()).toContain("ROLE");
     expect(assembler.declaredTokens()).toContain("OUTPUT_HANDOFF");
     expect(assembler.declaredTokens()).toContain("HANDOFF_SCHEMA");
+    expect(assembler.declaredTokens()).not.toContain("INPUT_CRITERIA");
+    expect(assembler.declaredTokens()).not.toContain("INPUT_LENS");
     expect(assembler.declaredTokens()).not.toContain("HANDOFF_WRITE_GATE");
   });
 
@@ -76,35 +80,48 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       ...ALL_VALUES,
       ROLE: "docs-fix",
       SCOPE: "docs/x-design.md",
-      INPUT_FINDINGS: "/ws/plan-review-1.json",
-      FIX_BASE: "a".repeat(40),
       INPUT_DOC: "docs/x-design.md",
     });
     expect(out.startsWith("# CDD dispatch — docs-fix round")).toBe(true);
     expect(out).toContain("apply `INPUT_FINDINGS` (all severities) directly to `INPUT_DOC`");
     expect(out).toContain("- `INPUT_DOC`: docs/x-design.md");
-    expect(out).toContain("- `FIX_BASE`: ");
     // the review-only keys stay out of the docs-fix context
     expect(out).not.toContain("INPUT_CRITERIA");
   });
 
-  it("空值键不发 — a mode's context drops a key whose value is empty", () => {
-    // a task review: no fix anchors, no findings — the empty keys never render
-    const review = assembler.render({
+  it("renders the review mode per type — the criteria/lens fold into the fixed prefix", () => {
+    // a spec review: the URC criteria + its lens ride the shell (fixed region), the
+    // round context carries only the review's dynamic facts
+    const spec = assembler.render({
       ...ALL_VALUES,
       ROLE: "review",
+      REVIEW_TYPE: "spec",
       SCOPE: "docs/kairos/specs/s1-design.md",
       INPUT_RANGE: "docs/kairos/specs/s1-design.md",
-      INPUT_CRITERIA: "the axes",
-      INPUT_LENS: "completeness | consistency | clarity",
-      INPUT_PLAN: "**Plan:** /ws/plan.md",
+      INPUT_PLAN: "/ws/p.md",
       OUTPUT_HANDOFF: "/ws/spec-review-1.json",
     });
-    expect(review).toContain("- `INPUT_RANGE`: docs/kairos/specs/s1-design.md");
-    expect(review).toContain("- `INPUT_CRITERIA`: the axes");
-    expect(review).not.toContain("- `INPUT_TASK`"); // empty in the review context → omitted
-    expect(review).not.toContain("- `INPUT_FINDINGS`");
-    expect(review).not.toContain("- `FIX_BASE`");
+    expect(spec.startsWith("# CDD dispatch — review round")).toBe(true);
+    expect(spec).toContain("**Criteria — spec:**");
+    expect(spec).toContain("Follow URC");
+    expect(spec).toContain("completeness | consistency | clarity");
+    expect(spec).toContain("- `INPUT_RANGE`: docs/kairos/specs/s1-design.md");
+    expect(spec).not.toContain("- `INPUT_TASK`");
+    expect(spec).not.toContain("- `INPUT_FINDINGS`");
+    expect(spec).not.toContain("- `FIX_BASE`");
+    // a task review selects its own variant — the task axes + lens
+    const task = assembler.render({
+      ...ALL_VALUES,
+      ROLE: "review",
+      REVIEW_TYPE: "task",
+      SCOPE: "1",
+      INPUT_RANGE: "aaaaaaa..bbbbbbb",
+      OUTPUT_HANDOFF: "/ws/tasks-1-review-1.json",
+    });
+    expect(task).toContain("**Criteria — task:**");
+    expect(task).toContain("Standards axis");
+    expect(task).toContain("standards | spec | buildability");
+    expect(task).not.toContain("Follow URC");
   });
 
   it("hard gates: a missing token value throws (named)", () => {
@@ -113,6 +130,10 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(() => assembler.render(partial)).toThrow(/ROLE/);
     // an unknown ROLE is refused by the mode table (never a phantom assemble)
     expect(() => assembler.render({ ...ALL_VALUES, ROLE: "bogus" })).toThrow(/work-mode/);
+    // a review without its REVIEW_TYPE discriminant is refused by the variants
+    expect(() => assembler.render({ ...ALL_VALUES, ROLE: "review", REVIEW_TYPE: "" })).toThrow(
+      /review type not declared/,
+    );
   });
 
   it("hard gates: an undeclared value throws (the guard is the declared token list)", () => {

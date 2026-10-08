@@ -93,8 +93,10 @@ describe("config — the typed accessor facade (one no-I/O route per face)", () 
     );
     const template = loader.templateContract();
     // v1.8 — the mode 分派表 (implement/fix/review/docs-fix) + the single return contract
-    // (RETURN_JSON / DOCS_FIX 退役)
-    expect(Object.keys(template.modes)).toEqual(["implement", "fix", "review", "docs-fix"]);
+    // (RETURN_JSON / DOCS_FIX 退役) — the work-mode rows + the four review variants
+    // (the review mode's ROLE resolves by REVIEW_TYPE)
+    expect(Object.keys(template.modes)).toEqual(["implement", "fix", "docs-fix"]);
+    expect(Object.keys(template.reviews)).toEqual(["task", "branch", "spec", "plan"]);
     expect(Object.keys(template.return)).toEqual(["RETURN_STDOUT_BLOCK"]);
   });
 
@@ -102,12 +104,19 @@ describe("config — the typed accessor facade (one no-I/O route per face)", () 
     // The task/branch dispatch rows name their ref only (the parallel-sub-agents note is deleted).
     expect(DISPATCH.review.task).toEqual({ ref: "mattpocock-skills:code-review" });
     expect(DISPATCH.review.branch).toEqual({ ref: "mattpocock-skills:code-review" });
-    // The spec/plan rows carry the URC three axes + the writing-plans self-check + the
-    // verification-evidence duty.
-    expect(DISPATCH.review.spec).toContain("completeness/consistency/clarity");
-    expect(DISPATCH.review.spec).toContain("writing-plans self-check");
-    expect(DISPATCH.review.spec).toContain("verification evidence");
-    expect(DISPATCH.review.plan).toContain("completeness/decomposition/buildability");
+    // The spec/plan URC criteria migrated to the template plane's REVIEWS (v1.8
+    // closeout) — their single typed home: the three axes + the writing-plans
+    // self-check + the verification-evidence duty, plus the per-type lens.
+    expect(REVIEWS.spec.axesGuide).toContain("completeness/consistency/clarity");
+    expect(REVIEWS.spec.axesGuide).toContain("writing-plans self-check");
+    expect(REVIEWS.spec.axesGuide).toContain("verification evidence");
+    expect(REVIEWS.plan.axesGuide).toContain("completeness/decomposition/buildability");
+    expect(REVIEWS.spec.lensEnum).toEqual(["completeness", "consistency", "clarity"]);
+    expect(REVIEWS.plan.lensEnum).toEqual(["completeness", "decomposition", "buildability"]);
+    // The review prompts fold the criteria/lens into their fixed prefix — the
+    // INPUT_CRITERIA/INPUT_LENS round-context tokens are gone (§3.7).
+    expect(TEMPLATE_PROMPT.reviews.spec.shell.join("\n")).toContain("Follow URC");
+    expect(TEMPLATE_PROMPT.tokens.map((t) => t.name)).not.toContain("INPUT_CRITERIA");
     // The implement slot is the M1 supersede — mattpocock-skills:implement, registered in refs.
     expect(DISPATCH.implement).toBe("mattpocock-skills:implement");
     expect(REFS["mattpocock-skills:implement"].claude).toBe("/mattpocock-skills:implement");

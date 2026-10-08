@@ -463,17 +463,17 @@ export class HarnessDispatch {
   }
 
   /** The phase's skill-ref slash form for the detected host ("/mattpocock-skills:tdd"
-   *  etc.); null when the dispatch table names a URC prose instead of a ref (the
-   *  spec/plan reviews — the prose rides INPUT_CRITERIA, no slash arg). */
+   *  etc.); null when the review type carries no skill ref (the spec/plan reviews —
+   *  their criteria ride the review prompt's fixed body, never a slash arg). */
   #skillRef(host: string, frame: OpenFrame): string | null {
     const dispatch = DISPATCH;
     let ref: unknown = null;
     if (frame.phase === "review" || frame.phase === "branch-review") {
-      // The task/branch rows are object-shaped {ref}; the spec/plan rows stay the URC
-      // prose string. The slash form resolves from the row's ref either way, falling
-      // back to null for the prose-only rows (the review criteria ride INPUT_CRITERIA).
-      const entry = dispatch.review[frame.type];
-      const declaredRef = typeof entry === "string" ? entry : entry.ref;
+      // The task/branch rows are object-shaped {ref}; the spec/plan review types
+      // carry NO dispatch row (their criteria are the review prompt's fixed body).
+      const entry = dispatch.review[frame.type as "task" | "branch"];
+      const declaredRef =
+        typeof entry === "string" ? entry : (entry as { ref?: unknown } | undefined)?.ref;
       ref =
         typeof declaredRef === "string" && declaredRef.startsWith("mattpocock-skills:")
           ? declaredRef
@@ -490,28 +490,18 @@ export class HarnessDispatch {
   /** The child's single prompt argument — per the host's promptForm data contract
    *  (§3.5): the ref-prefixed form embeds the skill-ref slash form at the start of
    *  the assembled dispatch prompt as one positional (`/kairos:cdd-* <prompt>`); the
-   *  plain form passes the prompt verbatim (the URC-prose rows carry no ref). */
+   *  plain form passes the prompt verbatim. */
   #childPrompt(form: "ref-prefixed" | "plain", ref: string | null, prompt: string): string {
     return form === "ref-prefixed" && ref !== null ? `${ref} ${prompt}` : prompt;
-  }
-
-  /** The review-axes text — the typed review criteria the assembly face references:
-   *  the task/branch axes guide (render/templates.ts — the four axes + the
-   *  verification-evidence duty) or the spec/plan URC prose row (the dispatch table,
-   *  host.ts); empty outside review frames. */
-  #reviewAxes(frame: OpenFrame): string {
-    if (frame.type === "task" || frame.type === "branch") {
-      return this.#template.reviewGuide(frame.type).axesGuide;
-    }
-    const entry = DISPATCH.review[frame.type];
-    return typeof entry === "string" ? entry : "";
   }
 
   /** The round-context zone values of the dispatch prompt (the v1.8 naming contract:
    *  ROLE/SCOPE nominatives · INPUT_* read-side · OUTPUT_* write-side · WORKSPACE_*
    *  environment · FIX_BASE anchor). Every declared token supplied — a mode's
-   *  non-consumed slots stay empty and are NOT emitted by the assembler (empty-valued keys are dropped),
-   *  so each mode's round context carries only the facts the mode reads. */
+   *  non-consumed slots stay empty and are NOT emitted by the assembler
+   *  (empty-valued keys are dropped), so each mode's round context carries only the
+   *  facts the mode reads. The review criteria/lens are NOT values — they fold into
+   *  the review type's fixed prefix (§3.7). */
   #valuesOf(frame: OpenFrame): TemplateValues {
     const scene = this.#scene;
     const op = this.#opOf(frame);
@@ -523,10 +513,6 @@ export class HarnessDispatch {
       frame.target.kind === "branch"
         ? `${frame.target.base.slice(0, 7)}..${frame.target.head.slice(0, 7)}`
         : null;
-    const reference =
-      frame.target.kind === "branch"
-        ? `${frame.target.base}..${frame.target.head}`
-        : (docPath ?? scene.planPath ?? "");
     const scope = params.tasks ?? branchRange ?? docPath ?? scene.planPath ?? frame.type;
     return {
       ROLE: role,
@@ -540,16 +526,12 @@ export class HarnessDispatch {
         op === "fix"
           ? (this.#findings ?? scene.ledger.handoffPath("review", frame.type, params))
           : "",
-      INPUT_CRITERIA: isReview ? this.#reviewAxes(frame) : "",
-      INPUT_RANGE: isReview ? reference : "",
-      INPUT_LENS:
-        isReview && (frame.type === "task" || frame.type === "branch")
-          ? this.#template.reviewGuide(frame.type).lensEnum.join(" | ")
-          : "",
-      INPUT_PLAN: scene.planPath !== null ? `**Plan:** ${scene.planPath}` : "",
+      INPUT_RANGE: isReview ? this.#reviewRange(frame) : "",
+      INPUT_PLAN: scene.planPath ?? "",
       INPUT_DOC: docPath ?? "",
       OUTPUT_HANDOFF: scene.ledger.handoffPath(op, frame.type, params),
       FIX_BASE: op === "fix" ? this.#fixedPoint(frame, params) : "",
+      REVIEW_TYPE: isReview ? frame.type : "",
       WORKSPACE_DIR: scene.workspace.path,
       WORKSPACE_ID: scene.workspace.slug,
       // v1.9 — the injected writable-subset schema (projection ①): the `## Handoff
@@ -557,6 +539,24 @@ export class HarnessDispatch {
       // faces — implement/fix — carry the evidence-file fence too).
       HANDOFF_SCHEMA: this.#schemaText(frame),
     };
+  }
+
+  /** The review's reference (INPUT_RANGE) — the fact the review criteria judge: the
+   *  branch range (full shas), the doc (spec/plan), or — task reviews — the reviewed
+   *  commit range TASK_BASE..HEAD derived from the implement round's handoff (§3.7
+   *  closeout: only present facts land — an unreadable implement handoff degrades
+   *  to the plan path). */
+  #reviewRange(frame: OpenFrame): string {
+    if (frame.target.kind === "branch") return `${frame.target.base}..${frame.target.head}`;
+    if (frame.target.kind === "doc") return frame.target.doc;
+    const carried = this.#scene.ledger.readHandoff("implement", "task", {
+      tasks: frame.params.tasks ?? "",
+    });
+    const commits = carried?.commits as { base?: unknown; head?: unknown } | undefined;
+    if (typeof commits?.base === "string" && typeof commits?.head === "string") {
+      return `${commits.base.slice(0, 7)}..${commits.head.slice(0, 7)}`;
+    }
+    return this.#scene.planPath ?? "";
   }
 
   /** The round's task-brief input — the rendered brief (implement) or the prior
@@ -571,8 +571,8 @@ export class HarnessDispatch {
     return "";
   }
 
-  /** The scope token of a branch frame — the {base7}..{head7} range (the evidence
-   *  file name's `tasks-{SCOPE}-` spine for branch-family work rounds). */
+  /** The scope token of a branch frame — the {base7}..{head7} range (the spine of
+   *  the branch-family evidence file name's `{branch}-{SCOPE}-` form). */
   #scopeOf(frame: OpenFrame): string {
     if (frame.target.kind === "branch") {
       return `${frame.target.base.slice(0, 7)}..${frame.target.head.slice(0, 7)}`;
@@ -580,12 +580,15 @@ export class HarnessDispatch {
     return "";
   }
 
-  /** The fix round's fixed point — the source review's reviewed base (only present
-   *  facts land: an unreadable source review yields the empty slot, never a guess). */
+  /** The fix round's fixed point — the source review's reviewed HEAD (the state the
+   *  fix builds on — the shell's "the prior handoff's `commits.head`"; §3.7 closeout).
+   *  Only present facts land: an unreadable source review yields the empty slot,
+   *  never a guess; a review draft carrying only its reviewed base falls back to it. */
   #fixedPoint(frame: OpenFrame, params: OpenFrame["params"]): string {
     const carried = this.#scene.ledger.readHandoff("review", frame.type, params);
-    const base = (carried?.commits as { base?: unknown } | undefined)?.base;
-    return typeof base === "string" ? base : "";
+    const commits = carried?.commits as { base?: unknown; head?: unknown } | undefined;
+    const anchor = typeof commits?.head === "string" ? commits.head : commits?.base;
+    return typeof anchor === "string" ? anchor : "";
   }
 
   /** The RETURN_STDOUT_BLOCK child stdout → the outcome: the three canonical lines
@@ -647,12 +650,14 @@ export class HarnessDispatch {
       face === "findings" ? schema.rollup(findings) : this.#workStatus(draft);
     let reason: string | null = null;
     // The evidence gate (v1.9) — the work faces (implement/fix task+branch) write
-    // the canonical `tasks-{SCOPE}-test-evidence.json` under the workspace; the docs
-    // faces (review/docs-fix) carry no evidence file. The read-back is REAL — a
+    // the canonical `{family-prefix}-{SCOPE}-test-evidence.json` under the workspace
+    // (§3.7 naming: tasks- for the task families, branch- for the branch fix); the
+    // docs faces (review/docs-fix) carry no evidence file. The read-back is REAL — a
     // missing/schema-violating file rewrites the draft to BLOCKED.
     if (face === "work") {
+      const prefix = this.#evidencePrefix(frame);
       const scope = frame.params.tasks ?? this.#scopeOf(frame);
-      const evidenceName = `tasks-${scope}-test-evidence.json`;
+      const evidenceName = `${prefix}-${scope}-test-evidence.json`;
       const evidencePath = scene.workspace.resolve(evidenceName);
       const evidence = scene.workspace.readJson<unknown>(evidenceName);
       const evidenceProblems = schema.evidenceViolations(evidence);
@@ -738,7 +743,15 @@ export class HarnessDispatch {
     const op = this.#opOf(frame);
     const face = this.#familyOf(op, frame.type).schema ?? "work";
     const evidence = face === "work";
-    return new HandoffSchema().schemaText(face, evidence);
+    const prefix = evidence ? this.#evidencePrefix(frame) : "tasks";
+    return new HandoffSchema().schemaText(face, evidence, prefix);
+  }
+
+  /** The evidence file's family prefix (§3.7 naming) — the task-family work rounds
+   *  use the canonical `tasks-` prefix; the branch fix uses the `branch-` family
+   *  prefix (never the misleading tasks- spine). */
+  #evidencePrefix(frame: OpenFrame): string {
+    return frame.type === "task" ? "tasks" : "branch";
   }
 
   /** The op.type family record — the engine-config handoff namespace single truth

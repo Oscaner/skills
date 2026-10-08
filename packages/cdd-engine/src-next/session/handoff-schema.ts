@@ -167,11 +167,17 @@ export class HandoffSchema {
    *  subset in a ```json fence + (task-family work rounds) the evidence file's
    *  schema in a second fence. The text is byte-stable per (face, evidence) —
    *  the fixed bytes of the dispatch prompt's contract surface. */
-  schemaText(face: HandoffSchemaFace, evidence: boolean): string {
+  /** Projection ① — the `## Handoff schema` section text: the face's writable
+   *  subset in a ```json fence + (work faces) the evidence file's schema in a second
+   *  fence. The text is byte-stable per (face, evidence, prefix) — the fixed bytes
+   *  of the dispatch prompt's contract surface. The evidence prefix is the family
+   *  spine (§3.7 naming: `tasks-` for the task families, `branch-` for the branch
+   *  fix — a branch evidence file never carries the misleading tasks- prefix). */
+  schemaText(face: HandoffSchemaFace, evidence: boolean, evidencePrefix = "tasks"): string {
     const carrier = this.#json(BY_FACE[face]);
     let text = `Write the handoff draft at \`OUTPUT_HANDOFF\` per this writable subset — the engine validates it, then materializes the final carrier in place; fields not listed here are engine-reserved, do not write them.\n\n\`\`\`json\n${carrier}\n\`\`\``;
     if (evidence) {
-      text += `\n\nThe evidence file (\`tasks-{SCOPE}-test-evidence.json\` under \`WORKSPACE_DIR\`) must comply with this schema — the engine reads it back with the same stakes:\n\n\`\`\`json\n${this.#json(EVIDENCE)}\n\`\`\``;
+      text += `\n\nThe evidence file (\`${evidencePrefix}-{SCOPE}-test-evidence.json\` under \`WORKSPACE_DIR\`) must comply with this schema — the engine reads it back with the same stakes:\n\n\`\`\`json\n${this.#json(EVIDENCE)}\n\`\`\``;
     }
     return text;
   }

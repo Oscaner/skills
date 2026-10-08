@@ -515,7 +515,8 @@ export class HarnessDispatch {
       ROLE: role,
       // v1.22 (wave-unitary): the wave face's scope IS the wave (the whole task list)
       // — the round context speaks the UNIT, `WAVE`; the line faces carry their own
-      // read-side identity (INPUT_RANGE/INPUT_DOC/INPUT_PLAN — the retired SCOPE).
+      // read-side identity (INPUT_RANGE/INPUT_DOC/INPUT_PLAN — the line faces' own
+      // tokens under the wave-unitary model).
       WAVE: isWave ? (params.tasks ?? "") : "",
       INPUT_WAVE_BRIEF: this.#waveBrief(frame, scene, op),
       INPUT_RULES: scene.workspace.resolve("plan-constraints.md"),
@@ -571,9 +572,9 @@ export class HarnessDispatch {
     return "";
   }
 
-  /** The scope token of a branch frame — the {base7}..{head7} range (the spine of
-   *  the branch-family evidence file name's `{branch}-{SCOPE}-` form). */
-  #scopeOf(frame: OpenFrame): string {
+  /** The key token of a branch frame — the {base7}..{head7} range (the spine of
+   *  the branch-family evidence file name's `{branch}-{key}-` form). */
+  #keyOf(frame: OpenFrame): string {
     if (frame.target.kind === "branch") {
       return `${frame.target.base.slice(0, 7)}..${frame.target.head.slice(0, 7)}`;
     }
@@ -650,14 +651,14 @@ export class HarnessDispatch {
       face === "findings" ? schema.rollup(findings) : this.#workStatus(draft);
     let reason: string | null = null;
     // The evidence gate (v1.9) — the work faces (implement/fix task+branch) write
-    // the canonical `{family-prefix}-{SCOPE}-test-evidence.json` under the workspace
+    // the canonical `{family-prefix}-{key}-test-evidence.json` under the workspace
     // (§3.7 naming: tasks- for the task families, branch- for the branch fix); the
     // docs faces (review/docs-fix) carry no evidence file. The read-back is REAL — a
     // missing/schema-violating file rewrites the draft to BLOCKED.
     if (face === "work") {
       const prefix = this.#evidencePrefix(frame);
-      const scope = frame.params.tasks ?? this.#scopeOf(frame);
-      const evidenceName = `${prefix}-${scope}-test-evidence.json`;
+      const key = frame.params.tasks ?? this.#keyOf(frame);
+      const evidenceName = `${prefix}-${key}-test-evidence.json`;
       const evidencePath = scene.workspace.resolve(evidenceName);
       const evidence = scene.workspace.readJson<unknown>(evidenceName);
       const evidenceProblems = schema.evidenceViolations(evidence);

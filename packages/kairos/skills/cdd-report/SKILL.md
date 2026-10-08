@@ -5,7 +5,9 @@ description: Analyzes the current CDD session for bugs and enhancement opportuni
 
 # Kairos CDD-Report
 
-Analyze the current CDD session (session context records + `{repo}/.kairos/cdd/*/progress.md` ledger + git log) to find bugs and enhancements, then file **one aggregate issue** on `Oscaner/skills` via `gh`. Confirmed findings that dedup-match an existing open issue are recorded as links — in the new issue body's Dedup region when an issue is created, else in the links-only list (`report-links-only`) when every finding matched — no per-finding comments are filed, and no issue is ever touched outside its creation. The flow is a one-shot toolchain: `explore-current-session → collect → reform → confirm → dedup → create-issue? → {create-issue | report-links-only} → APPROVED`. Findings never include branch names, absolute paths, or filenames by default. The issue body is produced by the renderer CLI `cdd issue render` — a bare-call single entry (stdin findings JSON → aggregate body → stdout, no mode flag). Repo development tool, not a regular workflow skill. Manual trigger only, never automatic.
+Analyzes the current CDD session (session context records + `{repo}/.kairos/cdd/*/progress.json` ledgers + git log) and files one aggregate issue on `Oscaner/skills` via `gh` — or a links-only list when every confirmed finding dedup-matches an open issue — as a one-shot toolchain, manual trigger only.
+
+**Invocation discipline** — Direct invocation — read the full output (stdout/stderr); the engine truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture. **One-shot toolchain** — the flow is a single pass to the terminal (no review self-loop, no `next:` consumption); a rejected confirm or a failed create ends the chain with the finding preserved for manual retry. **Failure face** — cross-node failure handling lives in the Failure Modes table below (the single source); node `Fail` entries keep only local behavior.
 
 ## Flow Digraph
 
@@ -39,12 +41,12 @@ flowchart TD
 
 ### `collect`
 
-- **Do**: Collect candidate findings from the session's reference sources — ① session context records: tool-call records / errors / handoff / review findings visible in this session; ② ledger: `{repo}/.kairos/cdd/*/progress.md` files, extracting lines containing `fix round` / `BLOCKED` / `parked` / `CHANGES_REQUESTED`; ③ git log: `git log $(git merge-base HEAD origin/main)..HEAD --oneline`, falling back to a recent-scope log when `origin/main` is unavailable. These sources are described for reference, not as a fixed channel contract — in practice the surface flexes with the task; every candidate passes the **toolchain scope filter** regardless of how it surfaced.
+- **Do**: Collect candidate findings from the session's reference sources — ① session context records: tool-call records / errors / handoff / review findings visible in this session; ② ledger: `{repo}/.kairos/cdd/*/progress.json` files — the JSON ledger read face: per run, read the `waves[]` rows' `rounds{}` records (the completed round counts per mode — implement/review/fix — and the failure counters) and surface findings from the runs whose records show fix rounds, blocked/failed reviews, or parked states; the retired text-line extraction no longer applies; ③ git log: `git log $(git merge-base HEAD origin/main)..HEAD --oneline`, falling back to a recent-scope log when `origin/main` is unavailable. These sources are described for reference, not as a fixed channel contract — in practice the surface flexes with the task; every candidate passes the **toolchain scope filter** regardless of how it surfaced.
   Apply the **toolchain scope filter**: a candidate enters the list only when it satisfies both —
   - **component slot**: the affected component is in the `components` enumeration (e.g. `kairos:cdd-report`（pi：/skill:cdd-report）, `cdd-engine`);
   - **behavior predicate**: the finding touches a toolchain artifact — cdd command output / handoff / progress ledger / issue form / skill flow node.
   Consumer-project domain rules (e.g. a missing ruff config in the consumer project, a project-specific test flake) are **rejected samples**: component-free findings never enter the list. Redact secrets: replace any match of `API_KEY=...` / `TOKEN=...` / `SECRET=...` / `PASSWORD=...` with `[REDACTED]` before a finding leaves this node.
-- **Read**: session context records; `{repo}/.kairos/cdd/*/progress.md`; git log
+- **Read**: session context records; `{repo}/.kairos/cdd/*/progress.json`; git log
 - **Exit**: filtered findings → `reform`
 - **Fail**: ledger / git log unavailable → use session context only (fail-open, never block)
 
@@ -83,7 +85,7 @@ flowchart TD
 ### `create-issue`
 
 - **Do**: Compose and file the single aggregate issue.
-  1. **Render** the body with the renderer CLI bare call: `cdd issue render` reading stdin JSON `{ harness, findings, related }` → aggregate body straight to stdout. The stdin contract: top-level `harness` (Session row value) / `findings[]` (non-empty) / optional `related`; per finding, `type ∈ {bug, enhancement}` · `lang ∈ {en, zh}` · non-empty `context`/`problem`/`impact`/`suggestedFix` · `meta{skill, step}`. Input violations → exit 1 with the offending field path (e.g. `findings[0].type: must be one of bug | enhancement`) — fix the stdin JSON and retry; never hand-assemble the body.
+  1. **Render** the body with the renderer CLI bare call: `npx -y @oscaner-skills/cdd-engine@latest issue render` reading stdin JSON `{ harness, findings, related }` → aggregate body straight to stdout. The stdin contract: top-level `harness` (Session row value) / `findings[]` (non-empty) / optional `related`; per finding, `type ∈ {bug, enhancement}` · `lang ∈ {en, zh}` · non-empty `context`/`problem`/`impact`/`suggestedFix` · `meta{skill, step}`. Input violations → exit 1 with the offending field path (e.g. `findings[0].type: must be one of bug | enhancement`) — fix the stdin JSON and retry; never hand-assemble the body.
   2. **Body layout** (renderer-produced, deterministic): `## Session` region with one `- Harness: <harness>` row; per finding, its four typed segments (section headings from the canonical `sectionLabels` oracle by type × lang) each followed by its 2-line report-meta `- Skill: <skill>` / `- Step: <step>` — position adjacency is the ownership declaration; single tail regions `## Dedup` (all open hits) and `## Related` (all closed hits + program ownership), never per-finding.
   3. **Create** with `gh issue create --repo Oscaner/skills --title <topic> --labels kairos,cdd-engine` and the rendered body. Program ownership — the session's program-owning issue — is passed as `related.program` and renders as `- Program: #N` in the Related region.
 - **Read**: renderer CLI (bare call); confirmed findings + topic; dedup decisions; Session Context (harness / program-owning issue)
@@ -110,7 +112,7 @@ flowchart TD
 |---|---|
 | I1 | **Confirm Gate** — no gh issue is created before explicit user confirmation (hard gate at `confirm`); dedup matches are recorded in the new issue body only, never acted on as comments on existing issues |
 | I3 | **Manual Trigger Only** — cdd-report runs only on manual trigger, never automatically |
-| I5 | **Renderer Determinism** — the issue body is produced by `cdd issue render` as a bare call (stdin JSON → aggregate body → stdout, no mode flag, no hand-assembled paragraph structure in this skill) |
+| I5 | **Renderer Determinism** — the issue body is produced by `npx -y @oscaner-skills/cdd-engine@latest issue render` as a bare call (stdin JSON → aggregate body → stdout, no mode flag, no hand-assembled paragraph structure in this skill) |
 | I6 | **Evidence Contract** — findings never carry consumer-identifiable data (branch names, absolute paths, filenames, process counts, RSS values, launch dirs, session habits) — such context enters only on consumer opt-in at `confirm` — AND findings always describe a maintainer-reproducible mechanism (trigger conditions / mechanism / expected behavior / reproduction steps) |
 | I8 | **One-shot chain** — the flow is a single pass to the terminal (no review self-loop, no `next:` consumption); a rejected confirm or a failed create terminates the chain with the finding preserved for manual retry |
 

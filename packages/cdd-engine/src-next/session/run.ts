@@ -18,7 +18,7 @@
 // Module-level exports are types / the class / one empty-state data const — zero
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
-import type { DispatchPhase, ReviewLead, TargetFace, TargetType } from "./faces.ts";
+import type { DispatchPhase, ReviewLead, RouteTarget, TargetFace, TargetType } from "./faces.ts";
 import type {
   HandoffParams,
   Ledger,
@@ -105,8 +105,17 @@ export type DispatchStep = (frame: OpenFrame) => DispatchOutcome;
  *  attachCapsule only renders the step's round facts when a capsule is connected. */
 export interface CapsuleFace {
   /** Render the capsule lines for one round's facts — byte-stable `status · blocker
-   *  · handoff` plus the optional `next:` line (the words ride the face's word table). */
-  emit(status: string, blocker: string, handoff: string, next?: Route | string | null): string[];
+   *  · handoff` plus the optional `next:` line (the words ride the face's word
+   *  table). The additive optional RouteTarget supplies the dispatch frame's own
+   *  type + id for the dispatch-ready `next:` literal (v1.25 — the 4-param call
+   *  stays valid: the target is an optional 5th). */
+  emit(
+    status: string,
+    blocker: string,
+    handoff: string,
+    next?: Route | string | null,
+    target?: RouteTarget | null,
+  ): string[];
 }
 
 /** One advance step's result — the facts the caller drives on. */
@@ -467,7 +476,10 @@ export class Lifecycle {
   }
 
   /** The capsule lines of one step — empty unless a capsule is attached (the non-hard
-   *  interaction point). The blocker cell carries the round's blocker count. */
+   *  interaction point). The blocker cell carries the round's blocker count; the
+   *  dispatch-ready `next:` literal rides the frame's own RouteTarget identity
+   *  (type + id — the v1.25 combination point: frame.type + params.tasks + route
+   *  are all present here). */
   #capsuleLines(
     frame: OpenFrame,
     outcome: DispatchOutcome,
@@ -479,6 +491,27 @@ export class Lifecycle {
       (finding) => finding.severity === "blocker",
     ).length;
     const handoff = this.#ledger.handoffPath(op, frame.type, frame.params);
-    return this.#capsule.emit(outcome.status, String(blockers), handoff, route);
+    return this.#capsule.emit(
+      outcome.status,
+      String(blockers),
+      handoff,
+      route,
+      this.#routeTarget(frame),
+    );
+  }
+
+  /** The frame's RouteTarget — the dispatch-ready literal's target identity (the
+   *  frame's own facts: the wave task key · the branch range token · the doc path).
+   *  `type` rides the wave target type; `id` the frame's parameters. */
+  #routeTarget(frame: OpenFrame): RouteTarget | null {
+    switch (frame.type) {
+      case "wave":
+        return { type: "wave", id: frame.params.tasks ?? "" };
+      case "branch":
+        return { type: "branch", id: `${frame.params.base7}..${frame.params.head7}` };
+      case "spec":
+      case "plan":
+        return { type: frame.type, id: (frame.target as { kind: "doc"; doc: string }).doc };
+    }
   }
 }

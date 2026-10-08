@@ -35,6 +35,16 @@ export type AuditFace =
   /** spec/plan: the open item is the audit document path. */
   | { kind: "doc-path" };
 
+/** The target identity a dispatch-ready `next:` literal renders (v1.25) — the
+ *  frame's OWN facts (verb + target-type + id), never a router judgment: the wave
+ *  task key · the branch range token · the doc path. */
+export interface RouteTarget {
+  /** The target-type word of the literal (`wave` / `branch` / `spec` / `plan`). */
+  type: TargetType;
+  /** The target id — the wave key `"1,2"` · the range `base7..head7` · the doc path. */
+  id: string;
+}
+
 /**
  * One row of the faces table — the parameterized lifecycle's per-type variance
  * (the design spec §3.3 divergence parameters: audit target / product face / next

@@ -379,3 +379,85 @@ describe("round — the round carrier", () => {
     }
   });
 });
+
+describe("review references — the refKind face (T25 · P5)", () => {
+  it("the four-kind classification — one target type → one ref kind (the four typed families)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const refs = ledger.refs();
+      expect(refs.kindOf("wave")).toBe("commit-set-ledger");
+      expect(refs.kindOf("branch")).toBe("commit-range");
+      expect(refs.kindOf("spec")).toBe("doc-revision");
+      expect(refs.kindOf("plan")).toBe("doc-revision");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the four ref families derive their typed records (the commit-set ledger · the commit range · the two-layer doc revision · the graph node)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const refs = ledger.refs();
+      const commitSet = refs.commitSet("1,2", { base: BASE, head: HEAD } as const);
+      expect(commitSet).toEqual({
+        kind: "commit-set-ledger",
+        wave: "1,2",
+        commits: { base: BASE, head: HEAD },
+      } as const);
+      const commitRange = refs.commitRange(BASE, HEAD);
+      expect(commitRange).toEqual({ kind: "commit-range", base: BASE, head: HEAD } as const);
+      // the doc-revision two-layer binding — the doc path + the content-hash revision
+      const docRef = refs.docRevision("docs/kairos/specs/x-design.md", "revision one");
+      expect(docRef.kind).toBe("doc-revision");
+      expect(docRef.doc).toBe("docs/kairos/specs/x-design.md");
+      expect(docRef.doc_hash).toMatch(/^[0-9a-f]{40}$/);
+      // the same content hashes the same revision — the two-layer convergence
+      const docRefAgain = refs.docRevision("docs/kairos/specs/x-design.md", "revision one");
+      expect(docRefAgain.doc_hash).toBe(docRef.doc_hash);
+      // a different revision hashes differently — the revision layer is content-bound
+      const edited = refs.docRevision("docs/kairos/specs/x-design.md", "revision two");
+      expect(edited.doc_hash).not.toBe(docRef.doc_hash);
+      const graphNode = refs.graphNode(7);
+      expect(graphNode).toEqual({ kind: "graph-node", node: 7 } as const);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the same-ref ruling — the SAME doc revision bound twice is rejected (the same-ref reject negative)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const refs = ledger.refs();
+      const docRef = refs.docRevision("docs/kairos/specs/x-design.md", "revision one");
+      expect(refs.bind(docRef)).toBe(docRef);
+      // the identical ref (same doc + same hash) is the SAME ref → rejected
+      const duplicate = refs.docRevision("docs/kairos/specs/x-design.md", "revision one");
+      expect(refs.bind(duplicate)).toBeNull();
+      // a different revision of the same doc is NOT the same ref → binds
+      const edited = refs.docRevision("docs/kairos/specs/x-design.md", "revision two");
+      expect(refs.bind(edited)).toBe(edited);
+      // a different doc is never the same ref
+      const otherDoc = refs.docRevision("docs/kairos/specs/y-design.md", "revision one");
+      expect(refs.bind(otherDoc)).toBe(otherDoc);
+      expect(refs.bound()).toHaveLength(3);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the same-ref ruling across families — ranges, waves and nodes", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const refs = ledger.refs();
+      const range = refs.commitRange(BASE, HEAD);
+      expect(refs.bind(range)).toBe(range);
+      expect(refs.bind(refs.commitRange(BASE, HEAD))).toBeNull();
+      expect(refs.bind(refs.commitSet("1", { base: BASE, head: HEAD }))).not.toBeNull();
+      expect(refs.bind(refs.commitSet("1", { base: BASE, head: HEAD }))).toBeNull();
+      expect(refs.bind(refs.graphNode(3))).not.toBeNull();
+      expect(refs.bind(refs.graphNode(3))).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+});

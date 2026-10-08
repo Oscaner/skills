@@ -358,7 +358,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       ]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 · handoff: ");
-      expect(io.stdoutText).toContain(`next: review ${head.slice(0, 7)}`);
+      expect(io.stdoutText).toContain(`next: review wave 1 (base ${head.slice(0, 7)})`);
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       const progress = readJson<{ waves: unknown[] }>(path.join(workspace, "progress.json"));
       expect(progress.waves).toContainEqual({ wave: "1", rounds: { implement: 1 } });
@@ -533,7 +533,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       expect(io.stdoutText).toContain("status: CHANGES_REQUESTED · blocker: 1 · handoff: ");
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       expect(io.stdoutText).toContain(
-        `next: ${path.join(workspace, "tasks-1-review-1.json")} ${FIX_READBACK_SUFFIX}`,
+        `next: fix wave 1 --findings ${path.join(workspace, "tasks-1-review-1.json")} ${FIX_READBACK_SUFFIX}`,
       );
     } finally {
       cleanup();
@@ -575,7 +575,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       ]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 · handoff: ");
-      expect(io.stdoutText).toContain(`next: review ${head.slice(0, 7)}`);
+      expect(io.stdoutText).toContain(`next: review wave 1 (base ${head.slice(0, 7)})`);
       expect(existsSync(path.join(workspace.path, "tasks-1-fix-1.json"))).toBe(true);
     } finally {
       cleanup();
@@ -1114,7 +1114,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(call.args).not.toContain("/mattpocock-skills:implement");
       const prompt = call.args[call.args.length - 1];
       expect(prompt.startsWith("/mattpocock-skills:implement ")).toBe(true);
-      // v1.8 — the mode 分派表 + the 规整命名 grammar (ROLE/SCOPE · INPUT_/OUTPUT_/WORKSPACE_)
+      // v1.8 — the mode dispatch table + the normalized naming grammar (ROLE/WAVE · INPUT_/OUTPUT_/WORKSPACE_)
       expect(prompt).toContain("- `ROLE`: implement");
       expect(prompt).toContain("- `WAVE`: 1");
       expect(prompt).toContain(`- \`WORKSPACE_DIR\`: ${scene.workspace.path}`);

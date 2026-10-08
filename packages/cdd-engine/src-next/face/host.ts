@@ -62,6 +62,15 @@ export interface HostCacheSpec {
  *  (no ref to prefix — the URC-prose rows). */
 export type PromptForm = "ref-prefixed" | "plain";
 
+/** One harness's capability facts (T25 — the capabilities per-harness declaration):
+ *  the tested dispatch faces, one data column per row, zero prose. */
+export interface HostCapabilities {
+  /** The parallel sub-agent dispatch face — `true` the measured face (claude),
+   *  `"pending"` the not-yet-exercised marker (cursor/pi — the per-tested stance,
+   *  the install `"pending"` pattern). */
+  parallel: boolean | "pending";
+}
+
 /** One per-harness host row — the adaptation facts the engine + guards consume. */
 export interface HostRow {
   /** The host harness CLI binary. */
@@ -81,6 +90,8 @@ export interface HostRow {
   install: Readonly<Record<string, readonly string[] | "pending">>;
   /** The prompt-cache facts. */
   cache: HostCacheSpec;
+  /** The capability facts — the tested dispatch-face columns (T25). */
+  capabilities: HostCapabilities;
 }
 
 /** A review dispatch row — an object-shaped slot naming its ref key (the note face
@@ -114,12 +125,40 @@ export type HostReferenceForm = Readonly<Record<HostId, string>>;
 /** The full reference table — every `<pkg>:<skill>` cross-skill reference key. */
 export type HostReferenceTable = Readonly<Record<string, HostReferenceForm>>;
 
-/** The typed harness contract — hosts + dispatch + refs (one constant, the single
- *  harness-adaptation truth; zero `_doc`/`$schema` prose). */
+/** The ordered skill chains (T25 · the ordered-chain rendering consumption) — each
+ *  chain is the ORDERED ref keys of one deliverable line; the per-harness slash
+ *  forms derive from the REFS table (claude/cursor `/<ref>` · pi `/skill:<bare>`),
+ *  so a chain renders the dual forms hop by hop (the cdd-dev dispatch chain · the
+ *  five-skill deliverable line). Typed data — the skills' ordered ref consumption
+ *  rides these rows, never a hand-written second list. */
+export const CHAINS = {
+  /** The five-skill deliverable line — design → spec → plan → dev → close. */
+  skillLine: [
+    "kairos:cdd-design",
+    "kairos:cdd-spec-writer",
+    "kairos:cdd-plan",
+    "kairos:cdd-dev",
+    "kairos:cdd-close",
+  ],
+  /** The dev dispatch chain — cdd-dev's ordered dispatch faces (implement →
+   *  review → close; the fix face converges through the same review ref). */
+  devDispatch: [
+    "kairos:cdd-dev",
+    "mattpocock-skills:implement",
+    "mattpocock-skills:code-review",
+    "kairos:cdd-close",
+  ],
+} as const;
+
+/** The ordered-chain map key — one chain per declared identity. */
+export type ChainKey = keyof typeof CHAINS;
+
+/** The extended typed harness contract — hosts + dispatch + refs + chains. */
 export interface HostContract {
   hosts: Readonly<Record<HostId, HostRow>>;
   dispatch: DispatchTable;
   refs: HostReferenceTable;
+  chains: Readonly<Record<ChainKey, readonly string[]>>;
 }
 
 /** The per-harness install banners — the kairos self-install + the upstream plugin
@@ -161,6 +200,7 @@ export const HOSTS = {
       ttlMinutes: 5,
       observable: true,
     },
+    capabilities: { parallel: true },
   },
   cursor: {
     promptForm: "ref-prefixed",
@@ -176,6 +216,7 @@ export const HOSTS = {
       impeccable: "pending",
     },
     cache: { mechanism: "auto-prefix", minTokens: "pending", observable: false },
+    capabilities: { parallel: "pending" },
   },
   pi: {
     promptForm: "ref-prefixed",
@@ -191,6 +232,7 @@ export const HOSTS = {
       impeccable: ["npx impeccable install --providers=pi --scope=global -y"],
     },
     cache: { mechanism: "auto-prefix", minTokens: "pending", observable: false },
+    capabilities: { parallel: "pending" },
   },
 } as const satisfies Readonly<Record<HostId, HostRow>>;
 
@@ -277,9 +319,11 @@ export const REFS = {
   },
 } as const satisfies HostReferenceTable;
 
-/** The typed harness contract — one constant: hosts + dispatch + refs. */
+/** The typed harness contract — one constant: hosts + dispatch + refs + chains
+ *  (the single harness-adaptation truth; zero `_doc`/`$schema` prose). */
 export const HOST_CONTRACT = {
   hosts: HOSTS,
   dispatch: DISPATCH,
   refs: REFS,
+  chains: CHAINS,
 } as const satisfies HostContract;

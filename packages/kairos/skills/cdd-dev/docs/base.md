@@ -1,6 +1,6 @@
 # Base Branch Methodology & Artifact Schema
 
-Shared methodology for determining the **base branch** of a feature branch, and the artifact schema that persists the result. Consumed by `cdd-dev` (determine-base · set-base / branch-review) and `cdd-close` (reads `base.json` inside `run-cdd-close-session`) via the `cdd base` CLI.
+Shared methodology for determining the **base branch** of a feature branch, and the artifact schema that persists the result. Consumed by `cdd-dev` (determine-base · set-base / branch-review) and `cdd-close` (reads `base.json` inside `run-cdd-close-session`) via the `npx -y @oscaner-skills/cdd-engine@latest base` CLI.
 
 > Inference is orchestration responsibility; persistence is the engine's. The orchestrator infers, the engine writes and validates — no hand-written artifacts (the engine CLI is the sole write/read path).
 
@@ -11,7 +11,7 @@ Doc metadata — not an artifact section:
 - **Class**: methodology-doc
 - **Consumers**: `cdd-dev` (determine-base · set-base / branch-review) · `cdd-close` (reads `base.json` in `run-cdd-close-session`)
 - **Skeleton**: `Header` + `Section 0–5` fixed order — `Section 0–4` methodology body (Purpose → Inference order → Artifact schema → Scope resolution → CLI usage) + `Section 5` naming tail
-- **Canonical**: the `cdd base` command face of the engine CLI — the flag surface and the artifact schema this document mirrors; the doc and the CLI speak one vocabulary
+- **Canonical**: the `npx -y @oscaner-skills/cdd-engine@latest base` command face of the engine CLI — the flag surface and the artifact schema this document mirrors; the doc and the CLI speak one vocabulary
 
 ---
 
@@ -29,7 +29,7 @@ The base branch is determined by trying these sources **in order** and taking th
 
 **Fallback:** if none of the above yields a result, **ask the user** to confirm the base branch. Do not guess — a guessed base is a claim the merge will not honor; asking is the honest counterpart.
 
-For inference, these are the only channels: argv (the plan field) · git facts (branch upstream) · conversation context — the three input channels, no disk-resident context, and a source outside this list is not consulted for inference. The base may already be present in the artifact (`cdd base get --plan <path>`); the artifact read precedes the inference sequence — when the artifact is present, skip the inference channels and use the artifact value as-is.
+For inference, these are the only channels: argv (the plan field) · git facts (branch upstream) · conversation context — the three input channels, no disk-resident context, and a source outside this list is not consulted for inference. The base may already be present in the artifact (`npx -y @oscaner-skills/cdd-engine@latest base get --plan <path>`); the artifact read precedes the inference sequence — when the artifact is present, skip the inference channels and use the artifact value as-is.
 
 ## Section 2: Artifact schema
 
@@ -73,8 +73,8 @@ The engine CLI is the write/read path for the artifact — orchestrator skills d
 
 | Subcommand | Usage |
 |---|---|
-| `set` | `cdd base set --plan <path> --base <branch> --source <source> [--force]` → `<repoRoot>/.kairos/cdd/<slug>/base.json` |
-| `get` | `cdd base get --plan <path>` → artifact JSON on stdout |
+| `set` | `npx -y @oscaner-skills/cdd-engine@latest base set --plan <path> --base <branch> --source <source> [--force]` → `<repoRoot>/.kairos/cdd/<slug>/base.json` |
+| `get` | `npx -y @oscaner-skills/cdd-engine@latest base get --plan <path>` → artifact JSON on stdout |
 
 `set` is **repeatable, never a no-op**: every successful `set` writes a fresh artifact — `base` / `source` / `plan` taken from the command arguments, `recordedAt` = now. The existing artifact is read only to enforce the base-consistency guard: same `base` present → still rewritten, with `recordedAt` refreshed (the previous timestamp is never preserved); different `base` present → refused (exit 2, the artifact on disk stays untouched) unless `--force` passes a new `base`.
 

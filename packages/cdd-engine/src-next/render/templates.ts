@@ -25,10 +25,10 @@
 //     INPUT_CRITERIA / INPUT_LENS round-context tokens are gone) and each variant's
 //     fixed prefix is byte-stable — a review dispatch's cache prefix groups by type.
 //   · the normalized token vocabulary (§3.5): INPUT_* (read-side) / OUTPUT_* (write-
-//     side) / WORKSPACE_* (environment) / FIX_BASE (the fix anchor) / ROLE + SCOPE
-//     (the nominative identity). Round-context keys are the mode's consumption set —
-//     a key the shell never names is not declared (the fix round carries no INPUT_
-//     RULES).
+//     side) / WORKSPACE_* (environment) / FIX_BASE (the fix anchor) / ROLE (the
+//     nominative identity) / WAVE (the wave-unitary unit). Round-context keys are
+//     the mode's consumption set — a key the shell never names is not declared (the
+//     fix round carries no INPUT_ RULES).
 //
 // T15 v1.9 (the handoff contract-surface rework — §3.6) lands the schema injection
 // in the same plane: the `## Handoff schema` section at every shell's tail carries

@@ -5,14 +5,16 @@ description: Independent cdd-close orchestrator -- Node-anchored flow with digra
 
 # Kairos CDD-Close
 
-Development branch close-out: the imported upstream flow decides merge / PR / keep / discard, the finish gate routes the outcome, then related issues are closed. The flow ends at the finish gate + the terminal — a human-decision surface, not next-driven, with no review self-loop.
+Development branch close-out: the imported upstream flow decides merge / PR / keep / discard, the finish gate routes the outcome, then related issues are closed — a human-decision surface, not next-driven, with no review self-loop.
+
+**Invocation discipline** — every command runs as a direct tactical invocation: read the full output (stdout/stderr); output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture. **Finish is the terminal gate** — the finish decision is a human-decision surface: it ends the flow at the gate + terminal (no review self-loop); BLOCKED reasons ride the stderr `CDD_BLOCKED:` channel, no `next:` line is consumed here. **Failure face** — cross-node failure handling lives in the Failure Modes table below (the single source); node `Fail` entries keep only local behavior.
 
 ## Flow Digraph
 
 ```mermaid
 flowchart TD
   A[run-cdd-close-session] --> F{finish?}
-  A --> Z1((BLOCKED: install superpowers — see README 'Upstream dependency install'))
+  A --> Z1((BLOCKED: upstream plugin missing))
   F -->|decided| C[close-issues]
   F -->|menu exhausted| Z2((BLOCKED: menu exhausted))
   C --> K((APPROVED))
@@ -25,7 +27,7 @@ flowchart TD
 - **Do**: Import `/superpowers:finishing-a-development-branch`（pi：/skill:finishing-a-development-branch） — its flow is consumed inline as this session's baseline (loading an upstream skill imports its flow once; no second spawn) and runs its full finish loop (verify tests → read base → 4-option menu → execute merge / PR / keep / discard); it lands the finish decision that `finish?` gates on. **Upstream steps are not restated here.** Personal rules enforced at this boundary: normal-repo menu (No Worktrees); merge commit / PR title in conventional commits, PR body `## Summary` + `## Test Plan` only, zero attribution; the strict typed-discard gate — the literal `discard` only (case-sensitive, no leading/trailing whitespace); any other input falls back to the menu without resetting its presentation counter (3 attempts max → BLOCKED)
 - **Read**: landed finish decision + base branch (`.kairos/cdd/<slug>/base.json`, or inferred per the cdd-dev base resolution)
 - **Exit**: Finish decision landed (merged / PR created / kept / discarded) → `finish?`
-- **Fail**: Upstream superpowers plugin missing → BLOCKED (install superpowers — see the kairos README's 'Upstream dependency install' table); menu exhausted after 3 unrecognized inputs → BLOCKED (menu exhausted); tests red → BLOCKED (fix tests)
+- **Fail**: menu exhausted after 3 unrecognized inputs → BLOCKED (menu exhausted); tests red → BLOCKED (fix tests)
 
 ### `finish?`
 

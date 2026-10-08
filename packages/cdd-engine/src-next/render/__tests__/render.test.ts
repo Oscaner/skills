@@ -16,7 +16,7 @@ import { IssueBodyRenderer, type IssueReportInput } from "../issue-body.ts";
 import { TemplateAssembler } from "../templates.ts";
 
 /** The full per-dispatch slot values — every declared template token (the v1.8
- *  INPUT_/OUTPUT_/WORKSPACE_/FIX_BASE/ROLE/SCOPE vocabulary), optional slots
+ *  INPUT_/OUTPUT_/WORKSPACE_/FIX_BASE/ROLE/WAVE vocabulary), optional slots
  *  legitimately empty (an implement dispatch carries no review/fix slots; the
  *  review criteria/lens are NOT values — they fold into the review type's fixed
  *  prefix, §3.7). */

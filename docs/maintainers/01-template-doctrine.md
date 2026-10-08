@@ -7,7 +7,7 @@
 | Plane | Files | Product |
 |---|---|---|
 | Engine prompt templates | `packages/cdd-engine/templates/` — `engine-config.json` + `template-contract.json` + `schema/` (`task-handoff-schema.json` · `docs-handoff-schema.json` · `cache-profile-schema.json`) | prompts injected into dispatches |
-| Skill document templates | `packages/kairos/skills/*/docs/` — `base-branch.md` (methodology only; doc-structure content derives from the engine DocBody model — see §9) | artifact scaffolds + methodology the skills ship |
+| Skill document templates | `packages/kairos/skills/*/docs/` — `base.md` (methodology only; doc-structure content derives from the engine DocBody model — see §9) | artifact scaffolds + methodology the skills ship |
 
 ## 2. The five-node digraph
 
@@ -79,7 +79,7 @@ The segment attribute (C1) is the cache contract's landing spot: the shell (`## 
 
 ## 9. Experience baking
 
-Skill document templates additionally bake in the program's experience asset (see `04-program-experience.md`). Doc-structure content derives from the engine DocBody model — one concrete body per doc type (`src/documents/doctypes/body/*.ts`) projects three derived planes: the schema product (`projectSchemaShape()` → the diff-pinned `config/schema/*.json`), the parse slabber (`projectSlicePatterns()` → the `docContractValidate`/extractor regexes), the token plane (body leaf → `DOC_TOKENS`); skills consume the schema face via `cdd schema get <type>`. Content edits land in the body, never the derived files. `base-branch.md` is methodology only.
+Skill document templates additionally bake in the program's experience asset (see `04-program-experience.md`). Doc-structure content derives from the engine DocBody model — one concrete body per doc type (`src/documents/doctypes/body/*.ts`) projects three derived planes: the schema product (`projectSchemaShape()` → the diff-pinned `config/schema/*.json`), the parse slabber (`projectSlicePatterns()` → the `docContractValidate`/extractor regexes), the token plane (body leaf → `DOC_TOKENS`); skills consume the schema face via `cdd schema get <type>`. Content edits land in the body, never the derived files. `base.md` is methodology only.
 
 **Single grammar · unilateral edge · migration queue** — one plan/spec shape: legacy faces (`- **Do**:` blocks / Form B anchors / `## Task Groups` / `## Section 1`) BLOCK at `docContractValidate`; dispatch groups derive from the tasks' single `- **DependsOn**:` edge (lower-numbered only); legacy docs migrate into the canonical grammar until zero residue.
 

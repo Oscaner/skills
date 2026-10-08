@@ -55,7 +55,8 @@ export interface WaveVerdict {
   /** The derived open wave — frontier(closedWaves), ascending (both the split hint
    *  and the CLI's progress-marking read this). */
   open: readonly number[];
-  /** The open wave's per-task phases (the heterogeneous named-BLOCK display). */
+  /** The open wave's member phases — every task carries the WAVE's single phase
+   *  (the wave-unitary display: one ledger row per wave, never a per-task read). */
   phases?: readonly WavePhaseRow[];
 }
 

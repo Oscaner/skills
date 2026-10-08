@@ -50,8 +50,9 @@ export type CapsuleKey = "status" | "blocker" | "handoff";
 export type StationKind = "next" | "blocked" | "warn" | "cliMissing";
 
 /** The route classifier words — the station vocabulary the `next:` line renders
- *  (v1.20: the `none` word is retired — closure is `done`, never "no suggestion"). */
-export type RouteWordKind = "done" | "review" | "fix";
+ *  (v1.20: the `none` word is retired — closure is `done`, never "no suggestion";
+ *  v1.25: `implement` — the dispatch-ready `next:` literal's verb for a ready wave). */
+export type RouteWordKind = "done" | "review" | "fix" | "implement";
 
 /** The wave-gate BLOCK wording rows — the vocabulary the WaveGate verdicts render
  *  (v1.21 词表钉: the gate's prompt wording rides the word table, never a CLI literal).
@@ -86,6 +87,7 @@ export const CAPSULE_WORDS = {
     done: "done",
     review: "review",
     fix: "fix",
+    implement: "implement",
   } as const,
   /** The wave-gate BLOCK wording rows (v1.21) — the highest-arity pre-flight refusal
    *  vocabulary, single-sourced (the gate fills the placeholders, never a re-type). */
@@ -228,7 +230,7 @@ export class Words implements WordLocaleFace {
     return CAPSULE_WORDS.stations[kind];
   }
 
-  /** One route classifier word (`done` / `review` / `fix`). */
+  /** One route classifier word (`done` / `review` / `fix` / `implement`). */
   routeWord(kind: RouteWordKind): string {
     return CAPSULE_WORDS.routeWords[kind];
   }

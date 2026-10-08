@@ -3,8 +3,9 @@
 // carry ZERO retired "blocker count" reading vocabulary and ZERO self-narrated S1/S2/S3 status→dispatch
 // routing restatement (the retired "review closes in three segments … S1 → fix + re-review / S2 → fix
 // closing round / S3 → done" prose and the retired "reads `status:` for routing" reading) — routing is
-// read off the output's `next:` route fact (the engine's default next-step, C5-0: dispatch per it
-// when continuing directly; a mid-backfill or a user adjudication that lands governs over it). The
+// read off the output's `next:` dispatch-ready line (the v1.25 literal — verb + target-type + id +
+// payload, the literal IS the dispatch, no kind→command mapping layer; a mid-backfill or a user
+// adjudication that lands governs over it). The
 // status vocabulary survives only as the closure anchors in the Review Convergence wording (the
 // loop is the unified NEXT-LOOP hub — the retired `{status?}` decision node is gone, §4.2), never
 // as narrated routing. The check reads the skill files directly (pure node:test, no shell grep
@@ -46,16 +47,17 @@ const FORBIDDEN: Array<[string, RegExp]> = [
 
 // Required anchors — the convergence vocabulary that must be present in every carrier: the unified
 // loop hub (the NEXT-LOOP digraph node), the status closure vocabulary, the `next:`-based routing
-// vocabulary (the unified reading wording, the engine's-default shared reference, the dispatch-per-it
-// directive, and the I6 mid-backfill compatibility sentence).
+// vocabulary (the unified reading wording, the engine's-default shared reference, the dispatch-as-written
+// directive, and the I6 mid-backfill compatibility sentence). The next: reading is the v1.25
+// dispatch-ready literal stance — read the `next:` line and dispatch it as written.
 const REQUIRED: Array<[string, RegExp]> = [
   ["the unified NEXT-LOOP loop hub", /NEXT-LOOP/],
   ["S1 status anchor CHANGES_REQUESTED", /\bCHANGES_REQUESTED\b/],
   ["S2 status anchor REVIEW_FIX", /\bREVIEW_FIX\b/],
   ["S3 status anchor APPROVED", /\bAPPROVED\b/],
-  ["the unified `next:` reading wording", /read the `next:` suggestion/],
-  ["the shared next-step reference (engine's default)", /default next-step suggestion/],
-  ["the dispatch-per-it directive", /dispatch per it/],
+  ["the unified `next:` reading wording", /read the `next:` line/],
+  ["the shared next-step reference (engine's default)", /default next step/],
+  ["the dispatch-as-written directive", /dispatch it as written/],
   ["the I6 mid-backfill compatibility wording", /mid-backfill/],
 ];
 
@@ -85,7 +87,7 @@ for (const name of CARRIERS) {
         skill,
         re,
         `${name}/SKILL.md still carries the retired ${label} — the fix/review routing is read off the ` +
-          `engine's \`next:\` suggestion line, never hand-narrated from a status mapping`,
+          `engine's \`next:\` dispatch-ready line, never hand-narrated from a status mapping`,
       );
     }
   });
@@ -96,7 +98,7 @@ for (const name of CARRIERS) {
         skill,
         re,
         `${name}/SKILL.md is missing the ${label} — Review Convergence must stay status-anchored in ` +
-          `the digraph and route through the \`next:\` suggestion`,
+          `the digraph and route through the \`next:\` dispatch-ready line`,
       );
     }
   });

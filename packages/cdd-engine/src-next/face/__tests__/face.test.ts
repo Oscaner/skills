@@ -58,6 +58,7 @@ describe("the word table — one table, three families", () => {
     expect(words.routeWord("done")).toBe("done");
     expect(words.routeWord("review")).toBe("review");
     expect(words.routeWord("fix")).toBe("fix");
+    expect(words.routeWord("implement")).toBe("implement");
   });
 
   it("the guard family — the STALE / GATE / shape ban rows, one flat scan set", () => {
@@ -108,7 +109,8 @@ describe("the capsule byte pin — the single output face", () => {
     ]);
     expect(capsule.emit("APPROVED", "0", "/h.json", { kind: "next-wave", tasks: "7,9" })).toEqual([
       "status: APPROVED · blocker: 0 · handoff: /h.json",
-      "next: 7,9",
+      // v1.25 — the ready wave renders the dispatch-ready verb + type + key
+      "next: implement wave 7,9",
     ]);
     expect(capsule.emit("REVIEW_FIX", "0", "/h.json", { kind: "review", base })).toEqual([
       "status: REVIEW_FIX · blocker: 0 · handoff: /h.json",
@@ -137,6 +139,54 @@ describe("the capsule byte pin — the single output face", () => {
     ).toEqual([
       "status: BLOCKED · blocker: 0 · handoff: /h.json",
       "next: BLOCKED: review-cycle-cap — user adjudicates",
+    ]);
+  });
+
+  it("renders the dispatch-ready `next:` literal with the frame's RouteTarget (v1.25)", () => {
+    const base = "a".repeat(40);
+    const target = { type: "wave", id: "1,2" } as const;
+    // a re-review of a wave — `review wave {tasks} (base {base7})`
+    expect(capsule.emit("REVIEW_FIX", "0", "/h.json", { kind: "review", base }, target)).toEqual([
+      "status: REVIEW_FIX · blocker: 0 · handoff: /h.json",
+      "next: review wave 1,2 (base aaaaaaa)",
+    ]);
+    // the one-way fix hop — `fix wave {tasks} --findings {path} (read file back)`
+    expect(
+      capsule.emit(
+        "CHANGES_REQUESTED",
+        "1",
+        "/h.json",
+        { kind: "fix", findings: "tasks-1,2-review-1.json" },
+        target,
+      ),
+    ).toEqual([
+      "status: CHANGES_REQUESTED · blocker: 1 · handoff: /h.json",
+      `next: fix wave 1,2 --findings tasks-1,2-review-1.json ${FIX_READBACK_SUFFIX}`,
+    ]);
+    // the fragment identity renders the other target types — `review branch base7..head7`
+    expect(
+      capsule.emit(
+        "REVIEW_FIX",
+        "0",
+        "/h.json",
+        { kind: "review", base },
+        { type: "branch", id: "1234567..89abcde" },
+      ),
+    ).toEqual([
+      "status: REVIEW_FIX · blocker: 0 · handoff: /h.json",
+      "next: review branch 1234567..89abcde (base aaaaaaa)",
+    ]);
+    expect(
+      capsule.emit(
+        "REVIEW_FIX",
+        "0",
+        "/h.json",
+        { kind: "review", base },
+        { type: "spec", id: "docs/kairos/specs/x-design.md" },
+      ),
+    ).toEqual([
+      "status: REVIEW_FIX · blocker: 0 · handoff: /h.json",
+      "next: review spec docs/kairos/specs/x-design.md (base aaaaaaa)",
     ]);
   });
 

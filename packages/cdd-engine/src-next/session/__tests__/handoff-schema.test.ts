@@ -98,6 +98,9 @@ describe("projection ② — the read-back validation (violations)", () => {
     expect(
       schema.violations("work", { status: "APPROVED", artifacts: {}, phase: "implement" }),
     ).toEqual(["phase: not a declared field"]);
+    expect(schema.violations("work", { status: "APPROVED", artifacts: {}, tasks: [1] })).toEqual([
+      "tasks: not a declared field",
+    ]);
     expect(schema.violations("findings", { findings: [], status: "APPROVED" })).toEqual([
       "status: not a declared field",
     ]);

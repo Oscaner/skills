@@ -222,7 +222,7 @@ export const SKILL_ANATOMY = {
     branchLoopRule:
       "the executor chain's branch-review loop is its own `until next=done` closed loop — the branch-review↔branch-fix edges form the independent cycle and branch-fix never routes into the NEXT-LOOP hub (the implementation loop and the branch loop are separate closures)",
     routeFactRule:
-      "next: is consumed as a Route fact (kind + payload) mapped to the concrete command — a full cdd command string never follows the next: token on a line; BLOCKED/TIMEOUT carry no next line and are not consumed as next steps",
+      "next: is consumed as a dispatch-ready literal (verb + target-type + id + payload — the literal IS the dispatch, no kind→command mapping layer); a full cdd command string never follows the next: token on a line; BLOCKED/TIMEOUT carry no next line and are not consumed as next steps",
   },
   // The engine-lexicon pinned condition words (v1.20 词表钉) — the phrase set the
   // digraph's loop/closure decision edges may carry: the NEXT-LOOP phrases + the

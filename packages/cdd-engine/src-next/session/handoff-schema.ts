@@ -173,7 +173,7 @@ export class HandoffSchema {
     const carrier = this.#json(BY_FACE[face]);
     let text = `Write the handoff draft at \`OUTPUT_HANDOFF\` per this writable subset — the engine validates it, then materializes the final carrier in place; fields not listed here are engine-reserved, do not write them.\n\n\`\`\`json\n${carrier}\n\`\`\``;
     if (evidence) {
-      text += `\n\nThe evidence file (\`${evidencePrefix}-{SCOPE}-test-evidence.json\` under \`WORKSPACE_DIR\`) must comply with this schema — the engine reads it back with the same stakes:\n\n\`\`\`json\n${this.#json(EVIDENCE)}\n\`\`\``;
+      text += `\n\nThe evidence file (\`${evidencePrefix}-{key}-test-evidence.json\` under \`WORKSPACE_DIR\`) must comply with this schema — the engine reads it back with the same stakes:\n\n\`\`\`json\n${this.#json(EVIDENCE)}\n\`\`\``;
     }
     return text;
   }

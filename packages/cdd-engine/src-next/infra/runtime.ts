@@ -127,7 +127,7 @@ export const ARGV_CHANNEL = {
 } as const satisfies Readonly<Record<string, ChannelArgRow>>;
 
 /** The handoff family naming table — the canonical per-family file-name patterns
- *  keyed by `op.type` (implement.task / review.task / … — the ledger's single
+ *  keyed by `op.type` (implement.wave / review.wave / … — the ledger's single
  *  naming truth, verbatim from the engine-config handoff namespace). The v1.9
  *  reparametrization: `returnFormat` is gone (RETURN_STDOUT_BLOCK is the one return
  *  contract) and the `schema` faces are the handoff-schema selector (work / findings —

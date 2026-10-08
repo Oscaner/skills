@@ -21,6 +21,7 @@
 // Module-level exports are types / constant data / the class — zero behavior-
 // carrying bare functions (the plan's zero-bare-function discipline).
 
+import { createHash } from "node:crypto";
 import type { ConfigLoader } from "../infra/config.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
 import type { Workspace } from "../infra/workspace.ts";
@@ -166,6 +167,146 @@ export interface HandoffParams {
 }
 
 // ---------------------------------------------------------------------------
+// review references — the refKind face (T25 · P5)
+// ---------------------------------------------------------------------------
+
+/** The review-reference kinds — the four typed review-ref families (T25): the
+ *  commit-set-ledger ref (a wave's committed set, read from the ledger round
+ *  carriers · the wave face) · the commit-range ref (a branch's full-sha range) ·
+ *  the doc-revision ref (a spec/plan review's two-layer document ref — the doc
+ *  path + its content-hash revision, the `doc_hash` binding) · the graph-node ref
+ *  (a plan-graph task-node identity). Every review ref resolves to one of the
+ *  four — the typed data the review-ref derivation lands, zero prose. */
+export type RefKind = "commit-set-ledger" | "commit-range" | "doc-revision" | "graph-node";
+
+/** The commit-set-ledger ref — a wave's committed set, read from the ledger's
+ *  implement round carrier (the reviewed `base..head` range). */
+export interface CommitSetLedgerRef {
+  kind: "commit-set-ledger";
+  /** The wave key the committed set belongs to. */
+  wave: string;
+  /** The committed range the review audits. */
+  commits: { base: string; head?: string };
+}
+
+/** The commit-range ref — a branch review's full-sha base..head range. */
+export interface CommitRangeRef {
+  kind: "commit-range";
+  base: string;
+  head: string;
+}
+
+/** The doc-revision ref — the spec/plan review's two-layer ref: the document path
+ *  AND its revision (the content-hash `doc_hash` binding — the same document
+ *  revision reviewed twice is the same ref, rejected by the same-ref ruling). */
+export interface DocRevisionRef {
+  kind: "doc-revision";
+  /** The document path — the first layer of the two-layer ref. */
+  doc: string;
+  /** The document revision — the sha1 content hash of the reviewed file. */
+  doc_hash: string;
+}
+
+/** The graph-node ref — a plan-graph task-node identity (a review of one node of
+ *  the task graph, independent of its commit state). */
+export interface GraphNodeRef {
+  kind: "graph-node";
+  /** The plan task node id. */
+  node: number;
+}
+
+/** The typed review ref — the four-kind union (T25). */
+export type ReviewRef = CommitSetLedgerRef | CommitRangeRef | DocRevisionRef | GraphNodeRef;
+
+/**
+ * ReviewRefs — the typed review-reference face (T25): the four-kind classification
+ * (`kindOf`), the doc-revision two-layer binding (`docRevision` — the doc hash
+ * from its content), the per-kind ref constructors and the same-ref reject
+ * (`bind` — the SAME identity already bound returns null: a duplicate review of
+ * the same revision is refused, never silently re-reviewed). The face is the
+ * ledger's review-ref derivation point — typed data, zero prose.
+ */
+export class ReviewRefs {
+  /** The refs bound in this face — the same-ref reject basis. */
+  #bound: ReviewRef[] = [];
+
+  /** The four-way classification — one target type → one ref kind (the single
+   *  kindOf mapping; variants ride the row, never a lifecycle edit). */
+  kindOf(type: TargetType): RefKind {
+    switch (type) {
+      case "wave":
+        return "commit-set-ledger";
+      case "branch":
+        return "commit-range";
+      case "spec":
+      case "plan":
+        return "doc-revision";
+    }
+  }
+
+  /** The commit-set-ledger ref constructor — a wave's committed range. */
+  commitSet(wave: string, commits: { base: string; head?: string }): CommitSetLedgerRef {
+    return { kind: "commit-set-ledger", wave, commits };
+  }
+
+  /** The commit-range ref constructor — a branch's full-sha range. */
+  commitRange(base: string, head: string): CommitRangeRef {
+    return { kind: "commit-range", base, head };
+  }
+
+  /** The doc-revision two-layer binding — the doc path + the content-hash revision
+   *  (sha1 of the reviewed file content — the second layer of the doc ref). */
+  docRevision(doc: string, content: string | Buffer): DocRevisionRef {
+    return { kind: "doc-revision", doc, doc_hash: this.#hash(content) };
+  }
+
+  /** The graph-node ref constructor — a plan-graph task node identity. */
+  graphNode(node: number): GraphNodeRef {
+    return { kind: "graph-node", node };
+  }
+
+  /** The same-ref reject — bind a ref; the SAME identity already bound → null (the
+   *  duplicate review refused), else the bound ref returns. Every bound ref adds to
+   *  the face's set (the reject basis). */
+  bind(ref: ReviewRef): ReviewRef | null {
+    if (this.#bound.some((existing) => this.sameRef(existing, ref))) return null;
+    this.#bound.push(ref);
+    return ref;
+  }
+
+  /** The ref-identity predicate — two refs are the SAME ref when their identity
+   *  layers match (the doc + its hash · the range's both ends · the wave key ·
+   *  the node id); a differing kind is never the same ref. */
+  sameRef(a: ReviewRef, b: ReviewRef): boolean {
+    if (a.kind !== b.kind) return false;
+    switch (a.kind) {
+      case "commit-set-ledger":
+        return a.wave === (b as CommitSetLedgerRef).wave;
+      case "commit-range": {
+        const other = b as CommitRangeRef;
+        return a.base === other.base && a.head === other.head;
+      }
+      case "doc-revision": {
+        const other = b as DocRevisionRef;
+        return a.doc === other.doc && a.doc_hash === other.doc_hash;
+      }
+      case "graph-node":
+        return a.node === (b as GraphNodeRef).node;
+    }
+  }
+
+  /** The bound refs — the face's reject basis, read-only. */
+  bound(): readonly ReviewRef[] {
+    return [...this.#bound];
+  }
+
+  /** The content-hash revision — sha1 hex of the reviewed file content. */
+  #hash(content: string | Buffer): string {
+    return createHash("sha1").update(content).digest("hex");
+  }
+}
+
+// ---------------------------------------------------------------------------
 // the ledger
 // ---------------------------------------------------------------------------
 
@@ -182,10 +323,18 @@ export class Ledger {
   /** The C5 next router — the closure-side judge of the round carriers (stateless;
    *  the `closedWaves()` read face and the wave gate share the same router). */
   readonly #router = new NextStepRouter();
+  /** The review-reference face (T25) — the refKind classification + the same-ref
+   *  reject, one instance per ledger (the run's bound refs). */
+  readonly #refs = new ReviewRefs();
 
   constructor(workspace: Workspace, config: ConfigLoader) {
     this.#workspace = workspace;
     this.#families = config.handoffNamespace().families;
+  }
+
+  /** The review-reference face — the refKind four-type derivation + binding (T25). */
+  refs(): ReviewRefs {
+    return this.#refs;
   }
 
   // ---- the single author's write/read primitives ----

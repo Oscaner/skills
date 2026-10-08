@@ -159,8 +159,9 @@ function runNode(args: string[], cwd: string): { code: number; stdout: string; s
 
 /** The capsule contract — the last stdout block carries the status capsule + the
  *  `next:` suggestion line (the engine's single result surface). The route-face
- *  words (v1.20: `done` terminal · the next-wave task list · `review <base>` ·
- *  `fix` + the readback suffix · the soft-cap message) — `none` is retired. */
+ *  words (v1.25 dispatch-ready literals: `done` terminal · `implement wave {tasks}`
+ *  · `review <type> <id> (base …)` · `fix <type> <id> --findings …` + the readback
+ *  suffix · the soft-cap message) — `none` is retired. */
 function assertCapsule(stdout: string, command: string): void {
   const lines = stdout.trim().split("\n");
   const capsule = lines.find((l) => l.startsWith("status:") && l.includes("blocker:"));
@@ -176,7 +177,7 @@ function assertCapsule(stdout: string, command: string): void {
   );
   const next = lines.find((l) => l.startsWith("next:"));
   assertOk(
-    next !== undefined && /^next: (done$|review |fix($| )|BLOCKED:|\d)/.test(next!),
+    next !== undefined && /^next: (done$|implement wave|review |fix($| )|BLOCKED:)/.test(next!),
     `next: line missing or malformed for ${command}: ${JSON.stringify(next)}`,
   );
   // Zero old-shape stdout key lines (the 4-line block is retired).

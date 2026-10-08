@@ -1,10 +1,12 @@
 // packages/cdd-engine/src-next/face/graph-view.ts
-// T24 (v1.15) — the plan-graph terminal display. `renderMermaidASCII` from
-// `beautiful-mermaid` renders a `flowchart LR` into box-drawing ASCII (the ELK layout
-// engine does the real layered placement — §3.8's third-party render decision):
-// the engine EMITS the flowchart string from the TaskGraph report (node labels carry
-// the progress markers), never hand-rolls a layout. Two consumers share the report:
-// the `cdd schema get plan-graph` read and the dispatch/review pre-flight output.
+// T24 (v1.15 — the plan-graph read) — the plan-graph terminal display. `beautiful-
+// mermaid`'s renderMermaidASCII renders a `flowchart LR` into box-drawing ASCII with
+// the ELK layout (§3.8's third-party render). The engine EMITS the flowchart from the
+// TaskGraph report (progress markers on the nodes — ✔ done · ▶ current-wave member)
+// and appends the WAVE CHAIN as a clean one-line legend below the graph — the
+// derived wave order stays explicit without tangling the DAG with subgraph bands.
+// Two consumers share the report: the `cdd schema get plan-graph` read and the
+// dispatch/review pre-flight.
 //
 // Module-level exports are the class — zero behavior-carrying bare functions.
 
@@ -15,35 +17,46 @@ import type { TaskGraphReport } from "../session/graph.ts";
 const LEGEND = "progress: ✔ done · ▶ current wave";
 
 /** GraphView — the terminal box-drawing DAG display. One render from the shared
- *  TaskGraph report; the mermaid emission is a data projection (node ids carry a
- *  `T` prefix — mermaid node ids must not start with a digit). */
+ *  TaskGraph report; the node markers + the wave-chain line are a data projection. */
 export class GraphView {
-  /** render(report, title) → the box-drawing DAG + the legend (the plan read + the
-   *  pre-flight display call the same face). */
+  /** render(report, title) → the box-drawing DAG + the wave-chain line + the legend
+   *  (the plan read and the pre-flight display call the same face). */
   render(report: TaskGraphReport, title: string): string {
     const done = new Set(report.done);
-    const current = new Set(report.current ?? []);
-    const nodes: string[] = [];
-    const edges: string[] = [];
+    const currentIndex = report.waves.findIndex((wave) => wave.some((id) => !done.has(id)));
+    const current = new Set(report.waves[currentIndex] ?? []);
+    const lines: string[] = ["flowchart LR"];
     for (const [task, deps] of Object.entries(report.edges)) {
       const id = Number(task);
       const marker = current.has(id) ? " ▶" : done.has(id) ? " ✔" : "";
-      nodes.push(`  T${id}["T${id}${marker}"]`);
-      for (const dep of deps) edges.push(`  T${dep} --> T${id}`);
+      lines.push(`  T${id}["T${id}${marker}"]`);
+      for (const dep of deps) lines.push(`  T${dep} --> T${id}`);
     }
-    const mermaid = ["flowchart LR", ...nodes, ...edges].join("\n");
-    // Compact display (the plan-graph read is a glance, not a report): the ASCII
-    // style (§3.8's renderer options) uses thin single-line boxes + tight node
-    // spacing — the Unicode box-drawing default is tall and wide at the plan scale.
+    const mermaid = lines.join("\n");
+    // Clean Unicode box-drawing at a tuned scale (tight box padding + modest node
+    // spacing); the wave bands are NOT mermaid subgraphs — they tangle the ELK
+    // layout at the plan scale, so the wave chain rides its own line below.
     let ascii = renderMermaidASCII(mermaid, {
-      useAscii: true,
+      useAscii: false,
       paddingX: 4,
-      paddingY: 2,
+      paddingY: 3,
       boxBorderPadding: 0,
       colorMode: "none",
     });
     if (ascii.length === 0) ascii = this.#fallback(report);
-    return `${title}\n\n${ascii}\n\n${LEGEND}\ncurrent: {${(report.current ?? []).join(", ")}} · pending: {${report.pending.join(", ")}}`;
+    return `${title}\n\n${ascii}\n\nwave chain:\n${this.#waveChain(report, currentIndex)}\n\n${LEGEND}\ncurrent: {${(currentIndex >= 0 ? report.waves[currentIndex] : []).join(", ")}} · pending: {${report.pending.join(", ")}}`;
+  }
+
+  /** The wave-chain line — the derived wave order with the done/current markers
+   *  (`W0{1} ✔ → … → ▶ W11{16,22,24} → W12{25} → W13{17}`). */
+  #waveChain(report: TaskGraphReport, currentIndex: number): string {
+    return report.waves
+      .map((wave, index) => {
+        const done = wave.every((id) => report.done.includes(id));
+        const marker = index === currentIndex ? " ▶" : done ? " ✔" : "";
+        return `W${index}{${wave.join(",")}}${marker}`;
+      })
+      .join(" → ");
   }
 
   /** A failure of the renderer never blanks the read — a plain fallback line (only

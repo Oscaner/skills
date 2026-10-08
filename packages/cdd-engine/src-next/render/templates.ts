@@ -24,16 +24,15 @@
 //     not emitted — 空值键不发).
 //   · the normalized token vocabulary (§3.5 规整命名): INPUT_* (read-side) /
 //     OUTPUT_* (write-side) / WORKSPACE_* (environment) / FIX_BASE (the fix anchor) /
-//     ROLE + SCOPE (the nominative identity). The old MODE/DISPATCH_UNIT/BRIEF/…
-//     names are gone (零旧名残留 grep).
+//     ROLE + SCOPE (the nominative identity). The pre-v1.8 token names are gone
+//     (zero old-name residue).
 //
-// T15 v1.9 (the handoff 契约面 rework — §3.6) lands the schema injection in the
-// same plane: the `## Handoff schema` section at every mode shell's tail carries the
-// {{HANDOFF_SCHEMA}} slot (projection ① of session/handoff-schema.ts — the same
-// declared objects the engine validates the draft against, projection ②). The
-// `## Handoff` prose section and the HANDOFF_WRITE_GATE gate are DELETED; the
-// RETURN_JSON / DOCS_FIX return faces are retired — RETURN_STDOUT_BLOCK is the ONE
-// return contract (child 产出一律落盘: the block's three lines are the pointer; the
+// T15 v1.9 (the handoff contract-surface rework — §3.6) lands the schema injection
+// in the same plane: the `## Handoff schema` section at every mode shell's tail
+// carries the {{HANDOFF_SCHEMA}} slot (projection ① of session/handoff-schema.ts —
+// the same declared objects the engine validates the draft against, projection ②).
+// The handoff-format prose is gone; RETURN_STDOUT_BLOCK is the ONE return contract
+// (child output always lands on disk: the block's three lines are the pointer; the
 // content lives in the draft file the engine reads back).
 //
 // P5 (M1) supersede: the implement mode's dispatch wording names the upstream
@@ -252,9 +251,9 @@ const MODE_PROMPTS: Readonly<Record<WorkMode, ModePromptRow>> = {
   },
 };
 
-/** The `## Return` zone — the single block contract (v1.9: RETURN_JSON and DOCS_FIX
- *  are retired — the child's content lives in the draft file, the block is the
- *  three-line pointer every mode returns). */
+/** The `## Return` zone — the single block contract (v1.9: the child's content
+ *  lives in the draft file, the block is the three-line pointer every mode
+ *  returns). */
 const RETURN_ZONE: ReturnZone = {
   RETURN_STDOUT_BLOCK: [
     "## Return",
@@ -359,7 +358,7 @@ export class TemplateAssembler {
   }
 
   /** The return formats the contract declares — the single block contract (v1.9:
-   *  RETURN_JSON / DOCS_FIX retired). */
+   *  one format; every pre-v1.9 return variant is retired). */
   returnFormats(): readonly string[] {
     return Object.keys(this.#contract.return);
   }

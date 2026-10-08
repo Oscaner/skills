@@ -464,14 +464,14 @@ export class HarnessDispatch {
 
   /** The phase's skill-ref slash form for the detected host ("/mattpocock-skills:tdd"
    *  etc.); null when the dispatch table names a URC prose instead of a ref (the
-   *  spec/plan reviews — the prose rides REVIEW_AXES, no slash arg). */
+   *  spec/plan reviews — the prose rides INPUT_CRITERIA, no slash arg). */
   #skillRef(host: string, frame: OpenFrame): string | null {
     const dispatch = DISPATCH;
     let ref: unknown = null;
     if (frame.phase === "review" || frame.phase === "branch-review") {
       // The task/branch rows are object-shaped {ref}; the spec/plan rows stay the URC
       // prose string. The slash form resolves from the row's ref either way, falling
-      // back to null for the prose rows (REVIEW_AXES only).
+      // back to null for the prose-only rows (the review criteria ride INPUT_CRITERIA).
       const entry = dispatch.review[frame.type];
       const declaredRef = typeof entry === "string" ? entry : entry.ref;
       ref =

@@ -1,10 +1,8 @@
 // packages/cdd-engine/src-next/session/handoff-schema.ts
 // T15 v1.9 — the handoff schema face (design spec §3.6): the child's writable handoff
-// contract as ONE typed declaration with TWO projections. The old-tree handoff schema
-// was a config/schema JSON file loaded by Ajv and injected via
-// renderHandoffSchemaJson; the cutover deleted both, and the v1.7 三连裁定 re-seats
-// the structural constraint as a typed declaration living in this module — zero
-// config/schema/*.json files, one source, two consumers:
+// contract as ONE typed declaration with TWO projections. The cutover deleted the old
+// JSON schema file together with its Ajv loader; the structural constraint now lives
+// here as a typed declaration — zero JSON schema files, one source, two consumers:
 //
 //   · projections: ① the prompt-injection text (schemaText — the ```json fences
 //     byte-fixed per face, so the fixed prefix tail of the dispatch prompt stays
@@ -119,9 +117,9 @@ const CARRIER_FINDINGS: SchemaNode = {
 };
 
 /** The test-evidence file schema — the evidence gate's engine read-back contract
- *  (the second散文虚设补钉: the old prompt claimed an engine read-back the engine
- *  never performed; now both projections are real). A task-family work round missing
- *  or violating this file rewrites the round to BLOCKED. */
+ *  (the second fix for a prose-only claim: the old prompt asserted an engine read-back
+ *  that the engine never performed; now both projections perform it). A task-family
+ *  work round missing or violating this file rewrites the round to BLOCKED. */
 const EVIDENCE: SchemaNode = {
   type: "object",
   required: ["command", "exit_code", "passed", "warnings_count", "typecheck"],
@@ -205,8 +203,8 @@ export class HandoffSchema {
   }
 
   /** The review conclusion rollup — status derived from the findings severities
-   *  (the rollup the old RETURN_JSON face performed; a review never carries a
-   *  child-authored status). */
+   *  (the rollup the retired JSON-return channel performed; a review never carries
+   *  a child-authored status). */
   rollup(findings: readonly unknown[]): RoundStatus {
     const blockers = findings.filter(
       (finding) => (finding as { severity?: unknown } | null)?.severity === "blocker",

@@ -2,9 +2,9 @@
 
 **Spec:** [2026-10-02-doc-architecture-v2-p3.2-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3.2-design.md)
 
-- **Parent program**: [2026-10-02-doc-architecture-v2-overall.md v1.23](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.7 · 2026-10-08（**反依赖门放开 backfill——T24 边违约五类收编 + 环活门**——用户 2026-10-08 拍板「放开『任务只能依赖更小编号』约束，Wave 编排完全基于 DependsOn 推导」：TaskGraph contradiction 边违约类退役 · **前向引用合法**（`- **DependsOn**:` 可指向任意现存任务 id）· **cycle 类活门**（环 = 具名违约 · doc-contract 早拦/评审派发 BLOCK）· **编号降级 ID + 波内升序 tiebreak** · referenceLint 新增**编号/拓扑序 advisory WARN**（只警不拦）· 引擎面 = **新任务 T24（W12 · DependsOn 2,5,6,15）** · 技能面 cdd-plan 作者句随波收敛——spec v1.5 随 · 现 plan 全低编号边零迁移）；前置 v1.6 · 2026-10-08（**`next:` 形式补钉**——用户 2026-10-08 拍板「先落补钉再执行」：胶囊 `next:` 渲染 = Route 事实（kind+载荷 · 非完整 cdd 命令）——Route 事实型钉入 T7 · 渲染断言钉入 T10 capsule 面，T16 技能面以「事实 → 命令映射」为消费前提——旧树命令式提示取消的涌现形态补为决策）；前置 v1.5 · 2026-10-08（**T23 next fix 面 readback 后缀**——用户 2026-10-08 拍板「NextStepRouter `kind: fix` 时补 `(first read <findings> back to confirm)`」：旧树 readbackWording 设计意图于新架构落地为纯文案提示 · 机械防线由 ledger round/C5-1 兜 · 编排方是否遵守非强约束——plan review-2 闭合后追加）；前置 v1.4 · 2026-10-07（前置 v1.3 = P7 提前承接 backfill——T19 翻译系统 · T20 base 命令面；**v1.4 = P4/P5/P6/P7 全吸收 + 数据面归位 backfill**——用户 2026-10-07 拍板「config-next 完成以后删除 config」+「都是一体的」+「吸收进 P3.2」升华：**T21 数据面归位**（三稳态 JSON → typed 平面 infra/runtime · face/host · render/templates，P4/P5 承接净入——M1 supersede · refs 登记 · 三处禁文删除 · review 准则收口 · 零读 config/ · 导出面保持）· **T22 宪法化承接（P6）**（overall 拆宪法/archive · 版本行散文消解 · Standing rules 成典 · 全树 4 overalls）· **T15 扩域删 config/**（整目录零残留，零重建）· T14 认领 skill-anatomy 归位 · T16 CLAUDE.md/README 数据面同步——overall v1.23 · spec v1.4 随））））
-- **Depends on**: P3.1（Done）· P3.2 design spec v1.5（Approved · 2026-10-08）
+- **Parent program**: [2026-10-02-doc-architecture-v2-overall.md v1.24](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
+- **Version**: v1.8 · 2026-10-08（**T22 单文件裁定 + dispatch 调用面纪律 + child prompt 分派表 backfill**——用户 2026-10-08 拍板三连，spec v1.6 随：① **T22 宪法化折为单文件**（overall 保持一份文件、零 `-archive.md`——宪法化 = 单文件内结构化收敛（Standing rules 成典 · 版本行 lineage 消解 → 结构化修订记录 · change-history cell → 结构化 record）· declare.ts 登记行不简化 · 全树 4 overalls 同口径迁移）· ② **T15 cutover 首验补丁**（新引擎 dispatch child 缺 prompt——slash-ref 独立位置参数被 claude 吞 → HOSTS `promptForm` 数据列 + 单位置参数 + 真实探针双门槛，T13 假阳「新树全绿」补密钥）· ③ **child prompt 分派表**（mode 分派表 + 每 mode 固定前缀缓存友好 + per-mode round context 精简子集 + 参数规整命名 INPUT_/OUTPUT_/WORKSPACE_/FIX_BASE/ROLE/SCOPE——T11/T12/T13 面随波收敛，T15 实现收口））；前置 v1.7 · 2026-10-08（**反依赖门放开 backfill——T24 边违约五类收编 + 环活门**——用户 2026-10-08 拍板「放开『任务只能依赖更小编号』约束，Wave 编排完全基于 DependsOn 推导」：TaskGraph contradiction 边违约类退役 · **前向引用合法**（`- **DependsOn**:` 可指向任意现存任务 id）· **cycle 类活门**（环 = 具名违约 · doc-contract 早拦/评审派发 BLOCK）· **编号降级 ID + 波内升序 tiebreak** · referenceLint 新增**编号/拓扑序 advisory WARN**（只警不拦）· 引擎面 = **新任务 T24（W12 · DependsOn 2,5,6,15）** · 技能面 cdd-plan 作者句随波收敛——spec v1.5 随 · 现 plan 全低编号边零迁移）；前置 v1.6 · 2026-10-08（**`next:` 形式补钉**——用户 2026-10-08 拍板「先落补钉再执行」：胶囊 `next:` 渲染 = Route 事实（kind+载荷 · 非完整 cdd 命令）——Route 事实型钉入 T7 · 渲染断言钉入 T10 capsule 面，T16 技能面以「事实 → 命令映射」为消费前提——旧树命令式提示取消的涌现形态补为决策）；前置 v1.5 · 2026-10-08（**T23 next fix 面 readback 后缀**——用户 2026-10-08 拍板「NextStepRouter `kind: fix` 时补 `(first read <findings> back to confirm)`」：旧树 readbackWording 设计意图于新架构落地为纯文案提示 · 机械防线由 ledger round/C5-1 兜 · 编排方是否遵守非强约束——plan review-2 闭合后追加）；前置 v1.4 · 2026-10-07（前置 v1.3 = P7 提前承接 backfill——T19 翻译系统 · T20 base 命令面；**v1.4 = P4/P5/P6/P7 全吸收 + 数据面归位 backfill**——用户 2026-10-07 拍板「config-next 完成以后删除 config」+「都是一体的」+「吸收进 P3.2」升华：**T21 数据面归位**（三稳态 JSON → typed 平面 infra/runtime · face/host · render/templates，P4/P5 承接净入——M1 supersede · refs 登记 · 三处禁文删除 · review 准则收口 · 零读 config/ · 导出面保持）· **T22 宪法化承接（P6）**（overall 拆宪法/archive · 版本行散文消解 · Standing rules 成典 · 全树 4 overalls）· **T15 扩域删 config/**（整目录零残留，零重建）· T14 认领 skill-anatomy 归位 · T16 CLAUDE.md/README 数据面同步——overall v1.23 · spec v1.4 随））））
+- **Depends on**: P3.1（Done）· P3.2 design spec v1.6（Approved · 2026-10-08）
 - **Base**: develop
 
 执行序：新树 `src-next` 自底向上建齐（骨架 → contract → session → face → infra/render → bin）→ 引擎测试全绿 → `scripts-next` 重写 → cutover（入口切换 + 删旧树 + **`scripts-next` → `scripts` 改名**）→ 技能 8→6 → 终验。新旧零依赖贯穿全计划（T1 起 grep 断言、每任务自测）。
@@ -239,9 +239,12 @@
   - 删旧 `src/` 旧平面目录 + `scripts/` 旧工具 + `config/` 旧数据面（skill-anatomy 无读者——T14 已归位引擎导出）— checkable: 三目录不存在（`test ! -d`）；删除提交本身走新 precommit 面（链已重连，无 ENOENT）
   - `scripts-next` → `scripts` 改名（spec §6.1 工具链终态占回规范名：旧 `scripts/` 已删无同名冲突；root package.json 四项 scripts 的 `scripts-next/run.ts` 引用随之单点更新为 `scripts/run.ts`，与 CLAUDE.md 关键命令面 `scripts/run.ts emit` 命令面一致）— checkable: `test ! -d scripts-next` · `pnpm run validate/emit` 经 `scripts/run.ts` 新链绿
   - 零残留 grep 作用于引擎/脚本/**数据面**（cdd-engine 旧符号 · scripts/ 旧分组/旧 helper 名 · `scripts-next` 名零残留——唯一工具链名为 `scripts/` · `config/` slash 路径形在 src-next 面零命中——新树零 config 引用面，T21 后已清零） — checkable: 引擎/脚本/数据面残留 grep 断言绿（技能文件残留归 T16/T17 swap，不在本 grep 作用域）
+  - **dispatch 调用面收口（v1.8 · T15 cutover 首验）**：HOSTS 加 `promptForm` 数据列（prompt 位置语义）· `#childPrompt` 单位置参数（skill-ref 前缀并入 prompt 首行）· child prompt mode 分派表（每 mode 固定前缀 + per-mode round context 精简子集 + INPUT_/OUTPUT_/WORKSPACE_/FIX_BASE/ROLE/SCOPE 规整命名）· 真实 CLI 探针验证 prompt 到达 child（FakeSync 桩 + 真实探针双门槛）— checkable: `claude -p` 探针回显 marker · 分派表/命名零旧名残留 grep · 测试全绿
   - commit `refactor(engine): cutover 切 src-next + 删旧树·旧数据面 + scripts-next→scripts 改名`（大删 + 改名，经重连后的新 precommit 面提交）
+  - commit（dispatch 收口，如 cutover 后另有提交）`fix(engine): dispatch child prompt 分派表 + 调用面数据化`——B+C 改动独立提交，随 T15 评审
 - **Acceptance**:
   - 活跃入口全指新树；引擎/脚本/**数据面**旧树零残留（grep 断言：src-next 无 `config/` slash 路径命中 · `config/` 目录不存在 · `scripts-next` 改名后零残留）；**T21 数据面归位先于 T15 达成**（DependsOn 21 为硬前置——config/ 零读面清零后才删）；更新后引擎 CLI 从新树跑通六命令；root `pnpm run validate/precommit/emit` 经 `scripts/run.ts` 新链绿（**`scripts/run.ts` 为唯一工具链名**）——删除旧树提交即走新 precommit 面
+  - **dispatch 调用面（v1.8）**：HOSTS `promptForm` 列 · child prompt 单位置参数（零独立 ref 位置参数 · grep 反断言）· mode 分派表 + per-mode round context 精简 · 规整命名零旧名残留 · 真实探针双门槛 · 测试全绿——T15 向「引擎 CLI 从新树跑通」的首次真实验证
 - **DependsOn**: 14, 21
 
 ### Task 16: 技能 8→6 重写 + skill-anatomy + emit 再生 + README
@@ -345,21 +348,21 @@
   - 三 JSON 零残留（grep）；`config/` 在 src-next 面零路径命中；禁文全删（grep 零）；M1 supersede 落（dispatch.implement = mattpocock-skills:implement）；review 准则收口；全树测试绿（src-next vitest + kairos）；导出面稳定（T14 消费编译绿）
 - **DependsOn**: 11, 12, 13
 
-### Task 22: 宪法化承接——P6（overall 拆宪法/档案）
+### Task 22: 宪法化承接——P6（overall 单文件结构化收敛 · v1.8 单文件裁定）
 
-- **Objective**: 用户 2026-10-07 拍板吸收 P6——overall 文档**宪法/档案双层**：`2026-10-02-doc-architecture-v2-overall.md` 拆「宪法本体（Goal / Standing rules 规范化折叠 / Cross-cutting / Phase inventory / Dependency graph）+ `-archive.md`（issue/history 结构化 record + doc-revision ref 机械化 backfill）」· **版本行 lineage 散文消解**（telescope 尾链 → 结构化修订记录）· change-history 巨型 cell → 结构化 record · **Standing rules「空壳、死代码即删」成典常态化**（已被 T15 删旧实证）· archive 精确命名定（v1.0「Archive 命名归 P6 定义」承诺通道落）· 全树 4 overalls 同口径迁移（内容逐字 · 容器改造 · 历史正文零 retro-rename）· **登记表行随**（declare.ts overall 登记行认可新形——新引擎 doc-contract 门对新形走通）
-- **Files**: `docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md`（改：宪法/档案拆层 + 版本行/修订记录结构化）· `docs/kairos/specs/2026-10-02-doc-architecture-v2-overall-archive.md`（新建：issue/history 结构化 record）· 全树其余 3 overalls（改：同口径迁移）· `src-next/contract/declare.ts`（改：overall 登记行随新形）· `src-next/contract/__tests__/declare.test.ts`（改）
+- **Objective**: 用户 2026-10-07 拍板吸收 P6、**2026-10-08 拍板收敛单文件**（「不需要 overall-archive.md——overall 变两份文件增加消费者心智负担」）——overall 保持一份文件、零 `-archive.md`、零新增 artifact（spec v1.6 §6.5 · overall v1.24 File paths 承诺通道关闭）：**版本行 lineage 散文消解**（telescope 尾链 → 结构化修订记录）· change-history 巨型 cell → 结构化 record · **Standing rules「空壳、死代码即删」成典常态化**（已被 T15 删旧实证）· 全树 4 overalls 同口径迁移（内容逐字 · 容器改造 · 历史正文零 retro-rename）——**declare.ts 登记行不简化**（Issue inventory/Change history 保持 required，零引擎改动，doc-contract 门对单文件新形走通）
+- **Files**: `docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md`（改：单文件宪法化——版本行 lineage 消解 + 修订记录结构化 + Standing rules 成典 cell）· 全树其余 3 overalls（改：同口径迁移）· `src-next/contract/declare.ts`（改：登记行定案——不简化，keep required，仅注释随形收敛）
 - **Consumes**: T15 切后稳定链 · T3 登记表/投影面（overall 登记行现面）
-- **Produces**: 宪法/档案双层 · 版本行散文消解 · Standing rules 成典 · archive 命名定 · 登记表行新形
+- **Produces**: 单文件宪法化 · 版本行散文消解 · Standing rules 成典 · 零新增 artifact
 - **Steps**:
-  - 宪法拆分（本体 + archive；Goal/Standing rules 规范化折叠 · issue/history 结构化 record）— checkable: 两文件结构绿
+  - 宪法化修订（overall 本体：Goal/Standing rules 规范化折叠 · issue/history → 结构化 cell · 版本行 lineage → 结构化修订记录）— checkable: 单文件结构绿
   - 版本行 lineage 散文消解 → 结构化修订记录（telescope 尾链断）— checkable: 修订记录表 + 版本行引用点检
   - Standing rules 常态化成典（空壳死代码即删——T15 实证入典）— checkable: 宪法定案文本
-  - 全树 4 overalls 同口径迁移（内容逐字 · 容器改造）— checkable: 迁移 grep（内容保真 · 历史正文零 retro-rename）
-  - archive 命名定（File paths Archive 行承诺通道落）+ declare.ts 登记行随 — checkable: 命名表 + doc-contract 门对新形绿
-  - commit `docs(kairos): P6 宪法化承接——宪法/档案双层 + 版本行结构化`（登记行随）
+  - 全树 4 overalls 同口径迁移（内容逐字 · 容器改造 · 零新增文件）— checkable: 迁移 grep（内容保真 · 历史正文零 retro-rename · `overall-archive` 零残留）
+  - declare.ts 登记行定案（不简化 · keep required）— checkable: doc-contract 门绿 + 登记行 required 断言
+  - commit `docs(kairos): P6 宪法化承接——overall 单文件结构化收敛 + 版本行结构化`（零引擎登记行改动）
 - **Acceptance**:
-  - 宪法/档案双层落地 + 4 overalls 迁移；版本行散文零残留（grep）；Standing rules 成典；archive 命名定；新引擎 doc-contract 门对新形绿；历史正文零 retro-rename
+  - 宪法化单文件落地 + 4 overalls 迁移；版本行散文零残留（grep）；Standing rules 成典；零 `-archive.md`（grep 零残留）；declare.ts 登记行 required 保持；新引擎 doc-contract 门对新形绿；历史正文零 retro-rename
 - **DependsOn**: 15
 
 ### Task 23: next fix 面 readback 后缀

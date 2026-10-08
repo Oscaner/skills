@@ -1,6 +1,6 @@
 # 文档架构方法论 v2 — P3.2 Design Spec v1.5（全系统从零重建 · 判定单家 · 工作流归一）
 
-- **Version**: v1.5 · 2026-10-08（**反依赖门放开 backfill——边违约六类收五类 + 环活门**——用户 2026-10-08 拍板「放开『任务只能依赖更小编号』约束，Wave 编排完全基于 DependsOn 推导」：§3.1 contradiction 边违约类退役 · **前向引用合法**（`- **DependsOn**:` 可指向任意现存任务 id）· **cycle 类为活门**（环 = 具名 plan 违约 · doc-contract 早拦/评审派发 BLOCK）· **编号降级为 ID + 波内升序 tiebreak** · referenceLint 新增**编号/拓扑序 advisory WARN**（只警不拦 · 作者「编号 ≈ 阅读序」引导保留）· 现 plan 全低编号边 = 纯 widening 零迁移——plan v1.7 随）；前置 v1.4 · 2026-10-07（前置 v1.3 = P7 提前承接 backfill——翻译系统全量核心入 §1.3 · CLI 命令面 `base-branch`→`base` · capsule 机面英文恒定 · 渲染器归位 render；**v1.4 = P4/P5/P6/P7 全吸收 + 数据面归位 backfill**——用户 2026-10-07 拍板「config-next 完成以后删除 config」升华：**数据面归位**（三稳态 JSON → typed 平面 infra/runtime · face/host · render/templates · P4 review 准则/P5 M1+禁文 承接净入 §6.4 · skill-anatomy 归守卫 T14 · `config/` 整目录随 cutover 删除零重建 · 新树零 JSON/零 config/ 路径）· **P6 宪法化承接**（宪法/档案双层 · 版本行散文消解 · Standing rules 成典 · 全树 4 overalls）入 §6.5——plan v1.4 · overall v1.23 随））
+- **Version**: v1.6 · 2026-10-08（**T22 宪法化单文件裁定 + dispatch 调用面纪律 + child prompt 分派表**——用户 2026-10-08 拍板三连：①「不需要 overall-archive.md——overall 变两份文件增加消费者心智负担」→ **P6 宪法化收敛为单文件**（overall 保持一份文件：Standing rules 成典 · 版本行 lineage 散文消解 → 结构化修订记录 · change-history 巨型 cell → 结构化 record 均在单文件内 · 零新增 artifact · declare.ts 登记行不简化——Issue inventory/Change history 保持 required · overall v1.24 随）· ②**dispatch 生产调用面纪律**（T15 cutover 首验暴露——新引擎 child 调用缺 prompt：slash-ref 独立位置参数被 claude 吞、FakeSync 桩断言与真实 harness 语义不符不失守→ 教训 = **dispatch 调用面须真实探针验证，stub 断言+真实语义契约双重门槛** · HOSTS 加 `promptForm` 数据列声明 prompt 位置语义）· ③**child prompt 内容重写**（mode 分派表结构：每 mode 固定前缀字节稳定 + per-mode round context 精简子集 + 动态键全在尾部 round context——前缀缓存友好 · 参数规整命名 = 角色前缀 + 语义核心：INPUT_ 读入物 / OUTPUT_ 写出物 / WORKSPACE_ 环境 / FIX_ 锚 / 主格身份·作用域——child 一眼分「读什么/写什么/在哪」）——plan v1.8 随）；前置 v1.5 · 2026-10-08（**反依赖门放开 backfill——边违约六类收五类 + 环活门**——用户 2026-10-08 拍板「放开『任务只能依赖更小编号』约束，Wave 编排完全基于 DependsOn 推导」：§3.1 contradiction 边违约类退役 · **前向引用合法**（`- **DependsOn**:` 可指向任意现存任务 id）· **cycle 类为活门**（环 = 具名 plan 违约 · doc-contract 早拦/评审派发 BLOCK）· **编号降级为 ID + 波内升序 tiebreak** · referenceLint 新增**编号/拓扑序 advisory WARN**（只警不拦 · 作者「编号 ≈ 阅读序」引导保留）· 现 plan 全低编号边 = 纯 widening 零迁移——plan v1.7 随）；前置 v1.4 · 2026-10-07（前置 v1.3 = P7 提前承接 backfill——翻译系统全量核心入 §1.3 · CLI 命令面 `base-branch`→`base` · capsule 机面英文恒定 · 渲染器归位 render；**v1.4 = P4/P5/P6/P7 全吸收 + 数据面归位 backfill**——用户 2026-10-07 拍板「config-next 完成以后删除 config」升华：**数据面归位**（三稳态 JSON → typed 平面 infra/runtime · face/host · render/templates · P4 review 准则/P5 M1+禁文 承接净入 §6.4 · skill-anatomy 归守卫 T14 · `config/` 整目录随 cutover 删除零重建 · 新树零 JSON/零 config/ 路径）· **P6 宪法化承接**（宪法/档案双层 · 版本行散文消解 · Standing rules 成典 · 全树 4 overalls）入 §6.5——plan v1.4 · overall v1.23 随））
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5（kairos:cdd-phase · 决策源 = kairos:cdd-design grilling 收敛 + 用户 2026-10-07 greenfield 拍板）
 - **Parent program**: [doc-architecture-v2-overall.md v1.23](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
@@ -55,6 +55,24 @@ TaskGraph（**边违约五类** validate：missing-edge / duplicate / missing-id
 #### 3.3 dispatch 三 lifecycle 合一
 
 task/branch/docs 三个 near-同构 lifecycle（旧 3.6k 行）收敛为**参数化单 lifecycle**（目标类型 task|branch|spec|plan 数据表驱动：review/fix/implement 流程同构，差异 = 审计目标/产物面/next 语义参数）。CLI 子命令面（implement / review / fix / schema / issue / base——`base set|get` 承 `base-branch set|get`，用户 2026-10-07 拍板收敛）保持。
+
+#### 3.4 dispatch child 调用面（v1.6 · T15 cutover 首验纪律）
+
+新引擎 child 派发（HarnessDispatch → 宿主 harness CLI）的调用面纪律，T15 cutover 首次生产暴露（child 缺 prompt → 越轨）后钉死：
+
+- **prompt 位置语义数据化**：`HOSTS` 每 host 行声明 `promptForm`（`ref-prefixed` | `plain`）——child 调用参数组装（skill-ref 如何进入 prompt）从代码假设上升为数据契约；测试断言钉数据面，真实 harness 探针验证行为（stub 断言 + 真实探针**双门槛**）
+- **child prompt 单位置参数**：harness CLI 消费第一个位置参数整体为 prompt（claude `-p` 语义）；skill-ref（`/kairos:cdd-*` · `/mattpocock-skills:*`）以前缀形式并入 prompt 首行——**独立 ref 位置参数会被 claude 吞掉后续参数**（T15 实测）
+- **真实探针门槛**：任何 harness 调用面改动，除 stub 断言外须以真实 CLI 探针验证 prompt/ref 到达 child（`FakeSync` 桩断言与真实 harness 语义不符不构成关门——T13「新树测试全绿」因此曾是假阳）
+- **统一组装单点**：`#childPrompt(ref, prompt)` 收敛「ref 前缀 + 单参数」组装，零散 argv 拼装不入 it
+
+#### 3.5 child prompt 内容结构（v1.6 · mode 分派表 + 前缀缓存友好）
+
+dispatch prompt 从「全 mode 说明书 + 动态区」重写为 **mode 分派表**（消费者心智负担 · 前缀缓存）：
+
+- **固定前缀逐 mode 字节稳定**：mode 头 + Instructions + 该 mode 专属节 + Discipline clauses + Return——同一 mode 历次 dispatch 前缀逐字节一致（**前缀缓存按 mode 分组共享**）
+- **可变参数全在尾部 round context**：per-dispatch 值（BRIEF/FINDINGS/REVIEW_RANGE…）全部收进尾部唯一动态区；round context **per-mode 精简子集**（只列该 mode 消费的键，空值键不发）
+- **参数规整命名**：角色前缀 + 语义核心——`INPUT_*`（读入物：`INPUT_TASK` `INPUT_RULES` `INPUT_FINDINGS` `INPUT_CRITERIA` `INPUT_RANGE` `INPUT_LENS` `INPUT_PLAN` `INPUT_DOC`）+ `OUTPUT_*`（写物：`OUTPUT_HANDOFF` `OUTPUT_GATE` `OUTPUT_RETURN`）+ `WORKSPACE_*`（环境：`WORKSPACE_DIR` `WORKSPACE_ID`）+ `FIX_BASE`（修复锚）+ 主格（`ROLE` `SCOPE`）——child 一眼分「读什么 / 写什么 / 在哪」
+- **每节一个 mode**：implement / fix / review / docs-fix 各一节，child 只读自己那节（scope-lock 从散文约束提为结构事实）
 
 ### 4. 编排面（技能）：工作流归一
 
@@ -132,14 +150,15 @@ P4（`cdd-doc-review` 一产化）/ P5（DispatchContract + DispatchPacket）**�
 - **P5 承接**：DispatchPacket 概念被 capsule + handoff + 模板数据面**取代**（新树无 packet——提示词由模板面 + frame 值装配）；ref 机制由新 ledger + review ref（commit-range / doc_hash 双层）落地；残留三件 = **M1 supersede**（`dispatch.implement` tdd → `mattpocock-skills:implement` + `refs` 域登记）· **三处禁文删除**（review.task/branch note「parallel sub-agents forbidden」×2 + axesGuide「no parallel sub-agents」）· dispatch/refs 域收敛——全部为 typed 数据内容
 - **数据面形态**：engine-config → `infra/runtime.ts`（contextContract · handoffNamespace · $version——failureCategories/slugRule 死字段剔除）· harness-contract → `face/host.ts` · template-contract → `render/templates.ts`；`resource.ts` 路径表/JSON 解析/`$schema`/`_doc` 散文面删除；新树零 JSON、零 `config/` 路径（grep）；**`config/` 整目录（13 文件 ~150K）随 cutover 删除零重建**；skill-anatomy 归 T14（引擎契约面 typed 导出）
 
-#### 6.5 承接 P6——宪法/档案分层（v1.4）
+#### 6.5 承接 P6——宪法化单文件收敛（v1.4 承接 · v1.6 单文件裁定）
 
 P6（overall 宪法/档案分层）**吸收进 P3.2 尾部**（用户 2026-10-07 拍板「吸收进 P3.2 是明确的」）：新机制下 overall 结构 = **登记表行 + 投影**——宪法化 = 登记表行更新 + 文档迁移（零引擎结构代码）。依赖从 `P1→P6（hard）` 改为 `P3.2 ->(承接)`。
 
-- overall 本体拆「**宪法**（Goal / Standing rules 规范化折叠 / Cross-cutting / Phase inventory / Dependency graph）+ **`*-archive.md`**（issue/history 结构化 record + doc-revision ref 机械化 backfill）」
-- **版本行 lineage 散文消解** → 结构化修订记录（telescope 尾链断）；change-history 巨型 cell → 结构化 record
-- **Standing rules「空壳、死代码即删」成典常态化**（P3.2 自身实证——T15 删旧树/旧数据面）
-- archive 精确命名（v1.0「Archive 命名归 P6 定义」承诺通道）落地；全树 4 overalls 同口径迁移（内容逐字 · 容器改造 · 历史正文零 retro-rename）
+**v1.6 裁定（用户 2026-10-08 拍板「不需要 overall-archive.md——overall 变两份文件增加消费者心智负担」）**：宪法化**收敛为单文件**——overall 保持一份文件、零新增 artifact（`-archive.md` 构想退役，File paths 承诺通道关闭为「零新文件」）：
+
+- **单文件宪法化**：Standing rules 规范化折叠成典 · 版本行 lineage 散文消解 → 结构化修订记录（telescope 尾链断）· change-history 巨型 cell → 结构化 record —— **全部在 overall 本体内完成**（结构化收敛发生在文档内部，不建第二文件）
+- **零引擎改动**：declare.ts overall 登记行**不简化**——Issue inventory / Change history 保持 required（单文件下它们仍是锚存在性判定）；doc-contract 门对新形零改动走通
+- **全树 4 overalls 同口径迁移**（内容逐字 · 容器改造 · 历史正文零 retro-rename）
 
 ### Acceptance criteria
 
@@ -154,7 +173,10 @@ P6（overall 宪法/档案分层）**吸收进 P3.2 尾部**（用户 2026-10-07
 - scripts 重写：guard 消费引擎元数据（residue 正则 ban 表 → 词表数据行零残留 · channel 字面引擎导出）；单一 emit/validate 编排器；旧 wrapper/双 Orchestrator 零残留
 - 两代过渡：新树 **5 平面拓扑**（contract/session/face/render/infra · 文件 72→~30-38 · 顶面 8→5）落地于 `src-next/` + `scripts-next/` → 入口切换 → **旧树/旧技能零残留（grep 断言）** → validate ALL PASS · typecheck ×3 · biome · emit 新鲜 · changesets（cdd-engine major / kairos major）· 净减账（29k → 目标 −20%±）入验收
 - **新旧零依赖断言**：`src-next` ↔ `src` 双向零 import（grep）；新树自包含全量重写（无旧符号/旧 helper/旧分组索引）· **数据面归位（v1.4）**：三稳态 JSON → typed 平面成员（infra/runtime · face/host · render/templates）零残留（grep）；`src-next` 面 `config/` slash 路径零命中；派生产物自派生（并行期测试不读旧派生产物）
-- **四 phase 承接全落（v1.4）**：P4/P5/P6/P7 四行 → Done（P3.2 承接）；grep：三 JSON 零残留 · review 禁文零残留 · `dispatch.implement` = `mattpocock-skills:implement` · `config/` 整目录零残留（`test ! -d`）· 版本行散文零残留 · 宪法/档案双层落地
+- **四 phase 承接全落（v1.4）**：P4/P5/P6/P7 四行 → Done（P3.2 承接）；grep：三 JSON 零残留 · review 禁文零残留 · `dispatch.implement` = `mattpocock-skills:implement` · `config/` 整目录零残留（`test ! -d`）· 版本行散文零残留 · 宪法化承接（形态收敛见 v1.6 单文件行）
+- **宪法化单文件（v1.6）**：overall **单文件宪法化**（Standing rules 成典 · 版本行 lineage 消解 → 结构化修订记录 · change-history 结构化 cell，全在 overall 本体内）· 零 `-archive.md`（File paths 承诺通道关闭为「零新文件」· grep：overall-archive 零残留）· declare.ts overall 登记行不简化（Issue inventory/Change history 保持 required）· 全树 4 overalls 同口径迁移 · 历史正文零 retro-rename
+- **dispatch 调用面（v1.6）**：HOSTS 含 `promptForm` 数据列（prompt 位置语义数据化）· child prompt 单位置参数 + skill-ref 前缀并入首行（独立 ref 位置参数零残留 · grep 反断言）· 真实探针门槛（`claude -p` 探针验证 prompt 到达 child，FakeSync 桩断言 + 真实探针双门槛）· `#childPrompt` 统一组装单点
+- **child prompt 分派表（v1.6）**：mode 分派表结构（implement/fix/review/docs-fix 各一节 · 每 mode 固定前缀字节稳定 —— 前缀缓存按 mode 分组共享）· round context 唯一动态区 per-mode 精简子集（空值键不发）· 参数规整命名（`INPUT_*` 读物 / `OUTPUT_*` 写物 / `WORKSPACE_*` 环境 / `FIX_BASE` 锚 / `ROLE` `SCOPE` 主格 · 零旧名残留 grep）
 - 历史文档零 retro-rename（docs/kairos 方法论记录不动）；消费面 SKILL.md/README 随 6 集重写
 
 ## Constraints

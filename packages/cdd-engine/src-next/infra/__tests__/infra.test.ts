@@ -42,10 +42,12 @@ describe("runtime — the typed engine-config surface (the typed data plane)", (
     expect(HANDOFF_FAMILIES["review.task"].name).toBe("tasks-{tasks}-review-{round}.json");
     // v1.9 — the family `schema` faces select the handoff-schema subset (§3.6: the
     // field resurrected from the dead task/docs discrimination), and the return-format
-    // field is gone (RETURN_STDOUT_BLOCK is the ONE return contract).
+    // field is gone (RETURN_STDOUT_BLOCK is the ONE return contract). The docs-fix
+    // families (fix.spec/fix.plan) ride the findings face — §3.6's per-mode split.
     expect(HANDOFF_FAMILIES["review.branch"].schema).toBe("findings");
-    expect(HANDOFF_FAMILIES["fix.plan"].schema).toBe("work");
+    expect(HANDOFF_FAMILIES["fix.plan"].schema).toBe("findings");
     expect(HANDOFF_FAMILIES["implement.task"].schema).toBe("work");
+    expect(HANDOFF_FAMILIES["fix.task"].schema).toBe("work");
     for (const key of [
       "implement.task",
       "review.task",
@@ -84,14 +86,16 @@ describe("config — the typed accessor facade (one no-I/O route per face)", () 
   it("routes the harness + template faces — the typed host contract + dispatch prompt", () => {
     const loader = new ConfigLoader();
     expect(loader.harnessContract().hosts.claude.detect.env).toBe("CLAUDE_CODE_SESSION_ID");
+    expect(loader.harnessContract().hosts.claude.promptForm).toBe("ref-prefixed");
     expect(loader.harnessContract().dispatch.implement).toBe("mattpocock-skills:implement");
     expect(loader.harnessContract().refs["mattpocock-skills:code-review"].pi).toBe(
       "/skill:code-review",
     );
     const template = loader.templateContract();
-    expect(template.skeleton.order).toEqual(["shell", "return", "round-context"]);
-    // v1.9 — the single return contract (RETURN_JSON / DOCS_FIX 退役)
-    expect(Object.keys(template.sections.return)).toEqual(["RETURN_STDOUT_BLOCK"]);
+    // v1.8 — the mode 分派表 (implement/fix/review/docs-fix) + the single return contract
+    // (RETURN_JSON / DOCS_FIX 退役)
+    expect(Object.keys(template.modes)).toEqual(["implement", "fix", "review", "docs-fix"]);
+    expect(Object.keys(template.return)).toEqual(["RETURN_STDOUT_BLOCK"]);
   });
 
   it("carries the P5 review criteria — the typed dispatch rows + axes guides with zero forbidden prose", () => {
@@ -114,7 +118,9 @@ describe("config — the typed accessor facade (one no-I/O route per face)", () 
     // The axes guides carry the verification-evidence duty.
     expect(REVIEWS.task.axesGuide).toContain("dual evidence");
     expect(REVIEWS.branch.axesGuide).toContain("dual evidence");
-    expect(TEMPLATE_PROMPT.sections.shell.join("\n")).toContain("mattpocock-skills:implement");
+    expect(TEMPLATE_PROMPT.modes.implement.shell.join("\n")).toContain(
+      "mattpocock-skills:implement",
+    );
     // Zero $schema/_doc prose in the typed planes.
     expect(JSON.stringify(ENGINE_RUNTIME)).not.toContain("$schema");
     expect(JSON.stringify(ENGINE_RUNTIME)).not.toContain('"_doc"');

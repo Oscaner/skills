@@ -69,7 +69,9 @@ export interface HandoffFamily {
   /** The carrier status policy (contract / rollup). */
   status?: "contract" | "rollup";
   /** The carrier schema face (work / findings) — the handoff-schema selector (§3.6:
-   *  the field resurrected from the dead task/docs discrimination). */
+   *  the field resurrected from the dead task/docs discrimination; the docs-fix
+   *  families (fix.spec / fix.plan) ride the findings face — §3.6's per-mode split:
+   *  implement/fix → work + evidence · review/docs-fix → findings). */
   schema?: "work" | "findings";
   /** The fix-round family of a review family. */
   fixFamily?: string;
@@ -168,7 +170,7 @@ export const HANDOFF_FAMILIES = {
     name: "spec-fix-{round}.json",
     round: "source",
     status: "contract",
-    schema: "work",
+    schema: "findings",
     fixTemplate: "docs",
     phase: "fix",
     prev: { roundR: "review.spec:R" },
@@ -185,7 +187,7 @@ export const HANDOFF_FAMILIES = {
     name: "plan-fix-{round}.json",
     round: "source",
     status: "contract",
-    schema: "work",
+    schema: "findings",
     fixTemplate: "docs",
     phase: "fix",
     prev: { roundR: "review.plan:R" },

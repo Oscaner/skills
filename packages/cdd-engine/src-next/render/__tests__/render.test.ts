@@ -15,61 +15,104 @@ import { BriefRenderer } from "../brief.ts";
 import { IssueBodyRenderer, type IssueReportInput } from "../issue-body.ts";
 import { TemplateAssembler } from "../templates.ts";
 
-/** The full per-dispatch slot values — every declared template token, optional
- *  slots legitimately empty (an implement dispatch carries no review slots). */
+/** The full per-dispatch slot values — every declared template token (the v1.8
+ *  INPUT_/OUTPUT_/WORKSPACE_/FIX_BASE/ROLE/SCOPE vocabulary), optional slots
+ *  legitimately empty (an implement dispatch carries no review/fix slots). */
 const ALL_VALUES: Record<string, string> = {
-  MODE: "implement",
-  DISPATCH_UNIT: "4,12",
-  BRIEF: "/ws/tasks-4,12-brief.md",
-  CONSTRAINTS: "/ws/plan-constraints.md",
-  FINDINGS: "/ws/tasks-4,12-open-findings.json",
-  FIXED_POINT: "",
-  WORKSPACE: "/ws",
-  WORKSPACE_SLUG: "2026-10-02-x",
-  REVIEW_TYPE: "",
-  REVIEW_REFERENCE: "",
-  REVIEW_LENS_GUIDE: "",
-  REVIEW_AXES: "",
-  REVIEW_PLAN_LINE: "",
-  DOC: "",
-  HANDOFF_TARGET: "/ws/tasks-4,12-implement.json",
+  ROLE: "implement",
+  SCOPE: "4,12",
+  INPUT_TASK: "/ws/tasks-4,12-brief.md",
+  INPUT_RULES: "/ws/plan-constraints.md",
+  INPUT_FINDINGS: "",
+  INPUT_CRITERIA: "",
+  INPUT_RANGE: "",
+  INPUT_LENS: "",
+  INPUT_PLAN: "",
+  INPUT_DOC: "",
+  OUTPUT_HANDOFF: "/ws/tasks-4,12-implement.json",
+  FIX_BASE: "",
+  WORKSPACE_DIR: "/ws",
+  WORKSPACE_ID: "2026-10-02-x",
   HANDOFF_SCHEMA: "$$SCHEMA$$",
 };
 
 describe("TemplateAssembler — the template assembly + hard gates", () => {
   const assembler = new TemplateAssembler();
 
-  it("declares the single return contract and the token registry", () => {
-    // v1.9 — RETURN_JSON / DOCS_FIX retired: RETURN_STDOUT_BLOCK is the one format.
+  it("declares the four-mode dispatch table and the token registry", () => {
+    // v1.8 — the mode 分派表; v1.9 — RETURN_JSON / DOCS_FIX retired.
+    expect(assembler.workModes()).toEqual(["implement", "fix", "review", "docs-fix"]);
     expect(assembler.returnFormats()).toEqual(["RETURN_STDOUT_BLOCK"]);
-    expect(assembler.declaredTokens()).toContain("MODE");
-    expect(assembler.declaredTokens()).toContain("HANDOFF_TARGET");
+    expect(assembler.declaredTokens()).toContain("ROLE");
+    expect(assembler.declaredTokens()).toContain("OUTPUT_HANDOFF");
     expect(assembler.declaredTokens()).toContain("HANDOFF_SCHEMA");
     expect(assembler.declaredTokens()).not.toContain("HANDOFF_WRITE_GATE");
   });
 
-  it("assembles the full dispatch template with every slot resolved", () => {
+  it("assembles the implement mode — the fixed prefix + the reduced round context", () => {
     const out = assembler.render(ALL_VALUES);
-    expect(out.startsWith("# CDD dispatch — CLI session")).toBe(true);
+    expect(out.startsWith("# CDD dispatch — implement round")).toBe(true);
     expect(out).toContain("## Instructions");
     expect(out).toContain("## Handoff schema");
     expect(out).toContain("## Return");
     expect(out).toContain("## Round context");
-    expect(out).toContain("- `MODE`: implement");
-    expect(out).toContain("- `DISPATCH_UNIT`: 4,12");
-    expect(out).toContain("- `BRIEF`: /ws/tasks-4,12-brief.md");
+    expect(out).toContain("- `ROLE`: implement");
+    expect(out).toContain("- `SCOPE`: 4,12");
+    expect(out).toContain("- `INPUT_TASK`: /ws/tasks-4,12-brief.md");
     expect(out).toContain("$$SCHEMA$$"); // the injected writable-subset fence slot
     expect(out).not.toContain("{{"); // zero unresolved slots
     // the v1.9 散文归零 — no HANDOFF_WRITE_GATE / ## Handoff prose anywhere
     expect(out).not.toContain("HANDOFF_WRITE_GATE");
     expect(out).not.toContain("RETURN_JSON");
     expect(out).not.toContain("DOCS_FIX");
+    // the per-mode 精简: an implement round's context carries no review/fix keys
+    expect(out).not.toContain("INPUT_CRITERIA");
+    expect(out).not.toContain("INPUT_FINDINGS");
+    expect(out).not.toContain("FIX_BASE");
+  });
+
+  it("renders the docs-fix mode through the same table — its own rules + subset", () => {
+    const out = assembler.render({
+      ...ALL_VALUES,
+      ROLE: "docs-fix",
+      SCOPE: "docs/x-design.md",
+      INPUT_FINDINGS: "/ws/plan-review-1.json",
+      FIX_BASE: "a".repeat(40),
+      INPUT_DOC: "docs/x-design.md",
+    });
+    expect(out.startsWith("# CDD dispatch — docs-fix round")).toBe(true);
+    expect(out).toContain("apply the fixes from `INPUT_FINDINGS`");
+    expect(out).toContain("- `INPUT_DOC`: docs/x-design.md");
+    expect(out).toContain("- `FIX_BASE`: ");
+    // the review-only keys stay out of the docs-fix context
+    expect(out).not.toContain("INPUT_CRITERIA");
+  });
+
+  it("空值键不发 — a mode's context drops a key whose value is empty", () => {
+    // a task review: no fix anchors, no findings — the empty keys never render
+    const review = assembler.render({
+      ...ALL_VALUES,
+      ROLE: "review",
+      SCOPE: "docs/kairos/specs/s1-design.md",
+      INPUT_RANGE: "docs/kairos/specs/s1-design.md",
+      INPUT_CRITERIA: "the axes",
+      INPUT_LENS: "completeness | consistency | clarity",
+      INPUT_PLAN: "**Plan:** /ws/plan.md",
+      OUTPUT_HANDOFF: "/ws/spec-review-1.json",
+    });
+    expect(review).toContain("- `INPUT_RANGE`: docs/kairos/specs/s1-design.md");
+    expect(review).toContain("- `INPUT_CRITERIA`: the axes");
+    expect(review).not.toContain("- `INPUT_TASK`"); // empty in the review context → omitted
+    expect(review).not.toContain("- `INPUT_FINDINGS`");
+    expect(review).not.toContain("- `FIX_BASE`");
   });
 
   it("hard gates: a missing token value throws (named)", () => {
     const partial = { ...ALL_VALUES };
-    delete partial.MODE;
-    expect(() => assembler.render(partial)).toThrow(/MODE/);
+    delete partial.ROLE;
+    expect(() => assembler.render(partial)).toThrow(/ROLE/);
+    // an unknown ROLE is refused by the mode table (never a phantom assemble)
+    expect(() => assembler.render({ ...ALL_VALUES, ROLE: "bogus" })).toThrow(/work-mode/);
   });
 
   it("hard gates: an undeclared value throws (the guard is the declared token list)", () => {

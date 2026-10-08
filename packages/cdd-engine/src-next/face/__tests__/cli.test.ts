@@ -837,7 +837,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const sync = new FakeSync();
       sync.stdout =
         "status: APPROVED\ncommits: base=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa head=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\nartifacts: brief=/b report=/r test_evidence=/t\n";
-      // The child's write-back: the implement draft at HANDOFF_TARGET per the injected
+      // The child's write-back: the implement draft at OUTPUT_HANDOFF per the injected
       // `work` schema + the canonical test-evidence file (the v1.9 read-back inputs).
       const draft = path.join(scene.workspace.path, "tasks-1-implement.json");
       const head = "b".repeat(40);
@@ -878,12 +878,16 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(call.args).not.toContain("/mattpocock-skills:implement");
       const prompt = call.args[call.args.length - 1];
       expect(prompt.startsWith("/mattpocock-skills:implement ")).toBe(true);
-      expect(prompt).toContain("- `MODE`: implement");
-      expect(prompt).toContain(`- \`WORKSPACE\`: ${scene.workspace.path}`);
-      expect(prompt).toContain("- `DISPATCH_UNIT`: 1");
+      // v1.8 — the mode 分派表 + the 规整命名 grammar (ROLE/SCOPE · INPUT_/OUTPUT_/WORKSPACE_)
+      expect(prompt).toContain("- `ROLE`: implement");
+      expect(prompt).toContain("- `SCOPE`: 1");
+      expect(prompt).toContain(`- \`WORKSPACE_DIR\`: ${scene.workspace.path}`);
       expect(prompt).toContain(
-        `- \`HANDOFF_TARGET\`: ${path.join(scene.workspace.path, "tasks-1-implement.json")}`,
+        `- \`OUTPUT_HANDOFF\`: ${path.join(scene.workspace.path, "tasks-1-implement.json")}`,
       );
+      // the per-mode 精简: this scene carries no brief (briefPath null) — the empty
+      // INPUT_TASK key is NOT emitted (空值键不发)
+      expect(prompt).not.toContain("- `INPUT_TASK`");
       // v1.9 — the injected writable-subset schema rides the shell's fixed tail (the
       // ```json fence + the evidence fence — the task-family work round's two files)
       expect(prompt).toContain("## Handoff schema");
@@ -940,10 +944,16 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         findings: [{ severity: "blocker", lens: "spec", summary: "drift" }],
         status: "CHANGES_REQUESTED",
       });
-      // the URC prose rides REVIEW_AXES (the spec review has no slash ref)
+      // the URC prose rides INPUT_CRITERIA (the spec review has no slash ref)
       const call = sync.calls[0];
       expect(call.args).not.toContain("/mattpocock-skills:code-review");
-      expect(call.args[call.args.length - 1]).toContain("Follow URC:");
+      const prompt = call.args[call.args.length - 1];
+      expect(prompt).toContain("Follow URC:");
+      expect(prompt).toContain("- `ROLE`: review");
+      expect(prompt).toContain("- `INPUT_CRITERIA`:");
+      expect(prompt).toContain("- `INPUT_RANGE`: docs/kairos/specs/s1-design.md");
+      // the v1.8 per-mode 精简: a review context carries no fix/work keys
+      expect(prompt).not.toContain("- `INPUT_FINDINGS`");
     } finally {
       cleanup();
     }
@@ -980,7 +990,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // the task/branch review rows are object-shaped {ref} (the P5 note deletion) — the
       // slash form prefixes the single prompt argument (not a standalone positional —
       // the harness CLI consumes the first positional as the whole prompt), and
-      // REVIEW_AXES carries the typed axes guide inside the same prompt
+      // INPUT_CRITERIA carries the typed axes guide inside the same prompt
       expect(call.args).not.toContain("/mattpocock-skills:code-review");
       const prompt = call.args[call.args.length - 1];
       expect(prompt.startsWith("/mattpocock-skills:code-review ")).toBe(true);

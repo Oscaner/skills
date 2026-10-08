@@ -31,7 +31,7 @@
 // root — zero behavior-carrying bare functions.
 
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { declaredRegistries } from "../contract/declare.ts";
 import { PlanDocType } from "../contract/doc.ts";
@@ -44,7 +44,7 @@ import type { HandoffFamily } from "../infra/runtime.ts";
 import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import { IssueBodyRenderer, type IssueReportInput } from "../render/issue-body.ts";
-import type { TemplateValues } from "../render/templates.ts";
+import type { TemplateValues, WorkMode } from "../render/templates.ts";
 import { TemplateAssembler } from "../render/templates.ts";
 import type { DispatchPhase, TargetFace, TargetType } from "../session/faces.ts";
 import { targetFaces } from "../session/faces.ts";
@@ -409,9 +409,9 @@ export class HarnessDispatch {
     return (frame) => this.#dispatch(frame);
   }
 
-  /** One dispatch — prompt from the template data plane + the frame, host child via
+  /** One dispatch — prompt from the template plane + the frame, host child via
    *  the harness-contract rows, the child's write-back read in (v1.9: the draft at
-   *  HANDOFF_TARGET is the round's content — the three-line block is the pointer). */
+   *  OUTPUT_HANDOFF is the round's content — the three-line block is the pointer). */
   #dispatch(frame: OpenFrame): DispatchOutcome {
     const host = this.detectHost();
     if (host === "") {
@@ -425,12 +425,16 @@ export class HarnessDispatch {
     const cliName = row.cli;
     const args = [...row.invoke.split(" ").filter((part) => part.length > 0)];
     const ref = this.#skillRef(host, frame);
-    // The child receives ONE prompt argument — the ref prefixes the prompt's first
-    // line (claude -p consumes the whole first positional as the prompt; a standalone
-    // ref arg after the flags would be swallowed, so the dispatch prompt must carry it
-    // embedded — a slash ref at the start of the prompt text is the harness's
-    // documented skill-invocation form).
-    const result = this.#sync.run(cliName, [...args, this.#childPrompt(ref, prompt)], this.#cwd);
+    // The child receives ONE prompt argument — per the host's promptForm data column
+    // (§3.5): the ref-prefixed form embeds the slash ref at the start of the single
+    // prompt positional (claude -p consumes the whole first positional as the prompt;
+    // a standalone ref arg after the flags would be swallowed, losing everything after
+    // the ref) — the prompt assembly is data, never a code assumption.
+    const result = this.#sync.run(
+      cliName,
+      [...args, this.#childPrompt(row.promptForm, ref, prompt)],
+      this.#cwd,
+    );
     if (result.code !== 0) {
       this.#io.stderr(`CDD_BLOCKED: child ${cliName} exited ${result.code}\n`);
       return { status: "BLOCKED" };
@@ -447,6 +451,15 @@ export class HarnessDispatch {
   /** The work-mode of a frame phase — branch-review rides the review family. */
   #opOf(frame: OpenFrame): "implement" | "review" | "fix" {
     return frame.phase === "branch-review" ? "review" : frame.phase;
+  }
+
+  /** The dispatch-table work-mode (ROLE) of a frame — the spec/plan fix faces ride
+   *  the docs-fix mode; everything else maps by its phase (§3.5's four-mode table). */
+  #roleOf(frame: OpenFrame): WorkMode {
+    if (frame.phase === "fix") {
+      return frame.type === "spec" || frame.type === "plan" ? "docs-fix" : "fix";
+    }
+    return frame.phase === "implement" ? "implement" : "review";
   }
 
   /** The phase's skill-ref slash form for the detected host ("/mattpocock-skills:tdd"
@@ -474,13 +487,12 @@ export class HarnessDispatch {
     return hostForm ?? null;
   }
 
-  /** The child's single prompt argument — the skill-ref slash form prefixes the
-   *  assembled dispatch prompt as one positional (`/kairos:cdd-* <prompt>`). The
-   *  harness CLI consumes the whole first positional as the prompt (claude -p):
-   *  a slash ref at its start is the documented skill-invocation form, and a prompt
-   *  split across positionals would lose everything after the ref. */
-  #childPrompt(ref: string | null, prompt: string): string {
-    return ref === null ? prompt : `${ref} ${prompt}`;
+  /** The child's single prompt argument — per the host's promptForm data contract
+   *  (§3.5): the ref-prefixed form embeds the skill-ref slash form at the start of
+   *  the assembled dispatch prompt as one positional (`/kairos:cdd-* <prompt>`); the
+   *  plain form passes the prompt verbatim (the URC-prose rows carry no ref). */
+  #childPrompt(form: "ref-prefixed" | "plain", ref: string | null, prompt: string): string {
+    return form === "ref-prefixed" && ref !== null ? `${ref} ${prompt}` : prompt;
   }
 
   /** The review-axes text — the typed review criteria the assembly face references:
@@ -495,12 +507,15 @@ export class HarnessDispatch {
     return typeof entry === "string" ? entry : "";
   }
 
-  /** The round-context zone values of the dispatch prompt — every template token
-   *  present (the assembler's hard gate), the engine-authored slots filled from the
-   *  frame, the not-yet-authored orchestration slots legitimately empty. */
+  /** The round-context zone values of the dispatch prompt (the v1.8 naming contract:
+   *  ROLE/SCOPE nominatives · INPUT_* read-side · OUTPUT_* write-side · WORKSPACE_*
+   *  environment · FIX_BASE anchor). Every declared token supplied — a mode's
+   *  non-consumed slots stay empty and are NOT emitted by the assembler (空值键不发),
+   *  so each mode's round context carries only the facts the mode reads. */
   #valuesOf(frame: OpenFrame): TemplateValues {
     const scene = this.#scene;
     const op = this.#opOf(frame);
+    const role = this.#roleOf(frame);
     const params = frame.params;
     const isReview = frame.phase === "review" || frame.phase === "branch-review";
     const docPath = frame.target.kind === "doc" ? frame.target.doc : null;
@@ -512,35 +527,57 @@ export class HarnessDispatch {
       frame.target.kind === "branch"
         ? `${frame.target.base}..${frame.target.head}`
         : (docPath ?? scene.planPath ?? "");
+    const scope = params.tasks ?? branchRange ?? docPath ?? scene.planPath ?? frame.type;
     return {
-      MODE: op,
-      DISPATCH_UNIT: params.tasks ?? branchRange ?? docPath ?? scene.planPath ?? frame.type,
-      BRIEF: scene.briefPath ?? "",
-      CONSTRAINTS: scene.workspace.resolve("plan-constraints.md"),
-      // v1.9: FINDINGS is fix-only — the fix child reads the open findings; a review
-      // writes its own draft (FINDINGS === HANDOFF_TARGET would be a short-circuit).
-      FINDINGS:
+      ROLE: role,
+      SCOPE: scope,
+      INPUT_TASK: this.#taskInput(frame, scene, op),
+      INPUT_RULES: scene.workspace.resolve("plan-constraints.md"),
+      // v1.9: INPUT_FINDINGS is fix/docs-fix only — the open findings of the source
+      // review; a review writes its own draft (INPUT_FINDINGS === OUTPUT_HANDOFF
+      // would be a short-circuit).
+      INPUT_FINDINGS:
         op === "fix"
           ? (this.#findings ?? scene.ledger.handoffPath("review", frame.type, params))
           : "",
-      FIXED_POINT: op === "fix" ? this.#fixedPoint(frame, params) : "",
-      WORKSPACE: scene.workspace.path,
-      WORKSPACE_SLUG: scene.workspace.slug,
-      REVIEW_TYPE: frame.type,
-      REVIEW_REFERENCE: reference,
-      REVIEW_LENS_GUIDE:
+      INPUT_CRITERIA: isReview ? this.#reviewAxes(frame) : "",
+      INPUT_RANGE: isReview ? reference : "",
+      INPUT_LENS:
         isReview && (frame.type === "task" || frame.type === "branch")
           ? this.#template.reviewGuide(frame.type).lensEnum.join(" | ")
           : "",
-      REVIEW_AXES: isReview ? this.#reviewAxes(frame) : "",
-      REVIEW_PLAN_LINE: scene.planPath !== null ? `**Plan:** ${scene.planPath}` : "",
-      DOC: docPath ?? "",
+      INPUT_PLAN: scene.planPath !== null ? `**Plan:** ${scene.planPath}` : "",
+      INPUT_DOC: docPath ?? "",
+      OUTPUT_HANDOFF: scene.ledger.handoffPath(op, frame.type, params),
+      FIX_BASE: op === "fix" ? this.#fixedPoint(frame, params) : "",
+      WORKSPACE_DIR: scene.workspace.path,
+      WORKSPACE_ID: scene.workspace.slug,
       // v1.9 — the injected writable-subset schema (projection ①): the `## Handoff
-      // schema` section's fixed per-face bytes; the task-family work rounds add the
-      // evidence-file fence.
+      // schema` section of the mode's fixed prefix (byte-stable per mode; the work
+      // faces — implement/fix — carry the evidence-file fence too).
       HANDOFF_SCHEMA: this.#schemaText(frame),
-      HANDOFF_TARGET: scene.ledger.handoffPath(op, frame.type, params),
     };
+  }
+
+  /** The round's task-brief input — the rendered brief (implement) or the prior
+   *  implement round's brief file (task fixes — it exists on disk after the
+   *  implement dispatch). "" outside the task work rounds; only present facts land. */
+  #taskInput(frame: OpenFrame, scene: DispatchScene, op: string): string {
+    if (op === "implement") return scene.briefPath ?? "";
+    if (op === "fix" && frame.type === "task") {
+      const brief = scene.workspace.resolve(`tasks-${frame.params.tasks}-brief.md`);
+      return existsSync(brief) ? brief : "";
+    }
+    return "";
+  }
+
+  /** The scope token of a branch frame — the {base7}..{head7} range (the evidence
+   *  file name's `tasks-{SCOPE}-` spine for branch-family work rounds). */
+  #scopeOf(frame: OpenFrame): string {
+    if (frame.target.kind === "branch") {
+      return `${frame.target.base.slice(0, 7)}..${frame.target.head.slice(0, 7)}`;
+    }
+    return "";
   }
 
   /** The fix round's fixed point — the source review's reviewed base (only present
@@ -575,7 +612,7 @@ export class HarnessDispatch {
   // the read-back reconstruct (§3.6) — the draft is the round's content
   // -------------------------------------------------------------------------
 
-  /** The read-back reconstruct — the child's draft at HANDOFF_TARGET is the round's
+  /** The read-back reconstruct — the child's draft at OUTPUT_HANDOFF is the round's
    *  content source of truth: read it, validate it against the mode's writable
    *  subset (projection ② of session/handoff-schema.ts — the SAME declared objects
    *  the prompt injected), then build the final carrier the lifecycle persists in
@@ -609,8 +646,13 @@ export class HarnessDispatch {
     let status: RoundStatus =
       face === "findings" ? schema.rollup(findings) : this.#workStatus(draft);
     let reason: string | null = null;
-    if (op !== "review" && frame.type === "task") {
-      const evidenceName = `tasks-${frame.params.tasks}-test-evidence.json`;
+    // The evidence gate (v1.9) — the work faces (implement/fix task+branch) write
+    // the canonical `tasks-{SCOPE}-test-evidence.json` under the workspace; the docs
+    // faces (review/docs-fix) carry no evidence file. The read-back is REAL — a
+    // missing/schema-violating file rewrites the draft to BLOCKED.
+    if (face === "work") {
+      const scope = frame.params.tasks ?? this.#scopeOf(frame);
+      const evidenceName = `tasks-${scope}-test-evidence.json`;
       const evidencePath = scene.workspace.resolve(evidenceName);
       const evidence = scene.workspace.readJson<unknown>(evidenceName);
       const evidenceProblems = schema.evidenceViolations(evidence);
@@ -688,13 +730,14 @@ export class HarnessDispatch {
   }
 
   /** The `## Handoff schema` section value — the mode's writable-subset fence
-   *  (projection ①; byte-fixed per face so the prompt's contract surface stays
-   *  cache-friendly). The family's `schema` field selects the face; the task-family
-   *  work rounds additionally carry the evidence-file schema. */
+   *  (projection ①; byte-fixed per mode so the prompt's fixed prefix stays
+   *  cache-friendly). The family's `schema` field selects the face (§3.6: work →
+   *  carrier + evidence fence for the implement/fix modes; findings → the review /
+   *  docs-fix fence only). */
   #schemaText(frame: OpenFrame): string {
     const op = this.#opOf(frame);
     const face = this.#familyOf(op, frame.type).schema ?? "work";
-    const evidence = op !== "review" && frame.type === "task";
+    const evidence = face === "work";
     return new HandoffSchema().schemaText(face, evidence);
   }
 

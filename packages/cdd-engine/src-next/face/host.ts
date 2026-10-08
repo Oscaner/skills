@@ -4,10 +4,12 @@
 // host-adaptation contract (host detection · dispatch · refs) lives here and is
 // imported, never parsed:
 //
-//   · HOSTS     — the per-harness rows (cli / invoke / output / ship / detect /
-//     install / cache). The host-marker closure is single-sourced HERE: the detect
-//     rows are the only copy of the marker env keys (the channel audit derives the
-//     env whitelist from them — never a second declaration).
+//   · HOSTS     — the per-harness rows (cli / invoke / promptForm / output / ship /
+//     detect / install / cache). The host-marker closure is single-sourced HERE: the
+//     detect rows are the only copy of the marker env keys (the channel audit derives
+//     the env whitelist from them — never a second declaration). The promptForm
+//     column (§3.5) is the prompt-position semantics data contract — how the
+//     skill-ref enters the child prompt (ref-prefixed | plain).
 //   · DISPATCH  — the dispatch table: the skill-ref (or URC prose) each phase
 //     resolves to. M1 supersede (P5): the implement slot names the upstream
 //     `mattpocock-skills:implement` skill, never the retired tdd alias.
@@ -53,12 +55,21 @@ export interface HostCacheSpec {
   observable: boolean;
 }
 
+/** The prompt-position semantics of a harness — HOW the skill-ref enters the child
+ *  prompt (the §3.5 data contract, resolved by #childPrompt — the from-code-assumed
+ *  prompt assembly becomes a per-host row). `ref-prefixed`: the slash ref prefixes
+ *  the single prompt positional; `plain`: the child receives the prompt verbatim
+ *  (no ref to prefix — the URC-prose rows). */
+export type PromptForm = "ref-prefixed" | "plain";
+
 /** One per-harness host row — the adaptation facts the engine + guards consume. */
 export interface HostRow {
   /** The host harness CLI binary. */
   cli: string;
   /** The invoke flags prepended to the dispatch prompt. */
   invoke: string;
+  /** The prompt-position semantics — how the skill-ref enters the child prompt. */
+  promptForm: PromptForm;
   /** The harness output mode. */
   output: string;
   /** The ship status of the harness face. */
@@ -128,6 +139,7 @@ export const INSTALL_ROWS = {
 /** The per-harness host rows — claude / cursor / pi adaptation facts. */
 export const HOSTS = {
   claude: {
+    promptForm: "ref-prefixed",
     cli: "claude",
     invoke: "-p --output-format text --dangerously-skip-permissions",
     output: "text",
@@ -144,6 +156,7 @@ export const HOSTS = {
     },
   },
   cursor: {
+    promptForm: "ref-prefixed",
     cli: "cursor-agent",
     invoke: "--print --output-format text --force",
     output: "text",
@@ -158,6 +171,7 @@ export const HOSTS = {
     cache: { mechanism: "auto-prefix", minTokens: "pending", observable: false },
   },
   pi: {
+    promptForm: "ref-prefixed",
     cli: "pi",
     invoke: "-p --mode text",
     output: "text",

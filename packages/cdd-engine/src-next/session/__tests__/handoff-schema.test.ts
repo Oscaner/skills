@@ -43,7 +43,7 @@ describe("projection ① — the injected writable-subset schema text", () => {
   it("renders the work face — the carrier fence + the evidence-file fence", () => {
     const text = schema.schemaText("work", true);
     expect(text).toContain("```json");
-    expect(text).toContain("`HANDOFF_TARGET` is this round's child-authored draft");
+    expect(text).toContain("`OUTPUT_HANDOFF` is this round's child-authored draft");
     expect(text).toContain('"status"');
     expect(text).toContain('"artifacts"');
     expect(text).toContain('"commits"');

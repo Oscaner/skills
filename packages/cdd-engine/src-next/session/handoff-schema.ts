@@ -102,14 +102,17 @@ const CARRIER_WORK: SchemaNode = {
   additionalProperties: false,
 };
 
-/** The `findings` writable subset — review carrier. NO status (the engine rolls the
- *  conclusion up from the findings), no commits — the round's facts after the gate. */
+/** The `findings` writable subset — review + docs-fix carrier. NO status (the engine
+ *  rolls the conclusion up from the findings). The optional commits row rides the
+ *  docs-fix rounds (the fix commits its doc edit — the re-review's base derives from
+ *  it); a review never writes one. */
 const CARRIER_FINDINGS: SchemaNode = {
   type: "object",
   required: ["findings"],
   properties: {
     findings: { type: "array", items: FINDING },
     artifacts: { type: "object", additionalProperties: { type: "string" } },
+    commits: COMMITS,
     notes: { type: "array", items: { type: "string" } },
   },
   additionalProperties: false,
@@ -168,9 +171,9 @@ export class HandoffSchema {
    *  the fixed bytes of the dispatch prompt's contract surface. */
   schemaText(face: HandoffSchemaFace, evidence: boolean): string {
     const carrier = this.#json(BY_FACE[face]);
-    let text = `\`HANDOFF_TARGET\` is this round's child-authored draft — write it per this writable subset. The engine validates the draft against exactly this schema after you exit, then materializes the final carrier in place; engine-reserved fields are not listed here and must not be written.\n\n\`\`\`json\n${carrier}\n\`\`\``;
+    let text = `\`OUTPUT_HANDOFF\` is this round's child-authored draft — write it per this writable subset. The engine validates the draft against exactly this schema after you exit, then materializes the final carrier in place; engine-reserved fields are not listed here and must not be written.\n\n\`\`\`json\n${carrier}\n\`\`\``;
     if (evidence) {
-      text += `\n\nWrite the test-evidence file (\`tasks-{DISPATCH_UNIT}-test-evidence.json\` under \`WORKSPACE\`) per this schema — the engine reads it back with the same stakes:\n\n\`\`\`json\n${this.#json(EVIDENCE)}\n\`\`\``;
+      text += `\n\nWrite the test-evidence file (\`tasks-{SCOPE}-test-evidence.json\` under \`WORKSPACE_DIR\`) per this schema — the engine reads it back with the same stakes:\n\n\`\`\`json\n${this.#json(EVIDENCE)}\n\`\`\``;
     }
     return text;
   }

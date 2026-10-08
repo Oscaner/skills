@@ -45,7 +45,7 @@ describe("progress — the fixed key set", () => {
         engineSelfWrittenCount: 0,
         engineRecoveryCount: 0,
         harnessAbortCount: 0,
-        tasks: [],
+        waves: [],
       });
     } finally {
       cleanup();
@@ -71,14 +71,13 @@ describe("progress — the fixed key set", () => {
     }
   });
 
-  it("rowFor resolves the task/wave key dichotomy; entryFor creates the matching fresh row (v1.20)", () => {
+  it("rowFor/entryFor — the single wave-row form (±T26): every dispatch is a wave", () => {
     const { ledger, cleanup } = fixture();
     try {
       const data = ledger.emptyProgress();
-      data.tasks.push(ledger.entryFor(1));
-      data.tasks.push(ledger.entryFor("1,2"));
-      expect(ledger.rowFor(data, 1)).toEqual({ task: 1 });
-      expect(ledger.rowFor(data, "1")).toEqual({ task: 1 }); // single-task group key → task row
+      data.waves.push(ledger.entryFor("1"));
+      data.waves.push(ledger.entryFor("1,2"));
+      expect(ledger.rowFor(data, "1")).toEqual({ wave: "1" }); // single-task wave ≡ the task row
       expect(ledger.rowFor(data, "1,2")).toEqual({ wave: "1,2" });
       expect(ledger.rowFor(data, "missing")).toBeUndefined();
     } finally {
@@ -120,13 +119,13 @@ describe("handoff — naming / carrier / single-author persist", () => {
   it("family names come data-sourced from the handoff namespace", () => {
     const { ledger, cleanup } = fixture();
     try {
-      expect(ledger.handoffName("implement", "task", { tasks: "7,9" })).toBe(
+      expect(ledger.handoffName("implement", "wave", { tasks: "7,9" })).toBe(
         "tasks-7,9-implement.json",
       );
-      expect(ledger.handoffName("review", "task", { tasks: "7,9", round: 2 })).toBe(
+      expect(ledger.handoffName("review", "wave", { tasks: "7,9", round: 2 })).toBe(
         "tasks-7,9-review-2.json",
       );
-      expect(ledger.handoffName("fix", "task", { tasks: "7,9", round: 1 })).toBe(
+      expect(ledger.handoffName("fix", "wave", { tasks: "7,9", round: 1 })).toBe(
         "tasks-7,9-fix-1.json",
       );
       expect(ledger.handoffName("review", "spec", { round: 1 })).toBe("spec-review-1.json");
@@ -144,7 +143,7 @@ describe("handoff — naming / carrier / single-author persist", () => {
     try {
       const carrier = ledger.buildHandoff(
         "review",
-        "task",
+        "wave",
         { tasks: "7,9", round: 1 },
         { artifacts: { brief: "/tmp/brief.md" } },
       );
@@ -152,7 +151,7 @@ describe("handoff — naming / carrier / single-author persist", () => {
       expect(carrier.phase).toBe("review");
       expect(carrier.findings).toEqual([]);
       expect(carrier.artifacts).toEqual({ brief: "/tmp/brief.md" });
-      expect(ledger.buildHandoff("implement", "task", { tasks: "1" }).phase).toBe("implement");
+      expect(ledger.buildHandoff("implement", "wave", { tasks: "1" }).phase).toBe("implement");
     } finally {
       cleanup();
     }
@@ -163,7 +162,7 @@ describe("handoff — naming / carrier / single-author persist", () => {
     try {
       const written = ledger.persistHandoff(
         "review",
-        "task",
+        "wave",
         { tasks: "7,9", round: 1 },
         { tasks: [7, 9], phase: "review", findings: [{ severity: "blocker" }] },
       );
@@ -177,7 +176,7 @@ describe("handoff — naming / carrier / single-author persist", () => {
       // never survives a merge.
       const second = ledger.persistHandoff(
         "review",
-        "task",
+        "wave",
         { tasks: "7,9", round: 1 },
         { tasks: [7, 9], phase: "review", findings: [] },
       );
@@ -194,14 +193,14 @@ describe("handoff — naming / carrier / single-author persist", () => {
   it("readHandoff returns the carrier; missing → null", () => {
     const { ledger, cleanup } = fixture();
     try {
-      expect(ledger.readHandoff("review", "task", { tasks: "7,9", round: 1 })).toBeNull();
+      expect(ledger.readHandoff("review", "wave", { tasks: "7,9", round: 1 })).toBeNull();
       ledger.persistHandoff(
         "review",
-        "task",
+        "wave",
         { tasks: "7,9", round: 1 },
         { findings: [{ severity: "warn" }] },
       );
-      expect(ledger.readHandoff("review", "task", { tasks: "7,9", round: 1 })).toEqual({
+      expect(ledger.readHandoff("review", "wave", { tasks: "7,9", round: 1 })).toEqual({
         findings: [{ severity: "warn" }],
       });
     } finally {
@@ -249,7 +248,7 @@ describe("round — the round carrier", () => {
     try {
       ledger.persistHandoff(
         "review",
-        "task",
+        "wave",
         { tasks: "7,9", round: 1 },
         {
           tasks: [7, 9],
@@ -262,7 +261,7 @@ describe("round — the round carrier", () => {
           commits: { base: BASE, head: HEAD },
         },
       );
-      const carrier = ledger.round("review", "task", { tasks: "7,9" }, 1);
+      const carrier = ledger.round("review", "wave", { tasks: "7,9" }, 1);
       expect(carrier).not.toBeNull();
       expect(carrier!.phase).toBe("review");
       expect(carrier!.findings).toEqual([
@@ -282,17 +281,17 @@ describe("round — the round carrier", () => {
     try {
       ledger.persistHandoff(
         "review",
-        "task",
+        "wave",
         { tasks: "7,9", round: 1 },
         { findings: [{ severity: "blocker", summary: "the input findings" }] },
       );
       ledger.persistHandoff(
         "fix",
-        "task",
+        "wave",
         { tasks: "7,9", round: 1 },
         { phase: "fix", findings: [], commits: { base: BASE, head: HEAD } },
       );
-      const carrier = ledger.round("fix", "task", { tasks: "7,9" }, 1);
+      const carrier = ledger.round("fix", "wave", { tasks: "7,9" }, 1);
       expect(carrier).not.toBeNull();
       expect(carrier!.phase).toBe("fix");
       // the judgment findings are the source review's input, never the fix's own empty carrier
@@ -311,13 +310,13 @@ describe("round — the round carrier", () => {
       // the fix carrier is on record but the source review it judges (C5-1) is missing
       ledger.persistHandoff(
         "fix",
-        "task",
+        "wave",
         { tasks: "7,9", round: 1 },
         { phase: "fix", findings: [], commits: { base: BASE, head: HEAD } },
       );
       // missing source review → no round on record (matching the review branch): the next-hop
       // derivation cannot close a line whose blocker set was never read
-      expect(ledger.round("fix", "task", { tasks: "7,9" }, 1)).toBeNull();
+      expect(ledger.round("fix", "wave", { tasks: "7,9" }, 1)).toBeNull();
     } finally {
       cleanup();
     }
@@ -328,11 +327,11 @@ describe("round — the round carrier", () => {
     try {
       ledger.persistHandoff(
         "review",
-        "task",
+        "wave",
         { tasks: "1", round: 1 },
         { findings: [{ severity: "blocker" }] },
       );
-      expect(ledger.round("fix", "task", { tasks: "1" }, 1)).toBeNull();
+      expect(ledger.round("fix", "wave", { tasks: "1" }, 1)).toBeNull();
     } finally {
       cleanup();
     }
@@ -344,21 +343,21 @@ describe("round — the round carrier", () => {
       for (const roundNumber of [1, 2]) {
         ledger.persistHandoff(
           "review",
-          "task",
+          "wave",
           { tasks: "7,9", round: roundNumber },
           { findings: [{ severity: "blocker" }] },
         );
       }
-      const twoS1 = ledger.round("review", "task", { tasks: "7,9" }, 2);
+      const twoS1 = ledger.round("review", "wave", { tasks: "7,9" }, 2);
       expect(twoS1!.consecutiveS1).toBe(2);
       // a clean review at round 3 resets the run
       ledger.persistHandoff(
         "review",
-        "task",
+        "wave",
         { tasks: "7,9", round: 3 },
         { findings: [{ severity: "warn" }] },
       );
-      expect(ledger.round("review", "task", { tasks: "7,9" }, 3)!.consecutiveS1).toBe(0);
+      expect(ledger.round("review", "wave", { tasks: "7,9" }, 3)!.consecutiveS1).toBe(0);
     } finally {
       cleanup();
     }
@@ -369,12 +368,12 @@ describe("round — the round carrier", () => {
     try {
       ledger.persistHandoff(
         "review",
-        "task",
+        "wave",
         { tasks: "1", round: 1 },
         { findings: [{ severity: "blocker" }] },
       );
       // review round 2 is the evaluated round but the file is missing → the run starts cold
-      expect(ledger.round("review", "task", { tasks: "1" }, 2)).toBeNull();
+      expect(ledger.round("review", "wave", { tasks: "1" }, 2)).toBeNull();
     } finally {
       cleanup();
     }

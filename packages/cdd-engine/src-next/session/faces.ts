@@ -12,8 +12,11 @@
 
 import type { RoundPhase } from "./ledger.ts";
 
-/** The target types the parameterized lifecycle serves (the CLI `--type` vocabulary). */
-export type TargetType = "task" | "branch" | "spec" | "plan";
+/** The target types the parameterized lifecycle serves (the CLI `--type` vocabulary).
+ *  `wave` (T26 · the wave-unitary model): the task-graph face whose dispatch unit
+ *  is the derived wave — the type name is the UNIT, not the graph's node granularity
+ *  (the audit source stays "task-graph" · the plan's task nodes keep the task name). */
+export type TargetType = "wave" | "branch" | "spec" | "plan";
 
 /** The dispatch phases a lifecycle drives — the round-carrier phase vocabulary,
  *  single-typed against the ledger's RoundPhase (no second phase union). */
@@ -65,8 +68,8 @@ export interface TargetFace {
 
 /** The four target-type faces — one row per CLI `--type` value (the single table). */
 export const targetFaces: Record<TargetType, TargetFace> = {
-  task: {
-    type: "task",
+  wave: {
+    type: "wave",
     audit: { kind: "task-graph" },
     product: { reviewLead: "review" },
     nextSemantics: { batch: true },

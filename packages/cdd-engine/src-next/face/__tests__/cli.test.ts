@@ -176,9 +176,9 @@ describe("the command face — the six steady subcommand words", () => {
 
   it("the usage lines carry the steady consumption face (verb + leaf words included)", () => {
     expect(CLI_USAGE.implement).toBe("usage: cdd implement --tasks <n|n,n,…> --plan <path>");
-    expect(CLI_USAGE.review).toContain("--type <task|branch|spec|plan>");
+    expect(CLI_USAGE.review).toContain("--type <wave|branch|spec|plan>");
     expect(CLI_USAGE.review).toContain("branch: --base <sha> --head <sha>");
-    expect(CLI_USAGE.fix).toContain("--type <task|branch|spec|plan>");
+    expect(CLI_USAGE.fix).toContain("--type <wave|branch|spec|plan>");
     expect(CLI_USAGE.base).toContain("<set|get>");
     expect(CLI_USAGE.schema).toContain("get <type>");
     expect(CLI_USAGE.issue).toContain("render");
@@ -223,7 +223,7 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
 
   it("rejects an out-of-enum --type and --source", () => {
     expect(() => cli().parse(["review", "--type", "bogus"])).toThrow(
-      /--type must be one of task \| branch \| spec \| plan/,
+      /--type must be one of wave \| branch \| spec \| plan/,
     );
     expect(() =>
       cli().parse(["base", "set", "--plan", "p", "--base", "d", "--source", "nope"]),
@@ -296,7 +296,7 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
   });
 
   it("accepts --help / -h and the dry-run scope at any position", () => {
-    expect(cli().parse(["review", "--type", "task", "--help"]).help).toBe(true);
+    expect(cli().parse(["review", "--type", "wave", "--help"]).help).toBe(true);
     expect(cli().parse(["-h", "implement", "--tasks", "1"]).help).toBe(true);
     expect(cli().parse(["--dry-run", "implement", "--tasks", "1", "--plan", "x"]).dryRun).toBe(
       true,
@@ -360,12 +360,12 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 · handoff: ");
       expect(io.stdoutText).toContain(`next: review ${head.slice(0, 7)}`);
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
-      const progress = readJson<{ tasks: unknown[] }>(path.join(workspace, "progress.json"));
-      expect(progress.tasks).toContainEqual({ task: 1, rounds: { implement: 1 } });
+      const progress = readJson<{ waves: unknown[] }>(path.join(workspace, "progress.json"));
+      expect(progress.waves).toContainEqual({ wave: "1", rounds: { implement: 1 } });
       expect(existsSync(path.join(workspace, "tasks-1-implement.json"))).toBe(true);
       expect(existsSync(path.join(workspace, "tasks-1-brief.md"))).toBe(true);
       expect(readFileSync(path.join(workspace, "tasks-1-brief.md"), "utf8")).toContain(
-        "TASK_BASE:",
+        "WAVE_BASE:",
       );
     } finally {
       cleanup();
@@ -378,7 +378,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       gitInit(repoRoot);
       const plan = planFor(repoRoot, 2);
       // The root wave {1} first (task 2's dep sits in wave 1). Implementing task 1 does
-      // NOT close it (implement rounds are never a closure — v1.20 closedTasks), so the
+      // NOT close it (implement rounds are never a closure — v1.20 closedWaves), so the
       // wave advances only through the review's C5 closure: review 1 must land before
       // task 2 becomes dispatchable.
       expect(
@@ -398,7 +398,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         await command.runArgv([
           "review",
           "--type",
-          "task",
+          "wave",
           "--tasks",
           "1",
           "--plan",
@@ -421,9 +421,9 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       ]);
       expect(code).toBe(0);
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
-      const progress = readJson<{ tasks: unknown[] }>(path.join(workspace, "progress.json"));
-      expect(progress.tasks).toContainEqual({ task: 1, rounds: { implement: 1, review: 1 } });
-      expect(progress.tasks).toContainEqual({ task: 2, rounds: { implement: 1 } });
+      const progress = readJson<{ waves: unknown[] }>(path.join(workspace, "progress.json"));
+      expect(progress.waves).toContainEqual({ wave: "1", rounds: { implement: 1, review: 1 } });
+      expect(progress.waves).toContainEqual({ wave: "2", rounds: { implement: 1 } });
       // the invocation's single stdout face — only the LAST step's capsule
       expect(io.stdoutText.split("status: APPROVED").length - 1).toBe(1);
       expect(existsSync(path.join(workspace, "tasks-2-implement.json"))).toBe(true);
@@ -467,7 +467,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       const code = await command.runArgv([
         "review",
         "--type",
-        "task",
+        "wave",
         "--tasks",
         "1",
         "--plan",
@@ -517,7 +517,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       const code = await command.runArgv([
         "review",
         "--type",
-        "task",
+        "wave",
         "--tasks",
         "1",
         "--plan",
@@ -551,7 +551,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       ledger.recordRound(1, "implement");
       ledger.persistHandoff(
         "review",
-        "task",
+        "wave",
         { tasks: "1", round: 1 },
         {
           tasks: [1],
@@ -564,7 +564,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       const code = await command.runArgv([
         "fix",
         "--type",
-        "task",
+        "wave",
         "--tasks",
         "1",
         "--plan",
@@ -665,7 +665,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       const code = await command.runArgv([
         "review",
         "--type",
-        "task",
+        "wave",
         "--tasks",
         "1",
         "--plan",
@@ -719,7 +719,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         await command.runArgv([
           "review",
           "--type",
-          "task",
+          "wave",
           "--tasks",
           "1",
           "--plan",
@@ -736,7 +736,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         await command.runArgv([
           "fix",
           "--type",
-          "task",
+          "wave",
           "--tasks",
           "2",
           "--plan",
@@ -810,7 +810,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     }
   });
 
-  it("plan-graph — the board shows the in-wave ✔/▶ mix from closedTasks", async () => {
+  it("plan-graph — the board shows the in-wave ✔/▶ mix from closedWaves", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
@@ -819,13 +819,13 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       // task 2 unrecorded — both sit in the single root wave {1,2}, so the board's
       // current wave holds the MIX: task 1 done (✔), task 2 in-flight (▶). The v1.20
       // marker fix — a done task shows ✔ INSIDE the current wave, never a swallowed
-      // whole-row ▶ ("any ledger row is done" is retired: the closed set = closedTasks).
+      // whole-row ▶ ("any ledger row is done" is retired: the closed set = closedWaves).
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "two").ensure();
       const ledger = new Ledger(workspace, new ConfigLoader());
       ledger.recordRound(1, "implement");
       ledger.persistHandoff(
         "review",
-        "task",
+        "wave",
         { tasks: "1", round: 1 },
         {
           tasks: [1],
@@ -1007,12 +1007,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
   }
 
   const implementFrame: OpenFrame = {
-    type: "task",
+    type: "wave",
     phase: "implement",
     round: 1,
-    target: { kind: "task", task: 1 },
+    target: { kind: "wave", tasks: [1] },
     params: { tasks: "1" },
-    key: 1,
+    key: "1",
   };
 
   const specReviewFrame: OpenFrame = {
@@ -1025,12 +1025,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
   };
 
   const taskReviewFrame: OpenFrame = {
-    type: "task",
+    type: "wave",
     phase: "review",
     round: 1,
-    target: { kind: "task", task: 1 },
+    target: { kind: "wave", tasks: [1] },
     params: { tasks: "1", round: 1 },
-    key: 1,
+    key: "1",
   };
 
   it("detects the host from the harness-contract detect markers (claude > cursor > pi)", () => {
@@ -1103,7 +1103,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(prompt.startsWith("/mattpocock-skills:implement ")).toBe(true);
       // v1.8 — the mode 分派表 + the 规整命名 grammar (ROLE/SCOPE · INPUT_/OUTPUT_/WORKSPACE_)
       expect(prompt).toContain("- `ROLE`: implement");
-      expect(prompt).toContain("- `SCOPE`: 1");
+      expect(prompt).toContain("- `WAVE`: 1");
       expect(prompt).toContain(`- \`WORKSPACE_DIR\`: ${scene.workspace.path}`);
       expect(prompt).toContain(
         `- \`OUTPUT_HANDOFF\`: ${path.join(scene.workspace.path, "tasks-1-implement.json")}`,
@@ -1266,7 +1266,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(io.stderrText).toContain("CDD_BLOCKED: the handoff draft was not written");
       // the crash record — the same-command resume's decision source
       const crash = readJson<{ attemptedHandoff: string; next: string; cause: string }>(
-        path.join(scene.workspace.path, "crash-implement.task-1.json"),
+        path.join(scene.workspace.path, "crash-implement.wave-1.json"),
       );
       expect(crash.attemptedHandoff).toBe(
         path.join(scene.workspace.path, "tasks-1-implement.json"),

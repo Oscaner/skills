@@ -105,7 +105,7 @@ export interface DispatchTable {
   fix: string;
   /** The review phase rows — the task/branch ref keys (the spec/plan rows carry no
    *  skill ref — the review criteria live in the template plane). */
-  review: Readonly<Record<"task" | "branch", ReviewDispatchRow>>;
+  review: Readonly<Record<"wave" | "branch", ReviewDispatchRow>>;
 }
 
 /** The per-harness slash reference forms of one ref key. */
@@ -204,7 +204,7 @@ export const DISPATCH = {
   implement: "mattpocock-skills:implement",
   fix: "mattpocock-skills:tdd",
   review: {
-    task: { ref: "mattpocock-skills:code-review" },
+    wave: { ref: "mattpocock-skills:code-review" },
     branch: { ref: "mattpocock-skills:code-review" },
   },
 } as const satisfies DispatchTable;

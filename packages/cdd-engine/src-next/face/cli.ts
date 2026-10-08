@@ -51,7 +51,7 @@ import { targetFaces } from "../session/faces.ts";
 import { TaskGraph } from "../session/graph.ts";
 import type { HandoffSchemaFace } from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
-import type { HandoffParams, RoundStatus } from "../session/ledger.ts";
+import type { HandoffParams, OpType, RoundStatus } from "../session/ledger.ts";
 import { Ledger } from "../session/ledger.ts";
 import type { Route } from "../session/next.ts";
 import { NextStepRouter } from "../session/next.ts";
@@ -87,8 +87,8 @@ export type CliLeafName = "get" | "set" | "render";
 export const CLI_USAGE: Record<CliVerb, string> = {
   implement: "usage: cdd implement --tasks <n|n,n,…> --plan <path>",
   review:
-    "usage: cdd review --type <task|branch|spec|plan> [--tasks <n|n,n,…>] (--plan <path> | --spec <path> | branch: --base <sha> --head <sha>) [--round <n>]",
-  fix: "usage: cdd fix --type <task|branch|spec|plan> [--tasks <n|n,n,…>] [--findings <path>] (--plan <path> | --spec <path>)",
+    "usage: cdd review --type <wave|branch|spec|plan> [--tasks <n|n,n,…>] (--plan <path> | --spec <path> | branch: --base <sha> --head <sha>) [--round <n>]",
+  fix: "usage: cdd fix --type <wave|branch|spec|plan> [--tasks <n|n,n,…>] [--findings <path>] (--plan <path> | --spec <path>)",
   base: "usage: cdd base <set|get> --plan <path> [set: --base <branch> --source <source>] [--force]",
   schema: "usage: cdd schema get <type>",
   issue: "usage: cdd issue render",
@@ -451,7 +451,7 @@ export class HarnessDispatch {
   }
 
   /** The work-mode of a frame phase — branch-review rides the review family. */
-  #opOf(frame: OpenFrame): "implement" | "review" | "fix" {
+  #opOf(frame: OpenFrame): OpType {
     return frame.phase === "branch-review" ? "review" : frame.phase;
   }
 
@@ -473,7 +473,7 @@ export class HarnessDispatch {
     if (frame.phase === "review" || frame.phase === "branch-review") {
       // The task/branch rows are object-shaped {ref}; the spec/plan review types
       // carry NO dispatch row (their criteria are the review prompt's fixed body).
-      const entry = dispatch.review[frame.type as "task" | "branch"];
+      const entry = dispatch.review[frame.type as "wave" | "branch"];
       const declaredRef = (entry as { ref?: unknown } | undefined)?.ref;
       ref =
         typeof declaredRef === "string" && declaredRef.startsWith("mattpocock-skills:")
@@ -497,7 +497,7 @@ export class HarnessDispatch {
   }
 
   /** The round-context zone values of the dispatch prompt (the v1.8 naming contract:
-   *  ROLE/SCOPE nominatives · INPUT_* read-side · OUTPUT_* write-side · WORKSPACE_*
+   *  ROLE nominative · WAVE (unit) · INPUT_* read-side · OUTPUT_* write-side · WORKSPACE_*
    *  environment · FIX_BASE anchor). Every declared token supplied — a mode's
    *  non-consumed slots stay empty and are NOT emitted by the assembler
    *  (empty-valued keys are dropped), so each mode's round context carries only the
@@ -510,15 +510,14 @@ export class HarnessDispatch {
     const params = frame.params;
     const isReview = frame.phase === "review" || frame.phase === "branch-review";
     const docPath = frame.target.kind === "doc" ? frame.target.doc : null;
-    const branchRange =
-      frame.target.kind === "branch"
-        ? `${frame.target.base.slice(0, 7)}..${frame.target.head.slice(0, 7)}`
-        : null;
-    const scope = params.tasks ?? branchRange ?? docPath ?? scene.planPath ?? frame.type;
+    const isWave = frame.type === "wave";
     return {
       ROLE: role,
-      SCOPE: scope,
-      INPUT_TASK: this.#taskInput(frame, scene, op),
+      // v1.22 (wave-unitary): the wave face's scope IS the wave (the whole task list)
+      // — the round context speaks the UNIT, `WAVE`; the line faces carry their own
+      // read-side identity (INPUT_RANGE/INPUT_DOC/INPUT_PLAN — the retired SCOPE).
+      WAVE: isWave ? (params.tasks ?? "") : "",
+      INPUT_WAVE_BRIEF: this.#waveBrief(frame, scene, op),
       INPUT_RULES: scene.workspace.resolve("plan-constraints.md"),
       // v1.9: INPUT_FINDINGS is fix/docs-fix only — the open findings of the source
       // review; a review writes its own draft (INPUT_FINDINGS === OUTPUT_HANDOFF
@@ -544,13 +543,13 @@ export class HarnessDispatch {
 
   /** The review's reference (INPUT_RANGE) — the fact the review criteria judge: the
    *  branch range (full shas), the doc (spec/plan), or — task reviews — the reviewed
-   *  commit range TASK_BASE..HEAD derived from the implement round's handoff (§3.7
+   *  commit range WAVE_BASE..HEAD derived from the implement round's handoff (§3.7
    *  closeout: only present facts land — an unreadable implement handoff degrades
    *  to the plan path). */
   #reviewRange(frame: OpenFrame): string {
     if (frame.target.kind === "branch") return `${frame.target.base}..${frame.target.head}`;
     if (frame.target.kind === "doc") return frame.target.doc;
-    const carried = this.#scene.ledger.readHandoff("implement", "task", {
+    const carried = this.#scene.ledger.readHandoff("implement", "wave", {
       tasks: frame.params.tasks ?? "",
     });
     const commits = carried?.commits as { base?: unknown; head?: unknown } | undefined;
@@ -563,9 +562,9 @@ export class HarnessDispatch {
   /** The round's task-brief input — the rendered brief (implement) or the prior
    *  implement round's brief file (task fixes — it exists on disk after the
    *  implement dispatch). "" outside the task work rounds; only present facts land. */
-  #taskInput(frame: OpenFrame, scene: DispatchScene, op: string): string {
+  #waveBrief(frame: OpenFrame, scene: DispatchScene, op: string): string {
     if (op === "implement") return scene.briefPath ?? "";
-    if (op === "fix" && frame.type === "task") {
+    if (op === "fix" && frame.type === "wave") {
       const brief = scene.workspace.resolve(`tasks-${frame.params.tasks}-brief.md`);
       return existsSync(brief) ? brief : "";
     }
@@ -701,7 +700,7 @@ export class HarnessDispatch {
    *  reason note (the child's work preserved, marked bad). */
   #materialize(
     frame: OpenFrame,
-    op: "implement" | "review" | "fix",
+    op: OpType,
     face: HandoffSchemaFace,
     draft: Record<string, unknown>,
     status: RoundStatus,
@@ -752,7 +751,7 @@ export class HarnessDispatch {
    *  use the canonical `tasks-` prefix; the branch fix uses the `branch-` family
    *  prefix (never the misleading tasks- spine). */
   #evidencePrefix(frame: OpenFrame): string {
-    return frame.type === "task" ? "tasks" : "branch";
+    return frame.type === "wave" ? "tasks" : "branch";
   }
 
   /** The op.type family record — the engine-config handoff namespace single truth
@@ -807,7 +806,7 @@ export class HarnessDispatch {
       case "review":
         if (frame.type === "spec") return `cdd review --type spec --spec ${this.#docOf(frame)}`;
         if (frame.type === "plan") return `cdd review --type plan --plan ${this.#docOf(frame)}`;
-        return `cdd review --type task --tasks ${frame.params.tasks ?? ""} --plan ${plan}`;
+        return `cdd review --type wave --tasks ${frame.params.tasks ?? ""} --plan ${plan}`;
       case "fix": {
         const findings = scene.ledger.handoffPath("review", frame.type, frame.params);
         const target =
@@ -1113,10 +1112,10 @@ export class Cli {
   /** One work command's run — assemble the scene, advance the requested phase (the
    *  lifecycle's single dispatch step per frame), render the capsule lines. */
   async #runWork(verb: CliVerb, parsed: ParsedCommand): Promise<number> {
-    const type = (parsed.args.type ?? "task") as TargetType;
-    if (type === "task" && parsed.args.tasks === undefined) {
+    const type = (parsed.args.type ?? "wave") as TargetType;
+    if (type === "wave" && parsed.args.tasks === undefined) {
       throw new CliUsageError(
-        `cdd ${verb} --type task: missing required --tasks <n|n,n,…>`,
+        `cdd ${verb} --type wave: missing required --tasks <n|n,n,…>`,
         CLI_USAGE[verb],
       );
     }
@@ -1130,7 +1129,7 @@ export class Cli {
     // yields exactly the requested group (in-memory only — the ledger is the on-disk
     // record; the next invocation re-derives the phase from the ledger).
     let group: Set<number> | null = null;
-    if (type === "task") {
+    if (type === "wave") {
       group = new Set(this.#tasksOf(parsed));
       const planIds =
         scene.planText !== null
@@ -1154,7 +1153,7 @@ export class Cli {
     // wrong-phase request, or a mixed-phase wave BLOCKs for implement AND review AND
     // fix alike (the implement-only strict-wave check + the #taskGate phase lock fuse
     // into the single WaveGate.vet — never a variant gate per verb).
-    if ((type === "task" || type === "plan") && scene.planText !== null) {
+    if ((type === "wave" || type === "plan") && scene.planText !== null) {
       const parsedPlan = new PlanDocType("plan").parse(scene.planText.split("\n"));
       const graph = new TaskGraph(parsedPlan);
       const issues = graph.validate();
@@ -1166,23 +1165,17 @@ export class Cli {
           this.#io.stderr(`  ${issue.kind}@T${issue.task}: ${issue.message}\n`);
         return 1;
       }
-      if (type === "task" && group !== null) {
-        const verdict = this.#waveGate.vet(
-          group,
-          verb as "implement" | "review" | "fix",
-          graph,
-          scene.ledger,
-          this.#words,
-        );
+      if (type === "wave" && group !== null) {
+        const verdict = this.#waveGate.vet(group, verb as OpType, graph, scene.ledger, this.#words);
         if (!verdict.ok) {
           this.#io.stderr(
             `cdd ${verb}: ${verdict.message ?? "the dispatch gate refused the request"}\n`,
           );
           if (verdict.reason === "split") {
             // The full-wave hint + the wave-board — the board's done face rides the
-            // SAME closedTasks() read the gate judged (one closed set, one source).
+            // SAME closedWaves() read the gate judged (one closed set, one source).
             if (this.#graphView !== null) {
-              const closed = scene.ledger.closedTasks();
+              const closed = scene.ledger.closedWaves();
               for (const line of this.#graphView
                 .render(graph.report(closed), `plan-graph: ${scene.planPath ?? ""}`)
                 .split("\n"))
@@ -1240,14 +1233,14 @@ export class Cli {
     for (;;) {
       const step = run.advance();
       if (step === null) break;
-      const taskId = step.frame.target.kind === "task" ? step.frame.target.task : null;
+      const waveTasks = step.frame.target.kind === "wave" ? step.frame.target.tasks : null;
       const mismatch =
         step.frame.phase !== expected ||
-        (group !== null && (taskId === null || !group.has(taskId)));
+        (group !== null && (waveTasks === null || !waveTasks.every((id) => group!.has(id))));
       if (mismatch) {
         if (dispatched === 0) {
           this.#io.stderr(
-            `cdd ${verb}: cannot dispatch a ${expected} round — the next round is ${step.frame.phase}${taskId !== null ? ` for task ${taskId}` : ""}${this.#phaseHint(step.frame.phase)}\n`,
+            `cdd ${verb}: cannot dispatch a ${expected} round — the next round is ${step.frame.phase}${waveTasks !== null ? ` for wave ${waveTasks.join(",")}` : ""}${this.#phaseHint(step.frame.phase)}\n`,
           );
           return 1;
         }
@@ -1256,7 +1249,8 @@ export class Cli {
       dispatched += 1;
       latest = step.capsuleLines;
       lastStatus = statuses[statuses.length - 1] ?? null;
-      if (taskId !== null && group !== null) scene.state.markDone(taskId);
+      if (waveTasks !== null && group !== null)
+        for (const id of waveTasks) scene.state.markDone(id);
       if (lastStatus === "BLOCKED" || lastStatus === "TIMEOUT") {
         for (const line of latest) this.#io.stdout(`${line}\n`);
         return 1;
@@ -1402,7 +1396,7 @@ export class Cli {
   }
 
   /** Render the task group brief into the workspace (the implement dispatch's input)
-   *  — the brief's TASK_BASE rides the current git HEAD. */
+   *  — the brief's WAVE_BASE rides the current git HEAD. */
   #renderBrief(scene: WorkScene, parsed: ParsedCommand): string {
     const tasks = this.#tasksOf(parsed);
     const content = this.#brief.render(scene.planText!, tasks, scene.head ?? "");
@@ -1430,10 +1424,10 @@ export class Cli {
     let planText: string | null = null;
     let target: WorkScene["target"] = null;
     switch (type) {
-      case "task": {
+      case "wave": {
         if (planPath === null)
           throw new CliUsageError(
-            `cdd ${verb} --type task: missing required --plan <path>`,
+            `cdd ${verb} --type wave: missing required --plan <path>`,
             CLI_USAGE[verb],
           );
         slug = Workspace.slugFromDoc(planPath);
@@ -1482,7 +1476,7 @@ export class Cli {
     const workspace = new Workspace(root, slug).ensure();
     const ledger = new Ledger(workspace, config);
     const state =
-      type === "task"
+      type === "wave"
         ? new TaskGraph(new PlanDocType("plan").parse(planText!.split("\n")))
         : EMPTY_RUN_STATE;
     return {
@@ -1528,7 +1522,7 @@ export class Cli {
    *  wave-board (GraphView — one deterministic row per wave, zero third-party layout;
    *  beautiful-mermaid retired as tech debt). A Graph validate failure BLOCKs the read
    *  with the named edge violations — the wave-preflight gate surfaces as a discovery
-   *  read. The board's done face is the same closedTasks() the pre-flight gates judge. */
+   *  read. The board's done face is the same closedWaves() the pre-flight gates judge. */
   async #runPlanGraph(parsed: ParsedCommand): Promise<number> {
     const planPath = parsed.args.plan;
     if (planPath === undefined) {
@@ -1552,9 +1546,9 @@ export class Cli {
       Workspace.slugFromDoc(planPath),
     ).ensure();
     const ledger = new Ledger(workspace, this.#config);
-    // The board's done face = the C5 closure single read (v1.20): closedTasks() — the
+    // The board's done face = the C5 closure single read (v1.20): closedWaves() — the
     // same set the pre-flight gates judge, never "any ledger row is done".
-    const done = ledger.closedTasks();
+    const done = ledger.closedWaves();
     this.#io.stdout(`${this.#graphView.render(graph.report(done), `plan-graph: ${planPath}`)}\n`);
     return 0;
   }

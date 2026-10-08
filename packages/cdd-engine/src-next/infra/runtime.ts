@@ -110,7 +110,7 @@ export const ARGV_CHANNEL = {
   type: {
     flag: "--type",
     type: "enum",
-    values: ["task", "branch", "spec", "plan"],
+    values: ["wave", "branch", "spec", "plan"],
   },
   base: { flag: "--base", type: "sha" },
   head: { flag: "--head", type: "sha" },
@@ -133,23 +133,23 @@ export const ARGV_CHANNEL = {
  *  contract) and the `schema` faces are the handoff-schema selector (work / findings —
  *  §3.6, session/handoff-schema.ts). */
 export const HANDOFF_FAMILIES = {
-  "implement.task": {
+  "implement.wave": {
     name: "tasks-{tasks}-implement.json",
     round: "fixed",
     status: "contract",
     schema: "work",
     phase: "implement",
   },
-  "review.task": {
+  "review.wave": {
     name: "tasks-{tasks}-review-{round}.json",
     round: "increment",
     status: "rollup",
     schema: "findings",
     phase: "review",
-    fixFamily: "fix.task",
-    prev: { round1: "implement.task", roundR: "fix.task:R-1" },
+    fixFamily: "fix.wave",
+    prev: { round1: "implement.wave", roundR: "fix.task:R-1" },
   },
-  "fix.task": {
+  "fix.wave": {
     name: "tasks-{tasks}-fix-{round}.json",
     round: "source",
     status: "contract",

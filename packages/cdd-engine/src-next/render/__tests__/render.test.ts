@@ -22,8 +22,8 @@ import { TemplateAssembler } from "../templates.ts";
  *  prefix, §3.7). */
 const ALL_VALUES: Record<string, string> = {
   ROLE: "implement",
-  SCOPE: "4,12",
-  INPUT_TASK: "/ws/tasks-4,12-brief.md",
+  WAVE: "4,12",
+  INPUT_WAVE_BRIEF: "/ws/tasks-4,12-brief.md",
   INPUT_RULES: "/ws/plan-constraints.md",
   INPUT_FINDINGS: "",
   INPUT_RANGE: "",
@@ -61,8 +61,8 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(out).toContain("## Return");
     expect(out).toContain("## Round context");
     expect(out).toContain("- `ROLE`: implement");
-    expect(out).toContain("- `SCOPE`: 4,12");
-    expect(out).toContain("- `INPUT_TASK`: /ws/tasks-4,12-brief.md");
+    expect(out).toContain("- `WAVE`: 4,12");
+    expect(out).toContain("- `INPUT_WAVE_BRIEF`: /ws/tasks-4,12-brief.md");
     expect(out).toContain("$$SCHEMA$$"); // the injected writable-subset fence slot
     expect(out).not.toContain("{{"); // zero unresolved slots
     // the v1.9 散文归零 — no HANDOFF_WRITE_GATE / ## Handoff prose anywhere
@@ -79,7 +79,6 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     const out = assembler.render({
       ...ALL_VALUES,
       ROLE: "docs-fix",
-      SCOPE: "docs/x-design.md",
       INPUT_DOC: "docs/x-design.md",
     });
     expect(out.startsWith("# CDD dispatch — docs-fix round")).toBe(true);
@@ -96,7 +95,6 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       ...ALL_VALUES,
       ROLE: "review",
       REVIEW_TYPE: "spec",
-      SCOPE: "docs/kairos/specs/s1-design.md",
       INPUT_RANGE: "docs/kairos/specs/s1-design.md",
       INPUT_PLAN: "/ws/p.md",
       OUTPUT_HANDOFF: "/ws/spec-review-1.json",
@@ -106,19 +104,18 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(spec).toContain("Follow URC");
     expect(spec).toContain("completeness | consistency | clarity");
     expect(spec).toContain("- `INPUT_RANGE`: docs/kairos/specs/s1-design.md");
-    expect(spec).not.toContain("- `INPUT_TASK`");
+    expect(spec).not.toContain("- `INPUT_WAVE_BRIEF`");
     expect(spec).not.toContain("- `INPUT_FINDINGS`");
     expect(spec).not.toContain("- `FIX_BASE`");
     // a task review selects its own variant — the task axes + lens
     const task = assembler.render({
       ...ALL_VALUES,
       ROLE: "review",
-      REVIEW_TYPE: "task",
-      SCOPE: "1",
+      REVIEW_TYPE: "wave",
       INPUT_RANGE: "aaaaaaa..bbbbbbb",
       OUTPUT_HANDOFF: "/ws/tasks-1-review-1.json",
     });
-    expect(task).toContain("**Criteria — task:**");
+    expect(task).toContain("**Criteria — wave:**");
     expect(task).toContain("Standards axis");
     expect(task).toContain("standards | spec | buildability");
     expect(task).not.toContain("Follow URC");
@@ -199,12 +196,12 @@ describe("BriefRenderer — the brief data rendering + the checkable gate", () =
     expect(() => brief.render(PLAN, [1, 5], "a".repeat(40))).toThrow(/task 5/);
   });
 
-  it("renders the brief content — the raw section + the TASK_BASE line", () => {
+  it("renders the brief content — the raw section + the WAVE_BASE line", () => {
     const sha = "abcd1234abcd1234abcd1234abcd1234abcd1234";
     const out = brief.render(PLAN, [1], sha);
     expect(out).toContain("### Task 1: one");
     expect(out).toContain("- **Objective**: objective");
-    expect(out.endsWith(`TASK_BASE: ${sha}\n`)).toBe(true);
+    expect(out.endsWith(`WAVE_BASE: ${sha}\n`)).toBe(true);
   });
 });
 

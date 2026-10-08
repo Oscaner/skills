@@ -6,7 +6,7 @@
 // single wave gate — a half-wave review or a half-wave fix is structurally
 // blocked exactly like a half-wave implement.
 //
-// The gate's only read face is `open = frontier(closedTasks())` — the derived
+// The gate's only read face is `open = frontier(closedWaves())` — the derived
 // wave over the ledger's C5 closure set (ledger.ts, the same closure predicate as
 // the lifecycle's #markTerminal). The three judgments:
 //   1. requested ≠ open      → the split/subset BLOCK (dispatch the full derived wave,
@@ -48,7 +48,7 @@ export interface WaveVerdict {
   reason?: WaveGateReason;
   /** The rendered BLOCK message (the vocabulary row, verbatim-filled). */
   message?: string;
-  /** The derived open wave — frontier(closedTasks), ascending (both the split hint
+  /** The derived open wave — frontier(closedWaves), ascending (both the split hint
    *  and the CLI's progress-marking read this). */
   open: readonly number[];
   /** The open wave's per-task phases (the heterogeneous named-BLOCK display). */
@@ -74,7 +74,7 @@ export class WaveGate {
     ledger: Ledger,
     words: Words,
   ): WaveVerdict {
-    const closed = ledger.closedTasks();
+    const closed = ledger.closedWaves();
     const open = [...graph.frontier(closed)].sort((a, b) => a - b);
     const asked = [...requested].sort((a, b) => a - b);
     const requestedKey = asked.join(",");
@@ -138,7 +138,7 @@ export class WaveGate {
     if (implemented === 0) return "implement";
     if (reviews === 0) return "review";
     if (fixes < reviews) return "fix";
-    const carried = ledger.round("fix", "task", { tasks: String(task) }, reviews);
+    const carried = ledger.round("fix", "wave", { tasks: String(task) }, reviews);
     if (carried === null) return null;
     return this.#router.next(EMPTY_RUN_STATE, carried)?.kind === "review" ? "review" : null;
   }

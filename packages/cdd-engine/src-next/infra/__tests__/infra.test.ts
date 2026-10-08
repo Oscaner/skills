@@ -28,7 +28,7 @@ describe("runtime — the typed engine-config surface (the typed data plane)", (
     expect(ENGINE_RUNTIME.handoffNamespace.workspaceRoot).toBe(".kairos/cdd");
     // The CLI channel table — the flag/type/enum single source (tasks / type enum).
     expect(ARGV_CHANNEL.tasks).toEqual({ flag: "--tasks", type: "int-list" });
-    expect(ARGV_CHANNEL.type.values).toEqual(["task", "branch", "spec", "plan"]);
+    expect(ARGV_CHANNEL.type.values).toEqual(["wave", "branch", "spec", "plan"]);
     expect(ARGV_CHANNEL.help).toEqual({
       flag: "--help",
       alias: "-h",
@@ -38,20 +38,20 @@ describe("runtime — the typed engine-config surface (the typed data plane)", (
   });
 
   it("carries the handoff family naming table — every op.type the ledger resolves", () => {
-    expect(HANDOFF_FAMILIES["implement.task"].name).toBe("tasks-{tasks}-implement.json");
-    expect(HANDOFF_FAMILIES["review.task"].name).toBe("tasks-{tasks}-review-{round}.json");
+    expect(HANDOFF_FAMILIES["implement.wave"].name).toBe("tasks-{tasks}-implement.json");
+    expect(HANDOFF_FAMILIES["review.wave"].name).toBe("tasks-{tasks}-review-{round}.json");
     // v1.9 — the family `schema` faces select the handoff-schema subset (§3.6: the
     // field resurrected from the dead task/docs discrimination), and the return-format
     // field is gone (RETURN_STDOUT_BLOCK is the ONE return contract). The docs-fix
     // families (fix.spec/fix.plan) ride the findings face — §3.6's per-mode split.
     expect(HANDOFF_FAMILIES["review.branch"].schema).toBe("findings");
     expect(HANDOFF_FAMILIES["fix.plan"].schema).toBe("findings");
-    expect(HANDOFF_FAMILIES["implement.task"].schema).toBe("work");
-    expect(HANDOFF_FAMILIES["fix.task"].schema).toBe("work");
+    expect(HANDOFF_FAMILIES["implement.wave"].schema).toBe("work");
+    expect(HANDOFF_FAMILIES["fix.wave"].schema).toBe("work");
     for (const key of [
-      "implement.task",
-      "review.task",
-      "fix.task",
+      "implement.wave",
+      "review.wave",
+      "fix.wave",
       "review.spec",
       "fix.spec",
       "review.plan",
@@ -96,13 +96,13 @@ describe("config — the typed accessor facade (one no-I/O route per face)", () 
     // (RETURN_JSON / DOCS_FIX retired) — the work-mode rows + the four review variants
     // (the review mode's ROLE resolves by REVIEW_TYPE)
     expect(Object.keys(template.modes)).toEqual(["implement", "fix", "docs-fix"]);
-    expect(Object.keys(template.reviews)).toEqual(["task", "branch", "spec", "plan"]);
+    expect(Object.keys(template.reviews)).toEqual(["wave", "branch", "spec", "plan"]);
     expect(Object.keys(template.return)).toEqual(["RETURN_STDOUT_BLOCK"]);
   });
 
   it("carries the P5 review criteria — the typed dispatch rows + axes guides with zero forbidden prose", () => {
     // The task/branch dispatch rows name their ref only (the parallel-sub-agents note is deleted).
-    expect(DISPATCH.review.task).toEqual({ ref: "mattpocock-skills:code-review" });
+    expect(DISPATCH.review.wave).toEqual({ ref: "mattpocock-skills:code-review" });
     expect(DISPATCH.review.branch).toEqual({ ref: "mattpocock-skills:code-review" });
     // The spec/plan URC criteria migrated to the template plane's REVIEWS (v1.8
     // closeout) — their single typed home: the three axes + the writing-plans
@@ -125,7 +125,7 @@ describe("config — the typed accessor facade (one no-I/O route per face)", () 
     const reviewText = JSON.stringify({ ...DISPATCH.review, ...REVIEWS });
     expect(reviewText).not.toContain("parallel sub-agents");
     // The axes guides carry the verification-evidence duty.
-    expect(REVIEWS.task.axesGuide).toContain("dual evidence");
+    expect(REVIEWS.wave.axesGuide).toContain("dual evidence");
     expect(REVIEWS.branch.axesGuide).toContain("dual evidence");
     expect(TEMPLATE_PROMPT.modes.implement.shell.join("\n")).toContain(
       "mattpocock-skills:implement",

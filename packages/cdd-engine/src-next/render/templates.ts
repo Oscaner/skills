@@ -48,6 +48,8 @@
 // Module-level exports are types / the declared constant data / the class — zero
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
+import type { TargetType } from "../session/faces.ts";
+
 /** The per-dispatch slot values — one entry per declared template token. */
 export interface TemplateValues {
   readonly [name: string]: string;
@@ -76,7 +78,6 @@ export type WorkModeRowKey = Exclude<WorkMode, "review">;
 
 /** The four review types — the review mode's per-type prefix variants (the criteria
  *  and lens are per-type constants, so each variant's fixed prefix is byte-stable). */
-export type ReviewType = "task" | "branch" | "spec" | "plan";
 
 /** One dispatch-table row — a mode's fixed prefix + its reduced dynamic tail. */
 export interface ModePromptRow {
@@ -100,7 +101,7 @@ export interface TemplatePrompt {
   modes: Readonly<Record<WorkModeRowKey, ModePromptRow>>;
   /** The review mode's per-type rows — each variant's fixed prefix carries its
    *  criteria + lens (folded in, never tokens). */
-  reviews: Readonly<Record<ReviewType, ModePromptRow>>;
+  reviews: Readonly<Record<TargetType, ModePromptRow>>;
   /** The `## Return` zone — the single block contract (v1.9). */
   return: ReturnZone;
   /** The token registry — the union across every mode's round context + the shell's
@@ -123,7 +124,7 @@ export interface ReviewGuideRow {
 
 /** The review criteria — the four per-type guides (P4 typed data; the spec/plan
  *  URC prose migrated from the dispatch table at v1.8 closeout). */
-export type ReviewGuides = Readonly<Record<ReviewType, ReviewGuideRow>>;
+export type ReviewGuides = Readonly<Record<TargetType, ReviewGuideRow>>;
 
 /** The nominal fixed-frame cells shared by every shell (byte-identical words — the
  *  fixed prefix is read on every dispatch, so every word costs child context). */
@@ -139,7 +140,7 @@ const FRAME_ITEMS: readonly string[] = [
 const EVIDENCE_ITEM =
   "**Evidence gate:** write the test-evidence file per the `test-evidence` schema in `## Handoff schema` — `command`/`exit_code`/`passed`/`warnings_count` + `typecheck` (`command`/`exit_code`/`passed`); `behavior_change` when applicable. Update the round's report after verification. Missing or schema-violating evidence → the engine rewrites the draft to `status: BLOCKED`. Reports, test output, diffs: files only, never the return.";
 const COMMITS_TASK_ITEM =
-  "**Commits:** `base` = `TASK_BASE`. Verification already committed this scope → `head` = `git rev-parse HEAD` (no duplicate); else create **one** conventional commit (`feat:`/`fix:`/`refactor:`/…, no attribution/AI trailers) then `head` = `git rev-parse HEAD`. Uncommitted or out-of-scope changes at return → `status: BLOCKED` (engine rewrites + surfaces `CDD_BLOCKED:`; off-ledger commits land in `notes`).";
+  "**Commits:** `base` = `WAVE_BASE`. Verification already committed this scope → `head` = `git rev-parse HEAD` (no duplicate); else create **one** conventional commit (`feat:`/`fix:`/`refactor:`/…, no attribution/AI trailers) then `head` = `git rev-parse HEAD`. Uncommitted or out-of-scope changes at return → `status: BLOCKED` (engine rewrites + surfaces `CDD_BLOCKED:`; off-ledger commits land in `notes`).";
 const COMMITS_FIX_ITEM =
   "**Commits:** `base` = `FIX_BASE`; one conventional commit (`fix:`/`refactor:`/…, no attribution/AI trailers) unless verification already committed it. Uncommitted or out-of-scope changes at return → `status: BLOCKED` (engine rewrites + surfaces `CDD_BLOCKED:`; off-ledger commits land in `notes`).";
 
@@ -170,7 +171,7 @@ const IMPLEMENT_SHELL: readonly string[] = [
   "## Instructions",
   "",
   ...FRAME_ITEMS,
-  "**implement:** read `INPUT_TASK` (the brief) + `INPUT_RULES` (plan constraints). `SCOPE` = this round's group key; `INPUT_TASK` holds every `### Task N:` section — implement ALL, never a subset. `CONFIRMED_SEAMS` in the brief → apply as-is; else propose test boundaries in the report, then invoke **`mattpocock-skills:implement`**. Write the handoff draft at `OUTPUT_HANDOFF` per `## Handoff schema` BEFORE the return block: `status` (APPROVED once applied, else BLOCKED + `failure_category`), `artifacts` (brief/report/test_evidence file paths), `commits` (`base` = `TASK_BASE`; `head` = `git rev-parse HEAD`), `changes[]` (every changed file + reason).",
+  "**implement:** read `INPUT_WAVE_BRIEF` (the wave brief) + `INPUT_RULES` (plan constraints). `WAVE` = this round's wave (the task list); `INPUT_WAVE_BRIEF` holds every `### Task N:` section — implement ALL tasks of the wave, never a subset. `CONFIRMED_SEAMS` in the brief → apply as-is; else propose test boundaries in the report, then invoke **`mattpocock-skills:implement`**. Write the handoff draft at `OUTPUT_HANDOFF` per `## Handoff schema` BEFORE the return block: `status` (APPROVED once applied, else BLOCKED + `failure_category`), `artifacts` (brief/report/test_evidence file paths), `commits` (`base` = `WAVE_BASE`; `head` = `git rev-parse HEAD`), `changes[]` (every changed file + reason).",
   EVIDENCE_ITEM,
   COMMITS_TASK_ITEM,
   ...LICENSE_ITEMS,
@@ -184,7 +185,7 @@ const FIX_SHELL: readonly string[] = [
   "## Instructions",
   "",
   ...FRAME_ITEMS,
-  "**fix:** read `INPUT_FINDINGS` (open findings) + `INPUT_TASK` (task brief — context). Fix ALL findings (blocker/warn/nit), verifying against `INPUT_FINDINGS` none remain open. `commits.base` = `FIX_BASE` (the prior handoff's `commits.head`); `commits.head` = `git rev-parse HEAD` — no diff vs `FIX_BASE` → no commit (keep `head`). Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema` in one process; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
+  "**fix:** read `INPUT_FINDINGS` (open findings) + `INPUT_WAVE_BRIEF` (wave brief — context). Fix ALL findings (blocker/warn/nit), verifying against `INPUT_FINDINGS` none remain open. `commits.base` = `FIX_BASE` (the prior handoff's `commits.head`); `commits.head` = `git rev-parse HEAD` — no diff vs `FIX_BASE` → no commit (keep `head`). Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema` in one process; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
   EVIDENCE_ITEM,
   COMMITS_FIX_ITEM,
   ...LICENSE_ITEMS,
@@ -216,7 +217,7 @@ const REVIEW_CONTEXT: readonly string[] = [
   "## Round context",
   "",
   "- `ROLE`: {{ROLE}}",
-  "- `SCOPE`: {{SCOPE}}",
+  "- `WAVE`: {{WAVE}}",
   "- `INPUT_RANGE`: {{INPUT_RANGE}}",
   "- `INPUT_PLAN`: {{INPUT_PLAN}}",
   "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
@@ -234,8 +235,8 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
       "## Round context",
       "",
       "- `ROLE`: {{ROLE}}",
-      "- `SCOPE`: {{SCOPE}}",
-      "- `INPUT_TASK`: {{INPUT_TASK}}",
+      "- `WAVE`: {{WAVE}}",
+      "- `INPUT_WAVE_BRIEF`: {{INPUT_WAVE_BRIEF}}",
       "- `INPUT_RULES`: {{INPUT_RULES}}",
       "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
       "- `WORKSPACE_DIR`: {{WORKSPACE_DIR}}",
@@ -249,8 +250,8 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
       "## Round context",
       "",
       "- `ROLE`: {{ROLE}}",
-      "- `SCOPE`: {{SCOPE}}",
-      "- `INPUT_TASK`: {{INPUT_TASK}}",
+      "- `WAVE`: {{WAVE}}",
+      "- `INPUT_WAVE_BRIEF`: {{INPUT_WAVE_BRIEF}}",
       "- `INPUT_FINDINGS`: {{INPUT_FINDINGS}}",
       "- `FIX_BASE`: {{FIX_BASE}}",
       "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
@@ -265,7 +266,7 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
       "## Round context",
       "",
       "- `ROLE`: {{ROLE}}",
-      "- `SCOPE`: {{SCOPE}}",
+      "- `WAVE`: {{WAVE}}",
       "- `INPUT_DOC`: {{INPUT_DOC}}",
       "- `INPUT_FINDINGS`: {{INPUT_FINDINGS}}",
       "- `FIX_BASE`: {{FIX_BASE}}",
@@ -280,11 +281,11 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
  *  spec/plan URC rows migrated from the dispatch table at the v1.8 closeout — their
  *  single typed home). */
 export const REVIEWS = {
-  task: {
+  wave: {
     lensEnum: ["standards", "spec", "buildability"],
-    ref: "TASK_BASE..HEAD",
+    ref: "WAVE_BASE..HEAD",
     axesGuide:
-      "Standards axis (repo coding standards + code-review smell baseline) + Spec axis (task brief / plan requirements) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — `tsc --noEmit`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): cross-check the handoff's `changes[]` ledger against the actual `git diff <base>..HEAD` fileset — any changed file with no ledger entry and no brief-seam attribution is a candidate finding (severity by your judgment; warn-level booking gaps the engine flagged can surface here as blockers when they expose out-of-brief changes). Single agent, four axes.",
+      "Standards axis (repo coding standards + code-review smell baseline) + Spec axis (wave brief / plan requirements) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — `tsc --noEmit`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): cross-check the handoff's `changes[]` ledger against the actual `git diff <base>..HEAD` fileset — any changed file with no ledger entry and no brief-seam attribution is a candidate finding (severity by your judgment; warn-level booking gaps the engine flagged can surface here as blockers when they expose out-of-brief changes). Single agent, four axes.",
   },
   branch: {
     lensEnum: ["standards", "spec", "buildability"],
@@ -308,11 +309,11 @@ export const REVIEWS = {
 
 /** The per-type facts the review variants compose at module-const time (the lens
  *  vocabularies + the criteria bodies — single data references, never restates). */
-const REVIEWS_TASK_LENS = REVIEWS.task.lensEnum.join(" | ");
+const REVIEWS_WAVE_LENS = REVIEWS.wave.lensEnum.join(" | ");
 const REVIEWS_BRANCH_LENS = REVIEWS.branch.lensEnum.join(" | ");
 const REVIEWS_SPEC_LENS = REVIEWS.spec.lensEnum.join(" | ");
 const REVIEWS_PLAN_LENS = REVIEWS.plan.lensEnum.join(" | ");
-const REVIEW_TASK_AXES = REVIEWS.task.axesGuide;
+const REVIEW_WAVE_AXES = REVIEWS.wave.axesGuide;
 const REVIEW_BRANCH_AXES = REVIEWS.branch.axesGuide;
 const REVIEW_SPEC_URC = REVIEWS.spec.axesGuide;
 const REVIEW_PLAN_URC = REVIEWS.plan.axesGuide;
@@ -320,8 +321,8 @@ const REVIEW_PLAN_URC = REVIEWS.plan.axesGuide;
 /** The review mode's four per-type rows (§3.7) — each variant's fixed prefix folds
  *  its criteria + lens INLINE (the `INPUT_CRITERIA`/`INPUT_LENS` round-context
  *  tokens are gone), and shares the REVIEW_CONTEXT dynamic tail. */
-const REVIEW_VARIANTS: Readonly<Record<ReviewType, ModePromptRow>> = {
-  task: {
+const REVIEW_VARIANTS: Readonly<Record<TargetType, ModePromptRow>> = {
+  wave: {
     mode: "review",
     shell: [
       "# CDD dispatch — review round",
@@ -330,8 +331,8 @@ const REVIEW_VARIANTS: Readonly<Record<ReviewType, ModePromptRow>> = {
       "",
       ...FRAME_ITEMS,
       REVIEW_ITEM,
-      `**Lens labels:** one of \`${REVIEWS_TASK_LENS}\` — every finding MUST carry its \`lens\`.`,
-      `**Criteria — task:** ${REVIEW_TASK_AXES}`,
+      `**Lens labels:** one of \`${REVIEWS_WAVE_LENS}\` — every finding MUST carry its \`lens\`.`,
+      `**Criteria — wave:** ${REVIEW_WAVE_AXES}`,
       ...LICENSE_ITEMS,
       ...SCHEMA_SECTION,
     ],
@@ -420,11 +421,11 @@ const TOKENS: readonly TemplateToken[] = [
   { name: "INPUT_PLAN", zone: "round-context" },
   { name: "INPUT_RANGE", zone: "round-context" },
   { name: "INPUT_RULES", zone: "round-context" },
-  { name: "INPUT_TASK", zone: "round-context" },
+  { name: "INPUT_WAVE_BRIEF", zone: "round-context" },
   { name: "OUTPUT_HANDOFF", zone: "round-context" },
   { name: "REVIEW_TYPE", zone: "round-context" },
   { name: "ROLE", zone: "round-context" },
-  { name: "SCOPE", zone: "round-context" },
+  { name: "WAVE", zone: "round-context" },
   { name: "WORKSPACE_DIR", zone: "round-context" },
   { name: "WORKSPACE_ID", zone: "round-context" },
 ];
@@ -517,7 +518,7 @@ export class TemplateAssembler {
    *  REVIEW_TYPE discriminant), the work modes from the modes table. */
   #rowOf(values: TemplateValues): ModePromptRow {
     if (values.ROLE === "review") {
-      const row = this.#contract.reviews[values.REVIEW_TYPE as ReviewType];
+      const row = this.#contract.reviews[values.REVIEW_TYPE as TargetType];
       if (row === undefined) {
         throw new Error(
           `template review type not declared: ${values.REVIEW_TYPE === undefined || values.REVIEW_TYPE === "" ? "(missing REVIEW_TYPE)" : values.REVIEW_TYPE}`,
@@ -579,7 +580,7 @@ export class TemplateAssembler {
 
   /** The review variant of a REVIEW_TYPE (verified in the gate). */
   #reviewRow(values: TemplateValues): ModePromptRow | undefined {
-    return this.#contract.reviews[values.REVIEW_TYPE as ReviewType];
+    return this.#contract.reviews[values.REVIEW_TYPE as TargetType];
   }
 
   /** The work-mode row of a ROLE (verified in the gate). */

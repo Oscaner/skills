@@ -95,14 +95,14 @@ const phasesOf = (steps: readonly StepResult[]): readonly (string | null)[] =>
 
 describe("the faces table — one row per target type", () => {
   it("declares the four CLI `--type` values in the single table", () => {
-    expect(Object.keys(targetFaces)).toEqual(["task", "branch", "spec", "plan"]);
+    expect(Object.keys(targetFaces)).toEqual(["wave", "branch", "spec", "plan"]);
     for (const type of Object.keys(targetFaces) as TargetType[]) {
       expect(targetFaces[type].type).toBe(type);
     }
   });
 
   it("task — the task-graph audit, the review lead, batch continuation", () => {
-    const face = targetFaces.task as TargetFace;
+    const face = targetFaces.wave as TargetFace;
     expect(face.audit).toEqual({ kind: "task-graph" });
     expect(face.product.reviewLead).toBe("review");
     expect(face.nextSemantics.batch).toBe(true);
@@ -134,7 +134,7 @@ describe("the task small loop — implement → review → the next ready group"
         frame.phase === "implement" ? APPROVED_IMPLEMENT : { status: "APPROVED", findings: [] },
       );
       const run = new Lifecycle({
-        face: targetFaces.task,
+        face: targetFaces.wave,
         state: graph,
         ledger,
         dispatch: dispatch.step,
@@ -143,7 +143,7 @@ describe("the task small loop — implement → review → the next ready group"
       const step1 = run.advance();
       expect(step1).not.toBeNull();
       expect(step1!.frame.phase).toBe("implement");
-      expect(step1!.frame.target).toEqual({ kind: "task", task: 1 });
+      expect(step1!.frame.target).toEqual({ kind: "wave", tasks: [1] });
       expect(step1!.frame.params).toEqual({ tasks: "1" });
       expect(step1!.round).toBe(1);
       expect(step1!.route).toEqual({ kind: "review", base: BASE });
@@ -155,7 +155,7 @@ describe("the task small loop — implement → review → the next ready group"
 
       const step3 = run.advance();
       expect(step3!.frame.phase).toBe("implement");
-      expect(step3!.frame.target).toEqual({ kind: "task", task: 2 });
+      expect(step3!.frame.target).toEqual({ kind: "wave", tasks: [2] });
 
       const step4 = run.advance();
       expect(step4!.frame.phase).toBe("review");
@@ -171,14 +171,14 @@ describe("the task small loop — implement → review → the next ready group"
         "review",
       ]);
       expect(dispatch.calls.map((f) => f.target)).toEqual([
-        { kind: "task", task: 1 },
-        { kind: "task", task: 1 },
-        { kind: "task", task: 2 },
-        { kind: "task", task: 2 },
+        { kind: "wave", tasks: [1] },
+        { kind: "wave", tasks: [1] },
+        { kind: "wave", tasks: [2] },
+        { kind: "wave", tasks: [2] },
       ]);
       // the progress record + the done-set carry the loop forward
       expect(graph.doneTasks()).toEqual(new Set([1, 2]));
-      expect(run.face()).toBe(targetFaces.task);
+      expect(run.face()).toBe(targetFaces.wave);
     } finally {
       cleanup();
     }
@@ -200,7 +200,7 @@ describe("the task small loop — implement → review → the next ready group"
         };
       });
       const run = new Lifecycle({
-        face: targetFaces.task,
+        face: targetFaces.wave,
         state: graph,
         ledger,
         dispatch: dispatch.step,
@@ -247,7 +247,7 @@ describe("the task small loop — implement → review → the next ready group"
         return { status: "APPROVED", findings: [finding("nit")] };
       });
       const run = new Lifecycle({
-        face: targetFaces.task,
+        face: targetFaces.wave,
         state: graph,
         ledger,
         dispatch: dispatch.step,
@@ -273,7 +273,7 @@ describe("the task small loop — implement → review → the next ready group"
         frame.phase === "implement" ? APPROVED_IMPLEMENT : { status: "BLOCKED" },
       );
       const run = new Lifecycle({
-        face: targetFaces.task,
+        face: targetFaces.wave,
         state: graph,
         ledger,
         dispatch: dispatch.step,
@@ -444,7 +444,7 @@ describe("the capsule interaction seam — non-hard consumption", () => {
       const graph = taskGraph([task(1, "none")]);
       const dispatch = stub(() => APPROVED_IMPLEMENT);
       const run = new Lifecycle({
-        face: targetFaces.task,
+        face: targetFaces.wave,
         state: graph,
         ledger,
         dispatch: dispatch.step,

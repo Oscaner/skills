@@ -19,7 +19,14 @@
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
 import type { DispatchPhase, ReviewLead, TargetFace, TargetType } from "./faces.ts";
-import type { HandoffParams, Ledger, LedgerKey, RoundFinding, RoundStatus } from "./ledger.ts";
+import type {
+  HandoffParams,
+  Ledger,
+  LedgerKey,
+  OpType,
+  RoundFinding,
+  RoundStatus,
+} from "./ledger.ts";
 import type { Route } from "./next.ts";
 import { NextStepRouter } from "./next.ts";
 import type { ExecutionState, Frontier } from "./state.ts";
@@ -44,8 +51,9 @@ export const EMPTY_RUN_STATE: RunState = {
 
 /** The audit target of one dispatch step — what the round audits. */
 export type AuditTarget =
-  /** task: the frontier's next ready task id. */
-  | { kind: "task"; task: number }
+  /** wave (T26 · the wave-unitary model): the frontier's open wave — the whole ready
+   *  batch is ONE dispatch unit (one brief · one child · one commit · one round). */
+  | { kind: "wave"; tasks: readonly number[] }
   /** branch: the branch diff range (full shas — the {base7}/{head7} tokens derive). */
   | { kind: "branch"; base: string; head: string }
   /** spec/plan: the audit document path. */
@@ -64,8 +72,8 @@ export interface OpenFrame {
   target: AuditTarget;
   /** The handoff params the round writes under. */
   params: HandoffParams;
-  /** The progress ledger key the round records under (a task id / a range key /
-   *  a doc path). */
+  /** The progress ledger key the round records under (a wave key string / a range
+   *  key / a doc path). */
   key: LedgerKey;
 }
 
@@ -209,48 +217,51 @@ export class Lifecycle {
 
   /** Resolve the line's next open frame — null when the line is exhausted. */
   #openFrame(): OpenFrame | null {
-    if (this.#face.audit.kind === "task-graph") return this.#openTaskFrame();
+    if (this.#face.audit.kind === "task-graph") return this.#openWaveFrame();
     const target = this.#target;
     if (target === null) return null; // a fixed-target face without its target holds
     return this.#openLineFrame(target);
   }
 
-  /** The task face's next open frame — the smallest ready-and-not-done task whose
-   *  line still has a phase to run; null when the frontier holds only closed lines. */
-  #openTaskFrame(): OpenFrame | null {
+  /** The task face's next open frame — THE OPEN WAVE as ONE dispatch step (the
+   *  wave-unitary model · T26): the frontier's whole ready batch is the frame's
+   *  target — one brief, one child, one commit, one round, one phase train. Null
+   *  when the frontier holds no open wave. */
+  #openWaveFrame(): OpenFrame | null {
     const done = this.#state.doneTasks();
-    for (const task of this.#state.frontier(done)) {
-      const phase = this.#nextTaskPhase(task);
-      if (phase === null) continue;
-      const target = { kind: "task", task } as const;
-      const round = this.#roundFor(phase, task);
-      return {
-        type: "task",
-        phase,
-        round,
-        target,
-        params: this.#paramsOf({ type: "task", phase, target, round }),
-        key: task,
-      };
-    }
-    return null;
+    const ready = this.#state.frontier(done); // the open wave (the whole ready batch, ascending)
+    if (ready.length === 0) return null;
+    const key = ready.join(",");
+    const phase = this.#nextWavePhase(key);
+    if (phase === null) return null;
+    const target = { kind: "wave", tasks: ready } as const;
+    const round = this.#roundFor(phase, key);
+    return {
+      type: "wave",
+      phase,
+      round,
+      target,
+      params: this.#paramsOf({ type: "wave", phase, target, round }),
+      key,
+    };
   }
 
-  /** The next phase of one task line — driven by the ledger progress + the C5 route
+  /** The next phase of one wave line — driven by the ledger progress + the C5 route
    *  of the latest recorded round (implement → review → fix → re-review → closure).
-   *  Null when the line is closed (its latest round's route is done / next-wave /
+   *  A wave's line advances as ONE train (the wave row carries the rounds); null
+   *  when the line is closed (its latest round's route is done / next-wave /
    *  soft-cap — the soft cap defers to the user). */
-  #nextTaskPhase(task: number): DispatchPhase | null {
-    const implemented = this.#ledger.roundCount(task, "implement");
-    const reviews = this.#ledger.roundCount(task, "review");
-    const fixes = this.#ledger.roundCount(task, "fix");
+  #nextWavePhase(key: string): DispatchPhase | null {
+    const implemented = this.#ledger.roundCount(key, "implement");
+    const reviews = this.#ledger.roundCount(key, "review");
+    const fixes = this.#ledger.roundCount(key, "fix");
     if (implemented === 0) return "implement";
     if (reviews === 0) return "review";
     if (fixes < reviews) return "fix";
     // The round pair (review r + fix r) is complete — the fix round's C5 route
     // decides the re-review or the closure (an unreadable round holds the line:
     // only present facts land).
-    const carried = this.#ledger.round("fix", "task", { tasks: String(task) }, reviews);
+    const carried = this.#ledger.round("fix", "wave", { tasks: key }, reviews);
     if (carried === null) return null;
     const route = this.#router.next(this.#state, carried);
     return route?.kind === "review" ? "review" : null;
@@ -342,7 +353,7 @@ export class Lifecycle {
   }
 
   /** The progress key of a single-target line — the branch range token or the doc
-   *  path (the task face never routes here — its frames key by task id). */
+   *  path (the task face never routes here — its frames key by the wave key string). */
   #lineKey(target: AuditTarget): LedgerKey {
     if (target.kind === "branch") return `${target.base.slice(0, 7)}..${target.head.slice(0, 7)}`;
     return (target as { kind: "doc"; doc: string }).doc;
@@ -362,9 +373,9 @@ export class Lifecycle {
     round: number;
   }): HandoffParams {
     switch (frame.type) {
-      case "task": {
-        const taskTarget = frame.target as { kind: "task"; task: number };
-        const params: HandoffParams = { tasks: String(taskTarget.task) };
+      case "wave": {
+        const waveTarget = frame.target as { kind: "wave"; tasks: readonly number[] };
+        const params: HandoffParams = { tasks: waveTarget.tasks.join(",") };
         if (frame.phase !== "implement") params.round = frame.round;
         return params;
       }
@@ -414,21 +425,22 @@ export class Lifecycle {
     return this.#ledger.roundCount(frame.key, frame.phase);
   }
 
-  /** Mark the task done when the concluding route says its line closed — the C5
+  /** Mark the wave done when the concluding route says its line closed — the C5
    *  verdict is the single closure gate (terminal ⇔ route.kind ∈ {done, next-wave},
-   *  the v1.20 closure side): a clean review or a blocker-free fix closes the task,
-   *  while a re-review / soft-cap / a null route (BLOCKED/TIMEOUT, a missing base)
-   *  holds it. Marking the done task lets the next frontier pass exclude the closed
-   *  line. The task-less faces never mark — for them the route IS the gate. */
+   *  the v1.20 closure side): a clean review or a blocker-free fix closes the wave
+   *  (every member task), while a re-review / soft-cap / a null route (BLOCKED,
+   *  TIMEOUT, a missing base) holds it. Marking the closed wave lets the next
+   *  frontier pass exclude it. The task-less faces never mark — for them the route
+   *  IS the gate. */
   #markTerminal(frame: OpenFrame, route: Route | null): void {
-    if (frame.type !== "task") return;
+    if (frame.type !== "wave") return;
     if (route === null || (route.kind !== "done" && route.kind !== "next-wave")) return;
-    const taskTarget = frame.target as { kind: "task"; task: number };
-    this.#state.markDone(taskTarget.task);
+    const waveTarget = frame.target as { kind: "wave"; tasks: readonly number[] };
+    for (const id of waveTarget.tasks) this.#state.markDone(id);
   }
 
   /** The handoff-family op of a phase — branch-review rides the review family. */
-  #opOf(phase: DispatchPhase): "implement" | "review" | "fix" {
+  #opOf(phase: DispatchPhase): OpType {
     return phase === "branch-review" ? "review" : phase;
   }
 

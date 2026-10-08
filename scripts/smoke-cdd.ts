@@ -127,7 +127,7 @@ export class SmokeCdd {
     let stdout = "";
     const chain = [
       ["--dry-run", "implement", "--tasks", "1", "--plan", "fixture-plan.md"],
-      ["--dry-run", "review", "--type", "task", "--tasks", "1", "--plan", "fixture-plan.md"],
+      ["--dry-run", "review", "--type", "wave", "--tasks", "1", "--plan", "fixture-plan.md"],
     ];
     for (const args of chain) {
       const res = runNode([binPath, ...args], repoRoot);

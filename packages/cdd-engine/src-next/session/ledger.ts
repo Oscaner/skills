@@ -24,6 +24,7 @@
 import type { ConfigLoader } from "../infra/config.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
 import type { Workspace } from "../infra/workspace.ts";
+import type { TargetType } from "./faces.ts";
 import type { Route } from "./next.ts";
 import { NextStepRouter } from "./next.ts";
 import { EMPTY_RUN_STATE } from "./run.ts";
@@ -44,7 +45,8 @@ export interface RoundFinding {
 }
 
 /** The dispatch phases the round carrier distinguishes (the handoff phase vocabulary). */
-export type RoundPhase = "implement" | "review" | "fix" | "branch-review";
+export type OpType = "implement" | "review" | "fix";
+export type RoundPhase = OpType | "branch-review";
 
 /** The round-concluding statuses the router's failure face reads. */
 export type RoundStatus = "APPROVED" | "BLOCKED" | "TIMEOUT" | "CHANGES_REQUESTED" | "REVIEW_FIX";
@@ -87,16 +89,19 @@ export const PROGRESS_COUNTER_ZERO = {
 /** The counter member keys — the derived literal union (never re-typed). */
 export type ProgressCounterKey = keyof typeof PROGRESS_COUNTER_ZERO;
 
-/** One progress row — keyed by a scalar task id or the wave key string (the key
- *  IS the wave identity: `--tasks 1` → the task row, `--tasks 1,2` → the wave row.
- *  v1.20 group→wave word sweep: the merged-dispatch row key is `wave` — the
- *  "组 = 波" one-word-one-meaning; the retired `group` key never rides a live row). */
-export type ProgressRow = ({ task: number } | { wave: string }) & {
-  /** The completed rounds per mode (review/fix) — the done record on disk. */
+/** One progress row — keyed by the wave key string (T26 · the wave-unitary model:
+ *  every dispatch is a wave — `--tasks 1` is the single-task wave `"1"`, `--tasks
+ *  1,2` the wave `"1,2"` — one row form, never a task/wave split). */
+export type ProgressRow = {
+  /** The wave key string — the dispatch group identity (`"1"` · `"1,2"`). */
+  wave: string;
+  /** The completed rounds per mode (implement/review/fix) — the done record on disk. */
   rounds?: Record<string, number>;
+  /** The scope base the wave's rounds reviewed from (the pre-wave commit). */
+  scope_base?: string;
 };
 
-/** The progress.json data plane — the fixed top-level key set + the per-key rows. */
+/** The progress.json data plane — the fixed top-level key set + the per-wave rows. */
 export interface ProgressData {
   /** The `--plan` path recorded at first create. */
   plan?: string;
@@ -105,7 +110,7 @@ export interface ProgressData {
   engineSelfWrittenCount: number;
   engineRecoveryCount: number;
   harnessAbortCount: number;
-  tasks: ProgressRow[];
+  waves: ProgressRow[];
 }
 
 /** The ledger lookup key — a scalar task id or the group key string. */
@@ -175,7 +180,7 @@ export class Ledger {
   /** The handoff-family records, keyed by `op.type` — the naming truth the ledger fills. */
   readonly #families: Readonly<Record<string, HandoffFamily>>;
   /** The C5 next router — the closure-side judge of the round carriers (stateless;
-   *  the `closedTasks()` read face and the wave gate share the same router). */
+   *  the `closedWaves()` read face and the wave gate share the same router). */
   readonly #router = new NextStepRouter();
 
   constructor(workspace: Workspace, config: ConfigLoader) {
@@ -201,7 +206,7 @@ export class Ledger {
 
   /** The base progress object — the fixed key set at zero, for a fresh session. */
   emptyProgress(): ProgressData {
-    return { ...PROGRESS_COUNTER_ZERO, tasks: [] };
+    return { ...PROGRESS_COUNTER_ZERO, waves: [] };
   }
 
   /** Read progress.json; null when missing/corrupt (the ledger never invents state). */
@@ -217,16 +222,12 @@ export class Ledger {
   /** The ledger-row lookup single point — a scalar key (or the single-task wave key
    *  `"1"`) resolves the `{ task }` row; a multi-task wave key (`"1,2"`) the `{ wave }` row. */
   rowFor(data: ProgressData, key: LedgerKey): ProgressRow | undefined {
-    if (typeof key === "number" || /^\d+$/.test(key)) {
-      const id = Number(key);
-      return data.tasks.find((row) => "task" in row && row.task === id);
-    }
-    return data.tasks.find((row) => "wave" in row && row.wave === key);
+    return data.waves.find((row) => row.wave === String(key));
   }
 
-  /** The fresh row for an absent key (scalar → task row; wave key → wave row). */
+  /** The fresh row for an absent key — always the wave form (a single trivial
+   *  wave `"1"` is still the `{ wave: "1" }` row — one row form, T26). */
   entryFor(key: LedgerKey): ProgressRow {
-    if (typeof key === "number" || /^\d+$/.test(key)) return { task: Number(key) };
     return { wave: String(key) };
   }
 
@@ -245,7 +246,7 @@ export class Ledger {
     let row = this.rowFor(data, key);
     if (row === undefined) {
       row = this.entryFor(key);
-      data.tasks.push(row);
+      data.waves.push(row);
     }
     row.rounds = { ...row.rounds, [mode]: (row.rounds?.[mode] ?? 0) + 1 };
     this.writeProgress(data);
@@ -258,7 +259,7 @@ export class Ledger {
   }
 
   // -------------------------------------------------------------------------
-  // closedTasks — the closure single read face (v1.20)
+  // closedWaves — the closure single read face (v1.20)
   // -------------------------------------------------------------------------
 
   /**
@@ -272,16 +273,12 @@ export class Ledger {
    * route, never a per-member read). The frontier consumers (the wave gate · the
    * plan-graph board) read this face — one closed set, one source.
    */
-  closedTasks(): Set<number> {
+  closedWaves(): Set<number> {
     const closed = new Set<number>();
     const data = this.readProgress();
     if (data === null) return closed;
-    for (const row of data.tasks) {
-      if ("task" in row) {
-        if (this.#rowClosed({ tasks: String(row.task) }, row)) closed.add(row.task);
-        continue;
-      }
-      if ("wave" in row && this.#rowClosed({ tasks: row.wave }, row)) {
+    for (const row of data.waves) {
+      if (this.#rowClosed({ tasks: row.wave }, row)) {
         for (const id of row.wave.split(",").map((part) => Number(part))) closed.add(id);
       }
     }
@@ -306,7 +303,7 @@ export class Ledger {
   /** The C5 route of one recorded round — null when the round is unreadable (a
    *  line whose round was never read cannot be judged closed: only present facts). */
   #roundRoute(op: "review" | "fix", params: HandoffParams, round: number): Route | null {
-    const carried = this.round(op, "task", params, round);
+    const carried = this.round(op, "wave", params, round);
     if (carried === null) return null;
     return this.#router.next(EMPTY_RUN_STATE, carried);
   }
@@ -460,12 +457,7 @@ export class Ledger {
    *  on record) — a fix round whose source review is unreadable is null too, never a
    *  zero-findings fabrication: a round whose blocker set was never read must not be
    *  judged clean. */
-  round(
-    op: "implement" | "review" | "fix",
-    type: "task" | "branch" | "spec" | "plan",
-    params: HandoffParams,
-    round: number,
-  ): Round | null {
+  round(op: OpType, type: TargetType, params: HandoffParams, round: number): Round | null {
     if (op === "implement") {
       const carrier = this.readHandoff("implement", type, params);
       if (carrier === null) return null;

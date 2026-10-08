@@ -16,7 +16,7 @@ import type { TaskGraphReport } from "../session/graph.ts";
 
 /** GraphView — the wave-board display: one deterministic row per derived wave, the
  *  band's tasks inline with progress markers, the incoming source bands noted.
- *  v1.20 — the in-wave marker mix: the done set rides `closedTasks()` (the report's
+ *  v1.20 — the in-wave marker mix: the done set rides `closedWaves()` (the report's
  *  done projection, never "any ledger row"), and a current-wave task that is already
  *  done shows ✔, never a swallowed whole-row ▶. */
 export class GraphView {

@@ -1,7 +1,7 @@
 // packages/cdd-engine/src-next/session/__tests__/wave.test.ts
 // T24 (v1.21) — WaveGate suite: the three-verb unified wave gate over a hermetic
 // ledger + task graph:
-//   · the only read face — open = frontier(closedTasks()) (the C5 closure set);
+//   · the only read face — open = frontier(closedWaves()) (the C5 closure set);
 //   · the split/subset BLOCK — a `--tasks` set that splits or mismatches the derived
 //     wave (implement AND review AND fix share the same refusal);
 //   · the wrong-phase BLOCK — the open wave is at a phase ≠ the requested verb;
@@ -70,7 +70,7 @@ function cleanReviewCarrier(ledger: Ledger, tasks: string, round: number): void 
   ledger.recordRound(tasks, "review");
   ledger.persistHandoff(
     "review",
-    "task",
+    "wave",
     { tasks, round },
     { tasks: tasks.split(",").map(Number), phase: "review", findings: [], commits: { base, head } },
   );
@@ -128,7 +128,7 @@ describe("WaveGate.vet — the wrong-phase BLOCK", () => {
       const graph = graphOf([task(1, "none")]);
       ledger.recordRound(1, "implement");
       cleanReviewCarrier(ledger, "1", 1); // review approved → task 1 closed
-      // closedTasks now contains 1 → frontier over it is empty → the wave gate sees
+      // closedWaves now contains 1 → frontier over it is empty → the wave gate sees
       // an empty open wave; a requested {1} mismatches ({1} ≠ {}) → the split BLOCK.
       const verdict = gate.vet(new Set([1]), "review", graph, ledger, words);
       expect(verdict.ok).toBe(false);
@@ -189,12 +189,12 @@ describe("WaveGate.vet — the heterogeneous-phase BLOCK (the named ledger anoma
   });
 });
 
-describe("ledger.closedTasks — the C5 closure single read face", () => {
+describe("ledger.closedWaves — the C5 closure single read face", () => {
   it("an implement-only task is never closed (implement rounds carry no closure verdict)", () => {
     const { ledger, cleanup } = fixture();
     try {
       ledger.recordRound(1, "implement");
-      expect(ledger.closedTasks()).toEqual(new Set());
+      expect(ledger.closedWaves()).toEqual(new Set());
     } finally {
       cleanup();
     }
@@ -205,7 +205,7 @@ describe("ledger.closedTasks — the C5 closure single read face", () => {
     try {
       ledger.recordRound(1, "implement");
       cleanReviewCarrier(ledger, "1", 1);
-      expect(ledger.closedTasks()).toEqual(new Set([1]));
+      expect(ledger.closedWaves()).toEqual(new Set([1]));
     } finally {
       cleanup();
     }
@@ -217,12 +217,12 @@ describe("ledger.closedTasks — the C5 closure single read face", () => {
       ledger.recordRound(1, "implement");
       ledger.persistHandoff(
         "review",
-        "task",
+        "wave",
         { tasks: "1", round: 1 },
         { findings: [{ severity: "blocker", summary: "defect" }], commits: { base, head } },
       );
       ledger.recordRound(1, "review");
-      expect(ledger.closedTasks()).toEqual(new Set());
+      expect(ledger.closedWaves()).toEqual(new Set());
     } finally {
       cleanup();
     }
@@ -236,11 +236,11 @@ describe("ledger.closedTasks — the C5 closure single read face", () => {
       ledger.recordRound("4,12", "review");
       ledger.persistHandoff(
         "review",
-        "task",
+        "wave",
         { tasks: "4,12", round: 1 },
         { tasks: [4, 12], phase: "review", findings: [], commits: { base, head } },
       );
-      expect(ledger.closedTasks()).toEqual(new Set([4, 12]));
+      expect(ledger.closedWaves()).toEqual(new Set([4, 12]));
     } finally {
       cleanup();
     }

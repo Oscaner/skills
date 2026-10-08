@@ -2,12 +2,14 @@
 
 **Spec:** [2026-10-02-doc-architecture-v2-p3.2-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3.2-design.md)
 
-- **Parent program**: [2026-10-02-doc-architecture-v2-overall.md v1.24](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.11 · 2026-10-08（**T15 收口 review backfill**（用户 2026-10-08 六前提复盘 · T15 真实探针后）：FIX_BASE 锚=评审 head · task review `INPUT_RANGE`=TASK_BASE..HEAD · review per-type 固定前缀（criteria/lens 折入 · spec/plan lens 补）· work 公共尾 shared · 孤儿键删 · evidence 命名家族字首化——spec v1.8 随）；前置 v1.10 · 2026-10-08（**fix 面 readback 后缀措辞**——用户 2026-10-08 拍板「`first read <findings> back to confirm` → `read file back to confirm`」：FIX_READBACK_SUFFIX 字串随改 · T23 词面同步）；前置 v1.9 · 2026-10-08（**handoff 契约面 rewrite——T15 收口扩域**——用户 2026-10-08 拍板（kill T15 implement 停摆析因）：T15 在 cutover + dispatch 调用面（v1.8）之上扩 **handoff 契约面整改**（spec v1.7 随）：per-mode 可写子集 schema 注入固定前缀（implement→evidence · fix→fix+evidence · review/docs-fix→findings）· review 家族统一 RETURN_STDOUT_BLOCK（RETURN_JSON/DOCS_FIX 退役）· **test-evidence schema 化 + 引擎真读回**（第二个虚设补钉）· `## Handoff` 散文 + HANDOFF_WRITE_GATE 清理 · 引擎读回重建（child draft → 校验 → 物化同路径 · 失败 = 不覆盖 + BLOCK + crash record + resume）——spec v1.7 随）；前置 v1.8 · 2026-10-08（**T22 单文件裁定 + dispatch 调用面纪律 + child prompt 分派表 backfill**——用户 2026-10-08 拍板三连，spec v1.6 随：① **T22 宪法化折为单文件**（overall 保持一份文件、零 `-archive.md`——宪法化 = 单文件内结构化收敛（Standing rules 成典 · 版本行 lineage 消解 → 结构化修订记录 · change-history cell → 结构化 record）· declare.ts 登记行不简化 · 全树 4 overalls 同口径迁移）· ② **T15 cutover 首验补丁**（新引擎 dispatch child 缺 prompt——slash-ref 独立位置参数被 claude 吞 → HOSTS `promptForm` 数据列 + 单位置参数 + 真实探针双门槛，T13 假阳「新树全绿」补密钥）· ③ **child prompt 分派表**（mode 分派表 + 每 mode 固定前缀缓存友好 + per-mode round context 精简子集 + 参数规整命名 INPUT_/OUTPUT_/WORKSPACE_/FIX_BASE/ROLE/SCOPE——T11/T12/T13 面随波收敛，T15 实现收口））；前置 v1.7 · 2026-10-08（**反依赖门放开 backfill——T24 边违约五类收编 + 环活门**——用户 2026-10-08 拍板「放开『任务只能依赖更小编号』约束，Wave 编排完全基于 DependsOn 推导」：TaskGraph contradiction 边违约类退役 · **前向引用合法**（`- **DependsOn**:` 可指向任意现存任务 id）· **cycle 类活门**（环 = 具名违约 · doc-contract 早拦/评审派发 BLOCK）· **编号降级 ID + 波内升序 tiebreak** · referenceLint 新增**编号/拓扑序 advisory WARN**（只警不拦）· 引擎面 = **新任务 T24（W12 · DependsOn 2,5,6,15）** · 技能面 cdd-plan 作者句随波收敛——spec v1.5 随 · 现 plan 全低编号边零迁移）；前置 v1.6 · 2026-10-08（**`next:` 形式补钉**——用户 2026-10-08 拍板「先落补钉再执行」：胶囊 `next:` 渲染 = Route 事实（kind+载荷 · 非完整 cdd 命令）——Route 事实型钉入 T7 · 渲染断言钉入 T10 capsule 面，T16 技能面以「事实 → 命令映射」为消费前提——旧树命令式提示取消的涌现形态补为决策）；前置 v1.5 · 2026-10-08（**T23 next fix 面 readback 后缀**——用户 2026-10-08 拍板「NextStepRouter `kind: fix` 时补 `(read file back to confirm)`」：旧树 readbackWording 设计意图于新架构落地为纯文案提示 · 机械防线由 ledger round/C5-1 兜 · 编排方是否遵守非强约束——plan review-2 闭合后追加）；前置 v1.4 · 2026-10-07（前置 v1.3 = P7 提前承接 backfill——T19 翻译系统 · T20 base 命令面；**v1.4 = P4/P5/P6/P7 全吸收 + 数据面归位 backfill**——用户 2026-10-07 拍板「config-next 完成以后删除 config」+「都是一体的」+「吸收进 P3.2」升华：**T21 数据面归位**（三稳态 JSON → typed 平面 infra/runtime · face/host · render/templates，P4/P5 承接净入——M1 supersede · refs 登记 · 三处禁文删除 · review 准则收口 · 零读 config/ · 导出面保持）· **T22 宪法化承接（P6）**（overall 拆宪法/archive · 版本行散文消解 · Standing rules 成典 · 全树 4 overalls）· **T15 扩域删 config/**（整目录零残留，零重建）· T14 认领 skill-anatomy 归位 · T16 CLAUDE.md/README 数据面同步——overall v1.23 · spec v1.4 随））））
-- **Depends on**: P3.1（Done）· P3.2 design spec v1.7（Approved · 2026-10-08）
+- **Parent program**: [2026-10-02-doc-architecture-v2-overall.md v1.26](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
+- **Version**: v1.12 · 2026-10-08（**严格派生波次 + P5 补遗重写**（用户 2026-10-08 拍板「严格派生波次·零手工拆组·重写 plan·全 backfill」）：派发 = `effectiveGroups` 唯一（零手工拆组 · 历史拆组 W5/W8 记偏差）· 新 **T25 = P5 承接补遗**（refKind 四型 · skills 有序链 · capabilities per-harness · DependsOn 16）· **T17 终验后置**（16,25）· T21 承接范围澄清（M1/禁文/refs/准则——漏映射三件归 T25）· spec 层 P4–P7 「Done 宣言」作废（承接映射表，状态以 plan 任务为准）——spec v1.9 · overall v1.26 随）；前置 v1.11 · 2026-10-08（**T15 收口 review backfill**（用户 2026-10-08 六前提复盘 · T15 真实探针后）：FIX_BASE 锚=评审 head · task review `INPUT_RANGE`=TASK_BASE..HEAD · review per-type 固定前缀（criteria/lens 折入 · spec/plan lens 补）· work 公共尾 shared · 孤儿键删 · evidence 命名家族字首化——spec v1.8 随）；前置 v1.10 · 2026-10-08（**fix 面 readback 后缀措辞**——用户 2026-10-08 拍板「`first read <findings> back to confirm` → `read file back to confirm`」：FIX_READBACK_SUFFIX 字串随改 · T23 词面同步）；前置 v1.9 · 2026-10-08（**handoff 契约面 rewrite——T15 收口扩域**——用户 2026-10-08 拍板（kill T15 implement 停摆析因）：T15 在 cutover + dispatch 调用面（v1.8）之上扩 **handoff 契约面整改**（spec v1.7 随）：per-mode 可写子集 schema 注入固定前缀（implement→evidence · fix→fix+evidence · review/docs-fix→findings）· review 家族统一 RETURN_STDOUT_BLOCK（RETURN_JSON/DOCS_FIX 退役）· **test-evidence schema 化 + 引擎真读回**（第二个虚设补钉）· `## Handoff` 散文 + HANDOFF_WRITE_GATE 清理 · 引擎读回重建（child draft → 校验 → 物化同路径 · 失败 = 不覆盖 + BLOCK + crash record + resume）——spec v1.7 随）；前置 v1.8 · 2026-10-08（**T22 单文件裁定 + dispatch 调用面纪律 + child prompt 分派表 backfill**——用户 2026-10-08 拍板三连，spec v1.6 随：① **T22 宪法化折为单文件**（overall 保持一份文件、零 `-archive.md`——宪法化 = 单文件内结构化收敛（Standing rules 成典 · 版本行 lineage 消解 → 结构化修订记录 · change-history cell → 结构化 record）· declare.ts 登记行不简化 · 全树 4 overalls 同口径迁移）· ② **T15 cutover 首验补丁**（新引擎 dispatch child 缺 prompt——slash-ref 独立位置参数被 claude 吞 → HOSTS `promptForm` 数据列 + 单位置参数 + 真实探针双门槛，T13 假阳「新树全绿」补密钥）· ③ **child prompt 分派表**（mode 分派表 + 每 mode 固定前缀缓存友好 + per-mode round context 精简子集 + 参数规整命名 INPUT_/OUTPUT_/WORKSPACE_/FIX_BASE/ROLE/SCOPE——T11/T12/T13 面随波收敛，T15 实现收口））；前置 v1.7 · 2026-10-08（**反依赖门放开 backfill——T24 边违约五类收编 + 环活门**——用户 2026-10-08 拍板「放开『任务只能依赖更小编号』约束，Wave 编排完全基于 DependsOn 推导」：TaskGraph contradiction 边违约类退役 · **前向引用合法**（`- **DependsOn**:` 可指向任意现存任务 id）· **cycle 类活门**（环 = 具名违约 · doc-contract 早拦/评审派发 BLOCK）· **编号降级 ID + 波内升序 tiebreak** · referenceLint 新增**编号/拓扑序 advisory WARN**（只警不拦）· 引擎面 = **新任务 T24（W12 · DependsOn 2,5,6,15）** · 技能面 cdd-plan 作者句随波收敛——spec v1.5 随 · 现 plan 全低编号边零迁移）；前置 v1.6 · 2026-10-08（**`next:` 形式补钉**——用户 2026-10-08 拍板「先落补钉再执行」：胶囊 `next:` 渲染 = Route 事实（kind+载荷 · 非完整 cdd 命令）——Route 事实型钉入 T7 · 渲染断言钉入 T10 capsule 面，T16 技能面以「事实 → 命令映射」为消费前提——旧树命令式提示取消的涌现形态补为决策）；前置 v1.5 · 2026-10-08（**T23 next fix 面 readback 后缀**——用户 2026-10-08 拍板「NextStepRouter `kind: fix` 时补 `(read file back to confirm)`」：旧树 readbackWording 设计意图于新架构落地为纯文案提示 · 机械防线由 ledger round/C5-1 兜 · 编排方是否遵守非强约束——plan review-2 闭合后追加）；前置 v1.4 · 2026-10-07（前置 v1.3 = P7 提前承接 backfill——T19 翻译系统 · T20 base 命令面；**v1.4 = P4/P5/P6/P7 全吸收 + 数据面归位 backfill**——用户 2026-10-07 拍板「config-next 完成以后删除 config」+「都是一体的」+「吸收进 P3.2」升华：**T21 数据面归位**（三稳态 JSON → typed 平面 infra/runtime · face/host · render/templates，P4/P5 承接净入——M1 supersede · refs 登记 · 三处禁文删除 · review 准则收口 · 零读 config/ · 导出面保持）· **T22 宪法化承接（P6）**（overall 拆宪法/archive · 版本行散文消解 · Standing rules 成典 · 全树 4 overalls）· **T15 扩域删 config/**（整目录零残留，零重建）· T14 认领 skill-anatomy 归位 · T16 CLAUDE.md/README 数据面同步——overall v1.23 · spec v1.4 随））））
+- **Depends on**: P3.1（Done）· P3.2 design spec v1.9（Approved · 2026-10-08）
 - **Base**: develop
 
-执行序：新树 `src-next` 自底向上建齐（骨架 → contract → session → face → infra/render → bin）→ 引擎测试全绿 → `scripts-next` 重写 → cutover（入口切换 + 删旧树 + **`scripts-next` → `scripts` 改名**）→ 技能 8→6 → 终验。新旧零依赖贯穿全计划（T1 起 grep 断言、每任务自测）。
+执行序：新树 `src-next` 自底向上建齐（骨架 → contract → session → face → infra/render → bin）→ 引擎测试全绿 → `scripts-next` 重写 → cutover（入口切换 + 删旧树 + **`scripts-next` → `scripts` 改名**）→ 技能 8→6 → P5 承接补遗 → 终验。新旧零依赖贯穿全计划（T1 起 grep 断言、每任务自测）。
+
+**严格派生波次纪律（v1.12 · 用户 2026-10-08 拍板）**：派发 **EXACTLY `effectiveGroups`** —— 引擎 TaskGraph 由 `- **DependsOn**:` 边推导的 ready batch（波内升序），一架一轮，**零手工拆组**（`--tasks` 只取完整派生组）；任何拆组/重排 = Plan Sole Writer 的**边修订**（改 DependsOn 重推导），绝无 ad-hoc 子集派发。已发生的历史拆组——派生 W5 `{7,9,18}` 拆 `{7,9}`+`{18}` · 派生 W8 `{13,19,20,23}` 拆 `{13}`+`{19,20}`+`{23}`——记录为偏差（其成员均已闭环，不重派）；T24 的「Wave 推导纯边驱动 · 编排方零手动位移」从任务语义升为全计划硬纪律。
 
 ### Task 1: 骨架——src-next 5 平面 + 双面构建 + 零依赖断言
 
@@ -253,7 +255,7 @@
 
 ### Task 16: 技能 8→6 重写 + skill-anatomy + emit 再生 + README
 
-- **Objective**: `packages/kairos/skills/` 重写为 6 集（cdd-design · cdd-spec-writer · cdd-plan · cdd-dev · cdd-close · cdd-report）；**五链 digraph（design/spec-writer/plan/dev/close）统一骨架** = 一次性执行节点 + NEXT-LOOP 单自环（边零状态标签），**两项例外**——cdd-close 止于 finish 编排语义门 + 终端（无 review 自环）· cdd-report 一次性上报工具链（无自环）；**cdd-design 收敛参数化单模板**（spec §4.1：run-cdd-charter 双节点 + run-cdd-spec/run-cdd-phase 两近同 dispatch 节点合一）；skill-anatomy 注册 6 集（经 T14 归位的引擎契约面导出）+ 目录扫描守卫；emit 再生 (.claude/.cursor/marketplace)；README 随 6 集重写；**next: 消费前提（v1.6 钉）**——技能按 `next:` Route 事实映射具体命令：Route.kind 枚举 = {none, next-group, review}（T7 钉）按 kind+载荷映射 cdd 命令，非命令文本；BLOCKED/TIMEOUT 为非 next 面（无 next 行），技能不消费 `next:`
+- **Objective**: `packages/kairos/skills/` 重写为 6 集（cdd-design · cdd-spec-writer · cdd-plan · cdd-dev · cdd-close · cdd-report）；**五链 digraph（design/spec-writer/plan/dev/close）统一骨架** = 一次性执行节点 + NEXT-LOOP 单自环（边零状态标签），**两项例外**——cdd-close 止于 finish 编排语义门 + 终端（无 review 自环）· cdd-report 一次性上报工具链（无自环）；**cdd-design 收敛参数化单模板**（spec §4.1：run-cdd-charter 双节点 + run-cdd-spec/run-cdd-phase 两近同 dispatch 节点合一）；skill-anatomy 注册 6 集（经 T14 归位的引擎契约面导出）+ 目录扫描守卫（**P4 承接映射显式化 · v1.12：P4 第二 acceptance「封闭 6 集零新增成员 · 第 9 席作废」的责任落此**）；emit 再生 (.claude/.cursor/marketplace)；README 随 6 集重写；**next: 消费前提（v1.6 钉）**——技能按 `next:` Route 事实映射具体命令：Route.kind 枚举 = {none, next-group, review}（T7 钉）按 kind+载荷映射 cdd 命令，非命令文本；BLOCKED/TIMEOUT 为非 next 面（无 next 行），技能不消费 `next:`
 - **Files**: `packages/kairos/skills/*/SKILL.md`（8→6 重写）· `src-next/contract/skill-anatomy.ts`（改：6 集注册；T14 归位面）· `.claude-plugin/`·`.cursor-plugin/`·`marketplace/`（emit 产物）· `packages/kairos/README.md`（改）· `packages/kairos/README.zh-CN.md`（镜像同步，README 三件 mirror 政策同更）· **`CLAUDE.md`（改：skill-anatomy 链接 → 引擎契约面）+ `docs/maintainers/04-program-experience.md`（改：路径引用同步）**
 - **Consumes**: T15 新引擎语义（next: 单环路 / 胶囊词面）· T7 Route 型（next 事实 · 技能映射断言消费）· T14 `scripts/`（checkAnatomy 经引擎导出——T15 改名后终态名）· T20 `cdd base` 命令面（技能文本 seam：`cdd base` 词面同步落）
 - **Produces**: 6 集 SKILL.md（spec-writer 合一参数化 · next-loop 折叠）· skill-anatomy 6 集注册 · emit 产物再生
@@ -273,7 +275,7 @@
 
 - **Objective**: 全量终验（validate ALL PASS · typecheck ×3 · biome · emit 新鲜）· 三 schema description 与登记表一致（派生同步）· changesets（cdd-engine major / kairos major）· 净减账落档（29k → −20%±）· 历史文档零 retro-rename 复核
 - **Files**: `.changeset/*.md`（新建）· `docs/kairos/specs/*.md`（只读复核，不改历史正文）· 净减账记录（计划/文档面）
-- **Consumes**: T16 技能/emit · T15 新树 · T14 `scripts/`
+- **Consumes**: T16 技能/emit · T25 P5 承接补遗 · T15 新树 · T14 `scripts/`
 - **Produces**: validate ALL PASS · changesets · 净减账记录
 - **Steps**:
   - 全量终验链 — checkable: `node scripts/run.ts validate`（或 precommit 等价）ALL PASS
@@ -285,7 +287,7 @@
   - commit `chore: P3.2 终验 + changesets + 净减账`
 - **Acceptance**:
   - validate ALL PASS · typecheck ×3 · biome · emit 新鲜；changesets 落盘；净减账达标（或记录真实值）；历史正文零 retro-rename
-- **DependsOn**: 16
+- **DependsOn**: 16, 25
 
 ### Task 18: 零裸函数全平面整改——Contract 派生/判定面收类
 
@@ -337,6 +339,7 @@
 ### Task 21: 数据面归位——P4/P5 承接（三 JSON → typed 平面）
 
 - **Objective**: 用户 2026-10-07 拍板「config-next 完成以后删除 config」+「都是一体的」——**数据面不占目录**（零外部 JSON 消费者核查：引擎外仅本 repo 自有 kairos tests + 将删旧 scripts，全由 P3.2 接管）：三稳态 JSON（engine-config / harness-contract / template-contract）**收敛为新树 typed 平面成员**——`infra/runtime.ts`（engine-config 面：contextContract·handoffNamespace·$version；failureCategories/slugRule 死字段剔除）· `face/host.ts`（harness-contract 面：host 检测 · dispatch · refs）· `render/templates.ts`（template-contract 面：dispatch 提示词 + review 准则）；JSON 解析/`resource.ts` 路径表/`$schema`/`_doc` 散文面删除；**P4 承接**（review 准则 = typed 数据：dispatch.review 行 + axesGuide —— URC spec/plan 三轴 + writing-plans 自检 + verification evidence；「第 9 席技能」随技能 6 集封闭集作废）· **P5 承接**（DispatchPacket 被 capsule+handoff+模板面取代；残留 = **M1 supersede** dispatch.implement tdd→`mattpocock-skills:implement` + refs 域登记 · **三处禁文删除** review.task/branch note「parallel sub-agents forbidden」×2 + axesGuide「no parallel sub-agents」）；新树**零读 config/**（grep）· **导出面保持**（T14 守卫同波消费的稳定 API 名不变——内部换表示零波次竞态）；kairos tests 改指新数据面
+状态（v1.12）：**本任务承接 P5 三件只有 M1 supersede / refs 登记 / 三处禁文删除**；overall P5 行的其余验收——refKind 四型推导 · skills 有序链渲染 · capabilities per-harness 声明——**吸收时漏映射，落回 T25（v1.12 新增）**，不属本任务。P4 承接只含「准则 typed 数据」；「封闭 6 集守卫」属 T16（v1.12 显式化）。实施回溯 · 已完成。
 - **Files**: `src-next/infra/runtime.ts`（新建）· `src-next/face/host.ts`（新建）· `src-next/render/templates.ts`（新建）· `src-next/infra/config.ts`（改：ConfigStore JSON 读取 → typed 消费）· `src-next/infra/resource.ts`（删：路径表）· `src-next/face/cli.ts`（改：#skillRef/#reviewAxes/模板装配 → typed 面）· `src-next/**/__tests__/**`（改：数据面测试/夹具改指）· `packages/kairos/tests/*.test.ts`（改：改指新数据面）
 - **Consumes**: T11 cli（JSON 读取现面）· T12 infra/render（resource/config 现面）· T13 全绿基线
 - **Produces**: typed 数据平面（infra/runtime · face/host · render/templates）· P4/P5 承接内容落地 · 新树零 JSON/零 config/ 路径 · 稳定导出面
@@ -409,8 +412,27 @@ T13 起的新树自测基线（后续 T14–T24 以此为准；旧树 count pin 
 - **零裸函数全树断言面（自 T13 基线起即全树；T18 收面协议）**：`grep -rn "^export function" src-next --include="*.ts"`（排除 `__tests__`）= **1 命中**——`src-next/face/cli.ts` 组合根 `cli()`（组合根装载面豁免）；非豁免行为面零。
 - **净减账基线（T13 起记）**：新树生产面 **7,619 行**（T17 出具 29k → −20%± 净减账，真实值为准）。
 
+### Task 25: P5 承接补遗——refKind 四型 · skills 有序链 · capabilities per-harness（v1.12 新增）
+
+- **Objective**: overall P5 行吸收时**漏映射的三项验收**落回（v1.12 承接映射闭环）——① **refKind 四型推导**（commit-set ledger / commit-range / doc-revision 双层收敛 / graph-node——含 spec/plan 评审的 **doc_hash ref 绑定 + 同 ref 拒重**，随 ledger/review-ref 推导落 typed 数据）② **skills 有序链渲染**（多 `/xxxx` / `/skill:<bare>` form 的链式渲染消费面——cdd-dev 有序分派链）③ **capabilities per-harness 声明**（claude=parallel 实测子代理面 · host 行数据列）——三项均为 typed 数据 + 装配面消费，零散文；承接映射：overall P5 行 = T21（已落 M1/禁文/refs ✓）+ **T25（本任务）**，闭环可审计
+- **Files**: `packages/cdd-engine/src-next/face/host.ts`（capabilities 数据列 · refs 面扩展）· `packages/cdd-engine/src-next/session/ledger.ts`/ref 推导面（refKind 四型 · doc_hash ref 绑定 · 同 ref 拒重）· 技能面 `packages/kairos/skills/*/SKILL.md`（有序链渲染消费）· `src-next/**/__tests__/**`（断言）
+- **Consumes**: T16 技能 6 集终态 · T11/T13/T21 引擎面 · T24 反依赖门面
+- **Produces**: P5 三件 typed 落地 · overall P5 行承接映射闭环
+- **Steps**:
+  - refKind 四型数据化（commit-set ledger / commit-range / doc-revision 双层 / graph-node——`doc_hash` ref 绑定 + 同 ref 拒重判定）— checkable: 四型断言 + 同 ref 拒重负例
+  - capabilities per-harness 声明（host 行 `capabilities` 列：claude=parallel · cursor/pi 按实测面）— checkable: host 断言 · 零散文
+  - skills 有序链渲染（`/xxxx`/`/skill:` 多 form 的链式渲染消费——cdd-dev 有序分派链断言）— checkable: 渲染断言
+  - 承接映射闭环：`grep` overall P5 验收行 ↔ T21/T25 步骤逐条可对 — checkable: 映射表断言绿
+  - commit `feat(engine): P5 承接补遗——refKind 四型 · capabilities · 有序链（v1.12）`
+- **Acceptance**:
+  - refKind 四型推导落 typed 数据 + doc_hash ref 绑定/同 ref 拒重（负例断言绿）· capabilities 每 host 行数据声明（零散文 · 断言绿）· skills 有序链渲染消费（断言绿）
+  - 承接映射闭环：overall P5 行的每一条 acceptance 都能落到 T21 或 T25 的 step/验收行（映射表逐条对账）——「What gets absorbed must get mapped.」
+- **DependsOn**: 16
+
 ## Constraints
 
+- **严格派生波次（v1.12 · 硬纪律）**：派发 EXACTLY `effectiveGroups`（TaskGraph 由 `- **DependsOn**:` 边推导的 ready batch · 波内升序），一架一轮，零手工拆组；拆组/重排 = Plan Sole Writer 的边修订（改 DependsOn 重推导）；`--tasks` 只取完整派生组。已发生拆组（W5/W8）记历史偏差不重派
+- **承接映射闭环（v1.12 · 全计划）**：phase 吸收（P4–P7）的每条 acceptance 必须可映射到某个 plan 任务的 step/验收行（「What gets absorbed must get mapped」）；T25 承接映射为样板——漏映射即 plan 缺陷
 - **新旧零依赖（贯穿 T1–T24）**：`src-next` ↔ 旧树双向零 import；新树全量按新架构/OOP 单范式重写，不借用旧符号/旧 helper/旧目录形状；**数据面归位（T21，v1.4）**：三稳态 JSON 收敛为 typed 平面成员（infra/runtime · face/host · render/templates）——新树零 JSON 读取、零读旧 `config/` 路径（grep 断言），`config/` 整目录随 T15 cutover 删除零重建；schema/lexicon 派生产物由新树自派生（并行期测试不读旧派生产物）
 - **双面构建纪律**：cutover 前旧树保持活跃（入口未切）；每任务自测绿（该任务面 vitest/独立断言）再交下任务；新树 vitest project 与旧树并存且各自全绿
 - **每任务一个提交**：conventional commit（feat/refactor/docs/chore 前缀）；precommit（lint-staged）绿才提交；历史文档正文零 retro-rename（docs/kairos/specs 既往版本行不动）

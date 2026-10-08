@@ -37,7 +37,7 @@ export class GraphView {
     // spacing — the Unicode box-drawing default is tall and wide at the plan scale.
     let ascii = renderMermaidASCII(mermaid, {
       useAscii: true,
-      paddingX: 2,
+      paddingX: 4,
       paddingY: 2,
       boxBorderPadding: 0,
       colorMode: "none",

@@ -24,7 +24,7 @@ Maintainer-only record of the hard-won lessons from the kairos-overhaul program 
 15. **Output-contract single source, schema-verbatim** — zero hand-written renders; compact injection saves tokens.
 16. **Three input channels, zero-disk context** — argv / git facts / env policy; context is per-call memory, never a persistent runtime store.
 17. **Failure categories + quota isolation + engine-held timeouts** — categories get isolated retry quotas; the engine owns timeout judgment.
-18. **Test colocation + memory guard** — `src/<dir>/__tests__/<file>.test.ts`; vitest is bounded so full-batch runs don't OOM the host.
+18. **Test colocation + memory guard** — `src-next/<plane>/__tests__/<file>.test.ts`; vitest is bounded so full-batch runs don't OOM the host.
 
 ## 3. Caching / context
 
@@ -51,8 +51,8 @@ Maintainer-only record of the hard-won lessons from the kairos-overhaul program 
 ## 6. Architecture discipline
 
 32. **Layered dependency boundary** — `infra → rules → artifacts → dispatch → cli`; imports flow up, a lower layer never imports a higher one (one carve-out: `rules → artifacts`).
-33. **Mechanisms anchor the template method — zero island dispatch** — gate / liveness / carrier / residue hang on `DispatchLifecycle` overridden hooks; a flat dispatch body that re-implements lifecycle logic is the third-island failure.
-34. **Error consolidation — `infra/exit.ts`** — recoverable orchestration errors throw the `CddExitError` family (`exitCode` + `kind`); invariants assert via `invariant(cond, msg)`. Zero bare `throw new Error` in production code.
+33. **Mechanisms anchor the template method — zero island dispatch** — gate / liveness / carrier / residue hang on the lifecycle's typed phase table + abstract base (`src-next/session/run.ts`); a flat dispatch body that re-implements lifecycle logic is the third-island failure.
+34. **Error consolidation — the exit-code table** — command outcomes consolidate through `face/cli.ts` `runArgv` (0 = OK · 1 = failure · 2 = usage/parse); the boot wrapper (`src-next/bin.ts`) maps a crash to `cdd: <message>` + exit 1 — never an unhandled rejection.
 35. **Semantic self-sufficiency — zero stage anchors in injection surfaces** — agent-visible surfaces (prompt, shell prose, schemas) carry meaning in the name; task numbers / phase refs are orchestrator-internal and prohibited. The residue guard pins zero `T\d+|P\d+` tokens there.
 36. **Unified abstraction before patching** — first ask "what is the single concept behind these two implementations?"; collapse duplicates into one mechanism and one owner first.
 37. **Never edit the working tree while a dispatch is in flight** — the engine treats the live git tree as ground truth at the dispatch boundary; a mid-round doc edit looks like a forgetful agent → the exit gate rewrites the round BLOCKED.
@@ -75,13 +75,13 @@ Operational norms fixed by the consumer-parity P3 rebuild; each item is grep-ver
 49. **Single enforcement face** — the four-table charter adjudication has exactly one implementation: the engine lifecycle; `pnpm run validate` has no four-table block.
 50. **Validate 11-block structure snapshot** — `pnpm run validate` composes 11 semantic blocks: emit freshness / plugin resolution · skills inventory · behavior tree · wiring guard / dev stub · engine suite / zero residue + channel audit / marketplace / scripts unit / version sync. The pre-commit subset is 9 blocks — the engine pair is tree-coupled and excluded.
 51. **cdd output zero-filtering** — any skill calling the cdd CLI reads the full stdout/stderr; `tail` / `head` / `2>&1 |` / `EXIT=$?` capture wrappers are forbidden.
-52. **Result-face visibility + exit.ts single source** — every op prints the single status capsule (`status:` / `blocker:` / `handoff:` + `next:`); the orchestrator reads the verdict without opening the handoff; command-level exits single-source through `infra/exit.ts` (0/1/2/3 unchanged).
-53. **Signal-safe exit latch** — the CLI signal contract (SIGINT/SIGTERM/SIGHUP → teardownAll → exit 128+signo) must beat a concurrent run-boundary exit (`process.exit` is first-call-decides). Pinned in `src/bin.ts`: a module-level `signalExitCode` latch set **synchronously** at signal entry (before any await), plus a single `finalExit(code) = process.exit(signalExitCode ?? code)` used at every process.exit site.
+52. **Result-face visibility + exit-code table single source** — every op prints the single status capsule (`status:` / `blocker:` / `handoff:` + `next:`); the orchestrator reads the verdict without opening the handoff; command-level exits single-source through `face/cli.ts` `runArgv` (0 / 1 / 2).
+53. **Exit by the composed CLI, zero signal latch** — `src-next/bin.ts` boots unconditionally (node-floor pre-flight → `cli().runArgv(argv)` → `process.exit` with the returned code); a signal-killed child surfaces as the ledger's `child-signal` reason (143 = SIGTERM).
 54. **Same-signature CI batch failure = real-defect signal, not random flake** — an N/N failure on the same assertion is a reachability signal, not noise. Attribute before labeling: reproduce locally and pin the mechanism; a reviewer "flake" label requires reproduction.
 
 ## 8. Consumer-sim release gate (P4.2, 2026-09-26)
 
-**smoke-cdd positioning** — `smoke-cdd` (`scripts/validate/smoke-cdd.ts`) is the **consumer-sim = the cdd-engine published-artifact consumer black-box**: real build → pack → tarball → consumer install → `cdd schema get` + 5-command dry-run chain; the only CI face installing the packed artifact into an ephemeral consumer repo. Exclusive to cdd-engine; kairos ships via normal npm (pack allowlist + emit + version-sync).
+**smoke-cdd positioning** — `smoke-cdd` (`scripts/smoke-cdd.ts`) is the **consumer-sim = the cdd-engine published-artifact consumer black-box**: real build → pack → tarball → consumer install → `cdd schema get` + 5-command dry-run chain; the only CI face installing the packed artifact into an ephemeral consumer repo. Exclusive to cdd-engine; kairos ships via normal npm (pack allowlist + emit + version-sync).
 
 **Release-only gate** — build + pack + install cost keeps it off the daily PR surface; push→main runs emit freshness + the dual consumer gates in `release.yml`, wired **before** the changesets action:
 
@@ -92,9 +92,9 @@ Operational norms fixed by the consumer-parity P3 rebuild; each item is grep-ver
 
 55. **Validate ↔ smoke-cdd serial discipline** — both write `packages/cdd-engine/dist/` (validate materializes the dev stub, the engine suite reads dist; smoke-cdd rebuilds the directory): a P4.2 concurrent run ENOENTed the engine suite (reproduced; serial re-run green). Run `pnpm run validate` + `node scripts/run.ts smoke-cdd` serially.
 
-## 9. Contract Lexicon (P3, 2026-09-30)
+## 9. Word table (P3 → T10, 2026-09-30)
 
-56. **Contract Lexicon single source** — command-contract vocab (harness keys · status vocab+axes · stdout tokens+banned shapes · G2 residue allowance) in `contract-lexicon.json`; `ContractLexiconGuard` runs its check faces as one validate block — change the word table, never the code. Zero-debt/read-back vocab single-sourced with engine output; orchestrators keep zero restates.
+56. **Word-table single source** — command-contract vocab (harness keys · status vocab+axes · stdout tokens+banned shapes · G2 residue allowance) in the single word table (`src-next/face/words.ts`); the word-face audit (`checkWords`, `scripts/lib/guard.ts`) runs the guard-ban zero-hit as one validate block — change the word table, never the code. Zero-debt/read-back vocab single-sourced with engine output; orchestrators keep zero restates.
 
 57. **Consumer-facing description strings carry zero program history** — schema `description` values and exported doc comments state semantics only: phase-anchor adjectives and lifecycle words (`extension bit`/`declared surface`/`zero read/write at P2`) barred; `P<digits>` legal in domain-role (phase-id grammar). Mirrors 35/44; pinned at P3 T9.
 

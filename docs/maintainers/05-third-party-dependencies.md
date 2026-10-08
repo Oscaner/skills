@@ -16,11 +16,11 @@ The **repo toolchain** (root devDependencies) adopts the development gates, neve
 
 `yaml` is the single adopted package with a hard isolation rule — decided in spec §2.13 (option (b): isolate rather than grow the plugin's dependency set):
 
-- **Only one module consumes it:** `scripts/emit/render-yaml.ts`, an **emit-only** module. Its only runtime consumers are the emit toolchain (`scripts/emit/issue-templates.ts` — `.github/ISSUE_TEMPLATE/*.yml` emitter) and tests.
+- **Only one module consumes it:** `scripts/emit.ts` (the `renderIssueYml` face), an **emit-only** module — its only runtime consumers are the emit orchestrator at emit time (the `.github/ISSUE_TEMPLATE/*.yml` emitter) and tests.
 - **It lives only in the repo root `devDependencies`** (emit toolchain) — never in any shipped package's `dependencies`; it did not ship before, and the P3.2 engine rebuild does not change that (the engine consumes no YAML).
 - **The consumer runtime carries zero third-party dependencies:** the aggregate-body renderer — cdd-engine's `IssueReportRenderer` (`cdd issue render`: stdin JSON → aggregate body → stdout) — **must not import `yaml`**: the form YAML is produced at emit time, so no consumer path touches it, and cdd-engine's dependency list has no `yaml`.
 - **It is forbidden to publish `yaml` as a kairos or cdd-engine runtime dependency.**
-- **Enforcement:** the emit colocated suite (`scripts/emit/__tests__/issue-templates.test.ts`) asserts `renderYml`'s byte golden and the single-source enum injection; the engine colocated suite covers the renderer determinism; the residue guard keeps the retired renderer vocabulary at zero across the mechanism positions.
+- **Enforcement:** the emit colocated suite (`scripts/__tests__/emit.test.ts`) asserts `renderIssueYml`'s byte golden and the single-source enum injection; the engine colocated suite covers the renderer determinism; the residue guard keeps the retired renderer vocabulary at zero across the mechanism positions.
 
 ## 3. Husky boundary
 

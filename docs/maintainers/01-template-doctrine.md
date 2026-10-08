@@ -1,12 +1,12 @@
 # Template Doctrine
 
-> **Scope:** every template-shaped content — text that is data-izable, referenced by multiple consumers, and drift-prone. Large to small: `template-contract.json`, `harness-contract.json`, `issue-body.json` and `.github/ISSUE_TEMPLATE/*.yml`, down to emit-derived marketplace manifests (`.claude-plugin/`, `.cursor-plugin/`, `marketplace/source.json`). This is the methodological contract (AC12).
+> **Scope:** every template-shaped content — text that is data-izable, referenced by multiple consumers, and drift-prone. Large to small: the typed template data (`src-next/render/templates.ts`) · the harness rows (`src-next/face/host.ts`) · `issue-body.json` · `.github/ISSUE_TEMPLATE/*.yml`, down to emit-derived marketplace manifests (`.claude-plugin/`, `.cursor-plugin/`, `marketplace/source.json`). This is the methodological contract (AC12).
 
 ## 1. The two template planes
 
 | Plane | Files | Product |
 |---|---|---|
-| Engine prompt templates | `packages/cdd-engine/templates/` — `engine-config.json` + `template-contract.json` + `schema/` (`task-handoff-schema.json` · `docs-handoff-schema.json` · `cache-profile-schema.json`) | prompts injected into dispatches |
+| Engine prompt templates | `src-next/render/templates.ts` (the per-mode dispatch shell frames + token registry + clause partials · the `REVIEWS` criteria) + the typed handoff schemas (`src-next/session/handoff-schema.ts`) | prompts injected into dispatches |
 | Skill document templates | `packages/kairos/skills/*/docs/` — `base.md` (methodology only; doc-structure content derives from the engine DocBody model — see §9) | artifact scaffolds + methodology the skills ship |
 
 ## 2. The five-node digraph
@@ -39,9 +39,9 @@ The prompt templates converge in five layers — JSON structure, document struct
 3. **Naming** — scoped prefixes (`task-*` / `docs-*`), family-aligned directories
 4. **Description** — schemas carry descriptions; writing-protocol rules live in the schema, not duplicated prose
 5. **Structural skeleton + clause library + injection contract** —
-   - **Skeleton registry** (`template-contract.json#skeleton`): one declarative section list + zone segment map `segments: {shell, return, round-context}` + render `order: [shell, return, round-context]` — the cache-zone split is a skeleton attribute, not a one-off reorder
-   - **Clause library** (`template-contract.json#clauses`): every discipline clause lives once as byte-single-source text, referenced via `{{> cl:…}}` partial refs — changing a rule updates every template on one line
-   - **Token registry** (`template-contract.json#tokens`): the 19 distinct injection tokens (17 `round-context` + 2 `return` — verified mechanically) become data (name / zone); the renderer drives off the registry; template text carries no loose tokens
+   - **Skeleton registry** (`src-next/render/templates.ts`): one declarative section list + zone segment map `segments: {shell, return, round-context}` + render `order: [shell, return, round-context]` — the cache-zone split is a skeleton attribute, not a one-off reorder
+   - **Clause library** (`src-next/render/templates.ts` `clauses`): every discipline clause lives once as byte-single-source text, referenced via `{{> cl:…}}` partial refs — changing a rule updates every template on one line
+   - **Token registry** (`src-next/render/templates.ts` `tokens`): the 14 declared injection tokens (13 `round-context` + 1 `shell`) become data (name / zone); the renderer drives off the registry; template text carries no loose tokens
 
 ## 4. Single-plane-single-file (data consolidation)
 
@@ -79,18 +79,18 @@ The segment attribute (C1) is the cache contract's landing spot: the shell (`## 
 
 ## 9. Experience baking
 
-Skill document templates additionally bake in the program's experience asset (see `04-program-experience.md`). Doc-structure content derives from the engine DocBody model — one concrete body per doc type (`src/documents/doctypes/body/*.ts`) projects three derived planes: the schema product (`projectSchemaShape()` → the diff-pinned `config/schema/*.json`), the parse slabber (`projectSlicePatterns()` → the `docContractValidate`/extractor regexes), the token plane (body leaf → `DOC_TOKENS`); skills consume the schema face via `cdd schema get <type>`. Content edits land in the body, never the derived files. `base.md` is methodology only.
+Skill document templates additionally bake in the program's experience asset (see `04-program-experience.md`). Doc-structure content derives from the engine Projector plane: the declared registries (`src-next/contract/declare.ts`) project the schema (`project.schema()` → the byte-pinned snapshots `src-next/contract/__tests__/__snapshots__/project.schema.*.snap`), the slices (`projector.slices()`, consumed by `src-next/contract/doc.ts`) and the token plane (`projector.tokens()` → `DOC_TOKENS`), all in `src-next/contract/project.ts`; skills consume the schema face via `cdd schema get <type>`. Content edits land in the registry, never the derived files. `base.md` is methodology only.
 
-**Single grammar · unilateral edge · migration queue** — one plan/spec shape: legacy faces (`- **Do**:` blocks / Form B anchors / `## Task Groups` / `## Section 1`) BLOCK at `docContractValidate`; dispatch groups derive from the tasks' single `- **DependsOn**:` edge (lower-numbered only); legacy docs migrate into the canonical grammar until zero residue.
+**Single grammar · unilateral edge · migration queue** — one plan/spec shape: legacy faces (`- **Do**:` blocks / Form B anchors / `## Task Groups` / `## Section 1`) BLOCK at the structural judgment (`src-next/contract/judge.ts`, over the declared anchors); dispatch groups derive from the tasks' single `- **DependsOn**:` edge (lower-numbered only); legacy docs migrate into the canonical grammar until zero residue.
 
 ## 10. Exemplars
 
 | Template form | canonical (single source) | renderer / runtime consumer | derived products | guard |
 |---|---|---|---|---|
-| Harness routing | `harness-contract.json` | cdd engine runtime (`src/dispatch/{task.ts,docs.ts,review-loop.ts}` · `src/infra/registry.ts`) | runtime harness routing (no emit product) | single-source JSON + engine validation · row keys = `{claude, cursor, pi}` (the G1 identity set); the external harness binary name surfaces only as a `cli` data value |
-| Review contract | `template-contract.json#reviews` | `src/render/templates.ts` runtime + the URC prose in each orchestrator skill's `## Invariants` | cdd review / fix template rendering (runtime) | engine colocated tests + single-source config |
-| Finding/report body | `templates/report/issue-body.json` | `IssueReportRenderer` (`cdd issue render`: stdin JSON → aggregate body → stdout) · `renderYml` (`scripts/emit/render-yaml.ts`, emit-only) | `.github/ISSUE_TEMPLATE/*.yml` (emit) + cdd-report aggregate body (runtime) | engine colocated tests + `issue-templates.test.ts` two-stage round-trip + `emit:check` |
-| Issue form yml | same `formFieldDefs` | `renderYml` in `scripts/emit/render-yaml.ts` (emit-only — wired into emitAll) | `.github/ISSUE_TEMPLATE/bug_report.yml` / `enhancement.yml` | `emit:check` drift + single-source `Object.keys` form-name assertion |
+| Harness routing | `src-next/face/host.ts` (the `HOSTS`/`REFS` typed rows) | engine runtime (`src-next/face/cli.ts` keys · `src-next/face/host.ts` detect/slash rows · `src-next/infra/runtime.ts` argv channel) | runtime harness routing (no emit product) | typed single source + `checkChannels` · row keys = `{claude, cursor, pi}` (the G1 set); the harness binary name surfaces only as a `cli` data value |
+| Review contract | the review/fix template text (`src-next/render/templates.ts`) | `src-next/render/templates.ts` + the `Review Convergence` skill invariant entries | cdd review / fix template rendering (runtime) | engine colocated tests + the skill-anatomy wording |
+| Finding/report body | `templates/report/issue-body.json` | `IssueReportRenderer` (`cdd issue render`: stdin JSON → aggregate body → stdout) · `renderIssueYml` (`scripts/emit.ts`, emit-only) | `.github/ISSUE_TEMPLATE/*.yml` (emit) + cdd-report aggregate body (runtime) | engine colocated tests + `scripts/__tests__/emit.test.ts` (the byte check) + `emit:check` |
+| Issue form yml | same `formFieldDefs` | `renderIssueYml` in `scripts/emit.ts` (emit-only — wired into `emitAll`) | `.github/ISSUE_TEMPLATE/bug_report.yml` / `enhancement.yml` | `emit:check` drift + single-source `Object.keys` form-name assertion |
 
 > **First "one canonical, two-channel render" dogfood**: issue-body.json drives both the emit product (issue form yml) and the runtime product (cdd-report aggregate body).
 

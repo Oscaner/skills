@@ -16,10 +16,10 @@ Task 9 merged the two template docs, trimmed program-experience, updated 02/05 t
 
 | File | Before (B) | After (B) | Note |
 |---|---|---|---|
-| 01-template-doctrine.md | 14,378 | 10,650 | merged from 01 + 02 · §9 doc-structure facts (unilateral edge) |
-| 02-naming-conventions.md | 7,994 | 8,946 | blocker bounded mapping added |
-| 03-context-caching-doctrine.md | 8,706 | 8,378 | row-key mirror (P3 T2) · cached-bytes trims |
-| 04-program-experience.md | 21,773 | 12,831 | trimmed ~9 KB · +item 57 |
-| 05-third-party-dependencies.md | 10,018 | 9,711 | P4.4 deps + unbuild/TS6 retirement + P3.2 shell-strip (eight-package runtime prune) |
+| 01-template-doctrine.md | 14,378 | 10,866 | merged from 01 + 02 · §9 doc-structure facts (unilateral edge) |
+| 02-naming-conventions.md | 7,994 | 9,075 | blocker bounded mapping added |
+| 03-context-caching-doctrine.md | 8,706 | 8,383 | row-key mirror (P3 T2) · cached-bytes trims |
+| 04-program-experience.md | 21,773 | 12,834 | trimmed ~9 KB · +item 57 |
+| 05-third-party-dependencies.md | 10,018 | 9,701 | P4.4 deps + unbuild/TS6 retirement + P3.2 shell-strip (eight-package runtime prune) |
 | README.md | 2,324 | 2,119 | index converged + P5 retirement ledger |
-| **Total** | 65,193 | 52,635 | plan anchor ≤ 53,000 |
+| **Total** | 65,193 | 52,978 | plan anchor ≤ 53,000 |

@@ -37,7 +37,7 @@ The engine's only reliable lever is **bytes**, because prompt text arrives at th
 
 ## 5. Registry cache profile (capability as data)
 
-`harness-contract.json` entries carry a `cache` profile so capability is data, not prose, and a new harness = a new registry row, zero contract changes:
+`src-next/face/host.ts` `HOSTS` rows carry a `cache` profile so capability is data, not prose, and a new harness = a new registry row, zero contract changes:
 
 - `mechanism`: `explicit` | `auto-prefix` | `implicit`
 - `minTokens`: below this the model/cache does not engage (Anthropic Opus 5 / Fable 5.1 / Mythos 5.1 = 512; Sonnet 5 = 1024; Haiku 4.5 = 4096)

@@ -86,8 +86,14 @@ export interface TaskGraphReport {
 export class TaskGraph implements Frontier, ExecutionState {
   /** The registered task ids, ascending. */
   readonly #nodes: readonly number[];
-  /** Each task's declared edge record, keyed by task id. */
+  /** Each task's declared edge record, keyed by task id (the AUTHOR's declaration —
+   *  validation reads it; the consumption face is the reduction). */
   readonly #edges: ReadonlyMap<number, EdgeRecord>;
+  /** The direct-only consumption surface — the transitive reduction of the declared
+   *  edges, computed once. EVERY graph consumer (`#depsOf` — batches/frontier/report/
+   *  hasPath) reads the REDUCED form; the closure — the wave basis — is preserved by
+   *  the reduction, so a redundant declaration is inert, never a wave shift. */
+  readonly #reduced: ReadonlyMap<number, readonly number[]>;
   /** The run's completed task ids — the ExecutionState carrier (markDone). */
   readonly #done: Set<number> = new Set();
   /** The derived `DependsOn id` value pattern (whole-token — the declared-edge
@@ -109,6 +115,36 @@ export class TaskGraph implements Frontier, ExecutionState {
       edges.set(block.id, this.#edgeOf(block));
     }
     this.#edges = edges;
+    // The direct-only consumption surface — the transitive reduction, computed once
+    // from the DECLARED edges: every edge (t → d) whose d is already reachable from
+    // another declared dependency of t is dropped. The author declares the full
+    // prerequisite set freely; the consumers read the reduced form, and the closure
+    // (the wave basis) is preserved by the reduction.
+    const reduced = new Map<number, readonly number[]>();
+    for (const id of this.#nodes) {
+      const raw = edges.get(id)?.deps ?? [];
+      reduced.set(
+        id,
+        raw.filter(
+          (dep) => !raw.some((other) => other !== dep && TaskGraph.#reaches(edges, other, dep)),
+        ),
+      );
+    }
+    this.#reduced = reduced;
+  }
+
+  /** Reachability along a RAW edge map (the reduction's closure test — a DFS). */
+  static #reaches(edges: ReadonlyMap<number, EdgeRecord>, from: number, to: number): boolean {
+    const seen = new Set<number>();
+    const stack = [from];
+    while (stack.length > 0) {
+      const current = stack.pop()!;
+      if (current === to) return true;
+      if (seen.has(current)) continue;
+      seen.add(current);
+      stack.push(...(edges.get(current)?.deps ?? []));
+    }
+    return false;
   }
 
   // -------------------------------------------------------------------------
@@ -327,9 +363,11 @@ export class TaskGraph implements Frontier, ExecutionState {
   // edge reading
   // -------------------------------------------------------------------------
 
-  /** The dependency ids of one task (destination-first ordering for batches/frontier). */
+  /** The dependency ids one task consumes — THE DIRECT-ONLY REDUCTION (§3.8 / direct-only
+   *  engine rule): every consumer (batches / frontier / report / reduction / hasPath)
+   *  reads the reduced form; the author's redundant declarations are inert. */
   #depsOf(task: number): readonly number[] {
-    return this.#edges.get(task)?.deps ?? [];
+    return this.#reduced.get(task) ?? [];
   }
 
   /** One block's declared edge record — the `**DependsOn**` field's numeric list,

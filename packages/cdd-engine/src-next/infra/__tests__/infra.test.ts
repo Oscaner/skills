@@ -92,8 +92,8 @@ describe("config — the typed accessor facade (one no-I/O route per face)", () 
       "/skill:code-review",
     );
     const template = loader.templateContract();
-    // v1.8 — the mode 分派表 (implement/fix/review/docs-fix) + the single return contract
-    // (RETURN_JSON / DOCS_FIX 退役) — the work-mode rows + the four review variants
+    // v1.8 — the mode dispatch table (implement/fix/review/docs-fix) + the single return contract
+    // (RETURN_JSON / DOCS_FIX retired) — the work-mode rows + the four review variants
     // (the review mode's ROLE resolves by REVIEW_TYPE)
     expect(Object.keys(template.modes)).toEqual(["implement", "fix", "docs-fix"]);
     expect(Object.keys(template.reviews)).toEqual(["task", "branch", "spec", "plan"]);

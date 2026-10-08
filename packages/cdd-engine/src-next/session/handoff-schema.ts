@@ -164,10 +164,6 @@ export interface SchemaProblem {
  */
 export class HandoffSchema {
   /** Projection ① — the `## Handoff schema` section text: the face's writable
-   *  subset in a ```json fence + (task-family work rounds) the evidence file's
-   *  schema in a second fence. The text is byte-stable per (face, evidence) —
-   *  the fixed bytes of the dispatch prompt's contract surface. */
-  /** Projection ① — the `## Handoff schema` section text: the face's writable
    *  subset in a ```json fence + (work faces) the evidence file's schema in a second
    *  fence. The text is byte-stable per (face, evidence, prefix) — the fixed bytes
    *  of the dispatch prompt's contract surface. The evidence prefix is the family

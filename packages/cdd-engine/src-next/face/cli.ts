@@ -472,8 +472,7 @@ export class HarnessDispatch {
       // The task/branch rows are object-shaped {ref}; the spec/plan review types
       // carry NO dispatch row (their criteria are the review prompt's fixed body).
       const entry = dispatch.review[frame.type as "task" | "branch"];
-      const declaredRef =
-        typeof entry === "string" ? entry : (entry as { ref?: unknown } | undefined)?.ref;
+      const declaredRef = (entry as { ref?: unknown } | undefined)?.ref;
       ref =
         typeof declaredRef === "string" && declaredRef.startsWith("mattpocock-skills:")
           ? declaredRef

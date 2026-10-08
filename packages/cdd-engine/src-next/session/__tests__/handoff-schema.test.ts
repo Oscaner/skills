@@ -43,11 +43,11 @@ describe("projection ① — the injected writable-subset schema text", () => {
   it("renders the work face — the carrier fence + the evidence-file fence", () => {
     const text = schema.schemaText("work", true);
     expect(text).toContain("```json");
-    expect(text).toContain("`OUTPUT_HANDOFF` is this round's child-authored draft");
+    expect(text).toContain("Write the handoff draft at `OUTPUT_HANDOFF` per this writable subset");
     expect(text).toContain('"status"');
     expect(text).toContain('"artifacts"');
     expect(text).toContain('"commits"');
-    expect(text).toContain("the test-evidence file");
+    expect(text).toContain("The evidence file");
     expect(text).toContain('"typecheck"');
     // the reserved engine fields are NOT writable by the child — the subset refuses them
     expect(JSON.parse(text.split("```json\n")[1]!.split("\n```")[0]!)).toMatchObject({
@@ -61,7 +61,7 @@ describe("projection ① — the injected writable-subset schema text", () => {
     expect(text).toContain("```json");
     expect(text).toContain('"findings"');
     expect(text).not.toContain('"status"');
-    expect(text).not.toContain("the test-evidence file");
+    expect(text).not.toContain("The evidence file");
     const json = JSON.parse(text.split("```json\n")[1]!.split("\n```")[0]!);
     expect(json).toMatchObject({ type: "object", required: ["findings"] });
   });

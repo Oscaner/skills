@@ -81,7 +81,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       INPUT_DOC: "docs/x-design.md",
     });
     expect(out.startsWith("# CDD dispatch — docs-fix round")).toBe(true);
-    expect(out).toContain("apply the fixes from `INPUT_FINDINGS`");
+    expect(out).toContain("apply `INPUT_FINDINGS` (all severities) directly to `INPUT_DOC`");
     expect(out).toContain("- `INPUT_DOC`: docs/x-design.md");
     expect(out).toContain("- `FIX_BASE`: ");
     // the review-only keys stay out of the docs-fix context

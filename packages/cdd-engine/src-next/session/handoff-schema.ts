@@ -171,9 +171,9 @@ export class HandoffSchema {
    *  the fixed bytes of the dispatch prompt's contract surface. */
   schemaText(face: HandoffSchemaFace, evidence: boolean): string {
     const carrier = this.#json(BY_FACE[face]);
-    let text = `\`OUTPUT_HANDOFF\` is this round's child-authored draft — write it per this writable subset. The engine validates the draft against exactly this schema after you exit, then materializes the final carrier in place; engine-reserved fields are not listed here and must not be written.\n\n\`\`\`json\n${carrier}\n\`\`\``;
+    let text = `Write the handoff draft at \`OUTPUT_HANDOFF\` per this writable subset — the engine validates it, then materializes the final carrier in place; fields not listed here are engine-reserved, do not write them.\n\n\`\`\`json\n${carrier}\n\`\`\``;
     if (evidence) {
-      text += `\n\nWrite the test-evidence file (\`tasks-{SCOPE}-test-evidence.json\` under \`WORKSPACE_DIR\`) per this schema — the engine reads it back with the same stakes:\n\n\`\`\`json\n${this.#json(EVIDENCE)}\n\`\`\``;
+      text += `\n\nThe evidence file (\`tasks-{SCOPE}-test-evidence.json\` under \`WORKSPACE_DIR\`) must comply with this schema — the engine reads it back with the same stakes:\n\n\`\`\`json\n${this.#json(EVIDENCE)}\n\`\`\``;
     }
     return text;
   }
@@ -237,10 +237,11 @@ export class HandoffSchema {
     return BY_FACE[face];
   }
 
-  /** Serialize a declared schema object into the prompt's JSON fence (no $schema
-   *  meta-key — the writable-subset projection, never the meta-plane). */
+  /** Serialize a declared schema object into the prompt's fence — COMPACT (no pretty
+   *  indent: the injected text is the per-mode fixed prefix's biggest token cost, and
+   *  every dispatch pays it in the child context — minify keeps the round cheap). */
   #json(node: SchemaNode): string {
-    return JSON.stringify(node, null, 2);
+    return JSON.stringify(node);
   }
 
   /** Walk one schema node against a value; every mismatch is a `path: reason`. */

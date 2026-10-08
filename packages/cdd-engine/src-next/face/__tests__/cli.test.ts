@@ -892,7 +892,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // ```json fence + the evidence fence — the task-family work round's two files)
       expect(prompt).toContain("## Handoff schema");
       expect(prompt).toContain("```json");
-      expect(prompt).toContain("the test-evidence file");
+      expect(prompt).toContain("The evidence file");
       expect(prompt).not.toContain("HANDOFF_WRITE_GATE");
       // the read-back reconstruct — the final carrier (phase + validated draft fields)
       // rides the outcome, the block's three lines the pointer

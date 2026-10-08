@@ -106,17 +106,18 @@ export interface ReviewGuideRow {
 export type ReviewGuides = Readonly<Record<"task" | "branch", ReviewGuideRow>>;
 
 /** The nominal fixed-frame items shared by every mode shell: the fixed-region
- *  promise + the scope lock (byte-identical words, one per mode shell). */
+ *  promise + the scope lock (lean copy — the fixed prefix is read on every dispatch,
+ *  so every word costs child context). */
 const FRAME_ITEMS: readonly string[] = [
-  "1. **The fixed regions of this prompt — everything above `## Round context` — are this mode's dispatch contract, byte-identical for every dispatch of this mode; `## Round context` (the final section) is the only dynamic region.** Wherever this contract names a symbol, resolve the real value from `## Round context`; nothing real rides above it.",
-  "2. **Scope lock (every mode):** consume only this round's inputs listed in `## Round context`. Do **not** read the full plan file. Implement exactly what the brief specifies — no extra features, no tangential refactors, no scope creep beyond the brief's Files/Interfaces/Steps.",
+  "1. **Fixed contract:** everything above `## Round context` is this mode's fixed text — byte-identical per dispatch. `## Round context` is the only dynamic region; resolve every symbol from it — nothing real rides above.",
+  "2. **Scope lock:** use only this round's inputs in `## Round context`. No full plan reads. No extra features, no tangential refactors, no scope creep.",
 ];
 
 /** The discipline-clause cells shared by every mode shell (the `{{> cl:…}}` partials
  *  resolve from the single clause container — the same bytes, one per mode shell). */
 const LICENSE_ITEMS: readonly string[] = [
   "",
-  "**Discipline clauses (single-source; bind this mode):**",
+  "**Discipline clauses:**",
   "- {{> cl:english-comments}}",
   "- {{> cl:eof-newline}}",
   "- {{> cl:no-full-tree-find}}",
@@ -139,9 +140,9 @@ const IMPLEMENT_SHELL: readonly string[] = [
   "## Instructions",
   "",
   ...FRAME_ITEMS,
-  "3. **implement:** read `INPUT_TASK` (the task brief) and `INPUT_RULES` (the plan constraints). `SCOPE` is this round's group key (the CLI `--tasks` string — the canonical group identity); `INPUT_TASK` is one file holding every `### Task N:` section of the group — implement **ALL sections**, never a subset. `CONFIRMED_SEAMS` listed in the brief → apply them when invoking the implementation approach — no re-negotiation; otherwise propose the test boundaries in the report, then invoke **`mattpocock-skills:implement`**. Write the handoff draft at `OUTPUT_HANDOFF` per `## Handoff schema` BEFORE the return block: declare `status` (APPROVED once applied, or BLOCKED with `failure_category`), `artifacts` (the brief / report / test_evidence paths — file pointers, never inline content), `commits` (`base` = the brief's `TASK_BASE`; `head` = `git rev-parse HEAD`), and `changes[]` (every changed file + reason).",
-  "4. **Evidence gate:** write the test-evidence file (`tasks-{SCOPE}-test-evidence.json` under `WORKSPACE_DIR`) per the `test-evidence` schema in `## Handoff schema`: `command`, `exit_code`, `passed`, `warnings_count`, and the `typecheck` item (`command`/`exit_code`/`passed`, isomorphic with the exec fields); include `behavior_change` when applicable. Update the implementer report at the path from the brief after verification. The engine reads the evidence file back after you exit: a missing or schema-violating evidence file rewrites the draft to `status: BLOCKED` (exit 1). Report bodies, test stdout, and diff text live in files only — never in the return.",
-  "5. **Commit contract:** `base` = the brief's `TASK_BASE`. When TDD/verification already produced one or more conventional commits covering this round's scope, set `head` = `git rev-parse HEAD` — do not create duplicate commits; otherwise create **one** conventional commit (`feat:` / `fix:` / `refactor:` / …) with subject aligned to the round — no attribution / co-author / AI-generation trailers — then `head` = `git rev-parse HEAD`. Uncommitted changes at return → `status: BLOCKED`; only commit changes within this round's scope — out-of-scope uncommitted changes at return → `status: BLOCKED` (the engine rewrites the handoff to BLOCKED and surfaces the generic uncommitted-changes reason on stderr `CDD_BLOCKED:`; the changed-surface audit records committed off-ledger files in the handoff's `notes`).",
+  "3. **implement:** read `INPUT_TASK` (the brief) + `INPUT_RULES` (plan constraints). `SCOPE` = this round's group key; `INPUT_TASK` holds every `### Task N:` section — implement ALL, never a subset. `CONFIRMED_SEAMS` in the brief → apply as-is; else propose test boundaries in the report, then invoke **`mattpocock-skills:implement`**. Write the handoff draft at `OUTPUT_HANDOFF` per `## Handoff schema` BEFORE the return block: `status` (APPROVED once applied, else BLOCKED + `failure_category`), `artifacts` (brief/report/test_evidence file paths), `commits` (`base` = `TASK_BASE`; `head` = `git rev-parse HEAD`), `changes[]` (every changed file + reason).",
+  "4. **Evidence gate:** write `tasks-{SCOPE}-test-evidence.json` (under `WORKSPACE_DIR`) per the `test-evidence` schema — `command`/`exit_code`/`passed`/`warnings_count` + `typecheck` (`command`/`exit_code`/`passed`); `behavior_change` when applicable. Update the implementer report after verification. Missing or schema-violating evidence → the engine rewrites the draft to `status: BLOCKED`. Reports, test output, diffs: files only, never the return.",
+  "5. **Commits:** `base` = `TASK_BASE`. Verification already committed this scope → `head` = `git rev-parse HEAD` (no duplicate); else create **one** conventional commit (`feat:`/`fix:`/`refactor:`/…, no attribution/AI trailers) then `head` = `git rev-parse HEAD`. Uncommitted or out-of-scope changes at return → `status: BLOCKED` (engine rewrites + surfaces `CDD_BLOCKED:`; off-ledger commits land in `notes`).",
   ...LICENSE_ITEMS,
   ...SCHEMA_SECTION,
 ];
@@ -152,9 +153,9 @@ const FIX_SHELL: readonly string[] = [
   "## Instructions",
   "",
   ...FRAME_ITEMS,
-  "3. **fix:** read `INPUT_FINDINGS` (the open findings) and — task rounds — `INPUT_TASK` (the task brief, for context only). Fix ALL findings — blockers, warns, and nits — verifying against `INPUT_FINDINGS` that none remain open before returning. `commits.base` = `FIX_BASE` (this round's fix anchor — the prior handoff's `commits.head`); `commits.head` = `git rev-parse HEAD` (full 40-char SHA, never `--short`). No fix-scope diff relative to `FIX_BASE` → no commit (keep `head` unchanged). Fix + write the handoff draft at `OUTPUT_HANDOFF` per `## Handoff schema` in one process; a draft write failure → return block `status: BLOCKED`; retry = full mode re-run (idempotent).",
-  "4. **Evidence gate:** write the test-evidence file (`tasks-{SCOPE}-test-evidence.json` under `WORKSPACE_DIR`) per the `test-evidence` schema in `## Handoff schema`: `command`, `exit_code`, `passed`, `warnings_count`, and the `typecheck` item (`command`/`exit_code`/`passed`, isomorphic with the exec fields); include `behavior_change` when applicable. Update the implementer report at the path from the brief after verification. The engine reads the evidence file back after you exit: a missing or schema-violating evidence file rewrites the draft to `status: BLOCKED` (exit 1). Report bodies, test stdout, and diff text live in files only — never in the return.",
-  "5. **Commit contract:** `base` = `FIX_BASE`; the fix commits its scope as **one** conventional commit (`fix:` / `refactor:` / …) with subject aligned to the round — no attribution / co-author / AI-generation trailers, no duplicate commits when verification already produced the covering commit. Uncommitted changes at return → `status: BLOCKED`; only commit changes within this round's scope — out-of-scope uncommitted changes at return → `status: BLOCKED` (the engine rewrites the handoff to BLOCKED and surfaces the generic uncommitted-changes reason on stderr `CDD_BLOCKED:`; the changed-surface audit records committed off-ledger files in the handoff's `notes`).",
+  "3. **fix:** read `INPUT_FINDINGS` (open findings) + `INPUT_TASK` (task brief — context). Fix ALL findings (blocker/warn/nit), verifying against `INPUT_FINDINGS` none remain open. `commits.base` = `FIX_BASE` (the prior handoff's `commits.head`); `commits.head` = `git rev-parse HEAD` — no diff vs `FIX_BASE` → no commit (keep `head`). Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema` in one process; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
+  "4. **Evidence gate:** write `tasks-{SCOPE}-test-evidence.json` (under `WORKSPACE_DIR`) per the `test-evidence` schema — `command`/`exit_code`/`passed`/`warnings_count` + `typecheck` (`command`/`exit_code`/`passed`); `behavior_change` when applicable. Missing or schema-violating evidence → the engine rewrites the draft to `status: BLOCKED`. Reports, test output, diffs: files only, never the return.",
+  "5. **Commits:** `base` = `FIX_BASE`; one conventional commit (`fix:`/`refactor:`/…, no attribution/AI trailers) unless verification already committed it. Uncommitted or out-of-scope changes at return → `status: BLOCKED` (engine rewrites + surfaces `CDD_BLOCKED:`; off-ledger commits land in `notes`).",
   ...LICENSE_ITEMS,
   ...SCHEMA_SECTION,
 ];
@@ -165,7 +166,7 @@ const REVIEW_SHELL: readonly string[] = [
   "## Instructions",
   "",
   ...FRAME_ITEMS,
-  "3. **review:** review the axes in `INPUT_CRITERIA` against the reference in `INPUT_RANGE`. Write the findings into the handoff draft at `OUTPUT_HANDOFF` per `## Handoff schema` (never print them to stdout); every finding MUST carry its `lens` label (one of `INPUT_LENS`); an empty `findings` array = approved. The engine reads the draft back and derives the round's conclusion from the findings (blocker → CHANGES_REQUESTED · warn/nit → REVIEW_FIX · none → APPROVED) — a review never declares its own status.",
+  "3. **review:** review `INPUT_CRITERIA` against `INPUT_RANGE`. Write findings into the draft at `OUTPUT_HANDOFF` per `## Handoff schema` (never print them); every finding MUST carry its `lens` (one of `INPUT_LENS`); empty `findings` = approved. The engine derives the conclusion from the draft's findings (blocker → CHANGES_REQUESTED · warn/nit → REVIEW_FIX · none → APPROVED) — a review never declares its own status.",
   ...LICENSE_ITEMS,
   ...SCHEMA_SECTION,
 ];
@@ -176,7 +177,7 @@ const DOCS_FIX_SHELL: readonly string[] = [
   "## Instructions",
   "",
   ...FRAME_ITEMS,
-  "3. **docs-fix:** apply the fixes from `INPUT_FINDINGS` (all severities) directly to `INPUT_DOC`, removing fixed findings; record the doc path in `artifacts` (`doc` = the exact `INPUT_DOC` path); an empty `findings` array = all findings fixed. `commits.base` = `FIX_BASE`; `commits.head` = `git rev-parse HEAD`. Fix + write the handoff draft at `OUTPUT_HANDOFF` per `## Handoff schema` in one process — the engine derives the round's conclusion from the residual findings; a draft write failure → return block `status: BLOCKED`; retry = full mode re-run (idempotent).",
+  "3. **docs-fix:** apply `INPUT_FINDINGS` (all severities) directly to `INPUT_DOC`, removing fixed findings; record the path in `artifacts.doc`; empty `findings` = all fixed. `commits.base` = `FIX_BASE`; `commits.head` = `git rev-parse HEAD`. Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema`; the engine derives the conclusion from the residual findings; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
   ...LICENSE_ITEMS,
   ...SCHEMA_SECTION,
 ];
@@ -258,7 +259,7 @@ const RETURN_ZONE: ReturnZone = {
   RETURN_STDOUT_BLOCK: [
     "## Return",
     "",
-    "Return **exactly 3 lines** to stdout — make this block the **final** output; nothing may follow it (stream-json harnesses parse the last block):",
+    "Output exactly 3 lines — this block is the FINAL output; nothing may follow it:",
     "",
     "```",
     "status: <APPROVED|BLOCKED>",
@@ -266,7 +267,7 @@ const RETURN_ZONE: ReturnZone = {
     "artifacts: brief=<path> report=<path> test_evidence=<path>",
     "```",
     "",
-    "The return format is **RETURN_STDOUT_BLOCK** (every round — one contract): the handoff content — findings, notes, changes, evidence — lives in the draft file at `OUTPUT_HANDOFF` (see `## Round context`), which the engine reads back and materializes; this block is the three-line pointer only. Review-family and docs-fix rounds state `status: APPROVED` (their conclusion derives from the draft's findings — never printed); work rounds state the concluding status. The engine appends the 4th `counters:` line and the 5th derived `next:` suggestion line (C5) — the agent never emits either. Report bodies, test stdout, and diff text live in files only — never in the return. Any non-`APPROVED` status line (e.g. `NEEDS_CONTEXT`) is collapsed by the engine to `BLOCKED` + exit 1.",
+    "RETURN_STDOUT_BLOCK (one contract): the handoff content (findings/notes/changes/evidence) lives in the draft at `OUTPUT_HANDOFF` — this block is the pointer. Review/docs-fix rounds state `status: APPROVED` (their conclusion derives from the draft's findings); work rounds state the concluding status. Never emit the 4th `counters:` / 5th `next:` lines (the engine appends them). Any non-`APPROVED` status (e.g. `NEEDS_CONTEXT`) → collapsed to `BLOCKED` + exit 1.",
   ],
 };
 

@@ -32,7 +32,16 @@ export class GraphView {
       for (const dep of deps) edges.push(`  T${dep} --> T${id}`);
     }
     const mermaid = ["flowchart LR", ...nodes, ...edges].join("\n");
-    let ascii = renderMermaidASCII(mermaid);
+    // Compact display (the plan-graph read is a glance, not a report): the ASCII
+    // style (§3.8's renderer options) uses thin single-line boxes + tight node
+    // spacing — the Unicode box-drawing default is tall and wide at the plan scale.
+    let ascii = renderMermaidASCII(mermaid, {
+      useAscii: true,
+      paddingX: 2,
+      paddingY: 2,
+      boxBorderPadding: 0,
+      colorMode: "none",
+    });
     if (ascii.length === 0) ascii = this.#fallback(report);
     return `${title}\n\n${ascii}\n\n${LEGEND}\ncurrent: {${(report.current ?? []).join(", ")}} · pending: {${report.pending.join(", ")}}`;
   }

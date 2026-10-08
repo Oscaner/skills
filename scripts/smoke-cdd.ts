@@ -39,6 +39,7 @@ function fixturePlan(): string {
     "  1. run the new-tree engine under dry-run — checkable: the dry-run chain completes",
     "- **Acceptance**:",
     "  - the dry-run chain prints the status capsule",
+    "- **DependsOn**: none",
     "",
   ].join("\n");
 }

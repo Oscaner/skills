@@ -64,7 +64,9 @@ interface EdgeRecord {
  *  + the done/current/pending view, the single projection the `schema get plan-graph`
  *  read and the pre-flight gates display. */
 export interface TaskGraphReport {
-  /** Each task's declared dependency ids, in block order. */
+  /** Each task's dependency ids IN TRANSITIVE-REDUCED form (the direct-only display
+   *  surface — the graph-view renders this, never the author's declared superset;
+   *  redundant edges are the engine's concern, not the author's). */
   edges: Readonly<Record<number, readonly number[]>>;
   /** The derived wave chain (`batches()`) — the strict-dispatch grouping authority. */
   waves: readonly (readonly number[])[];
@@ -275,10 +277,11 @@ export class TaskGraph implements Frontier, ExecutionState {
 
   /** The plan-graph read projection — the task graph + the derived wave chain +
    *  the done/current/pending view one method, the schema read and the pre-flight
-   *  gates' shared surface (§3.8: one projection, two displays). */
+   *  gates' shared surface (§3.8: one projection, two displays). The edges ride the
+   *  TRANSITIVE REDUCTION (the direct-only display); the waves always derive over
+   *  the declared closure — a redundant declaration is inert, never a wave shift. */
   report(done: ReadonlySet<number>): TaskGraphReport {
-    const edges: Record<number, readonly number[]> = {};
-    for (const id of this.#nodes) edges[id] = this.#depsOf(id);
+    const edges = this.reduction();
     const waves = this.batches();
     const first = waves.find((wave) => wave.some((id) => !done.has(id))) ?? null;
     return {
@@ -288,6 +291,36 @@ export class TaskGraph implements Frontier, ExecutionState {
       current: first,
       pending: this.#nodes.filter((id) => !done.has(id)),
     };
+  }
+
+  /** The transitive reduction — the direct-only dependency surface: every edge
+   *  (t → d) whose d is already reachable from ANOTHER declared dependency of t is
+   *  removed. The author declares the full prerequisite set freely (redundancy is
+   *  harmless — the waves derive over the closure); the engine normalizes the
+   *  DISPLAY, never the semantics. */
+  reduction(): Readonly<Record<number, readonly number[]>> {
+    const out: Record<number, readonly number[]> = {};
+    for (const id of this.#nodes) {
+      const deps = this.#depsOf(id);
+      out[id] = deps.filter(
+        (dep) => !deps.some((other) => other !== dep && this.#hasPath(other, dep)),
+      );
+    }
+    return out;
+  }
+
+  /** Whether `to` is reachable from `from` along the declared edges (a DFS). */
+  #hasPath(from: number, to: number): boolean {
+    const seen = new Set<number>();
+    const stack = [from];
+    while (stack.length > 0) {
+      const current = stack.pop()!;
+      if (current === to) return true;
+      if (seen.has(current)) continue;
+      seen.add(current);
+      stack.push(...this.#depsOf(current));
+    }
+    return false;
   }
 
   // -------------------------------------------------------------------------

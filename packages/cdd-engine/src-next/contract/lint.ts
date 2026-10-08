@@ -89,6 +89,7 @@ export class LintPass extends MarkdownPrimitives {
     if (input.parsed.docType === "plan") {
       warns.push(...this.#missingEdgeWarns(input, input.parsed));
       warns.push(...this.#numberingAdvisories(input, input.parsed));
+      warns.push(...this.#transitiveAdvisories(input, input.parsed));
     }
     warns.push(...this.#crossDocDriftWarns(input, input.parsed.chain.parentLink));
     return warns;
@@ -131,6 +132,45 @@ export class LintPass extends MarkdownPrimitives {
           field: `Task ${block.id}`,
           message: `task ${block.id} depends on the higher-numbered Task ${dep} — legal (forward references), but the numbering no longer follows the topological reading order; consider renumbering (advisory only)`,
           fix: "renumber the pair for a linear reading order, or keep the forward dependency — the engine derives waves from **DependsOn** alone",
+          kind: "reference-lint",
+        });
+      }
+    }
+    return warns;
+  }
+
+  /** One WARN per transitively-redundant declaration (a dep d reachable from another
+   *  declared dep) — the direct-only advisory: redundant edges are harmless (the
+   *  waves derive over the closure) but clutter the display, so the engine hints
+   *  the author to declare direct prerequisites only. */
+  #transitiveAdvisories(input: LintInput, parsed: PlanParsed): Warn[] {
+    const warns: Warn[] = [];
+    const declared = new Map<number, Set<number>>();
+    for (const block of parsed.taskBlocks) declared.set(block.id, this.#declaredEdgesOf(block));
+    const reachOf = (from: number): Set<number> => {
+      const seen = new Set<number>();
+      const stack = [...(declared.get(from) ?? [])];
+      while (stack.length > 0) {
+        const current = stack.pop()!;
+        if (seen.has(current)) continue;
+        seen.add(current);
+        stack.push(...(declared.get(current) ?? []));
+      }
+      return seen;
+    };
+    const reach = new Map<number, Set<number>>();
+    for (const id of declared.keys()) reach.set(id, reachOf(id));
+    for (const block of parsed.taskBlocks) {
+      for (const dep of declared.get(block.id) ?? []) {
+        const redundantVia = [...(declared.get(block.id) ?? [])].find(
+          (other) => other !== dep && (reach.get(other) ?? new Set()).has(dep),
+        );
+        if (redundantVia === undefined) continue;
+        warns.push({
+          path: input.path,
+          field: `Task ${block.id}`,
+          message: `task ${block.id} depends on Task ${dep}, already reachable via declared dependency Task ${redundantVia} — declare direct prerequisites only (advisory: redundant edges are inert for the wave derivation, but clutter the graph)`,
+          fix: `drop ${dep} from the block's **DependsOn** (or keep it — the engine reduces the display, the closure is unchanged)`,
           kind: "reference-lint",
         });
       }

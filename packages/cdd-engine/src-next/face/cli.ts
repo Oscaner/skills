@@ -422,8 +422,12 @@ export class HarnessDispatch {
     const cliName = row.cli;
     const args = [...row.invoke.split(" ").filter((part) => part.length > 0)];
     const ref = this.#skillRef(host, frame);
-    if (ref !== null) args.push(ref);
-    const result = this.#sync.run(cliName, [...args, prompt], this.#cwd);
+    // The child receives ONE prompt argument — the ref prefixes the prompt's first
+    // line (claude -p consumes the whole first positional as the prompt; a standalone
+    // ref arg after the flags would be swallowed, so the dispatch prompt must carry it
+    // embedded — a slash ref at the start of the prompt text is the harness's
+    // documented skill-invocation form).
+    const result = this.#sync.run(cliName, [...args, this.#childPrompt(ref, prompt)], this.#cwd);
     if (result.code !== 0) {
       this.#io.stderr(`CDD_BLOCKED: child ${cliName} exited ${result.code}\n`);
       return { status: "BLOCKED" };
@@ -472,6 +476,15 @@ export class HarnessDispatch {
     if (typeof ref !== "string") return null;
     const hostForm = (REFS as HostReferenceTable)[ref]?.[host as HostId];
     return hostForm ?? null;
+  }
+
+  /** The child's single prompt argument — the skill-ref slash form prefixes the
+   *  assembled dispatch prompt as one positional (`/kairos:cdd-* <prompt>`). The
+   *  harness CLI consumes the whole first positional as the prompt (claude -p):
+   *  a slash ref at its start is the documented skill-invocation form, and a prompt
+   *  split across positionals would lose everything after the ref. */
+  #childPrompt(ref: string | null, prompt: string): string {
+    return ref === null ? prompt : `${ref} ${prompt}`;
   }
 
   /** The review-axes text — the typed review criteria the assembly face references:

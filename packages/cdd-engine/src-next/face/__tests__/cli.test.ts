@@ -848,8 +848,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const call = sync.calls[0];
       expect(call.command).toBe("claude");
       expect(call.args).toContain("-p");
-      expect(call.args).toContain("/mattpocock-skills:implement");
+      // The skill ref is NOT a standalone positional (the harness CLI consumes the
+      // first positional as the whole prompt — a split prompt loses everything after
+      // the ref). It prefixes the single prompt argument instead.
+      expect(call.args).not.toContain("/mattpocock-skills:implement");
       const prompt = call.args[call.args.length - 1];
+      expect(prompt.startsWith("/mattpocock-skills:implement ")).toBe(true);
       expect(prompt).toContain("- `MODE`: implement");
       expect(prompt).toContain(`- \`WORKSPACE\`: ${scene.workspace.path}`);
       expect(prompt).toContain("- `DISPATCH_UNIT`: 1");
@@ -908,11 +912,15 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(outcome.status).toBe("REVIEW_FIX");
       const call = sync.calls[0];
       // the task/branch review rows are object-shaped {ref} (the P5 note deletion) — the
-      // slash form comes from the row's ref, and REVIEW_AXES carries the typed axes guide
-      expect(call.args).toContain("/mattpocock-skills:code-review");
-      expect(call.args[call.args.length - 1]).toContain("Standards axis");
-      expect(call.args[call.args.length - 1]).toContain("dual evidence");
-      expect(call.args[call.args.length - 1]).not.toContain("parallel sub-agents");
+      // slash form prefixes the single prompt argument (not a standalone positional —
+      // the harness CLI consumes the first positional as the whole prompt), and
+      // REVIEW_AXES carries the typed axes guide inside the same prompt
+      expect(call.args).not.toContain("/mattpocock-skills:code-review");
+      const prompt = call.args[call.args.length - 1];
+      expect(prompt.startsWith("/mattpocock-skills:code-review ")).toBe(true);
+      expect(prompt).toContain("Standards axis");
+      expect(prompt).toContain("dual evidence");
+      expect(prompt).not.toContain("parallel sub-agents");
     } finally {
       cleanup();
     }

@@ -5,8 +5,10 @@
 //   · the split/subset BLOCK — a `--tasks` set that splits or mismatches the derived
 //     wave (implement AND review AND fix share the same refusal);
 //   · the wrong-phase BLOCK — the open wave is at a phase ≠ the requested verb;
-//   · the heterogeneous-phase BLOCK — the open wave holds mixed phases (the named
-//     ledger anomaly + the per-task phase map);
+//   · (v1.28) the phase read is WAVE-keyed — one ledger row per wave, every member
+//     shares the wave's phase (the multi-task regression: the per-task read missed
+//     a `{wave:"1,2"}` row and froze every multi-task wave at "implement", blocking
+//     review/fix forever — {16,22,24} exposed it);
 //   · the approved verdict — requested == open at the verb's phase.
 // Fixtures are plan literals parsed through the plan parser + a hermetic temp
 // workspace (the pattern the run/ledger suites share).
@@ -167,22 +169,34 @@ describe("WaveGate.vet — the open wave's phase is EXACTLY the requested verb",
   });
 });
 
-describe("WaveGate.vet — the heterogeneous-phase BLOCK (the named ledger anomaly)", () => {
-  it("an open wave holding mixed phases BLOCKs with the per-task phase map", () => {
+describe("WaveGate.vet — the wave-unitary phase read (v1.28 regression)", () => {
+  it("a multi-task wave's phase derives from ITS wave row — review after implement passes the gate", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = graphOf([task(1, "none"), task(2, "none")]); // the open wave = {1,2}
+      ledger.recordRound("1,2", "implement"); // the WAVE row — never per-member rows
+      const verdict = gate.vet(new Set([1, 2]), "review", graph, ledger, words);
+      expect(verdict.ok).toBe(true);
+      expect(verdict.open).toEqual([1, 2]);
+      // every member shares the wave's single phase (the {16,22,24} shape)
+      expect(verdict.phases).toEqual([
+        { task: 1, phase: "review" },
+        { task: 2, phase: "review" },
+      ]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a multi-task wave at review refuses an implement dispatch (wrong-phase, not split)", () => {
     const { ledger, cleanup } = fixture();
     try {
       const graph = graphOf([task(1, "none"), task(2, "none")]);
-      ledger.recordRound(1, "implement"); // task 1 → review; task 2 → implement (no rounds)
+      ledger.recordRound("1,2", "implement");
       const verdict = gate.vet(new Set([1, 2]), "implement", graph, ledger, words);
       expect(verdict.ok).toBe(false);
-      expect(verdict.reason).toBe("heterogeneous");
-      expect(verdict.message).toContain("mixed phases");
-      expect(verdict.message).toContain("T1:review");
-      expect(verdict.message).toContain("T2:implement");
-      expect(verdict.phases).toEqual([
-        { task: 1, phase: "review" },
-        { task: 2, phase: "implement" },
-      ]);
+      expect(verdict.reason).toBe("wrong-phase");
+      expect(verdict.message).toContain("at review");
     } finally {
       cleanup();
     }

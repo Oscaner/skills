@@ -56,14 +56,14 @@ export type RouteWordKind = "done" | "review" | "fix";
 /** The wave-gate BLOCK wording rows — the vocabulary the WaveGate verdicts render
  *  (v1.21 词表钉: the gate's prompt wording rides the word table, never a CLI literal).
  *  Each row is a placeholder template verbatim-filled by the wave gate; the braces
- *  ({requested}/{open}/{phase}/{map}) are the fill slots, part of the row. */
+ *  ({requested}/{open}/{phase}) are the fill slots, part of the row. (v1.28 — the
+ *  heterogeneous row retired: the wave-unitary ledger holds one row per wave, so a
+ *  mixed-phase anomaly is structurally impossible.) */
 export interface WaveGateWords {
   /** The split/subset BLOCK — a `--tasks` set that splits or mismatches the derived wave. */
   split: string;
   /** The wrong-phase BLOCK — the open wave is at a phase different from the requested verb. */
   wrongPhase: string;
-  /** The heterogeneous-phase BLOCK — the open wave holds tasks at mixed phases (ledger anomaly). */
-  heterogeneous: string;
 }
 
 /** The capsule word rows — every word the capsule face emits, one table. */
@@ -93,7 +93,6 @@ export const CAPSULE_WORDS = {
     split:
       "the requested wave ({requested}) splits/mismatches the derived wave ({open}) — dispatch the full derived wave",
     wrongPhase: "the open wave is at {phase} — run cdd {phase} first",
-    heterogeneous: "the open wave holds mixed phases ({map}) — a named ledger anomaly",
   } as const satisfies WaveGateWords,
 } as const;
 

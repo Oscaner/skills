@@ -752,15 +752,30 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     }
   });
 
-  it("the wave gate names the ledger anomaly when the open wave holds mixed phases", async () => {
+  it("a multi-task wave's phase reads the WAVE row — review passes, re-implement wrong-phases (v1.28)", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
       const planPath = independentPlan(repoRoot, "two.md", 2);
-      // task 1 implemented only → its phase is review; task 2 unimplemented → implement;
-      // a single wave {1,2} at mixed phases is a named ledger anomaly, not a dispatch.
+      // the WAVE row carries the implement round — review is the open phase for the whole
+      // wave (the retired per-task build could never hold a mixed-phase wave-unitary row).
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "two").ensure();
-      new Ledger(workspace, new ConfigLoader()).recordRound(1, "implement");
+      new Ledger(workspace, new ConfigLoader()).recordRound("1,2", "implement");
+      io.stderrText = "";
+      // review on the implemented multi-task wave passes the gate (dispatch proceeds).
+      expect(
+        await command.runArgv([
+          "review",
+          "--tasks",
+          "1,2",
+          "--plan",
+          planPath,
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).not.toBe(1);
+      // a re-implement on the at-review wave is the wrong-phase BLOCK, not a silent split.
       io.stderrText = "";
       expect(
         await command.runArgv([
@@ -774,9 +789,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
           repoRoot,
         ]),
       ).toBe(1);
-      expect(io.stderrText).toContain("mixed phases");
-      expect(io.stderrText).toContain("T1:review");
-      expect(io.stderrText).toContain("T2:implement");
+      expect(io.stderrText).toContain("at review");
     } finally {
       cleanup();
     }

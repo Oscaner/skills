@@ -8,12 +8,14 @@
 //
 // The gate's only read face is `open = frontier(closedWaves())` — the derived
 // wave over the ledger's C5 closure set (ledger.ts, the same closure predicate as
-// the lifecycle's #markTerminal). The three judgments:
+// the lifecycle's #markTerminal). The two judgments:
 //   1. requested ≠ open      → the split/subset BLOCK (dispatch the full derived wave,
 //                              with the wave-board hint);
-//   2. the open wave's phase ≠ verb → the wrong-phase BLOCK (run the matching phase);
-//   3. the open wave holds mixed phases → the named ledger-anomaly BLOCK (the per-task
-//      phase map).
+//   2. the open wave's phase ≠ verb → the wrong-phase BLOCK (run the matching phase).
+// (v1.28 — the heterogeneous-phase row RETIRED: the wave-unitary ledger has ONE row
+// per wave, so mixed per-task phases are structurally impossible — a per-task phase
+// read was the T26 regression {16,22,24} exposed (the row key `16` never matched
+// `{wave:"16,22,24"}`), not a mixed-phase anomaly.)
 // The verdict wording renders the wave-gate vocabulary rows (face/words.ts — the
 // gate's prompt wording rides the word table, never a literal restate). BLOCK
 // messages and the verdict shape are data here; the CLI face renders them.
@@ -29,13 +31,15 @@ import { NextStepRouter } from "./next.ts";
 import { EMPTY_RUN_STATE } from "./run.ts";
 
 /** The verdict kinds — the named gate rows (the BLOCK reason each carries). */
-export type WaveGateReason = "split" | "wrong-phase" | "heterogeneous";
+export type WaveGateReason = "split" | "wrong-phase";
 
-/** One open-wave task's derived phase — the named-ledger-anomaly display row. */
+/** One open-wave task's phase row — every member carries the WAVE's single phase
+ *  (the wave-unitary read: one ledger row per wave; a per-task read would miss the
+ *  wave row — `16` ≠ `16,22,24` — the T26 migration regression). */
 export interface WavePhaseRow {
   /** The task id. */
   task: number;
-  /** The task's open phase (null = a closed/held line — no open round on record). */
+  /** The wave's open phase (null = a closed/held wave — no open round on record). */
   phase: DispatchPhase | null;
 }
 
@@ -95,20 +99,10 @@ export class WaveGate {
       };
     }
 
-    // 2 + 3. The open wave's phase — one single phase, else the ledger anomaly.
+    // 2. The open wave's phase — the single phase of the wave's own row (wave-unitary:
+    //    one ledger row per wave, so every member shares the phase; a per-task read
+    //    never matches the wave row — the T26 migration regression).
     const phases = this.#phasesOf(ledger, open);
-    const distinct = [...new Set(phases.map((row) => row.phase ?? "held"))];
-    if (distinct.length > 1) {
-      return {
-        ok: false,
-        reason: "heterogeneous",
-        message: this.#fill(wordsGate.heterogeneous, {
-          map: phases.map((row) => `T${row.task}:${row.phase ?? "held"}`).join(" · "),
-        }),
-        open,
-        phases,
-      };
-    }
     const phase = phases[0]?.phase ?? null;
     if (phase !== verb) {
       return {
@@ -122,23 +116,25 @@ export class WaveGate {
     return { ok: true, open, phases };
   }
 
-  /** The open wave's per-task phases — the ledger-derived open round of every member
-   *  (implement → review → fix → re-review → closure; null = no open round on record). */
+  /** The open wave's per-task phases — every member resolves the WAVE row's single
+   *  phase (implement → review → fix → re-review → closure; null = no open round). */
   #phasesOf(ledger: Ledger, open: readonly number[]): readonly WavePhaseRow[] {
-    return open.map((task) => ({ task, phase: this.#phaseOf(ledger, task) }));
+    const waveKey = open.join(",");
+    const phase = this.#phaseOf(ledger, waveKey);
+    return open.map((task) => ({ task, phase }));
   }
 
-  /** The ledger-derived open phase of one task — the same C5 round-pair derivation
-   *  the CLI's retired #taskGate applied (reads the ledger + the router, single
-   *  source, never a folded copy). */
-  #phaseOf(ledger: Ledger, task: number): DispatchPhase | null {
-    const implemented = ledger.roundCount(task, "implement");
-    const reviews = ledger.roundCount(task, "review");
-    const fixes = ledger.roundCount(task, "fix");
+  /** The ledger-derived open phase of ONE wave row — the wave-unitary read: the same
+   *  C5 round-pair derivation the retired #taskGate applied, over the wave's own row
+   *  key (the per-task read never matched a `{wave:"16,22,24"}` row — the fix). */
+  #phaseOf(ledger: Ledger, waveKey: string): DispatchPhase | null {
+    const implemented = ledger.roundCount(waveKey, "implement");
+    const reviews = ledger.roundCount(waveKey, "review");
+    const fixes = ledger.roundCount(waveKey, "fix");
     if (implemented === 0) return "implement";
     if (reviews === 0) return "review";
     if (fixes < reviews) return "fix";
-    const carried = ledger.round("fix", "wave", { tasks: String(task) }, reviews);
+    const carried = ledger.round("fix", "wave", { tasks: waveKey }, reviews);
     if (carried === null) return null;
     return this.#router.next(EMPTY_RUN_STATE, carried)?.kind === "review" ? "review" : null;
   }

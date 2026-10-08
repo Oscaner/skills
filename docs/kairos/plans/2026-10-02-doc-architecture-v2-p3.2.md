@@ -386,37 +386,31 @@
   - round = fix（fix 面）的 next: 渲染行尾含 `(read file back to confirm)`（词面断言）；review 面 next: 行不含；测试全绿
 - **DependsOn**: 7, 11
 
-### Task 24: 反依赖门放开——边违约五类收编 + 环活门
+### Task 24: 反依赖门放开 + 波次 pre-flight + plan-graph 读面（四类归一化收口）
 
-- **Objective**: 用户 2026-10-08 拍板「放开『任务只能依赖更小编号』约束，Wave 编排完全基于 DependsOn 推导」（spec §3.1 v1.5）——TaskGraph 反依赖门退役：**前向引用合法**（`- **DependsOn**:` 可指向任意现存任务 id）· **cycle 类为活门**（环 = 具名 plan 违约 · doc-contract 早拦/评审派发 BLOCK）· **编号降级为 ID + 波内升序 tiebreak**（波内 ascending 派发保持）· referenceLint 侧新增**编号/拓扑序 advisory WARN**（编号未随拓扑仅建议重排——只警不拦 · 作者「编号≈阅读序」引导保留）——Wave 推导纯边驱动，编排器零手动位移（T13 型 off-ledger deferral 类消灭）；语义改动定 cutover 后动（不混入 T15 切波 · 改动落定型新树——T13 基线教训同源，以边声明为本不复现模糊面）；**pre-flight 接线（v1.13 扩域 · spec §3.8）**——`DependsOn` 值域契约（首个 `(` 前裸数字列表 · 行尾注释零参与，散文数字化入边的 duplicate/self-loop 缺陷类在契约面消除）+ `TaskGraph.validate()` 接线三处门（`cdd review --type plan` 前置 / implement 派发前置 → 具名 BLOCK child 零派发）+ 严格派生波机械化（`--tasks` 拆派生波 → BLOCK）+ 派生波表随门输出（零新子命令）；**消费面 reduction 透传（v1.16 · 直依赖引擎约简）**——`TaskGraph#depsOf` 一律 transitive-reduction（派发/波次/读面），作者声明完整前置集冗余零危害 · validate 读原始声明 · 闭包/wave 不变 · lint 加传递冗余 advisory（只警不拦）；**plan-graph 展示 = wave-board（v1.18）**——引擎自持 wave 行（确定性 · wave chain 冗余删除），beautiful-mermaid 退役（§3.8 渲染决策作废——不控布局、全图规模丢 label、正则补丁 = 技术债）· **校验域归一化（v1.19 · 用户 2026-10-08 拍板「所有校验基于归一化结果」）**——validate 只评**归一化图**：边提取括号截断 → 去重（提取层归一）→ 传递约简 → 消费/校验同一归一化面；**duplicate 类退役**（去重归一即消——作者字面零裁决：冗余/重复/散文数字由引擎归一消化，plan 字面永不被判）；missing-edge / missing-id / self-loop / cycle **四类在归一面上评**
-- **Files**: `src-next/session/graph.ts`（改：contradiction 边违约类退役 · **归一化校验域**（去重入提取层 · duplicate 类退役 · missing-id/self-loop/cycle 归一面上评）· `batches()`/reduction 纯边推导 · header「linearization anchor」注释改写）· `src-next/contract/lint.ts`（改：编号/拓扑序 advisory WARN）· `src-next/contract/declare.ts`（改：598 行边声明注释收敛）· 测试（`src-next/session/__tests__/graph.test.ts` 改：contradiction 负例 → 前向引用正例 + 环具名违约 · `src-next/contract/__tests__/lint.test.ts` 改：advisory WARN 用例）· `packages/kairos/skills/cdd-plan/SKILL.md`（改：作者规则句「may only list lower-numbered tasks」收敛/删除）
-- **Consumes**: T2 declare（边声明登记面）· T5 lint（reference lint 面）· T6 graph（六类现面）· T11 cli（schema get plan 消费面）· T16 技能重写（cdd-plan 文本面——W12 同波 16→22→24 升序殿后见最终形态，非硬依赖）
-- **Produces**: 五类边违约 TaskGraph · 前向引用合法 · cycle 活门 · 编号 advisory lint · 技能作者句无「lower-numbered」残留
+- **Objective**: 用户 2026-10-08 拍板「放开『任务只能依赖更小编号』约束，Wave 编排完全基于 DependsOn 推导」+「所有校验基于归一化结果」——TaskGraph 收口为**归一化驱动的单一图面**（spec §3.1 v1.5 · §3.8 v1.10–v1.19）：
+  1. **反依赖门退役**：`DependsOn` 可指向任意现存任务 id（前向引用合法）· **cycle 类为活门**（环 = 具名 plan 违约 · 评审/派发 BLOCK）· 编号降级 ID + 波内升序 tiebreak · referenceLint **编号/拓扑序 advisory WARN**（只警不拦）
+  2. **`DependsOn` 值域契约 + 归一化链**：边提取「首个 `(` 前裸数字列表」（行尾注释零参与）→ **提取层去重** → **传递约简**（`#reduced`）——**消费与校验走同一归一化面**（`#depsOf` 即约简 · batches/frontier/report/hasPath 全走）；作者 plan 字面（冗余/重复/散文数字）由归一消化，**字面零裁决**
+  3. **校验域归一化（v1.19）**：`GraphIssueClass` = missing-edge / missing-id / self-loop / cycle **四类**，**在归一化图上评**；duplicate 类退役（去重入提取层，作者重复声明零判断）——`validate()` 只评归一化数据，从不读作者字面
+  4. **波次 pre-flight 三处门（v1.10）**：`TaskGraph.validate()` 接线 `cdd review --type plan` 前置 + implement/review/fix 派发前置（具名 BLOCK · child 零派发）· implement 门校验 `--tasks` = 派生 ready batch（按 ledger on-record 闭包求 frontier）**整组**——拆组 → BLOCK（严格派生波机械化）
+  5. **波次读面 `plan-graph`（v1.11 · 展示 wave-board v1.17）**：`cdd schema get plan-graph --plan <path>` 只读分支（零新子命令）· `report(done)` 一投影两显示（schema 读面 + 门输出）· 显示 = **引擎自持 wave-board**（每 wave 一行 · task+标记 ✔/▶/○ · 确定性 · wave chain 冗余删除，beautiful-mermaid 退役——不控布局出自 hack）
+- **Files**: `src-next/session/graph.ts`（改：contradiction 类退役 · 边提取括号截断＋提取层去重 · `#reduced` 传递约简 · `#depsOf` 走约简 · validate 四类归一化域 · `report(done)`/`reduction()` · header 注释收敛）· `src-next/face/cli.ts`（改：三处 pre-flight 门 · `--tasks` 拆组 BLOCK · `schema get plan-graph` 分支 + `--plan` 键 · wave-board 输出）· `src-next/face/graph-view.ts`（改：wave-board 渲染 · zero 第三方）· `src-next/contract/lint.ts`（改：编号/拓扑序 advisory + 传递冗余 advisory）· `src-next/contract/declare.ts`（改：边声明注释收敛）· 测试（graph/lint/cli 全套负例转正/归一化面断言）
+- **Consumes**: T2 declare（边声明登记面）· T5 lint（reference lint 面）· T6 graph（现面）· T11 cli（schema get 消费面）· T16 技能重写（cdd-plan 文本面——W12 同波，非硬依赖）
+- **Produces**: 四类归一化 TaskGraph · 前向引用合法 · cycle 活门 · 三处 pre-flight 门 · 拆组 BLOCK · `plan-graph` wave-board 读面 · 两 advisory · 技能作者句无「lower-numbered」残留
 - **Steps**:
-  - graph.ts contradiction 类退役（类型面/校验/错误文案/`batches()`/header 注释）· 前向引用合法 · cycle 活门具名报错 — checkable: graph.test 前向引用正例绿 + 环用例具名违约 + 五类类型面
-  - lint.ts 编号/拓扑序 advisory WARN（只警不拦）— checkable: lint.test advisory 用例绿 · 非 BLOCK
-  - declare.ts 边声明注释收敛 · `schema get plan` 输出面无「反依赖」描述 — checkable: 注释/schema 输出 grep + doc-contract 前向引用负例转正
-  - cdd-plan SKILL.md 作者句更新（「may only list lower-numbered tasks」零残留）— checkable: 技能面 grep + skill-anatomy 结构绿
-  - **pre-flight 接线（v1.13 · §3.8）**：边提取括号截断（`DependsOn` 值域 = 首 `(` 前裸数字列表 · 行尾注释零参与 · duplicate/self-loop 由散文注入的用例转负例断言）· `TaskGraph.validate()` 接线 `cdd review --type plan` 前置 + implement/review/fix 派发前置（具名 BLOCK · child 零派发）· implement 门校验 `--tasks` = 派生 ready batch 整组（拆组 → BLOCK）· 派生波表随门输出 — checkable: 括号截断断言 · 门 BLOCK 负例（含真实自环/拆组）· 波表输出断言
-  - **波次读面（v1.14 · §3.8 · 展示定案 v1.18）**：`cdd schema get plan-graph --plan <path>`（`TaskGraph#report(done)` 一投影两显示 · **显示 = 引擎自持 wave-board**——每 wave 一行、行内 task+标记（✔/▶/○）· 确定性按 wave 序 · zero第三方/zero补丁（beautiful-mermaid 退役——不控布局、全图规模丢 label）· zero新子命令）— checkable: 板题输出断言 · 全 task 每行有 wave · 消费面 reduction 同源断言
-  - **消费面 reduction + 传递冗余 advisory（v1.16 · §3.8）**：`#depsOf` 返回约简（batches/frontier/report/hasPath 全走 · validate 仍读原始声明 · 闭包不变）· lint `#transitiveAdvisories`（T4 依赖 T2 经 T3 可达 → WARN）— checkable: 约简边断言 · advisory 用例绿 · wave（闭合）不变断言
-  - **wave-board 展示（v1.18）**：plan-graph 显示 = 引擎自持 wave 行（每 wave 一行 · 标记 ✔/▶/○ · wave chain 删除 · beautiful-mermaid 退役）— checkable: 板出断言 · 全 task 每行有 wave
-  - **校验域归一化（v1.19 · §3.8）**：validate 域 = 归一化图（边提取截断 → 提取层去重 → 传递约简 → 消费/校验同一面）· GraphIssueClass 剔 duplicate · 四类（missing-edge/missing-id/self-loop/cycle）负例以归一化面构造 — checkable: 归一化校验断言 · duplicate 类零引用 grep · 作者字面冗余/重复零裁决断言
-  - commit `refactor(engine): 反依赖门放开——边违约四类收编 + 环活门`（自测绿后）
+  - graph.ts：contradiction 类退役（前向引用合法）· cycle 活门具名报错 · `batches()`/`frontier` 走闭包 — checkable: graph.test 前向引用正例 + 环具名违约
+  - 归一化链（graph.ts）：边提取括号截断（首 `(` 前列表）· 提取层去重 · `#reduced` 传递约简 · `#depsOf` = 约简（消费面）· `validate()` 四类归一化域（duplicate 类删 · 负例断言以归一化面构造）— checkable: 约简/校验断言 · duplicate 类零引用
+  - lint.ts：编号/拓扑序 advisory（只警不拦）· 传递冗余 advisory（T4 依赖经 T3 可达 → WARN）· `#declaredEdgesOf` 同走括号截断 — checkable: lint.test advisory 用例绿 · 非 BLOCK
+  - cli.ts 三处 pre-flight 门（review plan 前置 · 派发前置→具名 BLOCK）· implement `--tasks` 拆组 → BLOCK（ledger on-record 求 frontier）— checkable: 门 BLOCK 负例（真实自环/拆组）
+  - cli.ts `schema get plan-graph`（`--plan` 键 · 分支 · 零新子命令）· graph-view wave-board（每 wave 一行 · ✔/▶/○ · zero 第三方）· 无 beautiful-mermaid — checkable: 读面板出断言 · 全 task 每行有 wave
+  - declare.ts 边声明注释收敛 · `schema get plan` 输出面无「反依赖」描述 · cdd-plan SKILL.md 作者句「may only list lower-numbered tasks」零残留 — checkable: 注释/grep + skill-anatomy 绿
+  - commit `refactor(engine): 反依赖门放开——四类归一化收口 + pre-flight + plan-graph 读面`
 - **Acceptance**:
-  - TaskGraph 边违约四类（missing-edge / missing-id / self-loop / cycle——**校验基于归一化图**：duplicate 由去重归一消，作者字面零裁决）；前向引用合法（原 contradiction 负例转正 · `contradiction`/「反依赖」零残留 grep）；cycle 活门具名违约（BLOCK · 负例断言）；编号 = ID + 波内 ascending tiebreak 保持；lint advisory 只警不拦；新树测试全绿
-  - **pre-flight（v1.13）**：边提取括号截断（`DependsOn` 散文数字零入边 · 负例断言）· review plan / 三派发前置 validate 门（duplicate · self-loop · contradiction · phantom · cycle → 具名 BLOCK · 负例断言）· `--tasks` 拆派生波 → BLOCK（负例断言）· 派生波表随门输出（断言）— 任务丢失/拆组类全死门内
+  - TaskGraph 边违约四类（missing-edge / missing-id / self-loop / cycle）**均基于归一化图**；前向引用合法（原 contradiction 负例转正 · `contradiction`/「反依赖」零残留 grep）；cycle 活门具名违约（BLOCK · 负例断言）；duplicate 类零引用（去重归一消——作者字面零裁决）
+  - pre-flight 门（review plan · 三派发前置 → 具名 BLOCK · 负例断言）；`--tasks` 拆派生波 → BLOCK（负例断言）；编号 = ID + 波内 ascending tiebreak
+  - `cdd schema get plan-graph` = wave-board（每 wave 一行 · task+标记 · 零第三方零补丁）· 与 pre-flight 门输出同源（report 一投影两显示）
+  - 两 advisory（编号/拓扑序 · 传递冗余）只警不拦；lint.test 用例绿；新树测试全绿
 - **DependsOn**: 2, 5, 6, 15（T13 基线教训——语义改动落 cutover 后定型树；W12 同波 T16/T22，升序 24 殿后见技能重写最终形态）
-
----
-
-## 记录 · 新树基线（T13 落盘 · 双面构建期）
-
-T13 起的新树自测基线（后续 T14–T24 以此为准；旧树 count pin 漂移为 plan-owned 基线，见任务报告）：
-
-- **新树自测基线（文件/用例数）**：生产面 **25 文件**（contract 7 · session 6 · face 3 · render 3 · infra 5 · 根 bin.ts 1）· 测试面 **16 文件**（contract 6 · session 4 · face 2 · render 1 · infra 1 · 根 `__tests__` 2）· **251 用例**（src-next 独立 project 全绿）。`node src-next/bin.ts` 六命令黑盒可用（schema get 输出派生 schema · issue render 聚合正文 · base set/get 工件读写 · implement/review/fix dry-run 胶囊 + handoff）。
-- **零裸函数全树断言面（自 T13 基线起即全树；T18 收面协议）**：`grep -rn "^export function" src-next --include="*.ts"`（排除 `__tests__`）= **1 命中**——`src-next/face/cli.ts` 组合根 `cli()`（组合根装载面豁免）；非豁免行为面零。
-- **净减账基线（T13 起记）**：新树生产面 **7,619 行**（T17 出具 29k → −20%± 净减账，真实值为准）。
 
 ### Task 25: P5 承接补遗——refKind 四型 · skills 有序链 · capabilities per-harness（v1.12 新增）
 

@@ -54,7 +54,7 @@ pi install npm:@oscaner-skills/kairos
 ## 快速开始
 
 1. 从市场安装 `superpowers`、`kairos` 与 `mattpocock-skills`（逐 harness 安装见仓库 README）。
-2. 确保 `cdd` 引擎 CLI 在 `PATH` 上（`command -v cdd`）；若缺失，运行 `npm i -g @oscaner-skills/cdd-engine`。`cdd-dev` 技能的 `detect-engine` 节点会在 dispatch 时重新检查。
+2. 零安装前置——每个 kairos 技能按需通过 `npx -y @oscaner-skills/cdd-engine@latest <子命令>` 调用引擎（无全局安装前置；退役的 `detect-engine` 门已移除）。
 3. 调用 kairos 技能——Claude Code 与 Cursor Agent 均用 `/kairos:<skill>` 斜杠形式：
 
 ```bash

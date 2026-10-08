@@ -37,7 +37,7 @@ Adding a new first-party plugin: create `packages/<name>/package.json` with an `
 - `packages/` — first-party plugins (kairos)
 - `scripts/run.ts emit` — unified emit tool (derives `source.json` + all harness manifests)
 - `scripts/run.ts validate` — Node validation orchestration
-- `packages/cdd-engine/` — CDD engine npm package (cdd-task / docs-task / branch-review / cdd-select / cdd-research, lib/, templates/)
+- `packages/cdd-engine/` — CDD engine npm package (`src-next/` five-plane OOP tree · `templates/` · the six-command `cdd` CLI: implement / review / fix / schema / issue / base)
 
 ### Per-package docs
 
@@ -63,7 +63,7 @@ The global `cdd` command must NOT be used (`npm link` removed).
 
 The `cdd` CLI gains **no new subcommands** — the only exceptions are the discovery-type `cdd schema get <type>` and the pure-rendering `cdd issue render`, both zero-enforcement (the charter's Non-goal #1 exception). Enforcement-capable subcommands stay closed.
 
-Every op's stdout is the single status capsule (`status · blocker · handoff`) plus the engine-derived `next:` suggestion line — `cdd review` / `cdd fix` included; BLOCKED reasons ride the stderr `CDD_BLOCKED:` channel. The capsule/route vocabulary is single-sourced in the Contract Lexicon (`packages/cdd-engine/src/infra/contract-lexicon.json`), never restated in prose. A harness abnormal exit stores a crash-only snapshot + crash record in the workspace (`.kairos/cdd/<slug>/crash-<lane>-<round>.json`) — re-run the same command per the BLOCKED `next:` to continue (no redo, no residue loss).
+Every op's stdout is the single status capsule (`status · blocker · handoff`) plus the engine-derived `next:` suggestion line — `cdd review` / `cdd fix` included; BLOCKED reasons ride the stderr `CDD_BLOCKED:` channel. The capsule/route vocabulary is single-sourced in the single word table (`packages/cdd-engine/src-next/face/words.ts`), never restated in prose. A harness abnormal exit stores a crash-only snapshot + crash record in the workspace (`.kairos/cdd/<slug>/crash-<lane>-<round>.json`) — re-run the same command per the BLOCKED `next:` to continue (no redo, no residue loss).
 
 ### Engine tests
 
@@ -126,7 +126,7 @@ Never write to the local session-memory directory (`~/.claude/projects/<repo>/me
 
 ### Validation and commit flows
 
-Commits run on a dirty tree (`git add` + `git commit` run with uncommitted changes present). `.husky/pre-commit` is the single line **`pnpm exec lint-staged`** (tasks in `lint-staged.config.ts`): **`biome check`** gates the staged TS set with no-fix semantics — no `--write`, so a format/lint violation in a staged `.ts` file exits non-zero and aborts the commit (lint-staged only checks staged files, so un-staged dirty files don't block; `biome:fix` remains a manual self-check the hook never calls) — and a **`*` catch-all runs `pnpm run precommit`** (`node scripts/run.ts precommit`, i.e. `scripts/validate/pre-commit.ts`) once per commit: the tree-independent subset of the full validate (emit freshness / kairos tree + wiring guard + pi-package well-formed / engine zero residue + channel audit / marketplace manifests / scripts unit / package version sync), excluding the tree-dependent engine block (the cdd-engine engine vitest suite). The full validate, including the tree-dependent black-box cases, runs on the CI clean checkout (`.github/actions/validate` + `scripts/run.ts smoke-cdd`); locally, commit first, then run `pnpm run validate` for the complete assertion surface.
+Commits run on a dirty tree (`git add` + `git commit` run with uncommitted changes present). `.husky/pre-commit` is the single line **`pnpm exec lint-staged`** (tasks in `lint-staged.config.ts`): **`biome check`** gates the staged TS set with no-fix semantics — no `--write`, so a format/lint violation in a staged `.ts` file exits non-zero and aborts the commit (lint-staged only checks staged files, so un-staged dirty files don't block; `biome:fix` remains a manual self-check the hook never calls) — and a **`*` catch-all runs `pnpm run precommit`** (`node scripts/run.ts precommit`, i.e. `precommitSteps` in `scripts/validate.ts`) once per commit: the tree-independent subset of the full validate (emit freshness / kairos tree + wiring guard + pi-package well-formed / engine zero residue + channel audit / marketplace manifests / scripts unit / package version sync), excluding the tree-dependent engine block (the cdd-engine engine vitest suite). The full validate, including the tree-dependent black-box cases, runs on the CI clean checkout (`.github/actions/validate` + `scripts/run.ts smoke-cdd`); locally, commit first, then run `pnpm run validate` for the complete assertion surface.
 
 ### Node.js
 

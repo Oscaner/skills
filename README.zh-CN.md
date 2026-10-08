@@ -99,7 +99,7 @@ kairos 通过各 harness 自己的渠道安装——Claude Code 与 Cursor Agent
 ## 快速开始
 
 1. 从市场或 npm 安装插件（见[安装](#安装)）。
-2. 确保 `cdd` 引擎 CLI 在 `PATH` 上（`command -v cdd`）；若缺失，运行 `npm i -g @oscaner-skills/cdd-engine`。`cdd-dev` 的 `detect-engine` 节点会在 dispatch 时重新检查。
+2. 零安装前置——每个 kairos 技能按需通过 `npx -y @oscaner-skills/cdd-engine@latest <子命令>` 调用引擎（无全局安装前置；退役的 `detect-engine` 门已移除；引擎只以源入口 + `templates/` 发布）。
 3. 按名称调用 kairos 编排器——`kairos:cdd-design`、`kairos:cdd-plan` 等家族技能。每个技能将对应的上游流程作为本会话基线导入并运行自身的编排图；kairos 技能**不会拦截或自动改道**上游 `/superpowers:*` 调用——需要原版变体时直接调用对应原版技能。
 
 ## 架构

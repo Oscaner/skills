@@ -5,8 +5,8 @@
 // every markdown link + external reference resolves, the P4.2 convergence ledger in
 // docs/maintainers/README.md stays truthful (each per-file After cell == the live file's byte
 // count, and the Total After cell == the sum of the per-file After cells), the total byte budget
-// stays within the plan anchor ≤ 53,000, the P4.4 final-state tokens are
-// registered in 02/05, and the smoke-cdd positioning (landed by P4.2 Task 4 ③) survives in 04.
+// stays within the plan anchor ≤ 53,000, the dependency final-state tokens (the P4.4
+// retirements + the P3.2 shell-strip) are registered in 02/05, and the smoke-cdd positioning (landed by P4.2 Task 4 ③) survives in 04.
 // Runs inside the `kairos node:test behavior tree` validate step.
 
 import assert from "node:assert/strict";
@@ -186,7 +186,7 @@ test("maintainers: 02-naming carries the P4.4 final-state terms", () => {
   assert.match(md, /\bissue\b/, "the issue-surface vocabulary missing from the naming registry");
 });
 
-test("maintainers: 05-deps carries the P4.4 dependency final state", () => {
+test("maintainers: 05-deps carries the dependency final state", () => {
   const md = read("docs/maintainers/05-third-party-dependencies.md");
   assert.match(md, /@biomejs\/biome/, "biome not registered in the dependency ledger");
   // The TS6-compat shim (and the old build chain) are RETIRED — the ledger must record the
@@ -194,10 +194,13 @@ test("maintainers: 05-deps carries the P4.4 dependency final state", () => {
   // per the retired/delete face rule).
   assert.match(md, /TS6-compat shim retired/, "the TS6-compat shim retirement not recorded");
   assert.match(md, /~~`unbuild`~~ \(retired\)/, "the unbuild retirement row not recorded");
-  // the P4.4 rebase versions — each lockfile version string is unique on the surface.
-  assert.match(md, /10\.0\.1/, "execa 10.0.1 not registered");
+  // the P3.2 shell-strip — the old engine runtime stack is pruned and recorded with the
+  // pre-strip declared versions (structural replacements, never deferred).
+  assert.match(md, /P3\.2 cutover/, "the P3.2 shell-strip not recorded");
+  assert.match(md, /never reintroduce a pruned package/, "the no-re-adopt rule not recorded");
+  // the P3.2 lockfile versions — each lockfile version string is unique on the surface.
   assert.match(md, /7\.0\.2/, "typescript 7.0.2 not registered");
-  assert.match(md, /5\.0\.1/, "vitest 5.0.1 not registered");
+  assert.match(md, /5\.0\.3/, "vitest 5.0.3 not registered");
 });
 
 test("maintainers: 04-program-experience keeps the smoke-cdd positioning (P4.2 Task 4 ③ landing spot)", () => {

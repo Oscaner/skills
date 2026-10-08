@@ -147,7 +147,7 @@ export const HANDOFF_FAMILIES = {
     schema: "findings",
     phase: "review",
     fixFamily: "fix.wave",
-    prev: { round1: "implement.wave", roundR: "fix.task:R-1" },
+    prev: { round1: "implement.wave", roundR: "fix.wave:R-1" },
   },
   "fix.wave": {
     name: "tasks-{tasks}-fix-{round}.json",
@@ -156,7 +156,7 @@ export const HANDOFF_FAMILIES = {
     schema: "work",
     fixTemplate: "fix",
     phase: "fix",
-    prev: { roundR: "review.task:R" },
+    prev: { roundR: "review.wave:R" },
   },
   "review.spec": {
     name: "spec-review-{round}.json",

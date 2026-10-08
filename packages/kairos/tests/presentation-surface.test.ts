@@ -291,10 +291,11 @@ test("P4.1 behavior: cdd-engine README documents every CLI subcommand (issue inc
 test("P4.1 behavior: kairos README names the full CLI surface (issue render included)", () => {
   const md = read("packages/kairos/README.md");
   const cli = sectionOf(md, "## CDD engine CLI");
+  const surface = CDD_SUBCOMMANDS.join(" / ");
   assert.match(
     cli,
-    /implement \/ review \/ fix \/ base \/ schema \/ issue/,
-    "kairos README must name the full CLI surface (implement / review / fix / base-branch / schema / issue)",
+    new RegExp(surface),
+    `kairos README must name the full CLI surface (${surface})`,
   );
   assert.match(cli, /cdd schema get/, "kairos README must mention cdd schema get");
   assert.match(cli, /cdd issue render/, "kairos README must mention cdd issue render");

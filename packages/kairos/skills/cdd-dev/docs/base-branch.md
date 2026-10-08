@@ -10,14 +10,14 @@ Doc metadata — not an artifact section:
 
 - **Class**: methodology-doc
 - **Consumers**: `cdd-dev` (determine-base · set-base / branch-review) · `cdd-close` (reads `base.json` in `run-cdd-close-session`)
-- **Skeleton**: `Header` + `Section 0–5` fixed order — `Section 0–4` methodology body (Purpose → Inference order → Artifact schema → CLI usage) + `Section 5` naming tail
+- **Skeleton**: `Header` + `Section 0–5` fixed order — `Section 0–4` methodology body (Purpose → Inference order → Artifact schema → Scope resolution → CLI usage) + `Section 5` naming tail
 - **Canonical**: the `cdd base` command face of the engine CLI — the flag surface and the artifact schema this document mirrors; the doc and the CLI speak one vocabulary
 
 ---
 
 ## Section 0: Purpose
 
-This document governs two things: the deterministic inference order (Section 1) and the persisted artifact that records the result (Sections 2–4). It is the single delegation target for base-branch determination — the skills reference it instead of re-implementing the sequence.
+This document governs two things: the deterministic inference order (Section 1) and the persisted artifact that records the result (Sections 2–4). It is the single delegation target for base determination — the skills reference it instead of re-implementing the sequence.
 
 ## Section 1: Methodology — base inference order
 
@@ -29,7 +29,7 @@ The base branch is determined by trying these sources **in order** and taking th
 
 **Fallback:** if none of the above yields a result, **ask the user** to confirm the base branch. Do not guess — a guessed base is a claim the merge will not honor; asking is the honest counterpart.
 
-These are the only channels: argv (the plan field) · git facts (branch upstream) · conversation context — the three input channels, no disk-resident context. A source that is not in the list above is not consulted. The base may already be present in the artifact (`cdd base get --plan <path>`); when it is, skip the inference sequence and read the artifact.
+For inference, these are the only channels: argv (the plan field) · git facts (branch upstream) · conversation context — the three input channels, no disk-resident context, and a source outside this list is not consulted for inference. The base may already be present in the artifact (`cdd base get --plan <path>`); the artifact read precedes the inference sequence — when the artifact is present, skip the inference channels and use the artifact value as-is.
 
 ## Section 2: Artifact schema
 
@@ -76,7 +76,7 @@ The engine CLI is the write/read path for the artifact — orchestrator skills d
 | `set` | `cdd base set --plan <path> --base <branch> --source <source> [--force]` → `<repoRoot>/.kairos/cdd/<slug>/base.json` |
 | `get` | `cdd base get --plan <path>` → artifact JSON on stdout |
 
-`set` is **idempotent**: artifact absent → written with `recordedAt` = now; same `base` present → rewritten with `source` updated and `base` / `recordedAt` preserved (semantic no-op); different `base` present → refused (exit 2, existing authority untouched) unless `--force` overrides (new base → new `recordedAt`).
+`set` is **repeatable, never a no-op**: every successful `set` writes a fresh artifact — `base` / `source` / `plan` taken from the command arguments, `recordedAt` = now. The existing artifact is read only to enforce the base-consistency guard: same `base` present → still rewritten, with `recordedAt` refreshed (the previous timestamp is never preserved); different `base` present → refused (exit 2, the artifact on disk stays untouched) unless `--force` passes a new `base`.
 
 **Validation errors** (exit 2, nothing written): missing `--base` / `--source`; `source` not one of the four enum values; missing `--plan` → explicit error (the sole target is `--plan <path>`); `get` on a missing or schema-invalid artifact — never silently returns a bad value (the orchestrator falls back to the inference sequence of Section 1).
 

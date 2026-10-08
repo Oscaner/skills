@@ -44,10 +44,10 @@ export const REVIEW_CYCLE_CAP = 3;
 export const SOFT_CAP_SUGGESTION = "BLOCKED: review-cycle-cap — user adjudicates";
 
 /** The fix-route readback suffix — appended verbatim to the fix findings path on the
- *  route's `next:` render (`(first read <findings> back to confirm)`), a pure wording
- *  prompt: the anti-blind-fix mechanical guard is the ledger round / C5-1, the suffix
- *  only asks the orchestrator to confirm the input findings back (non-binding). */
-export const FIX_READBACK_SUFFIX = "(first read <findings> back to confirm)";
+ *  route's `next:` render (`(read file back to confirm)`), a pure wording prompt: the
+ *  anti-blind-fix mechanical guard is the ledger round / C5-1, the suffix only asks
+ *  the orchestrator to read the captured findings handoff back (non-binding). */
+export const FIX_READBACK_SUFFIX = "(read file back to confirm)";
 
 /** The failure face — a BLOCKED/TIMEOUT round goes the stderr CDD_BLOCKED channel and
  *  produces no `next:` line on any op. */

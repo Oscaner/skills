@@ -185,13 +185,13 @@ describe("the pinned surface — Route/soft-cap constants (the brief's type-chec
   });
 
   it("the fix-route readback suffix is the declared single-source wording", () => {
-    expect(FIX_READBACK_SUFFIX).toBe("(first read <findings> back to confirm)");
+    expect(FIX_READBACK_SUFFIX).toBe("(read file back to confirm)");
   });
 
   it("the readback suffix keeps its literal type at compile time", () => {
     // Compile-time pin — fails under `tsc --noEmit` if the constant's declared type
     // drifts from the render the capsule appends verbatim (exact suffix wording).
-    const suffix: "(first read <findings> back to confirm)" = FIX_READBACK_SUFFIX;
+    const suffix: "(read file back to confirm)" = FIX_READBACK_SUFFIX;
     expect(suffix).toBe(FIX_READBACK_SUFFIX);
   });
 

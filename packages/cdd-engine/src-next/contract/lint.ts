@@ -86,7 +86,10 @@ export class LintPass extends MarkdownPrimitives {
   /** run — the single observation entry: one Warn per offending surface. */
   run(input: LintInput): Warn[] {
     const warns: Warn[] = [];
-    if (input.parsed.docType === "plan") warns.push(...this.#missingEdgeWarns(input, input.parsed));
+    if (input.parsed.docType === "plan") {
+      warns.push(...this.#missingEdgeWarns(input, input.parsed));
+      warns.push(...this.#numberingAdvisories(input, input.parsed));
+    }
     warns.push(...this.#crossDocDriftWarns(input, input.parsed.chain.parentLink));
     return warns;
   }
@@ -115,13 +118,36 @@ export class LintPass extends MarkdownPrimitives {
     return warns;
   }
 
-  /** The block's declared edge ids — read from its **DependsOn** value via the derived `DependsOn id` pattern. */
+  /** One WARN per forward reference (a dep on a higher-numbered task) — the numbering
+   *  read-order advisory (T24: legal after the anti-dependency gate retired, but a
+   *  hint that the numbering no longer follows the topological reading order). */
+  #numberingAdvisories(input: LintInput, parsed: PlanParsed): Warn[] {
+    const warns: Warn[] = [];
+    for (const block of parsed.taskBlocks) {
+      for (const dep of this.#declaredEdgesOf(block)) {
+        if (dep <= block.id) continue;
+        warns.push({
+          path: input.path,
+          field: `Task ${block.id}`,
+          message: `task ${block.id} depends on the higher-numbered Task ${dep} — legal (forward references), but the numbering no longer follows the topological reading order; consider renumbering (advisory only)`,
+          fix: "renumber the pair for a linear reading order, or keep the forward dependency — the engine derives waves from **DependsOn** alone",
+          kind: "reference-lint",
+        });
+      }
+    }
+    return warns;
+  }
+
+  /** The block's declared edge ids — read from its **DependsOn** VALUE PREFIX only
+   *  (the first `(`/`（` truncates — a trailing parenthetical's numbers are prose,
+   *  never an edge; the same §3.8 value-domain contract the graph's extractor keeps). */
   #declaredEdgesOf(block: TaskBlock): Set<number> {
     const edges = new Set<number>();
     const field = block.fields.find((entry) => entry.key === "DependsOn");
     if (field === undefined) return edges;
     for (const line of field.lines) {
-      for (const token of line.split(/[,\s]+/)) {
+      const prefix = line.split(/[（(]/)[0]!;
+      for (const token of prefix.split(/[,\s]+/)) {
         if (this.#depIdToken.test(token.trim())) edges.add(Number(token.trim()));
       }
     }

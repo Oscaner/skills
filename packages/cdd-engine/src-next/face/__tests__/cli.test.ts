@@ -246,7 +246,7 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
 
   it("rejects an unknown schema type against the derived registry-key vocabulary", () => {
     expect(() => cli().parse(["schema", "get", "bogus"])).toThrow(
-      /unknown schema type: bogus \(available: overall, plan, phaseSpec\)/,
+      /unknown schema type: bogus \(available: overall, plan, phaseSpec, plan-graph\)/,
     );
   });
 
@@ -335,15 +335,29 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     }
   });
 
-  it("implement — the whole group dispatches in one invocation (the batch cursor)", async () => {
+  it("implement — strict-wave dispatch: one derived wave per invocation (task 2 waits for task 1)", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot, 2);
+      // the root wave {1} first (task 2's dep sits in wave 1)
+      expect(
+        await command.runArgv([
+          "implement",
+          "--tasks",
+          "1",
+          "--plan",
+          plan,
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).toBe(0);
+      io.stdoutText = "";
       const code = await command.runArgv([
         "implement",
         "--tasks",
-        "1,2",
+        "2",
         "--plan",
         plan,
         "--dry-run",
@@ -358,6 +372,20 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       // the invocation's single stdout face — only the LAST step's capsule
       expect(io.stdoutText.split("status: APPROVED").length - 1).toBe(1);
       expect(existsSync(path.join(workspace, "tasks-2-implement.json"))).toBe(true);
+      // the strict-wave gate (T24): a `--tasks` splitting the derived wave BLOCKs
+      io.stderrText = "";
+      const split = await command.runArgv([
+        "implement",
+        "--tasks",
+        "1,2",
+        "--plan",
+        plan,
+        "--dry-run",
+        "--root",
+        repoRoot,
+      ]);
+      expect(split).toBe(1);
+      expect(io.stderrText).toContain("derived group");
     } finally {
       cleanup();
     }
@@ -653,7 +681,7 @@ describe("the pure commands — schema / issue / base", () => {
       const code = await command.runArgv(["schema", "get", "bogus"]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain(
-        "unknown schema type: bogus (available: overall, plan, phaseSpec)",
+        "unknown schema type: bogus (available: overall, plan, phaseSpec, plan-graph)",
       );
     } finally {
       cleanup();

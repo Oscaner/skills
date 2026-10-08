@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "ajv": "^8.20.0",
+    "beautiful-mermaid": "^1.1.3",
     "citty": "^0.2.2",
     "consola": "^3.4.2",
     "execa": "^10.0.1",

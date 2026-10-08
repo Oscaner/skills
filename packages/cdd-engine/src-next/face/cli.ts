@@ -58,6 +58,7 @@ import { NextStepRouter } from "../session/next.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame, RunState } from "../session/run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../session/run.ts";
 import { Capsule } from "./capsule.ts";
+import { GraphView } from "./graph-view.ts";
 import {
   DISPATCH,
   HOSTS,
@@ -211,13 +212,13 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
     name: "schema",
     usage: CLI_USAGE.schema,
     description: "read canonical doc-structure schemas (discovery, zero enforcement)",
-    keys: [],
+    keys: [{ key: "plan" }],
     leaves: [
       {
         name: "get",
         usage: CLI_USAGE.schema,
-        description: "print the derived doc-structure schema for <type>",
-        keys: [],
+        description: "print the derived doc-structure schema for <type> (or the plan-graph read)",
+        keys: [{ key: "plan" }],
         positionals: [{ key: "type", required: true }],
       },
     ],
@@ -885,6 +886,8 @@ export class Cli {
   readonly #translator: Translator;
   readonly #channels: Record<string, ChannelArg>;
   readonly #docKeys: readonly string[];
+  /** The plan-graph display (the schema get plan-graph + the pre-flight face). */
+  readonly #graphView: GraphView;
 
   constructor(opts: CliOptions = {}) {
     this.#io = opts.io ?? {
@@ -907,6 +910,7 @@ export class Cli {
     this.#issue = new IssueBodyRenderer(this.#words, this.#translator);
     this.#channels = this.#channelTable();
     this.#docKeys = Object.keys(this.#projector.registries().schema);
+    this.#graphView = new GraphView();
   }
 
   // ---------------------------------------------------------------------------
@@ -1074,7 +1078,7 @@ export class Cli {
       case "fix":
         return this.#runWork("fix", parsed);
       case "schema":
-        return this.#runSchema(parsed);
+        return await this.#runSchema(parsed);
       case "issue":
         return this.#runIssue(parsed);
       case "base":
@@ -1136,6 +1140,56 @@ export class Cli {
         }
       }
       for (const id of planIds) if (!group.has(id)) scene.state.markDone(id);
+    }
+
+    // The wave pre-flight gate (§3.8 / T24) — the plan graph must validate before ANY
+    // dispatch: a violation (duplicate / missing-id / self-loop / cycle) BLOCKs with
+    // the named edge issues (the task-loss class dies here, never silently), and the
+    // implement verb must dispatch the FULL derived wave — a manual `--tasks` split
+    // BLOCKs (the strict-wave discipline is engine-forced, not an orchestrator habit).
+    if ((type === "task" || type === "plan") && scene.planText !== null) {
+      const parsedPlan = new PlanDocType("plan").parse(scene.planText.split("\n"));
+      const graph = new TaskGraph(parsedPlan);
+      const issues = graph.validate();
+      if (issues.length > 0) {
+        this.#io.stderr(
+          `cdd ${verb}: the plan graph has ${issues.length} edge violation(s) — fix the **DependsOn** edges first\n`,
+        );
+        for (const issue of issues)
+          this.#io.stderr(`  ${issue.kind}@T${issue.task}: ${issue.message}\n`);
+        return 1;
+      }
+      if (verb === "implement") {
+        // The wave-done set = every task with a ledger record (a task-row or a
+        // member-row of a merged group) — the historical merged groups carry no
+        // per-task implement rows, so wave-done reads the ROW record, never the
+        // per-task round counts.
+        const closed = new Set<number>();
+        const data = scene.ledger.readProgress();
+        if (data !== null) {
+          for (const row of data.tasks) {
+            if ("task" in row) closed.add(row.task);
+            else if ("group" in row)
+              for (const id of row.group.split(",").map((part) => Number(part))) closed.add(id);
+          }
+        }
+        const ready = [...graph.frontier(closed)].sort((a, b) => a - b);
+        const requested = [...(group ?? [])].sort((a, b) => a - b);
+        const exact =
+          requested.length === ready.length && requested.every((id) => ready.includes(id));
+        if (!exact) {
+          this.#io.stderr(
+            `cdd implement: --tasks {${requested.join(",")}} splits/mismatches the derived wave — dispatch the full derived group {${ready.join(",")}} (strict-wave §3.8)\n`,
+          );
+          if (this.#graphView !== null) {
+            for (const line of this.#graphView
+              .render(graph.report(closed), `plan-graph: ${scene.planPath ?? ""}`)
+              .split("\n"))
+              this.#io.stderr(`  ${line}\n`);
+          }
+          return 1;
+        }
+      }
     }
 
     const statuses: (RoundStatus | null)[] = [];
@@ -1480,12 +1534,57 @@ export class Cli {
 
   /** `cdd schema get <type>` — the derived doc-structure schema JSON to stdout (the
    *  type vocabulary = the projector's registry keys — self-derived, never a second
-   *  hand-written list). */
-  #runSchema(parsed: ParsedCommand): number {
+   *  hand-written list); the `plan-graph` type rides the discovery read (§3.8). */
+  async #runSchema(parsed: ParsedCommand): Promise<number> {
     const type = parsed.positionals[0];
     if (type === undefined)
       throw new CliUsageError("cdd schema get: missing <type>", CLI_USAGE.schema);
+    if (type === "plan-graph") return this.#runPlanGraph(parsed);
     this.#io.stdout(`${JSON.stringify(this.#projector.schema()[type as DocKey], null, 2)}\n`);
+    return 0;
+  }
+
+  /** `cdd schema get plan-graph --plan <path>` — the plan-graph read (§3.8): the task
+   *  graph + the derived wave chain + the ledger progress, rendered as the terminal
+   *  box-drawing DAG (GraphView over beautiful-mermaid). A Graph validate failure
+   *  BLOCKs the read with the named edge violations — the wave-preflight gate
+   *  surfaces as a discovery read. */
+  async #runPlanGraph(parsed: ParsedCommand): Promise<number> {
+    const planPath = parsed.args.plan;
+    if (planPath === undefined) {
+      throw new CliUsageError("cdd schema get plan-graph: missing --plan <path>", CLI_USAGE.schema);
+    }
+    const text = this.#readText(planPath);
+    const plan = new PlanDocType("plan").parse(text.split("\n"));
+    const graph = new TaskGraph(plan);
+    const issues = graph.validate();
+    if (issues.length > 0) {
+      this.#io.stderr(
+        `cdd schema get plan-graph: ${issues.length} plan-graph violation(s) — fix the **DependsOn** edges first\n`,
+      );
+      for (const issue of issues)
+        this.#io.stderr(`  ${issue.kind}@T${issue.task}: ${issue.message}\n`);
+      return 1;
+    }
+    const repoRoot = await this.#repoRootOf(parsed);
+    const workspace = new Workspace(
+      new WorkspaceRoot(repoRoot ?? this.#cwd, this.#config.handoffNamespace().workspaceRoot),
+      Workspace.slugFromDoc(planPath),
+    ).ensure();
+    const ledger = new Ledger(workspace, this.#config);
+    const done = new Set<number>();
+    // wave-done = every task with a ledger record (a task-row or a member of a
+    // merged group) — the historical merged groups carry no per-task implement rows,
+    // so the progress reads the ROW record, never the per-task round closures.
+    const data = ledger.readProgress();
+    if (data !== null) {
+      for (const row of data.tasks) {
+        if ("task" in row) done.add(row.task);
+        else if ("group" in row)
+          for (const id of row.group.split(",").map((part) => Number(part))) done.add(id);
+      }
+    }
+    this.#io.stdout(`${this.#graphView.render(graph.report(done), `plan-graph: ${planPath}`)}\n`);
     return 0;
   }
 
@@ -1698,9 +1797,9 @@ export class Cli {
     const declared = surface.positionals ?? [];
     return declared.map((positional, index) => {
       const value = positionals[index];
-      if (positional.key === "type" && !this.#docKeys.includes(value!)) {
+      if (positional.key === "type" && value !== "plan-graph" && !this.#docKeys.includes(value!)) {
         throw this.#usage(
-          `cdd schema get: unknown schema type: ${value} (available: ${this.#docKeys.join(", ")})`,
+          `cdd schema get: unknown schema type: ${value} (available: ${[...this.#docKeys, "plan-graph"].join(", ")})`,
           surface.usage,
         );
       }

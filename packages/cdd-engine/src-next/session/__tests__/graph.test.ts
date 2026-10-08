@@ -101,19 +101,24 @@ describe("the six validate classes — one negative fixture each", () => {
     expect(issues[0]!.task).toBe(3);
   });
 
-  it("contradiction — the anti-dependency gate: a forward edge at a later task", () => {
+  it("a forward reference is legal — the anti-dependency gate is retired (T24)", () => {
     const graph = graphOf([task(1, "2"), task(2, "none")]);
-    const issues = graph.validate();
-    expect(kindsOf(issues)).toEqual(["contradiction"]);
-    expect(issues[0]!.task).toBe(1);
-    expect(issues[0]!.message).toContain("2");
+    expect(graph.validate()).toEqual([]); // 1→2 forward edge — no contradiction class
+    expect(graph.batches()).toEqual([[2], [1]]);
+  });
+
+  it("the edge value-domain truncation — a trailing parenthetical's numbers never join the edge (§3.8)", () => {
+    // the plan's DependsOn lines may carry a rationale in parens (`…（升序 24 殿后…）`);
+    // the extraction reads only the pre-paren list — no duplicate/self-loop from prose
+    const graph = graphOf([task(1, "none"), task(2, "1（prose 2 here）")]);
+    expect(graph.validate()).toEqual([]);
+    expect(graph.batches()).toEqual([[1], [2]]);
   });
 
   it("cycle — a directed dependency cycle among the declared edges", () => {
     const graph = graphOf([task(1, "2"), task(2, "1")]); // 1 ⇄ 2
     const issues = graph.validate();
-    expect(kindsOf(issues)).toContain("cycle");
-    expect(kindsOf(issues)).toContain("contradiction"); // 1→2 is also forward
+    expect(kindsOf(issues)).toContain("cycle"); // no contradiction class — the forward edge is legal now
   });
 
   it("a conforming plan validates clean — zero false positives", () => {

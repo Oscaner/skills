@@ -25,7 +25,9 @@ import type { ReferenceEntry } from "../contract/project.ts";
 import { Projector } from "../contract/project.ts";
 import type { ExecutionState, Frontier } from "./state.ts";
 
-/** The six edge-validation classes — the TaskGraph's judgment vocabulary. */
+/** The five edge-validation classes — the TaskGraph's judgment vocabulary (§3.1
+ *  v1.5: the anti-dependency `contradiction` class retired — forward references are
+ *  legal; the cycle stays the live gate, T24). */
 export type GraphIssueClass =
   /** a task block declares no `- **DependsOn**:` field (`none`/empty = the explicit no-dependency declaration) */
   | "missing-edge"
@@ -35,8 +37,6 @@ export type GraphIssueClass =
   | "missing-id"
   /** a task depends on itself */
   | "self-loop"
-  /** a task depends on a higher-numbered task — the anti-dependency gate violation */
-  | "contradiction"
   /** a directed dependency cycle among the declared edges */
   | "cycle";
 
@@ -58,6 +58,22 @@ interface EdgeRecord {
   declared: boolean;
   /** The declared dependency ids (parse order, sorted ascending — duplicates retained for the duplicate class). */
   deps: readonly number[];
+}
+
+/** The plan-graph read projection (§3.8) — the task graph + the derived wave chain
+ *  + the done/current/pending view, the single projection the `schema get plan-graph`
+ *  read and the pre-flight gates display. */
+export interface TaskGraphReport {
+  /** Each task's declared dependency ids, in block order. */
+  edges: Readonly<Record<number, readonly number[]>>;
+  /** The derived wave chain (`batches()`) — the strict-dispatch grouping authority. */
+  waves: readonly (readonly number[])[];
+  /** The completed task ids, ascending. */
+  done: readonly number[];
+  /** The first wave holding a not-done task (the in-flight wave); null when all done. */
+  current: readonly number[] | null;
+  /** The not-done tasks, ascending (the remaining frontier). */
+  pending: readonly number[];
 }
 
 /**
@@ -124,7 +140,7 @@ export class TaskGraph implements Frontier, ExecutionState {
   }
 
   /** The per-block failure classes, in a stable order (missing-edge, duplicate,
-   *  missing-id, self-loop, contradiction). */
+   *  missing-id, self-loop). */
   #blockIssues(edge: EdgeRecord, blockId: number, registered: ReadonlySet<number>): GraphIssue[] {
     if (!edge.declared) {
       return [
@@ -168,17 +184,6 @@ export class TaskGraph implements Frontier, ExecutionState {
           blockId,
           `task ${blockId} depends on itself`,
           `a task may never depend on its own number — drop ${blockId} from the block's **DependsOn**`,
-        ),
-      );
-    }
-    const forwards = TaskGraph.#unique(edge.deps.filter((id) => id > blockId));
-    if (forwards.length > 0) {
-      issues.push(
-        this.#issue(
-          "contradiction",
-          blockId,
-          `task ${blockId} depends on the higher-numbered task ${TaskGraph.#toList(forwards)} — the anti-dependency gate violation`,
-          `only lower-numbered tasks are referenceable (numbering order is the linearization anchor) — fix **DependsOn** for task ${TaskGraph.#toList(forwards)}`,
         ),
       );
     }
@@ -268,6 +273,23 @@ export class TaskGraph implements Frontier, ExecutionState {
     if (this.#nodes.includes(id)) this.#done.add(id);
   }
 
+  /** The plan-graph read projection — the task graph + the derived wave chain +
+   *  the done/current/pending view one method, the schema read and the pre-flight
+   *  gates' shared surface (§3.8: one projection, two displays). */
+  report(done: ReadonlySet<number>): TaskGraphReport {
+    const edges: Record<number, readonly number[]> = {};
+    for (const id of this.#nodes) edges[id] = this.#depsOf(id);
+    const waves = this.batches();
+    const first = waves.find((wave) => wave.some((id) => !done.has(id))) ?? null;
+    return {
+      edges,
+      waves,
+      done: [...done].sort((a, b) => a - b),
+      current: first,
+      pending: this.#nodes.filter((id) => !done.has(id)),
+    };
+  }
+
   // -------------------------------------------------------------------------
   // edge reading
   // -------------------------------------------------------------------------
@@ -277,17 +299,19 @@ export class TaskGraph implements Frontier, ExecutionState {
     return this.#edges.get(task)?.deps ?? [];
   }
 
-  /** One block's declared edge record — the `**DependsOn**` field's whole-token
-   *  numeric values (the derived `DependsOn id` domain — the same pattern the
-   *  reference lint reads, so a malformed value like `1.2` the lint refuses also
-   *  carries no edge here); `none`/empty carries zero edges; the field's absence
-   *  is recorded separately for the missing-edge class. */
+  /** One block's declared edge record — the `**DependsOn**` field's numeric list,
+   *  taken from the field's VALUE PREFIX only (the first `(`/`（` truncates: the
+   *  trailing parenthetical rationale is prose — zero participation, §3.8's value
+   *  domain contract; a round number in the rationale can never become a phantom
+   *  dependency). `none`/empty carries zero edges; the field's absence is recorded
+   *  separately for the missing-edge class. */
   #edgeOf(block: TaskBlock): EdgeRecord {
     const field = block.fields.find((entry) => entry.key === "DependsOn");
     if (field === undefined) return { declared: false, deps: [] };
     const deps: number[] = [];
     for (const line of field.lines) {
-      for (const token of line.split(/[,\s]+/)) {
+      const prefix = line.split(/[（(]/)[0]!;
+      for (const token of prefix.split(/[,\s]+/)) {
         const candidate = token.trim();
         if (this.#depIdToken.test(candidate)) deps.push(Number(candidate));
       }

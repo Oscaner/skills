@@ -107,12 +107,16 @@ export interface ProgressData {
 export type LedgerKey = number | string;
 
 /** The lane-crash cause vocabulary — postmortem classification of why a dispatch
- *  terminated before the exit gate (zero behavior fork: resume never routes on it). */
+ *  terminated before the exit gate (zero behavior fork: resume never routes on it).
+ *  `contract-violation` is the read-back face: the child exited 0 but produced no
+ *  draft or a schema-violating one (the engine BLOCKs + preserves the draft + stores
+ *  the same-command resume — the read-back rejection's crash record). */
 export type CrashCause =
   | "child-exit"
   | "child-signal"
   | "engine-over-budget"
   | "engine-timeout"
+  | "contract-violation"
   | "unknown";
 
 /** The crash record — the lane crash's recovery record (`crash-<lane>-<round>.json`):

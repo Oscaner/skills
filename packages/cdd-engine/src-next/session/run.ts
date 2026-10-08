@@ -80,6 +80,12 @@ export interface DispatchOutcome {
   commits?: { base: string; head?: string };
   /** The artifact paths the round produced (brief/report/…). */
   artifacts?: Record<string, string>;
+  /** The materialized final carrier (the production dispatch's read-back
+   *  reconstruct — §3.6: the child draft validated and built into the carrier the
+   *  bookkeep persists verbatim, full-replace at the SAME path; agent draft →
+   *  finalized, the engine stays the single author). Absent for the hermetic /
+   *  dry-run dispatchers — the bookkeep builds the carrier from the outcome fields. */
+  carrier?: Record<string, unknown>;
 }
 
 /** The dispatch instruction — runs one round's actual work (the harness call in
@@ -375,19 +381,36 @@ export class Lifecycle {
   // dispatch → result → bookkeeping
   // -------------------------------------------------------------------------
 
-  /** Bookkeeping — persist the round's handoff carrier and record the progress
-   *  round. Returns the round count on record (the task done-marking rides the
-   *  step's C5 route — #markTerminal, after #routeNext). */
+  /** Bookkeeping — persist the round's handoff carrier and record the progress round.
+   *  The persisted carrier is either the dispatch's materialized form (the production
+   *  read-back reconstruct — outcome.carrier, full-replace at the SAME path, so the
+   *  child's draft becomes the finalized carrier: 一文件两态, the engine is the single
+   *  author) or the engine-built fallback from the outcome fields (hermetic / dry-run
+   *  dispatchers). A BLOCKED/TIMEOUT round WITHOUT a carrier is neither persisted nor
+   *  recorded — the child's draft (if any) stays untouched (失败不覆盖) and the
+   *  frontier re-offers the same round (resume = re-run the same command); a BLOCKED
+   *  round WITH a carrier (e.g. the evidence-contract override — the child's work is
+   *  preserved as the BLOCKED carrier) is persisted but not counted as a completed
+   *  round, so the frontier still re-dispatches it. Returns the round count on record
+   *  (the task done-marking rides the step's C5 route — #markTerminal, after
+   *  #routeNext). */
   #bookkeep(frame: OpenFrame, outcome: DispatchOutcome): number {
-    const op = this.#opOf(frame.phase);
-    const carrier = this.#ledger.buildHandoff(op, frame.type, frame.params, {
-      findings: outcome.findings === undefined ? undefined : [...outcome.findings],
-      commits: outcome.commits,
-      artifacts: outcome.artifacts,
-    });
-    if (outcome.status !== undefined) carrier.status = outcome.status;
-    this.#ledger.persistHandoff(op, frame.type, frame.params, carrier);
-    return this.#ledger.recordRound(frame.key, frame.phase);
+    const blocked = outcome.status === "BLOCKED" || outcome.status === "TIMEOUT";
+    if (outcome.carrier !== undefined || !blocked) {
+      const op = this.#opOf(frame.phase);
+      const carrier =
+        outcome.carrier ??
+        this.#ledger.buildHandoff(op, frame.type, frame.params, {
+          findings: outcome.findings === undefined ? undefined : [...outcome.findings],
+          commits: outcome.commits,
+          artifacts: outcome.artifacts,
+        });
+      if (carrier.status === undefined && outcome.status !== undefined)
+        carrier.status = outcome.status;
+      this.#ledger.persistHandoff(op, frame.type, frame.params, carrier);
+    }
+    if (!blocked) return this.#ledger.recordRound(frame.key, frame.phase);
+    return this.#ledger.roundCount(frame.key, frame.phase);
   }
 
   /** Mark the task done when the concluding route says its line closed — the C5

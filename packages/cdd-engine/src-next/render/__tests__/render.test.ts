@@ -33,50 +33,47 @@ const ALL_VALUES: Record<string, string> = {
   REVIEW_PLAN_LINE: "",
   DOC: "",
   HANDOFF_TARGET: "/ws/tasks-4,12-implement.json",
-  HANDOFF_WRITE_GATE: "hard gate",
-  RETURN_FORMAT: "RETURN_STDOUT_BLOCK",
-  RETURN_STDOUT_BLOCK: "RETURN_STDOUT_BLOCK",
+  HANDOFF_SCHEMA: "$$SCHEMA$$",
 };
 
 describe("TemplateAssembler — the template assembly + hard gates", () => {
   const assembler = new TemplateAssembler();
 
-  it("declares the contract's return formats and token registry", () => {
-    expect(assembler.returnFormats()).toEqual(["RETURN_STDOUT_BLOCK", "RETURN_JSON", "DOCS_FIX"]);
+  it("declares the single return contract and the token registry", () => {
+    // v1.9 — RETURN_JSON / DOCS_FIX retired: RETURN_STDOUT_BLOCK is the one format.
+    expect(assembler.returnFormats()).toEqual(["RETURN_STDOUT_BLOCK"]);
     expect(assembler.declaredTokens()).toContain("MODE");
     expect(assembler.declaredTokens()).toContain("HANDOFF_TARGET");
+    expect(assembler.declaredTokens()).toContain("HANDOFF_SCHEMA");
+    expect(assembler.declaredTokens()).not.toContain("HANDOFF_WRITE_GATE");
   });
 
   it("assembles the full dispatch template with every slot resolved", () => {
-    const out = assembler.render("RETURN_STDOUT_BLOCK", ALL_VALUES);
+    const out = assembler.render(ALL_VALUES);
     expect(out.startsWith("# CDD dispatch — CLI session")).toBe(true);
     expect(out).toContain("## Instructions");
-    expect(out).toContain("## Handoff");
+    expect(out).toContain("## Handoff schema");
     expect(out).toContain("## Return");
     expect(out).toContain("## Round context");
     expect(out).toContain("- `MODE`: implement");
     expect(out).toContain("- `DISPATCH_UNIT`: 4,12");
     expect(out).toContain("- `BRIEF`: /ws/tasks-4,12-brief.md");
+    expect(out).toContain("$$SCHEMA$$"); // the injected writable-subset fence slot
     expect(out).not.toContain("{{"); // zero unresolved slots
-  });
-
-  it("assembles a non-standard return format through the same declared order", () => {
-    const out = assembler.render("RETURN_JSON", ALL_VALUES);
-    expect(out).toContain("## Return");
-    expect(out).toContain("RETURN_JSON"); // the return-format-specific wording
+    // the v1.9 散文归零 — no HANDOFF_WRITE_GATE / ## Handoff prose anywhere
+    expect(out).not.toContain("HANDOFF_WRITE_GATE");
+    expect(out).not.toContain("RETURN_JSON");
+    expect(out).not.toContain("DOCS_FIX");
   });
 
   it("hard gates: a missing token value throws (named)", () => {
     const partial = { ...ALL_VALUES };
     delete partial.MODE;
-    expect(() => assembler.render("RETURN_STDOUT_BLOCK", partial)).toThrow(/MODE/);
+    expect(() => assembler.render(partial)).toThrow(/MODE/);
   });
 
-  it("hard gates: an undeclared value and an unknown format throw", () => {
-    expect(() => assembler.render("RETURN_STDOUT_BLOCK", { ...ALL_VALUES, BOGUS: "x" })).toThrow(
-      /undeclared/,
-    );
-    expect(() => assembler.render("NOPE", ALL_VALUES)).toThrow(/not declared/);
+  it("hard gates: an undeclared value throws (the guard is the declared token list)", () => {
+    expect(() => assembler.render({ ...ALL_VALUES, BOGUS: "x" })).toThrow(/undeclared/);
   });
 });
 

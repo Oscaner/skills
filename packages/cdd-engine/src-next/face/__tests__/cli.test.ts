@@ -829,7 +829,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
-  it("dispatches through the harness rows — the skill-ref slash form + the prompt, the return block parsed back", () => {
+  it("dispatches through the harness rows — the skill-ref slash form + the prompt, the draft read back into the outcome", () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const scene = harnessScene(repoRoot);
@@ -837,6 +837,30 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const sync = new FakeSync();
       sync.stdout =
         "status: APPROVED\ncommits: base=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa head=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\nartifacts: brief=/b report=/r test_evidence=/t\n";
+      // The child's write-back: the implement draft at HANDOFF_TARGET per the injected
+      // `work` schema + the canonical test-evidence file (the v1.9 read-back inputs).
+      const draft = path.join(scene.workspace.path, "tasks-1-implement.json");
+      const head = "b".repeat(40);
+      writeFileSync(
+        draft,
+        JSON.stringify({
+          status: "APPROVED",
+          artifacts: { brief: "/b", report: "/r", test_evidence: "/t" },
+          commits: { base: "a".repeat(40), head },
+        }),
+        "utf8",
+      );
+      writeFileSync(
+        path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+        JSON.stringify({
+          command: "npx vitest run",
+          exit_code: 0,
+          passed: true,
+          warnings_count: 0,
+          typecheck: { command: "tsc --noEmit", exit_code: 0, passed: true },
+        }),
+        "utf8",
+      );
       const dispatch = new HarnessDispatch({
         scene,
         io,
@@ -860,23 +884,45 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(prompt).toContain(
         `- \`HANDOFF_TARGET\`: ${path.join(scene.workspace.path, "tasks-1-implement.json")}`,
       );
-      expect(outcome).toEqual({
-        status: "APPROVED",
-        commits: { base: "a".repeat(40), head: "b".repeat(40) },
+      // v1.9 — the injected writable-subset schema rides the shell's fixed tail (the
+      // ```json fence + the evidence fence — the task-family work round's two files)
+      expect(prompt).toContain("## Handoff schema");
+      expect(prompt).toContain("```json");
+      expect(prompt).toContain("the test-evidence file");
+      expect(prompt).not.toContain("HANDOFF_WRITE_GATE");
+      // the read-back reconstruct — the final carrier (phase + validated draft fields)
+      // rides the outcome, the block's three lines the pointer
+      expect(outcome.status).toBe("APPROVED");
+      expect(outcome.commits).toEqual({ base: "a".repeat(40), head });
+      expect(outcome.carrier).toEqual({
+        phase: "implement",
         artifacts: { brief: "/b", report: "/r", test_evidence: "/t" },
+        findings: [],
+        tasks: [1],
+        commits: { base: "a".repeat(40), head },
+        status: "APPROVED",
       });
     } finally {
       cleanup();
     }
   });
 
-  it("the docs review — the RETURN_JSON face: findings-only stdout, the status derived by severity", () => {
+  it("the docs review — the block + draft face: findings flow back from the file, the status rolls up", () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
       const sync = new FakeSync();
-      sync.stdout = '{"findings":[{"severity":"blocker","summary":"drift"}]}';
+      // The review child states `status: APPROVED` in the block (its conclusion is the
+      // draft's findings — never printed); the engine derives the capsule status.
+      sync.stdout = "status: APPROVED\n";
+      writeFileSync(
+        path.join(scene.workspace.path, "spec-review-1.json"),
+        JSON.stringify({
+          findings: [{ severity: "blocker", lens: "spec", summary: "drift" }],
+        }),
+        "utf8",
+      );
       const dispatch = new HarnessDispatch({
         scene,
         io,
@@ -884,8 +930,16 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
       const outcome = dispatch.step()(specReviewFrame);
+      // the rollup (v1.9: a review never declares its own status) + the findings from
+      // the FILE — the read-back is the fix loop's only content channel
       expect(outcome.status).toBe("CHANGES_REQUESTED");
       expect(outcome.findings).toEqual([{ severity: "blocker", summary: "drift" }]);
+      expect(outcome.carrier).toEqual({
+        phase: "review",
+        artifacts: {},
+        findings: [{ severity: "blocker", lens: "spec", summary: "drift" }],
+        status: "CHANGES_REQUESTED",
+      });
       // the URC prose rides REVIEW_AXES (the spec review has no slash ref)
       const call = sync.calls[0];
       expect(call.args).not.toContain("/mattpocock-skills:code-review");
@@ -895,13 +949,20 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
-  it("a task review appends the review skill ref — the object {ref, note} row's slash form", () => {
+  it("a task review appends the review skill ref — the object {ref} row's slash form", () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
       const sync = new FakeSync();
-      sync.stdout = "status: REVIEW_FIX\n";
+      sync.stdout = "status: APPROVED\n";
+      writeFileSync(
+        path.join(scene.workspace.path, "tasks-1-review-1.json"),
+        JSON.stringify({
+          findings: [{ severity: "warn", lens: "buildability", summary: "dual evidence" }],
+        }),
+        "utf8",
+      );
       const dispatch = new HarnessDispatch({
         scene,
         io,
@@ -909,7 +970,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
       const outcome = dispatch.step()(taskReviewFrame);
+      // the finding flows back from the FILE; the status rolls up from its severity
+      // (blocker → CHANGES_REQUESTED · warn/nit → REVIEW_FIX · none → APPROVED) — a
+      // review never declares its own status, so the block's `status: APPROVED` is
+      // not what the round concludes
       expect(outcome.status).toBe("REVIEW_FIX");
+      expect(outcome.findings).toEqual([{ severity: "warn", summary: "dual evidence" }]);
       const call = sync.calls[0];
       // the task/branch review rows are object-shaped {ref} (the P5 note deletion) — the
       // slash form prefixes the single prompt argument (not a standalone positional —
@@ -942,6 +1008,110 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       });
       expect(failed.step()(implementFrame)).toEqual({ status: "BLOCKED" });
       expect(io.stderrText).toContain("child");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a child that exits 0 without the handoff → BLOCKED + CDD_BLOCKED + crash record (nothing clobbered)", () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new FakeSync();
+      sync.stdout = "status: APPROVED\n";
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      const outcome = dispatch.step()(implementFrame);
+      // no carrier → the bookkeep persists nothing: the read-back rejection face
+      expect(outcome).toEqual({ status: "BLOCKED" });
+      expect(io.stderrText).toContain("CDD_BLOCKED: the handoff draft was not written");
+      // the crash record — the same-command resume's decision source
+      const crash = readJson<{ attemptedHandoff: string; next: string; cause: string }>(
+        path.join(scene.workspace.path, "crash-implement.task-1.json"),
+      );
+      expect(crash.attemptedHandoff).toBe(
+        path.join(scene.workspace.path, "tasks-1-implement.json"),
+      );
+      expect(crash.next).toBe("cdd implement --tasks 1 --plan <plan>");
+      expect(crash.cause).toBe("contract-violation");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a schema-violating draft → BLOCKED with the draft preserved untouched (失败不覆盖)", () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new FakeSync();
+      sync.stdout = "status: APPROVED\n";
+      // the child wrote a draft MISSING the required `status` — the `work` subset's
+      // read-back refuses it
+      const draftPath = path.join(scene.workspace.path, "tasks-1-implement.json");
+      writeFileSync(draftPath, JSON.stringify({ artifacts: { report: "/r" } }), "utf8");
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      const outcome = dispatch.step()(implementFrame);
+      expect(outcome).toEqual({ status: "BLOCKED" });
+      expect(io.stderrText).toContain("violates the work schema");
+      expect(io.stderrText).toContain("status: required");
+      // the draft is preserved byte-identically — the engine never clobbers the
+      // child's work; the resume re-runs the same command and the child rewrites it
+      expect(readJson<{ artifacts: { report: string } }>(draftPath)).toEqual({
+        artifacts: { report: "/r" },
+      });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a missing/violating test-evidence file rewrites the draft to BLOCKED (the evidence read-back)", () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new FakeSync();
+      sync.stdout = "status: APPROVED\n";
+      // the implement draft is valid, but NO evidence file was written — the evidence
+      // gate (v1.9) turns the round BLOCKED with the carrier preserved
+      writeFileSync(
+        path.join(scene.workspace.path, "tasks-1-implement.json"),
+        JSON.stringify({
+          status: "APPROVED",
+          artifacts: { brief: "/b", report: "/r", test_evidence: "/t" },
+          commits: { base: "a".repeat(40), head: "b".repeat(40) },
+        }),
+        "utf8",
+      );
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      const outcome = dispatch.step()(implementFrame);
+      expect(outcome.status).toBe("BLOCKED");
+      // the carrier is materialized (the child's work preserved) but rewritten BLOCKED
+      expect(outcome.carrier).toEqual({
+        phase: "implement",
+        artifacts: { brief: "/b", report: "/r", test_evidence: "/t" },
+        findings: [],
+        tasks: [1],
+        commits: { base: "a".repeat(40), head: "b".repeat(40) },
+        status: "BLOCKED",
+        failure_category: "evidence-contract",
+        notes: [expect.stringContaining("the test evidence at")],
+      });
     } finally {
       cleanup();
     }

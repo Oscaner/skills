@@ -1,7 +1,7 @@
 // packages/cdd-engine/src-next/render/templates.ts
 // T21 — the template-contract typed surface: the template-contract JSON's data-plane
 // home PLUS the TemplateAssembler (one module, one renderer). The dispatch prompt
-// data (the shell frame zones · the return-format blocks · the round-context zone ·
+// data (the shell frame zones · the return-format block · the round-context zone ·
 // the token registry · the clause partials) and the review criteria (the task/branch
 // axes guide — P4) are typed constant data here, imported never parsed:
 //
@@ -13,6 +13,18 @@
 //     the assembly face (face/cli.ts #reviewAxes) references — the spec/plan URC
 //     rows ride the dispatch table (face/host.ts) with the writing-plans self-check
 //     + the verification-evidence duty, and this guide carries the task/branch face.
+//
+// T15 v1.9 (the handoff 契约面 rework — §3.6) lands here:
+//   · the `## Handoff` prose section and the `HANDOFF_WRITE_GATE` gate are DELETED —
+//     the structural constraint of the child's handoff became the injected writable-
+//     subset schema: the fixed `## Handoff schema` section at the shell's tail, one
+//     token (HANDOFF_SCHEMA) whose value is the per-face byte-stable ```json fence
+//     (projection ① of session/handoff-schema.ts — the same declared objects the
+//     engine validates the draft against, projection ②). Prose 归零.
+//   · `RETURN_JSON` and `DOCS_FIX` are retired — RETURN_STDOUT_BLOCK is the ONE
+//     return contract every family uses (child 产出一律落盘: the block's three lines
+//     are the pointer; the content — findings / notes / changes / evidence — lives
+//     in the draft file the engine reads back).
 //
 // P5 (M1) supersede: the implement mode's dispatch wording names the upstream
 // `mattpocock-skills:implement` skill (the ref the dispatch row now resolves to),
@@ -69,23 +81,23 @@ export interface ReviewGuideRow {
 /** The review criteria — the task/branch axes guides (P4 typed data). */
 export type ReviewGuides = Readonly<Record<"task" | "branch", ReviewGuideRow>>;
 
-/** The shell frame zone — byte-fixed for every round/mode (the P5 M1 supersede
- *  updates the implement-mode invoke wording to the `mattpocock-skills:implement`
- *  skill — the dispatch row's ref). */
+/** The shell frame zone — byte-fixed for every round/mode (plus the fixed
+ *  `## Handoff schema` tail — the v1.9 injected writable-subset fence, whose value
+ *  is byte-fixed per face). The P5 M1 supersede updates the implement-mode invoke
+ *  wording to the `mattpocock-skills:implement` skill — the dispatch row's ref. */
 const SHELL: readonly string[] = [
   "# CDD dispatch — CLI session",
   "",
   "## Instructions",
   "",
-  "1. **`## Round context` — the final section — is the only dynamic region of this prompt.** Every per-dispatch value lives there; this shell and `## Return` are the fixed dispatch contract, byte-identical for every round and mode. Wherever this contract names a symbol (`BRIEF`, `HANDOFF_TARGET`, `REVIEW_REFERENCE`, …), resolve the real value from `## Round context`; nothing real rides above it. The `MODE` in `## Round context` selects this round's rules below.",
+  "1. **`## Round context` — the final section — is the only dynamic region of this prompt.** Every per-dispatch value lives there; this shell, `## Handoff schema` and `## Return` are the fixed dispatch contract, byte-identical for every round and mode (per face — the schema section's injected writable subset is fixed for the round's mode). Wherever this contract names a symbol (`BRIEF`, `HANDOFF_TARGET`, `REVIEW_REFERENCE`, …), resolve the real value from `## Round context`; nothing real rides above it. The `MODE` in `## Round context` selects this round's rules below.",
   "2. **Scope lock (every mode):** consume only this round's inputs listed in `## Round context`. Do **not** read the full plan file. Implement exactly what the brief specifies — no extra features, no tangential refactors, no scope creep beyond the brief's Files/Interfaces/Steps.",
-  "3. **`implement`:** read only the task brief at `BRIEF` and the plan constraints at `CONSTRAINTS`. `DISPATCH_UNIT` is this round's group key (the CLI `--tasks` string — the canonical group identity); `BRIEF` is one file holding every `### Task N:` section of the group — implement **ALL sections**, never a subset. `CONFIRMED_SEAMS` listed in the brief → apply them when invoking the implementation approach — no re-negotiation; otherwise propose the test boundaries in the report, then invoke **`mattpocock-skills:implement`**. This mode does not write a handoff — the engine materializes `tasks-{DISPATCH_UNIT}-implement.json` from your return block three lines + the brief's `TASK_BASE` + `git HEAD` (the engine is the single authority for `commits` and for re-emitting your return block).",
-  "4. **`fix`:** read the open findings at `FINDINGS` and the task brief at `BRIEF` (paths only — do not paste review bodies into the prompt). Fix ALL findings — blockers, warns, and nits — and remove fixed findings from the handoff's `findings[]`. `commits.base` = `FIXED_POINT` (this round's `FIX_BASE` — the prior handoff's `commits.head`); `commits.head` = `git rev-parse HEAD` (full 40-char SHA, never `--short`). No fix-scope diff relative to `FIXED_POINT` → no commit (keep `head` unchanged). Implement + handoff in one process; a handoff write failure → return block `status: BLOCKED`; retry = full mode re-run (idempotent).",
-  "5. **`review`:** review the axes in `REVIEW_AXES` against the reference in `REVIEW_REFERENCE`. Every finding MUST carry its `lens` label (one of `REVIEW_LENS_GUIDE`); an empty `findings` array = approved. The `returnFormat` named in `## Return` selects the return contract: RETURN_JSON → findings-only JSON on stdout; RETURN_STDOUT_BLOCK → collect findings into the handoff's `findings[]` (do not print them), then the three-line return block only.",
-  "6. **`docs`:** apply fixes directly to `DOC` per `FINDINGS` (all severities), removing fixed findings; `artifacts` records the doc path and `doc_path` = the exact `DOC` path.",
-  "7. **Evidence gate:** before returning, write the test-evidence file under `WORKSPACE` (`tasks-{DISPATCH_UNIT}-test-evidence.json` — the canonical task-family form the engine reads back byte-identically) with at least `command`, `exit_code`, `passed`, and `warnings_count`, plus the `typecheck` item (`command`/`exit_code`/`passed`, isomorphic with the exec fields); include `behavior_change` when applicable. The engine reads it back after you exit: a missing or incomplete `typecheck` item (missing any of its three fields), and a `behavior_change: true` round missing `command`/`passed`/`exit_code`, both override the handoff to `status: BLOCKED` (exit 1) — otherwise only a WARN note attaches. Update the implementer report at the path from the brief after verification. Report bodies, test stdout, and diff text live in files only — never in the return.",
-  "8. **Commit contract (base/head):** `base` = the brief's `TASK_BASE` (implement) or `FIXED_POINT` (fix — a review's reviewed range). When TDD/verification already produced one or more conventional commits covering this round's scope, set `head` = `git rev-parse HEAD` — do not create duplicate commits; otherwise create **one** conventional commit (`feat:` / `fix:` / `refactor:` / …) with subject aligned to the round — no attribution / co-author / AI-generation trailers — then `head` = `git rev-parse HEAD`. Uncommitted changes at return → `status: BLOCKED`. Only commit changes within this round's scope; out-of-scope uncommitted changes at return → `status: BLOCKED` (the engine rewrites the handoff to BLOCKED and surfaces the generic uncommitted-changes reason on stderr `CDD_BLOCKED:`; the changed-surface audit records committed off-ledger files in the handoff's `notes`; the `blocker:` declaration channel is retired with the return-block column).",
-  "9. **Discipline clauses (single-source; bind every mode):**",
+  "3. **`implement`:** read only the task brief at `BRIEF` and the plan constraints at `CONSTRAINTS`. `DISPATCH_UNIT` is this round's group key (the CLI `--tasks` string — the canonical group identity); `BRIEF` is one file holding every `### Task N:` section of the group — implement **ALL sections**, never a subset. `CONFIRMED_SEAMS` listed in the brief → apply them when invoking the implementation approach — no re-negotiation; otherwise propose the test boundaries in the report, then invoke **`mattpocock-skills:implement`**. Write the handoff draft at `HANDOFF_TARGET` per `## Handoff schema` BEFORE the return block: declare `status` (APPROVED once applied, or BLOCKED with `failure_category`), `artifacts` (the brief / report / test_evidence paths — file pointers, never inline content), `commits` (`base` = the brief's `TASK_BASE`; `head` = `git rev-parse HEAD`), and `changes[]` (every changed file + reason).",
+  "4. **`fix`:** read the open findings at `FINDINGS` and the task brief at `BRIEF` (paths only — do not paste review bodies into the prompt). Fix ALL findings — blockers, warns, and nits — verifying against `FINDINGS` that none remain open before returning. `commits.base` = `FIXED_POINT` (this round's fix base — the prior handoff's `commits.head`); `commits.head` = `git rev-parse HEAD` (full 40-char SHA, never `--short`). No fix-scope diff relative to `FIXED_POINT` → no commit (keep `head` unchanged). Fix + write the handoff draft at `HANDOFF_TARGET` per `## Handoff schema` in one process; a draft write failure → return block `status: BLOCKED`; retry = full mode re-run (idempotent).",
+  "5. **`review`:** review the axes in `REVIEW_AXES` against the reference in `REVIEW_REFERENCE`. Write the findings into the handoff draft at `HANDOFF_TARGET` per `## Handoff schema` (never print them to stdout); every finding MUST carry its `lens` label (one of `REVIEW_LENS_GUIDE`); an empty `findings` array = approved. The engine reads the draft back and derives the round's conclusion from the findings (blocker → CHANGES_REQUESTED · warn/nit → REVIEW_FIX · none → APPROVED) — a review never declares its own status.",
+  "6. **Evidence gate (task-family work rounds — implement, and fix on the task face):** before returning, write the test-evidence file (`tasks-{DISPATCH_UNIT}-test-evidence.json` under `WORKSPACE`) per the `test-evidence` schema in `## Handoff schema`: `command`, `exit_code`, `passed`, `warnings_count`, and the `typecheck` item (`command`/`exit_code`/`passed`, isomorphic with the exec fields); include `behavior_change` when applicable. Update the implementer report at the path from the brief after verification. The engine reads the evidence file back after you exit: a missing or schema-violating evidence file rewrites the draft to `status: BLOCKED` (exit 1). Report bodies, test stdout, and diff text live in files only — never in the return.",
+  "7. **Commit contract (base/head):** `base` = the brief's `TASK_BASE` (implement) or `FIXED_POINT` (fix — a review's reviewed range). When TDD/verification already produced one or more conventional commits covering this round's scope, set `head` = `git rev-parse HEAD` — do not create duplicate commits; otherwise create **one** conventional commit (`feat:` / `fix:` / `refactor:` / …) with subject aligned to the round — no attribution / co-author / AI-generation trailers — then `head` = `git rev-parse HEAD`. Uncommitted changes at return → `status: BLOCKED`. Only commit changes within this round's scope; out-of-scope uncommitted changes at return → `status: BLOCKED` (the engine rewrites the handoff to BLOCKED and surfaces the generic uncommitted-changes reason on stderr `CDD_BLOCKED:`; the changed-surface audit records committed off-ledger files in the handoff's `notes`; the `blocker:` declaration channel is retired with the return-block column).",
+  "8. **Discipline clauses (single-source; bind every mode):**",
   "- {{> cl:english-comments}}",
   "- {{> cl:eof-newline}}",
   "- {{> cl:no-full-tree-find}}",
@@ -95,12 +107,14 @@ const SHELL: readonly string[] = [
   "- {{> cl:self-validate}}",
   "- {{> cl:changed-surface}}",
   "",
-  "## Handoff",
+  "## Handoff schema",
   "",
-  "Write/update the handoff JSON at `HANDOFF_TARGET` (see `## Round context`) per the schema below. The `HANDOFF_WRITE_GATE` entry — `### HANDOFF_WRITE_GATE` in `## Round context` — states this round's write protocol; follow it literally before returning. Work-type rounds (implement/fix) declare `status` (APPROVED once applied, or BLOCKED with `failure_category` — the reason channel); review-family rounds write findings, not status — the engine derives status from findings. `artifacts` points at files, never inline content. Self-validate before returning (`jq .` on the written handoff → `phase`/`artifacts`/`findings` non-null); a non-parseable or schema-violating handoff is rewritten BLOCKED by the engine.",
+  "{{HANDOFF_SCHEMA}}",
 ];
 
-/** The `## Return` zone variants — the per-return-format blocks. */
+/** The `## Return` zone — the single block contract (v1.9: RETURN_JSON and DOCS_FIX
+ *  are retired — the child's content lives in the draft file, the block is the
+ *  three-line pointer every family returns). */
 const RETURN_ZONE: ReturnZone = {
   RETURN_STDOUT_BLOCK: [
     "## Return",
@@ -113,25 +127,12 @@ const RETURN_ZONE: ReturnZone = {
     "artifacts: brief=<path> report=<path> test_evidence=<path>",
     "```",
     "",
-    "The `returnFormat` is **RETURN_STDOUT_BLOCK**: review-family rounds (task/branch) collect findings into `HANDOFF_TARGET` `findings[]` (see `## Round context` — do not print them), then output this block as the ONLY stdout content; `implement` rounds return this block directly. The engine appends the 4th `counters:` line and the 5th derived `next:` suggestion line (C5) — the agent never emits either. Report bodies, test stdout, and diff text live in files only — never in the return. Any non-`APPROVED` status line (e.g. `NEEDS_CONTEXT`) is collapsed by the engine to `BLOCKED` + exit 1.",
-  ],
-  RETURN_JSON: [
-    "## Return",
-    "",
-    "This review's `returnFormat` is **RETURN_JSON** — return findings ONLY as a JSON object:",
-    "",
-    '`{"findings":[{ "lens": "<one of REVIEW_LENS_GUIDE — see ## Round context>", "severity": "blocker|warn|nit", "section": "...", "line": 0, "summary": "...", "fix": "..." }]}`',
-    "",
-    "Every finding MUST carry its `lens` label (prevents axis mixing); empty `findings` array = approved; no additional prose.",
-  ],
-  DOCS_FIX: [
-    "## Return",
-    "",
-    "Your return IS the handoff written to `HANDOFF_TARGET` (see `## Round context`) — **the engine reads the file, not your stdout**. Return **no additional prose**; empty `findings` array = all findings fixed. Write/update `HANDOFF_TARGET` per the schema in the shell above BEFORE exiting — leaving it unwritten is BLOCKED (runner exit 1).",
+    "The return format is **RETURN_STDOUT_BLOCK** (every round — one contract): the handoff content — findings, notes, changes, evidence — lives in the draft file at `HANDOFF_TARGET` (see `## Round context`), which the engine reads back and materializes; this block is the three-line pointer only. Review-family rounds state `status: APPROVED` (the conclusion derives from the draft's findings — never printed); work rounds state the concluding status. The engine appends the 4th `counters:` line and the 5th derived `next:` suggestion line (C5) — the agent never emits either. Report bodies, test stdout, and diff text live in files only — never in the return. Any non-`APPROVED` status line (e.g. `NEEDS_CONTEXT`) is collapsed by the engine to `BLOCKED` + exit 1.",
   ],
 };
 
-/** The `## Round context` zone — the only dynamic zone of the prompt. */
+/** The `## Round context` zone — the only dynamic zone of the prompt (the v1.9 gate
+ *  prose is deleted with the schema injection — no HANDOFF_WRITE_GATE subsection). */
 const ROUND_CONTEXT: readonly string[] = [
   "## Round context",
   "",
@@ -150,10 +151,6 @@ const ROUND_CONTEXT: readonly string[] = [
   "- `REVIEW_PLAN_LINE`: {{REVIEW_PLAN_LINE}}",
   "- `DOC`: {{DOC}}",
   "- `HANDOFF_TARGET`: {{HANDOFF_TARGET}}",
-  "",
-  "### HANDOFF_WRITE_GATE",
-  "",
-  "{{HANDOFF_WRITE_GATE}}",
 ];
 
 /** The token registry — every declared slot, with its zone. */
@@ -164,16 +161,14 @@ const TOKENS: readonly TemplateToken[] = [
   { name: "DOC", zone: "round-context" },
   { name: "FINDINGS", zone: "round-context" },
   { name: "FIXED_POINT", zone: "round-context" },
+  { name: "HANDOFF_SCHEMA", zone: "shell" },
   { name: "HANDOFF_TARGET", zone: "round-context" },
-  { name: "HANDOFF_WRITE_GATE", zone: "round-context" },
   { name: "MODE", zone: "round-context" },
   { name: "REVIEW_AXES", zone: "round-context" },
   { name: "REVIEW_LENS_GUIDE", zone: "round-context" },
   { name: "REVIEW_PLAN_LINE", zone: "round-context" },
   { name: "REVIEW_REFERENCE", zone: "round-context" },
   { name: "REVIEW_TYPE", zone: "round-context" },
-  { name: "RETURN_FORMAT", zone: "return" },
-  { name: "RETURN_STDOUT_BLOCK", zone: "return" },
   { name: "WORKSPACE", zone: "round-context" },
   { name: "WORKSPACE_SLUG", zone: "round-context" },
 ];
@@ -198,13 +193,15 @@ export const CLAUSES = {
     "Changed-surface bookkeeping: implement/fix rounds declare every file they changed in the handoff `changes[]` ledger (file + reason each). The engine reconciles `git diff <base>..HEAD` against it — files off the ledger are surfaced (warn + notes), never blocked; the review scope axis judges them (normal finding → fix loop).",
 } as const;
 
-/** The dispatch-prompt data plane — the typed template-contract surface. */
+/** The dispatch-prompt data plane — the typed template-contract surface. $version 4
+ *  marks the v1.9 reparametrization: the schema-injection section, the single return
+ *  contract, the HANDOFF_WRITE_GATE/RETURN_JSON/DOCS_FIX deletion. */
 export const TEMPLATE_PROMPT = {
-  $version: 3,
+  $version: 4,
   skeleton: {
-    sections: ["Instructions", "Handoff", "Return", "Round context"],
+    sections: ["Instructions", "Handoff schema", "Return", "Round context"],
     segments: {
-      shell: ["Instructions", "Handoff"],
+      shell: ["Instructions", "Handoff schema"],
       return: ["Return"],
       "round-context": ["Round context"],
     },
@@ -239,7 +236,9 @@ export const REVIEWS = {
 /**
  * The template assembler — the ONE renderer over the typed template-prompt data
  * plane. Construction reads the typed contract (the module's declared data —
- * no file reads, no second copy).
+ * no file reads, no second copy). v1.9: render() drops the return-format argument —
+ * RETURN_STDOUT_BLOCK is the single contract, so the dispatch prompt assembles
+ * without a format selector.
  */
 export class TemplateAssembler {
   readonly #contract: TemplatePrompt;
@@ -250,7 +249,8 @@ export class TemplateAssembler {
     this.#reviews = REVIEWS;
   }
 
-  /** The return formats the contract declares. */
+  /** The return formats the contract declares — the single block contract (v1.9:
+   *  RETURN_JSON / DOCS_FIX retired). */
   returnFormats(): readonly string[] {
     return Object.keys(this.#contract.sections.return);
   }
@@ -266,12 +266,14 @@ export class TemplateAssembler {
     return this.#reviews[kind];
   }
 
-  /** Assemble the full dispatch template for a return format with the slot values. */
-  render(returnFormat: string, values: TemplateValues): string {
-    this.#gate(returnFormat, values);
+  /** Assemble the full dispatch template with the slot values — the single return
+   *  contract renders every round (shell + return + round-context, in the declared
+   *  order). */
+  render(values: TemplateValues): string {
+    this.#gate(values);
     const zones: Record<string, string> = {
       shell: this.#joinLines(this.#contract.sections.shell),
-      return: this.#joinLines(this.#contract.sections.return[returnFormat]),
+      return: this.#joinLines(this.#contract.sections.return.RETURN_STDOUT_BLOCK),
       "round-context": this.#joinLines(this.#contract.sections["round-context"]),
     };
     const ordered = this.#contract.skeleton.order.map((segment) => zones[segment]);
@@ -284,10 +286,10 @@ export class TemplateAssembler {
 
   /** The hard gates — every declared token supplied (empty allowed: a dispatch's
    *  optional slots like FIXED_POINT / REVIEW_TYPE are legitimately empty), no
-   *  undeclared values, known format. */
-  #gate(returnFormat: string, values: TemplateValues): void {
-    if (this.#contract.sections.return[returnFormat] === undefined) {
-      throw new Error(`template return format not declared: ${returnFormat}`);
+   *  undeclared values, the single return contract declared. */
+  #gate(values: TemplateValues): void {
+    if (this.#contract.sections.return.RETURN_STDOUT_BLOCK === undefined) {
+      throw new Error("template return contract not declared");
     }
     for (const token of this.#contract.tokens) {
       if (values[token.name] === undefined) {

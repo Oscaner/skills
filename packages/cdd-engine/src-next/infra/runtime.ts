@@ -52,8 +52,13 @@ export interface ContextContract {
 }
 
 /** One handoff-family record — the canonical file-name pattern + round policy + the
- *  carried naming metadata (the full family row the JSON plane carried — status /
- *  schema / returnFormat / fixFamily / prev are data the typed plane preserves). */
+ *  carrier's schema face (the full family row the JSON plane carried — status /
+ *  schema / fixFamily / prev are data the typed plane preserves). The v1.9 contract
+ *  reparametrization: `returnFormat` is deleted (RETURN_STDOUT_BLOCK is the ONE
+ *  return contract — the per-family field was the JSON/block selector, retired with
+ *  the divided return faces) and the dead `schema` field is resurrected as the
+ *  handoff-schema face selector (`work` — implement/fix carrier — vs `findings` —
+ *  the review carrier, session/handoff-schema.ts). */
 export interface HandoffFamily {
   /** The canonical file name — the `{placeholder}` pattern the ledger fills. */
   name: string;
@@ -63,10 +68,9 @@ export interface HandoffFamily {
   phase?: string;
   /** The carrier status policy (contract / rollup). */
   status?: "contract" | "rollup";
-  /** The carrier schema face (task / docs). */
-  schema?: "task" | "docs";
-  /** The handoff's return format (the block/JSON contract the dispatch uses). */
-  returnFormat?: string;
+  /** The carrier schema face (work / findings) — the handoff-schema selector (§3.6:
+   *  the field resurrected from the dead task/docs discrimination). */
+  schema?: "work" | "findings";
   /** The fix-round family of a review family. */
   fixFamily?: string;
   /** The fix-template face of a fix family. */
@@ -122,21 +126,23 @@ export const ARGV_CHANNEL = {
 
 /** The handoff family naming table — the canonical per-family file-name patterns
  *  keyed by `op.type` (implement.task / review.task / … — the ledger's single
- *  naming truth, verbatim from the engine-config handoff namespace). */
+ *  naming truth, verbatim from the engine-config handoff namespace). The v1.9
+ *  reparametrization: `returnFormat` is gone (RETURN_STDOUT_BLOCK is the one return
+ *  contract) and the `schema` faces are the handoff-schema selector (work / findings —
+ *  §3.6, session/handoff-schema.ts). */
 export const HANDOFF_FAMILIES = {
   "implement.task": {
     name: "tasks-{tasks}-implement.json",
     round: "fixed",
     status: "contract",
-    schema: "task",
+    schema: "work",
     phase: "implement",
   },
   "review.task": {
     name: "tasks-{tasks}-review-{round}.json",
     round: "increment",
     status: "rollup",
-    schema: "task",
-    returnFormat: "RETURN_STDOUT_BLOCK",
+    schema: "findings",
     phase: "review",
     fixFamily: "fix.task",
     prev: { round1: "implement.task", roundR: "fix.task:R-1" },
@@ -145,7 +151,7 @@ export const HANDOFF_FAMILIES = {
     name: "tasks-{tasks}-fix-{round}.json",
     round: "source",
     status: "contract",
-    schema: "task",
+    schema: "work",
     fixTemplate: "fix",
     phase: "fix",
     prev: { roundR: "review.task:R" },
@@ -154,8 +160,7 @@ export const HANDOFF_FAMILIES = {
     name: "spec-review-{round}.json",
     round: "increment",
     status: "rollup",
-    schema: "docs",
-    returnFormat: "RETURN_JSON",
+    schema: "findings",
     phase: "review",
     fixFamily: "fix.spec",
   },
@@ -163,9 +168,8 @@ export const HANDOFF_FAMILIES = {
     name: "spec-fix-{round}.json",
     round: "source",
     status: "contract",
-    schema: "docs",
+    schema: "work",
     fixTemplate: "docs",
-    returnFormat: "RETURN_JSON",
     phase: "fix",
     prev: { roundR: "review.spec:R" },
   },
@@ -173,8 +177,7 @@ export const HANDOFF_FAMILIES = {
     name: "plan-review-{round}.json",
     round: "increment",
     status: "rollup",
-    schema: "docs",
-    returnFormat: "RETURN_JSON",
+    schema: "findings",
     phase: "review",
     fixFamily: "fix.plan",
   },
@@ -182,9 +185,8 @@ export const HANDOFF_FAMILIES = {
     name: "plan-fix-{round}.json",
     round: "source",
     status: "contract",
-    schema: "docs",
+    schema: "work",
     fixTemplate: "docs",
-    returnFormat: "RETURN_JSON",
     phase: "fix",
     prev: { roundR: "review.plan:R" },
   },
@@ -192,17 +194,15 @@ export const HANDOFF_FAMILIES = {
     name: "branch-review-{base7}..{head7}-r{round}.json",
     round: "increment",
     status: "rollup",
-    schema: "task",
-    returnFormat: "RETURN_STDOUT_BLOCK",
+    schema: "findings",
     phase: "branch-review",
   },
   "fix.branch": {
     name: "branch-fix-{base7}..{head7}-r{round}.json",
     round: "source",
     status: "contract",
-    schema: "task",
+    schema: "work",
     fixTemplate: "fix",
-    returnFormat: "RETURN_STDOUT_BLOCK",
     phase: "fix",
     prev: { roundR: "review.branch:R" },
   },

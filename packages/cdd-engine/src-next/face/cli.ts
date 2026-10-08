@@ -40,6 +40,7 @@ import { Projector } from "../contract/project.ts";
 import { Translator } from "../contract/translate.ts";
 import { ConfigLoader } from "../infra/config.ts";
 import { GitClient } from "../infra/git.ts";
+import type { HandoffFamily } from "../infra/runtime.ts";
 import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import { IssueBodyRenderer, type IssueReportInput } from "../render/issue-body.ts";
@@ -48,7 +49,9 @@ import { TemplateAssembler } from "../render/templates.ts";
 import type { DispatchPhase, TargetFace, TargetType } from "../session/faces.ts";
 import { targetFaces } from "../session/faces.ts";
 import { TaskGraph } from "../session/graph.ts";
-import type { HandoffParams, RoundFinding, RoundStatus } from "../session/ledger.ts";
+import type { HandoffSchemaFace } from "../session/handoff-schema.ts";
+import { HandoffSchema } from "../session/handoff-schema.ts";
+import type { HandoffParams, RoundStatus } from "../session/ledger.ts";
 import { Ledger } from "../session/ledger.ts";
 import type { Route } from "../session/next.ts";
 import { NextStepRouter } from "../session/next.ts";
@@ -407,7 +410,8 @@ export class HarnessDispatch {
   }
 
   /** One dispatch — prompt from the template data plane + the frame, host child via
-   *  the harness-contract rows, the child's return read back. */
+   *  the harness-contract rows, the child's write-back read in (v1.9: the draft at
+   *  HANDOFF_TARGET is the round's content — the three-line block is the pointer). */
   #dispatch(frame: OpenFrame): DispatchOutcome {
     const host = this.detectHost();
     if (host === "") {
@@ -416,8 +420,7 @@ export class HarnessDispatch {
       );
       return { status: "BLOCKED" };
     }
-    const format = this.#returnFormat(frame);
-    const prompt = this.#template.render(format, this.#valuesOf(frame, format));
+    const prompt = this.#template.render(this.#valuesOf(frame));
     const row = HOSTS[host as HostId];
     const cliName = row.cli;
     const args = [...row.invoke.split(" ").filter((part) => part.length > 0)];
@@ -432,20 +435,13 @@ export class HarnessDispatch {
       this.#io.stderr(`CDD_BLOCKED: child ${cliName} exited ${result.code}\n`);
       return { status: "BLOCKED" };
     }
-    return format === "RETURN_JSON"
-      ? this.#parseJsonReturn(result.stdout)
-      : this.#parseBlockReturn(result.stdout);
-  }
-
-  /** The handoff-family return format — the engine-config family data (implement /
-   *  task|branch carry RETURN_STDOUT_BLOCK; the docs reviews RETURN_JSON), falling
-   *  back to the block format when the family carries none. */
-  #returnFormat(frame: OpenFrame): string {
-    const op = this.#opOf(frame);
-    const family = this.#config.engineConfig().handoffNamespace.families[`${op}.${frame.type}`] as
-      | { returnFormat?: string }
-      | undefined;
-    return family?.returnFormat ?? "RETURN_STDOUT_BLOCK";
+    // The three-line block is the child's termination handshake — a child that exits 0
+    // without a status line misbehaved (the abnormal face owns it; no draft read).
+    if (!/^status:\s*\S+/m.test(result.stdout)) {
+      this.#io.stderr(`CDD_BLOCKED: child ${cliName} returned no status line\n`);
+      return { status: "BLOCKED" };
+    }
+    return this.#reconstruct(frame, this.#parseBlockReturn(result.stdout));
   }
 
   /** The work-mode of a frame phase — branch-review rides the review family. */
@@ -502,7 +498,7 @@ export class HarnessDispatch {
   /** The round-context zone values of the dispatch prompt — every template token
    *  present (the assembler's hard gate), the engine-authored slots filled from the
    *  frame, the not-yet-authored orchestration slots legitimately empty. */
-  #valuesOf(frame: OpenFrame, format: string): TemplateValues {
+  #valuesOf(frame: OpenFrame): TemplateValues {
     const scene = this.#scene;
     const op = this.#opOf(frame);
     const params = frame.params;
@@ -521,25 +517,29 @@ export class HarnessDispatch {
       DISPATCH_UNIT: params.tasks ?? branchRange ?? docPath ?? scene.planPath ?? frame.type,
       BRIEF: scene.briefPath ?? "",
       CONSTRAINTS: scene.workspace.resolve("plan-constraints.md"),
+      // v1.9: FINDINGS is fix-only — the fix child reads the open findings; a review
+      // writes its own draft (FINDINGS === HANDOFF_TARGET would be a short-circuit).
       FINDINGS:
         op === "fix"
           ? (this.#findings ?? scene.ledger.handoffPath("review", frame.type, params))
-          : isReview
-            ? scene.ledger.handoffPath("review", frame.type, params)
-            : "",
+          : "",
       FIXED_POINT: op === "fix" ? this.#fixedPoint(frame, params) : "",
       WORKSPACE: scene.workspace.path,
       WORKSPACE_SLUG: scene.workspace.slug,
       REVIEW_TYPE: frame.type,
       REVIEW_REFERENCE: reference,
-      REVIEW_LENS_GUIDE: "",
+      REVIEW_LENS_GUIDE:
+        isReview && (frame.type === "task" || frame.type === "branch")
+          ? this.#template.reviewGuide(frame.type).lensEnum.join(" | ")
+          : "",
       REVIEW_AXES: isReview ? this.#reviewAxes(frame) : "",
       REVIEW_PLAN_LINE: scene.planPath !== null ? `**Plan:** ${scene.planPath}` : "",
       DOC: docPath ?? "",
+      // v1.9 — the injected writable-subset schema (projection ①): the `## Handoff
+      // schema` section's fixed per-face bytes; the task-family work rounds add the
+      // evidence-file fence.
+      HANDOFF_SCHEMA: this.#schemaText(frame),
       HANDOFF_TARGET: scene.ledger.handoffPath(op, frame.type, params),
-      HANDOFF_WRITE_GATE: this.#gateOf(op),
-      RETURN_FORMAT: format,
-      RETURN_STDOUT_BLOCK: format,
     };
   }
 
@@ -549,18 +549,6 @@ export class HarnessDispatch {
     const carried = this.#scene.ledger.readHandoff("review", frame.type, params);
     const base = (carried?.commits as { base?: unknown } | undefined)?.base;
     return typeof base === "string" ? base : "";
-  }
-
-  /** The per-mode HANDOFF_WRITE_GATE prose — the concise first-version steady gate. */
-  #gateOf(op: "implement" | "review" | "fix"): string {
-    switch (op) {
-      case "implement":
-        return "> NOTE — This mode does not write the handoff: the runner materializes it from your return block three lines + the brief's TASK_BASE + git HEAD. Write the implementer report + test evidence BEFORE outputting the return block.";
-      case "fix":
-        return "> Write/update the handoff JSON at HANDOFF_TARGET per the schema before returning; a handoff write failure → return block status: BLOCKED; retry = full mode re-run (idempotent).";
-      default:
-        return "> Collect findings into the handoff's findings[] (do not print them), then output the three-line return block only.";
-    }
   }
 
   /** The RETURN_STDOUT_BLOCK child stdout → the outcome: the three canonical lines
@@ -583,33 +571,203 @@ export class HarnessDispatch {
     return outcome;
   }
 
-  /** A RETURN_JSON child stdout → the outcome — the findings-only docs-review face:
-   *  the status derives from the findings (blocker → CHANGES_REQUESTED · warn/nit →
-   *  REVIEW_FIX · none → APPROVED — the capsule-status rollup, never a child-authored
-   *  status); malformed stdout → BLOCKED. */
-  #parseJsonReturn(stdout: string): DispatchOutcome {
-    let parsed: { findings?: unknown };
-    try {
-      parsed = JSON.parse(stdout) as { findings?: unknown };
-    } catch {
-      return { status: "BLOCKED" };
+  // -------------------------------------------------------------------------
+  // the read-back reconstruct (§3.6) — the draft is the round's content
+  // -------------------------------------------------------------------------
+
+  /** The read-back reconstruct — the child's draft at HANDOFF_TARGET is the round's
+   *  content source of truth: read it, validate it against the mode's writable
+   *  subset (projection ② of session/handoff-schema.ts — the SAME declared objects
+   *  the prompt injected), then build the final carrier the lifecycle persists in
+   *  place (agent draft → finalized, full-replace at the same path — the engine
+   *  remains the carrier's single author). A missing or schema-violating draft →
+   *  BLOCK over the CDD_BLOCKED channel + a crash record + the draft untouched
+   *  (失败不覆盖 — the child's work is never clobbered; resume re-runs the same
+   *  command, which re-offers the round). The test-evidence file (task-family work
+   *  rounds only) is read back with the same stakes: a missing/violating file
+   *  rewrites the carrier to BLOCKED (persisted — the child's work is kept, marked
+   *  bad), the second散文虚设补钉. */
+  #reconstruct(frame: OpenFrame, block: DispatchOutcome): DispatchOutcome {
+    const scene = this.#scene;
+    const op = this.#opOf(frame);
+    const face = this.#familyOf(op, frame.type).schema ?? "work";
+    const schema = new HandoffSchema();
+    const path = scene.ledger.handoffPath(op, frame.type, frame.params);
+    const draft = scene.ledger.readHandoff(op, frame.type, frame.params);
+    if (draft === null) {
+      return this.#reject(frame, path, `the handoff draft was not written at ${path}`);
     }
-    const findings: RoundFinding[] = [];
-    if (Array.isArray(parsed.findings)) {
-      for (const entry of parsed.findings) {
-        const row = entry as { severity?: unknown; summary?: unknown } | null;
-        if (row?.severity === "blocker" || row?.severity === "warn" || row?.severity === "nit") {
-          findings.push({
-            severity: row.severity,
-            summary: typeof row.summary === "string" ? row.summary : undefined,
-          });
-        }
+    const problems = schema.violations(face, draft);
+    if (problems.length > 0) {
+      return this.#reject(
+        frame,
+        path,
+        `the handoff draft at ${path} violates the ${face} schema: ${problems.join("; ")}`,
+      );
+    }
+    const findings = Array.isArray(draft.findings) ? draft.findings : [];
+    let status: RoundStatus =
+      face === "findings" ? schema.rollup(findings) : this.#workStatus(draft);
+    let reason: string | null = null;
+    if (op !== "review" && frame.type === "task") {
+      const evidenceName = `tasks-${frame.params.tasks}-test-evidence.json`;
+      const evidencePath = scene.workspace.resolve(evidenceName);
+      const evidence = scene.workspace.readJson<unknown>(evidenceName);
+      const evidenceProblems = schema.evidenceViolations(evidence);
+      if (evidenceProblems.length > 0) {
+        status = "BLOCKED";
+        reason = `the test evidence at ${evidencePath} violates the contract: ${evidenceProblems.join("; ")}`;
       }
     }
-    const blockers = findings.filter((finding) => finding.severity === "blocker").length;
-    const status: RoundStatus =
-      blockers > 0 ? "CHANGES_REQUESTED" : findings.length > 0 ? "REVIEW_FIX" : "APPROVED";
-    return { status, findings };
+    return {
+      status,
+      findings: face === "findings" ? schema.findingsOf(draft.findings) : undefined,
+      commits: block.commits,
+      artifacts: block.artifacts,
+      carrier: this.#materialize(frame, op, face, draft, status, reason),
+    };
+  }
+
+  /** The read-back rejection face — CDD_BLOCKED reason + the crash record (the
+   *  same-command resume's decision source: the attempted handoff + the resume
+   *  command) + NO carrier (the bookkeep leaves the draft untouched). */
+  #reject(frame: OpenFrame, path: string, reason: string): DispatchOutcome {
+    this.#io.stderr(`CDD_BLOCKED: ${reason}\n`);
+    const op = this.#opOf(frame);
+    this.#scene.ledger.writeCrash(`${op}.${frame.type}`, frame.round, {
+      exitCode: 0,
+      stderrTail: [reason],
+      stdoutTail: [],
+      snapshotSha: null,
+      attemptedHandoff: path,
+      next: this.#resumeOf(frame),
+      cause: "contract-violation",
+    });
+    return { status: "BLOCKED" };
+  }
+
+  /** Build the final carrier — the engine identity (phase / tasks — the family's
+   *  reserved fields) + the validated writable fields from the draft, persisted by
+   *  the bookkeep full-replace at the SAME path (agent draft → finalized). The
+   *  evidence override rewrites the status to BLOCKED + a failure_category + the
+   *  reason note (the child's work preserved, marked bad). */
+  #materialize(
+    frame: OpenFrame,
+    op: "implement" | "review" | "fix",
+    face: HandoffSchemaFace,
+    draft: Record<string, unknown>,
+    status: RoundStatus,
+    reason: string | null,
+  ): Record<string, unknown> {
+    const ledger = this.#scene.ledger;
+    const carrier = ledger.buildHandoff(op, frame.type, frame.params, {
+      artifacts: this.#stringMap(draft.artifacts),
+      findings: face === "findings" ? this.#findingsList(draft.findings) : [],
+      commits: this.#commitsOf(draft.commits),
+    });
+    carrier.status = status;
+    if (Array.isArray(draft.changes)) carrier.changes = draft.changes;
+    if (typeof draft.failure_category === "string")
+      carrier.failure_category = draft.failure_category;
+    const notes = Array.isArray(draft.notes) ? [...(draft.notes as unknown[])] : [];
+    if (reason !== null) {
+      carrier.status = "BLOCKED";
+      carrier.failure_category = "evidence-contract";
+      notes.push(reason);
+    }
+    if (notes.length > 0) carrier.notes = notes;
+    return carrier;
+  }
+
+  /** The work carrier's status — the child's declared conclusion (the schema's enum
+   *  pinned it to APPROVED | BLOCKED; anything else degrades to BLOCKED — only present
+   *  facts land, never an invented approval). */
+  #workStatus(draft: Record<string, unknown>): RoundStatus {
+    const status = draft.status;
+    return status === "APPROVED" || status === "BLOCKED" ? status : "BLOCKED";
+  }
+
+  /** The `## Handoff schema` section value — the mode's writable-subset fence
+   *  (projection ①; byte-fixed per face so the prompt's contract surface stays
+   *  cache-friendly). The family's `schema` field selects the face; the task-family
+   *  work rounds additionally carry the evidence-file schema. */
+  #schemaText(frame: OpenFrame): string {
+    const op = this.#opOf(frame);
+    const face = this.#familyOf(op, frame.type).schema ?? "work";
+    const evidence = op !== "review" && frame.type === "task";
+    return new HandoffSchema().schemaText(face, evidence);
+  }
+
+  /** The op.type family record — the engine-config handoff namespace single truth
+   *  (loud on an unknown family: never a second naming table). */
+  #familyOf(op: string, type: string): HandoffFamily {
+    const family = this.#config.engineConfig().handoffNamespace.families[`${op}.${type}`] as
+      | HandoffFamily
+      | undefined;
+    if (family === undefined) throw new Error(`unknown handoff family: ${op}.${type}`);
+    return family;
+  }
+
+  /** The artifacts field as a string-map (only string values land — non-string rows
+   *  are dropped, never coerced). */
+  #stringMap(artifacts: unknown): Record<string, string> | undefined {
+    if (typeof artifacts !== "object" || artifacts === null || Array.isArray(artifacts))
+      return undefined;
+    const out: Record<string, string> = {};
+    for (const [key, value] of Object.entries(artifacts)) {
+      if (typeof value === "string") out[key] = value;
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+  }
+
+  /** The commits field as the {base, head?} shape — only present facts land. */
+  #commitsOf(commits: unknown): { base: string; head?: string } | undefined {
+    if (typeof commits !== "object" || commits === null) return undefined;
+    const row = commits as { base?: unknown; head?: unknown };
+    if (typeof row.base !== "string") return undefined;
+    return { base: row.base, head: typeof row.head === "string" ? row.head : undefined };
+  }
+
+  /** The draft findings as a plain list (the materialized carrier keeps them
+   *  verbatim; the schema validated their shape before this ran). */
+  #findingsList(findings: unknown): unknown[] {
+    return Array.isArray(findings) ? findings : [];
+  }
+
+  /** The same-command resume string — the crash record's `next`, mirroring the
+   *  CLI's dispatchable form of this frame (re-run the same command per the BLOCKED
+   *  `next:` to continue — the idempotent full mode re-run). */
+  #resumeOf(frame: OpenFrame): string {
+    const scene = this.#scene;
+    const plan = scene.planPath ?? "<plan>";
+    switch (frame.phase) {
+      case "implement":
+        return `cdd implement --tasks ${frame.params.tasks ?? ""} --plan ${plan}`;
+      case "branch-review": {
+        const range = frame.target as { kind: "branch"; base: string; head: string };
+        return `cdd review --type branch --base ${range.base} --head ${range.head}`;
+      }
+      case "review":
+        if (frame.type === "spec") return `cdd review --type spec --spec ${this.#docOf(frame)}`;
+        if (frame.type === "plan") return `cdd review --type plan --plan ${this.#docOf(frame)}`;
+        return `cdd review --type task --tasks ${frame.params.tasks ?? ""} --plan ${plan}`;
+      case "fix": {
+        const findings = scene.ledger.handoffPath("review", frame.type, frame.params);
+        const target =
+          frame.target.kind === "doc"
+            ? `--${frame.type === "spec" ? "spec" : "plan"} ${frame.target.doc}`
+            : frame.target.kind === "branch"
+              ? `--base ${frame.target.base} --head ${frame.target.head}`
+              : `--tasks ${frame.params.tasks ?? ""} --plan ${plan}`;
+        return `cdd fix --type ${frame.type} ${target} --findings ${findings}`;
+      }
+    }
+  }
+
+  /** The doc path of a doc-target frame (the `""` never lands — the reject paths
+   *  only frame docs). */
+  #docOf(frame: OpenFrame): string {
+    return frame.target.kind === "doc" ? frame.target.doc : "";
   }
 }
 

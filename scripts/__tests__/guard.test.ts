@@ -59,7 +59,7 @@ describe("checkAnatomy — the typed skill-anatomy contract consumption", () => 
     expect(Object.keys(SKILL_ANATOMY.growthBoundary.registry.crossings)).toEqual(["cdd-design"]);
   });
 
-  it("the edge-condition word pin — the NEXT-LOOP phrases + status/route words derive from the engine word table (the 词表钉)", () => {
+  it("the edge-condition word pin — the NEXT-LOOP phrases + status/route words derive from the engine word table (the word-table pin)", () => {
     const conditions = SKILL_ANATOMY.edgeConditionWords;
     // The three pinned NEXT-LOOP loop-condition phrases.
     for (const phrase of ["until next=done", "next=done", "no next"] as const) {

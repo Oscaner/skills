@@ -25,10 +25,10 @@ flowchart TD
 
 ### `run-cdd-close-session`
 
-- **Do**: Import `/superpowers:finishing-a-development-branch`（pi：/skill:finishing-a-development-branch） and run its PRE-finish prerequisites (verify tests → read base). The finish menu itself runs at `finish?` — AFTER the closeout backfill has landed, so the closeout state is part of whatever the menu ships. **Upstream steps are not restated here.** Personal rules enforced at this boundary: normal-repo menu (No Worktrees); merge commit / PR title in conventional commits, PR body `## Summary` + `## Test Plan` only, zero attribution; the strict typed-discard gate — the literal `discard` only (case-sensitive, no leading/trailing whitespace); any other input falls back to the menu without resetting its presentation counter (3 attempts max → BLOCKED)
+- **Do**: Import `/superpowers:finishing-a-development-branch`（pi：/skill:finishing-a-development-branch） and run its PRE-finish prerequisites (verify tests → read base). The finish menu itself runs at `finish?` — AFTER the closeout backfill has landed, so the closeout state is part of whatever the menu ships. **Upstream steps are not restated here.**
 - **Read**: landed finish decision + base branch (`.kairos/cdd/<slug>/base.json`, or inferred per the cdd-dev base resolution)
 - **Exit**: prerequisites passed → `closeout-backfill`
-- **Fail**: menu exhausted after 3 unrecognized inputs → BLOCKED (menu exhausted); tests red → BLOCKED (fix tests)
+- **Fail**: tests red → BLOCKED (fix tests)
 
 ### `closeout-backfill`
 
@@ -39,7 +39,7 @@ flowchart TD
 
 ### `finish?`
 
-- **Do**: Run the finish menu (merge / PR / keep / discard) and gate the landed outcome — the orchestration semantic gate, a human decision surface: the decision landed (merged / PR / kept / discarded) routes `close-issues`; an unrecognized outcome that exhausted the menu routes the BLOCKED terminal. The menu follows the closeout backfill. This gate is not next-driven — the human decision is the terminal authority, and the flow ends here: no review self-loop, no engine route to consume
+- **Do**: Run the finish menu (merge / PR / keep / discard) and gate the landed outcome — the orchestration semantic gate, a human decision surface: the decision landed (merged / PR / kept / discarded) routes `close-issues`; an unrecognized outcome that exhausted the menu routes the BLOCKED terminal. The menu follows the closeout backfill. The strict typed-discard gate: the literal `discard` only (case-sensitive, no leading/trailing whitespace); any other input falls back to the menu without resetting its presentation counter — 3 attempts max → BLOCKED (menu exhausted). This gate is not next-driven — the human decision is the terminal authority, and the flow ends here: no review self-loop, no engine route to consume
 - **Read**: the landed finish decision
 - **Exit**: decided → `close-issues`; menu exhausted → the BLOCKED terminal (menu exhausted)
 - **Fail**: no decision obtainable → BLOCKED (menu exhausted, flow terminates)

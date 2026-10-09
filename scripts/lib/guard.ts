@@ -492,7 +492,7 @@ export class GuardLibrary {
    *  edge out of a decision node carries an explicit condition label; the loop family's
    *  NEXT-LOOP hub carries EXACTLY the three pinned out-edges (the `until next=done`
    *  self-loop · the `next=done` closure exit · the `no next` BLOCKED face), each label
-   *  an engine-lexicon pinned phrase (edgeConditionWords — the 词表钉, one word table
+   *  an engine-lexicon pinned phrase (edgeConditionWords — the word-table pin, one word table
    *  shared with the runtime `next:` instance); the executor chain's branch-review loop
    *  is an INDEPENDENT closed loop (branch-review↔branch-fix), never a route through
    *  the implementation hub. */
@@ -512,7 +512,7 @@ export class GuardLibrary {
     }
     const diamondIds = new Set(an.nodes.filter((n) => n.type === "diamond").map((n) => n.id));
 
-    // 决策边条件必带 — every edge out of a decision node carries an explicit condition.
+    // The decision-edge condition mandate — every edge out of a decision node carries an explicit condition.
     for (const edge of an.edges) {
       if (diamondIds.has(edge.from) && edge.label === "") {
         findings.push({
@@ -531,7 +531,7 @@ export class GuardLibrary {
     const branchLoop = row.role === "executor";
     const out = an.edges.filter((e) => e.from === hubId);
 
-    // The 三出边断言 + 词表钉 — the loop hub's exactly-three pinned out-edges.
+    // The three-out-edge assertion + word-table pin — the loop hub's exactly-three pinned out-edges.
     const selfLoop = an.edges.find((e) => e.from === hubId && e.to === hubId);
     const doneExit = out.find((e) => e.label === "next=done");
     const noNext = out.find((e) => e.label === "no next");
@@ -568,7 +568,7 @@ export class GuardLibrary {
       }
     }
 
-    // The branch 环形状断言 — the executor's independent branch-review closed loop.
+    // The branch loop-shape assertion — the executor's independent branch-review closed loop.
     if (branchLoop) {
       const reviewId = labelId.get("branch-review");
       const fixId = labelId.get("branch-fix");

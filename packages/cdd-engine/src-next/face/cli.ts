@@ -1164,8 +1164,8 @@ export class Cli {
     // dies here, never silently), and the task face's `--tasks` must be EXACTLY the
     // derived open wave at the requested verb's phase. A split/subset `--tasks`, a
     // wrong-phase request, or a mixed-phase wave BLOCKs for implement AND review AND
-    // fix alike (the implement-only strict-wave check + the #taskGate phase lock fuse
-    // into the single WaveGate.vet — never a variant gate per verb).
+    // fix alike (the implement-only strict-wave check + the phase lock fuse into the
+    // single WaveGate.vet — never a variant gate per verb).
     if ((type === "wave" || type === "plan") && scene.planText !== null) {
       const parsedPlan = new PlanDocType("plan").parse(scene.planText.split("\n"));
       const graph = new TaskGraph(parsedPlan);
@@ -1351,7 +1351,7 @@ export class Cli {
 
   /** The single-target line's current open phase (spec/plan/branch). The task face
    *  holds no separate gate here: the WaveGate's wrong-phase verdict (the pre-flight)
-   *  IS the task-face phase authority — the retired #taskGate folded into it. */
+   *  IS the task-face phase authority — the wave gate is the single phase authority. */
   #lineGate(scene: WorkScene): DispatchPhase | null {
     return this.#linePhase(scene);
   }
@@ -1564,9 +1564,10 @@ export class Cli {
   /** `cdd schema get plan-graph --plan <path>` — the plan-graph read (§3.8): the task
    *  graph + the derived wave chain + the ledger progress, rendered as the engine-held
    *  wave-board (GraphView — one deterministic row per wave, zero third-party layout;
-   *  beautiful-mermaid retired as tech debt). A Graph validate failure BLOCKs the read
-   *  with the named edge violations — the wave-preflight gate surfaces as a discovery
-   *  read. The board's done face is the same closedWaves() the pre-flight gates judge. */
+   *  the engine owns the node placement and the labels). A Graph validate failure
+   *  BLOCKs the read with the named edge violations — the wave-preflight gate surfaces
+   *  as a discovery read. The board's done face is the same closedWaves() the pre-flight
+   *  gates judge. */
   async #runPlanGraph(parsed: ParsedCommand): Promise<number> {
     const planPath = parsed.args.plan;
     if (planPath === undefined) {

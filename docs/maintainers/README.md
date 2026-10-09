@@ -22,6 +22,6 @@ Task 9 merged the two template docs, trimmed program-experience, updated 02/05 t
 | 03-context-caching-doctrine.md | 8,706 | 8,383 | row-key mirror (P3 T2) · cached-bytes trims |
 | 04-program-experience.md | 21,773 | 12,834 | trimmed ~9 KB · +item 57 |
 | 05-third-party-dependencies.md | 10,018 | 9,701 | P4.4 deps + unbuild/TS6 retirement + P3.2 shell-strip (eight-package runtime prune) |
-| 06-skill-node-discipline.md | 0 | 1,899 | P3.2 facts-only sweep · skill-node discipline (facts only, no restatement) |
+| 06-skill-node-discipline.md | 0 | 1,900 | P3.2 facts-only sweep · skill-node discipline (facts only, no restatement) |
 | README.md | 2,324 | 2,512 | index converged + 06 row + anchor revision + P5 retirement ledger |
-| **Total** | 65,193 | 55,270 | plan anchor ≤ 56,000 |
+| **Total** | 65,193 | 55,271 | plan anchor ≤ 56,000 |

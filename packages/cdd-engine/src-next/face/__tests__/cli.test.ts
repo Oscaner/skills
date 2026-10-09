@@ -1140,8 +1140,8 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(prompt).toContain(
         `- \`OUTPUT_HANDOFF\`: ${path.join(scene.workspace.path, "tasks-1-implement.json")}`,
       );
-      // the per-mode 精简: this scene carries no brief (briefPath null) — the empty
-      // INPUT_TASK key is NOT emitted (空值键不发)
+      // the per-mode trimming: this scene carries no brief (briefPath null) — the empty
+      // INPUT_TASK key is NOT emitted (empty keys are never emitted)
       expect(prompt).not.toContain("- `INPUT_TASK`");
       // v1.9 — the injected writable-subset schema rides the shell's fixed tail (the
       // ```json fence + the evidence fence — the task-family work round's two files)
@@ -1205,7 +1205,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(prompt).toContain("Follow URC:");
       expect(prompt).toContain("- `ROLE`: review");
       expect(prompt).toContain("- `INPUT_RANGE`: docs/kairos/specs/s1-design.md");
-      // the v1.8 per-mode 精简: a review context carries no fix/work keys
+      // the v1.8 per-mode trimming: a review context carries no fix/work keys
       expect(prompt).not.toContain("- `INPUT_FINDINGS`");
       expect(prompt).not.toContain("- `INPUT_CRITERIA`");
     } finally {
@@ -1308,7 +1308,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
-  it("a schema-violating draft → BLOCKED with the draft preserved untouched (失败不覆盖)", () => {
+  it("a schema-violating draft → BLOCKED with the draft preserved untouched (no-overwrite on failure)", () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const scene = harnessScene(repoRoot);

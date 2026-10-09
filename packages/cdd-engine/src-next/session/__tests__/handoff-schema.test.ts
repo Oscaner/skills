@@ -5,7 +5,7 @@
 //     byte-stability of the injected prompt text;
 //   · projection ② — violations/evidenceViolations: the child draft's read-back
 //     validation (the SAME declared objects the prompt showed; a violation is the
-//     engine's read-back BLOCK — 失败不覆盖);
+//     engine's read-back BLOCK — no-overwrite on failure);
 //   · the status rollup — the review conclusion (blocker → CHANGES_REQUESTED ·
 //     warn/nit → REVIEW_FIX · none → APPROVED) + the findings normalization (the
 //     capsule's blocker face, never the judgment domain).
@@ -140,7 +140,7 @@ describe("projection ② — the evidence read-back (evidenceViolations)", () =>
     expect(schema.evidenceViolations(null)).toEqual(["the evidence file is missing"]);
   });
 
-  it("refuses an incomplete typecheck item (the 缺 typecheck = BLOCK pin)", () => {
+  it("refuses an incomplete typecheck item (the missing-typecheck = BLOCK pin)", () => {
     expect(
       schema.evidenceViolations({
         command: "x",

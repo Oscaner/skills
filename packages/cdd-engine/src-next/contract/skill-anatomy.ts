@@ -40,7 +40,7 @@ export interface AnatomyDigraph {
   /** The unified-skeleton facts — the shared NEXT-LOOP hub + the terminal name
    *  prefixes the loop-family shapes assert (the multi-chain shared names). */
   loopHubNode: { name: string; rowPrefixes: readonly string[] };
-  /** The engine-lexicon pinned loop-condition phrases (v1.20 词表钉) — the ONLY
+  /** The engine-lexicon pinned loop-condition phrases (the v1.20 word-table pin) — the ONLY
    *  condition labels the loop-family NEXT-LOOP hub's out-edges may carry (the
    *  `until next=done` self-loop · the `next=done` closure exit · the `no next`
    *  failure face — the static digraph truth shares ONE word table with the runtime
@@ -97,7 +97,7 @@ export interface SkillAnatomyContract {
   consumerPurity: AnatomyConsumerPurity;
   skills: { registry: Readonly<Record<string, SkillRosterRow>> };
   wording: Readonly<Record<string, string>>;
-  /** The engine-lexicon pinned condition words (v1.20 词表钉) — the phrase set the
+  /** The engine-lexicon pinned condition words (the v1.20 word-table pin) — the phrase set the
    *  digraph's loop/closure decision edges may carry (the NEXT-LOOP phrases + the
    *  decision status words + the Route-kind words). The static digraph truth and the
    *  runtime `next:` instance share this one list — the guard asserts every NEXT-LOOP
@@ -224,7 +224,7 @@ export const SKILL_ANATOMY = {
     routeFactRule:
       "next: is consumed as a dispatch-ready literal (verb + target-type + id + payload — the literal IS the dispatch, no kind→command mapping layer); a full cdd command string never follows the next: token on a line; BLOCKED/TIMEOUT carry no next line and are not consumed as next steps",
   },
-  // The engine-lexicon pinned condition words (v1.20 词表钉) — the phrase set the
+  // The engine-lexicon pinned condition words (the v1.20 word-table pin) — the phrase set the
   // digraph's loop/closure decision edges may carry: the NEXT-LOOP phrases + the
   // decision status words (the review-closure status vocabulary) + the Route-kind
   // words (the `next:` lexical domain). Sorted lexicographically, documented by

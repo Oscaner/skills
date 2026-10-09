@@ -2,10 +2,9 @@
 // T24 (v1.18 — the plan-graph read) — the plan-graph wave-board display. The engine
 // OWNS the layout: the derived waves (TaskGraph.batches) ARE the display's rows —
 // one wave band per row, the band's tasks inline, the incoming source bands noted.
-// Deterministic, always in wave order, zero third-party layout (the earlier
-// beautiful-mermaid approach left the node placement + some labels to the renderer,
-// which neither honored the wave order nor survived the full plan scale — a
-// regex-patch papered over it; that surface is retired as tech debt).
+// Deterministic, always in wave order, zero third-party layout — the engine renders
+// the node placement and the labels itself, so the board honors the wave order and
+// survives the full plan scale.
 //
 // Two consumers share the report: the `cdd schema get plan-graph` read and the
 // dispatch/review pre-flight.

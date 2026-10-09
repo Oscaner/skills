@@ -34,10 +34,10 @@ flowchart TD
 
 ### `backfill-design`
 
-- **Do**: Check the drafted plan against the approved design. Substantive drift (factual error / missing constraint / a new implementation step the design does not cover) → **backfill the design spec first** — revise the spec + record the drift — so spec and plan agree before plan-review (overall v1.6 rule). Cross-phase matters still backfill to the parent overall per Boundary rules
+- **Do**: Check the drafted plan against the approved design. Substantive drift (factual error / missing constraint / a new implementation step the design does not cover) → **backfill the design spec first** — revise the spec + record the drift — so spec and plan agree before plan-review (the design-backfill rule). Cross-phase matters still backfill to the parent overall per Boundary rules
 - **Read**: approved spec + landed plan draft
 - **Exit**: spec ↔ plan consistent → `author-plan`
-- **Fail**: Entering plan-review with an un-backfilled drift → violates the design-backfill rule (overall v1.6)
+- **Fail**: Entering plan-review with an un-backfilled drift → violates the design-backfill rule
 
 ### `author-plan`
 
@@ -82,6 +82,6 @@ flowchart TD
 |---|---|---|
 | Upstream superpowers plugin missing | BLOCKED (install superpowers — see the kairos README's 'Upstream dependency install' table) | Block policy: no silent fallback |
 | review re-run after a closure conclusion (REVIEW_FIX / APPROVED) | Violates I1 (Review Convergence) — stop + report to user | A new ref opens a new review, never a re-run of a closed one |
-| Entering review with an un-backfilled drift | Violates the design-backfill rule (overall v1.6) — stop + backfill first | Spec and plan must agree before review |
+| Entering review with an un-backfilled drift | Violates the design-backfill rule — stop + backfill first | Spec and plan must agree before review |
 | Git commit error | report + fail-open | Do not block user plan review |
 | Completed round with no `next:` line (not BLOCKED/TIMEOUT) | HARD_ERROR — report the `CDD_BLOCKED:` reason, re-run the same command to continue | No dispatchable next |

@@ -65,11 +65,11 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(out).toContain("- `INPUT_WAVE_BRIEF`: /ws/tasks-4,12-brief.md");
     expect(out).toContain("$$SCHEMA$$"); // the injected writable-subset fence slot
     expect(out).not.toContain("{{"); // zero unresolved slots
-    // the v1.9 散文归零 — no HANDOFF_WRITE_GATE / ## Handoff prose anywhere
+    // the v1.9 prose-zeroing — no HANDOFF_WRITE_GATE / ## Handoff prose anywhere
     expect(out).not.toContain("HANDOFF_WRITE_GATE");
     expect(out).not.toContain("RETURN_JSON");
     expect(out).not.toContain("DOCS_FIX");
-    // the per-mode 精简: an implement round's context carries no review/fix keys
+    // the per-mode trimming: an implement round's context carries no review/fix keys
     expect(out).not.toContain("INPUT_CRITERIA");
     expect(out).not.toContain("INPUT_FINDINGS");
     expect(out).not.toContain("FIX_BASE");

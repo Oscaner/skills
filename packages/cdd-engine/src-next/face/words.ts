@@ -55,7 +55,7 @@ export type StationKind = "next" | "blocked" | "warn" | "cliMissing";
 export type RouteWordKind = "done" | "review" | "fix" | "implement";
 
 /** The wave-gate BLOCK wording rows — the vocabulary the WaveGate verdicts render
- *  (v1.21 词表钉: the gate's prompt wording rides the word table, never a CLI literal).
+ *  (the v1.21 word-table pin: the gate's prompt wording rides the word table, never a CLI literal).
  *  Each row is a placeholder template verbatim-filled by the wave gate; the braces
  *  ({requested}/{open}/{phase}) are the fill slots, part of the row. (v1.28 — the
  *  heterogeneous row retired: the wave-unitary ledger holds one row per wave, so a

@@ -416,10 +416,10 @@ export class Lifecycle {
   /** Bookkeeping — persist the round's handoff carrier and record the progress round.
    *  The persisted carrier is either the dispatch's materialized form (the production
    *  read-back reconstruct — outcome.carrier, full-replace at the SAME path, so the
-   *  child's draft becomes the finalized carrier: 一文件两态, the engine is the single
+   *  child's draft becomes the finalized carrier — the two-state single file, the engine is the single
    *  author) or the engine-built fallback from the outcome fields (hermetic / dry-run
    *  dispatchers). A BLOCKED/TIMEOUT round WITHOUT a carrier is neither persisted nor
-   *  recorded — the child's draft (if any) stays untouched (失败不覆盖) and the
+   *  recorded — the child's draft (if any) stays untouched (no-overwrite on failure) and the
    *  frontier re-offers the same round (resume = re-run the same command); a BLOCKED
    *  round WITH a carrier (e.g. the evidence-contract override — the child's work is
    *  preserved as the BLOCKED carrier) is persisted but not counted as a completed

@@ -1,10 +1,10 @@
 // packages/cdd-engine/src-next/session/wave.ts
 // T24 (v1.21 — the three-verb unified wave gate) — the task-face dispatch
-// pre-flight as ONE gate method. The retired split pair (the implement-only
-// strict-wave check + the #taskGate phase lock) converges into
-// `WaveGate.vet(requested, verb)`: implement / review / fix share the same
-// single wave gate — a half-wave review or a half-wave fix is structurally
-// blocked exactly like a half-wave implement.
+// pre-flight as ONE gate method. The retired split check (the implement-only
+// strict-wave check + the phase lock) converges into `WaveGate.vet(requested,
+// verb)`: implement / review / fix share the same single wave gate — a
+// half-wave review or a half-wave fix is structurally blocked exactly like a
+// half-wave implement.
 //
 // The gate's only read face is `open = frontier(closedWaves())` — the derived
 // wave over the ledger's C5 closure set (ledger.ts, the same closure predicate as
@@ -126,8 +126,8 @@ export class WaveGate {
   }
 
   /** The ledger-derived open phase of ONE wave row — the wave-unitary read: the same
-   *  C5 round-pair derivation the retired #taskGate applied, over the wave's own row
-   *  key (the per-task read never matched a `{wave:"16,22,24"}` row — the fix). */
+   *  C5 round-pair derivation the retired task-face phase gate applied, over the wave's
+   *  own row key (the per-task read never matched a `{wave:"16,22,24"}` row — the fix). */
   #phaseOf(ledger: Ledger, waveKey: string): DispatchPhase | null {
     const implemented = ledger.roundCount(waveKey, "implement");
     const reviews = ledger.roundCount(waveKey, "review");

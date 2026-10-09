@@ -104,7 +104,7 @@ describe("the four validate classes — one negative fixture each", () => {
   });
 
   it("the edge value-domain truncation — a trailing parenthetical's numbers never join the edge (§3.8)", () => {
-    // the plan's DependsOn lines may carry a rationale in parens (`…（升序 24 殿后…）`);
+    // the plan's DependsOn lines may carry a rationale in parens (`…（ascending, 24 last…）`);
     // the extraction reads only the pre-paren list — no duplicate/self-loop from prose
     const graph = graphOf([task(1, "none"), task(2, "1（prose 2 here）")]);
     expect(graph.validate()).toEqual([]);

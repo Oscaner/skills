@@ -1150,9 +1150,6 @@ export class Cli {
       verb: verb as "implement" | "review" | "fix",
       type,
       repoRoot: scene.workspace.root.repoRoot,
-      // The engine workspace root — the clean-tree gate's exclusion (its own run
-      // artifacts are engine-owned, never "uncommitted user work").
-      workspaceRoot: this.#config.handoffNamespace().workspaceRoot,
       planText: scene.planText,
       tasks: type === "wave" ? new Set(this.#tasksOf(parsed)) : null,
       ledger: scene.ledger,

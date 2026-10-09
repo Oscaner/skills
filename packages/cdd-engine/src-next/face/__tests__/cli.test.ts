@@ -940,10 +940,11 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       // The consumer-repo shape: no `.kairos` entry in the fixture .gitignore — the
-      // first dispatch's own writes (the scene's workspace ensure + the round
-      // artifacts) land untracked as `?? .kairos/`. Before the F1 fix the very
-      // dispatch that wrote them self-BLOCKed (and every one after): the gate now
-      // excludes the engine's own workspace, never the user's uncommitted work.
+      // workspace ensure self-publishes `.kairos/cdd/.gitignore` (content `*`)
+      // BEFORE the gate reads the tree, so the first dispatch's own writes (the
+      // scene's workspace ensure + the round artifacts) land under the engine's own
+      // keep-out marker — git's judgment stays clean, and the gate refuses only
+      // genuinely dirty user work (never the engine's own outputs).
       gitInit(repoRoot, "/docs/\n");
       const plan = conformingPlan(repoRoot);
       const implement = await command.runArgv([
@@ -957,8 +958,9 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         repoRoot,
       ]);
       expect(implement).toBe(0);
-      // the first dispatch landed the engine workspace, unignored on disk
+      // the first dispatch landed the engine workspace + its self-published keep-out
       expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3"))).toBe(true);
+      expect(readFileSync(path.join(repoRoot, ".kairos", ".gitignore"), "utf8")).toBe("*\n");
       io.stderrText = "";
       // the SECOND dispatch must not self-BLOCK on the engine's own artifacts
       const review = await command.runArgv([

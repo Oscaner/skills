@@ -15,7 +15,7 @@
 // doc-contract backstop (the contract's context seam reads through it).
 
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -171,7 +171,6 @@ function waveCtx(
     verb,
     type: "wave",
     repoRoot,
-    workspaceRoot: ".kairos/cdd",
     planText: planDoc(blocks),
     tasks: new Set(tasks),
     ledger,
@@ -194,7 +193,6 @@ function docCtx(
     verb,
     type: docKey === "plan" ? "plan" : "spec",
     repoRoot,
-    workspaceRoot: ".kairos/cdd",
     planText: null,
     tasks: null,
     ledger,
@@ -245,12 +243,12 @@ describe("PreFlight — the clean-tree hard gate (implement/review/fix)", () => 
     }
   });
 
-  it("isClean ignores the engine's own workspace — the second dispatch does not self-BLOCK on the landed artifacts in a consumer repo WITHOUT a .kairos ignore", async () => {
-    // The consumer-repo shape: no `.kairos` gitignore (gitRepo's default ignore
-    // masks the engine's own writes). The scene's workspace ensure + the first
-    // dispatch's round artifacts land under `.kairos/cdd/`, and the tree reads
-    // `?? .kairos/` — the next dispatch's gate must treat them as engine-owned,
-    // never as uncommitted user work.
+  it("the workspace self-publishes its .gitignore — a consumer repo WITHOUT a .kairos ignore stays clean across dispatches (P4.1 F1 regression)", async () => {
+    // The consumer-repo shape: no `.kairos` in the root .gitignore (the fixture's
+    // default mask is overridden). The scene's workspace ensure self-publishes
+    // `.kairos/cdd/.gitignore` (content `*`) BEFORE the gate reads the tree, so
+    // git's own judgment is clean — the engine's run artifacts never read as
+    // uncommitted user work, with zero engine-side exclusion in isClean.
     const { repoRoot, cleanup } = gitRepo("/docs/\n");
     try {
       const workspace = new Workspace(
@@ -258,19 +256,39 @@ describe("PreFlight — the clean-tree hard gate (implement/review/fix)", () => 
         "preflight-slug",
       ).ensure();
       workspace.writeJson("implement-1.json", { status: "APPROVED" });
+      // The self-published keep-out marker sits at the namespace root
+      expect(readFileSync(path.join(repoRoot, ".kairos", ".gitignore"), "utf8")).toBe("*\n");
       const ctx = waveCtx(repoRoot, [task(1, "none")], [1], "review");
       ctx.ledger!.recordRound("1", "implement"); // the first dispatch's progress — review now opens
       const preflight = preflightOf();
       const verdict = await preflight.vet(ctx);
       expect(verdict.ok).toBe(true);
       expect(verdict.order).toEqual(["tree-clean", "plan-graph", "wave"]);
-      // A genuinely dirty USER file still refuses — the exclusion is the engine
-      // workspace, never the user's own uncommitted work.
+      // A genuinely dirty USER file still refuses — the ignore is the workspace's
+      // own self-published marker, never a pass for the user's uncommitted work.
       dirty(repoRoot);
       const refused = await preflight.vet(waveCtx(repoRoot, [task(1, "none")], [1], "implement"));
       expect(refused.ok).toBe(false);
       expect(refused.gate).toBe("tree-clean");
       expect(refused.reason).toBe("dirty-tree");
+      // The bonus semantics: a user who git-TRACKS the workspace keeps seeing its
+      // changes — `.gitignore` affects only untracked files, so the tracked
+      // workspace surface rides the gate like any other user file. Force-add the
+      // ignored workspace (the `*` marker hides it from a plain add) to model the
+      // tracked case.
+      rmSync(path.join(repoRoot, "dirty.txt"));
+      spawnSync("git", ["add", "-f", ".kairos"], { cwd: repoRoot });
+      spawnSync("git", ["add", "-A", ":!dirty.txt"], { cwd: repoRoot });
+      spawnSync("git", ["commit", "-q", "-m", "track the workspace"], { cwd: repoRoot });
+      // A change to the TRACKED workspace surface (implement-1.json was force-added
+      // into the commit above) rides the gate like any user file — the ignore covers
+      // only untracked paths.
+      workspace.writeJson("implement-1.json", { status: "APPROVED", modified: true });
+      const tracked = await preflightOf().vet(
+        waveCtx(repoRoot, [task(1, "none")], [1], "implement"),
+      );
+      expect(tracked.ok).toBe(false);
+      expect(tracked.gate).toBe("tree-clean");
     } finally {
       cleanup();
     }

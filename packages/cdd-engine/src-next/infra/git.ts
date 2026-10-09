@@ -38,20 +38,15 @@ export class GitClient {
     }
   }
 
-  /** Whether the working tree is clean (`git status --porcelain` = ""), optionally
-   *  ignoring every path under one repo-relative directory — the clean-tree gate
-   *  excludes the engine's own workspace (its run artifacts are engine-owned, never
-   *  "uncommitted user work"). `--untracked-files=all` keeps untracked files
-   *  individual so the path-based ignore sees them (a collapsed `?? <dir>/` entry
-   *  would hide the workspace's path from the filter). */
-  async isClean(cwd: string, ignorePath?: string): Promise<boolean> {
+  /** Whether the working tree is clean — `git status --porcelain` = "" (the
+   *  clean-tree gate reads git's own judgment, zero engine-side exclusion: the
+   *  engine's workspace self-publishes its `.gitignore` (content `*`) at ensure
+   *  time, so its run artifacts never read as uncommitted user work — the gate
+   *  refuses only genuinely dirty USER changes). Fail-open-false (a non-repo
+   *  counts dirty — the CDD flow needs git). */
+  async isClean(cwd: string): Promise<boolean> {
     try {
-      const status = await this.#git(cwd).status({ "--untracked-files=all": null });
-      if (ignorePath === undefined) return status.isClean();
-      // A file under the workspace root is the engine's own; any other file is
-      // uncommitted user work — every entry must be engine-owned for the tree to
-      // qualify as clean.
-      return status.files.every((file) => file.path.startsWith(`${ignorePath}/`));
+      return (await this.#git(cwd).status()).isClean();
     } catch {
       return false;
     }

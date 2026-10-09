@@ -53,7 +53,7 @@ Installs the latest release and writes pi's project settings. The six `cdd-*` sk
 
 1. Install `superpowers`, `kairos`, and `mattpocock-skills` from the marketplace (see the repository README for per-harness install).
 2. No install prerequisite — every kairos skill invokes the engine on demand via `npx -y @oscaner-skills/cdd-engine@latest <subcommand>` (zero global-install precondition; the retired `detect-engine` gate is gone).
-3. Add `.kairos` to your project's `.gitignore` — the engine keeps its per-dispatch run state (round handoffs, ledgers, briefs) under `.kairos/cdd/` in the repo root. The clean-tree dispatch gate already ignores its own workspace (the engine's run artifacts never read as uncommitted user work), but keeping them untracked keeps them out of your commits and branch diffs.
+3. No `.gitignore` setup — the engine keeps its per-dispatch run state (round handoffs, ledgers, briefs) under `.kairos/cdd/` in the repo root, and the workspace self-publishes a `.gitignore` (content `*`) at first dispatch: the engine's run artifacts stay untracked out of your commits and branch diffs with zero consumer setup, and the clean-tree dispatch gate never reads the engine's own outputs as uncommitted user work.
 4. Invoke kairos skills — the `/kairos:<skill>` slash form in Claude Code and Cursor Agent:
 
 ```bash

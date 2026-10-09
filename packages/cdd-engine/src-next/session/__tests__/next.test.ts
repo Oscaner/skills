@@ -242,3 +242,62 @@ describe("the pinned surface — Route/soft-cap constants (the brief's type-chec
     expect(router.next(state([]), round({ phase: "branch-review" }))).toEqual({ kind: "done" });
   });
 });
+
+describe("the severity-combination space — every blocker/warn/nit MIX rides the same three-type routing (v1.29)", () => {
+  // The full 2^3 severity mix space (empty through all-three) — the C5 table judges
+  // severity only by the blocker/non-blocker axis: a review with ANY findings (any
+  // mix) routes the one-way fix hop; a fix with ANY blocker in its input re-reviews;
+  // a blocker-free fix (warn/nit in any mix) closes (next-wave when another wave is
+  // ready, done when the run is exhausted).
+  const MIXES: readonly (readonly ("blocker" | "warn" | "nit")[])[] = [
+    [],
+    ["warn"],
+    ["nit"],
+    ["warn", "nit"],
+    ["blocker"],
+    ["blocker", "warn"],
+    ["blocker", "nit"],
+    ["blocker", "warn", "nit"],
+  ];
+  const HEAD = "b".repeat(40);
+
+  it.each(MIXES.map((mix) => [mix]))(
+    "review findings %j — any mix routes fix (or close when empty)",
+    (mix) => {
+      const findings = mix.map((severity) => finding(severity));
+      const route = router.next(state([3]), round({ phase: "review", findings }));
+      if (mix.length === 0) {
+        expect(route).toEqual({ kind: "next-wave", tasks: "3" });
+        expect(router.next(state([]), round({ phase: "review", findings }))).toEqual({
+          kind: "done",
+        });
+      } else {
+        expect(route!.kind).toBe("fix"); // the one-way hop holding the review handoff
+      }
+    },
+  );
+
+  it.each(MIXES.map((mix) => [mix]))(
+    "fix findings %j — blocker-any mix re-reviews; warn/nit-only closes",
+    (mix) => {
+      const findings = mix.map((severity) => finding(severity));
+      const fix = round({ phase: "fix", findings, commits: { base: "a".repeat(40), head: HEAD } });
+      if (mix.includes("blocker")) {
+        expect(router.next(state([3]), fix)).toEqual({ kind: "review", base: HEAD });
+      } else {
+        expect(router.next(state([3]), fix)).toEqual({ kind: "next-wave", tasks: "3" });
+        expect(router.next(state([]), fix)).toEqual({ kind: "done" });
+      }
+    },
+  );
+
+  it.each(MIXES.filter((mix) => mix.includes("warn") && mix.includes("nit")).map((mix) => [mix]))(
+    "a re-review round carrying %j rides the SAME review table — the re-review has no severity exemption",
+    (mix) => {
+      const findings = mix.map((severity) => finding(severity));
+      // re-review = a review round at a new ref — the C5 table applies verbatim
+      const route = router.next(state([3]), round({ phase: "review", findings }));
+      expect(route!.kind).toBe("fix");
+    },
+  );
+});

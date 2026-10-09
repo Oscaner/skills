@@ -23,6 +23,7 @@ import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { type TargetFace, type TargetType, targetFaces } from "../faces.ts";
 import { TaskGraph } from "../graph.ts";
 import { Ledger } from "../ledger.ts";
+import { SOFT_CAP_SUGGESTION } from "../next.ts";
 import type { CapsuleFace, DispatchOutcome, DispatchStep, OpenFrame, StepResult } from "../run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../run.ts";
 
@@ -306,6 +307,167 @@ describe("the task small loop — implement → review → the next ready group"
     }
   });
 
+  it("a MID-RUN wave's blocker loop closes to the NEXT wave after the blocker clears through a warn re-review — the full W1 three-type route (v1.29)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // The user routing matrix (v1.29), wave type W1: review → (blocker>0) → fix →
+      // re-review → … → re-review → (blocker=0 & warn+nit>0) → fix → NEXT-WAVE. The
+      // blocker loop lives INSIDE wave {1}; once the fix round's source blockers clear
+      // (the re-review carries only warn), the closure routes wave {2} — never done.
+      const graph = taskGraph([task(1, "none"), task(2, "1")]);
+      const dispatch = stub((frame) => {
+        if (frame.phase === "implement") return APPROVED_IMPLEMENT;
+        if (frame.phase === "fix")
+          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        const wave = frame.target.kind === "wave" ? frame.target.tasks.join(",") : "";
+        if (wave === "1")
+          return {
+            status: "APPROVED",
+            findings: frame.round === 1 ? [finding("blocker")] : [finding("warn")],
+          };
+        return { status: "APPROVED", findings: [] }; // wave {2} clean → the terminal done
+      });
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+      });
+
+      // wave {1}: implement → review(blocker) → fix → re-review(warn) → fix → next-wave
+      run.advance(); // implement 1
+      const review1 = run.advance();
+      expect(review1!.frame.round).toBe(1);
+      expect(review1!.route!.kind).toBe("fix");
+      const fix1 = run.advance();
+      expect(fix1!.route!.kind).toBe("review"); // source blockers remain → re-review
+      const review2 = run.advance();
+      expect(review2!.frame.round).toBe(2);
+      expect(review2!.route!.kind).toBe("fix"); // warn rides the fix hop
+      const fix2 = run.advance();
+      expect(fix2!.route).toEqual({ kind: "next-wave", tasks: "2" }); // ← the W1 matrix row
+      // wave {2} (terminal): implement → review(clean) → done
+      run.advance(); // implement 2
+      const review3 = run.advance();
+      expect(review3!.route).toEqual({ kind: "done" });
+      expect(run.advance()).toBeNull();
+      expect(graph.doneTasks()).toEqual(new Set([1, 2]));
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("MIXED-severity reviews ride the same routing — a [blocker, warn] review re-reviews, a [warn, nit] re-review closes to the next wave (v1.29)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // The blocker/non-blocker axis, not the mix: wave {1}'s first review carries a
+      // blocker AND a warn → the fix routes the re-review; wave {1}'s re-review is
+      // warn+nit only (blocker-free) → its fix closes to wave {2} (next-wave, never
+      // done). The severity MIX never alters the table.
+      const graph = taskGraph([task(1, "none"), task(2, "1")]);
+      const dispatch = stub((frame) => {
+        if (frame.phase === "implement") return APPROVED_IMPLEMENT;
+        if (frame.phase === "fix")
+          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        const wave = frame.target.kind === "wave" ? frame.target.tasks.join(",") : "";
+        if (wave !== "1") return { status: "APPROVED", findings: [] };
+        return {
+          status: "APPROVED",
+          findings:
+            frame.round === 1
+              ? [finding("blocker"), finding("warn")]
+              : [finding("warn"), finding("nit")],
+        };
+      });
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+      });
+
+      run.advance(); // implement 1
+      const review1 = run.advance();
+      expect(review1!.route!.kind).toBe("fix"); // any mix with a blocker → fix
+      const fix1 = run.advance();
+      expect(fix1!.route).toEqual({ kind: "review", base: HEAD }); // blockers remain → re-review
+      const review2 = run.advance();
+      expect(review2!.frame.round).toBe(2);
+      expect(review2!.route!.kind).toBe("fix"); // the warn+nit re-review still fixes
+      const fix2 = run.advance();
+      expect(fix2!.route).toEqual({ kind: "next-wave", tasks: "2" }); // blocker-free mix closes
+      // wave {2} (terminal): implement → review(clean) → done
+      run.advance(); // implement 2
+      expect(run.advance()!.route).toEqual({ kind: "done" });
+      expect(run.advance()).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("MIXED warn+nit on a single-task line closes through the fix to done — the S2 mix (v1.29)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const dispatch = stub((frame) => {
+        if (frame.phase === "fix")
+          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        return { status: "APPROVED", findings: [finding("warn"), finding("nit")] };
+      });
+      const run = new Lifecycle({
+        face: targetFaces.spec,
+        state: EMPTY_RUN_STATE,
+        ledger,
+        dispatch: dispatch.step,
+        target: { kind: "doc", doc: DOC },
+      });
+      run.advance(); // review (warn + nit)
+      const fix = run.advance();
+      expect(fix!.frame.round).toBe(1);
+      expect(fix!.route).toEqual({ kind: "done" });
+      expect(run.advance()).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the SINGLE-TASK line's blocker loop closes through a warn re-review to done — the full S1 three-type route (v1.29)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // The user routing matrix (v1.29), single-task type S1 (spec/plan/branch): review
+      // → (blocker>0) → fix → re-review → … → re-review → (blocker=0 & warn+nit>0) →
+      // fix → DONE — the blocker loop terminates with a final warn fix on an exhausted
+      // run (the single-target face: batch semantics off → close renders done).
+      const dispatch = stub((frame) => {
+        if (frame.phase === "fix")
+          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        return {
+          status: "APPROVED",
+          findings: frame.round === 1 ? [finding("blocker")] : [finding("warn")],
+        };
+      });
+      const run = new Lifecycle({
+        face: targetFaces.spec,
+        state: EMPTY_RUN_STATE,
+        ledger,
+        dispatch: dispatch.step,
+        target: { kind: "doc", doc: DOC },
+      });
+
+      run.advance(); // review 1 (blocker)
+      const fix1 = run.advance();
+      expect(fix1!.route!.kind).toBe("review"); // source blockers remain → re-review
+      const review2 = run.advance();
+      expect(review2!.frame.round).toBe(2);
+      expect(review2!.route!.kind).toBe("fix"); // warn rides the fix hop
+      const fix2 = run.advance();
+      expect(fix2!.frame.round).toBe(2); // sources review round 2 (the C5-1 fix number)
+      expect(fix2!.route).toEqual({ kind: "done" }); // ← the S1 matrix row (exhausted)
+      expect(run.advance()).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
   it("a BLOCKED review round never closes the task — the C5 route is the single terminal verdict", () => {
     const { ledger, cleanup } = fixture();
     try {
@@ -327,6 +489,81 @@ describe("the task small loop — implement → review → the next ready group"
       // done-marking — a failed round is not a closure, whatever its findings hold
       expect(blocked!.route).toBeNull();
       expect(graph.doneTasks()).toEqual(new Set());
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a BLOCKED mid-run wave LOCKS the successor — wave {2} is unreachable while wave {1} holds an unclosed review (v1.29)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // The strict-wave discipline as a lock: wave {1}'s review BLOCKs (no next, no
+      // done-marking) → the frontier still opens wave {1} at review, so the resume
+      // re-runs the SAME review. Wave {2} (dep 1) never front-of-line — a locked wave
+      // in front denies the successor, exactly the "must close in order" guarantee.
+      const graph = taskGraph([task(1, "none"), task(2, "1")]);
+      const dispatch = stub((frame) =>
+        frame.phase === "implement" ? APPROVED_IMPLEMENT : { status: "BLOCKED" },
+      );
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+      });
+
+      run.advance(); // implement 1
+      const blocked = run.advance(); // review 1 BLOCKED → no next, no closure
+      expect(blocked!.frame.target).toEqual({ kind: "wave", tasks: [1] });
+      expect(blocked!.route).toBeNull();
+      expect(graph.doneTasks()).toEqual(new Set());
+      // resume: the same wave/phase re-opens — wave {2} stays locked behind it
+      const again = run.advance();
+      expect(again).not.toBeNull();
+      expect(again!.frame.target).toEqual({ kind: "wave", tasks: [1] });
+      expect(again!.frame.phase).toBe("review");
+      expect(again!.route).toBeNull();
+      expect(graph.doneTasks()).toEqual(new Set());
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("three consecutive blocker reviews hit the review-cycle soft cap — the line stops for the user, not done (v1.29)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // REVIEW_CYCLE_CAP = 3: the fix round's consecutive-S1 run (walked from the review
+      // history) reaches 3 → the router defers to the user (soft-cap). The line is
+      // neither closed (done/next-wave) nor failed — it HOLDS for adjudication: the
+      // next frame opens nothing (the route is not "review"), the wave is not done.
+      const graph = taskGraph([task(1, "none")]);
+      const dispatch = stub((frame) => {
+        if (frame.phase === "implement") return APPROVED_IMPLEMENT;
+        if (frame.phase === "fix")
+          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        return { status: "APPROVED", findings: [finding("blocker")] };
+      });
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+      });
+
+      run.advance(); // implement 1
+      run.advance(); // review 1 (blocker) → fix
+      const fix1 = run.advance();
+      expect(fix1!.route!.kind).toBe("review"); // S1 run 1
+      run.advance(); // review 2 (blocker)
+      const fix2 = run.advance();
+      expect(fix2!.route!.kind).toBe("review"); // S1 run 2
+      run.advance(); // review 3 (blocker)
+      const fix3 = run.advance();
+      expect(fix3!.route!.kind).toBe("soft-cap"); // S1 run 3 → user adjudicates
+      expect(fix3!.route).toEqual({ kind: "soft-cap", message: SOFT_CAP_SUGGESTION });
+      // the line HOLDS: neither closed (not done), nor re-reviewing (the cap defers)
+      expect(graph.doneTasks()).toEqual(new Set());
+      expect(run.advance()).toBeNull();
     } finally {
       cleanup();
     }

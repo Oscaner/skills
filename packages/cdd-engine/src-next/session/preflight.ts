@@ -58,7 +58,7 @@ export interface PreFlightVerdict {
   message?: string;
   /** The named issue/finding lines the renderer prints under the message. */
   details?: readonly string[];
-  /** The gates that ran, in order — the judgeable 门序 (tree-clean → plan-graph →
+  /** The gates that ran, in order — the judgeable order (tree-clean → plan-graph →
    *  wave → doc-contract, per the face's applicable set). */
   order: readonly PreFlightGateName[];
 }
@@ -123,11 +123,11 @@ export class PreFlight {
 
   /** vet(ctx) — the single seam call: tree-clean → plan-graph → wave → doc-contract.
    *  The first refused gate owns the verdict; the gates that ran precede it (the
-   *  judgeable 门序). */
+   *  judgeable order). */
   async vet(ctx: PreFlightContext): Promise<PreFlightVerdict> {
     const gates: PreFlightGateName[] = [];
     // 1. tree-clean — the hard gate all three verbs share: a dirty working tree
-    //    BLOCKs BEFORE any other judgment (review 基准 = 已提交状态). isClean is
+    //    BLOCKs BEFORE any other judgment (review's baseline = the committed state). isClean is
     //    fail-open-false (a non-repo counts dirty — the CDD flow needs git).
     gates.push("tree-clean");
     if (!(await this.#git.isClean(ctx.repoRoot))) {

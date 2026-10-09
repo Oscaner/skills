@@ -1088,11 +1088,11 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
 
 // ---------------------------------------------------------------------------
 // P4.1 T4 — the complete executable next literal (v1.39 semantic reversal):
-// the `next:` line IS the dispatch (二次 parse 零错误 · done never fed to parse ·
+// the `next:` line IS the dispatch (zero-error second parse · done never fed to parse ·
 // routeWords sync · implement without --type)
 // ---------------------------------------------------------------------------
 
-describe("P4.1 T4 — the next literal is a complete executable command (二次 parse 零错误)", () => {
+describe("P4.1 T4 — the next literal is a complete executable command (zero-error second parse)", () => {
   /** The next text of a capsule emit (the second line, station prefix stripped). */
   function literalOf(route: Route, target?: RouteTarget): string {
     const lines = new Capsule(new Words()).emit("APPROVED", "0", "/h.json", route, target);
@@ -1133,7 +1133,7 @@ describe("P4.1 T4 — the next literal is a complete executable command (二次 
     // find #7 (P4.1 T7): the wave review literal carries its runtime-required `--plan`
     // (the W3 dispatch gap — `review --type wave --tasks 5` parsed green yet refused
     // at run time with `missing required --plan`); the full coverage table lives in
-    // capsule.test.ts (parse 绿 ⇒ 该类型 required flag 全覆盖).
+    // capsule.test.ts (the design §5.6 parse-green ⇒ full required-flag coverage rule).
     const waveLiteral = literalOf({ kind: "review", base }, wave);
     expect(waveLiteral).toBe("review --type wave --tasks 1,2 --plan docs/kairos/plans/p3.md");
     parses(waveLiteral);

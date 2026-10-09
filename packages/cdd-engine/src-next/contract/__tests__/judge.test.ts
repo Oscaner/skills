@@ -355,6 +355,51 @@ describe("the canonical repo forms (no false positives on real conventions)", ()
     expect(withKind(findings, "domain", "**Version**")).toBe(false);
   });
 
+  it("two adjacent backtick spans read as ONE quoted region — the mid-span prose is not judged (the pinned first-last strip)", () => {
+    // The find-#8 first-last strip consumes the whole first→last backtick region as
+    // quoted. On a line carrying TWO separate spans, the prose BETWEEN them is part
+    // of that region — an anchor quoted only there is invisible to the domain rule.
+    // Pinned tradeoff (the comment on #withoutCodeSpans): the enforced docs' quoted
+    // shapes are the simple `span` and the nested citation, neither of which hides a
+    // real structural anchor between two adjacent spans; a span-by-span strip would
+    // judge this middle prose and reopen the nested-citation gap the pin closes.
+    const content = [
+      "# Test Spec",
+      "- **Version**: v1.1 · 2026-10-09",
+      "- **Status**: Draft",
+      "- **Author**: x",
+      "- **Parent program**: [x-overall.md v1.0](docs/kairos/specs/x-overall.md)",
+      "- **Depends on**: P1",
+      "",
+      "## Design",
+      "",
+      "intro — the double-layer skeleton semantics.",
+      "",
+      "### 1. 数据面",
+      "#### 1.1 登记表",
+      "- text",
+      "",
+      "### Acceptance criteria",
+      "",
+      "- `c`",
+      "",
+      "## Constraints",
+      "",
+      "- delta",
+      "",
+      "## Change history",
+      "",
+      "| Version | date | summary | author |",
+      "|---|---|---|---|",
+      "| v1.0 | 2026-10-08 | prior | [human] |",
+      "| v1.1 | 2026-10-09 | merged | [human] |",
+    ]
+      .join("\n")
+      .replace("- **Status**: Draft", "- `p1` then **Status**: Deleted then `p2`");
+    const findings = judge("phaseSpec", content, EMPTY_FS);
+    expect(withKind(findings, "domain", "**Status**")).toBe(false);
+  });
+
   it("order: the change-history rows must be version-ascending (canonical oldest-first)", () => {
     const content = GOOD_OVERALL.replace(
       ["| v1.20 | 2026-10-06 | prior change |", "| v1.21 | 2026-10-07 | merged change |"].join(
@@ -464,8 +509,8 @@ describe("the coordinator", () => {
 });
 
 // ---------------------------------------------------------------------------
-// P4.1 T2 — the three-type homogeneity: `**Version**` required + strict (号+时间) ·
-// `## Change history` required ×3 · selfBounded ×3（header = 最新且必在行内）
+// P4.1 T2 — the three-type homogeneity: `**Version**` required + strict (number · date) ·
+// `## Change history` required ×3 · selfBounded ×3 (header = the newest in-row)
 // ---------------------------------------------------------------------------
 
 /** A minimal phase-spec carrying the canonical version lineage (strict Version
@@ -554,7 +599,7 @@ describe("P4.1 T2 — **Version** presence required ×3 (plan optional → requi
   });
 });
 
-describe("P4.1 T2 — **Version** strict 形 (号+时间 · 零补充说明/链/bold)", () => {
+describe("P4.1 T2 — the **Version** strict form (number + date · zero supplement/link/bold)", () => {
   it("a trailing parenthetical supplement is refused (plan and spec)", () => {
     for (const [docKey, doc] of [
       ["plan", planLineage("v1.0 （v1.0 补充）", [ROW_100])],
@@ -573,7 +618,7 @@ describe("P4.1 T2 — **Version** strict 形 (号+时间 · 零补充说明/链/
     }
   });
 
-  it("a bold **vX.Y** 形 is refused (plan and spec)", () => {
+  it("a bold **vX.Y** form is refused (plan and spec)", () => {
     for (const [docKey, doc] of [
       ["plan", planLineage("**v1.0** · 2026-10-09", [ROW_100])],
       ["phaseSpec", specLineage("**v1.0** · 2026-10-09", [ROW_100])],
@@ -640,7 +685,7 @@ describe("P4.1 T2 — `## Change history` presence required ×3", () => {
   });
 });
 
-describe("P4.1 T2 — selfBounded 对 spec/plan 生效（header = 最新且必在行内）", () => {
+describe("P4.1 T2 — selfBounded applies to spec/plan (header = the newest in-row)", () => {
   it("a phase-spec whose header is NOT the change-history's newest row is reported", () => {
     const findings = judge("phaseSpec", specLineage("v1.0 · 2026-10-09", [ROW_100, ROW_101]));
     expect(withKind(findings, "selfBounded", "**Version**")).toBe(true);

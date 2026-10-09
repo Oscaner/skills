@@ -5,7 +5,7 @@
 //   · the dirty-tree hard gate — implement/review/fix on a dirty working tree
 //     BLOCKs (the CDD_BLOCKED guidance) BEFORE any wave/doc judgment, child zero;
 //   · the gate order — tree-clean → plan-graph → wave → doc-contract, one verdict
-//     carries the run gate list (门序可判);
+//     carries the run gate list (the judgeable order);
 //   · the plan-graph gate — a plan whose DependsOn edges fail validates refuses;
 //   · the wave gate — the three-verb split/wrong-phase refusals ride the seam;
 //   · the doc-contract gate — the doc faces judge the target doc's structure;
@@ -296,10 +296,10 @@ describe("PreFlight — the clean-tree hard gate (implement/review/fix)", () => 
 });
 
 // ---------------------------------------------------------------------------
-// the gate order composition — 门序可判
+// the gate order composition — the judgeable gate order
 // ---------------------------------------------------------------------------
 
-describe("PreFlight — the gate order composition（tree-clean → plan-graph → wave → doc-contract）", () => {
+describe("PreFlight — the gate order composition (tree-clean → plan-graph → wave → doc-contract)", () => {
   it("a clean wave dispatch passes through tree-clean → plan-graph → wave in order", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
@@ -395,7 +395,7 @@ describe("PreFlight — the wave gate inside the seam", () => {
 // the doc-contract gate
 // ---------------------------------------------------------------------------
 
-describe("PreFlight — the doc-contract gate（（doc 面）Contract.validate）", () => {
+describe("PreFlight — the doc-contract gate (Contract.validate over the doc face)", () => {
   it("a doc face whose target carries structural findings BLOCKs with the named findings", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
@@ -431,7 +431,7 @@ describe("PreFlight — the doc-contract gate（（doc 面）Contract.validate�
 // the lifecycle wiring — a refused frame never reaches the child dispatch
 // ---------------------------------------------------------------------------
 
-describe("PreFlight — the lifecycle dispatch-entry wiring（child 零派发）", () => {
+describe("PreFlight — the lifecycle dispatch-entry wiring (child zero dispatch)", () => {
   it("advance() refuses a preflight-blocked frame without dispatching the child", () => {
     const { repoRoot, cleanup } = gitRepo();
     try {

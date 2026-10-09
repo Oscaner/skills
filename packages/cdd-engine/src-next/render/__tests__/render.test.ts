@@ -58,7 +58,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(assembler.declaredTokens()).not.toContain("INPUT_CRITERIA");
     expect(assembler.declaredTokens()).not.toContain("INPUT_LENS");
     expect(assembler.declaredTokens()).not.toContain("HANDOFF_WRITE_GATE");
-    // find #4 — the INPUT_RULES token is gone (零死指针 · 约束单源 = the plan itself)
+    // find #4 — the INPUT_RULES token is gone (zero dead pointer · the single constraint source = the plan itself)
     expect(assembler.declaredTokens()).not.toContain("INPUT_RULES");
   });
 
@@ -75,7 +75,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(out).toContain("$$SCHEMA$$"); // the injected writable-subset fence slot
     expect(out).not.toContain("{{"); // zero unresolved slots
     // find #4 — the implement reminder reads the plan's ## Constraints through
-    // INPUT_PLAN (零物化零死指针): the shared rules channel is gone from the prose
+    // INPUT_PLAN (zero materialization, zero dead pointer): the shared rules channel is gone from the prose
     // AND the round context; the OUTPUT_* write paths are prescribed (find #5)
     expect(out).not.toContain("INPUT_RULES");
     expect(out).toContain("the plan's `## Constraints` via `INPUT_PLAN`");

@@ -630,9 +630,9 @@ const PLAN_ELEMENTS = [
     refKind: "task-id",
     home: "task-field",
   },
-  // Change history — the version-lineage surface (P4.1 T2 · the overall同构): the
+  // Change history — the version-lineage surface (P4.1 T2 · overall-isomorphic): the
   // section heading + the row/version/date cells. Presence is required on the
-  // heading (P4.1 起 every plan carries a Change-history table); the row cells are
+  // heading (since P4.1 every plan carries a Change-history table); the row cells are
   // domain-judged on the table rows.
   {
     anchor: "## Change history",
@@ -819,9 +819,9 @@ const PHASE_SPEC_ELEMENTS = [
     refKind: "none",
     home: "conditional",
   },
-  // Change history — the version-lineage surface (P4.1 T2 · the overall同构): the
+  // Change history — the version-lineage surface (P4.1 T2 · overall-isomorphic): the
   // section heading + the row/version/date cells. Presence is required on the
-  // heading (P4.1 起 every phase-spec carries a Change-history table).
+  // heading (since P4.1 every phase-spec carries a Change-history table).
   {
     anchor: "## Change history",
     presence: "required",

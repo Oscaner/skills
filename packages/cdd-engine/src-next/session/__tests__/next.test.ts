@@ -321,12 +321,12 @@ describe("the severity-combination space — every blocker/warn/nit MIX rides th
 });
 
 // ---------------------------------------------------------------------------
-// P4.1 T4 — the route → literal → 二次 parse roundtrip: every router-route the C5
+// P4.1 T4 — the route → literal → second-parse roundtrip: every router-route the C5
 // table can emit renders a next literal whose argv parses with zero errors (the
 // executable command reversal) · done is the bare terminal word, never fed.
 // ---------------------------------------------------------------------------
 
-describe("P4.1 T4 — the router's routes render parseable next literals (二次 parse 零错误)", () => {
+describe("P4.1 T4 — the router's routes render parseable next literals (zero-error second parse)", () => {
   /** The next text of a route rendered against a wave-frame target (the task face —
    *  the C5 table's real consumer), then the parseable argv (the readback suffix is
    *  prompt prose, never argv). */

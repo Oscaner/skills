@@ -187,8 +187,13 @@ export abstract class Invariant extends MarkdownPrimitives {
    *  and a quoted command fragment with a NESTED citation (`` `read X + the plan's
    *  \`## Constraints\` (at INPUT_PLAN)` ``) both read as one quoted region (the
    *  find-#8 gap: the old span-by-span strip left a nested citation naked after its
-   *  opener got consumed by the outer span, judging quoted prose as a value). A
-   *  zero- or one-tick line carries no quoted region (unbalanced — nothing to strip). */
+   *  opener got consumed by the outer span, judging quoted prose as a value). The
+   *  tradeoff is pinned: a line carrying TWO separate backtick spans (`` `x` … `y` ``)
+   *  also reads as ONE quoted region, so the mid-span prose between the spans is not
+   *  judged (judge.test.ts pins this — an anchor quoted only between two adjacent
+   *  spans stays invisible to the presence/domain rules; no enforced doc carries that
+   *  shape). A zero- or one-tick line carries no quoted region (unbalanced — nothing
+   *  to strip). */
   #withoutCodeSpans(line: string): string {
     const first = line.indexOf("`");
     if (first === -1) return line;
@@ -910,8 +915,8 @@ export class SelfBoundedInvariant extends Invariant {
 
   /** The doc's Change-history row versions — the overall reads its parsed table,
    *  the plan/spec read the `## Change history` section's table rows (the shared
-   *  row primitive — the P4.1 T2 同构: the same lineage judgment rides all three
-   *  doc types). */
+   *  row primitive — the P4.1 T2 isomorphic lineage: the same lineage judgment rides
+   *  all three doc types). */
   #historyVersions(ctx: JudgeContext): readonly string[] {
     if (ctx.docKey === "overall") {
       const data = this.overall(ctx);

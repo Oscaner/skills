@@ -1,8 +1,8 @@
 // packages/cdd-engine/src-next/face/__tests__/capsule.test.ts
 // P4.1 T7 — find #7 closeout (design §5.6): the complete-executable next literal's
 // required-flag coverage. One literal per verb × type must secondary-parse with zero
-// errors (T4) AND carry every runtime-required flag of its type — "parse 绿 ⇒ 该类型
-// required flag 全覆盖". The regression the suite pins: #routeText's review→wave
+// errors (T4) AND carry every runtime-required flag of its type — the design §5.6
+// "parse green ⇒ full required-flag coverage" rule. The regression the suite pins: #routeText's review→wave
 // branch rendered `review --type wave --tasks <n>` WITHOUT the runtime-required
 // `--plan` (the implement/next-wave and fix→wave branches both carried it — a
 // composition-face inconsistency), so the literal parsed green yet BLOCKED the
@@ -117,7 +117,7 @@ const COVERAGE: readonly CoverageRow[] = [
   },
 ];
 
-describe("P4.1 T7 (find #7) — the next literal's required-flag coverage (parse 绿 ⇒ 该类型 required flag 全覆盖)", () => {
+describe("P4.1 T7 (find #7) — the next literal's required-flag coverage (parse green ⇒ the type's required flags fully covered)", () => {
   it("review→wave renders `--plan {path}` — the find #7 regression (the missing --plan previously parsed green yet refused the dispatch at runtime)", () => {
     const literal = literalOf({ kind: "review", base }, wave);
     expect(literal).toBe("review --type wave --tasks 1,2 --plan docs/kairos/plans/p3.md");

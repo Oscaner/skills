@@ -1298,7 +1298,7 @@ export class Cli {
       router: scene.router,
       // The dispatch-entry pre-flight wiring (P4.1 T1): the single seam verdict the
       // work command computed rides the lifecycle's gate — a refused frame is
-      // structurally never passed to the child (the lifecycle's hard "child 零派发"
+      // structurally never passed to the child (the lifecycle's hard "child zero-dispatch"
       // guarantee; the CLI already returned above when the seam refused).
       preflight: { gate: () => (preflight.ok ? null : preflight) },
       dispatch: (frame) => {
@@ -1360,7 +1360,7 @@ export class Cli {
       }
       const step = run.advance();
       if (step === null) break;
-      // The dispatch-entry gate's refusal (the lifecycle's hard child-零派发 wiring —
+      // The dispatch-entry gate's refusal (the lifecycle's hard child zero-dispatch wiring —
       // structurally unreachable here: the seam already returned above on refusal).
       if (step.preflight !== undefined) {
         this.#renderPreflightBlocked(verb, step.preflight, scene);

@@ -225,7 +225,7 @@ const PRECONTRACT_DOCS = new Set<string>([
 /** The doc-contract gate over the specs/plans tree — the engine judge (the same
  *  Contract.validate the pre-flight seam runs at dispatch) on every docs/kairos
  *  spec/plan doc. A finding on any NON-pre-contract doc fails the step — the
- *  T3 acceptancce "doc-contract 对新形全绿" is real, not a fixture-only suite:
+ *  T3 acceptance "doc-contract all-green on the new forms" is real, not a fixture-only suite:
  *  the wave's own plan/spec docs were CDD_BLOCKED at dispatch while `pnpm run
  *  validate` stayed green (the find-#8 gap — the gate's target docs never featured
  *  in CI). The docKey derives the way the doc faces dispatch (plan → plan,

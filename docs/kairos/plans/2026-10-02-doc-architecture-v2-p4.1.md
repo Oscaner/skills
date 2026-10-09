@@ -7,7 +7,7 @@
 - **Depends on**: P3.2（Done · [p3.2-plan v1.31](docs/kairos/plans/2026-10-02-doc-architecture-v2-p3.2.md) —— serial-phase GATE 满足，P4.1 可开线）
 - **Base**: develop
 
-执行序：W1 = {T1, T2}（引擎底座：pre-flight seam / schema 同构）→ W2 = {T3, T4}（迁移 / next 字面）→ W3 = {T5}（技能同步）→ W4 = {T6, T7}（终验 / round-context·artifact 面统一）。
+执行序（**波标签 = plan-graph board 派生标签** · `cdd schema get plan-graph`）：W00 = {T1, T2}（引擎底座：pre-flight seam / schema 同构）→ W01 = {T3, T4}（迁移 / next 字面）→ W02 = {T5}（技能同步）→ W03 = {T6, T7}（终验 / round-context·artifact 面统一）。
 
 ## Constraints
 

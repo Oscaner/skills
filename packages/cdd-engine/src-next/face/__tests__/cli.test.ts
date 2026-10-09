@@ -68,11 +68,15 @@ function fixture(opts: CliOptions = {}): CliFixture {
   };
 }
 
-/** Init a git repo with one commit — the dry-run's HEAD (the review `next:` base). */
+/** Init a git repo with one commit — the dry-run's HEAD (the review `next:` base).
+ *  The fixture .gitignore keeps the dispatch's own writes (the `.kairos` workspace)
+ *  and the fixture's synthetic docs (`/docs/`) out of the tree — the working tree
+ *  stays clean across multi-dispatch flows (the P4.1 clean-tree dispatch gate). */
 function gitInit(repoRoot: string): string {
   spawnSync("git", ["init", "-q"], { cwd: repoRoot });
   spawnSync("git", ["config", "user.email", "cli@test"], { cwd: repoRoot });
   spawnSync("git", ["config", "user.name", "cli-test"], { cwd: repoRoot });
+  writeFileSync(path.join(repoRoot, ".gitignore"), ".kairos\n/docs/\n", "utf8");
   writeFileSync(path.join(repoRoot, "seed.txt"), "seed\n", "utf8");
   spawnSync("git", ["add", "-A"], { cwd: repoRoot });
   spawnSync("git", ["commit", "-q", "-m", "seed"], { cwd: repoRoot });
@@ -119,6 +123,54 @@ function planFor(repoRoot: string, count = 1, name = "p3.md"): string {
 /** Read a JSON file (the workspace artifact assertions). */
 function readJson<T>(file: string): T {
   return JSON.parse(readFileSync(file, "utf8")) as T;
+}
+
+/** A doc-contract-clean plan — every registered plan element present (the header
+ *  tuple + the version lineage + a Change-history table + the task fields), chain
+ *  links resolving into existing same-family siblings. The P4.1 doc-contract
+ *  dispatch gate (the spec/plan faces) requires it — a plain task-fixture plan is
+ *  structurally defective and never dispatches a doc round. */
+function conformingPlan(repoRoot: string): string {
+  const file = path.join(repoRoot, "docs", "kairos", "plans", "p3.md");
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(
+    file,
+    [
+      "# Test Plan",
+      "**Spec:** [p3-design.md](docs/kairos/specs/p3-design.md)",
+      "- **Parent program**: [p3-overall.md v1.0](docs/kairos/specs/p3-overall.md)",
+      "- **Version**: v1.0 · 2026-10-09",
+      "- **Depends on**: P1",
+      "- **Base**: develop",
+      "",
+      "## Constraints",
+      "",
+      "- delta",
+      "",
+      "### Task 1:",
+      "- **Objective**: objective",
+      "- **Files**: a.ts",
+      "- **Consumes**: x",
+      "- **Produces**: y",
+      "- **Steps**:",
+      "  - step — checkable: green",
+      "- **Acceptance**: ok",
+      "- **DependsOn**: none",
+      "",
+      "## Change history",
+      "",
+      "| Version | date | summary | author |",
+      "|---|---|---|---|",
+      "| v1.0 | 2026-10-09 | initial | [human] |",
+    ].join("\n"),
+    "utf8",
+  );
+  for (const sibling of ["p3-design.md", "p3-overall.md"]) {
+    const siblingPath = path.join(repoRoot, "docs", "kairos", "specs", sibling);
+    mkdirSync(path.dirname(siblingPath), { recursive: true });
+    writeFileSync(siblingPath, `# ${sibling}\n`, "utf8");
+  }
+  return file;
 }
 
 /** A plan with N independent tasks (no deps — a single root wave of N members). */
@@ -604,6 +656,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
   it("review --type branch — the branch-range face over base..head", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
+      gitInit(repoRoot);
       const base = "a".repeat(40);
       const head = "b".repeat(40);
       const code = await command.runArgv([
@@ -640,6 +693,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
   it("review --type spec/plan — the doc-path face (the doc-derived workspace slug)", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
+      gitInit(repoRoot);
       const spec = path.join(repoRoot, "docs", "kairos", "specs", "s1-design.md");
       const specCode = await command.runArgv([
         "review",
@@ -657,7 +711,10 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         true,
       );
       io.stdoutText = "";
-      const plan = planFor(repoRoot);
+      // The plan face is doc-contract-gated (P4.1 T1): a contract-clean plan (the
+      // header tuple + version lineage + Change-history table + the chain siblings)
+      // dispatches its review round.
+      const plan = conformingPlan(repoRoot);
       const planCode = await command.runArgv([
         "review",
         "--type",
@@ -680,6 +737,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
   it("the phase gate refuses an unreachable round without dispatching a phantom", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
+      gitInit(repoRoot);
       const plan = planFor(repoRoot);
       const code = await command.runArgv([
         "review",
@@ -706,6 +764,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
   it("a BLOCKED dispatch exits 1 with the capsule (the round outcome rides the face)", async () => {
     const { command, io, repoRoot, cleanup } = fixture({ dispatch: () => ({ status: "BLOCKED" }) });
     try {
+      gitInit(repoRoot);
       const plan = planFor(repoRoot);
       const code = await command.runArgv([
         "implement",
@@ -837,6 +896,39 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       expect(io.stdoutText).toContain("status: APPROVED");
       expect(io.stderrText).toContain("CDD_BLOCKED:");
       expect(io.stderrText).toContain("no next: line");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the clean-tree gate blocks the three verbs on a dirty tree — CDD_BLOCKED · guidance · child zero (P4.1 T1)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({
+      dispatch: () => ({ status: "APPROVED" }), // a spy — must never run on a dirty tree
+    });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      // Dirty the fixture tree — a tracked change + an untracked file.
+      writeFileSync(path.join(repoRoot, "seed.txt"), "modified\n", "utf8");
+      for (const verb of ["implement", "review", "fix"] as const) {
+        io.stderrText = "";
+        io.stdoutText = "";
+        const args =
+          verb === "implement"
+            ? ["implement", "--tasks", "1", "--plan", plan]
+            : verb === "review"
+              ? ["review", "--type", "wave", "--tasks", "1", "--plan", plan]
+              : ["fix", "--type", "wave", "--tasks", "1", "--plan", plan];
+        const code = await command.runArgv([...args, "--dry-run", "--root", repoRoot]);
+        expect(code).toBe(1);
+        // the CDD_BLOCKED channel + the commit/discard guidance
+        expect(io.stderrText).toContain("CDD_BLOCKED:");
+        expect(io.stderrText).toContain("commit or discard");
+        // child zero dispatch — no round artifacts ever land
+        const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
+        expect(existsSync(path.join(workspace, "progress.json"))).toBe(false);
+        expect(existsSync(path.join(workspace, "tasks-1-brief.md"))).toBe(false);
+      }
     } finally {
       cleanup();
     }

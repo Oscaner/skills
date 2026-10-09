@@ -35,6 +35,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { declaredRegistries } from "../contract/declare.ts";
 import { PlanDocType } from "../contract/doc.ts";
+import { Contract } from "../contract/judge.ts";
 import type { DocKey } from "../contract/project.ts";
 import { Projector } from "../contract/project.ts";
 import { Translator } from "../contract/translate.ts";
@@ -56,9 +57,10 @@ import type { HandoffParams, OpType, RoundStatus } from "../session/ledger.ts";
 import { Ledger } from "../session/ledger.ts";
 import type { Route } from "../session/next.ts";
 import { NextStepRouter } from "../session/next.ts";
+import type { PreFlightVerdict } from "../session/preflight.ts";
+import { PreFlight } from "../session/preflight.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame, RunState } from "../session/run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../session/run.ts";
-import { WaveGate } from "../session/wave.ts";
 import { Capsule } from "./capsule.ts";
 import { GraphView } from "./graph-view.ts";
 import {
@@ -853,6 +855,7 @@ export interface CliOptions {
   repoRoot?: string;
   dryRun?: boolean;
   dispatch?: DispatchStep | null;
+  preflight?: PreFlight;
   template?: TemplateAssembler;
   brief?: BriefRenderer;
   stdinRead?: () => string;
@@ -895,8 +898,10 @@ export class Cli {
   readonly #docKeys: readonly string[];
   /** The plan-graph display (the schema get plan-graph + the pre-flight face). */
   readonly #graphView: GraphView;
-  /** The three-verb unified wave gate (the task-face dispatch pre-flight). */
-  readonly #waveGate: WaveGate;
+  /** The lifecycle pre-flight seam (P4.1 T1) — the single dispatch gate the work
+   *  commands consult before ANY child dispatch (tree-clean → plan-graph → wave →
+   *  doc-contract; the CLI orchestrates the call + the render, never a re-type). */
+  readonly #preflight: PreFlight;
 
   constructor(opts: CliOptions = {}) {
     this.#io = opts.io ?? {
@@ -920,7 +925,13 @@ export class Cli {
     this.#channels = this.#channelTable();
     this.#docKeys = Object.keys(this.#projector.registries().schema);
     this.#graphView = new GraphView();
-    this.#waveGate = new WaveGate();
+    this.#preflight =
+      opts.preflight ??
+      new PreFlight({
+        git: this.#git,
+        contract: new Contract(),
+        words: this.#words,
+      });
   }
 
   // ---------------------------------------------------------------------------
@@ -1127,6 +1138,34 @@ export class Cli {
       );
     }
     const scene = await this.#sceneOf(verb, type, parsed);
+
+    // THE pre-flight seam (P4.1 T1 · design §1): the single dispatch gate —
+    // tree-clean → plan-graph → wave → doc-contract — ONE call, the whole sequence
+    // lives in the seam (session/preflight.ts), the CLI only orchestrates the call
+    // + the verdict render (zero re-implemented gate here). A refused verdict
+    // returns before any brief/lifecycle: no child dispatch ever runs. The
+    // dirty-tree / doc-contract refusals ride the CDD_BLOCKED channel; the
+    // plan-graph / wave refusals keep the pre-existing refusal face.
+    const preflight = await this.#preflight.vet({
+      verb: verb as "implement" | "review" | "fix",
+      type,
+      repoRoot: scene.workspace.root.repoRoot,
+      planText: scene.planText,
+      tasks: type === "wave" ? new Set(this.#tasksOf(parsed)) : null,
+      ledger: scene.ledger,
+      doc:
+        type === "spec" || type === "plan"
+          ? {
+              docKey: type === "plan" ? "plan" : "phaseSpec",
+              path: scene.target !== null && scene.target.kind === "doc" ? scene.target.doc : "",
+            }
+          : null,
+    });
+    if (!preflight.ok) {
+      this.#renderPreflightBlocked(verb, preflight, scene);
+      return 1;
+    }
+
     if (verb === "implement" && scene.planText !== null)
       scene.briefPath = this.#renderBrief(scene, parsed);
     const expected =
@@ -1158,48 +1197,6 @@ export class Cli {
       for (const id of scene.ledger.closedWaves()) scene.state.markDone(id);
     }
 
-    // The wave pre-flight gate (v1.21 — the three-verb unified wave gate): the plan
-    // graph must validate before ANY dispatch (a violation — missing-edge / missing-id
-    // / self-loop / cycle — BLOCKs with the named edge issues; the task-loss class
-    // dies here, never silently), and the task face's `--tasks` must be EXACTLY the
-    // derived open wave at the requested verb's phase. A split/subset `--tasks`, a
-    // wrong-phase request, or a mixed-phase wave BLOCKs for implement AND review AND
-    // fix alike (the implement-only strict-wave check + the phase lock fuse into the
-    // single WaveGate.vet — never a variant gate per verb).
-    if ((type === "wave" || type === "plan") && scene.planText !== null) {
-      const parsedPlan = new PlanDocType("plan").parse(scene.planText.split("\n"));
-      const graph = new TaskGraph(parsedPlan);
-      const issues = graph.validate();
-      if (issues.length > 0) {
-        this.#io.stderr(
-          `cdd ${verb}: the plan graph has ${issues.length} edge violation(s) — fix the **DependsOn** edges first\n`,
-        );
-        for (const issue of issues)
-          this.#io.stderr(`  ${issue.kind}@T${issue.task}: ${issue.message}\n`);
-        return 1;
-      }
-      if (type === "wave" && group !== null) {
-        const verdict = this.#waveGate.vet(group, verb as OpType, graph, scene.ledger, this.#words);
-        if (!verdict.ok) {
-          this.#io.stderr(
-            `cdd ${verb}: ${verdict.message ?? "the dispatch gate refused the request"}\n`,
-          );
-          if (verdict.reason === "split") {
-            // The full-wave hint + the wave-board — the board's done face rides the
-            // SAME closedWaves() read the gate judged (one closed set, one source).
-            if (this.#graphView !== null) {
-              const closed = scene.ledger.closedWaves();
-              for (const line of this.#graphView
-                .render(graph.report(closed), `plan-graph: ${scene.planPath ?? ""}`)
-                .split("\n"))
-                this.#io.stderr(`  ${line}\n`);
-            }
-          }
-          return 1;
-        }
-      }
-    }
-
     const statuses: (RoundStatus | null)[] = [];
     const dispatch: DispatchStep = this.#dispatchOf(scene, parsed);
     const run = new Lifecycle({
@@ -1207,6 +1204,11 @@ export class Cli {
       state: scene.state,
       ledger: scene.ledger,
       router: scene.router,
+      // The dispatch-entry pre-flight wiring (P4.1 T1): the single seam verdict the
+      // work command computed rides the lifecycle's gate — a refused frame is
+      // structurally never passed to the child (the lifecycle's hard "child 零派发"
+      // guarantee; the CLI already returned above when the seam refused).
+      preflight: { gate: () => (preflight.ok ? null : preflight) },
       dispatch: (frame) => {
         const outcome = dispatch(frame);
         statuses.push(outcome.status ?? null);
@@ -1265,6 +1267,12 @@ export class Cli {
       }
       const step = run.advance();
       if (step === null) break;
+      // The dispatch-entry gate's refusal (the lifecycle's hard child-零派发 wiring —
+      // structurally unreachable here: the seam already returned above on refusal).
+      if (step.preflight !== undefined) {
+        this.#renderPreflightBlocked(verb, step.preflight, scene);
+        return 1;
+      }
       dispatched += 1;
       latest = step.capsuleLines;
       lastStatus = statuses[statuses.length - 1] ?? null;
@@ -1342,6 +1350,30 @@ export class Cli {
         return " — run cdd review first";
       default:
         return " — run cdd fix first";
+    }
+  }
+
+  /** Render a refused pre-flight verdict — the work command's BLOCK face (P4.1 T1).
+   *  The dirty-tree / doc-contract refusals ride the CDD_BLOCKED channel (the
+   *  commit/discard guidance + the named structural findings); the plan-graph / wave
+   *  refusals keep the pre-existing refusal face (the wave-board hint renders for the
+   *  wave gate's split row — its done face rides the SAME closedWaves() read the gate
+   *  judged, one closed set, one source). */
+  #renderPreflightBlocked(verb: CliVerb, verdict: PreFlightVerdict, scene: WorkScene): void {
+    if (verdict.gate === "tree-clean" || verdict.gate === "doc-contract") {
+      this.#io.stderr(`${this.#words.station("blocked")} ${verdict.message ?? ""}\n`);
+      for (const detail of verdict.details ?? []) this.#io.stderr(`  ${detail}\n`);
+      return;
+    }
+    this.#io.stderr(`cdd ${verb}: ${verdict.message ?? "the dispatch gate refused the request"}\n`);
+    for (const detail of verdict.details ?? []) this.#io.stderr(`  ${detail}\n`);
+    if (verdict.gate === "wave" && verdict.reason === "split" && scene.planText !== null) {
+      const graph = new TaskGraph(new PlanDocType("plan").parse(scene.planText.split("\n")));
+      const closed = scene.ledger.closedWaves();
+      for (const line of this.#graphView
+        .render(graph.report(closed), `plan-graph: ${scene.planPath ?? ""}`)
+        .split("\n"))
+        this.#io.stderr(`  ${line}\n`);
     }
   }
 

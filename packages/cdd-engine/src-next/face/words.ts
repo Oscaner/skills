@@ -67,6 +67,19 @@ export interface WaveGateWords {
   wrongPhase: string;
 }
 
+/** The pre-flight BLOCK wording rows — the lifecycle pre-flight seam's refusal
+ *  vocabulary (P4.1 T1 — the word-table pin: the seam's CDD_BLOCKED wording rides
+ *  the table, never a CLI restate). The braces are fill slots ({count}); the
+ *  wave-gate rows above stay the wave gate's own surface. */
+export interface PreflightWords {
+  /** The dirty-tree BLOCK — a dirty working tree refuses every work dispatch. */
+  dirtyTree: string;
+  /** The plan-graph BLOCK — the plan's DependsOn graph fails to validate. */
+  planGraph: string;
+  /** The doc-contract BLOCK — the target doc fails the structural contract. */
+  docContract: string;
+}
+
 /** The capsule word rows — every word the capsule face emits, one table. */
 export const CAPSULE_WORDS = {
   /** The capsule emit keys in order (a reorder is a red test — the pinned face). */
@@ -96,6 +109,14 @@ export const CAPSULE_WORDS = {
       "the requested wave ({requested}) splits/mismatches the derived wave ({open}) — dispatch the full derived wave",
     wrongPhase: "the open wave is at {phase} — run cdd {phase} first",
   } as const satisfies WaveGateWords,
+  /** The pre-flight BLOCK wording rows (P4.1 T1) — the seam's refusal vocabulary,
+   *  single-sourced (the seam fills the {count} slot, never a re-type). */
+  preflight: {
+    dirtyTree:
+      "the working tree is dirty — commit or discard your changes, then re-run the same command",
+    planGraph: "the plan graph has {count} edge violation(s) — fix the **DependsOn** edges first",
+    docContract: "the target document fails the doc-contract — fix its structural findings first",
+  } as const satisfies PreflightWords,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -239,6 +260,12 @@ export class Words implements WordLocaleFace {
    *  (single source: the gate fills the placeholders from these rows, never re-types). */
   waveGateWords(): WaveGateWords {
     return CAPSULE_WORDS.waveGate;
+  }
+
+  /** The pre-flight BLOCK wording rows — the seam's refusal vocabulary (single
+   *  source: the seam fills the placeholders from these rows, never re-types). */
+  preflightWords(): PreflightWords {
+    return CAPSULE_WORDS.preflight;
   }
 
   // -------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 # 文档架构方法论 v2 — P4.1 Design Spec（lifecycle 前置校验统一 · schema 一致硬化 · next 可执行字面量）
 
-- **Version**: v1.6 · 2026-10-09
+- **Version**: v1.7 · 2026-10-09
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer · 决策源 = grilling 收敛 + spec-review-1/2 修正 2026-10-09）
 - **Parent program**: [doc-architecture-v2-overall.md v1.47](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
@@ -105,6 +105,10 @@ v1.39（T26 ⑥-h）把 `next:` 定为语义字面（`[verb] [target-type] [id] 
 
 next 字面**二次 parse 零错误**断言（把 next 字符串再喂 CLI `parse()` 成功——断言面 = **三命令动词 × 各自 type**：implement 仅 wave（字面无 `--type` · 声明表零新键）· review/fix 全 type（含 `--type`）；`routeWords` 四词 = 三命令动词 + `done` 终词，`done` 单独断言裸终词、**不喂 parse**）+ 三命令动词 × 全 type 干 run E2E 直接派发（`rev1→implement wave 2` 等实链重验）+ 词表 `routeWords` 词面同步。BLOCKED/TIMEOUT 轮保持无 next（`CDD_BLOCKED:` 通道语义不动）。
 
+#### 5.6 find #7：parse 绿 ≠ 可派发（W3 现场实证 · 2026-10-09 backfill）
+
+§5.5 的「二次 parse 零错误」断言口径有缺口：**parse() 只判语法、不判必填域**——T4 交付后首个现场派发（W3 task-5 review）暴露 `review --type wave --tasks 5` 经 parse 绿、但运行时被 required 校验拒（`missing required --plan <path>`）· 根因 = `face/capsule.ts#routeText` 的 review→wave 分支（原 §5.5 断言面之 review 用例）**漏渲染必填 `--plan`**（对比同函数 implement/next-wave 分支与 fix→wave 分支均含——组合面不一致，非声明表问题）。**断言面延伸**：next 字面可执行性 = **parse 成功 ⇒ 运行时 required 校验通过**（把「parse 绿」单断言升级为「二次 parse + 该类型必须存在的 required flag 断言」——对 wave 即 `--plan`；`review --type spec`/`fix --type plan` 等余类型同法各判 own required）· 修复入 T7 扩域（plan v1.7）：`#routeText` review→wave 分支补 `--plan {path}` 组装 + 断言延伸。编排面处置（实测）：字面缺必填时编排者补足 flag 现派发（纯元数据补全 · 语义不变 · 不重跑派发）。
+
 ### 6. round-context/artifact 面统一（find #4 + #5 · W1 实施期 backfill 2026-10-09）
 
 #### 6.1 find #4：plan-constraints.md 死指针
@@ -130,7 +134,7 @@ plan-graph board 波标签现状 = 派生波数组索引泄漏（`W00` · 零基
 - `seam 单入口：tree-clean + doc-contract + wave 收敛 Lifecycle pre-flight（cli 零重复实现）· evidence/读回门留驻 child（归属声明可判）`
 - `三类型注册表同构：**Version** required ×3 · valuePattern = 版本号+时间严格形（bold 形归一）· **Change history** required ×3（含行/日期元素）· 派生 schema/描述面随投影（字节 pin 测试更新）`
 - `selfBounded 对 spec/plan 生效（header = 表中最新且必在行内）· 回归测试`
-- `next: 渲染 = 完整可执行命令：三命令动词 × 各自 type next 字面二次 parse 零错误（done 终词不喂 parse · implement 恒 wave 单 type 动词字面无 --type 声明表零新键 · render 含 --plan required · review/fix 含 --type）· 干 run E2E 直接派发 · 消费面技能文本同步（I2/I1/I3 + emit）· routeWords 词面同步`
+- `next: 渲染 = 完整可执行命令：三命令动词 × 各自 type next 字面二次 parse 零错误（done 终词不喂 parse · implement 恒 wave 单 type 动词字面无 --type 声明表零新键 · render 含 --plan required · review/fix 含 --type）· 每条 next 字面的 required flag 全覆盖断言（find #7：parse 绿 ⇒ 运行时 required 校验过 · `#routeText` 组合面一致——review→wave 分支补 `--plan`）· 干 run E2E 直接派发 · 消费面技能文本同步（I2/I1/I3 + emit）· routeWords 词面同步`
 - `全树合规（规则断言 · 实测基线 54 = 53 + 本 plan）：47 非 overall 建/补 Change history（23 design + 24 plans）· 11 无匹配形（9 真无头建档 + 2 bold 归一 · 表行源自拆链/建档）· 4 拆链 · 28 有头非严格清零（26 非 bold + 2 bold · 含 3 旧 overall · 机械扫口径自洽）· `前置 v`/补充说明在 `**Version**` 头行零残留（表行豁免）· 实施期机械清点复核一致 · validate 零 drift`
 - `历史正文内容保真（迁移只动容器 · 版本摘要逐字入行 + 机 pin 无损断言——扫描面 = 迁移前头部文本 vs 迁移后表行并集零漏，含补充说明内嵌版本序列按 `· vX.Y` 切行）· 零 retro-rename`
 - `round-context 零死指针：INPUT_RULES 键删除（cli 声明/valuesOf/round-context 三处）· implement prompt 提醒行指 plan `## Constraints`（经 INPUT_PLAN 直读约束 · 零物化零死指针）· 相关断言更新`
@@ -158,3 +162,4 @@ plan-graph board 波标签现状 = 派生波数组索引泄漏（`W00` · 零基
 | v1.4 | 2026-10-09 | **find #6 收口（W1 起序裁决 · 用户拍板）**：组 6 补 6.4——plan-graph 波标签 W1 起序（显示层派生索引 + 1 · 去零补 · 推导零语义变化）· acceptance 增一条 · 与 plan v1.4 T7 对齐 | [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer） |
 | v1.5 | 2026-10-09 | **W1 期 backfill（F1 解决形态裁定 · 用户拍板）**：组 1 补 1.5——clean-tree 门零引擎侧排除（`isClean` 纯 git 语义）· workspace 自产 `.gitignore` 于 namespace 根（`.kairos/` · 内容 `*`）· 消费者零配置 · 方案 A 排除面被弃（双真相代价）· fix-2 cdd 收口被打回（用户「只要 .kairos 下的」）· tracked-workspace 修改仍上 gate · 回归两级（seam + CLI）——final 形态，后续不得打回 | [human] · Claude Opus 5（kairos:cdd-design） |
 | v1.6 | 2026-10-09 | **T4 范围反杆（用户拍板 · find #3 深化）**：implement 恒 wave 单 type 动词——next 字面**不带 `--type`**（`cdd implement --plan <path> --tasks 17`）· 声明表零新键（`parsed.args.type ?? "wave"` 缺省语义不变）· **三命令无需同构**（同构是偏门）· `--type` 只在有区分力时渲染（review/fix 多 type 必带 · implement 单 type 省略）· next 本质 = 下一步 suggestion 字面量（可执行性是手段）· §5.2/5.3/5.5 + 验收随改 · 与 plan v1.6 T4 对齐 | [human] · Claude Opus 5（kairos:cdd-design） |
+| v1.7 | 2026-10-09 | **W3 期 backfill（find #7 · 派发现场实证）**：§5.5 断言口径缺口——parse 绿 ≠ 可派发（`review --type wave --tasks 5` 运行时要必填 `--plan` 拒 · 根因 = `#routeText` review→wave 分支漏组装，对比 implement/fix→wave 分支均含）· 新 §5.6 定案（组合面一致 + 断言面延伸「parse + 该类型 required flag 断言」· 编排面补 flag 现派发语义）· 修复归 T7 扩域 · 与 plan v1.7 T7 对齐 | [human] · Claude Opus 5（kairos:cdd-design） |

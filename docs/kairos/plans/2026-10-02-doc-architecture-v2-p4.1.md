@@ -3,7 +3,7 @@
 **Spec:** [P4.1-design v1.2](docs/kairos/specs/2026-10-02-doc-architecture-v2-p4.1-design.md)
 
 - **Parent program**: [doc-architecture-v2-overall.md v1.47](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.6 · 2026-10-09
+- **Version**: v1.7 · 2026-10-09
 - **Depends on**: P3.2（Done · [p3.2-plan v1.31](docs/kairos/plans/2026-10-02-doc-architecture-v2-p3.2.md) —— serial-phase GATE 满足，P4.1 可开线）
 - **Base**: develop
 
@@ -116,20 +116,21 @@
 
 ### Task 7: round-context/artifact 面统一（find #4 + #5）
 
-- **Objective**: 消费面清理（design §6 · W1 期 backfill + find #6 收口）——**find #4**：删 `INPUT_RULES` 键（cli 声明/valuesOf/round-context 三处）· implement prompt 提醒行改指 plan `## Constraints`（child 经 INPUT_PLAN 直读 · 零物化零死指针）· **find #5**：workspace artifact 单一命名制 `{family}-{key}-{artifact}`（doc = `{op}.{type}.{round}`（spec-review-1）· work = `tasks-{wave}`/`branch-{key}`）· round context 注入 `OUTPUT_BRIEF`/`OUTPUT_REPORT`/`OUTPUT_EVIDENCE`（prescribed · 同 OUTPUT_HANDOFF 模式）· 三行块路径一致性校验（或引擎自派生不靠 child 报告）· cdd-plan author-plan 句 + 模板 artifacts 段同步（零自由命名 · 跨轮零覆写）· **find #6**：wave 波标签 **W1 起序**（用户 2026-10-09 拍板「W1 更符 agent 心智」）——plan-graph board 标签 = 派生波索引 + 1（去零补 · 显示层 · 推导零语义变化）
-- **Files**: `packages/cdd-engine/src-next/face/cli.ts`（改：INPUT_RULES 删 · OUTPUT_* 注入 · artifacts 一致性）· `packages/cdd-engine/src-next/face/graph-view.ts`（改：wave 标签 W1 起序）· `packages/cdd-engine/src-next/render/templates.ts`（改：implement 提醒行 · artifacts 段）· `packages/cdd-engine/src-next/face/__tests__/cli.test.ts` + `face/__tests__/graph-view.test.ts` + `render/__tests__/render.test.ts`（改：round-context 断言 · board 断言）· `packages/kairos/skills/cdd-plan/SKILL.md`（改：author-plan 句零物化声明）
+- **Objective**: 消费面清理（design §6 · W1 期 backfill + find #6 收口）+ **find #7 收口（design §5.6 · W3 派发现场实证）**——**find #4**：删 `INPUT_RULES` 键（cli 声明/valuesOf/round-context 三处）· implement prompt 提醒行改指 plan `## Constraints`（child 经 INPUT_PLAN 直读 · 零物化零死指针）· **find #5**：workspace artifact 单一命名制 `{family}-{key}-{artifact}`（doc = `{op}.{type}.{round}`（spec-review-1）· work = `tasks-{wave}`/`branch-{key}`）· round context 注入 `OUTPUT_BRIEF`/`OUTPUT_REPORT`/`OUTPUT_EVIDENCE`（prescribed · 同 OUTPUT_HANDOFF 模式）· 三行块路径一致性校验（或引擎自派生不靠 child 报告）· cdd-plan author-plan 句 + 模板 artifacts 段同步（零自由命名 · 跨轮零覆写）· **find #6**：wave 波标签 **W1 起序**（用户 2026-10-09 拍板「W1 更符 agent 心智」）——plan-graph board 标签 = 派生波索引 + 1（去零补 · 显示层 · 推导零语义变化）· **find #7**：`face/capsule.ts#routeText` review→wave 分支补 `--plan {path}`（现状漏组装 → wave review 字面缺必填运行时要）· next 字面断言面延伸「parse 绿 ⇒ 该类型 required flag 全覆盖」（design §5.6）
+- **Files**: `packages/cdd-engine/src-next/face/cli.ts`（改：INPUT_RULES 删 · OUTPUT_* 注入 · artifacts 一致性）· `packages/cdd-engine/src-next/face/graph-view.ts`（改：wave 标签 W1 起序）· `packages/cdd-engine/src-next/render/templates.ts`（改：implement 提醒行 · artifacts 段）· `packages/cdd-engine/src-next/face/capsule.ts`（改：**find #7**——`#routeText` review→wave 分支补 `--plan {path}` 组装）· `packages/cdd-engine/src-next/face/__tests__/cli.test.ts` + `face/__tests__/graph-view.test.ts` + `render/__tests__/render.test.ts` + `face/__tests__/capsule.test.ts`（改：round-context 断言 · board 断言 · **find #7 required flag 全覆盖断言**）· `packages/kairos/skills/cdd-plan/SKILL.md`（改：author-plan 句零物化声明）
 - **Consumes**: Task 1（cli 前置面）· Task 4（round-context/模板面 · next 字面）· Task 5（技能文本）
 - **Produces**: 零死指针 round context（约束单源 INPUT_PLAN）· artifact 单一命名制（prescribed OUTPUT_* · 跨轮零覆写）
 - **Steps**:
   - 失败测试：round-context 断言（INPUT_RULES 零命中 · OUTPUT_BRIEF/REPORT/EVIDENCE 键在且命名 `{family}-{key}-` 前缀）· doc-family artifact 跨轮不覆写断言 · **board 断言（波标签 W1 起 · 去零补）** — checkable: 断言绿
   - 跑测试确认失败（INPUT_RULES 现存 · doc-family 自由命名覆写 · W00 起） — checkable: 失败如预期
   - cli：删 INPUT_RULES（声明/valuesOf/round-context）· 注入 OUTPUT_*（`{family}-{key}` 命名派生）· 三行块路径一致性（或自派生） — checkable: 断言绿
+  - capsule：`#routeText` review→wave 分支补 `--plan {path}` 组装（与 implement/next-wave/fix→wave 分支同构）· next 字面 required flag 全覆盖断言（parse 绿 ⇒ 各该类型必填在同一 arg 域） — checkable: find #7 断言绿（`review --type wave … --plan …` 运行时要过）
   - graph-view：wave 标签 = 派生波索引 + 1（W1 · W2 · … 零补去除） — checkable: board 断言绿
   - templates：implement 提醒行改指 plan `## Constraints`（INPUT_PLAN）· artifacts 段同步 — checkable: 模板断言绿
   - 技能文本：cdd-plan author-plan 句删除/改述（零物化声明）· `pnpm run emit` 再生 — checkable: emit:check 零 drift
   - 引擎 vitest 全绿 — checkable: engine vitest 通过
   - commit `fix(engine): round-context 零死指针（INPUT_RULES 删 · 约束单源 INPUT_PLAN）+ artifact 单一命名制（family-keyed prescribed · 跨轮零覆写）+ wave 标签 W1 起序`（自测绿后）
-- **Acceptance**: INPUT_RULES 三处删除 · implement prompt 提醒行指 plan（child 经 INPUT_PLAN 直读约束）· artifact 单一命名制（prescribed OUTPUT_* · 跨轮零覆写回归）· **board 波标签 W1 起序（W1–W4 与 plan 执行序逐字一致）** · 技能文本同步 · emit 新鲜 · engine vitest 全绿
+- **Acceptance**: INPUT_RULES 三处删除 · implement prompt 提醒行指 plan（child 经 INPUT_PLAN 直读约束）· artifact 单一命名制（prescribed OUTPUT_* · 跨轮零覆写回归）· **board 波标签 W1 起序（W1–W4 与 plan 执行序逐字一致）** · **find #7 收口（review→wave 字面补 `--plan` · 三命令 × 各 type required flag 全覆盖可执行）** · 技能文本同步 · emit 新鲜 · engine vitest 全绿
 - **DependsOn**: 1, 4, 5
 
 ## Change history
@@ -143,3 +144,4 @@
 | v1.4 | 2026-10-09 | **find #6 收口（W1 起序裁决）**：用户拍板「W1 起更符 agent 心智」——T7 扩域：graph-view 波标签 = 派生波索引 + 1（W1 · W2 · … 去零补 · 显示层零语义变化）· 执行序回 W1–W4（与 board 同标号）· board 断言入 T7 Steps/Acceptance | [human] · Claude Opus 5（kairos:cdd-design → cdd-plan · Plan Sole Writer） |
 | v1.5 | 2026-10-09 | **W1 期 backfill（F1 解决形态 · 用户拍板）**：T1 Objective 补 clean-tree 门解决形态（design §1.5）——`isClean` 纯 git 语义 · workspace ensure 自产 namespace 根 `.gitignore`（内容 `*`）· 消费者零配置 · A 排除面弃之 | [human] · Claude Opus 5（kairos:cdd-plan · Plan Sole Writer） |
 | v1.6 | 2026-10-09 | **T4 反杆（用户拍板 · find #3 深化）**：implement 恒 wave 单 type 动词——next 字面不带 `--type`（`cdd implement --plan <path> --tasks 17`）· 声明表零新键 · 三命令无需同构（同构是偏门 · `--type` 只在该动词 type 有区分力时渲染）· T4 Objective/Files/Steps/Acceptance 全随 · 与 spec v1.6 §5 对齐 | [human] · Claude Opus 5（kairos:cdd-plan · Plan Sole Writer） |
+| v1.7 | 2026-10-09 | **W3 期 backfill（find #7 · 派发现场实证 · 用户「backfill 回 overall/spec/plan」）**：新增 T7 扩域——wave review next 字面漏必填 `--plan`（`face/capsule.ts#routeText` review→wave 分支缺组装 · parse 绿 ≠ 运行时 required 绿）· 修复 = `#routeText` 补组装 + 断言面延伸「parse 绿 ⇒ 该类型 required flag 全覆盖」· T7 Files 增 capsule.ts/capsule.test.ts · Steps/Acceptance 随 · 与 spec v1.7 §5.6 / overall v1.52 对齐 | [human] · Claude Opus 5（kairos:cdd-plan · Plan Sole Writer） |

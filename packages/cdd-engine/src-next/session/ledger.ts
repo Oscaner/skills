@@ -303,9 +303,11 @@ export class ReviewRefs {
 
   /** The content-hash revision — sha1 hex of the reviewed file content. */
   #hash(content: string | Buffer): string {
-    // find #10（spec §6.6）：the doc-revision hash is the engine's 8-char short
-    // form too — no long hex anywhere in the engine（full sha1 digest sliced）.
-    return createHash("sha1").update(content).digest("hex").slice(0, 8);
+    // The doc-revision hash is a non-ref content digest — the full sha1 hex stays
+    // unsliced (a git short-sha disambiguates by object presence; a bare 8-char
+    // digest slice narrows the bind basis to birthday-collision range). The 8-char
+    // surface is spec §6.6's commit-refs domain, not this digest.
+    return createHash("sha1").update(content).digest("hex");
   }
 }
 

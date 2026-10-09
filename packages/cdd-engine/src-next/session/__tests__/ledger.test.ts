@@ -413,8 +413,9 @@ describe("review references — the refKind face (T25 · P5)", () => {
       const docRef = refs.docRevision("docs/kairos/specs/x-design.md", "revision one");
       expect(docRef.kind).toBe("doc-revision");
       expect(docRef.doc).toBe("docs/kairos/specs/x-design.md");
-      // find #10 — the doc_rev hash is the engine's 8-char short form too
-      expect(docRef.doc_hash).toMatch(/^[0-9a-f]{8}$/);
+      // the doc-revision content hash stays a full sha1 hex — a non-ref digest,
+      // unsliced (the 8-char form is the commit-refs surface, not this binding)
+      expect(docRef.doc_hash).toMatch(/^[0-9a-f]{40}$/);
       // the same content hashes the same revision — the two-layer convergence
       const docRefAgain = refs.docRevision("docs/kairos/specs/x-design.md", "revision one");
       expect(docRefAgain.doc_hash).toBe(docRef.doc_hash);

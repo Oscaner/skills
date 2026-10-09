@@ -589,7 +589,8 @@ export class HarnessDispatch {
 
   /** The canonical evidence file name of a work frame (find #5/#9 — the
    *  {line}-test-evidence.json form: `tasks-{tasks}-test-evidence.json` /
-   *  `branch-test-evidence.json`（行级当前态 · 随轮覆写 · range 掉出文件名）;
+   *  `branch-test-evidence.json` — the branch line's row-level current state,
+   *  overwritten each round (the range token left the name);
    *  the same name the read-back gate reads). The line token joins when the frame
    *  keys it (the task face) — a key-less line (branch) names the family alone. */
   #evidenceName(frame: OpenFrame): string {
@@ -897,7 +898,8 @@ export class HarnessDispatch {
         const range = frame.target as { kind: "branch"; base: string; head: string };
         // find #10 — the review face consumes the 8-char short flags (full-shas
         // retired engine-wide); the workspace-identity `--plan` rides (find #8
-        // F1b · spec §5.7 fix ② — `#sceneOf` 无 `--plan` 落 ref.short() 空目录).
+        // F1b · spec §5.7 fix ② — a plan-less `#sceneOf` resolves to the empty
+        // ref.short() directory).
         const ref = new BranchRef(range.base, range.head);
         return `cdd review --type branch --plan ${plan} ${ref.args()}`;
       }
@@ -912,7 +914,8 @@ export class HarnessDispatch {
             ? `--${frame.type === "spec" ? "spec" : "plan"} ${frame.target.doc}`
             : // branch fix carries no refs — the range rides the --findings handoff;
               // the workspace-identity `--plan` still rides (find #8 F1b · spec §5.7
-              // fix ② — `#sceneOf` 无 `--plan` 解析到 ref.short() 空目录，编排者零兜底)
+              // fix ② — a plan-less `#sceneOf` resolves to the empty ref.short()
+              // directory, with zero orchestrator fallback)
               frame.target.kind === "branch"
               ? `--plan ${plan}`
               : `--tasks ${frame.params.tasks ?? ""} --plan ${plan}`;
@@ -1499,9 +1502,9 @@ export class Cli {
   }
 
   /** The line key of a fixed-target face — the branch line's STABLE key (find #9
-   *  · spec §6.5 — `"branch"` per workspace, round 跨 re-review 累计；old form was
-   *  the range short, its head moving every fix → new key → round reset to 1) or
-   *  the doc path — the lifecycle's own key derivation (run.ts #lineKey 同源). */
+   *  · spec §6.5 — `"branch"` per workspace, accumulating across re-reviews; the
+   *  old form was the range short, its head moving every fix → new key → round
+   *  reset to 1) or the doc path — the lifecycle's own key derivation (run.ts #lineKey). */
   #lineKey(scene: WorkScene): string | null {
     if (scene.target?.kind === "branch") return "branch";
     if (scene.target?.kind === "doc") return scene.target.doc;
@@ -1909,8 +1912,9 @@ export class Cli {
         }
         return value;
       case "sha":
-        // find #10（spec §6.6 · 用户拍板「整个引擎不再使用长 sha」）：the CLI sha
-        // channel accepts the 8-char short form（40-char full shas retired）.
+        // find #10 (spec §6.6 · the user's ruling: no long shas anywhere in the
+        // engine): the CLI sha channel accepts the 8-char short form (40-char
+        // full shas retired).
         if (!/^[0-9a-f]{8}$/.test(value)) {
           throw this.#usage(`cdd ${spec.name}: --${key} must be an 8-char sha`, surface.usage);
         }

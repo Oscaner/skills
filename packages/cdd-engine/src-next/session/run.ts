@@ -415,7 +415,7 @@ export class Lifecycle {
   }
 
   /** The progress key of a single-target line — the branch line's STABLE key (find
-   *  #9 · spec §6.5 — `"branch"` per workspace, round 跨 re-review 累计；old form
+   *  #9 · spec §6.5 — `"branch"` per workspace, accumulating across re-reviews; old form
    *  = the range short, head moving every fix → new key → round reset to 1) or
    *  the doc path (the task face never routes here — frames key by the wave key). */
   #lineKey(target: AuditTarget): LedgerKey {
@@ -565,9 +565,10 @@ export class Lifecycle {
       case "wave":
         return { type: "wave", id: frame.params.tasks ?? "", plan: this.#planPath ?? undefined };
       case "branch":
-        // find #8 F1b（spec §5.7 fix ②）：the branch target carries the workspace
-        // plan path — the fix/re-review literals' `--plan`（`#sceneOf` 无 plan 落
-        // ref.short() 空目录 · workspace 双身份 · 编排者零兜底）。
+        // find #8 F1b (spec §5.7 fix ②): the branch target carries the workspace
+        // plan path — the fix/re-review literals' `--plan` (a plan-less
+        // `#sceneOf` resolves to the empty ref.short() directory · the workspace
+        // double identity · zero orchestrator fallback).
         return {
           type: "branch",
           id: `${frame.params.base8}..${frame.params.head8}`,

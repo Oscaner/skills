@@ -246,9 +246,9 @@ describe("PreFlight — the clean-tree hard gate (implement/review/fix)", () => 
   it("the workspace self-publishes its .gitignore — a consumer repo WITHOUT a .kairos ignore stays clean across dispatches (P4.1 F1 regression)", async () => {
     // The consumer-repo shape: no `.kairos` in the root .gitignore (the fixture's
     // default mask is overridden). The scene's workspace ensure self-publishes
-    // `.kairos/cdd/.gitignore` (content `*`) BEFORE the gate reads the tree, so
-    // git's own judgment is clean — the engine's run artifacts never read as
-    // uncommitted user work, with zero engine-side exclusion in isClean.
+    // `.kairos/.gitignore` (namespace root, content `*`) BEFORE the gate reads
+    // the tree, so git's own judgment is clean — the engine's run artifacts never
+    // read as uncommitted user work, with zero engine-side exclusion in isClean.
     const { repoRoot, cleanup } = gitRepo("/docs/\n");
     try {
       const workspace = new Workspace(

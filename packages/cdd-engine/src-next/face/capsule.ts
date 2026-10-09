@@ -152,7 +152,7 @@ export class Capsule {
           // `--plan` is present, else `ref.short()`). A head-less route refuses the
           // half-composed literal (the bare classifier fallback — only present facts land).
           // find #10 — the range renders in the engine's 8-char short form (long shas
-          // retired) through the ONE BranchRef decision（零裸切片）.
+          // retired) through the ONE BranchRef decision — zero bare slicing.
           if (route.head === undefined) return verb;
           const ref = new BranchRef(route.base, route.head);
           return `${verb} ${this.#flag("type")} branch ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("base")} ${ref.base8} ${this.#flag("head")} ${ref.head8}`;
@@ -174,9 +174,11 @@ export class Capsule {
           return `${verb} ${this.#flag("type")} plan ${this.#flag("plan")} ${id} ${this.#flag("findings")} ${route.findings} ${FIX_READBACK_SUFFIX}`;
         }
         if (type === "branch") {
-          // find #8 F1b（spec §5.7 fix ② · 用户拍板）：the branch fix literal carries
-          // the workspace-identity `--plan`（与 wave fix 分支同构）——无 `--plan` 时
-          // `#sceneOf` branch 解析到 `ref.short()` 空目录（workspace 双身份）· 编排者零兜底。
+          // find #8 F1b (spec §5.7 fix ② · the user's ruling): the branch fix
+          // literal carries the workspace-identity `--plan` (isomorphic with the
+          // wave fix branch; a plan-less `#sceneOf` resolves to the empty
+          // ref.short() directory — the workspace double identity, zero
+          // orchestrator fallback).
           return `${verb} ${this.#flag("type")} branch ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("findings")} ${route.findings} ${FIX_READBACK_SUFFIX}`;
         }
         return `${verb} ${this.#flag("findings")} ${route.findings} ${FIX_READBACK_SUFFIX}`;

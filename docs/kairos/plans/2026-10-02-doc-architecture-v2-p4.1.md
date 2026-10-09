@@ -3,7 +3,7 @@
 **Spec:** [P4.1-design v1.2](docs/kairos/specs/2026-10-02-doc-architecture-v2-p4.1-design.md)
 
 - **Parent program**: [doc-architecture-v2-overall.md v1.47](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.4 · 2026-10-09
+- **Version**: v1.5 · 2026-10-09
 - **Depends on**: P3.2（Done · [p3.2-plan v1.31](docs/kairos/plans/2026-10-02-doc-architecture-v2-p3.2.md) —— serial-phase GATE 满足，P4.1 可开线）
 - **Base**: develop
 
@@ -21,7 +21,7 @@
 
 ### Task 1: Lifecycle 前置校验 seam + 全动词 clean-tree 硬门
 
-- **Objective**: Pre-flight seam 成型（design §1）——tree-clean + doc-contract + wave 三门收敛单入口，cli 只编排零重复；`implement`/`review`/`fix` 任一 dispatch 前置 `isClean()`（infra/git.ts 原语接线）检查，脏树 → `CDD_BLOCKED:` + commit/discard 指引，child 零派发——兑现技能已宣称的「engine entry gate: dirty → BLOCKED」（契契/实现错位修复）
+- **Objective**: Pre-flight seam 成型（design §1）——tree-clean + doc-contract + wave 三门收敛单入口，cli 只编排零重复；`implement`/`review`/`fix` 任一 dispatch 前置 `isClean()`（infra/git.ts 原语接线）检查，脏树 → `CDD_BLOCKED:` + commit/discard 指引，child 零派发——兑现技能已宣称的「engine entry gate: dirty → BLOCKED」（契契/实现错位修复）。**F1 解决形态（用户拍板 · design §1.5）**：workspace 的 git 可见性由 `WorkspaceRoot.ensure()` 自管——namespace 根（`.kairos/`）幂等自产 `.gitignore`（内容 `*`）· `isClean` 保持纯 `git status` 语义零引擎侧排除 · 消费者零配置；ensure 先于 preflight 时序已实证
 - **Files**: `packages/cdd-engine/src-next/session/preflight.ts`（新建 · PreFlight 类）· `packages/cdd-engine/src-next/session/run.ts`（改：Lifecycle 前置校验接线）· `packages/cdd-engine/src-next/face/cli.ts`（改：#runWork 前置门收敛为 seam 调用）· `packages/cdd-engine/src-next/session/__tests__/preflight.test.ts`（新建）
 - **Consumes**: `infra/git.ts#isClean` · `Contract.validate`（contract/judge.ts）· `WaveGate.vet`（session/wave.ts）
 - **Produces**: `PreFlight`（单入口 · 门序：tree-clean →（wave 面）plan-graph validate + WaveGate →（doc 面）Contract.validate → dispatch）· 三动词脏树 → BLOCK 负例断言
@@ -141,3 +141,4 @@
 | v1.2 | 2026-10-09 | **W1 期 backfill（find #4 + #5 · Plan Sole Writer）**：新增 Task 7（round-context/artifact 面统一——INPUT_RULES 删（三处）· 约束单源 = plan `## Constraints` 经 INPUT_PLAN · artifact 单一命名制 `{family}-{key}-{artifact}` prescribed（OUTPUT_BRIEF/REPORT/EVIDENCE 注入）· 三行块一致性校验 · cdd-plan author-plan 句改述 · 跨轮零覆写）· 执行序 W03 = {6, 7}（T7 DependsOn 1, 4, 5） | [human] · Claude Opus 5（kairos:cdd-plan · Plan Sole Writer） |
 | v1.3 | 2026-10-09 | **find #6（双标号）**：执行序波标签改引用 plan-graph board 派生标签（W00–W03 · 零基）——原自造一基 W1–W4 与 board 双标号（W4 = W03）· 一文一句约定声明 | [human] · Claude Opus 5（kairos:cdd-design → cdd-plan） |
 | v1.4 | 2026-10-09 | **find #6 收口（W1 起序裁决）**：用户拍板「W1 起更符 agent 心智」——T7 扩域：graph-view 波标签 = 派生波索引 + 1（W1 · W2 · … 去零补 · 显示层零语义变化）· 执行序回 W1–W4（与 board 同标号）· board 断言入 T7 Steps/Acceptance | [human] · Claude Opus 5（kairos:cdd-design → cdd-plan · Plan Sole Writer） |
+| v1.5 | 2026-10-09 | **W1 期 backfill（F1 解决形态 · 用户拍板）**：T1 Objective 补 clean-tree 门解决形态（design §1.5）——`isClean` 纯 git 语义 · workspace ensure 自产 namespace 根 `.gitignore`（内容 `*`）· 消费者零配置 · A 排除面弃之 | [human] · Claude Opus 5（kairos:cdd-plan · Plan Sole Writer） |

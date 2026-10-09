@@ -1,6 +1,6 @@
 # 文档架构方法论 v2 — P4.1 Design Spec（lifecycle 前置校验统一 · schema 一致硬化 · next 可执行字面量）
 
-- **Version**: v1.4 · 2026-10-09
+- **Version**: v1.5 · 2026-10-09
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer · 决策源 = grilling 收敛 + spec-review-1/2 修正 2026-10-09）
 - **Parent program**: [doc-architecture-v2-overall.md v1.47](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
@@ -28,6 +28,10 @@ P4 起写期三发现作用域化为本 phase（用户 2026-10-09 拍板「直�
 #### 1.4 输出契约
 
 BLOCK 话术走既有 `CDD_BLOCKED:` 通道 + `next:` 重跑指引（词表钉）；skill 输出面零新字段。
+
+#### 1.5 Clean-tree 实现形态（workspace 自产 `.gitignore` · 用户拍板 · W1 裁定）
+
+**clean-tree 门零引擎侧排除——`isClean` 保持纯 `git status` 语义**：引擎工作区的 git 可见性由 workspace 自管，不归 dispatch 门。`WorkspaceRoot.ensure()` 在 **namespace 根（`.kairos/`）** 幂等自产 `.gitignore`（内容 `*`）——git 面整体自净，消费者零配置（README 无 `.kairos` ignore 义务）。**选型历程**：F1 review-1 曾建议并落地「门前置特判排除 `.kairos/cdd`」（方案 A：`isClean` 加 ignorePath 参数 + `--untracked-files=all` 展开 + `PreFlightContext.workspaceRoot` 穿透 + README 消费者义务）——三处代价且是**双真相**（引擎的 `isClean` 说干净、`git status` 说不干净）；用户 2026-10-09 裁定「workspace 自产 `.gitignore`」（方案 B）并进一步拍板「**只要 `.kairos` 下的**」——marker 落 namespace 根而非 `.kairos/cdd/`（A 被弃、fix-2 的 cdd 收口亦被裁决打回，commit 序列 `f4f1d29` → `cda2837` → `d23f88f`）。时序由 F1 review 实证背书：`#sceneOf` 的 ensure 先于 `preflight.vet` 的 isClean。**语义加分**：`.gitignore` 只影响 untracked 文件——用户 git-track 了工作区后，对它的修改仍会触发 gate（引擎自产内容被纳入版本控制属用户责任，引擎视同用户文件），方案 A 的排除面反而会放过。此裁决是 P4.1 清洁门面的最终形态，任何后续改动不得打回。消费者无 `.kairos` ignore 的多轮派发不自锁回归测试位于 `preflight.test.ts` + `cli.test.ts`（seam + CLI 两级）。
 
 ### 2. Schema 一致硬化（三类型同构）
 
@@ -152,3 +156,4 @@ plan-graph board 波标签现状 = 派生波数组索引泄漏（`W00` · 零基
 | v1.2 | 2026-10-09 | **spec-review-2 全修（3 warn · 2 nit）**：① implement 声明表补 `--type`（默认 wave）+ render 必含 `--plan`（required）——§5.2 字面置正（`cdd implement --type wave --plan <path> --tasks 17`）· §5.3 组合点改述（implement type 域 = 本 phase 补实现，原「已声明」不实）· §5.5/验收二次 parse 断言面可达（原字面 parse 必拒）② 12 无匹配形口径三处统一（Design/§3.4/验收：10 真无头 · 2 bold 归一——2 bold 有头非建档、表行源自拆链）+ 非严格形定义句（= 有头且非严格、不含 bold · 机械复核 27 = 25 + 2 口径自洽）③ 保真转录扩展至非 telescope 补充说明（`· vX.Y` token 全量切行 · 机 pin 扫描面 = 迁移前头部文本 vs 迁移后表行并集零漏）+ 3 旧 overall 补日期 = 其 Change history 末行日期（零虚构）④ 四动词 = routeWords 四词（三命令动词 + done 终词 · 二次 parse 断言面三命令动词、done 不喂 parse）⑤ 顶部声明全树基线较 overall v1.47 注册修正（5→4 拆链 · 47→49 补表 · 12 无匹配形） | [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer） |
 | v1.3 | 2026-10-09 | **W1 期 backfill（find #4 + #5 · round-context/artifact 面统一）**：新组 6——plan-constraints.md 死指针（INPUT_RULES 删 · 约束单源 = plan `## Constraints` 经 INPUT_PLAN · implement prompt 提醒行改指 · 零物化）· workspace artifact 命名统一（`{family}-{key}-{artifact}` prescribed · round context 注入 OUTPUT_BRIEF/REPORT/EVIDENCE · 三行块一致性校验 · 跨轮零覆写）· 验收基线纠正为实测（54 · 47 建/补 · 11 无匹配形 = 9+2 · 4 拆链 · 28 清零）+ 两条验收增补 | [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer） |
 | v1.4 | 2026-10-09 | **find #6 收口（W1 起序裁决 · 用户拍板）**：组 6 补 6.4——plan-graph 波标签 W1 起序（显示层派生索引 + 1 · 去零补 · 推导零语义变化）· acceptance 增一条 · 与 plan v1.4 T7 对齐 | [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer） |
+| v1.5 | 2026-10-09 | **W1 期 backfill（F1 解决形态裁定 · 用户拍板）**：组 1 补 1.5——clean-tree 门零引擎侧排除（`isClean` 纯 git 语义）· workspace 自产 `.gitignore` 于 namespace 根（`.kairos/` · 内容 `*`）· 消费者零配置 · 方案 A 排除面被弃（双真相代价）· fix-2 cdd 收口被打回（用户「只要 .kairos 下的」）· tracked-workspace 修改仍上 gate · 回归两级（seam + CLI）——final 形态，后续不得打回 | [human] · Claude Opus 5（kairos:cdd-design） |

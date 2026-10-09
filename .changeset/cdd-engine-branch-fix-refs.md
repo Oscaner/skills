@@ -1,0 +1,5 @@
+---
+"@oscaner-skills/cdd-engine": patch
+---
+
+The `cdd fix --type branch` channel was structurally un-invokable on the rebuilt engine: the work-scene assembly required the branch refs `--base`/`--head` while the fix command's key set never declared them — a branch fix dispatch either hit `unknown option: --base` or `missing required --base`. Root cause: the greenfield redesign re-declared the branch range on the fix CLI instead of deriving it from the single carrier (the old engine's fix took `--findings` only, reading the range from the source review handoff). The fix stops the adding: the branch ref now lives in one place (`BranchRef` — a single identity class) and rides one carrier — `cdd review --type branch --base --head` declares it (the range's birth face), every other face derives it; the fix reads the source review handoff's `commits`. The review `INPUT_RANGE` renders the short form (base7..head7) for the branch and wave faces alike (previously full-shas for branch, short for wave).

@@ -18,6 +18,7 @@
 // Module-level exports are types / the class / one empty-state data const — zero
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
+import { BranchRef } from "./branch-ref.ts";
 import type { DispatchPhase, ReviewLead, RouteTarget, TargetFace, TargetType } from "./faces.ts";
 import type {
   HandoffParams,
@@ -373,7 +374,7 @@ export class Lifecycle {
   /** The progress key of a single-target line — the branch range token or the doc
    *  path (the task face never routes here — its frames key by the wave key string). */
   #lineKey(target: AuditTarget): LedgerKey {
-    if (target.kind === "branch") return `${target.base.slice(0, 7)}..${target.head.slice(0, 7)}`;
+    if (target.kind === "branch") return BranchRef.short(target.base, target.head);
     return (target as { kind: "doc"; doc: string }).doc;
   }
 
@@ -399,7 +400,8 @@ export class Lifecycle {
       }
       case "branch": {
         const { base, head } = frame.target as { kind: "branch"; base: string; head: string };
-        return { base7: base.slice(0, 7), head7: head.slice(0, 7), round: frame.round };
+        const ref = new BranchRef(base, head);
+        return { base7: ref.base7, head7: ref.head7, round: frame.round };
       }
       case "spec":
       case "plan":

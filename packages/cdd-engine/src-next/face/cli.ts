@@ -46,6 +46,7 @@ import { BriefRenderer } from "../render/brief.ts";
 import { IssueBodyRenderer, type IssueReportInput } from "../render/issue-body.ts";
 import type { TemplateValues, WorkMode } from "../render/templates.ts";
 import { TemplateAssembler } from "../render/templates.ts";
+import { BranchRef } from "../session/branch-ref.ts";
 import type { DispatchPhase, TargetFace, TargetType } from "../session/faces.ts";
 import { targetFaces } from "../session/faces.ts";
 import { TaskGraph } from "../session/graph.ts";
@@ -543,19 +544,22 @@ export class HarnessDispatch {
   }
 
   /** The review's reference (INPUT_RANGE) — the fact the review criteria judge: the
-   *  branch range (full shas), the doc (spec/plan), or — task reviews — the reviewed
-   *  commit range WAVE_BASE..HEAD derived from the implement round's handoff (§3.7
-   *  closeout: only present facts land — an unreadable implement handoff degrades
-   *  to the plan path). */
+   *  branch range (the short form — ⑦: unified with the wave face), the doc
+   *  (spec/plan), or — task reviews — the reviewed commit range WAVE_BASE..HEAD
+   *  derived from the implement round's handoff (§3.7 closeout: only present facts
+   *  land — an unreadable implement handoff degrades to the plan path). */
   #reviewRange(frame: OpenFrame): string {
-    if (frame.target.kind === "branch") return `${frame.target.base}..${frame.target.head}`;
+    // ⑦ — INPUT_RANGE renders the short range for branch and wave alike (one
+    // decision in BranchRef; the child never needs the full shas to run git).
+    if (frame.target.kind === "branch")
+      return BranchRef.short(frame.target.base, frame.target.head);
     if (frame.target.kind === "doc") return frame.target.doc;
     const carried = this.#scene.ledger.readHandoff("implement", "wave", {
       tasks: frame.params.tasks ?? "",
     });
     const commits = carried?.commits as { base?: unknown; head?: unknown } | undefined;
     if (typeof commits?.base === "string" && typeof commits?.head === "string") {
-      return `${commits.base.slice(0, 7)}..${commits.head.slice(0, 7)}`;
+      return BranchRef.short(commits.base, commits.head);
     }
     return this.#scene.planPath ?? "";
   }
@@ -576,7 +580,7 @@ export class HarnessDispatch {
    *  the branch-family evidence file name's `{branch}-{key}-` form). */
   #keyOf(frame: OpenFrame): string {
     if (frame.target.kind === "branch") {
-      return `${frame.target.base.slice(0, 7)}..${frame.target.head.slice(0, 7)}`;
+      return BranchRef.short(frame.target.base, frame.target.head);
     }
     return "";
   }
@@ -801,7 +805,9 @@ export class HarnessDispatch {
         return `cdd implement --tasks ${frame.params.tasks ?? ""} --plan ${plan}`;
       case "branch-review": {
         const range = frame.target as { kind: "branch"; base: string; head: string };
-        return `cdd review --type branch --base ${range.base} --head ${range.head}`;
+        // the CLI review face validates 40-char shas — the one full-form consumer
+        const ref = new BranchRef(range.base, range.head);
+        return `cdd review --type branch ${ref.args()}`;
       }
       case "review":
         if (frame.type === "spec") return `cdd review --type spec --spec ${this.#docOf(frame)}`;
@@ -812,8 +818,9 @@ export class HarnessDispatch {
         const target =
           frame.target.kind === "doc"
             ? `--${frame.type === "spec" ? "spec" : "plan"} ${frame.target.doc}`
-            : frame.target.kind === "branch"
-              ? `--base ${frame.target.base} --head ${frame.target.head}`
+            : // branch fix carries no refs — the range rides the --findings handoff
+              frame.target.kind === "branch"
+              ? ""
               : `--tasks ${frame.params.tasks ?? ""} --plan ${plan}`;
         return `cdd fix --type ${frame.type} ${target} --findings ${findings}`;
       }
@@ -1370,7 +1377,7 @@ export class Cli {
    *  path — the lifecycle's own key derivation). */
   #lineKey(scene: WorkScene): string | null {
     if (scene.target?.kind === "branch")
-      return `${scene.target.base.slice(0, 7)}..${scene.target.head.slice(0, 7)}`;
+      return BranchRef.short(scene.target.base, scene.target.head);
     if (scene.target?.kind === "doc") return scene.target.doc;
     return null;
   }
@@ -1378,8 +1385,8 @@ export class Cli {
   /** The official handoff params of a line round (the lifecycle's own per-face shape). */
   #lineParams(scene: WorkScene, round: number): HandoffParams {
     if (scene.target?.kind === "branch") {
-      const { base, head } = scene.target;
-      return { base7: base.slice(0, 7), head7: head.slice(0, 7), round };
+      const ref = new BranchRef(scene.target.base, scene.target.head);
+      return { base7: ref.base7, head7: ref.head7, round };
     }
     return { round };
   }
@@ -1421,6 +1428,18 @@ export class Cli {
     const briefPath = scene.workspace.resolve(`tasks-${parsed.args.tasks}-brief.md`);
     writeFileSync(briefPath, content, "utf8");
     return briefPath;
+  }
+
+  /** The branch ref of a fix's source review handoff (--findings) — the derived
+   *  identity (the review persisted its reviewed range in `commits`; the fix reads
+   *  it back — the single-carrier rule). Unreadable/ref-less → null (the
+   *  missing-refs gate then names the required declaration flags). */
+  #refFromHandoff(findingsPath: string): BranchRef | null {
+    try {
+      return BranchRef.fromHandoff(readFileSync(findingsPath, "utf8"));
+    } catch {
+      return null; // unreadable → the missing-refs gate
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -1474,19 +1493,26 @@ export class Cli {
         break;
       }
       case "branch": {
-        const base = parsed.args.base;
-        const head = parsed.args.head;
-        if (base === undefined || head === undefined) {
+        // The branch ref is declared at ONE face — `cdd review --type branch
+        // --base --head` (the range's birth face, 40-char flags). Every other
+        // face derives it from a single carrier: the fix face reads its source
+        // review handoff's `commits` (--findings) — zero extra CLI params (⑦ —
+        // the old engine's fix channel; re-declaring the range on the fix CLI
+        // was a dual identity that also made the face un-invokable).
+        const ref =
+          verb === "fix" && parsed.args.findings !== undefined
+            ? this.#refFromHandoff(parsed.args.findings)
+            : parsed.args.base !== undefined && parsed.args.head !== undefined
+              ? new BranchRef(parsed.args.base, parsed.args.head)
+              : null;
+        if (ref === null) {
           throw new CliUsageError(
             `cdd ${verb} --type branch: missing required --base <sha> --head <sha>`,
             CLI_USAGE[verb],
           );
         }
-        slug =
-          planPath !== null
-            ? Workspace.slugFromDoc(planPath)
-            : `${base.slice(0, 7)}..${head.slice(0, 7)}`;
-        target = { kind: "branch", base, head };
+        slug = planPath !== null ? Workspace.slugFromDoc(planPath) : ref.short();
+        target = { kind: "branch", base: ref.base, head: ref.head };
         break;
       }
     }

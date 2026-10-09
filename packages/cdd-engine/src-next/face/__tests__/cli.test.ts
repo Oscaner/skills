@@ -241,6 +241,25 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
     );
   });
 
+  it("the fix face declares NO branch refs — the range rides the --findings handoff (⑦: derived, never re-declared)", () => {
+    // fix --type branch parses with --plan + --findings alone (no base/head)
+    const parsed = cli().parse([
+      "fix",
+      "--type",
+      "branch",
+      "--plan",
+      "p.md",
+      "--findings",
+      "branch-review-x.json",
+    ]);
+    expect(parsed.args.base).toBeUndefined();
+    expect(parsed.args.head).toBeUndefined();
+    // re-declaring the range on the fix CLI is rejected (a dual identity)
+    expect(() =>
+      cli().parse(["fix", "--type", "branch", "--base", "a".repeat(40), "--head", "b".repeat(40)]),
+    ).toThrow(/unknown option: --base/);
+  });
+
   it("rejects an unknown flag — the guardArgs semantics (a typo never runs a dispatch)", () => {
     expect(() => cli().parse(["implement", "--taks", "1", "--plan", "x"])).toThrow(
       /unknown option: --taks/,

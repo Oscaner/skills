@@ -55,7 +55,7 @@ pi install npm:@oscaner-skills/kairos
 
 1. 从市场安装 `superpowers`、`kairos` 与 `mattpocock-skills`（逐 harness 安装见仓库 README）。
 2. 零安装前置——每个 kairos 技能按需通过 `npx -y @oscaner-skills/cdd-engine@latest <子命令>` 调用引擎（无全局安装前置；退役的 `detect-engine` 门已移除）。
-3. 将 `.kairos` 加入项目 `.gitignore`——引擎把每轮派发的运行态（round handoff、账本、brief）保存在仓库根 `.kairos/cdd/` 下。clean-tree 派发门已忽略引擎自身工作区（其运行产物不会被当作未提交的用户改动），但保持这些产物 untracked 可让它们不进入你的提交与分支 diff。
+3. 零 `.gitignore` 配置——引擎把每轮派发的运行态（round handoff、账本、brief）保存在仓库根 `.kairos/cdd/` 下，工作区在首次派发时会自行发布一个内容为 `*` 的 `.gitignore`：引擎的运行产物零配置即可保持 untracked、不进入你的提交与分支 diff，clean-tree 派发门也绝不会把引擎自身的输出当作未提交的用户改动。
 4. 调用 kairos 技能——Claude Code 与 Cursor Agent 均用 `/kairos:<skill>` 斜杠形式：
 
 ```bash

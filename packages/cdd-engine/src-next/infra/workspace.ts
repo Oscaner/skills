@@ -22,22 +22,24 @@ export class WorkspaceRoot {
     this.path = path.join(repoRoot, workspaceRoot);
   }
 
-  /** Idempotently create the workspace root + self-publish its `.gitignore` (a
-   *  single `*` — everything the workspace root writes, every per-slug workspace
-   *  under it, rides one keep-out marker). Scoping to the workspace root rather
-   *  than the enclosing namespace's top (`.kairos/cdd` vs `.kairos`) keeps any
-   *  consumer-owned content elsewhere under the namespace visible to the
-   *  consumer's git — the marker hides only the engine's own run state. The
-   *  tree-clean gate then reads git's own judgment — `isClean` with zero
-   *  engine-side exclusion — a consumer repo with no `.kairos` entry in its own
-   *  `.gitignore` still stays clean across dispatches, because the workspace
-   *  publishes its keep-out marker at ensure time, before the gate ever reads
-   *  the tree (the F1 fix: the engine's run artifacts are engine-owned, never
-   *  "uncommitted user work"). The ignore affects only untracked files — a user
-   *  who git-tracks the workspace keeps seeing its changes on the gate. */
+  /** Idempotently create the workspace root + self-publish the namespace root's
+   *  `.gitignore` (a single `*` — everything under `.kairos/` is engine-owned, so
+   *  the git face ignores the whole namespace wholesale, the `cdd/` workspace and
+   *  any future sibling alike). The tree-clean gate then reads git's own judgment
+   *  — `isClean` with zero engine-side exclusion — a consumer repo with no `.kairos`
+   *  entry in its own `.gitignore` still stays clean across dispatches, because
+   *  the workspace publishes its keep-out marker at ensure time, before the gate
+   *  ever reads the tree (the F1 fix: the engine's run artifacts are engine-owned,
+   *  never "uncommitted user work"). The ignore affects only untracked files — a
+   *  user who git-tracks the workspace keeps seeing its changes on the gate. */
   ensure(): WorkspaceRoot {
     mkdirSync(this.path, { recursive: true });
-    const ignore = path.join(this.path, ".gitignore");
+    // The namespace root — the workspace root's parent (`.kairos/cdd` → `.kairos`):
+    // the keep-out marker sits at the namespace's top, never per-workspace (the
+    // consumer-facing convention: ignore the whole `.kairos` namespace at once).
+    const namespaceRoot = path.dirname(this.path);
+    mkdirSync(namespaceRoot, { recursive: true });
+    const ignore = path.join(namespaceRoot, ".gitignore");
     if (!existsSync(ignore)) writeFileSync(ignore, "*\n", "utf8");
     return this;
   }

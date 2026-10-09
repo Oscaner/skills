@@ -960,7 +960,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       expect(implement).toBe(0);
       // the first dispatch landed the engine workspace + its self-published keep-out
       expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3"))).toBe(true);
-      expect(readFileSync(path.join(repoRoot, ".kairos", "cdd", ".gitignore"), "utf8")).toBe("*\n");
+      expect(readFileSync(path.join(repoRoot, ".kairos", ".gitignore"), "utf8")).toBe("*\n");
       io.stderrText = "";
       // the SECOND dispatch must not self-BLOCK on the engine's own artifacts
       const review = await command.runArgv([

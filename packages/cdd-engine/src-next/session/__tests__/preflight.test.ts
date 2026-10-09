@@ -256,8 +256,8 @@ describe("PreFlight — the clean-tree hard gate (implement/review/fix)", () => 
         "preflight-slug",
       ).ensure();
       workspace.writeJson("implement-1.json", { status: "APPROVED" });
-      // The self-published keep-out marker sits at the workspace root
-      expect(readFileSync(path.join(repoRoot, ".kairos", "cdd", ".gitignore"), "utf8")).toBe("*\n");
+      // The self-published keep-out marker sits at the namespace root
+      expect(readFileSync(path.join(repoRoot, ".kairos", ".gitignore"), "utf8")).toBe("*\n");
       const ctx = waveCtx(repoRoot, [task(1, "none")], [1], "review");
       ctx.ledger!.recordRound("1", "implement"); // the first dispatch's progress — review now opens
       const preflight = preflightOf();

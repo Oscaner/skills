@@ -52,7 +52,7 @@
     },
     "### Task N:": {
       "type": "string",
-      "pattern": "^### Task \\d+:$",
+      "pattern": "^### Task \\d+:( .*)?$",
       "description": "presence: required · home: task-block · ref: none"
     },
     "Task id token": {

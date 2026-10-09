@@ -143,7 +143,14 @@ export class Capsule {
           return `${verb} ${this.#flag("type")} plan ${this.#flag("plan")} ${target!.id}`;
         }
         if (type === "branch") {
-          return `${verb} ${this.#flag("type")} branch ${this.#flag("base")} ${route.base}`;
+          // find #8 (P4.1 T7): the branch re-review literal MUST carry the full range —
+          // the runtime missing-refs gate refuses a --base-only literal (`missing
+          // required --base <sha> --head <sha>`, the pipe: the fix-with-blockers route
+          // carries the re-review span from the fix carrier's commits — base + head).
+          // A head-less route refuses the half-composed literal (the bare classifier
+          // fallback — only present facts land, never a non-executable partial argv).
+          if (route.head === undefined) return verb;
+          return `${verb} ${this.#flag("type")} branch ${this.#flag("base")} ${route.base} ${this.#flag("head")} ${route.head}`;
         }
         return verb;
       }

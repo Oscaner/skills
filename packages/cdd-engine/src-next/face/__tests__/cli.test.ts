@@ -26,6 +26,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
+import { BranchRef } from "../../session/branch-ref.ts";
 import type { RouteTarget } from "../../session/faces.ts";
 import { Ledger } from "../../session/ledger.ts";
 import type { Route } from "../../session/next.ts";
@@ -659,6 +660,69 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     }
   });
 
+  it("fix — the branch re-review next: carries the FULL range and re-dispatches through the runtime gate (find #8)", async () => {
+    const base = "a".repeat(40);
+    const headB = "b".repeat(40);
+    const { command, io, repoRoot, cleanup } = fixture({
+      dispatch: (frame: OpenFrame) =>
+        frame.phase === "fix"
+          ? { status: "APPROVED", commits: { base, head: headB } }
+          : { status: "APPROVED", findings: [] },
+    });
+    try {
+      gitInit(repoRoot);
+      // Seed the branch line: a blocker branch-review round (the fix's C5-1 input)
+      // whose handoff carries the reviewed range (the fix's --findings single carrier).
+      const workspace = new Workspace(
+        new WorkspaceRoot(repoRoot, ".kairos/cdd"),
+        BranchRef.short(base, headB),
+      ).ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader());
+      const params = { base7: base.slice(0, 7), head7: headB.slice(0, 7), round: 1 };
+      ledger.persistHandoff("review", "branch", params, {
+        phase: "branch-review",
+        findings: [{ severity: "blocker", summary: "drift" }],
+        commits: { base, head: headB },
+      });
+      ledger.recordRound(BranchRef.short(base, headB), "branch-review");
+      const findingsPath = workspace.resolve(
+        `branch-review-${base.slice(0, 7)}..${headB.slice(0, 7)}-r1.json`,
+      );
+      const code = await command.runArgv([
+        "fix",
+        "--type",
+        "branch",
+        "--findings",
+        findingsPath,
+        "--dry-run",
+        "--root",
+        repoRoot,
+      ]);
+      expect(code).toBe(0);
+      // find #8 — the re-review literal carries the FULL range (the branch face's two
+      // runtime-required shas); the old --base-only literal exited 2 at the runtime
+      // missing-refs gate (`missing required --base <sha> --head <sha>`)
+      expect(io.stdoutText).toContain(`next: review --type branch --base ${base} --head ${headB}`);
+      // the runtime gate, not parse-only: re-feeding the literal's argv through the CLI
+      // dispatches a real branch review — exit 0, never the missing-refs refusal
+      const reExit = await command.runArgv([
+        "review",
+        "--type",
+        "branch",
+        "--base",
+        base,
+        "--head",
+        headB,
+        "--dry-run",
+        "--root",
+        repoRoot,
+      ]);
+      expect(reExit).toBe(0);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("review --type branch — the branch-range face over base..head", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
@@ -1053,6 +1117,7 @@ describe("P4.1 T4 — the next literal is a complete executable command (二次 
   const planT = { type: "plan", id: "docs/kairos/plans/p3.md" } as const;
   const branch = { type: "branch", id: "aaaaaaa..bbbbbbb" } as const;
   const base = "a".repeat(40);
+  const head = "b".repeat(40);
 
   it("implement — the literal is `implement --plan <path> --tasks <n>` with NO --type", () => {
     const literal = literalOf({ kind: "next-wave", tasks: "1,2" }, wave);
@@ -1078,8 +1143,8 @@ describe("P4.1 T4 — the next literal is a complete executable command (二次 
     const planLiteral = literalOf({ kind: "review", base }, planT);
     expect(planLiteral).toBe("review --type plan --plan docs/kairos/plans/p3.md");
     parses(planLiteral);
-    const branchLiteral = literalOf({ kind: "review", base }, branch);
-    expect(branchLiteral).toBe(`review --type branch --base ${base}`);
+    const branchLiteral = literalOf({ kind: "review", base, head }, branch);
+    expect(branchLiteral).toBe(`review --type branch --base ${base} --head ${head}`);
     parses(branchLiteral);
   });
 

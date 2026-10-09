@@ -181,9 +181,20 @@ export abstract class Invariant extends MarkdownPrimitives {
     return !this.#withoutCodeSpans(line).includes(anchor);
   }
 
-  /** The line with its backtick-delimited inline code spans removed. */
+  /** The line with its backtick-quoted region removed. A line's quoted content is
+   *  the region between its FIRST and LAST backtick (inclusive) — ONE contiguous
+   *  quoted fragment, the shape the doc prose actually uses: a simple `` `span` ``
+   *  and a quoted command fragment with a NESTED citation (`` `read X + the plan's
+   *  \`## Constraints\` (at INPUT_PLAN)` ``) both read as one quoted region (the
+   *  find-#8 gap: the old span-by-span strip left a nested citation naked after its
+   *  opener got consumed by the outer span, judging quoted prose as a value). A
+   *  zero- or one-tick line carries no quoted region (unbalanced — nothing to strip). */
   #withoutCodeSpans(line: string): string {
-    return line.replace(/`+[^`\n]*`+/g, "");
+    const first = line.indexOf("`");
+    if (first === -1) return line;
+    const last = line.lastIndexOf("`");
+    if (first === last) return line;
+    return line.slice(0, first) + line.slice(last + 1);
   }
 
   /** The parsed overall record — when the judged doc is an overall. */

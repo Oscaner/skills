@@ -303,6 +303,58 @@ describe("the canonical repo forms (no false positives on real conventions)", ()
     expect(withKind(findings, "domain", "## Program charter")).toBe(false);
   });
 
+  it("presence+domain: the TITLED task heading is a valid `### Task N:` (the tree-wide form)", () => {
+    // find #8: the registry's bare-heading pattern rejected the titled form — the
+    // wave's own plan (25/25 plans use `### Task N: <title>`) was reported missing
+    const content = [
+      "# Test Plan",
+      "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
+      "- **Parent program**: [x-overall.md v1.21](docs/kairos/specs/x-overall.md)",
+      "",
+      "### Task 1: task title",
+      "- **Objective**: objective",
+      "- **Files**: file",
+      "- **Consumes**: consumes",
+      "- **Produces**: produces",
+      "- **Steps**:",
+      "  - step one",
+      "- **Acceptance**: acceptance",
+      "- **DependsOn**: none",
+    ].join("\n");
+    const findings = judge("plan", content, EMPTY_FS);
+    expect(withKind(findings, "presence", "### Task N:")).toBe(false);
+    expect(withKind(findings, "domain", "### Task N:")).toBe(false);
+    // the bare heading is the same pattern's canonical form — both conform
+    const bare = content.replace("### Task 1: task title", "### Task 1:");
+    expect(withKind(judge("plan", bare, EMPTY_FS), "presence", "### Task N:")).toBe(false);
+    // a non-numeric heading is still outside the domain
+    expect(
+      withKind(
+        judge("plan", content.replace("### Task 1:", "### Task X:"), EMPTY_FS),
+        "presence",
+        "### Task N:",
+      ),
+    ).toBe(true);
+  });
+
+  it("domain: a nested backtick citation (`outer quote … inner `anchor`) is not judged as a value", () => {
+    // find #8: the old span-by-span strip consumed the outer quote's opener and left
+    // the nested `…` citation naked — the p4.1 spec's command-quoted prose was judged
+    // as `## Constraints` / `**Version**` values
+    const content = [
+      "# Test Plan",
+      "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
+      "- **Parent program**: [x-overall.md v1.21](docs/kairos/specs/x-overall.md)",
+      "- **Depends on**: P1",
+      "- **Consumes**: T1（`read the plan's `## Constraints` (at INPUT_PLAN)`）·「`the `**Version**` header`」零残留",
+      "",
+      ...planTask(1),
+    ].join("\n");
+    const findings = judge("plan", content, EMPTY_FS);
+    expect(withKind(findings, "domain", "## Constraints")).toBe(false);
+    expect(withKind(findings, "domain", "**Version**")).toBe(false);
+  });
+
   it("order: the change-history rows must be version-ascending (canonical oldest-first)", () => {
     const content = GOOD_OVERALL.replace(
       ["| v1.20 | 2026-10-06 | prior change |", "| v1.21 | 2026-10-07 | merged change |"].join(

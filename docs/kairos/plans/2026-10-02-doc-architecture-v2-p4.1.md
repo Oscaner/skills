@@ -1,6 +1,6 @@
 # 文档架构方法论 v2 — P4.1 Plan（lifecycle 前置校验统一 · schema 一致硬化 · next 可执行命令字面量）
 
-**Spec:** [P4.1-design v1.2](docs/kairos/specs/2026-10-02-doc-architecture-v2-p4.1-design.md)
+**Spec:** [2026-10-02-doc-architecture-v2-p4.1-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p4.1-design.md)
 
 - **Parent program**: [doc-architecture-v2-overall.md v1.47](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
 - **Version**: v1.7 · 2026-10-09

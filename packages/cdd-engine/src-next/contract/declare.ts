@@ -515,11 +515,14 @@ const PLAN_ELEMENTS = [
     refKind: "none",
     home: "section",
   },
-  // Task blocks — the `### Task N:` heading and its number identity.
+  // Task blocks — the `### Task N:` heading and its number identity. The heading
+  // shape accepts the TITLED form (`### Task N: <title>` — the tree-wide canonical
+  // form; the parse face anchors on `^### Task (\d+):`); the bare heading is one
+  // instance of the same pattern, never a second form.
   {
     anchor: "### Task N:",
     presence: "required",
-    valuePattern: "^### Task \\d+:$",
+    valuePattern: "^### Task \\d+:( .*)?$",
     refKind: "none",
     home: "task-block",
   },

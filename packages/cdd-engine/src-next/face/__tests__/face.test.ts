@@ -170,18 +170,19 @@ describe("the capsule byte pin — the single output face", () => {
       "status: CHANGES_REQUESTED · blocker: 1 · handoff: /h.json",
       `next: fix --type wave --tasks 1,2 --plan docs/kairos/plans/p.md --findings tasks-1,2-review-1.json ${FIX_READBACK_SUFFIX}`,
     ]);
-    // the other target types render their discriminator arg — branch (the base ref)
+    // the other target types render their discriminator arg — branch (the FULL range:
+    // --base + --head — the runtime gate refuses a --base-only literal, find #8)
     expect(
       capsule.emit(
         "REVIEW_FIX",
         "0",
         "/h.json",
-        { kind: "review", base },
+        { kind: "review", base, head: "b".repeat(40) },
         { type: "branch", id: "1234567..89abcde" },
       ),
     ).toEqual([
       "status: REVIEW_FIX · blocker: 0 · handoff: /h.json",
-      `next: review --type branch --base ${base}`,
+      `next: review --type branch --base ${base} --head ${"b".repeat(40)}`,
     ]);
     expect(
       capsule.emit(

@@ -41,6 +41,7 @@ const spec = { type: "spec", id: "docs/kairos/specs/p3-design.md" } as const;
 const planT = { type: "plan", id: "docs/kairos/plans/p3.md" } as const;
 const branch = { type: "branch", id: "aaaaaaa..bbbbbbb" } as const;
 const base = "a".repeat(40);
+const head = "b".repeat(40);
 
 /** One verb × type row of the coverage table — the route + the frame facts + the
  *  runtime-required flags of the type (the flags the CLI run would demand: the
@@ -79,14 +80,14 @@ const COVERAGE: readonly CoverageRow[] = [
     required: ["--type", "--plan"],
   },
   {
-    // The branch re-review's carried fact is the range start (`--base`); the review
-    // terminal (`--head`) is a future-range fact NO route carries — the orchestrator
-    // completes it at dispatch (design §5.6's dispatch-side note), never invented by
-    // the capsule render.
+    // find #8 (P4.1 T7): the branch re-review literal carries the FULL range — the
+    // fix-with-blockers route composes base + head from the fix carrier's commits (the
+    // re-review's span = the fix's delta); the runtime missing-refs gate refuses a
+    // --base-only literal, so `--head` is a required flag of the branch review face.
     label: "review branch",
-    route: { kind: "review", base },
+    route: { kind: "review", base, head },
     target: branch,
-    required: ["--type", "--base"],
+    required: ["--type", "--base", "--head"],
   },
   {
     label: "fix wave",

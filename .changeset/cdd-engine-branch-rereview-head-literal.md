@@ -1,0 +1,5 @@
+---
+"@oscaner-skills/cdd-engine": patch
+---
+
+fix: the branch re-review `next:` literal + the doc-contract gate. The `cdd review --type branch` re-review literal (a flag fix round whose blockers remain) previously rendered `--base <sha>` without the runtime-required `--head`, so the suggestion exited 2 at the missing-refs gate (`missing required --base <sha> --head <sha>`) — the fix-with-blockers route now carries the FULL reviewed range (the fix delta: base = the fix's base, head = the fix's head) and the literal renders both shas; a head-less route refuses the half-composed literal. The doc-contract gate accepts the titled task heading (`### Task N: <title>` — the tree-wide plan form; the registry's bare-heading pattern rejected it, blocking the wave's own plan), and the domain judge's code-span exclusion now strips a nested backtick citation inside an outer quoted fragment (the p4.1 spec's command-quoted prose was judged as `## Constraints`/`**Version**` values). `pnpm run validate` gains a doc-contract step running the engine judge over every spec/plan doc — a new-form doc the gate would block at dispatch now fails CI.

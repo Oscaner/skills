@@ -3,7 +3,7 @@
 **Spec:** [2026-10-02-doc-architecture-v2-p4.1-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p4.1-design.md)
 
 - **Parent program**: [doc-architecture-v2-overall.md v1.47](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.8 · 2026-10-09
+- **Version**: v1.9 · 2026-10-09
 - **Depends on**: P3.2（Done · [p3.2-plan v1.31](docs/kairos/plans/2026-10-02-doc-architecture-v2-p3.2.md) —— serial-phase GATE 满足，P4.1 可开线）
 - **Base**: develop
 
@@ -130,7 +130,7 @@
   - 技能文本：cdd-plan author-plan 句删除/改述（零物化声明）· `pnpm run emit` 再生 — checkable: emit:check 零 drift
   - 引擎 vitest 全绿 — checkable: engine vitest 通过
   - commit `fix(engine): round-context 零死指针（INPUT_RULES 删 · 约束单源 INPUT_PLAN）+ artifact 单一命名制（family-keyed prescribed · 跨轮零覆写）+ wave 标签 W1 起序`（自测绿后）
-- **Acceptance**: INPUT_RULES 三处删除 · implement prompt 提醒行指 plan（child 经 INPUT_PLAN 直读约束）· artifact 单一命名制（prescribed OUTPUT_* · 跨轮零覆写回归）· **board 波标签 W1 起序（W1–W4 与 plan 执行序逐字一致）** · **find #7 收口（review→wave 字面补 `--plan` · 三命令 × 各 type required flag 全覆盖可执行）** · 技能文本同步 · emit 新鲜 · engine vitest 全绿
+- **Acceptance**: INPUT_RULES 三处删除 · implement prompt 提醒行指 plan（child 经 INPUT_PLAN 直读约束）· artifact 单一命名制（prescribed OUTPUT_* · 跨轮零覆写回归）· **board 波标签 W1 起序（W1–W4 与 plan 执行序逐字一致）** · **find #7 收口（review→wave 字面补 `--plan` · 三命令 × 各 type required flag 全覆盖可执行）** · **find #8 收口（branch fix/re-review 字面含 `--plan`——workspace 身份固定 · 编排者零兜底）** · 技能文本同步 · emit 新鲜 · engine vitest 全绿
 - **DependsOn**: 1, 4, 5
 
 ## Change history
@@ -146,3 +146,4 @@
 | v1.6 | 2026-10-09 | **T4 反杆（用户拍板 · find #3 深化）**：implement 恒 wave 单 type 动词——next 字面不带 `--type`（`cdd implement --plan <path> --tasks 17`）· 声明表零新键 · 三命令无需同构（同构是偏门 · `--type` 只在该动词 type 有区分力时渲染）· T4 Objective/Files/Steps/Acceptance 全随 · 与 spec v1.6 §5 对齐 | [human] · Claude Opus 5（kairos:cdd-plan · Plan Sole Writer） |
 | v1.7 | 2026-10-09 | **W3 期 backfill（find #7 · 派发现场实证 · 用户「backfill 回 overall/spec/plan」）**：新增 T7 扩域——wave review next 字面漏必填 `--plan`（`face/capsule.ts#routeText` review→wave 分支缺组装 · parse 绿 ≠ 运行时 required 绿）· 修复 = `#routeText` 补组装 + 断言面延伸「parse 绿 ⇒ 该类型 required flag 全覆盖」· T7 Files 增 capsule.ts/capsule.test.ts · Steps/Acceptance 随 · 与 spec v1.7 §5.6 / overall v1.52 对齐 | [human] · Claude Opus 5（kairos:cdd-plan · Plan Sole Writer） |
 | v1.8 | 2026-10-09 | **分支终审 r1 backfill（find #8 · 两 blocker + warn）**：T7 收口扩展——branch re-review 字面缺 `--head`（find #7 同族 · `#routeText` review→branch 只渲染 `--base`）· branch fix 字面缺 `--plan`（`#sceneOf` branch 无 plan → slug = `ref.short()` 空目录 → ledger 读空 → lineGate 拒 fix）· doc-contract 门自挡 wave 自身 docs（titled task 头 / code-span 引述 / **Spec:** 标签 ≠ basename · validate 假绿根因）+ p5 selfBounded；修复落 a9e9d409（C5 路由全 range · 拒半组装 · titled 接纳 · domain code-span 排除 · validate 落 gate 步）· 断言面升「运行时 gate 实派发」· 与 spec v1.8 §5.7 / overall v1.53 对齐 | [human] · Claude Opus 5（kairos:cdd-plan · Plan Sole Writer） |
+| v1.9 | 2026-10-09 | **fix‑2 反转（用户 2026-10-09「为什么不修」打回冻结残留）**：T7 Acceptance 补 find #8 收口——branch fix/re-review 字面必含 `--plan`（workspace 身份固定 · 与 wave fix 分支同构）· 编排者零兜底（v1.8 曾记「编排面补 flag」为处置、反转废除）· 与 spec v1.9 §5.7 fix ② 对齐 | [human] · Claude Opus 5（kairos:cdd-plan · Plan Sole Writer） |

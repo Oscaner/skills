@@ -2,7 +2,7 @@
   "docType": "plan",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "plan document structure",
-  "description": "Derived JSON Schema — 24 declared elements · 17 required",
+  "description": "Derived JSON Schema — 28 declared elements · 22 required",
   "type": "object",
   "properties": {
     "# Title": {
@@ -22,8 +22,8 @@
     },
     "**Version**": {
       "type": "string",
-      "pattern": "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+",
-      "description": "presence: optional · home: header · ref: version-lineage"
+      "pattern": "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+ · \\d{4}-\\d{2}-\\d{2}$",
+      "description": "presence: required · home: header · ref: version-lineage"
     },
     "**Depends on**": {
       "type": "string",
@@ -124,12 +124,33 @@
       "type": "string",
       "pattern": "\\b(?:Task|T)\\s*([1-9]\\d*)\\b(?!\\.\\d)",
       "description": "presence: optional · home: task-field · ref: task-id"
+    },
+    "## Change history": {
+      "type": "string",
+      "pattern": "^## Change history$",
+      "description": "presence: required · home: section · ref: none"
+    },
+    "Change history row": {
+      "type": "string",
+      "pattern": "^\\|\\s*v\\d+\\.\\d+\\s*\\|",
+      "description": "presence: required · home: table · ref: version-lineage"
+    },
+    "Version token": {
+      "type": "string",
+      "pattern": "^v\\d+\\.\\d+$",
+      "description": "presence: required · home: table · ref: version-lineage"
+    },
+    "Change history date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "presence: required · home: table · ref: none"
     }
   },
   "required": [
     "# Title",
     "**Spec:**",
     "**Parent program**",
+    "**Version**",
     "## Constraints",
     "Constraint delta bullet",
     "### Task N:",
@@ -143,6 +164,10 @@
     "Step action",
     "Step checkable",
     "**Acceptance**",
-    "**DependsOn**"
+    "**DependsOn**",
+    "## Change history",
+    "Change history row",
+    "Version token",
+    "Change history date"
   ]
 }

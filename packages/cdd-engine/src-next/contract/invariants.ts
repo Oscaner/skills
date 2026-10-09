@@ -869,12 +869,8 @@ export class SelfBoundedInvariant extends Invariant {
   readonly name = "selfBounded";
 
   evaluate(ctx: JudgeContext): Finding[] {
-    const data = this.overall(ctx);
-    if (data === null) return [];
     const headerVersion = this.#headerVersion(ctx);
-    const historyVersions = data.tables["Change history"].rows
-      .map((row) => this.#firstVersion(row[0] ?? ""))
-      .filter((version) => version !== null) as readonly string[];
+    const historyVersions = this.#historyVersions(ctx);
     if (headerVersion === null || historyVersions.length === 0) return [];
     const findings: Finding[] = [];
     const newest = this.#newestVersion(historyVersions);
@@ -899,6 +895,30 @@ export class SelfBoundedInvariant extends Invariant {
       );
     }
     return findings;
+  }
+
+  /** The doc's Change-history row versions — the overall reads its parsed table,
+   *  the plan/spec read the `## Change history` section's table rows (the shared
+   *  row primitive — the P4.1 T2 同构: the same lineage judgment rides all three
+   *  doc types). */
+  #historyVersions(ctx: JudgeContext): readonly string[] {
+    if (ctx.docKey === "overall") {
+      const data = this.overall(ctx);
+      if (data === null) return [];
+      return data.tables["Change history"].rows
+        .map((row) => this.#firstVersion(row[0] ?? ""))
+        .filter((version) => version !== null) as readonly string[];
+    }
+    const section =
+      ctx.docKey === "plan"
+        ? (ctx.parsed as PlanParsed).sections.find((s) => s.heading.includes("Change history"))
+        : (ctx.parsed as PhaseSpecParsed).sections.find((s) =>
+            s.heading.includes("Change history"),
+          );
+    if (section === undefined) return [];
+    return this.tableRows(section.lines)
+      .map((row) => this.#firstVersion(row[0] ?? ""))
+      .filter((version) => version !== null) as readonly string[];
   }
 
   #headerVersion(ctx: JudgeContext): string | null {

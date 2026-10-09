@@ -29,12 +29,15 @@ const capsule = new Capsule(words);
 describe("the word table — one table, three families", () => {
   it("the doc family derives from the T2 registries — the DOC_TOKENS face", () => {
     // the registered plan anchors are doc words; the counts = the declared registry
-    // element counts (39 / 24 / 21 — the complete-contract pin of declare.ts)
+    // element counts (39 / 28 / 25 — P4.1 T2 added the Change-history row/version/
+    // date elements ×2 to plan/phaseSpec, 24→28 · 21→25)
     expect(words.docWords("overall").length).toBe(39);
-    expect(words.docWords("plan").length).toBe(24);
-    expect(words.docWords("phaseSpec").length).toBe(21);
+    expect(words.docWords("plan").length).toBe(28);
+    expect(words.docWords("phaseSpec").length).toBe(25);
     expect(words.docWords("plan")).toContain("### Task N:");
     expect(words.docWords("plan")).toContain("**DependsOn**");
+    expect(words.docWords("plan")).toContain("## Change history");
+    expect(words.docWords("phaseSpec")).toContain("## Change history");
     expect(words.docWords("overall")).toContain("## Dependency graph");
     expect(words.docWords("phaseSpec")).toContain("## Design");
     expect(words.hasDocWord("plan", "**Acceptance**")).toBe(true);

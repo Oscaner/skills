@@ -171,7 +171,7 @@ const OVERALL_ELEMENTS = [
   {
     anchor: "**Version**",
     presence: "required",
-    valuePattern: "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+",
+    valuePattern: "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+ · \\d{4}-\\d{2}-\\d{2}$",
     refKind: "version-lineage",
     home: "header",
   },
@@ -474,8 +474,8 @@ const PLAN_ELEMENTS = [
   },
   {
     anchor: "**Version**",
-    presence: "optional",
-    valuePattern: "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+",
+    presence: "required",
+    valuePattern: "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+ · \\d{4}-\\d{2}-\\d{2}$",
     refKind: "version-lineage",
     home: "header",
   },
@@ -627,6 +627,38 @@ const PLAN_ELEMENTS = [
     refKind: "task-id",
     home: "task-field",
   },
+  // Change history — the version-lineage surface (P4.1 T2 · the overall同构): the
+  // section heading + the row/version/date cells. Presence is required on the
+  // heading (P4.1 起 every plan carries a Change-history table); the row cells are
+  // domain-judged on the table rows.
+  {
+    anchor: "## Change history",
+    presence: "required",
+    valuePattern: "^## Change history$",
+    refKind: "none",
+    home: "section",
+  },
+  {
+    anchor: "Change history row",
+    presence: "required",
+    valuePattern: "^\\|\\s*v\\d+\\.\\d+\\s*\\|",
+    refKind: "version-lineage",
+    home: "table",
+  },
+  {
+    anchor: "Version token",
+    presence: "required",
+    valuePattern: "^v\\d+\\.\\d+$",
+    refKind: "version-lineage",
+    home: "table",
+  },
+  {
+    anchor: "Change history date",
+    presence: "required",
+    valuePattern: "^\\d{4}-\\d{2}-\\d{2}$",
+    refKind: "none",
+    home: "table",
+  },
 ] as const satisfies readonly Required<RegistryElement>[];
 
 // ---------------------------------------------------------------------------
@@ -644,7 +676,7 @@ const PHASE_SPEC_ELEMENTS = [
   {
     anchor: "**Version**",
     presence: "required",
-    valuePattern: "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+",
+    valuePattern: "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+ · \\d{4}-\\d{2}-\\d{2}$",
     refKind: "version-lineage",
     home: "header",
   },
@@ -783,6 +815,37 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: "^## Review record$",
     refKind: "none",
     home: "conditional",
+  },
+  // Change history — the version-lineage surface (P4.1 T2 · the overall同构): the
+  // section heading + the row/version/date cells. Presence is required on the
+  // heading (P4.1 起 every phase-spec carries a Change-history table).
+  {
+    anchor: "## Change history",
+    presence: "required",
+    valuePattern: "^## Change history$",
+    refKind: "none",
+    home: "section",
+  },
+  {
+    anchor: "Change history row",
+    presence: "required",
+    valuePattern: "^\\|\\s*v\\d+\\.\\d+\\s*\\|",
+    refKind: "version-lineage",
+    home: "table",
+  },
+  {
+    anchor: "Version token",
+    presence: "required",
+    valuePattern: "^v\\d+\\.\\d+$",
+    refKind: "version-lineage",
+    home: "table",
+  },
+  {
+    anchor: "Change history date",
+    presence: "required",
+    valuePattern: "^\\d{4}-\\d{2}-\\d{2}$",
+    refKind: "none",
+    home: "table",
   },
 ] as const satisfies readonly Required<RegistryElement>[];
 

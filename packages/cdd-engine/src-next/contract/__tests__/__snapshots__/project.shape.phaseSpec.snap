@@ -83,6 +83,11 @@
           "anchor": "Constraint delta bullet",
           "presence": "required",
           "refKind": "none"
+        },
+        {
+          "anchor": "## Change history",
+          "presence": "required",
+          "refKind": "none"
         }
       ]
     },
@@ -122,6 +127,26 @@
         {
           "anchor": "## Review record",
           "presence": "conditional",
+          "refKind": "none"
+        }
+      ]
+    },
+    {
+      "home": "table",
+      "elements": [
+        {
+          "anchor": "Change history row",
+          "presence": "required",
+          "refKind": "version-lineage"
+        },
+        {
+          "anchor": "Version token",
+          "presence": "required",
+          "refKind": "version-lineage"
+        },
+        {
+          "anchor": "Change history date",
+          "presence": "required",
           "refKind": "none"
         }
       ]

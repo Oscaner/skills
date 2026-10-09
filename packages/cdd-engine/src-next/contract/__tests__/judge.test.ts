@@ -411,6 +411,205 @@ describe("the coordinator", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// P4.1 T2 — the three-type homogeneity: `**Version**` required + strict (号+时间) ·
+// `## Change history` required ×3 · selfBounded ×3（header = 最新且必在行内）
+// ---------------------------------------------------------------------------
+
+/** A minimal phase-spec carrying the canonical version lineage (strict Version
+ *  header + a Change-history table) — the T2 judgment surface. */
+function specLineage(headerVersion: string, rows: readonly string[]): string {
+  return [
+    "# Test Spec",
+    `- **Version**: ${headerVersion}`,
+    "- **Status**: Draft",
+    "- **Author**: x",
+    "- **Parent program**: [x-overall.md v1.0](docs/kairos/specs/x-overall.md)",
+    "- **Depends on**: P1",
+    "",
+    "## Design",
+    "",
+    "intro — the double-layer skeleton semantics.",
+    "",
+    "### 1. 数据面",
+    "#### 1.1 登记表",
+    "- text",
+    "",
+    "### Acceptance criteria",
+    "",
+    "- `c`",
+    "",
+    "## Constraints",
+    "",
+    "- delta",
+    "",
+    "## Change history",
+    "",
+    "| Version | date | summary | author |",
+    "|---|---|---|---|",
+    ...rows,
+  ].join("\n");
+}
+
+/** A minimal plan carrying the canonical version lineage. */
+function planLineage(headerVersion: string, rows: readonly string[]): string {
+  return [
+    "# Test Plan",
+    "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
+    "- **Parent program**: [x-overall.md v1.0](docs/kairos/specs/x-overall.md)",
+    `- **Version**: ${headerVersion}`,
+    "",
+    "## Constraints",
+    "",
+    "- delta",
+    "",
+    ...planTask(1),
+    "",
+    "## Change history",
+    "",
+    "| Version | date | summary | author |",
+    "|---|---|---|---|",
+    ...rows,
+  ].join("\n");
+}
+
+const ROW_100 = "| v1.0 | 2026-10-08 | prior | [human] |";
+const ROW_101 = "| v1.1 | 2026-10-09 | merged | [human] |";
+
+describe("P4.1 T2 — **Version** presence required ×3 (plan optional → required)", () => {
+  it("a plan without a **Version** header is reported", () => {
+    const content = planLineage("v1.0 · 2026-10-09", [ROW_100]).replace(
+      "- **Version**: v1.0 · 2026-10-09",
+      "",
+    );
+    const findings = judge("plan", content);
+    expect(withKind(findings, "presence", "**Version**")).toBe(true);
+  });
+
+  it("a phase-spec without a **Version** header is reported", () => {
+    const content = specLineage("v1.0 · 2026-10-09", [ROW_100]).replace(
+      "- **Version**: v1.0 · 2026-10-09",
+      "",
+    );
+    const findings = judge("phaseSpec", content);
+    expect(withKind(findings, "presence", "**Version**")).toBe(true);
+  });
+
+  it("an overall without a **Version** header is reported (the requiredness holds)", () => {
+    const content = GOOD_OVERALL.replace("- **Version**: v1.21 · 2026-10-07", "");
+    const findings = judge("overall", content, GOOD_OVERALL_FS);
+    expect(withKind(findings, "presence", "**Version**")).toBe(true);
+  });
+});
+
+describe("P4.1 T2 — **Version** strict 形 (号+时间 · 零补充说明/链/bold)", () => {
+  it("a trailing parenthetical supplement is refused (plan and spec)", () => {
+    for (const [docKey, doc] of [
+      ["plan", planLineage("v1.0 （v1.0 补充）", [ROW_100])],
+      ["phaseSpec", specLineage("v1.0 （v1.0 补充）", [ROW_100])],
+    ] as const) {
+      expect(withKind(judge(docKey, doc), "domain", "**Version**")).toBe(true);
+    }
+  });
+
+  it("a trailing prose supplement after the date is refused (plan and spec)", () => {
+    for (const [docKey, doc] of [
+      ["plan", planLineage("v1.0 · 2026-10-09 说明应在 Change history", [ROW_100])],
+      ["phaseSpec", specLineage("v1.0 · 2026-10-09 说明应在 Change history", [ROW_100])],
+    ] as const) {
+      expect(withKind(judge(docKey, doc), "domain", "**Version**")).toBe(true);
+    }
+  });
+
+  it("a bold **vX.Y** 形 is refused (plan and spec)", () => {
+    for (const [docKey, doc] of [
+      ["plan", planLineage("**v1.0** · 2026-10-09", [ROW_100])],
+      ["phaseSpec", specLineage("**v1.0** · 2026-10-09", [ROW_100])],
+    ] as const) {
+      expect(withKind(judge(docKey, doc), "domain", "**Version**")).toBe(true);
+    }
+  });
+
+  it("the canonical `vX.Y · date` form carries no **Version** domain finding (plan and spec)", () => {
+    for (const docKey of ["plan", "phaseSpec"] as const) {
+      const doc =
+        docKey === "plan"
+          ? planLineage("v1.0 · 2026-10-09", [ROW_100])
+          : specLineage("v1.0 · 2026-10-09", [ROW_100]);
+      expect(withKind(judge(docKey, doc), "domain", "**Version**")).toBe(false);
+    }
+  });
+});
+
+describe("P4.1 T2 — `## Change history` presence required ×3", () => {
+  it("a plan without the Change-history section is reported", () => {
+    const content = planLineage("v1.0 · 2026-10-09", [ROW_100]).replace(
+      [
+        "## Change history",
+        "",
+        "| Version | date | summary | author |",
+        "|---|---|---|---|",
+        ROW_100,
+      ].join("\n"),
+      "",
+    );
+    const findings = judge("plan", content);
+    expect(withKind(findings, "presence", "## Change history")).toBe(true);
+  });
+
+  it("a phase-spec without the Change-history section is reported", () => {
+    const content = specLineage("v1.0 · 2026-10-09", [ROW_100]).replace(
+      [
+        "## Change history",
+        "",
+        "| Version | date | summary | author |",
+        "|---|---|---|---|",
+        ROW_100,
+      ].join("\n"),
+      "",
+    );
+    const findings = judge("phaseSpec", content);
+    expect(withKind(findings, "presence", "## Change history")).toBe(true);
+  });
+
+  it("an overall without the Change-history section is reported (the requiredness holds)", () => {
+    const content = GOOD_OVERALL.replace(
+      [
+        "## Change history",
+        "| Version | Date | Summary |",
+        "| --- | --- | --- |",
+        "| v1.20 | 2026-10-06 | prior change |",
+        "| v1.21 | 2026-10-07 | merged change |",
+      ].join("\n"),
+      "",
+    );
+    const findings = judge("overall", content, GOOD_OVERALL_FS);
+    expect(withKind(findings, "presence", "## Change history")).toBe(true);
+  });
+});
+
+describe("P4.1 T2 — selfBounded 对 spec/plan 生效（header = 最新且必在行内）", () => {
+  it("a phase-spec whose header is NOT the change-history's newest row is reported", () => {
+    const findings = judge("phaseSpec", specLineage("v1.0 · 2026-10-09", [ROW_100, ROW_101]));
+    expect(withKind(findings, "selfBounded", "**Version**")).toBe(true);
+  });
+
+  it("a plan whose header is OUTSIDE the lineage is reported", () => {
+    const findings = judge("plan", planLineage("v1.2 · 2026-10-09", [ROW_100, ROW_101]));
+    expect(withKind(findings, "selfBounded", "**Version**")).toBe(true);
+  });
+
+  it("a spec/plan whose header IS the newest in-row version carries no selfBounded finding", () => {
+    for (const docKey of ["plan", "phaseSpec"] as const) {
+      const doc =
+        docKey === "plan"
+          ? planLineage("v1.1 · 2026-10-09", [ROW_100, ROW_101])
+          : specLineage("v1.1 · 2026-10-09", [ROW_100, ROW_101]);
+      expect(withKind(judge(docKey, doc), "selfBounded", "**Version**")).toBe(false);
+    }
+  });
+});
+
 describe("governance greps (the engine-zero criterion)", () => {
   it("dispatches judgment without any switch-case (grep)", () => {
     for (const name of ["judge.ts", "invariants.ts", "doc.ts"]) {

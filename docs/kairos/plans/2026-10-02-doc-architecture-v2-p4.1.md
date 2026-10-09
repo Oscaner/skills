@@ -3,7 +3,7 @@
 **Spec:** [P4.1-design v1.2](docs/kairos/specs/2026-10-02-doc-architecture-v2-p4.1-design.md)
 
 - **Parent program**: [doc-architecture-v2-overall.md v1.47](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.2 · 2026-10-09
+- **Version**: v1.3 · 2026-10-09
 - **Depends on**: P3.2（Done · [p3.2-plan v1.31](docs/kairos/plans/2026-10-02-doc-architecture-v2-p3.2.md) —— serial-phase GATE 满足，P4.1 可开线）
 - **Base**: develop
 
@@ -137,4 +137,5 @@
 |---|---|---|---|
 | v1.0 | 2026-10-09 | 初版——P4.1 design v1.2 批准后开写：六任务（pre-flight seam + clean-tree 硬门 · schema 三类型同构 · 全树迁移 · next 可执行字面量 · 技能同步 · 终验）· 波次 T1‖T2 → T3‖T4 → T5 → T6 | [human] · Claude Opus 5（kairos:cdd-design → kairos:cdd-plan） |
 | v1.1 | 2026-10-09 | plan-review-1 全修（1 warn · 2 nit）：T3/T6 checkable 各补裁决句（登记基线 · 机械清点复核为准 · 规则断言 = 验收 · 计数差异按规则处理并记 notes · 不上溯 spec §3）· 清点口径改为现树实测（基线 53 = 现树 54 − 本 plan · 47 建/补 = 23 design + 24 plans · 11 无匹配形 = 9 真无头 + 2 bold · 4 拆链 · 28 有头非严格清零 = 26 + 2）· 非严格形扫面注 2 bold 归一行源拆链 · changeset 归属唯一化（kairos docs 随 T5 · cdd-engine fix 随 T6）· EOF 换行补回 | [human] · Claude Opus 5（kairos:cdd-design → kairos:cdd-plan） |
-| v1.2 | 2026-10-09 | **W1 期 backfill（find #4 + #5 · Plan Sole Writer）**：新增 Task 7（round-context/artifact 面统一——INPUT_RULES 删（三处）· 约束单源 = plan `## Constraints` 经 INPUT_PLAN · artifact 单一命名制 `{family}-{key}-{artifact}` prescribed（OUTPUT_BRIEF/REPORT/EVIDENCE 注入）· 三行块一致性校验 · cdd-plan author-plan 句改述 · 跨轮零覆写）· 执行序 W4 = {6, 7}（T7 DependsOn 1, 4, 5） | [human] · Claude Opus 5（kairos:cdd-plan · Plan Sole Writer） |
+| v1.2 | 2026-10-09 | **W1 期 backfill（find #4 + #5 · Plan Sole Writer）**：新增 Task 7（round-context/artifact 面统一——INPUT_RULES 删（三处）· 约束单源 = plan `## Constraints` 经 INPUT_PLAN · artifact 单一命名制 `{family}-{key}-{artifact}` prescribed（OUTPUT_BRIEF/REPORT/EVIDENCE 注入）· 三行块一致性校验 · cdd-plan author-plan 句改述 · 跨轮零覆写）· 执行序 W03 = {6, 7}（T7 DependsOn 1, 4, 5） | [human] · Claude Opus 5（kairos:cdd-plan · Plan Sole Writer） |
+| v1.3 | 2026-10-09 | **find #6（双标号）**：执行序波标签改引用 plan-graph board 派生标签（W00–W03 · 零基）——原自造一基 W1–W4 与 board 双标号（W4 = W03）· 一文一句约定声明 | [human] · Claude Opus 5（kairos:cdd-design → cdd-plan） |

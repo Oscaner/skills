@@ -79,6 +79,11 @@ export interface PreFlightContext {
   type: TargetType;
   /** The repo root the tree-clean gate reads. */
   repoRoot: string;
+  /** The repo-relative engine workspace root (e.g. `.kairos/cdd`) — the clean-tree
+   *  gate ignores everything under it: the engine's run artifacts are engine-owned,
+   *  never "uncommitted user work" (a consumer repo without a `.kairos` gitignore
+   *  must not self-BLOCK on the workspace the scene itself wrote). */
+  workspaceRoot: string;
   /** The plan text (the wave/plan faces' plan-graph gate input; null otherwise). */
   planText: string | null;
   /** The requested `--tasks` group (the wave face's WaveGate input). */
@@ -130,7 +135,7 @@ export class PreFlight {
     //    BLOCKs BEFORE any other judgment (review 基准 = 已提交状态). isClean is
     //    fail-open-false (a non-repo counts dirty — the CDD flow needs git).
     gates.push("tree-clean");
-    if (!(await this.#git.isClean(ctx.repoRoot))) {
+    if (!(await this.#git.isClean(ctx.repoRoot, ctx.workspaceRoot))) {
       return {
         ok: false,
         gate: "tree-clean",

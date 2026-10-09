@@ -38,13 +38,17 @@ import { WaveGate } from "../wave.ts";
 // fixtures
 // ---------------------------------------------------------------------------
 
-/** A hermetic git repo — the tree-clean gate's judgment surface. */
-function gitRepo(): { repoRoot: string; cleanup: () => void } {
+/** A hermetic git repo — the tree-clean gate's judgment surface. The `.kairos` +
+ *  `/docs/` gitignore keeps the fixture's synthetic writes (the engine workspace
+ *  mirror + the docs) out of the tree — same as the consumer setup the kairos README
+ *  documents. Pass an explicit ignore content to shape it (the no-`.kairos`-ignore
+ *  consumer regression). */
+function gitRepo(ignore = ".kairos\n/docs/\n"): { repoRoot: string; cleanup: () => void } {
   const repoRoot = mkdtempSync(path.join(tmpdir(), "preflight-"));
   spawnSync("git", ["init", "-q"], { cwd: repoRoot });
   spawnSync("git", ["config", "user.email", "preflight@test"], { cwd: repoRoot });
   spawnSync("git", ["config", "user.name", "preflight-test"], { cwd: repoRoot });
-  writeFileSync(path.join(repoRoot, ".gitignore"), ".kairos\n/docs/\n", "utf8");
+  writeFileSync(path.join(repoRoot, ".gitignore"), ignore, "utf8");
   writeFileSync(path.join(repoRoot, "seed.txt"), "seed\n", "utf8");
   spawnSync("git", ["add", "-A"], { cwd: repoRoot });
   spawnSync("git", ["commit", "-q", "-m", "seed"], { cwd: repoRoot });
@@ -167,6 +171,7 @@ function waveCtx(
     verb,
     type: "wave",
     repoRoot,
+    workspaceRoot: ".kairos/cdd",
     planText: planDoc(blocks),
     tasks: new Set(tasks),
     ledger,
@@ -189,6 +194,7 @@ function docCtx(
     verb,
     type: docKey === "plan" ? "plan" : "spec",
     repoRoot,
+    workspaceRoot: ".kairos/cdd",
     planText: null,
     tasks: null,
     ledger,
@@ -234,6 +240,37 @@ describe("PreFlight — the clean-tree hard gate (implement/review/fix)", () => 
       expect(verdict.order).toEqual(["tree-clean"]);
       const waveVerdict = await preflight.vet(waveCtx(repoRoot, badPlan, [1, 2], "implement"));
       expect(waveVerdict.gate).toBe("tree-clean");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("isClean ignores the engine's own workspace — the second dispatch does not self-BLOCK on the landed artifacts in a consumer repo WITHOUT a .kairos ignore", async () => {
+    // The consumer-repo shape: no `.kairos` gitignore (gitRepo's default ignore
+    // masks the engine's own writes). The scene's workspace ensure + the first
+    // dispatch's round artifacts land under `.kairos/cdd/`, and the tree reads
+    // `?? .kairos/` — the next dispatch's gate must treat them as engine-owned,
+    // never as uncommitted user work.
+    const { repoRoot, cleanup } = gitRepo("/docs/\n");
+    try {
+      const workspace = new Workspace(
+        new WorkspaceRoot(repoRoot, ".kairos/cdd"),
+        "preflight-slug",
+      ).ensure();
+      workspace.writeJson("implement-1.json", { status: "APPROVED" });
+      const ctx = waveCtx(repoRoot, [task(1, "none")], [1], "review");
+      ctx.ledger!.recordRound("1", "implement"); // the first dispatch's progress — review now opens
+      const preflight = preflightOf();
+      const verdict = await preflight.vet(ctx);
+      expect(verdict.ok).toBe(true);
+      expect(verdict.order).toEqual(["tree-clean", "plan-graph", "wave"]);
+      // A genuinely dirty USER file still refuses — the exclusion is the engine
+      // workspace, never the user's own uncommitted work.
+      dirty(repoRoot);
+      const refused = await preflight.vet(waveCtx(repoRoot, [task(1, "none")], [1], "implement"));
+      expect(refused.ok).toBe(false);
+      expect(refused.gate).toBe("tree-clean");
+      expect(refused.reason).toBe("dirty-tree");
     } finally {
       cleanup();
     }

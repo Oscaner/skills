@@ -71,12 +71,14 @@ function fixture(opts: CliOptions = {}): CliFixture {
 /** Init a git repo with one commit — the dry-run's HEAD (the review `next:` base).
  *  The fixture .gitignore keeps the dispatch's own writes (the `.kairos` workspace)
  *  and the fixture's synthetic docs (`/docs/`) out of the tree — the working tree
- *  stays clean across multi-dispatch flows (the P4.1 clean-tree dispatch gate). */
-function gitInit(repoRoot: string): string {
+ *  stays clean across multi-dispatch flows (the P4.1 clean-tree dispatch gate).
+ *  Pass an explicit ignore content to shape it (the no-`.kairos`-ignore consumer
+ *  regression). */
+function gitInit(repoRoot: string, ignore = ".kairos\n/docs/\n"): string {
   spawnSync("git", ["init", "-q"], { cwd: repoRoot });
   spawnSync("git", ["config", "user.email", "cli@test"], { cwd: repoRoot });
   spawnSync("git", ["config", "user.name", "cli-test"], { cwd: repoRoot });
-  writeFileSync(path.join(repoRoot, ".gitignore"), ".kairos\n/docs/\n", "utf8");
+  writeFileSync(path.join(repoRoot, ".gitignore"), ignore, "utf8");
   writeFileSync(path.join(repoRoot, "seed.txt"), "seed\n", "utf8");
   spawnSync("git", ["add", "-A"], { cwd: repoRoot });
   spawnSync("git", ["commit", "-q", "-m", "seed"], { cwd: repoRoot });
@@ -929,6 +931,50 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         expect(existsSync(path.join(workspace, "progress.json"))).toBe(false);
         expect(existsSync(path.join(workspace, "tasks-1-brief.md"))).toBe(false);
       }
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a consumer repo WITHOUT a .kairos gitignore — the engine workspace does not self-BLOCK the clean-tree gate across dispatches (P4.1 F1 regression)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      // The consumer-repo shape: no `.kairos` entry in the fixture .gitignore — the
+      // first dispatch's own writes (the scene's workspace ensure + the round
+      // artifacts) land untracked as `?? .kairos/`. Before the F1 fix the very
+      // dispatch that wrote them self-BLOCKed (and every one after): the gate now
+      // excludes the engine's own workspace, never the user's uncommitted work.
+      gitInit(repoRoot, "/docs/\n");
+      const plan = conformingPlan(repoRoot);
+      const implement = await command.runArgv([
+        "implement",
+        "--tasks",
+        "1",
+        "--plan",
+        plan,
+        "--dry-run",
+        "--root",
+        repoRoot,
+      ]);
+      expect(implement).toBe(0);
+      // the first dispatch landed the engine workspace, unignored on disk
+      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3"))).toBe(true);
+      io.stderrText = "";
+      // the SECOND dispatch must not self-BLOCK on the engine's own artifacts
+      const review = await command.runArgv([
+        "review",
+        "--type",
+        "wave",
+        "--tasks",
+        "1",
+        "--plan",
+        plan,
+        "--dry-run",
+        "--root",
+        repoRoot,
+      ]);
+      expect(review).toBe(0);
+      expect(io.stderrText).not.toContain("CDD_BLOCKED:");
     } finally {
       cleanup();
     }

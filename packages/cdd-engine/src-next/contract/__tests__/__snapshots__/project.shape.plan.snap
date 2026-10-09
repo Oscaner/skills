@@ -1,0 +1,150 @@
+{
+  "docType": "plan",
+  "structure": [
+    {
+      "home": "header",
+      "elements": [
+        {
+          "anchor": "# Title",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "**Spec:**",
+          "presence": "required",
+          "refKind": "spec-ref"
+        },
+        {
+          "anchor": "**Parent program**",
+          "presence": "required",
+          "refKind": "parent-program"
+        },
+        {
+          "anchor": "**Version**",
+          "presence": "optional",
+          "refKind": "version-lineage"
+        },
+        {
+          "anchor": "**Depends on**",
+          "presence": "optional",
+          "refKind": "phase-id"
+        },
+        {
+          "anchor": "**Base**",
+          "presence": "optional",
+          "refKind": "none"
+        }
+      ]
+    },
+    {
+      "home": "section",
+      "elements": [
+        {
+          "anchor": "## Constraints",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "Constraint delta bullet",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "Constraint delta sub-heading",
+          "presence": "optional",
+          "refKind": "none"
+        }
+      ]
+    },
+    {
+      "home": "task-block",
+      "elements": [
+        {
+          "anchor": "### Task N:",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "Task id token",
+          "presence": "required",
+          "refKind": "task-id"
+        }
+      ]
+    },
+    {
+      "home": "task-field",
+      "elements": [
+        {
+          "anchor": "**Objective**",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "**Files**",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "File path token",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "**Consumes**",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "**Produces**",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "**Steps**",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "**Acceptance**",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "**DependsOn**",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "DependsOn none",
+          "presence": "optional",
+          "refKind": "none"
+        },
+        {
+          "anchor": "DependsOn id",
+          "presence": "optional",
+          "refKind": "task-id"
+        },
+        {
+          "anchor": "Task prose reference",
+          "presence": "optional",
+          "refKind": "task-id"
+        }
+      ]
+    },
+    {
+      "home": "task-step",
+      "elements": [
+        {
+          "anchor": "Step action",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "Step checkable",
+          "presence": "required",
+          "refKind": "none"
+        }
+      ]
+    }
+  ]
+}

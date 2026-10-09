@@ -2,9 +2,9 @@
 // Pins the live packages/kairos/package.json manifest contract for the pi harness:
 // the `pi-package` keyword, the `pi.skills` declaration, the R0 invariant (no extensions /
 // prompts keys), the skills-count truth (the shared countSkillsWithMarkdown + module-level
-// EXPECTED export from scripts/validate/kairos.ts — never a local literal), and the
-// static files closure (pi-declared paths ⊆ pkg.files whitelist). Pure static fs +
-// node:assert; zero subprocesses, zero engine invocation at runtime.
+// EXPECTED export from scripts/lib/guard.ts — the re-homed single source, never a local
+// literal), and the static files closure (pi-declared paths ⊆ pkg.files whitelist). Pure
+// static fs + node:assert; zero subprocesses, zero engine invocation at runtime.
 
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -12,7 +12,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { countSkillsWithMarkdown, EXPECTED } from "../../../scripts/validate/kairos.ts";
+import { countSkillsWithMarkdown, EXPECTED } from "../../../scripts/lib/guard.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG_DIR = path.resolve(HERE, "..");
@@ -62,7 +62,7 @@ test("files closure: pi-declared paths are a static subset of the files whitelis
   }
 });
 
-test("pi.skills glob resolution set == the {dir, name} scan set (exactly 8 cdd-*)", () => {
+test("pi.skills glob resolution set == the {dir, name} scan set (exactly the roster count)", () => {
   const pkg = loadPackage();
   const skillsDir = path.join(PKG_DIR, "skills");
   // Anchor the glob side to the canonical skills face it must resolve: project every
@@ -91,7 +91,11 @@ test("pi.skills glob resolution set == the {dir, name} scan set (exactly 8 cdd-*
     .filter((e) => e.isDirectory() && existsSync(path.join(skillsDir, e.name, "SKILL.md")))
     .map((e) => e.name)
     .sort();
-  assert.equal(resolved.length, 8, "pi.skills globs must resolve exactly the 8 shipped skills");
+  assert.equal(
+    resolved.length,
+    EXPECTED,
+    "pi.skills globs must resolve exactly the roster-count skills",
+  );
   assert.deepEqual(
     resolved,
     scanned,

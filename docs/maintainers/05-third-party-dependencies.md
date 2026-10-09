@@ -2,37 +2,25 @@
 
 > **Reader positioning:** maintainer-only document for this monorepo's developers (not shipped — the package `contentRoot` is `"."`, so only `packages/*/` publishes); English-primary, no zh-CN mirror.
 
-> **Scope & principle (spec §2.13):** use a maintained third-party package instead of maintaining the equivalent by hand. This repo maintains only the CDD functional logic; everything generic (git protocol, YAML syntax, glob, template substitution, CLI parsing, hook orchestration, logging, build) is delegated to an adopted package. Every adopted package is registered below with its purpose, version constraint, the hand-written surface it replaced, and the anchor to check when upgrading or refactoring. The **not-adopted** list at the bottom exists to prevent future re-adoption mistakes.
+> **Scope & principle (spec §2.13):** use a maintained third-party package instead of maintaining the equivalent by hand. This repo maintains only the CDD functional logic; everything generic (git protocol, YAML syntax, template substitution, CLI parsing, hook orchestration, logging, build) is delegated to an adopted package. Every adopted package is registered below with its purpose, version constraint, the hand-written surface it replaced, and the anchor to check when upgrading or refactoring. The **not-adopted** list at the bottom exists to prevent future re-adoption mistakes. **P3.2 cutover (§4):** the shell-strip pruned the old engine's runtime stack (eight packages) — the rebuilt `src-next` tree implements every one of those seams with `node:` builtins and typed constant data, so the published dependency contract shrank to a single runtime package.
 
 ## 1. Adopted packages
 
 | Package | Version (declared / lockfile) | Purpose | Replaced hand-written surface | Maintenance anchor |
 |---|---|---|---|---|
-| `citty` (unjs) | `^0.2` / 0.2.2 (cdd-engine dependency + repo **root** devDependency) | CLI parsing, TS-first (`node:util.parseArgs`), same unjs source as hookable/consola | `commander` in the `cdd` CLI and in `scripts/run.ts`, plus the hand-rolled argv loop in `scripts/observe-cache.ts` (boolean-presence semantics) | `src/bin.ts` + `src/cli/parse.ts` and `scripts/run.ts` — keep the exit-code table: citty parse errors exit 1, the bin wrapper normalizes to 2 |
-| `hookable` (unjs) | `^6` / 6.1.2 | Named lifecycle hook registry (`dispatch:before` / `dispatch:after` fixed hook points, async-first) | — (new; the earlier lifecycle had no registration surface) | `src/dispatch/hooks.ts` (registry) + `src/dispatch/phases.ts` (phase table that mounts hooks) |
-| `consola` (unjs) | `^3` / 3.4.2 | Structured logging with debug levels | scattered `console` usage across the engine | `src/infra/log.ts` — the single log exit; the zero-`console.log` residue check pins it |
-| `simple-git` | `^3` / 3.36.0 | git operations (status / add / commit / log / rev-parse) | hand-written `execFileSync("git")` helpers in the old commit contract (toplevel / rev-parse HEAD / cat-file / status `--porcelain`) plus scattered git calls in brief/finalize/root | `src/infra/git.ts` — the engine's single git point, consumed by `src/rules/commit.ts` (entry/exit double gate) and `src/render/brief.ts` (dead-git TASK_BASE). The residue guard bans `execFileSync("git")` |
-| `tinyglobby` | `^0.2` / 0.2.17 | glob filesystem traversal | hand-rolled `readdirSync` recursion in the old handoff naming | `src/infra/workspace.ts` + `src/artifacts/handoff.ts`; repo-side sweep in `scripts/emit/*` + `scripts/validate/*` (residue scans) |
-| `handlebars` | `^4` / 4.7.9 | template placeholder rendering (`{{X}}` syntax; strict compile) | the hand-written `{{PLACEHOLDER}}` split/join replace loops (`PLACEHOLDERS` array + `renderTemplate`) in the render module | `src/render/templates.ts` — `compile(src, { strict: true })` over the round-context zone (`{{X}}` → `{{{X}}}` triple-stash so values render raw) renders the registered token moustaches; the shell + injected schema block are baked slot-free constants; templates stay `{{X}}`-spelled |
-| `yaml` (eemeli) | `^2` (repo **root** devDependency) / 2.9.1 | YAML serialization | the hand-written `emitScalar` / `isPlainUnsafe` YAML builder (~50 lines) in the old report templates | see §2 below |
-| `execa` | `^10` / 10.0.1 | process spawning | — (adopted before the process-harness split) | `src/infra/proc.ts` + `src/infra/invoke.ts` — the engine's only spawn channel |
-| `ajv` | `^8` / 8.20.0 | JSON schema validation | — (adopted early; retained) | `src/rules/schema.ts` — handoff JSON schema validation (task/docs) |
-| `semver` | `^7` / 7.8.5 | version comparison | — (adopted early; retained) | declared in cdd-engine dependencies (engine source does not import it yet) and the repo root; released version math lives in native `changeset version`; the release-plugin matrix compares git-tag vs package.json with a pure-shell numeric compare (its job runs on a bare checkout) |
-| ~~`unbuild`~~ (retired) | — (removed, P5) | TS build + dev stub — **retired**: dev runs the source entry directly, publish emits via `tsc -p tsconfig.build.json` | the hand-written JS-ESM publish chain | retired — do not re-add; `tsc` is the single emit tool (see the `typescript` entry) |
-| `@biomejs/biome` | `^2.5.14` (repo **root** devDependency) | Formatting + linting gate (P4.4) across the whole-repo ts surface | — (new; no hand-written counterpart) | `biome.json` (formatter 2-space / lineWidth 100; linter recommended preset); `.husky/pre-commit` runs `pnpm biome:fix` before the precommit chain (autofix + re-stage; surviving violations fail the commit) |
-| `husky` | `^9.1.7` (repo **root** devDependency) | git hooks at the repo root (`prepare` → pre-commit gating) | — | see §3 (Husky boundary) below |
+| `simple-git` | `^3.36.0` (cdd-engine dependency + lockfile) | git operations (status / add / commit / log / rev-parse / toplevel) | hand-written `execFileSync("git")` helpers in the old commit contract (toplevel / rev-parse HEAD / cat-file / status `--porcelain`) plus scattered git calls in the old brief/artifacts surfaces | `packages/cdd-engine/src-next/infra/git.ts` — `GitClient`, the new tree's single git seam (fail-open over simple-git). The residue guard bans `execFileSync("git")` imports per |
 
-Remaining dev-only toolchain (registered; no hand-written counterpart — build/test/release): `typescript` (`^7` / 7.0.2 — the single TS toolchain: the abstract-base-class virtual methods stay compile-time constraints, and `tsc -p tsconfig.build.json` emits the published `dist/`; the TS6-compat shim retired with the old build chain), `vitest` (`^5` / 5.0.1, root + cdd-engine tests — colocated `src/**/__tests__/**/*.test.ts` / `scripts/**/__tests__/**/*.test.ts`; the engine's `.mjs` plane is zero, residue-guard pinned), `@types/node` (`^26.6.2`), and the `@changesets/*` family (`pnpm changeset` creates a changeset; `changeset version` applies them — run natively by the release workflow, the DIY version entry is retired). These never ship to consumers.
+The **repo toolchain** (root devDependencies) adopts the development gates, never shipped: `@biomejs/biome` (`^2.5.15` — format + lint gate, `biome check` with no-fix semantics), `husky` (`^9.1.7` — git hooks at the repo root), `lint-staged` (`^17.6.0` — the staged-task runner the pre-commit hook invokes), `typescript` (`^7.0.2` — the single TS toolchain; `tsc -p tsconfig.build.json` emits the published `dist/` and the dev face runs the `.ts` sources directly under Node ≥22.18 native type stripping; the TS6-compat shim retired with the old build chain), `vitest` (`^5.0.3` — the test runner over the colocated `src/**/__tests__/**/*.test.ts` / `scripts/**/__tests__/**/*.test.ts` suites; the engine's `.mjs` plane is zero, residue-guard pinned), `@types/node` (`^26.6.4`), and the `@changesets/*` family (`pnpm changeset` creates a changeset; `changeset version` applies them — run natively by the release workflow, the DIY version entry is retired). These never ship to consumers.
 
 ## 2. YAML isolation boundary
 
-`yaml` is the single dependency with a hard isolation rule — decided in spec §2.13 (option (b): isolate rather than grow the plugin's dependency set):
+`yaml` is the single adopted package with a hard isolation rule — decided in spec §2.13 (option (b): isolate rather than grow the plugin's dependency set):
 
-- **Only one module consumes it:** `scripts/emit/render-yaml.ts`, an **emit-only** module. Its only runtime consumers are the emit toolchain (`scripts/emit/issue-templates.ts` — `.github/ISSUE_TEMPLATE/*.yml` emitter) and tests.
-- **It lives only in the repo root `devDependencies`** (emit toolchain) — never in any shipped package's `dependencies`.
+- **Only one module consumes it:** `scripts/emit.ts` (the `renderIssueYml` face), an **emit-only** module — its only runtime consumers are the emit orchestrator at emit time (the `.github/ISSUE_TEMPLATE/*.yml` emitter) and tests.
+- **It lives only in the repo root `devDependencies`** (emit toolchain) — never in any shipped package's `dependencies`; it did not ship before, and the P3.2 engine rebuild does not change that (the engine consumes no YAML).
 - **The consumer runtime carries zero third-party dependencies:** the aggregate-body renderer — cdd-engine's `IssueReportRenderer` (`cdd issue render`: stdin JSON → aggregate body → stdout) — **must not import `yaml`**: the form YAML is produced at emit time, so no consumer path touches it, and cdd-engine's dependency list has no `yaml`.
 - **It is forbidden to publish `yaml` as a kairos or cdd-engine runtime dependency.**
-- **Enforcement:** the emit colocated suite (`scripts/emit/__tests__/issue-templates.test.ts`) asserts `renderYml`'s byte golden and the single-source enum injection; the engine colocated suite covers the renderer determinism; the residue guard (`scripts/validate/residue.ts`) keeps the retired renderer vocabulary at zero across the mechanism positions.
+- **Enforcement:** the emit colocated suite (`scripts/__tests__/emit.test.ts`) asserts `renderIssueYml`'s byte golden and the single-source enum injection; the engine colocated suite covers the renderer determinism; the residue guard keeps the retired renderer vocabulary at zero across the mechanism positions.
 
 ## 3. Husky boundary
 
@@ -41,23 +29,39 @@ Remaining dev-only toolchain (registered; no hand-written counterpart — build/
 - Registry consumers do not run a dependency's `prepare` (npm runs it only for git dependencies and the root project; pnpm blocks install lifecycle scripts by default).
 - Even when it would run, `prepare` mutates the consumer's `.git/hooks` — a security anti-pattern.
 - The engine's lifecycle is runtime JS (dispatch), not git hooks; consumer-side hooks fire naturally through git when the engine commits via `simple-git`.
+- **Current pre-commit line:** `.husky/pre-commit` runs `pnpm exec lint-staged`; lint-staged runs `biome check` on the staged TS set (no-fix semantics — a surviving violation exits non-zero and aborts the commit) plus a `*` catch-all that runs `pnpm run precommit` (the tree-independent validate subset) once per commit.
 
-## 4. Retired at the CLI surface: `commander`
+## 4. Retired at the P3.2 shell-strip: the old engine runtime stack
 
-`commander` was replaced by `citty` for the `cdd` CLI and then for the repo-internal orchestration tool `scripts/run.ts` — alongside the `scripts/observe-cache.ts` hand-rolled argv loop. The root `commander` declaration is pruned and nothing imports it: citty is the single CLI framework over both surfaces (`packages/cdd-engine/src/cli/parse.ts` + `scripts/run.ts` share the exit-code table: 0 = OK incl. `--help`, 1 = command failure, 2 = usage/parse error). Do not re-add `commander` at the root; the only lockfile remnant is a transitive `commander@11.1.0` (a dependency of another package), not a root dep.
+The P3.2 cutover rebuilt the engine as a five-plane OOP tree (`src-next/`, T1–T26) and **pruned the entire old runtime dependency stack** — the new tree imports exactly one runtime package (`simple-git`). Every retired package's seam was re-implemented with `node:` builtins and typed constant data, so the reduction is structural, not deferred:
+
+| Package (pruned) | Declared version (pre-strip) | Old seam | P3.2 replacement |
+|---|---|---|---|
+| `commander` (retired earlier, P5) | — (removed, P5) | the pre-P5 CLI framework | replaced by `citty`, then by the new tree's typed argv channel + hand-rolled parse (see below) — do not re-add |
+| ~~`unbuild`~~ (retired) | — (removed, P5) | TS build + dev stub — the old build chain, retired with the P5 zero-build convergence | `tsc -p tsconfig.build.json` is the single emit tool |
+| `citty` | `^0.2.2` | CLI parsing (`scripts/run.ts` command tree, old `src/cli/parse.ts`) | `scripts/run.ts` is a `process.argv[2]` switch; the engine's `face/cli.ts` `runArgv` owns the steady exit-code table (0 = OK incl. `--help`, 1 = command failure, 2 = usage/parse) over the `ARGV_CHANNEL` data rows |
+| `consola` | `^3.4.2` | structured logging | engine output is the single status capsule + `CDD_BLOCKED:` stderr channel, written directly to `process.stdout`/`stderr` |
+| `execa` | `^10` / 10.0.1 | process spawning | `node:child_process` `spawnSync`/`execFileSync` in the dispatch/infra seams (the harness-cli spawn) |
+| `handlebars` | `^4.7.9` | `{{X}}` template rendering | `TemplateAssembler` over the typed template-contract data (`render/templates.ts`) — the same `{{X}}` spelling, hand-rolled interpolation, zero template library |
+| `hookable` | `^6.1.2` | `dispatch:before`/`dispatch:after` hook registry | the lifecycle is a typed phase table + abstract base class in `session/run.ts` — no hook registry |
+| `ajv` | `^8.20.0` | handoff JSON Schema validation | handoff validation is the typed writable-subset schemas + structural guards (`session/handoff-schema.ts`) |
+| `semver` | `^7.8.5` | version comparison | released version math lives in native `changeset version`; the release-plugin matrix compares git-tag vs package.json with a pure-shell numeric compare (its job runs on a bare checkout) |
+| `tinyglobby` | `^0.2.17` | glob traversal | the new tree walks explicit paths / `node:` fs reads (bounded traversal — no unbounded full-tree globs) |
+
+The lockfile remnants are transitive only (`tinyglobby`, `commander` — dependencies of other packages), never direct declarations. `pnpm install --frozen-lockfile` stays green; do not re-add any row of this table for a capability the table says is now structural.
 
 ## 5. Not-adopted (registered so future work does not re-adopt)
 
 | Package / approach | Why not adopted |
 |---|---|
-| `XState` | The engine already carries the converging state-machine semantics — Review Convergence, failure categories, quota isolation — pinned by 400+ tests. Adopting a state-machine library would overturn the convergence already present in the engine with destructive risk and zero benefit. |
-| `tapable` / `emittery` | `tapable` is webpack-ecosystem-heavy for two fixed hook points; `emittery` is pub/sub, not lifecycle orchestration. `hookable` is already chosen and same-source (unjs). |
-| alternate template engines (`ejs`, `nunjucks`) | `handlebars` is chosen; its `{{X}}` syntax matches the existing templates with zero template churn. |
+| `XState` | The engine already carries the converging state-machine semantics — Review Convergence, failure categories, quota isolation — pinned by the engine vitest suite. Adopting a state-machine library would overturn the convergence already present in the engine with destructive risk and zero benefit. |
+| `tapable` / `emittery` | `tapable` is webpack-ecosystem-heavy for lifecycle orchestration; `emittery` is pub/sub, not phase ordering. The lifecycle is a typed phase table (`session/run.ts`), so no hook library is adopted. |
+| alternate template engines (`ejs`, `nunjucks`) | the `{{X}}` spelling is rendered by the engine's own `TemplateAssembler` over typed data — a library would duplicate the assembler with zero churn saved. |
 | `isomorphic-git` | pure-JS / browser-oriented and maintenance-slowed; `simple-git` is the Node CLI-side standard. |
-| `js-yaml` | recent CVE (CVE-2026-84375) and weaker YAML 1.2 coverage; `yaml` chosen (zero deps, active maintenance, full test-suite). |
+| `js-yaml` | weaker YAML 1.2 coverage; `yaml` chosen (zero deps, active maintenance, full test-suite). |
 | `oclif` | strong TS, but plugin-manifest / auto-update conventions are overkill for a single-bin embedded engine. |
 | `husky` as a package dependency | see §3 (Husky boundary) — root dev-only, never in a package. |
 
 ## 6. Boundary verification
 
-The replaced surfaces are all generic infrastructure (git protocol / YAML syntax / glob / template substitution / CLI parsing / hook orchestration / logging / build). What remains hand-maintained is entirely CDD semantics: the dispatch lifecycle skeleton (abstract base class + subclasses + phase table), the commit entry/exit double gate, failure categories, Review Convergence, and the handoff JSON schema injection rules. When a task touches a generic capability it should extend an adopted package rather than introduce a hand-rolled surface.
+The adopted surfaces are all generic infrastructure (git protocol / YAML syntax / template substitution / CLI parsing / logging / build). What remains hand-maintained is entirely CDD semantics: the dispatch lifecycle skeleton (abstract base class + phase table), the commit boundary, the wave gate, Review Convergence, and the handoff schema guards. When a task touches a generic capability it should first check §1/§4 — extend an adopted package or the structural replacement already in place, never reintroduce a pruned package.

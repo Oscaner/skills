@@ -1,0 +1,11 @@
+---
+"@oscaner-skills/cdd-engine": major
+"@oscaner-skills/kairos": major
+---
+
+feat(engine) + refactor(kairos): P3.2 terminal closure — full final verification, consumer-surface sync, dependency-shell strip, and the net-reduction accounting (T17)
+
+- **Full final verification green** — the composed validate chain (emit freshness · skill anatomy · word-face · channel audits · engine + scripts vitest suites · the kairos behavior tree · typecheck ×3 · package version sync) ALL PASS; the three derived doc schemas' `description` fields are reconciliation-pinned to the declared element registries (39/32 · 24/17 · 21/13 declared/required, per-property `presence · home · ref` descriptions derived, byte-identical to the committed snapshots — an independent recount, not the projector's own readout).
+- **Zero-residual terminal sweep** — the wave-closure word system carries zero live-surface residue (`--type task` · `implement.task`/`review.task`/`fix.task` · the `{task:` line shape · `TASK_BASE` · `SCOPE:` · the `scripts-next` name · the retired skill/subcommand names `cdd-charter`/`cdd-phase`/`cdd-spec` · `cdd-task`/`docs-task`/`cdd-select`/`cdd-research`); historical version lines and CHANGELOGs stay untouched (zero retro-rename).
+- **Consumer-surface sync + the dependency-shell strip** — the README family is synced to the retired-engine reality (the `cdd`-on-`PATH` / `npm i -g` / `detect-engine` install precondition is gone — every skill invokes `npx -y @oscaner-skills/cdd-engine@latest` on demand); the engine's declared runtime dependency surface is pruned to `simple-git` (the eight old-tree packages — ajv / citty / consola / execa / handlebars / hookable / semver / tinyglobby — are structurally replaced by `node:` builtins and typed constant data, recorded in the maintainers dependency doc), and the root toolchain drops its unused `dependencies` block + `citty`.
+- **Net-reduction accounting** — measured against the pre-cutover git history (the old tree is deleted), the production plane went from ≈31.2k lines (engine 18.7k · config 2.5k · toolchain 8.8k · kairos 0.97k) to ≈12.9k (src-next 10.1k · templates 0.2k · scripts 1.8k · kairos 0.7k) — a −58.8% net reduction, recorded with real values (the spec's ≈29k baseline estimate is superseded by the measured pre-cutover total).

@@ -1,75 +1,68 @@
 ---
 name: cdd-plan
-description: Independent plan-writing orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:writing-plans（pi：/skill:writing-plans） flow inline as this session's baseline, backfills the design spec on substantive drift before authoring, runs the cdd plan review-fix loop, commits on approval, and hands off to cdd-dev. Callable standalone; invoke as kairos:cdd-plan（pi：/skill:cdd-plan）.
+description: Independent plan-writing orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:writing-plans（pi：/skill:writing-plans） flow inline as this session's baseline, backfills the design spec on substantive drift before authoring, runs the cdd plan review-fix loop under the engine's next: dispatch-ready route facts, commits on approval, and hands off to cdd-dev. Callable standalone; invoke as kairos:cdd-plan（pi：/skill:cdd-plan）.
 ---
 
 # Kairos CDD-Plan
 
 Writes a plan document from an approved spec, backfills the design when planning surfaces substantive drift, reviews under the cdd plan contract, commits on approval, and hands off to cdd-dev.
 
+**Invocation discipline** — Direct invocation — read the full output (stdout/stderr); the engine truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture. **Round rhythm** — one review pass per dispatch; a fix round re-enters the review while the route is not done; ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch). **Failure face** — cross-node failure handling lives in the Failure Modes table below (the single source); node `Fail` entries keep only local behavior.
+
 ## Flow Digraph
 
 ```mermaid
 flowchart TD
-  A[run-cdd-plan-session] -->|landed| B[backfill-design]
-  A -->|missing| Z1((BLOCKED: install superpowers — see README 'Upstream dependency install'))
+  A[run-cdd-plan-session] --> B[backfill-design]
+  A --> Z1((BLOCKED: upstream plugin missing))
   B --> C[author-plan]
-  C --> D[plan-review]
-  D --> E{status?}
-  E -->|CHANGES_REQUESTED / REVIEW_FIX| F[fix-plan]
-  E -->|APPROVED| H[commit-plan]
-  F -->|entered via CHANGES_REQUESTED| D
-  F -->|entered via REVIEW_FIX| H[commit-plan]
-  H --> I[handoff-cdd-dev]
+  C --> L[NEXT-LOOP]
+  L -->|until next=done| L
+  L -->|next=done| K[commit-plan]
+  L -->|no next| Z2((BLOCKED))
+  K --> H[handoff-cdd-dev]
 ```
 
 ## Node Definitions
 
 ### `run-cdd-plan-session`
 
-- **Do**: Import `/superpowers:writing-plans`（pi：/skill:writing-plans） — its flow is consumed inline as this session's baseline (loading an upstream skill imports its flow once; no second spawn) to plan the approved spec; it lands the draft plan (session-call; the upstream document is not read)
+- **Do**: Import `/superpowers:writing-plans`（pi：/skill:writing-plans） to plan the approved spec; it lands the draft plan (session-call; the upstream document is not read)
 - **Read**: nothing before the import; the import plans from the approved spec and lands the draft plan
-- **Exit**: Import landed → `backfill-design`; upstream missing → BLOCKED (install superpowers — see the kairos README's 'Upstream dependency install' table)
-- **Fail**: Upstream superpowers plugin missing → BLOCKED: install superpowers — see the kairos README's 'Upstream dependency install' table (no downgrade, no skip, no inline restatement)
+- **Exit**: Import landed → `backfill-design`
+- **Fail**: Upstream superpowers plugin missing → BLOCKED (no downgrade, no skip, no inline restatement)
 
 ### `backfill-design`
 
-- **Do**: Check the drafted plan against the approved design. Substantive drift (factual error / missing constraint / a new implementation step the design does not cover) → **backfill the design spec first** — revise the spec + record the drift — so spec and plan agree before plan-review (overall v1.6 rule). Cross-phase matters still backfill to the parent overall per Boundary rules
+- **Do**: Check the drafted plan against the approved design. Substantive drift (factual error / missing constraint / a new implementation step the design does not cover) → **backfill the design spec first** — revise the spec + record the drift — so spec and plan agree before plan-review (the design-backfill rule). Cross-phase matters still backfill to the parent overall per Boundary rules
 - **Read**: approved spec + landed plan draft
 - **Exit**: spec ↔ plan consistent → `author-plan`
-- **Fail**: Entering plan-review with an un-backfilled drift → violates the design-backfill rule (overall v1.6)
+- **Fail**: Entering plan-review with an un-backfilled drift → violates the design-backfill rule
 
 ### `author-plan`
 
-- **Do**: Write the complete plan document to `docs/kairos/plans/YYYY-MM-DD-<feature>.md`. Plan header MUST carry the approved design link as **`**Spec:**` on line 2** (immediately after the `# Title`): `**Spec:** [<name>-design.md](docs/kairos/specs/<name>-design.md)` — the same source as `plan-review`'s `--spec` pointer; `cdd-report` resolves program attribution through this header (workspace plan record → **Spec:** → overall → Related), the plan record being the first hop of its program chain. The rest of the plan structure is canonical — run `cdd schema get plan` to read the plan doc-structure schema (the same single structure fact the engine asserts) and follow its properties + descriptions: task-heading format (colon form — em dash / Chinese colon / any other delimiter fails brief extraction), the constraint surface declared for `cdd implement` to materialize `plan-constraints.md` (see the schema's constraint-form nodes; declaring neither blocks pre-flight with `plan Constraints source undeclared` — no silent fallback), the dispatch-group edge fields on the task records, and the header fields. When the task list is written, declare the dependencies as the single directed edge on the task records **non-interactively** — a design judgment at authoring time, no AskUserQuestion: `- **DependsOn**: <n, n, …>` (a task may only list lower-numbered tasks; `none`/empty = the explicit no-dependency declaration) — and the engine's `TaskGraph` derives the dispatch groups from the edge declarations (`effectiveGroups` = the wave batches — one dispatch group per ready wave, ascending task numbers); a no-dependency task list is the single root wave — every `### Task N:` part of the first dispatch group, zero plan churn. Cross-task adjudication surfaced later (user adjudication / phase-level re-scope) is handled by the orchestrator as Plan Sole Writer — it amends the target task's `- **Objective**:` / `- **Steps**:` / `- **Acceptance**:` data fields directly (the standard brief-extraction surface); fix/implement agents hold zero plan-modification authority (I3). Includes self-review (spec coverage + placeholder scan + type consistency) — issues found are fixed inline, not looped or passed to plan-review. Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
-- **Read**: approved spec + `backfill-design` output
-- **Exit**: Plan written + self-review passed → `plan-review`
-- **Fail**: Write error or self-review finds an unfixable defect → report + fail-open (do not block plan review)
+- **Do**: Write the complete plan document to `docs/kairos/plans/YYYY-MM-DD-<feature>.md`. Plan header MUST carry the approved design link as **`**Spec:**` on line 2** (immediately after the `# Title`): `**Spec:** [<name>-design.md](docs/kairos/specs/<name>-design.md)` — the same source as the review's `--spec` pointer; `cdd-report` resolves program attribution through this header (workspace plan record → **Spec:** → overall → Related), the plan record being the first hop of its program chain. The rest of the plan structure is canonical — run `npx -y @oscaner-skills/cdd-engine@latest schema get plan` to read the plan doc-structure schema (the same single structure fact the engine asserts) and follow its properties + descriptions: task-heading format (colon form), the constraint surface declared for `npx -y @oscaner-skills/cdd-engine@latest implement` to materialize `plan-constraints.md` (declaring neither blocks pre-flight — no silent fallback), the dispatch-edge fields on the task records, and the header fields. When the task list is written, declare the dependencies as the single directed edge on the task records **non-interactively** — a design judgment at authoring time: `- **DependsOn**: <n, n, …>` (any existing task id — forward references are legal; `none`/empty = the explicit no-dependency declaration), and the engine derives the dispatch waves from the declared closure (`effectiveWaves` = the wave batches — one wave per ready set, tasks ascending within a wave); a no-dependency task list is the single root wave — every `### Task N:` part of the first dispatch wave, zero plan churn. Cross-task adjudication surfaced later (user adjudication / phase-level re-scope) is handled by the orchestrator as Plan Sole Writer — it amends the target task's `- **Objective**:` / `- **Steps**:` / `- **Acceptance**:` data fields directly (the standard brief-extraction surface); fix/implement agents hold zero plan-modification authority. Includes self-review (spec coverage + placeholder scan + type consistency) — issues found are fixed inline, not looped or passed to review.
+- **Read**: approved spec + `backfill-design` output + `npx -y @oscaner-skills/cdd-engine@latest schema get plan` (the canonical structure)
+- **Exit**: File written → `NEXT-LOOP`
+- **Fail**: Schema read fails or the draft plan is unusable → BLOCKED (missing plan input)
 
-### `plan-review`
+### `NEXT-LOOP`
 
-- **Do**: Execute one review per cycle — one dispatch: `cdd review --type plan --plan <path> --spec <spec-path>` (completeness / decomposition / buildability in one run; findings are lens-tagged; round auto-increments in the engine). Self-review, manual checks, or any other substitute for cdd review CLI invocation is forbidden. Review Convergence (I1): read the `next:` suggestion from the review output — the engine's default next-step suggestion (dispatch per it when continuing directly); a mid-backfill or a user adjudication that lands governs over it (current world state). Ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch). Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
-- **Read**: plan document + spec document + the review output contract (incl. the `next:` suggestion)
-- **Exit**: the `next:` suggestion routes the next dispatch — fix-plan or commit-plan (no self-authored status→dispatch mapping)
-- **Fail**: Re-running the review after a closure conclusion (REVIEW_FIX / APPROVED) → violates the review-convergence discipline
-
-### `fix-plan`
-
-- **Do**: Fix ALL findings (blocker + warn + nit) via `cdd fix --type plan --plan <path> --findings <workspace>/plan-review-{R}.json`. No new review invocation — work from the findings already captured in the current cycle (the fix output's `next:` suggestion names the next hop: re-review / closure); cross-task adjudication never happens here — it lands via the orchestrator as Plan Sole Writer, the fix agent holds zero plan-modification authority (I3). Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture. After the review, the orchestrator reads the `next:` suggestion for routing; findings full text is consumed by `cdd fix`'s fix-agent via `--findings <handoff>` — the orchestrator must not self-apply findings as inline edits.
-- **Read**: captured plan-review handoff (current cycle findings)
-- **Exit**: the fix output's `next:` suggestion routes the next dispatch — plan-review (re-run) or commit-plan (closure); a closure conclusion never re-runs
-- **Fail**: Invoking a new review instead of fixing from captured findings → violates the review-convergence discipline
+- **Do**: Run the review-fix rhythm for the authored plan — one review per pass. Dispatch the review round on the current ref (`npx -y @oscaner-skills/cdd-engine@latest review --type plan --plan <path>`); dispatch the output's `next:` line as written — `fix plan <path> --findings <handoff>` re-enters the fix pass, `done` → `commit-plan`; BLOCKED/TIMEOUT rounds carry no `next:` line (the `CDD_BLOCKED:` channel owns them).
+- **Read**: the review output contract (the `status · blocker · handoff` capsule + the `next:` line + the findings handoff path)
+- **Exit**: the `next:` line reads `done` → `commit-plan`; each fix pass re-enters this hub while the route is not done (the `until next=done` self-loop)
+- **Fail**: Re-running a review after a closure conclusion → violates Review Convergence (stop + report)
 
 ### `commit-plan`
 
-- **Do**: `git add` the plan + conventional commit. Plan approved = commit immediately (I2); do not wait for dev merge
-- **Read**: Plan file path
+- **Do**: `git add` the plan + conventional commit.
+- **Read**: The committed plan file path
 - **Exit**: Commit complete → `handoff-cdd-dev`
 - **Fail**: Git error → report + fail-open (do not block user plan review)
 
 ### `handoff-cdd-dev`
 
-- **Do**: Prepare the handoff to `/kairos:cdd-dev`（pi：/skill:cdd-dev） — its `cdd` implement → review → fix orchestration takes over to implement the approved plan (flow handoff, not a session spawn; the cdd chain drives the work)
+- **Do**: Hand off to `/kairos:cdd-dev`（pi：/skill:cdd-dev）
 - **Read**: The committed plan file
 - **Exit**: Handoff executed → flow ends for this skill
 - **Fail**: Target skill missing → BLOCKED (install kairos — see the kairos README's 'Upstream dependency install' table)
@@ -78,15 +71,17 @@ flowchart TD
 
 | # | Invariant |
 |---|---|
-| I1 | **Review Convergence** — a review closes by its conclusion `status`, and the output's `next:` line carries the engine's default next-step suggestion — read the `next:` suggestion and dispatch per it when continuing directly; a mid-backfill or a user adjudication that lands governs over it (current world state wins). Fixes always dispatch via `cdd fix`; the orchestrator must not edit in place as a substitute. For spec/plan the engine binds the ref to `(doc_path, doc_hash)` and rejects a same-ref re-run; editing the plan opens a new review round legitimately |
+| I1 | **Review Convergence (next: is the dispatch)** — a review closes by its conclusion `status` (APPROVED / CHANGES_REQUESTED / REVIEW_FIX), and the output's `next:` line carries the engine's default next step as a dispatch-ready literal (verb + target-type + id + payload: `implement wave {tasks}` · `review wave {tasks} (base {base7})` · `fix wave {tasks} --findings {path} (read file back to confirm)` · the `done` terminal · the soft-cap message verbatim); read the `next:` line and dispatch it as written — the literal is the dispatch, no kind→command mapping layer. A mid-backfill or a user adjudication that lands governs over the suggestion (current world state wins). Fixes always dispatch via the fix round; the orchestrator must not edit in place as a substitute; a re-review of a moved ref is a new review |
 | I2 | **Plan commit discipline** — plan approved = commit immediately; do not wait for dev merge |
-| I3 | **Plan Sole Writer** — cross-task adjudication (user adjudication / phase-level re-scope) is the orchestrator's call as Plan Sole Writer: the target task's `- **Objective**:` / `- **Steps**:` / `- **Acceptance**:` data fields are amended directly, so the decision rides the standard brief-extraction surface into the target task's dispatch verbatim. Fix/implement agents hold zero plan-modification authority. |
-| I4 | **Mid-Flight Backfill** — a user-raised backfill of overall/spec/plan docs surfaced while a dispatch is in flight lands through four ordered steps on the current `cdd` call's return (any dispatch — implement/review/fix): (1) **land immediately** — hot context; no deferral to cycle close (deferral risks losing the decision); (2) **commit on its own** — committed as its own standalone change, never mixed with implementation commits; (3) **pause the loop until clean** — the loop pauses (tree clean, backfill committed) before the next dispatch; an uncommitted backfill trips the next review's entry gate (dirty → BLOCKED); (4) **audit in-band on resume** — after the loop resumes, the next review audits the backfill in-band (changed-surface booking, not a block); a backfill rewriting the current task's own plan/spec text routes through the orchestrator as Plan Sole Writer (cross-task adjudication), otherwise it rides the moving ref. |
+| I3 | **Plan Sole Writer** — the plan document is the orchestrator's sole-writer surface: the orchestrator amends the target task's data fields directly on adjudication; fix/implement agents hold zero plan-modification authority |
+| I4 | **Mid-Flight Backfill** — a user-raised backfill of overall/spec/plan docs surfaced while a dispatch is in flight lands through four ordered steps on the current call's return: (1) **land immediately** — hot context, no deferral; (2) **commit on its own** — a standalone change, never mixed with implementation commits; (3) **pause the loop until clean** — an uncommitted backfill trips the next review's entry gate (dirty → BLOCKED); (4) **audit in-band on resume** — the next review audits the backfill in-band |
 
 ## Failure Modes
 
 | failure | behavior | reason |
 |---|---|---|
 | Upstream superpowers plugin missing | BLOCKED (install superpowers — see the kairos README's 'Upstream dependency install' table) | Block policy: no silent fallback |
-| Design drift not backfilled before plan-review | BLOCKED (design-backfill violation) | spec and plan must agree before review |
+| review re-run after a closure conclusion (REVIEW_FIX / APPROVED) | Violates I1 (Review Convergence) — stop + report to user | A new ref opens a new review, never a re-run of a closed one |
+| Entering review with an un-backfilled drift | Violates the design-backfill rule — stop + backfill first | Spec and plan must agree before review |
 | Git commit error | report + fail-open | Do not block user plan review |
+| Completed round with no `next:` line (not BLOCKED/TIMEOUT) | HARD_ERROR — report the `CDD_BLOCKED:` reason, re-run the same command to continue | No dispatchable next |

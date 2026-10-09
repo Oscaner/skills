@@ -21,6 +21,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { HOSTS, type HostId } from "../../cdd-engine/src-next/face/host.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..", "..", "..");
@@ -44,11 +45,11 @@ const ROOT_BEHAVIOR_HEADINGS = [
   "License",
 ];
 
-// The engine's actual top-level CLI surface (parse.ts canonical set: implement / review / fix /
-// base-branch / schema / issue) — README surfaces must document all of it, issue included
-// (the P4.2 Task 6 `cdd issue render` addition), else the behavior claim drifts from the
-// landing behavior.
-const CDD_SUBCOMMANDS = ["implement", "review", "fix", "base-branch", "schema", "issue"];
+// The engine's actual top-level CLI surface (the parse canonical set: implement / review / fix /
+// base / schema / issue — T20 converged the base command face) — README surfaces must document
+// all of it, issue included (the P4.2 Task 6 `cdd issue render` addition), else the behavior
+// claim drifts from the landing behavior.
+const CDD_SUBCOMMANDS = ["implement", "review", "fix", "base", "schema", "issue"];
 
 function read(rel: string) {
   return readFileSync(path.join(REPO, rel), "utf8");
@@ -254,14 +255,14 @@ test("P4.1 behavior: kairos README skill inventory equals the shipped skills (di
     .map((e) => e.name)
     .sort();
   // Double-pin ① — every directory name must equal its SKILL.md front-matter `name:` (the G1
-  // single-identity rule restated as a machine check); exactly 8 skills, all `cdd-*` family.
+  // single-identity rule restated as a machine check); exactly 6 skills, all `cdd-*` family.
   const names = dirs.map((d) => {
     const md = readFileSync(path.join(REPO, "packages/kairos/skills", d, "SKILL.md"), "utf8");
     const picked = md.match(/^name:\s*(.+)$/m);
     assert.ok(picked, `SKILL.md in ${d} missing a name: front-matter field`);
     return picked[1].trim();
   });
-  assert.equal(dirs.length, 8, "must be exactly the shipped 8 skills");
+  assert.equal(dirs.length, 6, "must be exactly the shipped 6 skills");
   assert.deepEqual(dirs, names, "skill directory name must equal its SKILL.md front-matter name:");
   for (const n of names) {
     assert.match(n, /^cdd-/, `every shipped skill must be a cdd-* family name: ${n}`);
@@ -271,7 +272,7 @@ test("P4.1 behavior: kairos README skill inventory equals the shipped skills (di
   const table = md.slice(md.indexOf("## Skills"), md.indexOf("## Installation"));
   assert.ok(md.includes("## Skills"), "kairos README Skills section missing");
   const rows = [...table.matchAll(/^\|\s*`([a-z-]+)`\s*\|/gm)].map((m) => m[1]).sort();
-  assert.equal(rows.length, 8, "skill table must carry exactly the shipped 8 skills");
+  assert.equal(rows.length, 6, "skill table must carry exactly the shipped 6 skills");
   assert.deepEqual(rows, dirs, "README skill table rows drift from the shipped skills");
 });
 
@@ -290,10 +291,11 @@ test("P4.1 behavior: cdd-engine README documents every CLI subcommand (issue inc
 test("P4.1 behavior: kairos README names the full CLI surface (issue render included)", () => {
   const md = read("packages/kairos/README.md");
   const cli = sectionOf(md, "## CDD engine CLI");
+  const surface = CDD_SUBCOMMANDS.join(" / ");
   assert.match(
     cli,
-    /implement \/ review \/ fix \/ base-branch \/ schema \/ issue/,
-    "kairos README must name the full CLI surface (implement / review / fix / base-branch / schema / issue)",
+    new RegExp(surface),
+    `kairos README must name the full CLI surface (${surface})`,
   );
   assert.match(cli, /cdd schema get/, "kairos README must mention cdd schema get");
   assert.match(cli, /cdd issue render/, "kairos README must mention cdd issue render");
@@ -370,7 +372,7 @@ const NOMINAL_SECTION_HEADING: Record<string, string> = {
  *  + host marker from the harness contract (row id + cli + detect — C8: the unique harness-data
  *  source), ship status from the same contract row — `cursor-agent` is legal ONLY as the cursor
  *  binary-column data value. */
-/** One row of the canonical harness contract (packages/cdd-engine/config/harness-contract.json) —
+/** One row of the canonical harness contract (the typed host plane, src-next/face/host.ts) —
  *  the nominal-table derivation source (id + cli + detect + ship). */
 interface HarnessContractRow {
   cli?: unknown;
@@ -409,11 +411,10 @@ function parseNominalRow(line: string) {
 }
 
 test("nominal mapping table == the harness contract (row id/cli/detect + ship) data derivation", () => {
-  const contract = JSON.parse(read("packages/cdd-engine/config/harness-contract.json")) as Record<
-    string,
-    HarnessContractRow
-  >;
-  const ids = Object.keys(contract).filter((k) => !["_doc", "dispatch", "refs"].includes(k));
+  const contract = HOSTS as unknown as Record<string, HarnessContractRow>;
+  const ids = Object.keys(contract).filter(
+    (k): k is HostId => k === "claude" || k === "cursor" || k === "pi",
+  );
   const expected = ids.map((id) => nominalRow(contract, id));
   for (const rel of Object.keys(NOMINAL_SECTION_HEADING)) {
     const md = read(rel);

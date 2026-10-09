@@ -1,6 +1,6 @@
 # @oscaner-skills/kairos
 
-> 🔗 **Mirror 同步声明**：本文件（`README.zh-CN.md`）是英文源 [README.md](README.md) 的同步中文 **mirror**——顶层章节集合逐条一致，节点按位置一一对应；本文为对外宣讲面的中文口径，语义以英文源为准。**同步时间戳**：2026-10-01。
+> 🔗 **Mirror 同步声明**：本文件（`README.zh-CN.md`）是英文源 [README.md](README.md) 的同步中文 **mirror**——顶层章节集合逐条一致，节点按位置一一对应；本文为对外宣讲面的中文口径，语义以英文源为准。**同步时间戳**：2026-10-08。
 
 [English](README.md) | [中文](README.zh-CN.md)
 
@@ -16,24 +16,23 @@ kairos 是 cdd-first 方法论的分发载体：它将**持续发现式开发（
 
 ## 功能
 
-三个技能家族：
+六个 `cdd-*` 技能，三个家族：
 
-- **kairos 编排**——读取上游 `superpowers` 基线的流程编排器，并应用本插件的个人规则（经 `grilling` 澄清问题、经全新子代理 pass 做 spec 评审等）
-- **`cdd-*` CDD 引擎家族**——计划执行器外加 `cdd` 引擎 CLI（`@oscaner-skills/cdd-engine`）：implement / review / fix 三模链与 base-branch 产物，将每个阶段派发给宿主 harness CLI
-- **cdd-report**——仓库开发工具，为 CDD 会话的缺陷与改进机会聚合生成一个 GitHub issue（gh CLI、去重感知、手动触发）
+- **kairos 编排**——读取上游 `superpowers` 基线的流程编排器，并应用本插件的个人规则（经 `grilling` 澄清问题、在引擎 `next:` 路由事实下的 spec 评审-修复节奏等）：`cdd-design`（brainstorm 路由 + 参数化 spec-writer 派发）、`cdd-plan`（计划撰写）、`cdd-close`（分支收尾）
+- **`cdd-spec-writer`**——参数化 spec 写入器（single / phase-spec / overall 合一流程）：撰写、评审并提交目标 spec
+- **`cdd-dev`**——计划执行器：`cdd` 引擎 CLI（`@oscaner-skills/cdd-engine`）逐波 implement / review / fix，由引擎 `next:` 路由事实驱动
+- **cdd-report**——仓库开发工具，为 CDD 会话的缺陷与改进机会聚合生成一个 GitHub issue（gh CLI、去重感知、手动触发、一次性链路）
 
 ## 技能
 
 | 技能 | 类型 | 说明 |
 |------|------|------|
-| `cdd-design` | Orchestrator | 委派发现给 `grilling`；子代理 spec 评审；路由到 overall/phase spec 写入器 |
-| `cdd-charter` | Orchestrator | 从设计会话写出程序宪章（overall spec）；cdd spec 评审-修复；交接下一阶段 |
-| `cdd-phase` | Orchestrator | 写阶段 spec 增量；先同步 scope 变更到父 overall；cdd spec 评审-修复；交接 `cdd-plan` |
-| `cdd-spec` | Orchestrator | 自由形式写单一（非阶段）spec；cdd spec 评审-修复；交接 `cdd-plan` |
-| `cdd-plan` | Orchestrator | 逐节撰写计划 + 评审 |
-| `cdd-dev` | Orchestrator + Engine | 计划执行器（仅 CLI）；派发三模链（`cdd implement` / `cdd review` / `cdd fix`）+ `cdd base-branch` 产物；最终分支评审 |
-| `cdd-close` | Orchestrator | 分支收尾 / PR；禁用 worktree；conventional commits |
-| `cdd-report` | Utility | 为 CDD 会话的缺陷与改进机会聚合生成一个 GitHub issue（gh CLI、去重感知）；手动触发 |
+| `cdd-design` | Orchestrator | Brainstorm 路由（mode/register/size 门）；派发参数化 spec-writer（single / phase-spec / overall 宪章） |
+| `cdd-spec-writer` | Spec-writer | 合一 single / phase-spec / overall 写入器：在一个参数化流程下撰写、评审并提交目标 spec |
+| `cdd-plan` | Orchestrator | 计划撰写（backfill-design 门 · Plan Sole Writer）；计划评审-修复节奏；交接 `cdd-dev` |
+| `cdd-dev` | Orchestrator + Engine | 计划执行器（仅 CLI）；派发 implement / review / fix 链 + `cdd base` 产物；最终分支评审 |
+| `cdd-close` | Orchestrator | 分支收尾 / PR；止于 finish 门 + 终端；禁用 worktree；conventional commits |
+| `cdd-report` | Utility | 为 CDD 会话的缺陷与改进机会聚合生成一个 GitHub issue（gh CLI、去重感知）；一次性链路；手动触发 |
 
 ## 安装
 
@@ -50,12 +49,12 @@ claude plugin install kairos@oscaner-skills
 pi install npm:@oscaner-skills/kairos
 ```
 
-安装最新发布版并写入 pi 的 project settings。随后八个 `cdd-*` 技能以裸名出现在 pi 的扁平命名空间中——`cdd-design`、`cdd-plan` 等。
+安装最新发布版并写入 pi 的 project settings。随后六个 `cdd-*` 技能以裸名出现在 pi 的扁平命名空间中——`cdd-design`、`cdd-plan` 等。
 
 ## 快速开始
 
 1. 从市场安装 `superpowers`、`kairos` 与 `mattpocock-skills`（逐 harness 安装见仓库 README）。
-2. 确保 `cdd` 引擎 CLI 在 `PATH` 上（`command -v cdd`）；若缺失，运行 `npm i -g @oscaner-skills/cdd-engine`。`cdd-dev` 技能的 `detect-engine` 节点会在 dispatch 时重新检查。
+2. 零安装前置——每个 kairos 技能按需通过 `npx -y @oscaner-skills/cdd-engine@latest <子命令>` 调用引擎（无全局安装前置；退役的 `detect-engine` 门已移除）。
 3. 调用 kairos 技能——Claude Code 与 Cursor Agent 均用 `/kairos:<skill>` 斜杠形式：
 
 ```bash
@@ -70,7 +69,7 @@ pi install npm:@oscaner-skills/kairos
 
 ## CDD 引擎 CLI
 
-CDD 引擎以独立 `@oscaner-skills/cdd-engine` 包发布；其唯一 CLI 运行器是 `cdd`（implement / review / fix / base-branch / schema / issue）。它通过引擎内嵌的 harness 注册表（逐 harness 的调用与输出契约）将每个阶段派发给宿主 harness CLI：
+CDD 引擎以独立 `@oscaner-skills/cdd-engine` 包发布；其唯一 CLI 运行器是 `cdd`（implement / review / fix / base / schema / issue）。它通过引擎内嵌的 harness 注册表（逐 harness 的调用与输出契约）将每个阶段派发给宿主 harness CLI：
 
 | 标识符 | CLI 二进制 | 宿主 marker | 交付状态 |
 |--------|------------|-------------|----------|

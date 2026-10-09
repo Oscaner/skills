@@ -1,0 +1,238 @@
+{
+  "docType": "overall",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "overall document structure",
+  "description": "Derived JSON Schema — 39 declared elements · 32 required",
+  "type": "object",
+  "properties": {
+    "# Title": {
+      "type": "string",
+      "pattern": "^# \\S.*$",
+      "description": "presence: required · home: header · ref: none"
+    },
+    "**Version**": {
+      "type": "string",
+      "pattern": "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+",
+      "description": "presence: required · home: header · ref: version-lineage"
+    },
+    "**Status**": {
+      "type": "string",
+      "pattern": "^- \\*\\*Status\\*\\*: (Draft|Approved|In progress|Complete)$",
+      "description": "presence: required · home: header · ref: none"
+    },
+    "**Author**": {
+      "type": "string",
+      "pattern": "^- \\*\\*Author\\*\\*:",
+      "description": "presence: required · home: header · ref: none"
+    },
+    "**Constraints**": {
+      "type": "string",
+      "pattern": "^- \\*\\*Constraints\\*\\*:",
+      "description": "presence: required · home: header · ref: none"
+    },
+    "## Document scope": {
+      "type": "string",
+      "pattern": "^## Document scope$",
+      "description": "presence: required · home: section · ref: none"
+    },
+    "## File paths": {
+      "type": "string",
+      "pattern": "^## File paths$",
+      "description": "presence: required · home: section · ref: none"
+    },
+    "## Program charter": {
+      "type": "string",
+      "pattern": "^## Program charter$",
+      "description": "presence: required · home: section · ref: none"
+    },
+    "## Issue inventory": {
+      "type": "string",
+      "pattern": "^## Issue inventory$",
+      "description": "presence: required · home: section · ref: none"
+    },
+    "## Phase inventory": {
+      "type": "string",
+      "pattern": "^## Phase inventory$",
+      "description": "presence: required · home: section · ref: none"
+    },
+    "## Dependency graph": {
+      "type": "string",
+      "pattern": "^## Dependency graph( \\(ASCII\\))?$",
+      "description": "presence: required · home: section · ref: none"
+    },
+    "## Boundary rules": {
+      "type": "string",
+      "pattern": "^## Boundary rules$",
+      "description": "presence: required · home: section · ref: none"
+    },
+    "## Maintenance": {
+      "type": "string",
+      "pattern": "^## Maintenance$",
+      "description": "presence: required · home: section · ref: none"
+    },
+    "## Change history": {
+      "type": "string",
+      "pattern": "^## Change history$",
+      "description": "presence: required · home: section · ref: none"
+    },
+    "### Goal": {
+      "type": "string",
+      "pattern": "^### (Goal|cdd-engine 服务化主线（2026-09-13 用户升维）)",
+      "description": "presence: required · home: facet · ref: none"
+    },
+    "### Non-goals": {
+      "type": "string",
+      "pattern": "^### Non-goals",
+      "description": "presence: required · home: facet · ref: none"
+    },
+    "### Cross-cutting": {
+      "type": "string",
+      "pattern": "^### Cross-cutting",
+      "description": "presence: required · home: facet · ref: none"
+    },
+    "#### [MFRBEN] 组": {
+      "type": "string",
+      "pattern": "^#### [MFRBEN] 组",
+      "description": "presence: optional · home: facet · ref: none"
+    },
+    "#### 上游先例背书": {
+      "type": "string",
+      "pattern": "^#### 上游先例背书$",
+      "description": "presence: optional · home: facet · ref: none"
+    },
+    "Issue inventory columns": {
+      "type": "string",
+      "pattern": "^\\| Phase \\| Issue \\(ref\\) \\| Title summary \\|$",
+      "description": "presence: required · home: table · ref: none"
+    },
+    "Issue row": {
+      "type": "string",
+      "pattern": "^\\|\\s*P\\d+(\\.\\d+)*\\s*\\|",
+      "description": "presence: required · home: table · ref: issue-ref"
+    },
+    "Issue ref cell": {
+      "type": "string",
+      "pattern": "^(none|#\\d+|\\[#\\d+\\]|#\\d+#issuecomment-\\d+|（[^）]*）|\\([^)]*\\))$",
+      "description": "presence: required · home: table · ref: issue-ref"
+    },
+    "issuecomment anchor": {
+      "type": "string",
+      "pattern": "^#\\d+#issuecomment-\\d+$",
+      "description": "presence: conditional · home: table · ref: issue-ref"
+    },
+    "Phase inventory columns": {
+      "type": "string",
+      "pattern": "^\\| # \\| Phase \\| Scope \\| Design spec \\| Implementation plan \\| Acceptance criteria \\| Dependency \\|$",
+      "description": "presence: required · home: table · ref: none"
+    },
+    "Phase row": {
+      "type": "string",
+      "pattern": "^\\|\\s*P\\d+(\\.\\d+)*\\s*\\|",
+      "description": "presence: required · home: table · ref: phase-id"
+    },
+    "Phase id token": {
+      "type": "string",
+      "pattern": "^P\\d+(\\.\\d+)*$",
+      "description": "presence: required · home: table · ref: phase-id"
+    },
+    "Implementation plan cell": {
+      "type": "string",
+      "pattern": "^(Pending|\\[Pending\\]|In-flight|\\[In-flight\\]|Done|\\[[^\\]]+\\]\\([^)]+\\))$",
+      "description": "presence: required · home: table · ref: markdown-link"
+    },
+    "Design spec cell": {
+      "type": "string",
+      "pattern": "^(\\[[^\\]]+\\]\\([^)]+\\)|P\\d+(\\.\\d+)*-design|Done|\\[Pending\\])$",
+      "description": "presence: required · home: table · ref: spec-ref"
+    },
+    "Dependency cell": {
+      "type": "string",
+      "pattern": "^P\\d+(\\.\\d+)*\\s*->",
+      "description": "presence: required · home: table · ref: phase-id"
+    },
+    "Hard edge": {
+      "type": "string",
+      "pattern": "^P\\d+(\\.\\d+)*\\s*->\\s*P\\d+(\\.\\d+)*",
+      "description": "presence: required · home: graph · ref: phase-id"
+    },
+    "Soft edge": {
+      "type": "string",
+      "pattern": "^P\\d+(\\.\\d+)*\\s*->\\s*\\(?\\s*soft\\s*\\)?",
+      "description": "presence: optional · home: graph · ref: phase-id"
+    },
+    "Graph legend": {
+      "type": "string",
+      "pattern": "^(?:- )?`?->\\s*(?:\\(soft\\))?\\s*`? = hard block|^(?:- )?`?->\\s*\\(soft\\)\\s*`? = suggestion only",
+      "description": "presence: required · home: graph · ref: none"
+    },
+    "File path row": {
+      "type": "string",
+      "pattern": "^\\| [^|]+ \\| `[^`]+` \\|$",
+      "description": "presence: required · home: table · ref: none"
+    },
+    "Change history row": {
+      "type": "string",
+      "pattern": "^\\|\\s*v\\d+\\.\\d+\\s*\\|",
+      "description": "presence: required · home: table · ref: version-lineage"
+    },
+    "Version token": {
+      "type": "string",
+      "pattern": "^v\\d+\\.\\d+$",
+      "description": "presence: required · home: table · ref: version-lineage"
+    },
+    "Change history date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "presence: required · home: table · ref: none"
+    },
+    "Backfill clause": {
+      "type": "string",
+      "pattern": "(Pending|\\[Pending\\])\\s*(→|->)\\s*\\S+",
+      "description": "presence: conditional · home: table · ref: version-lineage"
+    },
+    "Design claim token": {
+      "type": "string",
+      "pattern": "^P\\d+(\\.\\d+)*-design$",
+      "description": "presence: conditional · home: table · ref: spec-ref"
+    },
+    "Phase range ref": {
+      "type": "string",
+      "pattern": "^P\\d+(\\.\\d+)*\\s*[-–—]\\s*P\\d+(\\.\\d+)*$",
+      "description": "presence: optional · home: table · ref: phase-id"
+    }
+  },
+  "required": [
+    "# Title",
+    "**Version**",
+    "**Status**",
+    "**Author**",
+    "**Constraints**",
+    "## Document scope",
+    "## File paths",
+    "## Program charter",
+    "## Issue inventory",
+    "## Phase inventory",
+    "## Dependency graph",
+    "## Boundary rules",
+    "## Maintenance",
+    "## Change history",
+    "### Goal",
+    "### Non-goals",
+    "### Cross-cutting",
+    "Issue inventory columns",
+    "Issue row",
+    "Issue ref cell",
+    "Phase inventory columns",
+    "Phase row",
+    "Phase id token",
+    "Implementation plan cell",
+    "Design spec cell",
+    "Dependency cell",
+    "Hard edge",
+    "Graph legend",
+    "File path row",
+    "Change history row",
+    "Version token",
+    "Change history date"
+  ]
+}

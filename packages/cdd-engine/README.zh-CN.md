@@ -8,7 +8,7 @@ CDD 引擎 CLI——kairos `cdd-dev` 技能背后的任务运行器、文档/分
 
 ## 包定位
 
-引擎针对计划文件运行 CDD 工作流的 implement / review / fix 阶段，写出派发的 handoff 产物，读写 `base-branch` 产物，并通过其内嵌的 harness 注册表将每个阶段派发给宿主 harness CLI。它被 [kairos 插件](https://www.npmjs.com/package/@oscaner-skills/kairos)的 `cdd-dev` 技能消费，也可直接从命令行使用。
+引擎针对计划文件运行 CDD 工作流的 implement / review / fix 阶段，写出派发的 handoff 产物，读写 `base` 产物，并通过其内嵌的 harness 注册表将每个阶段派发给宿主 harness CLI。它被 [kairos 插件](https://www.npmjs.com/package/@oscaner-skills/kairos)的 `cdd-dev` 技能消费，也可直接从命令行使用。
 
 ## 安装
 
@@ -31,7 +31,7 @@ npm install @oscaner-skills/cdd-engine
 | `implement` | `cdd implement --tasks=<n> [--plan=<path>]` | 运行任务 implement 阶段 |
 | `review` | `cdd review --type=<task\|branch\|spec\|plan>` | 运行评审——task、branch、spec 或 plan |
 | `fix` | `cdd fix --type=<task\|branch\|spec\|plan>` | 修复评审发现——task、branch、spec 或 plan |
-| `base-branch` | `cdd base-branch set\|get` | 读写 `base-branch.json` 产物（单一 CDD `--plan` 目标） |
+| `base` | `cdd base set\|get` | 读写 `base.json` 产物（单一 CDD `--plan` 目标） |
 | `schema` | `cdd schema get <type>` | 打印 canonical 文档结构 schema（发现型、零执法） |
 | `issue` | `cdd issue render` | 依据 stdin 发现渲染聚合 issue 正文（纯渲染、零执法） |
 
@@ -39,15 +39,15 @@ npm install @oscaner-skills/cdd-engine
 
 ## 开发说明
 
-包位于 [Oscaner/skills](https://github.com/Oscaner/skills) monorepo 的 `packages/cdd-engine`（TypeScript，`tsc -p tsconfig.build.json` 发布构建，vitest 测试；测试与源码同地放置于 `src/**/__tests__/**/*.test.ts`）。
+包位于 [Oscaner/skills](https://github.com/Oscaner/skills) monorepo 的 `packages/cdd-engine`（TypeScript，`tsc -p tsconfig.build.json` 发布构建，vitest 测试；测试与源码同地放置于 `src-next/**/__tests__/**/*.test.ts`）。
 
 ```bash
-node packages/cdd-engine/src/bin.ts schema get plan # 从工作树源面直接调用引擎（Node ≥22.18 原生类型剥离）
+node packages/cdd-engine/src-next/bin.ts schema get plan # 从工作树源面直接调用引擎（Node ≥22.18 原生类型剥离）
 pnpm --filter @oscaner-skills/cdd-engine test       # 运行引擎测试套件
 pnpm --filter @oscaner-skills/cdd-engine build      # tsc 构建发布产物 dist/bin.js
 ```
 
-仓库开发期间引擎须从源面直调（`node packages/cdd-engine/src/bin.ts`）——绝不要经全局安装或链接，可能过期。
+仓库开发期间引擎须从源面直调（`node packages/cdd-engine/src-next/bin.ts`）——绝不要经全局安装或链接，可能过期。
 
 ## 许可
 

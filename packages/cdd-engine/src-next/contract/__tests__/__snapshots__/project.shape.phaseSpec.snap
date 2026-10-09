@@ -1,0 +1,130 @@
+{
+  "docType": "phase-spec",
+  "structure": [
+    {
+      "home": "header",
+      "elements": [
+        {
+          "anchor": "# Title",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "**Version**",
+          "presence": "required",
+          "refKind": "version-lineage"
+        },
+        {
+          "anchor": "**Status**",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "**Author**",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "**Parent program**",
+          "presence": "required",
+          "refKind": "parent-program"
+        },
+        {
+          "anchor": "**Depends on**",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "Depends on ref",
+          "presence": "conditional",
+          "refKind": "phase-id"
+        }
+      ]
+    },
+    {
+      "home": "design-body",
+      "elements": [
+        {
+          "anchor": "## Design",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "### N. group heading",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "#### N.M item heading",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "### Acceptance criteria",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "Acceptance entry",
+          "presence": "required",
+          "refKind": "none"
+        }
+      ]
+    },
+    {
+      "home": "section",
+      "elements": [
+        {
+          "anchor": "## Constraints",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "Constraint delta bullet",
+          "presence": "required",
+          "refKind": "none"
+        }
+      ]
+    },
+    {
+      "home": "conditional",
+      "elements": [
+        {
+          "anchor": "## Deviations",
+          "presence": "conditional",
+          "refKind": "none"
+        },
+        {
+          "anchor": "Deviations columns",
+          "presence": "conditional",
+          "refKind": "none"
+        },
+        {
+          "anchor": "Deviations row",
+          "presence": "conditional",
+          "refKind": "none"
+        },
+        {
+          "anchor": "Overall updated answer",
+          "presence": "conditional",
+          "refKind": "none"
+        },
+        {
+          "anchor": "## Incremental warning",
+          "presence": "conditional",
+          "refKind": "none"
+        },
+        {
+          "anchor": "## Notes for downstream",
+          "presence": "conditional",
+          "refKind": "none"
+        },
+        {
+          "anchor": "## Review record",
+          "presence": "conditional",
+          "refKind": "none"
+        }
+      ]
+    }
+  ]
+}

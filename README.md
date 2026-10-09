@@ -95,7 +95,7 @@ kairos installs through each harness's own channel — the plugin marketplace fo
 ## Quick start
 
 1. Install the plugins from the marketplace or npm (see [Installation](#installation)).
-2. Make sure the `cdd` engine CLI is on `PATH` (`command -v cdd`); if it is missing, run `npm i -g @oscaner-skills/cdd-engine`. `cdd-dev`'s `detect-engine` node re-checks this at dispatch.
+2. No install prerequisite — every kairos skill invokes the engine on demand via `npx -y @oscaner-skills/cdd-engine@latest <subcommand>` (zero global-install precondition; the retired `detect-engine` gate is gone; the engine ships only as a source entry + `templates/`).
 3. Invoke the kairos orchestrator by name — `kairos:cdd-design`,
    `kairos:cdd-plan`, and the rest of the family. Each skill imports the matching
    upstream flow as its session baseline and runs its own orchestration digraph; kairos

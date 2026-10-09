@@ -22,18 +22,11 @@
     "@changesets/cli": "^3.0.3",
     "@changesets/config": "^4.0.1",
     "@changesets/read": "^1.0.1",
-    "citty": "^0.2.2",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.3",
     "yaml": "^2.9.1"
   },
-  "packageManager": "pnpm@12.9.1+sha512.06b055fff5cd20dc12781de173ced3310ce0951bf2ec620211a16045d5444d5c93a663210764ef29a653a610459ba0368f0e74f84d80c54723cf95aae7bc0d6d",
-  "dependencies": {
-    "ajv": "^8.20.0",
-    "execa": "^10.0.1",
-    "semver": "^7.8.5",
-    "tinyglobby": "^0.2.17"
-  }
+  "packageManager": "pnpm@12.9.1+sha512.06b055fff5cd20dc12781de173ced3310ce0951bf2ec620211a16045d5444d5c93a663210764ef29a653a610459ba0368f0e74f84d80c54723cf95aae7bc0d6d"
 }

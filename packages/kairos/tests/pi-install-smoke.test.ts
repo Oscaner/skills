@@ -19,7 +19,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { countSkillsWithMarkdown, EXPECTED } from "../../../scripts/validate/kairos.ts";
+import { countSkillsWithMarkdown, EXPECTED } from "../../../scripts/lib/guard.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG_DIR = path.resolve(HERE, "..");

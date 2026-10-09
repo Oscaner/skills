@@ -58,7 +58,7 @@ flowchart TD
 
 ### `handoff-cdd-plan`
 
-- **Do**: Prepare the handoff to `/kairos:cdd-plan`（pi：/skill:cdd-plan） — the plan-authoring flow takes over to plan the implementation of the approved spec (flow import, consumed inline as this session's baseline; not a session spawn). For the overall variant the handoff continues to the next phase's design session instead
+- **Do**: Hand off to `/kairos:cdd-plan`（pi：/skill:cdd-plan）; the overall variant continues to the next phase's design session instead
 - **Read**: The committed spec file
 - **Exit**: Handoff executed → flow ends for this skill
 - **Fail**: Target skill missing → BLOCKED (install kairos — see the kairos README's 'Upstream dependency install' table)

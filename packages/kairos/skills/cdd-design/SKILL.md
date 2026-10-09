@@ -108,7 +108,7 @@ flowchart TD
 
 ### `handoff-next`
 
-- **Do**: Prepare the handoff — to `/compact` or to the next phase's design session (`kairos:cdd-design` [Px program]) with the committed artifact summarized; flow import, consumed inline as this session's baseline, not a session spawn
+- **Do**: Hand off — to `/compact` or the next phase's design session (`kairos:cdd-design` [Px program]), summarizing the committed artifact
 - **Read**: the committed spec / charter + the run's next phase context
 - **Exit**: Handoff executed → flow ends for this skill
 - **Fail**: Target missing → BLOCKED (install kairos — see the kairos README's 'Upstream dependency install' table)

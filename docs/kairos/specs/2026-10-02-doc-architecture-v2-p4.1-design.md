@@ -1,14 +1,15 @@
 # 文档架构方法论 v2 — P4.1 Design Spec（lifecycle 前置校验统一 · schema 一致硬化 · next 可执行字面量）
 
-- **Version**: v1.1 · 2026-10-09
+- **Version**: v1.2 · 2026-10-09
 - **Status**: Draft
-- **Author**: [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer · 决策源 = grilling 收敛 + spec-review-1 修正 2026-10-09）
+- **Author**: [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer · 决策源 = grilling 收敛 + spec-review-1/2 修正 2026-10-09）
 - **Parent program**: [doc-architecture-v2-overall.md v1.47](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
 - **Depends on**: P3.2（Done · overall v1.47 —— serial-phase GATE 满足，P4.1 可开线）
+- **全树基线修正声明**：较 parent overall v1.47 的 P4.1 注册行/依赖图/变更行（5 拆链 · 47 spec/plan 补齐 · 10 无头建档），本 spec 基线以 2026-10-09 实测复核为准（4 携链 · 49 补表 · 12 无匹配形 = 10 真无头建档 + 2 bold 归一）——差异为父注册后的实测修正，phase close 六表同步以本声明对账
 
 ## Design
 
-P4 起写期三发现作用域化为本 phase（用户 2026-10-09 拍板「直接作用域 lifecycle 前置校验 · schema 统一看」（六前提）+「next 最好是能给出可执行命令的字面量」（v1.39 语义文本实证反效——agent 反复试错映射反而增 token））：① review（及全部 dispatch）缺 clean-tree 前置硬门——技能文本已宣称「engine entry gate: dirty → BLOCKED」但引擎零实现（契契/实现错位，`isClean()` 原语闲置）；② 文档版本谱系结构泄漏——`**Version**` 头堆积链式/补充说明散文、spec/plan 无 `## Change history` 归宿、selfBounded 只判 overall、presence/pattern 三类型不一致；③ `next:` 语义字面（v1.39 · T26 ⑥-h）需 agent 心智映射为完整命令，试错成本反超 token 减量收益——反转决策：渲染完整可执行命令。本 phase 三发现统一收敛：前置校验进 Lifecycle 单一 seam · schema 面三类型同构 · next 字面可执行化。全树迁移基线（2026-10-09 实测）：**53 文档**（specs 29 · plans 24）· **4 overall**（已有 Change history）· **49 非 overall**（23 design + 1 cdd-review-contract-fix + 24 plans + 本文件）· **12 无 `**Version**` 头**（含 2 bold 形）· **4 携链**（p3.1/p3.2 design×2 + plan×2）· **25 非严格形 Version 头**（含 3 旧 overall：osuperpowers `v1.61`/consumer-parity `v1.49` 缺日期 · pi-harness `v1.30` 带补充说明）。迁移范围按**规则**定义（spec-review-1 blocker 纠正：静态计数易腐，以规则 + 机械复核为准，数字为实测基线并非验收真值）。
+P4 起写期三发现作用域化为本 phase（用户 2026-10-09 拍板「直接作用域 lifecycle 前置校验 · schema 统一看」（六前提）+「next 最好是能给出可执行命令的字面量」（v1.39 语义文本实证反效——agent 反复试错映射反而增 token））：① review（及全部 dispatch）缺 clean-tree 前置硬门——技能文本已宣称「engine entry gate: dirty → BLOCKED」但引擎零实现（契契/实现错位，`isClean()` 原语闲置）；② 文档版本谱系结构泄漏——`**Version**` 头堆积链式/补充说明散文、spec/plan 无 `## Change history` 归宿、selfBounded 只判 overall、presence/pattern 三类型不一致；③ `next:` 语义字面（v1.39 · T26 ⑥-h）需 agent 心智映射为完整命令，试错成本反超 token 减量收益——反转决策：渲染完整可执行命令。本 phase 三发现统一收敛：前置校验进 Lifecycle 单一 seam · schema 面三类型同构 · next 字面可执行化。全树迁移基线（2026-10-09 实测）：**53 文档**（specs 29 · plans 24）· **4 overall**（已有 Change history）· **49 非 overall**（23 design + 1 cdd-review-contract-fix + 24 plans + 本文件）· **12 无匹配形**（10 真无头 · 2 bold 形——p3.2 design/plan `**vX.Y**`）· **4 携链**（p3.1/p3.2 design×2 + plan×2）· **25 非严格形 Version 头**（= 有头且非严格、不含 bold——2 bold 归 12 无匹配形桶，机械扫「有头非严格」27 = 25 + 2 口径自洽 · 含 3 旧 overall：osuperpowers `v1.61`/consumer-parity `v1.49` 缺日期 · pi-harness `v1.30` 带补充说明）。迁移范围按**规则**定义（spec-review-1 blocker 纠正：静态计数易腐，以规则 + 机械复核为准，数字为实测基线并非验收真值）。
 
 ### 1. Lifecycle 前置校验统一（pre-flight seam）
 
@@ -54,7 +55,7 @@ selfBounded invariant 现只判 overall（`this.overall(ctx)` 非 overall 归空
 
 #### 3.1 范围声明
 
-迁移集 = **全树 53 文档**：4 overall（已有表 · 头部严格化——`v1.61`/`v1.49` 补日期 · pi-harness 去补充说明）+ **49 非 overall 补齐 `## Change history`**（23 design + 1 cdd-review-contract-fix + 24 plans + 本文件示范）+ **12 无匹配形**（10 真无头 plans 建档：补 `**Version**` 头 + 初始行，formalize 非虚构 · 2 bold 形 `**vX.Y**` 归一为严格形，有版号非建档）+ **4 携链拆链成行**。数字为 2026-10-09 实测基线；**实施期以机械清点复核为准**（验收按规则断言 · 不按基线字面数）。
+迁移集 = **全树 53 文档**：4 overall（已有表 · 头部严格化——`v1.61`/`v1.49` 补日期（= 其 Change history 末行日期，零虚构）· pi-harness 去补充说明）+ **49 非 overall 补齐 `## Change history`**（23 design + 1 cdd-review-contract-fix + 24 plans + 本文件示范）+ **12 无匹配形**（10 真无头 plans 建档：补 `**Version**` 头 + 初始行，formalize 非虚构 · 2 bold 形 `**vX.Y**` 归一为严格形，有版号非建档）+ **4 携链拆链成行**。数字为 2026-10-09 实测基线；**实施期以机械清点复核为准**（验收按规则断言 · 不按基线字面数）。
 
 #### 3.2 拆链与建表
 
@@ -62,11 +63,11 @@ selfBounded invariant 现只判 overall（`this.overall(ctx)` 非 overall 归空
 
 #### 3.3 保真转录与零残留共处定案
 
-**保真转录** = 链文本结构性拆为表行（版本摘要逐字入行，历史正文零 retro-rename）；**`前置 v` 零残留 grep 扫描面 = `**Version**` 头行**（归一化后）——Change history 表行豁免（表行正当含历史字样「前置 vX.Y · date」；引述/版本行改名记录为历史清单豁免）。两验收不互斥：结构段剥离（头零残留）+ 行内残留按表行豁免。
+**保真转录** = 头部历史文本结构性拆为表行（版本摘要逐字入 summary 列，历史正文零 retro-rename）：④ 携链 telescope 按 `前置 vX.Y` token 逐版拆行；`**Version**` 头补充说明内嵌的多版本历史**同样转录**（实测样本：consumer-parity p2 design v1.4 括号内 v1.0→v1.4 全史 · osuperpowers p3 design v1.2 括号内 v1.0/v1.1/v1.2 · pi-harness p5 plan v1.3 括号后 v1.0→v1.4 序列）——按 `· vX.Y` 版本 token **全量切行**（非仅最新版单行）、摘要逐字入行，行切分粒度由此定案。**机 pin 无损断言扫描面 = 迁移前头部文本 vs 迁移后表行并集零漏**；**`前置 v` 零残留 grep 扫描面 = `**Version**` 头行**（归一化后）——Change history 表行豁免（表行正当含历史字样「前置 vX.Y · date」；引述/版本行改名记录为历史清单豁免）。两验收不互斥：结构段剥离（头零残留）+ 行内残留按表行豁免。
 
 #### 3.4 严格形与建档
 
-全树 `**Version**` 头剥除补充说明/链/bold 形 → 严格形 `vX.Y · date`（25 非严格形全清，含 3 旧 overall）。12 无头补头 + 初始行。零虚构：建档日期 = 迁移日期，初始行如实记录「建档于迁移」。
+全树 `**Version**` 头剥除补充说明/链/bold 形 → 严格形 `vX.Y · date`（25 非严格形全清，含 3 旧 overall——口径：非严格形 = 有头且非严格、不含 bold，2 bold 归 12 无匹配形桶；剥除文本零丢弃：链按 §3.2 拆行、补充说明按 §3.3 转录）。**10 真无头补 `**Version**` 头 + 初始行**（2 bold 形有头、非建档——p3.2 design/plan 兼为 4 携链，表行随 §3.2 拆链归入）。零虚构：建档日期 = 迁移日期，初始行如实记录「建档于迁移」。
 
 ### 4. 技能流程调整（author→commit→review）
 
@@ -86,11 +87,11 @@ v1.39（T26 ⑥-h）把 `next:` 定为语义字面（`[verb] [target-type] [id] 
 
 #### 5.2 反转：完整可执行命令渲染
 
-`next:` 渲染 = **完整可执行命令**（`cdd <verb> --type <type> <id> <路径/荷载 flag>` 全参齐备：`cdd implement --type wave --tasks 17` · `cdd review --type spec --spec <path>` · `cdd fix --type spec --spec <path> --findings <handoff>` · `done` 裸终词保持）。(read file back to confirm) 等提示后缀保留。零映射层第一次为真——编排方取字面即可执行。
+`next:` 渲染 = **完整可执行命令**（`cdd <verb> --type <type> <id> <路径/荷载 flag>` 全参齐备：`cdd implement --type wave --plan <path> --tasks 17` · `cdd review --type spec --spec <path>` · `cdd fix --type spec --spec <path> --findings <handoff>` · `done` 裸终词保持）。(read file back to confirm) 等提示后缀保留。零映射层第一次为真——编排方取字面即可执行。
 
 #### 5.3 组合点（OOP 统一 · 零硬编码）
 
-组合点 = `#capsuleLines` → routeText：从**命令声明表**（`CLI_COMMANDS`/usage 域已声明 verb/type/flag 域）派生全参 argv——帧事实（type/tasks/doc 路径/base-head/findings）填入声明参数域；命令声明即渲染源，无第二份硬编码格式串。⑦-n branch-ref 单身份派生保持（fix 从 `--findings` 读范围，零冗余 base/head 声明）。
+组合点 = `#capsuleLines` → routeText：从**命令声明表**（`CLI_COMMANDS`/usage 域已声明 verb/flag 域 + **本 phase 补实现的 implement type 域**）派生全参 argv——implement 声明表补 `--type`（默认 wave，兑现 `#runWork` 已读的 `parsed.args.type ?? "wave"`）+ render 必含 `--plan`（required），否则含 `--type` 的 implement 字面 parse 必拒；帧事实（type/tasks/doc 路径/base-head/findings）填入声明参数域；命令声明即渲染源，无第二份硬编码格式串。⑦-n branch-ref 单身份派生保持（fix 从 `--findings` 读范围，零冗余 base/head 声明）。
 
 #### 5.4 消费面同步
 
@@ -98,7 +99,7 @@ v1.39（T26 ⑥-h）把 `next:` 定为语义字面（`[verb] [target-type] [id] 
 
 #### 5.5 回归测试
 
-next 字面**二次 parse 零错误**断言（把 next 字符串再喂 CLI `parse()` 成功）+ 四动词 × 全 type 干 run E2E 直接派发（`rev1→implement wave 2` 等实链重验）+ 词表 `routeWords` 词面同步。BLOCKED/TIMEOUT 轮保持无 next（`CDD_BLOCKED:` 通道语义不动）。
+next 字面**二次 parse 零错误**断言（把 next 字符串再喂 CLI `parse()` 成功——断言面 = **三命令动词 implement/review/fix × 全 type**；`routeWords` 四词 = 三命令动词 + `done` 终词，`done` 单独断言裸终词、**不喂 parse**；implement 声明表补 `--type`（默认 wave）+ render 必含 `--plan`（required）后方可 parse 通过）+ 三命令动词 × 全 type 干 run E2E 直接派发（`rev1→implement wave 2` 等实链重验）+ 词表 `routeWords` 词面同步。BLOCKED/TIMEOUT 轮保持无 next（`CDD_BLOCKED:` 通道语义不动）。
 
 ### Acceptance criteria
 
@@ -107,9 +108,9 @@ next 字面**二次 parse 零错误**断言（把 next 字符串再喂 CLI `pars
 - `seam 单入口：tree-clean + doc-contract + wave 收敛 Lifecycle pre-flight（cli 零重复实现）· evidence/读回门留驻 child（归属声明可判）`
 - `三类型注册表同构：**Version** required ×3 · valuePattern = 版本号+时间严格形（bold 形归一）· **Change history** required ×3（含行/日期元素）· 派生 schema/描述面随投影（字节 pin 测试更新）`
 - `selfBounded 对 spec/plan 生效（header = 表中最新且必在行内）· 回归测试`
-- `next: 渲染 = 完整可执行命令：四动词 × 全 type next 字面二次 parse 零错误 · 干 run E2E 直接派发 · 消费面技能文本同步（I2/I1/I3 + emit）· routeWords 词面同步`
-- `全树合规（规则断言 · 基线 53 文档）：49 非 overall 建/补 Change history · 12 无头建档 · 4 拆链 · 25 非严格形清零（含 3 旧 overall）· `前置 v`/补充说明在 `**Version**` 头行零残留（表行豁免）· 实施期机械清点复核一致 · validate 零 drift`
-- `历史正文内容保真（迁移只动容器 · 版本摘要逐字入行 + 机 pin 无损断言）· 零 retro-rename`
+- `next: 渲染 = 完整可执行命令：三命令动词 × 全 type next 字面二次 parse 零错误（done 终词不喂 parse · implement 声明表补 --type 默认 wave + render 含 --plan 后可达）· 干 run E2E 直接派发 · 消费面技能文本同步（I2/I1/I3 + emit）· routeWords 词面同步`
+- `全树合规（规则断言 · 基线 53 文档）：49 非 overall 建/补 Change history · 12 无匹配形（10 真无头建档 + 2 bold 归一行 · 表行源自拆链）· 4 拆链 · 25 非严格形清零（含 3 旧 overall · 机械扫有头非严格 27 = 25 + 2 bold 口径自洽）· `前置 v`/补充说明在 `**Version**` 头行零残留（表行豁免）· 实施期机械清点复核一致 · validate 零 drift`
+- `历史正文内容保真（迁移只动容器 · 版本摘要逐字入行 + 机 pin 无损断言——扫描面 = 迁移前头部文本 vs 迁移后表行并集零漏，含补充说明内嵌版本序列按 `· vX.Y` 切行）· 零 retro-rename`
 - `技能 author→commit→review 顺序落地（三技能文本 + digraph/节点同步）· emit 新鲜 · engine vitest 全绿 · validate ALL PASS`
 
 ## Constraints
@@ -127,3 +128,4 @@ next 字面**二次 parse 零错误**断言（把 next 字符串再喂 CLI `pars
 |---|---|---|---|
 | v1.0 | 2026-10-09 | 初版——P4.1 注册（overall v1.47）后开写：lifecycle 前置校验统一（全动词 clean-tree 硬门入 pre-flight seam）· schema 三类型同构（Version required · 头仅号+时间 · Change history required ×3 · selfBounded ×3）· 全树迁移 · 技能 author→commit→review 调整 | [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer） |
 | v1.1 | 2026-10-09 | **spec-review-1 全修（1 blocker · 3 warn · 2 nit）+ find #3 补充**：全树清点基线修正（53 文档 · 4 overall · 49 补表 · 12 无头 · 4 携链 · 25 非严格形）——迁移改为规则断言 + 实施期机械复核（静态数字易腐）· 携链清单 5→4（overall 已拆）· 保真转录与零残留共处定案（grep 面 = Version 头行 · 表行豁免）· seam 钉死 Lifecycle 单入口 · evidence/读回门归属声明（child 面）· EOF newline；**新组 5：next 可执行命令字面量**（反转 v1.39 语义字面——实证 agent 映射试错反超 token · 组合点从命令声明表派生 · 零映射层兑现 · 二次 parse 回归） | [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer） |
+| v1.2 | 2026-10-09 | **spec-review-2 全修（3 warn · 2 nit）**：① implement 声明表补 `--type`（默认 wave）+ render 必含 `--plan`（required）——§5.2 字面置正（`cdd implement --type wave --plan <path> --tasks 17`）· §5.3 组合点改述（implement type 域 = 本 phase 补实现，原「已声明」不实）· §5.5/验收二次 parse 断言面可达（原字面 parse 必拒）② 12 无匹配形口径三处统一（Design/§3.4/验收：10 真无头 · 2 bold 归一——2 bold 有头非建档、表行源自拆链）+ 非严格形定义句（= 有头且非严格、不含 bold · 机械复核 27 = 25 + 2 口径自洽）③ 保真转录扩展至非 telescope 补充说明（`· vX.Y` token 全量切行 · 机 pin 扫描面 = 迁移前头部文本 vs 迁移后表行并集零漏）+ 3 旧 overall 补日期 = 其 Change history 末行日期（零虚构）④ 四动词 = routeWords 四词（三命令动词 + done 终词 · 二次 parse 断言面三命令动词、done 不喂 parse）⑤ 顶部声明全树基线较 overall v1.47 注册修正（5→4 拆链 · 47→49 补表 · 12 无匹配形） | [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer） |

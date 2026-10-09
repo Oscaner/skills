@@ -3,11 +3,11 @@
 **Spec:** [P4.1-design v1.2](docs/kairos/specs/2026-10-02-doc-architecture-v2-p4.1-design.md)
 
 - **Parent program**: [doc-architecture-v2-overall.md v1.47](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.1 · 2026-10-09
+- **Version**: v1.2 · 2026-10-09
 - **Depends on**: P3.2（Done · [p3.2-plan v1.31](docs/kairos/plans/2026-10-02-doc-architecture-v2-p3.2.md) —— serial-phase GATE 满足，P4.1 可开线）
 - **Base**: develop
 
-执行序：W1 = {T1, T2}（引擎底座：pre-flight seam / schema 同构）→ W2 = {T3, T4}（迁移 / next 字面）→ W3 = {T5}（技能同步）→ W4 = {T6}（终验 + 变更集）。
+执行序：W1 = {T1, T2}（引擎底座：pre-flight seam / schema 同构）→ W2 = {T3, T4}（迁移 / next 字面）→ W3 = {T5}（技能同步）→ W4 = {T6, T7}（终验 / round-context·artifact 面统一）。
 
 ## Constraints
 
@@ -114,9 +114,27 @@
 - **Acceptance**: validate ALL PASS · 机械复核一致 · 变更集落（cdd-engine fix 随 T6 · kairos docs 随 T5 · 两枚独立）
 - **DependsOn**: 3, 4, 5
 
+### Task 7: round-context/artifact 面统一（find #4 + #5）
+
+- **Objective**: 消费面清理（design §6 · W1 期 backfill）——**find #4**：删 `INPUT_RULES` 键（cli 声明/valuesOf/round-context 三处）· implement prompt 提醒行改指 plan `## Constraints`（child 经 INPUT_PLAN 直读 · 零物化零死指针）· **find #5**：workspace artifact 单一命名制 `{family}-{key}-{artifact}`（doc = `{op}.{type}.{round}`（spec-review-1）· work = `tasks-{wave}`/`branch-{key}`）· round context 注入 `OUTPUT_BRIEF`/`OUTPUT_REPORT`/`OUTPUT_EVIDENCE`（prescribed · 同 OUTPUT_HANDOFF 模式）· 三行块路径一致性校验（或引擎自派生不靠 child 报告）· cdd-plan author-plan 句 + 模板 artifacts 段同步（零自由命名 · 跨轮零覆写）
+- **Files**: `packages/cdd-engine/src-next/face/cli.ts`（改：INPUT_RULES 删 · OUTPUT_* 注入 · artifacts 一致性）· `packages/cdd-engine/src-next/render/templates.ts`（改：implement 提醒行 · artifacts 段）· `packages/cdd-engine/src-next/face/__tests__/cli.test.ts` + `render/__tests__/render.test.ts`（改：round-context 断言）· `packages/kairos/skills/cdd-plan/SKILL.md`（改：author-plan 句零物化声明）
+- **Consumes**: Task 1（cli 前置面）· Task 4（round-context/模板面 · next 字面）· Task 5（技能文本）
+- **Produces**: 零死指针 round context（约束单源 INPUT_PLAN）· artifact 单一命名制（prescribed OUTPUT_* · 跨轮零覆写）
+- **Steps**:
+  - 失败测试：round-context 断言（INPUT_RULES 零命中 · OUTPUT_BRIEF/REPORT/EVIDENCE 键在且命名 `{family}-{key}-` 前缀）· doc-family artifact 跨轮不覆写断言 — checkable: 断言绿
+  - 跑测试确认失败（INPUT_RULES 现存 · doc-family 自由命名覆写） — checkable: 失败如预期
+  - cli：删 INPUT_RULES（声明/valuesOf/round-context）· 注入 OUTPUT_*（`{family}-{key}` 命名派生）· 三行块路径一致性（或自派生） — checkable: 断言绿
+  - templates：implement 提醒行改指 plan `## Constraints`（INPUT_PLAN）· artifacts 段同步 — checkable: 模板断言绿
+  - 技能文本：cdd-plan author-plan 句删除/改述（零物化声明）· `pnpm run emit` 再生 — checkable: emit:check 零 drift
+  - 引擎 vitest 全绿 — checkable: engine vitest 通过
+  - commit `fix(engine): round-context 零死指针（INPUT_RULES 删 · 约束单源 INPUT_PLAN）+ artifact 单一命名制（family-keyed prescribed · 跨轮零覆写）`（自测绿后）
+- **Acceptance**: INPUT_RULES 三处删除 · implement prompt 提醒行指 plan（child 经 INPUT_PLAN 直读约束）· artifact 单一命名制（prescribed OUTPUT_* · 跨轮零覆写回归）· 技能文本同步 · emit 新鲜 · engine vitest 全绿
+- **DependsOn**: 1, 4, 5
+
 ## Change history
 
 | Version | date | summary | author |
 |---|---|---|---|
 | v1.0 | 2026-10-09 | 初版——P4.1 design v1.2 批准后开写：六任务（pre-flight seam + clean-tree 硬门 · schema 三类型同构 · 全树迁移 · next 可执行字面量 · 技能同步 · 终验）· 波次 T1‖T2 → T3‖T4 → T5 → T6 | [human] · Claude Opus 5（kairos:cdd-design → kairos:cdd-plan） |
 | v1.1 | 2026-10-09 | plan-review-1 全修（1 warn · 2 nit）：T3/T6 checkable 各补裁决句（登记基线 · 机械清点复核为准 · 规则断言 = 验收 · 计数差异按规则处理并记 notes · 不上溯 spec §3）· 清点口径改为现树实测（基线 53 = 现树 54 − 本 plan · 47 建/补 = 23 design + 24 plans · 11 无匹配形 = 9 真无头 + 2 bold · 4 拆链 · 28 有头非严格清零 = 26 + 2）· 非严格形扫面注 2 bold 归一行源拆链 · changeset 归属唯一化（kairos docs 随 T5 · cdd-engine fix 随 T6）· EOF 换行补回 | [human] · Claude Opus 5（kairos:cdd-design → kairos:cdd-plan） |
+| v1.2 | 2026-10-09 | **W1 期 backfill（find #4 + #5 · Plan Sole Writer）**：新增 Task 7（round-context/artifact 面统一——INPUT_RULES 删（三处）· 约束单源 = plan `## Constraints` 经 INPUT_PLAN · artifact 单一命名制 `{family}-{key}-{artifact}` prescribed（OUTPUT_BRIEF/REPORT/EVIDENCE 注入）· 三行块一致性校验 · cdd-plan author-plan 句改述 · 跨轮零覆写）· 执行序 W4 = {6, 7}（T7 DependsOn 1, 4, 5） | [human] · Claude Opus 5（kairos:cdd-plan · Plan Sole Writer） |

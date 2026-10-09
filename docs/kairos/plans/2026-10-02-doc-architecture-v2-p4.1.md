@@ -3,7 +3,7 @@
 **Spec:** [P4.1-design v1.2](docs/kairos/specs/2026-10-02-doc-architecture-v2-p4.1-design.md)
 
 - **Parent program**: [doc-architecture-v2-overall.md v1.47](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.5 · 2026-10-09
+- **Version**: v1.6 · 2026-10-09
 - **Depends on**: P3.2（Done · [p3.2-plan v1.31](docs/kairos/plans/2026-10-02-doc-architecture-v2-p3.2.md) —— serial-phase GATE 满足，P4.1 可开线）
 - **Base**: develop
 
@@ -71,19 +71,19 @@
 
 ### Task 4: next 可执行命令字面量（引擎）
 
-- **Objective**: `next:` 渲染为完整可执行命令（design §5）——routeText/#capsuleLines 从命令声明表派生全参 argv（implement 声明表补 `--type` 默认 wave · render 必含 `--plan` required）· 三命令动词 × 全 type next 字面**二次 parse 零错误** · `done` 裸终词不喂 parse · 干 run E2E 实链（rev1→implement wave 2 等）· routeWords 词面同步 · BLOCKED/TIMEOUT 轮保持无 next
-- **Files**: `packages/cdd-engine/src-next/face/cli.ts`（改：CLI_COMMANDS.implement 补 type 键 · routeText 全参组合）· `packages/cdd-engine/src-next/render/templates.ts`（改：render implement 含 `--plan`）· `packages/cdd-engine/src-next/face/words.ts`（改：routeWords）· `packages/cdd-engine/src-next/session/__tests__/next.test.ts` + `face/__tests__/cli.test.ts`（改：二次 parse 断言 · E2E）
+- **Objective**: `next:` 渲染为完整可执行命令（design §5 · 用户 2026-10-09 拍板「implement 恒 wave 单 type · 不带 --type · 三命令无需同构」）——routeText/#capsuleLines 从命令声明表派生全参 argv（implement 声明表**零新键** · render 含 `--plan` required + `--tasks` · review/fix 渲染 `--type`）· 三命令动词 × 各自 type next 字面**二次 parse 零错误** · `done` 裸终词不喂 parse · 干 run E2E 实链（rev1→implement wave 2 等）· routeWords 词面同步 · BLOCKED/TIMEOUT 轮保持无 next
+- **Files**: `packages/cdd-engine/src-next/face/cli.ts`（改：routeText 全参组合——implement 字面不入 `--type`）· `packages/cdd-engine/src-next/render/templates.ts`（改：render implement 含 `--plan`）· `packages/cdd-engine/src-next/face/words.ts`（改：routeWords）· `packages/cdd-engine/src-next/session/__tests__/next.test.ts` + `face/__tests__/cli.test.ts`（改：二次 parse 断言 · E2E）
 - **Consumes**: Task 1（seam 门 E2E 走全动词前置）；帧事实（type/tasks/doc 路径/base-head/findings）
-- **Produces**: next 字面 = 完整可执行命令（三动词 × 全 type）· 二次 parse 零错误断言
+- **Produces**: next 字面 = 完整可执行命令（implement 字面 `cdd implement --plan <path> --tasks 17` · review/fix 含 `--type`）· 二次 parse 零错误断言
 - **Steps**:
-  - 失败测试：next 字面喂 CLI `parse()` 零错误（三动词 × type 例：`implement … --tasks 17` · `review --type spec --spec …` · `fix --type spec --spec … --findings …`）+ done 不喂 parse 断言 — checkable: 断言绿
-  - 跑测试确认失败（现 implement 无 `--type` · render 缺 `--plan` → parse 拒 `unknown option: --type`） — checkable: 失败如预期
-  - CLI_COMMANDS.implement 补 `--type`（默认 wave · 与 `#runWork` 读 `parsed.args.type ?? "wave"` 一致）· render implement 必含 `--plan` — checkable: parse 成功
-  - routeText/#capsuleLines 组合全参 argv（帧事实 → 声明参数域 · 零硬编码格式串）· routeWords 词面同步 — checkable: 全 type 字面 parse 零错误
+  - 失败测试：next 字面喂 CLI `parse()` 零错误（implement → `implement … --tasks 17 --plan …` 无 `--type` · `review --type spec --spec …` · `fix --type spec --spec … --findings …`）+ done 不喂 parse 断言 — checkable: 断言绿
+  - 跑测试确认失败（render 缺 `--plan` → implement 字面 parse 拒 missing required） — checkable: 失败如预期
+  - routeText/#capsuleLines 组合全参 argv（帧事实 → 声明参数域 · 零硬编码格式串 · implement 字面零 `--type`）· render implement 必含 `--plan` + `--tasks` — checkable: parse 成功
+  - routeWords 词面同步 — checkable: 全 type 字面 parse 零错误
   - 干 run E2E 实链（rev1→implement wave 2 / rev2→done） — checkable: E2E 绿
   - 引擎 vitest 全绿 — checkable: engine vitest 通过
-  - commit `fix(engine): next 字面可执行化——routeText 从命令声明表组合全参 argv · implement 补 --type/--plan · 二次 parse 断言`（自测绿后）
-- **Acceptance**: next 字面三动词 × 全 type 直接可执行（二次 parse 零错误 · 现现场字面可直派）· done 终词不喂 parse · 干 run 实链 · routeWords 同步 · engine vitest 全绿
+  - commit `fix(engine): next 字面可执行化——routeText 从命令声明表组合全参 argv · implement 字面无 --type（恒 wave 单 type 动词）· 二次 parse 断言`（自测绿后）
+- **Acceptance**: next 字面直接可执行（二次 parse 零错误 · 现现场字面可直派）· implement 字面不含 `--type`（声明表零新键）· review/fix 含 `--type` · done 终词不喂 parse · 干 run 实链 · routeWords 同步 · engine vitest 全绿
 - **DependsOn**: 1
 
 ### Task 5: 技能消费面同步（author→commit→review · next 字面）
@@ -142,3 +142,4 @@
 | v1.3 | 2026-10-09 | **find #6（双标号）**：执行序波标签改引用 plan-graph board 派生标签（W00–W03 · 零基）——原自造一基 W1–W4 与 board 双标号（W4 = W03）· 一文一句约定声明 | [human] · Claude Opus 5（kairos:cdd-design → cdd-plan） |
 | v1.4 | 2026-10-09 | **find #6 收口（W1 起序裁决）**：用户拍板「W1 起更符 agent 心智」——T7 扩域：graph-view 波标签 = 派生波索引 + 1（W1 · W2 · … 去零补 · 显示层零语义变化）· 执行序回 W1–W4（与 board 同标号）· board 断言入 T7 Steps/Acceptance | [human] · Claude Opus 5（kairos:cdd-design → cdd-plan · Plan Sole Writer） |
 | v1.5 | 2026-10-09 | **W1 期 backfill（F1 解决形态 · 用户拍板）**：T1 Objective 补 clean-tree 门解决形态（design §1.5）——`isClean` 纯 git 语义 · workspace ensure 自产 namespace 根 `.gitignore`（内容 `*`）· 消费者零配置 · A 排除面弃之 | [human] · Claude Opus 5（kairos:cdd-plan · Plan Sole Writer） |
+| v1.6 | 2026-10-09 | **T4 反杆（用户拍板 · find #3 深化）**：implement 恒 wave 单 type 动词——next 字面不带 `--type`（`cdd implement --plan <path> --tasks 17`）· 声明表零新键 · 三命令无需同构（同构是偏门 · `--type` 只在该动词 type 有区分力时渲染）· T4 Objective/Files/Steps/Acceptance 全随 · 与 spec v1.6 §5 对齐 | [human] · Claude Opus 5（kairos:cdd-plan · Plan Sole Writer） |

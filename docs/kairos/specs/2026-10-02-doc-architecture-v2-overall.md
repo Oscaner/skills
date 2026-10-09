@@ -1,5 +1,5 @@
 # 文档架构方法论 v2（Doc Architecture v2）— Overall Spec
-- **Version**: v1.50 · 2026-10-09
+- **Version**: v1.51 · 2026-10-09
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（kairos:cdd-design → grilling 元层）
 - **Constraints**:
@@ -211,3 +211,4 @@ Legend:
 | v1.48 | 2026-10-09 | **P4.1 backfill：round-context/artifact 面统一（find #4 + #5）**（W1 实施期两发现，用户 2026-10-09 拍板「统一 backfill 回 overall/spec/plan」）：④ **find #4**——plan-constraints.md 死指针：src-next 只保留 `INPUT_RULES` token（cli.ts:523）零物化写入点，旧树 `materializePlanConstraints`（consumer-parity P4.2）未随 greenfield cutover 承接 → child 照读 File does not exist → **删 token · 约束单源 = plan `## Constraints`**（implement prompt 提醒行改指 INPUT_PLAN）⑤ **find #5**——workspace artifact 命名不规范：doc-family（spec/plan review/fix）artifact `brief.md`/`report.md`/`test_evidence.md` child 自由命名 · 跨轮同名覆写 · 与 work-family `{prefix}-{key}-…` 双命名制 → **单一命名函数 `{family}-{key}-{artifact}` // prescribed（round context 注入 OUTPUT_BRIEF/REPORT/EVIDENCE）· 三行块一致性校验**——Issue/Phase inventory P4.1 行 + 基线修正（4 拆链 · 47 建/补 · 11 无匹配形 = 9 真无头 + 2 bold · 28 清零） | [human] · Claude Opus 5（kairos:cdd-design） |
 | v1.49 | 2026-10-09 | **find #6 收口（W1 起序 · 用户拍板「W1 更符 agent 心智」）**：P4.1 行补 wave 波标签 W1 起序——plan-graph board 显示层派生索引 + 1（去零补 · 推导零语义变化）· plan 执行序与 board 同标号（W1–W4）· spec v1.4 / plan v1.4 随 | [human] · Claude Opus 5（kairos:cdd-design） |
 | v1.50 | 2026-10-09 | **P4.1 backfill：clean-tree 门解决形态裁定（F1 · 用户拍板）**：① 全动词 clean-tree 硬门实现形态 = workspace 自产 `.gitignore`——namespace 根（`.kairos/`）幂等自产（内容 `*`）· `isClean` 纯 `git status` 语义零引擎侧排除 · 消费者零配置（README 无 ignore 义务）· 方案 A（排除面特判 + `PreFlightContext.workspaceRoot` 穿透）弃之（双真相代价）+ fix-2 cdd 收口被打回（用户「只要 .kairos 下的」）· tracked-workspace 修改仍上 gate· 时序实证（ensure 先于 gate）；P4.1 行 what/acceptance 随注 · spec v1.5 / plan v1.5 随 | [human] · Claude Opus 5（kairos:cdd-design） |
+| v1.51 | 2026-10-09 | **P4.1 backfill：T4 next 字面反杆（find #3 深化 · 用户拍板「implement 不需要带 type · 三命令无需同构」）**：implement 恒 wave 单 type 动词——next 字面**不带 `--type`**（`cdd implement --plan <path> --tasks 17`）· CLI 声明表零新键（`parsed.args.type ?? "wave"` 缺省语义不变）· `--type` 只在有区分力时渲染（review/fix 多 type 必带 · implement 单 type 省略）· next 本质 = 下一步 suggestion 字面量（可执行性是手段 · 同构是偏门）；spec v1.6 / plan v1.6 T4 随 | [human] · Claude Opus 5（kairos:cdd-design） |

@@ -26,11 +26,15 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
+import type { RouteTarget } from "../../session/faces.ts";
 import { Ledger } from "../../session/ledger.ts";
+import type { Route } from "../../session/next.ts";
 import { FIX_READBACK_SUFFIX } from "../../session/next.ts";
 import type { OpenFrame } from "../../session/run.ts";
+import { Capsule } from "../capsule.ts";
 import type { CliIo, CliOptions, DispatchScene, SyncProcess } from "../cli.ts";
 import { CLI_COMMANDS, CLI_USAGE, cli, HarnessDispatch } from "../cli.ts";
+import { Words } from "../words.ts";
 
 // ---------------------------------------------------------------------------
 // fixtures
@@ -417,7 +421,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
   it("implement — one dispatch, the capsule face, the ledger record + the rendered brief", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
-      const head = gitInit(repoRoot);
+      gitInit(repoRoot);
       const plan = planFor(repoRoot);
       const code = await command.runArgv([
         "implement",
@@ -431,7 +435,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       ]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 · handoff: ");
-      expect(io.stdoutText).toContain(`next: review wave 1 (base ${head.slice(0, 7)})`);
+      expect(io.stdoutText).toContain(`next: review --type wave --tasks 1`);
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       const progress = readJson<{ waves: unknown[] }>(path.join(workspace, "progress.json"));
       expect(progress.waves).toContainEqual({ wave: "1", rounds: { implement: 1 } });
@@ -606,7 +610,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       expect(io.stdoutText).toContain("status: CHANGES_REQUESTED · blocker: 1 · handoff: ");
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       expect(io.stdoutText).toContain(
-        `next: fix wave 1 --findings ${path.join(workspace, "tasks-1-review-1.json")} ${FIX_READBACK_SUFFIX}`,
+        `next: fix --type wave --tasks 1 --plan ${plan} --findings ${path.join(workspace, "tasks-1-review-1.json")} ${FIX_READBACK_SUFFIX}`,
       );
     } finally {
       cleanup();
@@ -648,7 +652,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       ]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 · handoff: ");
-      expect(io.stdoutText).toContain(`next: review wave 1 (base ${head.slice(0, 7)})`);
+      expect(io.stdoutText).toContain(`next: review --type wave --tasks 1`);
       expect(existsSync(path.join(workspace.path, "tasks-1-fix-1.json"))).toBe(true);
     } finally {
       cleanup();
@@ -1012,6 +1016,226 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("T1✔ · T2▶");
       expect(io.stdoutText).toContain("wave board:");
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P4.1 T4 — the complete executable next literal (v1.39 semantic reversal):
+// the `next:` line IS the dispatch (二次 parse 零错误 · done never fed to parse ·
+// routeWords sync · implement without --type)
+// ---------------------------------------------------------------------------
+
+describe("P4.1 T4 — the next literal is a complete executable command (二次 parse 零错误)", () => {
+  /** The next text of a capsule emit (the second line, station prefix stripped). */
+  function literalOf(route: Route, target?: RouteTarget): string {
+    const lines = new Capsule(new Words()).emit("APPROVED", "0", "/h.json", route, target);
+    return lines[1]!.slice("next: ".length);
+  }
+
+  /** The parseable argv of a literal — the fix readback suffix is prompt prose,
+   *  never argv (the parse gate strips the declared suffix before feeding). */
+  function argvOf(literal: string): string[] {
+    return literal
+      .replace(new RegExp(`\\s*\\(${FIX_READBACK_SUFFIX.slice(1, -1)}\\)$`), "")
+      .split(/\s+/);
+  }
+
+  /** The secondary-parse gate — the literal's argv must parse with zero errors. */
+  function parses(literal: string): void {
+    expect(() => cli().parse(argvOf(literal))).not.toThrow();
+  }
+
+  const wave = { type: "wave", id: "1,2", plan: "docs/kairos/plans/p3.md" } as const;
+  const spec = { type: "spec", id: "docs/kairos/specs/p3-design.md" } as const;
+  const planT = { type: "plan", id: "docs/kairos/plans/p3.md" } as const;
+  const branch = { type: "branch", id: "aaaaaaa..bbbbbbb" } as const;
+  const base = "a".repeat(40);
+
+  it("implement — the literal is `implement --plan <path> --tasks <n>` with NO --type", () => {
+    const literal = literalOf({ kind: "next-wave", tasks: "1,2" }, wave);
+    expect(literal).toBe("implement --plan docs/kairos/plans/p3.md --tasks 1,2");
+    expect(literal).not.toContain("--type");
+    parses(literal);
+    // the declaration needs no new `--type` key — the default-type semantics stand
+    const specOf = CLI_COMMANDS.find((command) => command.name === "implement")!;
+    expect(specOf.keys.some((key) => key.key === "type")).toBe(false);
+  });
+
+  it("review × 4 types — `review --type <type> <type-arg>` parses", () => {
+    const waveLiteral = literalOf({ kind: "review", base }, wave);
+    expect(waveLiteral).toBe("review --type wave --tasks 1,2");
+    parses(waveLiteral);
+    const specLiteral = literalOf({ kind: "review", base }, spec);
+    expect(specLiteral).toBe("review --type spec --spec docs/kairos/specs/p3-design.md");
+    parses(specLiteral);
+    const planLiteral = literalOf({ kind: "review", base }, planT);
+    expect(planLiteral).toBe("review --type plan --plan docs/kairos/plans/p3.md");
+    parses(planLiteral);
+    const branchLiteral = literalOf({ kind: "review", base }, branch);
+    expect(branchLiteral).toBe(`review --type branch --base ${base}`);
+    parses(branchLiteral);
+  });
+
+  it("fix × 4 types — `fix --type <type> <type-arg> --findings <handoff>` parses", () => {
+    const waveLiteral = literalOf({ kind: "fix", findings: "tasks-1-review-1.json" }, wave);
+    expect(waveLiteral).toBe(
+      "fix --type wave --tasks 1,2 --plan docs/kairos/plans/p3.md --findings tasks-1-review-1.json " +
+        FIX_READBACK_SUFFIX,
+    );
+    parses(waveLiteral);
+    const specLiteral = literalOf({ kind: "fix", findings: "s1-review-1.json" }, spec);
+    expect(specLiteral).toBe(
+      "fix --type spec --spec docs/kairos/specs/p3-design.md --findings s1-review-1.json " +
+        FIX_READBACK_SUFFIX,
+    );
+    parses(specLiteral);
+    const planLiteral = literalOf({ kind: "fix", findings: "p1-review-1.json" }, planT);
+    expect(planLiteral).toBe(
+      "fix --type plan --plan docs/kairos/plans/p3.md --findings p1-review-1.json " +
+        FIX_READBACK_SUFFIX,
+    );
+    parses(planLiteral);
+    const branchLiteral = literalOf({ kind: "fix", findings: "br1-review-1.json" }, branch);
+    expect(branchLiteral).toBe(
+      "fix --type branch --findings br1-review-1.json " + FIX_READBACK_SUFFIX,
+    );
+    parses(branchLiteral);
+  });
+
+  it("done — the bare terminal word, never fed to parse (a bare `done` is not a command)", () => {
+    expect(literalOf({ kind: "done" })).toBe("done");
+    expect(() => cli().parse(["done"])).toThrow(/unknown command: done/);
+  });
+
+  it("routeWords sync — the four literal verbs ARE the four route classifier words", () => {
+    const words = new Words();
+    expect(literalOf({ kind: "next-wave", tasks: "1" }, wave)).toMatch(
+      new RegExp(`^${words.routeWord("implement")} `),
+    );
+    expect(literalOf({ kind: "review", base }, wave)).toMatch(
+      new RegExp(`^${words.routeWord("review")} `),
+    );
+    expect(literalOf({ kind: "fix", findings: "f.json" }, wave)).toMatch(
+      new RegExp(`^${words.routeWord("fix")} `),
+    );
+    expect(literalOf({ kind: "done" })).toBe(words.routeWord("done"));
+  });
+});
+
+describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next round (rev1→implement wave 2 · rev2→done)", () => {
+  it("implement→review(fix)→fix(closure)→implement wave 2→review→done — every next literal re-dispatches", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({
+      dispatch: (frame: OpenFrame) => {
+        // the first review finds a warn (one-way fix hop); everything else approves
+        return frame.phase === "review" && frame.params.tasks === "1"
+          ? {
+              status: "CHANGES_REQUESTED",
+              findings: [{ severity: "warn", summary: "drift" }],
+            }
+          : { status: "APPROVED", commits: { base: "a".repeat(40), head: "b".repeat(40) } };
+      },
+    });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot, 2);
+      const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
+      const nextOf = (): string | null => {
+        const m = io.stdoutText.match(/^next: (.+)$/m);
+        return m === null ? null : m[1]!;
+      };
+
+      // rev 1 — implement wave 1 → the review literal
+      expect(
+        await command.runArgv([
+          "implement",
+          "--tasks",
+          "1",
+          "--plan",
+          plan,
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).toBe(0);
+      expect(nextOf()).toBe("review --type wave --tasks 1");
+      io.stdoutText = "";
+
+      // the review finds a warn → the fix literal
+      expect(
+        await command.runArgv([
+          "review",
+          "--type",
+          "wave",
+          "--tasks",
+          "1",
+          "--plan",
+          plan,
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).toBe(0);
+      expect(nextOf()).toBe(
+        `fix --type wave --tasks 1 --plan ${plan} --findings ${path.join(workspace, "tasks-1-review-1.json")} ${FIX_READBACK_SUFFIX}`,
+      );
+      io.stdoutText = "";
+
+      // the fix closes (warn-only input) → rev1 lands on the NEXT WAVE's implement literal
+      expect(
+        await command.runArgv([
+          "fix",
+          "--type",
+          "wave",
+          "--tasks",
+          "1",
+          "--plan",
+          plan,
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).toBe(0);
+      expect(nextOf()).toBe(`implement --plan ${plan} --tasks 2`);
+      io.stdoutText = "";
+
+      // rev 2 — implement wave 2 → the review literal
+      expect(
+        await command.runArgv([
+          "implement",
+          "--tasks",
+          "2",
+          "--plan",
+          plan,
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).toBe(0);
+      expect(nextOf()).toBe("review --type wave --tasks 2");
+      io.stdoutText = "";
+
+      // the final review closes the run → rev2 lands on `done`
+      expect(
+        await command.runArgv([
+          "review",
+          "--type",
+          "wave",
+          "--tasks",
+          "2",
+          "--plan",
+          plan,
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).toBe(0);
+      expect(nextOf()).toBe("done");
+
+      const progress = readJson<{ waves: unknown[] }>(path.join(workspace, "progress.json"));
+      expect(progress.waves).toContainEqual({ wave: "2", rounds: { implement: 1, review: 1 } });
     } finally {
       cleanup();
     }

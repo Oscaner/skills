@@ -183,6 +183,9 @@ export class Lifecycle {
   /** The dispatch-entry pre-flight gate — null = unguarded (the seam-less callers
    *  keep their existing behavior). */
   readonly #preflight: PreFlightGate | null;
+  /** The workspace plan path — the `next:` implement literal's required `--plan`
+   *  arg (P4.1 T4 — the task face's implement-consuming fact). */
+  readonly #planPath: string | null;
 
   constructor(opts: {
     face: TargetFace;
@@ -197,6 +200,8 @@ export class Lifecycle {
     /** The dispatch-entry pre-flight gate (P4.1 T1 — the lifecycle's hard "no child
      *  on a refused frame" wiring; optional, null = unguarded). */
     preflight?: PreFlightGate | null;
+    /** The workspace plan path (P4.1 T4 — the implement `next:` literal's `--plan`). */
+    planPath?: string | null;
   }) {
     this.#face = opts.face;
     this.#state = opts.state;
@@ -206,6 +211,7 @@ export class Lifecycle {
     this.#target = opts.target ?? null;
     this.#capsule = opts.capsule ?? null;
     this.#preflight = opts.preflight ?? null;
+    this.#planPath = opts.planPath ?? null;
   }
 
   /** The face row this instance drives. */
@@ -550,11 +556,12 @@ export class Lifecycle {
 
   /** The frame's RouteTarget — the dispatch-ready literal's target identity (the
    *  frame's own facts: the wave task key · the branch range token · the doc path).
-   *  `type` rides the wave target type; `id` the frame's parameters. */
+   *  `type` rides the wave target type; `id` the frame's parameters; `plan` the
+   *  workspace plan path (the implement literal's required `--plan`). */
   #routeTarget(frame: OpenFrame): RouteTarget | null {
     switch (frame.type) {
       case "wave":
-        return { type: "wave", id: frame.params.tasks ?? "" };
+        return { type: "wave", id: frame.params.tasks ?? "", plan: this.#planPath ?? undefined };
       case "branch":
         return { type: "branch", id: `${frame.params.base7}..${frame.params.head7}` };
       case "spec":

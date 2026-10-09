@@ -18,6 +18,9 @@
 // type-check checkable) — they fail under tsc if the exported signatures drift.
 
 import { describe, expect, it } from "vitest";
+import { Capsule } from "../../face/capsule.ts";
+import { cli } from "../../face/cli.ts";
+import { Words } from "../../face/words.ts";
 import type { Round, RoundPhase } from "../ledger.ts";
 import type { Route } from "../next.ts";
 import {
@@ -300,4 +303,41 @@ describe("the severity-combination space — every blocker/warn/nit MIX rides th
       expect(route!.kind).toBe("fix");
     },
   );
+});
+
+// ---------------------------------------------------------------------------
+// P4.1 T4 — the route → literal → 二次 parse roundtrip: every router-route the C5
+// table can emit renders a next literal whose argv parses with zero errors (the
+// executable command reversal) · done is the bare terminal word, never fed.
+// ---------------------------------------------------------------------------
+
+describe("P4.1 T4 — the router's routes render parseable next literals (二次 parse 零错误)", () => {
+  /** The next text of a route rendered against a wave-frame target (the task face —
+   *  the C5 table's real consumer), then the parseable argv (the readback suffix is
+   *  prompt prose, never argv). */
+  function argvOf(route: Route): string[] {
+    const lines = new Capsule(new Words()).emit("APPROVED", "0", "/h.json", route, {
+      type: "wave",
+      id: "1,2",
+      plan: "docs/kairos/plans/p3.md",
+    });
+    const literal = lines[1]!.slice("next: ".length);
+    return literal
+      .replace(new RegExp(`\\s*\\(${FIX_READBACK_SUFFIX.slice(1, -1)}\\)$`), "")
+      .split(/\s+/);
+  }
+
+  it.each([
+    ["implement wave", { kind: "next-wave", tasks: "1,2" } as Route],
+    ["re-review", { kind: "review", base: "b".repeat(40) } as Route],
+    ["the one-way fix hop", { kind: "fix", findings: "tasks-1-review-1.json" } as Route],
+    ["closure", { kind: "done" } as Route],
+  ] as const)("%s — the route's literal argv parses", (_label, route) => {
+    if (route.kind === "done") {
+      // the bare terminal word: never fed to parse (a bare `done` is not a command)
+      expect(() => cli().parse(["done"])).toThrow(/unknown command: done/);
+      return;
+    }
+    expect(() => cli().parse(argvOf(route))).not.toThrow();
+  });
 });

@@ -1222,7 +1222,8 @@ export class Cli {
         return outcome;
       },
       target: scene.target ?? undefined,
-      capsule: new Capsule(this.#words),
+      capsule: new Capsule(this.#words, this.#channels),
+      planPath: scene.planPath,
     });
 
     // The requested-phase gate — the line faces (branch/spec/plan) keep the

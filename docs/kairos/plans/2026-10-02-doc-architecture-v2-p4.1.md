@@ -3,7 +3,7 @@
 **Spec:** [P4.1-design v1.2](docs/kairos/specs/2026-10-02-doc-architecture-v2-p4.1-design.md)
 
 - **Parent program**: [doc-architecture-v2-overall.md v1.47](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.0 · 2026-10-09
+- **Version**: v1.1 · 2026-10-09
 - **Depends on**: P3.2（Done · [p3.2-plan v1.31](docs/kairos/plans/2026-10-02-doc-architecture-v2-p3.2.md) —— serial-phase GATE 满足，P4.1 可开线）
 - **Base**: develop
 
@@ -16,8 +16,8 @@
 - **一声明四派生**：schema/pattern 改动只改元素登记表（contract/declare.ts），派生 schema/slices/描述面全投影，字节 pin 更新随动
 - **历史正文零 retro-rename**：迁移只改容器（Version 头 / Change history 表），历史内容逐字保真 + 机 pin；CHANGELOG 记录与版本行改名记录为历史清单（含表行豁免面）
 - **English-primary 消费面**：SKILL.md 调整英文写作；内部 specs/plans 中文（Strategy B）
-- **变更集义务**：engine fix + kairos docs 各一 changeset，独立提交
-- **全树迁移规则**（design §3）：补齐不 conditional · 建档日期 = 迁移日期（零虚构）· 非严格形 = 有头且非严格不含 bold（机械扫 27 = 25 + 2 口径）· `前置 v`/补充说明零残留扫描面 = `**Version**` 头行（表行豁免）
+- **变更集义务**：engine fix + kairos docs 各一 changeset，独立提交（归属唯一：kairos docs 随 T5 · cdd-engine fix 随 T6）
+- **全树迁移规则**（design §3）：补齐不 conditional · 建档日期 = 迁移日期（零虚构）· 非严格形 = 有头且非严格、不含 bold；有头非严格机械扫（现树实测）28 = 26 非 bold + 2 bold（2 bold 归一行源拆链）· `前置 v`/补充说明零残留扫描面 = `**Version**` 头行（表行豁免）
 
 ### Task 1: Lifecycle 前置校验 seam + 全动词 clean-tree 硬门
 
@@ -54,7 +54,7 @@
 
 ### Task 3: 全树迁移（拆链 · 补表 · 建档 · 严格化）
 
-- **Objective**: 全树 doc 合规（design §3 规则为准 · 基线 53 文档）——4 携链拆链成行（p3.1/p3.2 design×2 + plan×2）· 49 非 overall 建/补 `## Change history`（23 design + 1 cdd-review-contract-fix + 24 plans + 本文件示范）· 12 无匹配形（10 真无头建档：补头 + 初始行 · 2 bold 归一）· 25 非严格形清零（含 3 旧 overall 补日期 = 其 Change history 末行日期）· **版本摘要逐字入行 + 机 pin 并集零漏**（迁移前头部文本 vs 迁移后表行）· `前置 v`/补充说明在 `**Version**` 头行零残留（表行豁免）· 零 retro-rename
+- **Objective**: 全树 doc 合规（design §3 规则为准 · 基线 53 文档 · 现树 54 = 53 + 本 plan）——4 携链拆链成行（p3.1/p3.2 design×2 + plan×2）· 47 建/补 `## Change history`（23 design + 24 plans——cdd-review-contract-fix spec 已自带表 · P4.1 design/plan 已建表作示范，皆非建/补对象）· 11 无匹配形（9 真无头建档：补头 + 初始行 · 2 bold 归一 = p3.2 design/plan）· 28 有头非严格清零（26 非 bold + 2 bold · 含 3 旧 overall 补日期 = 其 Change history 末行日期）· **版本摘要逐字入行 + 机 pin 并集零漏**（迁移前头部文本 vs 迁移后表行）· `前置 v`/补充说明在 `**Version**` 头行零残留（表行豁免）· 零 retro-rename
 - **Files**: `docs/kairos/specs/*`（23 design + 4 overall + cdd-review-contract-fix 头部/表）· `docs/kairos/plans/*`（24 plans）· 迁移机 pin 脚本（scripts/ 或任务内手动断言）
 - **Consumes**: Task 2（schema 已含新结构/严格形，doc-contract 可判）
 - **Produces**: 全树合规 doc（Version 头零链零补充说明 · 每 doc 有 Change history 覆全谱系）· 机 pin 基线
@@ -62,11 +62,11 @@
   - 4 携链文档拆链：`前置 v…` 逐版拆为表行（版本 token 切行 · 摘要逐字入 summary） — checkable: 表行版本序 ascending · 全文版本 = 表最大版本
   - 非严格形补充说明转录：按 `· vX.Y` 版本 token 全量切行（consumer-parity-p2-design v1.4 括号全史等 ~20 文档） — checkable: 迁移前头部文本 ⊆ 迁移后表行（并集零漏）
   - 3 旧 overall（osuperpowers `v1.61`/consumer-parity `v1.49`/pi-harness `v1.30`）补日期 = 其 Change history 末行日期 + 去补充说明 — checkable: 严格形绿
-  - 49 建/补表 + 10 真无头建档（补 `**Version**` 头 + 初始行 · 日期 = 迁移日） · 2 bold 形（p3.2 design/plan）归一 — checkable: 机械清点（53 · 49 补表 · 12 无匹配形 · 4 拆链 · 25 清零）与规则断言一致
+  - 47 建/补表 + 9 真无头建档（补 `**Version**` 头 + 初始行 · 日期 = 迁移日） · 2 bold 形（p3.2 design/plan）归一 — checkable: 机械清点（基线 53 = 现树 54 − 本 plan · 47 补表 · 11 无匹配形 = 9 真无头 + 2 bold · 4 拆链 · 28 有头非严格清零）与规则断言一致 —— 以上计数为登记基线 · 以本步机械清点复核为准（规则断言 = 验收 · 计数差异按规则处理并记 notes · 不上溯 spec §3）
   - `**Version**` 头行零残留 grep（`前置 v` · `（` 补充说明 · `**v` bold——表行/引述豁免） — checkable: 归一扫面零命中（历史清单除外）
   - `pnpm run validate` 零 drift（doc-contract 对新形全绿） — checkable: validate ALL PASS
   - commit（文档批量 · 独立提交：迁移一批 + 机 pin 断言落档）
-- **Acceptance**: 全树合规（规则断言 · 机械清点复核 53/49/12/4/25 一致）· 机 pin 并集零漏 · 头行零残留 grep · validate 零 drift · 零 retro-rename
+- **Acceptance**: 全树合规（规则断言 · 机械清点复核 47 补表/11 无匹配形 = 9 + 2/4 拆链/28 有头非严格清零 一致）· 机 pin 并集零漏 · 头行零残留 grep · validate 零 drift · 零 retro-rename
 - **DependsOn**: 2
 
 ### Task 4: next 可执行命令字面量（引擎）
@@ -98,20 +98,20 @@
   - cdd-dev：review 入口门纪律声明（implement child 已 commit · review 前 clean-tree 由引擎门保） — checkable: 文本断言
   - 四技能 I2/I1/I3 next 字面例更新（`implement wave {tasks}` → 全参命令例 · `(read file back to confirm)` 保持） — checkable: 字面例 grep = 可执行形
   - `pnpm run emit` 再生 · checkAnatomy/skill-anatomy 绿 — checkable: emit:check 零 drift · checkAnatomy 绿
-  - commit（kairos docs）+ changeset — checkable: 提交/变更集独立
+  - commit（kairos docs）+ kairos-docs changeset 随本提交落位（engine fix changeset 不在此 · 归属 T6） — checkable: 提交/变更集独立 · 本步仅 kairos-docs 一枚
 - **Acceptance**: 技能文本兑现（author→commit→review · 字面例可执行）· emit 新鲜 · checkAnatomy 绿 · changeset 落
 - **DependsOn**: 1, 4
 
 ### Task 6: 终验 + changesets
 
-- **Objective**: 全量终验（design Acceptance 收口）——validate ALL PASS · 机械清点复核一致（53 · 49 补表 · 12 无匹配形 · 4 拆链 · 25 非严格形清零）· 零残留归一 grep 全绿 · engine vitest 全绿 · typecheck/biome/emit 新鲜 · 变更集独立提交
-- **Files**: `.changeset/<slug>.md`（×2：cdd-engine fix · kairos docs）
+- **Objective**: 全量终验（design Acceptance 收口）——validate ALL PASS · 机械清点复核一致（基线 54 = 53 + 本 plan · 47 补表 · 11 无匹配形 = 9 真无头 + 2 bold · 4 拆链 · 28 有头非严格清零）· 零残留归一 grep 全绿 · engine vitest 全绿 · typecheck/biome/emit 新鲜 · 变更集归属唯一（kairos docs 随 T5 · cdd-engine fix 随 T6 · 独立提交）
+- **Files**: `.changeset/<slug>.md`（×1 本步新写：cdd-engine fix——kairos docs changeset 已由 T5 落位 · 本步仅复核两枚独立落位）
 - **Consumes**: Task 3（迁移）· Task 4（next 字面）· Task 5（技能同步）
 - **Produces**: validate ALL PASS 终态 · 变更集落位
 - **Steps**:
-  - 全量 `pnpm run validate`（emit:check · kairos 树/接线 · pi-package · 零残留 + 通道审计 · marketplace · scripts unit · 版本同步）+ 机械清点复核（53/49/12/4/25 与规则断言一致） — checkable: ALL PASS · 复核一致
-  - engine fix + kairos docs 各一 changeset，独立提交 — checkable: `.changeset/` 两文件落 · 提交独立
-- **Acceptance**: validate ALL PASS · 机械复核一致 · 变更集落（独立提交）
+  - 全量 `pnpm run validate`（emit:check · kairos 树/接线 · pi-package · 零残留 + 通道审计 · marketplace · scripts unit · 版本同步）+ 机械清点复核（54/47/11/4/28 与规则断言一致） — checkable: ALL PASS · 复核一致 —— 以上计数为登记基线 · 以本步机械清点复核为准（规则断言 = 验收 · 计数差异按规则处理并记 notes · 不上溯 spec §3）
+  - cdd-engine fix changeset 独立提交（kairos docs changeset 已由 T5 落位 · 本步复核两枚独立落位） — checkable: `.changeset/` 两文件落 · 提交独立
+- **Acceptance**: validate ALL PASS · 机械复核一致 · 变更集落（cdd-engine fix 随 T6 · kairos docs 随 T5 · 两枚独立）
 - **DependsOn**: 3, 4, 5
 
 ## Change history
@@ -119,3 +119,4 @@
 | Version | date | summary | author |
 |---|---|---|---|
 | v1.0 | 2026-10-09 | 初版——P4.1 design v1.2 批准后开写：六任务（pre-flight seam + clean-tree 硬门 · schema 三类型同构 · 全树迁移 · next 可执行字面量 · 技能同步 · 终验）· 波次 T1‖T2 → T3‖T4 → T5 → T6 | [human] · Claude Opus 5（kairos:cdd-design → kairos:cdd-plan） |
+| v1.1 | 2026-10-09 | plan-review-1 全修（1 warn · 2 nit）：T3/T6 checkable 各补裁决句（登记基线 · 机械清点复核为准 · 规则断言 = 验收 · 计数差异按规则处理并记 notes · 不上溯 spec §3）· 清点口径改为现树实测（基线 53 = 现树 54 − 本 plan · 47 建/补 = 23 design + 24 plans · 11 无匹配形 = 9 真无头 + 2 bold · 4 拆链 · 28 有头非严格清零 = 26 + 2）· 非严格形扫面注 2 bold 归一行源拆链 · changeset 归属唯一化（kairos docs 随 T5 · cdd-engine fix 随 T6）· EOF 换行补回 | [human] · Claude Opus 5（kairos:cdd-design → kairos:cdd-plan） |

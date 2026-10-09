@@ -3,7 +3,7 @@
 **Spec:** [2026-10-02-doc-architecture-v2-p4.1-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p4.1-design.md)
 
 - **Parent program**: [doc-architecture-v2-overall.md v1.47](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.7 · 2026-10-09
+- **Version**: v1.8 · 2026-10-09
 - **Depends on**: P3.2（Done · [p3.2-plan v1.31](docs/kairos/plans/2026-10-02-doc-architecture-v2-p3.2.md) —— serial-phase GATE 满足，P4.1 可开线）
 - **Base**: develop
 
@@ -145,3 +145,4 @@
 | v1.5 | 2026-10-09 | **W1 期 backfill（F1 解决形态 · 用户拍板）**：T1 Objective 补 clean-tree 门解决形态（design §1.5）——`isClean` 纯 git 语义 · workspace ensure 自产 namespace 根 `.gitignore`（内容 `*`）· 消费者零配置 · A 排除面弃之 | [human] · Claude Opus 5（kairos:cdd-plan · Plan Sole Writer） |
 | v1.6 | 2026-10-09 | **T4 反杆（用户拍板 · find #3 深化）**：implement 恒 wave 单 type 动词——next 字面不带 `--type`（`cdd implement --plan <path> --tasks 17`）· 声明表零新键 · 三命令无需同构（同构是偏门 · `--type` 只在该动词 type 有区分力时渲染）· T4 Objective/Files/Steps/Acceptance 全随 · 与 spec v1.6 §5 对齐 | [human] · Claude Opus 5（kairos:cdd-plan · Plan Sole Writer） |
 | v1.7 | 2026-10-09 | **W3 期 backfill（find #7 · 派发现场实证 · 用户「backfill 回 overall/spec/plan」）**：新增 T7 扩域——wave review next 字面漏必填 `--plan`（`face/capsule.ts#routeText` review→wave 分支缺组装 · parse 绿 ≠ 运行时 required 绿）· 修复 = `#routeText` 补组装 + 断言面延伸「parse 绿 ⇒ 该类型 required flag 全覆盖」· T7 Files 增 capsule.ts/capsule.test.ts · Steps/Acceptance 随 · 与 spec v1.7 §5.6 / overall v1.52 对齐 | [human] · Claude Opus 5（kairos:cdd-plan · Plan Sole Writer） |
+| v1.8 | 2026-10-09 | **分支终审 r1 backfill（find #8 · 两 blocker + warn）**：T7 收口扩展——branch re-review 字面缺 `--head`（find #7 同族 · `#routeText` review→branch 只渲染 `--base`）· branch fix 字面缺 `--plan`（`#sceneOf` branch 无 plan → slug = `ref.short()` 空目录 → ledger 读空 → lineGate 拒 fix）· doc-contract 门自挡 wave 自身 docs（titled task 头 / code-span 引述 / **Spec:** 标签 ≠ basename · validate 假绿根因）+ p5 selfBounded；修复落 a9e9d409（C5 路由全 range · 拒半组装 · titled 接纳 · domain code-span 排除 · validate 落 gate 步）· 断言面升「运行时 gate 实派发」· 与 spec v1.8 §5.7 / overall v1.53 对齐 | [human] · Claude Opus 5（kairos:cdd-plan · Plan Sole Writer） |

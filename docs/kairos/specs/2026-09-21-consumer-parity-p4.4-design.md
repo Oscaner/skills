@@ -158,3 +158,9 @@ zone + `accepts pending-acceptance-patch` carry 约定 + `targets later task` �
 - **P4.2（发布闭环）**：1.0.0 首次稳定开版收进本 phase breaking 面（OOP restructure + 4 major deps + review 三段结案状态词汇新值 #278 + Pending Acceptance Patch 移除——plan.json/skill-anatomy 节点删 · 标签约定出技能文本）；发布面消费 OOP 化完成态与全树 latest 基线（依赖图 `P4.4 ->(hard) P4.2` 已登记）
 - **biomejs 静态门**：P4.2 起 husky pre-commit 静态质量门常驻（与既有 precommit 校验链并列）
 - **repo 定位改述 cdd 方法论（v1.33 记录）**：待 P4.2 阶段启动分析落地，本 phase 不处理
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.9 | 2026-09-25 | （迁移建档——版本谱系自 `**Version**` 头转录 · 原头未载变更摘要） | [human] |

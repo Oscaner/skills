@@ -152,3 +152,9 @@
 - consumer-parity 后续（如有 P4.x）：repo 定位改述的宣讲面承接在 README 理念导览之上增量；homepage 站点未来上线时挂 gh 元信息——本 phase 明确留空非遗漏
 - `cdd issue render` 的 future：若未来出现第二个纯渲染消费者，Non-goal #1「纯渲染型」例外是**原则性**豁免（非逐案枚举）——同一形态直接扩，不需再走宪章讨论
 - smoke-cdd 的 `--expect-version` 与 pack 白名单探针 = 发布门机械化；日常开发 PR 面已无消费者黑盒（validate 足矣），恢复语句见 docs/maintainers
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.2 | 2026-09-26 | （迁移建档——版本谱系自 `**Version**` 头转录 · 原头未载变更摘要） | [human] |

@@ -1,6 +1,6 @@
 # Pi Harness 支持（Pi Harness Support）— Overall Spec
 
-- **Version**: v1.30 · 2026-10-08（**P3.2 T22 宪法化承接——单文件宪法化同口径迁移**：版本行 lineage 散文消解 · change-history 结构化 record · Standing rules 成典常态化 · 历史正文零 retro-rename——P3.2 承接任务 T22）
+- **Version**: v1.30 · 2026-10-08
 - **Status**: Approved
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Constraints**:

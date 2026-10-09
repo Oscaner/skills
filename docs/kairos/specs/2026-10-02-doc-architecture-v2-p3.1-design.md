@@ -1,6 +1,6 @@
 # 文档架构方法论 v2 —— P3.1 Design
 
-- **Version**: v1.10 · 2026-10-07（分支终审 r1 措辞收敛——编排方 per S2/S4，实现零改动：§2.1 不变式词汇 七→十（hollow/selfBounded/referenceLint 并入词汇表，与 engine 十种 vocabulary 对齐）· §2.2 overall 迁移面措辞收敛至实际缝——content-rule 面迁规则数据 · 四表 contextual residue 按设计保留为 doc-type 代码（含 spec deviations 回答轴）；前置 v1.9 · 2026-10-07（§2.6 编排状态机 + §3.1 验收 T7 面缩域：frontier/next 路由器/ExecutionState/skills 编排精简并入 P3.2 实现——用户 2026-10-07 拍板「T7/T8 并入 P3.2」，避免在即将重构的统一面上先实现一遍；P3.1 收尾 = changesets + 全量终验；v1.8 · 2026-10-07 = §2.2 severity 判据——事实判定 → BLOCK / 意图推断 → WARN，referenceLint 落 WARN 的依据；v1.7 · 2026-10-07 = T6 窄化消解：引用 lint 定稿为宽松观测面——扫描面逐 field 界定（steps 排除）、`T7.1` spec-item 词形排除、前向引用豁免（反依赖门不可声明＝非缺边嫌疑）、树套件 BLOCK-only 口径；v1.6 · 2026-10-06 = F3 双层模型定稿与 review-3 七 finding 落地；v1.5 曾双态——d2a7b346 六 finding 态 与 F3 提交面实质改写态，父 overall v1.14「spec v1.5 随」记后者，v1.6 升号消同号二义））
+- **Version**: v1.10 · 2026-10-07
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（kairos:cdd-design → grilling → cdd-phase）
 - **Parent program**: [doc-architecture-v2-overall.md v1.14](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
@@ -176,3 +176,14 @@ tree-migration 扩展 pin：每块边行存在 · 19 份提秩文件 `### N.` �
 - **P6（宪法/档案分层）**：本 phase 只做结构秩不动分层；P6 承接已秩化的 charter 底座 + OverallDocBody 三件套做宪法化与 issue/history 归档
 - **P7（token 翻译）**：DOC_TOKENS 新增叶切片（designItemHeading / charterFacets）随本 phase 进 token 面，P7 翻译层承接
 - **父面消解待办（交编排方，随父面下轮修订落位；本 design 冻结期不并改父面）**：(a) 父 overall（v1.14）P3.1 执行序行「统一引擎落地（F9）」与 F1–F7 清单不符（F6 = 统一结构规则引擎）——修订为 F6 或删除（见 §2.1）；(b) 父 overall v1.12 change-history ②「`DependsOn` 不用 `none`（缺行 = 无边）」与父 P3.1 行「空/`none` 合法」相反字面——none 词法 / 留空二选一消解（见 §2.3 登记）；(c) plan v1.4 T4 的 171/pin 措辞随本 spec §2.4/§3.1 修订同步——已随 plan v1.4 T4 双层迁移定义落地（173 = 171 处迁移 + 2 条豁免散文逐行 pin，口径与本 spec 计数对账一致），本待办消解
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.5 |  | 曾双态——d2a7b346 六 finding 态 与 F3 提交面实质改写态，父 overall v1.14「spec v1.5 随」记后者，v1.6 升号消同号二义 | [human] |
+| v1.6 | 2026-10-06 | F3 双层模型定稿与 review-3 七 finding 落地 | [human] |
+| v1.7 | 2026-10-07 | T6 窄化消解：引用 lint 定稿为宽松观测面——扫描面逐 field 界定（steps 排除）、`T7.1` spec-item 词形排除、前向引用豁免（反依赖门不可声明＝非缺边嫌疑）、树套件 BLOCK-only 口径 | [human] |
+| v1.8 | 2026-10-07 | §2.2 severity 判据——事实判定 → BLOCK / 意图推断 → WARN，referenceLint 落 WARN 的依据 | [human] |
+| v1.9 | 2026-10-07 | §2.6 编排状态机 + §3.1 验收 T7 面缩域：frontier/next 路由器/ExecutionState/skills 编排精简并入 P3.2 实现——用户 2026-10-07 拍板「T7/T8 并入 P3.2」，避免在即将重构的统一面上先实现一遍；P3.1 收尾 = changesets + 全量终验 | [human] |
+| v1.10 | 2026-10-07 | 分支终审 r1 措辞收敛——编排方 per S2/S4，实现零改动：§2.1 不变式词汇 七→十（hollow/selfBounded/referenceLint 并入词汇表，与 engine 十种 vocabulary 对齐）· §2.2 overall 迁移面措辞收敛至实际缝——content-rule 面迁规则数据 · 四表 contextual residue 按设计保留为 doc-type 代码（含 spec deviations 回答轴） | [human] |

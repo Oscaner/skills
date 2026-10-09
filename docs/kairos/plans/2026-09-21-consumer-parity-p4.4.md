@@ -2,7 +2,7 @@
 
 **Spec:** [2026-09-21-consumer-parity-p4.4-design.md](docs/kairos/specs/2026-09-21-consumer-parity-p4.4-design.md)
 - **Parent program**: [consumer-parity overall v1.42](docs/kairos/specs/2026-09-21-consumer-parity-overall.md)
-- **Version**: v1.5 · 2026-09-25（Task 3 升维：TaskGroup 规范序列化 `"1,2"` · 命名面六统一 · 契约 token 面收敛（DISPATCH_UNIT 等）· 描述面全同步——2026-09-25 用户裁决）
+- **Version**: v1.5 · 2026-09-25
 - **Base**: develop
 - **Depends on**: P4.3（shipped · [p4.3-design v1.7](docs/kairos/specs/2026-09-21-consumer-parity-p4.3-design.md)）
 
@@ -265,3 +265,9 @@ Task 2 落地后 pre-commit 触发 `biome check --write`（format autofix + lint
   - 破坏面登记 changelog（1.0.0 收口就绪）
   - P4.4 行四表回填实证（Design-spec link · Implementation plan `Done` · change-history claim 双向一致）
   - 零残面 sweep 全绿 + biome 全仓零违规复核通过
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.5 | 2026-09-25 | Task 3 升维：TaskGroup 规范序列化 `"1,2"` · 命名面六统一 · 契约 token 面收敛（DISPATCH_UNIT 等）· 描述面全同步——2026-09-25 用户裁决 | [human] |

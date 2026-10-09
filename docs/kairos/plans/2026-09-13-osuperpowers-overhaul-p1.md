@@ -3,6 +3,7 @@
 **Spec:** [2026-09-13-osuperpowers-overhaul-p1-design.md](docs/kairos/specs/2026-09-13-osuperpowers-overhaul-p1-design.md)
 
 - **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.4](../specs/2026-09-13-osuperpowers-overhaul-overall.md)
+- **Version**: v1.0 · 2026-10-09
 - **Depends on**: 无（program 起点）
 - **Base**: develop
 
@@ -141,3 +142,9 @@
   - `.changeset/` 含 P1 changeset（cdd-engine minor，正文含 P1 runtime 布局叙述，POSIX `\n` 结尾）
   - validate 13 块 ALL PASS；emit:check 无 drift
   - T5 变更面单提交落盘（conventional）
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.0 | 2026-10-09 | 建档于迁移（2026-10-09 全树迁移补建 Change history——此前无版本化记录，历史内容保真于文档正文） | [human] |

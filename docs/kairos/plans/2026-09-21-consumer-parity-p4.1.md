@@ -2,7 +2,7 @@
 
 **Spec:** [2026-09-21-consumer-parity-p4.1-design.md](docs/kairos/specs/2026-09-21-consumer-parity-p4.1-design.md)
 **Parent program**: [consumer-parity overall v1.25](docs/kairos/specs/2026-09-21-consumer-parity-overall.md)
-**Version**: v1.5 · 2026-09-24
+- **Version**: v1.5 · 2026-09-24
 **Depends on**: P3 shipped（[p3-design v1.2](docs/kairos/specs/2026-09-21-consumer-parity-p3-design.md)）；本 session 已产出 overall v1.19/v1.20（P4 拆点分回填）与 [P4.1 design v1.1](docs/kairos/specs/2026-09-21-consumer-parity-p4.1-design.md)
 **Base**: develop
 
@@ -242,3 +242,9 @@
 
 - **Acceptance**:
   - 根 + 两包三件 `README.md` 的 line 3 语言切换行 = `[English](README.md) | [中文](README.zh-CN.md)`（node 断言三件一致；grep `[中文](README.zh-CN.md)` 命中 3）；`Simplified Chinese` 字面在三件 English README 零命中（显式 `-E`）；三件 `.zh-CN.md` 无 diff（git diff 空）；`pnpm run emit:check` exit 0 · `pnpm run validate` 11 块全绿
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.5 | 2026-09-24 | （迁移建档——版本谱系自 `**Version**` 头转录 · 原头未载变更摘要） | [human] |

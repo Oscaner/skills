@@ -3,6 +3,7 @@
 **Spec:** [2026-09-13-osuperpowers-overhaul-p2-design.md](docs/kairos/specs/2026-09-13-osuperpowers-overhaul-p2-design.md)
 
 - **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.5](../specs/2026-09-13-osuperpowers-overhaul-overall.md)
+- **Version**: v1.0 · 2026-10-09
 - **Depends on**: P1 shipped（runtime 布局 `.osuperpowers/cdd` + standalone 移除，2026-09-14）
 - **Base**: develop
 
@@ -175,3 +176,9 @@
   - 三条命令的命中文件级集合分别恰等于豁免集 ① / ①∪② / ticket 豁免集（无第三类命中）
   - validate 13 块 ALL PASS；emit:check 无 drift；`docs/` = maintainers + osuperpowers
   - T6 变更面单提交落盘（conventional）
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.0 | 2026-10-09 | 建档于迁移（2026-10-09 全树迁移补建 Change history——此前无版本化记录，历史内容保真于文档正文） | [human] |

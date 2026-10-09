@@ -2,6 +2,7 @@
 **Spec:** [2026-09-21-consumer-parity-p2-design.md](docs/kairos/specs/2026-09-21-consumer-parity-p2-design.md)
 
 - **Parent program**: [2026-09-21-consumer-parity-overall.md v1.12](../specs/2026-09-21-consumer-parity-overall.md)
+- **Version**: v1.0 · 2026-10-09
 - **Depends on**: P1（shipped）；P2 design v1.4 Approved（`e52e2ff1`）
 - **Base**: develop（finishing read-base 数据源；consumer-parity-p2 工作分支）
 
@@ -117,3 +118,9 @@
   4. **本仓 = canary 自证**——本仓自有 program 文档链（本文件 → P2 design v1.4 → consumer-parity overall v1.12）过 engine 新审计路径 + 新 plan-schema 解析零误伤（dogfood：四表合法 → 全绿、plan 头既有解析语义经 schema 零新增失败），engine 拆包消费者模拟路径可用（`cdd help` 指向可寻址 schema） — checkable: engine vitest 全绿；本仓 program 文档链（plan → design → overall）过 engine 审计零误伤（dogfood 实证，验收）
 - **Acceptance**:
   - AC8——breaking 版本面明确（major bump 变更面清单与发布面一致）；零债断言全项绿（可 grep/断言复现）；`pnpm run validate` 全绿（12 块，干净已提交树）；AC1–AC9 逐条可复核（回收 Task 1–5 验收面 + 本任务收口面）；engine vitest 全绿；本仓 program 文档链（plan → design → overall）过 engine 审计零误伤（dogfood 实证）。
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.0 | 2026-10-09 | 建档于迁移（2026-10-09 全树迁移补建 Change history——此前无版本化记录，历史内容保真于文档正文） | [human] |

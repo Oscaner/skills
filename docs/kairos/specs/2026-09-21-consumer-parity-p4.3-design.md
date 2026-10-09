@@ -130,3 +130,9 @@
 
 - **P4.4（全面 OOP 化）**：承接 §2.1/§2.5 的 TaskGroup 单数据模型与组键命名面，扩展为 cdd-engine 全层类抽象 + `scripts/` 编排面同构；本 phase 留白的标量残面（handoff/进度命名）为其实践输入（overall 已登记，serial gate：P4.3 Design 非 `[Pending]` 前不释放其 grilling）
 - **P4.2（发布闭环）**：1.0.0 首次稳定开版收进 `--tasks` breaking 与 flow 修订（依赖图 `P4.4 -> P4.2` 已登记）
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.7 | 2026-09-24 | （迁移建档——版本谱系自 `**Version**` 头转录 · 原头未载变更摘要） | [human] |

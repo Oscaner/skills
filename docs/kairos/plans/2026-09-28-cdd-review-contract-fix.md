@@ -201,3 +201,9 @@
 
 - **Acceptance**:
   - 5 份 SKILL.md 零 S1/S2/S3 路由复述（grep pin——仅保留不变式中的收敛语义引用）；判读措辞统一引用 `next:` 建议（含 I6 mid-backfill 兼容句）；precommit digraph 套件 + 措辞 grep pin 全绿。
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.4 | 2026-09-28 | （迁移建档——版本谱系自 `**Version**` 头转录 · 原头未载变更摘要） | [human] |

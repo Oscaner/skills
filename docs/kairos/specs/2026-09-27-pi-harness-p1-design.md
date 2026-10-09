@@ -107,3 +107,9 @@ P1 使 `@oscaner-skills/osuperpowers` 成为 pi 一等 pi-package：manifest 正
 - **C6 已删（v1.4 裁定）**：release.yml 恢复原状，无修改面；npm-source 解析风险（pi 对 scoped 包 registry 层的接受）= 已知残余——P4 消费故事 / publish 前人工抽查承接
 - **残留记录（consumer 面）**：pi 运行时技能清单无 CLI 内省，skill 可见性由 publish 前人工抽查 + P4 D5 消费故事（包序 override 语义）文档化
 - **#302（独立 single-spec 程序，非本程序产物）**：Review Convergence 判读规则改动归其 spec；P3/P4 若触碰 Review Convergence 文案以 #302 程序定案为准
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.5 | 2026-09-27 | （迁移建档——版本谱系自 `**Version**` 头转录 · 原头未载变更摘要） | [human] |

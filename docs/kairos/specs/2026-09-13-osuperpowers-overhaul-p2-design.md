@@ -127,3 +127,9 @@ tickets 系统经脑暴实证**全死**（writing-plans SKILL.md 无 Rules、无
 - **P4 / P5 / P6**：新 doc 约定 root = `docs/osuperpowers/{specs,plans}`；不得在 skill/template/validator 回引 `docs/superpowers`（新增 stale-lexicon 守卫兜底）。
 - **P6**：「maintainer docs 与落地行为一致」收口项接收 `docs/maintainers/osuperpowers-plugin.md` 中 `## Rules`/overrides 架构描述的**更深深陈面**（本 phase 仅清路径字符串 + tickets 死引用，未整体重写 overrides 描述）。
 - **record**：in-flight overall + P1 spec/plan 的 `docs/superpowers` 迁移叙述为豁免记录，P2 不动；P3–P6 新增文档不得携带旧路径。
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.0 | 2026-09-14 | （迁移建档——版本谱系自 `**Version**` 头转录 · 原头未载变更摘要） | [human] |

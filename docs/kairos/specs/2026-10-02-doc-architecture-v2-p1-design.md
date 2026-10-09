@@ -1,6 +1,6 @@
 # Doc Architecture v2 P1 — DocType 抽象 + schema 工厂（Doc Architecture v2 P1: DocType Abstraction + Schema Factory）— Phase Spec
 
-- **Version**: v1.1 · 2026-10-04（v1.0 起草；**v1.1 spec-review r1 fix 全落地（warn ×5 + nit ×2）**：`lifecycle` 抽象成员钉 S4 · shape 域 = 产物同构完整内容 → SchemaFactory 字节保真确定性投影 · S8 收敛断言入 A3 · D6 未注册锚统一改标 Q6 · route 移出五域子列表 · Q5(i) 子引用消去 · Section 1 补开线 GATE 指针）
+- **Version**: v1.1 · 2026-10-04
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（kairos:cdd-design → grilling → cdd-phase）
 - **Parent program**: [2026-10-02-doc-architecture-v2-overall.md v1.2](2026-10-02-doc-architecture-v2-overall.md)
@@ -140,3 +140,10 @@ words 源(DocType.words) ---> 渲染 ---> config/contract-lexicon.json（派生�
 - **P5（DispatchContract）**：refKind 四型内容 / DispatchPacket 正文（InstructionUnit·bodyView 分型）落 P1 的 instructions/refKind/bodyView 接缝槽（Q3）——P5 填槽不破壳；harness-contract dispatch 域重构与 P1 无接
 - **P6（overall 宪法/档案分层）**：add-phase-protocol 归属 P6 宪法层关注（Q6 语义下保持手写 JSON 直至 P6 重组）；archive doc-revision ref 依赖 DocType refKind 接缝——P6 读 seam 不写壳
 - **派生面纪律**：`config/schema/{phase-spec,plan,overall}.json` 与 `config/contract-lexicon.json` 自 P1 起为**派生产物**——任何手写编辑 = 下一工厂/守卫覆盖；改描述走 `DocType.shape/.words`（docs/maintainers/01-template-doctrine 模板数据化公约同源）
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.0 |  | 起草 | [human] |
+| v1.1 | 2026-10-04 | spec-review r1 fix 全落地（warn ×5 + nit ×2）**：`lifecycle` 抽象成员钉 S4 · shape 域 = 产物同构完整内容 → SchemaFactory 字节保真确定性投影 · S8 收敛断言入 A3 · D6 未注册锚统一改标 Q6 · route 移出五域子列表 · Q5(i) 子引用消去 · Section 1 补开线 GATE 指针 | [human] |

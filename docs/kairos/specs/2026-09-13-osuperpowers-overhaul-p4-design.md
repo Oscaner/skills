@@ -1,6 +1,6 @@
 # osuperpowers 架构重构 P4 — skills 全面重写 + engine 契约面收敛 设计
 
-- **Version**: v1.0 · 2026-09-15（起草；**plan 期 design 回填已并入 §2.5.2**——`failure_category` 入 handoff schema + `reviewStoppingGuard` 的未完成-dispatch 排除；**dev 期 design 回填已并入 §2.5.1 / §2.5.5**——用户 2026-09-16 裁定「schema 原样注入取代手写 render」+「templates 结构与命名单源」，见 Deviations；均按 P1/P2/P3 惯例不另行 bump）
+- **Version**: v1.0 · 2026-09-15
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.13](./2026-09-13-osuperpowers-overhaul-overall.md)（req 3 / req 5 / req 7 / req 8 + cdd 运行根约定 + 本次新增 A/B/C/D 族）→ 本 phase 回填至 **v1.15**
@@ -667,3 +667,9 @@ K -->|entered via blocker=0| L[handoff-finishing]
 - **P6**：`renderHandoffStub` 的 schema 派生扩展点已在 P4 段 1 显式化（**P6 不再重开 P4 产物**）；`.agents/` emit 面移除；harness 宣称收缩；flake follow-up（smoke workspace 并发 / `resolveVendorVersion`）
 - **本 phase 的 CDD 自伤风险**：段 1（尤其族 A/B）未落地前，P4 自身 task 仍可能踩 `additionalProperties` 拒绝与超时误分类——**这是把段 1 排最前的直接理由**
 - **下游 phase 不得回渗**：`cdd brief` / `cdd research`（P3 守卫）、`CDD_LIFECYCLE_PATH`、上游文档 read、`rootFromDocPath`、手写 schema 字段清单
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.0 | 2026-09-15 | 起草；**plan 期 design 回填已并入 §2.5.2**——`failure_category` 入 handoff schema + `reviewStoppingGuard` 的未完成-dispatch 排除；**dev 期 design 回填已并入 §2.5.1 / §2.5.5**——用户 2026-09-16 裁定「schema 原样注入取代手写 render」+「templates 结构与命名单源」，见 Deviations；均按 P1/P2/P3 惯例不另行 bump | [human] |

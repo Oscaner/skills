@@ -78,3 +78,9 @@
 - **用户裁决 2026-09-23（流程规范零散文）**：CLAUDE.md / docs/maintainers 零 skill/engine 流程规范散文（Review Convergence · cdd 直调链路机制 · entry gate/handoff 契约）——单源 SKILL.md + engine；只留 repo 事实 + 命令引用 + 指向。落地：新 Task 7（剥除断言面）+ Task 3 文案修正 + README 开发节引用式（Task 4）
 - **用户裁决 2026-09-23（包级 README + 术语）**：packages/osuperpowers + packages/cdd-engine 各 README.md/.zh-CN 重写/新建（宣讲面一体，mirror 政策扩为根 + 各包，全仓 `.zh-CN.md` 三件零其他）；first-party 中文译名统一「第一方」（「一方」禁用）。落地：新 Task 5 + 探针 zh-CN 三件集 + CLAUDE.md/06-skill-authoring 政策行同步
 - **用户裁决 2026-09-23（P4.1 收尾修正 · PR #275 评审回馈三条）**：① docs/maintainers **重新整理**——重新整理重新编号、**包括精简与删除**（纠正 v1.20 内容保真迁移口径）；② `07-osuperpowers-plugin.md` **删除**（唯一值面 release 流程由 `.changeset/README.md` §Release flow 承载；live 引用清扫：CLAUDE.md ×2 · packages/osuperpowers/README.md · maintainers README 索引；frozen specs/plans 历史引用豁免）；③ 英文 README 语言切换行**不改**（用户裁决 2026-09-24：language switch 不用改——`[中文]` 为合法切换标签，v1.24 的 `[Simplified Chinese]` 改向撤销回滚）。落地：overall v1.25 修正 + 新 Task 9（maintainers 整理）+ 新 Task 10（维持 `[中文]` 原样）
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.5 | 2026-09-24 | （迁移建档——版本谱系自 `**Version**` 头转录 · 原头未载变更摘要） | [human] |

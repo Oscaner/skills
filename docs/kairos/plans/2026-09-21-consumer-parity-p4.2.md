@@ -2,7 +2,7 @@
 
 **Spec:** [2026-09-21-consumer-parity-p4.2-design.md](docs/kairos/specs/2026-09-21-consumer-parity-p4.2-design.md)
 - **Parent program**: [consumer-parity overall v1.45](docs/kairos/specs/2026-09-21-consumer-parity-overall.md)
-- **Version**: v1.2 · 2026-09-26（mid-backfill：Task 12 plan-constraints 每 TG 再生，2026-09-26 用户裁决）
+- **Version**: v1.2 · 2026-09-26
 - **Base**: develop
 - **Depends on**: P4.4（shipped · [p4.4-design v1.9](docs/kairos/specs/2026-09-21-consumer-parity-p4.4-design.md)）
 
@@ -310,3 +310,9 @@ Task 10 对 GitHub 仓库元信息（description / topics）做外发变更—�
   - `isPlanConstraintsStale` 零残留（src + tests；grep 断言）
   - `plan-constraints.test.ts` / `runner.test.ts` generate-once 断言面全改「无条件再生」语义（接口细节同字节断言在）
   - `pnpm --filter @oscaner-skills/cdd-engine test` 全绿 + `node scripts/run.ts precommit` 全绿
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.2 | 2026-09-26 | mid-backfill：Task 12 plan-constraints 每 TG 再生，2026-09-26 用户裁决 | [human] |

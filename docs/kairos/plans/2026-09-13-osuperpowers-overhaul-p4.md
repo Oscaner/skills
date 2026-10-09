@@ -3,6 +3,7 @@
 **Spec:** [2026-09-13-osuperpowers-overhaul-p4-design.md](docs/kairos/specs/2026-09-13-osuperpowers-overhaul-p4-design.md)
 
 - **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.14](../specs/2026-09-13-osuperpowers-overhaul-overall.md)
+- **Version**: v1.0 · 2026-10-09
 - **Depends on**: P3 shipped（命令面四命令收敛 + `cli-research` 删除，PR #261 已 merge 至 develop，2026-09-15）
 - **Base**: develop
 
@@ -550,3 +551,9 @@
   - `task-handoff-schema.json` 改名 + 映射随迁；全仓零 `cdd-handoff-schema` 残留（后接 .json 的豁免为 docs-handoff-schema）
   - 全绿；`grep -rn "cdd-handoff-schema\|stubScalar\|satisfiesProp\|stubAnnotation\|patternSample\|requiredKeys\|renderAllOfConditions" packages/cdd-engine/lib packages/cdd-engine/templates` = 0（机制面 lib/ + templates/；tests 面排除——零命中断言用拼接构造 token）
   - T18 变更面单提交落盘（conventional）
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.0 | 2026-10-09 | 建档于迁移（2026-10-09 全树迁移补建 Change history——此前无版本化记录，历史内容保真于文档正文） | [human] |

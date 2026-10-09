@@ -1,6 +1,6 @@
 # osuperpowers 架构重构 P5 — report-issues 改名与流程精炼 设计
 
-- **Version**: v1.0 · 2026-09-17（起草；brainstorm 期七次 overall 回填 v1.18–v1.27 已并入，见 Deviations）
+- **Version**: v1.0 · 2026-09-17
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.27](./2026-09-13-osuperpowers-overhaul-overall.md)（P5 行 scope/acceptance 已含全部 brainstorm 收敛；v1.18–v1.27 十条 Boundary rules 回填行）
@@ -402,3 +402,9 @@ packages/cdd-engine/
 - **Dedup window 常量**：窗口常量 = **updated within last 90 days**（SKILL.md / report-issues 节点文档化，I8），不建环境变量配置面（沿 P4 环境面收口原则）——若口径调整，改 SKILL.md 一处。**查询句恒用运行期物化的 ISO 绝对日期**（`date -v-90d +%F` → `updated:>=<ISO>`，GitHub search 语法不支持 `90d` 相对写法），物化句实测并入 dev 计划 T 项
 - **GitHub label rename 的执行顺序**：必须在 changeset 前的 dev 段择机执行（一次性 `gh label edit`），spec 评审期不执行任何 repo 外部变更。
 - **writing-plans 提示**：计划需含「label rename 的 gh 命令 + 验证」独立任务（外向操作，不可并入普通重命名任务）。
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.0 | 2026-09-17 | 起草；brainstorm 期七次 overall 回填 v1.18–v1.27 已并入，见 Deviations | [human] |

@@ -3,7 +3,7 @@
 **Spec:** [2026-09-27-pi-harness-p4-design.md](docs/kairos/specs/2026-09-27-pi-harness-p4-design.md)
 
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.22](docs/kairos/specs/2026-09-27-pi-harness-overall.md)
-- **Version**: v1.5 · 2026-10-01（契约收敛定稿：T7/T8 合并同组 `7,8`「harness 契约面成型」——T8 布局（config/ 家 + harness-contract 命名 + resolveResource）与 T7 收敛（detect/install/refs + prefix 派生 + lexicon 纯词表 + checkHarness）同文件集一原子，布局步骤先行；v1.3（T7 pi prefix 值）与 v1.4（T8 布局）的历史表述被其并入）
+- **Version**: v1.5 · 2026-10-01
 - **Depends on**: P4 design v1.4 Approved（`0f279ded` · `4db6049c`，C1–C6）
 - **Base**: develop
 
@@ -199,3 +199,9 @@
 
 - **Acceptance**:
   - `config/` 落位（读作数据全归位）+ `harness-contract.json` 命名落地（engine 契约 vs emit 分发注册表消歧）+ `templates/` 仅内容种子（issue-body.json）；`resolveResource()` = 唯一路径真相——engine 六消费面零散落 `path.join(pkgRoot, "…")` 硬编码、smoke-cdd / residue / contract-lexicon pin 全数据派生、dev↔dist `config/` 同构（`dist/resources` 零残留）；`package.json#files` 随发 config；engine/scripts 测试 + precommit 全绿；CLI 面与数据语义零变化（纯内部结构 + 命名，patch 级）
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.5 | 2026-10-01 | 契约收敛定稿：T7/T8 合并同组 `7,8`「harness 契约面成型」——T8 布局（config/ 家 + harness-contract 命名 + resolveResource）与 T7 收敛（detect/install/refs + prefix 派生 + lexicon 纯词表 + checkHarness）同文件集一原子，布局步骤先行；v1.3（T7 pi prefix 值）与 v1.4（T8 布局）的历史表述被其并入 | [human] |

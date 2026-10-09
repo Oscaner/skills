@@ -3,7 +3,7 @@
 **Spec:** [2026-10-02-doc-architecture-v2-p3-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3-design.md)
 
 - **Parent program**: [2026-10-02-doc-architecture-v2-overall.md v1.6](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.2 · 2026-10-05（plan-fix-2 四 finding 落地，待 re-review）
+- **Version**: v1.2 · 2026-10-05
 - **Depends on**: P3 design v1.1 Approved（spec-review-1 九 finding 全落地 · committed a502d31d）
 - **Base**: develop
 
@@ -246,3 +246,9 @@
   - **shipped 描述面零程序历史 grep pin 绿**（config/schema/*.json description + body/*.ts 导出 doc comment 零生命周期/出处词汇——`extension bit`/`declared surface`/`zero read/write`/`P\d+ (edge-model|extension)` 逐字零命中）
   - `pnpm run validate` ALL PASS · typecheck 三项目绿 · biome clean · residue/lexicon guard 连续
   - changesets 已建（cdd-engine + kairos 视面）
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.2 | 2026-10-05 | plan-fix-2 四 finding 落地，待 re-review | [human] |

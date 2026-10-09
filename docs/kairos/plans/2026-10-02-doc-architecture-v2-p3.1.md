@@ -3,7 +3,7 @@
 **Spec:** [2026-10-02-doc-architecture-v2-p3.1-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3.1-design.md)（spec v1.10）
 
 - **Parent program**: [doc-architecture-v2-overall.md v1.14](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.11 · 2026-10-07（分支终审 r1 措辞收敛——编排方 per S2/S4，实现零改动：T1 不变式计数 七→十 · T3 波次验收 6→5 对齐 shipped 5 波次 wave pin · T2 迁移面措辞收敛至实际缝——content-rule 面归零 vs doc-type 上下文残留；前置 v1.10 · 2026-10-07（T7/T8 缩域：原 T7 编排状态机面（frontier/next/ExecutionState/skills 编排精简）并入 P3.2——用户拍板「T7/T8 并入 P3.2」避免在结构收敛前先实现一遍；原 T8 收尾（changesets + 终验 + wave pin 同步 5 波次）重编号 T7；overall v1.16））
+- **Version**: v1.11 · 2026-10-07
 - **Depends on**: P3（shipped · [p3-design v1.1](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3-design.md)）
 - **Base**: develop
 
@@ -183,3 +183,10 @@
 - **Acceptance**:
   - `- ` changesets（cdd-engine minor + kairos patch）在位 · zero 程序历史
   - `- ` P3.1 自身 wave pin 已同步 5 波次（原 T7 编排面并入 P3.2 的验收面收缩一致）· validate ALL PASS · engine suite 全绿 · typecheck ×3 · biome · emit:check 干净
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.10 | 2026-10-07 | T7/T8 缩域：原 T7 编排状态机面（frontier/next/ExecutionState/skills 编排精简）并入 P3.2——用户拍板「T7/T8 并入 P3.2」避免在结构收敛前先实现一遍；原 T8 收尾（changesets + 终验 + wave pin 同步 5 波次）重编号 T7；overall v1.16 | [human] |
+| v1.11 | 2026-10-07 | 分支终审 r1 措辞收敛——编排方 per S2/S4，实现零改动：T1 不变式计数 七→十 · T3 波次验收 6→5 对齐 shipped 5 波次 wave pin · T2 迁移面措辞收敛至实际缝——content-rule 面归零 vs doc-type 上下文残留 | [human] |

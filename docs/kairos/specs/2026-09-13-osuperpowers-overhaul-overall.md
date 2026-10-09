@@ -1,6 +1,6 @@
 # osuperpowers 架构重构 — Overall Spec
 
-- **Version**: v1.61
+- **Version**: v1.61 · 2026-10-08
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Constraints**:

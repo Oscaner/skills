@@ -1,6 +1,6 @@
 # 消费者面一致性（Consumer Parity）— P3 Design Spec
 
-- **Version**: v1.2 · 2026-09-22（spec-review r1 两轮 findings 已合流——`490e49b2`/`190d0ad7`，v1.15/v1.16 回填、overall v1.16 同步；本版 = spec-fix-4：review-4 AC4 探针实证修正（尾 `\b` 吞点边界断 → `[A-Za-z(]` 正向后缀 + node 断言）+ overall v1.17 同步）
+- **Version**: v1.2 · 2026-09-22
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)
 - **Parent program**: [2026-09-21-consumer-parity-overall.md](./2026-09-21-consumer-parity-overall.md) · v1.17
@@ -322,3 +322,9 @@ phaseId  `^P\d+(\.\d+)*$`
 
 - **P4（发布闭环）**：输入 = .changeset ×2（本程序 cdd-engine major + osuperpowers）版本化 + 旧程序 osuperpowers-overhaul ×9 changesets 版本化 + cdd-engine major breaking 发布面（P2 全部变更）+ **consumer-sim release 门实测通过**（P3 AC6 产物）+ pack 内容审计（cdd-engine `npm pack` 内容 = `dist/` + `templates/`（+ package.json；README/LICENSE 有则随包——files 面外 npm 自动携带面），**无 `skills/`**——`skills/` 属 osuperpowers 插件包面，若审计须单独列其包名；tarball 实际断言 = 真实 `dist/cli.mjs` + `templates/` + `dist/documents/schema/`，见 AC6；不含仓内 tests/、scripts/ 治理残件）。
 - 本 phase 无「later phases 会处理」悬空项——所有跨 phase 移交均落上游 overall v1.17 或本 §4 指针。
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.2 | 2026-09-22 | spec-review r1 两轮 findings 已合流——`490e49b2`/`190d0ad7`，v1.15/v1.16 回填、overall v1.16 同步；本版 = spec-fix-4：review-4 AC4 探针实证修正（尾 `\b` 吞点边界断 → `[A-Za-z(]` 正向后缀 + node 断言）+ overall v1.17 同步） | [human] |

@@ -1,6 +1,6 @@
 # osuperpowers 架构重构 P3 — cdd 命令面与契约收敛设计
 
-- **Version**: v1.2 · 2026-09-14（v1.0 起草 · v1.1 spec-review r1 修正：blocker ×2 + warn ×4 + nit ×2 · v1.2 spec-review r2 修正：warn ×1 + nit ×4——overall:69 req 6 主行括注互斥、行号锚点 ×2（`lib/lifecycle/cli.mjs:7`/`:9`、`tests/task.test.mjs:128`）、用例计数 11→13、`tests/host-detection.test.mjs:2` 陈旧枚举 · **plan 期 design 回填已并入 §2.5 `lifecycle.wiring.test.mjs` 行**（overall v1.6 规则；按 P1/P2 惯例不另行 bump）：「五派生点」出处/计数不可核验 → 收敛为去计数 + 记录该偏移）
+- **Version**: v1.2 · 2026-09-14
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.10](./2026-09-13-osuperpowers-overhaul-overall.md)（req 4 / req 6 / req 7）
@@ -195,3 +195,11 @@
 - **P4 的 8-skill 新树**以四命令面（implement/review/fix/base-branch）为编排基元。
 - **P6**：继承两项——① engine changeset 版本效果不落地（本 phase 补强证据：`versioned-plugins.json` 仅 osuperpowers）；② `packages/osuperpowers/.agents/` emit 面移除（本 phase 的 `cli-research` prune 是该面的最后一次目录级删除）。
 - **P6 存量 changeset 复核**：归并后本程序 per-phase 三条 + backlog 六条，共九条待消费。
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.0 |  | 起草 | [human] |
+| v1.1 |  | spec-review r1 修正：blocker ×2 + warn ×4 + nit ×2 | [human] |
+| v1.2 | 2026-09-14 | spec-review r2 修正：warn ×1 + nit ×4——overall:69 req 6 主行括注互斥、行号锚点 ×2（`lib/lifecycle/cli.mjs:7`/`:9`、`tests/task.test.mjs:128`）、用例计数 11→13、`tests/host-detection.test.mjs:2` 陈旧枚举 · **plan 期 design 回填已并入 §2.5 `lifecycle.wiring.test.mjs` 行**（overall v1.6 规则；按 P1/P2 惯例不另行 bump）：「五派生点」出处/计数不可核验 → 收敛为去计数 + 记录该偏移 | [human] |

@@ -1,6 +1,6 @@
 # 消费者面一致性（Consumer Parity）— P1 Design Spec
 
-- **Version**: v1.1 · 2026-09-21（v1.0 起草 · v1.1 spec-review r1 修正：AC2 全量重分类 26 命中/8 文件 · 判据定义指针 v1.8 · p2-plan 9 处明细；r2 修正：S3 行号指针 re-anchor（overall v1.8 实测 :50/60/69/92）· §2.1 delta 行数 5→6）
+- **Version**: v1.1 · 2026-09-21
 - **Status**: Approved
 - **Author**: [human] · Claude Opus 5 (1M context)
 - **Parent program**: [2026-09-21-consumer-parity-overall.md](./2026-09-21-consumer-parity-overall.md) · v1.8
@@ -133,3 +133,10 @@ p2-plan 另有 8 处守卫叙述行（:34 · :88 · :112 · :146 · :149 · :306
 - **P3（仓库面退役）**：输入 = S1/S2 退役 + S3 活文档残留簇（file:line 已列）+ S4 consumer-sim + 42 用例迁移面（27+15，`scripts/validate/__tests__/`）。
 - **P4（发布闭环）**：输入 = S6（两 changeset）+ ×9 旧 changesets 版本化 + pack 内容审计。
 - 本 phase 无「later phases 会处理」悬空项——所有跨 phase 移交均落上游 overall（v1.8）或本 §4 指针。
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.0 |  | 起草 | [human] |
+| v1.1 | 2026-09-21 | spec-review r1 修正：AC2 全量重分类 26 命中/8 文件 · 判据定义指针 v1.8 · p2-plan 9 处明细；r2 修正：S3 行号指针 re-anchor（overall v1.8 实测 :50/60/69/92）· §2.1 delta 行数 5→6 | [human] |

@@ -116,3 +116,9 @@
 
 - **Acceptance**:
   - `release.yml` 不再含 pi smoke（grep `pi install` 零命中）；`.github/actions/validate` 装配含 `@latest`（grep `pi-coding-agent@` 版本字面零命中）；`pnpm run validate` + precommit 全绿。
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.5 | 2026-09-27 | （迁移建档——版本谱系自 `**Version**` 头转录 · 原头未载变更摘要） | [human] |

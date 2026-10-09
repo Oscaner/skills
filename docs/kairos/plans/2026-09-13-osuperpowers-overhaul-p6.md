@@ -3,6 +3,7 @@
 **Spec:** [2026-09-13-osuperpowers-overhaul-p6-design.md](docs/kairos/specs/2026-09-13-osuperpowers-overhaul-p6-design.md)
 
 - **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.58](../specs/2026-09-13-osuperpowers-overhaul-overall.md)
+- **Version**: v1.0 · 2026-10-09
 - **Depends on**: P5 shipped（report-issues 改名 + engine 生命周期重建 + TS 化，PR #263 已 merge，2026-09-18）；P1–P4 shipped（hard 链完整）
 - **Base**: develop（finishing read-base 的数据源）
 
@@ -619,3 +620,9 @@
 
 - **Acceptance**:
   - residue 锚首检查零违规（引擎 src 无任何注释以阶段锚开头——67 处清零）；合法 trailing 溯源后缀与文件头形态不被误报（守卫用例绿）；§35 注入面零锚首守卫不变；engine suite 全绿 + validate 12 块全绿
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.0 | 2026-10-09 | 建档于迁移（2026-10-09 全树迁移补建 Change history——此前无版本化记录，历史内容保真于文档正文） | [human] |

@@ -133,3 +133,9 @@ P2 把 emit 分发面的"包侧声明 ↔ 实现"差距归零：`oscaner-plugin.
 - **P3（engine 数据面）**：命名统一 `cursor-agent` → `cursor`（engine 注册表 / 检测面 / validate pin 面）与 P2 emit 注册表三面 token（`claude` / `cursor` / `pi`）对齐；两注册表分层不破（Non-goal）——P3 不消费 `scripts/lib/harness-registry.ts`（这是 emit 分发面，非 spawn 契约面）
 - **P4（文档·测试·收口）**：P2 的 `oscaner` key rename 是发布面 breaking——P4 CHANGELOG 文案记录 + 历史豁免清单注册（Non-goal「历史记录不 retro-rename」）；P4 命名 pin 测试可续挂 P2 一致守卫产物；`release.yml` 无 pi smoke（v1.4 裁定）
 - **消费面残留**：`oscaner` 字段 = 新发布契约——已安装旧包的消费者升级路径（breaking config 键）提示归 P4 消费故事
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.2 | 2026-09-29 | （迁移建档——版本谱系自 `**Version**` 头转录 · 原头未载变更摘要） | [human] |

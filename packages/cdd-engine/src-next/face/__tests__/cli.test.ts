@@ -1065,8 +1065,12 @@ describe("P4.1 T4 — the next literal is a complete executable command (二次 
   });
 
   it("review × 4 types — `review --type <type> <type-arg>` parses", () => {
+    // find #7 (P4.1 T7): the wave review literal carries its runtime-required `--plan`
+    // (the W3 dispatch gap — `review --type wave --tasks 5` parsed green yet refused
+    // at run time with `missing required --plan`); the full coverage table lives in
+    // capsule.test.ts (parse 绿 ⇒ 该类型 required flag 全覆盖).
     const waveLiteral = literalOf({ kind: "review", base }, wave);
-    expect(waveLiteral).toBe("review --type wave --tasks 1,2");
+    expect(waveLiteral).toBe("review --type wave --tasks 1,2 --plan docs/kairos/plans/p3.md");
     parses(waveLiteral);
     const specLiteral = literalOf({ kind: "review", base }, spec);
     expect(specLiteral).toBe("review --type spec --spec docs/kairos/specs/p3-design.md");
@@ -1094,13 +1098,12 @@ describe("P4.1 T4 — the next literal is a complete executable command (二次 
     parses(specLiteral);
     const planLiteral = literalOf({ kind: "fix", findings: "p1-review-1.json" }, planT);
     expect(planLiteral).toBe(
-      "fix --type plan --plan docs/kairos/plans/p3.md --findings p1-review-1.json " +
-        FIX_READBACK_SUFFIX,
+      `fix --type plan --plan docs/kairos/plans/p3.md --findings p1-review-1.json ${FIX_READBACK_SUFFIX}`,
     );
     parses(planLiteral);
     const branchLiteral = literalOf({ kind: "fix", findings: "br1-review-1.json" }, branch);
     expect(branchLiteral).toBe(
-      "fix --type branch --findings br1-review-1.json " + FIX_READBACK_SUFFIX,
+      `fix --type branch --findings br1-review-1.json ${FIX_READBACK_SUFFIX}`,
     );
     parses(branchLiteral);
   });
@@ -1160,7 +1163,7 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
           repoRoot,
         ]),
       ).toBe(0);
-      expect(nextOf()).toBe("review --type wave --tasks 1");
+      expect(nextOf()).toBe(`review --type wave --tasks 1 --plan ${plan}`);
       io.stdoutText = "";
 
       // the review finds a warn → the fix literal
@@ -1214,7 +1217,7 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
           repoRoot,
         ]),
       ).toBe(0);
-      expect(nextOf()).toBe("review --type wave --tasks 2");
+      expect(nextOf()).toBe(`review --type wave --tasks 2 --plan ${plan}`);
       io.stdoutText = "";
 
       // the final review closes the run → rev2 lands on `done`
@@ -1460,11 +1463,20 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // `work` schema + the canonical test-evidence file (the v1.9 read-back inputs).
       const draft = path.join(scene.workspace.path, "tasks-1-implement.json");
       const head = "b".repeat(40);
+      // The compliant child follows the prescribed OUTPUT_* names (find #5): the
+      // artifacts it declares are the canonical {family}-{key}-{artifact} paths (the
+      // report at tasks-1-implement-report.md · the evidence at
+      // tasks-1-test-evidence.json); a free-named deviation is corrected in the
+      // reconstruct (the path-deviation test below).
       writeFileSync(
         draft,
         JSON.stringify({
           status: "APPROVED",
-          artifacts: { brief: "/b", report: "/r", test_evidence: "/t" },
+          artifacts: {
+            brief: "/b",
+            report: path.join(scene.workspace.path, "tasks-1-implement-report.md"),
+            test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+          },
           commits: { base: "a".repeat(40), head },
         }),
         "utf8",
@@ -1504,6 +1516,20 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(prompt).toContain(
         `- \`OUTPUT_HANDOFF\`: ${path.join(scene.workspace.path, "tasks-1-implement.json")}`,
       );
+      // find #4 — INPUT_RULES is gone: the implement child reads the plan's
+      // `## Constraints` directly through INPUT_PLAN (zero materialized rules file,
+      // zero dead pointer — the round context carries no rules channel).
+      expect(prompt).not.toContain("INPUT_RULES");
+      // find #5 — the artifact write paths are prescribed (OUTPUT_* · {family}-{key}-
+      // prefix): this scene carries no brief (briefPath null), so OUTPUT_BRIEF is not
+      // emitted (only present facts ride the prompt) while the report + evidence are.
+      expect(prompt).not.toContain("- `OUTPUT_BRIEF`");
+      expect(prompt).toContain(
+        `- \`OUTPUT_REPORT\`: ${path.join(scene.workspace.path, "tasks-1-implement-report.md")}`,
+      );
+      expect(prompt).toContain(
+        `- \`OUTPUT_EVIDENCE\`: ${path.join(scene.workspace.path, "tasks-1-test-evidence.json")}`,
+      );
       // the per-mode trimming: this scene carries no brief (briefPath null) — the empty
       // INPUT_TASK key is NOT emitted (empty keys are never emitted)
       expect(prompt).not.toContain("- `INPUT_TASK`");
@@ -1519,10 +1545,154 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(outcome.status).toBe("APPROVED");
       expect(outcome.commits).toEqual({ base: "a".repeat(40), head });
       expect(outcome.carrier).toEqual({
-        artifacts: { brief: "/b", report: "/r", test_evidence: "/t" },
+        artifacts: {
+          brief: "/b",
+          report: path.join(scene.workspace.path, "tasks-1-implement-report.md"),
+          test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+        },
         findings: [],
         commits: { base: "a".repeat(40), head },
         status: "APPROVED",
+      });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("prescribes the implement artifact paths — OUTPUT_BRIEF/REPORT/EVIDENCE carry the canonical {family}-{key}- names (find #5)", () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader());
+      const scene: DispatchScene = {
+        workspace,
+        ledger,
+        planPath: null,
+        briefPath: path.join(workspace.path, "tasks-1-brief.md"),
+        head: null,
+      };
+      const io = new CaptureIo();
+      const sync = new FakeSync();
+      sync.stdout = "status: APPROVED\n";
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      dispatch.step()(implementFrame);
+      const prompt = sync.calls[0]!.args[sync.calls[0]!.args.length - 1];
+      // the prescribed write paths — the {family}-{key}-{artifact} single naming:
+      // every OUTPUT_* slot implements consumes rides the round context (the carry
+      // brief = the engine-rendered input artifact; report + evidence = the report/verify
+      // write paths — zero free naming, cross-round zero overwrite).
+      expect(prompt).toContain(
+        `- \`OUTPUT_BRIEF\`: ${path.join(workspace.path, "tasks-1-brief.md")}`,
+      );
+      expect(prompt).toContain(
+        `- \`OUTPUT_REPORT\`: ${path.join(workspace.path, "tasks-1-implement-report.md")}`,
+      );
+      expect(prompt).toContain(
+        `- \`OUTPUT_EVIDENCE\`: ${path.join(workspace.path, "tasks-1-test-evidence.json")}`,
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the doc-family artifacts are round-keyed — a second review round prescribes a different report path, never an overwrite (find #5)", () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader());
+      const scene: DispatchScene = {
+        workspace,
+        ledger,
+        planPath: null,
+        briefPath: null,
+        head: null,
+      };
+      const io = new CaptureIo();
+      const sync = new FakeSync();
+      sync.stdout = "status: APPROVED\n";
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      dispatch.step()(specReviewFrame);
+      const first = sync.calls[0]!.args[sync.calls[0]!.args.length - 1];
+      dispatch.step()({ ...specReviewFrame, round: 2, params: { round: 2 } });
+      const second = sync.calls[1]!.args[sync.calls[1]!.args.length - 1];
+      expect(first).toContain(
+        `- \`OUTPUT_REPORT\`: ${path.join(workspace.path, "spec-review-1-report.md")}`,
+      );
+      expect(second).toContain(
+        `- \`OUTPUT_REPORT\`: ${path.join(workspace.path, "spec-review-2-report.md")}`,
+      );
+      // the round-keyed names never collide — a re-review cannot overwrite its predecessor
+      expect(path.join(workspace.path, "spec-review-1-report.md")).not.toBe(
+        path.join(workspace.path, "spec-review-2-report.md"),
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a free-named declared artifact path is corrected to the canonical OUTPUT_* path + surfaced on the notes (find #5 self-derivation)", () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new FakeSync();
+      sync.stdout = "status: APPROVED\n";
+      const head = "b".repeat(40);
+      const draftPath = path.join(scene.workspace.path, "tasks-1-implement.json");
+      writeFileSync(
+        draftPath,
+        JSON.stringify({
+          status: "APPROVED",
+          artifacts: { report: "/r", test_evidence: "/t" },
+          commits: { base: "a".repeat(40), head },
+        }),
+        "utf8",
+      );
+      // the evidence file at the canonical name makes the evidence gate pass — this
+      // test isolates the artifact-path correction from the evidence read-back
+      writeFileSync(
+        path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+        JSON.stringify({
+          command: "npx vitest run",
+          exit_code: 0,
+          passed: true,
+          warnings_count: 0,
+          typecheck: { command: "tsc --noEmit", exit_code: 0, passed: true },
+        }),
+        "utf8",
+      );
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      const outcome = dispatch.step()(implementFrame);
+      expect(outcome.status).toBe("APPROVED");
+      // the engine books the canonical names — a child-reported free path never lands;
+      // both deviations ride the carrier's notes (the review scope axis reads them)
+      expect(outcome.carrier).toEqual({
+        artifacts: {
+          report: path.join(scene.workspace.path, "tasks-1-implement-report.md"),
+          test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+        },
+        findings: [],
+        commits: { base: "a".repeat(40), head },
+        status: "APPROVED",
+        notes: [
+          expect.stringContaining("artifact report"),
+          expect.stringContaining("artifact test_evidence"),
+        ],
       });
     } finally {
       cleanup();
@@ -1729,14 +1899,25 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       });
       const outcome = dispatch.step()(implementFrame);
       expect(outcome.status).toBe("BLOCKED");
-      // the carrier is materialized (the child's work preserved) but rewritten BLOCKED
+      // the carrier is materialized (the child's work preserved) but rewritten BLOCKED.
+      // The free-named declared paths are corrected to the canonical OUTPUT_* names
+      // (find #5 — the engine derives, never books a child-reported path): the report
+      // and evidence book their canonical tasks-1- names with the deviations surfaced.
       expect(outcome.carrier).toEqual({
-        artifacts: { brief: "/b", report: "/r", test_evidence: "/t" },
+        artifacts: {
+          brief: "/b",
+          report: path.join(scene.workspace.path, "tasks-1-implement-report.md"),
+          test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+        },
         findings: [],
         commits: { base: "a".repeat(40), head: "b".repeat(40) },
         status: "BLOCKED",
         failure_category: "evidence-contract",
-        notes: [expect.stringContaining("the test evidence at")],
+        notes: [
+          expect.stringContaining("artifact report"),
+          expect.stringContaining("artifact test_evidence"),
+          expect.stringContaining("the test evidence at"),
+        ],
       });
     } finally {
       cleanup();

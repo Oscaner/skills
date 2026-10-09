@@ -130,7 +130,11 @@ export class Capsule {
         const verb = words.routeWord("review");
         const type = target?.type ?? null;
         if (type === "wave") {
-          return `${verb} ${this.#flag("type")} wave ${this.#flag("tasks")} ${target!.id}`;
+          // find #7 (P4.1 T7 · design §5.6): the wave review literal carries its
+          // runtime-required `--plan` — the same assembly the implement/next-wave
+          // and fix→wave branches share (a W3 dispatch showed the missing flag
+          // parsed green yet refused the run: `missing required --plan <path>`).
+          return `${verb} ${this.#flag("type")} wave ${this.#flag("tasks")} ${target!.id} ${this.#flag("plan")} ${this.#planOf(target)}`;
         }
         if (type === "spec") {
           return `${verb} ${this.#flag("type")} spec ${this.#flag("spec")} ${target!.id}`;

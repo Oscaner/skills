@@ -150,11 +150,12 @@ describe("the capsule byte pin — the single output face", () => {
   it("renders the complete executable `next:` literal with the frame's RouteTarget (P4.1 T4)", () => {
     const base = "a".repeat(40);
     const target = { type: "wave", id: "1,2", plan: "docs/kairos/plans/p.md" } as const;
-    // a re-review of a wave — `review --type wave --tasks {tasks}` (no base — the
-    // wave round's ref rides the ledger; parse needs only type + tasks)
+    // a re-review of a wave — `review --type wave --tasks {tasks} --plan <path>`
+    // (no base — the wave round's ref rides the ledger; parse needs type + tasks,
+    // the runtime-required --plan rides the frame's plan fact — find #7)
     expect(capsule.emit("REVIEW_FIX", "0", "/h.json", { kind: "review", base }, target)).toEqual([
       "status: REVIEW_FIX · blocker: 0 · handoff: /h.json",
-      "next: review --type wave --tasks 1,2",
+      "next: review --type wave --tasks 1,2 --plan docs/kairos/plans/p.md",
     ]);
     // the one-way fix hop — `fix --type wave --tasks {tasks} --plan <p> --findings <f>`
     expect(

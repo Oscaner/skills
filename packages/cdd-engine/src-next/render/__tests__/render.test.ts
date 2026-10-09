@@ -24,11 +24,15 @@ const ALL_VALUES: Record<string, string> = {
   ROLE: "implement",
   WAVE: "4,12",
   INPUT_WAVE_BRIEF: "/ws/tasks-4,12-brief.md",
-  INPUT_RULES: "/ws/plan-constraints.md",
   INPUT_FINDINGS: "",
   INPUT_RANGE: "",
   INPUT_PLAN: "",
   INPUT_DOC: "",
+  // find #4 — INPUT_RULES is retired (the plan's `## Constraints` rides INPUT_PLAN;
+  // the round context carries no rules channel).
+  OUTPUT_BRIEF: "/ws/tasks-4,12-brief.md",
+  OUTPUT_REPORT: "/ws/tasks-4,12-implement-report.md",
+  OUTPUT_EVIDENCE: "/ws/tasks-4,12-test-evidence.json",
   OUTPUT_HANDOFF: "/ws/tasks-4,12-implement.json",
   FIX_BASE: "",
   REVIEW_TYPE: "",
@@ -47,10 +51,15 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(assembler.returnFormats()).toEqual(["RETURN_STDOUT_BLOCK"]);
     expect(assembler.declaredTokens()).toContain("ROLE");
     expect(assembler.declaredTokens()).toContain("OUTPUT_HANDOFF");
+    expect(assembler.declaredTokens()).toContain("OUTPUT_BRIEF");
+    expect(assembler.declaredTokens()).toContain("OUTPUT_REPORT");
+    expect(assembler.declaredTokens()).toContain("OUTPUT_EVIDENCE");
     expect(assembler.declaredTokens()).toContain("HANDOFF_SCHEMA");
     expect(assembler.declaredTokens()).not.toContain("INPUT_CRITERIA");
     expect(assembler.declaredTokens()).not.toContain("INPUT_LENS");
     expect(assembler.declaredTokens()).not.toContain("HANDOFF_WRITE_GATE");
+    // find #4 — the INPUT_RULES token is gone (零死指针 · 约束单源 = the plan itself)
+    expect(assembler.declaredTokens()).not.toContain("INPUT_RULES");
   });
 
   it("assembles the implement mode — the fixed prefix + the reduced round context", () => {
@@ -65,6 +74,14 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(out).toContain("- `INPUT_WAVE_BRIEF`: /ws/tasks-4,12-brief.md");
     expect(out).toContain("$$SCHEMA$$"); // the injected writable-subset fence slot
     expect(out).not.toContain("{{"); // zero unresolved slots
+    // find #4 — the implement reminder reads the plan's ## Constraints through
+    // INPUT_PLAN (零物化零死指针): the shared rules channel is gone from the prose
+    // AND the round context; the OUTPUT_* write paths are prescribed (find #5)
+    expect(out).not.toContain("INPUT_RULES");
+    expect(out).toContain("the plan's `## Constraints` via `INPUT_PLAN`");
+    expect(out).toContain("- `OUTPUT_BRIEF`: /ws/tasks-4,12-brief.md");
+    expect(out).toContain("- `OUTPUT_REPORT`: /ws/tasks-4,12-implement-report.md");
+    expect(out).toContain("- `OUTPUT_EVIDENCE`: /ws/tasks-4,12-test-evidence.json");
     // the v1.9 prose-zeroing — no HANDOFF_WRITE_GATE / ## Handoff prose anywhere
     expect(out).not.toContain("HANDOFF_WRITE_GATE");
     expect(out).not.toContain("RETURN_JSON");

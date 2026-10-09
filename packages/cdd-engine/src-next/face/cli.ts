@@ -522,7 +522,10 @@ export class HarnessDispatch {
       // tokens under the wave-unitary model).
       WAVE: isWave ? (params.tasks ?? "") : "",
       INPUT_WAVE_BRIEF: this.#waveBrief(frame, scene, op),
-      INPUT_RULES: scene.workspace.resolve("plan-constraints.md"),
+      // find #4 (P4.1 T7): INPUT_RULES is RETIRED — the implement child reads the
+      // plan's `## Constraints` section directly through INPUT_PLAN (zero materialized
+      // plan-constraints file, zero dead pointer; the dispatcher-side rules channel is
+      // gone — the constraint source is the plan document itself).
       // v1.9: INPUT_FINDINGS is fix/docs-fix only — the open findings of the source
       // review; a review writes its own draft (INPUT_FINDINGS === OUTPUT_HANDOFF
       // would be a short-circuit).
@@ -533,6 +536,14 @@ export class HarnessDispatch {
       INPUT_RANGE: isReview ? this.#reviewRange(frame) : "",
       INPUT_PLAN: scene.planPath ?? "",
       INPUT_DOC: docPath ?? "",
+      // find #5 (P4.1 T7) — the prescribed artifact write paths (the {family}-{key}-
+      // {artifact} single naming): the round context carries the canonical OUTPUT_*
+      // names the child MUST use (zero free naming · cross-round zero overwrite); a
+      // slot the frame's family does not consume stays empty and is dropped (only
+      // present facts land).
+      OUTPUT_BRIEF: this.#outputOf(frame, "brief"),
+      OUTPUT_REPORT: this.#outputOf(frame, "report"),
+      OUTPUT_EVIDENCE: this.#outputOf(frame, "evidence"),
       OUTPUT_HANDOFF: scene.ledger.handoffPath(op, frame.type, params),
       FIX_BASE: op === "fix" ? this.#fixedPoint(frame, params) : "",
       REVIEW_TYPE: isReview ? frame.type : "",
@@ -543,6 +554,43 @@ export class HarnessDispatch {
       // faces — implement/fix — carry the evidence-file fence too).
       HANDOFF_SCHEMA: this.#schemaText(frame),
     };
+  }
+
+  /** The canonical prescribed OUTPUT_* write path of one artifact kind (find #5 — the
+   *  {family}-{key}-{artifact} single naming scheme: work = tasks-{wave} /
+   *  branch-{base7}..{head7} · doc = the {type}-{op}-{round} stem, spec-review-1).
+   *  "" when the frame's family does not consume the slot — only present facts ride
+   *  the prompt (the assembler drops the empty-valued round-context keys). */
+  #outputOf(frame: OpenFrame, kind: "brief" | "report" | "evidence"): string {
+    const workspace = this.#scene.workspace;
+    const op = this.#opOf(frame);
+    if (frame.type === "spec" || frame.type === "plan") {
+      // The doc family — the round-keyed {type}-{op}-{round} stem (spec-review-1):
+      // every review/docs-fix round books its own report (a re-review never
+      // overwrites its predecessor); brief/evidence are work-family faces only.
+      if (kind !== "report") return "";
+      return workspace.resolve(`${frame.type}-${op}-${frame.round}-report.md`);
+    }
+    if (kind === "brief") {
+      // The implement round's brief — the engine-rendered input artifact (its canonical
+      // tasks-{wave}-brief.md name; the line/work faces other than implement carry none).
+      return frame.phase === "implement" ? (this.#scene.briefPath ?? "") : "";
+    }
+    const family =
+      frame.type === "wave" ? `tasks-${frame.params.tasks ?? ""}` : `branch-${this.#keyOf(frame)}`;
+    if (kind === "report") {
+      const suffix = frame.phase === "implement" ? "" : `-${frame.round}`;
+      return workspace.resolve(`${family}-${op}${suffix}-report.md`);
+    }
+    // evidence — the work faces only (implement/fix write the canonical evidence file)
+    if (frame.phase !== "implement" && frame.phase !== "fix") return "";
+    return workspace.resolve(this.#evidenceName(frame));
+  }
+
+  /** The canonical evidence file name of a work frame (find #5 — the
+   *  {family}-{key}-test-evidence.json form; the same name the read-back gate reads). */
+  #evidenceName(frame: OpenFrame): string {
+    return `${this.#evidencePrefix(frame)}-${frame.params.tasks ?? this.#keyOf(frame)}-test-evidence.json`;
   }
 
   /** The review's reference (INPUT_RANGE) — the fact the review criteria judge: the
@@ -662,9 +710,7 @@ export class HarnessDispatch {
     // docs faces (review/docs-fix) carry no evidence file. The read-back is REAL — a
     // missing/schema-violating file rewrites the draft to BLOCKED.
     if (face === "work") {
-      const prefix = this.#evidencePrefix(frame);
-      const key = frame.params.tasks ?? this.#keyOf(frame);
-      const evidenceName = `${prefix}-${key}-test-evidence.json`;
+      const evidenceName = this.#evidenceName(frame);
       const evidencePath = scene.workspace.resolve(evidenceName);
       const evidence = scene.workspace.readJson<unknown>(evidenceName);
       const evidenceProblems = schema.evidenceViolations(evidence);
@@ -678,7 +724,7 @@ export class HarnessDispatch {
       findings: face === "findings" ? schema.findingsOf(draft.findings) : undefined,
       commits: block.commits,
       artifacts: block.artifacts,
-      carrier: this.#materialize(face, draft, status, reason),
+      carrier: this.#materialize(frame, face, draft, status, reason),
     };
   }
 
@@ -707,14 +753,16 @@ export class HarnessDispatch {
    *  rewrites the status to BLOCKED + a failure_category + the reason note (the
    *  child's work preserved, marked bad). */
   #materialize(
+    frame: OpenFrame,
     face: HandoffSchemaFace,
     draft: Record<string, unknown>,
     status: RoundStatus,
     reason: string | null,
   ): Record<string, unknown> {
     const ledger = this.#scene.ledger;
+    const notes: string[] = [];
     const carrier = ledger.buildHandoff({
-      artifacts: this.#stringMap(draft.artifacts),
+      artifacts: this.#canonicalArtifacts(frame, draft.artifacts, notes),
       findings: face === "findings" ? this.#findingsList(draft.findings) : [],
       commits: this.#commitsOf(draft.commits),
     });
@@ -722,14 +770,58 @@ export class HarnessDispatch {
     if (Array.isArray(draft.changes)) carrier.changes = draft.changes;
     if (typeof draft.failure_category === "string")
       carrier.failure_category = draft.failure_category;
-    const notes = Array.isArray(draft.notes) ? [...(draft.notes as unknown[])] : [];
+    const draftNotes = Array.isArray(draft.notes) ? [...(draft.notes as unknown[])] : [];
     if (reason !== null) {
       carrier.status = "BLOCKED";
       carrier.failure_category = "evidence-contract";
-      notes.push(reason);
+      draftNotes.push(reason);
     }
-    if (notes.length > 0) carrier.notes = notes;
+    if (notes.length > 0 || draftNotes.length > 0) carrier.notes = [...notes, ...draftNotes];
     return carrier;
+  }
+
+  /** The carrier's artifacts map (find #5 — the engine self-derives, never trusts a
+   *  child-reported path for the canonical slots): a declared PRESCRIBED slot
+   *  (brief/report/test_evidence) books the frame's canonical OUTPUT_* path — a
+   *  free-named deviation is replaced and surfaced on the notes (the review scope
+   *  axis reads them); the non-prescribed slots (a docs-fix's `doc`, child extras)
+   *  pass verbatim. undefined when the draft declared no artifacts. */
+  #canonicalArtifacts(
+    frame: OpenFrame,
+    artifacts: unknown,
+    notes: string[],
+  ): Record<string, string> | undefined {
+    const declared = this.#stringMap(artifacts);
+    if (declared === undefined) return undefined;
+    const out: Record<string, string> = {};
+    for (const [key, value] of Object.entries(declared)) {
+      const canonical = this.#prescribedArtifact(frame, key);
+      if (canonical !== "" && value !== canonical) {
+        notes.push(
+          `artifact ${key}: declared path ${value} deviates from the prescribed ${canonical} — the canonical path is booked`,
+        );
+        out[key] = canonical;
+      } else {
+        out[key] = value;
+      }
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+  }
+
+  /** The prescribed path of one block-artifact slot — a slot the frame's family
+   *  prescribes (brief/report/test_evidence → the canonical OUTPUT_* name), "" for
+   *  every other slot (a docs-fix's `doc` is never prescribed, it passes verbatim). */
+  #prescribedArtifact(frame: OpenFrame, slot: string): string {
+    switch (slot) {
+      case "brief":
+        return this.#outputOf(frame, "brief");
+      case "report":
+        return this.#outputOf(frame, "report");
+      case "test_evidence":
+        return this.#outputOf(frame, "evidence");
+      default:
+        return "";
+    }
   }
 
   /** The work carrier's status — the child's declared conclusion (the schema's enum

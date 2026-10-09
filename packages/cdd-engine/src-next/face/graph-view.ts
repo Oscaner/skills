@@ -35,7 +35,11 @@ export class GraphView {
     const rows = report.waves
       .map((wave, index) => {
         const tasks = wave.map((id) => `T${id}${markers.get(id) ?? "○"}`).join(" · ");
-        const line = `  W${String(index).padStart(2, "0")}  ${tasks}`;
+        // find #6 (user 2026-10-09 「W1 更符 agent 心智」): the board label = the
+        // derived wave index + 1 (W1 · W2 · …) with no zero-padding — the plan's
+        // execution-order labels reference this derived label verbatim (display
+        // layer only; the wave derivation itself is unchanged).
+        const line = `  W${index + 1}  ${tasks}`;
         return index === currentIndex ? `${line}   ← in-flight` : line;
       })
       .join("\n");

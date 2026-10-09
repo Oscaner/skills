@@ -71,7 +71,7 @@ flowchart TD
 
 ### `handoff-cdd-close`
 
-- **Do**: Prepare the handoff to `/kairos:cdd-close`（pi：/skill:cdd-close）: ensure the base artifact is written (cdd-close reads the same artifact inside its finish flow); summarize branch state (commits count / base); invoke `/kairos:cdd-close`（pi：/skill:cdd-close） to take over (merge / PR / keep / discard)
+- **Do**: Prepare the handoff to `/kairos:cdd-close`（pi：/skill:cdd-close）: ensure the base artifact is written (cdd-close reads the same artifact inside its finish flow); summarize branch state (commits count / base); invoke `/kairos:cdd-close`（pi：/skill:cdd-close） to take over — it lands the closeout backfill first, then the finish decision (merge / PR / keep / discard)
 - **Read**: the base artifact output + final branch-review state
 - **Exit**: handoff complete → APPROVED: cdd-close
 - **Fail**: cdd-close takeover fails → implicit fail-open (branch preserved; user finishes manually)

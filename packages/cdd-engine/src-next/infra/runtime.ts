@@ -193,14 +193,17 @@ export const HANDOFF_FAMILIES = {
     prev: { roundR: "review.plan:R" },
   },
   "review.branch": {
-    name: "branch-review-{base7}..{head7}-r{round}.json",
+    // find #9（spec §6.5）：the range token leaves the file name — the carrier's
+    // `commits` holds the shas（find #7/#8 双真相纪律）+ the workspace slug is the
+    // plan-slug（fix 面带 --plan）· round 累计跨 re-review（lineKey 固化 "branch"）.
+    name: "branch-review-{round}.json",
     round: "increment",
     status: "rollup",
     schema: "findings",
     phase: "branch-review",
   },
   "fix.branch": {
-    name: "branch-fix-{base7}..{head7}-r{round}.json",
+    name: "branch-fix-{round}.json",
     round: "source",
     status: "contract",
     schema: "work",

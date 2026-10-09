@@ -151,7 +151,9 @@ describe("git — the single git seam over a real temp repo", () => {
       writeFileSync(path.join(dir, "a.txt"), "a\n");
       expect(await git.isClean(dir)).toBe(false);
       const head = await git.commit(dir, "feat: initial");
-      expect(head).toMatch(/^[0-9a-f]{40}$/);
+      // find #10 — revParseHead returns the engine's 8-char short form; the commit
+      // returns the same 8-char short sha (long shas retired engine-wide · spec §6.6)
+      expect(head).toMatch(/^[0-9a-f]{8}$/);
       expect(await git.revParseHead(dir)).toBe(head);
       expect(await git.isClean(dir)).toBe(true);
       const log = await git.log(dir);

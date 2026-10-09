@@ -210,7 +210,7 @@ describe("BriefRenderer — the brief data rendering + the checkable gate", () =
   it("out-of-bounds: a missing task id is listed and the render blocks", () => {
     const { missing } = brief.extract(PLAN, [1, 5]);
     expect(missing).toEqual([5]);
-    expect(() => brief.render(PLAN, [1, 5], "a".repeat(40))).toThrow(/task 5/);
+    expect(() => brief.render(PLAN, [1, 5], "a".repeat(8))).toThrow(/task 5/);
   });
 
   it("renders the brief content — the raw section + the WAVE_BASE line", () => {

@@ -30,6 +30,7 @@
 // the capsule plugs into the lifecycle's attachCapsule contact, byte-identically.
 // Module-level exports are the class — zero behavior-carrying bare functions.
 
+import { BranchRef } from "../session/branch-ref.ts";
 import type { RouteTarget } from "../session/faces.ts";
 import { FIX_READBACK_SUFFIX, type Route } from "../session/next.ts";
 import type { CapsuleKey, Words } from "./words.ts";
@@ -143,14 +144,18 @@ export class Capsule {
           return `${verb} ${this.#flag("type")} plan ${this.#flag("plan")} ${target!.id}`;
         }
         if (type === "branch") {
-          // find #8 (P4.1 T7): the branch re-review literal MUST carry the full range —
-          // the runtime missing-refs gate refuses a --base-only literal (`missing
-          // required --base <sha> --head <sha>`, the pipe: the fix-with-blockers route
-          // carries the re-review span from the fix carrier's commits — base + head).
-          // A head-less route refuses the half-composed literal (the bare classifier
-          // fallback — only present facts land, never a non-executable partial argv).
+          // find #8 (P4.1 T7): the branch re-review literal MUST carry the full range + the
+          // --plan workspace identity — the runtime missing-refs gate refuses a --base-only
+          // literal (`missing required --base <sha> --head <sha>`), and a plan-less re-review
+          // resolves to the ref.short() workspace (the find #8 F1b double identity: plan-slug
+          // ledger vs ref-short lookup — `#sceneOf` picks `slugFromDoc(planPath)` when
+          // `--plan` is present, else `ref.short()`). A head-less route refuses the
+          // half-composed literal (the bare classifier fallback — only present facts land).
+          // find #10 — the range renders in the engine's 8-char short form (long shas
+          // retired) through the ONE BranchRef decision（零裸切片）.
           if (route.head === undefined) return verb;
-          return `${verb} ${this.#flag("type")} branch ${this.#flag("base")} ${route.base} ${this.#flag("head")} ${route.head}`;
+          const ref = new BranchRef(route.base, route.head);
+          return `${verb} ${this.#flag("type")} branch ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("base")} ${ref.base8} ${this.#flag("head")} ${ref.head8}`;
         }
         return verb;
       }
@@ -169,7 +174,10 @@ export class Capsule {
           return `${verb} ${this.#flag("type")} plan ${this.#flag("plan")} ${id} ${this.#flag("findings")} ${route.findings} ${FIX_READBACK_SUFFIX}`;
         }
         if (type === "branch") {
-          return `${verb} ${this.#flag("type")} branch ${this.#flag("findings")} ${route.findings} ${FIX_READBACK_SUFFIX}`;
+          // find #8 F1b（spec §5.7 fix ② · 用户拍板）：the branch fix literal carries
+          // the workspace-identity `--plan`（与 wave fix 分支同构）——无 `--plan` 时
+          // `#sceneOf` branch 解析到 `ref.short()` 空目录（workspace 双身份）· 编排者零兜底。
+          return `${verb} ${this.#flag("type")} branch ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("findings")} ${route.findings} ${FIX_READBACK_SUFFIX}`;
         }
         return `${verb} ${this.#flag("findings")} ${route.findings} ${FIX_READBACK_SUFFIX}`;
       }

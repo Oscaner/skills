@@ -29,10 +29,12 @@ export class GitClient {
     }
   }
 
-  /** The full 40-char HEAD sha, mirroring `git rev-parse HEAD`; null outside a repo. */
+  /** The HEAD sha in the engine's 8-char short form, mirroring `git rev-parse
+   *  --short=8 HEAD` (find #10 · spec §6.6 — 40-char full shas retired); null
+   *  outside a repo. */
   async revParseHead(cwd: string): Promise<string | null> {
     try {
-      return (await this.#git(cwd).revparse(["HEAD"])).trim() || null;
+      return (await this.#git(cwd).revparse(["--short=8", "HEAD"])).trim() || null;
     } catch {
       return null;
     }
@@ -62,24 +64,26 @@ export class GitClient {
     }
   }
 
-  /** Stage everything and commit — returns the new HEAD sha, null on error. */
+  /** Stage everything and commit — returns the new HEAD sha in the engine's 8-char
+   *  short form (find #10 · spec §6.6 — long shas retired), null on error. */
   async commit(cwd: string, message: string): Promise<string | null> {
     try {
       const git = this.#git(cwd);
       await git.raw(["add", "-A"]);
       await git.commit(message);
-      return (await git.revparse(["HEAD"])).trim() || null;
+      return (await git.revparse(["--short=8", "HEAD"])).trim() || null;
     } catch {
       return null;
     }
   }
 
-  /** The recent commit log, newest first — null on error. */
+  /** The recent commit log, newest first — the 8-char short hashes (find #10) —
+   *  null on error. */
   async log(cwd: string, maxCount = 20): Promise<GitLogEntry[] | null> {
     try {
       const result = await this.#git(cwd).log({ maxCount });
       return result.all.map((entry) => ({
-        hash: entry.hash,
+        hash: entry.hash.slice(0, 8),
         message: entry.message,
         date: entry.date,
       }));

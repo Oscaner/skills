@@ -39,9 +39,15 @@ function argvOf(literal: string): string[] {
 const wave = { type: "wave", id: "1,2", plan: "docs/kairos/plans/p3.md" } as const;
 const spec = { type: "spec", id: "docs/kairos/specs/p3-design.md" } as const;
 const planT = { type: "plan", id: "docs/kairos/plans/p3.md" } as const;
-const branch = { type: "branch", id: "aaaaaaa..bbbbbbb" } as const;
-const base = "a".repeat(40);
-const head = "b".repeat(40);
+// find #9/#10 — the branch target carries the workspace --plan · the id is the
+// 8-char range (long shas retired engine-wide · spec §6.6)
+const branch = {
+  type: "branch",
+  id: "aaaaaaaa..bbbbbbbb",
+  plan: "docs/kairos/plans/p3.md",
+} as const;
+const base = "a".repeat(8);
+const head = "b".repeat(8);
 
 /** One verb × type row of the coverage table — the route + the frame facts + the
  *  runtime-required flags of the type (the flags the CLI run would demand: the
@@ -80,14 +86,14 @@ const COVERAGE: readonly CoverageRow[] = [
     required: ["--type", "--plan"],
   },
   {
-    // find #8 (P4.1 T7): the branch re-review literal carries the FULL range — the
-    // fix-with-blockers route composes base + head from the fix carrier's commits (the
-    // re-review's span = the fix's delta); the runtime missing-refs gate refuses a
-    // --base-only literal, so `--head` is a required flag of the branch review face.
+    // find #8/#9/#10: the branch re-review literal carries the FULL range + the
+    // workspace --plan — the fix-with-blockers route composes base + head from the
+    // fix carrier's commits (8-char short shas); the runtime missing-refs gate refuses
+    // a --base-only literal, so `--head` is a required flag of the branch review face.
     label: "review branch",
     route: { kind: "review", base, head },
     target: branch,
-    required: ["--type", "--base", "--head"],
+    required: ["--type", "--base", "--head", "--plan"],
   },
   {
     label: "fix wave",
@@ -109,11 +115,12 @@ const COVERAGE: readonly CoverageRow[] = [
   },
   {
     // ⑦ — the branch fix derives the range from the source review handoff, never a
-    // re-declared base/head on the CLI: `--findings` is the face's runtime-required flag.
+    // re-declared base/head on the CLI: `--findings` is the face's runtime-required
+    // flag · find #8 F1b — the workspace-identity `--plan` rides（编排者零兜底）
     label: "fix branch",
     route: { kind: "fix", findings: "br1-review-1.json" },
     target: branch,
-    required: ["--type", "--findings"],
+    required: ["--type", "--findings", "--plan"],
   },
 ];
 

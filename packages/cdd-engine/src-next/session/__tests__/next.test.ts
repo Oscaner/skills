@@ -96,10 +96,10 @@ describe("fix rounds — the re-review / closure decision point (C5-1, close())"
         round({
           phase: "fix",
           findings: [finding("blocker", "remaining")],
-          commits: { base: "a".repeat(40), head: "b".repeat(40) },
+          commits: { base: "a".repeat(8), head: "b".repeat(8) },
         }),
       ),
-    ).toEqual({ kind: "review", base: "a".repeat(40), head: "b".repeat(40) });
+    ).toEqual({ kind: "review", base: "a".repeat(8), head: "b".repeat(8) });
   });
 
   it("warn/nit only → done (closure via close() — the #278 REVIEW_FIX state, no re-review preview)", () => {
@@ -140,7 +140,7 @@ describe("fix rounds — the re-review / closure decision point (C5-1, close())"
           phase: "fix",
           findings: [finding("blocker")],
           consecutiveS1: 2,
-          commits: { base: "a".repeat(40), head: "b".repeat(40) },
+          commits: { base: "a".repeat(8), head: "b".repeat(8) },
         }),
       )!.kind,
     ).toBe("review");
@@ -155,7 +155,7 @@ describe("fix rounds — the re-review / closure decision point (C5-1, close())"
     expect(
       router.next(
         state([]),
-        round({ phase: "fix", findings: [finding("blocker")], commits: { base: "a".repeat(40) } }),
+        round({ phase: "fix", findings: [finding("blocker")], commits: { base: "a".repeat(8) } }),
       ),
     ).toBeNull();
   });
@@ -166,15 +166,15 @@ describe("implement / branch-review — the lifecycle rows", () => {
     expect(
       router.next(
         state([]),
-        round({ phase: "implement", commits: { base: "a".repeat(40), head: "b".repeat(40) } }),
+        round({ phase: "implement", commits: { base: "a".repeat(8), head: "b".repeat(8) } }),
       ),
-    ).toEqual({ kind: "review", base: "a".repeat(40), head: "b".repeat(40) });
+    ).toEqual({ kind: "review", base: "a".repeat(8), head: "b".repeat(8) });
   });
 
   it("an implement round carrying only the base still routes the review (the head rides when present)", () => {
     expect(
-      router.next(state([]), round({ phase: "implement", commits: { base: "a".repeat(40) } })),
-    ).toEqual({ kind: "review", base: "a".repeat(40) });
+      router.next(state([]), round({ phase: "implement", commits: { base: "a".repeat(8) } })),
+    ).toEqual({ kind: "review", base: "a".repeat(8) });
   });
 
   it("an implement round without commits degrades to null — no invented next hop for a missing base", () => {
@@ -276,8 +276,8 @@ describe("the severity-combination space — every blocker/warn/nit MIX rides th
     ["blocker", "nit"],
     ["blocker", "warn", "nit"],
   ];
-  const HEAD = "b".repeat(40);
-  const FIX_DELTA = { base: "a".repeat(40), head: HEAD } as const;
+  const HEAD = "b".repeat(8);
+  const FIX_DELTA = { base: "a".repeat(8), head: HEAD } as const;
 
   it.each(MIXES.map((mix) => [mix]))(
     "review findings %j — any mix routes fix (or close when empty)",
@@ -344,7 +344,7 @@ describe("P4.1 T4 — the router's routes render parseable next literals (zero-e
 
   it.each([
     ["implement wave", { kind: "next-wave", tasks: "1,2" } as Route],
-    ["re-review", { kind: "review", base: "b".repeat(40) } as Route],
+    ["re-review", { kind: "review", base: "b".repeat(8) } as Route],
     ["the one-way fix hop", { kind: "fix", findings: "tasks-1-review-1.json" } as Route],
     ["closure", { kind: "done" } as Route],
   ] as const)("%s — the route's literal argv parses", (_label, route) => {

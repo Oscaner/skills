@@ -118,7 +118,7 @@ export interface ChannelArg {
 
 /** A per-command value-type override — a declared key whose value shape differs
  *  from the channel's global typing for that key (base set's `--base` carries
- *  a branch name, never the review range's 40-char sha). */
+ *  a branch name, never the review range's 8-char sha). */
 export type CliValueOverride = "branch";
 
 /** One declared arg of a command — the key + how strictly the run requires it. */
@@ -556,11 +556,12 @@ export class HarnessDispatch {
     };
   }
 
-  /** The canonical prescribed OUTPUT_* write path of one artifact kind (find #5 — the
-   *  {family}-{key}-{artifact} single naming scheme: work = tasks-{wave} /
-   *  branch-{base7}..{head7} · doc = the {type}-{op}-{round} stem, spec-review-1).
-   *  "" when the frame's family does not consume the slot — only present facts ride
-   *  the prompt (the assembler drops the empty-valued round-context keys). */
+  /** The canonical prescribed OUTPUT_* write path of one artifact kind (find #5 —
+   *  the {family}-{key}-{artifact} single naming scheme; find #9 — branch line
+   *  drops the range token: `branch-{op}{-round}-report.md` · `branch-test-evidence.json`,
+   *  the carrier's `commits` holds the shas · doc = the {type}-{op}-{round} stem,
+   *  spec-review-1). "" when the frame's family does not consume the slot — only
+   *  present facts ride the prompt (the assembler drops the empty-valued keys). */
   #outputOf(frame: OpenFrame, kind: "brief" | "report" | "evidence"): string {
     const workspace = this.#scene.workspace;
     const op = this.#opOf(frame);
@@ -576,8 +577,7 @@ export class HarnessDispatch {
       // tasks-{wave}-brief.md name; the line/work faces other than implement carry none).
       return frame.phase === "implement" ? (this.#scene.briefPath ?? "") : "";
     }
-    const family =
-      frame.type === "wave" ? `tasks-${frame.params.tasks ?? ""}` : `branch-${this.#keyOf(frame)}`;
+    const family = frame.type === "wave" ? `tasks-${frame.params.tasks ?? ""}` : "branch";
     if (kind === "report") {
       const suffix = frame.phase === "implement" ? "" : `-${frame.round}`;
       return workspace.resolve(`${family}-${op}${suffix}-report.md`);
@@ -587,10 +587,15 @@ export class HarnessDispatch {
     return workspace.resolve(this.#evidenceName(frame));
   }
 
-  /** The canonical evidence file name of a work frame (find #5 — the
-   *  {family}-{key}-test-evidence.json form; the same name the read-back gate reads). */
+  /** The canonical evidence file name of a work frame (find #5/#9 — the
+   *  {line}-test-evidence.json form: `tasks-{tasks}-test-evidence.json` /
+   *  `branch-test-evidence.json`（行级当前态 · 随轮覆写 · range 掉出文件名）;
+   *  the same name the read-back gate reads). The line token joins when the frame
+   *  keys it (the task face) — a key-less line (branch) names the family alone. */
   #evidenceName(frame: OpenFrame): string {
-    return `${this.#evidencePrefix(frame)}-${frame.params.tasks ?? this.#keyOf(frame)}-test-evidence.json`;
+    const key = frame.type === "wave" ? (frame.params.tasks ?? "") : "";
+    const line = key === "" ? this.#evidencePrefix(frame) : `${this.#evidencePrefix(frame)}-${key}`;
+    return `${line}-test-evidence.json`;
   }
 
   /** The review's reference (INPUT_RANGE) — the fact the review criteria judge: the
@@ -626,15 +631,6 @@ export class HarnessDispatch {
     return "";
   }
 
-  /** The key token of a branch frame — the {base7}..{head7} range (the spine of
-   *  the branch-family evidence file name's `{branch}-{key}-` form). */
-  #keyOf(frame: OpenFrame): string {
-    if (frame.target.kind === "branch") {
-      return BranchRef.short(frame.target.base, frame.target.head);
-    }
-    return "";
-  }
-
   /** The fix round's fixed point — the source review's reviewed HEAD (the state the
    *  fix builds on — the shell's "the prior handoff's `commits.head`"; §3.7 closeout).
    *  Only present facts land: an unreadable source review yields the empty slot,
@@ -653,7 +649,7 @@ export class HarnessDispatch {
     const status = stdout.match(/^status:\s*(\S+)/m)?.[1];
     if (status === undefined) return { status: "BLOCKED" };
     const outcome: DispatchOutcome = { status: status as RoundStatus };
-    const commits = stdout.match(/^commits:\s*base=([0-9a-f]{40})(?:\s+head=([0-9a-f]{40}))?/m);
+    const commits = stdout.match(/^commits:\s*base=([0-9a-f]{8})(?:\s+head=([0-9a-f]{8}))?/m);
     if (commits !== null) outcome.commits = { base: commits[1], head: commits[2] ?? commits[1] };
     const artifacts = stdout.match(/^artifacts:(.*)$/m);
     if (artifacts !== null) {
@@ -899,9 +895,11 @@ export class HarnessDispatch {
         return `cdd implement --tasks ${frame.params.tasks ?? ""} --plan ${plan}`;
       case "branch-review": {
         const range = frame.target as { kind: "branch"; base: string; head: string };
-        // the CLI review face validates 40-char shas — the one full-form consumer
+        // find #10 — the review face consumes the 8-char short flags (full-shas
+        // retired engine-wide); the workspace-identity `--plan` rides (find #8
+        // F1b · spec §5.7 fix ② — `#sceneOf` 无 `--plan` 落 ref.short() 空目录).
         const ref = new BranchRef(range.base, range.head);
-        return `cdd review --type branch ${ref.args()}`;
+        return `cdd review --type branch --plan ${plan} ${ref.args()}`;
       }
       case "review":
         if (frame.type === "spec") return `cdd review --type spec --spec ${this.#docOf(frame)}`;
@@ -912,9 +910,11 @@ export class HarnessDispatch {
         const target =
           frame.target.kind === "doc"
             ? `--${frame.type === "spec" ? "spec" : "plan"} ${frame.target.doc}`
-            : // branch fix carries no refs — the range rides the --findings handoff
+            : // branch fix carries no refs — the range rides the --findings handoff;
+              // the workspace-identity `--plan` still rides (find #8 F1b · spec §5.7
+              // fix ② — `#sceneOf` 无 `--plan` 解析到 ref.short() 空目录，编排者零兜底)
               frame.target.kind === "branch"
-              ? ""
+              ? `--plan ${plan}`
               : `--tasks ${frame.params.tasks ?? ""} --plan ${plan}`;
         return `cdd fix --type ${frame.type} ${target} --findings ${findings}`;
       }
@@ -1498,11 +1498,12 @@ export class Cli {
     return route?.kind === "review" ? reviewLead : null;
   }
 
-  /** The line key of a fixed-target face — the ledger-round key (branch range / doc
-   *  path — the lifecycle's own key derivation). */
+  /** The line key of a fixed-target face — the branch line's STABLE key (find #9
+   *  · spec §6.5 — `"branch"` per workspace, round 跨 re-review 累计；old form was
+   *  the range short, its head moving every fix → new key → round reset to 1) or
+   *  the doc path — the lifecycle's own key derivation (run.ts #lineKey 同源). */
   #lineKey(scene: WorkScene): string | null {
-    if (scene.target?.kind === "branch")
-      return BranchRef.short(scene.target.base, scene.target.head);
+    if (scene.target?.kind === "branch") return "branch";
     if (scene.target?.kind === "doc") return scene.target.doc;
     return null;
   }
@@ -1511,7 +1512,7 @@ export class Cli {
   #lineParams(scene: WorkScene, round: number): HandoffParams {
     if (scene.target?.kind === "branch") {
       const ref = new BranchRef(scene.target.base, scene.target.head);
-      return { base7: ref.base7, head7: ref.head7, round };
+      return { base8: ref.base8, head8: ref.head8, round };
     }
     return { round };
   }
@@ -1619,7 +1620,7 @@ export class Cli {
       }
       case "branch": {
         // The branch ref is declared at ONE face — `cdd review --type branch
-        // --base --head` (the range's birth face, 40-char flags). Every other
+        // --base --head` (the range's birth face, 8-char flags). Every other
         // face derives it from a single carrier: the fix face reads its source
         // review handoff's `commits` (--findings) — zero extra CLI params (⑦ —
         // the old engine's fix channel; re-declaring the range on the fix CLI
@@ -1908,8 +1909,10 @@ export class Cli {
         }
         return value;
       case "sha":
-        if (!/^[0-9a-f]{40}$/.test(value)) {
-          throw this.#usage(`cdd ${spec.name}: --${key} must be a 40-char sha`, surface.usage);
+        // find #10（spec §6.6 · 用户拍板「整个引擎不再使用长 sha」）：the CLI sha
+        // channel accepts the 8-char short form（40-char full shas retired）.
+        if (!/^[0-9a-f]{8}$/.test(value)) {
+          throw this.#usage(`cdd ${spec.name}: --${key} must be an 8-char sha`, surface.usage);
         }
         return value;
       case "int":

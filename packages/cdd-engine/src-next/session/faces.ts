@@ -43,7 +43,7 @@ export type AuditFace =
 export interface RouteTarget {
   /** The target-type word of the literal (`wave` / `branch` / `spec` / `plan`). */
   type: TargetType;
-  /** The target id — the wave key `"1,2"` · the range `base7..head7` · the doc path. */
+  /** The target id — the wave key `"1,2"` · the range `base8..head8` · the doc path. */
   id: string;
   /** The plan path (the implement literal's required `--plan` arg) — present only
    *  on the task face (the doc faces carry their own id path). */

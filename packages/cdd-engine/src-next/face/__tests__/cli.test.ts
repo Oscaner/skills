@@ -26,7 +26,6 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
-import { BranchRef } from "../../session/branch-ref.ts";
 import type { RouteTarget } from "../../session/faces.ts";
 import { Ledger } from "../../session/ledger.ts";
 import type { Route } from "../../session/next.ts";
@@ -292,9 +291,10 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
   });
 
   it("rejects a non-sha --base / --head and a non-integer --round", () => {
-    expect(() =>
-      cli().parse(["review", "--type", "branch", "--base", "abc", "--head", "a".repeat(40)]),
-    ).toThrow(/--base must be a 40-char sha/);
+    expect(
+      () => cli().parse(["review", "--type", "branch", "--base", "abc", "--head", "a".repeat(8)]),
+      // find #10 — the sha channel's 8-char short form (spec §6.6)
+    ).toThrow(/--base must be an 8-char sha/);
     expect(() => cli().parse(["review", "--type", "plan", "--plan", "x", "--round", "x"])).toThrow(
       /--round must be an integer/,
     );
@@ -315,7 +315,7 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
     expect(parsed.args.head).toBeUndefined();
     // re-declaring the range on the fix CLI is rejected (a dual identity)
     expect(() =>
-      cli().parse(["fix", "--type", "branch", "--base", "a".repeat(40), "--head", "b".repeat(40)]),
+      cli().parse(["fix", "--type", "branch", "--base", "a".repeat(8), "--head", "b".repeat(8)]),
     ).toThrow(/unknown option: --base/);
   });
 
@@ -567,7 +567,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
   it("review with findings — the fix-route next: line carries the readback suffix", async () => {
     const { command, io, repoRoot, cleanup } = fixture({
       dispatch: (frame: OpenFrame) => {
-        const commits = { base: "a".repeat(40), head: "b".repeat(40) };
+        const commits = { base: "a".repeat(8), head: "b".repeat(8) };
         return frame.phase === "review"
           ? {
               status: "CHANGES_REQUESTED",
@@ -660,9 +660,9 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     }
   });
 
-  it("fix — the branch re-review next: carries the FULL range and re-dispatches through the runtime gate (find #8)", async () => {
-    const base = "a".repeat(40);
-    const headB = "b".repeat(40);
+  it("fix — the branch re-review next: carries the FULL range + --plan and re-dispatches through the runtime gate (find #8/#9/#10)", async () => {
+    const base = "a".repeat(8);
+    const headB = "b".repeat(8);
     const { command, io, repoRoot, cleanup } = fixture({
       dispatch: (frame: OpenFrame) =>
         frame.phase === "fix"
@@ -671,27 +671,32 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     });
     try {
       gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
       // Seed the branch line: a blocker branch-review round (the fix's C5-1 input)
       // whose handoff carries the reviewed range (the fix's --findings single carrier).
+      // find #9 — the branch line's workspace is the plan-slug (the fix dispatch's
+      // --plan); the handoff file is the spine name `branch-review-{round}.json`.
       const workspace = new Workspace(
         new WorkspaceRoot(repoRoot, ".kairos/cdd"),
-        BranchRef.short(base, headB),
+        Workspace.slugFromDoc(plan),
       ).ensure();
       const ledger = new Ledger(workspace, new ConfigLoader());
-      const params = { base7: base.slice(0, 7), head7: headB.slice(0, 7), round: 1 };
+      const params = { base8: base.slice(0, 8), head8: headB.slice(0, 8), round: 1 };
       ledger.persistHandoff("review", "branch", params, {
         phase: "branch-review",
         findings: [{ severity: "blocker", summary: "drift" }],
         commits: { base, head: headB },
       });
-      ledger.recordRound(BranchRef.short(base, headB), "branch-review");
-      const findingsPath = workspace.resolve(
-        `branch-review-${base.slice(0, 7)}..${headB.slice(0, 7)}-r1.json`,
-      );
+      // find #9 — the line key is the stable "branch" (round accumulates across
+      // re-reviews; the old range-short key reset to 1 on every head move).
+      ledger.recordRound("branch", "branch-review");
+      const findingsPath = workspace.resolve("branch-review-1.json");
       const code = await command.runArgv([
         "fix",
         "--type",
         "branch",
+        "--plan",
+        plan,
         "--findings",
         findingsPath,
         "--dry-run",
@@ -699,20 +704,23 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         repoRoot,
       ]);
       expect(code).toBe(0);
-      // find #8 — the re-review literal carries the FULL range (the branch face's two
-      // runtime-required shas); the old --base-only literal exited 2 at the runtime
-      // missing-refs gate (`missing required --base <sha> --head <sha>`)
-      expect(io.stdoutText).toContain(`next: review --type branch --base ${base} --head ${headB}`);
+      // find #8/#10 — the re-review literal carries the FULL range (both runtime-required
+      // 8-char shas) + the workspace --plan; the old --base-only 40-char literal exited 2
+      expect(io.stdoutText).toContain(
+        `next: review --type branch --plan ${plan} --base ${base.slice(0, 8)} --head ${headB.slice(0, 8)}`,
+      );
       // the runtime gate, not parse-only: re-feeding the literal's argv through the CLI
       // dispatches a real branch review — exit 0, never the missing-refs refusal
       const reExit = await command.runArgv([
         "review",
         "--type",
         "branch",
+        "--plan",
+        plan,
         "--base",
-        base,
+        base.slice(0, 8),
         "--head",
-        headB,
+        headB.slice(0, 8),
         "--dry-run",
         "--root",
         repoRoot,
@@ -727,16 +735,16 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
-      const base = "a".repeat(40);
-      const head = "b".repeat(40);
+      const base = "a".repeat(8);
+      const head = "b".repeat(8);
       const code = await command.runArgv([
         "review",
         "--type",
         "branch",
         "--base",
-        base,
+        base.slice(0, 8),
         "--head",
-        head,
+        head.slice(0, 8),
         "--dry-run",
         "--root",
         repoRoot,
@@ -744,17 +752,15 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 ·");
       expect(io.stdoutText).toContain("next: done");
+      // find #9/#10 — the branch line's workspace is the range short (plan-less face)
+      // and the handoff is the spine `branch-review-1.json` (no range token in the name)
       const workspace = path.join(
         repoRoot,
         ".kairos",
         "cdd",
-        `${base.slice(0, 7)}..${head.slice(0, 7)}`,
+        `${base.slice(0, 8)}..${head.slice(0, 8)}`,
       );
-      expect(
-        existsSync(
-          path.join(workspace, `branch-review-${base.slice(0, 7)}..${head.slice(0, 7)}-r1.json`),
-        ),
-      ).toBe(true);
+      expect(existsSync(path.join(workspace, "branch-review-1.json"))).toBe(true);
     } finally {
       cleanup();
     }
@@ -1071,7 +1077,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
           tasks: [1],
           phase: "review",
           findings: [],
-          commits: { base: "a".repeat(40), head: "b".repeat(40) },
+          commits: { base: "a".repeat(8), head: "b".repeat(8) },
         },
       );
       ledger.recordRound(1, "review");
@@ -1115,9 +1121,15 @@ describe("P4.1 T4 — the next literal is a complete executable command (zero-er
   const wave = { type: "wave", id: "1,2", plan: "docs/kairos/plans/p3.md" } as const;
   const spec = { type: "spec", id: "docs/kairos/specs/p3-design.md" } as const;
   const planT = { type: "plan", id: "docs/kairos/plans/p3.md" } as const;
-  const branch = { type: "branch", id: "aaaaaaa..bbbbbbb" } as const;
-  const base = "a".repeat(40);
-  const head = "b".repeat(40);
+  // find #9/#10 — the branch target carries the workspace --plan, the id is the
+  // 8-char range (long shas retired engine-wide · spec §6.6)
+  const branch = {
+    type: "branch",
+    id: "aaaaaaaa..bbbbbbbb",
+    plan: "docs/kairos/plans/p3.md",
+  } as const;
+  const base = "a".repeat(8);
+  const head = "b".repeat(8);
 
   it("implement — the literal is `implement --plan <path> --tasks <n>` with NO --type", () => {
     const literal = literalOf({ kind: "next-wave", tasks: "1,2" }, wave);
@@ -1144,7 +1156,10 @@ describe("P4.1 T4 — the next literal is a complete executable command (zero-er
     expect(planLiteral).toBe("review --type plan --plan docs/kairos/plans/p3.md");
     parses(planLiteral);
     const branchLiteral = literalOf({ kind: "review", base, head }, branch);
-    expect(branchLiteral).toBe(`review --type branch --base ${base} --head ${head}`);
+    // find #8/#10 — the branch review literal carries the full 8-char range + --plan
+    expect(branchLiteral).toBe(
+      `review --type branch --plan docs/kairos/plans/p3.md --base ${base.slice(0, 8)} --head ${head.slice(0, 8)}`,
+    );
     parses(branchLiteral);
   });
 
@@ -1167,8 +1182,10 @@ describe("P4.1 T4 — the next literal is a complete executable command (zero-er
     );
     parses(planLiteral);
     const branchLiteral = literalOf({ kind: "fix", findings: "br1-review-1.json" }, branch);
+    // find #8 F1b — the branch fix literal carries the workspace --plan（用户拍板
+    // 编排者零兜底 · spec §5.7 fix ②）
     expect(branchLiteral).toBe(
-      `fix --type branch --findings br1-review-1.json ${FIX_READBACK_SUFFIX}`,
+      `fix --type branch --plan docs/kairos/plans/p3.md --findings br1-review-1.json ${FIX_READBACK_SUFFIX}`,
     );
     parses(branchLiteral);
   });
@@ -1203,7 +1220,7 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
               status: "CHANGES_REQUESTED",
               findings: [{ severity: "warn", summary: "drift" }],
             }
-          : { status: "APPROVED", commits: { base: "a".repeat(40), head: "b".repeat(40) } };
+          : { status: "APPROVED", commits: { base: "a".repeat(8), head: "b".repeat(8) } };
       },
     });
     try {
@@ -1522,12 +1539,13 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
       const sync = new FakeSync();
+      // find #10 — the child's block-return commits are the 8-char short shas
       sync.stdout =
-        "status: APPROVED\ncommits: base=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa head=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\nartifacts: brief=/b report=/r test_evidence=/t\n";
+        "status: APPROVED\ncommits: base=aaaaaaaa head=bbbbbbbb\nartifacts: brief=/b report=/r test_evidence=/t\n";
       // The child's write-back: the implement draft at OUTPUT_HANDOFF per the injected
       // `work` schema + the canonical test-evidence file (the v1.9 read-back inputs).
       const draft = path.join(scene.workspace.path, "tasks-1-implement.json");
-      const head = "b".repeat(40);
+      const head = "b".repeat(8);
       // The compliant child follows the prescribed OUTPUT_* names (find #5): the
       // artifacts it declares are the canonical {family}-{key}-{artifact} paths (the
       // report at tasks-1-implement-report.md · the evidence at
@@ -1542,7 +1560,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
             report: path.join(scene.workspace.path, "tasks-1-implement-report.md"),
             test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
           },
-          commits: { base: "a".repeat(40), head },
+          commits: { base: "a".repeat(8), head },
         }),
         "utf8",
       );
@@ -1608,7 +1626,8 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // only: identity rides the file name, never phase/tasks inline — v1.30) rides
       // the outcome, the block's three lines the pointer
       expect(outcome.status).toBe("APPROVED");
-      expect(outcome.commits).toEqual({ base: "a".repeat(40), head });
+      // find #10 — the read-back carrier's commits are the 8-char short shas
+      expect(outcome.commits).toEqual({ base: "a".repeat(8), head });
       expect(outcome.carrier).toEqual({
         artifacts: {
           brief: "/b",
@@ -1616,7 +1635,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
         },
         findings: [],
-        commits: { base: "a".repeat(40), head },
+        commits: { base: "a".repeat(8), head },
         status: "APPROVED",
       });
     } finally {
@@ -1712,14 +1731,15 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const io = new CaptureIo();
       const sync = new FakeSync();
       sync.stdout = "status: APPROVED\n";
-      const head = "b".repeat(40);
+      // find #10 — the committed shas are the 8-char short form
+      const head = "b".repeat(8);
       const draftPath = path.join(scene.workspace.path, "tasks-1-implement.json");
       writeFileSync(
         draftPath,
         JSON.stringify({
           status: "APPROVED",
           artifacts: { report: "/r", test_evidence: "/t" },
-          commits: { base: "a".repeat(40), head },
+          commits: { base: "a".repeat(8), head },
         }),
         "utf8",
       );
@@ -1752,7 +1772,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
         },
         findings: [],
-        commits: { base: "a".repeat(40), head },
+        commits: { base: "a".repeat(8), head },
         status: "APPROVED",
         notes: [
           expect.stringContaining("artifact report"),
@@ -1952,7 +1972,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         JSON.stringify({
           status: "APPROVED",
           artifacts: { brief: "/b", report: "/r", test_evidence: "/t" },
-          commits: { base: "a".repeat(40), head: "b".repeat(40) },
+          commits: { base: "a".repeat(8), head: "b".repeat(8) },
         }),
         "utf8",
       );
@@ -1975,7 +1995,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
         },
         findings: [],
-        commits: { base: "a".repeat(40), head: "b".repeat(40) },
+        commits: { base: "a".repeat(8), head: "b".repeat(8) },
         status: "BLOCKED",
         failure_category: "evidence-contract",
         notes: [
@@ -1984,6 +2004,75 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           expect.stringContaining("the test evidence at"),
         ],
       });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("find #9 — the branch fix's OUTPUT_* artifacts are the line-keyed names (report `branch-fix-{round}-report.md` · evidence `branch-test-evidence.json`), never the range", () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new FakeSync();
+      sync.stdout =
+        "status: APPROVED\ncommits: base=aaaaaaaa head=bbbbbbbb\nartifacts: brief=/b report=/r test_evidence=/t\n";
+      // a valid fix draft — commits in the 8-char living form (find #10)
+      const head = "b".repeat(8);
+      writeFileSync(
+        path.join(scene.workspace.path, "branch-fix-1.json"),
+        JSON.stringify({
+          status: "APPROVED",
+          artifacts: {
+            brief: "/b",
+            report: path.join(scene.workspace.path, "branch-fix-1-report.md"),
+            test_evidence: path.join(scene.workspace.path, "branch-test-evidence.json"),
+          },
+          commits: { base: "a".repeat(8), head },
+        }),
+        "utf8",
+      );
+      writeFileSync(
+        path.join(scene.workspace.path, "branch-test-evidence.json"),
+        JSON.stringify({
+          command: "npx vitest run",
+          exit_code: 0,
+          passed: true,
+          warnings_count: 0,
+          typecheck: { command: "tsc --noEmit", exit_code: 0, passed: true },
+        }),
+        "utf8",
+      );
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      const frame: OpenFrame = {
+        type: "branch",
+        phase: "fix",
+        round: 1,
+        // the branch fix's target carries the range shas (the carrier source) but
+        // the artifact names NEVER embed them (find #9 — the spine wins)
+        target: { kind: "branch", base: "a".repeat(40), head: "b".repeat(40) },
+        params: { base8: "a".repeat(8), head8: "b".repeat(8), round: 1 },
+        key: "branch",
+      };
+      const outcome = dispatch.step()(frame);
+      expect(io.stderrText).toBe("");
+      expect(outcome.status).toBe("APPROVED");
+      const prompt = sync.calls[0]!.args[sync.calls[0]!.args.length - 1];
+      // find #9 — the prescribed artifact names are line-keyed: the round rides the
+      // name (branch-fix-1-report.md), the evidence is the line's single file
+      // (branch-test-evidence.json); the range token appears NOWHERE in the paths
+      expect(prompt).toContain(
+        `- \`OUTPUT_REPORT\`: ${path.join(scene.workspace.path, "branch-fix-1-report.md")}`,
+      );
+      expect(prompt).toContain(
+        `- \`OUTPUT_EVIDENCE\`: ${path.join(scene.workspace.path, "branch-test-evidence.json")}`,
+      );
+      expect(prompt).not.toContain("aaaaaaaa..bbbbbbbb");
     } finally {
       cleanup();
     }

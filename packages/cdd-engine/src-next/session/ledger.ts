@@ -154,14 +154,15 @@ export interface CrashRecord {
 // ---------------------------------------------------------------------------
 
 /** Per-family handoff params — the canonical name placeholders of the handoff
- *  namespace families ({tasks}/{base7}/{head7}/{round}). */
+ *  namespace families ({tasks}/{round}; the branch range tokens — find #9 —
+ *  leave the file names, the carrier's `commits` holds the shas). */
 export interface HandoffParams {
   /** The dispatch group's key string (comma-joined task ids). */
   tasks?: string;
-  /** The reviewed-range base token (branch family). */
-  base7?: string;
-  /** The reviewed-range head token (branch family). */
-  head7?: string;
+  /** The reviewed-range base token (branch family — 8-char short sha). */
+  base8?: string;
+  /** The reviewed-range head token (branch family — 8-char short sha). */
+  head8?: string;
   /** The round number (increment/source families). */
   round?: number | string;
 }
@@ -302,7 +303,9 @@ export class ReviewRefs {
 
   /** The content-hash revision — sha1 hex of the reviewed file content. */
   #hash(content: string | Buffer): string {
-    return createHash("sha1").update(content).digest("hex");
+    // find #10（spec §6.6）：the doc-revision hash is the engine's 8-char short
+    // form too — no long hex anywhere in the engine（full sha1 digest sliced）.
+    return createHash("sha1").update(content).digest("hex").slice(0, 8);
   }
 }
 
@@ -479,8 +482,8 @@ export class Ledger {
   handoffName(op: string, type: string, params: HandoffParams = {}): string {
     return this.#family(op, type)
       .name.replaceAll("{tasks}", params.tasks ?? "")
-      .replaceAll("{base7}", params.base7 ?? "")
-      .replaceAll("{head7}", params.head7 ?? "")
+      .replaceAll("{base8}", params.base8 ?? "")
+      .replaceAll("{head8}", params.head8 ?? "")
       .replaceAll("{round}", String(params.round ?? ""));
   }
 

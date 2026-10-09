@@ -60,13 +60,14 @@ const FINDING: SchemaNode = {
   additionalProperties: true,
 };
 
-/** One commit-range row — the work carrier's commits (both ends full 40-char shas). */
+/** One commit-range row — the work carrier's commits (both ends in the engine's
+ *  8-char short-sha form — find #10 · spec §6.6, long shas retired engine-wide). */
 const COMMITS: SchemaNode = {
   type: "object",
   required: ["base", "head"],
   properties: {
-    base: { type: "string", minLength: 40, maxLength: 40 },
-    head: { type: "string", minLength: 40, maxLength: 40 },
+    base: { type: "string", minLength: 8, maxLength: 8 },
+    head: { type: "string", minLength: 8, maxLength: 8 },
   },
   additionalProperties: false,
 };

@@ -67,7 +67,7 @@ export type AuditTarget =
   /** wave (T26 · the wave-unitary model): the frontier's open wave — the whole ready
    *  batch is ONE dispatch unit (one brief · one child · one commit · one round). */
   | { kind: "wave"; tasks: readonly number[] }
-  /** branch: the branch diff range (full shas — the {base7}/{head7} tokens derive). */
+  /** branch: the branch diff range (8-char short shas — the {base8}/{head8} tokens). */
   | { kind: "branch"; base: string; head: string }
   /** spec/plan: the audit document path. */
   | { kind: "doc"; doc: string };
@@ -414,10 +414,12 @@ export class Lifecycle {
     return this.#ledger.roundCount(key, this.#face.product.reviewLead);
   }
 
-  /** The progress key of a single-target line — the branch range token or the doc
-   *  path (the task face never routes here — its frames key by the wave key string). */
+  /** The progress key of a single-target line — the branch line's STABLE key (find
+   *  #9 · spec §6.5 — `"branch"` per workspace, round 跨 re-review 累计；old form
+   *  = the range short, head moving every fix → new key → round reset to 1) or
+   *  the doc path (the task face never routes here — frames key by the wave key). */
   #lineKey(target: AuditTarget): LedgerKey {
-    if (target.kind === "branch") return BranchRef.short(target.base, target.head);
+    if (target.kind === "branch") return "branch";
     return (target as { kind: "doc"; doc: string }).doc;
   }
 
@@ -444,7 +446,7 @@ export class Lifecycle {
       case "branch": {
         const { base, head } = frame.target as { kind: "branch"; base: string; head: string };
         const ref = new BranchRef(base, head);
-        return { base7: ref.base7, head7: ref.head7, round: frame.round };
+        return { base8: ref.base8, head8: ref.head8, round: frame.round };
       }
       case "spec":
       case "plan":
@@ -563,7 +565,14 @@ export class Lifecycle {
       case "wave":
         return { type: "wave", id: frame.params.tasks ?? "", plan: this.#planPath ?? undefined };
       case "branch":
-        return { type: "branch", id: `${frame.params.base7}..${frame.params.head7}` };
+        // find #8 F1b（spec §5.7 fix ②）：the branch target carries the workspace
+        // plan path — the fix/re-review literals' `--plan`（`#sceneOf` 无 plan 落
+        // ref.short() 空目录 · workspace 双身份 · 编排者零兜底）。
+        return {
+          type: "branch",
+          id: `${frame.params.base8}..${frame.params.head8}`,
+          plan: this.#planPath ?? undefined,
+        };
       case "spec":
       case "plan":
         return { type: frame.type, id: (frame.target as { kind: "doc"; doc: string }).doc };

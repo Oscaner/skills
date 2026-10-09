@@ -1,6 +1,6 @@
 # 文档架构方法论 v2 — P4.1 Design Spec（lifecycle 前置校验统一 · schema 一致硬化 · next 可执行字面量）
 
-- **Version**: v1.3 · 2026-10-09
+- **Version**: v1.4 · 2026-10-09
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer · 决策源 = grilling 收敛 + spec-review-1/2 修正 2026-10-09）
 - **Parent program**: [doc-architecture-v2-overall.md v1.47](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
@@ -115,6 +115,10 @@ doc-family（spec/plan review/fix）artifact = child 自由命名（`brief.md`/`
 
 cdd-plan author-plan 句（「implement 物化 plan-constraints.md」）删除/改述；模板 implement/review 行 artifacts 段同步 OUTPUT_* 注入；round-context 渲染断言更新；技能文本随 emit。
 
+#### 6.4 find #6：wave 波标签 W1 起序
+
+plan-graph board 波标签现状 = 派生波数组索引泄漏（`W00` · 零基 · 两位补零）；用户 2026-10-09 拍板「**W1 起更符 agent 心智**」（序数直觉 · 零换算；「我说 W1 · board 说 W00」= 双标号成本实证）——显示层标签 = 派生波索引 + 1（`W1` · `W2` · … 去零补），**推导零语义变化**（波推导/派发/词表不动 · 仅 board 渲染与断言随）；plan 执行序与 board 同标号（find #6 原则：文档跟随机器真相，机器定 W1）。
+
 ### Acceptance criteria
 
 - `implement/review/fix 三动词 dispatch 前置含 clean-tree 硬门：脏树 → CDD_BLOCKED（含 commit/discard 指引）· child 零派发 · 回归测试（三动词 × 脏树负例）`
@@ -127,6 +131,7 @@ cdd-plan author-plan 句（「implement 物化 plan-constraints.md」）删除/�
 - `历史正文内容保真（迁移只动容器 · 版本摘要逐字入行 + 机 pin 无损断言——扫描面 = 迁移前头部文本 vs 迁移后表行并集零漏，含补充说明内嵌版本序列按 `· vX.Y` 切行）· 零 retro-rename`
 - `round-context 零死指针：INPUT_RULES 键删除（cli 声明/valuesOf/round-context 三处）· implement prompt 提醒行指 plan `## Constraints`（经 INPUT_PLAN 直读约束 · 零物化零死指针）· 相关断言更新`
 - `workspace artifact 单一命名制：doc-family `{op}.{type}.{round}-{artifact}` prescribed（round context 注入 OUTPUT_BRIEF/REPORT/EVIDENCE · 三行块一致性校验）· 跨轮零覆写（回归断言）· 与 work-family 同形`
+- `wave 波标签 W1 起序：plan-graph board 与 plan 执行序逐字一致（W1–W4）· 显示层派生索引 + 1 · 推导语义零变化 · board 断言回归`
 - `技能 author→commit→review 顺序落地（三技能文本 + digraph/节点同步）· emit 新鲜 · engine vitest 全绿 · validate ALL PASS`
 
 ## Constraints
@@ -146,3 +151,4 @@ cdd-plan author-plan 句（「implement 物化 plan-constraints.md」）删除/�
 | v1.1 | 2026-10-09 | **spec-review-1 全修（1 blocker · 3 warn · 2 nit）+ find #3 补充**：全树清点基线修正（53 文档 · 4 overall · 49 补表 · 12 无头 · 4 携链 · 25 非严格形）——迁移改为规则断言 + 实施期机械复核（静态数字易腐）· 携链清单 5→4（overall 已拆）· 保真转录与零残留共处定案（grep 面 = Version 头行 · 表行豁免）· seam 钉死 Lifecycle 单入口 · evidence/读回门归属声明（child 面）· EOF newline；**新组 5：next 可执行命令字面量**（反转 v1.39 语义字面——实证 agent 映射试错反超 token · 组合点从命令声明表派生 · 零映射层兑现 · 二次 parse 回归） | [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer） |
 | v1.2 | 2026-10-09 | **spec-review-2 全修（3 warn · 2 nit）**：① implement 声明表补 `--type`（默认 wave）+ render 必含 `--plan`（required）——§5.2 字面置正（`cdd implement --type wave --plan <path> --tasks 17`）· §5.3 组合点改述（implement type 域 = 本 phase 补实现，原「已声明」不实）· §5.5/验收二次 parse 断言面可达（原字面 parse 必拒）② 12 无匹配形口径三处统一（Design/§3.4/验收：10 真无头 · 2 bold 归一——2 bold 有头非建档、表行源自拆链）+ 非严格形定义句（= 有头且非严格、不含 bold · 机械复核 27 = 25 + 2 口径自洽）③ 保真转录扩展至非 telescope 补充说明（`· vX.Y` token 全量切行 · 机 pin 扫描面 = 迁移前头部文本 vs 迁移后表行并集零漏）+ 3 旧 overall 补日期 = 其 Change history 末行日期（零虚构）④ 四动词 = routeWords 四词（三命令动词 + done 终词 · 二次 parse 断言面三命令动词、done 不喂 parse）⑤ 顶部声明全树基线较 overall v1.47 注册修正（5→4 拆链 · 47→49 补表 · 12 无匹配形） | [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer） |
 | v1.3 | 2026-10-09 | **W1 期 backfill（find #4 + #5 · round-context/artifact 面统一）**：新组 6——plan-constraints.md 死指针（INPUT_RULES 删 · 约束单源 = plan `## Constraints` 经 INPUT_PLAN · implement prompt 提醒行改指 · 零物化）· workspace artifact 命名统一（`{family}-{key}-{artifact}` prescribed · round context 注入 OUTPUT_BRIEF/REPORT/EVIDENCE · 三行块一致性校验 · 跨轮零覆写）· 验收基线纠正为实测（54 · 47 建/补 · 11 无匹配形 = 9+2 · 4 拆链 · 28 清零）+ 两条验收增补 | [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer） |
+| v1.4 | 2026-10-09 | **find #6 收口（W1 起序裁决 · 用户拍板）**：组 6 补 6.4——plan-graph 波标签 W1 起序（显示层派生索引 + 1 · 去零补 · 推导零语义变化）· acceptance 增一条 · 与 plan v1.4 T7 对齐 | [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer） |

@@ -27,7 +27,7 @@ flowchart TD
 
 ### `run-cdd-plan-session`
 
-- **Do**: Import `/superpowers:writing-plans`（pi：/skill:writing-plans） — its flow is consumed inline as this session's baseline (loading an upstream skill imports its flow once; no second spawn) to plan the approved spec; it lands the draft plan (session-call; the upstream document is not read)
+- **Do**: Import `/superpowers:writing-plans`（pi：/skill:writing-plans） to plan the approved spec; it lands the draft plan (session-call; the upstream document is not read)
 - **Read**: nothing before the import; the import plans from the approved spec and lands the draft plan
 - **Exit**: Import landed → `backfill-design`
 - **Fail**: Upstream superpowers plugin missing → BLOCKED (no downgrade, no skip, no inline restatement)
@@ -48,14 +48,14 @@ flowchart TD
 
 ### `NEXT-LOOP`
 
-- **Do**: Run the review-fix rhythm for the authored plan — one review per pass. Dispatch the review round on the current ref (`npx -y @oscaner-skills/cdd-engine@latest review --type plan --plan <path>`). Read the output's `next:` line — a dispatch-ready literal (verb + target-type + id + payload) — and dispatch it as written: `fix plan <path> --findings <the captured findings handoff>` re-enters the fix pass (never a new review invocation, never self-applied inline edits) and repeats while the route is not done; a `done` fact → closure → `commit-plan`; `no next` (BLOCKED/TIMEOUT) → the stderr `CDD_BLOCKED:` channel owns the face — these rounds carry no `next:` line and are not consumed as next steps.
+- **Do**: Run the review-fix rhythm for the authored plan — one review per pass. Dispatch the review round on the current ref (`npx -y @oscaner-skills/cdd-engine@latest review --type plan --plan <path>`); dispatch the output's `next:` line as written — `fix plan <path> --findings <handoff>` re-enters the fix pass, `done` → `commit-plan`; BLOCKED/TIMEOUT rounds carry no `next:` line (the `CDD_BLOCKED:` channel owns them).
 - **Read**: the review output contract (the `status · blocker · handoff` capsule + the `next:` line + the findings handoff path)
 - **Exit**: the `next:` line reads `done` → `commit-plan`; each fix pass re-enters this hub while the route is not done (the `until next=done` self-loop)
-- **Fail**: Re-running a review after a closure conclusion → violates the Review Convergence invariant (stop + report); a completed round without a `next:` line that is not BLOCKED/TIMEOUT → the hard-error face (report the `CDD_BLOCKED:` reason, re-run the same command to continue)
+- **Fail**: Re-running a review after a closure conclusion → violates Review Convergence (stop + report)
 
 ### `commit-plan`
 
-- **Do**: `git add` the plan + conventional commit. Plan approved = commit immediately; do not wait for a later merge.
+- **Do**: `git add` the plan + conventional commit.
 - **Read**: The committed plan file path
 - **Exit**: Commit complete → `handoff-cdd-dev`
 - **Fail**: Git error → report + fail-open (do not block user plan review)
@@ -84,3 +84,4 @@ flowchart TD
 | review re-run after a closure conclusion (REVIEW_FIX / APPROVED) | Violates I1 (Review Convergence) — stop + report to user | A new ref opens a new review, never a re-run of a closed one |
 | Entering review with an un-backfilled drift | Violates the design-backfill rule (overall v1.6) — stop + backfill first | Spec and plan must agree before review |
 | Git commit error | report + fail-open | Do not block user plan review |
+| Completed round with no `next:` line (not BLOCKED/TIMEOUT) | HARD_ERROR — report the `CDD_BLOCKED:` reason, re-run the same command to continue | No dispatchable next |

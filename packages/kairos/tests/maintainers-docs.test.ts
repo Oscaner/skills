@@ -1,11 +1,13 @@
 // packages/kairos/tests/maintainers-docs.test.ts — P4.2 Task 9 maintainers-docs probe
 // Asserts the P4.2 Task 9 acceptance: the docs/maintainers family converged from six content docs
 // to five (01 template-doctrine merged; 02 naming / 03 context-caching / 04 program-experience /
-// 05 third-party-dependencies renumbered contiguous), zero old-numbered names on live surfaces,
-// every markdown link + external reference resolves, the P4.2 convergence ledger in
+// 05 third-party-dependencies renumbered contiguous), zero old-numbered names on live surfaces;
+// the P3.2 facts-only sweep adds a sixth content doc (06-skill-node-discipline) with the
+// converged numbering and a ≤ 56,000 budget. Every markdown link + external reference resolves,
+// the P4.2 convergence ledger in
 // docs/maintainers/README.md stays truthful (each per-file After cell == the live file's byte
 // count, and the Total After cell == the sum of the per-file After cells), the total byte budget
-// stays within the plan anchor ≤ 53,000, the dependency final-state tokens (the P4.4
+// stays within the plan anchor ≤ 56,000, the dependency final-state tokens (the P4.4
 // retirements + the P3.2 shell-strip) are registered in 02/05, and the smoke-cdd positioning (landed by P4.2 Task 4 ③) survives in 04.
 // Runs inside the `kairos node:test behavior tree` validate step.
 
@@ -25,6 +27,7 @@ const CONTENT_DOCS = [
   "03-context-caching-doctrine.md",
   "04-program-experience.md",
   "05-third-party-dependencies.md",
+  "06-skill-node-discipline.md",
 ];
 
 // The six retired filenames — zero residue on live surfaces (docs/maintainers + root CLAUDE/README
@@ -138,8 +141,8 @@ test("maintainers: total bytes within the plan anchor (≤ 53,000)", () => {
     .map((f) => bytesOf(`docs/maintainers/${f}`))
     .reduce((a, b) => a + b, 0);
   assert.ok(
-    total <= 53_000,
-    `docs/maintainers total ${total} bytes exceeds the plan anchor 53,000`,
+    total <= 56_000,
+    `docs/maintainers total ${total} bytes exceeds the plan anchor 56,000`,
   );
 });
 
@@ -154,6 +157,7 @@ test("maintainers: README convergence ledger matches the live files (After cells
     "03-context-caching-doctrine.md",
     "04-program-experience.md",
     "05-third-party-dependencies.md",
+    "06-skill-node-discipline.md",
     "README.md",
   ]) {
     assert.ok(byFile.has(f), `convergence ledger missing a row for ${f}`);
@@ -175,7 +179,7 @@ test("maintainers: README convergence ledger matches the live files (After cells
     total,
     `convergence ledger Total After (${totalRow[2]}) ≠ the sum of the per-file After cells (${total})`,
   );
-  assert.match(md, /≤ 53,000/, "convergence ledger must state the ≤ 53,000 plan anchor");
+  assert.match(md, /≤ 56,000/, "convergence ledger must state the ≤ 56,000 plan anchor");
 });
 
 test("maintainers: 02-naming carries the P4.4 final-state terms", () => {

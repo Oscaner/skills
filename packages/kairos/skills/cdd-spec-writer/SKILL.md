@@ -26,7 +26,7 @@ flowchart TD
 
 ### `run-writing-spec-session`
 
-- **Do**: Import `/superpowers:brainstorming`（pi：/skill:brainstorming） (writing-spec import) — its flow is consumed inline as this session's baseline; it lands the design decisions this target spec will capture. The target (single / phase-spec / overall) is the session parameter: it selects the schema target, the scope gates and the handoff of the flow
+- **Do**: Import `/superpowers:brainstorming`（pi：/skill:brainstorming） (writing-spec import); it lands the design decisions this target spec will capture. The target (single / phase-spec / overall) is the session parameter: it selects the schema target, the scope gates and the handoff of the flow
 - **Read**: nothing before the import; the import lands the design + the target
 - **Exit**: Import landed → `author-spec`
 - **Fail**: Upstream superpowers plugin missing → BLOCKED (no downgrade, no skip, no inline restatement)
@@ -44,14 +44,14 @@ flowchart TD
 
 ### `NEXT-LOOP`
 
-- **Do**: Run the review-fix rhythm for the authored spec — one review per pass. Dispatch the review round on the current ref (`npx -y @oscaner-skills/cdd-engine@latest review --type spec --spec <path>`). Read the output's `next:` line — a dispatch-ready literal (verb + target-type + id + payload) — and dispatch it as written: `fix spec <path> --findings <the captured findings handoff>` re-enters the fix pass (never a new review invocation, never self-applied inline edits) and repeats while the route is not done; a `done` fact → closure → `commit-spec`; `no next` (BLOCKED/TIMEOUT) → the stderr `CDD_BLOCKED:` channel owns the face — these rounds carry no `next:` line and are not consumed as next steps.
+- **Do**: Run the review-fix rhythm for the authored spec — one review per pass. Dispatch the review round on the current ref (`npx -y @oscaner-skills/cdd-engine@latest review --type spec --spec <path>`); dispatch the output's `next:` line as written — `fix spec <path> --findings <handoff>` re-enters the fix pass, `done` → `commit-spec`; BLOCKED/TIMEOUT rounds carry no `next:` line (the `CDD_BLOCKED:` channel owns them).
 - **Read**: the review output contract (the `status · blocker · handoff` capsule + the `next:` line + the findings handoff path)
 - **Exit**: the `next:` line reads `done` → `commit-spec`; each fix pass re-enters this hub while the route is not done (the `until next=done` self-loop)
-- **Fail**: Re-running a review after a closure conclusion → violates the Review Convergence invariant (stop + report); a completed round without a `next:` line that is not BLOCKED/TIMEOUT → the hard-error face (report the `CDD_BLOCKED:` reason, re-run the same command to continue)
+- **Fail**: Re-running a review after a closure conclusion → violates Review Convergence (stop + report)
 
 ### `commit-spec`
 
-- **Do**: `git add` the spec + conventional commit. Spec approved = commit immediately; do not wait for a later merge.
+- **Do**: `git add` the spec + conventional commit.
 - **Read**: The committed spec file path
 - **Exit**: Commit complete → `handoff-cdd-plan`
 - **Fail**: Git error → report + fail-open (do not block user spec review)
@@ -78,3 +78,4 @@ flowchart TD
 | Upstream superpowers plugin missing | BLOCKED (install superpowers — see the kairos README's 'Upstream dependency install' table) | Block policy: no silent fallback |
 | review re-run after a closure conclusion (REVIEW_FIX / APPROVED) | Violates I1 (Review Convergence) — stop + report to user | A new ref opens a new review, never a re-run of a closed one |
 | Git commit error | report + fail-open | Do not block user spec review |
+| Completed round with no `next:` line (not BLOCKED/TIMEOUT) | HARD_ERROR — report the `CDD_BLOCKED:` reason, re-run the same command to continue | No dispatchable next |

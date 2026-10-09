@@ -7,7 +7,7 @@ description: Independent brainstorm orchestrator -- Node-anchored flow with digr
 
 Full brainstorm flow orchestration, callable standalone — the imported brainstorm flow lands the program mode (`new-program` routes straight to grilling, no inventory check; `phase-within-program` gates on whether the phase is registered in the parent overall).
 
-**Invocation discipline** — flows are consumed inline as this session's baseline (an upstream import loads once, never a second spawn). Direct invocation — read the full output (stdout/stderr); the engine truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture. **Round rhythm** — one review pass per dispatch; a fix round re-enters the review while the route is not done; ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch). **Failure face** — cross-node failure handling lives in the Failure Modes table below (the single source); node `Fail` entries keep only local behavior.
+**Invocation discipline** — Direct invocation — read the full output (stdout/stderr); the engine truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture. **Round rhythm** — one review pass per dispatch; a fix round re-enters the review while the route is not done; ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch). **Failure face** — cross-node failure handling lives in the Failure Modes table below (the single source); node `Fail` entries keep only local behavior.
 
 ## Flow Digraph
 
@@ -38,7 +38,7 @@ flowchart TD
 
 ### `run-cdd-design-session`
 
-- **Do**: Import `/superpowers:brainstorming`（pi：/skill:brainstorming） — its flow is consumed inline as this session's baseline (loading an upstream skill imports its flow once; no second spawn). It lands the mode marker (`new-program` = no parent overall; `phase-within-program` = has a parent overall) and the design context this flow routes on
+- **Do**: Import `/superpowers:brainstorming`（pi：/skill:brainstorming）; it lands the mode marker (`new-program` = no parent overall; `phase-within-program` = has a parent overall) and the design context this flow routes on
 - **Read**: nothing before the import; the import resolves mode + design context
 - **Exit**: Import landed → `explore-context`
 - **Fail**: Upstream superpowers plugin missing → BLOCKED (no downgrade, no skip, no inline restatement)
@@ -73,7 +73,7 @@ flowchart TD
 
 ### `run-grilling-session`
 
-- **Do**: Import `/mattpocock-skills:grilling`（pi：/skill:grilling） — its flow is consumed inline as this session's baseline, scoped by mode: `new-program` → scope-level grilling (each candidate phase's scope / dependencies / acceptance / issue ownership, one grilling pass); `phase-within-program` → enumerate-then-grill: enumerate the requirements registered for the phase in the parent overall item by item (each requirement's status — `[Pending]` / Done / dropped), restate the full list to the user, and enter the grilling frontier several passes after the user confirms the enumerated coverage is complete. It lands the grilling outcome; the size judgment (`size?`) routes on it. Register-before-grill is guaranteed by the `phase-registered?` gate.
+- **Do**: Import `/mattpocock-skills:grilling`（pi：/skill:grilling）, scoped by mode: `new-program` → scope-level grilling (each candidate phase's scope / dependencies / acceptance / issue ownership, one grilling pass); `phase-within-program` → enumerate-then-grill: enumerate the requirements registered for the phase in the parent overall item by item (each requirement's status — `[Pending]` / Done / dropped), restate the full list to the user, and enter the grilling frontier several passes after the user confirms the enumerated coverage is complete. It lands the grilling outcome; the size judgment (`size?`) routes on it. Register-before-grill is guaranteed by the `phase-registered?` gate.
 - **Read**: landed grilling outcome + mode marker + gate verdict
 - **Exit**: Grilling outcome landed → the size judgment
 - **Fail**: Grilling an unregistered phase → register-gate violation (BLOCKED upstream at `phase-registered?`)
@@ -87,21 +87,21 @@ flowchart TD
 
 ### `run-cdd-spec-writer`
 
-- **Do**: Import `/kairos:cdd-spec-writer`（pi：/skill:cdd-spec-writer） — its flow is consumed inline as this session's baseline, parameterized by the target (single / phase-spec — the two near-identical spec dispatch variants are ONE node): it authors, reviews and commits the single spec or the phase spec, landing the committed spec as the terminal artifact. The imported flow's review-fix rhythm expects a clean start (the engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch)
+- **Do**: Import `/kairos:cdd-spec-writer`（pi：/skill:cdd-spec-writer） with the target parameter (single / phase-spec — the two near-identical dispatch variants are ONE node)
 - **Read**: grilling output + exploration context
 - **Exit**: Handoff executed → `NEXT-LOOP`
 - **Fail**: Target skill missing → BLOCKED (install kairos — see the kairos README's 'Upstream dependency install' table)
 
 ### `NEXT-LOOP`
 
-- **Do**: Run the design continuation recycle — the single hub after a delegated writer flow lands (a committed single / phase spec): read the session's `next:` line — a dispatch-ready literal (verb + target-type + id + payload) — and dispatch it as written; a further design dispatch re-enters this hub (the self-loop stays live while the route is not done); `done` → closure → `handoff-next`; `no next` (BLOCKED/TIMEOUT) → the stderr `CDD_BLOCKED:` channel owns the face — these rounds carry no `next:` line and are not consumed as next steps. A mid-backfill or a user adjudication that lands governs over the suggestion (current world state wins).
+- **Do**: Run the design continuation recycle — the single hub after a delegated writer flow lands (a committed single / phase spec): dispatch the session's `next:` line as written; a further design dispatch re-enters this hub (the self-loop stays live while the route is not done); `done` → `handoff-next`; BLOCKED/TIMEOUT rounds carry no `next:` line (the `CDD_BLOCKED:` channel owns them).
 - **Read**: the landed delegated flow's output contract (the `next:` line + the committed artifact)
 - **Exit**: the `next:` line reads `done` → `handoff-next`; each further design dispatch re-enters this hub while the route is not done (the `until next=done` self-loop)
-- **Fail**: a completed round without a `next:` line that is not BLOCKED/TIMEOUT → the hard-error face (report the `CDD_BLOCKED:` reason, re-run the same command to continue)
+- **Fail**: —
 
 ### `run-cdd-charter`
 
-- **Do**: Run the terminal charter variant of the parameterized writer — the overall (program charter) write: import `/kairos:cdd-spec-writer`（pi：/skill:cdd-spec-writer） with the overall target; it authors, reviews and commits the overall spec, landing the committed charter. The imported flow's review-fix rhythm expects a clean start (the engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch)
+- **Do**: Import `/kairos:cdd-spec-writer`（pi：/skill:cdd-spec-writer） with the overall target
 - **Read**: grilling output + parent overall (oversized phase-within-program case)
 - **Exit**: Handoff executed → `handoff-next`
 - **Fail**: Target skill missing → BLOCKED (install kairos — see the kairos README's 'Upstream dependency install' table)
@@ -131,3 +131,4 @@ flowchart TD
 | Phase inventory missing / unparseable | BLOCKED (overall-sync-failed) | Registration gate cannot run |
 | Registering with predecessor Design spec ≠ Done | BLOCKED (serial-phase) | Never release grilling for an unmet phase |
 | Four-table sync inconsistent | BLOCKED (overall-sync-failed) | Refuse to register an inconsistent phase |
+| Completed round with no `next:` line (not BLOCKED/TIMEOUT) | HARD_ERROR — report the `CDD_BLOCKED:` reason, re-run the same command to continue | No dispatchable next |

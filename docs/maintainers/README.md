@@ -1,6 +1,6 @@
 # Maintainer Docs — index
 
-Maintainer-only documents for this monorepo's developers (English-primary; not shipped to consumers — the packages' `contentRoot` is `"."`). Numbered 01–05; internal links use the numbered filenames.
+Maintainer-only documents for this monorepo's developers (English-primary; not shipped to consumers — the packages' `contentRoot` is `"."`). Numbered 01–06; internal links use the numbered filenames.
 
 | # | File | Positioning |
 |---|---|---|
@@ -9,10 +9,11 @@ Maintainer-only documents for this monorepo's developers (English-primary; not s
 | 03 | [03-context-caching-doctrine.md](03-context-caching-doctrine.md) | Host-harness prompt-cache doctrine (six axioms, C1–C7, cache profiles, observation boundaries) — the engine's live cache contract |
 | 04 | [04-program-experience.md](04-program-experience.md) | Hard-won lessons across every phase; the baking input for skill document templates |
 | 05 | [05-third-party-dependencies.md](05-third-party-dependencies.md) | Adopted / not-adopted dependency ledger (§2.13), YAML + husky isolation boundaries |
+| 06 | [06-skill-node-discipline.md](06-skill-node-discipline.md) | Skill node authoring discipline: facts only, no restatement (each fact lives in exactly one of the four skill surfaces) |
 
 ## P4.2 convergence ledger
 
-Task 9 merged the two template docs, trimmed program-experience, updated 02/05 to the P4.4 final state. Plan anchor: total ≤ 53 KB — `maintainers-docs.test.ts` asserts each After cell against the live file.
+Task 9 merged the two template docs, trimmed program-experience, updated 02/05 to the P4.4 final state. Plan anchor: total ≤ 56 KB (P3.2 facts-only sweep adds 06-skill-node-discipline) — `maintainers-docs.test.ts` asserts each After cell against the live file.
 
 | File | Before (B) | After (B) | Note |
 |---|---|---|---|
@@ -21,5 +22,6 @@ Task 9 merged the two template docs, trimmed program-experience, updated 02/05 t
 | 03-context-caching-doctrine.md | 8,706 | 8,383 | row-key mirror (P3 T2) · cached-bytes trims |
 | 04-program-experience.md | 21,773 | 12,834 | trimmed ~9 KB · +item 57 |
 | 05-third-party-dependencies.md | 10,018 | 9,701 | P4.4 deps + unbuild/TS6 retirement + P3.2 shell-strip (eight-package runtime prune) |
-| README.md | 2,324 | 2,119 | index converged + P5 retirement ledger |
-| **Total** | 65,193 | 52,978 | plan anchor ≤ 53,000 |
+| 06-skill-node-discipline.md | 0 | 1,899 | P3.2 facts-only sweep · skill-node discipline (facts only, no restatement) |
+| README.md | 2,324 | 2,512 | index converged + 06 row + anchor revision + P5 retirement ledger |
+| **Total** | 65,193 | 55,270 | plan anchor ≤ 56,000 |

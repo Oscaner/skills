@@ -430,7 +430,7 @@ export class Lifecycle {
       const op = this.#opOf(frame.phase);
       const carrier =
         outcome.carrier ??
-        this.#ledger.buildHandoff(op, frame.type, frame.params, {
+        this.#ledger.buildHandoff({
           findings: outcome.findings === undefined ? undefined : [...outcome.findings],
           commits: outcome.commits,
           artifacts: outcome.artifacts,

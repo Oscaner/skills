@@ -672,7 +672,7 @@ export class HarnessDispatch {
       findings: face === "findings" ? schema.findingsOf(draft.findings) : undefined,
       commits: block.commits,
       artifacts: block.artifacts,
-      carrier: this.#materialize(frame, op, face, draft, status, reason),
+      carrier: this.#materialize(face, draft, status, reason),
     };
   }
 
@@ -694,21 +694,20 @@ export class HarnessDispatch {
     return { status: "BLOCKED" };
   }
 
-  /** Build the final carrier — the engine identity (phase / tasks — the family's
-   *  reserved fields) + the validated writable fields from the draft, persisted by
-   *  the bookkeep full-replace at the SAME path (agent draft → finalized). The
-   *  evidence override rewrites the status to BLOCKED + a failure_category + the
-   *  reason note (the child's work preserved, marked bad). */
+  /** Build the final carrier — the validated writable fields from the draft (the
+   *  engine-seated identity rides the canonical file name, never inline: phase/tasks
+   *  are not declared and never written — v1.30), persisted by the bookkeep
+   *  full-replace at the SAME path (agent draft → finalized). The evidence override
+   *  rewrites the status to BLOCKED + a failure_category + the reason note (the
+   *  child's work preserved, marked bad). */
   #materialize(
-    frame: OpenFrame,
-    op: OpType,
     face: HandoffSchemaFace,
     draft: Record<string, unknown>,
     status: RoundStatus,
     reason: string | null,
   ): Record<string, unknown> {
     const ledger = this.#scene.ledger;
-    const carrier = ledger.buildHandoff(op, frame.type, frame.params, {
+    const carrier = ledger.buildHandoff({
       artifacts: this.#stringMap(draft.artifacts),
       findings: face === "findings" ? this.#findingsList(draft.findings) : [],
       commits: this.#commitsOf(draft.commits),

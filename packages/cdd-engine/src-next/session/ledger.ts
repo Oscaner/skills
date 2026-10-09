@@ -489,12 +489,14 @@ export class Ledger {
     return this.#workspace.resolve(this.handoffName(op, type, params));
   }
 
-  /** The handoff carrier skeleton — the engine-seated identity fields (tasks / phase /
-   *  artifacts / findings / commits): the schema-required keys the agent round fills. */
+  /** The handoff carrier skeleton — the schema-declared writable fields the agent
+   *  round fills. The engine-seated identity (phase · tasks) rides the CANONICAL FILE
+   *  NAME (`tasks-{wave}-*.json` / the range / doc family), never inline: phase/tasks
+   *  are NOT declared and never written (v1.30 — the inline identity seeded a mimicking
+   *  precedence: a fix draft copied the materialized `phase` the engine had written and
+   *  tripped the reserved-field gate it could never pass; single declaration, single
+   *  author — the carrier holds only the schema's declared plane). */
   buildHandoff(
-    op: string,
-    type: string,
-    params: HandoffParams,
     init: {
       artifacts?: Record<string, string>;
       findings?: unknown[];
@@ -502,14 +504,9 @@ export class Ledger {
     } = {},
   ): Record<string, unknown> {
     const carrier: Record<string, unknown> = {
-      phase: this.#family(op, type).phase,
       artifacts: init.artifacts ?? {},
       findings: init.findings ?? [],
     };
-    const tasks = params.tasks?.trim();
-    if (tasks !== undefined && tasks !== "") {
-      carrier.tasks = tasks.split(",").map((part) => Number(part.trim()));
-    }
     if (init.commits !== undefined) carrier.commits = init.commits;
     return carrier;
   }

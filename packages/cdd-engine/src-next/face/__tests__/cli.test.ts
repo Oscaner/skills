@@ -1130,15 +1130,14 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(prompt).toContain("```json");
       expect(prompt).toContain("The evidence file");
       expect(prompt).not.toContain("HANDOFF_WRITE_GATE");
-      // the read-back reconstruct — the final carrier (phase + validated draft fields)
-      // rides the outcome, the block's three lines the pointer
+      // the read-back reconstruct — the final carrier (the schema's declared fields
+      // only: identity rides the file name, never phase/tasks inline — v1.30) rides
+      // the outcome, the block's three lines the pointer
       expect(outcome.status).toBe("APPROVED");
       expect(outcome.commits).toEqual({ base: "a".repeat(40), head });
       expect(outcome.carrier).toEqual({
-        phase: "implement",
         artifacts: { brief: "/b", report: "/r", test_evidence: "/t" },
         findings: [],
-        tasks: [1],
         commits: { base: "a".repeat(40), head },
         status: "APPROVED",
       });
@@ -1175,7 +1174,6 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(outcome.status).toBe("CHANGES_REQUESTED");
       expect(outcome.findings).toEqual([{ severity: "blocker", summary: "drift" }]);
       expect(outcome.carrier).toEqual({
-        phase: "review",
         artifacts: {},
         findings: [{ severity: "blocker", lens: "spec", summary: "drift" }],
         status: "CHANGES_REQUESTED",
@@ -1350,10 +1348,8 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(outcome.status).toBe("BLOCKED");
       // the carrier is materialized (the child's work preserved) but rewritten BLOCKED
       expect(outcome.carrier).toEqual({
-        phase: "implement",
         artifacts: { brief: "/b", report: "/r", test_evidence: "/t" },
         findings: [],
-        tasks: [1],
         commits: { base: "a".repeat(40), head: "b".repeat(40) },
         status: "BLOCKED",
         failure_category: "evidence-contract",

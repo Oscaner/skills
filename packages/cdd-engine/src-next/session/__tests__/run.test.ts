@@ -265,6 +265,47 @@ describe("the task small loop — implement → review → the next ready group"
     }
   });
 
+  it("a MID-RUN warn/nit wave routes the next wave after its fix — an early `done` is the {16,22,24}/rt/C5 regression (v1.29)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // The three-wave chain: {1} → {2} → {3}. Each review finds warn/nit; every fix
+      // clears them (blocker=0 → close). The closure routing must render next-wave
+      // for wave {1} and {2} (the run continues) and `done` ONLY for the terminal
+      // wave {3} — the close() ready-batch the router judges must be the LEADGER's
+      // cross-invocation closed set, not the per-invocation cursor.
+      const graph = taskGraph([task(1, "none"), task(2, "1"), task(3, "2")]);
+      const dispatch = stub((frame) => {
+        if (frame.phase === "implement") return APPROVED_IMPLEMENT;
+        if (frame.phase === "fix")
+          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        return { status: "APPROVED", findings: [finding("warn")] };
+      });
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+      });
+
+      // wave {1}: implement → review(warn) → fix(clean) → next-wave {2}
+      expect(run.advance()!.frame.target).toEqual({ kind: "wave", tasks: [1] });
+      expect(run.advance()!.route!.kind).toBe("fix");
+      expect(run.advance()!.route).toEqual({ kind: "next-wave", tasks: "2" });
+      // wave {2}: implement → review(warn) → fix(clean) → next-wave {3}
+      expect(run.advance()!.frame.target).toEqual({ kind: "wave", tasks: [2] });
+      expect(run.advance()!.route!.kind).toBe("fix");
+      expect(run.advance()!.route).toEqual({ kind: "next-wave", tasks: "3" });
+      // wave {3} (terminal): implement → review(warn) → fix(clean) → done
+      expect(run.advance()!.frame.target).toEqual({ kind: "wave", tasks: [3] });
+      expect(run.advance()!.route!.kind).toBe("fix");
+      expect(run.advance()!.route).toEqual({ kind: "done" });
+      expect(run.advance()).toBeNull();
+      expect(graph.doneTasks()).toEqual(new Set([1, 2, 3]));
+    } finally {
+      cleanup();
+    }
+  });
+
   it("a BLOCKED review round never closes the task — the C5 route is the single terminal verdict", () => {
     const { ledger, cleanup } = fixture();
     try {

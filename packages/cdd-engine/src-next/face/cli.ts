@@ -1126,9 +1126,15 @@ export class Cli {
     const expected =
       verb === "implement" ? "implement" : verb === "fix" ? "fix" : scene.face.product.reviewLead;
 
-    // The per-invocation batch cursor: every non-group task pre-done, so the frontier
-    // yields exactly the requested group (in-memory only — the ledger is the on-disk
-    // record; the next invocation re-derives the phase from the ledger).
+    // The per-invocation batch cursor: the in-memory done set mirrors the on-disk
+    // ledger's closed waves (the C5 closure single face) — NOT a "every non-group
+    // task pre-done" shortcut. The old shortcut made the frontier yield exactly the
+    // requested group, but it also emptied readyBatch() at every closure: a mid-run
+    // wave's fix rendered `next: done` instead of the next wave (the {16,22,24} →
+    // {25,26,27} bug — the closure routing judged a per-invocation cursor, not the
+    // plan's real remaining frontier). The ledger mirror keeps the progress face
+    // cross-invocation: the dispatched group's own closure marks in #markTerminal
+    // as the loop advances, and the next wave surfaces from the live closed set.
     let group: Set<number> | null = null;
     if (type === "wave") {
       group = new Set(this.#tasksOf(parsed));
@@ -1143,7 +1149,7 @@ export class Cli {
           throw new CliUsageError(`cdd ${verb}: task ${id} not found in the plan`, CLI_USAGE[verb]);
         }
       }
-      for (const id of planIds) if (!group.has(id)) scene.state.markDone(id);
+      for (const id of scene.ledger.closedWaves()) scene.state.markDone(id);
     }
 
     // The wave pre-flight gate (v1.21 — the three-verb unified wave gate): the plan
@@ -1227,31 +1233,43 @@ export class Cli {
     // Advance the requested phase across the wave (one dispatch per frame — the
     // lifecycle's "one dispatch, one advance" step), keeping only the LAST step's
     // capsule for the invocation's single stdout face (the per-step intermediate
-    // next-wave lines stay in the router, never on the CLI face).
+    // next-wave lines stay in the router, never on the CLI face). The loop PEEKS
+    // before every advance: advance() dispatches on entry, so an expected-phase
+    // mismatch must be judged against the next frame BEFORE it spends the round —
+    // the {16,22,24} bug's lookahead-after-dispatch consumed the next wave's round
+    // in the same invocation (implement 1 silently closed wave 1's review round).
     let dispatched = 0;
     let latest: readonly string[] = [];
     let lastStatus: RoundStatus | null = null;
     for (;;) {
-      const step = run.advance();
-      if (step === null) break;
-      const waveTasks = step.frame.target.kind === "wave" ? step.frame.target.tasks : null;
+      const frame = run.peekNext();
+      if (frame === null) break;
+      const waveTasks = frame.target.kind === "wave" ? frame.target.tasks : null;
       const mismatch =
-        step.frame.phase !== expected ||
+        frame.phase !== expected ||
         (group !== null && (waveTasks === null || !waveTasks.every((id) => group!.has(id))));
       if (mismatch) {
         if (dispatched === 0) {
           this.#io.stderr(
-            `cdd ${verb}: cannot dispatch a ${expected} round — the next round is ${step.frame.phase}${waveTasks !== null ? ` for wave ${waveTasks.join(",")}` : ""}${this.#phaseHint(step.frame.phase)}\n`,
+            `cdd ${verb}: cannot dispatch a ${expected} round — the next round is ${frame.phase}${waveTasks !== null ? ` for wave ${waveTasks.join(",")}` : ""}${this.#phaseHint(frame.phase)}\n`,
           );
           return 1;
         }
         break;
       }
+      const step = run.advance();
+      if (step === null) break;
       dispatched += 1;
       latest = step.capsuleLines;
       lastStatus = statuses[statuses.length - 1] ?? null;
-      if (waveTasks !== null && group !== null)
-        for (const id of waveTasks) scene.state.markDone(id);
+      // NO manual done-marking here: the lifecycle's markTerminal is the single
+      // closure gate (C5) — a dispatched wave advances the frontier only through
+      // its concluded round's route. The old dispatch-then-markDone shortcut drove
+      // the loop across waves without a closure verdict: after implement of wave 1
+      // it marked wave 1 done, so the loop dispatched wave 2 in the same call
+      // (dry-run) and rendered every mid-run closure as `next: done` (the per-step
+      // next was already consumed). The ledger-mirrored cursor above + markTerminal
+      // together keep one wave phase per invocation.
       if (lastStatus === "BLOCKED" || lastStatus === "TIMEOUT") {
         for (const line of latest) this.#io.stdout(`${line}\n`);
         return 1;

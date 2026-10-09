@@ -196,6 +196,15 @@ export class Lifecycle {
     return this;
   }
 
+  /** Peek the line's next open frame WITHOUT dispatching — the CLI's per-invocation
+   *  cursor pre-checks the next step against the requested verb before it advances
+   *  (a mismatch must not consume the round: advance() dispatches on entry — the
+   *  {16,22,24} bug's loop reordered lookahead-after-dispatch and spent the next
+   *  phase's round in the same invocation). Null = the run is exhausted / capped. */
+  peekNext(): OpenFrame | null {
+    return this.#openFrame();
+  }
+
   /** advance() — one dispatch step: frontier → dispatch → result → bookkeeping →
    *  next routing. Null when the line holds no open frame (the run is exhausted or
    *  a capped line defers to the user). */

@@ -21,7 +21,7 @@ Task 9 merged the two template docs, trimmed program-experience, updated 02/05 t
 | 02-naming-conventions.md | 7,994 | 9,075 | blocker bounded mapping added |
 | 03-context-caching-doctrine.md | 8,706 | 8,383 | row-key mirror (P3 T2) · cached-bytes trims |
 | 04-program-experience.md | 21,773 | 12,834 | trimmed ~9 KB · +item 57 |
-| 05-third-party-dependencies.md | 10,018 | 9,701 | P4.4 deps + unbuild/TS6 retirement + P3.2 shell-strip (eight-package runtime prune) |
+| 05-third-party-dependencies.md | 10,018 | 10,240 | P4.4 deps + unbuild/TS6 retirement + P3.2 shell-strip (eight-package runtime prune) + P1 dependency upgrade (simple-git 3→4 · @types/node 24-line lock · 4.x forward notes) |
 | 06-skill-node-discipline.md | 0 | 1,900 | P3.2 facts-only sweep · skill-node discipline (facts only, no restatement) |
-| README.md | 2,324 | 2,512 | index converged + 06 row + anchor revision + P5 retirement ledger |
-| **Total** | 65,193 | 55,271 | plan anchor ≤ 56,000 |
+| README.md | 2,324 | 2,605 | index converged + 06 row + anchor revision + P5 retirement ledger |
+| **Total** | 65,193 | 55,903 | plan anchor ≤ 56,000 |

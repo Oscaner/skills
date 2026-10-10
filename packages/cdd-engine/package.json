@@ -4,7 +4,7 @@
   "description": "CDD engine CLIs: task runner, docs reviewer, branch reviewer, harness selector.",
   "type": "module",
   "engines": {
-    "node": ">=22.18.0"
+    "node": ">=24"
   },
   "files": [
     "src-next/",
@@ -24,10 +24,10 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "simple-git": "^3.36.0"
+    "simple-git": "^4.0.2"
   },
   "devDependencies": {
-    "@types/node": "^26.6.4",
+    "@types/node": "^24.19.2",
     "typescript": "^7.0.2",
     "vitest": "^5.0.3"
   },

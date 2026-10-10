@@ -1,6 +1,6 @@
 # 依赖升级与 src 更名（Dependency Upgrade & Src Rename）— P1 Design Spec（simple-git 3→4 · node 线锁 24 · 依赖全量对齐）
 
-- **Version**: v1.3 · 2026-10-10
+- **Version**: v1.4 · 2026-10-11
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5（kairos:cdd-design [P1] enumerate-then-grill 定案 → cdd-spec-writer）
 - **Parent program**: [2026-10-10-upgrade-dependencies-and-src-rename-overall.md v1.5](docs/kairos/specs/2026-10-10-upgrade-dependencies-and-src-rename-overall.md)
@@ -80,7 +80,7 @@ simple-git 行 `^3.36.0 → ^4.0.2`（declared / lockfile 两格更新；lockfil
 
 #### 5.2 4.x 前瞻注记（D7 · 只作文档）
 
-§1 补 4.x 前瞻注记两行：**缩写 long-form option 拦截**（4.x 对 `--` 缩写选项行为收口——future 若启用须显式全拼）· **git env 变量过滤**（`allowEnvironment` 默不过滤——consumer 面若涉及受限 git 环境须显式声明）。**只作文档记录 · 不启用 · 不引入能力**（若未来决议启用 → 独立整体程序引擎 doc-tooling 承接）。
+§1 补 4.x 前瞻注记两行：**缩写 long-form option 拦截**（4.x 对 `--` 缩写选项行为收口——future 若启用须显式全拼）· **git env 变量过滤**（v4 默认过滤非豁免 `git_*`/config env keys · `allowEnvironment` 为豁免名单 · 受限 git 环境须显式准入声明）。**只作文档记录 · 不启用 · 不引入能力**（若未来决议启用 → 独立整体程序引擎 doc-tooling 承接）。
 
 #### 5.3 工具链段行
 
@@ -92,7 +92,7 @@ simple-git 行 `^3.36.0 → ^4.0.2`（declared / lockfile 两格更新；lockfil
 
 前置：`packages/cdd-engine/` 包根无 `src`/`config` 残留（清空 P2 改名预演遗留的空壳目录——git 不可见 · 实测残留于当前工作树）后，先跑基线 `pnpm run precommit` + 引擎 vitest，**基线全绿是升级对标的起点**。
 
-基线后顺序：`pnpm run precommit`（树无关子集 · doc-contract gate **16** specs/plans 保持——评审后引擎 new overall 落地 +1 的实值）→ `tsc --noEmit` 三项目 → 引擎 vitest（`pnpm --filter @oscaner-skills/cdd-engine test` · 以干净工作树为前提）→ `pnpm run validate` ALL PASS（emit 新鲜 / channel audit / residue 零回归）。
+基线后顺序：`pnpm run precommit`（树无关子集 · doc-contract gate **17** specs/plans 保持 · 含本 plan · phase 内不再新增 specs/plans——评审后引擎 new overall 落地 +1 · 本 plan 落地再 +1 的实值）→ `tsc --noEmit` 三项目 → 引擎 vitest（`pnpm --filter @oscaner-skills/cdd-engine test` · 以干净工作树为前提）→ `pnpm run validate` ALL PASS（emit 新鲜 / channel audit / residue 零回归）。
 
 #### 6.2 提交粒度
 
@@ -111,7 +111,7 @@ simple-git 行 `^3.36.0 → ^4.0.2`（declared / lockfile 两格更新；lockfil
 - `tsc --noEmit` 三项目全绿（engine / scripts / kairos-tests）
 - 引擎 vitest 全绿（`pnpm --filter @oscaner-skills/cdd-engine test` · 0 语义改动 · 以干净工作树为前提——包根无 `src`/`config` 残留）
 - `pnpm run validate` ALL PASS（emit 新鲜 / channel audit / residue 零回归）
-- `pnpm run precommit` 过（含 doc-contract gate 16 specs/plans 保持）
+- `pnpm run precommit` 过（含 doc-contract gate 17 specs/plans 保持 · 含本 plan · phase 内不再新增 specs/plans）
 - maintainers 05 §1 落（simple-git 4.x 行 + 前瞻注记两行 + @types/node 行）
 
 ## Constraints
@@ -144,3 +144,4 @@ simple-git 行 `^3.36.0 → ^4.0.2`（declared / lockfile 两格更新；lockfil
 | v1.1 | 2026-10-10 | **程序结构回填（P4 拆出 · 2026-10-10 用户裁定「这个问题和 P4 其实是同一类的吧？」）**：父子整体 `engine-doc-tooling` 成立（review-face 键 + schema gen 同属引擎 doc-tooling 能力类）——本 spec 引擎行为引用（§2.3 / §5.2 / §6.3 / Notes）从「P4 赛道」改指独立整体程序；Parent program 版本 v1.2 → v1.3 | [human] · Claude Opus 5（kairos:cdd-design 拆出裁定） |
 | v1.2 | 2026-10-10 | **spec-review-1 修正（3 findings 全修）**：F1「pnpm outdated 不报越-range major」证伪——§1.3/§4.2/Acceptance/Deviations 因果改「零行唯一成因 = 本地元数据 cache 陈旧 · fresh 元数据必报越-range major · 验收容忍项 = @types/node 单行越-range（26.6.5 vs `^24.19.2` · 设计意图）」（父 overall v1.4 同语 backfill 已落）· F2 §6.1 补环境前置（包根无 `src`/`config` 残留 · 引擎 vitest 全绿以干净工作树为前提）· F3 doc-contract gate 14 → 16 specs/plans（评审时实值 15 · 引擎 new overall `93cb4664` 落地后当前树实值 16 · 按 operate 时实值钉） | [human] · Claude Opus 5（P1 spec-review-1 fix 轮统一落） |
 | v1.3 | 2026-10-10 | **P1 spec-fix-1 回填（F1 warn · backfill-as-version）**：实施期 `pnpm install` 自动向 `pnpm-workspace.yaml` 追加 `minimumReleaseAgeExclude: ['@types/node@24.19.2']`（2026-10-09T18:44:25Z 发布 · 提交时 <24h · 非严格模式自动注记）——§1.1「无目录级版本陷阱」前提改写（政策注记 · 机械依赖面 · 声明面仍 = 两处 package.json）· §4.2 补 minimum-release-age 语义注记（pnpm ≥11 默认 24h 窗 · 窗内无 in-range age-eligible fallback · 无 exclude 则 fresh resolution 不可落 · `minimumReleaseAgeExcludePrune` 默认 false）· §6.2 提交①验收面补 `pnpm-workspace.yaml` · 父 overall v1.5 同语 backfill 已落 | [human] · Claude Opus 5（P1 spec-fix-1 轮统一落） |
+| v1.4 | 2026-10-11 | **branch-fix-1 回填（F1 warn · F3 nit）**：§5.2 前瞻注记② 措辞与主源取证对齐（`allowEnvironment` 默不过滤 → **v4 默认过滤非豁免 `git_*`/config env keys · `allowEnvironment` 为豁免名单 · 受限 git 环境须显式准入声明**——与 plan v1.2 T2 + maintainers 05 注记② 同语）· §6.1 + Acceptance doc-contract gate 钉值 16 → 17 specs/plans（含本 plan · 评审实值 17 · plan-fix-1 已先行钉 17） | [human] · Claude Opus 5（kairos:cdd-dev · branch-fix-1） |

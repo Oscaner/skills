@@ -127,3 +127,9 @@ bodyView（reviews.plan decomposition 轴）<--- interface{consumes,produces} �
 - **P5（DispatchContract + DispatchPacket）**：`Task.files/interface` 类型化字段 = P5 同源数据（object word = ref word 零手写重复映射）；约束继承 P2 只做「读 + 合并呈现」，P5 做「子集过滤 + 正文携带」（DispatchPacket）；refKind 四型 / InstructionUnit 落 P1 接缝槽
 - **P6（overall 宪法/档案分层）**：overall schema 本 phase 零触碰（宪法层归 P6）；add-phase-protocol 手写 JSON 保持（D6 语义）；archive doc-revision ref 依赖 P1 refKind 接缝——与 P2 无接
 - **派生面纪律**：`config/schema/{phase-spec,plan}.json` 自 P2 为 DocBody 投影重派生产物（DocBody.projectSchemaShape() → DocType.shape → SchemaFactory）——任何手写编辑 = 下一投影/守卫覆盖；改结构走 DocBody 模型描述（与 01-template-doctrine 模板数据化公约同源）
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.1 | 2026-10-05 | （迁移建档——版本谱系自 `**Version**` 头转录 · 原头未载变更摘要） | [human] |

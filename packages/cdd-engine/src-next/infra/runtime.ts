@@ -193,14 +193,18 @@ export const HANDOFF_FAMILIES = {
     prev: { roundR: "review.plan:R" },
   },
   "review.branch": {
-    name: "branch-review-{base7}..{head7}-r{round}.json",
+    // find #9 (spec §6.5): the range token leaves the file name — the carrier's
+    // `commits` holds the shas (the find #7/#8 dual-truths discipline) + the
+    // workspace slug is the plan-slug (the fix face carries --plan) · round
+    // accumulates across re-reviews (lineKey pins "branch").
+    name: "branch-review-{round}.json",
     round: "increment",
     status: "rollup",
     schema: "findings",
     phase: "branch-review",
   },
   "fix.branch": {
-    name: "branch-fix-{base7}..{head7}-r{round}.json",
+    name: "branch-fix-{round}.json",
     round: "source",
     status: "contract",
     schema: "work",

@@ -30,7 +30,19 @@ import type {
 } from "./ledger.ts";
 import type { Route } from "./next.ts";
 import { NextStepRouter } from "./next.ts";
+import type { PreFlightVerdict } from "./preflight.ts";
 import type { ExecutionState, Frontier } from "./state.ts";
+
+/** The pre-flight dispatch-entry gate — the lifecycle's hard "no child on a refused
+ *  frame" wiring (P4.1 T1): the CLI computes the seam verdict ONCE and hands it to
+ *  the lifecycle as the gate, so a refused dispatch is structurally never passed to
+ *  the child. Null = no gate wired (a gate-less lifecycle advances unguarded — the
+ *  seam-less callers keep their existing behavior). */
+export interface PreFlightGate {
+  /** The pre-flight verdict for one dispatch frame (null = no verdict for the frame
+   *  — the dispatch proceeds; a refused verdict blocks the dispatch). */
+  gate(frame: OpenFrame): PreFlightVerdict | null;
+}
 
 /** The run-state the lifecycle drives — the T6 query surfaces (frontier dynamic
  *  face + the done-set) plus the done marking. TaskGraph implements the whole face;
@@ -55,7 +67,7 @@ export type AuditTarget =
   /** wave (T26 · the wave-unitary model): the frontier's open wave — the whole ready
    *  batch is ONE dispatch unit (one brief · one child · one commit · one round). */
   | { kind: "wave"; tasks: readonly number[] }
-  /** branch: the branch diff range (full shas — the {base7}/{head7} tokens derive). */
+  /** branch: the branch diff range (8-char short shas — the {base8}/{head8} tokens). */
   | { kind: "branch"; base: string; head: string }
   /** spec/plan: the audit document path. */
   | { kind: "doc"; doc: string };
@@ -131,6 +143,10 @@ export interface StepResult {
   /** The capsule lines rendered at the interaction point (empty when no capsule is
    *  attached — the seam is non-hard). */
   capsuleLines: readonly string[];
+  /** The pre-flight verdict of a refused dispatch — the lifecycle's dispatch-entry
+   *  gate blocked the frame before ANY child dispatch (absent on ordinary steps).
+   *  The refused frame is NOT recorded — the frontier re-offers it (resume). */
+  preflight?: PreFlightVerdict;
 }
 
 /**
@@ -164,6 +180,12 @@ export class Lifecycle {
   readonly #target: AuditTarget | null;
   /** The attached capsule face — null = the step advances output-less. */
   #capsule: CapsuleFace | null;
+  /** The dispatch-entry pre-flight gate — null = unguarded (the seam-less callers
+   *  keep their existing behavior). */
+  readonly #preflight: PreFlightGate | null;
+  /** The workspace plan path — the `next:` implement literal's required `--plan`
+   *  arg (P4.1 T4 — the task face's implement-consuming fact). */
+  readonly #planPath: string | null;
 
   constructor(opts: {
     face: TargetFace;
@@ -175,6 +197,11 @@ export class Lifecycle {
     target?: AuditTarget;
     /** The capsule face to attach at construction (optional — the seam is non-hard). */
     capsule?: CapsuleFace | null;
+    /** The dispatch-entry pre-flight gate (P4.1 T1 — the lifecycle's hard "no child
+     *  on a refused frame" wiring; optional, null = unguarded). */
+    preflight?: PreFlightGate | null;
+    /** The workspace plan path (P4.1 T4 — the implement `next:` literal's `--plan`). */
+    planPath?: string | null;
   }) {
     this.#face = opts.face;
     this.#state = opts.state;
@@ -183,6 +210,8 @@ export class Lifecycle {
     this.#router = opts.router ?? new NextStepRouter();
     this.#target = opts.target ?? null;
     this.#capsule = opts.capsule ?? null;
+    this.#preflight = opts.preflight ?? null;
+    this.#planPath = opts.planPath ?? null;
   }
 
   /** The face row this instance drives. */
@@ -206,12 +235,26 @@ export class Lifecycle {
     return this.#openFrame();
   }
 
-  /** advance() — one dispatch step: frontier → dispatch → result → bookkeeping →
-   *  next routing. Null when the line holds no open frame (the run is exhausted or
-   *  a capped line defers to the user). */
+  /** advance() — one dispatch step: frontier → pre-flight gate → dispatch → result →
+   *  bookkeeping → next routing. Null when the line holds no open frame (the run is
+   *  exhausted or a capped line defers to the user). A refused pre-flight gate blocks
+   *  the dispatch (child zero) and returns the frame as a preflight-blocked step —
+   *  neither persisted nor recorded (the frontier re-offers it: resume). */
   advance(): StepResult | null {
     const frame = this.#openFrame();
     if (frame === null) return null;
+    if (this.#preflight !== null) {
+      const verdict = this.#preflight.gate(frame);
+      if (verdict !== null && !verdict.ok) {
+        return {
+          frame,
+          round: this.#ledger.roundCount(frame.key, frame.phase),
+          route: null,
+          capsuleLines: [],
+          preflight: verdict,
+        };
+      }
+    }
     const outcome = this.#dispatch(frame);
     const round = this.#bookkeep(frame, outcome);
     // The closure verdict rides the recorded round's C5 route — mark the task done
@@ -371,10 +414,12 @@ export class Lifecycle {
     return this.#ledger.roundCount(key, this.#face.product.reviewLead);
   }
 
-  /** The progress key of a single-target line — the branch range token or the doc
-   *  path (the task face never routes here — its frames key by the wave key string). */
+  /** The progress key of a single-target line — the branch line's STABLE key (find
+   *  #9 · spec §6.5 — `"branch"` per workspace, accumulating across re-reviews; old form
+   *  = the range short, head moving every fix → new key → round reset to 1) or
+   *  the doc path (the task face never routes here — frames key by the wave key). */
   #lineKey(target: AuditTarget): LedgerKey {
-    if (target.kind === "branch") return BranchRef.short(target.base, target.head);
+    if (target.kind === "branch") return "branch";
     return (target as { kind: "doc"; doc: string }).doc;
   }
 
@@ -401,7 +446,7 @@ export class Lifecycle {
       case "branch": {
         const { base, head } = frame.target as { kind: "branch"; base: string; head: string };
         const ref = new BranchRef(base, head);
-        return { base7: ref.base7, head7: ref.head7, round: frame.round };
+        return { base8: ref.base8, head8: ref.head8, round: frame.round };
       }
       case "spec":
       case "plan":
@@ -513,13 +558,22 @@ export class Lifecycle {
 
   /** The frame's RouteTarget — the dispatch-ready literal's target identity (the
    *  frame's own facts: the wave task key · the branch range token · the doc path).
-   *  `type` rides the wave target type; `id` the frame's parameters. */
+   *  `type` rides the wave target type; `id` the frame's parameters; `plan` the
+   *  workspace plan path (the implement literal's required `--plan`). */
   #routeTarget(frame: OpenFrame): RouteTarget | null {
     switch (frame.type) {
       case "wave":
-        return { type: "wave", id: frame.params.tasks ?? "" };
+        return { type: "wave", id: frame.params.tasks ?? "", plan: this.#planPath ?? undefined };
       case "branch":
-        return { type: "branch", id: `${frame.params.base7}..${frame.params.head7}` };
+        // find #8 F1b (spec §5.7 fix ②): the branch target carries the workspace
+        // plan path — the fix/re-review literals' `--plan` (a plan-less
+        // `#sceneOf` resolves to the empty ref.short() directory · the workspace
+        // double identity · zero orchestrator fallback).
+        return {
+          type: "branch",
+          id: `${frame.params.base8}..${frame.params.head8}`,
+          plan: this.#planPath ?? undefined,
+        };
       case "spec":
       case "plan":
         return { type: frame.type, id: (frame.target as { kind: "doc"; doc: string }).doc };

@@ -1,6 +1,6 @@
 # Pi Harness 支持 P5 — 编译面收敛与结算（Phase Design Spec）
 
-- **Version**: v1.3 · 2026-10-02（review 循环收口：r1 七 finding 落地——发布面 files/main/exports 修指 dist · engine/scripts 门禁入配置面 + engine erasableSyntaxOnly · kairos-tests 10+1 计数 · engine README/05 改面 + retired 转述措辞；r2 二 finding 落地——task/branch lensEnum 接 buildability · CDD_MJS 实测计数；**v1.3 design backfill（plan-review-1 驱动）**——src 48 精确枚举修正（finalize 28/branch 8/harness 4/task 2/docs 2/registry 1/resource 1/write-boundary 2）+ kairos `type: module` ESM 前置规则 + review `next:` 附 `(read <handoff> back to confirm)` 说明（user 2026-10-02 mid-flight））
+- **Version**: v1.3 · 2026-10-02
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（kairos:cdd-design → grilling → cdd-phase）
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.27](2026-09-27-pi-harness-overall.md)
@@ -116,3 +116,9 @@
 - 发布面 `tsc --emit` 依赖结算完成（emit 也吃 48 条 src 债）→ **publish 前置 = 结算完成**，先清底再上闸
 - `typescript@7` 原生 CLI 无 JS-API——若未来 kairos/cdd-engine 需要程序化嵌 TS（如 dts）需另引入 JS-API 线（本 phase 零需求，登记为已知边界）
 - **overall v1.27 计数修正（backfill-as-version 待办）**：overall 正文「kairos tests×11 + helpers」（scope 行 72 与 change-history 行 143）实为 **10 个 `*.test.mjs` + 1 `helpers.mjs`**——本 spec 2.1 已以 10 为准；approved overall 冻结，本 phase 不动原文，下次 overall backfill-as-version 时随 P5 落地一并修正
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.3 | 2026-10-02 | review 循环收口：r1 七 finding 落地——发布面 files/main/exports 修指 dist · engine/scripts 门禁入配置面 + engine erasableSyntaxOnly · kairos-tests 10+1 计数 · engine README/05 改面 + retired 转述措辞；r2 二 finding 落地——task/branch lensEnum 接 buildability · CDD_MJS 实测计数；**v1.3 design backfill（plan-review-1 驱动）**——src 48 精确枚举修正（finalize 28/branch 8/harness 4/task 2/docs 2/registry 1/resource 1/write-boundary 2）+ kairos `type: module` ESM 前置规则 + review `next:` 附 `(read <handoff> back to confirm)` 说明（user 2026-10-02 mid-flight） | [human] |

@@ -21,8 +21,8 @@ import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { Ledger } from "../ledger.ts";
 
-const BASE = "a".repeat(40);
-const HEAD = "b".repeat(40);
+const BASE = "a".repeat(8);
+const HEAD = "b".repeat(8);
 
 /** A hermetic ledger fixture — a fresh temp workspace under a temp repo root. */
 function fixture(): { ledger: Ledger; workspace: Workspace; cleanup: () => void } {
@@ -130,9 +130,14 @@ describe("handoff — naming / carrier / single-author persist", () => {
       );
       expect(ledger.handoffName("review", "spec", { round: 1 })).toBe("spec-review-1.json");
       expect(ledger.handoffName("fix", "plan", { round: 1 })).toBe("plan-fix-1.json");
+      // find #9 — the branch family name is the spine `branch-{op}-{round}.json`
+      // (the range token left the file name — the carrier's commits hold the shas)
       expect(
-        ledger.handoffName("review", "branch", { base7: "abc1234", head7: "def5678", round: 1 }),
-      ).toBe("branch-review-abc1234..def5678-r1.json");
+        ledger.handoffName("review", "branch", { base8: "abc12345", head8: "def56789", round: 1 }),
+      ).toBe("branch-review-1.json");
+      expect(
+        ledger.handoffName("fix", "branch", { base8: "abc12345", head8: "def56789", round: 2 }),
+      ).toBe("branch-fix-2.json");
     } finally {
       cleanup();
     }
@@ -225,7 +230,7 @@ describe("crash — the lane-crash recovery record", () => {
         exitCode: 1,
         stderrTail: ["engine error: boom"],
         stdoutTail: [],
-        snapshotSha: "a".repeat(40),
+        snapshotSha: "a".repeat(8),
         attemptedHandoff: "tasks-1-implement.json",
         next: "cdd implement --tasks 1",
         cause: "child-exit" as const,
@@ -408,6 +413,8 @@ describe("review references — the refKind face (T25 · P5)", () => {
       const docRef = refs.docRevision("docs/kairos/specs/x-design.md", "revision one");
       expect(docRef.kind).toBe("doc-revision");
       expect(docRef.doc).toBe("docs/kairos/specs/x-design.md");
+      // the doc-revision content hash stays a full sha1 hex — a non-ref digest,
+      // unsliced (the 8-char form is the commit-refs surface, not this binding)
       expect(docRef.doc_hash).toMatch(/^[0-9a-f]{40}$/);
       // the same content hashes the same revision — the two-layer convergence
       const docRefAgain = refs.docRevision("docs/kairos/specs/x-design.md", "revision one");

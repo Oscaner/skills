@@ -1,6 +1,6 @@
 # 消费者面一致性（Consumer Parity）— P2 Design Spec
 
-- **Version**: v1.4 · 2026-09-21（v1.0 起草 · v1.1 spec-review r1 fix 全落地：closeout 硬门 lane 边界 / 审计面 gloss + Class B 归并 / 逐 lane 链入口 / AC1 补 branch / AC4 + 漂移闭环 scope 限定 / §5 核验改 dogfood · v1.2 spec-review r2 fix 全落地：§3 lane 边界登记（#7 判定解读 · Overall updated = Yes——v1.11 sync-overall）/ C4·D4 裸记号消歧 / 核心块 blocker 单数 + docs status TIMEOUT 归属 / §2.1 行号锚改节锚 / Class B version-lineage 处置 · v1.3 用户裁决时序修订（2026-09-21）：撤销 v1.11 lane 边界——回填 = **branch-review 前置义务**（finishing 撤销回填机制）、终态欠账**两门面皆硬门**（含 branch-review）、终态源扩为 parent overall 下所有 plan workspace——overall v1.12 回填 · **v1.4 spec-review r3 fix 全落地（2026-09-21）**：v1.3 时序修订的残留面同步——§2.1 item 5 失败语义改两门面皆硬门（删 fail-open / 咬合点 / lane 边界引用）、§1 四表纪律 #7 重述 v1.12 + 四处锚点 bump（Parent program / §0 块引 / §1 引言 / §2 引言）、AC1 尾注改指 §2.2 终态欠账硬门、§2.2 无死锁论证 task 通道句限定自身 plan 读解）
+- **Version**: v1.4 · 2026-09-21
 - **Status**: Approved
 - **Author**: [human] · Claude Opus 5 (1M context)
 - **Parent program**: [2026-09-21-consumer-parity-overall.md](./2026-09-21-consumer-parity-overall.md) · v1.12
@@ -127,3 +127,13 @@ P2 增量 = **engine lifecycle 统一抽象（breaking）**，四大设计面 + 
 - **P3（本仓校验面重建）**：输入 = S1/S2（`overall-consistency.ts` / `plan-spec-anchors.ts`）退役 + S3 活文档残留簇（file:line 已列 P1 design §2.2）+ S4 consumer-sim + 42 用例迁移面。P2 后此面两端变化：charter token 已入 canonical（P3 接线走 engine 同路径）、docs-handoff 契约已统一（P3 smoke-cdd 面按新契约升级 consumer-sim）；**F8a `\bH1\b` 守卫扫面盲区（scripts/ 不在 ALL_MECH_POSITIONS）处置位 = P3**（随 smoke-cdd/守卫退役面）。
 - **P4（发布闭环）**：输入 = S6（.changeset ×2 声称）+ ×9 旧 changesets 版本化 + cdd-engine major breaking 发布面（本 phase 全部变更）+ pack 内容审计（`cdd help`、canonical schema、templates/ 均为发布面内容）。
 - 本 phase 无「later phases 会处理」悬空项——所有跨 phase 移交均落上游 overall（v1.10/v1.11/v1.12）或本 §4 指针。
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.0 |  | 起草 | [human] |
+| v1.1 |  | spec-review r1 fix 全落地：closeout 硬门 lane 边界 / 审计面 gloss + Class B 归并 / 逐 lane 链入口 / AC1 补 branch / AC4 + 漂移闭环 scope 限定 / §5 核验改 dogfood | [human] |
+| v1.2 |  | spec-review r2 fix 全落地：§3 lane 边界登记（#7 判定解读 · Overall updated = Yes——v1.11 sync-overall）/ C4·D4 裸记号消歧 / 核心块 blocker 单数 + docs status TIMEOUT 归属 / §2.1 行号锚改节锚 / Class B version-lineage 处置 | [human] |
+| v1.3 | 2026-09-21 | 用户裁决时序修订（2026-09-21）：撤销 v1.11 lane 边界——回填 = **branch-review 前置义务**（finishing 撤销回填机制）、终态欠账**两门面皆硬门**（含 branch-review）、终态源扩为 parent overall 下所有 plan workspace——overall v1.12 回填 | [human] |
+| v1.4 | 2026-09-21 | spec-review r3 fix 全落地（2026-09-21）**：v1.3 时序修订的残留面同步——§2.1 item 5 失败语义改两门面皆硬门（删 fail-open / 咬合点 / lane 边界引用）、§1 四表纪律 #7 重述 v1.12 + 四处锚点 bump（Parent program / §0 块引 / §1 引言 / §2 引言）、AC1 尾注改指 §2.2 终态欠账硬门、§2.2 无死锁论证 task 通道句限定自身 plan 读解 | [human] |

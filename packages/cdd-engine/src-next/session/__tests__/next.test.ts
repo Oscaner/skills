@@ -18,6 +18,9 @@
 // type-check checkable) — they fail under tsc if the exported signatures drift.
 
 import { describe, expect, it } from "vitest";
+import { Capsule } from "../../face/capsule.ts";
+import { cli } from "../../face/cli.ts";
+import { Words } from "../../face/words.ts";
 import type { Round, RoundPhase } from "../ledger.ts";
 import type { Route } from "../next.ts";
 import {
@@ -86,17 +89,17 @@ describe("review rounds — zero findings flows the next wave on or closes the r
 });
 
 describe("fix rounds — the re-review / closure decision point (C5-1, close())", () => {
-  it("input blockers remain → re-review at a new ref (base = the fix round's head)", () => {
+  it("input blockers remain → re-review the fix's delta (base = the fix's base, head = the fix's head)", () => {
     expect(
       router.next(
         state([]),
         round({
           phase: "fix",
           findings: [finding("blocker", "remaining")],
-          commits: { base: "a".repeat(40), head: "b".repeat(40) },
+          commits: { base: "a".repeat(8), head: "b".repeat(8) },
         }),
       ),
-    ).toEqual({ kind: "review", base: "b".repeat(40) });
+    ).toEqual({ kind: "review", base: "a".repeat(8), head: "b".repeat(8) });
   });
 
   it("warn/nit only → done (closure via close() — the #278 REVIEW_FIX state, no re-review preview)", () => {
@@ -129,7 +132,7 @@ describe("fix rounds — the re-review / closure decision point (C5-1, close())"
     ).toEqual({ kind: "soft-cap", message: SOFT_CAP_SUGGESTION });
   });
 
-  it("below the cap, blockers still route the re-review (base = the fix round's head)", () => {
+  it("below the cap, blockers still route the re-review (the fix's delta span)", () => {
     expect(
       router.next(
         state([]),
@@ -137,27 +140,41 @@ describe("fix rounds — the re-review / closure decision point (C5-1, close())"
           phase: "fix",
           findings: [finding("blocker")],
           consecutiveS1: 2,
-          commits: { base: "a".repeat(40), head: "b".repeat(40) },
+          commits: { base: "a".repeat(8), head: "b".repeat(8) },
         }),
       )!.kind,
     ).toBe("review");
   });
 
-  it("a fix round with blockers but no head commit degrades to null — no invented re-review base", () => {
+  it("a fix round with blockers but no base/head commits degrades to null — no invented re-review range", () => {
     expect(
       router.next(state([]), round({ phase: "fix", findings: [finding("blocker")] })),
+    ).toBeNull();
+    // a base-only fix carrier (the abnormal shape — the re-review needs the FULL span:
+    // the branch literal refuses a half-composed --base-only range) also declines
+    expect(
+      router.next(
+        state([]),
+        round({ phase: "fix", findings: [finding("blocker")], commits: { base: "a".repeat(8) } }),
+      ),
     ).toBeNull();
   });
 });
 
 describe("implement / branch-review — the lifecycle rows", () => {
-  it("implement completes → the group's review (base = the round's task base)", () => {
+  it("implement completes → the group's review (the reviewed range base..head from the round)", () => {
     expect(
       router.next(
         state([]),
-        round({ phase: "implement", commits: { base: "a".repeat(40), head: "b".repeat(40) } }),
+        round({ phase: "implement", commits: { base: "a".repeat(8), head: "b".repeat(8) } }),
       ),
-    ).toEqual({ kind: "review", base: "a".repeat(40) });
+    ).toEqual({ kind: "review", base: "a".repeat(8), head: "b".repeat(8) });
+  });
+
+  it("an implement round carrying only the base still routes the review (the head rides when present)", () => {
+    expect(
+      router.next(state([]), round({ phase: "implement", commits: { base: "a".repeat(8) } })),
+    ).toEqual({ kind: "review", base: "a".repeat(8) });
   });
 
   it("an implement round without commits degrades to null — no invented next hop for a missing base", () => {
@@ -259,7 +276,8 @@ describe("the severity-combination space — every blocker/warn/nit MIX rides th
     ["blocker", "nit"],
     ["blocker", "warn", "nit"],
   ];
-  const HEAD = "b".repeat(40);
+  const HEAD = "b".repeat(8);
+  const FIX_DELTA = { base: "a".repeat(8), head: HEAD } as const;
 
   it.each(MIXES.map((mix) => [mix]))(
     "review findings %j — any mix routes fix (or close when empty)",
@@ -281,9 +299,9 @@ describe("the severity-combination space — every blocker/warn/nit MIX rides th
     "fix findings %j — blocker-any mix re-reviews; warn/nit-only closes",
     (mix) => {
       const findings = mix.map((severity) => finding(severity));
-      const fix = round({ phase: "fix", findings, commits: { base: "a".repeat(40), head: HEAD } });
+      const fix = round({ phase: "fix", findings, commits: FIX_DELTA });
       if (mix.includes("blocker")) {
-        expect(router.next(state([3]), fix)).toEqual({ kind: "review", base: HEAD });
+        expect(router.next(state([3]), fix)).toEqual({ kind: "review", ...FIX_DELTA });
       } else {
         expect(router.next(state([3]), fix)).toEqual({ kind: "next-wave", tasks: "3" });
         expect(router.next(state([]), fix)).toEqual({ kind: "done" });
@@ -300,4 +318,41 @@ describe("the severity-combination space — every blocker/warn/nit MIX rides th
       expect(route!.kind).toBe("fix");
     },
   );
+});
+
+// ---------------------------------------------------------------------------
+// P4.1 T4 — the route → literal → second-parse roundtrip: every router-route the C5
+// table can emit renders a next literal whose argv parses with zero errors (the
+// executable command reversal) · done is the bare terminal word, never fed.
+// ---------------------------------------------------------------------------
+
+describe("P4.1 T4 — the router's routes render parseable next literals (zero-error second parse)", () => {
+  /** The next text of a route rendered against a wave-frame target (the task face —
+   *  the C5 table's real consumer), then the parseable argv (the readback suffix is
+   *  prompt prose, never argv). */
+  function argvOf(route: Route): string[] {
+    const lines = new Capsule(new Words()).emit("APPROVED", "0", "/h.json", route, {
+      type: "wave",
+      id: "1,2",
+      plan: "docs/kairos/plans/p3.md",
+    });
+    const literal = lines[1]!.slice("next: ".length);
+    return literal
+      .replace(new RegExp(`\\s*\\(${FIX_READBACK_SUFFIX.slice(1, -1)}\\)$`), "")
+      .split(/\s+/);
+  }
+
+  it.each([
+    ["implement wave", { kind: "next-wave", tasks: "1,2" } as Route],
+    ["re-review", { kind: "review", base: "b".repeat(8) } as Route],
+    ["the one-way fix hop", { kind: "fix", findings: "tasks-1-review-1.json" } as Route],
+    ["closure", { kind: "done" } as Route],
+  ] as const)("%s — the route's literal argv parses", (_label, route) => {
+    if (route.kind === "done") {
+      // the bare terminal word: never fed to parse (a bare `done` is not a command)
+      expect(() => cli().parse(["done"])).toThrow(/unknown command: done/);
+      return;
+    }
+    expect(() => cli().parse(argvOf(route))).not.toThrow();
+  });
 });

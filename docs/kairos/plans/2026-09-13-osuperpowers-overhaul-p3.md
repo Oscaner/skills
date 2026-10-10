@@ -3,6 +3,7 @@
 **Spec:** [2026-09-13-osuperpowers-overhaul-p3-design.md](docs/kairos/specs/2026-09-13-osuperpowers-overhaul-p3-design.md)
 
 - **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.11](../specs/2026-09-13-osuperpowers-overhaul-overall.md)
+- **Version**: v1.0 · 2026-10-09
 - **Depends on**: P1 shipped（runtime 布局 `.osuperpowers/cdd` + standalone 移除，2026-09-14）；P2 shipped（docs 单根，2026-09-14）
 - **Base**: develop
 
@@ -209,3 +210,9 @@
   - 裸包名零命中（exit 1）；`closes #NNN` 计数按 (package × bump) 拆分预期（合计 10）；`F1`/`F2/F3/F4/F12`/`F5` 多重集 1→1 严格
   - 13 块全绿；无 drift
   - T6 变更面单提交落盘（conventional）
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.0 | 2026-10-09 | 建档于迁移（2026-10-09 全树迁移补建 Change history——此前无版本化记录，历史内容保真于文档正文） | [human] |

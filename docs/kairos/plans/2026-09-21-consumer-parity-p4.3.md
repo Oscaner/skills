@@ -2,7 +2,7 @@
 
 **Spec:** [2026-09-21-consumer-parity-p4.3-design.md](docs/kairos/specs/2026-09-21-consumer-parity-p4.3-design.md)
 - **Parent program**: [consumer-parity overall v1.32](docs/kairos/specs/2026-09-21-consumer-parity-overall.md)
-- **Version**: v1.5 · 2026-09-25（mid-flight 用户裁决：Skill 骨架结构从文本指导迁移为 canonical JSON Schema 单源——新增 **Task 11**（skill-anatomy schema + validate 严格 allowlist 机器校验 + 06-skill-authoring/CLAUDE.md 文本指导清理），plan 自 complete reopen 为 in-flight 继续展开；**章节统一**——全件四公共节 Flow Digraph / Node Definitions / Invariants / Failure Modes + 两条件节 Skeleton deltas（spec-writer trio 必携）· Pending Acceptance Patch（writing-plans 承载，去 `(cross-task findings consolidation)` 后缀变体统一单标题）；**Engine Semantics 内容并入 Invariants 表**（ddl->cdd 径 `## Engine Semantics` 独立节删除——其 four 事实是编排者契约，并入 Invariants 行承载）；**Flow Digraph 节仅 mermaid 块、零后随 prose**（report-issues 的 digraph 后节点陈述行随 Task 11 清理）；**Session Context 顶层章节崩溃入 `explore-current-session` 节点内联**）
+- **Version**: v1.5 · 2026-09-25
 - **Base**: develop
 - **Depends on**: P4.1（shipped · [p4.1-design v1.5](docs/kairos/specs/2026-09-21-consumer-parity-p4.1-design.md)）
 
@@ -255,3 +255,9 @@ engine 测试不得以本仓产物为 fixture（P3 裁决）——#274/#276 回�
   - digraph-consistency.test.mjs 断言面 schema 驱动化（grep 手写断言面与 schema 单源对拍，growth 15/17 常量来自 schema 非测试字面量）；e2e anti-white-green 断言保留（行为断言不删）
   - `git rm docs/maintainers/06-skill-authoring.md` 落地；`06-skill-authoring` live 面 grep 零命中（frozen 豁免）；CLAUDE.md 清理后结构指导零残留、治理面（语言政策/purity 铁律/提交纪律）保留
   - `pnpm run validate` 11 块全绿；本 plan 二次终结态落地后 P4.3 四表由 orchestration 二次 backfill-overall（reopen → re-close，v-bump + 列回填 + change-history 二次 claim）
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.5 | 2026-09-25 | mid-flight 用户裁决：Skill 骨架结构从文本指导迁移为 canonical JSON Schema 单源——新增 **Task 11**（skill-anatomy schema + validate 严格 allowlist 机器校验 + 06-skill-authoring/CLAUDE.md 文本指导清理），plan 自 complete reopen 为 in-flight 继续展开；**章节统一**——全件四公共节 Flow Digraph / Node Definitions / Invariants / Failure Modes + 两条件节 Skeleton deltas（spec-writer trio 必携）· Pending Acceptance Patch（writing-plans 承载，去 `(cross-task findings consolidation)` 后缀变体统一单标题）；**Engine Semantics 内容并入 Invariants 表**（ddl->cdd 径 `## Engine Semantics` 独立节删除——其 four 事实是编排者契约，并入 Invariants 行承载）；**Flow Digraph 节仅 mermaid 块、零后随 prose**（report-issues 的 digraph 后节点陈述行随 Task 11 清理）；**Session Context 顶层章节崩溃入 `explore-current-session` 节点内联** | [human] |

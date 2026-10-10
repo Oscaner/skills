@@ -9,7 +9,7 @@
 //     write), resolve() is the child-path single fact, slugFromDoc is the doc-file
 //     → slug derivation (`-design`/`-plan` suffix strip).
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 /** The repo-scoped workspace base — `<repoRoot>/<workspaceRoot>`. */
@@ -20,6 +20,28 @@ export class WorkspaceRoot {
   constructor(repoRoot: string, workspaceRoot: string) {
     this.repoRoot = repoRoot;
     this.path = path.join(repoRoot, workspaceRoot);
+  }
+
+  /** Idempotently create the workspace root + self-publish the namespace root's
+   *  `.gitignore` (a single `*` — everything under `.kairos/` is engine-owned, so
+   *  the git face ignores the whole namespace wholesale, the `cdd/` workspace and
+   *  any future sibling alike). The tree-clean gate then reads git's own judgment
+   *  — `isClean` with zero engine-side exclusion — a consumer repo with no `.kairos`
+   *  entry in its own `.gitignore` still stays clean across dispatches, because
+   *  the workspace publishes its keep-out marker at ensure time, before the gate
+   *  ever reads the tree (the F1 fix: the engine's run artifacts are engine-owned,
+   *  never "uncommitted user work"). The ignore affects only untracked files — a
+   *  user who git-tracks the workspace keeps seeing its changes on the gate. */
+  ensure(): WorkspaceRoot {
+    mkdirSync(this.path, { recursive: true });
+    // The namespace root — the workspace root's parent (`.kairos/cdd` → `.kairos`):
+    // the keep-out marker sits at the namespace's top, never per-workspace (the
+    // consumer-facing convention: ignore the whole `.kairos` namespace at once).
+    const namespaceRoot = path.dirname(this.path);
+    mkdirSync(namespaceRoot, { recursive: true });
+    const ignore = path.join(namespaceRoot, ".gitignore");
+    if (!existsSync(ignore)) writeFileSync(ignore, "*\n", "utf8");
+    return this;
   }
 }
 
@@ -44,6 +66,7 @@ export class Workspace {
 
   /** Idempotently create the workspace directory. */
   ensure(): Workspace {
+    this.root.ensure();
     mkdirSync(this.path, { recursive: true });
     return this;
   }

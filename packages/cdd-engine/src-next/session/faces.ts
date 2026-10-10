@@ -35,14 +35,19 @@ export type AuditFace =
   /** spec/plan: the open item is the audit document path. */
   | { kind: "doc-path" };
 
-/** The target identity a dispatch-ready `next:` literal renders (v1.25) — the
- *  frame's OWN facts (verb + target-type + id), never a router judgment: the wave
- *  task key · the branch range token · the doc path. */
+/** The target identity a dispatch-ready `next:` literal renders (v1.25 · P4.1 T4) —
+ *  the frame's OWN facts (verb + target-type + id), never a router judgment: the wave
+ *  task key · the branch range token · the doc path. The optional `plan` carries the
+ *  plan path the implement literal's required `--plan` fills (the wave/task-face
+ *  frame's only implement-consuming fact). */
 export interface RouteTarget {
   /** The target-type word of the literal (`wave` / `branch` / `spec` / `plan`). */
   type: TargetType;
-  /** The target id — the wave key `"1,2"` · the range `base7..head7` · the doc path. */
+  /** The target id — the wave key `"1,2"` · the range `base8..head8` · the doc path. */
   id: string;
+  /** The plan path (the implement literal's required `--plan` arg) — present only
+   *  on the task face (the doc faces carry their own id path). */
+  plan?: string;
 }
 
 /**

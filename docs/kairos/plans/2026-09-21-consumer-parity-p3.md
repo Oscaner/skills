@@ -2,6 +2,7 @@
 **Spec:** [2026-09-21-consumer-parity-p3-design.md](docs/kairos/specs/2026-09-21-consumer-parity-p3-design.md)
 
 - **Parent program**: [2026-09-21-consumer-parity-overall.md v1.17](../specs/2026-09-21-consumer-parity-overall.md)
+- **Version**: v1.0 · 2026-10-09
 - **Depends on**: P2（shipped，PR #272 `39ed65a8`）；P3 design v1.2 Approved（`db48a64e`，spec-review-5，blocker=0）
 - **Base**: develop（finishing read-base 数据源；consumer-parity-p3 工作分支）
 
@@ -197,3 +198,9 @@ dispatch 两端门——入口门（进入 review 前工作树干净）+ 出口�
 
 - **Acceptance**:
   - AC5——overall 四处 + osuperpowers-plugin.md + CLAUDE.md + SKILL:54 改写为 engine 执法位/历史时态；`grep "scripts/validate.*guard\|block 12.*consisten"` shipped docs/skills 面零现行主张（历史时态句允许）；AC7——program-experience 八项条目英文主源、各自可 grep Verify（第 8 项于本任务（T6 后）写入）；AC10——validate 11 全绿 · emit:check 零 drift · precommit 9 绿灯（pre-commit 子集 = 全量 11 − 5b0/5b1 = 9）· engine vitest 全绿 · AC1–AC9 逐条复核清单交付；overall v1.18 四表一致性（change-history 行与列态互证）。
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.0 | 2026-10-09 | 建档于迁移（2026-10-09 全树迁移补建 Change history——此前无版本化记录，历史内容保真于文档正文） | [human] |

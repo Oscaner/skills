@@ -38,8 +38,11 @@ export type Route =
   | { kind: "done" }
   /** closure — another wave is ready: the next dispatch wave's task ids. */
   | { kind: "next-wave"; tasks: string }
-  /** re-review at a new ref — base = the reviewed range's new start (the fix round's head). */
-  | { kind: "review"; base: string }
+  /** re-review at a new ref — base/head = the reviewed range's new span (the round
+   *  carrier's commits; the branch re-review literal needs the FULL range — the
+   *  runtime gate refuses a --base-only literal). head rides only when the carrier
+   *  carries it (only present facts land). */
+  | { kind: "review"; base: string; head?: string }
   /** the one-way fix hop — findingsPath = the review handoff the fix reads (`--findings`). */
   | { kind: "fix"; findings?: string }
   /** the review-cycle soft cap — the suggestion defers to user adjudication. */
@@ -77,12 +80,16 @@ export class NextStepRouter {
     switch (ref.phase) {
       case "implement": {
         // The implement round completes → the group's review is the next hop (the reviewed
-        // range base = the implement round's task base). Only present facts land: a missing
+        // range = the implement round's commits). Only present facts land: a missing
         // base never invents a next line (an implement round without commits is abnormal) —
         // an empty base would be indistinguishable from a real one in the rendered next:.
-        const base = ref.commits?.base;
-        if (base === undefined) return null;
-        return { kind: "review", base };
+        // The range's terminal (head) rides the carrier when present — the branch
+        // re-review literal's `--head` composes only from real facts, never invented.
+        const commits = ref.commits;
+        if (commits?.base === undefined) return null;
+        return commits.head === undefined
+          ? { kind: "review", base: commits.base }
+          : { kind: "review", base: commits.base, head: commits.head };
       }
       case "review":
         // One-way: any findings (any severity) → the fix round — a review never previews
@@ -97,11 +104,16 @@ export class NextStepRouter {
           return { kind: "soft-cap", message: SOFT_CAP_SUGGESTION };
         }
         if (this.#blockerCount(ref) > 0) {
-          // Blockers remain in the input findings → re-review at a new ref (the fix head).
-          // Only present facts land: a fix without a head commit never invents the re-review.
-          const base = ref.commits?.head;
-          if (base === undefined) return null;
-          return { kind: "review", base };
+          // Blockers remain in the input findings → re-review THE FIX'S DELTA: the branch
+          // re-review literal needs the FULL range — the runtime missing-refs gate refuses
+          // a --base-only literal (`missing required --base <sha> --head <sha>`), so the
+          // route composes base (the fix's base — the previously reviewed head the fix
+          // built on) + head (the fix's head — the new branch tip): the re-review covers
+          // exactly the fix's commits. Only present facts land: a fix carrier missing
+          // either leg never invents the re-review.
+          const commits = ref.commits;
+          if (commits?.base === undefined || commits.head === undefined) return null;
+          return { kind: "review", base: commits.base, head: commits.head };
         }
         // No blockers → the unified closure: the ready batch decides next-wave | done
         // (a warn/nit-only fix closes — the #278 REVIEW_FIX state, no re-review preview).

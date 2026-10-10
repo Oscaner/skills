@@ -3,7 +3,7 @@
 **Spec:** [2026-10-02-doc-architecture-v2-p2-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p2-design.md)
 
 - **Parent program**: [2026-10-02-doc-architecture-v2-overall.md v1.3](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.1 · 2026-10-05（v1.0 起草；**plan-review-1/2/3 三轮 review-fix 全落地**——r1 四 finding · r2 六 finding · r3 六 finding：tokens.test 符号面换源归位 T2/T3 · DOC_TOKENS 派生叶不变量 · T4 spec 侧合并读接口定名 · registry 接线显式化 · T6 词表平面不变实证 · 版本行按 P1 惯例回补）
+- **Version**: v1.1 · 2026-10-05
 - **Depends on**: P2 design v1.1 Approved（spec-review-1 七 finding 全落地，committed e1014b55）
 - **Base**: develop
 
@@ -170,3 +170,9 @@
 
 - **Acceptance**:
   - SKILL.md 骨架指导语 = 三真骨架 + 条件元数据（English，零程序历史）；skill-anatomy registry 校验绿；emit 重生成 fresh；`pnpm run validate` ALL PASS · typecheck ×3 绿 · biome clean；changesets 已建（cdd-engine + kairos 视变）；residue/lexicon guard 零回归
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.1 | 2026-10-05 | 起草；**plan-review-1/2/3 三轮 review-fix 全落地**——r1 四 finding · r2 六 finding · r3 六 finding：tokens.test 符号面换源归位 T2/T3 · DOC_TOKENS 派生叶不变量 · T4 spec 侧合并读接口定名 · registry 接线显式化 · T6 词表平面不变实证 · 版本行按 P1 惯例回补 | [human] |

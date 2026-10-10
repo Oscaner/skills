@@ -35,6 +35,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { declaredRegistries } from "../contract/declare.ts";
 import { PlanDocType } from "../contract/doc.ts";
+import { Contract } from "../contract/judge.ts";
 import type { DocKey } from "../contract/project.ts";
 import { Projector } from "../contract/project.ts";
 import { Translator } from "../contract/translate.ts";
@@ -56,9 +57,10 @@ import type { HandoffParams, OpType, RoundStatus } from "../session/ledger.ts";
 import { Ledger } from "../session/ledger.ts";
 import type { Route } from "../session/next.ts";
 import { NextStepRouter } from "../session/next.ts";
+import type { PreFlightVerdict } from "../session/preflight.ts";
+import { PreFlight } from "../session/preflight.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame, RunState } from "../session/run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../session/run.ts";
-import { WaveGate } from "../session/wave.ts";
 import { Capsule } from "./capsule.ts";
 import { GraphView } from "./graph-view.ts";
 import {
@@ -116,7 +118,7 @@ export interface ChannelArg {
 
 /** A per-command value-type override — a declared key whose value shape differs
  *  from the channel's global typing for that key (base set's `--base` carries
- *  a branch name, never the review range's 40-char sha). */
+ *  a branch name, never the review range's 8-char sha). */
 export type CliValueOverride = "branch";
 
 /** One declared arg of a command — the key + how strictly the run requires it. */
@@ -520,7 +522,10 @@ export class HarnessDispatch {
       // tokens under the wave-unitary model).
       WAVE: isWave ? (params.tasks ?? "") : "",
       INPUT_WAVE_BRIEF: this.#waveBrief(frame, scene, op),
-      INPUT_RULES: scene.workspace.resolve("plan-constraints.md"),
+      // find #4 (P4.1 T7): INPUT_RULES is RETIRED — the implement child reads the
+      // plan's `## Constraints` section directly through INPUT_PLAN (zero materialized
+      // plan-constraints file, zero dead pointer; the dispatcher-side rules channel is
+      // gone — the constraint source is the plan document itself).
       // v1.9: INPUT_FINDINGS is fix/docs-fix only — the open findings of the source
       // review; a review writes its own draft (INPUT_FINDINGS === OUTPUT_HANDOFF
       // would be a short-circuit).
@@ -531,6 +536,14 @@ export class HarnessDispatch {
       INPUT_RANGE: isReview ? this.#reviewRange(frame) : "",
       INPUT_PLAN: scene.planPath ?? "",
       INPUT_DOC: docPath ?? "",
+      // find #5 (P4.1 T7) — the prescribed artifact write paths (the {family}-{key}-
+      // {artifact} single naming): the round context carries the canonical OUTPUT_*
+      // names the child MUST use (zero free naming · cross-round zero overwrite); a
+      // slot the frame's family does not consume stays empty and is dropped (only
+      // present facts land).
+      OUTPUT_BRIEF: this.#outputOf(frame, "brief"),
+      OUTPUT_REPORT: this.#outputOf(frame, "report"),
+      OUTPUT_EVIDENCE: this.#outputOf(frame, "evidence"),
       OUTPUT_HANDOFF: scene.ledger.handoffPath(op, frame.type, params),
       FIX_BASE: op === "fix" ? this.#fixedPoint(frame, params) : "",
       REVIEW_TYPE: isReview ? frame.type : "",
@@ -541,6 +554,49 @@ export class HarnessDispatch {
       // faces — implement/fix — carry the evidence-file fence too).
       HANDOFF_SCHEMA: this.#schemaText(frame),
     };
+  }
+
+  /** The canonical prescribed OUTPUT_* write path of one artifact kind (find #5 —
+   *  the {family}-{key}-{artifact} single naming scheme; find #9 — branch line
+   *  drops the range token: `branch-{op}{-round}-report.md` · `branch-test-evidence.json`,
+   *  the carrier's `commits` holds the shas · doc = the {type}-{op}-{round} stem,
+   *  spec-review-1). "" when the frame's family does not consume the slot — only
+   *  present facts ride the prompt (the assembler drops the empty-valued keys). */
+  #outputOf(frame: OpenFrame, kind: "brief" | "report" | "evidence"): string {
+    const workspace = this.#scene.workspace;
+    const op = this.#opOf(frame);
+    if (frame.type === "spec" || frame.type === "plan") {
+      // The doc family — the round-keyed {type}-{op}-{round} stem (spec-review-1):
+      // every review/docs-fix round books its own report (a re-review never
+      // overwrites its predecessor); brief/evidence are work-family faces only.
+      if (kind !== "report") return "";
+      return workspace.resolve(`${frame.type}-${op}-${frame.round}-report.md`);
+    }
+    if (kind === "brief") {
+      // The implement round's brief — the engine-rendered input artifact (its canonical
+      // tasks-{wave}-brief.md name; the line/work faces other than implement carry none).
+      return frame.phase === "implement" ? (this.#scene.briefPath ?? "") : "";
+    }
+    const family = frame.type === "wave" ? `tasks-${frame.params.tasks ?? ""}` : "branch";
+    if (kind === "report") {
+      const suffix = frame.phase === "implement" ? "" : `-${frame.round}`;
+      return workspace.resolve(`${family}-${op}${suffix}-report.md`);
+    }
+    // evidence — the work faces only (implement/fix write the canonical evidence file)
+    if (frame.phase !== "implement" && frame.phase !== "fix") return "";
+    return workspace.resolve(this.#evidenceName(frame));
+  }
+
+  /** The canonical evidence file name of a work frame (find #5/#9 — the
+   *  {line}-test-evidence.json form: `tasks-{tasks}-test-evidence.json` /
+   *  `branch-test-evidence.json` — the branch line's row-level current state,
+   *  overwritten each round (the range token left the name);
+   *  the same name the read-back gate reads). The line token joins when the frame
+   *  keys it (the task face) — a key-less line (branch) names the family alone. */
+  #evidenceName(frame: OpenFrame): string {
+    const key = frame.type === "wave" ? (frame.params.tasks ?? "") : "";
+    const line = key === "" ? this.#evidencePrefix(frame) : `${this.#evidencePrefix(frame)}-${key}`;
+    return `${line}-test-evidence.json`;
   }
 
   /** The review's reference (INPUT_RANGE) — the fact the review criteria judge: the
@@ -576,15 +632,6 @@ export class HarnessDispatch {
     return "";
   }
 
-  /** The key token of a branch frame — the {base7}..{head7} range (the spine of
-   *  the branch-family evidence file name's `{branch}-{key}-` form). */
-  #keyOf(frame: OpenFrame): string {
-    if (frame.target.kind === "branch") {
-      return BranchRef.short(frame.target.base, frame.target.head);
-    }
-    return "";
-  }
-
   /** The fix round's fixed point — the source review's reviewed HEAD (the state the
    *  fix builds on — the shell's "the prior handoff's `commits.head`"; §3.7 closeout).
    *  Only present facts land: an unreadable source review yields the empty slot,
@@ -603,7 +650,7 @@ export class HarnessDispatch {
     const status = stdout.match(/^status:\s*(\S+)/m)?.[1];
     if (status === undefined) return { status: "BLOCKED" };
     const outcome: DispatchOutcome = { status: status as RoundStatus };
-    const commits = stdout.match(/^commits:\s*base=([0-9a-f]{40})(?:\s+head=([0-9a-f]{40}))?/m);
+    const commits = stdout.match(/^commits:\s*base=([0-9a-f]{8})(?:\s+head=([0-9a-f]{8}))?/m);
     if (commits !== null) outcome.commits = { base: commits[1], head: commits[2] ?? commits[1] };
     const artifacts = stdout.match(/^artifacts:(.*)$/m);
     if (artifacts !== null) {
@@ -660,9 +707,7 @@ export class HarnessDispatch {
     // docs faces (review/docs-fix) carry no evidence file. The read-back is REAL — a
     // missing/schema-violating file rewrites the draft to BLOCKED.
     if (face === "work") {
-      const prefix = this.#evidencePrefix(frame);
-      const key = frame.params.tasks ?? this.#keyOf(frame);
-      const evidenceName = `${prefix}-${key}-test-evidence.json`;
+      const evidenceName = this.#evidenceName(frame);
       const evidencePath = scene.workspace.resolve(evidenceName);
       const evidence = scene.workspace.readJson<unknown>(evidenceName);
       const evidenceProblems = schema.evidenceViolations(evidence);
@@ -676,7 +721,7 @@ export class HarnessDispatch {
       findings: face === "findings" ? schema.findingsOf(draft.findings) : undefined,
       commits: block.commits,
       artifacts: block.artifacts,
-      carrier: this.#materialize(face, draft, status, reason),
+      carrier: this.#materialize(frame, face, draft, status, reason),
     };
   }
 
@@ -705,14 +750,16 @@ export class HarnessDispatch {
    *  rewrites the status to BLOCKED + a failure_category + the reason note (the
    *  child's work preserved, marked bad). */
   #materialize(
+    frame: OpenFrame,
     face: HandoffSchemaFace,
     draft: Record<string, unknown>,
     status: RoundStatus,
     reason: string | null,
   ): Record<string, unknown> {
     const ledger = this.#scene.ledger;
+    const notes: string[] = [];
     const carrier = ledger.buildHandoff({
-      artifacts: this.#stringMap(draft.artifacts),
+      artifacts: this.#canonicalArtifacts(frame, draft.artifacts, notes),
       findings: face === "findings" ? this.#findingsList(draft.findings) : [],
       commits: this.#commitsOf(draft.commits),
     });
@@ -720,14 +767,58 @@ export class HarnessDispatch {
     if (Array.isArray(draft.changes)) carrier.changes = draft.changes;
     if (typeof draft.failure_category === "string")
       carrier.failure_category = draft.failure_category;
-    const notes = Array.isArray(draft.notes) ? [...(draft.notes as unknown[])] : [];
+    const draftNotes = Array.isArray(draft.notes) ? [...(draft.notes as unknown[])] : [];
     if (reason !== null) {
       carrier.status = "BLOCKED";
       carrier.failure_category = "evidence-contract";
-      notes.push(reason);
+      draftNotes.push(reason);
     }
-    if (notes.length > 0) carrier.notes = notes;
+    if (notes.length > 0 || draftNotes.length > 0) carrier.notes = [...notes, ...draftNotes];
     return carrier;
+  }
+
+  /** The carrier's artifacts map (find #5 — the engine self-derives, never trusts a
+   *  child-reported path for the canonical slots): a declared PRESCRIBED slot
+   *  (brief/report/test_evidence) books the frame's canonical OUTPUT_* path — a
+   *  free-named deviation is replaced and surfaced on the notes (the review scope
+   *  axis reads them); the non-prescribed slots (a docs-fix's `doc`, child extras)
+   *  pass verbatim. undefined when the draft declared no artifacts. */
+  #canonicalArtifacts(
+    frame: OpenFrame,
+    artifacts: unknown,
+    notes: string[],
+  ): Record<string, string> | undefined {
+    const declared = this.#stringMap(artifacts);
+    if (declared === undefined) return undefined;
+    const out: Record<string, string> = {};
+    for (const [key, value] of Object.entries(declared)) {
+      const canonical = this.#prescribedArtifact(frame, key);
+      if (canonical !== "" && value !== canonical) {
+        notes.push(
+          `artifact ${key}: declared path ${value} deviates from the prescribed ${canonical} — the canonical path is booked`,
+        );
+        out[key] = canonical;
+      } else {
+        out[key] = value;
+      }
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+  }
+
+  /** The prescribed path of one block-artifact slot — a slot the frame's family
+   *  prescribes (brief/report/test_evidence → the canonical OUTPUT_* name), "" for
+   *  every other slot (a docs-fix's `doc` is never prescribed, it passes verbatim). */
+  #prescribedArtifact(frame: OpenFrame, slot: string): string {
+    switch (slot) {
+      case "brief":
+        return this.#outputOf(frame, "brief");
+      case "report":
+        return this.#outputOf(frame, "report");
+      case "test_evidence":
+        return this.#outputOf(frame, "evidence");
+      default:
+        return "";
+    }
   }
 
   /** The work carrier's status — the child's declared conclusion (the schema's enum
@@ -805,9 +896,12 @@ export class HarnessDispatch {
         return `cdd implement --tasks ${frame.params.tasks ?? ""} --plan ${plan}`;
       case "branch-review": {
         const range = frame.target as { kind: "branch"; base: string; head: string };
-        // the CLI review face validates 40-char shas — the one full-form consumer
+        // find #10 — the review face consumes the 8-char short flags (full-shas
+        // retired engine-wide); the workspace-identity `--plan` rides (find #8
+        // F1b · spec §5.7 fix ② — a plan-less `#sceneOf` resolves to the empty
+        // ref.short() directory).
         const ref = new BranchRef(range.base, range.head);
-        return `cdd review --type branch ${ref.args()}`;
+        return `cdd review --type branch --plan ${plan} ${ref.args()}`;
       }
       case "review":
         if (frame.type === "spec") return `cdd review --type spec --spec ${this.#docOf(frame)}`;
@@ -818,9 +912,12 @@ export class HarnessDispatch {
         const target =
           frame.target.kind === "doc"
             ? `--${frame.type === "spec" ? "spec" : "plan"} ${frame.target.doc}`
-            : // branch fix carries no refs — the range rides the --findings handoff
+            : // branch fix carries no refs — the range rides the --findings handoff;
+              // the workspace-identity `--plan` still rides (find #8 F1b · spec §5.7
+              // fix ② — a plan-less `#sceneOf` resolves to the empty ref.short()
+              // directory, with zero orchestrator fallback)
               frame.target.kind === "branch"
-              ? ""
+              ? `--plan ${plan}`
               : `--tasks ${frame.params.tasks ?? ""} --plan ${plan}`;
         return `cdd fix --type ${frame.type} ${target} --findings ${findings}`;
       }
@@ -853,6 +950,7 @@ export interface CliOptions {
   repoRoot?: string;
   dryRun?: boolean;
   dispatch?: DispatchStep | null;
+  preflight?: PreFlight;
   template?: TemplateAssembler;
   brief?: BriefRenderer;
   stdinRead?: () => string;
@@ -895,8 +993,10 @@ export class Cli {
   readonly #docKeys: readonly string[];
   /** The plan-graph display (the schema get plan-graph + the pre-flight face). */
   readonly #graphView: GraphView;
-  /** The three-verb unified wave gate (the task-face dispatch pre-flight). */
-  readonly #waveGate: WaveGate;
+  /** The lifecycle pre-flight seam (P4.1 T1) — the single dispatch gate the work
+   *  commands consult before ANY child dispatch (tree-clean → plan-graph → wave →
+   *  doc-contract; the CLI orchestrates the call + the render, never a re-type). */
+  readonly #preflight: PreFlight;
 
   constructor(opts: CliOptions = {}) {
     this.#io = opts.io ?? {
@@ -920,7 +1020,13 @@ export class Cli {
     this.#channels = this.#channelTable();
     this.#docKeys = Object.keys(this.#projector.registries().schema);
     this.#graphView = new GraphView();
-    this.#waveGate = new WaveGate();
+    this.#preflight =
+      opts.preflight ??
+      new PreFlight({
+        git: this.#git,
+        contract: new Contract(),
+        words: this.#words,
+      });
   }
 
   // ---------------------------------------------------------------------------
@@ -1127,6 +1233,34 @@ export class Cli {
       );
     }
     const scene = await this.#sceneOf(verb, type, parsed);
+
+    // THE pre-flight seam (P4.1 T1 · design §1): the single dispatch gate —
+    // tree-clean → plan-graph → wave → doc-contract — ONE call, the whole sequence
+    // lives in the seam (session/preflight.ts), the CLI only orchestrates the call
+    // + the verdict render (zero re-implemented gate here). A refused verdict
+    // returns before any brief/lifecycle: no child dispatch ever runs. The
+    // dirty-tree / doc-contract refusals ride the CDD_BLOCKED channel; the
+    // plan-graph / wave refusals keep the pre-existing refusal face.
+    const preflight = await this.#preflight.vet({
+      verb: verb as "implement" | "review" | "fix",
+      type,
+      repoRoot: scene.workspace.root.repoRoot,
+      planText: scene.planText,
+      tasks: type === "wave" ? new Set(this.#tasksOf(parsed)) : null,
+      ledger: scene.ledger,
+      doc:
+        type === "spec" || type === "plan"
+          ? {
+              docKey: type === "plan" ? "plan" : "phaseSpec",
+              path: scene.target !== null && scene.target.kind === "doc" ? scene.target.doc : "",
+            }
+          : null,
+    });
+    if (!preflight.ok) {
+      this.#renderPreflightBlocked(verb, preflight, scene);
+      return 1;
+    }
+
     if (verb === "implement" && scene.planText !== null)
       scene.briefPath = this.#renderBrief(scene, parsed);
     const expected =
@@ -1158,48 +1292,6 @@ export class Cli {
       for (const id of scene.ledger.closedWaves()) scene.state.markDone(id);
     }
 
-    // The wave pre-flight gate (v1.21 — the three-verb unified wave gate): the plan
-    // graph must validate before ANY dispatch (a violation — missing-edge / missing-id
-    // / self-loop / cycle — BLOCKs with the named edge issues; the task-loss class
-    // dies here, never silently), and the task face's `--tasks` must be EXACTLY the
-    // derived open wave at the requested verb's phase. A split/subset `--tasks`, a
-    // wrong-phase request, or a mixed-phase wave BLOCKs for implement AND review AND
-    // fix alike (the implement-only strict-wave check + the phase lock fuse into the
-    // single WaveGate.vet — never a variant gate per verb).
-    if ((type === "wave" || type === "plan") && scene.planText !== null) {
-      const parsedPlan = new PlanDocType("plan").parse(scene.planText.split("\n"));
-      const graph = new TaskGraph(parsedPlan);
-      const issues = graph.validate();
-      if (issues.length > 0) {
-        this.#io.stderr(
-          `cdd ${verb}: the plan graph has ${issues.length} edge violation(s) — fix the **DependsOn** edges first\n`,
-        );
-        for (const issue of issues)
-          this.#io.stderr(`  ${issue.kind}@T${issue.task}: ${issue.message}\n`);
-        return 1;
-      }
-      if (type === "wave" && group !== null) {
-        const verdict = this.#waveGate.vet(group, verb as OpType, graph, scene.ledger, this.#words);
-        if (!verdict.ok) {
-          this.#io.stderr(
-            `cdd ${verb}: ${verdict.message ?? "the dispatch gate refused the request"}\n`,
-          );
-          if (verdict.reason === "split") {
-            // The full-wave hint + the wave-board — the board's done face rides the
-            // SAME closedWaves() read the gate judged (one closed set, one source).
-            if (this.#graphView !== null) {
-              const closed = scene.ledger.closedWaves();
-              for (const line of this.#graphView
-                .render(graph.report(closed), `plan-graph: ${scene.planPath ?? ""}`)
-                .split("\n"))
-                this.#io.stderr(`  ${line}\n`);
-            }
-          }
-          return 1;
-        }
-      }
-    }
-
     const statuses: (RoundStatus | null)[] = [];
     const dispatch: DispatchStep = this.#dispatchOf(scene, parsed);
     const run = new Lifecycle({
@@ -1207,6 +1299,11 @@ export class Cli {
       state: scene.state,
       ledger: scene.ledger,
       router: scene.router,
+      // The dispatch-entry pre-flight wiring (P4.1 T1): the single seam verdict the
+      // work command computed rides the lifecycle's gate — a refused frame is
+      // structurally never passed to the child (the lifecycle's hard "child zero-dispatch"
+      // guarantee; the CLI already returned above when the seam refused).
+      preflight: { gate: () => (preflight.ok ? null : preflight) },
       dispatch: (frame) => {
         const outcome = dispatch(frame);
         statuses.push(outcome.status ?? null);
@@ -1220,7 +1317,8 @@ export class Cli {
         return outcome;
       },
       target: scene.target ?? undefined,
-      capsule: new Capsule(this.#words),
+      capsule: new Capsule(this.#words, this.#channels),
+      planPath: scene.planPath,
     });
 
     // The requested-phase gate — the line faces (branch/spec/plan) keep the
@@ -1265,6 +1363,12 @@ export class Cli {
       }
       const step = run.advance();
       if (step === null) break;
+      // The dispatch-entry gate's refusal (the lifecycle's hard child zero-dispatch wiring —
+      // structurally unreachable here: the seam already returned above on refusal).
+      if (step.preflight !== undefined) {
+        this.#renderPreflightBlocked(verb, step.preflight, scene);
+        return 1;
+      }
       dispatched += 1;
       latest = step.capsuleLines;
       lastStatus = statuses[statuses.length - 1] ?? null;
@@ -1345,6 +1449,30 @@ export class Cli {
     }
   }
 
+  /** Render a refused pre-flight verdict — the work command's BLOCK face (P4.1 T1).
+   *  The dirty-tree / doc-contract refusals ride the CDD_BLOCKED channel (the
+   *  commit/discard guidance + the named structural findings); the plan-graph / wave
+   *  refusals keep the pre-existing refusal face (the wave-board hint renders for the
+   *  wave gate's split row — its done face rides the SAME closedWaves() read the gate
+   *  judged, one closed set, one source). */
+  #renderPreflightBlocked(verb: CliVerb, verdict: PreFlightVerdict, scene: WorkScene): void {
+    if (verdict.gate === "tree-clean" || verdict.gate === "doc-contract") {
+      this.#io.stderr(`${this.#words.station("blocked")} ${verdict.message ?? ""}\n`);
+      for (const detail of verdict.details ?? []) this.#io.stderr(`  ${detail}\n`);
+      return;
+    }
+    this.#io.stderr(`cdd ${verb}: ${verdict.message ?? "the dispatch gate refused the request"}\n`);
+    for (const detail of verdict.details ?? []) this.#io.stderr(`  ${detail}\n`);
+    if (verdict.gate === "wave" && verdict.reason === "split" && scene.planText !== null) {
+      const graph = new TaskGraph(new PlanDocType("plan").parse(scene.planText.split("\n")));
+      const closed = scene.ledger.closedWaves();
+      for (const line of this.#graphView
+        .render(graph.report(closed), `plan-graph: ${scene.planPath ?? ""}`)
+        .split("\n"))
+        this.#io.stderr(`  ${line}\n`);
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // the requested-phase gate — the work commands' readiness check
   // ---------------------------------------------------------------------------
@@ -1373,11 +1501,12 @@ export class Cli {
     return route?.kind === "review" ? reviewLead : null;
   }
 
-  /** The line key of a fixed-target face — the ledger-round key (branch range / doc
-   *  path — the lifecycle's own key derivation). */
+  /** The line key of a fixed-target face — the branch line's STABLE key (find #9
+   *  · spec §6.5 — `"branch"` per workspace, accumulating across re-reviews; the
+   *  old form was the range short, its head moving every fix → new key → round
+   *  reset to 1) or the doc path — the lifecycle's own key derivation (run.ts #lineKey). */
   #lineKey(scene: WorkScene): string | null {
-    if (scene.target?.kind === "branch")
-      return BranchRef.short(scene.target.base, scene.target.head);
+    if (scene.target?.kind === "branch") return "branch";
     if (scene.target?.kind === "doc") return scene.target.doc;
     return null;
   }
@@ -1386,7 +1515,7 @@ export class Cli {
   #lineParams(scene: WorkScene, round: number): HandoffParams {
     if (scene.target?.kind === "branch") {
       const ref = new BranchRef(scene.target.base, scene.target.head);
-      return { base7: ref.base7, head7: ref.head7, round };
+      return { base8: ref.base8, head8: ref.head8, round };
     }
     return { round };
   }
@@ -1494,7 +1623,7 @@ export class Cli {
       }
       case "branch": {
         // The branch ref is declared at ONE face — `cdd review --type branch
-        // --base --head` (the range's birth face, 40-char flags). Every other
+        // --base --head` (the range's birth face, 8-char flags). Every other
         // face derives it from a single carrier: the fix face reads its source
         // review handoff's `commits` (--findings) — zero extra CLI params (⑦ —
         // the old engine's fix channel; re-declaring the range on the fix CLI
@@ -1783,8 +1912,11 @@ export class Cli {
         }
         return value;
       case "sha":
-        if (!/^[0-9a-f]{40}$/.test(value)) {
-          throw this.#usage(`cdd ${spec.name}: --${key} must be a 40-char sha`, surface.usage);
+        // find #10 (spec §6.6 · the user's ruling: no long shas anywhere in the
+        // engine): the CLI sha channel accepts the 8-char short form (40-char
+        // full shas retired).
+        if (!/^[0-9a-f]{8}$/.test(value)) {
+          throw this.#usage(`cdd ${spec.name}: --${key} must be an 8-char sha`, surface.usage);
         }
         return value;
       case "int":

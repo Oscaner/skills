@@ -2,7 +2,7 @@
   "docType": "phase-spec",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "phase-spec document structure",
-  "description": "Derived JSON Schema — 21 declared elements · 13 required",
+  "description": "Derived JSON Schema — 25 declared elements · 17 required",
   "type": "object",
   "properties": {
     "# Title": {
@@ -12,7 +12,7 @@
     },
     "**Version**": {
       "type": "string",
-      "pattern": "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+",
+      "pattern": "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+ · \\d{4}-\\d{2}-\\d{2}$",
       "description": "presence: required · home: header · ref: version-lineage"
     },
     "**Status**": {
@@ -109,6 +109,26 @@
       "type": "string",
       "pattern": "^## Review record$",
       "description": "presence: conditional · home: conditional · ref: none"
+    },
+    "## Change history": {
+      "type": "string",
+      "pattern": "^## Change history$",
+      "description": "presence: required · home: section · ref: none"
+    },
+    "Change history row": {
+      "type": "string",
+      "pattern": "^\\|\\s*v\\d+\\.\\d+\\s*\\|",
+      "description": "presence: required · home: table · ref: version-lineage"
+    },
+    "Version token": {
+      "type": "string",
+      "pattern": "^v\\d+\\.\\d+$",
+      "description": "presence: required · home: table · ref: version-lineage"
+    },
+    "Change history date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "presence: required · home: table · ref: none"
     }
   },
   "required": [
@@ -124,6 +144,10 @@
     "### Acceptance criteria",
     "Acceptance entry",
     "## Constraints",
-    "Constraint delta bullet"
+    "Constraint delta bullet",
+    "## Change history",
+    "Change history row",
+    "Version token",
+    "Change history date"
   ]
 }

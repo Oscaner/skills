@@ -303,6 +303,103 @@ describe("the canonical repo forms (no false positives on real conventions)", ()
     expect(withKind(findings, "domain", "## Program charter")).toBe(false);
   });
 
+  it("presence+domain: the TITLED task heading is a valid `### Task N:` (the tree-wide form)", () => {
+    // find #8: the registry's bare-heading pattern rejected the titled form — the
+    // wave's own plan (25/25 plans use `### Task N: <title>`) was reported missing
+    const content = [
+      "# Test Plan",
+      "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
+      "- **Parent program**: [x-overall.md v1.21](docs/kairos/specs/x-overall.md)",
+      "",
+      "### Task 1: task title",
+      "- **Objective**: objective",
+      "- **Files**: file",
+      "- **Consumes**: consumes",
+      "- **Produces**: produces",
+      "- **Steps**:",
+      "  - step one",
+      "- **Acceptance**: acceptance",
+      "- **DependsOn**: none",
+    ].join("\n");
+    const findings = judge("plan", content, EMPTY_FS);
+    expect(withKind(findings, "presence", "### Task N:")).toBe(false);
+    expect(withKind(findings, "domain", "### Task N:")).toBe(false);
+    // the bare heading is the same pattern's canonical form — both conform
+    const bare = content.replace("### Task 1: task title", "### Task 1:");
+    expect(withKind(judge("plan", bare, EMPTY_FS), "presence", "### Task N:")).toBe(false);
+    // a non-numeric heading is still outside the domain
+    expect(
+      withKind(
+        judge("plan", content.replace("### Task 1:", "### Task X:"), EMPTY_FS),
+        "presence",
+        "### Task N:",
+      ),
+    ).toBe(true);
+  });
+
+  it("domain: a nested backtick citation (`outer quote … inner `anchor`) is not judged as a value", () => {
+    // find #8: the old span-by-span strip consumed the outer quote's opener and left
+    // the nested `…` citation naked — the p4.1 spec's command-quoted prose was judged
+    // as `## Constraints` / `**Version**` values
+    const content = [
+      "# Test Plan",
+      "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
+      "- **Parent program**: [x-overall.md v1.21](docs/kairos/specs/x-overall.md)",
+      "- **Depends on**: P1",
+      "- **Consumes**: T1（`read the plan's `## Constraints` (at INPUT_PLAN)`）·「`the `**Version**` header`」零残留",
+      "",
+      ...planTask(1),
+    ].join("\n");
+    const findings = judge("plan", content, EMPTY_FS);
+    expect(withKind(findings, "domain", "## Constraints")).toBe(false);
+    expect(withKind(findings, "domain", "**Version**")).toBe(false);
+  });
+
+  it("two adjacent backtick spans read as ONE quoted region — the mid-span prose is not judged (the pinned first-last strip)", () => {
+    // The find-#8 first-last strip consumes the whole first→last backtick region as
+    // quoted. On a line carrying TWO separate spans, the prose BETWEEN them is part
+    // of that region — an anchor quoted only there is invisible to the domain rule.
+    // Pinned tradeoff (the comment on #withoutCodeSpans): the enforced docs' quoted
+    // shapes are the simple `span` and the nested citation, neither of which hides a
+    // real structural anchor between two adjacent spans; a span-by-span strip would
+    // judge this middle prose and reopen the nested-citation gap the pin closes.
+    const content = [
+      "# Test Spec",
+      "- **Version**: v1.1 · 2026-10-09",
+      "- **Status**: Draft",
+      "- **Author**: x",
+      "- **Parent program**: [x-overall.md v1.0](docs/kairos/specs/x-overall.md)",
+      "- **Depends on**: P1",
+      "",
+      "## Design",
+      "",
+      "intro — the double-layer skeleton semantics.",
+      "",
+      "### 1. 数据面",
+      "#### 1.1 登记表",
+      "- text",
+      "",
+      "### Acceptance criteria",
+      "",
+      "- `c`",
+      "",
+      "## Constraints",
+      "",
+      "- delta",
+      "",
+      "## Change history",
+      "",
+      "| Version | date | summary | author |",
+      "|---|---|---|---|",
+      "| v1.0 | 2026-10-08 | prior | [human] |",
+      "| v1.1 | 2026-10-09 | merged | [human] |",
+    ]
+      .join("\n")
+      .replace("- **Status**: Draft", "- `p1` then **Status**: Deleted then `p2`");
+    const findings = judge("phaseSpec", content, EMPTY_FS);
+    expect(withKind(findings, "domain", "**Status**")).toBe(false);
+  });
+
   it("order: the change-history rows must be version-ascending (canonical oldest-first)", () => {
     const content = GOOD_OVERALL.replace(
       ["| v1.20 | 2026-10-06 | prior change |", "| v1.21 | 2026-10-07 | merged change |"].join(
@@ -408,6 +505,205 @@ describe("the coordinator", () => {
     expect(withKind(findings, "section-scoped-domain", "Issue inventory")).toBe(true);
     expect(withKind(findings, "presence", "Issue inventory")).toBe(false); // sections are present
     expect(findings.length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P4.1 T2 — the three-type homogeneity: `**Version**` required + strict (number · date) ·
+// `## Change history` required ×3 · selfBounded ×3 (header = the newest in-row)
+// ---------------------------------------------------------------------------
+
+/** A minimal phase-spec carrying the canonical version lineage (strict Version
+ *  header + a Change-history table) — the T2 judgment surface. */
+function specLineage(headerVersion: string, rows: readonly string[]): string {
+  return [
+    "# Test Spec",
+    `- **Version**: ${headerVersion}`,
+    "- **Status**: Draft",
+    "- **Author**: x",
+    "- **Parent program**: [x-overall.md v1.0](docs/kairos/specs/x-overall.md)",
+    "- **Depends on**: P1",
+    "",
+    "## Design",
+    "",
+    "intro — the double-layer skeleton semantics.",
+    "",
+    "### 1. 数据面",
+    "#### 1.1 登记表",
+    "- text",
+    "",
+    "### Acceptance criteria",
+    "",
+    "- `c`",
+    "",
+    "## Constraints",
+    "",
+    "- delta",
+    "",
+    "## Change history",
+    "",
+    "| Version | date | summary | author |",
+    "|---|---|---|---|",
+    ...rows,
+  ].join("\n");
+}
+
+/** A minimal plan carrying the canonical version lineage. */
+function planLineage(headerVersion: string, rows: readonly string[]): string {
+  return [
+    "# Test Plan",
+    "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
+    "- **Parent program**: [x-overall.md v1.0](docs/kairos/specs/x-overall.md)",
+    `- **Version**: ${headerVersion}`,
+    "",
+    "## Constraints",
+    "",
+    "- delta",
+    "",
+    ...planTask(1),
+    "",
+    "## Change history",
+    "",
+    "| Version | date | summary | author |",
+    "|---|---|---|---|",
+    ...rows,
+  ].join("\n");
+}
+
+const ROW_100 = "| v1.0 | 2026-10-08 | prior | [human] |";
+const ROW_101 = "| v1.1 | 2026-10-09 | merged | [human] |";
+
+describe("P4.1 T2 — **Version** presence required ×3 (plan optional → required)", () => {
+  it("a plan without a **Version** header is reported", () => {
+    const content = planLineage("v1.0 · 2026-10-09", [ROW_100]).replace(
+      "- **Version**: v1.0 · 2026-10-09",
+      "",
+    );
+    const findings = judge("plan", content);
+    expect(withKind(findings, "presence", "**Version**")).toBe(true);
+  });
+
+  it("a phase-spec without a **Version** header is reported", () => {
+    const content = specLineage("v1.0 · 2026-10-09", [ROW_100]).replace(
+      "- **Version**: v1.0 · 2026-10-09",
+      "",
+    );
+    const findings = judge("phaseSpec", content);
+    expect(withKind(findings, "presence", "**Version**")).toBe(true);
+  });
+
+  it("an overall without a **Version** header is reported (the requiredness holds)", () => {
+    const content = GOOD_OVERALL.replace("- **Version**: v1.21 · 2026-10-07", "");
+    const findings = judge("overall", content, GOOD_OVERALL_FS);
+    expect(withKind(findings, "presence", "**Version**")).toBe(true);
+  });
+});
+
+describe("P4.1 T2 — the **Version** strict form (number + date · zero supplement/link/bold)", () => {
+  it("a trailing parenthetical supplement is refused (plan and spec)", () => {
+    for (const [docKey, doc] of [
+      ["plan", planLineage("v1.0 （v1.0 补充）", [ROW_100])],
+      ["phaseSpec", specLineage("v1.0 （v1.0 补充）", [ROW_100])],
+    ] as const) {
+      expect(withKind(judge(docKey, doc), "domain", "**Version**")).toBe(true);
+    }
+  });
+
+  it("a trailing prose supplement after the date is refused (plan and spec)", () => {
+    for (const [docKey, doc] of [
+      ["plan", planLineage("v1.0 · 2026-10-09 说明应在 Change history", [ROW_100])],
+      ["phaseSpec", specLineage("v1.0 · 2026-10-09 说明应在 Change history", [ROW_100])],
+    ] as const) {
+      expect(withKind(judge(docKey, doc), "domain", "**Version**")).toBe(true);
+    }
+  });
+
+  it("a bold **vX.Y** form is refused (plan and spec)", () => {
+    for (const [docKey, doc] of [
+      ["plan", planLineage("**v1.0** · 2026-10-09", [ROW_100])],
+      ["phaseSpec", specLineage("**v1.0** · 2026-10-09", [ROW_100])],
+    ] as const) {
+      expect(withKind(judge(docKey, doc), "domain", "**Version**")).toBe(true);
+    }
+  });
+
+  it("the canonical `vX.Y · date` form carries no **Version** domain finding (plan and spec)", () => {
+    for (const docKey of ["plan", "phaseSpec"] as const) {
+      const doc =
+        docKey === "plan"
+          ? planLineage("v1.0 · 2026-10-09", [ROW_100])
+          : specLineage("v1.0 · 2026-10-09", [ROW_100]);
+      expect(withKind(judge(docKey, doc), "domain", "**Version**")).toBe(false);
+    }
+  });
+});
+
+describe("P4.1 T2 — `## Change history` presence required ×3", () => {
+  it("a plan without the Change-history section is reported", () => {
+    const content = planLineage("v1.0 · 2026-10-09", [ROW_100]).replace(
+      [
+        "## Change history",
+        "",
+        "| Version | date | summary | author |",
+        "|---|---|---|---|",
+        ROW_100,
+      ].join("\n"),
+      "",
+    );
+    const findings = judge("plan", content);
+    expect(withKind(findings, "presence", "## Change history")).toBe(true);
+  });
+
+  it("a phase-spec without the Change-history section is reported", () => {
+    const content = specLineage("v1.0 · 2026-10-09", [ROW_100]).replace(
+      [
+        "## Change history",
+        "",
+        "| Version | date | summary | author |",
+        "|---|---|---|---|",
+        ROW_100,
+      ].join("\n"),
+      "",
+    );
+    const findings = judge("phaseSpec", content);
+    expect(withKind(findings, "presence", "## Change history")).toBe(true);
+  });
+
+  it("an overall without the Change-history section is reported (the requiredness holds)", () => {
+    const content = GOOD_OVERALL.replace(
+      [
+        "## Change history",
+        "| Version | Date | Summary |",
+        "| --- | --- | --- |",
+        "| v1.20 | 2026-10-06 | prior change |",
+        "| v1.21 | 2026-10-07 | merged change |",
+      ].join("\n"),
+      "",
+    );
+    const findings = judge("overall", content, GOOD_OVERALL_FS);
+    expect(withKind(findings, "presence", "## Change history")).toBe(true);
+  });
+});
+
+describe("P4.1 T2 — selfBounded applies to spec/plan (header = the newest in-row)", () => {
+  it("a phase-spec whose header is NOT the change-history's newest row is reported", () => {
+    const findings = judge("phaseSpec", specLineage("v1.0 · 2026-10-09", [ROW_100, ROW_101]));
+    expect(withKind(findings, "selfBounded", "**Version**")).toBe(true);
+  });
+
+  it("a plan whose header is OUTSIDE the lineage is reported", () => {
+    const findings = judge("plan", planLineage("v1.2 · 2026-10-09", [ROW_100, ROW_101]));
+    expect(withKind(findings, "selfBounded", "**Version**")).toBe(true);
+  });
+
+  it("a spec/plan whose header IS the newest in-row version carries no selfBounded finding", () => {
+    for (const docKey of ["plan", "phaseSpec"] as const) {
+      const doc =
+        docKey === "plan"
+          ? planLineage("v1.1 · 2026-10-09", [ROW_100, ROW_101])
+          : specLineage("v1.1 · 2026-10-09", [ROW_100, ROW_101]);
+      expect(withKind(judge(docKey, doc), "selfBounded", "**Version**")).toBe(false);
+    }
   });
 });
 

@@ -74,3 +74,9 @@
 
 - P5：graph-node ref（R5）消费本 phase 图模型形状——组件（原子闭包分量）id / 派生组序 / 边集即 P5 DispatchContract 的 graph-node 数据面；P3 输出的 `TaskGraph` 类与派生产物为 P5 引用契约（本 phase 不实施 P5 消费面）
 - **overall 回填待办（backfill-as-version）**：overall v1.6 P3 行 acceptance 列七项旧措辞（无环断言 / union==task set / 原子闭包 / 越界 / 自引 / 矛盾边 / 重复）与其自身 F1 决策五类（越界 / 自引 / 矛盾边 / 环 / 重复，overall:59）不一致——overall 下一版本回填该列收敛为五类措辞；五类 ↔ 七项映射见 §1 一致性注记（原子闭包 = 组派生语义、union==task set 构造恒满足，均非 BLOCK 类）；本 design 不代笔 frozen overall
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.1 | 2026-10-05 | （迁移建档——版本谱系自 `**Version**` 头转录 · 原头未载变更摘要） | [human] |

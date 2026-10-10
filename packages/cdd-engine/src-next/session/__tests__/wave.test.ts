@@ -64,8 +64,8 @@ function graphOf(blocks: readonly (readonly string[])[]): TaskGraph {
 
 const gate = new WaveGate();
 const words = new Words();
-const base = "a".repeat(40);
-const head = "b".repeat(40);
+const base = "a".repeat(8);
+const head = "b".repeat(8);
 
 /** A clean APPROVED review carrier — the C5 closure record for a task line. */
 function cleanReviewCarrier(ledger: Ledger, tasks: string, round: number): void {

@@ -1,6 +1,6 @@
 # Pi Harness P3 — engine 数据面（Pi Harness P3: Engine Data Plane）— Phase Spec
 
-- **Version**: v1.6 · 2026-09-30（spec review-1 fix v1.1 + P3 契约面/词表增项 v1.2 + spec review-2 fix v1.3 + 崩溃恢复健壮性增项 v1.4 + 统一终止模型增项 v1.5 + 预算维度统一增项 v1.6）
+- **Version**: v1.6 · 2026-09-30
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming → writing-phase-spec)
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.17](2026-09-27-pi-harness-overall.md)
@@ -184,3 +184,14 @@ record），恢复 = 同命令重跑即续作**。
 - **Contract Lexicon 与 emit 的关系**：`contract-lexicon.json` 若放 engine templates/schema（`../../cdd-engine` 引用面），emit 产物面不新增文件（词表 = engine 数据面，非分发 manifest）；CLAUDE.md/`pnpm run emit` 描述随 validate block 更新（emit:check 零漂移）
 - **T7 波及面（崩溃恢复）**：`HARNESS_ABORT` 类别与 crash record 是新增横切——validate 的 channel-audit 需将 harnessAbortCount 纳入逐类计数断言（零泄漏）；`--no-verify` 快照语义写入 maintainers（hook 旁路的唯一正当理由 = crash-only snapshot）；P4 收口若引擎形状再变，ContractLexiconGuard.checkWording 机械拦截（零漂移）；crash record 属于工作区状态族，不参与消费面 restate
 - **T8 波及面（统一终止模型）**：resume 软帽进入 state 面（progress/lifecycle 持久化 crash 恢复计数，逐任务独立）；reapStale 枚举面扩为 crash records + lifecycle 全部工作区 artifact（T6 enum 基座直接复用）；`recovery.residue_ref` 删除面 = progress 字段 + SKILL 措辞 + 测试（channel-audit 断言随删）；类别/机制解耦后 failureCategories 表增 `HARNESS_ABORT` 的身份面测试维持、机制层单路测试新增——类别身份与机制测试分面、互不耦合
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.1 |  | spec review-1 fix | [human] |
+| v1.2 |  | P3 契约面/词表增项 | [human] |
+| v1.3 |  | spec review-2 fix | [human] |
+| v1.4 |  | 崩溃恢复健壮性增项 | [human] |
+| v1.5 |  | 统一终止模型增项 | [human] |
+| v1.6 | 2026-09-30 | 预算维度统一增项 | [human] |

@@ -3,7 +3,7 @@
 **Spec:** [2026-10-02-doc-architecture-v2-p1-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p1-design.md)
 
 - **Parent program**: [2026-10-02-doc-architecture-v2-overall.md v1.2](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.1 · 2026-10-04（v1.0 起草；**v1.1 plan-review r1 七 finding 全落地**：overall detect 改四表表头特征 + 反例 · detect 零命中 fail-fast throw · words 键集 `command.{status,capsule,route}` · 开线 GATE · words.ts 钉位 · lifecycle 调用点钉 `DocsLifecycle.run` · 死牵引 grep 双模式）
+- **Version**: v1.1 · 2026-10-04
 - **Depends on**: P1 design v1.1 Approved（spec-review r1 七 finding 全落地，committed）
 - **开线 GATE**: pi-harness P5 closeout 未完成前不起 P1 执行线（与整体 Boundary rules 同步——overall Boundary rules 与 p1-design Section 1 均明确该 GATE 生效点）
 - **Base**: develop
@@ -171,3 +171,10 @@
 
 - **Acceptance**:
   - `deriveDocTokens` live 派生经 `DocType.shape` 域访问器承载（tokens.test 等价回归 + doctored-shape live 测试全绿）；DOC_TOKENS 值不变；死牵引零残留（grep 双模式 `src/documents/schema/` ∪ `documents/schema/` 在 CLAUDE.md + src/ 注释面零命中 · `ex lib/` 残留清理）；`pnpm run validate` 全块全绿；changeset 已建（cdd-engine）。
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.0 |  | 起草 | [human] |
+| v1.1 | 2026-10-04 | plan-review r1 七 finding 全落地**：overall detect 改四表表头特征 + 反例 · detect 零命中 fail-fast throw · words 键集 `command.{status,capsule,route}` · 开线 GATE · words.ts 钉位 · lifecycle 调用点钉 `DocsLifecycle.run` · 死牵引 grep 双模式 | [human] |

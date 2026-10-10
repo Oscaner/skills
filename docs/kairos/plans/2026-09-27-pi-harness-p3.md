@@ -3,7 +3,7 @@
 **Spec:** [2026-09-27-pi-harness-p3-design.md](docs/kairos/specs/2026-09-27-pi-harness-p3-design.md)
 
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.17](docs/kairos/specs/2026-09-27-pi-harness-overall.md)
-- **Version**: v1.10 · 2026-09-30（plan review-3 fixes v1.3 + 用户拍板 T6 bootstrap v1.4 → Workspace 收编 v1.5 → T6 补钉 v1.6 → T7 崩溃恢复 v1.7 → review-5 fixes v1.8 → **T8 统一终止模型 v1.9** → **T9 预算维度统一 v1.10**）
+- **Version**: v1.10 · 2026-09-30
 - **Depends on**: P3 design v1.6 Approved（`495707f4` 前版 C1–C7 + 契约面 D1–D4 + Contract Lexicon L2 + 崩溃恢复 T7 + 统一终止模型 T8 + 预算维度统一 T9）
 - **Base**: develop
 
@@ -214,3 +214,16 @@
 
 - **Acceptance**:
   - `timeouts.defaults` 恰 `{implement: 21600000, review: 10800000, fix: 21600000}` 且**无 `task` key**（config 读断言 + grep 兜底）；`cdd review --type task` 预算 = review 默认 3h（接线断言钉死，T7 事故根因即此）· branch-fix = fix 默认 6h；三岛接线断言全绿（7 个 op 组合——spawn 传出 budget = 对应 op 默认值）；resolver 单测迁完（`"task"` budget 断言零残留）；`DEFAULT_TIMEOUTS` 类型面 union 化；`pnpm run validate` 全绿（含 channel-audit）+ precommit 面绿。
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.3 |  | plan review-3 fixes | [human] |
+| v1.4 |  | 用户拍板 T6 bootstrap | [human] |
+| v1.5 |  | Workspace 收编 | [human] |
+| v1.6 |  | T6 补钉 | [human] |
+| v1.7 |  | T7 崩溃恢复 | [human] |
+| v1.8 |  | review-5 fixes | [human] |
+| v1.9 |  | T8 统一终止模型 | [human] |
+| v1.10 | 2026-09-30 | T9 预算维度统一 | [human] |

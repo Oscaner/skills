@@ -29,12 +29,15 @@ const capsule = new Capsule(words);
 describe("the word table — one table, three families", () => {
   it("the doc family derives from the T2 registries — the DOC_TOKENS face", () => {
     // the registered plan anchors are doc words; the counts = the declared registry
-    // element counts (39 / 24 / 21 — the complete-contract pin of declare.ts)
+    // element counts (39 / 28 / 25 — P4.1 T2 added the Change-history row/version/
+    // date elements ×2 to plan/phaseSpec, 24→28 · 21→25)
     expect(words.docWords("overall").length).toBe(39);
-    expect(words.docWords("plan").length).toBe(24);
-    expect(words.docWords("phaseSpec").length).toBe(21);
+    expect(words.docWords("plan").length).toBe(28);
+    expect(words.docWords("phaseSpec").length).toBe(25);
     expect(words.docWords("plan")).toContain("### Task N:");
     expect(words.docWords("plan")).toContain("**DependsOn**");
+    expect(words.docWords("plan")).toContain("## Change history");
+    expect(words.docWords("phaseSpec")).toContain("## Change history");
     expect(words.docWords("overall")).toContain("## Dependency graph");
     expect(words.docWords("phaseSpec")).toContain("## Design");
     expect(words.hasDocWord("plan", "**Acceptance**")).toBe(true);
@@ -78,7 +81,7 @@ describe("the word table — one table, three families", () => {
   it("the capsule carries zero second table — every emitted word rides this instance", () => {
     const emitted = capsule.emit("APPROVED", "0", "/ws/tasks-1-implement.json", {
       kind: "review",
-      base: "a".repeat(40),
+      base: "a".repeat(8),
     });
     // the emitted keys ARE the table's keys, in the table's order — no parallel list
     const keysOf = emitted[0]
@@ -102,19 +105,21 @@ describe("the capsule byte pin — the single output face", () => {
   });
 
   it("renders the `next:` line per the C5 route row (each kind, only present facts)", () => {
-    const base = "a".repeat(40);
+    const base = "a".repeat(8);
     expect(capsule.emit("APPROVED", "0", "/h.json", { kind: "done" })).toEqual([
       "status: APPROVED · blocker: 0 · handoff: /h.json",
       "next: done",
     ]);
     expect(capsule.emit("APPROVED", "0", "/h.json", { kind: "next-wave", tasks: "7,9" })).toEqual([
       "status: APPROVED · blocker: 0 · handoff: /h.json",
-      // v1.25 — the ready wave renders the dispatch-ready verb + type + key
-      "next: implement wave 7,9",
+      // P4.1 T4 — the complete executable literal; the absent target seeds the
+      // `<plan>` placeholder (the crash-resume's own seed convention)
+      "next: implement --plan <plan> --tasks 7,9",
     ]);
     expect(capsule.emit("REVIEW_FIX", "0", "/h.json", { kind: "review", base })).toEqual([
       "status: REVIEW_FIX · blocker: 0 · handoff: /h.json",
-      "next: review aaaaaaa",
+      // the bare review fallback (no target — the type discriminator is absent)
+      "next: review",
     ]);
     expect(
       capsule.emit("CHANGES_REQUESTED", "1", "/h.json", {
@@ -123,7 +128,7 @@ describe("the capsule byte pin — the single output face", () => {
       }),
     ).toEqual([
       "status: CHANGES_REQUESTED · blocker: 1 · handoff: /h.json",
-      `next: tasks-1-review-1.json ${FIX_READBACK_SUFFIX}`,
+      `next: fix --findings tasks-1-review-1.json ${FIX_READBACK_SUFFIX}`,
     ]);
     // a fix route without its input renders the bare classifier
     expect(capsule.emit("CHANGES_REQUESTED", "1", "/h.json", { kind: "fix" })).toEqual([
@@ -142,15 +147,17 @@ describe("the capsule byte pin — the single output face", () => {
     ]);
   });
 
-  it("renders the dispatch-ready `next:` literal with the frame's RouteTarget (v1.25)", () => {
-    const base = "a".repeat(40);
-    const target = { type: "wave", id: "1,2" } as const;
-    // a re-review of a wave — `review wave {tasks} (base {base7})`
+  it("renders the complete executable `next:` literal with the frame's RouteTarget (P4.1 T4)", () => {
+    const base = "a".repeat(8);
+    const target = { type: "wave", id: "1,2", plan: "docs/kairos/plans/p.md" } as const;
+    // a re-review of a wave — `review --type wave --tasks {tasks} --plan <path>`
+    // (no base — the wave round's ref rides the ledger; parse needs type + tasks,
+    // the runtime-required --plan rides the frame's plan fact — find #7)
     expect(capsule.emit("REVIEW_FIX", "0", "/h.json", { kind: "review", base }, target)).toEqual([
       "status: REVIEW_FIX · blocker: 0 · handoff: /h.json",
-      "next: review wave 1,2 (base aaaaaaa)",
+      "next: review --type wave --tasks 1,2 --plan docs/kairos/plans/p.md",
     ]);
-    // the one-way fix hop — `fix wave {tasks} --findings {path} (read file back)`
+    // the one-way fix hop — `fix --type wave --tasks {tasks} --plan <p> --findings <f>`
     expect(
       capsule.emit(
         "CHANGES_REQUESTED",
@@ -161,20 +168,22 @@ describe("the capsule byte pin — the single output face", () => {
       ),
     ).toEqual([
       "status: CHANGES_REQUESTED · blocker: 1 · handoff: /h.json",
-      `next: fix wave 1,2 --findings tasks-1,2-review-1.json ${FIX_READBACK_SUFFIX}`,
+      `next: fix --type wave --tasks 1,2 --plan docs/kairos/plans/p.md --findings tasks-1,2-review-1.json ${FIX_READBACK_SUFFIX}`,
     ]);
-    // the fragment identity renders the other target types — `review branch base7..head7`
+    // the other target types render their discriminator arg — branch (the FULL range:
+    // --base + --head + the workspace --plan — the runtime gate refuses a --base-only
+    // literal, find #8/#9 · the 8-char short shas, find #10 · spec §6.6)
     expect(
       capsule.emit(
         "REVIEW_FIX",
         "0",
         "/h.json",
-        { kind: "review", base },
-        { type: "branch", id: "1234567..89abcde" },
+        { kind: "review", base, head: "b".repeat(8) },
+        { type: "branch", id: "12345678..89abcdef9", plan: "docs/kairos/plans/p.md" },
       ),
     ).toEqual([
       "status: REVIEW_FIX · blocker: 0 · handoff: /h.json",
-      "next: review branch 1234567..89abcde (base aaaaaaa)",
+      `next: review --type branch --plan docs/kairos/plans/p.md --base ${base.slice(0, 8)} --head ${"b".repeat(8)}`,
     ]);
     expect(
       capsule.emit(
@@ -186,7 +195,15 @@ describe("the capsule byte pin — the single output face", () => {
       ),
     ).toEqual([
       "status: REVIEW_FIX · blocker: 0 · handoff: /h.json",
-      "next: review spec docs/kairos/specs/x-design.md (base aaaaaaa)",
+      "next: review --type spec --spec docs/kairos/specs/x-design.md",
+    ]);
+    // implement renders NO `--type` — the single-type wave verb (the declaration's
+    // `parsed.args.type ?? "wave"` default unchanged; the plan rides the plan path)
+    expect(
+      capsule.emit("APPROVED", "0", "/h.json", { kind: "next-wave", tasks: "1,2" }, target),
+    ).toEqual([
+      "status: APPROVED · blocker: 0 · handoff: /h.json",
+      "next: implement --plan docs/kairos/plans/p.md --tasks 1,2",
     ]);
   });
 

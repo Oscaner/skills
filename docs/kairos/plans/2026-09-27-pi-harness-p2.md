@@ -154,3 +154,9 @@
 
 - **Acceptance**:
   - `.husky/pre-commit` 内容 = `pnpm exec lint-staged`（单行，手写 biome/restage 零残留）；`lint-staged.config.mjs` 存在（`*.ts → biome check` 无 `--write` · `* → pnpm run precommit`）；`biome-wiring.test.ts` 重写全绿（pin no-fix + catch-all 保留）；`biome:fix` 保留手动、hook 零调用；staged TS violation 提交被拦实证一次（任务产出记录）；`pnpm run validate` 全块全绿（含新提交门）。
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.2 | 2026-09-29 | （迁移建档——版本谱系自 `**Version**` 头转录 · 原头未载变更摘要） | [human] |

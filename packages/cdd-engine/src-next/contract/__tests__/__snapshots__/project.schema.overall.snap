@@ -12,7 +12,7 @@
     },
     "**Version**": {
       "type": "string",
-      "pattern": "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+",
+      "pattern": "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+ · \\d{4}-\\d{2}-\\d{2}$",
       "description": "presence: required · home: header · ref: version-lineage"
     },
     "**Status**": {

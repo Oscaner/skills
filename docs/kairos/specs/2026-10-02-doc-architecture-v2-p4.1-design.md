@@ -1,0 +1,204 @@
+# 文档架构方法论 v2 — P4.1 Design Spec（lifecycle 前置校验统一 · schema 一致硬化 · next 可执行字面量）
+
+- **Version**: v1.10 · 2026-10-09
+- **Status**: Draft
+- **Author**: [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer · 决策源 = grilling 收敛 + spec-review-1/2 修正 2026-10-09）
+- **Parent program**: [doc-architecture-v2-overall.md v1.47](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
+- **Depends on**: P3.2（Done · overall v1.47 —— serial-phase GATE 满足，P4.1 可开线）
+- **全树基线修正声明**：较 parent overall v1.47 的 P4.1 注册行/依赖图/变更行（5 拆链 · 47 spec/plan 补齐 · 10 无头建档），本 spec 基线以 2026-10-09 实测复核为准（4 携链 · 49 补表 · 12 无匹配形 = 10 真无头建档 + 2 bold 归一）——差异为父注册后的实测修正，phase close 六表同步以本声明对账
+
+## Design
+
+P4 起写期三发现作用域化为本 phase（用户 2026-10-09 拍板「直接作用域 lifecycle 前置校验 · schema 统一看」（六前提）+「next 最好是能给出可执行命令的字面量」（v1.39 语义文本实证反效——agent 反复试错映射反而增 token））：① review（及全部 dispatch）缺 clean-tree 前置硬门——技能文本已宣称「engine entry gate: dirty → BLOCKED」但引擎零实现（契契/实现错位，`isClean()` 原语闲置）；② 文档版本谱系结构泄漏——`**Version**` 头堆积链式/补充说明散文、spec/plan 无 `## Change history` 归宿、selfBounded 只判 overall、presence/pattern 三类型不一致；③ `next:` 语义字面（v1.39 · T26 ⑥-h）需 agent 心智映射为完整命令，试错成本反超 token 减量收益——反转决策：渲染完整可执行命令。本 phase 三发现统一收敛：前置校验进 Lifecycle 单一 seam · schema 面三类型同构 · next 字面可执行化。全树迁移基线（2026-10-09 实测）：**53 文档**（specs 29 · plans 24）· **4 overall**（已有 Change history）· **49 非 overall**（23 design + 1 cdd-review-contract-fix + 24 plans + 本文件）· **12 无匹配形**（10 真无头 · 2 bold 形——p3.2 design/plan `**vX.Y**`）· **4 携链**（p3.1/p3.2 design×2 + plan×2）· **25 非严格形 Version 头**（= 有头且非严格、不含 bold——2 bold 归 12 无匹配形桶，机械扫「有头非严格」27 = 25 + 2 口径自洽 · 含 3 旧 overall：osuperpowers `v1.61`/consumer-parity `v1.49` 缺日期 · pi-harness `v1.30` 带补充说明）。迁移范围按**规则**定义（spec-review-1 blocker 纠正：静态计数易腐，以规则 + 机械复核为准，数字为实测基线并非验收真值）。
+
+### 1. Lifecycle 前置校验统一（pre-flight seam）
+
+#### 1.1 现状与契契/实现错位
+
+现有前置门散在三处（无统一 seam）：wave 波次门 + plan-graph validate 在 `#runWork`（face/cli.ts）· doc-contract 结构判定在 `Contract.validate()`（contract/judge.ts）· evidence/读回门在 dispatch child 面（产出回读，**非前置**）。`infra/git.ts#isClean()` 原语存在但全引擎零消费（引擎测试核验成立）。cdd-spec-writer / cdd-plan / cdd-dev 的 Invocation discipline 均宣称「engine entry gate: dirty → BLOCKED」——技能契约已声明、引擎行为缺失，每次 doc review 在脏树裸跑。
+
+#### 1.2 Clean-tree 硬门（全动词）
+
+`implement` / `review` / `fix` 任一 dispatch 前置统一插入 `isClean()` 检查：工作树脏 → BLOCKED（`CDD_BLOCKED:` 通道 + 指引「commit 或 discard 后按 `next:` 重跑」），child 零派发。三动词同一门（零例外、零 downgrade）——兑现技能文本已宣称的 entry gate，恢复 osuperpowers P4 双门纪律（review 基准 = 已提交状态）。
+
+#### 1.3 Pre-flight seam 收敛形态（钉死单入口）
+
+前置校验收敛为 **Lifecycle pre-flight seam 单入口**（`Lifecycle` 前置校验方法，或 service 面等价单点）：tree-clean 门 + doc-contract 门（`Contract.validate`）+ wave 波次门（`WaveGate.vet`）顺序组合；cli 只编排、不重复实现（零「cli 面第二份实现」）。门序：tree-clean →（wave 面）plan-graph validate + WaveGate →（doc 面）Contract.validate → dispatch。**evidence/读回门留驻 dispatch child 面**（产出回读语义 · 非前置；seam 不含）。
+
+#### 1.4 输出契约
+
+BLOCK 话术走既有 `CDD_BLOCKED:` 通道 + `next:` 重跑指引（词表钉）；skill 输出面零新字段。
+
+#### 1.5 Clean-tree 实现形态（workspace 自产 `.gitignore` · 用户拍板 · W1 裁定）
+
+**clean-tree 门零引擎侧排除——`isClean` 保持纯 `git status` 语义**：引擎工作区的 git 可见性由 workspace 自管，不归 dispatch 门。`WorkspaceRoot.ensure()` 在 **namespace 根（`.kairos/`）** 幂等自产 `.gitignore`（内容 `*`）——git 面整体自净，消费者零配置（README 无 `.kairos` ignore 义务）。**选型历程**：F1 review-1 曾建议并落地「门前置特判排除 `.kairos/cdd`」（方案 A：`isClean` 加 ignorePath 参数 + `--untracked-files=all` 展开 + `PreFlightContext.workspaceRoot` 穿透 + README 消费者义务）——三处代价且是**双真相**（引擎的 `isClean` 说干净、`git status` 说不干净）；用户 2026-10-09 裁定「workspace 自产 `.gitignore`」（方案 B）并进一步拍板「**只要 `.kairos` 下的**」——marker 落 namespace 根而非 `.kairos/cdd/`（A 被弃、fix-2 的 cdd 收口亦被裁决打回，commit 序列 `f4f1d29` → `cda2837` → `d23f88f`）。时序由 F1 review 实证背书：`#sceneOf` 的 ensure 先于 `preflight.vet` 的 isClean。**语义加分**：`.gitignore` 只影响 untracked 文件——用户 git-track 了工作区后，对它的修改仍会触发 gate（引擎自产内容被纳入版本控制属用户责任，引擎视同用户文件），方案 A 的排除面反而会放过。此裁决是 P4.1 清洁门面的最终形态，任何后续改动不得打回。消费者无 `.kairos` ignore 的多轮派发不自锁回归测试位于 `preflight.test.ts` + `cli.test.ts`（seam + CLI 两级）。
+
+### 2. Schema 一致硬化（三类型同构）
+
+#### 2.1 `**Version**` presence required ×3
+
+计划注册表 `**Version**` 现为 optional（历史残余；overall/phase-spec 均 required）→ 三类型统一 required。有版本谱系是文档常态；optional 造成「无头文档无谱系」不一致。bold 形（`**vX.Y**`）一并归一（2 文档——p3.2 design/plan）。
+
+#### 2.2 `**Version**` valuePattern 严格形
+
+头仅版本号+时间零补充说明（用户 2026-10-09 裁定：「Version 不需要有补充说明，只要版本号+时间即可。所有说明都应该在 change history 里」）：`^- \*\*Version\*\*: v\d+\.\d+ · \d{4}-\d{2}-\d{2}$`。头部链式（`前置 v…` telescope）与 parenthetical 补充说明从此结构上不可能——一切说明归 `## Change history`。
+
+#### 2.3 `## Change history` required ×3（补齐）
+
+spec/plan 注册表新增 `## Change history` 元素（含行/版本 token/日期元素，与 overall 同构）；presence = required（补齐，不 conditional）。version-lineage refKind 从此三类型都有结构归宿。
+
+#### 2.4 selfBounded ×3
+
+selfBounded invariant 现只判 overall（`this.overall(ctx)` 非 overall 归空）→ 扩展判 spec/plan：header version = 表中最新行且必在行内。版本头与变更记录一致性机械钉住三类型。
+
+#### 2.5 派生面同步
+
+元素登记表（contract/declare.ts）为唯一声明源——valuePattern/presence 改动 → 派生 schema / slices / description 全投影（一声明四派生），schema 字节 pin 测试随动更新。
+
+### 3. 全树迁移（规则为准 · 基线数字实测）
+
+#### 3.1 范围声明
+
+迁移集 = **全树 53 文档**：4 overall（已有表 · 头部严格化——`v1.61`/`v1.49` 补日期（= 其 Change history 末行日期，零虚构）· pi-harness 去补充说明）+ **49 非 overall 补齐 `## Change history`**（23 design + 1 cdd-review-contract-fix + 24 plans + 本文件示范）+ **12 无匹配形**（10 真无头 plans 建档：补 `**Version**` 头 + 初始行，formalize 非虚构 · 2 bold 形 `**vX.Y**` 归一为严格形，有版号非建档）+ **4 携链拆链成行**。数字为 2026-10-09 实测基线；**实施期以机械清点复核为准**（验收按规则断言 · 不按基线字面数）。
+
+#### 3.2 拆链与建表
+
+4 携链文档（p3.1/p3.2 design×2 + plan×2，均无表）：头部 `前置 v…` 逐版本拆为 `## Change history` 行（overall 链已随 P4-close 拆除）。overall 已有表 → 仅头部严格化复核。表行版本升序 ascending。
+
+#### 3.3 保真转录与零残留共处定案
+
+**保真转录** = 头部历史文本结构性拆为表行（版本摘要逐字入 summary 列，历史正文零 retro-rename）：④ 携链 telescope 按 `前置 vX.Y` token 逐版拆行；`**Version**` 头补充说明内嵌的多版本历史**同样转录**（实测样本：consumer-parity p2 design v1.4 括号内 v1.0→v1.4 全史 · osuperpowers p3 design v1.2 括号内 v1.0/v1.1/v1.2 · pi-harness p5 plan v1.3 括号后 v1.0→v1.4 序列）——按 `· vX.Y` 版本 token **全量切行**（非仅最新版单行）、摘要逐字入行，行切分粒度由此定案。**机 pin 无损断言扫描面 = 迁移前头部文本 vs 迁移后表行并集零漏**；**`前置 v` 零残留 grep 扫描面 = `**Version**` 头行**（归一化后）——Change history 表行豁免（表行正当含历史字样「前置 vX.Y · date」；引述/版本行改名记录为历史清单豁免）。两验收不互斥：结构段剥离（头零残留）+ 行内残留按表行豁免。
+
+#### 3.4 严格形与建档
+
+全树 `**Version**` 头剥除补充说明/链/bold 形 → 严格形 `vX.Y · date`（25 非严格形全清，含 3 旧 overall——口径：非严格形 = 有头且非严格、不含 bold，2 bold 归 12 无匹配形桶；剥除文本零丢弃：链按 §3.2 拆行、补充说明按 §3.3 转录）。**10 真无头补 `**Version**` 头 + 初始行**（2 bold 形有头、非建档——p3.2 design/plan 兼为 4 携链，表行随 §3.2 拆链归入）。零虚构：建档日期 = 迁移日期，初始行如实记录「建档于迁移」。
+
+### 4. 技能流程调整（author→commit→review）
+
+#### 4.1 技能顺序随门调整
+
+clean-tree 硬门迫使 author 先提交再 review：cdd-spec-writer / cdd-plan 的 author→review 之间插入 commit 步骤；cdd-dev 的 implement 已由 child commit（gate 顺延到 review 入口验证）；技能 digraph/节点文本/Invocation discipline 同步（三技能 + 相关引用面）。
+
+#### 4.2 emit / changeset / validate
+
+SKILL.md 调整走 skill-anatomy 契约 + `pnpm run emit` 再生；engine fix + kairos docs 各一 changeset；全量 validate ALL PASS。
+
+### 5. `next:` 可执行命令字面量（find #3 · 反转 v1.39）
+
+#### 5.1 现状与反效实证
+
+v1.39（T26 ⑥-h）把 `next:` 定为语义字面（`[verb] [target-type] [id] (payload)`——`implement wave {tasks}` · `review wave {tasks} (base …)` · `fix wave {tasks} --findings …`），意图减 token。实证反效（本次现场案例）：`next: fix spec <path> --findings …` 缺 `--type spec` 被 CLI 拒 → 编排方试错补 flag、反复派发——**agent 心智映射成本 + 试错轮次反超语义减量收益**；「the literal is the dispatch, no kind→command mapping layer」的声称在语义字面下不成立（映射层实际存在）。
+
+#### 5.2 反转：完整可执行命令渲染
+
+`next:` 渲染 = **完整可执行命令**（verb + 该动词实际需要的参数，全参齐备：`cdd implement --plan <path> --tasks 17` · `cdd review --type spec --spec <path>` · `cdd fix --type spec --spec <path> --findings <handoff>` · `done` 裸终词保持）。(read file back to confirm) 等提示后缀保留。零映射层第一次为真——编排方取字面即可执行。**三命令无需同构**（用户 2026-10-09 拍板）：`--type` 只在**有区分力**时渲染——implement 是唯一单 type 动词（恒 wave），带上 `--type wave` 是恒量冗余；review/fix 才是多 type 动词（wave/branch/spec/plan）必带。next 的本质 = **提醒编排者下一步做什么的 suggestion 字面量**，可执行性（拿字面即派发）是手段，同构不是目的。
+
+#### 5.3 组合点（OOP 统一 · 零硬编码）
+
+组合点 = `#capsuleLines` → routeText：从**命令声明表**（`CLI_COMMANDS`/usage 域已声明 verb/flag 域）派生全参 argv——**implement 声明表零新键**（恒 wave 单 type 动词 · 现状 `parsed.args.type ?? "wave"` 缺省语义不变 · 无须补 `--type`）· render implement 必含 `--plan`（required）+ `--tasks`；帧事实（type/tasks/doc 路径/base-head/findings）填入声明参数域；命令声明即渲染源，无第二份硬编码格式串。⑦-n branch-ref 单身份派生保持（fix 从 `--findings` 读范围，零冗余 base/head 声明）。`--type` 渲染规则 = **声明域内该动词 type 有区分力即渲染、单 type 动词省略**（review/fix 渲染、implement 省略——三命令不同构是feature 不是 defect）。
+
+#### 5.4 消费面同步
+
+四技能 Review Convergence（I2/I1/I3）文本随改：`next:` = 完整可执行命令字面量（副词面例更新）；「read file back to confirm」读回纪律保持。skill-anatomy/emit 随。
+
+#### 5.5 回归测试
+
+next 字面**二次 parse 零错误**断言（把 next 字符串再喂 CLI `parse()` 成功——断言面 = **三命令动词 × 各自 type**：implement 仅 wave（字面无 `--type` · 声明表零新键）· review/fix 全 type（含 `--type`）；`routeWords` 四词 = 三命令动词 + `done` 终词，`done` 单独断言裸终词、**不喂 parse**）+ 三命令动词 × 全 type 干 run E2E 直接派发（`rev1→implement wave 2` 等实链重验）+ 词表 `routeWords` 词面同步。BLOCKED/TIMEOUT 轮保持无 next（`CDD_BLOCKED:` 通道语义不动）。
+
+#### 5.6 find #7：parse 绿 ≠ 可派发（W3 现场实证 · 2026-10-09 backfill）
+
+§5.5 的「二次 parse 零错误」断言口径有缺口：**parse() 只判语法、不判必填域**——T4 交付后首个现场派发（W3 task-5 review）暴露 `review --type wave --tasks 5` 经 parse 绿、但运行时被 required 校验拒（`missing required --plan <path>`）· 根因 = `face/capsule.ts#routeText` 的 review→wave 分支（原 §5.5 断言面之 review 用例）**漏渲染必填 `--plan`**（对比同函数 implement/next-wave 分支与 fix→wave 分支均含——组合面不一致，非声明表问题）。**断言面延伸**：next 字面可执行性 = **parse 成功 ⇒ 运行时 required 校验通过**（把「parse 绿」单断言升级为「二次 parse + 该类型必须存在的 required flag 断言」——对 wave 即 `--plan`；`review --type spec`/`fix --type plan` 等余类型同法各判 own required）· 修复入 T7 扩域（plan v1.7）：`#routeText` review→wave 分支补 `--plan {path}` 组装 + 断言延伸。编排面处置（实测）：字面缺必填时编排者补足 flag 现派发（纯元数据补全 · 语义不变 · 不重跑派发）。
+
+#### 5.7 find #8：分支线字面组合面 + doc-contract 自挡（分支终审 r1 两 blocker + warn · 2026-10-09 backfill）
+
+分支终审（r1 · base dbbcd3d..ffc0c15）暴露 find #7 同族三连缺 + doc-contract 自挡，皆发生于**引擎自验声称与运行时行为错位**面：
+
+- **F1 branch re-review 字面缺 `--head`**：`#routeText` review→branch 分支只渲染 `--base <sha>`——运行时 missing-refs 门要 `--base`+`--head` 双全（`missing required --base <sha> --head <sha>`）· C5 fix-with-blockers 路由 `{kind:"review", base}` 缺 head leg → re-review 字面不可执行，卡死 fix 循环。**根因同 find #7**：T7 断言面只覆盖了 wave review（find #7 修复面），branch 分支的 `--head` 被 capsule.test.ts 覆盖表显式 rationalized 为「intentionally absent / orchestrator completes it」——与 find #7 的修复方向（必填域须在字面内）自相矛盾。
+- **F1b branch fix 字面缺 `--plan`（workspace 双身份）**：`#sceneOf` branch 分支 `slug = planPath !== null ? slugFromDoc(planPath) : ref.short()`——fix 字面无 `--plan` → 解析到 `ref.short()` 的**空 workspace** → ledger `roundCount` 读 0 → `#lineGate` 拒 fix（`next round is branch-review`）· 实证：branch review 用 `--plan` 派发（ledger 落 plan-slug 目录）后按 next 字面派 fix 被拒，补 `--plan` 才行。**组合点缺陷**：branch 线的 workspace 身份取决于 CLI 是否带 `--plan`，两身份不一致即断链。
+- **F2 doc-contract 门自挡 wave 自身 docs**：p4.1 的 plan 与 p4.1-design spec 各自通过 `cdd review` 时 CDD_BLOCKED——plan：`presence@### Task N:` 声明 valuePattern `^### Task \d+:$`（bare 形）而全树 25/25 plans 用 titled 形 `### Task N: <title>`（其他 plans 借背引号引述字面形「假绿」）· 另有 `cross-doc-chain@**Spec:**` 标签 ≠ 解析 basename（违反 cdd-plan 作者规则）；design spec：3 个 `domain` finding on 反引号括起的嵌套 code-span 引述（`**Version**`/`## Constraints` 被当 value 判）。**根因**：`scripts/validate` 从不调用 engine judge → `pnpm run validate` 全绿而真实 gate BLOCK——「validate 假绿」是契契/实现错位同族（引擎声明的 contract 与 validate 声称的全绿面不一致）。
+- **W1 pi-harness-p5 latest 行自洽**：头 v1.3 ≠ 表内最新行 v1.4（迁移转录时 header 未随表行进位 · 全树唯一反例 · selfBounded 违例）。
+
+**修复（落 a9e9d409 · 断言升运行实派发）**：① C5 review 路由携带全 range（implement→review 带 head when carrier 有 · fix-with-blockers 带 fix delta base+head · 缺任一 leg 拒 re-review 不再半组装）· `#routeText` review→branch 渲染全 range `--base <sha> --head <sha>`，head-less route 落 bare classifier fallback ② **branch fix 字面补 `--plan`（fix‑2 收口 · 用户 2026-10-09 反转——「为什么不修」打回冻结残留）**：`#routeText` fix→branch 与 `#resumeOf` branch fix 字面渲染 `--plan {path}`（workspace 身份 flag · 与 wave fix 分支同构）——编排者**零兜底**（v1.8 曾记「编排面补 flag 现派发」为本 phase 处置，实为缺陷包装，反转废除；find #7/#8 纪律 = 不可派发字面即缺陷，不存例外面）③ doc-contract 三修：titled `### Task N: <title>` 形接纳（25/25 plans）· domain 嵌套 code-span 排除（引述散文不再误判）· **validate 落全树 doc-contract gate 步**（新形 12 docs 强制全绿 · 42 前契约 docs 登记豁免——validate 假绿面关闭）④ p5 头版本对齐最新行。**断言纪律延伸**（与 find #7 合并为 §5.5/§5.6 的完整口径）：next 字面 required flag 覆盖面 = 三命令 × 全 type（wave/plan/spec/branch 各判 own required）+ **运行时 gate 实派发断言**（不只 parse——把字面 argv 回喂 CLI run 判定 exit 0）。
+
+### 6. round-context/artifact 面统一（find #4 + #5 · W1 实施期 backfill 2026-10-09）
+
+#### 6.1 find #4：plan-constraints.md 死指针
+
+src-next round context 保留 `INPUT_RULES: workspace.resolve("plan-constraints.md")`（cli.ts:523）但全树**零物化写入点**——旧树 consumer-parity P4.2 的 `materializePlanConstraints`（CHANGELOG #281 · 每次 implement dispatch 从 plan Constraints 无条件重衍）未随 greenfield cutover 承接 → 指针指向永不存在的文件（child 照读即 File does not exist · 契契/实现错位同族）。**处置**：删 `INPUT_RULES` 键（cli 声明/valuesOf/round-context 三处）· implement prompt 提醒行改指（`read INPUT_WAVE_BRIEF + the plan's \`## Constraints\` (at INPUT_PLAN)`）· **约束单源 = plan**（child 经 INPUT_PLAN 直读 · 零物化零死指针 · 提醒必须在 prompt——child 焦点是 wave brief，无提醒会漏约束；现提醒行本体保留、仅改指向）。
+
+#### 6.2 find #5：workspace artifact 命名统一
+
+doc-family（spec/plan review/fix）artifact = child 自由命名（`brief.md`/`report.md`/`test_evidence.md` · 三行块 `artifacts:` verbatim 存 `#reconstruct`）——**跨轮同名覆写**（spec-review-1/2 · plan-fix-1 全写同名文件 · handoff 路径无标识 provenance 丢失）· 与 work-family 规范名（`tasks-{wave}-…`/`branch-{key}-…`）**双命名制**。**处置**：**单一命名函数 `{family}-{key}-{artifact}`**（复用既有 prefix/key 派生：doc = `{op}.{type}.{round}`（spec-review-1）· work = `tasks-{wave}`/`branch-{key}`）· round context 注入 `OUTPUT_BRIEF`/`OUTPUT_REPORT`/`OUTPUT_EVIDENCE`（prescribed · 同 OUTPUT_HANDOFF 模式）· child 填指定路径 · 三行块路径与规范名一致性校验（或引擎自派生不靠 child 报告）· **零自由命名 · 零覆写 · provenance 天然**（扁平 family-keyed · 与 work-family 同形；per-round 子目录记为未选方案）。
+
+#### 6.3 消费面同步
+
+cdd-plan author-plan 句（「implement 物化 plan-constraints.md」）删除/改述；模板 implement/review 行 artifacts 段同步 OUTPUT_* 注入；round-context 渲染断言更新；技能文本随 emit。
+
+#### 6.4 find #6：wave 波标签 W1 起序
+
+plan-graph board 波标签现状 = 派生波数组索引泄漏（`W00` · 零基 · 两位补零）；用户 2026-10-09 拍板「**W1 起更符 agent 心智**」（序数直觉 · 零换算；「我说 W1 · board 说 W00」= 双标号成本实证）——显示层标签 = 派生波索引 + 1（`W1` · `W2` · … 去零补），**推导零语义变化**（波推导/派发/词表不动 · 仅 board 渲染与断言随）；plan 执行序与 board 同标号（find #6 原则：文档跟随机器真相，机器定 W1）。
+
+#### 6.5 find #9：workspace handoff 命名统一（spine `{line}-{op}[-{round}]` · 用户拍板 2026-10-09）
+
+§6.2 的 find #5 处置遗留三处畸形（branch 线 re-review r1 实证 · 用户「round 永远都是 1 · range 文件名冗余 · 命名规则可统一」）——**handoff 产物三平面统一为同一 spine `{line}-{op}[-{round}]`**（`{line}` = 行标：wave `tasks-{tasks}` · branch `branch` · spec `spec` · plan `plan`）：
+
+- **handoff JSON**：`branch-review-{base7}..{head7}-r{round}.json` / `branch-fix-{base7}..{head7}-r{round}.json` → **`branch-review-{round}.json` / `branch-fix-{round}.json`**（掉 range 占位 · 掉 `-r` 前缀——与 spec/plan/wave 的 `-{round}` 同形）
+- **report**：`branch-{base7}..{head7}-{op}{-round}-report.md` → `branch-{op}{-round}-report.md`
+- **evidence**：`branch-{base7}..{head7}-test-evidence.json` → `branch-test-evidence.json`（行级当前态 · 随轮覆写 · 与 wave `tasks-{tasks}-test-evidence.json` 同构）
+- **range 不进文件名**：`commits.base/head` 已存 JSON（find #7/#8 双真相纪律：不在文件名重复一份）
+- **round 跨 re-review 累计（root cause 消除）**：branch 线 progress key 现 = `BranchRef.short(base, head)`（run.ts `#lineKey` + cli.ts `#lineKey`——**两个 lineKey 同源**）——head 每次 fix 移动 → 新 range → 新 key → `recordRound` 从 0 计 → 永远 r1。**固化 key = 稳定 `"branch"`**（每 workspace 单 branch 线）→ `branch-review-1 → branch-fix-1 → branch-review-2 → branch-fix-2` 累计贯通。
+- **遗留清理**：根目录 find-#5 前自由命名产物（`brief.md`/`report.md`/`test_evidence.md`）已由 typed 后继取代 → 迁 `migrate-out/`。
+
+#### 6.6 find #10：全引擎 8 位短 sha（用户拍板「所有 commit ref 都改 8 位短 sha · 整个引擎不再使用长 sha」）
+
+引擎全平面 commit ref 从 40 位长 sha 收敛为 **8 位短 sha**（find #9 的 range 移出文件名后，短 sha 是唯一 ref 身份；40-char 校验是 find #8 `--base/--head` 面证据的旧形态）：
+
+- **`infra/git.ts` `revParseHead`**：`git rev-parse HEAD`（40 位输出）→ `git rev-parse --short=8 HEAD`（8 位）
+- **`session/branch-ref.ts` `BranchRef`**：短形 `{base8}..{head8}` 为唯一身份 · `args()` 校验改 `^[0-9a-f]{8}$`
+- **`face/cli.ts` `#parseBlockReturn`**：commits 正则 `base=([0-9a-f]{40})` → `{8}`
+- **`face/cli.ts` 校验行（1911）**：`--base/--head` 40-char 校验 → `^[0-9a-f]{8}$`
+- **`session/handoff-schema.ts`**：`commits` 两 end 注释 40 → 8
+- **载体/模板**：`WAVE_BASE`/`head=git rev-parse HEAD` 模板句统一 8 位口径（rev-parse --short=8）
+- **40-char 零残留**：全引擎（含 __tests__）grep `{40}`/40-char 断言零命中 · 二次 parse/运行时断言随
+
+### Acceptance criteria
+
+- `implement/review/fix 三动词 dispatch 前置含 clean-tree 硬门：脏树 → CDD_BLOCKED（含 commit/discard 指引）· child 零派发 · 回归测试（三动词 × 脏树负例）`
+- `技能契约兑现：cdd-spec-writer/cdd-plan/cdd-dev 的「engine entry gate: dirty → BLOCKED」与引擎行为一致（契契/实现错位零残留断言）`
+- `seam 单入口：tree-clean + doc-contract + wave 收敛 Lifecycle pre-flight（cli 零重复实现）· evidence/读回门留驻 child（归属声明可判）`
+- `三类型注册表同构：**Version** required ×3 · valuePattern = 版本号+时间严格形（bold 形归一）· **Change history** required ×3（含行/日期元素）· 派生 schema/描述面随投影（字节 pin 测试更新）`
+- `selfBounded 对 spec/plan 生效（header = 表中最新且必在行内）· 回归测试`
+- `next: 渲染 = 完整可执行命令：三命令动词 × 各自 type next 字面二次 parse 零错误（done 终词不喂 parse · implement 恒 wave 单 type 动词字面无 --type 声明表零新键 · render 含 --plan required · review/fix 含 --type）· 每条 next 字面的 required flag 全覆盖断言（find #7：parse 绿 ⇒ 运行时 required 校验过 · `#routeText` 组合面一致——review→wave 分支补 `--plan`）+ **find #8：branch 字面全 range（review→branch 渲染 `--base`+`--head` · head-less 拒半组装 · C5/run 路由携带 fix delta base+head）· 运行时 gate 实派发断言（字面 argv 回喂 CLI run 判 exit 0，非 parse-only）** · 干 run E2E 直接派发 · 消费面技能文本同步（I2/I1/I3 + emit）· routeWords 词面同步`
+- `全树合规（规则断言 · 实测基线 54 = 53 + 本 plan）：47 非 overall 建/补 Change history（23 design + 24 plans）· 11 无匹配形（9 真无头建档 + 2 bold 归一 · 表行源自拆链/建档）· 4 拆链 · 28 有头非严格清零（26 非 bold + 2 bold · 含 3 旧 overall · 机械扫口径自洽）· `前置 v`/补充说明在 `**Version**` 头行零残留（表行豁免）· 实施期机械清点复核一致 · validate 零 drift`
+- `历史正文内容保真（迁移只动容器 · 版本摘要逐字入行 + 机 pin 无损断言——扫描面 = 迁移前头部文本 vs 迁移后表行并集零漏，含补充说明内嵌版本序列按 `· vX.Y` 切行）· 零 retro-rename`
+- `round-context 零死指针：INPUT_RULES 键删除（cli 声明/valuesOf/round-context 三处）· implement prompt 提醒行指 plan `## Constraints`（经 INPUT_PLAN 直读约束 · 零物化零死指针）· 相关断言更新`
+- `workspace artifact 单一命名制：doc-family `{op}.{type}.{round}-{artifact}` prescribed（round context 注入 OUTPUT_BRIEF/REPORT/EVIDENCE · 三行块一致性校验）· 跨轮零覆写（回归断言）· 与 work-family 同形`
+- `handoff 命名统一（find #9）：branch 线三平面 spine `{line}-{op}[-{round}]`——`branch-review-{round}.json`/`branch-fix-{round}.json` · `branch-{op}{-round}-report.md` · `branch-test-evidence.json` · range 零文件名残留 · progress key 固化 `branch`（round 跨 re-review 累计断言：review-1→fix-1→review-2→fix-2）· 根目录自由命名遗留清出`
+- `全引擎 8 位短 sha（find #10）：revParseHead/BranchRef/CLI 校验/parseBlockReturn/schema/模板全 `{8}` · 40-char 零残留 grep（含 __tests__）`
+- `wave 波标签 W1 起序：plan-graph board 与 plan 执行序逐字一致（W1–W4）· 显示层派生索引 + 1 · 推导语义零变化 · board 断言回归`
+- `技能 author→commit→review 顺序落地（三技能文本 + digraph/节点同步）· emit 新鲜 · engine vitest 全绿 · validate ALL PASS`
+
+## Constraints
+
+- **零新 CLI 子命令**：clean-tree 门与 next 可执行化只动现有 implement/review/fix 的前置校验与渲染（charter Non-goal #1 保持；发现型 schema 面不扩）
+- **TDD colocated**：引擎改动先测后写（src-next 各模块 `__tests__` 同址）
+- **一声明四派生**：schema/pattern 改动只改元素登记表（contract/declare.ts），派生 schema/slices/描述面全投影，字节 pin 更新随动
+- **历史正文零 retro-rename**：迁移只改容器（Version 头 / Change history 表），历史内容逐字保真 + 机 pin；CHANGELOG 记录与版本行改名记录为历史清单（含表行豁免面）
+- **English-primary 消费面**：SKILL.md 调整英文写作；内部 specs/plans 中文（Strategy B）
+- **变更集义务**：engine fix + kairos docs 各一 changeset，独立提交
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.0 | 2026-10-09 | 初版——P4.1 注册（overall v1.47）后开写：lifecycle 前置校验统一（全动词 clean-tree 硬门入 pre-flight seam）· schema 三类型同构（Version required · 头仅号+时间 · Change history required ×3 · selfBounded ×3）· 全树迁移 · 技能 author→commit→review 调整 | [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer） |
+| v1.1 | 2026-10-09 | **spec-review-1 全修（1 blocker · 3 warn · 2 nit）+ find #3 补充**：全树清点基线修正（53 文档 · 4 overall · 49 补表 · 12 无头 · 4 携链 · 25 非严格形）——迁移改为规则断言 + 实施期机械复核（静态数字易腐）· 携链清单 5→4（overall 已拆）· 保真转录与零残留共处定案（grep 面 = Version 头行 · 表行豁免）· seam 钉死 Lifecycle 单入口 · evidence/读回门归属声明（child 面）· EOF newline；**新组 5：next 可执行命令字面量**（反转 v1.39 语义字面——实证 agent 映射试错反超 token · 组合点从命令声明表派生 · 零映射层兑现 · 二次 parse 回归） | [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer） |
+| v1.2 | 2026-10-09 | **spec-review-2 全修（3 warn · 2 nit）**：① implement 声明表补 `--type`（默认 wave）+ render 必含 `--plan`（required）——§5.2 字面置正（`cdd implement --type wave --plan <path> --tasks 17`）· §5.3 组合点改述（implement type 域 = 本 phase 补实现，原「已声明」不实）· §5.5/验收二次 parse 断言面可达（原字面 parse 必拒）② 12 无匹配形口径三处统一（Design/§3.4/验收：10 真无头 · 2 bold 归一——2 bold 有头非建档、表行源自拆链）+ 非严格形定义句（= 有头且非严格、不含 bold · 机械复核 27 = 25 + 2 口径自洽）③ 保真转录扩展至非 telescope 补充说明（`· vX.Y` token 全量切行 · 机 pin 扫描面 = 迁移前头部文本 vs 迁移后表行并集零漏）+ 3 旧 overall 补日期 = 其 Change history 末行日期（零虚构）④ 四动词 = routeWords 四词（三命令动词 + done 终词 · 二次 parse 断言面三命令动词、done 不喂 parse）⑤ 顶部声明全树基线较 overall v1.47 注册修正（5→4 拆链 · 47→49 补表 · 12 无匹配形） | [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer） |
+| v1.3 | 2026-10-09 | **W1 期 backfill（find #4 + #5 · round-context/artifact 面统一）**：新组 6——plan-constraints.md 死指针（INPUT_RULES 删 · 约束单源 = plan `## Constraints` 经 INPUT_PLAN · implement prompt 提醒行改指 · 零物化）· workspace artifact 命名统一（`{family}-{key}-{artifact}` prescribed · round context 注入 OUTPUT_BRIEF/REPORT/EVIDENCE · 三行块一致性校验 · 跨轮零覆写）· 验收基线纠正为实测（54 · 47 建/补 · 11 无匹配形 = 9+2 · 4 拆链 · 28 清零）+ 两条验收增补 | [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer） |
+| v1.4 | 2026-10-09 | **find #6 收口（W1 起序裁决 · 用户拍板）**：组 6 补 6.4——plan-graph 波标签 W1 起序（显示层派生索引 + 1 · 去零补 · 推导零语义变化）· acceptance 增一条 · 与 plan v1.4 T7 对齐 | [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer） |
+| v1.5 | 2026-10-09 | **W1 期 backfill（F1 解决形态裁定 · 用户拍板）**：组 1 补 1.5——clean-tree 门零引擎侧排除（`isClean` 纯 git 语义）· workspace 自产 `.gitignore` 于 namespace 根（`.kairos/` · 内容 `*`）· 消费者零配置 · 方案 A 排除面被弃（双真相代价）· fix-2 cdd 收口被打回（用户「只要 .kairos 下的」）· tracked-workspace 修改仍上 gate · 回归两级（seam + CLI）——final 形态，后续不得打回 | [human] · Claude Opus 5（kairos:cdd-design） |
+| v1.6 | 2026-10-09 | **T4 范围反杆（用户拍板 · find #3 深化）**：implement 恒 wave 单 type 动词——next 字面**不带 `--type`**（`cdd implement --plan <path> --tasks 17`）· 声明表零新键（`parsed.args.type ?? "wave"` 缺省语义不变）· **三命令无需同构**（同构是偏门）· `--type` 只在有区分力时渲染（review/fix 多 type 必带 · implement 单 type 省略）· next 本质 = 下一步 suggestion 字面量（可执行性是手段）· §5.2/5.3/5.5 + 验收随改 · 与 plan v1.6 T4 对齐 | [human] · Claude Opus 5（kairos:cdd-design） |
+| v1.7 | 2026-10-09 | **W3 期 backfill（find #7 · 派发现场实证）**：§5.5 断言口径缺口——parse 绿 ≠ 可派发（`review --type wave --tasks 5` 运行时要必填 `--plan` 拒 · 根因 = `#routeText` review→wave 分支漏组装，对比 implement/fix→wave 分支均含）· 新 §5.6 定案（组合面一致 + 断言面延伸「parse + 该类型 required flag 断言」· 编排面补 flag 现派发语义）· 修复归 T7 扩域 · 与 plan v1.7 T7 对齐 | [human] · Claude Opus 5（kairos:cdd-design） |
+| v1.8 | 2026-10-09 | **分支终审 r1 backfill（find #8 · 两 blocker + warn 实证）**：新 §5.7——branch re-review 字面缺 `--head`（find #7 同族 · coverage 表 rationalize 自相矛盾）· branch fix 字面缺 `--plan` 致 workspace 双身份（plan-slug vs ref.short）· doc-contract 门自挡 wave 自身 docs（titled task 头 · code-span 引述 · **Spec:** 标签 · validate 假绿根因）· p5 头不对齐最新行；修复落 a9e9d409（C5 路由全 range / 拒半组装 / titled 接纳 / domain code-span 排除 / validate 落 gate 步 / p5 对齐）+ 断言纪律升「运行时 gate 实派发」并入 §5.5/§5.6 完整口径 · 与 plan v1.8 对齐 | [human] · Claude Opus 5（kairos:cdd-design） |
+| v1.9 | 2026-10-09 | **fix‑2 反转（用户 2026-10-09「为什么不修」打回冻结残留）**：§5.7 fix ② 废除「编排面补 flag 现派发」处置——branch fix 字面的 `--plan` 是引擎必渲染项（`#routeText` fix→branch + `#resumeOf` branch fix · 与 wave fix 同构）· 编排者零兜底 · find #7/#8 纪律 = 不可派发字面即缺陷、不存例外 | [human] · Claude Opus 5（kairos:cdd-design） |
+| v1.10 | 2026-10-09 | **W4 期 backfill（find #9 + #10 · 用户 2026-10-09 拍板）**：新 §6.5——handoff 命名统一（spine `{line}-{op}[-{round}]` · branch 掉 range 前缀 · 两 lineKey 同源固化 `branch` · round 跨 re-review 累计 · 根目录遗留清出）+ 新 §6.6——全引擎 8 位短 sha（revParseHead/BranchRef/CLI 校验/parseBlockReturn/schema/模板 · 40-char 零残留）· acceptance 增两条 · 与 plan v1.10 / overall v1.55 对齐 | [human] · Claude Opus 5（kairos:cdd-design） |

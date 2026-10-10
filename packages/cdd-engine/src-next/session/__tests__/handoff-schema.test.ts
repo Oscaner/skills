@@ -19,7 +19,7 @@ const schema = new HandoffSchema();
 const WORK = {
   status: "APPROVED",
   artifacts: { brief: "/b", report: "/r", test_evidence: "/ws/tasks-1-test-evidence.json" },
-  commits: { base: "a".repeat(40), head: "b".repeat(40) },
+  commits: { base: "a".repeat(8), head: "b".repeat(8) },
   changes: [{ file: "packages/x/a.ts", reason: "task scope" }],
   notes: ["one note"],
 };
@@ -106,11 +106,9 @@ describe("projection ② — the read-back validation (violations)", () => {
     ]);
   });
 
-  it("refuses a malformed commits row (non-40-char shas)", () => {
-    const bad = { ...WORK, commits: { base: "short", head: "b".repeat(40) } };
-    expect(schema.violations("work", bad)).toEqual([
-      "commits.base: must be at least 40 characters",
-    ]);
+  it("refuses a malformed commits row (non-8-char shas)", () => {
+    const bad = { ...WORK, commits: { base: "short", head: "b".repeat(8) } };
+    expect(schema.violations("work", bad)).toEqual(["commits.base: must be at least 8 characters"]);
   });
 
   it("refuses a findings draft with a missing findings array or a bad severity", () => {

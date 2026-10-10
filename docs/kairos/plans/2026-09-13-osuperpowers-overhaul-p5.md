@@ -3,6 +3,7 @@
 **Spec:** [2026-09-13-osuperpowers-overhaul-p5-design.md](docs/kairos/specs/2026-09-13-osuperpowers-overhaul-p5-design.md)
 
 - **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.27](../specs/2026-09-13-osuperpowers-overhaul-overall.md)
+- **Version**: v1.0 · 2026-10-09
 - **Depends on**: P4 shipped（skill 树 + engine 输出契约，PR #262 已 merge，2026-09-16）
 - **Base**: develop（finishing read-base 的数据源）
 
@@ -341,3 +342,9 @@
 
 - **Acceptance**:
   - 各 phase changeset 齐备（P6 acceptance 复核粒度）；`pnpm run validate`（全块）ALL PASS + emit:check 无 drift（不带块数措辞——仓库编排块数与注释自报存分歧，spec AC9 终态已收敛为无块数表述）；engine suite（TS 化后）+ osuperpowers suite 全绿
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.0 | 2026-10-09 | 建档于迁移（2026-10-09 全树迁移补建 Change history——此前无版本化记录，历史内容保真于文档正文） | [human] |

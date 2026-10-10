@@ -3,6 +3,7 @@
 **Spec:** [2026-09-21-consumer-parity-p1-design.md](docs/kairos/specs/2026-09-21-consumer-parity-p1-design.md)
 
 - **Parent program**: [2026-09-21-consumer-parity-overall.md v1.8](../specs/2026-09-21-consumer-parity-overall.md)
+- **Version**: v1.0 · 2026-10-09
 - **Depends on**: 无（program 起点）；P1 design v1.1 Approved（`ae8d14ba`）
 - **Base**: develop（finishing read-base 数据源；consumer-parity-p1 工作分支）
 
@@ -66,3 +67,9 @@
   3. 若收口复核暴露 J1 残留（grep 未清零）→ 回 Task 1 补改后再复核（不跨 phase） — checkable: 收口复核零 J1 残留（无回改触发；注：是否回改以复核结果为准）
 - **Acceptance**:
   - `pnpm run validate` 全绿（12 块全量门，CI 同口径；干净已提交树）——do ② 的 scripts unit 面仅作 AC4 复核局部口径，全量 12 块门只在此验收执行；AC1–AC5 逐条可复核；变更面零 package 内容（记录裁决）；block 12 2/2。
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.0 | 2026-10-09 | 建档于迁移（2026-10-09 全树迁移补建 Change history——此前无版本化记录，历史内容保真于文档正文） | [human] |

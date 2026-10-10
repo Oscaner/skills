@@ -1,6 +1,6 @@
 # Pi Harness P4 — 技能改名 + 命名退役 + 文档·测试·收口（Pi Harness P4: Skill Rename + Naming Retirement + Docs · Tests · Closeout）— Phase Spec
 
-- **Version**: v1.6 · 2026-10-01（契约收敛定稿 C8：registry 唯一 harness 契约 + lexicon 纯词表 + checkHarness + cdd-init-ready 数据面；C7 布局与 C8 收敛同组 atomic，布局先行；v1.5 的 T7 pi prefix / T8 布局历史表述并入）
+- **Version**: v1.6 · 2026-10-01
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming → writing-phase-spec)
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.22](2026-09-27-pi-harness-overall.md)
@@ -146,3 +146,9 @@ P4 使 kairos（前 osuperpowers）的**技能身份**完成程序级统一：8 
 - **#302（独立 single-spec 程序）**：Review Convergence 判读规则改动归其 spec；本 phase 不触碰
 - **npm-source 解析风险**：pi 对 scoped 包 registry 层的接受 = 已知残余，publish 前人工抽查承接（C5 记录）
 - **双镜像声明时间戳**：每次 README 家族编辑后校准声明时间戳（维护惯例提醒）
+
+## Change history
+
+| Version | date | summary | author |
+|---|---|---|---|
+| v1.6 | 2026-10-01 | 契约收敛定稿 C8：registry 唯一 harness 契约 + lexicon 纯词表 + checkHarness + cdd-init-ready 数据面；C7 布局与 C8 收敛同组 atomic，布局先行；v1.5 的 T7 pi prefix / T8 布局历史表述并入 | [human] |

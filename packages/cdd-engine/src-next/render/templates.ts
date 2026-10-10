@@ -138,9 +138,9 @@ const FRAME_ITEMS: readonly string[] = [
  *  per-mode duplication, §3.7). The evidence file's concrete name rides the
  *  injected schema's preamble (per-family prefix), never this fixed text. */
 const EVIDENCE_ITEM =
-  "**Evidence gate:** write the test-evidence file per the `test-evidence` schema in `## Handoff schema` — `command`/`exit_code`/`passed`/`warnings_count` + `typecheck` (`command`/`exit_code`/`passed`); `behavior_change` when applicable. Update the round's report after verification. Missing or schema-violating evidence → the engine rewrites the draft to `status: BLOCKED`. Reports, test output, diffs: files only, never the return.";
+  "**Evidence gate:** write the test-evidence file at the prescribed `OUTPUT_EVIDENCE` path per the `test-evidence` schema in `## Handoff schema` — `command`/`exit_code`/`passed`/`warnings_count` + `typecheck` (`command`/`exit_code`/`passed`); `behavior_change` when applicable. Update the round's report after verification. Missing or schema-violating evidence → the engine rewrites the draft to `status: BLOCKED`. Reports, test output, diffs: files only, never the return.";
 const COMMITS_TASK_ITEM =
-  "**Commits:** `base` = `WAVE_BASE`. Verification already committed this scope → `head` = `git rev-parse HEAD` (no duplicate); else create **one** conventional commit (`feat:`/`fix:`/`refactor:`/…, no attribution/AI trailers) then `head` = `git rev-parse HEAD`. Uncommitted or out-of-scope changes at return → `status: BLOCKED` (engine rewrites + surfaces `CDD_BLOCKED:`; off-ledger commits land in `notes`).";
+  "**Commits:** `base` = `WAVE_BASE`. Verification already committed this scope → `head` = `git rev-parse --short=8 HEAD` (no duplicate); else create **one** conventional commit (`feat:`/`fix:`/`refactor:`/…, no attribution/AI trailers) then `head` = `git rev-parse --short=8 HEAD`. Uncommitted or out-of-scope changes at return → `status: BLOCKED` (engine rewrites + surfaces `CDD_BLOCKED:`; off-ledger commits land in `notes`).";
 const COMMITS_FIX_ITEM =
   "**Commits:** `base` = `FIX_BASE`; one conventional commit (`fix:`/`refactor:`/…, no attribution/AI trailers) unless verification already committed it. Uncommitted or out-of-scope changes at return → `status: BLOCKED` (engine rewrites + surfaces `CDD_BLOCKED:`; off-ledger commits land in `notes`).";
 
@@ -171,7 +171,7 @@ const IMPLEMENT_SHELL: readonly string[] = [
   "## Instructions",
   "",
   ...FRAME_ITEMS,
-  "**implement:** read `INPUT_WAVE_BRIEF` (the wave brief) + `INPUT_RULES` (plan constraints). `WAVE` = this round's wave (the task list); `INPUT_WAVE_BRIEF` holds every `### Task N:` section — implement ALL tasks of the wave, never a subset. `CONFIRMED_SEAMS` in the brief → apply as-is; else propose test boundaries in the report, then invoke **`mattpocock-skills:implement`**. Write the handoff draft at `OUTPUT_HANDOFF` per `## Handoff schema` BEFORE the return block: `status` (APPROVED once applied, else BLOCKED + `failure_category`), `artifacts` (brief/report/test_evidence file paths), `commits` (`base` = `WAVE_BASE`; `head` = `git rev-parse HEAD`), `changes[]` (every changed file + reason).",
+  "**implement:** read `INPUT_WAVE_BRIEF` (the wave brief) + the plan's `## Constraints` via `INPUT_PLAN` (the constraint document itself — the round context carries no materialized rules file). `WAVE` = this round's wave (the task list); `INPUT_WAVE_BRIEF` holds every `### Task N:` section — implement ALL tasks of the wave, never a subset. `CONFIRMED_SEAMS` in the brief → apply as-is; else propose test boundaries in the report, then invoke **`mattpocock-skills:implement`**. Write the handoff draft at `OUTPUT_HANDOFF` per `## Handoff schema` BEFORE the return block: `status` (APPROVED once applied, else BLOCKED + `failure_category`), `artifacts` (the prescribed `OUTPUT_BRIEF`/`OUTPUT_REPORT`/`OUTPUT_EVIDENCE` paths from the round context — the `{family}-{key}-` canonical names, zero free naming), `commits` (`base` = `WAVE_BASE`; `head` = `git rev-parse --short=8 HEAD`), `changes[]` (every changed file + reason).",
   EVIDENCE_ITEM,
   COMMITS_TASK_ITEM,
   ...LICENSE_ITEMS,
@@ -185,7 +185,7 @@ const FIX_SHELL: readonly string[] = [
   "## Instructions",
   "",
   ...FRAME_ITEMS,
-  "**fix:** read `INPUT_FINDINGS` (open findings) + `INPUT_WAVE_BRIEF` (wave brief — context). Fix ALL findings (blocker/warn/nit), verifying against `INPUT_FINDINGS` none remain open. `commits.base` = `FIX_BASE` (the prior handoff's `commits.head`); `commits.head` = `git rev-parse HEAD` — no diff vs `FIX_BASE` → no commit (keep `head`). Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema` in one process; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
+  "**fix:** read `INPUT_FINDINGS` (open findings) + `INPUT_WAVE_BRIEF` (wave brief — context). Fix ALL findings (blocker/warn/nit), verifying against `INPUT_FINDINGS` none remain open. `commits.base` = `FIX_BASE` (the prior handoff's `commits.head`); `commits.head` = `git rev-parse --short=8 HEAD` — no diff vs `FIX_BASE` → no commit (keep `head`). Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema` in one process; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
   EVIDENCE_ITEM,
   COMMITS_FIX_ITEM,
   ...LICENSE_ITEMS,
@@ -220,6 +220,7 @@ const REVIEW_CONTEXT: readonly string[] = [
   "- `WAVE`: {{WAVE}}",
   "- `INPUT_RANGE`: {{INPUT_RANGE}}",
   "- `INPUT_PLAN`: {{INPUT_PLAN}}",
+  "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
   "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
   "- `WORKSPACE_DIR`: {{WORKSPACE_DIR}}",
   "- `WORKSPACE_ID`: {{WORKSPACE_ID}}",
@@ -237,7 +238,11 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
       "- `ROLE`: {{ROLE}}",
       "- `WAVE`: {{WAVE}}",
       "- `INPUT_WAVE_BRIEF`: {{INPUT_WAVE_BRIEF}}",
-      "- `INPUT_RULES`: {{INPUT_RULES}}",
+      // find #4 + #5 — no INPUT_RULES (the plan's ## Constraints rides INPUT_PLAN);
+      // the OUTPUT_* write paths are prescribed (the {family}-{key}- canonical names)
+      "- `OUTPUT_BRIEF`: {{OUTPUT_BRIEF}}",
+      "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
+      "- `OUTPUT_EVIDENCE`: {{OUTPUT_EVIDENCE}}",
       "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
       "- `WORKSPACE_DIR`: {{WORKSPACE_DIR}}",
       "- `WORKSPACE_ID`: {{WORKSPACE_ID}}",
@@ -254,6 +259,8 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
       "- `INPUT_WAVE_BRIEF`: {{INPUT_WAVE_BRIEF}}",
       "- `INPUT_FINDINGS`: {{INPUT_FINDINGS}}",
       "- `FIX_BASE`: {{FIX_BASE}}",
+      "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
+      "- `OUTPUT_EVIDENCE`: {{OUTPUT_EVIDENCE}}",
       "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
       "- `WORKSPACE_DIR`: {{WORKSPACE_DIR}}",
       "- `WORKSPACE_ID`: {{WORKSPACE_ID}}",
@@ -270,6 +277,7 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
       "- `INPUT_DOC`: {{INPUT_DOC}}",
       "- `INPUT_FINDINGS`: {{INPUT_FINDINGS}}",
       "- `FIX_BASE`: {{FIX_BASE}}",
+      "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
       "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
       "- `WORKSPACE_DIR`: {{WORKSPACE_DIR}}",
       "- `WORKSPACE_ID`: {{WORKSPACE_ID}}",
@@ -404,6 +412,8 @@ const RETURN_ZONE: ReturnZone = {
     "```",
     "",
     "RETURN_STDOUT_BLOCK (one contract): the handoff content (findings/notes/changes/evidence) lives in the draft at `OUTPUT_HANDOFF` — this block is the pointer. Review/docs-fix rounds state `status: APPROVED` (their conclusion derives from the draft's findings); work rounds state the concluding status. Never emit the 4th `counters:` / 5th `next:` lines (the engine appends them). Any non-`APPROVED` status (e.g. `NEEDS_CONTEXT`) → collapsed to `BLOCKED` + exit 1.",
+    "",
+    "The `artifacts:` line's paths are the round context's prescribed `OUTPUT_BRIEF`/`OUTPUT_REPORT`/`OUTPUT_EVIDENCE` values — copy them verbatim (zero free naming; a declared path deviating from the canonical name is corrected to it and flagged on the carrier's notes).",
   ],
 };
 
@@ -420,8 +430,12 @@ const TOKENS: readonly TemplateToken[] = [
   { name: "INPUT_FINDINGS", zone: "round-context" },
   { name: "INPUT_PLAN", zone: "round-context" },
   { name: "INPUT_RANGE", zone: "round-context" },
-  { name: "INPUT_RULES", zone: "round-context" },
   { name: "INPUT_WAVE_BRIEF", zone: "round-context" },
+  // find #5 — the prescribed artifact write paths (the {family}-{key}-{artifact}
+  // single naming; INPUT_RULES is retired — the plan's ## Constraints rides INPUT_PLAN)
+  { name: "OUTPUT_BRIEF", zone: "round-context" },
+  { name: "OUTPUT_REPORT", zone: "round-context" },
+  { name: "OUTPUT_EVIDENCE", zone: "round-context" },
   { name: "OUTPUT_HANDOFF", zone: "round-context" },
   { name: "REVIEW_TYPE", zone: "round-context" },
   { name: "ROLE", zone: "round-context" },

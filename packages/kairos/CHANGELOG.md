@@ -1,4 +1,4 @@
-# osuperpowers
+# @oscaner-skills/kairos
 
 ## 0.2.0
 

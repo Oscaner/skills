@@ -1491,41 +1491,43 @@ export class Cli {
   #lineGate(scene: WorkScene): DispatchPhase | null {
     const open = this.#linePhase(scene);
     if (open !== null) return open;
-    return this.#docLineVerdict(scene)?.kind === "drift" ? scene.face.product.reviewLead : null;
+    return this.#docLineVerdict(scene) === "drift" ? scene.face.product.reviewLead : null;
   }
 
-  /** The doc line's identity verdict (T7) — the current doc revision vs the line's
-   *  recorded reviewed revision. `drift` → the target moved past the reviewed
-   *  identity (the line reopens); `same` → unchanged (the revision-aware BLOCK).
-   *  Null when the line is not a doc, the doc is unreadable, or no reviewed
-   *  revision is on record (the legacy closed face keeps its generic message). */
-  #docLineVerdict(scene: WorkScene): { kind: "drift" | "same" } | null {
+  /** The doc line's identity verdict (T7) — the ledger's single shared comparison
+   *  (Ledger#docLineVerdict), consumed as-is: the drift gate and the revision-aware
+   *  BLOCK read the SAME verdict, never a face-side recomputation. The face adds
+   *  only the target reshape — null on non-doc, an absent key, an unreadable doc
+   *  or no reviewed revision on record (the legacy closed face keeps its generic
+   *  message). */
+  #docLineVerdict(scene: WorkScene): "drift" | "same" | null {
     if (scene.target?.kind !== "doc") return null;
-    const reviewed = scene.ledger.reviewedDocRevisionOf(this.#lineKey(scene) as LedgerKey);
-    if (reviewed === null) return null;
-    const content = this.#docContent(scene.target.doc);
-    if (content === null) return null;
-    const current = scene.ledger.refs().docRevision(scene.target.doc, content);
-    return { kind: scene.ledger.refs().sameRef(reviewed, current) ? "same" : "drift" };
+    const key = this.#lineKey(scene);
+    if (key === null) return null;
+    return scene.ledger.docLineVerdict(key, scene.target.doc);
   }
 
   /** The doc line's revision-aware BLOCK message (T7) — the unchanged-doc face:
    *  "{plan|spec} already reviewed at vX.Y (doc-hash …) — target revision
-   *  unchanged; amend body/version to open a new review". Null on the non-doc /
-   *  legacy faces (the generic "no open round" message keeps its face there). */
+   *  unchanged; amend body/version to open a new review". The line gate judged the
+   *  verdict "same" before this runs (a drifted doc reopened the line as the review
+   *  lead — this helper never sees it); the one content read backs only the
+   *  version token the message renders. Null on the non-doc / legacy faces (the
+   *  generic "no open round" message keeps its face there). */
   #docLineBlock(scene: WorkScene): string | null {
     if (scene.target?.kind !== "doc") return null;
-    const verdict = this.#docLineVerdict(scene);
-    if (verdict?.kind !== "same") return null;
     const reviewed = scene.ledger.reviewedDocRevisionOf(this.#lineKey(scene) as LedgerKey);
     if (reviewed === null) return null;
     const version = this.#docVersionOf(this.#docContent(scene.target.doc));
     return `${scene.type} already reviewed at ${version ?? "the current version"} (doc-hash ${reviewed.doc_hash.slice(0, 12)}…) — target revision unchanged; amend body/version to open a new review`;
   }
 
-  /** The doc's live content — readable doc else null (the drift verdict + the
-   *  revision-aware BLOCK reuse this single read; the revision hash is a raw-content
-   *  digest — zero parse dependence). */
+  /** The doc's live content — readable doc else null. The doc-line identity's
+   *  read is the LEDGER's verdict read (Ledger#docLineVerdict — one read per
+   *  gate); this helper backs the face's one remaining read site, the
+   *  revision-aware BLOCK's version token — a read fired only when the BLOCK
+   *  message actually renders (the version is raw doc grammar — zero parse
+   *  dependence: the revision hash is a raw-content digest). */
   #docContent(doc: string): string | null {
     try {
       return this.#readText(doc);

@@ -13,7 +13,7 @@
 // engine-config (the external contract JSONs — allowed steady-data reads, never the
 // old tree's derived products).
 
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -500,6 +500,28 @@ describe("the T7 doc-line identity record — reviewedDocRevision (the reopen-co
       // target against the LATEST reviewed identity
       ledger.recordReviewedDocRevision(doc, second);
       expect(ledger.reviewedDocRevisionOf(doc)).toEqual(second);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("docLineVerdict — the shared identity comparison: same vs drift vs the null faces", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      const doc = path.join(workspace.path, "docs", "x-p1.md");
+      mkdirSync(path.dirname(doc), { recursive: true });
+      writeFileSync(doc, "v1.0 body", "utf8");
+      // an absent reviewed identity → null (the legacy closed face — no comparison)
+      expect(ledger.docLineVerdict("1", doc)).toBeNull();
+      ledger.recordReviewedDocRevision("1", ledger.refs().docRevision(doc, "v1.0 body"));
+      // the recorded identity matches the current doc → "same" (the revision-aware BLOCK)
+      expect(ledger.docLineVerdict("1", doc)).toBe("same");
+      // the doc moved past the reviewed identity → "drift" (the line reopens)
+      writeFileSync(doc, "v1.1 body", "utf8");
+      expect(ledger.docLineVerdict("1", doc)).toBe("drift");
+      // an unreadable doc → null (only present facts land — no invented identity)
+      rmSync(doc);
+      expect(ledger.docLineVerdict("1", doc)).toBeNull();
     } finally {
       cleanup();
     }

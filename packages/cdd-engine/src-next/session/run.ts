@@ -373,22 +373,10 @@ export class Lifecycle {
     }
     // T7 — the doc line's identity-driven reopen: a CLOSED doc line reopens when
     // the target document drifted past its reviewed revision (round continuation
-    // {line}-review-{N+1}); the CLI's line gate applies the same identity verdict.
-    return target.kind === "doc" && this.#docDrifted(key, target.doc) ? reviewLead : null;
-  }
-
-  /** The T7 doc-drift predicate — the target's current doc revision differs from
-   *  the line's recorded reviewed revision (an unreadable doc / absent reviewed
-   *  identity → false — only present facts reopen a line). */
-  #docDrifted(key: LedgerKey, doc: string): boolean {
-    const reviewed = this.#ledger.reviewedDocRevisionOf(key);
-    if (reviewed === null) return false;
-    try {
-      const current = this.#ledger.refs().docRevision(doc, readFileSync(doc, "utf8"));
-      return !this.#ledger.refs().sameRef(reviewed, current);
-    } catch {
-      return false;
-    }
+    // {line}-review-{N+1}); the CLI's line gate consumes the same ledger verdict.
+    return target.kind === "doc" && this.#ledger.docLineVerdict(key, target.doc) === "drift"
+      ? reviewLead
+      : null;
   }
 
   /** The C5 route of a single-target line's review-lead round — the fix-awaits /

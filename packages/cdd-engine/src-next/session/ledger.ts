@@ -22,6 +22,7 @@
 // carrying bare functions (the plan's zero-bare-function discipline).
 
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import type { ConfigLoader } from "../infra/config.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
 import type { Workspace } from "../infra/workspace.ts";
@@ -417,6 +418,25 @@ export class Ledger {
     const data = this.readProgress();
     if (data === null) return null;
     return this.rowFor(data, key)?.reviewedDocRevision ?? null;
+  }
+
+  /** The doc line's identity verdict (T7) — the current doc revision vs the line's
+   *  recorded reviewed revision: the ONE shared comparison across the session
+   *  plane's reopen decision and the face plane's drift gate (both planes
+   *  out-source the read + the same-ref ruling here — a single error policy).
+   *  `drift` → the target moved past the reviewed identity (the line reopens);
+   *  `same` → unchanged (the revision-aware BLOCK). Null when no reviewed revision
+   *  is on record or the doc is unreadable (the legacy closed face keeps its
+   *  generic message — only present facts land). */
+  docLineVerdict(key: LedgerKey, doc: string): "drift" | "same" | null {
+    const reviewed = this.reviewedDocRevisionOf(key);
+    if (reviewed === null) return null;
+    try {
+      const current = this.#refs.docRevision(doc, readFileSync(doc, "utf8"));
+      return this.#refs.sameRef(reviewed, current) ? "same" : "drift";
+    } catch {
+      return null;
+    }
   }
 
   /** Read one counter — a failure-category count on record (0 when the file is missing). */

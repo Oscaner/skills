@@ -91,8 +91,8 @@ CLAUDE.md 顶级节 = Repository purpose · ⚠️ emit products are derived · 
 
 #### 5.3 关键词面一致性
 
-- 消费面入口仍 `npx -y @oscaner-skills/cdd-engine@latest ...`（消费者环境无 monorepo 布局 · Consumer perspective 规则）
-- 本程序期引用沿用现行 `src-next/` 路径面（跨程序 pin · rename sweep 覆盖字面量）——SKILL.md 若言及引擎路径以 `src-next/` 形态出现，随 rename 程序 P2 sweep 统一
+- 消费面入口仍 `npx -y @oscaner-skills/cdd-engine@latest ...`（消费者环境无 monorepo 布局 · Consumer perspective 规则）——**唯一引擎入口**
+- **SKILL.md 零引擎内部路径字面量（用户裁定 · 2026-10-11）**：SKILL.md 是消费面——消费者不需要引擎内部细节；不以任何形态言及引擎内部树（`src-next/` · `src/` · `packages/…` **全零命中** · 验收 grep pin §7.2）；引擎入口唯一消费面拼写 `npx -y @oscaner-skills/cdd-engine@latest <subcommand>`；内部路径面（docs/kairos specs+plans · maintainers）随 rename 程序 P2 sweep 统一（本 spec 属内部面，`src-next/` 字面量随 sweep 改 `src/`）——SKILL.md 不在 sweep 面
 - 两 skill 的 `author-*` 节点文本更新后，**必须 `pnpm run emit`**（SKILL.md 是 emit 源 · emit 产品 `.claude-plugin`/`.cursor-plugin`/`marketplace` 同步再生成——repo 铁律）
 
 ### 6. CLAUDE.md 去流程化（Q3→c）
@@ -141,6 +141,7 @@ CLAUDE.md 收缩后，不新增「引擎使用引导」替代节——引擎使�
 - 三型骨架经 doc-contract 判压**零 finding**（colocated vitest pin · 结构化 by construction · `schema gen phase-spec` 与 `schema gen phaseSpec` 同型归一）
 - 填后 doc-contract 终判语义不变（gate 零例外 · 骨架非豁免通道）；`schema get` 现行为字节不变（vitest 全绿作证 · 401 既有全绿）
 - 消费面 author 节点更新（cdd-spec-writer / cdd-plan：先 gen 后填 · `:::fill` 零残留自检）· `pnpm run emit` 后 emit 产品新鲜（`emit:check` 绿）
+- **SKILL.md 零引擎内部路径字面量**：`grep -rn "src-next" packages/kairos/skills/` 零命中（现态已满足 · 更新后保持——消费面 SKILL.md 只出现消费面入口 `npx -y @oscaner-skills/cdd-engine@latest`）
 - CLAUDE.md 去流程化落：`grep -rn "零新子命令" CLAUDE.md` 零命中 · §1.4 四块检索零残留（`Development-time CDD invocation` / `cdd CLI surface` / `Engine tests` / `Review convergence` 指针）；repo dev 义务面保留
 - 引擎 vitest 全绿（`pnpm --filter @oscaner-skills/cdd-engine test`）· `tsc --noEmit` 三项目全绿 · `pnpm run validate` ALL PASS · `pnpm run precommit` 过
 - 实现落改名后 `src/` 树（跨程序 pin 通过后启动）

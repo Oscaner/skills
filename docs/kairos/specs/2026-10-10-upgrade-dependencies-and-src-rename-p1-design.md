@@ -1,6 +1,6 @@
 # 依赖升级与 src 更名（Dependency Upgrade & Src Rename）— P1 Design Spec（simple-git 3→4 · node 线锁 24 · 依赖全量对齐）
 
-- **Version**: v1.1 · 2026-10-10
+- **Version**: v1.2 · 2026-10-10
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5（kairos:cdd-design [P1] enumerate-then-grill 定案 → cdd-spec-writer）
 - **Parent program**: [2026-10-10-upgrade-dependencies-and-src-rename-overall.md v1.3](docs/kairos/specs/2026-10-10-upgrade-dependencies-and-src-rename-overall.md)
@@ -20,9 +20,9 @@ cdd-engine（`packages/cdd-engine/package.json`）：`dependencies.simple-git ^3
 
 simple-git latest **4.0.2**（4.0.x 无 `engines` 声明）· @types/node latest **26.6.5**（26 线）· @types/node@24 线 latest **24.19.2**。`.nvmrc` = v24 · CI setup 默认 `"24"`（`.github/actions/setup/action.yml` `inputs.node-version.default`）——运行时线 = 24，与 types 线现状（^26.6.4）**脱节**：这是「类型 = 运行时」要修的撒谎面。
 
-#### 1.3 pnpm outdated 工具语义（overall v1.2 验收改写之据）
+#### 1.3 pnpm outdated 工具语义（overall v1.2 验收改写之据 · 评审证伪修正）
 
-实测 `pnpm outdated --long` = **零行 exit 0**，但 registry 有明显更新可见 → 工具**不报越 range 的 major**（simple-git 4.0.2 对 `^3.36.0` 不可见）+ 本地元数据 cache 陈旧（26.6.5 对 `^26.6.4` 不可见）。结论：**「零 stale」不能以字面行数验收**，改写为三段式（见 Acceptance criteria）；意图线的真实落位以 registry 交叉核对为证，不以 pnpm 判定。
+实测 `pnpm outdated --long` = **零行 exit 0**，但 registry 有明显更新可见 → 当日零行的**唯一成因是本地元数据 cache 陈旧**（26.6.5/4.0.2 对声明不可见），**非工具不收越-range major**：对照实验（/tmp/pnout-test · 声明 `^3.36.0` 解析 3.36.0，`pnpm outdated --long`）实证 fresh 元数据下**必报越-range major**（`simple-git 3.36.0 → 4.0.2` · exit 1）。结论：**「零 stale」不能以字面行数验收**（fresh 元数据下越-range major 必报——升级后 `@types/node latest 26.6.5` 对 `^24.19.2` 越-range 同样必报，属线锁 24 设计意图 · 验收容忍项见 Acceptance criteria），改写为三段式；意图线的真实落位以 registry 交叉核对为证，不以 pnpm 判定。
 
 ### 2. simple-git 3 → 4 升级（声明面）
 
@@ -64,7 +64,7 @@ cdd-engine `engines.node: >=22.18.0 → >=24`——运行线 min 抬到 24 线�
 
 #### 4.2 结果 pin
 
-刷新后 `pnpm outdated` 零行 · 两条意图线 registry 交叉核对落位（simple-git **4.0.2** · @types/node **24.19.2** 出现在声明 + 锁文件）· `pnpm install --frozen-lockfile` 保持绿（锁一致性门）。
+刷新后 `pnpm outdated` 除 @types/node 单行越-range（latest **26.6.5** vs 声明 `^24.19.2` · 线锁 24 设计意图 · 必报且验收容忍）外零行 · 两条意图线 registry 交叉核对落位（simple-git **4.0.2** · @types/node **24.19.2** 出现在声明 + 锁文件）· `pnpm install --frozen-lockfile` 保持绿（锁一致性门）。
 
 #### 4.3 网络/环境面零新增
 
@@ -88,7 +88,9 @@ simple-git 行 `^3.36.0 → ^4.0.2`（declared / lockfile 两格更新；lockfil
 
 #### 6.1 验证面（顺序）
 
-`pnpm run precommit`（树无关子集 · doc-contract gate 14 specs/plans 保持）→ `tsc --noEmit` 三项目 → 引擎 vitest（`pnpm --filter @oscaner-skills/cdd-engine test`）→ `pnpm run validate` ALL PASS（emit 新鲜 / channel audit / residue 零回归）。
+前置：`packages/cdd-engine/` 包根无 `src`/`config` 残留（清空 P2 改名预演遗留的空壳目录——git 不可见 · 实测残留于当前工作树）后，先跑基线 `pnpm run precommit` + 引擎 vitest，**基线全绿是升级对标的起点**。
+
+基线后顺序：`pnpm run precommit`（树无关子集 · doc-contract gate **16** specs/plans 保持——评审后引擎 new overall 落地 +1 的实值）→ `tsc --noEmit` 三项目 → 引擎 vitest（`pnpm --filter @oscaner-skills/cdd-engine test` · 以干净工作树为前提）→ `pnpm run validate` ALL PASS（emit 新鲜 / channel audit / residue 零回归）。
 
 #### 6.2 提交粒度
 
@@ -100,14 +102,14 @@ simple-git 行 `^3.36.0 → ^4.0.2`（declared / lockfile 两格更新；lockfil
 
 ### Acceptance criteria
 
-- `pnpm outdated` 零行（升级后 · 全树）
+- `pnpm outdated` 除 @types/node 单行越-range 外零行（升级后 · 全树；@types/node latest **26.6.5** vs 声明 `^24.19.2` 属线锁 24 设计意图 · 必报且验收容忍）
 - 两条意图线 registry 交叉核对：simple-git **4.0.2**（声明 + 锁文件）· @types/node **24.19.2**（根 + cdd-engine 两处声明 + 锁文件）——以 `npm view` fresh 元数据比对，不以 pnpm 判定为准
 - in-range 刷新实证：新鲜元数据下 wanted==current 全树（声明面经 `pnpm ls` 抽查）
 - `engines.node >=24` 就位（cdd-engine package.json）
 - `tsc --noEmit` 三项目全绿（engine / scripts / kairos-tests）
-- 引擎 vitest 全绿（`pnpm --filter @oscaner-skills/cdd-engine test` · 0 语义改动）
+- 引擎 vitest 全绿（`pnpm --filter @oscaner-skills/cdd-engine test` · 0 语义改动 · 以干净工作树为前提——包根无 `src`/`config` 残留）
 - `pnpm run validate` ALL PASS（emit 新鲜 / channel audit / residue 零回归）
-- `pnpm run precommit` 过（含 doc-contract gate 14 specs/plans 保持）
+- `pnpm run precommit` 过（含 doc-contract gate 16 specs/plans 保持）
 - maintainers 05 §1 落（simple-git 4.x 行 + 前瞻注记两行 + @types/node 行）
 
 ## Constraints
@@ -123,7 +125,7 @@ simple-git 行 `^3.36.0 → ^4.0.2`（declared / lockfile 两格更新；lockfil
 
 | Overall assumption | Phase decision | Overall updated? |
 |---|---|---|
-| 「pnpm outdated 零 stale」字面可测（overall v1.1 原始验收行） | 三段式改写：`pnpm outdated` 零行 + 两条意图线 registry 交叉核对（simple-git 4.0.2 · @types/node 24.19.2）+ in-range 刷新实证（wanted==current 全树）——取证：pnpm outdated 不报越-range major（4.0.2 不可见）且本地元数据 cache 陈旧（26.6.5 不可见），字面验收空洞 | Yes |
+| 「pnpm outdated 零 stale」字面可测（overall v1.1 原始验收行） | 三段式改写：`pnpm outdated` 除 @types/node 单行越-range（26.6.5 vs `^24.19.2` · 设计意图）外零行 + 两条意图线 registry 交叉核对（simple-git 4.0.2 · @types/node 24.19.2）+ in-range 刷新实证（wanted==current 全树）——取证：零行**唯一成因是本地元数据 cache 陈旧**（对照实验实证 fresh 元数据下 pnpm outdated **必报越-range major** · exit 1 · 原「不报越-range」因果证伪），字面验收空洞 | Yes |
 
 ## Notes for downstream
 
@@ -138,3 +140,4 @@ simple-git 行 `^3.36.0 → ^4.0.2`（declared / lockfile 两格更新；lockfil
 |---|---|---|---|
 | v1.0 | 2026-10-10 | P1 设计 spec：simple-git `^3.36.0 → ^4.0.2`（drop-in 已核 · 不引新能力）+ node 线锁 24（engines `>=24` · types 两处 `^24.19.2` · `.nvmrc`/CI 保持）+ 依赖全量对齐（三段式验收）+ maintainers 05 §1 同步（4.x 前瞻注记）· 增量为父 overall v1.2 注册面的展开（Q0 覆盖确认 · Q1/Q2 grilling 定案） | [human] · Claude Opus 5（kairos:cdd-design [P1] enumerate-then-grill → cdd-spec-writer） |
 | v1.1 | 2026-10-10 | **程序结构回填（P4 拆出 · 2026-10-10 用户裁定「这个问题和 P4 其实是同一类的吧？」）**：父子整体 `engine-doc-tooling` 成立（review-face 键 + schema gen 同属引擎 doc-tooling 能力类）——本 spec 引擎行为引用（§2.3 / §5.2 / §6.3 / Notes）从「P4 赛道」改指独立整体程序；Parent program 版本 v1.2 → v1.3 | [human] · Claude Opus 5（kairos:cdd-design 拆出裁定） |
+| v1.2 | 2026-10-10 | **spec-review-1 修正（3 findings 全修）**：F1「pnpm outdated 不报越-range major」证伪——§1.3/§4.2/Acceptance/Deviations 因果改「零行唯一成因 = 本地元数据 cache 陈旧 · fresh 元数据必报越-range major · 验收容忍项 = @types/node 单行越-range（26.6.5 vs `^24.19.2` · 设计意图）」（父 overall v1.4 同语 backfill 已落）· F2 §6.1 补环境前置（包根无 `src`/`config` 残留 · 引擎 vitest 全绿以干净工作树为前提）· F3 doc-contract gate 14 → 16 specs/plans（评审时实值 15 · 引擎 new overall `93cb4664` 落地后当前树实值 16 · 按 operate 时实值钉） | [human] · Claude Opus 5（P1 spec-review-1 fix 轮统一落） |

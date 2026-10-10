@@ -260,11 +260,15 @@ const OVERALL_ELEMENTS = [
     refKind: "none",
     home: "section",
   },
-  // Charter facets (`###`/`####` leaves under the charter).
+  // Charter facets (`###`/`####` leaves under the charter). The legacy Chinese
+  // markers (the doc-arch decision-group leaves M/F/R/B/E, the doc-arch
+  // upstream-endorsements facet) match through the judge's canonicalize row-source
+  // seam (contract/judge.ts) — the value patterns below are English canonicals,
+  // never a second hand-written zh pattern.
   {
     anchor: "### Goal",
     presence: "required",
-    valuePattern: "^### (Goal|cdd-engine 服务化主线（2026-09-13 用户升维）)",
+    valuePattern: "^### Goal",
     refKind: "none",
     home: "facet",
   },
@@ -283,16 +287,16 @@ const OVERALL_ELEMENTS = [
     home: "facet",
   },
   {
-    anchor: "#### [MFRBEN] 组",
+    anchor: "#### [MFRBEN] group",
     presence: "optional",
-    valuePattern: "^#### [MFRBEN] 组",
+    valuePattern: "^#### [MFRBEN] group",
     refKind: "none",
     home: "facet",
   },
   {
-    anchor: "#### 上游先例背书",
+    anchor: "#### Upstream Endorsements",
     presence: "optional",
-    valuePattern: "^#### 上游先例背书$",
+    valuePattern: "^#### Upstream Endorsements$",
     refKind: "none",
     home: "facet",
   },

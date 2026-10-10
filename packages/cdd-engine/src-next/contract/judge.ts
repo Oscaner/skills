@@ -8,6 +8,7 @@
 // judgment branches in this module (the plan's coordinator semantics: the
 // polymorphic strategy family judges, the coordinator assembles).
 
+import { Words } from "../face/words.ts";
 import { declaredRegistries } from "./declare.ts";
 import type { ParsedDoc } from "./doc.ts";
 import { docTypeParsers } from "./doc.ts";
@@ -30,6 +31,7 @@ import {
 } from "./invariants.ts";
 import type { DocKey } from "./project.ts";
 import { Projector } from "./project.ts";
+import { Translator } from "./translate.ts";
 
 /** The three doc-type record keys — the policy-composition identity. */
 const DOC_KEYS: readonly DocKey[] = ["overall", "plan", "phaseSpec"];
@@ -56,6 +58,17 @@ export interface ContractInput {
  * The contract coordinator — the interpreter's single face. One instance; the
  * strategy set is stateless (each strategy reads its judgment data from the
  * context), so construction is cheap and validates compose safely.
+ *
+ * The P7 structure-plane canonicalize seam (design spec §2.1): the Contract
+ * self-holds a Translator, and validate() canonicalizes EVERY input line once at
+ * the row source — the normalized view shared by parse and JudgeContext.lines.
+ * Every valuePattern judgment face (presence occurrenceLines · domain
+ * carrierLines · section-scoped · crosslink) matches the view, so the legacy
+ * Chinese charter markers (the doc-arch decision-group / upstream-endorsements
+ * leaves) match their English canonical element patterns through the recognition
+ * face — never a second hand-written zh pattern. The view is never written back:
+ * the source document stays byte-identical and the original lines remain in
+ * input.content.
  */
 export class Contract {
   /** The per-doc-key policy sets — the declared composition of the strategy family.
@@ -65,15 +78,23 @@ export class Contract {
   readonly #strategies: Record<DocKey, readonly Invariant[]>;
   /** The projection carrier — the derived parse/skeleton faces the judgment reads. */
   readonly #projector: Projector;
+  /** The row-source translator — the canonicalize seam carrier. One instance over
+   *  the same locale word table the rest of the plane reads (the recognition face
+   *  of the P7 translation layer); embedded like the projector, so the production
+   *  construction points (`new Contract()`) stay argument-free. */
+  readonly #translator: Translator;
 
   constructor() {
     this.#strategies = Contract.#buildPolicy();
     this.#projector = new Projector(declaredRegistries);
+    this.#translator = new Translator(new Words());
   }
 
-  /** validate(doc) — parse, compose, run, aggregate. The single judgment entry. */
+  /** validate(doc) — parse, compose, run, aggregate. The single judgment entry.
+   *  Every input line canonicalizes ONCE at the row source (the normalized view);
+   *  parse and the judgment context read the same view, the source stays intact. */
   validate(input: ContractInput): Finding[] {
-    const lines = input.content.split("\n");
+    const lines = input.content.split("\n").map((line) => this.#translator.canonicalize(line));
     const parsed = docTypeParsers[input.docKey].parse(lines);
     const context: JudgeContext = {
       docKey: input.docKey,

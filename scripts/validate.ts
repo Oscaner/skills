@@ -178,8 +178,6 @@ export const engineSuiteStep = new SubprocessBlock({
  *  A pre-contract doc graduates from the list when it is migrated to the new form
  *  (its gate findings go to zero — remove the basename then). */
 const PRECONTRACT_DOCS = new Set<string>([
-  "docs/kairos/plans/2026-09-13-osuperpowers-overhaul-p5.md",
-  "docs/kairos/plans/2026-09-13-osuperpowers-overhaul-p6.md",
   "docs/kairos/plans/2026-09-21-consumer-parity-p1.md",
   "docs/kairos/plans/2026-09-21-consumer-parity-p4.1.md",
   "docs/kairos/plans/2026-09-21-consumer-parity-p4.2.md",
@@ -195,13 +193,6 @@ const PRECONTRACT_DOCS = new Set<string>([
   "docs/kairos/plans/2026-10-02-doc-architecture-v2-p2.md",
   "docs/kairos/plans/2026-10-02-doc-architecture-v2-p3.md",
   "docs/kairos/plans/2026-10-02-doc-architecture-v2-p3.1.md",
-  "docs/kairos/specs/2026-09-13-osuperpowers-overhaul-overall.md",
-  "docs/kairos/specs/2026-09-13-osuperpowers-overhaul-p1-design.md",
-  "docs/kairos/specs/2026-09-13-osuperpowers-overhaul-p2-design.md",
-  "docs/kairos/specs/2026-09-13-osuperpowers-overhaul-p3-design.md",
-  "docs/kairos/specs/2026-09-13-osuperpowers-overhaul-p4-design.md",
-  "docs/kairos/specs/2026-09-13-osuperpowers-overhaul-p5-design.md",
-  "docs/kairos/specs/2026-09-13-osuperpowers-overhaul-p6-design.md",
   "docs/kairos/specs/2026-09-21-consumer-parity-p1-design.md",
   "docs/kairos/specs/2026-09-21-consumer-parity-p2-design.md",
   "docs/kairos/specs/2026-09-21-consumer-parity-p3-design.md",

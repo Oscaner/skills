@@ -4,10 +4,14 @@
 // by the word table (face/words.ts — the word table's locale family), and ONE
 // translator class speaks for the whole plane:
 //
-//   normalize(input) — the recognition face: a Chinese alias maps to the canonical
-//       English token, an already-canonical word passes through, an unknown word is
-//       null (the doc-parse / judge recognition channel the legacy Chinese markers
-//       used to need — recognition rides this layer, never a second hand-written map).
+//   canonicalize(line) — the recognition face: every registered Chinese alias span in
+//       the line maps to its canonical English row (the longest registered alias wins
+//       at each position — non-overlapping spans; unregistered text passes through
+//       unchanged). The doc-parse / judge recognition channel the legacy Chinese
+//       markers used to need — recognition rides this layer, never a second
+//       hand-written map. The single recognition face: the retired single-token
+//       normalize folds in — a single-token judgement is canonicalize over that
+//       token's line.
 //   localize(token, locale) — the rendering face: the canonical token → the requested
 //       locale's output word (the en locale renders the canonical itself — identity),
 //       the human-readable rendering faces' locale-normalized output.
@@ -23,7 +27,7 @@
  *  is a row's non-en locale output). Rows are keyed by locale — the en column is
  *  required, every further locale column is an optional alias. */
 export interface LocalizedWord {
-  /** The canonical English form — the token's stable face (the normalize target). */
+  /** The canonical English form — the token's stable face (the canonicalize target). */
   en: string;
   /** The Chinese alias — the zh locale's output word of this row. */
   zh?: string;
@@ -46,17 +50,22 @@ export interface WordLocaleFace {
 }
 
 /**
- * Translator — the single bidirectional translation layer. normalize() recognizes an
- * input word (a Chinese alias or the canonical English token) as the canonical token;
- * localize() renders a canonical token at a requested locale. Both rows ride the
- * injected word-table locale face — zero switch: a new word is a new data row, never
- * a new code branch (the word table is the single-source translation data).
+ * Translator — the single bidirectional translation layer. canonicalize() recognizes
+ * an input line — every registered Chinese alias span maps to its canonical English
+ * form, unregistered text passes through (identity); localize() renders a canonical
+ * token at a requested locale. Both ride the injected word-table locale face — zero
+ * switch: a new word is a new data row, never a new code branch (the word table is
+ * the single-source translation data).
  */
 export class Translator {
   /** The bilingual row index — canonical token → its row (the localize/identity path). */
   readonly #byToken: ReadonlyMap<string, LocalizedWord>;
-  /** The alias index — non-en alias → its canonical token (the normalize path). */
+  /** The alias index — non-en alias → its canonical token (the canonicalize path). */
   readonly #byAlias: ReadonlyMap<string, string>;
+  /** The alias keys, longest first — the canonicalize scan order (the longest
+   *  registered alias binds at each position; a same-length tie keeps insertion
+   *  order). Built once — the scan never re-sorts. */
+  readonly #aliasesByLength: readonly string[];
 
   constructor(face: WordLocaleFace) {
     const byToken = new Map<string, LocalizedWord>();
@@ -67,12 +76,30 @@ export class Translator {
     }
     this.#byToken = byToken;
     this.#byAlias = byAlias;
+    this.#aliasesByLength = [...byAlias.keys()].sort((a, b) => b.length - a.length);
   }
 
-  /** normalize(input) — the bidirectional recognition face: the canonical token passes
-   *  through, a Chinese alias maps to its canonical token, an unknown word is null. */
-  normalize(input: string): string | null {
-    return this.#byToken.has(input) ? input : (this.#byAlias.get(input) ?? null);
+  /** canonicalize(line) — the bidirectional recognition face: every registered
+   *  Chinese alias span in the line maps to its canonical English row (the longest
+   *  registered alias wins at each position — non-overlapping spans; unregistered
+   *  text, an already-canonical line, and an empty line pass through unchanged). The
+   *  single recognition face — a single-token judgement is canonicalize over that
+   *  token's line (the retired single-token normalize). Pure: the caller owns any
+   *  write-back — this method never rewrites the source document. */
+  canonicalize(line: string): string {
+    let out = "";
+    let i = 0;
+    while (i < line.length) {
+      const alias = this.#aliasesByLength.find((candidate) => line.startsWith(candidate, i));
+      if (alias === undefined) {
+        out += line[i];
+        i += 1;
+      } else {
+        out += this.#byAlias.get(alias);
+        i += alias.length;
+      }
+    }
+    return out;
   }
 
   /** localize(token, locale) — the rendering face: the canonical token → the requested

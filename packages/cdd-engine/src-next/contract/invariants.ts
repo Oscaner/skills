@@ -84,7 +84,11 @@ export interface JudgeContext {
   docKey: DocKey;
   /** The parsed structural record of the document. */
   parsed: ParsedDoc;
-  /** The document's raw content lines. */
+  /** The judged document's normalized content lines — the canonicalize view the
+   *  row-source seam (Contract.validate) builds ONCE per judgment: every
+   *  valuePattern / anchor-literal face (occurrenceLines · carrierLines ·
+   *  anchorLines and the parsed records) matches the view. The view is never
+   *  written back — the source document stays byte-identical. */
   lines: readonly string[];
   /** The document's file path (message attribution + the doc's own dir for links). */
   path: string;

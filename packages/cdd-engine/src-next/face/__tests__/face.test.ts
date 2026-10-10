@@ -11,8 +11,9 @@
 //     words, no re-judgment: a steady state, not a compatibility shim;
 //   · the locale face (T19) — the word table's locale columns: the locale key set
 //     (the langs projection source), the issue-label rows (one per finding type ×
-//     segment), and the machine-face immunity — the capsule words carry zero locale
-//     aliases (the machine surface is English-constant, never localized).
+//     segment) + the charter anchor rows (the P7 canonicalize data — charter.*), and
+//     the machine-face immunity — the capsule words carry zero locale aliases (the
+//     machine surface is English-constant, never localized).
 // The type assertion at the bottom pins the T8 run seam (CapsuleFace) — the
 // interaction point the lifecycle attaches.
 
@@ -272,10 +273,20 @@ describe("the locale face — the word-table locale columns (T19, the P7 transla
     expect(words.localeRow("bug.bogus")).toBeNull();
   });
 
+  it("the charter rows — the P7 canonicalize data (the zh knowledge's single home)", () => {
+    expect(words.localeRow("charter.group-leaf")).toEqual({ en: "group", zh: "组" });
+    expect(words.localeRow("charter.upstream-endorsements")).toEqual({
+      en: "Upstream Endorsements",
+      zh: "上游先例背书",
+    });
+    expect(words.localeRow("charter.bogus")).toBeNull();
+  });
+
   it("the whole translation data flows from the one table — localeRows is the flat face", () => {
     const flat = words.localeRows();
-    // the declared label matrix: 3 finding types × 4 segments = 12 rows, all single-sourced
-    expect(flat.length).toBe(12);
+    // the declared locale matrix: 3 finding types × 4 segments = 12 issue-label rows
+    // + 2 charter anchor rows = 14, all single-sourced
+    expect(flat.length).toBe(14);
     // every row's canonical is the en face and carries a zh alias (the two-locale steady face)
     for (const row of flat) {
       expect(row.en.length).toBeGreaterThan(0);
@@ -285,10 +296,11 @@ describe("the locale face — the word-table locale columns (T19, the P7 transla
 
   it("the machine-face immunity — the capsule words carry zero locale aliases (never localized)", () => {
     const translator = new Translator(words);
-    // the capsule machine words are not translation rows: normalize/localize over
-    // the machine surface is null — the machine face is English-constant.
-    expect(translator.normalize(words.station("next"))).toBeNull();
-    expect(translator.normalize(words.station("blocked"))).toBeNull();
+    // the capsule machine words are not translation rows: canonicalize over the
+    // machine surface is identity (no registered alias span) — the machine face is
+    // English-constant.
+    expect(translator.canonicalize(words.station("next"))).toBe("next:");
+    expect(translator.canonicalize(words.station("blocked"))).toBe("CDD_BLOCKED:");
     expect(translator.localize("status", "zh")).toBeNull();
     expect(translator.localize("APPROVED", "zh")).toBeNull();
     // the byte pin stays English — the capsule emits the machine words verbatim

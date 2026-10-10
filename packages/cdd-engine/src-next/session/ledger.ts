@@ -22,6 +22,7 @@
 // carrying bare functions (the plan's zero-bare-function discipline).
 
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import type { ConfigLoader } from "../infra/config.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
 import type { Workspace } from "../infra/workspace.ts";
@@ -100,6 +101,10 @@ export type ProgressRow = {
   rounds?: Record<string, number>;
   /** The scope base the wave's rounds reviewed from (the pre-wave commit). */
   scope_base?: string;
+  /** The doc line's reviewed doc revision (T7) — the doc-revision identity the
+   *  line's last review round bound (written at doc-review completion; the
+   *  identity-aware line gate reopens the closed line on drift from it). */
+  reviewedDocRevision?: DocRevisionRef;
 };
 
 /** The progress.json data plane — the fixed top-level key set + the per-wave rows. */
@@ -171,14 +176,15 @@ export interface HandoffParams {
 // review references — the refKind face (T25 · P5)
 // ---------------------------------------------------------------------------
 
-/** The review-reference kinds — the four typed review-ref families (T25): the
- *  commit-set-ledger ref (a wave's committed set, read from the ledger round
+/** The review-reference kinds — the three typed review-ref families (T25 · P5):
+ *  the commit-set-ledger ref (a wave's committed set, read from the ledger round
  *  carriers · the wave face) · the commit-range ref (a branch's full-sha range) ·
  *  the doc-revision ref (a spec/plan review's two-layer document ref — the doc
- *  path + its content-hash revision, the `doc_hash` binding) · the graph-node ref
- *  (a plan-graph task-node identity). Every review ref resolves to one of the
- *  four — the typed data the review-ref derivation lands, zero prose. */
-export type RefKind = "commit-set-ledger" | "commit-range" | "doc-revision" | "graph-node";
+ *  path + its content-hash revision, the `doc_hash` binding). Every review ref
+ *  resolves to one of the three — the typed data the review-ref derivation lands,
+ *  zero prose. Node-level review is structurally absent (R5 · the wave-atomic
+ *  model audits whole waves, never a single task node). */
+export type RefKind = "commit-set-ledger" | "commit-range" | "doc-revision";
 
 /** The commit-set-ledger ref — a wave's committed set, read from the ledger's
  *  implement round carrier (the reviewed `base..head` range). */
@@ -208,19 +214,11 @@ export interface DocRevisionRef {
   doc_hash: string;
 }
 
-/** The graph-node ref — a plan-graph task-node identity (a review of one node of
- *  the task graph, independent of its commit state). */
-export interface GraphNodeRef {
-  kind: "graph-node";
-  /** The plan task node id. */
-  node: number;
-}
-
-/** The typed review ref — the four-kind union (T25). */
-export type ReviewRef = CommitSetLedgerRef | CommitRangeRef | DocRevisionRef | GraphNodeRef;
+/** The typed review ref — the three-kind union (T25). */
+export type ReviewRef = CommitSetLedgerRef | CommitRangeRef | DocRevisionRef;
 
 /**
- * ReviewRefs — the typed review-reference face (T25): the four-kind classification
+ * ReviewRefs — the typed review-reference face (T25): the three-kind classification
  * (`kindOf`), the doc-revision two-layer binding (`docRevision` — the doc hash
  * from its content), the per-kind ref constructors and the same-ref reject
  * (`bind` — the SAME identity already bound returns null: a duplicate review of
@@ -231,7 +229,7 @@ export class ReviewRefs {
   /** The refs bound in this face — the same-ref reject basis. */
   #bound: ReviewRef[] = [];
 
-  /** The four-way classification — one target type → one ref kind (the single
+  /** The three-way classification — one target type → one ref kind (the single
    *  kindOf mapping; variants ride the row, never a lifecycle edit). */
   kindOf(type: TargetType): RefKind {
     switch (type) {
@@ -261,11 +259,6 @@ export class ReviewRefs {
     return { kind: "doc-revision", doc, doc_hash: this.#hash(content) };
   }
 
-  /** The graph-node ref constructor — a plan-graph task node identity. */
-  graphNode(node: number): GraphNodeRef {
-    return { kind: "graph-node", node };
-  }
-
   /** The same-ref reject — bind a ref; the SAME identity already bound → null (the
    *  duplicate review refused), else the bound ref returns. Every bound ref adds to
    *  the face's set (the reject basis). */
@@ -276,8 +269,8 @@ export class ReviewRefs {
   }
 
   /** The ref-identity predicate — two refs are the SAME ref when their identity
-   *  layers match (the doc + its hash · the range's both ends · the wave key ·
-   *  the node id); a differing kind is never the same ref. */
+   *  layers match (the doc + its hash · the range's both ends · the wave key); a
+   *  differing kind is never the same ref. */
   sameRef(a: ReviewRef, b: ReviewRef): boolean {
     if (a.kind !== b.kind) return false;
     switch (a.kind) {
@@ -291,8 +284,6 @@ export class ReviewRefs {
         const other = b as DocRevisionRef;
         return a.doc === other.doc && a.doc_hash === other.doc_hash;
       }
-      case "graph-node":
-        return a.node === (b as GraphNodeRef).node;
     }
   }
 
@@ -337,7 +328,7 @@ export class Ledger {
     this.#families = config.handoffNamespace().families;
   }
 
-  /** The review-reference face — the refKind four-type derivation + binding (T25). */
+  /** The review-reference face — the refKind three-type derivation + binding (T25). */
   refs(): ReviewRefs {
     return this.#refs;
   }
@@ -405,6 +396,47 @@ export class Ledger {
     row.rounds = { ...row.rounds, [mode]: (row.rounds?.[mode] ?? 0) + 1 };
     this.writeProgress(data);
     return row.rounds[mode] as number;
+  }
+
+  /** Record a doc line's reviewed doc revision — the T7 identity-aware gate's
+   *  basis (written when the doc's review round completes: the line reopens on
+   *  drift from this recorded identity, and BLOCKs revision-aware when unchanged). */
+  recordReviewedDocRevision(key: LedgerKey, revision: DocRevisionRef): void {
+    const data = this.readProgress() ?? this.emptyProgress();
+    let row = this.rowFor(data, key);
+    if (row === undefined) {
+      row = this.entryFor(key);
+      data.waves.push(row);
+    }
+    row.reviewedDocRevision = revision;
+    this.writeProgress(data);
+  }
+
+  /** The doc line's recorded reviewed doc revision — null when none on record
+   *  (a doc line with no reviewed identity keeps the legacy closed face). */
+  reviewedDocRevisionOf(key: LedgerKey): DocRevisionRef | null {
+    const data = this.readProgress();
+    if (data === null) return null;
+    return this.rowFor(data, key)?.reviewedDocRevision ?? null;
+  }
+
+  /** The doc line's identity verdict (T7) — the current doc revision vs the line's
+   *  recorded reviewed revision: the ONE shared comparison across the session
+   *  plane's reopen decision and the face plane's drift gate (both planes
+   *  out-source the read + the same-ref ruling here — a single error policy).
+   *  `drift` → the target moved past the reviewed identity (the line reopens);
+   *  `same` → unchanged (the revision-aware BLOCK). Null when no reviewed revision
+   *  is on record or the doc is unreadable (the legacy closed face keeps its
+   *  generic message — only present facts land). */
+  docLineVerdict(key: LedgerKey, doc: string): "drift" | "same" | null {
+    const reviewed = this.reviewedDocRevisionOf(key);
+    if (reviewed === null) return null;
+    try {
+      const current = this.#refs.docRevision(doc, readFileSync(doc, "utf8"));
+      return this.#refs.sameRef(reviewed, current) ? "same" : "drift";
+    } catch {
+      return null;
+    }
   }
 
   /** Read one counter — a failure-category count on record (0 when the file is missing). */

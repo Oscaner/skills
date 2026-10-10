@@ -622,7 +622,9 @@ const PLAN_ELEMENTS = [
     refKind: "task-id",
     home: "task-field",
   },
-  // Reference-lint token — prose mentions of a task id (a WARN-only observation surface).
+  // Reference-lint token — prose mentions of a task id (a WARN-only observation
+  // surface; the crosslink invariant does NOT consume this element — the
+  // reference-lint pass is its only consumer).
   {
     anchor: "Task prose reference",
     presence: "optional",

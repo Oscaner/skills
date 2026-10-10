@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { SKILL_ANATOMY } from "../../packages/cdd-engine/src-next/contract/skill-anatomy.ts";
-import { DISPATCH } from "../../packages/cdd-engine/src-next/face/host.ts";
+import { DISPATCH, type DispatchTable } from "../../packages/cdd-engine/src-next/face/host.ts";
 import { CAPSULE_WORDS, GUARD_BAN_WORDS } from "../../packages/cdd-engine/src-next/face/words.ts";
 import { GuardLibrary, guardLibrary } from "../lib/guard.ts";
 import { scanToken } from "../lib/scan.ts";
@@ -161,7 +161,22 @@ describe("checkChannels — the runtime/host export audit", () => {
     expect(labels.some((l) => l.includes("unregistered ref key"))).toBe(true);
   });
 
+  it("a fix-less dispatch passes the refs audit — the T1 fix-face closure (zero push on an absent fix slot)", () => {
+    // The T1 fail-first premise: the dispatch table's fix slot is gone (the fix
+    // face carries no skill ref) — checkChannels must pass WITHOUT the
+    // `pushRef(this.#dispatch.fix)` derived line tripping on an absent member.
+    const fixless: DispatchTable = {
+      implement: DISPATCH.implement,
+      review: { ...DISPATCH.review },
+    };
+    const labels = new GuardLibrary({ dispatch: fixless }).checkChannels().map((f) => f.label);
+    expect(labels).toEqual([]);
+  });
+
   it("the dispatch supersede — implement names the upstream implement skill (P5)", () => {
     expect(DISPATCH.implement).toBe("mattpocock-skills:implement");
+    // T1 — the fix face carries no skill ref: the dispatch's fix slot is gone (the
+    // retired alias's absence is the zero-residue grep's surface, never re-asserted)
+    expect("fix" in DISPATCH).toBe(false);
   });
 });

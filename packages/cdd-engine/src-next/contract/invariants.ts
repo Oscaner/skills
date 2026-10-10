@@ -525,7 +525,9 @@ export class CrosslinkInvariant extends Invariant {
     return findings;
   }
 
-  /** The plan's in-doc reference surfaces: DependsOn ids + prose task references. */
+  /** The plan's in-doc reference surfaces: the DependsOn ids — the single structural
+   *  reference gate. Prose task mentions are NOT consumed here (T6): the WARN-only
+   *  observation belongs to the reference-lint pass, never a hard finding. */
   private planCrosslinks(ctx: JudgeContext): Finding[] {
     const data = this.plan(ctx);
     if (data === null) return [];
@@ -543,26 +545,6 @@ export class CrosslinkInvariant extends Invariant {
               "set DependsOn to a task id present in the plan (or `none`)",
             ),
           );
-        }
-      }
-    }
-    // Prose task references (`Task 5` / `T 5`) must resolve to an existing task id.
-    const prose = this.sliceOf(ctx, "Task prose reference");
-    if (prose?.valuePattern !== undefined) {
-      for (const line of this.occurrenceLines(ctx, prose)) {
-        const pattern = new RegExp(prose.valuePattern.source, "g");
-        for (const match of line.matchAll(pattern)) {
-          const id = Number(match[1]);
-          if (!ids.has(id)) {
-            findings.push(
-              this.finding(
-                ctx,
-                "Task prose reference",
-                `prose references unregistered task ${match[1]}`,
-                `only reference task ids present in the plan (found ${match[1]})`,
-              ),
-            );
-          }
         }
       }
     }

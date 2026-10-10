@@ -13,13 +13,13 @@
 // engine-config (the external contract JSONs — allowed steady-data reads, never the
 // old tree's derived products).
 
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
-import { Ledger } from "../ledger.ts";
+import { Ledger, type RefKind } from "../ledger.ts";
 
 const BASE = "a".repeat(8);
 const HEAD = "b".repeat(8);
@@ -384,7 +384,7 @@ describe("round — the round carrier", () => {
 });
 
 describe("review references — the refKind face (T25 · P5)", () => {
-  it("the four-kind classification — one target type → one ref kind (the four typed families)", () => {
+  it("the three-kind classification — one target type → one ref kind (the three typed families)", () => {
     const { ledger, cleanup } = fixture();
     try {
       const refs = ledger.refs();
@@ -397,7 +397,14 @@ describe("review references — the refKind face (T25 · P5)", () => {
     }
   });
 
-  it("the four ref families derive their typed records (the commit-set ledger · the commit range · the two-layer doc revision · the graph node)", () => {
+  it("the RefKind union carries no graph-node member (T4 — the wave-atomic model never reviews a single node)", () => {
+    // The type probe: a member absent from the RefKind union resolves the false
+    // branch (the wave-atomic ruling — R5 · overall v1.57).
+    const verdict: "graph-node" extends RefKind ? true : false = false;
+    expect(verdict).toBe(false);
+  });
+
+  it("the three ref families derive their typed records (the commit-set ledger · the commit range · the two-layer doc revision)", () => {
     const { ledger, cleanup } = fixture();
     try {
       const refs = ledger.refs();
@@ -422,8 +429,6 @@ describe("review references — the refKind face (T25 · P5)", () => {
       // a different revision hashes differently — the revision layer is content-bound
       const edited = refs.docRevision("docs/kairos/specs/x-design.md", "revision two");
       expect(edited.doc_hash).not.toBe(docRef.doc_hash);
-      const graphNode = refs.graphNode(7);
-      expect(graphNode).toEqual({ kind: "graph-node", node: 7 } as const);
     } finally {
       cleanup();
     }
@@ -450,7 +455,7 @@ describe("review references — the refKind face (T25 · P5)", () => {
     }
   });
 
-  it("the same-ref ruling across families — ranges, waves and nodes", () => {
+  it("the same-ref ruling across families — ranges and waves", () => {
     const { ledger, cleanup } = fixture();
     try {
       const refs = ledger.refs();
@@ -459,8 +464,64 @@ describe("review references — the refKind face (T25 · P5)", () => {
       expect(refs.bind(refs.commitRange(BASE, HEAD))).toBeNull();
       expect(refs.bind(refs.commitSet("1", { base: BASE, head: HEAD }))).not.toBeNull();
       expect(refs.bind(refs.commitSet("1", { base: BASE, head: HEAD }))).toBeNull();
-      expect(refs.bind(refs.graphNode(3))).not.toBeNull();
-      expect(refs.bind(refs.graphNode(3))).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("the T7 doc-line identity record — reviewedDocRevision (the reopen-compare basis)", () => {
+  it("records + reads the reviewed doc revision on the doc line's progress row", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      const doc = "docs/kairos/specs/x-design.md";
+      const revision = ledger.refs().docRevision(doc, "revision one");
+      expect(ledger.reviewedDocRevisionOf(doc)).toBeNull();
+      ledger.recordReviewedDocRevision(doc, revision);
+      expect(ledger.reviewedDocRevisionOf(doc)).toEqual(revision);
+      // a fresh ledger over the same workspace reads the on-disk record back
+      const reload = new Ledger(workspace, new ConfigLoader());
+      expect(reload.reviewedDocRevisionOf(doc)).toEqual(revision);
+      expect(reload.reviewedDocRevisionOf("docs/other.md")).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a reviewed doc revision RE-records on drift — the reopen's new identity basis", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const doc = "docs/kairos/plans/x-p3.md";
+      const first = ledger.refs().docRevision(doc, "v1.0 body");
+      const second = ledger.refs().docRevision(doc, "v1.1 body");
+      ledger.recordReviewedDocRevision(doc, first);
+      expect(ledger.reviewedDocRevisionOf(doc)).toEqual(first);
+      // a later review round records its own revision — the line gate compares the
+      // target against the LATEST reviewed identity
+      ledger.recordReviewedDocRevision(doc, second);
+      expect(ledger.reviewedDocRevisionOf(doc)).toEqual(second);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("docLineVerdict — the shared identity comparison: same vs drift vs the null faces", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      const doc = path.join(workspace.path, "docs", "x-p1.md");
+      mkdirSync(path.dirname(doc), { recursive: true });
+      writeFileSync(doc, "v1.0 body", "utf8");
+      // an absent reviewed identity → null (the legacy closed face — no comparison)
+      expect(ledger.docLineVerdict("1", doc)).toBeNull();
+      ledger.recordReviewedDocRevision("1", ledger.refs().docRevision(doc, "v1.0 body"));
+      // the recorded identity matches the current doc → "same" (the revision-aware BLOCK)
+      expect(ledger.docLineVerdict("1", doc)).toBe("same");
+      // the doc moved past the reviewed identity → "drift" (the line reopens)
+      writeFileSync(doc, "v1.1 body", "utf8");
+      expect(ledger.docLineVerdict("1", doc)).toBe("drift");
+      // an unreadable doc → null (only present facts land — no invented identity)
+      rmSync(doc);
+      expect(ledger.docLineVerdict("1", doc)).toBeNull();
     } finally {
       cleanup();
     }

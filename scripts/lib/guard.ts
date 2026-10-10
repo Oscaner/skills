@@ -724,7 +724,6 @@ export class GuardLibrary {
       if (/^[a-z][a-z-]*:[a-z][a-z-]*$/.test(ref)) refKeys.push(ref);
     };
     pushRef(this.#dispatch.implement);
-    pushRef(this.#dispatch.fix);
     for (const slot of Object.values(this.#dispatch.review)) pushRef(slot);
     for (const ref of refKeys) {
       const form = this.#refs[ref];

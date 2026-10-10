@@ -34,7 +34,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { declaredRegistries } from "../contract/declare.ts";
-import { PlanDocType } from "../contract/doc.ts";
+import { MarkdownPrimitives, PlanDocType } from "../contract/doc.ts";
 import { Contract } from "../contract/judge.ts";
 import type { DocKey } from "../contract/project.ts";
 import { Projector } from "../contract/project.ts";
@@ -53,7 +53,7 @@ import { targetFaces } from "../session/faces.ts";
 import { TaskGraph } from "../session/graph.ts";
 import type { HandoffSchemaFace } from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
-import type { HandoffParams, OpType, RoundStatus } from "../session/ledger.ts";
+import type { HandoffParams, LedgerKey, OpType, RoundStatus } from "../session/ledger.ts";
 import { Ledger } from "../session/ledger.ts";
 import type { Route } from "../session/next.ts";
 import { NextStepRouter } from "../session/next.ts";
@@ -467,9 +467,10 @@ export class HarnessDispatch {
     return frame.phase === "implement" ? "implement" : "review";
   }
 
-  /** The phase's skill-ref slash form for the detected host ("/mattpocock-skills:tdd"
-   *  etc.); null when the review type carries no skill ref (the spec/plan reviews —
-   *  their criteria ride the review prompt's fixed body, never a slash arg). */
+  /** The phase's skill-ref slash form for the detected host ("/mattpocock-skills:implement"
+   *  · "/mattpocock-skills:code-review" etc.); null when the phase carries no skill
+   *  ref (the fix face and the spec/plan reviews — their criteria ride the
+   *  prompt's fixed body, never a slash arg). */
   #skillRef(host: string, frame: OpenFrame): string | null {
     const dispatch = DISPATCH;
     let ref: unknown = null;
@@ -483,7 +484,10 @@ export class HarnessDispatch {
           ? declaredRef
           : null;
     } else {
-      const value = dispatch[frame.phase as "implement" | "fix"];
+      // The implement row is the dispatch table's single string slot; the other
+      // phases (fix) carry no dispatch row — the lookup resolves null (the fix
+      // face's ref-less face, same-shape as the spec/plan reviews).
+      const value = dispatch[frame.phase as "implement"];
       ref = typeof value === "string" ? value : null;
     }
     if (typeof ref !== "string") return null;
@@ -1325,10 +1329,11 @@ export class Cli {
     // line-phase readiness check; the task face needs no second gate (the WaveGate's
     // wrong-phase verdict above IS the phase authority for the requested wave).
     if (group === null) {
-      const open = this.#lineGate(scene);
+      const { phase: open, verdict } = this.#lineGate(scene);
       if (open !== expected) {
+        const docBlock = open === null ? this.#docLineBlock(scene, verdict) : null;
         this.#io.stderr(
-          `cdd ${verb}: cannot dispatch a ${expected} round — ${open === null ? "the line holds no open round" : `the next round is ${open}${this.#phaseHint(open)}`}\n`,
+          `cdd ${verb}: cannot dispatch a ${expected} round — ${docBlock ?? (open === null ? "the line holds no open round" : `the next round is ${open}${this.#phaseHint(open)}`)}\n`,
         );
         return 1;
       }
@@ -1477,11 +1482,79 @@ export class Cli {
   // the requested-phase gate — the work commands' readiness check
   // ---------------------------------------------------------------------------
 
-  /** The single-target line's current open phase (spec/plan/branch). The task face
-   *  holds no separate gate here: the WaveGate's wrong-phase verdict (the pre-flight)
-   *  IS the task-face phase authority — the wave gate is the single phase authority. */
-  #lineGate(scene: WorkScene): DispatchPhase | null {
-    return this.#linePhase(scene);
+  /** The single-target line's current open phase (spec/plan/branch) plus the
+   *  doc-line identity verdict the gate judged — the {phase, verdict} pair IS the
+   *  gate's ruling: the revision-aware BLOCK renders only the "same" verdict the
+   *  gate returned, never a recomputed one. The task face holds no separate gate
+   *  here: the WaveGate's wrong-phase verdict (the pre-flight) IS the task-face
+   *  phase authority — the wave gate is the single phase authority. A CLOSED doc
+   *  line reopens through the identity-aware verdict (T7): the target's current
+   *  doc revision vs the recorded reviewed revision — a moved doc reopens the
+   *  review lead, an unchanged doc stays closed (the revision-aware BLOCK). */
+  #lineGate(scene: WorkScene): { phase: DispatchPhase | null; verdict: "drift" | "same" | null } {
+    const open = this.#linePhase(scene);
+    if (open !== null) return { phase: open, verdict: null };
+    const verdict = this.#docLineVerdict(scene);
+    return { phase: verdict === "drift" ? scene.face.product.reviewLead : null, verdict };
+  }
+
+  /** The doc line's identity verdict (T7) — the ledger's single shared comparison
+   *  (Ledger#docLineVerdict), consumed as-is: the drift gate and the revision-aware
+   *  BLOCK read the SAME verdict, never a face-side recomputation. The face adds
+   *  only the target reshape — null on non-doc, an absent key, an unreadable doc
+   *  or no reviewed revision on record (the legacy closed face keeps its generic
+   *  message). */
+  #docLineVerdict(scene: WorkScene): "drift" | "same" | null {
+    if (scene.target?.kind !== "doc") return null;
+    const key = this.#lineKey(scene);
+    if (key === null) return null;
+    return scene.ledger.docLineVerdict(key, scene.target.doc);
+  }
+
+  /** The doc line's revision-aware BLOCK message (T7) — the unchanged-doc face:
+   *  "{plan|spec} already reviewed at vX.Y (doc-hash …) — target revision
+   *  unchanged; amend body/version to open a new review". Renders ONLY on the
+   *  gate's "same" verdict — the one verdict whose doc read succeeded and matched
+   *  the reviewed identity ("target revision unchanged" is a present fact there).
+   *  The gate's null verdict (an unreadable target / no reviewed identity on
+   *  record) keeps the generic "no open round" message — only present facts land
+   *  (the ledger's own null contract, Ledger#docLineVerdict). Null off that face
+   *  (the verdict arrives threaded from #lineGate, never recomputed). */
+  #docLineBlock(scene: WorkScene, verdict: "drift" | "same" | null): string | null {
+    if (verdict !== "same" || scene.target?.kind !== "doc") return null;
+    // A "same" verdict implies a reviewed identity on record — the guard keeps the
+    // dereference honest without an assertion.
+    const reviewed = scene.ledger.reviewedDocRevisionOf(this.#lineKey(scene) as LedgerKey);
+    if (reviewed === null) return null;
+    const version = this.#docVersionOf(this.#docContent(scene.target.doc));
+    return `${scene.type} already reviewed at ${version ?? "the current version"} (doc-hash ${reviewed.doc_hash.slice(0, 12)}…) — target revision unchanged; amend body/version to open a new review`;
+  }
+
+  /** The doc's live content — readable doc else null. The doc-line identity's
+   *  read is the LEDGER's verdict read (Ledger#docLineVerdict — one read per
+   *  gate); this helper backs the face's one remaining read site, the
+   *  revision-aware BLOCK's version token — a read fired only when the BLOCK
+   *  message actually renders (the version is raw doc grammar — zero parse
+   *  dependence: the revision hash is a raw-content digest). */
+  #docContent(doc: string): string | null {
+    try {
+      return this.#readText(doc);
+    } catch {
+      return null;
+    }
+  }
+
+  /** The doc's `v<major>.<minor>` version token — the first token on the
+   *  `**Version**` header line (the shared version-token grammar's one home —
+   *  MarkdownPrimitives.versionTokensOf · contract/doc.ts). */
+  #docVersionOf(content: string | null): string | null {
+    if (content === null) return null;
+    for (const line of content.split("\n")) {
+      if (line.trimStart().startsWith("- **Version**:")) {
+        return MarkdownPrimitives.versionTokensOf(line)[0] ?? null;
+      }
+    }
+    return null;
   }
 
   /** The single-target line's current open phase — fix-awaits / re-review / closure

@@ -810,6 +810,149 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     }
   });
 
+  it("a closed doc line REOPENS on doc-revision drift — the identity-aware line gate (T7)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      // Round 1: the initial clean review closes the doc line AND records the
+      // reviewed doc revision (the line's identity — the T7 write-back at bookkeep).
+      expect(
+        await command.runArgv([
+          "review",
+          "--type",
+          "plan",
+          "--plan",
+          plan,
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).toBe(0);
+      expect(io.stdoutText).toContain("next: done");
+      // The target doc then DRIFTS (a backfill edits the plan — the pre-T7 flow
+      // froze the closed doc at "reviewed" with no reopen entry: the line held no
+      // open round). The target identity moved — review is the requested phase and
+      // the drifted doc reopens the line (round continuation, no flag).
+      const driftedSource = readFileSync(plan, "utf8").replace(
+        "- **Acceptance**: ok",
+        "- **Acceptance**: ok (drifted)",
+      );
+      writeFileSync(plan, driftedSource, "utf8");
+      io.stdoutText = "";
+      const reopen = await command.runArgv([
+        "review",
+        "--type",
+        "plan",
+        "--plan",
+        plan,
+        "--dry-run",
+        "--root",
+        repoRoot,
+      ]);
+      expect(reopen).toBe(0);
+      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "plan-review-2.json"))).toBe(
+        true,
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("an UNCHANGED closed doc line stays blocked — the revision-aware BLOCK message (T7)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      expect(
+        await command.runArgv([
+          "review",
+          "--type",
+          "plan",
+          "--plan",
+          plan,
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).toBe(0);
+      expect(io.stdoutText).toContain("next: done");
+      // The doc did NOT move — the line gate compares the current revision to the
+      // reviewed one and BLOCKs with the identity-aware message (the old "no open
+      // round" text retires on the doc face).
+      io.stderrText = "";
+      const unchanged = await command.runArgv([
+        "review",
+        "--type",
+        "plan",
+        "--plan",
+        plan,
+        "--dry-run",
+        "--root",
+        repoRoot,
+      ]);
+      expect(unchanged).toBe(1);
+      expect(io.stderrText).toContain("already reviewed at v1.0");
+      expect(io.stderrText).toContain("target revision unchanged");
+      // no phantom round files land on the unchanged line
+      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "plan-review-2.json"))).toBe(
+        false,
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a closed doc line with an UNREADABLE target keeps the generic BLOCK — the null-verdict face (T7)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      // Round 1: a plan review closes the line AND records the reviewed doc
+      // revision (the T7 write-back) — the line's identity now lives under the
+      // doc-path key (the spec face reads the same key).
+      expect(
+        await command.runArgv([
+          "review",
+          "--type",
+          "plan",
+          "--plan",
+          plan,
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).toBe(0);
+      expect(io.stdoutText).toContain("next: done");
+      // The target doc becomes unreadable AT THE GATE (deleted) while the reviewed
+      // identity stays on record — the ledger verdict is null, not "same": the
+      // "target revision unchanged" claim would be fabricated (only present facts
+      // land). The spec face tolerates the absent doc (the doc-contract gate skips
+      // an unreadable target) and the gate keeps the generic closed-line message.
+      rmSync(plan);
+      io.stderrText = "";
+      const blocked = await command.runArgv([
+        "review",
+        "--type",
+        "spec",
+        "--spec",
+        plan,
+        "--dry-run",
+        "--root",
+        repoRoot,
+      ]);
+      expect(blocked).toBe(1);
+      expect(io.stderrText).toContain("the line holds no open round");
+      expect(io.stderrText).not.toContain("target revision unchanged");
+      // no phantom round files land on the null-verdict line
+      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "spec-review-2.json"))).toBe(
+        false,
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
   it("the phase gate refuses an unreachable round without dispatching a phantom", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
@@ -1514,6 +1657,15 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     key: "1",
   };
 
+  const fixFrame: OpenFrame = {
+    type: "wave",
+    phase: "fix",
+    round: 1,
+    target: { kind: "wave", tasks: [1] },
+    params: { tasks: "1", round: 1 },
+    key: "1",
+  };
+
   it("detects the host from the harness-contract detect markers (claude > cursor > pi)", () => {
     const { repoRoot, cleanup } = fixture();
     try {
@@ -1870,6 +2022,55 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(prompt).toContain("Standards axis");
       expect(prompt).toContain("dual evidence");
       expect(prompt).not.toContain("parallel sub-agents");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the fix face carries no skill ref — the prompt opens with the template header, never a slash ref (T1)", () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new FakeSync();
+      sync.stdout = "status: APPROVED\n";
+      writeFileSync(
+        path.join(scene.workspace.path, "tasks-1-fix-1.json"),
+        JSON.stringify({
+          status: "APPROVED",
+          artifacts: {
+            report: path.join(scene.workspace.path, "tasks-1-fix-1-report.md"),
+            test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+          },
+          commits: { base: "a".repeat(8), head: "b".repeat(8) },
+        }),
+        "utf8",
+      );
+      writeFileSync(
+        path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+        JSON.stringify({
+          command: "npx vitest run",
+          exit_code: 0,
+          passed: true,
+          warnings_count: 0,
+          typecheck: { command: "tsc --noEmit", exit_code: 0, passed: true },
+        }),
+        "utf8",
+      );
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      const outcome = dispatch.step()(fixFrame);
+      expect(outcome.status).toBe("APPROVED");
+      const call = sync.calls[0];
+      const prompt = call.args[call.args.length - 1];
+      // the fix face resolves NO skill ref (the reference-less doc faces' face) —
+      // the single prompt argument opens with the template header, never a slash form
+      expect(prompt.startsWith("/mattpocock-skills:")).toBe(false);
+      expect(prompt.startsWith("# CDD dispatch — fix round")).toBe(true);
     } finally {
       cleanup();
     }

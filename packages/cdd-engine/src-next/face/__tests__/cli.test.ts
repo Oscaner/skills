@@ -903,6 +903,56 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     }
   });
 
+  it("a closed doc line with an UNREADABLE target keeps the generic BLOCK — the null-verdict face (T7)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      // Round 1: a plan review closes the line AND records the reviewed doc
+      // revision (the T7 write-back) — the line's identity now lives under the
+      // doc-path key (the spec face reads the same key).
+      expect(
+        await command.runArgv([
+          "review",
+          "--type",
+          "plan",
+          "--plan",
+          plan,
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).toBe(0);
+      expect(io.stdoutText).toContain("next: done");
+      // The target doc becomes unreadable AT THE GATE (deleted) while the reviewed
+      // identity stays on record — the ledger verdict is null, not "same": the
+      // "target revision unchanged" claim would be fabricated (only present facts
+      // land). The spec face tolerates the absent doc (the doc-contract gate skips
+      // an unreadable target) and the gate keeps the generic closed-line message.
+      rmSync(plan);
+      io.stderrText = "";
+      const blocked = await command.runArgv([
+        "review",
+        "--type",
+        "spec",
+        "--spec",
+        plan,
+        "--dry-run",
+        "--root",
+        repoRoot,
+      ]);
+      expect(blocked).toBe(1);
+      expect(io.stderrText).toContain("the line holds no open round");
+      expect(io.stderrText).not.toContain("target revision unchanged");
+      // no phantom round files land on the null-verdict line
+      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "spec-review-2.json"))).toBe(
+        false,
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
   it("the phase gate refuses an unreachable round without dispatching a phantom", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {

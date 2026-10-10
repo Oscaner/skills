@@ -224,7 +224,10 @@ export type ParsedDoc = OverallParsed | PlanParsed | PhaseSpecParsed;
  * The shared extraction primitives: `[label](target)` links, `v<n>.<m>` version
  * tokens and `|…|` table-row parsing. Both the parse face (DocType) and the
  * judgment face (the Invariant base in invariants.ts) extend this base — the
- * link/token/table parse logic lives in exactly one place of the new tree.
+ * link/token/table parse logic lives in exactly one place of the new tree. The
+ * version-token grammar additionally exposes the public static `versionTokensOf`
+ * — the face plane's doc-line BLOCK reads the SAME grammar through it (one home,
+ * zero dual-write).
  */
 export abstract class MarkdownPrimitives {
   /** The `[label](target)` pairs parsed from one line. */
@@ -237,12 +240,21 @@ export abstract class MarkdownPrimitives {
     return links;
   }
 
-  /** The `v<major>.<minor>` tokens on one line. */
-  protected versionTokens(line: string): readonly string[] {
+  /** The `v<major>.<minor>` tokens on one line — the version-token grammar's ONE
+   *  home of the tree: the face plane's doc-line BLOCK token reads this public
+   *  static; the subclasses keep the protected accessor below (a thin delegation,
+   *  zero second grammar). */
+  static versionTokensOf(line: string): readonly string[] {
     const tokens: string[] = [];
     const tokenPattern = /v\d+\.\d+/g;
     for (const match of line.matchAll(tokenPattern)) tokens.push(match[0]);
     return tokens;
+  }
+
+  /** The `v<major>.<minor>` tokens on one line — the class-family accessor
+   *  (the grammar itself is the static — one home). */
+  protected versionTokens(line: string): readonly string[] {
+    return MarkdownPrimitives.versionTokensOf(line);
   }
 
   /** The cells of one `|…|` table line (trimmed, wrapper bars excluded); null for a

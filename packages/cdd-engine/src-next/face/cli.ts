@@ -34,7 +34,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { declaredRegistries } from "../contract/declare.ts";
-import { PlanDocType } from "../contract/doc.ts";
+import { MarkdownPrimitives, PlanDocType } from "../contract/doc.ts";
 import { Contract } from "../contract/judge.ts";
 import type { DocKey } from "../contract/project.ts";
 import { Projector } from "../contract/project.ts";
@@ -1329,9 +1329,9 @@ export class Cli {
     // line-phase readiness check; the task face needs no second gate (the WaveGate's
     // wrong-phase verdict above IS the phase authority for the requested wave).
     if (group === null) {
-      const open = this.#lineGate(scene);
+      const { phase: open, verdict } = this.#lineGate(scene);
       if (open !== expected) {
-        const docBlock = open === null ? this.#docLineBlock(scene) : null;
+        const docBlock = open === null ? this.#docLineBlock(scene, verdict) : null;
         this.#io.stderr(
           `cdd ${verb}: cannot dispatch a ${expected} round — ${docBlock ?? (open === null ? "the line holds no open round" : `the next round is ${open}${this.#phaseHint(open)}`)}\n`,
         );
@@ -1482,16 +1482,20 @@ export class Cli {
   // the requested-phase gate — the work commands' readiness check
   // ---------------------------------------------------------------------------
 
-  /** The single-target line's current open phase (spec/plan/branch). The task face
-   *  holds no separate gate here: the WaveGate's wrong-phase verdict (the pre-flight)
-   *  IS the task-face phase authority — the wave gate is the single phase authority.
-   *  A CLOSED doc line reopens through the identity-aware verdict (T7): the target's
-   *  current doc revision vs the recorded reviewed revision — a moved doc reopens
-   *  the review lead, an unchanged doc stays closed (the revision-aware BLOCK). */
-  #lineGate(scene: WorkScene): DispatchPhase | null {
+  /** The single-target line's current open phase (spec/plan/branch) plus the
+   *  doc-line identity verdict the gate judged — the {phase, verdict} pair IS the
+   *  gate's ruling: the revision-aware BLOCK renders only the "same" verdict the
+   *  gate returned, never a recomputed one. The task face holds no separate gate
+   *  here: the WaveGate's wrong-phase verdict (the pre-flight) IS the task-face
+   *  phase authority — the wave gate is the single phase authority. A CLOSED doc
+   *  line reopens through the identity-aware verdict (T7): the target's current
+   *  doc revision vs the recorded reviewed revision — a moved doc reopens the
+   *  review lead, an unchanged doc stays closed (the revision-aware BLOCK). */
+  #lineGate(scene: WorkScene): { phase: DispatchPhase | null; verdict: "drift" | "same" | null } {
     const open = this.#linePhase(scene);
-    if (open !== null) return open;
-    return this.#docLineVerdict(scene) === "drift" ? scene.face.product.reviewLead : null;
+    if (open !== null) return { phase: open, verdict: null };
+    const verdict = this.#docLineVerdict(scene);
+    return { phase: verdict === "drift" ? scene.face.product.reviewLead : null, verdict };
   }
 
   /** The doc line's identity verdict (T7) — the ledger's single shared comparison
@@ -1509,13 +1513,17 @@ export class Cli {
 
   /** The doc line's revision-aware BLOCK message (T7) — the unchanged-doc face:
    *  "{plan|spec} already reviewed at vX.Y (doc-hash …) — target revision
-   *  unchanged; amend body/version to open a new review". The line gate judged the
-   *  verdict "same" before this runs (a drifted doc reopened the line as the review
-   *  lead — this helper never sees it); the one content read backs only the
-   *  version token the message renders. Null on the non-doc / legacy faces (the
-   *  generic "no open round" message keeps its face there). */
-  #docLineBlock(scene: WorkScene): string | null {
-    if (scene.target?.kind !== "doc") return null;
+   *  unchanged; amend body/version to open a new review". Renders ONLY on the
+   *  gate's "same" verdict — the one verdict whose doc read succeeded and matched
+   *  the reviewed identity ("target revision unchanged" is a present fact there).
+   *  The gate's null verdict (an unreadable target / no reviewed identity on
+   *  record) keeps the generic "no open round" message — only present facts land
+   *  (the ledger's own null contract, Ledger#docLineVerdict). Null off that face
+   *  (the verdict arrives threaded from #lineGate, never recomputed). */
+  #docLineBlock(scene: WorkScene, verdict: "drift" | "same" | null): string | null {
+    if (verdict !== "same" || scene.target?.kind !== "doc") return null;
+    // A "same" verdict implies a reviewed identity on record — the guard keeps the
+    // dereference honest without an assertion.
     const reviewed = scene.ledger.reviewedDocRevisionOf(this.#lineKey(scene) as LedgerKey);
     if (reviewed === null) return null;
     const version = this.#docVersionOf(this.#docContent(scene.target.doc));
@@ -1537,14 +1545,13 @@ export class Cli {
   }
 
   /** The doc's `v<major>.<minor>` version token — the first token on the
-   *  `**Version**` header line (the same vX.Y grammar the contract plane's
-   *  versionTokens primitive parses · contract/doc.ts). */
+   *  `**Version**` header line (the shared version-token grammar's one home —
+   *  MarkdownPrimitives.versionTokensOf · contract/doc.ts). */
   #docVersionOf(content: string | null): string | null {
     if (content === null) return null;
     for (const line of content.split("\n")) {
       if (line.trimStart().startsWith("- **Version**:")) {
-        const match = line.match(/\bv\d+\.\d+\b/);
-        return match === null ? null : match[0];
+        return MarkdownPrimitives.versionTokensOf(line)[0] ?? null;
       }
     }
     return null;

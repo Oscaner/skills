@@ -1,10 +1,10 @@
 # 文档架构方法论 v2 — P5 Design Spec（DispatchContract + DispatchPacket 收敛重规划）
 
-- **Version**: v1.1 · 2026-10-10
+- **Version**: v1.2 · 2026-10-10
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer · 决策源 = grilling 五命题定案 2026-10-10）
-- **Parent program**: [doc-architecture-v2-overall.md v1.57](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Depends on**: P3.2（Done · overall v1.57 —— serial-phase GATE 满足 · 复刻独立基线 + v1.57 收敛重规划）
+- **Parent program**: [doc-architecture-v2-overall.md v1.58](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
+- **Depends on**: P3.2（Done · overall v1.58 —— serial-phase GATE 满足 · 复刻独立基线 + v1.57 收敛重规划 + v1.58 契契修复 T6）
 
 ## Design
 
@@ -125,6 +125,24 @@ overall v1.57 四表 + M/R 组同步已在本 spec authoring 前独立提交（a
 
 cdd-engine（host/templates/ledger 收敛 · 含删测试净负行）· scripts 面（`scripts/lib/guard.ts` fix push 派生行随删 · `scripts/__tests__/guard.test.ts` 随核）· kairos 随 T5 若 SKILL 面动（预期无——SKILL 文本不含 DISPATCH fix ref）· docs 面 zero（overall 已随）。
 
+### 6. 契契修复：prose 任务提及硬检删除（find T6 · v1.2 backfill）
+
+#### 6.1 find 起源与契契/实现错位
+
+P5 plan authoring precommit 实证：plan 正文合法引用历史任务号「T25 段」→ doc-contract gate `crosslink@Task prose reference: prose references unregistered task 25`（无行号）exit 1——消费者无 precommit，首个信号 = `cdd review --type plan` BLOCKED（需猜哪个 `T<n>`）。契契/实现错位三证：
+
+- `declare.ts:626` 元素登记表注释声明「*a WARN-only observation surface*」——声明意图 = 观察面
+- `invariants.ts` `planCrosslinks` 将 prose 提及推入**硬 finding 通道**（与 DependsOn 越界同桶）→ BLOCK——实现背叛声明（一声明架构下声明与解析两层契约漂移）
+- `lint.ts:213` 文档设计「missing-id——the graph's class, never a suspect」——**同一 token 双面矛盾裁决**：lint 面静默 by design · crosslink 面反硬检
+
+#### 6.2 处置：删除硬检（非打补丁）
+
+- `planCrosslinks` 删 prose 块（硬 finding 检查）——**DependsOn 越界硬门保留**（唯一结构引用面 · TaskGraph.validate 已有 target 存在性/越界/反依赖全套）
+- prose 观察面保持且唯一归属 = **reference-lint WARN pass**（lint.ts 已实现 missing-edge suspects · unregistered 静默 by design——文献即对的 · 零新符号）
+- `declare.ts:626` 注释更新（crosslink 不消费该元素 · lint 为唯一消费者）
+- 回归：plan 含未注册 `T<n>` 提及（历史任务号/波标签/缩写）过 gate **零 finding** · lint 面零新 WARN（missing-id 静默）
+- 前提对齐：契契修复 = 一声明架构自我兑现（声明 WARN-only → 解析器零硬检）· 假阳性零成本（前提 5 消费者心智负担）· 删除而非 severity 打补丁（前提 1/6；severity 数据化登记为后续债项非本轮）
+
 ### Acceptance criteria
 
 - `DISPATCH 收敛两活面：DISPATCH.fix 删除 · REFS \`mattpocock-skills:tdd\` 键删除（三 host 斜杠形式随）· \`#skillRef\` fix 相位返回 null（与 spec/plan review 同构）· 全仓 \`mattpocock-skills:tdd\` 引用零残留（含 __tests__ · cli.ts:470 注释样板随改）`
@@ -132,9 +150,10 @@ cdd-engine（host/templates/ledger 收敛 · 含删测试净负行）· scripts 
 - `CHAINS 删除：host.ts \`CHAINS\`/\`ChainKey\`/HostContract.chains 字段 + host.test T25 ordered skill chains describe 块（37-83 · 3 it / 6 expect）删除 · capabilities per-harness 块（24-35 · A4 存活面）保留 · 全仓 CHAINS 零残留（grep 含 __tests__）`
 - `graph-node 删除：RefKind 三型 union（commit-set-ledger/commit-range/doc-revision · 零 graph-node）· GraphNodeRef/构造/相等/parse 分支删 · ledger.test graphNode 断言删 · 全仓 graph-node 零残留（grep 含 __tests__）`
 - `DispatchPacket 正文映射闭环：§4.1 对照表五行登记（InstructionUnit→MODE_PROMPTS 行 · return/evidence→注入 schema · BodyView→round-context 子集 · convergence→next 路由 · constraints 子集→reduced 固定前缀）· 零新引擎符号断言（本 phase 不实现新概念 · 纯删除 + FIX_SHELL 两条增）`
-- `登记层一致性：overall v1.57 四表 + M/R 组与 spec 一致（M2/M4b 行 · R5 关闭 · Phase inventory P5 acceptance C1/C2 撤销 · 依赖图 P3.2→P5 基线行 · Change history v1.57）· 本 spec v1.1 头标注 Parent program = overall v1.57`
+- `登记层一致性：overall v1.58 四表 + M/R 组与 spec 一致（M2/M4b 行 · R5 关闭 · Phase inventory P5 acceptance C1/C2 撤销 + T6 契契修复 · 依赖图 P3.2→P5 基线行 · Change history v1.58）· 本 spec v1.2 头标注 Parent program = overall v1.58`
 - `引擎 vitest 全绿（387 − 删断言 + FIX_SHELL 断言新增后）· typecheck ×3 · biome clean · validate ALL PASS · emit 新鲜`
 - `变更集：cdd-engine 一枚独立提交（含净删除）· kairos 随 T5 若 SKILL 面动 · changeset 落位`
+- `prose 任务提及零硬检（v1.58 T6）：plan 含未注册 \`T<n>\` 提及（P3.2 T25 类历史任务号 · 波标签）过 doc-contract gate 零 finding · DependsOn 越界硬门保留（回归断言）· reference-lint WARN 面保持（missing-edge suspects · unregistered 静默 by design）· declare.ts:626 注释更新（crosslink 不消费 · lint 唯一消费者）· \`planCrosslinks\` prose 块零残留`
 
 ## Constraints
 
@@ -149,5 +168,6 @@ cdd-engine（host/templates/ledger 收敛 · 含删测试净负行）· scripts 
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v1.2 | 2026-10-10 | **T6 契契修复 backfill（find 自产 dogfood · 用户拍板「收进 P5」）**：新组 6——prose task 提及硬检删除（planCrosslinks prose 块删 · DependsOn 硬门保留 · 观察面归 reference-lint WARN · unregistered 静默 by design · declare.ts:626 注释更新 · 回归断言）· acceptance 增一条（prose 提及零硬检）· 登记层一致性行升 v1.58 · Parent program 升 overall v1.58 | [human] · Claude Opus 5（kairos:cdd-design · 用户裁决） |
 | v1.1 | 2026-10-10 | **spec-review-1 全修（1 blocker · 2 warn · 2 nit）**：§5.1/§5.2 补登 scripts 衍生面（guard.ts fix push 派生行随删 · guard.test.ts 随核）· T25 删除目标钉为 ordered skill chains describe 块（37-83 · 3 it / 6 expect · capabilities 块 24-35 保留）· §1.2 A4 改 refKind typed 分类机制 · §4.1 MODE_PROMPTS 三行 + REVIEW_VARIANTS 四变体 · §2.1 注册列取证基线 | [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer） |
 | v1.0 | 2026-10-10 | 初版——P5 收敛重规划（overall v1.57 四表同步后开写）：M 组 op→skill 映射整体重规划（fix 面无 ref · REFS tdd 键删 · FIX_SHELL 补 typed 两条：验而后修 + 条件 tdd·B1 appliesTo）· 零消费者死壳清（CHAINS 删 · graph-node 删 · RefKind 四型→三型）· DispatchPacket 正文映射闭环登记（四概念已以新名落地 · 零实现）· 实现面 = 纯删除 + 模板两条 typed 增 · 变更集 cdd-engine | [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer · grilling 五命题定案） |

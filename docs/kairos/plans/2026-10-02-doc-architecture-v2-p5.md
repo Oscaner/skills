@@ -2,12 +2,12 @@
 
 **Spec:** [2026-10-02-doc-architecture-v2-p5-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p5-design.md)
 
-- **Parent program**: [doc-architecture-v2-overall.md v1.58](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.2 · 2026-10-10
-- **Depends on**: P3.2（Done · [p3.2-plan v1.31](docs/kairos/plans/2026-10-02-doc-architecture-v2-p3.2.md) —— serial-phase GATE 满足 · v1.57 收敛重规划基线)
+- **Parent program**: [doc-architecture-v2-overall.md v1.59](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
+- **Version**: v1.3 · 2026-10-10
+- **Depends on**: P3.2（Done · [p3.2-plan v1.31](docs/kairos/plans/2026-10-02-doc-architecture-v2-p3.2.md) —— serial-phase GATE 满足 · v1.57 收敛重规划基线 · v1.58 契契修复 · v1.59 重开机制 T7)
 - **Base**: develop
 
-执行序（**波标签 = plan-graph board 派生标签 · W1 起序**）：W1 = {T1, T2, T3, T4}（W1 内串行落位——T1/T2 共享 host.ts/host.test.ts 文件面，同 implement round 单轮串行 · 不得按「四根独立」并行派发防 host.ts/host.test.ts 双向冲突；T3 FIX_SHELL typed · T4 graph-node 删 · T6 契契修复（judge 面独立 · 文件不与 T1-T4 相交））→ W2 = {T5}（终验 · 零残留 grep · changesets · closeout 回填前置）。
+执行序（**波标签 = plan-graph board 派生标签 · W1 起序**）：W1 = {T1, T2, T3, T4, T6, T7}（W1 内串行落位——共享文件面：T1/T2 同 host.ts/host.test.ts · T1/T7 同 cli.ts——同 implement round 单轮串行 · 不得按「独立」并行派发防文件双向冲突；T3 FIX_SHELL typed · T4 graph-node 删 · T6 契契修复（judge 面）· T7 重开机制（ledger + cli 面））→ W2 = {T5}（终验 · 零残留 grep · changesets · closeout 回填前置）。
 
 ## Constraints
 
@@ -114,10 +114,27 @@
 - **Acceptance**: 未注册 `T<n>` 提及过 gate 零 finding（回归断言）· DependsOn 越界硬门保留（负例在册）· reference-lint WARN 面保持 · declare.ts 注释对齐 · 引擎 vitest 全绿（387−Δ+Δ）
 - **DependsOn**: none
 
+### Task 7: doc line review 重开机制（reviewedDocRevision · identity-aware）
+
+- **Objective**: design §7（v1.3 backfill · 用户拍板「应该要有一个机制能够重开 review · 中途 backfill 在 cdd 概念里很常见」）——line 态 = f(target identity)：doc line 补齐 wave/branch 线的 identity 驱动评审语义——ledger line record 增 **`reviewedDocRevision`**（doc review 完成时写入 · 复用 `DocRevisionRef` 双层收敛判定 version/body 变更）· `#lineGate` null 分支（cli.ts:1328 域）改 identity 判定：`target.kind === "doc"` 且 当前 `docRevision` ≠ reviewed → 放行自动重开（`recordRound` 续轮 · dispatch 流程零改 · round 续号 `{line}-review-{N+1}`）· 相等 → revision-aware BLOCK 消息替换（`plan already reviewed at vX.Y (doc-hash …) — target revision unchanged; amend body/version to open a new review` · 旧 "no open round" 对 doc line 面退役）· branch（`key="branch"`）/wave（WaveGate）不涉 · clean-tree 门先行 · 闭合语义不变（重开后照旧 review→fix→done · `next:` 字面零改）
+- **Files**: `packages/cdd-engine/src-next/session/ledger.ts`（line record + `reviewedDocRevision` · doc review 完成写入面）· `packages/cdd-engine/src-next/face/cli.ts`（`#lineGate` null 分支 · 消息替换 · words 词表面若引）· `packages/cdd-engine/src-next/session/__tests__/ledger.test.ts` · `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`
+- **Consumes**: `DocRevisionRef`/`docRevision()`（ledger.ts:203/260）· `recordRound`（ledger.ts:398）· `#lineGate`/`#linePhase` null 路径（cli.ts:1328/1483-1510）· 当前 doc 文件读取（hash 计算 · 零 parse 依赖）
+- **Produces**: `reviewedDocRevision` line 记录 · doc line 漂移自动重开（round 续号）· 未漂移 revision-aware BLOCK（旧消息 doc 面退役）
+- **Steps**:
+  - 失败先行：cli.test 重开负例——plan 夹被修订（内容变更）后再跑 `review --type plan` → 现值 "no open round" BLOCK（先证红） — checkable: 红（闭合 BLOCK 复现 · 消息含 "no open round"）
+  - `ledger.ts` line record 增 `reviewedDocRevision`（可空 ReviewRef）· doc review 完成写入面（review 轮落库绑定当前 doc 身份） — checkable: 编译绿 · ledger.test 增（写入/读取断言）
+  - `cli.ts` `#lineGate` null 分支：doc + `docRevision(当前) ≠ reviewed` → 放行（记新轮）· 相等 → 替换消息（旧 "no open round" 对 doc 面退役 · branch/wave/无 target 面原语义保持） — checkable: 重开负例绿（round 续号断言）· 未漂移断言捕获新消息
+  - 回归：branch/wave 无关（非 doc 面行为不变）· clean-tree 脏树仍 BLOCK · 重开后 fix→re-review→done 闭环 — checkable: 相关测试全绿
+  - 全仓 grep 旧消息 doc 面零残留（词表/断言面若引随核） — checkable: doc 面零 "no open round"
+  - commit — checkable: `feat(engine): doc line review reopens on doc-revision drift — reviewedDocRevision + identity-aware line gate` 落位 · 树净
+- **Acceptance**: doc line 漂移自动重开（round 续号断言）· 未漂移 revision-aware BLOCK（消息断言）· branch/wave 无关回归 · clean-tree 门先行保持 · 引擎 vitest 全绿（387−Δ+Δ）
+- **DependsOn**: none
+
 ## Change history
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v1.3 | 2026-10-10 | **T7 doc line review 重开机制 backfill（用户拍板「backfill → 手动清理 review 状态 → re-review」）**：新任务 7——ledger line record + `reviewedDocRevision`（doc review 完成写）· `#lineGate` null 分支 identity 判定（doc 漂移自动重开 · round 续号 · 未漂移 revision-aware BLOCK 替换旧 "no open round" doc 面）· branch/wave 不涉 · 执行序 W1 = {T1-T4, T6, T7}（T1/T7 共享 cli.ts 串行注）· Parent program 升 overall v1.59 | [human] · Claude Opus 5（kairos:cdd-plan · Plan Sole Writer） |
 | v1.2 | 2026-10-10 | **T6 契契修复 backfill（用户拍板「收进 P5」· find 自产 dogfood）**：新任务 6——prose task 提及硬检删除（planCrosslinks prose 块 · DependsOn 硬门保留 · 观察面归 reference-lint WARN · declare.ts:626 注释对齐 · 回归断言）· 执行序 W1 = {T1-T4, T6} · 约束补契契一致性 · 豁免清单/gloss 版本升 v1.2/v1.58 · Parent program 升 overall v1.58 | [human] · Claude Opus 5（kairos:cdd-plan · Plan Sole Writer） |
 | v1.1 | 2026-10-10 | **plan-review-1 全修（2 warn · 4 nit）**：零残留 grep 作用域钉为可判定代码面（`packages/cdd-engine/src-next` + `scripts` + `packages/kairos` · 产品 + 测试 ts 面）· 决策登记 trail 豁免清单 = P5 plan 自文 · design spec v1.1 · overall v1.57（三面 checkable 统一改写）· 执行序去「四根独立」并行暗示（T1/T2 共享 host.ts/host.test.ts 同 round 串行）· T1 guard.ts 引用钉正 727（827 误）· T2 重排失败先行（host.ts 删 CHAINS 制造真红 → 测试侧清理）· T2 Files/Steps 补登 host.test.ts 残余清理（头注序链叙述 · `formOf` · `REFS`/`HostId`/`HostReferenceTable` import）· T5 Files 改 overall.md 为 closeout 落点（非本任务修改目标 · 不改动）· 文件尾补 EOF 换行 | [human] · Claude Opus 5（kairos:cdd-plan · plan-review 1 → plan-fix 1） |
 | v1.0 | 2026-10-10 | 初版——P5 收敛重规划实施计划：W1 {T1 fix 面无 ref 原子簇 / T2 CHAINS 删 / T3 FIX_SHELL typed / T4 graph-node 删} → W2 {T5 终验}——design v1.1 五组全承接 · DependsOn 三波次 · T1 原子簇纪律（必填 typed 成员删除迫使同 commit）· 零残留 grep 三面 · changesets cdd-engine | [human] · Claude Opus 5（kairos:cdd-plan · writing-plans 导入） |

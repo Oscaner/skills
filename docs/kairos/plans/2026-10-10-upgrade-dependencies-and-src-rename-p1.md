@@ -2,7 +2,7 @@
 
 **Spec:** [2026-10-10-upgrade-dependencies-and-src-rename-p1-design.md](docs/kairos/specs/2026-10-10-upgrade-dependencies-and-src-rename-p1-design.md)
 - **Parent program**: [2026-10-10-upgrade-dependencies-and-src-rename-overall.md v1.4](docs/kairos/specs/2026-10-10-upgrade-dependencies-and-src-rename-overall.md)
-- **Version**: v1.0 · 2026-10-10
+- **Version**: v1.1 · 2026-10-10
 - **Depends on**: 无（program 起点 · 前置 = P1 design spec v1.2 Approved · 2026-10-10）
 - **Base**: develop
 
@@ -21,24 +21,24 @@
 
 ### Task 1: 环境前置 + 声明面 + 锁文件刷新 + 提交①（依赖声明 + 锁文件）
 
-- **Objective**: 清空 `packages/cdd-engine/src/` 空壳目录（P2 改名预演遗留）后跑基线（precommit + 引擎 vitest 全绿）；随后编辑两处 package.json 声明面（simple-git `^3.36.0 → ^4.0.2` · `@types/node ^26.6.4 → ^24.19.2` 两处 · cdd-engine `engines.node >=22.18.0 → >=24`），`pnpm install` 刷新锁文件至 registry 对齐，完成 pin 验证（两条意图线 registry 交叉核对 · `pnpm outdated` 零行除 @types/node 单行越-range 设计意图 · `--frozen-lockfile` 绿），落 Wave 1 提交①（依赖声明 + 锁文件 · 机械面）
+- **Objective**: 清空 `packages/cdd-engine/src/` 空壳目录（P2 改名预演遗留）后跑基线（precommit + 引擎 vitest 全绿）；随后编辑两处 package.json 声明面（simple-git `^3.36.0 → ^4.0.2` · `@types/node ^26.6.4 → ^24.19.2` 两处 · cdd-engine `engines.node >=22.18.0 → >=24`），`pnpm install` 刷新锁文件至 registry 对齐，完成 pin 验证（两条意图线 registry 交叉核对 · `pnpm outdated` 零行除 @types/node 单行越-range 设计意图 · `pnpm ls` 声明面抽查 wanted==current 全树 · `--frozen-lockfile` 绿），落 Wave 1 提交①（依赖声明 + 锁文件 · 机械面）
 - **Files**: `packages/cdd-engine/src/`（空壳目录 · 清空）· `packages/cdd-engine/package.json`（simple-git · @types/node · engines 三行）· `package.json`（根 devDependencies `@types/node` 行）· `pnpm-lock.yaml`（锁文件刷新）
 - **Consumes**: design spec §2/§3/§4 · registry 事实（simple-git 4.0.2 · @types/node 24.19.2 · 无 engines 声明）
 - **Produces**: 干净包根（无 `src`/`config` 残留）· 声明面三行变更 · 对齐 registry 的锁文件 · 提交①
 - **Steps**:
   - 确认 `packages/cdd-engine/src/` 空壳目录存在且 0 文件、`git status --porcelain` 不显示它（git 不可见 · P2 改名预演遗留）— checkable: `test -d packages/cdd-engine/src` 且目录内零文件
   - 清空空壳目录（`rmdir` 或 `rm -rf packages/cdd-engine/src`）— checkable: `packages/cdd-engine/src` 不存在 · 包根无 `src`/`config` 残留
-  - 跑基线：`pnpm run precommit`（doc-contract gate 16 specs/plans 保持）+ 引擎 vitest（`pnpm --filter @oscaner-skills/cdd-engine test`）— checkable: precommit ALL PASS · 引擎 vitest 全绿（清壳后 0 failed · 之前 1 failed 即空壳触发）
+  - 跑基线：`pnpm run precommit`（doc-contract gate 17 specs/plans 保持 · 含本 plan · phase 内不再新增 specs/plans）+ 引擎 vitest（`pnpm --filter @oscaner-skills/cdd-engine test`）— checkable: precommit ALL PASS · 引擎 vitest 全绿（清壳后 0 failed · 之前 1 failed 即空壳触发）
   - 编辑 `packages/cdd-engine/package.json`：`dependencies.simple-git` `^3.36.0 → ^4.0.2` · `devDependencies.@types/node` `^26.6.4 → ^24.19.2` · `engines.node` `>=22.18.0 → >=24` — checkable: 三行 diff · 其余字节零变更
   - 编辑根 `package.json`：`devDependencies.@types/node` `^26.6.4 → ^24.19.2`（与 cdd-engine 两处同钉 · 任一残留 26 线 = 类型撒谎面未消）— checkable: 根声明一行 diff
   - `pnpm install`（声明面变更后的 workspace 全量解析刷新锁文件至 registry 对齐 · in-range 尾随更新合规）— checkable: 锁文件 diff 与声明面 + 尾随 in-range 一致
-  - pin 验证：`pnpm outdated` **除 @types/node 单行越-range 外零行**（latest 26.6.5 vs 声明 `^24.19.2` · 线锁 24 设计意图 · 必报且验收容忍）· 两条意图线 registry 交叉核对（`npm view simple-git version` = 4.0.2 · `npm view @types/node@24 version` = 24.19.2 · 声明 + 锁文件双双落位）· `pnpm install --frozen-lockfile` 绿（锁一致性）· `.nvmrc`/CI setup 零变更（git diff 无 `.nvmrc`/`.github/actions/setup/action.yml` 命中）— checkable: 全部如上
+  - pin 验证：`pnpm outdated` **除 @types/node 单行越-range 外零行**（latest 26.6.5 vs 声明 `^24.19.2` · 线锁 24 设计意图 · 必报且验收容忍）· 两条意图线 registry 交叉核对（`npm view simple-git version` = 4.0.2 · `npm view @types/node@24 version` = 24.19.2 · 声明 + 锁文件双双落位）· `pnpm ls` 声明面抽查 wanted==current 全树（in-range 刷新实证 · 配套「outdated 零行」不作为字面行数验收的实证段）· `pnpm install --frozen-lockfile` 绿（锁一致性）· `.nvmrc`/CI setup 零变更（git diff 无 `.nvmrc`/`.github/actions/setup/action.yml` 命中）— checkable: 全部如上
   - 落提交①（Wave 1 一波一提交 · 消息覆盖本波 scopes：依赖声明 + 锁文件 · 机械面）— checkable: 提交含 `packages/cdd-engine/package.json` + 根 `package.json` + `pnpm-lock.yaml`（不含 maintainers 05）· precommit 钩子绿
 - **Acceptance**:
   - `packages/cdd-engine/src/` 空壳已清（包根无 `src`/`config` 残留）
   - 基线（清壳后 · 声明前）precommit + 引擎 vitest 全绿
   - 声明面三行（simple-git `^4.0.2` · 两处 `@types/node ^24.19.2` · engines `>=24`）落位 · `.nvmrc`/CI setup 零 diff
-  - `pnpm outdated` 除 @types/node 单行越-range（设计意图 · 验收容忍）外零行 · 两条意图线 registry 交叉核对落位（4.0.2 / 24.19.2 · 声明 + 锁文件）· `--frozen-lockfile` 绿
+  - `pnpm outdated` 除 @types/node 单行越-range（设计意图 · 验收容忍）外零行 · 两条意图线 registry 交叉核对落位（4.0.2 / 24.19.2 · 声明 + 锁文件）· `pnpm ls` 声明面抽查 wanted==current 全树 · `--frozen-lockfile` 绿
   - 提交① = 依赖声明 + 锁文件（机械面 · 不含文档面）
 - **DependsOn**: none
 
@@ -53,7 +53,7 @@
   - 4.x 前瞻注记两行：**缩写 long-form option 拦截**（4.x 对缩写选项行为收口 · 若启用须显式全拼）· **git env 变量过滤**（`allowEnvironment` 默不过滤 · 受限 git 环境须显式声明）——只作文档记录 · 不启用 · 不引能力 — checkable: 两行存在 · 引擎调用面零 diff
   - 工具链段 `@types/node (^26.6.4)` → `(^24.19.2)`（消费面文字与声明面同步 · 防文档撒谎）— checkable: 段行 diff
   - 落提交②（Wave 2 一波一提交 · 消息覆盖本波 scopes：maintainers 05 文档同步 · 文案面）— checkable: 提交仅 `docs/maintainers/05-third-party-dependencies.md`
-  - 升级后收口对照：`tsc --noEmit` 三项目 · 引擎 vitest 全绿（干净工作树前提已足 · 0 语义改动）· `pnpm run validate` ALL PASS（emit 新鲜 / channel audit / residue 零回归）· `pnpm run precommit` 过（doc-contract gate 16 specs/plans 保持）— checkable: 全部门禁绿 · 引擎行为零变更 pin（guard 三件套零回归 · residue 零新词）
+  - 升级后收口对照：`tsc --noEmit` 三项目 · 引擎 vitest 全绿（干净工作树前提已足 · 0 语义改动）· `pnpm run validate` ALL PASS（emit 新鲜 / channel audit / residue 零回归）· `pnpm run precommit` 过（doc-contract gate 17 specs/plans 保持 · 含本 plan · phase 内不再新增 specs/plans）· node-24 运行线实证 = 现有 CI node-24 lane（validate / 引擎 vitest / typecheck 已在 24 线跑 · 本 phase 不新增本地 fnm-exec 验证线 · 不新增能力）— checkable: 全部门禁绿 · 引擎行为零变更 pin（guard 三件套零回归 · residue 零新词）
 - **Acceptance**:
   - maintainers 05 §1 simple-git 4.x 行 + 前瞻注记两行 + `@types/node` 行全部落位（英文主源 · 无中文）
   - 提交② = 仅文档面 · 与提交① 互不混
@@ -65,4 +65,5 @@
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v1.1 | 2026-10-10 | plan-review-1 三修：doc-contract gate 钉值 16 → 17（含本 plan · phase 内不再新增 specs/plans）· T1 pin 验证补 spec 三段式验收第三段（`pnpm ls` 声明面抽查 wanted==current 全树）· T2 收口对照补 node-24 运行线实证注记（现有 CI node-24 lane · 本 phase 不新增本地 fnm-exec 验证线） | [human] · Claude Opus 5（kairos:cdd-plan · plan-fix-1） |
 | v1.0 | 2026-10-10 | P1 实现计划：两波两提交（Wave 1 = 清壳 + 声明面 + 锁刷新 + 提交① · Wave 2 = maintainers 05 §1 同步 + 提交② + 收口对照）· 任务解自 design spec v1.2（§2–§6 · F1 三段式验收 · F2 清壳前置 · F3 计数 16）· 波序与提交粒度由「frozen-lockfile 绿」+「两提交不混」双约束驱动 | [human] · Claude Opus 5（kairos:cdd-plan · writing-plans import） |

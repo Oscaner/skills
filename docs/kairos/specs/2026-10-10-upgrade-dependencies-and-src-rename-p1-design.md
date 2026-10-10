@@ -1,9 +1,9 @@
 # 依赖升级与 src 更名（Dependency Upgrade & Src Rename）— P1 Design Spec（simple-git 3→4 · node 线锁 24 · 依赖全量对齐）
 
-- **Version**: v1.0 · 2026-10-10
+- **Version**: v1.1 · 2026-10-10
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5（kairos:cdd-design [P1] enumerate-then-grill 定案 → cdd-spec-writer）
-- **Parent program**: [2026-10-10-upgrade-dependencies-and-src-rename-overall.md v1.2](docs/kairos/specs/2026-10-10-upgrade-dependencies-and-src-rename-overall.md)
+- **Parent program**: [2026-10-10-upgrade-dependencies-and-src-rename-overall.md v1.3](docs/kairos/specs/2026-10-10-upgrade-dependencies-and-src-rename-overall.md)
 - **Depends on**: 无（program 起点 · serial-phase GATE 满足——本 phase 无前置硬依赖，可开线；与改名 phase 并行）
 
 ## Design
@@ -34,9 +34,9 @@ cdd-engine `dependencies.simple-git: ^3.36.0 → ^4.0.2`（caret 精度与既有
 
 `GitClient`（`src-next/infra/git.ts`）消费面五操作——`simpleGit({ baseDir })` · `revparse` · `status().isClean()` · `raw(["add","-A"])` · `log({ maxCount })` · `.commit()` —— 4.0.2 **全兼容 · 零适配代码**（对照发布 typings 逐项核过）。行为等价由「**零调用面代码改动 + 引擎 vitest 全绿**」双证证明。
 
-#### 2.3 不引新能力（引擎行为变更单一归属 P4）
+#### 2.3 不引新能力（引擎行为变更零混入 · 能力面归独立整体）
 
-4.x 新特性（缩写 long-form option 拦截 · git env 变量过滤 / `allowEnvironment` 透传）**不进入调用面**——只作文档注记（§5.2）；任何引擎调用面行为变动归 P4 赛道（overall Non-goal ② · Boundary「引擎行为变更单一归属」）。
+4.x 新特性（缩写 long-form option 拦截 · git env 变量过滤 / `allowEnvironment` 透传）**不进入调用面**——只作文档注记（§5.2）；任何引擎调用面行为变动归**独立整体程序**（引擎 doc-tooling · `2026-10-10-engine-doc-tooling-overall.md` · 2026-10-10 拆出裁定）。
 
 ### 3. node 版本线锁 24（版本策略一致性）
 
@@ -78,7 +78,7 @@ simple-git 行 `^3.36.0 → ^4.0.2`（declared / lockfile 两格更新；lockfil
 
 #### 5.2 4.x 前瞻注记（D7 · 只作文档）
 
-§1 补 4.x 前瞻注记两行：**缩写 long-form option 拦截**（4.x 对 `--` 缩写选项行为收口——future 若启用须显式全拼）· **git env 变量过滤**（`allowEnvironment` 默不过滤——consumer 面若涉及受限 git 环境须显式声明）。**只作文档记录 · 不启用 · 不引入能力**（both 都归 P4 赛道若未来决议）。
+§1 补 4.x 前瞻注记两行：**缩写 long-form option 拦截**（4.x 对 `--` 缩写选项行为收口——future 若启用须显式全拼）· **git env 变量过滤**（`allowEnvironment` 默不过滤——consumer 面若涉及受限 git 环境须显式声明）。**只作文档记录 · 不启用 · 不引入能力**（若未来决议启用 → 独立整体程序引擎 doc-tooling 承接）。
 
 #### 5.3 工具链段行
 
@@ -96,7 +96,7 @@ simple-git 行 `^3.36.0 → ^4.0.2`（declared / lockfile 两格更新；lockfil
 
 #### 6.3 引擎行为零变更 pin
 
-引擎 vitest **0 语义改动** · guard 三件套（anatomy / word-face / channel）零回归 · residue 零新词 —— 升级若有任何引擎行为漂移，即本 phase 违约（归 P4 诊断，不在此修）。
+引擎 vitest **0 语义改动** · guard 三件套（anatomy / word-face / channel）零回归 · residue 零新词 —— 升级若有任何引擎行为漂移，即本 phase 违约（引擎能力变更面 → 独立整体程序引擎 doc-tooling 诊断，不在此修）。
 
 ### Acceptance criteria
 
@@ -129,7 +129,7 @@ simple-git 行 `^3.36.0 → ^4.0.2`（declared / lockfile 两格更新；lockfil
 
 - **P2（src-next → src 改名）会改写本 spec 的 `src-next` 字面量**（Q3→b 历史面全改覆盖 docs/kairos specs+plans）——P1 实施期的 dev face 引用 `node packages/cdd-engine/src-next/bin.ts` 在 P2 落地后统一变 `src/bin.ts`，无需本 phase 预改
 - **本 phase 不单开 changeset**：simple-git bump · node 线策略贡献归 P3 主题归并吸收（overall Constraints「changesets 托收整理」· D6 发布边界）
-- **前瞻注记两行（§5.2）若未来决议启用**，属引擎行为变更 → P4 赛道（单一归属），不在此 phase 引入
+- **前瞻注记两行（§5.2）若未来决议启用**，属引擎能力变更 → 独立整体程序引擎 doc-tooling（P2 模板写作同程序）承接，不在此 phase 引入
 - **P1 验收全程在 current src-next 树上**（P2 改名前的路径面）——改名保真审计在 P2 单独承担
 
 ## Change history
@@ -137,3 +137,4 @@ simple-git 行 `^3.36.0 → ^4.0.2`（declared / lockfile 两格更新；lockfil
 | Version | date | summary | author |
 |---|---|---|---|
 | v1.0 | 2026-10-10 | P1 设计 spec：simple-git `^3.36.0 → ^4.0.2`（drop-in 已核 · 不引新能力）+ node 线锁 24（engines `>=24` · types 两处 `^24.19.2` · `.nvmrc`/CI 保持）+ 依赖全量对齐（三段式验收）+ maintainers 05 §1 同步（4.x 前瞻注记）· 增量为父 overall v1.2 注册面的展开（Q0 覆盖确认 · Q1/Q2 grilling 定案） | [human] · Claude Opus 5（kairos:cdd-design [P1] enumerate-then-grill → cdd-spec-writer） |
+| v1.1 | 2026-10-10 | **程序结构回填（P4 拆出 · 2026-10-10 用户裁定「这个问题和 P4 其实是同一类的吧？」）**：父子整体 `engine-doc-tooling` 成立（review-face 键 + schema gen 同属引擎 doc-tooling 能力类）——本 spec 引擎行为引用（§2.3 / §5.2 / §6.3 / Notes）从「P4 赛道」改指独立整体程序；Parent program 版本 v1.2 → v1.3 | [human] · Claude Opus 5（kairos:cdd-design 拆出裁定） |

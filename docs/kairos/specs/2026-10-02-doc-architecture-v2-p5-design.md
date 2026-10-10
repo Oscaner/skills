@@ -1,6 +1,6 @@
 # 文档架构方法论 v2 — P5 Design Spec（DispatchContract + DispatchPacket 收敛重规划）
 
-- **Version**: v1.0 · 2026-10-10
+- **Version**: v1.1 · 2026-10-10
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer · 决策源 = grilling 五命题定案 2026-10-10）
 - **Parent program**: [doc-architecture-v2-overall.md v1.57](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
@@ -132,7 +132,7 @@ cdd-engine（host/templates/ledger 收敛 · 含删测试净负行）· scripts 
 - `CHAINS 删除：host.ts \`CHAINS\`/\`ChainKey\`/HostContract.chains 字段 + host.test T25 ordered skill chains describe 块（37-83 · 3 it / 6 expect）删除 · capabilities per-harness 块（24-35 · A4 存活面）保留 · 全仓 CHAINS 零残留（grep 含 __tests__）`
 - `graph-node 删除：RefKind 三型 union（commit-set-ledger/commit-range/doc-revision · 零 graph-node）· GraphNodeRef/构造/相等/parse 分支删 · ledger.test graphNode 断言删 · 全仓 graph-node 零残留（grep 含 __tests__）`
 - `DispatchPacket 正文映射闭环：§4.1 对照表五行登记（InstructionUnit→MODE_PROMPTS 行 · return/evidence→注入 schema · BodyView→round-context 子集 · convergence→next 路由 · constraints 子集→reduced 固定前缀）· 零新引擎符号断言（本 phase 不实现新概念 · 纯删除 + FIX_SHELL 两条增）`
-- `登记层一致性：overall v1.57 四表 + M/R 组与 spec 一致（M2/M4b 行 · R5 关闭 · Phase inventory P5 acceptance C1/C2 撤销 · 依赖图 P3.2→P5 基线行 · Change history v1.57）· 本 spec v1.0 头标注 Parent program = overall v1.57`
+- `登记层一致性：overall v1.57 四表 + M/R 组与 spec 一致（M2/M4b 行 · R5 关闭 · Phase inventory P5 acceptance C1/C2 撤销 · 依赖图 P3.2→P5 基线行 · Change history v1.57）· 本 spec v1.1 头标注 Parent program = overall v1.57`
 - `引擎 vitest 全绿（387 − 删断言 + FIX_SHELL 断言新增后）· typecheck ×3 · biome clean · validate ALL PASS · emit 新鲜`
 - `变更集：cdd-engine 一枚独立提交（含净删除）· kairos 随 T5 若 SKILL 面动 · changeset 落位`
 
@@ -149,4 +149,5 @@ cdd-engine（host/templates/ledger 收敛 · 含删测试净负行）· scripts 
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v1.1 | 2026-10-10 | **spec-review-1 全修（1 blocker · 2 warn · 2 nit）**：§5.1/§5.2 补登 scripts 衍生面（guard.ts fix push 派生行随删 · guard.test.ts 随核）· T25 删除目标钉为 ordered skill chains describe 块（37-83 · 3 it / 6 expect · capabilities 块 24-35 保留）· §1.2 A4 改 refKind typed 分类机制 · §4.1 MODE_PROMPTS 三行 + REVIEW_VARIANTS 四变体 · §2.1 注册列取证基线 | [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer） |
 | v1.0 | 2026-10-10 | 初版——P5 收敛重规划（overall v1.57 四表同步后开写）：M 组 op→skill 映射整体重规划（fix 面无 ref · REFS tdd 键删 · FIX_SHELL 补 typed 两条：验而后修 + 条件 tdd·B1 appliesTo）· 零消费者死壳清（CHAINS 删 · graph-node 删 · RefKind 四型→三型）· DispatchPacket 正文映射闭环登记（四概念已以新名落地 · 零实现）· 实现面 = 纯删除 + 模板两条 typed 增 · 变更集 cdd-engine | [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer · grilling 五命题定案） |

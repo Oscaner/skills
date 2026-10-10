@@ -179,12 +179,19 @@ const IMPLEMENT_SHELL: readonly string[] = [
 ];
 
 /** The fix row's fixed prefix — header + instructions + the shared work tail. */
+const FIX_TYPED_INSTRUCTIONS: readonly string[] = [
+  "**Verify-then-apply:** verify each finding against the codebase's actual state before changing anything — apply a finding only when it is technically sound; a finding that does not hold up stays open with a note (never blind adoption). Apply findings one at a time and test each one before moving on.",
+  "**Conditional TDD:** when a finding requires a behavior change and the change has no test coverage, write or adjust the tests first and drive the change red→green — the discipline applies conditionally, never as a blanket demand on every finding.",
+];
+
+/** The fix row's fixed prefix — header + instructions + the shared work tail. */
 const FIX_SHELL: readonly string[] = [
   "# CDD dispatch — fix round",
   "",
   "## Instructions",
   "",
   ...FRAME_ITEMS,
+  ...FIX_TYPED_INSTRUCTIONS,
   "**fix:** read `INPUT_FINDINGS` (open findings) + `INPUT_WAVE_BRIEF` (wave brief — context). Fix ALL findings (blocker/warn/nit), verifying against `INPUT_FINDINGS` none remain open. `commits.base` = `FIX_BASE` (the prior handoff's `commits.head`); `commits.head` = `git rev-parse --short=8 HEAD` — no diff vs `FIX_BASE` → no commit (keep `head`). Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema` in one process; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
   EVIDENCE_ITEM,
   COMMITS_FIX_ITEM,

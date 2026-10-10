@@ -53,7 +53,7 @@ import { targetFaces } from "../session/faces.ts";
 import { TaskGraph } from "../session/graph.ts";
 import type { HandoffSchemaFace } from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
-import type { HandoffParams, OpType, RoundStatus } from "../session/ledger.ts";
+import type { HandoffParams, LedgerKey, OpType, RoundStatus } from "../session/ledger.ts";
 import { Ledger } from "../session/ledger.ts";
 import type { Route } from "../session/next.ts";
 import { NextStepRouter } from "../session/next.ts";
@@ -467,9 +467,10 @@ export class HarnessDispatch {
     return frame.phase === "implement" ? "implement" : "review";
   }
 
-  /** The phase's skill-ref slash form for the detected host ("/mattpocock-skills:tdd"
-   *  etc.); null when the review type carries no skill ref (the spec/plan reviews —
-   *  their criteria ride the review prompt's fixed body, never a slash arg). */
+  /** The phase's skill-ref slash form for the detected host ("/mattpocock-skills:implement"
+   *  · "/mattpocock-skills:code-review" etc.); null when the phase carries no skill
+   *  ref (the fix face and the spec/plan reviews — their criteria ride the
+   *  prompt's fixed body, never a slash arg). */
   #skillRef(host: string, frame: OpenFrame): string | null {
     const dispatch = DISPATCH;
     let ref: unknown = null;
@@ -483,7 +484,10 @@ export class HarnessDispatch {
           ? declaredRef
           : null;
     } else {
-      const value = dispatch[frame.phase as "implement" | "fix"];
+      // The implement row is the dispatch table's single string slot; the other
+      // phases (fix) carry no dispatch row — the lookup resolves null (the fix
+      // face's ref-less face, same-shape as the spec/plan reviews).
+      const value = dispatch[frame.phase as "implement"];
       ref = typeof value === "string" ? value : null;
     }
     if (typeof ref !== "string") return null;
@@ -1327,8 +1331,9 @@ export class Cli {
     if (group === null) {
       const open = this.#lineGate(scene);
       if (open !== expected) {
+        const docBlock = open === null ? this.#docLineBlock(scene) : null;
         this.#io.stderr(
-          `cdd ${verb}: cannot dispatch a ${expected} round — ${open === null ? "the line holds no open round" : `the next round is ${open}${this.#phaseHint(open)}`}\n`,
+          `cdd ${verb}: cannot dispatch a ${expected} round — ${docBlock ?? (open === null ? "the line holds no open round" : `the next round is ${open}${this.#phaseHint(open)}`)}\n`,
         );
         return 1;
       }
@@ -1479,9 +1484,68 @@ export class Cli {
 
   /** The single-target line's current open phase (spec/plan/branch). The task face
    *  holds no separate gate here: the WaveGate's wrong-phase verdict (the pre-flight)
-   *  IS the task-face phase authority — the wave gate is the single phase authority. */
+   *  IS the task-face phase authority — the wave gate is the single phase authority.
+   *  A CLOSED doc line reopens through the identity-aware verdict (T7): the target's
+   *  current doc revision vs the recorded reviewed revision — a moved doc reopens
+   *  the review lead, an unchanged doc stays closed (the revision-aware BLOCK). */
   #lineGate(scene: WorkScene): DispatchPhase | null {
-    return this.#linePhase(scene);
+    const open = this.#linePhase(scene);
+    if (open !== null) return open;
+    return this.#docLineVerdict(scene)?.kind === "drift" ? scene.face.product.reviewLead : null;
+  }
+
+  /** The doc line's identity verdict (T7) — the current doc revision vs the line's
+   *  recorded reviewed revision. `drift` → the target moved past the reviewed
+   *  identity (the line reopens); `same` → unchanged (the revision-aware BLOCK).
+   *  Null when the line is not a doc, the doc is unreadable, or no reviewed
+   *  revision is on record (the legacy closed face keeps its generic message). */
+  #docLineVerdict(scene: WorkScene): { kind: "drift" | "same" } | null {
+    if (scene.target?.kind !== "doc") return null;
+    const reviewed = scene.ledger.reviewedDocRevisionOf(this.#lineKey(scene) as LedgerKey);
+    if (reviewed === null) return null;
+    const content = this.#docContent(scene.target.doc);
+    if (content === null) return null;
+    const current = scene.ledger.refs().docRevision(scene.target.doc, content);
+    return { kind: scene.ledger.refs().sameRef(reviewed, current) ? "same" : "drift" };
+  }
+
+  /** The doc line's revision-aware BLOCK message (T7) — the unchanged-doc face:
+   *  "{plan|spec} already reviewed at vX.Y (doc-hash …) — target revision
+   *  unchanged; amend body/version to open a new review". Null on the non-doc /
+   *  legacy faces (the generic "no open round" message keeps its face there). */
+  #docLineBlock(scene: WorkScene): string | null {
+    if (scene.target?.kind !== "doc") return null;
+    const verdict = this.#docLineVerdict(scene);
+    if (verdict?.kind !== "same") return null;
+    const reviewed = scene.ledger.reviewedDocRevisionOf(this.#lineKey(scene) as LedgerKey);
+    if (reviewed === null) return null;
+    const version = this.#docVersionOf(this.#docContent(scene.target.doc));
+    return `${scene.type} already reviewed at ${version ?? "the current version"} (doc-hash ${reviewed.doc_hash.slice(0, 12)}…) — target revision unchanged; amend body/version to open a new review`;
+  }
+
+  /** The doc's live content — readable doc else null (the drift verdict + the
+   *  revision-aware BLOCK reuse this single read; the revision hash is a raw-content
+   *  digest — zero parse dependence). */
+  #docContent(doc: string): string | null {
+    try {
+      return this.#readText(doc);
+    } catch {
+      return null;
+    }
+  }
+
+  /** The doc's `v<major>.<minor>` version token — the first token on the
+   *  `**Version**` header line (the same vX.Y grammar the contract plane's
+   *  versionTokens primitive parses · contract/doc.ts). */
+  #docVersionOf(content: string | null): string | null {
+    if (content === null) return null;
+    for (const line of content.split("\n")) {
+      if (line.trimStart().startsWith("- **Version**:")) {
+        const match = line.match(/\bv\d+\.\d+\b/);
+        return match === null ? null : match[0];
+      }
+    }
+    return null;
   }
 
   /** The single-target line's current open phase — fix-awaits / re-review / closure

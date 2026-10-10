@@ -18,6 +18,7 @@
 // Module-level exports are types / the class / one empty-state data const — zero
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
+import { readFileSync } from "node:fs";
 import { BranchRef } from "./branch-ref.ts";
 import type { DispatchPhase, ReviewLead, RouteTarget, TargetFace, TargetType } from "./faces.ts";
 import type {
@@ -351,7 +352,10 @@ export class Lifecycle {
    *  routes of the recorded rounds. A review-lead awaiting its fix opens the fix
    *  only when the review routed one (findings); a clean review closes the line
    *  (no markDone on the task-less faces — the route IS the closure gate). The
-   *  completed pair re-keys on the fix round's route (re-review vs closure). */
+   *  completed pair re-keys on the fix round's route (re-review vs closure). A
+   *  CLOSED doc line reopens through the identity verdict (T7): the target's
+   *  current doc revision vs the recorded reviewed revision — a moved doc reopens
+   *  the review lead (round continuation), an unchanged doc stays closed. */
   #nextLinePhase(
     key: LedgerKey,
     target: AuditTarget,
@@ -362,10 +366,29 @@ export class Lifecycle {
     if (reviews === 0) return reviewLead;
     if (fixes < reviews) {
       const route = this.#roundRoute(target, reviews);
-      return route?.kind === "fix" ? "fix" : null;
+      if (route?.kind === "fix") return "fix";
+    } else {
+      const route = this.#lineRoute(target, reviews);
+      if (route?.kind === "review") return reviewLead;
     }
-    const route = this.#lineRoute(target, reviews);
-    return route?.kind === "review" ? reviewLead : null;
+    // T7 — the doc line's identity-driven reopen: a CLOSED doc line reopens when
+    // the target document drifted past its reviewed revision (round continuation
+    // {line}-review-{N+1}); the CLI's line gate applies the same identity verdict.
+    return target.kind === "doc" && this.#docDrifted(key, target.doc) ? reviewLead : null;
+  }
+
+  /** The T7 doc-drift predicate — the target's current doc revision differs from
+   *  the line's recorded reviewed revision (an unreadable doc / absent reviewed
+   *  identity → false — only present facts reopen a line). */
+  #docDrifted(key: LedgerKey, doc: string): boolean {
+    const reviewed = this.#ledger.reviewedDocRevisionOf(key);
+    if (reviewed === null) return false;
+    try {
+      const current = this.#ledger.refs().docRevision(doc, readFileSync(doc, "utf8"));
+      return !this.#ledger.refs().sameRef(reviewed, current);
+    } catch {
+      return false;
+    }
   }
 
   /** The C5 route of a single-target line's review-lead round — the fix-awaits /
@@ -486,8 +509,36 @@ export class Lifecycle {
         carrier.status = outcome.status;
       this.#ledger.persistHandoff(op, frame.type, frame.params, carrier);
     }
-    if (!blocked) return this.#ledger.recordRound(frame.key, frame.phase);
+    if (!blocked) {
+      const count = this.#ledger.recordRound(frame.key, frame.phase);
+      // T7 — the doc line's reviewed-revision write-back: a completed doc review
+      // binds the target's CURRENT doc revision (read at bookkeep — the clean-tree
+      // dispatch gate keeps the read-only review's document stable across the
+      // round). The identity-aware line gate reopens the closed line on drift from
+      // this recorded revision; a fix round never re-binds it (a fix moved the doc
+      // — the new identity lands with the re-review round).
+      if (frame.target.kind === "doc" && frame.phase === "review")
+        this.#recordReviewedDocRevision(frame);
+      return count;
+    }
     return this.#ledger.roundCount(frame.key, frame.phase);
+  }
+
+  /** The T7 doc-review write-back — bind the reviewed doc revision to the line
+   *  record (the identity-aware gate's reopen-compare basis). An unreadable doc
+   *  records nothing — the line keeps the legacy closed face (only present facts
+   *  land, never an invented identity). */
+  #recordReviewedDocRevision(frame: OpenFrame): void {
+    const doc = (frame.target as { kind: "doc"; doc: string }).doc;
+    try {
+      const content = readFileSync(doc, "utf8");
+      this.#ledger.recordReviewedDocRevision(
+        frame.key,
+        this.#ledger.refs().docRevision(doc, content),
+      );
+    } catch {
+      // unreadable doc — no reviewed identity recorded (present facts only)
+    }
   }
 
   /** Mark the wave done when the concluding route says its line closed — the C5

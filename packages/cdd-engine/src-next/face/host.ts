@@ -10,9 +10,10 @@
 //     the env whitelist from them — never a second declaration). The promptForm
 //     column (§3.5) is the prompt-position semantics data contract — how the
 //     skill-ref enters the child prompt (ref-prefixed | plain).
-//   · DISPATCH  — the dispatch table: the skill-ref (or URC prose) each phase
-//     resolves to. M1 supersede (P5): the implement slot names the upstream
-//     `mattpocock-skills:implement` skill, never the retired tdd alias.
+//   · DISPATCH  — the dispatch table: the skill-ref each dispatch face resolves
+//     to. M1 supersede (P5): the implement slot names the upstream
+//     `mattpocock-skills:implement` skill; the fix face carries no skill ref (its
+//     fix discipline lives as the FIX_SHELL typed instructions).
 //   · REFS      — the per-harness slash reference forms (claude/cursor use the
 //     `/namespace:skill` form; pi the flat `/skill:<bare>` form — the pi flat
 //     namespace has no namespace-qualification syntax).
@@ -112,8 +113,6 @@ export interface ReviewDispatchRow {
 export interface DispatchTable {
   /** The implement phase's ref key (M1 supersede: mattpocock-skills:implement). */
   implement: string;
-  /** The fix phase's ref key. */
-  fix: string;
   /** The review phase rows — the task/branch ref keys (the spec/plan rows carry no
    *  skill ref — the review criteria live in the template plane). */
   review: Readonly<Record<"wave" | "branch", ReviewDispatchRow>>;
@@ -125,40 +124,11 @@ export type HostReferenceForm = Readonly<Record<HostId, string>>;
 /** The full reference table — every `<pkg>:<skill>` cross-skill reference key. */
 export type HostReferenceTable = Readonly<Record<string, HostReferenceForm>>;
 
-/** The ordered skill chains (T25 · the ordered-chain rendering consumption) — each
- *  chain is the ORDERED ref keys of one deliverable line; the per-harness slash
- *  forms derive from the REFS table (claude/cursor `/<ref>` · pi `/skill:<bare>`),
- *  so a chain renders the dual forms hop by hop (the cdd-dev dispatch chain · the
- *  five-skill deliverable line). Typed data — the skills' ordered ref consumption
- *  rides these rows, never a hand-written second list. */
-export const CHAINS = {
-  /** The five-skill deliverable line — design → spec → plan → dev → close. */
-  skillLine: [
-    "kairos:cdd-design",
-    "kairos:cdd-spec-writer",
-    "kairos:cdd-plan",
-    "kairos:cdd-dev",
-    "kairos:cdd-close",
-  ],
-  /** The dev dispatch chain — cdd-dev's ordered dispatch faces (implement →
-   *  review → close; the fix face converges through the same review ref). */
-  devDispatch: [
-    "kairos:cdd-dev",
-    "mattpocock-skills:implement",
-    "mattpocock-skills:code-review",
-    "kairos:cdd-close",
-  ],
-} as const;
-
-/** The ordered-chain map key — one chain per declared identity. */
-export type ChainKey = keyof typeof CHAINS;
-
-/** The extended typed harness contract — hosts + dispatch + refs + chains. */
+/** The extended typed harness contract — hosts + dispatch + refs. */
 export interface HostContract {
   hosts: Readonly<Record<HostId, HostRow>>;
   dispatch: DispatchTable;
   refs: HostReferenceTable;
-  chains: Readonly<Record<ChainKey, readonly string[]>>;
 }
 
 /** The per-harness install banners — the kairos self-install + the upstream plugin
@@ -238,13 +208,13 @@ export const HOSTS = {
 
 /** The dispatch table — the phase/type → skill-ref resolution. The implement slot
  *  is the M1 supersede (P5): it names the upstream `mattpocock-skills:implement`
- *  skill — the tdd alias is retired from the dispatch. The REVIEW rows are the
- *  task/branch ref keys only (the spec/plan rows' URC review criteria migrated to
- *  the template plane's REVIEWS at the v1.8 closeout — their single typed home;
- *  the parallel-sub-agents note prose is deleted — P5 forbidden text). */
+ *  skill. The fix face carries no skill ref (its fix discipline rides the FIX_SHELL
+ *  typed instructions). The REVIEW rows are the task/branch ref keys only (the
+ *  spec/plan rows' URC review criteria migrated to the template plane's REVIEWS at
+ *  the v1.8 closeout — their single typed home; the parallel-sub-agents note prose
+ *  is deleted — P5 forbidden text). */
 export const DISPATCH = {
   implement: "mattpocock-skills:implement",
-  fix: "mattpocock-skills:tdd",
   review: {
     wave: { ref: "mattpocock-skills:code-review" },
     branch: { ref: "mattpocock-skills:code-review" },
@@ -275,11 +245,6 @@ export const REFS = {
     claude: "/mattpocock-skills:implement",
     cursor: "/mattpocock-skills:implement",
     pi: "/skill:implement",
-  },
-  "mattpocock-skills:tdd": {
-    claude: "/mattpocock-skills:tdd",
-    cursor: "/mattpocock-skills:tdd",
-    pi: "/skill:tdd",
   },
   "mattpocock-skills:code-review": {
     claude: "/mattpocock-skills:code-review",
@@ -319,11 +284,10 @@ export const REFS = {
   },
 } as const satisfies HostReferenceTable;
 
-/** The typed harness contract — one constant: hosts + dispatch + refs + chains
- *  (the single harness-adaptation truth; zero `_doc`/`$schema` prose). */
+/** The typed harness contract — one constant: hosts + dispatch + refs (the single
+ *  harness-adaptation truth; zero `_doc`/`$schema` prose). */
 export const HOST_CONTRACT = {
   hosts: HOSTS,
   dispatch: DISPATCH,
   refs: REFS,
-  chains: CHAINS,
 } as const satisfies HostContract;

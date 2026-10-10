@@ -105,6 +105,23 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(out).not.toContain("INPUT_CRITERIA");
   });
 
+  it("the fix shell carries the two typed fix-discipline sentences — verify-then-apply + conditional TDD (P5 §2.4)", () => {
+    const out = assembler.render({
+      ...ALL_VALUES,
+      ROLE: "fix",
+      INPUT_FINDINGS: "/ws/tasks-1-review-1.json",
+      FIX_BASE: "a".repeat(8),
+    });
+    expect(out.startsWith("# CDD dispatch — fix round")).toBe(true);
+    // verify-then-apply — the receiving-code-review core: VERIFY each finding
+    // against the codebase's actual state, apply only what is technically sound
+    expect(out).toContain("technically sound");
+    expect(out).toMatch(/verify/i);
+    // conditional TDD — the B1 appliesTo semantics: only when the finding demands a
+    // behavior change AND the change lacks tests, never a blanket discipline
+    expect(out).toContain("requires a behavior change");
+  });
+
   it("renders the review mode per type — the criteria/lens fold into the fixed prefix", () => {
     // a spec review: the URC criteria + its lens ride the shell (fixed region), the
     // round context carries only the review's dynamic facts

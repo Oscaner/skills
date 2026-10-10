@@ -239,6 +239,72 @@ describe("base nine invariants — one negative case each", () => {
   });
 });
 
+describe("T6 — prose task mentions carry zero crosslink findings (the WARN-only observation surface)", () => {
+  /** The sibling-doc fs a conforming plan's chain resolves into (exists + the
+   *  same-family listings the file-existence/sibling-scan surfaces judge). */
+  const GOOD_PLAN_FS: DocFs = {
+    exists: () => true,
+    read: () => null,
+    list: (dir) =>
+      dir.endsWith("/specs") || dir.endsWith("specs")
+        ? ["x-overall.md", "x-design.md", "x-p3-design.md"]
+        : ["x-p3.md"],
+  };
+
+  /** A structurally conforming plan — every registered plan element present
+   *  (header tuple + version lineage + task fields + Change history) carrying a
+   *  prose mention of an unregistered historical task id in its Objective. */
+  function conformingPlanWithProse(objective: string): string {
+    return [
+      "# Test Plan",
+      "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
+      "- **Parent program**: [x-overall.md v1.21](docs/kairos/specs/x-overall.md)",
+      "- **Version**: v1.1 · 2026-10-09",
+      "",
+      "## Constraints",
+      "",
+      "- delta",
+      "",
+      "### Task 1: task",
+      `- **Objective**: ${objective}`,
+      "- **Files**: file",
+      "- **Consumes**: consumes",
+      "- **Produces**: produces",
+      "- **Steps**:",
+      "  - step one — checkable: green",
+      "- **Acceptance**: acceptance",
+      "- **DependsOn**: none",
+      "",
+      "## Change history",
+      "",
+      "| Version | date | summary | author |",
+      "|---|---|---|---|",
+      "| v1.0 | 2026-10-08 | prior | [human] |",
+      "| v1.1 | 2026-10-09 | merged | [human] |",
+    ].join("\n");
+  }
+
+  it("a conforming plan prose-referencing an unregistered historical task id scores ZERO findings", () => {
+    const content = conformingPlanWithProse(
+      "承接 P3.2 的 T25 段既有约定（历史任务序号 · 非本 plan 任务）",
+    );
+    const findings = judge("plan", content, GOOD_PLAN_FS);
+    // the prose mention is the reference-lint WARN observation's — the crosslink
+    // invariant never consumes it, and no other surface reports the mention
+    expect(withKind(findings, "crosslink", "Task prose reference")).toBe(false);
+    expect(findings).toEqual([]);
+  });
+
+  it("the DependsOn out-of-bounds hard gate stays — an unregistered DEPENDENCY is still a crosslink finding", () => {
+    const content = conformingPlanWithProse("objective").replace(
+      "- **DependsOn**: none",
+      "- **DependsOn**: 25",
+    );
+    const findings = judge("plan", content, GOOD_PLAN_FS);
+    expect(withKind(findings, "crosslink", "Task 1")).toBe(true);
+  });
+});
+
 describe("the canonical repo forms (no false positives on real conventions)", () => {
   it("presence: the token-in-heading task id is satisfied by the parsed task blocks (not a line scan)", () => {
     const content = [

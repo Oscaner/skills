@@ -2,12 +2,12 @@
 
 **Spec:** [2026-10-02-doc-architecture-v2-p5-design.md](docs/kairos/specs/2026-10-02-doc-architecture-v2-p5-design.md)
 
-- **Parent program**: [doc-architecture-v2-overall.md v1.57](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Version**: v1.1 · 2026-10-10
+- **Parent program**: [doc-architecture-v2-overall.md v1.58](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
+- **Version**: v1.2 · 2026-10-10
 - **Depends on**: P3.2（Done · [p3.2-plan v1.31](docs/kairos/plans/2026-10-02-doc-architecture-v2-p3.2.md) —— serial-phase GATE 满足 · v1.57 收敛重规划基线)
 - **Base**: develop
 
-执行序（**波标签 = plan-graph board 派生标签 · W1 起序**）：W1 = {T1, T2, T3, T4}（W1 内串行落位——T1/T2 共享 host.ts/host.test.ts 文件面，同 implement round 单轮串行 · 不得按「四根独立」并行派发防 host.ts/host.test.ts 双向冲突；T3 FIX_SHELL typed · T4 graph-node 删）→ W2 = {T5}（终验 · 零残留 grep · changesets · closeout 回填前置）。
+执行序（**波标签 = plan-graph board 派生标签 · W1 起序**）：W1 = {T1, T2, T3, T4}（W1 内串行落位——T1/T2 共享 host.ts/host.test.ts 文件面，同 implement round 单轮串行 · 不得按「四根独立」并行派发防 host.ts/host.test.ts 双向冲突；T3 FIX_SHELL typed · T4 graph-node 删 · T6 契契修复（judge 面独立 · 文件不与 T1-T4 相交））→ W2 = {T5}（终验 · 零残留 grep · changesets · closeout 回填前置）。
 
 ## Constraints
 
@@ -20,6 +20,7 @@
 - **English-primary 消费面**：引擎注释/模板/commit 信息英文；内部 specs/plans 中文（Strategy B）
 - **变更集义务**：cdd-engine 一枚（host/templates/ledger/guard 收敛）· kairos 若 SKILL 面动随 T5（预期零）——独立提交
 - **DependsOn 反依赖门**：边仅引用更小编号（编号序 = 拓扑线性化锚）
+- **契契一致性（T6）**：prose 任务提及零硬检（reference-lint WARN-only 为唯一观察面 · DependsOn 为唯一结构引用面——T6 违反即回归）
 
 ### Task 1: fix 面无 ref——DISPATCH/REFS/`#skillRef`/guard 原子簇收敛
 
@@ -90,16 +91,33 @@
   - `pnpm run typecheck`（cdd-engine / scripts / kairos-tests ×3） — checkable: exit 0
   - `biome check`（或 `pnpm exec biome check`） — checkable: clean
   - `pnpm run validate` — checkable: ALL PASS（emit 新鲜 · residue / lexicon / channel audit / doc-contract gate / version sync）
-  - 零残留 grep 三面（`mattpocock-skills:tdd` · `CHAINS`/`ChainKey`（小写 chains 注释豁免）· `graph-node`/`GraphNodeRef`/`graphNode(`——代码面 = `packages/cdd-engine/src-next` + `scripts` + `packages/kairos`（含 `__tests__`）· 决策登记 trail 豁免清单核 = P5 plan 自文 · design spec v1.1 · overall v1.57） — checkable: 零命中
+  - 零残留 grep 三面（`mattpocock-skills:tdd` · `CHAINS`/`ChainKey`（小写 chains 注释豁免）· `graph-node`/`GraphNodeRef`/`graphNode(`——代码面 = `packages/cdd-engine/src-next` + `scripts` + `packages/kairos`（含 `__tests__`）· 决策登记 trail 豁免清单核 = P5 plan 自文 · design spec v1.2 · overall v1.58） — checkable: 零命中
   - changeset：cdd-engine—`pnpm run changeset`（DispatchContract 收敛：fix face no ref · CHAINS/graph-node 删 · FIX_SHELL typed）×1 · kairos 若 SKILL 面动 ×1 — checkable: `.changeset/` 新增落位
-  - 回填登记（交付记录草拟 · closeout 前置）：gloss 稿 = P5 行 acceptance 逐条核（spec v1.1 · plan v1.1 · 分支终审记录）· 草稿落工作区/交付登记（不触 repo 源树） — checkable: 登记稿齐备 · 树净
+  - 回填登记（交付记录草拟 · closeout 前置）：gloss 稿 = P5 行 acceptance 逐条核（spec v1.2 · plan v1.2 · 分支终审记录）· 草稿落工作区/交付登记（不触 repo 源树） — checkable: 登记稿齐备 · 树净
   - commit — checkable: `chore(engine): changeset——DispatchContract 收敛（fix face no ref · CHAINS/graph-node 删 · FIX_SHELL typed）` 落位 · 树净
 - **Acceptance**: `validate ALL PASS` · 零残留 grep 三面零命中 · changesets 落位（cdd-engine）· 交付记录回填登记齐备（closeout 随）
 - **DependsOn**: 1, 2, 3, 4
+
+### Task 6: 契契修复——prose task 提及硬检删除
+
+- **Objective**: design §6（v1.2 backfill · find 自产 dogfood——plan authoring precommit 实证：正文合法引用既有 program 的历史任务序号被 crosslink 判为未注册任务引用）——`planCrosslinks`（invariants.ts）"Task prose reference" 硬 finding 检查**删除**（兑现 declare.ts:626「WARN-only observation surface」声明 + lint.ts:213「missing-id——never a suspect」文档设计——同一 token 双面矛盾裁决消解）· **DependsOn 越界硬门保留**（唯一结构引用面）· prose 观察面唯一归属 = reference-lint WARN pass（零新逻辑——lint.ts 已静默 unregistered）· `declare.ts:626` 注释更新（crosslink 不消费 · lint 唯一消费者）· 消费者面：plan 含未注册 `T<n>` 提及（历史任务号/波标签/缩写）过 gate 零 finding
+- **Files**: `packages/cdd-engine/src-next/contract/invariants.ts`（planCrosslinks 删 prose 块 · DependsOn 循环保留）· `packages/cdd-engine/src-next/contract/declare.ts`（:626 注释更新）· `packages/cdd-engine/src-next/contract/__tests__/invariants.test.ts`（prose 硬检负例删/改 + 新回归：`T<n>` 提及零 finding）· `packages/cdd-engine/src-next/contract/__tests__/lint.test.ts`（missing-id 静默回归若缺则补）· 核改面（若 doc-contract gate/参数断言引用 prose 硬检）
+- **Consumes**: `planCrosslinks`（invariants.ts）· "Task prose reference" 元素（declare.ts:627 · valuePattern）· `LintPass`（lint.ts——已持 prose 观察 · 不新增）
+- **Produces**: `planCrosslinks` = DependsOn 硬门 only（零 prose finding）· 未注册 `T<n>` 提及零 finding（gate BLOCK-free）· reference-lint WARN 面不动（missing-edge suspects · unregistered 静默）
+- **Steps**:
+  - 失败先行：invariants.test 新增负例——plan 正文含 prose 提及未注册任务号（既有 program 历史任务序号类）→ judge findings 零命中（现 prose 块硬检必炸——先证红） — checkable: 红（crosslink finding 复现）
+  - `invariants.ts` `planCrosslinks` 删 prose 块（prose 遍历 + finding push）· DependsOn 越界循环保留 — checkable: tsc 绿 · 负例绿（零 finding）
+  - `declare.ts:626` 注释更新（crosslink 不消费该元素 · reference-lint 为唯一消费者——一声明注释与解析行为对齐） — checkable: 编译绿
+  - 旧 prose 硬检负例删/改迁移（若现测 "prose references unregistered" 用例）· missing-id 静默回归断言（lint.test：含未注册 `T<n>` 提及 zero WARN） — checkable: invariants.test + lint.test 全绿
+  - 全仓 grep `Task prose reference` 消费面——crosslink 零引用（仅 declare 登记 + lint 消费） — checkable: 消费面收敛
+  - commit — checkable: `fix(engine): drop crosslink hard-check on prose task references (WARN-only per declare — lint owns the observation · DependsOn stays the structural gate)` 落位 · 树净
+- **Acceptance**: 未注册 `T<n>` 提及过 gate 零 finding（回归断言）· DependsOn 越界硬门保留（负例在册）· reference-lint WARN 面保持 · declare.ts 注释对齐 · 引擎 vitest 全绿（387−Δ+Δ）
+- **DependsOn**: none
 
 ## Change history
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v1.2 | 2026-10-10 | **T6 契契修复 backfill（用户拍板「收进 P5」· find 自产 dogfood）**：新任务 6——prose task 提及硬检删除（planCrosslinks prose 块 · DependsOn 硬门保留 · 观察面归 reference-lint WARN · declare.ts:626 注释对齐 · 回归断言）· 执行序 W1 = {T1-T4, T6} · 约束补契契一致性 · 豁免清单/gloss 版本升 v1.2/v1.58 · Parent program 升 overall v1.58 | [human] · Claude Opus 5（kairos:cdd-plan · Plan Sole Writer） |
 | v1.1 | 2026-10-10 | **plan-review-1 全修（2 warn · 4 nit）**：零残留 grep 作用域钉为可判定代码面（`packages/cdd-engine/src-next` + `scripts` + `packages/kairos` · 产品 + 测试 ts 面）· 决策登记 trail 豁免清单 = P5 plan 自文 · design spec v1.1 · overall v1.57（三面 checkable 统一改写）· 执行序去「四根独立」并行暗示（T1/T2 共享 host.ts/host.test.ts 同 round 串行）· T1 guard.ts 引用钉正 727（827 误）· T2 重排失败先行（host.ts 删 CHAINS 制造真红 → 测试侧清理）· T2 Files/Steps 补登 host.test.ts 残余清理（头注序链叙述 · `formOf` · `REFS`/`HostId`/`HostReferenceTable` import）· T5 Files 改 overall.md 为 closeout 落点（非本任务修改目标 · 不改动）· 文件尾补 EOF 换行 | [human] · Claude Opus 5（kairos:cdd-plan · plan-review 1 → plan-fix 1） |
 | v1.0 | 2026-10-10 | 初版——P5 收敛重规划实施计划：W1 {T1 fix 面无 ref 原子簇 / T2 CHAINS 删 / T3 FIX_SHELL typed / T4 graph-node 删} → W2 {T5 终验}——design v1.1 五组全承接 · DependsOn 三波次 · T1 原子簇纪律（必填 typed 成员删除迫使同 commit）· 零残留 grep 三面 · changesets cdd-engine | [human] · Claude Opus 5（kairos:cdd-plan · writing-plans 导入） |

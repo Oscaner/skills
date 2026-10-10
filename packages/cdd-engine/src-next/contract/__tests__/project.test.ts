@@ -262,14 +262,147 @@ describe("reference projection (Projector.reference)", () => {
   });
 });
 
-describe("Projector.registries — the composed five-projection surface", () => {
-  it("returns all five projections derived from the individual faces", () => {
+describe("skeleton projection (Projector.skeleton)", () => {
+  const skeletons = PROJECTOR.skeleton();
+
+  it("keys the projection record by the DocKey domain and carries each doc's type identity", () => {
+    // The skeleton record rides the projection DocKey domain (overall | plan |
+    // phaseSpec) — the CLI normalizes the DocType literal `phase-spec` to the
+    // `phaseSpec` key at the single alias face (spec §2.2), never a second list.
+    expect(Object.keys(skeletons)).toEqual([...DOC_KEYS]);
+    expect(skeletons.overall.docType).toBe("overall");
+    expect(skeletons.plan.docType).toBe("plan");
+    expect(skeletons.phaseSpec.docType).toBe("phase-spec");
+  });
+
+  it("projects exactly the required elements — optional/conditional generate zero slots", () => {
+    for (const [index, registry] of REGISTRIES.entries()) {
+      const doc = skeletons[DOC_KEYS[index]];
+      // The projected slot SET equals the required element set of the live
+      // registry (the shape's home-group order, not the flat registry order,
+      // is the projection's sequence — asserted separately below).
+      expect(new Set(doc.slots.map((slot) => slot.anchor))).toEqual(
+        new Set(
+          registry.elements
+            .filter((element) => element.presence === "required")
+            .map((element) => element.anchor),
+        ),
+      );
+      expect(doc.slots.length).toBe(
+        registry.elements.filter((element) => element.presence === "required").length,
+      );
+      for (const slot of doc.slots) expect(slot.presence).toBe("required");
+    }
+  });
+
+  it("keeps the shape home-group order — the slot homes run the shape's group sequence", () => {
+    for (const [index] of REGISTRIES.entries()) {
+      const doc = skeletons[DOC_KEYS[index]];
+      const shape = PROJECTOR.shape()[DOC_KEYS[index]];
+      const expectedHomes = shape.structure.flatMap((group) =>
+        group.elements.filter((element) => element.presence === "required").map(() => group.home),
+      );
+      expect(doc.slots.map((slot) => slot.home)).toEqual(expectedHomes);
+    }
+  });
+
+  it("classifies the parent-program / spec-ref link anchors as link slots", () => {
+    for (const [index, registry] of REGISTRIES.entries()) {
+      const doc = skeletons[DOC_KEYS[index]];
+      const linkSlots = doc.slots.filter((slot) => slot.slot === "link");
+      for (const slot of linkSlots) {
+        const element = registry.elements.find((e) => e.anchor === slot.anchor);
+        // the link class is exactly the header parent-program / spec-ref anchors
+        // (never the enum-typed table cells that also mention spec/ref)
+        expect(element?.home).toBe("header");
+        expect(["parent-program", "spec-ref"]).toContain(slot.refKind);
+      }
+    }
+    expect(skeletons.plan.slots.find((s) => s.anchor === "**Spec:**")?.slot).toBe("link");
+    expect(skeletons.plan.slots.find((s) => s.anchor === "**Parent program**")?.slot).toBe("link");
+    expect(skeletons.phaseSpec.slots.find((s) => s.anchor === "**Parent program**")?.slot).toBe(
+      "link",
+    );
+  });
+
+  it("classifies the digit-family headings of the task-block / design-body surfaces as numeric-heading", () => {
+    for (const [index] of REGISTRIES.entries()) {
+      const doc = skeletons[DOC_KEYS[index]];
+      for (const slot of doc.slots) {
+        if (
+          ![
+            "### Task N:",
+            "Task id token",
+            "### N. group heading",
+            "#### N.M item heading",
+          ].includes(slot.anchor)
+        )
+          continue;
+        expect(slot.slot, `${DOC_KEYS[index]}:${slot.anchor}`).toBe("numeric-heading");
+      }
+    }
+  });
+
+  it("classifies the enum domain (**Status**) and the graph rows as generator-truth", () => {
+    for (const [index] of REGISTRIES.entries()) {
+      const doc = skeletons[DOC_KEYS[index]];
+      const status = doc.slots.find((slot) => slot.anchor === "**Status**");
+      if (status !== undefined) expect(status.slot).toBe("generator-truth");
+      for (const anchor of ["Hard edge", "Graph legend"]) {
+        const slot = doc.slots.find((s) => s.anchor === anchor);
+        if (slot !== undefined) {
+          expect(slot.slot, `${DOC_KEYS[index]}:${anchor}`).toBe("generator-truth");
+          expect(slot.home).toBe("graph");
+        }
+      }
+    }
+  });
+
+  it("classifies the version/date rows and the table tokens as scaffold", () => {
+    for (const [index] of REGISTRIES.entries()) {
+      const doc = skeletons[DOC_KEYS[index]];
+      for (const anchor of [
+        "**Version**",
+        "Version token",
+        "Change history date",
+        "Phase id token",
+      ]) {
+        const slot = doc.slots.find((s) => s.anchor === anchor);
+        if (slot !== undefined) expect(slot.slot, `${DOC_KEYS[index]}:${anchor}`).toBe("scaffold");
+      }
+    }
+  });
+
+  it("keeps the content slots free of fully-anchored enum and graph elements", () => {
+    // the enum-domain + graph rows the generator-truth class owns — none of them
+    // may ride the content class (a content slot is a free-text `:::fill` landing
+    // position, never a judged enum/graph value)
+    const truthAnchors = [
+      "**Status**",
+      "Issue ref cell",
+      "Implementation plan cell",
+      "Design spec cell",
+      "Hard edge",
+      "Graph legend",
+    ];
+    for (const [index] of REGISTRIES.entries()) {
+      const doc = skeletons[DOC_KEYS[index]];
+      for (const slot of doc.slots.filter((s) => s.slot === "content")) {
+        expect(truthAnchors, `${DOC_KEYS[index]}:${slot.anchor}`).not.toContain(slot.anchor);
+      }
+    }
+  });
+});
+
+describe("Projector.registries — the composed six-projection surface", () => {
+  it("returns all six projections derived from the individual faces", () => {
     const projected = PROJECTOR.registries();
     expect(projected.shape).toEqual(PROJECTOR.shape());
     expect(projected.schema).toEqual(PROJECTOR.schema());
     expect(projected.slices).toEqual(PROJECTOR.slices());
     expect(projected.tokens).toEqual(PROJECTOR.tokens());
     expect(projected.reference).toEqual(PROJECTOR.reference());
+    expect(projected.skeleton).toEqual(PROJECTOR.skeleton());
   });
 
   it("carries each doc type's declaration identity (docType field)", () => {
@@ -277,5 +410,8 @@ describe("Projector.registries — the composed five-projection surface", () => 
     expect(projected.shape.overall.docType).toBe("overall");
     expect(projected.schema.plan.docType).toBe("plan");
     expect(projected.tokens.phaseSpec.docType).toBe("phase-spec");
+    expect(projected.skeleton.overall.docType).toBe("overall");
+    expect(projected.skeleton.plan.docType).toBe("plan");
+    expect(projected.skeleton.phaseSpec.docType).toBe("phase-spec");
   });
 });

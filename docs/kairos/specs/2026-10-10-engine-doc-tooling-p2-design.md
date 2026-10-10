@@ -1,10 +1,10 @@
 # 引擎文档工具（Engine Doc-Tooling）— P2 Design Spec（schema gen 模板写作）
 
-- **Version**: v0.1 · 2026-10-11
+- **Version**: v0.2 · 2026-10-11
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5（kairos:cdd-design [P2] enumerate-then-grill 定案 → cdd-spec-writer）
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall.md v1.1](docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Depends on**: 依赖升级与 src 更名程序 P2（改名 → `src/` 树 · hard · cross-program pin——实现落改名后树）；本程序 P1（review-face overall 键）‖ P2 并行无硬依赖（父总体 Dependency graph · 执行串行按 closeout 序）
+- **Depends on**: 依赖升级与 src 更名程序 P2（sweep 面关系 · D8 拆 pin——本 phase 先行实现于现行 `src-next/` 树，rename sweep 随后全库覆盖本 phase 新文件字面量）；本程序 P1（review-face overall 键）‖ P2 并行无硬依赖（父总体 Dependency graph · 执行串行按 closeout 序）
 
 ## Design
 
@@ -132,7 +132,7 @@ CLAUDE.md 收缩后，不新增「引擎使用引导」替代节——引擎使�
 
 #### 7.2 验证面（顺序）
 
-前置：**跨程序 pin 通过后启动引擎改动**（依赖升级与 src 更名程序 P2 改名落定 → `src/` 树）；工作树干净。顺序：`pnpm run emit`（SKILL.md 面变更后必跑 · 消费面 §5）→ `pnpm run emit:check` → `pnpm run precommit`（树无关子集 · doc-contract gate +1 spec（本 design）· 含新 skeleton 面 guard 零回归）→ 引擎 vitest（`pnpm --filter @oscaner-skills/cdd-engine test` · 既有 401 + **新 colocated pin：三型骨架 doc-contract 零 finding（按 §4.1 分锚占位策略的 fixture 断言——纯内容 `:::fill` / link 形锚占位 link · 节头数字真值 `### 1.`/`#### 1.1`/`### Task 1:` 判形命中）+ `schema gen` CLI 行为（`phase-spec`/`phaseSpec` 归一）+ 占位符零残留（`:::fill` + 非豁免位 `<…>`）**）→ `tsc --noEmit` 三项目 → `pnpm run validate` ALL PASS（emit 新鲜 / channel audit / residue 零回归）。
+前置：**拆 pin（D8 · 用户裁定 ②）**——本 phase 先行实现于现行 `src-next/` 树（不等 rename P2 · rename sweep 随后全库覆盖本 phase 新文件面）；工作树干净。顺序：`pnpm run emit`（SKILL.md 面变更后必跑 · 消费面 §5）→ `pnpm run emit:check` → `pnpm run precommit`（树无关子集 · doc-contract gate +1 spec（本 design）· 含新 skeleton 面 guard 零回归）→ 引擎 vitest（`pnpm --filter @oscaner-skills/cdd-engine test` · 既有 401 + **新 colocated pin：三型骨架 doc-contract 零 finding（按 §4.1 分锚占位策略的 fixture 断言——纯内容 `:::fill` / link 形锚占位 link · 节头数字真值 `### 1.`/`#### 1.1`/`### Task 1:` 判形命中）+ `schema gen` CLI 行为（`phase-spec`/`phaseSpec` 归一）+ 占位符零残留（`:::fill` + 非豁免位 `<…>`）**）→ `tsc --noEmit` 三项目 → `pnpm run validate` ALL PASS（emit 新鲜 / channel audit / residue 零回归）。
 
 #### 7.3 提交粒度与执行序
 
@@ -150,14 +150,14 @@ CLAUDE.md 收缩后，不新增「引擎使用引导」替代节——引擎使�
 - **SKILL.md 零引擎内部路径字面量**：三词条守卫 `grep -rnE "(^|[^[:alnum:]_])(src-next|src/|packages/)" packages/kairos/skills/` 零命中——`src/`/`packages/` 词条带词界前缀（`src/` 不命中 `src-next` 内子串（双保险 · `src-next` 无 `src/` 子串）· `packages/` 防自包含路径噪声）；现态三词条已零命中 · 更新后保持——消费面 SKILL.md 只出现消费面入口 `npx -y @oscaner-skills/cdd-engine@latest`
 - CLAUDE.md 去流程化落：`grep -rn "零新子命令" CLAUDE.md` 零命中 · §1.4 四块检索零残留（`Development-time CDD invocation` / `cdd CLI surface` / `Engine tests` / `Review convergence` 指针）；repo dev 义务面保留
 - 引擎 vitest 全绿（`pnpm --filter @oscaner-skills/cdd-engine test`）· `tsc --noEmit` 三项目全绿 · `pnpm run validate` ALL PASS · `pnpm run precommit` 过
-- 实现落改名后 `src/` 树（跨程序 pin 通过后启动）
+- 实现落现行 `src-next/` 树（D8 拆 pin · 先行实现——rename sweep 随后全库覆盖本 phase 新文件面 · 非硬依赖）
 
 ## Constraints
 
 - **gate 零例外**：doc-contract 判定语义不变——骨架 by construction 绿是派生事实（按 §4.1 分锚占位策略），不是豁免通道；`:::fill` 与 link 形占位都是内容提示，非逃逸标记
 - **零运行时依赖变化**：schema gen = 引擎自有渲染（无新第三方包 · 零新增依赖）
 - **六前提许可面 = P2 能力面**：整 CLI 面/目录级可重写可重组（OOP 统一 · 零裸函数 · 死码/空壳清理）——保行为等价（vitest 全绿），不越 P1/P3 面
-- **跨程序树 pin**：引擎改动仅落依赖升级与 src 更名程序 P2 改名后树；本程序期引用沿用现行 `src-next/` 路径面（rename sweep 覆盖字面量）
+- **跨程序树协调（D8 拆 pin · 非硬依赖）**：引擎改动先行实现于现行 `src-next/` 树（不等 rename P2）——本 phase 引擎新文件与 spec/plan 文档面的 `src-next/` 字面量随 rename 程序 P2 sweep 全库覆盖（Q3→b · 豁免面为空）；消费面 SKILL.md 零内部路径（§5.3）不在 sweep 面
 - **CLAUDE.md 去流程化 = 直接删除不迁不存**（Q3→c）·「零新子命令」约束落语法面（CliVerb/LEAF_COMMANDS 闭集 + channel audit）——散文 pin 删除非约束删除
 - **消费面零程序历史**（Consumer surface purity iron rule）：SKILL.md 是指导文档——只写执行方向与自描述结构，不写程序演进叙述；所有 gen/先 gen 后填变更为指令文本，无「为什么从 schema get 改」历史
 - **语言纪律**：内部 docs 中文（本 spec · Strategy B）· 消费面 SKILL.md 英文主源（English-primary）· CLAUDE.md 保留面也英文
@@ -173,7 +173,7 @@ CLAUDE.md 收缩后，不新增「引擎使用引导」替代节——引擎使�
 
 ## Notes for downstream
 
-- **P2 （依赖升级与 src 更名程序）会改写本 spec 的 `src-next` 字面量**（Q3→b 历史面全改覆盖 docs/kairos specs+plans）——实现期 dev face 引用在改名落定后统一变 `src/bin.ts`，无需本 phase 预改
+- **P2 （依赖升级与 src 更名程序）会改写本 spec 的 `src-next` 字面量**（Q3→b 历史面全改覆盖 docs/kairos specs+plans）——**D8 拆 pin 后**：本 phase 实现先行落 `src-next/` 树，实现期 dev face `node packages/cdd-engine/src-next/bin.ts` 直调照常；rename sweep 随后统一改 `src/`，无需本 phase 预改
 - **本 phase 不单开 changeset**：schema gen 能力 + 消费面 author 变更贡献归 P3 主题归并吸收（overall Constraints「changesets 收尾」· 发布边界 D）
 - **占位符策略为 my call**（§4.1 两形：纯内容 `:::fill` · link 形锚占位 link）：若 review 建议换用其他可见标记（HTML comment / checkout 式占位）或调整占位 link 字面，仅改 §4 一处 + 骨架渲染常量 + pin grep 模式——语义不变（占位符标记非结构位）
 - **declare.ts 头注释计数已过时**（注释记 plan 24 / phase-spec 21 · 活树 plan 28 / phase-spec 25）：注释同步属引擎面改动，随 P2 实现一并刷新（§1.2 已引活树计数）
@@ -185,3 +185,4 @@ CLAUDE.md 收缩后，不新增「引擎使用引导」替代节——引擎使�
 | Version | date | summary | author |
 |---|---|---|---|
 | v0.1 | 2026-10-11 | P2 设计 spec：`schema gen <type>`（schema 动词下 leaf · stdout 纯渲染 · 编排器 `schema gen phase-spec > <path>` 落盘）· 骨架 = 完整结构 + `:::fill` 占位符槽位（v0.1 版本起点 · change-history 首行 · by-construction 过 gate）· 消费面 cdd-spec-writer/cdd-plan author「先 gen 后填」（零残留 pin）· CLAUDE.md 去 kairos/引擎流程（Q3→c 直接删除 · 零新子命令约束落语法面）· 六前提重构许可整 CLI 面/目录级（保行为等价 · 跨程序树 pin）——grilling Q1/Q2/Q3 定案全量展开 | [human] · Claude Opus 5（kairos:cdd-design [P2] enumerate-then-grill → cdd-spec-writer） |
+| v0.2 | 2026-10-11 | **P2 拆 pin 回填（用户裁定 ② · 父 overall v1.2 D8）**：跨程序树依赖 hard pin → sweep 面关系——本 phase 先行实现于现行 `src-next/` 树（不等 rename P2 · 实现期 dev face `src-next/bin.ts` 直调照常 · rename sweep 随后全库覆盖本 phase 新文件面）· §7.2 前置 / Acceptance 末条 / Constraints / Depends on / Notes 同步 | Oscar M. · Claude Opus 5（P2 cdd-dev 进入前复核 · 用户拆 pin 裁定） |

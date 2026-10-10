@@ -2,7 +2,7 @@
 
 **Spec:** [2026-10-10-upgrade-dependencies-and-src-rename-p1-design.md](docs/kairos/specs/2026-10-10-upgrade-dependencies-and-src-rename-p1-design.md)
 - **Parent program**: [2026-10-10-upgrade-dependencies-and-src-rename-overall.md v1.4](docs/kairos/specs/2026-10-10-upgrade-dependencies-and-src-rename-overall.md)
-- **Version**: v1.3 · 2026-10-11
+- **Version**: v1.4 · 2026-10-11
 - **Depends on**: 无（program 起点 · 前置 = P1 design spec v1.2 Approved · 2026-10-10）
 - **Base**: develop
 
@@ -65,6 +65,7 @@
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v1.4 | 2026-10-11 | **P1 closeout（cdd-close）**：两波执行 + review/fix 链全部闭合（Wave 1 review-1 → fix-1 · Wave 2 review-1 → fix-1 · branch-review-1 → branch-fix-1 · 均 blocker 0 APPROVED）· 提交实况承认 3 提交（① `8db40331` 声明+锁+`pnpm-workspace.yaml` 政策注记 · ② `3348731c` maintainers 05 + README 账本 · 矫正 `766b7d48`）· Acceptance 全项交付（pin 三段式 · 门禁全绿 · 401/401 vitest 零语义改动 · validate ALL PASS）· 父 overall v1.6 P1 → Done | [human] · Claude Opus 5（kairos:cdd-close · closeout-backfill） |
 | v1.3 | 2026-10-11 | **branch-fix-1 回填（F4 nit · F5 nit）**：T1 Files/Produces/提交① checkable/Acceptance 补 `pnpm-workspace.yaml`（minimum-release-age 政策注记 · 机械依赖面 · 随提交①落盘 · 与 spec §6.2 同语）· T2 Files/Objective/Produces 添 `docs/maintainers/README.md`（收敛账本行 · maintainers-docs.test.ts 断言强制）· 提交② checkable 改「提交仅维护文档面（05 + README 账本行）」· 承认 Wave 2 矫正提交（3 提交粒度实况：`8db40331` + `3348731c` + `766b7d48`） | [human] · Claude Opus 5（kairos:cdd-dev · branch-fix-1） |
 | v1.2 | 2026-10-10 | **评审取证回填（Wave 2 review note · 编排器 Plan Sole Writer 独立提交）**：T2 前瞻注记② 措辞修正——「`allowEnvironment` 默不过滤」与主源实证相悖（simple-git@4.0.2 默认过滤非豁免 `git_*`/config env keys · `allowEnvironment` 为豁免名单 · 默认注入 `GIT_TEST_DISALLOW_ABBREVIATED_OPTIONS=true`） | [human] · Claude Opus 5（kairos:cdd-dev · plan sole-writer 回填） |
 | v1.1 | 2026-10-10 | plan-review-1 三修：doc-contract gate 钉值 16 → 17（含本 plan · phase 内不再新增 specs/plans）· T1 pin 验证补 spec 三段式验收第三段（`pnpm ls` 声明面抽查 wanted==current 全树）· T2 收口对照补 node-24 运行线实证注记（现有 CI node-24 lane · 本 phase 不新增本地 fnm-exec 验证线） | [human] · Claude Opus 5（kairos:cdd-plan · plan-fix-1） |

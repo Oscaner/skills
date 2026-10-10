@@ -197,14 +197,12 @@ export const ISSUE_LABEL_WORDS = {
 
 /** The charter anchor rows — the P7 canonicalize data plane: one row per legacy
  *  Chinese charter marker the structure judge matches through the canonicalize view
- *  (the doc-arch overall 决策组叶 / 上游先例背书 + the osuperpowers Goal 门面位). The
- *  family prefix `charter.` sits parallel to the issue-label family — every row flows
- *  through localeRows() (the zh knowledge lives ONLY here, never in a code branch or
- *  an element-table pattern). */
+ *  (the doc-arch overall 决策组叶 / 上游先例背书). The family prefix `charter.` sits
+ *  parallel to the issue-label family — every row flows through localeRows() (the zh
+ *  knowledge lives ONLY here, never in a code branch or an element-table pattern). */
 export const CHARTER_WORDS = {
   "charter.group-leaf": { en: "group", zh: "组" },
   "charter.upstream-endorsements": { en: "Upstream Endorsements", zh: "上游先例背书" },
-  "charter.goal-title": { en: "cdd-engine service mainline", zh: "cdd-engine 服务化主线" },
 } as const satisfies Readonly<Record<LocaleWordId, LocalizedWord>>;
 
 /**

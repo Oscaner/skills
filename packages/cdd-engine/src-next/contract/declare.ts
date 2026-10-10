@@ -260,15 +260,15 @@ const OVERALL_ELEMENTS = [
     refKind: "none",
     home: "section",
   },
-  // Charter facets (`###`/`####` leaves under the charter). The three legacy
-  // Chinese markers (the osuperpowers Goal face, the doc-arch decision-group
-  // leaves M/F/R/B/E, the doc-arch upstream-endorsements facet) match through the
-  // judge's canonicalize row-source seam (contract/judge.ts) — the value patterns
-  // below are English canonicals, never a second hand-written zh pattern.
+  // Charter facets (`###`/`####` leaves under the charter). The legacy Chinese
+  // markers (the doc-arch decision-group leaves M/F/R/B/E, the doc-arch
+  // upstream-endorsements facet) match through the judge's canonicalize row-source
+  // seam (contract/judge.ts) — the value patterns below are English canonicals,
+  // never a second hand-written zh pattern.
   {
     anchor: "### Goal",
     presence: "required",
-    valuePattern: "^### (Goal|cdd-engine service mainline)",
+    valuePattern: "^### Goal",
     refKind: "none",
     home: "facet",
   },

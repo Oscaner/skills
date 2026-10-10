@@ -120,14 +120,15 @@ describe("the conforming overall — zero findings (no false positives)", () => 
 describe("P7 — the structure-plane canonicalize seam (Contract.validate row-source)", () => {
   /** The GOOD_OVERALL charter carrying the legacy Chinese markers the English
    *  canonical element patterns match THROUGH the canonicalize view: the
-   *  osuperpowers-overall Goal face (`### cdd-engine 服务化主线（…）`) and the
    *  doc-arch-overall decision-group / endorsements leaves (`#### M 组` … /
    *  `#### 上游先例背书`). The markers are UNREGISTERED zh prose to the element
-   *  table (English canonicals only) — any match is the row-source seam talking. */
+   *  table (English canonicals only) — any match is the row-source seam talking.
+   *  The Goal facet stays in its English form (the zh Goal face carries no
+   *  registered alternate). */
   const ZH_CHARTER_OVERALL = GOOD_OVERALL.replace(
     "### Goal\n- goal text",
     [
-      "### cdd-engine 服务化主线（2026-09-13 用户升维）",
+      "### Goal",
       "- goal text",
       "",
       "#### M 组（skill-ref 映射，M1–M4 全关）",
@@ -152,10 +153,6 @@ describe("P7 — the structure-plane canonicalize seam (Contract.validate row-so
 
   it("the structure judge matches the legacy Chinese charter markers through the canonicalize view", () => {
     const findings = judge("overall", ZH_CHARTER_OVERALL, GOOD_OVERALL_FS);
-    // the zh Goal face conforms to the `### Goal` facet through the view —
-    // no presence/domain finding on the English canonical pattern
-    expect(withKind(findings, "presence", "### Goal")).toBe(false);
-    expect(withKind(findings, "domain", "### Goal")).toBe(false);
     // the zh decision-group leaves (`#### M 组` …) conform to the canonical
     // `#### [MFRBEN] group` facet through the view
     expect(withKind(findings, "presence", "#### [MFRBEN] group")).toBe(false);

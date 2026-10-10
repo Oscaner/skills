@@ -77,7 +77,7 @@
     },
     "### Goal": {
       "type": "string",
-      "pattern": "^### (Goal|cdd-engine service mainline)",
+      "pattern": "^### Goal",
       "description": "presence: required · home: facet · ref: none"
     },
     "### Non-goals": {

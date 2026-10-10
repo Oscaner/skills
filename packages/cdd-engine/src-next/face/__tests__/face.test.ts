@@ -279,16 +279,14 @@ describe("the locale face — the word-table locale columns (T19, the P7 transla
       en: "Upstream Endorsements",
       zh: "上游先例背书",
     });
-    expect(words.localeRow("charter.goal-title")?.en).toBe("cdd-engine service mainline");
-    expect(words.localeRow("charter.goal-title")?.zh).toBe("cdd-engine 服务化主线");
     expect(words.localeRow("charter.bogus")).toBeNull();
   });
 
   it("the whole translation data flows from the one table — localeRows is the flat face", () => {
     const flat = words.localeRows();
     // the declared locale matrix: 3 finding types × 4 segments = 12 issue-label rows
-    // + 3 charter anchor rows = 15, all single-sourced
-    expect(flat.length).toBe(15);
+    // + 2 charter anchor rows = 14, all single-sourced
+    expect(flat.length).toBe(14);
     // every row's canonical is the en face and carries a zh alias (the two-locale steady face)
     for (const row of flat) {
       expect(row.en.length).toBeGreaterThan(0);

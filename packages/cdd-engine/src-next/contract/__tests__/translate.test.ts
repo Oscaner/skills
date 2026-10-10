@@ -37,9 +37,6 @@ describe("Translator — the bidirectional translation layer", () => {
   it("canonicalize — the charter rows: a registered Chinese marker maps to its canonical form", () => {
     expect(translator.canonicalize("M 组")).toBe("M group");
     expect(translator.canonicalize("#### 上游先例背书")).toBe("#### Upstream Endorsements");
-    expect(translator.canonicalize("### cdd-engine 服务化主线")).toBe(
-      "### cdd-engine service mainline",
-    );
   });
 
   it("canonicalize — an already-canonical line passes through (identity)", () => {
@@ -56,9 +53,9 @@ describe("Translator — the bidirectional translation layer", () => {
   it("canonicalize — the compound boundary: only the registered span is replaced, neighbors untouched", () => {
     // 件 is unregistered — the single-character 组 alias replaces only its own span
     expect(translator.canonicalize("组件")).toBe("group件");
-    // trailing unregistered prose (the date parenthetical) passes through verbatim
-    expect(translator.canonicalize("cdd-engine 服务化主线（2026-09-13 用户升维）")).toBe(
-      "cdd-engine service mainline（2026-09-13 用户升维）",
+    // trailing unregistered prose (the parenthetical) passes through verbatim
+    expect(translator.canonicalize("M 组（skill-ref 映射，M1–M4 全关）")).toBe(
+      "M group（skill-ref 映射，M1–M4 全关）",
     );
   });
 

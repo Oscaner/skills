@@ -64,11 +64,11 @@ export interface ContractInput {
  * the row source — the normalized view shared by parse and JudgeContext.lines.
  * Every valuePattern judgment face (presence occurrenceLines · domain
  * carrierLines · section-scoped · crosslink) matches the view, so the legacy
- * Chinese charter markers (the osuperpowers Goal face, the doc-arch
- * decision-group / upstream-endorsements leaves) match their English canonical
- * element patterns through the recognition face — never a second hand-written
- * zh pattern. The view is never written back: the source document stays
- * byte-identical and the original lines remain in input.content.
+ * Chinese charter markers (the doc-arch decision-group / upstream-endorsements
+ * leaves) match their English canonical element patterns through the recognition
+ * face — never a second hand-written zh pattern. The view is never written back:
+ * the source document stays byte-identical and the original lines remain in
+ * input.content.
  */
 export class Contract {
   /** The per-doc-key policy sets — the declared composition of the strategy family.

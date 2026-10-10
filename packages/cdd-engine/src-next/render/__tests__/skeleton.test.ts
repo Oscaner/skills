@@ -13,7 +13,7 @@
 
 import { describe, expect, it } from "vitest";
 import { declaredRegistries } from "../../contract/declare.ts";
-import type { DocKey } from "../../contract/project.ts";
+import type { DocKey, DocSkeleton } from "../../contract/project.ts";
 import { Projector } from "../../contract/project.ts";
 import { SkeletonAssembler } from "../skeleton.ts";
 
@@ -351,6 +351,45 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
         if (!line.includes(":::")) expect(line).not.toContain(":::fill");
       }
     }
+  });
+});
+
+describe("SkeletonAssembler — the slot-consumption invariant (composition vs registry)", () => {
+  it("consumes every required slot of the three live projections — render() never trips the assertion", () => {
+    for (const key of ["overall", "plan", "phaseSpec"] as const) {
+      expect(() => renderOf(key)).not.toThrow();
+    }
+  });
+
+  it("loud-throws on an unemitted required slot — a registered anchor the composition does not place", () => {
+    const plan = SKELETONS.plan;
+    const tampered: DocSkeleton = {
+      docType: plan.docType,
+      slots: [
+        ...plan.slots,
+        {
+          anchor: "**Guest anchor**",
+          presence: "required",
+          home: "section",
+          slot: "content",
+          refKind: "none",
+        },
+      ],
+    };
+    expect(() => new SkeletonAssembler(tampered, DATE).render()).toThrow(
+      /omits the registered required slot\(s\): \*\*Guest anchor\*\*/,
+    );
+  });
+
+  it("loud-throws on an emitted anchor the registry no longer requires — a composed anchor with no registered slot", () => {
+    const plan = SKELETONS.plan;
+    const tampered: DocSkeleton = {
+      docType: plan.docType,
+      slots: plan.slots.filter((slot) => slot.anchor !== "## Constraints"),
+    };
+    expect(() => new SkeletonAssembler(tampered, DATE).render()).toThrow(
+      /emits the unregistered anchor: ## Constraints/,
+    );
   });
 });
 

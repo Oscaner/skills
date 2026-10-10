@@ -12,7 +12,12 @@
 // table scaffolds) are declared constant data below; the document composition
 // walks them in document order. render() is a pure byte renderer — it never
 // appends a trailing newline (the CLI appends the single `\n`, so a redirected
-// fixture ends with exactly one newline).
+// fixture ends with exactly one newline). The composition is the judgment site
+// of the projection: after assembly render() asserts slot consumption — every
+// registered required slot emits a probe and every probe names a registered
+// slot, so a registry/composition drift is a loud throw in the renderer, never a
+// silent byte gap (the doc-contract pin judges the rendered bytes; this asserts
+// the same coverage in-process, before any bytes are produced).
 //
 // Module-level exports are types / the class — zero behavior-carrying bare
 // functions (the plan's zero-bare-function discipline).
@@ -42,11 +47,13 @@ const LINK_SLOTS: Record<string, { label: string; target: string }> = {
   "**Spec:**": { label: "<spec path>", target: "<spec path>" },
 };
 
-/** The generator truths of the pattern-typed slots (spec §3.2/§4.1) — the first
- *  legal literal of an enum value row (`**Status**` → Draft; the `none` issue-ref
- *  cell; the `Pending` design/plan cells) and the conforming graph rows (the
- *  `P1 -> P2` hard edge + the legend line). These are derived true values, never
- *  fill positions. */
+/** The generator truths of the pattern-typed slots (spec §3.2/§4.1) — hand-pinned
+ *  legal literals consistent with each declared value domain (`**Status**` →
+ *  Draft, the first legal literal of its enum; the `none` issue-ref default; the
+ *  `Pending` design/plan cells — a legal domain literal, not necessarily the
+ *  first alternative) and the conforming graph rows (the `P1 -> P2` hard edge +
+ *  the legend line). These are derived true values, guarded by the doc-contract
+ *  pins that judge the rendered bytes — never fill positions. */
 const TRUTH_LINES: Record<string, string> = {
   "**Status**": "Draft",
   "Issue ref cell": "none",
@@ -86,15 +93,51 @@ export class SkeletonAssembler {
   }
 
   /** Render the doc skeleton's markdown bytes — no trailing newline (the CLI owns
-   *  the appended `\n`; the EOF-newline rule lands on the redirected fixture). */
+   *  the appended `\n`; the EOF-newline rule lands on the redirected fixture).
+   *  Every composed anchor registers a probe; the composition completes only when
+   *  the probes and the projection's required slots coincide (a drift is a loud
+   *  throw below, never silent bytes). */
   render(): string {
+    const probe = new Set<string>();
+    const lines: string[] = this.#compose(probe);
+    this.#assertConsumed(probe);
+    return this.#join(lines);
+  }
+
+  /** Compose the doc-type lines, registering every emitted registered anchor in
+   *  the probe set (each composition helper probes the anchors it emits). */
+  #compose(probe: Set<string>): string[] {
     switch (this.#docType) {
       case "overall":
-        return this.#renderOverall();
+        return this.#renderOverall(probe);
       case "plan":
-        return this.#renderPlan();
+        return this.#renderPlan(probe);
       case "phase-spec":
-        return this.#renderPhaseSpec();
+        return this.#renderPhaseSpec(probe);
+    }
+  }
+
+  /** The slot-consumption invariant — the composition-side tripwire of the
+   *  registry-derived structure (the finding hardened in: the projection is the
+   *  single structure source, the hand-written compositions must not drift from
+   *  it): every required slot of the projection is emitted by the composition,
+   *  and no composition probe names an anchor the registry does not require — a
+   *  registered element with no composition position, or a composed anchor no
+   *  longer required, is registry drift, loud never silent. */
+  #assertConsumed(probe: ReadonlySet<string>): void {
+    const registered = new Set(this.#slots.map((slot) => slot.anchor));
+    const unemitted = this.#slots
+      .filter((slot) => !probe.has(slot.anchor))
+      .map((slot) => slot.anchor);
+    if (unemitted.length > 0) {
+      throw new Error(
+        `skeleton composition omits the registered required slot(s): ${unemitted.join(", ")}`,
+      );
+    }
+    for (const anchor of probe) {
+      if (!registered.has(anchor)) {
+        throw new Error(`skeleton composition emits the unregistered anchor: ${anchor}`);
+      }
     }
   }
 
@@ -105,60 +148,82 @@ export class SkeletonAssembler {
   /** The overall skeleton — the header tuple, the section sequence (the four table
    *  sections, the charter facets and the dependency graph) and the change-history
    *  table: every required overall element lands in its structural position. */
-  #renderOverall(): string {
+  #renderOverall(probe: Set<string>): string[] {
     const lines: string[] = [];
-    this.#pushHeader(lines);
-    lines.push(...this.#section("## Document scope", [":::fill document-scope"]));
-    lines.push(...this.#section("## File paths", this.#filePathsTable()));
-    lines.push(...this.#section("## Program charter", this.#programCharter()));
-    lines.push(...this.#section("## Issue inventory", this.#issueTable()));
-    lines.push(...this.#section("## Phase inventory", this.#phaseTable()));
-    lines.push(...this.#section("## Dependency graph", this.#dependencyGraph()));
-    lines.push(...this.#section("## Boundary rules", ["- :::fill boundary-rule"]));
-    lines.push(...this.#section("## Maintenance", ["- :::fill maintenance-note"]));
-    lines.push(...this.#section("## Change history", this.#historyTable()));
-    return this.#join(lines);
+    this.#pushHeader(lines, probe);
+    lines.push(...this.#section("## Document scope", [":::fill document-scope"], probe));
+    lines.push(...this.#section("## File paths", this.#filePathsTable(probe), probe));
+    lines.push(...this.#section("## Program charter", this.#programCharter(probe), probe));
+    lines.push(...this.#section("## Issue inventory", this.#issueTable(probe), probe));
+    lines.push(...this.#section("## Phase inventory", this.#phaseTable(probe), probe));
+    lines.push(...this.#section("## Dependency graph", this.#dependencyGraph(probe), probe));
+    lines.push(...this.#section("## Boundary rules", ["- :::fill boundary-rule"], probe));
+    lines.push(...this.#section("## Maintenance", ["- :::fill maintenance-note"], probe));
+    lines.push(...this.#section("## Change history", this.#historyTable(probe), probe));
+    return lines;
   }
 
   /** The plan skeleton — the header tuple, the constraints section, the first task
    *  block (`### Task 1:` with the seven required task fields) and the
    *  change-history table (§3.2 — one task block, more blocks appended when
    *  filling). */
-  #renderPlan(): string {
+  #renderPlan(probe: Set<string>): string[] {
     const lines: string[] = [];
-    this.#pushHeader(lines);
-    lines.push(...this.#section("## Constraints", ["- :::fill constraint"]));
-    lines.push(...this.#taskBlock());
-    lines.push(...this.#section("## Change history", this.#historyTable()));
-    return this.#join(lines);
+    this.#pushHeader(lines, probe);
+    lines.push(
+      ...this.#section(
+        "## Constraints",
+        ["- :::fill constraint"],
+        probe,
+        "Constraint delta bullet",
+      ),
+    );
+    lines.push(...this.#taskBlock(probe));
+    lines.push(...this.#section("## Change history", this.#historyTable(probe), probe));
+    return lines;
   }
 
   /** The phase-spec skeleton — the header five-tuple, the Design double layer
    *  (one `### 1.` group + one `#### 1.1` item + the acceptance surface), the
    *  constraints section and the change-history table (§3.2 — more groups/items
    *  appended in numeric order when filling). */
-  #renderPhaseSpec(): string {
+  #renderPhaseSpec(probe: Set<string>): string[] {
     const lines: string[] = [];
-    this.#pushHeader(lines);
+    this.#pushHeader(lines, probe);
     lines.push(
-      ...this.#section("## Design", [
-        // The design intro is the Design section's one prose position — a rank-3
-        // group heading closes the rank-2 section block, so the intro line (not a
-        // blank) is what keeps the section non-hollow.
-        ":::fill design-intro",
-        "",
-        "### 1. :::fill group-title",
-        "#### 1.1 :::fill item-title",
-        "- :::fill item-body",
-        "",
+      ...this.#section(
+        "## Design",
+        [
+          // The design intro is the Design section's one prose position — a rank-3
+          // group heading closes the rank-2 section block, so the intro line (not a
+          // blank) is what keeps the section non-hollow.
+          ":::fill design-intro",
+          "",
+          "### 1. :::fill group-title",
+          "#### 1.1 :::fill item-title",
+          "- :::fill item-body",
+          "",
+          "### Acceptance criteria",
+          "",
+          "- `:::fill acceptance-entry`",
+        ],
+        probe,
+        "### N. group heading",
+        "#### N.M item heading",
         "### Acceptance criteria",
-        "",
-        "- `:::fill acceptance-entry`",
-      ]),
+        "Acceptance entry",
+      ),
     );
-    lines.push(...this.#section("## Constraints", ["- :::fill constraint"]));
-    lines.push(...this.#section("## Change history", this.#historyTable()));
-    return this.#join(lines);
+    lines.push(
+      ...this.#section(
+        "## Constraints",
+        ["- :::fill constraint"],
+        probe,
+        "Constraint delta bullet",
+      ),
+    );
+    lines.push(...this.#section("## Change history", this.#historyTable(probe), probe));
+    return lines;
   }
 
   // -------------------------------------------------------------------------
@@ -167,11 +232,12 @@ export class SkeletonAssembler {
 
   /** The header block — the header-home slots in projection order (the registry
    *  order — the title, then the version/status truths, the content markers, the
-   *  link placeholders), followed by the blank separator. */
-  #pushHeader(lines: string[]): void {
+   *  link placeholders), each probed, followed by the blank separator. */
+  #pushHeader(lines: string[], probe: Set<string>): void {
     for (const slot of this.#slots) {
       if (slot.home !== "header") continue;
       lines.push(this.#headerLine(slot));
+      probe.add(slot.anchor);
     }
     lines.push("");
   }
@@ -208,21 +274,36 @@ export class SkeletonAssembler {
     return truth;
   }
 
-  /** One markdown section — the heading, a blank, the body and a trailing blank. */
-  #section(heading: string, body: readonly string[]): string[] {
+  /** One markdown section — the heading (probed as its registered section-heading
+   *  anchor), a blank, the body and a trailing blank. The body anchors are the
+   *  registered anchors the body emits beyond the heading (the table rows/cells,
+   *  the delta bullets, the design-body headings) — every one must be a required
+   *  slot of the doc type. */
+  #section(
+    heading: string,
+    body: readonly string[],
+    probe: Set<string>,
+    ...bodyAnchors: string[]
+  ): string[] {
+    probe.add(heading);
+    for (const anchor of bodyAnchors) probe.add(anchor);
     return [heading, "", ...body, ""];
   }
 
   /** The File-paths artifact table — the two-column header + the minimal one-row
    *  scaffold (the backticked path cell keeps the `File path row` shape). */
-  #filePathsTable(): string[] {
+  #filePathsTable(probe: Set<string>): string[] {
+    probe.add("File path row");
     return ["| Artifact | Path |", "| --- | --- |", "| overall | `:::fill overall-path` |"];
   }
 
   /** The charter facets — the three required `###` facet headings with their
    *  content bullets (the optional decision-group / endorsements leaves generate
    *  no slot — the optional/conditional zero-gen contract). */
-  #programCharter(): string[] {
+  #programCharter(probe: Set<string>): string[] {
+    probe.add("### Goal");
+    probe.add("### Non-goals");
+    probe.add("### Cross-cutting");
     return [
       "### Goal",
       "",
@@ -241,7 +322,10 @@ export class SkeletonAssembler {
   /** The Issue-inventory table — the registered columns + the minimal row (the `P1`
    *  phase cell registers the inventory id, the issue-ref cell the enum's first
    *  legal literal (`none`), the title cell a content fill). */
-  #issueTable(): string[] {
+  #issueTable(probe: Set<string>): string[] {
+    probe.add("Issue inventory columns");
+    probe.add("Issue row");
+    probe.add("Issue ref cell");
     return [
       "| Phase | Issue (ref) | Title summary |",
       "| --- | --- | --- |",
@@ -252,7 +336,13 @@ export class SkeletonAssembler {
   /** The Phase-inventory table — the registered columns + two rows (the `P1 -> P2`
    *  graph edge cross-links both ids, so both phases register; the design/plan
    *  cells carry the `Pending` enum truths, the phase-id cell the structural id). */
-  #phaseTable(): string[] {
+  #phaseTable(probe: Set<string>): string[] {
+    probe.add("Phase inventory columns");
+    probe.add("Phase row");
+    probe.add("Phase id token");
+    probe.add("Implementation plan cell");
+    probe.add("Design spec cell");
+    probe.add("Dependency cell");
     const phaseRow = `:::fill phase-name | :::fill scope | ${this.#truth("Design spec cell")} | ${this.#truth("Implementation plan cell")} | :::fill acceptance-criteria | :::fill dependency`;
     return [
       "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
@@ -263,12 +353,17 @@ export class SkeletonAssembler {
   }
 
   /** The Dependency-graph block — the hard-edge truth row + the legend line. */
-  #dependencyGraph(): string[] {
+  #dependencyGraph(probe: Set<string>): string[] {
+    probe.add("Hard edge");
+    probe.add("Graph legend");
     return [this.#truth("Hard edge"), this.#truth("Graph legend")];
   }
 
   /** The Change-history table — the header + separator + the first-row scaffold. */
-  #historyTable(): string[] {
+  #historyTable(probe: Set<string>): string[] {
+    probe.add("Change history row");
+    probe.add("Version token");
+    probe.add("Change history date");
     return [HISTORY_HEADER, "| --- | --- | --- | --- |", this.#historyRow()];
   }
 
@@ -282,7 +377,19 @@ export class SkeletonAssembler {
    *  content fill) plus the seven required task fields: the content markers with
    *  their values, the Steps field with the checkable step form (§3.2), and the
    *  `none` DependsOn default. */
-  #taskBlock(): string[] {
+  #taskBlock(probe: Set<string>): string[] {
+    probe.add("### Task N:");
+    probe.add("Task id token");
+    probe.add("**Objective**");
+    probe.add("**Files**");
+    probe.add("File path token");
+    probe.add("**Consumes**");
+    probe.add("**Produces**");
+    probe.add("**Steps**");
+    probe.add("Step action");
+    probe.add("Step checkable");
+    probe.add("**Acceptance**");
+    probe.add("**DependsOn**");
     return [
       "### Task 1: :::fill task-title",
       "- **Objective**: :::fill objective",

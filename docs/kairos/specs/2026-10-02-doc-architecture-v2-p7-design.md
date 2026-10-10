@@ -1,6 +1,6 @@
 # 文档架构方法论 v2 — P7 Design Spec（Engine token 翻译能力接线：识别半 canonicalize · 元素表 English-primary）
 
-- **Version**: v1.0 · 2026-10-10
+- **Version**: v1.1 · 2026-10-10
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer · 决策源 = grilling A 方案定案 2026-10-10）
 - **Parent program**: [doc-architecture-v2-overall.md v1.62](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
@@ -20,14 +20,14 @@ P7（engine token 翻译能力）经 A 方案定案从「翻译系统建设」�
 | 锚 | 现注册（declare.ts） | 所属 |
 |---|---|---|
 | Goal 备选 zh 标题 | `^### (Goal\|cdd-engine 服务化主线（2026-09-13 用户升维）)`（L267） | osuperpowers-overhaul charter Goal 门面位 |
-| 决策组叶后缀 | `#### [MFRBEN] 组`（L286/288） | 全树 4 overalls charter 决策组叶 |
-| 上游先例背书 | `#### 上游先例背书`（L293/295） | 全树 4 overalls charter |
+| 决策组叶后缀 | `#### [MFRBEN] 组`（L286/288） | doc-arch overall charter 决策组叶（M/F/R/B/E 组 · 现树仅 doc-arch 携带） |
+| 上游先例背书 | `#### 上游先例背书`（L293/295） | doc-arch overall charter（现树仅 doc-arch 携带） |
 
 - **死 API**：`Translator.normalize()` 零生产消费点（全引擎 grep——仅 `render/issue-body.ts:82` 消费 `localize` · normalize 无消费）——声明给识别预留的面从未接线
 
 #### 1.2 zh 基线全量取证（机器可识别面）
 
-`grep "[一-鿿]"` 全引擎非测试面（排除词表 locale 数据 / issue-body zh 行 / translate.ts 头注释）= **仅 declare.ts 上述 5 行**。结论：A 方案清理面精确有界——机器可识别面（元素表 / schema 派生 / DOC_TOKENS）非 zh 污染即仅此 5 行。
+`grep "[一-鿿]"` 全引擎非测试面（仅排除词表 locale 数据——words.ts 行）= **仅 declare.ts 上述 5 行**。结论：A 方案清理面精确有界——机器可识别面（元素表 / schema 派生 / DOC_TOKENS）非 zh 污染即仅此 5 行。
 
 #### 1.3 A 方案五面骨架（用户裁定 · 否决 B）
 
@@ -51,12 +51,12 @@ P7（engine token 翻译能力）经 A 方案定案从「翻译系统建设」�
 
 #### 2.1 落点
 
-结构判定解释器（docContractValidate 链 · valuePattern 匹配处单点）——每行 pattern 匹配前经 `Translator.canonicalize(line)` 得**规范化视图**，pattern 对视图匹配。识别面 = 翻译层一眼，契契原义兑现。
+结构判定解释器（docContractValidate 链 · Contract.validate 行源处一次性 canonicalize 全部行）——每行经 `Translator.canonicalize(line)` 得**规范化视图**，全部 valuePattern 判定面（presence occurrenceLines · domain carrierLines · section-scoped · crosslink）统一对视图匹配。识别面 = 翻译层一眼，契契原义兑现。
 
 #### 2.2 `canonicalize(line)` 识别面设计
 
 - 词表 locale 行驱动的 **span 替换**（zh alias 子串 → en canonical · 最长匹配）· 零 switch（新词 = 新增数据行）
-- **英文行 identity 直通**：40+ 英文文档无 zh 别名子串 → 视图 = 原行 · 零行为变化
+- **行级 identity 直通**：不含已登记 zh 别名子串的行 → 视图 = 原行 · 零行为变化（树内文档均含中文字符——Strategy B 中文内部文档，纯英文文档为零；identity 断言为行级而非文档级）
 - **变换仅匹配视图**：视图不写回 · 文档原文零改动 · 匹配后视图即弃
 - `normalize`（单 token 面）**收敛并入**——canonicalize 为唯一识别 face（单 token 判 = canonicalize 于单 token 行）；translate.ts 头注释随改（识别面措辞 normalize → canonicalize）
 
@@ -64,13 +64,13 @@ P7（engine token 翻译能力）经 A 方案定案从「翻译系统建设」�
 
 - 仅替换**词表已登记**的 zh 别名 span；未登记 zh 正文（prose 中「全关」「约束」等）不受影响
 - 仅作用于结构判定的匹配视图；capsule / handoff / 产物面零涉
-- 测试：zh→en 替换 · en identity · 未登记词不动 · 部分匹配（`cdd-engine 服务化主线` 后接日期括号）仅替换登记 span
+- 测试：zh→en 替换 · 行级 identity（不含 zh 别名行）· 未登记词不动 · 复合词行（如 `组件`）仅替换登记 span `组`（单字符别名吞并不越界）· 部分匹配（`cdd-engine 服务化主线` 后接日期括号）仅替换登记 span
 
 ### 3. 词表 locale 面 zh→en 数据行
 
 | row id | en canonical | zh alias | 服务锚 |
 |---|---|---|---|
-| `charter.group-leaf` | `group` | `组` | `#### [MFRBEN] 组` 家族（决策组叶 · 全树 4 overalls） |
+| `charter.group-leaf` | `group` | `组` | `#### [MFRBEN] 组` 家族（决策组叶 · overall charter 家族注册 · 现行携带仅 doc-arch overall） |
 | `charter.upstream-endorsements` | `Upstream Endorsements` | `上游先例背书` | `#### 上游先例背书` |
 | `charter.goal-title` | `cdd-engine service mainline` | `cdd-engine 服务化主线` | osuperpowers Goal 门面位标题（日期括号 `（2026-09-13 用户升维）` 为未登记尾随文本 · 不过行 · pattern 前缀锚定吸纳） |
 
@@ -98,12 +98,12 @@ P7（engine token 翻译能力）经 A 方案定案从「翻译系统建设」�
 
 #### 6.1 树迁移
 
-**零**——4 overalls 中文标题逐字不动（acceptance #4 历史正文 · 识别经 seam 视图）；全树 47 校验文件（20 design · 21 plan · 4 overalls · 2 边缘）零改动。
+**零**——4 overalls 中文标题逐字不动（acceptance #4 历史正文 · 识别经 seam 视图）；全树 57 校验文件（26 design · 25 plan · 4 overalls · 2 边缘）零改动。
 
 #### 6.2 测试
 
-- `translate.test`：`normalize` 用例收敛为 `canonicalize`（单 token 判）· 新增 span 替换 / identity / 未登记词 / 部分匹配用例
-- 结构面接线断言：4 overalls validate 全绿（zh 标题经 seam 匹配）· 英文文档回归（identity 直通）· 47 校验文件树套件零排除绿
+- `translate.test`：`normalize` 用例收敛为 `canonicalize`（单 token 判）· 新增 span 替换 / 行级 identity / 未登记词 / 复合词（`组件`）/ 部分匹配用例
+- 结构面接线断言：Contract.validate 行源 canonicalize 后全部 valuePattern 判定面接线 · 4 overalls validate 全绿（zh 标题经 seam 匹配 · 触发面 = 2——doc-arch overall 组/背书 + osuperpowers overall Goal）· 无 zh 别名行回归（行级 identity 直通）· 57 校验文件树套件零排除绿
 - 引擎 vitest 全绿 · typecheck ×3 · biome clean · validate ALL PASS · emit 新鲜
 
 #### 6.3 变更集
@@ -114,10 +114,10 @@ cdd-engine 一枚独立提交（declare 3 锚改写 + words 3 数据行 + canoni
 
 - `机器可识别标记全 English-primary：declare.ts 3 中文锚改写为英文 canonical pattern（§4 表）· 元素表 / schema 描述 / DOC_TOKENS 面零中英混杂（grep pin 含注释）`
 - `zh 知识唯一栖身词表 locale 面：新增 3 行 zh→en canonical 数据（charter.group-leaf=组→group · charter.upstream-endorsements=上游先例背书→Upstream Endorsements · charter.goal-title=cdd-engine 服务化主线→cdd-engine service mainline）· 元素表零中文 pattern 残留（grep）`
-- `识别面接线：Translator.canonicalize(line) 为结构面 valuePattern 匹配消费者（匹配前规范化视图 · 视图零写回）· normalize 单 token 面收敛并入 · 零死 API · translate.ts 头注释随改（识别措辞 normalize → canonicalize）`
-- `英文文档零行为变化：40+ 英文文档 canonicalize identity 直通 · 47 校验文件树套件零排除绿 · 4 overalls 经 seam 匹配全绿（zh 标题逐字不动 · acceptance #4 保持 · 树零迁移 grep）`
+- `识别面接线：Contract.validate 行源处一次性 canonicalize 全部行 · 各 valuePattern 判定面（presence / domain / section-scoped / crosslink）对规范化视图匹配（视图零写回）· normalize 单 token 面收敛并入 · 零死 API · translate.ts 头注释随改（识别措辞 normalize → canonicalize）`
+- `英文面零行为变化：不含已登记 zh 别名子串的行 canonicalize identity 直通（行级断言 · 树内文档均含中文字符）· 57 校验文件树套件零排除绿 · 4 overalls 经 seam 匹配全绿（zh 变换触发面 = 2——doc-arch overall 组/背书 · osuperpowers overall Goal；另 2 个 identity 直通 · zh 标题逐字不动 · acceptance #4 保持 · 树零迁移 grep）`
 - `capsule locale 消费面关闭裁定：机器面英文恒定终态保持（零 capsule 改动）· 人类可读面 IssueBodyRenderer 已落地（唯一 localize 渲染消费者）· Deviations 两行登记 · overall v1.62 一致`
-- `translate.test 收敛：normalize 用例 → canonicalize 收敛 · 新增 span 替换 / identity 直通 / 未登记词不动 / 部分匹配（日期括号尾随）用例`
+- `translate.test 收敛：normalize 用例 → canonicalize 收敛 · 新增 span 替换 / 行级 identity 直通 / 未登记词不动 / 复合词（`组件` 仅替换登记 span）/ 部分匹配（日期括号尾随）用例`
 - `引擎 vitest 全绿（新增 canonicalize/接线断言）· typecheck ×3 · biome clean · validate ALL PASS · emit 新鲜 · 变更集 cdd-engine 一枚独立提交 + changeset`
 
 ## Constraints
@@ -140,4 +140,5 @@ cdd-engine 一枚独立提交（declare 3 锚改写 + words 3 数据行 + canoni
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v1.1 | 2026-10-10 | **spec-review-1 全修（4 warn · 1 nit）**：锚家族「所属」列收敛为实际携带文档（doc-arch overall 组/背书 · osuperpowers overall Goal · zh 变换触发面 = 2 · 另 2 个 identity 直通）· 树计数重派生 47→57（26 design · 25 plan · 4 overalls · 2 边缘）· §2.1 seam 挂点改「Contract.validate 行源一次性 canonicalize 全部行」（全部 valuePattern 判定面——presence / domain / section-scoped / crosslink 对视图匹配）· identity 直通改行级断言（纯英文文档 = 0）+ 复合词测试钉（`组件`）· §1.2 grep 排除清单收敛为 words.ts 词表 locale 数据 · acceptance #3/#4 同步 · Version v1.0→v1.1 | [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer） |
 | v1.0 | 2026-10-10 | 初版——A 方案定案开写（overall v1.62 四表同步后）：契契错位三证 + zh 基线全量取证（机器面仅 declare.ts 5 行）· 识别半接线（canonicalize 视图 · normalize 收敛并入）· 词表 3 行 zh→en canonical 数据 · 元素表 3 中文锚 → English-primary · 零树迁移 · capsule locale 消费面关闭裁定（Deviations 登记）· 变更集 cdd-engine 一枚 | [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer · grilling A 方案定案） |

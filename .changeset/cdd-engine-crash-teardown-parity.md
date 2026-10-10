@@ -1,9 +1,0 @@
----
-"@oscaner-skills/cdd-engine": patch
----
-
-fix: crash-teardown parity across the docs/branch lanes — repeat-abort rotation and unified termination-cause threading, plus the stale naming.ts references cleaned up.
-
-- **Repeat-abort rotation on the docs/branch FIX lanes** — the two lanes whose round-stable handoff names a resume re-targets (docs fix round pinned to the source review's round; branch-fix round pinned to the source review's round + ref) now mirror the task lane's step 7.5: an engine-terminal carrier left by a first crash is rotated off the fix handoff path before re-dispatch, so a SECOND consecutive abort re-fires the crash teardown (fresh crash record + crash-only snapshot of the resume session's WIP) instead of being suppressed by the stale-carrier teardown guard and finalizing from it.
-- **Unified termination cause on the docs/branch no-handoff lanes** — `DocsLifecycle` and the branch family's shared `schemaValidateBranch` now thread the spawn result's `timedOut`/`cause` into `crashCauseFor` (same two-way shape as the task timeout lane): an engine-terminated round (over-budget / stall / external SIGTERM) records the unified cause (`engine-over-budget` / `engine-timeout` / signal-folding as `child-signal`) and routes to the TIMEOUT category (carrier `status: TIMEOUT`) instead of being misclassified as a child-exit/HARNESS_ABORT death.
-- **Stale `naming.ts` references cleared** — the dead naming.ts carve-out + doctrine anchors in the residue guard, the mirror comment in its regression test, and the tinyglobby dependency row's maintenance anchor now point at the migrated surface (`src/infra/workspace.ts` + `src/artifacts/handoff.ts`).

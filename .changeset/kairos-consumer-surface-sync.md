@@ -1,5 +1,0 @@
----
-"@oscaner-skills/kairos": patch
----
-
-The skill consumer surfaces sync with the flow changes: cdd-spec-writer and cdd-plan move the conventional commit between authoring and review — the authored document commits before the first review round (the order the clean-tree hard gate forces — the review-entry gate dispatches only on a committed ref), their digraphs route author → commit → review-fix loop → handoff, and cdd-dev declares the review-entry gate (the implement child commits its own work; the engine's clean-tree check guards the review entry). The Review Convergence `next:` examples in all four orchestrator skills (cdd-spec-writer · cdd-plan · cdd-dev · cdd-design) now render complete executable commands — `implement --plan <path> --tasks 17` · `review --type <wave|spec|plan|branch> <type-arg>` · `fix --type <type> <type-arg> --findings <path> (read file back to confirm)` — as the engine emits them, with the `(read file back to confirm)` readback discipline preserved.

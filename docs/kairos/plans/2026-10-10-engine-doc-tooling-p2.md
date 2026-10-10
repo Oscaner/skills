@@ -2,13 +2,13 @@
 
 **Spec:** [2026-10-10-engine-doc-tooling-p2-design.md](docs/kairos/specs/2026-10-10-engine-doc-tooling-p2-design.md)
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall.md v1.1](docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.1 · 2026-10-11
-- **Depends on**: 跨程序硬依赖 = 依赖升级与 src 更名程序 P2（改名 → `src/` 树 · pin 通过后实现启动）；本程序 P1 ‖ P2 并行无硬依赖（父总体 Dependency graph）· 前置 = P2 design spec v0.1 Approved（review-fix 链全闭 · 2026-10-11）
+- **Version**: v0.2 · 2026-10-11
+- **Depends on**: 依赖升级与 src 更名程序 P2（sweep 面关系 · D8 拆 pin——本 plan 引擎改动**先行实现于现行 `src-next/` 树**，rename sweep 随后全库覆盖新文件面）；本程序 P1 ‖ P2 并行无硬依赖（父总体 Dependency graph）· 前置 = P2 design spec v0.2 Approved（review-fix 链全闭 · 拆 pin 回填后）
 - **Base**: develop
 
 ## Constraints
 
-- **跨程序树 pin（硬门 · spec §7.2 前置）**：引擎改动仅落依赖升级与 src 更名程序 P2 改名后的 `src/` 树——rename P2 落定前**不启动本 phase 实现**；本 plan 引用沿用现行 `src-next/` 路径面（rename sweep 覆盖本文件字面量 · spec Notes）
+- **跨程序树协调（D8 拆 pin · spec §7.2 前置已同步）**：引擎改动**先行实现于现行 `src-next/` 树**（不等 rename P2——改名 sweep 随后全库覆盖本 phase 新文件面 · Q3→b · 豁免面为空）；本 plan 的 `src-next/` 路径字面量即**实现真路径**（非待改写面）；Task 1/2 的引擎文件引用直接可用
 - **提交粒度（spec §7.3 两提交面 · 任一混入 = 提交污染）**：Task 1 = 引擎面（schema gen leaf + skeleton 投影 + `SkeletonAssembler` + colocated 新 pin · **引擎能力面单一 commit**）· Task 2 = 消费面（cdd-spec-writer/cdd-plan SKILL.md author-* 更新 + CLAUDE.md 去流程化 · **消费面单一 commit**）——先 engine 后 consumer（能力先立 · 消费面引用真名）；提交由引擎 implement 一波一提交驱动，计划不写 git commit 步
 - **gate 零例外（spec Constraints）**：doc-contract 判定语义不变——骨架 by construction 绿是派生事实（§4.1 分锚占位策略），不是豁免通道；`:::fill` 与 link 形占位都是内容提示，非逃逸标记
 - **零运行时依赖变化**：schema gen = 引擎自有渲染（无新第三方包 · 零新增依赖）
@@ -79,3 +79,4 @@
 | Version | date | summary | author |
 |---|---|---|---|
 | v0.1 | 2026-10-11 | P2 实现计划：两提交面两任务——Task 1 引擎面（`schema gen` leaf + `Projector#skeleton()` 第六投影 + `SkeletonAssembler` + colocated pins（三型骨架判压零 finding · CLI 行为 · 占位零残留）+ declare.ts 头注释计数刷新）· Task 2 消费面（cdd-spec-writer/cdd-plan author-* 先 gen 后填 + SKILL.md 三词条零命中 + emit 再生成 + CLAUDE.md 去流程化四块 Q3→c）· 任务解自 design spec v0.1（§2–§7 · 分锚占位 · 节头数字真值 · 跨程序树 pin 前置） | [human] · Claude Opus 5（kairos:cdd-plan · writing-plans import） |
+| v0.2 | 2026-10-11 | **P2 拆 pin 回填（用户裁定 ② · 父 overall v1.2 D8 · spec v0.2 同步）**：跨程序树硬门 → **sweep 面协调**——Task 1/2 引擎改动先行实现于现行 `src-next/` 树（plan 的 `src-next/` 字面量即实现真路径 · rename sweep 随后全库覆盖新文件面）；Constraints「跨程序树 pin 硬门」行改写 · Depends on header 同步 | Oscar M. · Claude Opus 5（P2 cdd-dev 进入前复核 · 用户拆 pin 裁定） |

@@ -1,10 +1,10 @@
 # 文档架构方法论 v2 — P5 Design Spec（DispatchContract + DispatchPacket 收敛重规划）
 
-- **Version**: v1.2 · 2026-10-10
+- **Version**: v1.3 · 2026-10-10
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer · 决策源 = grilling 五命题定案 2026-10-10）
-- **Parent program**: [doc-architecture-v2-overall.md v1.58](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
-- **Depends on**: P3.2（Done · overall v1.58 —— serial-phase GATE 满足 · 复刻独立基线 + v1.57 收敛重规划 + v1.58 契契修复 T6）
+- **Parent program**: [doc-architecture-v2-overall.md v1.59](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
+- **Depends on**: P3.2（Done · overall v1.59 —— serial-phase GATE 满足 · 复刻独立基线 + v1.57 收敛重规划 + v1.58 契契修复 T6 + v1.59 重开机制 T7）
 
 ## Design
 
@@ -143,6 +143,32 @@ P5 plan authoring precommit 实证：plan 正文合法引用历史任务号「T2
 - 回归：plan 含未注册 `T<n>` 提及（历史任务号/波标签/缩写）过 gate **零 finding** · lint 面零新 WARN（missing-id 静默）
 - 前提对齐：契契修复 = 一声明架构自我兑现（声明 WARN-only → 解析器零硬检）· 假阳性零成本（前提 5 消费者心智负担）· 删除而非 severity 打补丁（前提 1/6；severity 数据化登记为后续债项非本轮）
 
+### 7. doc line review 重开机制（find T7 · v1.3 backfill）
+
+#### 7.1 缺口实证
+
+本 session plan v1.2（T6 backfill）后 `cdd review --type plan` → `cannot dispatch a review round — the line holds no open round`：post-closure 文档修订（Plan Sole Writer backfill）跳过 plan-review 质量门（doc-contract gate 只判结构 · 不判任务块 Objective/边界合理性）；I1「new ref = new review」仅在环路未闭时机械成立——闭环后没有任何入口把移动的 ref 送回评审（用户拍板「应该要有一个机制能够重开 review · 中途 backfill 在 cdd 概念里很常见」）。
+
+#### 7.2 方案定案（六前提）
+
+**line 态 = f(target identity)**——wave 线/分支线天然 identity 驱动（新 commit range = 新评审）；doc line 是唯一缺此语义的线（`done` 把已漂移文档冻死在「已审」）。重开不是特例机制，而是补齐 doc line 的 identity 驱动语义：
+
+- **隐式触发**（零 flag）：跑 `review` 即编排者意图信号——doc line 闭合且 当前 doc-revision ≠ reviewed → 自动放行开新轮；相等 → revision-aware BLOCK（前提 1 不打补丁·6 精简·5 心智负担）
+- **round 续号**：重开后 `{line}-review-{N+1}`（#9 spine 天然连续 · 同 line 史/工件 provenance 不丢——前提 3 零债务）
+- **revision-aware BLOCK 消息替换**（doc 面）：`plan already reviewed at vX.Y (doc-hash …) — target revision unchanged; amend body/version to open a new review`——旧 "no open round" 对 doc line 退役（前提 4 不保留双消息）
+- **复用 `DocRevisionRef` 双层收敛**（ledger.ts:203 · docPath+versionToken+bodyHash——version bump 或 body 变更 = new ref · 既有相等判定 · 零新判定概念）
+- 边界：branch line（`key="branch"` · closeout 终态后新 range 新评审语义）与 wave（WaveGate）不涉 · clean-tree 门先行（修订必先提交 · I3/I4 自然满足）· 闭合语义不变（重开后照旧 review→fix→done · `next:` 字面零改）
+
+#### 7.3 机械落点
+
+- `ledger`：line record 增 **`reviewedDocRevision`**（doc review 完成时写入 · `recordRound` 面复用）
+- `cli #lineGate` null 分支（cli.ts:1328 域）：`target.kind === "doc"` + `docRevision(当前) ≠ reviewed` → 放行（记新轮 · dispatch 流程零改）；相等 → 替换消息
+- 测试：漂移重开（plan/spec · round 续号断言）· 未漂移 BLOCK 消息断言 · branch/wave 无关回归 · 重开后 fix→re-review→done 闭环 · clean-tree 仍门
+
+#### 7.4 本 session 兜底
+
+机制实现入 T7（W1）前，当前 plan 重审以**手动清理 ledger review 状态**兜底（用户拍板「backfill → 手动清理 review 状态 → re-review」）——workspace `progress.json` 该 doc line 轮次清零 → `review` 重开。
+
 ### Acceptance criteria
 
 - `DISPATCH 收敛两活面：DISPATCH.fix 删除 · REFS \`mattpocock-skills:tdd\` 键删除（三 host 斜杠形式随）· \`#skillRef\` fix 相位返回 null（与 spec/plan review 同构）· 全仓 \`mattpocock-skills:tdd\` 引用零残留（含 __tests__ · cli.ts:470 注释样板随改）`
@@ -154,6 +180,7 @@ P5 plan authoring precommit 实证：plan 正文合法引用历史任务号「T2
 - `引擎 vitest 全绿（387 − 删断言 + FIX_SHELL 断言新增后）· typecheck ×3 · biome clean · validate ALL PASS · emit 新鲜`
 - `变更集：cdd-engine 一枚独立提交（含净删除）· kairos 随 T5 若 SKILL 面动 · changeset 落位`
 - `prose 任务提及零硬检（v1.58 T6）：plan 含未注册 \`T<n>\` 提及（P3.2 T25 类历史任务号 · 波标签）过 doc-contract gate 零 finding · DependsOn 越界硬门保留（回归断言）· reference-lint WARN 面保持（missing-edge suspects · unregistered 静默 by design）· declare.ts:626 注释更新（crosslink 不消费 · lint 唯一消费者）· \`planCrosslinks\` prose 块零残留`
+- `doc line review 重开（v1.59 T7）：ledger line record 增 \`reviewedDocRevision\`（doc review 完成写入）· \`#lineGate\` null 分支——doc 且 当前 doc-revision ≠ reviewed → 自动放行重开（round 续号 · \`{line}-review-{N+1}\`）· 相等 → revision-aware BLOCK 消息（旧 "no open round" 对 doc 面退役）· branch/wave 无关回归 · clean-tree 门先行 · 重开后 fix→re-review→done 闭环 · 引擎 vitest 全绿（387−Δ+Δ）`
 
 ## Constraints
 
@@ -168,6 +195,7 @@ P5 plan authoring precommit 实证：plan 正文合法引用历史任务号「T2
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v1.3 | 2026-10-10 | **T7 doc line review 重开机制 backfill（用户拍板「应该要有一个机制能够重开 review」+「backfill → 手动清理 review 状态 → re-review」）**：新组 7——方案定案（line 态 = f(target identity) · doc line 补齐 identity 驱动评审语义 · 隐式触发零 flag · round 续号 · revision-aware BLOCK 消息替换旧 "no open round"（doc 面）· 增量 = ledger `reviewedDocRevision` 复用 `DocRevisionRef` 双层收敛 · branch/wave 不涉 · clean-tree 门先行）· 本 session 手动清理 ledger 兜底重审（机制实现入 T7）· acceptance 增一条 · Parent program 升 overall v1.59 | [human] · Claude Opus 5（kairos:cdd-design · 用户拍板） |
 | v1.2 | 2026-10-10 | **T6 契契修复 backfill（find 自产 dogfood · 用户拍板「收进 P5」）**：新组 6——prose task 提及硬检删除（planCrosslinks prose 块删 · DependsOn 硬门保留 · 观察面归 reference-lint WARN · unregistered 静默 by design · declare.ts:626 注释更新 · 回归断言）· acceptance 增一条（prose 提及零硬检）· 登记层一致性行升 v1.58 · Parent program 升 overall v1.58 | [human] · Claude Opus 5（kairos:cdd-design · 用户裁决） |
 | v1.1 | 2026-10-10 | **spec-review-1 全修（1 blocker · 2 warn · 2 nit）**：§5.1/§5.2 补登 scripts 衍生面（guard.ts fix push 派生行随删 · guard.test.ts 随核）· T25 删除目标钉为 ordered skill chains describe 块（37-83 · 3 it / 6 expect · capabilities 块 24-35 保留）· §1.2 A4 改 refKind typed 分类机制 · §4.1 MODE_PROMPTS 三行 + REVIEW_VARIANTS 四变体 · §2.1 注册列取证基线 | [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer） |
 | v1.0 | 2026-10-10 | 初版——P5 收敛重规划（overall v1.57 四表同步后开写）：M 组 op→skill 映射整体重规划（fix 面无 ref · REFS tdd 键删 · FIX_SHELL 补 typed 两条：验而后修 + 条件 tdd·B1 appliesTo）· 零消费者死壳清（CHAINS 删 · graph-node 删 · RefKind 四型→三型）· DispatchPacket 正文映射闭环登记（四概念已以新名落地 · 零实现）· 实现面 = 纯删除 + 模板两条 typed 增 · 变更集 cdd-engine | [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer · grilling 五命题定案） |

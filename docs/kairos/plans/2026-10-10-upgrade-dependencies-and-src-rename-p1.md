@@ -2,7 +2,7 @@
 
 **Spec:** [2026-10-10-upgrade-dependencies-and-src-rename-p1-design.md](docs/kairos/specs/2026-10-10-upgrade-dependencies-and-src-rename-p1-design.md)
 - **Parent program**: [2026-10-10-upgrade-dependencies-and-src-rename-overall.md v1.4](docs/kairos/specs/2026-10-10-upgrade-dependencies-and-src-rename-overall.md)
-- **Version**: v1.1 · 2026-10-10
+- **Version**: v1.2 · 2026-10-10
 - **Depends on**: 无（program 起点 · 前置 = P1 design spec v1.2 Approved · 2026-10-10）
 - **Base**: develop
 
@@ -50,7 +50,7 @@
 - **Produces**: maintainers 05 §1 三处同步 · 提交②
 - **Steps**:
   - §1 adopted 表 simple-git 行：`^3.36.0` → `^4.0.2`（declared 格 + lockfile 格——lockfile 值以 T1 实际落位为准）— checkable: 表行 diff
-  - 4.x 前瞻注记两行：**缩写 long-form option 拦截**（4.x 对缩写选项行为收口 · 若启用须显式全拼）· **git env 变量过滤**（`allowEnvironment` 默不过滤 · 受限 git 环境须显式声明）——只作文档记录 · 不启用 · 不引能力 — checkable: 两行存在 · 引擎调用面零 diff
+  - 4.x 前瞻注记两行：**缩写 long-form option 拦截**（4.x 默认注入 `GIT_TEST_DISALLOW_ABBREVIATED_OPTIONS=true` · 缩写选项行为收口 · 若启用须显式全拼）· **git env 变量过滤**（v4 默认过滤非豁免 `git_*`/config env keys · `allowEnvironment` 为豁免名单 · 受限 git 环境须显式准入声明）——只作文档记录 · 不启用 · 不引能力 — checkable: 两行存在 · 引擎调用面零 diff
   - 工具链段 `@types/node (^26.6.4)` → `(^24.19.2)`（消费面文字与声明面同步 · 防文档撒谎）— checkable: 段行 diff
   - 落提交②（Wave 2 一波一提交 · 消息覆盖本波 scopes：maintainers 05 文档同步 · 文案面）— checkable: 提交仅 `docs/maintainers/05-third-party-dependencies.md`
   - 升级后收口对照：`tsc --noEmit` 三项目 · 引擎 vitest 全绿（干净工作树前提已足 · 0 语义改动）· `pnpm run validate` ALL PASS（emit 新鲜 / channel audit / residue 零回归）· `pnpm run precommit` 过（doc-contract gate 17 specs/plans 保持 · 含本 plan · phase 内不再新增 specs/plans）· node-24 运行线实证 = 现有 CI node-24 lane（validate / 引擎 vitest / typecheck 已在 24 线跑 · 本 phase 不新增本地 fnm-exec 验证线 · 不新增能力）— checkable: 全部门禁绿 · 引擎行为零变更 pin（guard 三件套零回归 · residue 零新词）
@@ -65,5 +65,6 @@
 
 | Version | date | summary | author |
 |---|---|---|---|
+| v1.2 | 2026-10-10 | **评审取证回填（Wave 2 review note · 编排器 Plan Sole Writer 独立提交）**：T2 前瞻注记② 措辞修正——「`allowEnvironment` 默不过滤」与主源实证相悖（simple-git@4.0.2 默认过滤非豁免 `git_*`/config env keys · `allowEnvironment` 为豁免名单 · 默认注入 `GIT_TEST_DISALLOW_ABBREVIATED_OPTIONS=true`） | [human] · Claude Opus 5（kairos:cdd-dev · plan sole-writer 回填） |
 | v1.1 | 2026-10-10 | plan-review-1 三修：doc-contract gate 钉值 16 → 17（含本 plan · phase 内不再新增 specs/plans）· T1 pin 验证补 spec 三段式验收第三段（`pnpm ls` 声明面抽查 wanted==current 全树）· T2 收口对照补 node-24 运行线实证注记（现有 CI node-24 lane · 本 phase 不新增本地 fnm-exec 验证线） | [human] · Claude Opus 5（kairos:cdd-plan · plan-fix-1） |
 | v1.0 | 2026-10-10 | P1 实现计划：两波两提交（Wave 1 = 清壳 + 声明面 + 锁刷新 + 提交① · Wave 2 = maintainers 05 §1 同步 + 提交② + 收口对照）· 任务解自 design spec v1.2（§2–§6 · F1 三段式验收 · F2 清壳前置 · F3 计数 16）· 波序与提交粒度由「frozen-lockfile 绿」+「两提交不混」双约束驱动 | [human] · Claude Opus 5（kairos:cdd-plan · writing-plans import） |

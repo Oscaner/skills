@@ -58,15 +58,15 @@ CLAUDE.md 顶级节 = Repository purpose · ⚠️ emit products are derived · 
 
 骨架不是「一行脚手架」，而是**可直接 fill 的完整结构**：
 - 完整性口径：本节所列 = 各型 **required** 构成要点；完整 required 锚集 = declare.ts 活登记表 + `shape` 分组（引擎面单一权威 · §1.2）——骨架生成按登记表逐元素派生，本节约束其形态。
-- 标题树：`# Title` +（对应型）`##`/`###`/`####` 全部 required 节头（phase-spec：`## Design` + `### N.` 一节 + `#### N.M` 一项 + `### Acceptance criteria`（含 `Acceptance entry`——`- \`` 条目脚手架）+ `## Constraints`（含 `Constraint delta bullet`——`- ` 条目脚手架）+ `## Change history`；overall：Document scope · File paths（含 `| Artifact | Path |` 列头 + 一行 row）· Program charter（`### Goal` `/### Non-goals` `/### Cross-cutting`）· Issue inventory（含列头 + 一行 row）· Phase inventory（含列头 + 一行 row）· Dependency graph（含 `P1 -> P3` 一类 hard edge + legend）+ `## Boundary rules` + `## Maintenance` + `# Title`/元信息头）
-- **plan 骨架构成**（v0.1 缺 plan 型整段——§5.2 仅露数据字段名）：header 元信息行（`**Spec:**`——link 形锚 · 占位 link · label=basename 同一字面 · §4.1 · `**Parent program**`——link 形锚 · 占位 link · §4.1 · `**Version**` · `**Depends on**`/`**Base**`——可选 · 骨架零生成）+ `### Task N:` 任务块全字段（`**Objective**` · `**Files**`（含 `File path token`）· `**Consumes**` · `**Produces**` · `**Steps**`（含 `Step action`/`Step checkable`）· `**Acceptance**` · `**DependsOn**`（`DependsOn none`/`DependsOn id` 任选其一）· `Task id token`）+ `## Constraints`（含 `Constraint delta bullet`）+ `## Change history`
+- 标题树：`# Title` +（对应型）`##`/`###`/`####` 全部 required 节头（phase-spec：`## Design` + `### N.` 一节 + `#### N.M` 一项 + `### Acceptance criteria`（含 `Acceptance entry`——`- \`` 条目脚手架）+ `## Constraints`（含 `Constraint delta bullet`——`- ` 条目脚手架）+ `## Change history`；overall：Document scope · File paths（含 `| Artifact | Path |` 列头 + 一行 row）· Program charter（`### Goal` `/### Non-goals` `/### Cross-cutting`）· Issue inventory（含列头 + 一行 row）· Phase inventory（含列头 + 一行 row）· Dependency graph（含 `P1 -> P3` 一类 hard edge + legend）+ `## Boundary rules` + `## Maintenance` + `## Change history` + `# Title`/元信息头）——**`## Change history` 为三型共同闭项**（phase-spec / overall / plan 同列）；**节头数字真值**：`N.`/`N.M`（phase-spec）与 `Task N:`（plan · 下条）中 `N` 仅记号示意、**非最终字节**——字面 `N` 击穿声明面数字形 required valuePattern（`^### \d+\. ` / `^#### \d+\.\d+ ` / `^### Task \d+:` · declare.ts，§4.1 结构位永远真值）；gen 落**真值数字脚手架**：phase-spec = **一个 group head `### 1.` + 一个 item head `#### 1.1`**（一节一项 · 更多组/项 fill 时按序追加）· plan = 一个任务块 `### Task 1:`（下条 pin 全字段）
+- **plan 骨架构成**（v0.1 缺 plan 型整段——§5.2 仅露数据字段名）：header 元信息行（`**Spec:**`——link 形锚 · 占位 link · label=basename 同一字面 · §4.1 · `**Parent program**`——link 形锚 · 占位 link · §4.1 · `**Version**` · `**Depends on**`/`**Base**`——可选 · 骨架零生成）+ `### Task N:` 任务块全字段（`**Objective**` · `**Files**`（含 `File path token`）· `**Consumes**` · `**Produces**` · `**Steps**`（含 `Step action`/`Step checkable`）· `**Acceptance**` · `**DependsOn**`（`DependsOn none`/`DependsOn id` 任选其一）· `Task id token`）——**数字形节头**：gen 落**一个任务块 `### Task 1:` 全字段** + `Task id token` = `1`（`N` 仅记号示意 · 声明面 valuePattern 数字形 `^### Task \d+:` / `^\d+$` · §3.2 标题树注 / §4.1 结构位永远真值 · 更多任务块 fill 时按序追加）+ `## Constraints`（含 `Constraint delta bullet`）+ `## Change history`
 - 版本脚手架：`- **Version**: v0.1 · <date>`（**v0.1 起点裁定** · overall v1.1 已记 · `<date>` 仅记号示意——落盘为运行日真实日期 · §4.1）· 各型元信息行齐备（phase-spec 五元组：`**Version**` · `**Status**: Draft` · `**Author**: <slot>` · `**Parent program**`——占位 link · `**Depends on**`；plan 头：`**Spec:**`——占位 link · `**Version**` · `**Parent program**`——占位 link；overall 四元：`**Version**` · `**Status**` · `**Author**` · `**Constraints**`）——`<slot>` 等角括记号仅记号示意（非最终字节 · §4.1）
 - change-history 首行：`| v0.1 | <date> | <slot: summary> | <slot: author> |`（首行脚手架 · change-history 列头 + 一行 · 版本行必须 = header 版本 · 保持 version-ascending 语义）——**最终字节**：`<date>` 格 = 运行日真实日期（`^\d{4}-\d{2}-\d{2}$` 判形 · §4.1）· summary/author 格 = `:::fill` 槽位（`<date>`/`<slot: …>` 仅记号示意 · 非最终字节）
 - **槽位 = 占位符**：所有主体内容/description 落盘为占位符提示（§4），由编排器 fill（散文入槽位 · 不重排结构 · 结构保真 by construction）
 
 #### 3.3 by-construction 过 gate
 
-骨架完成后**即刻**过 doc-contract 判压零 finding（所有 required 锚齐备 · link 形锚以占位 link 落位 · 版本行/日期格为运行日真值 · 无 conditional 残留）——**未填即绿的范围与时序**：header link 行（`**Parent program**` / plan `**Spec:**`）由 gen 以占位 link 生成（§4.1——domain 判形命中 · target `<…>` 字面豁免链存在性判压）；纯内容槽位保持 `:::fill` 形态（在槽位 · 不伪作 required 锚值）不触发 finding；其余结构位未填即绿。colocated vitest pin：对每型骨架按 §4.1 分锚占位策略断言 doc-contract 绿（§7.2）。骨架不是 gate 豁免通道：**gate 零例外**——骨架 by construction 绿，fill 后 gate 仍终判兜底（overall Cross-cutting · 语义不变）。
+骨架完成后**即刻**过 doc-contract 判压零 finding（所有 required 锚齐备 · **节头数字真值**（§3.2：`### 1.`/`#### 1.1`/`### Task 1:`——字面 `N` 必击穿判压）· link 形锚以占位 link 落位 · 版本行/日期格为运行日真值 · 无 conditional 残留）——**未填即绿的范围与时序**：header link 行（`**Parent program**` / plan `**Spec:**`）由 gen 以占位 link 生成（§4.1——domain 判形命中 · target `<…>` 字面豁免链存在性判压）；纯内容槽位保持 `:::fill` 形态（在槽位 · 不伪作 required 锚值）不触发 finding；其余结构位未填即绿。colocated vitest pin：对每型骨架按 §4.1 分锚占位策略断言 doc-contract 绿（§7.2）。骨架不是 gate 豁免通道：**gate 零例外**——骨架 by construction 绿，fill 后 gate 仍终判兜底（overall Cross-cutting · 语义不变）。
 
 ### 4. 占位符与零残留 pin（Q1 延伸）
 
@@ -75,7 +75,7 @@ CLAUDE.md 顶级节 = Repository purpose · ⚠️ emit products are derived · 
 占位符 = **可见可 grep 的 slot 标记**，分锚两形（设计选择，review 可改）：
 - **纯内容槽位**（节/表主体散文位 · meta 行值位 · 表行单元格内容位）：统一形式 `:::fill <slot-name>`——三冒号锚点（markdown 常规语法外 · 不歧义），slot-name 为语义名（如 `:::fill goal-description`）。
 - **link 形锚槽位**（`**Parent program**` / plan `**Spec:**`——link 形 required 锚的值位）：用 **link 形占位**（占位 link）——label/target 取 `<…>` 字面（如 `- **Parent program**: [<parent overall>](<parent path>)`）：`<…>` 形 target 命中链判压的 placeholder 豁免（file-existence/sibling-scan · `^<[^>]+>$`）且整行匹配 link 形 valuePattern 判形；plan `**Spec:**` 另受 planChain「label == target basename」联立约束 → label 与 target 取**同一字面**（如 `**Spec:** [<spec path>](<spec path>)`）。**`:::fill` 永不落 link 形锚值位**——落则必产 finding（实证：`**Parent program**` 值位改 `:::fill …` 后 domain「value outside the declared domain」+ cross-doc-chain「carries no **Parent program** link」两 finding 同出；纯内容槽位的 `:::fill` 无 finding——问题精确限定于 link 形锚）。
-- **结构位永远真值**：节头 · 列头不是槽——**占位符永不落结构位**。
+- **结构位永远真值**：节头 · 列头不是槽——**占位符永不落结构位**；节头序号为**真值数字**——gen 落 `### 1.` / `#### 1.1` / `### Task 1:`（`N.`/`N.M`/`Task N:` 中 `N` 仅记号示意、非最终字节：字面 `N` 击穿声明面数字形 required valuePattern · §3.2）。
 **日期/版本格 = 生成器真值，非 fill 面**：`schema gen <type>` 无日期参数——版本行与 change-history 日期格由 gen 落**运行日真实日期**（判形 `v\d+\.\d+ · \d{4}-\d{2}-\d{2}` / `^\d{4}-\d{2}-\d{2}$` 必须真实命中）；spec/acceptance 行文中的 `<date>`/`<slot>` 等角括记号**仅记号示意，非最终字节**。
 
 #### 4.2 零残留 pin
@@ -98,7 +98,7 @@ CLAUDE.md 顶级节 = Repository purpose · ⚠️ emit products are derived · 
 #### 5.3 关键词面一致性
 
 - 消费面入口仍 `npx -y @oscaner-skills/cdd-engine@latest ...`（消费者环境无 monorepo 布局 · Consumer perspective 规则）——**唯一引擎入口**
-- **SKILL.md 零引擎内部路径字面量（用户裁定 · 2026-10-11）**：SKILL.md 是消费面——消费者不需要引擎内部细节；不以任何形态言及引擎内部树（`src-next/` · `src/` · `packages/…` **全零命中** · 验收 grep pin §7.2）；引擎入口唯一消费面拼写 `npx -y @oscaner-skills/cdd-engine@latest <subcommand>`；内部路径面（docs/kairos specs+plans · maintainers）随 rename 程序 P2 sweep 统一（本 spec 属内部面，`src-next/` 字面量随 sweep 改 `src/`）——SKILL.md 不在 sweep 面
+- **SKILL.md 零引擎内部路径字面量（用户裁定 · 2026-10-11）**：SKILL.md 是消费面——消费者不需要引擎内部细节；不以任何形态言及引擎内部树（`src-next/` · `src/` · `packages/…` **三词条全零命中** · 验收 grep pin 落 Acceptance criteria）；引擎入口唯一消费面拼写 `npx -y @oscaner-skills/cdd-engine@latest <subcommand>`；内部路径面（docs/kairos specs+plans · maintainers）随 rename 程序 P2 sweep 统一（本 spec 属内部面，`src-next/` 字面量随 sweep 改 `src/`）——SKILL.md 不在 sweep 面
 - 两 skill 的 `author-*` 节点文本更新后，**必须 `pnpm run emit`**（SKILL.md 是 emit 源 · emit 产品 `.claude-plugin`/`.cursor-plugin`/`marketplace` 同步再生成——repo 铁律）
 
 ### 6. CLAUDE.md 去流程化（Q3→c）
@@ -114,7 +114,7 @@ CLAUDE.md 散文 pin 删除 ≠ 约束删除——「CDD CLI 零新子命令」�
 - validate 的 channel audit guard 对 CLI × runtime 词表做关卡（word-face · engine channel audit——零回归 §7.2）
 - 「文档先行」义务（overall Constraints「不可只实现不改文」）落点 = 本 spec（P2 设计文档先行）+ SKILL.md 消费面文本（§5）——散文 pin 的规范性由代码型面 + 本文档 + skills 三处接管
 
-删除验收：`grep -n "零新子命令" CLAUDE.md` 零命中且 §1.4 四块零残留（整体 acceptance · §7.2）。
+删除验收：`grep -n "零新子命令" CLAUDE.md` 零命中且 §1.4 四块零残留（grep pin 载 Acceptance criteria · §7.2 仅载 colocated vitest / CLI 行为 pin）。
 
 #### 6.3 消费者路径验证引导（不新增面）
 
@@ -132,7 +132,7 @@ CLAUDE.md 收缩后，不新增「引擎使用引导」替代节——引擎使�
 
 #### 7.2 验证面（顺序）
 
-前置：**跨程序 pin 通过后启动引擎改动**（依赖升级与 src 更名程序 P2 改名落定 → `src/` 树）；工作树干净。顺序：`pnpm run emit`（SKILL.md 面变更后必跑 · 消费面 §5）→ `pnpm run emit:check` → `pnpm run precommit`（树无关子集 · doc-contract gate +1 spec（本 design）· 含新 skeleton 面 guard 零回归）→ 引擎 vitest（`pnpm --filter @oscaner-skills/cdd-engine test` · 既有 401 + **新 colocated pin：三型骨架 doc-contract 零 finding（按 §4.1 分锚占位策略的 fixture 断言——纯内容 `:::fill` / link 形锚占位 link）+ `schema gen` CLI 行为（`phase-spec`/`phaseSpec` 归一）+ 占位符零残留（`:::fill` + 非豁免位 `<…>`）**）→ `tsc --noEmit` 三项目 → `pnpm run validate` ALL PASS（emit 新鲜 / channel audit / residue 零回归）。
+前置：**跨程序 pin 通过后启动引擎改动**（依赖升级与 src 更名程序 P2 改名落定 → `src/` 树）；工作树干净。顺序：`pnpm run emit`（SKILL.md 面变更后必跑 · 消费面 §5）→ `pnpm run emit:check` → `pnpm run precommit`（树无关子集 · doc-contract gate +1 spec（本 design）· 含新 skeleton 面 guard 零回归）→ 引擎 vitest（`pnpm --filter @oscaner-skills/cdd-engine test` · 既有 401 + **新 colocated pin：三型骨架 doc-contract 零 finding（按 §4.1 分锚占位策略的 fixture 断言——纯内容 `:::fill` / link 形锚占位 link · 节头数字真值 `### 1.`/`#### 1.1`/`### Task 1:` 判形命中）+ `schema gen` CLI 行为（`phase-spec`/`phaseSpec` 归一）+ 占位符零残留（`:::fill` + 非豁免位 `<…>`）**）→ `tsc --noEmit` 三项目 → `pnpm run validate` ALL PASS（emit 新鲜 / channel audit / residue 零回归）。
 
 #### 7.3 提交粒度与执行序
 
@@ -144,10 +144,10 @@ CLAUDE.md 收缩后，不新增「引擎使用引导」替代节——引擎使�
 ### Acceptance criteria
 
 - `cdd schema gen phase-spec|overall|plan` 输出**完整结构骨架**到 stdout（标题树 · 表列头 · `- **Version**: v0.1 · <date>` 脚手架（`<date>` 仅记号示意——落盘为运行日真实日期 · §4.1）· change-history 首行全须齐备（日期格运行日真值 · summary/author 格 `:::fill`）· 纯内容占位符 `:::fill <slot>` · link 形锚槽位占位 link（§4.1））
-- 三型骨架经 doc-contract 判压**零 finding**——含 `:::fill` 纯内容槽位与占位 link 的未填即绿（colocated vitest pin 按 §4.1 分锚占位策略断言 · 结构化 by construction · `schema gen phase-spec` 与 `schema gen phaseSpec` 同型归一）
+- 三型骨架经 doc-contract 判压**零 finding**——含 `:::fill` 纯内容槽位、占位 link 与**节头数字真值**（`### 1.`/`#### 1.1`/`### Task 1:` 判形命中 · 非字面 `N`）的未填即绿（colocated vitest pin 按 §4.1 分锚占位策略断言 · 结构化 by construction · `schema gen phase-spec` 与 `schema gen phaseSpec` 同型归一）
 - 填后 doc-contract 终判语义不变（gate 零例外 · 骨架非豁免通道）；`schema get` 现行为字节不变（vitest 全绿作证 · 401 既有全绿）
 - 消费面 author 节点更新（cdd-spec-writer / cdd-plan：先 gen 后填 · `:::fill` 零残留自检）· `pnpm run emit` 后 emit 产品新鲜（`emit:check` 绿）
-- **SKILL.md 零引擎内部路径字面量**：`grep -rn "src-next" packages/kairos/skills/` 零命中（现态已满足 · 更新后保持——消费面 SKILL.md 只出现消费面入口 `npx -y @oscaner-skills/cdd-engine@latest`）
+- **SKILL.md 零引擎内部路径字面量**：三词条守卫 `grep -rnE "(^|[^[:alnum:]_])(src-next|src/|packages/)" packages/kairos/skills/` 零命中——`src/`/`packages/` 词条带词界前缀（`src/` 不命中 `src-next` 内子串（双保险 · `src-next` 无 `src/` 子串）· `packages/` 防自包含路径噪声）；现态三词条已零命中 · 更新后保持——消费面 SKILL.md 只出现消费面入口 `npx -y @oscaner-skills/cdd-engine@latest`
 - CLAUDE.md 去流程化落：`grep -rn "零新子命令" CLAUDE.md` 零命中 · §1.4 四块检索零残留（`Development-time CDD invocation` / `cdd CLI surface` / `Engine tests` / `Review convergence` 指针）；repo dev 义务面保留
 - 引擎 vitest 全绿（`pnpm --filter @oscaner-skills/cdd-engine test`）· `tsc --noEmit` 三项目全绿 · `pnpm run validate` ALL PASS · `pnpm run precommit` 过
 - 实现落改名后 `src/` 树（跨程序 pin 通过后启动）

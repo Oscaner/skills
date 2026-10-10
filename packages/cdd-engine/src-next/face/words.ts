@@ -195,6 +195,18 @@ export const ISSUE_LABEL_WORDS = {
   "chore.suggestedFix": { en: "## Suggested direction", zh: "## 建议方向" },
 } as const satisfies Readonly<Record<LocaleWordId, LocalizedWord>>;
 
+/** The charter anchor rows — the P7 canonicalize data plane: one row per legacy
+ *  Chinese charter marker the structure judge matches through the canonicalize view
+ *  (the doc-arch overall 决策组叶 / 上游先例背书 + the osuperpowers Goal 门面位). The
+ *  family prefix `charter.` sits parallel to the issue-label family — every row flows
+ *  through localeRows() (the zh knowledge lives ONLY here, never in a code branch or
+ *  an element-table pattern). */
+export const CHARTER_WORDS = {
+  "charter.group-leaf": { en: "group", zh: "组" },
+  "charter.upstream-endorsements": { en: "Upstream Endorsements", zh: "上游先例背书" },
+  "charter.goal-title": { en: "cdd-engine service mainline", zh: "cdd-engine 服务化主线" },
+} as const satisfies Readonly<Record<LocaleWordId, LocalizedWord>>;
+
 /**
  * Words — the single word table + accessor face. One instance serves every family:
  * the doc words (derived from the T2 registries through the projection face), the
@@ -279,14 +291,18 @@ export class Words implements WordLocaleFace {
   }
 
   /** Every locale row of the word table, flat (the Translator's row index source —
-   *  the single translation data, zero second table). */
+   *  the single translation data, zero second table: the issue-label rows + the
+   *  charter anchor rows). */
   localeRows(): readonly LocalizedWord[] {
-    return Object.values(ISSUE_LABEL_WORDS);
+    return [...Object.values(ISSUE_LABEL_WORDS), ...Object.values(CHARTER_WORDS)];
   }
 
-  /** One locale row by its word id (`${type}.${segment}`); null for an unknown id. */
+  /** One locale row by its word id (`${type}.${segment}` or a charter row id);
+   *  null for an unknown id. */
   localeRow(id: string): LocalizedWord | null {
-    const row = (ISSUE_LABEL_WORDS as Readonly<Record<string, LocalizedWord>>)[id];
+    const row =
+      (ISSUE_LABEL_WORDS as Readonly<Record<string, LocalizedWord>>)[id] ??
+      (CHARTER_WORDS as Readonly<Record<string, LocalizedWord>>)[id];
     return row ?? null;
   }
 

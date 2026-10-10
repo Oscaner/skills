@@ -1,9 +1,9 @@
 # 依赖升级与 src 更名（Dependency Upgrade & Src Rename）— P1 Design Spec（simple-git 3→4 · node 线锁 24 · 依赖全量对齐）
 
-- **Version**: v1.2 · 2026-10-10
+- **Version**: v1.3 · 2026-10-10
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5（kairos:cdd-design [P1] enumerate-then-grill 定案 → cdd-spec-writer）
-- **Parent program**: [2026-10-10-upgrade-dependencies-and-src-rename-overall.md v1.3](docs/kairos/specs/2026-10-10-upgrade-dependencies-and-src-rename-overall.md)
+- **Parent program**: [2026-10-10-upgrade-dependencies-and-src-rename-overall.md v1.5](docs/kairos/specs/2026-10-10-upgrade-dependencies-and-src-rename-overall.md)
 - **Depends on**: 无（program 起点 · serial-phase GATE 满足——本 phase 无前置硬依赖，可开线；与改名 phase 并行）
 
 ## Design
@@ -14,7 +14,7 @@
 
 #### 1.1 声明面盘点
 
-cdd-engine（`packages/cdd-engine/package.json`）：`dependencies.simple-git ^3.36.0`（**唯一运行时依赖**）· `devDependencies` = `@types/node ^26.6.4` · `typescript ^7.0.2` · `vitest ^5.0.3`。根（`package.json`）：`devDependencies` = `@types/node ^26.6.4` + 工具链（`@biomejs/biome ^2.5.15` · `husky ^9.1.7` · `lint-staged ^17.6.0` · `typescript ^7.0.2` · `vitest ^5.0.3` · `yaml ^2.9.1` · `@changesets/cli ^3.0.3` · `@changesets/changelog-github ^1.0.1` · `@changesets/config ^4.0.1` · `@changesets/read ^1.0.1`）。`pnpm-workspace.yaml` 无 catalog（仅 `packages/*` glob + allowBuilds）· 根无 `.npmrc` —— **声明面 = 两处 package.json，无目录级版本陷阱**。
+cdd-engine（`packages/cdd-engine/package.json`）：`dependencies.simple-git ^3.36.0`（**唯一运行时依赖**）· `devDependencies` = `@types/node ^26.6.4` · `typescript ^7.0.2` · `vitest ^5.0.3`。根（`package.json`）：`devDependencies` = `@types/node ^26.6.4` + 工具链（`@biomejs/biome ^2.5.15` · `husky ^9.1.7` · `lint-staged ^17.6.0` · `typescript ^7.0.2` · `vitest ^5.0.3` · `yaml ^2.9.1` · `@changesets/cli ^3.0.3` · `@changesets/changelog-github ^1.0.1` · `@changesets/config ^4.0.1` · `@changesets/read ^1.0.1`）。`pnpm-workspace.yaml` 无 catalog（基准：仅 `packages/*` glob + allowBuilds）· 根无 `.npmrc` —— **声明面 = 两处 package.json**；2026-10-10 起 pnpm 自动向 `pnpm-workspace.yaml` 追加 **minimum-release-age 政策注记**（`minimumReleaseAgeExclude` · 语义 §4.2 · 文件面归置 §6.2——机械依赖面，随提交①落盘，不属声明面）。
 
 #### 1.2 registry 事实（npm view 实证 2026-10-10）
 
@@ -66,6 +66,8 @@ cdd-engine `engines.node: >=22.18.0 → >=24`——运行线 min 抬到 24 线�
 
 刷新后 `pnpm outdated` 除 @types/node 单行越-range（latest **26.6.5** vs 声明 `^24.19.2` · 线锁 24 设计意图 · 必报且验收容忍）外零行 · 两条意图线 registry 交叉核对落位（simple-git **4.0.2** · @types/node **24.19.2** 出现在声明 + 锁文件）· `pnpm install --frozen-lockfile` 保持绿（锁一致性门）。
 
+**minimum-release-age 政策注记（2026-10-10 实证 · 机械依赖面 · 随提交①落盘）**：`@types/node@24.19.2` 发布于 2026-10-09T18:44:25Z，提交时点 < 24h——pnpm ≥11 默认 `minimumReleaseAge` = 1440 分钟（24h）发布窗，非严格模式（`minimumReleaseAgeStrict` 默认 false）下 `pnpm install` 解析 `^24.19.2`（窗内无 age-eligible 且 in-range 的 fallback 版本）向 `pnpm-workspace.yaml` **自动追加** `minimumReleaseAgeExclude: ['@types/node@24.19.2']`（安装版二进制实测输出「Added 1 entry to minimumReleaseAgeExclude …」· 官方 docs 称纯手工维护——以实证为准）；无此 exclude 则窗内 fresh resolution 无 `^24.19.2` 可落（失败/脏树）。`minimumReleaseAgeExcludePrune` 默认 false → 窗过后条目滞留（可安全人工摘除 · pnpm 不自动清理 · 再解析不再需要）。
+
 #### 4.3 网络/环境面零新增
 
 根无 `.npmrc`（registry 概念零新增）· 无环境变量面引入。
@@ -94,7 +96,7 @@ simple-git 行 `^3.36.0 → ^4.0.2`（declared / lockfile 两格更新；lockfil
 
 #### 6.2 提交粒度
 
-两提交，互不混：① 依赖声明 + 锁文件（机械面）② maintainers 05 文档同步（文案面）。任一违反 = 提交污染。
+两提交，互不混：① 依赖声明 + 锁文件 + **`pnpm-workspace.yaml` minimum-release-age 政策注记（机械依赖面 · §4.2）** ② maintainers 05 文档同步（文案面）。任一违反 = 提交污染。
 
 #### 6.3 引擎行为零变更 pin
 
@@ -141,3 +143,4 @@ simple-git 行 `^3.36.0 → ^4.0.2`（declared / lockfile 两格更新；lockfil
 | v1.0 | 2026-10-10 | P1 设计 spec：simple-git `^3.36.0 → ^4.0.2`（drop-in 已核 · 不引新能力）+ node 线锁 24（engines `>=24` · types 两处 `^24.19.2` · `.nvmrc`/CI 保持）+ 依赖全量对齐（三段式验收）+ maintainers 05 §1 同步（4.x 前瞻注记）· 增量为父 overall v1.2 注册面的展开（Q0 覆盖确认 · Q1/Q2 grilling 定案） | [human] · Claude Opus 5（kairos:cdd-design [P1] enumerate-then-grill → cdd-spec-writer） |
 | v1.1 | 2026-10-10 | **程序结构回填（P4 拆出 · 2026-10-10 用户裁定「这个问题和 P4 其实是同一类的吧？」）**：父子整体 `engine-doc-tooling` 成立（review-face 键 + schema gen 同属引擎 doc-tooling 能力类）——本 spec 引擎行为引用（§2.3 / §5.2 / §6.3 / Notes）从「P4 赛道」改指独立整体程序；Parent program 版本 v1.2 → v1.3 | [human] · Claude Opus 5（kairos:cdd-design 拆出裁定） |
 | v1.2 | 2026-10-10 | **spec-review-1 修正（3 findings 全修）**：F1「pnpm outdated 不报越-range major」证伪——§1.3/§4.2/Acceptance/Deviations 因果改「零行唯一成因 = 本地元数据 cache 陈旧 · fresh 元数据必报越-range major · 验收容忍项 = @types/node 单行越-range（26.6.5 vs `^24.19.2` · 设计意图）」（父 overall v1.4 同语 backfill 已落）· F2 §6.1 补环境前置（包根无 `src`/`config` 残留 · 引擎 vitest 全绿以干净工作树为前提）· F3 doc-contract gate 14 → 16 specs/plans（评审时实值 15 · 引擎 new overall `93cb4664` 落地后当前树实值 16 · 按 operate 时实值钉） | [human] · Claude Opus 5（P1 spec-review-1 fix 轮统一落） |
+| v1.3 | 2026-10-10 | **P1 spec-fix-1 回填（F1 warn · backfill-as-version）**：实施期 `pnpm install` 自动向 `pnpm-workspace.yaml` 追加 `minimumReleaseAgeExclude: ['@types/node@24.19.2']`（2026-10-09T18:44:25Z 发布 · 提交时 <24h · 非严格模式自动注记）——§1.1「无目录级版本陷阱」前提改写（政策注记 · 机械依赖面 · 声明面仍 = 两处 package.json）· §4.2 补 minimum-release-age 语义注记（pnpm ≥11 默认 24h 窗 · 窗内无 in-range age-eligible fallback · 无 exclude 则 fresh resolution 不可落 · `minimumReleaseAgeExcludePrune` 默认 false）· §6.2 提交①验收面补 `pnpm-workspace.yaml` · 父 overall v1.5 同语 backfill 已落 | [human] · Claude Opus 5（P1 spec-fix-1 轮统一落） |

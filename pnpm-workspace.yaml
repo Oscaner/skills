@@ -2,5 +2,10 @@ packages:
   - packages/*
 allowBuilds:
   esbuild: true
+# Auto-appended by pnpm on 2026-10-10: @types/node@24.19.2 (published
+# 2026-10-09T18:44:25Z) was resolved inside the default 24h minimum-release-age
+# window, so pnpm excluded it to keep `^24.19.2` satisfiable (non-strict mode
+# auto-appends). Safe to remove once the window closes — pnpm never prunes this
+# list (minimumReleaseAgeExcludePrune defaults to false).
 minimumReleaseAgeExclude:
   - '@types/node@24.19.2'

@@ -184,9 +184,10 @@ describe("slices projection (Projector.slices)", () => {
     expect(overall.slices[0].anchorPattern.source).toBe("# Title");
     // `**Version**` — every `*` escaped.
     expect(overall.slices[1].anchorPattern.source).toBe("\\*\\*Version\\*\\*");
-    // `#### [MFRBEN] 组` — brackets escaped, non-ASCII anchors kept verbatim.
-    const mfrben = overall.slices.find((slice) => slice.anchor === "#### [MFRBEN] 组")!;
-    expect(mfrben.anchorPattern.source).toBe("#### \\[MFRBEN\\] 组");
+    // `#### [MFRBEN] group` — brackets escaped (the anchor is the English canonical;
+    // the legacy zh leaf matches through the judge's canonicalize view, never here).
+    const mfrben = overall.slices.find((slice) => slice.anchor === "#### [MFRBEN] group")!;
+    expect(mfrben.anchorPattern.source).toBe("#### \\[MFRBEN\\] group");
   });
 
   it("derives the value slice from the declared value pattern", () => {

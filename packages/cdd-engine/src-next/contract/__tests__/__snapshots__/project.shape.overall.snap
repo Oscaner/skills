@@ -100,12 +100,12 @@
           "refKind": "none"
         },
         {
-          "anchor": "#### [MFRBEN] 组",
+          "anchor": "#### [MFRBEN] group",
           "presence": "optional",
           "refKind": "none"
         },
         {
-          "anchor": "#### 上游先例背书",
+          "anchor": "#### Upstream Endorsements",
           "presence": "optional",
           "refKind": "none"
         }

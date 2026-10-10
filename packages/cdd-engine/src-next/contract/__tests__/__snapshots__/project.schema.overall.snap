@@ -77,7 +77,7 @@
     },
     "### Goal": {
       "type": "string",
-      "pattern": "^### (Goal|cdd-engine 服务化主线（2026-09-13 用户升维）)",
+      "pattern": "^### (Goal|cdd-engine service mainline)",
       "description": "presence: required · home: facet · ref: none"
     },
     "### Non-goals": {
@@ -90,14 +90,14 @@
       "pattern": "^### Cross-cutting",
       "description": "presence: required · home: facet · ref: none"
     },
-    "#### [MFRBEN] 组": {
+    "#### [MFRBEN] group": {
       "type": "string",
-      "pattern": "^#### [MFRBEN] 组",
+      "pattern": "^#### [MFRBEN] group",
       "description": "presence: optional · home: facet · ref: none"
     },
-    "#### 上游先例背书": {
+    "#### Upstream Endorsements": {
       "type": "string",
-      "pattern": "^#### 上游先例背书$",
+      "pattern": "^#### Upstream Endorsements$",
       "description": "presence: optional · home: facet · ref: none"
     },
     "Issue inventory columns": {

@@ -117,6 +117,73 @@ describe("the conforming overall — zero findings (no false positives)", () => 
   });
 });
 
+describe("P7 — the structure-plane canonicalize seam (Contract.validate row-source)", () => {
+  /** The GOOD_OVERALL charter carrying the legacy Chinese markers the English
+   *  canonical element patterns match THROUGH the canonicalize view: the
+   *  osuperpowers-overall Goal face (`### cdd-engine 服务化主线（…）`) and the
+   *  doc-arch-overall decision-group / endorsements leaves (`#### M 组` … /
+   *  `#### 上游先例背书`). The markers are UNREGISTERED zh prose to the element
+   *  table (English canonicals only) — any match is the row-source seam talking. */
+  const ZH_CHARTER_OVERALL = GOOD_OVERALL.replace(
+    "### Goal\n- goal text",
+    [
+      "### cdd-engine 服务化主线（2026-09-13 用户升维）",
+      "- goal text",
+      "",
+      "#### M 组（skill-ref 映射，M1–M4 全关）",
+      "- m leaf",
+      "",
+      "#### F 组（文档平面结构，提案）",
+      "- f leaf",
+      "",
+      "#### R 组（ref 统一身份，提案）",
+      "- r leaf",
+      "",
+      "#### B 组（正文内容，提案）",
+      "- b leaf",
+      "",
+      "#### E 组（经验债，驱动本整体）",
+      "- e leaf",
+      "",
+      "#### 上游先例背书",
+      "- endorsement text",
+    ].join("\n"),
+  );
+
+  it("the structure judge matches the legacy Chinese charter markers through the canonicalize view", () => {
+    const findings = judge("overall", ZH_CHARTER_OVERALL, GOOD_OVERALL_FS);
+    // the zh Goal face conforms to the `### Goal` facet through the view —
+    // no presence/domain finding on the English canonical pattern
+    expect(withKind(findings, "presence", "### Goal")).toBe(false);
+    expect(withKind(findings, "domain", "### Goal")).toBe(false);
+    // the zh decision-group leaves (`#### M 组` …) conform to the canonical
+    // `#### [MFRBEN] group` facet through the view
+    expect(withKind(findings, "presence", "#### [MFRBEN] group")).toBe(false);
+    expect(withKind(findings, "domain", "#### [MFRBEN] group")).toBe(false);
+    // the zh endorsements leaf conforms to the canonical facet through the view
+    expect(withKind(findings, "domain", "#### Upstream Endorsements")).toBe(false);
+  });
+
+  it("a zh title outside the registered canonicals stays identity — a 目标 Goal face is still missing", () => {
+    const content = GOOD_OVERALL.replace("### Goal\n- goal text", "### 目标\n- goal text");
+    const findings = judge("overall", content, GOOD_OVERALL_FS);
+    expect(withKind(findings, "presence", "### Goal")).toBe(true);
+  });
+
+  it("the view never writes back — the judged source content stays byte-identical", () => {
+    const input = {
+      docKey: "overall" as const,
+      path: OVERALL_PATH,
+      content: ZH_CHARTER_OVERALL,
+      root: ".",
+      fs: GOOD_OVERALL_FS,
+    };
+    const findings = new Contract().validate(input);
+    expect(input.content).toBe(ZH_CHARTER_OVERALL);
+    expect(findings).toEqual([]);
+  });
+});
+
 describe("base nine invariants — one negative case each", () => {
   it("presence: a missing required section is reported", () => {
     const content = GOOD_OVERALL.replace("## Maintenance\n- maintenance note", "");

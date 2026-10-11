@@ -56,14 +56,14 @@ const MAX_ELEMENTS = 40;
 const ALL_REGISTRIES = [
   declaredRegistries.overall,
   declaredRegistries.plan,
-  declaredRegistries.phaseSpec,
+  declaredRegistries["phase-spec"],
 ] as const satisfies readonly ElementRegistry[];
 
 describe("declared registries", () => {
   it("declares exactly the three doc types with their docType identity", () => {
     expect(declaredRegistries.overall.docType).toBe("overall");
     expect(declaredRegistries.plan.docType).toBe("plan");
-    expect(declaredRegistries.phaseSpec.docType).toBe("phase-spec");
+    expect(declaredRegistries["phase-spec"].docType).toBe("phase-spec");
   });
 
   it("carries between 20 and 40 elements per doc type (acceptance count gate)", () => {
@@ -167,7 +167,7 @@ describe("RegistryGuard type guards", () => {
   it("recognizes the three declared registries and rejects registry-shaped non-registries", () => {
     expect(RegistryGuard.isRegistry(declaredRegistries.overall)).toBe(true);
     expect(RegistryGuard.isRegistry(declaredRegistries.plan)).toBe(true);
-    expect(RegistryGuard.isRegistry(declaredRegistries.phaseSpec)).toBe(true);
+    expect(RegistryGuard.isRegistry(declaredRegistries["phase-spec"])).toBe(true);
     // Missing the elements surface.
     expect(RegistryGuard.isRegistry({ docType: "overall" })).toBe(false);
     // Unknown doc type.

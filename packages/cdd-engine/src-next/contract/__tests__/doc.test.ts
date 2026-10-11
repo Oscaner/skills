@@ -244,7 +244,7 @@ describe("PlanDocType.parse — the task blocks + the Class-A/B chain root", () 
 });
 
 describe("PhaseSpecDocType.parse — the design skeleton + the Class-B chain root", () => {
-  const parsed = new PhaseSpecDocType("phaseSpec").parse(PHASE_SPEC);
+  const parsed = new PhaseSpecDocType("phase-spec").parse(PHASE_SPEC);
 
   it("parses the header five-tuple surface", () => {
     expect(parsed.docType).toBe("phase-spec");
@@ -280,7 +280,7 @@ describe("the doc-type composition root", () => {
   it("exposes one parser per doc key", () => {
     expect(docTypeParsers.overall).toBeInstanceOf(OverallDocType);
     expect(docTypeParsers.plan).toBeInstanceOf(PlanDocType);
-    expect(docTypeParsers.phaseSpec).toBeInstanceOf(PhaseSpecDocType);
+    expect(docTypeParsers["phase-spec"]).toBeInstanceOf(PhaseSpecDocType);
   });
 });
 
@@ -310,7 +310,7 @@ describe("P2 — the three doc skeletons judge clean (spec §7.2 colocated pin)"
   const PATH_OF: Record<DocKey, string> = {
     overall: "docs/kairos/specs/x-overall.md",
     plan: "docs/kairos/plans/x-p1.md",
-    phaseSpec: "docs/kairos/specs/x-p1-design.md",
+    "phase-spec": "docs/kairos/specs/x-p1-design.md",
   };
   /** The fixed run date — the version-row date truth (never a live clock). */
   const DATE = "2026-10-11";
@@ -320,7 +320,7 @@ describe("P2 — the three doc skeletons judge clean (spec §7.2 colocated pin)"
     new SkeletonAssembler(projector.skeleton()[key], DATE).render();
 
   it("judges each type's skeleton clean — zero findings (the §4.1 placeholder-anchored by-construction green)", () => {
-    for (const key of ["overall", "plan", "phaseSpec"] as const) {
+    for (const key of ["overall", "plan", "phase-spec"] as const) {
       const findings = contract.validate({
         docKey: key,
         path: PATH_OF[key],
@@ -333,7 +333,7 @@ describe("P2 — the three doc skeletons judge clean (spec §7.2 colocated pin)"
   });
 
   it("keeps every `:::fill` inside the content positions — zero hits on the link anchors / structure rows", () => {
-    for (const key of ["overall", "plan", "phaseSpec"] as const) {
+    for (const key of ["overall", "plan", "phase-spec"] as const) {
       for (const line of renderOf(key).split("\n")) {
         if (!line.includes(":::fill")) continue;
         // the placeholder-link anchors (`](<`), the version/status truths, the
@@ -347,7 +347,7 @@ describe("P2 — the three doc skeletons judge clean (spec §7.2 colocated pin)"
   });
 
   it("the numeric headings are true values — the shape `### 1.` / `#### 1.1` / `### Task 1:` land, a literal `N` never", () => {
-    const spec = renderOf("phaseSpec");
+    const spec = renderOf("phase-spec");
     expect(spec).toContain("### 1. :::fill group-title");
     expect(spec).toContain("#### 1.1 :::fill item-title");
     expect(renderOf("plan")).toContain("### Task 1: :::fill task-title");

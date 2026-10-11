@@ -31,16 +31,16 @@ describe("the word table — one table, three families", () => {
   it("the doc family derives from the T2 registries — the DOC_TOKENS face", () => {
     // the registered plan anchors are doc words; the counts = the declared registry
     // element counts (39 / 28 / 25 — P4.1 T2 added the Change-history row/version/
-    // date elements ×2 to plan/phaseSpec, 24→28 · 21→25)
+    // date elements ×2 to plan/phase-spec, 24→28 · 21→25)
     expect(words.docWords("overall").length).toBe(39);
     expect(words.docWords("plan").length).toBe(28);
-    expect(words.docWords("phaseSpec").length).toBe(25);
+    expect(words.docWords("phase-spec").length).toBe(25);
     expect(words.docWords("plan")).toContain("### Task N:");
     expect(words.docWords("plan")).toContain("**DependsOn**");
     expect(words.docWords("plan")).toContain("## Change history");
-    expect(words.docWords("phaseSpec")).toContain("## Change history");
+    expect(words.docWords("phase-spec")).toContain("## Change history");
     expect(words.docWords("overall")).toContain("## Dependency graph");
-    expect(words.docWords("phaseSpec")).toContain("## Design");
+    expect(words.docWords("phase-spec")).toContain("## Design");
     expect(words.hasDocWord("plan", "**Acceptance**")).toBe(true);
     expect(words.hasDocWord("plan", "## Design")).toBe(false);
   });

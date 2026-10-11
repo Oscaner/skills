@@ -26,14 +26,20 @@ describe("runtime — the typed engine-config surface (the typed data plane)", (
   it("carries the engine runtime facts — version, the argv channel, the handoff namespace", () => {
     expect(ENGINE_RUNTIME.$version).toBeGreaterThanOrEqual(1);
     expect(ENGINE_RUNTIME.handoffNamespace.workspaceRoot).toBe(".kairos/cdd");
-    // The CLI channel table — the flag/type/enum single source (tasks / type enum).
-    expect(ARGV_CHANNEL.tasks).toEqual({ flag: "--tasks", type: "int-list" });
+    // The CLI channel table — the flag/type/enum single source (tasks / type enum),
+    // with the flag-level `help` row the --help display face reads (Task 4).
+    expect(ARGV_CHANNEL.tasks).toEqual({
+      flag: "--tasks",
+      type: "int-list",
+      help: "the task ids of the wave group (comma-separated)",
+    });
     expect(ARGV_CHANNEL.type.values).toEqual(["wave", "branch", "spec", "plan"]);
     expect(ARGV_CHANNEL.help).toEqual({
       flag: "--help",
       alias: "-h",
       type: "bool",
       scope: "program",
+      help: "show this help",
     });
   });
 

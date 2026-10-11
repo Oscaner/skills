@@ -702,5 +702,5 @@ export class PhaseSpecDocType extends DocType<PhaseSpecParsed> {
 export const docTypeParsers: Record<DocKey, DocType<ParsedDoc>> = {
   overall: new OverallDocType("overall"),
   plan: new PlanDocType("plan"),
-  phaseSpec: new PhaseSpecDocType("phaseSpec"),
+  "phase-spec": new PhaseSpecDocType("phase-spec"),
 };

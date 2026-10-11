@@ -8,6 +8,7 @@
 // judgment branches in this module (the plan's coordinator semantics: the
 // polymorphic strategy family judges, the coordinator assembles).
 
+import path from "node:path";
 import { Words } from "../face/words.ts";
 import { declaredRegistries } from "./declare.ts";
 import type { ParsedDoc } from "./doc.ts";
@@ -34,7 +35,7 @@ import { Projector } from "./project.ts";
 import { Translator } from "./translate.ts";
 
 /** The three doc-type record keys — the policy-composition identity. */
-const DOC_KEYS: readonly DocKey[] = ["overall", "plan", "phaseSpec"];
+const DOC_KEYS: readonly DocKey[] = ["overall", "plan", "phase-spec"];
 
 /** The judgment input — the doc's identity, content and the seam closures. */
 export interface ContractInput {
@@ -88,6 +89,16 @@ export class Contract {
     this.#strategies = Contract.#buildPolicy();
     this.#projector = new Projector(declaredRegistries);
     this.#translator = new Translator(new Words());
+  }
+
+  /** deriveDocType(path) — the shared doc-type derivation (design spec §2.1): the
+   *  one naming face the validate doc-contract gate and the CLI pre-flight both
+   *  read. A doc whose basename ends in `-overall.md` derives to the overall key;
+   *  every other doc path derives to the phase-spec key (the legacy validate rule,
+   *  verbatim). Call sites only navigate file paths — the dir-vs-file distinction
+   *  is their convention; this method reads the path's basename only. */
+  deriveDocType(docPath: string): DocKey {
+    return path.basename(docPath).endsWith("-overall.md") ? "overall" : "phase-spec";
   }
 
   /** validate(doc) — parse, compose, run, aggregate. The single judgment entry.

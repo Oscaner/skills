@@ -92,7 +92,7 @@ const EMPTY_FS: DocFs = {
 };
 
 const judge = (
-  docKey: "overall" | "plan" | "phaseSpec",
+  docKey: "overall" | "plan" | "phase-spec",
   content: string,
   fs: DocFs = EMPTY_FS,
   phaseId?: string,
@@ -233,7 +233,7 @@ describe("base nine invariants — one negative case each", () => {
       "",
       "- `c`",
     ].join("\n");
-    const findings = judge("phaseSpec", content, EMPTY_FS);
+    const findings = judge("phase-spec", content, EMPTY_FS);
     expect(withKind(findings, "order")).toBe(true);
   });
 
@@ -275,7 +275,7 @@ describe("base nine invariants — one negative case each", () => {
       "",
       "| overall decision | 决定 | Yes |",
     ].join("\n");
-    const findings = judge("phaseSpec", content, EMPTY_FS);
+    const findings = judge("phase-spec", content, EMPTY_FS);
     expect(withKind(findings, "residue")).toBe(true);
   });
 
@@ -526,7 +526,7 @@ describe("the canonical repo forms (no false positives on real conventions)", ()
     ]
       .join("\n")
       .replace("- **Status**: Draft", "- `p1` then **Status**: Deleted then `p2`");
-    const findings = judge("phaseSpec", content, EMPTY_FS);
+    const findings = judge("phase-spec", content, EMPTY_FS);
     expect(withKind(findings, "domain", "**Status**")).toBe(false);
   });
 
@@ -572,7 +572,7 @@ describe("the canonical repo forms (no false positives on real conventions)", ()
       "## Review record",
       "- review note",
     ].join("\n");
-    const findings = judge("phaseSpec", content, EMPTY_FS);
+    const findings = judge("phase-spec", content, EMPTY_FS);
     expect(withKind(findings, "residue")).toBe(false);
   });
 });
@@ -718,7 +718,7 @@ describe("P4.1 T2 — **Version** presence required ×3 (plan optional → requi
       "- **Version**: v1.0 · 2026-10-09",
       "",
     );
-    const findings = judge("phaseSpec", content);
+    const findings = judge("phase-spec", content);
     expect(withKind(findings, "presence", "**Version**")).toBe(true);
   });
 
@@ -733,7 +733,7 @@ describe("P4.1 T2 — the **Version** strict form (number + date · zero supplem
   it("a trailing parenthetical supplement is refused (plan and spec)", () => {
     for (const [docKey, doc] of [
       ["plan", planLineage("v1.0 （v1.0 补充）", [ROW_100])],
-      ["phaseSpec", specLineage("v1.0 （v1.0 补充）", [ROW_100])],
+      ["phase-spec", specLineage("v1.0 （v1.0 补充）", [ROW_100])],
     ] as const) {
       expect(withKind(judge(docKey, doc), "domain", "**Version**")).toBe(true);
     }
@@ -742,7 +742,7 @@ describe("P4.1 T2 — the **Version** strict form (number + date · zero supplem
   it("a trailing prose supplement after the date is refused (plan and spec)", () => {
     for (const [docKey, doc] of [
       ["plan", planLineage("v1.0 · 2026-10-09 说明应在 Change history", [ROW_100])],
-      ["phaseSpec", specLineage("v1.0 · 2026-10-09 说明应在 Change history", [ROW_100])],
+      ["phase-spec", specLineage("v1.0 · 2026-10-09 说明应在 Change history", [ROW_100])],
     ] as const) {
       expect(withKind(judge(docKey, doc), "domain", "**Version**")).toBe(true);
     }
@@ -751,14 +751,14 @@ describe("P4.1 T2 — the **Version** strict form (number + date · zero supplem
   it("a bold **vX.Y** form is refused (plan and spec)", () => {
     for (const [docKey, doc] of [
       ["plan", planLineage("**v1.0** · 2026-10-09", [ROW_100])],
-      ["phaseSpec", specLineage("**v1.0** · 2026-10-09", [ROW_100])],
+      ["phase-spec", specLineage("**v1.0** · 2026-10-09", [ROW_100])],
     ] as const) {
       expect(withKind(judge(docKey, doc), "domain", "**Version**")).toBe(true);
     }
   });
 
   it("the canonical `vX.Y · date` form carries no **Version** domain finding (plan and spec)", () => {
-    for (const docKey of ["plan", "phaseSpec"] as const) {
+    for (const docKey of ["plan", "phase-spec"] as const) {
       const doc =
         docKey === "plan"
           ? planLineage("v1.0 · 2026-10-09", [ROW_100])
@@ -795,7 +795,7 @@ describe("P4.1 T2 — `## Change history` presence required ×3", () => {
       ].join("\n"),
       "",
     );
-    const findings = judge("phaseSpec", content);
+    const findings = judge("phase-spec", content);
     expect(withKind(findings, "presence", "## Change history")).toBe(true);
   });
 
@@ -817,7 +817,7 @@ describe("P4.1 T2 — `## Change history` presence required ×3", () => {
 
 describe("P4.1 T2 — selfBounded applies to spec/plan (header = the newest in-row)", () => {
   it("a phase-spec whose header is NOT the change-history's newest row is reported", () => {
-    const findings = judge("phaseSpec", specLineage("v1.0 · 2026-10-09", [ROW_100, ROW_101]));
+    const findings = judge("phase-spec", specLineage("v1.0 · 2026-10-09", [ROW_100, ROW_101]));
     expect(withKind(findings, "selfBounded", "**Version**")).toBe(true);
   });
 
@@ -827,7 +827,7 @@ describe("P4.1 T2 — selfBounded applies to spec/plan (header = the newest in-r
   });
 
   it("a spec/plan whose header IS the newest in-row version carries no selfBounded finding", () => {
-    for (const docKey of ["plan", "phaseSpec"] as const) {
+    for (const docKey of ["plan", "phase-spec"] as const) {
       const doc =
         docKey === "plan"
           ? planLineage("v1.1 · 2026-10-09", [ROW_100, ROW_101])
@@ -854,6 +854,31 @@ describe("governance greps (the engine-zero criterion)", () => {
         source.match(/export\s+const\s+\w+\s*=\s*(?:\([^)]*\)|[\w]+)\s*=>/g) ?? [];
       expect(behaviorConstExports, name).toEqual([]);
     }
+  });
+});
+
+describe("deriveDocType — the shared doc-type derivation (design spec §2.1)", () => {
+  const derive = new Contract().deriveDocType;
+
+  it("derives the overall key from a basename ending in -overall.md (positive)", () => {
+    expect(derive("specs/x-overall.md")).toBe("overall");
+    expect(derive("dir/sub/x-overall.md")).toBe("overall"); // directory prefix immune
+    expect(derive("docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md")).toBe("overall");
+  });
+
+  it("derives the phase-spec key from any other doc path (negative)", () => {
+    expect(derive("specs/x-design.md")).toBe("phase-spec");
+    expect(derive("specs/x-plan.md")).toBe("phase-spec");
+    expect(derive("x-overall.md.bak")).toBe("phase-spec"); // endsWith semantics — no .md suffix
+  });
+
+  it("judges by basename — an absolute path derives through its file name", () => {
+    expect(derive("/repo/docs/kairos/specs/x-overall.md")).toBe("overall");
+    expect(derive("/repo/docs/kairos/specs/x-design.md")).toBe("phase-spec");
+  });
+
+  it("ignores a trailing separator per the call-site convention (file paths — node's basename strips it)", () => {
+    expect(derive("x-overall.md/")).toBe("overall");
   });
 });
 

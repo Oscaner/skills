@@ -37,6 +37,9 @@ export interface ChannelArgRow {
   values?: readonly string[];
   /** The program-scope marker (dry-run/help — accepted at any position). */
   scope?: "program";
+  /** The flag-level help line — the `--help` render's per-flag description (one
+   *  global key text, single-sourced at the channel). */
+  help?: string;
 }
 
 /** The argv channel — the CLI's flag/type/values single source. */
@@ -101,29 +104,56 @@ export interface EngineRuntime {
 
 /** The argv channel table — the CLI flag/type/enum single source (the engine-config
  *  argv channel verbatim: flag spellings, value types and enum domains ride these
- *  rows, and the command registry + the channel audit read them from here). */
+ *  rows, and the command registry + the channel audit read them from here). The
+ *  `help` rows are the flag-level descriptions of the `--help` display face (one
+ *  text per key, shared by every command that declares it). */
 export const ARGV_CHANNEL = {
-  plan: { flag: "--plan", type: "path" },
-  spec: { flag: "--spec", type: "path" },
-  findings: { flag: "--findings", type: "path" },
-  tasks: { flag: "--tasks", type: "int-list" },
+  plan: { flag: "--plan", type: "path", help: "the CDD plan document path" },
+  spec: { flag: "--spec", type: "path", help: "the design-spec document path" },
+  findings: {
+    flag: "--findings",
+    type: "path",
+    help: "the source review handoff JSON path",
+  },
+  tasks: {
+    flag: "--tasks",
+    type: "int-list",
+    help: "the task ids of the wave group (comma-separated)",
+  },
   type: {
     flag: "--type",
     type: "enum",
     values: ["wave", "branch", "spec", "plan"],
+    help: "the target face of the round",
   },
-  base: { flag: "--base", type: "sha" },
-  head: { flag: "--head", type: "sha" },
-  round: { flag: "--round", type: "int" },
+  base: { flag: "--base", type: "sha", help: "the branch range's base commit (8-char sha)" },
+  head: { flag: "--head", type: "sha", help: "the branch range's head commit (8-char sha)" },
+  round: { flag: "--round", type: "int", help: "the review/fix round number" },
   source: {
     flag: "--source",
     type: "enum",
     values: ["plan-field", "branch-upstream", "conversation-context", "user-confirmed"],
+    help: "the base artifact's source channel",
   },
-  force: { flag: "--force", type: "bool" },
-  dryRun: { flag: "--dry-run", type: "bool", scope: "program" },
-  help: { flag: "--help", alias: "-h", type: "bool", scope: "program" },
-  root: { flag: "--root", type: "path" },
+  force: { flag: "--force", type: "bool", help: "override the existing base artifact" },
+  dryRun: {
+    flag: "--dry-run",
+    type: "bool",
+    scope: "program",
+    help: "synthetic dispatch — book the round without a child spawn",
+  },
+  help: {
+    flag: "--help",
+    alias: "-h",
+    type: "bool",
+    scope: "program",
+    help: "show this help",
+  },
+  root: {
+    flag: "--root",
+    type: "path",
+    help: "the repository root (default: the current git top level)",
+  },
 } as const satisfies Readonly<Record<string, ChannelArgRow>>;
 
 /** The handoff family naming table — the canonical per-family file-name patterns

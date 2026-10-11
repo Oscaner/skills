@@ -219,8 +219,9 @@ const PRECONTRACT_DOCS = new Set<string>([
  *  T3 acceptance "doc-contract all-green on the new forms" is real, not a fixture-only suite:
  *  the wave's own plan/spec docs were CDD_BLOCKED at dispatch while `pnpm run
  *  validate` stayed green (the find-#8 gap — the gate's target docs never featured
- *  in CI). The docKey derives the way the doc faces dispatch (plan → plan,
- *  *-overall.md → overall, other spec → phaseSpec). */
+ *  in CI). The docKey derives the way the doc faces dispatch (plan → plan via the
+ *  plans dir branch · *-overall.md → overall · other spec → phase-spec — the spec
+ *  tree reads the contract's shared deriveDocType). */
 function checkDocContract(): void {
   const contract = new Contract();
   const fs = new NodeFs();
@@ -239,8 +240,7 @@ function checkDocContract(): void {
         unreadable.push(rel);
         continue;
       }
-      const docKey =
-        dir === "plans" ? "plan" : name.endsWith("-overall.md") ? "overall" : "phaseSpec";
+      const docKey = dir === "plans" ? "plan" : contract.deriveDocType(name);
       const findings = contract.validate({ docKey, path: full, content, root: REPO_ROOT, fs });
       if (findings.length === 0) {
         enforced += 1;

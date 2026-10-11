@@ -13,6 +13,12 @@
 // commander-native first-line shape (the declaration rows no longer carry a usage
 // corpus — the six-line usage product retires with the registry at T2).
 //
+// T3 — the composition root parses through the projection's commander program
+// (face/projection.ts) and dispatches through .action thin shells; this file
+// retains the ArgvParser for the run face's channel table (the Capsule's `next:`
+// spellings), the parse() channel itself stays dormant until the T6 file-level
+// deletion. CliUsageError remains the domain-run usage-error face.
+//
 // Module-level exports are types / the parser class — zero behavior-carrying bare
 // functions (the plan's zero-bare-function discipline).
 

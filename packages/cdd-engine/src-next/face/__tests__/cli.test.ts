@@ -27,6 +27,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import type { Command } from "commander";
 import { describe, expect, it } from "vitest";
 import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
@@ -38,7 +39,8 @@ import type { OpenFrame } from "../../session/run.ts";
 import { Capsule } from "../capsule.ts";
 import type { CliIo, CliOptions, DispatchScene, SyncProcess } from "../cli.ts";
 import { cli, HarnessDispatch } from "../cli.ts";
-import { CLI_COMMANDS } from "../declare.ts";
+import { CLI_COMMANDS, type CliVerb } from "../declare.ts";
+import { CommandTreeBuilder } from "../projection.ts";
 import { Words } from "../words.ts";
 
 // The retired six-line usage corpus — the pre-T2 usage product's bytes. The
@@ -352,176 +354,227 @@ describe("the command face — the six steady subcommand words", () => {
 });
 
 // ---------------------------------------------------------------------------
-// parse — the component-value validation + the unknown-flag guard
-// ---------------------------------------------------------------------------
+// parse — the component-value validation + the unknown-flag guard (re-anchored at
+// T3 onto the commander program — the SAME parse channel the runArgv dispatch
+// reads; `Cli#parse()` retired, the public entry is runArgv alone)
 
 describe("parse — the component-value validation + the unknown-flag guard", () => {
+  /** The composed parse gate — the projection's commander program (the same tree
+   *  runArgv dispatches through). */
+  const gate = new CommandTreeBuilder().program;
+  /** The parsed node of one verb — commander's parse() returns the PROGRAM; the
+   *  parsed opts/arguments live on the dispatched subcommand node (the same read
+   *  the runArgv thin shell consumes). */
+  function nodeOf(verb: CliVerb): Command {
+    const node = gate.commands.find((c) => c.name() === verb);
+    expect(node, `the ${verb} command node exists`).toBeDefined();
+    return node!;
+  }
+  /** The parsed leaf node of one parent command. */
+  function leafOf(parent: CliVerb, name: string): Command {
+    const node = nodeOf(parent).commands.find((c) => c.name() === name);
+    expect(node, `the ${parent}.${name} leaf exists`).toBeDefined();
+    return node!;
+  }
+
+  /** The code of the commander error `fn` rejects with (the composed parse
+   *  carries the throwing exitOverride — rejects, never process.exit). */
+  function commanderCode(fn: () => void): string {
+    let raw: unknown = null;
+    try {
+      fn();
+    } catch (caught) {
+      raw = caught;
+    }
+    expect(raw, "expected the commander pipeline to reject").toBeTruthy();
+    return (raw as { code?: unknown }).code as string;
+  }
+
   it("parses implement with the normalized int-list tasks + the plan + the dry-run scope", () => {
-    const parsed = cli().parse([
-      "implement",
-      "--tasks",
-      "2,1,2",
-      "--plan",
-      "docs/x.md",
-      "--dry-run",
-    ]);
-    expect(parsed.verb).toBe("implement");
-    expect(parsed.leaf).toBeNull();
-    expect(parsed.args.tasks).toBe("1,2");
-    expect(parsed.args.plan).toBe("docs/x.md");
-    expect(parsed.dryRun).toBe(true);
-    expect(parsed.help).toBe(false);
+    const implement = nodeOf("implement");
+    gate.parse(["implement", "--tasks", "2,1,2", "--plan", "docs/x.md", "--dry-run"], {
+      from: "user",
+    });
+    expect(implement.opts().tasks).toBe("1,2");
+    expect(implement.opts().plan).toBe("docs/x.md");
+    expect((implement.optsWithGlobals() as Record<string, unknown>).dryRun).toBe(true);
   });
 
   it("rejects a non-integer --tasks token (the int-list value shape)", () => {
-    expect(() => cli().parse(["implement", "--tasks", "1,x", "--plan", "x"])).toThrow(
-      /--tasks must be comma-separated integers: x/,
-    );
+    expect(() =>
+      gate.parse(["implement", "--tasks", "1,x", "--plan", "x"], { from: "user" }),
+    ).toThrow(/--tasks .* must be comma-separated integers: x/);
   });
 
   it("rejects an out-of-enum --type and --source", () => {
-    expect(() => cli().parse(["review", "--type", "bogus"])).toThrow(
-      /--type must be one of wave \| branch \| spec \| plan/,
+    expect(() => gate.parse(["review", "--type", "bogus"], { from: "user" })).toThrow(
+      /--type .* must be one of wave \| branch \| spec \| plan/,
     );
     expect(() =>
-      cli().parse(["base", "set", "--plan", "p", "--base", "d", "--source", "nope"]),
+      gate.parse(["base", "set", "--plan", "p", "--base", "d", "--source", "nope"], {
+        from: "user",
+      }),
     ).toThrow(
-      /--source must be one of plan-field \| branch-upstream \| conversation-context \| user-confirmed/,
+      /--source .* must be one of plan-field \| branch-upstream \| conversation-context \| user-confirmed/,
     );
   });
 
   it("rejects a non-sha --base / --head and a non-integer --round", () => {
     expect(
-      () => cli().parse(["review", "--type", "branch", "--base", "abc", "--head", "a".repeat(8)]),
+      () =>
+        gate.parse(["review", "--type", "branch", "--base", "abc", "--head", "a".repeat(8)], {
+          from: "user",
+        }),
       // find #10 — the sha channel's 8-char short form (spec §6.6)
-    ).toThrow(/--base must be an 8-char sha/);
-    expect(() => cli().parse(["review", "--type", "plan", "--plan", "x", "--round", "x"])).toThrow(
-      /--round must be an integer/,
-    );
+    ).toThrow(/--base .* must be an 8-char sha/);
+    expect(() =>
+      gate.parse(["review", "--type", "plan", "--plan", "x", "--round", "x"], { from: "user" }),
+    ).toThrow(/--round .* must be an integer/);
   });
 
   it("the fix face declares NO branch refs — the range rides the --findings handoff (⑦: derived, never re-declared)", () => {
     // fix --type branch parses with --plan + --findings alone (no base/head)
-    const parsed = cli().parse([
-      "fix",
-      "--type",
-      "branch",
-      "--plan",
-      "p.md",
-      "--findings",
-      "branch-review-x.json",
-    ]);
-    expect(parsed.args.base).toBeUndefined();
-    expect(parsed.args.head).toBeUndefined();
+    const fix = nodeOf("fix");
+    gate.parse(
+      ["fix", "--type", "branch", "--plan", "p.md", "--findings", "branch-review-x.json"],
+      {
+        from: "user",
+      },
+    );
+    expect((fix.opts() as Record<string, unknown>).base).toBeUndefined();
+    expect((fix.opts() as Record<string, unknown>).head).toBeUndefined();
     // re-declaring the range on the fix CLI is rejected (a dual identity)
     expect(() =>
-      cli().parse(["fix", "--type", "branch", "--base", "a".repeat(8), "--head", "b".repeat(8)]),
-    ).toThrow(/unknown option: --base/);
+      gate.parse(["fix", "--type", "branch", "--base", "a".repeat(8), "--head", "b".repeat(8)], {
+        from: "user",
+      }),
+    ).toThrow(/unknown option '--base'/);
   });
 
   it("rejects an unknown flag — the guardArgs semantics (a typo never runs a dispatch)", () => {
-    expect(() => cli().parse(["implement", "--taks", "1", "--plan", "x"])).toThrow(
-      /unknown option: --taks/,
-    );
+    // the unknown-option check fires once the required flags are satisfied
+    expect(() =>
+      gate.parse(["implement", "--tasks", "1", "--plan", "x", "--taks"], { from: "user" }),
+    ).toThrow(/unknown option '--taks'/);
   });
 
   it("rejects a non-program flag before the verb and an unknown command", () => {
-    expect(() => cli().parse(["--root", "x", "implement"])).toThrow(/unknown option: --root/);
-    expect(() => cli().parse(["implementt", "--tasks", "1"])).toThrow(
-      /unknown command: implementt/,
+    expect(() => gate.parse(["--root", "x", "implement"], { from: "user" })).toThrow(
+      /unknown option '--root'/,
+    );
+    expect(() => gate.parse(["implementt", "--tasks", "1"], { from: "user" })).toThrow(
+      /unknown command 'implementt'/,
     );
   });
 
   it("rejects a missing required flag", () => {
-    expect(() => cli().parse(["implement", "--plan", "x"])).toThrow(/missing required --tasks/);
-    expect(() => cli().parse(["review", "--tasks", "1"])).toThrow(/missing required --type/);
+    expect(() => gate.parse(["implement", "--plan", "x"], { from: "user" })).toThrow(
+      /required option '--tasks/,
+    );
+    expect(() => gate.parse(["review", "--tasks", "1"], { from: "user" })).toThrow(
+      /required option '--type/,
+    );
   });
 
   it("parses the nested leaves — base set|get · schema get · issue render", () => {
-    const set = cli().parse([
-      "base",
-      "set",
-      "--plan",
-      "p.md",
-      "--base",
-      "dev",
-      "--source",
-      "plan-field",
-    ]);
-    expect(set.verb).toBe("base");
-    expect(set.leaf).toBe("set");
-    expect(set.args.base).toBe("dev");
-    const get = cli().parse(["base", "get", "--plan", "p.md"]);
-    expect(get.leaf).toBe("get");
-    const schema = cli().parse(["schema", "get", "plan"]);
-    expect(schema.verb).toBe("schema");
-    expect(schema.positionals).toEqual(["plan"]);
-    expect(cli().parse(["issue", "render"]).leaf).toBe("render");
+    gate.parse(["base", "set", "--plan", "p.md", "--base", "dev", "--source", "plan-field"], {
+      from: "user",
+    });
+    expect((leafOf("base", "set").opts() as Record<string, unknown>).base).toBe("dev");
+    gate.parse(["base", "get", "--plan", "p.md"], { from: "user" });
+    expect(leafOf("base", "get").args).toEqual([]);
+    gate.parse(["schema", "get", "plan"], { from: "user" });
+    expect(leafOf("schema", "get").processedArgs).toEqual(["plan"]);
+    leafOf("issue", "render");
+    expect(leafOf("issue", "render").name()).toBe("render");
   });
 
   it("rejects an unknown schema type against the shared schema-type vocabulary", () => {
-    expect(() => cli().parse(["schema", "get", "bogus"])).toThrow(
+    expect(() => gate.parse(["schema", "get", "bogus"], { from: "user" })).toThrow(
       /unknown schema type: bogus \(available: overall, plan, phase-spec, plan-graph\)/,
     );
   });
 
   it("parses the gen leaf — the shared vocabulary with the phaseSpec alias normalized to the kebab key", () => {
-    expect(cli().parse(["schema", "gen", "phase-spec"]).positionals).toEqual(["phase-spec"]);
+    const gen = leafOf("schema", "gen");
+    const get = leafOf("schema", "get");
+    gate.parse(["schema", "gen", "phase-spec"], { from: "user" });
+    expect(gen.processedArgs).toEqual(["phase-spec"]);
     // the legacy camel alias normalizes to the same kebab key
-    expect(cli().parse(["schema", "gen", "phaseSpec"]).positionals).toEqual(["phase-spec"]);
-    expect(cli().parse(["schema", "gen", "plan"]).positionals).toEqual(["plan"]);
-    expect(cli().parse(["schema", "gen", "overall"]).positionals).toEqual(["overall"]);
+    gate.parse(["schema", "gen", "phaseSpec"], { from: "user" });
+    expect(gen.processedArgs).toEqual(["phase-spec"]);
+    gate.parse(["schema", "gen", "plan"], { from: "user" });
+    expect(gen.processedArgs).toEqual(["plan"]);
+    gate.parse(["schema", "gen", "overall"], { from: "user" });
+    expect(gen.processedArgs).toEqual(["overall"]);
     // the get leaf rides the SAME table — the primary spelling and the alias both parse
-    expect(cli().parse(["schema", "get", "phase-spec"]).positionals).toEqual(["phase-spec"]);
-    expect(cli().parse(["schema", "get", "phaseSpec"]).positionals).toEqual(["phase-spec"]);
+    gate.parse(["schema", "get", "phase-spec"], { from: "user" });
+    expect(get.processedArgs).toEqual(["phase-spec"]);
+    gate.parse(["schema", "get", "phaseSpec"], { from: "user" });
+    expect(get.processedArgs).toEqual(["phase-spec"]);
   });
 
-  it("rejects the gen leaf's missing and unknown types with the gen leaf's own messages", () => {
-    expect(() => cli().parse(["schema", "gen"])).toThrow("cdd schema gen: missing <type>");
-    expect(() => cli().parse(["schema", "gen", "bogus"])).toThrow(
-      /cdd schema gen: unknown schema type: bogus \(available: overall, plan, phase-spec\)/,
+  it("rejects the gen leaf's unknown types with the gen leaf's own messages (bare gen parses green — the missing-type byte lives at the run face)", () => {
+    // gen's <type> is an OPTIONAL positional — a bare `schema gen` parses green and
+    // the missing-type byte surfaces at the domain run (exit 2 · §pure commands)
+    expect(() => gate.parse(["schema", "gen"], { from: "user" })).not.toThrow();
+    expect(() => gate.parse(["schema", "gen", "bogus"], { from: "user" })).toThrow(
+      /unknown schema type: bogus \(available: overall, plan, phase-spec\)/,
     );
     // gen's vocabulary carries no plan-graph — the get leaf's special route is not
     // the gen leaf's
-    expect(() => cli().parse(["schema", "gen", "plan-graph"])).toThrow(
+    expect(() => gate.parse(["schema", "gen", "plan-graph"], { from: "user" })).toThrow(
       /unknown schema type: plan-graph/,
     );
   });
 
   it("rejects a missing leaf, an unknown leaf and an extra positional", () => {
-    expect(() => cli().parse(["base"])).toThrow(/missing subcommand — set \| get/);
-    expect(() => cli().parse(["base", "reset"])).toThrow(/unknown subcommand: reset/);
-    expect(() => cli().parse(["schema", "get", "plan", "extra"])).toThrow(
-      /unexpected argument: extra/,
+    // a missing subcommand shows the OWNING node's help (commander.help) — the
+    // base node's own set/get face, never the top-level program
+    expect(commanderCode(() => gate.parse(["base"], { from: "user" }))).toBe("commander.help");
+    expect(() => gate.parse(["base", "reset"], { from: "user" })).toThrow(
+      /unknown command 'reset'/,
+    );
+    expect(() => gate.parse(["schema", "get", "plan", "extra"], { from: "user" })).toThrow(
+      /too many arguments for 'get'/,
     );
   });
 
   it("accepts --help / -h and the dry-run scope at any position", () => {
-    expect(cli().parse(["review", "--type", "wave", "--help"]).help).toBe(true);
-    expect(cli().parse(["-h", "implement", "--tasks", "1"]).help).toBe(true);
-    expect(cli().parse(["--dry-run", "implement", "--tasks", "1", "--plan", "x"]).dryRun).toBe(
-      true,
-    );
-    expect(cli().parse(["implement", "--no-dry-run", "--tasks", "1", "--plan", "x"]).dryRun).toBe(
-      false,
-    );
+    // --help anywhere pre-empts the scan — the helpDisplayed face (exit 0)
+    expect(
+      commanderCode(() => gate.parse(["review", "--type", "wave", "--help"], { from: "user" })),
+    ).toBe("commander.helpDisplayed");
+    expect(
+      commanderCode(() => gate.parse(["-h", "implement", "--tasks", "1"], { from: "user" })),
+    ).toBe("commander.helpDisplayed");
+    const implement = nodeOf("implement");
+    gate.parse(["--dry-run", "implement", "--tasks", "1", "--plan", "x"], { from: "user" });
+    expect((implement.optsWithGlobals() as Record<string, unknown>).dryRun).toBe(true);
+    // the negative spelling is retired — `--no-dry-run` is an unknown option
+    expect(() =>
+      gate.parse(["implement", "--no-dry-run", "--tasks", "1", "--plan", "x"], { from: "user" }),
+    ).toThrow(/unknown option '--no-dry-run'/);
   });
 
   it("a help flag on a leaf command pre-empts the required leaf word — base --help", () => {
-    const parsed = cli().parse(["base", "--help"]);
-    expect(parsed.help).toBe(true);
-    expect(parsed.verb).toBe("base");
-    expect(parsed.leaf).toBeNull();
+    expect(commanderCode(() => gate.parse(["base", "--help"], { from: "user" }))).toBe(
+      "commander.helpDisplayed",
+    );
   });
 
-  it("the bool negation spelling — --no-force yields args.force 'false', --force 'true'", () => {
-    const flags = ["--force", "--no-force"];
-    for (const flag of flags) {
-      expect(
-        cli().parse(["base", "set", "--plan", "p", "--base", "d", "--source", "plan-field", flag])
-          .args.force,
-      ).toBe(flag === "--force" ? "true" : "false");
-    }
+  it("the bool negation spelling is retired — --force is the single face", () => {
+    const set = leafOf("base", "set");
+    gate.parse(["base", "set", "--plan", "p", "--base", "d", "--source", "plan-field", "--force"], {
+      from: "user",
+    });
+    expect((set.opts() as Record<string, unknown>).force).toBe(true);
+    expect(() =>
+      gate.parse(
+        ["base", "set", "--plan", "p", "--base", "d", "--source", "plan-field", "--no-force"],
+        { from: "user" },
+      ),
+    ).toThrow(/unknown option '--no-force'/);
   });
 
   it("runArgv exits 2 with the usage line + the message (a bad flag never runs a dispatch)", async () => {
@@ -529,8 +582,7 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
     try {
       const code = await command.runArgv(["implement", "--taks", "1"]);
       expect(code).toBe(2);
-      expect(io.stderrText).toContain(RETIRED_USAGE.implement);
-      expect(io.stderrText).toContain("unknown option: --taks");
+      expect(io.stderrText).toMatch(/required option '--tasks/);
     } finally {
       cleanup();
     }
@@ -1685,9 +1737,13 @@ describe("P4.1 T4 — the next literal is a complete executable command (zero-er
       .split(/\s+/);
   }
 
-  /** The secondary-parse gate — the literal's argv must parse with zero errors. */
+  /** The secondary-parse gate — the literal's argv must parse with zero errors
+   *  (the same commander program the runArgv dispatch reads; `Cli#parse()`
+   *  retired at T3). */
   function parses(literal: string): void {
-    expect(() => cli().parse(argvOf(literal))).not.toThrow();
+    expect(() =>
+      new CommandTreeBuilder().program.parse(argvOf(literal), { from: "user" }),
+    ).not.toThrow();
   }
 
   const wave = { type: "wave", id: "1,2", plan: "docs/kairos/plans/p3.md" } as const;
@@ -1764,7 +1820,9 @@ describe("P4.1 T4 — the next literal is a complete executable command (zero-er
 
   it("done — the bare terminal word, never fed to parse (a bare `done` is not a command)", () => {
     expect(literalOf({ kind: "done" })).toBe("done");
-    expect(() => cli().parse(["done"])).toThrow(/unknown command: done/);
+    expect(() => new CommandTreeBuilder().program.parse(["done"], { from: "user" })).toThrow(
+      /unknown command 'done'/,
+    );
   });
 
   it("routeWords sync — the four literal verbs ARE the four route classifier words", () => {
@@ -2112,6 +2170,204 @@ describe("the pure commands — schema / issue / base", () => {
         "docs/kairos/plans/missing.md",
       ]);
       expect(getMissing).toBe(2);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T3 — the commander-native composition root (behavior probes): runArgv parses
+// through the projection's commander program (face/projection.ts), the domain-run
+// thin shells dispatch the parsed commands, and the exit-code discriminator maps
+// the CommanderError surface (§3.1: `commander.help` + exit 0 → 0 · non-zero →
+// 2 · `commander.helpDisplayed` → 0 · usage-class codes → 2). Every probe below
+// pins commander's own bytes (探针实证 — the discrimination face, never a
+// self-built rerender).
+// ---------------------------------------------------------------------------
+
+describe("T3 — the commander-native composition root: program parse + .action shells + the exit-code discriminator", () => {
+  it("bare `cdd` → commander program help + exit 2, no custom missing-command text (§3.3)", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv([]);
+      expect(code).toBe(2);
+      // the commander program face — Usage/Options/Commands (the error-context
+      // help lands on the io stderr channel, commander's own byte choice)
+      const out = io.stdoutText + io.stderrText;
+      expect(out).toContain("Usage: cdd [options] [command]");
+      expect(out).toContain("implement");
+      expect(out).toContain("review");
+      expect(out).not.toContain("missing command");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a missing subcommand shows the OWNING node's help, exit 2 (base set/get, never the top program face)", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["base"]);
+      expect(code).toBe(2);
+      const out = io.stdoutText + io.stderrText;
+      // the base node's own helpInformation — its subcommand table, not the
+      // top-level program face
+      expect(out).toContain("Usage: cdd base [options] [command]");
+      expect(out).toContain("set [options]");
+      expect(out).toContain("get [options]");
+      expect(out).not.toContain("Usage: cdd [options] [command]");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the built-in help [command] reuse — `cdd help` and `cdd base help` exit 0 with the owning face (v0.9)", async () => {
+    const program = fixture();
+    const base = fixture();
+    try {
+      const programCode = await program.command.runArgv(["help"]);
+      expect(programCode).toBe(0);
+      expect(program.io.stdoutText).toContain("Usage: cdd [options] [command]");
+      const baseCode = await base.command.runArgv(["base", "help"]);
+      expect(baseCode).toBe(0);
+      expect(base.io.stdoutText).toContain("Usage: cdd base [options] [command]");
+    } finally {
+      program.cleanup();
+      base.cleanup();
+    }
+  });
+
+  it("a leaf's help positional → the excess-arguments usage face, exit 2 (`implement help`)", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      // bare `implement help` — commander's required-option check fires first
+      // (implement requires --tasks/--plan), still the usage face → 2
+      expect(await command.runArgv(["implement", "help"])).toBe(2);
+      io.stderrText = "";
+      // with the required options present the excess-arguments byte surfaces
+      const code = await command.runArgv(["implement", "--tasks", "1", "--plan", "p", "help"]);
+      expect(code).toBe(2);
+      expect(io.stderrText).toContain("too many arguments for 'implement'");
+      expect(io.stderrText).toContain("Expected 0 arguments but got 1: help");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("`cdd help <bogus>` → the program help + exit 2 (invalid target, exit 1 → 2)", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["help", "bogus"]);
+      expect(code).toBe(2);
+      expect(io.stdoutText + io.stderrText).toContain("Usage: cdd [options] [command]");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("verb-less `--help` flips to exit 0 (§3.4) — the helpDisplayed face", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["--help"]);
+      expect(code).toBe(0);
+      expect(io.stdoutText).toContain("Usage: cdd [options] [command]");
+      expect(io.stdoutText).toContain("Commands:");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a commander-native value-domain rejection exits 2 with commander's own bytes", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["review", "--type", "bogus"]);
+      expect(code).toBe(2);
+      expect(io.stderrText).toContain(
+        "error: option '--type <wave|branch|spec|plan>' argument 'bogus' is invalid",
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the preAction conditional-required group exits 2 with the group message (§4.2)", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["review", "--type", "wave"]);
+      expect(code).toBe(2);
+      // the REQUIRED_GROUPS InvalidArgumentError rides the same commander pipeline
+      expect(io.stderrText).toContain("--plan required when --type wave");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the schema <type> vocabulary rejects an unknown type through the argument parseArg", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["schema", "get", "bogus"]);
+      expect(code).toBe(2);
+      expect(io.stderrText).toContain(
+        "unknown schema type: bogus (available: overall, plan, phase-spec, plan-graph)",
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the schema get <type> domain read — a valid type exits 0 with the derived schema", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["schema", "get", "phase-spec"]);
+      expect(code).toBe(0);
+      expect(io.stdoutText).toContain('"docType": "phase-spec"');
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the base get domain read — a set artifact exits 0 over the write-through path", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      const plan = planFor(repoRoot);
+      expect(
+        await command.runArgv([
+          "base",
+          "set",
+          "--plan",
+          plan,
+          "--base",
+          "develop",
+          "--source",
+          "plan-field",
+        ]),
+      ).toBe(0);
+      io.stdoutText = "";
+      const code = await command.runArgv(["base", "get", "--plan", plan]);
+      expect(code).toBe(0);
+      expect(io.stdoutText).toContain('"base": "develop"');
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("review --type spec --dry-run — the thin-shell domain run synthesizes the approval", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const spec = path.join(repoRoot, "docs", "kairos", "specs", "s1-design.md");
+      const code = await command.runArgv([
+        "review",
+        "--type",
+        "spec",
+        "--spec",
+        spec,
+        "--dry-run",
+        "--root",
+        repoRoot,
+      ]);
+      expect(code).toBe(0);
+      expect(io.stdoutText).toContain("next: done");
     } finally {
       cleanup();
     }

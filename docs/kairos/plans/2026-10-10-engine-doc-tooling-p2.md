@@ -2,7 +2,7 @@
 
 **Spec:** [2026-10-10-engine-doc-tooling-p2-design.md](docs/kairos/specs/2026-10-10-engine-doc-tooling-p2-design.md)
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall.md v1.1](docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.2 · 2026-10-11
+- **Version**: v0.3 · 2026-10-11
 - **Depends on**: 依赖升级与 src 更名程序 P2（sweep 面关系 · D8 拆 pin——本 plan 引擎改动**先行实现于现行 `src-next/` 树**，rename sweep 随后全库覆盖新文件面）；本程序 P1 ‖ P2 并行无硬依赖（父总体 Dependency graph）· 前置 = P2 design spec v0.2 Approved（review-fix 链全闭 · 拆 pin 回填后）
 - **Base**: develop
 
@@ -57,6 +57,7 @@
   - Modify: `packages/kairos/skills/cdd-spec-writer/SKILL.md`（`author-spec` 节点文本 · spec §5.1）
   - Modify: `packages/kairos/skills/cdd-plan/SKILL.md`（`author-plan` 节点文本 · spec §5.2）
   - Modify: `CLAUDE.md`（删除四块：`Development-time CDD invocation` · `cdd CLI surface — zero new subcommands` · `Engine tests` · `Language policy → Review convergence` 指针 · spec §6.1）
+  - Modify: `packages/kairos/tests/presentation-surface.test.ts`（CLAUDE.md Non-goal #1 散文 pin 三断言移除 · 删除面直接推论 · spec §6.2/§1.4 v0.3——README 族 pin（297-298 行）零动 · wave-review-2 orchestration ledger 回填）
   - Regenerate（`pnpm run emit`）: `.claude-plugin/` · `.cursor-plugin/` · `marketplace/`（SKILL.md 派生产品 · repo 铁律）
   - Validate: `pnpm run validate`（emit 新鲜 · kairos tree/wiring guard · skill anatomy 契约 · 脚本单元）· `pnpm run precommit`
 - **Consumes**: design spec §5（消费面先 gen 后填）· §6（CLAUDE.md 去流程化）· Task 1 的 `schema gen` 真名（消费面引用真名）· SKILL.md 现状文本（author-* 节点措辞）
@@ -80,3 +81,4 @@
 |---|---|---|---|
 | v0.1 | 2026-10-11 | P2 实现计划：两提交面两任务——Task 1 引擎面（`schema gen` leaf + `Projector#skeleton()` 第六投影 + `SkeletonAssembler` + colocated pins（三型骨架判压零 finding · CLI 行为 · 占位零残留）+ declare.ts 头注释计数刷新）· Task 2 消费面（cdd-spec-writer/cdd-plan author-* 先 gen 后填 + SKILL.md 三词条零命中 + emit 再生成 + CLAUDE.md 去流程化四块 Q3→c）· 任务解自 design spec v0.1（§2–§7 · 分锚占位 · 节头数字真值 · 跨程序树 pin 前置） | [human] · Claude Opus 5（kairos:cdd-plan · writing-plans import） |
 | v0.2 | 2026-10-11 | **P2 拆 pin 回填（用户裁定 ② · 父 overall v1.2 D8 · spec v0.2 同步）**：跨程序树硬门 → **sweep 面协调**——Task 1/2 引擎改动先行实现于现行 `src-next/` 树（plan 的 `src-next/` 字面量即实现真路径 · rename sweep 随后全库覆盖新文件面）；Constraints「跨程序树 pin 硬门」行改写 · Depends on header 同步 | Oscar M. · Claude Opus 5（P2 cdd-dev 进入前复核 · 用户拆 pin 裁定） |
+| v0.3 | 2026-10-11 | **wave-review-2 取证回填（F1 nit · orchestration ledger）**：Task 2 Files 补 `packages/kairos/tests/presentation-surface.test.ts`（CLAUDE.md Non-goal #1 散文 pin 移除 · 删除面直接推论 · spec §1.4 v0.3 同语修正——README 族 pin 零动） | Oscar M. · Claude Opus 5（kairos:cdd-dev wave-review-2 · orchestrator backfill） |

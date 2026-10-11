@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P3 设计：CLI 框架化收口 + 变更集归并
-- **Version**: v0.2 · 2026-10-11
+- **Version**: v0.3 · 2026-10-11
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P3] 会话 · 2026-10-11）
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall](2026-10-10-engine-doc-tooling-overall.md)
@@ -17,7 +17,7 @@
 
 ### 2. commander 声明模型（数据驱动单源）
 #### 2.1 ARGV_CHANNEL 行度入 .option()/.command()
-- `infra/runtime.ts` ARGV_CHANNEL 行字段（flag · alias · type · values · scope · help）投影到 commander `.option()`（`--no-` 取反由 commander 原生派生）；`face/registry.ts` CLI_COMMANDS 行的 description/usage 投影到命令 `.description()`——**零平行列表**：声明仍是行数据，commander 是消费者
+- `infra/runtime.ts` ARGV_CHANNEL 行字段（flag · alias · type · values · scope · help）投影到 commander `.option()`（**`--no-` 取反不**由 commander 派生——bool 行需**双侧显式注册**：`dryRun` 行同时投影 `.option('--dry-run')` 与 `.option('--no-dry-run')` · `--force` 同理双侧 · 消费面既有拼写零更替 · 机制实测修正 2026-10-11）；`face/registry.ts` CLI_COMMANDS 行的 description/usage 投影到命令 `.description()`——**零平行列表**：声明仍是行数据，commander 是消费者
 - **节点绑定规则**：命令级 keys（`CLI_COMMANDS[cmd].keys`）→ 该命令节点 `.option()`（`required: true` → `.requiredOption()`）；`scope: "program"` 行 → 程序节点 `.option()` **并随行并入各命令节点**（保「program flags accepted at any position」语义 · cli.test.ts:494/698 任意位置接受 pin 语义保）· **help 行（`--help`/`-h`）不投影**——对齐 commander 内建 help option（默认 `-h, --help`）不重复注册（守卫不冲突）。命令节点 option 集 = 其 keys + program scopes → §5.3 候选结构保真骨架（出错节点自身注册集 + 祖先链）
 #### 2.2 guard channel-closure 保
 - `scripts/lib/guard.ts` checkChannels 结构性 pin 保（每声明键可解析于 ARGV_CHANNEL）——CLI_COMMANDS 保持可导入，投影不破坏声明契约（每键仍单点声明）
@@ -38,7 +38,7 @@
 
 ### 4. 校验组件（域语义收口）
 #### 4.1 commander 不接的语义
-- 值域 enum（`--type` wave|branch|spec|plan · `--source` plan-field|branch-upstream|conversation-context|user-confirmed）· int-list 格式（`--tasks` n,n,… · `--round` 整数）· 8-char sha（`--base`/`--head`）· **分布组取一语义**（review/fix 的 `--plan` / `--spec` / `--base --head`）
+- 值域 enum（`--type` wave|branch|spec|plan · `--source` plan-field|branch-upstream|conversation-context|user-confirmed）· int-list 格式（`--tasks` n,n,… · `--round` 整数）· 8-char sha（`--base`/`--head`）· **schema `<type>` 类型词表**（`typeKey()`：primary 拼写归一 · bogus → usage 域错 · phaseSpec 别名归一 · docKeys/plan-graph 路由——承接 argv.ts #positionalsOf 面）· **按 type 条件必填组（复刻现状 · 非互斥 · 修正 2026-10-11）**：review `{plan}` / `{spec}` / `{base, head}` · fix `{plan}` / `{spec}` / `{findings}`（fix branch face = `--findings` · fix 无 `--base`/`--head` 声明面）· 触发顺序 = type 条件断言必填组优先（缺失 → usage 域错）——现状 `review --type wave --plan X --spec Y` 保持接受（互斥为新拒绝面故不引入）
 #### 4.2 错误分类
 - 校验失败 → usage 域错误 → 退出 2；`CliUsageError` 面携带字段删除（did-you-mean 落 commander · §5.3），消息字节 commander 原生
 
@@ -65,8 +65,8 @@
 #### 7.2 合并变更集 major
 - 一个 cdd-engine 变更集 · 主题归并：P1 deferred（review face overall 键 · help 重建 · 词表统一）+ P2 deferred（schema gen 模板写作 · 去流程化）+ P3 框架化（commander ^15 · 形面/错误字节更替 · 架构重写）——标 **major**（breaking 段叙事 · 终版 2.0.0 由存量 major 决定 · 不发布）· 存量积压 changesets 留守
 #### 7.3 测试 pins 更替面
-- 更替（deliberate）：CLI_USAGE 六行字节 pin · help/usage 字面 pin（`"usage: cdd"` ×8 · `"commands:"`/`"subcommands:"` 等 · 程序旗标尾注正则 ×6）· smoke-cdd `usage: cdd implement` 锚 · **verb-less `--help`/`-h` 退出 2→0**（cli.test.ts:563 · missing-command 面字节 → commander 原生程序面帮助 · §3.4）· pre-verb unknown option pin（cli.test.ts:424 `parse(["--root", "x", "implement"])` → unknown option · 归属程序节点校验 · 拒绝语义保 · 字节随 commander 更替）
-- 语义保（断言形态更替）：退出码表 · 三 ID did-you-mean 用例 · missing command/unknown option 行为 · bin.test 头断言表 · **missing-required 族**（cli.test.ts:783 `missing required --tasks`/`expected --tasks <n|n,n,…>` · bin.test.ts:65 `missing required --plan`）——语义保 · 字节归属 `.requiredOption()`（`required: true` · §2.1）更替，值域/分布组校验仍留校验组件（§4）
+- 更替（deliberate）：CLI_USAGE 六行字节 pin · help/usage 字面 pin（`"usage: cdd"` ×8 · `"commands:"`/`"subcommands:"` 等 · 程序旗标尾注正则 ×6）· smoke-cdd `usage: cdd implement` 锚 · **verb-less `--help`/`-h` 退出 2→0**（cli.test.ts:563 · missing-command 面字节 → commander 原生程序面帮助 · §3.4）· pre-verb unknown option pin（cli.test.ts:424 `parse(["--root", "x", "implement"])` → unknown option · 归属程序节点校验 · 拒绝语义保 · 字节随 commander 更替）· **`Cli#parse()` 退役**（37 处 `.parse([` 中语义保用例重锚 `runArgv` 级断言 · 字面字节随 commander 更替）· **三处 parse 级新更替面**（退出码均不变）：unknown command 原生命令名建议（`implementt` → Did you mean implement? · 现面无命令名建议——新增面）· 缺子命令（`base` 独跑）→ commander 原生程序面帮助（更替现状 missing subcommand — set | get）· `-h` pre-verb → 程序面帮助（更替现状渲染 verb 面帮助 · exit 均 0）
+- 语义保（断言形态更替）：退出码表 · 三 ID did-you-mean 用例 · 裸 cdd 行为（退 2 + 原生程序面帮助 · **无 missing-command 定制文本** · 字节随 commander）· schema `<type>` 词表语义（unknown-schema-type 拒绝重锚 · phaseSpec 别名归一 · plan-graph 路由）· bin.test 头断言表 · **missing-required 族**（cli.test.ts:783 `missing required --tasks`/`expected --tasks <n|n,n,…>` · bin.test.ts:65 `missing required --plan`）——语义保 · 字节归属 `.requiredOption()`（`required: true` · §2.1）更替，值域/类型词表/必填组校验仍留校验组件（§4）
 
 ### Acceptance criteria
 
@@ -96,3 +96,4 @@
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-11 | P3 设计 v0.1——CLI 框架化收口 + 变更集归并：commander ^15 数据驱动单源 · 六前提整 face 重构 · commander 原生为基（Q5）· 语义契约三保（Q6）· 变更集 major（P1/P2 deferred + 框架化归并 · 存量留守 · 不发布） | Oscar M. · Claude Opus 5（kairos:cdd-design [P3] · 2026-10-11） |
 | v0.2 | 2026-10-11 | P3 设计 v0.2——spec review round 1 fix：verb-less `--help`/`-h` 退出 2→0 deliberate 更替定裁（§3.3 域限制 · §3.4 · §7.3 · Constraints 退出码表更替边界）· pre-verb 泛型 did-you-mean 候选收窄定裁（§5.3）· 节点绑定规则补（§2.1 · `required: true` → `.requiredOption()` · help 行不投影）· missing-required 族字节归属 `.requiredOption()`（§7.3） | Oscar M. · Claude Opus 5（kairos:cdd-design [P3] · 2026-10-11） |
+| v0.3 | 2026-10-11 | P3 设计 v0.3——plan review round 1 漂移归口回填（编排器 · spec 冻结解除）：`--no-` 取反机制实测修正（commander 15.0.0 不派生 · bool 行双侧显式注册 · §2.1 标注）· §4.1 校验组改按 type 条件必填（复刻现状 · 非互斥 · fix branch = `--findings`）· schema `<type>` 词表承接（`typeKey` · phaseSpec 别名 · plan-graph 路由）· §7.3 更替清单扩列 `Cli#parse()` 退役 + 三处 parse 级新面（unknown command 命令名建议 · 缺子命令程序面 · `-h` pre-verb 程序面）· 语义保条对齐裸 cdd 行为（无 missing-command 定制文本） | Oscar M. · Claude Opus 5（kairos:cdd-plan 归口 · 2026-10-11） |

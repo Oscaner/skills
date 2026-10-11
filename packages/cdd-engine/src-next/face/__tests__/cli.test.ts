@@ -37,7 +37,8 @@ import { FIX_READBACK_SUFFIX } from "../../session/next.ts";
 import type { OpenFrame } from "../../session/run.ts";
 import { Capsule } from "../capsule.ts";
 import type { CliIo, CliOptions, DispatchScene, SyncProcess } from "../cli.ts";
-import { CLI_COMMANDS, CLI_USAGE, cli, HarnessDispatch } from "../cli.ts";
+import { cli, HarnessDispatch } from "../cli.ts";
+import { CLI_COMMANDS, CLI_USAGE } from "../registry.ts";
 import { Words } from "../words.ts";
 
 // ---------------------------------------------------------------------------

@@ -5,15 +5,18 @@
 // unchanged in count). This module is the new tree's SOLE BARE ENTRY: the
 // `cli` composition root (the module's one bare-function export, admitted by the
 // plan's zero-bare-function discipline for composition roots) wires the contract /
-// session / face objects into the ONE CLI the bin thin entry boots.
+// session / face objects into the ONE CLI the bin thin entry boots. Task 3 (P1)
+// reorganized the face into one boundary per responsibility — the command registry
+// (face/registry.ts, the six subcommand declarations + usage data) and the typed
+// argv parse channel (face/argv.ts, the ArgvParser + the parsed/usage-error faces);
+// CLI_COMMANDS stays re-exported here for the guard audit's stable door (the guard
+// reads the same registry rows). This module keeps the RUN face: the dispatch seam
+// (HarnessDispatch — the production default of the lifecycle's dispatch step),
+// the work/pure command run bodies, the pre-flight orchestration and the render
+// faces' separation (the renderers stay injected — the CLI orchestrates the call,
+// never re-types their bytes).
 //
-//   · the command registry — the six subcommand declarations (name · usage · the
-//     declared arg keys). The flag spellings, value types and enum domains are NOT
-//     a second hand-written list: every key resolves through the engine-config argv
-//     channel (the single data source), so a channel rename fails the guard scan.
-//   · Cli#parse — tokenize + component-value validation (int-list tasks, enum type /
-//     source, sha base/head, int round) + the guardArgs semantics (every flag the
-//     command did not declare is rejected — the acceptance's unknown-flag BLOCK).
+//   · Cli#parse — delegated to the shared ArgvParser (face/argv.ts).
 //   · Cli#run — dispatch the parsed command to its run body. The work commands
 //     (implement / review / fix) assemble the lifecycle (session/run), the capsule +
 //     words (face), the ledger (session/ledger) and the task graph (contract parse)
@@ -62,6 +65,7 @@ import type { PreFlightVerdict } from "../session/preflight.ts";
 import { PreFlight } from "../session/preflight.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame, RunState } from "../session/run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../session/run.ts";
+import { ArgvParser, CliUsageError, type ParsedCommand } from "./argv.ts";
 import { Capsule } from "./capsule.ts";
 import { GraphView } from "./graph-view.ts";
 import {
@@ -72,226 +76,17 @@ import {
   type HostReferenceTable,
   REFS,
 } from "./host.ts";
+import { CLI_COMMANDS, CLI_USAGE, type CliVerb } from "./registry.ts";
 import { Words } from "./words.ts";
 
 // ---------------------------------------------------------------------------
-// the command-face vocabulary — the six steady subcommand words
+// the stable door — the face's public surface stays here (the guard audit reads
+// the same registry rows; the parse/usage-error faces live in face/argv.ts)
 // ---------------------------------------------------------------------------
 
-/** The six subcommand words — the CLI command face (steady: implement · review ·
- *  fix · schema · issue · base). T20 converges the base command face: `cdd base
- *  set|get` rides the six-command surface (unchanged in count). */
-export type CliVerb = "implement" | "review" | "fix" | "schema" | "issue" | "base";
-
-/** The nested leaf words — the sub-command surfaces of the pure commands. */
-export type CliLeafName = "get" | "set" | "render" | "gen";
-
-/** The per-command usage lines — the steady consumption face (byte-stable across
- *  the tree generations; a typo in a usage line is a red consumer-side test). */
-export const CLI_USAGE: Record<CliVerb, string> = {
-  implement: "usage: cdd implement --tasks <n|n,n,…> --plan <path>",
-  review:
-    "usage: cdd review --type <wave|branch|spec|plan> [--tasks <n|n,n,…>] (--plan <path> | --spec <path> | branch: --base <sha> --head <sha>) [--round <n>]",
-  fix: "usage: cdd fix --type <wave|branch|spec|plan> [--tasks <n|n,n,…>] [--findings <path>] (--plan <path> | --spec <path>)",
-  base: "usage: cdd base <set|get> --plan <path> [set: --base <branch> --source <source>] [--force]",
-  schema: "usage: cdd schema <get|gen> <type>",
-  issue: "usage: cdd issue render",
-};
-
-/** The component-value types of the argv channel (the engine-config type names). */
-export type ChannelValueType = "string" | "path" | "int-list" | "enum" | "sha" | "int" | "bool";
-
-/** The schema `<type>` vocabulary — the get and gen leaves' ONE shared table
- *  (one table, two faces, spec §5.3): the primary DocKey spellings (overall |
- *  plan | phase-spec) plus the legacy `phaseSpec` alias normalized to the kebab
- *  key. One normalizing vocabulary, never a second hand-written list — the get
- *  leaf additionally routes `plan-graph` (a display type, not a doc key); each
- *  leaf's error message names its own values (get: overall, plan, phase-spec,
- *  plan-graph · gen: overall, plan, phase-spec). */
-const GEN_TYPE_KEYS: Record<string, DocKey> = {
-  overall: "overall",
-  plan: "plan",
-  "phase-spec": "phase-spec",
-  phaseSpec: "phase-spec",
-};
-
-/** One argv-channel entry — the declared flag / type / enum domain of one key. */
-export interface ChannelArg {
-  /** The canonical key (tasks / type / plan / …). */
-  key: string;
-  /** The `--flag` spelling. */
-  flag: string;
-  /** The value type (the engine-config channel type). */
-  type: ChannelValueType;
-  /** The enum domain, when the type is enum. */
-  values?: readonly string[];
-}
-
-// ---------------------------------------------------------------------------
-// the command registry — the six subcommand declarations
-// ---------------------------------------------------------------------------
-
-/** A per-command value-type override — a declared key whose value shape differs
- *  from the channel's global typing for that key (base set's `--base` carries
- *  a branch name, never the review range's 8-char sha). */
-export type CliValueOverride = "branch";
-
-/** One declared arg of a command — the key + how strictly the run requires it. */
-export interface CliArgSpec {
-  /** The canonical engine-config argv-channel key. */
-  key: string;
-  /** Whether the run requires the value (enforced at parse). */
-  required?: boolean;
-  /** The value-type override (only where the command's use differs from the channel). */
-  valueType?: CliValueOverride;
-}
-
-/** One nested leaf command (base set|get · schema get · issue render). */
-export interface CliLeafSpec {
-  name: CliLeafName;
-  usage: string;
-  description: string;
-  keys: readonly CliArgSpec[];
-  positionals?: readonly CliArgSpec[];
-}
-
-/** One subcommand declaration — the command face's data row. */
-export interface CliCommandSpec {
-  name: CliVerb;
-  usage: string;
-  description: string;
-  keys: readonly CliArgSpec[];
-  positionals?: readonly CliArgSpec[];
-  leaves?: readonly CliLeafSpec[];
-}
-
-/** The six subcommand declarations — implement, review, fix (the lifecycle work
- *  commands) plus the pure base / schema / issue artifact commands. */
-export const CLI_COMMANDS: readonly CliCommandSpec[] = [
-  {
-    name: "implement",
-    usage: CLI_USAGE.implement,
-    description: "run the task implement phase",
-    keys: [{ key: "tasks", required: true }, { key: "plan", required: true }, { key: "root" }],
-  },
-  {
-    name: "review",
-    usage: CLI_USAGE.review,
-    description: "run a review — task | branch | spec | plan",
-    keys: [
-      { key: "type", required: true },
-      { key: "tasks" },
-      { key: "plan" },
-      { key: "spec" },
-      { key: "base" },
-      { key: "head" },
-      { key: "round" },
-      { key: "root" },
-    ],
-  },
-  {
-    name: "fix",
-    usage: CLI_USAGE.fix,
-    description: "fix review findings — task | branch | spec | plan",
-    keys: [
-      { key: "type", required: true },
-      { key: "tasks" },
-      { key: "findings" },
-      { key: "spec" },
-      { key: "plan" },
-      { key: "root" },
-    ],
-  },
-  {
-    name: "base",
-    usage: CLI_USAGE.base,
-    description: "read/write base.json (single CDD --plan target)",
-    keys: [],
-    leaves: [
-      {
-        name: "set",
-        usage: CLI_USAGE.base,
-        description: "write the base artifact",
-        keys: [
-          { key: "plan", required: true },
-          { key: "base", required: true, valueType: "branch" },
-          { key: "source", required: true },
-          { key: "force" },
-        ],
-      },
-      {
-        name: "get",
-        usage: CLI_USAGE.base,
-        description: "read the base artifact",
-        keys: [{ key: "plan", required: true }],
-      },
-    ],
-  },
-  {
-    name: "schema",
-    usage: CLI_USAGE.schema,
-    description: "read canonical doc-structure schemas (discovery, zero enforcement)",
-    keys: [{ key: "plan" }],
-    leaves: [
-      {
-        name: "get",
-        usage: CLI_USAGE.schema,
-        description: "print the derived doc-structure schema for <type> (or the plan-graph read)",
-        keys: [{ key: "plan" }],
-        positionals: [{ key: "type", required: true }],
-      },
-      {
-        name: "gen",
-        usage: CLI_USAGE.schema,
-        description:
-          "render the derived doc skeleton for <type> to stdout (the writing-start scaffold)",
-        keys: [{ key: "plan" }],
-        positionals: [{ key: "type" }],
-      },
-    ],
-  },
-  {
-    name: "issue",
-    usage: CLI_USAGE.issue,
-    description: "aggregate issue-body rendering (cdd issue render, zero enforcement)",
-    keys: [],
-    leaves: [
-      {
-        name: "render",
-        usage: CLI_USAGE.issue,
-        description: "render the aggregate issue body (stdin findings JSON → stdout)",
-        keys: [],
-      },
-    ],
-  },
-];
-
-// ---------------------------------------------------------------------------
-// the parse/run result + error surfaces
-// ---------------------------------------------------------------------------
-
-/** One parsed command — the validated verb + values (undefined = the flag absent). */
-export interface ParsedCommand {
-  verb: CliVerb;
-  leaf: CliLeafName | null;
-  leafSpec: CliLeafSpec | null;
-  args: Record<string, string>;
-  positionals: readonly string[];
-  dryRun: boolean;
-  help: boolean;
-}
-
-/** The usage-error surface — parse rejects with the command's usage line attached
- *  (the run face prints `usage` then the message and exits 2 — the steady exit-code
- *  table's usage row). */
-export class CliUsageError extends Error {
-  readonly usage: string;
-
-  constructor(message: string, usage: string) {
-    super(message);
-    this.usage = usage;
-  }
-}
+/** The command registry — re-exported for the face's single door (the guard audit
+ *  imports CLI_COMMANDS through this door; the parse face owns the rows). */
+export { CLI_COMMANDS } from "./registry.ts";
 
 /** The CLI io seam — production wraps process stdio; tests capture. */
 export interface CliIo {
@@ -384,6 +179,9 @@ export class HarnessDispatch {
   readonly #io: CliIo;
   readonly #scene: DispatchScene;
   readonly #findings: string | null;
+  /** The handoff-schema face — stateless, one shared instance (the read-back
+   *  validator + the injected prompt text). */
+  readonly #handoffSchema = new HandoffSchema();
 
   constructor(opts: {
     env?: ProcessEnvLike;
@@ -710,7 +508,7 @@ export class HarnessDispatch {
     const scene = this.#scene;
     const op = this.#opOf(frame);
     const face = this.#familyOf(op, frame.type).schema ?? "work";
-    const schema = new HandoffSchema();
+    const schema = this.#handoffSchema;
     const path = scene.ledger.handoffPath(op, frame.type, frame.params);
     const draft = scene.ledger.readHandoff(op, frame.type, frame.params);
     if (draft === null) {
@@ -866,7 +664,7 @@ export class HarnessDispatch {
     const face = this.#familyOf(op, frame.type).schema ?? "work";
     const evidence = face === "work";
     const prefix = evidence ? this.#evidencePrefix(frame) : "tasks";
-    return new HandoffSchema().schemaText(face, evidence, prefix);
+    return this.#handoffSchema.schemaText(face, evidence, prefix);
   }
 
   /** The evidence file's family prefix (§3.7 naming) — the task-family work rounds
@@ -1016,8 +814,10 @@ export class Cli {
   readonly #stdinRead: () => string;
   readonly #issue: IssueBodyRenderer;
   readonly #translator: Translator;
-  readonly #channels: Record<string, ChannelArg>;
-  readonly #docKeys: readonly string[];
+  /** The typed argv parse face (face/argv.ts) — the resolved channel table + the
+   *  doc-key vocabulary the parse reads; the run face passes the SAME channel
+   *  table to the capsule (one flag-spelling source, never a hard-coded format). */
+  readonly #parser: ArgvParser;
   /** The plan-graph display (the schema get plan-graph + the pre-flight face). */
   readonly #graphView: GraphView;
   /** The lifecycle pre-flight seam (P4.1 T1) — the single dispatch gate the work
@@ -1048,8 +848,11 @@ export class Cli {
     this.#stdinRead = opts.stdinRead ?? (() => readFileSync(0, "utf8"));
     this.#translator = opts.translator ?? new Translator(this.#words);
     this.#issue = new IssueBodyRenderer(this.#words, this.#translator);
-    this.#channels = this.#channelTable();
-    this.#docKeys = Object.keys(this.#projector.registries().schema);
+    this.#parser = new ArgvParser({
+      config: this.#config,
+      dryRun: this.#dryRun,
+      docKeys: Object.keys(this.#projector.registries().schema),
+    });
     this.#graphView = new GraphView();
     this.#contract = new Contract();
     this.#preflight =
@@ -1062,147 +865,15 @@ export class Cli {
   }
 
   // ---------------------------------------------------------------------------
-  // parse — tokenize + component validation + the unknown-flag guard
+  // parse — delegated to the shared typed argv channel (face/argv.ts)
   // ---------------------------------------------------------------------------
 
-  /** parse(argv) — the verb → (leaf) → flag/positional scan: every flag checked
-   *  against the command's declared keys (the engine-config argv channel is the
-   *  single flag/type source), every value validated by its component type, program
-   *  scopes (−-dry-run / −-help) accepted at any position. Throws CliUsageError. */
+  /** parse(argv) — delegate to the shared ArgvParser (the typed argv channel:
+   *  tokenize + component-value validation + the unknown-flag guard). The round's
+   *  help/dry-run program scopes resolve exactly as the parse face declares them.
+   *  Throws CliUsageError (normalized by runArgv to usage + message + exit 2). */
   parse(raw: readonly string[]): ParsedCommand {
-    const toks = [...raw];
-    let dryRun = this.#dryRun;
-    const help = toks.includes("--help") || toks.includes("-h");
-
-    // The verb — the first non-flag token; anything before it must be program-level.
-    let index = 0;
-    while (index < toks.length && toks[index]!.startsWith("-")) {
-      const name = this.#flagName(toks[index]!);
-      if (name === "dry-run" || name === "no-dry-run" || name === "help" || name === "h") {
-        if (name === "dry-run") dryRun = true;
-        else if (name === "no-dry-run") dryRun = false;
-        index += 1;
-        continue;
-      }
-      throw this.#usage(`unknown option: ${toks[index]}`, "usage: cdd <command> [options]");
-    }
-    const verbWord = toks[index];
-    const spec =
-      typeof verbWord === "string"
-        ? CLI_COMMANDS.find((command) => command.name === verbWord)
-        : undefined;
-    if (spec === undefined) {
-      throw this.#usage(
-        typeof verbWord === "string"
-          ? `unknown command: ${verbWord}`
-          : "missing command — expected implement | review | fix | base | schema | issue",
-        "usage: cdd <command> [options]",
-      );
-    }
-    index += 1;
-
-    // The help pre-screen — a help flag anywhere pre-empts the leaf/argument scan
-    // (the steady `cdd <command> --help` face renders the command's usage, never a
-    // missing-subcommand or required-value error on top of the help the user asked
-    // for — `cdd base --help` shows the leaf command's usage, no leaf word).
-    if (help) {
-      return {
-        verb: spec.name,
-        leaf: null,
-        leafSpec: null,
-        args: {},
-        positionals: [],
-        dryRun,
-        help,
-      };
-    }
-
-    // The nested leaf (base set|get · schema get · issue render).
-    let leafSpec: CliLeafSpec | null = null;
-    if (spec.leaves !== undefined) {
-      const leafWord = toks[index];
-      if (leafWord === undefined || leafWord.startsWith("-")) {
-        throw this.#usage(
-          `cdd ${spec.name}: missing subcommand — ${spec.leaves.map((l) => l.name).join(" | ")}`,
-          spec.usage,
-        );
-      }
-      leafSpec = spec.leaves.find((l) => l.name === leafWord) ?? null;
-      if (leafSpec === null)
-        throw this.#usage(`cdd ${spec.name}: unknown subcommand: ${leafWord}`, spec.usage);
-      index += 1;
-    }
-    const surface = leafSpec ?? spec;
-
-    // The flag/positional scan.
-    const args: Record<string, string> = {};
-    const positionals: string[] = [];
-    for (; index < toks.length; index += 1) {
-      const tok = toks[index]!;
-      if (tok === "--") {
-        positionals.push(...toks.slice(index + 1));
-        break;
-      }
-      if (!tok.startsWith("-")) {
-        positionals.push(tok);
-        continue;
-      }
-      const eq = tok.indexOf("=");
-      const flag = eq === -1 ? tok : tok.slice(0, eq);
-      const inline = eq === -1 ? null : tok.slice(eq + 1);
-      const norm = this.#flagName(flag);
-      if (norm === "dry-run" || norm === "no-dry-run" || norm === "help" || norm === "h") {
-        if (inline !== null) throw this.#usage(`unexpected value for ${flag}`, surface.usage);
-        if (norm === "dry-run") dryRun = true;
-        else if (norm === "no-dry-run") dryRun = false;
-        continue;
-      }
-      const key = this.#declaredKey(surface, norm);
-      const channel = key === null ? undefined : this.#channels[key];
-      if (key === null || channel === undefined)
-        throw this.#usage(`unknown option: ${tok}`, surface.usage);
-      let value: string;
-      if (channel.type === "bool") {
-        if (inline !== null) throw this.#usage(`unexpected value for ${flag}`, surface.usage);
-        value = norm.startsWith("no-") ? "false" : "true";
-      } else if (inline !== null) {
-        value = inline;
-      } else {
-        index += 1;
-        value = toks[index] ?? "";
-        if (value.length === 0) throw this.#usage(`missing value for ${flag}`, surface.usage);
-      }
-      args[key] = this.#validate(spec, surface, key, channel, value);
-    }
-
-    // Required declared keys + positionals; extra positionals rejected.
-    for (const declared of surface.keys) {
-      if (declared.required === true && args[declared.key] === undefined) {
-        const flag = this.#channels[declared.key]?.flag ?? `--${declared.key}`;
-        throw this.#usage(`cdd ${spec.name}: missing required ${flag}`, surface.usage);
-      }
-    }
-    for (const positional of surface.positionals ?? []) {
-      if (positional.required === true && positionals.length === 0) {
-        throw this.#usage(`cdd ${spec.name}: missing required <${positional.key}>`, surface.usage);
-      }
-    }
-    if ((surface.positionals ?? []).length < positionals.length) {
-      throw this.#usage(
-        `cdd ${spec.name}: unexpected argument: ${positionals[(surface.positionals ?? []).length]}`,
-        surface.usage,
-      );
-    }
-
-    return {
-      verb: spec.name,
-      leaf: leafSpec?.name ?? null,
-      leafSpec,
-      args,
-      positionals: this.#positionalsOf(surface, positionals),
-      dryRun,
-      help,
-    };
+    return this.#parser.parse(raw);
   }
 
   // ---------------------------------------------------------------------------
@@ -1228,7 +899,7 @@ export class Cli {
       case "schema":
         return await this.#runSchema(parsed);
       case "issue":
-        return this.#runIssue(parsed);
+        return this.#runIssue();
       case "base":
         return this.#runBase(parsed);
     }
@@ -1350,7 +1021,7 @@ export class Cli {
         return outcome;
       },
       target: scene.target ?? undefined,
-      capsule: new Capsule(this.#words, this.#channels),
+      capsule: new Capsule(this.#words, this.#parser.channels()),
       planPath: scene.planPath,
     });
 
@@ -1781,9 +1452,9 @@ export class Cli {
   // ---------------------------------------------------------------------------
 
   /** `cdd schema get <type>` — the derived doc-structure schema JSON to stdout
-   *  (the type vocabulary = the one shared schema-type table (`GEN_TYPE_KEYS` —
-   *  the primary DocKey spellings + the legacy alias normalized to kebab, spec
-   *  §5.3); the `plan-graph` type rides the discovery read (§3.8)).
+   *  (the type vocabulary = the one shared schema-type table — `SCHEMA_TYPE_KEYS`
+   *  in face/argv.ts: the primary DocKey spellings + the legacy alias normalized
+   *  to kebab, spec §5.3); the `plan-graph` type rides the discovery read (§3.8).
    *  `cdd schema gen <type>` dispatches to the skeleton render (the schema verb's
    *  second leaf). */
   async #runSchema(parsed: ParsedCommand): Promise<number> {
@@ -1860,8 +1531,7 @@ export class Cli {
 
   /** `cdd issue render` — stdin findings JSON → the aggregate body → stdout (the
    *  renderer's only CLI entry; a bare call, no flags). */
-  #runIssue(parsed: ParsedCommand): number {
-    void parsed;
+  #runIssue(): number {
     let input: unknown;
     try {
       input = JSON.parse(this.#stdinRead());
@@ -1900,14 +1570,14 @@ export class Cli {
       Workspace.slugFromDoc(planPath),
     ).ensure();
     const path = workspace.resolve("base.json");
-    if (parsed.leaf === "set") return this.#baseSet(parsed, workspace, planPath, path);
+    if (parsed.leaf === "set") return this.#baseSet(parsed, planPath, path);
     if (parsed.leaf === "get") return this.#baseGet(path);
     throw new CliUsageError("cdd base: missing <set|get> subcommand", CLI_USAGE.base);
   }
 
   /** The `set` body — base/source required, a different existing base refuses without
    *  --force (the write-through artifact single-author). */
-  #baseSet(parsed: ParsedCommand, workspace: Workspace, planPath: string, path: string): number {
+  #baseSet(parsed: ParsedCommand, planPath: string, path: string): number {
     const base = parsed.args.base;
     const source = parsed.args.source;
     if (base === undefined || source === undefined) {
@@ -1929,7 +1599,6 @@ export class Cli {
       plan: planPath,
       recordedAt: new Date().toISOString(),
     };
-    void workspace;
     writeFileSync(path, `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
     this.#io.stdout(`${path}\n`);
     return 0;
@@ -1966,146 +1635,6 @@ export class Cli {
     } catch {
       return null;
     }
-  }
-
-  // ---------------------------------------------------------------------------
-  // the shared parse primitives
-  // ---------------------------------------------------------------------------
-
-  /** The engine-config argv channel as the key → flag/type/values table. */
-  #channelTable(): Record<string, ChannelArg> {
-    const out: Record<string, ChannelArg> = {};
-    const argv = this.#config.engineConfig().contextContract?.channels?.argv;
-    if (argv === undefined) return out;
-    for (const [key, entry] of Object.entries(argv)) {
-      const row = entry as { flag?: string; type?: string; values?: readonly string[] };
-      out[key] = {
-        key,
-        flag: row.flag ?? `--${key}`,
-        type: (row.type as ChannelValueType) ?? "string",
-        values: row.values,
-      };
-    }
-    return out;
-  }
-
-  /** The normalized flag name of a token (`--tasks=1` → `tasks`). */
-  #flagName(token: string): string {
-    return token.replace(/^-{1,2}/, "").split("=")[0]!;
-  }
-
-  /** Resolve a normalized flag to its declared channel key (with the bool `--no-…`
-   *  negation spelling); null = the flag is not declared → the unknown-option guard. */
-  #declaredKey(surface: CliCommandSpec | CliLeafSpec, norm: string): string | null {
-    if (norm.startsWith("no-")) {
-      const key = norm.slice(3);
-      return this.#channels[key]?.type === "bool" ? key : null;
-    }
-    for (const declared of surface.keys) {
-      const channel = this.#channels[declared.key];
-      if (channel !== undefined && channel.flag.replace(/^-{1,2}/, "") === norm)
-        return declared.key;
-    }
-    return null;
-  }
-
-  /** Component-value validation — the channel type's shape (with the declared
-   *  value-type override); a violation is the usage error of the command's surface. */
-  #validate(
-    spec: CliCommandSpec,
-    surface: CliCommandSpec | CliLeafSpec,
-    key: string,
-    channel: ChannelArg,
-    value: string,
-  ): string {
-    const override = (surface.keys as readonly CliArgSpec[]).find(
-      (declared) => declared.key === key,
-    )?.valueType;
-    const type = override === "branch" ? "string" : channel.type;
-    switch (type) {
-      case "int-list": {
-        const tokens = value.split(",").map((part) => part.trim());
-        const invalid = tokens.find((part) => !/^\d+$/.test(part));
-        if (invalid !== undefined) {
-          throw this.#usage(
-            `cdd ${spec.name}: --${key} must be comma-separated integers: ${invalid}`,
-            surface.usage,
-          );
-        }
-        return [...new Set(tokens.map(Number))].sort((a, b) => a - b).join(",");
-      }
-      case "enum":
-        if (channel.values === undefined || !channel.values.includes(value)) {
-          throw this.#usage(
-            `cdd ${spec.name}: --${key} must be one of ${channel.values?.join(" | ")}`,
-            surface.usage,
-          );
-        }
-        return value;
-      case "sha":
-        // find #10 (spec §6.6 · the user's ruling: no long shas anywhere in the
-        // engine): the CLI sha channel accepts the 8-char short form (40-char
-        // full shas retired).
-        if (!/^[0-9a-f]{8}$/.test(value)) {
-          throw this.#usage(`cdd ${spec.name}: --${key} must be an 8-char sha`, surface.usage);
-        }
-        return value;
-      case "int":
-        if (!/^\d+$/.test(value))
-          throw this.#usage(`cdd ${spec.name}: --${key} must be an integer`, surface.usage);
-        return value;
-      case "bool":
-        // the value already carries the parsed spelling ("true" for --force · "false"
-        // for --no-force) — pass it through, never force the positive.
-        return value;
-      case "path":
-      case "string":
-        return value;
-    }
-  }
-
-  /** The declared positional values, validated per leaf — `schema get`'s and
-   *  `schema gen`'s <type> ride the SAME vocabulary (`GEN_TYPE_KEYS` — the one
-   *  table, two faces, spec §5.3): the legacy `phaseSpec` alias normalizes to
-   *  the kebab key on both leaves. The get leaf additionally routes `plan-graph`
-   *  (a display type, never a doc key); the gen leaf does not — each leaf's
-   *  missing/unknown faces name the leaf's own values (get: overall, plan,
-   *  phase-spec, plan-graph · gen: overall, plan, phase-spec). */
-  #positionalsOf(surface: CliCommandSpec | CliLeafSpec, positionals: readonly string[]): string[] {
-    const declared = surface.positionals ?? [];
-    return declared.map((positional, index) => {
-      const value = positionals[index];
-      if (positional.key === "type" && surface.name === "gen") {
-        if (value === undefined) {
-          throw this.#usage("cdd schema gen: missing <type>", surface.usage);
-        }
-        const key = GEN_TYPE_KEYS[value];
-        if (key === undefined) {
-          throw this.#usage(
-            `cdd schema gen: unknown schema type: ${value} (available: overall, plan, phase-spec)`,
-            surface.usage,
-          );
-        }
-        return key;
-      }
-      // The get leaf — the one shared vocabulary plus the plan-graph display route.
-      if (positional.key === "type" && value !== "plan-graph") {
-        const key = GEN_TYPE_KEYS[value!];
-        if (key === undefined) {
-          throw this.#usage(
-            `cdd schema get: unknown schema type: ${value} (available: ${[...this.#docKeys, "plan-graph"].join(", ")})`,
-            surface.usage,
-          );
-        }
-        return key;
-      }
-      return value!;
-    });
-  }
-
-  /** The usage-error constructor shorthand (the command's usage line rides the error). */
-  #usage(message: string, usage: string): CliUsageError {
-    return new CliUsageError(message, usage);
   }
 
   /** Read a text file; a missing/unreadable file is the usage error of the caller. */

@@ -64,11 +64,6 @@ export class Capsule {
     this.#channels = channels;
   }
 
-  /** The word table this capsule reads from (the single-source face). */
-  words(): Words {
-    return this.#words;
-  }
-
   /** emit(status, blocker, handoff, next, target) → the capsule stdout lines: the
    *  pinned `status · blocker · handoff` capsule line, then the optional `next:`
    *  line (a caller-rendered text, a C5 Route rendered as the complete executable

@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P3 设计：CLI 框架化收口 + 变更集归并
-- **Version**: v0.5 · 2026-10-11
+- **Version**: v0.6 · 2026-10-11
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P3] 会话 · 2026-10-11）
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall](2026-10-10-engine-doc-tooling-overall.md)
@@ -7,7 +7,7 @@
 
 ## Design
 
-本 phase 收口引擎 doc 工具面的第三缺：**CLI 框架化**——引入 mature 框架 commander ^15 接管 parse + help 渲染管线，ARGV_CHANNEL 声明行度进入 `.option()/.command()` 成为命令树的数据驱动单源；配合六前提整 face 重构（组合根重建 · 领域 run 类经 `.action()` 薄壳 · 校验组件收口域语义），错误消息/帮助形面/usage 字节开放 commander 原生形态（pins 整体重锚 deliberate），语义契约三保不动（退出码 0/1/2 · CDD_BLOCKED 通道 · 裸 cdd usage 语义）。变更集收尾折叠：P1/P2 deferred + 框架化 bump 主题归并标 **major**（不发布 · 存量积压 changesets 留守）。设计输入：kairos:cdd-design [P3] 会话裁定（Q1–Q6 + 六前提 · 2026-10-11）· overall v2.0（D12）。
+本 phase 收口引擎 doc 工具面的第三缺：**CLI 框架化**——引入 mature 框架 commander ^15 接管 parse + help 渲染管线，ARGV_CHANNEL 声明行度进入 `.option()/.command()` 成为命令树的数据驱动单源（`CommandTreeBuilder` 单类 · 零裸函数）；配合六前提整 face 重构（组合根重建 · 领域 run 类经 `.action()` 薄壳 · **值域校验/条件必填全 commander 原生**（v0.6：parseArg + preAction · ValueValidator 退役）），错误消息/帮助形面/usage 字节开放 commander 原生形态（pins 整体重锚 deliberate），语义契约三保不动（退出码 0/1/2 · CDD_BLOCKED 通道 · 裸 cdd usage 语义）。变更集收尾折叠：P1/P2 deferred + 框架化 bump 主题归并标 **major**（不发布 · 存量积压 changesets 留守）。设计输入：kairos:cdd-design [P3] 会话裁定（Q1–Q6 + 六前提 · 2026-10-11）· 用户 v0.6 重审（2026-10-11）· overall v2.0（D12）。
 
 ### 1. 目标与边界
 #### 1.1 行为语义增量
@@ -16,9 +16,11 @@
 - 领域 run（Lifecycle/PreFlight/Capsule/host）语义零动 · doc-contract 判定语义不变（gate 零例外）· schema gen 渲染（SkeletonAssembler/Projector 代码面不动）· 引擎 vitest 断言面 · 跨程序 rename sweep 面（`src-next` 字面 · D8 拆 pin）· 不发布 · 存量积压 changesets 留守不折
 
 ### 2. commander 声明模型（数据驱动单源）
-#### 2.1 ARGV_CHANNEL 行度入 .option()/.command()
-- `infra/runtime.ts` ARGV_CHANNEL 行字段（flag · alias · type · values · scope · help）投影到 commander `.option()`（**`--no-` 负向拼写退役**：commander 不派生取反 · bool 行**单面注册**正拼写——`dryRun` 行投影 `.option('--dry-run')` · `force` 行投影 `.option('--force')` · 误输 `--no-dry-run`/`--no-force` → commander 原生 `unknown option` + `Did you mean --dry-run?` 建议（受益面 · 比静默接受更诚实）· 退役为 deliberate · 用户裁定 2026-10-11 · 机制实测修正同源）；`face/registry.ts` CLI_COMMANDS 行的 description/usage 投影到命令 `.description()`——**零平行列表**：声明仍是行数据，commander 是消费者
-- **节点绑定规则**：命令级 keys（`CLI_COMMANDS[cmd].keys`）→ 该命令节点 `.option()`（`required: true` → `.requiredOption()`）；`scope: "program"` 行 → 程序节点 `.option()` **并随行并入各命令节点**（保「program flags accepted at any position」语义 · cli.test.ts:494/698 任意位置接受 pin 语义保）· **help 行（`--help`/`-h`）不投影**——对齐 commander 内建 help option（默认 `-h, --help`）不重复注册（守卫不冲突）。命令节点 option 集 = 其 keys + program scopes → §5.3 候选结构保真骨架（出错节点自身注册集 + 祖先链）
+#### 2.1 ARGV_CHANNEL 行度入 .option()/.command()（投影器类 · 零裸函数 · 校验 commander 原生）
+- **投影面 = 单一类 `class CommandTreeBuilder`**（`face/projection.ts` · 构造即组装）——`infra/runtime.ts` ARGV_CHANNEL 行字段（flag · alias · type · values · scope · help）投影到 commander `.option()`（**`--no-` 负向拼写退役**：commander 不派生取反 · bool 行**单面注册**正拼写——`dryRun` 行投影 `.option('--dry-run')` · `force` 行投影 `.option('--force')` · 误输 `--no-dry-run`/`--no-force` → commander 原生 `unknown option` + `Did you mean --dry-run?` 建议（受益面 · 比静默接受更诚实）· 退役为 deliberate · 用户裁定 2026-10-11 · 机制实测修正同源）；`face/registry.ts` CLI_COMMANDS 行的 description/usage 投影到命令 `.description()`——**零平行列表**：声明仍是行数据，commander 是消费者
+- **值域校验 = commander 原生 parseArg**（v0.6 · 六前提重审 · 用户裁定 2026-10-11：不自造校验轮子）——option/argument 注册携带 **custom parser（类私有 parseArg 方法族）**：值域 enum（`--type`/`--source`）· int-list（`--tasks` 归一化逗号串）· 整数（`--round`）· sha8（`--base`/`--head`）· schema `<type>` 词表（typeKey）——校验失败抛 **`commander.InvalidArgumentError`**（官方扩展点 · 探针实证：错误字节 = commander 原生行 + 值域消息嵌入 · code `commander.invalidArgument` · §3.1 归 usage 域 2 · Q5 一致 · **无第二个错误系统**）；`ValueValidator`/`ValidatorUsageError` 组件退役（b0b87efe 已交付面随重开清理）
+- **条件必填组 = commander 原生 `preAction` hook**（真域最小面· §4.2）——按 `--type` 条件必填由程序级 `.hook('preAction')` 承载（探针实证：钩子抛 `InvalidArgumentError` 与 parseArg 同管线）· 组表 = 常量数据 · 缺失 → usage 域 2 · **复刻现状 · 非互斥**
+- **节点绑定规则（类私方法族）**：命令级 keys（`CLI_COMMANDS[cmd].keys`）→ 该命令节点 `.option()`（`required: true` → `.requiredOption()`）；`scope: "program"` 行 → 程序节点 `.option()` **并随行并入各命令节点**（保「program flags accepted at any position」语义 · cli.test.ts:494/698 任意位置接受 pin 语义保）· **help 行（`--help`/`-h`）不投影**——对齐 commander 内建 help option（默认 `-h, --help`）不重复注册（守卫不冲突）。命令节点 option 集 = 其 keys + program scopes → §5.3 候选结构保真骨架（出错节点自身注册集 + 祖先链）· **类出口 = `readonly program: Command`**（构造即组装 · 含 §5.1 帮助注入 · usage/语料随 commander 原生产出——**自研 `usageFor()` 语料退役** · 域 run 错误面打 commander 原生 usage（`helpInformation()` 首行 · §7.3 deliberate））· **零模块级行为裸函数**（与全仓纪律统一 · 投影算法全类私方法族）
 #### 2.2 guard channel-closure 保
 - `scripts/lib/guard.ts` checkChannels 结构性 pin 保（每声明键可解析于 ARGV_CHANNEL）——CLI_COMMANDS 保持可导入，投影不破坏声明契约（每键仍单点声明）
 #### 2.3 命令树层次
@@ -26,7 +28,7 @@
 
 ### 3. 适配层与语义契约（Q6 三保）
 #### 3.1 退出码表 0/1/2（exitOverride 归一）
-- commander 原生错（unknown option/command · missing required argument 等）经 `exitOverride()` 归一：usage 域 → 2 · 运行失败 → 1 · `--help` → 0；`bin.ts` 薄 pass-through 不变（头注释断言表语义保）
+- commander 原生错经 `exitOverride()` 归一：**usage 域**（`commander.unknownOption/unknownCommand/invalidArgument`（parseArg/preAction 抛 · 值域校验面）· `missingMandatoryOptionValue/missingArgument`… → 2 · `commander.help`（裸跑/缺子命令）→ 2）· 运行失败 → 1 · **`commander.helpDisplayed`（显式 `--help`）→ 0**；`bin.ts` 薄 pass-through 不变（头注释断言表语义保）
 #### 3.2 CDD_BLOCKED 通道
 - 引擎域拒绝面（脏树 · plan-graph · wave gate · doc-contract · read-back 违约）自持 stderr 机器通道（words.ts CAPSULE_WORDS 锚）——与 parse 无关 · 不经 commander
 #### 3.3 裸 cdd usage 语义
@@ -36,15 +38,15 @@
 - commander 原生支持任意位置/任意层级（含子命令与 verb-less）`--help`/`-h`——渲染对应命令面帮助并退出 0（含程序面）
 - verb-less `cdd --help`/`cdd -h` 退出 **2→0 为 deliberate 更替**：现存 pin（cli.test.ts:563 `runArgv(["--help"])` → 2 · missing-command 面）随本 phase 翻转——`--help` 域退出 0 与 §3.3 无命令 usage 退 2 以是否携带帮助旗标划分 · 更替面列 §7.3
 
-### 4. 校验组件（域语义收口）
-#### 4.1 commander 不接的语义
-- 值域 enum（`--type` wave|branch|spec|plan · `--source` plan-field|branch-upstream|conversation-context|user-confirmed）· int-list 格式（`--tasks` n,n,… · `--round` 整数）· 8-char sha（`--base`/`--head`）· **schema `<type>` 类型词表**（`typeKey()`：primary 拼写归一 · bogus → usage 域错 · phaseSpec 别名归一 · docKeys/plan-graph 路由——承接 argv.ts #positionalsOf 面）· **按 type 条件必填组（复刻现状 · 非互斥 · 修正 2026-10-11）**：review `{plan}` / `{spec}` / `{base, head}` · fix `{plan}` / `{spec}` / `{findings}`（fix branch face = `--findings` · fix 无 `--base`/`--head` 声明面）· 触发顺序 = type 条件断言必填组优先（缺失 → usage 域错）——现状 `review --type wave --plan X --spec Y` 保持接受（互斥为新拒绝面故不引入）
-#### 4.2 错误分类
-- 校验失败 → usage 域错误 → 退出 2；`CliUsageError` 面携带字段删除（did-you-mean 落 commander · §5.3），消息字节 commander 原生
+### 4. 值域校验与条件必填（commander 原生 · v0.6 重审）
+#### 4.1 值域校验 = parseArg + InvalidArgumentError
+- **零自研校验组件**（`ValueValidator` 退役 · 用户裁定 2026-10-11：不自造轮子）——值域语义全部经 commander 官方扩展点：**option/argument custom parser**（`parseArg` · §2.1）抛 `commander.InvalidArgumentError`（code `commander.invalidArgument` · 错误字节 commander 原生行 + 值域消息嵌入 · §3.1 归 usage 域 2）· 覆盖面：值域 enum（`--type` wave|branch|spec|plan · `--source` plan-field|branch-upstream|conversation-context|user-confirmed）· int-list（`--tasks` n,n,… → 归一化逗号串 `1,2,3`）· 整数（`--round`）· 8-char sha（`--base`/`--head`）· **schema `<type>` 类型词表**（typeKey：primary 拼写（overall/plan/phase-spec）· `phaseSpec` 别名归一 · bogus → 拒 · docKeys/plan-graph 路由承接 argv 面）
+#### 4.2 条件必填组 = preAction hook（复刻现状 · 非互斥）
+- **按 `--type` 条件必填（复刻现状语义 · 修正 2026-10-11）**：review `{plan}` / `{spec}` / `{base, head}` · fix `{plan}` / `{spec}` / `{findings}`（fix branch face = `--findings` · fix 无 `--base`/`--head` 声明面）——程序级 `.hook('preAction')` 承载（commander 原生钩子 · 组表常量数据单面声明 · 缺失抛 `InvalidArgumentError` 同管道）；**非互斥**——`review --type wave --plan X --spec Y` 保持接受（互斥为新拒绝面故不引入）
 
 ### 5. 帮助形面（commander 原生 · Q1-A/Q5）
-#### 5.1 三件套落
-- **命令表短描述**（`.description()` 投影 · 含值域/用途）· **Usage/Options/Examples 段首**（commander 原生 Usage/Options/Commands 布局 + `.addHelpText()` 注入 Examples 与程序旗标尾注）· **描述位序**（按 ARGV_CHANNEL 行序注册 = 现命令表序）
+#### 5.1 三件套落（builder 构造内注入 · commander API 承载）
+- **命令表短描述**（`.description()` 投影 · 含值域/用途）· **Usage/Options/Examples 段首**（commander 原生 Usage/Options/Commands 布局 + `.addHelpText()` 注入 Examples 与程序旗标尾注——载体 = commander API · 实现于 `CommandTreeBuilder` 构造内（§2.1 类化 · T2 面））· **描述位序**（按 ARGV_CHANNEL 行序注册 = 现命令表序）· **尾注仅程序自定义旗标**（`--dry-run`——`-h, --help` 已内建 Options 显示 · 冗余列裁除 · 六前提死面清理 · v0.6 重审）
 #### 5.2 值域并入选项描述
 - 选项描述携带值域（`<wave|branch|spec|plan>` · `<n|n,n,…>` · `<sha>` · `<path>`）——P1 重建的信息面（旗标级说明 + 值域）从自研渲染迁移到 commander 描述字符串
 #### 5.3 did-you-mean 结构保真
@@ -65,14 +67,15 @@
 #### 7.2 合并变更集 major
 - 一个 cdd-engine 变更集 · 主题归并：P1 deferred（review face overall 键 · help 重建 · 词表统一）+ P2 deferred（schema gen 模板写作 · 去流程化）+ P3 框架化（commander ^15 · 形面/错误字节更替 · 架构重写）——标 **major**（breaking 段叙事 · 终版 2.0.0 由存量 major 决定 · 不发布）· 存量积压 changesets 留守
 #### 7.3 测试 pins 更替面
-- 更替（deliberate）：CLI_USAGE 六行字节 pin · help/usage 字面 pin（`"usage: cdd"` ×8 · `"commands:"`/`"subcommands:"` 等 · 程序旗标尾注正则 ×6）· smoke-cdd `usage: cdd implement` 锚 · **verb-less `--help`/`-h` 退出 2→0**（cli.test.ts:563 · missing-command 面字节 → commander 原生程序面帮助 · §3.4）· pre-verb unknown option pin（cli.test.ts:424 `parse(["--root", "x", "implement"])` → unknown option · 归属程序节点校验 · 拒绝语义保 · 字节随 commander 更替）· **`Cli#parse()` 退役**（37 处 `.parse([` 中语义保用例重锚 `runArgv` 级断言 · 字面字节随 commander 更替）· **三处 parse 级新更替面**（退出码均不变）：unknown command 原生命令名建议（`implementt` → Did you mean implement? · 现面无命令名建议——新增面）· 缺子命令（`base` 独跑）→ commander 原生程序面帮助（更替现状 missing subcommand — set | get）· `-h` pre-verb → 程序面帮助（更替现状渲染 verb 面帮助 · exit 均 0）· **负向拼写退役**（`--no-dry-run`/`--no-force` · cli.test.ts:500/512-513 pin 重锚为 unknown-option + `Did you mean --dry-run?` 断言 · 零消费隐藏拼写删除 · 用户裁定 2026-10-11）
-- 语义保（断言形态更替）：退出码表 · 三 ID did-you-mean 用例 · 裸 cdd 行为（退 2 + 原生程序面帮助 · **无 missing-command 定制文本** · 字节随 commander）· schema `<type>` 词表语义（unknown-schema-type 拒绝重锚 · phaseSpec 别名归一 · plan-graph 路由）· bin.test 头断言表 · **missing-required 族**（cli.test.ts:783 `missing required --tasks`/`expected --tasks <n|n,n,…>` · bin.test.ts:65 `missing required --plan`）——语义保 · 字节归属 `.requiredOption()`（`required: true` · §2.1）更替，值域/类型词表/必填组校验仍留校验组件（§4）
+- 更替（deliberate）：CLI_USAGE 六行字节 pin · help/usage 字面 pin（`"usage: cdd"` ×8 · `"commands:"`/`"subcommands:"` 等 · 程序旗标尾注（**仅 `--dry-run`** · v0.6 裁 `--help` 冗余列））· **`usageFor()` 自研语料退役**——域 run 错误面 usage 提示改 **commander 原生**（`helpInformation()` 首行 · `usage: cdd <verb> [options]` 形态 · smoke 锚/usage pins 同步更替 deliberate · v0.6）· smoke-cdd `usage: cdd implement` 锚 · **verb-less `--help`/`-h` 退出 2→0**（cli.test.ts:563 · missing-command 面字节 → commander 原生程序面帮助 · §3.4）· pre-verb unknown option pin（cli.test.ts:424 `parse(["--root", "x", "implement"])` → unknown option · 归属程序节点校验 · 拒绝语义保 · 字节随 commander 更替）· **`Cli#parse()` 退役**（37 处 `.parse([` 中语义保用例重锚 `runArgv` 级断言 · 字面字节随 commander 更替）· **三处 parse 级新更替面**（退出码均不变）：unknown command 原生命令名建议（`implementt` → Did you mean implement? · 现面无命令名建议——新增面）· 缺子命令（`base` 独跑）→ commander 原生程序面帮助（更替现状 missing subcommand — set | get）· `-h` pre-verb → 程序面帮助（更替现状渲染 verb 面帮助 · exit 均 0）· **负向拼写退役**（`--no-dry-run`/`--no-force` · cli.test.ts:500/512-513 pin 重锚为 unknown-option + `Did you mean --dry-run?` 断言 · 零消费隐藏拼写删除 · 用户裁定 2026-10-11）
+- 语义保（断言形态更替）：退出码表 · 三 ID did-you-mean 用例 · 裸 cdd 行为（退 2 + 原生程序面帮助 · **无 missing-command 定制文本** · 字节随 commander）· schema `<type>` 词表语义（unknown-schema-type 拒绝重锚 · phaseSpec 别名归一 · plan-graph 路由）· bin.test 头断言表 · **missing-required 族**（cli.test.ts:783 `missing required --tasks`/`expected --tasks <n|n,n,…>` · bin.test.ts:65 `missing required --plan`）——语义保 · 字节归属 `.requiredOption()`（`required: true` · §2.1）更替，值域/类型词表/`--type` 条件必填组 = **parseArg + preAction hook**（§4 · 零自研校验组件 · 错误字节 commander 原生）
 
 ### Acceptance criteria
 
 - `commander ^15 运行时依赖落 cdd-engine package.json（与 simple-git 并列）· 维护文档 05 整文件删除 + 周边同步全绿（test 面 · ledger · live 引用零残留 · 历史 docs 提及不改）`
-- `帮助形面三件套落（命令表短描述 · Usage/Options/Examples 段首 · 描述位序 · commander 原生形态）· 值域并入选项描述（--type/<wave|branch|spec|plan> 等）· 程序旗标尾注（--dry-run · --help/-h）`
-- `语义契约回归全绿：退出码 0/1/2（exitOverride）· CDD_BLOCKED 通道 · 裸 cdd usage 退 2（不含 --help/-h · verb-less --help 退 0 更替在册）· did-you-mean 三 ID 用例 = 命令树结构保真（零自定义 hint 码）· --help/-h 任意位置 · 值域/分布组语义 = 校验组件`
+- `帮助形面三件套落（命令表短描述 · Usage/Options/Examples 段首 · 描述位序 · commander 原生形态）· 值域并入选项描述（--type/<wave|branch|spec|plan> 等）· 程序旗标尾注（仅 --dry-run）`
+- `语义契约回归全绿：退出码 0/1/2（exitOverride）· CDD_BLOCKED 通道 · 裸 cdd usage 退 2（不含 --help/-h · verb-less --help 退 0 更替在册）· did-you-mean 三 ID 用例 = 命令树结构保真（零自定义 hint 码）· --help/-h 任意位置 · 值域/分布组语义 = parseArg + preAction hook（零自研校验组件）`
+- `零自研校验轮子（ValueValidator 退役 · parseArg + InvalidArgumentError 吸收 · 错误字节 commander 原生）· 投影面零模块级行为裸函数（CommandTreeBuilder 单类 · 构造即组装 · 与全仓纪律统一）`
 - `错误消息/帮助/usage pins 全更替（deliberate）· 自研渲染 + hint 引擎销毁面 grep 零残留（#renderHelp/#nearestFlag/CLI_USAGE 六行等）`
 - `ARGV_CHANNEL 单源零平行列表（guard channel-closure 全绿）· 命令树声明投影无手写 parse 残留 · 领域 run 语义零动（引擎 vitest 全绿作证 · 452+ 面）`
 - `pnpm exec changeset status 无 empty 条目 · pnpm run validate ALL PASS · EOF 全绿 · 不发布`
@@ -88,6 +91,7 @@
 - **变更集 major 归并**（P1/P2 deferred + 框架化 · 存量积压 changesets 留守 · 不发布）
 - **gate 零例外**：doc-contract 判定语义不变——骨架 by construction 绿 · 填后终判兜底
 - **六前提整 face 许可**（P3 与 P1/P2 同款 · D12）：组合根重建 · OOP 统一零裸函数 · 死码/空壳清理 · 高内聚低耦合 · 消费者心智负担 · 最大精简
+- **校验全 commander 原生**（v0.6 重审 · 用户裁定 2026-10-11）：值域/类型词表 = parseArg + `InvalidArgumentError`（官方扩展点 · 错误字节 commander 原生）· `--type` 条件必填组 = `preAction` hook · **零自研校验组件**（`ValueValidator` 退役）· 自研 usage 语料（`usageFor`）退役——usage 提示面 = commander 原生产出（deliberate · §7.3）
 - **消费者心智**：cdd 六命令/旗标/值域语义面不动（**负向拼写 `--no-dry-run`/`--no-force` 退役为 deliberate**）——框架化是引擎内部工程，消费面感知帮助/错误字节更替 + 负向拼写移除
 
 ## Change history
@@ -99,3 +103,4 @@
 | v0.3 | 2026-10-11 | P3 设计 v0.3——plan review round 1 漂移归口回填（编排器 · spec 冻结解除）：`--no-` 取反机制实测修正（commander 15.0.0 不派生 · bool 行双侧显式注册 · §2.1 标注）· §4.1 校验组改按 type 条件必填（复刻现状 · 非互斥 · fix branch = `--findings`）· schema `<type>` 词表承接（`typeKey` · phaseSpec 别名 · plan-graph 路由）· §7.3 更替清单扩列 `Cli#parse()` 退役 + 三处 parse 级新面（unknown command 命令名建议 · 缺子命令程序面 · `-h` pre-verb 程序面）· 语义保条对齐裸 cdd 行为（无 missing-command 定制文本） | Oscar M. · Claude Opus 5（kairos:cdd-plan 归口 · 2026-10-11） |
 | v0.4 | 2026-10-11 | P3 设计 v0.4——用户裁定：负向拼写 `--no-dry-run`/`--no-force` 退役（零消费隐藏拼写 · 死面清理 · 六前提 + 消费心智）——§2.1 双侧注册改**单面注册**（bool 行只认正拼写 · 误输获 commander 原生 `Did you mean --dry-run?` 建议）· §5.3 pre-verb 候选面除负向拼写 · §7.3 更替清单加负向拼写重锚（cli.test.ts:500/512-513 → unknown-option + 建议断言）· §1.1/Constraints 消费面语义不动 + 负向拼写退役例外 | Oscar M. · Claude Opus 5（kairos:cdd-design · 用户裁定 · 2026-10-11） |
 | v0.5 | 2026-10-11 | P3 设计 v0.5——用户裁定 backfill（post-approval deliberate · 用户 2026-10-11）：维护文档 05 整文件退役（第三方依赖不留存运维文档说明）——§7.1 从「§4 注记」改「整文件删除」· 周边同步三件套入 T1 · Acceptance/Constraints 同步 · 依赖面断言载体迁 package.json#dependencies | Oscar M. · Claude Opus 5（kairos:cdd-design · 用户裁定 · 2026-10-11） |
+| v0.6 | 2026-10-11 | P3 设计 v0.6——用户裁定（六前提重审 · 2026-10-11 · T2/T3 面重构）：commander 集成面**最大原生化**——§2.1 投影面单类 `CommandTreeBuilder`（构造即组装 · 零模块级裸函数 · T3 裸函数面重审）· §4 整节改「值域校验 = parseArg + InvalidArgumentError · 条件必填 = preAction hook」（**ValueValidator 退役** · 不自造校验轮子 · T2 面重审）· §5.1 帮助注入收 builder 构造 · 尾注裁 `--help` 冗余列 · usageFor 自研语料退役（域 run 错误面 = commander 原生 usage · §7.3 deliberate） | Oscar M. · Claude Opus 5（kairos:cdd-design · 用户裁定 · 2026-10-11） |

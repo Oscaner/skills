@@ -1,6 +1,6 @@
 # 引擎文档工具（Engine Doc-Tooling）— P2 Design Spec（schema gen 模板写作）
 
-- **Version**: v0.2 · 2026-10-11
+- **Version**: v0.3 · 2026-10-11
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5（kairos:cdd-design [P2] enumerate-then-grill 定案 → cdd-spec-writer）
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall.md v1.1](docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md)
@@ -28,7 +28,7 @@
 
 #### 1.4 CLAUDE.md 现状（Q3→c 的删除范围）
 
-CLAUDE.md 顶级节 = Repository purpose · ⚠️ emit products are derived · Key commands · Architecture · Conventions · Language policy。**kairos/引擎流程叙述块**（Q3→c 删除面）：`Architecture → Development-time CDD invocation`（dev face 直调 · 禁全局 cdd · 引擎 vitest 指引）· `Architecture → cdd CLI surface — zero new subcommands`（含「零新子命令」散文 pin · 本块与 §6.2 联动）· `Architecture → Engine tests`（引擎测试套件操作面）· `Language policy → Review convergence`（评审收敛规则指针——其单一来源本就在 kairos 编排器 SKILL.md，删除 CLAUDE.md 指针不损消费面）。repo dev 义务面（emit/validate/changeset 命令 · emit-derived 警告 · 语言政策 · Node.js 等）保留。无 script 对 CLAUDE.md 的 cdd 措辞有 pin（实测 `scripts/` 零命中）——删除不受门禁反制，但**「零新子命令」约束不随散文消失**（§6.2）。
+CLAUDE.md 顶级节 = Repository purpose · ⚠️ emit products are derived · Key commands · Architecture · Conventions · Language policy。**kairos/引擎流程叙述块**（Q3→c 删除面）：`Architecture → Development-time CDD invocation`（dev face 直调 · 禁全局 cdd · 引擎 vitest 指引）· `Architecture → cdd CLI surface — zero new subcommands`（含「零新子命令」散文 pin · 本块与 §6.2 联动）· `Architecture → Engine tests`（引擎测试套件操作面）· `Language policy → Review convergence`（评审收敛规则指针——其单一来源本就在 kairos 编排器 SKILL.md，删除 CLAUDE.md 指针不损消费面）。repo dev 义务面（emit/validate/changeset 命令 · emit-derived 警告 · 语言政策 · Node.js 等）保留。**pin 面事实核查（v0.3 修正 · implementation 实证）**：`scripts/` 零命中，但删除面实被 **`packages/kairos/tests/presentation-surface.test.ts`**（kairos node:test behavior tree · precommit/validate 组成步）钉住 CLAUDE.md Non-goal #1 三断言——删除 = 该测试对齐的直接推论（§6.2 语义：散文 pin 删除 ≠ 约束删除 · 约束落 CliVerb/LEAF_COMMANDS 闭集 + channel audit guard）· README 族 pin（presentation-surface.test.ts:297-298 · `cdd schema get`/`cdd issue render` · CDD_SUBCOMMANDS 6-verb 集）零动；「删除不受门禁反制」前提修正为「删除经行为测试对齐门禁通过」。
 
 ### 2. `schema gen` CLI 面（Q1→a）
 
@@ -186,3 +186,4 @@ CLAUDE.md 收缩后，不新增「引擎使用引导」替代节——引擎使�
 |---|---|---|---|
 | v0.1 | 2026-10-11 | P2 设计 spec：`schema gen <type>`（schema 动词下 leaf · stdout 纯渲染 · 编排器 `schema gen phase-spec > <path>` 落盘）· 骨架 = 完整结构 + `:::fill` 占位符槽位（v0.1 版本起点 · change-history 首行 · by-construction 过 gate）· 消费面 cdd-spec-writer/cdd-plan author「先 gen 后填」（零残留 pin）· CLAUDE.md 去 kairos/引擎流程（Q3→c 直接删除 · 零新子命令约束落语法面）· 六前提重构许可整 CLI 面/目录级（保行为等价 · 跨程序树 pin）——grilling Q1/Q2/Q3 定案全量展开 | [human] · Claude Opus 5（kairos:cdd-design [P2] enumerate-then-grill → cdd-spec-writer） |
 | v0.2 | 2026-10-11 | **P2 拆 pin 回填（用户裁定 ② · 父 overall v1.2 D8）**：跨程序树依赖 hard pin → sweep 面关系——本 phase 先行实现于现行 `src-next/` 树（不等 rename P2 · 实现期 dev face `src-next/bin.ts` 直调照常 · rename sweep 随后全库覆盖本 phase 新文件面）· §7.2 前置 / Acceptance 末条 / Constraints / Depends on / Notes 同步 | Oscar M. · Claude Opus 5（P2 cdd-dev 进入前复核 · 用户拆 pin 裁定） |
+| v0.3 | 2026-10-11 | **wave-review-2 取证回填（F1 nit · implementation 实证）**：§1.4 pin 面事实核查修正——CLAUDE.md 删除面实被 `packages/kairos/tests/presentation-surface.test.ts`（kairos node:test behavior tree）钉住（脚本面 `scripts/` 零命中的取证范围不足）· 删除 = 该测试对齐的直接推论（§6.2 散文 pin ≠ 约束删除 · README 族 pin 零动）· 「删除不受门禁反制」→「删除经行为测试对齐门禁通过」· plan Task 2 Files ledger 已随计划 v0.3 登记 | Oscar M. · Claude Opus 5（kairos:cdd-dev wave-review-2 · orchestrator backfill） |

@@ -49,26 +49,6 @@ Adding a new first-party plugin: create `packages/<name>/package.json` with an `
 
 Template-shaped content converges to a single source of truth: canonical JSON → one renderer → emit-generated products (guarded by `pnpm run emit:check` drift + runtime composition). Full convention: [docs/maintainers/01-template-doctrine.md](docs/maintainers/01-template-doctrine.md).
 
-### Development-time CDD invocation — direct, never global
-
-Invoke the engine from this repo's working tree straight on the source entry: `node packages/cdd-engine/src-next/bin.ts <subcommand>` (Node ≥22.18 strips types natively — the dev face runs the .ts source directly; no build, no stub).
-
-```bash
-node packages/cdd-engine/src-next/bin.ts <subcommand>
-```
-
-The global `cdd` command must NOT be used (`npm link` removed).
-
-### cdd CLI surface — zero new subcommands
-
-The `cdd` CLI gains **no new subcommands** — the only exceptions are the discovery-type `cdd schema get <type>` and the pure-rendering `cdd issue render`, both zero-enforcement (the charter's Non-goal #1 exception). Enforcement-capable subcommands stay closed.
-
-Every op's stdout is the single status capsule (`status · blocker · handoff`) plus the engine-derived `next:` suggestion line — `cdd review` / `cdd fix` included; BLOCKED reasons ride the stderr `CDD_BLOCKED:` channel. The capsule/route vocabulary is single-sourced in the single word table (`packages/cdd-engine/src-next/face/words.ts`), never restated in prose. A harness abnormal exit stores a crash-only snapshot + crash record in the workspace (`.kairos/cdd/<slug>/crash-<lane>-<round>.json`) — re-run the same command per the BLOCKED `next:` to continue (no redo, no residue loss).
-
-### Engine tests
-
-The engine test suite lives at `packages/cdd-engine/src/**/__tests__/**/*.test.ts`, colocated with the modules they cover (vitest include `['src/**/__tests__/**/*.test.ts']`; the top-level `tests/` dir is retired and the engine's `.mjs` plane is zero — pinned by the validate residue guard). Run it with `pnpm --filter @oscaner-skills/cdd-engine test`; new tests land colocated with the module they cover.
-
 ### Language policy — English-primary, mirror only the README family
 
 **Repository authoring policy (governing principle):** the main codebase — source files, `skills/*/SKILL.md`, and `docs/*.md` — is **English-primary**, and the repo's mirror policy is **"mirror only the README family"**: the **only** `.zh-CN.md` mirrors in the repo are the root **`README.zh-CN.md`** and the per-package **`packages/kairos/README.zh-CN.md`** / **`packages/cdd-engine/README.zh-CN.md`** — three files total, each kept in sync with its English counterpart. Every other plane carries zero mirrors. The single deliberate non-English surface is this repo's internal developer specs/plans, which follow the user's working language.
@@ -93,10 +73,6 @@ Three strategies implement this, depending on file type:
 #### Strategy B extension — maintainer docs (docs/maintainers/)
 
 `docs/maintainers/*.md` are maintainer-only documents (reader-positioned for this monorepo's developers, **not** shipped to consumers — the package's `contentRoot` is `"."` so `packages/*/` is what publishes). They follow the repo's **English-primary** policy (English authoritative source, no Chinese content, no `.zh-CN.md` mirror). They are excluded from the Strategy A emit-and-consumer rules but not from the English-primary rule.
-
-### Review convergence
-
-The unified review convergence rule lives as the `Review Convergence` entry in each orchestrator skill's `## Invariants` — `packages/kairos/skills/*/SKILL.md` (cdd-design · cdd-spec-writer · cdd-plan · cdd-dev · cdd-close). That entry is the single source; this section intentionally carries no restatement of the rule.
 
 ## Conventions
 

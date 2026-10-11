@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P3 设计：CLI 框架化收口 + 变更集归并
-- **Version**: v0.6 · 2026-10-11
+- **Version**: v0.7 · 2026-10-11
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P3] 会话 · 2026-10-11）
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall](2026-10-10-engine-doc-tooling-overall.md)
@@ -17,14 +17,18 @@
 
 ### 2. commander 声明模型（数据驱动单源）
 #### 2.1 ARGV_CHANNEL 行度入 .option()/.command()（投影器类 · 零裸函数 · 校验 commander 原生）
-- **投影面 = 单一类 `class CommandTreeBuilder`**（`face/projection.ts` · 构造即组装）——`infra/runtime.ts` ARGV_CHANNEL 行字段（flag · alias · type · values · scope · help）投影到 commander `.option()`（**`--no-` 负向拼写退役**：commander 不派生取反 · bool 行**单面注册**正拼写——`dryRun` 行投影 `.option('--dry-run')` · `force` 行投影 `.option('--force')` · 误输 `--no-dry-run`/`--no-force` → commander 原生 `unknown option` + `Did you mean --dry-run?` 建议（受益面 · 比静默接受更诚实）· 退役为 deliberate · 用户裁定 2026-10-11 · 机制实测修正同源）；`face/registry.ts` CLI_COMMANDS 行的 description/usage 投影到命令 `.description()`——**零平行列表**：声明仍是行数据，commander 是消费者
+- **投影面 = 单一类 `class CommandTreeBuilder`**（`face/projection.ts` · 构造即组装）——`face/declare.ts` ARGV_CHANNEL 行字段（flag · alias · type · values · scope · help · §2.4 声明单面）投影到 commander `.option()`（**`--no-` 负向拼写退役**：commander 不派生取反 · bool 行**单面注册**正拼写——`dryRun` 行投影 `.option('--dry-run')` · `force` 行投影 `.option('--force')` · 误输 `--no-dry-run`/`--no-force` → commander 原生 `unknown option` + `Did you mean --dry-run?` 建议（受益面 · 比静默接受更诚实）· 退役为 deliberate · 用户裁定 2026-10-11 · 机制实测修正同源）；`face/declare.ts` CLI_COMMANDS 行的 description/usage 投影到命令 `.description()`——**零平行列表**：声明仍是行数据，commander 是消费者
 - **值域校验 = commander 原生 parseArg**（v0.6 · 六前提重审 · 用户裁定 2026-10-11：不自造校验轮子）——option/argument 注册携带 **custom parser（类私有 parseArg 方法族）**：值域 enum（`--type`/`--source`）· int-list（`--tasks` 归一化逗号串）· 整数（`--round`）· sha8（`--base`/`--head`）· schema `<type>` 词表（typeKey）——校验失败抛 **`commander.InvalidArgumentError`**（官方扩展点 · 探针实证：错误字节 = commander 原生行 + 值域消息嵌入 · code `commander.invalidArgument` · §3.1 归 usage 域 2 · Q5 一致 · **无第二个错误系统**）；`ValueValidator`/`ValidatorUsageError` 组件退役（b0b87efe 已交付面随重开清理）
 - **条件必填组 = commander 原生 `preAction` hook**（真域最小面· §4.2）——按 `--type` 条件必填由程序级 `.hook('preAction')` 承载（探针实证：钩子抛 `InvalidArgumentError` 与 parseArg 同管线）· 组表 = 常量数据 · 缺失 → usage 域 2 · **复刻现状 · 非互斥**
 - **节点绑定规则（类私方法族）**：命令级 keys（`CLI_COMMANDS[cmd].keys`）→ 该命令节点 `.option()`（`required: true` → `.requiredOption()`）；`scope: "program"` 行 → 程序节点 `.option()` **并随行并入各命令节点**（保「program flags accepted at any position」语义 · cli.test.ts:494/698 任意位置接受 pin 语义保）· **help 行（`--help`/`-h`）不投影**——对齐 commander 内建 help option（默认 `-h, --help`）不重复注册（守卫不冲突）。命令节点 option 集 = 其 keys + program scopes → §5.3 候选结构保真骨架（出错节点自身注册集 + 祖先链）· **类出口 = `readonly program: Command`**（构造即组装 · 含 §5.1 帮助注入 · usage/语料随 commander 原生产出——**自研 `usageFor()` 语料退役** · 域 run 错误面打 commander 原生 usage（`helpInformation()` 首行 · §7.3 deliberate））· **零模块级行为裸函数**（与全仓纪律统一 · 投影算法全类私方法族）
 #### 2.2 guard channel-closure 保
-- `scripts/lib/guard.ts` checkChannels 结构性 pin 保（每声明键可解析于 ARGV_CHANNEL）——CLI_COMMANDS 保持可导入，投影不破坏声明契约（每键仍单点声明）
+- `scripts/lib/guard.ts` checkChannels 结构性 pin 保（每声明键可解析于 ARGV_CHANNEL）——CLI_COMMANDS/ARGV_CHANNEL 保持可导入（**declare 单面 · §2.4**），投影不破坏声明契约（每键仍单点声明）· 闭包审计 = **单面内自检**（同面两表互查 · v0.7）
 #### 2.3 命令树层次
 - base/schema/issue 的 leaf 子命令以 commander 子命令注册——**leaf 粒度由构造保证**（get/set 各持自身 option 集）：这是 §5.3 did-you-mean 结构保真的骨架
+#### 2.4 声明面单源（face/declare.ts · 高内聚收敛 · v0.7）
+- **CLI 面声明收敛单面** `face/declare.ts`（**纯数据+类型 · 零行为 · 零裸函数**）：`ARGV_CHANNEL` 通道行表 · `CLI_COMMANDS` 命令行表 · 全部 CLI 类型（`ChannelValueType`/`ChannelArgRow`/`CliVerb`/`CliLeafName`/`CliValueOverride`/`CliArgSpec`/`CliLeafSpec`/`ChannelArg`）· `REQUIRED_GROUPS` 条件必填组表（preAction 数据面）——同栖一文件，改 CLI 定义不再跨 runtime/registry/argv 四处拼（用户裁定 2026-10-11：声明面七零八落 → 单面收敛 · 六前提④⑥）
+- `face/registry.ts` **删除**（职责并入 declare · T2）· `infra/runtime.ts` 瘦身退「纯引擎配置数据面」（`ENGINE_RUNTIME`/`HANDOFF_FAMILIES` · 本就与 CLI 无关）· guard `checkChannels` 改读 declare（§2.2 闭包审计 = **单面内自检** · 语义不变）· 消费方（builder/cli/guard/infra.test）导入改址
+- **数据与算法分层**：声明（declare · 数据）→ 投影（`CommandTreeBuilder` · 算法单类）→ 组合根（Cli）——声明流单向，零跨面纠缠；`ChannelArg` 迁 declare（**修正原「迁 infra/runtime.ts」定裁** · argv 退役后归 CLI 面）
 
 ### 3. 适配层与语义契约（Q6 三保）
 #### 3.1 退出码表 0/1/2（exitOverride 归一）
@@ -56,8 +60,8 @@
 ### 6. 销毁面（最大精简 · Q5）
 #### 6.1 自研渲染 + hint 引擎删除
 - `#renderHelp`/`#optionLines`/`#overview`/`#typeDomain`/`#leafTokens`/`#domainOf` · `#usageHint`/`#nearestFlag`/`#distance` · `CliUsageError.surface` · CLI_USAGE 六行字面——整组删除（usage/描述语义并入声明投影 · §2.1）
-#### 6.2 argv.ts 收纳
-- 手写 tokenize/validate 通道删除；保留组件化的域语义校验（§4）——parse 通道职责整体移交 commander
+#### 6.2 argv.ts 收纳 · registry.ts 删除
+- 手写 tokenize/validate 通道删除——parse 通道职责整体移交 commander（§4）· argv.ts parse 通道退役后**文件级删除**（类型已 T2 迁 `face/declare.ts` · §2.4 · **修正原「迁 infra/runtime.ts」定裁**）· `face/registry.ts` 随声明单面收敛删除（T2 · 职责并入 `face/declare.ts`）
 #### 6.3 words.ts 归一
 - 帮助面向词表并入声明；域词表保留（CAPSULE_WORDS · GUARD_BAN_WORDS · ISSUE_LABEL_WORDS · CHARTER_WORDS）
 
@@ -77,7 +81,7 @@
 - `语义契约回归全绿：退出码 0/1/2（exitOverride）· CDD_BLOCKED 通道 · 裸 cdd usage 退 2（不含 --help/-h · verb-less --help 退 0 更替在册）· did-you-mean 三 ID 用例 = 命令树结构保真（零自定义 hint 码）· --help/-h 任意位置 · 值域/分布组语义 = parseArg + preAction hook（零自研校验组件）`
 - `零自研校验轮子（ValueValidator 退役 · parseArg + InvalidArgumentError 吸收 · 错误字节 commander 原生）· 投影面零模块级行为裸函数（CommandTreeBuilder 单类 · 构造即组装 · 与全仓纪律统一）`
 - `错误消息/帮助/usage pins 全更替（deliberate）· 自研渲染 + hint 引擎销毁面 grep 零残留（#renderHelp/#nearestFlag/CLI_USAGE 六行等）`
-- `ARGV_CHANNEL 单源零平行列表（guard channel-closure 全绿）· 命令树声明投影无手写 parse 残留 · 领域 run 语义零动（引擎 vitest 全绿作证 · 452+ 面）`
+- `CLI 面声明单源落（declare.ts 同栖 · registry.ts 删除 · runtime.ts 瘦身 · guard 闭包 = 单面内自检）· ARGV_CHANNEL/CLI_COMMANDS 单源零平行列表（guard channel-closure 全绿）· 命令树声明投影无手写 parse 残留 · 领域 run 语义零动（引擎 vitest 全绿作证 · 452+ 面）`
 - `pnpm exec changeset status 无 empty 条目 · pnpm run validate ALL PASS · EOF 全绿 · 不发布`
 
 ## Constraints
@@ -85,7 +89,7 @@
 - **结构保真**：本骨架 = 声明面派生（`schema gen phase-spec`）· 编辑器只填不重排——违反 = 保真破坏，视为 defect
 - **语义契约三保不动**（退出码表 0/1/2 域 · CDD_BLOCKED 通道 · 裸 cdd usage 语义）——commander 原生为形态载体，语义是消费面硬契约；**退出码表更替边界逐条列明**：verb-less `--help`/`-h` 2→0（§3.4/§7.3）· missing-required 字节归属 `.requiredOption()`（§2.1/§7.3）——其余 0/1/2 域不动
 - **行为语义零动**：领域 run（Lifecycle/PreFlight/Capsule/host）· doc-contract 判定 · `next:` dispatch 字面 · 跨程序 rename sweep 面
-- **数据驱动单源**：ARGV_CHANNEL 行度 → `.option()/.command()` 投影 · 零平行列表 · guard 结构性 pin 保
+- **数据驱动单源**：CLI 面声明收敛单面 `face/declare.ts`（§2.4 · v0.7）——ARGV_CHANNEL/CLI_COMMANDS/类型/`REQUIRED_GROUPS` 同栖 · 行度 → `.option()/.command()` 投影 · 零平行列表 · guard 结构性 pin 保（单面内自检）
 - **测试 pins 更替 = deliberate**（三 ID 语义回归 pin 保 · 错误消息语义保）——更替面以本设计 §5/§6/§7 为界
 - **零运行时依赖变化**（除 commander ^15 · D11 例外）· 维护文档 05 退役为 deliberate（用户裁定 2026-10-11 · 第三方依赖不留存运维文档面）· 依赖面断言载体迁 package.json#dependencies
 - **变更集 major 归并**（P1/P2 deferred + 框架化 · 存量积压 changesets 留守 · 不发布）
@@ -104,3 +108,4 @@
 | v0.4 | 2026-10-11 | P3 设计 v0.4——用户裁定：负向拼写 `--no-dry-run`/`--no-force` 退役（零消费隐藏拼写 · 死面清理 · 六前提 + 消费心智）——§2.1 双侧注册改**单面注册**（bool 行只认正拼写 · 误输获 commander 原生 `Did you mean --dry-run?` 建议）· §5.3 pre-verb 候选面除负向拼写 · §7.3 更替清单加负向拼写重锚（cli.test.ts:500/512-513 → unknown-option + 建议断言）· §1.1/Constraints 消费面语义不动 + 负向拼写退役例外 | Oscar M. · Claude Opus 5（kairos:cdd-design · 用户裁定 · 2026-10-11） |
 | v0.5 | 2026-10-11 | P3 设计 v0.5——用户裁定 backfill（post-approval deliberate · 用户 2026-10-11）：维护文档 05 整文件退役（第三方依赖不留存运维文档说明）——§7.1 从「§4 注记」改「整文件删除」· 周边同步三件套入 T1 · Acceptance/Constraints 同步 · 依赖面断言载体迁 package.json#dependencies | Oscar M. · Claude Opus 5（kairos:cdd-design · 用户裁定 · 2026-10-11） |
 | v0.6 | 2026-10-11 | P3 设计 v0.6——用户裁定（六前提重审 · 2026-10-11 · T2/T3 面重构）：commander 集成面**最大原生化**——§2.1 投影面单类 `CommandTreeBuilder`（构造即组装 · 零模块级裸函数 · T3 裸函数面重审）· §4 整节改「值域校验 = parseArg + InvalidArgumentError · 条件必填 = preAction hook」（**ValueValidator 退役** · 不自造校验轮子 · T2 面重审）· §5.1 帮助注入收 builder 构造 · 尾注裁 `--help` 冗余列 · usageFor 自研语料退役（域 run 错误面 = commander 原生 usage · §7.3 deliberate） | Oscar M. · Claude Opus 5（kairos:cdd-design · 用户裁定 · 2026-10-11） |
+| v0.7 | 2026-10-11 | P3 设计 v0.7——用户裁定（声明面七零八落 → 单面收敛 · 2026-10-11 · 六前提④⑥）：§2.4 声明面单源 `face/declare.ts`（ARGV_CHANNEL/CLI_COMMANDS/类型/REQUIRED_GROUPS 同栖 · 纯数据零行为）· registry.ts 删除 · runtime.ts 瘦身退纯引擎配置面（ENGINE_RUNTIME/HANDOFF_FAMILIES）· guard 闭包审计 = 单面内自检 · ChannelArg 迁 declare（**修正原「迁 runtime」定裁**）· 数据/算法分层（declare → builder → cli 单向） | Oscar M. · Claude Opus 5（kairos:cdd-design · 用户裁定 · 2026-10-11） |

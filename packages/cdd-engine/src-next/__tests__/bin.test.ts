@@ -49,23 +49,26 @@ describe("the bin bootstrap — cli load + exit-code plumbing (black-box)", () =
     expect(Object.keys(parsed.properties).length).toBeGreaterThan(0);
   });
 
-  it("an unknown flag exits 2 with the command's usage line + the message (the guardArgs semantics ride the bin)", () => {
-    const result = run(["implement", "--taks", "1", "--plan", "p.md"]);
+  it("an unknown flag exits 2 with commander's unknown-option byte + the native did-you-mean (the guardArgs semantics ride the bin)", () => {
+    // the required flags must be satisfied first — commander's missing-required
+    // check fires before the unknown-option scan, so the typo surfaces only with
+    // --tasks/--plan present
+    const result = run(["implement", "--tasks", "2", "--plan", "p.md", "--taks"]);
     expect(result.code).toBe(2);
-    expect(result.stderr).toContain("usage: cdd implement");
-    expect(result.stderr).toContain("unknown option: --taks");
+    expect(result.stderr).toContain("error: unknown option '--taks'");
+    expect(result.stderr).toContain("(Did you mean --tasks?)");
   });
 
-  it("an unknown command exits 2 with the program usage face", () => {
+  it("an unknown command exits 2 with commander's unknown-command byte", () => {
     const result = run(["bogus"]);
     expect(result.code).toBe(2);
-    expect(result.stderr).toContain("unknown command: bogus");
+    expect(result.stderr).toContain("error: unknown command 'bogus'");
   });
 
-  it("a missing required flag exits 2 (base get's required --plan)", () => {
+  it("a missing required flag exits 2 with the .requiredOption() byte (base get's required --plan)", () => {
     const result = run(["base", "get"]);
     expect(result.code).toBe(2);
-    expect(result.stderr).toContain("missing required --plan");
+    expect(result.stderr).toContain("error: required option '--plan <path>' not specified");
   });
 
   it("`node src-next/bin.ts issue render` renders the aggregate body from stdin + exits 0", () => {

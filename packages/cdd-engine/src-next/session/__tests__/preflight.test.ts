@@ -113,7 +113,7 @@ function memoryFs(content: string): DocFs {
   };
 }
 
-/** A conforming phase-spec — every current + P4.1-T2 phaseSpec element present (the
+/** A conforming phase-spec — every current + P4.1-T2 phase-spec element present (the
  *  header tuple + the version lineage + a Change-history table + the design
  *  skeleton), so the doc-contract gate passes it (zero structural findings). */
 const CONFORMING_SPEC = [
@@ -232,7 +232,7 @@ describe("PreFlight — the clean-tree hard gate (implement/review/fix)", () => 
       // dangling DependsOn (plan-graph would refuse) + a defective doc: the dirty
       // tree still owns the verdict — the gate sequence stops at tree-clean.
       const badPlan = [task(1, "none"), task(2, "99")];
-      const verdict = await preflight.vet(docCtx(repoRoot, "phaseSpec", "review"));
+      const verdict = await preflight.vet(docCtx(repoRoot, "phase-spec", "review"));
       expect(verdict.ok).toBe(false);
       expect(verdict.gate).toBe("tree-clean");
       expect(verdict.order).toEqual(["tree-clean"]);
@@ -318,7 +318,7 @@ describe("PreFlight — the gate order composition (tree-clean → plan-graph �
     const { repoRoot, cleanup } = gitRepo();
     try {
       const preflight = preflightOf(memoryFs(CONFORMING_SPEC));
-      const verdict = await preflight.vet(docCtx(repoRoot, "phaseSpec", "review"));
+      const verdict = await preflight.vet(docCtx(repoRoot, "phase-spec", "review"));
       expect(verdict.ok).toBe(true);
       expect(verdict.order).toEqual(["tree-clean", "doc-contract"]);
     } finally {
@@ -400,7 +400,7 @@ describe("PreFlight — the doc-contract gate (Contract.validate over the doc fa
     const { repoRoot, cleanup } = gitRepo();
     try {
       const preflight = preflightOf(memoryFs(DEFECTIVE_SPEC));
-      const verdict = await preflight.vet(docCtx(repoRoot, "phaseSpec", "review"));
+      const verdict = await preflight.vet(docCtx(repoRoot, "phase-spec", "review"));
       expect(verdict.ok).toBe(false);
       expect(verdict.gate).toBe("doc-contract");
       expect(verdict.reason).toBe("doc-contract");
@@ -418,7 +418,7 @@ describe("PreFlight — the doc-contract gate (Contract.validate over the doc fa
         read: () => null,
         list: () => [],
       });
-      const verdict = await preflight.vet(docCtx(repoRoot, "phaseSpec", "review"));
+      const verdict = await preflight.vet(docCtx(repoRoot, "phase-spec", "review"));
       expect(verdict.ok).toBe(true);
       expect(verdict.order).toEqual(["tree-clean", "doc-contract"]);
     } finally {

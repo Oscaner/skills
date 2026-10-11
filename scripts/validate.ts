@@ -220,7 +220,7 @@ const PRECONTRACT_DOCS = new Set<string>([
  *  the wave's own plan/spec docs were CDD_BLOCKED at dispatch while `pnpm run
  *  validate` stayed green (the find-#8 gap — the gate's target docs never featured
  *  in CI). The docKey derives the way the doc faces dispatch (plan → plan,
- *  *-overall.md → overall, other spec → phaseSpec). */
+ *  *-overall.md → overall, other spec → phase-spec). */
 function checkDocContract(): void {
   const contract = new Contract();
   const fs = new NodeFs();
@@ -240,7 +240,7 @@ function checkDocContract(): void {
         continue;
       }
       const docKey =
-        dir === "plans" ? "plan" : name.endsWith("-overall.md") ? "overall" : "phaseSpec";
+        dir === "plans" ? "plan" : name.endsWith("-overall.md") ? "overall" : "phase-spec";
       const findings = contract.validate({ docKey, path: full, content, root: REPO_ROOT, fs });
       if (findings.length === 0) {
         enforced += 1;

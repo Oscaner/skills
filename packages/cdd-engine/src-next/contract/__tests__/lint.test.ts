@@ -83,7 +83,7 @@ function lintPlan(content: string): ReturnType<LintPass["run"]> {
 }
 
 function lintParsed(
-  docKey: "overall" | "plan" | "phaseSpec",
+  docKey: "overall" | "plan" | "phase-spec",
   lines: readonly string[],
 ): ReturnType<LintPass["run"]> {
   // docKey selects the parser only — the lint input carries no re-typed doc key.
@@ -91,7 +91,7 @@ function lintParsed(
 }
 
 /** The shared parse — the composition root consumers reuse (parse-once discipline). */
-const parseDoc = (docKey: "overall" | "plan" | "phaseSpec", lines: readonly string[]): ParsedDoc =>
+const parseDoc = (docKey: "overall" | "plan" | "phase-spec", lines: readonly string[]): ParsedDoc =>
   docTypeParsers[docKey].parse(lines);
 
 describe("the missing-edge suspect scan (the prose reference surface)", () => {
@@ -259,7 +259,7 @@ describe("the cross-doc reference observation (Class-B label drift)", () => {
     ];
     const warns = lintPass.run({
       path: SPEC_PATH,
-      parsed: parseDoc("phaseSpec", lines),
+      parsed: parseDoc("phase-spec", lines),
     });
     expect(warns).toHaveLength(1);
   });

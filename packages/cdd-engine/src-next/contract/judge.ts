@@ -34,7 +34,7 @@ import { Projector } from "./project.ts";
 import { Translator } from "./translate.ts";
 
 /** The three doc-type record keys — the policy-composition identity. */
-const DOC_KEYS: readonly DocKey[] = ["overall", "plan", "phaseSpec"];
+const DOC_KEYS: readonly DocKey[] = ["overall", "plan", "phase-spec"];
 
 /** The judgment input — the doc's identity, content and the seam closures. */
 export interface ContractInput {

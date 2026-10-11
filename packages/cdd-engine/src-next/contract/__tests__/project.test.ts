@@ -22,11 +22,11 @@ import type { ElementRegistry } from "../declare.ts";
 import { declaredRegistries } from "../declare.ts";
 import { Projector } from "../project.ts";
 
-const DOC_KEYS = ["overall", "plan", "phaseSpec"] as const;
+const DOC_KEYS = ["overall", "plan", "phase-spec"] as const;
 const REGISTRIES = [
   declaredRegistries.overall,
   declaredRegistries.plan,
-  declaredRegistries.phaseSpec,
+  declaredRegistries["phase-spec"],
 ] as const satisfies readonly ElementRegistry[];
 
 /** The shared projection carrier the suite derives every surface from. */
@@ -267,12 +267,11 @@ describe("skeleton projection (Projector.skeleton)", () => {
 
   it("keys the projection record by the DocKey domain and carries each doc's type identity", () => {
     // The skeleton record rides the projection DocKey domain (overall | plan |
-    // phaseSpec) — the CLI normalizes the DocType literal `phase-spec` to the
-    // `phaseSpec` key at the single alias face (spec §2.2), never a second list.
+    // phase-spec) — the same single spelling as the DocType literals (spec §5.2).
     expect(Object.keys(skeletons)).toEqual([...DOC_KEYS]);
     expect(skeletons.overall.docType).toBe("overall");
     expect(skeletons.plan.docType).toBe("plan");
-    expect(skeletons.phaseSpec.docType).toBe("phase-spec");
+    expect(skeletons["phase-spec"].docType).toBe("phase-spec");
   });
 
   it("projects exactly the required elements — optional/conditional generate zero slots", () => {
@@ -320,7 +319,7 @@ describe("skeleton projection (Projector.skeleton)", () => {
     }
     expect(skeletons.plan.slots.find((s) => s.anchor === "**Spec:**")?.slot).toBe("link");
     expect(skeletons.plan.slots.find((s) => s.anchor === "**Parent program**")?.slot).toBe("link");
-    expect(skeletons.phaseSpec.slots.find((s) => s.anchor === "**Parent program**")?.slot).toBe(
+    expect(skeletons["phase-spec"].slots.find((s) => s.anchor === "**Parent program**")?.slot).toBe(
       "link",
     );
   });
@@ -409,9 +408,9 @@ describe("Projector.registries — the composed six-projection surface", () => {
     const projected = PROJECTOR.registries();
     expect(projected.shape.overall.docType).toBe("overall");
     expect(projected.schema.plan.docType).toBe("plan");
-    expect(projected.tokens.phaseSpec.docType).toBe("phase-spec");
+    expect(projected.tokens["phase-spec"].docType).toBe("phase-spec");
     expect(projected.skeleton.overall.docType).toBe("overall");
     expect(projected.skeleton.plan.docType).toBe("plan");
-    expect(projected.skeleton.phaseSpec.docType).toBe("phase-spec");
+    expect(projected.skeleton["phase-spec"].docType).toBe("phase-spec");
   });
 });

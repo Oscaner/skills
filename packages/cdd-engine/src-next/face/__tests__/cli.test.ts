@@ -11,9 +11,11 @@
 //     the capsule and the ledger in a hermetic temp repo, advance the requested phase
 //     and land the canonical artifacts (brief / handoffs / progress); the phase gate
 //     refuses an unreachable round without dispatching a phantom;
-//   · the pure-command E2E — schema get (the derived doc-key vocabulary), schema
-//     gen (the derived doc skeleton — §2.2 DocType vocabulary + the phaseSpec
-//     alias normalization), issue render (stdin body — the subcommand face; the
+//   · the pure-command E2E — schema get (the shared schema-type vocabulary — the
+//     primary doc-key spellings + the plan-graph display route), schema gen (the
+//     derived doc skeleton — the same one-table-two-faces vocabulary with the
+//     legacy phaseSpec alias normalized to the kebab key, §5.3), issue render
+//     (stdin body — the subcommand face; the
 //     renderer's own suite lives in render/__tests__/render.test.ts, its T19
 //     home), base set/get (the single → artifact);
 //   · the composition root + HarnessDispatch — host detection, the dispatch prompt
@@ -361,25 +363,27 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
     expect(cli().parse(["issue", "render"]).leaf).toBe("render");
   });
 
-  it("rejects an unknown schema type against the derived registry-key vocabulary", () => {
+  it("rejects an unknown schema type against the shared schema-type vocabulary", () => {
     expect(() => cli().parse(["schema", "get", "bogus"])).toThrow(
-      /unknown schema type: bogus \(available: overall, plan, phaseSpec, plan-graph\)/,
+      /unknown schema type: bogus \(available: overall, plan, phase-spec, plan-graph\)/,
     );
   });
 
-  it("parses the gen leaf — the DocType vocabulary with the phaseSpec alias normalized to the projection key", () => {
-    expect(cli().parse(["schema", "gen", "phase-spec"]).positionals).toEqual(["phaseSpec"]);
-    expect(cli().parse(["schema", "gen", "phaseSpec"]).positionals).toEqual(["phaseSpec"]);
+  it("parses the gen leaf — the shared vocabulary with the phaseSpec alias normalized to the kebab key", () => {
+    expect(cli().parse(["schema", "gen", "phase-spec"]).positionals).toEqual(["phase-spec"]);
+    // the legacy camel alias normalizes to the same kebab key
+    expect(cli().parse(["schema", "gen", "phaseSpec"]).positionals).toEqual(["phase-spec"]);
     expect(cli().parse(["schema", "gen", "plan"]).positionals).toEqual(["plan"]);
     expect(cli().parse(["schema", "gen", "overall"]).positionals).toEqual(["overall"]);
-    // the get leaf's vocabulary is untouched — the DocType literal stays unknown there
-    expect(() => cli().parse(["schema", "get", "phase-spec"])).toThrow(/unknown schema type/);
+    // the get leaf rides the SAME table — the primary spelling and the alias both parse
+    expect(cli().parse(["schema", "get", "phase-spec"]).positionals).toEqual(["phase-spec"]);
+    expect(cli().parse(["schema", "get", "phaseSpec"]).positionals).toEqual(["phase-spec"]);
   });
 
   it("rejects the gen leaf's missing and unknown types with the gen leaf's own messages", () => {
     expect(() => cli().parse(["schema", "gen"])).toThrow("cdd schema gen: missing <type>");
     expect(() => cli().parse(["schema", "gen", "bogus"])).toThrow(
-      /cdd schema gen: unknown schema type: bogus \(available: overall, plan, phase-spec, phaseSpec\)/,
+      /cdd schema gen: unknown schema type: bogus \(available: overall, plan, phase-spec\)/,
     );
     // gen's vocabulary carries no plan-graph — the get leaf's special route is not
     // the gen leaf's
@@ -1523,7 +1527,7 @@ describe("the pure commands — schema / issue / base", () => {
       const code = await command.runArgv(["schema", "get", "bogus"]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain(
-        "unknown schema type: bogus (available: overall, plan, phaseSpec, plan-graph)",
+        "unknown schema type: bogus (available: overall, plan, phase-spec, plan-graph)",
       );
     } finally {
       cleanup();
@@ -1572,7 +1576,7 @@ describe("the pure commands — schema / issue / base", () => {
     const unknown = fixture();
     expect(await unknown.command.runArgv(["schema", "gen", "bogus"])).toBe(2);
     expect(unknown.io.stderrText).toContain(
-      "unknown schema type: bogus (available: overall, plan, phase-spec, phaseSpec)",
+      "unknown schema type: bogus (available: overall, plan, phase-spec)",
     );
     unknown.cleanup();
     // plan-graph is the get leaf's special route — never the gen leaf's
@@ -1582,7 +1586,7 @@ describe("the pure commands — schema / issue / base", () => {
     graph.cleanup();
   });
 
-  it("schema get — the bare call keeps its bytes and the DocType literal stays unknown (get zero-change)", async () => {
+  it("schema get — the bare call keeps its missing-type byte; the kebab spelling and the legacy alias render the same derived JSON", async () => {
     const bare = fixture();
     expect(await bare.command.runArgv(["schema", "get"])).toBe(2);
     // the get leaf's missing-type byte is unchanged — the parse-level required
@@ -1591,16 +1595,14 @@ describe("the pure commands — schema / issue / base", () => {
     expect(bare.io.stderrText).toContain("cdd schema: missing required <type>");
     bare.cleanup();
     const literal = fixture();
-    expect(await literal.command.runArgv(["schema", "get", "phase-spec"])).toBe(2);
-    expect(literal.io.stderrText).toContain(
-      "unknown schema type: phase-spec (available: overall, plan, phaseSpec, plan-graph)",
-    );
+    expect(await literal.command.runArgv(["schema", "get", "phase-spec"])).toBe(0);
+    expect(JSON.parse(literal.io.stdoutText).docType).toBe("phase-spec");
+    // the legacy alias normalizes to the same kebab key — byte-identical output
+    const alias = fixture();
+    expect(await alias.command.runArgv(["schema", "get", "phaseSpec"])).toBe(0);
+    expect(alias.io.stdoutText).toBe(literal.io.stdoutText);
+    alias.cleanup();
     literal.cleanup();
-    // the get face still outputs the derived JSON for the phaseSpec key
-    const json = fixture();
-    expect(await json.command.runArgv(["schema", "get", "phaseSpec"])).toBe(0);
-    expect(JSON.parse(json.io.stdoutText).docType).toBe("phase-spec");
-    json.cleanup();
   });
 
   it("issue render — stdin findings JSON → the aggregate body on stdout (the subcommand face)", async () => {

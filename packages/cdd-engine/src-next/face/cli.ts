@@ -101,15 +101,18 @@ export const CLI_USAGE: Record<CliVerb, string> = {
 /** The component-value types of the argv channel (the engine-config type names). */
 export type ChannelValueType = "string" | "path" | "int-list" | "enum" | "sha" | "int" | "bool";
 
-/** The schema-gen `<type>` vocabulary — the DocType literals (overall | plan |
- *  phase-spec) normalized to the projection record keys plus the one `phaseSpec`
- *  alias (the schema-get spelling — a seamless consumer switch, spec §2.2). One
- *  normalization table, never a second hand-written vocabulary list. */
+/** The schema `<type>` vocabulary — the get and gen leaves' ONE shared table
+ *  (one table, two faces, spec §5.3): the primary DocKey spellings (overall |
+ *  plan | phase-spec) plus the legacy `phaseSpec` alias normalized to the kebab
+ *  key. One normalizing vocabulary, never a second hand-written list — the get
+ *  leaf additionally routes `plan-graph` (a display type, not a doc key); each
+ *  leaf's error message names its own values (get: overall, plan, phase-spec,
+ *  plan-graph · gen: overall, plan, phase-spec). */
 const GEN_TYPE_KEYS: Record<string, DocKey> = {
   overall: "overall",
   plan: "plan",
-  "phase-spec": "phaseSpec",
-  phaseSpec: "phaseSpec",
+  "phase-spec": "phase-spec",
+  phaseSpec: "phase-spec",
 };
 
 /** One argv-channel entry — the declared flag / type / enum domain of one key. */
@@ -1275,7 +1278,7 @@ export class Cli {
       doc:
         type === "spec" || type === "plan"
           ? {
-              docKey: type === "plan" ? "plan" : "phaseSpec",
+              docKey: type === "plan" ? "plan" : "phase-spec",
               path: scene.target !== null && scene.target.kind === "doc" ? scene.target.doc : "",
             }
           : null,
@@ -1771,11 +1774,12 @@ export class Cli {
   // the pure commands — schema / issue / base
   // ---------------------------------------------------------------------------
 
-  /** `cdd schema get <type>` — the derived doc-structure schema JSON to stdout (the
-   *  type vocabulary = the projector's registry keys — self-derived, never a second
-   *  hand-written list); the `plan-graph` type rides the discovery read (§3.8).
+  /** `cdd schema get <type>` — the derived doc-structure schema JSON to stdout
+   *  (the type vocabulary = the one shared schema-type table (`GEN_TYPE_KEYS` —
+   *  the primary DocKey spellings + the legacy alias normalized to kebab, spec
+   *  §5.3); the `plan-graph` type rides the discovery read (§3.8)).
    *  `cdd schema gen <type>` dispatches to the skeleton render (the schema verb's
-   *  second leaf — get stays byte-unchanged). */
+   *  second leaf). */
   async #runSchema(parsed: ParsedCommand): Promise<number> {
     if (parsed.leaf === "gen") return this.#runSchemaGen(parsed);
     const type = parsed.positionals[0];
@@ -2054,11 +2058,13 @@ export class Cli {
     }
   }
 
-  /** The declared positional values, validated per leaf — `schema get`'s <type>
-   *  rides the derived registry-key vocabulary (the projector's self-derived list ·
-   *  byte-unchanged), `schema gen`'s rides the DocType vocabulary with the one
-   *  `phaseSpec` alias normalized to the projection key (spec §2.2 — the gen
-   *  missing/unknown faces name the gen leaf, never the get leaf's). */
+  /** The declared positional values, validated per leaf — `schema get`'s and
+   *  `schema gen`'s <type> ride the SAME vocabulary (`GEN_TYPE_KEYS` — the one
+   *  table, two faces, spec §5.3): the legacy `phaseSpec` alias normalizes to
+   *  the kebab key on both leaves. The get leaf additionally routes `plan-graph`
+   *  (a display type, never a doc key); the gen leaf does not — each leaf's
+   *  missing/unknown faces name the leaf's own values (get: overall, plan,
+   *  phase-spec, plan-graph · gen: overall, plan, phase-spec). */
   #positionalsOf(surface: CliCommandSpec | CliLeafSpec, positionals: readonly string[]): string[] {
     const declared = surface.positionals ?? [];
     return declared.map((positional, index) => {
@@ -2070,17 +2076,22 @@ export class Cli {
         const key = GEN_TYPE_KEYS[value];
         if (key === undefined) {
           throw this.#usage(
-            `cdd schema gen: unknown schema type: ${value} (available: overall, plan, phase-spec, phaseSpec)`,
+            `cdd schema gen: unknown schema type: ${value} (available: overall, plan, phase-spec)`,
             surface.usage,
           );
         }
         return key;
       }
-      if (positional.key === "type" && value !== "plan-graph" && !this.#docKeys.includes(value!)) {
-        throw this.#usage(
-          `cdd schema get: unknown schema type: ${value} (available: ${[...this.#docKeys, "plan-graph"].join(", ")})`,
-          surface.usage,
-        );
+      // The get leaf — the one shared vocabulary plus the plan-graph display route.
+      if (positional.key === "type" && value !== "plan-graph") {
+        const key = GEN_TYPE_KEYS[value!];
+        if (key === undefined) {
+          throw this.#usage(
+            `cdd schema get: unknown schema type: ${value} (available: ${[...this.#docKeys, "plan-graph"].join(", ")})`,
+            surface.usage,
+          );
+        }
+        return key;
       }
       return value!;
     });

@@ -99,7 +99,7 @@ export interface JudgeContext {
   /** The derived section skeleton of the judged doc type. */
   shape: DocShape;
   /** The three declared registries — the element-level judgment data. */
-  registries: { overall: ElementRegistry; plan: ElementRegistry; phaseSpec: ElementRegistry };
+  registries: { overall: ElementRegistry; plan: ElementRegistry; "phase-spec": ElementRegistry };
   /** The dispatch phase id — enables the face-④ phase-registration check. */
   phaseId?: string;
   /** Pre-parsed chain/sibling docs (path → parsed record). */
@@ -218,7 +218,7 @@ export abstract class Invariant extends MarkdownPrimitives {
 
   /** The parsed phase-spec record — when the judged doc is a phase-spec. */
   protected phaseSpec(ctx: JudgeContext): PhaseSpecParsed | null {
-    return ctx.docKey === "phaseSpec" ? (ctx.parsed as PhaseSpecParsed) : null;
+    return ctx.docKey === "phase-spec" ? (ctx.parsed as PhaseSpecParsed) : null;
   }
 
   /** The four-table section heading anchors of the overall (registry-declared). */
@@ -675,7 +675,7 @@ export class ContinuityInvariant extends Invariant {
 
   evaluate(ctx: JudgeContext): Finding[] {
     if (ctx.docKey === "plan") return this.taskContinuity(ctx);
-    if (ctx.docKey === "phaseSpec") return this.groupContinuity(ctx);
+    if (ctx.docKey === "phase-spec") return this.groupContinuity(ctx);
     return [];
   }
 
@@ -1006,7 +1006,7 @@ export class FileExistenceInvariant extends Invariant {
           links.push({ source: "**Parent program**", link: data.chain.parentLink });
       }
     }
-    if (ctx.docKey === "phaseSpec") {
+    if (ctx.docKey === "phase-spec") {
       const data = this.phaseSpec(ctx);
       if (data !== null && data.chain.parentLink !== null) {
         links.push({ source: "**Parent program**", link: data.chain.parentLink });
@@ -1207,7 +1207,7 @@ export class SectionScopedDomainInvariant extends Invariant {
 
   evaluate(ctx: JudgeContext): Finding[] {
     if (ctx.docKey === "overall") return this.issueScopedRefs(ctx);
-    if (ctx.docKey === "phaseSpec") return this.designScoping(ctx);
+    if (ctx.docKey === "phase-spec") return this.designScoping(ctx);
     return [];
   }
 

@@ -72,7 +72,7 @@ export interface ElementRegistry {
 export interface DeclaredRegistries {
   overall: ElementRegistry;
   plan: ElementRegistry;
-  phaseSpec: ElementRegistry;
+  "phase-spec": ElementRegistry;
 }
 
 // The legal value vocabularies — the single declared source the guards check
@@ -862,5 +862,5 @@ const PHASE_SPEC_ELEMENTS = [
 export const declaredRegistries: DeclaredRegistries = {
   overall: { docType: "overall", elements: OVERALL_ELEMENTS },
   plan: { docType: "plan", elements: PLAN_ELEMENTS },
-  phaseSpec: { docType: "phase-spec", elements: PHASE_SPEC_ELEMENTS },
+  "phase-spec": { docType: "phase-spec", elements: PHASE_SPEC_ELEMENTS },
 };

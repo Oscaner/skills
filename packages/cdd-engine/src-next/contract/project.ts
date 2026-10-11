@@ -43,8 +43,8 @@ import type {
   RegistryElement,
 } from "./declare.ts";
 
-/** The projection record keys — mirrors the declared-registries record shape ({ overall, plan, phaseSpec }). */
-export type DocKey = "overall" | "plan" | "phaseSpec";
+/** The projection record keys — mirrors the declared-registries record shape ({ overall, plan, phase-spec }). */
+export type DocKey = "overall" | "plan" | "phase-spec";
 
 // ---------------------------------------------------------------------------
 // shared derivation chain
@@ -377,7 +377,7 @@ export class Projector {
     return {
       overall: project(this.#registries.overall),
       plan: project(this.#registries.plan),
-      phaseSpec: project(this.#registries.phaseSpec),
+      "phase-spec": project(this.#registries["phase-spec"]),
     };
   }
 

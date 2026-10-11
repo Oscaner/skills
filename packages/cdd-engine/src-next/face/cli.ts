@@ -1024,6 +1024,10 @@ export class Cli {
    *  commands consult before ANY child dispatch (tree-clean → plan-graph → wave →
    *  doc-contract; the CLI orchestrates the call + the render, never a re-type). */
   readonly #preflight: PreFlight;
+  /** The contract coordinator — the shared doc-key derivation face (deriveDocType)
+   *  the pre-flight doc construction reads (design spec §2.3: the derivation point
+   *  converges to the single contract method). */
+  readonly #contract: Contract;
 
   constructor(opts: CliOptions = {}) {
     this.#io = opts.io ?? {
@@ -1047,6 +1051,7 @@ export class Cli {
     this.#channels = this.#channelTable();
     this.#docKeys = Object.keys(this.#projector.registries().schema);
     this.#graphView = new GraphView();
+    this.#contract = new Contract();
     this.#preflight =
       opts.preflight ??
       new PreFlight({
@@ -1268,6 +1273,7 @@ export class Cli {
     // returns before any brief/lifecycle: no child dispatch ever runs. The
     // dirty-tree / doc-contract refusals ride the CDD_BLOCKED channel; the
     // plan-graph / wave refusals keep the pre-existing refusal face.
+    const docPath = scene.target !== null && scene.target.kind === "doc" ? scene.target.doc : "";
     const preflight = await this.#preflight.vet({
       verb: verb as "implement" | "review" | "fix",
       type,
@@ -1278,8 +1284,8 @@ export class Cli {
       doc:
         type === "spec" || type === "plan"
           ? {
-              docKey: type === "plan" ? "plan" : "phase-spec",
-              path: scene.target !== null && scene.target.kind === "doc" ? scene.target.doc : "",
+              docKey: type === "plan" ? "plan" : this.#contract.deriveDocType(docPath),
+              path: docPath,
             }
           : null,
     });

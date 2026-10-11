@@ -857,6 +857,31 @@ describe("governance greps (the engine-zero criterion)", () => {
   });
 });
 
+describe("deriveDocType — the shared doc-type derivation (design spec §2.1)", () => {
+  const derive = new Contract().deriveDocType;
+
+  it("derives the overall key from a basename ending in -overall.md (positive)", () => {
+    expect(derive("specs/x-overall.md")).toBe("overall");
+    expect(derive("dir/sub/x-overall.md")).toBe("overall"); // directory prefix immune
+    expect(derive("docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md")).toBe("overall");
+  });
+
+  it("derives the phase-spec key from any other doc path (negative)", () => {
+    expect(derive("specs/x-design.md")).toBe("phase-spec");
+    expect(derive("specs/x-plan.md")).toBe("phase-spec");
+    expect(derive("x-overall.md.bak")).toBe("phase-spec"); // endsWith semantics — no .md suffix
+  });
+
+  it("judges by basename — an absolute path derives through its file name", () => {
+    expect(derive("/repo/docs/kairos/specs/x-overall.md")).toBe("overall");
+    expect(derive("/repo/docs/kairos/specs/x-design.md")).toBe("phase-spec");
+  });
+
+  it("ignores a trailing separator per the call-site convention (file paths — node's basename strips it)", () => {
+    expect(derive("x-overall.md/")).toBe("overall");
+  });
+});
+
 /** One rendered `### Task N:` block with all required fields. */
 function planTask(id: number): string[] {
   return [

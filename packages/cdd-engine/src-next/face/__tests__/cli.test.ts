@@ -183,6 +183,85 @@ function conformingPlan(repoRoot: string): string {
   return file;
 }
 
+/** A doc-contract-clean overall — every registered overall element present (the
+ *  header tuple + the ten-element charter + the inventory tables), its chain links
+ *  resolving into existing same-family siblings. The overall charter is the
+ *  GOOD_OVERALL judge fixture shape (judge.test.ts:19-71) with the `o1-` names
+ *  the temp repo actually holds — the review face's doc-contract gate must judge it
+ *  under the overall key (zero phase-spec misreport on the doc-key derivation). */
+function conformingOverall(repoRoot: string): string {
+  const file = path.join(repoRoot, "docs", "kairos", "specs", "o1-overall.md");
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(
+    file,
+    [
+      "# Test Overall",
+      "- **Version**: v1.21 · 2026-10-07",
+      "- **Status**: Approved",
+      "- **Author**: [human]",
+      "- **Constraints**: all cross-cutting constraints apply",
+      "",
+      "## Document scope",
+      "scope prose",
+      "",
+      "## File paths",
+      "| Artifact | Path |",
+      "| --- | --- |",
+      "| overall | docs/kairos/specs/o1-overall.md |",
+      "",
+      "## Program charter",
+      "### Goal",
+      "- goal text",
+      "",
+      "### Non-goals",
+      "- non-goal text",
+      "",
+      "### Cross-cutting",
+      "- cross text",
+      "",
+      "## Issue inventory",
+      "| Phase | Issue (ref) | Title summary |",
+      "| --- | --- | --- |",
+      "| P1 | #123 | issue one |",
+      "| P2 | none | issue two |",
+      "",
+      "## Phase inventory",
+      "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+      "| --- | --- | --- | --- | --- | --- | --- |",
+      "| P1 | doc-type derivation | scope a | [P1-design](docs/kairos/specs/o1-p1-design.md) | [P1 plan](docs/kairos/plans/o1-p1.md) | criteria a |  |",
+      "| P2 | document surface | scope b | P2-design | [P2 plan](docs/kairos/plans/o1-p2.md) | criteria b |  |",
+      "",
+      "## Dependency graph",
+      "P1 -> P2",
+      "- `->` = hard block",
+      "",
+      "## Boundary rules",
+      "- boundary rule",
+      "",
+      "## Maintenance",
+      "- maintenance note",
+      "",
+      "## Change history",
+      "| Version | Date | Summary |",
+      "| --- | --- | --- |",
+      "| v1.20 | 2026-10-06 | prior change |",
+      "| v1.21 | 2026-10-07 | merged change |",
+    ].join("\n"),
+    "utf8",
+  );
+  for (const sibling of ["o1-p1-design.md", "o1-p2-design.md"]) {
+    const siblingPath = path.join(repoRoot, "docs", "kairos", "specs", sibling);
+    mkdirSync(path.dirname(siblingPath), { recursive: true });
+    writeFileSync(siblingPath, `# ${sibling}\n`, "utf8");
+  }
+  for (const sibling of ["o1-p1.md", "o1-p2.md"]) {
+    const siblingPath = path.join(repoRoot, "docs", "kairos", "plans", sibling);
+    mkdirSync(path.dirname(siblingPath), { recursive: true });
+    writeFileSync(siblingPath, `# ${sibling}\n`, "utf8");
+  }
+  return file;
+}
+
 /** A plan with N independent tasks (no deps — a single root wave of N members). */
 function independentPlan(repoRoot: string, name: string, count: number): string {
   const file = path.join(repoRoot, "docs", "kairos", "plans", name);
@@ -832,6 +911,37 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "plan-review-1.json"))).toBe(
         true,
       );
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("review --type spec of an -overall.md — the overall doc-key face (zero phase-spec misreport)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const overall = conformingOverall(repoRoot);
+      const overallCode = await command.runArgv([
+        "review",
+        "--type",
+        "spec",
+        "--spec",
+        overall,
+        "--dry-run",
+        "--root",
+        repoRoot,
+      ]);
+      expect(overallCode).toBe(0);
+      expect(io.stdoutText).toContain("next: done");
+      // The overall was judged under the overall key (deriveDocType, design spec
+      // §2.3) — a phase-spec misjudge would trip the doc-contract gate: the charter
+      // fails the phase-spec face, the pre-flight refuses over CDD_BLOCKED and no
+      // round lands. The exit 0 + round + empty-findings carrier pin the zero
+      // misreport; the stderr stays free of the blocked channel.
+      const round = path.join(repoRoot, ".kairos", "cdd", "o1-overall", "spec-review-1.json");
+      expect(existsSync(round)).toBe(true);
+      expect(io.stderrText).not.toContain("CDD_BLOCKED");
+      expect(readJson<{ findings: unknown[] }>(round).findings).toEqual([]);
     } finally {
       cleanup();
     }

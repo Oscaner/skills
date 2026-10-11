@@ -2,8 +2,10 @@
 // Asserts the P4.2 Task 9 acceptance: the docs/maintainers family converged from six content docs
 // to five (01 template-doctrine merged; 02 naming / 03 context-caching / 04 program-experience /
 // 05 third-party-dependencies renumbered contiguous), zero old-numbered names on live surfaces;
-// the P3.2 facts-only sweep adds a sixth content doc (06-skill-node-discipline) with the
-// converged numbering and a ≤ 56,000 budget. Every markdown link + external reference resolves,
+// 05 later deleted per the user ruling 2026-10-11 (third-party deps leave no maintainer-doc
+// surface), so the live family is five content docs — 01–04 plus 06-skill-node-discipline, the
+// P3.2 facts-only sweep's addition at the converged numbering — within the ≤ 56,000 budget. Every
+// markdown link + external reference resolves,
 // the P4.2 convergence ledger in
 // docs/maintainers/README.md stays truthful (each per-file After cell == the live file's byte
 // count, and the Total After cell == the sum of the per-file After cells), the total byte budget

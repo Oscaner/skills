@@ -1,6 +1,6 @@
 # 引擎文档工具（Engine Doc-Tooling）— P1 Design Spec（review face overall 键 · face 全层重塑 · help 展示面重建 · docKey 词表统一）
 
-- **Version**: v0.2 · 2026-10-11
+- **Version**: v0.3 · 2026-10-11
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5（kairos:cdd-design [P1] grilling 定案 → cdd-spec-writer · 词表统一 backfill 2026-10-11）
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall.md v1.5](docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md)
@@ -80,7 +80,7 @@
 
 #### 4.2 路线：自研渲染重建（Q4→a · 零依赖保持）
 
-- **不回注 citty**——零运行时依赖姿态保持 · 维护文档 `05-third-party-dependencies.md:45` do-not-re-add 守约（退役为 P3.2 有意裁定 · §1.3）；render 面并入 face 重塑（类成员 · 零裸函数 · 高内聚低耦合）
+- **不回注 citty**——零运行时依赖姿态保持 · 维护文档 `05-third-party-dependencies.md:45` do-not-re-add 守约（退役为 P3.2 有意裁定 · §1.3）；**新 help 渲染面**并入 face 重塑（类成员 · 零裸函数 · 高内聚低耦合）；**边界钉定（post-approval backfill · review F5 落定）**：P2 属主的 `render/skeleton.ts`（及工作命令 render 面 `brief`/`issue-body`）**不在 P1 重塑面内**——仅随 D8 sweep 更名字面，不重组（跨程序属主保护）
 - 目标形面（§4.1）全部由自研渲染器承担——消费心智负担与零依赖兼得
 
 #### 4.3 usage 行重写（Q5→b · deliberate pin break）
@@ -173,3 +173,4 @@
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-11 | P1 design spec 初版——docKey 推导共享化（契约层类成员 · validate 改调）· face/ 全层六前提重塑 · help/`--help` 展示面重建（自研渲染零依赖 · usage 重写 pin-break）· 消费面 skill 零 commit · 验证与程序纪律（grilling Q1–Q6 定案收敛 · 父总体 v1.4 已回填） | [human] · Claude Opus 5（kairos:cdd-design [P1] → cdd-spec-writer） |
 | v0.2 | 2026-10-11 | docKey 词表统一 backfill（用户裁定「backfill 到 P1 统一处理 · P1 本就要处理 cli 面」）：全库单一拼写 `phase-spec`（kebab）——declare 行键 · judge DOC_KEYS/DocKey · invariants · Projector 五投影 · validate 派生 · preflight docKey · words 键 kebab 化 · schema get 值域统一（get/gen 一表两面 · `phaseSpec` 别名归一）· P2「get 字节不变」语义随统一更新（deliberate pin break）· 组重编号（消费面→6 · 验证→7）· 父总体 v1.5 已回填 | [human] · Claude Opus 5（用户裁定 backfill · 2026-10-11） |
+| v0.3 | 2026-10-11 | **F5 post-approval backfill（用户裁定 a · review fix-1 carryover）**：§4.2 render 面边界钉定——P2 属主 `render/skeleton.ts` + 工作命令 render 面 `brief`/`issue-body` 不在 P1 重塑面内（仅随 D8 sweep 更名字面 · 不重组 · 跨程序属主保护）；fix 轮（3f4abcf7）已落 F1/F2/F4/F6 四改 + F3 编排器裁决免改 | [human] · Claude Opus 5（编排器 post-approval backfill · 用户裁定 a） |

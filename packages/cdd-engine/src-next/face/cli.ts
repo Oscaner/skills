@@ -1056,7 +1056,7 @@ export class Cli {
       opts.preflight ??
       new PreFlight({
         git: this.#git,
-        contract: new Contract(),
+        contract: this.#contract,
         words: this.#words,
       });
   }

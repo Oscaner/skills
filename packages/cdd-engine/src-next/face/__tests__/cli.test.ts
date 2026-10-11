@@ -38,8 +38,25 @@ import type { OpenFrame } from "../../session/run.ts";
 import { Capsule } from "../capsule.ts";
 import type { CliIo, CliOptions, DispatchScene, SyncProcess } from "../cli.ts";
 import { cli, HarnessDispatch } from "../cli.ts";
-import { CLI_COMMANDS, CLI_USAGE } from "../registry.ts";
+import { CLI_COMMANDS } from "../declare.ts";
 import { Words } from "../words.ts";
+
+// The retired six-line usage corpus — the pre-T2 usage product's bytes. The
+// declaration rows carry no usage corpus since the T2 convergence (the commander
+// projection owns the usage product); these retired bytes stay pinned here for
+// the Task 5 usage-byte re-pins (deliberate — the survivors assert the old
+// self-built face is gone from the new output).
+const RETIRED_USAGE = {
+  implement:
+    "usage: cdd implement --tasks <n|n,n,…> --plan <path> [--root <path>] — implement the plan wave's task group",
+  review:
+    "usage: cdd review --type <wave|branch|spec|plan> [--tasks <n|n,n,…>] [--round <n>] (--plan <path> | --spec <path> | --base <sha> --head <sha>) [--root <path>] — run the review round",
+  fix: "usage: cdd fix --type <wave|branch|spec|plan> [--tasks <n|n,n,…>] [--findings <path>] (--plan <path> | --spec <path>) [--root <path>] — run the fix round on the review findings",
+  base: "usage: cdd base <set|get> --plan <path> [set: --base <branch> --source <source>] [--force] — read/write the base.json artifact",
+  schema:
+    "usage: cdd schema <get|gen> <type> — <type> is overall | plan | phase-spec (get also accepts plan-graph)",
+  issue: "usage: cdd issue render — render the aggregate issue body from stdin findings JSON",
+} as const;
 
 // ---------------------------------------------------------------------------
 // fixtures
@@ -316,25 +333,13 @@ describe("the command face — the six steady subcommand words", () => {
     ]);
   });
 
-  it("the usage lines carry the rewritten consumption face (the Task 4 deliberate pin break — friendly syntax: flag value domains · phase semantics)", () => {
-    expect(CLI_USAGE.implement).toBe(
-      "usage: cdd implement --tasks <n|n,n,…> --plan <path> [--root <path>] — implement the plan wave's task group",
-    );
-    expect(CLI_USAGE.review).toBe(
-      "usage: cdd review --type <wave|branch|spec|plan> [--tasks <n|n,n,…>] [--round <n>] (--plan <path> | --spec <path> | --base <sha> --head <sha>) [--root <path>] — run the review round",
-    );
-    expect(CLI_USAGE.fix).toBe(
-      "usage: cdd fix --type <wave|branch|spec|plan> [--tasks <n|n,n,…>] [--findings <path>] (--plan <path> | --spec <path>) [--root <path>] — run the fix round on the review findings",
-    );
-    expect(CLI_USAGE.base).toBe(
-      "usage: cdd base <set|get> --plan <path> [set: --base <branch> --source <source>] [--force] — read/write the base.json artifact",
-    );
-    expect(CLI_USAGE.schema).toBe(
-      "usage: cdd schema <get|gen> <type> — <type> is overall | plan | phase-spec (get also accepts plan-graph)",
-    );
-    expect(CLI_USAGE.issue).toBe(
-      "usage: cdd issue render — render the aggregate issue body from stdin findings JSON",
-    );
+  it("the six-line usage corpus retires with the declaration rows — the usage face is the commander-native projection (Task 2; the byte re-pins land at Task 5)", () => {
+    // The retired corpus is gone from the declaration surface — the command rows
+    // carry the description/keys/positionals/leaves face, never a usage corpus.
+    const declarationText = JSON.stringify(CLI_COMMANDS);
+    for (const line of Object.values(RETIRED_USAGE)) {
+      expect(declarationText, line).not.toContain(line);
+    }
   });
 
   it("declares the nested leaf surfaces — base set|get · schema get|gen · issue render", () => {
@@ -524,7 +529,7 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
     try {
       const code = await command.runArgv(["implement", "--taks", "1"]);
       expect(code).toBe(2);
-      expect(io.stderrText).toContain(CLI_USAGE.implement);
+      expect(io.stderrText).toContain(RETIRED_USAGE.implement);
       expect(io.stderrText).toContain("unknown option: --taks");
     } finally {
       cleanup();
@@ -549,7 +554,7 @@ describe("the help/--help display face — the command overview", () => {
       }
       expect(io.stdoutText).toContain("commands:");
       expect(io.stdoutText).toContain("usage: cdd <command> [options]");
-      expect(io.stdoutText).toContain(CLI_USAGE.implement);
+      expect(io.stdoutText).toContain(RETIRED_USAGE.implement);
       // the overview + the missing-command message are ONE output on stdout
       expect(io.stdoutText).toContain(
         "missing command — expected implement | review | fix | base | schema | issue",
@@ -711,7 +716,7 @@ describe("the help/--help display face — the error-path smart hints", () => {
       expect(code).toBe(2);
       expect(io.stderrText).toContain("unknown option: --taks");
       expect(io.stderrText).toContain("did you mean --tasks?");
-      expect(io.stderrText).toContain(CLI_USAGE.implement);
+      expect(io.stderrText).toContain(RETIRED_USAGE.implement);
     } finally {
       cleanup();
     }
@@ -728,7 +733,7 @@ describe("the help/--help display face — the error-path smart hints", () => {
       expect(code).toBe(2);
       expect(io.stderrText).toContain("unknown option: --spel");
       expect(io.stderrText).not.toContain("did you mean --spec");
-      expect(io.stderrText).toContain(CLI_USAGE.implement);
+      expect(io.stderrText).toContain(RETIRED_USAGE.implement);
     } finally {
       cleanup();
     }
@@ -737,14 +742,14 @@ describe("the help/--help display face — the error-path smart hints", () => {
   it("a leaf's unknown flag stays inside the leaf's own candidates (base get never suggests set's --force)", async () => {
     const { command, io, cleanup } = fixture();
     try {
-      // `base get` and `base set` share CLI_USAGE.base — the did-you-mean
+      // `base get` and `base set` share the base usage product — the did-you-mean
       // candidates must follow the errored LEAF surface, not the shared usage
       // line: --force / --source are set-only flags the get face rejects.
       const code = await command.runArgv(["base", "get", "--forc", "--plan", "p.md"]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain("unknown option: --forc");
       expect(io.stderrText).not.toContain("did you mean");
-      expect(io.stderrText).toContain(CLI_USAGE.base);
+      expect(io.stderrText).toContain(RETIRED_USAGE.base);
     } finally {
       cleanup();
     }
@@ -787,7 +792,7 @@ describe("the help/--help display face — the error-path smart hints", () => {
       expect(code).toBe(2);
       expect(io.stderrText).toContain("missing required --tasks");
       expect(io.stderrText).toContain("expected --tasks <n|n,n,…>");
-      expect(io.stderrText).toContain(CLI_USAGE.implement);
+      expect(io.stderrText).toContain(RETIRED_USAGE.implement);
     } finally {
       cleanup();
     }
@@ -800,7 +805,7 @@ describe("the help/--help display face — the error-path smart hints", () => {
       expect(code).toBe(2);
       expect(io.stderrText).toContain("unknown subcommand: reset");
       expect(io.stderrText).toContain("available subcommands: set | get");
-      expect(io.stderrText).toContain(CLI_USAGE.base);
+      expect(io.stderrText).toContain(RETIRED_USAGE.base);
     } finally {
       cleanup();
     }

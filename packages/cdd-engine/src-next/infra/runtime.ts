@@ -4,10 +4,11 @@
 // stable runtime fact lives here (or in its single typed home elsewhere in the
 // plane) and is imported, never parsed:
 //
-//   · $version              — the runtime contract version (the face's version pin).
-//   · contextContract       — the argv channel table: the CLI flag/type/enum single
-//     source (the command registry's keys resolve through it, never a second list).
-//   · handoffNamespace      — the workspace-root segment + the handoff family naming
+//   · $version             — the runtime contract version (the face's version pin).
+//   · contextContract      — the environment contract's view of the argv channel
+//     table (the CLI declaration single surface — face/declare.ts §2.4 — is the
+//     channel's home; the runtime references the same table, never a second list).
+//   · handoffNamespace     — the workspace-root segment + the handoff family naming
 //     table (the ledger's family resolution reads it).
 //
 // The JSON plane's dead fields are not carried (the delete-dead-empties iron rule):
@@ -22,27 +23,11 @@
 // Module-level exports are types / the declared constant data — zero behavior-
 // carrying bare functions (the plan's zero-bare-function discipline).
 
-/** The component-value types of the argv channel (the CLI parse validates by these). */
-export type ChannelValueType = "string" | "path" | "int-list" | "enum" | "sha" | "int" | "bool";
+import { ARGV_CHANNEL, type ChannelArgRow } from "../face/declare.ts";
 
-/** One argv-channel row — the flag/type/enum declaration of one CLI key. */
-export interface ChannelArgRow {
-  /** The `--flag` spelling. */
-  flag: string;
-  /** The complement alias (help's `-h`), when the channel declares one. */
-  alias?: string;
-  /** The component-value type the CLI parse validates by. */
-  type: ChannelValueType;
-  /** The enum domain, when the type is enum. */
-  values?: readonly string[];
-  /** The program-scope marker (dry-run/help — accepted at any position). */
-  scope?: "program";
-  /** The flag-level help line — the `--help` render's per-flag description (one
-   *  global key text, single-sourced at the channel). */
-  help?: string;
-}
-
-/** The argv channel — the CLI's flag/type/values single source. */
+/** The argv channel — the CLI's flag/type/values single source (the table's rows
+ *  live at face/declare.ts §2.4 — the CLI declaration single surface; this shape
+ *  stays the engine-config face's view of it). */
 export interface ArgvChannel {
   readonly argv: Readonly<Record<string, ChannelArgRow>>;
 }
@@ -101,60 +86,6 @@ export interface EngineRuntime {
   /** The handoff-name space — workspace + family naming. */
   handoffNamespace: HandoffNamespace;
 }
-
-/** The argv channel table — the CLI flag/type/enum single source (the engine-config
- *  argv channel verbatim: flag spellings, value types and enum domains ride these
- *  rows, and the command registry + the channel audit read them from here). The
- *  `help` rows are the flag-level descriptions of the `--help` display face (one
- *  text per key, shared by every command that declares it). */
-export const ARGV_CHANNEL = {
-  plan: { flag: "--plan", type: "path", help: "the CDD plan document path" },
-  spec: { flag: "--spec", type: "path", help: "the design-spec document path" },
-  findings: {
-    flag: "--findings",
-    type: "path",
-    help: "the source review handoff JSON path",
-  },
-  tasks: {
-    flag: "--tasks",
-    type: "int-list",
-    help: "the task ids of the wave group (comma-separated)",
-  },
-  type: {
-    flag: "--type",
-    type: "enum",
-    values: ["wave", "branch", "spec", "plan"],
-    help: "the target face of the round",
-  },
-  base: { flag: "--base", type: "sha", help: "the branch range's base commit (8-char sha)" },
-  head: { flag: "--head", type: "sha", help: "the branch range's head commit (8-char sha)" },
-  round: { flag: "--round", type: "int", help: "the review/fix round number" },
-  source: {
-    flag: "--source",
-    type: "enum",
-    values: ["plan-field", "branch-upstream", "conversation-context", "user-confirmed"],
-    help: "the base artifact's source channel",
-  },
-  force: { flag: "--force", type: "bool", help: "override the existing base artifact" },
-  dryRun: {
-    flag: "--dry-run",
-    type: "bool",
-    scope: "program",
-    help: "synthetic dispatch — book the round without a child spawn",
-  },
-  help: {
-    flag: "--help",
-    alias: "-h",
-    type: "bool",
-    scope: "program",
-    help: "show this help",
-  },
-  root: {
-    flag: "--root",
-    type: "path",
-    help: "the repository root (default: the current git top level)",
-  },
-} as const satisfies Readonly<Record<string, ChannelArgRow>>;
 
 /** The handoff family naming table — the canonical per-family file-name patterns
  *  keyed by `op.type` (implement.wave / review.wave / … — the ledger's single
@@ -244,7 +175,9 @@ export const HANDOFF_FAMILIES = {
   },
 } as const satisfies Readonly<Record<string, HandoffFamily>>;
 
-/** The engine runtime — the typed engine-config surface, one constant. */
+/** The engine runtime — the typed engine-config surface, one constant (the argv
+ *  channel table is the CLI declaration single surface, face/declare.ts §2.4 —
+ *  referenced here, never re-declared). */
 export const ENGINE_RUNTIME = {
   $version: 1,
   contextContract: { channels: { argv: ARGV_CHANNEL } },

@@ -14,10 +14,11 @@
 //     table's data-source face); the scan releases those rows as data, so the live
 //     faces must carry zero of them (the retired-vocabulary zero-hit).
 //   · checkChannels — the channel audit: the CLI flag channel closure (command keys
-//     × the runtime argv channel), the host-marker closure (from the harness detect
-//     rows, single source) and the dispatch/refs derivation (every dispatch ref
-//     registered + every per-harness slash form derived) — all asserted against the
-//     typed runtime/host exports, zero parallel allowlist.
+//     × the declare argv channel — a single-surface in-file self-check §2.2), the
+//     host-marker closure (from the harness detect rows, single source) and the
+//     dispatch/refs derivation (every dispatch ref registered + every per-harness
+//     slash form derived) — all asserted against the typed declare/host exports,
+//     zero parallel allowlist.
 //
 // Module-level exports are types / the class — zero behavior-carrying bare functions
 // except the admitted pure discovery/parse helpers below.
@@ -30,7 +31,11 @@ import {
   type SkillAnatomyContract,
   type SkillRosterRow,
 } from "../../packages/cdd-engine/src-next/contract/skill-anatomy.ts";
-import { CLI_COMMANDS } from "../../packages/cdd-engine/src-next/face/cli.ts";
+import {
+  ARGV_CHANNEL,
+  type ChannelArgRow,
+  CLI_COMMANDS,
+} from "../../packages/cdd-engine/src-next/face/declare.ts";
 import {
   DISPATCH,
   type DispatchTable,
@@ -41,10 +46,6 @@ import {
   REFS,
 } from "../../packages/cdd-engine/src-next/face/host.ts";
 import { GUARD_BAN_WORDS } from "../../packages/cdd-engine/src-next/face/words.ts";
-import {
-  ARGV_CHANNEL,
-  type ChannelArgRow,
-} from "../../packages/cdd-engine/src-next/infra/runtime.ts";
 import { scanToken } from "./scan.ts";
 
 /** The guard finding — one violation of a check face (label + file attribution). */
@@ -659,18 +660,19 @@ export class GuardLibrary {
 
   /**
    * checkChannels() — the channel audit: the CLI channel closure (every command-
-   * declared key resolves in the runtime argv channel, and every non-program argv
-   * channel key is declared by a command), the host-marker closure (detect env keys
-   * ∪ PATH — derived from the harness detect rows as the live single source,
-   * compared against a pinned half-update oracle, documented in-check), and the
-   * dispatch/refs derivation (every dispatch-slot ref registered + every per-harness
-   * slash form derived: pi `/skill:<bare>`, claude/cursor `/<ref>`). All asserted
-   * against the typed exports — zero parallel allowlist beyond the host-marker pin.
+   * declared key resolves in the declare argv channel, and every non-program
+   * channel key is declared by a command — the single-surface in-file self-check,
+   * §2.2), the host-marker closure (detect env keys ∪ PATH — derived from the
+   * harness detect rows as the live single source, compared against a pinned
+   * half-update oracle, documented in-check), and the dispatch/refs derivation
+   * (every dispatch-slot ref registered + every per-harness slash form derived:
+   * pi `/skill:<bare>`, claude/cursor `/<ref>`). All asserted against the typed
+   * exports — zero parallel allowlist beyond the host-marker pin.
    */
   checkChannels(): GuardFinding[] {
     const findings: GuardFinding[] = [];
 
-    // 1. The CLI channel closure — command keys × the runtime argv channel.
+    // 1. The CLI channel closure — command keys × the declare argv channel.
     const declaredKeys = new Set<string>();
     const channelKeys = Object.keys(this.#channels);
     const channel = this.#channels;
@@ -684,8 +686,8 @@ export class GuardLibrary {
     for (const key of declaredKeys) {
       if (!channelKeys.includes(key)) {
         findings.push({
-          label: `CLI command declares channel key "${key}" absent from the runtime argv channel (channel closure broken)`,
-          file: "packages/cdd-engine/src-next/face/cli.ts",
+          label: `CLI command declares channel key "${key}" absent from the declare argv channel (channel closure broken)`,
+          file: "packages/cdd-engine/src-next/face/declare.ts",
         });
       }
     }
@@ -693,8 +695,8 @@ export class GuardLibrary {
       if (declaredKeys.has(key)) continue;
       if (channel[key]?.scope === "program") continue; // the program-level bools (dry-run/help)
       findings.push({
-        label: `runtime argv channel key "${key}" is declared by no command and not program-scoped (channel closure broken)`,
-        file: "packages/cdd-engine/src-next/infra/runtime.ts",
+        label: `declare argv channel key "${key}" is declared by no command and not program-scoped (channel closure broken)`,
+        file: "packages/cdd-engine/src-next/face/declare.ts",
       });
     }
 

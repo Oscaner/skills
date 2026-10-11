@@ -1,8 +1,9 @@
 // packages/cdd-engine/src-next/infra/__tests__/infra.test.ts
-// T12 infra suite + T21 typed-plane migration:
-//   · runtime — the typed engine-config surface (the argv channel table + the handoff
-//     namespace: workspace-root segment + the family naming table), single-source
-//     asserts (the data lives in the typed module — zero config-home reads);
+// T12 infra suite + T21 typed-plane migration + T2 declaration convergence:
+//   · runtime — the typed engine-config surface (version + the handoff namespace:
+//     workspace-root segment + the family naming table — the argv channel table's
+//     home is the CLI declaration single surface, face/declare.ts §2.4), single-source
+//     asserts (the data lives in the typed modules — zero config-home reads);
 //   · config — the ConfigLoader typed accessor facade (the consumer surface the
 //     retired loader kept: engineConfig / harnessContract / templateContract /
 //     handoffNamespace — now the typed planes' single home);
@@ -14,12 +15,13 @@ import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { ARGV_CHANNEL } from "../../face/declare.ts";
 import { DISPATCH, HOSTS, REFS } from "../../face/host.ts";
 import { REVIEWS, TEMPLATE_PROMPT } from "../../render/templates.ts";
 import { ConfigLoader } from "../config.ts";
 import { GitClient } from "../git.ts";
 import { ProcessRunner } from "../process.ts";
-import { ARGV_CHANNEL, ENGINE_RUNTIME, HANDOFF_FAMILIES } from "../runtime.ts";
+import { ENGINE_RUNTIME, HANDOFF_FAMILIES } from "../runtime.ts";
 import { Workspace, WorkspaceRoot } from "../workspace.ts";
 
 describe("runtime — the typed engine-config surface (the typed data plane)", () => {
@@ -27,7 +29,9 @@ describe("runtime — the typed engine-config surface (the typed data plane)", (
     expect(ENGINE_RUNTIME.$version).toBeGreaterThanOrEqual(1);
     expect(ENGINE_RUNTIME.handoffNamespace.workspaceRoot).toBe(".kairos/cdd");
     // The CLI channel table — the flag/type/enum single source (tasks / type enum),
-    // with the flag-level `help` row the --help display face reads (Task 4).
+    // single-homed at the CLI declaration surface (face/declare.ts §2.4 — moved
+    // from this plane by the T2 declaration convergence), with the flag-level
+    // `help` row the commander Options face reads (Task 4).
     expect(ARGV_CHANNEL.tasks).toEqual({
       flag: "--tasks",
       type: "int-list",
@@ -73,8 +77,9 @@ describe("runtime — the typed engine-config surface (the typed data plane)", (
 
   it("declares the single-source channel/marker facts with zero duplication (host markers in host.ts only)", () => {
     // The host-marker closure derives from the harness detect rows (face/host.ts) —
-    // the runtime carries the argv channel only; the marker env keys appear in no
-    // runtime/argv row (single source, no second declaration).
+    // the argv channel lives at the CLI declaration surface (face/declare.ts §2.4)
+    // and carries no host marker; the marker env keys appear in no channel row
+    // (single source, no second declaration).
     const argvText = JSON.stringify(ARGV_CHANNEL);
     for (const marker of ["CLAUDE_CODE_SESSION_ID", "CURSOR_TRACE_ID", "AI_AGENT"]) {
       expect(argvText, marker).not.toContain(marker);

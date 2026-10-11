@@ -115,10 +115,11 @@ export class SmokeCdd {
     );
 
     // The help face — the verb-scoped USAGE surface (the new-tree CLI resolves the
-    // verb before the help pre-screen renders).
+    // verb before the help pre-screen renders; the byte is the commander-native
+    // first line — the same stable anchor the T3 combination root produces).
     const helpOut = runNode([binPath, "implement", "--help"], repoRoot);
     assertOk(
-      helpOut.stdout.includes("usage: cdd implement") &&
+      helpOut.stdout.includes("Usage: cdd implement") &&
         /implement|review|fix/.test(helpOut.stdout),
       `--help missing the USAGE face (code ${helpOut.code}) stdout=${JSON.stringify(helpOut.stdout.slice(0, 120))} stderr=${JSON.stringify(helpOut.stderr.slice(0, 120))}`,
     );

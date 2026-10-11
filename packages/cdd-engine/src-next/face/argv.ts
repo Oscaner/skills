@@ -2,53 +2,32 @@
 // T11 — the typed argv parse channel: tokenize + component-value validation
 // (int-list tasks, enum type/source, sha base/head, int round) + the guardArgs
 // semantics (every flag the command did not declare is rejected — the acceptance's
-// unknown-flag BLOCK). The flag/value-type table is derived from the engine-config
-// argv channel (the single source — a channel rename fails the guard scan), and the
-// SAME resolved table is handed to the run face (cli.ts), which passes it to the
-// capsule so a `next:` literal renders through the declared spellings. parse()
-// throws CliUsageError; the run face's runArgv normalizes it to the usage line +
-// message + exit 2 (the steady exit-code table).
+// unknown-flag BLOCK). The flag/value-type table is derived from the CLI
+// declaration single surface (face/declare.ts §2.4 — the single source: a channel
+// rename fails the guard scan), and the SAME resolved table is handed to the run
+// face (cli.ts), which passes it to the capsule so a `next:` literal renders
+// through the declared spellings. parse() throws CliUsageError; the run face's
+// runArgv normalizes it to the usage line + message + exit 2 (the steady exit-code
+// table). The parse channel is retired at T6 (the commander projection owns the
+// parse + validation face from T3 on); the channel's usage bytes are the
+// commander-native first-line shape (the declaration rows no longer carry a usage
+// corpus — the six-line usage product retires with the registry at T2).
 //
 // Module-level exports are types / the parser class — zero behavior-carrying bare
 // functions (the plan's zero-bare-function discipline).
 
-import type { DocKey } from "../contract/project.ts";
 import type { ConfigLoader } from "../infra/config.ts";
-import type { CliArgSpec, CliCommandSpec, CliLeafName, CliLeafSpec, CliVerb } from "./registry.ts";
-import { CLI_COMMANDS } from "./registry.ts";
-
-/** The component-value types of the argv channel (the engine-config type names). */
-export type ChannelValueType = "string" | "path" | "int-list" | "enum" | "sha" | "int" | "bool";
-
-/** One argv-channel entry — the declared flag / type / enum domain of one key. */
-export interface ChannelArg {
-  /** The canonical key (tasks / type / plan / …). */
-  key: string;
-  /** The `--flag` spelling. */
-  flag: string;
-  /** The value type (the engine-config channel type). */
-  type: ChannelValueType;
-  /** The enum domain, when the type is enum. */
-  values?: readonly string[];
-  /** The flag-level help line (the `--help` render's per-flag description — the
-   *  channel row's text, surfaced through the same resolved table the run face
-   *  reads: one key text, never a second description list). */
-  help?: string;
-}
-
-/** The schema `<type>` vocabulary — the get and gen leaves' ONE shared table
- *  (one table, two faces, spec §5.3): the primary DocKey spellings (overall |
- *  plan | phase-spec) plus the legacy `phaseSpec` alias normalized to the kebab
- *  key. One normalizing vocabulary, never a second hand-written list — the get
- *  leaf additionally routes `plan-graph` (a display type, not a doc key); each
- *  leaf's error message names its own values (get: overall, plan, phase-spec,
- *  plan-graph · gen: overall, plan, phase-spec). */
-const SCHEMA_TYPE_KEYS: Record<string, DocKey> = {
-  overall: "overall",
-  plan: "plan",
-  "phase-spec": "phase-spec",
-  phaseSpec: "phase-spec",
-};
+import {
+  type ChannelArg,
+  type ChannelValueType,
+  CLI_COMMANDS,
+  type CliArgSpec,
+  type CliCommandSpec,
+  type CliLeafName,
+  type CliLeafSpec,
+  type CliVerb,
+  SCHEMA_TYPE_KEYS,
+} from "./declare.ts";
 
 /** One parsed command — the validated verb + values (undefined = the flag absent). */
 export interface ParsedCommand {
@@ -81,9 +60,10 @@ export class CliUsageError extends Error {
  * ArgvParser — the typed argv parse face. `parse()` validates the verb + the leaf +
  * the flagged values (each by its component type) and rejects unknown flags (the
  * guardArgs semantics) + missing required keys; the verb/leaf/type data come from
- * the shared command registry, the flag spellings/type/enum domains from the
- * engine-config argv channel. The program scopes (−-dry-run / −-help) are accepted
- * at any position; −-help pre-empts the leaf/argument scan on the parsed command.
+ * the shared declaration surface (face/declare.ts), the flag spellings/type/enum
+ * domains from the same argv channel. The program scopes (−-dry-run / −-help) are
+ * accepted at any position; −-help pre-empts the leaf/argument scan on the parsed
+ * command.
  */
 export class ArgvParser {
   /** The injected dry-run default — the program scope's initial value (per-invocation
@@ -108,8 +88,8 @@ export class ArgvParser {
   }
 
   /** parse(argv) — the verb → (leaf) → flag/positional scan: every flag checked
-   *  against the command's declared keys (the engine-config argv channel is the
-   *  single flag/type source), every value validated by its component type, program
+   *  against the command's declared keys (the declare argv channel is the single
+   *  flag/type source), every value validated by its component type, program
    *  scopes (−-dry-run / −-help) accepted at any position. Throws CliUsageError. */
   parse(raw: readonly string[]): ParsedCommand {
     const toks = [...raw];
@@ -126,7 +106,7 @@ export class ArgvParser {
         index += 1;
         continue;
       }
-      throw this.#usage(`unknown option: ${toks[index]}`, "usage: cdd <command> [options]");
+      throw this.#usage(`unknown option: ${toks[index]}`, "Usage: cdd [options] [command]");
     }
     const verbWord = toks[index];
     const spec =
@@ -138,7 +118,7 @@ export class ArgvParser {
         typeof verbWord === "string"
           ? `unknown command: ${verbWord}`
           : "missing command — expected implement | review | fix | base | schema | issue",
-        "usage: cdd <command> [options]",
+        "Usage: cdd [options] [command]",
       );
     }
     index += 1;
@@ -166,12 +146,15 @@ export class ArgvParser {
       if (leafWord === undefined || leafWord.startsWith("-")) {
         throw this.#usage(
           `cdd ${spec.name}: missing subcommand — ${spec.leaves.map((l) => l.name).join(" | ")}`,
-          spec.usage,
+          this.#usageLine(spec, null),
         );
       }
       leafSpec = spec.leaves.find((l) => l.name === leafWord) ?? null;
       if (leafSpec === null)
-        throw this.#usage(`cdd ${spec.name}: unknown subcommand: ${leafWord}`, spec.usage);
+        throw this.#usage(
+          `cdd ${spec.name}: unknown subcommand: ${leafWord}`,
+          this.#usageLine(spec, null),
+        );
       index += 1;
     }
     const surface = leafSpec ?? spec;
@@ -195,7 +178,11 @@ export class ArgvParser {
       const norm = this.#flagName(flag);
       if (norm === "dry-run" || norm === "no-dry-run" || norm === "help" || norm === "h") {
         if (inline !== null)
-          throw this.#usage(`unexpected value for ${flag}`, surface.usage, surface);
+          throw this.#usage(
+            `unexpected value for ${flag}`,
+            this.#usageLine(spec, leafSpec),
+            surface,
+          );
         if (norm === "dry-run") dryRun = true;
         else if (norm === "no-dry-run") dryRun = false;
         continue;
@@ -203,11 +190,15 @@ export class ArgvParser {
       const key = this.#declaredKey(surface, norm);
       const channel = key === null ? undefined : this.#channels[key];
       if (key === null || channel === undefined)
-        throw this.#usage(`unknown option: ${tok}`, surface.usage, surface);
+        throw this.#usage(`unknown option: ${tok}`, this.#usageLine(spec, leafSpec), surface);
       let value: string;
       if (channel.type === "bool") {
         if (inline !== null)
-          throw this.#usage(`unexpected value for ${flag}`, surface.usage, surface);
+          throw this.#usage(
+            `unexpected value for ${flag}`,
+            this.#usageLine(spec, leafSpec),
+            surface,
+          );
         value = norm.startsWith("no-") ? "false" : "true";
       } else if (inline !== null) {
         value = inline;
@@ -215,7 +206,7 @@ export class ArgvParser {
         index += 1;
         value = toks[index] ?? "";
         if (value.length === 0)
-          throw this.#usage(`missing value for ${flag}`, surface.usage, surface);
+          throw this.#usage(`missing value for ${flag}`, this.#usageLine(spec, leafSpec), surface);
       }
       args[key] = this.#validate(spec, surface, key, channel, value);
     }
@@ -224,18 +215,24 @@ export class ArgvParser {
     for (const declared of surface.keys) {
       if (declared.required === true && args[declared.key] === undefined) {
         const flag = this.#channels[declared.key]?.flag ?? `--${declared.key}`;
-        throw this.#usage(`cdd ${spec.name}: missing required ${flag}`, surface.usage);
+        throw this.#usage(
+          `cdd ${spec.name}: missing required ${flag}`,
+          this.#usageLine(spec, leafSpec),
+        );
       }
     }
     for (const positional of surface.positionals ?? []) {
       if (positional.required === true && positionals.length === 0) {
-        throw this.#usage(`cdd ${spec.name}: missing required <${positional.key}>`, surface.usage);
+        throw this.#usage(
+          `cdd ${spec.name}: missing required <${positional.key}>`,
+          this.#usageLine(spec, leafSpec),
+        );
       }
     }
     if ((surface.positionals ?? []).length < positionals.length) {
       throw this.#usage(
         `cdd ${spec.name}: unexpected argument: ${positionals[(surface.positionals ?? []).length]}`,
-        surface.usage,
+        this.#usageLine(spec, leafSpec),
       );
     }
 
@@ -244,7 +241,7 @@ export class ArgvParser {
       leaf: leafSpec?.name ?? null,
       leafSpec,
       args,
-      positionals: this.#positionalsOf(surface, positionals),
+      positionals: this.#positionalsOf(spec, leafSpec, positionals),
       dryRun,
       help,
     };
@@ -302,6 +299,7 @@ export class ArgvParser {
     channel: ChannelArg,
     value: string,
   ): string {
+    const leaf = surface === spec ? null : (surface as CliLeafSpec);
     const override = (surface.keys as readonly CliArgSpec[]).find(
       (declared) => declared.key === key,
     )?.valueType;
@@ -313,7 +311,7 @@ export class ArgvParser {
         if (invalid !== undefined) {
           throw this.#usage(
             `cdd ${spec.name}: --${key} must be comma-separated integers: ${invalid}`,
-            surface.usage,
+            this.#usageLine(spec, leaf),
           );
         }
         return [...new Set(tokens.map(Number))].sort((a, b) => a - b).join(",");
@@ -322,7 +320,7 @@ export class ArgvParser {
         if (channel.values === undefined || !channel.values.includes(value)) {
           throw this.#usage(
             `cdd ${spec.name}: --${key} must be one of ${channel.values?.join(" | ")}`,
-            surface.usage,
+            this.#usageLine(spec, leaf),
           );
         }
         return value;
@@ -331,12 +329,18 @@ export class ArgvParser {
         // engine): the CLI sha channel accepts the 8-char short form (40-char
         // full shas retired).
         if (!/^[0-9a-f]{8}$/.test(value)) {
-          throw this.#usage(`cdd ${spec.name}: --${key} must be an 8-char sha`, surface.usage);
+          throw this.#usage(
+            `cdd ${spec.name}: --${key} must be an 8-char sha`,
+            this.#usageLine(spec, leaf),
+          );
         }
         return value;
       case "int":
         if (!/^\d+$/.test(value))
-          throw this.#usage(`cdd ${spec.name}: --${key} must be an integer`, surface.usage);
+          throw this.#usage(
+            `cdd ${spec.name}: --${key} must be an integer`,
+            this.#usageLine(spec, leaf),
+          );
         return value;
       case "bool":
         // the value already carries the parsed spelling ("true" for --force · "false"
@@ -355,19 +359,24 @@ export class ArgvParser {
    *  (a display type, never a doc key); the gen leaf does not — each leaf's
    *  missing/unknown faces name the leaf's own values (get: overall, plan,
    *  phase-spec, plan-graph · gen: overall, plan, phase-spec). */
-  #positionalsOf(surface: CliCommandSpec | CliLeafSpec, positionals: readonly string[]): string[] {
+  #positionalsOf(
+    spec: CliCommandSpec,
+    leafSpec: CliLeafSpec | null,
+    positionals: readonly string[],
+  ): string[] {
+    const surface = leafSpec ?? spec;
     const declared = surface.positionals ?? [];
     return declared.map((positional, index) => {
       const value = positionals[index];
       if (positional.key === "type" && surface.name === "gen") {
         if (value === undefined) {
-          throw this.#usage("cdd schema gen: missing <type>", surface.usage);
+          throw this.#usage("cdd schema gen: missing <type>", this.#usageLine(spec, leafSpec));
         }
         const key = SCHEMA_TYPE_KEYS[value];
         if (key === undefined) {
           throw this.#usage(
             `cdd schema gen: unknown schema type: ${value} (available: overall, plan, phase-spec)`,
-            surface.usage,
+            this.#usageLine(spec, leafSpec),
           );
         }
         return key;
@@ -378,13 +387,23 @@ export class ArgvParser {
         if (key === undefined) {
           throw this.#usage(
             `cdd schema get: unknown schema type: ${value} (available: ${[...this.#docKeys, "plan-graph"].join(", ")})`,
-            surface.usage,
+            this.#usageLine(spec, leafSpec),
           );
         }
         return key;
       }
       return value!;
     });
+  }
+
+  /** The commander-native usage line of the errored surface — the transitional
+   *  parse channel's usage byte (`Usage: cdd <verb>[ <leaf>] [options]` — the
+   *  surface's helpInformation() first-line shape; the declaration rows carry no
+   *  usage corpus and the T3+ product is the projection's commander-native face).
+   *  Retired with the parse channel at T6. */
+  #usageLine(spec: CliCommandSpec, leaf: CliLeafSpec | null): string {
+    const leafName = leaf === null ? "" : ` ${leaf.name}`;
+    return `Usage: cdd ${spec.name}${leafName} [options]`;
   }
 
   /** The usage-error constructor shorthand (the command's usage line + the error's

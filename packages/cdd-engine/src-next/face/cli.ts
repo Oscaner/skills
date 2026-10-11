@@ -6,19 +6,20 @@
 // `cli` composition root (the module's one bare-function export, admitted by the
 // plan's zero-bare-function discipline for composition roots) wires the contract /
 // session / face objects into the ONE CLI the bin thin entry boots. Task 3 (P1)
-// reorganized the face into one boundary per responsibility — the command registry
-// (face/registry.ts, the six subcommand declarations + usage data) and the typed
-// argv parse channel (face/argv.ts, the ArgvParser + the parsed/usage-error faces);
-// CLI_COMMANDS stays re-exported here for the guard audit's stable door (the guard
-// reads the same registry rows). This module keeps the RUN face: the dispatch seam
-// (HarnessDispatch — the production default of the lifecycle's dispatch step),
-// the work/pure command run bodies, the pre-flight orchestration and the render
-// faces' separation (the renderers stay injected — the CLI orchestrates the call,
-// never re-types their bytes), plus the help/`--help` display face — the
-// self-built help render (the flag-level options · the sub-command tree · the
-// examples · the top-level overview) and the error-path hints (Task 4 · design
-// spec §4: the display product's renderer lives at the run face, zero runtime
-// dependencies).
+// reorganized the face into one boundary per responsibility — the CLI declaration
+// single surface (face/declare.ts, §2.4 — the six subcommand rows + the argv
+// channel, converged from the retired registry at T2) and the typed argv parse
+// channel (face/argv.ts, the ArgvParser + the parsed/usage-error faces); the
+// domain-run error face's usage bytes are the commander-native first lines of the
+// projection (face/projection.ts — the CommandTreeBuilder the T3 rebuild consumes).
+// This module keeps the RUN face: the dispatch seam (HarnessDispatch — the
+// production default of the lifecycle's dispatch step), the work/pure command run
+// bodies, the pre-flight orchestration and the render faces' separation (the
+// renderers stay injected — the CLI orchestrates the call, never re-types their
+// bytes), plus the help/`--help` display face — the self-built help render (the
+// flag-level options · the sub-command tree · the examples · the top-level
+// overview) and the error-path hints (Task 4 · design spec §4: the display
+// product's renderer lives at the run face, zero runtime dependencies).
 //
 //   · Cli#parse — delegated to the shared ArgvParser (face/argv.ts).
 //   · Cli#run — dispatch the parsed command to its run body. The work commands
@@ -40,6 +41,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
+import type { Command } from "commander";
 import { declaredRegistries } from "../contract/declare.ts";
 import { MarkdownPrimitives, PlanDocType } from "../contract/doc.ts";
 import { Contract } from "../contract/judge.ts";
@@ -69,8 +71,15 @@ import type { PreFlightVerdict } from "../session/preflight.ts";
 import { PreFlight } from "../session/preflight.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame, RunState } from "../session/run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../session/run.ts";
-import { ArgvParser, type ChannelArg, CliUsageError, type ParsedCommand } from "./argv.ts";
+import { ArgvParser, CliUsageError, type ParsedCommand } from "./argv.ts";
 import { Capsule } from "./capsule.ts";
+import {
+  type ChannelArg,
+  CLI_COMMANDS,
+  type CliCommandSpec,
+  type CliLeafSpec,
+  type CliVerb,
+} from "./declare.ts";
 import { GraphView } from "./graph-view.ts";
 import {
   DISPATCH,
@@ -80,23 +89,15 @@ import {
   type HostReferenceTable,
   REFS,
 } from "./host.ts";
-import {
-  CLI_COMMANDS,
-  CLI_USAGE,
-  type CliCommandSpec,
-  type CliLeafSpec,
-  type CliVerb,
-} from "./registry.ts";
+import { CommandTreeBuilder } from "./projection.ts";
 import { Words } from "./words.ts";
 
 // ---------------------------------------------------------------------------
-// the stable door — the face's public surface stays here (the guard audit reads
-// the same registry rows; the parse/usage-error faces live in face/argv.ts)
+// the stable door — the face's public surface stays here (the declaration
+// single surface lives in face/declare.ts; the guard audit reads the same rows
+// straight from that surface, and the parse/usage-error faces live in
+// face/argv.ts)
 // ---------------------------------------------------------------------------
-
-/** The command registry — re-exported for the face's single door (the guard audit
- *  imports CLI_COMMANDS through this door; the parse face owns the rows). */
-export { CLI_COMMANDS } from "./registry.ts";
 
 /** The CLI io seam — production wraps process stdio; tests capture. */
 export interface CliIo {
@@ -838,6 +839,12 @@ export class Cli {
    *  the pre-flight doc construction reads (design spec §2.3: the derivation point
    *  converges to the single contract method). */
   readonly #contract: Contract;
+  /** The commander command tree — the declaration projection (CommandTreeBuilder,
+   *  face/projection.ts): the domain-run error face's usage byte is the command
+   *  node's commander-native helpInformation() first line (the self-built usage
+   *  corpus is retired; the T3 rebuild closes the parse face onto the same
+   *  program). */
+  readonly #program: Command;
 
   constructor(opts: CliOptions = {}) {
     this.#io = opts.io ?? {
@@ -847,6 +854,7 @@ export class Cli {
     this.#config = opts.config ?? new ConfigLoader();
     this.#words = opts.words ?? new Words();
     this.#projector = opts.projector ?? new Projector(declaredRegistries);
+    this.#program = new CommandTreeBuilder().program;
     this.#git = opts.git ?? new GitClient();
     this.#sync = opts.sync ?? new SyncRunner();
     this.#cwd = opts.cwd ?? process.cwd();
@@ -896,7 +904,7 @@ export class Cli {
     if (parsed.help) {
       const spec = CLI_COMMANDS.find((command) => command.name === parsed.verb);
       const surface = parsed.leafSpec ?? spec;
-      if (surface !== undefined) this.#io.stdout(`${this.#renderHelp(surface)}\n`);
+      if (surface !== undefined) this.#io.stdout(`${this.#renderHelp(parsed.verb, surface)}\n`);
       return 0;
     }
     switch (parsed.verb) {
@@ -946,14 +954,33 @@ export class Cli {
   // the help/display face — the self-built render + the overview + the error hints
   // ---------------------------------------------------------------------------
 
+  /** The commander-native usage first line of one command node — the projection's
+   *  helpInformation() 首行 (the domain-run error face's usage byte; the self-built
+   *  usage corpus is retired with the declaration rows at T2). The T3 rebuild
+   *  closes every error surfaced onto the same program product. */
+  #commanderUsage(verb: CliVerb): string {
+    const node = this.#program.commands.find((command) => command.name() === verb);
+    return node === undefined
+      ? `Usage: cdd ${verb} [options]`
+      : (node.helpInformation().split("\n")[0] ?? "");
+  }
+
+  /** The commander program usage first line — the bare-`cdd` overview face's usage
+   *  anchor (`Usage: cdd [options] [command]` — the program's 首行). */
+  #programUsage(): string {
+    return this.#program.helpInformation().split("\n")[0] ?? "";
+  }
+
   /** The per-command `--help` render (design spec §4.1 — the complete surface,
-   *  never the old two-line patch): the usage line + the description + the
-   *  flag-level options (the value domains + per-flag descriptions, single-sourced
-   *  at the resolved channel table) + the sub-command tree (each leaf's option
-   *  tokens) + one minimal example + the program-flag legend. Zero runtime
-   *  dependencies (the do-not-re-add citty posture). */
-  #renderHelp(surface: CliCommandSpec | CliLeafSpec): string {
-    const lines: string[] = [surface.usage, "", surface.description];
+   *  never the old two-line patch): the commander-native usage first line
+   *  (the projection's helpInformation() 首行 — the self-built usage corpus is
+   *  retired) + the description + the flag-level options (the value domains +
+   *  per-flag descriptions, single-sourced at the resolved channel table) + the
+   *  sub-command tree (each leaf's option tokens) + one minimal example + the
+   *  program-flag legend. Zero runtime dependencies (the do-not-re-add citty
+   *  posture); the face is retired at T6 (the projection owns the help product). */
+  #renderHelp(verb: CliVerb, surface: CliCommandSpec | CliLeafSpec): string {
+    const lines: string[] = [this.#commanderUsage(verb), "", surface.description];
     if (surface.keys.length > 0) {
       lines.push("", "options:", ...this.#optionLines(surface));
     }
@@ -1043,19 +1070,21 @@ export class Cli {
   }
 
   /** The top-level command overview (design spec §4.1) — the six-command glance
-   *  (responsibility + the usage anchor each) with the missing-command message
-   *  merged as the closing line (the bare-`cdd` face: overview + missing-command
-   *  in ONE output, the exit code stays 2). */
+   *  (responsibility + the commander-native usage anchor each) with the
+   *  missing-command message merged as the closing line (the bare-`cdd` face:
+   *  overview + missing-command in ONE output, the exit code stays 2). */
   #overview(missing: string): string {
     const lines: string[] = [
       "cdd — the CDD engine's command line",
       "",
-      "usage: cdd <command> [options]",
+      this.#programUsage(),
       "",
       "commands:",
     ];
     for (const command of CLI_COMMANDS) {
-      lines.push(`  ${command.name.padEnd(10)}${command.description} — ${command.usage}`);
+      lines.push(
+        `  ${command.name.padEnd(10)}${command.description} — ${this.#commanderUsage(command.name)}`,
+      );
     }
     lines.push("", "run 'cdd <command> --help' for a command's flag-level help.", "", missing);
     return lines.join("\n");
@@ -1071,9 +1100,9 @@ export class Cli {
       const near = this.#nearestFlag(unknown[1]!, err);
       return near === null ? null : `did you mean ${near}?`;
     }
-    const subcommand = /^cdd \w+: unknown subcommand: (\w+)/.exec(err.message);
+    const subcommand = /^cdd (\w+): unknown subcommand: (\w+)/.exec(err.message);
     if (subcommand !== null) {
-      const names = CLI_COMMANDS.find((command) => command.usage === err.usage)?.leaves?.map(
+      const names = CLI_COMMANDS.find((command) => command.name === subcommand[1])?.leaves?.map(
         (leaf) => leaf.name,
       );
       if (names !== undefined && names.length > 0)
@@ -1155,7 +1184,7 @@ export class Cli {
     if (type === "wave" && parsed.args.tasks === undefined) {
       throw new CliUsageError(
         `cdd ${verb} --type wave: missing required --tasks <n|n,n,…>`,
-        CLI_USAGE[verb],
+        this.#commanderUsage(verb),
       );
     }
     const scene = await this.#sceneOf(verb, type, parsed);
@@ -1213,7 +1242,10 @@ export class Cli {
           : [];
       for (const id of group) {
         if (!planIds.includes(id)) {
-          throw new CliUsageError(`cdd ${verb}: task ${id} not found in the plan`, CLI_USAGE[verb]);
+          throw new CliUsageError(
+            `cdd ${verb}: task ${id} not found in the plan`,
+            this.#commanderUsage(verb),
+          );
         }
       }
       for (const id of scene.ledger.closedWaves()) scene.state.markDone(id);
@@ -1590,7 +1622,7 @@ export class Cli {
         if (planPath === null)
           throw new CliUsageError(
             `cdd ${verb} --type wave: missing required --plan <path>`,
-            CLI_USAGE[verb],
+            this.#commanderUsage(verb),
           );
         slug = Workspace.slugFromDoc(planPath);
         planText = this.#readText(planPath);
@@ -1600,7 +1632,7 @@ export class Cli {
         if (specPath === null)
           throw new CliUsageError(
             `cdd ${verb} --type spec: missing required --spec <path>`,
-            CLI_USAGE[verb],
+            this.#commanderUsage(verb),
           );
         slug = Workspace.slugFromDoc(specPath);
         target = { kind: "doc", doc: specPath };
@@ -1610,7 +1642,7 @@ export class Cli {
         if (planPath === null)
           throw new CliUsageError(
             `cdd ${verb} --type plan: missing required --plan <path>`,
-            CLI_USAGE[verb],
+            this.#commanderUsage(verb),
           );
         slug = Workspace.slugFromDoc(planPath);
         planText = this.#readText(planPath);
@@ -1633,7 +1665,7 @@ export class Cli {
         if (ref === null) {
           throw new CliUsageError(
             `cdd ${verb} --type branch: missing required --base <sha> --head <sha>`,
-            CLI_USAGE[verb],
+            this.#commanderUsage(verb),
           );
         }
         slug = planPath !== null ? Workspace.slugFromDoc(planPath) : ref.short();
@@ -1684,7 +1716,7 @@ export class Cli {
     if (parsed.leaf === "gen") return this.#runSchemaGen(parsed);
     const type = parsed.positionals[0];
     if (type === undefined)
-      throw new CliUsageError("cdd schema get: missing <type>", CLI_USAGE.schema);
+      throw new CliUsageError("cdd schema get: missing <type>", this.#commanderUsage("schema"));
     if (type === "plan-graph") return this.#runPlanGraph(parsed);
     this.#io.stdout(`${JSON.stringify(this.#projector.schema()[type as DocKey], null, 2)}\n`);
     return 0;
@@ -1699,7 +1731,7 @@ export class Cli {
   #runSchemaGen(parsed: ParsedCommand): number {
     const type = parsed.positionals[0];
     if (type === undefined)
-      throw new CliUsageError("cdd schema gen: missing <type>", CLI_USAGE.schema);
+      throw new CliUsageError("cdd schema gen: missing <type>", this.#commanderUsage("schema"));
     const projection = this.#projector.skeleton()[type as DocKey];
     const date = this.#today();
     this.#io.stdout(`${new SkeletonAssembler(projection, date).render()}\n`);
@@ -1725,7 +1757,10 @@ export class Cli {
   async #runPlanGraph(parsed: ParsedCommand): Promise<number> {
     const planPath = parsed.args.plan;
     if (planPath === undefined) {
-      throw new CliUsageError("cdd schema get plan-graph: missing --plan <path>", CLI_USAGE.schema);
+      throw new CliUsageError(
+        "cdd schema get plan-graph: missing --plan <path>",
+        this.#commanderUsage("schema"),
+      );
     }
     const text = this.#readText(planPath);
     const plan = new PlanDocType("plan").parse(text.split("\n"));
@@ -1782,7 +1817,7 @@ export class Cli {
     if (planPath === undefined) {
       throw new CliUsageError(
         "cdd base: missing --plan — the sole target is --plan <path>",
-        CLI_USAGE.base,
+        this.#commanderUsage("base"),
       );
     }
     const workspace = new Workspace(
@@ -1795,7 +1830,7 @@ export class Cli {
     const path = workspace.resolve("base.json");
     if (parsed.leaf === "set") return this.#baseSet(parsed, planPath, path);
     if (parsed.leaf === "get") return this.#baseGet(path);
-    throw new CliUsageError("cdd base: missing <set|get> subcommand", CLI_USAGE.base);
+    throw new CliUsageError("cdd base: missing <set|get> subcommand", this.#commanderUsage("base"));
   }
 
   /** The `set` body — base/source required, a different existing base refuses without
@@ -1806,14 +1841,14 @@ export class Cli {
     if (base === undefined || source === undefined) {
       throw new CliUsageError(
         "cdd base set: required --base <branch> and --source <source>",
-        CLI_USAGE.base,
+        this.#commanderUsage("base"),
       );
     }
     const existing = this.#readBase(path);
     if (existing !== null && existing.base !== base && parsed.args.force !== "true") {
       throw new CliUsageError(
         `cdd base set: base already set to ${existing.base} — pass --force to override`,
-        CLI_USAGE.base,
+        this.#commanderUsage("base"),
       );
     }
     const artifact: BaseArtifact = {

@@ -50,15 +50,16 @@ const LINK_SLOTS: Record<string, { label: string; target: string }> = {
 /** The generator truths of the pattern-typed slots (spec §3.2/§4.1) — hand-pinned
  *  legal literals consistent with each declared value domain (`**Status**` →
  *  Draft, the first legal literal of its enum; the `none` issue-ref default; the
- *  `Pending` design/plan cells — a legal domain literal, not necessarily the
- *  first alternative) and the conforming graph rows (the `P1 -> P2` hard edge +
- *  the legend line). These are derived true values, guarded by the doc-contract
- *  pins that judge the rendered bytes — never fill positions. */
+ *  `[Pending]` design cell — the only pending form its valuePattern admits, never
+ *  bare `Pending` — and the bare `Pending` plan cell, a legal alternative of its
+ *  domain) and the conforming graph rows (the `P1 -> P2` hard edge + the legend
+ *  line). These are derived true values, guarded by the doc-contract pins that
+ *  judge the rendered bytes — never fill positions. */
 const TRUTH_LINES: Record<string, string> = {
   "**Status**": "Draft",
   "Issue ref cell": "none",
   "Implementation plan cell": "Pending",
-  "Design spec cell": "Pending",
+  "Design spec cell": "[Pending]",
   "Hard edge": "P1 -> P2",
   "Graph legend": "- `->` = hard block",
 };
@@ -334,8 +335,10 @@ export class SkeletonAssembler {
   }
 
   /** The Phase-inventory table — the registered columns + two rows (the `P1 -> P2`
-   *  graph edge cross-links both ids, so both phases register; the design/plan
-   *  cells carry the `Pending` enum truths, the phase-id cell the structural id). */
+   *  graph edge cross-links both ids, so both phases register; the cells carry the
+   *  pending-form truths (`[Pending]` design — the design domain's pending form —
+   *  and `Pending` plan, each legal in its declared domain), the phase-id cell the
+   *  structural id). */
   #phaseTable(probe: Set<string>): string[] {
     probe.add("Phase inventory columns");
     probe.add("Phase row");

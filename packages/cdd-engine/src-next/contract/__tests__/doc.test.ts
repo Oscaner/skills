@@ -11,7 +11,12 @@
 
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { SkeletonAssembler } from "../../render/skeleton.ts";
+import { declaredRegistries } from "../declare.ts";
 import { docTypeParsers, OverallDocType, PhaseSpecDocType, PlanDocType } from "../doc.ts";
+import { Contract } from "../judge.ts";
+import type { DocKey } from "../project.ts";
+import { Projector } from "../project.ts";
 
 /** A conforming overall — the four tables, the dependency graph and the header tuple. */
 const OVERALL = [
@@ -292,5 +297,61 @@ describe("the DocType class face (spec §2.2)", () => {
     expect(functionExports).toEqual([]);
     const arrowExports = source.match(/export\s+const\s+\w+\s*=\s*(?:\([^)]*\)|[\w]+)\s*=>/g) ?? [];
     expect(arrowExports).toEqual([]);
+  });
+});
+
+describe("P2 — the three doc skeletons judge clean (spec §7.2 colocated pin)", () => {
+  /** The empty fs seam — every chain link of a skeleton is a `<…>` placeholder
+   *  target (the judge's exemption chain), so the file-existence / sibling-scan
+   *  surfaces never fire and the skeleton is green by construction. */
+  const EMPTY_FS = { exists: () => false, read: () => null, list: () => [] };
+  const contract = new Contract();
+  const projector = new Projector(declaredRegistries);
+  const PATH_OF: Record<DocKey, string> = {
+    overall: "docs/kairos/specs/x-overall.md",
+    plan: "docs/kairos/plans/x-p1.md",
+    phaseSpec: "docs/kairos/specs/x-p1-design.md",
+  };
+  /** The fixed run date — the version-row date truth (never a live clock). */
+  const DATE = "2026-10-11";
+
+  /** The fixed-date skeleton bytes of one doc type. */
+  const renderOf = (key: DocKey): string =>
+    new SkeletonAssembler(projector.skeleton()[key], DATE).render();
+
+  it("judges each type's skeleton clean — zero findings (the §4.1 placeholder-anchored by-construction green)", () => {
+    for (const key of ["overall", "plan", "phaseSpec"] as const) {
+      const findings = contract.validate({
+        docKey: key,
+        path: PATH_OF[key],
+        content: renderOf(key),
+        root: ".",
+        fs: EMPTY_FS,
+      });
+      expect(findings, `${key} skeleton findings`).toEqual([]);
+    }
+  });
+
+  it("keeps every `:::fill` inside the content positions — zero hits on the link anchors / structure rows", () => {
+    for (const key of ["overall", "plan", "phaseSpec"] as const) {
+      for (const line of renderOf(key).split("\n")) {
+        if (!line.includes(":::fill")) continue;
+        // the placeholder-link anchors (`](<`), the version/status truths, the
+        // table column headers and the separator rows never carry a fill
+        expect(line, `${key}: ${line}`).not.toMatch(/\]\(</);
+        expect(line, `${key}: ${line}`).not.toMatch(/^- \*\*Version\*\*:|^- \*\*Status\*\*:/);
+        expect(line, `${key}: ${line}`).not.toMatch(/^\| (Artifact|Phase|#|Version) \|/);
+        expect(line, `${key}: ${line}`).not.toMatch(/^\| ?---/);
+      }
+    }
+  });
+
+  it("the numeric headings are true values — the shape `### 1.` / `#### 1.1` / `### Task 1:` land, a literal `N` never", () => {
+    const spec = renderOf("phaseSpec");
+    expect(spec).toContain("### 1. :::fill group-title");
+    expect(spec).toContain("#### 1.1 :::fill item-title");
+    expect(renderOf("plan")).toContain("### Task 1: :::fill task-title");
+    expect(spec).not.toContain("Task N:");
+    expect(renderOf("plan")).not.toContain("Task N:");
   });
 });

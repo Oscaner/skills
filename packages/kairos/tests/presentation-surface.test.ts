@@ -1,8 +1,8 @@
 // packages/kairos/tests/presentation-surface.test.ts — P4.2 Task 8 presentation-surface probe
 // Asserts the README family and CLAUDE.md satisfy the P4.2 Task 8 acceptance — the three-stage
 // README skeleton (positioning → philosophy → behavior), the no-harness positioning sentence,
-// the four cdd philosophy anchors, the CLAUDE.md positioning sentence + Non-goal #1 exception +
-// surviving single-source wording, the zh mirror three-set sync, and the P4.1 behavior
+// the four cdd philosophy anchors, the CLAUDE.md positioning sentence + surviving single-source
+// wording, the zh mirror three-set sync, and the P4.1 behavior
 // zero-divergence guarantees. P4 (pi-harness) adds the verified-triple harness-claim pin, the
 // skill inventory dir × SKILL.md name: double-pin, the nominal mapping-table data-derivation pin
 // (lexicon ids/clis/markers + registry ship), and the zero old-name-identity / zero osuperpowers /
@@ -131,15 +131,12 @@ test("root README: all P4.1 behavior sections carried after the philosophy layer
   }
 });
 
-test("CLAUDE.md: positioning sentence + Non-goal #1 exception + single-source wording", () => {
+test("CLAUDE.md: positioning sentence + surviving single-source wording", () => {
   const md = read("CLAUDE.md");
   assert.ok(md.includes(POSITIONING_SENTENCE), "positioning sentence missing from CLAUDE.md");
-  // Non-goal #1 exception — the only cdd CLI additions are the discovery-type schema get and
-  // the pure-rendering issue render (both zero-enforcement)
-  assert.match(md, /schema get/, "Non-goal #1 schema get exception missing");
-  assert.match(md, /cdd issue render/, "Non-goal #1 cdd issue render exception missing");
-  assert.match(md, /no new subcommand/i, "Non-goal #1 zero-new-subcommand statement missing");
-  // the Package-as-source + single-source core phrasing must survive the rewrite
+  // CLAUDE.md no longer carries the cdd CLI surface narrative (consumer-facing CLI documentation
+  // lives in the README family, pinned below); the Package-as-source + single-source core phrasing
+  // must survive the rewrite.
   assert.match(md, /Package-as-source/, "Package-as-source wording must remain");
   assert.match(md, /single source/i, "single-source wording must remain");
 });

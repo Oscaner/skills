@@ -45,6 +45,7 @@ import type { HandoffFamily } from "../infra/runtime.ts";
 import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import { IssueBodyRenderer, type IssueReportInput } from "../render/issue-body.ts";
+import { SkeletonAssembler } from "../render/skeleton.ts";
 import type { TemplateValues, WorkMode } from "../render/templates.ts";
 import { TemplateAssembler } from "../render/templates.ts";
 import { BranchRef } from "../session/branch-ref.ts";
@@ -83,7 +84,7 @@ import { Words } from "./words.ts";
 export type CliVerb = "implement" | "review" | "fix" | "schema" | "issue" | "base";
 
 /** The nested leaf words — the sub-command surfaces of the pure commands. */
-export type CliLeafName = "get" | "set" | "render";
+export type CliLeafName = "get" | "set" | "render" | "gen";
 
 /** The per-command usage lines — the steady consumption face (byte-stable across
  *  the tree generations; a typo in a usage line is a red consumer-side test). */
@@ -93,12 +94,23 @@ export const CLI_USAGE: Record<CliVerb, string> = {
     "usage: cdd review --type <wave|branch|spec|plan> [--tasks <n|n,n,…>] (--plan <path> | --spec <path> | branch: --base <sha> --head <sha>) [--round <n>]",
   fix: "usage: cdd fix --type <wave|branch|spec|plan> [--tasks <n|n,n,…>] [--findings <path>] (--plan <path> | --spec <path>)",
   base: "usage: cdd base <set|get> --plan <path> [set: --base <branch> --source <source>] [--force]",
-  schema: "usage: cdd schema get <type>",
+  schema: "usage: cdd schema <get|gen> <type>",
   issue: "usage: cdd issue render",
 };
 
 /** The component-value types of the argv channel (the engine-config type names). */
 export type ChannelValueType = "string" | "path" | "int-list" | "enum" | "sha" | "int" | "bool";
+
+/** The schema-gen `<type>` vocabulary — the DocType literals (overall | plan |
+ *  phase-spec) normalized to the projection record keys plus the one `phaseSpec`
+ *  alias (the schema-get spelling — a seamless consumer switch, spec §2.2). One
+ *  normalization table, never a second hand-written vocabulary list. */
+const GEN_TYPE_KEYS: Record<string, DocKey> = {
+  overall: "overall",
+  plan: "plan",
+  "phase-spec": "phaseSpec",
+  phaseSpec: "phaseSpec",
+};
 
 /** One argv-channel entry — the declared flag / type / enum domain of one key. */
 export interface ChannelArg {
@@ -224,6 +236,14 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
         description: "print the derived doc-structure schema for <type> (or the plan-graph read)",
         keys: [{ key: "plan" }],
         positionals: [{ key: "type", required: true }],
+      },
+      {
+        name: "gen",
+        usage: CLI_USAGE.schema,
+        description:
+          "render the derived doc skeleton for <type> to stdout (the writing-start scaffold)",
+        keys: [{ key: "plan" }],
+        positionals: [{ key: "type" }],
       },
     ],
   },
@@ -1753,14 +1773,42 @@ export class Cli {
 
   /** `cdd schema get <type>` — the derived doc-structure schema JSON to stdout (the
    *  type vocabulary = the projector's registry keys — self-derived, never a second
-   *  hand-written list); the `plan-graph` type rides the discovery read (§3.8). */
+   *  hand-written list); the `plan-graph` type rides the discovery read (§3.8).
+   *  `cdd schema gen <type>` dispatches to the skeleton render (the schema verb's
+   *  second leaf — get stays byte-unchanged). */
   async #runSchema(parsed: ParsedCommand): Promise<number> {
+    if (parsed.leaf === "gen") return this.#runSchemaGen(parsed);
     const type = parsed.positionals[0];
     if (type === undefined)
       throw new CliUsageError("cdd schema get: missing <type>", CLI_USAGE.schema);
     if (type === "plan-graph") return this.#runPlanGraph(parsed);
     this.#io.stdout(`${JSON.stringify(this.#projector.schema()[type as DocKey], null, 2)}\n`);
     return 0;
+  }
+
+  /** `cdd schema gen <type>` — the derived doc skeleton to stdout (the pure-render
+   *  discovery read of the schema verb's second leaf): the normalized DocType key →
+   *  the projector's skeleton projection → the SkeletonAssembler bytes → the single
+   *  appended newline (the assembler never appends one — the redirected fixture
+   *  ends with exactly one `\n`). Zero write side-effects — the orchestrator
+   *  redirects the stdout to the target path. */
+  #runSchemaGen(parsed: ParsedCommand): number {
+    const type = parsed.positionals[0];
+    if (type === undefined)
+      throw new CliUsageError("cdd schema gen: missing <type>", CLI_USAGE.schema);
+    const projection = this.#projector.skeleton()[type as DocKey];
+    const date = this.#today();
+    this.#io.stdout(`${new SkeletonAssembler(projection, date).render()}\n`);
+    return 0;
+  }
+
+  /** The run date in `YYYY-MM-DD` — the skeleton's version-row date truth (the
+   *  local day; the skeleton carries no date parameter face). */
+  #today(): string {
+    const now = new Date();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    return `${now.getFullYear()}-${month}-${day}`;
   }
 
   /** `cdd schema get plan-graph --plan <path>` — the plan-graph read (§3.8): the task
@@ -2006,12 +2054,28 @@ export class Cli {
     }
   }
 
-  /** The declared positional values, validated (schema get's <type> = the derived
-   *  registry key vocabulary — the projector's self-derived list). */
+  /** The declared positional values, validated per leaf — `schema get`'s <type>
+   *  rides the derived registry-key vocabulary (the projector's self-derived list ·
+   *  byte-unchanged), `schema gen`'s rides the DocType vocabulary with the one
+   *  `phaseSpec` alias normalized to the projection key (spec §2.2 — the gen
+   *  missing/unknown faces name the gen leaf, never the get leaf's). */
   #positionalsOf(surface: CliCommandSpec | CliLeafSpec, positionals: readonly string[]): string[] {
     const declared = surface.positionals ?? [];
     return declared.map((positional, index) => {
       const value = positionals[index];
+      if (positional.key === "type" && surface.name === "gen") {
+        if (value === undefined) {
+          throw this.#usage("cdd schema gen: missing <type>", surface.usage);
+        }
+        const key = GEN_TYPE_KEYS[value];
+        if (key === undefined) {
+          throw this.#usage(
+            `cdd schema gen: unknown schema type: ${value} (available: overall, plan, phase-spec, phaseSpec)`,
+            surface.usage,
+          );
+        }
+        return key;
+      }
       if (positional.key === "type" && value !== "plan-graph" && !this.#docKeys.includes(value!)) {
         throw this.#usage(
           `cdd schema get: unknown schema type: ${value} (available: ${[...this.#docKeys, "plan-graph"].join(", ")})`,

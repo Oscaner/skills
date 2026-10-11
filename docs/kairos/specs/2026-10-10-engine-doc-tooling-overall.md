@@ -1,6 +1,6 @@
 # 引擎文档工具（Engine Doc-Tooling）— Overall Spec
 
-- **Version**: v1.6 · 2026-10-11
+- **Version**: v1.7 · 2026-10-11
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（kairos:cdd-design 元层裁定 → 独立整体注册）
 - **Constraints**:
@@ -16,7 +16,7 @@
 
 ## Document scope
 
-Charter only, zero implementation detail. **Overall approval is not equivalent to any phase started（GATE）**——三个 phase 按注册序串行执行；P1 ‖ P2 无硬依赖（review face 与 schema/template 不同面），P3 硬依赖 P1 ∧ P2（changesets 归并须含两能力最终 bump 描述）；变更先回填本 overall，再继续实现。全部引擎改动先行实现于现行 `src-next/` 树（D8 拆 pin —— 与依赖升级与 src 更名程序 P2 为 sweep 面关系，非硬 pin；rename sweep 随后全库覆盖本程序新文件面）。
+Charter only, zero implementation detail. **Overall approval is not equivalent to any phase started（GATE）**——三个 phase 按注册序串行执行；P1 ‖ P2 无硬依赖（review face 与 schema/template 不同面），P3 硬依赖 P1（commander 框架化须 P1 face 重塑先行 · 原「changesets 收尾」独立 scope 经 2026-10-11 用户裁定折叠入 P3 的变更集义务，不设独立 phase）；变更先回填本 overall，再继续实现。全部引擎改动先行实现于现行 `src-next/` 树（D8 拆 pin —— 与依赖升级与 src 更名程序 P2 为 sweep 面关系，非硬 pin；rename sweep 随后全库覆盖本程序新文件面）。
 
 ## File paths
 
@@ -30,7 +30,7 @@ Charter only, zero implementation detail. **Overall approval is not equivalent t
 
 ### Goal
 
-把引擎 doc 面两个能力缺口一次收口：**① 消费者整体契约门禁（review-face overall 键）**——engine `face/cli.ts` 的 doc-contract docKey 推导从硬编码 `phaseSpec` 放开为与 validate 同源的推导（`*-overall.md → overall` · 其他 → phaseSpec），consumer 首次可对整体契约跑 `cdd review/fix --type spec --spec <overall>`（零 phase-spec 误报）· kairos cdd-spec-writer 的 overall 变体评审字面可满足（无需 skill 例外）；**② 写文档方案重设计（schema gen 模板写作）**——引擎备几套文档模板：`schema gen <phase-spec|overall|plan>` 从声明面派生**骨架**（标题树 · 表列头 · `- **Version**: v1.0 · <date>` + change-history 首行脚手架——结构 by construction 保真），编排器（cdd-spec-writer/cdd-plan author 节点）**先 gen 后填**——`###`/`##` 类转写失误整类死亡，doc-contract 判定语义不变仍为兜底终判；**③ changesets 收尾**——两能力 bump（cdd-engine）主题归并至可发布态，不发布。
+把引擎 doc 面两个能力缺口一次收口：**① 消费者整体契约门禁（review-face overall 键）**——engine `face/cli.ts` 的 doc-contract docKey 推导从硬编码 `phaseSpec` 放开为与 validate 同源的推导（`*-overall.md → overall` · 其他 → phaseSpec），consumer 首次可对整体契约跑 `cdd review/fix --type spec --spec <overall>`（零 phase-spec 误报）· kairos cdd-spec-writer 的 overall 变体评审字面可满足（无需 skill 例外）；**② 写文档方案重设计（schema gen 模板写作）**——引擎备几套文档模板：`schema gen <phase-spec|overall|plan>` 从声明面派生**骨架**（标题树 · 表列头 · `- **Version**: v1.0 · <date>` + change-history 首行脚手架——结构 by construction 保真），编排器（cdd-spec-writer/cdd-plan author 节点）**先 gen 后填**——`###`/`##` 类转写失误整类死亡，doc-contract 判定语义不变仍为兜底终判；**③ CLI 框架化收口（2026-10-11 用户裁定 · 原「changesets 收尾」改撤）**——commander ^15 重准入（CLI parse + help 渲染管线 · ARGV_CHANNEL 数据驱动单源 · 行为面全保），变更集收尾（P1/P2 deferred + 框架化 bump）随本 phase 折叠归并，不发布。
 
 ### Non-goals
 - **不发布**：整理到可发布态即止——`changeset version` / 打 tag / 发布 = 独立动作，不在本程序
@@ -61,7 +61,7 @@ Charter only, zero implementation detail. **Overall approval is not equivalent t
 | D8 | 跨程序树依赖语义（2026-10-11 用户裁定拆 pin · D6 之后复核） | **hard pin → sweep 面关系**：本程序 P1/P2 引擎改动**先行于现行 `src-next/` 树实现**（不等 rename P2）· rename sweep 全库 `grep -rn src-next` 随后覆盖本程序新文件面（Q3→b · 豁免面为空）· 跨程序依赖由阻挡改**非硬**（sweep 按字面量全局改 = 零登记成本） | Constraints + Dependency graph + Boundary + Phase inventory |
 | D9 | P1 面重构许可与 help 路线（2026-10-11 cdd-design [P1] 会话 · Q1–Q6） | **六前提破格于 P1 整 face 层**（Q6→b：cli.ts + capsule + words + graph-view + host 全层可重写/目录级重组）· **help 自研渲染重建**（Q4→a：零运行时依赖保持 · 维护文档 do-not-re-add 守约）· **usage 六行重写**（Q5→b：deliberate pin break · 测试锚同步更替）· **docKey 推导共享化**（Q1→a · Q2→a：契约层导出类成员 · validate 改调 · spec 树同源） | P1 scope + Constraints + Non-goal ④ + Cross-cutting |
 | D10 | docKey 词表统一（2026-10-11 用户 backfill → P1 随 cli 面统一处理） | **全库单一拼写 `phase-spec`（kebab）**——declare 登记表行键 · judge DOC_KEYS/DocKey 类型 · invariants ctx 站点 · Projector 五投影键 · validate 派生 · preflight docKey · words 键 kebab 化 · **schema get 值域统一**（get/gen 一表两面 · phaseSpec 别名归一面）· **P2「schema get 字节不变」断言语义随统一更新**（deliberate pin break · 与 usage Q5→b 同级） | P1 scope + Constraints |
-| D11 | help 框架化路线（2026-10-11 用户研究后裁定 · P1 收尾期） | **引入 mature CLI 框架 `commander` ^15**（运行时依赖 0 · 声明式 · 数据驱动——ARGV_CHANNEL 行度入 `.option()/.command()` 保单源）· **反转 D9 的 help 自研渲染面 + 维护文档 05 §4 的 commander 行 do-not-re-add**（commander P5 曾退役 · 本轮重准入 · citty 行与其余退役行不动）· **落地时机 = P1 收口后新阶段**（P1 按生效决定干净收口 · 不重开已批准 Task 4 交付 · 新阶段独立 spec/plan 循环）· 适配层保行为面：退出码表 0/1/2 · CDD_BLOCKED 通道 · 字节错误消息 · did-you-mean · `--help` 任意位置 | 新阶段（随 P1 closeout-backfill 四表登记）+ 本表 + Change history v1.6 |
+| D11 | help 框架化路线（2026-10-11 用户研究后裁定 · P1 收尾期） | **引入 mature CLI 框架 `commander` ^15**（运行时依赖 0 · 声明式 · 数据驱动——ARGV_CHANNEL 行度入 `.option()/.command()` 保单源）· **反转 D9 的 help 自研渲染面 + 维护文档 05 §4 的 commander 行 do-not-re-add**（commander P5 曾退役 · 本轮重准入 · citty 行与其余退役行不动）· **落地时机 = P1 收口后落地 · P3 槽位直接改写为 commander 框架化**（2026-10-11 用户裁定：不新增 phase · 原 P3「changesets 收尾」独立 scope 折叠入 P3 框架化的变更集义务——P1/P2 deferred + 框架化 bump 一次归并）· 适配层保行为面：退出码表 0/1/2 · CDD_BLOCKED 通道 · 字节错误消息 · did-you-mean · `--help` 任意位置 | P3（Phase inventory/Issue inventory/Dependency graph）+ 本表 + Change history v1.7 |
 
 ## Issue inventory
 
@@ -69,7 +69,7 @@ Charter only, zero implementation detail. **Overall approval is not equivalent t
 |---|---|---|
 | P1 | none | 引擎 review face overall 键：consumer 整体契约门禁——`cli.ts` 硬编码 phaseSpec 的 docKey 推导对齐 validate（`*-overall.md → overall`），`cdd review/fix --type spec --spec <overall>` 判整体契约 · cdd-spec-writer overall 变体评审轮可满足 · 引擎 vitest colocated pin · **P1 扩面（2026-10-11 Q3→c · 用户裁定）**：face/ 全层六前提重塑 + help/`--help` 展示面完整重建（自研渲染零依赖保持 · usage 六行重写 pin-break）· **docKey 词表统一（2026-10-11 用户 backfill · D10）**：全库单一拼写 `phase-spec`（kebab）——get/gen 一表两面 · P2 get 字节 pin 语义随统一更新 |
 | P2 | none | 写文档方案重设计：schema gen 模板写作——CLI `schema gen <phase-spec/overall/plan>` 从 declare.ts 派生骨架（标题树/表列/版本脚手架）· 消费面 cdd-spec-writer/cdd-plan author「先 gen 后填」· CLAUDE.md「零新子命令」pin 连带修订 |
-| P3 | none | changesets 收尾 + 发布预备：两能力 bump（cdd-engine）主题归并至可发布态 · 不发布 |
+| P3 | none | CLI 框架化收口 + 变更集归并：commander ^15 重准入（parse + help 渲染管线 · ARGV_CHANNEL 数据驱动单源 · 行为面全保）· 原「changesets 收尾」独立 scope 经 2026-10-11 用户裁定折叠入本 phase（P1/P2 deferred + 框架化 bump 主题归并）· 不发布 |
 
 ## Phase inventory
 
@@ -77,13 +77,13 @@ Charter only, zero implementation detail. **Overall approval is not equivalent t
 |---|---|---|---|---|---|---|
 | P1 | 引擎 review face overall 键 | 引擎 CLI：`face/cli.ts` 的 doc-contract docKey 推导从硬编码 `phaseSpec` 放开为与 validate 同源的推导（`*-overall.md → overall` · 其他 → phaseSpec · **共享化：契约层导出 · validate 改调 · plans 分支组合**）· consumer 首次可对整体契约跑 `cdd review/fix --type spec --spec <overall>`（零 phase-spec 误报）· kairos cdd-spec-writer 的 overall 变体评审字面可满足（无需 skill 例外）· **docKey 词表统一（D10 · 用户 backfill）**：全库单一拼写 `phase-spec`（kebab）——declare 行键 · judge DOC_KEYS/DocKey · invariants · Projector 五投影 · validate 派生 · preflight docKey · words 键 · schema get 值域统一（get/gen 一表两面）· P2 get 字节 pin 随统一更替 · **face/ 全层六前提重塑（Q3→c）**：cli.ts（六命令注册 · parse 通道 · run 分发 · preflight doc 构造 · help 渲染）+ capsule + words + graph-view + host 可重写/目录级重组（OOP 统一 · 零裸函数 · 死码清理 · 高内聚低耦合 · 最大精简 · 消费心智负担）· **help/`--help` 展示面完整重建**：自研渲染器（零依赖保持 · do-not-re-add 守约）· 顶层 `cdd` 命令总览 · 旗标级说明 + 值域 · 子命令树 · 错误路径智能提示 · **usage 行重写（deliberate pin break）** + smoke-cdd 锚更替 · 引擎 vitest colocated pin（overall 经 review face 判压零 finding）+ validate/guard 零回归 · 该 phase 由本 overall 注册 · 设计经 cdd-design 生成 | [Pending] | [Pending] | `cdd review --type spec --spec <任一 overall>` 对整体契约判压（零 phase-spec 误报 · 硬编码 phaseSpec 残留零）· 引擎 vitest 全绿（colocated pin：overall 评审轮 doc-contract 绿 · face 重塑后退出码表/CDD_BLOCKED/doc-contract 语义零变化）· `--help`/顶层 `cdd` 完整形面（旗标级说明 · 值域 · 子命令树 · 命令总览）+ usage 六行重写后 cli.test.ts pins + smoke-cdd 锚全更替 · **docKey 词表统一落定**（全库 kebab 单一拼写 · get 值域 `overall/plan/phase-spec` · get/gen 一表两面 · P2 get 字节 pin 语义更新后全测试 pins 更替全绿）· 零运行时依赖变化（help 自研渲染）· `pnpm run validate` ALL PASS · `pnpm run precommit` 过 · changesets（cdd-engine）经 P3 归并落位 | 依赖升级与 src 更名程序 P2 ->(sweep · 拆 pin) |
 | P2 | schema gen 模板写作 | 引擎 CLI + render：`schema gen <type>`（phase-spec / overall / plan 三型 · 从 declare.ts 派生骨架：标题树 · 表列头 · `- **Version**: v0.1 · <date>` 脚手架（版本起点 v0.1 裁定 · 2026-10-11）· change-history 首行）· **骨架 = 完整结构**（主体/description 槽位占位符提示 · 编排器 `schema gen <type> > specs/<name>.md` 落盘 · 填后零占位符残留 pin）· 骨架 by construction 过 doc-contract · `schema get` 保留（声明参考面）· 消费面 cdd-spec-writer / cdd-plan author「先 gen 后填」（散文入槽位）· CLAUDE.md「零新子命令」pin 修订 + **去 kairos/引擎流程**（例外面扩 schema gen · 文档先行 · 直接删除不迁不存）· **六前提重构许可（Q2→b：整 CLI 面重写/重组 · 死码/空壳清理 · OOP 统一零裸函数）** · 引擎 vitest colocated pin + validate/guard 零回归 · 该 phase 由本 overall 注册 · 设计经 cdd-design 生成 | ✔ Done（`2026-10-10-engine-doc-tooling-p2-design.md` v0.4 · 2026-10-11） | ✔ Done（`2026-10-10-engine-doc-tooling-p2.md` v0.5 · 2026-10-11） | `cdd schema gen phase-spec|overall|plan` 输出**完整结构骨架**过 gate（结构化 by construction · 占位符残留 pin 零命中）✓ + 填后 doc-contract 终判语义不变 ✓ + cdd-spec-writer / cdd-plan author 节点更新（先 gen 后填）✓ + CLAUDE.md pin 修订落 + 去流程化（kairos/引擎流程叙述零残留 grep pin）✓ + 引擎 vitest 全绿（433/433 · 含 29 新 colocated pins）✓ + `pnpm run validate` ALL PASS ✓ + `pnpm run precommit` 过 ✓ | 依赖升级与 src 更名程序 P2 ->(sweep · 拆 pin) |
-| P3 | changesets 收尾 + 发布预备 | 两能力 bump（cdd-engine：review-face 键 · schema gen/template）主题归并至可发布态（breaking/minor 语境随设计会话定）· EOF 全绿 · **不发布** · 该 phase 由本 overall 注册 · 设计经 cdd-design 生成 | [Pending] | [Pending] | `pnpm exec changeset status` 无 empty 条目 · 归并清单对照（40→19 先例同型）· EOF 全绿 · `pnpm run validate` ALL PASS | P1 ->(hard) · P2 ->(hard) |
+| P3 | CLI 框架化收口 + 变更集归并 | 引擎 CLI + face：**commander ^15 重准入**（parse + help 渲染管线——ARGV_CHANNEL 行度入 `.option()/.command()` 数据驱动保单源 · 适配层保行为面：退出码表 0/1/2 · CDD_BLOCKED 通道 · 字节错误消息重映射 · did-you-mean 近邻 · `--help` 任意位置）· **帮助形面**（命令表短描述 · Usage/Options/Examples 段首 · 描述位序）· 维护文档 05 §4 commander 行重准入注记（citty 等其余退役行不动）· **变更集收尾折叠**（P1/P2 deferred + 框架化 bump 主题归并 · breaking/minor 随设计会话定 · 不发布）· 该 phase 由本 overall 注册 · 设计经 cdd-design 生成 | [Pending] | [Pending] | commander ^15 运行时依赖落 cdd-engine `package.json` · 帮助形面三件套落（命令表短描述 · Usage/Options/Examples 段首 · 描述位序）· 行为面回归全绿（退出码表 · CDD_BLOCKED · 字节错误消息 pins · did-you-mean · `--help` 任意位置 · ARGV_CHANNEL 单源零平行列表）· `pnpm exec changeset status` 无 empty 条目 · 引擎 vitest 全绿 · `pnpm run validate` ALL PASS · EOF 全绿 · 不发布 | P1 ->(hard) · P2 ->(satisfied：已 Done · 其 deferred 变更集随本 phase 折叠) |
 
 ## Dependency graph (ASCII)
 
 ```
-P1 -> P3   (hard: P3 归并须含 review-face 键 bump 描述，须 P1 定案)
-P2 -> P3   (hard: P3 归并须含 schema gen/template bump 描述，须 P2 定案)
+P1 -> P3   (hard: P3 commander 框架化须 P1 face 重塑先行 · P1 已近收口)
+P2 -> P3   (satisfied: P2 已 Done · 其 deferred 变更集随 P3 折叠归并)
 P1 ‖ P2    (并行：review face 与 schema/template 不同面；执行仍串行)
 跨程序: P1/P2 ->(rename sweep) 依赖升级与 src 更名程序 P2（sweep 按字面量全局覆盖本程序新文件面 · 非硬依赖 · D8 拆 pin——本程序先行实现于 `src-next/`）
 ```
@@ -92,7 +92,7 @@ Legend:
 - `->` = hard block（依赖前置 phase 完成后启动）
 - `‖` = 无硬依赖（并行候选；执行串行、一 phase 一 closeout）
 
-执行序：P1 → P2（按注册序串行）→（P1 ∧ P2 均 Done 且依赖满足）→ P3 → 程序收敛。
+执行序：P1 → P2（按注册序串行 · P2 已 Done）→（P1 Done →）P3（CLI 框架化收口 · P1/P2 deferred 变更集随本 phase 折叠归并）→ 程序收敛。
 
 ## Boundary rules
 
@@ -119,3 +119,4 @@ Legend:
 | v1.4 | 2026-10-11 | **P1 grilling 定案（cdd-design [P1] 会话 · Q1–Q6 全答 · 用户裁定）**：P1 扩面——① docKey 推导共享化（契约层导出类成员 · validate 改调 · spec 树同源 · plans 分支组合）② **face/ 全层六前提重塑**（Q3→c · Q6→b：cli.ts + capsule + words + graph-view + host 可重写/目录级重组）③ **help/`--help` 展示面完整重建**（Q4→a 自研渲染零依赖保持 · Q3→a 完整形面：命令总览 · 旗标级说明 · 子命令树 · 错误路径提示）④ **usage 六行重写**（Q5→b deliberate pin break · 测试锚同步）· Non-goal ④ 增注 P1 同持整 CLI/face 面许可 · Cross-cutting 立「face 重塑保行为等价」· 决策 D9 · P1 scope/acceptance 同步扩面 · 执行序不变：P1 → P3（仍 [Pending]） | [human] · Claude Opus 5（kairos:cdd-design grilling · 用户裁定） |
 | v1.5 | 2026-10-11 | **P1 docKey 词表统一裁定（用户 backfill → P1 随 cli 面统一处理 · 2026-10-11）**：docKey/类型词表统一为**单一拼写 `phase-spec`（kebab）**——治 D3 大小写坑本源（两键系统合一）· 统一面 = declare 行键 · judge DOC_KEYS/DocKey · invariants · Projector 五投影 · validate 派生 · preflight docKey · words 键 · schema get 值域（get/gen 一表两面）· **P2「schema get 字节不变」断言语义随统一更新**（deliberate pin break · 与 usage Q5→b 同级）· 决策 D10 · P1 scope/acceptance 增词表统一面 · 词表统一因 P1 本就要重塑 cli 面而并入 P1（非独立议题） | [human] · Claude Opus 5（用户裁定 backfill · 2026-10-11） |
 | v1.6 | 2026-10-11 | **P1 help 框架化裁定（用户研究后决定 · 2026-10-11）**：联网调研（commander 15 依赖 0 · yargs 18 依赖 6 · clipanion RC · citty 版本未动）→ 用户定夺 **commander ^15 · P1 收口后落地**——反转 D9 的 help 自研渲染面与维护文档 05 §4 commander 行 do-not-re-add（commander 重准入 · 其余退役行不动）· P1 自身按生效决定干净收口（不重开已批准 Task 4 交付）· 决策 D11 · 新阶段经 cdd-close closeout-backfill 四表登记 | [human] · Claude Opus 5（用户裁定 · 2026-10-11） |
+| v1.7 | 2026-10-11 | **P3 槽位改写裁定（用户 · 2026-10-11）**：框架化**不新增 phase——P3 直接改写为「CLI 框架化收口 + 变更集归并」**：commander ^15 重准入（parse + help 渲染 · ARGV_CHANNEL 行度入 .option()/.command() 数据驱动单源 · 适配层保行为面：退出码表/CDD_BLOCKED/字节错误消息/did-you-mean/`--help` 任意位置 · 帮助形面三件套：命令表短描述 · Usage/Options/Examples 段首 · 描述位序）· 原「changesets 收尾」独立 scope **折叠**入 P3 变更集义务（P1/P2 deferred + 框架化 bump 一次归并 · 不发布）· 同步：Issue/Phase inventory P3 行 · Dependency graph（P1 hard · P2 satisfied）· 执行序 · charter①③段 · D11 落点更新（最终路由 = P3） | [human] · Claude Opus 5（用户裁定 · 2026-10-11） |

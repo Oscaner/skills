@@ -24,6 +24,10 @@ pnpm exec changeset version  # apply changesets to bump versions + CHANGELOGs (n
 
 CI runs `node scripts/run.ts validate` on PRs to `develop` and `main` (validation blocks: emit freshness, kairos plugin resolution / skills inventory / pi-package well-formed / behavior tests + wiring guard, cdd-engine engine test suite, engine zero residue + channel audit, marketplace manifests + emit harness registry consistency, scripts unit tests, package version sync).
 
+### Engine development calls — local `bin.ts`, not `npx`
+
+The kairos cdd-* skills invoke the engine as `npx -y @oscaner-skills/cdd-engine@latest <subcommand>` — that form targets the stable published release and is correct for consumers. **While developing the engine in this repo, call the local source instead: `node packages/cdd-engine/src-next/bin.ts <subcommand>`** — the published `@latest` lags the in-repo tree (e.g. `base`, and un-released in-tree features, are absent until a release lands), so every engine-facing CLI call made from this repo follows the local form. The same invocation discipline applies: read the full output (stdout/stderr) — the engine truncates its own output; output filtering is forbidden.
+
 ## Architecture
 
 ### Package-as-source

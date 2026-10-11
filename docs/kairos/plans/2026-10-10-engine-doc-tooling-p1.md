@@ -1,7 +1,7 @@
 # 引擎文档工具（Engine Doc-Tooling）— P1 Plan（review face overall 键 · face 全层重塑 · help 展示面重建 · docKey 词表统一）
 **Spec:** [2026-10-10-engine-doc-tooling-p1-design.md](docs/kairos/specs/2026-10-10-engine-doc-tooling-p1-design.md)
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall.md v1.5](docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.1 · 2026-10-11
+- **Version**: v0.2 · 2026-10-11
 - **Depends on**: 依赖升级与 src 更名程序 P2（sweep 面关系 · D8 拆 pin——本 plan 引擎改动**先行实现于现行 `src-next/` 树**，rename sweep 随后全库覆盖本 phase 新文件面）；本程序 P2（schema gen 模板写作 · 引擎面已 Done v0.4）——P1 ‖ P2 无硬依赖（父总体 Dependency graph · 执行串行按注册序）· 前置 = P1 design spec v0.3 Approved（review-fix 链全闭 · F5 post-approval backfill 落定 6bf06863）
 - **Base**: develop
 
@@ -140,3 +140,4 @@
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-11 | P1 实现计划：五任务串行——Task 1 词表统一（kebab 单一拼写 · get/gen 一表两面 · P2 get 字节 pin 语义更新）· Task 2 推导共享化（deriveDocType 契约类成员 · validate 组合 · overall 评审 colocated pin）· Task 3 face/ 全层六前提重塑（行为等价底线）· Task 4 help/`--help` 展示面重建 + usage 六行重写（自研零依赖 · 裸 cdd exit 2 钉定）· Task 5 收口验证（证据 in 册 · 零实现改动）· 任务解自 design spec v0.3（§2–§7 · F5 render 面边界 · 词表统一裁定 backfill） | [human] · Claude Opus 5（kairos:cdd-plan · writing-plans import） |
+| v0.2 | 2026-10-11 | P1 实现收口（cdd-close）——五任务全闭环（implement→review→fix 链各 APPROVED）：T1 词表统一 · T2 推导共享化（含 41f74487 单契约实例 fix）· T3 face 全层重塑 · T4 help/usage 重写 + did-you-mean 候选收窄 fix（verb 级）· T5 收口验证 + charter carve-out fix · 分支终审 1 warn（leaf 粒度 did-you-mean 候选越界）→ 分支 fix 闭环（surface 携带 · sibling keys 不再并入 · 双例 pins）· 引擎 vitest 452/452 · validate ALL PASS · 工作树净 | [human] · Claude Opus 5（kairos:cdd-close · closeout-backfill） |

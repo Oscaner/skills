@@ -1,9 +1,9 @@
 # 引擎文档工具（Engine Doc-Tooling）— P1 Design Spec（review face overall 键 · face 全层重塑 · help 展示面重建 · docKey 词表统一）
 
-- **Version**: v0.3 · 2026-10-11
-- **Status**: Draft
+- **Version**: v0.4 · 2026-10-11
+- **Status**: Approved
 - **Author**: [human] · Claude Opus 5（kairos:cdd-design [P1] grilling 定案 → cdd-spec-writer · 词表统一 backfill 2026-10-11）
-- **Parent program**: [2026-10-10-engine-doc-tooling-overall.md v1.5](docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md)
+- **Parent program**: [2026-10-10-engine-doc-tooling-overall.md v1.9](docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md)
 - **Depends on**: 依赖升级与 src 更名程序 P2（sweep 面关系 · D8 拆 pin——本 phase 先行实现于现行 `src-next/` 树，rename sweep 随后全库覆盖本 phase 新文件字面量）；本程序 P2（schema gen 模板写作 · 引擎面已落 v0.4 · 2026-10-11）——P1 ‖ P2 无硬依赖（父总体 Dependency graph · 执行串行按注册序）
 
 ## Design
@@ -174,3 +174,4 @@
 | v0.1 | 2026-10-11 | P1 design spec 初版——docKey 推导共享化（契约层类成员 · validate 改调）· face/ 全层六前提重塑 · help/`--help` 展示面重建（自研渲染零依赖 · usage 重写 pin-break）· 消费面 skill 零 commit · 验证与程序纪律（grilling Q1–Q6 定案收敛 · 父总体 v1.4 已回填） | [human] · Claude Opus 5（kairos:cdd-design [P1] → cdd-spec-writer） |
 | v0.2 | 2026-10-11 | docKey 词表统一 backfill（用户裁定「backfill 到 P1 统一处理 · P1 本就要处理 cli 面」）：全库单一拼写 `phase-spec`（kebab）——declare 行键 · judge DOC_KEYS/DocKey · invariants · Projector 五投影 · validate 派生 · preflight docKey · words 键 kebab 化 · schema get 值域统一（get/gen 一表两面 · `phaseSpec` 别名归一）· P2「get 字节不变」语义随统一更新（deliberate pin break）· 组重编号（消费面→6 · 验证→7）· 父总体 v1.5 已回填 | [human] · Claude Opus 5（用户裁定 backfill · 2026-10-11） |
 | v0.3 | 2026-10-11 | **F5 post-approval backfill（用户裁定 a · review fix-1 carryover）**：§4.2 render 面边界钉定——P2 属主 `render/skeleton.ts` + 工作命令 render 面 `brief`/`issue-body` 不在 P1 重塑面内（仅随 D8 sweep 更名字面 · 不重组 · 跨程序属主保护）；fix 轮（3f4abcf7）已落 F1/F2/F4/F6 四改 + F3 编排器裁决免改 | [human] · Claude Opus 5（编排器 post-approval backfill · 用户裁定 a） |
+| v0.4 | 2026-10-11 | **P1 实现收口（cdd-close）**：实现全链闭环——五波次 implement→review→(fix) 各 APPROVED · 分支终审 1 warn（`#nearestFlag` leaf 粒度候选越界 · 违反自述不变式）→ 分支 fix 闭环（`CliUsageError` surface 携带 · sibling leaf keys 不再并入 · `base get/set --forc` 双例 pins）· §2–§7 与实现零漂移（词表统一 · 推导共享化 · face 行为等价 · help 形面/usage pins · 收口核查）· F5 render 面边界守（render/ 源面零触碰）· P1 面零运行时依赖变化保持 · 父总体 v1.9（Phase inventory P1 → Done） | [human] · Claude Opus 5（kairos:cdd-close · closeout-backfill） |

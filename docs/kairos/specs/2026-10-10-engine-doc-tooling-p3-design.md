@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P3 设计：CLI 框架化收口 + 变更集归并
-- **Version**: v0.10 · 2026-10-12
+- **Version**: v0.11 · 2026-10-12
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P3] 会话 · 2026-10-11）
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall](2026-10-10-engine-doc-tooling-overall.md)
@@ -42,6 +42,8 @@
 - commander 原生支持任意位置/任意层级（含子命令与 verb-less）`--help`/`-h`——渲染对应命令面帮助并退出 0（含程序面）
 - verb-less `cdd --help`/`cdd -h` 退出 **2→0 为 deliberate 更替**：现存 pin（cli.test.ts:563 `runArgv(["--help"])` → 2 · missing-command 面）随本 phase 翻转——`--help` 域退出 0 与 §3.3 无命令 usage 退 2 以是否携带帮助旗标划分 · 更替面列 §7.3
 - **内建 `help [command]` 子命令复用**（v0.9 · 反转 v0.8 禁用裁定 · 用户裁定 2026-10-12——commander 原生能力池不裁剪）：`cdd help`/`cdd help <cmd>`/（父命令 `cdd base help`）任意层级 → 对应命令面帮助退出 **0**（判别 = `err.exitCode` 0 · §3.1）· `cdd help <bogus>` → 程序面帮助 + exit 1 → 2 · `cdd implement help`（leaf）→ `excessArguments` · 归 2
+#### 3.5 re-review gate 统一判据（doc 修订判定 · v0.11）
+- **review gate = doc 内容修订判定**（用户裁定 2026-10-12 · 并入本 phase）：`reviewedDocRevision`（上次 review 的 doc hash）与当前 doc hash **不一致 → 新 review 合法**——fix 后 · backfill 后 · 用户裁定后为**同一种情况**（统一判据 · 修复被卡路径：fix 中止后 review 报「next round is fix」而旧 findings 已过期）· 新 round = `rounds.review++` + 更新修订快照 + **旧 pending-fix 标记过期降级**（doc 修订使旧 findings 失去适用面 · next 不再强制按旧 findings fix）· **doc 未修订 → 维持拒绝重复 review**（防空转 · Review Convergence「new ref opens a new review」语义保 · 不动）
 
 ### 4. 值域校验与条件必填（commander 原生 · v0.6 重审）
 #### 4.1 值域校验 = parseArg + InvalidArgumentError
@@ -80,7 +82,7 @@
 
 - `commander ^15 运行时依赖落 cdd-engine package.json（与 simple-git 并列）· 维护文档 05 整文件删除 + 周边同步全绿（test 面 · ledger · live 引用零残留 · 历史 docs 提及不改）`
 - `帮助形面三件套落（命令表短描述 · Usage/Options/Examples 段首 · 描述位序 · commander 原生形态）· 值域并入选项描述（--type/<wave|branch|spec|plan> 等）· 程序旗标尾注（仅 --dry-run）`
-- `语义契约回归全绿：退出码 0/1/2（exitOverride）· CDD_BLOCKED 通道 · 裸 cdd usage 退 2（不含 --help/-h · verb-less --help 退 0 更替在册）· did-you-mean 三 ID 用例 = 命令树结构保真（零自定义 hint 码）· --help/-h 任意位置 · 内建 help [command] 子命令复用（cdd help/help <cmd>/父命令 help → exit 0 · help <bogus> → 2 · leaf help 参数 → excessArguments 归 2 · Commands 表含 help [command] 行 · §2.1/§3.4/§7.3 同步锚）· 值域/分布组语义 = parseArg + preAction hook（零自研校验组件）`
+- `语义契约回归全绿：退出码 0/1/2（exitOverride）· CDD_BLOCKED 通道 · 裸 cdd usage 退 2（不含 --help/-h · verb-less --help 退 0 更替在册）· did-you-mean 三 ID 用例 = 命令树结构保真（零自定义 hint 码）· --help/-h 任意位置 · 内建 help [command] 子命令复用（cdd help/help <cmd>/父命令 help → exit 0 · help <bogus> → 2 · leaf help 参数 → excessArguments 归 2 · Commands 表含 help [command] 行 · §2.1/§3.4/§7.3 同步锚）· 值域/分布组语义 = parseArg + preAction hook（零自研校验组件）· **re-review gate 统一判据（doc 修订 → 新 review 合法 · 相同 doc 重复 review 仍拒 · §3.5）**`
 - `零自研校验轮子（ValueValidator 退役 · parseArg + InvalidArgumentError 吸收 · 错误字节 commander 原生）· 投影面零模块级行为裸函数（CommandTreeBuilder 单类 · 构造即组装 · 与全仓纪律统一）`
 - `错误消息/帮助/usage pins 全更替（deliberate）· 自研渲染 + hint 引擎销毁面 grep 零残留（#renderHelp/#nearestFlag/CLI_USAGE 六行/ValueValidator/ValidatorUsageError 等）`
 - `CLI 面声明单源落（declare.ts 同栖 · registry.ts 删除 · runtime.ts 瘦身 · guard 闭包 = 单面内自检）· ARGV_CHANNEL/CLI_COMMANDS 单源零平行列表（guard channel-closure 全绿）· 命令树声明投影无手写 parse 残留 · 领域 run 语义零动（引擎 vitest 全绿作证 · 452+ 面）`
@@ -114,3 +116,4 @@
 | v0.8 | 2026-10-11 | P3 设计 v0.8——spec review round 2 fix（v0.7 面评审回填）：内建 `help [command]` 子命令处置定裁（`.addHelpCommand(false)` 程序级 + 各级父命令节点 · §2.1/§3.1 同步 · `help` 不入动词面）· §2.4 类型枚举补 `CliCommandSpec` · `ParsedCommand`/`CliUsageError` 退役去向言明（§6.1 整类退役 · §6.2 随 argv.ts）· `face/validate.ts` 整文件删除入 §6.2 + Acceptance grep 清单加 ValueValidator/ValidatorUsageError · §7.1 05 退役重定位为核验（**已落地** · T1 非执行）· §7.3 缺子命令措辞改「所属命令节点帮助」 | Oscar M. · Claude Opus 5（kairos:cdd-design · spec review round 2 · 2026-10-11） |
 | v0.9 | 2026-10-12 | P3 设计 v0.9——用户裁定（2026-10-12 · 反转 v0.8 禁用定裁）：**内建 `help [command]` 子命令复用**（commander 原生能力池不裁剪 · 六前提⑤⑥/Q5 最大原生化——禁用 = 抵消原生面的控制代码 · 复用为最小面）——§2.1 删 `.addHelpCommand(false)` 改复用注记（`cdd help`/`help <cmd>`/父命令 help → 面帮助 exit 0 · leaf `help` 参数 → excessArguments · `help <bogus>` → exit 1 → 2 · Commands 表含 help 行）· §3.1 帮助判别改按 **`err.exitCode`** 分流（探针实证：显式 help exit 0 → 0 · 裸跑/无效目标 exit 非 0 → 2）· §3.4 · §7.3 更替面扩列（`cdd help` 现行为更替 · unknown command 2 → 帮助 0 deliberate） | Oscar M. · Claude Opus 5（kairos:cdd-design · 用户裁定 · 2026-10-12） |
 | v0.10 | 2026-10-12 | P3 设计 v0.10——spec review round 2 fix（v0.9 面评审回填）：Acceptance 语义契约回归清单补**内建 help [command] 子命令复用契约**（cdd help/help <cmd>/父命令 help → exit 0 · help <bogus> → 2 · leaf help 参数 → excessArguments 归 2 · Commands 表含 help [command] 行 · §2.1/§3.4/§7.3 同步锚）· §5.3 did-you-mean 候选措辞改「**自身 option 集 + 祖先链内 options 近邻**」（commander 15.0.0 suggestSimilar 实证 · 与 §2.1 候选骨架及同节下行对齐） | Oscar M. · Claude Opus 5（kairos:cdd-design · spec review round 2 · 2026-10-12） |
+| v0.11 | 2026-10-12 | P3 设计 v0.11——用户裁定（2026-10-12 · 需求分析并入）：**re-review gate 统一判据**（§3.5）——review gate = doc 内容修订判定（doc hash ≠ reviewedDocRevision → 新 review 合法 · fix 后/backfill 后/用户裁定后同一种情况 · 旧 pending-fix 过期降级 · 相同 doc 维持拒绝防空转 · Review Convergence 语义保）· Acceptance 补 gate 判据 · plan T8 落 | Oscar M. · Claude Opus 5（kairos:cdd-design · 用户裁定 · 2026-10-12） |

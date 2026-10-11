@@ -717,6 +717,23 @@ describe("the help/--help display face — the error-path smart hints", () => {
     }
   });
 
+  it("an unknown flag never suggests a flag the same command also rejects", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      // `--spec` (edit distance 1 from `--spel`) is a review/fix flag, not an
+      // implement one — the did-you-mean candidates stay inside the errored
+      // command's own declared flags (+ the program scopes), so a foreign flag
+      // the same verb would reject is never suggested.
+      const code = await command.runArgv(["implement", "--spel", "1", "--plan", "p.md"]);
+      expect(code).toBe(2);
+      expect(io.stderrText).toContain("unknown option: --spel");
+      expect(io.stderrText).not.toContain("did you mean --spec");
+      expect(io.stderrText).toContain(CLI_USAGE.implement);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("a missing required flag exits 2 with the location + the expected-value suggestion", async () => {
     const { command, io, cleanup } = fixture();
     try {

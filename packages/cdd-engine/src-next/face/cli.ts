@@ -1092,12 +1092,16 @@ export class Cli {
   }
 
   /** The declared flag nearest to a misspelled token (the unknown-option hint's
-   *  suggestion) — the errored command's own declared flags preferred, the full
-   *  channel table as the fallback, judged within two edits. */
+   *  suggestion) — the errored command's own declared flags in the verb contexts,
+   *  the full channel table only for the pre-verb generic usage (no command surface
+   *  in play), the program scopes always — judged within two edits. A verb's
+   *  did-you-mean never suggests a flag the same verb would reject as unknown. */
   #nearestFlag(token: string, usage: string): string | null {
     const candidates = new Set<string>();
     const surface = CLI_COMMANDS.find((command) => command.usage === usage);
-    if (surface !== undefined) {
+    if (surface === undefined) {
+      for (const channel of Object.values(this.#parser.channels())) candidates.add(channel.flag);
+    } else {
       for (const declared of [
         ...surface.keys,
         ...(surface.leaves ?? []).flatMap((leaf) => leaf.keys),
@@ -1106,7 +1110,11 @@ export class Cli {
         if (channel !== undefined) candidates.add(channel.flag);
       }
     }
-    for (const channel of Object.values(this.#parser.channels())) candidates.add(channel.flag);
+    // The program scopes (accepted at any position by the parse face) always join
+    // the candidates — a legal suggestion in both the verb and pre-verb contexts.
+    candidates.add("--dry-run");
+    candidates.add("--no-dry-run");
+    candidates.add("--help");
     candidates.add("-h");
     const name = token.split("=")[0]!;
     let best: string | null = null;

@@ -20,16 +20,22 @@ export type CliVerb = "implement" | "review" | "fix" | "schema" | "issue" | "bas
 /** The nested leaf words — the sub-command surfaces of the pure commands. */
 export type CliLeafName = "get" | "set" | "render" | "gen";
 
-/** The per-command usage lines — the steady consumption face (byte-stable across
- *  the tree generations; a typo in a usage line is a red consumer-side test). */
+/** The per-command usage lines — the display face's product line (the friendly
+ *  syntax: flag value domains · leaf expansion · phase semantics — the deliberate
+ *  Task 4 pin break of the old "byte-stable across tree generations" steadiness;
+ *  a usage-line change is now a re-pin, never a red consumer test). The
+ *  `usage: cdd <command>` prefix is a stable anchor the black-box smoke tests
+ *  read (`scripts/smoke-cdd.ts`). */
 export const CLI_USAGE: Record<CliVerb, string> = {
-  implement: "usage: cdd implement --tasks <n|n,n,…> --plan <path>",
+  implement:
+    "usage: cdd implement --tasks <n|n,n,…> --plan <path> [--root <path>] — implement the plan wave's task group",
   review:
-    "usage: cdd review --type <wave|branch|spec|plan> [--tasks <n|n,n,…>] (--plan <path> | --spec <path> | branch: --base <sha> --head <sha>) [--round <n>]",
-  fix: "usage: cdd fix --type <wave|branch|spec|plan> [--tasks <n|n,n,…>] [--findings <path>] (--plan <path> | --spec <path>)",
-  base: "usage: cdd base <set|get> --plan <path> [set: --base <branch> --source <source>] [--force]",
-  schema: "usage: cdd schema <get|gen> <type>",
-  issue: "usage: cdd issue render",
+    "usage: cdd review --type <wave|branch|spec|plan> [--tasks <n|n,n,…>] [--round <n>] (--plan <path> | --spec <path> | --base <sha> --head <sha>) [--root <path>] — run the review round",
+  fix: "usage: cdd fix --type <wave|branch|spec|plan> [--tasks <n|n,n,…>] [--findings <path>] (--plan <path> | --spec <path>) [--root <path>] — run the fix round on the review findings",
+  base: "usage: cdd base <set|get> --plan <path> [set: --base <branch> --source <source>] [--force] — read/write the base.json artifact",
+  schema:
+    "usage: cdd schema <get|gen> <type> — <type> is overall | plan | phase-spec (get also accepts plan-graph)",
+  issue: "usage: cdd issue render — render the aggregate issue body from stdin findings JSON",
 };
 
 /** A per-command value-type override — a declared key whose value shape differs
@@ -64,6 +70,8 @@ export interface CliCommandSpec {
   keys: readonly CliArgSpec[];
   positionals?: readonly CliArgSpec[];
   leaves?: readonly CliLeafSpec[];
+  /** One minimal runnable example (the `--help` render's example section). */
+  example?: string;
 }
 
 /** The six subcommand declarations — implement, review, fix (the lifecycle work
@@ -73,12 +81,14 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
     name: "implement",
     usage: CLI_USAGE.implement,
     description: "run the task implement phase",
+    example: "cdd implement --tasks 1,2 --plan docs/kairos/plans/p3.md",
     keys: [{ key: "tasks", required: true }, { key: "plan", required: true }, { key: "root" }],
   },
   {
     name: "review",
     usage: CLI_USAGE.review,
     description: "run a review — task | branch | spec | plan",
+    example: "cdd review --type spec --spec docs/kairos/specs/p3-design.md",
     keys: [
       { key: "type", required: true },
       { key: "tasks" },
@@ -94,6 +104,7 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
     name: "fix",
     usage: CLI_USAGE.fix,
     description: "fix review findings — task | branch | spec | plan",
+    example: "cdd fix --type wave --tasks 1 --findings tasks-1-review-1.json",
     keys: [
       { key: "type", required: true },
       { key: "tasks" },
@@ -107,6 +118,7 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
     name: "base",
     usage: CLI_USAGE.base,
     description: "read/write base.json (single CDD --plan target)",
+    example: "cdd base set --plan docs/kairos/plans/p3.md --base develop --source plan-field",
     keys: [],
     leaves: [
       {
@@ -132,6 +144,7 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
     name: "schema",
     usage: CLI_USAGE.schema,
     description: "read canonical doc-structure schemas (discovery, zero enforcement)",
+    example: "cdd schema get phase-spec",
     keys: [{ key: "plan" }],
     leaves: [
       {
@@ -155,6 +168,7 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
     name: "issue",
     usage: CLI_USAGE.issue,
     description: "aggregate issue-body rendering (cdd issue render, zero enforcement)",
+    example: "cdd issue render < findings.json",
     keys: [],
     leaves: [
       {

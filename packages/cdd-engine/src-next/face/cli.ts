@@ -14,7 +14,11 @@
 // (HarnessDispatch — the production default of the lifecycle's dispatch step),
 // the work/pure command run bodies, the pre-flight orchestration and the render
 // faces' separation (the renderers stay injected — the CLI orchestrates the call,
-// never re-types their bytes).
+// never re-types their bytes), plus the help/`--help` display face — the
+// self-built help render (the flag-level options · the sub-command tree · the
+// examples · the top-level overview) and the error-path hints (Task 4 · design
+// spec §4: the display product's renderer lives at the run face, zero runtime
+// dependencies).
 //
 //   · Cli#parse — delegated to the shared ArgvParser (face/argv.ts).
 //   · Cli#run — dispatch the parsed command to its run body. The work commands
@@ -65,7 +69,7 @@ import type { PreFlightVerdict } from "../session/preflight.ts";
 import { PreFlight } from "../session/preflight.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame, RunState } from "../session/run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../session/run.ts";
-import { ArgvParser, CliUsageError, type ParsedCommand } from "./argv.ts";
+import { ArgvParser, type ChannelArg, CliUsageError, type ParsedCommand } from "./argv.ts";
 import { Capsule } from "./capsule.ts";
 import { GraphView } from "./graph-view.ts";
 import {
@@ -76,7 +80,13 @@ import {
   type HostReferenceTable,
   REFS,
 } from "./host.ts";
-import { CLI_COMMANDS, CLI_USAGE, type CliVerb } from "./registry.ts";
+import {
+  CLI_COMMANDS,
+  CLI_USAGE,
+  type CliCommandSpec,
+  type CliLeafSpec,
+  type CliVerb,
+} from "./registry.ts";
 import { Words } from "./words.ts";
 
 // ---------------------------------------------------------------------------
@@ -886,7 +896,7 @@ export class Cli {
     if (parsed.help) {
       const spec = CLI_COMMANDS.find((command) => command.name === parsed.verb);
       const surface = parsed.leafSpec ?? spec;
-      if (surface !== undefined) this.#io.stdout(`${surface.usage}\n${surface.description}\n`);
+      if (surface !== undefined) this.#io.stdout(`${this.#renderHelp(surface)}\n`);
       return 0;
     }
     switch (parsed.verb) {
@@ -906,19 +916,225 @@ export class Cli {
   }
 
   /** runArgv(argv) — the CLI face: parse + run, with every CliUsageError normalized
-   *  to the usage line + message on stderr and exit 2 (the steady exit-code table). */
+   *  to the usage line + message on stderr and exit 2 (the steady exit-code table).
+   *  A command-less invocation (bare `cdd`) renders the six-command OVERVIEW with
+   *  the missing-command message merged on stdout — the exit code stays 2 (an
+   *  overview at exit 0 would be a deliberate exit-code-table change, out of
+   *  this phase's authority · design spec §4.1); every other usage error gains the
+   *  smart error hint (the location's nearest suggestion, spec §4.4). */
   async runArgv(raw: readonly string[]): Promise<number> {
     try {
       return await this.run(this.parse(raw));
     } catch (err) {
       if (err instanceof CliUsageError) {
+        if (err.message.startsWith("missing command")) {
+          this.#io.stdout(`${this.#overview(err.message)}\n`);
+          return 2;
+        }
         this.#io.stderr(`${err.usage}\n`);
         this.#io.stderr(`${err.message}\n`);
+        const hint = this.#usageHint(err);
+        if (hint !== null) this.#io.stderr(`${hint}\n`);
         return 2;
       }
       this.#io.stderr(`cdd: ${err instanceof Error ? err.message : String(err)}\n`);
       return 1;
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // the help/display face — the self-built render + the overview + the error hints
+  // ---------------------------------------------------------------------------
+
+  /** The per-command `--help` render (design spec §4.1 — the complete surface,
+   *  never the old two-line patch): the usage line + the description + the
+   *  flag-level options (the value domains + per-flag descriptions, single-sourced
+   *  at the resolved channel table) + the sub-command tree (each leaf's option
+   *  tokens) + one minimal example + the program-flag legend. Zero runtime
+   *  dependencies (the do-not-re-add citty posture). */
+  #renderHelp(surface: CliCommandSpec | CliLeafSpec): string {
+    const lines: string[] = [surface.usage, "", surface.description];
+    if (surface.keys.length > 0) {
+      lines.push("", "options:", ...this.#optionLines(surface));
+    }
+    if ("leaves" in surface && surface.leaves !== undefined && surface.leaves.length > 0) {
+      lines.push("", "subcommands:");
+      for (const leaf of surface.leaves) {
+        lines.push(`  ${leaf.name}  ${leaf.description}`);
+        const tokens = this.#leafTokens(leaf);
+        if (tokens.length > 0) lines.push(`          options: ${tokens.join(" · ")}`);
+      }
+      const typeLeaves = surface.leaves.filter((leaf) =>
+        (leaf.positionals ?? []).some((positional) => positional.key === "type"),
+      );
+      if (typeLeaves.length > 0) {
+        const get = typeLeaves.some((leaf) => leaf.name === "get");
+        lines.push("", `the <type> vocabulary: ${this.#typeDomain(get)}`);
+      }
+    }
+    if ("example" in surface && surface.example !== undefined) {
+      lines.push("", "example:", `  ${surface.example}`);
+    }
+    lines.push("", "program flags (accepted at any position): --dry-run · --help / -h");
+    return lines.join("\n");
+  }
+
+  /** The option lines of a surface — the flag/value-domain/help columns (the
+   *  schema leaves' positionals render as their `<key>` token). */
+  #optionLines(surface: CliCommandSpec | CliLeafSpec): string[] {
+    const rows: { token: string; help: string }[] = [];
+    for (const declared of surface.keys) {
+      const channel = this.#parser.channels()[declared.key];
+      if (channel === undefined) continue;
+      const domain = this.#domainOf(channel);
+      const token = `${channel.flag}${domain === "" ? "" : ` ${domain}`}`;
+      const help = `${channel.help ?? ""}${declared.required === true ? " (required)" : ""}`;
+      rows.push({ token, help });
+    }
+    for (const positional of surface.positionals ?? []) {
+      rows.push({
+        token: `<${positional.key}>`,
+        help: positional.required === true ? " (required)" : "",
+      });
+    }
+    const width = rows.reduce((max, row) => Math.max(max, row.token.length), 0);
+    return rows.map((row) => `  ${row.token.padEnd(width)}   ${row.help}`.trimEnd());
+  }
+
+  /** The leaf's compact option tokens — the sub-command tree's options row (a
+   *  declared value-type override renders its own domain: base set's `--base`
+   *  carries a branch name, never the review range's sha). */
+  #leafTokens(leaf: CliLeafSpec): string[] {
+    const tokens: string[] = [];
+    for (const positional of leaf.positionals ?? []) tokens.push(`<${positional.key}>`);
+    for (const declared of leaf.keys) {
+      const channel = this.#parser.channels()[declared.key];
+      if (channel === undefined) continue;
+      const domain = declared.valueType === "branch" ? "<branch>" : this.#domainOf(channel);
+      tokens.push(`${channel.flag}${domain === "" ? "" : ` ${domain}`}`);
+    }
+    return tokens;
+  }
+
+  /** The display value domain of a channel — the option column's `<…>` token. */
+  #domainOf(channel: ChannelArg): string {
+    switch (channel.type) {
+      case "path":
+        return "<path>";
+      case "int-list":
+        return "<n|n,n,…>";
+      case "enum":
+        return `<${[...(channel.values ?? [])].join("|")}>`;
+      case "sha":
+        return "<sha>";
+      case "int":
+        return "<n>";
+      default:
+        return "";
+    }
+  }
+
+  /** The schema `<type>` value domain — the projector's doc-key set (+ the get
+   *  leaf's plan-graph display route), the same vocabulary the parse face's error
+   *  messages name, single-sourced at the projector. */
+  #typeDomain(get: boolean): string {
+    const keys = Object.keys(this.#projector.registries().schema);
+    return get ? [...keys, "plan-graph"].join(" | ") : keys.join(" | ");
+  }
+
+  /** The top-level command overview (design spec §4.1) — the six-command glance
+   *  (responsibility + the usage anchor each) with the missing-command message
+   *  merged as the closing line (the bare-`cdd` face: overview + missing-command
+   *  in ONE output, the exit code stays 2). */
+  #overview(missing: string): string {
+    const lines: string[] = [
+      "cdd — the CDD engine's command line",
+      "",
+      "usage: cdd <command> [options]",
+      "",
+      "commands:",
+    ];
+    for (const command of CLI_COMMANDS) {
+      lines.push(`  ${command.name.padEnd(10)}${command.description} — ${command.usage}`);
+    }
+    lines.push("", "run 'cdd <command> --help' for a command's flag-level help.", "", missing);
+    return lines.join("\n");
+  }
+
+  /** The smart error-path hint (design spec §4.4) — one extra line naming the
+   *  near miss: the nearest declared flag of an unknown option, the available
+   *  leaves of an unknown subcommand, the expected value domain of a missing flag
+   *  value. Null when the error carries no concrete suggestion. */
+  #usageHint(err: CliUsageError): string | null {
+    const unknown = /^unknown option: (\S+)/.exec(err.message);
+    if (unknown !== null) {
+      const near = this.#nearestFlag(unknown[1]!, err.usage);
+      return near === null ? null : `did you mean ${near}?`;
+    }
+    const subcommand = /^cdd \w+: unknown subcommand: (\w+)/.exec(err.message);
+    if (subcommand !== null) {
+      const names = CLI_COMMANDS.find((command) => command.usage === err.usage)?.leaves?.map(
+        (leaf) => leaf.name,
+      );
+      if (names !== undefined && names.length > 0)
+        return `available subcommands: ${names.join(" | ")}`;
+      return null;
+    }
+    const missing = /missing (?:required|value for) (--\S+)/.exec(err.message);
+    if (missing !== null) {
+      const key = missing[1]!.replace(/^--/, "").split("=")[0]!;
+      const channel = this.#parser.channels()[key];
+      if (channel === undefined) return null;
+      const domain = this.#domainOf(channel);
+      return domain === "" ? null : `expected ${missing[1]} ${domain}`;
+    }
+    return null;
+  }
+
+  /** The declared flag nearest to a misspelled token (the unknown-option hint's
+   *  suggestion) — the errored command's own declared flags preferred, the full
+   *  channel table as the fallback, judged within two edits. */
+  #nearestFlag(token: string, usage: string): string | null {
+    const candidates = new Set<string>();
+    const surface = CLI_COMMANDS.find((command) => command.usage === usage);
+    if (surface !== undefined) {
+      for (const declared of [
+        ...surface.keys,
+        ...(surface.leaves ?? []).flatMap((leaf) => leaf.keys),
+      ]) {
+        const channel = this.#parser.channels()[declared.key];
+        if (channel !== undefined) candidates.add(channel.flag);
+      }
+    }
+    for (const channel of Object.values(this.#parser.channels())) candidates.add(channel.flag);
+    candidates.add("-h");
+    const name = token.split("=")[0]!;
+    let best: string | null = null;
+    let bestScore = 2;
+    for (const candidate of candidates) {
+      if (candidate === name) continue;
+      const score = Cli.#distance(name, candidate);
+      if (score <= bestScore) {
+        bestScore = score;
+        best = candidate;
+      }
+    }
+    return best;
+  }
+
+  /** The edit distance between two short spellings — the near-miss metric. */
+  static #distance(a: string, b: string): number {
+    let prev: number[] = Array.from({ length: b.length + 1 }, (_, j) => j);
+    for (let i = 1; i <= a.length; i += 1) {
+      const row: number[] = [i];
+      for (let j = 1; j <= b.length; j += 1) {
+        row.push(
+          Math.min(prev[j]! + 1, row[j - 1]! + 1, prev[j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1)),
+        );
+      }
+      prev = row;
+    }
+    return prev[b.length]!;
   }
 
   // ---------------------------------------------------------------------------

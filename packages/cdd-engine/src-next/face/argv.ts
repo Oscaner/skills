@@ -30,6 +30,10 @@ export interface ChannelArg {
   type: ChannelValueType;
   /** The enum domain, when the type is enum. */
   values?: readonly string[];
+  /** The flag-level help line (the `--help` render's per-flag description — the
+   *  channel row's text, surfaced through the same resolved table the run face
+   *  reads: one key text, never a second description list). */
+  help?: string;
 }
 
 /** The schema `<type>` vocabulary — the get and gen leaves' ONE shared table
@@ -245,12 +249,18 @@ export class ArgvParser {
     const argv = config.engineConfig().contextContract?.channels?.argv;
     if (argv === undefined) return out;
     for (const [key, entry] of Object.entries(argv)) {
-      const row = entry as { flag?: string; type?: string; values?: readonly string[] };
+      const row = entry as {
+        flag?: string;
+        type?: string;
+        values?: readonly string[];
+        help?: string;
+      };
       out[key] = {
         key,
         flag: row.flag ?? `--${key}`,
         type: (row.type as ChannelValueType) ?? "string",
         values: row.values,
+        help: row.help,
       };
     }
     return out;

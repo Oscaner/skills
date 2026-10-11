@@ -316,14 +316,25 @@ describe("the command face — the six steady subcommand words", () => {
     ]);
   });
 
-  it("the usage lines carry the steady consumption face (verb + leaf words included)", () => {
-    expect(CLI_USAGE.implement).toBe("usage: cdd implement --tasks <n|n,n,…> --plan <path>");
-    expect(CLI_USAGE.review).toContain("--type <wave|branch|spec|plan>");
-    expect(CLI_USAGE.review).toContain("branch: --base <sha> --head <sha>");
-    expect(CLI_USAGE.fix).toContain("--type <wave|branch|spec|plan>");
-    expect(CLI_USAGE.base).toContain("<set|get>");
-    expect(CLI_USAGE.schema).toContain("<get|gen> <type>");
-    expect(CLI_USAGE.issue).toContain("render");
+  it("the usage lines carry the rewritten consumption face (the Task 4 deliberate pin break — friendly syntax: flag value domains · phase semantics)", () => {
+    expect(CLI_USAGE.implement).toBe(
+      "usage: cdd implement --tasks <n|n,n,…> --plan <path> [--root <path>] — implement the plan wave's task group",
+    );
+    expect(CLI_USAGE.review).toBe(
+      "usage: cdd review --type <wave|branch|spec|plan> [--tasks <n|n,n,…>] [--round <n>] (--plan <path> | --spec <path> | --base <sha> --head <sha>) [--root <path>] — run the review round",
+    );
+    expect(CLI_USAGE.fix).toBe(
+      "usage: cdd fix --type <wave|branch|spec|plan> [--tasks <n|n,n,…>] [--findings <path>] (--plan <path> | --spec <path>) [--root <path>] — run the fix round on the review findings",
+    );
+    expect(CLI_USAGE.base).toBe(
+      "usage: cdd base <set|get> --plan <path> [set: --base <branch> --source <source>] [--force] — read/write the base.json artifact",
+    );
+    expect(CLI_USAGE.schema).toBe(
+      "usage: cdd schema <get|gen> <type> — <type> is overall | plan | phase-spec (get also accepts plan-graph)",
+    );
+    expect(CLI_USAGE.issue).toBe(
+      "usage: cdd issue render — render the aggregate issue body from stdin findings JSON",
+    );
   });
 
   it("declares the nested leaf surfaces — base set|get · schema get|gen · issue render", () => {
@@ -515,6 +526,218 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
       expect(code).toBe(2);
       expect(io.stderrText).toContain(CLI_USAGE.implement);
       expect(io.stderrText).toContain("unknown option: --taks");
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// the help/--help display face — the overview · the per-command render · the
+// error-path hints (design spec §4 — self-built rendering, zero dependencies)
+// ---------------------------------------------------------------------------
+
+describe("the help/--help display face — the command overview", () => {
+  it("bare `cdd` renders the six-command overview + the missing-command message, exit 2 (spec §4.1)", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv([]);
+      expect(code).toBe(2);
+      // the six-command glance — the name + the usage anchor each
+      for (const name of ["implement", "review", "fix", "base", "schema", "issue"]) {
+        expect(io.stdoutText).toContain(name);
+      }
+      expect(io.stdoutText).toContain("commands:");
+      expect(io.stdoutText).toContain("usage: cdd <command> [options]");
+      expect(io.stdoutText).toContain(CLI_USAGE.implement);
+      // the overview + the missing-command message are ONE output on stdout
+      expect(io.stdoutText).toContain(
+        "missing command — expected implement | review | fix | base | schema | issue",
+      );
+      expect(io.stderrText).toBe("");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a verb-less --help renders the same overview face (the exit code stays 2 — the missing-command face)", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["--help"]);
+      expect(code).toBe(2);
+      expect(io.stdoutText).toContain("commands:");
+      expect(io.stdoutText).toContain("missing command");
+      expect(io.stderrText).toBe("");
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("the help/--help display face — the per-command render", () => {
+  it("cdd implement --help — the flag-level options with the value domains + the example, exit 0", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["implement", "--help"]);
+      expect(code).toBe(0);
+      expect(io.stdoutText).toContain("usage: cdd implement");
+      expect(io.stdoutText).toContain("--tasks <n|n,n,…>");
+      expect(io.stdoutText).toContain("--plan <path>");
+      expect(io.stdoutText).toContain("--root <path>");
+      expect(io.stdoutText).toContain("the task ids of the wave group (comma-separated)");
+      expect(io.stdoutText).toContain("(required)");
+      expect(io.stdoutText).toContain("run the task implement phase");
+      expect(io.stdoutText).toContain("example:");
+      expect(io.stdoutText).toContain("cdd implement --tasks 1,2 --plan docs/kairos/plans/p3.md");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("cdd review --help — the --type enum + the per-flag value domains + the example, exit 0", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["review", "--help"]);
+      expect(code).toBe(0);
+      expect(io.stdoutText).toContain("--type <wave|branch|spec|plan>");
+      expect(io.stdoutText).toContain("--tasks <n|n,n,…>");
+      expect(io.stdoutText).toContain("--round <n>");
+      expect(io.stdoutText).toContain("--spec <path>");
+      expect(io.stdoutText).toContain("--base <sha>");
+      expect(io.stdoutText).toContain("--head <sha>");
+      expect(io.stdoutText).toContain("the target face of the round");
+      expect(io.stdoutText).toContain(
+        "cdd review --type spec --spec docs/kairos/specs/p3-design.md",
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("cdd fix --help — the findings flag + the example, exit 0", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["fix", "--help"]);
+      expect(code).toBe(0);
+      expect(io.stdoutText).toContain("--findings <path>");
+      expect(io.stdoutText).toContain("the source review handoff JSON path");
+      expect(io.stdoutText).toContain(
+        "cdd fix --type wave --tasks 1 --findings tasks-1-review-1.json",
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("cdd base --help — the sub-command tree (set|get) with each leaf's option tokens, exit 0", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["base", "--help"]);
+      expect(code).toBe(0);
+      expect(io.stdoutText).toContain("subcommands:");
+      expect(io.stdoutText).toContain("set  write the base artifact");
+      expect(io.stdoutText).toContain("get  read the base artifact");
+      expect(io.stdoutText).toContain(
+        "options: --plan <path> · --base <branch> · --source <plan-field|branch-upstream|conversation-context|user-confirmed> · --force",
+      );
+      expect(io.stdoutText).toContain(
+        "cdd base set --plan docs/kairos/plans/p3.md --base develop --source plan-field",
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("cdd schema --help — the get|gen leaf tree + the kebab <type> vocabulary, exit 0", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["schema", "--help"]);
+      expect(code).toBe(0);
+      expect(io.stdoutText).toContain("subcommands:");
+      expect(io.stdoutText).toContain("get  print the derived doc-structure schema for <type>");
+      expect(io.stdoutText).toContain("gen  render the derived doc skeleton for <type>");
+      expect(io.stdoutText).toContain(
+        "the <type> vocabulary: overall | plan | phase-spec | plan-graph",
+      );
+      expect(io.stdoutText).toContain("cdd schema get phase-spec");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("cdd issue --help — the render leaf + the example, exit 0", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["issue", "--help"]);
+      expect(code).toBe(0);
+      expect(io.stdoutText).toContain("render  render the aggregate issue body");
+      expect(io.stdoutText).toContain("cdd issue render < findings.json");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a help flag on a leaf command renders the parent command's help (the help pre-screen pre-empts the leaf scan), exit 0", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["base", "set", "--help"]);
+      expect(code).toBe(0);
+      expect(io.stdoutText).toContain("subcommands:");
+      expect(io.stdoutText).toContain("read/write base.json");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("every per-command --help carries the program-flag legend footer", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      for (const verb of ["implement", "review", "fix", "base", "schema", "issue"]) {
+        expect(await command.runArgv([verb, "--help"])).toBe(0);
+      }
+      const legend = /program flags \(accepted at any position\): --dry-run · --help \/ -h/g;
+      expect(io.stdoutText.match(legend) ?? []).toHaveLength(6);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("the help/--help display face — the error-path smart hints", () => {
+  it("an unknown flag exits 2 with the location + the nearest-flag suggestion", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["implement", "--taks", "1", "--plan", "p.md"]);
+      expect(code).toBe(2);
+      expect(io.stderrText).toContain("unknown option: --taks");
+      expect(io.stderrText).toContain("did you mean --tasks?");
+      expect(io.stderrText).toContain(CLI_USAGE.implement);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a missing required flag exits 2 with the location + the expected-value suggestion", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["implement", "--plan", "p.md"]);
+      expect(code).toBe(2);
+      expect(io.stderrText).toContain("missing required --tasks");
+      expect(io.stderrText).toContain("expected --tasks <n|n,n,…>");
+      expect(io.stderrText).toContain(CLI_USAGE.implement);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("an unknown subcommand exits 2 with the available-leaves suggestion", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["base", "reset"]);
+      expect(code).toBe(2);
+      expect(io.stderrText).toContain("unknown subcommand: reset");
+      expect(io.stderrText).toContain("available subcommands: set | get");
+      expect(io.stderrText).toContain(CLI_USAGE.base);
     } finally {
       cleanup();
     }

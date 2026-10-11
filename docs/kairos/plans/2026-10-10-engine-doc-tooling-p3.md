@@ -1,7 +1,7 @@
 # 引擎文档工具（Engine Doc-Tooling）— P3 实施计划：CLI 框架化收口 + 变更集归并
 **Spec:** [2026-10-10-engine-doc-tooling-p3-design.md](docs/kairos/specs/2026-10-10-engine-doc-tooling-p3-design.md)
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall](docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.3 · 2026-10-11
+- **Version**: v0.4 · 2026-10-11
 
 ## Constraints
 
@@ -11,22 +11,23 @@
 - **数据驱动单源**（spec §2）：ARGV_CHANNEL 行度 → `.option()/.command()` 投影 · 零平行列表 · guard channel-closure（scripts/lib/guard.ts）结构性 pin 保——CLI_COMMANDS 保持可导入、每声明键仍单点声明
 - **节点绑定规则**（spec §2.1/F3 · 机制实测修正）：命令级 keys → 该命令节点 `.option()`（`required: true` → `.requiredOption()`）· `positionals` → `.argument()`（get 必选 · gen 可选）· **bool 通道行单面注册**（`--no-` 负向拼写退役 · 用户裁定 2026-10-11——commander 不派生取反 · `dryRun` 行投影 `.option('--dry-run')` · `force` 行投影 `.option('--force')` · 零消费隐藏拼写不注册 · 误输 → commander 原生 `Did you mean --dry-run?`）· `scope: "program"` 行 → 程序节点 `.option()` 并随行并入各命令节点（保任意位置接受语义）· help 行（`--help`/`-h`）不投影（对齐 commander 内建 helpOption · 不重复注册）· CLI_COMMANDS 行 `usage` 字段随 CLI_USAGE 六行一并退役不投影（描述/usage 语义并入 `.description()` · T3）
 - **测试 pins 更替 = deliberate**（spec §7.3 清单为准）：三 ID did-you-mean 语义回归 pin 保（零自定义 hint 码 · 结构保真）· 错误消息语义保 · 帮助/usage 字面 pins 更替为新 commander 原生形面（T6 独占）
-- **零运行时依赖变化**（除 commander ^15 · D11）：维护文档 05 §4 commander 行重准入注记 · citty 等其余退役行不动
+- **零运行时依赖变化**（除 commander ^15 · D11）：维护文档 05 退役为 deliberate（用户裁定 2026-10-11 · 第三方依赖不留存运维文档说明 · 整文件删除）· 依赖面断言载体 = package.json#dependencies
 - **变更集**（spec §7.2 · T8）：一个 cdd-engine 合并变更集标 **major**——P1 deferred（review face overall 键 + help 重建 + 词表统一）+ P2 deferred（schema gen + 去流程化）+ P3 框架化（commander ^15 · 形面/错误字节更替 · 架构重写）主题归并 · 存量积压 changesets 留守 · 不发布
 - **六前提整 face 许可**（D12）：组合根重建 · OOP 统一零裸函数 · 死码/空壳清理 · 高内聚低耦合 · 消费者心智负担 · 最大精简——销毁面以 spec §6 为界（自研渲染 + hint 引擎 + argv parse 通道删除 · 域词表保留）
 - **消费者心智**：cdd 六命令/旗标/值域语义面不动（**负向拼写 `--no-dry-run`/`--no-force` 退役为 deliberate · 用户裁定 2026-10-11**）——框架化是引擎内部工程，字节更替以 §5/§6/§7 为界
 
-### Task 1: commander ^15 运行时依赖 + 维护文档 05 §4 注记
-- **Objective**: cdd-engine 声明并安装 commander ^15（零运行时依赖姿态的 D11 例外）· 维护文档同步重准入注记；T4 起可 `import { Command } from "commander"`。
-- **Files**: Modify `packages/cdd-engine/package.json` · `pnpm-lock.yaml`（命令产物）· `docs/maintainers/05-third-party-dependencies.md` §4 · （若存在）依赖面/pin 断言测试
+### Task 1: commander ^15 运行时依赖 + 维护文档 05 退役（第三方依赖不留运维文档面）
+- **Objective**: cdd-engine 声明并安装 commander ^15（零运行时依赖姿态的 D11 例外）· **整文件删除 `docs/maintainers/05-third-party-dependencies.md`**（第三方依赖不留存运维文档说明 · 用户裁定 2026-10-11）并同步周边 05 引用面；T4 起可 `import { Command } from "commander"`。
+- **Files**: Modify `packages/cdd-engine/package.json` · `pnpm-lock.yaml`（命令产物）· Delete `docs/maintainers/05-third-party-dependencies.md` · Modify `packages/kairos/tests/maintainers-docs.test.ts`（05 断言面同步）· Modify `docs/maintainers/README.md`（index/ledger 行删 + Total 刷新）
 - **Consumes**: —（根任务 · 无需前序）
-- **Produces**: `commander@^15` 声明依赖（`dependencies` 与 `simple-git ^4.0.2` 并列）· 05 §4 commander 行重准入注记（反转该行 do-not-re-add · citty 行与其余退役行不动）· 依赖面断言载体 = `package.json#dependencies`（步骤 1）+ 维护文档 05 §4（步骤 3 · T1 自身动作 · 不引入新测试；`zero-dep` grep 仅作排除性确认——现有 `__tests__/zero-dep.test.ts` pin 的是退役 src/config 平面缺失与 src-next 模块说明符零引用，**非**运行时依赖面断言、无豁免面可扩）允许 commander ^15 例外面外
+- **Produces**: `commander@^15` 声明依赖（`dependencies` 与 `simple-git ^4.0.2` 并列）· 05 文件删净（live 面零残留）· 05 周边同步三件套：`maintainers-docs.test.ts`（CONTENT_DOCS 去 05 · convergence ledger 硬编码数组 :159 去 05 · 05-deps carries 测试块 :193-208 删除 · 头注释 :1-11 depe 述同步）· `docs/maintainers/README.md`（index 表 :11 05 行删 · P4.2 ledger :24 05 行删 + Total After 刷新 = 现 total − 05 bytes）——依赖面断言载体迁 `package.json#dependencies`（声明面守卫 · 运维文档面退役；`zero-dep` grep 仅作排除性确认——现有 `__tests__/zero-dep.test.ts` pin 的是退役 src/config 平面缺失与 src-next 模块说明符零引用，**非**运行时依赖面断言、无豁免面可扩）允许 commander ^15 例外面外
 - **Steps**:
   - `pnpm --filter @oscaner-skills/cdd-engine add commander@^15` 并落 lockfile —— checkable: `packages/cdd-engine/package.json#dependencies` 含 `"commander": "^15.*"`；`git status` 只见 package.json + lockfile 变更
-  - `grep -rn "zero-dep\|simple-git" packages/cdd-engine/src-next` 排除性确认依赖面断言——实测仅命中 `__tests__/zero-dep.test.ts`（退役平面守卫 · **非**运行时依赖面断言 · 豁免面无操作对象）与 `infra/git.ts`（simple-git 运行时导入 · 非断言）· **若仅此类命中则跳过本步**并注记「无依赖面 pin 测试需改」；依赖面断言载体为本任务步骤 1（package.json#dependencies）与步骤 3（05 §4 文档） —— checkable: 命中面不属于依赖面 pin 断言（仅上述两类）· 无「增扩豁免面」动作
-  - 编辑 `docs/maintainers/05-third-party-dependencies.md` §4 commander 行：P5 退役 → **本轮重准入 ^15**（注记 D11 同源 · 反转 do-not-re-add）；citty 行等其余退役行一字不动 —— checkable: §4 commander 行含「re-admitted」语义注记；`git diff` 仅 commander 行 + 无他行改动
+  - `grep -rn "zero-dep\|simple-git" packages/cdd-engine/src-next` 排除性确认依赖面断言——实测仅命中 `__tests__/zero-dep.test.ts`（退役平面守卫 · **非**运行时依赖面断言 · 豁免面无操作对象）与 `infra/git.ts`（simple-git 运行时导入 · 非断言）· **若仅此类命中则跳过**并注记「无依赖面 pin 测试需改」 —— checkable: 命中面不属于依赖面 pin 断言（仅上述两类）· 无「增扩豁免面」动作
+  - `git rm docs/maintainers/05-third-party-dependencies.md`（第三方依赖不留存运维文档说明 · 用户裁定 2026-10-11）—— checkable: `git ls-files docs/maintainers | grep "05"` 零命中
+  - 同步 05 周边引用面（删除的机械组成 · 见 Produces）——`maintainers-docs.test.ts`（CONTENT_DOCS/ledger 数组/05-deps 测试块/头注释）· `docs/maintainers/README.md`（index/ledger 行 + Total）· **02/04/06 与历史 docs 零动作**（已确认无 live 互引 · 历史记述不改） —— checkable: `node packages/kairos/tests/maintainers-docs.test.ts` 全绿（文件集 = 01-04/06 + README 六件 · total ledger 自洽 · ≤ 56,000 绿）
   - 运行 `node packages/cdd-engine/src-next/bin.ts --help`（旧形面基线）—— checkable: 仍输出自研形面（T4 前不破）
-- **Acceptance**: 依赖声明 + lockfile 绿 · 05 §4 注记落（citty 不动）· 现有引擎 vitest 全绿（未触碰面零回归）
+- **Acceptance**: 依赖声明 + lockfile 绿 · 05 文件删净 + live 引用面全同步（test 全绿 · README ledger 自洽）· 现有引擎 vitest 全绿（未触碰面零回归）
 - **DependsOn**: none
 
 ### Task 2: 校验组件（ValueValidator · 域语义收口）
@@ -123,3 +124,4 @@
 | v0.2 | 2026-10-11 | P3 实施计划 v0.2——plan review round 1 fix（9 条受理 · 见 findings）：CLI_USAGE 退役引用处置落定（registry.ts 行内 fields 11 处 + cli.ts 14 处引用为 T3 既定动作 · `usageFor(verb)` 语料面 · 域 run 错误面换源）· `Cli#parse()` 退役定裁 + 三处 parse 级新面入 T6 更替清单（unknown command 命令名建议 · 缺子命令程序面 · `-h` pre-verb 程序面）· `--no-` 双侧显式注册机制修正（commander 不派生取反 · 消费面拼写零更替）· 裸 cdd 适配层判别器（`commander.help` → 2 · helpDisplayed → 0 · 无 missing-command 定制文本）· schema `<type>` 归属（`.argument()` 投影 + T2 `typeKey` 词表 + 薄壳别名/路由）· distribution 复刻现状 type 条件必填组（不引入互斥拒绝 · fix branch = `--findings`）· intList 返回面对齐域消费（逗号串 · 薄壳零改写）· T1 grep 条件步去空化 + 「ruler ^15」笔误修正 · ChannelArg/ChannelValueType 栖所定裁（迁 runtime.ts · argv.ts 文件级删除） | Oscar M. · Claude Opus 5（kairos:cdd-plan · docs-fix round 1 · 2026-10-11） |
 | v0.3 | 2026-10-11 | P3 实施计划 v0.3——用户裁定：负向拼写 `--no-dry-run`/`--no-force` 退役（零消费隐藏拼写 · 六前提死面清理）——T3 绑定规则/探针改**单面注册**（bool 行只认正拼写 · 误输获 commander 原生 `Did you mean --dry-run?`）· T6 更替清单加负向拼写重锚（cli.test.ts:500/512-513 → unknown-option + 建议断言）· T7 销毁面加**零消费面全删**（`--no-` 泛化推导面（argv.ts `#declaredKey`）随通道删除 · 残留 grep 扩负向拼写）· Constraints 消费者心智例外注记 | Oscar M. · Claude Opus 5（kairos:cdd-plan · 用户裁定 · 2026-10-11） |
 | v0.1 | 2026-10-11 | P3 实施计划 v0.1——CLI 框架化收口 + 变更集归并：8 任务波次链（T1 依赖/文档 → T2 校验组件 ‖ T3 声明投影 → T4 组合根重建 → T5 帮助形面 → T6 pins 更替 → T7 销毁面+全量校验 → T8 合并变更集）· 任务面 = spec v0.2 §2–§7 · 约束面 = spec Constraints | Oscar M. · Claude Opus 5（kairos:cdd-plan · 2026-10-11） |
+| v0.4 | 2026-10-11 | P3 实施计划 v0.4——用户裁定 backfill（post-approval deliberate · 用户 2026-10-11 · implement 轮 kill 归口）：维护文档 05 整文件退役（第三方依赖不留存运维文档说明）——T1 范围重配「commander ^15 依赖 + 05 删除 + 周边同步三件套」（maintainers-docs.test.ts 05 断言面 · README index/ledger 行 · Total 刷新）· 依赖面断言载体迁 package.json#dependencies · Constraints 05 行同步（deliberate）· spec v0.5 同裁定回填 | Oscar M. · Claude Opus 5（kairos:cdd-plan · 用户裁定 · 2026-10-11） |

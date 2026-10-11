@@ -2,7 +2,7 @@
 
 **Spec:** [2026-10-10-engine-doc-tooling-p2-design.md](docs/kairos/specs/2026-10-10-engine-doc-tooling-p2-design.md)
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall.md v1.1](docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.4 · 2026-10-11
+- **Version**: v0.5 · 2026-10-11
 - **Depends on**: 依赖升级与 src 更名程序 P2（sweep 面关系 · D8 拆 pin——本 plan 引擎改动**先行实现于现行 `src-next/` 树**，rename sweep 随后全库覆盖新文件面）；本程序 P1 ‖ P2 并行无硬依赖（父总体 Dependency graph）· 前置 = P2 design spec v0.2 Approved（review-fix 链全闭 · 拆 pin 回填后）
 - **Base**: develop
 
@@ -84,3 +84,4 @@
 | v0.2 | 2026-10-11 | **P2 拆 pin 回填（用户裁定 ② · 父 overall v1.2 D8 · spec v0.2 同步）**：跨程序树硬门 → **sweep 面协调**——Task 1/2 引擎改动先行实现于现行 `src-next/` 树（plan 的 `src-next/` 字面量即实现真路径 · rename sweep 随后全库覆盖新文件面）；Constraints「跨程序树 pin 硬门」行改写 · Depends on header 同步 | Oscar M. · Claude Opus 5（P2 cdd-dev 进入前复核 · 用户拆 pin 裁定） |
 | v0.3 | 2026-10-11 | **wave-review-2 取证回填（F1 nit · orchestration ledger）**：Task 2 Files 补 `packages/kairos/tests/presentation-surface.test.ts`（CLAUDE.md Non-goal #1 散文 pin 移除 · 删除面直接推论 · spec §1.4 v0.3 同语修正——README 族 pin 零动） | Oscar M. · Claude Opus 5（kairos:cdd-dev wave-review-2 · orchestrator backfill） |
 | v0.4 | 2026-10-11 | **branch-review-1 取证回填（F2 nit · F3 裁定 · orchestrator）**：Task 1 Step 5 get 缺参消息字节表述订正（parser 面 `cdd schema: missing required <type>` · 非 run 面死代码串）· Dependency cell 分类裁定保持 content（`:::fill dependency` 落位 · 声明 P→P pattern 与实况宽泛收口 · 扩 pattern 归后续 engine 议题） | Oscar M. · Claude Opus 5（kairos:cdd-dev branch-review-1 · orchestrator backfill） |
+| v0.5 | 2026-10-11 | **P2 closeout（cdd-close）**：两波两任务全链闭合——Task 1 引擎面（`06505e9a` + fix `21f8b1fb` · skeleton 第六投影 + SkeletonAssembler + cli gen leaf + 29 colocated pins · declare.ts 计数刷新）· Task 2 消费面（`fdd339c4` + 回填 `b8cf405c`/`b06bef67` · author-* 先 gen 后填 + SKILL.md 三词条零命中 + CLAUDE.md 去流程化 + kairos 门禁对齐）· branch-review-1 → branch-fix-1（F1 `[Pending]` 真值订正 `4d1d9dc7` · F2/F3 orchestrator 回填 `c7c89fe0`）· Acceptance 全项交付（schema gen 三型完整骨架 · 判压零 finding · get 字节不变 · 占位零残留 · grep pins 零命中 · 引擎 vitest 433/433 · validate ALL PASS）· 父 overall v1.3 登记 P2 → Done | [human] · Claude Opus 5（kairos:cdd-close · closeout-backfill） |

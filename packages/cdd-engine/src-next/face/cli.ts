@@ -947,21 +947,21 @@ export class Cli {
     // the work verbs — implement / review / fix compose the domain run
     for (const verb of ["implement", "review", "fix"] as const) {
       commandNode(verb).action(async (_opts: unknown, command: Command) => {
-        this.#exitCode = await this.#runWork(verb, this.#runInput(verb, null, command, []));
+        this.#exitCode = await this.#runWork(verb, this.#runInput(verb, null, command));
       });
     }
     // the pure commands' leaves — schema get/gen · base set/get · issue render
     leafNode("schema", "get").action(async (_type: unknown, _opts: unknown, command: Command) => {
-      this.#exitCode = await this.#runSchema(this.#runInput("schema", "get", command, []));
+      this.#exitCode = await this.#runSchema(this.#runInput("schema", "get", command));
     });
     leafNode("schema", "gen").action(async (_type: unknown, _opts: unknown, command: Command) => {
-      this.#exitCode = await this.#runSchema(this.#runInput("schema", "gen", command, []));
+      this.#exitCode = await this.#runSchema(this.#runInput("schema", "gen", command));
     });
     leafNode("base", "set").action(async (_opts: unknown, command: Command) => {
-      this.#exitCode = await this.#runBase(this.#runInput("base", "set", command, []));
+      this.#exitCode = await this.#runBase(this.#runInput("base", "set", command));
     });
     leafNode("base", "get").action(async (_opts: unknown, command: Command) => {
-      this.#exitCode = await this.#runBase(this.#runInput("base", "get", command, []));
+      this.#exitCode = await this.#runBase(this.#runInput("base", "get", command));
     });
     leafNode("issue", "render").action(async () => {
       this.#exitCode = this.#runIssue();
@@ -976,12 +976,7 @@ export class Cli {
    *  lives on the program node, merged here). The args read GLOBALS too: a flag
    *  declared on the parent command (schema's --plan) is consumed by that node —
    *  the leaf's own opts would miss it. */
-  #runInput(
-    verb: CliVerb,
-    leaf: CliLeafName | null,
-    command: Command,
-    extra: readonly string[],
-  ): ParsedCommand {
+  #runInput(verb: CliVerb, leaf: CliLeafName | null, command: Command): ParsedCommand {
     const globals = command.optsWithGlobals() as Record<string, unknown>;
     const args: Record<string, string> = {};
     for (const [key, value] of Object.entries(globals)) {
@@ -993,7 +988,7 @@ export class Cli {
       leaf,
       leafSpec: null,
       args,
-      positionals: extra.length > 0 ? extra : (command.processedArgs as string[]),
+      positionals: command.processedArgs as string[],
       dryRun: this.#dryRun || globals.dryRun === true,
       help: false,
     };

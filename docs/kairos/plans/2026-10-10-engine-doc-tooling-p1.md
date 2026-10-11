@@ -23,12 +23,12 @@
 
 - **Objective**: 全库 docKey/类型词表统一为**单一拼写 `phase-spec`（kebab）**——契约面（declare 登记表行键 · judge `DOC_KEYS`/`DocKey` 类型 · `docTypeParsers` 建 · invariants `ctx.docKey` 站点 · Projector 六投影键 · doc.ts 解析键）+ 派生面（validate 派生）+ words 键面 + session/preflight 键拼；face 面 schema get/gen **一表两面**（归并 `#docKeys` 与 gen 别名归一表为单一 vocabulary · `phaseSpec` 别名归一）· P2「schema get 字节不变」断言语义随统一更新（deliberate pin break）· 全测试 pins（judge/cli/face/invariants/lint/doc/preflight + project/declare/skeleton 三测试文件——F1 补全 Test ledger · `render/__tests__/skeleton.test.ts` 字面更替属词表统一触达面（F5 裁定））更替后引擎 vitest 全绿——落**词表统一面单一 commit**
 - **Files**:
-  - Modify: `packages/cdd-engine/src-next/contract/declare.ts`（登记表行键 `phaseSpec` → `"phase-spec"` · 头注释计数核对不变）
-  - Modify: `packages/cdd-engine/src-next/contract/judge.ts`（`DOC_KEYS`/`DocKey` 类型 · `docTypeParsers` 键 → kebab）
-  - Modify: `packages/cdd-engine/src-next/contract/invariants.ts`（`ctx.docKey === "phaseSpec"` 多站点 → `"phase-spec"`）
+  - Modify: `packages/cdd-engine/src-next/contract/declare.ts`（登记表行键 `phaseSpec` → `"phase-spec"` · `DeclaredRegistries` 接口成员 `phaseSpec`（:75）→ kebab · 头注释计数核对不变）
+  - Modify: `packages/cdd-engine/src-next/contract/judge.ts`（`DOC_KEYS`/`DocKey` 类型 → kebab）
+  - Modify: `packages/cdd-engine/src-next/contract/invariants.ts`（`ctx.docKey === "phaseSpec"` 多站点 → `"phase-spec"` · registries inline 型键（:102）→ kebab）
   - Modify: `packages/cdd-engine/src-next/contract/project.ts`（六投影键 `Record<DocKey, _>` · `SkeletonProjection` registries · project.ts:264-274/334-342/380）
   - Modify: `packages/cdd-engine/src-next/contract/doc.ts`（docTypeParsers 键面 · 如含 camel 键）
-  - Modify: `packages/cdd-engine/src-next/face/cli.ts`（schema get 值域 → `overall/plan/phase-spec` + `plan-graph` · get/gen 一表两面 vocabulary · `phaseSpec` 别名归一 · 错误消息端态钉定：get 面**四键** `available: overall, plan, phase-spec, plan-graph`（plan-graph 合法显示类型输入 · 保留入提示列）· gen 面**三键** `available: overall, plan, phase-spec`（gen 词表不含 plan-graph · `phaseSpec` 别名接受不入列 · cli.ts:2073 现含 camel 字面必改后端态））
+  - Modify: `packages/cdd-engine/src-next/face/cli.ts`（schema get 值域 → `overall/plan/phase-spec` + `plan-graph` · get/gen 一表两面 vocabulary · `phaseSpec` 别名归一 · 错误消息端态钉定：get 面**四键** `available: overall, plan, phase-spec, plan-graph`（plan-graph 合法显示类型输入 · 保留入提示列）· gen 面**三键** `available: overall, plan, phase-spec`（gen 词表不含 plan-graph · `phaseSpec` 别名接受不入列 · cli.ts:2073 现含 camel 字面必改后端态）· **cli.ts:1278 preflight docKey 字面 `"phaseSpec"` → `"phase-spec"`（DocKey 收窄触达面 · 主动编辑 · tsc 击穿 · 非 words.ts 式被动——Task 1 落字面 kebab · Task 2 改共享推导（deriveDocType））**）
   - Modify: `scripts/validate.ts:243`（spec 树派生 → `"phase-spec"`）
   - 注：`face/words.ts` 无 Modify 条目——`docWords` 键经 `DocKey` 类型**被动 kebab**（`this.#projector.tokens()[docKey]` 调用 · 源面零 camel 字面）· 源文件期望零 diff（断言更替在 Test 面）
   - Test: `packages/cdd-engine/src-next/contract/__tests__/judge.test.ts` · `doc.test.ts` · `lint.test.ts`（camel docKey 字面 → kebab）
@@ -42,7 +42,7 @@
 - **Steps**:
   - 契约面键拼更替（declare/judge/invariants/project/doc.ts）——**TS 推断连锁编译期收口**（索引访问全量暴露 · 六前提「OOP 统一」的编译期强约束 · spec §5.2 类型收口）；`words.docWords` 键同更 — checkable: 引擎 `tsc --noEmit` 全绿 · 契约面文件 `grep "\"phaseSpec\""` 零残留（别名归一表除外）
   - face 面：schema get/gen **一表两面**——归并 `#docKeys` 与 gen 别名归一表为单一 vocabulary（主拼 `overall/plan/phase-spec` · `phaseSpec` 别名归一到 kebab）· 错误消息端态钉定：get 面**四键** `available: overall, plan, phase-spec, plan-graph`（plan-graph 合法显示类型输入 · 保留入提示列 · 现 `[...this.#docKeys, "plan-graph"]`（cli.ts:2081）推导 kebab 后自然产出）· gen 面**三键** `available: overall, plan, phase-spec`（gen 词表不含 plan-graph · `phaseSpec` 别名接受不入列 · cli.ts:2073 现含 camel 字面必改后端态） — checkable: `schema get phase-spec` 出 JSON（主体字节与旧 `phaseSpec` 输出一致 · docType/title 本已 kebab）· `schema get phaseSpec` 别名归一同字节 · `schema gen phase-spec`/`phaseSpec` 归一同字节（P2 行为不变）· cli.test.ts 两错误消息用例钉新字节断言（get 四键 + 未识别 type · gen 三键 + 未识别 type）
-  - 派生面 + session：`scripts/validate.ts:243` spec 树派生 → `"phase-spec"`（`dir === "plans" ? "plan" : …` 组合语义不变）· preflight docKey 随 `DocKey` 类型被动 kebab — checkable: `pnpm run validate` 版 doc-contract gate 面绿（validate 派生 kebab 与 judge 词表一致 · docs/kairos 全 tree 零 finding 面保持）
+  - 派生面 + session：`scripts/validate.ts:243` spec 树派生 → `"phase-spec"`（`dir === "plans" ? "plan" : …` 组合语义不变）· cli.ts:1278 preflight docKey 随 DocKey 收窄**必改字面**（`"phaseSpec"` → `"phase-spec"` · 主动编辑 · tsc 击穿 · 非 words.ts 式被动）——Task 1 落字面 kebab · Task 2 改共享推导（deriveDocType 改调 1275-1281） — checkable: `pnpm run validate` 版 doc-contract gate 面绿（validate 派生 kebab 与 judge 词表一致 · docs/kairos 全 tree 零 finding 面保持）· 引擎 `tsc --noEmit` 全绿（:1278 主动编辑后 · 收窄击穿闭合）
   - 测试 pins 全量更替（judge/doc/lint/invariants/preflight/cli/face 测试的 `"phaseSpec"` docKey 字面 + get 输出断言 + docWords 断言 → kebab）· **补 ledger 三文件**（`render/__tests__/skeleton.test.ts` 13 处 · `contract/__tests__/project.test.ts` 8 处 · `contract/__tests__/declare.test.ts` 3 处——DocKey 收窄后必击穿的 DocKey 型字面面 · F1 已分派归属）· cli.test.ts get/gen 错误消息用例新字节断言（get 四键 · gen 三键）· `phaseSpec` 仅保留在别名归一用例的显式引用 — checkable: 测试文件面 `grep "\"phaseSpec\""` 仅别名用例显式命中 · 引擎 vitest 全绿（433 基线 + 更替后）
   - 收口：`pnpm --filter @oscaner-skills/cdd-engine test` 全绿 · `pnpm run precommit` 过 · `pnpm run emit:check` 保绿（零 SKILL.md 变更）——全绿后落**词表统一面单一 commit**（scopes：契约/派生/get-gen 词表/测试 pins（含 render/__tests__/skeleton.test.ts · project/declare.test.ts 字面更替）· 不含 Task 3/4 的重塑与 help 面改动） — checkable: 各门禁 ALL PASS · commit 仅词表统一触达面 · render/ 源面零改动 · precommit 钩子绿
 - **Acceptance**:
@@ -122,12 +122,12 @@
 - **Objective**: 全链收口验证——消费面 skill 零 commit 复查（cdd-spec-writer SKILL.md 五词条零命中 · `git diff` 零消费面文件）· 残留核查（camel docKey 旧字面 · 旧 usage 字面 · 硬编码推导字面 grep 全零）· 引擎 vitest 全绿（433 基线 + 四任务新增 pins）· `pnpm run validate` ALL PASS（emit 新鲜 · kairos tree/wiring · marketplace · scripts 单元 · 版本同步）· precommit 过 · smoke-cdd 全链 + 整体契约黑盒复核（`cdd review --type spec --spec <既有 overall>`）——验收证据在册 · 零实现改动（无独立 commit 需求 · 若引擎波次语义要求则提交证据文件）
 - **Files**:
   - Validate: `packages/cdd-engine`（vitest 全绿）· `scripts/run.ts validate`（ALL PASS）· `scripts/smoke-cdd.ts`（全链）· `packages/kairos/skills/cdd-spec-writer/SKILL.md`（零 commit 复查面）
-  - Test: 复核面——grep pins（全库）
+  - Test: 复核面——grep pins（引擎树 `packages/cdd-engine/src-next` + `scripts/` · docs/kairos 文档面豁免）
 - **Consumes**: design spec §6（消费面连接）· §7（验证与程序纪律）· Task 1–4 的落地真面（词表 · 推导 · face · help）
 - **Produces**: acceptance 全项证据（引擎 vitest 计数 · validate ALL PASS 记录 · precommit 过 · smoke-cdd 链 · grep pins 零命中 · 消费面零 diff 证明）
 - **Steps**:
   - 消费面 skill 零 commit 复查：cdd-spec-writer SKILL.md 五词条（`例外`/`exception`/`误报`/`workaround`/`整体`）零命中 · `git diff 主分支..HEAD -- packages/kairos/skills/` 零变更 — checkable: 五词条 grep 零命中 · 消费面零 diff 证明
-  - 残留核查：`"phaseSpec"`（camel docKey 字面 · 别名归一表一处显式引用除外）· 旧 usage 六行字面 · `docKey: type === "plan" ? "plan" : "phaseSpec"` 硬编码推导——全库 grep 零命中 — checkable: 各 grep pin 零命中（词表统一验收）
+  - 残留核查（**范围钉引擎树**：`packages/cdd-engine/src-next` + `scripts/` · docs/kairos 文档面豁免——冻结文档含散文引用）：`"phaseSpec"` camel 字面（例外枚举：`GEN_TYPE_KEYS` 别名行进列 + cli.test.ts 别名用例 `schema get phaseSpec` 同字节断言显式豁免——与 Task 1 步骤 4「仅别名用例显式命中」对齐）· 旧 usage 六行字面 · `docKey: type === "plan" ? "plan" : "phaseSpec"` 硬编码推导（docs 面豁免 · 本 plan/spec 所述即历史引用）——引擎树内 grep 零命中 — checkable: 各 grep pin 零命中（引擎树范围 · docs 豁免 · 例外枚举完整 · 词表统一验收）
   - 引擎 vitest 全绿（433 基线 + 四任务新增 pins 全通过）· `pnpm run validate` ALL PASS（emit 新鲜 · kairos anatomy 契约 · 插件解析 · marketplace 一致 · scripts 单元 · 版本同步）· `pnpm run precommit` 过 — checkable: 各门禁 ALL PASS · 证据记录在册（test_evidence 面）
   - smoke-cdd 全链（standalone CLI 黑盒 · 消费面体验）· 整体契约黑盒复核抽 1 个既有 overall（`docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md`）跑 `cdd review --type spec --spec <path>` → 零 phase-spec 误报 — checkable: smoke-cdd 0 退出 · 黑盒复核零误报
   - 收口：实施期若有 spec/overall 复议实况先回填（backfill-as-version）· 不单开 changeset（归 P3）· 验收证据整理 in 册 ——零实现改动面无独立 commit（Task 1–4 单 commit 已各落） — checkable: 证据清单与 spec §7 acceptance 逐项对应

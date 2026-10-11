@@ -1,7 +1,7 @@
 # 引擎文档工具（Engine Doc-Tooling）— P3 实施计划：CLI 框架化收口 + 变更集归并
 **Spec:** [2026-10-10-engine-doc-tooling-p3-design.md](docs/kairos/specs/2026-10-10-engine-doc-tooling-p3-design.md)
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall](docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.11 · 2026-10-12
+- **Version**: v0.12 · 2026-10-12
 
 ## Constraints
 
@@ -110,10 +110,10 @@
 - **Objective**: engine review gate **判据主导化**（spec §3.5 · v0.12 六前提升级 · 用户裁定 2026-10-12）：review gate 主判据 = **doc 内容修订判定**——`currentDocHash ≠ reviewedDocRevision.hash` → 新 review 合法（fix 后 · backfill 后 · 用户裁定后为**同一种情况**）；相同 doc 未修订 → 维持拒绝（防空转 · Review Convergence 语义保）。修复被卡路径（fix 中止后 review 报「next round is fix」而旧 findings 已过期——此前流程手工重置 wave 状态的根因）。既有 `reviewedDocRevisionOf` 读点实证（cli.ts:1450）——卡点是**判定序/状态模型**而非缺判据。
 - **Files**: Modify `packages/cdd-engine/src-next/face/cli.ts`（判定调用点收敛到方法族）· Modify `packages/cdd-engine/src-next/session/ledger.ts`（**review gate 方法族**（类化 · 零裸函数）· 状态推进 · pending 派生）· `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（gate 判据探针）
 - **Consumes**: T3 组合根（review 命令面 · 已重建）· `Ledger`（session/ledger.ts · `reviewedDocRevision`/`rounds` 状态读写属主）
-- **Produces**: review gate 判据 = **doc 修订判定优先**——`currentDocHash ≠ reviewedDocRevision` → 放行新 round（`rounds.review++` · 覆盖修订快照 · **旧 findings 自动失效**——findings 绑定所审 doc hash · doc 修订即失效）· `hash 相同` → 维持拒绝（I1 收敛 · 不动）· **pending-fix 无独立状态**（由「doc 相同 + 未 APPROVED」动态派生 · 零新增状态字段）· `rounds` 完成计数**保留**（消费面实证：findings 文件名 `-{type}-{round}` · reviewRange 派生）· 门判定/推进 = **`Ledger` 方法族**（`reviewGate(docRevision)`：判定 + 推进 · 判定序 = doc 修订优先 · 类化统一 · 零裸函数）
+- **Produces**: review gate 判据 = **doc 修订判定优先**——`currentDocHash ≠ reviewedDocRevision` → 放行新 round（`rounds.review++` · 覆盖修订快照 · **旧 findings 自动失效**——findings 绑定所审 doc hash · doc 修订即失效）· `hash 相同` → 维持拒绝（I1 收敛 · 不动）· **pending-fix 无独立状态**（由「doc 相同 + 未 APPROVED」动态派生 · 零新增状态字段）· `rounds` 完成计数**保留**（消费面实证：findings 文件名 `-{type}-{round}` · reviewRange 派生）· 门判定/推进 = **`Ledger` 方法族**（`reviewGate(docRevision)`：判定 + 推进——**推进于 round 完成时**（`recordRound` + 修订快照写回（`#recordReviewedDocRevision`）· BLOCKED re-review 恢复同 round · 零预绑定）· 判定序 = doc 修订优先 · 类化统一 · 零裸函数）
 - **Steps**:
   - 写 gate 判据探针红用例：doc 修订后 `review --type plan --plan <path>` 直接可跑（**不报「next round is fix」**——当前：修订后被 next-fix 卡）· doc 未修订重复 review → 仍拒（同一 doc 防空转）—— checkable: FAIL（现状：修订后被卡）
-  - 实现判据（`Ledger#reviewGate` 方法族：判定 doc 修订 → 放行 + `rounds.review++` + 快照覆盖 + 旧 findings 失效 · pending-fix 派生化（无独立字段）· cli.ts 判定调用点收敛）—— checkable: 探针 PASS · 未修订重复 review 仍拒 · progress.json 零新字段
+  - 实现判据（`Ledger#reviewGate` 方法族：判定 doc 修订 → 放行 · **推进于 round 完成时**（`recordRound` + 修订快照写回 · BLOCKED re-review 恢复同 round · 零预绑定）→ `rounds.review++` · 快照覆盖 · 旧 findings 失效 · pending-fix 派生化（无独立字段）· cli.ts 判定调用点收敛）—— checkable: 探针 PASS · 未修订重复 review 仍拒 · progress.json 零新字段
   - 引擎 vitest 既有面 —— checkable: 全绿（gate 语义零回归）
 - **Acceptance**: 三类 doc 变更（fix 后 · backfill 后 · 用户裁定后）re-review 均直接可跑 · 相同 doc 重复 review 仍拒（防空转）· pending-fix 零独立状态字段（派生）· `rounds` 计数保留 · 引擎 vitest 全绿
 - **DependsOn**: 3
@@ -133,3 +133,4 @@
 | v0.9 | 2026-10-12 | P3 实施计划 v0.9——用户裁定（2026-10-12 · 需求分析并入 · spec v0.11 同裁定）：**新增 T8「统一 re-review gate（doc 修订判定）」**——review gate 增补 doc 修订判据（doc hash ≠ reviewedDocRevision → 新 review 合法 · fix 后/backfill 后/用户裁定后同一种情况 · 旧 pending-fix 过期降级 · 相同 doc 仍拒防空转 · spec §3.5）· DependsOn 3（组合根后）· T7 changeset 主题并入 re-review gate · 波浪 `{1}{2}{3}{4}{5}{6}{7}{8}` | Oscar M. · Claude Opus 5（kairos:cdd-plan · 用户裁定 · 2026-10-12） |
 | v0.10 | 2026-10-12 | P3 实施计划 v0.10——用户核查（六前提重审 T8 · spec v0.12 同裁定）：**判据主导化升级**——T8 从「增补判据」升为「**review gate 判据主导 + 状态面精简**」（doc 修订判定为 gate 主判据 · pending-fix 无独立状态（doc 相同 + 未 APPROVED 派生 · 零新字段）· `rounds` 计数保留（findings 文件名/`-round` 消费面实证）· 判定/推进收 **`Ledger` 方法族**（类化 · 零裸函数 · Files 加 ledger.ts）· 既有 `reviewedDocRevisionOf` 读点实证（cli.ts:1450 · 卡点 = 判定序/状态模型）） | Oscar M. · Claude Opus 5（kairos:cdd-plan · 用户核查 · 2026-10-12） |
 | v0.11 | 2026-10-12 | P3 实施计划 v0.11——docs-fix round 2（plan-review-1 复核 · 3 条受理 · 见 findings）：Constraints 更替面枚举补 **help `[command]` 复用面**（`cdd help`/`help <cmd>`/父命令 help → 对应命令面帮助 exit 0（2→0 更替 · deliberate）· leaf `help` 参数 → `excessArguments` 归 2 · `help <bogus>` → 程序面帮助归 2 · 与 §2.1/§3.1 同源）· T2 step 3/T3 step 2 域 run 错误面方法组枚举补 `#sceneOf`（4 处 `--type` missing-required throw：cli.ts:1593/1603/1613/1636 · 13 处 throw 封闭核对导航面补齐）· T6 残留 pin grep 交替项扩至 9 删除方法全名（补 `#typeDomain`/`#leafTokens`/`#domainOf`/`#distance`） | Oscar M. · Claude Opus 5（kairos:cdd-plan · docs-fix round 2 · 2026-10-12） |
+| v0.12 | 2026-10-12 | P3 实施计划 v0.12——W4 fix 轮完成时推进定裁回填（编排器 Plan Sole Writer · W4 review-1 F2 受理 · 计划冻结零树内改）：T8 `reviewGate(docRevision)` 措辞回填「判定 + 推进（**推进于 round 完成时** —— `recordRound` + 修订快照写回（`#recordReviewedDocRevision`）· BLOCKED re-review 恢复同 round · 零预绑定）」——reviewGate open 面零磁盘推进 · 推进于 review 轮完成写回 · 可观察验收本已全达标（drift 直跑 · rounds.review=2 · review-2.json · progress.json 零新字段 · same-doc 仍拒） | Oscar M. · Claude Opus 5（kairos:cdd-plan · 编排器回填 · 2026-10-12） |

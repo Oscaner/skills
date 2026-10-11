@@ -31,7 +31,7 @@
 #### 1.4 docKey 词表现状（两键系统 · D3 大小写坑本源）
 
 - 类型字面量面：`contract/declare.ts:25` `DocType = "overall" | "plan" | "phase-spec"`（kebab · 解析/schema 元数据口径 · `schema gen` 主拼）
-- 门禁键面：`contract/judge.ts:37` `DOC_KEYS = ["overall", "plan", "phaseSpec"]`（camel · doc-contract 调度键 · `Contract.validate({docKey})` 只收三键）· 登记表行键同 camel（declare.ts:863-865 · 行内 `docType` 值已 kebab）· `Projector` 五投影键 · `scripts/validate.ts:243` 派生 · `face/cli.ts:1278` preflight · `face/words.ts` docWords 键（face.test.ts:37 断言）· `invariants.ts` `ctx.docKey === "phaseSpec"` 多站点
+- 门禁键面：`contract/judge.ts:37` `DOC_KEYS = ["overall", "plan", "phaseSpec"]`（camel · doc-contract 调度键 · `Contract.validate({docKey})` 只收三键）· 登记表行键同 camel（declare.ts:863-865 · 行内 `docType` 值已 kebab）· `Projector` 六投影键（shape/schema/slices/tokens/reference/skeleton）· `scripts/validate.ts:243` 派生 · `face/cli.ts:1278` preflight · `face/words.ts` docWords 键（face.test.ts:37 断言）· `invariants.ts` `ctx.docKey === "phaseSpec"` 多站点
 - 两键系统成因：kebab = 文档结构类型名（声明/写侧）· camel = 门禁/投影调度键（读侧）——`schema get phase-spec` 报 unknown（`available: overall, plan, phaseSpec, plan-graph`）即此裂口（D3 记 · P2 gen 面已收一次：主拼 kebab + 别名归一）
 
 ### 2. docKey 推导共享化（Q1→a · Q2→a）
@@ -72,7 +72,7 @@
 
 #### 4.1 目标形面（完整 · 非两行补丁）
 
-- **顶层 `cdd` 命令总览**：六命令一览（职责一句话 + 用法锚）——裸 `cdd` 不再「无输出」
+- **顶层 `cdd` 命令总览**：六命令一览（职责一句话 + 用法锚）——裸 `cdd` **升级为命令总览**（现状已非「无输出」：现行即输出 usage + missing-command 提示 · §1.3 解析错误面）；**退出码钉定 exit 2**（总览 + missing-command message 合一 · 退出码表零变 · 与 §3.3 零张力——信息面 exit 0 等价于对退出码表作 deliberate 变更，非本 phase 授权面）
 - **每命令 `--help` 旗标级说明 + 值域**：`--type <wave|branch|spec|plan>` 值域及语义 · `--tasks <n|n,n,…>` · `--spec/--plan/--base/--head/--round/--findings/--dry-run` 逐旗标说明
 - **子命令树逐 leaf 展开**：`base set|get` · `schema get|gen` · `issue render`（嵌套 leaf 的可发现性）
 - **错误路径智能提示**：缺参/未知旗标 → usage + 定位 + 邻近建议（保留 exit 2 · §4.4）
@@ -86,7 +86,7 @@
 #### 4.3 usage 行重写（Q5→b · deliberate pin break）
 
 - `CLI_USAGE` 六行全面重写为友好语法（旗标值域 · leaf 展开 · 档位语义）——**弃「byte-stable across tree generations」旧静止面**（原断言语义：usage 行 typo = 红测试；新语义：usage 行为**展示面产品**，随本 phase 定型为最终形态）
-- **pin 更替面**：`cli.test.ts` usage 字节断言（cli.test.ts:237-238 区「the usage lines carry the steady consumption face」）全量更替为新字节 · smoke-cdd 锚（若含 usage 字面）同步更替（F5 核实后落定）
+- **pin 更替面**：`cli.test.ts` usage 字节断言（cli.test.ts:237-238 区「the usage lines carry the steady consumption face」）全量更替为新字节 · smoke-cdd 锚改为**确定动作**（smoke-cdd.ts:121 子串锚 `includes("usage: cdd implement")`——usage 重写后核查首词：`"usage: cdd implement"` 前缀存活则零动作 · usage 首词变更则同步更替）
 
 #### 4.4 输出面契约（D6 · 零变化底线）
 
@@ -102,7 +102,7 @@
 #### 5.2 kebab 化面（全库单一拼写· 编译期收口）
 
 - 声明面：declare.ts 登记表行键 `phaseSpec` → `"phase-spec"`（行内 `docType` 值已 kebab · 不变）· `DocType` 字面量已 kebab ✓
-- 门禁面：judge `DOC_KEYS`/`DocKey` 类型/`docTypeParsers` 键 → kebab · `invariants.ts` `ctx.docKey === "phaseSpec"` 多站点 → kebab · `Projector` 五投影键（shape/schema/slices/tokens/reference）→ kebab
+- 门禁面：judge `DOC_KEYS`/`DocKey` 类型/`docTypeParsers` 键 → kebab · `invariants.ts` `ctx.docKey === "phaseSpec"` 多站点 → kebab · `Projector` 六投影键（shape/schema/slices/tokens/reference/skeleton）→ kebab
 - 派生面：validate.ts spec 树派生 → `"phase-spec"` · cli preflight docKey → `"phase-spec"` · `words.docWords` 键同步
 - 类型收口：`DocType`（kebab）与 docKey 合一成为**单一词汇**——索引访问经 TS 推断连锁编译期收口（全库被动一致 · 六前提「OOP 统一」的编译期强约束）· 面层（face/cli · face/words · session/preflight）仅改键拼，行为语义零变
 
@@ -135,7 +135,7 @@
 - `cli.test.ts` 增 overall 目标 review 用例：`review --type spec --spec <overall fixture>` → exit 0 · 零 finding · `next:` 按整体契约续路（fixture 形态沿用 inline 字符串数组 · 与 `contract/__tests__/judge.test.ts:19-71` GOOD_OVERALL 同型）
 - 共享推导单测（path → docKey 判定 · basename/目录前缀/absolute 路径边界）· validate 改调侧零测试伤（F6 实证）
 - 词表统一 pins：judge/cli/face/invariants/lint/doc 测试 `"phaseSpec"` docKey 字面 + get 输出断言全量更替为 kebab（§5.4）· `schema get phase-spec` 新正例 + `phaseSpec` 别名归一的用例
-- help 渲染用例：顶层总览 · 每命令 `--help` · leaf 子命令树 · 错误路径提示 · `CLI_USAGE` 新字节 pin（§4.3）
+- help 渲染用例：顶层总览 · 每命令 `--help` · leaf 子命令树 · 错误路径提示 · `CLI_USAGE` 新字节 pin（§4.3）· 裸 `cdd` 退出码断言（exit 2 · 总览 + missing-command message 合一 · §4.1）
 
 #### 7.2 回归面
 
@@ -149,10 +149,10 @@
 
 - `cdd review --type spec --spec <任一 overall>` 对整体契约判压——零 phase-spec 误报 · 硬编码 phaseSpec 残留零（`docKey: type === "plan" ? "plan" : "phaseSpec"` 旧字面 grep 零命中）
 - 共享推导落契约层类成员 · `scripts/validate.ts` 改调组合（spec 树 = 共享推导 · plans 分支留 validate 侧）· 引擎 vitest 共享推导单测绿
-- **docKey 词表统一落定**：declare 登记表行键 · judge DOC_KEYS/DocKey · invariants 站点 · Projector 五投影键 · validate 派生 · preflight docKey · words 键全库 kebab `phase-spec` · `schema get` 值域 `overall/plan/phase-spec`（get/gen 一表两面 · `phaseSpec` 别名归一）· judge/cli/face/invariants/lint/doc 测试 pins 全量更替后全绿
+- **docKey 词表统一落定**：declare 登记表行键 · judge DOC_KEYS/DocKey · invariants 站点 · Projector 六投影键（shape/schema/slices/tokens/reference/skeleton）· validate 派生 · preflight docKey · words 键全库 kebab `phase-spec` · `schema get` 值域 `overall/plan/phase-spec`（get/gen 一表两面 · `phaseSpec` 别名归一）· judge/cli/face/invariants/lint/doc 测试 pins 全量更替后全绿
 - `schema get phase-spec` 合法主拼 · 旧 `schema get phaseSpec` 走别名归一（或按 review 裁定删别名清零）· P2「get 字节不变」语义随统一更新（deliberate pin break）· get 输出 JSON 主体内容不变（docType/title 本已 kebab）
-- `--help`/顶层 `cdd` 完整形面：旗标级说明 + 值域 · 子命令树 · 命令总览 · 错误路径智能提示 · 示例（cli.test.ts help 用例全绿）
-- usage 六行重写落定（deliberate pin break）· `cli.test.ts` usage pins 全更替 · smoke-cdd 锚（若含 usage 字面）更替
+- `--help`/顶层 `cdd` 完整形面：旗标级说明 + 值域 · 子命令树 · 命令总览（裸 `cdd` exit 2 · 总览 + missing-command message 合一 · §4.1）· 错误路径智能提示 · 示例（cli.test.ts help 用例全绿）
+- usage 六行重写落定（deliberate pin break）· `cli.test.ts` usage pins 全更替 · smoke-cdd 锚更替（smoke-cdd.ts:121 子串锚 `includes("usage: cdd implement")` 确定动作——`"usage: cdd implement"` 前缀存活则零动作 · 首词变更则同步更替）
 - face/ 全层重塑后引擎 vitest 全绿（退出码表 0/1/2 · CDD_BLOCKED 通道 · doc-contract 判定语义 · `next:` dispatch 字面零变化）
 - 零运行时依赖变化（help 自研渲染 · 依赖面零动）
 - `pnpm run validate` ALL PASS · `pnpm run precommit` 过

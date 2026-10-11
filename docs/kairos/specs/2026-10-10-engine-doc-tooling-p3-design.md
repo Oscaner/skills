@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P3 设计：CLI 框架化收口 + 变更集归并
-- **Version**: v0.4 · 2026-10-11
+- **Version**: v0.5 · 2026-10-11
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P3] 会话 · 2026-10-11）
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall](2026-10-10-engine-doc-tooling-overall.md)
@@ -60,8 +60,8 @@
 - 帮助面向词表并入声明；域词表保留（CAPSULE_WORDS · GUARD_BAN_WORDS · ISSUE_LABEL_WORDS · CHARTER_WORDS）
 
 ### 7. 维护文档 · 变更集 · 测试 pins 处置
-#### 7.1 维护文档 05 §4
-- commander 行重准入注记（D11 同源：P5 退役 → 本轮重准入 ^15 · 反转该行 do-not-re-add）· citty 行与其余退役行不动
+#### 7.1 维护文档 05 退役（deliberate · 用户裁定 2026-10-11）
+- `docs/maintainers/05-third-party-dependencies.md` **整文件删除**——第三方依赖不留存运维文档说明（用户裁定 · post-approval backfill · 变原「§4 commander 行重准入注记」为「整文件退役」）· 周边同步面（T1）：`packages/kairos/tests/maintainers-docs.test.ts`（CONTENT_DOCS 去 05 · convergence ledger 硬编码数组去 05 · 05-deps carries 测试删除 · 头注释同步）· `docs/maintainers/README.md`（index 表行删 · P4.2 ledger 05 行删 + Total After 刷新）· **依赖面断言载体迁 `package.json#dependencies`**（声明面守卫 · 运维文档面退役）· 历史 docs 提及（P1/P4.2/P5 plans/specs）不改
 #### 7.2 合并变更集 major
 - 一个 cdd-engine 变更集 · 主题归并：P1 deferred（review face overall 键 · help 重建 · 词表统一）+ P2 deferred（schema gen 模板写作 · 去流程化）+ P3 框架化（commander ^15 · 形面/错误字节更替 · 架构重写）——标 **major**（breaking 段叙事 · 终版 2.0.0 由存量 major 决定 · 不发布）· 存量积压 changesets 留守
 #### 7.3 测试 pins 更替面
@@ -70,7 +70,7 @@
 
 ### Acceptance criteria
 
-- `commander ^15 运行时依赖落 cdd-engine package.json（与 simple-git 并列）· 维护文档 05 §4 commander 行重准入注记落（citty 等其余退役行不动）`
+- `commander ^15 运行时依赖落 cdd-engine package.json（与 simple-git 并列）· 维护文档 05 整文件删除 + 周边同步全绿（test 面 · ledger · live 引用零残留 · 历史 docs 提及不改）`
 - `帮助形面三件套落（命令表短描述 · Usage/Options/Examples 段首 · 描述位序 · commander 原生形态）· 值域并入选项描述（--type/<wave|branch|spec|plan> 等）· 程序旗标尾注（--dry-run · --help/-h）`
 - `语义契约回归全绿：退出码 0/1/2（exitOverride）· CDD_BLOCKED 通道 · 裸 cdd usage 退 2（不含 --help/-h · verb-less --help 退 0 更替在册）· did-you-mean 三 ID 用例 = 命令树结构保真（零自定义 hint 码）· --help/-h 任意位置 · 值域/分布组语义 = 校验组件`
 - `错误消息/帮助/usage pins 全更替（deliberate）· 自研渲染 + hint 引擎销毁面 grep 零残留（#renderHelp/#nearestFlag/CLI_USAGE 六行等）`
@@ -84,7 +84,7 @@
 - **行为语义零动**：领域 run（Lifecycle/PreFlight/Capsule/host）· doc-contract 判定 · `next:` dispatch 字面 · 跨程序 rename sweep 面
 - **数据驱动单源**：ARGV_CHANNEL 行度 → `.option()/.command()` 投影 · 零平行列表 · guard 结构性 pin 保
 - **测试 pins 更替 = deliberate**（三 ID 语义回归 pin 保 · 错误消息语义保）——更替面以本设计 §5/§6/§7 为界
-- **零运行时依赖变化**（除 commander ^15 · D11 例外）· 维护文档 05 §4 citty 等其余退役行不动
+- **零运行时依赖变化**（除 commander ^15 · D11 例外）· 维护文档 05 退役为 deliberate（用户裁定 2026-10-11 · 第三方依赖不留存运维文档面）· 依赖面断言载体迁 package.json#dependencies
 - **变更集 major 归并**（P1/P2 deferred + 框架化 · 存量积压 changesets 留守 · 不发布）
 - **gate 零例外**：doc-contract 判定语义不变——骨架 by construction 绿 · 填后终判兜底
 - **六前提整 face 许可**（P3 与 P1/P2 同款 · D12）：组合根重建 · OOP 统一零裸函数 · 死码/空壳清理 · 高内聚低耦合 · 消费者心智负担 · 最大精简
@@ -98,3 +98,4 @@
 | v0.2 | 2026-10-11 | P3 设计 v0.2——spec review round 1 fix：verb-less `--help`/`-h` 退出 2→0 deliberate 更替定裁（§3.3 域限制 · §3.4 · §7.3 · Constraints 退出码表更替边界）· pre-verb 泛型 did-you-mean 候选收窄定裁（§5.3）· 节点绑定规则补（§2.1 · `required: true` → `.requiredOption()` · help 行不投影）· missing-required 族字节归属 `.requiredOption()`（§7.3） | Oscar M. · Claude Opus 5（kairos:cdd-design [P3] · 2026-10-11） |
 | v0.3 | 2026-10-11 | P3 设计 v0.3——plan review round 1 漂移归口回填（编排器 · spec 冻结解除）：`--no-` 取反机制实测修正（commander 15.0.0 不派生 · bool 行双侧显式注册 · §2.1 标注）· §4.1 校验组改按 type 条件必填（复刻现状 · 非互斥 · fix branch = `--findings`）· schema `<type>` 词表承接（`typeKey` · phaseSpec 别名 · plan-graph 路由）· §7.3 更替清单扩列 `Cli#parse()` 退役 + 三处 parse 级新面（unknown command 命令名建议 · 缺子命令程序面 · `-h` pre-verb 程序面）· 语义保条对齐裸 cdd 行为（无 missing-command 定制文本） | Oscar M. · Claude Opus 5（kairos:cdd-plan 归口 · 2026-10-11） |
 | v0.4 | 2026-10-11 | P3 设计 v0.4——用户裁定：负向拼写 `--no-dry-run`/`--no-force` 退役（零消费隐藏拼写 · 死面清理 · 六前提 + 消费心智）——§2.1 双侧注册改**单面注册**（bool 行只认正拼写 · 误输获 commander 原生 `Did you mean --dry-run?` 建议）· §5.3 pre-verb 候选面除负向拼写 · §7.3 更替清单加负向拼写重锚（cli.test.ts:500/512-513 → unknown-option + 建议断言）· §1.1/Constraints 消费面语义不动 + 负向拼写退役例外 | Oscar M. · Claude Opus 5（kairos:cdd-design · 用户裁定 · 2026-10-11） |
+| v0.5 | 2026-10-11 | P3 设计 v0.5——用户裁定 backfill（post-approval deliberate · 用户 2026-10-11）：维护文档 05 整文件退役（第三方依赖不留存运维文档说明）——§7.1 从「§4 注记」改「整文件删除」· 周边同步三件套入 T1 · Acceptance/Constraints 同步 · 依赖面断言载体迁 package.json#dependencies | Oscar M. · Claude Opus 5（kairos:cdd-design · 用户裁定 · 2026-10-11） |

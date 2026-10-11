@@ -1,6 +1,6 @@
 # 引擎文档工具（Engine Doc-Tooling）— Overall Spec
 
-- **Version**: v1.5 · 2026-10-11
+- **Version**: v1.6 · 2026-10-11
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（kairos:cdd-design 元层裁定 → 独立整体注册）
 - **Constraints**:
@@ -61,6 +61,7 @@ Charter only, zero implementation detail. **Overall approval is not equivalent t
 | D8 | 跨程序树依赖语义（2026-10-11 用户裁定拆 pin · D6 之后复核） | **hard pin → sweep 面关系**：本程序 P1/P2 引擎改动**先行于现行 `src-next/` 树实现**（不等 rename P2）· rename sweep 全库 `grep -rn src-next` 随后覆盖本程序新文件面（Q3→b · 豁免面为空）· 跨程序依赖由阻挡改**非硬**（sweep 按字面量全局改 = 零登记成本） | Constraints + Dependency graph + Boundary + Phase inventory |
 | D9 | P1 面重构许可与 help 路线（2026-10-11 cdd-design [P1] 会话 · Q1–Q6） | **六前提破格于 P1 整 face 层**（Q6→b：cli.ts + capsule + words + graph-view + host 全层可重写/目录级重组）· **help 自研渲染重建**（Q4→a：零运行时依赖保持 · 维护文档 do-not-re-add 守约）· **usage 六行重写**（Q5→b：deliberate pin break · 测试锚同步更替）· **docKey 推导共享化**（Q1→a · Q2→a：契约层导出类成员 · validate 改调 · spec 树同源） | P1 scope + Constraints + Non-goal ④ + Cross-cutting |
 | D10 | docKey 词表统一（2026-10-11 用户 backfill → P1 随 cli 面统一处理） | **全库单一拼写 `phase-spec`（kebab）**——declare 登记表行键 · judge DOC_KEYS/DocKey 类型 · invariants ctx 站点 · Projector 五投影键 · validate 派生 · preflight docKey · words 键 kebab 化 · **schema get 值域统一**（get/gen 一表两面 · phaseSpec 别名归一面）· **P2「schema get 字节不变」断言语义随统一更新**（deliberate pin break · 与 usage Q5→b 同级） | P1 scope + Constraints |
+| D11 | help 框架化路线（2026-10-11 用户研究后裁定 · P1 收尾期） | **引入 mature CLI 框架 `commander` ^15**（运行时依赖 0 · 声明式 · 数据驱动——ARGV_CHANNEL 行度入 `.option()/.command()` 保单源）· **反转 D9 的 help 自研渲染面 + 维护文档 05 §4 的 commander 行 do-not-re-add**（commander P5 曾退役 · 本轮重准入 · citty 行与其余退役行不动）· **落地时机 = P1 收口后新阶段**（P1 按生效决定干净收口 · 不重开已批准 Task 4 交付 · 新阶段独立 spec/plan 循环）· 适配层保行为面：退出码表 0/1/2 · CDD_BLOCKED 通道 · 字节错误消息 · did-you-mean · `--help` 任意位置 | 新阶段（随 P1 closeout-backfill 四表登记）+ 本表 + Change history v1.6 |
 
 ## Issue inventory
 
@@ -117,3 +118,4 @@ Legend:
 | v1.3 | 2026-10-11 | **P2 closeout（cdd-close）**：P2 全链闭合——设计 v0.4 · 计划 v0.5 · 引擎面+消费面两提交面落地（schema gen 能力 + author-* 先 gen 后填 + CLAUDE.md 去流程化）· 三轮评审链全部 blocker 0 关闭（spec-review → plan-review → wave 1/2 → branch-review）· Acceptance 全项证据在册（三型骨架判压零 finding · get 字节不变 · 占位零残留 · SKILL.md 三词条零命中 · CLAUDE.md 四块零残留 · 引擎 vitest 433/433 · validate ALL PASS）· Phase inventory P2 → **Done** · 执行序：P1（review-face 键 · 仍 [Pending]）→ P3（changesets 收尾 · 硬依赖 P1 ∧ P2——P2 已定案 · 待 P1） | [human] · Claude Opus 5（kairos:cdd-close · closeout-backfill） |
 | v1.4 | 2026-10-11 | **P1 grilling 定案（cdd-design [P1] 会话 · Q1–Q6 全答 · 用户裁定）**：P1 扩面——① docKey 推导共享化（契约层导出类成员 · validate 改调 · spec 树同源 · plans 分支组合）② **face/ 全层六前提重塑**（Q3→c · Q6→b：cli.ts + capsule + words + graph-view + host 可重写/目录级重组）③ **help/`--help` 展示面完整重建**（Q4→a 自研渲染零依赖保持 · Q3→a 完整形面：命令总览 · 旗标级说明 · 子命令树 · 错误路径提示）④ **usage 六行重写**（Q5→b deliberate pin break · 测试锚同步）· Non-goal ④ 增注 P1 同持整 CLI/face 面许可 · Cross-cutting 立「face 重塑保行为等价」· 决策 D9 · P1 scope/acceptance 同步扩面 · 执行序不变：P1 → P3（仍 [Pending]） | [human] · Claude Opus 5（kairos:cdd-design grilling · 用户裁定） |
 | v1.5 | 2026-10-11 | **P1 docKey 词表统一裁定（用户 backfill → P1 随 cli 面统一处理 · 2026-10-11）**：docKey/类型词表统一为**单一拼写 `phase-spec`（kebab）**——治 D3 大小写坑本源（两键系统合一）· 统一面 = declare 行键 · judge DOC_KEYS/DocKey · invariants · Projector 五投影 · validate 派生 · preflight docKey · words 键 · schema get 值域（get/gen 一表两面）· **P2「schema get 字节不变」断言语义随统一更新**（deliberate pin break · 与 usage Q5→b 同级）· 决策 D10 · P1 scope/acceptance 增词表统一面 · 词表统一因 P1 本就要重塑 cli 面而并入 P1（非独立议题） | [human] · Claude Opus 5（用户裁定 backfill · 2026-10-11） |
+| v1.6 | 2026-10-11 | **P1 help 框架化裁定（用户研究后决定 · 2026-10-11）**：联网调研（commander 15 依赖 0 · yargs 18 依赖 6 · clipanion RC · citty 版本未动）→ 用户定夺 **commander ^15 · P1 收口后落地**——反转 D9 的 help 自研渲染面与维护文档 05 §4 commander 行 do-not-re-add（commander 重准入 · 其余退役行不动）· P1 自身按生效决定干净收口（不重开已批准 Task 4 交付）· 决策 D11 · 新阶段经 cdd-close closeout-backfill 四表登记 | [human] · Claude Opus 5（用户裁定 · 2026-10-11） |

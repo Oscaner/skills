@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P3 设计：CLI 框架化收口 + 变更集归并
-- **Version**: v0.12 · 2026-10-12
+- **Version**: v0.13 · 2026-10-12
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P3] 会话 · 2026-10-11）
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall](2026-10-10-engine-doc-tooling-overall.md)
@@ -83,7 +83,7 @@
 
 - `commander ^15 运行时依赖落 cdd-engine package.json（与 simple-git 并列）· 维护文档 05 整文件删除 + 周边同步全绿（test 面 · ledger · live 引用零残留 · 历史 docs 提及不改）`
 - `帮助形面三件套落（命令表短描述 · Usage/Options/Examples 段首 · 描述位序 · commander 原生形态）· 值域并入选项描述（--type/<wave|branch|spec|plan> 等）· 程序旗标尾注（仅 --dry-run）`
-- `语义契约回归全绿：退出码 0/1/2（exitOverride）· CDD_BLOCKED 通道 · 裸 cdd usage 退 2（不含 --help/-h · verb-less --help 退 0 更替在册）· did-you-mean 三 ID 用例 = 命令树结构保真（零自定义 hint 码）· --help/-h 任意位置 · 内建 help [command] 子命令复用（cdd help/help <cmd>/父命令 help → exit 0 · help <bogus> → 2 · leaf help 参数 → excessArguments 归 2 · Commands 表含 help [command] 行 · §2.1/§3.4/§7.3 同步锚）· 值域/分布组语义 = parseArg + preAction hook（零自研校验组件）· **re-review gate 统一判据（doc 修订 → 新 review 合法 · 相同 doc 重复 review 仍拒 · §3.5）**`
+- `语义契约回归全绿：退出码 0/1/2（exitOverride）· CDD_BLOCKED 通道 · 裸 cdd usage 退 2（不含 --help/-h · verb-less --help 退 0 更替在册）· did-you-mean 三 ID 用例 = 命令树结构保真（零自定义 hint 码）· --help/-h 任意位置 · 内建 help [command] 子命令复用（cdd help/help <cmd>/父命令 help → exit 0 · help <bogus> → 2 · leaf help 参数 → excessArguments 归 2 · Commands 表含 help [command] 行 · §2.1/§3.4/§7.3 同步锚）· 值域/条件必填组语义 = parseArg + preAction hook（零自研校验组件）· **re-review gate 统一判据（doc 修订 → 新 review 合法 · 相同 doc 重复 review 仍拒 · rounds 完成计数保留（findings `-{type}-{round}` 文件名消费面）· 旧 findings 自动失效 · 零新增状态字段（pending-fix 由「doc 相同 + 未 APPROVED」动态派生）· §3.5）**`
 - `零自研校验轮子（ValueValidator 退役 · parseArg + InvalidArgumentError 吸收 · 错误字节 commander 原生）· 投影面零模块级行为裸函数（CommandTreeBuilder 单类 · 构造即组装 · 与全仓纪律统一）`
 - `错误消息/帮助/usage pins 全更替（deliberate）· 自研渲染 + hint 引擎销毁面 grep 零残留（#renderHelp/#nearestFlag/CLI_USAGE 六行/ValueValidator/ValidatorUsageError 等）`
 - `CLI 面声明单源落（declare.ts 同栖 · registry.ts 删除 · runtime.ts 瘦身 · guard 闭包 = 单面内自检）· ARGV_CHANNEL/CLI_COMMANDS 单源零平行列表（guard channel-closure 全绿）· 命令树声明投影无手写 parse 残留 · 领域 run 语义零动（引擎 vitest 全绿作证 · 452+ 面）`
@@ -92,7 +92,7 @@
 ## Constraints
 
 - **结构保真**：本骨架 = 声明面派生（`schema gen phase-spec`）· 编辑器只填不重排——违反 = 保真破坏，视为 defect
-- **语义契约三保不动**（退出码表 0/1/2 域 · CDD_BLOCKED 通道 · 裸 cdd usage 语义）——commander 原生为形态载体，语义是消费面硬契约；**退出码表更替边界逐条列明**：verb-less `--help`/`-h` 2→0（§3.4/§7.3）· missing-required 字节归属 `.requiredOption()`（§2.1/§7.3）——其余 0/1/2 域不动
+- **语义契约三保不动**（退出码表 0/1/2 域 · CDD_BLOCKED 通道 · 裸 cdd usage 语义）——commander 原生为形态载体，语义是消费面硬契约；**退出码表更替边界逐条列明**：verb-less `--help`/`-h` 2→0（§3.4/§7.3）· **内建 `help [command]` 复用面**：`cdd help`/`cdd help <cmd>`/父命令 `cdd base help` → 对应命令面帮助 2→0（deliberate · 与 §2.1/§3.1 同源）· leaf `help` 参数 → excessArguments 归 2 · `help <bogus>` → 程序面帮助归 2（§7.3）· missing-required 字节归属 `.requiredOption()`（§2.1/§7.3）——其余 0/1/2 域不动
 - **行为语义零动**：领域 run（Lifecycle/PreFlight/Capsule/host）· doc-contract 判定 · `next:` dispatch 字面 · 跨程序 rename sweep 面
 - **数据驱动单源**：CLI 面声明收敛单面 `face/declare.ts`（§2.4 · v0.7）——ARGV_CHANNEL/CLI_COMMANDS/类型/`REQUIRED_GROUPS` 同栖 · 行度 → `.option()/.command()` 投影 · 零平行列表 · guard 结构性 pin 保（单面内自检）
 - **测试 pins 更替 = deliberate**（三 ID 语义回归 pin 保 · 错误消息语义保）——更替面以本设计 §5/§6/§7 为界
@@ -119,3 +119,4 @@
 | v0.10 | 2026-10-12 | P3 设计 v0.10——spec review round 2 fix（v0.9 面评审回填）：Acceptance 语义契约回归清单补**内建 help [command] 子命令复用契约**（cdd help/help <cmd>/父命令 help → exit 0 · help <bogus> → 2 · leaf help 参数 → excessArguments 归 2 · Commands 表含 help [command] 行 · §2.1/§3.4/§7.3 同步锚）· §5.3 did-you-mean 候选措辞改「**自身 option 集 + 祖先链内 options 近邻**」（commander 15.0.0 suggestSimilar 实证 · 与 §2.1 候选骨架及同节下行对齐） | Oscar M. · Claude Opus 5（kairos:cdd-design · spec review round 2 · 2026-10-12） |
 | v0.11 | 2026-10-12 | P3 设计 v0.11——用户裁定（2026-10-12 · 需求分析并入）：**re-review gate 统一判据**（§3.5）——review gate = doc 内容修订判定（doc hash ≠ reviewedDocRevision → 新 review 合法 · fix 后/backfill 后/用户裁定后同一种情况 · 旧 pending-fix 过期降级 · 相同 doc 维持拒绝防空转 · Review Convergence 语义保）· Acceptance 补 gate 判据 · plan T8 落 | Oscar M. · Claude Opus 5（kairos:cdd-design · 用户裁定 · 2026-10-12） |
 | v0.12 | 2026-10-12 | P3 设计 v0.12——用户核查（六前提重审 T8 方案 · 2026-10-12）：**判据主导化升级**——§3.5 doc 修订判定为 gate 主判据（既有 `reviewedDocRevision` 读点实证 `cli.ts:1450` · 卡点 = 判定序/状态模型而非缺判据）· **pending-fix 无独立状态**（doc 相同 + 未 APPROVED 动态派生 · 零新增状态字段）· `rounds` 完成计数保留（findings 文件名/`-round` 消费面实证）· 判定/推进 = `Ledger` 方法族（类化 · 零裸函数） | Oscar M. · Claude Opus 5（kairos:cdd-design · 用户核查 · 2026-10-12） |
+| v0.13 | 2026-10-12 | P3 设计 v0.13——spec review round 3 fix（spec-review-1 复核 · 3 条受理）：Constraints 更替边界枚举补内建 `help [command]` 复用面（`cdd help`/`cdd help <cmd>`/父命令 help → 对应命令面帮助 2→0 · deliberate · 与 §2.1/§3.1 同源）· leaf `help` 参数 → excessArguments 归 2 · `help <bogus>` → 程序面帮助归 2 ——与 plan v0.11 F1 同法收口（§3.4/§7.3 同步锚）· Acceptance「分布组」术语改「条件必填组」（与 §4/§7.3 对齐）· Acceptance gate 锚补状态面非回归项（rounds 完成计数保留 · 旧 findings 自动失效 · 零新增状态字段） | Oscar M. · Claude Opus 5（kairos:cdd-design · spec review round 3 · 2026-10-12） |

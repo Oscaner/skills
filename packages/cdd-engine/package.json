@@ -24,6 +24,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "commander": "^15.0.0",
     "simple-git": "^4.0.2"
   },
   "devDependencies": {

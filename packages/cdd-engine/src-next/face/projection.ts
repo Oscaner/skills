@@ -122,7 +122,7 @@ export class CommandTreeBuilder {
   #registerOption(node: Command, declared: CliArgSpec, row: ChannelArgRow): void {
     const token = this.#valueToken(row, declared.valueType);
     const flags = `${row.flag}${token === "" ? "" : ` ${token}`}`;
-    const help = `${row.help ?? ""}${declared.required === true ? " (required)" : ""}`;
+    const help = `${this.#optionHelp(row, declared.valueType)}${declared.required === true ? " (required)" : ""}`;
     const parseArg = this.#parseArgOf(row, declared.valueType);
     if (declared.required === true) {
       if (parseArg === undefined) node.requiredOption(flags, help);
@@ -195,6 +195,15 @@ export class CommandTreeBuilder {
         // bool / string — the flag alone carries the value domain face.
         return "";
     }
+  }
+
+  /** The option's help text — the channel row's single-source flag-level line;
+   *  the branch value-type override swaps it for its own domain (the base-set
+   *  branch face names the branch, never the review range's sha row — the same
+   *  override family as #valueToken's `<branch>` token). */
+  #optionHelp(row: ChannelArgRow, override: CliValueOverride | undefined): string {
+    if (override === "branch") return "the base branch of the range";
+    return row.help ?? "";
   }
 
   /** The option's custom parser — the value-domain check of the validated types

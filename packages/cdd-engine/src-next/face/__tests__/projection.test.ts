@@ -123,6 +123,9 @@ describe("CommandTreeBuilder — the declaration projection (构造即组装)", 
     // base set's --base carries the branch override domain, never the sha face.
     const baseOption = set.options.find((option) => option.flags.startsWith("--base"));
     expect(baseOption?.flags).toBe("--base <branch>");
+    // …and its description swaps to the branch domain too — the review range's
+    // sha row ("8-char sha") would contradict the <branch> token on one option.
+    expect(baseOption?.description).toBe("the base branch of the range (required)");
   });
 
   it("nests schema get|gen and issue render", () => {

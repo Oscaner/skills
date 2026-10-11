@@ -1,7 +1,7 @@
 # 引擎文档工具（Engine Doc-Tooling）— P3 实施计划：CLI 框架化收口 + 变更集归并
 **Spec:** [2026-10-10-engine-doc-tooling-p3-design.md](docs/kairos/specs/2026-10-10-engine-doc-tooling-p3-design.md)
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall](docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.8 · 2026-10-12
+- **Version**: v0.9 · 2026-10-12
 
 ## Constraints
 
@@ -98,13 +98,25 @@
 - **Objective**: 一个 cdd-engine 合并变更集落 `.changeset/`——三主题归并 · **major**（breaking 段叙事）· 不发布；库存健康（无 empty · 存量积压留守）。
 - **Files**: Create `.changeset/<slug>-engine-cli-framework.md`
 - **Consumes**: T6 终态
-- **Produces**: changeset frontmatter `"@oscaner-skills/cdd-engine": major` · 主题归并：**P1 deferred**（review face overall 键 · help 展示面重建 · docKey 词表统一）+ **P2 deferred**（schema gen 模板写作 · CLAUDE.md 去流程化）+ **P3 框架化**（commander ^15 重准入 · 帮助/错误字节 commander 原生更替 · 组合根架构重写 · 校验 commander 原生（parseArg/preAction · ValueValidator 退役）· 适配层语义契约三保）——breaking 段如实叙事 · 存量积压 changesets 原样
+- **Produces**: changeset frontmatter `"@oscaner-skills/cdd-engine": major` · 主题归并：**P1 deferred**（review face overall 键 · help 展示面重建 · docKey 词表统一）+ **P2 deferred**（schema gen 模板写作 · CLAUDE.md 去流程化）+ **P3 框架化**（commander ^15 重准入 · 帮助/错误字节 commander 原生更替 · 组合根架构重写 · 校验 commander 原生（parseArg/preAction · ValueValidator 退役）· **re-review gate 统一判据（T8 · §3.5 · doc 修订 → 新 review）** · 适配层语义契约三保）——breaking 段如实叙事 · 存量积压 changesets 原样
 - **Steps**:
   - 手写 `.changeset/<slug>-engine-cli-framework.md`（frontmatter major + 三主题 breaking/feature 叙事 · EOF 恰一个 `\n`）—— checkable: `tail -c 1` 为 `\n` 且无尾随空行
   - `pnpm exec changeset status` —— checkable: 无 empty/无效条目 · 退出 0
   - 终验 `pnpm run validate` + `node packages/cdd-engine/src-next/bin.ts --help` 抽查 —— checkable: ALL PASS 退出 0 · 形面为新 commander 原生活
 - **Acceptance**: changeset status 无 empty · 合并变更集 major 主题完整（三主题 + breaking 段）· validate ALL PASS · EOF 全绿 · 不发布
 - **DependsOn**: 6
+
+### Task 8: 统一 re-review gate（doc 修订判定 · 机制化）
+- **Objective**: engine review gate 增补统一判据——**doc 内容修订 ≠ `reviewedDocRevision` → 允许新 review**（fix 后 · backfill 后 · 用户裁定后为**同一种情况** · 用户裁定 2026-10-12 · spec §3.5）；相同 doc 未修订 → 维持拒绝（防空转 · Review Convergence 语义保）。修复被卡路径（fix 中止后 review 报「next round is fix」而旧 findings 已过期——此前流程手工重置 wave 状态的根因）。
+- **Files**: Modify `packages/cdd-engine/src-next/face/cli.ts`（review/fix 状态判定面 · §3.5）· `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（gate 判据探针）
+- **Consumes**: T3 组合根（review 命令面 · 已重建）
+- **Produces**: review gate 判据 = **doc 修订判定优先**——`currentDocHash ≠ reviewedDocRevision.hash` → 新 review 合法（`rounds.review++` · 更新修订快照 · **旧 pending-fix 标记过期降级**——doc 修订使旧 findings 失去适用面 · next 不再强制按旧 findings fix）· `hash 相同` → 维持拒绝（I1 收敛 · 不动）
+- **Steps**:
+  - 写 gate 判据探针红用例：doc 修订后 `review --type plan --plan <path>` 直接可跑（**不报「next round is fix」**——当前：修订后被 next-fix 卡）· doc 未修订重复 review → 仍拒（同一 doc 防空转）—— checkable: FAIL（现状：修订后被卡）
+  - 实现判据（review gate 改查 `reviewedDocRevision` vs 当前 doc hash · 修订 → 放行新 round · 旧 pending-fix 标记过期清除 · `rounds.review++` · 快照更新）—— checkable: 探针 PASS · 未修订重复 review 仍拒
+  - 引擎 vitest 既有面 —— checkable: 全绿（gate 语义零回归）
+- **Acceptance**: 三类 doc 变更（fix 后 · backfill 后 · 用户裁定后）re-review 均直接可跑 · 相同 doc 重复 review 仍拒（防空转）· 引擎 vitest 全绿
+- **DependsOn**: 3
 
 ## Change history
 
@@ -117,4 +129,5 @@
 | v0.5 | 2026-10-11 | P3 实施计划 v0.5——用户裁定（六前提重审 · 2026-10-11 · T2 校验组件 + T3 投影面重构 · 重开 dev 前置）：**校验全 commander 原生**——T2 改 `CommandTreeBuilder` 单类（投影 + parseArg 值域校验 + preAction 条件必填 + 帮助注入 · 零模块级裸函数）· **ValueValidator 退役**（validate.ts 删除 · 语义移植为类私 parseArg 族）· **usageFor 语料退役**（域 run 错误面 = commander 原生 usage · 更替面入 T5）· 任务重编号 8→7（T3–T8 顺延 T2–T7 · DependsOn 链重排 {1}{2}{3}{4}{5}{6}{7}）· 尾注裁 `--help` 冗余列（仅 `--dry-run`）· spec v0.6 同裁定回填 | Oscar M. · Claude Opus 5（kairos:cdd-plan · 用户裁定 · 2026-10-11） |
 | v0.6 | 2026-10-11 | P3 实施计划 v0.6——用户裁定（声明面七零八落 → 单面收敛 · v0.7 spec 同裁定）：T2 扩为「**CLI 声明单面收敛 + 投影器类**」——新建 `face/declare.ts`（ARGV_CHANNEL/CLI_COMMANDS/类型/REQUIRED_GROUPS 同栖 · registry.ts 删除 · runtime.ts 瘦身退纯引擎配置面 · guard/infra.test/消费方改址）· `ChannelArg` 迁 declare（**修正原「迁 runtime」定裁**）· T6 迁址同步（argv 文件级删除 · registry 零动作）· Constraints 数据驱动单源行同步（declare 单源 · 闭包审计 = 单面内自检） | Oscar M. · Claude Opus 5（kairos:cdd-plan · 用户裁定 · 2026-10-11） |
 | v0.7 | 2026-10-12 | P3 实施计划 v0.7——plan review round 1 fix（plan-review-1 · 8 条受理 · 见 findings）：T1 重定位为**核验**（spec v0.8 §7.1 · 已落地 · 删 pnpm add/git rm/同步执行步 · 四检核验）· 内建 `help [command]` 子命令 `.addHelpCommand(false)` 禁用（T2 绑定规则 · T3 探针三连 + commander.help 划界 · T5 更替面 · §2.1/§3.1）· T2 declare 类型补 `CliCommandSpec`（CLI_COMMANDS 行类型 · §2.4）· T2 域 run 错误面补 `#runBase`/`#baseSet` + CLI_USAGE 14 处封闭核对（导入 1 + throw 13）· 缺子命令措辞改**所属命令节点帮助**（T3/T5 · base 节点自面 · §7.3）· T6 `CliUsageError` 整类（含 `.surface` · argv.ts 定义）+ `ParsedCommand` 随 argv.ts 整面退役言明（§6.1/§6.2）· T6 残留 grep 加 `ValidatorUsageError`/`CliUsageError`/`ParsedCommand` · T2 step 1 checkable 路径修正（引擎包 infra.test.ts） | Oscar M. · Claude Opus 5（kairos:cdd-plan · docs-fix round 1 · 2026-10-12） |
-| v0.8 | 2026-10-12 | P3 实施计划 v0.8——用户裁定（2026-10-12 · 反转 v0.7 的 addHelp 禁用，spec v0.9 同裁定）：**内建 `help [command]` 子命令复用**（commander 原生能力池不裁剪 · 六前提⑤⑥/Q5 最大原生化）——T2 绑定规则改复用注记（help/help `<cmd>`/父命令 help → 面帮助 exit 0 · leaf `help` 参数 → excessArguments · `help <bogus>` → exit 1 → 2 · Commands 表含 help 行）· T3 判别器改 **`err.exitCode`** 分流（显式 help exit 0 → 0 · 裸跑/无效目标非 0 → 2）· T3 探针四连改复用语义（`help` → 0 · `base help` → 0 · `implement help` → 2 · `help bogus` → 2）· T5 更替面改复用 pin（`cdd help` 现行为 2→0 更替 · deliberate）· spec v0.9 同裁定 | Oscar M. · Claude Opus 5（kairos:cdd-plan · 用户裁定 · 2026-10-12） |
+| v0.8 | 2026-10-12 | P3 实施计划 v0.8——用户裁定（2026-10-12 · 反转 v0.7 的 addHelp 禁用，spec v0.9 同裁定）：**内建 `help [command]` 子命令复用**（commander 原生能力池不裁剪 · 六前提⑤⑥/Q5 最大原生化）——T2 绑定规则改复用注记（help/help `<cmd>`/父命令 help → 面帮助 exit 0 · leaf `help` 参数 → excessArguments · `help <bogus>` → exit 1 → 2 · Commands 表含 help 行）· T3 判别器改 **`err.exitCode`** 分流（显式 help exit 0 → 0 · 裸跑/无效目标非 0 → 2）· T3 探针四连改复用语义（`help` → 0 · `base help` → 0 · `implement help` → 2 · `help bogus` → 2）· T5 更替面改复用 pin（`cdd help` 现行为 2→0 更替 · deliberate）· T6 域拒绝消息面保留注记 · spec v0.9 同裁定 | Oscar M. · Claude Opus 5（kairos:cdd-plan · 用户裁定 · 2026-10-12） |
+| v0.9 | 2026-10-12 | P3 实施计划 v0.9——用户裁定（2026-10-12 · 需求分析并入 · spec v0.11 同裁定）：**新增 T8「统一 re-review gate（doc 修订判定）」**——review gate 增补 doc 修订判据（doc hash ≠ reviewedDocRevision → 新 review 合法 · fix 后/backfill 后/用户裁定后同一种情况 · 旧 pending-fix 过期降级 · 相同 doc 仍拒防空转 · spec §3.5）· DependsOn 3（组合根后）· T7 changeset 主题并入 re-review gate · 波浪 `{1}{2}{3}{4}{5}{6}{7}{8}` | Oscar M. · Claude Opus 5（kairos:cdd-plan · 用户裁定 · 2026-10-12） |

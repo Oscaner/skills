@@ -468,8 +468,10 @@ export class Ledger {
    *  the PRIMARY criterion — a drifted doc OPENS the review lead regardless of the
    *  round/route state (fix / backfill / user-decision are one case: the stuck
    *  "next round is fix after an aborted fix" gate never freezes a revised doc);
-   *  an unchanged doc stays REJECTED — the pending fix DERIVED from the latest
-   *  review's non-APPROVED conclusion (no separate pending-fix field). The OPEN
+   *  an unchanged doc yields the `same` verdict (review Convergence anti-spin:
+   *  the callers' reject/reopen decision — the derived pending fix opens the fix
+   *  face only, while the no-pending face falls back to the legacy rounds/routes
+   *  judgment: a completed-fix line's C5-1 route reopens the review lead). The OPEN
    *  side performs no disk advance: the round + the revision snapshot land with the
    *  round's completion (Ledger#recordRound + the T7 write-back), so a BLOCKED
    *  re-review resumes the same round (nothing pre-binds). `unbound` (no identity on

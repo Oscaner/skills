@@ -1305,11 +1305,14 @@ export class Cli {
    *  dispatches): a moved doc opens the review lead whatever the round/route state
    *  says (fix after · backfill after · user-decision after are the SAME case — the
    *  stuck "next round is fix after an aborted fix" never freezes a revised doc),
-   *  an unchanged doc stays rejected — the pending fix DERIVED from the latest
-   *  review's non-APPROVED conclusion opens only the fix phase, the approved face
-   *  the revision-aware BLOCK. An unbound line (no identity on record / an
-   *  unreadable doc) keeps the legacy round/route judgment + the generic closed
-   *  message (only present facts land). */
+   *  an unchanged doc yields the gate's "same" verdict — the pending fix DERIVED
+   *  from the latest review's non-APPROVED conclusion opens only the fix phase,
+   *  while the no-pending face falls back to the legacy rounds/routes judgment: a
+   *  completed-fix line reopens the review lead through its fix round's C5-1 route
+   *  (the lifecycle's own fall-through — an open gate and a dispatchable frame
+   *  agree), a truly closed line keeps the revision-aware BLOCK. An unbound line
+   *  (no identity on record / an unreadable doc) keeps the legacy round/route
+   *  judgment + the generic closed message (only present facts land). */
   #lineGate(scene: WorkScene): {
     phase: DispatchPhase | null;
     verdict: "same" | "pending-fix" | null;
@@ -1323,8 +1326,15 @@ export class Cli {
         return { phase: scene.face.product.reviewLead, verdict: null, reviewed: null };
       }
       if (verdict.kind === "same") {
-        return verdict.pending
-          ? { phase: "fix", verdict: "pending-fix", reviewed: verdict.reviewed }
+        if (verdict.pending) {
+          return { phase: "fix", verdict: "pending-fix", reviewed: verdict.reviewed };
+        }
+        // same + no pending fix — the legacy rounds/routes judgment (the lifecycle's
+        // own fall-through): a completed-fix line reopens the review lead through its
+        // fix round's C5-1 route; a truly closed line keeps the revision-aware BLOCK.
+        const open = this.#linePhase(scene);
+        return open !== null
+          ? { phase: open, verdict: null, reviewed: null }
           : { phase: null, verdict: "same", reviewed: verdict.reviewed };
       }
     }

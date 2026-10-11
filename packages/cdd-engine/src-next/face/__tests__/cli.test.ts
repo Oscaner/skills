@@ -1601,8 +1601,8 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         waves: Array<{ wave: string; rounds?: Record<string, number> }>;
       }>(path.join(workspace, "progress.json"));
       const row = progress.waves.find((entry) => entry.wave === plan);
-      expect(row?.rounds?.["review"]).toBe(2);
-      expect(row?.rounds?.["fix"]).toBeUndefined();
+      expect(row?.rounds?.review).toBe(2);
+      expect(row?.rounds?.fix).toBeUndefined();
       expect(JSON.stringify(progress)).not.toContain("pending");
     } finally {
       cleanup();
@@ -1655,6 +1655,75 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       // no phantom re-review lands on the unchanged line
       expect(existsSync(path.join(workspace, "plan-review-2.json"))).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("T8 — a COMPLETED fix on an UNCHANGED doc reopens the review through its C5-1 route — the doc-same face keeps the legacy rounds/routes judgment (the gate and the frame agree)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({
+      dispatch: (frame: OpenFrame) =>
+        frame.phase === "fix"
+          ? { status: "APPROVED", commits: { base: "a".repeat(8), head: "b".repeat(8) } }
+          : {
+              status: "CHANGES_REQUESTED",
+              findings: [{ severity: "blocker", summary: "drift" }],
+            },
+    });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      // Review round 1 with blockers, then the fix round COMPLETES on the SAME doc
+      // (fixes === reviews). The unchanged doc's "same" verdict carries NO pending
+      // fix — the no-pending face falls back to the legacy rounds/routes judgment,
+      // and the fix round's C5-1 route (blockers → re-review the fix delta) opens
+      // the review lead. The lifecycle already dispatches this face; the CLI gate
+      // must agree (an open gate and a dispatchable frame — the run.ts JSDoc
+      // invariant) instead of the revision-aware "amend body/version" rejection.
+      expect(
+        await command.runArgv([
+          "review",
+          "--type",
+          "plan",
+          "--plan",
+          plan,
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).toBe(0);
+      io.stdoutText = "";
+      io.stderrText = "";
+      expect(
+        await command.runArgv([
+          "fix",
+          "--type",
+          "plan",
+          "--plan",
+          plan,
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).toBe(0);
+      io.stdoutText = "";
+      io.stderrText = "";
+      const reopen = await command.runArgv([
+        "review",
+        "--type",
+        "plan",
+        "--plan",
+        plan,
+        "--dry-run",
+        "--root",
+        repoRoot,
+      ]);
+      expect(reopen).toBe(0);
+      // no revision-aware rejection on the completed-fix face — the delta has moved
+      expect(io.stderrText).not.toContain("already reviewed");
+      expect(io.stderrText).not.toContain("cannot dispatch");
+      const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
+      expect(existsSync(path.join(workspace, "plan-review-2.json"))).toBe(true);
     } finally {
       cleanup();
     }

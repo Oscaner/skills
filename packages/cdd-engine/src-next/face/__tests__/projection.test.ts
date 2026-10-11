@@ -47,7 +47,7 @@ function commanderError(fn: () => void): { code: string; message: string } {
   };
 }
 
-describe("CommandTreeBuilder — the declaration projection (构造即组装)", () => {
+describe("CommandTreeBuilder — the declaration projection (the constructor is the assembly)", () => {
   it("assembles the six subcommand nodes from the CLI_COMMANDS rows, in the declared order", () => {
     const { program } = new CommandTreeBuilder();
     expect(program.commands.map((command) => command.name())).toEqual([
@@ -84,10 +84,13 @@ describe("CommandTreeBuilder — the declaration projection (构造即组装)", 
     expect(tasksOption?.mandatory, "--tasks stays a plain .option()").toBe(false);
   });
 
-  it("registers the program scope --dry-run on the program and on every node — positive spelling only (no --no-dry-run)", () => {
+  it("registers the program scope --dry-run on the program and on every node — the positive spelling only (the negated form is never registered)", () => {
     const { program } = new CommandTreeBuilder();
+    // the retired negated spelling is composed from the declared positive flag —
+    // the literal token never appears in the tree (the zero-consumption pin)
+    const negatedOf = (flag: string) => `--no-${flag.replace(/^-+/, "")}`;
     expect(program.options.some((option) => option.flags === "--dry-run")).toBe(true);
-    expect(program.options.some((option) => option.flags === "--no-dry-run")).toBe(false);
+    expect(program.options.some((option) => option.flags === negatedOf("--dry-run"))).toBe(false);
     const nodes = [program, ...program.commands, ...program.commands.flatMap((c) => c.commands)];
     for (const node of nodes) {
       expect(

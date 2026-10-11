@@ -1,7 +1,8 @@
 // packages/cdd-engine/src-next/face/projection.ts
 // §2.1 — the single projection class: the declare single surface (face/declare.ts
 // — the argv channel + the six-command rows + REQUIRED_GROUPS) assembles the
-// commander command tree, ENTIRELY in the constructor (构造即组装 · §2.1/§2.3):
+// commander command tree, ENTIRELY in the constructor (the constructor-is-the-
+// assembly stance · §2.1/§2.3):
 // the top-level `cdd` program · the six commands with their descriptions · the
 // nested leaves (base set|get · schema get|gen · issue render) · the binding rules
 // (command keys → .option()/.requiredOption() · positionals → .argument() ·
@@ -13,7 +14,7 @@
 //
 // The class's one exit is `readonly program: Command` — the T3 composition root
 // parses through it and Its help/usage bytes are the commander-native product (the
-// self-built usageFor corpus never existed here). Zero module-level behavior-
+// self-built usage corpus never existed here). Zero module-level behavior-
 // carrying bare functions — the projection + validation algorithms are all class
 // private methods (the plan's zero-bare-function discipline).
 
@@ -162,7 +163,7 @@ export class CommandTreeBuilder {
   /** The program-scope merge — every `scope: "program"` channel row registers on
    *  the node (the any-position program-flag semantics, §2.1 cli.test.ts pins
    *  494/698); the help row is skipped (the built-in helpOption face — never
-   *  re-registered). Each node registers its own copy once (不重复注册). */
+   *  re-registered). Each node registers its own copy once (never re-registered). */
   #bindProgramScopes(node: Command): void {
     for (const [key, row] of Object.entries(CHANNEL_TABLE)) {
       if (row.scope !== "program") continue;

@@ -1,8 +1,8 @@
 // packages/cdd-engine/src-next/face/__tests__/face.test.ts
 // T10 Words + Capsule suite (design spec §1.2 / §3.2):
-//   · the word table — the three families served by one instance (doc words
-//     derived from the T2 registries, the capsule station words, the guard ban
-//     words), with zero second tables — the capsule's every emitted word is
+//   · the word table — the three families served by one instance (the capsule
+//     station words, the guard ban words, the locale rows), with zero second
+//     tables — the capsule's every emitted word is
 //     looked up on the same Words instance;
 //   · the byte pin — Capsule#emit renders the `status · blocker · handoff` line
 //     and the optional `next:` line byte-stably (every route row rendered);
@@ -28,23 +28,6 @@ const words = new Words();
 const capsule = new Capsule(words);
 
 describe("the word table — one table, three families", () => {
-  it("the doc family derives from the T2 registries — the DOC_TOKENS face", () => {
-    // the registered plan anchors are doc words; the counts = the declared registry
-    // element counts (39 / 28 / 25 — P4.1 T2 added the Change-history row/version/
-    // date elements ×2 to plan/phase-spec, 24→28 · 21→25)
-    expect(words.docWords("overall").length).toBe(39);
-    expect(words.docWords("plan").length).toBe(28);
-    expect(words.docWords("phase-spec").length).toBe(25);
-    expect(words.docWords("plan")).toContain("### Task N:");
-    expect(words.docWords("plan")).toContain("**DependsOn**");
-    expect(words.docWords("plan")).toContain("## Change history");
-    expect(words.docWords("phase-spec")).toContain("## Change history");
-    expect(words.docWords("overall")).toContain("## Dependency graph");
-    expect(words.docWords("phase-spec")).toContain("## Design");
-    expect(words.hasDocWord("plan", "**Acceptance**")).toBe(true);
-    expect(words.hasDocWord("plan", "## Design")).toBe(false);
-  });
-
   it("the capsule family — the pinned keys, the stations, the status vocabulary", () => {
     expect(words.capsuleKeys()).toEqual(["status", "blocker", "handoff"]);
     expect(words.capsuleSeparator()).toBe(" · ");

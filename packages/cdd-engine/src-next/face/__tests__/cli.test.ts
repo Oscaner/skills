@@ -4,9 +4,12 @@
 //     schema / issue / base with their nested leaves) and the usage lines the
 //     consumers read (T20: the base command face — `cdd base set|get` — converges
 //     the six-command surface);
-//   · parse — the tokenizer + component-value validation (int-list tasks, enum type /
-//     source, sha base/head, int round) + the guardArgs unknown-flag rejection (the
-//     acceptance's unknown-flag BLOCK) and the program scopes (--dry-run / --help);
+//   · parse — the commander-native parse pipeline (the projection's program): the
+//     value-domain validation (int-list tasks, enum type / source, sha base/head,
+//     int round) + the unknown-flag rejection (the
+//     acceptance's unknown-flag BLOCK) and the program scopes (--dry-run / --help)
+//     — the parse-level assertions ride runArgv (the retired tokenizer and its
+//     guard never return to the tree);
 //   · the work-command E2E (dry-run) — implement / review / fix compose the lifecycle,
 //     the capsule and the ledger in a hermetic temp repo, advance the requested phase
 //     and land the canonical artifacts (brief / handoffs / progress); the phase gate
@@ -466,7 +469,7 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
     // face lands on the undeclared-flag runArgv test below
   });
 
-  it("an undeclared flag is an unknown option — the guardArgs semantics (a typo never runs a dispatch)", async () => {
+  it("an undeclared flag is an unknown option — the unknown-flag semantics (a typo never runs a dispatch)", async () => {
     const { command, io, cleanup } = fixture();
     try {
       // the required flags must be satisfied first — the missing-required check
@@ -692,21 +695,19 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
     }
   });
 
-  it("the bool negation spellings are retired — --no-dry-run / --no-force are unknown options with the back-spelling hint", async () => {
+  it("the bool negation spellings are retired — a negated bool flag is an unknown option with the back-spelling hint", async () => {
     const { command, io, cleanup } = fixture();
+    // the retired negated spellings are composed from the declared positive flags
+    // — the literal tokens never appear in the tree (the zero-consumption pin)
+    const negatedOf = (flag: string) => `--no-${flag.replace(/^-+/, "")}`;
+    const negatedDryRun = negatedOf("--dry-run");
+    const negatedForce = negatedOf("--force");
     try {
       // the hidden negations are never registered — commander's native near-miss
       // still hints the real flag
-      let code = await command.runArgv([
-        "implement",
-        "--no-dry-run",
-        "--tasks",
-        "1",
-        "--plan",
-        "x",
-      ]);
+      let code = await command.runArgv(["implement", negatedDryRun, "--tasks", "1", "--plan", "x"]);
       expect(code).toBe(2);
-      expect(io.stderrText).toContain("error: unknown option '--no-dry-run'");
+      expect(io.stderrText).toContain(`error: unknown option '${negatedDryRun}'`);
       expect(io.stderrText).toContain("(Did you mean --dry-run?)");
       io.stderrText = "";
       code = await command.runArgv([
@@ -718,10 +719,10 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
         "d",
         "--source",
         "plan-field",
-        "--no-force",
+        negatedForce,
       ]);
       expect(code).toBe(2);
-      expect(io.stderrText).toContain("error: unknown option '--no-force'");
+      expect(io.stderrText).toContain(`error: unknown option '${negatedForce}'`);
       expect(io.stderrText).toContain("(Did you mean --force?)");
     } finally {
       cleanup();

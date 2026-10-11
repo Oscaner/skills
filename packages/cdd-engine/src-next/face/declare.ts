@@ -10,13 +10,13 @@
 //     CliCommandSpec / CLI_COMMANDS — from face/registry.ts (the registry file is
 //     deleted; the rows drop the `usage` field — the usage semantics merge into the
 //     projection's .description(), and the six-line usage corpus retires here).
-//   · ChannelArg — from face/argv.ts (the parse channel imports it back until its
-//     T6 deletion).
+//   · ChannelArg — from face/argv.ts (the resolved-row face of the parse channel;
+//     argv.ts itself was deleted at T6 — the parse handover to commander is total).
 //   · REQUIRED_GROUPS — from face/validate.ts (the preAction data face; the
 //     retired validator component retires — the value-domain semantics move to the
 //     builder's parseArg method family).
 //   · SCHEMA_TYPE_KEYS — from face/argv.ts (the schema <type> vocabulary; consumed
-//     by the builder's #parseTypeKey and by the parse channel until T6).
+//     by the builder's #parseTypeKey — the argv.ts parse channel died at T6).
 //
 // Module-level exports are types / declared constant data — zero behavior-carrying
 // bare functions (the plan's zero-bare-function discipline); the projection

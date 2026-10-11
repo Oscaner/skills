@@ -8,12 +8,11 @@
 // session / face objects into the ONE CLI the bin thin entry boots. Task 3 (P1)
 // reorganized the face into one boundary per responsibility — the CLI declaration
 // single surface (face/declare.ts, §2.4 — the six subcommand rows + the argv
-// channel, converged from the retired registry at T2), the declaration projection
-// (face/projection.ts — the CommandTreeBuilder whose commander program OWNS the
-// parse + help + validation pipeline from T3 on) and the typed argv parse channel
-// (face/argv.ts, the ArgvParser + the parsed/usage-error faces — retained until
-// T6); the domain-run error face's usage bytes are the commander-native first lines
-// of the projection. This module keeps the RUN face: the dispatch seam
+// channel), the declaration projection (face/projection.ts — the CommandTreeBuilder
+// whose commander program OWNS the parse + help + validation pipeline), and the run
+// face; the typed argv parse channel (face/argv.ts) was deleted at T6 — the parse
+// handover to commander is total, and the domain-run error face's usage is
+// commander's own byte. This module keeps the RUN face: the dispatch seam
 // (HarnessDispatch — the production default of the lifecycle's dispatch step), the
 // work/pure command run bodies and the pre-flight orchestration (the renderers stay
 // injected — the CLI orchestrates the call, never re-types their bytes).
@@ -72,9 +71,8 @@ import type { PreFlightVerdict } from "../session/preflight.ts";
 import { PreFlight } from "../session/preflight.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame, RunState } from "../session/run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../session/run.ts";
-import { ArgvParser, CliUsageError, type ParsedCommand } from "./argv.ts";
 import { Capsule } from "./capsule.ts";
-import type { CliLeafName, CliVerb } from "./declare.ts";
+import { ARGV_CHANNEL, type CliLeafName, type CliVerb } from "./declare.ts";
 import { GraphView } from "./graph-view.ts";
 import {
   DISPATCH,
@@ -90,8 +88,8 @@ import { Words } from "./words.ts";
 // ---------------------------------------------------------------------------
 // the stable door — the face's public surface stays here (the declaration
 // single surface lives in face/declare.ts; the guard audit reads the same rows
-// straight from that surface, and the parse/usage-error faces live in
-// face/argv.ts)
+// straight from that surface, and the parse + usage-error face is the commander
+// program's own product, face/projection.ts)
 // ---------------------------------------------------------------------------
 
 /** The CLI io seam — production wraps process stdio; tests capture. */
@@ -797,10 +795,28 @@ export interface WorkScene extends DispatchScene {
   router: NextStepRouter;
 }
 
+/** The thin-shell → run-body input — the .action shell maps commander's parsed
+ *  opts onto this consumption face (the parseArg-normalized values ride through
+ *  verbatim, zero rewriting: int-list → the comma string · enum → the value · sha
+ *  → the short form · the schema <type> → the parseTypeKey normalization). The
+ *  CLI's parse-result face retired with the argv channel at T6 — commander owns
+ *  the parse; this seam is the run face's own shape, never a parallel parse
+ *  product. */
+export interface RunInput {
+  /** The nested leaf word (schema get|gen · base set|get) — null on the verbs. */
+  leaf: CliLeafName | null;
+  /** The declared keys' values — normalized strings (undefined-flagged keys absent). */
+  args: Record<string, string>;
+  /** The positional values (the schema <type> — the parseTypeKey-normalized key). */
+  positionals: readonly string[];
+  /** The invocation's synthetic-dispatch scope (the --dry-run program flag). */
+  dryRun: boolean;
+}
+
 /**
  * The Cli — the command face's parse/run surface over the assembled object graph.
- * parse() validates the command + component values and rejects unknown flags (the
- * guardArgs semantics); run() dispatches to the command's run body — the work verbs
+ * runArgv() parses through the commander program and rejects unknown flags (the
+ * unknown-flag semantics); run() dispatches to the command's run body — the work verbs
  * compose the lifecycle/capsule/ledger/graph and advance the requested phase, the
  * pure verbs run their artifact surfaces through the same assembled objects.
  */
@@ -820,10 +836,6 @@ export class Cli {
   readonly #stdinRead: () => string;
   readonly #issue: IssueBodyRenderer;
   readonly #translator: Translator;
-  /** The typed argv parse face (face/argv.ts) — the resolved channel table + the
-   *  doc-key vocabulary the parse reads; the run face passes the SAME channel
-   *  table to the capsule (one flag-spelling source, never a hard-coded format). */
-  readonly #parser: ArgvParser;
   /** The plan-graph display (the schema get plan-graph + the pre-flight face). */
   readonly #graphView: GraphView;
   /** The lifecycle pre-flight seam (P4.1 T1) — the single dispatch gate the work
@@ -863,11 +875,6 @@ export class Cli {
     this.#stdinRead = opts.stdinRead ?? (() => readFileSync(0, "utf8"));
     this.#translator = opts.translator ?? new Translator(this.#words);
     this.#issue = new IssueBodyRenderer(this.#words, this.#translator);
-    this.#parser = new ArgvParser({
-      config: this.#config,
-      dryRun: this.#dryRun,
-      docKeys: Object.keys(this.#projector.registries().schema),
-    });
     this.#graphView = new GraphView();
     this.#contract = new Contract();
     this.#preflight =
@@ -917,17 +924,21 @@ export class Cli {
       if (err.code === "commander.helpDisplayed") return 0;
       // usage-class — commander's own error() already wrote its "error: ..." line
       // (the parseArg/unknown surfaces); the preAction hook's InvalidArgumentError
-      // is thrown unwritten — the run face surfaces it once.
+      // and the run bodies' #usage throw are both thrown unwritten — the run face
+      // surfaces them once.
       if (!err.message.startsWith("error: ")) this.#io.stderr(`error: ${err.message}\n`);
-      return 2;
-    }
-    if (err instanceof CliUsageError) {
-      this.#io.stderr(`${err.usage}\n`);
-      this.#io.stderr(`${err.message}\n`);
       return 2;
     }
     this.#io.stderr(`cdd: ${err instanceof Error ? err.message : String(err)}\n`);
     return 1;
+  }
+
+  /** The domain-run usage error — a usage rejection raised inside a run body:
+   *  commander's OWN CommanderError (never a second error type — the retired
+   *  parse-channel error class is deleted at T6), which the normalizeExit
+   *  discriminator above surfaces with the native "error:" byte and exit 2 (§3.1). */
+  #usage(message: string): never {
+    throw new CommanderError(2, "cdd.usage-error", message);
   }
 
   /** The per-invocation exit code the thin shells capture (commander discards the
@@ -947,21 +958,21 @@ export class Cli {
     // the work verbs — implement / review / fix compose the domain run
     for (const verb of ["implement", "review", "fix"] as const) {
       commandNode(verb).action(async (_opts: unknown, command: Command) => {
-        this.#exitCode = await this.#runWork(verb, this.#runInput(verb, null, command));
+        this.#exitCode = await this.#runWork(verb, this.#runInput(null, command));
       });
     }
     // the pure commands' leaves — schema get/gen · base set/get · issue render
     leafNode("schema", "get").action(async (_type: unknown, _opts: unknown, command: Command) => {
-      this.#exitCode = await this.#runSchema(this.#runInput("schema", "get", command));
+      this.#exitCode = await this.#runSchema(this.#runInput("get", command));
     });
     leafNode("schema", "gen").action(async (_type: unknown, _opts: unknown, command: Command) => {
-      this.#exitCode = await this.#runSchema(this.#runInput("schema", "gen", command));
+      this.#exitCode = await this.#runSchema(this.#runInput("gen", command));
     });
     leafNode("base", "set").action(async (_opts: unknown, command: Command) => {
-      this.#exitCode = await this.#runBase(this.#runInput("base", "set", command));
+      this.#exitCode = await this.#runBase(this.#runInput("set", command));
     });
     leafNode("base", "get").action(async (_opts: unknown, command: Command) => {
-      this.#exitCode = await this.#runBase(this.#runInput("base", "get", command));
+      this.#exitCode = await this.#runBase(this.#runInput("get", command));
     });
     leafNode("issue", "render").action(async () => {
       this.#exitCode = this.#runIssue();
@@ -976,7 +987,7 @@ export class Cli {
    *  lives on the program node, merged here). The args read GLOBALS too: a flag
    *  declared on the parent command (schema's --plan) is consumed by that node —
    *  the leaf's own opts would miss it. */
-  #runInput(verb: CliVerb, leaf: CliLeafName | null, command: Command): ParsedCommand {
+  #runInput(leaf: CliLeafName | null, command: Command): RunInput {
     const globals = command.optsWithGlobals() as Record<string, unknown>;
     const args: Record<string, string> = {};
     for (const [key, value] of Object.entries(globals)) {
@@ -984,13 +995,10 @@ export class Cli {
       args[key] = typeof value === "boolean" ? (value ? "true" : "false") : String(value);
     }
     return {
-      verb,
       leaf,
-      leafSpec: null,
       args,
       positionals: command.processedArgs as string[],
       dryRun: this.#dryRun || globals.dryRun === true,
-      help: false,
     };
   }
 
@@ -1007,40 +1015,15 @@ export class Cli {
   }
 
   // ---------------------------------------------------------------------------
-  // the commander-native usage bytes — the domain-run error face's usage is the
-  // projection's helpInformation() first line (helpInformation 首行 · the
-  // self-built usage corpus retired at T2; the T3 rebuild closes every error
-  // surface onto the same program product)
-  // ---------------------------------------------------------------------------
-
-  /** The commander-native usage first line of one command node — the projection's
-   *  helpInformation() 首行 (the domain-run error face's usage byte). */
-  #commanderUsage(verb: CliVerb): string {
-    const node = this.#program.commands.find((command) => command.name() === verb);
-    return node === undefined
-      ? `Usage: cdd ${verb} [options]`
-      : (node.helpInformation().split("\n")[0] ?? "");
-  }
-
-  /** The commander program usage first line — the generic read/run error face's
-   *  usage byte (`Usage: cdd [options] [command]` — the program's 首行). */
-  #programUsage(): string {
-    return this.#program.helpInformation().split("\n")[0] ?? "";
-  }
-
-  // ---------------------------------------------------------------------------
   // the work commands — lifecycle/capsule/ledger composition + the phase advance
   // ---------------------------------------------------------------------------
 
   /** One work command's run — assemble the scene, advance the requested phase (the
    *  lifecycle's single dispatch step per frame), render the capsule lines. */
-  async #runWork(verb: CliVerb, parsed: ParsedCommand): Promise<number> {
+  async #runWork(verb: CliVerb, parsed: RunInput): Promise<number> {
     const type = (parsed.args.type ?? "wave") as TargetType;
     if (type === "wave" && parsed.args.tasks === undefined) {
-      throw new CliUsageError(
-        `cdd ${verb} --type wave: missing required --tasks <n|n,n,…>`,
-        this.#commanderUsage(verb),
-      );
+      this.#usage(`cdd ${verb} --type wave: missing required --tasks <n|n,n,…>`);
     }
     const scene = await this.#sceneOf(verb, type, parsed);
 
@@ -1097,10 +1080,7 @@ export class Cli {
           : [];
       for (const id of group) {
         if (!planIds.includes(id)) {
-          throw new CliUsageError(
-            `cdd ${verb}: task ${id} not found in the plan`,
-            this.#commanderUsage(verb),
-          );
+          this.#usage(`cdd ${verb}: task ${id} not found in the plan`);
         }
       }
       for (const id of scene.ledger.closedWaves()) scene.state.markDone(id);
@@ -1131,7 +1111,7 @@ export class Cli {
         return outcome;
       },
       target: scene.target ?? undefined,
-      capsule: new Capsule(this.#words, this.#parser.channels()),
+      capsule: new Capsule(this.#words, ARGV_CHANNEL),
       planPath: scene.planPath,
     });
 
@@ -1222,7 +1202,7 @@ export class Cli {
 
   /** The dispatch seam — the injected override, else the dry-run synthetic approval,
    *  else the harness production default. */
-  #dispatchOf(scene: WorkScene, parsed: ParsedCommand): DispatchStep {
+  #dispatchOf(scene: WorkScene, parsed: RunInput): DispatchStep {
     if (this.#dispatch !== null) return this.#dispatch;
     if (parsed.dryRun || this.#dryRun) {
       const head = scene.head;
@@ -1455,13 +1435,13 @@ export class Cli {
   }
 
   /** The requested group ints — the normalized tasks value split. */
-  #tasksOf(parsed: ParsedCommand): number[] {
+  #tasksOf(parsed: RunInput): number[] {
     return (parsed.args.tasks ?? "").split(",").map((part) => Number(part));
   }
 
   /** Render the task group brief into the workspace (the implement dispatch's input)
    *  — the brief's WAVE_BASE rides the current git HEAD. */
-  #renderBrief(scene: WorkScene, parsed: ParsedCommand): string {
+  #renderBrief(scene: WorkScene, parsed: RunInput): string {
     const tasks = this.#tasksOf(parsed);
     const content = this.#brief.render(scene.planText!, tasks, scene.head ?? "");
     const briefPath = scene.workspace.resolve(`tasks-${parsed.args.tasks}-brief.md`);
@@ -1488,7 +1468,7 @@ export class Cli {
   /** Assemble one work command's scene: the workspace (repo root + the plan/spec
    *  slug), the ledger, the run state (TaskGraph from the plan parse for the task
    *  face, the empty single-target state otherwise), the fixed target. */
-  async #sceneOf(verb: CliVerb, type: TargetType, parsed: ParsedCommand): Promise<WorkScene> {
+  async #sceneOf(verb: CliVerb, type: TargetType, parsed: RunInput): Promise<WorkScene> {
     const config = this.#config;
     const face = targetFaces[type];
     const repoRoot = await this.#repoRootOf(parsed);
@@ -1502,30 +1482,21 @@ export class Cli {
     switch (type) {
       case "wave": {
         if (planPath === null)
-          throw new CliUsageError(
-            `cdd ${verb} --type wave: missing required --plan <path>`,
-            this.#commanderUsage(verb),
-          );
+          this.#usage(`cdd ${verb} --type wave: missing required --plan <path>`);
         slug = Workspace.slugFromDoc(planPath);
         planText = this.#readText(planPath);
         break;
       }
       case "spec": {
         if (specPath === null)
-          throw new CliUsageError(
-            `cdd ${verb} --type spec: missing required --spec <path>`,
-            this.#commanderUsage(verb),
-          );
+          this.#usage(`cdd ${verb} --type spec: missing required --spec <path>`);
         slug = Workspace.slugFromDoc(specPath);
         target = { kind: "doc", doc: specPath };
         break;
       }
       case "plan": {
         if (planPath === null)
-          throw new CliUsageError(
-            `cdd ${verb} --type plan: missing required --plan <path>`,
-            this.#commanderUsage(verb),
-          );
+          this.#usage(`cdd ${verb} --type plan: missing required --plan <path>`);
         slug = Workspace.slugFromDoc(planPath);
         planText = this.#readText(planPath);
         target = { kind: "doc", doc: planPath };
@@ -1545,10 +1516,7 @@ export class Cli {
               ? new BranchRef(parsed.args.base, parsed.args.head)
               : null;
         if (ref === null) {
-          throw new CliUsageError(
-            `cdd ${verb} --type branch: missing required --base <sha> --head <sha>`,
-            this.#commanderUsage(verb),
-          );
+          this.#usage(`cdd ${verb} --type branch: missing required --base <sha> --head <sha>`);
         }
         slug = planPath !== null ? Workspace.slugFromDoc(planPath) : ref.short();
         target = { kind: "branch", base: ref.base, head: ref.head };
@@ -1579,7 +1547,7 @@ export class Cli {
 
   /** The repo root — the --root override, else the injected root, else the git top
    *  level, else the cwd. */
-  async #repoRootOf(parsed?: ParsedCommand): Promise<string> {
+  async #repoRootOf(parsed?: RunInput): Promise<string> {
     const override = parsed?.args.root;
     return override ?? this.#repoRoot ?? (await this.#git.topLevel(this.#cwd)) ?? this.#cwd;
   }
@@ -1590,15 +1558,14 @@ export class Cli {
 
   /** `cdd schema get <type>` — the derived doc-structure schema JSON to stdout
    *  (the type vocabulary = the one shared schema-type table — `SCHEMA_TYPE_KEYS`
-   *  in face/argv.ts: the primary DocKey spellings + the legacy alias normalized
+   *  in face/declare.ts: the primary DocKey spellings + the legacy alias normalized
    *  to kebab, spec §5.3); the `plan-graph` type rides the discovery read (§3.8).
    *  `cdd schema gen <type>` dispatches to the skeleton render (the schema verb's
    *  second leaf). */
-  async #runSchema(parsed: ParsedCommand): Promise<number> {
+  async #runSchema(parsed: RunInput): Promise<number> {
     if (parsed.leaf === "gen") return this.#runSchemaGen(parsed);
     const type = parsed.positionals[0];
-    if (type === undefined)
-      throw new CliUsageError("cdd schema get: missing <type>", this.#commanderUsage("schema"));
+    if (type === undefined) this.#usage("cdd schema get: missing <type>");
     if (type === "plan-graph") return this.#runPlanGraph(parsed);
     this.#io.stdout(`${JSON.stringify(this.#projector.schema()[type as DocKey], null, 2)}\n`);
     return 0;
@@ -1610,10 +1577,9 @@ export class Cli {
    *  appended newline (the assembler never appends one — the redirected fixture
    *  ends with exactly one `\n`). Zero write side-effects — the orchestrator
    *  redirects the stdout to the target path. */
-  #runSchemaGen(parsed: ParsedCommand): number {
+  #runSchemaGen(parsed: RunInput): number {
     const type = parsed.positionals[0];
-    if (type === undefined)
-      throw new CliUsageError("cdd schema gen: missing <type>", this.#commanderUsage("schema"));
+    if (type === undefined) this.#usage("cdd schema gen: missing <type>");
     const projection = this.#projector.skeleton()[type as DocKey];
     const date = this.#today();
     this.#io.stdout(`${new SkeletonAssembler(projection, date).render()}\n`);
@@ -1636,13 +1602,10 @@ export class Cli {
    *  BLOCKs the read with the named edge violations — the wave-preflight gate surfaces
    *  as a discovery read. The board's done face is the same closedWaves() the pre-flight
    *  gates judge. */
-  async #runPlanGraph(parsed: ParsedCommand): Promise<number> {
+  async #runPlanGraph(parsed: RunInput): Promise<number> {
     const planPath = parsed.args.plan;
     if (planPath === undefined) {
-      throw new CliUsageError(
-        "cdd schema get plan-graph: missing --plan <path>",
-        this.#commanderUsage("schema"),
-      );
+      this.#usage("cdd schema get plan-graph: missing --plan <path>");
     }
     const text = this.#readText(planPath);
     const plan = new PlanDocType("plan").parse(text.split("\n"));
@@ -1694,13 +1657,10 @@ export class Cli {
 
   /** `cdd base <set|get> --plan <path>` — the base artifact read/write (T20: the
    *  command face `base`; the artifact file carries the base face too). */
-  async #runBase(parsed: ParsedCommand): Promise<number> {
+  async #runBase(parsed: RunInput): Promise<number> {
     const planPath = parsed.args.plan;
     if (planPath === undefined) {
-      throw new CliUsageError(
-        "cdd base: missing --plan — the sole target is --plan <path>",
-        this.#commanderUsage("base"),
-      );
+      this.#usage("cdd base: missing --plan — the sole target is --plan <path>");
     }
     const workspace = new Workspace(
       new WorkspaceRoot(
@@ -1712,26 +1672,20 @@ export class Cli {
     const path = workspace.resolve("base.json");
     if (parsed.leaf === "set") return this.#baseSet(parsed, planPath, path);
     if (parsed.leaf === "get") return this.#baseGet(path);
-    throw new CliUsageError("cdd base: missing <set|get> subcommand", this.#commanderUsage("base"));
+    this.#usage("cdd base: missing <set|get> subcommand");
   }
 
   /** The `set` body — base/source required, a different existing base refuses without
    *  --force (the write-through artifact single-author). */
-  #baseSet(parsed: ParsedCommand, planPath: string, path: string): number {
+  #baseSet(parsed: RunInput, planPath: string, path: string): number {
     const base = parsed.args.base;
     const source = parsed.args.source;
     if (base === undefined || source === undefined) {
-      throw new CliUsageError(
-        "cdd base set: required --base <branch> and --source <source>",
-        this.#commanderUsage("base"),
-      );
+      this.#usage("cdd base set: required --base <branch> and --source <source>");
     }
     const existing = this.#readBase(path);
     if (existing !== null && existing.base !== base && parsed.args.force !== "true") {
-      throw new CliUsageError(
-        `cdd base set: base already set to ${existing.base} — pass --force to override`,
-        this.#commanderUsage("base"),
-      );
+      this.#usage(`cdd base set: base already set to ${existing.base} — pass --force to override`);
     }
     const artifact: BaseArtifact = {
       base,
@@ -1782,7 +1736,7 @@ export class Cli {
     try {
       return readFileSync(file, "utf8");
     } catch {
-      throw new CliUsageError(`cannot read file: ${file}`, this.#programUsage());
+      this.#usage(`cannot read file: ${file}`);
     }
   }
 }

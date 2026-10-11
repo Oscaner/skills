@@ -1068,7 +1068,7 @@ export class Cli {
   #usageHint(err: CliUsageError): string | null {
     const unknown = /^unknown option: (\S+)/.exec(err.message);
     if (unknown !== null) {
-      const near = this.#nearestFlag(unknown[1]!, err.usage);
+      const near = this.#nearestFlag(unknown[1]!, err);
       return near === null ? null : `did you mean ${near}?`;
     }
     const subcommand = /^cdd \w+: unknown subcommand: (\w+)/.exec(err.message);
@@ -1092,20 +1092,19 @@ export class Cli {
   }
 
   /** The declared flag nearest to a misspelled token (the unknown-option hint's
-   *  suggestion) — the errored command's own declared flags in the verb contexts,
-   *  the full channel table only for the pre-verb generic usage (no command surface
-   *  in play), the program scopes always — judged within two edits. A verb's
-   *  did-you-mean never suggests a flag the same verb would reject as unknown. */
-  #nearestFlag(token: string, usage: string): string | null {
+   *  suggestion) — the errored surface's own declared flags (the parse face
+   *  attaches the command/leaf the error occurred on, so base get's candidates
+   *  never include base set's --force), the full channel table only when no
+   *  surface is in play (the pre-verb generic usage fallback), the program
+   *  scopes always — judged within two edits. A did-you-mean never suggests a
+   *  flag the same surface would reject as unknown. */
+  #nearestFlag(token: string, err: CliUsageError): string | null {
     const candidates = new Set<string>();
-    const surface = CLI_COMMANDS.find((command) => command.usage === usage);
+    const surface = err.surface;
     if (surface === undefined) {
       for (const channel of Object.values(this.#parser.channels())) candidates.add(channel.flag);
     } else {
-      for (const declared of [
-        ...surface.keys,
-        ...(surface.leaves ?? []).flatMap((leaf) => leaf.keys),
-      ]) {
+      for (const declared of surface.keys) {
         const channel = this.#parser.channels()[declared.key];
         if (channel !== undefined) candidates.add(channel.flag);
       }

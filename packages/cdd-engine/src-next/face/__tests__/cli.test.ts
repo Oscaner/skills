@@ -734,6 +734,52 @@ describe("the help/--help display face — the error-path smart hints", () => {
     }
   });
 
+  it("a leaf's unknown flag stays inside the leaf's own candidates (base get never suggests set's --force)", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      // `base get` and `base set` share CLI_USAGE.base — the did-you-mean
+      // candidates must follow the errored LEAF surface, not the shared usage
+      // line: --force / --source are set-only flags the get face rejects.
+      const code = await command.runArgv(["base", "get", "--forc", "--plan", "p.md"]);
+      expect(code).toBe(2);
+      expect(io.stderrText).toContain("unknown option: --forc");
+      expect(io.stderrText).not.toContain("did you mean");
+      expect(io.stderrText).toContain(CLI_USAGE.base);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the dead-end suggestion chain is gone — get hints nothing on set-only flags, set still hints its own", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      // Following the old hint (`base get --forc` → `--force`) landed on another
+      // set-only flag the get face rejects — the get surface now hints nothing.
+      const dead = await command.runArgv(["base", "get", "--force", "--plan", "p.md"]);
+      expect(dead).toBe(2);
+      expect(io.stderrText).toContain("unknown option: --force");
+      expect(io.stderrText).not.toContain("did you mean");
+
+      // The hint survives on the set surface — --force IS a set-declared flag.
+      const alive = await command.runArgv([
+        "base",
+        "set",
+        "--forc",
+        "--plan",
+        "p.md",
+        "--base",
+        "develop",
+        "--source",
+        "plan-field",
+      ]);
+      expect(alive).toBe(2);
+      expect(io.stderrText).toContain("unknown option: --forc");
+      expect(io.stderrText).toContain("did you mean --force?");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("a missing required flag exits 2 with the location + the expected-value suggestion", async () => {
     const { command, io, cleanup } = fixture();
     try {

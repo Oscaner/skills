@@ -63,13 +63,17 @@ export interface ParsedCommand {
 
 /** The usage-error surface — parse rejects with the command's usage line attached
  *  (the run face prints `usage` then the message and exits 2 — the steady exit-code
- *  table's usage row). */
+ *  table's usage row), plus the command/leaf surface the error occurred on: base
+ *  set and get share ONE usage line, so only the carried surface separates them —
+ *  the did-you-mean scope (a leaf error never suggests a sibling leaf's flag). */
 export class CliUsageError extends Error {
   readonly usage: string;
+  readonly surface?: CliCommandSpec | CliLeafSpec;
 
-  constructor(message: string, usage: string) {
+  constructor(message: string, usage: string, surface?: CliCommandSpec | CliLeafSpec) {
     super(message);
     this.usage = usage;
+    this.surface = surface;
   }
 }
 
@@ -190,7 +194,8 @@ export class ArgvParser {
       const inline = eq === -1 ? null : tok.slice(eq + 1);
       const norm = this.#flagName(flag);
       if (norm === "dry-run" || norm === "no-dry-run" || norm === "help" || norm === "h") {
-        if (inline !== null) throw this.#usage(`unexpected value for ${flag}`, surface.usage);
+        if (inline !== null)
+          throw this.#usage(`unexpected value for ${flag}`, surface.usage, surface);
         if (norm === "dry-run") dryRun = true;
         else if (norm === "no-dry-run") dryRun = false;
         continue;
@@ -198,17 +203,19 @@ export class ArgvParser {
       const key = this.#declaredKey(surface, norm);
       const channel = key === null ? undefined : this.#channels[key];
       if (key === null || channel === undefined)
-        throw this.#usage(`unknown option: ${tok}`, surface.usage);
+        throw this.#usage(`unknown option: ${tok}`, surface.usage, surface);
       let value: string;
       if (channel.type === "bool") {
-        if (inline !== null) throw this.#usage(`unexpected value for ${flag}`, surface.usage);
+        if (inline !== null)
+          throw this.#usage(`unexpected value for ${flag}`, surface.usage, surface);
         value = norm.startsWith("no-") ? "false" : "true";
       } else if (inline !== null) {
         value = inline;
       } else {
         index += 1;
         value = toks[index] ?? "";
-        if (value.length === 0) throw this.#usage(`missing value for ${flag}`, surface.usage);
+        if (value.length === 0)
+          throw this.#usage(`missing value for ${flag}`, surface.usage, surface);
       }
       args[key] = this.#validate(spec, surface, key, channel, value);
     }
@@ -380,8 +387,9 @@ export class ArgvParser {
     });
   }
 
-  /** The usage-error constructor shorthand (the command's usage line rides the error). */
-  #usage(message: string, usage: string): CliUsageError {
-    return new CliUsageError(message, usage);
+  /** The usage-error constructor shorthand (the command's usage line + the error's
+   *  command/leaf surface ride the error — the surface is the did-you-mean scope). */
+  #usage(message: string, usage: string, surface?: CliCommandSpec | CliLeafSpec): CliUsageError {
+    return new CliUsageError(message, usage, surface);
   }
 }

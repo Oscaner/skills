@@ -64,7 +64,7 @@ import { targetFaces } from "../session/faces.ts";
 import { TaskGraph } from "../session/graph.ts";
 import type { HandoffSchemaFace } from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
-import type { HandoffParams, LedgerKey, OpType, RoundStatus } from "../session/ledger.ts";
+import type { DocRevisionRef, HandoffParams, OpType, RoundStatus } from "../session/ledger.ts";
 import { Ledger } from "../session/ledger.ts";
 import type { Route } from "../session/next.ts";
 import { NextStepRouter } from "../session/next.ts";
@@ -1139,11 +1139,13 @@ export class Cli {
     // line-phase readiness check; the task face needs no second gate (the WaveGate's
     // wrong-phase verdict above IS the phase authority for the requested wave).
     if (group === null) {
-      const { phase: open, verdict } = this.#lineGate(scene);
+      const { phase: open, verdict, reviewed } = this.#lineGate(scene);
       if (open !== expected) {
-        const docBlock = open === null ? this.#docLineBlock(scene, verdict) : null;
+        const pendingBlock =
+          verdict === "pending-fix" ? this.#pendingFixBlock(scene, reviewed) : null;
+        const docBlock = open === null ? this.#docLineBlock(scene, reviewed) : null;
         this.#io.stderr(
-          `cdd ${verb}: cannot dispatch a ${expected} round — ${docBlock ?? (open === null ? "the line holds no open round" : `the next round is ${open}${this.#phaseHint(open)}`)}\n`,
+          `cdd ${verb}: cannot dispatch a ${expected} round — ${pendingBlock ?? docBlock ?? (open === null ? "the line holds no open round" : `the next round is ${open}${this.#phaseHint(open)}`)}\n`,
         );
         return 1;
       }
@@ -1292,60 +1294,75 @@ export class Cli {
   // the requested-phase gate — the work commands' readiness check
   // ---------------------------------------------------------------------------
 
-  /** The single-target line's current open phase (spec/plan/branch) plus the
-   *  doc-line identity verdict the gate judged — the {phase, verdict} pair IS the
-   *  gate's ruling: the revision-aware BLOCK renders only the "same" verdict the
-   *  gate returned, never a recomputed one. The task face holds no separate gate
-   *  here: the WaveGate's wrong-phase verdict (the pre-flight) IS the task-face
-   *  phase authority — the wave gate is the single phase authority. A CLOSED doc
-   *  line reopens through the identity-aware verdict (T7): the target's current
-   *  doc revision vs the recorded reviewed revision — a moved doc reopens the
-   *  review lead, an unchanged doc stays closed (the revision-aware BLOCK). */
-  #lineGate(scene: WorkScene): { phase: DispatchPhase | null; verdict: "drift" | "same" | null } {
+  /** The single-target line's current open phase plus the doc-line verdict the gate
+   *  judged — the {phase, verdict} pair IS the gate's ruling: the revision-aware
+   *  BLOCK renders only the "same" verdict the gate returned, the pending-fix note
+   *  only the derived pending face, never a recomputed one. The task face holds no
+   *  separate gate here: the WaveGate's wrong-phase verdict (the pre-flight) IS the
+   *  task-face phase authority — the wave gate is the single phase authority. A
+   *  doc line's gate is the reviewGate method family (T8 · §3.5 · judgment order =
+   *  doc revision FIRST, shared by the lifecycle's frame phase so an opened gate
+   *  dispatches): a moved doc opens the review lead whatever the round/route state
+   *  says (fix after · backfill after · user-decision after are the SAME case — the
+   *  stuck "next round is fix after an aborted fix" never freezes a revised doc),
+   *  an unchanged doc stays rejected — the pending fix DERIVED from the latest
+   *  review's non-APPROVED conclusion opens only the fix phase, the approved face
+   *  the revision-aware BLOCK. An unbound line (no identity on record / an
+   *  unreadable doc) keeps the legacy round/route judgment + the generic closed
+   *  message (only present facts land). */
+  #lineGate(scene: WorkScene): {
+    phase: DispatchPhase | null;
+    verdict: "same" | "pending-fix" | null;
+    reviewed: DocRevisionRef | null;
+  } {
+    if (scene.target?.kind === "doc") {
+      const key = this.#lineKey(scene);
+      if (key === null) return { phase: null, verdict: null, reviewed: null };
+      const verdict = scene.ledger.reviewGate(key, scene.target.doc, scene.face.type);
+      if (verdict.kind === "open") {
+        return { phase: scene.face.product.reviewLead, verdict: null, reviewed: null };
+      }
+      if (verdict.kind === "same") {
+        return verdict.pending
+          ? { phase: "fix", verdict: "pending-fix", reviewed: verdict.reviewed }
+          : { phase: null, verdict: "same", reviewed: verdict.reviewed };
+      }
+    }
     const open = this.#linePhase(scene);
-    if (open !== null) return { phase: open, verdict: null };
-    const verdict = this.#docLineVerdict(scene);
-    return { phase: verdict === "drift" ? scene.face.product.reviewLead : null, verdict };
+    return { phase: open, verdict: null, reviewed: null };
   }
 
-  /** The doc line's identity verdict (T7) — the ledger's single shared comparison
-   *  (Ledger#docLineVerdict), consumed as-is: the drift gate and the revision-aware
-   *  BLOCK read the SAME verdict, never a face-side recomputation. The face adds
-   *  only the target reshape — null on non-doc, an absent key, an unreadable doc
-   *  or no reviewed revision on record (the legacy closed face keeps its generic
-   *  message). */
-  #docLineVerdict(scene: WorkScene): "drift" | "same" | null {
-    if (scene.target?.kind !== "doc") return null;
-    const key = this.#lineKey(scene);
-    if (key === null) return null;
-    return scene.ledger.docLineVerdict(key, scene.target.doc);
-  }
-
-  /** The doc line's revision-aware BLOCK message (T7) — the unchanged-doc face:
-   *  "{plan|spec} already reviewed at vX.Y (doc-hash …) — target revision
+  /** The doc line's revision-aware BLOCK message (T7/T8) — the unchanged-approved
+   *  face: "{plan|spec} already reviewed at vX.Y (doc-hash …) — target revision
    *  unchanged; amend body/version to open a new review". Renders ONLY on the
-   *  gate's "same" verdict — the one verdict whose doc read succeeded and matched
-   *  the reviewed identity ("target revision unchanged" is a present fact there).
-   *  The gate's null verdict (an unreadable target / no reviewed identity on
-   *  record) keeps the generic "no open round" message — only present facts land
-   *  (the ledger's own null contract, Ledger#docLineVerdict). Null off that face
-   *  (the verdict arrives threaded from #lineGate, never recomputed). */
-  #docLineBlock(scene: WorkScene, verdict: "drift" | "same" | null): string | null {
-    if (verdict !== "same" || scene.target?.kind !== "doc") return null;
-    // A "same" verdict implies a reviewed identity on record — the guard keeps the
-    // dereference honest without an assertion.
-    const reviewed = scene.ledger.reviewedDocRevisionOf(this.#lineKey(scene) as LedgerKey);
-    if (reviewed === null) return null;
+   *  gate's "same" verdict — the approved identity the gate judged, whose reviewed
+   *  ref the message names: the block consumes the verdict's identity, never a
+   *  second ledger lookup (the face's judgment read points converge to the
+   *  method family). Null off that face or with no identity ("target revision
+   *  unchanged" is a present fact only there). */
+  #docLineBlock(scene: WorkScene, reviewed: DocRevisionRef | null): string | null {
+    if (reviewed === null || scene.target?.kind !== "doc") return null;
     const version = this.#docVersionOf(this.#docContent(scene.target.doc));
     return `${scene.type} already reviewed at ${version ?? "the current version"} (doc-hash ${reviewed.doc_hash.slice(0, 12)}…) — target revision unchanged; amend body/version to open a new review`;
   }
 
-  /** The doc's live content — readable doc else null. The doc-line identity's
-   *  read is the LEDGER's verdict read (Ledger#docLineVerdict — one read per
-   *  gate); this helper backs the face's one remaining read site, the
-   *  revision-aware BLOCK's version token — a read fired only when the BLOCK
-   *  message actually renders (the version is raw doc grammar — zero parse
-   *  dependence: the revision hash is a raw-content digest). */
+  /** The doc line's derived pending-fix note (T8) — the unchanged + non-APPROVED
+   *  face: "the pending fix applies to the unchanged doc (doc-hash …) — run cdd
+   *  fix first". Renders ONLY for the gate's "pending-fix" verdict — the derived
+   *  fix-awaited face (a same-doc re-review stays refused until its fix lands,
+   *  Review Convergence anti-spin); the message names the reviewed identity the
+   *  gate judged. */
+  #pendingFixBlock(scene: WorkScene, reviewed: DocRevisionRef | null): string | null {
+    if (reviewed === null || scene.target?.kind !== "doc") return null;
+    return `the pending fix applies to the unchanged doc (doc-hash ${reviewed.doc_hash.slice(0, 12)}…) — run cdd fix first`;
+  }
+
+  /** The doc's live content — readable doc else null. This helper backs the face's
+   *  one remaining doc read site, the revision-aware BLOCK's version token — a read
+   *  fired only when the BLOCK message actually renders (the version is raw doc
+   *  grammar — zero parse dependence: the revision hash is a raw-content digest).
+   *  The gate's own doc read lives in the ledger (Ledger#docLineVerdict — one read
+   *  per reviewGate, the shared comparison). */
   #docContent(doc: string): string | null {
     try {
       return this.#readText(doc);

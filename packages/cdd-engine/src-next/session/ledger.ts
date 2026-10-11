@@ -303,6 +303,30 @@ export class ReviewRefs {
 }
 
 // ---------------------------------------------------------------------------
+// the review gate — the T8 doc-revision-first verdict (spec §3.5)
+// ---------------------------------------------------------------------------
+
+/** The review-gate verdict (T8 · §3.5 · v0.12 ruled) — the doc line's review
+ *  request judgment, doc-revision FIRST: a doc moved past the reviewed revision
+ *  OPENS the review lead whatever the round/route state says (fix after · backfill
+ *  after · user-decision after are the SAME case — the stuck "next round is fix
+ *  after an aborted fix" path never freezes a revised doc); an unchanged doc stays
+ *  REJECTED (Review Convergence anti-spin), with the pending fix DERIVED from the
+ *  latest review's non-APPROVED conclusion — zero independent state field (the
+ *  progress.json key set carries no pending-fix key). `unbound` = no reviewed
+ *  identity on record or an unreadable doc — the legacy round/route judgment
+ *  keeps the generic closed face (only present facts land). */
+export type ReviewGateVerdict =
+  /** drift — the review lead opens (the lifecycle + the face gate dispatch review). */
+  | { kind: "open" }
+  /** same — the line stays rejected; `pending` is the derived fix-awaited face
+   *  (the review's own fix is outstanding), `reviewed` the bound identity the
+   *  rejection messages name (the already-reviewed block / the pending-fix note). */
+  | { kind: "same"; pending: boolean; reviewed: DocRevisionRef }
+  /** unbound — no identity on record / the doc unreadable: the legacy judgment. */
+  | { kind: "unbound" };
+
+// ---------------------------------------------------------------------------
 // the ledger
 // ---------------------------------------------------------------------------
 
@@ -437,6 +461,47 @@ export class Ledger {
     } catch {
       return null;
     }
+  }
+
+  /** The review-gate method (T8 · §3.5) — the doc line's review request judgment +
+   *  the phase advance, doc-revision FIRST: the shared docLineVerdict comparison is
+   *  the PRIMARY criterion — a drifted doc OPENS the review lead regardless of the
+   *  round/route state (fix / backfill / user-decision are one case: the stuck
+   *  "next round is fix after an aborted fix" gate never freezes a revised doc);
+   *  an unchanged doc stays REJECTED — the pending fix DERIVED from the latest
+   *  review's non-APPROVED conclusion (no separate pending-fix field). The OPEN
+   *  side performs no disk advance: the round + the revision snapshot land with the
+   *  round's completion (Ledger#recordRound + the T7 write-back), so a BLOCKED
+   *  re-review resumes the same round (nothing pre-binds). `unbound` (no identity on
+   *  record / an unreadable doc) keeps the legacy round/route judgment. The
+   *  judgment order change is the whole gate: the old rounds/routes-first read made
+   *  the round/route state shadow the doc movement (the pre-T8 stuck path). */
+  reviewGate(key: LedgerKey, doc: string, type: TargetType): ReviewGateVerdict {
+    const verdict = this.docLineVerdict(key, doc);
+    if (verdict === "drift") return { kind: "open" };
+    if (verdict === "same") {
+      const reviewed = this.reviewedDocRevisionOf(key);
+      if (reviewed === null) return { kind: "unbound" };
+      return { kind: "same", pending: this.#pendingFix(key, type), reviewed };
+    }
+    return { kind: "unbound" };
+  }
+
+  /** The pending-fix derivation — the "doc same + not APPROVED" face (T8): the
+   *  latest review round has an outstanding fix AND its conclusion was not an
+   *  approval. The count comparison is the operable leg (a review with a pending
+   *  fix — reviews > fixes — cannot have closed: an APPROVED review never awaits
+   *  a fix); the status read keeps the derivation's second leg explicit, degrading
+   *  to the conservative pending on a missing carrier (a counted round is a present
+   *  fact — the same-doc re-review stays refused until its fix lands). A completed
+   *  fix (fixes >= reviews) is NOT the pending face — the completed-fix line's
+   *  re-review reopens through the fix round's C5 route (the legacy judgment). */
+  #pendingFix(key: LedgerKey, type: TargetType): boolean {
+    const reviews = this.roundCount(key, "review");
+    const fixes = this.roundCount(key, "fix");
+    if (reviews === 0 || fixes >= reviews) return false;
+    const carried = this.round("review", type, { round: reviews }, reviews);
+    return carried === null || carried.status === undefined || carried.status !== "APPROVED";
   }
 
   /** Read one counter — a failure-category count on record (0 when the file is missing). */

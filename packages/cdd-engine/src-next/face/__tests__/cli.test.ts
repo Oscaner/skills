@@ -760,6 +760,94 @@ describe("the help/--help display face — the per-command render", () => {
   });
 });
 
+describe("the T4 commander-native help acceptance — the projected help face (§5)", () => {
+  /** Normalize the whitespace runs — commander wraps long texts onto a continuation
+   *  line with the table padding; the projection assertions read the description
+   *  token stream through single spaces, never a wrapped byte literal. */
+  const norm = (text: string): string => text.replace(/\s+/g, " ");
+
+  it("cdd --help — the native program face: Usage · the six-command table (short descriptions = the CLI_COMMANDS projection) · Examples heading · the --dry-run-only footer", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["--help"]);
+      expect(code).toBe(0);
+      const help = norm(io.stdoutText);
+      // The commander-native layout — the Usage line + the capital-C section
+      // headings (the §5.1 Usage/Options/Commands 段首).
+      expect(help).toContain("Usage: cdd [options] [command]");
+      expect(help).toContain("Commands:");
+      expect(help).toContain("Options:");
+      // The six command rows — the command names + their short descriptions
+      // SINGLE-SOURCED at the CLI_COMMANDS declaration rows (the projection test,
+      // never a hand-typed byte list).
+      for (const spec of CLI_COMMANDS) {
+        expect(help).toContain(spec.name);
+        expect(help).toContain(spec.description);
+      }
+      // The Examples section heading + a P1 example sentence in the stream.
+      expect(help).toContain("Examples:");
+      expect(help).toContain("cdd review --type spec --spec docs/kairos/specs/p3-design.md");
+      // The program-flag tail note: --dry-run listed ALONE — the -h/--help
+      // redundant column is not written (the built-in helpOption faces Options).
+      const footer = io.stdoutText.split("\n").find((line) => line.startsWith("program flags"));
+      expect(footer).toBe("program flags (accepted at any position): --dry-run");
+      expect(footer).not.toContain("--help");
+      expect(footer).not.toContain("-h");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("cdd review --help — the option descriptions carry the value-domain tokens, in the declared registration order (§5.2 · 位序)", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["review", "--help"]);
+      expect(code).toBe(0);
+      const help = norm(io.stdoutText);
+      // The §5.2 value domains ride the option descriptions.
+      expect(help).toContain("--type <wave|branch|spec|plan>");
+      expect(help).toContain("--tasks <n|n,n,…>");
+      expect(help).toContain("--base <sha>");
+      expect(help).toContain("--head <sha>");
+      expect(help).toContain("--plan <path>");
+      // The description order = the ARGV_CHANNEL row order of the review node's
+      // declared keys (the registration order never a sorted/derived one).
+      expect(help.indexOf("--type")).toBeLessThan(help.indexOf("--tasks"));
+      expect(help.indexOf("--base")).toBeLessThan(help.indexOf("--head"));
+      expect(help.indexOf("--root")).toBeLessThan(help.indexOf("--dry-run"));
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("cdd schema --help — the leaf subcommand table (get | gen) rides the native Commands face", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["schema", "--help"]);
+      expect(code).toBe(0);
+      const help = norm(io.stdoutText);
+      expect(help).toContain("Commands:");
+      expect(help).toContain("get [options] <type>");
+      expect(help).toContain("gen [options] [type]");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("cdd base get --help — the leaf face binds its OWN keys: --plan present, set's --force NOT leaked (leaf granularity)", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["base", "get", "--help"]);
+      expect(code).toBe(0);
+      const help = norm(io.stdoutText);
+      expect(help).toContain("--plan <path>");
+      expect(help).not.toContain("--force");
+    } finally {
+      cleanup();
+    }
+  });
+});
+
 describe("the help/--help display face — the error-path smart hints", () => {
   it("an unknown flag exits 2 with the location + the nearest-flag suggestion", async () => {
     const { command, io, cleanup } = fixture();
@@ -1429,6 +1517,144 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "spec-review-2.json"))).toBe(
         false,
       );
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("T8 — after an ABORTED fix the drifted doc re-reviews directly — the doc revision is the gate's primary criterion (judgment order = doc revision first)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({
+      dispatch: (frame: OpenFrame) =>
+        frame.phase === "fix"
+          ? { status: "BLOCKED" } // the aborted fix — its round never records
+          : {
+              status: "CHANGES_REQUESTED",
+              findings: [{ severity: "blocker", summary: "drift" }],
+            },
+    });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      // Review round 1 with blockers — the line awaits its fix (fixes < reviews:
+      // the pre-T8 gate read the fix-awaited route and froze the re-review at
+      // "the next round is fix" even after the doc moved).
+      expect(
+        await command.runArgv([
+          "review",
+          "--type",
+          "plan",
+          "--plan",
+          plan,
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).toBe(0);
+      const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
+      expect(existsSync(path.join(workspace, "plan-review-1.json"))).toBe(true);
+      // The aborted fix — the pre-T8 stuck path's origin: the fix attempt BLOCKS,
+      // records no fix round, and the line stays fix-awaited with the OLD review's
+      // findings binding the reviewed doc revision.
+      io.stdoutText = "";
+      io.stderrText = "";
+      expect(
+        await command.runArgv([
+          "fix",
+          "--type",
+          "plan",
+          "--plan",
+          plan,
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).toBe(1);
+      // The doc then moves (fix applied · backfill · user decision are the SAME
+      // case — the doc revision is the gate's primary criterion): the review runs
+      // directly, whatever the fix-awaited round state says, and the old findings
+      // are auto-invalid (bound to the superseded doc revision).
+      const driftedSource = readFileSync(plan, "utf8").replace(
+        "- **Acceptance**: ok",
+        "- **Acceptance**: ok (drifted)",
+      );
+      writeFileSync(plan, driftedSource, "utf8");
+      io.stderrText = "";
+      io.stdoutText = "";
+      const reopen = await command.runArgv([
+        "review",
+        "--type",
+        "plan",
+        "--plan",
+        plan,
+        "--dry-run",
+        "--root",
+        repoRoot,
+      ]);
+      expect(reopen).toBe(0);
+      expect(io.stderrText).not.toContain("cannot dispatch");
+      expect(io.stderrText).not.toContain("the next round is fix");
+      expect(existsSync(path.join(workspace, "plan-review-2.json"))).toBe(true);
+      // The completion counts stay preserved (the re-review books the next round
+      // increment) and the progress row's key set carries zero new fields (the
+      // pending fix is derived, never a stored state).
+      const progress = readJson<{
+        waves: Array<{ wave: string; rounds?: Record<string, number> }>;
+      }>(path.join(workspace, "progress.json"));
+      const row = progress.waves.find((entry) => entry.wave === plan);
+      expect(row?.rounds?.["review"]).toBe(2);
+      expect(row?.rounds?.["fix"]).toBeUndefined();
+      expect(JSON.stringify(progress)).not.toContain("pending");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("T8 — an UNCHANGED fix-awaited doc stays rejected — the pending fix is derived (doc same + not APPROVED), never an independent field", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({
+      dispatch: (frame: OpenFrame) =>
+        frame.phase === "review"
+          ? {
+              status: "CHANGES_REQUESTED",
+              findings: [{ severity: "blocker", summary: "drift" }],
+            }
+          : { status: "APPROVED", commits: { base: "a".repeat(8), head: "b".repeat(8) } },
+    });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      expect(
+        await command.runArgv([
+          "review",
+          "--type",
+          "plan",
+          "--plan",
+          plan,
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).toBe(0);
+      // The SAME doc (no drift) — the repeat review stays REFUSED (Review
+      // Convergence anti-spin): the pending fix derives from the doc-same +
+      // non-APPROVED face (the review's own fix is still outstanding), and the
+      // message names the derived hop.
+      io.stderrText = "";
+      const repeat = await command.runArgv([
+        "review",
+        "--type",
+        "plan",
+        "--plan",
+        plan,
+        "--dry-run",
+        "--root",
+        repoRoot,
+      ]);
+      expect(repeat).toBe(1);
+      expect(io.stderrText).toContain("the pending fix applies to the unchanged doc");
+      expect(io.stderrText).toContain("— run cdd fix first");
+      const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
+      // no phantom re-review lands on the unchanged line
+      expect(existsSync(path.join(workspace, "plan-review-2.json"))).toBe(false);
     } finally {
       cleanup();
     }

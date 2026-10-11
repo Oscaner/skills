@@ -1,6 +1,6 @@
 # 引擎文档工具（Engine Doc-Tooling）— Overall Spec
 
-- **Version**: v1.7 · 2026-10-11
+- **Version**: v1.8 · 2026-10-11
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（kairos:cdd-design 元层裁定 → 独立整体注册）
 - **Constraints**:
@@ -36,7 +36,7 @@ Charter only, zero implementation detail. **Overall approval is not equivalent t
 - **不发布**：整理到可发布态即止——`changeset version` / 打 tag / 发布 = 独立动作，不在本程序
 - **不改文档方法论语义**：schema gen 骨架 = declare.ts 登记表投影，不引入新文档结构；文档类型语义（overall / plan / phase-spec）、契约、gate 判压全部不变
 - **不新增大文档结构 / 新 doc 类型**：模板覆盖既有三型（phase-spec / overall / plan），不发明第四型
-- **引擎行为变化 = 能力面 + 六前提重构（2026-10-11 Q2→b 改写 · P1 同持 2026-10-11 Q3→c 增注）**：行为语义增量 = review face docKey 推导（P1）+ schema gen 能力（P2）+ help/`--help` 展示面（P1）；**P1 与 P2 同持整 CLI/face 面重构许可**（face/cli.ts + capsule + words + graph-view + host · 目录级重组 · OOP 统一零裸函数 · 死码/空壳清理 · 高内聚低耦合 · 消费者心智负担 · 最大精简），重构保行为等价（引擎 vitest 全绿作证）· 零运行时依赖变化（help 自研渲染）· 零意外行为变化（其余 CLI 行为语义不动，仅形态可重组）
+- **引擎行为变化 = 能力面 + 六前提重构（2026-10-11 Q2→b 改写 · P1 同持 2026-10-11 Q3→c 增注）**：行为语义增量 = review face docKey 推导（P1）+ schema gen 能力（P2）+ help/`--help` 展示面（P1）；**P1 与 P2 同持整 CLI/face 面重构许可**（face/cli.ts + capsule + words + graph-view + host · 目录级重组 · OOP 统一零裸函数 · 死码/空壳清理 · 高内聚低耦合 · 消费者心智负担 · 最大精简），重构保行为等价（引擎 vitest 全绿作证）· 零运行时依赖变化（P1/P2 面 · P3 例外：CLI 框架化 commander ^15 重准入 · D11）· 零意外行为变化（其余 CLI 行为语义不动，仅形态可重组）
 - **不 retro-改消费者已发面**：历史 SKILL.md / 文档不作回溯改写（消费面变更只发生在 author 节点表述）
 
 ### Cross-cutting（程序级横切约束，先立后执行）
@@ -45,7 +45,7 @@ Charter only, zero implementation detail. **Overall approval is not equivalent t
 - **消费面先 gen 后填**：cdd-spec-writer / cdd-plan 的 author 节点从「schema get 参考 + 手工转写」更新为「schema gen 骨架 + 填内容」；`schema get` 保留（声明参考面 · 其他工具/测试消费面不动）
 - **CLAUDE.md pin 修订先行**：「cdd CLI 零新子命令」例外面扩 `schema gen`——文档改动与实现同 commit 面落地，不可只实现不改文
 - **跨程序树协调（2026-10-11 用户裁定拆 pin → D8）**：本程序 P1/P2 引擎改动**先行实现于现行 `src-next/` 树**（不等 rename P2）——rename sweep 随全库 `grep -rn src-next` 改本程序新文件面（Q3→b 语义 · 豁免面为空）
-- **P1 face 重塑保行为等价（2026-10-11 立）**：退出码表（0/1/2 · 0 含 `--help`）· CDD_BLOCKED 通道 · doc-contract 判定语义 · `next:` dispatch 字面——全部零变化，引擎 vitest 全绿作证；零运行时依赖变化（help 自研渲染 · 维护文档 do-not-re-add 守约）
+- **P1 face 重塑保行为等价（2026-10-11 立）**：退出码表（0/1/2 · 0 含 `--help`）· CDD_BLOCKED 通道 · doc-contract 判定语义 · `next:` dispatch 字面——全部零变化，引擎 vitest 全绿作证；零运行时依赖变化（help 自研渲染 · 维护文档 do-not-re-add 守约——P3 例外：commander ^15 行重准入注记 · citty 等其余退役行不动 · D11）
 
 ### 设计决策留存（2026-10-10 —— 元层裁定 + 注册）
 
@@ -120,3 +120,4 @@ Legend:
 | v1.5 | 2026-10-11 | **P1 docKey 词表统一裁定（用户 backfill → P1 随 cli 面统一处理 · 2026-10-11）**：docKey/类型词表统一为**单一拼写 `phase-spec`（kebab）**——治 D3 大小写坑本源（两键系统合一）· 统一面 = declare 行键 · judge DOC_KEYS/DocKey · invariants · Projector 五投影 · validate 派生 · preflight docKey · words 键 · schema get 值域（get/gen 一表两面）· **P2「schema get 字节不变」断言语义随统一更新**（deliberate pin break · 与 usage Q5→b 同级）· 决策 D10 · P1 scope/acceptance 增词表统一面 · 词表统一因 P1 本就要重塑 cli 面而并入 P1（非独立议题） | [human] · Claude Opus 5（用户裁定 backfill · 2026-10-11） |
 | v1.6 | 2026-10-11 | **P1 help 框架化裁定（用户研究后决定 · 2026-10-11）**：联网调研（commander 15 依赖 0 · yargs 18 依赖 6 · clipanion RC · citty 版本未动）→ 用户定夺 **commander ^15 · P1 收口后落地**——反转 D9 的 help 自研渲染面与维护文档 05 §4 commander 行 do-not-re-add（commander 重准入 · 其余退役行不动）· P1 自身按生效决定干净收口（不重开已批准 Task 4 交付）· 决策 D11 · 新阶段经 cdd-close closeout-backfill 四表登记 | [human] · Claude Opus 5（用户裁定 · 2026-10-11） |
 | v1.7 | 2026-10-11 | **P3 槽位改写裁定（用户 · 2026-10-11）**：框架化**不新增 phase——P3 直接改写为「CLI 框架化收口 + 变更集归并」**：commander ^15 重准入（parse + help 渲染 · ARGV_CHANNEL 行度入 .option()/.command() 数据驱动单源 · 适配层保行为面：退出码表/CDD_BLOCKED/字节错误消息/did-you-mean/`--help` 任意位置 · 帮助形面三件套：命令表短描述 · Usage/Options/Examples 段首 · 描述位序）· 原「changesets 收尾」独立 scope **折叠**入 P3 变更集义务（P1/P2 deferred + 框架化 bump 一次归并 · 不发布）· 同步：Issue/Phase inventory P3 行 · Dependency graph（P1 hard · P2 satisfied）· 执行序 · charter①③段 · D11 落点更新（最终路由 = P3） | [human] · Claude Opus 5（用户裁定 · 2026-10-11） |
+| v1.8 | 2026-10-11 | **章程一致性修正（引擎 fix 轮 · spec 评审 findings #1 · 编排器裁定接受 full fix · 2026-10-11）**：Non-goal ④「零运行时依赖变化」与 Cross-cutting「维护文档 do-not-re-add 守约」两条章程级断言**增补 P3 carve-out**——定位 **P1/P2 面** · P3 例外 = CLI 框架化 commander ^15 重准入（D11 同源 · commander 行重准入注记 · citty 等其余退役行不动）· 消除 v1.7 起与 P3 scope/acceptance（commander ^15 运行时依赖落 cdd-engine `package.json`）的直接矛盾 · 未改任何 phase scope/acceptance 正文 | [human] · Claude Opus 5（引擎 fix 轮 · 2026-10-11） |

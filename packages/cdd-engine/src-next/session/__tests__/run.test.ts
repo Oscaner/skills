@@ -691,6 +691,39 @@ describe("T2 — the bookkeep fallback rides the frame's declared face", () => {
       cleanup();
     }
   });
+
+  it("T6 — probe A: the wave-fix fallback also rides the work face — the persisted WAVE fix handoff carries zero findings keys (the fix leg of the zero-findings write path)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = taskGraph([task(1, "none")]);
+      const dispatch = stub((frame) => {
+        if (frame.phase === "implement") return APPROVED_IMPLEMENT;
+        if (frame.phase === "fix")
+          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        return { status: "APPROVED", findings: [finding("blocker")] };
+      });
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+      });
+      run.advance(); // implement 1 — the work face
+      run.advance(); // review 1 (blocker) → routes the fix hop
+      run.advance(); // fix 1 — the WAVE fix face is the work face
+      const fixCarrier = ledger.readHandoff("fix", "wave", { tasks: "1", round: 1 });
+      expect(fixCarrier).not.toBeNull();
+      // the wave fix lands on the work face — the persisted fix carrier carries zero
+      // findings keys, even though its source review was a finding-bearing blocker
+      expect(Object.keys(fixCarrier!)).not.toContain("findings");
+      const reviewCarrier = ledger.readHandoff("review", "wave", { tasks: "1", round: 1 });
+      expect(reviewCarrier).not.toBeNull();
+      // the review face keeps the findings key — the two legs diverge by face
+      expect(Object.keys(reviewCarrier!)).toContain("findings");
+    } finally {
+      cleanup();
+    }
+  });
 });
 
 describe("the branch small loop — branch-review → fix → closure", () => {

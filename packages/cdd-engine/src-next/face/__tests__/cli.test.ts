@@ -2190,6 +2190,70 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     }
   });
 
+  it("T6 — probe A: the end-to-end dry-run implement + fix final carriers carry zero findings keys — both work-face materialization legs (implement + wave fix)", async () => {
+    const { command, repoRoot, cleanup } = fixture();
+    try {
+      const head = gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      // the implement leg — the dry-run dispatch persists the work-face final carrier
+      expect(
+        await command.runArgv([
+          "implement",
+          "--tasks",
+          "1",
+          "--plan",
+          plan,
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).toBe(0);
+      const implementCarrier = JSON.parse(
+        readFileSync(path.join(repoRoot, ".kairos", "cdd", "p3", "tasks-1-implement.json"), "utf8"),
+      ) as Record<string, unknown>;
+      expect("findings" in implementCarrier).toBe(false);
+      expect(Object.keys(implementCarrier)).not.toContain("findings");
+      // the fix leg — seed the blocker source review (the C5-1 fix input) so the fix
+      // dispatch reads a finding-bearing review carrier back and still lands its
+      // final carrier on the work face (the fix-will-not-mirror-findings probe)
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader());
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1", round: 1 },
+        {
+          tasks: [1],
+          phase: "review",
+          findings: [{ severity: "blocker", summary: "drift" }],
+          commits: { base: head, head },
+        },
+      );
+      ledger.recordRound(1, "review");
+      expect(
+        await command.runArgv([
+          "fix",
+          "--type",
+          "wave",
+          "--tasks",
+          "1",
+          "--plan",
+          plan,
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).toBe(0);
+      const fixCarrier = JSON.parse(
+        readFileSync(path.join(repoRoot, ".kairos", "cdd", "p3", "tasks-1-fix-1.json"), "utf8"),
+      ) as Record<string, unknown>;
+      expect("findings" in fixCarrier).toBe(false);
+      expect(Object.keys(fixCarrier)).not.toContain("findings");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("plan-graph — the board shows the in-wave ✔/▶ mix from closedWaves", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
@@ -3394,6 +3458,58 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // the single prompt argument opens with the template header, never a slash form
       expect(prompt.startsWith("/mattpocock-skills:")).toBe(false);
       expect(prompt.startsWith("# CDD dispatch — fix round")).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("T6 — probe B: the fix dispatch prompt carries the strict-schema single sentence — the declaration is the field source, zero extra keys (the child-facing fix shell)", () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new FakeSync();
+      sync.stdout = "status: APPROVED\n";
+      writeFileSync(
+        path.join(scene.workspace.path, "tasks-1-fix-1.json"),
+        JSON.stringify({
+          status: "APPROVED",
+          artifacts: {
+            report: path.join(scene.workspace.path, "tasks-1-fix-1-report.md"),
+            test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+          },
+          commits: { base: "a".repeat(8), head: "b".repeat(8) },
+        }),
+        "utf8",
+      );
+      writeFileSync(
+        path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+        JSON.stringify({
+          command: "npx vitest run",
+          exit_code: 0,
+          passed: true,
+          warnings_count: 0,
+          typecheck: { command: "tsc --noEmit", exit_code: 0, passed: true },
+        }),
+        "utf8",
+      );
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      const outcome = dispatch.step()(fixFrame);
+      expect(outcome.status).toBe("APPROVED");
+      const call = sync.calls[0];
+      const prompt = call.args[call.args.length - 1];
+      // the ONE strict-schema sentence lands in the child-facing fix shell — the
+      // declared properties are the draft's single field source (the T5 bytes riding
+      // the rendered prompt; probe B's checkable)
+      expect(prompt).toContain(
+        "every top-level field of the draft comes from the `## Handoff schema` declared `properties`",
+      );
+      expect(prompt).toContain("zero extra keys");
     } finally {
       cleanup();
     }

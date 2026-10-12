@@ -1,7 +1,7 @@
 # P4 实现计划：引擎 handoff 平面卫生 + commander 引入面收敛
 **Spec:** [2026-10-10-engine-doc-tooling-p4-design.md](docs/kairos/specs/2026-10-10-engine-doc-tooling-p4-design.md)
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall](docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.1 · 2026-10-12
+- **Version**: v0.2 · 2026-10-12
 
 ## Constraints
 
@@ -28,18 +28,18 @@
 ---
 
 ### Task 1: HandoffCarrier 类型族 + buildHandoff 分面出口
-- **Objective**: 声明 `WorkCarrier`/`FindingsCarrier` 两个独立载体类型（字段集与 `CARRIER_WORK`/`CARRIER_FINDINGS` 声明 `properties` 同源）· `ledger.buildHandoff`（ledger.ts:603-616 现共享骨架恒写 `findings`）改为**按 face 分面成型**——work 面返回类型无 `findings` 键 · findings 面 required `findings` · 编译期类型级把门（Q1→c）
+- **Objective**: 声明 `WorkCarrier`/`FindingsCarrier` 两个独立载体类型（字段集与 `CARRIER_WORK`/`CARRIER_FINDINGS` 声明 `properties` 同源 · **由声明派生**）· `ledger.buildHandoff`（ledger.ts:603-616 现共享骨架恒写 `findings`）改为**按 face 分面成型**——work 面返回类型无 `findings` 键 · findings 面 required `findings` · 编译期类型级把门（Q1→c）· **命名映射**：spec §2.2/AC2 的 `handoffOf(face, init)` ↔ 本计划 `ledger.buildHandoff(face, …)` overloads——同一分面单出口机制（实现命名随本计划）
 - **Files**: Modify: session/handoff-schema.ts（类型声明 · `WorkCarrier`/`FindingsCarrier`）；Modify: session/ledger.ts:603-616（`buildHandoff` 分面 overloads）；Test: session/__tests__/handoff-schema.test.ts、session/__tests__/ledger.test.ts
 - **Consumes**: 既有 `HandoffSchemaFace`/`BY_FACE`/`CARRIER_WORK`/`CARRIER_FINDINGS`（handoff-schema.ts 数据面）· `RoundStatus`/`RoundFinding`（ledger.ts 已有导出）
-- **Produces**: `interface WorkCarrier { status?: "APPROVED"|"BLOCKED"; failure_category?: string; artifacts?: Record<string,string>; commits?: { base: string; head?: string }; changes?: { file: string; reason?: string }[]; notes?: string[] }` · `interface FindingsCarrier { findings: { severity: "blocker"|"warn"|"nit"; lens: string; section?: string; line?: number; summary: string; fix?: string }[]; artifacts?: Record<string,string>; commits?: { base: string; head?: string }; notes?: string[] }` · `ledger.buildHandoff(face: "work", init: { artifacts?: Record<string,string>; commits?: { base: string; head?: string } }): WorkCarrier` 与 `buildHandoff(face: "findings", init: { findings: unknown[]; artifacts?; commits? }): FindingsCarrier` overloads（实现返回两型之一 · 均额外承载 status 由调用方 set）——**overload 即类型级把门**：调用方写 `buildHandoff("work", {findings})` → tsc 拒
+- **Produces**: `WorkCarrier`/`FindingsCarrier` **由声明派生**（spec §2.1 · 零手写平行字段表——`type CarrierValue = { status: "APPROVED"|"BLOCKED"; failure_category: string; artifacts: Record<string,string>; commits: { base: string; head?: string }; changes: { file: string; reason?: string }[]; notes: string[]; findings: { severity: "blocker"|"warn"|"nit"; lens: string; section?: string; line?: number; summary: string; fix?: string }[] }` 键 → 值型映射表）· `type CarrierOf<F extends HandoffSchemaFace> = { [K in keyof BY_FACE[F]["properties"]]: CarrierValue[K] }`——mapped type 自 `BY_FACE[face].properties` 键集推导 · 声明改 → 载体类型随动 by construction · `WorkCarrier = CarrierOf<"work">`/`FindingsCarrier = CarrierOf<"findings">` · `ledger.buildHandoff(face: "work", init: { artifacts?: Record<string,string>; commits?: { base: string; head?: string } }): CarrierOf<"work">` 与 `buildHandoff(face: "findings", init: { findings: unknown[]; artifacts?; commits? }): CarrierOf<"findings">` overloads（实现返回两型之一 · 均额外承载 status 由调用方 set）——**overload 即类型级把门**：调用方写 `buildHandoff("work", {findings})` → tsc 拒
 - **Steps**:
-  - 写「分面键集 == 声明 properties 键集」colocated pin（handoff-schema.test）：`Object.keys(buildHandoff("work", …))` 与 `faceSchema("work").properties` 键集按平键相等 · `work` 载体 `findings` 键保零命中 · `findings` 载体含 `findings` 键 —— checkable: 该新 pin FAIL（TDD 先红）
+  - 写「分面键集 == 声明 properties 键集」colocated pin（handoff-schema.test · **兜底断言**——类型派生是主闸 · 运行期键集相等仅兜底）：`Object.keys(buildHandoff("work", …))` 与 `faceSchema("work").properties` 键集按平键相等 · `work` 载体 `findings` 键保零命中 · `findings` 载体含 `findings` 键 —— checkable: 该新 pin FAIL（TDD 先红）
   - 写类型级把门 pin：TS 测试中 `buildHandoff("work", { findings: [] })` 编译期拒 —— checkable: tsc 类型（tsc 类型断言负用例）FAIL（编译错）
   - 跑引擎 vitest 确认红 —— checkable: 相关 file 用例 FAIL
-  - 在 handoff-schema.ts 声明 `WorkCarrier`/`FindingsCarrier` · `ledger.buildHandoff` 改两 overloads（work 分支构造零 `findings` 键 · findings 分支必含 `findings`）· 现两调用方（cli.ts:590 · run.ts:500）暂传 `"work"` 面保持编译绿（T2 再全面化）· 本任务内最小调用方迁移 —— checkable: tsc 通过 · 新 pins 全绿
+  - 在 handoff-schema.ts 以 `CarrierOf<F>` mapped type 声明 `WorkCarrier`/`FindingsCarrier`（由声明派生 · 键→值型映射表 `CarrierValue` 单处）· `ledger.buildHandoff` 改两 overloads（work 分支构造零 `findings` 键 · findings 分支必含 `findings`）· 现两调用方（cli.ts:590 · run.ts:500）暂传 `"work"` 面保持编译绿（T2 再全面化）· 本任务内最小调用方迁移 —— checkable: tsc 通过 · 新 pins 全绿
   - 维护既有 handoff-schema/ledger 语义测试（violations 面不动）全绿 —— checkable: 引擎 vitest 全绿（含既有用例）
   - COMMIT —— checkable: git commit 落 · precommit 过
-- **Acceptance**: `buildHandoff("work", …)` 返回类型无 `findings` 键（编译期 + 运行期键集双 pin）· work 载体平键与声明 properties 一致 · findings 载体 required findings · 调用方迁移到两处 · 引擎 vitest 全绿
+- **Acceptance**: 载体类型由声明派生（mapped type 自 `BY_FACE[face].properties` 键集 · 声明改 → 类型随动 by construction）· `buildHandoff("work", …)` 返回类型无 `findings` 键（编译期类型主闸 + 运行期键集兜底断言）· work 载体平键与声明 properties 一致 · findings 载体 required findings · 调用方迁移到两处 · 引擎 vitest 全绿
 - **DependsOn**: none
 
 ### Task 2: face 感知读写（#reconstruct/#materialize/#bookkeep）
@@ -61,9 +61,9 @@
 - **Objective**: `GuardLibrary#checkHandoffPlane()`——声明 face 属性集互斥闭合 + 提示面-声明面单源一致性 · 入 `pnpm run validate` 与 precommit（scripts/validate.ts steps 增 CheckBlock）
 - **Files**: Modify: scripts/lib/guard.ts（新审计方法，checkChannels :672 同族）；Modify: scripts/validate.ts steps（新 CheckBlock 于 channel audit 之后）；Test: scripts/__tests__/guard 相关、session/__tests__/handoff-schema.test.ts（投影一致性 pin）
 - **Consumes**: T1 `BY_FACE`/`faceSchema`/`schemaText` 数据面 · scripts validate steps 数据结构（:270-305 · `precommitSteps = steps.filter(step !== engineSuiteStep)`）
-- **Produces**: `checkHandoffPlane(): GuardFinding[]`——① work/findings 声明 `properties` 键集**互斥**（交集空）且各自 ⊆ 引擎写入面（materialize/carrier 构造写入键）② 提示面-声明面单源：`schemaText(face, …)` 生成的 fence JSON 字节解析后 == `BY_FACE[face]` 声明节点（prompt 不能展示引擎不执法的 schema——既有一手发动机不变式机器化）· validate step `name: "engine handoff plane audit"` 于 channel audit 之后
+- **Produces**: `checkHandoffPlane(): GuardFinding[]`——① work/findings 声明 `properties` 键集**互斥**（交集空）· **引擎写入面（materialize/carrier 构造写入键）⊆ 对应 face 声明 `properties`**（未声明写入 → checkHandoffPlane FAIL · 与 spec §3.1「写入面交集 ⊆ 声明面」方向一致）② 提示面-声明面单源：`schemaText(face, …)` 生成的 fence JSON 字节解析后 == `BY_FACE[face]` 声明节点（prompt 不能展示引擎不执法的 schema——既有一手发动机不变式机器化）· validate step `name: "engine handoff plane audit"` 于 channel audit 之后
 - **Steps**:
-  - 写 guard 单测（构造「声明互斥破坏」的假声明 → finding；「投影不一致」的假 schemaText → finding）—— checkable: 该测试 FAIL（方法未实现）
+  - 写 guard 单测（构造「声明互斥破坏」假声明 → finding · 「写入面越界」（写入未声明键）假写入面 → finding · 「投影不一致」的假 schemaText → finding）—— checkable: 该测试 FAIL（方法未实现）
   - 写投影一致性 pin（handoff-schema.test：`JSON.parse` 掉 `schemaText("work",…)` fence 的 carrier json == 声明节点）—— checkable: FAIL
   - 实现 `checkHandoffPlane()`（读 `BY_FACE` · `faceSchema` · `schemaText` · 逐族断言 · GuardFinding 形式化）· validate.ts 增 CheckBlock —— checkable: 新 guard 单测 + 投影 pin 绿
   - 现 docs 面零误报核验 —— checkable: checkHandoffPlane 对当前树零 finding
@@ -101,7 +101,7 @@
   - 跑引擎 vitest 全绿（含 render 既有字节 pins 零动）—— checkable: 引擎 vitest 全绿
   - COMMIT —— checkable: git commit 落 · precommit 过
 - **Acceptance**: 两壳逐壳白名单 + 护栏句 · 零负向散文 · 字节 pin 在册（键集单源断言）· 引擎 vitest 全绿
-- **DependsOn**: 4
+- **DependsOn**: 1, 4
 
 ### Task 6: 复现探针（首轮消解 + 物化零 findings）
 - **Objective**: 确定性探针 + phase 级观测探针——work draft 带 findings 的首轮 BLOCK 摩擦归零或显著降（探针阈值 **3 轮首次 BLOCK 0/3** · spec §5.1 v0.2）· 物化终态载体零 findings 双层 pin
@@ -125,7 +125,7 @@
 - **Steps**:
   - 写「表源」pin：`VALUE_SHAPES` 键集 == `ChannelValueType ∩ {enum,int-list,sha,int}` —— checkable: FAIL（表未落）
   - 写「手写复刻销毁」grep pin：projection.ts `#parseEnum`/`#parseInts`/`#parseSha8`/`#parseInt` 零命中（通用执行器保留）—— checkable: FAIL（现方法存在）
-  - declare.ts 增 `VALUE_SHAPES`（每型 parse 规则 · 零行为裸函数——数据规则 + 单执行器类化）· projection `#parseArgOf` 改 `VALUE_SHAPES[row.type]?.parse`（enum 传 row.values）· `#parseTypeKey` 保持 SCHEMA_TYPE_KEYS 派生（不动）—— checkable: 新 pins 绿
+  - declare.ts 增 `VALUE_SHAPES`（每型 parse 规则 · 零行为裸函数——数据规则 + 单执行器类化）· projection `#parseArgOf` 改 `VALUE_SHAPES[row.type]?.parse`（enum 传 row.values）· `#parseTypeKey` 保持 SCHEMA_TYPE_KEYS 派生（不动）—— checkable: 新 pins 绿 · **处置显式化**：`#parseTypeKey`/`SCHEMA_TYPE_KEYS` 保留（SCHEMA_TYPE_KEYS 为 schema gen/get `<type>` doc-key 词汇 · 与 ChannelValueType 值形状表正交 · 并入 VALUE_SHAPES 不适配 · 分叉记 Change history v0.2）
   - 销毁面：`#parseEnum`/`#parseInts`/`#parseSha8`/`#parseInt` 方法删除 · 死 glue 随 T9 收 —— checkable: grep pin 绿 · 现有 projection/cli 值域 pins 零重锚绿
   - 跑引擎 vitest 全绿（既有值域 pins 零重锚 · 错误字节不变）+ smoke-cdd —— checkable: 引擎 vitest 全绿 · smoke-cdd 绿
   - COMMIT —— checkable: git commit 落 · precommit 过
@@ -151,13 +151,13 @@
 - **Objective**: T7/T8 暴露的 retired glue/判别器死代码逐项清理（spec §6.3 预列清单 + 发现即清理）· grep 零残留 pin 入验收
 - **Files**: Modify: 由 T7/T8 暴露的 files（face/projection.ts · face/lifecycle.ts/cli.ts）· destroy-list 记录（Change history 尾）；Test: face/__tests__/cli.test.ts、face/__tests__/projection.test.ts（grep pin）
 - **Consumes**: T7 销毁面（parseArg 手写单体）· T8 拆分暴露面（old glue）
-- **Produces**: 销毁清单（预列：`#parseEnum`/`#parseInts`/`#parseSha8`/`#parseInt` 手写单体 · T7 已删 · 拆分时识别出的 retired 判别器/投影残面）应用 · 每个识别名 grep 零残留 pin
+- **Produces**: 销毁清单（预列：`#parseEnum`/`#parseInts`/`#parseSha8`/`#parseInt` 手写单体 · T7 已删 · 拆分时识别出的 retired 判别器/投影残面）应用 · **spec §6.3 对表逐项核销**（预列销毁面以识别名对照：`#parseTypeKey`/`SCHEMA_TYPE_KEYS` 按 T7 处置**保留**不入销毁清单 · 清单之外 spec §6.3 项逐项核销或记录保留理由 · 两类清单对表口径见 Acceptance）· 每个识别名 grep 零残留 pin
 - **Steps**:
-  - 对照预列销毁清单逐项核销（含 T7 已销毁的 parseArg 单体）· 拆分识别的新残面（如 gate/lifecycle 移交后孤儿 helper）列入「发现即清理」清单并移除 —— checkable: 清单逐项已销
+  - 对照预列销毁清单逐项核销（含 T7 已销毁的 parseArg 单体）· 逐项对 spec §6.3 预列销毁面（`#parseTypeKey`/`SCHEMA_TYPE_KEYS` 保留项按 T7 处置记录、不入本清单）· 拆分识别的新残面（如 gate/lifecycle 移交后孤儿 helper）列入「发现即清理」清单并移除 —— checkable: 清单逐项已销 · 两类清单对表在册
   - 每识别名 grep 零命中 pin（单测内 `grep` 断言或 cli.test 顶层）—— checkable: FAIL → 绿
   - 跑引擎 vitest 全绿 + `node scripts/run.ts precommit` —— checkable: 引擎 vitest 全绿 · precommit 过
   - COMMIT —— checkable: git commit 落 · precommit 过
-- **Acceptance**: 预列 + 发现清单逐项零残留（grep pins）· 引擎 vitest + precommit 全绿
+- **Acceptance**: 预列 + 发现清单逐项零残留（grep pins）· spec §6.3 预列销毁面以识别名逐项对表（`#parseTypeKey`/`SCHEMA_TYPE_KEYS` 保留项以保留理由记录在册 · 其余销毁项 zero residual）· 引擎 vitest + precommit 全绿
 - **DependsOn**: 7, 8
 
 ### Task 10: 变更集 minor 归并 + EOF
@@ -177,4 +177,5 @@
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.2 | 2026-10-12 | P4 计划 v0.2——plan review round 1 fix（plan-review-1 · 5/5 受理）：① T3 机器判子集方向修正（引擎写入面 ⊆ 对应 face 声明 properties · 未声明写入 → FAIL · 与 spec §3.1 一致）；② T1 载体类型改由声明派生（mapped type 自 BY_FACE[face].properties 键集 · 兜底断言降级 · 零手写平行字段表）；③ T7/T9 spec §6.3 对表：`#parseTypeKey`/`SCHEMA_TYPE_KEYS` 处置显式记录（保留 · doc-key 词汇与 ChannelValueType 值形状表正交 · 不入销毁清单）；④ T5 DependsOn 补 1；⑤ T1 handoffOf ↔ buildHandoff overloads 命名映射注 | Oscar M. · Claude Opus 5（kairos:cdd-plan docs-fix · plan-review-1 · 2026-10-12） |
 | v0.1 | 2026-10-12 | P4 计划 v0.1——引擎 handoff 平面卫生 + commander 引入面收敛实现计划（T1–T10 · 五波依赖序 W1={T1,T4,T7} → W2={T2,T3,T5} → W3={T6,T8} → W4={T9} → W5={T10}）：分型类型族 · face 感知读写 · guard 平面审计 + 声称→pin lint · 逐壳白名单 · 复现探针（3 轮首 BLOCK 0/3）· VALUE_SHAPES 值域派生 · cli.ts 拆分三面 · 死接线清理 · 变更集 minor 不发布 | Oscar M. · Claude Opus 5（kairos:cdd-plan · spec v0.2 批准 · 2026-10-12） |

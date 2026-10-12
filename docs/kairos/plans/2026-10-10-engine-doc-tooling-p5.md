@@ -1,7 +1,7 @@
 # P5 整引擎 + repo CI 验证脚本重整
 **Spec:** [2026-10-10-engine-doc-tooling-p5-design.md](docs/kairos/specs/2026-10-10-engine-doc-tooling-p5-design.md)
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.4 · 2026-10-13
+- **Version**: v0.5 · 2026-10-13
 
 ## Constraints
 
@@ -185,7 +185,7 @@
 - **DependsOn**: 4
 
 ### Task 10: 测试面零裸函数全量迁移 + 零命中 pin 门禁
-- **Objective**: 引擎 15 个 test 文件 53 枚模块级裸函数 + scripts 测试辅助 2 枚全量收纳（test 辅助收为 describe/it 作用域局部函数或 `const` 箭头形态 · 随面销毁文件的裸函数随删）· 零裸函数全局 pin 门禁（grep `^(export )?(async )?function ` 跨引擎 + scripts + kairos tests 测试面零命中）入 CI + 局部 commit
+- **Objective**: 引擎 15 个 test 文件 53 枚模块级裸函数 + scripts 测试辅助 2 枚全量收纳（test 辅助收为 describe/it 作用域局部函数或 `const` 箭头形态 · 随面销毁文件的裸函数随删）· 零裸函数全局 pin 门禁（grep `^(export )?(async )?function ` 跨引擎 + scripts 测试面零命中——kairos tests 迁移面仅 ci-validate 一文件 · 随 T5 删 · 不入门禁 scope）入 CI + 局部 commit
 - **Files**:
   - Modify: `packages/cdd-engine/src-next/**/__tests__/*.test.ts`（15 文件 · 53 枚裸函数迁移）· `scripts/__tests__/**`（helpers/anatomy-fixture 等 2 枚）
   - Modify: `.github/workflows/pr-validate.yml`（零裸函数 grep pin job）· `package.json` precommit 序列（grep pin）或 guard 结构性 pin 承接
@@ -195,10 +195,10 @@
   - 枚举现测试面裸函数（engine 15 文件 53 枚 · scripts 辅助 2 枚）：`face/__tests__/cli.test.ts:81/130/148/160/197/206/255/329` 等逐位址迁移 — checkable: 全量枚举清单落盘（55 枚）
   - 迁移形态：收进 describe/it 作用域局部函数 · 或 `const` 箭头 · 或类 static——**禁止保留模块级 `function`/`export function`**；随面摧毁的文件（T5/T7 删除面）裸函数随删 — checkable: 逐位址迁移 git diff 在册
   - 重跑引擎 suite + scripts unit + kairos suite — checkable: 全绿（迁移零行为差）
-  - 落门禁：pr-validate.yml 加 grep pin job（`grep -rnE '^(export )?(async )?function ' packages/cdd-engine/src-next scripts packages/kairos/tests --include='*.ts'` 零命中——async 形态入正则 · 拦截 run.ts main / ci-validate capture 类回潮）· precommit 序列含同 pin — checkable: pr-validate.yml 含 grep pin job 且 precommit 含同 pin
-  - 全库 grep 验证零命中 — checkable: `^(export )?(async )?function ` 跨三面零命中
+  - 落门禁：pr-validate.yml 加 grep pin job（`grep -rnE '^(export )?(async )?function ' packages/cdd-engine/src-next scripts --include='*.ts'` 零命中——async 形态入正则 · 拦截 run.ts main 类回潮 · scope = engine + scripts 两面）· precommit 序列含同 pin — checkable: pr-validate.yml 含 grep pin job 且 precommit 含同 pin
+  - 全库 grep 验证零命中 — checkable: `^(export )?(async )?function ` 跨 engine + scripts 两面零命中
   - 提交（`refactor: 测试面零裸函数全量迁移 · 零命中 pin 门禁`） — checkable: git log 单原子
-- **Acceptance**: engine + scripts + kairos tests 全部 `.ts` 模块级 `^(export )?(async )?function ` 零命中 · 五 suite 全绿（引擎 513+ 项保持）· 门禁 pin（CI + precommit）在册 · 零行为差
+- **Acceptance**: engine + scripts 全部 `.ts` 模块级 `^(export )?(async )?function ` 零命中（kairos tests 迁移面 = ci-validate 随 T5 删 · 不入 scope）· 五 suite 全绿（引擎 513+ 项保持）· 门禁 pin（CI + precommit）在册 · 零行为差
 - **DependsOn**: 5, 6, 7, 9
 
 ### Task 11: kairos 消费面同步（字节更替随 skill 文本 · D20 文本精简 · 行为树全绿作证）
@@ -210,7 +210,7 @@
 - **Steps**:
   - grep kairos skills 全树：`schema gen` · `smoke-cdd` · `run.ts validate` 等命令面引用位址清单 — checkable: 引用位址清单落盘
   - cdd-spec-writer author-spec：`schema gen phase-spec > <target>` 字面 → `schema get phase-spec --output skeleton <target>`（target=目标 doc · 就地生成 · 零中间文件）——其余位址按命令面更替同步 — checkable: kairos skills 全树旧字面零残留
-  - **D20①**：四 skill NEXT-LOOP 节点 + Review Convergence 不变体（spec-writer **I1** · plan **I1** · dev **I3** · design **I2**）文本精简——删去 `next:` 具体字面复述段（cdd-spec-writer/plan L54/L58 `fix --type` + `done` · cdd-dev L53 `fix --type wave…` + `implement --plan…` + `done`（三字面最重）· cdd-design L97 `done`（L96 为 `### NEXT-LOOP` 头 + 空行 · `done` → `handoff-next` 在 L97 Do 节点））· 保留 review 派发行（`Dispatch the review round on the current ref`）· 保留规则句（`read the output's next: line and dispatch it as written` · 无 kind→command 映射层 · adjudication 覆盖当前世界态）· 示例枚举父段（`implement --plan`/`review --type`/`fix --type`/done 清单）从不变体删除 — checkable: 四 SKILL.md NEXT-LOOP/不变体节点零 next: 字面复述（grep 四文件 `re-enters the fix pass` / `dispatches the next ready wave` 零命中 · 不变体内 `implement --plan` 零命中 · review 派发行 + 规则句在册）
+  - **D20①**：四 skill NEXT-LOOP 节点 + Review Convergence 不变体（spec-writer **I1** · plan **I1** · dev **I3** · design **I2**）文本精简——删去 `next:` 具体字面复述段（cdd-spec-writer/plan L54/L58 `fix --type` + `done` · cdd-dev L53 `fix --type wave…` + `implement --plan…` + `done`（三字面最重）· cdd-design L97 `done`（L95 为 `### NEXT-LOOP` 头 + 空行 · `done` → `handoff-next` 在 L97 Do 节点））· 保留 review 派发行（`Dispatch the review round on the current ref`）· 保留规则句（`read the output's next: line and dispatch it as written` · 无 kind→command 映射层 · adjudication 覆盖当前世界态）· 示例枚举父段（`implement --plan`/`review --type`/`fix --type`/done 清单）从不变体删除 — checkable: 四 SKILL.md NEXT-LOOP/不变体节点零 next: 字面复述（grep 四文件 `re-enters the fix pass` / `dispatches the next ready wave` 零命中 · 不变体内 `implement --plan` 零命中 · review 派发行 + 规则句在册）
   - **D20②**：fix 父句 `(read file back to confirm)` → `(confirm the findings · backfill user adjudications into the carrier)`——四 skill 全量 7 处同句（spec-writer 2 · plan 2 · dev 2 · design 1）· 同步位 = 四 skill NEXT-LOOP 现句 + 各 Review Convergence 不变体句（spec-writer I1 · plan I1 · dev I3 · design I2）· 读回 findings 确认 + 评审有裁定则回填进 findings carrier · **cdd-close/cdd-report 零动（无 NEXT-LOOP）** — checkable: `cdd-{spec-writer,design,plan,dev}/SKILL.md` 四文件 `(read file back to confirm)` 零残留 · `(confirm the findings · backfill user adjudications into the carrier)` 在册（NEXT-LOOP 三 hit = spec-writer + plan + dev · 不变体四 hit = spec-writer I1 + plan I1 + dev I3 + design I2）
   - presentation-surface / grep-sweep pins 翻新（skill 文本断言面随更替重锚） — checkable: 翻新 pins 在册且断言非空
   - 跑 `node --test packages/kairos/tests/*.test.ts` — checkable: 全绿（行为树 87 项保持 · 含翻新 pins）
@@ -242,7 +242,7 @@
 - **Consumes**: specs §8.2 · T1–T12 产出的全部 pins/门
 - **Produces**: 验收证据面在册（逐项 command + exit code + 结果自报）· 供变更集归并前置核
 - **Steps**:
-  - 逐项核验八面：`pnpm -C packages/cdd-engine test` · `pnpm -C packages/kairos test` · 全局零裸函数 grep（跨 engine+scripts+kairos tests）· 根 scripts 零验证逻辑 grep（guard/validate 残面）· CI 原生 job 序列（等价本地跑）· deliberate pins（schema/smoke/Cli.create 锚）· 引擎 smoke 新入口 · emit-check 前后全等 · EOF 全库 grep — checkable: 八面各自 command + exit 0 + 结果在册
+  - 逐项核验八面：`pnpm -C packages/cdd-engine test` · `pnpm -C packages/kairos test` · 全局零裸函数 grep（跨 engine+scripts · scope 同 T10 门禁）· 根 scripts 零验证逻辑 grep（guard/validate 残面）· CI 原生 job 序列（等价本地跑）· deliberate pins（schema/smoke/Cli.create 锚）· 引擎 smoke 新入口 · emit-check 前后全等 · EOF 全库 grep — checkable: 八面各自 command + exit 0 + 结果在册
   - 任何缺口 → 归域/env 修复并重核（不允许带缺口进入变更集） — checkable: 修复后八面重核全绿
   - 记录证据到 rounds 报告（无代码提交——除非修复缺口） — checkable: 报告在册
   - 无变更（缺口为零）时表明验收 pass；有缺口修复则按归域原子 commit — checkable: git log 单原子（若有修复）
@@ -272,3 +272,4 @@
 | v0.2 | 2026-10-13 | P5 计划 v0.2——**D20 消费面精简 backfill（用户 in-flight · 2026-10-13 · spec v0.4）**：T11 扩 D20 ①②——① 三编排器 skill（cdd-spec-writer · cdd-design · cdd-plan）NEXT-LOOP **零 `next:` 具体字面复述**（只遵循 review 输出携带字面派发）· **I1 Review Convergence 同简** ② fix 父句 `(read file back to confirm)` → `(confirm the findings · backfill user adjudications into the carrier)`（读回确认 + 裁定回填 findings carrier）· T14 kairos patch 叙事 +D20 | Oscar M. · Claude Opus 5（kairos:cdd-plan [P5] 会话 · 2026-10-13） |
 | v0.3 | 2026-10-13 | P5 计划 v0.3——**D20 scope 校正确认（用户追问「cdd-dev 面为什么不动」→ 原「三编排器」收敛范围误判 · spec v0.5）**：D20 面扩至**四 skill（cdd-spec-writer · cdd-plan · cdd-dev · cdd-design）**——cdd-dev L53 `fix --type wave…`+`implement --plan…`+`done` 三字面全复述为最重面 · Review Convergence 不变体同简按 skill（spec-writer I1 · plan I1 · dev **I3** · design **I2**）· fix 父句全量 **7 处**（dev L53/L85 在面内）· cdd-close/cdd-report 无 NEXT-LOOP 零动 · AC pin 扩四文件 | Oscar M. · Claude Opus 5（kairos:cdd-plan [P5] 会话 · 用户 scope 追问 · 2026-10-13） |
 | v0.4 | 2026-10-13 | **P5 计划 v0.4——plan-review-1 修复轮（8 warn + 2 nit · 全数落地 · 零残 · spec v0.6）**：T4（runSchemaGen/artifacts·projection 断言并入 Files · `--output` 默认 json pin · smoke 锚复核 = 无锚可同步）· T6（计数 37→38 总 = 收类 17 + 迁/撤 21 · 新建 scan.test.ts 承接 scanToken 覆盖 · 统一正则含 async）· T7（smoke.test.ts 随删面 · engine package.json `smoke` script 产出 pinn · dry-run 链 = implement+review 二命令 + `--help` face）· T10 gate 统一 `^(export )?(async )?function ` · T11（cdd-design NEXT-LOOP Do `done` 行 pin L96→L97）· T12（`.version-bump` = 版本同步审计配置 · 消费非产出 · 不入生成面）· 约束行 async 形态纳入 | 引擎 plan-fix 轮 · Oscar M. · Claude Opus 5（kairos:cdd-plan [P5] 会话 · 2026-10-13） |
+| v0.5 | 2026-10-13 | **P5 计划 v0.5——plan-review-2 修复轮（1 warn + 1 nit · 全数落地 · 零残）**：T10 零裸函数门禁 scope 收敛 engine + scripts 两面（kairos tests 迁移面 = ci-validate 随 T5 删 · 与约束行 8/§4.3 测试面枚举一致 · 步 4/5 + AC 措辞同步 · T13 证据 grep 随同步）· T11 cdd-design NEXT-LOOP 头行 pin 差 1 修正（L96 → L95 · 现场核对 cdd-design SKILL.md L95 头 + L97 Do） | 引擎 plan-fix 轮 · Oscar M. · Claude Opus 5（kairos:cdd-plan [P5] 会话 · 2026-10-13） |

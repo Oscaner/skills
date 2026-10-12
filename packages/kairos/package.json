@@ -19,6 +19,9 @@
   "homepage": "https://github.com/Oscaner/skills",
   "license": "MIT",
   "bin": {},
+  "scripts": {
+    "test": "node --test tests/*.test.ts"
+  },
   "pi": {
     "skills": [
       "./skills"

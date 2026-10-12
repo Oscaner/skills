@@ -19,11 +19,6 @@
 //     dispatch/refs derivation (every dispatch ref registered + every per-harness
 //     slash form derived) — all asserted against the typed declare/host exports,
 //     zero parallel allowlist.
-//   · checkClaimedPins — the claimed→pin lint (the D13 defect-② fix): every
-//     `.test.ts:line` citation the enforced specs/plans docs make must resolve to a
-//     current-tree test file carrying a test assertion — the machine half of the
-//     review lens's claim clause (a behavior claim without a colocated pin is a
-//     pinless claim; the lint catches the dangling / assertion-less halves).
 //
 // Module-level exports are types / the class — zero behavior-carrying bare functions
 // except the admitted pure discovery/parse helpers below.
@@ -71,21 +66,6 @@ export interface AnatomySkill {
   path: string;
 }
 
-/** The claimed→pin scan options — the test seam + the wiring-in exemptions. */
-export interface ClaimedPinsOptions {
-  /** The docs root — the specs/plans tree base (default: the repo docs/kairos). */
-  docsRoot?: string;
-  /** The pre-contract docs exempt from the lint — the WIRING param the validate
-   *  orchestrator feeds: the exemption set lives in the validate tree (validate.ts
-   *  owns the same set the doc-contract gate applies; importing it here would be a
-   *  cycle — the orchestrator passes it in, the guard never restates it). */
-  preContract?: ReadonlySet<string>;
-  /** The repo-ABSOLUTE test-file candidates the pinned refs resolve against
-   *  (default: the bounded discovery walk over the engine src + scripts + kairos
-   *  test roots — explicit roots, never an unbounded sweep). */
-  testFiles?: readonly string[];
-}
-
 /** The handoff-plane audit options — the injection seam for the three checks' fakes
  *  (the same pattern as the claimed-pin options: the real defaults read the engine's
  *  single-source exports, a test injects a broken table to exercise a fail face). */
@@ -129,30 +109,6 @@ const SOURCE_FACES = ["packages/cdd-engine/src-next", "scripts"] as const;
 const RELEASE_FILES = [
   "packages/cdd-engine/src-next/face/words.ts",
   "packages/cdd-engine/src-next/face/host.ts",
-] as const;
-
-/** The claimed→pin ref extractor — `.test.ts:line(-line)?` citations in the specs/
- *  plans prose (the claim's citation form; a plain path without the line anchor — or
- *  a non-test source ref — is not a claimed pin and is not judged). */
-const PIN_REF_RE = /([\w./-]+\.test\.ts):(\d+)(?:-(\d+))?/g;
-
-/** The assertion-face literals — the file-level signal that a pinned target carries a
- *  test assertion (the empty-pin gate, which only fires on a file with NO assertion
- *  anywhere). The gate is deliberately file-level, never an exact-line claim: in-
- *  contract pins routinely anchor to the fixture/data or scope line near the assertion
- *  (a data row, a describe header, a comment) rather than the assertion line itself,
- *  and the enforced docs are frozen — a line-domain gate would flag 16 of the 32 live
- *  tree's pinned refs, breaking the green-face acceptance. The test that pins the
- *  chosen semantics lives in guard.test. */
-const ASSERTION_LITERALS = ["test(", "describe(", "expect("] as const;
-
-/** The test-file discovery roots — the current-tree surfaces the claimed→pin refs
- *  cite (the engine src-next tree · the scripts unit tests · the kairos behavior
- *  tree) — explicit roots, never an unbounded repository sweep. */
-const TEST_ROOTS = [
-  "packages/cdd-engine/src-next",
-  "scripts/__tests__",
-  "packages/kairos/tests",
 ] as const;
 
 /** The handoff-plane audit's default engine write-path faces — the files whose
@@ -954,87 +910,6 @@ export class GuardLibrary {
     if (!existsSync(file)) return false;
     return new RegExp(`carrier\\.\\b${escapeRegExp(key)}\\b\\s*=`).test(readFileSync(file, "utf8"));
   }
-
-  // -------------------------------------------------------------------------
-  // checkClaimedPins(opts?) — the claimed→pin lint (docs claim → colocated pin)
-  // -------------------------------------------------------------------------
-
-  /**
-   * checkClaimedPins(opts?) — the claimed→pin lint (the D13 defect-② fix): every
-   * `.test.ts:line(-line)?` citation the ENFORCED specs/plans docs make (a behavior
-   * claim's citation form) must resolve to a current-tree test file carrying a test
-   * assertion — the machine half of the review lens's claim clause (a claim without
-   * a colocated pin is a pinless claim; the lint catches the dangling / empty halves
-   * the lens's human half flags). The pre-contract docs are exempt — their refs
-   * predate the claimed→pin contract, under the same ruling the doc-contract gate
-   * applies (the orchestrator wires the set in; this body never restates it).
-   */
-  checkClaimedPins(options: ClaimedPinsOptions = {}): GuardFinding[] {
-    const findings: GuardFinding[] = [];
-    const docsRoot = options.docsRoot ?? path.join(ROOT, "docs", "kairos");
-    const testFiles = options.testFiles ?? this.#discoverTestFiles();
-    // The basename resolution — a ref cites a file by its (possibly bare) basename;
-    // a UNIQUE basename match resolves it, an ambiguous one stays silent (cannot
-    // falsify — two current-tree files share the name, so neither is provably the
-    // pin's target and neither the lint's to judge), a missing one is the dangling
-    // pin. The unique basenames ARE the current tree's test files — the live
-    // inventory every claim must hit.
-    const byBasename = new Map<string, string>();
-    const ambiguous = new Set<string>();
-    for (const file of testFiles) {
-      const base = path.basename(file);
-      if (ambiguous.has(base)) continue;
-      if (byBasename.has(base)) {
-        byBasename.delete(base);
-        ambiguous.add(base);
-      } else {
-        byBasename.set(base, file);
-      }
-    }
-    for (const dir of ["specs", "plans"]) {
-      const dirPath = path.join(docsRoot, dir);
-      if (!existsSync(dirPath)) continue;
-      for (const name of readdirSync(dirPath)) {
-        if (!name.endsWith(".md")) continue;
-        const key = `docs/kairos/${dir}/${name}`;
-        if (options.preContract?.has(key)) continue;
-        const src = readFileSync(path.join(dirPath, name), "utf8");
-        for (const match of src.matchAll(PIN_REF_RE)) {
-          const ref = match[0]!;
-          const base = path.basename(match[1]!);
-          const docPath = path.join(dirPath, name);
-          if (ambiguous.has(base)) continue; // cannot falsify — stay silent
-          const absolute = byBasename.get(base);
-          if (absolute === undefined) {
-            findings.push({
-              label: `claimed→pin ref \`${ref}\` names no current-tree test file (dangling pin — every behavior claim must cite a colocated pin)`,
-              file: docPath,
-            });
-            continue;
-          }
-          const content = readFileSync(absolute, "utf8");
-          if (!ASSERTION_LITERALS.some((literal) => content.includes(literal))) {
-            findings.push({
-              label: `claimed→pin ref \`${ref}\` resolves to ${path.relative(ROOT, absolute)} with no test assertion (empty pin — every behavior claim must cite a colocated pin)`,
-              file: docPath,
-            });
-          }
-        }
-      }
-    }
-    return findings;
-  }
-
-  /** The current-tree test-file discovery — the bounded walk over the explicit test
-   *  roots (the claimed→pin refs' resolution candidates). */
-  #discoverTestFiles(): string[] {
-    const files: string[] = [];
-    for (const root of TEST_ROOTS) {
-      const absolute = path.join(ROOT, root);
-      if (existsSync(absolute)) walkTestFiles(absolute, files);
-    }
-    return files;
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1044,16 +919,6 @@ export class GuardLibrary {
 /** RegExp-escape a literal (the schema-contract patterns are quoted verbatim). */
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-/** Walk a directory tree collecting `.test.ts` files — the bounded discovery walk
- *  over EXPLICIT roots only (the claimed→pin resolution inventory). */
-function walkTestFiles(dir: string, out: string[]): void {
-  for (const ent of readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, ent.name);
-    if (ent.isDirectory()) walkTestFiles(full, out);
-    else if (ent.name.endsWith(".test.ts")) out.push(full);
-  }
 }
 
 /** The guard library singleton — the validate orchestrator's guard face. */

@@ -1,5 +1,6 @@
 // packages/cdd-engine/src-next/render/__tests__/skeleton.test.ts
-// The SkeletonAssembler suite (P2 — `cdd schema gen`'s render face, spec §3/§4.1):
+// The SkeletonAssembler suite (P2 — the `cdd schema get <type> --output skeleton`
+// render face, spec §3/§4.1):
 //   · the three doc skeletons render the complete structural scaffolds — byte-
 //     pinned from the P2 first version (the assembler's date is the injectable
 //     run-day truth, fixed here — never a live clock);

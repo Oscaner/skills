@@ -14,9 +14,10 @@
 //     the capsule and the ledger in a hermetic temp repo, advance the requested phase
 //     and land the canonical artifacts (brief / handoffs / progress); the phase gate
 //     refuses an unreachable round without dispatching a phantom;
-//   · the pure-command E2E — schema get (the shared schema-type vocabulary — the
-//     primary doc-key spellings + the plan-graph display route), schema gen (the
-//     derived doc skeleton — the same one-table-two-faces vocabulary with the
+//   · the pure-command E2E — schema get (the merged D19 single leaf: the shared
+//     schema-type vocabulary — the primary doc-key spellings + the plan-graph
+//     display route — under the default --output json; the --output skeleton face
+//     rendering the derived doc skeleton DIRECTLY into the target document, the
 //     legacy phaseSpec alias normalized to the kebab key, §5.3), issue render
 //     (stdin body — the subcommand face; the
 //     renderer's own suite lives in render/__tests__/render.test.ts, its T19
@@ -387,11 +388,13 @@ describe("the command face — the six steady subcommand words", () => {
     }
   });
 
-  it("declares the nested leaf surfaces — base set|get · schema get|gen · issue render", () => {
+  it("declares the nested leaf surfaces — base set|get · schema get · issue render", () => {
     const leavesOf = (verb: string) =>
       CLI_COMMANDS.find((c) => c.name === verb)!.leaves!.map((l) => l.name);
     expect(leavesOf("base")).toEqual(["set", "get"]);
-    expect(leavesOf("schema")).toEqual(["get", "gen"]);
+    // D19 — the schema leaf set is the single `get` leaf (gen merged into
+    // `get --output skeleton`).
+    expect(leavesOf("schema")).toEqual(["get"]);
     expect(leavesOf("issue")).toEqual(["render"]);
   });
 });
@@ -597,7 +600,9 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
     gate.parse(["base", "get", "--plan", "p.md"], { from: "user" });
     expect(leafOf("base", "get").args).toEqual([]);
     gate.parse(["schema", "get", "plan"], { from: "user" });
-    expect(leafOf("schema", "get").processedArgs).toEqual(["plan"]);
+    // commander fills every declared positional — the missing optional <target>
+    // rides as undefined; the consumed <type> is the first slot
+    expect(leafOf("schema", "get").processedArgs[0]).toBe("plan");
     leafOf("issue", "render");
     expect(leafOf("issue", "render").name()).toBe("render");
   });
@@ -615,45 +620,54 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
     }
   });
 
-  it("parses the gen leaf — the shared vocabulary with the phaseSpec alias normalized to the kebab key", () => {
-    const gen = leafOf("schema", "gen");
+  it("parses the merged get leaf — the shared vocabulary with the phaseSpec alias normalized to the kebab key + the optional <target> positional", () => {
     const get = leafOf("schema", "get");
-    gate.parse(["schema", "gen", "phase-spec"], { from: "user" });
-    expect(gen.processedArgs).toEqual(["phase-spec"]);
-    // the legacy camel alias normalizes to the same kebab key
-    gate.parse(["schema", "gen", "phaseSpec"], { from: "user" });
-    expect(gen.processedArgs).toEqual(["phase-spec"]);
-    gate.parse(["schema", "gen", "plan"], { from: "user" });
-    expect(gen.processedArgs).toEqual(["plan"]);
-    gate.parse(["schema", "gen", "overall"], { from: "user" });
-    expect(gen.processedArgs).toEqual(["overall"]);
-    // the get leaf rides the SAME table — the primary spelling and the alias both parse
     gate.parse(["schema", "get", "phase-spec"], { from: "user" });
-    expect(get.processedArgs).toEqual(["phase-spec"]);
+    expect(get.processedArgs[0]).toBe("phase-spec");
+    // the legacy camel alias normalizes to the same kebab key
     gate.parse(["schema", "get", "phaseSpec"], { from: "user" });
-    expect(get.processedArgs).toEqual(["phase-spec"]);
+    expect(get.processedArgs[0]).toBe("phase-spec");
+    gate.parse(["schema", "get", "plan"], { from: "user" });
+    expect(get.processedArgs[0]).toBe("plan");
+    gate.parse(["schema", "get", "overall"], { from: "user" });
+    expect(get.processedArgs[0]).toBe("overall");
+    // D19 — the target positional rides the merged leaf (mandatory only under
+    // --output skeleton, an engine-declared parameter rather than a shell redirect)
+    gate.parse(["schema", "get", "phase-spec", "--output", "skeleton", "/tmp/demo.md"], {
+      from: "user",
+    });
+    expect(get.processedArgs).toEqual(["phase-spec", "/tmp/demo.md"]);
+    expect(get.opts().output).toBe("skeleton");
   });
 
-  it("rejects the gen leaf's unknown types; a bare gen surfaces the missing-type byte at the run face", async () => {
+  it("the skeleton render face — a missing <target> and a non-doc-key <type> exit 2 at the run face; a bogus --output rejects at parse", async () => {
     const { command, io, cleanup } = fixture();
     try {
-      // gen's <type> is an OPTIONAL positional — a bare `schema gen` parses green
-      // and the missing-type byte surfaces at the domain run (exit 2 · §pure commands)
-      let code = await command.runArgv(["schema", "gen"]);
+      // --output skeleton makes <target> conditionally required — the missing
+      // target surfaces at the domain run (exit 2 · the D19 conditional-required
+      // face — never a static commander requirement)
+      let code = await command.runArgv(["schema", "get", "phase-spec", "--output", "skeleton"]);
       expect(code).toBe(2);
-      expect(io.stderrText).toContain("cdd schema gen: missing <type>");
+      expect(io.stderrText).toContain("cdd schema get --output skeleton: missing <target>");
       io.stderrText = "";
-      // gen's vocabulary carries no plan-graph — the get leaf's special route is
-      // not the gen leaf's
-      code = await command.runArgv(["schema", "gen", "bogus"]);
+      // plan-graph is the json-display route — never the skeleton render's doc-key
+      code = await command.runArgv([
+        "schema",
+        "get",
+        "plan-graph",
+        "--output",
+        "skeleton",
+        "/tmp/demo.md",
+      ]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain(
-        "unknown schema type: bogus (available: overall, plan, phase-spec)",
+        "cdd schema get plan-graph: the skeleton render takes a doc-key <type>",
       );
       io.stderrText = "";
-      code = await command.runArgv(["schema", "gen", "plan-graph"]);
+      // the --output enum rejects an out-of-domain value at parse
+      code = await command.runArgv(["schema", "get", "plan", "--output", "bogus"]);
       expect(code).toBe(2);
-      expect(io.stderrText).toContain("unknown schema type: plan-graph");
+      expect(io.stderrText).toContain("must be one of json | skeleton");
     } finally {
       cleanup();
     }
@@ -679,10 +693,14 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
       expect(io.stderrText).toContain("error: unknown command 'reset'");
       expect(io.stderrText).toContain("(Did you mean set?)");
       io.stderrText = "";
-      // an extra positional rides the excess-arguments usage face
+      // a spurious target under the json render face rides the run-body usage —
+      // the target is the skeleton face's engine-declared parameter, never a
+      // shell-redirect slot (D19)
       code = await command.runArgv(["schema", "get", "plan", "extra"]);
       expect(code).toBe(2);
-      expect(io.stderrText).toContain("error: too many arguments for 'get'");
+      expect(io.stderrText).toContain(
+        "cdd schema get: unexpected <target> — the json render takes no target",
+      );
     } finally {
       cleanup();
     }
@@ -902,18 +920,22 @@ describe("the help/--help display face — the per-command render", () => {
     }
   });
 
-  it("cdd schema --help — the native Commands table (get | gen) + the example, exit 0", async () => {
+  it("cdd schema --help — the native Commands table (the merged get leaf) + the example, exit 0", async () => {
     const { command, io, cleanup } = fixture();
     try {
       const code = await command.runArgv(["schema", "--help"]);
       expect(code).toBe(0);
-      expect(io.stdoutText).toContain("Usage: cdd schema [options] [command]");
-      expect(io.stdoutText).toContain("Commands:");
-      expect(io.stdoutText).toContain("get [options] <type>");
-      expect(io.stdoutText).toContain("gen [options] [type]");
-      expect(io.stdoutText).toContain("print the derived doc-structure schema for <type>");
-      expect(io.stdoutText).toContain("render the derived doc skeleton for <type>");
-      expect(io.stdoutText).toContain("cdd schema get phase-spec");
+      // whitespace-normalized — commander wraps the long description onto
+      // continuation lines; the assertion reads the token stream
+      const help = io.stdoutText.replace(/\s+/g, " ");
+      expect(help).toContain("Usage: cdd schema [options] [command]");
+      expect(help).toContain("Commands:");
+      expect(help).toContain("get [options] <type> [target]");
+      expect(help).toContain("print the derived doc-structure schema for <type>");
+      expect(help).toContain("or render the derived doc skeleton into <target>");
+      // D19 — the gen leaf is gone; the single get leaf's rows ride the Commands table
+      expect(help).not.toContain("gen [options]");
+      expect(help).toContain("cdd schema get phase-spec");
     } finally {
       cleanup();
     }
@@ -1027,7 +1049,7 @@ describe("the T4 commander-native help acceptance — the projected help face (�
     }
   });
 
-  it("cdd schema --help — the leaf subcommand table (get | gen) rides the native Commands face", async () => {
+  it("cdd schema --help — the leaf subcommand table rides the native Commands face (the single get leaf)", async () => {
     const { command, io, cleanup } = fixture();
     try {
       const code = await command.runArgv(["schema", "--help"]);
@@ -1035,7 +1057,8 @@ describe("the T4 commander-native help acceptance — the projected help face (�
       const help = norm(io.stdoutText);
       expect(help).toContain("Commands:");
       expect(help).toContain("get [options] <type>");
-      expect(help).toContain("gen [options] [type]");
+      // D19 — the gen leaf is gone, so its Commands row never rides the face.
+      expect(help).not.toContain("gen [options]");
     } finally {
       cleanup();
     }
@@ -1169,6 +1192,35 @@ describe("the error-path face — commander's native suggestion bytes (T5 re-pin
       expect(io.stderrText).toContain("error: unknown command 'reset'");
       expect(io.stderrText).toContain("(Did you mean set?)");
       expect(io.stderrText).not.toContain(RETIRED_USAGE.base);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the D19 schema leaf merge — `schema g` exits 2 as an unknown command (the prefix resolves to the single get face, never a phantom dispatch)", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      // The `g` prefix's closest candidate is the single get leaf, but commander's
+      // suggestion floor (similarity > 0.4) stays silent for a one-character guess —
+      // the candidate set updated with the tree (gen gone); the leak face is exit 2,
+      // never a dispatch.
+      const code = await command.runArgv(["schema", "g"]);
+      expect(code).toBe(2);
+      expect(io.stderrText).toContain("error: unknown command 'g'");
+      expect(io.stderrText).not.toContain("(Did you mean get?)");
+      expect(io.stderrText).not.toContain("gen");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the D19 --output option enters the get leaf's option candidates — a near-miss flags it", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["schema", "get", "--otput", "json", "phase-spec"]);
+      expect(code).toBe(2);
+      expect(io.stderrText).toContain("error: unknown option '--otput'");
+      expect(io.stderrText).toContain("(Did you mean --output?)");
     } finally {
       cleanup();
     }
@@ -2629,64 +2681,77 @@ describe("the pure commands — schema / issue / base", () => {
     }
   });
 
-  it("schema gen <type> — the derived doc skeleton to stdout (the pure-render leaf)", async () => {
-    const { command, io, cleanup } = fixture();
+  it("schema get phase-spec --output skeleton <target> — the derived doc skeleton written directly into the target document", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
     try {
-      const code = await command.runArgv(["schema", "gen", "phase-spec"]);
+      const target = path.join(repoRoot, "docs", "skeleton.md");
+      mkdirSync(path.dirname(target), { recursive: true });
+      const code = await command.runArgv([
+        "schema",
+        "get",
+        "phase-spec",
+        "--output",
+        "skeleton",
+        target,
+      ]);
       expect(code).toBe(0);
-      // the structural scaffold — headings, numeric truths, fills, the version row
-      // and the change-history first row
-      expect(io.stdoutText).toContain("## Design");
-      expect(io.stdoutText).toContain("### 1. :::fill group-title");
-      expect(io.stdoutText).toContain("- `:::fill acceptance-entry`");
-      expect(io.stdoutText).toContain("- **Version**: v0.1 · ");
-      expect(io.stdoutText).toContain("| v0.1 | ");
-      // the appended newline is the CLI's single one — the redirected fixture
-      // EOF rule (render() never appends)
-      expect(io.stdoutText.endsWith("\n")).toBe(true);
-      expect(io.stdoutText.endsWith("\n\n")).toBe(false);
+      // the D19 in-place scaffold — the target doc carries the structural bytes
+      // (headings, numeric truths, fills, the version row, the change-history
+      // first row) the old stdout face emitted, and the path prints to stdout
+      const text = readFileSync(target, "utf8");
+      expect(text).toContain("## Design");
+      expect(text).toContain("### 1. :::fill group-title");
+      expect(text).toContain("- `:::fill acceptance-entry`");
+      expect(text).toContain("- **Version**: v0.1 · ");
+      expect(text).toContain("| v0.1 | ");
+      // the written doc ends with exactly one newline — the EOF rule (render()
+      // never appends; the D19 write path appends the single `\n`)
+      expect(text.endsWith("\n")).toBe(true);
+      expect(text.endsWith("\n\n")).toBe(false);
+      expect(io.stdoutText.trim()).toBe(target);
     } finally {
       cleanup();
     }
   });
 
-  it("schema gen — the phaseSpec alias renders byte-identical to the DocType literal", async () => {
+  it("schema get --output skeleton — the phaseSpec alias renders byte-identical to the DocType literal", async () => {
     const dash = fixture();
     const camel = fixture();
     try {
-      expect(await dash.command.runArgv(["schema", "gen", "phase-spec"])).toBe(0);
-      expect(await camel.command.runArgv(["schema", "gen", "phaseSpec"])).toBe(0);
-      expect(camel.io.stdoutText).toBe(dash.io.stdoutText);
+      const dashTarget = path.join(dash.repoRoot, "dash.md");
+      const camelTarget = path.join(camel.repoRoot, "camel.md");
+      expect(
+        await dash.command.runArgv([
+          "schema",
+          "get",
+          "phase-spec",
+          "--output",
+          "skeleton",
+          dashTarget,
+        ]),
+      ).toBe(0);
+      expect(
+        await camel.command.runArgv([
+          "schema",
+          "get",
+          "phaseSpec",
+          "--output",
+          "skeleton",
+          camelTarget,
+        ]),
+      ).toBe(0);
+      expect(readFileSync(camelTarget, "utf8")).toBe(readFileSync(dashTarget, "utf8"));
     } finally {
       dash.cleanup();
       camel.cleanup();
     }
   });
 
-  it("schema gen — the gen-only missing/unknown error faces exit 2", async () => {
-    const bare = fixture();
-    expect(await bare.command.runArgv(["schema", "gen"])).toBe(2);
-    expect(bare.io.stderrText).toContain("cdd schema gen: missing <type>");
-    bare.cleanup();
-    const unknown = fixture();
-    expect(await unknown.command.runArgv(["schema", "gen", "bogus"])).toBe(2);
-    expect(unknown.io.stderrText).toContain(
-      "unknown schema type: bogus (available: overall, plan, phase-spec)",
-    );
-    unknown.cleanup();
-    // plan-graph is the get leaf's special route — never the gen leaf's
-    const graph = fixture();
-    expect(await graph.command.runArgv(["schema", "gen", "plan-graph"])).toBe(2);
-    expect(graph.io.stderrText).toContain("unknown schema type: plan-graph");
-    graph.cleanup();
-  });
-
-  it("schema get — the bare call keeps its missing-type byte; the kebab spelling and the legacy alias render the same derived JSON", async () => {
+  it("schema get — the bare call keeps its missing-type byte; the kebab spelling and the legacy alias render the same derived JSON; the default --output is json", async () => {
     const bare = fixture();
     expect(await bare.command.runArgv(["schema", "get"])).toBe(2);
     // the get leaf's missing-type byte is unchanged — the parse-level required
-    // positional face (commander's native missing-required-argument error), never
-    // the gen leaf's message
+    // positional face (commander's native missing-required-argument error)
     expect(bare.io.stderrText).toContain("error: missing required argument 'type'");
     bare.cleanup();
     const literal = fixture();
@@ -2697,6 +2762,12 @@ describe("the pure commands — schema / issue / base", () => {
     expect(await alias.command.runArgv(["schema", "get", "phaseSpec"])).toBe(0);
     expect(alias.io.stdoutText).toBe(literal.io.stdoutText);
     alias.cleanup();
+    // D19 — the --output default is json: a bare `schema get <type>` (no --output)
+    // stays legal and byte-identical to the explicit json render face
+    const json = fixture();
+    expect(await json.command.runArgv(["schema", "get", "phase-spec", "--output", "json"])).toBe(0);
+    expect(json.io.stdoutText).toBe(literal.io.stdoutText);
+    json.cleanup();
     literal.cleanup();
   });
 
@@ -2973,10 +3044,13 @@ describe("T3 — the commander-native composition root: program parse + .action 
         "error: cdd review --type wave: missing required --tasks <n|n,n,…>",
       );
       io.stderrText = "";
-      // the schema faces — the gen leaf's missing-type byte rides its own face
-      expect(await command.runArgv(["schema", "gen"])).toBe(2);
-      expect(io.stderrText).toContain("Usage: cdd schema gen [options] [type]");
-      expect(io.stderrText).toContain("cdd schema gen: missing <type>");
+      // the schema face — the --output skeleton missing-target byte rides its own
+      // commander-native usage line
+      expect(await command.runArgv(["schema", "get", "phase-spec", "--output", "skeleton"])).toBe(
+        2,
+      );
+      expect(io.stderrText).toContain("Usage: cdd schema get [options] <type>");
+      expect(io.stderrText).toContain("cdd schema get --output skeleton: missing <target>");
     } finally {
       cleanup();
     }

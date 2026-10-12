@@ -64,11 +64,15 @@ function bytesOf(rel: string) {
   return statSync(path.join(REPO, rel)).size;
 }
 
-/** Resolve a markdown link from its containing file against the repo root. */
+/** Resolve a markdown link from its containing file into its absolute target
+ *  path (prefixed with REPO so the existence checks hold under any CWD — the
+ *  suite runs standalone via `pnpm -C packages/kairos test` too, where a
+ *  bare repo-relative target would misresolve). */
 function resolveLink(fromRel: string, link: string) {
   const clean = link.split("#")[0].split("?")[0];
   if (!clean.endsWith(".md")) return null; // non-md targets (schemas, dirs) are not plain file links
-  return path.posix.normalize(path.posix.join(path.posix.dirname(fromRel), clean));
+  const rel = path.posix.normalize(path.posix.join(path.posix.dirname(fromRel), clean));
+  return path.join(REPO, rel);
 }
 
 test("maintainers: content docs are exactly the five new-numbered files, zero old names present", () => {

@@ -24,7 +24,8 @@
 //                   required element classified into its placeholder-anchoring
 //                   slot kind (content / link / numeric-heading / generator-truth
 //                   / table-header / table-row / scaffold) in shape-group order —
-//                   the `cdd schema gen` skeleton the SkeletonAssembler renders.
+//                   the skeleton the `cdd schema get <type> --output skeleton`
+//                   render face (D19) assembles.
 //
 // The module's whole behavior surface is the Projector class (the zero-bare-
 // function discipline: module-level exports are types / the class — the projection

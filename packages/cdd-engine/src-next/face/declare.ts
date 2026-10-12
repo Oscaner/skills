@@ -96,6 +96,12 @@ export const ARGV_CHANNEL = {
     type: "path",
     help: "the repository root (default: the current git top level)",
   },
+  output: {
+    flag: "--output",
+    type: "enum",
+    values: ["json", "skeleton"],
+    help: "the schema render face — json (the derived declaration, default) or skeleton (the scaffold written into <target>)",
+  },
 } as const satisfies Readonly<Record<string, ChannelArgRow>>;
 
 /** The shaped channel subset — the four value-domain-validated channel types
@@ -157,7 +163,7 @@ export const VALUE_SHAPES: Readonly<
 export type CliVerb = "implement" | "review" | "fix" | "schema" | "issue" | "base";
 
 /** The nested leaf words — the sub-command surfaces of the pure commands. */
-export type CliLeafName = "get" | "set" | "render" | "gen";
+export type CliLeafName = "get" | "set" | "render";
 
 /** A per-command value-type override — a declared key whose value shape differs
  *  from the channel's global typing for that key (base set's `--base` carries
@@ -263,16 +269,10 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
     leaves: [
       {
         name: "get",
-        description: "print the derived doc-structure schema for <type> (or the plan-graph read)",
-        keys: [{ key: "plan" }],
-        positionals: [{ key: "type", required: true }],
-      },
-      {
-        name: "gen",
         description:
-          "render the derived doc skeleton for <type> to stdout (the writing-start scaffold)",
-        keys: [{ key: "plan" }],
-        positionals: [{ key: "type" }],
+          "print the derived doc-structure schema for <type> (the --output json face, default) or render the derived doc skeleton into <target> (the --output skeleton face)",
+        keys: [{ key: "plan" }, { key: "output" }],
+        positionals: [{ key: "type", required: true }, { key: "target" }],
       },
     ],
   },
@@ -291,13 +291,12 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
   },
 ];
 
-/** The schema `<type>` vocabulary — the get and gen leaves' ONE shared table (one
- *  table, two faces, spec §5.3): the primary DocKey spellings (overall | plan |
- *  phase-spec) plus the legacy `phaseSpec` alias row normalized to the kebab key.
- *  One normalizing vocabulary, never a second hand-written list — the builder's
- *  #parseTypeKey validates through it; the get leaf additionally routes
- *  `plan-graph` (a display type, not a doc key — a leaf-level pass-through, never
- *  a vocabulary row). */
+/** The schema `<type>` vocabulary — the get leaf's ONE table (spec §5.3): the
+ *  primary DocKey spellings (overall | plan | phase-spec) plus the legacy
+ *  `phaseSpec` alias row normalized to the kebab key. One normalizing vocabulary,
+ *  never a second hand-written list — the builder's #parseTypeKey validates
+ *  through it; the get leaf additionally routes `plan-graph` (a display type, not
+ *  a doc key — a leaf-level pass-through, never a vocabulary row). */
 export const SCHEMA_TYPE_KEYS: Readonly<Record<string, DocKey>> = {
   overall: "overall",
   plan: "plan",

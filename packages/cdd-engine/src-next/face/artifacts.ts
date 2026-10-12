@@ -1,7 +1,7 @@
 // packages/cdd-engine/src-next/face/artifacts.ts
 // T8 — the split contract's artifacts face (§6.2: face/artifacts.ts — the pure-command
 // domain). The pure artifact surfaces run through this class: the schema skeleton
-// (#runSchemaGen/#today), the issue render (#runIssue) and the base artifact
+// (#runSchemaSkeleton/#today), the issue render (#runIssue) and the base artifact
 // read/write (#baseSet/#baseGet/#readBase) plus the doc read/usage face (#readText).
 // The method bodies are the pre-split Cli members moved verbatim — behavior bytes
 // identical; the root Cli holds the artifacts instance and composes through it via its
@@ -70,18 +70,25 @@ export class CliArtifacts {
     this.#usage = opts.usage;
   }
 
-  /** `cdd schema gen <type>` — the derived doc skeleton to stdout (the pure-render
-   *  discovery read of the schema verb's second leaf): the normalized DocType key →
-   *  the projector's skeleton projection → the SkeletonAssembler bytes → the single
-   *  appended newline (the assembler never appends one — the redirected fixture
-   *  ends with exactly one `\n`). Zero write side-effects — the orchestrator
-   *  redirects the stdout to the target path. */
-  runSchemaGen(node: Command, parsed: RunInput): number {
-    const type = parsed.positionals[0];
-    if (type === undefined) this.#usage(node, "cdd schema gen: missing <type>");
+  /** `cdd schema get <type> --output skeleton <target>` — the derived doc skeleton
+   *  rendered DIRECTLY into the target document (the D19 merged leaf's skeleton
+   *  face): the normalized DocType key → the projector's skeleton projection → the
+   *  SkeletonAssembler bytes → the single appended newline written to <target>
+   *  (the assembler never appends one — the written doc ends with exactly one
+   *  `\n`). The target is the engine-declared parameter of the skeleton render
+   *  face — the authoring scaffold lands in place, zero shell-redirection
+   *  indirection (the D19 `<path>` zero-constraint fix). The written path prints
+   *  to stdout. */
+  runSchemaSkeleton(node: Command, type: string, target: string): number {
     const projection = this.#projector.skeleton()[type as DocKey];
     const date = this.#today();
-    this.#io.stdout(`${new SkeletonAssembler(projection, date).render()}\n`);
+    const file = `${new SkeletonAssembler(projection, date).render()}\n`;
+    try {
+      writeFileSync(target, file, "utf8");
+    } catch {
+      this.#usage(node, `cannot write file: ${target}`);
+    }
+    this.#io.stdout(`${target}\n`);
     return 0;
   }
 

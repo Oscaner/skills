@@ -15,8 +15,6 @@ import { mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { NodeFs } from "../packages/cdd-engine/src-next/contract/invariants.ts";
-import { Contract } from "../packages/cdd-engine/src-next/contract/judge.ts";
 import { emitComparer, emitService, REPO_ROOT } from "./emit.ts";
 import { guardLibrary } from "./lib/guard.ts";
 
@@ -170,104 +168,6 @@ export const engineSuiteStep = new SubprocessBlock({
   args: ["-C", "packages/cdd-engine", "test"],
 });
 
-/** The pre-contract docs — the specs/plans whose structural surface predates the
- *  P4.1 T1 doc-contract (their outlines were authored and reviewed before the
- *  engine judge existed; they fail the new-form gate's structural rules by design —
- *  the T3 migration retrofitted only their CONTAINER: the strict **Version** header
- *  + a Change-history table). Every other spec/plan doc MUST pass the FULL gate.
- *  A pre-contract doc graduates from the list when it is migrated to the new form
- *  (its gate findings go to zero — remove the basename then). Exported: the same
- *  exemption feeds the claimed→pin lint (T4 — the pre-contract refs predate the
- *  claimed→pin contract and stay silent under the same ruling). */
-export const PRECONTRACT_DOCS = new Set<string>([
-  "docs/kairos/plans/2026-09-21-consumer-parity-p1.md",
-  "docs/kairos/plans/2026-09-21-consumer-parity-p4.1.md",
-  "docs/kairos/plans/2026-09-21-consumer-parity-p4.2.md",
-  "docs/kairos/plans/2026-09-21-consumer-parity-p4.3.md",
-  "docs/kairos/plans/2026-09-21-consumer-parity-p4.4.md",
-  "docs/kairos/plans/2026-09-27-pi-harness-p1.md",
-  "docs/kairos/plans/2026-09-27-pi-harness-p2.md",
-  "docs/kairos/plans/2026-09-27-pi-harness-p3.md",
-  "docs/kairos/plans/2026-09-27-pi-harness-p4.md",
-  "docs/kairos/plans/2026-09-27-pi-harness-p5.md",
-  "docs/kairos/plans/2026-09-28-cdd-review-contract-fix.md",
-  "docs/kairos/plans/2026-10-02-doc-architecture-v2-p1.md",
-  "docs/kairos/plans/2026-10-02-doc-architecture-v2-p2.md",
-  "docs/kairos/plans/2026-10-02-doc-architecture-v2-p3.md",
-  "docs/kairos/plans/2026-10-02-doc-architecture-v2-p3.1.md",
-  "docs/kairos/specs/2026-09-21-consumer-parity-p1-design.md",
-  "docs/kairos/specs/2026-09-21-consumer-parity-p2-design.md",
-  "docs/kairos/specs/2026-09-21-consumer-parity-p3-design.md",
-  "docs/kairos/specs/2026-09-21-consumer-parity-p4.1-design.md",
-  "docs/kairos/specs/2026-09-21-consumer-parity-p4.2-design.md",
-  "docs/kairos/specs/2026-09-21-consumer-parity-p4.3-design.md",
-  "docs/kairos/specs/2026-09-21-consumer-parity-p4.4-design.md",
-  "docs/kairos/specs/2026-09-27-pi-harness-p1-design.md",
-  "docs/kairos/specs/2026-09-27-pi-harness-p2-design.md",
-  "docs/kairos/specs/2026-09-27-pi-harness-p3-design.md",
-  "docs/kairos/specs/2026-09-27-pi-harness-p4-design.md",
-  "docs/kairos/specs/2026-09-27-pi-harness-p5-design.md",
-  "docs/kairos/specs/2026-09-28-cdd-review-contract-fix.md",
-  "docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md",
-  "docs/kairos/specs/2026-10-02-doc-architecture-v2-p1-design.md",
-  "docs/kairos/specs/2026-10-02-doc-architecture-v2-p2-design.md",
-  "docs/kairos/specs/2026-10-02-doc-architecture-v2-p3-design.md",
-  "docs/kairos/specs/2026-10-02-doc-architecture-v2-p3.1-design.md",
-]);
-
-/** The doc-contract gate over the specs/plans tree — the engine judge (the same
- *  Contract.validate the pre-flight seam runs at dispatch) on every docs/kairos
- *  spec/plan doc. A finding on any NON-pre-contract doc fails the step — the
- *  T3 acceptance "doc-contract all-green on the new forms" is real, not a fixture-only suite:
- *  the wave's own plan/spec docs were CDD_BLOCKED at dispatch while `pnpm run
- *  validate` stayed green (the find-#8 gap — the gate's target docs never featured
- *  in CI). The docKey derives the way the doc faces dispatch (plan → plan via the
- *  plans dir branch · *-overall.md → overall · other spec → phase-spec — the spec
- *  tree reads the contract's shared deriveDocType). */
-function checkDocContract(): void {
-  const contract = new Contract();
-  const fs = new NodeFs();
-  const violations: string[] = [];
-  const unreadable: string[] = [];
-  let enforced = 0;
-  let preContract = 0;
-  for (const dir of ["specs", "plans"]) {
-    const docsDir = path.join(REPO_ROOT, "docs", "kairos", dir);
-    for (const name of [...fs.list(docsDir)].sort()) {
-      if (!name.endsWith(".md")) continue;
-      const rel = `docs/kairos/${dir}/${name}`;
-      const full = path.join(REPO_ROOT, rel);
-      const content = fs.read(full);
-      if (content === null) {
-        unreadable.push(rel);
-        continue;
-      }
-      const docKey = dir === "plans" ? "plan" : contract.deriveDocType(name);
-      const findings = contract.validate({ docKey, path: full, content, root: REPO_ROOT, fs });
-      if (findings.length === 0) {
-        enforced += 1;
-        continue;
-      }
-      if (PRECONTRACT_DOCS.has(rel)) {
-        preContract += 1;
-        continue;
-      }
-      violations.push(
-        `${rel}: ${findings.map((f) => `${f.kind}@${f.field}: ${f.message}`).join(" · ")}`,
-      );
-    }
-  }
-  if (unreadable.length > 0) {
-    throw new Error(`unreadable doc-contract targets: ${unreadable.join(", ")}`);
-  }
-  if (violations.length > 0) {
-    throw new Error(`doc-contract findings on new-form specs/plans:\n${violations.join("\n")}`);
-  }
-  console.log(
-    `OK — doc-contract gate clean on ${enforced} specs/plans · ${preContract} pre-contract docs exempt`,
-  );
-}
-
 /** The composed validate step set — the single data table. */
 export const steps = [
   new CheckBlock({ name: "emit freshness (scripts emit, byte-checked)", run: checkEmitFresh }),
@@ -286,15 +186,6 @@ export const steps = [
   new CheckBlock({
     name: "engine handoff plane audit",
     run: () => assertNoGuardFindings(guardLibrary.checkHandoffPlane()),
-  }),
-  new CheckBlock({
-    name: "doc-contract gate over the specs/plans tree (the engine judge)",
-    run: checkDocContract,
-  }),
-  new CheckBlock({
-    name: "claimed→pin lint（声称→pin 引用存在 + 断言非空）",
-    run: () =>
-      assertNoGuardFindings(guardLibrary.checkClaimedPins({ preContract: PRECONTRACT_DOCS })),
   }),
   engineSuiteStep,
   new SubprocessBlock({

@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P4 设计：引擎 handoff 平面卫生 + commander 引入面收敛
-- **Version**: v0.1 · 2026-10-12
+- **Version**: v0.2 · 2026-10-12
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P4] 会话 · 用户裁定 · 2026-10-12）
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall](2026-10-10-engine-doc-tooling-overall.md)
@@ -111,3 +111,4 @@
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-12 | P4 设计 v0.1——引擎 handoff 平面卫生 + commander 引入面收敛：D13 两台引擎问题修法（HandoffCarrier 类型族分面构造（Q1→c）· 声称→pin 把门（Q2→b：guard 平面审计 + review lens 契约行）· draft 指令面白名单 · 复现探针）· D14/D15 R7 三项全入（值域校验声明派生 · cli.ts 拆分落地（Q3→a）· 死接线清理 · 心智负担两套模型可见）· 单一作者 v1.30 恢复 · 变更集 minor 归并不发布 · 六前提整评排除容忍补丁 | Oscar M. · Claude Opus 5（kairos:cdd-design [P4] 会话 · 用户裁定 · 2026-10-12） |
+| v0.2 | 2026-10-12 | P4 设计 v0.2——spec review round 1 fix（spec-review-1 · 4/4 受理 · commit 1d0fabda）：§4.1/§4.2/AC6 **逐壳指明白名单**（FIX_SHELL work 面字段枚举 + INPUT_FINDINGS 只读护栏 · DOCS_FIX_SHELL findings 面字段枚举 + 同款护栏——findings 壳 draft findings 自源 review 载体原样携带 · 载体 required findings 与白名单同面不矛盾）· §5.1/AC7 探针阈值可证伪（**3 轮派发首次 BLOCK 0/3** · pinned 计数）· §1 设计输入行 D15 补显式映射 **Q4 = 发布姿态不发布** · §6.3 销毁清单预列（P3 遗留投影残面 + 拆分预知退役判别器/glue · 识别名 · 文件/面内删除）· 逐项验收起始起点确立 | Oscar M. · Claude Opus 5（kairos:cdd-design 编排器回填 · fix agent 1d0fabda · 2026-10-12） |

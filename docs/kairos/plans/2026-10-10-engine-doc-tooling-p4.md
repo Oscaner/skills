@@ -1,7 +1,7 @@
 # P4 实现计划：引擎 handoff 平面卫生 + commander 引入面收敛
 **Spec:** [2026-10-10-engine-doc-tooling-p4-design.md](docs/kairos/specs/2026-10-10-engine-doc-tooling-p4-design.md)
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall](docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.2 · 2026-10-12
+- **Version**: v0.3 · 2026-10-12
 
 ## Constraints
 
@@ -20,7 +20,7 @@
 ## Review Focus
 
 - **载体形状回归**：work 终态载体 `.json` 对 `findings` 键零命中的断言必须落到物化路径（`persistHandoff`）——任何只测 `buildHandoff` 单函数、不测物化落盘的产品形状 pin 会漏掉 work 载体「半合法」残留
-- **两壳白名单互指**：FIX_SHELL（work 面）与 DOCS_FIX_SHELL（findings 面）字段枚举句子必须逐壳（findings 载体 required findings——把 work 面护栏句抄给 findings 面会造成「findings 必填却被告知不得写」的自相矛盾，review round 1 F1 已裁）
+- **两壳单句互指**：FIX_SHELL（work 面）与 DOCS_FIX_SHELL（findings 面）严守 schema 单句必须逐壳（findings 载体 required findings——把 work 面「零额外键」句抄给 findings 面会造成「findings 必填却被告知不得写」的自相矛盾，review round 1 F1 已裁）
 - **值域错误字节不可漂移**：VALUE_SHAPES 声明派生取代手写 #parseEnum/#parseSha8 后，错误消息字节（`--tasks <n|n,n,…> — must be comma-separated integers: …` · `must be an 8-char sha` · `must be one of …`）必须逐字节不变——pins 零重锚
 - **拆分移面不破导入**：cli.ts 拆出 lifecycle/gate/artifacts 后，模块公开导出与既有测试导入面保持兼容（零断言重写面）——任何「移到新文件顺便改签名」都是 drift
 - **声称→pin lint 不误伤**：`path:line` 引用 lint 必须只扫声称/测试 pin 行（规格/计划正文引用），不把普通正文 `(path)` 或非测试引用当 finding——误报 = 文档面噪音
@@ -88,29 +88,29 @@
 - **Acceptance**: `checkClaimedPins` 绿（validate）· review spec/plan 变体含 claimed→pin 条款（字节 pin）· 当前 specs/plans 树全绿零误报 · usage 回归 pin 在册
 - **DependsOn**: none
 
-### Task 5: draft 指令面白名单（FIX_SHELL/DOCS_FIX_SHELL 逐壳）
-- **Objective**: `render/templates.ts` FIX_SHELL/DOCS_FIX_SHELL 逐壳白名单枚举 + `INPUT_FINDINGS` 只读护栏句——降 fix draft 首次 BLOCK 摩擦（P3 3/3 首现）
-- **Files**: Modify: render/templates.ts（FIX_SHELL :188-200 · DOCS_FIX_SHELL :204-214 壳尾追加句子）；Test: render/__tests__/render.test.ts（字节 pin）
-- **Consumes**: T1 `BY_FACE` 声明键集（枚举句子字段源）· 壳内既有 `SCHEMA_SECTION` 注入面（:165）
-- **Produces**: `FIX_SHELL` 增：**work 面白名单句**（枚举 `## Handoff schema` 允许字段：`status`/`failure_category`/`artifacts`/`commits`/`changes`/`notes`——work 面）+ **`INPUT_FINDINGS` 只读护栏句**（`INPUT_FINDINGS` 是只读 findings 载体——不得镜像其顶层字段（尤指 `findings`）进 work 壳 draft · 只写 `## Handoff schema` 声明的字段）· `DOCS_FIX_SHELL` 增：**findings 面白名单句**（`findings`/`artifacts`/`commits`/`notes`——载体 required findings 与白名单同面）+ **同款护栏句**（`INPUT_FINDINGS` 顶层 `findings` 自源 review 载体——原样携带不改 · 不镜像其余顶层字段）——零负向散文（枚举 + 一句护栏）
+### Task 5: draft 指令面单句白名单（FIX_SHELL/DOCS_FIX_SHELL 严守 schema）
+- **Objective**: `render/templates.ts` FIX_SHELL/DOCS_FIX_SHELL 逐壳各落一句严守 schema 指令——降 fix draft 首次 BLOCK 摩擦（P3 3/3 首现）· 字段单源 = `HANDOFF_SCHEMA` 注入面（模板不复述声明键集 · 手写枚举 = 平行表债 → 排除 · 用户裁定 2026-10-12）
+- **Files**: Modify: render/templates.ts（FIX_SHELL :188-200 · DOCS_FIX_SHELL :204-214 壳尾追加单句）；Test: render/__tests__/render.test.ts（单句字节 pin）
+- **Consumes**: T1 `BY_FACE` 声明键集（经 `HANDOFF_SCHEMA` 注入面投影——字段单源）· 壳内既有 `SCHEMA_SECTION` 注入面（:165）
+- **Produces**: `FIX_SHELL` 增：**严守 schema 句**（`## Handoff schema` 声明 properties 即直接字段源——draft 顶层字段全部来自该声明，零额外键）· `DOCS_FIX_SHELL` 增：**同款严守句**（`findings` required 载自 `INPUT_FINDINGS` 原样携带不改 · 载体 required findings 与单句同面不矛盾）——零负向散文（一句指令 · 不列字段表 · 不列反例）
 - **Steps**:
-  - 写 render.test 字节 pin：fix 壳含 work 面枚举句 + 护栏句 · docs-fix 壳含 findings 面枚举句 + findings 面护栏句——逐壳各含 `findings` 白名单枚举 · work 壳枚举键集 == `faceSchema("work").properties` 键集（单源回归：改声明 → pin 断言随动语义保）—— checkable: FAIL（壳尾未落句）
-  - 在 FIX_SHELL 指令尾（SCHEMA_SECTION 前）追加 work 面白名单句 + 护栏句 —— checkable: render.test 新字节 pin 绿（work 面）
-  - 在 DOCS_FIX_SHELL 指令尾追加 findings 面白名单句 + 同款护栏句（findings 自源原样携带语义）—— checkable: render.test 新字节 pin 绿（findings 面）
-  - 语义核验：docs-fix 面白名单与 findings 载体契约（required findings）同面不矛盾（review round 1 F1 定裁）—— checkable: 壳句无自相矛盾（findings 必填不被告知不得写）
+  - 写 render.test 单句字节 pin：fix 壳含 work 面严守句 · docs-fix 壳含 findings 面严守句——逐壳各一 · 键集字面零残余（模板文本不含字段枚举）—— checkable: FAIL（壳尾未落句）
+  - 在 FIX_SHELL 指令尾（SCHEMA_SECTION 前）追加严守 schema 句 —— checkable: render.test 新字节 pin 绿（work 面）
+  - 在 DOCS_FIX_SHELL 指令尾追加同款严守句（findings 自源原样携带语义）—— checkable: render.test 新字节 pin 绿（findings 面）
+  - 语义核验：findings 面单句与 findings 载体契约（required findings）同面不矛盾（review round 1 F1 定裁保留）—— checkable: 壳句无自相矛盾（findings 必填不被告知不得写）
   - 跑引擎 vitest 全绿（含 render 既有字节 pins 零动）—— checkable: 引擎 vitest 全绿
   - COMMIT —— checkable: git commit 落 · precommit 过
-- **Acceptance**: 两壳逐壳白名单 + 护栏句 · 零负向散文 · 字节 pin 在册（键集单源断言）· 引擎 vitest 全绿
+- **Acceptance**: 两壳逐壳单句严守指令 · 键集零复述（字段源 = `HANDOFF_SCHEMA` 注入面）· 单句字节 pin 在册 · 探针 C 仲裁单句足够（3 轮 0/3 · T6）· 引擎 vitest 全绿
 - **DependsOn**: 1, 4
 
 ### Task 6: 复现探针（首轮消解 + 物化零 findings）
 - **Objective**: 确定性探针 + phase 级观测探针——work draft 带 findings 的首轮 BLOCK 摩擦归零或显著降（探针阈值 **3 轮首次 BLOCK 0/3** · spec §5.1 v0.2）· 物化终态载体零 findings 双层 pin
 - **Files**: Test: session/__tests__/run.test.ts、face/__tests__/cli.test.ts（探针 pins）；Ancillary: .kairos/cdd/…（phase 观测记录 · 不入 git）
-- **Consumes**: T2 face 感知读写 · T5 白名单护栏句 · T1 分面构造
-- **Produces**: 探针 A「物化零 findings」——端到端 dry-run implement/fix 派发 → `persistHandoff` 落盘 JSON `findings` 键零命中（grep 断言）· 探针 B「fix 提示面护栏」——fix 壳渲染输出含 `INPUT_FINDINGS` 只读护栏句（子代理指令落地）· 探针 C「首轮消解」——phase 级观测：本 phase 自身 dev fix 轮 3 轮派发首次 BLOCK 计数 0/3（closeout 记录 · 非单测可判定的 real-NN 观测）
+- **Consumes**: T2 face 感知读写 · T5 严守 schema 单句 · T1 分面构造
+- **Produces**: 探针 A「物化零 findings」——端到端 dry-run implement/fix 派发 → `persistHandoff` 落盘 JSON `findings` 键零命中（grep 断言）· 探针 B「fix 提示面严守句」——fix 壳渲染输出含严守 schema 单句（子代理指令落地）· 探针 C「首轮消解 + 单句仲裁」——phase 级观测：本 phase 自身 dev fix 轮 3 轮派发首次 BLOCK 计数 0/3（closeout 记录 · 非单测可判定的 real-NN 观测 · 0/3 → 单句足够 · 非 0/3 → 补具体陷阱句）
 - **Steps**:
   - 探针 A：dry-run implement 一轮 + fix 一轮 → 各读终态载体 JSON（persist 落盘面）断言 `findings` 键零命中 —— checkable: 断言绿（T2 已消注入）
-  - 探针 B：渲染 fix 壳（render() 值域 fixture）断言含护栏句 —— checkable: 断言绿（T5 已落）
+  - 探针 B：渲染 fix 壳（render() 值域 fixture）断言含严守 schema 单句 —— checkable: 断言绿（T5 已落）
   - 探针 C 机制落地：本 phase dev fix 波派发时记录每轮首次 contract-violation BLOCK 计数 · 目标 0/3（三轮连续首轮绿）· 计数进 closeout 交付证据 —— checkable: 记录在册
   - 跑引擎 vitest 全绿（探针 A/B 断言在册）—— checkable: 引擎 vitest 全绿
   - COMMIT —— checkable: git commit 落 · precommit 过
@@ -177,5 +177,6 @@
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.3 | 2026-10-12 | P4 计划 v0.3——T5 单句白名单回填（用户裁定 · 2026-10-12 · 与 spec v0.3 同步）：T5 从**逐壳字段枚举 + INPUT_FINDINGS 只读护栏句**收为**逐壳一句严守 schema 指令**（字段源 = `HANDOFF_SCHEMA` 注入面 · 手动枚举 = 平行表债 → 排除 · 键集字面零残余）· 单句字节 pin · T6 探针 C 升任**单句是否足够的可证伪仲裁**（3 轮 0/3 · 非 0/3 → 补具体陷阱句）· Review Focus 两壳单句互指同步（findings 必填不被告知不得写） | Oscar M. · Claude Opus 5（kairos:cdd-plan 编排器回填 · 用户裁定 · 2026-10-12） |
 | v0.2 | 2026-10-12 | P4 计划 v0.2——plan review round 1 fix（plan-review-1 · 5/5 受理）：① T3 机器判子集方向修正（引擎写入面 ⊆ 对应 face 声明 properties · 未声明写入 → FAIL · 与 spec §3.1 一致）；② T1 载体类型改由声明派生（mapped type 自 BY_FACE[face].properties 键集 · 兜底断言降级 · 零手写平行字段表）；③ T7/T9 spec §6.3 对表：`#parseTypeKey`/`SCHEMA_TYPE_KEYS` 处置显式记录（保留 · doc-key 词汇与 ChannelValueType 值形状表正交 · 不入销毁清单）；④ T5 DependsOn 补 1；⑤ T1 handoffOf ↔ buildHandoff overloads 命名映射注 | Oscar M. · Claude Opus 5（kairos:cdd-plan docs-fix · plan-review-1 · 2026-10-12） |
 | v0.1 | 2026-10-12 | P4 计划 v0.1——引擎 handoff 平面卫生 + commander 引入面收敛实现计划（T1–T10 · 五波依赖序 W1={T1,T4,T7} → W2={T2,T3,T5} → W3={T6,T8} → W4={T9} → W5={T10}）：分型类型族 · face 感知读写 · guard 平面审计 + 声称→pin lint · 逐壳白名单 · 复现探针（3 轮首 BLOCK 0/3）· VALUE_SHAPES 值域派生 · cli.ts 拆分三面 · 死接线清理 · 变更集 minor 不发布 | Oscar M. · Claude Opus 5（kairos:cdd-plan · spec v0.2 批准 · 2026-10-12） |

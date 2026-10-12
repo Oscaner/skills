@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P5 设计：整引擎 + repo CI 验证脚本重整
-- **Version**: v0.1 · 2026-10-12
+- **Version**: v0.2 · 2026-10-12
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P5] 会话 · 用户裁定 · 2026-10-12）
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](2026-10-10-engine-doc-tooling-overall.md)
@@ -73,6 +73,12 @@
 - **new pins**：字节更替面 · 归域面（engine/kairos suite 全绿）· 零裸函数门禁 · smoke 新入口
 - **变更集**：cdd-engine **major**（字节语义破面叙事 · 归域 · 外壳）· kairos **patch**（消费面同步）· **不发布**（Q6）· `changeset status` 无 empty 条目
 
+#### 5.4 schema gen→get 并入（用户 in-flight 需求 · 2026-10-12 backfill）
+- **需求（用户裁定）**：`schema gen` leaf 并入 `schema get`（单 leaf · 双渲染面）——`schema get <type> --output json` = 现 `schema get`（打印 doc-structure schema 声明面）· `schema get <type> --output skeleton <target>` = 现 `schema gen`（骨架渲染**直写目标 doc 路径** · 填 prose in place）· **`schema gen` leaf 消灭** · `--output` 值域 `json | skeleton` · did-you-mean 候选随命令树更新（`schema g` 前缀仍入候选）· target 路径承载定形归 plan
+- **动因（本次 author-spec 实痛）**：骨架经 `/tmp` 中转 + 多次反读再写目标 doc——`--output skeleton` 直写消除中转工作流（用户工作流心智负担 · 六前提⑤）
+- **消费面同步（§5.2 通道）**：kairos `cdd-spec-writer` SKILL.md `author-spec` dispatch 字面 `schema gen phase-spec > <path>` → `schema get phase-spec --output skeleton <path>`（消费面 · 随字节更替同步）
+- **验收 pin**：引擎 vitest channel-closure pin（leaf 合并 · `--output` 值域 json|skeleton · schema type 必填）· smoke-cdd dry-run 链含 `schema get phase-spec --output skeleton`（fixture 骨架直写）· kairos 行为树全绿作证 skill 字面同步
+
 ### 6. smoke-cdd 迁引擎 + emit.ts 六前提重整
 #### 6.1 smoke-cdd 迁 engine 集成测试面
 - smoke-cdd（fixture 仓库 + 真实 bin dry-run 链 + `--expect-version`）迁入 engine test plane（作为引擎集成测试 / 或保留独立 runnable 入口）· 归「引擎 launch 行为」域（kairos `pi-install-smoke.test.ts` 同型先例）
@@ -102,6 +108,7 @@
 - `CI 原生分身 ✓（validate.ts 组合 runner 解散 · GH Actions 原生 job 跑 engine/kairos suite + typecheck + emit-check + 版本 sync（action log 分层可见）· precommit 原生命令序列 · run.ts validate/precommit/smoke-cdd 面删除）`
 - `字面零裸函数 ✓（引擎 2 枚 + scripts ~30 枚全收类 · 全局 ^function|^export function 零命中 pin（含组合根 · 含测试面）· 门禁入 CI）`
 - `字节语义 major 落地 ✓（命令/旗标/退出码 deliberate 更替逐项 pin 重锚 + 锚同步 · next: 字面保持可执行命令字面化（冻结 · 不简洁化）· 功能语义不变（六命令领域 run 语义零动）· kairos 消费面同步（skill 文本 dispatch/next 引用随改 · 行为树全绿作证））`
+- `schema gen→get 并入 ✓（schema get <type> --output <json|skeleton> · --output skeleton 直写目标 doc（去 /tmp 中转）· schema gen leaf 消灭 · did-you-mean 随命令树更新 · cdd-spec-writer 消费面 dispatch 字面同步（schema get phase-spec --output skeleton <path>）· vitest + smoke 链 + kairos 行为树全绿作证）`
 - `smoke-cdd 迁引擎 ✓（fixture + dry-run 链 + --expect-version 入 engine test plane · release.yml 两门改指引擎 smoke 入口 · root run.ts smoke-cdd 删除）`
 - `emit.ts 六前提重整 ✓（零裸函数 · OOP 类族 · 声明单源投影 · 产物字节零 drift（emit-check 前后全等））`
 - `死码/空壳零残留 ✓（§7.1 销毁清单逐项 grep pin 零命中 · §7.2 迁移面落在目标 suite · 零平行实现）`
@@ -127,3 +134,4 @@
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-12 | P5 设计 v0.1——整引擎 + repo CI 验证脚本重整（六前提 · grilling 九裁定 D18）：目标面二合一（非终审 · 用户「最大心智负担：仓库根脚本只是跑 tests 做 ci 门」）· 校验归域（checkAnatomy→kairos · checkChannels/checkHandoffPlane→engine · checkWords 分域拆 · 根零验证逻辑）· docs 不验（三 docs 门撤下根 · 合法性交 workflow）· CI 原生分身（validate.ts 解散 · GH Actions 原生 job · precommit 原生命令序列）· 字面零裸函数（含组合根 · 全局零命中 pin）· 字节语义 major（两层全开 · next: 字面冻结 · 功能语义不变 · kairos 消费面同步）· smoke-cdd 迁引擎（release 门改指）· emit.ts 六前提重整（产物字节零 drift）· 死码/空壳清单（guard.ts/validate.ts 删除面 · 迁移面）· 变更集 major + patch 归并不发布 · 单 phase-spec 收口 | Oscar M. · Claude Opus 5（kairos:cdd-design [P5] 会话 · 用户裁定 · 2026-10-12） |
+| v0.2 | 2026-10-12 | P5 设计 v0.2——用户 in-flight 需求 backfill（§5.4 · 六前提⑤ 消费者心智负担）：schema gen 并入 schema get · `--output <json|skeleton>` · `--output skeleton` 直写目标 doc（去 /tmp 中转 · 本次 author-spec 实痛）· schema gen leaf 消灭 · cdd-spec-writer 消费面 dispatch 字面同步 | Oscar M. · Claude Opus 5（kairos:cdd-spec-writer [P5] 会话 · 用户 backfill · 2026-10-12） |

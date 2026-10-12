@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P4 设计：引擎 handoff 平面卫生 + commander 引入面收敛
-- **Version**: v0.3 · 2026-10-12
+- **Version**: v0.4 · 2026-10-12
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P4] 会话 · 用户裁定 · 2026-10-12）
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall](2026-10-10-engine-doc-tooling-overall.md)
@@ -32,7 +32,7 @@
 
 ### 3. 产物 ⊆ 声明 + 声称→pin 把门（R3/R4 · Q2→b：结构机器判 + 语义契约行）
 #### 3.1 机器判——guard 平面审计扩项 + 载体形状 vitest
-- **guard 平面审计扩项**（`scripts/lib/guard.ts` · checkChannels :658-698 同族新增）：`checkHandoffPlane`——① 声明的 face 属性集闭合（work/findings 属性集互斥 · 与引擎写入面交集 ⊆ 声明面：carrier 构造/物化写入键 ∩ persist 路径字段 ⊆ `BY_FACE[face].properties`——壳单句指令不枚举字段，写入面含壳文本断言零参考）· ② 声明-提示单源 check（`schemaText` 提示面 fence 字节 == 声明面 JSON 序列化——同文件双投影一致性机器化 · 既有一手发动机「prompt 不能展示引擎不执法的 schema」不变式）· ③ 入 validate 编排（scripts/run.ts 接线）
+- **guard 平面审计扩项**（`scripts/lib/guard.ts` · checkChannels :658-698 同族新增）：`checkHandoffPlane`——① 声明的 face 属性集闭合 + **写平面声明派生**：work/findings **角色专属互斥**（findings ∉ work 声明 · status/failure_category/changes ∉ findings 声明——共享行 artifacts/commits/notes 双面声明为设计 · 交集空字面不可实现）· **引擎写平面 = `keyof properties ∪ engineOnly[face]`**（`engineOnly` 为声明节点携带的引擎专属键——findings 节点以 `engineOnly: ["status"]` 声明滚动结论（引擎权威 · 孩子永不自写持久结论）· work `engineOnly: []` · **`HANDOFF_WRITE_PLANE` 平行表销毁**（10 键 = 声明再抄 · 前提③债）· 投影①②按 `engineOnly` 过滤（child 视图零引擎专属键 · child draft 写 engineOnly 键 → 校验拒）· 壳单句指令不枚举字段，写入面含壳文本断言零参考）· ⑥ authority 卫生（每个声明的 `engineOnly` 键均被引擎写路径消费 · 不进 child 投影——非重言式）· ② 声明-提示单源 check（`schemaText` 提示面 fence 字节 == 声明面 JSON 序列化——同文件双投影一致性机器化 · 既有一手发动机「prompt 不能展示引擎不执法的 schema」不变式）· ③ 入 validate 编排（scripts/run.ts 接线）
 - **载体形状 vitest**（引擎套件 colocated pin）：`handoffOf("work", init)` 键集 == `faceSchema("work").properties` 键集（零 findings）· `handoffOf("findings", …)` 含 findings · 断言**物化落盘**（dry-run 派发一轮 · 终态 work 载体 JSON `findings` 键零命中）
 #### 3.2 review lens 声称→pin 契约行（D13 缺陷②修法）
 - **类型化契约行**：plan/spec 的「行为声称」引用 colocated pin 位置（`path:line`）——声称面逐项查测试钉 · P3 #2 usage 行落空类在单波拦下；**usage 回归 pin 正式入验收**（域 run usage 行 colocated pin · d51efe19 已补 · 原凿）
@@ -112,5 +112,6 @@
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-12 | P4 设计 v0.1——引擎 handoff 平面卫生 + commander 引入面收敛：D13 两台引擎问题修法（HandoffCarrier 类型族分面构造（Q1→c）· 声称→pin 把门（Q2→b：guard 平面审计 + review lens 契约行）· draft 指令面白名单 · 复现探针）· D14/D15 R7 三项全入（值域校验声明派生 · cli.ts 拆分落地（Q3→a）· 死接线清理 · 心智负担两套模型可见）· 单一作者 v1.30 恢复 · 变更集 minor 归并不发布 · 六前提整评排除容忍补丁 | Oscar M. · Claude Opus 5（kairos:cdd-design [P4] 会话 · 用户裁定 · 2026-10-12） |
+| v0.4 | 2026-10-12 | P4 设计 v0.4——**写平面声明派生 + 平行表销毁**（用户裁定 · 2026-10-12 · 六前提③「声明再抄」：`HANDOFF_WRITE_PLANE` 10 键 = `keyof properties` 逐字拷贝 → **销毁** · findings 节点以 `engineOnly: ["status"]` 声明滚动结论（引擎权威 · child 投影/校验按 engineOnly 过滤 · 非豁免语义）· 引擎写平面 = `keyof properties ∪ engineOnly[face]`（work `[]`）· guard ⑥ authority 卫生（engineOnly 键被引擎写路径消费 + 不进 child 投影）· 投影一致性 check 语义同步（fence == 声明 minus engineOnly）· 与 T3 F3 finding 合并吸收 | Oscar M. · Claude Opus 5（kairos:cdd-plan 编排器回填 · 用户裁定 · 2026-10-12） |
 | v0.3 | 2026-10-12 | P4 设计 v0.3——T5 白名单单句化（用户裁定 · 2026-10-12）：§4 draft 面白名单从**逐壳字段枚举 + INPUT_FINDINGS 只读护栏句**收为**逐壳一句严守 schema 指令**（字段源 = HANDOFF_SCHEMA 注入面自身 · 手写字段枚举 = 与声明平行的第二张表 · 债 → 排除）· §4.2 键集单源断言降为单句字节 pin（枚举零残余）· §3.1 ① checkHandoffPlane 写入面参考同步（壳文本零字段枚举）· **探针 C 升任单句是否足够的可证伪仲裁**（3 轮 0/3 · 非 0/3 → 补具体陷阱句 · 证据驱动） | Oscar M. · Claude Opus 5（kairos:cdd-plan 编排器回填 · 用户裁定 · 2026-10-12） |
 | v0.2 | 2026-10-12 | P4 设计 v0.2——spec review round 1 fix（spec-review-1 · 4/4 受理 · commit 1d0fabda）：§4.1/§4.2/AC6 **逐壳指明白名单**（FIX_SHELL work 面字段枚举 + INPUT_FINDINGS 只读护栏 · DOCS_FIX_SHELL findings 面字段枚举 + 同款护栏——findings 壳 draft findings 自源 review 载体原样携带 · 载体 required findings 与白名单同面不矛盾）· §5.1/AC7 探针阈值可证伪（**3 轮派发首次 BLOCK 0/3** · pinned 计数）· §1 设计输入行 D15 补显式映射 **Q4 = 发布姿态不发布** · §6.3 销毁清单预列（P3 遗留投影残面 + 拆分预知退役判别器/glue · 识别名 · 文件/面内删除）· 逐项验收起始起点确立 | Oscar M. · Claude Opus 5（kairos:cdd-design 编排器回填 · fix agent 1d0fabda · 2026-10-12） |

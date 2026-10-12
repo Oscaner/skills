@@ -1,7 +1,7 @@
 # P4 实现计划：引擎 handoff 平面卫生 + commander 引入面收敛
 **Spec:** [2026-10-10-engine-doc-tooling-p4-design.md](docs/kairos/specs/2026-10-10-engine-doc-tooling-p4-design.md)
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall](docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.3 · 2026-10-12
+- **Version**: v0.4 · 2026-10-12
 
 ## Constraints
 
@@ -58,18 +58,18 @@
 - **DependsOn**: 1
 
 ### Task 3: 产物 ⊆ 声明机器判（guard 平面审计 + validate 接线）
-- **Objective**: `GuardLibrary#checkHandoffPlane()`——声明 face 属性集互斥闭合 + 提示面-声明面单源一致性 · 入 `pnpm run validate` 与 precommit（scripts/validate.ts steps 增 CheckBlock）
-- **Files**: Modify: scripts/lib/guard.ts（新审计方法，checkChannels :672 同族）；Modify: scripts/validate.ts steps（新 CheckBlock 于 channel audit 之后）；Test: scripts/__tests__/guard 相关、session/__tests__/handoff-schema.test.ts（投影一致性 pin）
+- **Objective**: `GuardLibrary#checkHandoffPlane()`——声明 face 属性集闭合 + **写平面声明派生**（`engineOnly` 引擎专属键 · `HANDOFF_WRITE_PLANE` 销毁）+ 提示面-声明面单源一致性 · 入 `pnpm run validate` 与 precommit（scripts/validate.ts steps 增 CheckBlock）
+- **Files**: Modify: scripts/lib/guard.ts（新审计方法，checkChannels :672 同族）；Modify: scripts/validate.ts steps（新 CheckBlock 于 channel audit 之后）；Modify: session/handoff-schema.ts（findings 声明节点增 `engineOnly: ["status"]` · `HANDOFF_WRITE_PLANE` 销毁 · `schemaText`/`violations` 按 engineOnly 过滤）；Test: scripts/__tests__/guard 相关、session/__tests__/handoff-schema.test.ts（投影一致性 + engineOnly 过滤 pin）
 - **Consumes**: T1 `BY_FACE`/`faceSchema`/`schemaText` 数据面 · scripts validate steps 数据结构（:270-305 · `precommitSteps = steps.filter(step !== engineSuiteStep)`）
-- **Produces**: `checkHandoffPlane(): GuardFinding[]`——① work/findings 声明 `properties` 键集**互斥**（交集空）· **引擎写入面（materialize/carrier 构造写入键）⊆ 对应 face 声明 `properties`**（未声明写入 → checkHandoffPlane FAIL · 与 spec §3.1「写入面交集 ⊆ 声明面」方向一致）② 提示面-声明面单源：`schemaText(face, …)` 生成的 fence JSON 字节解析后 == `BY_FACE[face]` 声明节点（prompt 不能展示引擎不执法的 schema——既有一手发动机不变式机器化）· validate step `name: "engine handoff plane audit"` 于 channel audit 之后
+- **Produces**: `checkHandoffPlane(): GuardFinding[]`——① 声明 face 属性集闭合 + 写平面声明派生：work/findings **角色专属互斥**（findings ∉ work 声明 · status/failure_category/changes ∉ findings 声明——共享行 artifacts/commits/notes 双面声明为设计 · 交集空字面不可实现）· **引擎写平面 = `keyof properties ∪ engineOnly[face]`**（`engineOnly` 为声明节点携带的引擎专属键——findings 节点 `engineOnly: ["status"]` 声明滚动结论（引擎权威 · 孩子永不自写持久结论）· work `engineOnly: []` · **`HANDOFF_WRITE_PLANE` 平行表销毁**）· **投影①②按 `engineOnly` 过滤**（child 可见 fence = 声明节点 minus engineOnly · child draft 写 engineOnly 键 → 校验拒 · 提示面-声明面单源 check 即 fence == 声明 minus engineOnly）· **⑥ authority 卫生**（每个声明的 `engineOnly` 键均被引擎写路径消费 · 不进 child 投影——非重言式）② 投影一致性（`schemaText(face, …)` fence 字节解析后 == `BY_FACE[face]` 声明节点 minus `engineOnly`——prompt 不能展示引擎不执法的 schema）· validate step `name: "engine handoff plane audit"` 于 channel audit 之后
 - **Steps**:
-  - 写 guard 单测（构造「声明互斥破坏」假声明 → finding · 「写入面越界」（写入未声明键）假写入面 → finding · 「投影不一致」的假 schemaText → finding）—— checkable: 该测试 FAIL（方法未实现）
-  - 写投影一致性 pin（handoff-schema.test：`JSON.parse` 掉 `schemaText("work",…)` fence 的 carrier json == 声明节点）—— checkable: FAIL
-  - 实现 `checkHandoffPlane()`（读 `BY_FACE` · `faceSchema` · `schemaText` · 逐族断言 · GuardFinding 形式化）· validate.ts 增 CheckBlock —— checkable: 新 guard 单测 + 投影 pin 绿
+  - 写 guard 单测（构造「角色混杂」假声明（findings 声明 work 面专属键 / work 声明 findings）→ finding · 「engineOnly 泄漏」假 engineOnly（keys 进 child 投影视图 / 未被引擎路径消费）→ finding · 「投影不一致」的假 schemaText → finding）—— checkable: 该测试 FAIL（方法未实现）
+  - 写投影一致性 pin（handoff-schema.test：`JSON.parse` 掉 `schemaText("work",…)` fence 的 carrier json == 声明节点 minus engineOnly）—— checkable: FAIL
+  - 实现 `checkHandoffPlane()`（读 `BY_FACE` · `faceSchema` · `schemaText` · 逐族断言 · engineOnly 过滤 · GuardFinding 形式化）· 销毁 `HANDOFF_WRITE_PLANE` · validate.ts 增 CheckBlock —— checkable: 新 guard 单测 + 投影 pin 绿
   - 现 docs 面零误报核验 —— checkable: checkHandoffPlane 对当前树零 finding
   - 跑 `node scripts/run.ts precommit` + 引擎 vitest —— checkable: precommit 过 · 引擎 vitest 全绿
   - COMMIT —— checkable: git commit 落 · precommit 过
-- **Acceptance**: `checkHandoffPlane` 绿（validate + precommit）· 声明互斥 + 投影一致性双机器判 pin 在册 · 对当前树零误报
+- **Acceptance**: `checkHandoffPlane` 绿（validate + precommit）· 角色专属互斥 + 写平面派生（engineOnly 卫生）机器判 pin 在册 · `HANDOFF_WRITE_PLANE` 零残留 · 对当前树零误报
 - **DependsOn**: 1
 
 ### Task 4: 声称→pin 把门（machine lint + review lens 契约行）
@@ -177,6 +177,7 @@
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.4 | 2026-10-12 | P4 计划 v0.4——**T3 写平面声明派生回填**（用户裁定 · 2026-10-12 · 与 spec v0.4 同步 · 合并 T3 F3 finding）：T3 从「写入面 ⊆ 声明, mod engine-authority status」收为**写平面 = `keyof properties ∪ engineOnly[face]` 声明派生** · findings 声明节点 `engineOnly: ["status"]`（滚动结论引擎权威）· **`HANDOFF_WRITE_PLANE` 平行表销毁**（10 键声明再抄债 · 前提③）· 投影①②按 engineOnly 过滤（child 视图零引擎专属键 · child draft 写 engineOnly → 校验拒）· guard ⑥ authority 卫生（engineOnly 被引擎写路径消费 + 不进 child 投影）· 投影一致性 check 语义同步（fence == 声明 minus engineOnly）· guard 单测三失败面翻新（角色混杂 · engineOnly 泄漏 · 投影不一致） | Oscar M. · Claude Opus 5（kairos:cdd-plan 编排器回填 · 用户裁定 · 2026-10-12） |
 | v0.3 | 2026-10-12 | P4 计划 v0.3——T5 单句白名单回填（用户裁定 · 2026-10-12 · 与 spec v0.3 同步）：T5 从**逐壳字段枚举 + INPUT_FINDINGS 只读护栏句**收为**逐壳一句严守 schema 指令**（字段源 = `HANDOFF_SCHEMA` 注入面 · 手动枚举 = 平行表债 → 排除 · 键集字面零残余）· 单句字节 pin · T6 探针 C 升任**单句是否足够的可证伪仲裁**（3 轮 0/3 · 非 0/3 → 补具体陷阱句）· Review Focus 两壳单句互指同步（findings 必填不被告知不得写） | Oscar M. · Claude Opus 5（kairos:cdd-plan 编排器回填 · 用户裁定 · 2026-10-12） |
 | v0.2 | 2026-10-12 | P4 计划 v0.2——plan review round 1 fix（plan-review-1 · 5/5 受理）：① T3 机器判子集方向修正（引擎写入面 ⊆ 对应 face 声明 properties · 未声明写入 → FAIL · 与 spec §3.1 一致）；② T1 载体类型改由声明派生（mapped type 自 BY_FACE[face].properties 键集 · 兜底断言降级 · 零手写平行字段表）；③ T7/T9 spec §6.3 对表：`#parseTypeKey`/`SCHEMA_TYPE_KEYS` 处置显式记录（保留 · doc-key 词汇与 ChannelValueType 值形状表正交 · 不入销毁清单）；④ T5 DependsOn 补 1；⑤ T1 handoffOf ↔ buildHandoff overloads 命名映射注 | Oscar M. · Claude Opus 5（kairos:cdd-plan docs-fix · plan-review-1 · 2026-10-12） |
 | v0.1 | 2026-10-12 | P4 计划 v0.1——引擎 handoff 平面卫生 + commander 引入面收敛实现计划（T1–T10 · 五波依赖序 W1={T1,T4,T7} → W2={T2,T3,T5} → W3={T6,T8} → W4={T9} → W5={T10}）：分型类型族 · face 感知读写 · guard 平面审计 + 声称→pin lint · 逐壳白名单 · 复现探针（3 轮首 BLOCK 0/3）· VALUE_SHAPES 值域派生 · cli.ts 拆分三面 · 死接线清理 · 变更集 minor 不发布 | Oscar M. · Claude Opus 5（kairos:cdd-plan · spec v0.2 批准 · 2026-10-12） |

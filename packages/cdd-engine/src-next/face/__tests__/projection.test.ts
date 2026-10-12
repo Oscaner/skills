@@ -279,4 +279,18 @@ describe("the value-domain table declaration — VALUE_SHAPES (T7)", () => {
       ).toBe(false);
     }
   });
+
+  it("the schema <type> vocabulary is retained — #parseTypeKey + SCHEMA_TYPE_KEYS stay out of the destroy list (T9)", () => {
+    const projection = readFileSync(new URL("../projection.ts", import.meta.url), "utf8");
+    const declare = readFileSync(new URL("../declare.ts", import.meta.url), "utf8");
+    // The retention disposition (plan T7 — the spec §6.3 cross-reference): the pair
+    // is §6.3-listed but T7 records it as RETAINED, never on the destroy list —
+    // SCHEMA_TYPE_KEYS is the schema gen/get <type> doc-key vocabulary, orthogonal
+    // to the ChannelValueType value-shape table (merging it into VALUE_SHAPES does
+    // not fit); #parseTypeKey derives through it (the get leaf also routes the
+    // plan-graph display type).
+    expect(projection).toContain("#parseTypeKey");
+    expect(projection).toContain("SCHEMA_TYPE_KEYS");
+    expect(declare).toContain("SCHEMA_TYPE_KEYS");
+  });
 });

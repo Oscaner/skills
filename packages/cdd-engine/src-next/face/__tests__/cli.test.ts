@@ -28,7 +28,15 @@
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Command } from "commander";
@@ -57,6 +65,27 @@ const RETIRED_USAGE = {
     "usage: cdd implement --tasks <n|n,n,…> --plan <path> [--root <path>] — implement the plan wave's task group",
   base: "usage: cdd base <set|get> --plan <path> [set: --base <branch> --source <source>] [--force] — read/write the base.json artifact",
 } as const;
+
+/** The engine's source planes — the destroy-list sweep's scan set (zero non-test
+ *  residue is asserted across every plane, never a single file). */
+const ENGINE_SOURCE_PLANES = ["contract", "face", "infra", "render", "session"] as const;
+
+/** Every engine source file's (plane-qualified name, text) — the plane enum +
+ *  readdir over the non-test tree (the __tests__ dirs are filtered by the .ts
+ *  suffix already: a directory never ends with .ts). */
+function engineSourceTexts(): [string, string][] {
+  return ENGINE_SOURCE_PLANES.flatMap((plane) =>
+    readdirSync(new URL(`../../${plane}/`, import.meta.url))
+      .filter((name) => name.endsWith(".ts"))
+      .map(
+        (name) =>
+          [
+            `${plane}/${name}`,
+            readFileSync(new URL(`../../${plane}/${name}`, import.meta.url), "utf8"),
+          ] as [string, string],
+      ),
+  );
+}
 
 // ---------------------------------------------------------------------------
 // fixtures
@@ -3717,6 +3746,30 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(prompt).not.toContain("aaaaaaaa..bbbbbbbb");
     } finally {
       cleanup();
+    }
+  });
+});
+
+describe("T9 — the destroy-list zero-residual sweep (spec §6.3 cross-reference)", () => {
+  it("the hand-written parse monoliths + the destroyed write-plane table carry zero residual across the engine source", () => {
+    // The destroy list (spec §6.3 + the T3 parallel-table destroy): the four
+    // hand-written value-domain monoliths (destroyed at T7 — the rules live in
+    // declare.ts VALUE_SHAPES) and the HANDOFF_WRITE_PLANE parallel table
+    // (destroyed at T3 — the write plane derives from the declared properties).
+    // The retained pair (#parseTypeKey/SCHEMA_TYPE_KEYS — the schema <type>
+    // doc-key vocabulary, orthogonal to the value-shape table) is NOT swept here —
+    // its retention is pinned in projection.test.ts.
+    const destroyed = [
+      "#parseEnum",
+      "#parseInts",
+      "#parseSha8",
+      "#parseInt",
+      "HANDOFF_WRITE_PLANE",
+    ] as const;
+    for (const [file, text] of engineSourceTexts()) {
+      for (const name of destroyed) {
+        expect(text, `${name} must not survive in ${file}`).not.toContain(name);
+      }
     }
   });
 });

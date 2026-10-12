@@ -67,24 +67,40 @@ const RETIRED_USAGE = {
 } as const;
 
 /** The engine's source planes — the destroy-list sweep's scan set (zero non-test
- *  residue is asserted across every plane, never a single file). */
+ *  residue is asserted across every plane and the src-next root, never a single
+ *  file). */
 const ENGINE_SOURCE_PLANES = ["contract", "face", "infra", "render", "session"] as const;
 
-/** Every engine source file's (plane-qualified name, text) — the plane enum +
- *  readdir over the non-test tree (the __tests__ dirs are filtered by the .ts
- *  suffix already: a directory never ends with .ts). */
+/** Every engine source file's (src-next-qualified name, text) — the plane enum +
+ *  the src-next root's own .ts files (bin.ts — the shipped CLI entry, the engine's
+ *  sole source file outside the planes). The .ts-suffix filter drops the __tests__
+ *  dirs and the plane subdirectories (a directory never ends with .ts), so the
+ *  swept set IS the engine's non-test source tree — the planes' root company
+ *  included, the guard's closure over the 'zero residual across the engine source'
+ *  claim. */
 function engineSourceTexts(): [string, string][] {
-  return ENGINE_SOURCE_PLANES.flatMap((plane) =>
-    readdirSync(new URL(`../../${plane}/`, import.meta.url))
+  return [
+    ...ENGINE_SOURCE_PLANES.flatMap((plane) =>
+      readdirSync(new URL(`../../${plane}/`, import.meta.url))
+        .filter((name) => name.endsWith(".ts"))
+        .map(
+          (name) =>
+            [
+              `${plane}/${name}`,
+              readFileSync(new URL(`../../${plane}/${name}`, import.meta.url), "utf8"),
+            ] as [string, string],
+        ),
+    ),
+    ...readdirSync(new URL("../../", import.meta.url))
       .filter((name) => name.endsWith(".ts"))
       .map(
         (name) =>
-          [
-            `${plane}/${name}`,
-            readFileSync(new URL(`../../${plane}/${name}`, import.meta.url), "utf8"),
-          ] as [string, string],
+          [name, readFileSync(new URL(`../../${name}`, import.meta.url), "utf8")] as [
+            string,
+            string,
+          ],
       ),
-  );
+  ];
 }
 
 // ---------------------------------------------------------------------------

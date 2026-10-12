@@ -1,7 +1,7 @@
 # 引擎文档工具（Engine Doc-Tooling）— P3 实施计划：CLI 框架化收口 + 变更集归并
 **Spec:** [2026-10-10-engine-doc-tooling-p3-design.md](docs/kairos/specs/2026-10-10-engine-doc-tooling-p3-design.md)
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall](docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.13 · 2026-10-12
+- **Version**: v0.14 · 2026-10-12
 
 ## Constraints
 
@@ -135,3 +135,4 @@
 | v0.11 | 2026-10-12 | P3 实施计划 v0.11——docs-fix round 2（plan-review-1 复核 · 3 条受理 · 见 findings）：Constraints 更替面枚举补 **help `[command]` 复用面**（`cdd help`/`help <cmd>`/父命令 help → 对应命令面帮助 exit 0（2→0 更替 · deliberate）· leaf `help` 参数 → `excessArguments` 归 2 · `help <bogus>` → 程序面帮助归 2 · 与 §2.1/§3.1 同源）· T2 step 3/T3 step 2 域 run 错误面方法组枚举补 `#sceneOf`（4 处 `--type` missing-required throw：cli.ts:1593/1603/1613/1636 · 13 处 throw 封闭核对导航面补齐）· T6 残留 pin grep 交替项扩至 9 删除方法全名（补 `#typeDomain`/`#leafTokens`/`#domainOf`/`#distance`） | Oscar M. · Claude Opus 5（kairos:cdd-plan · docs-fix round 2 · 2026-10-12） |
 | v0.12 | 2026-10-12 | P3 实施计划 v0.12——W4 fix 轮完成时推进定裁回填（编排器 Plan Sole Writer · W4 review-1 F2 受理 · 计划冻结零树内改）：T8 `reviewGate(docRevision)` 措辞回填「判定 + 推进（**推进于 round 完成时** —— `recordRound` + 修订快照写回（`#recordReviewedDocRevision`）· BLOCKED re-review 恢复同 round · 零预绑定）」——reviewGate open 面零磁盘推进 · 推进于 review 轮完成写回 · 可观察验收本已全达标（drift 直跑 · rounds.review=2 · review-2.json · progress.json 零新字段 · same-doc 仍拒） | Oscar M. · Claude Opus 5（kairos:cdd-plan · 编排器回填 · 2026-10-12） |
 | v0.13 | 2026-10-12 | P3 实施计划 v0.13——分支终审 F2 措辞回填（编排器 Plan Sole Writer · branch-review-1 F2 受理 · 计划冻结零树内改）：`cdd implement help` quote 回填为**两段判定序**（T2/T3 probe/T5 三处）——裸调用 required 未满足 → `missing required option '--tasks …' not specified` 先行（commander requiredOption 检查先于 excess-arguments 扫描）· required 满足（`--tasks 1 --plan p`）→ `commander.excessArguments` 字节 · 均归 usage 2 · 退出码语义保 · 判定序实证 pin 见 cli.test.ts:2715-2733 | Oscar M. · Claude Opus 5（kairos:cdd-plan · 编排器回填 · 2026-10-12） |
+| v0.14 | 2026-10-12 | **P3 closeout（cdd-close）**：波次链 W1–W7 + 分支终审全链闭合——T1 核验 → T2 declare 单面收敛 + CommandTreeBuilder · T3 组合根（.action 薄壳 · exitOverride · err.exitCode 判别 · 域 run 错误面 commander 原生 usage）→ T4 帮助接受面 + T8 统一 re-review gate（Ledger 方法族 · 判据主导 · 推进于 round 完成时）→ T5 pins 重锚（parse 级 runArgv 化 · RETIRED_USAGE 裁两条目）→ T6 销毁面（argv/validate/registry 文件级删除 · 9 方法零残留）→ T7 合并变更集 major（cdd-engine 1.0.0 · P1/P2 deferred + 框架化归并 · 无 changeset empty）· 全波 review/fix 闭环（引擎 vitest 488/488 · validate ALL PASS）· 分支终审 4 findings → 分支 fix 4/4（commander 原生 usage 行恢复 · implement-help 两段判定序 pin 实证 · 词表单源 · 死导出删除）· 编排器回填 v0.12（reviewGate 推进时点）/v0.13（implement-help 两段判定序）· EOF 全绿 · 不发布 · 父 overall v2.2 登记 P3 → Done | [human] · Claude Opus 5（kairos:cdd-close · closeout-backfill） |

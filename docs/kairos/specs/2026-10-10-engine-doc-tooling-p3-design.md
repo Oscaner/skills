@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P3 设计：CLI 框架化收口 + 变更集归并
-- **Version**: v0.13 · 2026-10-12
+- **Version**: v0.14 · 2026-10-12
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P3] 会话 · 2026-10-11）
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall](2026-10-10-engine-doc-tooling-overall.md)
@@ -120,3 +120,4 @@
 | v0.11 | 2026-10-12 | P3 设计 v0.11——用户裁定（2026-10-12 · 需求分析并入）：**re-review gate 统一判据**（§3.5）——review gate = doc 内容修订判定（doc hash ≠ reviewedDocRevision → 新 review 合法 · fix 后/backfill 后/用户裁定后同一种情况 · 旧 pending-fix 过期降级 · 相同 doc 维持拒绝防空转 · Review Convergence 语义保）· Acceptance 补 gate 判据 · plan T8 落 | Oscar M. · Claude Opus 5（kairos:cdd-design · 用户裁定 · 2026-10-12） |
 | v0.12 | 2026-10-12 | P3 设计 v0.12——用户核查（六前提重审 T8 方案 · 2026-10-12）：**判据主导化升级**——§3.5 doc 修订判定为 gate 主判据（既有 `reviewedDocRevision` 读点实证 `cli.ts:1450` · 卡点 = 判定序/状态模型而非缺判据）· **pending-fix 无独立状态**（doc 相同 + 未 APPROVED 动态派生 · 零新增状态字段）· `rounds` 完成计数保留（findings 文件名/`-round` 消费面实证）· 判定/推进 = `Ledger` 方法族（类化 · 零裸函数） | Oscar M. · Claude Opus 5（kairos:cdd-design · 用户核查 · 2026-10-12） |
 | v0.13 | 2026-10-12 | P3 设计 v0.13——spec review round 3 fix（spec-review-1 复核 · 3 条受理）：Constraints 更替边界枚举补内建 `help [command]` 复用面（`cdd help`/`cdd help <cmd>`/父命令 help → 对应命令面帮助 2→0 · deliberate · 与 §2.1/§3.1 同源）· leaf `help` 参数 → excessArguments 归 2 · `help <bogus>` → 程序面帮助归 2 ——与 plan v0.11 F1 同法收口（§3.4/§7.3 同步锚）· Acceptance「分布组」术语改「条件必填组」（与 §4/§7.3 对齐）· Acceptance gate 锚补状态面非回归项（rounds 完成计数保留 · 旧 findings 自动失效 · 零新增状态字段） | Oscar M. · Claude Opus 5（kairos:cdd-design · spec review round 3 · 2026-10-12） |
+| v0.14 | 2026-10-12 | **P3 closeout（cdd-close）**：实现全链闭合——引擎面 W1–W7 波次链全绿（T2 declare 单面收敛 + CommandTreeBuilder（parseArg 值域/preAction 条件必填/帮助注入/内建 help 复用）· T3 组合根重建（.action 薄壳 · exitOverride · err.exitCode 判别）· T4 帮助接受面 + T8 统一 re-review gate（Ledger 方法族 · doc 修订判据主导 · 推进于 round 完成时）· T5 pins 重锚（parse 级 runArgv 化）· T6 销毁面（argv/validate/registry 文件级删除 · 9 方法 + CLI_USAGE/ValueValidator/CliUsageError/ParsedCommand 零残留）· T7 合并变更集 major）· 分支终审 4 findings → 分支 fix（域 run 错误面 commander 原生 usage 行恢复 · implement-help 两段判定序 pin 实证 · 词表单源派生 · 死导出删除）· Acceptance 全项交付（engine vitest 488/488 · validate ALL PASS · 不发布）· 父 overall v2.2 登记 P3 → Done | [human] · Claude Opus 5（kairos:cdd-close · closeout-backfill） |

@@ -1,7 +1,7 @@
 # P4 实现计划：引擎 handoff 平面卫生 + commander 引入面收敛
 **Spec:** [2026-10-10-engine-doc-tooling-p4-design.md](docs/kairos/specs/2026-10-10-engine-doc-tooling-p4-design.md)
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall](docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.4 · 2026-10-12
+- **Version**: v0.5 · 2026-10-12
 
 ## Constraints
 
@@ -24,6 +24,7 @@
 - **值域错误字节不可漂移**：VALUE_SHAPES 声明派生取代手写 #parseEnum/#parseSha8 后，错误消息字节（`--tasks <n|n,n,…> — must be comma-separated integers: …` · `must be an 8-char sha` · `must be one of …`）必须逐字节不变——pins 零重锚
 - **拆分移面不破导入**：cli.ts 拆出 lifecycle/gate/artifacts 后，模块公开导出与既有测试导入面保持兼容（零断言重写面）——任何「移到新文件顺便改签名」都是 drift
 - **声称→pin lint 不误伤**：`path:line` 引用 lint 必须只扫声称/测试 pin 行（规格/计划正文引用），不把普通正文 `(path)` 或非测试引用当 finding——误报 = 文档面噪音
+- **重审门控修订漂移**：plan 文档移动后 `cdd review --type wave` 必须放行（新修订新 review · findings 对当前修订再生）——任何「open wave 按 round 计数卡死在 fix」= D16 回归（T11 漂移用例 + 反自旋用例钉住 · 同修订 + pending fix 仍 BLOCK 不破）
 
 ---
 
@@ -166,17 +167,34 @@
 - **Consumes**: 全部任务闭合 · 发布姿态 D15-Q4（不发布）
 - **Produces**: 变更集（cdd-engine · minor · R1–R7 归并主题）· VALIDATE 通
 - **Steps**:
-  - `pnpm run changeset` 写单条 cdd-engine minor（1.1.0 pending · 主题：handoff 分面重构 · 声称→pin 把门 · draft 白名单 · 值域声明派生 · cli.ts 拆分 · 不发布）—— checkable: .changeset/<slug>.md 在册
+  - `pnpm run changeset` 写单条 cdd-engine minor（1.1.0 pending · 主题：handoff 分面重构 · 声称→pin 把门 · draft 白名单 · 值域声明派生 · cli.ts 拆分 · wave 门控 plan 修订感知 · 不发布）—— checkable: .changeset/<slug>.md 在册
   - `pnpm exec changeset status` → 无 empty 条目（断言）—— checkable: status 输出无 empty
   - 触及文件 EOF newline `tail -c 1` 校验全 `\n`（缺则补 · 独立改）· `pnpm run validate` ALL PASS —— checkable: EOF 全 `\n` · validate ALL PASS
   - COMMIT —— checkable: git commit 落 · precommit 过
 - **Acceptance**: 变更集在册（不发布）· `changeset status` 无 empty · `pnpm run validate` ALL PASS · EOF 全绿
 - **DependsOn**: 1, 2, 3, 4, 5, 6, 7, 8, 9
 
+### Task 11: wave 门控 plan 修订感知（D16 · 用户裁定并入 p4）
+- **Objective**: `WaveGate` 门控改 plan 修订感知——wave review 完成时审查的 plan 修订记入该 wave 行（`recordReviewedDocRevision` 同型同源 · 复用 doc 面机件 · run.ts bookkeep 完成时点）· `#phaseOf` 相位解析前置查 `docLineVerdict` 漂移——**plan 路径自该 wave 行的审查记录派生（`reviewedDocRevisionOf(waveKey)?.doc` · 门控零新参数 · `WaveGate.vet` 签名不动）**· plan 移动 → wave 重开于 review（挂起 fix 作废 · 新修订新 review · findings 对当前修订再生）· 同修订 + pending fix 的 BLOCK 不破（Review Convergence 反自旋）· **零新增路径面：cli.ts / preflight.ts 零 diff（不进 planPath 于 gate · 用户裁定 2026-10-12 cli.ts doc/planPath 重复为债）**（spec §8）
+- **Files**: Modify: session/run.ts（:523-533 wave review 完成记录点 · 复用既有 `#planPath`）；Modify: session/wave.ts（`#phaseOf` 漂移前置 · 自记录派生）；Test: session/__tests__/wave.test.ts、session/__tests__/run.test.ts
+- **Consumes**: `recordReviewedDocRevision` / `reviewedDocRevisionOf` / `docLineVerdict`（ledger.ts:446/:459/:473 · doc 面既有机件 · 零新机件类）· `DocRevisionRef` · Lifecycle 既有 `#planPath`（P4 T1 · `--plan` 事实 · 零新字段）· `WaveGate.vet` 现签名（不动）
+- **Produces**: 漂移感知门控行为——plan 文本移动后 open wave 挂 fix 时 `cdd review --type wave` 放行（新修订重开 review · findings 对当前修订再生）· 同修订 + pending fix 仍 BLOCK · `null` 记录向后兼容（legacy wave 行行为不变）· `WaveGate.vet` 签名零变（无 planDoc/planPath 参数）
+- **Steps**:
+  - 写失败测试（wave.test）：open wave 挂 fix（review 1 · fix 0）· 先 `recordReviewedDocRevision` 绑审查时点 plan 修订 → 改 plan 文件内容（漂移）→ `vet(requested, "review", graph, ledger, words)` 原签名调用 ok（相位解析 review · 不再 wrong-phase）—— checkable: 该测试 FAIL（现 `#phaseOf` 量 fix）
+  - 写反自旋 pin（wave.test）：同修订（plan 未动）+ pending fix → `vet(requested, "review")` 仍 wrong-phase（「the open wave is at fix」· Review Convergence 语义不破）· 加 null 记录 legacy 用例（无 `reviewedDocRevision` 的 wave 行照旧 BLOCK）—— checkable: 该测试 FAIL（drift 分支未接入）
+  - run.ts 接线：wave review 完成（`frame.target.kind === "wave" && frame.phase === "review"`）→ `#recordReviewedDocRevision(frame, this.#planPath)`（doc 面同款 · plan 路径单源 = 既有 `#planPath` · plan 读于 bookkeep 时点——clean-tree 门控保跨轮稳定）—— checkable: run.test 断言 wave 行 `reviewedDocRevision` 落（plan doc_hash）
+  - wave.ts 接入：`#phaseOf` 在 `fixes < reviews` 分支前置——`const rev = ledger.reviewedDocRevisionOf(waveKey)` · `rev !== null && ledger.docLineVerdict(waveKey, rev.doc) === "drift"` → "review" · 否则 "fix" 照旧 · `vet`/`#phasesOf` 签名零动 —— checkable: 漂移用例绿 + 反自旋/legacy 用例绿
+  - 零路径面 pin：cli.ts / preflight.ts 零 diff（对这两文件 `git diff` 空 + `WaveGate.vet` 调用点原样）—— checkable: 两文件 tree diff 空 · tsc 绿
+  - `node scripts/run.ts validate` ALL PASS · 引擎 vitest 全绿（既有 wave/cli 门控 pins 零动）—— checkable: validate ALL PASS · 引擎 vitest 全绿
+  - COMMIT —— checkable: git commit 落 · precommit 过
+- **Acceptance**: wave review 完成记录审查 plan 修订（wave 行 `reviewedDocRevision` 在册 · 同型同源 · plan 路径单源既有 `#planPath`）· plan 移动 → wave 重开于 review（`cdd review --type wave` 不再 wrong-phase BLOCK · findings 对当前修订再生）· 同修订 + pending fix 仍 BLOCK（反自旋不破）· drift 仅作用 fix 挂起解析 · null 向后兼容 · **门控零新参数（plan 路径自审查记录派生）· cli.ts / preflight.ts 零 diff（零新增路径面）**· 零消费面（verdict/退出码零动）· 引擎 vitest 全绿 · validate ALL PASS
+- **DependsOn**: 1
+
 ## Change history
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.5 | 2026-10-12 | P4 计划 v0.5——**T11 新增（D16 · 用户裁定「并入这个 phase 一起处理」· 2026-10-12 · 与 spec v0.5 同步 · 非后置）**：wave 门控 plan 修订感知（R8）入计划——T11 **DependsOn 1** → 重启的合体波 {2,3,5,11} 一起实现（v0.4 重派 + D16 门控修复同波）· T11 objective/steps/acceptance 按 spec §8（wave review 完成记录审查 plan 修订 · `#phaseOf` 前置查 `docLineVerdict` 漂移 → 重开 review · 挂起 fix 作废 · 反自旋不破 · 零消费面）· **re-裁定零新增路径面（用户 2026-10-12：cli.ts doc/planPath 重复为债 → 门控零新参数 · plan 路径自审查记录 `reviewedDocRevisionOf` 派生 · cli.ts/preflight.ts 零 diff · 记录侧复用既有 `#planPath`）**· Review Focus +「重审门控修订漂移」行 · T10 变更集主题 + wave 门控 · 五波依赖序 W1={1,4,7} → W2={2,3,5,11} → W3={6,8} → W4={9} → W5={10} | Oscar M. · Claude Opus 5（kairos:cdd-plan 编排器回填 · 用户裁定 · 2026-10-12） |
 | v0.4 | 2026-10-12 | P4 计划 v0.4——**T3 写平面声明派生回填**（用户裁定 · 2026-10-12 · 与 spec v0.4 同步 · 合并 T3 F3 finding）：T3 从「写入面 ⊆ 声明, mod engine-authority status」收为**写平面 = `keyof properties ∪ engineOnly[face]` 声明派生** · findings 声明节点 `engineOnly: ["status"]`（滚动结论引擎权威）· **`HANDOFF_WRITE_PLANE` 平行表销毁**（10 键声明再抄债 · 前提③）· 投影①②按 engineOnly 过滤（child 视图零引擎专属键 · child draft 写 engineOnly → 校验拒）· guard ⑥ authority 卫生（engineOnly 被引擎写路径消费 + 不进 child 投影）· 投影一致性 check 语义同步（fence == 声明 minus engineOnly）· guard 单测三失败面翻新（角色混杂 · engineOnly 泄漏 · 投影不一致） | Oscar M. · Claude Opus 5（kairos:cdd-plan 编排器回填 · 用户裁定 · 2026-10-12） |
 | v0.3 | 2026-10-12 | P4 计划 v0.3——T5 单句白名单回填（用户裁定 · 2026-10-12 · 与 spec v0.3 同步）：T5 从**逐壳字段枚举 + INPUT_FINDINGS 只读护栏句**收为**逐壳一句严守 schema 指令**（字段源 = `HANDOFF_SCHEMA` 注入面 · 手动枚举 = 平行表债 → 排除 · 键集字面零残余）· 单句字节 pin · T6 探针 C 升任**单句是否足够的可证伪仲裁**（3 轮 0/3 · 非 0/3 → 补具体陷阱句）· Review Focus 两壳单句互指同步（findings 必填不被告知不得写） | Oscar M. · Claude Opus 5（kairos:cdd-plan 编排器回填 · 用户裁定 · 2026-10-12） |
 | v0.2 | 2026-10-12 | P4 计划 v0.2——plan review round 1 fix（plan-review-1 · 5/5 受理）：① T3 机器判子集方向修正（引擎写入面 ⊆ 对应 face 声明 properties · 未声明写入 → FAIL · 与 spec §3.1 一致）；② T1 载体类型改由声明派生（mapped type 自 BY_FACE[face].properties 键集 · 兜底断言降级 · 零手写平行字段表）；③ T7/T9 spec §6.3 对表：`#parseTypeKey`/`SCHEMA_TYPE_KEYS` 处置显式记录（保留 · doc-key 词汇与 ChannelValueType 值形状表正交 · 不入销毁清单）；④ T5 DependsOn 补 1；⑤ T1 handoffOf ↔ buildHandoff overloads 命名映射注 | Oscar M. · Claude Opus 5（kairos:cdd-plan docs-fix · plan-review-1 · 2026-10-12） |

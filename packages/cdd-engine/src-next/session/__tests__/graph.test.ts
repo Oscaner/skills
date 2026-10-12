@@ -21,7 +21,7 @@ import type { GraphIssue } from "../graph.ts";
 import { TaskGraph } from "../graph.ts";
 
 /** A plan document over `### Task N:` blocks + `- **DependsOn**:` values. */
-function planDoc(blocks: readonly (readonly string[])[]): string {
+const planDoc = (blocks: readonly (readonly string[])[]): string => {
   return [
     "# Test Plan",
     "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
@@ -33,20 +33,20 @@ function planDoc(blocks: readonly (readonly string[])[]): string {
     "",
     ...blocks.flat(),
   ].join("\n");
-}
+};
 
 /** One task block with an optional `- **DependsOn**:` line (null = the field is absent). */
-function task(id: number, dependsOn: string | null): readonly string[] {
+const task = (id: number, dependsOn: string | null): readonly string[] => {
   return [
     `### Task ${id}: task ${id}`,
     dependsOn === null ? [] : [`- **DependsOn**: ${dependsOn}`],
   ].flat();
-}
+};
 
 /** Parse a fixture through the plan parser (the dispatch's parse home) and build the graph. */
-function graphOf(lines: readonly (readonly string[])[]): TaskGraph {
+const graphOf = (lines: readonly (readonly string[])[]): TaskGraph => {
   return new TaskGraph(new PlanDocType("plan").parse(planDoc(lines).split("\n")));
-}
+};
 
 const kindsOf = (issues: readonly GraphIssue[]): readonly string[] =>
   issues.map((issue) => issue.kind);

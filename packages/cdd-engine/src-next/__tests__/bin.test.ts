@@ -16,10 +16,10 @@ const BIN = fileURLToPath(new URL("../bin.ts", import.meta.url));
 
 /** One spawned bin run — fail-open (a non-zero child rides the code, never a throw;
  *  the child's streams are piped, never inherited into the reporter). */
-function run(
+const run = (
   args: readonly string[],
   opts: { cwd?: string; input?: string } = {},
-): { code: number; stdout: string; stderr: string } {
+): { code: number; stdout: string; stderr: string } => {
   const result = spawnSync(process.execPath, [BIN, ...args], {
     encoding: "utf8",
     cwd: opts.cwd ?? process.cwd(),
@@ -31,7 +31,7 @@ function run(
     stdout: result.stdout ?? "",
     stderr: result.stderr ?? "",
   };
-}
+};
 
 describe("the T9 deliberate pin — the NodeEnvGuard + Cli.create entry (the class-face boot)", () => {
   it("the entry is the NodeEnvGuard class member + the Cli.create factory — zero module-level functions in bin.ts", () => {

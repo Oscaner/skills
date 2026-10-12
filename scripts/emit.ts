@@ -3,13 +3,18 @@
 // `packages/<name>/package.json#oscaner` (package-as-source) and renders the
 // .github issue forms from the engine's canonical issue-body template. The
 // orchestrator folds the old emit tree's thin wrapper modules into one module:
-// the product writer, the derivation and the drift comparer live here. The
-// committed products are byte-stable — the products scripts emits are
+// the product writer, the derivation families and the drift comparer live here.
+// The committed products are byte-stable — the products scripts emits are
 // byte-identical to the current converged emit (the banner watermark is the
-// canonical `scripts/run.ts emit — do not edit` face).
+// canonical `scripts/run.ts emit — do not edit` face). `.version-bump` is the
+// version-sync audit configuration — consumed by the version-sync step, never
+// a generation product.
 //
 // Module-level exports are types / the classes — zero bare functions (the
-// manifest derivation helpers ride the ManifestMappings static class family).
+// manifest mapping families are static classes, one per harness surface:
+// claude / cursor / source-row / issue-form / product-walk — high cohesion,
+// each projection derives from the package.json#oscaner single source, never a
+// second hand-written data surface).
 
 import type { Dirent } from "node:fs";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -52,8 +57,8 @@ export const PRODUCT_FILES = [
   ".github/ISSUE_TEMPLATE/enhancement.yml",
 ] as const;
 
-// biome-ignore lint/complexity/noStaticOnlyClass: the manifest mapping family — the derivation/render helpers are static members (zero-bare-function discipline).
-export class ManifestMappings {
+// biome-ignore lint/complexity/noStaticOnlyClass: the source-row mapping family — the package.json#oscaner → plugin source row projection is a static member (zero-bare-function discipline).
+export class SourceRowMappings {
   /** Derive one first-party plugin entry (the source.json plugin row key order is
    *  byte-pinned: name · contentRoot · cursor · version · description · author ·
    *  homepage · repository · license · claude · hooks). */
@@ -76,9 +81,9 @@ export class ManifestMappings {
     }
     if (pkg.version !== undefined) row.version = pkg.version;
     if (pkg.description !== undefined) row.description = pkg.description;
-    const author = ManifestMappings.normalizeAuthor(pkg.author);
+    const author = SourceRowMappings.normalizeAuthor(pkg.author);
     if (author !== undefined) row.author = author;
-    const repository = ManifestMappings.repoUrl(pkg.repository);
+    const repository = SourceRowMappings.repoUrl(pkg.repository);
     if (pkg.homepage !== undefined) row.homepage = pkg.homepage;
     if (repository !== undefined) row.repository = repository;
     if (pkg.license !== undefined) row.license = pkg.license;
@@ -100,10 +105,10 @@ export class ManifestMappings {
 
   /** Normalize a `repository` field to a bare https URL string. */
   static repoUrl(repository: unknown): string | undefined {
-    if (typeof repository === "string") return ManifestMappings.stripVcs(repository);
+    if (typeof repository === "string") return SourceRowMappings.stripVcs(repository);
     if (repository !== null && typeof repository === "object" && "url" in repository) {
       const url = (repository as { url?: unknown }).url;
-      if (typeof url === "string") return ManifestMappings.stripVcs(url);
+      if (typeof url === "string") return SourceRowMappings.stripVcs(url);
     }
     return undefined;
   }
@@ -111,7 +116,10 @@ export class ManifestMappings {
   static stripVcs(url: string): string {
     return url.replace(/^git\+/, "").replace(/\.git$/, "");
   }
+}
 
+// biome-ignore lint/complexity/noStaticOnlyClass: the claude mapping family — the claude manifest + marketplace documents are static members (zero-bare-function discipline).
+export class ClaudeMappings {
   /** The claude manifest — the thin plugin doc (`skills` points at the canonical dir). */
   static claudeManifest(plugin: PluginSource): Record<string, unknown> {
     const m: Record<string, unknown> = {
@@ -132,6 +140,45 @@ export class ManifestMappings {
     return m;
   }
 
+  /** The repo-root claude marketplace document + its per-plugin entries. */
+  static claudeMarketplaceDoc(source: {
+    name: string;
+    owner: object;
+    metadata: object;
+    plugins: PluginSource[];
+  }): Record<string, unknown> {
+    return {
+      _generated: GENERATED_BANNER,
+      $schema: "https://www.schemastore.org/claude-code-marketplace.json",
+      name: source.name,
+      metadata: source.metadata,
+      owner: source.owner,
+      plugins: source.plugins.map((plugin) => ClaudeMappings.claudeMarketplaceEntry(plugin)),
+    };
+  }
+
+  /** One claude marketplace entry — source points at the plugin content root (the
+   *  `./`-prefixed plugin-root form). */
+  static claudeMarketplaceEntry(plugin: PluginSource): Record<string, unknown> {
+    const entry: Record<string, unknown> = {
+      name: plugin.name,
+      source: `./${plugin.contentRoot}`,
+      description: plugin.description,
+      author: plugin.author,
+      homepage: plugin.homepage,
+      repository: plugin.repository,
+      license: plugin.license,
+      version: plugin.version,
+    };
+    if (plugin.claude?.category !== undefined) entry.category = plugin.claude.category;
+    const kw = plugin.claude?.keywords ?? [];
+    if (kw.length > 0) entry.keywords = kw;
+    return entry;
+  }
+}
+
+// biome-ignore lint/complexity/noStaticOnlyClass: the cursor mapping family — the cursor manifest + marketplace documents are static members (zero-bare-function discipline).
+export class CursorMappings {
   /** The cursor manifest — thin (displayName = the cursor display name or the plugin name). */
   static cursorManifest(plugin: PluginSource): Record<string, unknown> {
     const cursor = plugin.cursor;
@@ -154,42 +201,6 @@ export class ManifestMappings {
     return m;
   }
 
-  /** The repo-root claude marketplace document + its per-plugin entries. */
-  static claudeMarketplaceDoc(source: {
-    name: string;
-    owner: object;
-    metadata: object;
-    plugins: PluginSource[];
-  }): Record<string, unknown> {
-    return {
-      _generated: GENERATED_BANNER,
-      $schema: "https://www.schemastore.org/claude-code-marketplace.json",
-      name: source.name,
-      metadata: source.metadata,
-      owner: source.owner,
-      plugins: source.plugins.map((plugin) => ManifestMappings.claudeMarketplaceEntry(plugin)),
-    };
-  }
-
-  /** One claude marketplace entry — source points at the plugin content root (the
-   *  `./`-prefixed plugin-root form). */
-  static claudeMarketplaceEntry(plugin: PluginSource): Record<string, unknown> {
-    const entry: Record<string, unknown> = {
-      name: plugin.name,
-      source: `./${plugin.contentRoot}`,
-      description: plugin.description,
-      author: plugin.author,
-      homepage: plugin.homepage,
-      repository: plugin.repository,
-      license: plugin.license,
-      version: plugin.version,
-    };
-    if (plugin.claude?.category !== undefined) entry.category = plugin.claude.category;
-    const kw = plugin.claude?.keywords ?? [];
-    if (kw.length > 0) entry.keywords = kw;
-    return entry;
-  }
-
   /** The repo-root cursor marketplace document + its per-plugin entries (plugin-root
    *  ships the contentRoot source form). */
   static cursorMarketplaceDoc(source: {
@@ -206,7 +217,7 @@ export class ManifestMappings {
       plugins: source.plugins.map((plugin) => ({
         _generated: GENERATED_BANNER,
         name: plugin.name,
-        source: ManifestMappings.isPluginRoot(plugin)
+        source: CursorMappings.isPluginRoot(plugin)
           ? `./${plugin.contentRoot}`
           : `cursor-plugins/${plugin.name}`,
         description: plugin.description,
@@ -223,7 +234,10 @@ export class ManifestMappings {
       plugin.cursor.emitMode === "plugin-root"
     );
   }
+}
 
+// biome-ignore lint/complexity/noStaticOnlyClass: the issue-form mapping family — the issue-template YAML rendering is a static member (zero-bare-function discipline).
+export class IssueFormMappings {
   /** The issue-form YAML rendering — the `yaml` package (root devDependency), the
    *  emit-side renderer (the shipped engine imports zero third-party packages). */
   static renderIssueYml(formDef: unknown, enums: { components?: unknown }): string {
@@ -254,7 +268,10 @@ export class ManifestMappings {
     };
     return stringify(doc, { indent: 2, lineWidth: 0 });
   }
+}
 
+// biome-ignore lint/complexity/noStaticOnlyClass: the product-walk mapping family — the stale-product walk is a static member (zero-bare-function discipline).
+export class ProductRootWalk {
   /** Recursively walk a product root collecting repo-relative file paths. */
   static walkProductRoot(root: string, rootRel: string): string[] {
     const out: string[] = [];
@@ -306,7 +323,7 @@ export class EmitService {
   } {
     const { $schema, name, owner, metadata } = SOURCE_TOP;
     const plugins = FirstParty.names(join(REPO_ROOT, "packages")).map((dirName) =>
-      ManifestMappings.deriveFirstPartyPlugin(REPO_ROOT, dirName),
+      SourceRowMappings.deriveFirstPartyPlugin(REPO_ROOT, dirName),
     );
     return { $schema, name, owner: { ...owner }, metadata: { ...metadata }, plugins };
   }
@@ -321,13 +338,13 @@ export class EmitService {
     if (declared.includes("claude")) {
       out.push({
         rel: `${plugin.contentRoot}/.claude-plugin/plugin.json`,
-        doc: ManifestMappings.claudeManifest(plugin),
+        doc: ClaudeMappings.claudeManifest(plugin),
       });
     }
     if (declared.includes("cursor")) {
       out.push({
         rel: `${plugin.contentRoot}/.cursor-plugin/plugin.json`,
-        doc: ManifestMappings.cursorManifest(plugin),
+        doc: CursorMappings.cursorManifest(plugin),
       });
     }
     return out;
@@ -348,13 +365,13 @@ export class EmitService {
     this.writeJsonDoc(
       outRoot,
       ".claude-plugin/marketplace.json",
-      ManifestMappings.claudeMarketplaceDoc(source),
+      ClaudeMappings.claudeMarketplaceDoc(source),
       generatedPaths,
     );
     this.writeJsonDoc(
       outRoot,
       ".cursor-plugin/marketplace.json",
-      ManifestMappings.cursorMarketplaceDoc(source),
+      CursorMappings.cursorMarketplaceDoc(source),
       generatedPaths,
     );
     this.writeIssueTemplates(outRoot, generatedPaths);
@@ -375,7 +392,7 @@ export class EmitService {
       this.writeText(
         outRoot,
         rel,
-        ManifestMappings.renderIssueYml(meta.formFieldDefs[name], { components: meta.components }),
+        IssueFormMappings.renderIssueYml(meta.formFieldDefs[name], { components: meta.components }),
         generatedPaths,
       );
     }
@@ -385,7 +402,7 @@ export class EmitService {
   findStaleCommittedFiles(generatedSet: Set<string>, root: string): string[] {
     const stale: string[] = [];
     for (const rootRel of BASE_PRODUCT_ROOTS) {
-      for (const rel of ManifestMappings.walkProductRoot(root, rootRel)) {
+      for (const rel of ProductRootWalk.walkProductRoot(root, rootRel)) {
         if (!generatedSet.has(rel)) stale.push(rel);
       }
     }

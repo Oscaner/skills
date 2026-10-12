@@ -26,18 +26,18 @@ import { Words } from "../words.ts";
 const parseGate = new CommandTreeBuilder().program;
 
 /** The next-text of a capsule emit (the second line, the station prefix stripped). */
-function literalOf(route: Route, target?: RouteTarget): string {
+const literalOf = (route: Route, target?: RouteTarget): string => {
   const lines = new Capsule(new Words()).emit("APPROVED", "0", "/h.json", route, target);
   return lines[1]!.slice("next: ".length);
-}
+};
 
 /** The parseable argv of a literal — the fix readback suffix is prompt prose, never
  *  argv (the parse gate strips the declared suffix before feeding). */
-function argvOf(literal: string): string[] {
+const argvOf = (literal: string): string[] => {
   return literal
     .replace(new RegExp(`\\s*\\(${FIX_READBACK_SUFFIX.slice(1, -1)}\\)$`), "")
     .split(/\s+/);
-}
+};
 
 /** The frame-fact targets of the four types (the dispatch frame's own identity). */
 const wave = { type: "wave", id: "1,2", plan: "docs/kairos/plans/p3.md" } as const;

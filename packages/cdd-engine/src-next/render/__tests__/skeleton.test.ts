@@ -415,7 +415,7 @@ describe("SkeletonAssembler — the EOF rule", () => {
 /** Whether any rendered skeleton line carries a literal `N` heading placeholder —
  *  the declared digit headings (`### N.` / `#### N.M` / `### Task N:`) always
  *  render true numbers, never the letter. */
-function rendersNoLiteralN(key: DocKey): boolean {
+const rendersNoLiteralN = (key: DocKey): boolean => {
   const rendered = renderOf(key);
   return !/(?:^|\n)#{2,4} (?:Task )?N[.:]/m.test(rendered) && !rendered.includes("Task N:");
-}
+};

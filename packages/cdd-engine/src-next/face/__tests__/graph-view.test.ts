@@ -11,7 +11,7 @@ import { GraphView } from "../graph-view.ts";
 
 /** A board fixture — derived waves whose labels the execution order mirrors
  *  (the P4.1 plan's W1 = {T1,T2} → W2 = {T3,T4} → W3 = {T5} → W4 = {T6,T7}). */
-function board(waves: readonly (readonly number[])[], done: readonly number[]): string {
+const board = (waves: readonly (readonly number[])[], done: readonly number[]): string => {
   const report: TaskGraphReport = {
     edges: {},
     waves,
@@ -20,7 +20,7 @@ function board(waves: readonly (readonly number[])[], done: readonly number[]): 
     pending: waves.flat().filter((id) => !done.includes(id)),
   };
   return new GraphView().render(report, "plan-graph: docs/kairos/plans/p.md");
-}
+};
 
 describe("GraphView — the plan-graph wave-board labels (find #6 · W1-first ordering · no zero-padding)", () => {
   it("labels the waves W1, W2, … — the derived wave index + 1, zero no-padding", () => {

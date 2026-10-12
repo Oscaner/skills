@@ -23,7 +23,7 @@ const schema = new HandoffSchema();
 
 /** A hermetic ledger fixture — a fresh temp workspace (the buildHandoff carrier
  *  needs no on-disk state; the fixture keeps the per-face pins self-contained). */
-function ledgerFixture(): { ledger: Ledger; cleanup: () => void } {
+const ledgerFixture = (): { ledger: Ledger; cleanup: () => void } => {
   const repo = mkdtempSync(path.join(tmpdir(), "handoff-carrier-"));
   const workspace = new Workspace(
     new WorkspaceRoot(path.join(repo, ".kairos", "cdd"), "session"),
@@ -33,7 +33,7 @@ function ledgerFixture(): { ledger: Ledger; cleanup: () => void } {
     ledger: new Ledger(workspace, new ConfigLoader()),
     cleanup: () => rmSync(repo, { recursive: true, force: true }),
   };
-}
+};
 
 /** The canonical valid work draft — the implement/fix child's write-back. */
 const WORK = {

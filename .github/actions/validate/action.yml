@@ -1,5 +1,14 @@
 name: Validate
-description: Install dependencies with a frozen lockfile and run the full validation suite (run.ts validate).
+description: Install dependencies with a frozen lockfile and run one native validation command (the per-suite CI validation step — each job's command is the suite's own `package.json`/root script, failure-attributable to the job in its own action log).
+
+inputs:
+  command:
+    description: The native validation command to execute (e.g. `pnpm -C packages/cdd-engine test`).
+    required: true
+  install-pi:
+    description: Install the pi coding agent (the kairos suite's hard-fail install smoke).
+    required: false
+    default: "false"
 
 runs:
   using: composite
@@ -14,10 +23,11 @@ runs:
     # (packages/kairos/tests/pi-install-smoke.test.ts) fails hard with its install
     # command in the message when the binary is missing (zero silent skip).
     - name: Install pi coding agent
+      if: inputs.install-pi == 'true'
       shell: bash
       run: |
         npm i -g @earendil-works/pi-coding-agent@latest
-    - name: Run validation suite
+    - name: Run ${{ inputs.command }}
       shell: bash
       run: |
-        node scripts/run.ts validate
+        ${{ inputs.command }}

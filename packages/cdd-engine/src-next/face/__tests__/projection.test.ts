@@ -19,23 +19,23 @@ import { CommandTreeBuilder } from "../projection.ts";
 import { negatedOf } from "./negation.ts";
 
 /** The command node of one verb. */
-function commandOf(program: Command, verb: string): Command {
+const commandOf = (program: Command, verb: string): Command => {
   const node = program.commands.find((command) => command.name() === verb);
   expect(node, `the ${verb} command node exists`).toBeDefined();
   return node!;
-}
+};
 
 /** The leaf node of one parent command. */
-function leafOf(parent: Command, name: string): Command {
+const leafOf = (parent: Command, name: string): Command => {
   const node = parent.commands.find((command) => command.name() === name);
   expect(node, `the ${name} leaf exists`).toBeDefined();
   return node!;
-}
+};
 
 /** The code + message of the commander error `fn` rejects with (the builder's
  *  program carries the throwing exitOverride — the composed parse rejects, never
  *  process.exit). */
-function commanderError(fn: () => void): { code: string; message: string } {
+const commanderError = (fn: () => void): { code: string; message: string } => {
   let raw: unknown = null;
   try {
     fn();
@@ -49,7 +49,7 @@ function commanderError(fn: () => void): { code: string; message: string } {
     code: error.code as string,
     message: typeof error.message === "string" ? error.message : "",
   };
-}
+};
 
 describe("CommandTreeBuilder — the declaration projection (the constructor is the assembly)", () => {
   it("assembles the six subcommand nodes from the CLI_COMMANDS rows, in the declared order", () => {

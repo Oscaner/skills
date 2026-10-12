@@ -35,12 +35,12 @@ const GOOD_FS: DocFs = {
 };
 
 /** One rendered `### Task N:` block with all required fields. */
-function planTask(
+const planTask = (
   id: number,
   objective: string,
   dependsOn: string,
   acceptance: readonly string[] = ["done"],
-): string[] {
+): string[] => {
   return [
     `### Task ${id}: task ${id}`,
     `- **Objective**: ${objective}`,
@@ -53,13 +53,13 @@ function planTask(
     ...acceptance.map((entry) => `  - ${entry}`),
     `- **DependsOn**: ${dependsOn}`,
   ];
-}
+};
 
 /** A full canonical plan document over the task blocks — the shared parse fixture. */
-function planDoc(
+const planDoc = (
   blocks: readonly string[],
   parent = "[x-overall.md v1.21](docs/kairos/specs/x-overall.md)",
-): string {
+): string => {
   return [
     "# Test Plan",
     "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
@@ -71,24 +71,24 @@ function planDoc(
     "",
     ...blocks,
   ].join("\n");
-}
+};
 
 const lintPass = new LintPass();
 
-function lintPlan(content: string): ReturnType<LintPass["run"]> {
+const lintPlan = (content: string): ReturnType<LintPass["run"]> => {
   return lintPass.run({
     path: PLAN_PATH,
     parsed: parseDoc("plan", content.split("\n")),
   });
-}
+};
 
-function lintParsed(
+const lintParsed = (
   docKey: "overall" | "plan" | "phase-spec",
   lines: readonly string[],
-): ReturnType<LintPass["run"]> {
+): ReturnType<LintPass["run"]> => {
   // docKey selects the parser only — the lint input carries no re-typed doc key.
   return lintPass.run({ path: PLAN_PATH, parsed: parseDoc(docKey, lines) });
-}
+};
 
 /** The shared parse — the composition root consumers reuse (parse-once discipline). */
 const parseDoc = (docKey: "overall" | "plan" | "phase-spec", lines: readonly string[]): ParsedDoc =>

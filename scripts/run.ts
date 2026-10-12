@@ -1,16 +1,18 @@
 #!/usr/bin/env node
 // scripts/run.ts — the repo automation entry: the emit surfaces. `emit` writes the
 // product set into the repo root, `emit-check` byte-compares it against the committed
-// products. The validate orchestrator is dissolved (P5 — every check lives in its owning
-// package suite; the native per-suite CI sequence succeeds it) and the cdd smoke moved
-// into the engine test plane (its release gate runs `pnpm -C packages/cdd-engine run
-// smoke`). This file is the composition root — the orchestrators' declared entry,
-// executable directly or consumed by tests.
+// products, `version-sync` audits the package version convergence (the CI + precommit
+// thin step). The validate orchestrator is dissolved (P5 — every check lives in its
+// owning package suite; the native per-suite CI sequence succeeds it) and the cdd
+// smoke moved into the engine test plane (its release gate runs
+// `pnpm -C packages/cdd-engine run smoke`). This file is the composition root — the
+// orchestrators' declared entry, executable directly or consumed by tests.
 
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { emitComparer, emitService, REPO_ROOT } from "./emit.ts";
+import { VersionSync } from "./lib/version-sync.ts";
 
 // biome-ignore lint/complexity/noStaticOnlyClass: the composition root's entry face — the main dispatch is a static member (zero-bare-function discipline).
 export class RunCli {
@@ -35,8 +37,11 @@ export class RunCli {
         }
         return;
       }
+      case "version-sync":
+        VersionSync.run();
+        return;
       default:
-        process.stderr.write("usage: run <emit|emit-check>\n");
+        process.stderr.write("usage: run <emit|emit-check|version-sync>\n");
         process.exitCode = 2;
     }
   }

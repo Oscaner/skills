@@ -34,7 +34,12 @@ const DOC = "docs/kairos/specs/x-design.md";
 /** A hermetic ledger fixture — a fresh temp workspace (the ledger tests' pattern).
  *  `repo` exposes the temp root so the T11 wiring cases can place a real plan file
  *  the reviewed-revision write-back hashes. */
-function fixture(): { ledger: Ledger; workspace: Workspace; repo: string; cleanup: () => void } {
+const fixture = (): {
+  ledger: Ledger;
+  workspace: Workspace;
+  repo: string;
+  cleanup: () => void;
+} => {
   const repo = mkdtempSync(path.join(tmpdir(), "run-"));
   const workspace = new Workspace(
     new WorkspaceRoot(path.join(repo, ".kairos", "cdd"), "session"),
@@ -42,10 +47,10 @@ function fixture(): { ledger: Ledger; workspace: Workspace; repo: string; cleanu
   );
   const ledger = new Ledger(workspace, new ConfigLoader());
   return { ledger, workspace, repo, cleanup: () => rmSync(repo, { recursive: true, force: true }) };
-}
+};
 
 /** A plan document over `### Task N:` blocks + `- **DependsOn**:` values. */
-function planDoc(blocks: readonly (readonly string[])[]): string {
+const planDoc = (blocks: readonly (readonly string[])[]): string => {
   return [
     "# Test Plan",
     "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
@@ -57,23 +62,25 @@ function planDoc(blocks: readonly (readonly string[])[]): string {
     "",
     ...blocks.flat(),
   ].join("\n");
-}
+};
 
 /** One task block with its `- **DependsOn**:` edge. */
-function task(id: number, dependsOn: string): readonly string[] {
+const task = (id: number, dependsOn: string): readonly string[] => {
   return [`### Task ${id}: task ${id}`, `- **DependsOn**: ${dependsOn}`];
-}
+};
 
 /** Parse a fixture and build the TaskGraph — the task face's run state. */
-function taskGraph(blocks: readonly (readonly string[])[]): TaskGraph {
+const taskGraph = (blocks: readonly (readonly string[])[]): TaskGraph => {
   return new TaskGraph(new PlanDocType("plan").parse(planDoc(blocks).split("\n")));
-}
+};
 
 /** A dispatch stub — records every dispatched frame and answers per phase. */
-function stub(script: (frame: OpenFrame) => DispatchOutcome): {
+const stub = (
+  script: (frame: OpenFrame) => DispatchOutcome,
+): {
   step: DispatchStep;
   calls: OpenFrame[];
-} {
+} => {
   const calls: OpenFrame[] = [];
   return {
     calls,
@@ -82,7 +89,7 @@ function stub(script: (frame: OpenFrame) => DispatchOutcome): {
       return script(frame);
     },
   };
-}
+};
 
 /** The approved-implement outcome — the canonical work-round result. */
 const APPROVED_IMPLEMENT: DispatchOutcome = {

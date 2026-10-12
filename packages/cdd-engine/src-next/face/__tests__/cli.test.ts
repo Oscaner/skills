@@ -79,7 +79,7 @@ const ENGINE_SOURCE_PLANES = ["contract", "face", "infra", "render", "session"] 
  *  swept set IS the engine's non-test source tree — the planes' root company
  *  included, the guard's closure over the 'zero residual across the engine source'
  *  claim. */
-function engineSourceTexts(): [string, string][] {
+const engineSourceTexts = (): [string, string][] => {
   return [
     ...ENGINE_SOURCE_PLANES.flatMap((plane) =>
       readdirSync(new URL(`../../${plane}/`, import.meta.url))
@@ -102,7 +102,7 @@ function engineSourceTexts(): [string, string][] {
           ],
       ),
   ];
-}
+};
 
 // ---------------------------------------------------------------------------
 // fixtures
@@ -128,7 +128,7 @@ interface CliFixture {
 }
 
 /** A hermetic CLI fixture — a fresh temp repo, the io captured, the root injected. */
-function fixture(opts: CliOptions = {}): CliFixture {
+const fixture = (opts: CliOptions = {}): CliFixture => {
   const repoRoot = mkdtempSync(path.join(tmpdir(), "cli-"));
   const io = new CaptureIo();
   const command = Cli.create({ io, repoRoot, ...opts });
@@ -138,7 +138,7 @@ function fixture(opts: CliOptions = {}): CliFixture {
     repoRoot,
     cleanup: () => rmSync(repoRoot, { recursive: true, force: true }),
   };
-}
+};
 
 /** Init a git repo with one commit — the dry-run's HEAD (the review `next:` base).
  *  The fixture .gitignore keeps the dispatch's own writes (the `.kairos` workspace)
@@ -146,7 +146,7 @@ function fixture(opts: CliOptions = {}): CliFixture {
  *  stays clean across multi-dispatch flows (the P4.1 clean-tree dispatch gate).
  *  Pass an explicit ignore content to shape it (the no-`.kairos`-ignore consumer
  *  regression). */
-function gitInit(repoRoot: string, ignore = ".kairos\n/docs/\n"): string {
+const gitInit = (repoRoot: string, ignore = ".kairos\n/docs/\n"): string => {
   spawnSync("git", ["init", "-q"], { cwd: repoRoot });
   spawnSync("git", ["config", "user.email", "cli@test"], { cwd: repoRoot });
   spawnSync("git", ["config", "user.name", "cli-test"], { cwd: repoRoot });
@@ -155,10 +155,10 @@ function gitInit(repoRoot: string, ignore = ".kairos\n/docs/\n"): string {
   spawnSync("git", ["add", "-A"], { cwd: repoRoot });
   spawnSync("git", ["commit", "-q", "-m", "seed"], { cwd: repoRoot });
   return spawnSync("git", ["rev-parse", "HEAD"], { cwd: repoRoot }).stdout.toString().trim();
-}
+};
 
 /** A plan document — the head + N task blocks (task 1 no-dep; loop tasks depend on task 1). */
-function planFor(repoRoot: string, count = 1, name = "p3.md"): string {
+const planFor = (repoRoot: string, count = 1, name = "p3.md"): string => {
   const file = path.join(repoRoot, "docs", "kairos", "plans", name);
   mkdirSync(path.dirname(file), { recursive: true });
   const blocks: string[] = [];
@@ -192,19 +192,19 @@ function planFor(repoRoot: string, count = 1, name = "p3.md"): string {
     "utf8",
   );
   return file;
-}
+};
 
 /** Read a JSON file (the workspace artifact assertions). */
-function readJson<T>(file: string): T {
+const readJson = <T>(file: string): T => {
   return JSON.parse(readFileSync(file, "utf8")) as T;
-}
+};
 
 /** A doc-contract-clean plan — every registered plan element present (the header
  *  tuple + the version lineage + a Change-history table + the task fields), chain
  *  links resolving into existing same-family siblings. The P4.1 doc-contract
  *  dispatch gate (the spec/plan faces) requires it — a plain task-fixture plan is
  *  structurally defective and never dispatches a doc round. */
-function conformingPlan(repoRoot: string): string {
+const conformingPlan = (repoRoot: string): string => {
   const file = path.join(repoRoot, "docs", "kairos", "plans", "p3.md");
   mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(
@@ -245,7 +245,7 @@ function conformingPlan(repoRoot: string): string {
     writeFileSync(siblingPath, `# ${sibling}\n`, "utf8");
   }
   return file;
-}
+};
 
 /** A doc-contract-clean overall — every registered overall element present (the
  *  header tuple + the ten-element charter + the inventory tables), its chain links
@@ -253,7 +253,7 @@ function conformingPlan(repoRoot: string): string {
  *  GOOD_OVERALL judge fixture shape (judge.test.ts:19-71) with the `o1-` names
  *  the temp repo actually holds — the review face's doc-contract gate must judge it
  *  under the overall key (zero phase-spec misreport on the doc-key derivation). */
-function conformingOverall(repoRoot: string): string {
+const conformingOverall = (repoRoot: string): string => {
   const file = path.join(repoRoot, "docs", "kairos", "specs", "o1-overall.md");
   mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(
@@ -324,10 +324,10 @@ function conformingOverall(repoRoot: string): string {
     writeFileSync(siblingPath, `# ${sibling}\n`, "utf8");
   }
   return file;
-}
+};
 
 /** A plan with N independent tasks (no deps — a single root wave of N members). */
-function independentPlan(repoRoot: string, name: string, count: number): string {
+const independentPlan = (repoRoot: string, name: string, count: number): string => {
   const file = path.join(repoRoot, "docs", "kairos", "plans", name);
   mkdirSync(path.dirname(file), { recursive: true });
   const blocks: string[] = [];
@@ -361,7 +361,7 @@ function independentPlan(repoRoot: string, name: string, count: number): string 
     "utf8",
   );
   return file;
-}
+};
 
 // ---------------------------------------------------------------------------
 // the command face — the steady subcommand words

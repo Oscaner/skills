@@ -25,7 +25,7 @@ const BASE = "a".repeat(8);
 const HEAD = "b".repeat(8);
 
 /** A hermetic ledger fixture — a fresh temp workspace under a temp repo root. */
-function fixture(): { ledger: Ledger; workspace: Workspace; cleanup: () => void } {
+const fixture = (): { ledger: Ledger; workspace: Workspace; cleanup: () => void } => {
   const repo = mkdtempSync(path.join(tmpdir(), "ledger-"));
   const workspace = new Workspace(
     new WorkspaceRoot(path.join(repo, ".kairos", "cdd"), "session"),
@@ -33,7 +33,7 @@ function fixture(): { ledger: Ledger; workspace: Workspace; cleanup: () => void 
   );
   const ledger = new Ledger(workspace, new ConfigLoader());
   return { ledger, workspace, cleanup: () => rmSync(repo, { recursive: true, force: true }) };
-}
+};
 
 describe("progress — the fixed key set", () => {
   it("emptyProgress carries the fixed key set at zero (the counter arm + an empty rows list)", () => {

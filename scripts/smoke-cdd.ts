@@ -114,13 +114,17 @@ export class SmokeCdd {
       "fixture",
     );
 
-    // The help face — the verb-scoped USAGE surface (the new-tree CLI resolves the
-    // verb before the help pre-screen renders).
-    const helpOut = runNode([binPath, "implement", "--help"], repoRoot);
+    // The help face — the commander-native program face (the T4 stable anchor): the
+    // native Usage first line + the six-command Commands-table rows (the new-tree
+    // CLI's --help is the commander program face — `Usage: cdd [options] [command]`
+    // + the `implement [options]` / `review [options]` / `fix [options]` rows).
+    const helpOut = runNode([binPath, "--help"], repoRoot);
     assertOk(
-      helpOut.stdout.includes("usage: cdd implement") &&
-        /implement|review|fix/.test(helpOut.stdout),
-      `--help missing the USAGE face (code ${helpOut.code}) stdout=${JSON.stringify(helpOut.stdout.slice(0, 120))} stderr=${JSON.stringify(helpOut.stderr.slice(0, 120))}`,
+      helpOut.stdout.includes("Usage: cdd [options] [command]") &&
+        ["implement", "review", "fix"].every((name) =>
+          helpOut.stdout.includes(`${name} [options]`),
+        ),
+      `--help missing the commander-native face (code ${helpOut.code}) stdout=${JSON.stringify(helpOut.stdout.slice(0, 120))} stderr=${JSON.stringify(helpOut.stderr.slice(0, 120))}`,
     );
 
     // The dry-run work chain — implement then review, each asserting the capsule.

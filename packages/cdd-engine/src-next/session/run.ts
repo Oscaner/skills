@@ -355,12 +355,26 @@ export class Lifecycle {
    *  completed pair re-keys on the fix round's route (re-review vs closure). A
    *  CLOSED doc line reopens through the identity verdict (T7): the target's
    *  current doc revision vs the recorded reviewed revision — a moved doc reopens
-   *  the review lead (round continuation), an unchanged doc stays closed. */
+   *  the review lead (round continuation), an unchanged doc stays closed. The
+   *  doc-drift judgment is the reviewGate method family (T8 · §3.5 · judgment
+   *  order = doc revision FIRST, matching the CLI's line gate — an open gate and
+   *  a dispatchable frame must agree): a drifted doc opens the review lead whatever
+   *  the round/route state says (the fix-awaited route never freezes a revised
+   *  doc); an unchanged doc with the pending fix derived opens the fix; the
+   *  unbound (no identity on record) and same-without-pending faces fall through
+   *  to the legacy rounds/routes judgment below. */
   #nextLinePhase(
     key: LedgerKey,
     target: AuditTarget,
     reviewLead: ReviewLead,
   ): DispatchPhase | null {
+    if (target.kind === "doc") {
+      const verdict = this.#ledger.reviewGate(key, target.doc, this.#face.type);
+      if (verdict.kind === "open") return reviewLead;
+      if (verdict.kind === "same" && verdict.pending) return "fix";
+      // same-approved / unbound — fall through to the rounds/routes judgment
+      // (a completed-fix line reopens review through the fix round's route).
+    }
     const reviews = this.#ledger.roundCount(key, reviewLead);
     const fixes = this.#ledger.roundCount(key, "fix");
     if (reviews === 0) return reviewLead;
@@ -371,12 +385,7 @@ export class Lifecycle {
       const route = this.#lineRoute(target, reviews);
       if (route?.kind === "review") return reviewLead;
     }
-    // T7 — the doc line's identity-driven reopen: a CLOSED doc line reopens when
-    // the target document drifted past its reviewed revision (round continuation
-    // {line}-review-{N+1}); the CLI's line gate consumes the same ledger verdict.
-    return target.kind === "doc" && this.#ledger.docLineVerdict(key, target.doc) === "drift"
-      ? reviewLead
-      : null;
+    return null;
   }
 
   /** The C5 route of a single-target line's review-lead round — the fix-awaits /

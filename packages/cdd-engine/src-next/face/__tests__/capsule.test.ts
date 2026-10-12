@@ -18,8 +18,12 @@ import type { RouteTarget } from "../../session/faces.ts";
 import type { Route } from "../../session/next.ts";
 import { FIX_READBACK_SUFFIX } from "../../session/next.ts";
 import { Capsule } from "../capsule.ts";
-import { cli } from "../cli.ts";
+import { CommandTreeBuilder } from "../projection.ts";
 import { Words } from "../words.ts";
+
+/** The commander parse gate — the same channel the CLI dispatch reads (P3 T3: the
+ *  composition root parses through the projection's program; `Cli#parse()` retired). */
+const parseGate = new CommandTreeBuilder().program;
 
 /** The next-text of a capsule emit (the second line, the station prefix stripped). */
 function literalOf(route: Route, target?: RouteTarget): string {
@@ -128,7 +132,7 @@ describe("P4.1 T7 (find #7) — the next literal's required-flag coverage (parse
   it("review→wave renders `--plan {path}` — the find #7 regression (the missing --plan previously parsed green yet refused the dispatch at runtime)", () => {
     const literal = literalOf({ kind: "review", base }, wave);
     expect(literal).toBe("review --type wave --tasks 1,2 --plan docs/kairos/plans/p3.md");
-    expect(() => cli().parse(argvOf(literal))).not.toThrow();
+    expect(() => parseGate.parse(argvOf(literal), { from: "user" })).not.toThrow();
     // the ready-to-dispatch wave review must carry its runtime-required --plan — the
     // same argv domain as the W3 task-5 dispatch that exposed the gap
     expect(argvOf(literal)).toEqual([
@@ -146,7 +150,7 @@ describe("P4.1 T7 (find #7) — the next literal's required-flag coverage (parse
     for (const row of COVERAGE) {
       const literal = literalOf(row.route, row.target);
       // parse green (T4) …
-      expect(() => cli().parse(argvOf(literal))).not.toThrow();
+      expect(() => parseGate.parse(argvOf(literal), { from: "user" })).not.toThrow();
       // … and the type's required flags are all present in the same arg domain (find #7)
       for (const flag of row.required) {
         expect(literal, `${row.label} must carry ${flag}`).toContain(flag);

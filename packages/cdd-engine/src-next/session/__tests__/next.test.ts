@@ -19,7 +19,7 @@
 
 import { describe, expect, it } from "vitest";
 import { Capsule } from "../../face/capsule.ts";
-import { cli } from "../../face/cli.ts";
+import { CommandTreeBuilder } from "../../face/projection.ts";
 import { Words } from "../../face/words.ts";
 import type { Round, RoundPhase } from "../ledger.ts";
 import type { Route } from "../next.ts";
@@ -350,9 +350,13 @@ describe("P4.1 T4 — the router's routes render parseable next literals (zero-e
   ] as const)("%s — the route's literal argv parses", (_label, route) => {
     if (route.kind === "done") {
       // the bare terminal word: never fed to parse (a bare `done` is not a command)
-      expect(() => cli().parse(["done"])).toThrow(/unknown command: done/);
+      expect(() => new CommandTreeBuilder().program.parse(["done"], { from: "user" })).toThrow(
+        /unknown command 'done'/,
+      );
       return;
     }
-    expect(() => cli().parse(argvOf(route))).not.toThrow();
+    expect(() =>
+      new CommandTreeBuilder().program.parse(argvOf(route), { from: "user" }),
+    ).not.toThrow();
   });
 });

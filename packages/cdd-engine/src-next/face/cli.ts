@@ -6,28 +6,29 @@
 // `cli` composition root (the module's one bare-function export, admitted by the
 // plan's zero-bare-function discipline for composition roots) wires the contract /
 // session / face objects into the ONE CLI the bin thin entry boots. Task 3 (P1)
-// reorganized the face into one boundary per responsibility — the command registry
-// (face/registry.ts, the six subcommand declarations + usage data) and the typed
-// argv parse channel (face/argv.ts, the ArgvParser + the parsed/usage-error faces);
-// CLI_COMMANDS stays re-exported here for the guard audit's stable door (the guard
-// reads the same registry rows). This module keeps the RUN face: the dispatch seam
-// (HarnessDispatch — the production default of the lifecycle's dispatch step),
-// the work/pure command run bodies, the pre-flight orchestration and the render
-// faces' separation (the renderers stay injected — the CLI orchestrates the call,
-// never re-types their bytes), plus the help/`--help` display face — the
-// self-built help render (the flag-level options · the sub-command tree · the
-// examples · the top-level overview) and the error-path hints (Task 4 · design
-// spec §4: the display product's renderer lives at the run face, zero runtime
-// dependencies).
+// reorganized the face into one boundary per responsibility — the CLI declaration
+// single surface (face/declare.ts, §2.4 — the six subcommand rows + the argv
+// channel), the declaration projection (face/projection.ts — the CommandTreeBuilder
+// whose commander program OWNS the parse + help + validation pipeline), and the run
+// face; the typed argv parse channel (face/argv.ts) was deleted at T6 — the parse
+// handover to commander is total, and the domain-run error face's usage is
+// commander's own byte. This module keeps the RUN face: the dispatch seam
+// (HarnessDispatch — the production default of the lifecycle's dispatch step), the
+// work/pure command run bodies and the pre-flight orchestration (the renderers stay
+// injected — the CLI orchestrates the call, never re-types their bytes).
 //
-//   · Cli#parse — delegated to the shared ArgvParser (face/argv.ts).
-//   · Cli#run — dispatch the parsed command to its run body. The work commands
-//     (implement / review / fix) assemble the lifecycle (session/run), the capsule +
-//     words (face), the ledger (session/ledger) and the task graph (contract parse)
-//     and advance the requested phase; schema / issue / base run their pure
-//     artifact surfaces through the same assembled objects (the issue body is
-//     rendered by the IssueBodyRenderer the root assembles — render/issue-body.ts,
-//     the P7 translation-system render landing).
+//   · runArgv — parse through the commander program (face/projection.ts), dispatch
+//     each parsed command through an .action thin shell (the parseArg-normalized
+//     values ride into the domain run as its consumed values, zero rewriting) and
+//     normalize the exit-code surface from the thrown CommanderError (0 = help/OK ·
+//     2 = usage (incl. the preAction conditional-required) · 1 = run failure).
+//   · the .action thin shells — the work commands (implement / review / fix)
+//     assemble the lifecycle (session/run), the capsule + words (face), the ledger
+//     (session/ledger) and the task graph (contract parse) and advance the
+//     requested phase; schema / issue / base run their pure artifact surfaces
+//     through the same assembled objects (the issue body is rendered by the
+//     IssueBodyRenderer the root assembles — render/issue-body.ts, the P7
+//     translation-system render landing).
 //   · HarnessDispatch — the lifecycle's dispatch-seam production default: assembles
 //     the dispatch prompt (the render/template-contract data plane) from the frame
 //     and runs the host harness CLI (the harness-contract rows) with the child's
@@ -40,6 +41,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
+import { type Command, CommanderError } from "commander";
 import { declaredRegistries } from "../contract/declare.ts";
 import { MarkdownPrimitives, PlanDocType } from "../contract/doc.ts";
 import { Contract } from "../contract/judge.ts";
@@ -61,7 +63,7 @@ import { targetFaces } from "../session/faces.ts";
 import { TaskGraph } from "../session/graph.ts";
 import type { HandoffSchemaFace } from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
-import type { HandoffParams, LedgerKey, OpType, RoundStatus } from "../session/ledger.ts";
+import type { DocRevisionRef, HandoffParams, OpType, RoundStatus } from "../session/ledger.ts";
 import { Ledger } from "../session/ledger.ts";
 import type { Route } from "../session/next.ts";
 import { NextStepRouter } from "../session/next.ts";
@@ -69,8 +71,8 @@ import type { PreFlightVerdict } from "../session/preflight.ts";
 import { PreFlight } from "../session/preflight.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame, RunState } from "../session/run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../session/run.ts";
-import { ArgvParser, type ChannelArg, CliUsageError, type ParsedCommand } from "./argv.ts";
 import { Capsule } from "./capsule.ts";
+import { ARGV_CHANNEL, type CliLeafName, type CliVerb } from "./declare.ts";
 import { GraphView } from "./graph-view.ts";
 import {
   DISPATCH,
@@ -80,23 +82,15 @@ import {
   type HostReferenceTable,
   REFS,
 } from "./host.ts";
-import {
-  CLI_COMMANDS,
-  CLI_USAGE,
-  type CliCommandSpec,
-  type CliLeafSpec,
-  type CliVerb,
-} from "./registry.ts";
+import { CommandTreeBuilder } from "./projection.ts";
 import { Words } from "./words.ts";
 
 // ---------------------------------------------------------------------------
-// the stable door — the face's public surface stays here (the guard audit reads
-// the same registry rows; the parse/usage-error faces live in face/argv.ts)
+// the stable door — the face's public surface stays here (the declaration
+// single surface lives in face/declare.ts; the guard audit reads the same rows
+// straight from that surface, and the parse + usage-error face is the commander
+// program's own product, face/projection.ts)
 // ---------------------------------------------------------------------------
-
-/** The command registry — re-exported for the face's single door (the guard audit
- *  imports CLI_COMMANDS through this door; the parse face owns the rows). */
-export { CLI_COMMANDS } from "./registry.ts";
 
 /** The CLI io seam — production wraps process stdio; tests capture. */
 export interface CliIo {
@@ -801,10 +795,28 @@ export interface WorkScene extends DispatchScene {
   router: NextStepRouter;
 }
 
+/** The thin-shell → run-body input — the .action shell maps commander's parsed
+ *  opts onto this consumption face (the parseArg-normalized values ride through
+ *  verbatim, zero rewriting: int-list → the comma string · enum → the value · sha
+ *  → the short form · the schema <type> → the parseTypeKey normalization). The
+ *  CLI's parse-result face retired with the argv channel at T6 — commander owns
+ *  the parse; this seam is the run face's own shape, never a parallel parse
+ *  product. */
+export interface RunInput {
+  /** The nested leaf word (schema get|gen · base set|get) — null on the verbs. */
+  leaf: CliLeafName | null;
+  /** The declared keys' values — normalized strings (undefined-flagged keys absent). */
+  args: Record<string, string>;
+  /** The positional values (the schema <type> — the parseTypeKey-normalized key). */
+  positionals: readonly string[];
+  /** The invocation's synthetic-dispatch scope (the --dry-run program flag). */
+  dryRun: boolean;
+}
+
 /**
  * The Cli — the command face's parse/run surface over the assembled object graph.
- * parse() validates the command + component values and rejects unknown flags (the
- * guardArgs semantics); run() dispatches to the command's run body — the work verbs
+ * runArgv() parses through the commander program and rejects unknown flags (the
+ * unknown-flag semantics); run() dispatches to the command's run body — the work verbs
  * compose the lifecycle/capsule/ledger/graph and advance the requested phase, the
  * pure verbs run their artifact surfaces through the same assembled objects.
  */
@@ -824,10 +836,6 @@ export class Cli {
   readonly #stdinRead: () => string;
   readonly #issue: IssueBodyRenderer;
   readonly #translator: Translator;
-  /** The typed argv parse face (face/argv.ts) — the resolved channel table + the
-   *  doc-key vocabulary the parse reads; the run face passes the SAME channel
-   *  table to the capsule (one flag-spelling source, never a hard-coded format). */
-  readonly #parser: ArgvParser;
   /** The plan-graph display (the schema get plan-graph + the pre-flight face). */
   readonly #graphView: GraphView;
   /** The lifecycle pre-flight seam (P4.1 T1) — the single dispatch gate the work
@@ -838,6 +846,12 @@ export class Cli {
    *  the pre-flight doc construction reads (design spec §2.3: the derivation point
    *  converges to the single contract method). */
   readonly #contract: Contract;
+  /** The commander command tree — the declaration projection (CommandTreeBuilder,
+   *  face/projection.ts): the domain-run error face's usage byte is the command
+   *  node's commander-native helpInformation() first line (the self-built usage
+   *  corpus is retired; the T3 rebuild closes the parse face onto the same
+   *  program). */
+  readonly #program: Command;
 
   constructor(opts: CliOptions = {}) {
     this.#io = opts.io ?? {
@@ -847,6 +861,9 @@ export class Cli {
     this.#config = opts.config ?? new ConfigLoader();
     this.#words = opts.words ?? new Words();
     this.#projector = opts.projector ?? new Projector(declaredRegistries);
+    this.#program = new CommandTreeBuilder().program;
+    this.#wireTreeOutput(this.#program);
+    this.#wireActions();
     this.#git = opts.git ?? new GitClient();
     this.#sync = opts.sync ?? new SyncRunner();
     this.#cwd = opts.cwd ?? process.cwd();
@@ -858,11 +875,6 @@ export class Cli {
     this.#stdinRead = opts.stdinRead ?? (() => readFileSync(0, "utf8"));
     this.#translator = opts.translator ?? new Translator(this.#words);
     this.#issue = new IssueBodyRenderer(this.#words, this.#translator);
-    this.#parser = new ArgvParser({
-      config: this.#config,
-      dryRun: this.#dryRun,
-      docKeys: Object.keys(this.#projector.registries().schema),
-    });
     this.#graphView = new GraphView();
     this.#contract = new Contract();
     this.#preflight =
@@ -875,273 +887,136 @@ export class Cli {
   }
 
   // ---------------------------------------------------------------------------
-  // parse — delegated to the shared typed argv channel (face/argv.ts)
+  // the commander parse pipeline — the composition root parses through the
+  // projection's program (T3): the .action thin shells (below) dispatch the parsed
+  // command to its domain run; the exit-code discriminator maps the CommanderError
+  // surface (§3.1 — probe-verified v0.9): help exit 0 / helpDisplayed → 0 · help
+  // non-zero (bare run · missing subcommand · help <bogus>) + usage-class codes →
+  // 2 · an unexpected throw → 1.
   // ---------------------------------------------------------------------------
 
-  /** parse(argv) — delegate to the shared ArgvParser (the typed argv channel:
-   *  tokenize + component-value validation + the unknown-flag guard). The round's
-   *  help/dry-run program scopes resolve exactly as the parse face declares them.
-   *  Throws CliUsageError (normalized by runArgv to usage + message + exit 2). */
-  parse(raw: readonly string[]): ParsedCommand {
-    return this.#parser.parse(raw);
-  }
-
-  // ---------------------------------------------------------------------------
-  // run — the command dispatch
-  // ---------------------------------------------------------------------------
-
-  /** run(parsed) — dispatch to the command's run body; returns the exit code (0 =
-   *  success, 1 = the round failed, 2 = a runtime usage/read error). */
-  async run(parsed: ParsedCommand): Promise<number> {
-    if (parsed.help) {
-      const spec = CLI_COMMANDS.find((command) => command.name === parsed.verb);
-      const surface = parsed.leafSpec ?? spec;
-      if (surface !== undefined) this.#io.stdout(`${this.#renderHelp(surface)}\n`);
-      return 0;
-    }
-    switch (parsed.verb) {
-      case "implement":
-        return this.#runWork("implement", parsed);
-      case "review":
-        return this.#runWork("review", parsed);
-      case "fix":
-        return this.#runWork("fix", parsed);
-      case "schema":
-        return await this.#runSchema(parsed);
-      case "issue":
-        return this.#runIssue();
-      case "base":
-        return this.#runBase(parsed);
-    }
-  }
-
-  /** runArgv(argv) — the CLI face: parse + run, with every CliUsageError normalized
-   *  to the usage line + message on stderr and exit 2 (the steady exit-code table).
-   *  A command-less invocation (bare `cdd`) renders the six-command OVERVIEW with
-   *  the missing-command message merged on stdout — the exit code stays 2 (an
-   *  overview at exit 0 would be a deliberate exit-code-table change, out of
-   *  this phase's authority · design spec §4.1); every other usage error gains the
-   *  smart error hint (the location's nearest suggestion, spec §4.4). */
+  /** runArgv(argv) — the CLI face: parse through the commander program, return the
+   *  thin shell's domain-run exit code (0 = success/help · 2 = usage · 1 = run
+   *  failure — the steady exit-code table). Every commander/normal usage error
+   *  discriminates on the thrown CommanderError: the help display faces write
+   *  themselves through the node's configured output (the CLI never re-types a
+   *  help byte), the parse/usage rejections carry commander's own "error: " line
+   *  (never double-written), and the preAction conditional-required rejection (the
+   *  one commander throws unwritten) is surfaced by the run face. */
   async runArgv(raw: readonly string[]): Promise<number> {
     try {
-      return await this.run(this.parse(raw));
+      this.#exitCode = 0;
+      await this.#program.parseAsync([...raw], { from: "user" });
+      return this.#exitCode;
     } catch (err) {
-      if (err instanceof CliUsageError) {
-        if (err.message.startsWith("missing command")) {
-          this.#io.stdout(`${this.#overview(err.message)}\n`);
-          return 2;
-        }
-        this.#io.stderr(`${err.usage}\n`);
-        this.#io.stderr(`${err.message}\n`);
-        const hint = this.#usageHint(err);
-        if (hint !== null) this.#io.stderr(`${hint}\n`);
-        return 2;
-      }
-      this.#io.stderr(`cdd: ${err instanceof Error ? err.message : String(err)}\n`);
-      return 1;
+      return this.#normalizeExit(err);
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // the help/display face — the self-built render + the overview + the error hints
-  // ---------------------------------------------------------------------------
-
-  /** The per-command `--help` render (design spec §4.1 — the complete surface,
-   *  never the old two-line patch): the usage line + the description + the
-   *  flag-level options (the value domains + per-flag descriptions, single-sourced
-   *  at the resolved channel table) + the sub-command tree (each leaf's option
-   *  tokens) + one minimal example + the program-flag legend. Zero runtime
-   *  dependencies (the do-not-re-add citty posture). */
-  #renderHelp(surface: CliCommandSpec | CliLeafSpec): string {
-    const lines: string[] = [surface.usage, "", surface.description];
-    if (surface.keys.length > 0) {
-      lines.push("", "options:", ...this.#optionLines(surface));
+  /** The exit-code discriminator — the CommanderError surface (§3.1): the explicit
+   *  help faces exit 0, the missing-command/missing-subcommand faces ride the help
+   *  code's non-zero exit → 2, the usage-class codes (unknown option/command ·
+   *  invalid argument (incl. the preAction conditional-required) · excess args ·
+   *  missing required) → 2, an unexpected error → 1. */
+  #normalizeExit(err: unknown): number {
+    if (err instanceof CommanderError) {
+      if (err.code === "commander.help") return err.exitCode === 0 ? 0 : 2;
+      if (err.code === "commander.helpDisplayed") return 0;
+      // usage-class — commander's own error() already wrote its "error: ..." line
+      // (the parseArg/unknown surfaces); the preAction hook's InvalidArgumentError
+      // and the run bodies' #usage throw are both thrown unwritten — the run face
+      // surfaces them once.
+      if (!err.message.startsWith("error: ")) this.#io.stderr(`error: ${err.message}\n`);
+      return 2;
     }
-    if ("leaves" in surface && surface.leaves !== undefined && surface.leaves.length > 0) {
-      lines.push("", "subcommands:");
-      for (const leaf of surface.leaves) {
-        lines.push(`  ${leaf.name}  ${leaf.description}`);
-        const tokens = this.#leafTokens(leaf);
-        if (tokens.length > 0) lines.push(`          options: ${tokens.join(" · ")}`);
-      }
-      const typeLeaves = surface.leaves.filter((leaf) =>
-        (leaf.positionals ?? []).some((positional) => positional.key === "type"),
-      );
-      if (typeLeaves.length > 0) {
-        const get = typeLeaves.some((leaf) => leaf.name === "get");
-        lines.push("", `the <type> vocabulary: ${this.#typeDomain(get)}`);
-      }
-    }
-    if ("example" in surface && surface.example !== undefined) {
-      lines.push("", "example:", `  ${surface.example}`);
-    }
-    lines.push("", "program flags (accepted at any position): --dry-run · --help / -h");
-    return lines.join("\n");
+    this.#io.stderr(`cdd: ${err instanceof Error ? err.message : String(err)}\n`);
+    return 1;
   }
 
-  /** The option lines of a surface — the flag/value-domain/help columns (the
-   *  schema leaves' positionals render as their `<key>` token). */
-  #optionLines(surface: CliCommandSpec | CliLeafSpec): string[] {
-    const rows: { token: string; help: string }[] = [];
-    for (const declared of surface.keys) {
-      const channel = this.#parser.channels()[declared.key];
-      if (channel === undefined) continue;
-      const domain = this.#domainOf(channel);
-      const token = `${channel.flag}${domain === "" ? "" : ` ${domain}`}`;
-      const help = `${channel.help ?? ""}${declared.required === true ? " (required)" : ""}`;
-      rows.push({ token, help });
-    }
-    for (const positional of surface.positionals ?? []) {
-      rows.push({
-        token: `<${positional.key}>`,
-        help: positional.required === true ? " (required)" : "",
+  /** The domain-run usage error — a usage rejection raised inside a run body:
+   *  commander's OWN CommanderError (never a second error type — the retired
+   *  parse-channel error class is deleted at T6), which the normalizeExit
+   *  discriminator above surfaces with the native "error:" byte and exit 2 (§3.1).
+   *  The usage byte is the owning command node's commander-native
+   *  helpInformation() first line (the declaration's help face — the self-built
+   *  usage corpus never returned here); the throw carries only the message. */
+  #usage(node: Command, message: string): never {
+    const usageLine = node.helpInformation().split("\n")[0];
+    if (usageLine !== "") this.#io.stderr(`${usageLine}\n`);
+    throw new CommanderError(2, "cdd.usage-error", message);
+  }
+
+  /** The per-invocation exit code the thin shells capture (commander discards the
+   *  action's return — parseAsync resolves with the program node, so the shell
+   *  writes the domain-run's code here and runArgv reads it back). */
+  #exitCode = 0;
+
+  /** The .action thin shells — the parsed command → its domain run: build the
+   *  run input from commander's parsed opts (parseArg-normalized values pass
+   *  through as the domain's consumed values — no rewrite, §3.3) and dispatch to
+   *  the domain run, capturing the exit code. */
+  #wireActions(): void {
+    const commandNode = (name: CliVerb) => this.#program.commands.find((c) => c.name() === name)!;
+    const leafNode = (parent: CliVerb, name: CliLeafName) =>
+      commandNode(parent).commands.find((c) => c.name() === name)!;
+
+    // the work verbs — implement / review / fix compose the domain run
+    for (const verb of ["implement", "review", "fix"] as const) {
+      commandNode(verb).action(async (_opts: unknown, command: Command) => {
+        this.#exitCode = await this.#runWork(verb, command, this.#runInput(null, command));
       });
     }
-    const width = rows.reduce((max, row) => Math.max(max, row.token.length), 0);
-    return rows.map((row) => `  ${row.token.padEnd(width)}   ${row.help}`.trimEnd());
+    // the pure commands' leaves — schema get/gen · base set/get · issue render
+    leafNode("schema", "get").action(async (_type: unknown, _opts: unknown, command: Command) => {
+      this.#exitCode = await this.#runSchema(command, this.#runInput("get", command));
+    });
+    leafNode("schema", "gen").action(async (_type: unknown, _opts: unknown, command: Command) => {
+      this.#exitCode = await this.#runSchema(command, this.#runInput("gen", command));
+    });
+    leafNode("base", "set").action(async (_opts: unknown, command: Command) => {
+      this.#exitCode = await this.#runBase(command, this.#runInput("set", command));
+    });
+    leafNode("base", "get").action(async (_opts: unknown, command: Command) => {
+      this.#exitCode = await this.#runBase(command, this.#runInput("get", command));
+    });
+    leafNode("issue", "render").action(async () => {
+      this.#exitCode = this.#runIssue();
+    });
   }
 
-  /** The leaf's compact option tokens — the sub-command tree's options row (a
-   *  declared value-type override renders its own domain: base set's `--base`
-   *  carries a branch name, never the review range's sha). */
-  #leafTokens(leaf: CliLeafSpec): string[] {
-    const tokens: string[] = [];
-    for (const positional of leaf.positionals ?? []) tokens.push(`<${positional.key}>`);
-    for (const declared of leaf.keys) {
-      const channel = this.#parser.channels()[declared.key];
-      if (channel === undefined) continue;
-      const domain = declared.valueType === "branch" ? "<branch>" : this.#domainOf(channel);
-      tokens.push(`${channel.flag}${domain === "" ? "" : ` ${domain}`}`);
+  /** The thin shell's run input — commander's parsed opts mapped to the domain
+   *  run's consumption face (the parseArg-normalized values ride through verbatim:
+   *  int-list → the comma string · enum → the value · sha → the short form · the
+   *  schema <type> → the parseTypeKey normalization), plus the positionals
+   *  (processedArgs) and the program-scope dry-run (optsWithGlobals — the flag
+   *  lives on the program node, merged here). The args read GLOBALS too: a flag
+   *  declared on the parent command (schema's --plan) is consumed by that node —
+   *  the leaf's own opts would miss it. */
+  #runInput(leaf: CliLeafName | null, command: Command): RunInput {
+    const globals = command.optsWithGlobals() as Record<string, unknown>;
+    const args: Record<string, string> = {};
+    for (const [key, value] of Object.entries(globals)) {
+      if (value === undefined) continue;
+      args[key] = typeof value === "boolean" ? (value ? "true" : "false") : String(value);
     }
-    return tokens;
+    return {
+      leaf,
+      args,
+      positionals: command.processedArgs as string[],
+      dryRun: this.#dryRun || globals.dryRun === true,
+    };
   }
 
-  /** The display value domain of a channel — the option column's `<…>` token. */
-  #domainOf(channel: ChannelArg): string {
-    switch (channel.type) {
-      case "path":
-        return "<path>";
-      case "int-list":
-        return "<n|n,n,…>";
-      case "enum":
-        return `<${[...(channel.values ?? [])].join("|")}>`;
-      case "sha":
-        return "<sha>";
-      case "int":
-        return "<n>";
-      default:
-        return "";
-    }
-  }
-
-  /** The schema `<type>` value domain — the projector's doc-key set (+ the get
-   *  leaf's plan-graph display route), the same vocabulary the parse face's error
-   *  messages name, single-sourced at the projector. */
-  #typeDomain(get: boolean): string {
-    const keys = Object.keys(this.#projector.registries().schema);
-    return get ? [...keys, "plan-graph"].join(" | ") : keys.join(" | ");
-  }
-
-  /** The top-level command overview (design spec §4.1) — the six-command glance
-   *  (responsibility + the usage anchor each) with the missing-command message
-   *  merged as the closing line (the bare-`cdd` face: overview + missing-command
-   *  in ONE output, the exit code stays 2). */
-  #overview(missing: string): string {
-    const lines: string[] = [
-      "cdd — the CDD engine's command line",
-      "",
-      "usage: cdd <command> [options]",
-      "",
-      "commands:",
-    ];
-    for (const command of CLI_COMMANDS) {
-      lines.push(`  ${command.name.padEnd(10)}${command.description} — ${command.usage}`);
-    }
-    lines.push("", "run 'cdd <command> --help' for a command's flag-level help.", "", missing);
-    return lines.join("\n");
-  }
-
-  /** The smart error-path hint (design spec §4.4) — one extra line naming the
-   *  near miss: the nearest declared flag of an unknown option, the available
-   *  leaves of an unknown subcommand, the expected value domain of a missing flag
-   *  value. Null when the error carries no concrete suggestion. */
-  #usageHint(err: CliUsageError): string | null {
-    const unknown = /^unknown option: (\S+)/.exec(err.message);
-    if (unknown !== null) {
-      const near = this.#nearestFlag(unknown[1]!, err);
-      return near === null ? null : `did you mean ${near}?`;
-    }
-    const subcommand = /^cdd \w+: unknown subcommand: (\w+)/.exec(err.message);
-    if (subcommand !== null) {
-      const names = CLI_COMMANDS.find((command) => command.usage === err.usage)?.leaves?.map(
-        (leaf) => leaf.name,
-      );
-      if (names !== undefined && names.length > 0)
-        return `available subcommands: ${names.join(" | ")}`;
-      return null;
-    }
-    const missing = /missing (?:required|value for) (--\S+)/.exec(err.message);
-    if (missing !== null) {
-      const key = missing[1]!.replace(/^--/, "").split("=")[0]!;
-      const channel = this.#parser.channels()[key];
-      if (channel === undefined) return null;
-      const domain = this.#domainOf(channel);
-      return domain === "" ? null : `expected ${missing[1]} ${domain}`;
-    }
-    return null;
-  }
-
-  /** The declared flag nearest to a misspelled token (the unknown-option hint's
-   *  suggestion) — the errored surface's own declared flags (the parse face
-   *  attaches the command/leaf the error occurred on, so base get's candidates
-   *  never include base set's --force), the full channel table only when no
-   *  surface is in play (the pre-verb generic usage fallback), the program
-   *  scopes always — judged within two edits. A did-you-mean never suggests a
-   *  flag the same surface would reject as unknown. */
-  #nearestFlag(token: string, err: CliUsageError): string | null {
-    const candidates = new Set<string>();
-    const surface = err.surface;
-    if (surface === undefined) {
-      for (const channel of Object.values(this.#parser.channels())) candidates.add(channel.flag);
-    } else {
-      for (const declared of surface.keys) {
-        const channel = this.#parser.channels()[declared.key];
-        if (channel !== undefined) candidates.add(channel.flag);
-      }
-    }
-    // The program scopes (accepted at any position by the parse face) always join
-    // the candidates — a legal suggestion in both the verb and pre-verb contexts.
-    candidates.add("--dry-run");
-    candidates.add("--no-dry-run");
-    candidates.add("--help");
-    candidates.add("-h");
-    const name = token.split("=")[0]!;
-    let best: string | null = null;
-    let bestScore = 2;
-    for (const candidate of candidates) {
-      if (candidate === name) continue;
-      const score = Cli.#distance(name, candidate);
-      if (score <= bestScore) {
-        bestScore = score;
-        best = candidate;
-      }
-    }
-    return best;
-  }
-
-  /** The edit distance between two short spellings — the near-miss metric. */
-  static #distance(a: string, b: string): number {
-    let prev: number[] = Array.from({ length: b.length + 1 }, (_, j) => j);
-    for (let i = 1; i <= a.length; i += 1) {
-      const row: number[] = [i];
-      for (let j = 1; j <= b.length; j += 1) {
-        row.push(
-          Math.min(prev[j]! + 1, row[j - 1]! + 1, prev[j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1)),
-        );
-      }
-      prev = row;
-    }
-    return prev[b.length]!;
+  /** Configure every node's output into the injected io (commander writes its
+   *  help/error bytes through the node that produced them — a subcommand's help
+   *  uses the subcommand's own output configuration, so the whole tree must be
+   *  wired, never just the program). */
+  #wireTreeOutput(node: Command): void {
+    node.configureOutput({
+      writeOut: (text) => this.#io.stdout(text),
+      writeErr: (text) => this.#io.stderr(text),
+    });
+    for (const child of node.commands) this.#wireTreeOutput(child);
   }
 
   // ---------------------------------------------------------------------------
@@ -1150,15 +1025,12 @@ export class Cli {
 
   /** One work command's run — assemble the scene, advance the requested phase (the
    *  lifecycle's single dispatch step per frame), render the capsule lines. */
-  async #runWork(verb: CliVerb, parsed: ParsedCommand): Promise<number> {
+  async #runWork(verb: CliVerb, node: Command, parsed: RunInput): Promise<number> {
     const type = (parsed.args.type ?? "wave") as TargetType;
     if (type === "wave" && parsed.args.tasks === undefined) {
-      throw new CliUsageError(
-        `cdd ${verb} --type wave: missing required --tasks <n|n,n,…>`,
-        CLI_USAGE[verb],
-      );
+      this.#usage(node, `cdd ${verb} --type wave: missing required --tasks <n|n,n,…>`);
     }
-    const scene = await this.#sceneOf(verb, type, parsed);
+    const scene = await this.#sceneOf(verb, type, node, parsed);
 
     // THE pre-flight seam (P4.1 T1 · design §1): the single dispatch gate —
     // tree-clean → plan-graph → wave → doc-contract — ONE call, the whole sequence
@@ -1213,7 +1085,7 @@ export class Cli {
           : [];
       for (const id of group) {
         if (!planIds.includes(id)) {
-          throw new CliUsageError(`cdd ${verb}: task ${id} not found in the plan`, CLI_USAGE[verb]);
+          this.#usage(node, `cdd ${verb}: task ${id} not found in the plan`);
         }
       }
       for (const id of scene.ledger.closedWaves()) scene.state.markDone(id);
@@ -1244,7 +1116,7 @@ export class Cli {
         return outcome;
       },
       target: scene.target ?? undefined,
-      capsule: new Capsule(this.#words, this.#parser.channels()),
+      capsule: new Capsule(this.#words, ARGV_CHANNEL),
       planPath: scene.planPath,
     });
 
@@ -1252,11 +1124,13 @@ export class Cli {
     // line-phase readiness check; the task face needs no second gate (the WaveGate's
     // wrong-phase verdict above IS the phase authority for the requested wave).
     if (group === null) {
-      const { phase: open, verdict } = this.#lineGate(scene);
+      const { phase: open, verdict, reviewed } = this.#lineGate(scene);
       if (open !== expected) {
-        const docBlock = open === null ? this.#docLineBlock(scene, verdict) : null;
+        const pendingBlock =
+          verdict === "pending-fix" ? this.#pendingFixBlock(scene, reviewed) : null;
+        const docBlock = open === null ? this.#docLineBlock(scene, reviewed) : null;
         this.#io.stderr(
-          `cdd ${verb}: cannot dispatch a ${expected} round — ${docBlock ?? (open === null ? "the line holds no open round" : `the next round is ${open}${this.#phaseHint(open)}`)}\n`,
+          `cdd ${verb}: cannot dispatch a ${expected} round — ${pendingBlock ?? docBlock ?? (open === null ? "the line holds no open round" : `the next round is ${open}${this.#phaseHint(open)}`)}\n`,
         );
         return 1;
       }
@@ -1333,7 +1207,7 @@ export class Cli {
 
   /** The dispatch seam — the injected override, else the dry-run synthetic approval,
    *  else the harness production default. */
-  #dispatchOf(scene: WorkScene, parsed: ParsedCommand): DispatchStep {
+  #dispatchOf(scene: WorkScene, parsed: RunInput): DispatchStep {
     if (this.#dispatch !== null) return this.#dispatch;
     if (parsed.dryRun || this.#dryRun) {
       const head = scene.head;
@@ -1405,63 +1279,90 @@ export class Cli {
   // the requested-phase gate — the work commands' readiness check
   // ---------------------------------------------------------------------------
 
-  /** The single-target line's current open phase (spec/plan/branch) plus the
-   *  doc-line identity verdict the gate judged — the {phase, verdict} pair IS the
-   *  gate's ruling: the revision-aware BLOCK renders only the "same" verdict the
-   *  gate returned, never a recomputed one. The task face holds no separate gate
-   *  here: the WaveGate's wrong-phase verdict (the pre-flight) IS the task-face
-   *  phase authority — the wave gate is the single phase authority. A CLOSED doc
-   *  line reopens through the identity-aware verdict (T7): the target's current
-   *  doc revision vs the recorded reviewed revision — a moved doc reopens the
-   *  review lead, an unchanged doc stays closed (the revision-aware BLOCK). */
-  #lineGate(scene: WorkScene): { phase: DispatchPhase | null; verdict: "drift" | "same" | null } {
+  /** The single-target line's current open phase plus the doc-line verdict the gate
+   *  judged — the {phase, verdict} pair IS the gate's ruling: the revision-aware
+   *  BLOCK renders only the "same" verdict the gate returned, the pending-fix note
+   *  only the derived pending face, never a recomputed one. The task face holds no
+   *  separate gate here: the WaveGate's wrong-phase verdict (the pre-flight) IS the
+   *  task-face phase authority — the wave gate is the single phase authority. A
+   *  doc line's gate is the reviewGate method family (T8 · §3.5 · judgment order =
+   *  doc revision FIRST, shared by the lifecycle's frame phase so an opened gate
+   *  dispatches): a moved doc opens the review lead whatever the round/route state
+   *  says (fix after · backfill after · user-decision after are the SAME case — the
+   *  stuck "next round is fix after an aborted fix" never freezes a revised doc),
+   *  an unchanged doc yields the gate's "same" verdict — the pending fix DERIVED
+   *  from the latest review's non-APPROVED conclusion opens only the fix phase,
+   *  while the no-pending face falls back to the legacy rounds/routes judgment: a
+   *  completed-fix line reopens the review lead through its fix round's C5-1 route
+   *  (the lifecycle's own fall-through — an open gate and a dispatchable frame
+   *  agree), a truly closed line keeps the revision-aware BLOCK. An unbound line
+   *  (no identity on record / an unreadable doc) keeps the legacy round/route
+   *  judgment + the generic closed message (only present facts land). */
+  #lineGate(scene: WorkScene): {
+    phase: DispatchPhase | null;
+    verdict: "same" | "pending-fix" | null;
+    reviewed: DocRevisionRef | null;
+  } {
+    if (scene.target?.kind === "doc") {
+      const key = this.#lineKey(scene);
+      if (key === null) return { phase: null, verdict: null, reviewed: null };
+      const verdict = scene.ledger.reviewGate(key, scene.target.doc, scene.face.type);
+      if (verdict.kind === "open") {
+        return { phase: scene.face.product.reviewLead, verdict: null, reviewed: null };
+      }
+      if (verdict.kind === "same") {
+        if (verdict.pending) {
+          return { phase: "fix", verdict: "pending-fix", reviewed: verdict.reviewed };
+        }
+        // same + no pending fix — the legacy rounds/routes judgment (the lifecycle's
+        // own fall-through): a completed-fix line reopens the review lead through its
+        // fix round's C5-1 route; a truly closed line keeps the revision-aware BLOCK.
+        const open = this.#linePhase(scene);
+        return open !== null
+          ? { phase: open, verdict: null, reviewed: null }
+          : { phase: null, verdict: "same", reviewed: verdict.reviewed };
+      }
+    }
     const open = this.#linePhase(scene);
-    if (open !== null) return { phase: open, verdict: null };
-    const verdict = this.#docLineVerdict(scene);
-    return { phase: verdict === "drift" ? scene.face.product.reviewLead : null, verdict };
+    return { phase: open, verdict: null, reviewed: null };
   }
 
-  /** The doc line's identity verdict (T7) — the ledger's single shared comparison
-   *  (Ledger#docLineVerdict), consumed as-is: the drift gate and the revision-aware
-   *  BLOCK read the SAME verdict, never a face-side recomputation. The face adds
-   *  only the target reshape — null on non-doc, an absent key, an unreadable doc
-   *  or no reviewed revision on record (the legacy closed face keeps its generic
-   *  message). */
-  #docLineVerdict(scene: WorkScene): "drift" | "same" | null {
-    if (scene.target?.kind !== "doc") return null;
-    const key = this.#lineKey(scene);
-    if (key === null) return null;
-    return scene.ledger.docLineVerdict(key, scene.target.doc);
-  }
-
-  /** The doc line's revision-aware BLOCK message (T7) — the unchanged-doc face:
-   *  "{plan|spec} already reviewed at vX.Y (doc-hash …) — target revision
+  /** The doc line's revision-aware BLOCK message (T7/T8) — the unchanged-approved
+   *  face: "{plan|spec} already reviewed at vX.Y (doc-hash …) — target revision
    *  unchanged; amend body/version to open a new review". Renders ONLY on the
-   *  gate's "same" verdict — the one verdict whose doc read succeeded and matched
-   *  the reviewed identity ("target revision unchanged" is a present fact there).
-   *  The gate's null verdict (an unreadable target / no reviewed identity on
-   *  record) keeps the generic "no open round" message — only present facts land
-   *  (the ledger's own null contract, Ledger#docLineVerdict). Null off that face
-   *  (the verdict arrives threaded from #lineGate, never recomputed). */
-  #docLineBlock(scene: WorkScene, verdict: "drift" | "same" | null): string | null {
-    if (verdict !== "same" || scene.target?.kind !== "doc") return null;
-    // A "same" verdict implies a reviewed identity on record — the guard keeps the
-    // dereference honest without an assertion.
-    const reviewed = scene.ledger.reviewedDocRevisionOf(this.#lineKey(scene) as LedgerKey);
-    if (reviewed === null) return null;
+   *  gate's "same" verdict — the approved identity the gate judged, whose reviewed
+   *  ref the message names: the block consumes the verdict's identity, never a
+   *  second ledger lookup (the face's judgment read points converge to the
+   *  method family). Null off that face or with no identity ("target revision
+   *  unchanged" is a present fact only there). */
+  #docLineBlock(scene: WorkScene, reviewed: DocRevisionRef | null): string | null {
+    if (reviewed === null || scene.target?.kind !== "doc") return null;
     const version = this.#docVersionOf(this.#docContent(scene.target.doc));
     return `${scene.type} already reviewed at ${version ?? "the current version"} (doc-hash ${reviewed.doc_hash.slice(0, 12)}…) — target revision unchanged; amend body/version to open a new review`;
   }
 
-  /** The doc's live content — readable doc else null. The doc-line identity's
-   *  read is the LEDGER's verdict read (Ledger#docLineVerdict — one read per
-   *  gate); this helper backs the face's one remaining read site, the
-   *  revision-aware BLOCK's version token — a read fired only when the BLOCK
-   *  message actually renders (the version is raw doc grammar — zero parse
-   *  dependence: the revision hash is a raw-content digest). */
+  /** The doc line's derived pending-fix note (T8) — the unchanged + non-APPROVED
+   *  face: "the pending fix applies to the unchanged doc (doc-hash …) — run cdd
+   *  fix first". Renders ONLY for the gate's "pending-fix" verdict — the derived
+   *  fix-awaited face (a same-doc re-review stays refused until its fix lands,
+   *  Review Convergence anti-spin); the message names the reviewed identity the
+   *  gate judged. */
+  #pendingFixBlock(scene: WorkScene, reviewed: DocRevisionRef | null): string | null {
+    if (reviewed === null || scene.target?.kind !== "doc") return null;
+    return `the pending fix applies to the unchanged doc (doc-hash ${reviewed.doc_hash.slice(0, 12)}…) — run cdd fix first`;
+  }
+
+  /** The doc's live content — readable doc else null. This helper backs the face's
+   *  one remaining doc read site, the revision-aware BLOCK's version token — a read
+   *  fired only when the BLOCK message actually renders (the version is raw doc
+   *  grammar — zero parse dependence: the revision hash is a raw-content digest).
+   *  The gate's own doc read lives in the ledger (Ledger#docLineVerdict — one read
+   *  per reviewGate, the shared comparison). A BLOCK render is a run-failure prose
+   *  channel — never a usage face — so the read is guarded here (null on unreadable),
+   *  not routed through #readText's usage error. */
   #docContent(doc: string): string | null {
     try {
-      return this.#readText(doc);
+      return readFileSync(doc, "utf8");
     } catch {
       return null;
     }
@@ -1541,13 +1442,13 @@ export class Cli {
   }
 
   /** The requested group ints — the normalized tasks value split. */
-  #tasksOf(parsed: ParsedCommand): number[] {
+  #tasksOf(parsed: RunInput): number[] {
     return (parsed.args.tasks ?? "").split(",").map((part) => Number(part));
   }
 
   /** Render the task group brief into the workspace (the implement dispatch's input)
    *  — the brief's WAVE_BASE rides the current git HEAD. */
-  #renderBrief(scene: WorkScene, parsed: ParsedCommand): string {
+  #renderBrief(scene: WorkScene, parsed: RunInput): string {
     const tasks = this.#tasksOf(parsed);
     const content = this.#brief.render(scene.planText!, tasks, scene.head ?? "");
     const briefPath = scene.workspace.resolve(`tasks-${parsed.args.tasks}-brief.md`);
@@ -1574,7 +1475,12 @@ export class Cli {
   /** Assemble one work command's scene: the workspace (repo root + the plan/spec
    *  slug), the ledger, the run state (TaskGraph from the plan parse for the task
    *  face, the empty single-target state otherwise), the fixed target. */
-  async #sceneOf(verb: CliVerb, type: TargetType, parsed: ParsedCommand): Promise<WorkScene> {
+  async #sceneOf(
+    verb: CliVerb,
+    type: TargetType,
+    node: Command,
+    parsed: RunInput,
+  ): Promise<WorkScene> {
     const config = this.#config;
     const face = targetFaces[type];
     const repoRoot = await this.#repoRootOf(parsed);
@@ -1588,32 +1494,23 @@ export class Cli {
     switch (type) {
       case "wave": {
         if (planPath === null)
-          throw new CliUsageError(
-            `cdd ${verb} --type wave: missing required --plan <path>`,
-            CLI_USAGE[verb],
-          );
+          this.#usage(node, `cdd ${verb} --type wave: missing required --plan <path>`);
         slug = Workspace.slugFromDoc(planPath);
-        planText = this.#readText(planPath);
+        planText = this.#readText(node, planPath);
         break;
       }
       case "spec": {
         if (specPath === null)
-          throw new CliUsageError(
-            `cdd ${verb} --type spec: missing required --spec <path>`,
-            CLI_USAGE[verb],
-          );
+          this.#usage(node, `cdd ${verb} --type spec: missing required --spec <path>`);
         slug = Workspace.slugFromDoc(specPath);
         target = { kind: "doc", doc: specPath };
         break;
       }
       case "plan": {
         if (planPath === null)
-          throw new CliUsageError(
-            `cdd ${verb} --type plan: missing required --plan <path>`,
-            CLI_USAGE[verb],
-          );
+          this.#usage(node, `cdd ${verb} --type plan: missing required --plan <path>`);
         slug = Workspace.slugFromDoc(planPath);
-        planText = this.#readText(planPath);
+        planText = this.#readText(node, planPath);
         target = { kind: "doc", doc: planPath };
         break;
       }
@@ -1631,9 +1528,9 @@ export class Cli {
               ? new BranchRef(parsed.args.base, parsed.args.head)
               : null;
         if (ref === null) {
-          throw new CliUsageError(
+          this.#usage(
+            node,
             `cdd ${verb} --type branch: missing required --base <sha> --head <sha>`,
-            CLI_USAGE[verb],
           );
         }
         slug = planPath !== null ? Workspace.slugFromDoc(planPath) : ref.short();
@@ -1665,7 +1562,7 @@ export class Cli {
 
   /** The repo root — the --root override, else the injected root, else the git top
    *  level, else the cwd. */
-  async #repoRootOf(parsed?: ParsedCommand): Promise<string> {
+  async #repoRootOf(parsed?: RunInput): Promise<string> {
     const override = parsed?.args.root;
     return override ?? this.#repoRoot ?? (await this.#git.topLevel(this.#cwd)) ?? this.#cwd;
   }
@@ -1676,16 +1573,15 @@ export class Cli {
 
   /** `cdd schema get <type>` — the derived doc-structure schema JSON to stdout
    *  (the type vocabulary = the one shared schema-type table — `SCHEMA_TYPE_KEYS`
-   *  in face/argv.ts: the primary DocKey spellings + the legacy alias normalized
+   *  in face/declare.ts: the primary DocKey spellings + the legacy alias normalized
    *  to kebab, spec §5.3); the `plan-graph` type rides the discovery read (§3.8).
    *  `cdd schema gen <type>` dispatches to the skeleton render (the schema verb's
    *  second leaf). */
-  async #runSchema(parsed: ParsedCommand): Promise<number> {
-    if (parsed.leaf === "gen") return this.#runSchemaGen(parsed);
+  async #runSchema(node: Command, parsed: RunInput): Promise<number> {
+    if (parsed.leaf === "gen") return this.#runSchemaGen(node, parsed);
     const type = parsed.positionals[0];
-    if (type === undefined)
-      throw new CliUsageError("cdd schema get: missing <type>", CLI_USAGE.schema);
-    if (type === "plan-graph") return this.#runPlanGraph(parsed);
+    if (type === undefined) this.#usage(node, "cdd schema get: missing <type>");
+    if (type === "plan-graph") return this.#runPlanGraph(node, parsed);
     this.#io.stdout(`${JSON.stringify(this.#projector.schema()[type as DocKey], null, 2)}\n`);
     return 0;
   }
@@ -1696,10 +1592,9 @@ export class Cli {
    *  appended newline (the assembler never appends one — the redirected fixture
    *  ends with exactly one `\n`). Zero write side-effects — the orchestrator
    *  redirects the stdout to the target path. */
-  #runSchemaGen(parsed: ParsedCommand): number {
+  #runSchemaGen(node: Command, parsed: RunInput): number {
     const type = parsed.positionals[0];
-    if (type === undefined)
-      throw new CliUsageError("cdd schema gen: missing <type>", CLI_USAGE.schema);
+    if (type === undefined) this.#usage(node, "cdd schema gen: missing <type>");
     const projection = this.#projector.skeleton()[type as DocKey];
     const date = this.#today();
     this.#io.stdout(`${new SkeletonAssembler(projection, date).render()}\n`);
@@ -1722,12 +1617,12 @@ export class Cli {
    *  BLOCKs the read with the named edge violations — the wave-preflight gate surfaces
    *  as a discovery read. The board's done face is the same closedWaves() the pre-flight
    *  gates judge. */
-  async #runPlanGraph(parsed: ParsedCommand): Promise<number> {
+  async #runPlanGraph(node: Command, parsed: RunInput): Promise<number> {
     const planPath = parsed.args.plan;
     if (planPath === undefined) {
-      throw new CliUsageError("cdd schema get plan-graph: missing --plan <path>", CLI_USAGE.schema);
+      this.#usage(node, "cdd schema get plan-graph: missing --plan <path>");
     }
-    const text = this.#readText(planPath);
+    const text = this.#readText(node, planPath);
     const plan = new PlanDocType("plan").parse(text.split("\n"));
     const graph = new TaskGraph(plan);
     const issues = graph.validate();
@@ -1777,13 +1672,10 @@ export class Cli {
 
   /** `cdd base <set|get> --plan <path>` — the base artifact read/write (T20: the
    *  command face `base`; the artifact file carries the base face too). */
-  async #runBase(parsed: ParsedCommand): Promise<number> {
+  async #runBase(node: Command, parsed: RunInput): Promise<number> {
     const planPath = parsed.args.plan;
     if (planPath === undefined) {
-      throw new CliUsageError(
-        "cdd base: missing --plan — the sole target is --plan <path>",
-        CLI_USAGE.base,
-      );
+      this.#usage(node, "cdd base: missing --plan — the sole target is --plan <path>");
     }
     const workspace = new Workspace(
       new WorkspaceRoot(
@@ -1793,27 +1685,24 @@ export class Cli {
       Workspace.slugFromDoc(planPath),
     ).ensure();
     const path = workspace.resolve("base.json");
-    if (parsed.leaf === "set") return this.#baseSet(parsed, planPath, path);
+    if (parsed.leaf === "set") return this.#baseSet(node, parsed, planPath, path);
     if (parsed.leaf === "get") return this.#baseGet(path);
-    throw new CliUsageError("cdd base: missing <set|get> subcommand", CLI_USAGE.base);
+    this.#usage(node, "cdd base: missing <set|get> subcommand");
   }
 
   /** The `set` body — base/source required, a different existing base refuses without
    *  --force (the write-through artifact single-author). */
-  #baseSet(parsed: ParsedCommand, planPath: string, path: string): number {
+  #baseSet(node: Command, parsed: RunInput, planPath: string, path: string): number {
     const base = parsed.args.base;
     const source = parsed.args.source;
     if (base === undefined || source === undefined) {
-      throw new CliUsageError(
-        "cdd base set: required --base <branch> and --source <source>",
-        CLI_USAGE.base,
-      );
+      this.#usage(node, "cdd base set: required --base <branch> and --source <source>");
     }
     const existing = this.#readBase(path);
     if (existing !== null && existing.base !== base && parsed.args.force !== "true") {
-      throw new CliUsageError(
+      this.#usage(
+        node,
         `cdd base set: base already set to ${existing.base} — pass --force to override`,
-        CLI_USAGE.base,
       );
     }
     const artifact: BaseArtifact = {
@@ -1860,12 +1749,13 @@ export class Cli {
     }
   }
 
-  /** Read a text file; a missing/unreadable file is the usage error of the caller. */
-  #readText(file: string): string {
+  /** Read a text file through the caller's command face; a missing/unreadable file is
+   *  the usage error of that face (the owning node's commander-native usage line). */
+  #readText(node: Command, file: string): string {
     try {
       return readFileSync(file, "utf8");
     } catch {
-      throw new CliUsageError(`cannot read file: ${file}`, "usage: cdd <command> [options]");
+      this.#usage(node, `cannot read file: ${file}`);
     }
   }
 }

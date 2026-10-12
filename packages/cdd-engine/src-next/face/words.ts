@@ -2,11 +2,8 @@
 // T10 — the single word table (design spec §1.2: one table, one derivation chain).
 // The five-way lexicon split of the old tree (words content → contract-lexicon.json
 // → schema shape → word-table accessor → guard-lexicon) converges into ONE word
-// table with four families served by one class:
+// table with three families served by one class:
 //
-//   doc   — the document structural words: the T2 registries' anchor lexicon
-//           (derived through the projection face — the DOC_TOKENS plane, never a
-//           hand-written second list).
 //   capsule — the capsule-station words: the capsule keys (status · blocker ·
 //           handoff, the pinned emit order), the `next:` route station + the stderr
 //           stations, the status vocabulary and the route classifier words. Every
@@ -34,9 +31,6 @@
 // Module-level exports are types / the declared word data / the class — zero
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
-import { declaredRegistries } from "../contract/declare.ts";
-import type { DocKey } from "../contract/project.ts";
-import { Projector } from "../contract/project.ts";
 import type { LocalizedWord, WordLocaleFace } from "../contract/translate.ts";
 
 // ---------------------------------------------------------------------------
@@ -207,35 +201,12 @@ export const CHARTER_WORDS = {
 
 /**
  * Words — the single word table + accessor face. One instance serves every family:
- * the doc words (derived from the T2 registries through the projection face), the
- * capsule station words (declared steady data), the guard ban words (declared data)
- * and the locale words (the translation/label data — the WordLocaleFace the
+ * the capsule station words (declared steady data), the guard ban words (declared
+ * data) and the locale words (the translation/label data — the WordLocaleFace the
  * Translator and the locale consumers read). The capsule reads its whole vocabulary
  * through this class — the second table is excluded by construction.
  */
 export class Words implements WordLocaleFace {
-  /** The projection face the doc words derive through (T3 — the DOC_TOKENS plane). */
-  readonly #projector: Projector;
-
-  constructor(projector = new Projector(declaredRegistries)) {
-    this.#projector = projector;
-  }
-
-  // -------------------------------------------------------------------------
-  // doc — the DOC_TOKENS face
-  // -------------------------------------------------------------------------
-
-  /** The doc words of one doc type — the T2 registries' anchors, derived through
-   *  the projection face (the DOC_TOKENS plane — never a hand-written second list). */
-  docWords(docKey: DocKey): readonly string[] {
-    return this.#projector.tokens()[docKey].tokens.map((token) => token.anchor);
-  }
-
-  /** Whether one anchor token is a doc word of one doc type. */
-  hasDocWord(docKey: DocKey, anchor: string): boolean {
-    return this.docWords(docKey).includes(anchor);
-  }
-
   // -------------------------------------------------------------------------
   // capsule — the station-word family
   // -------------------------------------------------------------------------

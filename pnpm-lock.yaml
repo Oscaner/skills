@@ -202,6 +202,9 @@ importers:
 
   packages/cdd-engine:
     dependencies:
+      commander:
+        specifier: ^15.0.0
+        version: 15.0.0
       simple-git:
         specifier: ^4.0.2
         version: 4.0.2
@@ -655,6 +658,10 @@ packages:
   chai@6.3.0:
     resolution: {integrity: sha512-XWAtwJ6OHO+tj0EKCs0Y2UamnyOxseZWltU4x2U2wh8g4AigdjwvtUjvLP2tqkA/avxHEtzxNaqGq/YGNwckKg==}
     engines: {node: '>=18'}
+
+  commander@15.0.0:
+    resolution: {integrity: sha512-z67u4ZhzCL/Tydu1lJARtEZYWbWaN7oYLHbsuzocr6y4N6WZAagG3RQ4FW61V1/0+jImpj293XfrcYnd1qxtPg==}
+    engines: {node: '>=22.12.0'}
 
   dataloader@2.2.3:
     resolution: {integrity: sha512-y2krtASINtPFS1rSDjacrFgn1dcUuoREVabwlOGOe4SdxenREqwjwjElAdwvbGM7kgZz9a3KVicWR7vcz8rnzA==}
@@ -1319,6 +1326,8 @@ snapshots:
   cac@7.0.0: {}
 
   chai@6.3.0: {}
+
+  commander@15.0.0: {}
 
   dataloader@2.2.3: {}
 

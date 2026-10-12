@@ -9,7 +9,7 @@
 
 本 phase 收口 P3 开发观测暴露的**两台引擎问题**（D13）与 commander 引入面遗留（D14/D15）：① **HandoffCarrier 合约面 vs 产物面自不一致**——`buildHandoff` 单骨架恒写 `findings`，work 面声明不含却落到 work 终态载体（违反引擎自身 v1.30「carrier holds only the schema's declared plane」原则）· 子代理从 `INPUT_FINDINGS` 镜像形态 → fix draft `findings` slip 3/3 首次必现 BLOCK；② **行为声称 vs 测试把门缝隙**——changeset「usage 行来自 commander」声称超前于实现 · 单波 review 拦不下 · 分支终审才逮；③ **commander 引入面**——P3 实测 face 层净 −249 行（−7.2%）但「最大精简」未显著兑现 · 心智负担 = 声明面 + commander 树 + 手写 parseArg 复刻三套模型 · cli.ts 仍 1777 行巨型组合根。
 
-六前提整评（拆/重组 · OOP 统一 · 零裸函数 · 死面清理 · 最大精简）：修法 = **分型重构 + 声称→pin 把门 + 声明派生收敛**——非容忍/补丁（排除「work face 声明 findings 可选」与「read-back 容忍剥离」）。设计输入：kairos:cdd-design [P4] 会话裁定（D13 注册 · D14 R7 并入 · D15 grilling 四裁定 Q1→c/Q2→b/Q3→a/Q4 · 2026-10-12）· overall v2.5。
+六前提整评（拆/重组 · OOP 统一 · 零裸函数 · 死面清理 · 最大精简）：修法 = **分型重构 + 声称→pin 把门 + 声明派生收敛**——非容忍/补丁（排除「work face 声明 findings 可选」与「read-back 容忍剥离」）。设计输入：kairos:cdd-design [P4] 会话裁定（D13 注册 · D14 R7 并入 · D15 grilling 四裁定 Q1→c/Q2→b/Q3→a/Q4 · 2026-10-12）· overall v2.5——Q1→c = R1/R2 分型形态（编译期 work 载体无 findings）· Q2→b = R3/R4 把门形态（guard 结构机器判 + review lens 语义契约行）· Q3→a = cli.ts 组合根拆分落地 · Q4 = 发布姿态不发布（§7.1 · AC11）。
 
 ### 1. 目标与边界
 #### 1.1 行为语义增量
@@ -41,14 +41,16 @@
 
 ### 4. draft 指令面白名单（R5 · 读入边界护栏）
 #### 4.1 指令面白名单枚举
-- **fix/docs-fix 壳指令白名单**（render/templates.ts FIX_SHELL/DOCS_FIX_SHELL）：`## Handoff schema` 允许字段显式枚举（status/failure_category/artifacts/commits/changes/notes——work 面）· **`INPUT_FINDINGS` 只读边界护栏句**：README-输入 「`INPUT_FINDINGS` 是只读 findings 载体——不得把其顶层字段（尤指 `findings`）镜像进 work 壳 draft · 只写 `## Handoff schema` 声明的字段」（P3 3/3 首次必现根因：子代理从 review 载体镜像顶层 shape）
+- **逐壳指明字段集**（render/templates.ts FIX_SHELL / DOCS_FIX_SHELL 两壳独立枚举）：
+  - **`FIX_SHELL`（work face）**：`## Handoff schema` 允许字段（status/failure_category/artifacts/commits/changes/notes——work 面）· **`INPUT_FINDINGS` 只读边界护栏句**：README-输入 「`INPUT_FINDINGS` 是只读 findings 载体——不得把其顶层字段（尤指 `findings`）镜像进 work 壳 draft · 只写 `## Handoff schema` 声明的字段」（P3 3/3 首次必现根因：子代理从 review 载体镜像顶层 shape）
+  - **`DOCS_FIX_SHELL`（findings face）**：`## Handoff schema` 允许字段（findings/artifacts/commits/notes——findings 面 · 载体 required findings 与白名单同面不矛盾）· **`INPUT_FINDINGS` 只读边界护栏句同款**（findings 面 draft `findings` 声明自源 review 载体——原样携带不改 · 不镜像顶层其余字段）
 - **零负向散文 pin**：白名单用枚举 + 一句护栏（不列反例清单）——指令字面自解释 · 六前提「零散文水肿」
 #### 4.2 colocated pins
-- templates 字节 pin（render.test/新 pin）：fix 壳含 `findings` 白名单枚举句 + 只读护栏句 · work 壳字段枚举 == 声明 `properties` 键集（单源回归 · 改声明 → pin 断言随动语义保）
+- templates 字节 pin（render.test/新 pin）：FIX_SHELL/DOCS_FIX_SHELL 逐壳字段枚举（work 面 vs findings 面）各含 `findings` 白名单枚举句 + 只读护栏句 · work 壳字段枚举 + findings 壳字段枚举 == 各自声明 `properties` 键集（单源回归 · 改声明 → pin 断言随动语义保）
 
 ### 5. 复现探针 + 验收（R6）
 #### 5.1 复现探针
-- **work draft 带 `findings` 首次消解探针**：dry-run 派发 → 子代理 draft 含顶层 `findings`（P3 真实形态）→ 首次轮**无 BLOCK**（draft 白名单已言明）或按白名单降摩擦（P3 3/3 首次必现 → 归零或显著降）· 探针断言以 pinned 形态记录
+- **work draft 带 `findings` 首次消解探针**：dry-run 派发 → 子代理 draft 含顶层 `findings`（P3 真实形态）→ 首次轮**无 BLOCK**（draft 白名单已言明）或按白名单降摩擦 · **可判定阈值**：连续 3 轮 dry-run 派发，首次轮 BLOCK 计数 = 0/3（P3 对照为 3/3 首次必现 → 收敛到 0）· 探针断言以 pinned 形态记录实际计数（每轮首次 BLOCK 次数 + 消解轮次），使 AC7 可证伪——非 0/3 即不达验收
 - **载体零 findings 物化探针**：全链跑一轮（implement → review → fix 均 dry-run）· 终态 work 载体 `findings` 键零命中（grep 断言）
 #### 5.2 验收表面
 - vitest 全绿（含新 pins：类型族构造 · guard 平面审计 · 声称→pin lint · 白名单字节 · 探针）· `pnpm run validate` ALL PASS · EOF 全绿 · grep 零残留（死面清单逐项 · §6.3）· 不发布
@@ -64,7 +66,8 @@
   - **`face/artifacts.ts`**——纯命令域（`#runSchemaGen`/`#today`/`#runIssue`/`#baseSet`/`#baseGet`/`#readBase`/`#readText`）
 - **行为等价**：全量 vitest 绿（既有 pins 语义保 · 方案移面不破断言）· smoke-cdd 回归绿 · 零新增公开 CLI 面 · 组合根规模目标（≤ ~1/3 现状）留作上限区间（非硬 pin）
 #### 6.3 死接线清理
-- 拆分 + 声明派生过程中暴露的退役 glue/判别器死代码**逐项清理**（含 P3 遗留的投影残面）· 销毁面按 P3 §6 手法列出（识别名 · 文件级删除或面内删除）· grep 零残留 pin 入验收
+- **销毁清单（预列 · P3 §6 手法 · 识别名）**：§6.1 声明派生消解的手写复刻**面内删除**——`face/projection.ts` `#parseEnum`/`#parseInts`/`#parseSha8`/`#parseInt`/`#parseTypeKey` + `SCHEMA_TYPE_KEYS` 词表（并入 `ChannelValueType → 形态规则数据表` · 行为字节零变）· **P3 遗留投影残面**：随 §6.2 拆分退役的组合根判别器/glue 逐项补列本清单（拆分落地时以识别名回填 · 文件级删除或面内删除）· **grep 零残留 pin 入验收**
+- 执行中暴露的退役项：**发现即清理**——也以识别名记入本清单（保持「逐项」验收的确定枚举随执行扩展）
 #### 6.4 心智负担目标
 - **两套模型可见**——① 声明单源（declare.ts / handoff-schema.ts：数据 + 类型）② commander 原生（parse/help/验证执行器）——手写 parseArg 复刻（第三模型）随 §6.1 消解 · 验证执行器 = commander 原生消费声明 · 消费者/开发者看到两套模型上限
 
@@ -83,8 +86,8 @@
 - `#reconstruct/#materialize/#bookkeep face 感知读写 ✓（work 面零 findings 读取路径 · cli.ts:529 无条件读取消除 · work 面零 findings 注入）`
 - `guard 平面审计 + 声称→pin lint 全绿 ✓（声明属性集闭合 · 提示面-声明面单源 · pin 引用存在 + 断言非空 · 入 pnpm run validate）`
 - `review lens 声称→pin 契约行 ✓（plan/spec 声称引用 colocated pin path:line · 逐声称核对照 · usage 回归 pin 正式入验收（域 run usage 行 colocated pin 在册）`
-- `draft 指令面白名单 ✓（fix/docs-fix 壳字段枚举 + INPUT_FINDINGS 只读护栏句 · 零负向散文 pin · 字节 pin 在册 · 与声明 properties 单源）`
-- `复现探针 ✓（work draft 带 findings 首次即按白名单消解 · P3 3/3 首次必现摩擦归零或显著降 · 探针以 pinned 断言记录）`
+- `draft 指令面白名单 ✓（FIX_SHELL work 面字段枚举 + DOCS_FIX_SHELL findings 面字段枚举，逐壳各自 + INPUT_FINDINGS 只读护栏句 · 零负向散文 pin · 字节 pin 在册 · 与各自声明 properties 单源）`
+- `复现探针 ✓（work draft 带 findings 首次即按白名单消解 · 连续 3 轮首次轮 BLOCK 0/3（P3 3/3 → 0）· 探针以 pinned 断言记录实际计数）`
 - `R7 值域校验声明派生 ✓（ChannelValueType 形态规则数据表 · parseArg 从声明查表派发 · 手写 per-key 复刻销毁 · 错误字节 commander 原生零变）`
 - `R7 cli.ts 拆分落地 ✓（组合根瘦身至组合职责 · lifecycle/gate/artifacts 面抽离 · 行为等价 = 全量 vitest 绿 + smoke-cdd 绿 · 零新增公开 CLI 面）`
 - `R7 死接线清理零残留 ✓（销毁面 grep pins · P3 遗留投影残面清）· 心智负担目标达（声明单源 + commander 原生两套模型可见）`

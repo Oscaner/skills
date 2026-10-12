@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P4 设计：引擎 handoff 平面卫生 + commander 引入面收敛
-- **Version**: v0.5 · 2026-10-12
+- **Version**: v0.6 · 2026-10-12
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P4] 会话 · 用户裁定 · 2026-10-12）
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall](2026-10-10-engine-doc-tooling-overall.md)
@@ -68,7 +68,7 @@
   - **`face/artifacts.ts`**——纯命令域（`#runSchemaGen`/`#today`/`#runIssue`/`#baseSet`/`#baseGet`/`#readBase`/`#readText`）
 - **行为等价**：全量 vitest 绿（既有 pins 语义保 · 方案移面不破断言）· smoke-cdd 回归绿 · 零新增公开 CLI 面 · 组合根规模目标（≤ ~1/3 现状）留作上限区间（非硬 pin）
 #### 6.3 死接线清理
-- **销毁清单（预列 · P3 §6 手法 · 识别名）**：§6.1 声明派生消解的手写复刻**面内删除**——`face/projection.ts` `#parseEnum`/`#parseInts`/`#parseSha8`/`#parseInt`/`#parseTypeKey` + `SCHEMA_TYPE_KEYS` 词表（并入 `ChannelValueType → 形态规则数据表` · 行为字节零变）· **P3 遗留投影残面**：随 §6.2 拆分退役的组合根判别器/glue 逐项补列本清单（拆分落地时以识别名回填 · 文件级删除或面内删除）· **grep 零残留 pin 入验收**
+- **销毁清单（预列 · P3 §6 手法 · 识别名）**：§6.1 声明派生消解的手写复刻**面内删除**——`face/projection.ts` `#parseEnum`/`#parseInts`/`#parseSha8`/`#parseInt`（并入 `ChannelValueType → 形态规则数据表` · 行为字节零变）· `#parseTypeKey`/`SCHEMA_TYPE_KEYS` **保留**（T7 处置记录在 plan v0.2 · 非销毁项——SCHEMA_TYPE_KEYS 为 schema gen/get `<type>` doc-key 词汇 · 与 ChannelValueType 值形状表正交 · 并入 VALUE_SHAPES 不适配）· **P3 遗留投影残面**：随 §6.2 拆分退役的组合根判别器/glue 逐项补列本清单（拆分落地时以识别名回填 · 文件级删除或面内删除）· **grep 零残留 pin 入验收**
 - 执行中暴露的退役项：**发现即清理**——也以识别名记入本清单（保持「逐项」验收的确定枚举随执行扩展）
 #### 6.4 心智负担目标
 - **两套模型可见**——① 声明单源（declare.ts / handoff-schema.ts：数据 + 类型）② commander 原生（parse/help/验证执行器）——手写 parseArg 复刻（第三模型）随 §6.1 消解 · 验证执行器 = commander 原生消费声明 · 消费者/开发者看到两套模型上限
@@ -130,3 +130,4 @@
 | v0.4 | 2026-10-12 | P4 设计 v0.4——**写平面声明派生 + 平行表销毁**（用户裁定 · 2026-10-12 · 六前提③「声明再抄」：`HANDOFF_WRITE_PLANE` 10 键 = `keyof properties` 逐字拷贝 → **销毁** · findings 节点以 `engineOnly: ["status"]` 声明滚动结论（引擎权威 · child 投影/校验按 engineOnly 过滤 · 非豁免语义）· 引擎写平面 = `keyof properties ∪ engineOnly[face]`（work `[]`）· guard ⑥ authority 卫生（engineOnly 键被引擎写路径消费 + 不进 child 投影）· 投影一致性 check 语义同步（fence == 声明 minus engineOnly）· 与 T3 F3 finding 合并吸收 | Oscar M. · Claude Opus 5（kairos:cdd-plan 编排器回填 · 用户裁定 · 2026-10-12） |
 | v0.3 | 2026-10-12 | P4 设计 v0.3——T5 白名单单句化（用户裁定 · 2026-10-12）：§4 draft 面白名单从**逐壳字段枚举 + INPUT_FINDINGS 只读护栏句**收为**逐壳一句严守 schema 指令**（字段源 = HANDOFF_SCHEMA 注入面自身 · 手写字段枚举 = 与声明平行的第二张表 · 债 → 排除）· §4.2 键集单源断言降为单句字节 pin（枚举零残余）· §3.1 ① checkHandoffPlane 写入面参考同步（壳文本零字段枚举）· **探针 C 升任单句是否足够的可证伪仲裁**（3 轮 0/3 · 非 0/3 → 补具体陷阱句 · 证据驱动） | Oscar M. · Claude Opus 5（kairos:cdd-plan 编排器回填 · 用户裁定 · 2026-10-12） |
 | v0.2 | 2026-10-12 | P4 设计 v0.2——spec review round 1 fix（spec-review-1 · 4/4 受理 · commit 1d0fabda）：§4.1/§4.2/AC6 **逐壳指明白名单**（FIX_SHELL work 面字段枚举 + INPUT_FINDINGS 只读护栏 · DOCS_FIX_SHELL findings 面字段枚举 + 同款护栏——findings 壳 draft findings 自源 review 载体原样携带 · 载体 required findings 与白名单同面不矛盾）· §5.1/AC7 探针阈值可证伪（**3 轮派发首次 BLOCK 0/3** · pinned 计数）· §1 设计输入行 D15 补显式映射 **Q4 = 发布姿态不发布** · §6.3 销毁清单预列（P3 遗留投影残面 + 拆分预知退役判别器/glue · 识别名 · 文件/面内删除）· 逐项验收起始起点确立 | Oscar M. · Claude Opus 5（kairos:cdd-design 编排器回填 · fix agent 1d0fabda · 2026-10-12） |
+| v0.6 | 2026-10-12 | **P4 closeout（cdd-close）**：实现全链闭合——设计审查通过（spec review 链 blocker 0）· 计划 v0.5 批准 · 五波次实现链全绿（W1={1,4,7} → W2={2,3,5,11}（D16·R8 wave 门控合体波 · cli.ts/preflight.ts 零 diff）→ W3={6,8}（T6 复现探针 + T8 cli.ts 组合根拆分）→ W4={9}（死接线清理 · 1 nit → fix）→ W5={10}（变更集 minor））+ 分支终审 → 分支 fix 闭环（1 nit → fix：guard `HANDOFF_WRITE_PATH_FACES` 写点清单对齐 T8 拆分主写面）· 分支评审编排器回填：§6.3 销毁清单 `#parseTypeKey`/`SCHEMA_TYPE_KEYS` 措辞与 plan v0.2/T9 保留记录对表化（doc-key 词汇正交 · 非销毁项）· 验收全项交付（引擎 vitest 513/513 · 探针 A/B/C：物化零 findings + fix 提示面严守句 + 3 轮首 BLOCK 0/3 · validate ALL PASS · 不发布）· 父 overall v2.7 登记 P4 → Done | [human] · Claude Opus 5（kairos:cdd-close · closeout-backfill） |

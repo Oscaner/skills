@@ -50,13 +50,15 @@ describe("ValidateRunner — the single data-table runner", () => {
     expect(() => block.run()).not.toThrow();
   });
 
-  it("the composed step set is the data table — the ten steps in order", () => {
+  it("the composed step set is the data table — the twelve steps in order", () => {
     expect(steps.map((s) => s.name)).toEqual([
       "emit freshness (scripts emit, byte-checked)",
       "kairos skill anatomy (the typed skill-anatomy contract)",
       "word-face audit (the guard-ban vocabulary from the word-table export)",
       "engine channel audit (CLI × runtime · host markers · dispatch/refs)",
+      "engine handoff plane audit",
       "doc-contract gate over the specs/plans tree (the engine judge)",
+      "claimed→pin lint（声称→pin 引用存在 + 断言非空）",
       "cdd-engine engine test suite (vitest, src-next)",
       "scripts unit tests (root vitest run)",
       "kairos node:test behavior tree",

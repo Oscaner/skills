@@ -122,6 +122,48 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(out).toContain("requires a behavior change");
   });
 
+  it("T5 — the fix shell carries the work face's single strict-schema sentence — the schema declaration is the field source, zero enum", () => {
+    const out = assembler.render({
+      ...ALL_VALUES,
+      ROLE: "fix",
+      INPUT_FINDINGS: "/ws/tasks-1-review-1.json",
+      FIX_BASE: "a".repeat(8),
+    });
+    // the work face's ONE strict-schema directive — the declared properties are the
+    // draft's field source (the keyset rides the injected `## Handoff schema` fence,
+    // never an enumerated restate in the shell's own prose)
+    expect(out).toContain(
+      "every top-level field of the draft comes from the `## Handoff schema` declared `properties`",
+    );
+    expect(out).toContain("zero extra keys");
+    // keyset zero-residue + the retired guard sentences are gone: the shell prose
+    // enumerates no field and names no explicit INPUT_FINDINGS mirror ban
+    expect(out).not.toContain("**Writable fields:**");
+    expect(out).not.toContain("accepts exactly");
+    expect(out).not.toContain("**Findings read-only:**");
+  });
+
+  it("T5 — the docs-fix shell carries the findings face's single strict-schema sentence — the required findings rides from INPUT_FINDINGS verbatim (no contradiction with the required gate)", () => {
+    const out = assembler.render({
+      ...ALL_VALUES,
+      ROLE: "docs-fix",
+      INPUT_DOC: "docs/x-design.md",
+    });
+    // the findings face's ONE strict-schema directive — same schema-first wording,
+    // the required `findings` told how to fill (the verbatim carry-over), so the
+    // sentence never reads "findings required but do not write it"
+    expect(out).toContain(
+      "every top-level field of the draft comes from the `## Handoff schema` declared `properties`",
+    );
+    expect(out).toContain("`findings` (required) rides over from `INPUT_FINDINGS` verbatim");
+    expect(out).toContain("zero extra keys");
+    // keyset zero-residue + the retired carried-as-is guard marker is gone
+    expect(out).not.toContain("**Writable fields:**");
+    expect(out).not.toContain("accepts exactly");
+    expect(out).not.toContain("**Findings carried as-is:**");
+    expect(out).not.toContain("VERBATIM");
+  });
+
   it("renders the review mode per type — the criteria/lens fold into the fixed prefix", () => {
     // a spec review: the URC criteria + its lens ride the shell (fixed region), the
     // round context carries only the review's dynamic facts
@@ -137,6 +179,9 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(spec).toContain("**Criteria — spec:**");
     expect(spec).toContain("Follow URC");
     expect(spec).toContain("completeness | consistency | clarity");
+    // the claimed→pin clause (T4) — every behavior claim must cite a colocated pin;
+    // the spec + plan review variants carry it (the task/branch variants do not)
+    expect(spec).toContain("Claimed→pin");
     expect(spec).toContain("- `INPUT_RANGE`: docs/kairos/specs/s1-design.md");
     expect(spec).not.toContain("- `INPUT_WAVE_BRIEF`");
     expect(spec).not.toContain("- `INPUT_FINDINGS`");
@@ -153,6 +198,18 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(task).toContain("Standards axis");
     expect(task).toContain("standards | spec | buildability");
     expect(task).not.toContain("Follow URC");
+    expect(task).not.toContain("Claimed→pin"); // the task axes carry no clause
+    // a plan review carries the same claimed→pin clause as the spec variant
+    const plan = assembler.render({
+      ...ALL_VALUES,
+      ROLE: "review",
+      REVIEW_TYPE: "plan",
+      INPUT_RANGE: "docs/kairos/plans/p.md",
+      INPUT_PLAN: "/ws/p.md",
+      OUTPUT_HANDOFF: "/ws/plan-review-1.json",
+    });
+    expect(plan).toContain("**Criteria — plan:**");
+    expect(plan).toContain("Claimed→pin");
   });
 
   it("hard gates: a missing token value throws (named)", () => {

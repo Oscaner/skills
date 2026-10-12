@@ -27,6 +27,7 @@ import type { ConfigLoader } from "../infra/config.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
 import type { Workspace } from "../infra/workspace.ts";
 import type { TargetType } from "./faces.ts";
+import type { FindingsCarrier, HandoffSchemaFace, WorkCarrier } from "./handoff-schema.ts";
 import type { Route } from "./next.ts";
 import { NextStepRouter } from "./next.ts";
 import { EMPTY_RUN_STATE } from "./run.ts";
@@ -34,6 +35,23 @@ import { EMPTY_RUN_STATE } from "./run.ts";
 // ---------------------------------------------------------------------------
 // the round carrier — what NextStepRouter.next (T7) judges
 // ---------------------------------------------------------------------------
+
+/** The work face's writable init — the schema-declared optional fields a work carrier
+ *  starts from. The round conclusion (status) rides the CALLER's set — never a
+ *  build-time value: the skeleton holds only the schema's declared writable plane. */
+type WorkInit = {
+  artifacts?: Record<string, string>;
+  commits?: { base: string; head?: string };
+};
+
+/** The findings face's writable init — `findings` is the schema-REQUIRED field of the
+ *  findings face (the compile-time twin of the read-back required gate — a findings
+ *  init omitting it is a type error), artifacts + commits optional. */
+type FindingsInit = {
+  findings: unknown[];
+  artifacts?: Record<string, string>;
+  commits?: { base: string; head?: string };
+};
 
 /** The review-finding severity vocabulary — the handoff findings severity enum, single-typed. */
 export type FindingSeverity = "blocker" | "warn" | "nit";
@@ -579,6 +597,14 @@ export class Ledger {
     return family;
   }
 
+  /** The handoff FACE of an op/type pair — the family's `schema` selector (work when
+   *  the family declares none). The face-aware read/write/bookkeep spine (T2): a
+   *  findings-face round rides the findings writable subset, a work-face round rides
+   *  the findings-free work subset — never the caller's guess. */
+  handoffFaceOf(op: OpType, type: TargetType): HandoffSchemaFace {
+    return this.#family(op, type).schema ?? "work";
+  }
+
   /** The canonical handoff file name — the family's `{placeholder}` pattern, filled. */
   handoffName(op: string, type: string, params: HandoffParams = {}): string {
     return this.#family(op, type)
@@ -594,25 +620,27 @@ export class Ledger {
   }
 
   /** The handoff carrier skeleton — the schema-declared writable fields the agent
-   *  round fills. The engine-seated identity (phase · tasks) rides the CANONICAL FILE
-   *  NAME (`tasks-{wave}-*.json` / the range / doc family), never inline: phase/tasks
-   *  are NOT declared and never written (v1.30 — the inline identity seeded a mimicking
+   *  round fills, SHAPED PER FACE: the work overload builds a `findings`-free carrier
+   *  (the work writable subset declares no findings field — the type gate: a
+   *  `buildHandoff("work", { findings })` call is a compile-time refusal, Q1→c), the
+   *  findings overload REQUIRES the findings payload (the schema's required field).
+   *  The engine-seated identity (phase · tasks) rides the CANONICAL FILE NAME
+   *  (`tasks-{wave}-*.json` / the range / doc family), never inline: phase/tasks are
+   *  NOT declared and never written (v1.30 — the inline identity seeded a mimicking
    *  precedence: a fix draft copied the materialized `phase` the engine had written and
    *  tripped the reserved-field gate it could never pass; single declaration, single
-   *  author — the carrier holds only the schema's declared plane). */
+   *  author — the carrier holds only the schema's declared plane, and status STILL
+   *  rides the caller's set — the round conclusion is the engine's, not the skeleton's). */
+  buildHandoff(face: "work", init?: WorkInit): WorkCarrier;
+  buildHandoff(face: "findings", init: FindingsInit): FindingsCarrier;
   buildHandoff(
-    init: {
-      artifacts?: Record<string, string>;
-      findings?: unknown[];
-      commits?: { base: string; head?: string };
-    } = {},
-  ): Record<string, unknown> {
-    const carrier: Record<string, unknown> = {
-      artifacts: init.artifacts ?? {},
-      findings: init.findings ?? [],
-    };
+    face: HandoffSchemaFace,
+    init: WorkInit & { findings?: unknown[] } = {},
+  ): WorkCarrier | FindingsCarrier {
+    const carrier: Record<string, unknown> = { artifacts: init.artifacts ?? {} };
     if (init.commits !== undefined) carrier.commits = init.commits;
-    return carrier;
+    if (face === "findings" || init.findings !== undefined) carrier.findings = init.findings;
+    return carrier as WorkCarrier | FindingsCarrier;
   }
 
   /** Persist a handoff payload at the canonical name — the single-author full-replace

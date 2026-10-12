@@ -15,8 +15,10 @@
 // The class's one exit is `readonly program: Command` — the T3 composition root
 // parses through it and Its help/usage bytes are the commander-native product (the
 // self-built usage corpus never existed here). Zero module-level behavior-
-// carrying bare functions — the projection + validation algorithms are all class
-// private methods (the plan's zero-bare-function discipline).
+// carrying bare functions — the projection algorithm lives in the single
+// CommandTreeBuilder class; the value-domain rules are declaration data
+// (declare.ts VALUE_SHAPES), read by the builder's one table-driven executor
+// (the plan's zero-bare-function discipline).
 
 import { Command, InvalidArgumentError } from "commander";
 
@@ -31,6 +33,7 @@ import {
   type CliValueOverride,
   REQUIRED_GROUPS,
   SCHEMA_TYPE_KEYS,
+  VALUE_SHAPES,
 } from "./declare.ts";
 
 /** The primary schema <type> spellings — the self-mapping vocabulary rows (the
@@ -44,6 +47,13 @@ const SCHEMA_PRIMARY_KEYS: readonly string[] = Object.entries(SCHEMA_TYPE_KEYS)
  *  declaration's data source (its `satisfies` pins the row type at declare.ts);
  *  the projection indexes it by declared key at runtime. */
 const CHANNEL_TABLE: Readonly<Record<string, ChannelArgRow>> = ARGV_CHANNEL;
+
+/** The value-domain table widened to its lookup face — the literal const stays
+ *  the declaration's data source; the projection indexes it by the row's
+ *  declared type and absence (the string/path/bool faces) registers no parser. */
+const SHAPE_TABLE: Readonly<
+  Record<string, { parse(raw: string, row: ChannelArgRow): string } | undefined>
+> = VALUE_SHAPES;
 
 /**
  * CommandTreeBuilder — the declaration → commander projection. The constructor
@@ -207,65 +217,18 @@ export class CommandTreeBuilder {
     return row.help ?? "";
   }
 
-  /** The option's custom parser — the value-domain check of the validated types
-   *  (the branch override and the path/string/bool faces register none). */
+  /** The option's custom parser — the value-domain check of the validated
+   *  types, table-driven from the declaration's VALUE_SHAPES (the branch
+   *  override and the string/path/bool faces register none — a row without a
+   *  shape gets no parser; absence is the registered face). */
   #parseArgOf(
     row: ChannelArgRow,
     override: CliValueOverride | undefined,
   ): ((value: string) => string) | undefined {
     if (override === "branch") return undefined;
-    switch (row.type) {
-      case "enum":
-        return (value) => this.#parseEnum(row.values ?? [], value);
-      case "int-list":
-        return (value) => this.#parseInts(value);
-      case "sha":
-        return (value) => this.#parseSha8(value);
-      case "int":
-        return (value) => this.#parseInt(value);
-      default:
-        return undefined;
-    }
-  }
-
-  /** The enum-domain check — the raw must be one of the declared values. */
-  #parseEnum(values: readonly string[], raw: string): string {
-    if (!values.includes(raw)) {
-      throw new InvalidArgumentError(`must be one of ${values.join(" | ")}`);
-    }
-    return raw;
-  }
-
-  /** The int-list check — `n|n,n,…`, normalized to the sorted deduped comma
-   *  string the run face's #tasksOf consumes verbatim (`[...new Set()]`
-   *  `.sort().join(",")` — zero rewriting of the consumed shape); a non-integer
-   *  token is an invalid argument. */
-  #parseInts(raw: string): string {
-    const parts = raw.split(",").map((part) => part.trim());
-    const invalid = parts.find((part) => !/^\d+$/.test(part));
-    if (invalid !== undefined) {
-      throw new InvalidArgumentError(
-        `--tasks <n|n,n,…> — must be comma-separated integers: ${invalid}`,
-      );
-    }
-    return [...new Set(parts.map(Number))].sort((a, b) => a - b).join(",");
-  }
-
-  /** The 8-char sha check — exactly 8 hex digits (the short form of the CLI's
-   *  only sha face). */
-  #parseSha8(raw: string): string {
-    if (!/^[0-9a-f]{8}$/.test(raw)) {
-      throw new InvalidArgumentError("must be an 8-char sha");
-    }
-    return raw;
-  }
-
-  /** The integer check — a non-negative decimal integer (the round face). */
-  #parseInt(raw: string): string {
-    if (!/^\d+$/.test(raw)) {
-      throw new InvalidArgumentError("must be an integer");
-    }
-    return raw;
+    const shape = SHAPE_TABLE[row.type];
+    if (shape === undefined) return undefined;
+    return (value) => shape.parse(value, row);
   }
 
   /** The schema `<type>` vocabulary check — the primary spellings validate and

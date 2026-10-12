@@ -495,38 +495,62 @@ export class Lifecycle {
     const blocked = outcome.status === "BLOCKED" || outcome.status === "TIMEOUT";
     if (outcome.carrier !== undefined || !blocked) {
       const op = this.#opOf(frame.phase);
-      const carrier =
+      // T2 — the engine-built fallback rides the FRAME's declared face (the family's
+      // `schema` selector, never the outcome's field presence): a findings-face round
+      // (review / docs-fix) builds the findings carrier — its schema-required findings
+      // key, empty on a conclusion-only round (a fix advances no new findings); a
+      // work-face round builds the findings-free work carrier — zero findings
+      // injection. The review finding-severity route reads the round carrier's
+      // findings; the engine-authority conclusion (status) rides the caller's set below
+      // regardless of face (the round conclusion is the engine's, not the skeleton's).
+      const face = this.#ledger.handoffFaceOf(op, frame.type);
+      const carrier: Record<string, unknown> =
         outcome.carrier ??
-        this.#ledger.buildHandoff({
-          findings: outcome.findings === undefined ? undefined : [...outcome.findings],
-          commits: outcome.commits,
-          artifacts: outcome.artifacts,
-        });
+        (face === "findings"
+          ? this.#ledger.buildHandoff("findings", {
+              findings: [...(outcome.findings ?? [])],
+              commits: outcome.commits,
+              artifacts: outcome.artifacts,
+            })
+          : this.#ledger.buildHandoff("work", {
+              commits: outcome.commits,
+              artifacts: outcome.artifacts,
+            }));
       if (carrier.status === undefined && outcome.status !== undefined)
         carrier.status = outcome.status;
       this.#ledger.persistHandoff(op, frame.type, frame.params, carrier);
     }
     if (!blocked) {
       const count = this.#ledger.recordRound(frame.key, frame.phase);
-      // T7 — the doc line's reviewed-revision write-back: a completed doc review
-      // binds the target's CURRENT doc revision (read at bookkeep — the clean-tree
-      // dispatch gate keeps the read-only review's document stable across the
-      // round). The identity-aware line gate reopens the closed line on drift from
-      // this recorded revision; a fix round never re-binds it (a fix moved the doc
-      // — the new identity lands with the re-review round).
-      if (frame.target.kind === "doc" && frame.phase === "review")
-        this.#recordReviewedDocRevision(frame);
+      // The completed-review revision write-back — the ONE revision-hash gate the
+      // doc line and the wave line share (T7 doc · T11 wave / D16): a completed
+      // review binds the CURRENT revision of the reviewed input — read at bookkeep,
+      // the clean-tree dispatch gate keeps the read-only review's input stable
+      // across the round. For a doc line that input is the target doc; for a wave
+      // line it is the plan the review judged (the lifecycle's own #planPath — the
+      // single existing source, zero new path fields; the wave gate derives the
+      // plan path FROM this record, so cli.ts/preflight.ts stay untouched). An
+      // unreadable input records nothing (present facts only); a null plan path
+      // (no plan fact) leaves a legacy wave row — null stays backward compatible.
+      if (frame.phase === "review") {
+        if (frame.target.kind === "doc") this.#recordReviewedDocRevision(frame);
+        else if (frame.target.kind === "wave")
+          this.#recordReviewedDocRevision(frame, this.#planPath);
+      }
       return count;
     }
     return this.#ledger.roundCount(frame.key, frame.phase);
   }
 
-  /** The T7 doc-review write-back — bind the reviewed doc revision to the line
-   *  record (the identity-aware gate's reopen-compare basis). An unreadable doc
-   *  records nothing — the line keeps the legacy closed face (only present facts
-   *  land, never an invented identity). */
-  #recordReviewedDocRevision(frame: OpenFrame): void {
-    const doc = (frame.target as { kind: "doc"; doc: string }).doc;
+  /** The reviewed-revision write-back — bind the reviewed input's revision to the
+   *  line record (the T7 doc + T11 wave identity gates' reopen-compare basis). The
+   *  doc face reads its target doc; the wave face passes the plan path explicitly
+   *  (`#planPath` — null on a plan-less lifecycle). An unreadable input records
+   *  nothing — the line keeps the legacy closed face (only present facts land,
+   *  never an invented identity). */
+  #recordReviewedDocRevision(frame: OpenFrame, docOverride?: string | null): void {
+    const doc = docOverride ?? (frame.target.kind === "doc" ? frame.target.doc : null);
+    if (doc === null) return;
     try {
       const content = readFileSync(doc, "utf8");
       this.#ledger.recordReviewedDocRevision(
@@ -534,7 +558,7 @@ export class Lifecycle {
         this.#ledger.refs().docRevision(doc, content),
       );
     } catch {
-      // unreadable doc — no reviewed identity recorded (present facts only)
+      // unreadable input — no reviewed identity recorded (present facts only)
     }
   }
 

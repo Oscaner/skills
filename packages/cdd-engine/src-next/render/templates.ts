@@ -196,6 +196,13 @@ const FIX_SHELL: readonly string[] = [
   EVIDENCE_ITEM,
   COMMITS_FIX_ITEM,
   ...LICENSE_ITEMS,
+  // T5 (v0.3) — The work face's ONE strict-schema sentence: every top-level draft
+  // field comes from the `## Handoff schema` declared properties (the fields'
+  // single source is the injected fence below — never a second enumeration in the
+  // shell prose; a fix child that mirrors the source review carrier's top-level
+  // shape trips the engine's read-back BLOCK, so the sentence names the schema as
+  // the field source explicitly).
+  "**Draft fields:** every top-level field of the draft comes from the `## Handoff schema` declared `properties` — the declaration is the field source, zero extra keys.",
   ...SCHEMA_SECTION,
 ];
 
@@ -210,6 +217,13 @@ const DOCS_FIX_SHELL: readonly string[] = [
   "**docs-fix:** apply `INPUT_FINDINGS` (all severities) directly to `INPUT_DOC`, removing fixed findings; record the path in `artifacts.doc`; empty `findings` = all fixed. Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema`; the engine derives the conclusion from the residual findings; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
   COMMITS_FIX_ITEM,
   ...LICENSE_ITEMS,
+  // T5 (v0.3) — The findings face's ONE strict-schema sentence: same schema-first
+  // directive as the work shell, naming the required `findings` (carried over from
+  // the source review carrier verbatim — the required key is told how to fill, so
+  // the sentence never contradicts the findings carrier's own required gate; the
+  // work shell's field list is never copied here, and no field enumeration rides
+  // the findings shell's prose either).
+  "**Draft fields:** every top-level field of the draft comes from the `## Handoff schema` declared `properties` — `findings` (required) rides over from `INPUT_FINDINGS` verbatim, unmodified; the declaration is the field source, zero extra keys.",
   ...SCHEMA_SECTION,
 ];
 
@@ -312,13 +326,13 @@ export const REVIEWS = {
     lensEnum: ["completeness", "consistency", "clarity"],
     ref: "INPUT_RANGE",
     axesGuide:
-      "Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence",
+      "Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding",
   },
   plan: {
     lensEnum: ["completeness", "decomposition", "buildability"],
     ref: "INPUT_RANGE",
     axesGuide:
-      "Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence",
+      "Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding",
   },
 } as const satisfies ReviewGuides;
 

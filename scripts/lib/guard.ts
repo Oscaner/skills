@@ -19,6 +19,11 @@
 //     dispatch/refs derivation (every dispatch ref registered + every per-harness
 //     slash form derived) — all asserted against the typed declare/host exports,
 //     zero parallel allowlist.
+//   · checkClaimedPins — the claimed→pin lint (the D13 defect-② fix): every
+//     `.test.ts:line` citation the enforced specs/plans docs make must resolve to a
+//     current-tree test file carrying a test assertion — the machine half of the
+//     review lens's claim clause (a behavior claim without a colocated pin is a
+//     pinless claim; the lint catches the dangling / assertion-less halves).
 //
 // Module-level exports are types / the class — zero behavior-carrying bare functions
 // except the admitted pure discovery/parse helpers below.
@@ -46,6 +51,10 @@ import {
   REFS,
 } from "../../packages/cdd-engine/src-next/face/host.ts";
 import { GUARD_BAN_WORDS } from "../../packages/cdd-engine/src-next/face/words.ts";
+import {
+  HandoffSchema,
+  type HandoffSchemaFace,
+} from "../../packages/cdd-engine/src-next/session/handoff-schema.ts";
 import { scanToken } from "./scan.ts";
 
 /** The guard finding — one violation of a check face (label + file attribution). */
@@ -60,6 +69,46 @@ export interface AnatomySkill {
   name: string;
   /** The SKILL.md absolute path. */
   path: string;
+}
+
+/** The claimed→pin scan options — the test seam + the wiring-in exemptions. */
+export interface ClaimedPinsOptions {
+  /** The docs root — the specs/plans tree base (default: the repo docs/kairos). */
+  docsRoot?: string;
+  /** The pre-contract docs exempt from the lint — the WIRING param the validate
+   *  orchestrator feeds: the exemption set lives in the validate tree (validate.ts
+   *  owns the same set the doc-contract gate applies; importing it here would be a
+   *  cycle — the orchestrator passes it in, the guard never restates it). */
+  preContract?: ReadonlySet<string>;
+  /** The repo-ABSOLUTE test-file candidates the pinned refs resolve against
+   *  (default: the bounded discovery walk over the engine src + scripts + kairos
+   *  test roots — explicit roots, never an unbounded sweep). */
+  testFiles?: readonly string[];
+}
+
+/** The handoff-plane audit options — the injection seam for the three checks' fakes
+ *  (the same pattern as the claimed-pin options: the real defaults read the engine's
+ *  single-source exports, a test injects a broken table to exercise a fail face). */
+export interface HandoffPlaneOptions {
+  /** The declared writable-subset node per face — the injectable fake declarations
+   *  (default: the engine's `HandoffSchema#faceSchema` accessor — the BY_FACE nodes,
+   *  carrying their `engineOnly` authority keys). */
+  declared?: Readonly<
+    Record<
+      HandoffSchemaFace,
+      Readonly<{
+        properties?: Readonly<Record<string, unknown>>;
+        engineOnly?: readonly string[];
+      }>
+    >
+  >;
+  /** The projection-① generator — the injectable fake schemaText (default: the
+   *  engine's `HandoffSchema#schemaText` projection). */
+  schemaText?: (face: HandoffSchemaFace, evidence: boolean) => string;
+  /** The engine write-path source faces — the files whose carrier writes consume the
+   *  declared engineOnly keys (default: the engine's carrier-write sites — the face
+   *  cli.ts + session run.ts). */
+  writePathFaces?: readonly string[];
 }
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -80,6 +129,39 @@ const SOURCE_FACES = ["packages/cdd-engine/src-next", "scripts"] as const;
 const RELEASE_FILES = [
   "packages/cdd-engine/src-next/face/words.ts",
   "packages/cdd-engine/src-next/face/host.ts",
+] as const;
+
+/** The claimed→pin ref extractor — `.test.ts:line(-line)?` citations in the specs/
+ *  plans prose (the claim's citation form; a plain path without the line anchor — or
+ *  a non-test source ref — is not a claimed pin and is not judged). */
+const PIN_REF_RE = /([\w./-]+\.test\.ts):(\d+)(?:-(\d+))?/g;
+
+/** The assertion-face literals — the file-level signal that a pinned target carries a
+ *  test assertion (the empty-pin gate, which only fires on a file with NO assertion
+ *  anywhere). The gate is deliberately file-level, never an exact-line claim: in-
+ *  contract pins routinely anchor to the fixture/data or scope line near the assertion
+ *  (a data row, a describe header, a comment) rather than the assertion line itself,
+ *  and the enforced docs are frozen — a line-domain gate would flag 16 of the 32 live
+ *  tree's pinned refs, breaking the green-face acceptance. The test that pins the
+ *  chosen semantics lives in guard.test. */
+const ASSERTION_LITERALS = ["test(", "describe(", "expect("] as const;
+
+/** The test-file discovery roots — the current-tree surfaces the claimed→pin refs
+ *  cite (the engine src-next tree · the scripts unit tests · the kairos behavior
+ *  tree) — explicit roots, never an unbounded repository sweep. */
+const TEST_ROOTS = [
+  "packages/cdd-engine/src-next",
+  "scripts/__tests__",
+  "packages/kairos/tests",
+] as const;
+
+/** The handoff-plane audit's default engine write-path faces — the files whose
+ *  carrier construction actually WRITES the engine-authority keys (the ⑥ authority
+ *  hygiene's consumption scan: a declared engineOnly key must appear as a `carrier.<key> =`
+ *  write in one of these, so the declaration is live metadata, never a dead one). */
+const HANDOFF_WRITE_PATH_FACES = [
+  "packages/cdd-engine/src-next/face/lifecycle.ts",
+  "packages/cdd-engine/src-next/session/run.ts",
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -749,6 +831,210 @@ export class GuardLibrary {
 
     return findings;
   }
+
+  // -------------------------------------------------------------------------
+  // checkHandoffPlane(opts?) — the handoff writable-subset audit (declared faces ×
+  // the engineOnly-derived write plane × projection)
+  // -------------------------------------------------------------------------
+
+  /**
+   * checkHandoffPlane(opts?) — the handoff writable-subset audit (the plan's T3
+   * machine half): ① the two faces' declared `properties` key sets stay
+   * role-distinctive — the findings exclusive (`findings`) never rides the work
+   * declaration, the work exclusives (`status` / `failure_category` / `changes`)
+   * never ride the findings declaration (the SHARED carrier rows — artifacts /
+   * commits / notes — are declared on both faces by design, so literal key-set
+   * disjointness would fire on the live tree; the exclusives ARE the role); ⑥ the
+   * engine-authority hygiene — the engine's write plane DERIVES from the
+   * declaration (`keyof properties ∪ engineOnly[face]`, never a parallel table),
+   * so the check is that every declared `engineOnly` key stays OUT of the
+   * child-visible writable view (never also a declared property) AND is actually
+   * consumed by an engine carrier write path (a declaration claiming an engine-
+   * only key the engine never writes is dead metadata — the non-tautological leg,
+   * since the derivation alone would make engineOnly ⊆ write plane a tautology);
+   * ③ the prompt-injection projection is consistent with the declaration — the
+   * `schemaText(face)` ```json fence parses byte-identically to the face's declared
+   * node MINUS `engineOnly` (projection ①'s authority filter: the child-visible
+   * fence never shows the engine's own write keys — the prompt can never show a
+   * schema the engine does not declare). All three default to the engine's
+   * single-source exports; the options let tests inject a broken table to exercise
+   * a fail face.
+   */
+  checkHandoffPlane(options: HandoffPlaneOptions = {}): GuardFinding[] {
+    const findings: GuardFinding[] = [];
+    const schema = new HandoffSchema();
+    const declared = options.declared ?? {
+      work: schema.faceSchema("work"),
+      findings: schema.faceSchema("findings"),
+    };
+    const projection =
+      options.schemaText ?? ((face: HandoffSchemaFace) => schema.schemaText(face, false));
+    const writePathFaces = options.writePathFaces ?? [
+      ...HANDOFF_WRITE_PATH_FACES.map((rel) => path.join(ROOT, rel)),
+    ];
+
+    // ① the role-distinctive exclusives — the pinned role vocabulary, the two faces'
+    //    declarations stay role-separate (the shared carrier rows are both-faced by design).
+    if ("findings" in (declared.work.properties ?? {})) {
+      findings.push({
+        label: `the work writable subset declares the findings-face exclusive field "findings" (role-distinctive mutual exclusion broken — the work carrier must stay findings-free)`,
+        file: "packages/cdd-engine/src-next/session/handoff-schema.ts",
+      });
+    }
+    for (const key of ["status", "failure_category", "changes"]) {
+      if (key in (declared.findings.properties ?? {})) {
+        findings.push({
+          label: `the findings writable subset declares the work-face exclusive field "${key}" (role-distinctive mutual exclusion broken — the findings carrier must stay child-conclusion-free)`,
+          file: "packages/cdd-engine/src-next/session/handoff-schema.ts",
+        });
+      }
+    }
+
+    // ⑥ the engine-authority hygiene — the engine's write plane derives from the
+    //    declaration (keyof properties ∪ engineOnly), so the two non-tautological
+    //    legs are: a declared engine-only key never ALSO becomes a declared writable
+    //    property (which would leak it into the child-visible view), and no declared
+    //    engine-only key goes unconsumed by an engine carrier write path (dead
+    //    authority metadata).
+    for (const face of ["work", "findings"] as const) {
+      for (const key of declared[face].engineOnly ?? []) {
+        if (key in (declared[face].properties ?? {})) {
+          findings.push({
+            label: `handoff ${face} declares "${key}" BOTH as an engineOnly key and as a writable property — the engine-only key leaks into the child projection view (engine-only keys must stay out of the declared writable subset)`,
+            file: "packages/cdd-engine/src-next/session/handoff-schema.ts",
+          });
+        }
+        if (!writePathFaces.some((file) => this.#carrierWrites(file, key))) {
+          findings.push({
+            label: `handoff ${face} declares engineOnly key "${key}" which no engine carrier write path consumes (engine-authority hygiene broken — a declared engine-only write with no write site is dead metadata)`,
+            file: "packages/cdd-engine/src-next/session/handoff-schema.ts",
+          });
+        }
+      }
+    }
+
+    // ③ the projection consistency — the injected fence parses to the declared node
+    //    minus `engineOnly` (projection ① never surfaces the engine's own keys).
+    for (const face of ["work", "findings"] as const) {
+      const text = projection(face, false);
+      const fence = text.split("```json\n")[1]?.split("\n```")[0];
+      if (fence === undefined) {
+        findings.push({
+          label: `handoff ${face} projection ① produces no \`\`\`json fence (the prompt-injection projection is broken)`,
+          file: "packages/cdd-engine/src-next/session/handoff-schema.ts",
+        });
+        continue;
+      }
+      try {
+        const parsed: unknown = JSON.parse(fence);
+        const { engineOnly: _authority, ...declaredNode } = declared[face];
+        void _authority;
+        if (JSON.stringify(parsed) !== JSON.stringify(declaredNode)) {
+          findings.push({
+            label: `handoff ${face} projection ① fence parses to a different node than the declared writable subset minus engineOnly (the prompt shows a schema the engine does not declare)`,
+            file: "packages/cdd-engine/src-next/session/handoff-schema.ts",
+          });
+        }
+      } catch {
+        findings.push({
+          label: `handoff ${face} projection ① fence is not parseable JSON (the prompt shows a schema the engine does not declare)`,
+          file: "packages/cdd-engine/src-next/session/handoff-schema.ts",
+        });
+      }
+    }
+
+    return findings;
+  }
+
+  /** The engine-only key's carrier-write consumption scan — a `carrier.<key> =`
+   *  assignment in a write-path face (the form every engine carrier write uses —
+   *  lifecycle.ts #materialize + run.ts #bookkeep set the conclusion below the
+   *  skeleton). */
+  #carrierWrites(file: string, key: string): boolean {
+    if (!existsSync(file)) return false;
+    return new RegExp(`carrier\\.\\b${escapeRegExp(key)}\\b\\s*=`).test(readFileSync(file, "utf8"));
+  }
+
+  // -------------------------------------------------------------------------
+  // checkClaimedPins(opts?) — the claimed→pin lint (docs claim → colocated pin)
+  // -------------------------------------------------------------------------
+
+  /**
+   * checkClaimedPins(opts?) — the claimed→pin lint (the D13 defect-② fix): every
+   * `.test.ts:line(-line)?` citation the ENFORCED specs/plans docs make (a behavior
+   * claim's citation form) must resolve to a current-tree test file carrying a test
+   * assertion — the machine half of the review lens's claim clause (a claim without
+   * a colocated pin is a pinless claim; the lint catches the dangling / empty halves
+   * the lens's human half flags). The pre-contract docs are exempt — their refs
+   * predate the claimed→pin contract, under the same ruling the doc-contract gate
+   * applies (the orchestrator wires the set in; this body never restates it).
+   */
+  checkClaimedPins(options: ClaimedPinsOptions = {}): GuardFinding[] {
+    const findings: GuardFinding[] = [];
+    const docsRoot = options.docsRoot ?? path.join(ROOT, "docs", "kairos");
+    const testFiles = options.testFiles ?? this.#discoverTestFiles();
+    // The basename resolution — a ref cites a file by its (possibly bare) basename;
+    // a UNIQUE basename match resolves it, an ambiguous one stays silent (cannot
+    // falsify — two current-tree files share the name, so neither is provably the
+    // pin's target and neither the lint's to judge), a missing one is the dangling
+    // pin. The unique basenames ARE the current tree's test files — the live
+    // inventory every claim must hit.
+    const byBasename = new Map<string, string>();
+    const ambiguous = new Set<string>();
+    for (const file of testFiles) {
+      const base = path.basename(file);
+      if (ambiguous.has(base)) continue;
+      if (byBasename.has(base)) {
+        byBasename.delete(base);
+        ambiguous.add(base);
+      } else {
+        byBasename.set(base, file);
+      }
+    }
+    for (const dir of ["specs", "plans"]) {
+      const dirPath = path.join(docsRoot, dir);
+      if (!existsSync(dirPath)) continue;
+      for (const name of readdirSync(dirPath)) {
+        if (!name.endsWith(".md")) continue;
+        const key = `docs/kairos/${dir}/${name}`;
+        if (options.preContract?.has(key)) continue;
+        const src = readFileSync(path.join(dirPath, name), "utf8");
+        for (const match of src.matchAll(PIN_REF_RE)) {
+          const ref = match[0]!;
+          const base = path.basename(match[1]!);
+          const docPath = path.join(dirPath, name);
+          if (ambiguous.has(base)) continue; // cannot falsify — stay silent
+          const absolute = byBasename.get(base);
+          if (absolute === undefined) {
+            findings.push({
+              label: `claimed→pin ref \`${ref}\` names no current-tree test file (dangling pin — every behavior claim must cite a colocated pin)`,
+              file: docPath,
+            });
+            continue;
+          }
+          const content = readFileSync(absolute, "utf8");
+          if (!ASSERTION_LITERALS.some((literal) => content.includes(literal))) {
+            findings.push({
+              label: `claimed→pin ref \`${ref}\` resolves to ${path.relative(ROOT, absolute)} with no test assertion (empty pin — every behavior claim must cite a colocated pin)`,
+              file: docPath,
+            });
+          }
+        }
+      }
+    }
+    return findings;
+  }
+
+  /** The current-tree test-file discovery — the bounded walk over the explicit test
+   *  roots (the claimed→pin refs' resolution candidates). */
+  #discoverTestFiles(): string[] {
+    const files: string[] = [];
+    for (const root of TEST_ROOTS) {
+      const absolute = path.join(ROOT, root);
+      if (existsSync(absolute)) walkTestFiles(absolute, files);
+    }
+    return files;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -758,6 +1044,16 @@ export class GuardLibrary {
 /** RegExp-escape a literal (the schema-contract patterns are quoted verbatim). */
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Walk a directory tree collecting `.test.ts` files — the bounded discovery walk
+ *  over EXPLICIT roots only (the claimed→pin resolution inventory). */
+function walkTestFiles(dir: string, out: string[]): void {
+  for (const ent of readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, ent.name);
+    if (ent.isDirectory()) walkTestFiles(full, out);
+    else if (ent.name.endsWith(".test.ts")) out.push(full);
+  }
 }
 
 /** The guard library singleton — the validate orchestrator's guard face. */

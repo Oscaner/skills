@@ -13,7 +13,7 @@
 // workspace — the ledger round reads hit the on-disk handoffs exactly as the
 // production loop does.
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -31,15 +31,17 @@ const BASE = "a".repeat(8);
 const HEAD = "b".repeat(8);
 const DOC = "docs/kairos/specs/x-design.md";
 
-/** A hermetic ledger fixture — a fresh temp workspace (the ledger tests' pattern). */
-function fixture(): { ledger: Ledger; workspace: Workspace; cleanup: () => void } {
+/** A hermetic ledger fixture — a fresh temp workspace (the ledger tests' pattern).
+ *  `repo` exposes the temp root so the T11 wiring cases can place a real plan file
+ *  the reviewed-revision write-back hashes. */
+function fixture(): { ledger: Ledger; workspace: Workspace; repo: string; cleanup: () => void } {
   const repo = mkdtempSync(path.join(tmpdir(), "run-"));
   const workspace = new Workspace(
     new WorkspaceRoot(path.join(repo, ".kairos", "cdd"), "session"),
     "test-slug",
   );
   const ledger = new Ledger(workspace, new ConfigLoader());
-  return { ledger, workspace, cleanup: () => rmSync(repo, { recursive: true, force: true }) };
+  return { ledger, workspace, repo, cleanup: () => rmSync(repo, { recursive: true, force: true }) };
 }
 
 /** A plan document over `### Task N:` blocks + `- **DependsOn**:` values. */
@@ -641,6 +643,89 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
   });
 });
 
+describe("T2 — the bookkeep fallback rides the frame's declared face", () => {
+  it("the work fallback builds a findings-free carrier — the persisted implement handoff carries zero findings keys (the work face)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = taskGraph([task(1, "none")]);
+      const dispatch = stub(() => APPROVED_IMPLEMENT);
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+      });
+      run.advance();
+      const carrier = ledger.readHandoff("implement", "wave", { tasks: "1" });
+      expect(carrier).not.toBeNull();
+      expect(Object.keys(carrier!)).not.toContain("findings");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the docs-fix fallback carries the findings face — the persisted fix handoff HAS the findings key (a work-shaped fallback would fail this)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const dispatch = stub((frame) =>
+        frame.phase === "fix"
+          ? { status: "APPROVED", commits: { base: BASE, head: HEAD } }
+          : { status: "APPROVED", findings: [finding("blocker")] },
+      );
+      const run = new Lifecycle({
+        face: targetFaces.spec,
+        state: EMPTY_RUN_STATE,
+        ledger,
+        dispatch: dispatch.step,
+        target: { kind: "doc", doc: DOC },
+      });
+      expect(run.advance()!.route!.kind).toBe("fix");
+      run.advance();
+      const carrier = ledger.readHandoff("fix", "spec", { round: 1 });
+      expect(carrier).not.toBeNull();
+      // the fix-doc family is the findings face — the fallback carrier declares the
+      // findings key (empty: the fix outcome advances no new findings of its own)
+      expect(Object.keys(carrier!)).toContain("findings");
+      expect(carrier!.findings).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("T6 — probe A: the wave-fix fallback also rides the work face — the persisted WAVE fix handoff carries zero findings keys (the fix leg of the zero-findings write path)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = taskGraph([task(1, "none")]);
+      const dispatch = stub((frame) => {
+        if (frame.phase === "implement") return APPROVED_IMPLEMENT;
+        if (frame.phase === "fix")
+          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        return { status: "APPROVED", findings: [finding("blocker")] };
+      });
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+      });
+      run.advance(); // implement 1 — the work face
+      run.advance(); // review 1 (blocker) → routes the fix hop
+      run.advance(); // fix 1 — the WAVE fix face is the work face
+      const fixCarrier = ledger.readHandoff("fix", "wave", { tasks: "1", round: 1 });
+      expect(fixCarrier).not.toBeNull();
+      // the wave fix lands on the work face — the persisted fix carrier carries zero
+      // findings keys, even though its source review was a finding-bearing blocker
+      expect(Object.keys(fixCarrier!)).not.toContain("findings");
+      const reviewCarrier = ledger.readHandoff("review", "wave", { tasks: "1", round: 1 });
+      expect(reviewCarrier).not.toBeNull();
+      // the review face keeps the findings key — the two legs diverge by face
+      expect(Object.keys(reviewCarrier!)).toContain("findings");
+    } finally {
+      cleanup();
+    }
+  });
+});
+
 describe("the branch small loop — branch-review → fix → closure", () => {
   it("drives the branch line over the base..head range (the r{round} family names)", () => {
     const { ledger, cleanup } = fixture();
@@ -825,5 +910,59 @@ describe("the capsule interaction seam — non-hard consumption", () => {
       `${status} ${blocker} ${handoff}`,
     ];
     expect(seam("APPROVED", "0", "/ws/h.json")).toEqual(["APPROVED 0 /ws/h.json"]);
+  });
+});
+
+describe("T11 — the wave review writes the reviewed PLAN revision into the wave row", () => {
+  it("a completed wave review binds the lifecycle's plan-path revision to the wave line (D16)", () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const planPath = path.join(repo, "plan.md");
+      writeFileSync(planPath, "# Plan\n- delta\n");
+      const graph = taskGraph([task(1, "none")]);
+      // the review approves on its first pass — the wave closes, but the revision
+      // write-back lands in the bookkeep step BEFORE the closure route marks done
+      const dispatch = stub((frame) =>
+        frame.phase === "implement" ? APPROVED_IMPLEMENT : { status: "APPROVED", findings: [] },
+      );
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+        planPath,
+      });
+      run.advance(); // implement
+      run.advance(); // review — the completion records the plan's current revision
+      const recorded = ledger.reviewedDocRevisionOf("1");
+      expect(recorded).not.toBeNull();
+      expect(recorded!.kind).toBe("doc-revision");
+      expect(recorded!.doc).toBe(planPath);
+      expect(recorded!.doc_hash).toHaveLength(40);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a plan-less lifecycle records no wave revision — the null #planPath leaves the legacy wave row", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = taskGraph([task(1, "none")]);
+      const dispatch = stub((frame) =>
+        frame.phase === "implement" ? APPROVED_IMPLEMENT : { status: "APPROVED", findings: [] },
+      );
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+        // no planPath — the wave review completes with no plan fact on record
+      });
+      run.advance();
+      run.advance();
+      expect(ledger.reviewedDocRevisionOf("1")).toBeNull();
+    } finally {
+      cleanup();
+    }
   });
 });

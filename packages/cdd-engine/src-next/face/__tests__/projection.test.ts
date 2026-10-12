@@ -9,9 +9,12 @@
 // (REQUIRED_GROUPS · §4.2). Instance-level assertions — the projections are read
 // off the assembled program, never a re-declared expectation list.
 
+import { readFileSync } from "node:fs";
 import type { Command } from "commander";
 import { describe, expect, it } from "vitest";
 
+import type { ChannelArgRow } from "../declare.ts";
+import { VALUE_SHAPES } from "../declare.ts";
 import { CommandTreeBuilder } from "../projection.ts";
 import { negatedOf } from "./negation.ts";
 
@@ -218,5 +221,76 @@ describe("the preAction conditional-required groups (§4.2 · REQUIRED_GROUPS)",
     );
     expect(code).toBe("commander.invalidArgument");
     expect(message).toContain("--findings required when --type branch");
+  });
+});
+
+describe("the value-domain table declaration — VALUE_SHAPES (T7)", () => {
+  it("the shaped-channel key set — the four validated types, and only those (the table-source pin)", () => {
+    // The value-domain shape derives from the declaration table, never a second
+    // hand-written list: the key set is exactly the validated subset of the
+    // channel type vocabulary (string/path/bool faces carry no parser — the
+    // shaped-channel record face excludes them by construction).
+    expect(Object.keys(VALUE_SHAPES)).toEqual(["enum", "int-list", "sha", "int"]);
+    for (const key of Object.keys(VALUE_SHAPES)) {
+      expect(typeof VALUE_SHAPES[key as keyof typeof VALUE_SHAPES].parse).toBe("function");
+    }
+  });
+
+  it("the enum domain reads the row's declared values — an out-of-domain raw rejects", () => {
+    const row: ChannelArgRow = { flag: "--type", type: "enum", values: ["wave", "branch"] };
+    expect(VALUE_SHAPES.enum.parse("wave", row)).toBe("wave");
+    const { code, message } = commanderError(() => VALUE_SHAPES.enum.parse("plan", row));
+    expect(code).toBe("commander.invalidArgument");
+    expect(message).toBe("must be one of wave | branch");
+  });
+
+  it("the int-list normalizes to the sorted deduped comma string and rejects non-integers", () => {
+    const row: ChannelArgRow = { flag: "--tasks", type: "int-list" };
+    expect(VALUE_SHAPES["int-list"].parse("3,1,3,2", row)).toBe("1,2,3");
+    const { code, message } = commanderError(() => VALUE_SHAPES["int-list"].parse("1,x", row));
+    expect(code).toBe("commander.invalidArgument");
+    expect(message).toBe("--tasks <n|n,n,…> — must be comma-separated integers: x");
+  });
+
+  it("the sha + int faces reject a non-conforming raw with the pinned byte messages", () => {
+    const shaRow: ChannelArgRow = { flag: "--base", type: "sha" };
+    expect(VALUE_SHAPES.sha.parse("0f3be2a1", shaRow)).toBe("0f3be2a1");
+    const { code: shaCode, message: shaMessage } = commanderError(() =>
+      VALUE_SHAPES.sha.parse("nope", shaRow),
+    );
+    expect(shaCode).toBe("commander.invalidArgument");
+    expect(shaMessage).toBe("must be an 8-char sha");
+
+    const intRow: ChannelArgRow = { flag: "--round", type: "int" };
+    expect(VALUE_SHAPES.int.parse("7", intRow)).toBe("7");
+    const { code: intCode, message: intMessage } = commanderError(() =>
+      VALUE_SHAPES.int.parse("-1", intRow),
+    );
+    expect(intCode).toBe("commander.invalidArgument");
+    expect(intMessage).toBe("must be an integer");
+  });
+
+  it("the hand-written replication is destroyed — the four #parse* methods are gone from the projection (the grep pin)", () => {
+    const source = readFileSync(new URL("../projection.ts", import.meta.url), "utf8");
+    for (const method of ["#parseEnum", "#parseInts", "#parseSha8", "#parseInt"] as const) {
+      expect(
+        source.includes(method),
+        `${method} must not survive the table migration (the value-domain rules live in VALUE_SHAPES)`,
+      ).toBe(false);
+    }
+  });
+
+  it("the schema <type> vocabulary is retained — #parseTypeKey + SCHEMA_TYPE_KEYS stay out of the destroy list (T9)", () => {
+    const projection = readFileSync(new URL("../projection.ts", import.meta.url), "utf8");
+    const declare = readFileSync(new URL("../declare.ts", import.meta.url), "utf8");
+    // The retention disposition (plan T7 — the spec §6.3 cross-reference): the pair
+    // is §6.3-listed but T7 records it as RETAINED, never on the destroy list —
+    // SCHEMA_TYPE_KEYS is the schema gen/get <type> doc-key vocabulary, orthogonal
+    // to the ChannelValueType value-shape table (merging it into VALUE_SHAPES does
+    // not fit); #parseTypeKey derives through it (the get leaf also routes the
+    // plan-graph display type).
+    expect(projection).toContain("#parseTypeKey");
+    expect(projection).toContain("SCHEMA_TYPE_KEYS");
+    expect(declare).toContain("SCHEMA_TYPE_KEYS");
   });
 });

@@ -27,7 +27,16 @@
 // captured, never the process.
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Command } from "commander";
@@ -56,6 +65,43 @@ const RETIRED_USAGE = {
     "usage: cdd implement --tasks <n|n,n,…> --plan <path> [--root <path>] — implement the plan wave's task group",
   base: "usage: cdd base <set|get> --plan <path> [set: --base <branch> --source <source>] [--force] — read/write the base.json artifact",
 } as const;
+
+/** The engine's source planes — the destroy-list sweep's scan set (zero non-test
+ *  residue is asserted across every plane and the src-next root, never a single
+ *  file). */
+const ENGINE_SOURCE_PLANES = ["contract", "face", "infra", "render", "session"] as const;
+
+/** Every engine source file's (src-next-qualified name, text) — the plane enum +
+ *  the src-next root's own .ts files (bin.ts — the shipped CLI entry, the engine's
+ *  sole source file outside the planes). The .ts-suffix filter drops the __tests__
+ *  dirs and the plane subdirectories (a directory never ends with .ts), so the
+ *  swept set IS the engine's non-test source tree — the planes' root company
+ *  included, the guard's closure over the 'zero residual across the engine source'
+ *  claim. */
+function engineSourceTexts(): [string, string][] {
+  return [
+    ...ENGINE_SOURCE_PLANES.flatMap((plane) =>
+      readdirSync(new URL(`../../${plane}/`, import.meta.url))
+        .filter((name) => name.endsWith(".ts"))
+        .map(
+          (name) =>
+            [
+              `${plane}/${name}`,
+              readFileSync(new URL(`../../${plane}/${name}`, import.meta.url), "utf8"),
+            ] as [string, string],
+        ),
+    ),
+    ...readdirSync(new URL("../../", import.meta.url))
+      .filter((name) => name.endsWith(".ts"))
+      .map(
+        (name) =>
+          [name, readFileSync(new URL(`../../${name}`, import.meta.url), "utf8")] as [
+            string,
+            string,
+          ],
+      ),
+  ];
+}
 
 // ---------------------------------------------------------------------------
 // fixtures
@@ -1215,7 +1261,18 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       expect(code).toBe(0);
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       const progress = readJson<{ waves: unknown[] }>(path.join(workspace, "progress.json"));
-      expect(progress.waves).toContainEqual({ wave: "1", rounds: { implement: 1, review: 1 } });
+      // the wave-1 row carries its T11 (D16) revision record — the completed wave
+      // review bound the plan it judged to ITS line (the record reviewedDocRevision
+      // holds the reviewed plan's doc + sha1 content hash — the wave-gate reopen basis)
+      expect(progress.waves).toContainEqual({
+        wave: "1",
+        rounds: { implement: 1, review: 1 },
+        reviewedDocRevision: {
+          kind: "doc-revision",
+          doc: plan,
+          doc_hash: createHash("sha1").update(readFileSync(plan, "utf8")).digest("hex"),
+        },
+      });
       expect(progress.waves).toContainEqual({ wave: "2", rounds: { implement: 1 } });
       // the invocation's single stdout face — only the LAST step's capsule
       expect(io.stdoutText.split("status: APPROVED").length - 1).toBe(1);
@@ -2152,6 +2209,96 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     }
   });
 
+  it("the materialized implement carrier on disk carries zero findings keys — the work face's zero-findings write path (T2)", async () => {
+    const { command, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const code = await command.runArgv([
+        "implement",
+        "--tasks",
+        "1",
+        "--plan",
+        plan,
+        "--dry-run",
+        "--root",
+        repoRoot,
+      ]);
+      expect(code).toBe(0);
+      const carrier = JSON.parse(
+        readFileSync(path.join(repoRoot, ".kairos", "cdd", "p3", "tasks-1-implement.json"), "utf8"),
+      ) as Record<string, unknown>;
+      expect("findings" in carrier).toBe(false);
+      expect(Object.keys(carrier)).not.toContain("findings");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("T6 — probe A: the end-to-end dry-run implement + fix final carriers carry zero findings keys — both work-face materialization legs (implement + wave fix)", async () => {
+    const { command, repoRoot, cleanup } = fixture();
+    try {
+      const head = gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      // the implement leg — the dry-run dispatch persists the work-face final carrier
+      expect(
+        await command.runArgv([
+          "implement",
+          "--tasks",
+          "1",
+          "--plan",
+          plan,
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).toBe(0);
+      const implementCarrier = JSON.parse(
+        readFileSync(path.join(repoRoot, ".kairos", "cdd", "p3", "tasks-1-implement.json"), "utf8"),
+      ) as Record<string, unknown>;
+      expect("findings" in implementCarrier).toBe(false);
+      expect(Object.keys(implementCarrier)).not.toContain("findings");
+      // the fix leg — seed the blocker source review (the C5-1 fix input) so the fix
+      // dispatch reads a finding-bearing review carrier back and still lands its
+      // final carrier on the work face (the fix-will-not-mirror-findings probe)
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader());
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1", round: 1 },
+        {
+          tasks: [1],
+          phase: "review",
+          findings: [{ severity: "blocker", summary: "drift" }],
+          commits: { base: head, head },
+        },
+      );
+      ledger.recordRound(1, "review");
+      expect(
+        await command.runArgv([
+          "fix",
+          "--type",
+          "wave",
+          "--tasks",
+          "1",
+          "--plan",
+          plan,
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).toBe(0);
+      const fixCarrier = JSON.parse(
+        readFileSync(path.join(repoRoot, ".kairos", "cdd", "p3", "tasks-1-fix-1.json"), "utf8"),
+      ) as Record<string, unknown>;
+      expect("findings" in fixCarrier).toBe(false);
+      expect(Object.keys(fixCarrier)).not.toContain("findings");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("plan-graph — the board shows the in-wave ✔/▶ mix from closedWaves", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
@@ -2428,7 +2575,17 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
       expect(nextOf()).toBe("done");
 
       const progress = readJson<{ waves: unknown[] }>(path.join(workspace, "progress.json"));
-      expect(progress.waves).toContainEqual({ wave: "2", rounds: { implement: 1, review: 1 } });
+      // the wave-2 row carries its own T11 revision record — the final APPROVED
+      // review bound the plan to wave 2's line (the same write-back as wave 1's row)
+      expect(progress.waves).toContainEqual({
+        wave: "2",
+        rounds: { implement: 1, review: 1 },
+        reviewedDocRevision: {
+          kind: "doc-revision",
+          doc: plan,
+          doc_hash: createHash("sha1").update(readFileSync(plan, "utf8")).digest("hex"),
+        },
+      });
     } finally {
       cleanup();
     }
@@ -3058,10 +3215,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           report: path.join(scene.workspace.path, "tasks-1-implement-report.md"),
           test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
         },
-        findings: [],
         commits: { base: "a".repeat(8), head },
         status: "APPROVED",
       });
+      // T2 — the materialized work carrier is the work face: zero findings key (the
+      // face-aware write path never injects the work-carrier findings byte bridge)
+      expect("findings" in outcome.carrier!).toBe(false);
     } finally {
       cleanup();
     }
@@ -3195,7 +3354,6 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           report: path.join(scene.workspace.path, "tasks-1-implement-report.md"),
           test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
         },
-        findings: [],
         commits: { base: "a".repeat(8), head },
         status: "APPROVED",
         notes: [
@@ -3203,6 +3361,8 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           expect.stringContaining("artifact test_evidence"),
         ],
       });
+      // T2 — the materialized work carrier is the work face: zero findings key
+      expect("findings" in outcome.carrier!).toBe(false);
     } finally {
       cleanup();
     }
@@ -3348,6 +3508,58 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
+  it("T6 — probe B: the fix dispatch prompt carries the strict-schema single sentence — the declaration is the field source, zero extra keys (the child-facing fix shell)", () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new FakeSync();
+      sync.stdout = "status: APPROVED\n";
+      writeFileSync(
+        path.join(scene.workspace.path, "tasks-1-fix-1.json"),
+        JSON.stringify({
+          status: "APPROVED",
+          artifacts: {
+            report: path.join(scene.workspace.path, "tasks-1-fix-1-report.md"),
+            test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+          },
+          commits: { base: "a".repeat(8), head: "b".repeat(8) },
+        }),
+        "utf8",
+      );
+      writeFileSync(
+        path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+        JSON.stringify({
+          command: "npx vitest run",
+          exit_code: 0,
+          passed: true,
+          warnings_count: 0,
+          typecheck: { command: "tsc --noEmit", exit_code: 0, passed: true },
+        }),
+        "utf8",
+      );
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      const outcome = dispatch.step()(fixFrame);
+      expect(outcome.status).toBe("APPROVED");
+      const call = sync.calls[0];
+      const prompt = call.args[call.args.length - 1];
+      // the ONE strict-schema sentence lands in the child-facing fix shell — the
+      // declared properties are the draft's single field source (the T5 bytes riding
+      // the rendered prompt; probe B's checkable)
+      expect(prompt).toContain(
+        "every top-level field of the draft comes from the `## Handoff schema` declared `properties`",
+      );
+      expect(prompt).toContain("zero extra keys");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("no host harness → BLOCKED over the CDD_BLOCKED channel; a broken child → BLOCKED too", () => {
     const { repoRoot, cleanup } = fixture();
     try {
@@ -3467,7 +3679,6 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           report: path.join(scene.workspace.path, "tasks-1-implement-report.md"),
           test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
         },
-        findings: [],
         commits: { base: "a".repeat(8), head: "b".repeat(8) },
         status: "BLOCKED",
         failure_category: "evidence-contract",
@@ -3477,6 +3688,9 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           expect.stringContaining("the test evidence at"),
         ],
       });
+      // T2 — the materialized work carrier is the work face: zero findings key (the
+      // evidence-contract rewrite never re-injects the work-carrier findings bridge)
+      expect("findings" in outcome.carrier!).toBe(false);
     } finally {
       cleanup();
     }
@@ -3548,6 +3762,30 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(prompt).not.toContain("aaaaaaaa..bbbbbbbb");
     } finally {
       cleanup();
+    }
+  });
+});
+
+describe("T9 — the destroy-list zero-residual sweep (spec §6.3 cross-reference)", () => {
+  it("the hand-written parse monoliths + the destroyed write-plane table carry zero residual across the engine source", () => {
+    // The destroy list (spec §6.3 + the T3 parallel-table destroy): the four
+    // hand-written value-domain monoliths (destroyed at T7 — the rules live in
+    // declare.ts VALUE_SHAPES) and the HANDOFF_WRITE_PLANE parallel table
+    // (destroyed at T3 — the write plane derives from the declared properties).
+    // The retained pair (#parseTypeKey/SCHEMA_TYPE_KEYS — the schema <type>
+    // doc-key vocabulary, orthogonal to the value-shape table) is NOT swept here —
+    // its retention is pinned in projection.test.ts.
+    const destroyed = [
+      "#parseEnum",
+      "#parseInts",
+      "#parseSha8",
+      "#parseInt",
+      "HANDOFF_WRITE_PLANE",
+    ] as const;
+    for (const [file, text] of engineSourceTexts()) {
+      for (const name of destroyed) {
+        expect(text, `${name} must not survive in ${file}`).not.toContain(name);
+      }
     }
   });
 });

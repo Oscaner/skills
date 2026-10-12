@@ -1,6 +1,6 @@
 // packages/kairos/tests/skill-anatomy.test.ts
-// P5 — the kairos-side skill-anatomy check, colocated after the D17 six-前提
-// 归域 (the root guard's checkAnatomy assertion face re-homed into the kairos
+// P5 — the kairos-side skill-anatomy check, colocated after the D17 six-premise
+// ownership-migration (the root guard's checkAnatomy assertion face re-homed into the kairos
 // test plane — kairos owns its shipped six SKILL.md products). The judging
 // implementation consumes the engine's exported skill-anatomy contract
 // (`src-next/contract/skill-anatomy.ts` — the section registry, the node

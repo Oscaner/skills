@@ -1,6 +1,6 @@
 // packages/cdd-engine/src-next/face/__tests__/words.guard.test.ts
 // P5 — the engine-literal half of the word-face audit, colocated after the
-// D17 six-前提 归域 (the root guard's checkWords split: the skill-text half
+// D17 six-premise ownership-migration (the root guard's checkWords split: the skill-text half
 // re-homes to the kairos test plane, the engine-literal half lands HERE — the
 // surfaces this tree owns must carry zero of its own retired vocabulary). The
 // token set is the exported ban-table data (`guard.ts` GUARD_BAN_WORDS), never a

@@ -1,5 +1,5 @@
 // packages/cdd-engine/src-next/session/__tests__/handoff-plane.guard.test.ts
-// P5 — the handoff-plane audit, colocated after the D17 six-前提 归域 (the root
+// P5 — the handoff-plane audit, colocated after the D17 six-premise ownership-migration (the root
 // guard's checkHandoffPlane assertion face re-homed into the session test
 // plane — the engine's own suite holds the engine's own declaration checks). The
 // three legs read the engine's single source (`session/handoff-schema.ts` — the

@@ -1,6 +1,6 @@
 // packages/cdd-engine/src-next/face/__tests__/channel-closure.guard.test.ts
-// P5 — the engine-side channel-closure pin, colocated after the D17 six-前提
-// 归域 (the root guard's checkChannels assertion face re-homed into the engine
+// P5 — the engine-side channel-closure pin, colocated after the D17 six-premise
+// ownership-migration (the root guard's checkChannels assertion face re-homed into the engine
 // test plane — every check lives in its owning package's suite, zero root
 // validation implementation). The three closure legs read the engine's OWN typed
 // single sources — `face/declare.ts` (CLI_COMMANDS + ARGV_CHANNEL) and

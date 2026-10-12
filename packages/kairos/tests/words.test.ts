@@ -1,6 +1,6 @@
 // packages/kairos/tests/words.test.ts
-// P5 — the kairos-side skill-text word audit, colocated after the D17 six-前提
-// 归域 (the root guard's checkWords half that scans the consumer-skill surface
+// P5 — the kairos-side skill-text word audit, colocated after the D17 six-premise
+// ownership-migration (the root guard's checkWords half that scans the consumer-skill surface
 // re-homes here — kairos owns its shipped prose; the engine-literal half lives
 // in the engine's colocated suite). The ban vocabulary is the engine's exported
 // `GUARD_BAN_WORDS` data (the word table is single-sourced at

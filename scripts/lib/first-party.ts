@@ -4,8 +4,8 @@
 // emit + validate faces. The single-source rule: a package joins the marketplace by
 // declaring `oscaner`, and any consumer of the first-party set passes through here.
 //
-// Module-level exports are types / the declared data + one discovery function — the
-// plan's zero-bare-function discipline admits pure read services.
+// Module-level exports are types / the discovery class — zero bare functions (the
+// plan's zero-bare-function discipline admits no standalone module-level function).
 
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -34,24 +34,27 @@ export interface PluginSource {
   hooks?: { claude?: string };
 }
 
-/**
- * Derive the first-party plugin package names — the directories under `packages/`
- * whose package.json carries the `oscaner` field (the marketplace's membership
- * gate). Never a second literal list.
- */
-export function firstPartyNames(packagesRoot: string): string[] {
-  return readdirSync(packagesRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .filter((entry) => {
-      try {
-        const pkg = JSON.parse(
-          readFileSync(path.join(packagesRoot, entry.name, "package.json"), "utf8"),
-        ) as { oscaner?: unknown };
-        return pkg.oscaner !== undefined;
-      } catch {
-        return false;
-      }
-    })
-    .map((entry) => entry.name)
-    .sort();
+// biome-ignore lint/complexity/noStaticOnlyClass: the discovery family — the first-party set derivation is a static member (zero-bare-function discipline).
+export class FirstParty {
+  /**
+   * Derive the first-party plugin package names — the directories under `packages/`
+   * whose package.json carries the `oscaner` field (the marketplace's membership
+   * gate). Never a second literal list.
+   */
+  static names(packagesRoot: string): string[] {
+    return readdirSync(packagesRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .filter((entry) => {
+        try {
+          const pkg = JSON.parse(
+            readFileSync(path.join(packagesRoot, entry.name, "package.json"), "utf8"),
+          ) as { oscaner?: unknown };
+          return pkg.oscaner !== undefined;
+        } catch {
+          return false;
+        }
+      })
+      .map((entry) => entry.name)
+      .sort();
+  }
 }

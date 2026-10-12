@@ -13,10 +13,10 @@
 #   Push coverage model: `pnpm run validate` covers the PR surface in full (develop→main and
 #   changeset-release/* PRs run pr-validate); push→main itself runs no validate — the release
 #   surface = emit freshness (Version PR generation runs `pnpm exec changeset version` then
-#   `pnpm run emit`) + the dual consumer gates (pre-version baseline smoke-cdd, and the
-#   post-version `changeset status` push-mode split + `smoke-cdd --expect-version 1.0.0` on
-#   publish pushes — both wired before the changesets action, so the released artifact is the
-#   verified artifact and the post gate intercepts before `changeset publish`).
+#   `pnpm run emit`) + the pre-version smoke gate (`pnpm -C packages/cdd-engine run smoke` — the
+#   engine smoke integration test over a fixture repo, wired before the changesets action, so the
+#   released artifact is the verified artifact). The consumer gate's version-expectation flag
+#   was withdrawn (P5 user adjudication 2026-10-12): the smoke carries no version assertion.
 name: Release (main)
 
 on:
@@ -45,30 +45,11 @@ jobs:
           registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
       - run: pnpm run emit
-      # Pre-version consumer-sim gate (P3 T7 / design §2.6): before any publish-side action,
-      # black-box the current tree's release candidate through a consumer install (pack →
-      # npm install → cdd schema get + 5-command dry-run chain). Version-agnostic — passes on
-      # both the 0.1.0 version push and the 1.0.0 publish push; a failure here aborts before
-      # the action, leaving a clean tree to roll back from.
-      - run: node scripts/run.ts smoke-cdd
-      # Post-version gate (P4.2 / design §2.2): split the two push modes BEFORE the action —
-      # changesets/action's hasChangesets is only known after it runs (a gate placed after it
-      # would sit after `changeset publish` too, losing its interception force). `changeset
-      # status` reads the push's pending changesets: an EMPTY array = the Version PR was merged
-      # → this push IS the publish mode. Only then the expect-version gate runs — on the 1.0.0
-      # publish tree the released artifact (packed AND installed) must carry version 1.0.0
-      # ("release artifact = verified artifact"), still before the action's publish.
-      - name: Detect publish-mode push (zero pending changesets)
-        id: changesets-status
-        env:
-          CHANGESET_STATUS_FILE: ${{ runner.temp }}/changeset-status.json
-        run: |
-          pnpm exec changeset status --output="$CHANGESET_STATUS_FILE"
-          has_changesets=$(node -e 'const s = JSON.parse(require("node:fs").readFileSync(process.env.CHANGESET_STATUS_FILE, "utf8")); process.stdout.write(s.changesets.length > 0 ? "true" : "false")')
-          echo "has_changesets=$has_changesets" >> "$GITHUB_OUTPUT"
-      - name: Post-version consumer gate (smoke-cdd --expect-version 1.0.0)
-        if: steps.changesets-status.outputs.has_changesets == 'false'
-        run: node scripts/run.ts smoke-cdd --expect-version 1.0.0
+      # Pre-version smoke gate (P5 T7): before any publish-side action, run the engine's
+      # smoke integration test over a fixture repo (the source bin's dry-run chain).
+      # Version-agnostic — passes on both the 0.1.0 version push and the 1.0.0 publish push; a
+      # failure here aborts before the action, leaving a clean tree to roll back from.
+      - run: pnpm -C packages/cdd-engine run smoke
       - uses: changesets/action@v2
         id: changesets
         with:

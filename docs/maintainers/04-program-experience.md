@@ -79,18 +79,19 @@ Operational norms fixed by the consumer-parity P3 rebuild; each item is grep-ver
 53. **Exit by the composed CLI, zero signal latch** — `src-next/bin.ts` boots unconditionally (node-floor pre-flight → `cli().runArgv(argv)` → `process.exit` with the returned code); a signal-killed child surfaces as the ledger's `child-signal` reason (143 = SIGTERM).
 54. **Same-signature CI batch failure = real-defect signal, not random flake** — an N/N failure on the same assertion is a reachability signal, not noise. Attribute before labeling: reproduce locally and pin the mechanism; a reviewer "flake" label requires reproduction.
 
-## 8. Consumer-sim release gate (P4.2, 2026-09-26)
+## 8. Engine smoke release gate (P4.2, 2026-09-26 · re-anchored P5 T7)
 
-**smoke-cdd positioning** — `smoke-cdd` (`scripts/smoke-cdd.ts`) is the **consumer-sim = the cdd-engine published-artifact consumer black-box**: real build → pack → tarball → consumer install → `cdd schema get` + 5-command dry-run chain; the only CI face installing the packed artifact into an ephemeral consumer repo. Exclusive to cdd-engine; kairos ships via normal npm (pack allowlist + emit + version-sync).
+**smoke positioning** — the smoke is the cdd-engine test-plane integration test (`packages/cdd-engine/src-next/__tests__/smoke.integration.test.ts`): boots the source bin (`node src-next/bin.ts`) over a fixture repo and asserts the status-capsule contract on the `--help` face + the implement/review dry-run chain. Run as `pnpm -C packages/cdd-engine run smoke` (the engine package's smoke script — the release.yml gate's shared anchor). The P4.2 consumer-sim (real build → pack → tarball → consumer install) is retired with the migration; the positioning sentence they share — **consumer-sim = the cdd-engine published-artifact consumer black-box** — survives as the family definition. The dry-run dev face boots source directly (Node >=22.18 native type stripping). Exclusive to cdd-engine; kairos ships via normal npm (pack allowlist + emit + version-sync).
 
-**Release-only gate** — build + pack + install cost keeps it off the daily PR surface; push→main runs emit freshness + the dual consumer gates in `release.yml`, wired **before** the changesets action:
+**Release-only gate** — the smoke's subprocess cost keeps it off the daily PR surface; push→main runs emit freshness + the pre-version smoke gate in `release.yml`, wired **before** the changesets action:
 
-- pre-version baseline gate — `node scripts/run.ts smoke-cdd` (version-agnostic); failure leaves a clean tree to roll back from;
-- post-version gate — `changeset status` (zero pending) then `smoke-cdd --expect-version 1.0.0` (tarball + installed package.json `== 1.0.0`), ahead of `changeset publish` — the released artifact is the verified artifact.
+- pre-version baseline gate — `pnpm -C packages/cdd-engine run smoke` (version-agnostic); failure leaves a clean tree to roll back from.
 
-**Restore** — to move the consumer black-box back onto the daily PR face, add `smoke-cdd` to `pr-validate.yml` and drop the pre-version gate from `release.yml`.
+The post-version gate is gone (P5 user adjudication 2026-10-12 — its version-expectation flag was a no-op: the smoke declares/asserts no version; the released-artifact verification lands on the suite + the pre-version gate).
 
-55. **Validate ↔ smoke-cdd serial discipline** — both write `packages/cdd-engine/dist/` (validate materializes the dev stub, the engine suite reads dist; smoke-cdd rebuilds the directory): a P4.2 concurrent run ENOENTed the engine suite (reproduced; serial re-run green). Run `pnpm run validate` + `node scripts/run.ts smoke-cdd` serially.
+**Restore** — to move the engine smoke onto the daily PR face, add `pnpm -C packages/cdd-engine run smoke` to `pr-validate.yml` and drop the pre-version gate from `release.yml`.
+
+55. **Smoke ↔ validate serial discipline (P4.2, re-anchored P5)** — the P4.2 smoke+validate pair both wrote `packages/cdd-engine/dist/` (validate materialized the dev stub, the engine suite read dist; smoke-cdd rebuilt the directory), so a concurrent run ENOENTed the engine suite (reproduced; serial re-run green). Re-anchored with P5: validate is dissolved (every check lives in its owning package suite) and the smoke boots the source bin over a fixture repo with zero dist materialization — the contention surface is gone.
 
 ## 9. Word table (P3 → T10, 2026-09-30)
 

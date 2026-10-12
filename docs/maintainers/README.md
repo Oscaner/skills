@@ -19,7 +19,7 @@ Task 9 merged the two template docs, trimmed program-experience, updated 02/05 t
 | 01-template-doctrine.md | 14,378 | 10,866 | merged from 01 + 02 · §9 doc-structure facts (unilateral edge) |
 | 02-naming-conventions.md | 7,994 | 9,075 | blocker bounded mapping added |
 | 03-context-caching-doctrine.md | 8,706 | 8,383 | row-key mirror (P3 T2) · cached-bytes trims |
-| 04-program-experience.md | 21,773 | 12,834 | trimmed ~9 KB · +item 57 |
+| 04-program-experience.md | 21,773 | 13,527 | trimmed ~9 KB · +item 57 · P5 T7 re-anchor (consumer-sim retired) |
 | 06-skill-node-discipline.md | 0 | 1,900 | P3.2 facts-only sweep · skill-node discipline (facts only, no restatement) |
-| README.md | 2,324 | 2,259 | index converged + 06 row + anchor revision + P5 retirement ledger |
-| **Total** | 65,193 | 45,317 | plan anchor ≤ 56,000 |
+| README.md | 2,324 | 2,301 | index converged + 06 row + anchor revision + P5 retirement ledger |
+| **Total** | 65,193 | 46,052 | plan anchor ≤ 56,000 |

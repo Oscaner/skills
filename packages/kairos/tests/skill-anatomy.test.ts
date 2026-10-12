@@ -24,6 +24,7 @@ import {
   type SkillAnatomyContract,
   type SkillRosterRow,
 } from "../../cdd-engine/src-next/contract/skill-anatomy.ts";
+import { EXPECTED } from "./helpers.ts";
 
 /** The kairos skills root — every cdd skill's SKILL.md (the check's scan set). */
 const SKILLS_ROOT = path.join(fileURLToPath(new URL("..", import.meta.url)), "skills");
@@ -449,12 +450,8 @@ class SkillAnatomyCheck {
   }
 }
 
-/** The closed six-set cardinality — the contract roster's size (the kairos-suite
- *  closed-set pin, shared with the anatomy judgment's directory comparison). */
-const EXP_ROSTER_SIZE = Object.keys(SKILL_ANATOMY.skills.registry).length;
-
 test("the kairos skills are the closed roster set — directory scan equals the contract registry", () => {
-  assert.equal(SKILL_DIRS.length, EXP_ROSTER_SIZE);
+  assert.equal(SKILL_DIRS.length, EXPECTED);
   for (const name of SKILL_DIRS) {
     assert.ok(SKILL_ANATOMY.skills.registry[name], `unregistered skill dir: ${name}`);
   }

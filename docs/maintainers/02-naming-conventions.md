@@ -22,7 +22,7 @@ Maintainer-only guidance for naming across the repository's authorable surfaces 
 | Registry data | per-entry capability fields, no prose claims | `harness.cache` profile |
 | Dispatch group identity | `--tasks <n,n,…>` — the CLI parse surface for `TaskGroup`; handoff carriers / progress rows group-keyed (`tasks-{a},{b}-*` merged · `tasks-{N}-*` singleton) | `--tasks 1` → `[1]` · `--tasks 1,2` → `[1,2]` · `{group}` progress row |
 | Issue surface | `issue` — the pure-rendering CLI row (`cdd issue render`: stdin JSON → aggregate body → stdout, Non-goal #1 exception) + emit issue form yml from the same `formFieldDefs` | `IssueReportRenderer` · `issue-body.json` · `.github/ISSUE_TEMPLATE/*.yml` · `renderIssueYml` |
-| Command-contract wording | single-sourced in the single word table (`src-next/face/words.ts`) | the `checkWords` word-face audit (`scripts/lib/guard.ts`) |
+| Command-contract wording | single-sourced in the single word table (`src-next/face/words.ts`) | the word-face audit (`src-next/face/__tests__/words.guard.test.ts` · `packages/kairos/tests/words.test.ts`) |
 
 **Return-block constants are not injection slots.** `RETURN_STDOUT_BLOCK` is the ONE return contract (`src-next/render/templates.ts`) — a literal label, never a moustache, never a registry token (the `RETURN_FORMAT`/`RETURN_JSON`/`DOCS_FIX` discrimination retired). Only `round-context` slots are injected. The handoff status enum (`APPROVED`/`BLOCKED`/`CHANGES_REQUESTED`/`REVIEW_FIX`/`TIMEOUT`) is the same constant class (schema values).
 
@@ -34,7 +34,7 @@ Single registration point for the repo's governing terms. A term is in force fro
 
 1. **Terminology wins over mechanism names** — when a term and a mechanism name drift apart semantically, rename the code and docs to reach the term. Registration here defines the mechanism's contract.
 2. **Registration is the exit** — a term lands only when both hold: registered below, and its mechanism surfaces renamed to agree. Registration without rename (or vice versa) is a half-landed term.
-3. **Banned names are composed-form in this table** (underscore-joined), so the registry itself never trips the word-face audit (`GUARD_BAN_WORDS` in `src-next/face/words.ts`; `checkWords` scan, `scripts/lib/guard.ts`); a reintroduced token lands as a ban row, never a code carve-out.
+3. **Banned names are composed-form in this table** (underscore-joined), so the registry itself never trips the word-face audit (`GUARD_BAN_WORDS` in `src-next/face/words.ts`; the zero-hit scans — engine `src-next/face/__tests__/words.guard.test.ts` · kairos `packages/kairos/tests/words.test.ts`); a reintroduced token lands as a ban row, never a code carve-out.
 
 ### 3.2 Active terms
 
@@ -58,13 +58,13 @@ Single registration point for the repo's governing terms. A term is in force fro
 | engine-error | — (retained, registered) | `BLOCKED: engine-error` |
 | blocker | stdout return-block `blocker:` column · `blockerDefaultFor` | — (retired; `blockerDefaultFor` deleted) |
 
-### 3.4 Banned legacy names (aligned with the word-face audit — `GUARD_BAN_WORDS` in `src-next/face/words.ts` · `checkWords` in `scripts/lib/guard.ts`)
+### 3.4 Banned legacy names (aligned with the word-face audit — `GUARD_BAN_WORDS` in `src-next/face/words.ts`)
 
 | Legacy name | Canonical term | Guard |
 |---|---|---|
 | `review_stopping` (term & identifiers) | Review Convergence | registered deletion record — reintroduction = a `GUARD_BAN_WORDS` row, never a code carve-out |
-| `fix_loop_exhausted` | review-cycle-cap | registered deletion record — reintroduction = a `GUARD_BAN_WORDS` row + `checkWords` scan |
-| `timeout_exhausted` | dispatch-timeout-cap | registered deletion record — reintroduction = a `GUARD_BAN_WORDS` row + `checkWords` scan |
+| `fix_loop_exhausted` | review-cycle-cap | registered deletion record — reintroduction = a `GUARD_BAN_WORDS` row + the word-face audit scan |
+| `timeout_exhausted` | dispatch-timeout-cap | registered deletion record — reintroduction = a `GUARD_BAN_WORDS` row + the word-face audit scan |
 
 ### 3.5 Retained terms (no term-to-mechanism mapping)
 

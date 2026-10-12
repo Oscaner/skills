@@ -1,12 +1,12 @@
 # P5 整引擎 + repo CI 验证脚本重整
 **Spec:** [2026-10-10-engine-doc-tooling-p5-design.md](docs/kairos/specs/2026-10-10-engine-doc-tooling-p5-design.md)
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.5 · 2026-10-13
+- **Version**: v0.6 · 2026-10-13
 
 ## Constraints
 
 - 字面零裸函数（D18② · Q2→a）：引擎 + scripts 全部 `.ts`（含测试面）模块级 `function` / `export function` / `async function` 零命中（统一正则 `^(export )?(async )?function ` · 含组合根 · 含迁移面 kairos tests——`scripts/run.ts:17 async function main` 与 `packages/kairos/tests/ci-validate.test.ts:28 async function capture` 均入面（后者随 T5 删除））——收类成员/static 类族 · 不留豁免口
-- 校验归域（用户域模型）：每个 check 只有一处（所属 package test plane）· 根 `scripts/` 零验证逻辑实现 · 零平行实现 · 词表/anatomy 契约/通道声明保持引擎单源导出（kairos 以 `workspace:*` 依赖消费）
+- 校验归域（用户域模型）：每个 check 只有一处（所属 package test plane）· 根 `scripts/` 零验证逻辑实现 · 零平行实现 · 词表/anatomy 契约/通道声明保持引擎单源导出（kairos 以 `workspace:*` 包依赖消费 · kairos tests `node --test` 直跑 `.ts` → 相对路径直引引擎契约源——引擎 `exports` 仅开 CLI 入口 `bin.ts` · 消费面零子路径导出扩张）
 - docs 不验（D18⑥）：`checkDocContract`/`PRECONTRACT_DOCS`/`checkClaimedPins` 撤下根 · 根零 docs 扫描 · docs 合法性交引擎 review/fix dispatch 门用时自判
 - CI 原生（D18⑧ · Q8→a）：`validate.ts` 组合 runner 解散 · GH Actions 原生 job · precommit 原生命令序列 · 局部 commit 门语义不降
 - 字节语义 major（D18④ · Q3→a/Q5→a）：命令/旗标/退出码可 deliberate 更替（逐项 pin 重锚 + 锚同步）· **`next:` 字面冻结**（可执行命令字面化 · 不简洁化 · I2）· 功能语义不变（六命令领域 run 语义零动）
@@ -36,7 +36,7 @@
 - **DependsOn**: none
 
 ### Task 2: Kairos 侧校验归域——skill-anatomy + 技能词面 checks 迁 kairos test plane
-- **Objective**: 把 root `checkAnatomy`（SKILL.md 结构合约判压）与 `checkWords` 的技能散文面，迁入 kairos test plane（`packages/kairos/tests/`）——判压实现 = 引擎导出的 `skill-anatomy` 契约（`workspace:*` 依赖消费）· 走查器（analyzeSkill · digraph/section 抽取）落 kairos 测试辅助 · 技能散文词面以引擎 `GUARD_BAN_WORDS` 导出为基准——kairos 拥有自身产物（six SKILL.md）的校验
+- **Objective**: 把 root `checkAnatomy`（SKILL.md 结构合约判压）与 `checkWords` 的技能散文面，迁入 kairos test plane（`packages/kairos/tests/`）——判压实现 = 引擎导出的 `skill-anatomy` 契约（`workspace:*` 包依赖 · `node --test` 直跑 `.ts` 相对路径直引引擎契约源——引擎 `exports` 仅开 CLI 入口 `bin.ts` · 消费面零子路径导出依赖）· 走查器（analyzeSkill · digraph/section 抽取）落 kairos 测试辅助 · 技能散文词面以引擎 `GUARD_BAN_WORDS` 导出为基准——kairos 拥有自身产物（six SKILL.md）的校验
 - **Files**:
   - Create: `packages/kairos/tests/skill-anatomy.test.ts`（node:test · analyzeSkill 走查 + 契约判压）
   - Create: `packages/kairos/tests/words.test.ts`（技能散文词面审计）
@@ -70,7 +70,7 @@
 - **DependsOn**: none
 
 ### Task 4: schema gen→get 并入（D19 · 引擎字节面）
-- **Objective**: 把 `schema` 命令的 `gen` leaf 并入 `get`（单 leaf · 双渲染面）——`schema get <type> --output json` = 现 get（打印 schema 声明 · 无需 target）· `schema get <type> --output skeleton <target>` = 现 gen（骨架渲染**直写目标 doc** · target 必填且受约束）· **`--output` 默认值 = json**（裸 `schema get <type>` 不带 --output 仍合法 · 字节与现 get 同 · kairos skill 裸字面保合法）· `schema gen` leaf 消灭 · did-you-mean 候选随命令树更新（schema g 前缀仍入候选）· `--output` 值域 `json|skeleton` · 字节更替 deliberate（vitest pins 重锚 + smoke 锚复核），功能语义不变
+- **Objective**: 把 `schema` 命令的 `gen` leaf 并入 `get`（单 leaf · 双渲染面）——`schema get <type> --output json` = 现 get（打印 schema 声明 · 无需 target）· `schema get <type> --output skeleton <target>` = 现 gen（骨架渲染**直写目标 doc** · target 必填且受约束）· **`--output` 默认值 = json**（裸 `schema get <type>` 不带 --output 仍合法 · 字节与现 get 同 · kairos skill 裸字面保合法）· `schema gen` leaf 消灭 · did-you-mean 候选随命令树更新（**get 入候选 · `schema g` 单字符前缀低于 commander 相似度地板**（0.333 < 0.4）**静默不发射建议** · gen 消灭绝不 phantom dispatch）· `--output` 值域 `json|skeleton` · 字节更替 deliberate（vitest pins 重锚 + smoke 锚复核），功能语义不变
 - **Files**:
   - Modify: `packages/cdd-engine/src-next/face/declare.ts`（schema 命令 leaves 表：`gen` 行删除 · `get` 行新增 `--output` option + target positional）
   - Modify: `packages/cdd-engine/src-next/face/cli.ts`（schema leaf 注册/命令构造 · target 条件必填判定（仅 `--output skeleton` 时要求）· 骨架渲染直写 target 路径的实现接线）
@@ -83,7 +83,7 @@
   - 改 declare.ts：schema command leaves 表 `gen` 行移除 · `get` 行声明 `--output` option（值域 json|skeleton）+ positionals type（必填）+ target（条件必填） — checkable: declare 单源含新 schema 面（get 单 leaf · 值域枚举 json|skeleton）
   - 改 cli.ts：schema get 命令构造 —— `--output skeleton` 时校验 target 必填（缺参 = 引擎错误 · 退 2），读 target 路径并把骨架渲染直写该文件（fs 写 · 恰一 EOF）· `--output json` 时打印声明（字节与现 get 同） — checkable: 手跑 `schema get phase-spec --output skeleton /tmp/demo.md` 文件就地生成且骨架完整
   - 保留 `next:` 字面冻结（schema 命令不涉 next · 佐证零动） — checkable: 全库 `next:` 字面 pins 零动（git diff 不含 next 面改动）
-  - 重锚 pin：cli.test.ts schema 用例（get json 面 · get skeleton 直写文件内容断言 · did-you-mean `schema phase`→`schema get phase-spec`· `schema g` 前缀仍入候选） — checkable: 新 pins 在册且断言非空
+  - 重锚 pin：cli.test.ts schema 用例（get json 面 · get skeleton 直写文件内容断言 · did-you-mean `schema phase`→`schema get phase-spec`· `schema g` 单字符前缀低于 commander 相似度地板（0.333 < 0.4）静默零建议——`error: unknown command 'g'` 退 2 · 绝不 phantom dispatch） — checkable: 新 pins 在册且断言非空
   - pin `--output` 默认 json：裸 `schema get <type>`（无 --output）仍合法且字节与现 get 同（`--output` option 默认值 = `"json"` · 不设必填判定）——kairos skill 裸 schema get 字面（spec-writer SKILL.md:41 等）保合法、毋须更替 — checkable: `schema get phase-spec`（无 --output）退 0 打印 json 声明 · 与 `schema get phase-spec --output json` 字节同
   - projection.test.ts 叶表 & positionals 断言重锚：`["get","gen"]` → `["get"]` · 「schema get requires <type>, schema gen takes it optionally」→ 「schema get requires <type>（positionals type 必填）· --output skeleton 时 target 条件必填」 — checkable: projection pins 重锚后全绿
   - smoke 锚复核：smoke-cdd.ts 全文件 `schema` 零命中（dry-run 链 = implement + review 二命令 + `--help` face）——**无 schema gen 断言可同步** · schema gen 字节更替 pins 仅在 cli.test.ts/projection.test.ts 面 · T7 迁引擎时以新旧命令面 grep 复核（嵌套 checkable 承接，本步零动作） — checkable: 复核记录在册（无 smoke schema 锚待同步）
@@ -273,3 +273,4 @@
 | v0.3 | 2026-10-13 | P5 计划 v0.3——**D20 scope 校正确认（用户追问「cdd-dev 面为什么不动」→ 原「三编排器」收敛范围误判 · spec v0.5）**：D20 面扩至**四 skill（cdd-spec-writer · cdd-plan · cdd-dev · cdd-design）**——cdd-dev L53 `fix --type wave…`+`implement --plan…`+`done` 三字面全复述为最重面 · Review Convergence 不变体同简按 skill（spec-writer I1 · plan I1 · dev **I3** · design **I2**）· fix 父句全量 **7 处**（dev L53/L85 在面内）· cdd-close/cdd-report 无 NEXT-LOOP 零动 · AC pin 扩四文件 | Oscar M. · Claude Opus 5（kairos:cdd-plan [P5] 会话 · 用户 scope 追问 · 2026-10-13） |
 | v0.4 | 2026-10-13 | **P5 计划 v0.4——plan-review-1 修复轮（8 warn + 2 nit · 全数落地 · 零残 · spec v0.6）**：T4（runSchemaGen/artifacts·projection 断言并入 Files · `--output` 默认 json pin · smoke 锚复核 = 无锚可同步）· T6（计数 37→38 总 = 收类 17 + 迁/撤 21 · 新建 scan.test.ts 承接 scanToken 覆盖 · 统一正则含 async）· T7（smoke.test.ts 随删面 · engine package.json `smoke` script 产出 pinn · dry-run 链 = implement+review 二命令 + `--help` face）· T10 gate 统一 `^(export )?(async )?function ` · T11（cdd-design NEXT-LOOP Do `done` 行 pin L96→L97）· T12（`.version-bump` = 版本同步审计配置 · 消费非产出 · 不入生成面）· 约束行 async 形态纳入 | 引擎 plan-fix 轮 · Oscar M. · Claude Opus 5（kairos:cdd-plan [P5] 会话 · 2026-10-13） |
 | v0.5 | 2026-10-13 | **P5 计划 v0.5——plan-review-2 修复轮（1 warn + 1 nit · 全数落地 · 零残）**：T10 零裸函数门禁 scope 收敛 engine + scripts 两面（kairos tests 迁移面 = ci-validate 随 T5 删 · 与约束行 8/§4.3 测试面枚举一致 · 步 4/5 + AC 措辞同步 · T13 证据 grep 随同步）· T11 cdd-design NEXT-LOOP 头行 pin 差 1 修正（L96 → L95 · 现场核对 cdd-design SKILL.md L95 头 + L97 Do） | 引擎 plan-fix 轮 · Oscar M. · Claude Opus 5（kairos:cdd-plan [P5] 会话 · 2026-10-13） |
+| v0.6 | 2026-10-13 | **P5 计划 v0.6——P5 closeout（cdd-close）**：七 wave 实现链全闭合（W1={1,2,3,4} 校验归域+schema 并入 → W2={5,9} root 解散+引擎零裸面 → W3={6,7} scripts 收类+smoke 迁引擎 → W4={8,10,12} CI 原生+测试面迁移+emit 重整 → W5={11} 消费面同步 → W6={13} 验收证据 → W7={14} 变更集归并 · 每波 implement→review→fix 各 APPROVED）+ 分支终审 → 分支 fix 闭环（branch-review-1 8 findings（1 warn + 7 nit）→                              branch-fix-1：F3/F4/F5/F6 落地 + CLAUDE.md 死链清扫 + README 收敛账本随行 · F1/F2/F7 上报编排器）· 编排器三项回填（closeout 轮）：**F1** `b67fc66b` 删除兄弟程序 upgrade-dependencies-and-src-rename 三文档（3 files · 337 deletions · 零注册）→ 本行登记 + overall 依赖图跨程序行重指向；**F7** Task 4 did-you-mean 措辞实铆（`schema g` 单字符 0.333 < commander 0.4 相似度地板 → 静默零建议 · 绝无 phantom dispatch）；**F2** Task 2 `workspace:*` 消费通道措辞实铆（kairos `node --test` 直跑 `.ts` 相对路径引引擎契约源 · 引擎 `exports` 仅开 CLI 入口 `bin.ts` · 消费面零子路径导出扩张）· 验收全项交付（`.kairos/cdd/.../tasks-13-test-evidence.json`：`pnpm run validate` exit 0 · typecheck ×3 · 引擎 529/529 · kairos 77/77 · emit-check fresh · 零裸函数 grep 零命中 · version-sync kairos 0.2.0 · cdd-engine 1.0.0）· 不发布 · 父 overall v2.15 登记 P5 → Done | [human] · Claude Opus 5（kairos:cdd-close · closeout-backfill） |

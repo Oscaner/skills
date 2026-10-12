@@ -160,7 +160,7 @@ const TEST_ROOTS = [
  *  hygiene's consumption scan: a declared engineOnly key must appear as a `carrier.<key> =`
  *  write in one of these, so the declaration is live metadata, never a dead one). */
 const HANDOFF_WRITE_PATH_FACES = [
-  "packages/cdd-engine/src-next/face/cli.ts",
+  "packages/cdd-engine/src-next/face/lifecycle.ts",
   "packages/cdd-engine/src-next/session/run.ts",
 ] as const;
 
@@ -948,7 +948,8 @@ export class GuardLibrary {
 
   /** The engine-only key's carrier-write consumption scan — a `carrier.<key> =`
    *  assignment in a write-path face (the form every engine carrier write uses —
-   *  cli.ts #materialize + run.ts #bookkeep set the conclusion below the skeleton). */
+   *  lifecycle.ts #materialize + run.ts #bookkeep set the conclusion below the
+   *  skeleton). */
   #carrierWrites(file: string, key: string): boolean {
     if (!existsSync(file)) return false;
     return new RegExp(`carrier\\.\\b${escapeRegExp(key)}\\b\\s*=`).test(readFileSync(file, "utf8"));

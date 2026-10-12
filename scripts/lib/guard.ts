@@ -108,8 +108,13 @@ const RELEASE_FILES = [
 const PIN_REF_RE = /([\w./-]+\.test\.ts):(\d+)(?:-(\d+))?/g;
 
 /** The assertion-face literals — the file-level signal that a pinned target carries a
- *  test assertion (the empty-pin gate; the check is file-level, never an exact-line
- *  claim the prose ranges cannot pin). */
+ *  test assertion (the empty-pin gate, which only fires on a file with NO assertion
+ *  anywhere). The gate is deliberately file-level, never an exact-line claim: in-
+ *  contract pins routinely anchor to the fixture/data or scope line near the assertion
+ *  (a data row, a describe header, a comment) rather than the assertion line itself,
+ *  and the enforced docs are frozen — a line-domain gate would flag 16 of the 32 live
+ *  tree's pinned refs, breaking the green-face acceptance. The test that pins the
+ *  chosen semantics lives in guard.test. */
 const ASSERTION_LITERALS = ["test(", "describe(", "expect("] as const;
 
 /** The test-file discovery roots — the current-tree surfaces the claimed→pin refs
@@ -809,12 +814,21 @@ export class GuardLibrary {
     const testFiles = options.testFiles ?? this.#discoverTestFiles();
     // The basename resolution — a ref cites a file by its (possibly bare) basename;
     // a UNIQUE basename match resolves it, an ambiguous one stays silent (cannot
-    // falsify), a missing one is the dangling pin. The unique basenames ARE the
-    // current tree's test files — the live inventory every claim must hit.
+    // falsify — two current-tree files share the name, so neither is provably the
+    // pin's target and neither the lint's to judge), a missing one is the dangling
+    // pin. The unique basenames ARE the current tree's test files — the live
+    // inventory every claim must hit.
     const byBasename = new Map<string, string>();
+    const ambiguous = new Set<string>();
     for (const file of testFiles) {
       const base = path.basename(file);
-      if (!byBasename.has(base)) byBasename.set(base, file);
+      if (ambiguous.has(base)) continue;
+      if (byBasename.has(base)) {
+        byBasename.delete(base);
+        ambiguous.add(base);
+      } else {
+        byBasename.set(base, file);
+      }
     }
     for (const dir of ["specs", "plans"]) {
       const dirPath = path.join(docsRoot, dir);
@@ -826,8 +840,10 @@ export class GuardLibrary {
         const src = readFileSync(path.join(dirPath, name), "utf8");
         for (const match of src.matchAll(PIN_REF_RE)) {
           const ref = match[0]!;
-          const absolute = byBasename.get(path.basename(match[1]!));
+          const base = path.basename(match[1]!);
           const docPath = path.join(dirPath, name);
+          if (ambiguous.has(base)) continue; // cannot falsify — stay silent
+          const absolute = byBasename.get(base);
           if (absolute === undefined) {
             findings.push({
               label: `claimed→pin ref \`${ref}\` names no current-tree test file (dangling pin — every behavior claim must cite a colocated pin)`,

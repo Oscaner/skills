@@ -256,6 +256,75 @@ describe("checkClaimedPins — the claimed→pin lint (the spec/plan claim → c
     }
   });
 
+  it("pins the deliberate file-level empty-pin gate — a ref whose line domain carries no assertion passes when the file asserts elsewhere", () => {
+    const fx = pinsFixture();
+    try {
+      const mixed = path.join(fx.docs, "mixed.test.ts");
+      // The pinned line 3 is fixture data (no assertion literal in its domain); the
+      // file asserts on other lines. The file-level gate is the chosen boundary
+      // adaptation (a line-domain gate would flag half the live tree's refs).
+      writeFileSync(
+        mixed,
+        'describe("mixed", () => {\n  // the pinned behavior — contiguity is fixture data\n  const rows = ["alpha", "beta"];\n  it("holds the rows", () => expect(rows).toContain("alpha"));\n});\n',
+      );
+      writeFileSync(path.join(fx.docs, "claim.md"), "See `mixed.test.ts:3` for the pin.\n");
+      const findings = guardLibrary.checkClaimedPins({
+        docsRoot: path.dirname(fx.docs),
+        testFiles: [fx.testFile, mixed],
+      });
+      expect(findings).toEqual([]);
+    } finally {
+      fx.cleanup();
+    }
+  });
+
+  it("stays silent on an ambiguous basename — two current-tree files share the name (cannot falsify)", () => {
+    const fx = pinsFixture();
+    try {
+      const a = path.join(fx.docs, "a", "dup.test.ts");
+      const b = path.join(fx.docs, "b", "dup.test.ts");
+      mkdirSync(path.dirname(a), { recursive: true });
+      mkdirSync(path.dirname(b), { recursive: true });
+      writeFileSync(a, 'describe("a", () => it("holds", () => expect(true).toBe(true)));\n');
+      writeFileSync(b, 'describe("b", () => it("holds", () => expect(true).toBe(true)));\n');
+      writeFileSync(path.join(fx.docs, "claim.md"), "See `dup.test.ts:1` for the pin.\n");
+      const findings = guardLibrary.checkClaimedPins({
+        docsRoot: path.dirname(fx.docs),
+        testFiles: [a, b],
+      });
+      // Neither shared-name file is provably the target — no judgment, no dangling
+      // finding either way.
+      expect(findings).toEqual([]);
+    } finally {
+      fx.cleanup();
+    }
+  });
+
+  it("still fires on a genuinely missing basename alongside an ambiguous one", () => {
+    const fx = pinsFixture();
+    try {
+      const a = path.join(fx.docs, "a", "dup.test.ts");
+      const b = path.join(fx.docs, "b", "dup.test.ts");
+      mkdirSync(path.dirname(a), { recursive: true });
+      mkdirSync(path.dirname(b), { recursive: true });
+      writeFileSync(a, 'describe("a", () => it("holds", () => expect(true).toBe(true)));\n');
+      writeFileSync(b, 'describe("b", () => it("holds", () => expect(true).toBe(true)));\n');
+      writeFileSync(
+        path.join(fx.docs, "claim.md"),
+        "See `dup.test.ts:1` and `gone.test.ts:12` for the pins.\n",
+      );
+      const findings = guardLibrary.checkClaimedPins({
+        docsRoot: path.dirname(fx.docs),
+        testFiles: [a, b],
+      });
+      const labels = findings.map((f) => f.label);
+      expect(labels.join("\n")).toContain("dangling");
+      expect(labels).toHaveLength(1);
+    } finally {
+      fx.cleanup();
+    }
+  });
+
   it("skips the wiring-exempt docs — the pre-contract refs stay silent under the same ruling", () => {
     const fx = pinsFixture();
     try {

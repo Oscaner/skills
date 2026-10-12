@@ -10,8 +10,6 @@
 //     CliCommandSpec / CLI_COMMANDS — from face/registry.ts (the registry file is
 //     deleted; the rows drop the `usage` field — the usage semantics merge into the
 //     projection's .description(), and the six-line usage corpus retires here).
-//   · ChannelArg — from face/argv.ts (the resolved-row face of the parse channel;
-//     argv.ts itself was deleted at T6 — the parse handover to commander is total).
 //   · REQUIRED_GROUPS — from face/validate.ts (the preAction data face; the
 //     retired validator component retires — the value-domain semantics move to the
 //     builder's parseArg method family).
@@ -42,11 +40,6 @@ export interface ChannelArgRow {
   /** The flag-level help line — the commander option description (one global key
    *  text, single-sourced at the channel). */
   help?: string;
-}
-
-/** The argv channel — the CLI's flag/type/values single source. */
-export interface ArgvChannel {
-  readonly argv: Readonly<Record<string, ChannelArgRow>>;
 }
 
 /** The argv channel table — the CLI flag/type/enum single source (the engine-config
@@ -241,22 +234,6 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
     ],
   },
 ];
-
-/** One argv-channel entry as resolved for a command node — the declared flag /
- *  type / enum domain of one key (the parse channel's resolved table face). */
-export interface ChannelArg {
-  /** The canonical key (tasks / type / plan / …). */
-  key: string;
-  /** The `--flag` spelling. */
-  flag: string;
-  /** The value type (the engine-config channel type). */
-  type: ChannelValueType;
-  /** The enum domain, when the type is enum. */
-  values?: readonly string[];
-  /** The flag-level help line (the commander option description — the channel
-   *  row's text: one key text, never a second description list). */
-  help?: string;
-}
 
 /** The schema `<type>` vocabulary — the get and gen leaves' ONE shared table (one
  *  table, two faces, spec §5.3): the primary DocKey spellings (overall | plan |

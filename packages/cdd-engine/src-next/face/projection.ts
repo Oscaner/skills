@@ -278,7 +278,7 @@ export class CommandTreeBuilder {
     const key = SCHEMA_TYPE_KEYS[raw];
     if (key === undefined) {
       throw new InvalidArgumentError(
-        `unknown schema type: ${raw} (available: overall, plan, phase-spec${planGraph ? ", plan-graph" : ""})`,
+        `unknown schema type: ${raw} (available: ${SCHEMA_PRIMARY_KEYS.join(", ")}${planGraph ? ", plan-graph" : ""})`,
       );
     }
     return key;

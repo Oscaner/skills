@@ -25,13 +25,6 @@
 
 import { ARGV_CHANNEL, type ChannelArgRow } from "../face/declare.ts";
 
-/** The argv channel — the CLI's flag/type/values single source (the table's rows
- *  live at face/declare.ts §2.4 — the CLI declaration single surface; this shape
- *  stays the engine-config face's view of it). */
-export interface ArgvChannel {
-  readonly argv: Readonly<Record<string, ChannelArgRow>>;
-}
-
 /** The context contract — the live argv channel table (the single channel the new
  *  tree's command face consumes; the host-marker env closure lives in the harness
  *  detect rows, face/host.ts — never duplicated here). */

@@ -2804,6 +2804,44 @@ describe("T3 — the commander-native composition root: program parse + .action 
     }
   });
 
+  it("the domain-run usage faces surface the owning node's commander-native usage line before the error byte (Task 3)", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      // a run-body usage rejection emits the owning node's helpInformation() first
+      // line — the commander-native usage byte — then the error byte (review's
+      // preAction passes --plan; the run body refuses the missing --tasks)
+      expect(await command.runArgv(["review", "--type", "wave", "--plan", "p"])).toBe(2);
+      expect(io.stderrText).toContain("Usage: cdd review [options]");
+      expect(io.stderrText).toContain(
+        "error: cdd review --type wave: missing required --tasks <n|n,n,…>",
+      );
+      io.stderrText = "";
+      // the schema faces — the gen leaf's missing-type byte rides its own face
+      expect(await command.runArgv(["schema", "gen"])).toBe(2);
+      expect(io.stderrText).toContain("Usage: cdd schema gen [options] [type]");
+      expect(io.stderrText).toContain("cdd schema gen: missing <type>");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the plan-graph read refuses a missing --plan with the schema get face's native usage line", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      expect(await command.runArgv(["schema", "get", "plan-graph"])).toBe(2);
+      expect(io.stderrText).toContain("Usage: cdd schema get [options] <type>");
+      expect(io.stderrText).toContain("error: cdd schema get plan-graph: missing --plan <path>");
+      io.stderrText = "";
+      // the shared text-read's unreadable-file refusal rides the same face
+      const missing = path.join(repoRoot, "no-such-plan.md");
+      expect(await command.runArgv(["schema", "get", "plan-graph", "--plan", missing])).toBe(2);
+      expect(io.stderrText).toContain("Usage: cdd schema get [options] <type>");
+      expect(io.stderrText).toContain(`error: cannot read file: ${missing}`);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("the base get domain read — a set artifact exits 0 over the write-through path", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {

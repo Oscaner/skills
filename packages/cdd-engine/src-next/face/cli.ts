@@ -936,8 +936,13 @@ export class Cli {
   /** The domain-run usage error — a usage rejection raised inside a run body:
    *  commander's OWN CommanderError (never a second error type — the retired
    *  parse-channel error class is deleted at T6), which the normalizeExit
-   *  discriminator above surfaces with the native "error:" byte and exit 2 (§3.1). */
-  #usage(message: string): never {
+   *  discriminator above surfaces with the native "error:" byte and exit 2 (§3.1).
+   *  The usage byte is the owning command node's commander-native
+   *  helpInformation() first line (the declaration's help face — the self-built
+   *  usage corpus never returned here); the throw carries only the message. */
+  #usage(node: Command, message: string): never {
+    const usageLine = node.helpInformation().split("\n")[0];
+    if (usageLine !== "") this.#io.stderr(`${usageLine}\n`);
     throw new CommanderError(2, "cdd.usage-error", message);
   }
 
@@ -958,21 +963,21 @@ export class Cli {
     // the work verbs — implement / review / fix compose the domain run
     for (const verb of ["implement", "review", "fix"] as const) {
       commandNode(verb).action(async (_opts: unknown, command: Command) => {
-        this.#exitCode = await this.#runWork(verb, this.#runInput(null, command));
+        this.#exitCode = await this.#runWork(verb, command, this.#runInput(null, command));
       });
     }
     // the pure commands' leaves — schema get/gen · base set/get · issue render
     leafNode("schema", "get").action(async (_type: unknown, _opts: unknown, command: Command) => {
-      this.#exitCode = await this.#runSchema(this.#runInput("get", command));
+      this.#exitCode = await this.#runSchema(command, this.#runInput("get", command));
     });
     leafNode("schema", "gen").action(async (_type: unknown, _opts: unknown, command: Command) => {
-      this.#exitCode = await this.#runSchema(this.#runInput("gen", command));
+      this.#exitCode = await this.#runSchema(command, this.#runInput("gen", command));
     });
     leafNode("base", "set").action(async (_opts: unknown, command: Command) => {
-      this.#exitCode = await this.#runBase(this.#runInput("set", command));
+      this.#exitCode = await this.#runBase(command, this.#runInput("set", command));
     });
     leafNode("base", "get").action(async (_opts: unknown, command: Command) => {
-      this.#exitCode = await this.#runBase(this.#runInput("get", command));
+      this.#exitCode = await this.#runBase(command, this.#runInput("get", command));
     });
     leafNode("issue", "render").action(async () => {
       this.#exitCode = this.#runIssue();
@@ -1020,12 +1025,12 @@ export class Cli {
 
   /** One work command's run — assemble the scene, advance the requested phase (the
    *  lifecycle's single dispatch step per frame), render the capsule lines. */
-  async #runWork(verb: CliVerb, parsed: RunInput): Promise<number> {
+  async #runWork(verb: CliVerb, node: Command, parsed: RunInput): Promise<number> {
     const type = (parsed.args.type ?? "wave") as TargetType;
     if (type === "wave" && parsed.args.tasks === undefined) {
-      this.#usage(`cdd ${verb} --type wave: missing required --tasks <n|n,n,…>`);
+      this.#usage(node, `cdd ${verb} --type wave: missing required --tasks <n|n,n,…>`);
     }
-    const scene = await this.#sceneOf(verb, type, parsed);
+    const scene = await this.#sceneOf(verb, type, node, parsed);
 
     // THE pre-flight seam (P4.1 T1 · design §1): the single dispatch gate —
     // tree-clean → plan-graph → wave → doc-contract — ONE call, the whole sequence
@@ -1080,7 +1085,7 @@ export class Cli {
           : [];
       for (const id of group) {
         if (!planIds.includes(id)) {
-          this.#usage(`cdd ${verb}: task ${id} not found in the plan`);
+          this.#usage(node, `cdd ${verb}: task ${id} not found in the plan`);
         }
       }
       for (const id of scene.ledger.closedWaves()) scene.state.markDone(id);
@@ -1352,10 +1357,12 @@ export class Cli {
    *  fired only when the BLOCK message actually renders (the version is raw doc
    *  grammar — zero parse dependence: the revision hash is a raw-content digest).
    *  The gate's own doc read lives in the ledger (Ledger#docLineVerdict — one read
-   *  per reviewGate, the shared comparison). */
+   *  per reviewGate, the shared comparison). A BLOCK render is a run-failure prose
+   *  channel — never a usage face — so the read is guarded here (null on unreadable),
+   *  not routed through #readText's usage error. */
   #docContent(doc: string): string | null {
     try {
-      return this.#readText(doc);
+      return readFileSync(doc, "utf8");
     } catch {
       return null;
     }
@@ -1468,7 +1475,12 @@ export class Cli {
   /** Assemble one work command's scene: the workspace (repo root + the plan/spec
    *  slug), the ledger, the run state (TaskGraph from the plan parse for the task
    *  face, the empty single-target state otherwise), the fixed target. */
-  async #sceneOf(verb: CliVerb, type: TargetType, parsed: RunInput): Promise<WorkScene> {
+  async #sceneOf(
+    verb: CliVerb,
+    type: TargetType,
+    node: Command,
+    parsed: RunInput,
+  ): Promise<WorkScene> {
     const config = this.#config;
     const face = targetFaces[type];
     const repoRoot = await this.#repoRootOf(parsed);
@@ -1482,23 +1494,23 @@ export class Cli {
     switch (type) {
       case "wave": {
         if (planPath === null)
-          this.#usage(`cdd ${verb} --type wave: missing required --plan <path>`);
+          this.#usage(node, `cdd ${verb} --type wave: missing required --plan <path>`);
         slug = Workspace.slugFromDoc(planPath);
-        planText = this.#readText(planPath);
+        planText = this.#readText(node, planPath);
         break;
       }
       case "spec": {
         if (specPath === null)
-          this.#usage(`cdd ${verb} --type spec: missing required --spec <path>`);
+          this.#usage(node, `cdd ${verb} --type spec: missing required --spec <path>`);
         slug = Workspace.slugFromDoc(specPath);
         target = { kind: "doc", doc: specPath };
         break;
       }
       case "plan": {
         if (planPath === null)
-          this.#usage(`cdd ${verb} --type plan: missing required --plan <path>`);
+          this.#usage(node, `cdd ${verb} --type plan: missing required --plan <path>`);
         slug = Workspace.slugFromDoc(planPath);
-        planText = this.#readText(planPath);
+        planText = this.#readText(node, planPath);
         target = { kind: "doc", doc: planPath };
         break;
       }
@@ -1516,7 +1528,10 @@ export class Cli {
               ? new BranchRef(parsed.args.base, parsed.args.head)
               : null;
         if (ref === null) {
-          this.#usage(`cdd ${verb} --type branch: missing required --base <sha> --head <sha>`);
+          this.#usage(
+            node,
+            `cdd ${verb} --type branch: missing required --base <sha> --head <sha>`,
+          );
         }
         slug = planPath !== null ? Workspace.slugFromDoc(planPath) : ref.short();
         target = { kind: "branch", base: ref.base, head: ref.head };
@@ -1562,11 +1577,11 @@ export class Cli {
    *  to kebab, spec §5.3); the `plan-graph` type rides the discovery read (§3.8).
    *  `cdd schema gen <type>` dispatches to the skeleton render (the schema verb's
    *  second leaf). */
-  async #runSchema(parsed: RunInput): Promise<number> {
-    if (parsed.leaf === "gen") return this.#runSchemaGen(parsed);
+  async #runSchema(node: Command, parsed: RunInput): Promise<number> {
+    if (parsed.leaf === "gen") return this.#runSchemaGen(node, parsed);
     const type = parsed.positionals[0];
-    if (type === undefined) this.#usage("cdd schema get: missing <type>");
-    if (type === "plan-graph") return this.#runPlanGraph(parsed);
+    if (type === undefined) this.#usage(node, "cdd schema get: missing <type>");
+    if (type === "plan-graph") return this.#runPlanGraph(node, parsed);
     this.#io.stdout(`${JSON.stringify(this.#projector.schema()[type as DocKey], null, 2)}\n`);
     return 0;
   }
@@ -1577,9 +1592,9 @@ export class Cli {
    *  appended newline (the assembler never appends one — the redirected fixture
    *  ends with exactly one `\n`). Zero write side-effects — the orchestrator
    *  redirects the stdout to the target path. */
-  #runSchemaGen(parsed: RunInput): number {
+  #runSchemaGen(node: Command, parsed: RunInput): number {
     const type = parsed.positionals[0];
-    if (type === undefined) this.#usage("cdd schema gen: missing <type>");
+    if (type === undefined) this.#usage(node, "cdd schema gen: missing <type>");
     const projection = this.#projector.skeleton()[type as DocKey];
     const date = this.#today();
     this.#io.stdout(`${new SkeletonAssembler(projection, date).render()}\n`);
@@ -1602,12 +1617,12 @@ export class Cli {
    *  BLOCKs the read with the named edge violations — the wave-preflight gate surfaces
    *  as a discovery read. The board's done face is the same closedWaves() the pre-flight
    *  gates judge. */
-  async #runPlanGraph(parsed: RunInput): Promise<number> {
+  async #runPlanGraph(node: Command, parsed: RunInput): Promise<number> {
     const planPath = parsed.args.plan;
     if (planPath === undefined) {
-      this.#usage("cdd schema get plan-graph: missing --plan <path>");
+      this.#usage(node, "cdd schema get plan-graph: missing --plan <path>");
     }
-    const text = this.#readText(planPath);
+    const text = this.#readText(node, planPath);
     const plan = new PlanDocType("plan").parse(text.split("\n"));
     const graph = new TaskGraph(plan);
     const issues = graph.validate();
@@ -1657,10 +1672,10 @@ export class Cli {
 
   /** `cdd base <set|get> --plan <path>` — the base artifact read/write (T20: the
    *  command face `base`; the artifact file carries the base face too). */
-  async #runBase(parsed: RunInput): Promise<number> {
+  async #runBase(node: Command, parsed: RunInput): Promise<number> {
     const planPath = parsed.args.plan;
     if (planPath === undefined) {
-      this.#usage("cdd base: missing --plan — the sole target is --plan <path>");
+      this.#usage(node, "cdd base: missing --plan — the sole target is --plan <path>");
     }
     const workspace = new Workspace(
       new WorkspaceRoot(
@@ -1670,22 +1685,25 @@ export class Cli {
       Workspace.slugFromDoc(planPath),
     ).ensure();
     const path = workspace.resolve("base.json");
-    if (parsed.leaf === "set") return this.#baseSet(parsed, planPath, path);
+    if (parsed.leaf === "set") return this.#baseSet(node, parsed, planPath, path);
     if (parsed.leaf === "get") return this.#baseGet(path);
-    this.#usage("cdd base: missing <set|get> subcommand");
+    this.#usage(node, "cdd base: missing <set|get> subcommand");
   }
 
   /** The `set` body — base/source required, a different existing base refuses without
    *  --force (the write-through artifact single-author). */
-  #baseSet(parsed: RunInput, planPath: string, path: string): number {
+  #baseSet(node: Command, parsed: RunInput, planPath: string, path: string): number {
     const base = parsed.args.base;
     const source = parsed.args.source;
     if (base === undefined || source === undefined) {
-      this.#usage("cdd base set: required --base <branch> and --source <source>");
+      this.#usage(node, "cdd base set: required --base <branch> and --source <source>");
     }
     const existing = this.#readBase(path);
     if (existing !== null && existing.base !== base && parsed.args.force !== "true") {
-      this.#usage(`cdd base set: base already set to ${existing.base} — pass --force to override`);
+      this.#usage(
+        node,
+        `cdd base set: base already set to ${existing.base} — pass --force to override`,
+      );
     }
     const artifact: BaseArtifact = {
       base,
@@ -1731,12 +1749,13 @@ export class Cli {
     }
   }
 
-  /** Read a text file; a missing/unreadable file is the usage error of the caller. */
-  #readText(file: string): string {
+  /** Read a text file through the caller's command face; a missing/unreadable file is
+   *  the usage error of that face (the owning node's commander-native usage line). */
+  #readText(node: Command, file: string): string {
     try {
       return readFileSync(file, "utf8");
     } catch {
-      this.#usage(`cannot read file: ${file}`);
+      this.#usage(node, `cannot read file: ${file}`);
     }
   }
 }

@@ -45,6 +45,7 @@ import { cli, HarnessDispatch } from "../cli.ts";
 import { CLI_COMMANDS, type CliVerb } from "../declare.ts";
 import { CommandTreeBuilder } from "../projection.ts";
 import { Words } from "../words.ts";
+import { negatedOf } from "./negation.ts";
 
 // The retired usage corpus — the pre-T2 usage product's bytes for the two verbs
 // whose old rows still run as negative anchors (the survivors assert the old
@@ -697,9 +698,8 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
 
   it("the bool negation spellings are retired — a negated bool flag is an unknown option with the back-spelling hint", async () => {
     const { command, io, cleanup } = fixture();
-    // the retired negated spellings are composed from the declared positive flags
-    // — the literal tokens never appear in the tree (the zero-consumption pin)
-    const negatedOf = (flag: string) => `--no-${flag.replace(/^-+/, "")}`;
+    // the negated spellings are composed via the shared synthesizer — the
+    // literal tokens never appear in the tree (the zero-consumption pin)
     const negatedDryRun = negatedOf("--dry-run");
     const negatedForce = negatedOf("--force");
     try {

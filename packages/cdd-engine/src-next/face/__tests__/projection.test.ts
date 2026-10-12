@@ -13,6 +13,7 @@ import type { Command } from "commander";
 import { describe, expect, it } from "vitest";
 
 import { CommandTreeBuilder } from "../projection.ts";
+import { negatedOf } from "./negation.ts";
 
 /** The command node of one verb. */
 function commandOf(program: Command, verb: string): Command {
@@ -86,9 +87,8 @@ describe("CommandTreeBuilder — the declaration projection (the constructor is 
 
   it("registers the program scope --dry-run on the program and on every node — the positive spelling only (the negated form is never registered)", () => {
     const { program } = new CommandTreeBuilder();
-    // the retired negated spelling is composed from the declared positive flag —
+    // the retired negated spelling is composed via the shared synthesizer —
     // the literal token never appears in the tree (the zero-consumption pin)
-    const negatedOf = (flag: string) => `--no-${flag.replace(/^-+/, "")}`;
     expect(program.options.some((option) => option.flags === "--dry-run")).toBe(true);
     expect(program.options.some((option) => option.flags === negatedOf("--dry-run"))).toBe(false);
     const nodes = [program, ...program.commands, ...program.commands.flatMap((c) => c.commands)];

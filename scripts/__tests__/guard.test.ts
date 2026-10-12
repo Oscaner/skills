@@ -11,7 +11,6 @@ import { describe, expect, it } from "vitest";
 import { SKILL_ANATOMY } from "../../packages/cdd-engine/src-next/contract/skill-anatomy.ts";
 import { DISPATCH, type DispatchTable } from "../../packages/cdd-engine/src-next/face/host.ts";
 import { CAPSULE_WORDS, GUARD_BAN_WORDS } from "../../packages/cdd-engine/src-next/face/words.ts";
-import { HANDOFF_WRITE_PLANE } from "../../packages/cdd-engine/src-next/session/handoff-schema.ts";
 import { GuardLibrary, guardLibrary } from "../lib/guard.ts";
 import { scanToken } from "../lib/scan.ts";
 import { PRECONTRACT_DOCS } from "../validate.ts";
@@ -345,7 +344,7 @@ describe("checkClaimedPins — the claimed→pin lint (the spec/plan claim → c
 describe("checkHandoffPlane — the handoff writable-subset audit (T3)", () => {
   /** The role-broken fake declaration pair — the work subset declares the findings
    *  exclusive + the findings subset declares a work exclusive (both ① axes), while
-   *  staying write-plane- and projection-consistent (the ②/③ fakes align). */
+   *  staying projection-consistent (the ③ fakes align). */
   const roleBroken = {
     work: {
       type: "object",
@@ -364,14 +363,18 @@ describe("checkHandoffPlane — the handoff writable-subset audit (T3)", () => {
       properties: { findings: {}, artifacts: {}, commits: {}, notes: {}, status: {} },
     },
   };
-  /** The projection-① fake for a given declared pair — the faithful fence generator. */
+  /** The projection-① fake for a given declared pair — the faithful fence generator
+   *  (strips the engineOnly metadata exactly like the engine's projection ①, so the
+   *  fakes' fences stay consistent with the declared-minus-engineOnly ruling). */
   const fenceOf =
     (declared: {
-      work: { type?: string; properties?: Record<string, unknown> };
-      findings: { type?: string; properties?: Record<string, unknown> };
+      work: { type?: string; properties?: Record<string, unknown>; engineOnly?: string[] };
+      findings: { type?: string; properties?: Record<string, unknown>; engineOnly?: string[] };
     }) =>
     (face: "work" | "findings") =>
-      `\`\`\`json\n${JSON.stringify(declared[face])}\n\`\`\``;
+      `\`\`\`json\n${JSON.stringify(declared[face], (key, value) =>
+        key === "engineOnly" ? undefined : value,
+      )}\n\`\`\``;
 
   it("passes against the live handoff declarations (the checkable's green face)", () => {
     const findings = guardLibrary.checkHandoffPlane();
@@ -384,7 +387,6 @@ describe("checkHandoffPlane — the handoff writable-subset audit (T3)", () => {
   it("fires when the declared subsets blur the face roles — a work-key in the findings subset breaks the exclusivity (①)", () => {
     const findings = guardLibrary.checkHandoffPlane({
       declared: roleBroken,
-      writePlane: HANDOFF_WRITE_PLANE,
       schemaText: fenceOf(roleBroken),
     });
     const labels = findings.map((f) => f.label);
@@ -394,19 +396,55 @@ describe("checkHandoffPlane — the handoff writable-subset audit (T3)", () => {
     expect(labels.join("\n")).toContain(
       "findings writable subset declares the work-face exclusive",
     );
+    // the fakes declare no engineOnly and the projection stays consistent — only the
+    // two ① role findings fire
     expect(findings).toHaveLength(2);
   });
 
-  it("fires when the write plane names a key the face never declares — the D13 mirror write (②)", () => {
-    const findings = guardLibrary.checkHandoffPlane({
-      writePlane: {
-        work: ["artifacts", "commits", "status", "findings"],
-        findings: HANDOFF_WRITE_PLANE.findings,
+  it("fires when an engineOnly key also rides the declared writable subset — the engine-only key leaks into the child projection view (⑥)", () => {
+    const leaked = {
+      work: {
+        type: "object",
+        properties: { status: {}, artifacts: {}, commits: {}, notes: {} },
+        engineOnly: [],
       },
+      findings: {
+        type: "object",
+        properties: { findings: {}, artifacts: {}, commits: {}, notes: {}, status: {} },
+        engineOnly: ["status"],
+      },
+    };
+    const findings = guardLibrary.checkHandoffPlane({
+      declared: leaked,
+      schemaText: fenceOf(leaked),
     });
     const labels = findings.map((f) => f.label);
-    // the work write plane mirrors `findings` — undeclared on the work face
-    expect(labels.join("\n")).toContain('handoff work write plane names "findings"');
+    // the declared engine-only status ALSO declares status as a writable property —
+    // the key the child must never author shows up in the child's writable view
+    expect(labels.join("\n")).toContain("leaks into the child projection view");
+  });
+
+  it("fires when a declared engineOnly key is consumed by no engine write path — dead authority metadata (⑥)", () => {
+    const unconsumed = {
+      work: {
+        type: "object",
+        properties: { status: {}, artifacts: {}, commits: {}, notes: {} },
+        engineOnly: [],
+      },
+      findings: {
+        type: "object",
+        properties: { findings: {}, artifacts: {}, commits: {}, notes: {} },
+        engineOnly: ["bogus"],
+      },
+    };
+    const findings = guardLibrary.checkHandoffPlane({
+      declared: unconsumed,
+      schemaText: fenceOf(unconsumed),
+    });
+    const labels = findings.map((f) => f.label);
+    // `bogus` stays out of the writable subset and the projection matches — the ONE
+    // hygiene failure is the unconsumed declaration (no real carrier write site)
+    expect(labels.join("\n")).toContain("no engine carrier write path consumes");
     expect(findings).toHaveLength(1);
   });
 
@@ -416,7 +454,7 @@ describe("checkHandoffPlane — the handoff writable-subset audit (T3)", () => {
     });
     const labels = findings.map((f) => f.label);
     expect(labels.join("\n")).toContain(
-      "parses to a different node than the declared writable subset",
+      "parses to a different node than the declared writable subset minus engineOnly",
     );
     expect(findings).toHaveLength(2); // both faces drift from their declared nodes
   });

@@ -27,6 +27,7 @@
 // captured, never the process.
 
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -1215,7 +1216,18 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       expect(code).toBe(0);
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       const progress = readJson<{ waves: unknown[] }>(path.join(workspace, "progress.json"));
-      expect(progress.waves).toContainEqual({ wave: "1", rounds: { implement: 1, review: 1 } });
+      // the wave-1 row carries its T11 (D16) revision record — the completed wave
+      // review bound the plan it judged to ITS line (the record reviewedDocRevision
+      // holds the reviewed plan's doc + sha1 content hash — the wave-gate reopen basis)
+      expect(progress.waves).toContainEqual({
+        wave: "1",
+        rounds: { implement: 1, review: 1 },
+        reviewedDocRevision: {
+          kind: "doc-revision",
+          doc: plan,
+          doc_hash: createHash("sha1").update(readFileSync(plan, "utf8")).digest("hex"),
+        },
+      });
       expect(progress.waves).toContainEqual({ wave: "2", rounds: { implement: 1 } });
       // the invocation's single stdout face — only the LAST step's capsule
       expect(io.stdoutText.split("status: APPROVED").length - 1).toBe(1);
@@ -2454,7 +2466,17 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
       expect(nextOf()).toBe("done");
 
       const progress = readJson<{ waves: unknown[] }>(path.join(workspace, "progress.json"));
-      expect(progress.waves).toContainEqual({ wave: "2", rounds: { implement: 1, review: 1 } });
+      // the wave-2 row carries its own T11 revision record — the final APPROVED
+      // review bound the plan to wave 2's line (the same write-back as wave 1's row)
+      expect(progress.waves).toContainEqual({
+        wave: "2",
+        rounds: { implement: 1, review: 1 },
+        reviewedDocRevision: {
+          kind: "doc-revision",
+          doc: plan,
+          doc_hash: createHash("sha1").update(readFileSync(plan, "utf8")).digest("hex"),
+        },
+      });
     } finally {
       cleanup();
     }

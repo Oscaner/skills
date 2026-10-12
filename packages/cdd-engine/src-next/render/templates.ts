@@ -196,12 +196,13 @@ const FIX_SHELL: readonly string[] = [
   EVIDENCE_ITEM,
   COMMITS_FIX_ITEM,
   ...LICENSE_ITEMS,
-  // T5 — the work-face whitelist + the INPUT_FINDINGS read-only guard (the D13
-  // mirror friction's instruction-side fix: the work shell's draft is the work
-  // face's declared plane — a fix child that mirrors the source review's top-level
-  // `findings` into the work draft trips the engine's reserved-field gate).
-  "**Writable fields:** `## Handoff schema`'s `work` face accepts exactly `status` · `failure_category` · `artifacts` · `commits` · `changes` · `notes` — write only these.",
-  "**Findings read-only:** `INPUT_FINDINGS` carries the source review's findings as READ-ONLY input — never mirror its top-level fields (especially `findings`) into the work draft; the work carrier writes no findings.",
+  // T5 (v0.3) — The work face's ONE strict-schema sentence: every top-level draft
+  // field comes from the `## Handoff schema` declared properties (the fields'
+  // single source is the injected fence below — never a second enumeration in the
+  // shell prose; a fix child that mirrors the source review carrier's top-level
+  // shape trips the engine's read-back BLOCK, so the sentence names the schema as
+  // the field source explicitly).
+  "**Draft fields:** every top-level field of the draft comes from the `## Handoff schema` declared `properties` — the declaration is the field source, zero extra keys.",
   ...SCHEMA_SECTION,
 ];
 
@@ -216,12 +217,13 @@ const DOCS_FIX_SHELL: readonly string[] = [
   "**docs-fix:** apply `INPUT_FINDINGS` (all severities) directly to `INPUT_DOC`, removing fixed findings; record the path in `artifacts.doc`; empty `findings` = all fixed. Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema`; the engine derives the conclusion from the residual findings; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
   COMMITS_FIX_ITEM,
   ...LICENSE_ITEMS,
-  // T5 — the findings-face whitelist + the carried-as-is guard (the docs-fix draft
-  // IS the findings face: its required `findings` rides over from the source review
-  // carrier verbatim — the child republishes the review's findings, never re-authors
-  // or mirrors the review carrier's non-findings top-level fields).
-  "**Writable fields:** `## Handoff schema`'s `findings` face accepts exactly `findings` · `artifacts` · `commits` · `notes` — write only these (the carrier requires its `findings`).",
-  "**Findings carried as-is:** `INPUT_FINDINGS` (the source review carrier) contributes its top-level `findings` — carry them over VERBATIM as the draft's `findings`, unmodified; no other source-carrier top-level field mirrors into the draft.",
+  // T5 (v0.3) — The findings face's ONE strict-schema sentence: same schema-first
+  // directive as the work shell, naming the required `findings` (carried over from
+  // the source review carrier verbatim — the required key is told how to fill, so
+  // the sentence never contradicts the findings carrier's own required gate; the
+  // work shell's field list is never copied here, and no field enumeration rides
+  // the findings shell's prose either).
+  "**Draft fields:** every top-level field of the draft comes from the `## Handoff schema` declared `properties` — `findings` (required) rides over from `INPUT_FINDINGS` verbatim, unmodified; the declaration is the field source, zero extra keys.",
   ...SCHEMA_SECTION,
 ];
 

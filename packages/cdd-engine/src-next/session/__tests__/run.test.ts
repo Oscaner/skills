@@ -13,7 +13,7 @@
 // workspace — the ledger round reads hit the on-disk handoffs exactly as the
 // production loop does.
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -31,15 +31,17 @@ const BASE = "a".repeat(8);
 const HEAD = "b".repeat(8);
 const DOC = "docs/kairos/specs/x-design.md";
 
-/** A hermetic ledger fixture — a fresh temp workspace (the ledger tests' pattern). */
-function fixture(): { ledger: Ledger; workspace: Workspace; cleanup: () => void } {
+/** A hermetic ledger fixture — a fresh temp workspace (the ledger tests' pattern).
+ *  `repo` exposes the temp root so the T11 wiring cases can place a real plan file
+ *  the reviewed-revision write-back hashes. */
+function fixture(): { ledger: Ledger; workspace: Workspace; repo: string; cleanup: () => void } {
   const repo = mkdtempSync(path.join(tmpdir(), "run-"));
   const workspace = new Workspace(
     new WorkspaceRoot(path.join(repo, ".kairos", "cdd"), "session"),
     "test-slug",
   );
   const ledger = new Ledger(workspace, new ConfigLoader());
-  return { ledger, workspace, cleanup: () => rmSync(repo, { recursive: true, force: true }) };
+  return { ledger, workspace, repo, cleanup: () => rmSync(repo, { recursive: true, force: true }) };
 }
 
 /** A plan document over `### Task N:` blocks + `- **DependsOn**:` values. */
@@ -875,5 +877,59 @@ describe("the capsule interaction seam — non-hard consumption", () => {
       `${status} ${blocker} ${handoff}`,
     ];
     expect(seam("APPROVED", "0", "/ws/h.json")).toEqual(["APPROVED 0 /ws/h.json"]);
+  });
+});
+
+describe("T11 — the wave review writes the reviewed PLAN revision into the wave row", () => {
+  it("a completed wave review binds the lifecycle's plan-path revision to the wave line (D16)", () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const planPath = path.join(repo, "plan.md");
+      writeFileSync(planPath, "# Plan\n- delta\n");
+      const graph = taskGraph([task(1, "none")]);
+      // the review approves on its first pass — the wave closes, but the revision
+      // write-back lands in the bookkeep step BEFORE the closure route marks done
+      const dispatch = stub((frame) =>
+        frame.phase === "implement" ? APPROVED_IMPLEMENT : { status: "APPROVED", findings: [] },
+      );
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+        planPath,
+      });
+      run.advance(); // implement
+      run.advance(); // review — the completion records the plan's current revision
+      const recorded = ledger.reviewedDocRevisionOf("1");
+      expect(recorded).not.toBeNull();
+      expect(recorded!.kind).toBe("doc-revision");
+      expect(recorded!.doc).toBe(planPath);
+      expect(recorded!.doc_hash).toHaveLength(40);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a plan-less lifecycle records no wave revision — the null #planPath leaves the legacy wave row", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = taskGraph([task(1, "none")]);
+      const dispatch = stub((frame) =>
+        frame.phase === "implement" ? APPROVED_IMPLEMENT : { status: "APPROVED", findings: [] },
+      );
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+        // no planPath — the wave review completes with no plan fact on record
+      });
+      run.advance();
+      run.advance();
+      expect(ledger.reviewedDocRevisionOf("1")).toBeNull();
+    } finally {
+      cleanup();
+    }
   });
 });

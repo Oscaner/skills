@@ -52,7 +52,6 @@ import {
 } from "../../packages/cdd-engine/src-next/face/host.ts";
 import { GUARD_BAN_WORDS } from "../../packages/cdd-engine/src-next/face/words.ts";
 import {
-  HANDOFF_WRITE_PLANE,
   HandoffSchema,
   type HandoffSchemaFace,
 } from "../../packages/cdd-engine/src-next/session/handoff-schema.ts";
@@ -92,16 +91,24 @@ export interface ClaimedPinsOptions {
  *  single-source exports, a test injects a broken table to exercise a fail face). */
 export interface HandoffPlaneOptions {
   /** The declared writable-subset node per face — the injectable fake declarations
-   *  (default: the engine's `HandoffSchema#faceSchema` accessor — the BY_FACE nodes). */
+   *  (default: the engine's `HandoffSchema#faceSchema` accessor — the BY_FACE nodes,
+   *  carrying their `engineOnly` authority keys). */
   declared?: Readonly<
-    Record<HandoffSchemaFace, Readonly<{ properties?: Readonly<Record<string, unknown>> }>>
+    Record<
+      HandoffSchemaFace,
+      Readonly<{
+        properties?: Readonly<Record<string, unknown>>;
+        engineOnly?: readonly string[];
+      }>
+    >
   >;
-  /** The engine's carrier write plane per face — the injectable broken enumeration
-   *  (default: the handoff-schema module's HANDOFF_WRITE_PLANE export). */
-  writePlane?: Readonly<Record<HandoffSchemaFace, readonly string[]>>;
   /** The projection-① generator — the injectable fake schemaText (default: the
    *  engine's `HandoffSchema#schemaText` projection). */
   schemaText?: (face: HandoffSchemaFace, evidence: boolean) => string;
+  /** The engine write-path source faces — the files whose carrier writes consume the
+   *  declared engineOnly keys (default: the engine's carrier-write sites — the face
+   *  cli.ts + session run.ts). */
+  writePathFaces?: readonly string[];
 }
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -146,6 +153,15 @@ const TEST_ROOTS = [
   "packages/cdd-engine/src-next",
   "scripts/__tests__",
   "packages/kairos/tests",
+] as const;
+
+/** The handoff-plane audit's default engine write-path faces — the files whose
+ *  carrier construction actually WRITES the engine-authority keys (the ⑥ authority
+ *  hygiene's consumption scan: a declared engineOnly key must appear as a `carrier.<key> =`
+ *  write in one of these, so the declaration is live metadata, never a dead one). */
+const HANDOFF_WRITE_PATH_FACES = [
+  "packages/cdd-engine/src-next/face/cli.ts",
+  "packages/cdd-engine/src-next/session/run.ts",
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -817,7 +833,8 @@ export class GuardLibrary {
   }
 
   // -------------------------------------------------------------------------
-  // checkHandoffPlane(opts?) — the handoff-plane audit (declared faces × write plane)
+  // checkHandoffPlane(opts?) — the handoff writable-subset audit (declared faces ×
+  // the engineOnly-derived write plane × projection)
   // -------------------------------------------------------------------------
 
   /**
@@ -827,30 +844,34 @@ export class GuardLibrary {
    * declaration, the work exclusives (`status` / `failure_category` / `changes`)
    * never ride the findings declaration (the SHARED carrier rows — artifacts /
    * commits / notes — are declared on both faces by design, so literal key-set
-   * disjointness would fire on the live tree; the exclusives ARE the role); ② the
-   * engine's carrier WRITE plane ⊆ the face's declared `properties` — an undeclared
-   * write (a D13-style `findings` mirror into the work carrier) fails the audit —
-   * modulo the engine-authority `status`, the round conclusion that rides the
-   * caller's set below the skeleton on BOTH faces (the findings subset declares no
-   * status, yet the persisted findings carrier carries the rolled-up one); ③ the
-   * prompt-injection projection is consistent with the declaration — the
+   * disjointness would fire on the live tree; the exclusives ARE the role); ⑥ the
+   * engine-authority hygiene — the engine's write plane DERIVES from the
+   * declaration (`keyof properties ∪ engineOnly[face]`, never a parallel table),
+   * so the check is that every declared `engineOnly` key stays OUT of the
+   * child-visible writable view (never also a declared property) AND is actually
+   * consumed by an engine carrier write path (a declaration claiming an engine-
+   * only key the engine never writes is dead metadata — the non-tautological leg,
+   * since the derivation alone would make engineOnly ⊆ write plane a tautology);
+   * ③ the prompt-injection projection is consistent with the declaration — the
    * `schemaText(face)` ```json fence parses byte-identically to the face's declared
-   * node (the prompt can never show a schema the engine does not declare). All three
-   * default to the engine's single-source exports; the options let tests inject a
-   * broken table to exercise a fail face.
+   * node MINUS `engineOnly` (projection ①'s authority filter: the child-visible
+   * fence never shows the engine's own write keys — the prompt can never show a
+   * schema the engine does not declare). All three default to the engine's
+   * single-source exports; the options let tests inject a broken table to exercise
+   * a fail face.
    */
   checkHandoffPlane(options: HandoffPlaneOptions = {}): GuardFinding[] {
     const findings: GuardFinding[] = [];
     const schema = new HandoffSchema();
     const declared = options.declared ?? {
-      work: schema.faceSchema("work") as { properties?: Readonly<Record<string, unknown>> },
-      findings: schema.faceSchema("findings") as {
-        properties?: Readonly<Record<string, unknown>>;
-      },
+      work: schema.faceSchema("work"),
+      findings: schema.faceSchema("findings"),
     };
-    const writePlane = options.writePlane ?? HANDOFF_WRITE_PLANE;
     const projection =
       options.schemaText ?? ((face: HandoffSchemaFace) => schema.schemaText(face, false));
+    const writePathFaces = options.writePathFaces ?? [
+      ...HANDOFF_WRITE_PATH_FACES.map((rel) => path.join(ROOT, rel)),
+    ];
 
     // ① the role-distinctive exclusives — the pinned role vocabulary, the two faces'
     //    declarations stay role-separate (the shared carrier rows are both-faced by design).
@@ -869,22 +890,31 @@ export class GuardLibrary {
       }
     }
 
-    // ② the write plane ⊆ declared (mod the engine-authority status — the engine's
-    //    own conclusion key rides both faces, declared or not).
+    // ⑥ the engine-authority hygiene — the engine's write plane derives from the
+    //    declaration (keyof properties ∪ engineOnly), so the two non-tautological
+    //    legs are: a declared engine-only key never ALSO becomes a declared writable
+    //    property (which would leak it into the child-visible view), and no declared
+    //    engine-only key goes unconsumed by an engine carrier write path (dead
+    //    authority metadata).
     for (const face of ["work", "findings"] as const) {
-      const writable = writePlane[face];
-      if (writable === undefined) continue;
-      for (const key of writable) {
-        if (key !== "status" && !(key in (declared[face].properties ?? {}))) {
+      for (const key of declared[face].engineOnly ?? []) {
+        if (key in (declared[face].properties ?? {})) {
           findings.push({
-            label: `handoff ${face} write plane names "${key}", undeclared in the face's writable subset (an undeclared write is the D13 mirror defect)`,
+            label: `handoff ${face} declares "${key}" BOTH as an engineOnly key and as a writable property — the engine-only key leaks into the child projection view (engine-only keys must stay out of the declared writable subset)`,
+            file: "packages/cdd-engine/src-next/session/handoff-schema.ts",
+          });
+        }
+        if (!writePathFaces.some((file) => this.#carrierWrites(file, key))) {
+          findings.push({
+            label: `handoff ${face} declares engineOnly key "${key}" which no engine carrier write path consumes (engine-authority hygiene broken — a declared engine-only write with no write site is dead metadata)`,
             file: "packages/cdd-engine/src-next/session/handoff-schema.ts",
           });
         }
       }
     }
 
-    // ③ the projection consistency — the injected fence parses to the declared node.
+    // ③ the projection consistency — the injected fence parses to the declared node
+    //    minus `engineOnly` (projection ① never surfaces the engine's own keys).
     for (const face of ["work", "findings"] as const) {
       const text = projection(face, false);
       const fence = text.split("```json\n")[1]?.split("\n```")[0];
@@ -897,9 +927,11 @@ export class GuardLibrary {
       }
       try {
         const parsed: unknown = JSON.parse(fence);
-        if (JSON.stringify(parsed) !== JSON.stringify(declared[face])) {
+        const { engineOnly: _authority, ...declaredNode } = declared[face];
+        void _authority;
+        if (JSON.stringify(parsed) !== JSON.stringify(declaredNode)) {
           findings.push({
-            label: `handoff ${face} projection ① fence parses to a different node than the declared writable subset (the prompt shows a schema the engine does not declare)`,
+            label: `handoff ${face} projection ① fence parses to a different node than the declared writable subset minus engineOnly (the prompt shows a schema the engine does not declare)`,
             file: "packages/cdd-engine/src-next/session/handoff-schema.ts",
           });
         }
@@ -912,6 +944,14 @@ export class GuardLibrary {
     }
 
     return findings;
+  }
+
+  /** The engine-only key's carrier-write consumption scan — a `carrier.<key> =`
+   *  assignment in a write-path face (the form every engine carrier write uses —
+   *  cli.ts #materialize + run.ts #bookkeep set the conclusion below the skeleton). */
+  #carrierWrites(file: string, key: string): boolean {
+    if (!existsSync(file)) return false;
+    return new RegExp(`carrier\\.\\b${escapeRegExp(key)}\\b\\s*=`).test(readFileSync(file, "utf8"));
   }
 
   // -------------------------------------------------------------------------

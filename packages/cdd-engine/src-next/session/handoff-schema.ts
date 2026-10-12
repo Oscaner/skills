@@ -41,6 +41,15 @@ interface SchemaNode {
   minLength?: number;
   maxLength?: number;
   additionalProperties?: boolean | SchemaNode;
+  /** The ENGINE-authority keys a face's persisted carrier writes that the CHILD
+   *  never authors — declared ON the node so the engine's write plane derives as
+   *  `keyof properties ∪ engineOnly[face]` (zero parallel write-plane table). Both
+   *  projections honour the fence (projection ①'s injected text strips the field,
+   *  so the child-visible fence = declared minus engineOnly; a child draft writing
+   *  an engineOnly key stays a read-back refusal — the key is never a declared
+   *  property, and the guard's authority hygiene (⑥) requires each declared
+   *  engine-only key to be consumed by an engine write path). */
+  engineOnly?: readonly string[];
 }
 
 /** One finding row — the shared base declaration of the findings face (severity +
@@ -101,12 +110,18 @@ const CARRIER_WORK = {
     notes: { type: "array", items: { type: "string" } },
   },
   additionalProperties: false,
+  /** The work face's engine-only keys — none: every written field is a declared
+   *  child property (the write plane derives as keyof properties ∪ []). */
+  engineOnly: [],
 } as const satisfies SchemaNode;
 
 /** The `findings` writable subset — review + docs-fix carrier. NO status (the engine
  *  rolls the conclusion up from the findings). The optional commits row rides the
  *  docs-fix rounds (the fix commits its doc edit — the re-review's base derives from
- *  it); a review never writes one. `as const` — see CARRIER_WORK. */
+ *  it); a review never writes one. `as const` — see CARRIER_WORK. The engine-only
+ *  `status` declares the rolled-up conclusion — the ENGINE-authority write the child
+ *  never authors (the persisted findings carrier carries it below the skeleton; the
+ *  child-visible fence and the read-back validator never present it as writable). */
 const CARRIER_FINDINGS = {
   type: "object",
   required: ["findings"],
@@ -117,6 +132,7 @@ const CARRIER_FINDINGS = {
     notes: { type: "array", items: { type: "string" } },
   },
   additionalProperties: false,
+  engineOnly: ["status"],
 } as const satisfies SchemaNode;
 
 /** The test-evidence file schema — the evidence gate's engine read-back contract
@@ -154,18 +170,6 @@ const BY_FACE = {
   work: CARRIER_WORK,
   findings: CARRIER_FINDINGS,
 } as const satisfies Readonly<Record<HandoffSchemaFace, SchemaNode>>;
-
-/** The engine's carrier WRITE plane — the fields the carrier construction actually
- *  writes per face (the machine half of the "write plane ⊆ declared" audit — an
- *  undeclared write is the D13 mirror defect). The work face writes its six declared
- *  fields; the findings face writes its four + the engine-authority conclusion
- *  (`status` — the round conclusion rides the caller's set below the skeleton on BOTH
- *  faces, an engine-only write the child never authors: the findings writable subset
- *  declares no status, yet the persisted findings carrier carries the rolled-up one). */
-export const HANDOFF_WRITE_PLANE = {
-  work: ["status", "failure_category", "artifacts", "commits", "changes", "notes"],
-  findings: ["artifacts", "findings", "commits", "notes", "status"],
-} as const;
 
 /** The carrier value-type mapping — every declared carrier field's value type. This
  *  is the ONE hand-maintained byte table (the type-level twin of the schema property
@@ -298,9 +302,13 @@ export class HandoffSchema {
 
   /** Serialize a declared schema object into the prompt's fence — COMPACT (no pretty
    *  indent: the injected text is the per-mode fixed prefix's biggest token cost, and
-   *  every dispatch pays it in the child context — minify keeps the round cheap). */
+   *  every dispatch pays it in the child context — minify keeps the round cheap). The
+   *  declaration's `engineOnly` metadata NEVER rides the serialized projection — the
+   *  child-visible fence is the declared node minus the engine-only keys (projection
+   *  ①'s authority filter: the engine's write plane derives from the declaration, the
+   *  child's writable view never shows it). */
   #json(node: SchemaNode): string {
-    return JSON.stringify(node);
+    return JSON.stringify(node, (key, value) => (key === "engineOnly" ? undefined : value));
   }
 
   /** Walk one schema node against a value; every mismatch is a `path: reason`. */

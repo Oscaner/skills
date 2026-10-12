@@ -13,7 +13,7 @@
 // Fixtures are plan literals parsed through the plan parser + a hermetic temp
 // workspace (the pattern the run/ledger suites share).
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -25,8 +25,10 @@ import { TaskGraph } from "../graph.ts";
 import { Ledger } from "../ledger.ts";
 import { WaveGate } from "../wave.ts";
 
-/** A hermetic ledger fixture — a fresh temp workspace (the run tests' pattern). */
-function fixture(): { ledger: Ledger; cleanup: () => void } {
+/** A hermetic ledger fixture — a fresh temp workspace (the run tests' pattern).
+ *  `repo` exposes the temp root so the T11 plan-drift cases can place a real plan
+ *  file the revision gate reads back. */
+function fixture(): { ledger: Ledger; repo: string; cleanup: () => void } {
   const repo = mkdtempSync(path.join(tmpdir(), "wave-"));
   const workspace = new Workspace(
     new WorkspaceRoot(path.join(repo, ".kairos", "cdd"), "session"),
@@ -34,6 +36,7 @@ function fixture(): { ledger: Ledger; cleanup: () => void } {
   );
   return {
     ledger: new Ledger(workspace, new ConfigLoader()),
+    repo,
     cleanup: () => rmSync(repo, { recursive: true, force: true }),
   };
 }
@@ -75,6 +78,24 @@ function cleanReviewCarrier(ledger: Ledger, tasks: string, round: number): void 
     "wave",
     { tasks, round },
     { tasks: tasks.split(",").map(Number), phase: "review", findings: [], commits: { base, head } },
+  );
+}
+
+/** An open wave's pending-fix state — the wave line at fix (implement + reviewed
+ *  into a blocker, fix awaiting): the T11 gate's baseline phase derivation. */
+function pendingFix(ledger: Ledger, tasks: string, round: number): void {
+  ledger.recordRound(tasks, "implement");
+  ledger.recordRound(tasks, "review");
+  ledger.persistHandoff(
+    "review",
+    "wave",
+    { tasks, round },
+    {
+      tasks: tasks.split(",").map(Number),
+      phase: "review",
+      findings: [{ severity: "blocker", lens: "plan", summary: "stale findings" }],
+      commits: { base, head },
+    },
   );
 }
 
@@ -255,6 +276,69 @@ describe("ledger.closedWaves — the C5 closure single read face", () => {
         { tasks: [4, 12], phase: "review", findings: [], commits: { base, head } },
       );
       expect(ledger.closedWaves()).toEqual(new Set([4, 12]));
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("WaveGate.vet — the plan-revision-aware pending-fix resolution (T11 · D16)", () => {
+  it("a drifted plan reopens the fix-pending wave at review — the reviewed PLAN revision is the drift basis", () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const graph = graphOf([task(1, "none")]);
+      const planPath = path.join(repo, "plan.md");
+      writeFileSync(planPath, "# Plan v1\n");
+      pendingFix(ledger, "1", 1);
+      // the completed wave review bound the THEN-current plan revision to the row
+      // (run.ts bookkeep — the same recordReviewedDocRevision the doc face uses)
+      ledger.recordReviewedDocRevision(
+        "1",
+        ledger.refs().docRevision(planPath, readFileSync(planPath, "utf8")),
+      );
+      // the plan moves mid-flight (an orchestrator fill/fix) — the recorded
+      // revision now drifts from the file's current text
+      writeFileSync(planPath, "# Plan v2 — drifted\n");
+      const verdict = gate.vet(new Set([1]), "review", graph, ledger, words);
+      // the phase resolves at review — the drifted plan is re-reviewed on ITS
+      // current text (the pending fix's findings reference the stale revision)
+      expect(verdict.ok).toBe(true);
+      expect(verdict.phases).toEqual([{ task: 1, phase: "review" }]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the anti-spin pin — same plan revision + a pending fix stays at fix (Review Convergence unbroken)", () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const graph = graphOf([task(1, "none")]);
+      const planPath = path.join(repo, "plan.md");
+      writeFileSync(planPath, "# Plan v1\n");
+      pendingFix(ledger, "1", 1);
+      ledger.recordReviewedDocRevision(
+        "1",
+        ledger.refs().docRevision(planPath, readFileSync(planPath, "utf8")),
+      );
+      // the plan has NOT moved — the recorded revision still matches the file
+      const verdict = gate.vet(new Set([1]), "review", graph, ledger, words);
+      expect(verdict.ok).toBe(false);
+      expect(verdict.reason).toBe("wrong-phase");
+      expect(verdict.message).toContain("at fix");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the null legacy pin — a wave row with no reviewed-revision record keeps the round-count BLOCK (backward compatible)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = graphOf([task(1, "none")]);
+      pendingFix(ledger, "1", 1); // no reviewedDocRevision on record — the legacy face
+      const verdict = gate.vet(new Set([1]), "review", graph, ledger, words);
+      expect(verdict.ok).toBe(false);
+      expect(verdict.reason).toBe("wrong-phase");
+      expect(verdict.message).toContain("at fix");
     } finally {
       cleanup();
     }

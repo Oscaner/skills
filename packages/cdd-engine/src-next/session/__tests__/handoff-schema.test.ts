@@ -93,17 +93,33 @@ describe("projection ① — the injected writable-subset schema text", () => {
     expect(schema.schemaText("work", true)).not.toBe(schema.schemaText("findings", false));
   });
 
-  it("the fence parses byte-identically to the declared face node — the one-hand projection pin (T3)", () => {
+  it("the fence parses byte-identically to the declared face node minus engineOnly — the one-hand projection pin (T3)", () => {
     // The prompt-injection projection (schemaText) and the read-back declaration
     // (faceSchema) are the SAME declared object's two projections: parses of the
-    // ```` ```json ```` fences must round-trip to the declared nodes byte-for-byte —
-    // the prompt can never show a schema the engine does not declare (the guard's
-    // checkHandoffPlane ③ asserts the same fact against the live tree).
+    // ```` ```json ```` fences must round-trip to the declared nodes minus the
+    // engine-only metadata (projection ①'s authority filter — the child-visible
+    // fence never shows the engine's own write keys) — the prompt can never show
+    // a schema the engine does not enforce (the guard's checkHandoffPlane ③
+    // asserts the same fact against the live tree).
     for (const face of ["work", "findings"] as const) {
       const text = schema.schemaText(face, false);
       const parsed = JSON.parse(text.split("```json\n")[1]!.split("\n```")[0]!);
-      expect(JSON.stringify(parsed)).toBe(JSON.stringify(schema.faceSchema(face)));
+      const { engineOnly: _authority, ...declared } = schema.faceSchema(face);
+      void _authority;
+      expect(JSON.stringify(parsed)).toBe(JSON.stringify(declared));
     }
+  });
+
+  it("the projection fences filter the engineOnly metadata — neither face's child-visible view serializes the authority field (T3)", () => {
+    // The engine-only keys live on the DECLARED node (the guard's write-plane
+    // derivation + authority hygiene read them there); projection ①'s injected
+    // fence must never serialize the metadata — the child sees only the writable
+    // subset a child can write. The findings face declares `status` engine-only,
+    // so its fence must not surface the field either (the same status the work
+    // face's property makes a read-back refusal).
+    expect(schema.schemaText("findings", false)).not.toContain("engineOnly");
+    expect(schema.schemaText("work", false)).not.toContain("engineOnly");
+    expect(schema.schemaText("findings", false)).not.toContain('"status"');
   });
 });
 

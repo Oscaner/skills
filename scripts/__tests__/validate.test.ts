@@ -56,7 +56,7 @@ describe("ValidateRunner — the single data-table runner", () => {
       "kairos skill anatomy (the typed skill-anatomy contract)",
       "word-face audit (the guard-ban vocabulary from the word-table export)",
       "engine channel audit (CLI × runtime · host markers · dispatch/refs)",
-      "engine handoff plane audit (declared faces × write plane × projection)",
+      "engine handoff plane audit",
       "doc-contract gate over the specs/plans tree (the engine judge)",
       "claimed→pin lint（声称→pin 引用存在 + 断言非空）",
       "cdd-engine engine test suite (vitest, src-next)",

@@ -86,8 +86,10 @@ const CHANGED_FILE: SchemaNode = {
 /** The `work` writable subset — implement/fix carrier. `status` and `artifacts` are
  *  the round's required core; commits / changes[] / notes ride the declared optional
  *  fields. Reserved fields (phase · tasks) are NOT declared → additionalProperties
- *  false refuses them, so the engine stays the carrier's single author. */
-const CARRIER_WORK: SchemaNode = {
+ *  false refuses them, so the engine stays the carrier's single author.
+ *  `as const` preserves the literal property keys — the carrier type family
+ *  (`CarrierOf<F>` below) derives its field set FROM these declared keys. */
+const CARRIER_WORK = {
   type: "object",
   required: ["status", "artifacts"],
   properties: {
@@ -99,13 +101,13 @@ const CARRIER_WORK: SchemaNode = {
     notes: { type: "array", items: { type: "string" } },
   },
   additionalProperties: false,
-};
+} as const satisfies SchemaNode;
 
 /** The `findings` writable subset — review + docs-fix carrier. NO status (the engine
  *  rolls the conclusion up from the findings). The optional commits row rides the
  *  docs-fix rounds (the fix commits its doc edit — the re-review's base derives from
- *  it); a review never writes one. */
-const CARRIER_FINDINGS: SchemaNode = {
+ *  it); a review never writes one. `as const` — see CARRIER_WORK. */
+const CARRIER_FINDINGS = {
   type: "object",
   required: ["findings"],
   properties: {
@@ -115,7 +117,7 @@ const CARRIER_FINDINGS: SchemaNode = {
     notes: { type: "array", items: { type: "string" } },
   },
   additionalProperties: false,
-};
+} as const satisfies SchemaNode;
 
 /** The test-evidence file schema — the evidence gate's engine read-back contract
  *  (the second fix for a prose-only claim: the old prompt asserted an engine read-back
@@ -144,11 +146,55 @@ const EVIDENCE: SchemaNode = {
   additionalProperties: true,
 };
 
-/** The face → declared writable-subset table (the single source both projections read). */
-const BY_FACE: Readonly<Record<HandoffSchemaFace, SchemaNode>> = {
+/** The face → declared writable-subset table (the single source both projections read).
+ *  `as const` keeps the declarations' literal property keys visible — the carrier type
+ *  family's `[K in keyof (typeof BY_FACE)[F]["properties"]]` derives its field set from
+ *  exactly these tables, so a schema edit reshapes the carrier types by construction. */
+const BY_FACE = {
   work: CARRIER_WORK,
   findings: CARRIER_FINDINGS,
+} as const satisfies Readonly<Record<HandoffSchemaFace, SchemaNode>>;
+
+/** The carrier value-type mapping — every declared carrier field's value type. This
+ *  is the ONE hand-maintained byte table (the type-level twin of the schema property
+ *  values); `CarrierOf<F>` maps each declared key through it. A wrong entry reads as a
+ *  build error at the first carrier read/write — it cannot silently pass. */
+export type CarrierValue = {
+  status: "APPROVED" | "BLOCKED";
+  failure_category: string;
+  artifacts: Record<string, string>;
+  commits: { base: string; head?: string };
+  changes: { file: string; reason?: string }[];
+  notes: string[];
+  findings: {
+    severity: "blocker" | "warn" | "nit";
+    lens: string;
+    section?: string;
+    line?: number;
+    summary: string;
+    fix?: string;
+  }[];
 };
+
+/** The derived carrier-of: the mapped type whose field set comes FROM the face's
+ *  declared `properties` keys (the face dispatcher resolves which declared table the
+ *  mapped type reads — `WorkCarrier`/`FindingsCarrier` are the two faces'
+ *  instantiations, so a schema declaration change reshapes the carrier types by
+ *  construction, zero hand-maintained parallel field tables). `-readonly` keeps the
+ *  carrier MUTABLE — the round conclusion (status) rides the caller's set below the
+ *  skeleton, never a frozen build-time value. */
+export type CarrierOf<F extends HandoffSchemaFace> = F extends "work"
+  ? { -readonly [K in keyof (typeof BY_FACE)["work"]["properties"]]: CarrierValue[K] }
+  : { -readonly [K in keyof (typeof BY_FACE)["findings"]["properties"]]: CarrierValue[K] };
+
+/** The work face's carrier — implement/fix write-back. Declared `findings`-free: the
+ *  work writable subset declares no findings field, so the carrier type carries none —
+ *  a `buildHandoff("work", { findings })` call is a compile-time refusal (Q1→c). */
+export type WorkCarrier = CarrierOf<"work">;
+
+/** The findings face's carrier — review write-back. `findings` is schema-required, so
+ *  the carrier type always carries it (the compile-time twin of the required gate). */
+export type FindingsCarrier = CarrierOf<"findings">;
 
 /** One formed problem of a schema violation — the `path: reason` wording. */
 export interface SchemaProblem {

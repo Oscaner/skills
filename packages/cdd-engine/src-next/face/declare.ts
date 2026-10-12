@@ -20,6 +20,8 @@
 // bare functions (the plan's zero-bare-function discipline); the projection
 // algorithm lives in the single CommandTreeBuilder class (face/projection.ts).
 
+import { InvalidArgumentError } from "commander";
+
 import type { DocKey } from "../contract/project.ts";
 
 /** The component-value types of the argv channel (the CLI parse validates by these). */
@@ -95,6 +97,60 @@ export const ARGV_CHANNEL = {
     help: "the repository root (default: the current git top level)",
   },
 } as const satisfies Readonly<Record<string, ChannelArgRow>>;
+
+/** The shaped channel subset — the four value-domain-validated channel types
+ *  (string/path/bool carry no parser — the unshaped faces register absent). */
+export type ShapedChannelValueType = "enum" | "int-list" | "sha" | "int";
+
+/** The value-domain shapes — the parsed raw's check + normalization per shaped
+ *  channel type: the parseArg family's single executor source (§4.1). Each rule
+ *  validates the raw against the row's declared domain and returns the normalized
+ *  value; a non-conforming raw throws commander.InvalidArgumentError with the
+ *  pinned error bytes (the value-domain error messages are a pinned surface —
+ *  zero byte drift across the retired method family). The enum rule reads the
+ *  row's declared `values`; the int-list normalization rewrites the consumed
+ *  shape, never the run face's own normalization. Data rows, never bare
+ *  functions — one executor reads them (face/projection.ts #parseArgOf). */
+export const VALUE_SHAPES: Readonly<
+  Record<ShapedChannelValueType, { parse(raw: string, row: ChannelArgRow): string }>
+> = {
+  enum: {
+    parse(raw, row) {
+      if (!(row.values ?? []).includes(raw)) {
+        throw new InvalidArgumentError(`must be one of ${(row.values ?? []).join(" | ")}`);
+      }
+      return raw;
+    },
+  },
+  "int-list": {
+    parse(raw) {
+      const parts = raw.split(",").map((part) => part.trim());
+      const invalid = parts.find((part) => !/^\d+$/.test(part));
+      if (invalid !== undefined) {
+        throw new InvalidArgumentError(
+          `--tasks <n|n,n,…> — must be comma-separated integers: ${invalid}`,
+        );
+      }
+      return [...new Set(parts.map(Number))].sort((a, b) => a - b).join(",");
+    },
+  },
+  sha: {
+    parse(raw) {
+      if (!/^[0-9a-f]{8}$/.test(raw)) {
+        throw new InvalidArgumentError("must be an 8-char sha");
+      }
+      return raw;
+    },
+  },
+  int: {
+    parse(raw) {
+      if (!/^\d+$/.test(raw)) {
+        throw new InvalidArgumentError("must be an integer");
+      }
+      return raw;
+    },
+  },
+};
 
 /** The six subcommand words — the CLI command face (steady: implement · review ·
  *  fix · schema · issue · base). */

@@ -176,8 +176,10 @@ export const engineSuiteStep = new SubprocessBlock({
  *  the T3 migration retrofitted only their CONTAINER: the strict **Version** header
  *  + a Change-history table). Every other spec/plan doc MUST pass the FULL gate.
  *  A pre-contract doc graduates from the list when it is migrated to the new form
- *  (its gate findings go to zero — remove the basename then). */
-const PRECONTRACT_DOCS = new Set<string>([
+ *  (its gate findings go to zero — remove the basename then). Exported: the same
+ *  exemption feeds the claimed→pin lint (T4 — the pre-contract refs predate the
+ *  claimed→pin contract and stay silent under the same ruling). */
+export const PRECONTRACT_DOCS = new Set<string>([
   "docs/kairos/plans/2026-09-21-consumer-parity-p1.md",
   "docs/kairos/plans/2026-09-21-consumer-parity-p4.1.md",
   "docs/kairos/plans/2026-09-21-consumer-parity-p4.2.md",
@@ -284,6 +286,11 @@ export const steps = [
   new CheckBlock({
     name: "doc-contract gate over the specs/plans tree (the engine judge)",
     run: checkDocContract,
+  }),
+  new CheckBlock({
+    name: "claimed→pin lint（声称→pin 引用存在 + 断言非空）",
+    run: () =>
+      assertNoGuardFindings(guardLibrary.checkClaimedPins({ preContract: PRECONTRACT_DOCS })),
   }),
   engineSuiteStep,
   new SubprocessBlock({

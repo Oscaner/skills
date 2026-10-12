@@ -587,11 +587,27 @@ export class HarnessDispatch {
   ): Record<string, unknown> {
     const ledger = this.#scene.ledger;
     const notes: string[] = [];
-    const carrier = ledger.buildHandoff({
-      artifacts: this.#canonicalArtifacts(frame, draft.artifacts, notes),
-      findings: face === "findings" ? this.#findingsList(draft.findings) : [],
-      commits: this.#commitsOf(draft.commits),
-    });
+    // The per-face overload (T1 interim — the minimal compile-green migration; T2 splits
+    // the work face's materialized bytes): the findings face REQUIRES its findings
+    // payload (the findings carrier's required field — cli.test pins the review
+    // carrier's findings + status), the work face builds a findings-FREE typed carrier.
+    // `Record<string, unknown>` local: the round conclusion (status — a RoundStatus,
+    // wider than the carrier's declared union) and the engine's extended fields ride the
+    // caller's set below. The work face's `findings: []` below is the T1 byte bridge —
+    // the materialized work carrier still carries the empty findings key (plan: T2
+    // removes it — 物化终态载体 JSON 零 findings 键).
+    const carrier: Record<string, unknown> =
+      face === "findings"
+        ? ledger.buildHandoff("findings", {
+            artifacts: this.#canonicalArtifacts(frame, draft.artifacts, notes),
+            findings: this.#findingsList(draft.findings),
+            commits: this.#commitsOf(draft.commits),
+          })
+        : ledger.buildHandoff("work", {
+            artifacts: this.#canonicalArtifacts(frame, draft.artifacts, notes),
+            commits: this.#commitsOf(draft.commits),
+          });
+    if (face === "work") carrier.findings = [];
     carrier.status = status;
     if (Array.isArray(draft.changes)) carrier.changes = draft.changes;
     if (typeof draft.failure_category === "string")

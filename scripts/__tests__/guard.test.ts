@@ -13,6 +13,7 @@ import { DISPATCH, type DispatchTable } from "../../packages/cdd-engine/src-next
 import { CAPSULE_WORDS, GUARD_BAN_WORDS } from "../../packages/cdd-engine/src-next/face/words.ts";
 import { GuardLibrary, guardLibrary } from "../lib/guard.ts";
 import { scanToken } from "../lib/scan.ts";
+import { PRECONTRACT_DOCS } from "../validate.ts";
 import { analyticsSkillFixture } from "./helpers/anatomy-fixture.ts";
 
 describe("checkAnatomy — the typed skill-anatomy contract consumption", () => {
@@ -178,5 +179,95 @@ describe("checkChannels — the runtime/host export audit", () => {
     // T1 — the fix face carries no skill ref: the dispatch's fix slot is gone (the
     // retired alias's absence is the zero-residue grep's surface, never re-asserted)
     expect("fix" in DISPATCH).toBe(false);
+  });
+});
+
+describe("checkClaimedPins — the claimed→pin lint (the spec/plan claim → colocated pin gate)", () => {
+  /** A hermetic claimed-pin fixture — a temp specs tree + one assertion-bearing
+   *  fixture file (the default lint target the tests resolve against). */
+  function pinsFixture(): { docs: string; testFile: string; cleanup: () => void } {
+    const dir = mkdtempSync(path.join(tmpdir(), "guard-pins-"));
+    const docs = path.join(dir, "specs");
+    mkdirSync(docs, { recursive: true });
+    const testFile = path.join(dir, "sample.test.ts");
+    writeFileSync(
+      testFile,
+      '// sample.test.ts\nimport { describe, expect, it } from "vitest";\n// the pinned behavior\ndescribe("pinned", () => it("holds", () => expect(true).toBe(true)));\n',
+    );
+    return { docs, testFile, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+  }
+
+  it("passes against the live specs/plans tree (the checkable's green face)", () => {
+    const findings = guardLibrary.checkClaimedPins({ preContract: PRECONTRACT_DOCS });
+    expect(
+      findings.map((f) => f.label).join("\n"),
+      `live claimed→pin findings:\n${findings.map((f) => `  ${f.file}: ${f.label}`).join("\n")}`,
+    ).toBe("");
+  });
+
+  it("fires on a dangling .test.ts ref — the pin names no current-tree test file", () => {
+    const fx = pinsFixture();
+    try {
+      writeFileSync(path.join(fx.docs, "claim.md"), "See `gone.test.ts:12` for the pin.\n");
+      const findings = guardLibrary.checkClaimedPins({
+        docsRoot: path.dirname(fx.docs),
+        testFiles: [fx.testFile],
+      });
+      const labels = findings.map((f) => f.label);
+      expect(labels.join("\n")).toContain("dangling");
+      expect(labels).toHaveLength(1);
+    } finally {
+      fx.cleanup();
+    }
+  });
+
+  it("fires on an assertion-less pin — the ref names an existing file with no assertion", () => {
+    const fx = pinsFixture();
+    try {
+      writeFileSync(path.join(fx.docs, "claim.md"), "See `blank.test.ts:5` for the pin.\n");
+      const blank = path.join(fx.docs, "blank.test.ts");
+      writeFileSync(blank, "// no assertion literals in this file\n");
+      const findings = guardLibrary.checkClaimedPins({
+        docsRoot: path.dirname(fx.docs),
+        testFiles: [fx.testFile, blank],
+      });
+      const labels = findings.map((f) => f.label);
+      expect(labels.join("\n")).toContain("no test assertion");
+      expect(labels).toHaveLength(1);
+    } finally {
+      fx.cleanup();
+    }
+  });
+
+  it("passes a resolvable pin and ignores plain refs that are not claim pins", () => {
+    const fx = pinsFixture();
+    try {
+      writeFileSync(
+        path.join(fx.docs, "claim.md"),
+        "Resolved: `sample.test.ts:12-14`. Bare prose `(sample.test.ts)` and a source ref `cli.ts:511` are not claim pins.\n",
+      );
+      const findings = guardLibrary.checkClaimedPins({
+        docsRoot: path.dirname(fx.docs),
+        testFiles: [fx.testFile],
+      });
+      expect(findings).toEqual([]);
+    } finally {
+      fx.cleanup();
+    }
+  });
+
+  it("skips the wiring-exempt docs — the pre-contract refs stay silent under the same ruling", () => {
+    const fx = pinsFixture();
+    try {
+      writeFileSync(path.join(fx.docs, "claim.md"), "See `gone.test.ts:12` for the pin.\n");
+      const findings = guardLibrary.checkClaimedPins({
+        docsRoot: path.dirname(fx.docs),
+        testFiles: [fx.testFile],
+        preContract: new Set(["docs/kairos/specs/claim.md"]),
+      });
+      expect(findings).toEqual([]);
+    } finally {
+      fx.cleanup();
+    }
   });
 });

@@ -10,10 +10,30 @@
 //     warn/nit → REVIEW_FIX · none → APPROVED) + the findings normalization (the
 //     capsule's blocker face, never the judgment domain).
 
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { HandoffSchema } from "../handoff-schema.ts";
+import { ConfigLoader } from "../../infra/config.ts";
+import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
+import { HandoffSchema, type WorkCarrier } from "../handoff-schema.ts";
+import { Ledger } from "../ledger.ts";
 
 const schema = new HandoffSchema();
+
+/** A hermetic ledger fixture — a fresh temp workspace (the buildHandoff carrier
+ *  needs no on-disk state; the fixture keeps the per-face pins self-contained). */
+function ledgerFixture(): { ledger: Ledger; cleanup: () => void } {
+  const repo = mkdtempSync(path.join(tmpdir(), "handoff-carrier-"));
+  const workspace = new Workspace(
+    new WorkspaceRoot(path.join(repo, ".kairos", "cdd"), "session"),
+    "test-slug",
+  );
+  return {
+    ledger: new Ledger(workspace, new ConfigLoader()),
+    cleanup: () => rmSync(repo, { recursive: true, force: true }),
+  };
+}
 
 /** The canonical valid work draft — the implement/fix child's write-back. */
 const WORK = {
@@ -187,5 +207,59 @@ describe("the status rollup + the findings normalization", () => {
       schema.findingsOf([{ severity: "fatal" }, { severity: "nit", summary: "s" }, "garbage"]),
     ).toEqual([{ severity: "nit", summary: "s" }]);
     expect(schema.findingsOf("nope")).toEqual([]);
+  });
+});
+
+describe("the derived carrier types — buildHandoff per-face shaping (T1)", () => {
+  it("the work carrier's flat keys equal the declared properties set, zero findings (the runtime fallback of the type derivation)", () => {
+    const { ledger, cleanup } = ledgerFixture();
+    try {
+      const carrier = ledger.buildHandoff("work", {
+        artifacts: { brief: "/b" },
+        commits: { base: "a".repeat(8), head: "b".repeat(8) },
+      });
+      carrier.status = "APPROVED";
+      carrier.failure_category = "none";
+      carrier.changes = [{ file: "packages/x/a.ts", reason: "task" }];
+      carrier.notes = ["one note"];
+      expect(Object.keys(carrier).sort()).toEqual(
+        Object.keys(schema.faceSchema("work").properties ?? {}).sort(),
+      );
+      expect("findings" in carrier).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the findings carrier carries the schema-required findings key", () => {
+    const { ledger, cleanup } = ledgerFixture();
+    try {
+      const carrier = ledger.buildHandoff("findings", {
+        findings: [{ severity: "blocker", lens: "spec", summary: "drift" }],
+      });
+      expect(Object.keys(carrier)).toContain("findings");
+      expect(carrier.findings).toEqual([{ severity: "blocker", lens: "spec", summary: "drift" }]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the type gate — the work face refuses a findings payload at compile time", () => {
+    const { ledger, cleanup } = ledgerFixture();
+    try {
+      // The compile-time twin of the runtime key-set pin above — a negative TYPE
+      // assertion (the repo's zero-debt escape ban forbids compile-error-suppression
+      // directives, so the gate is the assertion itself): `NoFindings<WorkCarrier>`
+      // only COMPILES while the work writable subset declares no findings field — a
+      // schema edit adding findings to the work face breaks this file's typecheck
+      // (Q1→c), and the `buildHandoff("work", …)` overload refuses a findings init
+      // by construction.
+      type NoFindings<T> = "findings" extends keyof T ? never : true;
+      const gate: NoFindings<WorkCarrier> = true;
+      expect(gate).toBe(true);
+      void ledger;
+    } finally {
+      cleanup();
+    }
   });
 });

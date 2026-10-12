@@ -495,13 +495,24 @@ export class Lifecycle {
     const blocked = outcome.status === "BLOCKED" || outcome.status === "TIMEOUT";
     if (outcome.carrier !== undefined || !blocked) {
       const op = this.#opOf(frame.phase);
-      const carrier =
+      // The engine-built fallback rides the per-outcome face (T1 interim — the minimal
+      // compile-green migration; T2's per-FRAME-face split generalizes it): a review
+      // outcome carries its findings (the route judges them), a work outcome carries
+      // none. The findings face REQUIRES its payload — the overload picks the carrier
+      // shape per presence, so the review finding-severity route survives byte-identical
+      // and a work outcome's carrier stays findings-free (plan: work 兜底零 findings 注入).
+      const carrier: Record<string, unknown> =
         outcome.carrier ??
-        this.#ledger.buildHandoff({
-          findings: outcome.findings === undefined ? undefined : [...outcome.findings],
-          commits: outcome.commits,
-          artifacts: outcome.artifacts,
-        });
+        (outcome.findings === undefined
+          ? this.#ledger.buildHandoff("work", {
+              commits: outcome.commits,
+              artifacts: outcome.artifacts,
+            })
+          : this.#ledger.buildHandoff("findings", {
+              findings: [...outcome.findings],
+              commits: outcome.commits,
+              artifacts: outcome.artifacts,
+            }));
       if (carrier.status === undefined && outcome.status !== undefined)
         carrier.status = outcome.status;
       this.#ledger.persistHandoff(op, frame.type, frame.params, carrier);

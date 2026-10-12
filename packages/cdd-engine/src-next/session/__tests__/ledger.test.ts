@@ -146,15 +146,16 @@ describe("handoff — naming / carrier / single-author persist", () => {
   it("buildHandoff carries ONLY the schema-declared writable fields — identity rides the file name, never phase/tasks inline (v1.30)", () => {
     const { ledger, cleanup } = fixture();
     try {
-      const carrier = ledger.buildHandoff({ artifacts: { brief: "/tmp/brief.md" } });
+      const carrier = ledger.buildHandoff("work", { artifacts: { brief: "/tmp/brief.md" } });
       // the carrier's plane is the schema's declared fields — no inline phase/tasks
       // identity (the canonical file name `tasks-7,9-review-1.json` carries it; inline
       // identity seeded the mimicking precedence the reserved gate then had to refuse)
       expect("phase" in carrier).toBe(false);
       expect("tasks" in carrier).toBe(false);
-      expect(carrier.findings).toEqual([]);
+      // T1 — the work carrier physically carries no findings key (the per-face typing)
+      expect("findings" in carrier).toBe(false);
       expect(carrier.artifacts).toEqual({ brief: "/tmp/brief.md" });
-      expect(ledger.buildHandoff({}).artifacts).toEqual({});
+      expect(ledger.buildHandoff("work", {}).artifacts).toEqual({});
     } finally {
       cleanup();
     }

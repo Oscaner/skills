@@ -137,6 +137,9 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(spec).toContain("**Criteria — spec:**");
     expect(spec).toContain("Follow URC");
     expect(spec).toContain("completeness | consistency | clarity");
+    // the claimed→pin clause (T4) — every behavior claim must cite a colocated pin;
+    // the spec + plan review variants carry it (the task/branch variants do not)
+    expect(spec).toContain("Claimed→pin");
     expect(spec).toContain("- `INPUT_RANGE`: docs/kairos/specs/s1-design.md");
     expect(spec).not.toContain("- `INPUT_WAVE_BRIEF`");
     expect(spec).not.toContain("- `INPUT_FINDINGS`");
@@ -153,6 +156,18 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(task).toContain("Standards axis");
     expect(task).toContain("standards | spec | buildability");
     expect(task).not.toContain("Follow URC");
+    expect(task).not.toContain("Claimed→pin"); // the task axes carry no clause
+    // a plan review carries the same claimed→pin clause as the spec variant
+    const plan = assembler.render({
+      ...ALL_VALUES,
+      ROLE: "review",
+      REVIEW_TYPE: "plan",
+      INPUT_RANGE: "docs/kairos/plans/p.md",
+      INPUT_PLAN: "/ws/p.md",
+      OUTPUT_HANDOFF: "/ws/plan-review-1.json",
+    });
+    expect(plan).toContain("**Criteria — plan:**");
+    expect(plan).toContain("Claimed→pin");
   });
 
   it("hard gates: a missing token value throws (named)", () => {

@@ -312,13 +312,13 @@ export const REVIEWS = {
     lensEnum: ["completeness", "consistency", "clarity"],
     ref: "INPUT_RANGE",
     axesGuide:
-      "Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence",
+      "Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding",
   },
   plan: {
     lensEnum: ["completeness", "decomposition", "buildability"],
     ref: "INPUT_RANGE",
     axesGuide:
-      "Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence",
+      "Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding",
   },
 } as const satisfies ReviewGuides;
 

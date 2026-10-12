@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P5 设计：整引擎 + repo CI 验证脚本重整
-- **Version**: v0.3 · 2026-10-12
+- **Version**: v0.4 · 2026-10-13
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P5] 会话 · 用户裁定 · 2026-10-12）
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](2026-10-10-engine-doc-tooling-overall.md)
@@ -7,7 +7,7 @@
 
 ## Design
 
-本 phase 收口「程序收敛后重开」的六前提整树 mandate（D17 · 2026-10-12 用户六要求裁定 · **scope 澄清「不是终审——基于这六前提，重整整个引擎和 repo ci 验证脚本」**）。六前提从「phase 内许可」升格为 P5 独立 phase 的执行标准，目标面 = **整个引擎**（五面 + 组合根 + bin + 测试面）+ **repo CI 验证脚本**（scripts/）。用户的最大心智负担：**仓库根脚本只是用来跑 tests、做 ci 测试门的，而不是独立的一套 tests**——校验逻辑须按产物归属迁入各 package 的 test plane，repo 根不实现、不承接任何验证逻辑。设计输入：kairos:cdd-design [P5] 会话（D17 注册 · D18 grilling 九裁定 Q1→b / Q2→a / Q3→a / Q5→a 修订 / Q6→a / 归属模型 / Q7a→a / Q7b→a / Q8→a / Q9→a）· overall v2.9（D18）→ v2.10（D19 · 2026-10-12 · 用户 in-flight 需求 backfill · schema gen→get 并入）——九裁定收敛为：消费共享（校验逻辑沉淀引擎可消费 · seeds 两个组合根共享核心抽象）· 字面零裸函数（含组合根）· 破坏性两层全开 · 字节语义 major（next: 字面冻结 · 功能语义不变）· 不发布 · docs 不验（三 docs 门撤下根）· 校验归域（guard checks 进各自 package suite）· CI 原生分身（validate.ts 解散）· smoke 迁引擎 + emit 六前提重整 · 单 phase-spec 收口。
+本 phase 收口「程序收敛后重开」的六前提整树 mandate（D17 · 2026-10-12 用户六要求裁定 · **scope 澄清「不是终审——基于这六前提，重整整个引擎和 repo ci 验证脚本」**）。六前提从「phase 内许可」升格为 P5 独立 phase 的执行标准，目标面 = **整个引擎**（五面 + 组合根 + bin + 测试面）+ **repo CI 验证脚本**（scripts/）。用户的最大心智负担：**仓库根脚本只是用来跑 tests、做 ci 测试门的，而不是独立的一套 tests**——校验逻辑须按产物归属迁入各 package 的 test plane，repo 根不实现、不承接任何验证逻辑。设计输入：kairos:cdd-design [P5] 会话（D17 注册 · D18 grilling 九裁定 Q1→b / Q2→a / Q3→a / Q5→a 修订 / Q6→a / 归属模型 / Q7a→a / Q7b→a / Q8→a / Q9→a）· overall v2.9（D18）→ v2.10（D19 · 2026-10-12 · 用户 in-flight 需求 backfill · schema gen→get 并入）→ v2.11（D20 · 2026-10-13 · 用户 in-flight 消费面需求 backfill · 消费面 skill 文本精简）——九裁定收敛为：消费共享（校验逻辑沉淀引擎可消费 · seeds 两个组合根共享核心抽象）· 字面零裸函数（含组合根）· 破坏性两层全开 · 字节语义 major（next: 字面冻结 · 功能语义不变）· 不发布 · docs 不验（三 docs 门撤下根）· 校验归域（guard checks 进各自 package suite）· CI 原生分身（validate.ts 解散）· smoke 迁引擎 + emit 六前提重整 · 单 phase-spec 收口。
 
 ### 1. 目标与边界
 #### 1.1 设计输入与授权
@@ -79,6 +79,11 @@
 - **根因（D19 · 用户 backfill 修正 · 2026-10-12）**：痛不在「`>` 重定向 vs 传参」的机制面，而是 **`<path>` 零约束**——旧面 `schema gen phase-spec > <path>` 的 `<path>` 由 shell 自由重定向（引擎不可见 · 无声明 · 无校验），author 会话可把骨架落任意位置（本次落 `/tmp` → 反读 → 再写目标 doc），二段式 dance 由此而生 · **修法 = 对 target 做约束**：target 升为**引擎声明必需参数**（通道表声明 · 精确校验），引擎直写该目标 doc——骨架就地生成于被 auth 的文档，并在**同一目标 doc** 填 prose in place，异路径中转结构性不可行（六前提⑤消费者心智负担）
 - **消费面同步（§5.2 通道）**：kairos `cdd-spec-writer` SKILL.md `author-spec` dispatch 字面 `schema gen phase-spec > <path>` → `schema get phase-spec --output skeleton <path>`（`<path>`=目标 doc · 就地生成 · 零中间文件 · 随字节更替同步）
 - **验收 pin**：引擎 vitest channel-closure pin（leaf 合并 · `--output` 值域 json|skeleton · schema type 必填 · target 条件必填（`--output skeleton` 时必填 · `--output json` 时省略））· smoke-cdd dry-run 链含 `schema get phase-spec --output skeleton <target>`（fixture 目标 doc 就地生成 · plus `schema get phase-spec` 的 json 面）· kairos 行为树全绿作证 skill 字面同步
+#### 5.5 消费面 skill 文本精简（2026-10-13 用户 in-flight 需求 backfill → D20）
+- **需求（用户裁定）①**：三个编排器 skill（cdd-spec-writer · cdd-design · cdd-plan）的 **NEXT-LOOP 节点不复述 `next:` 具体字面**——删除逐字复述（`fix --type spec … (confirm the findings…)` 等字面不写进 skill 文本），只要求**遵循 `next:` 字面执行任务**（字面由 review 输出携带 · skill 重复 = 冗余复述 + 随字节更替漂移）· **I1 Review Convergence 不变体同简**（不再枚举具体命令字面示例 · 保留规则句：`next:` 即派发 · 无 kind→command 映射层）
+- **需求（用户裁定）②**：fix 派发父句 `(read file back to confirm)` → **`(confirm the findings · backfill user adjudications into the carrier)`**——读回 findings 确认 + 评审有裁定则**回填进 findings carrier**（spec-review 时用户裁决 `--expect-version` 即先例：裁决作为 note 追加进 carrier 再派发 fix）· 语义 = 确认合一（读回 + 确认）· 用词与程序术语库一致（adjudication · carrier · backfill）
+- **落点**：kairos 消费面 skill 文本（`packages/kairos/skills/cdd-*/SKILL.md` 三 skill 的 NEXT-LOOP 节点 + I1 不变体）· 消费面同步通道（§5.2）· 随字节语义 major 落地（消费面文本精简专属于 author 节点表述面）
+- **验收 pin**：三 skill 文本 NEXT-LOOP 节点零 `next:` 字面复述（grep `fix --type`/`implement --plan` 复述行零命中 —— review 派发行如 `review --type plan --plan <path>` 与 `CDD_BLOCKED:` 通道句是节点固有句 **保留** · 只删 next 字面复述段）· I1 不变体规则句保留（`next:` 即派发 · 无映射层 · adjudication 覆盖）· 父句 `(confirm the findings · backfill user adjudications into the carrier)` 在册 · kairos 行为树全绿（presentation-surface pins 翻新）
 
 ### 6. smoke-cdd 迁引擎 + emit.ts 六前提重整
 #### 6.1 smoke-cdd 迁 engine 集成测试面
@@ -111,6 +116,7 @@
 - `字面零裸函数 ✓（全员枚举基：引擎源码面 2 枚收类（§4.1）· scripts 源码面 37 枚全处置（guard 9 · validate 5 · smoke-cdd 7 随 §7.1/§3.1/§6.1 迁/撤 21 · emit 12 · scan 3 · first-party 1 + run.ts main 收类 16）· 测试面全量迁移（引擎 15 个 test 文件 53 枚 · scripts 测试辅助 2 枚）· 全局 ^function|^export function 零命中 pin（含组合根 · 含测试面 · 全员在册）· 门禁入 CI）`
 - `字节语义 major 落地 ✓（命令/旗标/退出码 deliberate 更替逐项 pin 重锚 + 锚同步 · next: 字面保持可执行命令字面化（冻结 · 不简洁化）· 功能语义不变（六命令领域 run 语义零动）· kairos 消费面同步（skill 文本 dispatch/next 引用随改 · 行为树全绿作证））`
 - `schema gen→get 并入 ✓（schema get <type> --output <json|skeleton> · --output json 无需 target · --output skeleton <target> target 必填且受约束（引擎声明必需参数 · 直写目标 doc · 就地生成填 in place · 异路径中转结构性不可行）· schema gen leaf 消灭 · did-you-mean 随命令树更新 · cdd-spec-writer 消费面 dispatch 字面同步（schema get phase-spec --output skeleton <path>）· vitest + smoke 链 + kairos 行为树全绿作证）`
+- `消费面 skill 文本精简 ✓（D20 · 三编排器 skill NEXT-LOOP 节点零 next: 字面复述（只留「遵循字面」句）· I1 不变体规则句保留 · fix 父句 (confirm the findings · backfill user adjudications into the carrier) 在册 · kairos 行为树全绿（presentation-surface pins 翻新））`
 - `smoke-cdd 迁引擎 ✓（fixture + dry-run 链入 engine test plane · --expect-version 旗标撤除（no-op 不迁 · release.yml post-version 门移除 · maintainers 记载删）· release.yml 两门改指引擎 smoke 入口 · root run.ts smoke-cdd 删除）`
 - `emit.ts 六前提重整 ✓（零裸函数 · OOP 类族 · 声明单源投影 · 产物字节零 drift（emit-check 前后全等））`
 - `死码/空壳零残留 ✓（§7.1 销毁清单逐项 grep pin 零命中 · §7.2 迁移面落在目标 suite · 零平行实现）`
@@ -138,3 +144,4 @@
 | v0.1 | 2026-10-12 | P5 设计 v0.1——整引擎 + repo CI 验证脚本重整（六前提 · grilling 九裁定 D18）：目标面二合一（非终审 · 用户「最大心智负担：仓库根脚本只是跑 tests 做 ci 门」）· 校验归域（checkAnatomy→kairos · checkChannels/checkHandoffPlane→engine · checkWords 分域拆 · 根零验证逻辑）· docs 不验（三 docs 门撤下根 · 合法性交 workflow）· CI 原生分身（validate.ts 解散 · GH Actions 原生 job · precommit 原生命令序列）· 字面零裸函数（含组合根 · 全局零命中 pin）· 字节语义 major（两层全开 · next: 字面冻结 · 功能语义不变 · kairos 消费面同步）· smoke-cdd 迁引擎（release 门改指）· emit.ts 六前提重整（产物字节零 drift）· 死码/空壳清单（guard.ts/validate.ts 删除面 · 迁移面）· 变更集 major + patch 归并不发布 · 单 phase-spec 收口 | Oscar M. · Claude Opus 5（kairos:cdd-design [P5] 会话 · 用户裁定 · 2026-10-12） |
 | v0.2 | 2026-10-12 | P5 设计 v0.2——用户 in-flight 需求 backfill（§5.4 · 六前提⑤ 消费者心智负担）：schema gen 并入 schema get · `--output <json|skeleton>` · **根因修正（用户 2026-10-12 澄清）：痛根是 `<path>` 零约束而非 `>` vs 传参机制**——`--output skeleton <target>` 把 target 升为引擎声明必需参数（引擎直写目标 doc · 就地生成 · 填 in place · 异路径中转结构性不可行）· `--output json` 无需 target · schema gen leaf 消灭 · cdd-spec-writer 消费面 dispatch 字面同步 | Oscar M. · Claude Opus 5（kairos:cdd-spec-writer [P5] 会话 · 用户 backfill · 2026-10-12） |
 | v0.3 | 2026-10-12 | P5 设计 v0.3——spec-review-1 修复轮（3 warn + 3 nit 全数落地 · 零残）：PRECONTRACT_DOCS 计数 35→33（§2.4 · pin 核到 `scripts/validate.ts:182-216`）· `--expect-version` **撤旗标**（§6.1/AC · 用户裁定 option ② —— no-op 不迁 · release.yml post-version 门移除 · `docs/maintainers/04-program-experience.md:89` 记载删）· 零裸函数门测试面处置（§4.3 · 引擎 15 个 test 文件 53 枚 + scripts 测试辅助 2 枚全量迁移 · AC 全员枚举基）· scripts 面计数逐文件清单（37 = 收类 16 + 迁/撤 21）· 变更集区分 P5 changeset 类型 vs 净 bump（kairos 净 bump 已 major）· D19 引用入链（§1.1/Design/§5.4） | 引擎 spec-fix 轮 · Oscar M. · Claude Opus 5（kairos:cdd-design [P5] 会话 · 2026-10-12） |
+| v0.4 | 2026-10-13 | P5 设计 v0.4——用户 in-flight 消费面需求 backfill（§5.5 · 六前提⑤ · D20）：**三编排器 skill NEXT-LOOP 不复述 `next:` 具体字面**（含 I1 不变体同简 · 只留规则句 · 字面由 review 输出携带）· **fix 派发父句 `(read file back to confirm)` → `(confirm the findings · backfill user adjudications into the carrier)`**（读回确认 + 用户裁定回填 carrier · 用户 3 裁定推荐 A）· 落点 = kairos 消费面 skill 文本（cdd-spec-writer/design/plan）· 随字节语义 major 落地 · AC 增补 · 行为树 pins 翻新 | Oscar M. · Claude Opus 5（kairos:cdd-spec-writer [P5] 会话 · 用户 backfill · 2026-10-13） |

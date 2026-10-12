@@ -1,7 +1,7 @@
 # P5 整引擎 + repo CI 验证脚本重整
 **Spec:** [2026-10-10-engine-doc-tooling-p5-design.md](docs/kairos/specs/2026-10-10-engine-doc-tooling-p5-design.md)
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.1 · 2026-10-13
+- **Version**: v0.2 · 2026-10-13
 
 ## Constraints
 
@@ -194,20 +194,22 @@
 - **Acceptance**: engine + scripts + kairos tests 全部 `.ts` 模块级 `^function |^export function ` 零命中 · 五 suite 全绿（引擎 513+ 项保持）· 门禁 pin（CI + precommit）在册 · 零行为差
 - **DependsOn**: 5, 6, 7, 9
 
-### Task 11: kairos 消费面同步（字节更替随 skill 文本 · 行为树全绿作证）
-- **Objective**: 字节更替（schema gen→get · smoke 入口 · run.ts 面删）随 kairos cdd-* SKILL.md 的 dispatch 字面/引用同步改——`cdd-spec-writer` author-spec 的 `schema gen phase-spec > <path>` → `schema get phase-spec --output skeleton <path>` · 其余 skill 文本（cdd-design/cdd-dev/cdd-close 若引 schema/smoke/run.ts 命令面）同步 · 引擎 vitest + smoke 门 + kairos 行为树全绿作证同步完整（presentation-surface/grep-sweep pins 翻新）
+### Task 11: kairos 消费面同步（字节更替随 skill 文本 · D20 文本精简 · 行为树全绿作证）
+- **Objective**: 字节更替（schema gen→get · smoke 入口 · run.ts 面删）随 kairos cdd-* SKILL.md 的 dispatch 字面/引用同步改——`cdd-spec-writer` author-spec 的 `schema gen phase-spec > <path>` → `schema get phase-spec --output skeleton <path>` · 其余 skill 文本（cdd-design/cdd-dev/cdd-close 若引 schema/smoke/run.ts 命令面）同步 · **D20 消费面文本精简（用户 in-flight · 2026-10-13）**：① 三编排器 skill（cdd-spec-writer · cdd-design · cdd-plan）**NEXT-LOOP 节点不复述 `next:` 具体字面**——只要求遵循 review 输出携带的 `next:` 字面执行任务（skill 重复 = 冗余复述 + 随字节更替漂移）· **I1 Review Convergence 不变体同简** ② fix 派发父句 `(read file back to confirm)` → `(confirm the findings · backfill user adjudications into the carrier)`——读回 findings 确认 + 评审有裁定则回填进 findings carrier · 引擎 vitest + smoke 门 + kairos 行为树全绿作证同步完整（presentation-surface/grep-sweep pins 翻新）
 - **Files**:
-  - Modify: `packages/kairos/skills/cdd-spec-writer/SKILL.md`（author-spec dispatch 字面）· `packages/kairos/skills/*/SKILL.md`（若引 schema/smoke/run.ts 命令面逐一核）· `packages/kairos/tests/presentation-surface.test.ts`（pins 翻新）
-- **Consumes**: specs §5.2 · T4 的 schema get 新命令面 · T7 smoke 新入口 · 六个 kairos SKILL.md
-- **Produces**: kairos skill 文本与引擎新字节面同步 · 消费面变更只发生在 author 节点表述（non-goal ④）
+  - Modify: `packages/kairos/skills/cdd-spec-writer/SKILL.md`（author-spec dispatch 字面 · NEXT-LOOP/I1 精简）· `packages/kairos/skills/cdd-design/SKILL.md`（NEXT-LOOP/I1 精简）· `packages/kairos/skills/cdd-plan/SKILL.md`（NEXT-LOOP/I1 精简）· `packages/kairos/skills/*/SKILL.md`（若引 schema/smoke/run.ts 命令面逐一核）· `packages/kairos/tests/presentation-surface.test.ts`（pins 翻新）
+- **Consumes**: specs §5.5（D20 需求裁定 · 用户拍板措辞）· T4 的 schema get 新命令面 · T7 smoke 新入口 · 六个 kairos SKILL.md
+- **Produces**: kairos skill 文本与引擎新字节面同步 · 消费面变更只发生在 author 节点表述（non-goal ④）· D20 精简落地（NEXT-LOOP 零 `next:` 字面复述 · fix 父句 confirm+backfill）
 - **Steps**:
   - grep kairos skills 全树：`schema gen` · `smoke-cdd` · `run.ts validate` 等命令面引用位址清单 — checkable: 引用位址清单落盘
   - cdd-spec-writer author-spec：`schema gen phase-spec > <target>` 字面 → `schema get phase-spec --output skeleton <target>`（target=目标 doc · 就地生成 · 零中间文件）——其余位址按命令面更替同步 — checkable: kairos skills 全树旧字面零残留
+  - **D20①**：三编排器 NEXT-LOOP 节点 + Review Convergence 不变体（spec-writer **I1** · plan **I1** · design **I2**）文本精简——删去 `next:` 具体字面复述段（fix 字面 `re-enters the fix pass` · implement 字面 `dispatches the next ready wave` · 示例枚举父段 `implement --plan`/`review --type`/`fix --type`/done 清单）· 保留 review 派发行（`Dispatch the review round on the current ref`）· 保留规则句（`read the output's next: line and dispatch it as written` · 无 kind→command 映射层 · adjudication 覆盖当前世界态） — checkable: 三 SKILL.md NEXT-LOOP/不变体节点零 next: 字面复述（grep 三文件 `re-enters the fix pass` / `dispatches the next ready wave` 零命中 · 不变体内 `implement --plan` 零命中 · review 派发行 + 规则句在册）
+  - **D20②**：三编排器 fix 父句 `(read file back to confirm)` → `(confirm the findings · backfill user adjudications into the carrier)`——同步位 = spec-writer/plan NEXT-LOOP 现句 + 各 Review Convergence 不变体句（spect-writer I1 · plan I1 · design I2）· 读回 findings 确认 + 评审有裁定则回填进 findings carrier · **cdd-design NEXT-LOOP 已零字面（零改）· cdd-dev 面零动（D20 据用户裁定不入 cdd-dev 面）** — checkable: `cdd-{spec-writer,design,plan}/SKILL.md` 三文件 `(read file back to confirm)` 零残留 · `(confirm the findings · backfill user adjudications into the carrier)` 在册（NEXT-LOOP 两 hit = spec-writer + plan · 不变体三 hit = spec-writer I1 + plan I1 + design I2）
   - presentation-surface / grep-sweep pins 翻新（skill 文本断言面随更替重锚） — checkable: 翻新 pins 在册且断言非空
   - 跑 `node --test packages/kairos/tests/*.test.ts` — checkable: 全绿（行为树 87 项保持 · 含翻新 pins）
   - 跑 `pnpm run precommit` — checkable: 过（kairos anatomy/word-face 对翻新后文本判压）
-  - 提交（`docs(kairos): 消费面同步——schema get --output skeleton dispatch 字面 · pins 翻新`） — checkable: git log 单原子
-- **Acceptance**: kairos skills 全树 schema gen/smoke-cdd/run.ts validate 旧字面零残留（历史记载除外）· 行为树 suite 全绿 · 翻新 pins 在册 · precommit 过
+  - 提交（`docs(kairos): 消费面同步——schema get --output skeleton dispatch 字面 · D20 NEXT-LOOP 精简 · pins 翻新`） — checkable: git log 单原子
+- **Acceptance**: kairos skills 全树 schema gen/smoke-cdd/run.ts validate 旧字面零残留（历史记载除外）· **三编排器 NEXT-LOOP/I1 零 `next:` 字面复述（`re-enters the fix pass`/`dispatches the next ready wave`/I1 内 `implement --plan` 零命中）· `(read file back to confirm)` 三 SKILL.md 零残留 · `(confirm the findings · backfill user adjudications into the carrier)` 在册** · 行为树 suite 全绿 · 翻新 pins 在册 · precommit 过
 - **DependsOn**: 4, 7, 8
 
 ### Task 12: emit.ts 六前提重整（OOP 类族 · 产物字节零 drift）
@@ -249,7 +251,7 @@
 - **Steps**:
   - `pnpm exec changeset status` 先查累计 pending（确认 oscaner-key-rename kairos major 现状） — checkable: 现状清单无 empty 条目
   - 建 cdd-engine major changeset（breaking 段落叙事：schema gen→get 并入 · Cli.create 组合根 · smoke 入口迁移 · 校验归域实施） — checkable: .changeset 两文件在册且类型明确
-  - 建 kairos patch changeset（消费面同步：schema get dispatch 字面 · 随字节更替同步） — checkable: 两文件 EOF 恰一 newline
+  - 建 kairos patch changeset（消费面同步：schema get dispatch 字面 · D20 NEXT-LOOP 精简 + fix 父句 confirm+backfill · 随字节更替同步） — checkable: 两文件 EOF 恰一 newline
   - `pnpm exec changeset status` — checkable: 无 empty 条目 · 类型与叙事可读
   - 不发布（零 tag/publish 动作）· 提交（`chore: P5 变更集归并——cdd-engine major + kairos patch（不发布）`） — checkable: git log 单原子
 - **Acceptance**: 两枚 changeset 在册 · `changeset status` 无 empty · 叙事含 breaking 段（major）· 零发布动作 · EOF 恰一 newline
@@ -260,3 +262,4 @@
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-13 | P5 计划 v0.1——整引擎 + repo CI 验证脚本重整（spec v0.3 Approved · D18 九裁定 + D19 schema 并入）：14 任务 · DependsOn 闭包派生 7 wave（归域三承 T1/T2/T3 + schema 并入 T4 → 根零验证 T5 · scripts 收类 T6 · 引擎收口 T9 → smoke 迁引擎 T7 · CI 原生 T8 · emit 起点并入 T12 → 测试面迁移 T10 · 消费面同步 T11 → 验收证据面 T13 → 变更集归并 T14 · 不发布）· 波序按 closure 自动推导（引擎 review/implement derived waves）| Oscar M. · Claude Opus 5（kairos:cdd-plan [P5] 会话 · 2026-10-13） |
+| v0.2 | 2026-10-13 | P5 计划 v0.2——**D20 消费面精简 backfill（用户 in-flight · 2026-10-13 · spec v0.4）**：T11 扩 D20 ①②——① 三编排器 skill（cdd-spec-writer · cdd-design · cdd-plan）NEXT-LOOP **零 `next:` 具体字面复述**（只遵循 review 输出携带字面派发）· **I1 Review Convergence 同简** ② fix 父句 `(read file back to confirm)` → `(confirm the findings · backfill user adjudications into the carrier)`（读回确认 + 裁定回填 findings carrier）· T14 kairos patch 叙事 +D20 | Oscar M. · Claude Opus 5（kairos:cdd-plan [P5] 会话 · 2026-10-13） |

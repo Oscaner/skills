@@ -7,6 +7,7 @@
 // imported).
 
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -31,6 +32,32 @@ function run(
     stderr: result.stderr ?? "",
   };
 }
+
+describe("the T9 deliberate pin — the NodeEnvGuard + Cli.create entry (the class-face boot)", () => {
+  it("the entry is the NodeEnvGuard class member + the Cli.create factory — zero module-level functions in bin.ts", () => {
+    // bin.ts is only ever executed, never imported, so the entry form is pinned
+    // from its source: the environment pre-flight is a class static judgement and
+    // the CLI face boots through the Cli.create static factory — a regression to a
+    // module-level `bootEnvironmentProblem`/`cli` function trips this pin.
+    const src = readFileSync(BIN, "utf8");
+    expect(src).not.toMatch(/^(export )?(async )?function /m);
+    expect(src).toMatch(/class NodeEnvGuard/);
+    expect(src).toMatch(/NodeEnvGuard\.problem\(\)/);
+    expect(src).toMatch(/const \{ Cli \} = await import\("\.\/face\/cli\.ts"\)/);
+    expect(src).toMatch(/Cli\.create\(\)\.runArgv/);
+  });
+
+  it("the environment guard's message + exit bytes are pinned (the below-floor word face)", () => {
+    const src = readFileSync(BIN, "utf8");
+    // The byte message is produced from the NODE_FLOOR row — both the floor and the
+    // template production are pinned so the below-floor word face cannot drift.
+    expect(src).toContain("const NODE_FLOOR = { major: 22, minor: 18 } as const;");
+    expect(src).toMatch(
+      /cdd requires Node >= \$\{NODE_FLOOR\.major\}\.\$\{NODE_FLOOR\.minor\} \(native type stripping\) — installed: \$\{process\.versions\.node\}/,
+    );
+    expect(src).toContain("process.exit(1)");
+  });
+});
 
 describe("the bin bootstrap — cli load + exit-code plumbing (black-box)", () => {
   it("`node src-next/bin.ts schema get plan` prints the derived plan schema + exits 0 (the T13 checkable)", () => {

@@ -2,9 +2,9 @@
 // T11 + T8 — the command face + composition root (design spec §3.3: the cdd CLI
 // command surface — implement / review / fix / schema / issue / base — is kept as a
 // steady word face; T20 converges the base command face to `base` — the six-command
-// surface unchanged in count). This module is the new tree's SOLE BARE ENTRY: the
-// `cli` composition root (the module's one bare-function export, admitted by the
-// plan's zero-bare-function discipline for composition roots) wires the contract /
+// surface unchanged in count). This module is the new tree's composition root: the
+// `Cli.create` static factory — the class face is the entry, the module carries zero
+// bare functions (the composition root's deliberate class form) — wires the contract /
 // session / face objects into the ONE CLI the bin thin entry boots. Task 3 (P1)
 // reorganized the face into one boundary per responsibility — the CLI declaration
 // single surface (face/declare.ts, §2.4 — the six subcommand rows + the argv
@@ -39,8 +39,8 @@
 //     through the same assembled objects (the pure runs + the readiness gates
 //     delegate to the split faces above — the root orchestrates, never re-types).
 
-// Module-level exports are types / constant data / classes / the cli composition
-// root — zero behavior-carrying bare functions.
+// Module-level exports are types / constant data / classes — zero behavior-carrying
+// bare functions (the composition root is the Cli class's static create factory).
 
 import { readFileSync } from "node:fs";
 import process from "node:process";
@@ -823,20 +823,16 @@ export class Cli {
     if (parsed.leaf === "get") return this.#artifacts.baseGet(path);
     this.#usage(node, "cdd base: missing <set|get> subcommand");
   }
-}
 
-// ---------------------------------------------------------------------------
-// the composition root — the module's sole bare-function export
-// ---------------------------------------------------------------------------
-
-/**
- * cli(opts?) — the composition root: wires the engine's object graph (contract:
- * the projector over the declared registries · session: the ledger + lifecycle +
- * task graph + next router · face: the words + capsule · infra: the config loader +
- * git + the sync process seam) into the ONE Cli the bin thin entry boots. Every
- * collaborator is overridable for the hermetic test face (io / dispatch / repoRoot);
- * the defaults bind the living process.
- */
-export function cli(opts: CliOptions = {}): Cli {
-  return new Cli(opts);
+  /**
+   * Cli.create(opts?) — the composition root's static factory: wires the engine's
+   * object graph (contract: the projector over the declared registries · session: the
+   * ledger + lifecycle + task graph + next router · face: the words + capsule ·
+   * infra: the config loader + git + the sync process seam) into the ONE Cli the bin
+   * thin entry boots. Every collaborator is overridable for the hermetic test face
+   * (io / dispatch / repoRoot); the defaults bind the living process.
+   */
+  static create(opts: CliOptions = {}): Cli {
+    return new Cli(opts);
+  }
 }

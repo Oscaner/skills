@@ -4,10 +4,30 @@
 // Distinct layer from the engine module unit tests (their helpers are inline): this file serves
 // the behavior/integration test tree under packages/kairos/tests/ (bash boundary tests).
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { SKILL_ANATOMY } from "../../cdd-engine/src-next/contract/skill-anatomy.ts";
 import { HOSTS } from "../../cdd-engine/src-next/face/host.ts";
+
+// ---------------------------------------------------------------------------
+// the kairos skills-count single truth (the P5 validation-domicile closure
+// re-homed this from the root guard plane — the pi-package consumers own it)
+// ---------------------------------------------------------------------------
+
+/** "A skill = a directory containing SKILL.md" — the shared count definition the
+ *  pi-package tests (pi-package.test.ts · pi-install-smoke.test.ts) consume; a
+ *  definition change needs this one edit only. */
+export function countSkillsWithMarkdown(dir: string): number {
+  return readdirSync(dir, { withFileTypes: true }).filter(
+    (e) => e.isDirectory() && existsSync(path.join(dir, e.name, "SKILL.md")),
+  ).length;
+}
+
+/** The authoritative kairos skills count — the closed six-set's cardinality from the
+ *  typed skill-anatomy roster (never a local literal); shared by the pi-package
+ *  tests (a definition change is a roster edit). */
+export const EXPECTED = Object.keys(SKILL_ANATOMY.skills.registry).length;
 
 // T21: the harness data lives in the engine's typed host contract (src-next/face/host.ts) — the
 // row `cli` fields are what the free-path filter must drop from PATH (the new data plane's home;

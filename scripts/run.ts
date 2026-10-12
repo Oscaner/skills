@@ -1,18 +1,17 @@
 #!/usr/bin/env node
-// scripts/run.ts — the repo automation entry: the single orchestrator face over the
-// emit + validate + precommit + smoke surfaces. The thin wrapper modules fold here:
-// `emit` writes the product set into the repo root, `emit-check`/`validate`/`precommit`
-// run the composed validate runner (its step set is the data table; precommit is the
-// tree-independent subset), `smoke-cdd` boots the new-tree bin over a fixture repo.
-// This file is the composition root — the orchestrators' declared entry, executable
-// directly or consumed by tests.
+// scripts/run.ts — the repo automation entry: the emit surfaces + the smoke door.
+// `emit` writes the product set into the repo root, `emit-check` byte-compares it
+// against the committed products, `smoke-cdd` boots the new-tree bin over a fixture
+// repo. The validate orchestrator is dissolved (P5 — every check lives in its owning
+// package suite; the native per-suite CI sequence succeeds it). This file is the
+// composition root — the orchestrators' declared entry, executable directly or
+// consumed by tests.
 
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { emitComparer, emitService, REPO_ROOT } from "./emit.ts";
 import { smokeCdd } from "./smoke-cdd.ts";
-import { precommitSteps, steps, validateRunner } from "./validate.ts";
 
 async function main(): Promise<void> {
   const verb = process.argv[2];
@@ -35,21 +34,13 @@ async function main(): Promise<void> {
       }
       return;
     }
-    case "validate": {
-      process.exitCode = await validateRunner.run(steps);
-      return;
-    }
-    case "precommit": {
-      process.exitCode = await validateRunner.run(precommitSteps);
-      return;
-    }
     case "smoke-cdd": {
       smokeCdd.run();
       console.log("OK — smoke-cdd dry-run chain green (new-tree bin)");
       return;
     }
     default:
-      process.stderr.write("usage: run <emit|emit-check|validate|precommit|smoke-cdd>\n");
+      process.stderr.write("usage: run <emit|emit-check|smoke-cdd>\n");
       process.exitCode = 2;
   }
 }

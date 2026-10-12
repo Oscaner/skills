@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // src-next/bin.ts — the P3.2 new-tree CLI entry. The whole command tree, the parse
 // face and the run bodies live in face/cli.ts (T11 — the composition root); this
-// file only boots it: pass the raw argv to the composed `cli`, exit by its code.
-// The dev face runs this source directly under Node >=22.18 (native type stripping);
-// the published artifact runs the tsc-emitted dist/bin.js. Unconditional boot — this
-// artifact is only ever executed as the CLI entry, never imported.
+// file only boots it: pass the raw argv to the composed `Cli` (the static factory —
+// the class face is the entry, the module carries zero bare functions), exit by its
+// code. The dev face runs this source directly under Node >=22.18 (native type
+// stripping); the published artifact runs the tsc-emitted dist/bin.js. Unconditional
+// boot — this artifact is only ever executed as the CLI entry, never imported.
 import process from "node:process";
 
 // The environment pre-flight — the engine's `engines` floor (package.json#engines
@@ -13,7 +14,7 @@ import process from "node:process";
 // tsc-emitted dist/bin.js, plain JS) on any below-floor Node, and dev-face setups
 // that load the `.ts` entry behind the type-stripping flag while still below 22.18.
 // On those surfaces it exits with a self-explaining message + exit 1 before the
-// cli face loads — the cli is `await import`ed only after the check, so that
+// cli face loads — the Cli face is `await import`ed only after the check, so that
 // ordering is real where reachable. It cannot cover the plain `node src-next/bin.ts`
 // dev face on a below-22.18 Node: there the loader itself rejects the `.ts` entry
 // (native type stripping), so no engine JS — including this guard — ever runs; that
@@ -21,15 +22,26 @@ import process from "node:process";
 // guard is a no-op — floor-consistent, never over-strict.
 const NODE_FLOOR = { major: 22, minor: 18 } as const;
 
-function bootEnvironmentProblem(): string | null {
-  const [major, minor] = process.versions.node.split(".").map((part) => Number.parseInt(part, 10));
-  if (major < NODE_FLOOR.major || (major === NODE_FLOOR.major && minor < NODE_FLOOR.minor)) {
-    return `cdd requires Node >= ${NODE_FLOOR.major}.${NODE_FLOOR.minor} (native type stripping) — installed: ${process.versions.node}`;
+/**
+ * NodeEnvGuard — the entry's environment pre-flight, a static-judgement class (the
+ * module carries zero bare functions). problem() returns the below-floor message or
+ * null; the gate semantics and the exit message bytes are the boot guard's pinned
+ * face — the version floor and the wording never drift from this run.
+ */
+// biome-ignore lint/complexity/noStaticOnlyClass: the plan-mandated static guard surface — the zero-bare-function discipline admits no standalone predicate functions.
+class NodeEnvGuard {
+  static problem(): string | null {
+    const [major, minor] = process.versions.node
+      .split(".")
+      .map((part) => Number.parseInt(part, 10));
+    if (major < NODE_FLOOR.major || (major === NODE_FLOOR.major && minor < NODE_FLOOR.minor)) {
+      return `cdd requires Node >= ${NODE_FLOOR.major}.${NODE_FLOOR.minor} (native type stripping) — installed: ${process.versions.node}`;
+    }
+    return null;
   }
-  return null;
 }
 
-const environmentProblem = bootEnvironmentProblem();
+const environmentProblem = NodeEnvGuard.problem();
 if (environmentProblem !== null) {
   process.stderr.write(`${environmentProblem}\n`);
   process.exit(1);
@@ -40,8 +52,8 @@ if (environmentProblem !== null) {
 // composition-root load/crash to the message + exit 1, never an unhandled
 // rejection. `await import` keeps the environment pre-flight ahead of the load.
 try {
-  const { cli } = await import("./face/cli.ts");
-  const exitCode = await cli().runArgv(process.argv.slice(2));
+  const { Cli } = await import("./face/cli.ts");
+  const exitCode = await Cli.create().runArgv(process.argv.slice(2));
   process.exit(exitCode);
 } catch (raw) {
   process.stderr.write(`cdd: ${raw instanceof Error ? raw.message : String(raw)}\n`);

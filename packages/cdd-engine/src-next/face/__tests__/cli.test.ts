@@ -51,7 +51,7 @@ import { FIX_READBACK_SUFFIX } from "../../session/next.ts";
 import type { OpenFrame } from "../../session/run.ts";
 import { Capsule } from "../capsule.ts";
 import type { CliIo, CliOptions, DispatchScene, SyncProcess } from "../cli.ts";
-import { cli, HarnessDispatch } from "../cli.ts";
+import { Cli, HarnessDispatch } from "../cli.ts";
 import { CLI_COMMANDS, type CliVerb } from "../declare.ts";
 import { CommandTreeBuilder } from "../projection.ts";
 import { Words } from "../words.ts";
@@ -121,7 +121,7 @@ class CaptureIo implements CliIo {
 }
 
 interface CliFixture {
-  command: ReturnType<typeof cli>;
+  command: Cli;
   io: CaptureIo;
   repoRoot: string;
   cleanup: () => void;
@@ -131,7 +131,7 @@ interface CliFixture {
 function fixture(opts: CliOptions = {}): CliFixture {
   const repoRoot = mkdtempSync(path.join(tmpdir(), "cli-"));
   const io = new CaptureIo();
-  const command = cli({ io, repoRoot, ...opts });
+  const command = Cli.create({ io, repoRoot, ...opts });
   return {
     command,
     io,
@@ -2879,6 +2879,24 @@ describe("the pure commands — schema / issue / base", () => {
     } finally {
       cleanup();
     }
+  });
+});
+
+describe("T9 — the composition-root entry is the Cli.create static factory (deliberate pin)", () => {
+  it("the module's composition root is the class static factory — zero bare-function entry", () => {
+    // The P5 zero-bare-function closure locked the composition root's class form:
+    // the sole entry is the Cli.create static factory, never a module-level `cli`
+    // function (a regression trips this source-level pin — the deliberate T9 break).
+    const src = readFileSync(new URL("../cli.ts", import.meta.url), "utf8");
+    expect(src).toContain("static create(opts: CliOptions = {}): Cli");
+    expect(src).not.toContain("export function cli");
+    expect(src).not.toMatch(/^(export )?(async )?function /m);
+  });
+
+  it("Cli.create is a live factory — the default construction resolves a working Cli", async () => {
+    const command = Cli.create();
+    const exit = await command.runArgv([]);
+    expect(exit).toBe(2);
   });
 });
 

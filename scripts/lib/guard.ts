@@ -51,6 +51,11 @@ import {
   REFS,
 } from "../../packages/cdd-engine/src-next/face/host.ts";
 import { GUARD_BAN_WORDS } from "../../packages/cdd-engine/src-next/face/words.ts";
+import {
+  HANDOFF_WRITE_PLANE,
+  HandoffSchema,
+  type HandoffSchemaFace,
+} from "../../packages/cdd-engine/src-next/session/handoff-schema.ts";
 import { scanToken } from "./scan.ts";
 
 /** The guard finding — one violation of a check face (label + file attribution). */
@@ -80,6 +85,23 @@ export interface ClaimedPinsOptions {
    *  (default: the bounded discovery walk over the engine src + scripts + kairos
    *  test roots — explicit roots, never an unbounded sweep). */
   testFiles?: readonly string[];
+}
+
+/** The handoff-plane audit options — the injection seam for the three checks' fakes
+ *  (the same pattern as the claimed-pin options: the real defaults read the engine's
+ *  single-source exports, a test injects a broken table to exercise a fail face). */
+export interface HandoffPlaneOptions {
+  /** The declared writable-subset node per face — the injectable fake declarations
+   *  (default: the engine's `HandoffSchema#faceSchema` accessor — the BY_FACE nodes). */
+  declared?: Readonly<
+    Record<HandoffSchemaFace, Readonly<{ properties?: Readonly<Record<string, unknown>> }>>
+  >;
+  /** The engine's carrier write plane per face — the injectable broken enumeration
+   *  (default: the handoff-schema module's HANDOFF_WRITE_PLANE export). */
+  writePlane?: Readonly<Record<HandoffSchemaFace, readonly string[]>>;
+  /** The projection-① generator — the injectable fake schemaText (default: the
+   *  engine's `HandoffSchema#schemaText` projection). */
+  schemaText?: (face: HandoffSchemaFace, evidence: boolean) => string;
 }
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -788,6 +810,104 @@ export class GuardLibrary {
             file: "packages/cdd-engine/src-next/face/host.ts",
           });
         }
+      }
+    }
+
+    return findings;
+  }
+
+  // -------------------------------------------------------------------------
+  // checkHandoffPlane(opts?) — the handoff-plane audit (declared faces × write plane)
+  // -------------------------------------------------------------------------
+
+  /**
+   * checkHandoffPlane(opts?) — the handoff writable-subset audit (the plan's T3
+   * machine half): ① the two faces' declared `properties` key sets stay
+   * role-distinctive — the findings exclusive (`findings`) never rides the work
+   * declaration, the work exclusives (`status` / `failure_category` / `changes`)
+   * never ride the findings declaration (the SHARED carrier rows — artifacts /
+   * commits / notes — are declared on both faces by design, so literal key-set
+   * disjointness would fire on the live tree; the exclusives ARE the role); ② the
+   * engine's carrier WRITE plane ⊆ the face's declared `properties` — an undeclared
+   * write (a D13-style `findings` mirror into the work carrier) fails the audit —
+   * modulo the engine-authority `status`, the round conclusion that rides the
+   * caller's set below the skeleton on BOTH faces (the findings subset declares no
+   * status, yet the persisted findings carrier carries the rolled-up one); ③ the
+   * prompt-injection projection is consistent with the declaration — the
+   * `schemaText(face)` ```json fence parses byte-identically to the face's declared
+   * node (the prompt can never show a schema the engine does not declare). All three
+   * default to the engine's single-source exports; the options let tests inject a
+   * broken table to exercise a fail face.
+   */
+  checkHandoffPlane(options: HandoffPlaneOptions = {}): GuardFinding[] {
+    const findings: GuardFinding[] = [];
+    const schema = new HandoffSchema();
+    const declared = options.declared ?? {
+      work: schema.faceSchema("work") as { properties?: Readonly<Record<string, unknown>> },
+      findings: schema.faceSchema("findings") as {
+        properties?: Readonly<Record<string, unknown>>;
+      },
+    };
+    const writePlane = options.writePlane ?? HANDOFF_WRITE_PLANE;
+    const projection =
+      options.schemaText ?? ((face: HandoffSchemaFace) => schema.schemaText(face, false));
+
+    // ① the role-distinctive exclusives — the pinned role vocabulary, the two faces'
+    //    declarations stay role-separate (the shared carrier rows are both-faced by design).
+    if ("findings" in (declared.work.properties ?? {})) {
+      findings.push({
+        label: `the work writable subset declares the findings-face exclusive field "findings" (role-distinctive mutual exclusion broken — the work carrier must stay findings-free)`,
+        file: "packages/cdd-engine/src-next/session/handoff-schema.ts",
+      });
+    }
+    for (const key of ["status", "failure_category", "changes"]) {
+      if (key in (declared.findings.properties ?? {})) {
+        findings.push({
+          label: `the findings writable subset declares the work-face exclusive field "${key}" (role-distinctive mutual exclusion broken — the findings carrier must stay child-conclusion-free)`,
+          file: "packages/cdd-engine/src-next/session/handoff-schema.ts",
+        });
+      }
+    }
+
+    // ② the write plane ⊆ declared (mod the engine-authority status — the engine's
+    //    own conclusion key rides both faces, declared or not).
+    for (const face of ["work", "findings"] as const) {
+      const writable = writePlane[face];
+      if (writable === undefined) continue;
+      for (const key of writable) {
+        if (key !== "status" && !(key in (declared[face].properties ?? {}))) {
+          findings.push({
+            label: `handoff ${face} write plane names "${key}", undeclared in the face's writable subset (an undeclared write is the D13 mirror defect)`,
+            file: "packages/cdd-engine/src-next/session/handoff-schema.ts",
+          });
+        }
+      }
+    }
+
+    // ③ the projection consistency — the injected fence parses to the declared node.
+    for (const face of ["work", "findings"] as const) {
+      const text = projection(face, false);
+      const fence = text.split("```json\n")[1]?.split("\n```")[0];
+      if (fence === undefined) {
+        findings.push({
+          label: `handoff ${face} projection ① produces no \`\`\`json fence (the prompt-injection projection is broken)`,
+          file: "packages/cdd-engine/src-next/session/handoff-schema.ts",
+        });
+        continue;
+      }
+      try {
+        const parsed: unknown = JSON.parse(fence);
+        if (JSON.stringify(parsed) !== JSON.stringify(declared[face])) {
+          findings.push({
+            label: `handoff ${face} projection ① fence parses to a different node than the declared writable subset (the prompt shows a schema the engine does not declare)`,
+            file: "packages/cdd-engine/src-next/session/handoff-schema.ts",
+          });
+        }
+      } catch {
+        findings.push({
+          label: `handoff ${face} projection ① fence is not parseable JSON (the prompt shows a schema the engine does not declare)`,
+          file: "packages/cdd-engine/src-next/session/handoff-schema.ts",
+        });
       }
     }
 

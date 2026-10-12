@@ -641,6 +641,56 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
   });
 });
 
+describe("T2 — the bookkeep fallback rides the frame's declared face", () => {
+  it("the work fallback builds a findings-free carrier — the persisted implement handoff carries zero findings keys (the work face)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = taskGraph([task(1, "none")]);
+      const dispatch = stub(() => APPROVED_IMPLEMENT);
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+      });
+      run.advance();
+      const carrier = ledger.readHandoff("implement", "wave", { tasks: "1" });
+      expect(carrier).not.toBeNull();
+      expect(Object.keys(carrier!)).not.toContain("findings");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the docs-fix fallback carries the findings face — the persisted fix handoff HAS the findings key (a work-shaped fallback would fail this)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const dispatch = stub((frame) =>
+        frame.phase === "fix"
+          ? { status: "APPROVED", commits: { base: BASE, head: HEAD } }
+          : { status: "APPROVED", findings: [finding("blocker")] },
+      );
+      const run = new Lifecycle({
+        face: targetFaces.spec,
+        state: EMPTY_RUN_STATE,
+        ledger,
+        dispatch: dispatch.step,
+        target: { kind: "doc", doc: DOC },
+      });
+      expect(run.advance()!.route!.kind).toBe("fix");
+      run.advance();
+      const carrier = ledger.readHandoff("fix", "spec", { round: 1 });
+      expect(carrier).not.toBeNull();
+      // the fix-doc family is the findings face — the fallback carrier declares the
+      // findings key (empty: the fix outcome advances no new findings of its own)
+      expect(Object.keys(carrier!)).toContain("findings");
+      expect(carrier!.findings).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
 describe("the branch small loop — branch-review → fix → closure", () => {
   it("drives the branch line over the base..head range (the r{round} family names)", () => {
     const { ledger, cleanup } = fixture();

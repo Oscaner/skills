@@ -2152,6 +2152,32 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     }
   });
 
+  it("the materialized implement carrier on disk carries zero findings keys — the work face's zero-findings write path (T2)", async () => {
+    const { command, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const code = await command.runArgv([
+        "implement",
+        "--tasks",
+        "1",
+        "--plan",
+        plan,
+        "--dry-run",
+        "--root",
+        repoRoot,
+      ]);
+      expect(code).toBe(0);
+      const carrier = JSON.parse(
+        readFileSync(path.join(repoRoot, ".kairos", "cdd", "p3", "tasks-1-implement.json"), "utf8"),
+      ) as Record<string, unknown>;
+      expect("findings" in carrier).toBe(false);
+      expect(Object.keys(carrier)).not.toContain("findings");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("plan-graph — the board shows the in-wave ✔/▶ mix from closedWaves", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
@@ -3058,10 +3084,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           report: path.join(scene.workspace.path, "tasks-1-implement-report.md"),
           test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
         },
-        findings: [],
         commits: { base: "a".repeat(8), head },
         status: "APPROVED",
       });
+      // T2 — the materialized work carrier is the work face: zero findings key (the
+      // face-aware write path never injects the work-carrier findings byte bridge)
+      expect("findings" in outcome.carrier!).toBe(false);
     } finally {
       cleanup();
     }
@@ -3195,7 +3223,6 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           report: path.join(scene.workspace.path, "tasks-1-implement-report.md"),
           test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
         },
-        findings: [],
         commits: { base: "a".repeat(8), head },
         status: "APPROVED",
         notes: [
@@ -3203,6 +3230,8 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           expect.stringContaining("artifact test_evidence"),
         ],
       });
+      // T2 — the materialized work carrier is the work face: zero findings key
+      expect("findings" in outcome.carrier!).toBe(false);
     } finally {
       cleanup();
     }
@@ -3467,7 +3496,6 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           report: path.join(scene.workspace.path, "tasks-1-implement-report.md"),
           test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
         },
-        findings: [],
         commits: { base: "a".repeat(8), head: "b".repeat(8) },
         status: "BLOCKED",
         failure_category: "evidence-contract",
@@ -3477,6 +3505,9 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           expect.stringContaining("the test evidence at"),
         ],
       });
+      // T2 — the materialized work carrier is the work face: zero findings key (the
+      // evidence-contract rewrite never re-injects the work-carrier findings bridge)
+      expect("findings" in outcome.carrier!).toBe(false);
     } finally {
       cleanup();
     }

@@ -284,6 +284,10 @@ export const steps = [
     run: () => assertNoGuardFindings(guardLibrary.checkChannels()),
   }),
   new CheckBlock({
+    name: "engine handoff plane audit (declared faces × write plane × projection)",
+    run: () => assertNoGuardFindings(guardLibrary.checkHandoffPlane()),
+  }),
+  new CheckBlock({
     name: "doc-contract gate over the specs/plans tree (the engine judge)",
     run: checkDocContract,
   }),

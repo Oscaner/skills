@@ -92,6 +92,19 @@ describe("projection ① — the injected writable-subset schema text", () => {
     expect(schema.schemaText("findings", false)).toBe(schema.schemaText("findings", false));
     expect(schema.schemaText("work", true)).not.toBe(schema.schemaText("findings", false));
   });
+
+  it("the fence parses byte-identically to the declared face node — the one-hand projection pin (T3)", () => {
+    // The prompt-injection projection (schemaText) and the read-back declaration
+    // (faceSchema) are the SAME declared object's two projections: parses of the
+    // ```` ```json ```` fences must round-trip to the declared nodes byte-for-byte —
+    // the prompt can never show a schema the engine does not declare (the guard's
+    // checkHandoffPlane ③ asserts the same fact against the live tree).
+    for (const face of ["work", "findings"] as const) {
+      const text = schema.schemaText(face, false);
+      const parsed = JSON.parse(text.split("```json\n")[1]!.split("\n```")[0]!);
+      expect(JSON.stringify(parsed)).toBe(JSON.stringify(schema.faceSchema(face)));
+    }
+  });
 });
 
 describe("projection ② — the read-back validation (violations)", () => {

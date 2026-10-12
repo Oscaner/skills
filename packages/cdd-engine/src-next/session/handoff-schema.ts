@@ -155,6 +155,18 @@ const BY_FACE = {
   findings: CARRIER_FINDINGS,
 } as const satisfies Readonly<Record<HandoffSchemaFace, SchemaNode>>;
 
+/** The engine's carrier WRITE plane — the fields the carrier construction actually
+ *  writes per face (the machine half of the "write plane ⊆ declared" audit — an
+ *  undeclared write is the D13 mirror defect). The work face writes its six declared
+ *  fields; the findings face writes its four + the engine-authority conclusion
+ *  (`status` — the round conclusion rides the caller's set below the skeleton on BOTH
+ *  faces, an engine-only write the child never authors: the findings writable subset
+ *  declares no status, yet the persisted findings carrier carries the rolled-up one). */
+export const HANDOFF_WRITE_PLANE = {
+  work: ["status", "failure_category", "artifacts", "commits", "changes", "notes"],
+  findings: ["artifacts", "findings", "commits", "notes", "status"],
+} as const;
+
 /** The carrier value-type mapping — every declared carrier field's value type. This
  *  is the ONE hand-maintained byte table (the type-level twin of the schema property
  *  values); `CarrierOf<F>` maps each declared key through it. A wrong entry reads as a

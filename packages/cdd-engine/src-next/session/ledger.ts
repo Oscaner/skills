@@ -597,6 +597,14 @@ export class Ledger {
     return family;
   }
 
+  /** The handoff FACE of an op/type pair — the family's `schema` selector (work when
+   *  the family declares none). The face-aware read/write/bookkeep spine (T2): a
+   *  findings-face round rides the findings writable subset, a work-face round rides
+   *  the findings-free work subset — never the caller's guess. */
+  handoffFaceOf(op: OpType, type: TargetType): HandoffSchemaFace {
+    return this.#family(op, type).schema ?? "work";
+  }
+
   /** The canonical handoff file name — the family's `{placeholder}` pattern, filled. */
   handoffName(op: string, type: string, params: HandoffParams = {}): string {
     return this.#family(op, type)

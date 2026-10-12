@@ -526,7 +526,12 @@ export class HarnessDispatch {
         `the handoff draft at ${path} violates the ${face} schema: ${problems.join("; ")}`,
       );
     }
-    const findings = Array.isArray(draft.findings) ? draft.findings : [];
+    // T2 — the face-aware read: the findings face ALONE reads `draft.findings` (its
+    // own declared required field — rolled up to the conclusion); the work face
+    // derives its status from the draft's declared status, never the findings plane
+    // (the work writable subset declares no findings field — zero findings read).
+    const findings =
+      face === "findings" ? (Array.isArray(draft.findings) ? draft.findings : []) : [];
     let status: RoundStatus =
       face === "findings" ? schema.rollup(findings) : this.#workStatus(draft);
     let reason: string | null = null;
@@ -547,7 +552,7 @@ export class HarnessDispatch {
     }
     return {
       status,
-      findings: face === "findings" ? schema.findingsOf(draft.findings) : undefined,
+      findings: face === "findings" ? schema.findingsOf(findings) : undefined,
       commits: block.commits,
       artifacts: block.artifacts,
       carrier: this.#materialize(frame, face, draft, status, reason),
@@ -587,15 +592,13 @@ export class HarnessDispatch {
   ): Record<string, unknown> {
     const ledger = this.#scene.ledger;
     const notes: string[] = [];
-    // The per-face overload (T1 interim — the minimal compile-green migration; T2 splits
-    // the work face's materialized bytes): the findings face REQUIRES its findings
-    // payload (the findings carrier's required field — cli.test pins the review
-    // carrier's findings + status), the work face builds a findings-FREE typed carrier.
-    // `Record<string, unknown>` local: the round conclusion (status — a RoundStatus,
-    // wider than the carrier's declared union) and the engine's extended fields ride the
-    // caller's set below. The work face's `findings: []` below is the T1 byte bridge —
-    // the materialized work carrier still carries the empty findings key (plan: T2
-    // removes it — 物化终态载体 JSON 零 findings 键).
+    // The per-face carrier — buildHandoff's typed overloads: the findings face REQUIRES
+    // its findings payload (the schema-required field — cli.test pins the review
+    // carrier's findings + status), the work face builds a findings-FREE typed carrier
+    // (the work writable subset declares no findings field — the materialized work
+    // carrier carries zero findings keys). `Record<string, unknown>` local: the round
+    // conclusion (status — a RoundStatus, wider than the carrier's declared union) and
+    // the engine's extended fields ride the caller's set below.
     const carrier: Record<string, unknown> =
       face === "findings"
         ? ledger.buildHandoff("findings", {
@@ -607,7 +610,6 @@ export class HarnessDispatch {
             artifacts: this.#canonicalArtifacts(frame, draft.artifacts, notes),
             commits: this.#commitsOf(draft.commits),
           });
-    if (face === "work") carrier.findings = [];
     carrier.status = status;
     if (Array.isArray(draft.changes)) carrier.changes = draft.changes;
     if (typeof draft.failure_category === "string")

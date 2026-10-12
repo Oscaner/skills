@@ -495,21 +495,24 @@ export class Lifecycle {
     const blocked = outcome.status === "BLOCKED" || outcome.status === "TIMEOUT";
     if (outcome.carrier !== undefined || !blocked) {
       const op = this.#opOf(frame.phase);
-      // The engine-built fallback rides the per-outcome face (T1 interim — the minimal
-      // compile-green migration; T2's per-FRAME-face split generalizes it): a review
-      // outcome carries its findings (the route judges them), a work outcome carries
-      // none. The findings face REQUIRES its payload — the overload picks the carrier
-      // shape per presence, so the review finding-severity route survives byte-identical
-      // and a work outcome's carrier stays findings-free (plan: work 兜底零 findings 注入).
+      // T2 — the engine-built fallback rides the FRAME's declared face (the family's
+      // `schema` selector, never the outcome's field presence): a findings-face round
+      // (review / docs-fix) builds the findings carrier — its schema-required findings
+      // key, empty on a conclusion-only round (a fix advances no new findings); a
+      // work-face round builds the findings-free work carrier — zero findings
+      // injection. The review finding-severity route reads the round carrier's
+      // findings; the engine-authority conclusion (status) rides the caller's set below
+      // regardless of face (the round conclusion is the engine's, not the skeleton's).
+      const face = this.#ledger.handoffFaceOf(op, frame.type);
       const carrier: Record<string, unknown> =
         outcome.carrier ??
-        (outcome.findings === undefined
-          ? this.#ledger.buildHandoff("work", {
+        (face === "findings"
+          ? this.#ledger.buildHandoff("findings", {
+              findings: [...(outcome.findings ?? [])],
               commits: outcome.commits,
               artifacts: outcome.artifacts,
             })
-          : this.#ledger.buildHandoff("findings", {
-              findings: [...outcome.findings],
+          : this.#ledger.buildHandoff("work", {
               commits: outcome.commits,
               artifacts: outcome.artifacts,
             }));

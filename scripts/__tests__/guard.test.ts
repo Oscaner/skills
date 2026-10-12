@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 import { SKILL_ANATOMY } from "../../packages/cdd-engine/src-next/contract/skill-anatomy.ts";
 import { DISPATCH, type DispatchTable } from "../../packages/cdd-engine/src-next/face/host.ts";
 import { CAPSULE_WORDS, GUARD_BAN_WORDS } from "../../packages/cdd-engine/src-next/face/words.ts";
+import { HANDOFF_WRITE_PLANE } from "../../packages/cdd-engine/src-next/session/handoff-schema.ts";
 import { GuardLibrary, guardLibrary } from "../lib/guard.ts";
 import { scanToken } from "../lib/scan.ts";
 import { PRECONTRACT_DOCS } from "../validate.ts";
@@ -338,5 +339,85 @@ describe("checkClaimedPins — the claimed→pin lint (the spec/plan claim → c
     } finally {
       fx.cleanup();
     }
+  });
+});
+
+describe("checkHandoffPlane — the handoff writable-subset audit (T3)", () => {
+  /** The role-broken fake declaration pair — the work subset declares the findings
+   *  exclusive + the findings subset declares a work exclusive (both ① axes), while
+   *  staying write-plane- and projection-consistent (the ②/③ fakes align). */
+  const roleBroken = {
+    work: {
+      type: "object",
+      properties: {
+        status: {},
+        failure_category: {},
+        artifacts: {},
+        commits: {},
+        changes: {},
+        notes: {},
+        findings: {},
+      },
+    },
+    findings: {
+      type: "object",
+      properties: { findings: {}, artifacts: {}, commits: {}, notes: {}, status: {} },
+    },
+  };
+  /** The projection-① fake for a given declared pair — the faithful fence generator. */
+  const fenceOf =
+    (declared: {
+      work: { type?: string; properties?: Record<string, unknown> };
+      findings: { type?: string; properties?: Record<string, unknown> };
+    }) =>
+    (face: "work" | "findings") =>
+      `\`\`\`json\n${JSON.stringify(declared[face])}\n\`\`\``;
+
+  it("passes against the live handoff declarations (the checkable's green face)", () => {
+    const findings = guardLibrary.checkHandoffPlane();
+    expect(
+      findings.map((f) => f.label).join("\n"),
+      `live handoff-plane findings:\n${findings.map((f) => `  ${f.file}: ${f.label}`).join("\n")}`,
+    ).toBe("");
+  });
+
+  it("fires when the declared subsets blur the face roles — a work-key in the findings subset breaks the exclusivity (①)", () => {
+    const findings = guardLibrary.checkHandoffPlane({
+      declared: roleBroken,
+      writePlane: HANDOFF_WRITE_PLANE,
+      schemaText: fenceOf(roleBroken),
+    });
+    const labels = findings.map((f) => f.label);
+    expect(labels.join("\n")).toContain(
+      "work writable subset declares the findings-face exclusive",
+    );
+    expect(labels.join("\n")).toContain(
+      "findings writable subset declares the work-face exclusive",
+    );
+    expect(findings).toHaveLength(2);
+  });
+
+  it("fires when the write plane names a key the face never declares — the D13 mirror write (②)", () => {
+    const findings = guardLibrary.checkHandoffPlane({
+      writePlane: {
+        work: ["artifacts", "commits", "status", "findings"],
+        findings: HANDOFF_WRITE_PLANE.findings,
+      },
+    });
+    const labels = findings.map((f) => f.label);
+    // the work write plane mirrors `findings` — undeclared on the work face
+    expect(labels.join("\n")).toContain('handoff work write plane names "findings"');
+    expect(findings).toHaveLength(1);
+  });
+
+  it("fires when the projection-① fence differs from the declared node — the prompt shows an undeclared schema (③)", () => {
+    const findings = guardLibrary.checkHandoffPlane({
+      schemaText: () => '```json\n{"type":"object","properties":{"findings":{}}}\n```',
+    });
+    const labels = findings.map((f) => f.label);
+    expect(labels.join("\n")).toContain(
+      "parses to a different node than the declared writable subset",
+    );
+    expect(findings).toHaveLength(2); // both faces drift from their declared nodes
   });
 });

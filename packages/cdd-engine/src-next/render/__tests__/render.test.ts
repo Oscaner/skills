@@ -11,6 +11,7 @@
 import { describe, expect, it } from "vitest";
 import { Translator } from "../../contract/translate.ts";
 import { Words } from "../../face/words.ts";
+import { HandoffSchema } from "../../session/handoff-schema.ts";
 import { BriefRenderer } from "../brief.ts";
 import { IssueBodyRenderer, type IssueReportInput } from "../issue-body.ts";
 import { TemplateAssembler } from "../templates.ts";
@@ -120,6 +121,39 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     // conditional TDD — the B1 appliesTo semantics: only when the finding demands a
     // behavior change AND the change lacks tests, never a blanket discipline
     expect(out).toContain("requires a behavior change");
+  });
+
+  it("T5 — the fix shell enumerates the work face's declared fields + the INPUT_FINDINGS read-only guard (single-source keyset)", () => {
+    const out = assembler.render({
+      ...ALL_VALUES,
+      ROLE: "fix",
+      INPUT_FINDINGS: "/ws/tasks-1-review-1.json",
+      FIX_BASE: "a".repeat(8),
+    });
+    // the whitelist sentence — the first line after the **Writable fields:** marker
+    const whitelist = out.split("**Writable fields:**")[1]!.split("\n")[0]!;
+    // single-source keyset: EVERY declared work field rides the enum — a declaration
+    // edit fails this pin, signaling the shell text must carry the new field
+    for (const key of Object.keys(new HandoffSchema().faceSchema("work").properties ?? {})) {
+      expect(whitelist).toContain(`\`${key}\``);
+    }
+    // the read-only guard — the source review's findings never mirror into the work draft
+    expect(out).toContain("**Findings read-only:**");
+    expect(out).toContain("READ-ONLY");
+  });
+
+  it("T5 — the docs-fix shell enumerates the findings face's declared fields + the carried-as-is guard (single-source keyset)", () => {
+    const out = assembler.render({
+      ...ALL_VALUES,
+      ROLE: "docs-fix",
+      INPUT_DOC: "docs/x-design.md",
+    });
+    const whitelist = out.split("**Writable fields:**")[1]!.split("\n")[0]!;
+    for (const key of Object.keys(new HandoffSchema().faceSchema("findings").properties ?? {})) {
+      expect(whitelist).toContain(`\`${key}\``);
+    }
+    expect(out).toContain("**Findings carried as-is:**");
+    expect(out).toContain("VERBATIM");
   });
 
   it("renders the review mode per type — the criteria/lens fold into the fixed prefix", () => {

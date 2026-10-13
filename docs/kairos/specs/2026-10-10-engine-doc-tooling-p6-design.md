@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P6 设计：single-spec 骨架 + 命名统一 + kairos vitest 迁移 + 过时文档清理
-- **Version**: v0.3 · 2026-10-13
+- **Version**: v0.4 · 2026-10-13
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P6] 会话 · 用户裁定 · 2026-10-13）
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](2026-10-10-engine-doc-tooling-overall.md)
@@ -105,6 +105,7 @@
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.4 | 2026-10-13 | **P6 closeout（cdd-close）**：设计审查通过（spec review 链 v0.3 Approved）· 计划 v0.3 批准并实现全闭合——四 wave 实现链全绿（W1={1,5,8} single-spec 词表改名 + kairos vitest 配置 + 过时文档清理 → W2={2,6} single-spec doc 型 + 测试文件迁移 → W3={3,4,7} 引擎 pins 收口 + 消费面字面同步 + 零裸函数收编 → W4={9} 变更集）+ 分支终审 → 分支 fix 闭环（branch-review-1 blocker（T8 收编未落地）→ branch-fix：a988a489 单 spec 槽位英文化 + maintainers 三篇收编 · branch-review-2 3 findings（尺寸未达 + ledger Before 求和 + 标题重锚）→ 用户裁定继续精简 → branch-fix-2：7fb24351 maintainers 家族收敛至 13,479B ~13KB + Total Before 守卫 + 标题对齐三件全落地）· 编排器回填（I6 后置：spec/plan 由 v0.1 逐行事实修正 → v0.2 激进收编（用户裁定）→ v0.3 槽位英文化）· 验收全项交付（`pnpm run validate` exit 0 · typecheck ×3 · 引擎 vitest 532/532 · kairos 75/75 · emit-check fresh · version-sync kairos 0.2.0 · cdd-engine 1.0.0 · 零裸函数 grep 零命中 · EOF 全绿 · 不发布）· 父 overall v2.21 登记 P6 → Done | [human] · Claude Opus 5（kairos:cdd-close · closeout-backfill） |
 | v0.3 | 2026-10-13 | P6 设计 v0.3——single-spec 槽位标题中文 → 英文（用户裁定 2026-10-13：对齐其他 doc 型 English-primary）：§2.1 槽位 `背景与根因/设计裁定/验收/约束` → `## Background & root cause` / `## Design decisions` / `## Acceptance` / `## Constraints` · plan T2 pin 同步 | Oscar M. · Claude Opus 5（kairos:cdd-design [P6] · 用户裁定） |
 | v0.2 | 2026-10-13 | P6 设计 v0.2——运维文档激进收编（用户裁定 2026-10-13：运维文档不事无巨细 · 项目本身即最好 sample）：§5.2 由逐行事实修正改为 maintainers 五篇+index 48,555B → 三篇+index ~13KB 收编（删 01-template-doctrine / 04-program-experience / 06-skill-node-discipline · 更名 02/03 · 非机械项并入 01-doctrine）· Acceptance/Constraint/§1.2 recon 同步 | Oscar M. · Claude Opus 5（kairos:cdd-design [P6] · 用户裁定） |
 | v0.1 | 2026-10-13 | P6 设计 v0.1——single-spec 骨架 + 命名统一 + kairos vitest 迁移 + 过时文档清理（D21 注册 · D22 grilling 六裁定）：① single-spec doc 型（轻量脚手架 · header + `:::fill` 槽位 + Change history 表 · schema get single-spec --output skeleton · cdd-spec-writer 先 gen 后填）· ② 命名统一词表值域层（overall→overall-spec · single→single-spec · plan/phase-spec 不变 · 物理文件名 `*-overall.md` 零改名 · judge 派生 `-overall.md → overall-spec`）· ③ kairos vitest 全量迁移（pool forks 镜像引擎 · 11 文件 77 用例 · helpers 同迁）+ 零裸函数收编（12 处收 const · check:no-bare-functions scope 扩）· ④ 过时文档清理（root CLAUDE.md 三处 + maintainers 01:44/03:32 + README ledger · frozen 面零动）· 不发布 · 单 phase-spec 收口 | Oscar M. · Claude Opus 5（kairos:cdd-design [P6] 会话 · 用户裁定 · 2026-10-13） |

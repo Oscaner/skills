@@ -1,7 +1,7 @@
 # 引擎文档工具（Engine Doc-Tooling）— P6 实施计划：single-spec 骨架 + 命名统一 + kairos vitest 迁移 + 过时文档清理
 **Spec:** [2026-10-10-engine-doc-tooling-p6-design.md](../specs/2026-10-10-engine-doc-tooling-p6-design.md)
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](../specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.3 · 2026-10-13
+- **Version**: v0.4 · 2026-10-13
 
 ## Constraints
 
@@ -194,6 +194,7 @@
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.4 | 2026-10-13 | **P6 closeout（cdd-close）**：四 wave 实现链全绿（W1={1,5,8} single-spec 词表改名 + kairos vitest 配置 + 过时文档清理 → W2={2,6} single-spec doc 型 + 测试文件迁移 → W3={3,4,7} 引擎 pins 收口 + 消费面字面同步 + 零裸函数收编 → W4={9} 变更集 · 每波 implement→review 各 APPROVED）+ 分支终审 → 分支 fix 闭环（branch-review-1 blocker（T8 收编未落地 · plan v0.2 已重排）→ branch-fix：a988a489 single-spec 槽位英文化 + maintainers 三篇收编 · branch-review-2 3 findings（尺寸未达 + ledger Before 求和 + 标题重锚）→ 用户裁定继续精简 → branch-fix-2：7fb24351 maintainers 家族收敛至 13,479B ~13KB + Total Before 守卫 + 标题对齐三件全落地）· 编排器回填（I6 后置：T8 由 v0.1 逐行事实修正 → v0.2 激进收编（用户裁定）→ v0.3 槽位英文化 · Plan Sole Writer）· 验收全项交付（`.kairos/cdd/.../tasks-9-test-evidence` + branch-fix-2 evidence：`pnpm run validate` exit 0 · typecheck ×3 · 引擎 vitest 532/532 · kairos 75/75 · emit-check fresh · version-sync kairos 0.2.0 · cdd-engine 1.0.0 · 零裸函数 grep 零命中 · EOF 全绿）· 不发布 · 父 overall v2.21 登记 P6 → Done | [human] · Claude Opus 5（kairos:cdd-close · closeout-backfill） |
 | v0.3 | 2026-10-13 | P6 实施计划 v0.3——single-spec 槽位标题英文化（用户裁定 2026-10-13 · branch-review-1 warn-2 裁决）：T2 槽位名 `背景与根因/设计裁定/验收/约束` → `## Background & root cause` / `## Design decisions` / `## Acceptance` / `## Constraints`（Constraint L9 · T2 step-3/step-4 同步 · spec v0.3 回填）· 与引擎同名裁定对齐 | Oscar M. · Claude Opus 5（kairos:cdd-plan 修订 · Plan Sole Writer） |
 | v0.2 | 2026-10-13 | P6 实施计划 v0.2——T8 运维文档激进收编（用户裁定 2026-10-13 · spec v0.2 回填）：T8 由逐行事实修正改为 maintainers 五篇+index 48,555B → 三篇+index ~13KB 收编（删 01-template-doctrine · 04-program-experience 非机械项并入 · 06-skill-node-discipline 并入 · 02/03 更名收编 · 01-doctrine 收编精髓 + smoke 定位句）· 测试全套件重锚 · 消费面链接重指 · Constraints 同步 | Oscar M. · Claude Opus 5（kairos:cdd-plan 修订 · Plan Sole Writer） |
 | v0.1 | 2026-10-13 | P6 实施计划 v0.1——single-spec 骨架 + 命名统一 + kairos vitest 迁移 + 过时文档清理（spec v0.1 Approved）：W1{T1 overall-spec 词表改名 · T5 kairos vitest 配置 · T8 文档清理} → W2{T2 single-spec doc 型 · T6 测试文件迁移} → W3{T3 引擎 pins 收口 · T4 消费面字面同步 · T7 零裸函数收编} → W4{T9 变更集} · 任务块全用骨架 task-field 形态（`- **Objective/Files/Consumes/Produces/Steps/Acceptance/DependsOn**:` · step 带 `— checkable:`）· 不发布 | Oscar M. · Claude Opus 5（kairos:cdd-plan · 用户批准） |

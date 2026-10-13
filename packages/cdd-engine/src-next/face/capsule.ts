@@ -108,7 +108,7 @@ export class Capsule {
   /** The route → `next:` text render — one complete executable command per C5 route
    *  row (P4.1 T4): `implement --plan <path> --tasks 17` for a ready wave ·
    *  `review --type <wave|spec|plan|branch> <type-arg>` for a review hop ·
-   *  `fix --type <type> <type-arg> --findings <path> (read file back to confirm)`
+   *  `fix --type <type> <type-arg> --findings <path> (confirm the findings · backfill user adjudications into the carrier)`
    *  for the one-way fix hop · `done` as the bare terminal word · the soft-cap
    *  message verbatim. `--type` renders only where the verb's type discriminates —
    *  implement (the single-type wave verb) never carries it (the declaration's

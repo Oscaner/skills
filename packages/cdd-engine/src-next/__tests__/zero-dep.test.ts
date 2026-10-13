@@ -22,15 +22,14 @@ type RetiredPlane = "src" | "config";
 const RETIRED_PLANES: readonly RetiredPlane[] = ["src", "config"];
 
 /** Which retired plane a first path segment names, or null. */
-function retiredBySegment(head: string | undefined): RetiredPlane | null {
-  return head === "src" || head === "config" ? head : null;
-}
+const retiredBySegment = (head: string | undefined): RetiredPlane | null =>
+  head === "src" || head === "config" ? head : null;
 
 /** The retired plane a resolved path falls into (by the package-root-relative first
  *  segment), or null when the path lives in a live plane or outside the package. */
-function retiredByResolved(resolved: string): RetiredPlane | null {
+const retiredByResolved = (resolved: string): RetiredPlane | null => {
   return retiredBySegment(relative(PKG_ROOT, resolved).split(sep)[0]);
-}
+};
 
 // Module specifier patterns: `from "..."` (static import + re-export), dynamic
 // `import("...")`, and side-effect `import "..."`.
@@ -42,7 +41,7 @@ const SIDE_EFFECT_PATTERN = /^\s*import\s+(['"])([^'"]+)\1/gm;
 // Heuristic boundary: comment elision applies only in code scope — string-literal
 // contents are kept verbatim, and nested template literals are not tracked (a
 // backtick inside `${ }` prematurely closes the outer template).
-function stripComments(code: string): string {
+const stripComments = (code: string): string => {
   let out = "";
   let i = 0;
   let inLineComment = false;
@@ -82,34 +81,34 @@ function stripComments(code: string): string {
     }
   }
   return out;
-}
+};
 
-function listTsFiles(dir: string, files: string[]): string[] {
+const listTsFiles = (dir: string, files: string[]): string[] => {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) listTsFiles(full, files);
     else if (entry.name.endsWith(".ts") || entry.name.endsWith(".tsx")) files.push(full);
   }
   return files;
-}
+};
 
-function extractSpecifiers(text: string): string[] {
+const extractSpecifiers = (text: string): string[] => {
   const specifiers = new Set<string>();
   const cleaned = stripComments(text);
   for (const match of cleaned.matchAll(SPECIFIER_PATTERN)) specifiers.add(match[2]);
   for (const match of cleaned.matchAll(SIDE_EFFECT_PATTERN)) specifiers.add(match[2]);
   return [...specifiers];
-}
+};
 
 // Result: the retired plane a module specifier addresses, or null when it addresses
 // neither (a live plane, a bare package, a node: builtin, or an external module).
-function addressedRetiredPlane(specifier: string, importer: string): RetiredPlane | null {
+const addressedRetiredPlane = (specifier: string, importer: string): RetiredPlane | null => {
   if (!specifier.startsWith("./") && !specifier.startsWith("../") && !specifier.startsWith("/")) {
     return retiredBySegment(specifier.split("/")[0]);
   }
   const resolved = specifier.startsWith("/") ? specifier : resolve(dirname(importer), specifier);
   return retiredByResolved(resolved);
-}
+};
 
 it("the retired src and config planes are deleted from the package (the cutover terminal pin)", () => {
   const entries = readdirSync(PKG_ROOT);

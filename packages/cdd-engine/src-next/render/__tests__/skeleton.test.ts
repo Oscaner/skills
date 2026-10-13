@@ -1,5 +1,6 @@
 // packages/cdd-engine/src-next/render/__tests__/skeleton.test.ts
-// The SkeletonAssembler suite (P2 — `cdd schema gen`'s render face, spec §3/§4.1):
+// The SkeletonAssembler suite (P2 — the `cdd schema get <type> --output skeleton`
+// render face, spec §3/§4.1):
 //   · the three doc skeletons render the complete structural scaffolds — byte-
 //     pinned from the P2 first version (the assembler's date is the injectable
 //     run-day truth, fixed here — never a live clock);
@@ -414,7 +415,7 @@ describe("SkeletonAssembler — the EOF rule", () => {
 /** Whether any rendered skeleton line carries a literal `N` heading placeholder —
  *  the declared digit headings (`### N.` / `#### N.M` / `### Task N:`) always
  *  render true numbers, never the letter. */
-function rendersNoLiteralN(key: DocKey): boolean {
+const rendersNoLiteralN = (key: DocKey): boolean => {
   const rendered = renderOf(key);
   return !/(?:^|\n)#{2,4} (?:Task )?N[.:]/m.test(rendered) && !rendered.includes("Task N:");
-}
+};

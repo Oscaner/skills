@@ -1,6 +1,6 @@
 // packages/cdd-engine/src-next/render/skeleton.ts
 // The SkeletonAssembler — the render face of the skeleton projection (spec §3/§4.1,
-// the `cdd schema gen` rendering): a DocSkeleton (contract/project.ts — the
+// the `cdd schema get <type> --output skeleton` rendering): a DocSkeleton (contract/project.ts — the
 // required-only derived face, every element classified into its
 // placeholder-anchoring slot kind) is assembled into the markdown skeleton bytes
 // the consumer fills. The structure is the same registry-derived surface the

@@ -21,7 +21,8 @@
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "smoke": "vitest run src-next/__tests__/smoke.integration.test.ts"
   },
   "dependencies": {
     "commander": "^15.0.0",

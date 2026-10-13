@@ -645,7 +645,7 @@ describe("the coordinator", () => {
 
 /** A minimal phase-spec carrying the canonical version lineage (strict Version
  *  header + a Change-history table) — the T2 judgment surface. */
-function specLineage(headerVersion: string, rows: readonly string[]): string {
+const specLineage = (headerVersion: string, rows: readonly string[]): string => {
   return [
     "# Test Spec",
     `- **Version**: ${headerVersion}`,
@@ -676,10 +676,10 @@ function specLineage(headerVersion: string, rows: readonly string[]): string {
     "|---|---|---|---|",
     ...rows,
   ].join("\n");
-}
+};
 
 /** A minimal plan carrying the canonical version lineage. */
-function planLineage(headerVersion: string, rows: readonly string[]): string {
+const planLineage = (headerVersion: string, rows: readonly string[]): string => {
   return [
     "# Test Plan",
     "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
@@ -698,7 +698,7 @@ function planLineage(headerVersion: string, rows: readonly string[]): string {
     "|---|---|---|---|",
     ...rows,
   ].join("\n");
-}
+};
 
 const ROW_100 = "| v1.0 | 2026-10-08 | prior | [human] |";
 const ROW_101 = "| v1.1 | 2026-10-09 | merged | [human] |";
@@ -883,7 +883,7 @@ describe("deriveDocType — the shared doc-type derivation (design spec §2.1)",
 });
 
 /** One rendered `### Task N:` block with all required fields. */
-function planTask(id: number): string[] {
+const planTask = (id: number): string[] => {
   return [
     `### Task ${id}: task`,
     `- **Objective**: objective`,
@@ -895,4 +895,4 @@ function planTask(id: number): string[] {
     `- **Acceptance**: acceptance`,
     `- **DependsOn**: none`,
   ];
-}
+};

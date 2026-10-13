@@ -19,23 +19,23 @@ import { CommandTreeBuilder } from "../projection.ts";
 import { negatedOf } from "./negation.ts";
 
 /** The command node of one verb. */
-function commandOf(program: Command, verb: string): Command {
+const commandOf = (program: Command, verb: string): Command => {
   const node = program.commands.find((command) => command.name() === verb);
   expect(node, `the ${verb} command node exists`).toBeDefined();
   return node!;
-}
+};
 
 /** The leaf node of one parent command. */
-function leafOf(parent: Command, name: string): Command {
+const leafOf = (parent: Command, name: string): Command => {
   const node = parent.commands.find((command) => command.name() === name);
   expect(node, `the ${name} leaf exists`).toBeDefined();
   return node!;
-}
+};
 
 /** The code + message of the commander error `fn` rejects with (the builder's
  *  program carries the throwing exitOverride — the composed parse rejects, never
  *  process.exit). */
-function commanderError(fn: () => void): { code: string; message: string } {
+const commanderError = (fn: () => void): { code: string; message: string } => {
   let raw: unknown = null;
   try {
     fn();
@@ -49,7 +49,7 @@ function commanderError(fn: () => void): { code: string; message: string } {
     code: error.code as string,
     message: typeof error.message === "string" ? error.message : "",
   };
-}
+};
 
 describe("CommandTreeBuilder — the declaration projection (the constructor is the assembly)", () => {
   it("assembles the six subcommand nodes from the CLI_COMMANDS rows, in the declared order", () => {
@@ -134,21 +134,28 @@ describe("CommandTreeBuilder — the declaration projection (the constructor is 
     expect(baseOption?.description).toBe("the base branch of the range (required)");
   });
 
-  it("nests schema get|gen and issue render", () => {
+  it("nests schema get and issue render", () => {
     const { program } = new CommandTreeBuilder();
     const schema = commandOf(program, "schema");
-    expect(schema.commands.map((command) => command.name())).toEqual(["get", "gen"]);
+    // D19 — the schema leaf set is the single `get` leaf (gen merged into
+    // `get --output skeleton`); the get leaf holds the `--output` json|skeleton
+    // option + the conditional `<target>` positional.
+    expect(schema.commands.map((command) => command.name())).toEqual(["get"]);
+    const get = leafOf(schema, "get");
+    expect(get.options.some((option) => option.flags.startsWith("--output"))).toBe(true);
     const issue = commandOf(program, "issue");
     expect(issue.commands.map((command) => command.name())).toEqual(["render"]);
   });
 
-  it("projects the positionals — schema get requires <type>, schema gen takes it optionally", () => {
+  it("projects the positionals — schema get requires <type>, the <target> rides optional and conditional on the skeleton render", () => {
     const { program } = new CommandTreeBuilder();
     const schema = commandOf(program, "schema");
     const get = leafOf(schema, "get");
-    const gen = leafOf(schema, "gen");
     expect(get.registeredArguments[0]?.required).toBe(true);
-    expect(gen.registeredArguments[0]?.required).toBe(false);
+    // D19 — the merged leaf's target positional stays optional at parse (the
+    // conditional-required judgment — only `--output skeleton` demands it — is
+    // the run body's usage rejection, never a static commander requirement).
+    expect(get.registeredArguments[1]?.required).toBe(false);
   });
 });
 
@@ -285,7 +292,7 @@ describe("the value-domain table declaration — VALUE_SHAPES (T7)", () => {
     const declare = readFileSync(new URL("../declare.ts", import.meta.url), "utf8");
     // The retention disposition (plan T7 — the spec §6.3 cross-reference): the pair
     // is §6.3-listed but T7 records it as RETAINED, never on the destroy list —
-    // SCHEMA_TYPE_KEYS is the schema gen/get <type> doc-key vocabulary, orthogonal
+    // SCHEMA_TYPE_KEYS is the schema get <type> doc-key vocabulary, orthogonal
     // to the ChannelValueType value-shape table (merging it into VALUE_SHAPES does
     // not fit); #parseTypeKey derives through it (the get leaf also routes the
     // plan-graph display type).

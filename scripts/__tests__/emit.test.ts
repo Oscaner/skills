@@ -7,11 +7,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { emitComparer, emitService, REPO_ROOT } from "../emit.ts";
-import { firstPartyNames } from "../lib/first-party.ts";
+import { FirstParty } from "../lib/first-party.ts";
 
 describe("EmitService — the single emit orchestrator (derivation + byte-check)", () => {
   it("derives the first-party set from the oscaner gate (package-as-source)", () => {
-    const names = firstPartyNames(path.join(REPO_ROOT, "packages"));
+    const names = FirstParty.names(path.join(REPO_ROOT, "packages"));
     expect(names).toContain("kairos");
   });
 

@@ -28,7 +28,7 @@ import { WaveGate } from "../wave.ts";
 /** A hermetic ledger fixture — a fresh temp workspace (the run tests' pattern).
  *  `repo` exposes the temp root so the T11 plan-drift cases can place a real plan
  *  file the revision gate reads back. */
-function fixture(): { ledger: Ledger; repo: string; cleanup: () => void } {
+const fixture = (): { ledger: Ledger; repo: string; cleanup: () => void } => {
   const repo = mkdtempSync(path.join(tmpdir(), "wave-"));
   const workspace = new Workspace(
     new WorkspaceRoot(path.join(repo, ".kairos", "cdd"), "session"),
@@ -39,10 +39,10 @@ function fixture(): { ledger: Ledger; repo: string; cleanup: () => void } {
     repo,
     cleanup: () => rmSync(repo, { recursive: true, force: true }),
   };
-}
+};
 
 /** A plan document over `### Task N:` blocks + `- **DependsOn**:` values. */
-function planDoc(blocks: readonly (readonly string[])[]): string {
+const planDoc = (blocks: readonly (readonly string[])[]): string => {
   return [
     "# Test Plan",
     "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
@@ -54,16 +54,16 @@ function planDoc(blocks: readonly (readonly string[])[]): string {
     "",
     ...blocks.flat(),
   ].join("\n");
-}
+};
 
-function task(id: number, dependsOn: string): readonly string[] {
+const task = (id: number, dependsOn: string): readonly string[] => {
   return [`### Task ${id}: task ${id}`, `- **DependsOn**: ${dependsOn}`];
-}
+};
 
 /** Parse a fixture and build the TaskGraph — the gate's frontier source. */
-function graphOf(blocks: readonly (readonly string[])[]): TaskGraph {
+const graphOf = (blocks: readonly (readonly string[])[]): TaskGraph => {
   return new TaskGraph(new PlanDocType("plan").parse(planDoc(blocks).split("\n")));
-}
+};
 
 const gate = new WaveGate();
 const words = new Words();
@@ -71,7 +71,7 @@ const base = "a".repeat(8);
 const head = "b".repeat(8);
 
 /** A clean APPROVED review carrier — the C5 closure record for a task line. */
-function cleanReviewCarrier(ledger: Ledger, tasks: string, round: number): void {
+const cleanReviewCarrier = (ledger: Ledger, tasks: string, round: number): void => {
   ledger.recordRound(tasks, "review");
   ledger.persistHandoff(
     "review",
@@ -79,11 +79,11 @@ function cleanReviewCarrier(ledger: Ledger, tasks: string, round: number): void 
     { tasks, round },
     { tasks: tasks.split(",").map(Number), phase: "review", findings: [], commits: { base, head } },
   );
-}
+};
 
 /** An open wave's pending-fix state — the wave line at fix (implement + reviewed
  *  into a blocker, fix awaiting): the T11 gate's baseline phase derivation. */
-function pendingFix(ledger: Ledger, tasks: string, round: number): void {
+const pendingFix = (ledger: Ledger, tasks: string, round: number): void => {
   ledger.recordRound(tasks, "implement");
   ledger.recordRound(tasks, "review");
   ledger.persistHandoff(
@@ -97,7 +97,7 @@ function pendingFix(ledger: Ledger, tasks: string, round: number): void {
       commits: { base, head },
     },
   );
-}
+};
 
 describe("WaveGate.vet — the split/subset BLOCK (three-verb shared)", () => {
   it("a `--tasks` splitting the derived wave BLOCKs — implement, review and fix alike", () => {

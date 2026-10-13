@@ -2,9 +2,9 @@
 // T11 + T8 — the command face + composition root (design spec §3.3: the cdd CLI
 // command surface — implement / review / fix / schema / issue / base — is kept as a
 // steady word face; T20 converges the base command face to `base` — the six-command
-// surface unchanged in count). This module is the new tree's SOLE BARE ENTRY: the
-// `cli` composition root (the module's one bare-function export, admitted by the
-// plan's zero-bare-function discipline for composition roots) wires the contract /
+// surface unchanged in count). This module is the new tree's composition root: the
+// `Cli.create` static factory — the class face is the entry, the module carries zero
+// bare functions (the composition root's deliberate class form) — wires the contract /
 // session / face objects into the ONE CLI the bin thin entry boots. Task 3 (P1)
 // reorganized the face into one boundary per responsibility — the CLI declaration
 // single surface (face/declare.ts, §2.4 — the six subcommand rows + the argv
@@ -22,7 +22,7 @@
 // assembly; the pre-split HarnessDispatch member renamed, re-exported unchanged
 // below), face/gate.ts (CliGate — the target/line gate family: the readiness
 // judgments + the doc line's revision-aware BLOCK/pending-fix faces), face/artifacts.ts
-// (CliArtifacts — the pure-command domain: schema gen / issue / base runs). The root
+// (CliArtifacts — the pure-command domain: schema get / issue / base runs). The root
 // Cli holds the three instances and composes through them via its .action thin shells
 // (zero bare functions; the seams it still assembles — the lifecycle dispatch seam's
 // production default construction — stay here).
@@ -39,8 +39,8 @@
 //     through the same assembled objects (the pure runs + the readiness gates
 //     delegate to the split faces above — the root orchestrates, never re-types).
 
-// Module-level exports are types / constant data / classes / the cli composition
-// root — zero behavior-carrying bare functions.
+// Module-level exports are types / constant data / classes — zero behavior-carrying
+// bare functions (the composition root is the Cli class's static create factory).
 
 import { readFileSync } from "node:fs";
 import process from "node:process";
@@ -319,13 +319,12 @@ export class Cli {
         this.#exitCode = await this.#runWork(verb, command, this.#runInput(null, command));
       });
     }
-    // the pure commands' leaves — schema get/gen · base set/get · issue render
-    leafNode("schema", "get").action(async (_type: unknown, _opts: unknown, command: Command) => {
-      this.#exitCode = await this.#runSchema(command, this.#runInput("get", command));
-    });
-    leafNode("schema", "gen").action(async (_type: unknown, _opts: unknown, command: Command) => {
-      this.#exitCode = await this.#runSchema(command, this.#runInput("gen", command));
-    });
+    // the pure commands' leaves — schema get · base set/get · issue render
+    leafNode("schema", "get").action(
+      async (_type: unknown, _target: unknown, _opts: unknown, command: Command) => {
+        this.#exitCode = await this.#runSchema(command, this.#runInput("get", command));
+      },
+    );
     leafNode("base", "set").action(async (_opts: unknown, command: Command) => {
       this.#exitCode = await this.#runBase(command, this.#runInput("set", command));
     });
@@ -731,16 +730,38 @@ export class Cli {
   // the pure commands — schema / issue / base
   // ---------------------------------------------------------------------------
 
-  /** `cdd schema get <type>` — the derived doc-structure schema JSON to stdout
-   *  (the type vocabulary = the one shared schema-type table — `SCHEMA_TYPE_KEYS`
-   *  in face/declare.ts: the primary DocKey spellings + the legacy alias normalized
-   *  to kebab, spec §5.3); the `plan-graph` type rides the discovery read (§3.8).
-   *  `cdd schema gen <type>` dispatches to the skeleton render (the schema verb's
-   *  second leaf). */
+  /** `cdd schema get <type> [--output json|skeleton] [<target>]` — the merged D19
+   *  single leaf: the json render face (the default — the derived doc-structure
+   *  schema JSON to stdout, no target) and the skeleton render face (`--output
+   *  skeleton` — the derived doc skeleton written DIRECTLY into the target
+   *  document, the target required). The type vocabulary = the one shared
+   *  schema-type table (`SCHEMA_TYPE_KEYS` in face/declare.ts: the primary DocKey
+   *  spellings + the legacy alias normalized to kebab, spec §5.3); the `plan-graph`
+   *  type rides the discovery read (§3.8) on the json face. */
   async #runSchema(node: Command, parsed: RunInput): Promise<number> {
-    if (parsed.leaf === "gen") return this.#artifacts.runSchemaGen(node, parsed);
-    const type = parsed.positionals[0];
+    const [type, target] = parsed.positionals;
     if (type === undefined) this.#usage(node, "cdd schema get: missing <type>");
+    const output = parsed.args.output ?? "json";
+    if (output === "skeleton") {
+      // The skeleton render face — the engine-declared target (D19): the authoring
+      // scaffold lands in the target document, zero shell-redirection indirection.
+      if (target === undefined) {
+        this.#usage(node, "cdd schema get --output skeleton: missing <target>");
+      }
+      if (type === "plan-graph") {
+        this.#usage(
+          node,
+          "cdd schema get plan-graph: the skeleton render takes a doc-key <type> (plan-graph rides the --output json display face)",
+        );
+      }
+      return this.#artifacts.runSchemaSkeleton(node, type, target);
+    }
+    if (target !== undefined) {
+      this.#usage(
+        node,
+        "cdd schema get: unexpected <target> — the json render takes no target (use --output skeleton <target> to render the scaffold into a document)",
+      );
+    }
     if (type === "plan-graph") return this.#runPlanGraph(node, parsed);
     this.#io.stdout(`${JSON.stringify(this.#projector.schema()[type as DocKey], null, 2)}\n`);
     return 0;
@@ -802,20 +823,16 @@ export class Cli {
     if (parsed.leaf === "get") return this.#artifacts.baseGet(path);
     this.#usage(node, "cdd base: missing <set|get> subcommand");
   }
-}
 
-// ---------------------------------------------------------------------------
-// the composition root — the module's sole bare-function export
-// ---------------------------------------------------------------------------
-
-/**
- * cli(opts?) — the composition root: wires the engine's object graph (contract:
- * the projector over the declared registries · session: the ledger + lifecycle +
- * task graph + next router · face: the words + capsule · infra: the config loader +
- * git + the sync process seam) into the ONE Cli the bin thin entry boots. Every
- * collaborator is overridable for the hermetic test face (io / dispatch / repoRoot);
- * the defaults bind the living process.
- */
-export function cli(opts: CliOptions = {}): Cli {
-  return new Cli(opts);
+  /**
+   * Cli.create(opts?) — the composition root's static factory: wires the engine's
+   * object graph (contract: the projector over the declared registries · session: the
+   * ledger + lifecycle + task graph + next router · face: the words + capsule ·
+   * infra: the config loader + git + the sync process seam) into the ONE Cli the bin
+   * thin entry boots. Every collaborator is overridable for the hermetic test face
+   * (io / dispatch / repoRoot); the defaults bind the living process.
+   */
+  static create(opts: CliOptions = {}): Cli {
+    return new Cli(opts);
+  }
 }

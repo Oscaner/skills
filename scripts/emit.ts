@@ -3,13 +3,18 @@
 // `packages/<name>/package.json#oscaner` (package-as-source) and renders the
 // .github issue forms from the engine's canonical issue-body template. The
 // orchestrator folds the old emit tree's thin wrapper modules into one module:
-// the product writer, the derivation and the drift comparer live here. The
-// committed products are byte-stable — the products scripts emits are
+// the product writer, the derivation families and the drift comparer live here.
+// The committed products are byte-stable — the products scripts emits are
 // byte-identical to the current converged emit (the banner watermark is the
-// canonical `scripts/run.ts emit — do not edit` face).
+// canonical `scripts/run.ts emit — do not edit` face). `.version-bump` is the
+// version-sync audit configuration — consumed by the version-sync step, never
+// a generation product.
 //
-// Module-level exports are types / the class — zero behavior-carrying bare
-// functions besides the declared data derivation helpers.
+// Module-level exports are types / the classes — zero bare functions (the
+// manifest mapping families are static classes, one per harness surface:
+// claude / cursor / source-row / issue-form / product-walk — high cohesion,
+// each projection derives from the package.json#oscaner single source, never a
+// second hand-written data surface).
 
 import type { Dirent } from "node:fs";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -17,7 +22,7 @@ import { dirname, join, posix, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { stringify } from "yaml";
 import type { OscanerFields, PluginSource } from "./lib/first-party.ts";
-import { firstPartyNames } from "./lib/first-party.ts";
+import { FirstParty } from "./lib/first-party.ts";
 
 /** The repo root — the emit's derivation base. */
 export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -52,6 +57,243 @@ export const PRODUCT_FILES = [
   ".github/ISSUE_TEMPLATE/enhancement.yml",
 ] as const;
 
+// biome-ignore lint/complexity/noStaticOnlyClass: the source-row mapping family — the package.json#oscaner → plugin source row projection is a static member (zero-bare-function discipline).
+export class SourceRowMappings {
+  /** Derive one first-party plugin entry (the source.json plugin row key order is
+   *  byte-pinned: name · contentRoot · cursor · version · description · author ·
+   *  homepage · repository · license · claude · hooks). */
+  static deriveFirstPartyPlugin(root: string, dirName: string): PluginSource {
+    const pkgPath = join(root, "packages", dirName, "package.json");
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as {
+      oscaner?: OscanerFields;
+      version?: string;
+      description?: string;
+      author?: unknown;
+      homepage?: string;
+      repository?: unknown;
+      license?: string;
+    };
+    const osc = pkg.oscaner ?? {};
+    const contentRoot = posix.normalize(posix.join("packages", dirName, osc.contentRoot ?? "."));
+    const row: Record<string, unknown> = { name: dirName, contentRoot };
+    if (osc.harnesses?.includes("cursor") === true) {
+      row.cursor = { emitMode: "plugin-root" };
+    }
+    if (pkg.version !== undefined) row.version = pkg.version;
+    if (pkg.description !== undefined) row.description = pkg.description;
+    const author = SourceRowMappings.normalizeAuthor(pkg.author);
+    if (author !== undefined) row.author = author;
+    const repository = SourceRowMappings.repoUrl(pkg.repository);
+    if (pkg.homepage !== undefined) row.homepage = pkg.homepage;
+    if (repository !== undefined) row.repository = repository;
+    if (pkg.license !== undefined) row.license = pkg.license;
+    if (osc.claude !== undefined)
+      row.claude = { ...osc.claude, keywords: osc.keywords ?? osc.claude.keywords };
+    if (osc.hooks !== undefined) row.hooks = osc.hooks;
+    return row as unknown as PluginSource;
+  }
+
+  /** Normalize a package.json `author` to an object with a name (string → { name }). */
+  static normalizeAuthor(author: unknown): { name: string; email?: string } | string | undefined {
+    if (typeof author === "string") return { name: author };
+    if (author !== null && typeof author === "object" && "name" in author) {
+      const name = (author as { name?: unknown }).name;
+      if (typeof name === "string") return author as { name: string; email?: string };
+    }
+    return undefined;
+  }
+
+  /** Normalize a `repository` field to a bare https URL string. */
+  static repoUrl(repository: unknown): string | undefined {
+    if (typeof repository === "string") return SourceRowMappings.stripVcs(repository);
+    if (repository !== null && typeof repository === "object" && "url" in repository) {
+      const url = (repository as { url?: unknown }).url;
+      if (typeof url === "string") return SourceRowMappings.stripVcs(url);
+    }
+    return undefined;
+  }
+
+  static stripVcs(url: string): string {
+    return url.replace(/^git\+/, "").replace(/\.git$/, "");
+  }
+}
+
+// biome-ignore lint/complexity/noStaticOnlyClass: the claude mapping family — the claude manifest + marketplace documents are static members (zero-bare-function discipline).
+export class ClaudeMappings {
+  /** The claude manifest — the thin plugin doc (`skills` points at the canonical dir). */
+  static claudeManifest(plugin: PluginSource): Record<string, unknown> {
+    const m: Record<string, unknown> = {
+      _generated: GENERATED_BANNER,
+      name: plugin.name,
+      description: plugin.description,
+      version: plugin.version,
+      author: plugin.author,
+    };
+    m.skills = "./skills/";
+    const claudeHooks =
+      (plugin.hooks as { claude?: string } | undefined)?.claude ?? "./hooks/hooks.json";
+    if (claudeHooks !== "./hooks/hooks.json") m.hooks = claudeHooks;
+    if (plugin.license !== undefined) m.license = plugin.license;
+    if (plugin.claude?.category !== undefined) m.category = plugin.claude.category;
+    const kw = plugin.claude?.keywords ?? [];
+    if (kw.length > 0) m.keywords = kw;
+    return m;
+  }
+
+  /** The repo-root claude marketplace document + its per-plugin entries. */
+  static claudeMarketplaceDoc(source: {
+    name: string;
+    owner: object;
+    metadata: object;
+    plugins: PluginSource[];
+  }): Record<string, unknown> {
+    return {
+      _generated: GENERATED_BANNER,
+      $schema: "https://www.schemastore.org/claude-code-marketplace.json",
+      name: source.name,
+      metadata: source.metadata,
+      owner: source.owner,
+      plugins: source.plugins.map((plugin) => ClaudeMappings.claudeMarketplaceEntry(plugin)),
+    };
+  }
+
+  /** One claude marketplace entry — source points at the plugin content root (the
+   *  `./`-prefixed plugin-root form). */
+  static claudeMarketplaceEntry(plugin: PluginSource): Record<string, unknown> {
+    const entry: Record<string, unknown> = {
+      name: plugin.name,
+      source: `./${plugin.contentRoot}`,
+      description: plugin.description,
+      author: plugin.author,
+      homepage: plugin.homepage,
+      repository: plugin.repository,
+      license: plugin.license,
+      version: plugin.version,
+    };
+    if (plugin.claude?.category !== undefined) entry.category = plugin.claude.category;
+    const kw = plugin.claude?.keywords ?? [];
+    if (kw.length > 0) entry.keywords = kw;
+    return entry;
+  }
+}
+
+// biome-ignore lint/complexity/noStaticOnlyClass: the cursor mapping family — the cursor manifest + marketplace documents are static members (zero-bare-function discipline).
+export class CursorMappings {
+  /** The cursor manifest — thin (displayName = the cursor display name or the plugin name). */
+  static cursorManifest(plugin: PluginSource): Record<string, unknown> {
+    const cursor = plugin.cursor;
+    const displayName =
+      cursor !== undefined && "displayName" in cursor && typeof cursor.displayName === "string"
+        ? cursor.displayName
+        : plugin.name;
+    const m: Record<string, unknown> = {
+      _generated: GENERATED_BANNER,
+      name: plugin.name,
+      displayName,
+      description: plugin.description,
+      version: plugin.version,
+      author: plugin.author,
+    };
+    if (plugin.license !== undefined) m.license = plugin.license;
+    const kw = plugin.claude?.keywords ?? [];
+    if (kw.length > 0) m.keywords = kw;
+    m.skills = "./skills/";
+    return m;
+  }
+
+  /** The repo-root cursor marketplace document + its per-plugin entries (plugin-root
+   *  ships the contentRoot source form). */
+  static cursorMarketplaceDoc(source: {
+    name: string;
+    owner: object;
+    metadata: object;
+    plugins: PluginSource[];
+  }): Record<string, unknown> {
+    return {
+      _generated: GENERATED_BANNER,
+      name: source.name,
+      owner: source.owner,
+      metadata: source.metadata,
+      plugins: source.plugins.map((plugin) => ({
+        _generated: GENERATED_BANNER,
+        name: plugin.name,
+        source: CursorMappings.isPluginRoot(plugin)
+          ? `./${plugin.contentRoot}`
+          : `cursor-plugins/${plugin.name}`,
+        description: plugin.description,
+      })),
+    };
+  }
+
+  /** Whether a plugin ships plugin-root cursor manifests (`oscaner.harnesses` includes
+   *  cursor — the first-party emit mode). */
+  static isPluginRoot(plugin: PluginSource): boolean {
+    return (
+      plugin.cursor !== undefined &&
+      "emitMode" in plugin.cursor &&
+      plugin.cursor.emitMode === "plugin-root"
+    );
+  }
+}
+
+// biome-ignore lint/complexity/noStaticOnlyClass: the issue-form mapping family — the issue-template YAML rendering is a static member (zero-bare-function discipline).
+export class IssueFormMappings {
+  /** The issue-form YAML rendering — the `yaml` package (root devDependency), the
+   *  emit-side renderer (the shipped engine imports zero third-party packages). */
+  static renderIssueYml(formDef: unknown, enums: { components?: unknown }): string {
+    const { frontmatter, body } = formDef as {
+      frontmatter: { name?: string; description?: string; labels?: string[] };
+      body: Array<Record<string, unknown>>;
+    };
+    const doc: Record<string, unknown> = {
+      name: frontmatter.name,
+      description: frontmatter.description,
+      labels: frontmatter.labels,
+      body: body.map((item) => {
+        const entry: Record<string, unknown> = { type: item.type };
+        const typed = item as {
+          id?: string;
+          attributes?: Record<string, unknown>;
+          validations?: { required?: unknown };
+        };
+        if (typed.id !== undefined) entry.id = typed.id;
+        const attributes = { ...typed.attributes };
+        if (item.type === "dropdown" && typed.id === "component")
+          attributes.options = enums.components;
+        entry.attributes = attributes;
+        if (typed.validations?.required !== undefined)
+          entry.validations = { required: typed.validations.required };
+        return entry;
+      }),
+    };
+    return stringify(doc, { indent: 2, lineWidth: 0 });
+  }
+}
+
+// biome-ignore lint/complexity/noStaticOnlyClass: the product-walk mapping family — the stale-product walk is a static member (zero-bare-function discipline).
+export class ProductRootWalk {
+  /** Recursively walk a product root collecting repo-relative file paths. */
+  static walkProductRoot(root: string, rootRel: string): string[] {
+    const out: string[] = [];
+    const base = join(root, rootRel);
+    const visit = (dir: string): void => {
+      let entries: Dirent[];
+      try {
+        entries = readdirSync(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const entry of entries) {
+        const p = join(dir, entry.name);
+        if (entry.isDirectory()) visit(p);
+        else if (entry.isFile()) out.push(relative(root, p));
+      }
+    };
+    if (existsSync(base)) visit(base);
+    return out;
+  }
+}
+
 /**
  * EmitService — the single emit orchestrator. `emitAll(outRoot, { generatedPaths })`
  * writes the full product set into an output root (the repo root in write mode, a
@@ -80,8 +322,8 @@ export class EmitService {
     plugins: PluginSource[];
   } {
     const { $schema, name, owner, metadata } = SOURCE_TOP;
-    const plugins = firstPartyNames(join(REPO_ROOT, "packages")).map((dirName) =>
-      deriveFirstPartyPlugin(REPO_ROOT, dirName),
+    const plugins = FirstParty.names(join(REPO_ROOT, "packages")).map((dirName) =>
+      SourceRowMappings.deriveFirstPartyPlugin(REPO_ROOT, dirName),
     );
     return { $schema, name, owner: { ...owner }, metadata: { ...metadata }, plugins };
   }
@@ -96,13 +338,13 @@ export class EmitService {
     if (declared.includes("claude")) {
       out.push({
         rel: `${plugin.contentRoot}/.claude-plugin/plugin.json`,
-        doc: claudeManifest(plugin),
+        doc: ClaudeMappings.claudeManifest(plugin),
       });
     }
     if (declared.includes("cursor")) {
       out.push({
         rel: `${plugin.contentRoot}/.cursor-plugin/plugin.json`,
-        doc: cursorManifest(plugin),
+        doc: CursorMappings.cursorManifest(plugin),
       });
     }
     return out;
@@ -123,13 +365,13 @@ export class EmitService {
     this.writeJsonDoc(
       outRoot,
       ".claude-plugin/marketplace.json",
-      claudeMarketplaceDoc(source),
+      ClaudeMappings.claudeMarketplaceDoc(source),
       generatedPaths,
     );
     this.writeJsonDoc(
       outRoot,
       ".cursor-plugin/marketplace.json",
-      cursorMarketplaceDoc(source),
+      CursorMappings.cursorMarketplaceDoc(source),
       generatedPaths,
     );
     this.writeIssueTemplates(outRoot, generatedPaths);
@@ -150,7 +392,7 @@ export class EmitService {
       this.writeText(
         outRoot,
         rel,
-        renderIssueYml(meta.formFieldDefs[name], { components: meta.components }),
+        IssueFormMappings.renderIssueYml(meta.formFieldDefs[name], { components: meta.components }),
         generatedPaths,
       );
     }
@@ -160,7 +402,7 @@ export class EmitService {
   findStaleCommittedFiles(generatedSet: Set<string>, root: string): string[] {
     const stale: string[] = [];
     for (const rootRel of BASE_PRODUCT_ROOTS) {
-      for (const rel of walkProductRoot(root, rootRel)) {
+      for (const rel of ProductRootWalk.walkProductRoot(root, rootRel)) {
         if (!generatedSet.has(rel)) stale.push(rel);
       }
     }
@@ -169,226 +411,6 @@ export class EmitService {
     }
     return stale;
   }
-}
-
-/** Derive one first-party plugin entry (the source.json plugin row key order is
- *  byte-pinned: name · contentRoot · cursor · version · description · author ·
- *  homepage · repository · license · claude · hooks). */
-function deriveFirstPartyPlugin(root: string, dirName: string): PluginSource {
-  const pkgPath = join(root, "packages", dirName, "package.json");
-  const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as {
-    oscaner?: OscanerFields;
-    version?: string;
-    description?: string;
-    author?: unknown;
-    homepage?: string;
-    repository?: unknown;
-    license?: string;
-  };
-  const osc = pkg.oscaner ?? {};
-  const contentRoot = posix.normalize(posix.join("packages", dirName, osc.contentRoot ?? "."));
-  const row: Record<string, unknown> = { name: dirName, contentRoot };
-  if (osc.harnesses?.includes("cursor") === true) {
-    row.cursor = { emitMode: "plugin-root" };
-  }
-  if (pkg.version !== undefined) row.version = pkg.version;
-  if (pkg.description !== undefined) row.description = pkg.description;
-  const author = normalizeAuthor(pkg.author);
-  if (author !== undefined) row.author = author;
-  const repository = repoUrl(pkg.repository);
-  if (pkg.homepage !== undefined) row.homepage = pkg.homepage;
-  if (repository !== undefined) row.repository = repository;
-  if (pkg.license !== undefined) row.license = pkg.license;
-  if (osc.claude !== undefined)
-    row.claude = { ...osc.claude, keywords: osc.keywords ?? osc.claude.keywords };
-  if (osc.hooks !== undefined) row.hooks = osc.hooks;
-  return row as unknown as PluginSource;
-}
-
-/** Normalize a package.json `author` to an object with a name (string → { name }). */
-function normalizeAuthor(author: unknown): { name: string; email?: string } | string | undefined {
-  if (typeof author === "string") return { name: author };
-  if (author !== null && typeof author === "object" && "name" in author) {
-    const name = (author as { name?: unknown }).name;
-    if (typeof name === "string") return author as { name: string; email?: string };
-  }
-  return undefined;
-}
-
-/** Normalize a `repository` field to a bare https URL string. */
-function repoUrl(repository: unknown): string | undefined {
-  if (typeof repository === "string") return stripVcs(repository);
-  if (repository !== null && typeof repository === "object" && "url" in repository) {
-    const url = (repository as { url?: unknown }).url;
-    if (typeof url === "string") return stripVcs(url);
-  }
-  return undefined;
-}
-
-function stripVcs(url: string): string {
-  return url.replace(/^git\+/, "").replace(/\.git$/, "");
-}
-
-/** The claude manifest — the thin plugin doc (`skills` points at the canonical dir). */
-function claudeManifest(plugin: PluginSource): Record<string, unknown> {
-  const m: Record<string, unknown> = {
-    _generated: GENERATED_BANNER,
-    name: plugin.name,
-    description: plugin.description,
-    version: plugin.version,
-    author: plugin.author,
-  };
-  m.skills = "./skills/";
-  const claudeHooks =
-    (plugin.hooks as { claude?: string } | undefined)?.claude ?? "./hooks/hooks.json";
-  if (claudeHooks !== "./hooks/hooks.json") m.hooks = claudeHooks;
-  if (plugin.license !== undefined) m.license = plugin.license;
-  if (plugin.claude?.category !== undefined) m.category = plugin.claude.category;
-  const kw = plugin.claude?.keywords ?? [];
-  if (kw.length > 0) m.keywords = kw;
-  return m;
-}
-
-/** The cursor manifest — thin (displayName = the cursor display name or the plugin name). */
-function cursorManifest(plugin: PluginSource): Record<string, unknown> {
-  const cursor = plugin.cursor;
-  const displayName =
-    cursor !== undefined && "displayName" in cursor && typeof cursor.displayName === "string"
-      ? cursor.displayName
-      : plugin.name;
-  const m: Record<string, unknown> = {
-    _generated: GENERATED_BANNER,
-    name: plugin.name,
-    displayName,
-    description: plugin.description,
-    version: plugin.version,
-    author: plugin.author,
-  };
-  if (plugin.license !== undefined) m.license = plugin.license;
-  const kw = plugin.claude?.keywords ?? [];
-  if (kw.length > 0) m.keywords = kw;
-  m.skills = "./skills/";
-  return m;
-}
-
-/** The repo-root claude marketplace document + its per-plugin entries. */
-function claudeMarketplaceDoc(source: {
-  name: string;
-  owner: object;
-  metadata: object;
-  plugins: PluginSource[];
-}): Record<string, unknown> {
-  return {
-    _generated: GENERATED_BANNER,
-    $schema: "https://www.schemastore.org/claude-code-marketplace.json",
-    name: source.name,
-    metadata: source.metadata,
-    owner: source.owner,
-    plugins: source.plugins.map((plugin) => claudeMarketplaceEntry(plugin)),
-  };
-}
-
-/** One claude marketplace entry — source points at the plugin content root (the
- *  `./`-prefixed plugin-root form). */
-function claudeMarketplaceEntry(plugin: PluginSource): Record<string, unknown> {
-  const entry: Record<string, unknown> = {
-    name: plugin.name,
-    source: `./${plugin.contentRoot}`,
-    description: plugin.description,
-    author: plugin.author,
-    homepage: plugin.homepage,
-    repository: plugin.repository,
-    license: plugin.license,
-    version: plugin.version,
-  };
-  if (plugin.claude?.category !== undefined) entry.category = plugin.claude.category;
-  const kw = plugin.claude?.keywords ?? [];
-  if (kw.length > 0) entry.keywords = kw;
-  return entry;
-}
-
-/** The repo-root cursor marketplace document + its per-plugin entries (plugin-root
- *  ships the contentRoot source form). */
-function cursorMarketplaceDoc(source: {
-  name: string;
-  owner: object;
-  metadata: object;
-  plugins: PluginSource[];
-}): Record<string, unknown> {
-  return {
-    _generated: GENERATED_BANNER,
-    name: source.name,
-    owner: source.owner,
-    metadata: source.metadata,
-    plugins: source.plugins.map((plugin) => ({
-      _generated: GENERATED_BANNER,
-      name: plugin.name,
-      source: isPluginRoot(plugin) ? `./${plugin.contentRoot}` : `cursor-plugins/${plugin.name}`,
-      description: plugin.description,
-    })),
-  };
-}
-
-/** Whether a plugin ships plugin-root cursor manifests (`oscaner.harnesses` includes
- *  cursor — the first-party emit mode). */
-function isPluginRoot(plugin: PluginSource): boolean {
-  return (
-    plugin.cursor !== undefined &&
-    "emitMode" in plugin.cursor &&
-    plugin.cursor.emitMode === "plugin-root"
-  );
-}
-
-/** The issue-form YAML rendering — the `yaml` package (root devDependency), the
- *  emit-side renderer (the shipped engine imports zero third-party packages). */
-function renderIssueYml(formDef: unknown, enums: { components?: unknown }): string {
-  const { frontmatter, body } = formDef as {
-    frontmatter: { name?: string; description?: string; labels?: string[] };
-    body: Array<Record<string, unknown>>;
-  };
-  const doc: Record<string, unknown> = {
-    name: frontmatter.name,
-    description: frontmatter.description,
-    labels: frontmatter.labels,
-    body: body.map((item) => {
-      const entry: Record<string, unknown> = { type: item.type };
-      const typed = item as {
-        id?: string;
-        attributes?: Record<string, unknown>;
-        validations?: { required?: unknown };
-      };
-      if (typed.id !== undefined) entry.id = typed.id;
-      const attributes = { ...typed.attributes };
-      if (item.type === "dropdown" && typed.id === "component")
-        attributes.options = enums.components;
-      entry.attributes = attributes;
-      if (typed.validations?.required !== undefined)
-        entry.validations = { required: typed.validations.required };
-      return entry;
-    }),
-  };
-  return stringify(doc, { indent: 2, lineWidth: 0 });
-}
-
-/** Recursively walk a product root collecting repo-relative file paths. */
-function walkProductRoot(root: string, rootRel: string): string[] {
-  const out: string[] = [];
-  const base = join(root, rootRel);
-  const visit = (dir: string): void => {
-    let entries: Dirent[];
-    try {
-      entries = readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      const p = join(dir, entry.name);
-      if (entry.isDirectory()) visit(p);
-      else if (entry.isFile()) out.push(relative(root, p));
-    }
-  };
-  if (existsSync(base)) visit(base);
-  return out;
 }
 
 /** The emit service singleton — the two orchestrators' shared emit face. */

@@ -43,7 +43,7 @@ import { WaveGate } from "../wave.ts";
  *  mirror + the docs) out of the tree — same as the consumer setup the kairos README
  *  documents. Pass an explicit ignore content to shape it (the no-`.kairos`-ignore
  *  consumer regression). */
-function gitRepo(ignore = ".kairos\n/docs/\n"): { repoRoot: string; cleanup: () => void } {
+const gitRepo = (ignore = ".kairos\n/docs/\n"): { repoRoot: string; cleanup: () => void } => {
   const repoRoot = mkdtempSync(path.join(tmpdir(), "preflight-"));
   spawnSync("git", ["init", "-q"], { cwd: repoRoot });
   spawnSync("git", ["config", "user.email", "preflight@test"], { cwd: repoRoot });
@@ -53,15 +53,15 @@ function gitRepo(ignore = ".kairos\n/docs/\n"): { repoRoot: string; cleanup: () 
   spawnSync("git", ["add", "-A"], { cwd: repoRoot });
   spawnSync("git", ["commit", "-q", "-m", "seed"], { cwd: repoRoot });
   return { repoRoot, cleanup: () => rmSync(repoRoot, { recursive: true, force: true }) };
-}
+};
 
 /** Dirty the fixture repo — an uncommitted change (`git status --porcelain` non-empty). */
-function dirty(repoRoot: string): void {
+const dirty = (repoRoot: string): void => {
   writeFileSync(path.join(repoRoot, "dirty.txt"), "dirty\n", "utf8");
-}
+};
 
 /** A plan literal over `### Task N:` blocks + `- **DependsOn**:` values. */
-function planDoc(blocks: readonly (readonly string[])[]): string {
+const planDoc = (blocks: readonly (readonly string[])[]): string => {
   return [
     "# Test Plan",
     "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
@@ -73,9 +73,9 @@ function planDoc(blocks: readonly (readonly string[])[]): string {
     "",
     ...blocks.flat(),
   ].join("\n");
-}
+};
 
-function task(id: number, dependsOn: string): readonly string[] {
+const task = (id: number, dependsOn: string): readonly string[] => {
   return [
     `### Task ${id}: task ${id}`,
     "- **Objective**: objective",
@@ -87,10 +87,10 @@ function task(id: number, dependsOn: string): readonly string[] {
     "- **Acceptance**: ok",
     `- **DependsOn**: ${dependsOn}`,
   ];
-}
+};
 
 /** The hermetic PreFlight — real git + the real contract + the shared wave gate. */
-function preflightOf(fs?: DocFs): PreFlight {
+const preflightOf = (fs?: DocFs): PreFlight => {
   return new PreFlight({
     git: new GitClient(),
     contract: new Contract(),
@@ -98,12 +98,12 @@ function preflightOf(fs?: DocFs): PreFlight {
     waveGate: new WaveGate(),
     fs,
   });
-}
+};
 
 /** A memory fs — every path resolves into the judged doc's own content (the
  *  context-seam backstop: chain/sibling reads return the judged content, so the
  *  doc-contract gate's judgment is the doc's own structure, not its neighbors). */
-function memoryFs(content: string): DocFs {
+const memoryFs = (content: string): DocFs => {
   return {
     exists: () => true,
     read: () => content,
@@ -111,7 +111,7 @@ function memoryFs(content: string): DocFs {
     // judged doc's family lists it.
     list: (_p: string) => ["x-overall.md"],
   };
-}
+};
 
 /** A conforming phase-spec — every current + P4.1-T2 phase-spec element present (the
  *  header tuple + the version lineage + a Change-history table + the design
@@ -156,12 +156,12 @@ const DEFECTIVE_SPEC = ["# Test Spec", "- **Version**: v1.0", "", "## Design"].j
 // ---------------------------------------------------------------------------
 
 /** The wave-face context — the plan + the requested group over a fresh ledger. */
-function waveCtx(
+const waveCtx = (
   repoRoot: string,
   blocks: readonly (readonly string[])[],
   tasks: number[],
   verb: PreFlightContext["verb"],
-): PreFlightContext {
+): PreFlightContext => {
   const workspace = new Workspace(
     new WorkspaceRoot(path.join(repoRoot, ".kairos", "cdd"), "session"),
     "preflight-slug",
@@ -176,14 +176,14 @@ function waveCtx(
     ledger,
     doc: null,
   };
-}
+};
 
 /** The doc-face context — the target doc judged by the doc-contract gate. */
-function docCtx(
+const docCtx = (
   repoRoot: string,
   docKey: DocKey,
   verb: PreFlightContext["verb"],
-): PreFlightContext {
+): PreFlightContext => {
   const workspace = new Workspace(
     new WorkspaceRoot(path.join(repoRoot, ".kairos", "cdd"), "session"),
     "preflight-slug",
@@ -198,7 +198,7 @@ function docCtx(
     ledger,
     doc: { docKey, path: `docs/kairos/specs/${docKey === "plan" ? "plan" : "spec"}.md` },
   };
-}
+};
 
 // ---------------------------------------------------------------------------
 // the dirty-tree hard gate — three verbs × dirty → BLOCK

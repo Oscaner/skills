@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P7 设计：评测面 commit-sha 全退役 + 物料无条件 extract + brief=完整计划镜像 · 三 face 单输入
-- **Version**: v0.3 · 2026-10-13
+- **Version**: v0.4 · 2026-10-13
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P7] 会话 · 用户裁定 · 2026-10-13）
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](2026-10-10-engine-doc-tooling-overall.md)
@@ -7,7 +7,7 @@
 
 ## Design
 
-本 phase 承接 P6 收口后的连续重构（程序六 phase 收口后的续 phase · 2026-10-13 cdd-design [P7] 会话注册 D23 · grilling 裁定 D24/D25 全按落定）。一把刀：**评测面从「检查 commit」转为「基于代码实况」**——① 评测面 **commit-sha 整体退休**（R2/Q1 · sha 是传话筒不是裁判 · 引擎从不 diff）· ② 所有 child 派发前的物料准备 **无条件 extract**（R1/R3 · 不存在才生成 → 每次派发前从当前 plan 重新 extract · 防旧版漂移）· ③ wave 三 face（implement/review/fix）**单输入 = 完整计划镜像 brief**（Q4(a)）· ④ **review 基准 = 最新 brief + live tree**（Q2）· ⑤ **branch review-fix 基于 base→head 方向**（R4 · base = 分支名，非双 commit sha）· ⑥ **changes[] 同退役、改动面由 review 自判**（Q3）· ⑦ **I7 撤除**。设计输入：kairos:cdd-design [P7] 会话（D23 注册 · D24 grilling Q1/Q2/Q3 裁定 · D25 Q4(a) 裁定）· overall v2.22（D23）→ v2.24（D24/D25）· recon 报告（commit-sha 触点全谱审计 · changes[]「引擎对账」prompt 虚构实证 · wave/doc/branch 三线 round context 逐 token 对比 · GitClient 生产调点枚举）。
+本 phase 承接 P6 收口后的连续重构（程序六 phase 收口后的续 phase · 2026-10-13 cdd-design [P7] 会话注册 D23 · grilling 裁定 D24/D25 全按落定）。一把刀：**评测面从「检查 commit」转为「基于代码实况」**——① 评测面 **commit-sha 整体退休**（R2/Q1 · sha 是传话筒不是裁判 · 引擎从不 diff）· ② 所有 child 派发前的物料准备 **无条件 extract**（R1/R3 · 不存在才生成 → 每次派发前从当前 plan 重新 extract · 防旧版漂移）· ③ wave 三 face（implement/review/fix）**单输入 = 完整计划镜像 brief**（Q4(a)）· ④ **review 基准 = 最新 brief + live tree**（Q2）· ⑤ **branch review-fix 基于 base→head 方向**（R4 · base = 分支名，非双 commit sha）· ⑥ **changes[] 同退役、改动面由 review 自判**（Q3）· ⑦ **I7 撤除**。设计输入：kairos:cdd-design [P7] 会话（D23 注册 · D24 grilling Q1/Q2/Q3 裁定 · D25 Q4(a) 裁定）· overall v2.22（D23）→ v2.24（D24/D25）· recon 报告（commit-sha 触点全谱审计 · changes[]「引擎对账」prompt 虚构实证 · wave/doc/branch 三线 round context 逐 token 对比 · GitClient 生产调点枚举 · 载体残余字段调点复核）。六前提重审整个 phase（v0.4 收尾扫）后：评测面的整体转向为**单一线索**——从「engine/child 跟踪 commit 身份 + 自报改动账本」整体转为「live tree + 最新物料实况，reviewer 即改动面裁判」。
 
 ### 1. 目标与边界
 #### 1.1 设计输入与授权
@@ -102,7 +102,23 @@
 - **新 pins**：engine 源码面 `WAVE_BASE|FIX_BASE|INPUT_RANGE|revParseHead|BranchRef` 零残留 grep pin · `BASE_BRANCH` 注入 pin（wave+branch review round context 携带 · spec/plan 不带）· **无条件 extract pin**（review dispatch 后 `tasks-{tasks}-brief.md` = 当前 plan 的最新镜像（任务段 + Constraints 段 · 零 WAVE_BASE 行）· 三 face 各自 re-extract 一次）· 华为契约 pin（RETURN_STDOUT_BLOCK 恰好 status+artifacts 二行）· GitClient 精简 pin（方法集 = topLevel + isClean）
 - kairos 消费面：行为树 pins（presentation-surface.test.ts 等）随 skill 文本更替 · skill-anatomy 契约面零动（I7 非契约注册项）
 
-### 8. 发布姿态与变更集
+### 8. 整个 phase 收尾扫（六前提重审 · 死码残余 + 数据面版本化 + 消费面词表）
+#### 8.1 载体残余复核（调点审计结论）
+- `notes`/`failure_category` **保留（不停用）**：engine 活跃写 notes 承载 reason/evidence-note（lifecycle.ts:558）· `failure_category` 有 BLOCK 语义 + evidence-contract 引擎覆盖（:550-555）——排除死码误删；commits/changes 退役后壳文中的「off-ledger commits land in notes」等指令随 commits cell 重写消失（已含 2.4）· `artifacts`/`OUTPUT_REPORT`/`OUTPUT_EVIDENCE`/`INPUT_FINDINGS`/`reviewedDocRevision` 全保留（实况消费者俱在）
+#### 8.2 GitClient / 声明面文件级收编（六 seam → 二 seam 后的叙事清理）
+- 删 revParseHead/addAll/commit/log 后，git.ts 头注（find #10 长 sha 退役叙事 · 死方法注释）删改至与两 seam（topLevel/isClean）实况一致——程序史入 maintainers · 零「声明再抄」残留
+- handoff-schema.ts 头注（:9-23 的 commits/changes 载叙事）+ ledger/branch-ref 相关注释随声明删除重写（防散文堆砌）
+#### 8.3 数据面版本化
+- `TEMPLATE_PROMPT.$version` **6 → 7**（templates.ts:493 · tokens/shells/RETURN 全变的数据面版本记录 · 头注同步）· 引擎 runtime 契约 `$version(1)`（infra/runtime.ts:175）不动——非本 phase 语义面
+#### 8.4 消费面词表残留扫地 pin
+- kairos skills/README 双文/行为树 pinned 的 `INPUT_RANGE`/`WAVE_BASE`/`FIX_BASE`/`--base --head` 使用形式零残留（frozen 历史 docs 豁免 · docs/kairos/{specs,plans} 不扫）· branch fix 的 `--plan` 硬依赖（2.3）声明化后消费面零 churn（cdd-dev branch-fix 字面已带 `--plan`）
+#### 8.5 组装面守卫合一 + 零裸函数
+- 壳文-布局一致性断言（3.6）并入既有 token 守卫测试（channel-closure.guard · 不新增散落守卫文件）· BASE_BRANCH 注入 = `base get` 制品读（既有 Artifacts 类）· 断言 = TemplateAssembler 既有类方法——**零新增裸函数** · REVIEW_ITEM 单点成文覆盖四 review 变体（3.6 组装面原子性的佐证面）
+#### 8.6 边界确认（边界面零动）
+- wave 编排（WaveGate · next-wave 派生 · readiness）· lifecycle 状态机（round 相位 · 重审路由）· 双 review face（wave 按任务键 vs branch 稳定键）· doc-contract gate · base 命令语义 · clean-tree gate · doc_revision 内容指纹（run.ts:551）——均与 sha 退役正交 · P7 只在评测面收口（最大精简的边界：不整树重构）
+- 净简化量度：round-facts 面净删 `#reviewRange`/`#fixedPoint` + 简化 `#waveBrief`/`#outputOf` · token 布局净删约三分之一行（`#valuesOf` 面）
+
+### 9. 发布姿态与变更集
 - 不发布（与 P1–P6 一致）：commit-sha 退役 + 无条件 extract + brief 镜像为引擎内部语义（kairos 消费面为字面同步）· changeset 归并落 pending · 无独立 tag/publish
 
 ### Acceptance criteria
@@ -116,6 +132,7 @@
 - `载体/路由/契约重整全绿 ✓（CARRIER_WORK/FINDINGS 声明 + CarrierValue + ledger Round + RETURN 二行契约 + #parseBlockReturn/#commitsOf/#fixedPoint/#reviewRange/#outputOf(brief) 删 · handoff/next/capsule/declare 同步 · channel-closure 注册表守卫随删随配 · token 注册表守卫生效）`
 - `doc 线与 branch 线 round context 同构化 ✓（plan review INPUT_RANGE==INPUT_PLAN 双 token 重复消解 → 唯一 INPUT_DOC · spec review 空 INPUT_PLAN 随 token 退役 · branch fix 文档上下文赋值——fix mode context 增 INPUT_DOC(branch→planPath) · FIX_SHELL 按线分句（wave→INPUT_WAVE_BRIEF · branch→INPUT_DOC） · branch fix 真空 gap 修净 · REQUIRED_GROUPS.fix.branch=["--findings","--plan"] · branch review 零 OUTPUT_EVIDENCE / branch fix 保留 OUTPUT_EVIDENCE 保持）`
 - `child prompt 组装面原子性 + 壳文-布局一致性守卫 ✓（六 face prompt 同数据面折叠（shell 行文本 · TOKENS · REVIEWS · RETURN_ZONE 单常量 · HANDOFF_SCHEMA 声明派生）· 全部 round context 调整 → 全 child prompt 字节同面齐变 · 新壳文-布局一致性断言：各 mode shell 的 INPUT_*/OUTPUT_*/BASE_BRANCH 名引用 ⊆ 该 mode round-context 布局 ∪ 共享尾部（复用 #contextLines 槽位 regex · 构造成立级）——implement INPUT_PLAN 声称 / branch fix 真空双 gap 杜绝 · 断言全绿）`
+- `整个 phase 收尾扫 ✓（载体残余复核（notes/failure_category 活 · 排除误删 · 死码面只在 commits/changes/scope_base/snapshotSha/死 git seam）· GitClient 六→二 seam 后头注收编 · handoff-schema/ledger 叙事注释随删重写 · TEMPLATE_PROMPT.$version 6→7 · 消费面词表残留 grep pin 零命中（frozen docs 豁免）· 壳文-布局断言并入 channel-closure 守卫 + 零新裸函数 · 边界面（wave 编排/lifecycle/双 review face/doc-contract gate/base/clean-tree/doc_revision）零动 · #valuesOf token 布局净删约三分之一行）`
 - `I7 撤除 + kairos 消费面同步 ✓（cdd-dev SKILL.md:89 I7 行删 · :53 branch-review 字面重写零 ref · cdd-plan :44 INPUT_PLAN→镜像 Constraints 句 · 行为树 pins 全更替）`
 - `引擎 vitest 全绿（14 pin 文件 deliberate 重锚 + 新 pins：sha 零残留 / BASE_BRANCH 注入 / 无条件 extract rematch / 二行契约 / GitClient 二方法集）· kairos suite 全绿（vitest run）· EOF 全绿 · `pnpm run validate`（或等价 CI 原生序列）ALL PASS · 引擎 CLI 均以仓库内 bin 调用 · 不发布`
 
@@ -134,6 +151,7 @@
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.4 | 2026-10-13 | 六前提重审整个 phase 折入收尾扫——载体残余复核（notes/failure_category 活）· GitClient/声明面六→二 seam 叙事收编 · TEMPLATE_PROMPT.$version 6→7 · 消费面词表残留 pin · 守卫合一零裸函数 · 边界面零动 | Oscar M. · Claude Opus 5 |
 | v0.3 | 2026-10-13 | child prompt 组装面原子性折入——六 face prompt 同数据面折叠 · HANDOFF_SCHEMA 声明派生 auto 短文 · 新壳文-布局一致性守卫（#gate 盲区补齐 · 双声称 gap 构造成立级杜绝） | Oscar M. · Claude Opus 5 |
 | v0.2 | 2026-10-13 | doc/branch 线 review-fix round context 复审折入——plan review 双 token 重复消解 · branch fix 文档上下文赋值（fix mode 增 INPUT_DOC · FIX_SHELL 按线分句 · REQUIRED_GROUPS.fix.branch 追 --plan） | Oscar M. · Claude Opus 5 |
 | v0.1 | 2026-10-13 | P7 设计实写——评测面 commit-sha 全退役（Q1）· review 基准=最新 brief + base→head 方向（Q2/R4）· 物料无条件 extract（R1/R3）· brief=完整计划镜像三 face 单输入（Q4(a)）· changes[] 同退役改动面自判（Q3）· I7 撤除 · 六前提 mandate | Oscar M. · Claude Opus 5 |

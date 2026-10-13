@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P6 设计：single-spec 骨架 + 命名统一 + kairos vitest 迁移 + 过时文档清理
-- **Version**: v0.1 · 2026-10-13
+- **Version**: v0.2 · 2026-10-13
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P6] 会话 · 用户裁定 · 2026-10-13）
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](2026-10-10-engine-doc-tooling-overall.md)
@@ -19,7 +19,7 @@
 #### 1.2 四项工作的归因模型
 - **两个 domain**：cdd-engine（引擎 · single-spec doc 型 + 命名统一字节面 + 测试 pins）与 kairos（six skills + 消费面字面 + 测试面 node:test→vitest + 文档清理）——命名统一横跨两域（引擎 doc-key 值域 + kairos skill 消费字面）
 - **测试面划分（recon 实证）**：kairos 现有 11 test 文件（1862 行含 helpers）全部 `node:test`/`node:assert` · 零 `describe()` · 引擎 `pool: forks` vitest.config = 同构先例
-- **文档视角（recon 实证）**：kairos 消费面无 outdated（README/base.md 均当前）· stale 在 **root CLAUDE.md**（3 处 P5 解散机制引用）+ **maintainers 01:44 / 03:32**（token 计数/退役事实）· `docs/kairos/{specs,plans}` 为 frozen 历史面（grep-sweep DOC_ROOT_EXCLUDE_PATHS 显式排除 · 零动）
+- **文档视角（recon 实证）**：kairos 消费面无 outdated（README/base.md 均当前）· stale 在 **root CLAUDE.md**（3 处 P5 解散机制引用）+ **maintainers（2026-10-13 用户裁定：运维文档不事无巨细，五篇 48,555B 大量机制地图/叙述被实施与测试收编 → 激进收编为三篇 + index（~13KB · 项目本身即最好 sample））** · `docs/kairos/{specs,plans}` 为 frozen 历史面（grep-sweep DOC_ROOT_EXCLUDE_PATHS 显式排除 · 零动）
 #### 1.3 非目标（冻结面）
 - 领域 run（Lifecycle/PreFlight/Capsule/host）语义零动 · doc-contract 判定语义不变（gate 零例外）· `next:` 字面冻结 · 六命令功能语义不变 · **物理文件名 `*-overall.md` 不改名**（词表值域层授权边界）· `plan`/`phase-spec` 命名不变 · 引擎五面结构不重组（P6 不是在 P5 之上的又一整树重构）· 不发布 · 文档方法论语义不变
 
@@ -65,10 +65,12 @@
 - `CLAUDE.md:25` — `node scripts/run.ts validate`（该 verb 已随 validate 解散消亡 → 指向 root package.json validate 原生命令链）
 - `CLAUDE.md:43` — `- scripts/run.ts validate — Node validation orchestration`（仓库布局行 → 删除/改写为 validate 原生链 + pr-validate.yml 矩阵）
 - `CLAUDE.md:109` — `pnpm run precommit (node scripts/run.ts precommit, i.e. precommitSteps in scripts/validate.ts)`（两处过时：run.ts precommit verb + scripts/validate.ts 文件均已解散 → 改写为 package.json 原生命令链描述 · smoke-cdd 引用同步撤）
-#### 5.2 maintainers 文档事实修正（recon 实证）
-- `01-template-doctrine.md:44` — "14 declared injection tokens (13 round-context + 1 shell)" → **16（15 round-context + 1 shell）**（src-next/render/templates.ts:447-465 实测）
-- `03-context-caching-doctrine.md:32` — "17 round-context tokens" → **16** · 五枚具名 token（HANDOFF_WRITE_GATE 等）实际不存在（render.test.ts 负断言）→ 校正为存活 token · RETURN_JSON/DOCS_FIX 退役叙述 → 单 return 契约（RETURN_STDOUT_BLOCK only · v1.9）· C1 行 "per return format" → 单契约
-- `maintainers README.md` — "P4.2 convergence ledger" 标题与内容滞后（记的是 P5 事件）→ 标题/位置叙述对齐（After 字节断言由 maintainers-docs.test 沿守 · 本文行数若变则同步该测试）
+#### 5.2 maintainers 运维文档激进收编（用户裁定 2026-10-13 · 项目即 best sample）
+- **家族形态**：五篇正文 + index（48,555B）→ **三篇正文 + index（~13KB）**——收编后 `01-doctrine.md`（模板 doctrine 精髓 + skill-node 原则 + 程序经验非机械项 ~8 条 + smoke-cdd 定位句 pin）· `02-naming.md`（术语注册表）· `03-cache-doctrine.md`（六公理 + C1–C7 契约），index 随新家族重写
+- **删**：`01-template-doctrine.md`（10,866B —— 机制地图替代 doctrine）· `04-program-experience.md`（15,488B → 非机械项 ~8 条并入 01）· `06-skill-node-discipline.md`（1,900B 原则并入 01）· **更名** `02-naming-conventions.md → 02-naming.md` · `03-context-caching-doctrine.md → 03-cache-doctrine.md`
+- **判定依据**：机制/测试已收编的事实从文档消失（`emit:check`/`validateTemplateStructure`/`maintainers-docs.test` 即 enforcement，文档复述即冗余）· 保留非机械强制的判断/公理/注册表（六公理 · C1–C7 · 术语仲裁 · banned 表 · 非机械经验项）· 测试 pin 重锚随家族更替（`maintainers-docs.test.ts` CONTENT_DOCS 集改 · smoke 句落 01 · ledger After 字节随真值）
+- **测试改造**：`maintainers-docs.test.ts` 的 CONTENT_DOCS 集 = `[01-doctrine.md, 02-naming.md, 03-cache-doctrine.md]` · ledger 行随新家族（Before 存原值记录收编前字节）· 02 四词 pin 落新名 · **≤ 56,000 锚与 After==live 断言保持**
+- **引用面同步**：`CLAUDE.md:54` template-doctrine 链接 → 新 01 · `packages/kairos/README(.zh).md` 的 program-experience/template-doctrine 链接 → 新家族名 · `04/06` 相关 references（12/13/19/24-25 内部链接）随文重指向
 #### 5.3 frozen 历史面零动
 - `docs/kairos/{specs,plans}` 不清理（recon 实证 grep-sweep 已显式排除 · 历史记录的 P5-stale 机制字面属合法留置）· 消费面 README/base.md 零 outdated 不需改
 
@@ -84,7 +86,7 @@
 - `命名统一测试 pins 全量翻新 ✓（引擎快照 project.*.overall.snap → *.overall-spec.snap + cli/project/judge 等测试字面 deliberate 重锚 · 消费面 skill 变体名 single-spec/overall-spec · 行为树 pins 更替 · 消费面 `single`/`overall` 词表残留 grep pin 零命中（frozen 历史面豁免））`
 - `kairos vitest 全量迁移 ✓（11 测试文件 77 用例 + helpers.ts 全迁 `vitest` 词法 · package.json test → vitest run · vitest.config.ts 落位（pool forks · maxWorkers 1 · fileParallelism false · maxConcurrency 2 · testTimeout 20000）· CI `pnpm -C packages/kairos test` 字面不变 · 迁移后 `node --test`/`node:test` in kairos tests 零残留（recon 基线 11 文件全 node:test））`
 - `kairos tests 零裸函数收编 ✓（12 处裸 function 全收 const 箭头 · check:no-bare-functions scope 扩 packages/kairos/tests · 头注自标与实况一致 · no-bare-functions job 命令字面扩展全绿）`
-- `过时文档清理 ✓（root CLAUDE.md 三处 P5-stale 改净（run.ts validate / validate.ts / smoke-cdd 引用）· maintainers 01:44 token 计数 14→16 · 03:32 具名 token 往返修 + RETURN_JSON/DOCS_FIX 退役单契约 · maintainers README ledger 标题对齐 · maintainers-docs.test 随行同步全绿 · docs/kairos/{specs,plans} frozen 面零动）`
+- `过时文档清理 + 运维精简 ✓（root CLAUDE.md 三处 P5-stale 改净（run.ts validate / validate.ts / smoke-cdd 引用）· maintainers 五篇 + index 48,555B → 三篇 + index ~13KB（删 01-template-doctrine / 04-program-experience / 06-skill-node-discipline · 02-naming-conventions → 02-naming · 03-context-caching-doctrine → 03-cache-doctrine · 非机械项并入 01-doctrine）· maintainers-docs.test 全套件重锚全绿（CONTENT_DOCS 集 · smoke 句落 01 · ledger After==live 保持）· 消费面链接重指（CLAUDE.md:54 · kairos README 双文）· docs/kairos/{specs,plans} frozen 面零动）`
 - `引擎 vitest 全绿（含新 single-spec + 命名统一 pins）· kairos suite 全绿（vitest run · 77 用例）· EOF 全绿 · `pnpm run validate`（或等价 CI 原生序列）ALL PASS · 不发布`
 
 ## Constraints
@@ -94,7 +96,7 @@
 - **single-spec 轻量脚手架**（Q3→a）：header 五元组 + 主体 fill 槽位 · 无 `### N.` 双层大纲 · 无 Parent program 必填 · 自由主体（与 2026-09-28-cdd-review-contract-fix 形态对齐）
 - **kairos vitest 全镜像引擎**（Q4→a）：pool forks · maxWorkers 1 · fileParallelism false · maxConcurrency 2 · testTimeout 20000 · CI 命令字面不变
 - **零裸函数收编连带**（Q6→a）：kairos tests 12 处裸 function 全收 const 箭头 · check:no-bare-functions scope 扩 · 头注自标一致化
-- **文档清理精确边界**（Q5→a）：root CLAUDE.md + maintainers 01/03/README · **frozen 历史面零动**（docs/kairos/{specs,plans} · grep-sweep 既排除）
+- **文档清理精确边界**（Q5→a + 用户裁定 2026-10-13 激进收编）：root CLAUDE.md 三处 P5-stale + **maintainers 五篇+index 48,555B → 三篇+index ~13KB**（项目即 best sample · 删机制地图/叙述 · 保六公理/C1-C7/术语注册表/非机械项）· **frozen 历史面零动**（docs/kairos/{specs,plans} · grep-sweep 既排除）
 - **语义契约保**：退出码表 / CDD_BLOCKED 通道 / doc-contract 判定 / `next:` 字面 / 领域 run 语义——语义不变（命名统一为 deliberate re-anchor · 非行为变更）
 - **gate 零例外**：doc-contract 判定语义不变——single-spec 骨架 by construction 绿 · 填后终判兜底
 - **不发布**：变更集归并落 pending · tag / publish = 独立动作
@@ -103,4 +105,5 @@
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.2 | 2026-10-13 | P6 设计 v0.2——运维文档激进收编（用户裁定 2026-10-13：运维文档不事无巨细 · 项目本身即最好 sample）：§5.2 由逐行事实修正改为 maintainers 五篇+index 48,555B → 三篇+index ~13KB 收编（删 01-template-doctrine / 04-program-experience / 06-skill-node-discipline · 更名 02/03 · 非机械项并入 01-doctrine）· Acceptance/Constraint/§1.2 recon 同步 | Oscar M. · Claude Opus 5（kairos:cdd-design [P6] · 用户裁定） |
 | v0.1 | 2026-10-13 | P6 设计 v0.1——single-spec 骨架 + 命名统一 + kairos vitest 迁移 + 过时文档清理（D21 注册 · D22 grilling 六裁定）：① single-spec doc 型（轻量脚手架 · header + `:::fill` 槽位 + Change history 表 · schema get single-spec --output skeleton · cdd-spec-writer 先 gen 后填）· ② 命名统一词表值域层（overall→overall-spec · single→single-spec · plan/phase-spec 不变 · 物理文件名 `*-overall.md` 零改名 · judge 派生 `-overall.md → overall-spec`）· ③ kairos vitest 全量迁移（pool forks 镜像引擎 · 11 文件 77 用例 · helpers 同迁）+ 零裸函数收编（12 处收 const · check:no-bare-functions scope 扩）· ④ 过时文档清理（root CLAUDE.md 三处 + maintainers 01:44/03:32 + README ledger · frozen 面零动）· 不发布 · 单 phase-spec 收口 | Oscar M. · Claude Opus 5（kairos:cdd-design [P6] 会话 · 用户裁定 · 2026-10-13） |

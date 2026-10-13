@@ -306,11 +306,12 @@ export const SCHEMA_TYPE_KEYS: Readonly<Record<string, DocKey>> = {
 };
 
 /** The conditional required group per work verb + target type — the preAction hook's
- *  data face (spec §4.2): review `{plan}` / `{spec}` / `{base, head}` · fix `{plan}`
- *  / `{spec}` / `{findings}` — the review branch refs ride the range's birth face,
- *  the fix branch face rides the `--findings` carrier. Keyed by declared flag
- *  spelling; non-exclusive — a round declaring both `--plan` and `--spec` stays
- *  accepted (no mutual-exclusion rejection). */
+ *  data face (spec §4.2): review `{plan}` / `{spec}` / `{plan}` · fix `{plan}` /
+ *  `{spec}` / `{findings, plan}` — every branch face carries the `--plan` workspace
+ *  identity (the branch line holds no commit ref: the review judges the live tree,
+ *  the scope anchor BASE_BRANCH is engine-injected at dispatch). Keyed by declared
+ *  flag spelling; non-exclusive — a round declaring both `--plan` and `--spec`
+ *  stays accepted (no mutual-exclusion rejection). */
 export const REQUIRED_GROUPS: Readonly<
   Record<"review" | "fix", Readonly<Record<string, readonly string[]>>>
 > = {
@@ -318,12 +319,12 @@ export const REQUIRED_GROUPS: Readonly<
     wave: ["--plan"],
     spec: ["--spec"],
     plan: ["--plan"],
-    branch: ["--base", "--head"],
+    branch: ["--plan"],
   },
   fix: {
     wave: ["--plan"],
     spec: ["--spec"],
     plan: ["--plan"],
-    branch: ["--findings"],
+    branch: ["--findings", "--plan"],
   },
 };

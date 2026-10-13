@@ -41,16 +41,14 @@ import { EMPTY_RUN_STATE } from "./run.ts";
  *  build-time value: the skeleton holds only the schema's declared writable plane. */
 type WorkInit = {
   artifacts?: Record<string, string>;
-  commits?: { base: string; head?: string };
 };
 
 /** The findings face's writable init — `findings` is the schema-REQUIRED field of the
  *  findings face (the compile-time twin of the read-back required gate — a findings
- *  init omitting it is a type error), artifacts + commits optional. */
+ *  init omitting it is a type error), artifacts optional. */
 type FindingsInit = {
   findings: unknown[];
   artifacts?: Record<string, string>;
-  commits?: { base: string; head?: string };
 };
 
 /** The review-finding severity vocabulary — the handoff findings severity enum, single-typed. */
@@ -638,7 +636,6 @@ export class Ledger {
     init: WorkInit & { findings?: unknown[] } = {},
   ): WorkCarrier | FindingsCarrier {
     const carrier: Record<string, unknown> = { artifacts: init.artifacts ?? {} };
-    if (init.commits !== undefined) carrier.commits = init.commits;
     if (face === "findings" || init.findings !== undefined) carrier.findings = init.findings;
     return carrier as WorkCarrier | FindingsCarrier;
   }

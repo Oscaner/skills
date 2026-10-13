@@ -23,7 +23,6 @@ import type { HandoffFamily } from "../infra/runtime.ts";
 import type { Workspace } from "../infra/workspace.ts";
 import type { TemplateValues, WorkMode } from "../render/templates.ts";
 import { TemplateAssembler } from "../render/templates.ts";
-import { BranchRef } from "../session/branch-ref.ts";
 import type { HandoffSchemaFace } from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
 import type { Ledger, OpType, RoundStatus } from "../session/ledger.ts";
@@ -89,13 +88,14 @@ export type ProcessEnvLike = Record<string, string | undefined>;
 
 /** One dispatch scene — the per-invocation composition the work commands assemble
  *  (the workspace + ledger the frame's round rides, the plan/brief paths the prompt
- *  references, the git HEAD the fix's re-review base derives). */
+ *  references, the base artifact's branch name the branch review's scope anchor
+ *  (BASE_BRANCH) derives). */
 export interface DispatchScene {
   workspace: Workspace;
   ledger: Ledger;
   planPath: string | null;
   briefPath: string | null;
-  head: string | null;
+  baseBranch?: string | null;
 }
 
 /**
@@ -286,10 +286,6 @@ export class CliLifecycle {
       // tokens under the wave-unitary model).
       WAVE: isWave ? (params.tasks ?? "") : "",
       INPUT_WAVE_BRIEF: this.#waveBrief(frame, scene, op),
-      // find #4 (P4.1 T7): INPUT_RULES is RETIRED — the implement child reads the
-      // plan's `## Constraints` section directly through INPUT_PLAN (zero materialized
-      // plan-constraints file, zero dead pointer; the dispatcher-side rules channel is
-      // gone — the constraint source is the plan document itself).
       // v1.9: INPUT_FINDINGS is fix/docs-fix only — the open findings of the source
       // review; a review writes its own draft (INPUT_FINDINGS === OUTPUT_HANDOFF
       // would be a short-circuit).
@@ -297,19 +293,24 @@ export class CliLifecycle {
         op === "fix"
           ? (this.#findings ?? scene.ledger.handoffPath("review", frame.type, params))
           : "",
-      INPUT_RANGE: isReview ? this.#reviewRange(frame) : "",
-      INPUT_PLAN: scene.planPath ?? "",
-      INPUT_DOC: docPath ?? "",
+      // The doc anchor — the target doc for a doc line, the plan path for a branch
+      // line (the branch review/fix judge the plan document). Empty off those faces.
+      INPUT_DOC: docPath ?? (frame.target.kind === "branch" ? (scene.planPath ?? "") : ""),
+      // The branch/wave tree-review scope anchor (BASE_BRANCH) — engine-injected
+      // from the base artifact at dispatch; empty off those faces (spec/plan reviews
+      // carry none, and the empty slot is dropped by the assembler).
+      BASE_BRANCH:
+        isReview && (frame.type === "branch" || frame.type === "wave")
+          ? (scene.baseBranch ?? "")
+          : "",
       // find #5 (P4.1 T7) — the prescribed artifact write paths (the {family}-{key}-
       // {artifact} single naming): the round context carries the canonical OUTPUT_*
       // names the child MUST use (zero free naming · cross-round zero overwrite); a
       // slot the frame's family does not consume stays empty and is dropped (only
-      // present facts land).
-      OUTPUT_BRIEF: this.#outputOf(frame, "brief"),
+      // present facts land). The brief is a pure read input — no OUTPUT_BRIEF.
       OUTPUT_REPORT: this.#outputOf(frame, "report"),
       OUTPUT_EVIDENCE: this.#outputOf(frame, "evidence"),
       OUTPUT_HANDOFF: scene.ledger.handoffPath(op, frame.type, params),
-      FIX_BASE: op === "fix" ? this.#fixedPoint(frame, params) : "",
       REVIEW_TYPE: isReview ? frame.type : "",
       WORKSPACE_DIR: scene.workspace.path,
       WORKSPACE_ID: scene.workspace.slug,
@@ -363,27 +364,6 @@ export class CliLifecycle {
     return `${line}-test-evidence.json`;
   }
 
-  /** The review's reference (INPUT_RANGE) — the fact the review criteria judge: the
-   *  branch range (the short form — ⑦: unified with the wave face), the doc
-   *  (spec/plan), or — task reviews — the reviewed commit range WAVE_BASE..HEAD
-   *  derived from the implement round's handoff (§3.7 closeout: only present facts
-   *  land — an unreadable implement handoff degrades to the plan path). */
-  #reviewRange(frame: OpenFrame): string {
-    // ⑦ — INPUT_RANGE renders the short range for branch and wave alike (one
-    // decision in BranchRef; the child never needs the full shas to run git).
-    if (frame.target.kind === "branch")
-      return BranchRef.short(frame.target.base, frame.target.head);
-    if (frame.target.kind === "doc") return frame.target.doc;
-    const carried = this.#scene.ledger.readHandoff("implement", "wave", {
-      tasks: frame.params.tasks ?? "",
-    });
-    const commits = carried?.commits as { base?: unknown; head?: unknown } | undefined;
-    if (typeof commits?.base === "string" && typeof commits?.head === "string") {
-      return BranchRef.short(commits.base, commits.head);
-    }
-    return this.#scene.planPath ?? "";
-  }
-
   /** The round's task-brief input — the rendered brief (implement) or the prior
    *  implement round's brief file (task fixes — it exists on disk after the
    *  implement dispatch). "" outside the task work rounds; only present facts land. */
@@ -394,17 +374,6 @@ export class CliLifecycle {
       return existsSync(brief) ? brief : "";
     }
     return "";
-  }
-
-  /** The fix round's fixed point — the source review's reviewed HEAD (the state the
-   *  fix builds on — the shell's "the prior handoff's `commits.head`"; §3.7 closeout).
-   *  Only present facts land: an unreadable source review yields the empty slot,
-   *  never a guess; a review draft carrying only its reviewed base falls back to it. */
-  #fixedPoint(frame: OpenFrame, params: OpenFrame["params"]): string {
-    const carried = this.#scene.ledger.readHandoff("review", frame.type, params);
-    const commits = carried?.commits as { base?: unknown; head?: unknown } | undefined;
-    const anchor = typeof commits?.head === "string" ? commits.head : commits?.base;
-    return typeof anchor === "string" ? anchor : "";
   }
 
   /** The RETURN_STDOUT_BLOCK child stdout → the outcome: the three canonical lines
@@ -539,14 +508,11 @@ export class CliLifecycle {
         ? ledger.buildHandoff("findings", {
             artifacts: this.#canonicalArtifacts(frame, draft.artifacts, notes),
             findings: this.#findingsList(draft.findings),
-            commits: this.#commitsOf(draft.commits),
           })
         : ledger.buildHandoff("work", {
             artifacts: this.#canonicalArtifacts(frame, draft.artifacts, notes),
-            commits: this.#commitsOf(draft.commits),
           });
     carrier.status = status;
-    if (Array.isArray(draft.changes)) carrier.changes = draft.changes;
     if (typeof draft.failure_category === "string")
       carrier.failure_category = draft.failure_category;
     const draftNotes = Array.isArray(draft.notes) ? [...(draft.notes as unknown[])] : [];
@@ -653,14 +619,6 @@ export class CliLifecycle {
     return Object.keys(out).length > 0 ? out : undefined;
   }
 
-  /** The commits field as the {base, head?} shape — only present facts land. */
-  #commitsOf(commits: unknown): { base: string; head?: string } | undefined {
-    if (typeof commits !== "object" || commits === null) return undefined;
-    const row = commits as { base?: unknown; head?: unknown };
-    if (typeof row.base !== "string") return undefined;
-    return { base: row.base, head: typeof row.head === "string" ? row.head : undefined };
-  }
-
   /** The draft findings as a plain list (the materialized carrier keeps them
    *  verbatim; the schema validated their shape before this ran). */
   #findingsList(findings: unknown): unknown[] {
@@ -676,15 +634,11 @@ export class CliLifecycle {
     switch (frame.phase) {
       case "implement":
         return `cdd implement --tasks ${frame.params.tasks ?? ""} --plan ${plan}`;
-      case "branch-review": {
-        const range = frame.target as { kind: "branch"; base: string; head: string };
-        // find #10 — the review face consumes the 8-char short flags (full-shas
-        // retired engine-wide); the workspace-identity `--plan` rides (find #8
-        // F1b · spec §5.7 fix ② — a plan-less `#sceneOf` resolves to the empty
-        // ref.short() directory).
-        const ref = new BranchRef(range.base, range.head);
-        return `cdd review --type branch --plan ${plan} ${ref.args()}`;
-      }
+      case "branch-review":
+        // The branch re-review literal carries only the workspace-identity `--plan`
+        // — the review judges the live tree (the scope anchor BASE_BRANCH is
+        // engine-injected at dispatch), so no range rides the command.
+        return `cdd review --type branch --plan ${plan}`;
       case "review":
         if (frame.type === "spec") return `cdd review --type spec --spec ${this.#docOf(frame)}`;
         if (frame.type === "plan") return `cdd review --type plan --plan ${this.#docOf(frame)}`;

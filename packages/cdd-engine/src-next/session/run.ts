@@ -19,7 +19,6 @@
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
 import { readFileSync } from "node:fs";
-import { BranchRef } from "./branch-ref.ts";
 import type { DispatchPhase, ReviewLead, RouteTarget, TargetFace, TargetType } from "./faces.ts";
 import type {
   HandoffParams,
@@ -68,8 +67,9 @@ export type AuditTarget =
   /** wave (T26 · the wave-unitary model): the frontier's open wave — the whole ready
    *  batch is ONE dispatch unit (one brief · one child · one commit · one round). */
   | { kind: "wave"; tasks: readonly number[] }
-  /** branch: the branch diff range (8-char short shas — the {base8}/{head8} tokens). */
-  | { kind: "branch"; base: string; head: string }
+  /** branch: the branch line itself (no commit identity — the review's scope anchor
+   *  rides the engine-injected BASE_BRANCH, never a stored range). */
+  | { kind: "branch" }
   /** spec/plan: the audit document path. */
   | { kind: "doc"; doc: string };
 
@@ -463,11 +463,8 @@ export class Lifecycle {
         if (frame.phase !== "implement") params.round = frame.round;
         return params;
       }
-      case "branch": {
-        const { base, head } = frame.target as { kind: "branch"; base: string; head: string };
-        const ref = new BranchRef(base, head);
-        return { base8: ref.base8, head8: ref.head8, round: frame.round };
-      }
+      case "branch":
+        return { round: frame.round };
       case "spec":
       case "plan":
         return { round: frame.round };
@@ -509,11 +506,9 @@ export class Lifecycle {
         (face === "findings"
           ? this.#ledger.buildHandoff("findings", {
               findings: [...(outcome.findings ?? [])],
-              commits: outcome.commits,
               artifacts: outcome.artifacts,
             })
           : this.#ledger.buildHandoff("work", {
-              commits: outcome.commits,
               artifacts: outcome.artifacts,
             }));
       if (carrier.status === undefined && outcome.status !== undefined)
@@ -637,13 +632,13 @@ export class Lifecycle {
       case "wave":
         return { type: "wave", id: frame.params.tasks ?? "", plan: this.#planPath ?? undefined };
       case "branch":
-        // find #8 F1b (spec §5.7 fix ②): the branch target carries the workspace
-        // plan path — the fix/re-review literals' `--plan` (a plan-less
-        // `#sceneOf` resolves to the empty ref.short() directory · the workspace
-        // double identity · zero orchestrator fallback).
+        // The branch line's stable id — the workspace plan path carries the
+        // fix/re-review literals' `--plan` (a plan-less `#sceneOf` would resolve
+        // to the empty directory · the workspace double identity · zero
+        // orchestrator fallback).
         return {
           type: "branch",
-          id: `${frame.params.base8}..${frame.params.head8}`,
+          id: "branch",
           plan: this.#planPath ?? undefined,
         };
       case "spec":

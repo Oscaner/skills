@@ -156,7 +156,7 @@ describe("the task small loop — implement → review → the next ready group"
       expect(step1!.frame.target).toEqual({ kind: "wave", tasks: [1] });
       expect(step1!.frame.params).toEqual({ tasks: "1" });
       expect(step1!.round).toBe(1);
-      expect(step1!.route).toEqual({ kind: "review", base: BASE, head: HEAD });
+      expect(step1!.route).toEqual({ kind: "review" });
 
       const step2 = run.advance();
       expect(step2!.frame.phase).toBe("review");
@@ -217,7 +217,7 @@ describe("the task small loop — implement → review → the next ready group"
       });
 
       const implement = run.advance();
-      expect(implement!.route).toEqual({ kind: "review", base: BASE, head: HEAD });
+      expect(implement!.route).toEqual({ kind: "review" });
 
       const review1 = run.advance();
       expect(review1!.frame.phase).toBe("review");
@@ -231,7 +231,7 @@ describe("the task small loop — implement → review → the next ready group"
       expect(fix!.frame.round).toBe(1);
       // the C5-1 re-review: the fix round carries the source review's blocker and
       // routes the fix's delta span (base + head — the branch literal's full range)
-      expect(fix!.route).toEqual({ kind: "review", base: BASE, head: HEAD });
+      expect(fix!.route).toEqual({ kind: "review" });
       expect(graph.doneTasks()).toEqual(new Set());
 
       const review2 = run.advance();
@@ -400,7 +400,7 @@ describe("the task small loop — implement → review → the next ready group"
       const review1 = run.advance();
       expect(review1!.route!.kind).toBe("fix"); // any mix with a blocker → fix
       const fix1 = run.advance();
-      expect(fix1!.route).toEqual({ kind: "review", base: BASE, head: HEAD }); // blockers remain → re-review
+      expect(fix1!.route).toEqual({ kind: "review" }); // blockers remain → re-review
       const review2 = run.advance();
       expect(review2!.frame.round).toBe(2);
       expect(review2!.route!.kind).toBe("fix"); // the warn+nit re-review still fixes
@@ -752,17 +752,13 @@ describe("the branch small loop — branch-review → fix → closure", () => {
         state: EMPTY_RUN_STATE,
         ledger,
         dispatch: dispatch.step,
-        target: { kind: "branch", base: BASE, head: HEAD },
+        target: { kind: "branch" },
       });
 
       const review1 = run.advance();
       expect(review1!.frame.phase).toBe("branch-review");
       expect(review1!.frame.round).toBe(1);
-      expect(review1!.frame.params).toEqual({
-        base8: BASE.slice(0, 8),
-        head8: HEAD.slice(0, 8),
-        round: 1,
-      });
+      expect(review1!.frame.params).toEqual({ round: 1 });
       expect(review1!.route!.kind).toBe("fix");
 
       const fix = run.advance();
@@ -774,20 +770,8 @@ describe("the branch small loop — branch-review → fix → closure", () => {
       expect(run.advance()).toBeNull();
       // the canonical branch family names ride the spine {round} increment (find #9 —
       // `branch-review-{round}.json` — the range token left the file name)
-      expect(
-        ledger.readHandoff("review", "branch", {
-          base8: BASE.slice(0, 8),
-          head8: HEAD.slice(0, 8),
-          round: 1,
-        }),
-      ).not.toBeNull();
-      expect(
-        ledger.readHandoff("fix", "branch", {
-          base8: BASE.slice(0, 8),
-          head8: HEAD.slice(0, 8),
-          round: 1,
-        }),
-      ).not.toBeNull();
+      expect(ledger.readHandoff("review", "branch", { round: 1 })).not.toBeNull();
+      expect(ledger.readHandoff("fix", "branch", { round: 1 })).not.toBeNull();
     } finally {
       cleanup();
     }
@@ -832,7 +816,7 @@ describe("the branch small loop — branch-review → fix → closure", () => {
         state: EMPTY_RUN_STATE,
         ledger,
         dispatch: dispatch.step,
-        target: { kind: "branch", base: BASE, head: HEAD },
+        target: { kind: "branch" },
       });
 
       // review-1 → fix-1
@@ -855,27 +839,9 @@ describe("the branch small loop — branch-review → fix → closure", () => {
       expect(run.advance()).toBeNull();
       // the spine file names accumulate too — branch-review-1.json AND
       // branch-review-2.json exist (find #9: the round rides the name, never the range)
-      expect(
-        ledger.readHandoff("review", "branch", {
-          round: 1,
-          base8: BASE.slice(0, 8),
-          head8: HEAD.slice(0, 8),
-        }),
-      ).not.toBeNull();
-      expect(
-        ledger.readHandoff("review", "branch", {
-          round: 2,
-          base8: BASE.slice(0, 8),
-          head8: HEAD.slice(0, 8),
-        }),
-      ).not.toBeNull();
-      expect(
-        ledger.readHandoff("fix", "branch", {
-          round: 1,
-          base8: BASE.slice(0, 8),
-          head8: HEAD.slice(0, 8),
-        }),
-      ).not.toBeNull();
+      expect(ledger.readHandoff("review", "branch", { round: 1 })).not.toBeNull();
+      expect(ledger.readHandoff("review", "branch", { round: 2 })).not.toBeNull();
+      expect(ledger.readHandoff("fix", "branch", { round: 1 })).not.toBeNull();
     } finally {
       cleanup();
     }

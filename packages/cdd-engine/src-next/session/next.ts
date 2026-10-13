@@ -5,13 +5,11 @@
 // approval shares):
 //   review   zero findings  → close(state) — the ready batch decides next-wave | done
 //   review   findings       → fix (one-way — a review never previews what a fix will do)
-//   fix      blocker>0      → review at a new ref (base = the fix round's head)
+//   fix      blocker>0      → a re-review hop (the live tree, no commit identity)
 //   fix      blocker==0     → close(state) — the warn/nit-only / clean closure (#278,
 //                             no APPROVED-mandated re-review)
 //   fix      soft cap       → the "BLOCKED: review-cycle-cap" suggestion (user adjudicates)
 //   BLOCKED/TIMEOUT         → null (no next line — the CDD_BLOCKED channel owns the face)
-//   missing base            → null (only present facts land — a next hop never carries a
-//                             synthetic empty base: absent commits degrade the line to null)
 //
 // close(state) — the v1.20 unified closure terminal: every closure point (a review
 // with zero findings / a fix whose source blockers cleared) renders the SAME route
@@ -38,11 +36,8 @@ export type Route =
   | { kind: "done" }
   /** closure — another wave is ready: the next dispatch wave's task ids. */
   | { kind: "next-wave"; tasks: string }
-  /** re-review at a new ref — base/head = the reviewed range's new span (the round
-   *  carrier's commits; the branch re-review literal needs the FULL range — the
-   *  runtime gate refuses a --base-only literal). head rides only when the carrier
-   *  carries it (only present facts land). */
-  | { kind: "review"; base: string; head?: string }
+  /** a review hop — a review judges the live tree, carrying no commit identity. */
+  | { kind: "review" }
   /** the one-way fix hop — findingsPath = the review handoff the fix reads (`--findings`). */
   | { kind: "fix"; findings?: string }
   /** the review-cycle soft cap — the suggestion defers to user adjudication. */
@@ -81,19 +76,10 @@ export class NextStepRouter {
     if (ref.status !== undefined && FAILED_STATUS.has(ref.status)) return null;
 
     switch (ref.phase) {
-      case "implement": {
-        // The implement round completes → the group's review is the next hop (the reviewed
-        // range = the implement round's commits). Only present facts land: a missing
-        // base never invents a next line (an implement round without commits is abnormal) —
-        // an empty base would be indistinguishable from a real one in the rendered next:.
-        // The range's terminal (head) rides the carrier when present — the branch
-        // re-review literal's `--head` composes only from real facts, never invented.
-        const commits = ref.commits;
-        if (commits?.base === undefined) return null;
-        return commits.head === undefined
-          ? { kind: "review", base: commits.base }
-          : { kind: "review", base: commits.base, head: commits.head };
-      }
+      case "implement":
+        // The implement round completes → the group's review is the next hop. A
+        // review judges the live tree, so the hop carries no commit identity.
+        return { kind: "review" };
       case "review":
         // One-way: any findings (any severity) → the fix round — a review never previews
         // what the fix will do (C5-1). Zero findings (approved) → the unified closure: the
@@ -107,16 +93,9 @@ export class NextStepRouter {
           return { kind: "soft-cap", message: SOFT_CAP_SUGGESTION };
         }
         if (this.#blockerCount(ref) > 0) {
-          // Blockers remain in the input findings → re-review THE FIX'S DELTA: the branch
-          // re-review literal needs the FULL range — the runtime missing-refs gate refuses
-          // a --base-only literal (`missing required --base <sha> --head <sha>`), so the
-          // route composes base (the fix's base — the previously reviewed head the fix
-          // built on) + head (the fix's head — the new branch tip): the re-review covers
-          // exactly the fix's commits. Only present facts land: a fix carrier missing
-          // either leg never invents the re-review.
-          const commits = ref.commits;
-          if (commits?.base === undefined || commits.head === undefined) return null;
-          return { kind: "review", base: commits.base, head: commits.head };
+          // Blockers remain in the input findings → the fix delta is re-reviewed. A
+          // review judges the live tree, so the hop carries no commit identity.
+          return { kind: "review" };
         }
         // No blockers → the unified closure: the ready batch decides next-wave | done
         // (a warn/nit-only fix closes — the #278 REVIEW_FIX state, no re-review preview).

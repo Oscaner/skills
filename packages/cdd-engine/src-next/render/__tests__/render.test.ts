@@ -13,10 +13,10 @@ import { Translator } from "../../contract/translate.ts";
 import { Words } from "../../face/words.ts";
 import { BriefRenderer } from "../brief.ts";
 import { IssueBodyRenderer, type IssueReportInput } from "../issue-body.ts";
-import { TemplateAssembler } from "../templates.ts";
+import { TEMPLATE_PROMPT, TemplateAssembler } from "../templates.ts";
 
 /** The full per-dispatch slot values — every declared template token (the v1.8
- *  INPUT_/OUTPUT_/WORKSPACE_/FIX_BASE/ROLE/WAVE vocabulary), optional slots
+ *  INPUT_/OUTPUT_/WORKSPACE_/BASE_BRANCH/ROLE/WAVE vocabulary), optional slots
  *  legitimately empty (an implement dispatch carries no review/fix slots; the
  *  review criteria/lens are NOT values — they fold into the review type's fixed
  *  prefix, §3.7). */
@@ -25,16 +25,11 @@ const ALL_VALUES: Record<string, string> = {
   WAVE: "4,12",
   INPUT_WAVE_BRIEF: "/ws/tasks-4,12-brief.md",
   INPUT_FINDINGS: "",
-  INPUT_RANGE: "",
-  INPUT_PLAN: "",
   INPUT_DOC: "",
-  // find #4 — INPUT_RULES is retired (the plan's `## Constraints` rides INPUT_PLAN;
-  // the round context carries no rules channel).
-  OUTPUT_BRIEF: "/ws/tasks-4,12-brief.md",
+  BASE_BRANCH: "",
   OUTPUT_REPORT: "/ws/tasks-4,12-implement-report.md",
   OUTPUT_EVIDENCE: "/ws/tasks-4,12-test-evidence.json",
   OUTPUT_HANDOFF: "/ws/tasks-4,12-implement.json",
-  FIX_BASE: "",
   REVIEW_TYPE: "",
   WORKSPACE_DIR: "/ws",
   WORKSPACE_ID: "2026-10-02-x",
@@ -51,14 +46,18 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(assembler.returnFormats()).toEqual(["RETURN_STDOUT_BLOCK"]);
     expect(assembler.declaredTokens()).toContain("ROLE");
     expect(assembler.declaredTokens()).toContain("OUTPUT_HANDOFF");
-    expect(assembler.declaredTokens()).toContain("OUTPUT_BRIEF");
     expect(assembler.declaredTokens()).toContain("OUTPUT_REPORT");
     expect(assembler.declaredTokens()).toContain("OUTPUT_EVIDENCE");
+    expect(assembler.declaredTokens()).toContain("BASE_BRANCH");
     expect(assembler.declaredTokens()).toContain("HANDOFF_SCHEMA");
+    // the retired reference tokens — the range/plan/brief range tokens are gone
+    expect(assembler.declaredTokens()).not.toContain("INPUT_RANGE");
+    expect(assembler.declaredTokens()).not.toContain("INPUT_PLAN");
+    expect(assembler.declaredTokens()).not.toContain("FIX_BASE");
+    expect(assembler.declaredTokens()).not.toContain("OUTPUT_BRIEF");
     expect(assembler.declaredTokens()).not.toContain("INPUT_CRITERIA");
     expect(assembler.declaredTokens()).not.toContain("INPUT_LENS");
     expect(assembler.declaredTokens()).not.toContain("HANDOFF_WRITE_GATE");
-    // find #4 — the INPUT_RULES token is gone (zero dead pointer · the single constraint source = the plan itself)
     expect(assembler.declaredTokens()).not.toContain("INPUT_RULES");
   });
 
@@ -74,12 +73,12 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(out).toContain("- `INPUT_WAVE_BRIEF`: /ws/tasks-4,12-brief.md");
     expect(out).toContain("$$SCHEMA$$"); // the injected writable-subset fence slot
     expect(out).not.toContain("{{"); // zero unresolved slots
-    // find #4 — the implement reminder reads the plan's ## Constraints through
-    // INPUT_PLAN (zero materialization, zero dead pointer): the shared rules channel is gone from the prose
-    // AND the round context; the OUTPUT_* write paths are prescribed (find #5)
+    // the implement reminder reads the complete plan mirror (INPUT_WAVE_BRIEF) —
+    // the plan's ## Constraints rides the brief; the OUTPUT_* write paths are
+    // prescribed (find #5), the brief is a pure read input (no OUTPUT_BRIEF)
     expect(out).not.toContain("INPUT_RULES");
-    expect(out).toContain("the plan's `## Constraints` via `INPUT_PLAN`");
-    expect(out).toContain("- `OUTPUT_BRIEF`: /ws/tasks-4,12-brief.md");
+    expect(out).toContain("the complete plan mirror");
+    expect(out).not.toContain("- `OUTPUT_BRIEF`");
     expect(out).toContain("- `OUTPUT_REPORT`: /ws/tasks-4,12-implement-report.md");
     expect(out).toContain("- `OUTPUT_EVIDENCE`: /ws/tasks-4,12-test-evidence.json");
     // the v1.9 prose-zeroing — no HANDOFF_WRITE_GATE / ## Handoff prose anywhere
@@ -90,6 +89,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(out).not.toContain("INPUT_CRITERIA");
     expect(out).not.toContain("INPUT_FINDINGS");
     expect(out).not.toContain("FIX_BASE");
+    expect(out).not.toContain("BASE_BRANCH");
   });
 
   it("renders the docs-fix mode through the same table — its own rules + subset", () => {
@@ -101,6 +101,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(out.startsWith("# CDD dispatch — docs-fix round")).toBe(true);
     expect(out).toContain("apply `INPUT_FINDINGS` (all severities) directly to `INPUT_DOC`");
     expect(out).toContain("- `INPUT_DOC`: docs/x-design.md");
+    expect(out).not.toContain("BASE_BRANCH");
     // the review-only keys stay out of the docs-fix context
     expect(out).not.toContain("INPUT_CRITERIA");
   });
@@ -110,7 +111,6 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       ...ALL_VALUES,
       ROLE: "fix",
       INPUT_FINDINGS: "/ws/tasks-1-review-1.json",
-      FIX_BASE: "a".repeat(8),
     });
     expect(out.startsWith("# CDD dispatch — fix round")).toBe(true);
     // verify-then-apply — the receiving-code-review core: VERIFY each finding
@@ -127,7 +127,6 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       ...ALL_VALUES,
       ROLE: "fix",
       INPUT_FINDINGS: "/ws/tasks-1-review-1.json",
-      FIX_BASE: "a".repeat(8),
     });
     // the work face's ONE strict-schema directive — the declared properties are the
     // draft's field source (the keyset rides the injected `## Handoff schema` fence,
@@ -171,8 +170,8 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       ...ALL_VALUES,
       ROLE: "review",
       REVIEW_TYPE: "spec",
-      INPUT_RANGE: "docs/kairos/specs/s1-design.md",
-      INPUT_PLAN: "/ws/p.md",
+      INPUT_WAVE_BRIEF: "",
+      INPUT_DOC: "docs/kairos/specs/s1-design.md",
       OUTPUT_HANDOFF: "/ws/spec-review-1.json",
     });
     expect(spec.startsWith("# CDD dispatch — review round")).toBe(true);
@@ -182,21 +181,24 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     // the claimed→pin clause (T4) — every behavior claim must cite a colocated pin;
     // the spec + plan review variants carry it (the task/branch variants do not)
     expect(spec).toContain("Claimed→pin");
-    expect(spec).toContain("- `INPUT_RANGE`: docs/kairos/specs/s1-design.md");
+    expect(spec).toContain("- `INPUT_DOC`: docs/kairos/specs/s1-design.md");
     expect(spec).not.toContain("- `INPUT_WAVE_BRIEF`");
     expect(spec).not.toContain("- `INPUT_FINDINGS`");
     expect(spec).not.toContain("- `FIX_BASE`");
-    // a task review selects its own variant — the task axes + lens
+    expect(spec).not.toContain("BASE_BRANCH"); // spec review carries no scope anchor
+    // a task review selects its own variant — the task axes + lens + the wave brief
     const task = assembler.render({
       ...ALL_VALUES,
       ROLE: "review",
       REVIEW_TYPE: "wave",
-      INPUT_RANGE: "aaaaaaa..bbbbbbb",
+      BASE_BRANCH: "develop",
       OUTPUT_HANDOFF: "/ws/tasks-1-review-1.json",
     });
     expect(task).toContain("**Criteria — wave:**");
     expect(task).toContain("Standards axis");
     expect(task).toContain("standards | spec | buildability");
+    expect(task).toContain("- `INPUT_WAVE_BRIEF`: /ws/tasks-4,12-brief.md");
+    expect(task).toContain("- `BASE_BRANCH`: develop");
     expect(task).not.toContain("Follow URC");
     expect(task).not.toContain("Claimed→pin"); // the task axes carry no clause
     // a plan review carries the same claimed→pin clause as the spec variant
@@ -204,8 +206,8 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       ...ALL_VALUES,
       ROLE: "review",
       REVIEW_TYPE: "plan",
-      INPUT_RANGE: "docs/kairos/plans/p.md",
-      INPUT_PLAN: "/ws/p.md",
+      INPUT_WAVE_BRIEF: "",
+      INPUT_DOC: "docs/kairos/plans/p.md",
       OUTPUT_HANDOFF: "/ws/plan-review-1.json",
     });
     expect(plan).toContain("**Criteria — plan:**");
@@ -226,6 +228,31 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
 
   it("hard gates: an undeclared value throws (the guard is the declared token list)", () => {
     expect(() => assembler.render({ ...ALL_VALUES, BOGUS: "x" })).toThrow(/undeclared/);
+  });
+
+  it("the shell↔layout consistency assertion — a shell naming a slot its layout never carries throws", () => {
+    // construct a rogue mode whose shell references INPUT_PLAN but whose layout
+    // carries it nowhere (the "claimed but not carried" gap the assertion closes)
+    const modes = TEMPLATE_PROMPT.modes as Record<string, unknown>;
+    const saved = modes.bogus;
+    modes.bogus = {
+      mode: "bogus",
+      shell: ["# rogue", "**rogue:** read `INPUT_PLAN`"],
+      roundContext: ["## Round context", "- `ROLE`: {{ROLE}}"],
+    };
+    try {
+      expect(() => assembler.render({ ...ALL_VALUES, ROLE: "bogus" })).toThrow(
+        /references INPUT_PLAN not carried by its round context/,
+      );
+    } finally {
+      if (saved === undefined) delete modes.bogus;
+      else modes.bogus = saved;
+    }
+    // every real declared mode renders cleanly under the assertion
+    expect(() => assembler.render(ALL_VALUES)).not.toThrow();
+    expect(() =>
+      assembler.render({ ...ALL_VALUES, ROLE: "fix", INPUT_FINDINGS: "/f.json" }),
+    ).not.toThrow();
   });
 });
 
@@ -284,15 +311,20 @@ describe("BriefRenderer — the brief data rendering + the checkable gate", () =
   it("out-of-bounds: a missing task id is listed and the render blocks", () => {
     const { missing } = brief.extract(PLAN, [1, 5]);
     expect(missing).toEqual([5]);
-    expect(() => brief.render(PLAN, [1, 5], "a".repeat(8))).toThrow(/task 5/);
+    expect(() => brief.render(PLAN, [1, 5])).toThrow(/task 5/);
   });
 
-  it("renders the brief content — the raw section + the WAVE_BASE line", () => {
-    const sha = "abcd1234abcd1234abcd1234abcd1234abcd1234";
-    const out = brief.render(PLAN, [1], sha);
+  it("renders the brief content — the raw task sections + the plan's ## Constraints mirror", () => {
+    const planWithConstraints = `${PLAN}\n\n## Constraints\n\n- keep it simple\n`;
+    const out = brief.render(planWithConstraints, [1]);
     expect(out).toContain("### Task 1: one");
     expect(out).toContain("- **Objective**: objective");
-    expect(out.endsWith(`WAVE_BASE: ${sha}\n`)).toBe(true);
+    expect(out).toContain("## Constraints");
+    expect(out).toContain("- keep it simple");
+    expect(out).not.toContain("WAVE_BASE");
+    // a plan without a ## Constraints section renders the task sections alone
+    const bare = brief.render(PLAN, [1]);
+    expect(bare).not.toContain("## Constraints");
   });
 });
 

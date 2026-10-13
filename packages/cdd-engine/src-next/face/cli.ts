@@ -57,7 +57,6 @@ import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import { IssueBodyRenderer } from "../render/issue-body.ts";
 import { TemplateAssembler } from "../render/templates.ts";
-import { BranchRef } from "../session/branch-ref.ts";
 import type { TargetFace, TargetType } from "../session/faces.ts";
 import { targetFaces } from "../session/faces.ts";
 import { TaskGraph } from "../session/graph.ts";
@@ -128,7 +127,7 @@ export interface WorkScene extends DispatchScene {
   planText: string | null;
   type: TargetType;
   face: TargetFace;
-  target: { kind: "branch"; base: string; head: string } | { kind: "doc"; doc: string } | null;
+  target: { kind: "branch" } | { kind: "doc"; doc: string } | null;
   state: RunState;
   router: NextStepRouter;
 }
@@ -562,14 +561,7 @@ export class Cli {
   #dispatchOf(scene: WorkScene, parsed: RunInput): DispatchStep {
     if (this.#dispatch !== null) return this.#dispatch;
     if (parsed.dryRun || this.#dryRun) {
-      const head = scene.head;
-      return (frame) => {
-        const isWork = frame.phase === "implement" || frame.phase === "fix";
-        if (!isWork) return { status: "APPROVED", findings: [] };
-        return head === null
-          ? { status: "APPROVED" }
-          : { status: "APPROVED", commits: { base: head, head } };
-      };
+      return () => ({ status: "APPROVED", findings: [] });
     }
     const harness = new CliLifecycle({
       env: process.env,
@@ -583,7 +575,6 @@ export class Cli {
         ledger: scene.ledger,
         planPath: scene.planPath,
         briefPath: scene.briefPath,
-        head: scene.head,
       },
       findings: parsed.args.findings ?? null,
     });
@@ -674,26 +665,14 @@ export class Cli {
         break;
       }
       case "branch": {
-        // The branch ref is declared at ONE face — `cdd review --type branch
-        // --base --head` (the range's birth face, 8-char flags). Every other
-        // face derives it from a single carrier: the fix face reads its source
-        // review handoff's `commits` (--findings) — zero extra CLI params (⑦ —
-        // the old engine's fix channel; re-declaring the range on the fix CLI
-        // was a dual identity that also made the face un-invokable).
-        const ref =
-          verb === "fix" && parsed.args.findings !== undefined
-            ? this.#gate.refFromHandoff(parsed.args.findings)
-            : parsed.args.base !== undefined && parsed.args.head !== undefined
-              ? new BranchRef(parsed.args.base, parsed.args.head)
-              : null;
-        if (ref === null) {
-          this.#usage(
-            node,
-            `cdd ${verb} --type branch: missing required --base <sha> --head <sha>`,
-          );
-        }
-        slug = planPath !== null ? Workspace.slugFromDoc(planPath) : ref.short();
-        target = { kind: "branch", base: ref.base, head: ref.head };
+        // The branch line carries no commit identity: the audit target is the
+        // branch itself, its workspace identity is the plan path (a required
+        // fact — the branch review/fix faces carry `--plan`), and the review's
+        // scope anchor (BASE_BRANCH) is engine-injected from the base artifact.
+        if (planPath === null)
+          this.#usage(node, `cdd ${verb} --type branch: missing required --plan <path>`);
+        slug = Workspace.slugFromDoc(planPath);
+        target = { kind: "branch" };
         break;
       }
     }
@@ -715,7 +694,6 @@ export class Cli {
       state,
       router: new NextStepRouter(),
       briefPath: null,
-      head: await this.#git.revParseHead(repoRoot),
     };
   }
 

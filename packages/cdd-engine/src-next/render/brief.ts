@@ -4,7 +4,8 @@
 // parse face (doc.ts PlanDocType.parse — the same task-block parse instance the
 // graph and the dispatch reuse), the step surface carries the `— checkable:`
 // clause (the dispatch contract's evidence gate), and the rendered brief appends
-// the WAVE_BASE line. The checkable gate blocks step surfaces that carry a step
+// the plan's `## Constraints` section (the complete plan mirror). The checkable
+// gate blocks step surfaces that carry a step
 // with no checkable clause; a requested task with no matching heading blocks the
 // whole render (the group-level out-of-bounds contract).
 
@@ -83,9 +84,10 @@ export class BriefRenderer {
     return { data, missing };
   }
 
-  /** Render the brief content — the requested raw sections + the WAVE_BASE line.
-   *  Any requested task without a heading blocks the whole render (out-of-bounds). */
-  render(planContent: string, tasks: readonly number[], head: string): string {
+  /** Render the brief content — the requested task sections + the plan's
+   *  `## Constraints` section (the complete plan mirror). Any requested task without
+   *  a heading blocks the whole render (out-of-bounds). */
+  render(planContent: string, tasks: readonly number[]): string {
     const { data, missing } = this.extract(planContent, tasks);
     if (missing.length > 0) {
       throw new Error(
@@ -94,7 +96,24 @@ export class BriefRenderer {
     }
     const lines = planContent.split("\n");
     const sections = data.map((task) => this.#rawSection(lines, task.id));
-    return `${sections.join("\n\n")}\nWAVE_BASE: ${head}\n`;
+    const constraints = this.#rawSectionByHeading(lines, "## Constraints");
+    const body =
+      constraints === "" ? sections.join("\n\n") : `${sections.join("\n\n")}\n\n${constraints}`;
+    return `${body}\n`;
+  }
+
+  /** A raw section by its heading line (up to the next heading) — the `## Constraints`
+   *  slice ("" when the plan carries none). */
+  #rawSectionByHeading(lines: readonly string[], heading: string): string {
+    const start = lines.findIndex((line) => line.trimEnd() === heading);
+    if (start === -1) return "";
+    const out: string[] = [];
+    for (let i = start; i < lines.length; i++) {
+      const line = lines[i];
+      if (i > start && /^#/.test(line)) break;
+      out.push(line);
+    }
+    return out.join("\n").replace(/\s+$/, "");
   }
 
   /** The plan's raw `### Task N:` section text (up to the next heading). */

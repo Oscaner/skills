@@ -11,7 +11,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { MarkdownPrimitives } from "../contract/doc.ts";
 import { BriefRenderer } from "../render/brief.ts";
-import { BranchRef } from "../session/branch-ref.ts";
 import type { DispatchPhase } from "../session/faces.ts";
 import type { DocRevisionRef, HandoffParams } from "../session/ledger.ts";
 import type { Route } from "../session/next.ts";
@@ -111,25 +110,14 @@ export class CliGate {
   }
 
   /** Render the task group brief into the workspace (the implement dispatch's input)
-   *  — the brief's WAVE_BASE rides the current git HEAD. */
+   *  — the brief mirrors the current plan (its task sections + the `## Constraints`
+   *  section, re-extracted at every dispatch). */
   renderBrief(scene: WorkScene, parsed: RunInput): string {
     const tasks = this.tasksOf(parsed);
-    const content = this.#brief.render(scene.planText!, tasks, scene.head ?? "");
+    const content = this.#brief.render(scene.planText!, tasks);
     const briefPath = scene.workspace.resolve(`tasks-${parsed.args.tasks}-brief.md`);
     writeFileSync(briefPath, content, "utf8");
     return briefPath;
-  }
-
-  /** The branch ref of a fix's source review handoff (--findings) — the derived
-   *  identity (the review persisted its reviewed range in `commits`; the fix reads
-   *  it back — the single-carrier rule). Unreadable/ref-less → null (the
-   *  missing-refs gate then names the required declaration flags). */
-  refFromHandoff(findingsPath: string): BranchRef | null {
-    try {
-      return BranchRef.fromHandoff(readFileSync(findingsPath, "utf8"));
-    } catch {
-      return null; // unreadable → the missing-refs gate
-    }
   }
 
   /** The single-target line's current open phase — fix-awaits / re-review / closure
@@ -160,34 +148,20 @@ export class CliGate {
   }
 
   /** The official handoff params of a line round (the lifecycle's own per-face shape). */
-  #lineParams(scene: WorkScene, round: number): HandoffParams {
-    if (scene.target?.kind === "branch") {
-      const ref = new BranchRef(scene.target.base, scene.target.head);
-      return { base8: ref.base8, head8: ref.head8, round };
-    }
+  #lineParams(round: number): HandoffParams {
     return { round };
   }
 
   /** The C5 route of a line's review-lead round (the fix-awaits decision). */
   #lineRoundRoute(scene: WorkScene, round: number): Route | null {
-    const carried = scene.ledger.round(
-      "review",
-      scene.face.type,
-      this.#lineParams(scene, round),
-      round,
-    );
+    const carried = scene.ledger.round("review", scene.face.type, this.#lineParams(round), round);
     if (carried === null) return null;
     return scene.router.next(EMPTY_RUN_STATE, carried);
   }
 
   /** The C5 route of a line's fix round (the re-review/closure decision). */
   #lineFixRoute(scene: WorkScene, round: number): Route | null {
-    const carried = scene.ledger.round(
-      "fix",
-      scene.face.type,
-      this.#lineParams(scene, round),
-      round,
-    );
+    const carried = scene.ledger.round("fix", scene.face.type, this.#lineParams(round), round);
     if (carried === null) return null;
     return scene.router.next(EMPTY_RUN_STATE, carried);
   }

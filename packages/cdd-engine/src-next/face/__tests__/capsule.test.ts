@@ -50,8 +50,6 @@ const branch = {
   id: "aaaaaaaa..bbbbbbbb",
   plan: "docs/kairos/plans/p3.md",
 } as const;
-const base = "a".repeat(8);
-const head = "b".repeat(8);
 
 /** One verb × type row of the coverage table — the route + the frame facts + the
  *  runtime-required flags of the type (the flags the CLI run would demand: the
@@ -73,31 +71,27 @@ const COVERAGE: readonly CoverageRow[] = [
   },
   {
     label: "review wave",
-    route: { kind: "review", base },
+    route: { kind: "review" },
     target: wave,
     required: ["--type", "--tasks", "--plan"],
   },
   {
     label: "review spec",
-    route: { kind: "review", base },
+    route: { kind: "review" },
     target: spec,
     required: ["--type", "--spec"],
   },
   {
     label: "review plan",
-    route: { kind: "review", base },
+    route: { kind: "review" },
     target: planT,
     required: ["--type", "--plan"],
   },
   {
-    // find #8/#9/#10: the branch re-review literal carries the FULL range + the
-    // workspace --plan — the fix-with-blockers route composes base + head from the
-    // fix carrier's commits (8-char short shas); the runtime missing-refs gate refuses
-    // a --base-only literal, so `--head` is a required flag of the branch review face.
     label: "review branch",
-    route: { kind: "review", base, head },
+    route: { kind: "review" },
     target: branch,
-    required: ["--type", "--base", "--head", "--plan"],
+    required: ["--type", "--plan"],
   },
   {
     label: "fix wave",
@@ -130,7 +124,7 @@ const COVERAGE: readonly CoverageRow[] = [
 
 describe("P4.1 T7 (find #7) — the next literal's required-flag coverage (parse green ⇒ the type's required flags fully covered)", () => {
   it("review→wave renders `--plan {path}` — the find #7 regression (the missing --plan previously parsed green yet refused the dispatch at runtime)", () => {
-    const literal = literalOf({ kind: "review", base }, wave);
+    const literal = literalOf({ kind: "review" }, wave);
     expect(literal).toBe("review --type wave --tasks 1,2 --plan docs/kairos/plans/p3.md");
     expect(() => parseGate.parse(argvOf(literal), { from: "user" })).not.toThrow();
     // the ready-to-dispatch wave review must carry its runtime-required --plan — the

@@ -227,7 +227,21 @@ describe("the preAction conditional-required groups (§4.2 · REQUIRED_GROUPS)",
       program.parse(["fix", "--type", "branch"], { from: "user" }),
     );
     expect(code).toBe("commander.invalidArgument");
-    expect(message).toContain("--findings required when --type branch");
+    // the branch fix carries both its findings carrier and the --plan workspace
+    // identity (BranchRef retired — the plan is the branch line's identity · §2.3)
+    expect(message).toContain("--findings --plan required when --type branch");
+  });
+
+  it("rejects review --type branch without --plan (the branch review face)", () => {
+    const { program } = new CommandTreeBuilder();
+    commandOf(program, "review").action(() => undefined);
+    const { code, message } = commanderError(() =>
+      program.parse(["review", "--type", "branch"], { from: "user" }),
+    );
+    expect(code).toBe("commander.invalidArgument");
+    // the branch review's sole required flag is the --plan workspace identity — the
+    // commit range is retired (the review judges the live tree · §2.3)
+    expect(message).toContain("--plan required when --type branch");
   });
 });
 

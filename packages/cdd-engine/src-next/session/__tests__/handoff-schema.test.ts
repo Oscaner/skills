@@ -38,9 +38,7 @@ const ledgerFixture = (): { ledger: Ledger; cleanup: () => void } => {
 /** The canonical valid work draft — the implement/fix child's write-back. */
 const WORK = {
   status: "APPROVED",
-  artifacts: { brief: "/b", report: "/r", test_evidence: "/ws/tasks-1-test-evidence.json" },
-  commits: { base: "a".repeat(8), head: "b".repeat(8) },
-  changes: [{ file: "packages/x/a.ts", reason: "task scope" }],
+  artifacts: { report: "/r", test_evidence: "/ws/tasks-1-test-evidence.json" },
   notes: ["one note"],
 };
 
@@ -66,7 +64,8 @@ describe("projection ① — the injected writable-subset schema text", () => {
     expect(text).toContain("Write the handoff draft at `OUTPUT_HANDOFF` per this writable subset");
     expect(text).toContain('"status"');
     expect(text).toContain('"artifacts"');
-    expect(text).toContain('"commits"');
+    expect(text).not.toContain('"commits"');
+    expect(text).not.toContain('"changes"');
     expect(text).toContain("The evidence file");
     expect(text).toContain('"typecheck"');
     // the reserved engine fields are NOT writable by the child — the subset refuses them
@@ -143,21 +142,19 @@ describe("projection ② — the read-back validation (violations)", () => {
     ]);
   });
 
-  it("refuses an engine-reserved field (the single-author rule: phase/tasks are the engine's)", () => {
+  it("drops non-declared / engineOnly fields instead of BLOCKing (materialize judges the same way)", () => {
+    // a work draft carrying engine-reserved or extra keys is dropped by materialize
+    // and never refuses the draft (the drop-not-BLOCK ruling · §8.7)
     expect(
       schema.violations("work", { status: "APPROVED", artifacts: {}, phase: "implement" }),
-    ).toEqual(["phase: not a declared field"]);
-    expect(schema.violations("work", { status: "APPROVED", artifacts: {}, tasks: [1] })).toEqual([
-      "tasks: not a declared field",
-    ]);
-    expect(schema.violations("findings", { findings: [], status: "APPROVED" })).toEqual([
-      "status: not a declared field",
-    ]);
-  });
-
-  it("refuses a malformed commits row (non-8-char shas)", () => {
-    const bad = { ...WORK, commits: { base: "short", head: "b".repeat(8) } };
-    expect(schema.violations("work", bad)).toEqual(["commits.base: must be at least 8 characters"]);
+    ).toEqual([]);
+    expect(schema.violations("work", { status: "APPROVED", artifacts: {}, tasks: [1] })).toEqual(
+      [],
+    );
+    // a child-authored `status` on a findings draft is engineOnly — dropped, not refused
+    expect(schema.violations("findings", { findings: [], status: "APPROVED" })).toEqual([]);
+    // a stray `commits` key on a work draft is no longer declared — dropped
+    expect(schema.violations("work", { ...WORK, commits: { base: "short" } })).toEqual([]);
   });
 
   it("refuses a findings draft with a missing findings array or a bad severity", () => {
@@ -243,13 +240,9 @@ describe("the derived carrier types — buildHandoff per-face shaping (T1)", () 
   it("the work carrier's flat keys equal the declared properties set, zero findings (the runtime fallback of the type derivation)", () => {
     const { ledger, cleanup } = ledgerFixture();
     try {
-      const carrier = ledger.buildHandoff("work", {
-        artifacts: { brief: "/b" },
-        commits: { base: "a".repeat(8), head: "b".repeat(8) },
-      });
+      const carrier = ledger.buildHandoff("work", { artifacts: { report: "/r" } });
       carrier.status = "APPROVED";
       carrier.failure_category = "none";
-      carrier.changes = [{ file: "packages/x/a.ts", reason: "task" }];
       carrier.notes = ["one note"];
       expect(Object.keys(carrier).sort()).toEqual(
         Object.keys(schema.faceSchema("work").properties ?? {}).sort(),

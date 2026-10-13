@@ -57,8 +57,8 @@ flowchart TD
 
 ### `branch-review`
 
-- **Do**: Dispatch the branch final review (`npx -y @oscaner-skills/cdd-engine@latest review --type branch --plan <path> --base <merge-base> --head <head>`) — `<merge-base>` = `git merge-base HEAD origin/<base>`; `<head>` = `git rev-parse HEAD`; `<base>` from `npx -y @oscaner-skills/cdd-engine@latest base get --plan <path>`; background execution. Persist the diff to the workspace (`git diff <base>..<head> --stat`).
-- **Read**: the base artifact + branch HEAD + the review output contract (the `next:` line)
+- **Do**: Dispatch the branch final review (`npx -y @oscaner-skills/cdd-engine@latest review --type branch --plan <path>`) — the review judges the live tree; the engine injects the scope anchor (`BASE_BRANCH`, the base artifact's branch name) into the child's round context, and the child runs its own `git diff origin/<BASE_BRANCH>..HEAD`. Background execution.
+- **Read**: the base artifact + the review output contract (the `next:` line)
 - **Exit**: the `next:` line reads `fix …` → `branch-fix`; `done` → `handoff-cdd-close`
 - **Fail**: review exits with no output → BLOCKED: engine-error
 
@@ -86,7 +86,6 @@ flowchart TD
 | I4 | **Wave-Chain Completeness** — every dispatch wave (a singleton task or a merged wave) goes through the full implement → review → (fix if findings) chain; review is unskippable, and a fix dispatch requires a prior review handoff for that wave |
 | I5 | **No Controller Bypass** — when the engine is available, the orchestrator must not hand-write control-flow bypasses; all task execution / review / fix dispatch go through engine CLI calls (the WaveGate + the `next:` route facts decide the wave order, never orchestrator guesswork) |
 | I6 | **Mid-Flight Backfill** — a user-raised backfill of overall/spec/plan docs surfaced while a dispatch is in flight lands through four ordered steps on the current call's return: (1) **land immediately** — hot context, no deferral; (2) **commit on its own** — a standalone change, never mixed with implementation commits; (3) **pause the loop until clean** — an uncommitted backfill trips the next review's entry gate (dirty → BLOCKED); (4) **audit in-band on resume** — the next review audits the backfill in-band; a backfill rewriting the current task's own plan/spec text routes through the orchestrator as Plan Sole Writer |
-| I7 | **Entry gate reads the tree, not the committed range** — the review entry gate checks working-tree cleanliness only (dirty → BLOCKED). It does not assert that HEAD holds exactly the task's canonical commits, so a committed mid-flight backfill clears the gate; the subsequent review audits the widened range — off-ledger changes surface as a changed-surface booking (an engine WARN, not a block) and the scope axis decides |
 
 ## Failure Modes
 

@@ -16,26 +16,27 @@
 - **零残留**：填后 `:::fill` 零残留 · 非豁免 `<…>` 零残留 · 引擎 vitest 全绿（零跳过零容错）· EOF 恰一 newline · 不发布（变更集归并落 pending）
 
 ### Task 1: sha 载体的类型面收编（GitClient 六→二 seam · BranchRef 类删 · Route.review 无 ref）
-- **Objective**: 删除评测面的 commit-sha 类型载体——`GitClient` 留 `topLevel`/`isClean` 二 seam（`revParseHead`/`addAll`/`commit`/`log` 删）· `session/branch-ref.ts` 整文件删 · `BranchRef` 的全部消费点收编（`gate.refFromHandoff` · `cli.ts` branch face 装配 + `scene.head` 注入 · `run.#paramsOf`/`#routeTarget` branch 腿 · `capsule.#routeText` branch ref 合成）· `Route.review` 失 `{base,head}` → `{kind:"review"}` · `WorkScene.head` 删 · dry-run 合成 commits 改零 commits
+- **Objective**: 删除评测面的 commit-sha 类型载体——`GitClient` 留 `topLevel`/`isClean` 二 seam（`revParseHead`/`addAll`/`commit`/`log` 删）· `session/branch-ref.ts` 整文件删 · `BranchRef` 的全部消费点收编（`gate.refFromHandoff` · `cli.ts` branch face 装配 + `scene.head` 注入 · `run.#paramsOf`/`#routeTarget` branch 腿 · `capsule.#routeText` branch ref 合成 · `lifecycle.#reviewRange`（:375/:382）`#resumeOf`（:685）branch-ref 消费点——移除归 T4）· `Route.review` 失 `{base,head}` → `{kind:"review"}` · `WorkScene.head` 删 · dry-run 合成 commits 改零 commits
 - **Files**:
   - Modify: `packages/cdd-engine/src-next/infra/git.ts`（revParseHead git.ts:35-41 · addAll/commit/log git.ts:58-93 删 · topLevel/isClean 保留 · 头注收编 find #10 长 sha 叙事）
   - Delete: `packages/cdd-engine/src-next/session/branch-ref.ts`（整文件）
   - Modify: `packages/cdd-engine/src-next/face/gate.ts`（refFromHandoff gate.ts:123-133 删）
   - Modify: `packages/cdd-engine/src-next/face/cli.ts`（branch face 装配 cli.ts:683-696 · scene.head cli.ts:718 删 · dry-run commits 合成 cli.ts:564-572 改 `{status:"APPROVED"}`）
   - Modify: `packages/cdd-engine/src-next/session/run.ts`（#paramsOf branch 腿 run.ts:466-470 · AuditTarget branch 腿 run.ts:72 · #routeTarget branch id run.ts:644-648 · DispatchScene.head 删）
+  - Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（BranchRef 消费面登记 :26 import · :375/:382 #reviewRange · :685 #resumeOf —— 本任务仅登记消费面，实际移除归 T4）
   - Modify: `packages/cdd-engine/src-next/session/next.ts`（Route.review next.ts:45 失 ref · implement→review next.ts:91-95 · fix re-review next.ts:117-119 去双 legs 检查）
   - Modify: `packages/cdd-engine/src-next/face/capsule.ts`（#routeText branch ref 合成 capsule.ts:141-153 删）
 - **Consumes**: 无（根任务）· spec §2.1/§2.2/§2.6 授权
 - **Produces**: `GitClient` 二方法面（topLevel/isClean）· `Route.review = {kind:"review"}` · `AuditTarget` branch 腿去 base/head · 供 T3（ledger HandoffParams）/T6（capsule 渲染）/T7（CLI）消费
 - **Steps**:
   - 删 git seam —— `infra/git.ts` 删 `revParseHead`/`addAll`/`commit`/`log` 四方法（生产面零调点实证）· 留 `topLevel`/`isClean` · 头注改写至二 seam 实况（find #10 长 sha 退役叙事入 maintainers 或删） — checkable: `grep -n "revParseHead\|addAll\|commit(\|log(" infra/git.ts` 零命中
-  - 删 BranchRef —— `rm session/branch-ref.ts` · 全库消费点（gate/cli/run/capsule）同步改 — checkable: `grep -rn "BranchRef" src-next` 零命中
+  - 删 BranchRef —— `rm session/branch-ref.ts` · gate/cli/run/capsule 消费点同步改 · lifecycle 的 BranchRef 消费点（:375/:382 #reviewRange · :685 #resumeOf）随 T4 移除 — checkable: `grep -rn "BranchRef" face/gate.ts face/cli.ts session/run.ts face/capsule.ts` 零命中 · T1+T4 合并后全库 `grep -rn "BranchRef" src-next` 零命中（lifecycle 消费点由 T4 消除）
   - Route.review 无 ref —— `session/next.ts` Route.review 去 `{base,head}` · implement→review 恒出 `{kind:"review"}`（去 commits.base 依赖）· fix re-review 恒出 `{kind:"review"}`（去双 legs null 检查） — checkable: next.ts review 两出口零 commits 引用
   - capsule 渲染去 ref —— `face/capsule.ts #routeText` review.branch 分支去 `new BranchRef`/`base8`/`head8` 合成 → `review --type branch --plan <path>` 单参 — checkable: capsule.ts 零 `BranchRef`/`base8`/`head8`
   - scene.head / dry-run commits 删 —— `face/cli.ts` WorkScene 去 head（:718 revParseHead 调用删）· dry-run dispatch 工作帧 `{status:"APPROVED"}`（零 commits）· `run.ts DispatchScene.head` 删 — checkable: cli.ts/run.ts 零 `scene.head`/`revParseHead`
   - 跑引擎套件核对 —— checkable: `pnpm -C packages/cdd-engine test`（vitest run）· 编译零 `BranchRef` 未定义 · 失败 pin 归入 T9 重锚
   - 提交原子 commit（`refactor(cdd-engine): 评测面 sha 类型载体收编——GitClient 六→二 seam · BranchRef 删 · Route.review 无 ref`） — checkable: git log 单原子
-- **Acceptance**: GitClient 方法集 = `topLevel` + `isClean` · `session/branch-ref.ts` 不存在 · `Route.review` 无 ref 字段 · 全库 `BranchRef`/`revParseHead` 零残留 grep · 引擎 vitest 编译通过（失败 pin 留 T9）· EOF 恰一 newline
+- **Acceptance**: GitClient 方法集 = `topLevel` + `isClean` · `session/branch-ref.ts` 不存在 · `Route.review` 无 ref 字段 · `BranchRef` 零残留 grep（T1 覆盖 gate/cli/run/capsule · lifecycle 消费点随 T4 → T1+T4 合并后全库零）· `revParseHead` 零残留 grep · 引擎 vitest 编译通过（失败 pin 留 T9）· EOF 恰一 newline
 - **DependsOn**: none
 
 ### Task 2: handoff carrier schema 收缩（commits/changes 声明删 · 校验器与 materialize 同源同判）
@@ -48,7 +49,7 @@
 - **Steps**:
   - 删 carrier 声明字段 —— `handoff-schema.ts` 删 `COMMITS`/`CHANGED_FILE` 两节点 · `CARRIER_WORK`/`CARRIER_FINDINGS` 的 `commits`/`changes` 属性 · `CarrierValue` 的 `commits`/`changes` 键（`CarrierOf` 经 `keyof properties` 自动收缩） — checkable: `grep -n "COMMITS\|CHANGED_FILE\|commits\|changes" session/handoff-schema.ts` 零命中（注释除外）
   - buildHandoff commits init 删 —— `ledger.ts:640` `if (init.commits !== undefined) carrier.commits = init.commits` 删 — checkable: `grep -n "carrier.commits" session/ledger.ts` 零命中
-  - 分类裁决 —— `handoff-schema.ts #check` 对 `additionalProperties:false` 的未声明键：不 push BLOCK problem（drop 语义 · 与 materialize 一致）· 语义错（required 缺 / type 不符 / enum 越界 / min-maxLength）保留 — checkable: 单测——一个带非声明键的 work 草稿 `violations()` 返回 `[]`；一个缺 required 的草稿返回非空
+  - 分类裁决 —— `handoff-schema.ts #check` 对 `additionalProperties:false` 的未声明键：不 push BLOCK problem（drop 语义 · 与 materialize 一致）· 语义错（required 缺 / type 不符 / enum 越界 / min-maxLength）保留 —— **WARN 归口**：`#check` 只判语义错 BLOCK · **drop + drop-WARN 由 T4 的 `#materialize` 单点检出并落 carrier `notes`**（`#check` 不产 WARN · 两任务不重复不遗漏） — checkable: 单测——一个带非声明键的 work 草稿 `violations()` 返回 `[]`；一个缺 required 的草稿返回非空
   - `engineOnly` 归一化 —— `status`（findings face engineOnly）：child 草稿带 `status` 不再 BLOCK（drop · 引擎覆写） — checkable: 单测——findings 草稿带 `status` 过 `violations` 返回 `[]`
   - 跑引擎套件核对 —— checkable: `pnpm -C packages/cdd-engine test`（schema 相关 pin 变动归 T9）
   - 提交原子 commit（`refactor(cdd-engine): handoff carrier 声明收缩（commits/changes 删）+ 校验器分类裁决（drop-not-BLOCK）`） — checkable: git log 单原子
@@ -59,31 +60,32 @@
 - **Objective**: ledger 面三处实况化——① `Round.commits`/`scope_base` 死字段删 · `ReviewRefs` 收编至 doc-revision 单 kind（commit-set-ledger/commit-range 两 kind + commitSet/commitRange/kindOf + sameRef commit 两腿 + bind/#bound/bound 删）· `HandoffParams.base8/head8` + `handoffName` replaceAll 删（branch family 名已为 `branch-{op}-{round}`）· `writeCrash.snapshotSha` 删；② §2.8 round verdict 单源——`ledger.round()` 的 round-read 以 `recordRound` 进度门控（未被记录的 round 返回 null，无论磁盘草稿是否在）；③ §3.7 doc 线键——`run.ts #lineKey` 与 `gate.ts #lineKey` 两派生点 doc 腿均改线型常量
 - **Files**:
   - Modify: `packages/cdd-engine/src-next/session/ledger.ts`（Round.commits :37/:44/:53/:89-90/:214 删 · scope_base :121 删 · ReviewRefs :246-309 收编（CommitSetLedgerRef :209 · CommitRangeRef :217-222 · commitSet :265 · commitRange :270 · kindOf :252 · sameRef :292-305 两腿 · bind/#bound/bound :283-309 删 · 留 doc-revision + docRevision/doc_hash）· HandoffParams.base8/head8 :186-188 删 · handoffName :609-617（replaceAll :612-613 删）· round() :738-779 round-read 以 roundCount 门控 · writeCrash snapshotSha 字段）
-  - Modify: `packages/cdd-engine/src-next/session/run.ts`（#lineKey run.ts:441-444 doc 腿 → face.type · #recordReviewedDocRevision doc 键归一 · #roundFor/#nextLinePhase 门控 mode 映射）
+  - Modify: `packages/cdd-engine/src-next/session/run.ts`（#lineKey run.ts:441-444 doc 腿 → face.type · #recordReviewedDocRevision 键随 #lineKey 归一（无需单独改）· #roundFor/#nextLinePhase 门控 mode 映射）
   - Modify: `packages/cdd-engine/src-next/face/gate.ts`（#lineKey gate.ts:156-160 doc 腿 → scene.face.type · #lineParams branch 腿去 base8/head8 :163-169 · 注释 gate.ts:155 改写）
 - **Consumes**: T2（carrier 无 commits/changes）· spec §2.5/§2.8/§3.7 授权
 - **Produces**: `ledger.round()` 以 `roundCount` 门控（被拒 round 返回 null → route null → 零 next 行）· doc 线键 = 线型常量（run.ts + gate.ts 两派生点单源同键）· `+doc-revision` 单 kind · 供 T4（round-context）/T6（capsule）/T7（CLI lineKey 消费）
 - **Steps**:
   - 死字段 + ReviewRefs 收编 —— 删 `Round.commits`/`scope_base`/`writeCrash.snapshotSha` · `ReviewRefs` 删 commit 两 kind + 关联方法（留 doc-revision 单 kind + `docRevision`/`doc_hash`）· `RefKind` 收为单值 — checkable: `grep -n "commitSet\|commitRange\|kindOf\|scope_base\|CommitRangeRef\|CommitSetLedgerRef" session/ledger.ts` 零命中
   - 文件名去 range 占位 —— `HandoffParams` 去 `base8`/`head8` · `handoffName` 去两条 replaceAll（family 名已 `branch-{op}-{round}`） — checkable: `grep -n "base8\|head8" session/ledger.ts` 零命中
-  - §2.8 round verdict 单源 —— `ledger.round()` 开头以 `roundCount(key, mode) >= round` 门控：未达则返回 null（mode = 该 op.type family 的被记录 mode：review 腿 `reviewLead(type)`（wave/spec/plan→review · branch→branch-review）· fix 腿 `fix`） — checkable: 单测——磁盘遗留一份未 recordRound 的 fix 草稿，`round("fix",…,r)` 返回 null
-  - §3.7 doc 线键 —— `run.ts #lineKey` doc 腿 `return target.doc` → `return this.#face.type`（spec/plan）· `gate.ts #lineKey` doc 腿 `return scene.target.doc` → `return scene.face.type` · `#recordReviewedDocRevision` 以线型键 — checkable: `grep -rn "return.*target\.doc" session/run.ts face/gate.ts` 零命中（#lineKey 内）
+  - §2.8 round verdict 单源 —— `ledger.round()` 开头前置早退 `if (roundCount(key, mode) < round) return null`（mode = 该 op.type family 的被记录 mode：review 腿 `reviewLead(type)`（wave/spec/plan→review · branch→branch-review）· fix 腿 `fix`）——门控**包裹**既有 carrier 读：早退后保留现有 `#consecutiveS1Run` 走查与 review 腿 `findings`/`findingsPath`/`status` 推导（不替换磁盘读，只在其前加门） — checkable: 单测——磁盘遗留一份未 recordRound 的 fix 草稿，`round("fix",…,r)` 返回 null
+  - §3.7 doc 线键 —— `run.ts #lineKey` doc 腿 `return target.doc` → `return this.#face.type`（spec/plan）· `gate.ts #lineKey` doc 腿 `return scene.target.doc` → `return scene.face.type` —— `#recordReviewedDocRevision`（run.ts:551-563）经 `frame.key` 已随之归一（`#paramsOf` 的 doc 键同为 `frame.key`），**无需单独改** — checkable: `grep -rn "return.*target\.doc" session/run.ts face/gate.ts` 零命中（#lineKey 内）
   - 跑引擎套件核对 —— checkable: `pnpm -C packages/cdd-engine test`（ledger/gate pin 变动归 T9）
   - 提交原子 commit（`refactor(cdd-engine): ledger round/键/verdict 实况化——recordRound 门控 · doc 线键 · ReviewRefs 收编 doc-revision`） — checkable: git log 单原子
 - **Acceptance**: `ledger.round()` 对未记录 round 返回 null（被拒草稿不再被读回）· doc 线键 = 线型常量（run.ts + gate.ts 单源同键 · 无第三派生点）· 全库 `base8`/`head8`/`commitSet`/`commitRange`/`scope_base` 零残留 · 引擎 vitest 通过 · EOF 恰一 newline
 - **DependsOn**: 2
 
 ### Task 4: lifecycle read-back + round-context 收敛（commits 解析删 · INPUT_RANGE/PLAN/FIX_BASE 退 · brief 单输入 · 字段单裁落地）
-- **Objective**: lifecycle 面收敛——`#parseBlockReturn` 删 commits regex · `DispatchOutcome.commits` 删 · `#commitsOf` 删 · `#bookkeep` commits 写点删 · `FIX_BASE`/`#fixedPoint` 删 · `INPUT_RANGE`/`#reviewRange` 删 · `INPUT_PLAN` 删 · `#waveBrief` exists 守卫删（任何 wave 帧返回 `scene.briefPath`）· `#outputOf` brief kind 删（`OUTPUT_BRIEF` 折叠）· `BASE_BRANCH` 值注入 · `#materialize` 落 §8.7 分类裁决（drop 非声明字段 + WARN 落 notes）
+- **Objective**: lifecycle 面收敛——`#parseBlockReturn` 删 commits regex · `DispatchOutcome.commits` 删 · `#commitsOf` 删 · `#bookkeep` commits 写点删 · `FIX_BASE`/`#fixedPoint` 删 · `INPUT_RANGE`/`#reviewRange` 删 · `INPUT_PLAN` 删 · `#waveBrief` exists 守卫删（任何 wave 帧返回 `scene.briefPath`）· `#outputOf` brief kind 删（`OUTPUT_BRIEF` 折叠）· `BASE_BRANCH` 值注入 · `#materialize` 落 §8.7 分类裁决（drop 非声明字段 + WARN 落 notes）· `#resumeOf` branch-review 字面改单参（`#reviewRange`/`#resumeOf` 的 BranchRef 消费点随之消除）
 - **Files**:
-  - Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（#valuesOf :273-321（INPUT_RANGE/INPUT_PLAN/FIX_BASE/OUTPUT_BRIEF 行删 · BASE_BRANCH 加）· #reviewRange :371-385 删 · #fixedPoint :403-408 删 · #waveBrief :390-397 守卫删 · #outputOf brief :339-343 删 · #parseBlockReturn :413-428 commits regex 删 · #commitsOf :656-659 删 · #bookkeep :494-543 commits 写点删 · #materialize :521-554 分类裁决 + WARN 落 notes · #recordReviewedDocRevision :551-563 键归一）
+  - Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（#valuesOf :273-321（INPUT_RANGE/INPUT_PLAN/FIX_BASE/OUTPUT_BRIEF 行删 · BASE_BRANCH 加）· #reviewRange :371-385 删 · #fixedPoint :403-408 删 · #waveBrief :390-397 守卫删 · #outputOf brief :339-343 删 · #parseBlockReturn :413-428 commits regex 删 · #commitsOf :656-659 删 · #bookkeep :494-543 commits 写点删 · #materialize :521-554 分类裁决 + WARN 落 notes · #recordReviewedDocRevision :551-563 键归一 · `#resumeOf` :673-687 branch-review 字面（:686 `ref.args()` 删）· BranchRef import :26 删）
 - **Consumes**: T2（carrier 无 commits）· T3（ledger round/键）· T5（templates token 布局）· spec §2.4/§2.7/§3.1/§4.2/§5/§8.7 授权
 - **Produces**: lifecycle `#valuesOf` 无 INPUT_RANGE/INPUT_PLAN/FIX_BASE/OUTPUT_BRIEF（含 BASE_BRANCH）· `#waveBrief` 三 face 统一返回 `scene.briefPath` · `#materialize` 分类裁决 · 供 T9（round-context pin）
 - **Steps**:
   - commits 面删 —— `#parseBlockReturn` 去 commits regex 行 · `DispatchOutcome.commits` 字段删 · `#commitsOf` 方法删 · `#bookkeep` 的 commits 写点删 — checkable: `grep -n "commits\|#commitsOf" face/lifecycle.ts` 零命中
   - token 值收敛 —— `#valuesOf` 删 `INPUT_RANGE`/`INPUT_PLAN`/`FIX_BASE`/`OUTPUT_BRIEF` 行 · 加 `BASE_BRANCH`（值 = base artifact 分支名 · 经 `#scene` 读 `base get`）· 删 `#reviewRange`/`#fixedPoint`/`#outputOf(brief)` 方法 — checkable: `grep -n "INPUT_RANGE\|INPUT_PLAN\|FIX_BASE\|OUTPUT_BRIEF\|#reviewRange\|#fixedPoint" face/lifecycle.ts` 零命中
   - brief 单输入 —— `#waveBrief` 去 `existsSync` 守卫与 implement-only 分型 → 任何 wave 帧返回 `scene.briefPath` — checkable: `grep -n "existsSync\|waveBrief" face/lifecycle.ts` 零命中
-  - §8.7 分类裁决落地 —— `#materialize` 只读声明字段（已 drop 非声明）· 检出非声明/`engineOnly` 字段时追加 WARN 至 carrier `notes` — checkable: 非声明字段草稿通过后 carrier notes 含一条 drop-WARN · 无 BLOCK
+  - branch-review resume 字面 —— `#resumeOf` branch-review 腿删 `new BranchRef(range.base, range.head)`/`ref.args()` → `cdd review --type branch --plan ${plan}` 单参 · 删 import（:26）与 `#reviewRange`（:371-385）的 `BranchRef.short` 消费 — checkable: `grep -n "BranchRef\|#reviewRange\|ref.args" face/lifecycle.ts` 零命中
+  - §8.7 分类裁决落地 —— `#materialize` 只读声明字段（已 drop 非声明）· 检出非声明/`engineOnly` 字段时追加 WARN 至 carrier `notes` — checkable: 非声明字段草稿通过后 carrier notes 含一条 drop-WARN · 无 BLOCK（WARN 源 = `#materialize` 兑 draft 键 vs 声明集 · 见 T2 分类裁决步 —— `#check` 只判语义错 BLOCK · drop + WARN 由 `#materialize` 单点检出）
   - 跑引擎套件核对 —— checkable: `pnpm -C packages/cdd-engine test`（lifecycle pin 变动归 T9）
   - 提交原子 commit（`refactor(cdd-engine): lifecycle read-back/round-context 收敛——commits 解析删 · brief 单输入 · 字段单裁`） — checkable: git log 单原子
 - **Acceptance**: `#valuesOf` 零 INPUT_RANGE/INPUT_PLAN/FIX_BASE/OUTPUT_BRIEF · 三 face brief 统一 `scene.briefPath` · `#materialize` 分类裁决（drop + WARN · 无 BLOCK）· 引擎 vitest 通过 · EOF 恰一 newline
@@ -92,13 +94,13 @@
 ### Task 5: templates 数据面 + 组装原子性（token 布局 · REVIEWS 判据 · cl:changed-surface 删 · 组装守卫 · $version）
 - **Objective**: render/templates 数据面一次折叠——`TOKENS` 删 `INPUT_RANGE`/`INPUT_PLAN`/`FIX_BASE`/`OUTPUT_BRIEF`（加 `BASE_BRANCH`）· `REVIEW_CONTEXT` 换新共享尾部 · `MODE_PROMPTS`/`FIX_SHELL`/`DOCS_FIX_SHELL` shell 按新布局重写（FIX_SHELL 按线分句 · implement shell 读 brief 完整镜像）· `REVIEW_ITEM`/`REVIEWS.*.ref` 按型参照句 · `#gate` 新增壳文-布局一致性断言 · 删 `cl:changed-surface` LICENSE 行 + CLAUSES · `$version` 6 → 7
 - **Files**:
-  - Modify: `packages/cdd-engine/src-next/render/templates.ts`（TOKENS :447-459 · REVIEW_CONTEXT :237-248 · MODE_PROMPTS :252-307 · REVIEWS :312-337 · REVIEW_ITEM :232-233 · RETURN_ZONE :423-439（3→2 行）· LICENSE_ITEMS cl:changed-surface :159 删 · CLAUSES :484-486 删 · #gate :589-614 加组装断言 · $version :493）
+  - Modify: `packages/cdd-engine/src-next/render/templates.ts`（TOKENS :447-459 · REVIEW_CONTEXT :237-248 · MODE_PROMPTS :252-307 · `REVIEWS :312-337`（spec/plan axesGuide INPUT_RANGE→INPUT_DOC · wave/branch axesGuide 删虚构句）· REVIEW_ITEM :232-233 · RETURN_ZONE :423-439（3→2 行）· LICENSE_ITEMS cl:changed-surface :159 删 · CLAUSES :484-486 删 · #gate :589-614 加组装断言 · $version :493）
   - Modify: `packages/cdd-engine/src-next/render/brief.ts`（render :88-98 去 head 参 + WAVE_BASE 行 · 增 Constraints 段切片）
 - **Consumes**: T2（carrier 声明）· spec §2.4/§2.7/§3.1/§3.3/§3.6/§5/§6.1/§8.3 授权
 - **Produces**: templates 数据面**无** INPUT_RANGE/INPUT_PLAN/FIX_BASE/OUTPUT_BRIEF/cl:changed-surface · `BASE_BRANCH` 注册 · RETURN_ZONE 二行 · `#gate` 组装一致性断言 · brief render 去 head + Constraints 镜像 · 供 T4/T6/T7/T9
 - **Steps**:
   - token 注册表 + RETURN_ZONE —— `TOKENS` 删四 token 加 `BASE_BRANCH` · `RETURN_STDOUT_BLOCK` 删 commits: 行（恰 status+artifacts 二行 · artifacts 处方去 OUTPUT_BRIEF） — checkable: `grep -n "INPUT_RANGE\|INPUT_PLAN\|FIX_BASE\|OUTPUT_BRIEF\|commits:" render/templates.ts`（非删除注释）零命中
-  - shell + 判据重写 —— `MODE_PROMPTS`/`REVIEW_CONTEXT` 换布局 · `FIX_SHELL` 按线分句（wave→INPUT_WAVE_BRIEF · branch→INPUT_DOC）· implement shell 读 `INPUT_WAVE_BRIEF`（完整计划镜像）· `REVIEWS.*` ref 改参照型 · `REVIEWS.wave/branch.axesGuide` 改 review 自跑 git diff 措辞（删虚构句） — checkable: 各 shell 的 token 名引用 ⊆ 其布局 ∪ 共享尾部（组装断言自证）
+  - shell + 判据 + axesGuide 重写 —— `MODE_PROMPTS`/`REVIEW_CONTEXT` 换布局 · `FIX_SHELL` 按线分句（wave→INPUT_WAVE_BRIEF · branch→INPUT_DOC）· implement shell 读 `INPUT_WAVE_BRIEF`（完整计划镜像）· `REVIEWS.*` ref 改参照型 · **spec/plan `axesGuide` 的 INPUT_RANGE 字面重写为 INPUT_DOC（templates.ts:329/335）** · `REVIEWS.wave/branch.axesGuide` 改 review 自跑 git diff 措辞（删虚构句） — checkable: 渲染后的 shell 文本 token 归属 ⊆ 其布局 ∪ 共享尾部（`render(mode)` 输出逐 token 名比对 · 各组装断言前置）
   - cl:changed-surface 删 —— `LICENSE_ITEMS` 行 + `CLAUSES` 条目删 — checkable: `grep -n "changed-surface\|cl:changed" render/templates.ts` 零命中
   - 组装一致性断言 —— `#gate` 新增：每 mode shell 文本中 `INPUT_*`/`OUTPUT_*`/`BASE_BRANCH` 名引用 ⊆ 该 mode round-context 布局 ∪ 共享尾部（复用 `#contextLines` regex） — checkable: 单测——构造一个壳文声称未携带 token 的 mode，断言抛错
   - brief 镜像 —— `render/brief.ts` `render` 去 head 参 · 增 `## Constraints` 段提取（复用 `#rawSection` 切片） — checkable: `grep -n "WAVE_BASE\|head" render/brief.ts`（签名）零命中 · brief 输出含 Constraints 段

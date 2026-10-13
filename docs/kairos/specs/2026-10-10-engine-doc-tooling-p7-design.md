@@ -39,6 +39,7 @@
 - `ledger.ts`：`Round.commits` 字段（:37/:44/:53/:89-90/:214）删 · `scope_base`（:121）死字段删 · `writeCrash` 的 `snapshotSha: null`（lifecycle.ts:507 + CrashRecord 字段）删
 - **review-ref 面收编至 doc-revision 单 kind（审查证据 · 整 phase 收口）**：`ReviewRefs`（ledger.ts:246）删 **commit-set-ledger + commit-range 两 kind**——`CommitSetLedgerRef`（:209-215）· `CommitRangeRef`（:217-222）· `commitSet`（:265-267）· `commitRange`（:270-272）· `kindOf`（:252-262 · 生产面零调点实证）· `sameRef` 的 commit-set/commit-range 两腿（:295-300 · `sameRef` 本体只被 doc 漂移检查 ledger.ts:478 调用 · **doc-revision 腿保留**）· `bind`/`#bound`/`bound()`（:283-309 · 生产面零调点实证）——**保留 `doc-revision` kind + `docRevision`/`doc_hash`**（与 run.ts:551 内容指纹 reopen gate 同根 · 非 commit sha · 实况携带者）· `RefKind`（:205）收为 `"doc-revision"` 单值
 - **branch handoff 文件名去 range 占位（`{base8}`/`{head8}` 去化）**：`HandoffParams.base8/head8`（ledger.ts:186-188）删 · `handoffName` 的 `{base8}`/`{head8}` replaceAll（:612-613）删 · branch family 名 `branch-{base8}..{head8}-{op}-{round}` → **`branch-{op}-{round}`**（round-keyed · 对齐 doc family stem · round 已按稳定键 `"branch"` 计数）· `run.ts #paramsOf` branch 腿（:466-470）与 `gate.ts #lineParams` branch 腿（:163-169）删 base8/head8（branch 腿只剩 round）· `run.ts:646` target.id（`${base8}..${head8}` 形态）→ 稳定 line id（`"branch"`/plan 派生 · 按调点定——capsule 不消费 branch id）
+- **branch AuditTarget 落定形态（与零 base/head 传参自洽）**：`AuditTarget` branch 腿（run.ts:72 `{ kind: "branch"; base: string; head: string }`）随 base8/head8 双 commit sha 退役**坍缩为 `{ kind: "branch" }`（零 base/head）**——审计目标身份由 plan 派生（frame 另携 `#planPath` 作工作区身份 · §2.2/§3.2）· 配套：`cli.ts:696` `target = { kind: "branch", base: ref.base, head: ref.head }` 构造随 branch face 装配（2.2）同删 · `#paramsOf` branch 腿（run.ts:466-472 · 现行取 `frame.target.base/head` 造 BranchRef）只剩 `round`——审计目标类型面自此零 commit 身份
 - `channel-closure.guard.test.ts`（token/通道注册表守卫）随删随配
 #### 2.6 路由/next 面
 - `Route.review`（next.ts:45）失 `{ base; head }` → **`{ kind: "review" }`（无 ref）**——评审 = 对 live tree 的新一轮判断，无 commit 范围可言
@@ -59,7 +60,7 @@
 #### 3.3 review 判据文本（模板面重写）
 - `REVIEW_ITEM`（templates.ts:232-233）「review the criteria below against `INPUT_RANGE`」→ 按型参照句（wave→`INPUT_WAVE_BRIEF` · 其他→`INPUT_DOC`）；判据主体仍是固定前缀（`REVIEWS.*.axesGuide` + lens 词表）
 - `REVIEWS.wave.ref` `"WAVE_BASE..HEAD"`（:315）/ branch `"BASE..HEAD"`（:321）→ 参照型元描述（`"INPUT_WAVE_BRIEF"` / `"INPUT_DOC · origin/<BASE_BRANCH>..HEAD"`）——ref 字段为类型元数据（测试 pin 面），随语义更替；`REVIEWS.spec/plan.ref` `"INPUT_RANGE"`（:327/:333）→ `"INPUT_DOC"`
-- buildability 轴「dual evidence」双证据措辞保持（infra.test.ts pins :139-140 稳定）· "warn-level booking gaps the engine flagged" 虚构句删（见 6.3）
+- buildability 轴「dual evidence」双证据措辞保持（infra.test.ts pins :139-140 稳定）· "warn-level booking gaps the engine flagged" 虚构句删（见 6.2）
 #### 3.4 doc review 面（spec/plan）
 - spec/plan review 语义不变（判 `INPUT_DOC` = target doc）· `cdd-spec-writer`/`cdd-plan` 的 review 字面（`review --type spec --spec <path>` · `--type plan --plan <path>`）**零 churn** · doc-contract gate 零动
 #### 3.5 doc 线与 branch 线同构（doc/branch review-fix 单锚）
@@ -103,7 +104,7 @@
 - `cdd-plan/SKILL.md:44`「The `## Constraints` section declares the constraint surface the implement child reads DIRECTLY via `INPUT_PLAN`」→「…reads via the wave brief's mirrored `## Constraints` section (`INPUT_WAVE_BRIEF` — the complete plan mirror, fresh-extracted at every dispatch)」· review 字面（:58 · `--type plan --plan <path>`）零 churn
 #### 7.4 测试重锚 + 新 pins
 - 引擎 14 个 pin 文件重锚：`branch-ref.test.ts` 随 BranchRef 删（整文件删）· `handoff-schema/ledger/next/capsule/cli/infra/render/run/wave/face/projection/fence/guards/smoke` 的 WAVE_BASE/FIX_BASE/INPUT_RANGE/commits/changes/snapshotSha/scope_base 字面 deliberate 重锚 · token 注册表守卫随删随配
-- **新 pins**：engine 源码面 `WAVE_BASE|FIX_BASE|INPUT_RANGE|revParseHead|BranchRef` 零残留 grep pin · `BASE_BRANCH` 注入 pin（wave+branch review round context 携带 · spec/plan 不带）· **无条件 extract pin**（review dispatch 后 `tasks-{tasks}-brief.md` = 当前 plan 的最新镜像（任务段 + Constraints 段 · 零 WAVE_BASE 行）· 三 face 各自 re-extract 一次）· 华为契约 pin（RETURN_STDOUT_BLOCK 恰好 status+artifacts 二行）· GitClient 精简 pin（方法集 = topLevel + isClean）
+- **新 pins**：engine 源码面 `WAVE_BASE|FIX_BASE|INPUT_RANGE|revParseHead|BranchRef` 零残留 grep pin · `BASE_BRANCH` 注入 pin（wave+branch review round context 携带 · spec/plan 不带）· **无条件 extract pin**（review dispatch 后 `tasks-{tasks}-brief.md` = 当前 plan 的最新镜像（任务段 + Constraints 段 · 零 WAVE_BASE 行）· 三 face 各自 re-extract 一次）· 二行契约 pin（RETURN_STDOUT_BLOCK 恰好 status+artifacts 二行）· GitClient 精简 pin（方法集 = topLevel + isClean）
 - kairos 消费面：行为树 pins（presentation-surface.test.ts 等）随 skill 文本更替 · skill-anatomy 契约面零动（I7 非契约注册项）
 
 ### 8. 整个 phase 收尾扫（六前提重审 · 死码残余 + 数据面版本化 + 消费面词表）
@@ -129,7 +130,7 @@
 
 - `评测面 commit-sha 分类退役全绿 ✓（GitClient 六 seam → topLevel+isClean 二 seam（revParseHead/addAll/commit/log 删 · 生产面零调点实证）· BranchRef 类 + gate.refFromHandoff 删 · --base(sha)/--head flag + "sha" 值域型删 · INPUT_RANGE/WAVE_BASE/FIX_BASE/OUTPUT_BRIEF token 退役 · child commits: 行 + RETURN_STDOUT_BLOCK 二行契约 · 载体 COMMITS/CHANGED_FILE + CarrierValue + Round.commits + scope_base + snapshotSha 删 · Route.review 无 ref · ReviewRefs 收编至 doc-revision 单 kind（commit-set-ledger/commit-range 两 kind + commitSet/commitRange/kindOf + sameRef commit 两腿 + bind/#bound/bound() 删 · doc_revision/doc_hash 保留）· branch handoff 文件 `branch-{op}-{round}` 去 {base8}/{head8} 占位 · 引擎源码面 WAVE_BASE|FIX_BASE|INPUT_RANGE|revParseHead|BranchRef|commit-range|commit-set-ledger|{base8}|{head8} 零残留 grep pin））`
 - `branch review-fix 基于 base→head 方向 ✓（review --type branch --plan 单参（REQUIRED_GROUPS review.branch=["--plan"] · branch 稳定键 "branch" 保留）· BASE_BRANCH = base artifact 分支名 engine 注入（零 CLI 传 base · 单一载体规则）· 缺 artifact → 空槽 drop · cdd-dev branch-review 字面重写零 sha 派生）`
-- `review 基准 = 最新 brief + live tree ✓（wave→INPUT_WAVE_BRIEF · branch→INPUT_DOC+三3.2 BASE_BRANCH · spec/plan→INPUT_DOC · INPUT_RANGE/INPUT_PLAN token 整体退役（含 #reviewRange 源 + 壳文声称 gap 实证）· buildability 双证据保持）`
+- `review 基准 = 最新 brief + live tree ✓（wave→INPUT_WAVE_BRIEF · branch→INPUT_DOC+§3.2 BASE_BRANCH · spec/plan→INPUT_DOC · INPUT_RANGE/INPUT_PLAN token 整体退役（含 #reviewRange 源 + 壳文声称 gap 实证）· buildability 双证据保持）`
 - `物料无条件 extract ✓（cli.ts 条件 verb=="implement" → type=="wave" · 三 face 派发前均从当前 plan 重新 extract 覆盖 · #waveBrief exists 守卫删 · OUTPUT_BRIEF 折叠（纯读输入 · artifacts.brief 注入删））`
 - `brief = 完整计划镜像 ✓（任务段 + ## Constraints 段 · WAVE_BASE 行删 · render 去 head 参 · implement shell 壳文与 round context 恢复一致（零 INPUT_PLAN gap）· cdd-plan SKILL.md:44 约束通道句随更）`
 - `changes[] 同退役 + 改动面自判 ✓（CHANGED_FILE + CARRIER_WORK.changes + CarrierValue.changes + 模板 cl:changed-surface 条款（含「引擎 reconcile」prompt 虚构句）全删 · wave/branch scope 轴 = review 自跑 git diff origin/<BASE_BRANCH>..HEAD − 参照文件面 · 不可归因 = 候选发现 · 引擎零对账 · REVIEWS spec/plan ref → INPUT_DOC）`

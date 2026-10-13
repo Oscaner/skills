@@ -97,7 +97,7 @@ The Cursor Agent column is `pending` — install each plugin from its official c
 
 ## Docs for maintainers
 
-Repository-internal maintenance docs for this monorepo's developers (not shipped with the plugin). The [docs/maintainers index](../../docs/maintainers/README.md) links the numbered family — e.g. [program experience](../../docs/maintainers/04-program-experience.md) and the [template doctrine](../../docs/maintainers/01-template-doctrine.md) that governs emit-generated products.
+Repository-internal maintenance docs for this monorepo's developers (not shipped with the plugin). The [docs/maintainers index](../../docs/maintainers/README.md) links the numbered family — e.g. the [doctrine](../../docs/maintainers/01-doctrine.md) that governs emit-generated products (the template contract + skill-node discipline + program experience) and the [naming registry](../../docs/maintainers/02-naming.md).
 
 ## License
 

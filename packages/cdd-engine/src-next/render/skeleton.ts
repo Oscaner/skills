@@ -237,10 +237,12 @@ export class SkeletonAssembler {
   #renderSingleSpec(probe: Set<string>): string[] {
     const lines: string[] = [];
     this.#pushHeader(lines, probe);
-    lines.push(...this.#section("## 背景与根因", [":::fill background-root-cause"], probe));
-    lines.push(...this.#section("## 设计裁定", [":::fill design-ruling"], probe));
-    lines.push(...this.#section("## 验收", [":::fill acceptance"], probe));
-    lines.push(...this.#section("## 约束", [":::fill constraints"], probe));
+    lines.push(
+      ...this.#section("## Background & root cause", [":::fill background-root-cause"], probe),
+    );
+    lines.push(...this.#section("## Design decisions", [":::fill design-ruling"], probe));
+    lines.push(...this.#section("## Acceptance", [":::fill acceptance"], probe));
+    lines.push(...this.#section("## Constraints", [":::fill constraints"], probe));
     lines.push(...this.#section("## Change history", this.#historyTable(probe), probe));
     return lines;
   }

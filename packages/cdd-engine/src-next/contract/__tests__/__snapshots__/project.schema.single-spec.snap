@@ -30,24 +30,24 @@
       "pattern": "^- \\*\\*Depends on\\*\\*:",
       "description": "presence: required · home: header · ref: none"
     },
-    "## 背景与根因": {
+    "## Background & root cause": {
       "type": "string",
-      "pattern": "^## 背景与根因$",
+      "pattern": "^## Background & root cause$",
       "description": "presence: required · home: section · ref: none"
     },
-    "## 设计裁定": {
+    "## Design decisions": {
       "type": "string",
-      "pattern": "^## 设计裁定$",
+      "pattern": "^## Design decisions$",
       "description": "presence: required · home: section · ref: none"
     },
-    "## 验收": {
+    "## Acceptance": {
       "type": "string",
-      "pattern": "^## 验收$",
+      "pattern": "^## Acceptance$",
       "description": "presence: required · home: section · ref: none"
     },
-    "## 约束": {
+    "## Constraints": {
       "type": "string",
-      "pattern": "^## 约束$",
+      "pattern": "^## Constraints$",
       "description": "presence: required · home: section · ref: none"
     },
     "## Change history": {
@@ -77,10 +77,10 @@
     "**Status**",
     "**Author**",
     "**Depends on**",
-    "## 背景与根因",
-    "## 设计裁定",
-    "## 验收",
-    "## 约束",
+    "## Background & root cause",
+    "## Design decisions",
+    "## Acceptance",
+    "## Constraints",
     "## Change history",
     "Change history row",
     "Version token",

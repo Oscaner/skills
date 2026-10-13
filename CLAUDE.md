@@ -51,7 +51,7 @@ Adding a new first-party plugin: create `packages/<name>/package.json` with an `
 
 ### Data-driven templates
 
-Template-shaped content converges to a single source of truth: canonical JSON → one renderer → emit-generated products (guarded by `pnpm run emit:check` drift + runtime composition). Full convention: [docs/maintainers/01-template-doctrine.md](docs/maintainers/01-template-doctrine.md).
+Template-shaped content converges to a single source of truth: canonical JSON → one renderer → emit-generated products (guarded by `pnpm run emit:check` drift + runtime composition). Full convention: [docs/maintainers/01-doctrine.md](docs/maintainers/01-doctrine.md).
 
 ### Language policy — English-primary, mirror only the README family
 

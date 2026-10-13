@@ -35,22 +35,22 @@
       "home": "section",
       "elements": [
         {
-          "anchor": "## 背景与根因",
+          "anchor": "## Background & root cause",
           "presence": "required",
           "refKind": "none"
         },
         {
-          "anchor": "## 设计裁定",
+          "anchor": "## Design decisions",
           "presence": "required",
           "refKind": "none"
         },
         {
-          "anchor": "## 验收",
+          "anchor": "## Acceptance",
           "presence": "required",
           "refKind": "none"
         },
         {
-          "anchor": "## 约束",
+          "anchor": "## Constraints",
           "presence": "required",
           "refKind": "none"
         },

@@ -11,7 +11,7 @@
 // anywhere in the new tree.
 //
 // The element lines are enumerated from the methodology skeleton semantics (the
-// machine skeleton of each doc type as pinned by the three repo schema JSONs,
+// machine skeleton of each doc type as pinned by the four repo schema JSONs,
 // read as steady contract data) — freshly declared anchors, never cut from the
 // old tree's sources. Counts stand at overall-spec 39 / plan 28 / phase-spec 25 /
 // single-spec 13,
@@ -916,30 +916,30 @@ const SINGLE_SPEC_ELEMENTS = [
   },
   // The prose body surface — the free-form's four sections in document order.
   {
-    anchor: "## 背景与根因",
+    anchor: "## Background & root cause",
     presence: "required",
-    valuePattern: "^## 背景与根因$",
+    valuePattern: "^## Background & root cause$",
     refKind: "none",
     home: "section",
   },
   {
-    anchor: "## 设计裁定",
+    anchor: "## Design decisions",
     presence: "required",
-    valuePattern: "^## 设计裁定$",
+    valuePattern: "^## Design decisions$",
     refKind: "none",
     home: "section",
   },
   {
-    anchor: "## 验收",
+    anchor: "## Acceptance",
     presence: "required",
-    valuePattern: "^## 验收$",
+    valuePattern: "^## Acceptance$",
     refKind: "none",
     home: "section",
   },
   {
-    anchor: "## 约束",
+    anchor: "## Constraints",
     presence: "required",
-    valuePattern: "^## 约束$",
+    valuePattern: "^## Constraints$",
     refKind: "none",
     home: "section",
   },

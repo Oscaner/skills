@@ -2721,7 +2721,7 @@ describe("the pure commands — schema / issue / base", () => {
       let code = await command.runArgv(["schema", "get", "single-spec"]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain('"docType": "single-spec"');
-      expect(io.stdoutText).toContain('"## 背景与根因"');
+      expect(io.stdoutText).toContain('"## Background & root cause"');
       io.stdoutText = "";
       // the skeleton render face — the lightweight scaffold written DIRECTLY into
       // the target (the P5 conditional-required target mechanism)
@@ -2744,11 +2744,11 @@ describe("the pure commands — schema / issue / base", () => {
       expect(text).toContain("- **Depends on**: :::fill depends-on");
       expect(text).not.toContain("**Parent program**");
       // the prose `:::fill` body + the change-history lineage — no `### N.` outline
-      expect(text).toContain("## 背景与根因");
+      expect(text).toContain("## Background & root cause");
       expect(text).toContain(":::fill background-root-cause");
-      expect(text).toContain("## 设计裁定");
-      expect(text).toContain("## 验收");
-      expect(text).toContain("## 约束");
+      expect(text).toContain("## Design decisions");
+      expect(text).toContain("## Acceptance");
+      expect(text).toContain("## Constraints");
       expect(text).not.toContain("### N.");
       expect(text).toContain("## Change history");
       expect(text).toContain("| v0.1 | ");

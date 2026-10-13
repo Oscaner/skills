@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P6 设计：single-spec 骨架 + 命名统一 + kairos vitest 迁移 + 过时文档清理
-- **Version**: v0.2 · 2026-10-13
+- **Version**: v0.3 · 2026-10-13
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P6] 会话 · 用户裁定 · 2026-10-13）
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](2026-10-10-engine-doc-tooling-overall.md)
@@ -25,7 +25,7 @@
 
 ### 2. single-spec 骨架（引擎 schema 面）
 #### 2.1 single-spec doc 型新增（declare/contract 面）
-- 引擎新增第四个 doc 型 **`single-spec`**：`declare.ts` 增 `single-spec` 元素注册表（独立于 phase-spec）· `DocKey`/`DocType` 类型并集扩 `"single-spec"` · Projector 投影/Schema/skeleton 面同扩 · **骨架 = 轻量脚手架（Q3→a）**：header 五元组（title / `- **Version**: v0.1 · <date>` / `**Status**: Draft` / `**Author**` / `- **Depends on**:`）+ 主体 `:::fill` 槽位（背景与根因 / 设计裁定 / 验收 / 约束）+ `## Change history` 表（header + separator + 首行 v0.1）
+- 引擎新增第四个 doc 型 **`single-spec`**：`declare.ts` 增 `single-spec` 元素注册表（独立于 phase-spec）· `DocKey`/`DocType` 类型并集扩 `"single-spec"` · Projector 投影/Schema/skeleton 面同扩 · **骨架 = 轻量脚手架（Q3→a）**：header 五元组（title / `- **Version**: v0.1 · <date>` / `**Status**: Draft` / `**Author**` / `- **Depends on**:`）+ 主体 `:::fill` 槽位（`## Background & root cause` / `## Design decisions` / `## Acceptance` / `## Constraints` —— 用户裁定 2026-10-13 英文标题）+ `## Change history` 表（header + separator + 首行 v0.1）
 - 与 phase-spec 的差异点：**无 `### N.` 双层设计大纲**（single 是修复/裁决导向自由文档 · 硬套 phase 大纲是错位）· **无 `**Parent program**` 必填**（single 无父整体 · 独立程序形态）
 - 注册表元素按 single 文档序排列（标题 · 版本行 · status · author · 主体段 · change history）· **slot-consumption 断言同款**（skeleton 渲染后逐注册锚探测 · 漂移 loud throw）
 #### 2.2 schema get 值域并入
@@ -105,5 +105,6 @@
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.3 | 2026-10-13 | P6 设计 v0.3——single-spec 槽位标题中文 → 英文（用户裁定 2026-10-13：对齐其他 doc 型 English-primary）：§2.1 槽位 `背景与根因/设计裁定/验收/约束` → `## Background & root cause` / `## Design decisions` / `## Acceptance` / `## Constraints` · plan T2 pin 同步 | Oscar M. · Claude Opus 5（kairos:cdd-design [P6] · 用户裁定） |
 | v0.2 | 2026-10-13 | P6 设计 v0.2——运维文档激进收编（用户裁定 2026-10-13：运维文档不事无巨细 · 项目本身即最好 sample）：§5.2 由逐行事实修正改为 maintainers 五篇+index 48,555B → 三篇+index ~13KB 收编（删 01-template-doctrine / 04-program-experience / 06-skill-node-discipline · 更名 02/03 · 非机械项并入 01-doctrine）· Acceptance/Constraint/§1.2 recon 同步 | Oscar M. · Claude Opus 5（kairos:cdd-design [P6] · 用户裁定） |
 | v0.1 | 2026-10-13 | P6 设计 v0.1——single-spec 骨架 + 命名统一 + kairos vitest 迁移 + 过时文档清理（D21 注册 · D22 grilling 六裁定）：① single-spec doc 型（轻量脚手架 · header + `:::fill` 槽位 + Change history 表 · schema get single-spec --output skeleton · cdd-spec-writer 先 gen 后填）· ② 命名统一词表值域层（overall→overall-spec · single→single-spec · plan/phase-spec 不变 · 物理文件名 `*-overall.md` 零改名 · judge 派生 `-overall.md → overall-spec`）· ③ kairos vitest 全量迁移（pool forks 镜像引擎 · 11 文件 77 用例 · helpers 同迁）+ 零裸函数收编（12 处收 const · check:no-bare-functions scope 扩）· ④ 过时文档清理（root CLAUDE.md 三处 + maintainers 01:44/03:32 + README ledger · frozen 面零动）· 不发布 · 单 phase-spec 收口 | Oscar M. · Claude Opus 5（kairos:cdd-design [P6] 会话 · 用户裁定 · 2026-10-13） |

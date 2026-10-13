@@ -99,6 +99,10 @@ The post-version gate is gone (P5 user adjudication 2026-10-12 — its version-e
 
 57. **Consumer-facing description strings carry zero program history** — schema `description` values and exported doc comments state semantics only: phase-anchor adjectives and lifecycle words (`extension bit`/`declared surface`/`zero read/write at P2`) barred; `P<digits>` legal in domain-role (phase-id grammar). Mirrors 35/44; pinned at P3 T9.
 
+## 10. CI gate surfaces — GitHub rulesets are external pins (P5, 2026-10-13)
+
+58. **A CI check rename must re-point the rulesets in the same change** — the P5 "CI native mirror" reform dissolved the monolithic `validate` job into the seven native checks (`engine-suite` · `kairos-suite` · `scripts-unit` · `typecheck` · `emit-check` · `version-sync` · `no-bare-functions`), but the `protect-develop`/`protect-main` rulesets still required the legacy `validate` status check. Every PR to develop/main then carried an eternal "Expected — pending" placeholder (no job reports that name) — invisible to every in-tree pin (workflow greps, emit, the kairos suite cannot read GitHub settings). Surfaced by a real PR's pending check; fixed by updating both rulesets' `required_status_checks` to the native set (plus `Main PRs must come from develop` on main), leaving the review/deletion rules untouched. Corollary: the REST combined-status endpoint reporting `pending` / `total_count: 0` for every ref is its empty-state artifact when zero legacy status contexts exist — neither a check nor a block; the authoritative face is the PR `statusCheckRollup`.
+
 ---
 
 **Use**: bake these into scaffolds (templates), consult before touching the program's mechanisms, and treat item 27 as a standing rule for every document this program produces.

@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P7 设计：评测面 commit-sha 全退役 + 物料无条件 extract + brief=完整计划镜像 · 三 face 单输入
-- **Version**: v0.2 · 2026-10-13
+- **Version**: v0.3 · 2026-10-13
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P7] 会话 · 用户裁定 · 2026-10-13）
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](2026-10-10-engine-doc-tooling-overall.md)
@@ -52,6 +52,10 @@
 - 每型参照定焦：**wave review → `INPUT_WAVE_BRIEF`（最新镜像 brief）** · **branch review → `INPUT_DOC`（plan）+ `BASE_BRANCH`** · **spec/plan review → `INPUT_DOC`（target doc）**——四 review 型各唯一参照，零范围 token
 - **doc 线重复参照消解（复审实证）**：plan review 现状 `INPUT_RANGE=planPath` 与 `INPUT_PLAN=planPath` **双 token 同文件重复**（`#reviewRange` doc 职 + `scene.planPath` 职叠坐）· spec review 的 `INPUT_PLAN` 为空槽（spec 无 `--plan`）——两者在 INPUT_RANGE/INPUT_PLAN 退役后由**唯一 `INPUT_DOC`**（spec→specPath · plan→planPath）承接，doc 线 review-fix 与 wave 线同构
 - **branch fix 文档上下文赋值（复审新决定 · 修真空 gap）**：`fix` mode round context（templates.ts:275-288）增 **`INPUT_DOC`**（branch → planPath · 与 review 线同款 branch-kind 补 `scene.planPath`）——现状 branch fix 的 `INPUT_WAVE_BRIEF` 恒空（`#waveBrief` 仅 wave 帧返回）而 `FIX_SHELL`（:195）声称读它——**branch fix child 今天只有 findings、零计划/约束上下文**（与 implement INPUT_PLAN gap 同款病）· `FIX_SHELL` 按线分句：wave→「`INPUT_WAVE_BRIEF`（完整计划镜像）」· branch→「`INPUT_DOC`（plan）」· review-fix 环（wave fix 的 INPUT_WAVE_BRIEF + branch fix 的 INPUT_DOC + docs-fix 的 INPUT_DOC）据此三线同锚
+#### 3.6 child prompt 组装面原子性 + 壳文-布局一致性守卫（全部 round context 调整 ⇒ 全 child prompt 同面折叠）
+- **组装面单一**：全部 child prompt = `TemplateAssembler.render(values)`（templates.ts 单组装面）——本 spec §2.4/2.7/3.1-3.3/4.2/5.1/6.1/6.2/7.4 的改动全落同一数据面：`MODE_PROMPTS`/`REVIEW_VARIANTS` 数据行 shell 文本 · `TOKENS` 注册表 · `REVIEWS` 判据 · `RETURN_ZONE` 常量 · `HANDOFF_SCHEMA` 声明 ⇒ 六 face prompt（implement · fix · docs-fix · review×4 共享 REVIEW_CONTEXT 尾部）**字节全变是同一数据面的原子折叠，不是逐张重写**——不存在「某张 prompt 旁路漏改」的枚举面
+- **HANDOFF_SCHEMA fence 自动派生**：注入文本 = `HandoffSchema.schemaText` 从 CARRIER_WORK/FINDINGS 声明串化（handoff-schema.ts:235-242 · 声明即投影）——删 commits/changes 字段后 work/findings 两道 fence **自动短文零手改** · RETURN_STDOUT_BLOCK 单常量（templates.ts:423-439 · 3→2 行 · OUTPUT_BRIEF 处方删）一行改六面尾巴齐变
+- **新机械守卫——壳文-布局一致性断言**：现行 `#gate`（templates.ts:589-614）只查 (a) 注册表 token 全被覆值 (b) 无未声明值——**不查壳文自身的 token 名引用与 round-context 布局是否匹配**（壳文声称是 prose 非 `{{槽位}}` · `#fill`（:626-629）同样看不见）；implement INPUT_PLAN 声称（值面有、layout 不带）与 branch fix INPUT_WAVE_BRIEF 真空（壳文指恒空）两个 gap 正是此盲区。**新增断言：每个 mode shell 文本中出现的 `INPUT_*`/`OUTPUT_*`/`BASE_BRANCH` 名引用 ⊆ 该 mode round-context 布局 ∪ 共享尾部**（复用 `#contextLines`（:575-583）同款槽位 regex · 构造成立级 · 把「声称但没带」回归关死 · 断言生效后 implement/fix/docs-fix/review×4 各 mode 壳文与布局逐 token 重新对齐）
 #### 3.2 BASE_BRANCH：base→head 方向的唯一携带者（R4）
 - 新 token `BASE_BRANCH`：值 = **base artifact 的 base 分支名**（`base get --plan <path>` · cdd-dev determine-base→set-base 已落）· 带于 **wave + branch 两个 tree-review face** 的 round context（树评审需要 base 才能自跑 `git diff origin/<base>..HEAD`）
 - **单一载体规则**（防再漂移）：review 派发零 CLI 传 base——`review --type branch --plan <path>` 单参，engine 派发时从 base artifact 读入注入 · 与「base set/get 是唯一读写路径」同源（cdd-dev 消费面零手工 JSON）· 缺 artifact → 空槽（assembler drop · scope 轴降级：按 working tree vs 参照文件面判，见 6.3）
@@ -111,6 +115,7 @@
 - `changes[] 同退役 + 改动面自判 ✓（CHANGED_FILE + CARRIER_WORK.changes + CarrierValue.changes + 模板 cl:changed-surface 条款（含「引擎 reconcile」prompt 虚构句）全删 · wave/branch scope 轴 = review 自跑 git diff origin/<BASE_BRANCH>..HEAD − 参照文件面 · 不可归因 = 候选发现 · 引擎零对账 · REVIEWS spec/plan ref → INPUT_DOC）`
 - `载体/路由/契约重整全绿 ✓（CARRIER_WORK/FINDINGS 声明 + CarrierValue + ledger Round + RETURN 二行契约 + #parseBlockReturn/#commitsOf/#fixedPoint/#reviewRange/#outputOf(brief) 删 · handoff/next/capsule/declare 同步 · channel-closure 注册表守卫随删随配 · token 注册表守卫生效）`
 - `doc 线与 branch 线 round context 同构化 ✓（plan review INPUT_RANGE==INPUT_PLAN 双 token 重复消解 → 唯一 INPUT_DOC · spec review 空 INPUT_PLAN 随 token 退役 · branch fix 文档上下文赋值——fix mode context 增 INPUT_DOC(branch→planPath) · FIX_SHELL 按线分句（wave→INPUT_WAVE_BRIEF · branch→INPUT_DOC） · branch fix 真空 gap 修净 · REQUIRED_GROUPS.fix.branch=["--findings","--plan"] · branch review 零 OUTPUT_EVIDENCE / branch fix 保留 OUTPUT_EVIDENCE 保持）`
+- `child prompt 组装面原子性 + 壳文-布局一致性守卫 ✓（六 face prompt 同数据面折叠（shell 行文本 · TOKENS · REVIEWS · RETURN_ZONE 单常量 · HANDOFF_SCHEMA 声明派生）· 全部 round context 调整 → 全 child prompt 字节同面齐变 · 新壳文-布局一致性断言：各 mode shell 的 INPUT_*/OUTPUT_*/BASE_BRANCH 名引用 ⊆ 该 mode round-context 布局 ∪ 共享尾部（复用 #contextLines 槽位 regex · 构造成立级）——implement INPUT_PLAN 声称 / branch fix 真空双 gap 杜绝 · 断言全绿）`
 - `I7 撤除 + kairos 消费面同步 ✓（cdd-dev SKILL.md:89 I7 行删 · :53 branch-review 字面重写零 ref · cdd-plan :44 INPUT_PLAN→镜像 Constraints 句 · 行为树 pins 全更替）`
 - `引擎 vitest 全绿（14 pin 文件 deliberate 重锚 + 新 pins：sha 零残留 / BASE_BRANCH 注入 / 无条件 extract rematch / 二行契约 / GitClient 二方法集）· kairos suite 全绿（vitest run）· EOF 全绿 · `pnpm run validate`（或等价 CI 原生序列）ALL PASS · 引擎 CLI 均以仓库内 bin 调用 · 不发布`
 
@@ -119,6 +124,7 @@
 - **六前提（D23）**：允许破坏性变更、可重写代码重组目录、不保守不打补丁；从高维思考、OOP 抽象统一、零裸函数；最佳实践、零技术债务、避免散文堆砌、避免声明再抄；高内聚、低耦合、死代码空壳全清；消费者心智负担优先（不为完成任务而设计）；最大程度重构整合、最大程度精简系统
 - **保留面冻结**：clean-tree gate（review 基线 = committed tree）· doc_revision 内容指纹（doc sha1 · run.ts:551 · 最新计划 reopen gate —— 非 commit sha）· doc-contract 判定语义（gate 零例外）· base set/get 语义不变 · `WAVE`/`tasks`/`OUTPUT_REPORT`/`OUTPUT_HANDOFF`/`OUTPUT_EVIDENCE`/`INPUT_DOC`/`INPUT_FINDINGS` token 保留 · 六命令功能语义不变（除 review 面 ref 退役）· `mattpocock-skills` 分派表零动 · branch 线稳定键 `"branch"` 保留
 - **引擎 vitest 全绿**（recon：五面测试套件 14 pin 文件 · deliberate 重锚 · 零跳过零容错）
+- **child prompt 组装面一致性**——六 face prompt 的 shell 壳文与 round-context 布局必须逐 token 对齐（新壳文-布局一致性断言 · 复用 `#contextLines` 槽位 regex · 构造成立级 · 双 gap 零复发）
 - **kairos 消费面字面同步**：cdd-dev/cdd-plan skill 文本 + 行为树 pins 随 engine 语义更替（consumer 环境无 monorepo 布局；消费面纯度：零程序史）
 - **语言策略**：本 spec 为内部开发者文档（Strategy B · 中文）· 引擎源码/skill/发布面 English-primary 不变
 - **EOF**：仓库文本文件以且仅以一个换行符结尾（字节级）
@@ -128,5 +134,6 @@
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.3 | 2026-10-13 | child prompt 组装面原子性折入——六 face prompt 同数据面折叠 · HANDOFF_SCHEMA 声明派生 auto 短文 · 新壳文-布局一致性守卫（#gate 盲区补齐 · 双声称 gap 构造成立级杜绝） | Oscar M. · Claude Opus 5 |
 | v0.2 | 2026-10-13 | doc/branch 线 review-fix round context 复审折入——plan review 双 token 重复消解 · branch fix 文档上下文赋值（fix mode 增 INPUT_DOC · FIX_SHELL 按线分句 · REQUIRED_GROUPS.fix.branch 追 --plan） | Oscar M. · Claude Opus 5 |
 | v0.1 | 2026-10-13 | P7 设计实写——评测面 commit-sha 全退役（Q1）· review 基准=最新 brief + base→head 方向（Q2/R4）· 物料无条件 extract（R1/R3）· brief=完整计划镜像三 face 单输入（Q4(a)）· changes[] 同退役改动面自判（Q3）· I7 撤除 · 六前提 mandate | Oscar M. · Claude Opus 5 |

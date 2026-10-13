@@ -224,6 +224,10 @@ importers:
       '@oscaner-skills/cdd-engine':
         specifier: workspace:*
         version: link:../cdd-engine
+    devDependencies:
+      vitest:
+        specifier: ^5.0.3
+        version: 5.0.3(@types/node@24.19.2)(vite@8.3.2(@types/node@24.19.2)(yaml@2.9.1))
 
 packages:
 

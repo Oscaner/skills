@@ -10,12 +10,12 @@ Maintainer-only documents for this monorepo's developers (English-primary; not s
 
 ## Convergence ledger (P4.2 → P6)
 
-The ledger tracks the maintainers family's byte convergence. P4.2 Task 9 merged the two template docs; the P5 sweeps kept the token/cache facts current; P6 collapsed the family from five content docs + index to three + index, folding the mechanism maps and narration into the enforcement (the code and its tests), keeping only the durable judgment. Plan anchor: total ≤ 56 KB — `maintainers-docs.test.ts` asserts each After cell against the live file, and the Total After cell against the per-file sum.
+The ledger tracks the maintainers family's byte convergence. P4.2 Task 9 merged the two template docs; the P5 sweeps kept the token/cache facts current; P6 collapsed the family from five content docs + index to three + index, folding the mechanism maps and narration into the enforcement (the code and its tests), keeping only the durable judgment. Plan anchor: total ≤ 56 KB — `maintainers-docs.test.ts` asserts each After cell against the live file, the Total Before cell against the per-file Before sum, and the Total After cell against the per-file After sum.
 
 | File | Before (B) | After (B) | Note |
 |---|---|---|---|
-| 01-doctrine.md | 28,254 | 6,824 | folded from the retired 01 + 04 + 06 docs · template essence R1–R5 + I1–I4, skill-node facts-only, non-mechanical experience · smoke positioning sentence |
-| 02-naming.md | 9,180 | 6,591 | renamed from the retired 02 doc · mechanism map + migration history trimmed, term registry + banned table kept |
-| 03-cache-doctrine.md | 8,450 | 3,811 | renamed from the retired 03 doc · six axioms + C1–C7 kept, mechanism narration trimmed |
-| README.md | 2,671 | 2,005 | index + ledger re-anchored to the three-doc family |
-| **Total** | 65,193 | 19,231 | plan anchor ≤ 56,000 |
+| 01-doctrine.md | 28,254 | 4,350 | folded from the retired 01 + 04 + 06 docs · template essence R1–R5 + I1–I4, skill-node facts-only, non-mechanical experience · smoke positioning sentence |
+| 02-naming.md | 9,180 | 4,692 | renamed from the retired 02 doc · mechanism map + migration history trimmed, term registry + banned table kept |
+| 03-cache-doctrine.md | 8,450 | 2,371 | renamed from the retired 03 doc · six axioms + C1–C7 kept, mechanism narration trimmed |
+| README.md | 2,671 | 2,066 | index + ledger re-anchored to the three-doc family |
+| **Total** | 48,555 | 13,479 | plan anchor ≤ 56,000 |

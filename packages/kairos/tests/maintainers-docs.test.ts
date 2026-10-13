@@ -136,7 +136,7 @@ test("maintainers: zero old-numbered names on every live surface", () => {
   }
 });
 
-test("maintainers: total bytes within the plan anchor (≤ 53,000)", () => {
+test("maintainers: total bytes within the plan anchor (≤ 56,000)", () => {
   const total = [...CONTENT_DOCS, "README.md"]
     .map((f) => bytesOf(`docs/maintainers/${f}`))
     .reduce((a, b) => a + b, 0);
@@ -169,6 +169,15 @@ test("maintainers: README convergence ledger matches the live files (After cells
     Number(totalRow![2].replace(/,/g, "")),
     `convergence ledger Total After (${totalRow![2]}) ≠ the sum of the per-file After cells (${total})`,
   ).toBe(total);
+  // Total Before is the carried-over historical baseline: assert it equals the sum of the
+  // per-file Before cells, so a row-set change can never orphan the total (the P6 shrink left
+  // the sum-of-Before unguardable until this assertion pinned it).
+  const beforeByFile = new Map(rows.map((r) => [r[1], Number(r[2].replace(/,/g, ""))]));
+  const beforeSum = [...beforeByFile.values()].reduce((a, b) => a + b, 0);
+  expect(
+    Number(totalRow![1].replace(/,/g, "")),
+    `convergence ledger Total Before (${totalRow![1]}) ≠ the sum of the per-file Before cells (${beforeSum})`,
+  ).toBe(beforeSum);
   expect(md, "convergence ledger must state the ≤ 56,000 plan anchor").toMatch(/≤ 56,000/);
 });
 

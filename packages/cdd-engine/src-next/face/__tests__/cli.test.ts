@@ -3671,6 +3671,53 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
+  it("§8.7 — a findings-face draft carrying the engineOnly `status` (+ a stray key) is dropped with a single WARN, never a BLOCK (the exact dogfood crash face)", () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new FakeSync();
+      // The §2.8/§8.7 dogfood crash face: a child-authored `status` (engineOnly — the
+      // engine rolls the review conclusion up, never a child write) on a review draft,
+      // plus a stray extra key. The read-back validator drops both (never a refusal);
+      // materialize drops them from the carrier and books ONE WARN on the notes.
+      sync.stdout = "status: APPROVED\n";
+      writeFileSync(
+        path.join(scene.workspace.path, "spec-review-1.json"),
+        JSON.stringify({
+          findings: [{ severity: "nit", lens: "spec", summary: "drift" }],
+          status: "APPROVED",
+          phase: "review",
+        }),
+        "utf8",
+      );
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      const outcome = dispatch.step()(specReviewFrame);
+      // the round is NOT blocked (a non-declared / engineOnly field is not a semantic
+      // error) — the conclusion derives from the draft's findings (nit → REVIEW_FIX),
+      // never the dropped child status
+      expect(outcome.status).toBe("REVIEW_FIX");
+      expect(io.stderrText).toBe("");
+      const carrier = outcome.carrier as Record<string, unknown>;
+      // the dropped keys never land on the carrier; the engine-authored status wins
+      expect("phase" in carrier).toBe(false);
+      expect(carrier.status).toBe("REVIEW_FIX");
+      // exactly ONE WARN names both dropped keys
+      const notes = carrier.notes as string[];
+      expect(notes).toHaveLength(1);
+      expect(notes[0]).toContain("dropped non-declared draft field(s)");
+      expect(notes[0]).toContain("status");
+      expect(notes[0]).toContain("phase");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("the docs review — the block + draft face: findings flow back from the file, the status rolls up", () => {
     const { repoRoot, cleanup } = fixture();
     try {

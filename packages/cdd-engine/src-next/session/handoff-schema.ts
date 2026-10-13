@@ -42,7 +42,6 @@ interface SchemaNode {
   enum?: readonly unknown[];
   minLength?: number;
   maxLength?: number;
-  additionalProperties?: boolean | SchemaNode;
   /** The ENGINE-authority keys a face's persisted carrier writes that the CHILD
    *  never authors — declared ON the node so the engine's write plane derives as
    *  `keyof properties ∪ engineOnly[face]` (zero parallel write-plane table). Both
@@ -68,7 +67,6 @@ const FINDING: SchemaNode = {
     summary: { type: "string" },
     fix: { type: "string" },
   },
-  additionalProperties: true,
 };
 
 /** The `work` writable subset — implement/fix carrier. `status` and `artifacts` are
@@ -83,10 +81,9 @@ const CARRIER_WORK = {
   properties: {
     status: { type: "string", enum: ["APPROVED", "BLOCKED"] },
     failure_category: { type: "string" },
-    artifacts: { type: "object", additionalProperties: { type: "string" } },
+    artifacts: { type: "object" },
     notes: { type: "array", items: { type: "string" } },
   },
-  additionalProperties: false,
   /** The work face's engine-only keys — none: every written field is a declared
    *  child property (the write plane derives as keyof properties ∪ []). */
   engineOnly: [],
@@ -103,10 +100,9 @@ const CARRIER_FINDINGS = {
   required: ["findings"],
   properties: {
     findings: { type: "array", items: FINDING },
-    artifacts: { type: "object", additionalProperties: { type: "string" } },
+    artifacts: { type: "object" },
     notes: { type: "array", items: { type: "string" } },
   },
-  additionalProperties: false,
   engineOnly: ["status"],
 } as const satisfies SchemaNode;
 
@@ -130,11 +126,9 @@ const EVIDENCE: SchemaNode = {
         exit_code: { type: "integer" },
         passed: { type: "boolean" },
       },
-      additionalProperties: true,
     },
     behavior_change: { type: "boolean" },
   },
-  additionalProperties: true,
 };
 
 /** The face → declared writable-subset table (the single source both projections read).

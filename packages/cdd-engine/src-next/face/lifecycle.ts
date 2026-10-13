@@ -176,7 +176,7 @@ export class CliLifecycle {
 
   /** One dispatch — prompt from the template plane + the frame, host child via
    *  the harness-contract rows, the child's write-back read in (v1.9: the draft at
-   *  OUTPUT_HANDOFF is the round's content — the three-line block is the pointer). */
+   *  OUTPUT_HANDOFF is the round's content — the block is the pointer). */
   #dispatch(frame: OpenFrame): DispatchOutcome {
     const host = this.detectHost();
     if (host === "") {
@@ -324,7 +324,7 @@ export class CliLifecycle {
   /** The canonical prescribed OUTPUT_* write path of one artifact kind (find #5 —
    *  the {family}-{key}-{artifact} single naming scheme; find #9 — branch line
    *  drops the range token: `branch-{op}{-round}-report.md` · `branch-test-evidence.json`,
-   *  the carrier's `commits` holds the shas · doc = the {type}-{op}-{round} stem,
+   *  the branch line carries no commit identity · doc = the {type}-{op}-{round} stem,
    *  spec-review-1). "" when the frame's family does not consume the slot — only
    *  present facts ride the prompt (the assembler drops the empty-valued keys). */
   #outputOf(frame: OpenFrame, kind: "brief" | "report" | "evidence"): string {
@@ -376,13 +376,16 @@ export class CliLifecycle {
     return "";
   }
 
-  /** The RETURN_STDOUT_BLOCK child stdout → the outcome: the three canonical lines
-   *  (status / commits / artifacts), each key=value tokens; a missing status line is
-   *  a BLOCKED outcome (only present facts land). */
+  /** The RETURN_STDOUT_BLOCK child stdout → the outcome: the two canonical lines
+   *  (status / artifacts), each key=value tokens; a missing status line is a BLOCKED
+   *  outcome (only present facts land). The retired three-line contract's `commits`
+   *  parse is a tolerated legacy read — T4 deletes it. */
   #parseBlockReturn(stdout: string): DispatchOutcome {
     const status = stdout.match(/^status:\s*(\S+)/m)?.[1];
     if (status === undefined) return { status: "BLOCKED" };
     const outcome: DispatchOutcome = { status: status as RoundStatus };
+    // T4 pending: the `commits` line left the shipped two-line contract; this read
+    // is retained only until T4 removes it (kept so the outcome shape is stable).
     const commits = stdout.match(/^commits:\s*base=([0-9a-f]{8})(?:\s+head=([0-9a-f]{8}))?/m);
     if (commits !== null) outcome.commits = { base: commits[1], head: commits[2] ?? commits[1] };
     const artifacts = stdout.match(/^artifacts:(.*)$/m);

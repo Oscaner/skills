@@ -575,10 +575,20 @@ export class Cli {
         ledger: scene.ledger,
         planPath: scene.planPath,
         briefPath: scene.briefPath,
+        baseBranch: this.#baseBranchOf(scene),
       },
       findings: parsed.args.findings ?? null,
     });
     return harness.step();
+  }
+
+  /** The branch scope anchor (BASE_BRANCH) — the base artifact's branch name read
+   *  from the line's own workspace (`base.json`, the same `base get` source the CLI
+   *  writes). "" when the artifact is absent or malformed (the slot stays empty and
+   *  the assembler drops it — the wave/branch review then judges the live tree). */
+  #baseBranchOf(scene: WorkScene): string {
+    const artifact = scene.workspace.readJson<{ base?: unknown }>("base.json");
+    return typeof artifact?.base === "string" ? artifact.base : "";
   }
 
   /** The phase-mismatch hint — what to run instead. */

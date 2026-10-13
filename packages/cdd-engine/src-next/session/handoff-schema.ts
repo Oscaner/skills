@@ -73,8 +73,8 @@ const FINDING: SchemaNode = {
 
 /** The `work` writable subset — implement/fix carrier. `status` and `artifacts` are
  *  the round's required core; notes rides the declared optional field. Reserved
- *  fields (phase · tasks) are NOT declared → additionalProperties false refuses
- *  them, so the engine stays the carrier's single author.
+ *  fields (phase · tasks) are NOT declared and are DROPPED by materialize (never a
+ *  BLOCK) — the engine stays the carrier's single author.
  *  `as const` preserves the literal property keys — the carrier type family
  *  (`CarrierOf<F>` below) derives its field set FROM these declared keys. */
 const CARRIER_WORK = {

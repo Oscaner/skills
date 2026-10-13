@@ -25,10 +25,10 @@
 //     INPUT_CRITERIA / INPUT_LENS round-context tokens are gone) and each variant's
 //     fixed prefix is byte-stable — a review dispatch's cache prefix groups by type.
 //   · the normalized token vocabulary (§3.5): INPUT_* (read-side) / OUTPUT_* (write-
-//     side) / WORKSPACE_* (environment) / FIX_BASE (the fix anchor) / ROLE (the
-//     nominative identity) / WAVE (the wave-unitary unit). Round-context keys are
-//     the mode's consumption set — a key the shell never names is not declared (the
-//     fix round carries no INPUT_ RULES).
+//     side) / WORKSPACE_* (environment) / BASE_BRANCH (the branch review's scope
+//     anchor) / ROLE (the nominative identity) / WAVE (the wave-unitary unit).
+//     Round-context keys are the mode's consumption set — a key the shell never
+//     names is not declared (the fix round carries no INPUT_ RULES).
 //
 // T15 v1.9 (the handoff contract-surface rework — §3.6) lands the schema injection
 // in the same plane: the `## Handoff schema` section at every shell's tail carries
@@ -37,9 +37,9 @@
 // handoff-format prose is gone; RETURN_STDOUT_BLOCK is the ONE return contract.
 //
 // T15 v1.10/1.11 (the review-closeout batch — §3.7) refines the shell composition:
-// the work-mode tail (evidence gate + commit contract) is the shared EVIDENCE_ITEM /
-// COMMITS_*_ITEM cells (implement/fix carry both, docs-fix the commit contract only —
-// zero per-mode duplication), and the review variants fold the criteria/lens in.
+// the work-mode tail is the shared EVIDENCE_ITEM cell (implement/fix carry it;
+// docs-fix carries no evidence file — zero per-mode duplication), and the review
+// variants fold the criteria/lens in.
 //
 // P5 (M1) supersede: the implement mode's dispatch wording names the upstream
 // `mattpocock-skills:implement` skill (the ref the dispatch row now resolves to),
@@ -115,8 +115,6 @@ export interface TemplatePrompt {
 export interface ReviewGuideRow {
   /** The lens vocabulary — the finding lens labels the review may carry. */
   lensEnum: readonly string[];
-  /** The reference face the review judges. */
-  ref: string;
   /** The axes/URC guide prose — the criteria body (the task/branch four axes +
    *  verification-evidence duty; the spec/plan URC rows). */
   axesGuide: string;
@@ -306,25 +304,21 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
 export const REVIEWS = {
   wave: {
     lensEnum: ["standards", "spec", "buildability"],
-    ref: "INPUT_WAVE_BRIEF",
     axesGuide:
       "Standards axis (repo coding standards + code-review smell baseline) + Spec axis (wave brief / plan requirements) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — `tsc --noEmit`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): run `git diff origin/<BASE_BRANCH>..HEAD` yourself (BASE_BRANCH as named in the round context; on a missing artifact judge the working tree) — every changed file must fall within the wave brief's file surface (`**Files:**` seams) or be attributable to the plan / reviewed intent; an unattributable changed file is a candidate finding (severity by your judgment). The reviewer is the changed-surface judge — the engine reconciles nothing. Single agent, four axes.",
   },
   branch: {
     lensEnum: ["standards", "spec", "buildability"],
-    ref: "INPUT_DOC · origin/<BASE_BRANCH>..HEAD",
     axesGuide:
       "Same four axes as task (branch-wide health: run `git diff origin/<BASE_BRANCH>..HEAD` + plan conformance) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — `tsc --noEmit`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): branch review IS the full diff — every changed file must be attributable to a finding, a plan requirement, or the reviewed intent; unrelated surface = candidate finding (severity by your judgment), normal finding → fix loop.",
   },
   spec: {
     lensEnum: ["completeness", "consistency", "clarity"],
-    ref: "INPUT_DOC",
     axesGuide:
       "Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding",
   },
   plan: {
     lensEnum: ["completeness", "decomposition", "buildability"],
-    ref: "INPUT_DOC",
     axesGuide:
       "Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding",
   },

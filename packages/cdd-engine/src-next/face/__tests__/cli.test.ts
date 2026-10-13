@@ -1575,6 +1575,59 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     }
   });
 
+  it("review --type branch — the CLI injects the base artifact's branch as BASE_BRANCH (the scope anchor value source)", async () => {
+    const sync = new FakeSync();
+    sync.stdout = "status: APPROVED\n";
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      // the base artifact the CLI reads (the same `base set` write-through source);
+      // the leaf carries no --root — the fixture's injected repoRoot is the root.
+      expect(
+        await command.runArgv([
+          "base",
+          "set",
+          "--plan",
+          plan,
+          "--base",
+          "develop",
+          "--source",
+          "plan-field",
+        ]),
+      ).toBe(0);
+      // A REAL branch-review dispatch (not --dry-run — the dry-run synthetic approval
+      // never reaches the lifecycle). The host is injected ambiently (the CLI's
+      // production dispatch reads process.env), so mark it and restore it.
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      let code: number;
+      try {
+        code = await command.runArgv([
+          "review",
+          "--type",
+          "branch",
+          "--plan",
+          plan,
+          "--root",
+          repoRoot,
+        ]);
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+      // the child is a fake (no draft written → the round reads back BLOCKED), but the
+      // dispatch itself ran — the prompt is the assertion surface
+      expect(code).toBe(1);
+      const prompt = sync.calls[0]!.args[sync.calls[0]!.args.length - 1];
+      // the base artifact's branch name rides the round context — the wave/branch
+      // review's scope anchor resolves (never an empty, dropped slot)
+      expect(prompt).toContain("- `BASE_BRANCH`: develop");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("review --type spec/plan — the doc-path face (the doc-derived workspace slug)", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {

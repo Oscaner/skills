@@ -137,13 +137,14 @@ export class CliGate {
     return route?.kind === "review" ? reviewLead : null;
   }
 
-  /** The line key of a fixed-target face — the branch line's STABLE key (find #9
-   *  · spec §6.5 — `"branch"` per workspace, accumulating across re-reviews; the
-   *  old form was the range short, its head moving every fix → new key → round
-   *  reset to 1) or the doc path — the lifecycle's own key derivation (run.ts #lineKey). */
+  /** The line key of a fixed-target face — the line's STABLE key (find #9 · spec
+   *  §6.5/§3.7 — `"branch"` per workspace for the branch line; the doc line keys by
+   *  its line-type constant `"spec"`/`"plan"` — never the argv path: a moved argv
+   *  string must not fork the same line into two ledger rows, resetting its round),
+   *  the lifecycle's own key derivation (run.ts #lineKey). */
   #lineKey(scene: WorkScene): string | null {
     if (scene.target?.kind === "branch") return "branch";
-    if (scene.target?.kind === "doc") return scene.target.doc;
+    if (scene.target?.kind === "doc") return scene.face.type;
     return null;
   }
 

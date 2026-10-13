@@ -434,13 +434,15 @@ export class Lifecycle {
     return this.#ledger.roundCount(key, this.#face.product.reviewLead);
   }
 
-  /** The progress key of a single-target line — the branch line's STABLE key (find
-   *  #9 · spec §6.5 — `"branch"` per workspace, accumulating across re-reviews; old form
-   *  = the range short, head moving every fix → new key → round reset to 1) or
-   *  the doc path (the task face never routes here — frames key by the wave key). */
+  /** The progress key of a single-target line — the line's STABLE key (find #9 ·
+   *  spec §6.5/§3.7 — `"branch"` per workspace for the branch line, accumulating
+   *  across re-reviews; the doc line keys by its line-type constant `"spec"`/`"plan"`
+   *  — the argv path copy never resets the round: a moved argv string (absolute vs
+   *  relative) must not fork the same line into two ledger rows). The task face
+   *  never routes here — frames key by the wave key. */
   #lineKey(target: AuditTarget): LedgerKey {
-    if (target.kind === "branch") return "branch";
-    return (target as { kind: "doc"; doc: string }).doc;
+    if (target.kind === "doc") return this.#face.type;
+    return "branch";
   }
 
   // -------------------------------------------------------------------------

@@ -480,23 +480,18 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
     }
   });
 
-  it("rejects a non-sha --base / --head and a non-integer --round", async () => {
+  it("rejects a non-integer --round (the sha value type retired with the commit-sha surface)", async () => {
     const { command, io, cleanup } = fixture();
     try {
-      // find #10 — the sha channel's 8-char short form (spec §6.6)
-      let code = await command.runArgv([
+      const code = await command.runArgv([
         "review",
         "--type",
-        "branch",
-        "--base",
-        "abc",
-        "--head",
-        "a".repeat(8),
+        "plan",
+        "--plan",
+        "x",
+        "--round",
+        "x",
       ]);
-      expect(code).toBe(2);
-      expect(io.stderrText).toContain("must be an 8-char sha");
-      io.stderrText = "";
-      code = await command.runArgv(["review", "--type", "plan", "--plan", "x", "--round", "x"]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain("must be an integer");
     } finally {
@@ -504,7 +499,7 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
     }
   });
 
-  it("the fix face declares NO branch refs — the range rides the --findings handoff (⑦: derived, never re-declared)", () => {
+  it("the fix face declares NO branch refs — the review judges the live tree (no re-declared range)", () => {
     // fix --type branch parses with --plan + --findings alone (no base/head)
     const fix = nodeOf("fix");
     gate.parse(
@@ -870,8 +865,9 @@ describe("the help/--help display face — the per-command render", () => {
       expect(io.stdoutText).toContain("--tasks <n|n,n,…>");
       expect(io.stdoutText).toContain("--round <n>");
       expect(io.stdoutText).toContain("--spec <path>");
-      expect(io.stdoutText).toContain("--base <sha>");
-      expect(io.stdoutText).toContain("--head <sha>");
+      // the branch range flags retired with the commit-sha surface (P7)
+      expect(io.stdoutText).not.toContain("--base");
+      expect(io.stdoutText).not.toContain("--head");
       expect(io.stdoutText).toContain("the target face of the round");
       expect(io.stdoutText).toContain(
         "cdd review --type spec --spec docs/kairos/specs/p3-design.md",
@@ -1036,13 +1032,14 @@ describe("the T4 commander-native help acceptance — the projected help face (�
       // The §5.2 value domains ride the option descriptions.
       expect(help).toContain("--type <wave|branch|spec|plan>");
       expect(help).toContain("--tasks <n|n,n,…>");
-      expect(help).toContain("--base <sha>");
-      expect(help).toContain("--head <sha>");
       expect(help).toContain("--plan <path>");
+      // the branch range flags retired with the commit-sha surface (P7)
+      expect(help).not.toContain("--base");
+      expect(help).not.toContain("--head");
       // The description order = the ARGV_CHANNEL row order of the review node's
       // declared keys (the registration order never a sorted/derived one).
       expect(help.indexOf("--type")).toBeLessThan(help.indexOf("--tasks"));
-      expect(help.indexOf("--base")).toBeLessThan(help.indexOf("--head"));
+      expect(help.indexOf("--plan")).toBeLessThan(help.indexOf("--spec"));
       expect(help.indexOf("--root")).toBeLessThan(help.indexOf("--dry-run"));
     } finally {
       cleanup();
@@ -1258,6 +1255,56 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       const brief = readFileSync(path.join(workspace, "tasks-1-brief.md"), "utf8");
       expect(brief).toContain("### Task 1:");
       expect(brief).not.toContain("WAVE_BASE:");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("every wave-face dispatch re-extracts the brief — the review re-renders it from the CURRENT plan (§4.1)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const briefPath = path.join(repoRoot, ".kairos", "cdd", "p3", "tasks-1-brief.md");
+      expect(
+        await command.runArgv([
+          "implement",
+          "--tasks",
+          "1",
+          "--plan",
+          plan,
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).toBe(0);
+      const firstBrief = readFileSync(briefPath, "utf8");
+      // The plan's Constraints section moves between dispatches (the Plan Sole Writer
+      // amends mid-run): the review dispatch re-extracts the brief from the CURRENT
+      // plan — no "exists → leave it" reuse.
+      writeFileSync(
+        plan,
+        readFileSync(plan, "utf8").replace("- delta", "- delta (amended)"),
+        "utf8",
+      );
+      io.stdoutText = "";
+      expect(
+        await command.runArgv([
+          "review",
+          "--type",
+          "wave",
+          "--tasks",
+          "1",
+          "--plan",
+          plan,
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).toBe(0);
+      const secondBrief = readFileSync(briefPath, "utf8");
+      expect(secondBrief).toContain("- delta (amended)");
+      expect(secondBrief).not.toBe(firstBrief);
     } finally {
       cleanup();
     }
@@ -1800,36 +1847,25 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
-      const plan = conformingPlan(repoRoot);
-      // Round 1: a plan review closes the line AND records the reviewed doc
-      // revision (the T7 write-back) — the line's identity now lives under the
-      // doc-path key (the spec face reads the same key).
-      expect(
-        await command.runArgv([
-          "review",
-          "--type",
-          "plan",
-          "--plan",
-          plan,
-          "--dry-run",
-          "--root",
-          repoRoot,
-        ]),
-      ).toBe(0);
-      expect(io.stdoutText).toContain("next: done");
-      // The target doc becomes unreadable AT THE GATE (deleted) while the reviewed
-      // identity stays on record — the ledger verdict is null, not "same": the
-      // "target revision unchanged" claim would be fabricated (only present facts
-      // land). The spec face tolerates the absent doc (the doc-contract gate skips
-      // an unreadable target) and the gate keeps the generic closed-line message.
-      rmSync(plan);
+      const specPath = path.join(repoRoot, "docs", "kairos", "specs", "s1-design.md");
+      // Seed a CLOSED spec line: a clean completed review round keyed under the
+      // line-type constant (§3.7), zero reviewed revision bound. The line's identity
+      // is the line type, never the argv path.
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "s1").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader());
+      ledger.persistHandoff("review", "spec", { round: 1 }, { phase: "review", findings: [] });
+      ledger.recordRound("spec", "review");
+      // The target doc is unreadable (never written) — the doc-contract gate skips
+      // an absent doc and the ledger verdict is null, not "same": the "target
+      // revision unchanged" claim would be fabricated (only present facts land).
+      // The gate keeps the generic closed-line message.
       io.stderrText = "";
       const blocked = await command.runArgv([
         "review",
         "--type",
         "spec",
         "--spec",
-        plan,
+        specPath,
         "--dry-run",
         "--root",
         repoRoot,
@@ -1838,7 +1874,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       expect(io.stderrText).toContain("the line holds no open round");
       expect(io.stderrText).not.toContain("target revision unchanged");
       // no phantom round files land on the null-verdict line
-      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "spec-review-2.json"))).toBe(
+      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "s1", "spec-review-2.json"))).toBe(
         false,
       );
     } finally {
@@ -1924,7 +1960,8 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       const progress = readJson<{
         waves: Array<{ wave: string; rounds?: Record<string, number> }>;
       }>(path.join(workspace, "progress.json"));
-      const row = progress.waves.find((entry) => entry.wave === plan);
+      // §3.7 — the doc line keys by its line-type constant, never the argv path
+      const row = progress.waves.find((entry) => entry.wave === "plan");
       expect(row?.rounds?.review).toBe(2);
       expect(row?.rounds?.fix).toBeUndefined();
       expect(JSON.stringify(progress)).not.toContain("pending");

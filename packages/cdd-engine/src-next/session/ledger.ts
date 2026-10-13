@@ -11,8 +11,8 @@
 //   · handoff — the canonical family naming (engine-config handoff namespace), the
 //     carrier skeleton (the schema-required identity keys), the single-author write.
 //   · crash — `crash-<lane>-<round>.json`, the recovery record (the same-command
-//     resume decision source — the snapshot + the resume command, never the handoff
-//     carrier's union).
+//     resume decision source — the resume command + the dead child's tails, never the
+//     handoff carrier's union).
 //   · round — the round carrier: the handoff presented as the Round the dispatch
 //     next-router judges. A fix round carries the SOURCE review's findings (the
 //     `--findings` input content, C5-1), never its own; the consecutive-S1 run is
@@ -26,7 +26,7 @@ import { readFileSync } from "node:fs";
 import type { ConfigLoader } from "../infra/config.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
 import type { Workspace } from "../infra/workspace.ts";
-import type { TargetType } from "./faces.ts";
+import { type TargetType, targetFaces } from "./faces.ts";
 import type { FindingsCarrier, HandoffSchemaFace, WorkCarrier } from "./handoff-schema.ts";
 import type { Route } from "./next.ts";
 import { NextStepRouter } from "./next.ts";
@@ -72,7 +72,7 @@ export type RoundStatus = "APPROVED" | "BLOCKED" | "TIMEOUT" | "CHANGES_REQUESTE
 /**
  * The round carrier — one session round's readable record: the canonical handoff
  * presented as the facts the next-router judges. A work round carries the field
- * values its dispatch concluded (status/commits); a fix round's findings ARE the
+ * values its dispatch concluded (status); a fix round's findings ARE the
  * source review's input findings (C5-1), never the fix's own carrier.
  */
 export interface Round {
@@ -84,8 +84,6 @@ export interface Round {
   findings: readonly RoundFinding[];
   /** The findings handoff path (fix: the `--findings` input; review: its own handoff). */
   findingsPath?: string;
-  /** The reviewed/fixed range — the re-review's new base derives from the commits. */
-  commits?: { base: string; head?: string };
   /** The consecutive-S1 run (the leading blocker-lead reviews, newest first) — the
    *  review-cycle soft-cap basis. */
   consecutiveS1: number;
@@ -115,8 +113,6 @@ export type ProgressRow = {
   wave: string;
   /** The completed rounds per mode (implement/review/fix) — the done record on disk. */
   rounds?: Record<string, number>;
-  /** The scope base the wave's rounds reviewed from (the pre-wave commit). */
-  scope_base?: string;
   /** The doc line's reviewed doc revision (T7) — the doc-revision identity the
    *  line's last review round bound (written at doc-review completion; the
    *  identity-aware line gate reopens the closed line on drift from it). */
@@ -152,7 +148,8 @@ export type CrashCause =
   | "unknown";
 
 /** The crash record — the lane crash's recovery record (`crash-<lane>-<round>.json`):
- *  the same-command resume's decision source (snapshotSha + next), never the handoff carrier. */
+ *  the same-command resume's decision source (the resume command + the dead child's
+ *  tails), never the handoff carrier. */
 export interface CrashRecord {
   /** The dead child's exit code (1 = run failure, 143 = SIGTERM — the shell convention). */
   exitCode: number;
@@ -160,8 +157,6 @@ export interface CrashRecord {
   stderrTail: readonly string[];
   /** The last CRASH_TAIL_LINES stdout lines. */
   stdoutTail: readonly string[];
-  /** The crash-only snapshot commit SHA (null when the tree was clean/no-op). */
-  snapshotSha: string | null;
   /** The handoff path the dead child was expected to write (null when the lane carries none). */
   attemptedHandoff: string | null;
   /** The same-command resume string — emitted verbatim as `next: <resumeCommand>`. */
@@ -175,15 +170,11 @@ export interface CrashRecord {
 // ---------------------------------------------------------------------------
 
 /** Per-family handoff params — the canonical name placeholders of the handoff
- *  namespace families ({tasks}/{round}; the branch range tokens — find #9 —
- *  leave the file names, the carrier's `commits` holds the shas). */
+ *  namespace families ({tasks}/{round}; the branch family keys by `branch-{op}-{round}`,
+ *  no range token — the branch line holds no commit identity). */
 export interface HandoffParams {
   /** The dispatch group's key string (comma-joined task ids). */
   tasks?: string;
-  /** The reviewed-range base token (branch family — 8-char short sha). */
-  base8?: string;
-  /** The reviewed-range head token (branch family — 8-char short sha). */
-  head8?: string;
   /** The round number (increment/source families). */
   round?: number | string;
 }
@@ -192,32 +183,13 @@ export interface HandoffParams {
 // review references — the refKind face (T25 · P5)
 // ---------------------------------------------------------------------------
 
-/** The review-reference kinds — the three typed review-ref families (T25 · P5):
- *  the commit-set-ledger ref (a wave's committed set, read from the ledger round
- *  carriers · the wave face) · the commit-range ref (a branch's full-sha range) ·
- *  the doc-revision ref (a spec/plan review's two-layer document ref — the doc
- *  path + its content-hash revision, the `doc_hash` binding). Every review ref
- *  resolves to one of the three — the typed data the review-ref derivation lands,
- *  zero prose. Node-level review is structurally absent (R5 · the wave-atomic
+/** The review-reference kind — the doc-revision ref (a spec/plan review's two-layer
+ *  document ref: the doc path + its content-hash revision, the `doc_hash` binding).
+ *  The commit-bearing kinds (commit-set-ledger · commit-range) retired with the
+ *  commit-sha surface (P7): a review judges the live tree, so no committed range
+ *  is ever a ref. Node-level review is structurally absent (R5 · the wave-atomic
  *  model audits whole waves, never a single task node). */
-export type RefKind = "commit-set-ledger" | "commit-range" | "doc-revision";
-
-/** The commit-set-ledger ref — a wave's committed set, read from the ledger's
- *  implement round carrier (the reviewed `base..head` range). */
-export interface CommitSetLedgerRef {
-  kind: "commit-set-ledger";
-  /** The wave key the committed set belongs to. */
-  wave: string;
-  /** The committed range the review audits. */
-  commits: { base: string; head?: string };
-}
-
-/** The commit-range ref — a branch review's full-sha base..head range. */
-export interface CommitRangeRef {
-  kind: "commit-range";
-  base: string;
-  head: string;
-}
+export type RefKind = "doc-revision";
 
 /** The doc-revision ref — the spec/plan review's two-layer ref: the document path
  *  AND its revision (the content-hash `doc_hash` binding — the same document
@@ -230,82 +202,23 @@ export interface DocRevisionRef {
   doc_hash: string;
 }
 
-/** The typed review ref — the three-kind union (T25). */
-export type ReviewRef = CommitSetLedgerRef | CommitRangeRef | DocRevisionRef;
-
 /**
- * ReviewRefs — the typed review-reference face (T25): the three-kind classification
- * (`kindOf`), the doc-revision two-layer binding (`docRevision` — the doc hash
- * from its content), the per-kind ref constructors and the same-ref reject
- * (`bind` — the SAME identity already bound returns null: a duplicate review of
- * the same revision is refused, never silently re-reviewed). The face is the
- * ledger's review-ref derivation point — typed data, zero prose.
+ * ReviewRefs — the review-reference face (T25): the doc-revision two-layer binding
+ * (`docRevision` — the doc hash from its content) and the same-ref predicate
+ * (the SAME identity already bound is refused, never silently re-reviewed). The
+ * face is the ledger's review-ref derivation point — typed data, zero prose.
  */
 export class ReviewRefs {
-  /** The refs bound in this face — the same-ref reject basis. */
-  #bound: ReviewRef[] = [];
-
-  /** The three-way classification — one target type → one ref kind (the single
-   *  kindOf mapping; variants ride the row, never a lifecycle edit). */
-  kindOf(type: TargetType): RefKind {
-    switch (type) {
-      case "wave":
-        return "commit-set-ledger";
-      case "branch":
-        return "commit-range";
-      case "spec":
-      case "plan":
-        return "doc-revision";
-    }
-  }
-
-  /** The commit-set-ledger ref constructor — a wave's committed range. */
-  commitSet(wave: string, commits: { base: string; head?: string }): CommitSetLedgerRef {
-    return { kind: "commit-set-ledger", wave, commits };
-  }
-
-  /** The commit-range ref constructor — a branch's full-sha range. */
-  commitRange(base: string, head: string): CommitRangeRef {
-    return { kind: "commit-range", base, head };
-  }
-
   /** The doc-revision two-layer binding — the doc path + the content-hash revision
    *  (sha1 of the reviewed file content — the second layer of the doc ref). */
   docRevision(doc: string, content: string | Buffer): DocRevisionRef {
     return { kind: "doc-revision", doc, doc_hash: this.#hash(content) };
   }
 
-  /** The same-ref reject — bind a ref; the SAME identity already bound → null (the
-   *  duplicate review refused), else the bound ref returns. Every bound ref adds to
-   *  the face's set (the reject basis). */
-  bind(ref: ReviewRef): ReviewRef | null {
-    if (this.#bound.some((existing) => this.sameRef(existing, ref))) return null;
-    this.#bound.push(ref);
-    return ref;
-  }
-
-  /** The ref-identity predicate — two refs are the SAME ref when their identity
-   *  layers match (the doc + its hash · the range's both ends · the wave key); a
-   *  differing kind is never the same ref. */
-  sameRef(a: ReviewRef, b: ReviewRef): boolean {
-    if (a.kind !== b.kind) return false;
-    switch (a.kind) {
-      case "commit-set-ledger":
-        return a.wave === (b as CommitSetLedgerRef).wave;
-      case "commit-range": {
-        const other = b as CommitRangeRef;
-        return a.base === other.base && a.head === other.head;
-      }
-      case "doc-revision": {
-        const other = b as DocRevisionRef;
-        return a.doc === other.doc && a.doc_hash === other.doc_hash;
-      }
-    }
-  }
-
-  /** The bound refs — the face's reject basis, read-only. */
-  bound(): readonly ReviewRef[] {
-    return [...this.#bound];
+  /** The ref-identity predicate — two doc refs are the SAME ref when their
+   *  two-layer identity matches (the doc + its hash). */
+  sameRef(a: DocRevisionRef, b: DocRevisionRef): boolean {
+    return a.doc === b.doc && a.doc_hash === b.doc_hash;
   }
 
   /** The content-hash revision — sha1 hex of the reviewed file content. */
@@ -607,8 +520,6 @@ export class Ledger {
   handoffName(op: string, type: string, params: HandoffParams = {}): string {
     return this.#family(op, type)
       .name.replaceAll("{tasks}", params.tasks ?? "")
-      .replaceAll("{base8}", params.base8 ?? "")
-      .replaceAll("{head8}", params.head8 ?? "")
       .replaceAll("{round}", String(params.round ?? ""));
   }
 
@@ -671,8 +582,8 @@ export class Ledger {
     return this.#workspace.resolve(this.crashName(lane, round));
   }
 
-  /** Write a lane-crash recovery record — the resume decision source (snapshotSha + the
-   *  same-command resume), never the handoff carrier. Returns the record. */
+  /** Write a lane-crash recovery record — the resume decision source (the resume
+   *  command + the dead child's tails), never the handoff carrier. Returns the record. */
   writeCrash(lane: string, round: number, record: CrashRecord): CrashRecord {
     this.#persist(this.crashName(lane, round), record);
     return record;
@@ -725,21 +636,44 @@ export class Ledger {
     return run;
   }
 
+  /** The progress key a round's dispatch records under — the same line-identity key
+   *  the lifecycle records with (run.ts #lineKey): the wave task key (the only
+   *  params-bearing face — every other line keys by its line-type constant:
+   *  `"branch"` / `"spec"` / `"plan"`). */
+  #roundKey(type: TargetType, params: HandoffParams): LedgerKey {
+    return type === "wave" ? (params.tasks ?? "") : type;
+  }
+
+  /** The recorded mode one op's round counts under — the review leg reads the
+   *  face table's review-lead mode (the single source: branch→branch-review, the
+   *  others→review), matching `recordRound(frame.key, frame.phase)`; the
+   *  implement/fix legs their own name. */
+  #recordedMode(op: OpType, type: TargetType): string {
+    return op === "review" ? targetFaces[type].product.reviewLead : op;
+  }
+
   /** Read a round's concluding record as the Round the dispatch next-router judges.
-   *  A fix round carries the SOURCE review's findings (C5-1: the `--findings` input
-   *  content, never its own carrier) + the fix's own commits; the consecutive-S1 run is
-   *  walked from the review history. Missing/corrupt evaluated handoff → null (no round
-   *  on record) — a fix round whose source review is unreadable is null too, never a
-   *  zero-findings fabrication: a round whose blocker set was never read must not be
-   *  judged clean. */
+   *  A round is present ONLY when `recordRound` recorded it (the round verdict's
+   *  single source): an unrecorded round returns null whatever draft sits on disk —
+   *  a rejected child's leftover draft is never read back as a completed round
+   *  (the §2.8 gate; without it a BLOCKED round with a stale draft rendered a
+   *  contradictory `status: BLOCKED · next: done`). A fix round carries the SOURCE
+   *  review's findings (C5-1: the `--findings` input content, never its own
+   *  carrier); the consecutive-S1 run is walked from the review history.
+   *  Missing/corrupt evaluated handoff → null too — a fix round whose source review
+   *  is unreadable is never a zero-findings fabrication: a round whose blocker set
+   *  was never read must not be judged clean. */
   round(op: OpType, type: TargetType, params: HandoffParams, round: number): Round | null {
+    // §2.8 — the round-read gate: only a recorded round is a round.
+    if (this.roundCount(this.#roundKey(type, params), this.#recordedMode(op, type)) < round) {
+      return null;
+    }
     if (op === "implement") {
       const carrier = this.readHandoff("implement", type, params);
       if (carrier === null) return null;
       return {
         phase: "implement",
         findings: [],
-        commits: carrier.commits as { base: string; head?: string } | undefined,
         consecutiveS1: 0,
       };
     }
@@ -752,7 +686,6 @@ export class Ledger {
         status: carrier.status as RoundStatus | undefined,
         findings: this.#findingsOf(carrier),
         findingsPath: this.handoffPath("review", type, reviewParams),
-        commits: carrier.commits as { base: string; head?: string } | undefined,
         consecutiveS1: this.#consecutiveS1Run(type, params, round),
       };
     }
@@ -770,7 +703,6 @@ export class Ledger {
       status: fixCarrier.status as RoundStatus | undefined,
       findings: this.#findingsOf(reviewCarrier),
       findingsPath: this.handoffPath("review", type, reviewParams),
-      commits: fixCarrier.commits as { base: string; head?: string } | undefined,
       consecutiveS1: this.#consecutiveS1Run(type, params, round),
     };
   }

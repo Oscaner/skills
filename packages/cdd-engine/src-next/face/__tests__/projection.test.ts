@@ -67,21 +67,15 @@ describe("CommandTreeBuilder — the declaration projection (the constructor is 
   it("projects the review surface — every declared key option, --type as a requiredOption", () => {
     const { program } = new CommandTreeBuilder();
     const review = commandOf(program, "review");
-    for (const key of [
-      "--type",
-      "--tasks",
-      "--plan",
-      "--spec",
-      "--base",
-      "--head",
-      "--round",
-      "--root",
-    ]) {
+    for (const key of ["--type", "--tasks", "--plan", "--spec", "--round", "--root"]) {
       expect(
         review.options.some((option) => option.flags.startsWith(key)),
         `review declares ${key}`,
       ).toBe(true);
     }
+    // the branch range flags retired with the commit-sha surface (P7)
+    expect(review.options.some((option) => option.flags.startsWith("--base"))).toBe(false);
+    expect(review.options.some((option) => option.flags.startsWith("--head"))).toBe(false);
     const typeOption = review.options.find((option) => option.attributeName() === "type");
     expect(typeOption?.mandatory, "--type rides .requiredOption()").toBe(true);
     const tasksOption = review.options.find((option) => option.attributeName() === "tasks");
@@ -109,7 +103,7 @@ describe("CommandTreeBuilder — the declaration projection (the constructor is 
     for (const node of nodes) {
       for (const option of node.options) {
         // The built-in helpOption's flags string — the only spelling that would
-        // indicate a duplicated help option (the --head option is not a help flag).
+        // indicate a duplicated help option (the --plan option is not a help flag).
         expect(option.flags, `the ${node.name()} node duplicates no help flag`).not.toContain(
           "-h, --help",
         );
@@ -126,12 +120,11 @@ describe("CommandTreeBuilder — the declaration projection (the constructor is 
     expect(set.options.some((option) => option.flags.startsWith("--force"))).toBe(true);
     expect(get.options.some((option) => option.flags.startsWith("--force"))).toBe(false);
     expect(get.options.some((option) => option.flags.startsWith("--plan"))).toBe(true);
-    // base set's --base carries the branch override domain, never the sha face.
+    // base set's --base carries the branch override domain — the base artifact
+    // branch name (the "sha" value type retired with the commit-sha surface · P7).
     const baseOption = set.options.find((option) => option.flags.startsWith("--base"));
     expect(baseOption?.flags).toBe("--base <branch>");
-    // …and its description swaps to the branch domain too — the review range's
-    // sha row ("8-char sha") would contradict the <branch> token on one option.
-    expect(baseOption?.description).toBe("the base branch of the range (required)");
+    expect(baseOption?.description).toBe("the base branch name (required)");
   });
 
   it("nests schema get and issue render", () => {
@@ -246,12 +239,13 @@ describe("the preAction conditional-required groups (§4.2 · REQUIRED_GROUPS)",
 });
 
 describe("the value-domain table declaration — VALUE_SHAPES (T7)", () => {
-  it("the shaped-channel key set — the four validated types, and only those (the table-source pin)", () => {
+  it("the shaped-channel key set — the validated types, and only those (the table-source pin)", () => {
     // The value-domain shape derives from the declaration table, never a second
     // hand-written list: the key set is exactly the validated subset of the
     // channel type vocabulary (string/path/bool faces carry no parser — the
-    // shaped-channel record face excludes them by construction).
-    expect(Object.keys(VALUE_SHAPES)).toEqual(["enum", "int-list", "sha", "int"]);
+    // shaped-channel record face excludes them by construction). The `sha` shape
+    // retired with the commit-sha surface (P7).
+    expect(Object.keys(VALUE_SHAPES)).toEqual(["enum", "int-list", "int"]);
     for (const key of Object.keys(VALUE_SHAPES)) {
       expect(typeof VALUE_SHAPES[key as keyof typeof VALUE_SHAPES].parse).toBe("function");
     }
@@ -273,22 +267,12 @@ describe("the value-domain table declaration — VALUE_SHAPES (T7)", () => {
     expect(message).toBe("--tasks <n|n,n,…> — must be comma-separated integers: x");
   });
 
-  it("the sha + int faces reject a non-conforming raw with the pinned byte messages", () => {
-    const shaRow: ChannelArgRow = { flag: "--base", type: "sha" };
-    expect(VALUE_SHAPES.sha.parse("0f3be2a1", shaRow)).toBe("0f3be2a1");
-    const { code: shaCode, message: shaMessage } = commanderError(() =>
-      VALUE_SHAPES.sha.parse("nope", shaRow),
-    );
-    expect(shaCode).toBe("commander.invalidArgument");
-    expect(shaMessage).toBe("must be an 8-char sha");
-
+  it("the int face rejects a non-conforming raw with the pinned byte message", () => {
     const intRow: ChannelArgRow = { flag: "--round", type: "int" };
     expect(VALUE_SHAPES.int.parse("7", intRow)).toBe("7");
-    const { code: intCode, message: intMessage } = commanderError(() =>
-      VALUE_SHAPES.int.parse("-1", intRow),
-    );
-    expect(intCode).toBe("commander.invalidArgument");
-    expect(intMessage).toBe("must be an integer");
+    const { code, message } = commanderError(() => VALUE_SHAPES.int.parse("-1", intRow));
+    expect(code).toBe("commander.invalidArgument");
+    expect(message).toBe("must be an integer");
   });
 
   it("the hand-written replication is destroyed — the four #parse* methods are gone from the projection (the grep pin)", () => {

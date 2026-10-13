@@ -21,9 +21,6 @@ import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { Ledger, type RefKind } from "../ledger.ts";
 
-const BASE = "a".repeat(8);
-const HEAD = "b".repeat(8);
-
 /** A hermetic ledger fixture — a fresh temp workspace under a temp repo root. */
 const fixture = (): { ledger: Ledger; workspace: Workspace; cleanup: () => void } => {
   const repo = mkdtempSync(path.join(tmpdir(), "ledger-"));
@@ -131,13 +128,9 @@ describe("handoff — naming / carrier / single-author persist", () => {
       expect(ledger.handoffName("review", "spec", { round: 1 })).toBe("spec-review-1.json");
       expect(ledger.handoffName("fix", "plan", { round: 1 })).toBe("plan-fix-1.json");
       // find #9 — the branch family name is the spine `branch-{op}-{round}.json`
-      // (the range token left the file name — the carrier's commits hold the shas)
-      expect(
-        ledger.handoffName("review", "branch", { base8: "abc12345", head8: "def56789", round: 1 }),
-      ).toBe("branch-review-1.json");
-      expect(
-        ledger.handoffName("fix", "branch", { base8: "abc12345", head8: "def56789", round: 2 }),
-      ).toBe("branch-fix-2.json");
+      // (the range token left the file name — the branch line holds no commit identity)
+      expect(ledger.handoffName("review", "branch", { round: 1 })).toBe("branch-review-1.json");
+      expect(ledger.handoffName("fix", "branch", { round: 2 })).toBe("branch-fix-2.json");
     } finally {
       cleanup();
     }
@@ -231,7 +224,6 @@ describe("crash — the lane-crash recovery record", () => {
         exitCode: 1,
         stderrTail: ["engine error: boom"],
         stdoutTail: [],
-        snapshotSha: "a".repeat(8),
         attemptedHandoff: "tasks-1-implement.json",
         next: "cdd implement --tasks 1",
         cause: "child-exit" as const,
@@ -262,9 +254,10 @@ describe("round — the round carrier", () => {
             { severity: "warn", summary: "smell" },
             { severity: "bogus", summary: "never invented into the judgment domain" },
           ],
-          commits: { base: BASE, head: HEAD },
         },
       );
+      // §2.8 — the round-read gate: only a recorded round is a round
+      ledger.recordRound("7,9", "review");
       const carrier = ledger.round("review", "wave", { tasks: "7,9" }, 1);
       expect(carrier).not.toBeNull();
       expect(carrier!.phase).toBe("review");
@@ -273,14 +266,13 @@ describe("round — the round carrier", () => {
         { severity: "warn", summary: "smell" },
       ]);
       expect(carrier!.findingsPath).toBe(workspace.resolve("tasks-7,9-review-1.json"));
-      expect(carrier!.commits).toEqual({ base: BASE, head: HEAD });
       expect(carrier!.consecutiveS1).toBe(1);
     } finally {
       cleanup();
     }
   });
 
-  it("fix rounds carry the SOURCE review's findings + the fix's own commits (C5-1)", () => {
+  it("fix rounds carry the SOURCE review's findings, never their own carrier (C5-1)", () => {
     const { ledger, workspace, cleanup } = fixture();
     try {
       ledger.persistHandoff(
@@ -293,16 +285,42 @@ describe("round — the round carrier", () => {
         "fix",
         "wave",
         { tasks: "7,9", round: 1 },
-        { phase: "fix", findings: [], commits: { base: BASE, head: HEAD } },
+        { phase: "fix", findings: [] },
       );
+      ledger.recordRound("7,9", "fix");
       const carrier = ledger.round("fix", "wave", { tasks: "7,9" }, 1);
       expect(carrier).not.toBeNull();
       expect(carrier!.phase).toBe("fix");
       // the judgment findings are the source review's input, never the fix's own empty carrier
       expect(carrier!.findings).toEqual([{ severity: "blocker", summary: "the input findings" }]);
-      expect(carrier!.commits).toEqual({ base: BASE, head: HEAD });
       expect(carrier!.findingsPath).toBe(workspace.resolve("tasks-7,9-review-1.json"));
       expect(carrier!.consecutiveS1).toBe(1);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("an unrecorded round is null — a rejected child's leftover draft is never read back (§2.8)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // a fix draft sits on disk (the child's rejected write) but recordRound never counted it
+      ledger.persistHandoff(
+        "fix",
+        "wave",
+        { tasks: "7,9", round: 1 },
+        { phase: "fix", findings: [] },
+      );
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "7,9", round: 1 },
+        { findings: [{ severity: "blocker" }] },
+      );
+      // the fix round was never recorded → null whatever the disk draft says
+      expect(ledger.round("fix", "wave", { tasks: "7,9" }, 1)).toBeNull();
+      // recorded → the same read returns the carrier
+      ledger.recordRound("7,9", "fix");
+      expect(ledger.round("fix", "wave", { tasks: "7,9" }, 1)).not.toBeNull();
     } finally {
       cleanup();
     }
@@ -316,8 +334,9 @@ describe("round — the round carrier", () => {
         "fix",
         "wave",
         { tasks: "7,9", round: 1 },
-        { phase: "fix", findings: [], commits: { base: BASE, head: HEAD } },
+        { phase: "fix", findings: [] },
       );
+      ledger.recordRound("7,9", "fix");
       // missing source review → no round on record (matching the review branch): the next-hop
       // derivation cannot close a line whose blocker set was never read
       expect(ledger.round("fix", "wave", { tasks: "7,9" }, 1)).toBeNull();
@@ -335,6 +354,7 @@ describe("round — the round carrier", () => {
         { tasks: "1", round: 1 },
         { findings: [{ severity: "blocker" }] },
       );
+      ledger.recordRound("1", "fix");
       expect(ledger.round("fix", "wave", { tasks: "1" }, 1)).toBeNull();
     } finally {
       cleanup();
@@ -351,6 +371,7 @@ describe("round — the round carrier", () => {
           { tasks: "7,9", round: roundNumber },
           { findings: [{ severity: "blocker" }] },
         );
+        ledger.recordRound("7,9", "review");
       }
       const twoS1 = ledger.round("review", "wave", { tasks: "7,9" }, 2);
       expect(twoS1!.consecutiveS1).toBe(2);
@@ -361,6 +382,7 @@ describe("round — the round carrier", () => {
         { tasks: "7,9", round: 3 },
         { findings: [{ severity: "warn" }] },
       );
+      ledger.recordRound("7,9", "review");
       expect(ledger.round("review", "wave", { tasks: "7,9" }, 3)!.consecutiveS1).toBe(0);
     } finally {
       cleanup();
@@ -376,7 +398,9 @@ describe("round — the round carrier", () => {
         { tasks: "1", round: 1 },
         { findings: [{ severity: "blocker" }] },
       );
-      // review round 2 is the evaluated round but the file is missing → the run starts cold
+      // rounds 1 + 2 are recorded, but round 2's file is missing → the read is null, never a throw
+      ledger.recordRound("1", "review");
+      ledger.recordRound("1", "review");
       expect(ledger.round("review", "wave", { tasks: "1" }, 2)).toBeNull();
     } finally {
       cleanup();
@@ -385,44 +409,27 @@ describe("round — the round carrier", () => {
 });
 
 describe("review references — the refKind face (T25 · P5)", () => {
-  it("the three-kind classification — one target type → one ref kind (the three typed families)", () => {
+  it("the RefKind union is the doc-revision single member (the commit-bearing kinds retired with the sha surface)", () => {
+    // The type probe: the retired commit kinds are absent from the RefKind union
+    // (the wave-atomic + no-commit-identity rulings — R5 · P7).
+    const noCommitSet: "commit-set-ledger" extends RefKind ? true : false = false;
+    const noCommitRange: "commit-range" extends RefKind ? true : false = false;
+    const noGraphNode: "graph-node" extends RefKind ? true : false = false;
+    expect(noCommitSet).toBe(false);
+    expect(noCommitRange).toBe(false);
+    expect(noGraphNode).toBe(false);
+  });
+
+  it("the doc-revision two-layer binding — the doc path + the content-hash revision", () => {
     const { ledger, cleanup } = fixture();
     try {
       const refs = ledger.refs();
-      expect(refs.kindOf("wave")).toBe("commit-set-ledger");
-      expect(refs.kindOf("branch")).toBe("commit-range");
-      expect(refs.kindOf("spec")).toBe("doc-revision");
-      expect(refs.kindOf("plan")).toBe("doc-revision");
-    } finally {
-      cleanup();
-    }
-  });
-
-  it("the RefKind union carries no graph-node member (T4 — the wave-atomic model never reviews a single node)", () => {
-    // The type probe: a member absent from the RefKind union resolves the false
-    // branch (the wave-atomic ruling — R5 · overall v1.57).
-    const verdict: "graph-node" extends RefKind ? true : false = false;
-    expect(verdict).toBe(false);
-  });
-
-  it("the three ref families derive their typed records (the commit-set ledger · the commit range · the two-layer doc revision)", () => {
-    const { ledger, cleanup } = fixture();
-    try {
-      const refs = ledger.refs();
-      const commitSet = refs.commitSet("1,2", { base: BASE, head: HEAD } as const);
-      expect(commitSet).toEqual({
-        kind: "commit-set-ledger",
-        wave: "1,2",
-        commits: { base: BASE, head: HEAD },
-      } as const);
-      const commitRange = refs.commitRange(BASE, HEAD);
-      expect(commitRange).toEqual({ kind: "commit-range", base: BASE, head: HEAD } as const);
-      // the doc-revision two-layer binding — the doc path + the content-hash revision
       const docRef = refs.docRevision("docs/kairos/specs/x-design.md", "revision one");
       expect(docRef.kind).toBe("doc-revision");
       expect(docRef.doc).toBe("docs/kairos/specs/x-design.md");
       // the doc-revision content hash stays a full sha1 hex — a non-ref digest,
-      // unsliced (the 8-char form is the commit-refs surface, not this binding)
+      // unsliced (a bare 8-char digest slice would narrow the bind basis to
+      // birthday-collision range)
       expect(docRef.doc_hash).toMatch(/^[0-9a-f]{40}$/);
       // the same content hashes the same revision — the two-layer convergence
       const docRefAgain = refs.docRevision("docs/kairos/specs/x-design.md", "revision one");
@@ -435,36 +442,20 @@ describe("review references — the refKind face (T25 · P5)", () => {
     }
   });
 
-  it("the same-ref ruling — the SAME doc revision bound twice is rejected (the same-ref reject negative)", () => {
+  it("the same-ref ruling — the SAME doc revision is the same ref, a different doc/revision is not", () => {
     const { ledger, cleanup } = fixture();
     try {
       const refs = ledger.refs();
       const docRef = refs.docRevision("docs/kairos/specs/x-design.md", "revision one");
-      expect(refs.bind(docRef)).toBe(docRef);
-      // the identical ref (same doc + same hash) is the SAME ref → rejected
+      // the identical ref (same doc + same hash) is the SAME ref
       const duplicate = refs.docRevision("docs/kairos/specs/x-design.md", "revision one");
-      expect(refs.bind(duplicate)).toBeNull();
-      // a different revision of the same doc is NOT the same ref → binds
+      expect(refs.sameRef(docRef, duplicate)).toBe(true);
+      // a different revision of the same doc is NOT the same ref
       const edited = refs.docRevision("docs/kairos/specs/x-design.md", "revision two");
-      expect(refs.bind(edited)).toBe(edited);
+      expect(refs.sameRef(docRef, edited)).toBe(false);
       // a different doc is never the same ref
       const otherDoc = refs.docRevision("docs/kairos/specs/y-design.md", "revision one");
-      expect(refs.bind(otherDoc)).toBe(otherDoc);
-      expect(refs.bound()).toHaveLength(3);
-    } finally {
-      cleanup();
-    }
-  });
-
-  it("the same-ref ruling across families — ranges and waves", () => {
-    const { ledger, cleanup } = fixture();
-    try {
-      const refs = ledger.refs();
-      const range = refs.commitRange(BASE, HEAD);
-      expect(refs.bind(range)).toBe(range);
-      expect(refs.bind(refs.commitRange(BASE, HEAD))).toBeNull();
-      expect(refs.bind(refs.commitSet("1", { base: BASE, head: HEAD }))).not.toBeNull();
-      expect(refs.bind(refs.commitSet("1", { base: BASE, head: HEAD }))).toBeNull();
+      expect(refs.sameRef(docRef, otherDoc)).toBe(false);
     } finally {
       cleanup();
     }

@@ -411,7 +411,11 @@ export class Cli {
       return 1;
     }
 
-    if (verb === "implement" && scene.planText !== null)
+    // The unconditional extract (§4.1): every wave-face dispatch re-renders the
+    // brief from the CURRENT plan text — implement, review and fix alike (a
+    // mid-run plan amendment reflects into the next dispatch; no "exists → leave
+    // it" reuse). The doc/branch faces carry no wave brief (planText is null there).
+    if (type === "wave" && scene.planText !== null)
       scene.briefPath = this.#gate.renderBrief(scene, parsed);
     const expected =
       verb === "implement" ? "implement" : verb === "fix" ? "fix" : scene.face.product.reviewLead;
@@ -457,13 +461,6 @@ export class Cli {
       dispatch: (frame) => {
         const outcome = dispatch(frame);
         statuses.push(outcome.status ?? null);
-        if (
-          scene.briefPath !== null &&
-          outcome.artifacts !== undefined &&
-          outcome.artifacts.brief === undefined
-        ) {
-          outcome.artifacts.brief = scene.briefPath;
-        }
         return outcome;
       },
       target: scene.target ?? undefined,

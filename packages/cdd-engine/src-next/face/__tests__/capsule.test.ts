@@ -43,18 +43,18 @@ const argvOf = (literal: string): string[] => {
 const wave = { type: "wave", id: "1,2", plan: "docs/kairos/plans/p3.md" } as const;
 const spec = { type: "spec", id: "docs/kairos/specs/p3-design.md" } as const;
 const planT = { type: "plan", id: "docs/kairos/plans/p3.md" } as const;
-// find #9/#10 — the branch target carries the workspace --plan · the id is the
-// 8-char range (long shas retired engine-wide · spec §6.6)
+// find #9 — the branch target carries the workspace --plan · the id is the branch
+// line's stable key `"branch"` (the range shas retired engine-wide · spec §6.6)
 const branch = {
   type: "branch",
-  id: "aaaaaaaa..bbbbbbbb",
+  id: "branch",
   plan: "docs/kairos/plans/p3.md",
 } as const;
 
 /** One verb × type row of the coverage table — the route + the frame facts + the
  *  runtime-required flags of the type (the flags the CLI run would demand: the
  *  declared required keys + the type's scene rules — wave demands --plan, spec/plan
- *  their doc flags, branch the range/--findings face). */
+ *  their doc flags, branch the workspace --plan/--findings face). */
 interface CoverageRow {
   label: string;
   route: Route;
@@ -112,9 +112,9 @@ const COVERAGE: readonly CoverageRow[] = [
     required: ["--type", "--plan", "--findings"],
   },
   {
-    // ⑦ — the branch fix derives the range from the source review handoff, never a
-    // re-declared base/head on the CLI: `--findings` is the face's runtime-required
-    // flag · find #8 F1b — the workspace-identity `--plan` rides（编排者零兜底）
+    // find #8 F1b — the branch fix carries the workspace-identity `--plan` plus the
+    // source review handoff `--findings` (the review judges the live tree — no
+    // re-declared base/head on the CLI)
     label: "fix branch",
     route: { kind: "fix", findings: "br1-review-1.json" },
     target: branch,
@@ -150,5 +150,29 @@ describe("P4.1 T7 (find #7) — the next literal's required-flag coverage (parse
         expect(literal, `${row.label} must carry ${flag}`).toContain(flag);
       }
     }
+  });
+
+  it("review four-type literals carry zero sha — the live-tree review, no commit range", () => {
+    // §2.6 — every review literal is the live-tree judgment: the wave face carries
+    // `--tasks` + `--plan`, the branch/spec/plan faces their single doc arg; none
+    // carries a `--base`/`--head` range or a sha token.
+    const waveLiteral = literalOf({ kind: "review" }, wave);
+    const branchLiteral = literalOf({ kind: "review" }, branch);
+    const specLiteral = literalOf({ kind: "review" }, spec);
+    const planLiteral = literalOf({ kind: "review" }, planT);
+    expect(waveLiteral).toBe("review --type wave --tasks 1,2 --plan docs/kairos/plans/p3.md");
+    expect(branchLiteral).toBe("review --type branch --plan docs/kairos/plans/p3.md");
+    expect(specLiteral).toBe("review --type spec --spec docs/kairos/specs/p3-design.md");
+    expect(planLiteral).toBe("review --type plan --plan docs/kairos/plans/p3.md");
+    for (const literal of [waveLiteral, branchLiteral, specLiteral, planLiteral]) {
+      expect(literal).not.toContain("--base");
+      expect(literal).not.toContain("--head");
+      expect(literal).not.toMatch(/\b[0-9a-f]{8}\.\./);
+    }
+  });
+
+  it("the fix route keeps the FIX_READBACK_SUFFIX verbatim", () => {
+    const literal = literalOf({ kind: "fix", findings: "tasks-1-review-1.json" }, wave);
+    expect(literal).toContain(FIX_READBACK_SUFFIX);
   });
 });

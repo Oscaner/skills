@@ -476,7 +476,6 @@ export class CliLifecycle {
       exitCode: 0,
       stderrTail: [reason],
       stdoutTail: [],
-      snapshotSha: null,
       attemptedHandoff: path,
       next: this.#resumeOf(frame),
       cause: "contract-violation",

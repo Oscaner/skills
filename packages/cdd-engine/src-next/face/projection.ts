@@ -187,8 +187,8 @@ export class CommandTreeBuilder {
   // ---------------------------------------------------------------------------
 
   /** The value-domain token of one option — the display suffix (`<path>` ·
-   *  `<n|n,n,…>` · `<a|b|c>` · `<sha>` · `<n>`); the branch value-type override
-   *  carries its own domain, the bool/string faces carry none. */
+   *  `<n|n,n,…>` · `<a|b|c>` · `<n>`); the branch value-type override carries its
+   *  own domain, the bool/string faces carry none. */
   #valueToken(row: ChannelArgRow, override: CliValueOverride | undefined): string {
     if (override === "branch") return "<branch>";
     switch (row.type) {
@@ -198,8 +198,6 @@ export class CommandTreeBuilder {
         return "<n|n,n,…>";
       case "enum":
         return `<${[...(row.values ?? [])].join("|")}>`;
-      case "sha":
-        return "<sha>";
       case "int":
         return "<n>";
       default:
@@ -210,10 +208,10 @@ export class CommandTreeBuilder {
 
   /** The option's help text — the channel row's single-source flag-level line;
    *  the branch value-type override swaps it for its own domain (the base-set
-   *  branch face names the branch, never the review range's sha row — the same
-   *  override family as #valueToken's `<branch>` token). */
+   *  face names the branch — the same override family as #valueToken's `<branch>`
+   *  token). */
   #optionHelp(row: ChannelArgRow, override: CliValueOverride | undefined): string {
-    if (override === "branch") return "the base branch of the range";
+    if (override === "branch") return "the base branch name";
     return row.help ?? "";
   }
 

@@ -92,14 +92,14 @@ const EMPTY_FS: DocFs = {
 };
 
 const judge = (
-  docKey: "overall" | "plan" | "phase-spec",
+  docKey: "overall-spec" | "plan" | "phase-spec",
   content: string,
   fs: DocFs = EMPTY_FS,
   phaseId?: string,
 ): Finding[] =>
   new Contract().validate({
     docKey,
-    path: docKey === "overall" ? OVERALL_PATH : docKey === "plan" ? PLAN_PATH : SPEC_PATH,
+    path: docKey === "overall-spec" ? OVERALL_PATH : docKey === "plan" ? PLAN_PATH : SPEC_PATH,
     content,
     root: ".",
     fs,
@@ -113,7 +113,7 @@ const withKind = (findings: readonly Finding[], kind: string, field?: string): b
 
 describe("the conforming overall — zero findings (no false positives)", () => {
   it("judges a conforming overall clean under a sane fs", () => {
-    expect(judge("overall", GOOD_OVERALL, GOOD_OVERALL_FS)).toEqual([]);
+    expect(judge("overall-spec", GOOD_OVERALL, GOOD_OVERALL_FS)).toEqual([]);
   });
 });
 
@@ -152,7 +152,7 @@ describe("P7 — the structure-plane canonicalize seam (Contract.validate row-so
   );
 
   it("the structure judge matches the legacy Chinese charter markers through the canonicalize view", () => {
-    const findings = judge("overall", ZH_CHARTER_OVERALL, GOOD_OVERALL_FS);
+    const findings = judge("overall-spec", ZH_CHARTER_OVERALL, GOOD_OVERALL_FS);
     // the zh decision-group leaves (`#### M 组` …) conform to the canonical
     // `#### [MFRBEN] group` facet through the view
     expect(withKind(findings, "presence", "#### [MFRBEN] group")).toBe(false);
@@ -163,13 +163,13 @@ describe("P7 — the structure-plane canonicalize seam (Contract.validate row-so
 
   it("a zh title outside the registered canonicals stays identity — a 目标 Goal face is still missing", () => {
     const content = GOOD_OVERALL.replace("### Goal\n- goal text", "### 目标\n- goal text");
-    const findings = judge("overall", content, GOOD_OVERALL_FS);
+    const findings = judge("overall-spec", content, GOOD_OVERALL_FS);
     expect(withKind(findings, "presence", "### Goal")).toBe(true);
   });
 
   it("the view never writes back — the judged source content stays byte-identical", () => {
     const input = {
-      docKey: "overall" as const,
+      docKey: "overall-spec" as const,
       path: OVERALL_PATH,
       content: ZH_CHARTER_OVERALL,
       root: ".",
@@ -184,7 +184,7 @@ describe("P7 — the structure-plane canonicalize seam (Contract.validate row-so
 describe("base nine invariants — one negative case each", () => {
   it("presence: a missing required section is reported", () => {
     const content = GOOD_OVERALL.replace("## Maintenance\n- maintenance note", "");
-    const findings = judge("overall", content, GOOD_OVERALL_FS);
+    const findings = judge("overall-spec", content, GOOD_OVERALL_FS);
     expect(withKind(findings, "presence", "## Maintenance")).toBe(true);
   });
 
@@ -193,19 +193,19 @@ describe("base nine invariants — one negative case each", () => {
       "## Document scope",
       "## Document scope\nscope one\n\n## Document scope\nscope two",
     );
-    const findings = judge("overall", content, GOOD_OVERALL_FS);
+    const findings = judge("overall-spec", content, GOOD_OVERALL_FS);
     expect(withKind(findings, "uniqueness", "## Document scope")).toBe(true);
   });
 
   it("domain: a header value outside its declared shape is reported", () => {
     const content = GOOD_OVERALL.replace("- **Status**: Approved", "- **Status**: Deleted");
-    const findings = judge("overall", content, GOOD_OVERALL_FS);
+    const findings = judge("overall-spec", content, GOOD_OVERALL_FS);
     expect(withKind(findings, "domain", "**Status**")).toBe(true);
   });
 
   it("crosslink: an issue row referencing an unregistered phase is reported", () => {
     const content = GOOD_OVERALL.replace("| P2 | none | issue two |", "| P9 | none | issue nine |");
-    const findings = judge("overall", content, GOOD_OVERALL_FS);
+    const findings = judge("overall-spec", content, GOOD_OVERALL_FS);
     expect(withKind(findings, "crosslink", "Issue inventory")).toBe(true);
   });
 
@@ -289,7 +289,7 @@ describe("base nine invariants — one negative case each", () => {
       ].join("\n"),
       "## File paths\n",
     );
-    const findings = judge("overall", content, GOOD_OVERALL_FS);
+    const findings = judge("overall-spec", content, GOOD_OVERALL_FS);
     expect(withKind(findings, "hollow", "## File paths")).toBe(true);
   });
 
@@ -298,7 +298,7 @@ describe("base nine invariants — one negative case each", () => {
       "| v1.21 | 2026-10-07 | merged change |",
       "| v1.20 | 2026-10-06 | older only |",
     );
-    const findings = judge("overall", content, GOOD_OVERALL_FS);
+    const findings = judge("overall-spec", content, GOOD_OVERALL_FS);
     expect(withKind(findings, "selfBounded", "**Version**")).toBe(true);
   });
 });
@@ -387,9 +387,9 @@ describe("the canonical repo forms (no false positives on real conventions)", ()
       "- `->` = hard block（依赖前置 phase 发布后方可启动）",
       "P1 -> P1b",
     );
-    expect(withKind(judge("overall", removed, GOOD_OVERALL_FS), "presence", "Graph legend")).toBe(
-      true,
-    );
+    expect(
+      withKind(judge("overall-spec", removed, GOOD_OVERALL_FS), "presence", "Graph legend"),
+    ).toBe(true);
   });
 
   it("presence: a task block missing a registry-declared task field is reported (derived field set)", () => {
@@ -429,7 +429,7 @@ describe("the canonical repo forms (no false positives on real conventions)", ()
       "| v1.20 | 2026-10-06 | prior change |",
       "| v1.20 | 2026-10-06 | `## Program charter` 重构 |",
     );
-    const findings = judge("overall", content, GOOD_OVERALL_FS);
+    const findings = judge("overall-spec", content, GOOD_OVERALL_FS);
     expect(withKind(findings, "domain", "## Program charter")).toBe(false);
   });
 
@@ -539,7 +539,7 @@ describe("the canonical repo forms (no false positives on real conventions)", ()
         "\n",
       ),
     );
-    const findings = judge("overall", content, GOOD_OVERALL_FS);
+    const findings = judge("overall-spec", content, GOOD_OVERALL_FS);
     expect(withKind(findings, "order", "Change history")).toBe(true);
   });
 
@@ -583,7 +583,7 @@ describe("the four context-seam invariants — one negative case each", () => {
       "[P1-design](docs/kairos/specs/x-p1-design.md)",
       "[P1-design](docs/kairos/specs/ghost-design.md)",
     );
-    const findings = judge("overall", content, EMPTY_FS);
+    const findings = judge("overall-spec", content, EMPTY_FS);
     expect(withKind(findings, "file-existence")).toBe(true);
   });
 
@@ -592,7 +592,7 @@ describe("the four context-seam invariants — one negative case each", () => {
       "[P1-design](docs/kairos/specs/x-p1-design.md)",
       "[P1-design](docs/kairos/specs/ghost-design.md)",
     );
-    const findings = judge("overall", content, GOOD_OVERALL_FS);
+    const findings = judge("overall-spec", content, GOOD_OVERALL_FS);
     expect(withKind(findings, "sibling-scan")).toBe(true);
   });
 
@@ -609,7 +609,7 @@ describe("the four context-seam invariants — one negative case each", () => {
   });
 
   it("cross-doc-chain: an unregistered dispatch phase is reported (face ④)", () => {
-    const findings = judge("overall", GOOD_OVERALL, GOOD_OVERALL_FS, "P9");
+    const findings = judge("overall-spec", GOOD_OVERALL, GOOD_OVERALL_FS, "P9");
     expect(withKind(findings, "cross-doc-chain", "Phase inventory")).toBe(true);
   });
 
@@ -618,7 +618,7 @@ describe("the four context-seam invariants — one negative case each", () => {
       "| P1 | #123 | issue one |",
       "| P1 | prose ref | issue one |",
     );
-    const findings = judge("overall", content, GOOD_OVERALL_FS);
+    const findings = judge("overall-spec", content, GOOD_OVERALL_FS);
     expect(withKind(findings, "section-scoped-domain", "Issue inventory")).toBe(true);
   });
 });
@@ -629,7 +629,7 @@ describe("the coordinator", () => {
       "| P2 | none | issue two |",
       "| P9 | prose | issue nine |",
     );
-    const findings = judge("overall", content, GOOD_OVERALL_FS, "P9");
+    const findings = judge("overall-spec", content, GOOD_OVERALL_FS, "P9");
     expect(withKind(findings, "domain", "**Status**")).toBe(true);
     expect(withKind(findings, "crosslink", "Issue inventory")).toBe(true);
     expect(withKind(findings, "section-scoped-domain", "Issue inventory")).toBe(true);
@@ -724,7 +724,7 @@ describe("P4.1 T2 — **Version** presence required ×3 (plan optional → requi
 
   it("an overall without a **Version** header is reported (the requiredness holds)", () => {
     const content = GOOD_OVERALL.replace("- **Version**: v1.21 · 2026-10-07", "");
-    const findings = judge("overall", content, GOOD_OVERALL_FS);
+    const findings = judge("overall-spec", content, GOOD_OVERALL_FS);
     expect(withKind(findings, "presence", "**Version**")).toBe(true);
   });
 });
@@ -810,7 +810,7 @@ describe("P4.1 T2 — `## Change history` presence required ×3", () => {
       ].join("\n"),
       "",
     );
-    const findings = judge("overall", content, GOOD_OVERALL_FS);
+    const findings = judge("overall-spec", content, GOOD_OVERALL_FS);
     expect(withKind(findings, "presence", "## Change history")).toBe(true);
   });
 });
@@ -861,9 +861,11 @@ describe("deriveDocType — the shared doc-type derivation (design spec §2.1)",
   const derive = new Contract().deriveDocType;
 
   it("derives the overall key from a basename ending in -overall.md (positive)", () => {
-    expect(derive("specs/x-overall.md")).toBe("overall");
-    expect(derive("dir/sub/x-overall.md")).toBe("overall"); // directory prefix immune
-    expect(derive("docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md")).toBe("overall");
+    expect(derive("specs/x-overall.md")).toBe("overall-spec");
+    expect(derive("dir/sub/x-overall.md")).toBe("overall-spec"); // directory prefix immune
+    expect(derive("docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md")).toBe(
+      "overall-spec",
+    );
   });
 
   it("derives the phase-spec key from any other doc path (negative)", () => {
@@ -873,12 +875,12 @@ describe("deriveDocType — the shared doc-type derivation (design spec §2.1)",
   });
 
   it("judges by basename — an absolute path derives through its file name", () => {
-    expect(derive("/repo/docs/kairos/specs/x-overall.md")).toBe("overall");
+    expect(derive("/repo/docs/kairos/specs/x-overall.md")).toBe("overall-spec");
     expect(derive("/repo/docs/kairos/specs/x-design.md")).toBe("phase-spec");
   });
 
   it("ignores a trailing separator per the call-site convention (file paths — node's basename strips it)", () => {
-    expect(derive("x-overall.md/")).toBe("overall");
+    expect(derive("x-overall.md/")).toBe("overall-spec");
   });
 });
 

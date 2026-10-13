@@ -108,7 +108,7 @@ export interface ChainLink {
  */
 export interface ChainRoot {
   /** The doc-type identity of the chain root's document. */
-  docType: "overall" | "plan" | "phase-spec";
+  docType: "overall-spec" | "plan" | "phase-spec";
   /** The `**Parent program**` link (Class-B) — the parent overall reference of a
    *  plan/spec document; null for the overall (the chain root itself). */
   parentLink: ChainLink | null;
@@ -125,7 +125,7 @@ export interface ChainRoot {
 
 /** The overall parse record — the four tables, the graph edges and the chain root. */
 export interface OverallParsed {
-  docType: "overall";
+  docType: "overall-spec";
   /** The `# Title` line verbatim. */
   title: string;
   /** The header bullet lines (between the title and the first section heading). */
@@ -299,7 +299,7 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
   /** The derived section skeleton (shape projection) of this doc type. */
   readonly shape: DocShape;
   /** The doc-type name as carried by a conforming document's parse record. */
-  abstract readonly docTypeName: "overall" | "plan" | "phase-spec";
+  abstract readonly docTypeName: "overall-spec" | "plan" | "phase-spec";
 
   /** The per-anchor slice lookup — the parse face's locating patterns. */
   readonly #slicesByAnchor: ReadonlyMap<string, ElementSlice>;
@@ -483,7 +483,7 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
  * graph, and exposes the Phase-inventory rows as the chain's anchor set.
  */
 export class OverallDocType extends DocType<OverallParsed> {
-  readonly docTypeName = "overall" as const;
+  readonly docTypeName = "overall-spec" as const;
 
   parse(lines: readonly string[]): OverallParsed {
     const title = lines[0] ?? "";
@@ -500,14 +500,14 @@ export class OverallDocType extends DocType<OverallParsed> {
     const graphEdges = this.#graphEdges(sections);
     const phases = this.#phaseRows(tables["Phase inventory"]);
     return {
-      docType: "overall",
+      docType: "overall-spec",
       title,
       headerLines,
       sections,
       tables,
       graphEdges,
       chain: {
-        docType: "overall",
+        docType: "overall-spec",
         parentLink: null,
         specLink: null,
         parentTokens: [],
@@ -700,7 +700,7 @@ export class PhaseSpecDocType extends DocType<PhaseSpecParsed> {
 
 /** The composed doc-type parsers — the judge's ctx-loading parsers (one per doc key). */
 export const docTypeParsers: Record<DocKey, DocType<ParsedDoc>> = {
-  overall: new OverallDocType("overall"),
+  "overall-spec": new OverallDocType("overall-spec"),
   plan: new PlanDocType("plan"),
   "phase-spec": new PhaseSpecDocType("phase-spec"),
 };

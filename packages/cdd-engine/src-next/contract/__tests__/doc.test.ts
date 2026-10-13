@@ -32,7 +32,7 @@ const OVERALL = [
   "## File paths",
   "| Artifact | Path |",
   "| --- | --- |",
-  "| overall | docs/kairos/specs/test-overall.md |",
+  "| overall-spec | docs/kairos/specs/test-overall.md |",
   "",
   "## Program charter",
   "### Goal",
@@ -140,10 +140,10 @@ const PHASE_SPEC = [
 ];
 
 describe("OverallDocType.parse — the four tables + the chain root", () => {
-  const parsed = new OverallDocType("overall").parse(OVERALL);
+  const parsed = new OverallDocType("overall-spec").parse(OVERALL);
 
   it("parses the header lines and the section skeleton", () => {
-    expect(parsed.docType).toBe("overall");
+    expect(parsed.docType).toBe("overall-spec");
     expect(parsed.title).toBe("# 文档架构方法论 v2 — 测试 Overall");
     expect(parsed.headerLines.some((line) => line.includes("**Version**"))).toBe(true);
     expect(parsed.sections.map((section) => section.heading)).toEqual([
@@ -162,7 +162,7 @@ describe("OverallDocType.parse — the four tables + the chain root", () => {
   it("parses the File-paths table into a header row + data rows", () => {
     const table = parsed.tables["File paths"];
     expect(table.headerRow).toEqual(["Artifact", "Path"]);
-    expect(table.rows).toEqual([["overall", "docs/kairos/specs/test-overall.md"]]);
+    expect(table.rows).toEqual([["overall-spec", "docs/kairos/specs/test-overall.md"]]);
   });
 
   it("parses the Issue-inventory table rows", () => {
@@ -194,7 +194,7 @@ describe("OverallDocType.parse — the four tables + the chain root", () => {
   });
 
   it("parses the chain root — the overall is the root (no parent/spec links)", () => {
-    expect(parsed.chain.docType).toBe("overall");
+    expect(parsed.chain.docType).toBe("overall-spec");
     expect(parsed.chain.parentLink).toBeNull();
     expect(parsed.chain.specLink).toBeNull();
     expect(parsed.chain.parentTokens).toEqual([]);
@@ -278,7 +278,7 @@ describe("PhaseSpecDocType.parse — the design skeleton + the Class-B chain roo
 
 describe("the doc-type composition root", () => {
   it("exposes one parser per doc key", () => {
-    expect(docTypeParsers.overall).toBeInstanceOf(OverallDocType);
+    expect(docTypeParsers["overall-spec"]).toBeInstanceOf(OverallDocType);
     expect(docTypeParsers.plan).toBeInstanceOf(PlanDocType);
     expect(docTypeParsers["phase-spec"]).toBeInstanceOf(PhaseSpecDocType);
   });
@@ -308,7 +308,7 @@ describe("P2 — the three doc skeletons judge clean (spec §7.2 colocated pin)"
   const contract = new Contract();
   const projector = new Projector(declaredRegistries);
   const PATH_OF: Record<DocKey, string> = {
-    overall: "docs/kairos/specs/x-overall.md",
+    "overall-spec": "docs/kairos/specs/x-overall.md",
     plan: "docs/kairos/plans/x-p1.md",
     "phase-spec": "docs/kairos/specs/x-p1-design.md",
   };
@@ -320,7 +320,7 @@ describe("P2 — the three doc skeletons judge clean (spec §7.2 colocated pin)"
     new SkeletonAssembler(projector.skeleton()[key], DATE).render();
 
   it("judges each type's skeleton clean — zero findings (the §4.1 placeholder-anchored by-construction green)", () => {
-    for (const key of ["overall", "plan", "phase-spec"] as const) {
+    for (const key of ["overall-spec", "plan", "phase-spec"] as const) {
       const findings = contract.validate({
         docKey: key,
         path: PATH_OF[key],
@@ -333,7 +333,7 @@ describe("P2 — the three doc skeletons judge clean (spec §7.2 colocated pin)"
   });
 
   it("keeps every `:::fill` inside the content positions — zero hits on the link anchors / structure rows", () => {
-    for (const key of ["overall", "plan", "phase-spec"] as const) {
+    for (const key of ["overall-spec", "plan", "phase-spec"] as const) {
       for (const line of renderOf(key).split("\n")) {
         if (!line.includes(":::fill")) continue;
         // the placeholder-link anchors (`](<`), the version/status truths, the

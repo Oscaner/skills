@@ -292,13 +292,13 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
 ];
 
 /** The schema `<type>` vocabulary — the get leaf's ONE table (spec §5.3): the
- *  primary DocKey spellings (overall | plan | phase-spec) plus the legacy
+ *  primary DocKey spellings (overall-spec | plan | phase-spec) plus the legacy
  *  `phaseSpec` alias row normalized to the kebab key. One normalizing vocabulary,
  *  never a second hand-written list — the builder's #parseTypeKey validates
  *  through it; the get leaf additionally routes `plan-graph` (a display type, not
  *  a doc key — a leaf-level pass-through, never a vocabulary row). */
 export const SCHEMA_TYPE_KEYS: Readonly<Record<string, DocKey>> = {
-  overall: "overall",
+  "overall-spec": "overall-spec",
   plan: "plan",
   "phase-spec": "phase-spec",
   phaseSpec: "phase-spec",

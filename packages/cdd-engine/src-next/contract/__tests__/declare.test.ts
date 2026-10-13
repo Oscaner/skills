@@ -54,14 +54,14 @@ const MIN_ELEMENTS = 20;
 const MAX_ELEMENTS = 40;
 
 const ALL_REGISTRIES = [
-  declaredRegistries.overall,
+  declaredRegistries["overall-spec"],
   declaredRegistries.plan,
   declaredRegistries["phase-spec"],
 ] as const satisfies readonly ElementRegistry[];
 
 describe("declared registries", () => {
   it("declares exactly the three doc types with their docType identity", () => {
-    expect(declaredRegistries.overall.docType).toBe("overall");
+    expect(declaredRegistries["overall-spec"].docType).toBe("overall-spec");
     expect(declaredRegistries.plan.docType).toBe("plan");
     expect(declaredRegistries["phase-spec"].docType).toBe("phase-spec");
   });
@@ -165,17 +165,17 @@ describe("RegistryGuard type guards", () => {
   });
 
   it("recognizes the three declared registries and rejects registry-shaped non-registries", () => {
-    expect(RegistryGuard.isRegistry(declaredRegistries.overall)).toBe(true);
+    expect(RegistryGuard.isRegistry(declaredRegistries["overall-spec"])).toBe(true);
     expect(RegistryGuard.isRegistry(declaredRegistries.plan)).toBe(true);
     expect(RegistryGuard.isRegistry(declaredRegistries["phase-spec"])).toBe(true);
     // Missing the elements surface.
-    expect(RegistryGuard.isRegistry({ docType: "overall" })).toBe(false);
+    expect(RegistryGuard.isRegistry({ docType: "overall-spec" })).toBe(false);
     // Unknown doc type.
     expect(RegistryGuard.isRegistry({ docType: "unknown", elements: [] })).toBe(false);
     // A registry whose element fails the element guard is not a registry.
     expect(
       RegistryGuard.isRegistry({
-        docType: "overall",
+        docType: "overall-spec",
         elements: [{ anchor: "## X", presence: "sometimes", home: "section" }],
       }),
     ).toBe(false);
@@ -217,6 +217,6 @@ describe("type-level contract", () => {
       valuePattern: "^## Goal$",
       refKind: "none",
     }).not.toMatchTypeOf<RegistryElement>();
-    expectTypeOf({ docType: "overall" }).not.toMatchTypeOf<ElementRegistry>();
+    expectTypeOf({ docType: "overall-spec" }).not.toMatchTypeOf<ElementRegistry>();
   });
 });

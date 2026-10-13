@@ -109,8 +109,8 @@ export class SkeletonAssembler {
    *  the probe set (each composition helper probes the anchors it emits). */
   #compose(probe: Set<string>): string[] {
     switch (this.#docType) {
-      case "overall":
-        return this.#renderOverall(probe);
+      case "overall-spec":
+        return this.#renderOverallSpec(probe);
       case "plan":
         return this.#renderPlan(probe);
       case "phase-spec":
@@ -146,10 +146,10 @@ export class SkeletonAssembler {
   // the per-doc-type compositions — the doc section sequence + its scaffolds
   // -------------------------------------------------------------------------
 
-  /** The overall skeleton — the header tuple, the section sequence (the four table
+  /** The overall-spec skeleton — the header tuple, the section sequence (the four table
    *  sections, the charter facets and the dependency graph) and the change-history
-   *  table: every required overall element lands in its structural position. */
-  #renderOverall(probe: Set<string>): string[] {
+   *  table: every required overall-spec element lands in its structural position. */
+  #renderOverallSpec(probe: Set<string>): string[] {
     const lines: string[] = [];
     this.#pushHeader(lines, probe);
     lines.push(...this.#section("## Document scope", [":::fill document-scope"], probe));
@@ -295,7 +295,7 @@ export class SkeletonAssembler {
    *  scaffold (the backticked path cell keeps the `File path row` shape). */
   #filePathsTable(probe: Set<string>): string[] {
     probe.add("File path row");
-    return ["| Artifact | Path |", "| --- | --- |", "| overall | `:::fill overall-path` |"];
+    return ["| Artifact | Path |", "| --- | --- |", "| overall-spec | `:::fill overall-path` |"];
   }
 
   /** The charter facets — the three required `###` facet headings with their

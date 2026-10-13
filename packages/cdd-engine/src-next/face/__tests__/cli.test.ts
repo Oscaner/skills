@@ -252,7 +252,7 @@ const conformingPlan = (repoRoot: string): string => {
  *  resolving into existing same-family siblings. The overall charter is the
  *  GOOD_OVERALL judge fixture shape (judge.test.ts:19-71) with the `o1-` names
  *  the temp repo actually holds — the review face's doc-contract gate must judge it
- *  under the overall key (zero phase-spec misreport on the doc-key derivation). */
+ *  under the overall-spec key (zero phase-spec misreport on the doc-key derivation). */
 const conformingOverall = (repoRoot: string): string => {
   const file = path.join(repoRoot, "docs", "kairos", "specs", "o1-overall.md");
   mkdirSync(path.dirname(file), { recursive: true });
@@ -271,7 +271,7 @@ const conformingOverall = (repoRoot: string): string => {
       "## File paths",
       "| Artifact | Path |",
       "| --- | --- |",
-      "| overall | docs/kairos/specs/o1-overall.md |",
+      "| overall-spec | docs/kairos/specs/o1-overall.md |",
       "",
       "## Program charter",
       "### Goal",
@@ -613,7 +613,7 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
       const code = await command.runArgv(["schema", "get", "bogus"]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain(
-        "unknown schema type: bogus (available: overall, plan, phase-spec, plan-graph)",
+        "unknown schema type: bogus (available: overall-spec, plan, phase-spec, plan-graph)",
       );
     } finally {
       cleanup();
@@ -629,8 +629,8 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
     expect(get.processedArgs[0]).toBe("phase-spec");
     gate.parse(["schema", "get", "plan"], { from: "user" });
     expect(get.processedArgs[0]).toBe("plan");
-    gate.parse(["schema", "get", "overall"], { from: "user" });
-    expect(get.processedArgs[0]).toBe("overall");
+    gate.parse(["schema", "get", "overall-spec"], { from: "user" });
+    expect(get.processedArgs[0]).toBe("overall-spec");
     // D19 — the target positional rides the merged leaf (mandatory only under
     // --output skeleton, an engine-declared parameter rather than a shell redirect)
     gate.parse(["schema", "get", "phase-spec", "--output", "skeleton", "/tmp/demo.md"], {
@@ -1634,7 +1634,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     }
   });
 
-  it("review --type spec of an -overall.md — the overall doc-key face (zero phase-spec misreport)", async () => {
+  it("review --type spec of an -overall.md — the overall-spec doc-key face (zero phase-spec misreport)", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
@@ -1651,7 +1651,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       ]);
       expect(overallCode).toBe(0);
       expect(io.stdoutText).toContain("next: done");
-      // The overall was judged under the overall key (deriveDocType, design spec
+      // The overall was judged under the overall-spec key (deriveDocType, design spec
       // §2.3) — a phase-spec misjudge would trip the doc-contract gate: the charter
       // fails the phase-spec face, the pre-flight refuses over CDD_BLOCKED and no
       // round lands. The exit 0 + round + empty-findings carrier pin the zero
@@ -2674,7 +2674,7 @@ describe("the pure commands — schema / issue / base", () => {
       const code = await command.runArgv(["schema", "get", "bogus"]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain(
-        "unknown schema type: bogus (available: overall, plan, phase-spec, plan-graph)",
+        "unknown schema type: bogus (available: overall-spec, plan, phase-spec, plan-graph)",
       );
     } finally {
       cleanup();
@@ -3032,7 +3032,7 @@ describe("T3 — the commander-native composition root: program parse + .action 
       const code = await command.runArgv(["schema", "get", "bogus"]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain(
-        "unknown schema type: bogus (available: overall, plan, phase-spec, plan-graph)",
+        "unknown schema type: bogus (available: overall-spec, plan, phase-spec, plan-graph)",
       );
     } finally {
       cleanup();

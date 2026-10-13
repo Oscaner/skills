@@ -1,7 +1,7 @@
 // packages/cdd-engine/src-next/contract/declare.ts
 // T2 — the element-registry declaration (the design spec's single-declaration root).
 //
-// Each doc type (overall / plan / phase-spec) carries one typed element registry:
+// Each doc type (overall-spec / plan / phase-spec) carries one typed element registry:
 // flat declared data, one row per element — anchor token · presence · value
 // pattern · ref kind · home surface. The registry is simultaneously the
 // interpreter's judgment data (judge.ts consumes the anchors/domains) and the
@@ -12,7 +12,7 @@
 // The element lines are enumerated from the methodology skeleton semantics (the
 // machine skeleton of each doc type as pinned by the three repo schema JSONs,
 // read as steady contract data) — freshly declared anchors, never cut from the
-// old tree's sources. Counts stand at overall 39 / plan 28 / phase-spec 25,
+// old tree's sources. Counts stand at overall-spec 39 / plan 28 / phase-spec 25,
 // each within the planned 20–40 band and each element carrying all five fields
 // (a completeness contract enforced by the array shape below and by the test
 // suite, which pins presence/ref-kind domains and per-registry anchor
@@ -22,7 +22,7 @@
 export type Presence = "required" | "optional" | "conditional";
 
 /** The three doc types the engine validates. */
-export type DocType = "overall" | "plan" | "phase-spec";
+export type DocType = "overall-spec" | "plan" | "phase-spec";
 
 /** The referential kind an element participates in — what its value points at. */
 export type RefKind =
@@ -70,7 +70,7 @@ export interface ElementRegistry {
 
 /** The declared-registries record surface (the brief's `declaredRegistries` shape). */
 export interface DeclaredRegistries {
-  overall: ElementRegistry;
+  "overall-spec": ElementRegistry;
   plan: ElementRegistry;
   "phase-spec": ElementRegistry;
 }
@@ -105,7 +105,11 @@ const HOME_VALUES = [
   "design-body",
   "conditional",
 ] as const satisfies readonly Home[];
-const DOC_TYPE_VALUES = ["overall", "plan", "phase-spec"] as const satisfies readonly DocType[];
+const DOC_TYPE_VALUES = [
+  "overall-spec",
+  "plan",
+  "phase-spec",
+] as const satisfies readonly DocType[];
 
 /**
  * The registry guards — the runtime contract that narrows an unknown candidate
@@ -157,9 +161,9 @@ export class RegistryGuard {
 }
 
 // ---------------------------------------------------------------------------
-// overall — the charter section surface
+// overall-spec — the charter section surface
 // ---------------------------------------------------------------------------
-const OVERALL_ELEMENTS = [
+const OVERALL_SPEC_ELEMENTS = [
   // Header block (H1 + bullet metadata).
   {
     anchor: "# Title",
@@ -860,7 +864,7 @@ const PHASE_SPEC_ELEMENTS = [
 
 /** The three declared registries — the judge's judgment data and the projection surfaces' derivation source. */
 export const declaredRegistries: DeclaredRegistries = {
-  overall: { docType: "overall", elements: OVERALL_ELEMENTS },
+  "overall-spec": { docType: "overall-spec", elements: OVERALL_SPEC_ELEMENTS },
   plan: { docType: "plan", elements: PLAN_ELEMENTS },
   "phase-spec": { docType: "phase-spec", elements: PHASE_SPEC_ELEMENTS },
 };

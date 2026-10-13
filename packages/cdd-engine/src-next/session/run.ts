@@ -86,8 +86,8 @@ export interface OpenFrame {
   target: AuditTarget;
   /** The handoff params the round writes under. */
   params: HandoffParams;
-  /** The progress ledger key the round records under (a wave key string / a range
-   *  key / a doc path). */
+  /** The progress ledger key the round records under (a wave key string / a
+   *  line-type constant — branch · spec · plan). */
   key: LedgerKey;
 }
 
@@ -626,7 +626,7 @@ export class Lifecycle {
   }
 
   /** The frame's RouteTarget — the dispatch-ready literal's target identity (the
-   *  frame's own facts: the wave task key · the branch range token · the doc path).
+   *  frame's own facts: the wave task key · the branch line key · the doc path).
    *  `type` rides the wave target type; `id` the frame's parameters; `plan` the
    *  workspace plan path (the implement literal's required `--plan`). */
   #routeTarget(frame: OpenFrame): RouteTarget | null {

@@ -1,7 +1,7 @@
 # 引擎文档工具（Engine Doc-Tooling）— P7 实施计划：单一实况判定面（commit-sha 全退役 + 物料无条件 extract + brief 镜像 + round/键/字段实况化）
 **Spec:** [2026-10-10-engine-doc-tooling-p7-design.md](../specs/2026-10-10-engine-doc-tooling-p7-design.md)
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](../specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.1 · 2026-10-13
+- **Version**: v0.2 · 2026-10-14
 - **Depends on**: P6（Done · v0.4 · hard）
 
 ## Constraints
@@ -92,7 +92,7 @@
 - **DependsOn**: 2, 3, 5
 
 ### Task 5: templates 数据面 + 组装原子性（token 布局 · REVIEWS 判据 · cl:changed-surface 删 · 组装守卫 · $version）
-- **Objective**: render/templates 数据面一次折叠——`TOKENS` 删 `INPUT_RANGE`/`INPUT_PLAN`/`FIX_BASE`/`OUTPUT_BRIEF`（加 `BASE_BRANCH`）· `REVIEW_CONTEXT` 换新共享尾部 · `MODE_PROMPTS`/`FIX_SHELL`/`DOCS_FIX_SHELL` shell 按新布局重写（FIX_SHELL 按线分句 · implement shell 读 brief 完整镜像）· `REVIEW_ITEM`/`REVIEWS.*.ref` 按型参照句 · `#gate` 新增壳文-布局一致性断言 · 删 `cl:changed-surface` LICENSE 行 + CLAUSES · `$version` 6 → 7
+- **Objective**: render/templates 数据面一次折叠——`TOKENS` 删 `INPUT_RANGE`/`INPUT_PLAN`/`FIX_BASE`/`OUTPUT_BRIEF`（加 `BASE_BRANCH`）· `REVIEW_CONTEXT` 换新共享尾部 · `MODE_PROMPTS`/`FIX_SHELL`/`DOCS_FIX_SHELL` shell 按新布局重写（FIX_SHELL 按线分句 · implement shell 读 brief 完整镜像）· `REVIEW_ITEM` 按型参照句 · **`REVIEWS.*.ref` 整体删（v0.6 回填 · 原「改参照型」被 D26 派生副本清理取代——ref 零消费 · 与 shell 散文同述一事）** · `#gate` 新增壳文-布局一致性断言 · 删 `cl:changed-surface` LICENSE 行 + CLAUSES · `$version` 6 → 7
 - **Files**:
   - Modify: `packages/cdd-engine/src-next/render/templates.ts`（TOKENS :447-459 · REVIEW_CONTEXT :237-248 · MODE_PROMPTS :252-307 · `REVIEWS :312-337`（spec/plan `ref` INPUT_RANGE→INPUT_DOC :327/:333 · axesGuide 为同条 sibling 行 :329/:335 · wave/branch axesGuide 删虚构句）· REVIEW_ITEM :232-233 · RETURN_ZONE :423-439（3→2 行）· LICENSE_ITEMS cl:changed-surface :159 删 · CLAUSES :484-486 删 · #gate :589-614 加组装断言 · $version :493）
   - Modify: `packages/cdd-engine/src-next/render/brief.ts`（render :88-98 去 head 参 + WAVE_BASE 行 · 增 Constraints 段切片）
@@ -100,7 +100,7 @@
 - **Produces**: templates 数据面**无** INPUT_RANGE/INPUT_PLAN/FIX_BASE/OUTPUT_BRIEF/cl:changed-surface · `BASE_BRANCH` 注册 · RETURN_ZONE 二行 · `#gate` 组装一致性断言 · brief render 去 head + Constraints 镜像 · 供 T4/T6/T7/T9
 - **Steps**:
   - token 注册表 + RETURN_ZONE —— `TOKENS` 删四 token 加 `BASE_BRANCH` · `RETURN_STDOUT_BLOCK` 删 commits: 行（恰 status+artifacts 二行 · artifacts 处方去 OUTPUT_BRIEF） — checkable: `grep -n "INPUT_RANGE\|INPUT_PLAN\|FIX_BASE\|OUTPUT_BRIEF\|commits:" render/templates.ts`（非删除注释）零命中
-  - shell + 判据 + axesGuide 重写 —— `MODE_PROMPTS`/`REVIEW_CONTEXT` 换布局 · `FIX_SHELL` 按线分句（wave→INPUT_WAVE_BRIEF · branch→INPUT_DOC）· implement shell 读 `INPUT_WAVE_BRIEF`（完整计划镜像）· `REVIEWS.*` ref 改参照型 · **spec/plan `REVIEWS.spec/plan.ref` 的 INPUT_RANGE 字面重写为 INPUT_DOC（`ref` 行 templates.ts:327/:333；`axesGuide` 正文 :329/:335 为同条 sibling 行）** · `REVIEWS.wave/branch.axesGuide` 改 review 自跑 git diff 措辞（删虚构句） — checkable: 渲染后的 shell 文本 token 归属 ⊆ 其布局 ∪ 共享尾部（`render(mode)` 输出逐 token 名比对 · 各组装断言前置）
+  - shell + 判据 + axesGuide 重写 —— `MODE_PROMPTS`/`REVIEW_CONTEXT` 换布局 · `FIX_SHELL` 按线分句（wave→INPUT_WAVE_BRIEF · branch→INPUT_DOC）· implement shell 读 `INPUT_WAVE_BRIEF`（完整计划镜像）· **`REVIEWS.*.ref` 整体删（v0.6 回填 · `ReviewGuideRow.ref` + `REVIEWS.*.ref` 四行 · 零消费死码 · D26 派生副本）** · `REVIEWS.wave/branch.axesGuide` 改 review 自跑 git diff 措辞（删虚构句） — checkable: 渲染后的 shell 文本 token 归属 ⊆ 其布局 ∪ 共享尾部（`render(mode)` 输出逐 token 名比对 · 各组装断言前置） · `grep "ref:" render/templates.ts` 于 `ReviewGuideRow` 零命中
   - cl:changed-surface 删 —— `LICENSE_ITEMS` 行 + `CLAUSES` 条目删 — checkable: `grep -n "changed-surface\|cl:changed" render/templates.ts` 零命中
   - 组装一致性断言 —— `#gate` 新增：每 mode shell 文本中 `INPUT_*`/`OUTPUT_*`/`BASE_BRANCH` 名引用 ⊆ 该 mode round-context 布局 ∪ 共享尾部（复用 `#contextLines` regex） — checkable: 单测——构造一个壳文声称未携带 token 的 mode，断言抛错
   - brief 镜像 —— `render/brief.ts` `render` 去 head 参 · 增 `## Constraints` 段提取（复用 `#rawSection` 切片） — checkable: `grep -n "WAVE_BASE\|head" render/brief.ts`（签名）零命中 · brief 输出含 Constraints 段
@@ -198,4 +198,5 @@
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.2 | 2026-10-14 | **W5 收尾 review nit 回填（Plan Sole Writer）**：① nit-1 · T5 「`REVIEWS.*.ref` 改参照型」改为「**整体删**」——W1 已按 D26 派生副本清理裁决删除（零消费死码），计划字面与实况对齐（Obj + step + checkable 同步）；② nit-2 · §2.8 引入 `ledger.#roundKey` 为线键第三派生点（违 spec §3.7「防第三处再分叉」）——记录入 spec v0.6 change-history，代码收编归 fix 环 | Oscar M. · Claude Opus 5（W5 cdd-dev · 编排器回填） |
 | v0.1 | 2026-10-13 | P7 实施计划 v0.1——单一实况判定面（commit-sha 全退役 + 物料无条件 extract + brief 镜像 + round/键/字段实况化 · spec v0.5 Approved）：W1{T1 sha 载体收编 · T2 carrier 声明收缩 · T5 templates 数据面 · T8 kairos 消费面} → W2{T3 ledger round/键/verdict · T6 next/capsule} → W3{T4 lifecycle read-back · T7 CLI 命令面} → W4{T9 测试重锚 + 五 pin} → W5{T10 收尾扫 + 验证 + 变更集} · 十任务块全用骨架 task-field 形态（`- **Objective/Files/Consumes/Produces/Steps/Acceptance/DependsOn**:` · step 带 `— checkable:`）· 不发布 | Oscar M. · Claude Opus 5（kairos:cdd-plan · 用户批准） |

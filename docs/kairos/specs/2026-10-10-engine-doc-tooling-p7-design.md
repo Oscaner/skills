@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P7 设计：单一实况判定面（commit-sha 全退役 + 物料无条件 extract + brief=完整计划镜像 + round/键/字段实况化）
-- **Version**: v0.5 · 2026-10-13
+- **Version**: v0.6 · 2026-10-14
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P7] 会话 · 用户裁定 · 2026-10-13）
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](2026-10-10-engine-doc-tooling-overall.md)
@@ -65,7 +65,7 @@
 - **base→range anchor 派生链（审查证据闭合 · branch 名到 child 可执行 git 命名的完整链条）**：base artifact 存 **branch 名**（`BaseArtifact{base,source,plan,recordedAt}` · artifacts.ts:30-39 · 非 commit）→ 注入 `BASE_BRANCH` = 该 branch 名（如 `develop`）→ child 自跑 `git diff origin/<BASE_BRANCH>..HEAD`（origin 追踪 · 必要时先 `git fetch origin`）· **engine 零 merge-base/diff 计算**（零 git diff 面 · 评审以 live tree 为界 · anchor 只是差分起点，不是裁判）· branch 与 wave 的 scope 轴共用此 anchor（§6.2）· P7 不再需要把 branch 名解析为 commit
 #### 3.3 review 判据文本（模板面重写）
 - `REVIEW_ITEM`（templates.ts:232-233）「review the criteria below against `INPUT_RANGE`」→ 按型参照句（wave→`INPUT_WAVE_BRIEF` · 其他→`INPUT_DOC`）；判据主体仍是固定前缀（`REVIEWS.*.axesGuide` + lens 词表）
-- `REVIEWS.wave.ref` `"WAVE_BASE..HEAD"`（:315）/ branch `"BASE..HEAD"`（:321）→ 参照型元描述（`"INPUT_WAVE_BRIEF"` / `"INPUT_DOC · origin/<BASE_BRANCH>..HEAD"`）——ref 字段为类型元数据（测试 pin 面），随语义更替；`REVIEWS.spec/plan.ref` `"INPUT_RANGE"`（:327/:333）→ `"INPUT_DOC"`
+- `REVIEWS.*.ref`（wave/branch/spec/plan）——**v0.6 回填（W5 review nit-1 · D26 派生副本清理）**：`ref` 字段零生产消费（唯 `lensEnum`/`axesGuide` 被读 · 全库零 `.ref` 读取点）→ **整体删**（`ReviewGuideRow.ref` + `REVIEWS.*.ref` 四行全删）· 参照语义由 shell 散文承载（`REVIEW_ITEM` 按型参照句）。原「随语义更替 re-anchor」判断被更强的「派生副本整体退役」取代——ref 值与 shell 散文同述一事，即 D26 规定的派生副本（副本不具权威 · 死码清理）
 - buildability 轴「dual evidence」双证据措辞保持（infra.test.ts pins :139-140 稳定）· "warn-level booking gaps the engine flagged" 虚构句删（见 6.2）
 #### 3.4 doc review 面（spec/plan）
 - spec/plan review 语义不变（判 `INPUT_DOC` = target doc）· `cdd-spec-writer`/`cdd-plan` 的 review 字面（`review --type spec --spec <path>` · `--type plan --plan <path>`）**零 churn** · doc-contract gate 零动
@@ -174,6 +174,7 @@
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.6 | 2026-10-14 | **W5 收尾 review nit-1 设计回填（D26 派生副本清理）**：§3.3 `REVIEWS.*.ref` 由「随语义更替 re-anchor」改「**整体删**」——`ref` 字段零生产消费（唯 `lensEnum`/`axesGuide` 被读 · 全库零 `.ref` 读取点），其值与 shell 散文同述一事 = D26 规定的派生副本；W1（02a7940c）已按此裁决删除（`ReviewGuideRow.ref` + 四 `REVIEWS.*.ref` 行），本回填使 spec 与实况一致（死码清理 · 避免声明再抄）。**附 §3.7 派生点措辞精化**：doc 线键「单源同键」实指 run.ts/gate.ts/lifecycle 三处私有派生（`#lineKey`×2 + `ledger.#roundKey`）返同一线型常量——W5 review nit-2 记录为待收编（供 T10 后分支环或后续 phase 归并单一助手） | Oscar M. · Claude Opus 5（W5 cdd-dev · 编排器 Plan Sole Writer 回填） |
 | v0.5 | 2026-10-13 | 六前提重审整个 phase · **命题升维为「单一实况判定面」**（一事实一处 · 判定时刻现读 · 副本不具权威）——dogfood 修复 D26 折入：**round verdict 单源**（ledger.round 以 recordRound 门控 · 被拒 round → 零 next 行 · 治 `BLOCKED`+`next: done`）· **doc 线键实况化**（#lineKey doc 腿 = 线型常量（spec/plan）· 全派生点（run.ts + gate.ts）单源同键 · 治 argv 路径副本重置 round）· **postflight 字段单裁**（violations 分类裁决 · materialize 已 drop 者不 BLOCK + 至多 WARN · 治未声明/engineOnly 字段两套裁决） | Oscar M. · Claude Opus 5 |
 | v0.4 | 2026-10-13 | 六前提重审整个 phase 折入收尾扫——载体残余复核（notes/failure_category 活）· GitClient/声明面六→二 seam 叙事收编 · TEMPLATE_PROMPT.$version 6→7 · 消费面词表残留 pin · 守卫合一零裸函数 · 边界面零动 | Oscar M. · Claude Opus 5 |
 | v0.3 | 2026-10-13 | child prompt 组装面原子性折入——六 face prompt 同数据面折叠 · HANDOFF_SCHEMA 声明派生 auto 短文 · 新壳文-布局一致性守卫（#gate 盲区补齐 · 双声称 gap 构造成立级杜绝） | Oscar M. · Claude Opus 5 |

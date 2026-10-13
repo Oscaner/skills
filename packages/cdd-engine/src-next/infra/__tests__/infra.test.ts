@@ -178,6 +178,17 @@ describe("git — the single git seam over a real temp repo", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it("exposes exactly the two judgment seams — topLevel + isClean, the commit seams retired (§2.1)", () => {
+    // The GitClient is the engine's git JUDGMENT adapter: repo-root location
+    // (topLevel) + working-tree cleanliness (isClean). The retired commit seams
+    // (revParseHead / addAll / commit / log) must not survive on the prototype —
+    // the engine checks no commit identity, it judges the live tree.
+    const methods = Object.getOwnPropertyNames(GitClient.prototype).filter(
+      (name) => name !== "constructor",
+    );
+    expect(methods.sort()).toEqual(["isClean", "topLevel"]);
+  });
 });
 
 describe("process — the subprocess seam", () => {

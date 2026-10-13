@@ -7,9 +7,9 @@
 //
 //   ① the role-distinctive exclusives — the findings exclusive (`findings`)
 //      never rides the work declaration, the work exclusives (`status` /
-//      `failure_category` / `changes`) never ride the findings declaration (the
-//      SHARED carrier rows — artifacts / commits / notes — are both-faced by
-//      design; the exclusives ARE the role);
+//      `failure_category`) never ride the findings declaration (the SHARED
+//      carrier rows — artifacts / notes — are both-faced by design; the
+//      exclusives ARE the role);
 //   ⑥ the engine-authority hygiene — the engine's write plane derives from the
 //      declaration (`keyof properties ∪ engineOnly[face]`), so every declared
 //      `engineOnly` key stays OUT of the child-visible writable view AND is
@@ -60,7 +60,7 @@ describe("the handoff-plane audit — the declared writable subsets (the engine'
     const work = schema.faceSchema("work");
     const findings = schema.faceSchema("findings");
     expect(work.properties ?? {}).not.toHaveProperty("findings");
-    for (const key of ["status", "failure_category", "changes"] as const) {
+    for (const key of ["status", "failure_category"] as const) {
       expect(findings.properties ?? {}).not.toHaveProperty(key);
     }
   });

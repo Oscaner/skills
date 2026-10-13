@@ -1260,7 +1260,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     }
   });
 
-  it("every wave-face dispatch re-extracts the brief — the review re-renders it from the CURRENT plan (§4.1)", async () => {
+  it("every wave-face dispatch re-extracts the brief from the CURRENT plan — the complete plan mirror (task + Constraints), never an exists→reuse copy (§4.1/§5)", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
@@ -1279,6 +1279,11 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         ]),
       ).toBe(0);
       const firstBrief = readFileSync(briefPath, "utf8");
+      // the complete plan mirror — the wave's task section AND the plan's
+      // `## Constraints` section (both faces of the mirror, not the task block alone)
+      expect(firstBrief).toContain("### Task 1:");
+      expect(firstBrief).toContain("## Constraints");
+      expect(firstBrief).toContain("- delta");
       // The plan's Constraints section moves between dispatches (the Plan Sole Writer
       // amends mid-run): the review dispatch re-extracts the brief from the CURRENT
       // plan — no "exists → leave it" reuse.
@@ -1303,7 +1308,10 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         ]),
       ).toBe(0);
       const secondBrief = readFileSync(briefPath, "utf8");
+      // the mirrored Constraints reflect the CURRENT plan (fresh-extracted at the
+      // review dispatch), the task section still present
       expect(secondBrief).toContain("- delta (amended)");
+      expect(secondBrief).toContain("### Task 1:");
       expect(secondBrief).not.toBe(firstBrief);
     } finally {
       cleanup();
@@ -1437,15 +1445,13 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
 
   it("review with findings — the fix-route next: line carries the readback suffix", async () => {
     const { command, io, repoRoot, cleanup } = fixture({
-      dispatch: (frame: OpenFrame) => {
-        const commits = { base: "a".repeat(8), head: "b".repeat(8) };
-        return frame.phase === "review"
+      dispatch: (frame: OpenFrame) =>
+        frame.phase === "review"
           ? {
               status: "CHANGES_REQUESTED",
               findings: [{ severity: "blocker", summary: "drift" }],
             }
-          : { status: "APPROVED", commits };
-      },
+          : { status: "APPROVED" },
     });
     try {
       gitInit(repoRoot);
@@ -1492,7 +1498,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
   it("fix — the source review's blocker findings drive the re-review next (C5-1)", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
-      const head = gitInit(repoRoot);
+      gitInit(repoRoot);
       const plan = planFor(repoRoot);
       // Seed the implement + a blocker review round (the fix's C5-1 input).
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
@@ -1506,7 +1512,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
           tasks: [1],
           phase: "review",
           findings: [{ severity: "blocker", summary: "drift" }],
-          commits: { base: head, head },
         },
       );
       ledger.recordRound(1, "review");
@@ -1531,20 +1536,17 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     }
   });
 
-  it("fix — the branch re-review next: carries the FULL range + --plan and re-dispatches through the runtime gate (find #8/#9/#10)", async () => {
-    const base = "a".repeat(8);
-    const headB = "b".repeat(8);
+  it("fix — the branch re-review next: carries the workspace --plan and re-dispatches through the runtime gate (find #8/#9)", async () => {
     const { command, io, repoRoot, cleanup } = fixture({
       dispatch: (frame: OpenFrame) =>
-        frame.phase === "fix"
-          ? { status: "APPROVED", commits: { base, head: headB } }
-          : { status: "APPROVED", findings: [] },
+        frame.phase === "fix" ? { status: "APPROVED" } : { status: "APPROVED", findings: [] },
     });
     try {
       gitInit(repoRoot);
       const plan = conformingPlan(repoRoot);
       // Seed the branch line: a blocker branch-review round (the fix's C5-1 input)
-      // whose handoff carries the reviewed range (the fix's --findings single carrier).
+      // whose handoff carries the reviewed findings (the fix's --findings single
+      // carrier).
       // find #9 — the branch line's workspace is the plan-slug (the fix dispatch's
       // --plan); the handoff file is the spine name `branch-review-{round}.json`.
       const workspace = new Workspace(
@@ -1670,6 +1672,79 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       // the base artifact's branch name rides the round context — the wave/branch
       // review's scope anchor resolves (never an empty, dropped slot)
       expect(prompt).toContain("- `BASE_BRANCH`: develop");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("BASE_BRANCH injection — the wave/branch tree-review faces carry the anchor; the spec/plan doc faces never do (§3.2)", async () => {
+    const sync = new FakeSync();
+    sync.stdout = "status: APPROVED\n";
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      // the base artifact the CLI reads back at dispatch (the scope anchor source) —
+      // the same `base set` write-through the wave/branch faces resolve.
+      expect(
+        await command.runArgv([
+          "base",
+          "set",
+          "--plan",
+          plan,
+          "--base",
+          "develop",
+          "--source",
+          "plan-field",
+        ]),
+      ).toBe(0);
+      // seed the wave's implement round so the review face is dispatchable (the wave
+      // line advances implement → review as ONE train)
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader());
+      ledger.recordRound("1", "implement");
+      ledger.persistHandoff(
+        "implement",
+        "wave",
+        { tasks: "1" },
+        {
+          status: "APPROVED",
+          artifacts: {},
+        },
+      );
+      // A REAL dispatch (not --dry-run — the synthetic approval never reaches the
+      // lifecycle). The host is injected ambiently (the CLI's production dispatch
+      // reads process.env), so mark it and restore it.
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      const promptOf = async (argv: readonly string[]): Promise<string> => {
+        await command.runArgv([...argv, "--root", repoRoot]);
+        const call = sync.calls[sync.calls.length - 1]!;
+        return call.args[call.args.length - 1];
+      };
+      try {
+        // the wave tree-review face carries the anchor
+        const wave = await promptOf(["review", "--type", "wave", "--tasks", "1", "--plan", plan]);
+        expect(wave).toContain("- `BASE_BRANCH`: develop");
+        // the branch tree-review face carries the anchor
+        const branch = await promptOf(["review", "--type", "branch", "--plan", plan]);
+        expect(branch).toContain("- `BASE_BRANCH`: develop");
+        // the spec + plan doc faces never carry the anchor (the slot stays empty and
+        // the assembler drops it — only the tree-review faces resolve a scope axis)
+        const spec = await promptOf([
+          "review",
+          "--type",
+          "spec",
+          "--spec",
+          path.join(repoRoot, "docs", "kairos", "specs", "s1-design.md"),
+        ]);
+        expect(spec).not.toContain("BASE_BRANCH");
+        const planReview = await promptOf(["review", "--type", "plan", "--plan", plan]);
+        expect(planReview).not.toContain("BASE_BRANCH");
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
     } finally {
       cleanup();
     }
@@ -1970,6 +2045,66 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     }
   });
 
+  it("dogfood §3.7 — the same doc via an ABSOLUTE then a RELATIVE argv path lands ONE ledger line (the doc line keys by its line-type constant, never the argv string)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    const savedCwd = process.cwd();
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      // the RELATIVE spelling `docs/kairos/plans/p3.md` (readText resolves it against
+      // the process cwd — the same file the absolute path names)
+      const relativePlan = path.relative(repoRoot, plan);
+      expect(
+        await command.runArgv([
+          "review",
+          "--type",
+          "plan",
+          "--plan",
+          plan, // the ABSOLUTE argv spelling
+          "--dry-run",
+          "--root",
+          repoRoot,
+        ]),
+      ).toBe(0);
+      expect(io.stdoutText).toContain("next: done");
+      // The doc DRIFTS (a backfill edits the plan) so the second review reopens the
+      // line at the NEXT round rather than being refused as an unchanged doc.
+      writeFileSync(
+        plan,
+        readFileSync(plan, "utf8").replace("- delta", "- delta (drifted)"),
+        "utf8",
+      );
+      process.chdir(repoRoot); // the relative argv path resolves to the same file
+      io.stdoutText = "";
+      io.stderrText = "";
+      const relative = await command.runArgv([
+        "review",
+        "--type",
+        "plan",
+        "--plan",
+        relativePlan, // the RELATIVE argv spelling — the same file
+        "--dry-run",
+        "--root",
+        repoRoot,
+      ]);
+      expect(relative).toBe(0);
+      expect(io.stdoutText).toContain("next: done");
+      // ONE line under the line-type key `"plan"` — the two argv spellings did NOT
+      // fork a second row keyed by the other spelling; the round CONTINUED (2), it
+      // did not reset to 1 (the §3.7 dogfood fix)
+      const progress = readJson<{
+        waves: Array<{ wave: string; rounds?: Record<string, number> }>;
+      }>(path.join(repoRoot, ".kairos", "cdd", "p3", "progress.json"));
+      const planRows = progress.waves.filter((row) => row.wave.startsWith("plan"));
+      expect(planRows).toHaveLength(1);
+      expect(planRows[0]!.wave).toBe("plan");
+      expect(planRows[0]!.rounds?.review).toBe(2);
+    } finally {
+      process.chdir(savedCwd);
+      cleanup();
+    }
+  });
+
   it("T8 — an UNCHANGED fix-awaited doc stays rejected — the pending fix is derived (doc same + not APPROVED), never an independent field", async () => {
     const { command, io, repoRoot, cleanup } = fixture({
       dispatch: (frame: OpenFrame) =>
@@ -1978,7 +2113,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
               status: "CHANGES_REQUESTED",
               findings: [{ severity: "blocker", summary: "drift" }],
             }
-          : { status: "APPROVED", commits: { base: "a".repeat(8), head: "b".repeat(8) } },
+          : { status: "APPROVED" },
     });
     try {
       gitInit(repoRoot);
@@ -2025,7 +2160,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     const { command, io, repoRoot, cleanup } = fixture({
       dispatch: (frame: OpenFrame) =>
         frame.phase === "fix"
-          ? { status: "APPROVED", commits: { base: "a".repeat(8), head: "b".repeat(8) } }
+          ? { status: "APPROVED" }
           : {
               status: "CHANGES_REQUESTED",
               findings: [{ severity: "blocker", summary: "drift" }],
@@ -2134,6 +2269,63 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       ]);
       expect(code).toBe(1);
       expect(io.stdoutText).toContain("status: BLOCKED");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("dogfood §2.8 — a rejected fix round with a leftover APPROVED draft renders NO next: line (the verdict is single-sourced; a stale draft is never read back)", async () => {
+    // The round-verdict single-source pin: the child's fix write is REJECTED (the
+    // round stays BLOCKED and unrecorded), yet a stale APPROVED draft sits on disk
+    // at the fix path. The pre-fix engine re-read that draft from disk and rendered
+    // the self-contradictory `status: BLOCKED · next: done`; the gated round-read
+    // (§2.8) returns null for the unrecorded round → no next: line.
+    const { command, io, repoRoot, cleanup } = fixture({
+      dispatch: () => ({ status: "BLOCKED" }),
+    });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader());
+      // a recorded implement + blocker review round → the line awaits its fix
+      ledger.recordRound(1, "implement");
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1", round: 1 },
+        {
+          tasks: [1],
+          phase: "review",
+          findings: [{ severity: "blocker", summary: "drift" }],
+        },
+      );
+      ledger.recordRound(1, "review");
+      // the stale "successful-looking" fix draft the rejected child left behind — it
+      // must NOT be read back as the round's verdict
+      writeFileSync(
+        path.join(workspace.path, "tasks-1-fix-1.json"),
+        JSON.stringify({ status: "APPROVED", findings: [] }),
+        "utf8",
+      );
+      const code = await command.runArgv([
+        "fix",
+        "--type",
+        "wave",
+        "--tasks",
+        "1",
+        "--plan",
+        plan,
+        "--dry-run",
+        "--root",
+        repoRoot,
+      ]);
+      expect(code).toBe(1);
+      expect(io.stdoutText).toContain("status: BLOCKED");
+      // the verdict single-source face — zero next: line (the unrecorded round holds
+      // no route; the stale draft is never consulted)
+      expect(io.stdoutText).not.toContain("next: done");
+      expect(io.stdoutText).not.toMatch(/^next:/m);
     } finally {
       cleanup();
     }
@@ -2368,7 +2560,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
   it("T6 — probe A: the end-to-end dry-run implement + fix final carriers carry zero findings keys — both work-face materialization legs (implement + wave fix)", async () => {
     const { command, repoRoot, cleanup } = fixture();
     try {
-      const head = gitInit(repoRoot);
+      gitInit(repoRoot);
       const plan = planFor(repoRoot);
       // the implement leg — the dry-run dispatch persists the work-face final carrier
       expect(
@@ -2401,7 +2593,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
           tasks: [1],
           phase: "review",
           findings: [{ severity: "blocker", summary: "drift" }],
-          commits: { base: head, head },
         },
       );
       ledger.recordRound(1, "review");
@@ -2450,7 +2641,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
           tasks: [1],
           phase: "review",
           findings: [],
-          commits: { base: "a".repeat(8), head: "b".repeat(8) },
         },
       );
       ledger.recordRound(1, "review");
@@ -2602,7 +2792,7 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
               status: "CHANGES_REQUESTED",
               findings: [{ severity: "warn", summary: "drift" }],
             }
-          : { status: "APPROVED", commits: { base: "a".repeat(8), head: "b".repeat(8) } };
+          : { status: "APPROVED" };
       },
     });
     try {
@@ -3824,7 +4014,6 @@ describe("the HarnessDispatch — the production dispatch default", () => {
             report: path.join(scene.workspace.path, "tasks-1-fix-1-report.md"),
             test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
           },
-          commits: { base: "a".repeat(8), head: "b".repeat(8) },
         }),
         "utf8",
       );
@@ -3873,7 +4062,6 @@ describe("the HarnessDispatch — the production dispatch default", () => {
             report: path.join(scene.workspace.path, "tasks-1-fix-1-report.md"),
             test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
           },
-          commits: { base: "a".repeat(8), head: "b".repeat(8) },
         }),
         "utf8",
       );
@@ -4050,10 +4238,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
       const sync = new FakeSync();
-      sync.stdout =
-        "status: APPROVED\ncommits: base=aaaaaaaa head=bbbbbbbb\nartifacts: brief=/b report=/r test_evidence=/t\n";
-      // a valid fix draft — commits in the 8-char living form (find #10)
-      const head = "b".repeat(8);
+      sync.stdout = "status: APPROVED\nartifacts: report=/r test_evidence=/t\n";
       writeFileSync(
         path.join(scene.workspace.path, "branch-fix-1.json"),
         JSON.stringify({
@@ -4063,7 +4248,6 @@ describe("the HarnessDispatch — the production dispatch default", () => {
             report: path.join(scene.workspace.path, "branch-fix-1-report.md"),
             test_evidence: path.join(scene.workspace.path, "branch-test-evidence.json"),
           },
-          commits: { base: "a".repeat(8), head },
         }),
         "utf8",
       );
@@ -4132,6 +4316,29 @@ describe("T9 — the destroy-list zero-residual sweep (spec §6.3 cross-referenc
     ] as const;
     for (const [file, text] of engineSourceTexts()) {
       for (const name of destroyed) {
+        expect(text, `${name} must not survive in ${file}`).not.toContain(name);
+      }
+    }
+  });
+
+  it("the retired commit-sha vocabulary carries zero residual across the engine source (spec §7.4)", () => {
+    // The sha surface retired engine-wide (§2): no source file names the retired
+    // scope tokens (WAVE_BASE / FIX_BASE / INPUT_RANGE / INPUT_PLAN) or the
+    // retired git/BranchRef members (revParseHead / BranchRef) — the GitClient
+    // holds only topLevel + isClean, the review carries the single doc anchor
+    // (INPUT_DOC), and the branch scope rides the base artifact's BASE_BRANCH.
+    // The pin is construction-establishment-level: it fails if any retired name
+    // resurfaces in a non-test source file.
+    const retiredShaVocab = [
+      "WAVE_BASE",
+      "FIX_BASE",
+      "INPUT_RANGE",
+      "INPUT_PLAN",
+      "revParseHead",
+      "BranchRef",
+    ] as const;
+    for (const [file, text] of engineSourceTexts()) {
+      for (const name of retiredShaVocab) {
         expect(text, `${name} must not survive in ${file}`).not.toContain(name);
       }
     }

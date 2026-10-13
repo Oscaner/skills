@@ -61,6 +61,25 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(assembler.declaredTokens()).not.toContain("INPUT_RULES");
   });
 
+  it("renders the two-line return contract — exactly status + artifacts, the commits line retired (§2.4)", () => {
+    // The `## Return` zone prescribes exactly two command lines inside its fence:
+    // `status:` then `artifacts:`. The retired `commits:` line must not survive
+    // anywhere in the assembled prompt (the child returns status + artifacts; the
+    // engine appends the counters/next lines — never the child's).
+    const out = assembler.render(ALL_VALUES);
+    const fence = out.split("```")[1];
+    expect(fence).toBeDefined();
+    const commandLines = fence!
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+    expect(commandLines).toEqual([
+      "status: <APPROVED|BLOCKED>",
+      "artifacts: report=<path> test_evidence=<path>",
+    ]);
+    expect(out).not.toContain("commits:");
+  });
+
   it("assembles the implement mode — the fixed prefix + the reduced round context", () => {
     const out = assembler.render(ALL_VALUES);
     expect(out.startsWith("# CDD dispatch — implement round")).toBe(true);
@@ -201,7 +220,22 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(task).toContain("- `BASE_BRANCH`: develop");
     expect(task).not.toContain("Follow URC");
     expect(task).not.toContain("Claimed→pin"); // the task axes carry no clause
-    // a plan review carries the same claimed→pin clause as the spec variant
+    // a branch review carries the single doc anchor (the plan) + the scope anchor
+    // BASE_BRANCH — the shared review layout carries the slot (§3.1/§3.2)
+    const branch = assembler.render({
+      ...ALL_VALUES,
+      ROLE: "review",
+      REVIEW_TYPE: "branch",
+      INPUT_WAVE_BRIEF: "",
+      INPUT_DOC: "docs/kairos/plans/p.md",
+      BASE_BRANCH: "develop",
+      OUTPUT_HANDOFF: "/ws/branch-review-1.json",
+    });
+    expect(branch).toContain("- `INPUT_DOC`: docs/kairos/plans/p.md");
+    expect(branch).toContain("- `BASE_BRANCH`: develop");
+    // a plan review carries the same claimed→pin clause as the spec variant; the
+    // semantic spec/plan-absent anchor rule (the tree-review faces only) is the
+    // lifecycle-injection concern — pinned at the CLI dispatch face (cli.test.ts)
     const plan = assembler.render({
       ...ALL_VALUES,
       ROLE: "review",

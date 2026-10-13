@@ -115,9 +115,9 @@ describe("the faces table — one row per target type", () => {
     expect(face.nextSemantics.batch).toBe(true);
   });
 
-  it("branch — the branch-range audit, the branch-review lead, no batch", () => {
+  it("branch — the branch-tree audit, the branch-review lead, no batch", () => {
     const face = targetFaces.branch as TargetFace;
-    expect(face.audit).toEqual({ kind: "branch-range" });
+    expect(face.audit).toEqual({ kind: "branch-tree" });
     expect(face.product.reviewLead).toBe("branch-review");
     expect(face.nextSemantics.batch).toBe(false);
   });
@@ -721,7 +721,7 @@ describe("T2 — the bookkeep fallback rides the frame's declared face", () => {
 });
 
 describe("the branch small loop — branch-review → fix → closure", () => {
-  it("drives the branch line over the base..head range (the r{round} family names)", () => {
+  it("drives the branch line over the live tree (the r{round} family names)", () => {
     const { ledger, cleanup } = fixture();
     try {
       let reviews = 0;

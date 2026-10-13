@@ -1597,7 +1597,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     }
   });
 
-  it("review --type branch — the branch-range face over base..head", async () => {
+  it("review --type branch — the live-tree branch face", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);

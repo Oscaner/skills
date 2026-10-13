@@ -174,7 +174,7 @@ export class Lifecycle {
   readonly #router: NextStepRouter;
   /** The dispatch instruction — the round's actual work, injected. */
   readonly #dispatch: DispatchStep;
-  /** The fixed audit target of a branch-range / doc-path face (the task face
+  /** The fixed audit target of a branch-tree / doc-path face (the task face
    *  resolves it from the frontier). */
   readonly #target: AuditTarget | null;
   /** The attached capsule face — null = the step advances output-less. */
@@ -192,7 +192,7 @@ export class Lifecycle {
     ledger: Ledger;
     dispatch: DispatchStep;
     router?: NextStepRouter;
-    /** The fixed audit target for a branch-range / doc-path face. */
+    /** The fixed audit target for a branch-tree / doc-path face. */
     target?: AuditTarget;
     /** The capsule face to attach at construction (optional — the seam is non-hard). */
     capsule?: CapsuleFace | null;

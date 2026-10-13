@@ -30,14 +30,14 @@ export type ReviewLead = "review" | "branch-review";
 export type AuditFace =
   /** task: the open item resolves from the TaskGraph frontier (a task id). */
   | { kind: "task-graph" }
-  /** branch: the open item is the branch diff range (base..head shas). */
-  | { kind: "branch-range" }
+  /** branch: the open item is the branch line itself (the live tree — no diff range). */
+  | { kind: "branch-tree" }
   /** spec/plan: the open item is the audit document path. */
   | { kind: "doc-path" };
 
 /** The target identity a dispatch-ready `next:` literal renders (v1.25 · P4.1 T4) —
  *  the frame's OWN facts (verb + target-type + id), never a router judgment: the wave
- *  task key · the branch range token · the doc path. The optional `plan` carries the
+ *  task key · the branch line key · the doc path. The optional `plan` carries the
  *  plan path the implement literal's required `--plan` fills (the wave/task-face
  *  frame's only implement-consuming fact). */
 export interface RouteTarget {
@@ -91,7 +91,7 @@ export const targetFaces: Record<TargetType, TargetFace> = {
   },
   branch: {
     type: "branch",
-    audit: { kind: "branch-range" },
+    audit: { kind: "branch-tree" },
     product: { reviewLead: "branch-review" },
     nextSemantics: { batch: false },
   },

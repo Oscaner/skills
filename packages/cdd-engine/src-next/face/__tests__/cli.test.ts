@@ -252,7 +252,7 @@ const conformingPlan = (repoRoot: string): string => {
  *  resolving into existing same-family siblings. The overall charter is the
  *  GOOD_OVERALL judge fixture shape (judge.test.ts:19-71) with the `o1-` names
  *  the temp repo actually holds — the review face's doc-contract gate must judge it
- *  under the overall key (zero phase-spec misreport on the doc-key derivation). */
+ *  under the overall-spec key (zero phase-spec misreport on the doc-key derivation). */
 const conformingOverall = (repoRoot: string): string => {
   const file = path.join(repoRoot, "docs", "kairos", "specs", "o1-overall.md");
   mkdirSync(path.dirname(file), { recursive: true });
@@ -271,7 +271,7 @@ const conformingOverall = (repoRoot: string): string => {
       "## File paths",
       "| Artifact | Path |",
       "| --- | --- |",
-      "| overall | docs/kairos/specs/o1-overall.md |",
+      "| overall-spec | docs/kairos/specs/o1-overall.md |",
       "",
       "## Program charter",
       "### Goal",
@@ -613,7 +613,7 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
       const code = await command.runArgv(["schema", "get", "bogus"]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain(
-        "unknown schema type: bogus (available: overall, plan, phase-spec, plan-graph)",
+        "unknown schema type: bogus (available: overall-spec, plan, phase-spec, single-spec, plan-graph)",
       );
     } finally {
       cleanup();
@@ -629,8 +629,8 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
     expect(get.processedArgs[0]).toBe("phase-spec");
     gate.parse(["schema", "get", "plan"], { from: "user" });
     expect(get.processedArgs[0]).toBe("plan");
-    gate.parse(["schema", "get", "overall"], { from: "user" });
-    expect(get.processedArgs[0]).toBe("overall");
+    gate.parse(["schema", "get", "overall-spec"], { from: "user" });
+    expect(get.processedArgs[0]).toBe("overall-spec");
     // D19 — the target positional rides the merged leaf (mandatory only under
     // --output skeleton, an engine-declared parameter rather than a shell redirect)
     gate.parse(["schema", "get", "phase-spec", "--output", "skeleton", "/tmp/demo.md"], {
@@ -1634,7 +1634,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     }
   });
 
-  it("review --type spec of an -overall.md — the overall doc-key face (zero phase-spec misreport)", async () => {
+  it("review --type spec of an -overall.md — the overall-spec doc-key face (zero phase-spec misreport)", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
@@ -1651,7 +1651,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       ]);
       expect(overallCode).toBe(0);
       expect(io.stdoutText).toContain("next: done");
-      // The overall was judged under the overall key (deriveDocType, design spec
+      // The overall was judged under the overall-spec key (deriveDocType, design spec
       // §2.3) — a phase-spec misjudge would trip the doc-contract gate: the charter
       // fails the phase-spec face, the pre-flight refuses over CDD_BLOCKED and no
       // round lands. The exit 0 + round + empty-findings carrier pin the zero
@@ -2674,7 +2674,7 @@ describe("the pure commands — schema / issue / base", () => {
       const code = await command.runArgv(["schema", "get", "bogus"]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain(
-        "unknown schema type: bogus (available: overall, plan, phase-spec, plan-graph)",
+        "unknown schema type: bogus (available: overall-spec, plan, phase-spec, single-spec, plan-graph)",
       );
     } finally {
       cleanup();
@@ -2709,6 +2709,58 @@ describe("the pure commands — schema / issue / base", () => {
       expect(text.endsWith("\n")).toBe(true);
       expect(text.endsWith("\n\n")).toBe(false);
       expect(io.stdoutText.trim()).toBe(target);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("schema get single-spec — the fourth doc-type channel: the json render without a target, the skeleton render into a required target", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      // the json render face — the derived single-spec declaration, no target
+      let code = await command.runArgv(["schema", "get", "single-spec"]);
+      expect(code).toBe(0);
+      expect(io.stdoutText).toContain('"docType": "single-spec"');
+      expect(io.stdoutText).toContain('"## Background & root cause"');
+      io.stdoutText = "";
+      // the skeleton render face — the lightweight scaffold written DIRECTLY into
+      // the target (the P5 conditional-required target mechanism)
+      const target = path.join(repoRoot, "docs", "single-spec-skeleton.md");
+      mkdirSync(path.dirname(target), { recursive: true });
+      code = await command.runArgv([
+        "schema",
+        "get",
+        "single-spec",
+        "--output",
+        "skeleton",
+        target,
+      ]);
+      expect(code).toBe(0);
+      const text = readFileSync(target, "utf8");
+      // the header five-tuple without the phase-spec's Parent program
+      expect(text).toContain("- **Version**: v0.1 · ");
+      expect(text).toContain("- **Status**: Draft");
+      expect(text).toContain("- **Author**: :::fill author");
+      expect(text).toContain("- **Depends on**: :::fill depends-on");
+      expect(text).not.toContain("**Parent program**");
+      // the prose `:::fill` body + the change-history lineage — no `### N.` outline
+      expect(text).toContain("## Background & root cause");
+      expect(text).toContain(":::fill background-root-cause");
+      expect(text).toContain("## Design decisions");
+      expect(text).toContain("## Acceptance");
+      expect(text).toContain("## Constraints");
+      expect(text).not.toContain("### N.");
+      expect(text).toContain("## Change history");
+      expect(text).toContain("| v0.1 | ");
+      // the written doc ends with exactly one newline — the EOF rule
+      expect(text.endsWith("\n")).toBe(true);
+      expect(text.endsWith("\n\n")).toBe(false);
+      expect(io.stdoutText.trim()).toBe(target);
+      // a missing <target> under --output skeleton exits 2 with the conditional-required byte
+      io.stderrText = "";
+      code = await command.runArgv(["schema", "get", "single-spec", "--output", "skeleton"]);
+      expect(code).toBe(2);
+      expect(io.stderrText).toContain("cdd schema get --output skeleton: missing <target>");
     } finally {
       cleanup();
     }
@@ -3032,7 +3084,7 @@ describe("T3 — the commander-native composition root: program parse + .action 
       const code = await command.runArgv(["schema", "get", "bogus"]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain(
-        "unknown schema type: bogus (available: overall, plan, phase-spec, plan-graph)",
+        "unknown schema type: bogus (available: overall-spec, plan, phase-spec, single-spec, plan-graph)",
       );
     } finally {
       cleanup();

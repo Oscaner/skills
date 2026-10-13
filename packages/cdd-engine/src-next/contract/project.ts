@@ -44,8 +44,8 @@ import type {
   RegistryElement,
 } from "./declare.ts";
 
-/** The projection record keys — mirrors the declared-registries record shape ({ overall, plan, phase-spec }). */
-export type DocKey = "overall" | "plan" | "phase-spec";
+/** The projection record keys — mirrors the declared-registries record shape ({ "overall-spec", plan, "phase-spec", "single-spec" }). */
+export type DocKey = "overall-spec" | "plan" | "phase-spec" | "single-spec";
 
 // ---------------------------------------------------------------------------
 // shared derivation chain
@@ -301,32 +301,32 @@ export class Projector {
     this.#registries = registries;
   }
 
-  /** Derive all three doc types' section-skeleton faces. */
+  /** Derive all four doc types' section-skeleton faces. */
   shape(): ShapeProjection {
     return this.#projectAll((registry) => this.#projectDocShape(registry));
   }
 
-  /** Derive all three doc types' JSON Schema faces. */
+  /** Derive all four doc types' JSON Schema faces. */
   schema(): SchemaProjection {
     return this.#projectAll((registry) => this.#projectDocSchema(registry));
   }
 
-  /** Derive all three doc types' parse-regex faces. */
+  /** Derive all four doc types' parse-regex faces. */
   slices(): SlicesProjection {
     return this.#projectAll((registry) => this.#projectDocSlices(registry));
   }
 
-  /** Derive all three doc types' anchor lexicons. */
+  /** Derive all four doc types' anchor lexicons. */
   tokens(): TokensProjection {
     return this.#projectAll((registry) => this.#projectDocTokens(registry));
   }
 
-  /** Derive all three doc types' reference vocabularies. */
+  /** Derive all four doc types' reference vocabularies. */
   reference(): ReferenceProjection {
     return this.#projectAll((registry) => this.#projectDocReference(registry));
   }
 
-  /** Derive all three doc types' required-only doc-skeleton faces. */
+  /** Derive all four doc types' required-only doc-skeleton faces. */
   skeleton(): SkeletonProjection {
     return this.#projectAll((registry) => this.#projectDocSkeleton(registry));
   }
@@ -373,12 +373,13 @@ export class Projector {
     return registry.elements.map((element) => this.#deriveElement(element));
   }
 
-  /** Map a per-registry projector across the three injected registries, keyed by their record identity. */
+  /** Map a per-registry projector across the four injected registries, keyed by their record identity. */
   #projectAll<T>(project: (registry: ElementRegistry) => T): Record<DocKey, T> {
     return {
-      overall: project(this.#registries.overall),
+      "overall-spec": project(this.#registries["overall-spec"]),
       plan: project(this.#registries.plan),
       "phase-spec": project(this.#registries["phase-spec"]),
+      "single-spec": project(this.#registries["single-spec"]),
     };
   }
 

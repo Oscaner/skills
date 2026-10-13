@@ -20,7 +20,7 @@
   "license": "MIT",
   "bin": {},
   "scripts": {
-    "test": "node --test tests/*.test.ts"
+    "test": "vitest run"
   },
   "pi": {
     "skills": [
@@ -38,6 +38,9 @@
   ],
   "dependencies": {
     "@oscaner-skills/cdd-engine": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.3"
   },
   "oscaner": {
     "claude": {

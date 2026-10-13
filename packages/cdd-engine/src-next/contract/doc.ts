@@ -3,7 +3,7 @@
 // pared down to parse + projection consumption + the cross-doc chain root; zero
 // judgment methods on the class face).
 //
-// The three DocType classes own exactly three surfaces:
+// The four DocType classes own exactly three surfaces:
 //   · parse          — structural extraction: overall → the four tables (File paths /
 //                      Issue inventory / Phase inventory / Change history) + the
 //                      dependency-graph edge lines; plan → the `### Task N:` blocks
@@ -28,7 +28,7 @@ import type { DocKey, DocShape, DocSlices, ElementSlice } from "./project.ts";
 import { Projector } from "./project.ts";
 
 /** The projection carrier — one Projector instance over the declared registries,
- *  shared by the three parser classes (each binds its own doc-type faces). */
+ *  shared by the four parser classes (each binds its own doc-type faces). */
 const projector = new Projector(declaredRegistries);
 
 // ---------------------------------------------------------------------------
@@ -108,7 +108,7 @@ export interface ChainLink {
  */
 export interface ChainRoot {
   /** The doc-type identity of the chain root's document. */
-  docType: "overall" | "plan" | "phase-spec";
+  docType: "overall-spec" | "plan" | "phase-spec" | "single-spec";
   /** The `**Parent program**` link (Class-B) — the parent overall reference of a
    *  plan/spec document; null for the overall (the chain root itself). */
   parentLink: ChainLink | null;
@@ -125,7 +125,7 @@ export interface ChainRoot {
 
 /** The overall parse record — the four tables, the graph edges and the chain root. */
 export interface OverallParsed {
-  docType: "overall";
+  docType: "overall-spec";
   /** The `# Title` line verbatim. */
   title: string;
   /** The header bullet lines (between the title and the first section heading). */
@@ -213,8 +213,17 @@ export interface PhaseSpecParsed {
   chain: ChainRoot;
 }
 
+/** The single-spec parse record — the header five-tuple and the prose section surface. */
+export interface SingleSpecParsed {
+  docType: "single-spec";
+  title: string;
+  headerLines: readonly string[];
+  sections: readonly SectionBlock[];
+  chain: ChainRoot;
+}
+
 /** The parsed-document union — one record per doc type. */
-export type ParsedDoc = OverallParsed | PlanParsed | PhaseSpecParsed;
+export type ParsedDoc = OverallParsed | PlanParsed | PhaseSpecParsed | SingleSpecParsed;
 
 // ---------------------------------------------------------------------------
 // the shared markdown primitives — one home for the link/token/table-row parsers
@@ -299,7 +308,7 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
   /** The derived section skeleton (shape projection) of this doc type. */
   readonly shape: DocShape;
   /** The doc-type name as carried by a conforming document's parse record. */
-  abstract readonly docTypeName: "overall" | "plan" | "phase-spec";
+  abstract readonly docTypeName: "overall-spec" | "plan" | "phase-spec" | "single-spec";
 
   /** The per-anchor slice lookup — the parse face's locating patterns. */
   readonly #slicesByAnchor: ReadonlyMap<string, ElementSlice>;
@@ -475,7 +484,7 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
 }
 
 // ---------------------------------------------------------------------------
-// the three concrete doc types
+// the four concrete doc types
 // ---------------------------------------------------------------------------
 
 /**
@@ -483,7 +492,7 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
  * graph, and exposes the Phase-inventory rows as the chain's anchor set.
  */
 export class OverallDocType extends DocType<OverallParsed> {
-  readonly docTypeName = "overall" as const;
+  readonly docTypeName = "overall-spec" as const;
 
   parse(lines: readonly string[]): OverallParsed {
     const title = lines[0] ?? "";
@@ -500,14 +509,14 @@ export class OverallDocType extends DocType<OverallParsed> {
     const graphEdges = this.#graphEdges(sections);
     const phases = this.#phaseRows(tables["Phase inventory"]);
     return {
-      docType: "overall",
+      docType: "overall-spec",
       title,
       headerLines,
       sections,
       tables,
       graphEdges,
       chain: {
-        docType: "overall",
+        docType: "overall-spec",
         parentLink: null,
         specLink: null,
         parentTokens: [],
@@ -694,13 +703,51 @@ export class PhaseSpecDocType extends DocType<PhaseSpecParsed> {
   }
 }
 
+/**
+ * The single-spec doc type — parses the header five-tuple surface and the prose
+ * section surface. A single-spec carries no parent overall and no `### N.`
+ * design outline, so the parse degrades the chain root to its null-link face
+ * (the `**Depends on**` header value is the only chain fact carried).
+ */
+export class SingleSpecDocType extends DocType<SingleSpecParsed> {
+  readonly docTypeName = "single-spec" as const;
+
+  parse(lines: readonly string[]): SingleSpecParsed {
+    const title = lines[0] ?? "";
+    const blocks = this.headingBlocks(lines);
+    const headerLines = this.headerLines(blocks);
+    return {
+      docType: "single-spec",
+      title,
+      headerLines,
+      sections: this.sections(blocks),
+      chain: this.chainRoot(headerLines),
+    };
+  }
+
+  /** The single-spec chain root — the degraded face: no parent link / no spec
+   *  link (the independent-program shape), the `**Depends on**` value only. */
+  chainRoot(headerLines: readonly string[]): ChainRoot {
+    const dependsOnLine = this.markerLine(headerLines, "**Depends on**");
+    return {
+      docType: "single-spec",
+      parentLink: null,
+      specLink: null,
+      parentTokens: [],
+      phases: [],
+      dependsOn: dependsOnLine === null ? null : this.markerValue(dependsOnLine, "**Depends on**"),
+    };
+  }
+}
+
 // ---------------------------------------------------------------------------
-// composition root — the three parsers by doc-key
+// composition root — the four parsers by doc-key
 // ---------------------------------------------------------------------------
 
 /** The composed doc-type parsers — the judge's ctx-loading parsers (one per doc key). */
 export const docTypeParsers: Record<DocKey, DocType<ParsedDoc>> = {
-  overall: new OverallDocType("overall"),
+  "overall-spec": new OverallDocType("overall-spec"),
   plan: new PlanDocType("plan"),
   "phase-spec": new PhaseSpecDocType("phase-spec"),
+  "single-spec": new SingleSpecDocType("single-spec"),
 };

@@ -1,7 +1,7 @@
 // packages/cdd-engine/src-next/render/__tests__/skeleton.test.ts
 // The SkeletonAssembler suite (P2 — the `cdd schema get <type> --output skeleton`
 // render face, spec §3/§4.1):
-//   · the three doc skeletons render the complete structural scaffolds — byte-
+//   · the four doc skeletons render the complete structural scaffolds — byte-
 //     pinned from the P2 first version (the assembler's date is the injectable
 //     run-day truth, fixed here — never a live clock);
 //   · the placeholder-anchoring probes (spec §4.1): pure content slots take
@@ -56,7 +56,7 @@ const SEMANTIC_PROBES: Record<string, string> = {
   "Implementation plan cell": "| Pending |",
   "Design spec cell": "| [Pending] |",
   "Dependency cell": ":::fill dependency",
-  "File path row": "| overall | `:::fill overall-path` |",
+  "File path row": "| overall-spec | `:::fill overall-path` |",
   "Change history row": "| v0.1 |",
   "Version token": "| v0.1 |",
   "Change history date": DATE,
@@ -77,7 +77,7 @@ const probeOf = (anchor: string): string => {
   return anchor;
 };
 
-describe("SkeletonAssembler — the three doc skeletons (byte pins)", () => {
+describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
   it("renders the phase-spec skeleton — the header five-tuple + the Design double layer + the lineage", () => {
     expect(renderOf("phase-spec")).toBe(
       [
@@ -145,7 +145,7 @@ describe("SkeletonAssembler — the three doc skeletons (byte pins)", () => {
   });
 
   it("renders the overall skeleton — the header tuple + the table sections + the dependency graph", () => {
-    expect(renderOf("overall")).toBe(
+    expect(renderOf("overall-spec")).toBe(
       [
         "# :::fill title",
         "- **Version**: v0.1 · 2026-10-11",
@@ -161,7 +161,7 @@ describe("SkeletonAssembler — the three doc skeletons (byte pins)", () => {
         "",
         "| Artifact | Path |",
         "| --- | --- |",
-        "| overall | `:::fill overall-path` |",
+        "| overall-spec | `:::fill overall-path` |",
         "",
         "## Program charter",
         "",
@@ -211,11 +211,45 @@ describe("SkeletonAssembler — the three doc skeletons (byte pins)", () => {
       ].join("\n"),
     );
   });
+
+  it("renders the single-spec skeleton — the header five-tuple + the prose sections + the lineage", () => {
+    expect(renderOf("single-spec")).toBe(
+      [
+        "# :::fill title",
+        "- **Version**: v0.1 · 2026-10-11",
+        "- **Status**: Draft",
+        "- **Author**: :::fill author",
+        "- **Depends on**: :::fill depends-on",
+        "",
+        "## Background & root cause",
+        "",
+        ":::fill background-root-cause",
+        "",
+        "## Design decisions",
+        "",
+        ":::fill design-ruling",
+        "",
+        "## Acceptance",
+        "",
+        ":::fill acceptance",
+        "",
+        "## Constraints",
+        "",
+        ":::fill constraints",
+        "",
+        "## Change history",
+        "",
+        "| Version | date | summary | author |",
+        "| --- | --- | --- | --- |",
+        "| v0.1 | 2026-10-11 | :::fill summary | :::fill author |",
+      ].join("\n"),
+    );
+  });
 });
 
 describe("SkeletonAssembler — the required-anchor coverage probes (§3.2)", () => {
-  it("carries every required anchor of the three doc types (the live registry set)", () => {
-    for (const key of ["overall", "plan", "phase-spec"] as const) {
+  it("carries every required anchor of the four doc types (the live registry set)", () => {
+    for (const key of ["overall-spec", "plan", "phase-spec", "single-spec"] as const) {
       const rendered = renderOf(key);
       for (const anchor of requiredAnchorsOf(key)) {
         // The grep probe per anchor — the skeleton line form of the anchor lands
@@ -238,7 +272,7 @@ describe("SkeletonAssembler — the required-anchor coverage probes (§3.2)", ()
   });
 
   it("renders the version row and the change-history first row with the injected date truth", () => {
-    for (const key of ["overall", "plan", "phase-spec"] as const) {
+    for (const key of ["overall-spec", "plan", "phase-spec", "single-spec"] as const) {
       const rendered = renderOf(key);
       // the version row — v0.1 · the injected run date (real shape hit, never a
       // `<date>` notation marker)
@@ -254,15 +288,15 @@ describe("SkeletonAssembler — the required-anchor coverage probes (§3.2)", ()
   });
 
   it("renders the generator truths — the enum Status line and the graph rows", () => {
-    for (const key of ["overall", "phase-spec"] as const) {
+    for (const key of ["overall-spec", "phase-spec"] as const) {
       expect(renderOf(key)).toContain("- **Status**: Draft");
     }
-    expect(renderOf("overall")).toContain("P1 -> P2");
-    expect(renderOf("overall")).toContain("- `->` = hard block");
+    expect(renderOf("overall-spec")).toContain("P1 -> P2");
+    expect(renderOf("overall-spec")).toContain("- `->` = hard block");
   });
 
   it("renders every content position as a `:::fill <slot>` slot", () => {
-    for (const key of ["overall", "plan", "phase-spec"] as const) {
+    for (const key of ["overall-spec", "plan", "phase-spec", "single-spec"] as const) {
       const rendered = renderOf(key);
       expect(rendered).toMatch(/:::fill \S+/g);
       // the fill values are the declared slot names — never a residual `<…>`
@@ -285,7 +319,7 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
    *  fixed heading lines, the version row, the Status truth, the link anchors,
    *  the graph rows and the table headers/separators. */
   const STRUCTURE_LINES: Record<string, readonly string[]> = {
-    overall: [
+    "overall-spec": [
       "- **Version**: v0.1 · 2026-10-11",
       "- **Status**: Draft",
       "## Document scope",
@@ -331,10 +365,21 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
       "| Version | date | summary | author |",
       "| --- | --- | --- | --- |",
     ],
+    "single-spec": [
+      "- **Version**: v0.1 · 2026-10-11",
+      "- **Status**: Draft",
+      "## Background & root cause",
+      "## Design decisions",
+      "## Acceptance",
+      "## Constraints",
+      "## Change history",
+      "| Version | date | summary | author |",
+      "| --- | --- | --- | --- |",
+    ],
   };
 
   it("lands every `:::fill` on a content position — zero on the structure/truth/link/header rows", () => {
-    for (const key of ["overall", "plan", "phase-spec"] as const) {
+    for (const key of ["overall-spec", "plan", "phase-spec", "single-spec"] as const) {
       const lines = renderOf(key).split("\n");
       for (const line of lines) {
         if (!line.includes(":::fill")) continue;
@@ -345,7 +390,7 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
   });
 
   it("keeps structure true — the fixed headings and table headers carry no fill", () => {
-    for (const key of ["overall", "plan", "phase-spec"] as const) {
+    for (const key of ["overall-spec", "plan", "phase-spec", "single-spec"] as const) {
       const rendered = renderOf(key);
       for (const line of STRUCTURE_LINES[key]) {
         expect(rendered, `${key}: ${line}`).toContain(line);
@@ -356,8 +401,8 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
 });
 
 describe("SkeletonAssembler — the slot-consumption invariant (composition vs registry)", () => {
-  it("consumes every required slot of the three live projections — render() never trips the assertion", () => {
-    for (const key of ["overall", "plan", "phase-spec"] as const) {
+  it("consumes every required slot of the four live projections — render() never trips the assertion", () => {
+    for (const key of ["overall-spec", "plan", "phase-spec", "single-spec"] as const) {
       expect(() => renderOf(key)).not.toThrow();
     }
   });
@@ -396,7 +441,7 @@ describe("SkeletonAssembler — the slot-consumption invariant (composition vs r
 
 describe("SkeletonAssembler — the EOF rule", () => {
   it("render() never ends with a newline or a blank line — the redirected fixture ends with exactly one `\\n`", () => {
-    for (const key of ["overall", "plan", "phase-spec"] as const) {
+    for (const key of ["overall-spec", "plan", "phase-spec", "single-spec"] as const) {
       const rendered = renderOf(key);
       expect(rendered.endsWith("\n"), `${key}: no trailing newline from render`).toBe(false);
       expect(rendered.endsWith("\n\n") || rendered.endsWith(" \n"), `${key}: no blank tail`).toBe(

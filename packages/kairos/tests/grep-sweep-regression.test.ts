@@ -1,11 +1,10 @@
 // packages/kairos/tests/grep-sweep-regression.test.ts — P13 grep sweep regression guard
 // Verifies all deleted-skill tokens remain zero in the in-scope tree.
 
-import assert from "node:assert/strict";
 import { execSync } from "node:child_process";
 import path from "node:path";
-import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { expect, test } from "vitest";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..", "..", "..");
@@ -23,14 +22,14 @@ const DOC_ROOT_EXCLUDE_PATHS = ["specs", "plans"].map(
 const DOC_ROOT_EXCLUDES = DOC_ROOT_EXCLUDE_PATHS.map((p) => `| grep -v "${p}" `).join("");
 const DOC_ROOT_PREFIX = `| grep -v "${DOC_ROOT_SEGMENTS.join("/")}/" `;
 
-function grepCount(pattern: string, extraArgs = "") {
+const grepCount = (pattern: string, extraArgs = "") => {
   try {
     const cmd = `grep -rn "${pattern}" ${extraArgs} packages/ docs/ README.md marketplace/source.json --include="*.md" --include="*.json" --include="*.ts" 2>/dev/null | grep -v "/CHANGELOG.md" ${DOC_ROOT_EXCLUDES}| grep -v "grep-sweep-regression.test.ts" | wc -l`;
     return parseInt(execSync(cmd, { cwd: REPO, encoding: "utf8" }).trim(), 10);
   } catch {
     return 0;
   }
-}
+};
 
 // Tokens that must be zero in-scope
 const TOKENS = [
@@ -56,7 +55,7 @@ const SKILL_ONLY_TOKENS = [
 for (const [token, desc] of TOKENS) {
   test(`grep sweep: "${token}" (${desc}) → 0 hits`, () => {
     const count = grepCount(token);
-    assert.equal(count, 0, `"${token}" has ${count} in-scope hits — expected 0`);
+    expect(count, `"${token}" has ${count} in-scope hits — expected 0`).toBe(0);
   });
 }
 
@@ -65,7 +64,7 @@ for (const [token, desc] of SKILL_ONLY_TOKENS) {
   test(`grep sweep: "${token}" in SKILL.md (${desc}) → 0 hits`, () => {
     const cmd = `grep -rn "${token}" packages/kairos/skills/ --include="SKILL.md" 2>/dev/null | wc -l`;
     const count = parseInt(execSync(cmd, { cwd: REPO, encoding: "utf8" }).trim(), 10);
-    assert.equal(count, 0, `"${token}" found in ${count} SKILL.md files`);
+    expect(count, `"${token}" found in ${count} SKILL.md files`).toBe(0);
   });
 }
 
@@ -78,7 +77,7 @@ test('grep sweep: "--prompt" in live code (excl. engine tests) → 0 hits', () =
   // pins fixture (plan-migration-pins.json) carries the same frozen-history class on the plan side.
   const cmd = `grep -rn "\\-\\-prompt" packages/ --include="*.md" --include="*.json" --include="*.ts" 2>/dev/null | grep -v "/CHANGELOG.md" | grep -v "bin/engine/tests/" | grep -v "grep-sweep-regression.test.ts" | grep -v "tree-migration.test.ts" | grep -v "plan-migration-pins.json" | wc -l`;
   const count = parseInt(execSync(cmd, { cwd: REPO, encoding: "utf8" }).trim(), 10);
-  assert.equal(count, 0, `"--prompt" has ${count} live-code hits`);
+  expect(count, `"--prompt" has ${count} live-code hits`).toBe(0);
 });
 
 // docs/cdd-reference old path (should not appear as ../docs/cdd-reference)
@@ -89,12 +88,12 @@ test('grep sweep: "--prompt" in live code (excl. engine tests) → 0 hits', () =
 test('grep sweep: "docs/cdd-reference" old path → 0 hits', () => {
   const cmd = `grep -rn "docs/cdd-reference" packages/ docs/ --include="*.md" --include="*.json" 2>/dev/null | grep -v "/CHANGELOG.md" ${DOC_ROOT_PREFIX}| grep -v "grep-sweep-regression.test.ts" | wc -l`;
   const count = parseInt(execSync(cmd, { cwd: REPO, encoding: "utf8" }).trim(), 10);
-  assert.equal(count, 0, `"docs/cdd-reference" old path has ${count} hits`);
+  expect(count, `"docs/cdd-reference" old path has ${count} hits`).toBe(0);
 });
 
 // Special token: subagent-driven-development (allowed in vendor path + maintainer docs)
 test("grep sweep: subagent-driven-development in non-vendor/non-maintainer code → 0 hits", () => {
   const cmd = `grep -rn "subagent-driven-development" packages/kairos/skills/ docs/ README.md marketplace/source.json --include="*.md" --include="*.json" --include="*.ts" 2>/dev/null | grep -v "/CHANGELOG.md" ${DOC_ROOT_EXCLUDES}| grep -v "grep-sweep-regression.test.ts" | grep -v "docs/maintainers/" | wc -l`;
   const count = parseInt(execSync(cmd, { cwd: REPO, encoding: "utf8" }).trim(), 10);
-  assert.equal(count, 0, `subagent-driven-development has ${count} non-vendor/non-maintainer hits`);
+  expect(count, `subagent-driven-development has ${count} non-vendor/non-maintainer hits`).toBe(0);
 });

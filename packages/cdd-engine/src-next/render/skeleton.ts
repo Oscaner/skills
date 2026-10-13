@@ -24,7 +24,7 @@
 
 import type { DocSkeleton, SkeletonSlot } from "../contract/project.ts";
 
-/** The per-anchor header line forms — every registered header anchor of the three
+/** The per-anchor header line forms — every registered header anchor of the four
  *  doc types except the link-typed anchors (their placeholder-link lines assemble
  *  from LINK_SLOTS): the title fill, the content marker fills, the generator-truth
  *  status line and the scaffold version row. The `{date}` slot carries the
@@ -109,12 +109,14 @@ export class SkeletonAssembler {
    *  the probe set (each composition helper probes the anchors it emits). */
   #compose(probe: Set<string>): string[] {
     switch (this.#docType) {
-      case "overall":
-        return this.#renderOverall(probe);
+      case "overall-spec":
+        return this.#renderOverallSpec(probe);
       case "plan":
         return this.#renderPlan(probe);
       case "phase-spec":
         return this.#renderPhaseSpec(probe);
+      case "single-spec":
+        return this.#renderSingleSpec(probe);
     }
   }
 
@@ -146,10 +148,10 @@ export class SkeletonAssembler {
   // the per-doc-type compositions — the doc section sequence + its scaffolds
   // -------------------------------------------------------------------------
 
-  /** The overall skeleton — the header tuple, the section sequence (the four table
+  /** The overall-spec skeleton — the header tuple, the section sequence (the four table
    *  sections, the charter facets and the dependency graph) and the change-history
-   *  table: every required overall element lands in its structural position. */
-  #renderOverall(probe: Set<string>): string[] {
+   *  table: every required overall-spec element lands in its structural position. */
+  #renderOverallSpec(probe: Set<string>): string[] {
     const lines: string[] = [];
     this.#pushHeader(lines, probe);
     lines.push(...this.#section("## Document scope", [":::fill document-scope"], probe));
@@ -227,6 +229,24 @@ export class SkeletonAssembler {
     return lines;
   }
 
+  /** The single-spec skeleton — the header five-tuple, the four prose sections
+   *  (`:::fill` slots) and the change-history table: the lightweight scaffold of
+   *  the free-form spec (P6 T2 · spec §2.1). No `### N.` double-layer outline and
+   *  no `**Parent program**` — the single-spec's deliberate deviations from the
+   *  phase-spec form. */
+  #renderSingleSpec(probe: Set<string>): string[] {
+    const lines: string[] = [];
+    this.#pushHeader(lines, probe);
+    lines.push(
+      ...this.#section("## Background & root cause", [":::fill background-root-cause"], probe),
+    );
+    lines.push(...this.#section("## Design decisions", [":::fill design-ruling"], probe));
+    lines.push(...this.#section("## Acceptance", [":::fill acceptance"], probe));
+    lines.push(...this.#section("## Constraints", [":::fill constraints"], probe));
+    lines.push(...this.#section("## Change history", this.#historyTable(probe), probe));
+    return lines;
+  }
+
   // -------------------------------------------------------------------------
   // the shared scaffolds — header, tables, sections, the join
   // -------------------------------------------------------------------------
@@ -245,7 +265,7 @@ export class SkeletonAssembler {
 
   /** One header line — the anchor's declared form with the injected date (the
    *  link-typed anchors assemble their placeholder-link line from the LINK_SLOTS
-   *  label/target pair; the header anchors are a closed set over the three
+   *  label/target pair; the header anchors are a closed set over the four
    *  registries — an unknown header anchor is a registry drift, loud never
    *  silent). */
   #headerLine(slot: SkeletonSlot): string {
@@ -295,7 +315,7 @@ export class SkeletonAssembler {
    *  scaffold (the backticked path cell keeps the `File path row` shape). */
   #filePathsTable(probe: Set<string>): string[] {
     probe.add("File path row");
-    return ["| Artifact | Path |", "| --- | --- |", "| overall | `:::fill overall-path` |"];
+    return ["| Artifact | Path |", "| --- | --- |", "| overall-spec | `:::fill overall-path` |"];
   }
 
   /** The charter facets — the three required `###` facet headings with their

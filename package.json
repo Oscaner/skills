@@ -10,7 +10,7 @@
     "emit": "node scripts/run.ts emit",
     "emit:check": "node scripts/run.ts emit-check",
     "version-sync": "node scripts/run.ts version-sync",
-    "check:no-bare-functions": "! grep -rnE '^(export )?(async )?function ' packages/cdd-engine/src-next scripts --include='*.ts'",
+    "check:no-bare-functions": "! grep -rnE '^(export )?(async )?function ' packages/cdd-engine/src-next packages/kairos/tests scripts --include='*.ts'",
     "typecheck": "tsc --noEmit -p packages/cdd-engine && tsc --noEmit -p scripts && tsc --noEmit -p packages/kairos/tests",
     "biome": "biome check .",
     "biome:fix": "biome check --write .",

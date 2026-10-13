@@ -4,13 +4,12 @@
 // prompts keys), the skills-count truth (the shared countSkillsWithMarkdown + module-level
 // EXPECTED export from ./helpers.ts — the re-homed single source, never a local literal),
 // and the static files closure (pi-declared paths ⊆ pkg.files whitelist). Pure
-// static fs + node:assert; zero subprocesses, zero engine invocation at runtime.
+// static-fs assertions (vitest); zero subprocesses, zero engine invocation at runtime.
 
-import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { expect, test } from "vitest";
 
 import { countSkillsWithMarkdown, EXPECTED } from "./helpers.ts";
 
@@ -18,47 +17,47 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG_DIR = path.resolve(HERE, "..");
 const PKG_JSON = path.join(PKG_DIR, "package.json");
 
-function loadPackage(): {
+const loadPackage = (): {
   pi?: { skills?: string[] };
   files?: string[];
   keywords?: string[];
-} {
+} => {
   return JSON.parse(readFileSync(PKG_JSON, "utf8"));
-}
+};
 
 test("live package.json declares the pi source fields", () => {
   const pkg = loadPackage();
-  assert.ok(
+  expect(
     Array.isArray(pkg.keywords) && pkg.keywords.includes("pi-package"),
     "keywords must contain the literal pi-package",
-  );
-  assert.deepEqual(pkg.pi?.skills, ["./skills"]);
+  ).toBeTruthy();
+  expect(pkg.pi?.skills).toEqual(["./skills"]);
 });
 
 test("pi declares no extensions/prompts keys (R0 invariant)", () => {
   const pkg = loadPackage();
   for (const key of ["extensions", "prompts"]) {
-    assert.ok(!Object.hasOwn(pkg.pi ?? {}, key), `pi must not declare an ${key} key`);
+    expect(!Object.hasOwn(pkg.pi ?? {}, key), `pi must not declare an ${key} key`).toBeTruthy();
   }
 });
 
 test("./skills resolves EXPECTED SKILL.md (count from the shared export)", () => {
   const skillsDir = path.join(PKG_DIR, "skills");
-  assert.ok(existsSync(skillsDir), "skills directory must exist");
+  expect(existsSync(skillsDir), "skills directory must exist").toBeTruthy();
   const count = countSkillsWithMarkdown(skillsDir);
-  assert.strictEqual(count, EXPECTED);
+  expect(count).toBe(EXPECTED);
 });
 
 test("files closure: pi-declared paths are a static subset of the files whitelist", () => {
   const pkg = loadPackage();
   const declared = (pkg.pi?.skills ?? []).map((p) => p.replace(/^\.\//, ""));
   const whitelist = (pkg.files ?? []).map((p) => p.replace(/\/$/, ""));
-  assert.ok(declared.length > 0, "pi.skills must declare at least one path");
+  expect(declared.length > 0, "pi.skills must declare at least one path").toBeTruthy();
   for (const d of declared) {
-    assert.ok(
+    expect(
       whitelist.some((w) => d === w || d.startsWith(`${w}/`)),
       `pi-declared path ${d} must be covered by a package files whitelist entry`,
-    );
+    ).toBeTruthy();
   }
 });
 
@@ -73,11 +72,9 @@ test("pi.skills glob resolution set == the {dir, name} scan set (exactly the ros
   const resolvedRoots = (pkg.pi?.skills ?? []).map((glob) =>
     path.join(PKG_DIR, glob.replace(/^\.\//, "").replace(/\/\*$/, "")),
   );
-  assert.deepEqual(
-    resolvedRoots,
-    [skillsDir],
-    "pi.skills globs must resolve to the canonical skills dir",
-  );
+  expect(resolvedRoots, "pi.skills globs must resolve to the canonical skills dir").toEqual([
+    skillsDir,
+  ]);
   // The resolution side: the declared globs, expanded to their SKILL.md-bearing dirs.
   const resolved = resolvedRoots
     .flatMap((dir) =>
@@ -91,25 +88,20 @@ test("pi.skills glob resolution set == the {dir, name} scan set (exactly the ros
     .filter((e) => e.isDirectory() && existsSync(path.join(skillsDir, e.name, "SKILL.md")))
     .map((e) => e.name)
     .sort();
-  assert.equal(
-    resolved.length,
+  expect(resolved.length, "pi.skills globs must resolve exactly the roster-count skills").toBe(
     EXPECTED,
-    "pi.skills globs must resolve exactly the roster-count skills",
   );
-  assert.deepEqual(
-    resolved,
+  expect(resolved, "pi.skills glob resolution set must equal the skills/ dir scan").toEqual(
     scanned,
-    "pi.skills glob resolution set must equal the skills/ dir scan",
   );
   for (const name of scanned) {
-    assert.match(name, /^cdd-/, `every pi-resolved skill must be a cdd-* family name: ${name}`);
+    expect(name, `every pi-resolved skill must be a cdd-* family name: ${name}`).toMatch(/^cdd-/);
     const md = readFileSync(path.join(skillsDir, name, "SKILL.md"), "utf8");
     const picked = md.match(/^name:\s*(.+)$/m);
-    assert.ok(picked, `SKILL.md in ${name} missing a name: front-matter field`);
-    assert.equal(
-      picked[1].trim(),
-      name,
+    expect(picked, `SKILL.md in ${name} missing a name: front-matter field`).toBeTruthy();
+    expect(
+      picked![1].trim(),
       `SKILL.md front-matter name: must equal its directory name ${name}`,
-    );
+    ).toBe(name);
   }
 });

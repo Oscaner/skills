@@ -34,8 +34,8 @@ import type { DocKey } from "./project.ts";
 import { Projector } from "./project.ts";
 import { Translator } from "./translate.ts";
 
-/** The three doc-type record keys — the policy-composition identity. */
-const DOC_KEYS: readonly DocKey[] = ["overall", "plan", "phase-spec"];
+/** The four doc-type record keys — the policy-composition identity. */
+const DOC_KEYS: readonly DocKey[] = ["overall-spec", "plan", "phase-spec", "single-spec"];
 
 /** The judgment input — the doc's identity, content and the seam closures. */
 export interface ContractInput {
@@ -93,12 +93,18 @@ export class Contract {
 
   /** deriveDocType(path) — the shared doc-type derivation (design spec §2.1): the
    *  one naming face the validate doc-contract gate and the CLI pre-flight both
-   *  read. A doc whose basename ends in `-overall.md` derives to the overall key;
-   *  every other doc path derives to the phase-spec key (the legacy validate rule,
-   *  verbatim). Call sites only navigate file paths — the dir-vs-file distinction
-   *  is their convention; this method reads the path's basename only. */
+   *  read. A doc whose basename ends in `-overall.md` derives to the overall-spec
+   *  key, a doc ending in `-single-spec.md` to the single-spec key (the P6 T2
+   *  addition — the free-form spec's own derivation, symmetric with the
+   *  `-overall.md` rule); every other doc path derives to the phase-spec key (the
+   *  legacy validate rule, verbatim). Call sites only navigate file paths — the
+   *  dir-vs-file distinction is their convention; this method reads the path's
+   *  basename only. */
   deriveDocType(docPath: string): DocKey {
-    return path.basename(docPath).endsWith("-overall.md") ? "overall" : "phase-spec";
+    const base = path.basename(docPath);
+    if (base.endsWith("-overall.md")) return "overall-spec";
+    if (base.endsWith("-single-spec.md")) return "single-spec";
+    return "phase-spec";
   }
 
   /** validate(doc) — parse, compose, run, aggregate. The single judgment entry.

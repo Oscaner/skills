@@ -1,7 +1,8 @@
 // packages/cdd-engine/src-next/contract/declare.ts
 // T2 — the element-registry declaration (the design spec's single-declaration root).
 //
-// Each doc type (overall / plan / phase-spec) carries one typed element registry:
+// Each doc type (overall-spec / plan / phase-spec / single-spec) carries one typed
+// element registry:
 // flat declared data, one row per element — anchor token · presence · value
 // pattern · ref kind · home surface. The registry is simultaneously the
 // interpreter's judgment data (judge.ts consumes the anchors/domains) and the
@@ -10,10 +11,12 @@
 // anywhere in the new tree.
 //
 // The element lines are enumerated from the methodology skeleton semantics (the
-// machine skeleton of each doc type as pinned by the three repo schema JSONs,
+// machine skeleton of each doc type as pinned by the four repo schema JSONs,
 // read as steady contract data) — freshly declared anchors, never cut from the
-// old tree's sources. Counts stand at overall 39 / plan 28 / phase-spec 25,
-// each within the planned 20–40 band and each element carrying all five fields
+// old tree's sources. Counts stand at overall-spec 39 / plan 28 / phase-spec 25 /
+// single-spec 13,
+// each within the planned 20–40 band (single-spec deliberately below it — the
+// lightweight-scaffold charter) and each element carrying all five fields
 // (a completeness contract enforced by the array shape below and by the test
 // suite, which pins presence/ref-kind domains and per-registry anchor
 // uniqueness).
@@ -21,8 +24,8 @@
 /** The presence category of an element: carried unconditionally, optionally, or only when its declared condition holds. */
 export type Presence = "required" | "optional" | "conditional";
 
-/** The three doc types the engine validates. */
-export type DocType = "overall" | "plan" | "phase-spec";
+/** The four doc types the engine validates. */
+export type DocType = "overall-spec" | "plan" | "phase-spec" | "single-spec";
 
 /** The referential kind an element participates in — what its value points at. */
 export type RefKind =
@@ -70,9 +73,10 @@ export interface ElementRegistry {
 
 /** The declared-registries record surface (the brief's `declaredRegistries` shape). */
 export interface DeclaredRegistries {
-  overall: ElementRegistry;
+  "overall-spec": ElementRegistry;
   plan: ElementRegistry;
   "phase-spec": ElementRegistry;
+  "single-spec": ElementRegistry;
 }
 
 // The legal value vocabularies — the single declared source the guards check
@@ -105,7 +109,12 @@ const HOME_VALUES = [
   "design-body",
   "conditional",
 ] as const satisfies readonly Home[];
-const DOC_TYPE_VALUES = ["overall", "plan", "phase-spec"] as const satisfies readonly DocType[];
+const DOC_TYPE_VALUES = [
+  "overall-spec",
+  "plan",
+  "phase-spec",
+  "single-spec",
+] as const satisfies readonly DocType[];
 
 /**
  * The registry guards — the runtime contract that narrows an unknown candidate
@@ -157,9 +166,9 @@ export class RegistryGuard {
 }
 
 // ---------------------------------------------------------------------------
-// overall — the charter section surface
+// overall-spec — the charter section surface
 // ---------------------------------------------------------------------------
-const OVERALL_ELEMENTS = [
+const OVERALL_SPEC_ELEMENTS = [
   // Header block (H1 + bullet metadata).
   {
     anchor: "# Title",
@@ -858,9 +867,117 @@ const PHASE_SPEC_ELEMENTS = [
   },
 ] as const satisfies readonly Required<RegistryElement>[];
 
-/** The three declared registries — the judge's judgment data and the projection surfaces' derivation source. */
+// ---------------------------------------------------------------------------
+// single-spec — the lightweight free-form scaffold (P6 T2 · spec §2.1)
+// ---------------------------------------------------------------------------
+// The fourth doc type — the repair/ruling-oriented free-form document (the
+// 2026-09-28-cdd-review-contract-fix "single-spec" form). Deliberately lighter
+// than phase-spec: a header five-tuple (title / version / status / author /
+// `- **Depends on**`), four prose body sections and the change-history lineage.
+// No `### N.` double-layer outline (the free-form has no numbered design groups),
+// no `**Parent program**` requirement (a single-spec has no parent overall — an
+// independent program shape). The fixed section sequence runs in document order.
+const SINGLE_SPEC_ELEMENTS = [
+  // Header five-tuple — title + the four bullet metadata rows.
+  {
+    anchor: "# Title",
+    presence: "required",
+    valuePattern: "^# \\S.*$",
+    refKind: "none",
+    home: "header",
+  },
+  {
+    anchor: "**Version**",
+    presence: "required",
+    valuePattern: "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+ · \\d{4}-\\d{2}-\\d{2}$",
+    refKind: "version-lineage",
+    home: "header",
+  },
+  {
+    anchor: "**Status**",
+    presence: "required",
+    valuePattern: "^- \\*\\*Status\\*\\*: (Draft|Approved|In progress|Complete)$",
+    refKind: "none",
+    home: "header",
+  },
+  {
+    anchor: "**Author**",
+    presence: "required",
+    valuePattern: "^- \\*\\*Author\\*\\*:",
+    refKind: "none",
+    home: "header",
+  },
+  {
+    anchor: "**Depends on**",
+    presence: "required",
+    valuePattern: "^- \\*\\*Depends on\\*\\*:",
+    refKind: "none",
+    home: "header",
+  },
+  // The prose body surface — the free-form's four sections in document order.
+  {
+    anchor: "## Background & root cause",
+    presence: "required",
+    valuePattern: "^## Background & root cause$",
+    refKind: "none",
+    home: "section",
+  },
+  {
+    anchor: "## Design decisions",
+    presence: "required",
+    valuePattern: "^## Design decisions$",
+    refKind: "none",
+    home: "section",
+  },
+  {
+    anchor: "## Acceptance",
+    presence: "required",
+    valuePattern: "^## Acceptance$",
+    refKind: "none",
+    home: "section",
+  },
+  {
+    anchor: "## Constraints",
+    presence: "required",
+    valuePattern: "^## Constraints$",
+    refKind: "none",
+    home: "section",
+  },
+  // Change history — the version-lineage surface (same shape as the other types).
+  {
+    anchor: "## Change history",
+    presence: "required",
+    valuePattern: "^## Change history$",
+    refKind: "none",
+    home: "section",
+  },
+  {
+    anchor: "Change history row",
+    presence: "required",
+    valuePattern: "^\\|\\s*v\\d+\\.\\d+\\s*\\|",
+    refKind: "version-lineage",
+    home: "table",
+  },
+  {
+    anchor: "Version token",
+    presence: "required",
+    valuePattern: "^v\\d+\\.\\d+$",
+    refKind: "version-lineage",
+    home: "table",
+  },
+  {
+    anchor: "Change history date",
+    presence: "required",
+    valuePattern: "^\\d{4}-\\d{2}-\\d{2}$",
+    refKind: "none",
+    home: "table",
+  },
+] as const satisfies readonly Required<RegistryElement>[];
+
+/** The four declared registries — the judge's judgment data and the projection surfaces' derivation source. */
 export const declaredRegistries: DeclaredRegistries = {
-  overall: { docType: "overall", elements: OVERALL_ELEMENTS },
+  "overall-spec": { docType: "overall-spec", elements: OVERALL_SPEC_ELEMENTS },
   plan: { docType: "plan", elements: PLAN_ELEMENTS },
   "phase-spec": { docType: "phase-spec", elements: PHASE_SPEC_ELEMENTS },
+  "single-spec": { docType: "single-spec", elements: SINGLE_SPEC_ELEMENTS },
 };

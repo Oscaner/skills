@@ -2,11 +2,12 @@
 // T2 test suite for the element-registry declaration (contract/declare.ts).
 //
 // The declare module is the doc contract's single declaration: one typed
-// registry per doc type (overall / plan / phase-spec). These tests pin the
-// acceptance gates of the declared data — every registry between 20 and 40
-// elements, every element carrying all five fields (anchor · presence · value
-// pattern · ref kind · home), the presence and ref-kind vocabularies staying
-// inside their legal domains, and anchors unique per registry — plus the
+// registry per doc type (overall-spec / plan / phase-spec / single-spec). These
+// tests pin the acceptance gates of the declared data — every registry inside
+// the 20–40 element band (single-spec is the declared lightweight exception,
+// exempted by name), every element carrying all five fields (anchor · presence ·
+// value pattern · ref kind · home), the presence and ref-kind vocabularies
+// staying inside their legal domains, and anchors unique per registry — plus the
 // runtime type guards and the type-level contract surface.
 //
 // The legal value vocabularies are pinned here as the spec-side source of truth
@@ -52,28 +53,46 @@ const HOME_VALUES = [
 
 const MIN_ELEMENTS = 20;
 const MAX_ELEMENTS = 40;
+/** The declared light-weight exception — single-spec is a deliberately sparse
+ *  scaffold (header five-tuple + four prose sections + the change-history trio)
+ *  whose registered element set sits below the full-doc band by design
+ *  (declare.ts); it is exempted from the band and pinned separately. */
+const LIGHTWEIGHT_DOC_TYPES: ReadonlySet<string> = new Set(["single-spec"]);
 
 const ALL_REGISTRIES = [
-  declaredRegistries.overall,
+  declaredRegistries["overall-spec"],
   declaredRegistries.plan,
   declaredRegistries["phase-spec"],
+  declaredRegistries["single-spec"],
 ] as const satisfies readonly ElementRegistry[];
 
 describe("declared registries", () => {
-  it("declares exactly the three doc types with their docType identity", () => {
-    expect(declaredRegistries.overall.docType).toBe("overall");
+  it("declares exactly the four doc types with their docType identity", () => {
+    expect(declaredRegistries["overall-spec"].docType).toBe("overall-spec");
     expect(declaredRegistries.plan.docType).toBe("plan");
     expect(declaredRegistries["phase-spec"].docType).toBe("phase-spec");
+    expect(declaredRegistries["single-spec"].docType).toBe("single-spec");
   });
 
-  it("carries between 20 and 40 elements per doc type (acceptance count gate)", () => {
+  it("carries between 20 and 40 elements per full doc type (acceptance count gate)", () => {
     for (const registry of ALL_REGISTRIES) {
+      if (LIGHTWEIGHT_DOC_TYPES.has(registry.docType)) continue;
       expect(registry.elements.length, `${registry.docType} element count`).toBeGreaterThanOrEqual(
         MIN_ELEMENTS,
       );
       expect(registry.elements.length, `${registry.docType} element count`).toBeLessThanOrEqual(
         MAX_ELEMENTS,
       );
+    }
+  });
+
+  it("keeps the light-weight doc types below the band by design (explicit exemption)", () => {
+    for (const registry of ALL_REGISTRIES) {
+      if (!LIGHTWEIGHT_DOC_TYPES.has(registry.docType)) continue;
+      expect(registry.elements.length, `${registry.docType} element count`).toBeLessThan(
+        MIN_ELEMENTS,
+      );
+      expect(registry.elements.length, `${registry.docType} element count`).toBeGreaterThan(0);
     }
   });
 
@@ -164,18 +183,19 @@ describe("RegistryGuard type guards", () => {
     expect(RegistryGuard.isElement("## Goal")).toBe(false);
   });
 
-  it("recognizes the three declared registries and rejects registry-shaped non-registries", () => {
-    expect(RegistryGuard.isRegistry(declaredRegistries.overall)).toBe(true);
+  it("recognizes the four declared registries and rejects registry-shaped non-registries", () => {
+    expect(RegistryGuard.isRegistry(declaredRegistries["overall-spec"])).toBe(true);
     expect(RegistryGuard.isRegistry(declaredRegistries.plan)).toBe(true);
     expect(RegistryGuard.isRegistry(declaredRegistries["phase-spec"])).toBe(true);
+    expect(RegistryGuard.isRegistry(declaredRegistries["single-spec"])).toBe(true);
     // Missing the elements surface.
-    expect(RegistryGuard.isRegistry({ docType: "overall" })).toBe(false);
+    expect(RegistryGuard.isRegistry({ docType: "overall-spec" })).toBe(false);
     // Unknown doc type.
     expect(RegistryGuard.isRegistry({ docType: "unknown", elements: [] })).toBe(false);
     // A registry whose element fails the element guard is not a registry.
     expect(
       RegistryGuard.isRegistry({
-        docType: "overall",
+        docType: "overall-spec",
         elements: [{ anchor: "## X", presence: "sometimes", home: "section" }],
       }),
     ).toBe(false);
@@ -217,6 +237,6 @@ describe("type-level contract", () => {
       valuePattern: "^## Goal$",
       refKind: "none",
     }).not.toMatchTypeOf<RegistryElement>();
-    expectTypeOf({ docType: "overall" }).not.toMatchTypeOf<ElementRegistry>();
+    expectTypeOf({ docType: "overall-spec" }).not.toMatchTypeOf<ElementRegistry>();
   });
 });

@@ -9,7 +9,7 @@
 #   · scripts unit tests             → scripts-unit job (pnpm exec vitest run)
 #   · type-check                     → typecheck job (pnpm run typecheck)
 #   · package version sync           → version-sync job (pnpm run version-sync)
-#   · zero module-level bare functions (the engine + scripts .ts surfaces)
+#   · zero module-level bare functions (the engine + kairos/tests + scripts .ts surfaces)
 #                                    → no-bare-functions job (pnpm run check:no-bare-functions)
 # The precommit script runs the tree-independent subset (the same commands minus the
 # engine suite — its black-box dispatch is dirty-tree incompatible by ruling).

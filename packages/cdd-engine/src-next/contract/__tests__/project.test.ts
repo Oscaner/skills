@@ -22,11 +22,12 @@ import type { ElementRegistry } from "../declare.ts";
 import { declaredRegistries } from "../declare.ts";
 import { Projector } from "../project.ts";
 
-const DOC_KEYS = ["overall", "plan", "phase-spec"] as const;
+const DOC_KEYS = ["overall-spec", "plan", "phase-spec", "single-spec"] as const;
 const REGISTRIES = [
-  declaredRegistries.overall,
+  declaredRegistries["overall-spec"],
   declaredRegistries.plan,
   declaredRegistries["phase-spec"],
+  declaredRegistries["single-spec"],
 ] as const satisfies readonly ElementRegistry[];
 
 /** The shared projection carrier the suite derives every surface from. */
@@ -179,7 +180,7 @@ describe("slices projection (Projector.slices)", () => {
   });
 
   it("derives the anchor pattern from the anchor literal (known-good escapes)", () => {
-    const overall = slices.overall;
+    const overall = slices["overall-spec"];
     // No metacharacters: the anchor is its own pattern.
     expect(overall.slices[0].anchorPattern.source).toBe("# Title");
     // `**Version**` — every `*` escaped.
@@ -266,12 +267,13 @@ describe("skeleton projection (Projector.skeleton)", () => {
   const skeletons = PROJECTOR.skeleton();
 
   it("keys the projection record by the DocKey domain and carries each doc's type identity", () => {
-    // The skeleton record rides the projection DocKey domain (overall | plan |
-    // phase-spec) — the same single spelling as the DocType literals (spec §5.2).
+    // The skeleton record rides the projection DocKey domain (overall-spec | plan |
+    // phase-spec | single-spec) — the same single spelling as the DocType literals (spec §5.2).
     expect(Object.keys(skeletons)).toEqual([...DOC_KEYS]);
-    expect(skeletons.overall.docType).toBe("overall");
+    expect(skeletons["overall-spec"].docType).toBe("overall-spec");
     expect(skeletons.plan.docType).toBe("plan");
     expect(skeletons["phase-spec"].docType).toBe("phase-spec");
+    expect(skeletons["single-spec"].docType).toBe("single-spec");
   });
 
   it("projects exactly the required elements — optional/conditional generate zero slots", () => {
@@ -406,11 +408,12 @@ describe("Projector.registries — the composed six-projection surface", () => {
 
   it("carries each doc type's declaration identity (docType field)", () => {
     const projected = PROJECTOR.registries();
-    expect(projected.shape.overall.docType).toBe("overall");
+    expect(projected.shape["overall-spec"].docType).toBe("overall-spec");
     expect(projected.schema.plan.docType).toBe("plan");
     expect(projected.tokens["phase-spec"].docType).toBe("phase-spec");
-    expect(projected.skeleton.overall.docType).toBe("overall");
+    expect(projected.skeleton["overall-spec"].docType).toBe("overall-spec");
     expect(projected.skeleton.plan.docType).toBe("plan");
     expect(projected.skeleton["phase-spec"].docType).toBe("phase-spec");
+    expect(projected.skeleton["single-spec"].docType).toBe("single-spec");
   });
 });

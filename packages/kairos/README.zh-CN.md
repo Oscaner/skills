@@ -19,7 +19,7 @@ kairos 是 cdd-first 方法论的分发载体：它将**持续发现式开发（
 六个 `cdd-*` 技能，三个家族：
 
 - **kairos 编排**——读取上游 `superpowers` 基线的流程编排器，并应用本插件的个人规则（经 `grilling` 澄清问题、在引擎 `next:` 路由事实下的 spec 评审-修复节奏等）：`cdd-design`（brainstorm 路由 + 参数化 spec-writer 派发）、`cdd-plan`（计划撰写）、`cdd-close`（分支收尾）
-- **`cdd-spec-writer`**——参数化 spec 写入器（single / phase-spec / overall 合一流程）：撰写、评审并提交目标 spec
+- **`cdd-spec-writer`**——参数化 spec 写入器（single-spec / phase-spec / overall-spec 合一流程）：撰写、评审并提交目标 spec
 - **`cdd-dev`**——计划执行器：`cdd` 引擎 CLI（`@oscaner-skills/cdd-engine`）逐波 implement / review / fix，由引擎 `next:` 路由事实驱动
 - **cdd-report**——仓库开发工具，为 CDD 会话的缺陷与改进机会聚合生成一个 GitHub issue（gh CLI、去重感知、手动触发、一次性链路）
 
@@ -27,8 +27,8 @@ kairos 是 cdd-first 方法论的分发载体：它将**持续发现式开发（
 
 | 技能 | 类型 | 说明 |
 |------|------|------|
-| `cdd-design` | Orchestrator | Brainstorm 路由（mode/register/size 门）；派发参数化 spec-writer（single / phase-spec / overall 宪章） |
-| `cdd-spec-writer` | Spec-writer | 合一 single / phase-spec / overall 写入器：在一个参数化流程下撰写、评审并提交目标 spec |
+| `cdd-design` | Orchestrator | Brainstorm 路由（mode/register/size 门）；派发参数化 spec-writer（single-spec / phase-spec / overall-spec 宪章） |
+| `cdd-spec-writer` | Spec-writer | 合一 single-spec / phase-spec / overall-spec 写入器：在一个参数化流程下撰写、评审并提交目标 spec |
 | `cdd-plan` | Orchestrator | 计划撰写（backfill-design 门 · Plan Sole Writer）；计划评审-修复节奏；交接 `cdd-dev` |
 | `cdd-dev` | Orchestrator + Engine | 计划执行器（仅 CLI）；派发 implement / review / fix 链 + `cdd base` 产物；最终分支评审 |
 | `cdd-close` | Orchestrator | 分支收尾 / PR；止于 finish 门 + 终端；禁用 worktree；conventional commits |
@@ -99,7 +99,7 @@ kairos 将每个技能都命名为 `cdd-*`，因此该家族与上游插件可�
 
 ## 维护者文档
 
-本单仓开发者的仓库内部维护文档（不随插件发布）。[docs/maintainers 索引](../../docs/maintainers/README.md) 链接编号族文档——如 [program experience](../../docs/maintainers/04-program-experience.md)（程序经验）与 [template doctrine](../../docs/maintainers/01-template-doctrine.md)（模板惯例，约束 emit 派生产物）。
+本单仓开发者的仓库内部维护文档（不随插件发布）。[docs/maintainers 索引](../../docs/maintainers/README.md) 链接编号族文档——如 [doctrine](../../docs/maintainers/01-doctrine.md)（模板惯例，约束 emit 派生产物）与 [naming registry](../../docs/maintainers/02-naming.md)（命名注册表）。
 
 ## 许可
 

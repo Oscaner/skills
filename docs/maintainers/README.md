@@ -1,25 +1,21 @@
 # Maintainer Docs — index
 
-Maintainer-only documents for this monorepo's developers (English-primary; not shipped to consumers — the packages' `contentRoot` is `"."`). Numbered 01–04 and 06 (05 third-party-dependencies retired); internal links use the numbered filenames.
+Maintainer-only documents for this monorepo's developers (English-primary; not shipped to consumers — the packages' `contentRoot` is `"."`). Numbered 01–03; internal links use the numbered filenames.
 
 | # | File | Positioning |
 |---|---|---|
-| 01 | [01-template-doctrine.md](01-template-doctrine.md) | Template doctrine: the data-driven template contract (canonical → one renderer → emit/runtime products, `emit:check`-guarded) + two-plane systematization |
-| 02 | [02-naming-conventions.md](02-naming-conventions.md) | Naming system + terminology-first registry (F8): scoped names, active terms, migration, banned names, enforcement |
-| 03 | [03-context-caching-doctrine.md](03-context-caching-doctrine.md) | Host-harness prompt-cache doctrine (six axioms, C1–C7, cache profiles, observation boundaries) — the engine's live cache contract |
-| 04 | [04-program-experience.md](04-program-experience.md) | Hard-won lessons across every phase; the baking input for skill document templates |
-| 06 | [06-skill-node-discipline.md](06-skill-node-discipline.md) | Skill node authoring discipline: facts only, no restatement (each fact lives in exactly one of the four skill surfaces) |
+| 01 | [01-doctrine.md](01-doctrine.md) | Doctrine: the template contract (R1–R5 · I1–I4 · cache integration), the skill-node authoring discipline, and the non-mechanical program-experience lessons |
+| 02 | [02-naming.md](02-naming.md) | Naming system + terminology-first registry: scoped names, active terms, banned names, enforcement |
+| 03 | [03-cache-doctrine.md](03-cache-doctrine.md) | Host-harness prompt-cache doctrine: the six cross-provider axioms + the C1–C7 dispatch-assembly contract |
 
-## P4.2 convergence ledger
+## Convergence ledger (P4.2 → P6)
 
-Task 9 merged the two template docs, trimmed program-experience, updated 02/05 to the P4.4 final state. Plan anchor: total ≤ 56 KB (P3.2 facts-only sweep adds 06-skill-node-discipline) — `maintainers-docs.test.ts` asserts each After cell against the live file.
+The ledger tracks the maintainers family's byte convergence. P4.2 Task 9 merged the two template docs; the P5 sweeps kept the token/cache facts current; P6 collapsed the family from five content docs + index to three + index, folding the mechanism maps and narration into the enforcement (the code and its tests), keeping only the durable judgment. Plan anchor: total ≤ 56 KB — `maintainers-docs.test.ts` asserts each After cell against the live file, the Total Before cell against the per-file Before sum, and the Total After cell against the per-file After sum.
 
 | File | Before (B) | After (B) | Note |
 |---|---|---|---|
-| 01-template-doctrine.md | 14,378 | 10,866 | merged from 01 + 02 · §9 doc-structure facts (unilateral edge) |
-| 02-naming-conventions.md | 7,994 | 9,180 | blocker bounded mapping added · P5 branch-fix re-point (word-face audit domicile) |
-| 03-context-caching-doctrine.md | 8,706 | 8,383 | row-key mirror (P3 T2) · cached-bytes trims |
-| 04-program-experience.md | 21,773 | 15,488 | trimmed ~9 KB · +items 57-58 · P5 T7 re-anchor (consumer-sim retired) · P5 branch-fix re-point (items 46/50/56) · P5 CI-ruleset lesson §10-58 |
-| 06-skill-node-discipline.md | 0 | 1,900 | P3.2 facts-only sweep · skill-node discipline (facts only, no restatement) |
-| README.md | 2,324 | 2,433 | index converged + 06 row + anchor revision + P5 retirement ledger |
-| **Total** | 65,193 | 48,250 | plan anchor ≤ 56,000 |
+| 01-doctrine.md | 28,254 | 4,350 | folded from the retired 01 + 04 + 06 docs · template essence R1–R5 + I1–I4, skill-node facts-only, non-mechanical experience · smoke positioning sentence |
+| 02-naming.md | 9,180 | 4,692 | renamed from the retired 02 doc · mechanism map + migration history trimmed, term registry + banned table kept |
+| 03-cache-doctrine.md | 8,450 | 2,371 | renamed from the retired 03 doc · six axioms + C1–C7 kept, mechanism narration trimmed |
+| README.md | 2,671 | 2,066 | index + ledger re-anchored to the three-doc family |
+| **Total** | 48,555 | 13,479 | plan anchor ≤ 56,000 |

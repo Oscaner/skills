@@ -12,36 +12,31 @@
 //     plan record" (guard-clean surface: orchestrating skills must not name
 //     `progress.json` — AC5, residue.ts INTERNAL_DEP_RE).
 
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { expect, test } from "vitest";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SKILL = path.resolve(HERE, "../skills/cdd-plan/SKILL.md");
 
-function authorPlanNode(text: string) {
+const authorPlanNode = (text: string) => {
   // The `author-plan` node block — from its H3 heading to the next H3 heading.
   const start = text.indexOf("### `author-plan`");
   const end = text.indexOf("\n### ", start === -1 ? 0 : start + 1);
   return { start, end, body: text.slice(start, end) };
-}
+};
 
 test("author-plan node mandates the plan-header **Spec:** line-2 convention", () => {
   const { start, body } = authorPlanNode(readFileSync(SKILL, "utf8"));
-  assert.ok(start !== -1, `author-plan node missing: ${SKILL}`);
-  assert.match(body, /\*\*Spec:\*\*/, "author-plan Do must require the **Spec:** header line");
-  assert.match(body, /line 2/, "convention must pin the header line to line 2");
-  assert.match(body, /design\.md/, "convention must link <name>-design.md");
-  assert.match(
-    body,
+  expect(start !== -1, `author-plan node missing: ${SKILL}`).toBeTruthy();
+  expect(body, "author-plan Do must require the **Spec:** header line").toMatch(/\*\*Spec:\*\*/);
+  expect(body, "convention must pin the header line to line 2").toMatch(/line 2/);
+  expect(body, "convention must link <name>-design.md").toMatch(/design\.md/);
+  expect(body, "convention must record the cdd-report first-hop dependency").toMatch(
     /plan record.*first hop/,
-    "convention must record the cdd-report first-hop dependency",
   );
-  assert.doesNotMatch(
-    body,
+  expect(body, "deleted resolve-destination node name must not survive in author-plan").not.toMatch(
     /resolve-destination/,
-    "deleted resolve-destination node name must not survive in author-plan",
   );
 });

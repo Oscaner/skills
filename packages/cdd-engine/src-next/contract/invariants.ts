@@ -98,8 +98,13 @@ export interface JudgeContext {
   slices: DocSlices;
   /** The derived section skeleton of the judged doc type. */
   shape: DocShape;
-  /** The three declared registries — the element-level judgment data. */
-  registries: { overall: ElementRegistry; plan: ElementRegistry; "phase-spec": ElementRegistry };
+  /** The four declared registries — the element-level judgment data. */
+  registries: {
+    "overall-spec": ElementRegistry;
+    plan: ElementRegistry;
+    "phase-spec": ElementRegistry;
+    "single-spec": ElementRegistry;
+  };
   /** The dispatch phase id — enables the face-④ phase-registration check. */
   phaseId?: string;
   /** Pre-parsed chain/sibling docs (path → parsed record). */
@@ -208,7 +213,7 @@ export abstract class Invariant extends MarkdownPrimitives {
 
   /** The parsed overall record — when the judged doc is an overall. */
   protected overall(ctx: JudgeContext): OverallParsed | null {
-    return ctx.docKey === "overall" ? (ctx.parsed as OverallParsed) : null;
+    return ctx.docKey === "overall-spec" ? (ctx.parsed as OverallParsed) : null;
   }
 
   /** The parsed plan record — when the judged doc is a plan. */
@@ -225,7 +230,7 @@ export abstract class Invariant extends MarkdownPrimitives {
   protected overallTableHeadings(ctx: JudgeContext): readonly string[] {
     const headings = this.overall(ctx);
     if (headings === null) return [];
-    const declared = ctx.registries.overall.elements
+    const declared = ctx.registries["overall-spec"].elements
       .filter((element) => element.home === "section" && element.anchor.startsWith("## "))
       .map((element) => element.anchor);
     return declared.filter((anchor) =>
@@ -384,7 +389,7 @@ export class UniquenessInvariant extends Invariant {
         seenIds.add(block.id);
       }
     }
-    if (ctx.docKey === "overall") {
+    if (ctx.docKey === "overall-spec") {
       const data = this.overall(ctx);
       if (data !== null) {
         const seenPhases = new Set<string>();
@@ -463,7 +468,7 @@ export class CrosslinkInvariant extends Invariant {
   readonly name = "crosslink";
 
   evaluate(ctx: JudgeContext): Finding[] {
-    if (ctx.docKey === "overall") return this.overallCrosslinks(ctx);
+    if (ctx.docKey === "overall-spec") return this.overallCrosslinks(ctx);
     if (ctx.docKey === "plan") return this.planCrosslinks(ctx);
     return [];
   }
@@ -640,7 +645,7 @@ export class OrderInvariant extends Invariant {
 
   /** The document's rank-2 section blocks in document order. */
   #docSections(ctx: JudgeContext): readonly SectionBlock[] {
-    if (ctx.docKey === "overall") return (ctx.parsed as OverallParsed).sections;
+    if (ctx.docKey === "overall-spec") return (ctx.parsed as OverallParsed).sections;
     if (ctx.docKey === "plan") return (ctx.parsed as PlanParsed).sections;
     return (ctx.parsed as PhaseSpecParsed).sections;
   }
@@ -902,9 +907,9 @@ export class SelfBoundedInvariant extends Invariant {
   /** The doc's Change-history row versions — the overall reads its parsed table,
    *  the plan/spec read the `## Change history` section's table rows (the shared
    *  row primitive — the P4.1 T2 isomorphic lineage: the same lineage judgment rides
-   *  all three doc types). */
+   *  all doc types). */
   #historyVersions(ctx: JudgeContext): readonly string[] {
-    if (ctx.docKey === "overall") {
+    if (ctx.docKey === "overall-spec") {
       const data = this.overall(ctx);
       if (data === null) return [];
       return data.tables["Change history"].rows
@@ -984,7 +989,7 @@ export class FileExistenceInvariant extends Invariant {
   /** The chain links of the judged doc type (overall design/plan cells; plan/spec lineage links). */
   protected chainLinks(ctx: JudgeContext): readonly { source: string; link: ChainLink }[] {
     const links: { source: string; link: ChainLink }[] = [];
-    if (ctx.docKey === "overall") {
+    if (ctx.docKey === "overall-spec") {
       const data = this.overall(ctx);
       if (data !== null) {
         for (const phase of data.chain.phases) {
@@ -1076,7 +1081,7 @@ export class CrossDocChainInvariant extends Invariant {
   readonly name = "cross-doc-chain";
 
   evaluate(ctx: JudgeContext): Finding[] {
-    if (ctx.docKey === "overall") return this.overallChain(ctx);
+    if (ctx.docKey === "overall-spec") return this.overallChain(ctx);
     if (ctx.docKey === "plan") return this.planChain(ctx);
     return this.specChain(ctx);
   }
@@ -1187,7 +1192,7 @@ export class CrossDocChainInvariant extends Invariant {
   /** The parent overall's lineage: its header version + every Change-history row version. */
   #parentLineage(parent: ParsedDoc): Set<string> {
     const lineage = new Set<string>();
-    if (parent.docType !== "overall") return lineage;
+    if (parent.docType !== "overall-spec") return lineage;
     for (const line of (parent as OverallParsed).headerLines) {
       if (line.includes("**Version**")) {
         for (const token of this.versionTokens(line)) lineage.add(token);
@@ -1206,7 +1211,7 @@ export class SectionScopedDomainInvariant extends Invariant {
   readonly name = "section-scoped-domain";
 
   evaluate(ctx: JudgeContext): Finding[] {
-    if (ctx.docKey === "overall") return this.issueScopedRefs(ctx);
+    if (ctx.docKey === "overall-spec") return this.issueScopedRefs(ctx);
     if (ctx.docKey === "phase-spec") return this.designScoping(ctx);
     return [];
   }

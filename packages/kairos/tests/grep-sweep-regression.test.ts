@@ -22,14 +22,14 @@ const DOC_ROOT_EXCLUDE_PATHS = ["specs", "plans"].map(
 const DOC_ROOT_EXCLUDES = DOC_ROOT_EXCLUDE_PATHS.map((p) => `| grep -v "${p}" `).join("");
 const DOC_ROOT_PREFIX = `| grep -v "${DOC_ROOT_SEGMENTS.join("/")}/" `;
 
-function grepCount(pattern: string, extraArgs = "") {
+const grepCount = (pattern: string, extraArgs = "") => {
   try {
     const cmd = `grep -rn "${pattern}" ${extraArgs} packages/ docs/ README.md marketplace/source.json --include="*.md" --include="*.json" --include="*.ts" 2>/dev/null | grep -v "/CHANGELOG.md" ${DOC_ROOT_EXCLUDES}| grep -v "grep-sweep-regression.test.ts" | wc -l`;
     return parseInt(execSync(cmd, { cwd: REPO, encoding: "utf8" }).trim(), 10);
   } catch {
     return 0;
   }
-}
+};
 
 // Tokens that must be zero in-scope
 const TOKENS = [

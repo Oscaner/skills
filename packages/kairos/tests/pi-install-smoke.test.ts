@@ -26,10 +26,10 @@ const PI_INSTALL_HINT = "npm i -g @earendil-works/pi-coding-agent";
 
 // Spawn `pi`; a missing binary (ENOENT) becomes an assertion-failing Error whose message
 // carries the install command — the zero silent skip contract.
-function runPi(
+const runPi = (
   args: string[],
   { cwd, env = process.env }: { cwd?: string; env?: NodeJS.ProcessEnv } = {},
-) {
+) => {
   const result = spawnSync("pi", args, { cwd, env, encoding: "utf8" });
   if (result.error) {
     // errno carries the real code on child-process errors (NodeJS.ErrnoException).
@@ -41,7 +41,7 @@ function runPi(
     throw result.error;
   }
   return result;
-}
+};
 
 test("pi install smoke: pack → extract → pi install <dir> --local --approve", () => {
   const workspace = mkdtempSync(path.join(os.tmpdir(), "pi-install-smoke-"));

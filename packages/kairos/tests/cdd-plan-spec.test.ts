@@ -20,12 +20,12 @@ import { expect, test } from "vitest";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SKILL = path.resolve(HERE, "../skills/cdd-plan/SKILL.md");
 
-function authorPlanNode(text: string) {
+const authorPlanNode = (text: string) => {
   // The `author-plan` node block — from its H3 heading to the next H3 heading.
   const start = text.indexOf("### `author-plan`");
   const end = text.indexOf("\n### ", start === -1 ? 0 : start + 1);
   return { start, end, body: text.slice(start, end) };
-}
+};
 
 test("author-plan node mandates the plan-header **Spec:** line-2 convention", () => {
   const { start, body } = authorPlanNode(readFileSync(SKILL, "utf8"));

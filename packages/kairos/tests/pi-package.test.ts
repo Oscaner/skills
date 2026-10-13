@@ -17,13 +17,13 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG_DIR = path.resolve(HERE, "..");
 const PKG_JSON = path.join(PKG_DIR, "package.json");
 
-function loadPackage(): {
+const loadPackage = (): {
   pi?: { skills?: string[] };
   files?: string[];
   keywords?: string[];
-} {
+} => {
   return JSON.parse(readFileSync(PKG_JSON, "utf8"));
-}
+};
 
 test("live package.json declares the pi source fields", () => {
   const pkg = loadPackage();

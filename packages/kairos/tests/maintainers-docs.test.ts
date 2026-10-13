@@ -55,24 +55,24 @@ const LIVE_SURFACES = [
   "packages/cdd-engine/README.zh-CN.md",
 ];
 
-function read(rel: string) {
+const read = (rel: string) => {
   return readFileSync(path.join(REPO, rel), "utf8");
-}
+};
 
-function bytesOf(rel: string) {
+const bytesOf = (rel: string) => {
   return statSync(path.join(REPO, rel)).size;
-}
+};
 
 /** Resolve a markdown link from its containing file into its absolute target
  *  path (prefixed with REPO so the existence checks hold under any CWD — the
  *  suite runs standalone via `pnpm -C packages/kairos test` too, where a
  *  bare repo-relative target would misresolve). */
-function resolveLink(fromRel: string, link: string) {
+const resolveLink = (fromRel: string, link: string) => {
   const clean = link.split("#")[0].split("?")[0];
   if (!clean.endsWith(".md")) return null; // non-md targets (schemas, dirs) are not plain file links
   const rel = path.posix.normalize(path.posix.join(path.posix.dirname(fromRel), clean));
   return path.join(REPO, rel);
-}
+};
 
 test("maintainers: content docs are exactly the five new-numbered files, zero old names present", () => {
   const names = readdirSync(MAINTAINERS).filter((n) => n.endsWith(".md"));

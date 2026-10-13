@@ -50,27 +50,27 @@ const ROOT_BEHAVIOR_HEADINGS = [
 // claim drifts from the landing behavior.
 const CDD_SUBCOMMANDS = ["implement", "review", "fix", "base", "schema", "issue"];
 
-function read(rel: string) {
+const read = (rel: string) => {
   return readFileSync(path.join(REPO, rel), "utf8");
-}
+};
 
 /** Top-level `## ` headings in document order — the sync statement's "top-level sections
  *  correspond one by one" contract; `###`, the language row and the badge block are not
  *  sections. */
-function headingsOf(md: string) {
+const headingsOf = (md: string) => {
   return md
     .split("\n")
     .filter((l) => /^## /.test(l))
     .map((l) => l.replace(/^## /, ""));
-}
+};
 
 /** A section's text from its heading up to the next top-level heading (or EOF). */
-function sectionOf(md: string, heading: string) {
+const sectionOf = (md: string, heading: string) => {
   const start = md.indexOf(heading);
   expect(start !== -1, `heading not found: ${heading}`).toBeTruthy();
   const next = md.indexOf("\n## ", start + 1);
   return md.slice(start, next === -1 ? undefined : next);
-}
+};
 
 test("root README: positioning sentence present without the word harness", () => {
   const md = read("README.md");
@@ -371,7 +371,7 @@ interface HarnessContractRow {
   ship?: unknown;
 }
 
-function nominalRow(contract: Record<string, HarnessContractRow>, id: string) {
+const nominalRow = (contract: Record<string, HarnessContractRow>, id: string) => {
   const row = contract[id];
   expect(row, `harness contract row missing for harness ${id}`).toBeTruthy();
   expect(row.detect, `harness contract row missing detect for harness ${id}`).toBeTruthy();
@@ -383,11 +383,11 @@ function nominalRow(contract: Record<string, HarnessContractRow>, id: string) {
     marker: detect.value != null ? `${detect.env}=${detect.value}` : detect.env,
     ship: row.ship,
   };
-}
+};
 
 /** Parse a nominal-table data row (backticked cli + marker cells stripped) into the derived shape;
  *  rows without a backticked second cell (header / separator) return null. */
-function parseNominalRow(line: string) {
+const parseNominalRow = (line: string) => {
   const cells = line
     .split("|")
     .map((c) => c.trim())
@@ -399,7 +399,7 @@ function parseNominalRow(line: string) {
     marker: cells[2].replace(/`/g, ""),
     ship: cells[3],
   };
-}
+};
 
 test("nominal mapping table == the harness contract (row id/cli/detect + ship) data derivation", () => {
   const contract = HOSTS as unknown as Record<string, HarnessContractRow>;

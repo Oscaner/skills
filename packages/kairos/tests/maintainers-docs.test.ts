@@ -153,7 +153,7 @@ test("maintainers: total bytes within the plan anchor (≤ 53,000)", () => {
 
 test("maintainers: README convergence ledger matches the live files (After cells + anchor)", () => {
   const md = read("docs/maintainers/README.md");
-  const section = md.slice(md.indexOf("## P4.2 convergence ledger"));
+  const section = md.slice(md.indexOf("## Convergence ledger (P4.2 → P5)"));
   const rows = [...section.matchAll(/^\|\s*([^|]+\.md)\s*\|\s*([\d,]+)\s*\|\s*([\d,]+)\s*\|/gm)];
   const byFile = new Map(rows.map((r) => [r[1], Number(r[3].replace(/,/g, ""))]));
   for (const f of [

@@ -41,7 +41,7 @@ The prompt templates converge in five layers — JSON structure, document struct
 5. **Structural skeleton + clause library + injection contract** —
    - **Skeleton registry** (`src-next/render/templates.ts`): one declarative section list + zone segment map `segments: {shell, return, round-context}` + render `order: [shell, return, round-context]` — the cache-zone split is a skeleton attribute, not a one-off reorder
    - **Clause library** (`src-next/render/templates.ts` `clauses`): every discipline clause lives once as byte-single-source text, referenced via `{{> cl:…}}` partial refs — changing a rule updates every template on one line
-   - **Token registry** (`src-next/render/templates.ts` `tokens`): the 14 declared injection tokens (13 `round-context` + 1 `shell`) become data (name / zone); the renderer drives off the registry; template text carries no loose tokens
+   - **Token registry** (`src-next/render/templates.ts` `tokens`): the 16 declared injection tokens (15 `round-context` + 1 `shell`) become data (name / zone); the renderer drives off the registry; template text carries no loose tokens
 
 ## 4. Single-plane-single-file (data consolidation)
 

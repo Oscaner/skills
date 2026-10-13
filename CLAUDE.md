@@ -22,7 +22,7 @@ pnpm run changeset  # create a changeset for versioning
 pnpm exec changeset version  # apply changesets to bump versions + CHANGELOGs (native; CI runs it on the Version PR)
 ```
 
-CI runs `node scripts/run.ts validate` on PRs to `develop` and `main` (validation blocks: emit freshness, kairos plugin resolution / skills inventory / pi-package well-formed / behavior tests + wiring guard, cdd-engine engine test suite, engine zero residue + channel audit, marketplace manifests + emit harness registry consistency, scripts unit tests, package version sync).
+CI runs `pnpm run validate` on PRs to `develop` and `main` — the root `package.json` validate chain (emit freshness via `pnpm run emit:check` · root scripts vitest · kairos suite `pnpm -C packages/kairos test` · engine suite `pnpm -C packages/cdd-engine test` · typecheck × 3 · version-sync · `check:no-bare-functions`), dispatched as one job per check in `.github/workflows/pr-validate.yml`.
 
 ### Engine development calls — local `bin.ts`, not `npx`
 
@@ -40,7 +40,7 @@ Adding a new first-party plugin: create `packages/<name>/package.json` with an `
 
 - `packages/` — first-party plugins (kairos)
 - `scripts/run.ts emit` — unified emit tool (derives `source.json` + all harness manifests)
-- `scripts/run.ts validate` — Node validation orchestration
+- `.github/workflows/pr-validate.yml` — the native validation job matrix (one job per check; the local equivalent is the root `pnpm run validate` chain)
 - `packages/cdd-engine/` — CDD engine npm package (`src-next/` five-plane OOP tree · `templates/` · the six-command `cdd` CLI: implement / review / fix / schema / issue / base)
 
 ### Per-package docs
@@ -106,7 +106,7 @@ Never write to the local session-memory directory (`~/.claude/projects/<repo>/me
 
 ### Validation and commit flows
 
-Commits run on a dirty tree (`git add` + `git commit` run with uncommitted changes present). `.husky/pre-commit` is the single line **`pnpm exec lint-staged`** (tasks in `lint-staged.config.ts`): **`biome check`** gates the staged TS set with no-fix semantics — no `--write`, so a format/lint violation in a staged `.ts` file exits non-zero and aborts the commit (lint-staged only checks staged files, so un-staged dirty files don't block; `biome:fix` remains a manual self-check the hook never calls) — and a **`*` catch-all runs `pnpm run precommit`** (`node scripts/run.ts precommit`, i.e. `precommitSteps` in `scripts/validate.ts`) once per commit: the tree-independent subset of the full validate (emit freshness / kairos tree + wiring guard + pi-package well-formed / engine zero residue + channel audit / marketplace manifests / scripts unit / package version sync), excluding the tree-dependent engine block (the cdd-engine engine vitest suite). The full validate, including the tree-dependent black-box cases, runs on the CI clean checkout (`.github/actions/validate` + `scripts/run.ts smoke-cdd`); locally, commit first, then run `pnpm run validate` for the complete assertion surface.
+Commits run on a dirty tree (`git add` + `git commit` run with uncommitted changes present). `.husky/pre-commit` is the single line **`pnpm exec lint-staged`** (tasks in `lint-staged.config.ts`): **`biome check`** gates the staged TS set with no-fix semantics — no `--write`, so a format/lint violation in a staged `.ts` file exits non-zero and aborts the commit (lint-staged only checks staged files, so un-staged dirty files don't block; `biome:fix` remains a manual self-check the hook never calls) — and a **`*` catch-all runs `pnpm run precommit`** (the root `package.json` precommit chain: `emit:check` → root scripts vitest → the kairos suite + the engine entry limited to its three colocated guard files → typecheck × 3 → version-sync → `check:no-bare-functions`) once per commit: the tree-independent subset of the full validate, excluding the tree-dependent engine block (the cdd-engine engine vitest suite). The full validate, including the tree-dependent black-box cases, runs on the CI clean checkout (`.github/actions/validate`); locally, commit first, then run `pnpm run validate` for the complete assertion surface.
 
 ### Node.js
 

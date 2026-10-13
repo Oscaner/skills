@@ -10,16 +10,16 @@ Maintainer-only documents for this monorepo's developers (English-primary; not s
 | 04 | [04-program-experience.md](04-program-experience.md) | Hard-won lessons across every phase; the baking input for skill document templates |
 | 06 | [06-skill-node-discipline.md](06-skill-node-discipline.md) | Skill node authoring discipline: facts only, no restatement (each fact lives in exactly one of the four skill surfaces) |
 
-## P4.2 convergence ledger
+## Convergence ledger (P4.2 → P5)
 
-Task 9 merged the two template docs, trimmed program-experience, updated 02/05 to the P4.4 final state. Plan anchor: total ≤ 56 KB (P3.2 facts-only sweep adds 06-skill-node-discipline) — `maintainers-docs.test.ts` asserts each After cell against the live file.
+The ledger tracks the maintainers family's byte convergence across P4.2 → P5: Task 9 merged the two template docs, trimmed program-experience, updated 02/05 to the P4.4 final state, and the P5 sweeps kept the token/cache facts and the validation-ruleset rows current. Plan anchor: total ≤ 56 KB (P3.2 facts-only sweep adds 06-skill-node-discipline) — `maintainers-docs.test.ts` asserts each After cell against the live file.
 
 | File | Before (B) | After (B) | Note |
 |---|---|---|---|
 | 01-template-doctrine.md | 14,378 | 10,866 | merged from 01 + 02 · §9 doc-structure facts (unilateral edge) |
 | 02-naming-conventions.md | 7,994 | 9,180 | blocker bounded mapping added · P5 branch-fix re-point (word-face audit domicile) |
-| 03-context-caching-doctrine.md | 8,706 | 8,383 | row-key mirror (P3 T2) · cached-bytes trims |
+| 03-context-caching-doctrine.md | 8,706 | 8,450 | row-key mirror (P3 T2) · cached-bytes trims · P6 single-return + token-count fact fix |
 | 04-program-experience.md | 21,773 | 15,488 | trimmed ~9 KB · +items 57-58 · P5 T7 re-anchor (consumer-sim retired) · P5 branch-fix re-point (items 46/50/56) · P5 CI-ruleset lesson §10-58 |
 | 06-skill-node-discipline.md | 0 | 1,900 | P3.2 facts-only sweep · skill-node discipline (facts only, no restatement) |
-| README.md | 2,324 | 2,433 | index converged + 06 row + anchor revision + P5 retirement ledger |
-| **Total** | 65,193 | 48,250 | plan anchor ≤ 56,000 |
+| README.md | 2,324 | 2,671 | index converged + 06 row + anchor revision + P5 retirement ledger + P6 ledger retitle |
+| **Total** | 65,193 | 48,555 | plan anchor ≤ 56,000 |

@@ -29,21 +29,21 @@
 - 与 phase-spec 的差异点：**无 `### N.` 双层设计大纲**（single 是修复/裁决导向自由文档 · 硬套 phase 大纲是错位）· **无 `**Parent program**` 必填**（single 无父整体 · 独立程序形态）
 - 注册表元素按 single 文档序排列（标题 · 版本行 · status · author · 主体段 · change history）· **slot-consumption 断言同款**（skeleton 渲染后逐注册锚探测 · 漂移 loud throw）
 #### 2.2 schema get 值域并入
-- `schema get single-spec --output skeleton <target>` 落位（对齐 phase-spec/overall 语义：target **必填** · 引擎直写目标 doc · 就地生成填 in place）· `--output json` 无需 target · SCHEMA_TYPE_KEYS 增 `single-spec: "single-spec"` 行
+- `schema get single-spec --output skeleton <target>` 落位（对齐 phase-spec/overall 语义：target **必填** · 引擎直写目标 doc · 就地生成填 in place）· `--output json` 无需 target · SCHEMA_TYPE_KEYS（face/declare.ts:300）增 `single-spec: "single-spec"` 行
 - did-you-mean 候选随命令树更新（`schema get s…` 前缀仍入候选）
-- **doc-contract 判定**：single-spec 骨架 by construction 绿（结构 = 声明派生）· 填后 doc-contract 终判兜底（semantic 不变 · single 变体填 g出可以过 gate）
+- **doc-contract 判定**：single-spec 骨架 by construction 绿（结构 = 声明派生）· 填后 doc-contract 终判兜底（semantic 不变 · single 变体填后 doc-contract 判绿 · 可过 gate）
 #### 2.3 cdd-spec-writer single-spec 变体「先 gen 后填」
 - 消费面字面：`npx -y @oscaner-skills/cdd-engine@latest schema get single-spec --output skeleton <target path>` → 填 prose in place（与 phase-spec/overall 同款纪律 · I3/消费心智）
 - 预提 self-review 同款：spec 覆盖 + 类型一致 + `:::fill` 零残留 + 非豁免 `<…>` 零残留（零残留 pin 保持）
 
 ### 3. 命名统一（single-spec + overall-spec 词表）
 #### 3.1 词表值域层落点（Q1→a）
-- `overall` → **`overall-spec`**：`DocKey = "single-spec" | "phase-spec" | "overall-spec" | "plan"` · declare 元素注册表键（`OVERALL_ELEMENTS` → `OVERALL_SPEC_ELEMENTS` 锚位 · registry 行键）· schema get 值域（`single-spec | phase-spec | overall-spec | plan`）· judge `DOC_KEYS` 数组 · skeleton 渲染分派（`case "overall"` → `case "overall-spec"`）· Projector 投影键
+- `overall` → **`overall-spec`**：`DocKey = "single-spec" | "phase-spec" | "overall-spec" | "plan"` · declare 元素注册表键（`OVERALL_ELEMENTS` → `OVERALL_SPEC_ELEMENTS` 锚位 · declare.ts:162 · registry 行键 declare.ts:863）· schema get **doc-key 值域**（`single-spec | phase-spec | overall-spec | plan` · **plan-graph 显示型与 phaseSpec 输入别名保留**）· judge `DOC_KEYS` 数组（judge.ts:38）· skeleton 渲染分派（`case "overall"` → `case "overall-spec"` · render/skeleton.ts:112）· Projector 投影键（contract/project.ts:265-275）
 - **judge 派生映射**（contract/judge.ts:101）：`-overall.md → overall` 改为 **`-overall.md → overall-spec`**——历史 4 份 `*-overall.md` 物理文件名不变 · 推导结果与词表对齐
 - **`plan` 裸名**（Q2→a）· **`phase-spec` 不变**（已在 `-spec` 系内）
 #### 3.2 测试 pins 处置（deliberate byte sync）
 - 引擎测试锚全量翻新：`project.shape.overall.snap` / `project.schema.overall.snap` 快照 + cli.test.ts / project.test / judge.test 等文件内的 `"overall"` 字面 → `"overall-spec"` · **每处为 deliberate 重锚**（与 P1 usage 重写 P5 字节 major 同级）
-- 新增 pinned：`schema get <type>` 值域 = `single-spec | phase-spec | overall-spec | plan` · 消费面 skill 字面 `single`/`overall` 残留 grep pin（历史 doc 内引用豁免——frozen 历史面不扫）
+- 新增 pinned：`schema get <type>` **doc-key 值域** = `single-spec | phase-spec | overall-spec | plan`（**plan-graph 显示型与 phaseSpec 输入别名保留** · 命名统一只改 doc-key 词表）· 消费面 skill 字面 `single`/`overall` 残留 grep pin（历史 doc 内引用豁免——frozen 历史面不扫）
 #### 3.3 消费面 skill 字面同步
 - cdd-spec-writer / cdd-design / cdd-plan 的 skill 文本变体名：`single` → `single-spec` · `overall` → `overall-spec`（目标参数 · 分派字面 · 出口措辞）· 行为树 pins（presentation-surface.test.ts）随更替
 - **物理文件名与引用零改**（Q1→a 边界）：`docs/kairos/specs/*-overall.md` 4 份 + README 家族指它们的链接零动
@@ -57,7 +57,7 @@
 - **零 `describe()` 现状保持选择**：suite 现为全扁平 `test()`（recon 实证）——迁移不强制结构重排（行为等价 · 最小 diff · 后续如需要再分层）
 - helpers.ts 同迁（96 行 · 非测试文件零 node:test/assert import · execFileSync git/mkdtemp 保持）· `fixtures/whitespace.txt` 原样
 #### 4.3 零裸函数收编（Q6→a · 连带）
-- kairos tests 面 **11 处裸 `function` 全收 `const` 箭头**（recon 实证：cdd-plan-spec.test.ts:24 · grep-sweep-regression.test.ts:26 · maintainers-docs.test.ts:59/63/71 · pi-install-smoke.test.ts:30 · pi-package.test.ts:21 · presentation-surface.test.ts:54/61/69/380/396）· 使 helpers.ts/words.test.ts/skill-anatomy.test.ts 头注自标（"零裸函数适用本迁移面"）与实况一致
+- kairos tests 面 **12 处裸 `function` 全收 `const` 箭头**（recon 实证：cdd-plan-spec.test.ts:24 · grep-sweep-regression.test.ts:26 · maintainers-docs.test.ts:59/63/71 · pi-install-smoke.test.ts:30 · pi-package.test.ts:21 · presentation-surface.test.ts:54/61/69/380/396）· 使 helpers.ts/words.test.ts/skill-anatomy.test.ts 头注自标（"零裸函数适用本迁移面"）与实况一致
 - `check:no-bare-functions`（root package.json script · 现只扫 engine + scripts）**scope 扩 `packages/kairos/tests`**——与引擎/scripts 两面对齐 · 门禁入 CI（no-bare-functions job 命令字面扩展）
 
 ### 5. 过时文档清理 + 运维精简
@@ -66,7 +66,7 @@
 - `CLAUDE.md:43` — `- scripts/run.ts validate — Node validation orchestration`（仓库布局行 → 删除/改写为 validate 原生链 + pr-validate.yml 矩阵）
 - `CLAUDE.md:109` — `pnpm run precommit (node scripts/run.ts precommit, i.e. precommitSteps in scripts/validate.ts)`（两处过时：run.ts precommit verb + scripts/validate.ts 文件均已解散 → 改写为 package.json 原生命令链描述 · smoke-cdd 引用同步撤）
 #### 5.2 maintainers 文档事实修正（recon 实证）
-- `01-template-doctrine.md:44` — "14 declared injection tokens (13 round-context + 1 shell)" → **16（15 round-context + 1 shell）**（templates.ts:447-466 实测）
+- `01-template-doctrine.md:44` — "14 declared injection tokens (13 round-context + 1 shell)" → **16（15 round-context + 1 shell）**（src-next/render/templates.ts:447-465 实测）
 - `03-context-caching-doctrine.md:32` — "17 round-context tokens" → **16** · 五枚具名 token（HANDOFF_WRITE_GATE 等）实际不存在（render.test.ts 负断言）→ 校正为存活 token · RETURN_JSON/DOCS_FIX 退役叙述 → 单 return 契约（RETURN_STDOUT_BLOCK only · v1.9）· C1 行 "per return format" → 单契约
 - `maintainers README.md` — "P4.2 convergence ledger" 标题与内容滞后（记的是 P5 事件）→ 标题/位置叙述对齐（After 字节断言由 maintainers-docs.test 沿守 · 本文行数若变则同步该测试）
 #### 5.3 frozen 历史面零动
@@ -80,10 +80,10 @@
 - `engine `single-spec` doc 型落地 ✓（declare 注册表增型 · DocKey/DocType 并集扩容 · Projector/schema/skeleton 三投影同扩 · `schema get single-spec --output skeleton <target>` 直写目标 doc（target 必填 · `:::fill` 槽位 + Change history 表）· `--output json` 记数面闭包 · did-you-mean 随命令树更新 · slot-consumption 断言全绿）`
 - `single-spec 骨架 = 轻量脚手架 ✓（header 五元组 + 主体 fill 槽位 · 无 `### N.` 双层大纲 · 无 Parent program 必填 · 填后零 :::fill 残留 · 填后 doc-contract 判绿（semantic 不变 · gate 零例外））`
 - `cdd-spec-writer single-spec 变体「先 gen 后填」✓（schema get single-spec --output skeleton 分派字面 · 预提 self-review 零残留 pin · I3/消费心智同款）`
-- `命名统一词表落定 ✓（DocKey = single-spec | phase-spec | overall-spec | plan · schema get 值域 = 同四值 · declare 注册键 · judge DOC_KEYS · skeleton 分派 · judge 派生 `-overall.md → overall-spec`）· 物理文件名 `*-overall.md` 零改名 · `plan`/`phase-spec` 命名不变 · 历史引用零 churn`
+- `命名统一词表落定 ✓（DocKey = single-spec | phase-spec | overall-spec | plan · schema get doc-key 值域 = 同四值（plan-graph 显示型与 phaseSpec 输入别名保留） · declare 注册键 · judge DOC_KEYS · skeleton 分派 · judge 派生 `-overall.md → overall-spec`）· 物理文件名 `*-overall.md` 零改名 · `plan`/`phase-spec` 命名不变 · 历史引用零 churn`
 - `命名统一测试 pins 全量翻新 ✓（引擎快照 project.*.overall.snap → *.overall-spec.snap + cli/project/judge 等测试字面 deliberate 重锚 · 消费面 skill 变体名 single-spec/overall-spec · 行为树 pins 更替 · 消费面 `single`/`overall` 词表残留 grep pin 零命中（frozen 历史面豁免））`
 - `kairos vitest 全量迁移 ✓（11 测试文件 77 用例 + helpers.ts 全迁 `vitest` 词法 · package.json test → vitest run · vitest.config.ts 落位（pool forks · maxWorkers 1 · fileParallelism false · maxConcurrency 2 · testTimeout 20000）· CI `pnpm -C packages/kairos test` 字面不变 · 迁移后 `node --test`/`node:test` in kairos tests 零残留（recon 基线 11 文件全 node:test））`
-- `kairos tests 零裸函数收编 ✓（11 处裸 function 全收 const 箭头 · check:no-bare-functions scope 扩 packages/kairos/tests · 头注自标与实况一致 · no-bare-functions job 命令字面扩展全绿）`
+- `kairos tests 零裸函数收编 ✓（12 处裸 function 全收 const 箭头 · check:no-bare-functions scope 扩 packages/kairos/tests · 头注自标与实况一致 · no-bare-functions job 命令字面扩展全绿）`
 - `过时文档清理 ✓（root CLAUDE.md 三处 P5-stale 改净（run.ts validate / validate.ts / smoke-cdd 引用）· maintainers 01:44 token 计数 14→16 · 03:32 具名 token 往返修 + RETURN_JSON/DOCS_FIX 退役单契约 · maintainers README ledger 标题对齐 · maintainers-docs.test 随行同步全绿 · docs/kairos/{specs,plans} frozen 面零动）`
 - `引擎 vitest 全绿（含新 single-spec + 命名统一 pins）· kairos suite 全绿（vitest run · 77 用例）· EOF 全绿 · `pnpm run validate`（或等价 CI 原生序列）ALL PASS · 不发布`
 
@@ -93,7 +93,7 @@
 - **命名统一词表值域层**（Q1→a）：`overall`→`overall-spec` 只落 doc-key 词表值域 · **物理文件名 `*-overall.md` 零改名** · `plan`/`phase-spec` 命名不变 · 每处字面为 deliberate（pin 重锚 + 锚同步）
 - **single-spec 轻量脚手架**（Q3→a）：header 五元组 + 主体 fill 槽位 · 无 `### N.` 双层大纲 · 无 Parent program 必填 · 自由主体（与 2026-09-28-cdd-review-contract-fix 形态对齐）
 - **kairos vitest 全镜像引擎**（Q4→a）：pool forks · maxWorkers 1 · fileParallelism false · maxConcurrency 2 · testTimeout 20000 · CI 命令字面不变
-- **零裸函数收编连带**（Q6→a）：kairos tests 11 处裸 function 全收 const 箭头 · check:no-bare-functions scope 扩 · 头注自标一致化
+- **零裸函数收编连带**（Q6→a）：kairos tests 12 处裸 function 全收 const 箭头 · check:no-bare-functions scope 扩 · 头注自标一致化
 - **文档清理精确边界**（Q5→a）：root CLAUDE.md + maintainers 01/03/README · **frozen 历史面零动**（docs/kairos/{specs,plans} · grep-sweep 既排除）
 - **语义契约保**：退出码表 / CDD_BLOCKED 通道 / doc-contract 判定 / `next:` 字面 / 领域 run 语义——语义不变（命名统一为 deliberate re-anchor · 非行为变更）
 - **gate 零例外**：doc-contract 判定语义不变——single-spec 骨架 by construction 绿 · 填后终判兜底
@@ -103,4 +103,4 @@
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
-| v0.1 | 2026-10-13 | P6 设计 v0.1——single-spec 骨架 + 命名统一 + kairos vitest 迁移 + 过时文档清理（D21 注册 · D22 grilling 六裁定）：① single-spec doc 型（轻量脚手架 · header + `:::fill` 槽位 + Change history 表 · schema get single-spec --output skeleton · cdd-spec-writer 先 gen 后填）· ② 命名统一词表值域层（overall→overall-spec · single→single-spec · plan/phase-spec 不变 · 物理文件名 `*-overall.md` 零改名 · judge 派生 `-overall.md → overall-spec`）· ③ kairos vitest 全量迁移（pool forks 镜像引擎 · 11 文件 77 用例 · helpers 同迁）+ 零裸函数收编（11 处收 const · check:no-bare-functions scope 扩）· ④ 过时文档清理（root CLAUDE.md 三处 + maintainers 01:44/03:32 + README ledger · frozen 面零动）· 不发布 · 单 phase-spec 收口 | Oscar M. · Claude Opus 5（kairos:cdd-design [P6] 会话 · 用户裁定 · 2026-10-13） |
+| v0.1 | 2026-10-13 | P6 设计 v0.1——single-spec 骨架 + 命名统一 + kairos vitest 迁移 + 过时文档清理（D21 注册 · D22 grilling 六裁定）：① single-spec doc 型（轻量脚手架 · header + `:::fill` 槽位 + Change history 表 · schema get single-spec --output skeleton · cdd-spec-writer 先 gen 后填）· ② 命名统一词表值域层（overall→overall-spec · single→single-spec · plan/phase-spec 不变 · 物理文件名 `*-overall.md` 零改名 · judge 派生 `-overall.md → overall-spec`）· ③ kairos vitest 全量迁移（pool forks 镜像引擎 · 11 文件 77 用例 · helpers 同迁）+ 零裸函数收编（12 处收 const · check:no-bare-functions scope 扩）· ④ 过时文档清理（root CLAUDE.md 三处 + maintainers 01:44/03:32 + README ledger · frozen 面零动）· 不发布 · 单 phase-spec 收口 | Oscar M. · Claude Opus 5（kairos:cdd-design [P6] 会话 · 用户裁定 · 2026-10-13） |

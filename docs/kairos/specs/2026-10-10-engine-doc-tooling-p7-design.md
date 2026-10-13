@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P7 设计：评测面 commit-sha 全退役 + 物料无条件 extract + brief=完整计划镜像 · 三 face 单输入
-- **Version**: v0.1 · 2026-10-13
+- **Version**: v0.2 · 2026-10-13
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P7] 会话 · 用户裁定 · 2026-10-13）
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](2026-10-10-engine-doc-tooling-overall.md)
@@ -7,7 +7,7 @@
 
 ## Design
 
-本 phase 承接 P6 收口后的连续重构（程序六 phase 收口后的续 phase · 2026-10-13 cdd-design [P7] 会话注册 D23 · grilling 裁定 D24/D25 全按落定）。一把刀：**评测面从「检查 commit」转为「基于代码实况」**——① 评测面 **commit-sha 整体退休**（R2/Q1 · sha 是传话筒不是裁判 · 引擎从不 diff）· ② 所有 child 派发前的物料准备 **无条件 extract**（R1/R3 · 不存在才生成 → 每次派发前从当前 plan 重新 extract · 防旧版漂移）· ③ wave 三 face（implement/review/fix）**单输入 = 完整计划镜像 brief**（Q4(a)）· ④ **review 基准 = 最新 brief + live tree**（Q2）· ⑤ **branch review-fix 基于 base→head 方向**（R4 · base = 分支名，非双 commit sha）· ⑥ **changes[] 同退役、改动面由 review 自判**（Q3）· ⑦ **I7 撤除**。设计输入：kairos:cdd-design [P7] 会话（D23 注册 · D24 grilling Q1/Q2/Q3 裁定 · D25 Q4(a) 裁定）· overall v2.22（D23）→ v2.24（D24/D25）· recon 报告（commit-sha 触点全谱审计 · changes[]「引擎对账」prompt 虚构实证 · 三 face round context 逐 token 对比 · GitClient 生产调点枚举）。
+本 phase 承接 P6 收口后的连续重构（程序六 phase 收口后的续 phase · 2026-10-13 cdd-design [P7] 会话注册 D23 · grilling 裁定 D24/D25 全按落定）。一把刀：**评测面从「检查 commit」转为「基于代码实况」**——① 评测面 **commit-sha 整体退休**（R2/Q1 · sha 是传话筒不是裁判 · 引擎从不 diff）· ② 所有 child 派发前的物料准备 **无条件 extract**（R1/R3 · 不存在才生成 → 每次派发前从当前 plan 重新 extract · 防旧版漂移）· ③ wave 三 face（implement/review/fix）**单输入 = 完整计划镜像 brief**（Q4(a)）· ④ **review 基准 = 最新 brief + live tree**（Q2）· ⑤ **branch review-fix 基于 base→head 方向**（R4 · base = 分支名，非双 commit sha）· ⑥ **changes[] 同退役、改动面由 review 自判**（Q3）· ⑦ **I7 撤除**。设计输入：kairos:cdd-design [P7] 会话（D23 注册 · D24 grilling Q1/Q2/Q3 裁定 · D25 Q4(a) 裁定）· overall v2.22（D23）→ v2.24（D24/D25）· recon 报告（commit-sha 触点全谱审计 · changes[]「引擎对账」prompt 虚构实证 · wave/doc/branch 三线 round context 逐 token 对比 · GitClient 生产调点枚举）。
 
 ### 1. 目标与边界
 #### 1.1 设计输入与授权
@@ -29,7 +29,7 @@
 - `session/branch-ref.ts` 全文件删（short/args/fromHandoff/静态 short 全死）· `gate.refFromHandoff`（gate.ts:123-133）删 · `cli.ts` branch face 装配（:683-688）删 · **branch 线稳定键 `"branch"` 保留**（gate.ts:156-160 · find #9 · 与 commit ref 无关）
 #### 2.3 CLI flag 退役
 - `declare.ts` channels：`head` 通道删（:72）· `base` 通道改 **branch-name 语义**（:71 · 型 `"sha"` → branch 名——base set 已呈 `valueType: "branch"` 先例 · :169-170 注释语义从「review 8-char sha」改「base artifact 分支名」）· **`"sha"` 值域型全退**（`ShapedChannelValueType` :109 删 `"sha"` · `VALUE_SHAPES.sha` :143-146 删）
-- `review` 命令 keys 删 `base`/`head`（declare.ts:222-223）· `REQUIRED_GROUPS.review.branch` = `["--base", "--head"]` → **`["--plan"]`**（:321 · branch review 只需要 plan 带给工作区身份 + INPUT_DOC 锚）· fix keys 不动（branch fix 已只 `--plan --findings`）
+- `review` 命令 keys 删 `base`/`head`（declare.ts:222-223）· `REQUIRED_GROUPS.review.branch` = `["--base", "--head"]` → **`["--plan"]`**（:321 · branch review 只需要 plan 带给工作区身份 + INPUT_DOC 锚）· **`REQUIRED_GROUPS.fix.branch` = `["--findings"]` → `["--findings", "--plan"]`**（:327 · BranchRef 删后 branch fix 工作区身份恒 = `slugFromDoc(planPath)` —— plan 成硬依赖 · capsule/消费面字面本已带 `--plan`，声明面追上）· fix 其余 groups 不动
 - 零 CLI 面传 sha：branch review 变为 `cdd review --type branch --plan <path>` 单参（head = 当前实况，永不传）
 #### 2.4 child 返回契约（3 行 → 2 行）
 - `RETURN_STDOUT_BLOCK`（templates.ts:423-439）删 `commits:` 行（:431）→ 恰好 **status + artifacts 二行**；artifacts 行处方 `OUTPUT_BRIEF`/`OUTPUT_REPORT`/`OUTPUT_EVIDENCE` → **`OUTPUT_REPORT`/`OUTPUT_EVIDENCE`**（:437 · brief 折叠为纯输入）
@@ -50,6 +50,8 @@
 - **`INPUT_PLAN` token 退役**（Q4 实证：implement shell 声称「read Constraints via `INPUT_PLAN`」（templates.ts:174）但 **implement round context 从不携带 INPUT_PLAN**（:256-270）——声明/携带 gap · 与「Input range 空槽 drop」规则冲突 —— 篇首壳文虚构）· `TOKENS`（:452）删 · `#valuesOf INPUT_PLAN`（lifecycle.ts:301）删 · review shell 的 Constraints 参照随 brief 镜像而消失（见 5.1）
 - **`INPUT_DOC` 升为唯一 doc 锚**：值 = spec→`--spec` 路径 · plan→`--plan` 路径 · **branch→`--plan` 路径**（原 docPath 仅覆盖 doc-kind target · branch-kind 补 `scene.planPath`）· `REVIEW_CONTEXT`（:237-248）换为 `ROLE`/`WAVE`/`INPUT_WAVE_BRIEF`/`INPUT_DOC`/`BASE_BRANCH`/`OUTPUT_REPORT`/`OUTPUT_HANDOFF`/`WORKSPACE_DIR`/`WORKSPACE_ID` 共享尾部（空值由 assembler drop · 每型只落本型事实）
 - 每型参照定焦：**wave review → `INPUT_WAVE_BRIEF`（最新镜像 brief）** · **branch review → `INPUT_DOC`（plan）+ `BASE_BRANCH`** · **spec/plan review → `INPUT_DOC`（target doc）**——四 review 型各唯一参照，零范围 token
+- **doc 线重复参照消解（复审实证）**：plan review 现状 `INPUT_RANGE=planPath` 与 `INPUT_PLAN=planPath` **双 token 同文件重复**（`#reviewRange` doc 职 + `scene.planPath` 职叠坐）· spec review 的 `INPUT_PLAN` 为空槽（spec 无 `--plan`）——两者在 INPUT_RANGE/INPUT_PLAN 退役后由**唯一 `INPUT_DOC`**（spec→specPath · plan→planPath）承接，doc 线 review-fix 与 wave 线同构
+- **branch fix 文档上下文赋值（复审新决定 · 修真空 gap）**：`fix` mode round context（templates.ts:275-288）增 **`INPUT_DOC`**（branch → planPath · 与 review 线同款 branch-kind 补 `scene.planPath`）——现状 branch fix 的 `INPUT_WAVE_BRIEF` 恒空（`#waveBrief` 仅 wave 帧返回）而 `FIX_SHELL`（:195）声称读它——**branch fix child 今天只有 findings、零计划/约束上下文**（与 implement INPUT_PLAN gap 同款病）· `FIX_SHELL` 按线分句：wave→「`INPUT_WAVE_BRIEF`（完整计划镜像）」· branch→「`INPUT_DOC`（plan）」· review-fix 环（wave fix 的 INPUT_WAVE_BRIEF + branch fix 的 INPUT_DOC + docs-fix 的 INPUT_DOC）据此三线同锚
 #### 3.2 BASE_BRANCH：base→head 方向的唯一携带者（R4）
 - 新 token `BASE_BRANCH`：值 = **base artifact 的 base 分支名**（`base get --plan <path>` · cdd-dev determine-base→set-base 已落）· 带于 **wave + branch 两个 tree-review face** 的 round context（树评审需要 base 才能自跑 `git diff origin/<base>..HEAD`）
 - **单一载体规则**（防再漂移）：review 派发零 CLI 传 base——`review --type branch --plan <path>` 单参，engine 派发时从 base artifact 读入注入 · 与「base set/get 是唯一读写路径」同源（cdd-dev 消费面零手工 JSON）· 缺 artifact → 空槽（assembler drop · scope 轴降级：按 working tree vs 参照文件面判，见 6.3）
@@ -108,6 +110,7 @@
 - `brief = 完整计划镜像 ✓（任务段 + ## Constraints 段 · WAVE_BASE 行删 · render 去 head 参 · implement shell 壳文与 round context 恢复一致（零 INPUT_PLAN gap）· cdd-plan SKILL.md:44 约束通道句随更）`
 - `changes[] 同退役 + 改动面自判 ✓（CHANGED_FILE + CARRIER_WORK.changes + CarrierValue.changes + 模板 cl:changed-surface 条款（含「引擎 reconcile」prompt 虚构句）全删 · wave/branch scope 轴 = review 自跑 git diff origin/<BASE_BRANCH>..HEAD − 参照文件面 · 不可归因 = 候选发现 · 引擎零对账 · REVIEWS spec/plan ref → INPUT_DOC）`
 - `载体/路由/契约重整全绿 ✓（CARRIER_WORK/FINDINGS 声明 + CarrierValue + ledger Round + RETURN 二行契约 + #parseBlockReturn/#commitsOf/#fixedPoint/#reviewRange/#outputOf(brief) 删 · handoff/next/capsule/declare 同步 · channel-closure 注册表守卫随删随配 · token 注册表守卫生效）`
+- `doc 线与 branch 线 round context 同构化 ✓（plan review INPUT_RANGE==INPUT_PLAN 双 token 重复消解 → 唯一 INPUT_DOC · spec review 空 INPUT_PLAN 随 token 退役 · branch fix 文档上下文赋值——fix mode context 增 INPUT_DOC(branch→planPath) · FIX_SHELL 按线分句（wave→INPUT_WAVE_BRIEF · branch→INPUT_DOC） · branch fix 真空 gap 修净 · REQUIRED_GROUPS.fix.branch=["--findings","--plan"] · branch review 零 OUTPUT_EVIDENCE / branch fix 保留 OUTPUT_EVIDENCE 保持）`
 - `I7 撤除 + kairos 消费面同步 ✓（cdd-dev SKILL.md:89 I7 行删 · :53 branch-review 字面重写零 ref · cdd-plan :44 INPUT_PLAN→镜像 Constraints 句 · 行为树 pins 全更替）`
 - `引擎 vitest 全绿（14 pin 文件 deliberate 重锚 + 新 pins：sha 零残留 / BASE_BRANCH 注入 / 无条件 extract rematch / 二行契约 / GitClient 二方法集）· kairos suite 全绿（vitest run）· EOF 全绿 · `pnpm run validate`（或等价 CI 原生序列）ALL PASS · 引擎 CLI 均以仓库内 bin 调用 · 不发布`
 
@@ -125,4 +128,5 @@
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.2 | 2026-10-13 | doc/branch 线 review-fix round context 复审折入——plan review 双 token 重复消解 · branch fix 文档上下文赋值（fix mode 增 INPUT_DOC · FIX_SHELL 按线分句 · REQUIRED_GROUPS.fix.branch 追 --plan） | Oscar M. · Claude Opus 5 |
 | v0.1 | 2026-10-13 | P7 设计实写——评测面 commit-sha 全退役（Q1）· review 基准=最新 brief + base→head 方向（Q2/R4）· 物料无条件 extract（R1/R3）· brief=完整计划镜像三 face 单输入（Q4(a)）· changes[] 同退役改动面自判（Q3）· I7 撤除 · 六前提 mandate | Oscar M. · Claude Opus 5 |

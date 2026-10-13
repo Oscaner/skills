@@ -907,7 +907,7 @@ export class SelfBoundedInvariant extends Invariant {
   /** The doc's Change-history row versions — the overall reads its parsed table,
    *  the plan/spec read the `## Change history` section's table rows (the shared
    *  row primitive — the P4.1 T2 isomorphic lineage: the same lineage judgment rides
-   *  all three doc types). */
+   *  all doc types). */
   #historyVersions(ctx: JudgeContext): readonly string[] {
     if (ctx.docKey === "overall-spec") {
       const data = this.overall(ctx);

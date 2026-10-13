@@ -300,7 +300,7 @@ describe("the DocType class face (spec §2.2)", () => {
   });
 });
 
-describe("P2 — the three doc skeletons judge clean (spec §7.2 colocated pin)", () => {
+describe("P2 — the four doc skeletons judge clean (spec §7.2 colocated pin)", () => {
   /** The empty fs seam — every chain link of a skeleton is a `<…>` placeholder
    *  target (the judge's exemption chain), so the file-existence / sibling-scan
    *  surfaces never fire and the skeleton is green by construction. */

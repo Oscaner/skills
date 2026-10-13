@@ -1,7 +1,7 @@
 // packages/cdd-engine/src-next/render/__tests__/skeleton.test.ts
 // The SkeletonAssembler suite (P2 — the `cdd schema get <type> --output skeleton`
 // render face, spec §3/§4.1):
-//   · the three doc skeletons render the complete structural scaffolds — byte-
+//   · the four doc skeletons render the complete structural scaffolds — byte-
 //     pinned from the P2 first version (the assembler's date is the injectable
 //     run-day truth, fixed here — never a live clock);
 //   · the placeholder-anchoring probes (spec §4.1): pure content slots take
@@ -77,7 +77,7 @@ const probeOf = (anchor: string): string => {
   return anchor;
 };
 
-describe("SkeletonAssembler — the three doc skeletons (byte pins)", () => {
+describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
   it("renders the phase-spec skeleton — the header five-tuple + the Design double layer + the lineage", () => {
     expect(renderOf("phase-spec")).toBe(
       [
@@ -248,7 +248,7 @@ describe("SkeletonAssembler — the three doc skeletons (byte pins)", () => {
 });
 
 describe("SkeletonAssembler — the required-anchor coverage probes (§3.2)", () => {
-  it("carries every required anchor of the three doc types (the live registry set)", () => {
+  it("carries every required anchor of the four doc types (the live registry set)", () => {
     for (const key of ["overall-spec", "plan", "phase-spec", "single-spec"] as const) {
       const rendered = renderOf(key);
       for (const anchor of requiredAnchorsOf(key)) {
@@ -401,7 +401,7 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
 });
 
 describe("SkeletonAssembler — the slot-consumption invariant (composition vs registry)", () => {
-  it("consumes every required slot of the three live projections — render() never trips the assertion", () => {
+  it("consumes every required slot of the four live projections — render() never trips the assertion", () => {
     for (const key of ["overall-spec", "plan", "phase-spec", "single-spec"] as const) {
       expect(() => renderOf(key)).not.toThrow();
     }

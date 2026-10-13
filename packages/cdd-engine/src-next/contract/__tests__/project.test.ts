@@ -22,11 +22,12 @@ import type { ElementRegistry } from "../declare.ts";
 import { declaredRegistries } from "../declare.ts";
 import { Projector } from "../project.ts";
 
-const DOC_KEYS = ["overall-spec", "plan", "phase-spec"] as const;
+const DOC_KEYS = ["overall-spec", "plan", "phase-spec", "single-spec"] as const;
 const REGISTRIES = [
   declaredRegistries["overall-spec"],
   declaredRegistries.plan,
   declaredRegistries["phase-spec"],
+  declaredRegistries["single-spec"],
 ] as const satisfies readonly ElementRegistry[];
 
 /** The shared projection carrier the suite derives every surface from. */
@@ -267,11 +268,12 @@ describe("skeleton projection (Projector.skeleton)", () => {
 
   it("keys the projection record by the DocKey domain and carries each doc's type identity", () => {
     // The skeleton record rides the projection DocKey domain (overall-spec | plan |
-    // phase-spec) — the same single spelling as the DocType literals (spec §5.2).
+    // phase-spec | single-spec) — the same single spelling as the DocType literals (spec §5.2).
     expect(Object.keys(skeletons)).toEqual([...DOC_KEYS]);
     expect(skeletons["overall-spec"].docType).toBe("overall-spec");
     expect(skeletons.plan.docType).toBe("plan");
     expect(skeletons["phase-spec"].docType).toBe("phase-spec");
+    expect(skeletons["single-spec"].docType).toBe("single-spec");
   });
 
   it("projects exactly the required elements — optional/conditional generate zero slots", () => {
@@ -412,5 +414,6 @@ describe("Projector.registries — the composed six-projection surface", () => {
     expect(projected.skeleton["overall-spec"].docType).toBe("overall-spec");
     expect(projected.skeleton.plan.docType).toBe("plan");
     expect(projected.skeleton["phase-spec"].docType).toBe("phase-spec");
+    expect(projected.skeleton["single-spec"].docType).toBe("single-spec");
   });
 });

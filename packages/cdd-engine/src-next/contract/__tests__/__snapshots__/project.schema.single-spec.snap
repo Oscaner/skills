@@ -1,0 +1,89 @@
+{
+  "docType": "single-spec",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "single-spec document structure",
+  "description": "Derived JSON Schema — 13 declared elements · 13 required",
+  "type": "object",
+  "properties": {
+    "# Title": {
+      "type": "string",
+      "pattern": "^# \\S.*$",
+      "description": "presence: required · home: header · ref: none"
+    },
+    "**Version**": {
+      "type": "string",
+      "pattern": "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+ · \\d{4}-\\d{2}-\\d{2}$",
+      "description": "presence: required · home: header · ref: version-lineage"
+    },
+    "**Status**": {
+      "type": "string",
+      "pattern": "^- \\*\\*Status\\*\\*: (Draft|Approved|In progress|Complete)$",
+      "description": "presence: required · home: header · ref: none"
+    },
+    "**Author**": {
+      "type": "string",
+      "pattern": "^- \\*\\*Author\\*\\*:",
+      "description": "presence: required · home: header · ref: none"
+    },
+    "**Depends on**": {
+      "type": "string",
+      "pattern": "^- \\*\\*Depends on\\*\\*:",
+      "description": "presence: required · home: header · ref: none"
+    },
+    "## 背景与根因": {
+      "type": "string",
+      "pattern": "^## 背景与根因$",
+      "description": "presence: required · home: section · ref: none"
+    },
+    "## 设计裁定": {
+      "type": "string",
+      "pattern": "^## 设计裁定$",
+      "description": "presence: required · home: section · ref: none"
+    },
+    "## 验收": {
+      "type": "string",
+      "pattern": "^## 验收$",
+      "description": "presence: required · home: section · ref: none"
+    },
+    "## 约束": {
+      "type": "string",
+      "pattern": "^## 约束$",
+      "description": "presence: required · home: section · ref: none"
+    },
+    "## Change history": {
+      "type": "string",
+      "pattern": "^## Change history$",
+      "description": "presence: required · home: section · ref: none"
+    },
+    "Change history row": {
+      "type": "string",
+      "pattern": "^\\|\\s*v\\d+\\.\\d+\\s*\\|",
+      "description": "presence: required · home: table · ref: version-lineage"
+    },
+    "Version token": {
+      "type": "string",
+      "pattern": "^v\\d+\\.\\d+$",
+      "description": "presence: required · home: table · ref: version-lineage"
+    },
+    "Change history date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "presence: required · home: table · ref: none"
+    }
+  },
+  "required": [
+    "# Title",
+    "**Version**",
+    "**Status**",
+    "**Author**",
+    "**Depends on**",
+    "## 背景与根因",
+    "## 设计裁定",
+    "## 验收",
+    "## 约束",
+    "## Change history",
+    "Change history row",
+    "Version token",
+    "Change history date"
+  ]
+}

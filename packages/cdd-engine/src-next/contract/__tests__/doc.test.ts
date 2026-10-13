@@ -311,6 +311,7 @@ describe("P2 — the three doc skeletons judge clean (spec §7.2 colocated pin)"
     "overall-spec": "docs/kairos/specs/x-overall.md",
     plan: "docs/kairos/plans/x-p1.md",
     "phase-spec": "docs/kairos/specs/x-p1-design.md",
+    "single-spec": "docs/kairos/specs/x-single-spec.md",
   };
   /** The fixed run date — the version-row date truth (never a live clock). */
   const DATE = "2026-10-11";
@@ -320,7 +321,7 @@ describe("P2 — the three doc skeletons judge clean (spec §7.2 colocated pin)"
     new SkeletonAssembler(projector.skeleton()[key], DATE).render();
 
   it("judges each type's skeleton clean — zero findings (the §4.1 placeholder-anchored by-construction green)", () => {
-    for (const key of ["overall-spec", "plan", "phase-spec"] as const) {
+    for (const key of ["overall-spec", "plan", "phase-spec", "single-spec"] as const) {
       const findings = contract.validate({
         docKey: key,
         path: PATH_OF[key],
@@ -333,7 +334,7 @@ describe("P2 — the three doc skeletons judge clean (spec §7.2 colocated pin)"
   });
 
   it("keeps every `:::fill` inside the content positions — zero hits on the link anchors / structure rows", () => {
-    for (const key of ["overall-spec", "plan", "phase-spec"] as const) {
+    for (const key of ["overall-spec", "plan", "phase-spec", "single-spec"] as const) {
       for (const line of renderOf(key).split("\n")) {
         if (!line.includes(":::fill")) continue;
         // the placeholder-link anchors (`](<`), the version/status truths, the

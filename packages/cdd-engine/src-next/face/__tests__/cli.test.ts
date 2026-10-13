@@ -613,7 +613,7 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
       const code = await command.runArgv(["schema", "get", "bogus"]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain(
-        "unknown schema type: bogus (available: overall-spec, plan, phase-spec, plan-graph)",
+        "unknown schema type: bogus (available: overall-spec, plan, phase-spec, single-spec, plan-graph)",
       );
     } finally {
       cleanup();
@@ -2674,7 +2674,7 @@ describe("the pure commands — schema / issue / base", () => {
       const code = await command.runArgv(["schema", "get", "bogus"]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain(
-        "unknown schema type: bogus (available: overall-spec, plan, phase-spec, plan-graph)",
+        "unknown schema type: bogus (available: overall-spec, plan, phase-spec, single-spec, plan-graph)",
       );
     } finally {
       cleanup();
@@ -2709,6 +2709,58 @@ describe("the pure commands — schema / issue / base", () => {
       expect(text.endsWith("\n")).toBe(true);
       expect(text.endsWith("\n\n")).toBe(false);
       expect(io.stdoutText.trim()).toBe(target);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("schema get single-spec — the fourth doc-type channel: the json render without a target, the skeleton render into a required target", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      // the json render face — the derived single-spec declaration, no target
+      let code = await command.runArgv(["schema", "get", "single-spec"]);
+      expect(code).toBe(0);
+      expect(io.stdoutText).toContain('"docType": "single-spec"');
+      expect(io.stdoutText).toContain('"## 背景与根因"');
+      io.stdoutText = "";
+      // the skeleton render face — the lightweight scaffold written DIRECTLY into
+      // the target (the P5 conditional-required target mechanism)
+      const target = path.join(repoRoot, "docs", "single-spec-skeleton.md");
+      mkdirSync(path.dirname(target), { recursive: true });
+      code = await command.runArgv([
+        "schema",
+        "get",
+        "single-spec",
+        "--output",
+        "skeleton",
+        target,
+      ]);
+      expect(code).toBe(0);
+      const text = readFileSync(target, "utf8");
+      // the header five-tuple without the phase-spec's Parent program
+      expect(text).toContain("- **Version**: v0.1 · ");
+      expect(text).toContain("- **Status**: Draft");
+      expect(text).toContain("- **Author**: :::fill author");
+      expect(text).toContain("- **Depends on**: :::fill depends-on");
+      expect(text).not.toContain("**Parent program**");
+      // the prose `:::fill` body + the change-history lineage — no `### N.` outline
+      expect(text).toContain("## 背景与根因");
+      expect(text).toContain(":::fill background-root-cause");
+      expect(text).toContain("## 设计裁定");
+      expect(text).toContain("## 验收");
+      expect(text).toContain("## 约束");
+      expect(text).not.toContain("### N.");
+      expect(text).toContain("## Change history");
+      expect(text).toContain("| v0.1 | ");
+      // the written doc ends with exactly one newline — the EOF rule
+      expect(text.endsWith("\n")).toBe(true);
+      expect(text.endsWith("\n\n")).toBe(false);
+      expect(io.stdoutText.trim()).toBe(target);
+      // a missing <target> under --output skeleton exits 2 with the conditional-required byte
+      io.stderrText = "";
+      code = await command.runArgv(["schema", "get", "single-spec", "--output", "skeleton"]);
+      expect(code).toBe(2);
+      expect(io.stderrText).toContain("cdd schema get --output skeleton: missing <target>");
     } finally {
       cleanup();
     }
@@ -3032,7 +3084,7 @@ describe("T3 — the commander-native composition root: program parse + .action 
       const code = await command.runArgv(["schema", "get", "bogus"]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain(
-        "unknown schema type: bogus (available: overall-spec, plan, phase-spec, plan-graph)",
+        "unknown schema type: bogus (available: overall-spec, plan, phase-spec, single-spec, plan-graph)",
       );
     } finally {
       cleanup();

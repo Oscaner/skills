@@ -211,11 +211,45 @@ describe("SkeletonAssembler — the three doc skeletons (byte pins)", () => {
       ].join("\n"),
     );
   });
+
+  it("renders the single-spec skeleton — the header five-tuple + the prose sections + the lineage", () => {
+    expect(renderOf("single-spec")).toBe(
+      [
+        "# :::fill title",
+        "- **Version**: v0.1 · 2026-10-11",
+        "- **Status**: Draft",
+        "- **Author**: :::fill author",
+        "- **Depends on**: :::fill depends-on",
+        "",
+        "## 背景与根因",
+        "",
+        ":::fill background-root-cause",
+        "",
+        "## 设计裁定",
+        "",
+        ":::fill design-ruling",
+        "",
+        "## 验收",
+        "",
+        ":::fill acceptance",
+        "",
+        "## 约束",
+        "",
+        ":::fill constraints",
+        "",
+        "## Change history",
+        "",
+        "| Version | date | summary | author |",
+        "| --- | --- | --- | --- |",
+        "| v0.1 | 2026-10-11 | :::fill summary | :::fill author |",
+      ].join("\n"),
+    );
+  });
 });
 
 describe("SkeletonAssembler — the required-anchor coverage probes (§3.2)", () => {
   it("carries every required anchor of the three doc types (the live registry set)", () => {
-    for (const key of ["overall-spec", "plan", "phase-spec"] as const) {
+    for (const key of ["overall-spec", "plan", "phase-spec", "single-spec"] as const) {
       const rendered = renderOf(key);
       for (const anchor of requiredAnchorsOf(key)) {
         // The grep probe per anchor — the skeleton line form of the anchor lands
@@ -238,7 +272,7 @@ describe("SkeletonAssembler — the required-anchor coverage probes (§3.2)", ()
   });
 
   it("renders the version row and the change-history first row with the injected date truth", () => {
-    for (const key of ["overall-spec", "plan", "phase-spec"] as const) {
+    for (const key of ["overall-spec", "plan", "phase-spec", "single-spec"] as const) {
       const rendered = renderOf(key);
       // the version row — v0.1 · the injected run date (real shape hit, never a
       // `<date>` notation marker)
@@ -262,7 +296,7 @@ describe("SkeletonAssembler — the required-anchor coverage probes (§3.2)", ()
   });
 
   it("renders every content position as a `:::fill <slot>` slot", () => {
-    for (const key of ["overall-spec", "plan", "phase-spec"] as const) {
+    for (const key of ["overall-spec", "plan", "phase-spec", "single-spec"] as const) {
       const rendered = renderOf(key);
       expect(rendered).toMatch(/:::fill \S+/g);
       // the fill values are the declared slot names — never a residual `<…>`
@@ -331,10 +365,21 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
       "| Version | date | summary | author |",
       "| --- | --- | --- | --- |",
     ],
+    "single-spec": [
+      "- **Version**: v0.1 · 2026-10-11",
+      "- **Status**: Draft",
+      "## 背景与根因",
+      "## 设计裁定",
+      "## 验收",
+      "## 约束",
+      "## Change history",
+      "| Version | date | summary | author |",
+      "| --- | --- | --- | --- |",
+    ],
   };
 
   it("lands every `:::fill` on a content position — zero on the structure/truth/link/header rows", () => {
-    for (const key of ["overall-spec", "plan", "phase-spec"] as const) {
+    for (const key of ["overall-spec", "plan", "phase-spec", "single-spec"] as const) {
       const lines = renderOf(key).split("\n");
       for (const line of lines) {
         if (!line.includes(":::fill")) continue;
@@ -345,7 +390,7 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
   });
 
   it("keeps structure true — the fixed headings and table headers carry no fill", () => {
-    for (const key of ["overall-spec", "plan", "phase-spec"] as const) {
+    for (const key of ["overall-spec", "plan", "phase-spec", "single-spec"] as const) {
       const rendered = renderOf(key);
       for (const line of STRUCTURE_LINES[key]) {
         expect(rendered, `${key}: ${line}`).toContain(line);
@@ -357,7 +402,7 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
 
 describe("SkeletonAssembler — the slot-consumption invariant (composition vs registry)", () => {
   it("consumes every required slot of the three live projections — render() never trips the assertion", () => {
-    for (const key of ["overall-spec", "plan", "phase-spec"] as const) {
+    for (const key of ["overall-spec", "plan", "phase-spec", "single-spec"] as const) {
       expect(() => renderOf(key)).not.toThrow();
     }
   });
@@ -396,7 +441,7 @@ describe("SkeletonAssembler — the slot-consumption invariant (composition vs r
 
 describe("SkeletonAssembler — the EOF rule", () => {
   it("render() never ends with a newline or a blank line — the redirected fixture ends with exactly one `\\n`", () => {
-    for (const key of ["overall-spec", "plan", "phase-spec"] as const) {
+    for (const key of ["overall-spec", "plan", "phase-spec", "single-spec"] as const) {
       const rendered = renderOf(key);
       expect(rendered.endsWith("\n"), `${key}: no trailing newline from render`).toBe(false);
       expect(rendered.endsWith("\n\n") || rendered.endsWith(" \n"), `${key}: no blank tail`).toBe(

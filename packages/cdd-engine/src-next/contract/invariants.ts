@@ -98,11 +98,12 @@ export interface JudgeContext {
   slices: DocSlices;
   /** The derived section skeleton of the judged doc type. */
   shape: DocShape;
-  /** The three declared registries — the element-level judgment data. */
+  /** The four declared registries — the element-level judgment data. */
   registries: {
     "overall-spec": ElementRegistry;
     plan: ElementRegistry;
     "phase-spec": ElementRegistry;
+    "single-spec": ElementRegistry;
   };
   /** The dispatch phase id — enables the face-④ phase-registration check. */
   phaseId?: string;

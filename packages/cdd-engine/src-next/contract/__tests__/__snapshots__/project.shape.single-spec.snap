@@ -1,0 +1,85 @@
+{
+  "docType": "single-spec",
+  "structure": [
+    {
+      "home": "header",
+      "elements": [
+        {
+          "anchor": "# Title",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "**Version**",
+          "presence": "required",
+          "refKind": "version-lineage"
+        },
+        {
+          "anchor": "**Status**",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "**Author**",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "**Depends on**",
+          "presence": "required",
+          "refKind": "none"
+        }
+      ]
+    },
+    {
+      "home": "section",
+      "elements": [
+        {
+          "anchor": "## 背景与根因",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "## 设计裁定",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "## 验收",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "## 约束",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "## Change history",
+          "presence": "required",
+          "refKind": "none"
+        }
+      ]
+    },
+    {
+      "home": "table",
+      "elements": [
+        {
+          "anchor": "Change history row",
+          "presence": "required",
+          "refKind": "version-lineage"
+        },
+        {
+          "anchor": "Version token",
+          "presence": "required",
+          "refKind": "version-lineage"
+        },
+        {
+          "anchor": "Change history date",
+          "presence": "required",
+          "refKind": "none"
+        }
+      ]
+    }
+  ]
+}

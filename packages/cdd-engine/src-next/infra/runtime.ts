@@ -147,10 +147,9 @@ export const HANDOFF_FAMILIES = {
     prev: { roundR: "review.plan:R" },
   },
   "review.branch": {
-    // find #9 (spec §6.5): the range token leaves the file name — the carrier's
-    // `commits` holds the shas (the find #7/#8 dual-truths discipline) + the
-    // workspace slug is the plan-slug (the fix face carries --plan) · round
-    // accumulates across re-reviews (lineKey pins "branch").
+    // find #9 (spec §6.5): the range token leaves the file name — the workspace
+    // slug is the plan-slug (the fix face carries --plan) · round accumulates
+    // across re-reviews (lineKey pins "branch").
     name: "branch-review-{round}.json",
     round: "increment",
     status: "rollup",

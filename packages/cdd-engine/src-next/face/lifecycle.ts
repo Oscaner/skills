@@ -16,7 +16,6 @@
 // bare functions.
 
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
 import process from "node:process";
 import { ConfigLoader } from "../infra/config.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
@@ -263,9 +262,9 @@ export class CliLifecycle {
     return form === "ref-prefixed" && ref !== null ? `${ref} ${prompt}` : prompt;
   }
 
-  /** The round-context zone values of the dispatch prompt (the v1.8 naming contract:
+  /** The round-context zone values of the dispatch prompt (the naming contract:
    *  ROLE nominative · WAVE (unit) · INPUT_* read-side · OUTPUT_* write-side · WORKSPACE_*
-   *  environment · FIX_BASE anchor). Every declared token supplied — a mode's
+   *  environment · BASE_BRANCH scope anchor). Every declared token supplied — a mode's
    *  non-consumed slots stay empty and are NOT emitted by the assembler
    *  (empty-valued keys are dropped), so each mode's round context carries only the
    *  facts the mode reads. The review criteria/lens are NOT values — they fold into
@@ -282,10 +281,14 @@ export class CliLifecycle {
       ROLE: role,
       // v1.22 (wave-unitary): the wave face's scope IS the wave (the whole task list)
       // — the round context speaks the UNIT, `WAVE`; the line faces carry their own
-      // read-side identity (INPUT_RANGE/INPUT_DOC/INPUT_PLAN — the line faces' own
-      // tokens under the wave-unitary model).
+      // read-side identity (INPUT_DOC — the doc/branch line's own token under the
+      // wave-unitary model).
       WAVE: isWave ? (params.tasks ?? "") : "",
-      INPUT_WAVE_BRIEF: this.#waveBrief(frame, scene, op),
+      // The wave-brief read input — the ONE engine-rendered brief of the current
+      // dispatch (the unconditional re-extract at every dispatch makes it the pure
+      // read face of the wave line — §4.2); the non-wave faces carry no brief path
+      // (the slot stays empty, never emitted).
+      INPUT_WAVE_BRIEF: isWave ? (scene.briefPath ?? "") : "",
       // v1.9: INPUT_FINDINGS is fix/docs-fix only — the open findings of the source
       // review; a review writes its own draft (INPUT_FINDINGS === OUTPUT_HANDOFF
       // would be a short-circuit).
@@ -307,7 +310,8 @@ export class CliLifecycle {
       // {artifact} single naming): the round context carries the canonical OUTPUT_*
       // names the child MUST use (zero free naming · cross-round zero overwrite); a
       // slot the frame's family does not consume stays empty and is dropped (only
-      // present facts land). The brief is a pure read input — no OUTPUT_BRIEF.
+      // present facts land). The brief is a pure read input (INPUT_WAVE_BRIEF) with
+      // no write slot.
       OUTPUT_REPORT: this.#outputOf(frame, "report"),
       OUTPUT_EVIDENCE: this.#outputOf(frame, "evidence"),
       OUTPUT_HANDOFF: scene.ledger.handoffPath(op, frame.type, params),
@@ -327,20 +331,15 @@ export class CliLifecycle {
    *  the branch line carries no commit identity · doc = the {type}-{op}-{round} stem,
    *  spec-review-1). "" when the frame's family does not consume the slot — only
    *  present facts ride the prompt (the assembler drops the empty-valued keys). */
-  #outputOf(frame: OpenFrame, kind: "brief" | "report" | "evidence"): string {
+  #outputOf(frame: OpenFrame, kind: "report" | "evidence"): string {
     const workspace = this.#scene.workspace;
     const op = this.#opOf(frame);
     if (frame.type === "spec" || frame.type === "plan") {
       // The doc family — the round-keyed {type}-{op}-{round} stem (spec-review-1):
       // every review/docs-fix round books its own report (a re-review never
-      // overwrites its predecessor); brief/evidence are work-family faces only.
+      // overwrites its predecessor); evidence is a work-family face only.
       if (kind !== "report") return "";
       return workspace.resolve(`${frame.type}-${op}-${frame.round}-report.md`);
-    }
-    if (kind === "brief") {
-      // The implement round's brief — the engine-rendered input artifact (its canonical
-      // tasks-{wave}-brief.md name; the line/work faces other than implement carry none).
-      return frame.phase === "implement" ? (this.#scene.briefPath ?? "") : "";
     }
     const family = frame.type === "wave" ? `tasks-${frame.params.tasks ?? ""}` : "branch";
     if (kind === "report") {
@@ -364,30 +363,13 @@ export class CliLifecycle {
     return `${line}-test-evidence.json`;
   }
 
-  /** The round's task-brief input — the rendered brief (implement) or the prior
-   *  implement round's brief file (task fixes — it exists on disk after the
-   *  implement dispatch). "" outside the task work rounds; only present facts land. */
-  #waveBrief(frame: OpenFrame, scene: DispatchScene, op: string): string {
-    if (op === "implement") return scene.briefPath ?? "";
-    if (op === "fix" && frame.type === "wave") {
-      const brief = scene.workspace.resolve(`tasks-${frame.params.tasks}-brief.md`);
-      return existsSync(brief) ? brief : "";
-    }
-    return "";
-  }
-
   /** The RETURN_STDOUT_BLOCK child stdout → the outcome: the two canonical lines
    *  (status / artifacts), each key=value tokens; a missing status line is a BLOCKED
-   *  outcome (only present facts land). The retired three-line contract's `commits`
-   *  parse is a tolerated legacy read — T4 deletes it. */
+   *  outcome (only present facts land). */
   #parseBlockReturn(stdout: string): DispatchOutcome {
     const status = stdout.match(/^status:\s*(\S+)/m)?.[1];
     if (status === undefined) return { status: "BLOCKED" };
     const outcome: DispatchOutcome = { status: status as RoundStatus };
-    // T4 pending: the `commits` line left the shipped two-line contract; this read
-    // is retained only until T4 removes it (kept so the outcome shape is stable).
-    const commits = stdout.match(/^commits:\s*base=([0-9a-f]{8})(?:\s+head=([0-9a-f]{8}))?/m);
-    if (commits !== null) outcome.commits = { base: commits[1], head: commits[2] ?? commits[1] };
     const artifacts = stdout.match(/^artifacts:(.*)$/m);
     if (artifacts !== null) {
       outcome.artifacts = {};
@@ -460,7 +442,6 @@ export class CliLifecycle {
     return {
       status,
       findings: face === "findings" ? schema.findingsOf(findings) : undefined,
-      commits: block.commits,
       artifacts: block.artifacts,
       carrier: this.#materialize(frame, face, draft, status, reason),
     };
@@ -498,6 +479,17 @@ export class CliLifecycle {
   ): Record<string, unknown> {
     const ledger = this.#scene.ledger;
     const notes: string[] = [];
+    // The §8.7 classification ruling — the SAME judgment the read-back validator makes
+    // (non-declared / engineOnly keys are dropped, never a BLOCK): materialize drops
+    // them and books AT MOST ONE WARN on the carrier's notes (auditable, non-interrupting
+    // — replacing the retired "BLOCK + crash-resume + reopen" chain). The engine stays
+    // the carrier's single author; a child's stray key is surfaced, not obeyed.
+    const dropped = this.#handoffSchema.droppedKeys(face, draft);
+    if (dropped.length > 0) {
+      notes.push(
+        `dropped non-declared draft field(s): ${dropped.join(", ")} — engine-reserved, never written`,
+      );
+    }
     // The per-face carrier — buildHandoff's typed overloads: the findings face REQUIRES
     // its findings payload (the schema-required field — cli.test pins the review
     // carrier's findings + status), the work face builds a findings-FREE typed carrier
@@ -529,7 +521,7 @@ export class CliLifecycle {
 
   /** The carrier's artifacts map (find #5 — the engine self-derives, never trusts a
    *  child-reported path for the canonical slots): a declared PRESCRIBED slot
-   *  (brief/report/test_evidence) books the frame's canonical OUTPUT_* path — a
+   *  (report/test_evidence) books the frame's canonical OUTPUT_* path — a
    *  free-named deviation is replaced and surfaced on the notes (the review scope
    *  axis reads them); the non-prescribed slots (a docs-fix's `doc`, child extras)
    *  pass verbatim. undefined when the draft declared no artifacts. */
@@ -556,12 +548,11 @@ export class CliLifecycle {
   }
 
   /** The prescribed path of one block-artifact slot — a slot the frame's family
-   *  prescribes (brief/report/test_evidence → the canonical OUTPUT_* name), "" for
-   *  every other slot (a docs-fix's `doc` is never prescribed, it passes verbatim). */
+   *  prescribes (report/test_evidence → the canonical OUTPUT_* name), "" for every
+   *  other slot (the pure read input `brief` is never a write slot, and a docs-fix's
+   *  `doc` is never prescribed — both pass verbatim). */
   #prescribedArtifact(frame: OpenFrame, slot: string): string {
     switch (slot) {
-      case "brief":
-        return this.#outputOf(frame, "brief");
       case "report":
         return this.#outputOf(frame, "report");
       case "test_evidence":
@@ -650,10 +641,9 @@ export class CliLifecycle {
         const target =
           frame.target.kind === "doc"
             ? `--${frame.type === "spec" ? "spec" : "plan"} ${frame.target.doc}`
-            : // branch fix carries no refs — the range rides the --findings handoff;
-              // the workspace-identity `--plan` still rides (find #8 F1b · spec §5.7
-              // fix ② — a plan-less `#sceneOf` resolves to the empty ref.short()
-              // directory, with zero orchestrator fallback)
+            : // The branch fix carries no refs — the source findings ride the
+              // --findings handoff; the workspace-identity `--plan` still rides
+              // (the plan is the branch line's identity, zero orchestrator fallback).
               frame.target.kind === "branch"
               ? `--plan ${plan}`
               : `--tasks ${frame.params.tasks ?? ""} --plan ${plan}`;

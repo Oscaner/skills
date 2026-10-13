@@ -98,8 +98,6 @@ export interface DispatchOutcome {
   /** The round's findings (review: this round's own; fix: the source review's
    *  input findings, C5-1). */
   findings?: readonly RoundFinding[];
-  /** The commit range the round concluded (implement/fix). */
-  commits?: { base: string; head?: string };
   /** The artifact paths the round produced (brief/report/…). */
   artifacts?: Record<string, string>;
   /** The materialized final carrier (the production dispatch's read-back

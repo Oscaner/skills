@@ -67,8 +67,6 @@ const graphOf = (blocks: readonly (readonly string[])[]): TaskGraph => {
 
 const gate = new WaveGate();
 const words = new Words();
-const base = "a".repeat(8);
-const head = "b".repeat(8);
 
 /** A clean APPROVED review carrier — the C5 closure record for a task line. */
 const cleanReviewCarrier = (ledger: Ledger, tasks: string, round: number): void => {
@@ -77,7 +75,7 @@ const cleanReviewCarrier = (ledger: Ledger, tasks: string, round: number): void 
     "review",
     "wave",
     { tasks, round },
-    { tasks: tasks.split(",").map(Number), phase: "review", findings: [], commits: { base, head } },
+    { tasks: tasks.split(",").map(Number), phase: "review", findings: [] },
   );
 };
 
@@ -94,7 +92,6 @@ const pendingFix = (ledger: Ledger, tasks: string, round: number): void => {
       tasks: tasks.split(",").map(Number),
       phase: "review",
       findings: [{ severity: "blocker", lens: "plan", summary: "stale findings" }],
-      commits: { base, head },
     },
   );
 };
@@ -254,7 +251,7 @@ describe("ledger.closedWaves — the C5 closure single read face", () => {
         "review",
         "wave",
         { tasks: "1", round: 1 },
-        { findings: [{ severity: "blocker", summary: "defect" }], commits: { base, head } },
+        { findings: [{ severity: "blocker", summary: "defect" }] },
       );
       ledger.recordRound(1, "review");
       expect(ledger.closedWaves()).toEqual(new Set());
@@ -273,7 +270,7 @@ describe("ledger.closedWaves — the C5 closure single read face", () => {
         "review",
         "wave",
         { tasks: "4,12", round: 1 },
-        { tasks: [4, 12], phase: "review", findings: [], commits: { base, head } },
+        { tasks: [4, 12], phase: "review", findings: [] },
       );
       expect(ledger.closedWaves()).toEqual(new Set([4, 12]));
     } finally {

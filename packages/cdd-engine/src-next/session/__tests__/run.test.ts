@@ -27,8 +27,6 @@ import { SOFT_CAP_SUGGESTION } from "../next.ts";
 import type { CapsuleFace, DispatchOutcome, DispatchStep, OpenFrame, StepResult } from "../run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../run.ts";
 
-const BASE = "a".repeat(8);
-const HEAD = "b".repeat(8);
 const DOC = "docs/kairos/specs/x-design.md";
 
 /** A hermetic ledger fixture — a fresh temp workspace (the ledger tests' pattern).
@@ -94,7 +92,6 @@ const stub = (
 /** The approved-implement outcome — the canonical work-round result. */
 const APPROVED_IMPLEMENT: DispatchOutcome = {
   status: "APPROVED",
-  commits: { base: BASE, head: HEAD },
   artifacts: { brief: "/tmp/brief.md" },
 };
 
@@ -201,8 +198,7 @@ describe("the task small loop — implement → review → the next ready group"
       let reviews = 0;
       const dispatch = stub((frame) => {
         if (frame.phase === "implement") return APPROVED_IMPLEMENT;
-        if (frame.phase === "fix")
-          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        if (frame.phase === "fix") return { status: "APPROVED" };
         reviews += 1;
         return {
           status: "APPROVED",
@@ -253,8 +249,7 @@ describe("the task small loop — implement → review → the next ready group"
       const graph = taskGraph([task(1, "none")]);
       const dispatch = stub((frame) => {
         if (frame.phase === "implement") return APPROVED_IMPLEMENT;
-        if (frame.phase === "fix")
-          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        if (frame.phase === "fix") return { status: "APPROVED" };
         return { status: "APPROVED", findings: [finding("nit")] };
       });
       const run = new Lifecycle({
@@ -287,8 +282,7 @@ describe("the task small loop — implement → review → the next ready group"
       const graph = taskGraph([task(1, "none"), task(2, "1"), task(3, "2")]);
       const dispatch = stub((frame) => {
         if (frame.phase === "implement") return APPROVED_IMPLEMENT;
-        if (frame.phase === "fix")
-          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        if (frame.phase === "fix") return { status: "APPROVED" };
         return { status: "APPROVED", findings: [finding("warn")] };
       });
       const run = new Lifecycle({
@@ -327,8 +321,7 @@ describe("the task small loop — implement → review → the next ready group"
       const graph = taskGraph([task(1, "none"), task(2, "1")]);
       const dispatch = stub((frame) => {
         if (frame.phase === "implement") return APPROVED_IMPLEMENT;
-        if (frame.phase === "fix")
-          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        if (frame.phase === "fix") return { status: "APPROVED" };
         const wave = frame.target.kind === "wave" ? frame.target.tasks.join(",") : "";
         if (wave === "1")
           return {
@@ -377,8 +370,7 @@ describe("the task small loop — implement → review → the next ready group"
       const graph = taskGraph([task(1, "none"), task(2, "1")]);
       const dispatch = stub((frame) => {
         if (frame.phase === "implement") return APPROVED_IMPLEMENT;
-        if (frame.phase === "fix")
-          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        if (frame.phase === "fix") return { status: "APPROVED" };
         const wave = frame.target.kind === "wave" ? frame.target.tasks.join(",") : "";
         if (wave !== "1") return { status: "APPROVED", findings: [] };
         return {
@@ -419,8 +411,7 @@ describe("the task small loop — implement → review → the next ready group"
     const { ledger, cleanup } = fixture();
     try {
       const dispatch = stub((frame) => {
-        if (frame.phase === "fix")
-          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        if (frame.phase === "fix") return { status: "APPROVED" };
         return { status: "APPROVED", findings: [finding("warn"), finding("nit")] };
       });
       const run = new Lifecycle({
@@ -448,8 +439,7 @@ describe("the task small loop — implement → review → the next ready group"
       // fix → DONE — the blocker loop terminates with a final warn fix on an exhausted
       // run (the single-target face: batch semantics off → close renders done).
       const dispatch = stub((frame) => {
-        if (frame.phase === "fix")
-          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        if (frame.phase === "fix") return { status: "APPROVED" };
         return {
           status: "APPROVED",
           findings: frame.round === 1 ? [finding("blocker")] : [finding("warn")],
@@ -549,8 +539,7 @@ describe("the task small loop — implement → review → the next ready group"
       const graph = taskGraph([task(1, "none")]);
       const dispatch = stub((frame) => {
         if (frame.phase === "implement") return APPROVED_IMPLEMENT;
-        if (frame.phase === "fix")
-          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        if (frame.phase === "fix") return { status: "APPROVED" };
         return { status: "APPROVED", findings: [finding("blocker")] };
       });
       const run = new Lifecycle({
@@ -587,8 +576,7 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
       try {
         let reviews = 0;
         const dispatch = stub((frame) => {
-          if (frame.phase === "fix")
-            return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+          if (frame.phase === "fix") return { status: "APPROVED" };
           reviews += 1;
           return {
             status: "APPROVED",
@@ -676,7 +664,7 @@ describe("T2 — the bookkeep fallback rides the frame's declared face", () => {
     try {
       const dispatch = stub((frame) =>
         frame.phase === "fix"
-          ? { status: "APPROVED", commits: { base: BASE, head: HEAD } }
+          ? { status: "APPROVED" }
           : { status: "APPROVED", findings: [finding("blocker")] },
       );
       const run = new Lifecycle({
@@ -705,8 +693,7 @@ describe("T2 — the bookkeep fallback rides the frame's declared face", () => {
       const graph = taskGraph([task(1, "none")]);
       const dispatch = stub((frame) => {
         if (frame.phase === "implement") return APPROVED_IMPLEMENT;
-        if (frame.phase === "fix")
-          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        if (frame.phase === "fix") return { status: "APPROVED" };
         return { status: "APPROVED", findings: [finding("blocker")] };
       });
       const run = new Lifecycle({
@@ -739,8 +726,7 @@ describe("the branch small loop — branch-review → fix → closure", () => {
     try {
       let reviews = 0;
       const dispatch = stub((frame) => {
-        if (frame.phase === "fix")
-          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        if (frame.phase === "fix") return { status: "APPROVED" };
         reviews += 1;
         return {
           status: "APPROVED",
@@ -807,7 +793,7 @@ describe("the branch small loop — branch-review → fix → closure", () => {
           return { status: "REVIEW_FIX", findings };
         }
         if (frame.phase === "fix") {
-          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+          return { status: "APPROVED" };
         }
         return { status: "APPROVED" };
       });

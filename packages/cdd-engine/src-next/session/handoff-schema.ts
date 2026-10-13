@@ -273,6 +273,18 @@ export class HandoffSchema {
     return BY_FACE[face];
   }
 
+  /** The draft keys materialize drops — every key the face does not declare as a
+   *  child-writable `properties` slot (extra child fields · `engineOnly` keys such
+   *  as a findings-draft `status`). The read-back validator judges these the same
+   *  way (drop, never a BLOCK) — materialize surfaces them as the single §8.7 WARN
+   *  on the carrier's notes. A non-object draft drops nothing here (its shape is the
+   *  validator's semantic refusal). */
+  droppedKeys(face: HandoffSchemaFace, value: unknown): string[] {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) return [];
+    const declared = new Set(Object.keys(BY_FACE[face].properties ?? {}));
+    return Object.keys(value as Record<string, unknown>).filter((key) => !declared.has(key));
+  }
+
   /** Serialize a declared schema object into the prompt's fence — COMPACT (no pretty
    *  indent: the injected text is the per-mode fixed prefix's biggest token cost, and
    *  every dispatch pays it in the child context — minify keeps the round cheap). The

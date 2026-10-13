@@ -3398,13 +3398,13 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         `- \`OUTPUT_HANDOFF\`: ${path.join(scene.workspace.path, "tasks-1-implement.json")}`,
       );
       // find #4 — INPUT_RULES is gone: the implement child reads the plan's
-      // `## Constraints` directly through INPUT_PLAN (zero materialized rules file,
+      // `## Constraints` through the wave brief mirror (zero materialized rules file,
       // zero dead pointer — the round context carries no rules channel).
       expect(prompt).not.toContain("INPUT_RULES");
       // find #5 — the artifact write paths are prescribed (OUTPUT_* · {family}-{key}-
-      // prefix): this scene carries no brief (briefPath null), so OUTPUT_BRIEF is not
-      // emitted (only present facts ride the prompt) while the report + evidence are.
-      expect(prompt).not.toContain("- `OUTPUT_BRIEF`");
+      // prefix): the brief is a pure read input (INPUT_WAVE_BRIEF) with no write slot
+      // (only present facts ride the prompt), while report + evidence are prescribed.
+      expect(prompt).not.toContain("OUTPUT_BRIEF");
       expect(prompt).toContain(
         `- \`OUTPUT_REPORT\`: ${path.join(scene.workspace.path, "tasks-1-implement-report.md")}`,
       );
@@ -3424,8 +3424,6 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // only: identity rides the file name, never phase/tasks inline — v1.30) rides
       // the outcome, the block's two lines the pointer
       expect(outcome.status).toBe("APPROVED");
-      // the commit carrier is retired (spec §2.4) — the read-back carries no commits
-      expect(outcome.commits).toBeUndefined();
       expect(outcome.carrier).toEqual({
         artifacts: {
           brief: "/b",
@@ -3477,6 +3475,41 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(prompt).toContain(
         `- \`OUTPUT_EVIDENCE\`: ${path.join(workspace.path, "tasks-1-test-evidence.json")}`,
       );
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("§4.2 — every wave frame (implement/review/fix) carries the scene's brief as INPUT_WAVE_BRIEF, never a disk-existence read", () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader());
+      const briefPath = path.join(workspace.path, "tasks-1-brief.md");
+      // The scene carries the brief path but NO brief file is written to disk — the
+      // read is the scene's fact, not the filesystem's (the retired existsSync guard).
+      const scene: DispatchScene = {
+        workspace,
+        ledger,
+        planPath: null,
+        briefPath,
+      };
+      const io = new CaptureIo();
+      const sync = new FakeSync();
+      sync.stdout = "status: APPROVED\n";
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      // the review + fix frames both carry the ONE scene brief (not implement-only)
+      dispatch.step()(taskReviewFrame);
+      dispatch.step()(fixFrame);
+      for (const call of sync.calls) {
+        const prompt = call.args[call.args.length - 1];
+        expect(prompt).toContain(`- \`INPUT_WAVE_BRIEF\`: ${briefPath}`);
+      }
     } finally {
       cleanup();
     }
@@ -3573,6 +3606,66 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       });
       // T2 — the materialized work carrier is the work face: zero findings key
       expect("findings" in outcome.carrier!).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("§8.7 — a non-declared / engine-reserved draft field is dropped with a single WARN, never a BLOCK (materialize and the validator judge the same way)", () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new FakeSync();
+      sync.stdout = "status: APPROVED\n";
+      // A work draft carrying engine-reserved keys (commits — retired) + a child extra
+      // (phase). The read-back validator drops them (never a refusal); materialize
+      // drops them from the carrier and books ONE WARN on the notes.
+      writeFileSync(
+        path.join(scene.workspace.path, "tasks-1-implement.json"),
+        JSON.stringify({
+          status: "APPROVED",
+          artifacts: {
+            report: path.join(scene.workspace.path, "tasks-1-implement-report.md"),
+            test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+          },
+          commits: { base: "a".repeat(8), head: "b".repeat(8) },
+          phase: "implement",
+        }),
+        "utf8",
+      );
+      writeFileSync(
+        path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+        JSON.stringify({
+          command: "npx vitest run",
+          exit_code: 0,
+          passed: true,
+          warnings_count: 0,
+          typecheck: { command: "tsc --noEmit", exit_code: 0, passed: true },
+        }),
+        "utf8",
+      );
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      const outcome = dispatch.step()(implementFrame);
+      // the round is NOT blocked (a non-declared extra field is not a semantic error)
+      expect(outcome.status).toBe("APPROVED");
+      expect(io.stderrText).toBe("");
+      const carrier = outcome.carrier as Record<string, unknown>;
+      // the non-declared keys never land on the carrier
+      expect("commits" in carrier).toBe(false);
+      expect("phase" in carrier).toBe(false);
+      // exactly ONE WARN names the dropped keys (sorted-stable order is not required,
+      // only that both keys are surfaced in a single note)
+      const notes = carrier.notes as string[];
+      expect(notes).toHaveLength(1);
+      expect(notes[0]).toContain("dropped non-declared draft field(s)");
+      expect(notes[0]).toContain("commits");
+      expect(notes[0]).toContain("phase");
     } finally {
       cleanup();
     }

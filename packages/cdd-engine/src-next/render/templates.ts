@@ -436,7 +436,7 @@ const TOKENS: readonly TemplateToken[] = [
   { name: "INPUT_FINDINGS", zone: "round-context" },
   { name: "INPUT_WAVE_BRIEF", zone: "round-context" },
   // find #5 — the prescribed artifact write paths (the {family}-{key}-{artifact}
-  // single naming; the brief is a pure read input — no OUTPUT_BRIEF).
+  // single naming; the brief is a pure read input with no write slot).
   { name: "OUTPUT_REPORT", zone: "round-context" },
   { name: "OUTPUT_EVIDENCE", zone: "round-context" },
   { name: "OUTPUT_HANDOFF", zone: "round-context" },
@@ -466,10 +466,9 @@ export const CLAUSES = {
 } as const;
 
 /** The dispatch-prompt data plane — the typed template-contract surface. $version 7
- *  marks the single-reference-face fold: the range tokens (INPUT_RANGE/INPUT_PLAN/
- *  FIX_BASE/OUTPUT_BRIEF) retired, the branch scope anchor BASE_BRANCH registered,
- *  the return contract down to two lines, and the review criterion shells rewritten
- *  to the per-type referent. */
+ *  is the single-reference-face shape: one doc anchor per line (INPUT_DOC /
+ *  INPUT_WAVE_BRIEF), the branch scope anchor BASE_BRANCH, the two-line return
+ *  contract, and the per-type review criterion shells. */
 export const TEMPLATE_PROMPT = {
   $version: 7,
   modes: MODE_PROMPTS,

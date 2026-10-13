@@ -1,5 +1,5 @@
-# 引擎文档工具（Engine Doc-Tooling）— P7 设计：评测面 commit-sha 全退役 + 物料无条件 extract + brief=完整计划镜像 · 三 face 单输入
-- **Version**: v0.4 · 2026-10-13
+# 引擎文档工具（Engine Doc-Tooling）— P7 设计：单一实况判定面（commit-sha 全退役 + 物料无条件 extract + brief=完整计划镜像 + round/键/字段实况化）
+- **Version**: v0.5 · 2026-10-13
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P7] 会话 · 用户裁定 · 2026-10-13）
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](2026-10-10-engine-doc-tooling-overall.md)
@@ -7,7 +7,7 @@
 
 ## Design
 
-本 phase 承接 P6 收口后的连续重构（程序六 phase 收口后的续 phase · 2026-10-13 cdd-design [P7] 会话注册 D23 · grilling 裁定 D24/D25 全按落定）。一把刀：**评测面从「检查 commit」转为「基于代码实况」**——① 评测面 **commit-sha 整体退休**（R2/Q1 · sha 是传话筒不是裁判 · 引擎从不 diff）· ② 所有 child 派发前的物料准备 **无条件 extract**（R1/R3 · 不存在才生成 → 每次派发前从当前 plan 重新 extract · 防旧版漂移）· ③ wave 三 face（implement/review/fix）**单输入 = 完整计划镜像 brief**（Q4(a)）· ④ **review 基准 = 最新 brief + live tree**（Q2）· ⑤ **branch review-fix 基于 base→head 方向**（R4 · base = 分支名，非双 commit sha）· ⑥ **changes[] 同退役、改动面由 review 自判**（Q3）· ⑦ **I7 撤除**。设计输入：kairos:cdd-design [P7] 会话（D23 注册 · D24 grilling Q1/Q2/Q3 裁定 · D25 Q4(a) 裁定）· overall v2.22（D23）→ v2.24（D24/D25）· recon 报告（commit-sha 触点全谱审计 · changes[]「引擎对账」prompt 虚构实证 · wave/doc/branch 三线 round context 逐 token 对比 · GitClient 生产调点枚举 · 载体残余字段调点复核）。六前提重审整个 phase（v0.4 收尾扫）后：评测面的整体转向为**单一线索**——从「engine/child 跟踪 commit 身份 + 自报改动账本」整体转为「live tree + 最新物料实况，reviewer 即改动面裁判」。
+本 phase 承接 P6 收口后的连续重构（程序六 phase 收口后的续 phase · 2026-10-13 cdd-design [P7] 会话注册 D23 · grilling 裁定 D24/D25 全按落定 · v0.5 六前提重审整个 phase 折入 dogfood 修复 D26）。**统一命题——单一实况判定面（a fact, one place, read at judgment time）**：引擎对任一事实只持一处实况、判定时刻现读，**永不信任派生副本**。P7 起初把它表述为「评测面从检查 commit 转为基于代码实况」——但那只是**第一个病例**。同一 dogfood 会话（P7 自举踩出）又暴露两个同病实例，连同 commit-sha 构成**三个切面同一条法条**：① 评测面 **commit-sha 整体退休**（R2/Q1 · sha = 冻结的树身份副本，胜过 live tree → review 审错范围）· ② 所有 child 派发前的物料准备 **无条件 extract**（R1/R3 · 盘上旧 brief = 计划面副本，胜过当前 plan → implement 读旧、review 读新）· ③ wave 三 face（implement/review/fix）**单输入 = 完整计划镜像 brief**（Q4(a)）· ④ **review 基准 = 最新 brief + live tree**（Q2）· ⑤ **branch review-fix 基于 base→head 方向**（R4 · base = 分支名，非双 commit sha）· ⑥ **changes[] 同退役、改动面由 review 自判**（Q3）· ⑦ **I7 撤除** · **⑧ dogfood 修复（D26 · 同一法条的另两个实例）**：**round verdict 单源化**（Q1 · 磁盘草稿副本胜过内存 read-back → `BLOCKED` 却渲 `next: done`）· **doc 线键实况化**（Q2 · argv 字符串副本胜过规范键 → round 计数重置）· **postflight 字段单裁**（Q3 · 校验器第二套裁决 vs materialize 单源 → 未声明字段 drop-or-reject 自相矛盾）。设计输入：kairos:cdd-design [P7] 会话（D23 注册 · D24 grilling Q1/Q2/Q3 裁定 · D25 Q4(a) 裁定 · D26 dogfood 修复裁定）· overall v2.22（D23）→ v2.25（D26）· recon 报告（commit-sha 触点全谱审计 · changes[]「引擎对账」prompt 虚构实证 · wave/doc/branch 三线 round context 逐 token 对比 · GitClient 生产调点枚举 · 载体残余字段调点复核 · P7 spec review-fix dogfood 现场取证：spec-fix-1 被拒草稿 + progress.json 双行键）。六前提重审整个 phase 后：命题收敛为**一条纪律的六个实例**（sha · brief · round · key · field + REJECT 面），整体转向为「一事实一处 · 判定时刻现读 · 副本仅缓存且可失效重建」。
 
 ### 1. 目标与边界
 #### 1.1 设计输入与授权
@@ -16,8 +16,10 @@
 - **授权（Q4(a) · D25）**：wave 三 face 单输入 `INPUT_WAVE_BRIEF`（brief = 任务段 + `## Constraints` 段完整镜像）· `OUTPUT_BRIEF` 折叠（brief 纯输入）· `INPUT_PLAN` 退役 · `INPUT_RANGE` token 整体退役（doc 锚 → `INPUT_DOC`）· 保留 `INPUT_FINDINGS`(fix) + `OUTPUT_EVIDENCE`(implement/fix)
 - **不发布**（与 P1–P6 一致）：变更集归并落 pending · tag / publish = 独立动作
 #### 1.2 退役判定模型（审定的根前提）
-- **commit sha = 传话筒不是裁判**：GitClient 无任何 diff 方法（recon 实证 · git.ts 六 seam 全枚举）· templates.ts:485 的「引擎 reconcile `git diff <base>..HEAD`」是 **prompt 虚构**（引擎从不执行对账 · lifecycle.ts:549 只是 copy-through）· `scope_base`（ledger.ts:121）死字段无人写 · `snapshotSha` 恒 null（lifecycle.ts:507）· `addAll`/`commit`/`log` 三个 git seam 生产面零调点（recon）
+- **统一法条 = 单一实况判定面**：任一事实（树身份 · 计划面 · round verdict · 线身份 · 字段处置）只有**一处实况源**，只在**判定时刻现读**；任何**派生副本**（冻结 sha · 盘上 brief · 磁盘草稿 · argv 字符串 · 第二套 schema 裁决）都不具权威——副本胜过实况之处，即为漂移。副本若为性能/缓存而存在，必**可失效重建**，判定面永不读它。本 phase 的七个字面动作（sha/brief/round/key/field/I7/收尾）全是该法条的一次实例化，非七条独立规则。
+- **commit sha = 传话筒不是裁判（实例一 · 树身份副本）**：GitClient 无任何 diff 方法（recon 实证 · git.ts 六 seam 全枚举）· templates.ts:485 的「引擎 reconcile `git diff <base>..HEAD`」是 **prompt 虚构**（引擎从不执行对账 · lifecycle.ts:549 只是 copy-through）· `scope_base`（ledger.ts:121）死字段无人写 · `snapshotSha` 恒 null（lifecycle.ts:507）· `addAll`/`commit`/`log` 三个 git seam 生产面零调点（recon）
 - **sha 的唯一职责 = 告诉 review child diff 哪个范围**——恰是漂移源：base/head 传错 → review 审错范围。替代：review 基于 **live tree + 最新 brief + base 分支名** 自判（child 自己跑 `git diff`）——评审面全部落在代码实况，零 sha 携带
+- **同一法条的 dogfood 实例二/三（v0.5 · D26 · P7 自举踩出）**：**round verdict**（§2.8）——磁盘上被拒的草稿（副本）胜过内存 read-back 的 outcome（实况）→ `BLOCKED` 却渲 `next: done`；**线身份键**（§3.7）——`--spec/--plan` 的 argv 字符串（副本）胜过规范键（实况）→ 同一 doc 两行 ledger、round 计数重置；**字段处置**（§8.7）——校验器的 `additionalProperties:False`（第二套裁决）胜过 materialize 的单源声明读取（实况）→ 同一字段既 drop 又 reject
 #### 1.3 保留面（冻结 · 非提交 sha 的实况携带者）
 - **clean-tree gate 保留**（preflight.ts:129-133 · review 基线 = committed tree · 脏 → BLOCKED）· **doc_revision 内容指纹保留**（ledger 记录被评 doc 内容的 sha1 · run.ts:551-563 · 最新计划 reopen gate —— 非 commit sha · 内容实况）· **base set/get 语义不变**（新增 review 面读它 · 见 3.2）· doc-contract 判定语义不变（gate 零例外）· `WAVE`/`tasks`/`OUTPUT_REPORT`/`OUTPUT_HANDOFF`/`OUTPUT_EVIDENCE`/`INPUT_DOC`/`INPUT_FINDINGS` 保留 · 六命令功能语义不变（除 review 面 ref 退役）· `mattpocock-skills` 分派表零动
 
@@ -46,6 +48,10 @@
 - implement 完成 → review 路由（next.ts:91-95）去掉 `commits?.base === undefined → null` 依赖（commits 已删）→ 恒出 `{ kind: "review" }` · fix blocker 重置 → re-review（:117-119）去双 legs 检查 → 恒出 `{ kind: "review" }` · missing-base null 行（:92）删 · `capsule.ts` #routeText 的 review 路由渲染（:125-156）删 branch ref 合成（:141-153 `route.head===undefined` 保底删 · BranchRef 合成删）→ 各类 review 全部 `review --type <type> <type-arg>`（type-arg = `--tasks <id> --plan <path>`（wave · capsule.ts:133 现行已含 --tasks）· `--plan <path>`（branch）· `--spec <path>`（spec）· `--plan <path>`（plan））——零 sha
 #### 2.7 WAVE_BASE / FIX_BASE token 退役
 - `brief.ts render`（:88-98）删 `head` 参 + `WAVE_BASE: ${head}` 行（:97）· `gate.ts renderBrief`（:115-121）删 `scene.head` 注入 · `lifecycle.ts` `FIX_BASE` 值删（:312 · #fixedPoint :403-408 删）· `fix`/`docs-fix` round context 的 `FIX_BASE` 行（templates.ts:282/:300）删 · `TOKENS` 注册表（templates.ts:448 `FIX_BASE`）删
+#### 2.8 round verdict 单源化（dogfood Q1 · 同一法条：verdict 的磁盘副本胜过内存实况）
+- **缺陷现场（P7 spec 自举取证）**：child 写的 `spec-fix-1.json` 带 `status`（`engineOnly`）→ `#reconstruct` 的 `schema.violations` 命中 `additionalProperties:false` → `#reject` 返回 `{status:"BLOCKED"}` 且**故意不覆盖草稿**（on-failure no-overwrite · lifecycle.ts:446-513）→ `#bookkeep`：`blocked=true` 且 `carrier===undefined` → **不 persist、不 recordRound**（run.ts:494-543）——**但** `advance()` 的 `route = #routeNext(frame)` **从磁盘重读** round（run.ts:591-596）：`ledger.round("fix","spec",…,1)`（ledger.ts:767-778）读到被拒草稿**存在** → fix Round `status="APPROVED"`（**child 的脏副本**）→ router（next.ts:103-123）绕过 `FAILED_STATUS` 守卫、`blockerCount=0` → `#close(EMPTY_RUN_STATE)` → **`{kind:"done"}`** → `cli.ts:537-540` 在 BLOCKED 分支照样打印 → stdout **`status: BLOCKED · next: done`**（自相矛盾面）
+- **修法（verdict 单源 · 无记录即无判决）**：**`ledger.round()` 的 round-read 以进度计数（`recordRound` 的记录）为门控**——一个**未被 `recordRound` 记入进度**的 round 不是 round，返回 `null`（无论磁盘草稿是否在）；`op==="fix"` 腿与 `op==="review"` 腿同判（review 亦以 `rounds.review>=round` 为门）。**根因同时消除**「磁盘草稿存在 ≠ round 完成」的语义混淆——`ledger.round()` 的契约从「读磁盘草稿」改为「读已记录 round 的载体」，与 `recordRound` 单源。**route=null → failure face → 零 `next:` 行**（router 自身契约 next.ts:12 · BLOCKED → null），与 `cli.ts:544` 的「completed non-failed round 无 next = hard error」正交（BLOCKED round 走 `:537` 早退，不触及 `:544`）
+- **连带**：此修法使 Q1 的 `#reject` 不覆盖草稿（合理保留：child 工作不丢）**不再有副作用**——脏草稿留在盘上无害，因为它不被当作 round 读回
 
 ### 3. review 参照面收敛 + base→head 方向（Q2 · R4）
 #### 3.1 参照 tokens：一 doc 锚，再无范围
@@ -70,6 +76,10 @@
 - **组装面单一**：全部 child prompt = `TemplateAssembler.render(values)`（templates.ts 单组装面）——本 spec §2.4/2.7/3.1-3.5/4.2/5/6.1/6.2/7.4 的改动全落同一数据面：`MODE_PROMPTS`/`REVIEW_VARIANTS` 数据行 shell 文本 · `TOKENS` 注册表 · `REVIEWS` 判据 · `RETURN_ZONE` 常量 · `HANDOFF_SCHEMA` 声明 ⇒ 六 face prompt（implement · fix · docs-fix · review×4 共享 REVIEW_CONTEXT 尾部）**字节全变是同一数据面的原子折叠，不是逐张重写**——不存在「某张 prompt 旁路漏改」的枚举面
 - **HANDOFF_SCHEMA fence 自动派生**：注入文本 = `HandoffSchema.schemaText` 从 CARRIER_WORK/FINDINGS 声明串化（handoff-schema.ts:235-242 · 声明即投影）——删 commits/changes 字段后 work/findings 两道 fence **自动短文零手改** · RETURN_STDOUT_BLOCK 单常量（templates.ts:423-439 · 3→2 行 · OUTPUT_BRIEF 处方删）一行改六面尾巴齐变
 - **新机械守卫——壳文-布局一致性断言**：现行 `#gate`（templates.ts:589-614）只查 (a) 注册表 token 全被覆值 (b) 无未声明值——**不查壳文自身的 token 名引用与 round-context 布局是否匹配**（壳文声称是 prose 非 `{{槽位}}` · `#fill`（:626-629）同样看不见）；implement INPUT_PLAN 声称（值面有、layout 不带）与 branch fix INPUT_WAVE_BRIEF 真空（壳文指恒空）两个 gap 正是此盲区。**新增断言：每个 mode shell 文本中出现的 `INPUT_*`/`OUTPUT_*`/`BASE_BRANCH` 名引用 ⊆ 该 mode round-context 布局 ∪ 共享尾部**（复用 `#contextLines`（:575-583）同款槽位 regex · 构造成立级 · 把「声称但没带」回归关死 · 断言生效后 implement/fix/docs-fix/review×4 各 mode 壳文与布局逐 token 重新对齐）
+#### 3.7 doc 线键实况化（dogfood Q2 · 同一法条：line 身份的 argv 副本胜过规范键）
+- **缺陷现场（P7 spec 自举取证）**：doc 线的 ledger key = `frame.target.doc` = **`--spec`/`--plan` 的原始 argv 字符串**（run.ts:441-444 的 `#lineKey` → `AuditTarget.doc` = `scene.target.doc` = 原始路径, cli.ts:665/673）· `#paramsOf`（run.ts:471-473）与 `#recordReviewedDocRevision`（run.ts:551-563）亦以它为键 · `progress.json` **同一份 spec 出现两行**（`/abs/…-design.md` rounds.review=1 · `docs/kairos/specs/…-design.md` rounds.review=2+fix=1）——同一文件用绝对路径与相对路径各调一次 → 两 key → 两行 → **round 计数从 1 重来**。drift reopen 本身设计为**续号**（`reviewGate→open` → `#roundFor` = `#reviewCount+1`, run.ts:422-429），坏在**键不稳定**把它切成两段
+- **修法（键实况化 · 与 branch 线同款稳定键）**：doc 线键 = **规范常量 `"doc"`**（per-workspace 单行，**精确对齐 branch 线的 `"branch"` 稳定键** run.ts:441-444 —— 后者注明「find #9 · 旧形 = 范围短 sha，head 每轮变 → 新 key → round 重置到 1」，**正是同一 bug 已被 branch 线修过**）· `#lineKey`（run.ts:441-444）doc 腿返回 `"doc"`（不再返回 `target.doc`）· `#paramsOf`/`#recordReviewedDocRevision` 的 doc 键随之归一（revision 记录仍以 `target.doc` 为**被读文件**——读的是内容，键的是线身份，二者分离：**文件路径是内容源 · 线键是身份源**）
+- **意义**：§3.5「doc 线与 branch 线同构」从 **token 面延到 identity 键面**——同构不止参照面，线身份也必须同款稳定键；argv 路径副本不再能重置 round
 
 ### 4. 物料无条件 extract（R1 · R3）
 #### 4.1 派发前条件放宽（implement-only → 三 face）
@@ -104,10 +114,10 @@
 - `cdd-plan/SKILL.md:44`「The `## Constraints` section declares the constraint surface the implement child reads DIRECTLY via `INPUT_PLAN`」→「…reads via the wave brief's mirrored `## Constraints` section (`INPUT_WAVE_BRIEF` — the complete plan mirror, fresh-extracted at every dispatch)」· review 字面（:58 · `--type plan --plan <path>`）零 churn
 #### 7.4 测试重锚 + 新 pins
 - 引擎 14 个 pin 文件重锚：`branch-ref.test.ts` 随 BranchRef 删（整文件删）· `handoff-schema/ledger/next/capsule/cli/infra/render/run/wave/face/projection/fence/guards/smoke` 的 WAVE_BASE/FIX_BASE/INPUT_RANGE/commits/changes/snapshotSha/scope_base 字面 deliberate 重锚 · token 注册表守卫随删随配
-- **新 pins**：engine 源码面 `WAVE_BASE|FIX_BASE|INPUT_RANGE|revParseHead|BranchRef` 零残留 grep pin · `BASE_BRANCH` 注入 pin（wave+branch review round context 携带 · spec/plan 不带）· **无条件 extract pin**（review dispatch 后 `tasks-{tasks}-brief.md` = 当前 plan 的最新镜像（任务段 + Constraints 段 · 零 WAVE_BASE 行）· 三 face 各自 re-extract 一次）· 二行契约 pin（RETURN_STDOUT_BLOCK 恰好 status+artifacts 二行）· GitClient 精简 pin（方法集 = topLevel + isClean）
+- **新 pins**：engine 源码面 `WAVE_BASE|FIX_BASE|INPUT_RANGE|revParseHead|BranchRef` 零残留 grep pin · `BASE_BRANCH` 注入 pin（wave+branch review round context 携带 · spec/plan 不带）· **无条件 extract pin**（review dispatch 后 `tasks-{tasks}-brief.md` = 当前 plan 的最新镜像（任务段 + Constraints 段 · 零 WAVE_BASE 行）· 三 face 各自 re-extract 一次）· 二行契约 pin（RETURN_STDOUT_BLOCK 恰好 status+artifacts 二行）· GitClient 精简 pin（方法集 = topLevel + isClean）· **dogfood 三 pin**：被拒 fix round 的 capsule **无 `next:` 行**（verdict 单源 · §2.8）· 同 doc 绝对/相对路径两调 → **单行 ledger + round 续号**（键实况化 · §3.7）· 未声明/`engineOnly` 字段草稿 **归一化 drop 不 BLOCK**（字段单裁 · §8.7）
 - kairos 消费面：行为树 pins（presentation-surface.test.ts 等）随 skill 文本更替 · skill-anatomy 契约面零动（I7 非契约注册项）
 
-### 8. 整个 phase 收尾扫（六前提重审 · 死码残余 + 数据面版本化 + 消费面词表）
+### 8. 整个 phase 收尾扫（六前提重审 · 死码残余 + 数据面版本化 + 消费面词表 + dogfood 判定面实况化）
 #### 8.1 载体残余复核（调点审计结论）
 - `notes`/`failure_category` **保留（不停用）**：engine 活跃写 notes 承载 reason/evidence-note（lifecycle.ts:558）· `failure_category` 有 BLOCK 语义 + evidence-contract 引擎覆盖（:550-555）——排除死码误删；commits/changes 退役后壳文中的「off-ledger commits land in notes」等指令随 commits cell 重写消失（已含 2.4）· `artifacts`/`OUTPUT_REPORT`/`OUTPUT_EVIDENCE`/`INPUT_FINDINGS`/`reviewedDocRevision` 全保留（实况消费者俱在）
 #### 8.2 GitClient / 声明面文件级收编（六 seam → 二 seam 后的叙事清理）
@@ -120,8 +130,13 @@
 #### 8.5 组装面守卫合一 + 零裸函数
 - 壳文-布局一致性断言（3.6）并入既有 token 守卫测试（channel-closure.guard · 不新增散落守卫文件）· BASE_BRANCH 注入 = `base get` 制品读（既有 Artifacts 类）· 断言 = TemplateAssembler 既有类方法——**零新增裸函数** · REVIEW_ITEM 单点成文覆盖四 review 变体（3.6 组装面原子性的佐证面）
 #### 8.6 边界确认（边界面零动）
-- wave 编排（WaveGate · next-wave 派生 · readiness）· lifecycle 状态机（round 相位 · 重审路由）· 双 review face（wave 按任务键 vs branch 稳定键）· doc-contract gate · base 命令语义 · clean-tree gate · doc_revision 内容指纹（run.ts:551）——均与 sha 退役正交 · P7 只在评测面收口（最大精简的边界：不整树重构）
-- 净简化量度：round-facts 面净删 `#reviewRange`/`#fixedPoint` + 简化 `#waveBrief`/`#outputOf` · token 布局净删约三分之一行（`#valuesOf` 面）
+- wave 编排（WaveGate · next-wave 派生 · readiness）· lifecycle 状态机**的闭合语义**（round 相位推进 · 重审路由 · C5 route 表）· doc-contract gate · base 命令语义 · clean-tree gate · doc_revision 内容指纹（run.ts:551）——均与 P7 正交 · P7 只在评测面收口（最大精简的边界：不整树重构）
+- **例外（v0.5 dogfood · 不属「零动」边界的判定面修正）**：`ledger.round` 的 round-read 门控（§2.8 · verdict 单源）· `#lineKey` doc 腿稳定键（§3.7 · 键实况化）· `violations` 的分类裁决（§8.7 · 字段单裁）——三者是**判定面的实况化**（读什么、键什么、判什么），非**状态机相位语义**变更：round 相位序列、route 闭合表、review/fix 节奏**零动**。**三线单键**：wave 按任务键 · branch `"branch"` · doc `"doc"`（§3.7 统一后）
+- 净简化量度：round-facts 面净删 `#reviewRange`/`#fixedPoint` + 简化 `#waveBrief`/`#outputOf` · token 布局净删约三分之一行（`#valuesOf` 面）· **dogfood 修复净量**：`ledger.round` 由「读磁盘草稿」改「读已记录 round 载体」（§2.8 · 语义单源）· `#lineKey` doc 腿由 `target.doc` 改常量 `"doc"`（§3.7 · 一字段一改）· schema 校验器由「一次性 reject」改「分类裁决」（§8.7 · 见下）
+#### 8.7 postflight 字段单裁（dogfood Q3 · 同一法条：校验器的第二套裁决胜过 materialize 单源）
+- **缺陷现场**：`#materialize`（lifecycle.ts:521-554）建 carrier 时**只读声明字段**（`draft.artifacts/commits/findings/changes/notes/failure_category`）——**未声明多余字段本已被丢弃**；但 `violations`（handoff-schema.ts:252-258）的 `#check` 命中 `additionalProperties:false`（:322-345）即**整体 BLOCK**——**同一批字段两套裁决**（builder drop · validator reject）。尤其 `status` 是 `engineOnly`（handoff-schema.ts:118-134 · CARRIER_FINDINGS `engineOnly:["status"]`）：引擎**无条件覆写**它（`carrier.status = status`, lifecycle.ts:548）——child 写 `status` 是写了一颗引擎注定丢弃的字段，为其 BLOCK 是**纯摩擦**（p3/p5/p6/p7 的 crash 记录全是这一类：`status: not a declared field`）
+- **修法（单裁 · 声明即权威）**：postflight 违规**分类裁决**——**(a) 语义错保留 BLOCK**：缺 `required` 字段 · 类型不符 · `enum` 越界 · `COMMITS` 的 8-char 长度违例（如 p5 的 `commits.base` 40 字符 = 真误读）· child 对**必需面**的误读必须 BLOCK；**(b) 非声明多余字段与 `engineOnly` 字段归一化 drop（不 BLOCK）**：`#materialize` 已 drop，校验器**对齐之**（同源同判）· 至多一条 **WARN booking**（复用 changed-surface 已退役的 warn 面语义 · 见 §6）落 notes/审计——**WARN 可审计、不中断 round**，取代「BLOCK + crash-resume + reopen churn」三重代价链
+- **原则（防再漂移）**：**校验器与 materialize 必须同源同判**——校验只对「materialize 会保留的字段」判语义，对「materialize 会丢弃的字段」同判 drop（可带 WARN）；两处对同一字段的处置**永不背离**。`engineOnly` 的 read-back 拒绝语义因此**并入归一化**（该 key 是声明上的 engine-reserved，drop 即闭合，非可写拒签）
 
 ### 9. 发布姿态与变更集
 - 不发布（与 P1–P6 一致）：commit-sha 退役 + 无条件 extract + brief 镜像为引擎内部语义（kairos 消费面为字面同步）· changeset 归并落 pending · 无独立 tag/publish
@@ -135,15 +150,18 @@
 - `brief = 完整计划镜像 ✓（任务段 + ## Constraints 段 · WAVE_BASE 行删 · render 去 head 参 · implement shell 壳文与 round context 恢复一致（零 INPUT_PLAN gap）· cdd-plan SKILL.md:44 约束通道句随更）`
 - `changes[] 同退役 + 改动面自判 ✓（CHANGED_FILE + CARRIER_WORK.changes + CarrierValue.changes + 模板 cl:changed-surface 条款（含「引擎 reconcile」prompt 虚构句）全删 · wave/branch scope 轴 = review 自跑 git diff origin/<BASE_BRANCH>..HEAD − 参照文件面 · 不可归因 = 候选发现 · 引擎零对账 · REVIEWS spec/plan ref → INPUT_DOC）`
 - `载体/路由/契约重整全绿 ✓（CARRIER_WORK/FINDINGS 声明 + CarrierValue + ledger Round + RETURN 二行契约 + #parseBlockReturn/#commitsOf/#fixedPoint/#reviewRange/#outputOf(brief) 删 · handoff/next/capsule/declare 同步 · channel-closure 注册表守卫随删随配 · token 注册表守卫生效）`
-- `doc 线与 branch 线 round context 同构化 ✓（plan review INPUT_RANGE==INPUT_PLAN 双 token 重复消解 → 唯一 INPUT_DOC · spec review 空 INPUT_PLAN 随 token 退役 · branch fix 文档上下文赋值——fix mode context 增 INPUT_DOC(branch→planPath) · FIX_SHELL 按线分句（wave→INPUT_WAVE_BRIEF · branch→INPUT_DOC） · branch fix 真空 gap 修净 · REQUIRED_GROUPS.fix.branch=["--findings","--plan"] · branch review 零 OUTPUT_EVIDENCE / branch fix 保留 OUTPUT_EVIDENCE 保持）`
+- `doc 线与 branch 线同构化 ✓（plan review INPUT_RANGE==INPUT_PLAN 双 token 重复消解 → 唯一 INPUT_DOC · spec review 空 INPUT_PLAN 随 token 退役 · branch fix 文档上下文赋值——fix mode context 增 INPUT_DOC(branch→planPath) · FIX_SHELL 按线分句（wave→INPUT_WAVE_BRIEF · branch→INPUT_DOC） · branch fix 真空 gap 修净 · REQUIRED_GROUPS.fix.branch=["--findings","--plan"] · branch review 零 OUTPUT_EVIDENCE / branch fix 保留 OUTPUT_EVIDENCE 保持 · **identity 键面同构**：doc 键 = 常量 "doc" 对齐 branch 键 "branch"（§3.7 · 两线稳定键同款））`
 - `child prompt 组装面原子性 + 壳文-布局一致性守卫 ✓（六 face prompt 同数据面折叠（shell 行文本 · TOKENS · REVIEWS · RETURN_ZONE 单常量 · HANDOFF_SCHEMA 声明派生）· 全部 round context 调整 → 全 child prompt 字节同面齐变 · 新壳文-布局一致性断言：各 mode shell 的 INPUT_*/OUTPUT_*/BASE_BRANCH 名引用 ⊆ 该 mode round-context 布局 ∪ 共享尾部（复用 #contextLines 槽位 regex · 构造成立级）——implement INPUT_PLAN 声称 / branch fix 真空双 gap 杜绝 · 断言全绿）`
 - `整个 phase 收尾扫 ✓（载体残余复核（notes/failure_category 活 · 排除误删 · 死码面只在 commits/changes/scope_base/snapshotSha/死 git seam）· GitClient 六→二 seam 后头注收编 · handoff-schema/ledger 叙事注释随删重写 · TEMPLATE_PROMPT.$version 6→7 · 消费面词表残留 grep pin 零命中（frozen docs 豁免）· 壳文-布局断言并入 channel-closure 守卫 + 零新裸函数 · 边界面（wave 编排/lifecycle/双 review face/doc-contract gate/base/clean-tree/doc_revision）零动 · #valuesOf token 布局净删约三分之一行）`
 - `I7 撤除 + kairos 消费面同步 ✓（cdd-dev SKILL.md:89 I7 行删 · :53 branch-review 字面重写零 ref · cdd-plan :44 INPUT_PLAN→镜像 Constraints 句 · 行为树 pins 全更替）`
+- `dogfood 判定面实况化（六前提重审 · 单一实况法条的另两实例）✓（**round verdict 单源**：ledger.round round-read 以 recordRound 门控——被拒 round（磁盘草稿在、进度未记）返回 null → route null → 零 next: 行（BLOCKED 永配 next: done 的自相矛盾面杜绝 · 新 pin：被拒 fix round 的 capsule 无 next 行）· **doc 线键实况化**：#lineKey doc 腿 = 常量 "doc"（对齐 branch "branch" 稳定键）——argv 路径副本不再重置 round（新 pin：同 doc 绝对/相对路径两调 → 单行 ledger · round 续号不重置）· **postflight 字段单裁**：violations 分类裁决——语义错（缺 required/类型/enum/长度）BLOCK · 非声明多余字段与 engineOnly 字段归一化 drop + 至多 WARN（对齐 materialize 单源 · 校验器与 materialize 同源同判 · status-in-findings-class crash 归零））`
+- `单一实况判定面（统一命题）✓（一事实一处 · 判定时刻现读 · 副本仅缓存且可失效重建——sha=树身份 · brief=计划面 · round verdict · line key · field disposition 五副本全消 · 引擎判定面零「派生副本胜过实况」残留）`
 - `引擎 vitest 全绿（14 pin 文件 deliberate 重锚 + 新 pins：sha 零残留 / BASE_BRANCH 注入 / 无条件 extract rematch / 二行契约 / GitClient 二方法集）· kairos suite 全绿（vitest run）· EOF 全绿 · `pnpm run validate`（或等价 CI 原生序列）ALL PASS · 引擎 CLI 均以仓库内 bin 调用 · 不发布`
 
 ## Constraints
 
 - **六前提（D23）**：允许破坏性变更、可重写代码重组目录、不保守不打补丁；从高维思考、OOP 抽象统一、零裸函数；最佳实践、零技术债务、避免散文堆砌、避免声明再抄；高内聚、低耦合、死代码空壳全清；消费者心智负担优先（不为完成任务而设计）；最大程度重构整合、最大程度精简系统
+- **单一实况判定面（D26 · 统一命题）**：引擎对任一事实只持**一处实况源**，只在**判定时刻现读**；**派生副本永不具权威**（冻结 sha / 盘上 brief / 磁盘草稿 / argv 路径串 / 第二套 schema 裁决）——副本若为缓存必可失效重建，判定面永不读它。**校验器与 materialize 同源同判**（§8.7 · 对同一字段的处置永不背离）。本 phase 的 sha/brief/round/key/field 五处收口皆此一条法条的实例，非五条独立规则
 - **保留面冻结**：clean-tree gate（review 基线 = committed tree）· doc_revision 内容指纹（doc sha1 · run.ts:551 · 最新计划 reopen gate —— 非 commit sha）· doc-contract 判定语义（gate 零例外）· base set/get 语义不变 · `WAVE`/`tasks`/`OUTPUT_REPORT`/`OUTPUT_HANDOFF`/`OUTPUT_EVIDENCE`/`INPUT_DOC`/`INPUT_FINDINGS` token 保留 · 六命令功能语义不变（除 review 面 ref 退役）· `mattpocock-skills` 分派表零动 · branch 线稳定键 `"branch"` 保留
 - **引擎 vitest 全绿**（recon：五面测试套件 14 pin 文件 · deliberate 重锚 · 零跳过零容错）
 - **child prompt 组装面一致性**——六 face prompt 的 shell 壳文与 round-context 布局必须逐 token 对齐（新壳文-布局一致性断言 · 复用 `#contextLines` 槽位 regex · 构造成立级 · 双 gap 零复发）
@@ -156,6 +174,7 @@
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.5 | 2026-10-13 | 六前提重审整个 phase · **命题升维为「单一实况判定面」**（一事实一处 · 判定时刻现读 · 副本不具权威）——dogfood 修复 D26 折入：**round verdict 单源**（ledger.round 以 recordRound 门控 · 被拒 round → 零 next 行 · 治 `BLOCKED`+`next: done`）· **doc 线键实况化**（#lineKey doc 腿 = 常量 "doc" 对齐 branch "branch" · 治 argv 路径副本重置 round）· **postflight 字段单裁**（violations 分类裁决 · materialize 已 drop 者不 BLOCK + 至多 WARN · 治未声明/engineOnly 字段两套裁决） | Oscar M. · Claude Opus 5 |
 | v0.4 | 2026-10-13 | 六前提重审整个 phase 折入收尾扫——载体残余复核（notes/failure_category 活）· GitClient/声明面六→二 seam 叙事收编 · TEMPLATE_PROMPT.$version 6→7 · 消费面词表残留 pin · 守卫合一零裸函数 · 边界面零动 | Oscar M. · Claude Opus 5 |
 | v0.3 | 2026-10-13 | child prompt 组装面原子性折入——六 face prompt 同数据面折叠 · HANDOFF_SCHEMA 声明派生 auto 短文 · 新壳文-布局一致性守卫（#gate 盲区补齐 · 双声称 gap 构造成立级杜绝） | Oscar M. · Claude Opus 5 |
 | v0.2 | 2026-10-13 | doc/branch 线 review-fix round context 复审折入——plan review 双 token 重复消解 · branch fix 文档上下文赋值（fix mode 增 INPUT_DOC · FIX_SHELL 按线分句 · REQUIRED_GROUPS.fix.branch 追 --plan） | Oscar M. · Claude Opus 5 |

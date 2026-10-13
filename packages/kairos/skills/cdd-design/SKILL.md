@@ -1,6 +1,6 @@
 ---
 name: cdd-design
-description: Independent brainstorm orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:brainstorming（pi：/skill:brainstorming） flow inline as this session's baseline (one import per session), gates on mode and phase registration, runs grilling, and dispatches the parameterized spec-writer（/kairos:cdd-spec-writer） under one template (single / phase-spec / overall charter). Callable standalone; invoke as kairos:cdd-design（pi：/skill:cdd-design）.
+description: Independent brainstorm orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:brainstorming（pi：/skill:brainstorming） flow inline as this session's baseline (one import per session), gates on mode and phase registration, runs grilling, and dispatches the parameterized spec-writer（/kairos:cdd-spec-writer） under one template (single-spec / phase-spec / overall-spec charter). Callable standalone; invoke as kairos:cdd-design（pi：/skill:cdd-design）.
 ---
 
 # Kairos CDD-Design
@@ -23,7 +23,7 @@ flowchart TD
   P -->|registered| G[run-grilling-session]
   G --> Z2((BLOCKED: grilling plugin missing))
   G --> X{size?}
-  X -->|single| W[run-cdd-spec-writer]
+  X -->|single-spec| W[run-cdd-spec-writer]
   X -->|fit| W[run-cdd-spec-writer]
   X -->|multi| C[run-cdd-charter]
   X -->|oversized| C[run-cdd-charter]
@@ -80,28 +80,28 @@ flowchart TD
 
 ### `size?`
 
-- **Do**: Judge the scope size to route the write target: on the `new-program` path — does the program fit one single spec or become an overall program (`single` → one spec · `multi`/`oversized` → a charter); on the `phase-within-program` path — does this phase fit one phase spec (`fit` → phase-spec · `oversized` → a charter that syncs the sub-phase split into the parent)
+- **Do**: Judge the scope size to route the write target: on the `new-program` path — does the program fit one single spec or become an overall program (`single-spec` → one spec · `multi`/`oversized` → a charter); on the `phase-within-program` path — does this phase fit one phase spec (`fit` → phase-spec · `oversized` → a charter that syncs the sub-phase split into the parent)
 - **Read**: grilling output + exploration context + parent overall (phase-within-program mode)
-- **Exit**: `single` → `run-cdd-spec-writer` (single-spec target); `fit` → `run-cdd-spec-writer` (phase-spec target); `multi`/`oversized` → `run-cdd-charter` (the overall / charter target)
+- **Exit**: `single-spec` → `run-cdd-spec-writer` (single-spec target); `fit` → `run-cdd-spec-writer` (phase-spec target); `multi`/`oversized` → `run-cdd-charter` (the overall-spec / charter target)
 - **Fail**: —
 
 ### `run-cdd-spec-writer`
 
-- **Do**: Import `/kairos:cdd-spec-writer`（pi：/skill:cdd-spec-writer） with the target parameter (single / phase-spec — the two near-identical dispatch variants are ONE node)
+- **Do**: Import `/kairos:cdd-spec-writer`（pi：/skill:cdd-spec-writer） with the target parameter (single-spec / phase-spec — the two near-identical dispatch variants are ONE node)
 - **Read**: grilling output + exploration context
 - **Exit**: Handoff executed → `NEXT-LOOP`
 - **Fail**: Target skill missing → BLOCKED (install kairos — see the kairos README's 'Upstream dependency install' table)
 
 ### `NEXT-LOOP`
 
-- **Do**: Run the design continuation recycle — the single hub after a delegated writer flow lands (a committed single / phase spec): dispatch the session's `next:` line as written — the literal is the route: a further design dispatch re-enters this hub while the route is not done (the self-loop stays live), a closure routes to `handoff-next`; BLOCKED/TIMEOUT rounds carry no `next:` line (the `CDD_BLOCKED:` channel owns them).
+- **Do**: Run the design continuation recycle — the single hub after a delegated writer flow lands (a committed single-spec / phase-spec): dispatch the session's `next:` line as written — the literal is the route: a further design dispatch re-enters this hub while the route is not done (the self-loop stays live), a closure routes to `handoff-next`; BLOCKED/TIMEOUT rounds carry no `next:` line (the `CDD_BLOCKED:` channel owns them).
 - **Read**: the landed delegated flow's output contract (the `next:` line + the committed artifact)
 - **Exit**: the `next:` line reads `done` → `handoff-next`; each further design dispatch re-enters this hub while the route is not done (the `until next=done` self-loop)
 - **Fail**: —
 
 ### `run-cdd-charter`
 
-- **Do**: Import `/kairos:cdd-spec-writer`（pi：/skill:cdd-spec-writer） with the overall target
+- **Do**: Import `/kairos:cdd-spec-writer`（pi：/skill:cdd-spec-writer） with the overall-spec target
 - **Read**: grilling output + parent overall (oversized phase-within-program case)
 - **Exit**: Handoff executed → `handoff-next`
 - **Fail**: Target skill missing → BLOCKED (install kairos — see the kairos README's 'Upstream dependency install' table)

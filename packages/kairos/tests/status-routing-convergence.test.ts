@@ -8,15 +8,14 @@
 // adjudication that lands governs over it). The
 // status vocabulary survives only as the closure anchors in the Review Convergence wording (the
 // loop is the unified NEXT-LOOP hub — the retired `{status?}` decision node is gone, §4.2), never
-// as narrated routing. The check reads the skill files directly (pure node:test, no shell grep
+// as narrated routing. The check reads the skill files directly (pure vitest, no shell grep
 // chain) and asserts the required anchors so a future convergence rewrite that drops the `next:`
 // reading fails here.
 
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { expect, test } from "vitest";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SKILLS_ROOT = path.resolve(HERE, "..", "skills");
@@ -69,12 +68,11 @@ for (const name of CARRIERS) {
   // and the `status` / `blocker` output-contract columns.
   test(`status-routing wording: ${name} carries zero retired blocker-status reading vocabulary`, () => {
     for (const [label, re] of FORBIDDEN.slice(0, 7)) {
-      assert.doesNotMatch(
+      expect(
         skill,
-        re,
         `${name}/SKILL.md still carries the retired ${label} — the convergence criterion routes on ` +
           `status: / the next: line, never on a stdout blocker count`,
-      );
+      ).not.toMatch(re);
     }
   });
 
@@ -83,23 +81,21 @@ for (const name of CARRIERS) {
   // `status:`→dispatch reading idioms.
   test(`status-routing wording: ${name} carries zero retired S1/S2/S3 routing-restatement vocabulary`, () => {
     for (const [label, re] of FORBIDDEN.slice(7)) {
-      assert.doesNotMatch(
+      expect(
         skill,
-        re,
         `${name}/SKILL.md still carries the retired ${label} — the fix/review routing is read off the ` +
           `engine's \`next:\` dispatch-ready line, never hand-narrated from a status mapping`,
-      );
+      ).not.toMatch(re);
     }
   });
 
   test(`status-routing wording: ${name} anchors Review Convergence to the status criterion + the next: reading`, () => {
     for (const [label, re] of REQUIRED) {
-      assert.match(
+      expect(
         skill,
-        re,
         `${name}/SKILL.md is missing the ${label} — Review Convergence must stay status-anchored in ` +
           `the digraph and route through the \`next:\` dispatch-ready line`,
-      );
+      ).toMatch(re);
     }
   });
 }
@@ -107,14 +103,10 @@ for (const name of CARRIERS) {
 test("status-routing wording: cdd-dev Failure Modes ground BLOCKED via status + the stderr CDD_BLOCKED channel", () => {
   const skill = readFileSync(path.join(SKILLS_ROOT, "cdd-dev", "SKILL.md"), "utf8");
   const failureModes = skill.slice(skill.indexOf("## Failure Modes"));
-  assert.match(
-    failureModes,
+  expect(failureModes, "Failure Modes must route on `status: BLOCKED` (M4)").toMatch(
     /status: BLOCKED/,
-    "Failure Modes must route on `status: BLOCKED` (M4)",
   );
-  assert.match(
-    failureModes,
+  expect(failureModes, "Failure Modes must name the stderr `CDD_BLOCKED:` reason channel").toMatch(
     /CDD_BLOCKED:/,
-    "Failure Modes must name the stderr `CDD_BLOCKED:` reason channel",
   );
 });

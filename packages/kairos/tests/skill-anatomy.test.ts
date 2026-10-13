@@ -13,11 +13,10 @@
 // class methods (the P5 zero-`function`-declaration discipline applies to this
 // migrated surface too).
 
-import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { expect, test } from "vitest";
 
 import {
   SKILL_ANATOMY,
@@ -451,14 +450,14 @@ class SkillAnatomyCheck {
 }
 
 test("the kairos skills are the closed roster set — directory scan equals the contract registry", () => {
-  assert.equal(SKILL_DIRS.length, EXPECTED);
+  expect(SKILL_DIRS.length).toBe(EXPECTED);
   for (const name of SKILL_DIRS) {
-    assert.ok(SKILL_ANATOMY.skills.registry[name], `unregistered skill dir: ${name}`);
+    expect(SKILL_ANATOMY.skills.registry[name], `unregistered skill dir: ${name}`).toBeTruthy();
   }
 });
 
 test("the six SKILL.md products pass the skill-anatomy contract (the live green face)", () => {
   const findings = new SkillAnatomyCheck().check();
   const lines = findings.map((f) => `  ${f.skill}: ${f.label}`);
-  assert.deepEqual(lines, [], `anatomy findings:\n${lines.join("\n")}`);
+  expect(lines, `anatomy findings:\n${lines.join("\n")}`).toEqual([]);
 });

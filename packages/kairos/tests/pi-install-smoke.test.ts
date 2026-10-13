@@ -11,13 +11,12 @@
 // pack + local directory install only. Missing pi is a hard FAIL with the install command
 // in the message (zero silent skip).
 
-import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { expect, test } from "vitest";
 
 import { countSkillsWithMarkdown, EXPECTED } from "./helpers.ts";
 
@@ -57,11 +56,10 @@ test("pi install smoke: pack → extract → pi install <dir> --local --approve"
       stdio: ["ignore", "pipe", "pipe"],
     });
     const tarballs = readdirSync(packDir).filter((f) => f.endsWith(".tgz"));
-    assert.strictEqual(
+    expect(
       tarballs.length,
-      1,
       `expected exactly one packed tarball, got: ${tarballs.join(", ")}`,
-    );
+    ).toBe(1);
     const tarball = path.join(packDir, tarballs[0]);
 
     // 2. Extract, stripping the npm top-level package/ directory.
@@ -77,18 +75,17 @@ test("pi install smoke: pack → extract → pi install <dir> --local --approve"
     // artifact; its SKILL.md count uses the shared countSkillsWithMarkdown + module-level
     // EXPECTED truth (no literal 8).
     const skillsDir = path.join(unpacked, "skills");
-    assert.ok(existsSync(skillsDir), "unpacked package must carry skills/");
-    assert.strictEqual(
+    expect(existsSync(skillsDir), "unpacked package must carry skills/").toBeTruthy();
+    expect(
       countSkillsWithMarkdown(skillsDir),
-      EXPECTED,
       `unpacked package skills/ must carry exactly EXPECTED SKILL.md`,
-    );
+    ).toBe(EXPECTED);
 
     // 4. Temp project cwd → pi install <abs-dir> --local --approve.
     const project = path.join(workspace, "project");
     mkdirSync(project);
     const install = runPi(["install", unpacked, "--local", "--approve"], { cwd: project });
-    assert.strictEqual(install.status, 0, `pi install exited ${install.status}: ${install.stderr}`);
+    expect(install.status, `pi install exited ${install.status}: ${install.stderr}`).toBe(0);
 
     // 5. The project .pi/settings.json records the installed package source — path.resolve
     // normalizes the recorded entry back to the unpacked dir. The recorded form is runtime-
@@ -97,19 +94,19 @@ test("pi install smoke: pack → extract → pi install <dir> --local --approve"
     // settings file under <project>/.pi/settings.json) — so resolution anchors on
     // path.dirname(settingsPath), the one base both forms share.
     const settingsPath = path.join(project, ".pi", "settings.json");
-    assert.ok(
+    expect(
       existsSync(settingsPath),
       "project .pi/settings.json must exist after a --local install",
-    );
+    ).toBeTruthy();
     const settings = JSON.parse(readFileSync(settingsPath, "utf8")) as { packages?: unknown[] };
     const recorded = settings.packages ?? [];
-    assert.ok(
+    expect(
       recorded.some(
         (entry) =>
           typeof entry === "string" && path.resolve(path.dirname(settingsPath), entry) === unpacked,
       ),
       `settings.json packages must record the installed source, got: ${JSON.stringify(recorded)}`,
-    );
+    ).toBeTruthy();
   } finally {
     rmSync(workspace, { recursive: true, force: true });
   }
@@ -117,8 +114,5 @@ test("pi install smoke: pack → extract → pi install <dir> --local --approve"
 
 test("missing pi binary fails with the install command (zero silent skip)", () => {
   const strippedEnv = { ...process.env, PATH: "/nonexistent-pi-smoke-path" };
-  assert.throws(
-    () => runPi(["--version"], { env: strippedEnv }),
-    (err) => err instanceof Error && err.message.includes(PI_INSTALL_HINT),
-  );
+  expect(() => runPi(["--version"], { env: strippedEnv })).toThrow(PI_INSTALL_HINT);
 });

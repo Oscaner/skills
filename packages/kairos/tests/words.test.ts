@@ -11,11 +11,10 @@
 // Zero module-level bare functions — the scan helper is a `const` arrow (the P5
 // zero-`function`-declaration discipline applies to this migrated surface too).
 
-import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { expect, test } from "vitest";
 
 import { GUARD_BAN_WORDS } from "../../cdd-engine/src-next/face/words.ts";
 
@@ -43,9 +42,8 @@ test("the six SKILL.md products carry zero guard-ban vocabulary (the ban-table s
       }
     }
   }
-  assert.deepEqual(
+  expect(
     findings,
-    [],
     `the skill texts carry the guard-ban vocabulary:\n${findings.join("\n")}`,
-  );
+  ).toEqual([]);
 });

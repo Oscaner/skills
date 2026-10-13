@@ -7,11 +7,10 @@
 // mechanism is enforced by the engine's entry gate (dispatch/base.ts commitPreCheck — dirty →
 // BLOCKED); the skills only state the obligation and must not re-implement it.
 
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { expect, test } from "vitest";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SKILLS_ROOT = path.resolve(HERE, "..", "skills");
@@ -27,10 +26,9 @@ for (const name of CARRIERS) {
   test(`${name}/SKILL.md review-fix loop wording: clean tree before entering review`, () => {
     const skill = readFileSync(path.join(SKILLS_ROOT, name, "SKILL.md"), "utf8");
     const occurrences = skill.split(CLEAN_TREE_PHRASE).length - 1;
-    assert.equal(
+    expect(
       occurrences,
-      1,
       `${name}/SKILL.md must carry the clean-tree obligation exactly once (the intro Round-rhythm single source — present AND single-sourced, node-template duplication retired)`,
-    );
+    ).toBe(1);
   });
 }

@@ -1,7 +1,7 @@
 # 引擎文档工具（Engine Doc-Tooling）— P7 实施计划：单一实况判定面（commit-sha 全退役 + 物料无条件 extract + brief 镜像 + round/键/字段实况化）
 **Spec:** [2026-10-10-engine-doc-tooling-p7-design.md](../specs/2026-10-10-engine-doc-tooling-p7-design.md)
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](../specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.6 · 2026-10-14
+- **Version**: v0.7 · 2026-10-14
 - **Depends on**: P6（Done · v0.4 · hard）
 
 ## Constraints
@@ -289,10 +289,30 @@
 - **Acceptance**: wave 线 reviewed 身份 = `brief-revision`（`{plan, brief_hash}` · `doc_hash` 层不指非文档）· wave 内 task 段/Constraints 变 → 重开 review · wave 外 append → 不重开 · doc 线仍整文档 hash · `reviewedDocRevisionOf` 对 wave 行返 null · 引擎 vitest（29 files / 541 tests）全绿 · EOF 恰一 newline
 - **DependsOn**: 13
 
+### Task 15: `conclusionOf` work 腿 absent 语义（missing → undefined · 非 BLOCKED）
+- **Objective**: 修 **legacy 载体闭合回归**（D31 · D26/D27 家族）——W11 fix（`b69bb177`）的 F3 把 `HandoffSchema.conclusionOf` 的 work 腿由未检查 cast（absent → `undefined`）改成「present-invalid 与 **absent 都** → `BLOCKED`」。**越界在 absent 支**：把「无声明」伪造成「失败声明」，与 `NextStepRouter.next`（`next.ts:78` · **只认显式 `BLOCKED/TIMEOUT` 为失败面 · 故意容忍 `undefined`**）自相矛盾 → 无 `status` 键的 P7 早期 work 载体（W1–W4/9 的 fix 载体）被读成 `BLOCKED` → `router.next` 返 `null` → `closedWaves()` 塌成 `{10,11}`，W1–W4/9 全部误判**未闭合**。**诚实读法（裁定）**：work 腿三分——**present-valid → 自身 · present-invalid → `BLOCKED`（F3 安全网保留 · 坏声明是失败信号）· absent → `undefined`（未声明结论 · 既不虚构 approval 也不虚构 failure · D27 present-facts-only）**。返回型 `RoundStatus | undefined`。**零数据回填**——历史载体经 route 判定自然闭合（改判据不改数据）。
+- **Files**:
+  - Modify: `packages/cdd-engine/src-next/session/handoff-schema.ts`（`conclusionOf` work 腿三分 · 返回型 `RoundStatus | undefined` · 头注收编 missing≠invalid）
+  - Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#reconstruct` 见证 `?? "BLOCKED"`——`required` 门保证 work 草稿必有 status · 不可达 · 注明）
+  - Modify: `packages/cdd-engine/src-next/session/__tests__/handoff-schema.test.ts`（pin 重锚：`conclusionOf("work",{})` → `undefined`（absent ≠ BLOCKED）· `{status:"garbage"}` → `BLOCKED` 保留）
+  - Modify: `packages/cdd-engine/src-next/session/__tests__/wave.test.ts`（**新回归 pin**：无 `status` 键的 legacy fix 载体 · 其 wave 仍判闭合——`closedWaves()` 含该 wave）
+- **Consumes**: T11（`conclusionOf` 单源）· spec §8.12 授权
+- **Produces**: `conclusionOf` 返回 `RoundStatus | undefined`（missing≠invalid）· legacy 载体闭合回归消 · 供分支终审
+- **Steps**:
+  - work 腿三分 —— `handoff-schema.ts conclusionOf` work 腿：`carrier.status === undefined → undefined` · 否则 valid → 自身 · invalid → `BLOCKED` · 返回型改 `RoundStatus | undefined` — checkable: 单测——`conclusionOf("work",{})` → `undefined` · `{status:"garbage"}` → `BLOCKED` · `{status:"APPROVED"}` → `APPROVED`
+  - reconstruct 见证 —— `lifecycle.ts #reconstruct` 的 `schema.conclusionOf(face, draft) ?? "BLOCKED"`（`required` 门保证 work 草稿有 status · `undefined` 不可达 · 注明） — checkable: typecheck 绿 · 注释述「unreachable」
+  - pin 重锚 —— `handoff-schema.test.ts` 的 `conclusionOf("work",{})` 由 `BLOCKED` 改 `undefined`（原 pin 编码了 bug） — checkable: 改后的 pin 绿
+  - 回归 pin —— `wave.test.ts` 增「无 status 的 legacy fix 载体其 wave 仍判闭合」（`recordRound` implement+review+fix · fix 载体 `{artifacts:{}}` · 源 review 0 blocker → `closedWaves()` 含该 wave） — checkable: `pnpm -C packages/cdd-engine test` 全绿（29 files / 543 tests）
+  - 板面验证 —— 修复后 `schema get plan-graph` 复原（W1–W6 ✔ · W7 ▶ · 零数据回填） — checkable: 板面波次闭环正确
+  - 提交原子 commit（`fix(cdd-engine): conclusionOf work 腿 absent→undefined（非 BLOCKED）——消 legacy 载体闭合回归`） — checkable: git log 单原子（2d795b4c 已落 · 本 task 记录该变更的 durable 事实）
+- **Acceptance**: `conclusionOf` work 腿 absent → `undefined`（missing≠invalid）· present-invalid 仍 → `BLOCKED`（F3 安全网保留）· 返回型 `RoundStatus | undefined` · legacy 载体闭合回归消（W1–W6 ✔ · 零数据回填）· 回归 pin 绿（legacy fix 载体其 wave 判闭合）· 引擎 vitest（29 files / 543 tests）全绿 · EOF 恰一 newline
+- **DependsOn**: 14
+
 ## Change history
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.7 | 2026-10-14 | **`conclusionOf` work 腿 absent 语义任务回填（D31 · D26/D27 家族 · Plan Sole Writer）**：新增 **T15（`conclusionOf` work 腿 absent 语义）**——W11 fix（`b69bb177`）的 F3 把 `conclusionOf` work 腿由未检查 cast（absent → `undefined`）改成「present-invalid 与 **absent 都** → `BLOCKED`」，与 router 契约（只认显式失败面 · 容忍 `undefined`）自相矛盾 → 无 status 键的 legacy work 载体被读成 `BLOCKED` → `closedWaves()` 塌成 `{10,11}`（W1–W4/9 误判未闭合）。**裁定**：work 腿三分（present-valid → 自身 · present-invalid → `BLOCKED` · **absent → `undefined`** · 返回型 `RoundStatus \| undefined`）。**修复 = 热修 `2d795b4c`**（引擎改判据 · **零数据回填**）+ 回归 pin（无 status 的 legacy fix 载体其 wave 仍判闭合）。**`DependsOn: 14`**（落 W9）· spec v0.11→v0.12 §8.12 | Oscar M. · Claude Opus 5（P7 编排器回填 · 用户确认 · 2026-10-14） |
 | v0.6 | 2026-10-14 | **wave 门控绑 brief 任务回填（D30 · D26 家族 · Plan Sole Writer）**：新增 **T14（wave 门控绑 brief）**——wave 线 reopen 门控从 **whole-plan hash** 改绑 **渲染后 brief 的指纹**（D30 · 诚实身份）。wave 的真实判定输入是 brief（本 wave 任务段 + `## Constraints`），非整 plan；纯 append（改其它 task / 加新 task）不留痕 → 已 review 的 wave 不再误重开（backfill 本不高成本）。**wave 线新增专属 ref kind `brief-revision`**（`{plan, brief_hash}` · `doc_hash` 层永不指非文档 · `sameRef` 按 kind 判别）· `ProgressRow.reviewedDocRevision` → `reviewedRevision`（联合）· doc 线保持整文档 hash（用户裁定）。**同批**：`归位` D29——T13 backfill 时误将 D29 约束写入全局 `## Constraints`（该段进每个 wave 的 brief → 无差别扰动 open W6），D29 是 T13 专属约束，已移出全局段（其表述完整存于 T13 block）。**`DependsOn: 13`**（落 W9）· spec v0.10→v0.11 §8.11 | Oscar M. · Claude Opus 5（P7 编排器回填 · 用户确认 · 2026-10-14） |
 | v0.5 | 2026-10-14 | **skill ⇄ engine 黑盒边界任务回填（D29 · 六前提①②③④⑤⑥ · Plan Sole Writer）**：新增 **T13（skill ⇄ engine 黑盒边界）**——skill 层对引擎退化为黑盒消费者（skill 文本只载行为契约 · 零内部实现镜像）。**A 派发纪律统一**（background + 等通知 = 全六 skill 公共纪律 · 删 `timeout + poll otherwise` 死分支）· **B 内部实现词剥离**（全六 SKILL.md 删 `WaveGate`/`effectiveWaves`/波次推导内部/`INPUT_WAVE_BRIEF`/`BASE_BRANCH`/`CDD_BLOCKED:`/失败分类学/`--resume`·`-c`/`--type` 判别规则逐 verb 句/skeleton 语法 · 保留黑盒契约四条 + bootstrap 字面命令）· **pin 同步（破坏性）**：`skill-anatomy.test.ts` 的 `CDD_BLOCKED:` 断言改行为断言 · `status-routing-convergence.test.ts` 的 `next:` 锚定保留 · `routeFactRule` 精化。**`DependsOn: 12`**（落 W7——不扰动 open W6 · 与 T12 同波次序列）· spec v0.9→v0.10 §8.10 | Oscar M. · Claude Opus 5（P7 编排器回填 · 用户确认 · 2026-10-14） |
 | v0.4 | 2026-10-14 | **round 身份单源任务回填（D28 · D26 家族 · Plan Sole Writer）**：新增 **T12（round 身份单源）**——`progress.rounds` 记**周期号集合**（身份非计数）· `recordRound(key,mode,cycle)` 记周期 · 新 `roundRecorded` 成员测试替计数门控 · 相位三处「pending fix」改成员测试 · `#roundFor("fix")=reviews` 保留 · 迁移按载体名重建。**同批**：载体动作 `backfill`→`annotate`（`backfill` 锁义为 doc 去向 · `02-naming.md` 登记）。治 W10 实测 `fix APPROVED 却 no next: line`（fix-K⟷review-K 计数分叉 → HARD_ERROR）。**`DependsOn: 11`**（落独立 W7——不扰动 open W6）· spec v0.8→v0.9 §8.9 | Oscar M. · Claude Opus 5（P7 编排器回填 · 用户确认 · 2026-10-14） |

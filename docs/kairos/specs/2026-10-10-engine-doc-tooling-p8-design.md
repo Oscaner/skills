@@ -1,5 +1,5 @@
-# 引擎文档工具（Engine Doc-Tooling）— P8 设计：`cdd board <slug>` slug 进度板（plan-graph 提级一等公民 · 文件系统唯一真源 · 全节点 verb×round 细粒度 · next 指路到引擎命令与 skill ref）
-- **Version**: v0.1 · 2026-10-14
+# 引擎文档工具（Engine Doc-Tooling）— P8 设计：`cdd board <slug>` slug 进度板 + 引擎统一 next 面（plan-graph 提级一等公民 · 文件系统唯一真源 · 全节点 verb×round 细粒度 · next 贯穿全 face×verb 到 skill ref）
+- **Version**: v0.2 · 2026-10-14
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P8] 会话 · 用户裁定 · 2026-10-14）
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](2026-10-10-engine-doc-tooling-overall.md)
@@ -13,7 +13,7 @@
 
 ### 1. 目标与边界
 #### 1.1 设计输入与授权
-- 设计输入：kairos:cdd-design [P8] 会话（D32 注册 · Q1–Q11 全裁定）· overall v2.32 · recon 报告（引擎命令注册/声明面 · plan-graph 全触点 · slug 逆推导 · progress.json 实况 · REFS harness 拼写 · 相位文件命名实测）
+- 设计输入：kairos:cdd-design [P8] 会话（D32 注册 · Q1–Q11 全裁定 · **D33 统一 next 面折入**）· overall v2.32 → v2.33（D33）· recon 报告（引擎命令注册/声明面 · plan-graph 全触点 · slug 逆推导 · progress.json 实况 · REFS harness 拼写 · 相位文件命名实测 · 引擎 next 面接线：`#close`/`Capsule#routeText`/`RouteTarget.type`）
 - **授权（六前提 · 用户 mandate）**：允许破坏性变更、重写代码重组目录、不保守不打补丁 · 从高维思考、OOP 抽象统一、零裸函数 · 最佳实践、不留技术债务、避免散文堆砌、避免声明再抄 · 高内聚低耦合、死代码空壳全清 · 消费者心智负担优先（不为完成任务而设计）· 最大程度重构整合、最大程度精简系统
 - **不发布**（与 P1–P7 一致）：变更集归并落 pending · tag / publish = 独立动作
 #### 1.2 判定基线（本 phase 的根前提）
@@ -21,6 +21,7 @@
 - **slug 是一个节点地址 · 点分相位路径任意深度**：`<program-slug>[-p<主>(.<子>)*]`——`-p3` 与 `-p3.1` 与 `-p3.2.1` 同为相位节点，层级可无限衍生。**文件系统是唯一真源**：节点集合由**扫描** `docs/kairos/{specs,plans}` 得出，绝不按命名规则合成盘上不存在的节点（实测：`doc-architecture-v2` 族 `-p4.1` 存在而 `-p4` 缺失 · overall 自己的 File paths 表仍写 `p<N>` 占位符——声明面已与文件面脱节）。
 - **进度数据面单一**：`progress.json` 的 `rounds[verb]`（周期号集合 · D28 身份号）是唯一进度数据源，spec/plan 自己也是进度行（doc 线键 `"spec"`/`"plan"`），与 wave 行（波键 `"1,2,5,8"`）、branch 行（键 `"branch"`）同构——**板是全节点的同一份数据的投影，零新数据、零新判定**。
 - **harness 拼写解析现成**：`REFS[ref][host]`（face/host.ts）+ 运行时 host 判出（`lifecycle.ts:253` §）已承载 skill ref 的 per-harness 拼写——board 的 next 渲染 skill ref 时**复用**它，绝不硬编码某个插件的 `/kairos:cdd-plan` 拼写。
+- **流水线序在 skills 与引擎各存一份 = 声明再抄**：引擎 `#close` 的 `done` 是无脑终词，而「spec 完该 plan / plan 完该 dev / dev 完该 branch review / branch 完该 close」这套序在 **skills 各存一份**（handoff 节点）。引擎持 `REFS` 全表 + CDD 阶段序——两处声明 = D33 折入的根因（六前提③）。
 #### 1.3 保留面（冻结）
 - `schema get` 的 doc-structure 发现面（json + skeleton 两 render face）不变——本 phase 仅退其 `plan-graph` display 透传。
 - `GraphView` 的波板渲染语义（✔ done / ▶ current wave / ○ pending · W1-first 无零填充）不变——它由独立显示路由**降为 board 的一个 section 渲染器**（组件保留，接线改挂）。
@@ -85,54 +86,81 @@ cdd board: <slug>
 - 固定 legend 尾行（同 `GraphView` 现风格）：`progress: ✔ done · ▶ current · ○ pending`。
 - 缺 plan 的中间层级节点：wave 段留空（不报错）；无 overall：overall 段留空（降级不报错）。
 
-### 6. next 面：全 line × 全 verb 状态机（严格线序）
-#### 6.1 线序常量（单一来源）
-- 线序 **spec → plan → wave → branch**（CDD 固有阶段序，**严格不可跳**）。该序**从 `targetFaces`（session/faces.ts）派生顺序**，不另写一张表（避免声明再抄）。
-#### 6.2 每条线的「下一动作」
-- **该线有 round** → 取最新 round 过 `NextStepRouter`（C5 表）→ route（review 有 findings→fix · review 无 findings→close · fix blocker>0→review · fix→close）。
-- **该线无 round（未开始）** → 起始动作：doc 线（spec/plan）= `review`；wave 线 = 首个未闭合波（`TaskGraph.frontier`/`readyBatch`）的 `implement`；branch 线 = `branch-review`。
-#### 6.3 全局 next（第一条未闭合线）
-- 按线序遍历，取**第一条 route ≠ done 的线**的动作——你举的三例全部自然落在此规则下：spec 闭合→跳 plan；wave1 闭合→取 wave2 的 implement；review 有 findings→取该线 fix。
-- **skill ref 交叉点（Q7 · 用户裁定）**：**spec 线 review-fix **全闭合** → next = `/kairos:cdd-plan`（skill ref）；plan 线 review-fix 全闭合 → next = `/kairos:cdd-dev`（skill ref）**。即：一条 doc 线闭合后，推进到「该由 skill 承担」的下一环（author plan / run dev），而非引擎命令。
-- 其余动作是**完整可执行引擎命令**（Q10 · 用户裁定「完整」）：如 wave frontier 非空 → `cdd implement --type wave --tasks <ready> --plan <plan>`；doc 线未闭合 → `cdd review --type spec --spec <path>` 等——与引擎既有 `next:` 字面同款完整命令（复用 `Capsule#routeText` 的拼装）。
-#### 6.4 skill ref 的 harness 拼写
-- `REFS[ref][host]`（face/host.ts）+ 运行时 host 判出（`lifecycle.ts:253` 同款）——claude/cursor 渲 `/kairos:cdd-plan`，pi 渲 `/skill:cdd-plan`。**不硬编码插件拼写**（引擎对 skill 是黑盒 · D29）。
-- 全 done → `next: done`。
+### 6. 引擎统一 next 面：`next:` 贯穿全 face×verb（D33）
+#### 6.1 命题（引擎成为唯一流水线路由器）
+- 现状：引擎 `#close(state)`（session/next.ts）的 `done` 是**无脑终词**——doc 线（spec/plan）与 branch 线恒无 ready batch → 恒渲 `next: done`；流水线序（spec 写完该 plan、plan 写完该 dev、dev 写完该 branch review、branch 闭合该 close）在 **skills 各存一份**（cdd-spec-writer 的 `handoff-cdd-plan` 节点 · cdd-plan 的 `handoff-cdd-dev` · cdd-dev 的交接 · cdd-close 的 `handoff-*`）——与引擎将持的同一条 CDD 阶段序**重复声明**（六前提③ 声明再抄）。
+- 裁定（D33）：**引擎 next 由「本线链条耗尽」升为「CDD 流水线的下一站」**——`done` 按**线型**渲染为下一站，引擎成为唯一路由器；skills 侧 handoff 节点溶解。
+#### 6.2 线序与下一站（单一来源 · 一张表）
+- 线序 **spec → plan → wave → branch**（CDD 固有阶段序 · 从 `targetFaces`（session/faces.ts）派生顺序，不另写一张表）；**引擎 next 止于 `/kairos:cdd-close`（不跨 phase · F3 用户裁定：close 表关闭/结束，跨 phase 推进留 cdd-close 自决）**。
+- 一张 `PIPELINE_NEXT` 常量表（`session/next.ts` 或 `face/host.ts` 旁 · 类成员/常量 · 零裸函数）：**线型闭合 → 下一站字面**——
+  | 闭合法线 | 下一站 | 形态 |
+  |---|---|---|
+  | spec（`spec` 线全闭合） | `/kairos:cdd-plan` | skill ref（`REFS` 取 per-harness 拼写） |
+  | plan（`plan` 线全闭合） | `/kairos:cdd-dev` | skill ref |
+  | wave（wave 线全闭合） | `cdd review --type branch --plan <plan>` | 引擎命令（完整 argv） |
+  | branch（branch 线全闭合） | `/kairos:cdd-close` | skill ref |
+- 该表是**流水线序的单源**——board §6.4 的 next 直接消费它（不重复建序）。
+#### 6.3 渲染落点（最小改动面）
+- `#close(state)` 的 C5 判定**不动**（review 无 findings / fix blocker=0 → close；ready batch 非空 → `next-wave`，否则 `done`）——**router 保持纯 C5 表**。
+- `done` 的**渲染**在 `Capsule#routeText(route, target)`（face/capsule.ts）——**该处已收到 `RouteTarget`（含 `.type`）**。故「`done` + 线型 → 流水线下一站」落在**渲染层**：`case "done"` 由 `words.routeWord("done")` 改为**查 `PIPELINE_NEXT[target.type]`**（wave 线的 `done` 仍渲 `done`——wave 线闭合后的 branch review 由 §6.2 表的 wave 行承载；需在实现中厘清 wave 线闭合的 route 究竟落 `done` 还是需新 route kind——**见 §6.5**）。
+- skill ref 的 per-harness 拼写：`REFS[ref][host]`（face/host.ts · `lifecycle.ts:253` 同款机制），claude/cursor 渲 `/kairos:cdd-plan`，pi 渲 `/skill:cdd-plan`。**不硬编码插件拼写**（引擎对 skill 是黑盒 · D29；且引擎持 `REFS` 全表 = 非新耦合）。
+#### 6.4 board 的 next（消费引擎统一 next 面）
+- board 不再自建 next 表——它**渲染引擎的统一 next 面**：对 slug 所辖的每条线（spec/plan/wave/branch，严格线序）取该线的 C5 route，按 §6.2 表渲染下一站；取**第一条未闭合线**的动作。
+- 你举的三例全部自然落在此规则下：spec 闭合→跳 plan（渲 `/kairos:cdd-plan`）；wave1 闭合→取 wave2 的 implement；review 有 findings→取该线 fix。
+- **doc 线闭合 → skill ref 交叉点**：spec 全闭合 → board 现 `/kairos:cdd-plan`；plan 全闭合 → `/kairos:cdd-dev`。
+- 引擎命令型 next 为**完整可执行命令**（`cdd implement --type wave --tasks <ready> --plan <plan>` 等 · Q10 用户裁定「完整」）——复用 `Capsule#routeText` 的拼装。
+#### 6.5 实现待厘清点（落 plan 期）
+- **wave 线闭合的 route 语义**：wave 线闭合后（所有波 done），`#close` 恒渲 `done`——统一后该 `done` 应变为 `cdd review --type branch --plan <plan>`。落点有二：(a) 在 `PIPELINE_NEXT[wave]` 表内做（渲染层判别 wave 线 vs next-wave），(b) 新增 route kind。**倾向 (a)**（渲染层查表 · 零 router 改动 · 最小面）——但需确认 `next-wave`（下一波就绪）与「全波闭合」在 route 层可区分（前者 route.kind=`next-wave` 且带 tasks，后者 route.kind=`done`）。实现期若判别不清则退回 (b)。此项落 plan 时定方案。
+- **branch 线首轮**：branch 线未开始时的起始动作 = `branch-review`（§6.4 已述）；branch 闭合后 → `/kairos:cdd-close`。
 
-### 7. 六前提重构整合（破坏性 · 重组 · 零裸函数 · 死码清理 · 最大精简）
-#### 7.1 组件升降与目录
+### 7. skills 侧 handoff 节点溶解（D33）
+#### 7.1 溶解面
+- `packages/kairos/skills/cdd-spec-writer/SKILL.md`：`handoff-cdd-plan` 节点删（其「交接给 `/kairos:cdd-plan`」语义折入引擎 next 的 spec 行）；NEXT-LOOP 退化为「读 `next:` → 照抄执行/交接」（`next: done` 不再出现于 doc 线，改为 skill ref）。
+- `packages/kairos/skills/cdd-plan/SKILL.md`：`handoff-cdd-dev` 节点删（同折入）。
+- `packages/kairos/skills/cdd-dev/SKILL.md`：交接节点溶解（wave 闭合 → branch review 命令由引擎发；branch 闭合 → `/kairos:cdd-close`）。
+- `packages/kairos/skills/cdd-close/SKILL.md`：入口即由引擎 next（`/kairos:cdd-close`）抵达——其自身无 outgoing handoff 节点需删（它就是终点）。
+#### 7.2 skull-anatomy 契约同步
+- `contract/skill-anatomy.ts` 的 digraph 契约：handoff 节点消失后，NEXT-LOOP 的出边条件词表可能需同步（`next:` 为引擎字面 → NEXT-LOOP 单一出口）。落 plan 时核 `SkillAnatomyCheck` 的节点注册表与出边断言。
+#### 7.3 消费面文本
+- 消费面 NEXT-LOOP 不再复述任何 `next:` 字面（本就已 P5 精简）——本 phase 进一步**删去 handoff 节点**，字面更少。
+
+### 8. 六前提重构整合（破坏性 · 重组 · 零裸函数 · 死码清理 · 最大精简）
+#### 8.1 组件升降与目录
 - `GraphView`（face/graph-view.ts）由「独立显示路由的渲染器」降为「board 的 section 渲染器」——文件保留（组件仍有价值），接线改挂到 board 组合面。
 - 新增 board 组合面（渲染器）——**OOP 类**（零裸函数），持：slug 解析（§4）· 节点树装配 · 各 section 渲染 · next 派生（§6）。board 与 `Capsule`/`GraphView` 的分工：`Capsule` 渲「一轮的输出胶囊」，`GraphView` 渲「一波板」，board 渲「一 slug 的全局墙」——三者同层，board 组合其余两者。
-#### 7.2 死码/空壳清理
+#### 8.2 死码/空壳清理
 - `plan-graph` display 路由的 leaf 分支、`#parseTypeKey` 的 `planGraph` 参数、`SCHEMA_TYPE_KEYS` 注释旁路——全删（§2.3）。`plan-graph` 门名改（§3.1）。
-#### 7.3 零裸函数
+#### 8.3 零裸函数
 - 新增/改动面全为类成员（`Workspace.docsOfSlug` · board 渲染类的方法）——合 `check:no-bare-functions`（全局 `^export function|^function` 零命中）。
-#### 7.4 声明再抄抑制
-- slug → 路径从 slug 推导（不解析 overall 表）；线序从 `targetFaces` 派生（不另写表）；skill ref 从 `REFS` 表取（不硬编码）。零平行声明。
+#### 8.4 声明再抄抑制
+- slug → 路径从 slug 推导（不解析 overall 表）；线序从 `targetFaces` 派生（不另写表）；skill ref 从 `REFS` 表取（不硬编码）；流水线下一站从 `PIPELINE_NEXT` 单表取。零平行声明。
 
-### 8. 消费面同步
-#### 8.1 六命令引用更新（六 → 七）
+### 9. 消费面同步
+#### 9.1 六命令引用更新（六 → 七）
 - `packages/kairos/README.md`：命令清单（:71 · `implement / review / fix / base / schema / issue`）增 `board`；`packages/kairos/README.zh-CN.md` 同改。
 - `packages/kairos/tests/presentation-surface.test.ts`：`CDD_SUBCOMMANDS`（:51）增 `"board"`；相关 README 断言随改。
 - `packages/kairos/tests/skill-anatomy.test.ts`：命令捕获正则（:253 · `cdd (implement|review|fix|base|schema|issue)`）若无 `board` 引用需求则不动；若 skills 文本引用 board 则需增。
-#### 8.2 消费面 skill 文本
+#### 9.2 消费面 skill 文本
 - 若有 skill 引用 `plan-graph` 或需引导用 `cdd board`——由 author 节点表述承载（消费面指引归 skills）。recon 确认 skills 文本当前零 `plan-graph` 引用（无需改）。
-#### 8.3 pin 重锚（破坏性 · deliberate）
+#### 9.3 pin 重锚（破坏性 · deliberate）
 - `face/__tests__/cli.test.ts` 的 plan-graph pins（unknown schema type 报错文本含 `, plan-graph`（:627/:2951/:3361）· skeleton 拒绝（:664-675）· `schema get plan-graph` 读（:2636/:2661/:3403-3412））——全量重锚为 `board` 命令断言 + unknown schema type 报错文本去 `, plan-graph`。
 - `face/__tests__/projection.test.ts` 的 `plan-graph passes through`（:185-193）· `face/__tests__/graph-view.test.ts` 的 title 字面（:22/:25）——随 `graph` 门名/board 重锚。
 - `session/__tests__/preflight.test.ts` 的 gate 名 pins（若有 `plan-graph` 字面）——重锚为 `graph`。
+- **统一 next 面 pins（新）**：doc 线（spec/plan）闭合 → `next:` 渲 skill ref（非 `done`）· branch 线闭合 → `/kairos:cdd-close` · wave 线闭合 → `cdd review --type branch --plan <plan>` · skill ref 按 harness 拼写（claude/pi 两形）。
 
 ## Acceptance criteria
 - `cdd board <slug>` 输出全局态势板：overall/spec/plan/wave/branch 五行 + 各 `implement×N · review×N · fix×N` + wave 每波一行（波链 ✔▶○ + 明细）+ 固定 legend + `next:` 行
 - slug → 三文档路径以**文件系统为唯一真源**：扫描 `docs/kairos/{specs,plans}` 命中 `<slug>*` 树化 · **不合成盘上不存在父节点**（`doc-architecture-v2` 族 `-p4.1` 存在而 `-p4` 缺失场景正确树化）· **不解析 overall File paths 表**
 - 点分相位路径任意深度：`-p3` · `-p3.1` · `-p3.2.1` 同为相位节点
 - next 全 line × 全 verb 严格线序（spec→plan→wave→branch）：spec 闭合 → 取 plan 线动作 · wave1 闭合 → 取 wave2 的 implement · review 有 findings → 取该线 fix
-- **skill ref 交叉点**：spec 线全闭合 → next = `/kairos:cdd-plan`（按 harness 渲拼写）· plan 线全闭合 → next = `/kairos:cdd-dev`（按 harness 渲拼写）
-- 引擎命令型 next 为**完整可执行命令**（`cdd implement --type wave --tasks <ready> --plan <plan>` 等）· 全闭合 → `next: done`
+- **引擎统一 next 面（D33）**：`next:` 由「本线链条耗尽」升为「CDD 流水线下一站」——spec 线全闭合 → `/kairos:cdd-plan`（skill ref）· plan 线全闭合 → `/kairos:cdd-dev`（skill ref）· wave 线全闭合 → `cdd review --type branch --plan <plan>`（引擎命令）· branch 线全闭合 → `/kairos:cdd-close`（skill ref）· **止于 `/kairos:cdd-close`（不跨 phase）**
+- **skill ref 按 harness 渲拼写**：claude/cursor → `/kairos:cdd-plan` 形 · pi → `/skill:cdd-plan` 形（经 `REFS[ref][host]` + 运行时 host 判出）
+- 引擎命令型 next 为**完整可执行命令**（`cdd implement --type wave --tasks <ready> --plan <plan>` 等）
+- **skills 侧 handoff 节点溶解**：cdd-spec-writer `handoff-cdd-plan` · cdd-plan `handoff-cdd-dev` · cdd-dev 交接 · cdd-close `handoff-*` 节点零残留；NEXT-LOOP 退化为同一句「读 `next:` → 照抄执行/交接」
 - `plan-graph` 作为词从引擎消失：`schema get` display 路由退（leaf 分支零命中）· `SCHEMA_TYPE_KEYS` 旁路注释零命中 · `#parseTypeKey` 的 `planGraph` 参数零命中 · preflight 门名 `graph`（`plan-graph` 字面零命中）
 - `cdd board` 无副作用（零写树 · 零写 ledger · 零 child 派发）· 缺 slug / 无匹配文件 → exit 2
 - `CliVerb` 七值 · `CLI_COMMANDS` 含 board 行 · 消费面六→七命令引用同步（kairos README ×2 + presentation-surface.test）
-- 零裸函数（全局 `^export function|^function` 零命中）· 引擎 vitest 全绿（含 board colocated pins + plan-graph pins 重锚）
+- 零裸函数（全局 `^export function|^function` 零命中）· 引擎 vitest 全绿（含 board colocated pins + plan-graph pins 重锚 + 统一 next 面 pins）
 - `pnpm run validate` ALL PASS · 不发布
 
 ## Constraints
@@ -140,6 +168,8 @@ cdd board: <slug>
 - **一概念一名**：`plan-graph` 作为词整体消失（显示路由 + preflight 门名）；board 是新词
 - **skill ⇄ engine 黑盒边界（D29）**：board 的 next 渲染 skill ref 经 `REFS[ref][host]`，不硬编码插件拼写
 - **判定面单源（D26 家族）**：board 的进度读是 `progress.json` 单源投影，波链与 preflight gate 同 `closedWaves()` 读；next 消费 `NextStepRouter` 不修改它
+- **统一 next 面单源（D33）**：流水线下一站从 `PIPELINE_NEXT` 一张表取（board §6.4 消费它，不另建序）；`NextStepRouter` 的 C5 判定不动，`done` 的流水线渲染落 `Capsule#routeText` 渲染层（`RouteTarget.type` 判别）
+- **引擎 next 止于 `/kairos:cdd-close`**（不跨 phase）
 - **零声明再抄**：slug→路径从 slug 推导 · 线序从 `targetFaces` 派生 · skill ref 从 `REFS` 取
 - **纯读无副作用**：board 不写树 / 不写 ledger / 不派发 child
 - **不发布**：变更集归并落 pending
@@ -149,3 +179,4 @@ cdd board: <slug>
 | Version | date | summary | author |
 |---|---|---|---|
 | v0.1 | 2026-10-14 | P8 设计实写——`cdd board <slug>` 一等公民：plan-graph 提级（显示路由 + 门名退役 §2/§3）· slug → 节点树文件系统唯一真源（§4）· 全节点 verb×round 细粒度板（§5）· next 全 line×全 verb 严格线序 + skill ref 交叉点（§6）· 六前提重构整合（§7）· 消费面同步（§8）· grilling Q1–Q11 全按用户裁定 | Oscar M. · Claude Opus 5 |
+| v0.2 | 2026-10-14 | **统一 next 面折入（D33 · 用户 in-flight 需求 backfill）**：命题升为「`cdd board` slug 进度板 + 引擎统一 next 面」——引擎 `next: done` 由「本线链条耗尽」升为「**CDD 流水线的下一站**」（spec→`/kairos:cdd-plan` · plan→`/kairos:cdd-dev` · wave→`cdd review --type branch` · branch→`/kairos:cdd-close` · 止于 close 不跨 phase · skill ref 按 harness 渲拼写）· 新增 §6 引擎统一 next 面（`PIPELINE_NEXT` 单表 · 渲染落 `Capsule#routeText` · router 不动）+ §7 skills handoff 节点溶解 · 原 §7/§8 顺延 §8/§9 · board 的 next 改为**消费**引擎统一 next 面（不再自建表）| Oscar M. · Claude Opus 5（P8 编排器方案回填 · 用户确认） |

@@ -924,4 +924,41 @@ describe("T11 — the wave review writes the reviewed PLAN revision into the wav
       cleanup();
     }
   });
+
+  it("a drifted plan reopens the wave at REVIEW on the lifecycle frontier — the gate's peer (D26)", () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const planPath = path.join(repo, "plan.md");
+      writeFileSync(planPath, "# Plan\n- delta\n");
+      const graph = taskGraph([task(1, "none")]);
+      const dispatch = stub((frame) =>
+        frame.phase === "implement"
+          ? APPROVED_IMPLEMENT
+          : { status: "APPROVED", findings: [finding("blocker")] },
+      );
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+        planPath,
+      });
+      run.advance(); // implement
+      const review = run.advance(); // review — the blocker awaits its fix; the plan revision binds
+      expect(review!.frame.phase).toBe("review");
+      expect(review!.route!.kind).toBe("fix");
+      // the plan moves mid-flight (an orchestrator fill/fix) — the recorded revision
+      // now drifts from the file's current text
+      writeFileSync(planPath, "# Plan\n- delta\n- moved\n");
+      // the frontier re-offers the wave at REVIEW, never a stale `fix` — the drifted
+      // plan voids the findings bound to the old revision. Without the single-source
+      // derivation the frontier held `fix` while the gate accepted `review` (the
+      // deadlock). The gate-side twin lives in wave.test.ts (a drifted plan reopens
+      // the fix-pending wave at review).
+      const reopened = run.advance();
+      expect(reopened!.frame.phase).toBe("review");
+    } finally {
+      cleanup();
+    }
+  });
 });

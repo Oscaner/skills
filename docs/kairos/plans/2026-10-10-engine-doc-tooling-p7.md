@@ -1,7 +1,7 @@
 # 引擎文档工具（Engine Doc-Tooling）— P7 实施计划：单一实况判定面（commit-sha 全退役 + 物料无条件 extract + brief 镜像 + round/键/字段实况化）
 **Spec:** [2026-10-10-engine-doc-tooling-p7-design.md](../specs/2026-10-10-engine-doc-tooling-p7-design.md)
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](../specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.4 · 2026-10-14
+- **Version**: v0.5 · 2026-10-14
 - **Depends on**: P6（Done · v0.4 · hard）
 
 ## Constraints
@@ -14,6 +14,7 @@
 - **kairos 消费面字面同步**（§7）：cdd-dev/cdd-plan skill 文本 + 行为树 pins 随 engine 语义更替（consumer 环境无 monorepo 布局 · 消费面纯度：零程序史）· `docs/kairos/{specs,plans}` frozen 历史面零动
 - **语义契约保**：退出码表 0/1/2 · CDD_BLOCKED 通道 · `next:` 字面 · 领域 run 语义零动（字节更替为 deliberate re-anchor）· `TEMPLATE_PROMPT.$version` 6 → 7（数据面版本记录）
 - **零残留**：填后 `:::fill` 零残留 · 非豁免 `<…>` 零残留 · 引擎 vitest 全绿（零跳过零容错）· EOF 恰一 newline · 不发布（变更集归并落 pending）
+- **skill ⇄ engine 黑盒边界（D29 · §8.10）**：skill 层对引擎是消费者 · 引擎对 skill 是黑盒——全六 SKILL.md 只载引擎**行为契约**，零内部实现镜像（类名 / 波次推导内部 / round-context 槽 token / 输出字节名 / 崩溃机制 + 失败分类学 / 会话旗标 / flag 逐 verb 复述 / skeleton 语法）。**派发纪律统一**（background + 等通知全六 skill 齐 · `timeout + poll` 退役）。**入口 bootstrap 例外**（每 flow 入口节点保留唯一字面命令）。**pin 同步**：`skill-anatomy.test.ts` 的 `CDD_BLOCKED:` 断言改行为断言 · `status-routing-convergence.test.ts` 的 `next:` 锚定保留
 
 ### Task 1: sha 载体的类型面收编（GitClient 六→二 seam · BranchRef 类删 · Route.review 无 ref）
 - **Objective**: 删除评测面的 commit-sha 类型载体——`GitClient` 留 `topLevel`/`isClean` 二 seam（`revParseHead`/`addAll`/`commit`/`log` 删）· `session/branch-ref.ts` 整文件删 · `BranchRef` 的全部消费点收编（`gate.refFromHandoff` · `gate.#lineParams` branch 腿 · `cli.ts` branch face 装配 + `scene.head` 注入 · `run.#paramsOf`/`#routeTarget` branch 腿 · `capsule.#routeText` branch ref 合成 · `lifecycle.#reviewRange`（:375/:382）`#resumeOf`（:685）branch-ref 消费点——移除归 T4）· `Route.review` 失 `{base,head}` → `{kind:"review"}` · `WorkScene.head` 删 · dry-run 合成 commits 改零 commits
@@ -245,10 +246,36 @@
 - **Acceptance**: `rounds` 记周期号（身份）· `roundRecorded` 门控替计数比较 · 相位「pending fix」成员测试（drift 跳号不造假）· W10 场景回归绿 · `backfill user adjudications` 零残留 · `annotate` 术语在册 · 引擎 vitest 全绿 · EOF 恰一 newline
 - **DependsOn**: 11
 
+### Task 13: skill ⇄ engine 黑盒边界（全六 skill 派发纪律统一 + 内部实现词剥离 · pin 同步）
+- **Objective**: 让 skill 层对引擎退化为**黑盒消费者**——skill 文本只载引擎**行为契约**，零内部实现镜像（D29 · 六前提①②③④⑤⑥）。两条裁定：**A 派发纪律统一**——background 执行 + 等完成通知升为**全六 skill 公共纪律**（现仅 cdd-dev I2 有）；**删 `timeout + poll otherwise`** 能力分支（宿主实现细节 = 死代码）。**B 内部实现词剥离**——全六 SKILL.md 删净：`WaveGate` · `effectiveWaves` · "wave derivation"/"ready set"/"wave batches" · `INPUT_WAVE_BRIEF`/`BASE_BRANCH`/"round context" · `CDD_BLOCKED:` 字节名 · "the engine truncates its own output" · "status capsule（`status:`/`blocker:`/`handoff:`）" · 崩溃机制（"crash-only snapshot + crash record"）+ 失败分类学（`HARNESS_ABORT`/`ENGINE_SELF_WRITTEN`/`EXECUTION_FAILURE`/`PLAN_CONFLICT`）· `--resume`/`-c` · "`--type` renders only where the verb's type discriminates"（I-row ×4 逐字重复）· `schema get … --output skeleton` 语法 + 骨架槽位名。**保留**（黑盒行为）：引擎唯一派发路径（I5 的**意图** · 去 `WaveGate` 名）· 后台派发 `cdd` + 读全量 stdout/stderr · `next:` 行收尾照抄分派直到 `done` · BLOCKED/TIMEOUT 无 `next:` 携因上报 · **bootstrap 例外**（每 flow 入口节点唯一字面命令 · `determine-base`/`set-base`/入口派发保留）。**pin 同步（破坏性）**：`skill-anatomy.test.ts`（:103-112）的 `CDD_BLOCKED:` + `status: BLOCKED` 断言 → **行为断言**（BLOCKED 携带原因）；`status-routing-convergence.test.ts`（:52-61）的 `next:` 锚定**保留**；`skill-anatomy.test.ts`（:250-259）的 `next:` 后无完整命令 pin **保留**；契约面 `routeFactRule`（`contract/skill-anatomy.ts`）精化（去 payload 结构描述 · 留 dispatch-ready literal）。
+- **Files**:
+  - Modify: `packages/kairos/skills/cdd-dev/SKILL.md`（preamble 统一派发纪律 · `implement-wave` 删 `WaveGate`/波次推导 · `branch-review` 删 `BASE_BRANCH`/"round context" · I2 合入 preamble · I3 删 `--type` 句 · I5 去 `WaveGate` · Failure Modes 收敛行为面）
+  - Modify: `packages/kairos/skills/cdd-plan/SKILL.md`（preamble · `author-plan` 拆巨型段（删 skeleton 语法 + `INPUT_WAVE_BRIEF`/`effectiveWaves` · 留「声明 `DependsOn` → 引擎推波」）· I1 剥 `--type` 句）
+  - Modify: `packages/kairos/skills/cdd-spec-writer/SKILL.md`（preamble · `author-spec` 删 skeleton 语法 · I1 剥 `--type` 句）
+  - Modify: `packages/kairos/skills/cdd-design/SKILL.md`（preamble · I2 剥 `--type` 句）
+  - Modify: `packages/kairos/skills/cdd-close/SKILL.md`（preamble）
+  - Modify: `packages/kairos/skills/cdd-report/SKILL.md`（preamble）
+  - Modify: `packages/kairos/tests/skill-anatomy.test.ts`（`CDD_BLOCKED:`/`status: BLOCKED` 断言 → 行为断言）
+  - Modify: `packages/cdd-engine/src-next/contract/skill-anatomy.ts`（`routeFactRule` 措辞精化）
+- **Consumes**: 无（根任务 · 独立面）· spec §8.10 授权 · 用户对话裁定 A/B
+- **Produces**: 全六 skill 黑盒化（零内部实现词）· 派发纪律统一（background + 等通知 · `timeout + poll` 零残留）· 黑盒契约四条在册 · pin 同步（行为断言）
+- **Steps**:
+  - 派发纪律统一 —— 六 skill preamble 的 "Direct invocation" → 统一派发纪律（background 执行 + 等完成通知 · 不轮询）；删 cdd-dev I2 的 `timeout + poll otherwise` — checkable: `grep -rn "timeout + poll" packages/kairos/skills/` 零命中 · 六 skill preamble 均述 background
+  - 引擎内部词剥离 —— 全六 SKILL.md 删 `WaveGate`/`effectiveWaves`/波次推导内部/`INPUT_WAVE_BRIEF`/`BASE_BRANCH`/`CDD_BLOCKED:`/失败分类学/`--resume`·`-c`/`--type` 判别规则逐 verb 句/skeleton 语法 —— 保留黑盒行为（唯一派发路径 · 后台读全量 · `next:` 即分派 · BLOCKED 携因上报）+ bootstrap 字面命令 — checkable: `grep -rn "WaveGate\|effectiveWaves\|INPUT_WAVE_BRIEF\|BASE_BRANCH\|CDD_BLOCKED:\|HARNESS_ABORT\|ENGINE_SELF_WRITTEN\|--resume\|--output skeleton\|renders only where" packages/kairos/skills/` 零命中
+  - cdd-plan author-plan 拆段 —— 巨型单节点段拆解：删 skeleton 语法 + `INPUT_WAVE_BRIEF`/`effectiveWaves` 内部词 · 留「声明 `DependsOn` → 引擎推波」的**行为**表述 — checkable: 该节点零内部 token · 仍述「声明 DependsOn 即推波」
+  - Failure Modes 收敛 —— cdd-dev Failure Modes 删分类学（`HARNESS_ABORT` 等）+"crash-only snapshot" 机制 → 行为面（异常退出 → 按阻塞原因上报） — checkable: Failure Modes 表零分类学/机制词
+  - pin 同步 · 行为断言 —— `skill-anatomy.test.ts` 的 `CDD_BLOCKED:`+`status: BLOCKED` 必含断言改**行为断言**（Failure Modes 述 BLOCKED 携因）· `status-routing-convergence.test.ts` 的 `next:` 锚定保留不动 · `routeFactRule` 措辞精化（去 payload 结构） — checkable: 改后的 skill-anatomy 断言绿 · `next:` 锚定测试仍绿
+  - 消费面纯度核对 —— 零程序史（无 phase 号/rationale 叙事）· English-primary — checkable: skill-anatomy 检查通过
+  - 跑 kairos 套件核对 —— checkable: `pnpm -C packages/kairos test` 全绿 · `pnpm -C packages/cdd-engine test` 全绿（契约面改动）
+  - 提交原子 commit（`docs(kairos): skill ⇄ engine 黑盒边界——派发纪律统一 + 内部实现词剥离 · pin 同步`） — checkable: git log 单原子
+- **Acceptance**: 全六 skill 零引擎内部实现词（`WaveGate`/`effectiveWaves`/`INPUT_WAVE_BRIEF`/`BASE_BRANCH`/`CDD_BLOCKED:`/失败分类学/`--resume`/逐 verb flag 复述/skeleton 语法）· background + 等通知纪律全六 skill 齐（`timeout + poll` 零残留）· 黑盒契约四条在册 · `skill-anatomy.test.ts` 行为断言绿 · `status-routing-convergence.test.ts` 的 `next:` 锚定仍绿 · kairos + cdd-engine vitest 全绿 · EOF 恰一 newline
+- **DependsOn**: 12
+
 ## Change history
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.5 | 2026-10-14 | **skill ⇄ engine 黑盒边界任务回填（D29 · 六前提①②③④⑤⑥ · Plan Sole Writer）**：新增 **T13（skill ⇄ engine 黑盒边界）**——skill 层对引擎退化为黑盒消费者（skill 文本只载行为契约 · 零内部实现镜像）。**A 派发纪律统一**（background + 等通知 = 全六 skill 公共纪律 · 删 `timeout + poll otherwise` 死分支）· **B 内部实现词剥离**（全六 SKILL.md 删 `WaveGate`/`effectiveWaves`/波次推导内部/`INPUT_WAVE_BRIEF`/`BASE_BRANCH`/`CDD_BLOCKED:`/失败分类学/`--resume`·`-c`/`--type` 判别规则逐 verb 句/skeleton 语法 · 保留黑盒契约四条 + bootstrap 字面命令）· **pin 同步（破坏性）**：`skill-anatomy.test.ts` 的 `CDD_BLOCKED:` 断言改行为断言 · `status-routing-convergence.test.ts` 的 `next:` 锚定保留 · `routeFactRule` 精化。**`DependsOn: 12`**（落 W7——不扰动 open W6 · 与 T12 同波次序列）· spec v0.9→v0.10 §8.10 | Oscar M. · Claude Opus 5（P7 编排器回填 · 用户确认 · 2026-10-14） |
 | v0.4 | 2026-10-14 | **round 身份单源任务回填（D28 · D26 家族 · Plan Sole Writer）**：新增 **T12（round 身份单源）**——`progress.rounds` 记**周期号集合**（身份非计数）· `recordRound(key,mode,cycle)` 记周期 · 新 `roundRecorded` 成员测试替计数门控 · 相位三处「pending fix」改成员测试 · `#roundFor("fix")=reviews` 保留 · 迁移按载体名重建。**同批**：载体动作 `backfill`→`annotate`（`backfill` 锁义为 doc 去向 · `02-naming.md` 登记）。治 W10 实测 `fix APPROVED 却 no next: line`（fix-K⟷review-K 计数分叉 → HARD_ERROR）。**`DependsOn: 11`**（落独立 W7——不扰动 open W6）· spec v0.8→v0.9 §8.9 | Oscar M. · Claude Opus 5（P7 编排器回填 · 用户确认 · 2026-10-14） |
 | v0.3 | 2026-10-14 | **判定面 ⊥ 输入面任务回填（D27 · D26 补完 · Plan Sole Writer）**：新增 **T11（判定面 ⊥ 输入面）**——`engineOnly` 概念退役（声明面=可写面）· `#materialize` findings 面删 `carrier.status`（载体只装声明面 · 断 fix child INPUT_FINDINGS 传染根）· 结论改判定时刻派生（单源 `HandoffSchema.conclusionOf` · `ledger.round`/`#pendingFix` 全走它）· `readJson` 三态化（治坏 JSON 误报草稿未写入）· `Ledger#waveLinePhase` 相位单源 guard。**`DependsOn: 10`**（落独立 W6——不扰动已录 W1–W5 的静态波次派生）· spec v0.6→v0.7 §8.8 | Oscar M. · Claude Opus 5（P7 编排器回填 · 用户确认 · 2026-10-14） |
 | v0.2 | 2026-10-14 | **W5 收尾 review nit 回填（Plan Sole Writer）**：① nit-1 · T5 「`REVIEWS.*.ref` 改参照型」改为「**整体删**」——W1 已按 D26 派生副本清理裁决删除（零消费死码），计划字面与实况对齐（Obj + step + checkable 同步）；② nit-2 · §2.8 引入 `ledger.#roundKey` 为线键第三派生点（违 spec §3.7「防第三处再分叉」）——记录入 spec v0.6 change-history，代码收编归 fix 环 | Oscar M. · Claude Opus 5（W5 cdd-dev · 编排器回填） |

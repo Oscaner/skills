@@ -47,7 +47,7 @@ const FORBIDDEN: Array<[string, RegExp]> = [
 // Required anchors — the convergence vocabulary that must be present in every carrier: the unified
 // loop hub (the NEXT-LOOP digraph node), the status closure vocabulary, the `next:`-based routing
 // vocabulary (the unified reading wording, the engine's-default shared reference, the dispatch-as-written
-// directive, and the I6 mid-backfill compatibility sentence). The next: reading is the v1.25
+// directive, and the Mid-Flight Backfill compatibility sentence). The next: reading is the v1.25
 // dispatch-ready literal stance — read the `next:` line and dispatch it as written.
 const REQUIRED: Array<[string, RegExp]> = [
   ["the unified NEXT-LOOP loop hub", /NEXT-LOOP/],
@@ -57,7 +57,7 @@ const REQUIRED: Array<[string, RegExp]> = [
   ["the unified `next:` reading wording", /read the `next:` line/],
   ["the shared next-step reference (engine's default)", /default next step/],
   ["the dispatch-as-written directive", /dispatch it as written/],
-  ["the I6 mid-backfill compatibility wording", /mid-backfill/],
+  ["the Mid-Flight Backfill compatibility wording", /mid-backfill/],
 ];
 
 for (const name of CARRIERS) {
@@ -103,9 +103,12 @@ for (const name of CARRIERS) {
 test("status-routing wording: cdd-dev Failure Modes ground a BLOCKED round on a carried reason", () => {
   const skill = readFileSync(path.join(SKILLS_ROOT, "cdd-dev", "SKILL.md"), "utf8");
   const failureModes = skill.slice(skill.indexOf("## Failure Modes"));
-  expect(failureModes, "Failure Modes must carry a BLOCKED row").toMatch(/\bBLOCKED\b/);
+  // Isolate the BLOCKED row itself — the pin must tie the two together, not merely find each word
+  // somewhere in the section (a sibling row's "reason" must not satisfy a BLOCKED row that lost its own).
+  const blockedRow = failureModes.split("\n").find((line) => /^\|\s*BLOCKED\s*\|/.test(line));
+  expect(blockedRow, "Failure Modes must carry a BLOCKED row").toBeDefined();
   expect(
-    failureModes,
+    blockedRow,
     "a BLOCKED round must carry its reason for reporting (the behavior face, not an internal byte name)",
   ).toMatch(/reason/);
 });

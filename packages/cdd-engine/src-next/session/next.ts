@@ -46,7 +46,7 @@ export type Route =
 /** The review-cycle soft cap — the consecutive-S1 run length at which the fix face
  *  defers the next hop to user adjudication (soft by nature: a default suggestion,
  *  never a hard stop — the user / Plan Sole Writer override it). */
-export const REVIEW_CYCLE_CAP = 3;
+export const REVIEW_CYCLE_CAP = 10;
 
 /** The review-cycle soft-cap suggestion (the C5-0 suggestion face — user adjudicates). */
 export const SOFT_CAP_SUGGESTION = "BLOCKED: review-cycle-cap — user adjudicates";

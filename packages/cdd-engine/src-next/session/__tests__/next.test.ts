@@ -188,10 +188,10 @@ describe("the pinned surface — Route/soft-cap constants (the brief's type-chec
   it("the soft-cap constants keep their literal types at compile time", () => {
     // Compile-time pins — this file fails under `tsc --noEmit` if either constant's
     // declared type drifts from the decision table's domain (cap == 3, verbatim wording).
-    const cap: 3 = REVIEW_CYCLE_CAP;
+    const cap: 10 = REVIEW_CYCLE_CAP;
     const wording: "BLOCKED: review-cycle-cap — user adjudicates" = SOFT_CAP_SUGGESTION;
     expect({ cap, wording }).toEqual({
-      cap: 3,
+      cap: 10,
       wording: "BLOCKED: review-cycle-cap — user adjudicates",
     });
   });

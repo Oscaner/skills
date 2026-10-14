@@ -525,8 +525,7 @@ export class Lifecycle {
       // (no plan fact) leaves a legacy wave row — null stays backward compatible.
       if (frame.phase === "review") {
         if (frame.target.kind === "doc") this.#recordReviewedDocRevision(frame);
-        else if (frame.target.kind === "wave")
-          this.#recordReviewedDocRevision(frame, this.#planPath);
+        else if (frame.target.kind === "wave") this.#recordReviewedWaveBrief(frame);
       }
       return count;
     }
@@ -534,23 +533,31 @@ export class Lifecycle {
   }
 
   /** The reviewed-revision write-back — bind the reviewed input's revision to the
-   *  line record (the T7 doc + T11 wave identity gates' reopen-compare basis). The
-   *  doc face reads its target doc; the wave face passes the plan path explicitly
-   *  (`#planPath` — null on a plan-less lifecycle). An unreadable input records
-   *  nothing — the line keeps the legacy closed face (only present facts land,
-   *  never an invented identity). */
-  #recordReviewedDocRevision(frame: OpenFrame, docOverride?: string | null): void {
-    const doc = docOverride ?? (frame.target.kind === "doc" ? frame.target.doc : null);
-    if (doc === null) return;
+   *  line record (the T7 doc + D30 wave identity gates' reopen-compare basis). The
+   *  doc face binds its target doc's whole-content revision; the wave face binds its
+   *  RENDERED BRIEF's revision (D30 — the wave's true judgment input is the brief,
+   *  never the whole plan: transcript edits outside the wave's task sections must not
+   *  void a reviewed wave). An unreadable input records nothing — the line keeps the
+   *  legacy closed face (only present facts land, never an invented identity). */
+  #recordReviewedDocRevision(frame: OpenFrame): void {
+    if (frame.target.kind !== "doc") return;
     try {
-      const content = readFileSync(doc, "utf8");
-      this.#ledger.recordReviewedDocRevision(
+      const content = readFileSync(frame.target.doc, "utf8");
+      this.#ledger.recordReviewedRevision(
         frame.key,
-        this.#ledger.refs().docRevision(doc, content),
+        this.#ledger.refs().docRevision(frame.target.doc, content),
       );
     } catch {
       // unreadable input — no reviewed identity recorded (present facts only)
     }
+  }
+
+  /** The wave line's reviewed-brief write-back (D30) — bind the RENDERED brief's
+   *  revision for the wave's tasks to the row (the D30 wave-gate reopen basis). Null
+   *  plan path / underivable brief records nothing (present facts only). */
+  #recordReviewedWaveBrief(frame: OpenFrame): void {
+    if (frame.target.kind !== "wave" || this.#planPath === null) return;
+    this.#ledger.recordReviewedBrief(String(frame.key), this.#planPath);
   }
 
   /** Mark the wave done when the concluding route says its line closed — the C5

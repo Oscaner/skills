@@ -469,7 +469,7 @@ describe("the T7 doc-line identity record — reviewedDocRevision (the reopen-co
       const doc = "docs/kairos/specs/x-design.md";
       const revision = ledger.refs().docRevision(doc, "revision one");
       expect(ledger.reviewedDocRevisionOf(doc)).toBeNull();
-      ledger.recordReviewedDocRevision(doc, revision);
+      ledger.recordReviewedRevision(doc, revision);
       expect(ledger.reviewedDocRevisionOf(doc)).toEqual(revision);
       // a fresh ledger over the same workspace reads the on-disk record back
       const reload = new Ledger(workspace, new ConfigLoader());
@@ -486,11 +486,11 @@ describe("the T7 doc-line identity record — reviewedDocRevision (the reopen-co
       const doc = "docs/kairos/plans/x-p3.md";
       const first = ledger.refs().docRevision(doc, "v1.0 body");
       const second = ledger.refs().docRevision(doc, "v1.1 body");
-      ledger.recordReviewedDocRevision(doc, first);
+      ledger.recordReviewedRevision(doc, first);
       expect(ledger.reviewedDocRevisionOf(doc)).toEqual(first);
       // a later review round records its own revision — the line gate compares the
       // target against the LATEST reviewed identity
-      ledger.recordReviewedDocRevision(doc, second);
+      ledger.recordReviewedRevision(doc, second);
       expect(ledger.reviewedDocRevisionOf(doc)).toEqual(second);
     } finally {
       cleanup();
@@ -505,7 +505,7 @@ describe("the T7 doc-line identity record — reviewedDocRevision (the reopen-co
       writeFileSync(doc, "v1.0 body", "utf8");
       // an absent reviewed identity → null (the legacy closed face — no comparison)
       expect(ledger.docLineVerdict("1", doc)).toBeNull();
-      ledger.recordReviewedDocRevision("1", ledger.refs().docRevision(doc, "v1.0 body"));
+      ledger.recordReviewedRevision("1", ledger.refs().docRevision(doc, "v1.0 body"));
       // the recorded identity matches the current doc → "same" (the revision-aware BLOCK)
       expect(ledger.docLineVerdict("1", doc)).toBe("same");
       // the doc moved past the reviewed identity → "drift" (the line reopens)

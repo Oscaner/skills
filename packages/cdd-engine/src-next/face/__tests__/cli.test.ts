@@ -44,6 +44,7 @@ import type { Command } from "commander";
 import { describe, expect, it } from "vitest";
 import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
+import { BriefRenderer } from "../../render/brief.ts";
 import type { RouteTarget } from "../../session/faces.ts";
 import { Ledger } from "../../session/ledger.ts";
 import type { Route } from "../../session/next.ts";
@@ -197,6 +198,21 @@ const planFor = (repoRoot: string, count = 1, name = "p3.md"): string => {
 /** Read a JSON file (the workspace artifact assertions). */
 const readJson = <T>(file: string): T => {
   return JSON.parse(readFileSync(file, "utf8")) as T;
+};
+
+/** The D30 wave-line reviewed identity — the brief-revision ref a wave row binds:
+ *  the plan it renders FROM + the RENDERED brief's sha1 (the wave gate binds the
+ *  brief, never the whole plan). */
+const briefRevision = (plan: string, tasks: string) => {
+  const brief = new BriefRenderer().render(
+    readFileSync(plan, "utf8"),
+    tasks.split(",").map(Number),
+  );
+  return {
+    kind: "brief-revision" as const,
+    plan,
+    brief_hash: createHash("sha1").update(brief).digest("hex"),
+  };
 };
 
 /** A doc-contract-clean plan — every registered plan element present (the header
@@ -1368,17 +1384,14 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       expect(code).toBe(0);
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       const progress = readJson<{ waves: unknown[] }>(path.join(workspace, "progress.json"));
-      // the wave-1 row carries its T11 (D16) revision record — the completed wave
-      // review bound the plan it judged to ITS line (the record reviewedDocRevision
-      // holds the reviewed plan's doc + sha1 content hash — the wave-gate reopen basis)
+      // the wave-1 row carries its D30 revision record — the completed wave review
+      // bound the BRIEF it judged to ITS line (the row's reviewedRevision is a
+      // brief-revision: the plan it renders from + the RENDERED brief's sha1 — the
+      // wave-gate reopen basis: a plan edit outside this wave's tasks must not void it)
       expect(progress.waves).toContainEqual({
         wave: "1",
         rounds: { implement: [1], review: [1] },
-        reviewedDocRevision: {
-          kind: "doc-revision",
-          doc: plan,
-          doc_hash: createHash("sha1").update(readFileSync(plan, "utf8")).digest("hex"),
-        },
+        reviewedRevision: briefRevision(plan, "1"),
       });
       expect(progress.waves).toContainEqual({ wave: "2", rounds: { implement: [1] } });
       // the invocation's single stdout face — only the LAST step's capsule
@@ -2892,16 +2905,12 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
       expect(nextOf()).toBe("done");
 
       const progress = readJson<{ waves: unknown[] }>(path.join(workspace, "progress.json"));
-      // the wave-2 row carries its own T11 revision record — the final APPROVED
-      // review bound the plan to wave 2's line (the same write-back as wave 1's row)
+      // the wave-2 row carries its own D30 revision record — the final APPROVED
+      // review bound wave 2's BRIEF to its line (the same brief-revision write-back)
       expect(progress.waves).toContainEqual({
         wave: "2",
         rounds: { implement: [1], review: [1] },
-        reviewedDocRevision: {
-          kind: "doc-revision",
-          doc: plan,
-          doc_hash: createHash("sha1").update(readFileSync(plan, "utf8")).digest("hex"),
-        },
+        reviewedRevision: briefRevision(plan, "2"),
       });
     } finally {
       cleanup();

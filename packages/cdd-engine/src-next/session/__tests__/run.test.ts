@@ -13,13 +13,15 @@
 // workspace — the ledger round reads hit the on-disk handoffs exactly as the
 // production loop does.
 
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { PlanDocType } from "../../contract/doc.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
+import { BriefRenderer } from "../../render/brief.ts";
 import { type TargetFace, type TargetType, targetFaces } from "../faces.ts";
 import { TaskGraph } from "../graph.ts";
 import { Ledger } from "../ledger.ts";
@@ -97,6 +99,15 @@ const APPROVED_IMPLEMENT: DispatchOutcome = {
 
 const finding = (severity: "blocker" | "warn" | "nit") => ({ severity, summary: "drift" });
 
+/** The D30 wave-line reviewed-basis hash — the RENDERED brief's sha1 for a wave's
+ *  tasks (the wave gate binds the brief, never the whole plan). */
+const briefHash = (planPath: string, tasks: string): string => {
+  const brief = new BriefRenderer().render(
+    readFileSync(planPath, "utf8"),
+    tasks.split(",").map(Number),
+  );
+  return createHash("sha1").update(brief).digest("hex");
+};
 const phasesOf = (steps: readonly StepResult[]): readonly (string | null)[] =>
   steps.map((step) => step.frame.phase);
 
@@ -872,12 +883,12 @@ describe("the capsule interaction seam — non-hard consumption", () => {
   });
 });
 
-describe("T11 — the wave review writes the reviewed PLAN revision into the wave row", () => {
-  it("a completed wave review binds the lifecycle's plan-path revision to the wave line (D16)", () => {
+describe("T11/D30 — the wave review writes the reviewed BRIEF revision into the wave row", () => {
+  it("a completed wave review binds the lifecycle's RENDERED-brief revision to the wave line (D30)", () => {
     const { ledger, repo, cleanup } = fixture();
     try {
       const planPath = path.join(repo, "plan.md");
-      writeFileSync(planPath, "# Plan\n- delta\n");
+      writeFileSync(planPath, planDoc([task(1, "none")]));
       const graph = taskGraph([task(1, "none")]);
       // the review approves on its first pass — the wave closes, but the revision
       // write-back lands in the bookkeep step BEFORE the closure route marks done
@@ -892,12 +903,20 @@ describe("T11 — the wave review writes the reviewed PLAN revision into the wav
         planPath,
       });
       run.advance(); // implement
-      run.advance(); // review — the completion records the plan's current revision
-      const recorded = ledger.reviewedDocRevisionOf("1");
+      run.advance(); // review — the completion records the wave's RENDERED brief revision
+      const recorded = ledger.reviewedRevisionOf("1");
       expect(recorded).not.toBeNull();
-      expect(recorded!.kind).toBe("doc-revision");
-      expect(recorded!.doc).toBe(planPath);
-      expect(recorded!.doc_hash).toHaveLength(40);
+      // D30 — the wave line binds its OWN ref kind (brief-revision), never the doc
+      // line's doc-revision: `plan` is the render-from pointer, `brief_hash` the
+      // RENDERED brief's digest (NOT the whole plan's — a plan edit outside this
+      // wave's tasks leaves the brief byte-identical and must not void the wave)
+      expect(recorded!.kind).toBe("brief-revision");
+      if (recorded!.kind !== "brief-revision") throw new Error("unreachable");
+      expect(recorded!.plan).toBe(planPath);
+      expect(recorded!.brief_hash).toBe(briefHash(planPath, "1"));
+      // the doc-line narrowing reader never surfaces a brief ref (a wave line is not
+      // a doc line)
+      expect(ledger.reviewedDocRevisionOf("1")).toBeNull();
     } finally {
       cleanup();
     }
@@ -919,17 +938,17 @@ describe("T11 — the wave review writes the reviewed PLAN revision into the wav
       });
       run.advance();
       run.advance();
-      expect(ledger.reviewedDocRevisionOf("1")).toBeNull();
+      expect(ledger.reviewedRevisionOf("1")).toBeNull();
     } finally {
       cleanup();
     }
   });
 
-  it("a drifted plan reopens the wave at REVIEW on the lifecycle frontier — the gate's peer (D26)", () => {
+  it("a wave-backfill edit reopens the wave at REVIEW on the lifecycle frontier — the gate's peer (D26 · D30)", () => {
     const { ledger, repo, cleanup } = fixture();
     try {
       const planPath = path.join(repo, "plan.md");
-      writeFileSync(planPath, "# Plan\n- delta\n");
+      writeFileSync(planPath, planDoc([task(1, "none")]));
       const graph = taskGraph([task(1, "none")]);
       const dispatch = stub((frame) =>
         frame.phase === "implement"
@@ -944,19 +963,50 @@ describe("T11 — the wave review writes the reviewed PLAN revision into the wav
         planPath,
       });
       run.advance(); // implement
-      const review = run.advance(); // review — the blocker awaits its fix; the plan revision binds
+      const review = run.advance(); // review — the blocker awaits its fix; the brief revision binds
       expect(review!.frame.phase).toBe("review");
       expect(review!.route!.kind).toBe("fix");
-      // the plan moves mid-flight (an orchestrator fill/fix) — the recorded revision
-      // now drifts from the file's current text
-      writeFileSync(planPath, "# Plan\n- delta\n- moved\n");
+      // the wave's OWN task section moves mid-flight (an orchestrator fill/fix) — the
+      // recorded brief now drifts from the wave's current brief
+      writeFileSync(planPath, planDoc([task(1, "none"), ["  - extra step — checkable: green"]]));
       // the frontier re-offers the wave at REVIEW, never a stale `fix` — the drifted
-      // plan voids the findings bound to the old revision. Without the single-source
+      // brief voids the findings bound to the old revision. Without the single-source
       // derivation the frontier held `fix` while the gate accepted `review` (the
-      // deadlock). The gate-side twin lives in wave.test.ts (a drifted plan reopens
-      // the fix-pending wave at review).
+      // deadlock). The gate-side twin lives in wave.test.ts.
       const reopened = run.advance();
       expect(reopened!.frame.phase).toBe("review");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("an OUTSIDE-wave plan edit does NOT reopen the wave — the backfill's whole point (D30)", () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const planPath = path.join(repo, "plan.md");
+      writeFileSync(planPath, planDoc([task(1, "none"), task(2, "1")]));
+      const graph = taskGraph([task(1, "none"), task(2, "1")]);
+      const dispatch = stub((frame) =>
+        frame.phase === "implement"
+          ? APPROVED_IMPLEMENT
+          : { status: "APPROVED", findings: [finding("blocker")] },
+      );
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+        planPath,
+      });
+      run.advance(); // implement wave {1}
+      run.advance(); // review — binds wave {1}'s brief; the blocker awaits its fix
+      // the plan gains a task OUTSIDE wave {1} (an append-only backfill) — the
+      // Constraints + Task 1 sections are byte-identical, so wave {1}'s brief is
+      // unchanged and the pending fix MUST survive (the whole-plan hash wrongly
+      // reopened it; D30 binds the brief)
+      writeFileSync(planPath, planDoc([task(1, "none"), task(2, "1"), task(3, "1,2")]));
+      const kept = run.advance();
+      expect(kept!.frame.phase).toBe("fix");
     } finally {
       cleanup();
     }

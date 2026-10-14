@@ -26,6 +26,7 @@ import { readFileSync } from "node:fs";
 import type { ConfigLoader } from "../infra/config.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
 import type { Workspace } from "../infra/workspace.ts";
+import { BriefRenderer } from "../render/brief.ts";
 import { type TargetType, targetFaces } from "./faces.ts";
 import {
   type FindingsCarrier,
@@ -123,10 +124,11 @@ export type ProgressRow = {
    *  flattened it to `1` and diverged from the carrier name `fix-2`. Review cycles are
    *  contiguous (1..N); `implement` is `[1]`. */
   rounds?: Record<string, number[]>;
-  /** The doc line's reviewed doc revision (T7) — the doc-revision identity the
-   *  line's last review round bound (written at doc-review completion; the
-   *  identity-aware line gate reopens the closed line on drift from it). */
-  reviewedDocRevision?: DocRevisionRef;
+  /** The line's reviewed identity — the doc-revision a spec/plan line bound (T7) OR
+   *  the brief-revision a wave line bound (D30). Written at review completion; the
+   *  identity-aware gate reopens the closed line on drift from it. The two kinds are
+   *  mutually exclusive per row (a line is a doc line or a wave line, never both). */
+  reviewedRevision?: ReviewedRevisionRef;
 };
 
 /** The progress.json data plane — the fixed top-level key set + the per-wave rows. */
@@ -193,13 +195,16 @@ export interface HandoffParams {
 // review references — the refKind face (T25 · P5)
 // ---------------------------------------------------------------------------
 
-/** The review-reference kind — the doc-revision ref (a spec/plan review's two-layer
- *  document ref: the doc path + its content-hash revision, the `doc_hash` binding).
+/** The review-reference kind — each line-type binds its OWN reviewed identity (D30:
+ *  honest identity, one concept one name — a `doc_hash` layer must never point at a
+ *  non-document). `doc-revision` = the spec/plan line (the whole document file + its
+ *  content hash); `brief-revision` = the wave line (the plan it renders FROM + the
+ *  RENDERED brief's content hash — the wave's true judgment input, never the plan).
  *  The commit-bearing kinds (commit-set-ledger · commit-range) retired with the
  *  commit-sha surface (P7): a review judges the live tree, so no committed range
  *  is ever a ref. Node-level review is structurally absent (R5 · the wave-atomic
  *  model audits whole waves, never a single task node). */
-export type RefKind = "doc-revision";
+export type RefKind = "doc-revision" | "brief-revision";
 
 /** The doc-revision ref — the spec/plan review's two-layer ref: the document path
  *  AND its revision (the content-hash `doc_hash` binding — the same document
@@ -212,11 +217,29 @@ export interface DocRevisionRef {
   doc_hash: string;
 }
 
+/** The brief-revision ref (D30) — the wave line's two-layer ref: the plan path the
+ *  brief renders FROM (the re-render pointer judgment time needs) AND the RENDERED
+ *  brief's content hash. The wave's judgment input is the brief (§5: its task
+ *  sections + `## Constraints`), never the whole plan — so a plan edit outside the
+ *  wave's tasks leaves this ref identical and the reviewed wave is not reopened. */
+export interface BriefRevisionRef {
+  kind: "brief-revision";
+  /** The plan path the brief renders from — the first layer (the re-render pointer). */
+  plan: string;
+  /** The RENDERED brief's revision — the sha1 content hash of the brief, the second layer. */
+  brief_hash: string;
+}
+
+/** The reviewed-identity ref a progress row binds — the doc-revision (a spec/plan
+ *  line) OR the brief-revision (a wave line); the two are mutually exclusive per row. */
+export type ReviewedRevisionRef = DocRevisionRef | BriefRevisionRef;
+
 /**
- * ReviewRefs — the review-reference face (T25): the doc-revision two-layer binding
- * (`docRevision` — the doc hash from its content) and the same-ref predicate
- * (the SAME identity already bound is refused, never silently re-reviewed). The
- * face is the ledger's review-ref derivation point — typed data, zero prose.
+ * ReviewRefs — the review-reference face (T25): the two-layer bindings (`docRevision`
+ * — the doc hash from its content · `briefRevision` — the rendered brief's hash from
+ * the plan it renders from) and the same-ref predicate (the SAME identity already
+ * bound is refused, never silently re-reviewed). The face is the ledger's review-ref
+ * derivation point — typed data, zero prose.
  */
 export class ReviewRefs {
   /** The doc-revision two-layer binding — the doc path + the content-hash revision
@@ -225,17 +248,29 @@ export class ReviewRefs {
     return { kind: "doc-revision", doc, doc_hash: this.#hash(content) };
   }
 
-  /** The ref-identity predicate — two doc refs are the SAME ref when their
-   *  two-layer identity matches (the doc + its hash). */
-  sameRef(a: DocRevisionRef, b: DocRevisionRef): boolean {
-    return a.doc === b.doc && a.doc_hash === b.doc_hash;
+  /** The brief-revision two-layer binding (D30) — the plan path the brief renders
+   *  from + the RENDERED brief content's hash (the wave line's reviewed identity). */
+  briefRevision(plan: string, briefContent: string | Buffer): BriefRevisionRef {
+    return { kind: "brief-revision", plan, brief_hash: this.#hash(briefContent) };
   }
 
-  /** The content-hash revision — sha1 hex of the reviewed file content. */
+  /** The ref-identity predicate — two refs are the SAME ref when same-kind AND their
+   *  two-layer identity matches (the layer-1 path + the layer-2 hash). Two refs of
+   *  different kinds are never the same ref (a doc-revision never equals a
+   *  brief-revision — the kind IS part of the identity). */
+  sameRef(a: ReviewedRevisionRef, b: ReviewedRevisionRef): boolean {
+    if (a.kind === "doc-revision" && b.kind === "doc-revision")
+      return a.doc === b.doc && a.doc_hash === b.doc_hash;
+    if (a.kind === "brief-revision" && b.kind === "brief-revision")
+      return a.plan === b.plan && a.brief_hash === b.brief_hash;
+    return false;
+  }
+
+  /** The content-hash revision — sha1 hex of the reviewed content. */
   #hash(content: string | Buffer): string {
-    // The doc-revision hash is a content digest (a fingerprint of the reviewed
-    // doc's bytes), never a commit ref — the full sha1 hex stays unsliced so the
-    // bind basis covers the whole content, not a truncated prefix.
+    // The revision hash is a content digest (a fingerprint of the reviewed bytes),
+    // never a commit ref — the full sha1 hex stays unsliced so the bind basis covers
+    // the whole content, not a truncated prefix.
     return createHash("sha1").update(content).digest("hex");
   }
 }
@@ -288,6 +323,10 @@ export class Ledger {
   /** The review-reference face (T25) — the refKind classification + the same-ref
    *  reject, one instance per ledger (the run's bound refs). */
   readonly #refs = new ReviewRefs();
+  /** The task-brief renderer (D30) — the wave line's judgment-input derivation:
+   *  the wave's reviewed basis is the RENDERED brief's content, never the whole
+   *  plan (a backfill touching other tasks must not void a reviewed wave). */
+  readonly #brief = new BriefRenderer();
 
   constructor(workspace: Workspace, config: ConfigLoader) {
     this.#workspace = workspace;
@@ -404,26 +443,62 @@ export class Ledger {
     return cycles.length;
   }
 
-  /** Record a doc line's reviewed doc revision — the T7 identity-aware gate's
-   *  basis (written when the doc's review round completes: the line reopens on
-   *  drift from this recorded identity, and BLOCKs revision-aware when unchanged). */
-  recordReviewedDocRevision(key: LedgerKey, revision: DocRevisionRef): void {
+  /** Record a line's reviewed identity — the identity-aware gate's basis (written
+   *  when the review round completes: the line reopens on drift from this recorded
+   *  revision, and BLOCKs revision-aware when unchanged). The kind IS part of the
+   *  identity: a doc line binds a doc-revision (T7), a wave line a brief-revision
+   *  (D30) — one row, one reviewed identity. */
+  recordReviewedRevision(key: LedgerKey, revision: ReviewedRevisionRef): void {
     const data = this.readProgress() ?? this.emptyProgress();
     let row = this.rowFor(data, key);
     if (row === undefined) {
       row = this.entryFor(key);
       data.waves.push(row);
     }
-    row.reviewedDocRevision = revision;
+    row.reviewedRevision = revision;
     this.writeProgress(data);
   }
 
-  /** The doc line's recorded reviewed doc revision — null when none on record
-   *  (a doc line with no reviewed identity keeps the legacy closed face). */
-  reviewedDocRevisionOf(key: LedgerKey): DocRevisionRef | null {
+  /** Record a wave line's reviewed BRIEF revision (D30) — the RENDERED brief's
+   *  content hash for the wave's tasks: the wave's true judgment input is the brief
+   *  (§5: the wave's task sections + the plan's `## Constraints`), never the whole
+   *  plan. A backfill touching OTHER tasks leaves this brief byte-identical, so the
+   *  reviewed wave is not spuriously reopened (the backfill's whole point). An
+   *  underivable brief records nothing (present facts only — the legacy face holds). */
+  recordReviewedBrief(waveKey: string, planPath: string): void {
+    const revision = this.#briefRevision(waveKey, planPath);
+    if (revision !== null) this.recordReviewedRevision(waveKey, revision);
+  }
+
+  /** The wave line's reviewed-basis revision (D30) — the RENDERED brief's content
+   *  hash for the wave's tasks (the `plan` layer is the plan the brief renders from,
+   *  the `brief_hash` layer the brief's own digest). Null when the plan is unreadable
+   *  or a requested task is absent (present facts only). */
+  #briefRevision(waveKey: string, planPath: string): BriefRevisionRef | null {
+    try {
+      const tasks = waveKey.split(",").map((part) => Number(part));
+      const brief = this.#brief.render(readFileSync(planPath, "utf8"), tasks);
+      return this.#refs.briefRevision(planPath, brief);
+    } catch {
+      return null;
+    }
+  }
+
+  /** A line's recorded reviewed identity — null when none on record (a line with no
+   *  reviewed identity keeps the legacy closed face). Callers narrow by `kind`: a doc
+   *  line binds a doc-revision, a wave line a brief-revision (the kinds never mix). */
+  reviewedRevisionOf(key: LedgerKey): ReviewedRevisionRef | null {
     const data = this.readProgress();
     if (data === null) return null;
-    return this.rowFor(data, key)?.reviewedDocRevision ?? null;
+    return this.rowFor(data, key)?.reviewedRevision ?? null;
+  }
+
+  /** The doc line's recorded reviewed doc revision — the doc-revision narrowing of
+   *  `reviewedRevisionOf` (null when none on record, or when a non-doc kind sits on
+   *  the row — a doc line is never a wave line). */
+  reviewedDocRevisionOf(key: LedgerKey): DocRevisionRef | null {
+    const reviewed = this.reviewedRevisionOf(key);
+    return reviewed !== null && reviewed.kind === "doc-revision" ? reviewed : null;
   }
 
   /** The doc line's identity verdict (T7) — the current doc revision vs the line's
@@ -494,14 +569,28 @@ export class Ledger {
     // a phantom pending fix and re-open the wave forever).
     const latestReview = reviews;
     if (!this.roundRecorded(waveKey, "fix", latestReview)) {
-      const reviewed = this.reviewedDocRevisionOf(waveKey);
-      if (reviewed !== null && this.docLineVerdict(waveKey, reviewed.doc) === "drift")
-        return "review";
+      const reviewed = this.reviewedRevisionOf(waveKey);
+      if (reviewed !== null && this.#briefDrift(waveKey, reviewed)) return "review";
       return "fix";
     }
     const carried = this.round("fix", "wave", { tasks: waveKey }, latestReview);
     if (carried === null) return null;
     return this.#router.next(EMPTY_RUN_STATE, carried)?.kind === "review" ? "review" : null;
+  }
+
+  /** The wave line's brief-drift verdict (D30) — the wave's CURRENT rendered brief
+   *  vs the recorded reviewed brief. `true` when the wave's judgment input moved past
+   *  the reviewed basis (the wave reopens at review). A plan edit OUTSIDE the wave's
+   *  task sections + `## Constraints` leaves the brief byte-identical → `false`
+   *  (the append-only backfill case the whole-plan hash wrongly flagged). An
+   *  underivable brief (unreadable plan / absent task) is not a drift (present
+   *  facts only). A row bound to a non-brief kind (a doc kind, only via a corrupt
+   *  hand-write) is not a wave brief — no drift. */
+  #briefDrift(waveKey: string, reviewed: ReviewedRevisionRef): boolean {
+    if (reviewed.kind !== "brief-revision") return false;
+    const current = this.#briefRevision(waveKey, reviewed.plan);
+    if (current === null) return false;
+    return !this.#refs.sameRef(reviewed, current);
   }
 
   /** The pending-fix derivation — the "doc same + not APPROVED" face (T8): the

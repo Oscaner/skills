@@ -33,8 +33,8 @@ export interface ContextContract {
 }
 
 /** One handoff-family record — the canonical file-name pattern + round policy + the
- *  carrier's schema face (the full family row the JSON plane carried — status /
- *  schema / fixFamily / prev are data the typed plane preserves). The v1.9 contract
+ *  carrier's schema face (the full family row the JSON plane carried — schema /
+ *  fixFamily / prev are data the typed plane preserves). The v1.9 contract
  *  reparametrization: `returnFormat` is deleted (RETURN_STDOUT_BLOCK is the ONE
  *  return contract — the per-family field was the JSON/block selector, retired with
  *  the divided return faces) and the dead `schema` field is resurrected as the
@@ -47,8 +47,6 @@ export interface HandoffFamily {
   round?: "fixed" | "increment" | "source";
   /** The dispatch phase the family carries (implement/review/fix/branch-review). */
   phase?: string;
-  /** The carrier status policy (contract / rollup). */
-  status?: "contract" | "rollup";
   /** The carrier schema face (work / findings) — the handoff-schema selector (§3.6:
    *  the field resurrected from the dead task/docs discrimination; the docs-fix
    *  families (fix.spec / fix.plan) ride the findings face — §3.6's per-mode split:
@@ -90,14 +88,12 @@ export const HANDOFF_FAMILIES = {
   "implement.wave": {
     name: "tasks-{tasks}-implement.json",
     round: "fixed",
-    status: "contract",
     schema: "work",
     phase: "implement",
   },
   "review.wave": {
     name: "tasks-{tasks}-review-{round}.json",
     round: "increment",
-    status: "rollup",
     schema: "findings",
     phase: "review",
     fixFamily: "fix.wave",
@@ -106,7 +102,6 @@ export const HANDOFF_FAMILIES = {
   "fix.wave": {
     name: "tasks-{tasks}-fix-{round}.json",
     round: "source",
-    status: "contract",
     schema: "work",
     fixTemplate: "fix",
     phase: "fix",
@@ -115,7 +110,6 @@ export const HANDOFF_FAMILIES = {
   "review.spec": {
     name: "spec-review-{round}.json",
     round: "increment",
-    status: "rollup",
     schema: "findings",
     phase: "review",
     fixFamily: "fix.spec",
@@ -123,7 +117,6 @@ export const HANDOFF_FAMILIES = {
   "fix.spec": {
     name: "spec-fix-{round}.json",
     round: "source",
-    status: "contract",
     schema: "findings",
     fixTemplate: "docs",
     phase: "fix",
@@ -132,7 +125,6 @@ export const HANDOFF_FAMILIES = {
   "review.plan": {
     name: "plan-review-{round}.json",
     round: "increment",
-    status: "rollup",
     schema: "findings",
     phase: "review",
     fixFamily: "fix.plan",
@@ -140,7 +132,6 @@ export const HANDOFF_FAMILIES = {
   "fix.plan": {
     name: "plan-fix-{round}.json",
     round: "source",
-    status: "contract",
     schema: "findings",
     fixTemplate: "docs",
     phase: "fix",
@@ -152,14 +143,12 @@ export const HANDOFF_FAMILIES = {
     // across re-reviews (lineKey pins "branch").
     name: "branch-review-{round}.json",
     round: "increment",
-    status: "rollup",
     schema: "findings",
     phase: "branch-review",
   },
   "fix.branch": {
     name: "branch-fix-{round}.json",
     round: "source",
-    status: "contract",
     schema: "work",
     fixTemplate: "fix",
     phase: "fix",

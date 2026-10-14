@@ -225,14 +225,22 @@ export class HandoffSchema {
    *  The findings face rolls its conclusion UP from its findings (a review never
    *  carries a child-authored status, and the persisted findings carrier holds none);
    *  the work face reads its DECLARED status (the child's own conclusion, pinned by the
-   *  schema enum). `carrier` is the on-disk carrier (or a freshly built one) — the
+   *  schema enum — a non-enum byte degrades to BLOCKED, the one ruling for a work
+   *  status). `carrier` is the on-disk carrier (or a freshly built one) — the
    *  conclusion is never a stored field, so any face's carrier derives it the same way. */
   conclusionOf(face: HandoffSchemaFace, carrier: Record<string, unknown>): RoundStatus {
     if (face === "findings") {
       const findings = Array.isArray(carrier.findings) ? carrier.findings : [];
       return this.rollup(findings);
     }
-    return carrier.status as RoundStatus;
+    // The work face reads its DECLARED status — the schema enum pinned the child's
+    // draft to APPROVED | BLOCKED, and a hostile/unknown byte degrades to BLOCKED
+    // (only present facts land, never an invented approval). This is the ONE ruling
+    // for a work status: the reconstruct's work leg delegates here, so the read-back
+    // and the judgment-time derivation never disagree.
+    return carrier.status === "APPROVED" || carrier.status === "BLOCKED"
+      ? carrier.status
+      : "BLOCKED";
   }
 
   /** The review conclusion rollup — status derived from the findings severities

@@ -428,25 +428,36 @@ export class CliLifecycle {
     // own declared required field — rolled up to the conclusion); the work face
     // derives its status from the draft's declared status, never the findings plane
     // (the work writable subset declares no findings field — zero findings read).
+    // The conclusion rides the ONE source (`HandoffSchema.conclusionOf`) the ledger
+    // legs read too — the reconstruct never rules a work status by a second path.
     const findings =
       face === "findings" ? (Array.isArray(draft.findings) ? draft.findings : []) : [];
-    let status: RoundStatus =
-      face === "findings" ? schema.rollup(findings) : this.#workStatus(draft);
+    let status: RoundStatus = schema.conclusionOf(face, draft);
     let reason: string | null = null;
     // The evidence gate (v1.9) — the work faces (implement/fix task+branch) write
     // the canonical `{family-prefix}-{key}-test-evidence.json` under the workspace
     // (§3.7 naming: tasks- for the task families, branch- for the branch fix); the
     // docs faces (review/docs-fix) carry no evidence file. The read-back is REAL — a
-    // missing/schema-violating file rewrites the draft to BLOCKED.
+    // missing/malformed/schema-violating file rewrites the draft to BLOCKED (each
+    // cause reported truly — the tri-state read, D27).
     if (face === "work") {
       const evidenceName = this.#evidenceName(frame);
       const evidencePath = scene.workspace.resolve(evidenceName);
       const evidenceRead = scene.workspace.readJson<unknown>(evidenceName);
-      const evidence = evidenceRead.kind === "ok" ? evidenceRead.value : null;
-      const evidenceProblems = schema.evidenceViolations(evidence);
-      if (evidenceProblems.length > 0) {
+      // The SAME tri-state discrimination as the draft leg (D27): a PRESENT-but-corrupt
+      // evidence file reports its true cause, never the misleading "missing" — only a
+      // genuinely absent file (or a schema-violating present one) rides the schema
+      // verdict below.
+      if (evidenceRead.kind === "malformed") {
         status = "BLOCKED";
-        reason = `the test evidence at ${evidencePath} violates the contract: ${evidenceProblems.join("; ")}`;
+        reason = `the test evidence at ${evidencePath} is malformed JSON`;
+      } else {
+        const evidence = evidenceRead.kind === "ok" ? evidenceRead.value : null;
+        const evidenceProblems = schema.evidenceViolations(evidence);
+        if (evidenceProblems.length > 0) {
+          status = "BLOCKED";
+          reason = `the test evidence at ${evidencePath} violates the contract: ${evidenceProblems.join("; ")}`;
+        }
       }
     }
     return {
@@ -581,14 +592,6 @@ export class CliLifecycle {
       default:
         return "";
     }
-  }
-
-  /** The work carrier's status — the child's declared conclusion (the schema's enum
-   *  pinned it to APPROVED | BLOCKED; anything else degrades to BLOCKED — only present
-   *  facts land, never an invented approval). */
-  #workStatus(draft: Record<string, unknown>): RoundStatus {
-    const status = draft.status;
-    return status === "APPROVED" || status === "BLOCKED" ? status : "BLOCKED";
   }
 
   /** The `## Handoff schema` section value — the mode's writable-subset fence

@@ -234,6 +234,13 @@ describe("the status rollup + the findings normalization", () => {
     // the work face reads its declared status verbatim
     expect(schema.conclusionOf("work", { status: "APPROVED", artifacts: {} })).toBe("APPROVED");
     expect(schema.conclusionOf("work", { status: "BLOCKED", artifacts: {} })).toBe("BLOCKED");
+    // a hostile/unknown work status byte degrades to BLOCKED — the SAME ruling the
+    // reconstruct applies (one source, no second arbiter)
+    expect(schema.conclusionOf("work", { status: "garbage", artifacts: {} })).toBe("BLOCKED");
+    expect(schema.conclusionOf("work", { status: "CHANGES_REQUESTED", artifacts: {} })).toBe(
+      "BLOCKED",
+    );
+    expect(schema.conclusionOf("work", {})).toBe("BLOCKED");
   });
 
   it("normalizes the draft findings — unknown severities dropped, severity + summary kept", () => {

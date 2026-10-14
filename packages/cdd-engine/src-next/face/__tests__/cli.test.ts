@@ -4277,6 +4277,48 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
+  it("a MALFORMED test-evidence file → BLOCKED reporting the true cause (malformed JSON), never the misleading 'missing' (D27)", () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new FakeSync();
+      sync.stdout = "status: APPROVED\n";
+      // a VALID draft + a PRESENT-but-corrupt evidence file — the tri-state read
+      // reports the true cause; a corrupt file is never misreported as absent
+      // (the "missing" path would hide the real defect on the evidence leg, the
+      // exact true-cause misreport D27 exists to eliminate).
+      writeFileSync(
+        path.join(scene.workspace.path, "tasks-1-implement.json"),
+        JSON.stringify({
+          status: "APPROVED",
+          artifacts: { brief: "/b", report: "/r", test_evidence: "/t" },
+        }),
+        "utf8",
+      );
+      writeFileSync(
+        path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+        "{ not json",
+        "utf8",
+      );
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      const outcome = dispatch.step()(implementFrame);
+      expect(outcome.status).toBe("BLOCKED");
+      expect(outcome.carrier?.failure_category).toBe("evidence-contract");
+      const notes = (outcome.carrier?.notes ?? []) as string[];
+      expect(notes.join("\n")).toContain("is malformed JSON");
+      // the true cause, never the misleading "missing" the collapsed read produced
+      expect(notes.join("\n")).not.toContain("the evidence file is missing");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("find #9 — the branch fix's OUTPUT_* artifacts are the line-keyed names (report `branch-fix-{round}-report.md` · evidence `branch-test-evidence.json`), never the range", () => {
     const { repoRoot, cleanup } = fixture();
     try {

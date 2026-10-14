@@ -1,7 +1,7 @@
 # 引擎文档工具（Engine Doc-Tooling）— P7 实施计划：单一实况判定面（commit-sha 全退役 + 物料无条件 extract + brief 镜像 + round/键/字段实况化）
 **Spec:** [2026-10-10-engine-doc-tooling-p7-design.md](../specs/2026-10-10-engine-doc-tooling-p7-design.md)
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](../specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.5 · 2026-10-14
+- **Version**: v0.6 · 2026-10-14
 - **Depends on**: P6（Done · v0.4 · hard）
 
 ## Constraints
@@ -14,7 +14,6 @@
 - **kairos 消费面字面同步**（§7）：cdd-dev/cdd-plan skill 文本 + 行为树 pins 随 engine 语义更替（consumer 环境无 monorepo 布局 · 消费面纯度：零程序史）· `docs/kairos/{specs,plans}` frozen 历史面零动
 - **语义契约保**：退出码表 0/1/2 · CDD_BLOCKED 通道 · `next:` 字面 · 领域 run 语义零动（字节更替为 deliberate re-anchor）· `TEMPLATE_PROMPT.$version` 6 → 7（数据面版本记录）
 - **零残留**：填后 `:::fill` 零残留 · 非豁免 `<…>` 零残留 · 引擎 vitest 全绿（零跳过零容错）· EOF 恰一 newline · 不发布（变更集归并落 pending）
-- **skill ⇄ engine 黑盒边界（D29 · §8.10）**：skill 层对引擎是消费者 · 引擎对 skill 是黑盒——全六 SKILL.md 只载引擎**行为契约**，零内部实现镜像（类名 / 波次推导内部 / round-context 槽 token / 输出字节名 / 崩溃机制 + 失败分类学 / 会话旗标 / flag 逐 verb 复述 / skeleton 语法）。**派发纪律统一**（background + 等通知全六 skill 齐 · `timeout + poll` 退役）。**入口 bootstrap 例外**（每 flow 入口节点保留唯一字面命令）。**pin 同步**：`skill-anatomy.test.ts` 的 `CDD_BLOCKED:` 断言改行为断言 · `status-routing-convergence.test.ts` 的 `next:` 锚定保留
 
 ### Task 1: sha 载体的类型面收编（GitClient 六→二 seam · BranchRef 类删 · Route.review 无 ref）
 - **Objective**: 删除评测面的 commit-sha 类型载体——`GitClient` 留 `topLevel`/`isClean` 二 seam（`revParseHead`/`addAll`/`commit`/`log` 删）· `session/branch-ref.ts` 整文件删 · `BranchRef` 的全部消费点收编（`gate.refFromHandoff` · `gate.#lineParams` branch 腿 · `cli.ts` branch face 装配 + `scene.head` 注入 · `run.#paramsOf`/`#routeTarget` branch 腿 · `capsule.#routeText` branch ref 合成 · `lifecycle.#reviewRange`（:375/:382）`#resumeOf`（:685）branch-ref 消费点——移除归 T4）· `Route.review` 失 `{base,head}` → `{kind:"review"}` · `WorkScene.head` 删 · dry-run 合成 commits 改零 commits
@@ -271,10 +270,30 @@
 - **Acceptance**: 全六 skill 零引擎内部实现词（`WaveGate`/`effectiveWaves`/`INPUT_WAVE_BRIEF`/`BASE_BRANCH`/`CDD_BLOCKED:`/失败分类学/`--resume`/逐 verb flag 复述/skeleton 语法）· background + 等通知纪律全六 skill 齐（`timeout + poll` 零残留）· 黑盒契约四条在册 · `skill-anatomy.test.ts` 行为断言绿 · `status-routing-convergence.test.ts` 的 `next:` 锚定仍绿 · kairos + cdd-engine vitest 全绿 · EOF 恰一 newline
 - **DependsOn**: 12
 
+### Task 14: wave 门控绑 brief（wave 线 reviewed 身份 = brief-revision · 非整 plan hash）
+- **Objective**: wave 线的 reopen 门控从 **whole-plan hash** 改绑 **渲染后 brief 的内容指纹**（D30 · D26 家族）——wave 的真实判定输入是 brief（§5：本 wave 的任务段 + plan `## Constraints`），而非整 plan。纯 append（改其它 task / 加新 task）不留痕于本 wave 的 brief → 已 review 的 wave **不再被误重开**（backfill 本不该高成本）。**doc 线（spec/plan review）保持整文档 hash 不变**（文档整体评审 → 改动即重开 · 用户裁定）。**诚实身份**：wave 线**新增专属 ref kind `brief-revision`**（`{plan, brief_hash}`）——`doc_hash` 层永不指向非文档；`sameRef` 按 kind 判别（异 kind 永不相等）。
+- **Files**:
+  - Modify: `packages/cdd-engine/src-next/session/ledger.ts`（`RefKind` 单值 → `"doc-revision" | "brief-revision"` · 新 `BriefRevisionRef` + `ReviewedRevisionRef` 联合 · `ReviewRefs#briefRevision` + `sameRef` kind 判别 · `ProgressRow.reviewedDocRevision` → `reviewedRevision` · `recordReviewedDocRevision` → `recordReviewedRevision`（泛型）+ 新 `recordReviewedBrief` · `reviewedRevisionOf`（原始）+ `reviewedDocRevisionOf`（doc 线窄化） · `Ledger` 持 `BriefRenderer` · `#briefRevision`/`#briefDrift` · `waveLinePhase` 的 drift 检查改 `#briefDrift`）
+  - Modify: `packages/cdd-engine/src-next/session/run.ts`（bookkeep：wave review 走 `#recordReviewedWaveBrief`（`recordReviewedBrief`）· doc review 仍整文档 `#recordReviewedDocRevision`）
+  - Modify: `packages/cdd-engine/src-next/**/__tests__/`（T11/D16 五 pin deliberate 重锚：run.test.ts / wave.test.ts / cli.test.ts 的 wave 行 `reviewedRevision` = brief-revision · brief 指纹 hash；**新 pin**：wave 外 append → 不重开（run.test.ts + wave.test.ts））
+- **Consumes**: T11（wave 行 reviewed 记录）· T12（round 身份/门控）· spec §8.11 授权
+- **Produces**: `RefKind` 两值（doc-revision / brief-revision）· `ProgressRow.reviewedRevision: ReviewedRevisionRef` · wave 线绑 brief 指纹（`recordReviewedBrief`）· 供分支终审
+- **Steps**:
+  - 诚实身份 ref —— `RefKind` 加 `"brief-revision"` · 新 `BriefRevisionRef{kind, plan, brief_hash}` + `ReviewedRevisionRef = DocRevisionRef | BriefRevisionRef` · `ReviewRefs#briefRevision(plan, briefContent)` `sameRef` 按 kind 判别（异 kind false）— checkable: `grep -n "brief-revision" session/ledger.ts` 命中 · 单测——doc-revision ≠ brief-revision（异 kind sameRef false）
+  - 行字段泛化 —— `ProgressRow.reviewedDocRevision` → `reviewedRevision: ReviewedRevisionRef` · `recordReviewedDocRevision` → `recordReviewedRevision`（泛型）· `reviewedRevisionOf`（原始读）+ `reviewedDocRevisionOf`（doc 线窄化读：非 doc kind → null）— checkable: `grep -n "reviewedDocRevision[^O]" session/ledger.ts` 零命中（字段/记录方法改名，仅窄化读留名）
+  - wave 绑 brief —— `Ledger` 持 `BriefRenderer` · `recordReviewedBrief(waveKey, planPath)`（读 plan → render → `briefRevision`）· `#briefRevision`/`#briefDrift`（kind 守卫）· `waveLinePhase` 的 drift 检查 `docLineVerdict`（整 plan）→ `#briefDrift`（brief）— checkable: 单测——wave 内 task 段变 → drift（reopen review）· wave 外 append → 不 drift（stay fix）
+  - bookkeep 分派 —— `run.ts #bookkeep`：wave review → `#recordReviewedWaveBrief`（`recordReviewedBrief(String(frame.key), planPath)`）· doc review → `#recordReviewedDocRevision`（整文档）— checkable: 单测——wave review 后 `reviewedRevisionOf(key).kind === "brief-revision"`
+  - 五 pin 重锚 + 新 pin —— T11/D16 五 pin（run.test.ts ×2 · wave.test.ts ×2 · cli.test.ts ×2）的 wave 行 `reviewedDocRevision:{doc,doc_hash}` → `reviewedRevision` = brief-revision（brief 指纹）· 新增「wave 外 append 不重开」pin — checkable: `pnpm -C packages/cdd-engine test` 全绿
+  - 跑引擎套件核对 —— checkable: `pnpm -C packages/cdd-engine test`（29 files）全绿
+  - 提交原子 commit（`fix(cdd-engine): wave 门控绑 brief（D30 · 诚实身份）`） — checkable: git log 单原子（a0e7cb74 已落 · 本 task 记录该变更的 durable 事实）
+- **Acceptance**: wave 线 reviewed 身份 = `brief-revision`（`{plan, brief_hash}` · `doc_hash` 层不指非文档）· wave 内 task 段/Constraints 变 → 重开 review · wave 外 append → 不重开 · doc 线仍整文档 hash · `reviewedDocRevisionOf` 对 wave 行返 null · 引擎 vitest（29 files / 541 tests）全绿 · EOF 恰一 newline
+- **DependsOn**: 13
+
 ## Change history
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.6 | 2026-10-14 | **wave 门控绑 brief 任务回填（D30 · D26 家族 · Plan Sole Writer）**：新增 **T14（wave 门控绑 brief）**——wave 线 reopen 门控从 **whole-plan hash** 改绑 **渲染后 brief 的指纹**（D30 · 诚实身份）。wave 的真实判定输入是 brief（本 wave 任务段 + `## Constraints`），非整 plan；纯 append（改其它 task / 加新 task）不留痕 → 已 review 的 wave 不再误重开（backfill 本不高成本）。**wave 线新增专属 ref kind `brief-revision`**（`{plan, brief_hash}` · `doc_hash` 层永不指非文档 · `sameRef` 按 kind 判别）· `ProgressRow.reviewedDocRevision` → `reviewedRevision`（联合）· doc 线保持整文档 hash（用户裁定）。**同批**：`归位` D29——T13 backfill 时误将 D29 约束写入全局 `## Constraints`（该段进每个 wave 的 brief → 无差别扰动 open W6），D29 是 T13 专属约束，已移出全局段（其表述完整存于 T13 block）。**`DependsOn: 13`**（落 W9）· spec v0.10→v0.11 §8.11 | Oscar M. · Claude Opus 5（P7 编排器回填 · 用户确认 · 2026-10-14） |
 | v0.5 | 2026-10-14 | **skill ⇄ engine 黑盒边界任务回填（D29 · 六前提①②③④⑤⑥ · Plan Sole Writer）**：新增 **T13（skill ⇄ engine 黑盒边界）**——skill 层对引擎退化为黑盒消费者（skill 文本只载行为契约 · 零内部实现镜像）。**A 派发纪律统一**（background + 等通知 = 全六 skill 公共纪律 · 删 `timeout + poll otherwise` 死分支）· **B 内部实现词剥离**（全六 SKILL.md 删 `WaveGate`/`effectiveWaves`/波次推导内部/`INPUT_WAVE_BRIEF`/`BASE_BRANCH`/`CDD_BLOCKED:`/失败分类学/`--resume`·`-c`/`--type` 判别规则逐 verb 句/skeleton 语法 · 保留黑盒契约四条 + bootstrap 字面命令）· **pin 同步（破坏性）**：`skill-anatomy.test.ts` 的 `CDD_BLOCKED:` 断言改行为断言 · `status-routing-convergence.test.ts` 的 `next:` 锚定保留 · `routeFactRule` 精化。**`DependsOn: 12`**（落 W7——不扰动 open W6 · 与 T12 同波次序列）· spec v0.9→v0.10 §8.10 | Oscar M. · Claude Opus 5（P7 编排器回填 · 用户确认 · 2026-10-14） |
 | v0.4 | 2026-10-14 | **round 身份单源任务回填（D28 · D26 家族 · Plan Sole Writer）**：新增 **T12（round 身份单源）**——`progress.rounds` 记**周期号集合**（身份非计数）· `recordRound(key,mode,cycle)` 记周期 · 新 `roundRecorded` 成员测试替计数门控 · 相位三处「pending fix」改成员测试 · `#roundFor("fix")=reviews` 保留 · 迁移按载体名重建。**同批**：载体动作 `backfill`→`annotate`（`backfill` 锁义为 doc 去向 · `02-naming.md` 登记）。治 W10 实测 `fix APPROVED 却 no next: line`（fix-K⟷review-K 计数分叉 → HARD_ERROR）。**`DependsOn: 11`**（落独立 W7——不扰动 open W6）· spec v0.8→v0.9 §8.9 | Oscar M. · Claude Opus 5（P7 编排器回填 · 用户确认 · 2026-10-14） |
 | v0.3 | 2026-10-14 | **判定面 ⊥ 输入面任务回填（D27 · D26 补完 · Plan Sole Writer）**：新增 **T11（判定面 ⊥ 输入面）**——`engineOnly` 概念退役（声明面=可写面）· `#materialize` findings 面删 `carrier.status`（载体只装声明面 · 断 fix child INPUT_FINDINGS 传染根）· 结论改判定时刻派生（单源 `HandoffSchema.conclusionOf` · `ledger.round`/`#pendingFix` 全走它）· `readJson` 三态化（治坏 JSON 误报草稿未写入）· `Ledger#waveLinePhase` 相位单源 guard。**`DependsOn: 10`**（落独立 W6——不扰动已录 W1–W5 的静态波次派生）· spec v0.6→v0.7 §8.8 | Oscar M. · Claude Opus 5（P7 编排器回填 · 用户确认 · 2026-10-14） |

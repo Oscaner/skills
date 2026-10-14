@@ -95,38 +95,26 @@ export class BriefRenderer {
       );
     }
     const lines = planContent.split("\n");
-    const sections = data.map((task) => this.#rawSection(lines, task.id));
-    const constraints = this.#rawSectionByHeading(lines, "## Constraints");
+    const sections = data.map((task) =>
+      this.#rawSection(lines, (line) => line.startsWith(`### Task ${task.id}:`)),
+    );
+    const constraints = this.#rawSection(lines, (line) => line.trimEnd() === "## Constraints");
     const body =
       constraints === "" ? sections.join("\n\n") : `${sections.join("\n\n")}\n\n${constraints}`;
     return `${body}\n`;
   }
 
-  /** A raw section by its heading line (up to the next heading) — the `## Constraints`
-   *  slice ("" when the plan carries none). */
-  #rawSectionByHeading(lines: readonly string[], heading: string): string {
-    const start = lines.findIndex((line) => line.trimEnd() === heading);
+  /** The shared heading slice — from the first line a matcher accepts to the next
+   *  heading line ("" when nothing matches). Both the `### Task N:` sections and the
+   *  `## Constraints` mirror render through this one shape. */
+  #rawSection(lines: readonly string[], match: (line: string) => boolean): string {
+    const start = lines.findIndex(match);
     if (start === -1) return "";
     const out: string[] = [];
     for (let i = start; i < lines.length; i++) {
       const line = lines[i];
       if (i > start && /^#/.test(line)) break;
       out.push(line);
-    }
-    return out.join("\n").replace(/\s+$/, "");
-  }
-
-  /** The plan's raw `### Task N:` section text (up to the next heading). */
-  #rawSection(lines: readonly string[], id: number): string {
-    const header = `### Task ${id}:`;
-    const start = lines.findIndex((line) => line.startsWith(header));
-    const out: string[] = [];
-    if (start !== -1) {
-      for (let i = start; i < lines.length; i++) {
-        const line = lines[i];
-        if (i > start && /^#/.test(line)) break;
-        out.push(line);
-      }
     }
     return out.join("\n").replace(/\s+$/, "");
   }

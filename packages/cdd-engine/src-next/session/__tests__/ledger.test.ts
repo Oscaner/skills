@@ -19,7 +19,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
-import { Ledger, type RefKind } from "../ledger.ts";
+import { Ledger, type ProgressData, type RefKind } from "../ledger.ts";
 
 /** A hermetic ledger fixture — a fresh temp workspace under a temp repo root. */
 const fixture = (): { ledger: Ledger; workspace: Workspace; cleanup: () => void } => {
@@ -106,6 +106,96 @@ describe("progress — the fixed key set", () => {
       ledger.writeProgress({ ...ledger.emptyProgress(), timeoutCount: 3 });
       expect(ledger.counterOf("timeoutCount")).toBe(3);
       expect(ledger.counterOf("harnessAbortCount")).toBe(0);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("progress — the D28 round-identity face (cycles, not counts)", () => {
+  /** Write a progress row's raw `rounds` plane — the migration fixture (a legacy
+   *  numeric count or the current cycle list written straight to disk). */
+  const seedRounds = (ledger: Ledger, rounds: Record<string, number | number[]>): void => {
+    const data = ledger.readProgress() ?? ledger.emptyProgress();
+    data.waves.push({ wave: "7,9", rounds: rounds as ProgressData["waves"][number]["rounds"] });
+    ledger.writeProgress(data);
+  };
+
+  it("#cyclesOf migrates a legacy numeric count to its contiguous identity — `{fix: 1}` ≡ `[1]`", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      seedRounds(ledger, { fix: 1 }); // the pre-D28 numeric shape on disk
+      expect(ledger.roundCount("7,9", "fix")).toBe(1);
+      expect(ledger.roundRecorded("7,9", "fix", 1)).toBe(true);
+      expect(ledger.roundRecorded("7,9", "fix", 2)).toBe(false);
+      expect(ledger.latestCycle("7,9", "fix")).toBe(1);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a legacy count of N normalizes to the cycle list [1..N] — `{review: 2}` ≡ `[1, 2]`", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      seedRounds(ledger, { review: 2 });
+      expect(ledger.roundCount("7,9", "review")).toBe(2);
+      expect(ledger.roundRecorded("7,9", "review", 1)).toBe(true);
+      expect(ledger.roundRecorded("7,9", "review", 2)).toBe(true);
+      expect(ledger.roundRecorded("7,9", "review", 3)).toBe(false);
+      expect(ledger.latestCycle("7,9", "review")).toBe(2);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("an already-migrated cycle list is preserved verbatim — `{review: [1, 2]}` stays `[1, 2]`", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      seedRounds(ledger, { review: [1, 2] });
+      expect(ledger.roundCount("7,9", "review")).toBe(2);
+      expect(ledger.roundRecorded("7,9", "review", 2)).toBe(true);
+      expect(ledger.latestCycle("7,9", "review")).toBe(2);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("recordRound records the CYCLE (its identity), defaulting to latest+1 — a skipped cycle keeps its own number", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // an explicit cycle records its OWN number (fix-2 = the fix that addressed review-2)
+      expect(ledger.recordRound("7,9", "fix", 2)).toBe(1);
+      expect(ledger.roundRecorded("7,9", "fix", 2)).toBe(true);
+      expect(ledger.roundRecorded("7,9", "fix", 1)).toBe(false); // cycle 1 was skipped — never fabricated
+      expect(ledger.latestCycle("7,9", "fix")).toBe(2);
+      // a default recordRound appends the next cycle after the latest (2 → 3)
+      expect(ledger.recordRound("7,9", "fix")).toBe(2);
+      expect(ledger.roundRecorded("7,9", "fix", 3)).toBe(true);
+      // a re-record of an existing cycle is idempotent (never doubled)
+      expect(ledger.recordRound("7,9", "fix", 2)).toBe(2);
+      expect(ledger.roundCount("7,9", "fix")).toBe(2);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the round() read gate tests IDENTITY, not a count — `{review:[1,2], fix:[2]}` reads fix cycle 2 back", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // the drift-voided review-1 shape: the first fix is cycle 2 (fix-K ⟷ review-K)
+      seedRounds(ledger, { review: [1, 2], fix: [2] });
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "7,9", round: 2 },
+        { findings: [{ severity: "blocker", summary: "survives" }] },
+      );
+      ledger.persistHandoff("fix", "wave", { tasks: "7,9", round: 2 }, { artifacts: {} });
+      // the old `roundCount < round` comparison (1 < 2) refused this read → a HARD_ERROR
+      // on a fix that legitimately concluded; the identity gate reads it back
+      expect(ledger.round("fix", "wave", { tasks: "7,9" }, 2)).not.toBeNull();
+      // an unrecorded cycle is still refused (identity, not ordinal)
+      expect(ledger.round("fix", "wave", { tasks: "7,9" }, 1)).toBeNull();
     } finally {
       cleanup();
     }
@@ -514,6 +604,55 @@ describe("the T7 doc-line identity record — reviewedDocRevision (the reopen-co
       // an unreadable doc → null (only present facts land — no invented identity)
       rmSync(doc);
       expect(ledger.docLineVerdict("1", doc)).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("the review gate — the D28 phantom-pending-fix suppression", () => {
+  it("a drift-voided review-1 (fix cycle 2) is NOT a pending fix — the identity membership, never a count", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      const doc = path.join(workspace.path, "docs", "x-spec.md");
+      mkdirSync(path.dirname(doc), { recursive: true });
+      writeFileSync(doc, "the reviewed body", "utf8");
+      // the drift-voided review-1 shape: review cycles [1, 2] with the fix at cycle 2.
+      // A `fixes(1) < reviews(2)` count comparison reads a phantom pending fix and
+      // re-opens the line forever; the identity membership (2 ∈ {2}) suppresses it.
+      const data = ledger.readProgress() ?? ledger.emptyProgress();
+      data.waves.push({ wave: "spec", rounds: { review: [1, 2], fix: [2] } });
+      ledger.writeProgress(data);
+      ledger.recordReviewedRevision("spec", ledger.refs().docRevision(doc, "the reviewed body"));
+      const verdict = ledger.reviewGate("spec", doc, "spec");
+      // the unchanged doc stays "same" with NO pending fix (the fix cycle 2 landed)
+      expect(verdict.kind).toBe("same");
+      if (verdict.kind === "same") expect(verdict.pending).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a review with no fix yet IS the pending face — the review's own fix is outstanding", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      const doc = path.join(workspace.path, "docs", "y-spec.md");
+      mkdirSync(path.dirname(doc), { recursive: true });
+      writeFileSync(doc, "the reviewed body", "utf8");
+      const data = ledger.readProgress() ?? ledger.emptyProgress();
+      data.waves.push({ wave: "spec", rounds: { review: [1] } });
+      ledger.writeProgress(data);
+      ledger.recordReviewedRevision("spec", ledger.refs().docRevision(doc, "the reviewed body"));
+      // the review round carries a blocker (non-APPROVED) → the fix awaits
+      ledger.persistHandoff(
+        "review",
+        "spec",
+        { round: 1 },
+        { findings: [{ severity: "blocker", summary: "defect" }] },
+      );
+      const verdict = ledger.reviewGate("spec", doc, "spec");
+      expect(verdict.kind).toBe("same");
+      if (verdict.kind === "same") expect(verdict.pending).toBe(true);
     } finally {
       cleanup();
     }

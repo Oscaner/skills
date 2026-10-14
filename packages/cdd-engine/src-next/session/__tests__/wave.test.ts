@@ -381,3 +381,56 @@ describe("WaveGate.vet — the brief-revision-aware pending-fix resolution (T11 
     }
   });
 });
+
+describe("Ledger#waveLinePhase — the D28 phantom-pending-fix suppression", () => {
+  it("a drift-voided review-1 with the fix at cycle 2 is NOT a phantom pending fix (identity, never a count)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // The W10 scenario: review-1 was voided by drift, so the first landed fix is
+      // cycle 2 (fix-K ⟷ review-K). The cycle set is review [1, 2] · fix [2] — the
+      // fix's COUNT (1) trails the review count (2), which the retired
+      // `fixes < reviews` comparison read as a phantom pending fix → the wave would
+      // re-open at fix forever. The identity membership (2 ∈ {2}) suppresses it.
+      ledger.recordRound("1", "implement");
+      ledger.recordRound("1", "review");
+      ledger.recordRound("1", "review");
+      ledger.recordRound("1", "fix", 2);
+      // review-2 is clean and fix-2 closed it — the wave line is closed, not pending
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1", round: 2 },
+        { tasks: [1], phase: "review", findings: [] },
+      );
+      ledger.persistHandoff("fix", "wave", { tasks: "1", round: 2 }, { artifacts: {} });
+      expect(ledger.roundRecorded("1", "fix", 2)).toBe(true);
+      expect(ledger.roundRecorded("1", "fix", 1)).toBe(false); // cycle 1 never landed
+      // the closed line derives no open phase — no phantom "fix"
+      expect(ledger.waveLinePhase("1")).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a fix round that still routes review keeps the wave at review — the identity read never over-closes", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // the drift-voided shape again, but the source review-2 carries a blocker, so the
+      // fix round's C5 route is a re-review — the wave legitimately stays at review
+      ledger.recordRound("1", "implement");
+      ledger.recordRound("1", "review");
+      ledger.recordRound("1", "review");
+      ledger.recordRound("1", "fix", 2);
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1", round: 2 },
+        { tasks: [1], phase: "review", findings: [{ severity: "blocker", summary: "open" }] },
+      );
+      ledger.persistHandoff("fix", "wave", { tasks: "1", round: 2 }, { artifacts: {} });
+      expect(ledger.waveLinePhase("1")).toBe("review");
+    } finally {
+      cleanup();
+    }
+  });
+});

@@ -3861,16 +3861,17 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
-  it("§8.7 — a findings-face draft carrying the engineOnly `status` (+ a stray key) is dropped with a single WARN, never a BLOCK (the exact dogfood crash face)", () => {
+  it("§8.7 — a findings-face draft carrying a stray `status` (+ another key) is dropped with a single WARN, never a BLOCK (the exact dogfood crash face)", () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
       const sync = new FakeSync();
-      // The §2.8/§8.7 dogfood crash face: a child-authored `status` (engineOnly — the
-      // engine rolls the review conclusion up, never a child write) on a review draft,
-      // plus a stray extra key. The read-back validator drops both (never a refusal);
-      // materialize drops them from the carrier and books ONE WARN on the notes.
+      // The §2.8/§8.7 dogfood crash face: a child-authored `status` (non-declared on
+      // the findings face — the finding carrier holds no status; the conclusion derives
+      // at judgment time) on a review draft, plus a stray extra key. The read-back
+      // validator drops both (never a refusal); materialize drops them from the carrier
+      // and books ONE WARN on the notes.
       sync.stdout = "status: APPROVED\n";
       writeFileSync(
         path.join(scene.workspace.path, "spec-review-1.json"),
@@ -3888,15 +3889,16 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
       const outcome = dispatch.step()(specReviewFrame);
-      // the round is NOT blocked (a non-declared / engineOnly field is not a semantic
-      // error) — the conclusion derives from the draft's findings (nit → REVIEW_FIX),
-      // never the dropped child status
+      // the round is NOT blocked (a non-declared field is not a semantic error) — the
+      // conclusion derives from the draft's findings (nit → REVIEW_FIX), never the
+      // dropped child status
       expect(outcome.status).toBe("REVIEW_FIX");
       expect(io.stderrText).toBe("");
       const carrier = outcome.carrier as Record<string, unknown>;
-      // the dropped keys never land on the carrier; the engine-authored status wins
+      // the findings carrier holds NO status field (the conclusion is derived, never
+      // persisted on the findings plane · D27); the dropped keys never land either
       expect("phase" in carrier).toBe(false);
-      expect(carrier.status).toBe("REVIEW_FIX");
+      expect("status" in carrier).toBe(false);
       // exactly ONE WARN names both dropped keys
       const notes = carrier.notes as string[];
       expect(notes).toHaveLength(1);
@@ -3935,11 +3937,14 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // the FILE — the read-back is the fix loop's only content channel
       expect(outcome.status).toBe("CHANGES_REQUESTED");
       expect(outcome.findings).toEqual([{ severity: "blocker", summary: "drift" }]);
+      // the persisted findings carrier holds NO status field (D27 — the conclusion is
+      // derived at judgment time, never stored on the findings plane); the conclusion
+      // still rides the outcome.status above, derived from the findings
       expect(outcome.carrier).toEqual({
         artifacts: {},
         findings: [{ severity: "blocker", lens: "spec", summary: "drift" }],
-        status: "CHANGES_REQUESTED",
       });
+      expect("status" in (outcome.carrier as Record<string, unknown>)).toBe(false);
       // the URC criteria ride the review prompt's fixed prefix (the spec review has
       // no slash ref) — the criteria/lens are folded in, never round-context values
       const call = sync.calls[0];
@@ -4145,6 +4150,37 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       );
       expect(crash.next).toBe("cdd implement --tasks 1 --plan <plan>");
       expect(crash.cause).toBe("contract-violation");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a MALFORMED draft → BLOCKED reporting the true cause (malformed JSON), never the misleading 'not written' (D27)", () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new FakeSync();
+      sync.stdout = "status: APPROVED\n";
+      // the child wrote an unparseable draft at OUTPUT_HANDOFF — present but corrupt.
+      // The tri-state read reports the true cause; a corrupt draft is never misreported
+      // as absent (the "not written" path would hide the real defect).
+      writeFileSync(
+        path.join(scene.workspace.path, "tasks-1-implement.json"),
+        "{ not json",
+        "utf8",
+      );
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      const outcome = dispatch.step()(implementFrame);
+      expect(outcome).toEqual({ status: "BLOCKED" });
+      expect(io.stderrText).toContain("CDD_BLOCKED: the handoff draft at");
+      expect(io.stderrText).toContain("is malformed JSON");
+      expect(io.stderrText).not.toContain("was not written");
     } finally {
       cleanup();
     }

@@ -42,15 +42,6 @@ interface SchemaNode {
   enum?: readonly unknown[];
   minLength?: number;
   maxLength?: number;
-  /** The ENGINE-authority keys a face's persisted carrier writes that the CHILD
-   *  never authors — declared ON the node so the engine's write plane derives as
-   *  `keyof properties ∪ engineOnly[face]` (zero parallel write-plane table). Both
-   *  projections honour the fence (projection ①'s injected text strips the field,
-   *  so the child-visible fence = declared minus engineOnly; a child draft writing
-   *  an engineOnly key stays a read-back refusal — the key is never a declared
-   *  property, and the guard's authority hygiene (⑥) requires each declared
-   *  engine-only key to be consumed by an engine write path). */
-  engineOnly?: readonly string[];
 }
 
 /** One finding row — the shared base declaration of the findings face (severity +
@@ -84,17 +75,13 @@ const CARRIER_WORK = {
     artifacts: { type: "object" },
     notes: { type: "array", items: { type: "string" } },
   },
-  /** The work face's engine-only keys — none: every written field is a declared
-   *  child property (the write plane derives as keyof properties ∪ []). */
-  engineOnly: [],
 } as const satisfies SchemaNode;
 
-/** The `findings` writable subset — review + docs-fix carrier. NO status (the engine
- *  rolls the conclusion up from the findings). `as const` — see CARRIER_WORK. The
- *  engine-only `status` declares the rolled-up conclusion — the ENGINE-authority
- *  write the child never authors (the persisted findings carrier carries it below
- *  the skeleton; the child-visible fence and the read-back validator never present
- *  it as writable). */
+/** The `findings` writable subset — review + docs-fix carrier. NO status: the
+ *  conclusion is derived from the findings at judgment time
+ *  (`conclusionOf("findings", carrier)` → `rollup(findings)`), never a carrier field
+ *  the child authors or the engine persists — the declaration plane IS the writable
+ *  plane (one face, one field set). `as const` — see CARRIER_WORK. */
 const CARRIER_FINDINGS = {
   type: "object",
   required: ["findings"],
@@ -103,7 +90,6 @@ const CARRIER_FINDINGS = {
     artifacts: { type: "object" },
     notes: { type: "array", items: { type: "string" } },
   },
-  engineOnly: ["status"],
 } as const satisfies SchemaNode;
 
 /** The test-evidence file schema — the evidence gate's engine read-back contract
@@ -234,6 +220,21 @@ export class HandoffSchema {
     );
   }
 
+  /** The round conclusion, DERIVED at judgment time from the face's own plane — the
+   *  single source the review/fix ledger legs read (D27 · judgment face ⊥ input face).
+   *  The findings face rolls its conclusion UP from its findings (a review never
+   *  carries a child-authored status, and the persisted findings carrier holds none);
+   *  the work face reads its DECLARED status (the child's own conclusion, pinned by the
+   *  schema enum). `carrier` is the on-disk carrier (or a freshly built one) — the
+   *  conclusion is never a stored field, so any face's carrier derives it the same way. */
+  conclusionOf(face: HandoffSchemaFace, carrier: Record<string, unknown>): RoundStatus {
+    if (face === "findings") {
+      const findings = Array.isArray(carrier.findings) ? carrier.findings : [];
+      return this.rollup(findings);
+    }
+    return carrier.status as RoundStatus;
+  }
+
   /** The review conclusion rollup — status derived from the findings severities
    *  (the rollup the retired JSON-return channel performed; a review never carries
    *  a child-authored status). */
@@ -268,11 +269,11 @@ export class HandoffSchema {
   }
 
   /** The draft keys materialize drops — every key the face does not declare as a
-   *  child-writable `properties` slot (extra child fields · `engineOnly` keys such
-   *  as a findings-draft `status`). The read-back validator judges these the same
-   *  way (drop, never a BLOCK) — materialize surfaces them as the single §8.7 WARN
-   *  on the carrier's notes. A non-object draft drops nothing here (its shape is the
-   *  validator's semantic refusal). */
+   *  child-writable `properties` slot (extra child fields such as a findings-draft
+   *  `status`). The read-back validator judges these the same way (drop, never a
+   *  BLOCK) — materialize surfaces them as the single §8.7 WARN on the carrier's
+   *  notes. A non-object draft drops nothing here (its shape is the validator's
+   *  semantic refusal). */
   droppedKeys(face: HandoffSchemaFace, value: unknown): string[] {
     if (typeof value !== "object" || value === null || Array.isArray(value)) return [];
     const declared = new Set(Object.keys(BY_FACE[face].properties ?? {}));
@@ -282,12 +283,10 @@ export class HandoffSchema {
   /** Serialize a declared schema object into the prompt's fence — COMPACT (no pretty
    *  indent: the injected text is the per-mode fixed prefix's biggest token cost, and
    *  every dispatch pays it in the child context — minify keeps the round cheap). The
-   *  declaration's `engineOnly` metadata NEVER rides the serialized projection — the
-   *  child-visible fence is the declared node minus the engine-only keys (projection
-   *  ①'s authority filter: the engine's write plane derives from the declaration, the
-   *  child's writable view never shows it). */
+   *  declaration IS the writable plane (no engine-only metadata to strip) — the fence
+   *  is the declared node verbatim. */
   #json(node: SchemaNode): string {
-    return JSON.stringify(node, (key, value) => (key === "engineOnly" ? undefined : value));
+    return JSON.stringify(node);
   }
 
   /** Walk one schema node against a value; every mismatch is a `path: reason`. */
@@ -310,11 +309,11 @@ export class HandoffSchema {
         for (const [key, sub] of Object.entries(node.properties ?? {})) {
           if (obj[key] !== undefined) this.#check(sub, obj[key], this.#at(path, key), problems);
         }
-        // Non-declared keys (extra child fields · `engineOnly` keys such as a
-        // findings-draft `status`) are DROPPED by materialize, never a BLOCK —
-        // the validator and materialize judge the same field the same way
-        // (§8.7). Only semantic errors on declared fields (required / type /
-        // enum / length) refuse the draft.
+        // Non-declared keys (extra child fields such as a findings-draft
+        // `status`) are DROPPED by materialize, never a BLOCK — the validator
+        // and materialize judge the same field the same way (§8.7). Only
+        // semantic errors on declared fields (required / type / enum / length)
+        // refuse the draft.
         return;
       }
       if (node.type === "array") {

@@ -403,10 +403,19 @@ export class CliLifecycle {
     const face = this.#familyOf(op, frame.type).schema ?? "work";
     const schema = this.#handoffSchema;
     const path = scene.ledger.handoffPath(op, frame.type, frame.params);
-    const draft = scene.ledger.readHandoff(op, frame.type, frame.params);
-    if (draft === null) {
+    // The tri-state draft read — a MISSING draft ("never written") and a MALFORMED one
+    // (present but unparseable JSON) are different facts: the rejection reports each
+    // truly, so a corrupt draft is never misreported as "not written" (D27).
+    const draftRead = scene.workspace.readJson<Record<string, unknown>>(
+      scene.ledger.handoffName(op, frame.type, frame.params),
+    );
+    if (draftRead.kind === "missing") {
       return this.#reject(frame, path, `the handoff draft was not written at ${path}`);
     }
+    if (draftRead.kind === "malformed") {
+      return this.#reject(frame, path, `the handoff draft at ${path} is malformed JSON`);
+    }
+    const draft = draftRead.value;
     const problems = schema.violations(face, draft);
     if (problems.length > 0) {
       return this.#reject(
@@ -432,7 +441,8 @@ export class CliLifecycle {
     if (face === "work") {
       const evidenceName = this.#evidenceName(frame);
       const evidencePath = scene.workspace.resolve(evidenceName);
-      const evidence = scene.workspace.readJson<unknown>(evidenceName);
+      const evidenceRead = scene.workspace.readJson<unknown>(evidenceName);
+      const evidence = evidenceRead.kind === "ok" ? evidenceRead.value : null;
       const evidenceProblems = schema.evidenceViolations(evidence);
       if (evidenceProblems.length > 0) {
         status = "BLOCKED";
@@ -480,10 +490,10 @@ export class CliLifecycle {
     const ledger = this.#scene.ledger;
     const notes: string[] = [];
     // The §8.7 classification ruling — the SAME judgment the read-back validator makes
-    // (non-declared / engineOnly keys are dropped, never a BLOCK): materialize drops
-    // them and books AT MOST ONE WARN on the carrier's notes (auditable, non-interrupting
-    // — replacing the retired "BLOCK + crash-resume + reopen" chain). The engine stays
-    // the carrier's single author; a child's stray key is surfaced, not obeyed.
+    // (non-declared keys are dropped, never a BLOCK): materialize drops them and books
+    // AT MOST ONE WARN on the carrier's notes (auditable, non-interrupting — replacing
+    // the retired "BLOCK + crash-resume + reopen" chain). The engine stays the carrier's
+    // single author; a child's stray key is surfaced, not obeyed.
     const dropped = this.#handoffSchema.droppedKeys(face, draft);
     if (dropped.length > 0) {
       notes.push(
@@ -506,14 +516,25 @@ export class CliLifecycle {
         : ledger.buildHandoff("work", {
             artifacts: this.#canonicalArtifacts(frame, draft.artifacts, notes),
           });
-    carrier.status = status;
-    if (typeof draft.failure_category === "string")
-      carrier.failure_category = draft.failure_category;
+    // The work face ALONE persists the round conclusion — it is the child's own
+    // declared status (the schema enum pinned it to APPROVED | BLOCKED). The findings
+    // face holds NO status field: its conclusion is DERIVED at judgment time
+    // (`HandoffSchema.conclusionOf("findings", carrier)` → rollup(findings)), so the
+    // persisted findings carrier stays the pure declaration plane
+    // (findings/artifacts/notes) and a fix child's INPUT_FINDINGS carrier is
+    // status-free (the judgment face is perpendicular to the input face · D27).
     const draftNotes = Array.isArray(draft.notes) ? [...(draft.notes as unknown[])] : [];
-    if (reason !== null) {
-      carrier.status = "BLOCKED";
-      carrier.failure_category = "evidence-contract";
-      draftNotes.push(reason);
+    if (face === "work") {
+      carrier.status = status;
+      if (typeof draft.failure_category === "string")
+        carrier.failure_category = draft.failure_category;
+      // The evidence-contract override (work faces only — the evidence gate reads a
+      // work round's evidence file) rewrites the persisted conclusion to BLOCKED.
+      if (reason !== null) {
+        carrier.status = "BLOCKED";
+        carrier.failure_category = "evidence-contract";
+        draftNotes.push(reason);
+      }
     }
     if (notes.length > 0 || draftNotes.length > 0) carrier.notes = [...notes, ...draftNotes];
     return carrier;

@@ -92,32 +92,25 @@ describe("projection ① — the injected writable-subset schema text", () => {
     expect(schema.schemaText("work", true)).not.toBe(schema.schemaText("findings", false));
   });
 
-  it("the fence parses byte-identically to the declared face node minus engineOnly — the one-hand projection pin (T3)", () => {
+  it("the fence parses byte-identically to the declared face node — the one-hand projection pin (T3)", () => {
     // The prompt-injection projection (schemaText) and the read-back declaration
     // (faceSchema) are the SAME declared object's two projections: parses of the
-    // ```` ```json ```` fences must round-trip to the declared nodes minus the
-    // engine-only metadata (projection ①'s authority filter — the child-visible
-    // fence never shows the engine's own write keys) — the prompt can never show
-    // a schema the engine does not enforce (the guard's checkHandoffPlane ③
-    // asserts the same fact against the live tree).
+    // ```` ```json ```` fences must round-trip to the declared nodes verbatim (the
+    // declaration IS the writable plane — zero engine-only metadata to strip) — the
+    // prompt can never show a schema the engine does not enforce (the guard's
+    // checkHandoffPlane ③ asserts the same fact against the live tree).
     for (const face of ["work", "findings"] as const) {
       const text = schema.schemaText(face, false);
       const parsed = JSON.parse(text.split("```json\n")[1]!.split("\n```")[0]!);
-      const { engineOnly: _authority, ...declared } = schema.faceSchema(face);
-      void _authority;
-      expect(JSON.stringify(parsed)).toBe(JSON.stringify(declared));
+      expect(JSON.stringify(parsed)).toBe(JSON.stringify(schema.faceSchema(face)));
     }
   });
 
-  it("the projection fences filter the engineOnly metadata — neither face's child-visible view serializes the authority field (T3)", () => {
-    // The engine-only keys live on the DECLARED node (the guard's write-plane
-    // derivation + authority hygiene read them there); projection ①'s injected
-    // fence must never serialize the metadata — the child sees only the writable
-    // subset a child can write. The findings face declares `status` engine-only,
-    // so its fence must not surface the field either (the same status the work
-    // face's property makes a read-back refusal).
-    expect(schema.schemaText("findings", false)).not.toContain("engineOnly");
-    expect(schema.schemaText("work", false)).not.toContain("engineOnly");
+  it("the findings fence carries no status — the conclusion is derived, never a child-writable field (D27)", () => {
+    // The findings carrier holds no status field: the declaration plane IS the
+    // writable plane, and the round conclusion derives at judgment time
+    // (`conclusionOf("findings", carrier)` → rollup(findings)). The child-visible
+    // fence therefore never surfaces a `"status"` slot on the findings face.
     expect(schema.schemaText("findings", false)).not.toContain('"status"');
   });
 });
@@ -142,7 +135,7 @@ describe("projection ② — the read-back validation (violations)", () => {
     ]);
   });
 
-  it("drops non-declared / engineOnly fields instead of BLOCKing (materialize judges the same way)", () => {
+  it("drops non-declared fields instead of BLOCKing (materialize judges the same way)", () => {
     // a work draft carrying engine-reserved or extra keys is dropped by materialize
     // and never refuses the draft (the drop-not-BLOCK ruling · §8.7)
     expect(
@@ -151,7 +144,7 @@ describe("projection ② — the read-back validation (violations)", () => {
     expect(schema.violations("work", { status: "APPROVED", artifacts: {}, tasks: [1] })).toEqual(
       [],
     );
-    // a child-authored `status` on a findings draft is engineOnly — dropped, not refused
+    // a child-authored `status` on a findings draft is non-declared — dropped, not refused
     expect(schema.violations("findings", { findings: [], status: "APPROVED" })).toEqual([]);
     // a stray `commits` key on a work draft is no longer declared — dropped
     expect(schema.violations("work", { ...WORK, commits: { base: "short" } })).toEqual([]);
@@ -223,6 +216,24 @@ describe("the status rollup + the findings normalization", () => {
     expect(schema.rollup([{ severity: "warn" }, { severity: "blocker" }])).toBe(
       "CHANGES_REQUESTED",
     );
+  });
+
+  it("conclusionOf derives the findings conclusion from the findings, the work conclusion from the declared status (D27)", () => {
+    // the findings face NEVER reads a carrier status — its conclusion rolls up from
+    // the findings alone (the persisted findings carrier holds no status field)
+    expect(schema.conclusionOf("findings", { findings: [{ severity: "blocker" }] })).toBe(
+      "CHANGES_REQUESTED",
+    );
+    expect(schema.conclusionOf("findings", { findings: [{ severity: "nit" }] })).toBe("REVIEW_FIX");
+    expect(schema.conclusionOf("findings", { findings: [] })).toBe("APPROVED");
+    expect(schema.conclusionOf("findings", {})).toBe("APPROVED");
+    // a stray status on a findings carrier is ignored — the derivation is from findings
+    expect(
+      schema.conclusionOf("findings", { findings: [{ severity: "blocker" }], status: "APPROVED" }),
+    ).toBe("CHANGES_REQUESTED");
+    // the work face reads its declared status verbatim
+    expect(schema.conclusionOf("work", { status: "APPROVED", artifacts: {} })).toBe("APPROVED");
+    expect(schema.conclusionOf("work", { status: "BLOCKED", artifacts: {} })).toBe("BLOCKED");
   });
 
   it("normalizes the draft findings — unknown severities dropped, severity + summary kept", () => {

@@ -489,8 +489,8 @@ export class Lifecycle {
       // key, empty on a conclusion-only round (a fix advances no new findings); a
       // work-face round builds the findings-free work carrier — zero findings
       // injection. The review finding-severity route reads the round carrier's
-      // findings; the engine-authority conclusion (status) rides the caller's set below
-      // regardless of face (the round conclusion is the engine's, not the skeleton's).
+      // findings; the conclusion rides only the work face's declared status (the
+      // findings face derives its conclusion at judgment time).
       const face = this.#ledger.handoffFaceOf(op, frame.type);
       const carrier: Record<string, unknown> =
         outcome.carrier ??
@@ -502,7 +502,10 @@ export class Lifecycle {
           : this.#ledger.buildHandoff("work", {
               artifacts: outcome.artifacts,
             }));
-      if (carrier.status === undefined && outcome.status !== undefined)
+      // The work face ALONE persists the conclusion (the child's declared status); the
+      // findings carrier holds no status — its conclusion derives at judgment time
+      // (`HandoffSchema.conclusionOf` → rollup(findings)), never a stored field (D27).
+      if (face === "work" && carrier.status === undefined && outcome.status !== undefined)
         carrier.status = outcome.status;
       this.#ledger.persistHandoff(op, frame.type, frame.params, carrier);
     }

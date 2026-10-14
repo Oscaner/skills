@@ -215,9 +215,27 @@ describe("workspace — the root/workspace pair + the slug rule + JSON roundtrip
       const workspace = new Workspace(root, "test-slug");
       expect(workspace.path).toBe(path.join(base, ".kairos", "cdd", "test-slug"));
       workspace.writeJson("probe.json", { a: 1 });
-      expect(workspace.readJson<{ a: number }>("probe.json")).toEqual({ a: 1 });
-      expect(workspace.readJson("missing.json")).toBeNull();
+      expect(workspace.readJson<{ a: number }>("probe.json")).toEqual({
+        kind: "ok",
+        value: { a: 1 },
+      });
+      expect(workspace.readJson("missing.json")).toEqual({ kind: "missing" });
       expect(workspace.resolve("probe.json")).toBe(path.join(workspace.path, "probe.json"));
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
+  });
+
+  it("readJson is tri-state — a present-but-unparseable file reads `malformed`, never `missing` (D27)", () => {
+    const base = mkdtempSync(path.join(tmpdir(), "infra-ws-"));
+    try {
+      const root = new WorkspaceRoot(base, ".kairos/cdd");
+      const workspace = new Workspace(root, "test-slug");
+      workspace.ensure();
+      writeFileSync(path.join(workspace.path, "bad.json"), "{ not json", "utf8");
+      // the true cause is reported: a corrupt file is a distinct fact from an absent one
+      expect(workspace.readJson("bad.json")).toEqual({ kind: "malformed" });
+      expect(workspace.readJson("absent.json")).toEqual({ kind: "missing" });
     } finally {
       rmSync(base, { recursive: true, force: true });
     }

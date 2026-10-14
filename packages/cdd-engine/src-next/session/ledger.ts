@@ -27,7 +27,12 @@ import type { ConfigLoader } from "../infra/config.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
 import type { Workspace } from "../infra/workspace.ts";
 import { type TargetType, targetFaces } from "./faces.ts";
-import type { FindingsCarrier, HandoffSchemaFace, WorkCarrier } from "./handoff-schema.ts";
+import {
+  type FindingsCarrier,
+  HandoffSchema,
+  type HandoffSchemaFace,
+  type WorkCarrier,
+} from "./handoff-schema.ts";
 import type { Route } from "./next.ts";
 import { NextStepRouter } from "./next.ts";
 import { EMPTY_RUN_STATE } from "./run.ts";
@@ -276,6 +281,10 @@ export class Ledger {
   /** The C5 next router — the closure-side judge of the round carriers (stateless;
    *  the `closedWaves()` read face and the wave gate share the same router). */
   readonly #router = new NextStepRouter();
+  /** The handoff-schema face — the conclusion single source (`conclusionOf`), one
+   *  instance per ledger (the round verdict derives from the face's own plane at
+   *  judgment time · D27). */
+  readonly #handoffSchema = new HandoffSchema();
   /** The review-reference face (T25) — the refKind classification + the same-ref
    *  reject, one instance per ledger (the run's bound refs). */
   readonly #refs = new ReviewRefs();
@@ -297,9 +306,12 @@ export class Ledger {
     this.#workspace.writeJson(name, data);
   }
 
-  /** Read a JSON artifact; null when missing/corrupt. */
+  /** Read a JSON artifact; null when missing/corrupt (the ledger's read face keeps the
+   *  collapsed contract — the tri-state discrimination lives at the read-back
+   *  reconstruct, which reports a malformed draft's true cause). */
   #read<T>(name: string): T | null {
-    return this.#workspace.readJson<T>(name);
+    const read = this.#workspace.readJson<T>(name);
+    return read.kind === "ok" ? read.value : null;
   }
 
   // -------------------------------------------------------------------------
@@ -505,6 +517,9 @@ export class Ledger {
     const reviews = this.roundCount(key, "review");
     if (reviews === 0 || this.roundRecorded(key, "fix", reviews)) return false;
     const carried = this.round("review", type, { round: reviews }, reviews);
+    // `carried.status` is the review round's DERIVED conclusion — `round()` sets it
+    // through the `HandoffSchema.conclusionOf` single source (the findings carrier
+    // stores no status field · D27), never a second read of the carrier here.
     return carried === null || carried.status === undefined || carried.status !== "APPROVED";
   }
 
@@ -762,7 +777,10 @@ export class Ledger {
       if (carrier === null) return null;
       return {
         phase: "review",
-        status: carrier.status as RoundStatus | undefined,
+        // The conclusion is DERIVED from the review carrier's own findings at judgment
+        // time (D27 · the findings carrier holds no status field) — the single source
+        // shared with the fix leg below (`HandoffSchema.conclusionOf`).
+        status: this.#handoffSchema.conclusionOf("findings", carrier),
         findings: this.#findingsOf(carrier),
         findingsPath: this.handoffPath("review", type, reviewParams),
         consecutiveS1: this.#consecutiveS1Run(type, params, round),
@@ -779,7 +797,10 @@ export class Ledger {
     if (reviewCarrier === null || fixCarrier === null) return null;
     return {
       phase: "fix",
-      status: fixCarrier.status as RoundStatus | undefined,
+      // The fix round's conclusion derives from ITS OWN carrier's declared plane (the
+      // work face reads its status; a docs-fix findings face rolls its findings up) —
+      // the same `conclusionOf` single source (D27).
+      status: this.#handoffSchema.conclusionOf(this.handoffFaceOf("fix", type), fixCarrier),
       findings: this.#findingsOf(reviewCarrier),
       findingsPath: this.handoffPath("review", type, reviewParams),
       consecutiveS1: this.#consecutiveS1Run(type, params, round),

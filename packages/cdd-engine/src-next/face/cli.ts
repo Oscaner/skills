@@ -584,7 +584,8 @@ export class Cli {
    *  writes). "" when the artifact is absent or malformed (the slot stays empty and
    *  the assembler drops it — the wave/branch review then judges the live tree). */
   #baseBranchOf(scene: WorkScene): string {
-    const artifact = scene.workspace.readJson<{ base?: unknown }>("base.json");
+    const read = scene.workspace.readJson<{ base?: unknown }>("base.json");
+    const artifact = read.kind === "ok" ? read.value : null;
     return typeof artifact?.base === "string" ? artifact.base : "";
   }
 

@@ -19,7 +19,6 @@
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
 import { readFileSync } from "node:fs";
-import { BranchRef } from "./branch-ref.ts";
 import type { DispatchPhase, ReviewLead, RouteTarget, TargetFace, TargetType } from "./faces.ts";
 import type {
   HandoffParams,
@@ -68,8 +67,9 @@ export type AuditTarget =
   /** wave (T26 · the wave-unitary model): the frontier's open wave — the whole ready
    *  batch is ONE dispatch unit (one brief · one child · one commit · one round). */
   | { kind: "wave"; tasks: readonly number[] }
-  /** branch: the branch diff range (8-char short shas — the {base8}/{head8} tokens). */
-  | { kind: "branch"; base: string; head: string }
+  /** branch: the branch line itself (no commit identity — the review's scope anchor
+   *  rides the engine-injected BASE_BRANCH, never a stored range). */
+  | { kind: "branch" }
   /** spec/plan: the audit document path. */
   | { kind: "doc"; doc: string };
 
@@ -86,8 +86,8 @@ export interface OpenFrame {
   target: AuditTarget;
   /** The handoff params the round writes under. */
   params: HandoffParams;
-  /** The progress ledger key the round records under (a wave key string / a range
-   *  key / a doc path). */
+  /** The progress ledger key the round records under (a wave key string / a
+   *  line-type constant — branch · spec · plan). */
   key: LedgerKey;
 }
 
@@ -98,8 +98,6 @@ export interface DispatchOutcome {
   /** The round's findings (review: this round's own; fix: the source review's
    *  input findings, C5-1). */
   findings?: readonly RoundFinding[];
-  /** The commit range the round concluded (implement/fix). */
-  commits?: { base: string; head?: string };
   /** The artifact paths the round produced (brief/report/…). */
   artifacts?: Record<string, string>;
   /** The materialized final carrier (the production dispatch's read-back
@@ -176,7 +174,7 @@ export class Lifecycle {
   readonly #router: NextStepRouter;
   /** The dispatch instruction — the round's actual work, injected. */
   readonly #dispatch: DispatchStep;
-  /** The fixed audit target of a branch-range / doc-path face (the task face
+  /** The fixed audit target of a branch-tree / doc-path face (the task face
    *  resolves it from the frontier). */
   readonly #target: AuditTarget | null;
   /** The attached capsule face — null = the step advances output-less. */
@@ -194,7 +192,7 @@ export class Lifecycle {
     ledger: Ledger;
     dispatch: DispatchStep;
     router?: NextStepRouter;
-    /** The fixed audit target for a branch-range / doc-path face. */
+    /** The fixed audit target for a branch-tree / doc-path face. */
     target?: AuditTarget;
     /** The capsule face to attach at construction (optional — the seam is non-hard). */
     capsule?: CapsuleFace | null;
@@ -309,25 +307,14 @@ export class Lifecycle {
     };
   }
 
-  /** The next phase of one wave line — driven by the ledger progress + the C5 route
-   *  of the latest recorded round (implement → review → fix → re-review → closure).
-   *  A wave's line advances as ONE train (the wave row carries the rounds); null
-   *  when the line is closed (its latest round's route is done / next-wave /
-   *  soft-cap — the soft cap defers to the user). */
+  /** The next phase of one wave line — the SAME single derivation the wave gate reads
+   *  (`Ledger#waveLinePhase` · D26: one fact, one place). The lifecycle's frame
+   *  frontier and the three-verb WaveGate must agree on the open wave's phase, or a
+   *  drift-reopened wave deadlocks (the gate accepts `review` while the frontier
+   *  demands `fix`). Null when the line is closed (its latest round's C5 route is
+   *  done / next-wave / soft-cap — the soft cap defers to the user). */
   #nextWavePhase(key: string): DispatchPhase | null {
-    const implemented = this.#ledger.roundCount(key, "implement");
-    const reviews = this.#ledger.roundCount(key, "review");
-    const fixes = this.#ledger.roundCount(key, "fix");
-    if (implemented === 0) return "implement";
-    if (reviews === 0) return "review";
-    if (fixes < reviews) return "fix";
-    // The round pair (review r + fix r) is complete — the fix round's C5 route
-    // decides the re-review or the closure (an unreadable round holds the line:
-    // only present facts land).
-    const carried = this.#ledger.round("fix", "wave", { tasks: key }, reviews);
-    if (carried === null) return null;
-    const route = this.#router.next(this.#state, carried);
-    return route?.kind === "review" ? "review" : null;
+    return this.#ledger.waveLinePhase(key);
   }
 
   /** The branch/spec/plan line's next open frame — the fixed audit target's round
@@ -376,9 +363,11 @@ export class Lifecycle {
       // (a completed-fix line reopens review through the fix round's route).
     }
     const reviews = this.#ledger.roundCount(key, reviewLead);
-    const fixes = this.#ledger.roundCount(key, "fix");
     if (reviews === 0) return reviewLead;
-    if (fixes < reviews) {
+    // The latest review cycle (= the count: review cycles are contiguous). Pending fix
+    // is the latest review's IDENTITY membership in the fix cycle set (D28) — a count
+    // comparison would flatten a skipped cycle into a phantom pending fix.
+    if (!this.#ledger.roundRecorded(key, "fix", reviews)) {
       const route = this.#roundRoute(target, reviews);
       if (route?.kind === "fix") return "fix";
     } else {
@@ -434,13 +423,15 @@ export class Lifecycle {
     return this.#ledger.roundCount(key, this.#face.product.reviewLead);
   }
 
-  /** The progress key of a single-target line — the branch line's STABLE key (find
-   *  #9 · spec §6.5 — `"branch"` per workspace, accumulating across re-reviews; old form
-   *  = the range short, head moving every fix → new key → round reset to 1) or
-   *  the doc path (the task face never routes here — frames key by the wave key). */
+  /** The progress key of a single-target line — the line's STABLE key (find #9 ·
+   *  spec §6.5/§3.7 — `"branch"` per workspace for the branch line, accumulating
+   *  across re-reviews; the doc line keys by its line-type constant `"spec"`/`"plan"`
+   *  — the argv path copy never resets the round: a moved argv string (absolute vs
+   *  relative) must not fork the same line into two ledger rows). The task face
+   *  never routes here — frames key by the wave key. */
   #lineKey(target: AuditTarget): LedgerKey {
-    if (target.kind === "branch") return "branch";
-    return (target as { kind: "doc"; doc: string }).doc;
+    if (target.kind === "doc") return this.#face.type;
+    return "branch";
   }
 
   // -------------------------------------------------------------------------
@@ -463,11 +454,8 @@ export class Lifecycle {
         if (frame.phase !== "implement") params.round = frame.round;
         return params;
       }
-      case "branch": {
-        const { base, head } = frame.target as { kind: "branch"; base: string; head: string };
-        const ref = new BranchRef(base, head);
-        return { base8: ref.base8, head8: ref.head8, round: frame.round };
-      }
+      case "branch":
+        return { round: frame.round };
       case "spec":
       case "plan":
         return { round: frame.round };
@@ -501,41 +489,47 @@ export class Lifecycle {
       // key, empty on a conclusion-only round (a fix advances no new findings); a
       // work-face round builds the findings-free work carrier — zero findings
       // injection. The review finding-severity route reads the round carrier's
-      // findings; the engine-authority conclusion (status) rides the caller's set below
-      // regardless of face (the round conclusion is the engine's, not the skeleton's).
+      // findings; the conclusion rides only the work face's declared status (the
+      // findings face derives its conclusion at judgment time).
       const face = this.#ledger.handoffFaceOf(op, frame.type);
       const carrier: Record<string, unknown> =
         outcome.carrier ??
         (face === "findings"
           ? this.#ledger.buildHandoff("findings", {
               findings: [...(outcome.findings ?? [])],
-              commits: outcome.commits,
               artifacts: outcome.artifacts,
             })
           : this.#ledger.buildHandoff("work", {
-              commits: outcome.commits,
               artifacts: outcome.artifacts,
             }));
-      if (carrier.status === undefined && outcome.status !== undefined)
+      // The work face ALONE persists the conclusion (the child's declared status); the
+      // findings carrier holds no status — its conclusion derives at judgment time
+      // (`HandoffSchema.conclusionOf` → rollup(findings)), never a stored field (D27).
+      if (face === "work" && carrier.status === undefined && outcome.status !== undefined)
         carrier.status = outcome.status;
       this.#ledger.persistHandoff(op, frame.type, frame.params, carrier);
     }
     if (!blocked) {
-      const count = this.#ledger.recordRound(frame.key, frame.phase);
-      // The completed-review revision write-back — the ONE revision-hash gate the
-      // doc line and the wave line share (T7 doc · T11 wave / D16): a completed
-      // review binds the CURRENT revision of the reviewed input — read at bookkeep,
-      // the clean-tree dispatch gate keeps the read-only review's input stable
-      // across the round. For a doc line that input is the target doc; for a wave
-      // line it is the plan the review judged (the lifecycle's own #planPath — the
-      // single existing source, zero new path fields; the wave gate derives the
-      // plan path FROM this record, so cli.ts/preflight.ts stay untouched). An
-      // unreadable input records nothing (present facts only); a null plan path
-      // (no plan fact) leaves a legacy wave row — null stays backward compatible.
+      // The recorded CYCLE is the frame's own round — its identity (fix-K ⟷ review-K ·
+      // D28): a skipped cycle records its own number, never a flattened ordinal.
+      const count = this.#ledger.recordRound(frame.key, frame.phase, frame.round);
+      // The completed-review revision write-back — the doc line and the wave line
+      // each bind their OWN reviewed revision (T7 doc · T11 wave / D16 / D30): a
+      // completed review binds the CURRENT revision of the reviewed input — read at
+      // bookkeep, the clean-tree dispatch gate keeps the read-only review's input
+      // stable across the round. For a doc line that input is the target doc (the
+      // whole-content doc-revision). For a wave line it is the RENDERED BRIEF —
+      // `#recordReviewedWaveBrief` → `recordReviewedBrief(String(frame.key),
+      // #planPath)` hashes the brief the plan renders to, holding #planPath only as
+      // the plan the brief renders FROM (the render-from POINTER, not the hashed
+      // identity; the wave gate derives the plan path FROM this record, so
+      // cli.ts/preflight.ts stay untouched). The two legs do NOT share one gate —
+      // each ref kind carries its own reviewed identity. An unreadable input records
+      // nothing (present facts only); a null plan path (no plan fact) leaves a legacy
+      // wave row — null stays backward compatible.
       if (frame.phase === "review") {
         if (frame.target.kind === "doc") this.#recordReviewedDocRevision(frame);
-        else if (frame.target.kind === "wave")
-          this.#recordReviewedDocRevision(frame, this.#planPath);
+        else if (frame.target.kind === "wave") this.#recordReviewedWaveBrief(frame);
       }
       return count;
     }
@@ -543,23 +537,31 @@ export class Lifecycle {
   }
 
   /** The reviewed-revision write-back — bind the reviewed input's revision to the
-   *  line record (the T7 doc + T11 wave identity gates' reopen-compare basis). The
-   *  doc face reads its target doc; the wave face passes the plan path explicitly
-   *  (`#planPath` — null on a plan-less lifecycle). An unreadable input records
-   *  nothing — the line keeps the legacy closed face (only present facts land,
-   *  never an invented identity). */
-  #recordReviewedDocRevision(frame: OpenFrame, docOverride?: string | null): void {
-    const doc = docOverride ?? (frame.target.kind === "doc" ? frame.target.doc : null);
-    if (doc === null) return;
+   *  line record (the T7 doc + D30 wave identity gates' reopen-compare basis). The
+   *  doc face binds its target doc's whole-content revision; the wave face binds its
+   *  RENDERED BRIEF's revision (D30 — the wave's true judgment input is the brief,
+   *  never the whole plan: transcript edits outside the wave's task sections must not
+   *  void a reviewed wave). An unreadable input records nothing — the line keeps the
+   *  legacy closed face (only present facts land, never an invented identity). */
+  #recordReviewedDocRevision(frame: OpenFrame): void {
+    if (frame.target.kind !== "doc") return;
     try {
-      const content = readFileSync(doc, "utf8");
-      this.#ledger.recordReviewedDocRevision(
+      const content = readFileSync(frame.target.doc, "utf8");
+      this.#ledger.recordReviewedRevision(
         frame.key,
-        this.#ledger.refs().docRevision(doc, content),
+        this.#ledger.refs().docRevision(frame.target.doc, content),
       );
     } catch {
       // unreadable input — no reviewed identity recorded (present facts only)
     }
+  }
+
+  /** The wave line's reviewed-brief write-back (D30) — bind the RENDERED brief's
+   *  revision for the wave's tasks to the row (the D30 wave-gate reopen basis). Null
+   *  plan path / underivable brief records nothing (present facts only). */
+  #recordReviewedWaveBrief(frame: OpenFrame): void {
+    if (frame.target.kind !== "wave" || this.#planPath === null) return;
+    this.#ledger.recordReviewedBrief(String(frame.key), this.#planPath);
   }
 
   /** Mark the wave done when the concluding route says its line closed — the C5
@@ -629,7 +631,7 @@ export class Lifecycle {
   }
 
   /** The frame's RouteTarget — the dispatch-ready literal's target identity (the
-   *  frame's own facts: the wave task key · the branch range token · the doc path).
+   *  frame's own facts: the wave task key · the branch line key · the doc path).
    *  `type` rides the wave target type; `id` the frame's parameters; `plan` the
    *  workspace plan path (the implement literal's required `--plan`). */
   #routeTarget(frame: OpenFrame): RouteTarget | null {
@@ -637,13 +639,13 @@ export class Lifecycle {
       case "wave":
         return { type: "wave", id: frame.params.tasks ?? "", plan: this.#planPath ?? undefined };
       case "branch":
-        // find #8 F1b (spec §5.7 fix ②): the branch target carries the workspace
-        // plan path — the fix/re-review literals' `--plan` (a plan-less
-        // `#sceneOf` resolves to the empty ref.short() directory · the workspace
-        // double identity · zero orchestrator fallback).
+        // The branch line's stable id — the workspace plan path carries the
+        // fix/re-review literals' `--plan` (a plan-less `#sceneOf` would resolve
+        // to the empty directory · the workspace double identity · zero
+        // orchestrator fallback).
         return {
           type: "branch",
-          id: `${frame.params.base8}..${frame.params.head8}`,
+          id: "branch",
           plan: this.#planPath ?? undefined,
         };
       case "spec":

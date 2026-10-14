@@ -3,7 +3,7 @@
 // decision table:
 //   · review zero findings → close(state) — readyBatch empty → done, else next-wave;
 //   · review findings non-empty (any severity) → the one-way fix hop;
-//   · fix blocker>0 → re-review at a new ref (base = the fix round's head);
+//   · fix blocker>0 → a re-review hop (the live tree, no commit identity);
 //   · fix blocker==0 (warn/nit only or clean) → close(state) — the unified closure, never
 //     the retired `none`;
 //   · the review-cycle soft cap → the "BLOCKED: review-cycle-cap" suggestion (outranks the
@@ -11,7 +11,7 @@
 //   · the fix-route readback suffix — FIX_READBACK_SUFFIX — the declared single-source
 //     wording the capsule appends to the fix hop's `next:` render (verbatim, by reference);
 //   · BLOCKED/TIMEOUT → null (no next line — the failure face), every phase;
-//   · implement → the group's review (base = the task base); branch-review → closure / fix;
+//   · implement → the group's review (the live tree); branch-review → closure / fix;
 //   · the `none` route kind is RETIRED (closure renders done / next-wave), and a
 //     completed non-failed round producing null is a hard error on the dispatch face.
 // The type assertions at the bottom pin the public surface compile-time (the brief's
@@ -89,17 +89,10 @@ describe("review rounds — zero findings flows the next wave on or closes the r
 });
 
 describe("fix rounds — the re-review / closure decision point (C5-1, close())", () => {
-  it("input blockers remain → re-review the fix's delta (base = the fix's base, head = the fix's head)", () => {
+  it("input blockers remain → a re-review hop (the live tree, no commit identity)", () => {
     expect(
-      router.next(
-        state([]),
-        round({
-          phase: "fix",
-          findings: [finding("blocker", "remaining")],
-          commits: { base: "a".repeat(8), head: "b".repeat(8) },
-        }),
-      ),
-    ).toEqual({ kind: "review", base: "a".repeat(8), head: "b".repeat(8) });
+      router.next(state([]), round({ phase: "fix", findings: [finding("blocker", "remaining")] })),
+    ).toEqual({ kind: "review" });
   });
 
   it("warn/nit only → done (closure via close() — the #278 REVIEW_FIX state, no re-review preview)", () => {
@@ -132,53 +125,19 @@ describe("fix rounds — the re-review / closure decision point (C5-1, close())"
     ).toEqual({ kind: "soft-cap", message: SOFT_CAP_SUGGESTION });
   });
 
-  it("below the cap, blockers still route the re-review (the fix's delta span)", () => {
+  it("below the cap, blockers still route the re-review", () => {
     expect(
       router.next(
         state([]),
-        round({
-          phase: "fix",
-          findings: [finding("blocker")],
-          consecutiveS1: 2,
-          commits: { base: "a".repeat(8), head: "b".repeat(8) },
-        }),
+        round({ phase: "fix", findings: [finding("blocker")], consecutiveS1: 2 }),
       )!.kind,
     ).toBe("review");
-  });
-
-  it("a fix round with blockers but no base/head commits degrades to null — no invented re-review range", () => {
-    expect(
-      router.next(state([]), round({ phase: "fix", findings: [finding("blocker")] })),
-    ).toBeNull();
-    // a base-only fix carrier (the abnormal shape — the re-review needs the FULL span:
-    // the branch literal refuses a half-composed --base-only range) also declines
-    expect(
-      router.next(
-        state([]),
-        round({ phase: "fix", findings: [finding("blocker")], commits: { base: "a".repeat(8) } }),
-      ),
-    ).toBeNull();
   });
 });
 
 describe("implement / branch-review — the lifecycle rows", () => {
-  it("implement completes → the group's review (the reviewed range base..head from the round)", () => {
-    expect(
-      router.next(
-        state([]),
-        round({ phase: "implement", commits: { base: "a".repeat(8), head: "b".repeat(8) } }),
-      ),
-    ).toEqual({ kind: "review", base: "a".repeat(8), head: "b".repeat(8) });
-  });
-
-  it("an implement round carrying only the base still routes the review (the head rides when present)", () => {
-    expect(
-      router.next(state([]), round({ phase: "implement", commits: { base: "a".repeat(8) } })),
-    ).toEqual({ kind: "review", base: "a".repeat(8) });
-  });
-
-  it("an implement round without commits degrades to null — no invented next hop for a missing base", () => {
-    expect(router.next(state([]), round({ phase: "implement" }))).toBeNull();
+  it("implement completes → the group's review (the live tree)", () => {
+    expect(router.next(state([]), round({ phase: "implement" }))).toEqual({ kind: "review" });
   });
 
   it("branch-review zero findings → done (close()); findings → the fix hop", () => {
@@ -214,14 +173,14 @@ describe("the pinned surface — Route/soft-cap constants (the brief's type-chec
 
   it("the fix-route readback suffix is the declared single-source wording", () => {
     expect(FIX_READBACK_SUFFIX).toBe(
-      "(confirm the findings · backfill user adjudications into the carrier)",
+      "(confirm the findings · annotate the carrier with the adjudications)",
     );
   });
 
   it("the readback suffix keeps its literal type at compile time", () => {
     // Compile-time pin — fails under `tsc --noEmit` if the constant's declared type
     // drifts from the render the capsule appends verbatim (exact suffix wording).
-    const suffix: "(confirm the findings · backfill user adjudications into the carrier)" =
+    const suffix: "(confirm the findings · annotate the carrier with the adjudications)" =
       FIX_READBACK_SUFFIX;
     expect(suffix).toBe(FIX_READBACK_SUFFIX);
   });
@@ -279,8 +238,6 @@ describe("the severity-combination space — every blocker/warn/nit MIX rides th
     ["blocker", "nit"],
     ["blocker", "warn", "nit"],
   ];
-  const HEAD = "b".repeat(8);
-  const FIX_DELTA = { base: "a".repeat(8), head: HEAD } as const;
 
   it.each(MIXES.map((mix) => [mix]))(
     "review findings %j — any mix routes fix (or close when empty)",
@@ -302,9 +259,9 @@ describe("the severity-combination space — every blocker/warn/nit MIX rides th
     "fix findings %j — blocker-any mix re-reviews; warn/nit-only closes",
     (mix) => {
       const findings = mix.map((severity) => finding(severity));
-      const fix = round({ phase: "fix", findings, commits: FIX_DELTA });
+      const fix = round({ phase: "fix", findings });
       if (mix.includes("blocker")) {
-        expect(router.next(state([3]), fix)).toEqual({ kind: "review", ...FIX_DELTA });
+        expect(router.next(state([3]), fix)).toEqual({ kind: "review" });
       } else {
         expect(router.next(state([3]), fix)).toEqual({ kind: "next-wave", tasks: "3" });
         expect(router.next(state([]), fix)).toEqual({ kind: "done" });
@@ -347,7 +304,7 @@ describe("P4.1 T4 — the router's routes render parseable next literals (zero-e
 
   it.each([
     ["implement wave", { kind: "next-wave", tasks: "1,2" } as Route],
-    ["re-review", { kind: "review", base: "b".repeat(8) } as Route],
+    ["re-review", { kind: "review" } as Route],
     ["the one-way fix hop", { kind: "fix", findings: "tasks-1-review-1.json" } as Route],
     ["closure", { kind: "done" } as Route],
   ] as const)("%s — the route's literal argv parses", (_label, route) => {

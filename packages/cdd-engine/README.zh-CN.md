@@ -35,7 +35,7 @@ npm install @oscaner-skills/cdd-engine
 | `schema` | `cdd schema get <type>` | 打印 canonical 文档结构 schema（发现型、零执法） |
 | `issue` | `cdd issue render` | 依据 stdin 发现渲染聚合 issue 正文（纯渲染、零执法） |
 
-用 `cdd <command> --help` 查看某命令的完整选项列表（例如 `cdd review --tasks` / `--base` / `--head` / `--spec` / `--round`）。
+用 `cdd <command> --help` 查看某命令的完整选项列表（例如 `cdd review --tasks` / `--spec` / `--plan` / `--round`）。
 
 ## 开发说明
 

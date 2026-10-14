@@ -65,7 +65,6 @@ describe("the word table — one table, three families", () => {
   it("the capsule carries zero second table — every emitted word rides this instance", () => {
     const emitted = capsule.emit("APPROVED", "0", "/ws/tasks-1-implement.json", {
       kind: "review",
-      base: "a".repeat(8),
     });
     // the emitted keys ARE the table's keys, in the table's order — no parallel list
     const keysOf = emitted[0]
@@ -89,7 +88,6 @@ describe("the capsule byte pin — the single output face", () => {
   });
 
   it("renders the `next:` line per the C5 route row (each kind, only present facts)", () => {
-    const base = "a".repeat(8);
     expect(capsule.emit("APPROVED", "0", "/h.json", { kind: "done" })).toEqual([
       "status: APPROVED · blocker: 0 · handoff: /h.json",
       "next: done",
@@ -100,7 +98,7 @@ describe("the capsule byte pin — the single output face", () => {
       // `<plan>` placeholder (the crash-resume's own seed convention)
       "next: implement --plan <plan> --tasks 7,9",
     ]);
-    expect(capsule.emit("REVIEW_FIX", "0", "/h.json", { kind: "review", base })).toEqual([
+    expect(capsule.emit("REVIEW_FIX", "0", "/h.json", { kind: "review" })).toEqual([
       "status: REVIEW_FIX · blocker: 0 · handoff: /h.json",
       // the bare review fallback (no target — the type discriminator is absent)
       "next: review",
@@ -132,12 +130,11 @@ describe("the capsule byte pin — the single output face", () => {
   });
 
   it("renders the complete executable `next:` literal with the frame's RouteTarget (P4.1 T4)", () => {
-    const base = "a".repeat(8);
     const target = { type: "wave", id: "1,2", plan: "docs/kairos/plans/p.md" } as const;
     // a re-review of a wave — `review --type wave --tasks {tasks} --plan <path>`
-    // (no base — the wave round's ref rides the ledger; parse needs type + tasks,
-    // the runtime-required --plan rides the frame's plan fact — find #7)
-    expect(capsule.emit("REVIEW_FIX", "0", "/h.json", { kind: "review", base }, target)).toEqual([
+    // (the review carries no commit ref; parse needs type + tasks, the
+    // runtime-required --plan rides the frame's plan fact — find #7)
+    expect(capsule.emit("REVIEW_FIX", "0", "/h.json", { kind: "review" }, target)).toEqual([
       "status: REVIEW_FIX · blocker: 0 · handoff: /h.json",
       "next: review --type wave --tasks 1,2 --plan docs/kairos/plans/p.md",
     ]);
@@ -154,27 +151,27 @@ describe("the capsule byte pin — the single output face", () => {
       "status: CHANGES_REQUESTED · blocker: 1 · handoff: /h.json",
       `next: fix --type wave --tasks 1,2 --plan docs/kairos/plans/p.md --findings tasks-1,2-review-1.json ${FIX_READBACK_SUFFIX}`,
     ]);
-    // the other target types render their discriminator arg — branch (the FULL range:
-    // --base + --head + the workspace --plan — the runtime gate refuses a --base-only
-    // literal, find #8/#9 · the 8-char short shas, find #10 · spec §6.6)
+    // the other target types render their discriminator arg — branch (the
+    // workspace --plan only — the review judges the live tree, no range rides the
+    // command · the scope anchor BASE_BRANCH is engine-injected at dispatch)
     expect(
       capsule.emit(
         "REVIEW_FIX",
         "0",
         "/h.json",
-        { kind: "review", base, head: "b".repeat(8) },
-        { type: "branch", id: "12345678..89abcdef9", plan: "docs/kairos/plans/p.md" },
+        { kind: "review" },
+        { type: "branch", id: "branch", plan: "docs/kairos/plans/p.md" },
       ),
     ).toEqual([
       "status: REVIEW_FIX · blocker: 0 · handoff: /h.json",
-      `next: review --type branch --plan docs/kairos/plans/p.md --base ${base.slice(0, 8)} --head ${"b".repeat(8)}`,
+      "next: review --type branch --plan docs/kairos/plans/p.md",
     ]);
     expect(
       capsule.emit(
         "REVIEW_FIX",
         "0",
         "/h.json",
-        { kind: "review", base },
+        { kind: "review" },
         { type: "spec", id: "docs/kairos/specs/x-design.md" },
       ),
     ).toEqual([

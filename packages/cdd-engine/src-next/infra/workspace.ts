@@ -6,11 +6,20 @@
 //     handoffNamespace.workspaceRoot and is never a hard-coded literal).
 //   Workspace     — one dispatch workspace (`<base>/<slug>/`): ensure() mkdirs the
 //     slug dir, readJson/writeJson are the JSON read/write pair (mkdir before
-//     write), resolve() is the child-path single fact, slugFromDoc is the doc-file
-//     → slug derivation (`-design`/`-plan` suffix strip).
+//     write; readJson is tri-state — ok / missing / malformed), resolve() is the
+//     child-path single fact, slugFromDoc is the doc-file → slug derivation
+//     (`-design`/`-plan` suffix strip).
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+
+/** The tri-state JSON read — the read's three DISTINCT outcomes, discriminated: a
+ *  `missing` file (never written) and a `malformed` file (present but unparseable)
+ *  are different facts, so a read-back reconstruct reports each truly — a corrupt
+ *  draft is never misreported as "not written" (D27 · single-fact honesty). The
+ *  other-IO-error case (EACCES, EISDIR …) is a present-but-unreadable file and rides
+ *  the `malformed` side: it is never silently "missing". */
+export type JsonRead<T> = { kind: "ok"; value: T } | { kind: "missing" } | { kind: "malformed" };
 
 /** The repo-scoped workspace base — `<repoRoot>/<workspaceRoot>`. */
 export class WorkspaceRoot {
@@ -76,12 +85,24 @@ export class Workspace {
     return path.join(this.path, name);
   }
 
-  /** Read a JSON child — null when unreadable (missing or malformed). */
-  readJson<T>(name: string): T | null {
+  /** Read a JSON child — the tri-state face: `{kind:"ok",value}` on a present,
+   *  parseable file; `{kind:"missing"}` when the path does not exist; `{kind:
+   *  "malformed"}` when the file is present but its bytes are unparseable (a bad
+   *  JSON draft) OR unreadable for any other I/O reason (a present-but-broken file is
+   *  never silently "missing" — the reconstruct reports the true cause). */
+  readJson<T>(name: string): JsonRead<T> {
+    const target = this.resolve(name);
+    let text: string;
     try {
-      return JSON.parse(readFileSync(this.resolve(name), "utf8")) as T;
+      text = readFileSync(target, "utf8");
+    } catch (raw) {
+      const code = (raw as { code?: unknown }).code;
+      return code === "ENOENT" ? { kind: "missing" } : { kind: "malformed" };
+    }
+    try {
+      return { kind: "ok", value: JSON.parse(text) as T };
     } catch {
-      return null;
+      return { kind: "malformed" };
     }
   }
 

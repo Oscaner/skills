@@ -97,3 +97,32 @@ test("grep sweep: subagent-driven-development in non-vendor/non-maintainer code 
   const count = parseInt(execSync(cmd, { cwd: REPO, encoding: "utf8" }).trim(), 10);
   expect(count, `subagent-driven-development has ${count} non-vendor/non-maintainer hits`).toBe(0);
 });
+
+// P7 §8.4 — the consumer-face lexicon sweep. The engine retired the commit-sha scope
+// vocabulary (WAVE_BASE / FIX_BASE / INPUT_RANGE / INPUT_PLAN / OUTPUT_BRIEF) and the
+// branch review's `--head` flag; the consumer prose that ships to harness users (the
+// kairos skills + the README family, both languages) must carry zero residual. The
+// engine's own source face is pinned separately in its suite (cli.test.ts); this sweep
+// owns the shipped-prose surface, whose ownership is the kairos plane (the consumer
+// story lives here). The frozen history under docs/kairos/{specs,plans} is exempt (the
+// historical design/plan records legitimately name the retired forms) — those paths are
+// outside this scan set by construction.
+test("grep sweep: the retired consumer-face lexicon in shipped prose → 0 hits", () => {
+  // The consumer-prose scan set — the kairos skills + the README family (root + the two
+  // packages, EN + zh), where a consumer reads the CLI contract. `--head` is pinned as
+  // the retired branch-review flag; `--base` alone stays legal (base set --base <branch>).
+  const surfaces = [
+    "packages/kairos/skills/",
+    "packages/kairos/README.md",
+    "packages/kairos/README.zh-CN.md",
+    "packages/cdd-engine/README.md",
+    "packages/cdd-engine/README.zh-CN.md",
+    "README.md",
+    "README.zh-CN.md",
+  ].join(" ");
+  const cmd = `grep -rn -e "WAVE_BASE" -e "FIX_BASE" -e "INPUT_RANGE" -e "INPUT_PLAN" -e "OUTPUT_BRIEF" -e "\\-\\-head" ${surfaces} --include="*.md" 2>/dev/null | grep -v "/CHANGELOG.md" | wc -l`;
+  const count = parseInt(execSync(cmd, { cwd: REPO, encoding: "utf8" }).trim(), 10);
+  expect(count, `retired consumer-face lexicon has ${count} shipped-prose hits — expected 0`).toBe(
+    0,
+  );
+});

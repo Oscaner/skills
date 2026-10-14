@@ -30,7 +30,6 @@
 // the capsule plugs into the lifecycle's attachCapsule contact, byte-identically.
 // Module-level exports are the class — zero behavior-carrying bare functions.
 
-import { BranchRef } from "../session/branch-ref.ts";
 import type { RouteTarget } from "../session/faces.ts";
 import { FIX_READBACK_SUFFIX, type Route } from "../session/next.ts";
 import type { CapsuleKey, Words } from "./words.ts";
@@ -108,7 +107,7 @@ export class Capsule {
   /** The route → `next:` text render — one complete executable command per C5 route
    *  row (P4.1 T4): `implement --plan <path> --tasks 17` for a ready wave ·
    *  `review --type <wave|spec|plan|branch> <type-arg>` for a review hop ·
-   *  `fix --type <type> <type-arg> --findings <path> (confirm the findings · backfill user adjudications into the carrier)`
+   *  `fix --type <type> <type-arg> --findings <path> (confirm the findings · annotate the carrier with the adjudications)`
    *  for the one-way fix hop · `done` as the bare terminal word · the soft-cap
    *  message verbatim. `--type` renders only where the verb's type discriminates —
    *  implement (the single-type wave verb) never carries it (the declaration's
@@ -139,18 +138,10 @@ export class Capsule {
           return `${verb} ${this.#flag("type")} plan ${this.#flag("plan")} ${target!.id}`;
         }
         if (type === "branch") {
-          // find #8 (P4.1 T7): the branch re-review literal MUST carry the full range + the
-          // --plan workspace identity — the runtime missing-refs gate refuses a --base-only
-          // literal (`missing required --base <sha> --head <sha>`), and a plan-less re-review
-          // resolves to the ref.short() workspace (the find #8 F1b double identity: plan-slug
-          // ledger vs ref-short lookup — `#sceneOf` picks `slugFromDoc(planPath)` when
-          // `--plan` is present, else `ref.short()`). A head-less route refuses the
-          // half-composed literal (the bare classifier fallback — only present facts land).
-          // find #10 — the range renders in the engine's 8-char short form (long shas
-          // retired) through the ONE BranchRef decision — zero bare slicing.
-          if (route.head === undefined) return verb;
-          const ref = new BranchRef(route.base, route.head);
-          return `${verb} ${this.#flag("type")} branch ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("base")} ${ref.base8} ${this.#flag("head")} ${ref.head8}`;
+          // The branch re-review literal carries only the workspace-identity `--plan`
+          // — the review judges the live tree, so no range rides the command (the
+          // scope anchor BASE_BRANCH is engine-injected at dispatch).
+          return `${verb} ${this.#flag("type")} branch ${this.#flag("plan")} ${this.#planOf(target)}`;
         }
         return verb;
       }

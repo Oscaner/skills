@@ -194,7 +194,7 @@ export abstract class Invariant extends MarkdownPrimitives {
    *  the region between its FIRST and LAST backtick (inclusive) — ONE contiguous
    *  quoted fragment, the shape the doc prose actually uses: a simple `` `span` ``
    *  and a quoted command fragment with a NESTED citation (`` `read X + the plan's
-   *  \`## Constraints\` (at INPUT_PLAN)` ``) both read as one quoted region (the
+   *  \`## Constraints\` (by the wave brief mirror)` ``) both read as one quoted region (the
    *  find-#8 gap: the old span-by-span strip left a nested citation naked after its
    *  opener got consumed by the outer span, judging quoted prose as a value). The
    *  tradeoff is pinned: a line carrying TWO separate backtick spans (`` `x` … `y` ``)

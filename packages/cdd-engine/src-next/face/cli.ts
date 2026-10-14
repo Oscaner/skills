@@ -57,7 +57,6 @@ import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import { IssueBodyRenderer } from "../render/issue-body.ts";
 import { TemplateAssembler } from "../render/templates.ts";
-import { BranchRef } from "../session/branch-ref.ts";
 import type { TargetFace, TargetType } from "../session/faces.ts";
 import { targetFaces } from "../session/faces.ts";
 import { TaskGraph } from "../session/graph.ts";
@@ -128,7 +127,7 @@ export interface WorkScene extends DispatchScene {
   planText: string | null;
   type: TargetType;
   face: TargetFace;
-  target: { kind: "branch"; base: string; head: string } | { kind: "doc"; doc: string } | null;
+  target: { kind: "branch" } | { kind: "doc"; doc: string } | null;
   state: RunState;
   router: NextStepRouter;
 }
@@ -412,7 +411,11 @@ export class Cli {
       return 1;
     }
 
-    if (verb === "implement" && scene.planText !== null)
+    // The unconditional extract (§4.1): every wave-face dispatch re-renders the
+    // brief from the CURRENT plan text — implement, review and fix alike (a
+    // mid-run plan amendment reflects into the next dispatch; no "exists → leave
+    // it" reuse). The doc/branch faces carry no wave brief (planText is null there).
+    if (type === "wave" && scene.planText !== null)
       scene.briefPath = this.#gate.renderBrief(scene, parsed);
     const expected =
       verb === "implement" ? "implement" : verb === "fix" ? "fix" : scene.face.product.reviewLead;
@@ -458,13 +461,6 @@ export class Cli {
       dispatch: (frame) => {
         const outcome = dispatch(frame);
         statuses.push(outcome.status ?? null);
-        if (
-          scene.briefPath !== null &&
-          outcome.artifacts !== undefined &&
-          outcome.artifacts.brief === undefined
-        ) {
-          outcome.artifacts.brief = scene.briefPath;
-        }
         return outcome;
       },
       target: scene.target ?? undefined,
@@ -562,14 +558,7 @@ export class Cli {
   #dispatchOf(scene: WorkScene, parsed: RunInput): DispatchStep {
     if (this.#dispatch !== null) return this.#dispatch;
     if (parsed.dryRun || this.#dryRun) {
-      const head = scene.head;
-      return (frame) => {
-        const isWork = frame.phase === "implement" || frame.phase === "fix";
-        if (!isWork) return { status: "APPROVED", findings: [] };
-        return head === null
-          ? { status: "APPROVED" }
-          : { status: "APPROVED", commits: { base: head, head } };
-      };
+      return () => ({ status: "APPROVED", findings: [] });
     }
     const harness = new CliLifecycle({
       env: process.env,
@@ -583,11 +572,21 @@ export class Cli {
         ledger: scene.ledger,
         planPath: scene.planPath,
         briefPath: scene.briefPath,
-        head: scene.head,
+        baseBranch: this.#baseBranchOf(scene),
       },
       findings: parsed.args.findings ?? null,
     });
     return harness.step();
+  }
+
+  /** The branch scope anchor (BASE_BRANCH) — the base artifact's branch name read
+   *  from the line's own workspace (`base.json`, the same `base get` source the CLI
+   *  writes). "" when the artifact is absent or malformed (the slot stays empty and
+   *  the assembler drops it — the wave/branch review then judges the live tree). */
+  #baseBranchOf(scene: WorkScene): string {
+    const read = scene.workspace.readJson<{ base?: unknown }>("base.json");
+    const artifact = read.kind === "ok" ? read.value : null;
+    return typeof artifact?.base === "string" ? artifact.base : "";
   }
 
   /** The phase-mismatch hint — what to run instead. */
@@ -674,26 +673,14 @@ export class Cli {
         break;
       }
       case "branch": {
-        // The branch ref is declared at ONE face — `cdd review --type branch
-        // --base --head` (the range's birth face, 8-char flags). Every other
-        // face derives it from a single carrier: the fix face reads its source
-        // review handoff's `commits` (--findings) — zero extra CLI params (⑦ —
-        // the old engine's fix channel; re-declaring the range on the fix CLI
-        // was a dual identity that also made the face un-invokable).
-        const ref =
-          verb === "fix" && parsed.args.findings !== undefined
-            ? this.#gate.refFromHandoff(parsed.args.findings)
-            : parsed.args.base !== undefined && parsed.args.head !== undefined
-              ? new BranchRef(parsed.args.base, parsed.args.head)
-              : null;
-        if (ref === null) {
-          this.#usage(
-            node,
-            `cdd ${verb} --type branch: missing required --base <sha> --head <sha>`,
-          );
-        }
-        slug = planPath !== null ? Workspace.slugFromDoc(planPath) : ref.short();
-        target = { kind: "branch", base: ref.base, head: ref.head };
+        // The branch line carries no commit identity: the audit target is the
+        // branch itself, its workspace identity is the plan path (a required
+        // fact — the branch review/fix faces carry `--plan`), and the review's
+        // scope anchor (BASE_BRANCH) is engine-injected from the base artifact.
+        if (planPath === null)
+          this.#usage(node, `cdd ${verb} --type branch: missing required --plan <path>`);
+        slug = Workspace.slugFromDoc(planPath);
+        target = { kind: "branch" };
         break;
       }
     }
@@ -715,7 +702,6 @@ export class Cli {
       state,
       router: new NextStepRouter(),
       briefPath: null,
-      head: await this.#git.revParseHead(repoRoot),
     };
   }
 

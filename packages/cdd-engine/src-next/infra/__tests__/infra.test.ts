@@ -149,7 +149,7 @@ describe("config — the typed accessor facade (one no-I/O route per face)", () 
 });
 
 describe("git — the single git seam over a real temp repo", () => {
-  it("walks init → dirty → commit → clean over one repo (fail-open)", async () => {
+  it("walks init → dirty → clean over one repo (fail-open)", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "infra-git-"));
     try {
       const proc = new ProcessRunner();
@@ -158,18 +158,11 @@ describe("git — the single git seam over a real temp repo", () => {
       await proc.run("git", ["config", "user.name", "Tester"], dir);
       const git = new GitClient();
       expect(await git.topLevel(dir)).toBe(realpathSync(dir));
-      expect(await git.revParseHead(dir)).toBeNull(); // no commits — no HEAD
       writeFileSync(path.join(dir, "a.txt"), "a\n");
       expect(await git.isClean(dir)).toBe(false);
-      const head = await git.commit(dir, "feat: initial");
-      // find #10 — revParseHead returns the engine's 8-char short form; the commit
-      // returns the same 8-char short sha (long shas retired engine-wide · spec §6.6)
-      expect(head).toMatch(/^[0-9a-f]{8}$/);
-      expect(await git.revParseHead(dir)).toBe(head);
+      await proc.run("git", ["add", "-A"], dir);
+      await proc.run("git", ["commit", "-m", "feat: initial"], dir);
       expect(await git.isClean(dir)).toBe(true);
-      const log = await git.log(dir);
-      expect(log?.[0]?.hash).toBe(head);
-      expect(log?.[0]?.message).toBe("feat: initial");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -180,10 +173,21 @@ describe("git — the single git seam over a real temp repo", () => {
     try {
       const git = new GitClient();
       expect(await git.topLevel(dir)).toBeNull();
-      expect(await git.revParseHead(dir)).toBeNull();
+      expect(await git.isClean(dir)).toBe(false); // no repo counts dirty
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it("exposes exactly the two judgment seams — topLevel + isClean, the commit seams retired (§2.1)", () => {
+    // The GitClient is the engine's git JUDGMENT adapter: repo-root location
+    // (topLevel) + working-tree cleanliness (isClean). The retired commit seams
+    // (revParseHead / addAll / commit / log) must not survive on the prototype —
+    // the engine checks no commit identity, it judges the live tree.
+    const methods = Object.getOwnPropertyNames(GitClient.prototype).filter(
+      (name) => name !== "constructor",
+    );
+    expect(methods.sort()).toEqual(["isClean", "topLevel"]);
   });
 });
 
@@ -211,9 +215,27 @@ describe("workspace — the root/workspace pair + the slug rule + JSON roundtrip
       const workspace = new Workspace(root, "test-slug");
       expect(workspace.path).toBe(path.join(base, ".kairos", "cdd", "test-slug"));
       workspace.writeJson("probe.json", { a: 1 });
-      expect(workspace.readJson<{ a: number }>("probe.json")).toEqual({ a: 1 });
-      expect(workspace.readJson("missing.json")).toBeNull();
+      expect(workspace.readJson<{ a: number }>("probe.json")).toEqual({
+        kind: "ok",
+        value: { a: 1 },
+      });
+      expect(workspace.readJson("missing.json")).toEqual({ kind: "missing" });
       expect(workspace.resolve("probe.json")).toBe(path.join(workspace.path, "probe.json"));
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
+  });
+
+  it("readJson is tri-state — a present-but-unparseable file reads `malformed`, never `missing` (D27)", () => {
+    const base = mkdtempSync(path.join(tmpdir(), "infra-ws-"));
+    try {
+      const root = new WorkspaceRoot(base, ".kairos/cdd");
+      const workspace = new Workspace(root, "test-slug");
+      workspace.ensure();
+      writeFileSync(path.join(workspace.path, "bad.json"), "{ not json", "utf8");
+      // the true cause is reported: a corrupt file is a distinct fact from an absent one
+      expect(workspace.readJson("bad.json")).toEqual({ kind: "malformed" });
+      expect(workspace.readJson("absent.json")).toEqual({ kind: "missing" });
     } finally {
       rmSync(base, { recursive: true, force: true });
     }

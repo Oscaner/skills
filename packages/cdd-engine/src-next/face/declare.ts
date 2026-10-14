@@ -25,7 +25,7 @@ import { InvalidArgumentError } from "commander";
 import type { DocKey } from "../contract/project.ts";
 
 /** The component-value types of the argv channel (the CLI parse validates by these). */
-export type ChannelValueType = "string" | "path" | "int-list" | "enum" | "sha" | "int" | "bool";
+export type ChannelValueType = "string" | "path" | "int-list" | "enum" | "int" | "bool";
 
 /** One argv-channel row — the flag/type/enum declaration of one CLI key. */
 export interface ChannelArgRow {
@@ -68,8 +68,7 @@ export const ARGV_CHANNEL = {
     values: ["wave", "branch", "spec", "plan"],
     help: "the target face of the round",
   },
-  base: { flag: "--base", type: "sha", help: "the branch range's base commit (8-char sha)" },
-  head: { flag: "--head", type: "sha", help: "the branch range's head commit (8-char sha)" },
+  base: { flag: "--base", type: "string", help: "the base artifact branch name" },
   round: { flag: "--round", type: "int", help: "the review/fix round number" },
   source: {
     flag: "--source",
@@ -104,9 +103,9 @@ export const ARGV_CHANNEL = {
   },
 } as const satisfies Readonly<Record<string, ChannelArgRow>>;
 
-/** The shaped channel subset — the four value-domain-validated channel types
+/** The shaped channel subset — the value-domain-validated channel types
  *  (string/path/bool carry no parser — the unshaped faces register absent). */
-export type ShapedChannelValueType = "enum" | "int-list" | "sha" | "int";
+export type ShapedChannelValueType = "enum" | "int-list" | "int";
 
 /** The value-domain shapes — the parsed raw's check + normalization per shaped
  *  channel type: the parseArg family's single executor source (§4.1). Each rule
@@ -140,14 +139,6 @@ export const VALUE_SHAPES: Readonly<
       return [...new Set(parts.map(Number))].sort((a, b) => a - b).join(",");
     },
   },
-  sha: {
-    parse(raw) {
-      if (!/^[0-9a-f]{8}$/.test(raw)) {
-        throw new InvalidArgumentError("must be an 8-char sha");
-      }
-      return raw;
-    },
-  },
   int: {
     parse(raw) {
       if (!/^\d+$/.test(raw)) {
@@ -166,8 +157,8 @@ export type CliVerb = "implement" | "review" | "fix" | "schema" | "issue" | "bas
 export type CliLeafName = "get" | "set" | "render";
 
 /** A per-command value-type override — a declared key whose value shape differs
- *  from the channel's global typing for that key (base set's `--base` carries
- *  a branch name, never the review range's 8-char sha). */
+ *  from the channel's global typing for that key (base set's `--base` carries a
+ *  branch name — the branch-domain display token/help). */
 export type CliValueOverride = "branch";
 
 /** One declared arg of a command — the key + how strictly the run requires it. */
@@ -219,8 +210,6 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
       { key: "tasks" },
       { key: "plan" },
       { key: "spec" },
-      { key: "base" },
-      { key: "head" },
       { key: "round" },
       { key: "root" },
     ],
@@ -306,11 +295,12 @@ export const SCHEMA_TYPE_KEYS: Readonly<Record<string, DocKey>> = {
 };
 
 /** The conditional required group per work verb + target type — the preAction hook's
- *  data face (spec §4.2): review `{plan}` / `{spec}` / `{base, head}` · fix `{plan}`
- *  / `{spec}` / `{findings}` — the review branch refs ride the range's birth face,
- *  the fix branch face rides the `--findings` carrier. Keyed by declared flag
- *  spelling; non-exclusive — a round declaring both `--plan` and `--spec` stays
- *  accepted (no mutual-exclusion rejection). */
+ *  data face (spec §4.2): review `{plan}` / `{spec}` / `{plan}` · fix `{plan}` /
+ *  `{spec}` / `{findings, plan}` — every branch face carries the `--plan` workspace
+ *  identity (the branch line holds no commit ref: the review judges the live tree,
+ *  the scope anchor BASE_BRANCH is engine-injected at dispatch). Keyed by declared
+ *  flag spelling; non-exclusive — a round declaring both `--plan` and `--spec`
+ *  stays accepted (no mutual-exclusion rejection). */
 export const REQUIRED_GROUPS: Readonly<
   Record<"review" | "fix", Readonly<Record<string, readonly string[]>>>
 > = {
@@ -318,12 +308,12 @@ export const REQUIRED_GROUPS: Readonly<
     wave: ["--plan"],
     spec: ["--spec"],
     plan: ["--plan"],
-    branch: ["--base", "--head"],
+    branch: ["--plan"],
   },
   fix: {
     wave: ["--plan"],
     spec: ["--spec"],
     plan: ["--plan"],
-    branch: ["--findings"],
+    branch: ["--findings", "--plan"],
   },
 };

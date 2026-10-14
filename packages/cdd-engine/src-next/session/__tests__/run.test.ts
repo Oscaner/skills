@@ -13,13 +13,15 @@
 // workspace — the ledger round reads hit the on-disk handoffs exactly as the
 // production loop does.
 
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { PlanDocType } from "../../contract/doc.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
+import { BriefRenderer } from "../../render/brief.ts";
 import { type TargetFace, type TargetType, targetFaces } from "../faces.ts";
 import { TaskGraph } from "../graph.ts";
 import { Ledger } from "../ledger.ts";
@@ -27,8 +29,6 @@ import { SOFT_CAP_SUGGESTION } from "../next.ts";
 import type { CapsuleFace, DispatchOutcome, DispatchStep, OpenFrame, StepResult } from "../run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../run.ts";
 
-const BASE = "a".repeat(8);
-const HEAD = "b".repeat(8);
 const DOC = "docs/kairos/specs/x-design.md";
 
 /** A hermetic ledger fixture — a fresh temp workspace (the ledger tests' pattern).
@@ -94,12 +94,20 @@ const stub = (
 /** The approved-implement outcome — the canonical work-round result. */
 const APPROVED_IMPLEMENT: DispatchOutcome = {
   status: "APPROVED",
-  commits: { base: BASE, head: HEAD },
   artifacts: { brief: "/tmp/brief.md" },
 };
 
 const finding = (severity: "blocker" | "warn" | "nit") => ({ severity, summary: "drift" });
 
+/** The D30 wave-line reviewed-basis hash — the RENDERED brief's sha1 for a wave's
+ *  tasks (the wave gate binds the brief, never the whole plan). */
+const briefHash = (planPath: string, tasks: string): string => {
+  const brief = new BriefRenderer().render(
+    readFileSync(planPath, "utf8"),
+    tasks.split(",").map(Number),
+  );
+  return createHash("sha1").update(brief).digest("hex");
+};
 const phasesOf = (steps: readonly StepResult[]): readonly (string | null)[] =>
   steps.map((step) => step.frame.phase);
 
@@ -118,9 +126,9 @@ describe("the faces table — one row per target type", () => {
     expect(face.nextSemantics.batch).toBe(true);
   });
 
-  it("branch — the branch-range audit, the branch-review lead, no batch", () => {
+  it("branch — the branch-tree audit, the branch-review lead, no batch", () => {
     const face = targetFaces.branch as TargetFace;
-    expect(face.audit).toEqual({ kind: "branch-range" });
+    expect(face.audit).toEqual({ kind: "branch-tree" });
     expect(face.product.reviewLead).toBe("branch-review");
     expect(face.nextSemantics.batch).toBe(false);
   });
@@ -156,7 +164,7 @@ describe("the task small loop — implement → review → the next ready group"
       expect(step1!.frame.target).toEqual({ kind: "wave", tasks: [1] });
       expect(step1!.frame.params).toEqual({ tasks: "1" });
       expect(step1!.round).toBe(1);
-      expect(step1!.route).toEqual({ kind: "review", base: BASE, head: HEAD });
+      expect(step1!.route).toEqual({ kind: "review" });
 
       const step2 = run.advance();
       expect(step2!.frame.phase).toBe("review");
@@ -201,8 +209,7 @@ describe("the task small loop — implement → review → the next ready group"
       let reviews = 0;
       const dispatch = stub((frame) => {
         if (frame.phase === "implement") return APPROVED_IMPLEMENT;
-        if (frame.phase === "fix")
-          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        if (frame.phase === "fix") return { status: "APPROVED" };
         reviews += 1;
         return {
           status: "APPROVED",
@@ -217,7 +224,7 @@ describe("the task small loop — implement → review → the next ready group"
       });
 
       const implement = run.advance();
-      expect(implement!.route).toEqual({ kind: "review", base: BASE, head: HEAD });
+      expect(implement!.route).toEqual({ kind: "review" });
 
       const review1 = run.advance();
       expect(review1!.frame.phase).toBe("review");
@@ -231,7 +238,7 @@ describe("the task small loop — implement → review → the next ready group"
       expect(fix!.frame.round).toBe(1);
       // the C5-1 re-review: the fix round carries the source review's blocker and
       // routes the fix's delta span (base + head — the branch literal's full range)
-      expect(fix!.route).toEqual({ kind: "review", base: BASE, head: HEAD });
+      expect(fix!.route).toEqual({ kind: "review" });
       expect(graph.doneTasks()).toEqual(new Set());
 
       const review2 = run.advance();
@@ -253,8 +260,7 @@ describe("the task small loop — implement → review → the next ready group"
       const graph = taskGraph([task(1, "none")]);
       const dispatch = stub((frame) => {
         if (frame.phase === "implement") return APPROVED_IMPLEMENT;
-        if (frame.phase === "fix")
-          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        if (frame.phase === "fix") return { status: "APPROVED" };
         return { status: "APPROVED", findings: [finding("nit")] };
       });
       const run = new Lifecycle({
@@ -287,8 +293,7 @@ describe("the task small loop — implement → review → the next ready group"
       const graph = taskGraph([task(1, "none"), task(2, "1"), task(3, "2")]);
       const dispatch = stub((frame) => {
         if (frame.phase === "implement") return APPROVED_IMPLEMENT;
-        if (frame.phase === "fix")
-          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        if (frame.phase === "fix") return { status: "APPROVED" };
         return { status: "APPROVED", findings: [finding("warn")] };
       });
       const run = new Lifecycle({
@@ -327,8 +332,7 @@ describe("the task small loop — implement → review → the next ready group"
       const graph = taskGraph([task(1, "none"), task(2, "1")]);
       const dispatch = stub((frame) => {
         if (frame.phase === "implement") return APPROVED_IMPLEMENT;
-        if (frame.phase === "fix")
-          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        if (frame.phase === "fix") return { status: "APPROVED" };
         const wave = frame.target.kind === "wave" ? frame.target.tasks.join(",") : "";
         if (wave === "1")
           return {
@@ -377,8 +381,7 @@ describe("the task small loop — implement → review → the next ready group"
       const graph = taskGraph([task(1, "none"), task(2, "1")]);
       const dispatch = stub((frame) => {
         if (frame.phase === "implement") return APPROVED_IMPLEMENT;
-        if (frame.phase === "fix")
-          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        if (frame.phase === "fix") return { status: "APPROVED" };
         const wave = frame.target.kind === "wave" ? frame.target.tasks.join(",") : "";
         if (wave !== "1") return { status: "APPROVED", findings: [] };
         return {
@@ -400,7 +403,7 @@ describe("the task small loop — implement → review → the next ready group"
       const review1 = run.advance();
       expect(review1!.route!.kind).toBe("fix"); // any mix with a blocker → fix
       const fix1 = run.advance();
-      expect(fix1!.route).toEqual({ kind: "review", base: BASE, head: HEAD }); // blockers remain → re-review
+      expect(fix1!.route).toEqual({ kind: "review" }); // blockers remain → re-review
       const review2 = run.advance();
       expect(review2!.frame.round).toBe(2);
       expect(review2!.route!.kind).toBe("fix"); // the warn+nit re-review still fixes
@@ -419,8 +422,7 @@ describe("the task small loop — implement → review → the next ready group"
     const { ledger, cleanup } = fixture();
     try {
       const dispatch = stub((frame) => {
-        if (frame.phase === "fix")
-          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        if (frame.phase === "fix") return { status: "APPROVED" };
         return { status: "APPROVED", findings: [finding("warn"), finding("nit")] };
       });
       const run = new Lifecycle({
@@ -448,8 +450,7 @@ describe("the task small loop — implement → review → the next ready group"
       // fix → DONE — the blocker loop terminates with a final warn fix on an exhausted
       // run (the single-target face: batch semantics off → close renders done).
       const dispatch = stub((frame) => {
-        if (frame.phase === "fix")
-          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        if (frame.phase === "fix") return { status: "APPROVED" };
         return {
           status: "APPROVED",
           findings: frame.round === 1 ? [finding("blocker")] : [finding("warn")],
@@ -549,8 +550,7 @@ describe("the task small loop — implement → review → the next ready group"
       const graph = taskGraph([task(1, "none")]);
       const dispatch = stub((frame) => {
         if (frame.phase === "implement") return APPROVED_IMPLEMENT;
-        if (frame.phase === "fix")
-          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        if (frame.phase === "fix") return { status: "APPROVED" };
         return { status: "APPROVED", findings: [finding("blocker")] };
       });
       const run = new Lifecycle({
@@ -587,8 +587,7 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
       try {
         let reviews = 0;
         const dispatch = stub((frame) => {
-          if (frame.phase === "fix")
-            return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+          if (frame.phase === "fix") return { status: "APPROVED" };
           reviews += 1;
           return {
             status: "APPROVED",
@@ -676,7 +675,7 @@ describe("T2 — the bookkeep fallback rides the frame's declared face", () => {
     try {
       const dispatch = stub((frame) =>
         frame.phase === "fix"
-          ? { status: "APPROVED", commits: { base: BASE, head: HEAD } }
+          ? { status: "APPROVED" }
           : { status: "APPROVED", findings: [finding("blocker")] },
       );
       const run = new Lifecycle({
@@ -705,8 +704,7 @@ describe("T2 — the bookkeep fallback rides the frame's declared face", () => {
       const graph = taskGraph([task(1, "none")]);
       const dispatch = stub((frame) => {
         if (frame.phase === "implement") return APPROVED_IMPLEMENT;
-        if (frame.phase === "fix")
-          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        if (frame.phase === "fix") return { status: "APPROVED" };
         return { status: "APPROVED", findings: [finding("blocker")] };
       });
       const run = new Lifecycle({
@@ -734,13 +732,12 @@ describe("T2 — the bookkeep fallback rides the frame's declared face", () => {
 });
 
 describe("the branch small loop — branch-review → fix → closure", () => {
-  it("drives the branch line over the base..head range (the r{round} family names)", () => {
+  it("drives the branch line over the live tree (the r{round} family names)", () => {
     const { ledger, cleanup } = fixture();
     try {
       let reviews = 0;
       const dispatch = stub((frame) => {
-        if (frame.phase === "fix")
-          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+        if (frame.phase === "fix") return { status: "APPROVED" };
         reviews += 1;
         return {
           status: "APPROVED",
@@ -752,17 +749,13 @@ describe("the branch small loop — branch-review → fix → closure", () => {
         state: EMPTY_RUN_STATE,
         ledger,
         dispatch: dispatch.step,
-        target: { kind: "branch", base: BASE, head: HEAD },
+        target: { kind: "branch" },
       });
 
       const review1 = run.advance();
       expect(review1!.frame.phase).toBe("branch-review");
       expect(review1!.frame.round).toBe(1);
-      expect(review1!.frame.params).toEqual({
-        base8: BASE.slice(0, 8),
-        head8: HEAD.slice(0, 8),
-        round: 1,
-      });
+      expect(review1!.frame.params).toEqual({ round: 1 });
       expect(review1!.route!.kind).toBe("fix");
 
       const fix = run.advance();
@@ -774,20 +767,8 @@ describe("the branch small loop — branch-review → fix → closure", () => {
       expect(run.advance()).toBeNull();
       // the canonical branch family names ride the spine {round} increment (find #9 —
       // `branch-review-{round}.json` — the range token left the file name)
-      expect(
-        ledger.readHandoff("review", "branch", {
-          base8: BASE.slice(0, 8),
-          head8: HEAD.slice(0, 8),
-          round: 1,
-        }),
-      ).not.toBeNull();
-      expect(
-        ledger.readHandoff("fix", "branch", {
-          base8: BASE.slice(0, 8),
-          head8: HEAD.slice(0, 8),
-          round: 1,
-        }),
-      ).not.toBeNull();
+      expect(ledger.readHandoff("review", "branch", { round: 1 })).not.toBeNull();
+      expect(ledger.readHandoff("fix", "branch", { round: 1 })).not.toBeNull();
     } finally {
       cleanup();
     }
@@ -823,7 +804,7 @@ describe("the branch small loop — branch-review → fix → closure", () => {
           return { status: "REVIEW_FIX", findings };
         }
         if (frame.phase === "fix") {
-          return { status: "APPROVED", commits: { base: BASE, head: HEAD } };
+          return { status: "APPROVED" };
         }
         return { status: "APPROVED" };
       });
@@ -832,7 +813,7 @@ describe("the branch small loop — branch-review → fix → closure", () => {
         state: EMPTY_RUN_STATE,
         ledger,
         dispatch: dispatch.step,
-        target: { kind: "branch", base: BASE, head: HEAD },
+        target: { kind: "branch" },
       });
 
       // review-1 → fix-1
@@ -855,27 +836,9 @@ describe("the branch small loop — branch-review → fix → closure", () => {
       expect(run.advance()).toBeNull();
       // the spine file names accumulate too — branch-review-1.json AND
       // branch-review-2.json exist (find #9: the round rides the name, never the range)
-      expect(
-        ledger.readHandoff("review", "branch", {
-          round: 1,
-          base8: BASE.slice(0, 8),
-          head8: HEAD.slice(0, 8),
-        }),
-      ).not.toBeNull();
-      expect(
-        ledger.readHandoff("review", "branch", {
-          round: 2,
-          base8: BASE.slice(0, 8),
-          head8: HEAD.slice(0, 8),
-        }),
-      ).not.toBeNull();
-      expect(
-        ledger.readHandoff("fix", "branch", {
-          round: 1,
-          base8: BASE.slice(0, 8),
-          head8: HEAD.slice(0, 8),
-        }),
-      ).not.toBeNull();
+      expect(ledger.readHandoff("review", "branch", { round: 1 })).not.toBeNull();
+      expect(ledger.readHandoff("review", "branch", { round: 2 })).not.toBeNull();
+      expect(ledger.readHandoff("fix", "branch", { round: 1 })).not.toBeNull();
     } finally {
       cleanup();
     }
@@ -920,12 +883,12 @@ describe("the capsule interaction seam — non-hard consumption", () => {
   });
 });
 
-describe("T11 — the wave review writes the reviewed PLAN revision into the wave row", () => {
-  it("a completed wave review binds the lifecycle's plan-path revision to the wave line (D16)", () => {
+describe("T11/D30 — the wave review writes the reviewed BRIEF revision into the wave row", () => {
+  it("a completed wave review binds the lifecycle's RENDERED-brief revision to the wave line (D30)", () => {
     const { ledger, repo, cleanup } = fixture();
     try {
       const planPath = path.join(repo, "plan.md");
-      writeFileSync(planPath, "# Plan\n- delta\n");
+      writeFileSync(planPath, planDoc([task(1, "none")]));
       const graph = taskGraph([task(1, "none")]);
       // the review approves on its first pass — the wave closes, but the revision
       // write-back lands in the bookkeep step BEFORE the closure route marks done
@@ -940,12 +903,20 @@ describe("T11 — the wave review writes the reviewed PLAN revision into the wav
         planPath,
       });
       run.advance(); // implement
-      run.advance(); // review — the completion records the plan's current revision
-      const recorded = ledger.reviewedDocRevisionOf("1");
+      run.advance(); // review — the completion records the wave's RENDERED brief revision
+      const recorded = ledger.reviewedRevisionOf("1");
       expect(recorded).not.toBeNull();
-      expect(recorded!.kind).toBe("doc-revision");
-      expect(recorded!.doc).toBe(planPath);
-      expect(recorded!.doc_hash).toHaveLength(40);
+      // D30 — the wave line binds its OWN ref kind (brief-revision), never the doc
+      // line's doc-revision: `plan` is the render-from pointer, `brief_hash` the
+      // RENDERED brief's digest (NOT the whole plan's — a plan edit outside this
+      // wave's tasks leaves the brief byte-identical and must not void the wave)
+      expect(recorded!.kind).toBe("brief-revision");
+      if (recorded!.kind !== "brief-revision") throw new Error("unreachable");
+      expect(recorded!.plan).toBe(planPath);
+      expect(recorded!.brief_hash).toBe(briefHash(planPath, "1"));
+      // the doc-line narrowing reader never surfaces a brief ref (a wave line is not
+      // a doc line)
+      expect(ledger.reviewedDocRevisionOf("1")).toBeNull();
     } finally {
       cleanup();
     }
@@ -967,7 +938,75 @@ describe("T11 — the wave review writes the reviewed PLAN revision into the wav
       });
       run.advance();
       run.advance();
-      expect(ledger.reviewedDocRevisionOf("1")).toBeNull();
+      expect(ledger.reviewedRevisionOf("1")).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a wave-backfill edit reopens the wave at REVIEW on the lifecycle frontier — the gate's peer (D26 · D30)", () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const planPath = path.join(repo, "plan.md");
+      writeFileSync(planPath, planDoc([task(1, "none")]));
+      const graph = taskGraph([task(1, "none")]);
+      const dispatch = stub((frame) =>
+        frame.phase === "implement"
+          ? APPROVED_IMPLEMENT
+          : { status: "APPROVED", findings: [finding("blocker")] },
+      );
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+        planPath,
+      });
+      run.advance(); // implement
+      const review = run.advance(); // review — the blocker awaits its fix; the brief revision binds
+      expect(review!.frame.phase).toBe("review");
+      expect(review!.route!.kind).toBe("fix");
+      // the wave's OWN task section moves mid-flight (an orchestrator fill/fix) — the
+      // recorded brief now drifts from the wave's current brief
+      writeFileSync(planPath, planDoc([task(1, "none"), ["  - extra step — checkable: green"]]));
+      // the frontier re-offers the wave at REVIEW, never a stale `fix` — the drifted
+      // brief voids the findings bound to the old revision. Without the single-source
+      // derivation the frontier held `fix` while the gate accepted `review` (the
+      // deadlock). The gate-side twin lives in wave.test.ts.
+      const reopened = run.advance();
+      expect(reopened!.frame.phase).toBe("review");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("an OUTSIDE-wave plan edit does NOT reopen the wave — the backfill's whole point (D30)", () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const planPath = path.join(repo, "plan.md");
+      writeFileSync(planPath, planDoc([task(1, "none"), task(2, "1")]));
+      const graph = taskGraph([task(1, "none"), task(2, "1")]);
+      const dispatch = stub((frame) =>
+        frame.phase === "implement"
+          ? APPROVED_IMPLEMENT
+          : { status: "APPROVED", findings: [finding("blocker")] },
+      );
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+        planPath,
+      });
+      run.advance(); // implement wave {1}
+      run.advance(); // review — binds wave {1}'s brief; the blocker awaits its fix
+      // the plan gains a task OUTSIDE wave {1} (an append-only backfill) — the
+      // Constraints + Task 1 sections are byte-identical, so wave {1}'s brief is
+      // unchanged and the pending fix MUST survive (the whole-plan hash wrongly
+      // reopened it; D30 binds the brief)
+      writeFileSync(planPath, planDoc([task(1, "none"), task(2, "1"), task(3, "1,2")]));
+      const kept = run.advance();
+      expect(kept!.frame.phase).toBe("fix");
     } finally {
       cleanup();
     }

@@ -7,7 +7,7 @@ description: Independent cdd-close orchestrator -- Node-anchored flow with digra
 
 Development branch close-out: the closeout backfill — the shipped-state docs (closeout version rows · phase inventory → Done) — lands and commits FIRST; then the imported upstream flow decides merge / PR / keep / discard, the finish gate routes the outcome, then related issues are closed — a human-decision surface, not next-driven, with no review self-loop. The backfill-before-finish ordering keeps the finish menu from running over an un-backfilled phase, so a merge decision ships the closeout with the branch.
 
-**Invocation discipline** — every command runs as a direct tactical invocation: read the full output (stdout/stderr); output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture. **Finish is the terminal gate** — the finish decision is a human-decision surface: it ends the flow at the gate + terminal (no review self-loop); BLOCKED reasons ride the stderr `CDD_BLOCKED:` channel, no `next:` line is consumed here. **Failure face** — cross-node failure handling lives in the Failure Modes table below (the single source); node `Fail` entries keep only local behavior.
+**Invocation discipline** — every command runs as a background dispatch: launch it in the background and await the completion notification — never poll — then read the full output (stdout/stderr); output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture. **Finish is the terminal gate** — the finish decision is a human-decision surface: it ends the flow at the gate + terminal (no review self-loop); a blocked round carries its reason on stderr with no `next:` line consumed here. **Failure face** — cross-node failure handling lives in the Failure Modes table below (the single source); node `Fail` entries keep only local behavior.
 
 ## Flow Digraph
 
@@ -57,7 +57,7 @@ flowchart TD
 |---|---|
 | I1 | **No Worktrees** — skip the upstream worktree detection block and its cleanup; the menu is fixed to the normal-repo variant; worktree state is a pre-development violation (not cdd-close's scope) |
 | I2 | **Conventional Commits + No Attribution** — merge commit / PR title follows conventional commits; no trailers / footers / inline attribution; PR body uses only `## Summary` + `## Test Plan` |
-| I3 | **Finish is the terminal gate** — the finish decision is a human-decision surface: it ends the flow at the gate + terminal (no review self-loop); BLOCKED reasons ride the stderr `CDD_BLOCKED:` channel, no `next:` line is consumed here |
+| I3 | **Finish is the terminal gate** — the finish decision is a human-decision surface: it ends the flow at the gate + terminal (no review self-loop); a blocked round carries its reason on stderr, with no `next:` line consumed here |
 | I4 | **Closeout before finish** — the closeout backfill (closeout version rows + Phase inventory → Done, committed, tree clean) lands before the finish menu runs; the finish decision never ships an un-backfilled phase |
 
 ## Failure Modes

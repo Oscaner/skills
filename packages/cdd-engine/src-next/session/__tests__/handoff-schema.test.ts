@@ -38,9 +38,7 @@ const ledgerFixture = (): { ledger: Ledger; cleanup: () => void } => {
 /** The canonical valid work draft — the implement/fix child's write-back. */
 const WORK = {
   status: "APPROVED",
-  artifacts: { brief: "/b", report: "/r", test_evidence: "/ws/tasks-1-test-evidence.json" },
-  commits: { base: "a".repeat(8), head: "b".repeat(8) },
-  changes: [{ file: "packages/x/a.ts", reason: "task scope" }],
+  artifacts: { report: "/r", test_evidence: "/ws/tasks-1-test-evidence.json" },
   notes: ["one note"],
 };
 
@@ -66,7 +64,8 @@ describe("projection ① — the injected writable-subset schema text", () => {
     expect(text).toContain("Write the handoff draft at `OUTPUT_HANDOFF` per this writable subset");
     expect(text).toContain('"status"');
     expect(text).toContain('"artifacts"');
-    expect(text).toContain('"commits"');
+    expect(text).not.toContain('"commits"');
+    expect(text).not.toContain('"changes"');
     expect(text).toContain("The evidence file");
     expect(text).toContain('"typecheck"');
     // the reserved engine fields are NOT writable by the child — the subset refuses them
@@ -93,32 +92,25 @@ describe("projection ① — the injected writable-subset schema text", () => {
     expect(schema.schemaText("work", true)).not.toBe(schema.schemaText("findings", false));
   });
 
-  it("the fence parses byte-identically to the declared face node minus engineOnly — the one-hand projection pin (T3)", () => {
+  it("the fence parses byte-identically to the declared face node — the one-hand projection pin (T3)", () => {
     // The prompt-injection projection (schemaText) and the read-back declaration
     // (faceSchema) are the SAME declared object's two projections: parses of the
-    // ```` ```json ```` fences must round-trip to the declared nodes minus the
-    // engine-only metadata (projection ①'s authority filter — the child-visible
-    // fence never shows the engine's own write keys) — the prompt can never show
-    // a schema the engine does not enforce (the guard's checkHandoffPlane ③
-    // asserts the same fact against the live tree).
+    // ```` ```json ```` fences must round-trip to the declared nodes verbatim (the
+    // declaration IS the writable plane — zero engine-only metadata to strip) — the
+    // prompt can never show a schema the engine does not enforce (the guard's
+    // checkHandoffPlane ③ asserts the same fact against the live tree).
     for (const face of ["work", "findings"] as const) {
       const text = schema.schemaText(face, false);
       const parsed = JSON.parse(text.split("```json\n")[1]!.split("\n```")[0]!);
-      const { engineOnly: _authority, ...declared } = schema.faceSchema(face);
-      void _authority;
-      expect(JSON.stringify(parsed)).toBe(JSON.stringify(declared));
+      expect(JSON.stringify(parsed)).toBe(JSON.stringify(schema.faceSchema(face)));
     }
   });
 
-  it("the projection fences filter the engineOnly metadata — neither face's child-visible view serializes the authority field (T3)", () => {
-    // The engine-only keys live on the DECLARED node (the guard's write-plane
-    // derivation + authority hygiene read them there); projection ①'s injected
-    // fence must never serialize the metadata — the child sees only the writable
-    // subset a child can write. The findings face declares `status` engine-only,
-    // so its fence must not surface the field either (the same status the work
-    // face's property makes a read-back refusal).
-    expect(schema.schemaText("findings", false)).not.toContain("engineOnly");
-    expect(schema.schemaText("work", false)).not.toContain("engineOnly");
+  it("the findings fence carries no status — the conclusion is derived, never a child-writable field (D27)", () => {
+    // The findings carrier holds no status field: the declaration plane IS the
+    // writable plane, and the round conclusion derives at judgment time
+    // (`conclusionOf("findings", carrier)` → rollup(findings)). The child-visible
+    // fence therefore never surfaces a `"status"` slot on the findings face.
     expect(schema.schemaText("findings", false)).not.toContain('"status"');
   });
 });
@@ -143,21 +135,19 @@ describe("projection ② — the read-back validation (violations)", () => {
     ]);
   });
 
-  it("refuses an engine-reserved field (the single-author rule: phase/tasks are the engine's)", () => {
+  it("drops non-declared fields instead of BLOCKing (materialize judges the same way)", () => {
+    // a work draft carrying engine-reserved or extra keys is dropped by materialize
+    // and never refuses the draft (the drop-not-BLOCK ruling · §8.7)
     expect(
       schema.violations("work", { status: "APPROVED", artifacts: {}, phase: "implement" }),
-    ).toEqual(["phase: not a declared field"]);
-    expect(schema.violations("work", { status: "APPROVED", artifacts: {}, tasks: [1] })).toEqual([
-      "tasks: not a declared field",
-    ]);
-    expect(schema.violations("findings", { findings: [], status: "APPROVED" })).toEqual([
-      "status: not a declared field",
-    ]);
-  });
-
-  it("refuses a malformed commits row (non-8-char shas)", () => {
-    const bad = { ...WORK, commits: { base: "short", head: "b".repeat(8) } };
-    expect(schema.violations("work", bad)).toEqual(["commits.base: must be at least 8 characters"]);
+    ).toEqual([]);
+    expect(schema.violations("work", { status: "APPROVED", artifacts: {}, tasks: [1] })).toEqual(
+      [],
+    );
+    // a child-authored `status` on a findings draft is non-declared — dropped, not refused
+    expect(schema.violations("findings", { findings: [], status: "APPROVED" })).toEqual([]);
+    // a stray `commits` key on a work draft is no longer declared — dropped
+    expect(schema.violations("work", { ...WORK, commits: { base: "short" } })).toEqual([]);
   });
 
   it("refuses a findings draft with a missing findings array or a bad severity", () => {
@@ -228,6 +218,36 @@ describe("the status rollup + the findings normalization", () => {
     );
   });
 
+  it("conclusionOf derives the findings conclusion from the findings, the work conclusion from the declared status (D27)", () => {
+    // the findings face NEVER reads a carrier status — its conclusion rolls up from
+    // the findings alone (the persisted findings carrier holds no status field)
+    expect(schema.conclusionOf("findings", { findings: [{ severity: "blocker" }] })).toBe(
+      "CHANGES_REQUESTED",
+    );
+    expect(schema.conclusionOf("findings", { findings: [{ severity: "nit" }] })).toBe("REVIEW_FIX");
+    expect(schema.conclusionOf("findings", { findings: [] })).toBe("APPROVED");
+    expect(schema.conclusionOf("findings", {})).toBe("APPROVED");
+    // a stray status on a findings carrier is ignored — the derivation is from findings
+    expect(
+      schema.conclusionOf("findings", { findings: [{ severity: "blocker" }], status: "APPROVED" }),
+    ).toBe("CHANGES_REQUESTED");
+    // the work face reads its declared status verbatim
+    expect(schema.conclusionOf("work", { status: "APPROVED", artifacts: {} })).toBe("APPROVED");
+    expect(schema.conclusionOf("work", { status: "BLOCKED", artifacts: {} })).toBe("BLOCKED");
+    // a PRESENT-but-invalid work status byte degrades to BLOCKED — a malformed
+    // declaration is a failure signal, never silently approved
+    expect(schema.conclusionOf("work", { status: "garbage", artifacts: {} })).toBe("BLOCKED");
+    expect(schema.conclusionOf("work", { status: "CHANGES_REQUESTED", artifacts: {} })).toBe(
+      "BLOCKED",
+    );
+    // an ABSENT status is NOT a failure declaration — undefined (no conclusion
+    // declared), distinct from a declared BLOCKED. This is the legacy-carrier fact:
+    // a work carrier predating the status field never reads as a fabricated failure
+    // (the router treats undefined as "not failed"; BLOCKED as the failure face).
+    expect(schema.conclusionOf("work", {})).toBeUndefined();
+    expect(schema.conclusionOf("work", { artifacts: {} })).toBeUndefined();
+  });
+
   it("normalizes the draft findings — unknown severities dropped, severity + summary kept", () => {
     expect(schema.findingsOf(FINDINGS.findings)).toEqual([
       { severity: "blocker", summary: "drift" },
@@ -243,13 +263,9 @@ describe("the derived carrier types — buildHandoff per-face shaping (T1)", () 
   it("the work carrier's flat keys equal the declared properties set, zero findings (the runtime fallback of the type derivation)", () => {
     const { ledger, cleanup } = ledgerFixture();
     try {
-      const carrier = ledger.buildHandoff("work", {
-        artifacts: { brief: "/b" },
-        commits: { base: "a".repeat(8), head: "b".repeat(8) },
-      });
+      const carrier = ledger.buildHandoff("work", { artifacts: { report: "/r" } });
       carrier.status = "APPROVED";
       carrier.failure_category = "none";
-      carrier.changes = [{ file: "packages/x/a.ts", reason: "task" }];
       carrier.notes = ["one note"];
       expect(Object.keys(carrier).sort()).toEqual(
         Object.keys(schema.faceSchema("work").properties ?? {}).sort(),

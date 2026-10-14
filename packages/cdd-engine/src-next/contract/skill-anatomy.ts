@@ -73,6 +73,22 @@ export interface AnatomyConsumerPurity {
   zeroTraceRule: string;
 }
 
+/** The author-entry bootstrap surface (§10 · the D29-regression pin) — the flow's
+ *  content-authoring entry nodes and the skeleton bootstrap literal each one's Do
+ *  must carry. D29's stripping rule keys on the ENTRY ROLE, not the surface shape:
+ *  a node that authors a document (`author-spec` / `author-plan`) emits its target's
+ *  `schema get … --output skeleton` bootstrap command (D29's own "entry-node bootstrap
+ *  exception"), while the internal structure mirror (slot names / `:::fill`
+ *  restatements) stays stripped. This fact pins the entry literals so a future
+ *  shape-keyed strip cannot silently remove them again. */
+export interface AnatomyAuthorBootstrap {
+  /** The author-entry nodes — one (skill, node) pair per content-authoring entry. */
+  entries: readonly { skill: string; node: string }[];
+  /** The skeleton bootstrap command pattern each entry node's block must satisfy
+   *  (the `schema get <type> --output skeleton <target>` render literal). */
+  skeletonCommandPattern: string;
+}
+
 /** The six-skill roster row — one shipped kairos skill (the P4 closed set's data). */
 export interface SkillRosterRow {
   /** The skill's role in the workflow normalization (§4.1). */
@@ -95,6 +111,7 @@ export interface SkillAnatomyContract {
   blockedTerminal: { stateToken: string; requires: readonly string[] };
   growthBoundary: AnatomyGrowthBoundary;
   consumerPurity: AnatomyConsumerPurity;
+  authorBootstrap: AnatomyAuthorBootstrap;
   skills: { registry: Readonly<Record<string, SkillRosterRow>> };
   wording: Readonly<Record<string, string>>;
   /** The engine-lexicon pinned condition words (the v1.20 word-table pin) — the phrase set the
@@ -190,6 +207,18 @@ export const SKILL_ANATOMY = {
   consumerPurity: {
     forbiddenNarrativeHeads: ["## Flow size note", "## Full Flow Refactor Rationale"],
     zeroTraceRule: "zero trace in the consumer skill",
+  },
+  // The author-entry bootstrap surface (§10 · the D29-regression pin) — the
+  // content-authoring entry nodes' skeleton bootstrap literals. D29 strips the
+  // INTERNAL structure mirror (slot names / `:::fill` restatements), never the
+  // entry node's bootstrap command (its own exception); this pins the literals so
+  // a shape-keyed strip cannot silently remove them again.
+  authorBootstrap: {
+    entries: [
+      { skill: "cdd-spec-writer", node: "author-spec" },
+      { skill: "cdd-plan", node: "author-plan" },
+    ],
+    skeletonCommandPattern: "schema get \\S+ --output skeleton",
   },
   skills: { registry: SKILL_ROSTER },
   // The check-facing diagnostic wording — the prose the anatomy assertions quote

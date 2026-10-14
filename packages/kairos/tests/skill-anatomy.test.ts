@@ -257,6 +257,11 @@ class SkillAnatomyCheck {
           });
         }
       }
+
+      // The author-entry bootstrap pin (§10 · the D29-regression guard): every
+      // registered content-authoring entry node carries its skeleton bootstrap
+      // literal — a shape-keyed strip must never remove the entry command silently.
+      this.#authorBootstrapFindings(name, an, anatomy);
     }
 
     // The closed-set guard — the directory scan must equal the roster exactly.
@@ -442,6 +447,31 @@ class SkillAnatomyCheck {
       if (fixId !== undefined && an.edges.some((e) => e.from === fixId && e.to === hubId)) {
         this.#findings.push({
           label: `the branch-fix node routes into the ${hub} hub — the branch loop must close on itself`,
+          skill: name,
+        });
+      }
+    }
+  }
+
+  /** The author-entry bootstrap findings (§10 · the D29-regression guard): for each
+   *  registered content-authoring entry (this skill's own entries only), the node's
+   *  definition block must carry its skeleton bootstrap literal — the `schema get
+   *  <type> --output skeleton <target>` entry command D29's own exception protects.
+   *  A shape-keyed strip that removes the entry command from an author node fires
+   *  here, never silently. */
+  #authorBootstrapFindings(name: string, an: AnalyzedSkill, anatomy: SkillAnatomyContract): void {
+    const re = new RegExp(anatomy.authorBootstrap.skeletonCommandPattern);
+    for (const entry of anatomy.authorBootstrap.entries) {
+      if (entry.skill !== name) continue;
+      const block = an.blocks.find((b) => b.name === entry.node);
+      if (block === undefined) {
+        this.#findings.push({
+          label: `the registered author-entry node \`${entry.node}\` has no definition block`,
+          skill: name,
+        });
+      } else if (!re.test(block.block)) {
+        this.#findings.push({
+          label: `the author-entry node \`${entry.node}\` is missing its skeleton bootstrap literal (\`${anatomy.authorBootstrap.skeletonCommandPattern}\`)`,
           skill: name,
         });
       }

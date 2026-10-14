@@ -432,7 +432,12 @@ export class CliLifecycle {
     // legs read too — the reconstruct never rules a work status by a second path.
     const findings =
       face === "findings" ? (Array.isArray(draft.findings) ? draft.findings : []) : [];
-    let status: RoundStatus = schema.conclusionOf(face, draft);
+    // A validated draft's conclusion is total: the findings face rolls up its own
+    // required findings, and the work face's `status` passed the `required` gate above
+    // — so the `?? "BLOCKED"` never fires here (a work draft without a status never
+    // reaches this line; the absent→undefined case exists only for on-disk legacy
+    // carriers the ledger reads back, never a schema-validated draft).
+    let status: RoundStatus = schema.conclusionOf(face, draft) ?? "BLOCKED";
     let reason: string | null = null;
     // The evidence gate (v1.9) — the work faces (implement/fix task+branch) write
     // the canonical `{family-prefix}-{key}-test-evidence.json` under the workspace

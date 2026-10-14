@@ -277,6 +277,32 @@ describe("ledger.closedWaves — the C5 closure single read face", () => {
       cleanup();
     }
   });
+
+  it("a LEGACY fix carrier WITHOUT a status still closes the wave — absent status is not a fabricated failure", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // The regression pin: a work-face fix carrier written before the status field
+      // existed holds no `status`. `conclusionOf("work", carrier)` returns undefined
+      // (no conclusion declared), and the router treats undefined as NOT a failure —
+      // so the fix round's clean source review closes the wave. A stricter
+      // absent→BLOCKED reading would fabricate a failure and strand every such wave
+      // open (the closedWaves regression this pin guards).
+      ledger.recordRound("7,9", "implement");
+      ledger.recordRound("7,9", "review");
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "7,9", round: 1 },
+        { tasks: [7, 9], phase: "review", findings: [{ severity: "nit", summary: "cosmetic" }] },
+      );
+      ledger.recordRound("7,9", "fix");
+      // the legacy fix carrier — artifacts only, NO status key
+      ledger.persistHandoff("fix", "wave", { tasks: "7,9", round: 1 }, { artifacts: {} });
+      expect(ledger.closedWaves()).toEqual(new Set([7, 9]));
+    } finally {
+      cleanup();
+    }
+  });
 });
 
 describe("WaveGate.vet — the brief-revision-aware pending-fix resolution (T11 · D16 · D30)", () => {

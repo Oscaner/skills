@@ -222,25 +222,31 @@ export class HandoffSchema {
 
   /** The round conclusion, DERIVED at judgment time from the face's own plane — the
    *  single source the review/fix ledger legs read (D27 · judgment face ⊥ input face).
-   *  The findings face rolls its conclusion UP from its findings (a review never
-   *  carries a child-authored status, and the persisted findings carrier holds none);
-   *  the work face reads its DECLARED status (the child's own conclusion, pinned by the
-   *  schema enum — a non-enum byte degrades to BLOCKED, the one ruling for a work
-   *  status). `carrier` is the on-disk carrier (or a freshly built one) — the
+   *  The findings face rolls its conclusion UP from its findings (defined for every
+   *  carrier — a review never carries a child-authored status, and the persisted
+   *  findings carrier holds none). The work face reads its DECLARED status, and the
+   *  absence of a declaration is itself a fact: an ABSENT status → `undefined` (no
+   *  conclusion was declared — never an invented approval OR an invented failure ·
+   *  D27 present-facts-only), while a PRESENT-but-invalid byte (outside the enum the
+   *  schema pinned) degrades to BLOCKED — the conservative reading of a malformed
+   *  declaration. `undefined` is DISTINCT from BLOCKED to the caller (the router
+   *  treats undefined as "not a failure", a declared BLOCKED as the failure face), so
+   *  a work carrier that predates the status field never reads as a fabricated
+   *  failure. `carrier` is the on-disk carrier (or a freshly built one) — the
    *  conclusion is never a stored field, so any face's carrier derives it the same way. */
-  conclusionOf(face: HandoffSchemaFace, carrier: Record<string, unknown>): RoundStatus {
+  conclusionOf(face: HandoffSchemaFace, carrier: Record<string, unknown>): RoundStatus | undefined {
     if (face === "findings") {
       const findings = Array.isArray(carrier.findings) ? carrier.findings : [];
       return this.rollup(findings);
     }
-    // The work face reads its DECLARED status — the schema enum pinned the child's
-    // draft to APPROVED | BLOCKED, and a hostile/unknown byte degrades to BLOCKED
-    // (only present facts land, never an invented approval). This is the ONE ruling
-    // for a work status: the reconstruct's work leg delegates here, so the read-back
-    // and the judgment-time derivation never disagree.
-    return carrier.status === "APPROVED" || carrier.status === "BLOCKED"
-      ? carrier.status
-      : "BLOCKED";
+    // The work face reads its DECLARED status. Absent → undefined (no declaration);
+    // present-but-invalid → BLOCKED (a declared conclusion that is malformed is a
+    // failure signal, never silently approved). This is the ONE ruling for a work
+    // status: the reconstruct's work leg delegates here, so the read-back and the
+    // judgment-time derivation never disagree.
+    const status = carrier.status;
+    if (status === undefined) return undefined;
+    return status === "APPROVED" || status === "BLOCKED" ? status : "BLOCKED";
   }
 
   /** The review conclusion rollup — status derived from the findings severities

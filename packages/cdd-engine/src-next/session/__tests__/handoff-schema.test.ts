@@ -234,13 +234,18 @@ describe("the status rollup + the findings normalization", () => {
     // the work face reads its declared status verbatim
     expect(schema.conclusionOf("work", { status: "APPROVED", artifacts: {} })).toBe("APPROVED");
     expect(schema.conclusionOf("work", { status: "BLOCKED", artifacts: {} })).toBe("BLOCKED");
-    // a hostile/unknown work status byte degrades to BLOCKED — the SAME ruling the
-    // reconstruct applies (one source, no second arbiter)
+    // a PRESENT-but-invalid work status byte degrades to BLOCKED — a malformed
+    // declaration is a failure signal, never silently approved
     expect(schema.conclusionOf("work", { status: "garbage", artifacts: {} })).toBe("BLOCKED");
     expect(schema.conclusionOf("work", { status: "CHANGES_REQUESTED", artifacts: {} })).toBe(
       "BLOCKED",
     );
-    expect(schema.conclusionOf("work", {})).toBe("BLOCKED");
+    // an ABSENT status is NOT a failure declaration — undefined (no conclusion
+    // declared), distinct from a declared BLOCKED. This is the legacy-carrier fact:
+    // a work carrier predating the status field never reads as a fabricated failure
+    // (the router treats undefined as "not failed"; BLOCKED as the failure face).
+    expect(schema.conclusionOf("work", {})).toBeUndefined();
+    expect(schema.conclusionOf("work", { artifacts: {} })).toBeUndefined();
   });
 
   it("normalizes the draft findings — unknown severities dropped, severity + summary kept", () => {

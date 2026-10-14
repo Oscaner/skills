@@ -307,25 +307,14 @@ export class Lifecycle {
     };
   }
 
-  /** The next phase of one wave line — driven by the ledger progress + the C5 route
-   *  of the latest recorded round (implement → review → fix → re-review → closure).
-   *  A wave's line advances as ONE train (the wave row carries the rounds); null
-   *  when the line is closed (its latest round's route is done / next-wave /
-   *  soft-cap — the soft cap defers to the user). */
+  /** The next phase of one wave line — the SAME single derivation the wave gate reads
+   *  (`Ledger#waveLinePhase` · D26: one fact, one place). The lifecycle's frame
+   *  frontier and the three-verb WaveGate must agree on the open wave's phase, or a
+   *  drift-reopened wave deadlocks (the gate accepts `review` while the frontier
+   *  demands `fix`). Null when the line is closed (its latest round's C5 route is
+   *  done / next-wave / soft-cap — the soft cap defers to the user). */
   #nextWavePhase(key: string): DispatchPhase | null {
-    const implemented = this.#ledger.roundCount(key, "implement");
-    const reviews = this.#ledger.roundCount(key, "review");
-    const fixes = this.#ledger.roundCount(key, "fix");
-    if (implemented === 0) return "implement";
-    if (reviews === 0) return "review";
-    if (fixes < reviews) return "fix";
-    // The round pair (review r + fix r) is complete — the fix round's C5 route
-    // decides the re-review or the closure (an unreadable round holds the line:
-    // only present facts land).
-    const carried = this.#ledger.round("fix", "wave", { tasks: key }, reviews);
-    if (carried === null) return null;
-    const route = this.#router.next(this.#state, carried);
-    return route?.kind === "review" ? "review" : null;
+    return this.#ledger.waveLinePhase(key);
   }
 
   /** The branch/spec/plan line's next open frame — the fixed audit target's round

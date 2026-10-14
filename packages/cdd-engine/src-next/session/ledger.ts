@@ -417,6 +417,34 @@ export class Ledger {
     return { kind: "unbound" };
   }
 
+  /** The wave line's open phase — the SINGLE derivation the wave gate AND the
+   *  lifecycle's frame frontier both read (D26: one fact, one place, read at judgment
+   *  time). The D16/T11 plan-revision precheck belongs HERE, not in a per-consumer
+   *  copy: a completed wave review bound the PLAN it judged to the row (run.ts
+   *  bookkeep — the doc face's same revision-hash gate), and a drifted plan reopens
+   *  the wave at review regardless of the fix-awaited round state (the stale-revision
+   *  findings are voided — new revision, new review). Same revision + a pending fix
+   *  stays at fix (Review Convergence anti-spin); a null record (legacy wave row)
+   *  keeps the pure round-count derivation. The final leg reads the latest fix round's
+   *  C5 route under EMPTY_RUN_STATE — the close-side is inert for the review/closure
+   *  query (only the fix round's own blockers can yield review; #close never does). */
+  waveLinePhase(waveKey: string): RoundPhase | null {
+    const implemented = this.roundCount(waveKey, "implement");
+    const reviews = this.roundCount(waveKey, "review");
+    const fixes = this.roundCount(waveKey, "fix");
+    if (implemented === 0) return "implement";
+    if (reviews === 0) return "review";
+    if (fixes < reviews) {
+      const reviewed = this.reviewedDocRevisionOf(waveKey);
+      if (reviewed !== null && this.docLineVerdict(waveKey, reviewed.doc) === "drift")
+        return "review";
+      return "fix";
+    }
+    const carried = this.round("fix", "wave", { tasks: waveKey }, reviews);
+    if (carried === null) return null;
+    return this.#router.next(EMPTY_RUN_STATE, carried)?.kind === "review" ? "review" : null;
+  }
+
   /** The pending-fix derivation — the "doc same + not APPROVED" face (T8): the
    *  latest review round has an outstanding fix AND its conclusion was not an
    *  approval. The count comparison is the operable leg (a review with a pending

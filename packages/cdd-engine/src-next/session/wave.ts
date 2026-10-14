@@ -27,8 +27,6 @@ import type { Words } from "../face/words.ts";
 import type { DispatchPhase } from "./faces.ts";
 import type { TaskGraph } from "./graph.ts";
 import type { Ledger } from "./ledger.ts";
-import { NextStepRouter } from "./next.ts";
-import { EMPTY_RUN_STATE } from "./run.ts";
 
 /** The verdict kinds — the named gate rows (the BLOCK reason each carries). */
 export type WaveGateReason = "split" | "wrong-phase";
@@ -67,9 +65,6 @@ export interface WaveVerdict {
  * ANY task-face dispatch, never a variant gate per verb.
  */
 export class WaveGate {
-  /** The C5 next router — the phase derivation's route judge (stateless, shared). */
-  readonly #router = new NextStepRouter();
-
   /** vet(requested, verb, graph, ledger, words) — the three-verb gate: the verdict
    *  row the CLI renders (ok → dispatch; a reason + message → the BLOCK face). */
   vet(
@@ -125,32 +120,15 @@ export class WaveGate {
     return open.map((task) => ({ task, phase }));
   }
 
-  /** The ledger-derived open phase of ONE wave row — the wave-unitary read: the same
-   *  C5 round-pair derivation the retired task-face phase gate applied, over the wave's
-   *  own row key (the per-task read never matched a `{wave:"16,22,24"}` row — the fix).
-   *  The pending-fix resolution carries the T11 (D16) plan-revision precheck: a
-   *  completed wave review bound the PLAN it judged to this row (run.ts bookkeep —
-   *  the doc face's same revision-hash gate), and the plan path DERIVES from that
-   *  record (`reviewedDocRevisionOf(waveKey)?.doc`) — never a new gate parameter.
-   *  A drifted plan reopens the wave at review (the pending fix's findings reference
-   *  the stale revision and are voided — new revision, new review); same revision +
-   *  pending fix stays at fix (Review Convergence anti-spin); null (a legacy wave row
-   *  with no record) keeps the pure round-count derivation. */
+  /** The ledger-derived open phase of ONE wave row — the SINGLE source (D26): the
+   *  wave gate and the lifecycle's frame frontier both read this one method
+   *  (`Ledger#waveLinePhase`), never a per-consumer copy. The wave-unitary read: the
+   *  same C5 round-pair derivation over the wave's own row key (the per-task read
+   *  never matched a `{wave:"16,22,24"}` row — the fix). The D16/T11 plan-revision
+   *  precheck lives in the ledger method (a drifted plan reopens at review; same +
+   *  pending fix stays at fix). */
   #phaseOf(ledger: Ledger, waveKey: string): DispatchPhase | null {
-    const implemented = ledger.roundCount(waveKey, "implement");
-    const reviews = ledger.roundCount(waveKey, "review");
-    const fixes = ledger.roundCount(waveKey, "fix");
-    if (implemented === 0) return "implement";
-    if (reviews === 0) return "review";
-    if (fixes < reviews) {
-      const reviewed = ledger.reviewedDocRevisionOf(waveKey);
-      if (reviewed !== null && ledger.docLineVerdict(waveKey, reviewed.doc) === "drift")
-        return "review";
-      return "fix";
-    }
-    const carried = ledger.round("fix", "wave", { tasks: waveKey }, reviews);
-    if (carried === null) return null;
-    return this.#router.next(EMPTY_RUN_STATE, carried)?.kind === "review" ? "review" : null;
+    return ledger.waveLinePhase(waveKey);
   }
 
   /** The raw fill of one placeholder template — the noun-slot substitution

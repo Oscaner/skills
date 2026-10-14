@@ -1,7 +1,7 @@
 # 引擎文档工具（Engine Doc-Tooling）— P7 实施计划：单一实况判定面（commit-sha 全退役 + 物料无条件 extract + brief 镜像 + round/键/字段实况化）
 **Spec:** [2026-10-10-engine-doc-tooling-p7-design.md](../specs/2026-10-10-engine-doc-tooling-p7-design.md)
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](../specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.2 · 2026-10-14
+- **Version**: v0.3 · 2026-10-14
 - **Depends on**: P6（Done · v0.4 · hard）
 
 ## Constraints
@@ -194,9 +194,34 @@
 - **Acceptance**: 三头注零死叙事 · 消费面词表 grep pin 绿 · 边界面零 diff · `pnpm run validate` ALL PASS · 变更集 pending 无 empty · EOF 全绿 · 不发布
 - **DependsOn**: 1, 2, 3, 4, 5, 6, 7, 8, 9
 
+### Task 11: 判定面 ⊥ 输入面（engineOnly 退役 · conclusionOf 单源 · readJson 三态 · 相位 guard）
+- **Objective**: 判定面 ⊥ 输入面（D27 · D26 补完 · v1.30 载体单声明面收口）——**`engineOnly` 概念退役**（`CARRIER_FINDINGS.engineOnly:["status"]` 删 · `SchemaNode.engineOnly` 字段 + `#json` 的 `engineOnly` 过滤删 · 声明面=可写面）· **`#materialize` 删 findings 面 `carrier.status =`**（findings 载体只装声明面 `findings`/`artifacts`/`notes` · work 面保留 status）· **结论改判定时刻派生**（新单源 `HandoffSchema.conclusionOf(face, carrier)`：findings→`rollup(findings)` · work→`carrier.status` · `ledger.round` review/fix 腿 + `#pendingFix` 全改走它）· **`readJson` 三态化**（`ok`/`missing`/`malformed` · `#reconstruct` 据实报真因）· **`Ledger#waveLinePhase` 相位单源 guard pin**
+- **Files**:
+  - Modify: `packages/cdd-engine/src-next/session/handoff-schema.ts`（`CARRIER_FINDINGS.engineOnly:["status"]` :106 删 · `SchemaNode.engineOnly` 字段 :45-53 删 · `#json` 的 `engineOnly` 过滤 :290 删 · 头注 engineOnly 叙事收编 · 新增 `conclusionOf(face, carrier)` 类方法）
+  - Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#materialize` :509 `carrier.status = status` → 仅 `face==="work"` 写 · :514 evidence 覆盖同门控 · `#reconstruct` :407-408 按 `readJson` 三态报真因）
+  - Modify: `packages/cdd-engine/src-next/session/ledger.ts`（`round` :713 review 腿 / :730 fix 腿的 `carrier.status` → `conclusionOf(face, carrier)` · `#pendingFix` :462 同改 · `#blockerCountOf` 不动）
+  - Modify: `packages/cdd-engine/src-next/session/run.ts`（`#bookkeep` :503-504 的 `carrier.status` 兜底 → 仅 work 面写）
+  - Modify: `packages/cdd-engine/src-next/infra/workspace.ts`（`readJson` :79-86 三态化：返回 `{kind:"ok",value}|{kind:"missing"}|{kind:"malformed"}` 判别式 · 头注同步）
+  - Modify: `packages/cdd-engine/src-next/session/__tests__/handoff-plane.guard.test.ts`（⑥ authority-hygiene leg 退休 · ①/③ 保留）
+  - Modify: `packages/cdd-engine/src-next/**/__tests__/`（新 pin 入户：findings 载体零 status · conclusionOf 单源 · readJson 三态 · 相位单源 guard）
+- **Consumes**: T2（carrier 无 commits/changes）· T3（ledger round 门控）· T4（lifecycle read-back/#materialize）· spec §8.8 授权
+- **Produces**: findings 载体零 `status`（fix child 的 INPUT_FINDINGS 干净）· `HandoffSchema.conclusionOf` 单源 · `Workspace.readJson` 三态 · `Ledger#waveLinePhase` 单源 guard · 供分支终审
+- **Steps**:
+  - `engineOnly` 退役 —— `handoff-schema.ts` 删 `CARRIER_FINDINGS.engineOnly:["status"]` · 删 `SchemaNode.engineOnly` 字段声明 · 删 `#json` 的 `engineOnly` 过滤（现为无操作）· 头注 authority-hygiene 叙事收编 — checkable: `grep -n "engineOnly" session/handoff-schema.ts` 零命中
+  - `conclusionOf` 单源 —— `handoff-schema.ts` 新增类方法 `conclusionOf(face: HandoffSchemaFace, carrier: Record<string, unknown>): RoundStatus`（findings → `this.rollup(findings)` · work → `carrier.status as RoundStatus`）· `ledger.round` review/fix 两腿 + `#pendingFix` 改调 `this.#handoffSchema.conclusionOf(...)`（ledger 需持 `HandoffSchema` 实例） — checkable: 单测——findings 载体 `{findings:[blocker]}` → `conclusionOf` 返回 CHANGES_REQUESTED
+  - findings 载体不写 status —— `lifecycle.ts #materialize`：`carrier.status = status`（:509）+ evidence 覆盖（:514）仅 `face === "work"` 执行；`run.ts #bookkeep`（:503-504）兜底同门控 — checkable: 单测——一个 review round 的持久化 findings 载体无顶层 `status` 键；一个 implement round 的 work 载体有 `status`
+  - `readJson` 三态 —— `workspace.ts readJson` 改返回 `{kind:"ok",value}|{kind:"missing"}|{kind:"malformed"}`（`ENOENT` → missing · `SyntaxError` → malformed · 其余 I/O 错 → malformed）· 全部调用点（`lifecycle.ts:435` evidence · `cli.ts:587` base · `ledger.ts:297`）跟进解构 · `lifecycle.ts #reconstruct`（:407-408）missing 报「not written」· malformed 报「malformed JSON at <path>」 — checkable: 单测——畸形 JSON 草稿 → `#reconstruct` 报 malformed 真因（非「not written」）
+  - 相位单源 guard pin —— 新增 guard 测试：断言 `wave.ts #phaseOf` 与 `run.ts #nextWavePhase` 均委派 `Ledger#waveLinePhase`（源码 regex 或行为 pin） — checkable: guard 测试绿 · 故意分叉则红
+  - guard ⑥ 退休 —— `handoff-plane.guard.test.ts` 删 authority-hygiene leg（`WRITE_PATH_FACES`/`carrierWrites`/`projectedOf` 随 engineOnly 退休）· ①/③ 保留 — checkable: `grep -n "engineOnly\|carrierWrites" session/__tests__/handoff-plane.guard.test.ts` 零命中
+  - 跑引擎套件核对 —— checkable: `pnpm -C packages/cdd-engine test`（相关 pin 变动一并改绿）
+  - 提交原子 commit（`refactor(cdd-engine): 判定面 ⊥ 输入面——engineOnly 退役 · conclusionOf 单源 · readJson 三态`） — checkable: git log 单原子
+- **Acceptance**: findings 载体零 `status`（fix child 的 INPUT_FINDINGS 干净）· `conclusionOf` 单源判 round 结论（findings 派生 · work 读声明）· `readJson` 三态报真因（坏 JSON 不再误报未写入）· `engineOnly` 全库零残留 · 相位单源 guard 绿 · 引擎 vitest 通过 · EOF 恰一 newline
+- **DependsOn**: 10
+
 ## Change history
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.3 | 2026-10-14 | **判定面 ⊥ 输入面任务回填（D27 · D26 补完 · Plan Sole Writer）**：新增 **T11（判定面 ⊥ 输入面）**——`engineOnly` 概念退役（声明面=可写面）· `#materialize` findings 面删 `carrier.status`（载体只装声明面 · 断 fix child INPUT_FINDINGS 传染根）· 结论改判定时刻派生（单源 `HandoffSchema.conclusionOf` · `ledger.round`/`#pendingFix` 全走它）· `readJson` 三态化（治坏 JSON 误报草稿未写入）· `Ledger#waveLinePhase` 相位单源 guard。**`DependsOn: 10`**（落独立 W6——不扰动已录 W1–W5 的静态波次派生）· spec v0.6→v0.7 §8.8 | Oscar M. · Claude Opus 5（P7 编排器回填 · 用户确认 · 2026-10-14） |
 | v0.2 | 2026-10-14 | **W5 收尾 review nit 回填（Plan Sole Writer）**：① nit-1 · T5 「`REVIEWS.*.ref` 改参照型」改为「**整体删**」——W1 已按 D26 派生副本清理裁决删除（零消费死码），计划字面与实况对齐（Obj + step + checkable 同步）；② nit-2 · §2.8 引入 `ledger.#roundKey` 为线键第三派生点（违 spec §3.7「防第三处再分叉」）——记录入 spec v0.6 change-history，代码收编归 fix 环 | Oscar M. · Claude Opus 5（W5 cdd-dev · 编排器回填） |
 | v0.1 | 2026-10-13 | P7 实施计划 v0.1——单一实况判定面（commit-sha 全退役 + 物料无条件 extract + brief 镜像 + round/键/字段实况化 · spec v0.5 Approved）：W1{T1 sha 载体收编 · T2 carrier 声明收缩 · T5 templates 数据面 · T8 kairos 消费面} → W2{T3 ledger round/键/verdict · T6 next/capsule} → W3{T4 lifecycle read-back · T7 CLI 命令面} → W4{T9 测试重锚 + 五 pin} → W5{T10 收尾扫 + 验证 + 变更集} · 十任务块全用骨架 task-field 形态（`- **Objective/Files/Consumes/Produces/Steps/Acceptance/DependsOn**:` · step 带 `— checkable:`）· 不发布 | Oscar M. · Claude Opus 5（kairos:cdd-plan · 用户批准） |

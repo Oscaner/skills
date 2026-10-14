@@ -411,15 +411,6 @@ export class Ledger {
     return this.#cyclesOf(this.rowFor(data, key), mode).includes(cycle);
   }
 
-  /** The latest recorded CYCLE of a dispatch key + mode — 0 when none (the round's
-   *  IDENTITY upper bound, distinct from the count when cycles skip). */
-  latestCycle(key: LedgerKey, mode: string): number {
-    const data = this.readProgress();
-    if (data === null) return 0;
-    const cycles = this.#cyclesOf(this.rowFor(data, key), mode);
-    return cycles.length > 0 ? Math.max(...cycles) : 0;
-  }
-
   /** Record a completed round — the on-disk done record (the ledger edge of the
    *  ExecutionState carrier: TaskGraph in memory, the ledger on disk). The round's
    *  CYCLE is its identity (fix-K ⟷ review-K · D28), so a skipped cycle records its
@@ -595,13 +586,16 @@ export class Ledger {
 
   /** The pending-fix derivation — the "doc same + not APPROVED" face (T8): the
    *  latest review round has an outstanding fix AND its conclusion was not an
-   *  approval. The count comparison is the operable leg (a review with a pending
-   *  fix — reviews > fixes — cannot have closed: an APPROVED review never awaits
-   *  a fix); the status read keeps the derivation's second leg explicit, degrading
-   *  to the conservative pending on a missing carrier (a counted round is a present
-   *  fact — the same-doc re-review stays refused until its fix lands). A completed
-   *  fix (fixes >= reviews) is NOT the pending face — the completed-fix line's
-   *  re-review reopens through the fix round's C5 route (the legacy judgment). */
+   *  approval. The identity test is the operable leg (D28): the latest review cycle
+   *  is ABSENT from the fix cycle set (`roundRecorded(key, "fix", reviews)`) — a
+   *  membership test, never a `reviews > fixes` count comparison, which would read a
+   *  phantom pending fix when a cycle was skipped (a drift-voided review-1 → the first
+   *  fix is cycle 2, present at its own number, not ordinal 1). The status read keeps
+   *  the derivation's second leg explicit, degrading to the conservative pending on a
+   *  missing carrier (a recorded round is a present fact — the same-doc re-review
+   *  stays refused until its fix lands). A completed fix (the latest review cycle IS
+   *  in the fix set) is NOT the pending face — the completed-fix line's re-review
+   *  reopens through the fix round's C5 route (the legacy judgment). */
   #pendingFix(key: LedgerKey, type: TargetType): boolean {
     const reviews = this.roundCount(key, "review");
     if (reviews === 0 || this.roundRecorded(key, "fix", reviews)) return false;
@@ -824,9 +818,9 @@ export class Ledger {
     return type === "wave" ? (params.tasks ?? "") : type;
   }
 
-  /** The recorded mode one op's round counts under — the review leg reads the
-   *  face table's review-lead mode (the single source: branch→branch-review, the
-   *  others→review), matching `recordRound(frame.key, frame.phase)`; the
+  /** The recorded mode one op's round records its cycle under — the review leg reads
+   *  the face table's review-lead mode (the single source: branch→branch-review, the
+   *  others→review), matching `recordRound(frame.key, frame.phase, frame.round)`; the
    *  implement/fix legs their own name. */
   #recordedMode(op: OpType, type: TargetType): string {
     return op === "review" ? targetFaces[type].product.reviewLead : op;

@@ -128,7 +128,6 @@ describe("progress — the D28 round-identity face (cycles, not counts)", () => 
       expect(ledger.roundCount("7,9", "fix")).toBe(1);
       expect(ledger.roundRecorded("7,9", "fix", 1)).toBe(true);
       expect(ledger.roundRecorded("7,9", "fix", 2)).toBe(false);
-      expect(ledger.latestCycle("7,9", "fix")).toBe(1);
     } finally {
       cleanup();
     }
@@ -142,7 +141,6 @@ describe("progress — the D28 round-identity face (cycles, not counts)", () => 
       expect(ledger.roundRecorded("7,9", "review", 1)).toBe(true);
       expect(ledger.roundRecorded("7,9", "review", 2)).toBe(true);
       expect(ledger.roundRecorded("7,9", "review", 3)).toBe(false);
-      expect(ledger.latestCycle("7,9", "review")).toBe(2);
     } finally {
       cleanup();
     }
@@ -154,7 +152,6 @@ describe("progress — the D28 round-identity face (cycles, not counts)", () => 
       seedRounds(ledger, { review: [1, 2] });
       expect(ledger.roundCount("7,9", "review")).toBe(2);
       expect(ledger.roundRecorded("7,9", "review", 2)).toBe(true);
-      expect(ledger.latestCycle("7,9", "review")).toBe(2);
     } finally {
       cleanup();
     }
@@ -167,7 +164,6 @@ describe("progress — the D28 round-identity face (cycles, not counts)", () => 
       expect(ledger.recordRound("7,9", "fix", 2)).toBe(1);
       expect(ledger.roundRecorded("7,9", "fix", 2)).toBe(true);
       expect(ledger.roundRecorded("7,9", "fix", 1)).toBe(false); // cycle 1 was skipped — never fabricated
-      expect(ledger.latestCycle("7,9", "fix")).toBe(2);
       // a default recordRound appends the next cycle after the latest (2 → 3)
       expect(ledger.recordRound("7,9", "fix")).toBe(2);
       expect(ledger.roundRecorded("7,9", "fix", 3)).toBe(true);

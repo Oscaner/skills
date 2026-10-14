@@ -7,7 +7,7 @@ description: Analyzes the current CDD session for bugs and enhancement opportuni
 
 Analyzes the current CDD session (session context records + `{repo}/.kairos/cdd/*/progress.json` ledgers + git log) and files one aggregate issue on `Oscaner/skills` via `gh` — or a links-only list when every confirmed finding dedup-matches an open issue — as a one-shot toolchain, manual trigger only.
 
-**Invocation discipline** — Direct invocation — read the full output (stdout/stderr); the engine truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture. **One-shot toolchain** — the flow is a single pass to the terminal (no review self-loop, no `next:` consumption); a rejected confirm or a failed create ends the chain with the finding preserved for manual retry. **Failure face** — cross-node failure handling lives in the Failure Modes table below (the single source); node `Fail` entries keep only local behavior.
+**Invocation discipline** — every command runs as a background dispatch: launch it in the background and await the completion notification — never poll — then read the full output (stdout/stderr). Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture. **One-shot toolchain** — the flow is a single pass to the terminal (no review self-loop, no `next:` consumption); a rejected confirm or a failed create ends the chain with the finding preserved for manual retry. **Failure face** — cross-node failure handling lives in the Failure Modes table below (the single source); node `Fail` entries keep only local behavior.
 
 ## Flow Digraph
 

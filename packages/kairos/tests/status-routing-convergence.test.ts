@@ -100,13 +100,12 @@ for (const name of CARRIERS) {
   });
 }
 
-test("status-routing wording: cdd-dev Failure Modes ground BLOCKED via status + the stderr CDD_BLOCKED channel", () => {
+test("status-routing wording: cdd-dev Failure Modes ground a BLOCKED round on a carried reason", () => {
   const skill = readFileSync(path.join(SKILLS_ROOT, "cdd-dev", "SKILL.md"), "utf8");
   const failureModes = skill.slice(skill.indexOf("## Failure Modes"));
-  expect(failureModes, "Failure Modes must route on `status: BLOCKED` (M4)").toMatch(
-    /status: BLOCKED/,
-  );
-  expect(failureModes, "Failure Modes must name the stderr `CDD_BLOCKED:` reason channel").toMatch(
-    /CDD_BLOCKED:/,
-  );
+  expect(failureModes, "Failure Modes must carry a BLOCKED row").toMatch(/\bBLOCKED\b/);
+  expect(
+    failureModes,
+    "a BLOCKED round must carry its reason for reporting (the behavior face, not an internal byte name)",
+  ).toMatch(/reason/);
 });

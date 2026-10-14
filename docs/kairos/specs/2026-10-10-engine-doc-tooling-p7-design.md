@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P7 设计：单一实况判定面（commit-sha 全退役 + 物料无条件 extract + brief=完整计划镜像 + round/键/字段实况化）
-- **Version**: v0.8 · 2026-10-14
+- **Version**: v0.9 · 2026-10-14
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P7] 会话 · 用户裁定 · 2026-10-13）
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](2026-10-10-engine-doc-tooling-overall.md)
@@ -148,6 +148,17 @@
   - **`readJson` 三态化**：`Workspace.readJson` 现以 `catch { return null }` 把「缺文件」与「坏 JSON」折叠成同一 null（workspace.ts:79-86）→ `#reconstruct`（lifecycle.ts:407-408）一律报 "the handoff draft was not written"，把**畸形 JSON 误诊为未写入**（本次 wave-4 实测：child 写了未转义引号的 JSON）。改为返回三态 `{kind:"ok"|"missing"|"malformed"}`，`#reconstruct` 据此报真因
   - **相位单源 guard pin**：`Ledger#waveLinePhase` 已是相位派生的单源（`wave.ts #phaseOf` 与 `run.ts #nextWavePhase` 均委派它 · 热修 `6a78ede`）——新增 guard 测试钉死这一委派，防再次分叉
 - **意义**：D26「单一实况判定面」的**最后一例**——findings 的 round 结论是**派生事实**（可随时从 `findings` 重算），派生副本本不该落盘、更不该回灌 child；判定面与输入面结构分离后，fix child 的 `INPUT_FINDINGS` 永远干净。
+#### 8.9 round 身份单源（v0.9 · D28 · D26 家族）
+- **缺陷现场（W10 实测）**：fix 轮的**身份**是它**修的 review 周期号**（fix-K ⟷ review-K），由 `#roundFor("fix") = reviews` 派生（`run.ts`）→ fix 载体名 `tasks-10-fix-2.json`（= 修 review-2）与 `next:` 的 `--findings ...tasks-10-review-2.json` **同源**。但 `progress.rounds` 记的是**计数**（`{fix: 1}`）——`round()` 的门控读 `roundCount(1) < round(2)` → **读不回该轮 → 路由 null → HARD_ERROR**（fix 结论 `APPROVED` 却渲 `CDD_BLOCKED: ... no next: line`）。**根因**：review 周期恒连续（1,2,3…）计数==身份；**fix 会跳号**（review-1 被 drift 作废 → 首个 fix 是**周期 2**、计数却是 **1**）→ 同一事实（fix 的周期号）**两处各派一份**（载体名 vs 计数）→ 分叉。**这正是 D26：一事实一处。**
+- **修法（身份与计数分家 · 破坏性）**：
+  - **`ProgressRow.rounds` 由 `Record<string, number>` 改 `Record<string, number[]>`**——每 mode 记**周期号集合**（身份），非计数。fix-K 存在 ⇔ K ∈ `rounds.fix`。
+  - **`recordRound(key, mode, cycle)`** 记**周期**（跳号即记自身号，不再压平为序号）；缺省记「最新+1」（顺序调用向后兼容）。
+  - **新 `roundRecorded(key, mode, cycle)`** 成员测试，替 `round()` 门控的 `roundCount < round` 计数比较（review 恒连续 ⇒ 等价；fix 跳号 ⇒ 修正）。
+  - **相位三处「pending fix」由计数比较改 `latestReview ∉ fixCycles` 成员测试**：`ledger.waveLinePhase` · `ledger.#pendingFix` · `ledger.#rowClosed` · 孪生 `run.#nextLinePhase` · `gate.#linePhase`。
+  - **`#roundFor("fix") = reviews` 保留**——fix-K ⟷ review-K 配对不动（身份仍由 review 周期给）。
+  - **迁移**：progress 是缓存、**载体名是实况源**（D26）→ 按现存 carrier 名重建周期号（W10：`review-1/-2` + `fix-2` ⇒ `{review:[1,2], fix:[2]}`）。
+- **同批（术语分家 · `backfill` 重载消除）**：载体动作 `backfill user adjudications into the carrier` → **`annotate the carrier with the adjudications`**——`backfill` 在本 repo 已锁义为「落持久事实进 owning doc」（`backfill-design` / `closeout-backfill` / I6），载体动作改 `annotate` 消除**一词两义**（`02-naming.md` 原则③ one word one meaning）。**裁定去向规则**：裁定只处置某 finding → 仅 annotate 载体；裁定断言**持久事实**（授权 / 范围 / 设计决定）→ 同时 backfill 到 owning doc（spec/plan/overall）；**改 plan ⇒ plan hash 移动 ⇒ wave 重开 review**（D16），改 spec/overall 则相位不动。命名登记 `docs/maintainers/02-naming.md §2.2`。
+- **意义**：round 的身份（周期号）从「被两处各自派生」收敛为**一处记录**——载体名、`--findings` 路径、progress 记录、门控四者同源；D26 家族在 round 面收口。
 
 ### 9. 发布姿态与变更集
 - 不发布（与 P1–P6 一致）：commit-sha 退役 + 无条件 extract + brief 镜像为引擎内部语义（kairos 消费面为字面同步）· changeset 归并落 pending · 无独立 tag/publish
@@ -167,13 +178,15 @@
 - `I7 撤除 + kairos 消费面同步 ✓（cdd-dev SKILL.md:89 I7 行删 · :53 branch-review 字面重写零 ref · cdd-plan :44 INPUT_PLAN→镜像 Constraints 句 · 行为树 pins 全更替）`
 - `dogfood 判定面实况化（六前提重审 · 单一实况法条的另三个副本）✓（**round verdict 单源**：ledger.round round-read 以 recordRound 门控——被拒 round（磁盘草稿在、进度未记）返回 null → route null → 零 next: 行（BLOCKED 永配 next: done 的自相矛盾面杜绝 · 新 pin：被拒 fix round 的 capsule 无 next 行）· **doc 线键实况化**：#lineKey doc 腿 = 线型常量（spec/plan · 对齐 branch "branch" 稳定键）· **覆盖全部 doc 键派生点（run.ts `#lineKey` + gate.ts `#lineKey` 单源同键）**——argv 路径副本不再重置 round（新 pin：同 doc 绝对/相对路径两调 → 单行 ledger · round 续号不重置）· **postflight 字段单裁**：violations 分类裁决——语义错（缺 required/类型/enum/长度）BLOCK · 非声明多余字段与 engineOnly 字段归一化 drop + 至多 WARN（对齐 materialize 单源 · 校验器与 materialize 同源同判 · status-in-findings-class crash 归零））`
 - `判定面 ⊥ 输入面（§8.8 · v0.7 · D27 · D26 补完）✓（**findings 载体零 `status`**：`#materialize` 删 `carrier.status =`（findings 载体只装声明面 `findings`/`artifacts`/`notes` · fix child 的 INPUT_FINDINGS 干净——传染根断）· **`engineOnly` 概念退役**（`CARRIER_FINDINGS.engineOnly` 删 · `SchemaNode.engineOnly` 字段 + `#json` 过滤 + guard ⑥ authority-hygiene leg 退休 · 声明面=可写面）· **`conclusionOf` 单源**（findings→`rollup(findings)` · work→`carrier.status` · `ledger.round` :713/:730 + `#pendingFix` :462 全改走它 · 判定时刻现读）· **`readJson` 三态**（`ok`/`missing`/`malformed` · `#reconstruct` 据实报真因 · 坏 JSON 不再误报「草稿未写入」）· **`Ledger#waveLinePhase` 相位单源 guard pin**）`
-- `单一实况判定面（统一命题）✓（一事实一处 · 判定时刻现读 · 副本仅缓存且可失效重建——sha=树身份 · brief=计划面 · round verdict · line key · field disposition 五副本全消 · 引擎判定面零「派生副本胜过实况」残留）`
+- `round 身份单源（§8.9 · v0.9 · D28 · D26 家族）✓（**`progress.rounds` 记周期号集合**（`Record<string, number[]>` · 身份非计数）· **`recordRound(key,mode,cycle)` 记周期**（跳号记自身号）· **`roundRecorded` 成员测试**替 `round()` 门控的计数比较 · **相位三处「pending fix」改成员测试**（`waveLinePhase`/`#pendingFix`/`#rowClosed` + 孪生 `run.#nextLinePhase`/`gate.#linePhase`）· **`#roundFor("fix")=reviews` 保留**（配对不动）· **迁移按载体名重建**（progress 缓存 · 载体名实况）——fix-K⟷review-K 计数分叉归零 · W10 场景回归：跳号 review 的 fix 正确读回（不再 HARD_ERROR））`
+- `裁定去向 + 载体动作分家（§8.9 · 同批）✓（载体动作 `annotate the carrier with the adjudications`（`backfill user adjudications` 零残留）· `backfill` 锁义为 doc 去向 · 裁定去向规则入册（finding 处置→仅载体 · 持久事实→owning doc · plan 改→重开 review）· `02-naming.md §2.2` 登记）`
+- `单一实况判定面（统一命题）✓（一事实一处 · 判定时刻现读 · 副本仅缓存且可失效重建——sha=树身份 · brief=计划面 · round verdict · line key · field disposition 五副本全消 · 引擎判定面零「派生副本胜过实况」残留 · **round 身份**同族收口）`
 - `引擎 vitest 全绿（14 pin 文件 deliberate 重锚 + 新 pins：sha 零残留 / BASE_BRANCH 注入 / 无条件 extract rematch / 二行契约 / GitClient 二方法集）· kairos suite 全绿（vitest run）· EOF 全绿 · `pnpm run validate`（或等价 CI 原生序列）ALL PASS · 引擎 CLI 均以仓库内 bin 调用 · 不发布`
 
 ## Constraints
 
 - **六前提（D23）**：允许破坏性变更、可重写代码重组目录、不保守不打补丁；从高维思考、OOP 抽象统一、零裸函数；最佳实践、零技术债务、避免散文堆砌、避免声明再抄；高内聚、低耦合、死代码空壳全清；消费者心智负担优先（不为完成任务而设计）；最大程度重构整合、最大程度精简系统
-- **单一实况判定面（D26 · 统一命题）**：引擎对任一事实只持**一处实况源**，只在**判定时刻现读**；**派生副本永不具权威**（冻结 sha / 盘上 brief / 磁盘草稿 / argv 路径串 / 第二套 schema 裁决）——副本若为缓存必可失效重建，判定面永不读它。**校验器与 materialize 同源同判**（§8.7 · 对同一字段的处置永不背离）。**判定面 ⊥ 输入面**（§8.8 · D27）：引擎的 round 结论是派生事实，**不落 child 可读的载体**（findings 载体零 `status` · 结论判定时刻经单源 `conclusionOf` 现读）——引擎输出面永不污染 child 输入面。本 phase 的 sha/brief/round/key/field/verdict 诸处收口皆此一条法条的实例，非多条独立规则
+- **单一实况判定面（D26 · 统一命题）**：引擎对任一事实只持**一处实况源**，只在**判定时刻现读**；**派生副本永不具权威**（冻结 sha / 盘上 brief / 磁盘草稿 / argv 路径串 / 第二套 schema 裁决）——副本若为缓存必可失效重建，判定面永不读它。**校验器与 materialize 同源同判**（§8.7 · 对同一字段的处置永不背离）。**判定面 ⊥ 输入面**（§8.8 · D27）：引擎的 round 结论是派生事实，**不落 child 可读的载体**（findings 载体零 `status` · 结论判定时刻经单源 `conclusionOf` 现读）——引擎输出面永不污染 child 输入面。**round 身份单源**（§8.9 · D28）：round 的**周期号**（身份）一处记录（`progress` 记周期号集合），载体名 / `--findings` 路径 / 门控同源——fix-K ⟷ review-K 的配对永不分叉。本 phase 的 sha/brief/round/key/field/verdict/round-identity 诸处收口皆此一条法条的实例，非多条独立规则
 - **保留面冻结**：clean-tree gate（review 基线 = committed tree）· doc_revision 内容指纹（doc sha1 · run.ts:551 · 最新计划 reopen gate —— 非 commit sha）· doc-contract 判定语义（gate 零例外）· base set/get 语义不变 · `WAVE`/`tasks`/`OUTPUT_REPORT`/`OUTPUT_HANDOFF`/`OUTPUT_EVIDENCE`/`INPUT_DOC`/`INPUT_FINDINGS` token 保留 · 六命令功能语义不变（除 review 面 ref 退役）· `mattpocock-skills` 分派表零动 · branch 线稳定键 `"branch"` 保留
 - **引擎 vitest 全绿**（recon：五面测试套件 14 pin 文件 · deliberate 重锚 · 零跳过零容错）
 - **child prompt 组装面一致性**——六 face prompt 的 shell 壳文与 round-context 布局必须逐 token 对齐（新壳文-布局一致性断言 · 复用 `#contextLines` 槽位 regex · 构造成立级 · 双 gap 零复发）
@@ -186,6 +199,7 @@
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.9 | 2026-10-14 | **round 身份单源 + 载体动作分家设计回填（D28 · D26 家族 · 用户对话确认方案）**：fix 轮身份 = 它修的 **review 周期号**（fix-K⟷review-K），而 `progress.rounds` 记**计数** —— `reviews≠fixes` 时分叉（drift 作废 review-1 → 首个 fix 是周期 2、计数 1）→ `round()` 门控读不回 → 路由 null → **HARD_ERROR**（W10 实测）。**根因**：同一事实（fix 周期号）两处各派一份（载体名 vs 计数）= D26 实例。修法（身份与计数分家 · 破坏性）：`ProgressRow.rounds` 改**周期号集合**（`Record<string, number[]>`）· `recordRound(key,mode,cycle)` 记周期 · 新 `roundRecorded` 成员测试替 `roundCount<round` 门 · 相位三处「pending fix」改成员测试 · `#roundFor("fix")=reviews` 保留（配对不动）· 迁移按载体名重建。**同批**：载体动作 `backfill`→`annotate`（`backfill` 锁义为 doc 去向 · `02-naming.md` 登记 · 消一词两义）。设计面 = 新增 §8.9 + Constraints + Acceptance | Oscar M. · Claude Opus 5（P7 编排器方案回填 · 用户确认 · 2026-10-14） |
 | v0.8 | 2026-10-14 | **W5 review-2 F1 授权回填（相位单源 · D26 实例）**：`Ledger#waveLinePhase`（commit 6a78edeb · 消 drift-reopen 死锁：gate 判 `review` vs frontier 判 `fix` 两处派生分叉）由 W5 review-2 F1 记「改动了 T10 brief step 3 冻结面（wave 编排/lifecycle 相位）· spec/plan 未授权」——**裁定 = ACCEPT**：本项是 **D26 单一实况法条**的又一实例（相位派生单源 · 判定时刻现读），与 §2.8/§3.7/§8.7 同族，非状态机相位**语义**变更（round 相位序列/路由闭合表零动）。授权落 §8.6 例外集 + 本表 | Oscar M. · Claude Opus 5（W5 cdd-dev · 编排器裁定回填 · 2026-10-14） |
 | v0.7 | 2026-10-14 | **判定面 ⊥ 输入面设计回填（D27 · D26 补完 · 用户对话确认方案）**：D26 统一法条的**最后一例** + `v1.30` 载体单声明面的**补完**——引擎把 findings 面 round 结论 `status` 持久化进载体（`lifecycle.ts:509`），同一载体又作 fix child 的 `INPUT_FINDINGS` 注入（`lifecycle.ts:295-297`）→ child 照抄形状写 `status` 进草稿 → `droppedKeys` 命中（§8.7 前 BLOCK · 本次 wave 实测崩溃面）。**根因**：判定面（引擎写）与输入面（child 读）同文件 = 引擎输出污染 child 输入。修法（结构分离 · 零新增机制）：**退役 `engineOnly` 概念**（`CARRIER_FINDINGS.engineOnly` 删 · 声明面=可写面 · guard ⑥ 退休）· **`#materialize` 删 `carrier.status =`**（findings 载体只装声明面）· **结论改判定时刻派生**（单源 `HandoffSchema.conclusionOf(face,carrier)` · `ledger.round`/`#pendingFix` 全走它）。辅修：**`readJson` 三态化**（`ok`/`missing`/`malformed` · 治坏 JSON 误报草稿未写入 · wave-4 实测）· **相位单源 guard pin**（`Ledger#waveLinePhase` 防分叉复发）。设计面 = 新增 §8.8 + Acceptance + Constraints + §8.7 收口 | Oscar M. · Claude Opus 5（P7 编排器方案回填 · 用户确认 · 2026-10-14） |
 | v0.6 | 2026-10-14 | **W5 收尾 review nit-1 设计回填（D26 派生副本清理）**：§3.3 `REVIEWS.*.ref` 由「随语义更替 re-anchor」改「**整体删**」——`ref` 字段零生产消费（唯 `lensEnum`/`axesGuide` 被读 · 全库零 `.ref` 读取点），其值与 shell 散文同述一事 = D26 规定的派生副本；W1（02a7940c）已按此裁决删除（`ReviewGuideRow.ref` + 四 `REVIEWS.*.ref` 行），本回填使 spec 与实况一致（死码清理 · 避免声明再抄）。**附 §3.7 派生点措辞精化**：doc 线键「单源同键」实指 run.ts/gate.ts/lifecycle 三处私有派生（`#lineKey`×2 + `ledger.#roundKey`）返同一线型常量——W5 review nit-2 记录为待收编（供 T10 后分支环或后续 phase 归并单一助手） | Oscar M. · Claude Opus 5（W5 cdd-dev · 编排器 Plan Sole Writer 回填） |

@@ -1,7 +1,7 @@
 # 引擎文档工具（Engine Doc-Tooling）— P7 实施计划：单一实况判定面（commit-sha 全退役 + 物料无条件 extract + brief 镜像 + round/键/字段实况化）
 **Spec:** [2026-10-10-engine-doc-tooling-p7-design.md](../specs/2026-10-10-engine-doc-tooling-p7-design.md)
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](../specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.3 · 2026-10-14
+- **Version**: v0.4 · 2026-10-14
 - **Depends on**: P6（Done · v0.4 · hard）
 
 ## Constraints
@@ -218,10 +218,38 @@
 - **Acceptance**: findings 载体零 `status`（fix child 的 INPUT_FINDINGS 干净）· `conclusionOf` 单源判 round 结论（findings 派生 · work 读声明）· `readJson` 三态报真因（坏 JSON 不再误报未写入）· `engineOnly` 全库零残留 · 相位单源 guard 绿 · 引擎 vitest 通过 · EOF 恰一 newline
 - **DependsOn**: 10
 
+### Task 12: round 身份单源（progress 记周期号 · roundRecorded 门控 · 载体动作 annotate）
+- **Objective**: round 的**身份**与**计数**分家（D28 · D26 家族）——`ProgressRow.rounds` 由 `Record<string, number>` 改 **`Record<string, number[]>`**（周期号集合 = 身份）· `recordRound(key, mode, cycle?)` 记**周期**（跳号记自身号 · 缺省记最新+1）· 新 `roundRecorded(key, mode, cycle)` 成员测试 · `round()` 门控由 `roundCount < round` 改 **`!roundRecorded(round)`** · 相位三处「pending fix」由计数比较改 **`latestReview ∉ fixCycles`** 成员测试（`waveLinePhase`/`#pendingFix`/`#rowClosed` + 孪生 `run.#nextLinePhase`/`gate.#linePhase`）· `#roundFor("fix") = reviews` **保留**（fix-K⟷review-K 配对不动）· `.kairos` progress 按载体名迁移。**同批**：载体动作 `backfill user adjudications into the carrier` → **`annotate the carrier with the adjudications`**（`backfill` 锁义为 doc 去向）。
+- **Files**:
+  - Modify: `packages/cdd-engine/src-next/session/ledger.ts`（`ProgressRow.rounds` 类型 · `#cyclesOf` 迁移助手 · `roundCount` 改 length · 新 `roundRecorded`/`latestCycle` · `recordRound` 记周期 · `round()` 门控 :695 · `waveLinePhase` :470 · `#pendingFix` :496 · `#rowClosed` :540）
+  - Modify: `packages/cdd-engine/src-next/session/run.ts`（`#bookkeep` recordRound 传 `frame.round` :508 · `#nextLinePhase` 成员测试 :365-374）
+  - Modify: `packages/cdd-engine/src-next/face/gate.ts`（`#linePhase` 成员测试 :129-138）
+  - Modify: `packages/cdd-engine/src-next/session/next.ts`（`FIX_READBACK_SUFFIX` 值 + 注释 → `annotate`）
+  - Modify: `packages/cdd-engine/src-next/face/capsule.ts`（route 渲染注释 → `annotate`）
+  - Modify: `packages/cdd-engine/src-next/**/__tests__/`（numeric `rounds` pin 重锚 → 数组；新 pin：跳号 fix 读回 · `roundRecorded` · 旧 `fix:N` 迁移等价）
+  - Modify: `packages/kairos/skills/cdd-dev|cdd-plan|cdd-spec-writer|cdd-design/SKILL.md`（`backfill user adjudications` → `annotate the carrier with the adjudications` · 5 处）
+  - Modify: `docs/maintainers/02-naming.md`（`§2.2` 登记 `backfill` = doc 去向 · 载体动作 = `annotate`）
+- **Consumes**: T3（ledger round 门控/键）· T11（conclusionOf/相位单源）· spec §8.9 授权
+- **Produces**: `rounds` 记周期号（身份）· `roundRecorded` 门控 · 相位「pending fix」成员测试 · `annotate` 术语单义 · W10 场景回归（跳号 review 的 fix 正确读回）
+- **Steps**:
+  - 数据形态 —— `ProgressRow.rounds` 改 `Record<string, number[]>` · 新增 `#cyclesOf(row, mode)` 迁移助手（numeric 旧值 → `[1..N]`） — checkable: 单测——`{fix: 1}` 归一为 `[1]` · `{review:[1,2]}` 保持
+  - 记周期 —— `recordRound(key, mode, cycle?)` 去重追加周期（缺省 = 最新+1）· `roundCount` 改 `length` · 新 `roundRecorded(key,mode,cycle)` 成员测试 — checkable: 单测——`recordRound("k","fix",2)` ⇒ `rounds.fix=[2]` · `roundRecorded("k","fix",2)=true` · `roundRecorded("k","fix",1)=false`
+  - 门控改身份 —— `round()` 前置 `!roundRecorded(mode, round)` 早退（替 `roundCount < round`） — checkable: 单测——`{review:[1,2],fix:[2]}` 上 `round("fix",…,2)` 非 null（旧计数法返 null）
+  - 相位成员测试 —— `waveLinePhase`/`#pendingFix`/`#rowClosed`/`run.#nextLinePhase`/`gate.#linePhase` 的「pending fix」改 `latestReview ∉ fixCycles` — checkable: 单测——drift 作废 review-1 后首个 fix（周期 2）不再判幻影 pending fix
+  - `recordRound` 调用传 cycle —— `run.#bookkeep` 传 `frame.round` — checkable: `grep -n "recordRound(frame.key, frame.phase)" session/run.ts` 带第三参
+  - 载体动作改名 —— `next.ts` `FIX_READBACK_SUFFIX` 值 + 注释 · `capsule.ts` 注释 · skill ×4（5 处） → `annotate the carrier with the adjudications` — checkable: `grep -rn "backfill user adjudications" packages/` 零命中 · `grep -rc "annotate the carrier with the adjudications"` 计数一致
+  - 命名登记 —— `02-naming.md §2.2` 增 `backfill`（doc 去向）/`annotate`（载体动作）两行 — checkable: 登记行在册
+  - progress 迁移 —— `.kairos` progress 按载体名重建周期号 — checkable: `schema get plan-graph` 板面波次闭环正确（W10 ✔ · 不重派幻影 fix）
+  - 跑引擎套件核对 —— checkable: `pnpm -C packages/cdd-engine test` 全绿
+  - 提交原子 commit（`refactor(cdd-engine): round 身份单源（progress 记周期号 · roundRecorded 门控）· 载体动作 annotate`） — checkable: git log 单原子
+- **Acceptance**: `rounds` 记周期号（身份）· `roundRecorded` 门控替计数比较 · 相位「pending fix」成员测试（drift 跳号不造假）· W10 场景回归绿 · `backfill user adjudications` 零残留 · `annotate` 术语在册 · 引擎 vitest 全绿 · EOF 恰一 newline
+- **DependsOn**: 11
+
 ## Change history
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.4 | 2026-10-14 | **round 身份单源任务回填（D28 · D26 家族 · Plan Sole Writer）**：新增 **T12（round 身份单源）**——`progress.rounds` 记**周期号集合**（身份非计数）· `recordRound(key,mode,cycle)` 记周期 · 新 `roundRecorded` 成员测试替计数门控 · 相位三处「pending fix」改成员测试 · `#roundFor("fix")=reviews` 保留 · 迁移按载体名重建。**同批**：载体动作 `backfill`→`annotate`（`backfill` 锁义为 doc 去向 · `02-naming.md` 登记）。治 W10 实测 `fix APPROVED 却 no next: line`（fix-K⟷review-K 计数分叉 → HARD_ERROR）。**`DependsOn: 11`**（落独立 W7——不扰动 open W6）· spec v0.8→v0.9 §8.9 | Oscar M. · Claude Opus 5（P7 编排器回填 · 用户确认 · 2026-10-14） |
 | v0.3 | 2026-10-14 | **判定面 ⊥ 输入面任务回填（D27 · D26 补完 · Plan Sole Writer）**：新增 **T11（判定面 ⊥ 输入面）**——`engineOnly` 概念退役（声明面=可写面）· `#materialize` findings 面删 `carrier.status`（载体只装声明面 · 断 fix child INPUT_FINDINGS 传染根）· 结论改判定时刻派生（单源 `HandoffSchema.conclusionOf` · `ledger.round`/`#pendingFix` 全走它）· `readJson` 三态化（治坏 JSON 误报草稿未写入）· `Ledger#waveLinePhase` 相位单源 guard。**`DependsOn: 10`**（落独立 W6——不扰动已录 W1–W5 的静态波次派生）· spec v0.6→v0.7 §8.8 | Oscar M. · Claude Opus 5（P7 编排器回填 · 用户确认 · 2026-10-14） |
 | v0.2 | 2026-10-14 | **W5 收尾 review nit 回填（Plan Sole Writer）**：① nit-1 · T5 「`REVIEWS.*.ref` 改参照型」改为「**整体删**」——W1 已按 D26 派生副本清理裁决删除（零消费死码），计划字面与实况对齐（Obj + step + checkable 同步）；② nit-2 · §2.8 引入 `ledger.#roundKey` 为线键第三派生点（违 spec §3.7「防第三处再分叉」）——记录入 spec v0.6 change-history，代码收编归 fix 环 | Oscar M. · Claude Opus 5（W5 cdd-dev · 编排器回填） |
 | v0.1 | 2026-10-13 | P7 实施计划 v0.1——单一实况判定面（commit-sha 全退役 + 物料无条件 extract + brief 镜像 + round/键/字段实况化 · spec v0.5 Approved）：W1{T1 sha 载体收编 · T2 carrier 声明收缩 · T5 templates 数据面 · T8 kairos 消费面} → W2{T3 ledger round/键/verdict · T6 next/capsule} → W3{T4 lifecycle read-back · T7 CLI 命令面} → W4{T9 测试重锚 + 五 pin} → W5{T10 收尾扫 + 验证 + 变更集} · 十任务块全用骨架 task-field 形态（`- **Objective/Files/Consumes/Produces/Steps/Acceptance/DependsOn**:` · step 带 `— checkable:`）· 不发布 | Oscar M. · Claude Opus 5（kairos:cdd-plan · 用户批准） |

@@ -513,16 +513,20 @@ export class Lifecycle {
       // The recorded CYCLE is the frame's own round — its identity (fix-K ⟷ review-K ·
       // D28): a skipped cycle records its own number, never a flattened ordinal.
       const count = this.#ledger.recordRound(frame.key, frame.phase, frame.round);
-      // The completed-review revision write-back — the ONE revision-hash gate the
-      // doc line and the wave line share (T7 doc · T11 wave / D16): a completed
-      // review binds the CURRENT revision of the reviewed input — read at bookkeep,
-      // the clean-tree dispatch gate keeps the read-only review's input stable
-      // across the round. For a doc line that input is the target doc; for a wave
-      // line it is the plan the review judged (the lifecycle's own #planPath — the
-      // single existing source, zero new path fields; the wave gate derives the
-      // plan path FROM this record, so cli.ts/preflight.ts stay untouched). An
-      // unreadable input records nothing (present facts only); a null plan path
-      // (no plan fact) leaves a legacy wave row — null stays backward compatible.
+      // The completed-review revision write-back — the doc line and the wave line
+      // each bind their OWN reviewed revision (T7 doc · T11 wave / D16 / D30): a
+      // completed review binds the CURRENT revision of the reviewed input — read at
+      // bookkeep, the clean-tree dispatch gate keeps the read-only review's input
+      // stable across the round. For a doc line that input is the target doc (the
+      // whole-content doc-revision). For a wave line it is the RENDERED BRIEF —
+      // `#recordReviewedWaveBrief` → `recordReviewedBrief(String(frame.key),
+      // #planPath)` hashes the brief the plan renders to, holding #planPath only as
+      // the plan the brief renders FROM (the render-from POINTER, not the hashed
+      // identity; the wave gate derives the plan path FROM this record, so
+      // cli.ts/preflight.ts stay untouched). The two legs do NOT share one gate —
+      // each ref kind carries its own reviewed identity. An unreadable input records
+      // nothing (present facts only); a null plan path (no plan fact) leaves a legacy
+      // wave row — null stays backward compatible.
       if (frame.phase === "review") {
         if (frame.target.kind === "doc") this.#recordReviewedDocRevision(frame);
         else if (frame.target.kind === "wave") this.#recordReviewedWaveBrief(frame);

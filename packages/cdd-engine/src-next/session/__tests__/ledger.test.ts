@@ -495,12 +495,17 @@ describe("round — the round carrier", () => {
 });
 
 describe("review references — the refKind face (T25 · P5)", () => {
-  it("the RefKind union is the doc-revision single member (the commit-bearing kinds retired with the sha surface)", () => {
-    // The type probe: the retired commit kinds are absent from the RefKind union
-    // (the wave-atomic + no-commit-identity rulings — R5 · P7).
+  it("the RefKind union carries the two review kinds (doc-revision · brief-revision) and the commit-bearing kinds stay retired", () => {
+    // The type probe: the two review kinds ARE members (D30 — doc-revision is the
+    // spec/plan line, brief-revision the wave line), and the retired commit kinds
+    // are absent (the wave-atomic + no-commit-identity rulings — R5 · P7).
+    const docMember: "doc-revision" extends RefKind ? true : false = true;
+    const briefMember: "brief-revision" extends RefKind ? true : false = true;
     const noCommitSet: "commit-set-ledger" extends RefKind ? true : false = false;
     const noCommitRange: "commit-range" extends RefKind ? true : false = false;
     const noGraphNode: "graph-node" extends RefKind ? true : false = false;
+    expect(docMember).toBe(true);
+    expect(briefMember).toBe(true);
     expect(noCommitSet).toBe(false);
     expect(noCommitRange).toBe(false);
     expect(noGraphNode).toBe(false);
@@ -542,6 +547,26 @@ describe("review references — the refKind face (T25 · P5)", () => {
       // a different doc is never the same ref
       const otherDoc = refs.docRevision("docs/kairos/specs/y-design.md", "revision one");
       expect(refs.sameRef(docRef, otherDoc)).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the cross-kind ruling — a doc-revision and a brief-revision are never the same ref", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const refs = ledger.refs();
+      const docRef = refs.docRevision("docs/kairos/plans/x-p3.md", "the plan body");
+      // a brief-revision is a distinct ref KIND — the wave line's identity is never
+      // the doc line's, even when the plan path layer and the hash layer coincide
+      const briefRef = refs.briefRevision("docs/kairos/plans/x-p3.md", "the plan body");
+      expect(briefRef.kind).toBe("brief-revision");
+      expect(refs.sameRef(docRef, briefRef)).toBe(false);
+      expect(refs.sameRef(briefRef, docRef)).toBe(false);
+      // the same-kind brief-revision is still the same ref (the guard is the kind,
+      // not a blanket refusal)
+      const briefRefAgain = refs.briefRevision("docs/kairos/plans/x-p3.md", "the plan body");
+      expect(refs.sameRef(briefRef, briefRefAgain)).toBe(true);
     } finally {
       cleanup();
     }

@@ -124,8 +124,8 @@ export class WaveGate {
    *  wave gate and the lifecycle's frame frontier both read this one method
    *  (`Ledger#waveLinePhase`), never a per-consumer copy. The wave-unitary read: the
    *  same C5 round-pair derivation over the wave's own row key (the per-task read
-   *  never matched a `{wave:"16,22,24"}` row — the fix). The D16/T11 plan-revision
-   *  precheck lives in the ledger method (a drifted plan reopens at review; same +
+   *  never matched a `{wave:"16,22,24"}` row — the fix). The D16/T11 revision
+   *  precheck lives in the ledger method (a drifted BRIEF reopens at review; same +
    *  pending fix stays at fix). */
   #phaseOf(ledger: Ledger, waveKey: string): DispatchPhase | null {
     return ledger.waveLinePhase(waveKey);

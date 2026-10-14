@@ -127,13 +127,15 @@ export class CliGate {
     const key = this.#lineKey(scene);
     if (key === null) return null;
     const reviews = scene.ledger.roundCount(key, reviewLead);
-    const fixes = scene.ledger.roundCount(key, "fix");
     if (reviews === 0) return reviewLead;
-    if (fixes < reviews) {
+    // The latest review cycle's IDENTITY membership in the fix set (D28) — the twin
+    // of the lifecycle's #nextLinePhase judgment (a count comparison would flatten a
+    // skipped cycle into a phantom pending fix).
+    if (!scene.ledger.roundRecorded(key, "fix", reviews)) {
       const route = this.#lineRoundRoute(scene, reviews);
       return route?.kind === "fix" ? "fix" : null;
     }
-    const route = this.#lineFixRoute(scene, fixes);
+    const route = this.#lineFixRoute(scene, reviews);
     return route?.kind === "review" ? reviewLead : null;
   }
 

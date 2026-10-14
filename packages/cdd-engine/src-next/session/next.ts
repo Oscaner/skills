@@ -52,13 +52,15 @@ export const REVIEW_CYCLE_CAP = 3;
 export const SOFT_CAP_SUGGESTION = "BLOCKED: review-cycle-cap — user adjudicates";
 
 /** The fix-route readback suffix — appended verbatim to the fix findings path on the
- *  route's `next:` render (`(confirm the findings · backfill user adjudications into
- *  the carrier)`), a pure wording prompt: the anti-blind-fix mechanical guard is the
+ *  route's `next:` render (`(confirm the findings · annotate the carrier with the
+ *  adjudications)`), a pure wording prompt: the anti-blind-fix mechanical guard is the
  *  ledger round / C5-1, the suffix only reminds the orchestrator to confirm the
- *  captured findings and backfill any user adjudications into the carrier
- *  (non-binding). */
+ *  captured findings and ANNOTATE the carrier with the user adjudications
+ *  (non-binding). `annotate` names the carrier action alone — distinct from
+ *  `backfill` (a durable fact landed into its owning doc), which stays the
+ *  adjudication's destination when the ruling asserts a project-level fact. */
 export const FIX_READBACK_SUFFIX =
-  "(confirm the findings · backfill user adjudications into the carrier)";
+  "(confirm the findings · annotate the carrier with the adjudications)";
 
 /** The failure face — a BLOCKED/TIMEOUT round goes the stderr CDD_BLOCKED channel and
  *  produces no `next:` line on any op. */

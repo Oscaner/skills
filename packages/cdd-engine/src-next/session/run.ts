@@ -363,9 +363,11 @@ export class Lifecycle {
       // (a completed-fix line reopens review through the fix round's route).
     }
     const reviews = this.#ledger.roundCount(key, reviewLead);
-    const fixes = this.#ledger.roundCount(key, "fix");
     if (reviews === 0) return reviewLead;
-    if (fixes < reviews) {
+    // The latest review cycle (= the count: review cycles are contiguous). Pending fix
+    // is the latest review's IDENTITY membership in the fix cycle set (D28) — a count
+    // comparison would flatten a skipped cycle into a phantom pending fix.
+    if (!this.#ledger.roundRecorded(key, "fix", reviews)) {
       const route = this.#roundRoute(target, reviews);
       if (route?.kind === "fix") return "fix";
     } else {
@@ -505,7 +507,9 @@ export class Lifecycle {
       this.#ledger.persistHandoff(op, frame.type, frame.params, carrier);
     }
     if (!blocked) {
-      const count = this.#ledger.recordRound(frame.key, frame.phase);
+      // The recorded CYCLE is the frame's own round — its identity (fix-K ⟷ review-K ·
+      // D28): a skipped cycle records its own number, never a flattened ordinal.
+      const count = this.#ledger.recordRound(frame.key, frame.phase, frame.round);
       // The completed-review revision write-back — the ONE revision-hash gate the
       // doc line and the wave line share (T7 doc · T11 wave / D16): a completed
       // review binds the CURRENT revision of the reviewed input — read at bookkeep,

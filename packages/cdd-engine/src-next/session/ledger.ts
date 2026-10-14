@@ -111,8 +111,13 @@ export type ProgressCounterKey = keyof typeof PROGRESS_COUNTER_ZERO;
 export type ProgressRow = {
   /** The wave key string — the dispatch group identity (`"1"` · `"1,2"`). */
   wave: string;
-  /** The completed rounds per mode (implement/review/fix) — the done record on disk. */
-  rounds?: Record<string, number>;
+  /** The completed rounds per mode (implement/review/fix), each as its CYCLE NUMBER —
+   *  the round's IDENTITY, not a count (D28 · one fact one place). A fix cycle equals
+   *  the review cycle it addressed (fix-K ⟷ review-K), so a fix that skips a cycle
+   *  (a drift-voided review) records its identity — `[2]` — where a count would have
+   *  flattened it to `1` and diverged from the carrier name `fix-2`. Review cycles are
+   *  contiguous (1..N); `implement` is `[1]`. */
+  rounds?: Record<string, number[]>;
   /** The doc line's reviewed doc revision (T7) — the doc-revision identity the
    *  line's last review round bound (written at doc-review completion; the
    *  identity-aware line gate reopens the closed line on drift from it). */
@@ -328,26 +333,63 @@ export class Ledger {
     return { wave: String(key) };
   }
 
-  /** The last completed round of a dispatch key + mode — 0 when none on record. */
+  /** One mode's recorded cycle numbers on a row — the raw identity list, normalizing a
+   *  legacy numeric count (`fix: 1`) to its assumed contiguous identity (`[1]`, the old
+   *  1:1 assumption). Absent/empty → `[]`. */
+  #cyclesOf(row: ProgressRow | undefined, mode: string): readonly number[] {
+    const raw = row?.rounds?.[mode];
+    if (raw === undefined) return [];
+    return Array.isArray(raw) ? raw : Array.from({ length: raw }, (_unused, index) => index + 1);
+  }
+
+  /** The last completed round of a dispatch key + mode — 0 when none on record (the
+   *  round COUNT: the length of the recorded cycle set — for a contiguous review line
+   *  this equals the latest cycle, but the identity is the cycle list, never the count). */
   roundCount(key: LedgerKey, mode: string): number {
     const data = this.readProgress();
     if (data === null) return 0;
-    return this.rowFor(data, key)?.rounds?.[mode] ?? 0;
+    return this.#cyclesOf(this.rowFor(data, key), mode).length;
+  }
+
+  /** Whether a dispatch key + mode has a round recorded for a given CYCLE — the
+   *  identity test the round-read gate uses (a fix cycle that skipped a number is
+   *  present at its own number, not at its ordinal — D28). */
+  roundRecorded(key: LedgerKey, mode: string, cycle: number): boolean {
+    const data = this.readProgress();
+    if (data === null) return false;
+    return this.#cyclesOf(this.rowFor(data, key), mode).includes(cycle);
+  }
+
+  /** The latest recorded CYCLE of a dispatch key + mode — 0 when none (the round's
+   *  IDENTITY upper bound, distinct from the count when cycles skip). */
+  latestCycle(key: LedgerKey, mode: string): number {
+    const data = this.readProgress();
+    if (data === null) return 0;
+    const cycles = this.#cyclesOf(this.rowFor(data, key), mode);
+    return cycles.length > 0 ? Math.max(...cycles) : 0;
   }
 
   /** Record a completed round — the on-disk done record (the ledger edge of the
-   *  ExecutionState carrier: TaskGraph in memory, the ledger on disk). Creates the
-   *  row on demand; returns the round count after the write. */
-  recordRound(key: LedgerKey, mode: string): number {
+   *  ExecutionState carrier: TaskGraph in memory, the ledger on disk). The round's
+   *  CYCLE is its identity (fix-K ⟷ review-K · D28), so a skipped cycle records its
+   *  own number, never a flattened ordinal. The production caller passes the frame's
+   *  own `round`; the default (the next cycle after the latest) records a sequential
+   *  round. Creates the row on demand; the write is idempotent per cycle (a re-record
+   *  of the same cycle does not double it). */
+  recordRound(key: LedgerKey, mode: string, cycle?: number): number {
     const data = this.readProgress() ?? this.emptyProgress();
     let row = this.rowFor(data, key);
     if (row === undefined) {
       row = this.entryFor(key);
       data.waves.push(row);
     }
-    row.rounds = { ...row.rounds, [mode]: (row.rounds?.[mode] ?? 0) + 1 };
+    const cycles = [...this.#cyclesOf(row, mode)];
+    const recorded = cycle ?? (cycles.length > 0 ? Math.max(...cycles) + 1 : 1);
+    if (!cycles.includes(recorded)) cycles.push(recorded);
+    cycles.sort((a, b) => a - b);
+    row.rounds = { ...row.rounds, [mode]: cycles };
     this.writeProgress(data);
-    return row.rounds[mode] as number;
+    return cycles.length;
   }
 
   /** Record a doc line's reviewed doc revision — the T7 identity-aware gate's
@@ -431,16 +473,21 @@ export class Ledger {
   waveLinePhase(waveKey: string): RoundPhase | null {
     const implemented = this.roundCount(waveKey, "implement");
     const reviews = this.roundCount(waveKey, "review");
-    const fixes = this.roundCount(waveKey, "fix");
     if (implemented === 0) return "implement";
     if (reviews === 0) return "review";
-    if (fixes < reviews) {
+    // The latest review CYCLE (= the count: review cycles are contiguous). The pending-fix
+    // test is the latest review's IDENTITY membership in the fix cycle set (D28) — NOT a
+    // `fixes < reviews` count comparison, which flattens a skipped cycle (a drift-voided
+    // review-1 → the first fix is cycle 2, recorded `[2]`, count 1 < reviews 2 would read
+    // a phantom pending fix and re-open the wave forever).
+    const latestReview = reviews;
+    if (!this.roundRecorded(waveKey, "fix", latestReview)) {
       const reviewed = this.reviewedDocRevisionOf(waveKey);
       if (reviewed !== null && this.docLineVerdict(waveKey, reviewed.doc) === "drift")
         return "review";
       return "fix";
     }
-    const carried = this.round("fix", "wave", { tasks: waveKey }, reviews);
+    const carried = this.round("fix", "wave", { tasks: waveKey }, latestReview);
     if (carried === null) return null;
     return this.#router.next(EMPTY_RUN_STATE, carried)?.kind === "review" ? "review" : null;
   }
@@ -456,8 +503,7 @@ export class Ledger {
    *  re-review reopens through the fix round's C5 route (the legacy judgment). */
   #pendingFix(key: LedgerKey, type: TargetType): boolean {
     const reviews = this.roundCount(key, "review");
-    const fixes = this.roundCount(key, "fix");
-    if (reviews === 0 || fixes >= reviews) return false;
+    if (reviews === 0 || this.roundRecorded(key, "fix", reviews)) return false;
     const carried = this.round("review", type, { round: reviews }, reviews);
     return carried === null || carried.status === undefined || carried.status !== "APPROVED";
   }
@@ -497,15 +543,18 @@ export class Ledger {
   /** Whether one progress row's line is closed — the LATEST recorded round's C5 route
    *  lies on the closure side ({done, next-wave}). The latest round is the last
    *  recorded fix round when one exists; the last review round otherwise; a row with
-   *  no review round yet (implement-only or scheduled) holds the line open. */
+   *  no review round yet (implement-only or scheduled) holds the line open. The latest
+   *  fix is the fix recorded at the latest review's CYCLE (D28 identity), never a count. */
   #rowClosed(params: HandoffParams, row: ProgressRow): boolean {
-    const reviews = row.rounds?.review ?? 0;
-    const fixes = row.rounds?.fix ?? 0;
-    if (fixes > 0) {
-      const route = this.#roundRoute("fix", params, Math.min(fixes, reviews));
+    const reviews = this.#cyclesOf(row, "review");
+    const fixes = this.#cyclesOf(row, "fix");
+    const latestReview = reviews.length > 0 ? Math.max(...reviews) : 0;
+    if (fixes.length > 0) {
+      const latestFix = Math.max(...fixes);
+      const route = this.#roundRoute("fix", params, Math.min(latestFix, latestReview));
       return Ledger.#closedBy(route);
     }
-    if (reviews > 0) return Ledger.#closedBy(this.#roundRoute("review", params, reviews));
+    if (latestReview > 0) return Ledger.#closedBy(this.#roundRoute("review", params, latestReview));
     return false;
   }
 
@@ -691,8 +740,11 @@ export class Ledger {
    *  is unreadable is never a zero-findings fabrication: a round whose blocker set
    *  was never read must not be judged clean. */
   round(op: OpType, type: TargetType, params: HandoffParams, round: number): Round | null {
-    // §2.8 — the round-read gate: only a recorded round is a round.
-    if (this.roundCount(this.#roundKey(type, params), this.#recordedMode(op, type)) < round) {
+    // §2.8 — the round-read gate: only a recorded round is a round. The test is the
+    // round's IDENTITY (its cycle number), not a count: a fix that skipped a cycle
+    // (a drift-voided review → the first fix is cycle 2, not ordinal 1) is present at
+    // cycle 2 (D28). A count comparison would flatten that to 1 and refuse the read.
+    if (!this.roundRecorded(this.#roundKey(type, params), this.#recordedMode(op, type), round)) {
       return null;
     }
     if (op === "implement") {

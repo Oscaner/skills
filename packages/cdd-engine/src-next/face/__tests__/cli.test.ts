@@ -1249,7 +1249,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       expect(io.stdoutText).toContain(`next: review --type wave --tasks 1`);
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       const progress = readJson<{ waves: unknown[] }>(path.join(workspace, "progress.json"));
-      expect(progress.waves).toContainEqual({ wave: "1", rounds: { implement: 1 } });
+      expect(progress.waves).toContainEqual({ wave: "1", rounds: { implement: [1] } });
       expect(existsSync(path.join(workspace, "tasks-1-implement.json"))).toBe(true);
       expect(existsSync(path.join(workspace, "tasks-1-brief.md"))).toBe(true);
       const brief = readFileSync(path.join(workspace, "tasks-1-brief.md"), "utf8");
@@ -1373,14 +1373,14 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       // holds the reviewed plan's doc + sha1 content hash — the wave-gate reopen basis)
       expect(progress.waves).toContainEqual({
         wave: "1",
-        rounds: { implement: 1, review: 1 },
+        rounds: { implement: [1], review: [1] },
         reviewedDocRevision: {
           kind: "doc-revision",
           doc: plan,
           doc_hash: createHash("sha1").update(readFileSync(plan, "utf8")).digest("hex"),
         },
       });
-      expect(progress.waves).toContainEqual({ wave: "2", rounds: { implement: 1 } });
+      expect(progress.waves).toContainEqual({ wave: "2", rounds: { implement: [1] } });
       // the invocation's single stdout face — only the LAST step's capsule
       expect(io.stdoutText.split("status: APPROVED").length - 1).toBe(1);
       expect(existsSync(path.join(workspace, "tasks-2-implement.json"))).toBe(true);
@@ -2033,11 +2033,11 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       // increment) and the progress row's key set carries zero new fields (the
       // pending fix is derived, never a stored state).
       const progress = readJson<{
-        waves: Array<{ wave: string; rounds?: Record<string, number> }>;
+        waves: Array<{ wave: string; rounds?: Record<string, number[]> }>;
       }>(path.join(workspace, "progress.json"));
       // §3.7 — the doc line keys by its line-type constant, never the argv path
       const row = progress.waves.find((entry) => entry.wave === "plan");
-      expect(row?.rounds?.review).toBe(2);
+      expect(row?.rounds?.review).toEqual([1, 2]);
       expect(row?.rounds?.fix).toBeUndefined();
       expect(JSON.stringify(progress)).not.toContain("pending");
     } finally {
@@ -2098,7 +2098,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       const planRows = progress.waves.filter((row) => row.wave.startsWith("plan"));
       expect(planRows).toHaveLength(1);
       expect(planRows[0]!.wave).toBe("plan");
-      expect(planRows[0]!.rounds?.review).toBe(2);
+      expect(planRows[0]!.rounds?.review).toEqual([1, 2]);
     } finally {
       process.chdir(savedCwd);
       cleanup();
@@ -2896,7 +2896,7 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
       // review bound the plan to wave 2's line (the same write-back as wave 1's row)
       expect(progress.waves).toContainEqual({
         wave: "2",
-        rounds: { implement: 1, review: 1 },
+        rounds: { implement: [1], review: [1] },
         reviewedDocRevision: {
           kind: "doc-revision",
           doc: plan,

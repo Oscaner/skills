@@ -169,7 +169,7 @@ cdd board: 2026-10-10-engine-doc-tooling
 - `session/__tests__/preflight.test.ts` 的 gate 名 pins（若有 `plan-graph` 字面）——重锚为 `graph`。
 - **统一 next 面 pins（新）**：doc 线（spec/plan）闭合 → `next:` 渲 skill ref（非 `done`）· branch 线闭合 → `/kairos:cdd-close` · wave 线闭合 → `cdd review --type branch --plan <plan>` · skill ref 按 harness 拼写（claude/pi 两形）。
 
-## Acceptance criteria
+### Acceptance criteria
 - `cdd board <slug>` 输出全局态势板：overall/spec/plan/wave/branch 五行 + 各 `implement×N · review×N · fix×N` + wave 每波一行（波链 ✔▶○ + 明细）+ 固定 legend + `next:` 行
 - slug → 三文档路径以**文件系统为唯一真源**：扫描 `docs/kairos/{specs,plans}` 命中 `<slug>*` 树化 · **不合成盘上不存在父节点**（`doc-architecture-v2` 族 `-p4.1` 存在而 `-p4` 缺失场景正确树化）· **不解析 overall File paths 表**
 - 点分相位路径任意深度：`-p3` · `-p3.1` · `-p3.2.1` 同为相位节点

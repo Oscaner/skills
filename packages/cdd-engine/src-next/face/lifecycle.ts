@@ -405,8 +405,11 @@ export class CliLifecycle {
     const path = scene.ledger.handoffPath(op, frame.type, frame.params);
     // The tri-state draft read — a MISSING draft ("never written") and a MALFORMED one
     // (present but unparseable JSON) are different facts: the rejection reports each
-    // truly, so a corrupt draft is never misreported as "not written" (D27).
-    const draftRead = scene.workspace.readJson<Record<string, unknown>>(
+    // truly, so a corrupt draft is never misreported as "not written" (D27). The read
+    // is LENIENT (D39): the draft is a child-LLM-authored carrier, and a trailing comma
+    // (a routine model slip) must not void the whole round — jsonc-parser tolerates the
+    // lenient dialect while a real break (a missing brace, …) still reports malformed.
+    const draftRead = scene.workspace.readJsonLenient<Record<string, unknown>>(
       scene.ledger.handoffName(op, frame.type, frame.params),
     );
     if (draftRead.kind === "missing") {

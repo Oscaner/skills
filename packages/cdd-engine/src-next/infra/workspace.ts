@@ -6,13 +6,17 @@
 //     handoffNamespace.workspaceRoot and is never a hard-coded literal).
 //   Workspace     — one dispatch workspace (`<base>/<slug>/`): ensure() mkdirs the
 //     slug dir, readJson/writeJson are the JSON read/write pair (mkdir before
-//     write; readJson is tri-state — ok / missing / malformed), resolve() is the
+//     write; readJson is tri-state — ok / missing / malformed), readJsonLenient is
+//     the sub-agent-authored draft face (jsonc-parser + trailing-comma/comment
+//     tolerance — a child-LLM slip never voids a round, a real break still reports
+//     malformed; D39), resolve() is the
 //     child-path single fact, slugFromDoc is the doc-file → slug derivation
 //     (`-design`/`-plan` suffix strip), docsOfSlug is the slug → doc-tree reverse
 //     derivation (the board's file-system-only truth, phase-suffix parse included).
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { type ParseError, parse } from "jsonc-parser";
 
 /** The tri-state JSON read — the read's three DISTINCT outcomes, discriminated: a
  *  `missing` file (never written) and a `malformed` file (present but unparseable)
@@ -160,9 +164,48 @@ export class Workspace {
    *  parseable file; `{kind:"missing"}` when the path does not exist; `{kind:
    *  "malformed"}` when the file is present but its bytes are unparseable (a bad
    *  JSON draft) OR unreadable for any other I/O reason (a present-but-broken file is
-   *  never silently "missing" — the reconstruct reports the true cause). */
+   *  never silently "missing" — the reconstruct reports the true cause). The STRICT
+   *  read — engine-authored files (`JSON.stringify` output) are always legal JSON, so
+   *  they never need leniency; a lenient read of a strict file would only mask a real
+   *  engine bug. */
   readJson<T>(name: string): JsonRead<T> {
     const target = this.resolve(name);
+    const text = this.#readText(target);
+    if (text.kind !== "ok") return text;
+    try {
+      return { kind: "ok", value: JSON.parse(text.value) as T };
+    } catch {
+      return { kind: "malformed" };
+    }
+  }
+
+  /** Read a JSON child LENIENTLY — the sub-agent-authored handoff-draft face (D39).
+   *  A child LLM writes handoff carriers (`tasks-*-implement.json` …) from prose, and
+   *  a trailing comma or a stray comment is a routine model slip, not a real defect —
+   *  the strict `readJson` vetoes the WHOLE implement+review round on one such comma
+   *  (the W3 {5,11} block: a `notes` array trailing comma, the draft otherwise whole).
+   *  jsonc-parser with `allowTrailingComma` tolerates ONLY the lenient-dialect surface
+   *  (trailing commas · comments) and still reports a real break (a missing brace, …)
+   *  — so a corrupt draft stays fail-loud while a cosmetic slip no longer voids a round.
+   *  The leniency is scoped to THIS face alone: engine-authored files (including the
+   *  test-evidence sibling, which the engine/child writes as machine JSON) keep the
+   *  strict `readJson` — the JSON contract is never widened for engine bytes. */
+  readJsonLenient<T>(name: string): JsonRead<T> {
+    const target = this.resolve(name);
+    const text = this.#readText(target);
+    if (text.kind !== "ok") return text;
+    const errors: ParseError[] = [];
+    const value = parse(text.value, errors, {
+      allowTrailingComma: true,
+      disallowComments: false,
+    }) as T;
+    return errors.length === 0 ? { kind: "ok", value } : { kind: "malformed" };
+  }
+
+  /** Read a child's text — the shared tri-state file leg of both JSON reads: a
+   *  genuinely absent path is `missing`; a present-but-unreadable one (EACCES, EISDIR …)
+   *  is `malformed` — never silently "missing" (D27 · single-fact honesty). */
+  #readText(target: string): { kind: "ok"; value: string } | JsonRead<never> {
     let text: string;
     try {
       text = readFileSync(target, "utf8");
@@ -170,11 +213,7 @@ export class Workspace {
       const code = (raw as { code?: unknown }).code;
       return code === "ENOENT" ? { kind: "missing" } : { kind: "malformed" };
     }
-    try {
-      return { kind: "ok", value: JSON.parse(text) as T };
-    } catch {
-      return { kind: "malformed" };
-    }
+    return { kind: "ok", value: text };
   }
 
   /** Write a JSON child — mkdir before write. */

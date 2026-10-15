@@ -30,6 +30,7 @@
 // the capsule plugs into the lifecycle's attachCapsule contact, byte-identically.
 // Module-level exports are the class — zero behavior-carrying bare functions.
 
+import path from "node:path";
 import type { RouteTarget } from "../session/faces.ts";
 import {
   FIX_READBACK_SUFFIX,
@@ -37,6 +38,7 @@ import {
   type PipelineKey,
   type Route,
 } from "../session/next.ts";
+import { BoardView } from "./board-view.ts";
 import { REFS } from "./host.ts";
 import type { CapsuleKey, Words } from "./words.ts";
 
@@ -66,11 +68,20 @@ export class Capsule {
   /** The host harness id — the skill-ref resolution key of the `done` route's
    *  pipeline lookup (REFS[ref][host]; `""` falls back to the claude form). */
   readonly #host: string;
+  /** The repo root the doc-target ids resolve against (the declaration read's
+   *  path base; `""` keeps a relative id relative — the hermetic-test default). */
+  readonly #repoRoot: string;
 
-  constructor(words: Words, channels: Readonly<Record<string, CapsuleChannelRow>> = {}, host = "") {
+  constructor(
+    words: Words,
+    channels: Readonly<Record<string, CapsuleChannelRow>> = {},
+    host = "",
+    repoRoot = "",
+  ) {
     this.#words = words;
     this.#channels = channels;
     this.#host = host;
+    this.#repoRoot = repoRoot;
   }
 
   /** emit(status, blocker, handoff, next, target) → the capsule stdout lines: the
@@ -186,14 +197,21 @@ export class Capsule {
 
   /** The `done` route's render — the unified next face (D33): without a target the
    *  bare terminal word stays (the byte-pinned fallback); with a target the
-   *  doc-class key looks up PIPELINE_NEXT (session/next.ts — the ONE face 间接线
-   *  source): a `ref` entry resolves REFS[ref][host] (the `""` host falls back to
-   *  the claude form), a `literal` entry fills its `<plan>` slot with the frame's
-   *  plan fact, a `done` entry renders the bare word. */
+   *  doc-class key looks up PIPELINE_NEXT (session/next.ts — the ONE face-indirection
+   *  source): a `ref` entry resolves REFS[ref][host] (the `""` host
+   *  falls back to the claude form), a `literal` entry fills its `<plan>` slot with
+   *  the frame's plan fact, a `done` entry renders the bare word. A spec doc
+   *  declaring no `- **Doc type**:` line renders the BLOCKED face (spec §12 · D34 —
+   *  the user declares the type, never a fallback guess); a declared `single-spec`
+   *  carries no pipeline seam — the bare terminal word. */
   #doneText(target?: RouteTarget | null): string {
     if (target == null) return this.#words.routeWord("done");
-    const key = this.#docClassKey(target);
-    const entry = PIPELINE_NEXT[key];
+    const verdict = this.#docClassOf(target);
+    if (verdict === "blocked") {
+      return `${this.#words.station("blocked")} ${this.#words.routeWord("docType")}`;
+    }
+    if (verdict === "terminal") return this.#words.routeWord("done");
+    const entry = PIPELINE_NEXT[verdict];
     if (entry.kind === "done") return this.#words.routeWord("done");
     if (entry.kind === "literal") return entry.literal.replace("<plan>", this.#planOf(target));
     const row = REFS[entry.ref as keyof typeof REFS];
@@ -201,15 +219,26 @@ export class Capsule {
     return form ?? row?.claude ?? this.#words.routeWord("done");
   }
 
-  /** The target → doc-class key of the pipeline table — the doc-class判别 (D33):
-   *  overall-spec vs phase-spec derives from the id PATH (`-overall.md` ending),
-   *  never the RouteTarget type's bare value; the task-face targets key by type. */
-  #docClassKey(target: RouteTarget): PipelineKey {
+  /** The target → doc-class verdict of the unified next face — the doc-class
+   *  discrimination face (D33): the spec doc's class reads its DECLARED type (the
+   *  `- **Doc type**:` header declaration, spec §12 · D34 — BoardView.readDocType,
+   *  the one declaration reading face), never the filename suffix; the task-face
+   *  targets key by type. `blocked` — the declaration is missing (the caller
+   *  renders the BLOCKED face); `terminal` — no pipeline seam carries the declared
+   *  class (`single-spec`, the table's five keys exclude it — the bare word). */
+  #docClassOf(target: RouteTarget): "blocked" | "terminal" | PipelineKey {
     if (target.type === "spec") {
-      return target.id.endsWith("-overall.md") ? "overall-spec" : "phase-spec";
+      const declared = BoardView.readDocType(this.#docPathOf(target.id));
+      return declared === null ? "blocked" : declared === "single-spec" ? "terminal" : declared;
     }
     if (target.type === "plan") return "plan";
     if (target.type === "wave") return "wave";
     return "branch";
+  }
+
+  /** The doc-target id's file path — the id resolved against the capsule's repo
+   *  root (an absolute id passes through; a relative one joins the root). */
+  #docPathOf(id: string): string {
+    return path.isAbsolute(id) ? id : this.#repoRoot === "" ? id : path.join(this.#repoRoot, id);
   }
 }

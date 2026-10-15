@@ -49,7 +49,7 @@ export type Route =
 export const REVIEW_CYCLE_CAP = 10;
 
 // ---------------------------------------------------------------------------
-// the face 间接线 — the pipeline's face-to-face `done` routing table (D33)
+// the face indirection line — the pipeline's face-to-face `done` routing table (D33)
 // ---------------------------------------------------------------------------
 
 /** The doc-class keys of the unified next face — one row per pipeline seam a face
@@ -64,7 +64,8 @@ export type PipelineEntry =
   | { kind: "literal"; literal: string }
   | { kind: "done" };
 
-/** The pipeline next table — the ONE face-间接线 source (D33 · 单址 session/next.ts):
+/** The pipeline next table — the ONE face-indirection source (D33 · single-addressed
+ *  at session/next.ts):
  *  the doc-class key → the next pipeline entrypoint. The skill refs ride REFS
  *  (face/host.ts) resolved per host at the render — never a hard-coded plugin
  *  spelling; the wave literal's `<plan>` slot is filled by the capsule with the

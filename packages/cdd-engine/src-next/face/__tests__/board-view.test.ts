@@ -5,8 +5,9 @@
 //     suffix parse);
 //   · BoardView.scanPhases — the phase-suffix set from the specs dir, sorted by the
 //     dot-separated numeric path, with NO on-disk-absent parent synthesized;
-//   · the artifact header read — `{version, status}` from the parse record's
-//     public headerLines field.
+//   · the artifact header read — `{version, status, docType}` from the doc's
+//     header block, the doc type read from the `- **Doc type**:` declaration line
+//     (spec §12 · D34 — null when absent, zero filename-suffix inference).
 // Fixtures are hermetic tmp dirs (no git needed — pure file-system reads).
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -126,7 +127,7 @@ describe("BoardView.scanPhases — the phase-suffix scan (no absent parent synth
   });
 });
 
-describe("BoardView.readHeader — the artifact header `{version, status}` read", () => {
+describe("BoardView.readHeader — the artifact header `{version, status, docType}` read", () => {
   let repo: string;
 
   beforeEach(() => {
@@ -137,7 +138,7 @@ describe("BoardView.readHeader — the artifact header `{version, status}` read"
     rmSync(repo, { recursive: true, force: true });
   });
 
-  it("reads the Version/Status markers from a plan doc's header block", () => {
+  it("reads the Version/Status/Doc type markers from a plan doc's header block", () => {
     mkdirSync(path.join(repo, "docs/kairos/plans"), { recursive: true });
     const planPath = path.join(repo, "docs/kairos/plans/prog-p8.md");
     writeFileSync(
@@ -147,19 +148,74 @@ describe("BoardView.readHeader — the artifact header `{version, status}` read"
         "",
         "- **Version**: v0.9 · …",
         "- **Status**: Done",
+        "- **Doc type**: plan",
         "",
         "## Constraints",
         "",
       ].join("\n"),
     );
 
-    expect(BoardView.readHeader(planPath)).toEqual({ version: "v0.9", status: "Done" });
+    expect(BoardView.readHeader(planPath)).toEqual({
+      version: "v0.9",
+      status: "Done",
+      docType: "plan",
+    });
+  });
+
+  it("reads the declared docType from a phase-spec's `- **Doc type**:` declaration line", () => {
+    mkdirSync(path.join(repo, "docs/kairos/specs"), { recursive: true });
+    const specPath = path.join(repo, "docs/kairos/specs/prog-p8-design.md");
+    writeFileSync(
+      specPath,
+      [
+        "# The phase spec",
+        "",
+        "- **Version**: v1.2 · 2026-10-15",
+        "- **Status**: In review",
+        "- **Doc type**: phase-spec",
+        "",
+        "## 1. The design group",
+        "",
+      ].join("\n"),
+    );
+
+    expect(BoardView.readHeader(specPath)).toEqual({
+      version: "v1.2",
+      status: "In review",
+      docType: "phase-spec",
+    });
+    expect(BoardView.readDocType(specPath)).toBe("phase-spec");
+  });
+
+  it("a doc without a Doc type declaration reads docType null — the consumer blocks, no suffix fallback", () => {
+    mkdirSync(path.join(repo, "docs/kairos/specs"), { recursive: true });
+    const specPath = path.join(repo, "docs/kairos/specs/prog-p8-design.md");
+    writeFileSync(
+      specPath,
+      ["# The phase spec", "", "- **Version**: v1.0", "- **Status**: Draft", ""].join("\n"),
+    );
+
+    expect(BoardView.readHeader(specPath)).toEqual({
+      version: "v1.0",
+      status: "Draft",
+      docType: null,
+    });
+    expect(BoardView.readDocType(specPath)).toBeNull();
+  });
+
+  it("an out-of-domain Doc type value reads null — present facts, never a fabricated type", () => {
+    mkdirSync(path.join(repo, "docs/kairos/plans"), { recursive: true });
+    const planPath = path.join(repo, "docs/kairos/plans/prog-p8.md");
+    writeFileSync(planPath, ["# The plan", "", "- **Doc type**: memo", ""].join("\n"));
+
+    expect(BoardView.readDocType(planPath)).toBeNull();
   });
 
   it("an absent doc yields nulls — never a fabricated value", () => {
     expect(BoardView.readHeader(path.join(repo, "docs/kairos/plans/ghost-p8.md"))).toEqual({
       version: null,
       status: null,
+      docType: null,
     });
   });
 });

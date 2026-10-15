@@ -1,6 +1,6 @@
 // packages/cdd-engine/src-next/face/__tests__/graph-view.test.ts
-// P4.1 T7 — find #6 closeout (user 2026-10-09: "W1 fits the agent mindset better"): the plan-graph
-// board's wave labels start at W1 and ascend per derived wave — the label = the wave
+// P4.1 T7 — find #6 closeout (user 2026-10-09: "W1 fits the agent mindset better"): the
+// wave board's labels start at W1 and ascend per derived wave — the label = the wave
 // index + 1 with no zero-padding (the display layer only; the wave derivation itself
 // is unchanged). The plan's execution-order labels (W1–W4) must match the board's
 // derived labels verbatim (one label convention — the plan cites the board's derived labels).
@@ -19,10 +19,10 @@ const board = (waves: readonly (readonly number[])[], done: readonly number[]): 
     current: waves.find((wave) => wave.some((id) => !done.includes(id))) ?? null,
     pending: waves.flat().filter((id) => !done.includes(id)),
   };
-  return new GraphView().render(report, "plan-graph: docs/kairos/plans/p.md");
+  return new GraphView().render(report, "graph: docs/kairos/plans/p.md");
 };
 
-describe("GraphView — the plan-graph wave-board labels (find #6 · W1-first ordering · no zero-padding)", () => {
+describe("GraphView — the wave-board labels (find #6 · W1-first ordering · no zero-padding)", () => {
   it("labels the waves W1, W2, … — the derived wave index + 1, zero no-padding", () => {
     const out = board([[1, 2], [3], [4, 5]], [1]);
     expect(out).toContain("W1  T1✔ · T2▶   ← in-flight");

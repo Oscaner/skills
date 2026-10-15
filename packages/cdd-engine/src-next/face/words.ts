@@ -45,8 +45,10 @@ export type StationKind = "next" | "blocked" | "warn" | "cliMissing";
 
 /** The route classifier words — the station vocabulary the `next:` line renders
  *  (v1.20: the `none` word is retired — closure is `done`, never "no suggestion";
- *  v1.25: `implement` — the dispatch-ready `next:` literal's verb for a ready wave). */
-export type RouteWordKind = "done" | "review" | "fix" | "implement";
+ *  v1.25: `implement` — the dispatch-ready `next:` literal's verb for a ready wave;
+ *  `docType` — the missing-declaration BLOCK wording the capsule's unified next face
+ *  renders over the CDD_BLOCKED station, spec §12 · D34). */
+export type RouteWordKind = "done" | "review" | "fix" | "implement" | "docType";
 
 /** The wave-gate BLOCK wording rows — the vocabulary the WaveGate verdicts render
  *  (the v1.21 word-table pin: the gate's prompt wording rides the word table, never a CLI literal).
@@ -95,6 +97,8 @@ export const CAPSULE_WORDS = {
     review: "review",
     fix: "fix",
     implement: "implement",
+    docType:
+      "the doc declares no `- **Doc type**:` line — add `- **Doc type**: <overall-spec|phase-spec|single-spec|plan>` to the doc's header (spec §12) and re-run",
   } as const,
   /** The wave-gate BLOCK wording rows (v1.21) — the highest-arity pre-flight refusal
    *  vocabulary, single-sourced (the gate fills the placeholders, never a re-type). */

@@ -465,7 +465,12 @@ export class Cli {
         return outcome;
       },
       target: scene.target ?? undefined,
-      capsule: new Capsule(this.#words, ARGV_CHANNEL, HostDetect.detect(process.env)),
+      capsule: new Capsule(
+        this.#words,
+        ARGV_CHANNEL,
+        HostDetect.detect(process.env),
+        scene.workspace.root.repoRoot,
+      ),
       planPath: scene.planPath,
     });
 

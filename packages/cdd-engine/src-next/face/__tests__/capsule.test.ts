@@ -13,7 +13,10 @@
 // own facts (type + id + plan — the RouteTarget), then re-parse through the CLI's
 // own parse gate (the same channel the dispatch reads).
 
-import { describe, expect, it } from "vitest";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { RouteTarget } from "../../session/faces.ts";
 import type { Route } from "../../session/next.ts";
 import { FIX_READBACK_SUFFIX, PIPELINE_NEXT } from "../../session/next.ts";
@@ -181,19 +184,49 @@ describe("P4.1 T7 (find #7) — the next literal's required-flag coverage (parse
 // T3 — the unified next face: the `done` route's PIPELINE_NEXT doc-class lookup
 // ---------------------------------------------------------------------------
 
-/** The done-text of a capsule emit for a host-injected capsule. */
-const doneOf = (target?: RouteTarget, host = ""): string => {
-  const lines = new Capsule(new Words(), {}, host).emit(
-    "APPROVED",
-    "0",
-    "/h.json",
-    { kind: "done" },
-    target,
-  );
-  return lines[1]!.slice("next: ".length);
-};
-
+/** The hermetic declaration repo — the spec docs the doc-class discrimination reads
+ *  (spec §12 · D34: the declared `- **Doc type**:` line, never the filename). */
 describe("Capsule — the `done` route's PIPELINE_NEXT doc-class lookup (D33 · the unified next face)", () => {
+  let repo: string;
+
+  beforeEach(() => {
+    repo = mkdtempSync(path.join(tmpdir(), "capsule-done-"));
+  });
+
+  afterEach(() => {
+    rmSync(repo, { recursive: true, force: true });
+  });
+
+  /** A spec doc on disk declaring its doc type (the header declaration line). */
+  const declareSpec = (name: string, docType: string | null): RouteTarget => {
+    mkdirSync(path.dirname(path.join(repo, name)), { recursive: true });
+    const header =
+      docType === null
+        ? ["# The doc", "", "- **Version**: v1.0", "- **Status**: Draft", ""]
+        : [
+            "# The doc",
+            "",
+            "- **Version**: v1.0",
+            "- **Status**: Draft",
+            `- **Doc type**: ${docType}`,
+            "",
+          ];
+    writeFileSync(path.join(repo, name), header.join("\n"), "utf8");
+    return { type: "spec", id: name } as const;
+  };
+
+  /** The done-text of a capsule emit for a host-injected capsule over the repo. */
+  const doneOf = (target?: RouteTarget, host = ""): string => {
+    const lines = new Capsule(new Words(), {}, host, repo).emit(
+      "APPROVED",
+      "0",
+      "/h.json",
+      { kind: "done" },
+      target,
+    );
+    return lines[1]!.slice("next: ".length);
+  };
+
   it("PIPELINE_NEXT carries exactly the five pipeline keys", () => {
     expect(Object.keys(PIPELINE_NEXT).sort()).toEqual(
       ["branch", "overall-spec", "phase-spec", "plan", "wave"].sort(),
@@ -204,16 +237,28 @@ describe("Capsule — the `done` route's PIPELINE_NEXT doc-class lookup (D33 · 
     expect(doneOf()).toBe("done");
   });
 
-  it("a phase-spec target routes the cdd-plan ref per host (claude / pi / empty)", () => {
-    const phaseSpec: RouteTarget = { type: "spec", id: "docs/kairos/specs/prog-p8-design.md" };
+  it("a phase-spec-declared target routes the cdd-plan ref per host (claude / pi / empty)", () => {
+    const phaseSpec = declareSpec("docs/kairos/specs/prog-p8-design.md", "phase-spec");
     expect(doneOf(phaseSpec, "claude")).toBe("/kairos:cdd-plan");
     expect(doneOf(phaseSpec, "pi")).toBe("/skill:cdd-plan");
     expect(doneOf(phaseSpec)).toBe("/kairos:cdd-plan");
   });
 
-  it("an overall-spec target renders the bare terminal word (the pipeline terminal)", () => {
-    const overall: RouteTarget = { type: "spec", id: "docs/kairos/specs/prog-overall.md" };
+  it("an overall-spec-declared target renders the bare terminal word (the pipeline terminal)", () => {
+    const overall = declareSpec("docs/kairos/specs/prog-overall.md", "overall-spec");
     expect(doneOf(overall)).toBe("done");
+  });
+
+  it("a spec target declaring no Doc type renders the BLOCKED face — zero filename-suffix fallback", () => {
+    const undeclared = declareSpec("docs/kairos/specs/prog-p8-design.md", null);
+    expect(doneOf(undeclared)).toBe(
+      "CDD_BLOCKED: the doc declares no `- **Doc type**:` line — add `- **Doc type**: <overall-spec|phase-spec|single-spec|plan>` to the doc's header (spec §12) and re-run",
+    );
+  });
+
+  it("a single-spec-declared target renders the bare terminal word — no pipeline seam carries it", () => {
+    const single = declareSpec("docs/kairos/specs/prog-single-spec.md", "single-spec");
+    expect(doneOf(single)).toBe("done");
   });
 
   it("a plan target routes the cdd-dev ref; a branch target the cdd-close ref", () => {

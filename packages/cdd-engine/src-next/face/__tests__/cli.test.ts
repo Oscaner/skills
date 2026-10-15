@@ -278,6 +278,7 @@ const conformingOverall = (repoRoot: string): string => {
       "# Test Overall",
       "- **Version**: v1.21 · 2026-10-07",
       "- **Status**: Approved",
+      "- **Doc type**: overall-spec",
       "- **Author**: [human]",
       "- **Constraints**: all cross-cutting constraints apply",
       "",
@@ -376,6 +377,55 @@ const independentPlan = (repoRoot: string, name: string, count: number): string 
     ].join("\n"),
     "utf8",
   );
+  return file;
+};
+
+/** A doc-contract-clean phase-spec — every registered phase-spec element present
+ *  (the header tuple + the version lineage + a Change-history table + the design
+ *  skeleton), carrying the `- **Doc type**:` declaration line (spec §12 · D34) the
+ *  capsule's doc-class discrimination reads (zero filename inference). */
+const conformingSpec = (repoRoot: string, name = "s1-design.md"): string => {
+  const file = path.join(repoRoot, "docs", "kairos", "specs", name);
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(
+    file,
+    [
+      "# Test Spec",
+      "- **Version**: v1.0 · 2026-10-09",
+      "- **Status**: Draft",
+      "- **Doc type**: phase-spec",
+      "- **Author**: x",
+      "- **Parent program**: [x-overall.md v1.0](docs/kairos/specs/x-overall.md)",
+      "- **Depends on**: P1",
+      "",
+      "## Design",
+      "",
+      "Design intro — the double-layer skeleton semantics.",
+      "",
+      "### 1. Data plane",
+      "#### 1.1 Registry",
+      "- text",
+      "",
+      "### Acceptance criteria",
+      "",
+      "- `c`",
+      "",
+      "## Constraints",
+      "",
+      "- delta",
+      "",
+      "## Change history",
+      "",
+      "| Version | date | summary | author |",
+      "|---|---|---|---|",
+      "| v1.0 | 2026-10-09 | initial | [human] |",
+    ].join("\n"),
+    "utf8",
+  );
+  // The chain sibling — the `**Parent program**` link resolves into the specs dir.
+  const sibling = path.join(repoRoot, "docs", "kairos", "specs", "x-overall.md");
+  mkdirSync(path.dirname(sibling), { recursive: true });
+  writeFileSync(sibling, "# x-overall\n", "utf8");
   return file;
 };
 
@@ -1771,7 +1821,10 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
-      const spec = path.join(repoRoot, "docs", "kairos", "specs", "s1-design.md");
+      // The declared, contract-clean spec doc — the `- **Doc type**:` header
+      // declaration (spec §12 · D34) the capsule's doc-class discrimination reads
+      // (zero filename inference).
+      const spec = conformingSpec(repoRoot);
       const specCode = await command.runArgv([
         "review",
         "--type",
@@ -3437,7 +3490,10 @@ describe("T3 — the commander-native composition root: program parse + .action 
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
-      const spec = path.join(repoRoot, "docs", "kairos", "specs", "s1-design.md");
+      // The declared, contract-clean spec doc — the `- **Doc type**:` header
+      // declaration (spec §12 · D34) the capsule's doc-class discrimination reads
+      // (zero filename inference).
+      const spec = conformingSpec(repoRoot);
       const code = await command.runArgv([
         "review",
         "--type",

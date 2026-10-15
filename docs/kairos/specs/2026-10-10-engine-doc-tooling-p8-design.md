@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P8 设计：`cdd board <slug>` slug 进度板 + 引擎统一 next 面（plan-graph 提级一等公民 · 文件系统唯一真源 · 全节点 verb×round 细粒度 · next 贯穿全 face×verb 到 skill ref）
-- **Version**: v1.5 · 2026-10-15
+- **Version**: v1.7 · 2026-10-15
 - **Doc type**: phase-spec
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P8] 会话 · 用户裁定 · 2026-10-14）
@@ -295,6 +295,31 @@ cdd board: 2026-10-10-engine-doc-tooling
 - **contract**：`skill-anatomy.ts` 家族/词表/规则文本随改 + design-scope 机械删。
 - **plan**：**新任务 T11**（`DependsOn: 9` · 与 T9 同面后续——T9 刚落 cdd-design 自环标签与契约词表，T11 在其上消融）· T7 `DependsOn += 11`（pin 重锚覆盖 T11 后的契约终态）。
 
+### 16. cdd-design 节点改名 + handoff 分裂（D38 · 用户裁定 2026-10-15）
+#### 16.1 现场与根因（一名两义）
+- **现场**：cdd-design 的 `run-cdd-spec-writer`（single-spec / phase-spec）与 `run-cdd-charter`（overall-spec）的 Exit **同指** `handoff-next`，而 `handoff-next` 现语义是 design 域续环（hand off 到 `/compact` 或下一 phase 的 `kairos:cdd-design` [Px program]）。D37 消融 hub 后二线语义**分叉**：spec 线应交引擎统一 next 面（spec 闭合 → `PIPELINE_NEXT` 的 `phase-spec → kairos:cdd-plan`），charter 线才交 design 域续环。
+- **命名**：`run-cdd-spec-writer` 与 `run-cdd-charter` 是同族二分（前者走 single/phase-spec，后者走 overall-spec），命名不对称（`-writer` 后缀赘余）。
+#### 16.2 判定（用户裁定 2026-10-15 · 三点）
+- **改名**：`run-cdd-spec-writer` → `run-cdd-spec`（与 `run-cdd-charter` 对标）。
+- **`handoff-next` 重定义**：`run-cdd-spec → handoff-next`——此 `handoff-next` = **遵循引擎 `next:` 字面规范**（承接引擎统一 next 面，字面即 `kairos:cdd-plan`）。
+- **新终端 `handoff-phase-design`**：`run-cdd-charter → handoff-phase-design`——承接**原 `handoff-next` 的 design 域行为**（hand off 到 `/compact` 或下一 phase 的 `kairos:cdd-design` [Px program]）。
+#### 16.3 契约同步（节点 12 → 13 · 边 16 不变）
+- cdd-design digraph 节点 **12 → 13**（+`handoff-phase-design`）· 边数 **16 不变**（`W → handoff-next` 保留、`C → handoff-phase-design` 仅改边 target，零新增边）· 节点块：`run-cdd-spec` 改名 · `handoff-next` Node Definition 按新义重写 · `handoff-phase-design` 新增块（承接原 handoff-next 文本）。13 节点仍回 growth 限内。契约（`skill-anatomy.ts`）零改（通用节点名规则不枚举 handoff-* 名字 · 消融后 `handoff` 字段已零读者）。
+#### 16.4 落地面（Plan Sole Writer 修订）
+- **skills**：cdd-design（节点改名 + `handoff-next` 重写 + `handoff-phase-design` 新增）。
+- **plan**：**新任务 T12**（`DependsOn: 11` · D37 消融终态之上的收口）· T7 `DependsOn += 12`（pin 重锚覆盖 cdd-design 改名后终态）。
+
+### 17. handoff draft 读面宽容解析（D39 · 用户裁定 2026-10-15）
+#### 17.1 现场与根因（LLM 手写 draft 的尾逗号一票否决）
+- **现场**：引擎 `Workspace.readJson` 用裸 `JSON.parse`——子代理（LLM）手写的 handoff draft（`tasks-*-implement.json` 等 carrier，`schema: "work"`）偶发**尾逗号**（LLM 从散文生成 JSON 的固有噪声）→ `{kind:"malformed"}` → `#reject` → **整轮 implement+review 作废**（W3 `{5,11}` 实例：`tasks-5,11-implement.json` 的 `notes` 数组尾逗号，工作面/载体其余完好）。
+- **调研**（实测 · 2026-10-15）：`jsonc-parser`（Microsoft 官方 `node-jsonc-parser` · 2026-07 更新 · 74.2M/wk · **零传递依赖** · ESM+CJS）`{allowTrailingComma:true}` **精确**容忍尾逗号/注释、仍对真错误（缺闭合括号等）报错 + 精确错误码；`json5`（240M/wk 但仓库休眠 2023-03 · 容忍**过度**——单引号/无引号键/hex）· `@humanwhocodes/momoa`（3.45M/wk）默认均**不容**尾逗号（实测三库对真实畸形 draft：仅 json5 开箱通过）。
+#### 17.2 判定（用户裁定 2026-10-15）
+- **载体**：**jsonc-parser** + `{allowTrailingComma:true}`（最活跃且官方 · 零依赖 · 宽容精准——只吞尾逗号/注释，不吞真损坏）。
+- **作用域**：**仅子代理手写的 handoff draft 读面**（引擎自写文件经 `JSON.stringify` 恒合法，严格读；宽容只护 LLM 噪声，不污染 JSON 契约）。
+#### 17.3 落地面（Plan Sole Writer 修订）
+- **engine**：`infra/workspace.ts` 增 draft 宽容读面 + `packages/cdd-engine/package.json` 依赖 `jsonc-parser`。
+- **plan**：**新任务 T13**（`DependsOn: 11` · 引擎 IO 面 · 与 T12 同后置波——D38/D39 均在 `{5,11}` 落定后实施）。
+
 ### Acceptance criteria
 - `cdd board <slug>` 输出全局态势板：overall/spec/plan/wave/branch 五行 + 各 `implement×N · review×N · fix×N` + wave 每波一行（波链 ✔▶○ + 明细）+ 固定 legend + `next:` 行
 - slug → 三文档路径以**文件系统为唯一真源**：扫描 `docs/kairos/{specs,plans}` 命中 `<slug>*` 树化 · **不合成盘上不存在父节点**（`doc-architecture-v2` 族 `-p4.1` 存在而 `-p4` 缺失场景正确树化）· **不解析 overall File paths 表**
@@ -318,6 +343,8 @@ cdd board: 2026-10-10-engine-doc-tooling
 - **Doc type 声明上收（§12 · D34）**：每份 doc 的 header 携 `- **Doc type**: <DocKey 四值>`（skeleton 生成）· `deriveDocType` 后缀规则 + `BoardView.#docKeyOf` 零残留（推导面整体退役）· validate/preflight/board 三消费点读同一声明读取方法 · 缺声明 BLOCKED · 存量 sweep 单 commit · 声明类型即 doc-contract 门的校验键（零文件名 cross-check）
 - **自环词表 + branch 消融（§13 · D35）**：四 skill 自环标签 `until next is terminal`（cdd-design 部分经 §15 · D37 再修订——hub 整体消融）· cdd-dev branch 双节点消融（`branch-review`/`branch-fix` 零残留 · 单 hub 二出边）· branch 独立闭环断言块退役 · `nextLoopConditions`/`loopShapeRule`/`edgeConditionRule` 随新词表同步 · `out.length` 域规则不动
 - **cdd-design hub 消融（§15 · D37）**：cdd-design 的 `NEXT-LOOP` 节点 + 三出边消融（无生产者=死节点）· `run-cdd-spec-writer` Exit 直收 `handoff-next` · cdd-design `family: loop→onepass` · design-scope hub 机械整体退役（`handoff` 字段/`rowPrefixes`/design out-length=3/`until session closes` 词/闭合出口断言块/`registry.crossings["cdd-design"]` 零残留）· `enderShapeRule` 补 cdd-design 无自环例外
+- **cdd-design 节点改名 + handoff 分裂（§16 · D38）**：`run-cdd-spec-writer` → `run-cdd-spec`（与 `run-cdd-charter` 对标）· `run-cdd-spec → handoff-next`（= 遵循引擎 `next:` 字面规范）· `run-cdd-charter → handoff-phase-design`（新终端 · 承接原 handoff-next 的 design 域行为）· digraph 12 → 13 节点（边 16 不变）· 契约（`skill-anatomy.ts`）零改
+- **handoff draft 读面宽容解析（§17 · D39）**：子代理手写 handoff draft 读面用 `jsonc-parser` + `{allowTrailingComma:true}`（尾逗号/注释容忍 · 真错误仍报错）· 引擎自写文件严格读 · 宽容**仅限**子代理手写 draft 读面（不污染 JSON 契约）· 新依赖 `jsonc-parser`
 
 ## Constraints
 - **文件系统唯一真源**：节点集合、artifact 存在性全来自扫描，绝不合成盘上不存在的节点，绝不解析 overall 的 Phase inventory / File paths 声明表
@@ -355,3 +382,5 @@ cdd board: 2026-10-10-engine-doc-tooling
 | v1.3 | 2026-10-15 | **host 通道完整性 backfill（用户裁定 2026-10-15 · D36 · in-flight）**：W1 执行期两次 `CDD_BLOCKED: child claude returned no status line`（两次皆长任务 child——工作面完好、载体已写 APPROVED、唯 stdout 尾部状态块丢失；短 child 零事）。**根因（双证）**：`SyncRunner` 的 `execFileSync` 未传 `maxBuffer`（Node 默认 1 MiB · 超限尾部截断）+ 联网检索证实同族已知问题（anthropics/claude-code #6279/#15813/#17197 · `--print` 长输出被 exec 族包裹截断）。**定案（根本修非补丁 · 六前提）**：`SyncRunner` 弃 `execFileSync` 改 `spawn` + 同步流式聚合（`data` 事件增量收集 + `Atomics.wait` 阻塞至 EOF）——`maxBuffer` 天花板的整个类别被消灭；`spawnSync`（同样带 maxBuffer）与 async 化（撕开全同步 dispatch 契约）双否决；face 零变（`{code,stdout,stderr}` · `--output-format text` · `RETURN_STDOUT_BLOCK` 契约零动）· stderr 同法聚合 · 回归 pin（>1 MiB 输出完整到达）。新增 §14 + changeset | Oscar M. · Claude Opus 5（P8 编排器 backfill · 用户裁定） |
 | v1.4 | 2026-10-15 | **host 通道载体由「自造 spawn 流式」改为 execaSync（用户裁定 2026-10-15 · D36 修订）**：v1.3 定案的 `spawn` + worker-线程同步流式聚合被用户裁定改向——联网核查发现成熟活跃的第三方进程库 **execa**（sindresorhus · v10.1.1 · engines≥22），其同步面 `execaSync` **默认 `maxBuffer` 无上限**，且把**双管道并发排水**内建承于 `spawnSync`。自造 pump（约 118 行 worker 并发机器）既是自造轮子（premise 2），又把排水正确性重担放回引擎（premise 3/4）。**定案修订**：`SyncRunner` 改 `execaSync(command, args, {cwd, reject:false, stripFinalNewline:false})`——face 零变（同步 · `{code,stdout,stderr}` · fail-open 保持 · `RETURN_STDOUT_BLOCK` 契约零动）· 结果回读 `exitCode ?? 1` + stderr 走 `shortMessage` 诊断 · 新增依赖 `execa`（传递依赖 12 个，用户知情下裁定）。§14.2/§14.3 重定向 + 回归 pin 不变 | Oscar M. · Claude Opus 5（P8 编排器 backfill · 用户裁定） |
 | v1.5 | 2026-10-15 | **cdd-design NEXT-LOOP hub 消融 + onepass 归类 backfill（用户裁定 2026-10-15 · D37 · in-flight）**：用户问「cdd-design 的 next-loop 节点有没有用」——查证发现其 hub 自环 `until next is terminal` **无生产者**（引擎 `PIPELINE_NEXT` 只产 cdd-plan/cdd-dev/cdd-close 三 ref · `REFS` 里 `kairos:cdd-design` 行零消费者 → 零 design 路由 = D33 明文的「design 不在 next 内」），唯一入边（委托 writer flow）在其自身 NEXT-LOOP 内消化 spec next 字面后 hand off，不回投——与 D35 消融的 cdd-dev branch 孤岛**同构**（死流量 · checker 不查连通性故静默通过）。**定案（两点）**：① hub 整体消融（`run-cdd-spec-writer` Exit 直收 `handoff-next`，对齐 `run-cdd-charter`）· ② cdd-design `family: loop→onepass`（`onepass` 语义由「one-shot toolchain」一般化为「one-pass · 无自环」）。**契约同步**：design-scope hub 机械整体退役（`handoff` 字段整体移除（零读者=死码）· `rowPrefixes` · design out-length=3 · `until session closes` 词 · 闭合出口断言块 · `registry.crossings["cdd-design"]`（消融后 12 节点/16 边均回限内））。新增 §15 + AC 1 条 + Constraints 1 行 · **新 T11**（DependsOn 9）+ T7 DependsOn += 11 | Oscar M. · Claude Opus 5（P8 编排器 backfill · 用户裁定） |
+| v1.6 | 2026-10-15 | **cdd-design 节点改名 + handoff 分裂 backfill（用户裁定 2026-10-15 · D38 · in-flight）**：D37 消融 hub 后 `handoff-next` 一名两义——spec 线应交引擎统一 next 面（`PIPELINE_NEXT` 的 `phase-spec → kairos:cdd-plan`），charter 线才交 design 域续环（`/compact` 或下一 phase 的 `kairos:cdd-design` [Px]）。**定案（三点）**：① `run-cdd-spec-writer` → `run-cdd-spec`（与 `run-cdd-charter` 对标 · 去 `-writer` 赘余）· ② `run-cdd-spec → handoff-next`（此 `handoff-next` = **遵循引擎 `next:` 字面规范**）· ③ `run-cdd-charter → handoff-phase-design`（新终端 · 承接**原 handoff-next 的 design 域行为**——hand off 到 `/compact` 或下一 phase 的 `kairos:cdd-design` [Px]）。**契约同步**：cdd-design digraph **12 → 13 节点**（+`handoff-phase-design`）· **边 16 不变**（`C → handoff-phase-design` 仅改边 target，`W → handoff-next` 保留）· 契约（`skill-anatomy.ts`）零改（通用节点名规则不枚举 handoff-* 名字）。新增 §16 + AC 1 条 · **新 T12**（DependsOn 11）+ T7 DependsOn += 12 | Oscar M. · Claude Opus 5（P8 编排器 backfill · 用户裁定） |
+| v1.7 | 2026-10-15 | **handoff draft 读面宽容解析 backfill（用户裁定 2026-10-15 · D39 · in-flight）**：W3 `{5,11}` implement 轮 BLOCKED——`tasks-5,11-implement.json`（子代理 LLM 手写的 carrier）`notes` 数组尾逗号，裸 `JSON.parse` 一票否决整轮。用户指出「这不是严重 JSON 问题 · JSON5 类库可解析」。**调研（实测）**：`jsonc-parser`（Microsoft 官方 · 2026-07 更新 · 74.2M/wk · **零传递依赖** · ESM+CJS）`{allowTrailingComma:true}` 精确容忍尾逗号/注释、仍对真错误报错 + 精确错误码；`json5`（休眠 2023-03 · 容忍过度）· `momoa`（3.45M/wk）默认均不容尾逗号。**定案（两点）**：① 载体 **jsonc-parser + `allowTrailingComma:true`**（最活跃且官方 · 零依赖 · 宽容精准——消灭 LLM 手写噪声，不放过真损坏）· ② 作用域**仅子代理手写 handoff draft 读面**（引擎自写文件经 `JSON.stringify` 恒合法，严格读；宽容不污染 JSON 契约）。新增 §17 + AC 1 条 · **新 T13**（DependsOn 11） | Oscar M. · Claude Opus 5（P8 编排器 backfill · 用户裁定） |

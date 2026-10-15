@@ -68,7 +68,17 @@ export interface HandoffNamespace {
   families: Readonly<Record<string, HandoffFamily>>;
 }
 
-/** The engine runtime — the typed engine-config surface (version + channels + names). */
+/** The doc-root segments — the slug → doc-tree reverse derivation's root paths
+ *  (relative to the repo root; the board's scan reads them, never re-declares). */
+export interface DocRoots {
+  /** The design-spec directory segment. */
+  specs: string;
+  /** The plan directory segment. */
+  plans: string;
+}
+
+/** The engine runtime — the typed engine-config surface (version + channels + names
+ *  + doc roots). */
 export interface EngineRuntime {
   /** The runtime contract version. */
   $version: number;
@@ -76,6 +86,8 @@ export interface EngineRuntime {
   contextContract: ContextContract;
   /** The handoff-name space — workspace + family naming. */
   handoffNamespace: HandoffNamespace;
+  /** The doc-tree root segments (the slug → node-tree face's file-system truth). */
+  docRoots: DocRoots;
 }
 
 /** The handoff family naming table — the canonical per-family file-name patterns
@@ -165,5 +177,9 @@ export const ENGINE_RUNTIME = {
   handoffNamespace: {
     workspaceRoot: ".kairos/cdd",
     families: HANDOFF_FAMILIES,
+  },
+  docRoots: {
+    specs: "docs/kairos/specs",
+    plans: "docs/kairos/plans",
   },
 } as const satisfies EngineRuntime;

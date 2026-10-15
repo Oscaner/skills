@@ -1,11 +1,11 @@
 ---
 name: cdd-plan
-description: Independent plan-writing orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:writing-plans（pi：/skill:writing-plans） flow inline as this session's baseline, backfills the design spec on substantive drift before authoring, commits the authored plan before the review-fix loop, runs the loop following the engine's next: line, and hands off to cdd-dev. Callable standalone; invoke as kairos:cdd-plan（pi：/skill:cdd-plan）.
+description: Independent plan-writing orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:writing-plans（pi：/skill:writing-plans） flow inline as this session's baseline, backfills the design spec on substantive drift before authoring, commits the authored plan before the review-fix loop, and runs the loop following the engine's next: line — the engine's next face carries the pipeline continuation. Callable standalone; invoke as kairos:cdd-plan（pi：/skill:cdd-plan）.
 ---
 
 # Kairos CDD-Plan
 
-Writes a plan document from an approved spec, backfills the design when planning surfaces substantive drift, commits the plan before reviewing under the cdd plan contract, and hands off to cdd-dev.
+Writes a plan document from an approved spec, backfills the design when planning surfaces substantive drift, commits the plan before reviewing under the cdd plan contract; on closure the engine's `next:` face carries the pipeline continuation.
 
 **Invocation discipline** — every engine command runs as a background dispatch: launch it in the background and await the completion notification — never poll — then read the full output (stdout/stderr). Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture. **Round rhythm** — one review pass per dispatch; a fix round re-enters the review while the route is not done; commit the authored plan before the first review round; ensure the working tree is clean before entering review (dirty → BLOCKED; the orchestrator writes no tree during dispatch). **Failure face** — cross-node failure handling lives in the Failure Modes table below (the single source); node `Fail` entries keep only local behavior.
 
@@ -19,7 +19,6 @@ flowchart TD
   C --> K[commit-plan]
   K --> L[NEXT-LOOP]
   L -->|until next=done| L
-  L -->|next=done| H[handoff-cdd-dev]
   L -->|no next| Z2((BLOCKED))
 ```
 
@@ -59,17 +58,10 @@ flowchart TD
 
 ### `NEXT-LOOP`
 
-- **Do**: Run the review-fix rhythm for the authored plan — one review per pass. Dispatch the review round on the current ref (`npx -y @oscaner-skills/cdd-engine@latest review --type plan --plan <path>`); dispatch the output's `next:` line as written — the literal is the route: a fix dispatch consumes the findings handoff, a closure routes to `handoff-cdd-dev`; a BLOCKED/TIMEOUT round carries no `next:` line — its reason rides stderr for reporting.
+- **Do**: Run the review-fix rhythm for the authored plan — one review per pass. Dispatch the review round on the current ref (`npx -y @oscaner-skills/cdd-engine@latest review --type plan --plan <path>`); dispatch the output's `next:` line as written — the literal is the route: a fix dispatch consumes the findings handoff, a closure ends the flow (follow the engine's `next:` literal — for a plan it routes the next pipeline entrypoint); a BLOCKED/TIMEOUT round carries no `next:` line — its reason rides stderr for reporting.
 - **Read**: the review output — its conclusion and the `next:` line, plus the findings handoff path
-- **Exit**: the `next:` line reads `done` → `handoff-cdd-dev`; each fix pass re-enters this hub while the route is not done (the `until next=done` self-loop)
+- **Exit**: the `next:` line reads `done` → the flow ends (the engine's `next:` literal carries the next pipeline entrypoint when one exists); each fix pass re-enters this hub while the route is not done (the `until next=done` self-loop)
 - **Fail**: Re-running a review after a closure conclusion → violates Review Convergence (stop + report)
-
-### `handoff-cdd-dev`
-
-- **Do**: Hand off to `/kairos:cdd-dev`（pi：/skill:cdd-dev）
-- **Read**: The committed plan file
-- **Exit**: Handoff executed → flow ends for this skill
-- **Fail**: Target skill missing → BLOCKED (install kairos — see the kairos README's 'Upstream dependency install' table)
 
 ## Invariants
 

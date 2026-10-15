@@ -31,7 +31,13 @@
 // Module-level exports are the class — zero behavior-carrying bare functions.
 
 import type { RouteTarget } from "../session/faces.ts";
-import { FIX_READBACK_SUFFIX, type Route } from "../session/next.ts";
+import {
+  FIX_READBACK_SUFFIX,
+  PIPELINE_NEXT,
+  type PipelineKey,
+  type Route,
+} from "../session/next.ts";
+import { REFS } from "./host.ts";
 import type { CapsuleKey, Words } from "./words.ts";
 
 /** The argv-channel flag row the capsule's render reads (structural — the engine's
@@ -57,10 +63,14 @@ export class Capsule {
   readonly #words: Words;
   /** The argv-channel flag spellings — the declared render source (parse's own). */
   readonly #channels: Readonly<Record<string, CapsuleChannelRow>>;
+  /** The host harness id — the skill-ref resolution key of the `done` route's
+   *  pipeline lookup (REFS[ref][host]; `""` falls back to the claude form). */
+  readonly #host: string;
 
-  constructor(words: Words, channels: Readonly<Record<string, CapsuleChannelRow>> = {}) {
+  constructor(words: Words, channels: Readonly<Record<string, CapsuleChannelRow>> = {}, host = "") {
     this.#words = words;
     this.#channels = channels;
+    this.#host = host;
   }
 
   /** emit(status, blocker, handoff, next, target) → the capsule stdout lines: the
@@ -118,7 +128,7 @@ export class Capsule {
     const words = this.#words;
     switch (route.kind) {
       case "done":
-        return words.routeWord("done");
+        return this.#doneText(target);
       case "next-wave":
         return `${words.routeWord("implement")} ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("tasks")} ${route.tasks}`;
       case "review": {
@@ -172,5 +182,34 @@ export class Capsule {
       case "soft-cap":
         return route.message;
     }
+  }
+
+  /** The `done` route's render — the unified next face (D33): without a target the
+   *  bare terminal word stays (the byte-pinned fallback); with a target the
+   *  doc-class key looks up PIPELINE_NEXT (session/next.ts — the ONE face 间接线
+   *  source): a `ref` entry resolves REFS[ref][host] (the `""` host falls back to
+   *  the claude form), a `literal` entry fills its `<plan>` slot with the frame's
+   *  plan fact, a `done` entry renders the bare word. */
+  #doneText(target?: RouteTarget | null): string {
+    if (target == null) return this.#words.routeWord("done");
+    const key = this.#docClassKey(target);
+    const entry = PIPELINE_NEXT[key];
+    if (entry.kind === "done") return this.#words.routeWord("done");
+    if (entry.kind === "literal") return entry.literal.replace("<plan>", this.#planOf(target));
+    const row = REFS[entry.ref as keyof typeof REFS];
+    const form = row === undefined ? undefined : row[this.#host as "claude" | "cursor" | "pi"];
+    return form ?? row?.claude ?? this.#words.routeWord("done");
+  }
+
+  /** The target → doc-class key of the pipeline table — the doc-class判别 (D33):
+   *  overall-spec vs phase-spec derives from the id PATH (`-overall.md` ending),
+   *  never the RouteTarget type's bare value; the task-face targets key by type. */
+  #docClassKey(target: RouteTarget): PipelineKey {
+    if (target.type === "spec") {
+      return target.id.endsWith("-overall.md") ? "overall-spec" : "phase-spec";
+    }
+    if (target.type === "plan") return "plan";
+    if (target.type === "wave") return "wave";
+    return "branch";
   }
 }

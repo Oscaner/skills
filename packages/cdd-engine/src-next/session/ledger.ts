@@ -626,7 +626,7 @@ export class Ledger {
    * verdict — the structural root of the phantom-closure fix), and a historical
    * merged-wave row naturalizes through its own review/fix pair (the wave row's C5
    * route, never a per-member read). The frontier consumers (the wave gate · the
-   * plan-graph board) read this face — one closed set, one source.
+   * board face) read this face — one closed set, one source.
    */
   closedWaves(): Set<number> {
     const closed = new Set<number>();

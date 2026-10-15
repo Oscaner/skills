@@ -182,15 +182,15 @@ describe("the commander pipeline — parseArg value-domain rejection + the norma
     ).toBe("commander.invalidArgument");
   });
 
-  it("accepts the schema <type> vocabulary — the phaseSpec alias normalizes, plan-graph passes through", () => {
+  it("accepts the schema <type> vocabulary — the phaseSpec alias normalizes, the retired display type rejects", () => {
     const schemaProgram = new CommandTreeBuilder();
     const get = leafOf(commandOf(schemaProgram.program, "schema"), "get");
     schemaProgram.program.parse(["schema", "get", "phaseSpec"], { from: "user" });
     expect(get.processedArgs[0]).toBe("phase-spec");
-    const graphProgram = new CommandTreeBuilder();
-    const getGraph = leafOf(commandOf(graphProgram.program, "schema"), "get");
-    graphProgram.program.parse(["schema", "get", "plan-graph"], { from: "user" });
-    expect(getGraph.processedArgs[0]).toBe("plan-graph");
+    const rejectedProgram = new CommandTreeBuilder();
+    expect(() =>
+      rejectedProgram.program.parse(["schema", "get", "plan-graph"], { from: "user" }),
+    ).toThrow();
   });
 });
 
@@ -292,8 +292,7 @@ describe("the value-domain table declaration — VALUE_SHAPES (T7)", () => {
     // is §6.3-listed but T7 records it as RETAINED, never on the destroy list —
     // SCHEMA_TYPE_KEYS is the schema get <type> doc-key vocabulary, orthogonal
     // to the ChannelValueType value-shape table (merging it into VALUE_SHAPES does
-    // not fit); #parseTypeKey derives through it (the get leaf also routes the
-    // plan-graph display type).
+    // not fit); #parseTypeKey derives through it.
     expect(projection).toContain("#parseTypeKey");
     expect(projection).toContain("SCHEMA_TYPE_KEYS");
     expect(declare).toContain("SCHEMA_TYPE_KEYS");

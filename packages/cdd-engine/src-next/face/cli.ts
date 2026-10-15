@@ -72,6 +72,7 @@ import { Capsule } from "./capsule.ts";
 import { ARGV_CHANNEL, type CliLeafName, type CliVerb } from "./declare.ts";
 import { CliGate } from "./gate.ts";
 import { GraphView } from "./graph-view.ts";
+import { HostDetect } from "./host.ts";
 import {
   type CliIo,
   CliLifecycle,
@@ -173,10 +174,10 @@ export class Cli {
   readonly #stdinRead: () => string;
   readonly #issue: IssueBodyRenderer;
   readonly #translator: Translator;
-  /** The plan-graph display (the schema get plan-graph + the pre-flight face). */
+  /** The pre-flight board face (the blocked-dispatch wave hint). */
   readonly #graphView: GraphView;
   /** The lifecycle pre-flight seam (P4.1 T1) — the single dispatch gate the work
-   *  commands consult before ANY child dispatch (tree-clean → plan-graph → wave →
+   *  commands consult before ANY child dispatch (tree-clean → graph → wave →
    *  doc-contract; the CLI orchestrates the call + the render, never a re-type). */
   readonly #preflight: PreFlight;
   /** The contract coordinator — the shared doc-key derivation face (deriveDocType)
@@ -384,12 +385,12 @@ export class Cli {
     const scene = await this.#sceneOf(verb, type, node, parsed);
 
     // THE pre-flight seam (P4.1 T1 · design §1): the single dispatch gate —
-    // tree-clean → plan-graph → wave → doc-contract — ONE call, the whole sequence
+    // tree-clean → graph → wave → doc-contract — ONE call, the whole sequence
     // lives in the seam (session/preflight.ts), the CLI only orchestrates the call
     // + the verdict render (zero re-implemented gate here). A refused verdict
     // returns before any brief/lifecycle: no child dispatch ever runs. The
     // dirty-tree / doc-contract refusals ride the CDD_BLOCKED channel; the
-    // plan-graph / wave refusals keep the pre-existing refusal face.
+    // graph / wave refusals keep the pre-existing refusal face.
     const docPath = scene.target !== null && scene.target.kind === "doc" ? scene.target.doc : "";
     const preflight = await this.#preflight.vet({
       verb: verb as "implement" | "review" | "fix",
@@ -464,7 +465,7 @@ export class Cli {
         return outcome;
       },
       target: scene.target ?? undefined,
-      capsule: new Capsule(this.#words, ARGV_CHANNEL),
+      capsule: new Capsule(this.#words, ARGV_CHANNEL, HostDetect.detect(process.env)),
       planPath: scene.planPath,
     });
 
@@ -604,7 +605,7 @@ export class Cli {
 
   /** Render a refused pre-flight verdict — the work command's BLOCK face (P4.1 T1).
    *  The dirty-tree / doc-contract refusals ride the CDD_BLOCKED channel (the
-   *  commit/discard guidance + the named structural findings); the plan-graph / wave
+   *  commit/discard guidance + the named structural findings); the graph / wave
    *  refusals keep the pre-existing refusal face (the wave-board hint renders for the
    *  wave gate's split row — its done face rides the SAME closedWaves() read the gate
    *  judged, one closed set, one source). */
@@ -620,7 +621,7 @@ export class Cli {
       const graph = new TaskGraph(new PlanDocType("plan").parse(scene.planText.split("\n")));
       const closed = scene.ledger.closedWaves();
       for (const line of this.#graphView
-        .render(graph.report(closed), `plan-graph: ${scene.planPath ?? ""}`)
+        .render(graph.report(closed), `graph: ${scene.planPath ?? ""}`)
         .split("\n"))
         this.#io.stderr(`  ${line}\n`);
     }
@@ -722,8 +723,7 @@ export class Cli {
    *  skeleton` — the derived doc skeleton written DIRECTLY into the target
    *  document, the target required). The type vocabulary = the one shared
    *  schema-type table (`SCHEMA_TYPE_KEYS` in face/declare.ts: the primary DocKey
-   *  spellings + the legacy alias normalized to kebab, spec §5.3); the `plan-graph`
-   *  type rides the discovery read (§3.8) on the json face. */
+   *  spellings + the legacy alias normalized to kebab, spec §5.3). */
   async #runSchema(node: Command, parsed: RunInput): Promise<number> {
     const [type, target] = parsed.positionals;
     if (type === undefined) this.#usage(node, "cdd schema get: missing <type>");
@@ -734,12 +734,6 @@ export class Cli {
       if (target === undefined) {
         this.#usage(node, "cdd schema get --output skeleton: missing <target>");
       }
-      if (type === "plan-graph") {
-        this.#usage(
-          node,
-          "cdd schema get plan-graph: the skeleton render takes a doc-key <type> (plan-graph rides the --output json display face)",
-        );
-      }
       return this.#artifacts.runSchemaSkeleton(node, type, target);
     }
     if (target !== undefined) {
@@ -748,45 +742,7 @@ export class Cli {
         "cdd schema get: unexpected <target> — the json render takes no target (use --output skeleton <target> to render the scaffold into a document)",
       );
     }
-    if (type === "plan-graph") return this.#runPlanGraph(node, parsed);
     this.#io.stdout(`${JSON.stringify(this.#projector.schema()[type as DocKey], null, 2)}\n`);
-    return 0;
-  }
-
-  /** `cdd schema get plan-graph --plan <path>` — the plan-graph read (§3.8): the task
-   *  graph + the derived wave chain + the ledger progress, rendered as the engine-held
-   *  wave-board (GraphView — one deterministic row per wave, zero third-party layout;
-   *  the engine owns the node placement and the labels). A Graph validate failure
-   *  BLOCKs the read with the named edge violations — the wave-preflight gate surfaces
-   *  as a discovery read. The board's done face is the same closedWaves() the pre-flight
-   *  gates judge. */
-  async #runPlanGraph(node: Command, parsed: RunInput): Promise<number> {
-    const planPath = parsed.args.plan;
-    if (planPath === undefined) {
-      this.#usage(node, "cdd schema get plan-graph: missing --plan <path>");
-    }
-    const text = this.#artifacts.readText(node, planPath);
-    const plan = new PlanDocType("plan").parse(text.split("\n"));
-    const graph = new TaskGraph(plan);
-    const issues = graph.validate();
-    if (issues.length > 0) {
-      this.#io.stderr(
-        `cdd schema get plan-graph: ${issues.length} plan-graph violation(s) — fix the **DependsOn** edges first\n`,
-      );
-      for (const issue of issues)
-        this.#io.stderr(`  ${issue.kind}@T${issue.task}: ${issue.message}\n`);
-      return 1;
-    }
-    const repoRoot = await this.#repoRootOf(parsed);
-    const workspace = new Workspace(
-      new WorkspaceRoot(repoRoot ?? this.#cwd, this.#config.handoffNamespace().workspaceRoot),
-      Workspace.slugFromDoc(planPath),
-    ).ensure();
-    const ledger = new Ledger(workspace, this.#config);
-    // The board's done face = the C5 closure single read (v1.20): closedWaves() — the
-    // same set the pre-flight gates judge, never "any ledger row is done".
-    const done = ledger.closedWaves();
-    this.#io.stdout(`${this.#graphView.render(graph.report(done), `plan-graph: ${planPath}`)}\n`);
     return 0;
   }
 

@@ -59,9 +59,9 @@ interface EdgeRecord {
   deps: readonly number[];
 }
 
-/** The plan-graph read projection (§3.8) — the task graph + the derived wave chain
- *  + the done/current/pending view, the single projection the `schema get plan-graph`
- *  read and the pre-flight gates display. */
+/** The task-graph read projection (§3.8) — the task graph + the derived wave chain
+ *  + the done/current/pending view, the single projection the board face and the
+ *  pre-flight gates display. */
 export interface TaskGraphReport {
   /** Each task's dependency ids IN TRANSITIVE-REDUCED form (the direct-only display
    *  surface — the graph-view renders this, never the author's declared superset;
@@ -297,8 +297,8 @@ export class TaskGraph implements Frontier, ExecutionState {
     if (this.#nodes.includes(id)) this.#done.add(id);
   }
 
-  /** The plan-graph read projection — the task graph + the derived wave chain +
-   *  the done/current/pending view one method, the schema read and the pre-flight
+  /** The task-graph read projection — the task graph + the derived wave chain +
+   *  the done/current/pending view one method, the board face and the pre-flight
    *  gates' shared surface (§3.8: one projection, two displays). The edges ride the
    *  TRANSITIVE REDUCTION (the direct-only display); the waves always derive over
    *  the declared closure — a redundant declaration is inert, never a wave shift. */

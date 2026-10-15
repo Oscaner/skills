@@ -26,14 +26,7 @@ import type { HandoffSchemaFace } from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
 import type { Ledger, OpType, RoundStatus } from "../session/ledger.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame } from "../session/run.ts";
-import {
-  DISPATCH,
-  HOSTS,
-  type HostDetectSpec,
-  type HostId,
-  type HostReferenceTable,
-  REFS,
-} from "./host.ts";
+import { DISPATCH, HOSTS, HostDetect, type HostId, type HostReferenceTable, REFS } from "./host.ts";
 
 // ---------------------------------------------------------------------------
 // the stable seams — the shared faces the composition root + the lifecycle ride
@@ -145,27 +138,11 @@ export class CliLifecycle {
   }
 
   /** The host-harness id detected from the env — "claude" | "cursor" | "pi" | "" —
-   *  the first host detect row that matches (the detection priority: specific markers
-   *  first, the generic AI_AGENT last). One row detects by its primary marker (a
-   *  session env, presence/enum — a UUID CLAUDE_CODE_SESSION_ID is claude by presence)
-   *  or by the AI_AGENT prefix (AI_AGENT=claude-code-…). */
+   *  a delegation to the module-level judgment (HostDetect.detect, face/host.ts —
+   *  the detection's single home; this instance method is the injectable-env
+   *  adapter the lifecycle face rides, behavior unchanged). */
   detectHost(env: ProcessEnvLike = this.#env): string {
-    for (const id of ["claude", "cursor", "pi"] as const) {
-      const detect: HostDetectSpec = HOSTS[id].detect;
-      if (detect.env !== undefined && detect.env !== "") {
-        const marker = env[detect.env];
-        if (marker !== undefined && marker.length > 0) {
-          if (detect.value !== undefined && marker !== detect.value) continue;
-          return id;
-        }
-      }
-      if (detect.aiAgentPrefix !== undefined && detect.aiAgentPrefix.length > 0) {
-        const agent = env.AI_AGENT;
-        if (agent !== undefined && agent.length > 0 && agent.startsWith(detect.aiAgentPrefix))
-          return id;
-      }
-    }
-    return "";
+    return HostDetect.detect(env);
   }
 
   /** The DispatchStep the lifecycle runs — one frame → the outcome. */

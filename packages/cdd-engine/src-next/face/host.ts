@@ -17,6 +17,9 @@
 //   · REFS      — the per-harness slash reference forms (claude/cursor use the
 //     `/namespace:skill` form; pi the flat `/skill:<bare>` form — the pi flat
 //     namespace has no namespace-qualification syntax).
+//   · HostDetect — the module-level host judgment (the detection's single home):
+//     the lifecycle's detectHost delegates here; the work face's Capsule wiring
+//     reads the same judgment over process.env.
 //
 // P5 lands here: the forbidden parallel-sub-agents prose is deleted from the review
 // dispatch rows (the task/branch rows carry their ref only) and the review
@@ -291,3 +294,33 @@ export const HOST_CONTRACT = {
   dispatch: DISPATCH,
   refs: REFS,
 } as const satisfies HostContract;
+
+/** HostDetect — the module-level host judgment (the detection's single home). The
+ *  input is the inline structural env view — no lifecycle import (the host plane
+ *  must stay import-clean toward the lifecycle). */
+// biome-ignore lint/complexity/noStaticOnlyClass: the module-level host-detect surface — the zero-bare-function discipline admits no standalone predicate functions.
+export class HostDetect {
+  /** detect(env) — the first host detect row that matches, in the pinned order
+   *  `claude` → `cursor` → `pi` (specific markers first, the generic AI_AGENT
+   *  last). One row detects by its primary marker (a session env, presence/enum —
+   *  a UUID CLAUDE_CODE_SESSION_ID is claude by presence) or by the AI_AGENT
+   *  prefix (AI_AGENT=claude-code-…); no match returns `""`. */
+  static detect(env: Record<string, string | undefined>): HostId | "" {
+    for (const id of ["claude", "cursor", "pi"] as const) {
+      const detect: HostDetectSpec = HOSTS[id].detect;
+      if (detect.env !== undefined && detect.env !== "") {
+        const marker = env[detect.env];
+        if (marker !== undefined && marker.length > 0) {
+          if (detect.value !== undefined && marker !== detect.value) continue;
+          return id;
+        }
+      }
+      if (detect.aiAgentPrefix !== undefined && detect.aiAgentPrefix.length > 0) {
+        const agent = env.AI_AGENT;
+        if (agent !== undefined && agent.length > 0 && agent.startsWith(detect.aiAgentPrefix))
+          return id;
+      }
+    }
+    return "";
+  }
+}

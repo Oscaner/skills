@@ -28,7 +28,6 @@ import {
   CLI_COMMANDS,
   type CliArgSpec,
   type CliCommandSpec,
-  type CliLeafName,
   type CliLeafSpec,
   type CliValueOverride,
   REQUIRED_GROUPS,
@@ -95,7 +94,7 @@ export class CommandTreeBuilder {
     const node = this.program.command(spec.name);
     node.description(spec.description);
     this.#bindOptions(node, spec.keys);
-    this.#bindArguments(node, spec.positionals, undefined);
+    this.#bindArguments(node, spec.positionals);
     this.#bindProgramScopes(node);
     if (spec.example !== undefined) {
       node.addHelpText("after", `Examples:\n  ${spec.example}`);
@@ -110,7 +109,7 @@ export class CommandTreeBuilder {
     const node = parent.command(leaf.name);
     node.description(leaf.description);
     this.#bindOptions(node, leaf.keys);
-    this.#bindArguments(node, leaf.positionals, leaf.name);
+    this.#bindArguments(node, leaf.positionals);
     this.#bindProgramScopes(node);
   }
 
@@ -148,19 +147,12 @@ export class CommandTreeBuilder {
   /** The positional binding — one .argument() per declared positional (required →
    *  `<name>`, optional → `[name]`; the schema <type> argument validates through
    *  the typeKey vocabulary). */
-  #bindArguments(
-    node: Command,
-    positionals: readonly CliArgSpec[] | undefined,
-    leafName: CliLeafName | undefined,
-  ): void {
+  #bindArguments(node: Command, positionals: readonly CliArgSpec[] | undefined): void {
     for (const positional of positionals ?? []) {
       const raw = positional.key;
       const bracket = positional.required === true ? `<${raw}>` : `[${raw}]`;
       const description = this.#argumentDescription(raw);
-      const parseArg =
-        raw === "type"
-          ? (value: string) => this.#parseTypeKey(value, leafName === "get")
-          : undefined;
+      const parseArg = raw === "type" ? (value: string) => this.#parseTypeKey(value) : undefined;
       if (parseArg === undefined) {
         if (description === "") node.argument(bracket);
         else node.argument(bracket, description);
@@ -231,15 +223,12 @@ export class CommandTreeBuilder {
 
   /** The schema `<type>` vocabulary check — the primary spellings validate and
    *  normalize to themselves, the legacy `phaseSpec` alias normalizes to the kebab
-   *  key, an out-of-vocabulary type rejects (spec §5.3). The get leaf additionally
-   *  passes the `plan-graph` display route through (a display type, never a doc
-   *  key); the gen leaf's vocabulary carries no plan-graph. */
-  #parseTypeKey(raw: string, planGraph: boolean): string {
-    if (planGraph && raw === "plan-graph") return raw;
+   *  key, an out-of-vocabulary type rejects (spec §5.3). */
+  #parseTypeKey(raw: string): string {
     const key = SCHEMA_TYPE_KEYS[raw];
     if (key === undefined) {
       throw new InvalidArgumentError(
-        `unknown schema type: ${raw} (available: ${SCHEMA_PRIMARY_KEYS.join(", ")}${planGraph ? ", plan-graph" : ""})`,
+        `unknown schema type: ${raw} (available: ${SCHEMA_PRIMARY_KEYS.join(", ")})`,
       );
     }
     return key;

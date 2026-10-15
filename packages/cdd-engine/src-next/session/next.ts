@@ -48,6 +48,35 @@ export type Route =
  *  never a hard stop — the user / Plan Sole Writer override it). */
 export const REVIEW_CYCLE_CAP = 10;
 
+// ---------------------------------------------------------------------------
+// the face 间接线 — the pipeline's face-to-face `done` routing table (D33)
+// ---------------------------------------------------------------------------
+
+/** The doc-class keys of the unified next face — one row per pipeline seam a face
+ *  `done` can land on (the capsule's doc-class lookup reads them). */
+export type PipelineKey = "phase-spec" | "overall-spec" | "plan" | "wave" | "branch";
+
+/** One pipeline-next row — the skill ref to dispatch (`ref`), a literal command
+ *  (`literal`, the wave→branch transition — the wiring literal with its `<plan>`
+ *  slot), or the pipeline terminal (`done`). */
+export type PipelineEntry =
+  | { kind: "ref"; ref: string }
+  | { kind: "literal"; literal: string }
+  | { kind: "done" };
+
+/** The pipeline next table — the ONE face-间接线 source (D33 · 单址 session/next.ts):
+ *  the doc-class key → the next pipeline entrypoint. The skill refs ride REFS
+ *  (face/host.ts) resolved per host at the render — never a hard-coded plugin
+ *  spelling; the wave literal's `<plan>` slot is filled by the capsule with the
+ *  frame's plan fact. */
+export const PIPELINE_NEXT: Readonly<Record<PipelineKey, PipelineEntry>> = {
+  "phase-spec": { kind: "ref", ref: "kairos:cdd-plan" },
+  "overall-spec": { kind: "done" },
+  plan: { kind: "ref", ref: "kairos:cdd-dev" },
+  wave: { kind: "literal", literal: "review --type branch --plan <plan>" },
+  branch: { kind: "ref", ref: "kairos:cdd-close" },
+};
+
 /** The review-cycle soft-cap suggestion (the C5-0 suggestion face — user adjudicates). */
 export const SOFT_CAP_SUGGESTION = "BLOCKED: review-cycle-cap — user adjudicates";
 

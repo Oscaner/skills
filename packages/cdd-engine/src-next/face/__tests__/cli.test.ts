@@ -15,8 +15,8 @@
 //     and land the canonical artifacts (brief / handoffs / progress); the phase gate
 //     refuses an unreachable round without dispatching a phantom;
 //   · the pure-command E2E — schema get (the merged D19 single leaf: the shared
-//     schema-type vocabulary — the primary doc-key spellings + the plan-graph
-//     display route — under the default --output json; the --output skeleton face
+//     schema-type vocabulary — the primary doc-key spellings — under the default
+//     --output json; the --output skeleton face
 //     rendering the derived doc skeleton DIRECTLY into the target document, the
 //     legacy phaseSpec alias normalized to the kebab key, §5.3), issue render
 //     (stdin body — the subcommand face; the
@@ -624,7 +624,7 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
       const code = await command.runArgv(["schema", "get", "bogus"]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain(
-        "unknown schema type: bogus (available: overall-spec, plan, phase-spec, single-spec, plan-graph)",
+        "unknown schema type: bogus (available: overall-spec, plan, phase-spec, single-spec)",
       );
     } finally {
       cleanup();
@@ -661,7 +661,8 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
       expect(code).toBe(2);
       expect(io.stderrText).toContain("cdd schema get --output skeleton: missing <target>");
       io.stderrText = "";
-      // plan-graph is the json-display route — never the skeleton render's doc-key
+      // the retired display type is out of the skeleton vocabulary — the unknown
+      // type exits 2 at the run face (the shared vocabulary's rejection face)
       code = await command.runArgv([
         "schema",
         "get",
@@ -671,9 +672,7 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
         "/tmp/demo.md",
       ]);
       expect(code).toBe(2);
-      expect(io.stderrText).toContain(
-        "cdd schema get plan-graph: the skeleton render takes a doc-key <type>",
-      );
+      expect(io.stderrText).toContain("unknown schema type: plan-graph");
       io.stderrText = "";
       // the --output enum rejects an out-of-domain value at parse
       code = await command.runArgv(["schema", "get", "plan", "--output", "bogus"]);
@@ -1448,7 +1447,10 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       ]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 · handoff: ");
-      expect(io.stdoutText).toContain("next: done");
+      // T3 deliberate pin break (the constraints' registered next: break): the wave
+      // closure renders the wave→branch wiring literal (PIPELINE_NEXT.wave), never
+      // the bare terminal word.
+      expect(io.stdoutText).toContain("next: review --type branch --plan ");
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       expect(existsSync(path.join(workspace, "tasks-1-review-1.json"))).toBe(true);
     } finally {
@@ -1627,7 +1629,9 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       ]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 ·");
-      expect(io.stdoutText).toContain("next: done");
+      // T3 deliberate pin break: the branch closure routes the cdd-close ref
+      // (PIPELINE_NEXT.branch through REFS[ref][host]).
+      expect(io.stdoutText).toContain("next: /kairos:cdd-close");
       // the branch line's workspace is the plan-slug (the fix dispatch's --plan) and
       // the handoff is the spine `branch-review-1.json` (no range token in the name)
       const workspace = path.join(repoRoot, ".kairos", "cdd", Workspace.slugFromDoc(plan));
@@ -1779,7 +1783,8 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         repoRoot,
       ]);
       expect(specCode).toBe(0);
-      expect(io.stdoutText).toContain("next: done");
+      // T3 deliberate pin break: the phase-spec closure routes the cdd-plan ref (PIPELINE_NEXT.phase-spec).
+      expect(io.stdoutText).toContain("next: /kairos:cdd-plan");
       expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "s1", "spec-review-1.json"))).toBe(
         true,
       );
@@ -1857,7 +1862,8 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
           repoRoot,
         ]),
       ).toBe(0);
-      expect(io.stdoutText).toContain("next: done");
+      // T3 deliberate pin break: the plan closure routes the cdd-dev ref (PIPELINE_NEXT.plan).
+      expect(io.stdoutText).toContain("next: /kairos:cdd-dev");
       // The target doc then DRIFTS (a backfill edits the plan — the pre-T7 flow
       // froze the closed doc at "reviewed" with no reopen entry: the line held no
       // open round). The target identity moved — review is the requested phase and
@@ -1904,7 +1910,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
           repoRoot,
         ]),
       ).toBe(0);
-      expect(io.stdoutText).toContain("next: done");
+      expect(io.stdoutText).toContain("next: /kairos:cdd-dev");
       // The doc did NOT move — the line gate compares the current revision to the
       // reviewed one and BLOCKs with the identity-aware message (the old "no open
       // round" text retires on the doc face).
@@ -2079,7 +2085,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
           repoRoot,
         ]),
       ).toBe(0);
-      expect(io.stdoutText).toContain("next: done");
+      expect(io.stdoutText).toContain("next: /kairos:cdd-dev");
       // The doc DRIFTS (a backfill edits the plan) so the second review reopens the
       // line at the NEXT round rather than being refused as an unchanged doc.
       writeFileSync(
@@ -2101,7 +2107,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         repoRoot,
       ]);
       expect(relative).toBe(0);
-      expect(io.stdoutText).toContain("next: done");
+      expect(io.stdoutText).toContain("next: /kairos:cdd-dev");
       // ONE line under the line-type key `"plan"` — the two argv spellings did NOT
       // fork a second row keyed by the other spelling; the round CONTINUED (2), it
       // did not reset to 1 (the §3.7 dogfood fix)
@@ -2633,35 +2639,12 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     }
   });
 
-  it("plan-graph — the board shows the in-wave ✔/▶ mix from closedWaves", async () => {
-    const { command, io, repoRoot, cleanup } = fixture();
+  it("the retired display type exits 2 — plan-graph carries no route and no vocabulary row", async () => {
+    const { command, io, cleanup } = fixture();
     try {
-      gitInit(repoRoot);
-      const planPath = independentPlan(repoRoot, "two.md", 2);
-      // Seed task 1's full C5 closure record (implement + a clean review) and leave
-      // task 2 unrecorded — both sit in the single root wave {1,2}, so the board's
-      // current wave holds the MIX: task 1 done (✔), task 2 in-flight (▶). The v1.20
-      // marker fix — a done task shows ✔ INSIDE the current wave, never a swallowed
-      // whole-row ▶ ("any ledger row is done" is retired: the closed set = closedWaves).
-      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "two").ensure();
-      const ledger = new Ledger(workspace, new ConfigLoader());
-      ledger.recordRound(1, "implement");
-      ledger.persistHandoff(
-        "review",
-        "wave",
-        { tasks: "1", round: 1 },
-        {
-          tasks: [1],
-          phase: "review",
-          findings: [],
-        },
-      );
-      ledger.recordRound(1, "review");
-      io.stdoutText = "";
-      const code = await command.runArgv(["schema", "get", "plan-graph", "--plan", planPath]);
-      expect(code).toBe(0);
-      expect(io.stdoutText).toContain("T1✔ · T2▶");
-      expect(io.stdoutText).toContain("wave board:");
+      const code = await command.runArgv(["schema", "get", "plan-graph"]);
+      expect(code).toBe(2);
+      expect(io.stderrText).toContain("unknown schema type: plan-graph");
     } finally {
       cleanup();
     }
@@ -2887,7 +2870,8 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
       expect(nextOf()).toBe(`review --type wave --tasks 2 --plan ${plan}`);
       io.stdoutText = "";
 
-      // the final review closes the run → rev2 lands on `done`
+      // the final review closes the run → rev2 lands on the wave→branch wiring
+      // literal (T3 deliberate pin break — the PIPELINE_NEXT.wave route)
       expect(
         await command.runArgv([
           "review",
@@ -2902,7 +2886,7 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
           repoRoot,
         ]),
       ).toBe(0);
-      expect(nextOf()).toBe("done");
+      expect(nextOf()).toBe(`review --type branch --plan ${plan}`);
 
       const progress = readJson<{ waves: unknown[] }>(path.join(workspace, "progress.json"));
       // the wave-2 row carries its own D30 revision record — the final APPROVED
@@ -2948,7 +2932,7 @@ describe("the pure commands — schema / issue / base", () => {
       const code = await command.runArgv(["schema", "get", "bogus"]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain(
-        "unknown schema type: bogus (available: overall-spec, plan, phase-spec, single-spec, plan-graph)",
+        "unknown schema type: bogus (available: overall-spec, plan, phase-spec, single-spec)",
       );
     } finally {
       cleanup();
@@ -3358,7 +3342,7 @@ describe("T3 — the commander-native composition root: program parse + .action 
       const code = await command.runArgv(["schema", "get", "bogus"]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain(
-        "unknown schema type: bogus (available: overall-spec, plan, phase-spec, single-spec, plan-graph)",
+        "unknown schema type: bogus (available: overall-spec, plan, phase-spec, single-spec)",
       );
     } finally {
       cleanup();
@@ -3400,17 +3384,24 @@ describe("T3 — the commander-native composition root: program parse + .action 
     }
   });
 
-  it("the plan-graph read refuses a missing --plan with the schema get face's native usage line", async () => {
+  it("the shared text-read's unreadable-file refusal rides the work face's native usage line", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
-      expect(await command.runArgv(["schema", "get", "plan-graph"])).toBe(2);
-      expect(io.stderrText).toContain("Usage: cdd schema get [options] <type>");
-      expect(io.stderrText).toContain("error: cdd schema get plan-graph: missing --plan <path>");
-      io.stderrText = "";
-      // the shared text-read's unreadable-file refusal rides the same face
+      // The text-read face the work commands share (readText) — its unreadable-file
+      // refusal surfaces through the wave face's --plan read (the same artifacts
+      // face; the owning node's usage line).
       const missing = path.join(repoRoot, "no-such-plan.md");
-      expect(await command.runArgv(["schema", "get", "plan-graph", "--plan", missing])).toBe(2);
-      expect(io.stderrText).toContain("Usage: cdd schema get [options] <type>");
+      const code = await command.runArgv([
+        "implement",
+        "--tasks",
+        "1",
+        "--plan",
+        missing,
+        "--root",
+        repoRoot,
+      ]);
+      expect(code).toBe(2);
+      expect(io.stderrText).toContain("Usage: cdd implement [options]");
       expect(io.stderrText).toContain(`error: cannot read file: ${missing}`);
     } finally {
       cleanup();
@@ -3458,7 +3449,7 @@ describe("T3 — the commander-native composition root: program parse + .action 
         repoRoot,
       ]);
       expect(code).toBe(0);
-      expect(io.stdoutText).toContain("next: done");
+      expect(io.stdoutText).toContain("next: /kairos:cdd-plan");
     } finally {
       cleanup();
     }

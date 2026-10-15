@@ -241,7 +241,7 @@ class SkillAnatomyCheck {
       // five chains).
       const row = anatomy.skills.registry[name];
       if (row !== undefined) {
-        this.#familyShapeFindings(name, an, row.family, anatomy);
+        this.#familyShapeFindings(name, an, row.family, anatomy, row);
       }
 
       // The edge-condition contract (v1.20 — the label-free rule reversed) + the
@@ -304,15 +304,17 @@ class SkillAnatomyCheck {
   }
 
   /** The unified-skeleton family-shape findings (§4.2) — the loop family carries
-   *  the shared NEXT-LOOP hub + its single self-loop + the commit-* and handoff-*
-   *  terminals; the close/onepass families are the explicit no-self-loop
-   *  exceptions (cdd-close ends at the finish semantic gate + terminal ·
-   *  cdd-report one-shot toolchain). */
+   *  the shared NEXT-LOOP hub + its single self-loop + the per-scope terminals (the
+   *  handoff scope's rowPrefixes: the design scope keeps the handoff-* terminal, the
+   *  pipeline scope carries none — the dissolved handoff, D33); the close/onepass
+   *  families are the explicit no-self-loop exceptions (cdd-close ends at the finish
+   *  semantic gate + terminal · cdd-report one-shot toolchain). */
   #familyShapeFindings(
     name: string,
     an: AnalyzedSkill,
     family: "loop" | "close" | "onepass",
     anatomy: SkillAnatomyContract,
+    row: SkillRosterRow | undefined,
   ): void {
     const hub = anatomy.digraph.loopHubNode.name;
     const hubNode = an.nodes.find((n) => n.label === hub);
@@ -324,7 +326,8 @@ class SkillAnatomyCheck {
       } else if (!hubSelfLoop) {
         this.#findings.push({ label: `the ${hub} hub carries no single self-loop`, skill: name });
       }
-      for (const prefix of anatomy.digraph.loopHubNode.rowPrefixes) {
+      const prefixes = anatomy.digraph.loopHubNode.rowPrefixes[row?.handoff ?? "design"] ?? [];
+      for (const prefix of prefixes) {
         if (!an.nodes.some((n) => n.type === "rect" && n.label.startsWith(prefix))) {
           this.#findings.push({ label: `missing the ${prefix}* terminal`, skill: name });
         }
@@ -348,13 +351,16 @@ class SkillAnatomyCheck {
     }
   }
 
-  /** The edge-condition contract findings (v1.20 — the label-free rule reversed):
-   *  every edge out of a decision node carries an explicit condition label; the
-   *  loop family's NEXT-LOOP hub carries EXACTLY the three pinned out-edges (the
-   *  `until next=done` self-loop · the `next=done` closure exit · the `no next`
-   *  BLOCKED face), each label an engine-lexicon pinned phrase (edgeConditionWords
-   *  — the static digraph shares ONE word table with the runtime `next:` instance);
-   *  the executor chain's branch-review loop is an INDEPENDENT closed loop. */
+  /** The edge-condition contract findings (v1.20 — the label-free rule reversed;
+   *  D33 — the out-edge count/shape per handoff scope): every edge out of a decision
+   *  node carries an explicit condition label; the loop family's NEXT-LOOP hub out-
+   *  edges are per handoff scope — the pipeline scope carries EXACTLY TWO (the
+   *  `until next=done` self-loop · the `no next` BLOCKED face; no `next=done`
+   *  closure exit — the closure routes through the engine's next face), the design
+   *  scope keeps the THREE pinned; each label an engine-lexicon pinned phrase
+   *  (edgeConditionWords — the static digraph shares ONE word table with the
+   *  runtime `next:` instance); the executor chain's branch-review loop is an
+   *  INDEPENDENT closed loop. */
   #edgeConditionFindings(
     name: string,
     an: AnalyzedSkill,
@@ -386,11 +392,12 @@ class SkillAnatomyCheck {
     const hubId = labelId.get(hub);
     if (hubId === undefined) return; // the missing-hub finding is the family shape's row
     const conditions = anatomy.digraph.nextLoopConditions;
+    const designScope = row.handoff === "design";
     const branchLoop = row.role === "executor";
     const out = an.edges.filter((e) => e.from === hubId);
 
-    // The three-out-edge assertion + word-table pin — the loop hub's exactly
-    // three pinned out-edges.
+    // The per-scope out-edge assertion + word-table pin — the loop hub's exactly
+    // the pinned out-edges of its handoff scope (pipeline 2 · design 3).
     const selfLoop = an.edges.find((e) => e.from === hubId && e.to === hubId);
     const doneExit = out.find((e) => e.label === "next=done");
     const noNext = out.find((e) => e.label === "no next");
@@ -400,11 +407,15 @@ class SkillAnatomyCheck {
         skill: name,
       });
     }
-    if (doneExit === undefined || (idLabel.get(doneExit.to) ?? "").startsWith("BLOCKED")) {
-      this.#findings.push({
-        label: `the ${hub} closure exit must be the "next=done" edge into a terminal node`,
-        skill: name,
-      });
+    // The `next=done` closure exit — the design scope only (D33: the pipeline scope's
+    // closure routes through the engine's next face, no closure exit edge).
+    if (designScope) {
+      if (doneExit === undefined || (idLabel.get(doneExit.to) ?? "").startsWith("BLOCKED")) {
+        this.#findings.push({
+          label: `the ${hub} closure exit must be the "next=done" edge into a terminal node`,
+          skill: name,
+        });
+      }
     }
     if (noNext === undefined || !(idLabel.get(noNext.to) ?? "").startsWith("BLOCKED")) {
       this.#findings.push({
@@ -412,9 +423,10 @@ class SkillAnatomyCheck {
         skill: name,
       });
     }
-    if (out.length !== 3) {
+    const expectedOut = designScope ? 3 : 2;
+    if (out.length !== expectedOut) {
       this.#findings.push({
-        label: `the ${hub} hub carries ${out.length} out-edge(s), expected exactly the three pinned`,
+        label: `the ${hub} hub carries ${out.length} out-edge(s), expected exactly the ${expectedOut} pinned for the ${row.handoff} scope`,
         skill: name,
       });
     }

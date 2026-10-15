@@ -8,7 +8,8 @@
 //     slug dir, readJson/writeJson are the JSON read/write pair (mkdir before
 //     write; readJson is tri-state — ok / missing / malformed), resolve() is the
 //     child-path single fact, slugFromDoc is the doc-file → slug derivation
-//     (`-design`/`-plan` suffix strip).
+//     (`-design`/`-plan` suffix strip), docsOfSlug is the slug → doc-tree reverse
+//     derivation (the board's file-system-only truth, phase-suffix parse included).
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -54,6 +55,22 @@ export class WorkspaceRoot {
   }
 }
 
+/** One slug's doc-tree paths — the reverse-derived artifact paths of a program or
+ *  phase slug (each member null when the file does not exist on disk; the file
+ *  system is the only truth, nothing is synthesized). */
+export interface SlugDocs {
+  /** The program's overall spec (`specs/<program>-overall.md`); null when absent. */
+  overall: string | null;
+  /** The phase's design spec (`specs/<slug>-design.md`); null when absent or the
+   *  slug is a program slug. */
+  spec: string | null;
+  /** The phase's plan (`plans/<slug>.md`); null when absent or the slug is a
+   *  program slug. */
+  plan: string | null;
+  /** The phase suffix (`-p7`, `-p4.1`, `-p3.2.1` …); null for a program slug. */
+  phaseSuffix: string | null;
+}
+
 /** One dispatch workspace — `<base>/<slug>/`. */
 export class Workspace {
   readonly root: WorkspaceRoot;
@@ -71,6 +88,60 @@ export class Workspace {
   static slugFromDoc(doc: string): string {
     const base = path.basename(doc).replace(/\.md$/, "");
     return base.replace(/-(?:design|plan)$/, "");
+  }
+
+  /** The slug's phase-suffix parse — the trailing `-p<主>(.<子>)*` segment (null
+   *  when the slug is a program slug, i.e. carries no phase suffix). */
+  static phaseSuffixOf(slug: string): string | null {
+    const match = /(?<program>.+?)(?<suffix>-p\d+(?:\.\d+)*)$/.exec(slug);
+    return match?.groups?.suffix ?? null;
+  }
+
+  /** The slug → doc-tree reverse derivation: from a program or phase slug, derive
+   *  the artifact paths the doc tree should carry, judged by `existsSync` (the
+   *  file system is the only truth — an absent file is null, never synthesized).
+   *  A phase slug's overall anchors at the nearest existing `<ancestor>-overall.md`
+   *  walking up the dotted phase path (`-p7.1` → `-p7` → program root) — no
+   *  overall-declared table is parsed (the Phase inventory is stale-prone). */
+  static docsOfSlug(slug: string, repoRoot: string): SlugDocs {
+    const specs = path.join(repoRoot, "docs/kairos/specs");
+    const plans = path.join(repoRoot, "docs/kairos/plans");
+    const suffix = Workspace.phaseSuffixOf(slug);
+    if (suffix === null) {
+      const overall = path.join(specs, `${slug}-overall.md`);
+      return {
+        overall: existsSync(overall) ? overall : null,
+        spec: null,
+        plan: null,
+        phaseSuffix: null,
+      };
+    }
+    const overall = Workspace.#nearestOverall(specs, slug, suffix);
+    const spec = path.join(specs, `${slug}-design.md`);
+    const plan = path.join(plans, `${slug}.md`);
+    return {
+      overall,
+      spec: existsSync(spec) ? spec : null,
+      plan: existsSync(plan) ? plan : null,
+      phaseSuffix: suffix,
+    };
+  }
+
+  /** The nearest existing overall anchor walking up the dotted phase path: for a
+   *  deep suffix (`-p7.1`) the candidates are `<program>-p7`, then the program
+   *  root; for a single-segment suffix the program root only. Null when no
+   *  candidate's overall file exists — nothing synthesized. */
+  static #nearestOverall(specs: string, slug: string, suffix: string): string | null {
+    const stem = slug.slice(0, slug.length - suffix.length);
+    const segments = suffix.slice(2).split(".");
+    for (let keep = segments.length - 1; keep >= 0; keep--) {
+      const candidate =
+        keep === 0
+          ? path.join(specs, `${stem}-overall.md`)
+          : path.join(specs, `${stem}-p${segments.slice(0, keep).join(".")}-overall.md`);
+      if (existsSync(candidate)) return candidate;
+    }
+    return null;
   }
 
   /** Idempotently create the workspace directory. */

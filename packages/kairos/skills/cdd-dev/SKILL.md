@@ -1,11 +1,11 @@
 ---
 name: cdd-dev
-description: Independent cdd-dev orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Determines base via the engine artifact, dispatches the CDD implement / review / fix chain following the engine's next: line, runs the branch final review, and hands off to cdd-close. Callable standalone; referenced by no other skill.
+description: Independent cdd-dev orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Determines base via the engine artifact, dispatches the CDD implement / review / fix chain following the engine's next: line, and runs the branch final review — the engine's next face carries the pipeline continuation. Callable standalone; referenced by no other skill.
 ---
 
 # Kairos CDD-Dev
 
-Executes planned tasks through the engine's implement / review / fix chain — its own orchestrator decisions (mode chain, final review) following the engine's next: line, with no installed-engine precondition (npx pulls the engine on demand).
+Executes planned tasks through the engine's implement / review / fix chain — its own orchestrator decisions (mode chain, final review) following the engine's next: line, with no installed-engine precondition (npx pulls the engine on demand); on closure the engine's `next:` face carries the pipeline continuation.
 
 **Invocation discipline** — every engine command runs via `npx -y @oscaner-skills/cdd-engine@latest <subcommand>` as a background dispatch: launch it in the background and await the completion notification — never poll — then read the full output (stdout/stderr). Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture. **Round rhythm** — one review pass per dispatch; a fix round re-enters the review while the route is not done; the implement child commits its own work; ensure the working tree is clean before entering review (dirty → BLOCKED); the orchestrator writes no tree during dispatch. **Failure face** — cross-node failure handling lives in the Failure Modes table below (the single source); node `Fail` entries keep only local behavior.
 
@@ -17,12 +17,9 @@ flowchart TD
   B --> C[implement-wave]
   C --> L[NEXT-LOOP]
   L -->|until next=done| L
-  L -->|next=done| K[branch-review]
   L -->|no next| Z1((BLOCKED))
-  K -->|fix| F[branch-fix]
+  K[branch-review] -->|fix| F[branch-fix]
   F -->|until next=done| K
-  F -->|next=done| H[handoff-cdd-close]
-  K -->|next=done| H[handoff-cdd-close]
 ```
 
 ## Node Definitions
@@ -50,31 +47,24 @@ flowchart TD
 
 ### `NEXT-LOOP`
 
-- **Do**: Run the wave review-fix rhythm through the engine — one review pass per dispatch. Dispatch the wave review (`npx -y @oscaner-skills/cdd-engine@latest review --type wave --tasks <n|n,n,…> --plan <path>`); dispatch the output's `next:` line as written — the literal is the route: a fix dispatch consumes the findings handoff, a next-wave dispatch runs through `implement-wave`, a closure routes to `branch-review`; a BLOCKED/TIMEOUT round carries no `next:` line — its reason rides stderr for reporting.
-- **Read**: the full stdout — the review conclusion and the `next:` line (the dispatch-ready literal — fix / the next wave / done)
-- **Exit**: the `next:` line reads `done` → `branch-review`; each fix / next-wave pass re-enters this hub while the route is not done (the `until next=done` self-loop)
+- **Do**: Run the wave review-fix rhythm through the engine — one review pass per dispatch. Dispatch the wave review (`npx -y @oscaner-skills/cdd-engine@latest review --type wave --tasks <n|n,n,…> --plan <path>`); dispatch the output's `next:` line as written — the literal is the route: a fix dispatch consumes the findings handoff, a next-wave dispatch runs through `implement-wave`; the engine's next face carries the wave→branch transition when the waves are exhausted; a BLOCKED/TIMEOUT round carries no `next:` line — its reason rides stderr for reporting.
+- **Read**: the full stdout — the review conclusion and the `next:` line (the dispatch-ready literal — fix / the next wave / the branch transition)
+- **Exit**: each fix / next-wave pass re-enters this hub while the route is not done (the `until next=done` self-loop); the engine's next literal carries the wave→branch transition when the waves are exhausted
 - **Fail**: review exits with no output → BLOCKED: engine-error
 
 ### `branch-review`
 
 - **Do**: Dispatch the branch final review (`npx -y @oscaner-skills/cdd-engine@latest review --type branch --plan <path>`) — the review judges the live tree against the resolved base branch.
 - **Read**: the base artifact + the review output contract (the `next:` line)
-- **Exit**: the `next:` line reads `fix …` → `branch-fix`; `done` → `handoff-cdd-close`
+- **Exit**: the `next:` line reads `fix …` → `branch-fix`; `done` → the flow ends (the engine's next face carries the pipeline continuation)
 - **Fail**: review exits with no output → BLOCKED: engine-error
 
 ### `branch-fix`
 
-- **Do**: Dispatch the branch fix (`npx -y @oscaner-skills/cdd-engine@latest fix --type branch --plan <path> --findings <path>`) — the findings handoff is the current cycle's source branch review; this is the ONLY fix channel for branch findings — the orchestrator never hand-applies a finding as an editor edit. The branch loop is its OWN closure — the fix round's `next:` line re-enters `branch-review` while the route is not done and closes to `handoff-cdd-close` on `done`.
+- **Do**: Dispatch the branch fix (`npx -y @oscaner-skills/cdd-engine@latest fix --type branch --plan <path> --findings <path>`) — the findings handoff is the current cycle's source branch review; this is the ONLY fix channel for branch findings — the orchestrator never hand-applies a finding as an editor edit. The branch loop is its OWN closure — the fix round's `next:` line re-enters `branch-review` while the route is not done; the engine's next face carries the closure when the route is done.
 - **Read**: the captured branch-review handoff findings (path from the review output)
-- **Exit**: the fix output's `next:` line routes the next hop — a re-review (re-enter `branch-review`, the independent loop) or a `done` closure (`handoff-cdd-close`)
+- **Exit**: the fix output's `next:` line routes the next hop — a re-review (re-enter `branch-review`, the independent loop) or the closure (the engine's next face carries the pipeline continuation)
 - **Fail**: blockers persist after multiple rounds → implicit fail-open (stop + report; branch preserved; user decides)
-
-### `handoff-cdd-close`
-
-- **Do**: Hand off to `/kairos:cdd-close`（pi：/skill:cdd-close）
-- **Read**: the base artifact output + final branch-review state
-- **Exit**: handoff complete → APPROVED: cdd-close
-- **Fail**: cdd-close takeover fails → implicit fail-open (branch preserved; user finishes manually)
 
 ## Invariants
 

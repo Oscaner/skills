@@ -16,7 +16,7 @@
 import { describe, expect, it } from "vitest";
 import type { RouteTarget } from "../../session/faces.ts";
 import type { Route } from "../../session/next.ts";
-import { FIX_READBACK_SUFFIX } from "../../session/next.ts";
+import { FIX_READBACK_SUFFIX, PIPELINE_NEXT } from "../../session/next.ts";
 import { Capsule } from "../capsule.ts";
 import { CommandTreeBuilder } from "../projection.ts";
 import { Words } from "../words.ts";
@@ -174,5 +174,58 @@ describe("P4.1 T7 (find #7) — the next literal's required-flag coverage (parse
   it("the fix route keeps the FIX_READBACK_SUFFIX verbatim", () => {
     const literal = literalOf({ kind: "fix", findings: "tasks-1-review-1.json" }, wave);
     expect(literal).toContain(FIX_READBACK_SUFFIX);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T3 — the unified next face: the `done` route's PIPELINE_NEXT doc-class lookup
+// ---------------------------------------------------------------------------
+
+/** The done-text of a capsule emit for a host-injected capsule. */
+const doneOf = (target?: RouteTarget, host = ""): string => {
+  const lines = new Capsule(new Words(), {}, host).emit(
+    "APPROVED",
+    "0",
+    "/h.json",
+    { kind: "done" },
+    target,
+  );
+  return lines[1]!.slice("next: ".length);
+};
+
+describe("Capsule — the `done` route's PIPELINE_NEXT doc-class lookup (D33 · the unified next face)", () => {
+  it("PIPELINE_NEXT carries exactly the five pipeline keys", () => {
+    expect(Object.keys(PIPELINE_NEXT).sort()).toEqual(
+      ["branch", "overall-spec", "phase-spec", "plan", "wave"].sort(),
+    );
+  });
+
+  it("no target renders the bare terminal word (the byte-pinned fallback)", () => {
+    expect(doneOf()).toBe("done");
+  });
+
+  it("a phase-spec target routes the cdd-plan ref per host (claude / pi / empty)", () => {
+    const phaseSpec: RouteTarget = { type: "spec", id: "docs/kairos/specs/prog-p8-design.md" };
+    expect(doneOf(phaseSpec, "claude")).toBe("/kairos:cdd-plan");
+    expect(doneOf(phaseSpec, "pi")).toBe("/skill:cdd-plan");
+    expect(doneOf(phaseSpec)).toBe("/kairos:cdd-plan");
+  });
+
+  it("an overall-spec target renders the bare terminal word (the pipeline terminal)", () => {
+    const overall: RouteTarget = { type: "spec", id: "docs/kairos/specs/prog-overall.md" };
+    expect(doneOf(overall)).toBe("done");
+  });
+
+  it("a plan target routes the cdd-dev ref; a branch target the cdd-close ref", () => {
+    expect(doneOf({ type: "plan", id: "docs/kairos/plans/prog-p8.md" })).toBe("/kairos:cdd-dev");
+    expect(doneOf({ type: "branch", id: "branch", plan: "docs/kairos/plans/prog-p8.md" })).toBe(
+      "/kairos:cdd-close",
+    );
+  });
+
+  it("a wave target renders the wiring literal with the plan slot filled", () => {
+    expect(doneOf({ type: "wave", id: "1,2", plan: "docs/kairos/plans/prog-p8.md" })).toBe(
+      "review --type branch --plan docs/kairos/plans/prog-p8.md",
+    );
   });
 });

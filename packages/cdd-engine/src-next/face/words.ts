@@ -68,8 +68,8 @@ export interface WaveGateWords {
 export interface PreflightWords {
   /** The dirty-tree BLOCK — a dirty working tree refuses every work dispatch. */
   dirtyTree: string;
-  /** The plan-graph BLOCK — the plan's DependsOn graph fails to validate. */
-  planGraph: string;
+  /** The graph BLOCK — the plan's DependsOn graph fails to validate. */
+  graph: string;
   /** The doc-contract BLOCK — the target doc fails the structural contract. */
   docContract: string;
 }
@@ -108,7 +108,7 @@ export const CAPSULE_WORDS = {
   preflight: {
     dirtyTree:
       "the working tree is dirty — commit or discard your changes, then re-run the same command",
-    planGraph: "the plan graph has {count} edge violation(s) — fix the **DependsOn** edges first",
+    graph: "the plan graph has {count} edge violation(s) — fix the **DependsOn** edges first",
     docContract: "the target document fails the doc-contract — fix its structural findings first",
   } as const satisfies PreflightWords,
 } as const;

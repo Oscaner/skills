@@ -1,6 +1,7 @@
 # 引擎文档工具（Engine Doc-Tooling）— P2 Design Spec（schema gen 模板写作）
 
 - **Version**: v0.4 · 2026-10-11
+- **Doc type**: phase-spec
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5（kairos:cdd-design [P2] enumerate-then-grill 定案 → cdd-spec-writer）
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall.md v1.1](docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md)

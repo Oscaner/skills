@@ -3,6 +3,7 @@
 
 - **Parent program**: [2026-09-21-consumer-parity-overall.md v1.12](../specs/2026-09-21-consumer-parity-overall.md)
 - **Version**: v1.0 · 2026-10-09
+- **Doc type**: plan
 - **Depends on**: P1（shipped）；P2 design v1.4 Approved（`e52e2ff1`）
 - **Base**: develop（finishing read-base 数据源；consumer-parity-p2 工作分支）
 

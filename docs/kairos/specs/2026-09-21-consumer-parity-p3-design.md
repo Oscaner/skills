@@ -1,6 +1,7 @@
 # 消费者面一致性（Consumer Parity）— P3 Design Spec
 
 - **Version**: v1.2 · 2026-09-22
+- **Doc type**: phase-spec
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)
 - **Parent program**: [2026-09-21-consumer-parity-overall.md](./2026-09-21-consumer-parity-overall.md) · v1.17

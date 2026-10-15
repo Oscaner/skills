@@ -1,6 +1,7 @@
 # Cdd Review 输出面契约修正（Cdd Review Output-Contract Fix）— Single Spec
 
 - **Version**: v1.5 · 2026-09-28
+- **Doc type**: single-spec
 - **Status**: Approved
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Issues（收口时关闭）**: #302（cdd review 输出与 findings 的 blocker 同词异义导致路由判读歧义）· #304（cdd 收口 claim 审计：prose 误触发 + 排障引导不指向根因）· #305（branch-review root 注入缺口 + 静默空转）· #306（branch-review stdout 缺 result 行且 WARN 误导）· #307（branch-fix 关闭 handoff schema 校验失败——fix 已提交却被 BLOCKED）

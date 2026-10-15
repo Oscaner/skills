@@ -4,6 +4,7 @@
 
 - **Parent program**: [2026-10-02-doc-architecture-v2-overall.md v1.2](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
 - **Version**: v1.1 · 2026-10-04
+- **Doc type**: plan
 - **Depends on**: P1 design v1.1 Approved（spec-review r1 七 finding 全落地，committed）
 - **开线 GATE**: pi-harness P5 closeout 未完成前不起 P1 执行线（与整体 Boundary rules 同步——overall Boundary rules 与 p1-design Section 1 均明确该 GATE 生效点）
 - **Base**: develop

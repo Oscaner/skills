@@ -1,6 +1,7 @@
 # 文档架构方法论 v2 — P3.2 Design Spec（全系统从零重建 · 判定单家 · 工作流归一）
 
 - **Version**: v1.27 · 2026-10-09
+- **Doc type**: phase-spec
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5（kairos:cdd-phase · 决策源 = kairos:cdd-design grilling 收敛 + 用户 2026-10-07 greenfield 拍板）
 - **Parent program**: [doc-architecture-v2-overall.md v1.25](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)

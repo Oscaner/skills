@@ -1,6 +1,7 @@
 # 引擎文档工具（Engine Doc-Tooling）— Overall Spec
 
 - **Version**: v2.33 · 2026-10-14
+- **Doc type**: overall-spec
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（kairos:cdd-design 元层裁定 → 独立整体注册）
 - **Constraints**:

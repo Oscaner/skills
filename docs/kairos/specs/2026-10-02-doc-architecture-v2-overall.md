@@ -1,5 +1,6 @@
 # 文档架构方法论 v2（Doc Architecture v2）— Overall Spec
 - **Version**: v1.64 · 2026-10-10
+- **Doc type**: overall-spec
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（kairos:cdd-design → grilling 元层）
 - **Constraints**:

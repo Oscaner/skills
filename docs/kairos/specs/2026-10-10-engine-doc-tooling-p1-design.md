@@ -1,6 +1,7 @@
 # 引擎文档工具（Engine Doc-Tooling）— P1 Design Spec（review face overall 键 · face 全层重塑 · help 展示面重建 · docKey 词表统一）
 
 - **Version**: v0.4 · 2026-10-11
+- **Doc type**: phase-spec
 - **Status**: Approved
 - **Author**: [human] · Claude Opus 5（kairos:cdd-design [P1] grilling 定案 → cdd-spec-writer · 词表统一 backfill 2026-10-11）
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall.md v1.9](docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md)

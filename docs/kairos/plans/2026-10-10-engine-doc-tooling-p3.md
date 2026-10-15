@@ -2,6 +2,7 @@
 **Spec:** [2026-10-10-engine-doc-tooling-p3-design.md](docs/kairos/specs/2026-10-10-engine-doc-tooling-p3-design.md)
 - **Parent program**: [2026-10-10-engine-doc-tooling-overall](docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md)
 - **Version**: v0.14 · 2026-10-12
+- **Doc type**: plan
 
 ## Constraints
 

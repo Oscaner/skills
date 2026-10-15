@@ -1,6 +1,7 @@
 # 消费者面一致性（Consumer Parity）— P4.3 cdd 多 task 模式 + task groups 裁定 + Mid-Flight Backfill 语义修复 Design Spec
 
 - **Version**: v1.7 · 2026-09-24
+- **Doc type**: phase-spec
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（osuperpowers:brainstorming → writing-phase-spec）
 - **Parent program**: [consumer-parity overall v1.30](2026-09-21-consumer-parity-overall.md)

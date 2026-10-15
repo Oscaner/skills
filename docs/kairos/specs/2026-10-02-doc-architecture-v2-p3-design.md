@@ -1,6 +1,7 @@
 # Doc Architecture v2 P3 Design（TaskGraph 分组派生 + 文档形态单一化）
 
 - **Version**: v1.1 · 2026-10-05
+- **Doc type**: phase-spec
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（kairos:cdd-design → grilling → cdd-phase）
 - **Parent program**: [2026-10-02-doc-architecture-v2-overall.md v1.6](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)

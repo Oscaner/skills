@@ -3,6 +3,7 @@
 **Spec:** [2026-09-28-cdd-review-contract-fix.md](docs/kairos/specs/2026-09-28-cdd-review-contract-fix.md)
 
 - **Version**: v1.4 · 2026-09-28
+- **Doc type**: plan
 - **Depends on**: single spec v1.2 Approved（`21037fc9`，#302 + #304 合流单 spec 双组件，无 parent overall）
 - **Base**: develop
 

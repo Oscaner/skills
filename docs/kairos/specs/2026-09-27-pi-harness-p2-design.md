@@ -1,6 +1,7 @@
 # Pi Harness P2 — emit 分发注册表（Pi Harness P2: Emit Distribution Registry）— Phase Spec
 
 - **Version**: v1.2 · 2026-09-29
+- **Doc type**: phase-spec
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming → writing-phase-spec)
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.9](2026-09-27-pi-harness-overall.md)

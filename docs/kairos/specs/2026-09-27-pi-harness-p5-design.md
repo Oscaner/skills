@@ -1,6 +1,7 @@
 # Pi Harness 支持 P5 — 编译面收敛与结算（Phase Design Spec）
 
 - **Version**: v1.3 · 2026-10-02
+- **Doc type**: phase-spec
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（kairos:cdd-design → grilling → cdd-phase）
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.27](2026-09-27-pi-harness-overall.md)

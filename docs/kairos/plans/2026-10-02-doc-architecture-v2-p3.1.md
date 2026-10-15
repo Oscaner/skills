@@ -4,6 +4,7 @@
 
 - **Parent program**: [doc-architecture-v2-overall.md v1.14](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
 - **Version**: v1.11 · 2026-10-07
+- **Doc type**: plan
 - **Depends on**: P3（shipped · [p3-design v1.1](docs/kairos/specs/2026-10-02-doc-architecture-v2-p3-design.md)）
 - **Base**: develop
 

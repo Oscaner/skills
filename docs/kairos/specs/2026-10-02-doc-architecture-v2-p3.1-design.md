@@ -1,6 +1,7 @@
 # 文档架构方法论 v2 —— P3.1 Design
 
 - **Version**: v1.10 · 2026-10-07
+- **Doc type**: phase-spec
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（kairos:cdd-design → grilling → cdd-phase）
 - **Parent program**: [doc-architecture-v2-overall.md v1.14](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)

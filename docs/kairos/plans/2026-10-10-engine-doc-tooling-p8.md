@@ -2,6 +2,7 @@
 **Spec:** [2026-10-10-engine-doc-tooling-p8-design.md](../specs/2026-10-10-engine-doc-tooling-p8-design.md)
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](../specs/2026-10-10-engine-doc-tooling-overall.md)
 - **Version**: v0.3 · 2026-10-15
+- **Doc type**: plan
 
 ## Constraints
 

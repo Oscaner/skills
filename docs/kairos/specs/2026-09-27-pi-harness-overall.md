@@ -1,6 +1,7 @@
 # Pi Harness 支持（Pi Harness Support）— Overall Spec
 
 - **Version**: v1.30 · 2026-10-08
+- **Doc type**: overall-spec
 - **Status**: Approved
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Constraints**:

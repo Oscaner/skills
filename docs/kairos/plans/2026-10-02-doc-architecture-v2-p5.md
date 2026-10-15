@@ -4,6 +4,7 @@
 
 - **Parent program**: [doc-architecture-v2-overall.md v1.59](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
 - **Version**: v1.4 · 2026-10-10
+- **Doc type**: plan
 - **Depends on**: P3.2（Done · [p3.2-plan v1.31](docs/kairos/plans/2026-10-02-doc-architecture-v2-p3.2.md) —— serial-phase GATE 满足 · v1.57 收敛重规划基线 · v1.58 契契修复 · v1.59 重开机制 T7)
 - **Base**: develop
 

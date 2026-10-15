@@ -1,6 +1,7 @@
 # 消费者面一致性（Consumer Parity）— Overall Spec
 
 - **Version**: v1.49 · 2026-10-08
+- **Doc type**: overall-spec
 - **Status**: Complete
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Constraints**:

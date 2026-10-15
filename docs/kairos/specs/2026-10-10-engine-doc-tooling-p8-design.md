@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P8 设计：`cdd board <slug>` slug 进度板 + 引擎统一 next 面（plan-graph 提级一等公民 · 文件系统唯一真源 · 全节点 verb×round 细粒度 · next 贯穿全 face×verb 到 skill ref）
-- **Version**: v1.0 · 2026-10-15
+- **Version**: v1.1 · 2026-10-15
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P8] 会话 · 用户裁定 · 2026-10-14）
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](2026-10-10-engine-doc-tooling-overall.md)
@@ -234,6 +234,21 @@ cdd board: 2026-10-10-engine-doc-tooling
 - **skills**：四 SKILL.md 括注删（`grep -rn "annotate the carrier" packages/kairos/skills/` 零命中）· `pnpm run emit` 重生成。
 - **P8 计划关系**：本节热修是**独立更正**，不增删 P8 任务；T6（skills 溶解）落地时本括注已不存在，T6 的零残留 checkable 天然覆盖。
 
+### 12. Doc type 声明上收 + 文件名推导退役（D34 · 用户裁定 2026-10-15）
+#### 12.1 现场与根因（文件名承载类型语义）
+- **现场**：doc 类型（`DocKey` 四值）现由**文件名后缀规则**派生——`Contract.deriveDocType`（`contract/judge.ts:103`，validate 门与 preflight 共用）与 W1 落地的 `BoardView.#docKeyOf`（`face/board-view.ts:95`，board 读面）**两处平行重抄同一后缀表**（`-overall.md`/`-single-spec.md` 判定逐行重复）——`deriveDocType`/`#docKeyOf` 重复声明的根因不是漏看，而是「文件名承载类型语义」这一设计本身允许（并持续生产）第二真相。
+- **根因（六前提 lens）**：文件名是「这个文档是什么」的**派生副本**，真值在文档实质结构里；派生规则必须被每个 author agent 心智复刻（命名规则完美复刻不可保证，premise 5），规则一改所有消费点同改（premise 3 的声明再抄温床）。类型语义是**声明性事实**，应随文档本体声明，不应由文件名猜。
+#### 12.2 判定（用户裁定 2026-10-15 · 三点定案）
+- **声明上收**：header 增一行 **`- **Doc type**: <overall-spec|phase-spec|single-spec|plan>`**——值域 = 现有四值 `DocKey` 枚举（零新概念；skeleton 值域校验有先例 `**Status** → Draft`），由 `schema get --output skeleton` 生成（author 的 bootstrap 纪律保证新 doc 天然携带，author 零额外心智）。**不做作者侧别名层**。
+- **文件名推导整体退役（死码清理，非修复）**：`deriveDocType` 的后缀规则与 `BoardView.#docKeyOf` **删除**——重复声明问题不是被修复，是被**消灭**：剩一个声明读取面（薄 header marker 扫描，**不选 parser**——header 块是全 doc type 共享的统一 marker 面，读一个 marker 行无需先知类型， parsers-by-type 的循环依赖是伪装的）。validate 门 / preflight / board 三消费点读**同一方法**（D26 单源）。文件名退化为人类导航标签，slug 扫描只按前缀+目录分组，不再承载类型。
+- **缺声明 = 硬 BLOCKED + 存量 sweep**：无 `- **Doc type**:` 行 → 消费点 BLOCKED（present facts · **零「声明优先文件名兜底」双读层**——双读是永久模糊兼容层，规则永远说不清哪个赢）。存量 doc 一次性机械 sweep：每份的类型由现推导可知（推导这次用于迁移，非运行时面），sweep commit 落完即退役完成。
+- **一致性校验随门走**：声明了某 doc type 的文档，doc-contract 门按该 type 的 shape 硬校验——声明错误被结构性抓住，**不引入文件名 cross-check 第二真相**。
+#### 12.3 落地面（Plan Sole Writer 修订 · W1 派发返回后落定）
+- **spec**：本节 + AC + Constraints + change history。
+- **plan**（T2/T4/T5 修订）：T2 头块读增 `- **Doc type**:` marker 提取（`{ version, status, docType }` 三事实）· T4 投影携带声明类型 · T5 board/`#runBoard` 读声明类型，`#docKeyOf` 删除 · 依赖面（T3 `#docClassKey` 的 `-overall.md`/`-design.md` 后缀判别 → 改读声明）与 T7 pin 面同步。
+- **存量 sweep**：全库 doc（overall ×1 · phase-spec ×N · single-spec ×N · plan ×N）补声明行，单 commit。
+- **破坏性**：`deriveDocType`/`#docKeyOf` 公共/私有签名删除属破坏性变更（premise 1 允许 · deliberate pin break 与 P8 既有破坏面同级登记）。
+
 ### Acceptance criteria
 - `cdd board <slug>` 输出全局态势板：overall/spec/plan/wave/branch 五行 + 各 `implement×N · review×N · fix×N` + wave 每波一行（波链 ✔▶○ + 明细）+ 固定 legend + `next:` 行
 - slug → 三文档路径以**文件系统为唯一真源**：扫描 `docs/kairos/{specs,plans}` 命中 `<slug>*` 树化 · **不合成盘上不存在父节点**（`doc-architecture-v2` 族 `-p4.1` 存在而 `-p4` 缺失场景正确树化）· **不解析 overall File paths 表**
@@ -253,7 +268,8 @@ cdd board: 2026-10-10-engine-doc-tooling
 - `pnpm run validate` ALL PASS · 不发布
 - **author 入口 bootstrap 字面恢复（§10）**：`cdd-spec-writer` 的 `author-spec`（三变体）与 `cdd-plan` 的 `author-plan` 皆载 `<engine> schema get <type> --output skeleton <target path>`（拿到骨架再填）；散文结构复述删除
 - **author bootstrap 回归 pin**：`skill-anatomy` 契约 + 检查器断言两 author 节点必携 skeleton bootstrap 字面（本类回归不可再静默通过）
-- **fix 路由载体括注（§11）**：`FIX_READBACK_SUFFIX` = `(confirm the findings · annotate the handoff carrier with the adjudications if needed)` · 四 SKILL.md 括注零残留（`grep -rn "annotate the carrier" packages/kairos/skills/` 零命中）· `02-naming.md` annotate 行随改
+- **fix 路由载体括注（§11）**：`FIX_READBACK_SUFFIX` = `(confirm the findings · if a finding needs a ruling, record the ruling in the findings file)` · 四 SKILL.md 括注零残留（`grep -rn "annotate the carrier" packages/kairos/skills/` 零命中）· `02-naming.md` annotate 行随改
+- **Doc type 声明上收（§12 · D34）**：每份 doc 的 header 携 `- **Doc type**: <DocKey 四值>`（skeleton 生成）· `deriveDocType` 后缀规则 + `BoardView.#docKeyOf` 零残留（推导面整体退役）· validate/preflight/board 三消费点读同一声明读取方法 · 缺声明 BLOCKED · 存量 sweep 单 commit · 声明类型即 doc-contract 门的校验键（零文件名 cross-check）
 
 ## Constraints
 - **文件系统唯一真源**：节点集合、artifact 存在性全来自扫描，绝不合成盘上不存在的节点，绝不解析 overall 的 Phase inventory / File paths 声明表
@@ -269,6 +285,7 @@ cdd board: 2026-10-10-engine-doc-tooling
 - **不发布**：变更集归并落 pending
 - **触碰历史 pin「cdd CLI 零新子命令」**：board 为新增第七命令，连带修订（文档先行——本 spec 即该修订落点）
 - **fix 路由括注单源（§11）**：载体动作措辞只在 `FIX_READBACK_SUFFIX` 一处声明，capsule 逐字渲染；skills 不复写引擎措辞（D29 判据——运行时字面即编排器的说明）
+- **doc type 声明单源（§12 · D34）**：doc 类型是文档声明的声明性事实（header `- **Doc type**:`），**不是文件名的派生事实**——零文件名→类型推导面（`deriveDocType` 后缀规则/`#docKeyOf` 退役）· 零双读层（缺声明 = BLOCKED，不兜底）· 零文件名 cross-check（声明类型即 doc-contract 门校验键）· slug 扫描只按前缀+目录分组，不承载类型
 
 ## Change history
 | Version | date | summary | author |
@@ -283,3 +300,4 @@ cdd board: 2026-10-10-engine-doc-tooling
 | v0.8 | 2026-10-15 | **spec-review-4 两 findings 修复（v0.7 URC 单循环评审）**：① **W（warn）**——§9.3 既有 `next: done` byte pin 翻转集**补 `cli.test.ts:2905`**：dry-run real-chain 测试的 wave-2 闭合（`review --type wave --tasks 2` on `planFor(repoRoot, 2)`，`expect(nextOf()).toBe("done")`），与所列 `:1451` 同属 wave 线闭合翻转类（§6.3/§6.6 wave 闭合重渲 branch-review 字面）；其逃逸历轮字面 grep 的根因是经 `nextOf()` helper 取载荷、从不携带 `next: done` 字面，故翻转集清点须扫 helper 取出的 next 断言（盲区修正）；② **Nit**——§9.3 「不翻转保持绿」例外枚举**补 `cli.test.ts:2772/2794`**：二者均 `literalOf({kind:"done"})` 无 target，按 §6.4 缺 target 兜底渲裸词 `done`，与所列 `face.test.ts:91/235/287` 同属「保持绿」，令例外列表对称 | Oscar M. · Claude Opus 5（P8 docs-fix round 4） |
 | v0.9 | 2026-10-15 | **回归更正 backfill（用户裁定 · D29 判定补正 · in-flight）**：用户发现 `author-spec`/`author-plan` 丢失骨架 bootstrap 命令——**P7/D29 回归**（`9d6f4e27` 明文删 `schema get … --output skeleton` 语法；P5/P6 曾载「generate the canonical skeleton first … fill its slots in place」）。**根因**：D29 按「形状」切而非「角色」切——`schema get … --output skeleton` 长得像内部语法而被剥，却正是 D29 自己 bootstrap 例外（入口节点唯一字面命令）所指；剥离清单与例外对撞，清单赢了；删后以散文复述补位 = 重演 D29 要消灭的第二真相。**逃逸面**：skill-anatomy 契约无「author 节点必携 bootstrap 字面」pin → 四轮 review 全过。**更正**：判据从「形状」改「角色」——入口发起命令 = 例外面（保留），内部结构镜像 = 剥离面（§10.3）；P7 历史 frozen 不动，**P8 为本更正 owning doc**。**热修（用户裁定）**：恢复两 author 节点的 bootstrap 字面（只命令 + fill in place · 不复述槽位名）+ 删散文结构复述 + 在 skill-anatomy 契约/检查器补回归 pin。新增 §10 + AC 2 条 + Constraints 1 行 | Oscar M. · Claude Opus 5（P8 编排器 backfill · 用户裁定） |
 | v1.0 | 2026-10-15 | **fix 路由载体括注措辞更正 backfill（用户裁定 2026-10-15 · D28 措辞补正 · in-flight）**：`FIX_READBACK_SUFFIX` 由 `(confirm the findings · annotate the carrier with the adjudications)` 改 **`(confirm the findings · if a finding needs a ruling, record the ruling in the findings file)`**（用户裁定：`if needed` 判据 = findings 是否需要裁定；措辞经消费者视角复议定案为行为语言——冷启动编排器无 repo 运维文档，`handoff carrier`/`adjudications` 内部词汇不可解引用，定案句零黑话自足）；**skills 侧括注整句剥离**（cdd-dev/cdd-plan/cdd-spec-writer/cdd-design 四文件——括注是引擎渲染面的内部镜像，运行时随 `next:` 字面给到编排器，skill 文本自持措辞副本 = D29 要消灭的会漂移第二真相；用户裁定：skills 只需「照 next 字面执行」）。P7/D28 历史 frozen 不动，**P8 为本更正 owning doc**（§10 同判例）。热修面：`next.ts` 常量值 + 注释 · `capsule.ts` 注释 · `next.test.ts` 两 literal pin · 四 SKILL.md 括注删 · `02-naming.md` annotate 行随改 · emit 重生成。新增 §11 + AC 1 条 + Constraints 1 行 | Oscar M. · Claude Opus 5（P8 编排器 backfill · 用户裁定） |
+| v1.1 | 2026-10-15 | **Doc type 声明上收 + 文件名推导退役 backfill（用户裁定 2026-10-15 · D34 · in-flight）**：用户指出 `deriveDocType`/`BoardView.#docKeyOf` 重复声明 + 「文件名判断 doc type 容易出错（agent 不能保证完美复刻命名规则）」。**根因**：重复声明只是症状，「文件名承载类型语义」是病灶——文件名是类型的派生副本（声明再抄温床 · premise 3），命名规则须被每个 author agent 心智复刻（premise 5），规则一改全消费点同改。**定案（三点）**：① header 增 `- **Doc type**:` 声明行（值域 = 现有四值 DocKey · skeleton 生成 · 零别名层）· ② 文件名推导**整体退役**（`deriveDocType` 后缀规则 + `#docKeyOf` 删除——重复声明被消灭非修复；剩一个声明读取面，validate/preflight/board 三消费点单源；header marker 扫描不选 parser——parsers-by-type 循环依赖是伪装的）· ③ 缺声明硬 BLOCKED + 存量单 commit sweep（零双读兜底层）。**并入 P8**（W1 已落 `#docKeyOf`，实现中修订，premise 1 破坏性允许）。新增 §12 + AC 1 条 + Constraints 1 行；plan 修订随落（T2/T4/T5 + T3 依赖面 + T7 pin 面） | Oscar M. · Claude Opus 5（P8 编排器 backfill · 用户裁定） |

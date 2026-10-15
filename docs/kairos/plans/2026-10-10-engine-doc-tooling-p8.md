@@ -1,7 +1,7 @@
 # 引擎文档工具（Engine Doc-Tooling）— P8 实施计划：`cdd board <slug>` slug 进度板 + 引擎统一 next 面（plan-graph 提级一等公民 · 文件系统唯一真源 · 全节点 verb×round 板 · next 贯穿全 face 到 skill ref）
 **Spec:** [2026-10-10-engine-doc-tooling-p8-design.md](../specs/2026-10-10-engine-doc-tooling-p8-design.md)
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](../specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.3 · 2026-10-15
+- **Version**: v0.7 · 2026-10-15
 - **Doc type**: plan
 
 ## Constraints
@@ -171,16 +171,17 @@
 - **Acceptance**: 四 skill 自环 `until next is terminal` · cdd-design 闭合出口 `until session closes` · cdd-dev branch 双节点零残留（单 hub 二出边）· 契约词表/规则文本与 live digraph 一致 · branch 闭环断言零残留 · `pnpm -C packages/kairos test` 全绿 · EOF 恰一 newline
 - **DependsOn**: 6
 
-### Task 10: host 通道完整性——`SyncRunner` spawn 同步流式聚合（D36 · 根修）
-- **Objective**: 消灭 child stdout 截断类别（spec §14 · D36）——`face/lifecycle.ts` 的 `SyncRunner` 弃 `execFileSync`（全量缓冲 · Node 默认 `maxBuffer` 1 MiB · W1 执行期两次 `CDD_BLOCKED: child claude returned no status line` 的根因：长任务 child 输出超限尾部截断，工作面完好唯 `RETURN_STDOUT_BLOCK` 丢失），改 `spawn` + **同步流式聚合**：stdout/stderr chunk 增量收集（`data` 事件驱动 · 单线程事件循环内 `Atomics.wait` 阻塞至 `close` 事件），零 `maxBuffer`、零 busy-wait、零契约传染（`DispatchStep` 全同步契约不动 · run.ts:113）。face 零变：同步 · `{code, stdout, stderr}` · fail-open 语义保持（非零/异常 child 走 code 不抛）· 收集循环收 `SyncRunner` 私有方法（零裸函数）。
-- **Files**: Modify `packages/cdd-engine/src-next/face/lifecycle.ts`（`SyncRunner.run` 重写：`execFileSync` → `spawn` 流式聚合 · 私有收集方法 · fail-open 保持）· Modify `packages/cdd-engine/src-next/face/__tests__/`（colocated pin：>1 MiB 输出完整收集 + `status:` 尾块完整——恰覆盖旧默认天花板的字节数）
-- **Consumes**: 无（引擎 IO 面 · 与 wave 任务独立）· spec §14 授权
+### Task 10: host 通道完整性——`SyncRunner` 改 execaSync（D36 · 根修）
+- **Objective**: 消灭 child stdout 截断类别（spec §14 · D36）——`face/lifecycle.ts` 的 `SyncRunner` 弃 Node 内建 `execFileSync`（全量缓冲 · 默认 `maxBuffer` 1 MiB · W1 执行期两次 `CDD_BLOCKED: child claude returned no status line` 的根因：长任务 child 输出超限尾部截断，工作面完好唯 `RETURN_STDOUT_BLOCK` 丢失），改**成熟第三方进程库 execa 的同步面** `execaSync`（`maxBuffer` 默认无上限 · 双管道并发排水内建承于 `spawnSync`）——不自造轮子（premise 2）、零契约传染（`DispatchStep` 全同步契约不动 · run.ts:113）。face 零变：同步 · `{code, stdout, stderr}` · fail-open 语义保持（`reject:false` 使非零/异常 child 走 code 不抛 · `stripFinalNewline:false` 保 stdout 字节原样）· 回读收 `SyncRunner` 私有方法（零裸函数）。
+- **Files**: Modify `packages/cdd-engine/src-next/face/lifecycle.ts`（`SyncRunner.run` 重写：`execFileSync` → `execaSync` 适配 · 私有 `#collect` · fail-open 保持 · import 改 `execa`）· Modify `packages/cdd-engine/package.json`（新增依赖 `execa`）· Modify `packages/cdd-engine/src-next/face/__tests__/`（colocated pin：>1 MiB 输出完整收集 + `status:` 尾块完整——恰覆盖旧默认天花板的字节数）· Delete `packages/cdd-engine/src-next/face/sync-pump.ts`（自造 worker pump 死代码 · 若曾落地）
+- **Consumes**: 无（引擎 IO 面 · 与 wave 任务独立）· spec §14 授权 · 依赖 `execa`（v10.1.1 · engines≥22 · 传递依赖 12 个 · 用户知情裁定）
 - **Produces**: 无上限 child 输出收集 · `RETURN_STDOUT_BLOCK` 尾块恒达 · 后续所有 implement/review/fix 派发的通道可靠性
 - **Steps**:
-  - `SyncRunner.run` 重写 —— `spawn(command, args, {cwd})` · stdout/stderr 各自 `data` 事件 chunk 聚合（Buffer 数组）· `error`/`close` 事件置码 · 主线程 `Atomics.wait` 阻塞至 `close`（超时保护沿用引擎 dispatch-timeout 语义 · 不引入新 timeout 面）· fail-open：spawn 失败（ENOENT 等）→ `{code:1, stdout:"", stderr:<message>}` 不抛 — checkable: `grep -n "execFileSync" face/lifecycle.ts` 零命中 · `grep -n "maxBuffer" face/lifecycle.ts` 零命中
-  - 回归 pin —— colocated 单测：spawn `sh -c "head -c 1048577 /dev/zero | tr '\\0' x"`（1 MiB + 1 字节，恰超旧默认天花板）输出长度完整 1048577 · 大输出尾部带 `status: APPROVED` 行尾块完整收集 — checkable: 引擎 vitest 新 pin 绿
+  - `SyncRunner.run` 重写 —— `execaSync(command, [...args], {cwd, reject:false, stripFinalNewline:false})` · 结果回读 `{code: exitCode ?? 1, stdout: stdout ?? "", stderr: stderr || (failed ? shortMessage : "")}` · fail-open：非零/异常 child 走 code 不抛、spawn 失败（ENOENT 等）exitCode undefined → 1 且原因文本走 shortMessage — checkable: `grep -n "execFileSync" face/lifecycle.ts` 零命中 · `grep -n "execaSync" face/lifecycle.ts` 命中 · `grep -rn "sync-pump" packages/cdd-engine/src-next/` 零命中
+  - 回归 pin —— colocated 单测：`execaSync` 收 `sh -c "head -c 1048577 /dev/zero | tr '\0' x"`（1 MiB + 1 字节，恰超旧默认天花板）输出长度完整 1048577 · 大输出尾部带 `status: APPROVED` 行尾块完整收集 · stderr 同 face · fail-open（非零 exit code 保持 · ENOENT 不抛）— checkable: 引擎 vitest 新 pin 绿
+  - 依赖登记 —— `packages/cdd-engine/package.json` dependencies 含 `execa` + lockfile 更新 — checkable: `pnpm -C packages/cdd-engine ls execa` 命中
   - 跑引擎套件 —— checkable: `pnpm -C packages/cdd-engine test` 全绿（既有 hermetic SyncProcess 替身零动）
-- **Acceptance**: `execFileSync`/`maxBuffer` 零残留 · >1 MiB child 输出完整收集（回归 pin 绿）· face 同步零变 · fail-open 保持 · 引擎 vitest 全绿 · EOF 恰一 newline
+- **Acceptance**: `execFileSync`/`maxBuffer`/`sync-pump` 零残留 · >1 MiB child 输出完整收集（回归 pin 绿）· face 同步零变 · fail-open 保持 · `execa` 依赖登记 · 引擎 vitest 全绿 · EOF 恰一 newline
 - **DependsOn**: none
 
 ## Change history
@@ -193,3 +194,4 @@
 | v0.4 | 2026-10-15 | **D34 backfill（spec v1.1 §12 · 用户裁定 · Plan Sole Writer）**：doc type 声明上收 + 文件名推导退役——header 增 `- **Doc type**:` 声明行（四值 DocKey · skeleton 生成），`deriveDocType` 后缀规则/`BoardView.#docKeyOf` 整体退役（重复声明被消灭非修复），缺声明 BLOCKED（零双读兜底），存量 sweep。计划修订：T2 头块读增 docType 声明提取（`{version,status,docType}` · `endsWith` 禁入 board 面 checkable）· T4 投影携 docType · T3 `#docClassKey` spec 线改读声明（`endsWith` 判别删 · 缺声明 BLOCKED 面）· T5 节点分类读声明（缺声明行渲染 + exit 2）· T7 增 `judge.test.ts:860-884` deriveDocType describe 删 + 声明读取面 pins + preflight fixtures · **新 T8**（存量 sweep · 根任务 · 全库 doc 补声明行单 commit） | Oscar M. · Claude Opus 5（kairos:cdd-plan 修订 · 用户裁定 D34） |
 | v0.5 | 2026-10-15 | **D35 backfill（spec v1.2 §13 · 用户裁定 · Plan Sole Writer）**：自环词表更正 + branch 节点消融——四 skill 自环 `until next=done`（D33 后 done 永不出现于 cdd-plan/cdd-dev/cdd-design 的 next 序列，until 永假）→ `until next is terminal` · cdd-design 闭合出口 → `until session closes → handoff-next`（design 续环非引擎字面）· cdd-dev branch-review/branch-fix 孤岛节点消融（branch 接线已被引擎字面完全承载）· 契约同步（`nextLoopConditions` 词表 + `loopShapeRule`/`edgeConditionRule` 文本 + branch 闭环断言块退役 · `out.length` 域规则不动）。**新 T9**（依赖 T6 · skills + contract + checker）· T7 DependsOn 补 9 + Acceptance 增 D35 词表集 | Oscar M. · Claude Opus 5（kairos:cdd-plan 修订 · 用户裁定 D35） |
 | v0.6 | 2026-10-15 | **D36 backfill（spec v1.3 §14 · 用户裁定 · Plan Sole Writer）**：host 通道完整性根修——`SyncRunner` 的 `execFileSync` 未传 `maxBuffer`（Node 默认 1 MiB · W1 执行期两次 `CDD_BLOCKED: child claude returned no status line`：长任务 child 输出超限尾部截断，工作面/载体完好唯 `RETURN_STDOUT_BLOCK` 丢失；联网检索证实同族已知问题 anthropics/claude-code #6279）。定案 `spawn` + 同步流式聚合（`Atomics.wait` 至 close · 零 maxBuffer · 零契约传染）· **新 T10**（根任务 · Files/Steps/Acceptance 全落 + >1 MiB 回归 pin） | Oscar M. · Claude Opus 5（kairos:cdd-plan 修订 · 用户裁定 D36） |
+| v0.7 | 2026-10-15 | **D36 载体修订（spec v1.4 §14 · 用户裁定 · Plan Sole Writer）**：T10 载体由 v0.6 的 `spawn` + worker-线程流式聚合改为 **`execaSync`**——联网核查发现成熟活跃第三方进程库 execa（sindresorhus v10.1.1），同步面默认 `maxBuffer` 无上限、双管道并发排水内建承于 `spawnSync`；自造 pump 既是自造轮子（premise 2）又把排水正确性重担放回引擎（premise 3/4）。T10 重定向：Files 增删 `sync-pump.ts` + `package.json` 依赖 · Steps 改 `execaSync(...{reject:false, stripFinalNewline:false})` + 结果回读 `exitCode ?? 1` / stderr 走 `shortMessage` · Acceptance 加 `sync-pump`/`execa` 依赖登记 · checkable 改 `execaSync` 命中。**（附带修正：header `- **Version**:` 长期滞留 v0.3——历次 backfill 只更 change history 未更 header，此役一并对齐）** | Oscar M. · Claude Opus 5（kairos:cdd-plan 修订 · 用户裁定 D36 修订） |

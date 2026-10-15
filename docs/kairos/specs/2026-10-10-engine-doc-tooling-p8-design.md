@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P8 设计：`cdd board <slug>` slug 进度板 + 引擎统一 next 面（plan-graph 提级一等公民 · 文件系统唯一真源 · 全节点 verb×round 细粒度 · next 贯穿全 face×verb 到 skill ref）
-- **Version**: v1.3 · 2026-10-15
+- **Version**: v1.4 · 2026-10-15
 - **Doc type**: phase-spec
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P8] 会话 · 用户裁定 · 2026-10-14）
@@ -265,19 +265,20 @@ cdd board: 2026-10-10-engine-doc-tooling
 - **contract**：`skill-anatomy.ts` 词表/规则文本随改 + branch 专论删 · `skill-anatomy.test.ts` branch 闭环断言块删 + 新标签断言。
 - **plan**：新任务（依赖 T6 · 消费面 pin 归 T7 扩集）+ T7 的 skill-anatomy pin 面同步。
 
-### 14. Host 通道完整性：child stdout 流式收集（D36 · 用户裁定 2026-10-15）
+### 14. Host 通道完整性：宿主进程通道改 execaSync（D36 · 用户裁定 2026-10-15）
 #### 14.1 现场与根因（`execFileSync` 的 1 MiB 缓冲天花板）
 - **现场**：P8 W1 执行期两次 `CDD_BLOCKED: child claude returned no status line`——两次都是**长任务 child**（implement/fix 实际改码+提交），工作面完好（提交在树上 · handoff 载体已写盘 `status: APPROVED`），唯独 stdout 尾部的 `RETURN_STDOUT_BLOCK` 状态块未到达引擎；两次成功的都是短复核 child（输出小）。形态 = **尾部截断**，非 child 违约。
 - **根因（双证）**：`SyncRunner`（`face/lifecycle.ts:65`）以 `execFileSync` 同步收集 child stdout，**未传 `maxBuffer`**——Node 默认 1 MiB，超限即截断/杀进程，尾部先丢；联网检索证实同族已知问题（claude-code `--print` 长输出被 exec 族包裹截断 · anthropics/claude-code #6279/#15813/#17197；Node `child_process` `maxBuffer` 语义）。`--output-format text` 的全量缓冲模式加剧暴露（长会话叙述+状态块全走一条缓冲流）。
 #### 14.2 判定（用户裁定 2026-10-15 · 根本修非补丁）
-- **流式收集，非抬天花板**：`SyncRunner` 弃 `execFileSync`，改 `spawn` **流式聚合**（stdout chunk 增量收集至进程退出）——缓冲上限的**整个类别被消灭**（premise 1/6），而非 `maxBuffer` 抬高一格（那是补丁形态，premise 3）。face 零变：仍同步、仍返回 `{code, stdout, stderr}`、`--output-format text` 与 `RETURN_STDOUT_BLOCK` 契约零动（消费者心智零增 · premise 5）。
-- **零裸函数纪律**：收集逻辑收在 `SyncRunner` 类内（私有方法），零新裸函数。
+- **不自造轮子，用成熟进程库**：`SyncRunner` 弃 Node 内建 `execFileSync`，改 **execa** 的同步面 `execaSync`——`maxBuffer` 默认**无上限**（缓冲上限的**整个类别被消灭** · premise 1/6），而非抬高 Node 默认 1 MiB 一格（那是补丁形态 · premise 3），也非自造 worker-线程并发机器（premise 2「避免自造轮子」反对）。face 零变：仍同步、仍返回 `{code, stdout, stderr}`、`--output-format text` 与 `RETURN_STDOUT_BLOCK` 契约零动（消费者心智零增 · premise 5）。
+- **为何非自造流式 pump**：曾一度定案 `spawn` + worker-线程 `Atomics.wait` 同步流式聚合——它引入约 118 行并发机器（主线程 park 在 `Atomics.wait` 时无法 drain `message` 事件装载握手，且双管道排水靠 worker 自己的 event loop），既是自造轮子（premise 2）、又把排水的正确性重担放回引擎（premise 3/4）。execa 的同步面已把**双管道并发排水**（stdout 与 stderr 同时写满不死锁）内建 `spawnSync` 承载，无需引擎介入。
+- **零裸函数纪律**：收集逻辑收在 `SyncRunner` 私有方法 `#collect`（零新裸函数 · premise 2）。
 - **回归观测登记**：两次截断事件记入本节（观测面），引擎侧不为此增重试逻辑——`retry = full re-run (idempotent)` 契约本就覆盖；本修复使截断类别不再发生，而非掩盖。
 #### 14.3 热修面（形状定案 · 取证后落定）
-- **为何非 `spawnSync`**：`spawnSync` 同样携带 `maxBuffer`（换汤不换药）；**为何非 async 化**：引擎 dispatch 契约全同步（`DispatchStep = (frame) => DispatchOutcome` · `Lifecycle.advance()`/`peekNext()` 同步 · run.ts:113/233/242），为一次 IO 异步化会撕开整个 lifecycle 类型面（premise 3 反对）。
-- **定案**：`SyncRunner` 弃 `execFileSync`，改 `spawn` + **同步流式聚合**——stdout chunk 增量收集（`data` 事件驱动 · 单线程事件循环内以 `Atomics.wait` 阻塞主线程至 EOF / `close` 事件），零 `maxBuffer`、零 busy-wait、零契约传染；收集循环收在 `SyncRunner` 私有方法（零裸函数 · premise 2）。face 零变（同步 · `{code, stdout, stderr}` · stderr 同法聚合）。**stderr 同 face 收集**（capped 语义一并消灭）。
-- **回归 pin**：colocated 单测——超大输出（> 1 MiB，恰覆盖旧默认天花板的字节数）完整到达 + `RETURN_STDOUT_BLOCK` 尾块完整——本类截断不可能再静默通过。
-- changeset（`@oscaner-skills/cdd-engine` patch）。
+- **为何非 Node 内建 `spawnSync`**：`spawnSync` 同样携带 `maxBuffer`（换汤不换药 · 需手传 `maxBuffer` 常量，仍是把正确性押在一个易漏参数上）；**为何非 async 化/自造 stream pump**：引擎 dispatch 契约全同步（`DispatchStep = (frame) => DispatchOutcome` · `Lifecycle.advance()`/`peekNext()` 同步 · run.ts:113/233/242），为一次 IO 异步化会撕开整个 lifecycle 类型面（premise 3 反对），而自造同步流式聚合把排水正确性重担放回引擎（见 14.2）。
+- **定案**：`SyncRunner` 改 `execaSync(command, args, {cwd, reject:false, stripFinalNewline:false})`——**`reject:false`**（失败 child 返回结果不抛 · fail-open）、**`stripFinalNewline:false`**（stdout 字节级原样，尾块零动）、**默认无上限 `maxBuffer`**（截断类别退役）。结果回读为既有 `{code, stdout, stderr}` face：`exitCode ?? 1`（spawn 失败如 ENOENT 时 exitCode 为 `undefined` → 1）；stderr 为 child 自身流，异常 child 走 execa 的 `shortMessage` 诊断（fail-open face 保留原因文本，绝不空块）。face 零变（同步 · `{code, stdout, stderr}`）。
+- **回归 pin**：colocated 单测——超大输出（> 1 MiB，恰覆盖旧默认天花板的字节数）完整到达 + `RETURN_STDOUT_BLOCK` 尾块完整 + stderr 同 face + fail-open 保持——本类截断不可能再静默通过。
+- changeset（`@oscaner-skills/cdd-engine` patch · 新增依赖 `execa`）。
 
 ### Acceptance criteria
 - `cdd board <slug>` 输出全局态势板：overall/spec/plan/wave/branch 五行 + 各 `implement×N · review×N · fix×N` + wave 每波一行（波链 ✔▶○ + 明细）+ 固定 legend + `next:` 行
@@ -335,3 +336,4 @@ cdd board: 2026-10-10-engine-doc-tooling
 | v1.1 | 2026-10-15 | **Doc type 声明上收 + 文件名推导退役 backfill（用户裁定 2026-10-15 · D34 · in-flight）**：用户指出 `deriveDocType`/`BoardView.#docKeyOf` 重复声明 + 「文件名判断 doc type 容易出错（agent 不能保证完美复刻命名规则）」。**根因**：重复声明只是症状，「文件名承载类型语义」是病灶——文件名是类型的派生副本（声明再抄温床 · premise 3），命名规则须被每个 author agent 心智复刻（premise 5），规则一改全消费点同改。**定案（三点）**：① header 增 `- **Doc type**:` 声明行（值域 = 现有四值 DocKey · skeleton 生成 · 零别名层）· ② 文件名推导**整体退役**（`deriveDocType` 后缀规则 + `#docKeyOf` 删除——重复声明被消灭非修复；剩一个声明读取面，validate/preflight/board 三消费点单源；header marker 扫描不选 parser——parsers-by-type 循环依赖是伪装的）· ③ 缺声明硬 BLOCKED + 存量单 commit sweep（零双读兜底层）。**并入 P8**（W1 已落 `#docKeyOf`，实现中修订，premise 1 破坏性允许）。新增 §12 + AC 1 条 + Constraints 1 行；plan 修订随落（T2/T4/T5 + T3 依赖面 + T7 pin 面） | Oscar M. · Claude Opus 5（P8 编排器 backfill · 用户裁定） |
 | v1.2 | 2026-10-15 | **自环词表更正 + branch 节点消融 backfill（用户裁定 2026-10-15 · D35 · in-flight）**：用户指出四 skill 的 `until next=done` 在 D33 后全失真（cdd-plan/cdd-dev/cdd-design 的 next 序列 done 永不出现——until 永假，正常出口字面缺失；spec-writer 仅 overall 变体可达 done）+ W1 落地的 cdd-dev branch-review/branch-fix 成孤岛（wave→branch 入边已由引擎字面承载，digraph 断为两连通分量；checker 不查连通性故静默通过）。**定案（四点）**：① cdd-dev branch 双节点消融（引擎 C5 + PIPELINE_NEXT 已完全承载 branch 接线 · branch 专属事实收 hub Do + Failure Modes · 单 hub 二出边 pin 不破）· ② 四 skill 自环标签 → `until next is terminal`（terminal = done 或 skill ref/引擎命令字面）· ③ cdd-design 闭合出口 → `until session closes → handoff-next`（design 续环非引擎字面，不蹭 done 语义 · design 域三出边不变）· ④ 契约同步（`nextLoopConditions`/`loopShapeRule`/`edgeConditionRule` 随新词表 · branch 独立闭环断言块退役 · `out.length` 域规则不动）。新增 §13 + AC 1 条 + Constraints 1 行；plan 后置任务随落 | Oscar M. · Claude Opus 5（P8 编排器 backfill · 用户裁定） |
 | v1.3 | 2026-10-15 | **host 通道完整性 backfill（用户裁定 2026-10-15 · D36 · in-flight）**：W1 执行期两次 `CDD_BLOCKED: child claude returned no status line`（两次皆长任务 child——工作面完好、载体已写 APPROVED、唯 stdout 尾部状态块丢失；短 child 零事）。**根因（双证）**：`SyncRunner` 的 `execFileSync` 未传 `maxBuffer`（Node 默认 1 MiB · 超限尾部截断）+ 联网检索证实同族已知问题（anthropics/claude-code #6279/#15813/#17197 · `--print` 长输出被 exec 族包裹截断）。**定案（根本修非补丁 · 六前提）**：`SyncRunner` 弃 `execFileSync` 改 `spawn` + 同步流式聚合（`data` 事件增量收集 + `Atomics.wait` 阻塞至 EOF）——`maxBuffer` 天花板的整个类别被消灭；`spawnSync`（同样带 maxBuffer）与 async 化（撕开全同步 dispatch 契约）双否决；face 零变（`{code,stdout,stderr}` · `--output-format text` · `RETURN_STDOUT_BLOCK` 契约零动）· stderr 同法聚合 · 回归 pin（>1 MiB 输出完整到达）。新增 §14 + changeset | Oscar M. · Claude Opus 5（P8 编排器 backfill · 用户裁定） |
+| v1.4 | 2026-10-15 | **host 通道载体由「自造 spawn 流式」改为 execaSync（用户裁定 2026-10-15 · D36 修订）**：v1.3 定案的 `spawn` + worker-线程同步流式聚合被用户裁定改向——联网核查发现成熟活跃的第三方进程库 **execa**（sindresorhus · v10.1.1 · engines≥22），其同步面 `execaSync` **默认 `maxBuffer` 无上限**，且把**双管道并发排水**内建承于 `spawnSync`。自造 pump（约 118 行 worker 并发机器）既是自造轮子（premise 2），又把排水正确性重担放回引擎（premise 3/4）。**定案修订**：`SyncRunner` 改 `execaSync(command, args, {cwd, reject:false, stripFinalNewline:false})`——face 零变（同步 · `{code,stdout,stderr}` · fail-open 保持 · `RETURN_STDOUT_BLOCK` 契约零动）· 结果回读 `exitCode ?? 1` + stderr 走 `shortMessage` 诊断 · 新增依赖 `execa`（传递依赖 12 个，用户知情下裁定）。§14.2/§14.3 重定向 + 回归 pin 不变 | Oscar M. · Claude Opus 5（P8 编排器 backfill · 用户裁定） |

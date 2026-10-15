@@ -1,8 +1,8 @@
 // packages/cdd-engine/src-next/face/__tests__/sync-runner.test.ts
 // The SyncRunner colocated pins (spec §14 · D36 — the host-channel integrity):
-// the sync child-process face collects UNBOUNDED output (the old `execFileSync`
-// default of 1 MiB — Node's `maxBuffer` ceiling, the W1 truncation class — is
-// gone: execa's sync face buffers without bound by default):
+// the sync child-process face collects UNBOUNDED output (the retired fixed 1 MiB
+// output-buffer cap — the W1 truncation class — is gone: execa's sync face
+// buffers without bound by default):
 //   · >1 MiB output (exactly the retired default-ceiling byte count + 1) arrives
 //     whole — the tail block the read-back gate parses is intact;
 //   · a `status: APPROVED` RETURN_STDOUT_BLOCK tail survives the biggest pipe —
@@ -19,8 +19,8 @@ describe("SyncRunner — the unbounded sync child-channel collection (spec §14 
   const runner = new SyncRunner();
 
   it("collects >1 MiB stdout whole — exactly the retired default ceiling + 1 byte", () => {
-    // 1 MiB + 1 byte of 'x' — the byte count that truncates the execFileSync
-    // default; every byte must arrive.
+    // 1 MiB + 1 byte of 'x' — the byte count that trips the retired default
+    // output-buffer cap; every byte must arrive.
     const result = runner.run(
       "sh",
       ["-c", "head -c 1048577 /dev/zero | tr '\\0' x"],

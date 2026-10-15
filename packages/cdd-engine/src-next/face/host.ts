@@ -18,7 +18,7 @@
 //     `/namespace:skill` form; pi the flat `/skill:<bare>` form — the pi flat
 //     namespace has no namespace-qualification syntax).
 //   · HostDetect — the module-level host judgment (the detection's single home):
-//     the lifecycle's detectHost delegates here; the work face's Capsule wiring
+//     the dispatch face's detectHost delegates here; the work face's Capsule wiring
 //     reads the same judgment over process.env.
 //
 // P5 lands here: the forbidden parallel-sub-agents prose is deleted from the review
@@ -296,8 +296,8 @@ export const HOST_CONTRACT = {
 } as const satisfies HostContract;
 
 /** HostDetect — the module-level host judgment (the detection's single home). The
- *  input is the inline structural env view — no lifecycle import (the host plane
- *  must stay import-clean toward the lifecycle). */
+ *  input is the inline structural env view — no cross-import (the host plane
+ *  must stay import-clean toward the dispatch face). */
 // biome-ignore lint/complexity/noStaticOnlyClass: the module-level host-detect surface — the zero-bare-function discipline admits no standalone predicate functions.
 export class HostDetect {
   /** detect(env) — the first host detect row that matches, in the pinned order

@@ -66,7 +66,7 @@ export class BoardView {
     const prefix = `${programSlug}-`;
     const suffixes = new Set<string>();
     for (const entry of entries) {
-      if (!entry.endsWith(".md") || !entry.startsWith(prefix)) continue;
+      if (!/\.md$/.test(entry) || !entry.startsWith(prefix)) continue;
       const slug = Workspace.slugFromDoc(entry);
       if (slug === programSlug || !slug.startsWith(prefix)) continue;
       const suffix = slug.slice(prefix.length);

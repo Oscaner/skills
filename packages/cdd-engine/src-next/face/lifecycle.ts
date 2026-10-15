@@ -54,8 +54,8 @@ export interface SyncProcess {
 }
 
 /** SyncRunner — the unbounded sync child channel (spec §14 · D36): execa's
- *  synchronous face, whose `maxBuffer` defaults to unbounded — the whole-buffer
- *  ceiling class the old `execFileSync` call hit (Node's default 1 MiB, the W1
+ *  synchronous face, which imposes no output-buffer ceiling — the whole-buffer
+ *  cap class the retired built-in call hit (a fixed 1 MiB default, the W1
  *  `child claude returned no status line` truncation) does not exist here. The
  *  face stays synchronous (the T8 lifecycle's DispatchStep seam is one dispatch,
  *  one advance) and keeps the injected `SyncProcess` shape byte-for-byte: a
@@ -75,7 +75,7 @@ export class SyncRunner implements SyncProcess {
   /** The synchronous collection — execa's sync face with the three options the
    *  fail-open `SyncProcess` contract needs: `reject: false` (a failed child is a
    *  result, never a throw), `stripFinalNewline: false` (byte-verbatim stdout), and
-   *  the default unbounded `maxBuffer` (the ceiling class is retired). The result
+   *  the default unbounded output buffer (the cap class is retired). The result
    *  reads back into the same `{code, stdout, stderr}` face — `exitCode ?? 1` is the
    *  exit code; stderr is the child's own stream when it wrote one, else the execa
    *  diagnostic (a spawn failure like ENOENT writes nothing, so its reason rides the

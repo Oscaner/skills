@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P8 设计：`cdd board <slug>` slug 进度板 + 引擎统一 next 面（plan-graph 提级一等公民 · 文件系统唯一真源 · 全节点 verb×round 细粒度 · next 贯穿全 face×verb 到 skill ref）
-- **Version**: v0.9 · 2026-10-15
+- **Version**: v1.0 · 2026-10-15
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P8] 会话 · 用户裁定 · 2026-10-14）
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](2026-10-10-engine-doc-tooling-overall.md)
@@ -220,6 +220,20 @@ cdd board: 2026-10-10-engine-doc-tooling
 - **删除面**：两 author 节点的**散文结构复述**（"the plan carries the task-heading colon form…"）**删除**——骨架是结构契约的唯一权威（与 reviewer 读同一份 `schema get <type>` 契约），散文复述是会漂移的第二真相。
 - **回归 pin（防再次静默回归）**：在 `contract/skill-anatomy.ts` 的契约事实 + `SkillAnatomyCheck`（`packages/kairos/tests/skill-anatomy.test.ts`）补一条断言——**每个 author 节点（`cdd-spec-writer` 的 `author-spec` · `cdd-plan` 的 `author-plan`）必携其 skeleton bootstrap 字面**（`schema get … --output skeleton`）。契约携带「哪些节点是 author 入口 + 其 bootstrap 命令面」的事实，检查器断言 live SKILL.md 命中，二者同源；此 pin 使本类回归（入口命令被剥）**不可能再静默通过**。
 
+### 11. 措辞更正：fix 路由载体动作括注（D28 措辞补正 · skills 内部镜像剥离 · 用户裁定 2026-10-15）
+#### 11.1 现场与根因
+- **现场**：fix 路由的 `next:` 字面尾随括注 `FIX_READBACK_SUFFIX`（`session/next.ts:62` 单源 · capsule 逐字渲染）现为 `(confirm the findings · annotate the carrier with the adjudications)`——P7/D28（`cd617faf` 批次 · 载体动作 `backfill user adjudications` → `annotate the carrier with the adjudications` 术语分家）引入。该括注随 `next:` 到达编排器，**同时被逐字复写进四个 SKILL.md**（cdd-dev NEXT-LOOP/I2 · cdd-plan NEXT-LOOP/I1 · cdd-spec-writer NEXT-LOOP/I1 · cdd-design I2）。
+- **根因（D29 判据适用）**：SKILL.md 里的括注是**引擎渲染面的内部镜像**——括注由引擎在运行时渲进 `next:` 字面、编排器照字面执行，skill 文本无需也不应自持这份措辞副本；复写即 D29 要消灭的「会漂移的第二真相」（措辞一改，引擎与 skills 两处各改一遍，历史已证明会漏）。
+#### 11.2 更正后的判定（用户裁定 2026-10-15 · 两点）
+- **措辞更正**：括注改为 **`(confirm the findings · annotate the handoff carrier with the adjudications if needed)`**（措辞可调——点明载体是 **handoff** 载体，且标注动作为 **if needed** 的条件动作：裁定只处置某 finding 时才 annotate）。单源常量一处改，capsule 逐字渲染自动跟随。
+- **skills 镜像剥离**：四个 SKILL.md **整句括注删除**（非改写）——skills 只保留「fix 派发消费 findings handoff · 照 `next:` 字面执行」的纪律句；`FIX_READBACK_SUFFIX` 随 `next:` 给到编排器，就是编排器需要的全部说明。本更正与 §7 handoff 溶解正交：§7 删的是 face 间转移节点，本节删的是 fix 括注的 skill 侧措辞副本。
+- **命名登记随改**：`docs/maintainers/02-naming.md` §2.2 `annotate` 行的名称同步（handoff carrier + if needed），登记源仍是 `FIX_READBACK_SUFFIX` 单源。
+#### 11.3 热修面（W1 implement 之前落定）
+- **引擎**：`session/next.ts` `FIX_READBACK_SUFFIX` 值 + 头注措辞（§11.2 新句）· `face/capsule.ts` `#routeText` 注释行随改（渲染面零逻辑变化——常量插值）。
+- **literal pins**：`session/__tests__/next.test.ts` 两处字面 pin（值 pin + 编译期 literal 类型 pin）随改；`face/__tests__/*` 的 suffix 断言经 import 跟随，零改动。
+- **skills**：四 SKILL.md 括注删（`grep -rn "annotate the carrier" packages/kairos/skills/` 零命中）· `pnpm run emit` 重生成。
+- **P8 计划关系**：本节热修是**独立更正**，不增删 P8 任务；T6（skills 溶解）落地时本括注已不存在，T6 的零残留 checkable 天然覆盖。
+
 ### Acceptance criteria
 - `cdd board <slug>` 输出全局态势板：overall/spec/plan/wave/branch 五行 + 各 `implement×N · review×N · fix×N` + wave 每波一行（波链 ✔▶○ + 明细）+ 固定 legend + `next:` 行
 - slug → 三文档路径以**文件系统为唯一真源**：扫描 `docs/kairos/{specs,plans}` 命中 `<slug>*` 树化 · **不合成盘上不存在父节点**（`doc-architecture-v2` 族 `-p4.1` 存在而 `-p4` 缺失场景正确树化）· **不解析 overall File paths 表**
@@ -239,6 +253,7 @@ cdd board: 2026-10-10-engine-doc-tooling
 - `pnpm run validate` ALL PASS · 不发布
 - **author 入口 bootstrap 字面恢复（§10）**：`cdd-spec-writer` 的 `author-spec`（三变体）与 `cdd-plan` 的 `author-plan` 皆载 `<engine> schema get <type> --output skeleton <target path>`（拿到骨架再填）；散文结构复述删除
 - **author bootstrap 回归 pin**：`skill-anatomy` 契约 + 检查器断言两 author 节点必携 skeleton bootstrap 字面（本类回归不可再静默通过）
+- **fix 路由载体括注（§11）**：`FIX_READBACK_SUFFIX` = `(confirm the findings · annotate the handoff carrier with the adjudications if needed)` · 四 SKILL.md 括注零残留（`grep -rn "annotate the carrier" packages/kairos/skills/` 零命中）· `02-naming.md` annotate 行随改
 
 ## Constraints
 - **文件系统唯一真源**：节点集合、artifact 存在性全来自扫描，绝不合成盘上不存在的节点，绝不解析 overall 的 Phase inventory / File paths 声明表
@@ -253,6 +268,7 @@ cdd board: 2026-10-10-engine-doc-tooling
 - **纯读无副作用**：board 不写树 / 不写 ledger / 不派发 child
 - **不发布**：变更集归并落 pending
 - **触碰历史 pin「cdd CLI 零新子命令」**：board 为新增第七命令，连带修订（文档先行——本 spec 即该修订落点）
+- **fix 路由括注单源（§11）**：载体动作措辞只在 `FIX_READBACK_SUFFIX` 一处声明，capsule 逐字渲染；skills 不复写引擎措辞（D29 判据——运行时字面即编排器的说明）
 
 ## Change history
 | Version | date | summary | author |
@@ -266,3 +282,4 @@ cdd board: 2026-10-10-engine-doc-tooling
 | v0.7 | 2026-10-14 | **spec-review-3 四 findings 修复（v0.6 URC 单循环评审）**：① **B1（blocker）**——§7.2 loop-shape 重定义改为 **scope-aware**：`cdd-design` 亦注册 `{role:"orchestrator", family:"loop"}`（contract :127）且其 `handoff-next`（skills/cdd-design/SKILL.md:32）明确在 scope 外，故单一全局 `out.length 3→2` + 窄化 `nextLoopConditions` 会把 cdd-design 打红。定案——增 `SKILL_ROSTER` per-skill handoff 域事实（`pipeline` = 三流水线 skill · `design` = cdd-design）· `rowPrefixes` 收为 per-scope record · `nextLoopConditions` **保留三成员不窄化** · `loopShapeRule`/`edgeConditionRule` 按域分句 · `out.length` 按域（pipeline 2 · design 3）· 闭合出口断言块仅对 design 域运行；② **W2（warn）**——§9.3 把 `face.test.ts:91/235/287` 移出翻转集：其均以无 target 的 `{kind:"done"}` 调 `emit`，按 §6.4 缺 target 兜底字面逐字节不变，登记为与 `cli.test.ts:2340` 同属「保持绿」；③ **W3（warn）**——§6.4 host 源输入类型**不得复用 `ProcessEnvLike`**（homed `lifecycle.ts:86` · `lifecycle.ts:29-36` 反 import `host.ts` —— 复用即新增 `host.ts`→`lifecycle.ts` 环）；定案取内联结构类型 `Record<string, string | undefined>`；④ **N4（nit）**——§9.3 六动词列表锚点 `:995`→`:990`（`:995` 是 `toHaveLength(6)` legend 计数）；AC/历史同步 | Oscar M. · Claude Opus 5（P8 docs-fix round 3） |
 | v0.8 | 2026-10-15 | **spec-review-4 两 findings 修复（v0.7 URC 单循环评审）**：① **W（warn）**——§9.3 既有 `next: done` byte pin 翻转集**补 `cli.test.ts:2905`**：dry-run real-chain 测试的 wave-2 闭合（`review --type wave --tasks 2` on `planFor(repoRoot, 2)`，`expect(nextOf()).toBe("done")`），与所列 `:1451` 同属 wave 线闭合翻转类（§6.3/§6.6 wave 闭合重渲 branch-review 字面）；其逃逸历轮字面 grep 的根因是经 `nextOf()` helper 取载荷、从不携带 `next: done` 字面，故翻转集清点须扫 helper 取出的 next 断言（盲区修正）；② **Nit**——§9.3 「不翻转保持绿」例外枚举**补 `cli.test.ts:2772/2794`**：二者均 `literalOf({kind:"done"})` 无 target，按 §6.4 缺 target 兜底渲裸词 `done`，与所列 `face.test.ts:91/235/287` 同属「保持绿」，令例外列表对称 | Oscar M. · Claude Opus 5（P8 docs-fix round 4） |
 | v0.9 | 2026-10-15 | **回归更正 backfill（用户裁定 · D29 判定补正 · in-flight）**：用户发现 `author-spec`/`author-plan` 丢失骨架 bootstrap 命令——**P7/D29 回归**（`9d6f4e27` 明文删 `schema get … --output skeleton` 语法；P5/P6 曾载「generate the canonical skeleton first … fill its slots in place」）。**根因**：D29 按「形状」切而非「角色」切——`schema get … --output skeleton` 长得像内部语法而被剥，却正是 D29 自己 bootstrap 例外（入口节点唯一字面命令）所指；剥离清单与例外对撞，清单赢了；删后以散文复述补位 = 重演 D29 要消灭的第二真相。**逃逸面**：skill-anatomy 契约无「author 节点必携 bootstrap 字面」pin → 四轮 review 全过。**更正**：判据从「形状」改「角色」——入口发起命令 = 例外面（保留），内部结构镜像 = 剥离面（§10.3）；P7 历史 frozen 不动，**P8 为本更正 owning doc**。**热修（用户裁定）**：恢复两 author 节点的 bootstrap 字面（只命令 + fill in place · 不复述槽位名）+ 删散文结构复述 + 在 skill-anatomy 契约/检查器补回归 pin。新增 §10 + AC 2 条 + Constraints 1 行 | Oscar M. · Claude Opus 5（P8 编排器 backfill · 用户裁定） |
+| v1.0 | 2026-10-15 | **fix 路由载体括注措辞更正 backfill（用户裁定 2026-10-15 · D28 措辞补正 · in-flight）**：`FIX_READBACK_SUFFIX` 由 `(confirm the findings · annotate the carrier with the adjudications)` 改 **`(confirm the findings · annotate the handoff carrier with the adjudications if needed)`**（点明 handoff 载体 + if needed 条件动作）；**skills 侧括注整句剥离**（cdd-dev/cdd-plan/cdd-spec-writer/cdd-design 四文件——括注是引擎渲染面的内部镜像，运行时随 `next:` 字面给到编排器，skill 文本自持措辞副本 = D29 要消灭的会漂移第二真相）。P7/D28 历史 frozen 不动，**P8 为本更正 owning doc**（§10 同判例）。热修面：`next.ts` 常量值 + 注释 · `capsule.ts` 注释 · `next.test.ts` 两 literal pin · 四 SKILL.md 括注删 · `02-naming.md` annotate 行随改 · emit 重生成。新增 §11 + AC 1 条 + Constraints 1 行 | Oscar M. · Claude Opus 5（P8 编排器 backfill · 用户裁定） |

@@ -3922,6 +3922,54 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
+  it("D39 — a trailing-comma draft reconstructs cleanly (the lenient read face; the round is not voided)", () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new FakeSync();
+      sync.stdout = "status: APPROVED\n";
+      // The child LLM writes a draft with a routine slip — a trailing comma in the
+      // notes array (the W3 {5,11} block shape). The reconstruct's draft read is the
+      // LENIENT face (D39): the slip must not void the whole round.
+      const draftPath = path.join(scene.workspace.path, "tasks-1-implement.json");
+      writeFileSync(
+        draftPath,
+        '{\n  "status": "APPROVED",\n  "artifacts": {\n    "report": "' +
+          path.join(scene.workspace.path, "tasks-1-implement-report.md") +
+          '",\n    "test_evidence": "' +
+          path.join(scene.workspace.path, "tasks-1-test-evidence.json") +
+          '"\n  },\n  "notes": [\n    "a",\n    "b",\n  ]\n}\n',
+        "utf8",
+      );
+      writeFileSync(
+        path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+        JSON.stringify({
+          command: "npx vitest run",
+          exit_code: 0,
+          passed: true,
+          warnings_count: 0,
+          typecheck: { command: "tsc --noEmit", exit_code: 0, passed: true },
+        }),
+        "utf8",
+      );
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      const outcome = dispatch.step()(implementFrame);
+      // The trailing comma is tolerated — the round lands APPROVED, never a malformed
+      // reject; the notes the child wrote survive into the carrier.
+      expect(outcome.status).toBe("APPROVED");
+      expect(io.stderrText).toBe("");
+      expect((outcome.carrier as { notes?: string[] }).notes).toEqual(["a", "b"]);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("§8.7 — a non-declared / engine-reserved draft field is dropped with a single WARN, never a BLOCK (materialize and the validator judge the same way)", () => {
     const { repoRoot, cleanup } = fixture();
     try {

@@ -23,8 +23,13 @@ import { type ParseError, parse } from "jsonc-parser";
  *  are different facts, so a read-back reconstruct reports each truly — a corrupt
  *  draft is never misreported as "not written" (D27 · single-fact honesty). The
  *  other-IO-error case (EACCES, EISDIR …) is a present-but-unreadable file and rides
- *  the `malformed` side: it is never silently "missing". */
-export type JsonRead<T> = { kind: "ok"; value: T } | { kind: "missing" } | { kind: "malformed" };
+ *  the `malformed` side: it is never silently "missing". The lenient face (D39)
+ *  carries the parser's PRECISE error codes on the `malformed` side for diagnosis
+ *  (the strict face and the IO-error case leave `errors` absent). */
+export type JsonRead<T> =
+  | { kind: "ok"; value: T }
+  | { kind: "missing" }
+  | { kind: "malformed"; errors?: readonly ParseError[] };
 
 /** The repo-scoped workspace base — `<repoRoot>/<workspaceRoot>`. */
 export class WorkspaceRoot {
@@ -199,7 +204,9 @@ export class Workspace {
       allowTrailingComma: true,
       disallowComments: false,
     }) as T;
-    return errors.length === 0 ? { kind: "ok", value } : { kind: "malformed" };
+    // A real break carries the parser's precise error codes (offset/length/error)
+    // for diagnosis; a tolerated slip parses clean (errors empty).
+    return errors.length === 0 ? { kind: "ok", value } : { kind: "malformed", errors };
   }
 
   /** Read a child's text — the shared tri-state file leg of both JSON reads: a

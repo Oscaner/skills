@@ -270,8 +270,12 @@ describe("workspace — the root/workspace pair + the slug rule + JSON roundtrip
       expect(workspace.readJson("commented.json")).toEqual({ kind: "malformed" });
 
       // A REAL break stays fail-loud on both faces — leniency never swallows corruption.
+      // The lenient face ALSO carries the parser's precise error codes (D39) for
+      // diagnosis; the strict face reports its bare malformed outcome.
       writeFileSync(path.join(workspace.path, "broken.json"), '{ "a": 1 ', "utf8");
-      expect(workspace.readJsonLenient("broken.json")).toEqual({ kind: "malformed" });
+      const broken = workspace.readJsonLenient("broken.json");
+      expect(broken.kind).toBe("malformed");
+      expect(broken.kind === "malformed" && (broken.errors?.length ?? 0) > 0).toBe(true);
       expect(workspace.readJson("broken.json")).toEqual({ kind: "malformed" });
 
       // The tri-state legs hold on the lenient face too.

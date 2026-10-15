@@ -20,13 +20,13 @@
 
 import { readFileSync } from "node:fs";
 import type { DispatchPhase, ReviewLead, RouteTarget, TargetFace, TargetType } from "./faces.ts";
-import type {
-  HandoffParams,
+import {
+  type HandoffParams,
   Ledger,
-  LedgerKey,
-  OpType,
-  RoundFinding,
-  RoundStatus,
+  type LedgerKey,
+  type OpType,
+  type RoundFinding,
+  type RoundStatus,
 } from "./ledger.ts";
 import type { Route } from "./next.ts";
 import { NextStepRouter } from "./next.ts";
@@ -335,21 +335,14 @@ export class Lifecycle {
     };
   }
 
-  /** The next phase of a single-target line — the round sequence driven by the C5
-   *  routes of the recorded rounds. A review-lead awaiting its fix opens the fix
-   *  only when the review routed one (findings); a clean review closes the line
-   *  (no markDone on the task-less faces — the route IS the closure gate). The
-   *  completed pair re-keys on the fix round's route (re-review vs closure). A
-   *  CLOSED doc line reopens through the identity verdict (T7): the target's
-   *  current doc revision vs the recorded reviewed revision — a moved doc reopens
-   *  the review lead (round continuation), an unchanged doc stays closed. The
-   *  doc-drift judgment is the reviewGate method family (T8 · §3.5 · judgment
-   *  order = doc revision FIRST, matching the CLI's line gate — an open gate and
-   *  a dispatchable frame must agree): a drifted doc opens the review lead whatever
-   *  the round/route state says (the fix-awaited route never freezes a revised
-   *  doc); an unchanged doc with the pending fix derived opens the fix; the
-   *  unbound (no identity on record) and same-without-pending faces fall through
-   *  to the legacy rounds/routes judgment below. */
+  /** The next phase of a single-target line — the doc-revision gate (lifecycle-side:
+   *  its reviewGate needs the target doc path) then the ledger's SINGLE rounds/routes
+   *  judge (`Ledger#linePhase`, D40 — the retired lifecycle twin). A CLOSED doc line
+   *  reopens through the identity verdict (T7): a drifted doc opens the review lead
+   *  whatever the round/route state says (the fix-awaited route never freezes a
+   *  revised doc); an unchanged doc with the pending fix derived opens the fix; the
+   *  unbound / same-without-pending faces fall through to the shared rounds/routes
+   *  walk (a completed-fix line reopens review through the fix round's route). */
   #nextLinePhase(
     key: LedgerKey,
     target: AuditTarget,
@@ -359,51 +352,8 @@ export class Lifecycle {
       const verdict = this.#ledger.reviewGate(key, target.doc, this.#face.type);
       if (verdict.kind === "open") return reviewLead;
       if (verdict.kind === "same" && verdict.pending) return "fix";
-      // same-approved / unbound — fall through to the rounds/routes judgment
-      // (a completed-fix line reopens review through the fix round's route).
     }
-    const reviews = this.#ledger.roundCount(key, reviewLead);
-    if (reviews === 0) return reviewLead;
-    // The latest review cycle (= the count: review cycles are contiguous). Pending fix
-    // is the latest review's IDENTITY membership in the fix cycle set (D28) — a count
-    // comparison would flatten a skipped cycle into a phantom pending fix.
-    if (!this.#ledger.roundRecorded(key, "fix", reviews)) {
-      const route = this.#roundRoute(target, reviews);
-      if (route?.kind === "fix") return "fix";
-    } else {
-      const route = this.#lineRoute(target, reviews);
-      if (route?.kind === "review") return reviewLead;
-    }
-    return null;
-  }
-
-  /** The C5 route of a single-target line's review-lead round — the fix-awaits /
-   *  closure decision when its fix has not yet run (null when the round is
-   *  unreadable). */
-  #roundRoute(target: AuditTarget, round: number): Route | null {
-    const params = this.#paramsOf({
-      type: this.#face.type,
-      phase: this.#face.product.reviewLead,
-      target,
-      round,
-    });
-    const carried = this.#ledger.round("review", this.#face.type, params, round);
-    if (carried === null) return null;
-    return this.#router.next(this.#routeState(), carried);
-  }
-
-  /** The C5 route of a single-target line's latest fix round — the re-review/closure
-   *  decision the next open frame keys on (null when the round is unreadable). */
-  #lineRoute(target: AuditTarget, fixRound: number): Route | null {
-    const params = this.#paramsOf({
-      type: this.#face.type,
-      phase: "fix",
-      target,
-      round: fixRound,
-    });
-    const carried = this.#ledger.round("fix", this.#face.type, params, fixRound);
-    if (carried === null) return null;
-    return this.#router.next(EMPTY_RUN_STATE, carried);
+    return this.#ledger.linePhase(key, this.#face.type);
   }
 
   /** The round number one phase dispatches under: implement = the fixed family (1);
@@ -573,7 +523,7 @@ export class Lifecycle {
    *  IS the gate. */
   #markTerminal(frame: OpenFrame, route: Route | null): void {
     if (frame.type !== "wave") return;
-    if (route === null || (route.kind !== "done" && route.kind !== "next-wave")) return;
+    if (!Ledger.routeClosed(route)) return;
     const waveTarget = frame.target as { kind: "wave"; tasks: readonly number[] };
     for (const id of waveTarget.tasks) this.#state.markDone(id);
   }

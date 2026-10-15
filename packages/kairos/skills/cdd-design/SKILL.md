@@ -23,12 +23,12 @@ flowchart TD
   P -->|registered| G[run-grilling-session]
   G --> Z2((BLOCKED: grilling plugin missing))
   G --> X{size?}
-  X -->|single-spec| W[run-cdd-spec-writer]
-  X -->|fit| W[run-cdd-spec-writer]
+  X -->|single-spec| W[run-cdd-spec]
+  X -->|fit| W[run-cdd-spec]
   X -->|multi| C[run-cdd-charter]
   X -->|oversized| C[run-cdd-charter]
   W --> H[handoff-next]
-  C --> H[handoff-next]
+  C --> D[handoff-phase-design]
 ```
 
 ## Node Definitions
@@ -79,10 +79,10 @@ flowchart TD
 
 - **Do**: Judge the scope size to route the write target: on the `new-program` path — does the program fit one single spec or become an overall program (`single-spec` → one spec · `multi`/`oversized` → a charter); on the `phase-within-program` path — does this phase fit one phase spec (`fit` → phase-spec · `oversized` → a charter that syncs the sub-phase split into the parent)
 - **Read**: grilling output + exploration context + parent overall (phase-within-program mode)
-- **Exit**: `single-spec` → `run-cdd-spec-writer` (single-spec target); `fit` → `run-cdd-spec-writer` (phase-spec target); `multi`/`oversized` → `run-cdd-charter` (the overall-spec / charter target)
+- **Exit**: `single-spec` → `run-cdd-spec` (single-spec target); `fit` → `run-cdd-spec` (phase-spec target); `multi`/`oversized` → `run-cdd-charter` (the overall-spec / charter target)
 - **Fail**: —
 
-### `run-cdd-spec-writer`
+### `run-cdd-spec`
 
 - **Do**: Import `/kairos:cdd-spec-writer`（pi：/skill:cdd-spec-writer） with the target parameter (single-spec / phase-spec — the two near-identical dispatch variants are ONE node)
 - **Read**: grilling output + exploration context
@@ -93,13 +93,20 @@ flowchart TD
 
 - **Do**: Import `/kairos:cdd-spec-writer`（pi：/skill:cdd-spec-writer） with the overall-spec target
 - **Read**: grilling output + parent overall (oversized phase-within-program case)
-- **Exit**: Handoff executed → `handoff-next`
+- **Exit**: Handoff executed → `handoff-phase-design`
 - **Fail**: Target skill missing → BLOCKED (install kairos — see the kairos README's 'Upstream dependency install' table)
 
 ### `handoff-next`
 
-- **Do**: Hand off — to `/compact` or the next phase's design session (`kairos:cdd-design` [Px program]), summarizing the committed artifact
-- **Read**: the committed spec / charter + the run's next phase context
+- **Do**: Hand off following the engine's `next:` literal — this node is the spec line's convergence onto the engine's unified next face: read the `next:` line the delegated writer's closing round emitted and dispatch it as written (no design-domain continuation of this flow)
+- **Read**: the committed spec + the delegated writer's `next:` line
+- **Exit**: Handoff executed → flow ends for this skill
+- **Fail**: Target missing → BLOCKED (install kairos — see the kairos README's 'Upstream dependency install' table)
+
+### `handoff-phase-design`
+
+- **Do**: Hand off — to `/compact` or the next phase's design session (`kairos:cdd-design` [Px program]), summarizing the committed charter
+- **Read**: the committed charter + the run's next phase context
 - **Exit**: Handoff executed → flow ends for this skill
 - **Fail**: Target missing → BLOCKED (install kairos — see the kairos README's 'Upstream dependency install' table)
 

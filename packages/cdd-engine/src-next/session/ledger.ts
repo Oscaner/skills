@@ -666,6 +666,41 @@ export class Ledger {
     return this.#rowClosed(type, type === "wave" ? { tasks: String(key) } : {}, row);
   }
 
+  /** The single-target line's open phase — the rounds/routes walk the lifecycle's
+   *  frame frontier (run.ts #nextLinePhase) and the CLI gate (gate.ts #linePhase)
+   *  BOTH consume (one judge, one source — the retired twin copies). The pending-fix
+   *  test is the latest review's IDENTITY membership in the fix cycle set (D28) —
+   *  a count comparison would flatten a skipped cycle into a phantom pending fix.
+   *  Returns the review-lead phase word (the face's own mode), `"fix"`, or null when
+   *  the line holds no open phase. The doc-revision gate is NOT part of this walk —
+   *  the callers run their own reviewGate first (doc-drift-first ordering). */
+  linePhase(key: LedgerKey, type: TargetType): RoundPhase | null {
+    const reviewLead = targetFaces[type].product.reviewLead;
+    const reviews = this.roundCount(key, reviewLead);
+    if (reviews === 0) return reviewLead;
+    if (!this.roundRecorded(key, "fix", reviews)) {
+      const route = this.#lineRoundRoute("review", type, reviews);
+      return route?.kind === "fix" ? "fix" : null;
+    }
+    const route = this.#lineRoundRoute("fix", type, reviews);
+    return route?.kind === "review" ? reviewLead : null;
+  }
+
+  /** One single-target line round's C5 route — the review-lead / fix round read back
+   *  through the ledger and judged by the router (null when unreadable). Single-target
+   *  lines key their handoff params `{ round }` (the run.ts / gate.ts shaping) — the
+   *  same #roundRoute the closure judge reads, one walk. */
+  #lineRoundRoute(op: "review" | "fix", type: TargetType, round: number): Route | null {
+    return this.#roundRoute(op, type, { round }, round);
+  }
+
+  /** Whether a C5 route lies on the closure side — the `{done, next-wave}` terminal
+   *  predicate SINGLE SOURCE (D40): the lifecycle's #markTerminal, `#rowClosed` and
+   *  every closure consumer read it here, never a re-typed literal. */
+  static routeClosed(route: Route | null): boolean {
+    return route !== null && (route.kind === "done" || route.kind === "next-wave");
+  }
+
   /** Whether one progress row's line is closed — the LATEST recorded round's C5 route
    *  lies on the closure side ({done, next-wave}). The latest recorded round is a fix
    *  iff a fix is recorded at the latest review's CYCLE (D28 identity — fix-K ⟷
@@ -681,7 +716,7 @@ export class Ledger {
     const latestReview = this.#latestCycleOfRow(row, targetFaces[type].product.reviewLead);
     if (latestReview === 0) return false;
     const fixRecorded = this.#cyclesOf(row, "fix").includes(latestReview);
-    return Ledger.#closedBy(
+    return Ledger.routeClosed(
       this.#roundRoute(fixRecorded ? "fix" : "review", type, params, latestReview),
     );
   }
@@ -704,12 +739,6 @@ export class Ledger {
     const carried = this.round(op, type, params, round);
     if (carried === null) return null;
     return this.#router.next(EMPTY_RUN_STATE, carried);
-  }
-
-  /** The closure-side predicate — route.kind ∈ {done, next-wave} (the v1.20 terminal
-   *  side, byte-identical to the lifecycle's #markTerminal gate). */
-  static #closedBy(route: Route | null): boolean {
-    return route !== null && (route.kind === "done" || route.kind === "next-wave");
   }
 
   // -------------------------------------------------------------------------

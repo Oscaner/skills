@@ -17,6 +17,7 @@
 
 import process from "node:process";
 import { execaSync } from "execa";
+import { printParseErrorCode } from "jsonc-parser";
 import { ConfigLoader } from "../infra/config.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
 import type { Workspace } from "../infra/workspace.ts";
@@ -416,7 +417,14 @@ export class CliLifecycle {
       return this.#reject(frame, path, `the handoff draft was not written at ${path}`);
     }
     if (draftRead.kind === "malformed") {
-      return this.#reject(frame, path, `the handoff draft at ${path} is malformed JSON`);
+      // The lenient face carries the parser's precise error codes (D39) — surface
+      // them in the rejection so a genuinely corrupt draft is diagnosable, not just
+      // "malformed".
+      const codes = (draftRead.errors ?? [])
+        .map((error) => printParseErrorCode(error.error))
+        .join(", ");
+      const detail = codes === "" ? "" : ` (${codes})`;
+      return this.#reject(frame, path, `the handoff draft at ${path} is malformed JSON${detail}`);
     }
     const draft = draftRead.value;
     const problems = schema.violations(face, draft);

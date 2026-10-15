@@ -340,8 +340,10 @@ describe("BoardView projectNode — the per-node progress.json single-source pro
     const node = BoardView.projectNode("o1-p1", repo);
     const rendered = (node.waveLines ?? []).map((line) => `${line.label} ${line.marker}`);
 
-    expect(rendered[0]).toContain("W1 ✔");
-    expect(rendered[1]).toContain("W2 ▶");
+    // D40 — the wave line's label carries the wave's task scope (`W1  1`), not just
+    // the wave number (the board must show W3 = tasks 5,11).
+    expect(rendered[0]).toContain("W1  1 ✔");
+    expect(rendered[1]).toContain("W2  2 ▶");
   });
 
   it("degrades without error — no plan leaves the wave segment empty, no throw", () => {
@@ -469,8 +471,9 @@ describe("BoardView.render — the phase / program board layouts + the next deri
 
     const { text } = render("prog-p1");
 
-    expect(text).toContain("W1 ✔");
-    expect(text).toContain("W2 ▶");
+    // D40 — the wave line's label carries the wave's task scope.
+    expect(text).toContain("W1  1 ✔");
+    expect(text).toContain("W2  2 ▶");
   });
 
   it("phase board next: renders the first unexhausted face's PIPELINE_NEXT entry", () => {
@@ -524,6 +527,71 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     // plan closed → past the plan face; no plan task blocks → the wave face is the frontier
     expect(text).not.toContain("  next:    /kairos:cdd-dev");
     expect(text).toContain("  next:    review --type branch --plan");
+  });
+
+  it("D40 — a skipped-cycle row's board judgment EQUALS the engine's Ledger#lineClosed verdict", () => {
+    // The board's `next:` walk now delegates its closure reads to Ledger#lineClosed
+    // (the single judge) — a jump-number row `{review:[1,2], fix:[2]}` (D28) must read
+    // CLOSED on BOTH faces. A count-based board judge (the retired hand-rolled form)
+    // would read it OPEN and diverge from the engine.
+    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    writeDoc("docs/kairos/plans/prog-p1.md", ["# Plan", "", "- **Doc type**: plan"]);
+    const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
+    const ledger = new Ledger(workspace, new ConfigLoader());
+    ledger.persistHandoff("review", "plan", { round: 2 }, { findings: [] });
+    ledger.persistHandoff("fix", "plan", { round: 2 }, { findings: [] });
+    ledger.recordRound("plan", "review", 1);
+    ledger.recordRound("plan", "review", 2);
+    ledger.recordRound("plan", "fix", 2);
+
+    // The engine judge: the plan line is CLOSED (the fix at its own cycle 2, D28).
+    expect(ledger.lineClosed("plan", "plan")).toBe(true);
+    // The board consumes that SAME judge — the plan face is exhausted.
+    const { text } = render("prog-p1");
+    expect(text).not.toContain("  next:    /kairos:cdd-dev");
+  });
+
+  it("D40 — the wave line's label carries the wave's task scope (W3 = tasks 5,11)", () => {
+    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    writeDoc("docs/kairos/plans/prog-p1.md", [
+      "# Plan",
+      "",
+      "- **Doc type**: plan",
+      "",
+      "## Constraints",
+      "",
+      "- c",
+      "",
+      "### Task 5: a",
+      "- **Objective**: o",
+      "- **Files**: `a.ts`",
+      "- **Consumes**: x",
+      "- **Produces**: y",
+      "- **Steps**:",
+      "  - s — checkable: g",
+      "- **Acceptance**: ok",
+      "- **DependsOn**: none",
+      "",
+      "### Task 11: b",
+      "- **Objective**: o",
+      "- **Files**: `b.ts`",
+      "- **Consumes**: x",
+      "- **Produces**: y",
+      "- **Steps**:",
+      "  - s — checkable: g",
+      "- **Acceptance**: ok",
+      "- **DependsOn**: none",
+    ]);
+
+    const node = BoardView.projectNode("prog-p1", repo);
+    const labels = (node.waveLines ?? []).map((line) => line.label);
+
+    // The wave's task ids ride the label (a reader sees `W1  5,11`, not a bare W1).
+    expect(labels[0]).toBe("W1  5,11");
+    const { text } = render("prog-p1");
+    expect(text).toContain("W1  5,11");
   });
 
   it("phase board next: the same literal the Capsule renders for the done face (byte-identical)", () => {

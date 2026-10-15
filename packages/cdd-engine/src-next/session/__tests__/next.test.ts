@@ -26,6 +26,7 @@ import type { Route } from "../next.ts";
 import {
   FIX_READBACK_SUFFIX,
   NextStepRouter,
+  PIPELINE_NEXT,
   REVIEW_CYCLE_CAP,
   SOFT_CAP_SUGGESTION,
 } from "../next.ts";
@@ -318,5 +319,50 @@ describe("P4.1 T4 — the router's routes render parseable next literals (zero-e
     expect(() =>
       new CommandTreeBuilder().program.parse(argvOf(route), { from: "user" }),
     ).not.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D40 — ONE "next step" concept turned single-resolver + face-to-face handoff.
+// ---------------------------------------------------------------------------
+
+describe("D40 — the face-to-face handoff route + the single resolver", () => {
+  it("handoff() carries the pipeline entry for a doc-class — the ONE route kind", () => {
+    expect(NextStepRouter.handoff("phase-spec")).toEqual({
+      kind: "handoff",
+      entry: PIPELINE_NEXT["phase-spec"],
+    });
+    expect(NextStepRouter.handoff("branch")).toEqual({
+      kind: "handoff",
+      entry: PIPELINE_NEXT.branch,
+    });
+  });
+
+  it("resolve() passes an ACTIVE C5 hop through untouched (the line is not drained)", () => {
+    // The line's own C5 frontier decides next until it drains — a review/fix/next-wave
+    // route is the line's next step, never the face-to-face handoff.
+    expect(NextStepRouter.resolve({ kind: "review" }, "phase-spec")).toEqual({ kind: "review" });
+    expect(NextStepRouter.resolve({ kind: "next-wave", tasks: "3" }, "wave")).toEqual({
+      kind: "next-wave",
+      tasks: "3",
+    });
+  });
+
+  it("resolve() yields the face-to-face handoff when the line's C5 frontier drained (done)", () => {
+    expect(NextStepRouter.resolve({ kind: "done" }, "plan")).toEqual({
+      kind: "handoff",
+      entry: PIPELINE_NEXT.plan,
+    });
+    // a null C5 route (a not-yet-started frontier) also hands off to the next face.
+    expect(NextStepRouter.resolve(null, "branch")).toEqual({
+      kind: "handoff",
+      entry: PIPELINE_NEXT.branch,
+    });
+  });
+
+  it("resolve() with no face seam (null doc-class) renders the bare terminal `done`", () => {
+    // The overall line / a bare terminal: no pipeline seam carries it — the terminal word.
+    expect(NextStepRouter.resolve({ kind: "done" }, null)).toEqual({ kind: "done" });
+    expect(NextStepRouter.resolve(null, null)).toEqual({ kind: "done" });
   });
 });

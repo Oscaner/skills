@@ -15,6 +15,13 @@
 // filename-suffix derivation; a missing declaration reads null and the consumer
 // blocks (zero dual-read fallback).
 //
+// D40 — the board's `next:` derivation delegates to the engine's SINGLE judges:
+// the line closure reads via `Ledger#lineClosed` (zero re-derived closure in the
+// face) and the entry→literal render via the shared `RouteRenderer` (the retired
+// board `#entryText`, byte-identical to the capsule by construction). Each wave
+// line's label carries the wave's task scope (`W1  5,11`) so the board shows which
+// tasks a wave covers.
+//
 // Module-level exports are types / constants / the class — zero behavior-carrying
 // bare functions (the plan's zero-bare-function discipline).
 
@@ -25,12 +32,12 @@ import type { DocKey } from "../contract/project.ts";
 import { ConfigLoader } from "../infra/config.ts";
 import { ENGINE_RUNTIME } from "../infra/runtime.ts";
 import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
-import type { TargetType } from "../session/faces.ts";
+import type { RouteTarget } from "../session/faces.ts";
 import { TaskGraph } from "../session/graph.ts";
 import { Ledger, type ProgressData } from "../session/ledger.ts";
-import { PIPELINE_NEXT, type PipelineEntry, type PipelineKey } from "../session/next.ts";
+import { NextStepRouter, type PipelineKey, type Route } from "../session/next.ts";
 import { PROGRESS_LEGEND, PROGRESS_MARKERS } from "./graph-view.ts";
-import { REFS } from "./host.ts";
+import { RouteRenderer } from "./route-render.ts";
 import type { Words } from "./words.ts";
 
 /** One board node's header facts — the `**Version**` / `**Status**` / `**Doc type**`
@@ -418,22 +425,13 @@ export class BoardView {
     return new Ledger(new Workspace(root, nodeSlug), new ConfigLoader());
   }
 
-  /** Whether a doc/branch line is CLOSED — the engine's single line-closure judge
-   *  (`Ledger#lineClosed`, the same identity core `closedWaves()` reads). The board
-   *  consumes the judge, never re-deriving closure in the face (zero second judge):
-   *  a line whose latest recorded round's route is the `done` terminal is exhausted. */
-  static #lineClosed(ledger: Ledger, key: string, type: TargetType): boolean {
-    return ledger.lineClosed(key, type);
-  }
-
-  /** The board's `next:` derivation (spec §6.5) — consume PIPELINE_NEXT (the ONE
-   *  face-indirection table, never a second table): walk the phase's faces in line
-   *  order (spec → plan → wave → branch), take the FIRST face that has not yet
-   *  closed, and render its pipeline entry (the entry the engine's next face renders
-   *  when that face reaches `done`). Every face closed → the bare terminal `done`.
-   *  The render is byte-identical to the Capsule's `done` face (REFS[ref][host] with
-   *  the claude fallback; the literal's `<plan>` slot filled; the bare terminal
-   *  word). */
+  /** The board's `next:` derivation (spec §6.5 · D40) — walk the phase's faces in
+   *  line order (spec → plan → wave → branch), take the FIRST face that has not yet
+   *  closed, and render the route the ONE resolver yields for it (the handoff route
+   *  carrying that face's pipeline entry). Every face closed → the bare terminal
+   *  `done`. The closure reads delegate to `Ledger#lineClosed` (the engine's single
+   *  line-closure judge); the render delegates to the ONE RouteRenderer (byte-identical
+   *  to the Capsule's `done` face — the retired second renderer). */
   static #nextOf(
     ledger: Ledger,
     node: BoardProgress,
@@ -443,36 +441,27 @@ export class BoardView {
   ): string {
     const waves = node.waveLines ?? [];
     const faces: Array<{ key: PipelineKey; closed: boolean }> = [
-      { key: "phase-spec", closed: BoardView.#lineClosed(ledger, "spec", "spec") },
-      { key: "plan", closed: BoardView.#lineClosed(ledger, "plan", "plan") },
+      { key: "phase-spec", closed: ledger.lineClosed("spec", "spec") },
+      { key: "plan", closed: ledger.lineClosed("plan", "plan") },
       // The wave face is exhausted when the plan yields NO wave still open — an
       // empty wave segment (no plan) is not an exhausted face (nothing was closed).
       {
         key: "wave",
         closed: waves.length > 0 && waves.every((wave) => wave.marker === PROGRESS_MARKERS.done),
       },
-      { key: "branch", closed: BoardView.#lineClosed(ledger, "branch", "branch") },
+      { key: "branch", closed: ledger.lineClosed("branch", "branch") },
     ];
+    // The line walk — ONE resolver call per line in order (spec → plan → wave →
+    // branch): a line's resolver verdict is its face-to-face handoff (the face's C5
+    // frontier drained → the next pipeline entry); the FIRST line still OPEN is the
+    // board's next. Every line closed → the bare terminal `done`.
     const frontier = faces.find((face) => !face.closed);
-    if (frontier === undefined) return words.routeWord("done");
-    return BoardView.#entryText(PIPELINE_NEXT[frontier.key], planPath, words, host);
-  }
-
-  /** One pipeline entry rendered to its dispatch-ready literal — the same render
-   *  the Capsule's `done` face produces (a ref → REFS[ref][host], the claude form
-   *  when the host is absent; a literal → its `<plan>` slot filled; done → the bare
-   *  terminal word). Never a hard-coded plugin spelling. */
-  static #entryText(
-    entry: PipelineEntry,
-    planPath: string | null,
-    words: Words,
-    host: string,
-  ): string {
-    if (entry.kind === "done") return words.routeWord("done");
-    if (entry.kind === "literal") return entry.literal.replace("<plan>", planPath ?? "<plan>");
-    const row = REFS[entry.ref as keyof typeof REFS];
-    const form = row === undefined ? undefined : row[host as "claude" | "cursor" | "pi"];
-    return form ?? row?.claude ?? words.routeWord("done");
+    const route: Route =
+      frontier === undefined ? { kind: "done" } : NextStepRouter.resolve(null, frontier.key);
+    const renderer = new RouteRenderer(words, {}, host);
+    const planTarget: RouteTarget | null =
+      planPath === null ? null : { type: "plan", id: planPath, plan: planPath };
+    return renderer.render(route, planTarget);
   }
 
   /** One doc line — the header facts read from the doc (absent → nulls) + the row's
@@ -538,7 +527,7 @@ export class BoardView {
           ? PROGRESS_MARKERS.current
           : PROGRESS_MARKERS.pending;
       return {
-        label: `W${index + 1}`,
+        label: `W${index + 1}  ${wave.join(",")}`,
         version: null,
         status: null,
         docType: null,

@@ -40,8 +40,10 @@ export interface BoardNodeHeader {
   docType: DocKey | null;
 }
 
-/** The wave-line / board-line marker vocabulary — the derived ✔/▶/○ set (the SAME
- *  words `face/graph-view.ts` renders; one vocabulary, zero re-typed literals). */
+/** The board's wave-line marker vocabulary — the derived ✔/▶/○ set. The glyphs
+ *  mirror the per-task markers `face/graph-view.ts` renders, but each face declares
+ *  its own set (the board renders wave-level markers, the graph per-task ones); the
+ *  two are kept aligned by convention, not by a shared constant. */
 export const BOARD_MARKERS = { done: "✔", current: "▶", pending: "○" } as const;
 
 /** The verb render order of a line's `×N` cell — the stable display order the board's
@@ -283,8 +285,8 @@ export class BoardView {
 
   /** The node's wave segment — one line per derived wave (its ✔/▶/○ marker rides the
    *  SAME `TaskGraph.report(closedWaves())` read the board and the pre-flight gate
-   *  share · GraphView 同源), the wave's own `progress.json` row spread alongside. No
-   *  plan → empty segment (degradation, never a throw). */
+   *  share — the same source GraphView renders from), the wave's own `progress.json`
+   *  row spread alongside. No plan → empty segment (degradation, never a throw). */
   static #waveLines(
     planPath: string | null,
     progress: ProgressData | null,

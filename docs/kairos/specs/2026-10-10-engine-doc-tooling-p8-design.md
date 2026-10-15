@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P8 设计：`cdd board <slug>` slug 进度板 + 引擎统一 next 面（plan-graph 提级一等公民 · 文件系统唯一真源 · 全节点 verb×round 细粒度 · next 贯穿全 face×verb 到 skill ref）
-- **Version**: v1.4 · 2026-10-15
+- **Version**: v1.5 · 2026-10-15
 - **Doc type**: phase-spec
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P8] 会话 · 用户裁定 · 2026-10-14）
@@ -280,6 +280,21 @@ cdd board: 2026-10-10-engine-doc-tooling
 - **回归 pin**：colocated 单测——超大输出（> 1 MiB，恰覆盖旧默认天花板的字节数）完整到达 + `RETURN_STDOUT_BLOCK` 尾块完整 + stderr 同 face + fail-open 保持——本类截断不可能再静默通过。
 - changeset（`@oscaner-skills/cdd-engine` patch · 新增依赖 `execa`）。
 
+### 15. cdd-design hub 消融 + onepass 归类（D37 · 用户裁定 2026-10-15）
+#### 15.1 现场与根因（NEXT-LOOP hub 无生产者 = 死节点）
+- **现场**：cdd-design 的 `NEXT-LOOP` hub 自环 `until next is terminal` 永无重入来源——引擎统一 next 面（`NextStepRouter` + `PIPELINE_NEXT`，`session/next.ts`）**零 design 路由**：表只产 `kairos:cdd-plan`/`kairos:cdd-dev`/`kairos:cdd-close` 三 ref，`REFS`（`face/host.ts`）里的 `kairos:cdd-design` 行**零消费者**。此即 D33 明文（§13.1）「design 续环不是引擎字面消费者」。唯一入边是委托的 `run-cdd-spec-writer`，而 writer flow 在**自身** NEXT-LOOP 内部消化 spec 的 review-fix `next:` 字面、闭合即 hand off（→cdd-plan），**不回投 design**。
+- **结构**：hub 的汇合身份仅剩「一条入边 + 死自环 + 闭合出口 + `no next`」——与 D35 消融的 cdd-dev `branch-review`/`branch-fix` 孤岛**同构**（无活流量，checker 不查连通性故静默通过）。
+#### 15.2 判定（用户裁定 2026-10-15 · 两点）
+- **hub 消融**：`cdd-design/SKILL.md` 删 `NEXT-LOOP` 节点块 + digraph 三出边；`run-cdd-spec-writer` 的 Exit 直接收口 `handoff-next`（对齐 `run-cdd-charter → handoff-next`）。design 分支收敛为一条直边（`W --> H`）。
+- **家族重分类**：cdd-design `family: loop → onepass`（无自环 · 分叉路由非线性链）——`onepass` 语义由「one-shot toolchain」**一般化**为「one-pass · 无自环」，覆盖线性工具链（cdd-report）与分叉路由（cdd-design）两形（premise 6 复用优先 · 不为单一 skill 增族）。
+#### 15.3 契约同步（design-scope hub 机械整体退役）
+- `SKILL_ROSTER` cdd-design family 改 `onepass` · **`handoff` 字段整体移除**（消融后其唯一读者是 loop hub 的 design-scope 检查——零读者即死码，premise 4/6）· `loopHubNode.rowPrefixes` 退役（全 loop skill 皆 pipeline 域 · 前缀循环退为死码）· `nextLoopConditions`/`edgeConditionWords` 去 `until session closes`（design 域专属词）· `loopShapeRule`/`edgeConditionRule` 去 design 子句 · `enderShapeRule` 补 cdd-design（无自环例外）· **`registry.crossings["cdd-design"]` 移除**（消融后 12 节点 / 16 边，均回限内，不再越界）。
+- checker（`skill-anatomy.test.ts`）：`#familyShapeFindings` 的前缀循环删 · `#edgeConditionFindings` 的 designScope 分支删（`expectedOut` 恒 2 · 闭合出口断言块删）。
+#### 15.4 落地面（Plan Sole Writer 修订）
+- **skills**：cdd-design（hub 节点删 + digraph 重接 + Exit 改指 handoff-next）。
+- **contract**：`skill-anatomy.ts` 家族/词表/规则文本随改 + design-scope 机械删。
+- **plan**：**新任务 T11**（`DependsOn: 9` · 与 T9 同面后续——T9 刚落 cdd-design 自环标签与契约词表，T11 在其上消融）· T7 `DependsOn += 11`（pin 重锚覆盖 T11 后的契约终态）。
+
 ### Acceptance criteria
 - `cdd board <slug>` 输出全局态势板：overall/spec/plan/wave/branch 五行 + 各 `implement×N · review×N · fix×N` + wave 每波一行（波链 ✔▶○ + 明细）+ 固定 legend + `next:` 行
 - slug → 三文档路径以**文件系统为唯一真源**：扫描 `docs/kairos/{specs,plans}` 命中 `<slug>*` 树化 · **不合成盘上不存在父节点**（`doc-architecture-v2` 族 `-p4.1` 存在而 `-p4` 缺失场景正确树化）· **不解析 overall File paths 表**
@@ -301,7 +316,8 @@ cdd board: 2026-10-10-engine-doc-tooling
 - **author bootstrap 回归 pin**：`skill-anatomy` 契约 + 检查器断言两 author 节点必携 skeleton bootstrap 字面（本类回归不可再静默通过）
 - **fix 路由载体括注（§11）**：`FIX_READBACK_SUFFIX` = `(confirm the findings · if a finding needs a ruling, record the ruling in the findings file)` · 四 SKILL.md 括注零残留（`grep -rn "annotate the carrier" packages/kairos/skills/` 零命中）· `02-naming.md` annotate 行随改
 - **Doc type 声明上收（§12 · D34）**：每份 doc 的 header 携 `- **Doc type**: <DocKey 四值>`（skeleton 生成）· `deriveDocType` 后缀规则 + `BoardView.#docKeyOf` 零残留（推导面整体退役）· validate/preflight/board 三消费点读同一声明读取方法 · 缺声明 BLOCKED · 存量 sweep 单 commit · 声明类型即 doc-contract 门的校验键（零文件名 cross-check）
-- **自环词表 + branch 消融（§13 · D35）**：四 skill 自环标签 `until next is terminal` · cdd-design 闭合出口 `until session closes → handoff-next` · cdd-dev branch 双节点消融（`branch-review`/`branch-fix` 零残留 · 单 hub 二出边）· branch 独立闭环断言块退役 · `nextLoopConditions`/`loopShapeRule`/`edgeConditionRule` 随新词表同步 · `out.length` 域规则不动
+- **自环词表 + branch 消融（§13 · D35）**：四 skill 自环标签 `until next is terminal`（cdd-design 部分经 §15 · D37 再修订——hub 整体消融）· cdd-dev branch 双节点消融（`branch-review`/`branch-fix` 零残留 · 单 hub 二出边）· branch 独立闭环断言块退役 · `nextLoopConditions`/`loopShapeRule`/`edgeConditionRule` 随新词表同步 · `out.length` 域规则不动
+- **cdd-design hub 消融（§15 · D37）**：cdd-design 的 `NEXT-LOOP` 节点 + 三出边消融（无生产者=死节点）· `run-cdd-spec-writer` Exit 直收 `handoff-next` · cdd-design `family: loop→onepass` · design-scope hub 机械整体退役（`handoff` 字段/`rowPrefixes`/design out-length=3/`until session closes` 词/闭合出口断言块/`registry.crossings["cdd-design"]` 零残留）· `enderShapeRule` 补 cdd-design 无自环例外
 
 ## Constraints
 - **文件系统唯一真源**：节点集合、artifact 存在性全来自扫描，绝不合成盘上不存在的节点，绝不解析 overall 的 Phase inventory / File paths 声明表
@@ -319,6 +335,7 @@ cdd board: 2026-10-10-engine-doc-tooling
 - **fix 路由括注单源（§11）**：载体动作措辞只在 `FIX_READBACK_SUFFIX` 一处声明，capsule 逐字渲染；skills 不复写引擎措辞（D29 判据——运行时字面即编排器的说明）
 - **doc type 声明单源（§12 · D34）**：doc 类型是文档声明的声明性事实（header `- **Doc type**:`），**不是文件名的派生事实**——零文件名→类型推导面（`deriveDocType` 后缀规则/`#docKeyOf` 退役）· 零双读层（缺声明 = BLOCKED，不兜底）· 零文件名 cross-check（声明类型即 doc-contract 门校验键）· slug 扫描只按前缀+目录分组，不承载类型
 - **digraph 边条件 = 引擎字面世界观的镜像（§13 · D35）**：skill digraph 的边条件词必须与引擎 next 面的实际字面序列一致——`done` 只渲在引擎真给 done 的位置（overall 闭合/流水线终点），编排器循环退出条件是 **terminal**（字面交出编排权），不是 done；编排器零 branch 专属路由知识（引擎字面即全部）
+- **hub 只承载活流量（§15 · D37）**：一个 NEXT-LOOP hub 的存续以「有生产者」为判据——引擎 next 面封顶于 `/kairos:cdd-close`（不跨 phase），任何 design-scope hub 无 next 生产者即死节点，整体消融（编排器集合是双向完备的直边 DAG，非强制每 skill 一个 hub）；家族分类反映真实形状（无自环 → `onepass`）
 
 ## Change history
 | Version | date | summary | author |
@@ -337,3 +354,4 @@ cdd board: 2026-10-10-engine-doc-tooling
 | v1.2 | 2026-10-15 | **自环词表更正 + branch 节点消融 backfill（用户裁定 2026-10-15 · D35 · in-flight）**：用户指出四 skill 的 `until next=done` 在 D33 后全失真（cdd-plan/cdd-dev/cdd-design 的 next 序列 done 永不出现——until 永假，正常出口字面缺失；spec-writer 仅 overall 变体可达 done）+ W1 落地的 cdd-dev branch-review/branch-fix 成孤岛（wave→branch 入边已由引擎字面承载，digraph 断为两连通分量；checker 不查连通性故静默通过）。**定案（四点）**：① cdd-dev branch 双节点消融（引擎 C5 + PIPELINE_NEXT 已完全承载 branch 接线 · branch 专属事实收 hub Do + Failure Modes · 单 hub 二出边 pin 不破）· ② 四 skill 自环标签 → `until next is terminal`（terminal = done 或 skill ref/引擎命令字面）· ③ cdd-design 闭合出口 → `until session closes → handoff-next`（design 续环非引擎字面，不蹭 done 语义 · design 域三出边不变）· ④ 契约同步（`nextLoopConditions`/`loopShapeRule`/`edgeConditionRule` 随新词表 · branch 独立闭环断言块退役 · `out.length` 域规则不动）。新增 §13 + AC 1 条 + Constraints 1 行；plan 后置任务随落 | Oscar M. · Claude Opus 5（P8 编排器 backfill · 用户裁定） |
 | v1.3 | 2026-10-15 | **host 通道完整性 backfill（用户裁定 2026-10-15 · D36 · in-flight）**：W1 执行期两次 `CDD_BLOCKED: child claude returned no status line`（两次皆长任务 child——工作面完好、载体已写 APPROVED、唯 stdout 尾部状态块丢失；短 child 零事）。**根因（双证）**：`SyncRunner` 的 `execFileSync` 未传 `maxBuffer`（Node 默认 1 MiB · 超限尾部截断）+ 联网检索证实同族已知问题（anthropics/claude-code #6279/#15813/#17197 · `--print` 长输出被 exec 族包裹截断）。**定案（根本修非补丁 · 六前提）**：`SyncRunner` 弃 `execFileSync` 改 `spawn` + 同步流式聚合（`data` 事件增量收集 + `Atomics.wait` 阻塞至 EOF）——`maxBuffer` 天花板的整个类别被消灭；`spawnSync`（同样带 maxBuffer）与 async 化（撕开全同步 dispatch 契约）双否决；face 零变（`{code,stdout,stderr}` · `--output-format text` · `RETURN_STDOUT_BLOCK` 契约零动）· stderr 同法聚合 · 回归 pin（>1 MiB 输出完整到达）。新增 §14 + changeset | Oscar M. · Claude Opus 5（P8 编排器 backfill · 用户裁定） |
 | v1.4 | 2026-10-15 | **host 通道载体由「自造 spawn 流式」改为 execaSync（用户裁定 2026-10-15 · D36 修订）**：v1.3 定案的 `spawn` + worker-线程同步流式聚合被用户裁定改向——联网核查发现成熟活跃的第三方进程库 **execa**（sindresorhus · v10.1.1 · engines≥22），其同步面 `execaSync` **默认 `maxBuffer` 无上限**，且把**双管道并发排水**内建承于 `spawnSync`。自造 pump（约 118 行 worker 并发机器）既是自造轮子（premise 2），又把排水正确性重担放回引擎（premise 3/4）。**定案修订**：`SyncRunner` 改 `execaSync(command, args, {cwd, reject:false, stripFinalNewline:false})`——face 零变（同步 · `{code,stdout,stderr}` · fail-open 保持 · `RETURN_STDOUT_BLOCK` 契约零动）· 结果回读 `exitCode ?? 1` + stderr 走 `shortMessage` 诊断 · 新增依赖 `execa`（传递依赖 12 个，用户知情下裁定）。§14.2/§14.3 重定向 + 回归 pin 不变 | Oscar M. · Claude Opus 5（P8 编排器 backfill · 用户裁定） |
+| v1.5 | 2026-10-15 | **cdd-design NEXT-LOOP hub 消融 + onepass 归类 backfill（用户裁定 2026-10-15 · D37 · in-flight）**：用户问「cdd-design 的 next-loop 节点有没有用」——查证发现其 hub 自环 `until next is terminal` **无生产者**（引擎 `PIPELINE_NEXT` 只产 cdd-plan/cdd-dev/cdd-close 三 ref · `REFS` 里 `kairos:cdd-design` 行零消费者 → 零 design 路由 = D33 明文的「design 不在 next 内」），唯一入边（委托 writer flow）在其自身 NEXT-LOOP 内消化 spec next 字面后 hand off，不回投——与 D35 消融的 cdd-dev branch 孤岛**同构**（死流量 · checker 不查连通性故静默通过）。**定案（两点）**：① hub 整体消融（`run-cdd-spec-writer` Exit 直收 `handoff-next`，对齐 `run-cdd-charter`）· ② cdd-design `family: loop→onepass`（`onepass` 语义由「one-shot toolchain」一般化为「one-pass · 无自环」）。**契约同步**：design-scope hub 机械整体退役（`handoff` 字段整体移除（零读者=死码）· `rowPrefixes` · design out-length=3 · `until session closes` 词 · 闭合出口断言块 · `registry.crossings["cdd-design"]`（消融后 12 节点/16 边均回限内））。新增 §15 + AC 1 条 + Constraints 1 行 · **新 T11**（DependsOn 9）+ T7 DependsOn += 11 | Oscar M. · Claude Opus 5（P8 编排器 backfill · 用户裁定） |

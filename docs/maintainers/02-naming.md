@@ -35,7 +35,7 @@ Single registration point for the repo's governing terms; a term is in force whe
 | **Issue surface** | `issue` — the pure-rendering CLI row (`cdd issue render`: stdin JSON → body → stdout) + emit issue form yml from `formFieldDefs`. | `IssueReportRenderer` · `.github/ISSUE_TEMPLATE/*.yml` |
 | **Command-contract wording** | Command-contract vocabulary is single-sourced in the word table. | `face/words.ts` · `words.guard.test.ts` |
 | **backfill** | Land a durable fact into its owning doc (overall / spec / plan) — the destination of a ruling that asserts a project-level fact. Distinct from the per-round carrier action. | `cdd-plan` (backfill-design) · `cdd-close` (closeout-backfill) · cdd-dev I6 |
-| **annotate** | The per-round carrier action: write the user adjudications onto the round's findings carrier (the fix child's input), never a durable doc. The one carrier write the `next:` fix suffix names. | `session/next.ts` (`FIX_READBACK_SUFFIX`) · `face/capsule.ts` |
+| **annotate** | The per-round carrier action: when a finding needs a user ruling, record the ruling in the round's findings file (the fix child's input), never a durable doc. The one carrier write the `next:` fix suffix names. | `session/next.ts` (`FIX_READBACK_SUFFIX`) · `face/capsule.ts` |
 
 **Return-block constants are not injection slots.** `RETURN_STDOUT_BLOCK` is the ONE return contract (`render/templates.ts`) — a literal label, never a moustache, never a registry token; only `round-context` slots are injected. The status enum (`APPROVED`/`BLOCKED`/`CHANGES_REQUESTED`/`REVIEW_FIX`/`TIMEOUT`) is the same class.
 

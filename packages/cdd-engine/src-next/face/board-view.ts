@@ -28,13 +28,8 @@ import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 import type { TargetType } from "../session/faces.ts";
 import { TaskGraph } from "../session/graph.ts";
 import { Ledger, type ProgressData } from "../session/ledger.ts";
-import {
-  NextStepRouter,
-  PIPELINE_NEXT,
-  type PipelineEntry,
-  type PipelineKey,
-} from "../session/next.ts";
-import { EMPTY_RUN_STATE } from "../session/run.ts";
+import { PIPELINE_NEXT, type PipelineEntry, type PipelineKey } from "../session/next.ts";
+import { PROGRESS_LEGEND, PROGRESS_MARKERS } from "./graph-view.ts";
 import { REFS } from "./host.ts";
 import type { Words } from "./words.ts";
 
@@ -51,20 +46,9 @@ export interface BoardNodeHeader {
   docType: DocKey | null;
 }
 
-/** The board's wave-line marker vocabulary — the derived ✔/▶/○ set. The glyphs
- *  mirror the per-task markers `face/graph-view.ts` renders, but each face declares
- *  its own set (the board renders wave-level markers, the graph per-task ones); the
- *  two are kept aligned by convention, not by a shared constant. */
-export const BOARD_MARKERS = { done: "✔", current: "▶", pending: "○" } as const;
-
 /** The verb render order of a line's `×N` cell — the stable display order the board's
  *  round cells follow (an unexpected verb appends after these, never dropped). */
 const VERB_ORDER: readonly string[] = ["implement", "review", "branch-review", "fix"];
-
-/** The board's fixed legend tail line — the progress-marker vocabulary (the same
- *  shape `GraphView` renders; the board's own legend reads `done/current` — the
- *  wave-less scopes carry no current wave, so the board keeps the plain words). */
-export const BOARD_LEGEND = "progress: ✔ done · ▶ current · ○ pending";
 
 /** One rendered board — the stdout lines + the process exit code (0 on a clean
  *  board, 2 when a present doc line carried no `- **Doc type**:` declaration). */
@@ -302,7 +286,7 @@ export class BoardView {
       Workspace.phaseSuffixOf(slug) !== null
         ? BoardView.#phaseBoard(lines, slug, repoRoot, words, host)
         : BoardView.#programBoard(lines, slug, repoRoot);
-    lines.push("", BOARD_LEGEND);
+    lines.push("", PROGRESS_LEGEND.board);
     return { lines, exitCode };
   }
 
@@ -350,10 +334,10 @@ export class BoardView {
     }
 
     const ledger = BoardView.#ledgerOf(slug, repoRoot);
-    const branchClosed = BoardView.#lineClosed(ledger, "branch", "branch");
+    const branchClosed = ledger.lineClosed("branch", "branch");
     const branchRounds = BoardView.roundsCell(branchLine!.rounds);
     lines.push(
-      `  branch   ${branchClosed ? `${BOARD_MARKERS.done} closed` : "○ open"}${branchRounds === "" ? "" : `  ${branchRounds}`}`.trimEnd(),
+      `  branch   ${branchClosed ? `${PROGRESS_MARKERS.done} closed` : `${PROGRESS_MARKERS.pending} open`}${branchRounds === "" ? "" : `  ${branchRounds}`}`.trimEnd(),
     );
 
     lines.push("");
@@ -363,8 +347,9 @@ export class BoardView {
 
   /** The program board render — the overall line (its own rounds) + one summary line
    *  per on-disk phase + `next: done` (cross-phase never participates in next, spec
-   *  §6.5). Returns the exit code (2 when the overall doc carries no type
-   *  declaration). */
+   *  §6.5). Returns the exit code (2 when the overall doc OR any present phase doc
+   *  carries no type declaration — the phase board's BLOCK propagates here, spec §12 ·
+   *  D34: zero silent fallback). */
   static #programBoard(lines: string[], slug: string, repoRoot: string): number {
     const nodes = BoardView.projectNodes(slug, repoRoot);
     const overall = nodes[0]!;
@@ -374,12 +359,21 @@ export class BoardView {
     );
     lines.push(`  overall  ${overallDoc.text}`);
     lines.push("");
+    let blocked = overallDoc.blocked;
     for (const node of nodes.slice(1)) {
       const label = node.label.slice(slug.length).replace(/^-p/, "P");
       const spec = node.lines.find((line) => line.label === "spec");
       const plan = node.lines.find((line) => line.label === "plan");
       const branch = node.lines.find((line) => line.label === "branch");
-      const status = spec?.status ?? "Pending";
+      // The phase line's doc-cell read: a present phase spec/plan without its
+      // `- **Doc type**:` declaration blocks the SAME way the phase board does —
+      // the marker renders on the phase line and the program board exits 2.
+      const docs = Workspace.docsOfSlug(node.label, repoRoot);
+      const phaseBlocked =
+        BoardView.#docCell(docs.spec, spec!).blocked ||
+        BoardView.#docCell(docs.plan, plan!).blocked;
+      blocked ||= phaseBlocked;
+      const status = phaseBlocked ? "doc-type: missing (BLOCKED)" : (spec?.status ?? "Pending");
       const parts: string[] = [];
       const cells: Array<[string, string]> = [
         ["spec", BoardView.roundsCell(spec?.rounds ?? {})],
@@ -392,7 +386,7 @@ export class BoardView {
     }
     lines.push("");
     lines.push("  next:    done");
-    return overallDoc.blocked ? 2 : 0;
+    return blocked ? 2 : 0;
   }
 
   /** One doc line's cell text — the doc path, the header facts and the line's
@@ -424,20 +418,12 @@ export class BoardView {
     return new Ledger(new Workspace(root, nodeSlug), new ConfigLoader());
   }
 
-  /** Whether a doc/branch line is CLOSED — the engine's single C5 closure judge
-   *  (NextStepRouter) applied to the line's latest recorded round. The board reads
-   *  the same router + round carrier the ledger's closedWaves() face reads (zero new
-   *  judgment, zero second table): a line whose latest round's route is the `done`
-   *  terminal is exhausted. */
+  /** Whether a doc/branch line is CLOSED — the engine's single line-closure judge
+   *  (`Ledger#lineClosed`, the same identity core `closedWaves()` reads). The board
+   *  consumes the judge, never re-deriving closure in the face (zero second judge):
+   *  a line whose latest recorded round's route is the `done` terminal is exhausted. */
   static #lineClosed(ledger: Ledger, key: string, type: TargetType): boolean {
-    const mode = type === "branch" ? "branch-review" : "review";
-    const reviews = ledger.roundCount(key, mode);
-    if (reviews === 0) return false;
-    const fixes = ledger.roundCount(key, "fix");
-    const round = fixes > 0 ? Math.min(fixes, reviews) : reviews;
-    const carried = ledger.round(fixes > 0 ? "fix" : "review", type, { round }, round);
-    if (carried === null) return false;
-    return new NextStepRouter().next(EMPTY_RUN_STATE, carried)?.kind === "done";
+    return ledger.lineClosed(key, type);
   }
 
   /** The board's `next:` derivation (spec §6.5) — consume PIPELINE_NEXT (the ONE
@@ -463,7 +449,7 @@ export class BoardView {
       // empty wave segment (no plan) is not an exhausted face (nothing was closed).
       {
         key: "wave",
-        closed: waves.length > 0 && waves.every((wave) => wave.marker === BOARD_MARKERS.done),
+        closed: waves.length > 0 && waves.every((wave) => wave.marker === PROGRESS_MARKERS.done),
       },
       { key: "branch", closed: BoardView.#lineClosed(ledger, "branch", "branch") },
     ];
@@ -547,10 +533,10 @@ export class BoardView {
     return report.waves.map((wave, index) => {
       const closed = wave.every((id) => done.has(id));
       const marker = closed
-        ? BOARD_MARKERS.done
+        ? PROGRESS_MARKERS.done
         : index === currentIndex
-          ? BOARD_MARKERS.current
-          : BOARD_MARKERS.pending;
+          ? PROGRESS_MARKERS.current
+          : PROGRESS_MARKERS.pending;
       return {
         label: `W${index + 1}`,
         version: null,

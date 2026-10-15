@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { TaskGraphReport } from "../../session/graph.ts";
-import { GraphView } from "../graph-view.ts";
+import { GraphView, PROGRESS_LEGEND, PROGRESS_MARKERS } from "../graph-view.ts";
 
 /** A board fixture — derived waves whose labels the execution order mirrors
  *  (the P4.1 plan's W1 = {T1,T2} → W2 = {T3,T4} → W3 = {T5} → W4 = {T6,T7}). */
@@ -46,5 +46,16 @@ describe("GraphView — the wave-board labels (find #6 · W1-first ordering · n
     const out = board(waves, waves.flat().slice(0, 9));
     expect(out).toContain("W10  T10▶   ← in-flight");
     expect(out).not.toContain("W010");
+  });
+});
+
+describe("the shared progress-marker vocabulary (board ⇄ graph, one home)", () => {
+  it("PROGRESS_MARKERS is the single glyph set both faces render — ✔/▶/○", () => {
+    expect(PROGRESS_MARKERS).toEqual({ done: "✔", current: "▶", pending: "○" });
+  });
+
+  it("the two legend tails differ only by the scope word (`current` vs `current wave`)", () => {
+    expect(PROGRESS_LEGEND.board).toBe("progress: ✔ done · ▶ current · ○ pending");
+    expect(PROGRESS_LEGEND.graph).toBe("progress: ✔ done · ▶ current wave · ○ pending");
   });
 });

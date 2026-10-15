@@ -679,3 +679,66 @@ describe("the review gate — the D28 phantom-pending-fix suppression", () => {
     }
   });
 });
+
+describe("lineClosed — the single line-closure judge (the board + closedWaves core)", () => {
+  /** Seed a line row's raw `rounds` plane on the fixture's `test-slug` workspace. */
+  const seedRow = (ledger: Ledger, key: string, rounds: Record<string, number[]>): void => {
+    const data = ledger.readProgress() ?? ledger.emptyProgress();
+    data.waves.push({ wave: key, rounds });
+    ledger.writeProgress(data);
+  };
+
+  it("a skipped-cycle fix (`{review:[1,2], fix:[2]}`) is CLOSED — the identity read, never a count", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // The drift-voided review-1 shape: the first fix is cycle 2 (fix-K ⟷ review-K).
+      // A count-based judge computes `fixes(1)`, reads the nonexistent fix cycle 1 and
+      // reads the line OPEN; the identity judge reads the fix at its own cycle 2.
+      seedRow(ledger, "plan", { review: [1, 2], fix: [2] });
+      const params = { round: 2 };
+      ledger.persistHandoff("review", "plan", params, { findings: [] });
+      // the docs-fix face is a findings carrier (fix.plan schema) — an empty rollup is APPROVED
+      ledger.persistHandoff("fix", "plan", params, { findings: [] });
+
+      expect(ledger.lineClosed("plan", "plan")).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a line whose latest fix round carries blockers stays OPEN — the C5 route, not the mere presence", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      seedRow(ledger, "plan", { review: [1, 2], fix: [2] });
+      const params = { round: 2 };
+      // the fix's source review carries a blocker → the C5 route is a re-review, not closure
+      ledger.persistHandoff("review", "plan", params, {
+        findings: [{ severity: "blocker", summary: "survives" }],
+      });
+      ledger.persistHandoff("fix", "plan", params, { findings: [] });
+
+      expect(ledger.lineClosed("plan", "plan")).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a line with no review round yet is OPEN — an implement-only row never closes", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      seedRow(ledger, "plan", { implement: [1] });
+      expect(ledger.lineClosed("plan", "plan")).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("an absent row (or absent progress) is OPEN — present facts only", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      expect(ledger.lineClosed("plan", "plan")).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+});

@@ -499,6 +499,33 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     expect(text).toContain("  next:    /kairos:cdd-dev");
   });
 
+  it("phase board next: a skipped-cycle plan line (`{review:[1,2], fix:[2]}`) is CLOSED — the engine's judge, not a count", () => {
+    // The drift-voided review-1 shape the reviewer's own P8 workspace carries. A
+    // count-based closure judge reads the nonexistent fix cycle 1 → plan OPEN → the
+    // plan entry; the engine's identity judge reads the fix at cycle 2 → plan CLOSED
+    // → next advances past the plan face.
+    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    writeDoc("docs/kairos/plans/prog-p1.md", ["# Plan", "", "- **Doc type**: plan"]);
+    const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
+    const ledger = new Ledger(workspace, new ConfigLoader());
+    // spec closed (a recorded zero-findings spec review)
+    ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("spec", "review");
+    // plan closed by identity: review cycles [1,2], the fix at its own cycle 2
+    ledger.persistHandoff("review", "plan", { round: 2 }, { findings: [] });
+    ledger.persistHandoff("fix", "plan", { round: 2 }, { findings: [] });
+    ledger.recordRound("plan", "review", 1);
+    ledger.recordRound("plan", "review", 2);
+    ledger.recordRound("plan", "fix", 2);
+
+    const { text } = render("prog-p1");
+
+    // plan closed → past the plan face; no plan task blocks → the wave face is the frontier
+    expect(text).not.toContain("  next:    /kairos:cdd-dev");
+    expect(text).toContain("  next:    review --type branch --plan");
+  });
+
   it("phase board next: the same literal the Capsule renders for the done face (byte-identical)", () => {
     writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
     writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
@@ -540,6 +567,19 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     expect(text).toContain("prog-overall.md   v2.33   review×4" /* 4 cycle numbers → ×4 */);
     expect(text).toContain("  phase P1");
     expect(text).toContain("  next:    done");
+  });
+
+  it("the program board propagates a phase doc-type BLOCK — a present phase spec without a declaration exits 2", () => {
+    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
+    // The phase spec carries NO `- **Doc type**:` line — the phase board BLOCKs it;
+    // the program board must propagate the SAME BLOCK (no silent fallback, spec §12).
+    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Version**: v1.0"]);
+    writeDoc("docs/kairos/plans/prog-p1.md", ["# Plan", "", "- **Doc type**: plan"]);
+
+    const { text, exitCode } = render("prog");
+
+    expect(exitCode).toBe(2);
+    expect(text).toContain("  phase P1  doc-type: missing (BLOCKED)");
   });
 
   it("degrades without error — an absent plan leaves the wave segment empty", () => {

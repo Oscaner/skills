@@ -633,35 +633,58 @@ export class Ledger {
     const data = this.readProgress();
     if (data === null) return closed;
     for (const row of data.waves) {
-      if (this.#rowClosed({ tasks: row.wave }, row)) {
+      if (this.#rowClosed("wave", { tasks: row.wave }, row)) {
         for (const id of row.wave.split(",").map((part) => Number(part))) closed.add(id);
       }
     }
     return closed;
   }
 
+  /** Whether one LINE is closed — the line-level closure judge the board's `next:`
+   *  derivation and its branch row consume (and `closedWaves()` reads through the
+   *  same core). The C5 route of the line's LATEST recorded round must lie on the
+   *  closure side ({done, next-wave}). The key is the line-type constant the round
+   *  records under ("spec" / "plan" / "branch"); a row with no review round yet
+   *  (implement-only or absent) holds the line open. One judge, one source: the
+   *  board never re-derives closure in the face (zero second judge). */
+  lineClosed(key: LedgerKey, type: TargetType): boolean {
+    const data = this.readProgress();
+    if (data === null) return false;
+    const row = this.rowFor(data, key);
+    if (row === undefined) return false;
+    return this.#rowClosed(type, type === "wave" ? { tasks: String(key) } : {}, row);
+  }
+
   /** Whether one progress row's line is closed — the LATEST recorded round's C5 route
    *  lies on the closure side ({done, next-wave}). The latest round is the last
    *  recorded fix round when one exists; the last review round otherwise; a row with
    *  no review round yet (implement-only or scheduled) holds the line open. The latest
-   *  fix is the fix recorded at the latest review's CYCLE (D28 identity), never a count. */
-  #rowClosed(params: HandoffParams, row: ProgressRow): boolean {
-    const reviews = this.#cyclesOf(row, "review");
+   *  fix is the fix recorded at the latest review's CYCLE (D28 identity), never a count.
+   *  The row's review-lead mode rides the faces table (branch→branch-review, the
+   *  others→review), so the wave/spec/plan/branch lines share ONE judge. */
+  #rowClosed(type: TargetType, params: HandoffParams, row: ProgressRow): boolean {
+    const reviews = this.#cyclesOf(row, targetFaces[type].product.reviewLead);
     const fixes = this.#cyclesOf(row, "fix");
     const latestReview = reviews.length > 0 ? Math.max(...reviews) : 0;
     if (fixes.length > 0) {
       const latestFix = Math.max(...fixes);
-      const route = this.#roundRoute("fix", params, Math.min(latestFix, latestReview));
+      const route = this.#roundRoute("fix", type, params, Math.min(latestFix, latestReview));
       return Ledger.#closedBy(route);
     }
-    if (latestReview > 0) return Ledger.#closedBy(this.#roundRoute("review", params, latestReview));
+    if (latestReview > 0)
+      return Ledger.#closedBy(this.#roundRoute("review", type, params, latestReview));
     return false;
   }
 
   /** The C5 route of one recorded round — null when the round is unreadable (a
    *  line whose round was never read cannot be judged closed: only present facts). */
-  #roundRoute(op: "review" | "fix", params: HandoffParams, round: number): Route | null {
-    const carried = this.round(op, "wave", params, round);
+  #roundRoute(
+    op: "review" | "fix",
+    type: TargetType,
+    params: HandoffParams,
+    round: number,
+  ): Route | null {
+    const carried = this.round(op, type, params, round);
     if (carried === null) return null;
     return this.#router.next(EMPTY_RUN_STATE, carried);
   }

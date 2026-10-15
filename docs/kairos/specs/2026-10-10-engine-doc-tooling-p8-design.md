@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P8 设计：`cdd board <slug>` slug 进度板 + 引擎统一 next 面（plan-graph 提级一等公民 · 文件系统唯一真源 · 全节点 verb×round 细粒度 · next 贯穿全 face×verb 到 skill ref）
-- **Version**: v1.7 · 2026-10-15
+- **Version**: v1.8 · 2026-10-15
 - **Doc type**: phase-spec
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P8] 会话 · 用户裁定 · 2026-10-14）
@@ -320,6 +320,27 @@ cdd board: 2026-10-10-engine-doc-tooling
 - **engine**：`infra/workspace.ts` 增 draft 宽容读面 + `packages/cdd-engine/package.json` 依赖 `jsonc-parser`。
 - **plan**：**新任务 T13**（`DependsOn: 11` · 引擎 IO 面 · 与 T12 同后置波——D38/D39 均在 `{5,11}` 落定后实施）。
 
+### 18. next 面统一：单 Route 概念 + 单 resolver + 单渲染器（D40 · 用户裁定 2026-10-15）
+#### 18.1 现场与根因（next/closure 判定被劈成多处）
+- **用户四发现**（跑 `cdd board 2026-10-10-engine-doc-tooling-p8` 后）：① board 的 wave 行只渲 `W{n}`，**丢了 task 范围**（看不出 W3 = tasks 5,11）· ② board 的 `next:` 渲成 `/kairos:cdd-dev`，**而此刻正确的 next 是 W3 的 fix**（review-1 `CHANGES_REQUESTED`）· ③ `PIPELINE_NEXT`（face 间接线）与 `next-wave`（C5 闭包路由）**本属一体（皆「下一步」）却割裂** · ④ **引擎派发的 next 与 board 的 next 各写一套**（不同源）。
+- **根因（实测 · file:line）**：next 被劈成**三处判定 + 五处闭合副本**——
+  - **face 内**：`NextStepRouter`（`session/next.ts:107`）产 `Route`（`done`/`next-wave`/`review`/`fix`/`soft-cap`）。
+  - **face 间**：`PIPELINE_NEXT`（`session/next.ts:73`）是**独立常量表**，其值**不是** `Route` 的一种 kind（消 ③ 的反面：概念二家）。
+  - **board 手搓第三套装**：`BoardView.#lineClosed`（`face/board-view.ts:432`）用 `Math.min(fixes, reviews)` **count** 取轮次（与引擎 `Ledger#rowClosed`（`ledger.ts:648`）的 D28 **周期号数组**判定矛盾——`{review:[1,2], fix:[2]}` 时 board 读「未闭合」、引擎读「已闭合」）；`#nextOf`（`board-view.ts:451`）取「首条未闭合 face」→ **直接渲 `PIPELINE_NEXT[face]`，从不问该 face 的 C5 前沿**（故 face 内有活动态（W3 review 有 findings → fix）时仍渲 face 间入口）。
+  - **闭合判定 5 副本**：`Ledger#rowClosed`/`#roundRoute`/`#closedBy`（规范）· `run.ts#nextLinePhase`/`#markTerminal` · `gate.ts#linePhase`（自称 lifecycle `#nextLinePhase` 的「twin」）· `board-view#lineClosed`（手搓）· `wave.ts#phaseOf`（已委托 `ledger.waveLinePhase` ✓）。`{done,next-wave}` 闭侧谓词**三处独立字面量**（`ledger.ts:672` · `run.ts:576` · `board-view.ts:440`）。
+  - **渲染二份**：`board-view#entryText`（`board-view.ts:479`）与 `capsule#doneText`（`capsule.ts:207`）**逐字重复**实现同一 entry→字面渲染（注释自称 byte-identical）。
+#### 18.2 判定（用户裁定 2026-10-15 · 三点）
+- **全并入 `Route`**：`PIPELINE_NEXT` 的 entry **升为 `Route` 的一个新 kind**（face 间转移 = `Route` 的一种）——`Route` 成为唯一的「下一步」概念（C5 前沿 + face 间交接同属一个 union）。`PIPELINE_NEXT` 降为 **resolver 的内部数据**（不再是消费者各自查的表）。
+- **单台 resolver**：`NextStepRouter` 扩为**一条线的 next 单点**——给定「线状态（轮次 / 闭判）」，先求 C5 前沿（face 内有活动态 → `review`/`fix`/`implement`/`next-wave`），**线耗尽（`done`）→ face 间接线**（`handoff` kind 携 `PIPELINE_NEXT[doc-class]` 的入口）。board 的节点 next = **按线序逐线调同一 resolver**，取首条未耗尽线的 next；capsule 的 next = **同一 resolver 作用于该轮所属线**。
+- **闭合判定收敛 Ledger 单源**：`run.ts#nextLinePhase`/`#markTerminal`、`gate.ts#linePhase`、`board-view#lineClosed` 全部**委托 `Ledger` 的规范判定**（`rowClosed`/`rowRoute`/`closedBy`）；`{done,next-wave}` 闭侧谓词单址（`Ledger`）。
+#### 18.3 契约同步（概念收敛）
+- `Route` union 增 `handoff` kind（face 间转移）· `PIPELINE_NEXT` 保留为 resolver 内部数据（或其 entry 类型并入 `Route` 的定义）· 单渲染器（`capsule` 与 `board-view` 共享 entry→字面渲染，消二份）。
+- board wave 行 label 补 **task 范围**（`W{n}  任务 <ids>` 或等价 · §5.2 布局补正）。
+- **CLI 输出形状零变**（board/capsule 的 stdout 结构不变）· **消费面零变**（skill/README 不动）——纯引擎内部重构。
+#### 18.4 落地面（Plan Sole Writer 修订）
+- **engine**：`session/next.ts`（`Route` 增 `handoff` · resolver 扩单点）· `face/capsule.ts` + `face/board-view.ts`（同调 resolver + 共享渲染器 · board wave 行补 task 范围 · `#lineClosed` 删改委托）· `session/run.ts` + `face/gate.ts`（闭合判定委托 Ledger 单源）· `session/ledger.ts`（`#closedBy` 提升为公开单源，若需）。
+- **plan**：**新任务 T14**（`DependsOn: 11` · 引擎内部重构 · 与 T12/T13 同后置波——D38/D39/D40 均在 `{5,11}` 落定后实施）· T7 `DependsOn += 14`（pin 重锚覆盖 next 面统一后终态）。
+
 ### Acceptance criteria
 - `cdd board <slug>` 输出全局态势板：overall/spec/plan/wave/branch 五行 + 各 `implement×N · review×N · fix×N` + wave 每波一行（波链 ✔▶○ + 明细）+ 固定 legend + `next:` 行
 - slug → 三文档路径以**文件系统为唯一真源**：扫描 `docs/kairos/{specs,plans}` 命中 `<slug>*` 树化 · **不合成盘上不存在父节点**（`doc-architecture-v2` 族 `-p4.1` 存在而 `-p4` 缺失场景正确树化）· **不解析 overall File paths 表**
@@ -345,6 +366,7 @@ cdd board: 2026-10-10-engine-doc-tooling
 - **cdd-design hub 消融（§15 · D37）**：cdd-design 的 `NEXT-LOOP` 节点 + 三出边消融（无生产者=死节点）· `run-cdd-spec-writer` Exit 直收 `handoff-next` · cdd-design `family: loop→onepass` · design-scope hub 机械整体退役（`handoff` 字段/`rowPrefixes`/design out-length=3/`until session closes` 词/闭合出口断言块/`registry.crossings["cdd-design"]` 零残留）· `enderShapeRule` 补 cdd-design 无自环例外
 - **cdd-design 节点改名 + handoff 分裂（§16 · D38）**：`run-cdd-spec-writer` → `run-cdd-spec`（与 `run-cdd-charter` 对标）· `run-cdd-spec → handoff-next`（= 遵循引擎 `next:` 字面规范）· `run-cdd-charter → handoff-phase-design`（新终端 · 承接原 handoff-next 的 design 域行为）· digraph 12 → 13 节点（边 16 不变）· 契约（`skill-anatomy.ts`）零改
 - **handoff draft 读面宽容解析（§17 · D39）**：子代理手写 handoff draft 读面用 `jsonc-parser` + `{allowTrailingComma:true}`（尾逗号/注释容忍 · 真错误仍报错）· 引擎自写文件严格读 · 宽容**仅限**子代理手写 draft 读面（不污染 JSON 契约）· 新依赖 `jsonc-parser`
+- **next 面统一（§18 · D40）**：`PIPELINE_NEXT` 的 entry 升为 `Route` 新 kind（face 间转移）· `Route` 成为唯一「下一步」概念 · 单台 resolver（`NextStepRouter` 扩为一条线的 next 单点 · C5 前沿优先 → 线耗尽给 face 间 handoff）· board/capsule **同调 resolver + 共享渲染器** · 闭合判定收敛 `Ledger` 单源（`run.ts`/`gate.ts`/`board-view` 副本全委托 · `{done,next-wave}` 谓词单址）· board wave 行补 task 范围 · **CLI 输出形状 + 消费面零变**（纯引擎内部重构）
 
 ## Constraints
 - **文件系统唯一真源**：节点集合、artifact 存在性全来自扫描，绝不合成盘上不存在的节点，绝不解析 overall 的 Phase inventory / File paths 声明表
@@ -384,3 +406,4 @@ cdd board: 2026-10-10-engine-doc-tooling
 | v1.5 | 2026-10-15 | **cdd-design NEXT-LOOP hub 消融 + onepass 归类 backfill（用户裁定 2026-10-15 · D37 · in-flight）**：用户问「cdd-design 的 next-loop 节点有没有用」——查证发现其 hub 自环 `until next is terminal` **无生产者**（引擎 `PIPELINE_NEXT` 只产 cdd-plan/cdd-dev/cdd-close 三 ref · `REFS` 里 `kairos:cdd-design` 行零消费者 → 零 design 路由 = D33 明文的「design 不在 next 内」），唯一入边（委托 writer flow）在其自身 NEXT-LOOP 内消化 spec next 字面后 hand off，不回投——与 D35 消融的 cdd-dev branch 孤岛**同构**（死流量 · checker 不查连通性故静默通过）。**定案（两点）**：① hub 整体消融（`run-cdd-spec-writer` Exit 直收 `handoff-next`，对齐 `run-cdd-charter`）· ② cdd-design `family: loop→onepass`（`onepass` 语义由「one-shot toolchain」一般化为「one-pass · 无自环」）。**契约同步**：design-scope hub 机械整体退役（`handoff` 字段整体移除（零读者=死码）· `rowPrefixes` · design out-length=3 · `until session closes` 词 · 闭合出口断言块 · `registry.crossings["cdd-design"]`（消融后 12 节点/16 边均回限内））。新增 §15 + AC 1 条 + Constraints 1 行 · **新 T11**（DependsOn 9）+ T7 DependsOn += 11 | Oscar M. · Claude Opus 5（P8 编排器 backfill · 用户裁定） |
 | v1.6 | 2026-10-15 | **cdd-design 节点改名 + handoff 分裂 backfill（用户裁定 2026-10-15 · D38 · in-flight）**：D37 消融 hub 后 `handoff-next` 一名两义——spec 线应交引擎统一 next 面（`PIPELINE_NEXT` 的 `phase-spec → kairos:cdd-plan`），charter 线才交 design 域续环（`/compact` 或下一 phase 的 `kairos:cdd-design` [Px]）。**定案（三点）**：① `run-cdd-spec-writer` → `run-cdd-spec`（与 `run-cdd-charter` 对标 · 去 `-writer` 赘余）· ② `run-cdd-spec → handoff-next`（此 `handoff-next` = **遵循引擎 `next:` 字面规范**）· ③ `run-cdd-charter → handoff-phase-design`（新终端 · 承接**原 handoff-next 的 design 域行为**——hand off 到 `/compact` 或下一 phase 的 `kairos:cdd-design` [Px]）。**契约同步**：cdd-design digraph **12 → 13 节点**（+`handoff-phase-design`）· **边 16 不变**（`C → handoff-phase-design` 仅改边 target，`W → handoff-next` 保留）· 契约（`skill-anatomy.ts`）零改（通用节点名规则不枚举 handoff-* 名字）。新增 §16 + AC 1 条 · **新 T12**（DependsOn 11）+ T7 DependsOn += 12 | Oscar M. · Claude Opus 5（P8 编排器 backfill · 用户裁定） |
 | v1.7 | 2026-10-15 | **handoff draft 读面宽容解析 backfill（用户裁定 2026-10-15 · D39 · in-flight）**：W3 `{5,11}` implement 轮 BLOCKED——`tasks-5,11-implement.json`（子代理 LLM 手写的 carrier）`notes` 数组尾逗号，裸 `JSON.parse` 一票否决整轮。用户指出「这不是严重 JSON 问题 · JSON5 类库可解析」。**调研（实测）**：`jsonc-parser`（Microsoft 官方 · 2026-07 更新 · 74.2M/wk · **零传递依赖** · ESM+CJS）`{allowTrailingComma:true}` 精确容忍尾逗号/注释、仍对真错误报错 + 精确错误码；`json5`（休眠 2023-03 · 容忍过度）· `momoa`（3.45M/wk）默认均不容尾逗号。**定案（两点）**：① 载体 **jsonc-parser + `allowTrailingComma:true`**（最活跃且官方 · 零依赖 · 宽容精准——消灭 LLM 手写噪声，不放过真损坏）· ② 作用域**仅子代理手写 handoff draft 读面**（引擎自写文件经 `JSON.stringify` 恒合法，严格读；宽容不污染 JSON 契约）。新增 §17 + AC 1 条 · **新 T13**（DependsOn 11） | Oscar M. · Claude Opus 5（P8 编排器 backfill · 用户裁定） |
+| v1.8 | 2026-10-15 | **next 面统一 backfill（用户裁定 2026-10-15 · D40 · in-flight）**：用户跑 `cdd board 2026-10-10-engine-doc-tooling-p8` 后四发现——① board wave 行丢 task 范围 ② board next 渲 `/kairos:cdd-dev` 而此刻应为 W3 的 fix ③ `PIPELINE_NEXT` 与 `next-wave` 本是一体却割裂 ④ 引擎派发 next 与 board next 各写一套。**根因（实测 file:line）**：next 劈成**三处判定 + 五处闭合副本**——`NextStepRouter`(face 内) · `PIPELINE_NEXT`(face 间独立常量) · `BoardView.#lineClosed/#nextOf`(board 手搓 count 判定，与 `Ledger#rowClosed` 的 D28 周期号数组判定矛盾——正是 in-flight review blocker #1)；`{done,next-wave}` 谓词三处字面量；`board#entryText` 与 `capsule#doneText` 逐字重复。**定案（用户裁定 · 三点全选推荐）**：① **全并入 `Route`**（`PIPELINE_NEXT` 的 entry 升为 `Route` 新 kind `handoff` · `Route` 成唯一「下一步」概念）· ② **单台 resolver**（`NextStepRouter` 扩为一条线 next 单点 · C5 前沿优先 → 线耗尽给 face 间 handoff · board/capsule 同调 + 共享渲染器）· ③ **闭合判定收敛 `Ledger` 单源**（`run.ts`/`gate.ts`/`board-view` 副本全委托 · 谓词单址）。**CLI 输出形状 + 消费面零变**（纯引擎内部重构）。新增 §18 + AC 1 条 + Constraints 1 行 · **新 T14**（DependsOn 11）+ T7 DependsOn += 14 | Oscar M. · Claude Opus 5（P8 编排器 backfill · 用户裁定） |

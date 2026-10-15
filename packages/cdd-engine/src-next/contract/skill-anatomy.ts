@@ -37,19 +37,18 @@ export interface AnatomyDigraph {
   mermaidFence: string;
   nodeTypes: Readonly<Record<string, { pattern: string }>>;
   terminalStates: Readonly<Record<string, string>>;
-  /** The unified-skeleton facts — the shared NEXT-LOOP hub + the per-scope terminal
-   *  name prefixes the loop-family shapes assert (the handoff domain keys the scope:
-   *  `design` keeps the handoff-* terminal, `pipeline` carries none — the dissolved
-   *  handoff, D33). */
+  /** The unified-skeleton hub name — the shared NEXT-LOOP hub the loop-family
+   *  shapes assert (every loop-family skill is a pipeline scope: the hub carries
+   *  the two-edge shape and no handoff-* terminal — the closure routes through the
+   *  engine's next face, the dissolved handoff, D33). */
   loopHubNode: {
     name: string;
-    rowPrefixes: Readonly<Record<"pipeline" | "design", readonly string[]>>;
   };
   /** The engine-lexicon pinned loop-condition phrases (the v1.20 word-table pin) — the ONLY
    *  condition labels the loop-family NEXT-LOOP hub's out-edges may carry (the
-   *  `until next is terminal` self-loop · the `until session closes` closure exit ·
-   *  the `no next` failure face — the static digraph truth shares ONE word table with
-   *  the runtime `next:` instance, mechanically anti-drift). */
+   *  `until next is terminal` self-loop · the `no next` failure face — the static
+   *  digraph truth shares ONE word table with the runtime `next:` instance,
+   *  mechanically anti-drift). */
   nextLoopConditions: readonly string[];
 }
 
@@ -101,14 +100,10 @@ export interface SkillRosterRow {
   /** The flow family — the digraph-shape family the guard asserts:
    *  `loop` = the five-chain unified skeleton (NEXT-LOOP hub + self-loop + terminals);
    *  `close` = ends at the finish gate + terminal (no self-loop);
-   *  `onepass` = one-shot toolchain (no self-loop). */
+   *  `onepass` = one-pass · no self-loop (a one-shot toolchain or a forked-routing
+   *  flow — covers both the linear cdd-report toolchain and the forked cdd-design
+   *  routing; no self-loop either way). */
   family: "loop" | "close" | "onepass";
-  /** The handoff domain — the skill's pipeline-closure shape (D33): `pipeline` =
-   *  a three-pipeline skill whose flow ends IN the engine's next face (the dissolved
-   *  handoff — the NEXT-LOOP hub carries TWO out-edges, no closure exit,
-   *  no handoff-* terminal); `design` = a skill whose closure still routes the next
-   *  design step (the NEXT-LOOP hub keeps THREE out-edges + a handoff-* terminal). */
-  handoff: "pipeline" | "design";
 }
 
 /** The full skill-anatomy contract — the typed structure facts the guard consumes. */
@@ -152,12 +147,12 @@ const SECTION_REGISTRY = {
  *  seat is vacant (a directory scan may carry zero more, zero missing); the family
  *  facts drive the digraph-shape assertions (consistency over the five chains). */
 const SKILL_ROSTER: Readonly<Record<string, SkillRosterRow>> = {
-  "cdd-design": { role: "orchestrator", family: "loop", handoff: "design" },
-  "cdd-spec-writer": { role: "spec-writer", family: "loop", handoff: "pipeline" },
-  "cdd-plan": { role: "orchestrator", family: "loop", handoff: "pipeline" },
-  "cdd-dev": { role: "executor", family: "loop", handoff: "pipeline" },
-  "cdd-close": { role: "orchestrator", family: "close", handoff: "design" },
-  "cdd-report": { role: "utility", family: "onepass", handoff: "design" },
+  "cdd-design": { role: "orchestrator", family: "onepass" },
+  "cdd-spec-writer": { role: "spec-writer", family: "loop" },
+  "cdd-plan": { role: "orchestrator", family: "loop" },
+  "cdd-dev": { role: "executor", family: "loop" },
+  "cdd-close": { role: "orchestrator", family: "close" },
+  "cdd-report": { role: "utility", family: "onepass" },
 };
 
 /** The skill-anatomy contract — one typed constant: the structure facts + the
@@ -173,19 +168,17 @@ export const SKILL_ANATOMY = {
       decision: { pattern: "^\\w+\\{.*\\}$" },
       terminal: { pattern: "^\\w+\\(\\(.*\\)\\)$" },
     },
-    terminalStates: { blocked: "BLOCKED", approved: "APPROVED", handoff: "HANDOFF" },
+    terminalStates: { blocked: "BLOCKED", approved: "APPROVED" },
     // The five-chain unified skeleton — one shared hub across the loop family; the
-    // terminal prefixes are per handoff scope (D33): the design scope keeps the
-    // handoff-* terminal, the pipeline scope carries none (the dissolved handoff —
-    // the closure routes through the engine's next face). The close/onepass families
-    // are the explicit no-self-loop exceptions.
-    loopHubNode: { name: "NEXT-LOOP", rowPrefixes: { pipeline: [], design: ["handoff-"] } },
+    // hub carries the two-edge pipeline shape (the closure routes through the engine's
+    // next face, D33 — no closure exit, no handoff-* terminal). The close/onepass
+    // families are the explicit no-self-loop exceptions.
+    loopHubNode: { name: "NEXT-LOOP" },
     // The v1.20 restored loop conditions — the pinned word face of the NEXT-LOOP hub's
-    // three out-edges (the digraph's static branch truth, one table with the runtime
-    // `next:` instance: `until next is terminal` self-loop · `until session closes`
-    // closure exit · the `no next` failure face. Each label must be one of these —
-    // the guard asserts it).
-    nextLoopConditions: ["until next is terminal", "until session closes", "no next"],
+    // two out-edges (the digraph's static branch truth, one table with the runtime
+    // `next:` instance: `until next is terminal` self-loop · the `no next` failure
+    // face. Each label must be one of these — the guard asserts it).
+    nextLoopConditions: ["until next is terminal", "no next"],
   },
   nodeDefinitions: {
     sectionHeading: "## Node Definitions",
@@ -208,15 +201,10 @@ export const SKILL_ANATOMY = {
     nodeLimit: 15,
     edgeLimit: 17,
     // The registered-growth rationale registry — a digraph crossing the boundary is
-    // admitted here (never narrated inside the consumer SKILL.md). cdd-design carries
-    // the parameterized single template (the double charter nodes + the merged
-    // spec/phase dispatch + the four size-exits), which crosses the edge limit by
-    // definition — the rationale lives in the contract, zero consumer trace.
+    // admitted here (never narrated inside the consumer SKILL.md). No crossing is
+    // registered: every live digraph stays inside the node/edge limits.
     registry: {
-      crossings: {
-        "cdd-design":
-          "the parameterized single-template digraph necessarily carries: the double charter nodes (sync + terminal write), the merged spec/phase dispatch node and the four explicit size-exit edges — 19 condition-labeled edges at 14 nodes (registered v1.20; the rationale lives here, never in the shipped skill)",
-      } as Record<string, string>,
+      crossings: {} as Record<string, string>,
     },
   },
   consumerPurity: {
@@ -256,11 +244,11 @@ export const SKILL_ANATOMY = {
     closedSetRule:
       "the kairos skills are a CLOSED six-set registered in this contract's roster — the directory scan must carry exactly these members (9th seat vacant): an extra member is a new skill entering without registration, a missing member is a retired skill leaving without a plan entry",
     loopShapeRule:
-      "the five-chain unified skeleton — every loop-family skill digraph carries the shared NEXT-LOOP hub; the hub's out-edges are per handoff scope: a pipeline-scope skill (cdd-spec-writer / cdd-plan / cdd-dev) carries TWO out-edges (the `until next is terminal` self-loop · the `no next` BLOCKED face) and NO handoff-* terminal — its closure routes through the engine's next face (the dissolved handoff, D33); a design-scope skill (cdd-design) carries THREE out-edges (the self-loop · the `until session closes` closure exit · the `no next` BLOCKED face) + a handoff-* terminal (digraph↔Node Definitions↔text-reference consistency, shared node names must never drift)",
+      "the five-chain unified skeleton — every loop-family skill digraph carries the shared NEXT-LOOP hub; the hub carries TWO out-edges (the `until next is terminal` self-loop · the `no next` BLOCKED face) and NO handoff-* terminal — its closure routes through the engine's next face (the dissolved handoff, D33) (digraph↔Node Definitions↔text-reference consistency, shared node names must never drift)",
     enderShapeRule:
-      "the explicit no-self-loop exceptions — cdd-close ends at the finish semantic gate + terminal, cdd-report is a one-shot toolchain; a NEXT-LOOP self-loop in either is a shape violation",
+      "the explicit no-self-loop exceptions — cdd-close ends at the finish semantic gate + terminal, cdd-report is a one-shot toolchain, cdd-design is a forked-routing one-pass flow; a NEXT-LOOP self-loop in any of them is a shape violation",
     edgeConditionRule:
-      "decision edges carry explicit condition labels — the NEXT-LOOP hub's out-edges ARE the pinned loop conditions (the pipeline scope: `until next is terminal` → self-loop · `no next` → BLOCKED; the design scope adds `until session closes` → terminal) and every edge out of a decision node is condition-labeled; an unlabeled decision edge, a bare NEXT-LOOP self-loop, or a NEXT-LOOP out-edge count/condition that deviates from the node's handoff scope is a shape violation (the edge-zero-state-label rule retired v1.20)",
+      "decision edges carry explicit condition labels — the NEXT-LOOP hub's out-edges ARE the pinned loop conditions (`until next is terminal` → self-loop · `no next` → BLOCKED) and every edge out of a decision node is condition-labeled; an unlabeled decision edge, a bare NEXT-LOOP self-loop, or a NEXT-LOOP out-edge count/condition that deviates from the pinned shape is a shape violation (the edge-zero-state-label rule retired v1.20)",
     routeFactRule:
       "next: is consumed as a dispatch-ready literal (the literal IS the dispatch, no kind→command mapping layer); a full cdd command string never follows the next: token on a line; BLOCKED/TIMEOUT carry no next line and are not consumed as next steps",
   },
@@ -272,7 +260,6 @@ export const SKILL_ANATOMY = {
   // drifted engine word fails the pin, never a silent second list.
   edgeConditionWords: [
     "until next is terminal",
-    "until session closes",
     "no next",
     "APPROVED",
     "CHANGES_REQUESTED",

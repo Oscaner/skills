@@ -18,6 +18,7 @@ import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { Ledger } from "../../session/ledger.ts";
 import { BoardView } from "../board-view.ts";
+import { Words } from "../words.ts";
 
 describe("Workspace.docsOfSlug — the slug → doc-tree reverse derivation", () => {
   let repo: string;
@@ -360,5 +361,221 @@ describe("BoardView projectNode — the per-node progress.json single-source pro
 
     expect(node.version).toBeNull();
     expect(node.rounds).toEqual({ review: [1] });
+  });
+});
+
+describe("BoardView.render — the phase / program board layouts + the next derivation", () => {
+  let repo: string;
+
+  beforeEach(() => {
+    repo = mkdtempSync(path.join(tmpdir(), "board-render-"));
+    mkdirSync(path.join(repo, "docs/kairos/specs"), { recursive: true });
+    mkdirSync(path.join(repo, "docs/kairos/plans"), { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(repo, { recursive: true, force: true });
+  });
+
+  /** Write a doc with a declared doc-type (the header declaration the board reads). */
+  const writeDoc = (rel: string, lines: readonly string[]): string => {
+    const file = path.join(repo, rel);
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, `${lines.join("\n")}\n`, "utf8");
+    return file;
+  };
+
+  /** Seed a node's own workspace progress.json. */
+  const seed = (slug: string, waves: unknown[]): void => {
+    const dir = path.join(repo, ".kairos/cdd", slug);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      path.join(dir, "progress.json"),
+      JSON.stringify({ timeoutCount: 0, contractViolationCount: 0, waves }, null, 2),
+    );
+  };
+
+  const render = (slug: string, host = "claude"): { text: string; exitCode: number } => {
+    const board = BoardView.render(slug, repo, new Words(), host);
+    return { text: board.lines.join("\n"), exitCode: board.exitCode };
+  };
+
+  it("renders the phase board header + rows + the fixed legend tail", () => {
+    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "# S",
+      "",
+      "- **Version**: v0.14",
+      "- **Status**: Done",
+      "- **Doc type**: phase-spec",
+    ]);
+    writeDoc("docs/kairos/plans/prog-p1.md", [
+      "# Plan",
+      "",
+      "- **Version**: v0.9",
+      "- **Doc type**: plan",
+    ]);
+    seed("prog-p1", [{ wave: "spec", rounds: { review: [1, 2], fix: [1] } }]);
+
+    const { text, exitCode } = render("prog-p1");
+
+    expect(exitCode).toBe(0);
+    expect(text).toContain("cdd board: prog-p1");
+    expect(text).toContain("  overall  ");
+    expect(text).toContain("prog-p1-design.md   v0.14 · Done");
+    expect(text).toContain("prog-p1.md   v0.9");
+    expect(text).toContain("  branch   ○ open");
+    expect(text.split("\n").at(-1)).toBe("progress: ✔ done · ▶ current · ○ pending");
+  });
+
+  it("renders one wave line per derived wave with the ✔/▶ markers", () => {
+    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    // Two task blocks → two waves.
+    writeDoc("docs/kairos/plans/prog-p1.md", [
+      "# Plan",
+      "",
+      "- **Doc type**: plan",
+      "",
+      "## Constraints",
+      "",
+      "- c",
+      "",
+      "### Task 1: a",
+      "- **Objective**: o",
+      "- **Files**: `a.ts`",
+      "- **Consumes**: x",
+      "- **Produces**: y",
+      "- **Steps**:",
+      "  - s — checkable: g",
+      "- **Acceptance**: ok",
+      "- **DependsOn**: none",
+      "",
+      "### Task 2: b",
+      "- **Objective**: o",
+      "- **Files**: `b.ts`",
+      "- **Consumes**: x",
+      "- **Produces**: y",
+      "- **Steps**:",
+      "  - s — checkable: g",
+      "- **Acceptance**: ok",
+      "- **DependsOn**: 1",
+    ]);
+    // Close wave {1}: a recorded zero-findings review round.
+    const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
+    const ledger = new Ledger(workspace, new ConfigLoader());
+    ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings: [] });
+    ledger.recordRound("1", "review");
+
+    const { text } = render("prog-p1");
+
+    expect(text).toContain("W1 ✔");
+    expect(text).toContain("W2 ▶");
+  });
+
+  it("phase board next: renders the first unexhausted face's PIPELINE_NEXT entry", () => {
+    // spec NOT closed → the phase-spec frontier → the cdd-plan ref (host=claude).
+    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    writeDoc("docs/kairos/plans/prog-p1.md", ["# Plan", "", "- **Doc type**: plan"]);
+
+    const { text } = render("prog-p1");
+
+    expect(text).toContain("  next:    /kairos:cdd-plan");
+  });
+
+  it("phase board next: spec closed + plan not started → the plan face's cdd-dev entry", () => {
+    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    writeDoc("docs/kairos/plans/prog-p1.md", ["# Plan", "", "- **Doc type**: plan"]);
+    // Close the spec line: a recorded zero-findings spec review.
+    const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
+    const ledger = new Ledger(workspace, new ConfigLoader());
+    ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("spec", "review");
+
+    const { text } = render("prog-p1");
+
+    expect(text).toContain("  next:    /kairos:cdd-dev");
+  });
+
+  it("phase board next: the same literal the Capsule renders for the done face (byte-identical)", () => {
+    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    writeDoc("docs/kairos/plans/prog-p1.md", ["# Plan", "", "- **Doc type**: plan"]);
+
+    const { text } = render("prog-p1", "");
+
+    // host "" falls back to the claude form (REFS[ref].claude) — never a bare plugin guess.
+    expect(text).toContain("  next:    /kairos:cdd-plan");
+  });
+
+  it("a present doc without a Doc type declaration renders BLOCKED and exits 2", () => {
+    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
+    // The spec doc carries NO `- **Doc type**:` line.
+    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Version**: v1.0"]);
+    writeDoc("docs/kairos/plans/prog-p1.md", ["# Plan", "", "- **Doc type**: plan"]);
+
+    const { text, exitCode } = render("prog-p1");
+
+    expect(exitCode).toBe(2);
+    expect(text).toContain("doc-type: missing (BLOCKED)");
+  });
+
+  it("renders the program board with one phase summary line + next: done", () => {
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "# O",
+      "",
+      "- **Version**: v2.33",
+      "- **Doc type**: overall-spec",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    writeDoc("docs/kairos/plans/prog-p1.md", ["# Plan", "", "- **Doc type**: plan"]);
+    seed("prog-overall", [{ wave: "spec", rounds: { review: [1, 2, 3, 4] } }]);
+
+    const { text, exitCode } = render("prog");
+
+    expect(exitCode).toBe(0);
+    expect(text).toContain("cdd board: prog");
+    expect(text).toContain("prog-overall.md   v2.33   review×4" /* 4 cycle numbers → ×4 */);
+    expect(text).toContain("  phase P1");
+    expect(text).toContain("  next:    done");
+  });
+
+  it("degrades without error — an absent plan leaves the wave segment empty", () => {
+    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+
+    const board = BoardView.render("prog-p1", repo, new Words(), "claude");
+
+    expect(board.lines.join("\n")).toContain("  wave     (none)");
+  });
+});
+
+describe("BoardView.hasNode — the file-system-only existence test", () => {
+  let repo: string;
+
+  beforeEach(() => {
+    repo = mkdtempSync(path.join(tmpdir(), "board-hasnode-"));
+    mkdirSync(path.join(repo, "docs/kairos/specs"), { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(repo, { recursive: true, force: true });
+  });
+
+  it("a ghost slug matches nothing on disk", () => {
+    expect(BoardView.hasNode("ghost", repo)).toBe(false);
+    expect(BoardView.hasNode("ghost-p9", repo)).toBe(false);
+  });
+
+  it("a program slug matches its overall", () => {
+    writeFileSync(path.join(repo, "docs/kairos/specs/prog-overall.md"), "# O\n");
+    expect(BoardView.hasNode("prog", repo)).toBe(true);
+  });
+
+  it("a phase slug matches its on-disk spec", () => {
+    writeFileSync(path.join(repo, "docs/kairos/specs/prog-p1-design.md"), "# S\n");
+    expect(BoardView.hasNode("prog-p1", repo)).toBe(true);
   });
 });

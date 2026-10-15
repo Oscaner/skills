@@ -52,7 +52,7 @@ const commanderError = (fn: () => void): { code: string; message: string } => {
 };
 
 describe("CommandTreeBuilder — the declaration projection (the constructor is the assembly)", () => {
-  it("assembles the six subcommand nodes from the CLI_COMMANDS rows, in the declared order", () => {
+  it("assembles the seven subcommand nodes from the CLI_COMMANDS rows, in the declared order", () => {
     const { program } = new CommandTreeBuilder();
     expect(program.commands.map((command) => command.name())).toEqual([
       "implement",
@@ -61,6 +61,7 @@ describe("CommandTreeBuilder — the declaration projection (the constructor is 
       "base",
       "schema",
       "issue",
+      "board",
     ]);
   });
 

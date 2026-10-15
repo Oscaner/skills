@@ -1,9 +1,9 @@
 // packages/cdd-engine/src-next/face/__tests__/cli.test.ts
 // T11 Cli + composition-root suite (design spec §3.3):
-//   · the command face — the six steady subcommand words (implement / review / fix /
-//     schema / issue / base with their nested leaves) and the usage lines the
+//   · the command face — the seven steady subcommand words (implement / review / fix /
+//     schema / issue / base / board with their nested leaves) and the usage lines the
 //     consumers read (T20: the base command face — `cdd base set|get` — converges
-//     the six-command surface);
+//     the command surface; T5 adds the board observability command);
 //   · parse — the commander-native parse pipeline (the projection's program): the
 //     value-domain validation (int-list tasks, enum type / source, sha base/head,
 //     int round) + the unknown-flag rejection (the
@@ -433,8 +433,8 @@ const conformingSpec = (repoRoot: string, name = "s1-design.md"): string => {
 // the command face — the steady subcommand words
 // ---------------------------------------------------------------------------
 
-describe("the command face — the six steady subcommand words", () => {
-  it("declares exactly the six subcommands of the steady command face", () => {
+describe("the command face — the seven steady subcommand words", () => {
+  it("declares exactly the seven subcommands of the steady command face", () => {
     expect(CLI_COMMANDS.map((command) => command.name)).toEqual([
       "implement",
       "review",
@@ -442,6 +442,7 @@ describe("the command face — the six steady subcommand words", () => {
       "base",
       "schema",
       "issue",
+      "board",
     ]);
   });
 
@@ -871,7 +872,7 @@ describe("the help/--help display face — the command overview", () => {
       const out = io.stdoutText + io.stderrText;
       expect(out).toContain("Usage: cdd [options] [command]");
       expect(out).toContain("Commands:");
-      // the six-command table + the built-in help [command] row (native layout)
+      // the seven-command table + the built-in help [command] row (native layout)
       for (const name of ["implement", "review", "fix", "base", "schema", "issue"]) {
         expect(out).toContain(name);
       }
@@ -1056,7 +1057,7 @@ describe("the T4 commander-native help acceptance — the projected help face (�
    *  token stream through single spaces, never a wrapped byte literal. */
   const norm = (text: string): string => text.replace(/\s+/g, " ");
 
-  it("cdd --help — the native program face: Usage · the six-command table (short descriptions = the CLI_COMMANDS projection) · Examples heading · the --dry-run-only footer", async () => {
+  it("cdd --help — the native program face: Usage · the seven-command table (short descriptions = the CLI_COMMANDS projection) · Examples heading · the --dry-run-only footer", async () => {
     const { command, io, cleanup } = fixture();
     try {
       const code = await command.runArgv(["--help"]);
@@ -1067,7 +1068,7 @@ describe("the T4 commander-native help acceptance — the projected help face (�
       expect(help).toContain("Usage: cdd [options] [command]");
       expect(help).toContain("Commands:");
       expect(help).toContain("Options:");
-      // The six command rows — the command names + their short descriptions
+      // The seven command rows — the command names + their short descriptions
       // SINGLE-SOURCED at the CLI_COMMANDS declaration rows (the projection test,
       // never a hand-typed byte list).
       for (const spec of CLI_COMMANDS) {
@@ -3260,6 +3261,70 @@ describe("T9 — the composition-root entry is the Cli.create static factory (de
     const command = Cli.create();
     const exit = await command.runArgv([]);
     expect(exit).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T5 — `cdd board <slug>`: the pure-read observability command (no preflight
+// gate, zero side effects; missing slug → usage exit 2 · a ghost slug → exit 2 ·
+// a valid slug → the board to stdout, exit 0).
+// ---------------------------------------------------------------------------
+
+describe("T5 — cdd board <slug>: the pure-read board command", () => {
+  /** Seed a minimal phase's docs + overall (declared doc-types) in a fixture repo. */
+  const seedPhaseDocs = (repoRoot: string, program: string): void => {
+    mkdirSync(path.join(repoRoot, "docs/kairos/specs"), { recursive: true });
+    mkdirSync(path.join(repoRoot, "docs/kairos/plans"), { recursive: true });
+    writeFileSync(
+      path.join(repoRoot, `docs/kairos/specs/${program}-overall.md`),
+      "# O\n\n- **Doc type**: overall-spec\n",
+      "utf8",
+    );
+    writeFileSync(
+      path.join(repoRoot, `docs/kairos/specs/${program}-p1-design.md`),
+      "# S\n\n- **Doc type**: phase-spec\n",
+      "utf8",
+    );
+    writeFileSync(
+      path.join(repoRoot, `docs/kairos/plans/${program}-p1.md`),
+      "# Plan\n\n- **Doc type**: plan\n",
+      "utf8",
+    );
+  };
+
+  it("a valid slug renders the board to stdout and exits 0", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      seedPhaseDocs(repoRoot, "prog");
+      const code = await command.runArgv(["board", "prog-p1"]);
+      expect(code).toBe(0);
+      expect(io.stdoutText).toContain("cdd board: prog-p1");
+      expect(io.stdoutText.split("\n").at(-2)).toBe("progress: ✔ done · ▶ current · ○ pending");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a missing slug is a usage error — exit 2 (commander's required positional)", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["board"]);
+      expect(code).toBe(2);
+      expect(io.stderrText).toContain("missing required argument 'slug'");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a ghost slug matches nothing on disk — exit 2, no wall", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["board", "nonexistent-slug"]);
+      expect(code).toBe(2);
+      expect(io.stderrText).toContain("no docs match slug nonexistent-slug");
+    } finally {
+      cleanup();
+    }
   });
 });
 

@@ -1,9 +1,9 @@
 // packages/cdd-engine/src-next/face/projection.ts
 // §2.1 — the single projection class: the declare single surface (face/declare.ts
-// — the argv channel + the six-command rows + REQUIRED_GROUPS) assembles the
+// — the argv channel + the seven-command rows + REQUIRED_GROUPS) assembles the
 // commander command tree, ENTIRELY in the constructor (the constructor-is-the-
 // assembly stance · §2.1/§2.3):
-// the top-level `cdd` program · the six commands with their descriptions · the
+// the top-level `cdd` program · the seven commands with their descriptions · the
 // nested leaves (base set|get · schema get|gen · issue render) · the binding rules
 // (command keys → .option()/.requiredOption() · positionals → .argument() ·
 // bool rows single-spelling · the program scope merged into every node · the help
@@ -268,7 +268,7 @@ export class CommandTreeBuilder {
   // the help injections (§5.1 — Examples + the --dry-run tail note)
   // ---------------------------------------------------------------------------
 
-  /** The program face's Examples section — the six rows' example lines (the P1
+  /** The program face's Examples section — the rows' example lines (the P1
    *  sentences, single-sourced at the CLI_COMMANDS `example` fields). */
   #injectProgramExamples(): void {
     const examples: string[] = [];

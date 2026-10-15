@@ -1,13 +1,14 @@
 // packages/cdd-engine/src-next/face/cli.ts
 // T11 + T8 — the command face + composition root (design spec §3.3: the cdd CLI
-// command surface — implement / review / fix / schema / issue / base — is kept as a
-// steady word face; T20 converges the base command face to `base` — the six-command
-// surface unchanged in count). This module is the new tree's composition root: the
+// command surface — implement / review / fix / schema / issue / base / board — is
+// kept as a steady word face; T20 converges the base command face to `base` and T5
+// adds the board observability command — the seven-command surface). This module is
+// the new tree's composition root: the
 // `Cli.create` static factory — the class face is the entry, the module carries zero
 // bare functions (the composition root's deliberate class form) — wires the contract /
 // session / face objects into the ONE CLI the bin thin entry boots. Task 3 (P1)
 // reorganized the face into one boundary per responsibility — the CLI declaration
-// single surface (face/declare.ts, §2.4 — the six subcommand rows + the argv
+// single surface (face/declare.ts, §2.4 — the seven subcommand rows + the argv
 // channel), the declaration projection (face/projection.ts — the CommandTreeBuilder
 // whose commander program OWNS the parse + help + validation pipeline), and the run
 // face; the typed argv parse channel (face/argv.ts) was deleted at T6 — the parse
@@ -68,6 +69,7 @@ import { PreFlight } from "../session/preflight.ts";
 import type { DispatchStep, RunState } from "../session/run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../session/run.ts";
 import { CliArtifacts } from "./artifacts.ts";
+import { BoardView } from "./board-view.ts";
 import { Capsule } from "./capsule.ts";
 import { ARGV_CHANNEL, type CliLeafName, type CliVerb } from "./declare.ts";
 import { CliGate } from "./gate.ts";
@@ -334,6 +336,33 @@ export class Cli {
     leafNode("issue", "render").action(async () => {
       this.#exitCode = this.#artifacts.runIssue();
     });
+    // the board observability command — a pure read (no preflight gate)
+    commandNode("board").action(async (_slug: unknown, _opts: unknown, command: Command) => {
+      this.#exitCode = await this.#runBoard(command, this.#runInput(null, command));
+    });
+  }
+
+  /** `cdd board <slug>` — the slug progress board (spec §5 · §2.2): a PURE READ —
+   *  zero preflight gate, zero tree writes, zero ledger writes, zero child dispatch.
+   *  The slug (the one positional) resolves the repo root, assembles the node tree
+   *  and renders the phase/program board + the `next:` derivation to stdout. A
+   *  missing slug is a usage error (exit 2, commander's own byte); a slug matching
+   *  nothing on disk renders the not-found face and exits 2; a present doc line
+   *  carrying no `- **Doc type**:` declaration renders its BLOCKED marker and exits 2
+   *  (spec §12 · D34). The host is detected once for the pipeline-entry ref render
+   *  (REFS[ref][host], the same judgment the capsule injects — never hard-coded). */
+  async #runBoard(node: Command, parsed: RunInput): Promise<number> {
+    const slug = parsed.positionals[0];
+    if (slug === undefined) this.#usage(node, "cdd board: missing <slug>");
+    const repoRoot = await this.#repoRootOf(parsed);
+    if (!BoardView.hasNode(slug, repoRoot)) {
+      this.#io.stderr(`cdd board: no docs match slug ${slug}\n`);
+      return 2;
+    }
+    const host = HostDetect.detect(process.env);
+    const board = BoardView.render(slug, repoRoot, this.#words, host);
+    for (const line of board.lines) this.#io.stdout(`${line}\n`);
+    return board.exitCode;
   }
 
   /** The thin shell's run input — commander's parsed opts mapped to the domain

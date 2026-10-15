@@ -7,15 +7,16 @@
 // No on-disk-absent parent node is ever synthesized (`-p4.1` present with `-p4`
 // missing mounts `p4.1` directly at the program root).
 //
-// This module carries the slug facts (this task's slice): the phase scan, the
-// doc-tree reverse derivation read-through and the header `{version, status,
-// docType}` read. The doc type is the DECLARED fact — the `- **Doc type**:`
-// header declaration line (spec §12 · D34) — never a filename-suffix derivation;
-// a missing declaration reads null and the consumer blocks (zero dual-read
-// fallback). The tree assembly and the render face ride the later tasks.
+// This module carries the slug facts: the phase scan, the doc-tree reverse
+// derivation read-through, the header `{version, status, docType}` read, the
+// per-node progress projection, and the render face (the phase/program board
+// layouts + the `next:` derivation). The doc type is the DECLARED fact — the
+// `- **Doc type**:` header declaration line (spec §12 · D34) — never a
+// filename-suffix derivation; a missing declaration reads null and the consumer
+// blocks (zero dual-read fallback).
 //
-// Module-level exports are types / the class — zero behavior-carrying bare
-// functions (the plan's zero-bare-function discipline).
+// Module-level exports are types / constants / the class — zero behavior-carrying
+// bare functions (the plan's zero-bare-function discipline).
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -24,8 +25,18 @@ import type { DocKey } from "../contract/project.ts";
 import { ConfigLoader } from "../infra/config.ts";
 import { ENGINE_RUNTIME } from "../infra/runtime.ts";
 import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
+import type { TargetType } from "../session/faces.ts";
 import { TaskGraph } from "../session/graph.ts";
 import { Ledger, type ProgressData } from "../session/ledger.ts";
+import {
+  NextStepRouter,
+  PIPELINE_NEXT,
+  type PipelineEntry,
+  type PipelineKey,
+} from "../session/next.ts";
+import { EMPTY_RUN_STATE } from "../session/run.ts";
+import { REFS } from "./host.ts";
+import type { Words } from "./words.ts";
 
 /** One board node's header facts — the `**Version**` / `**Status**` / `**Doc type**`
  *  marker values read from the doc's header block (each null when the doc or the
@@ -49,6 +60,20 @@ export const BOARD_MARKERS = { done: "✔", current: "▶", pending: "○" } as 
 /** The verb render order of a line's `×N` cell — the stable display order the board's
  *  round cells follow (an unexpected verb appends after these, never dropped). */
 const VERB_ORDER: readonly string[] = ["implement", "review", "branch-review", "fix"];
+
+/** The board's fixed legend tail line — the progress-marker vocabulary (the same
+ *  shape `GraphView` renders; the board's own legend reads `done/current` — the
+ *  wave-less scopes carry no current wave, so the board keeps the plain words). */
+export const BOARD_LEGEND = "progress: ✔ done · ▶ current · ○ pending";
+
+/** One rendered board — the stdout lines + the process exit code (0 on a clean
+ *  board, 2 when a present doc line carried no `- **Doc type**:` declaration). */
+export interface BoardRender {
+  /** The board's stdout lines (the header, the body, the legend) — joined with `\n`. */
+  lines: readonly string[];
+  /** The board's process exit code: 0 (clean) or 2 (a missing doc-type declaration). */
+  exitCode: number;
+}
 
 /** One board line's projected data — a doc line (`overall` / `spec` / `plan`), the
  *  `branch` line, or one derived wave line. Each line carries its own rounds (the
@@ -242,6 +267,226 @@ export class BoardView {
    *  node is fixed at the program root, never inferred from a doc filename. */
   static #isOverallNode(nodeSlug: string): boolean {
     return /-overall$/.test(nodeSlug);
+  }
+
+  // -------------------------------------------------------------------------
+  // the render face (spec §5.3) — the slug → board layout + the next derivation
+  // -------------------------------------------------------------------------
+
+  /** Whether the slug names anything on disk — the file-system-only existence test
+   *  (the board's "no matching file → exit 2, never a wall on a ghost slug"). A
+   *  program slug matches its overall or any on-disk phase; a phase slug matches its
+   *  overall anchor, spec or plan. */
+  static hasNode(slug: string, repoRoot: string): boolean {
+    if (Workspace.phaseSuffixOf(slug) !== null) {
+      const docs = Workspace.docsOfSlug(slug, repoRoot);
+      return docs.overall !== null || docs.spec !== null || docs.plan !== null;
+    }
+    return (
+      Workspace.docsOfSlug(slug, repoRoot).overall !== null ||
+      BoardView.scanPhases(slug, repoRoot).length > 0
+    );
+  }
+
+  /** render(slug, repoRoot, words, host) — the slug's progress board (spec §5.3):
+   *  the phase form (`overall/spec/plan/wave/branch` + one line per derived wave +
+   *  the fixed legend + the `next:` line) or the program form (the overall line with
+   *  its own rounds + one summary line per phase + `next: done` — cross-phase never
+   *  participates in next). A present doc line carrying no `- **Doc type**:`
+   *  declaration renders its `doc-type: missing (BLOCKED)` marker and the board
+   *  exits 2 (spec §12 · D34 — the consumer blocks, zero filename fallback). Pure
+   *  reads — zero tree writes, zero ledger writes, zero child dispatch. */
+  static render(slug: string, repoRoot: string, words: Words, host: string): BoardRender {
+    const lines: string[] = [`cdd board: ${slug}`, ""];
+    const exitCode =
+      Workspace.phaseSuffixOf(slug) !== null
+        ? BoardView.#phaseBoard(lines, slug, repoRoot, words, host)
+        : BoardView.#programBoard(lines, slug, repoRoot);
+    lines.push("", BOARD_LEGEND);
+    return { lines, exitCode };
+  }
+
+  /** The phase board render — the overall/spec/plan/wave/branch rows + the next
+   *  derivation. Returns the exit code (2 when a present doc line carries no type
+   *  declaration). */
+  static #phaseBoard(
+    lines: string[],
+    slug: string,
+    repoRoot: string,
+    words: Words,
+    host: string,
+  ): number {
+    const suffix = Workspace.phaseSuffixOf(slug)!;
+    const program = slug.slice(0, slug.length - suffix.length);
+    const docs = Workspace.docsOfSlug(slug, repoRoot);
+    const node = BoardView.projectNode(slug, repoRoot);
+    const overall = BoardView.projectNode(`${program}-overall`, repoRoot);
+    const [specLine, planLine, branchLine] = node.lines;
+    let blocked = false;
+
+    const overallDoc = BoardView.#docCell(docs.overall, overall.lines[0]!);
+    lines.push(`  overall  ${overallDoc.text}`);
+    blocked ||= overallDoc.blocked;
+
+    const specDoc = BoardView.#docCell(docs.spec, specLine!);
+    lines.push(`  spec     ${specDoc.text}`);
+    blocked ||= specDoc.blocked;
+
+    const planDoc = BoardView.#docCell(docs.plan, planLine!);
+    lines.push(`  plan     ${planDoc.text}`);
+    blocked ||= planDoc.blocked;
+
+    const waves = node.waveLines ?? [];
+    if (waves.length === 0) {
+      lines.push("  wave     (none)");
+    } else {
+      waves.forEach((wave, index) => {
+        const prefix = index === 0 ? "  wave     " : "           ";
+        const cell = BoardView.roundsCell(wave.rounds);
+        lines.push(
+          `${prefix}${wave.label} ${wave.marker ?? ""}${cell === "" ? "" : `  ${cell}`}`.trimEnd(),
+        );
+      });
+    }
+
+    const ledger = BoardView.#ledgerOf(slug, repoRoot);
+    const branchClosed = BoardView.#lineClosed(ledger, "branch", "branch");
+    const branchRounds = BoardView.roundsCell(branchLine!.rounds);
+    lines.push(
+      `  branch   ${branchClosed ? `${BOARD_MARKERS.done} closed` : "○ open"}${branchRounds === "" ? "" : `  ${branchRounds}`}`.trimEnd(),
+    );
+
+    lines.push("");
+    lines.push(`  next:    ${BoardView.#nextOf(ledger, node, docs.plan, words, host)}`);
+    return blocked ? 2 : 0;
+  }
+
+  /** The program board render — the overall line (its own rounds) + one summary line
+   *  per on-disk phase + `next: done` (cross-phase never participates in next, spec
+   *  §6.5). Returns the exit code (2 when the overall doc carries no type
+   *  declaration). */
+  static #programBoard(lines: string[], slug: string, repoRoot: string): number {
+    const nodes = BoardView.projectNodes(slug, repoRoot);
+    const overall = nodes[0]!;
+    const overallDoc = BoardView.#docCell(
+      Workspace.docsOfSlug(slug, repoRoot).overall,
+      overall.lines[0]!,
+    );
+    lines.push(`  overall  ${overallDoc.text}`);
+    lines.push("");
+    for (const node of nodes.slice(1)) {
+      const label = node.label.slice(slug.length).replace(/^-p/, "P");
+      const spec = node.lines.find((line) => line.label === "spec");
+      const plan = node.lines.find((line) => line.label === "plan");
+      const branch = node.lines.find((line) => line.label === "branch");
+      const status = spec?.status ?? "Pending";
+      const parts: string[] = [];
+      const cells: Array<[string, string]> = [
+        ["spec", BoardView.roundsCell(spec?.rounds ?? {})],
+        ["plan", BoardView.roundsCell(plan?.rounds ?? {})],
+        ["branch", BoardView.roundsCell(branch?.rounds ?? {})],
+      ];
+      for (const [key, cell] of cells) if (cell !== "") parts.push(`${key} ${cell}`);
+      const tail = parts.join(" · ");
+      lines.push(`  phase ${label}  ${status}${tail === "" ? "" : `   ${tail}`}`);
+    }
+    lines.push("");
+    lines.push("  next:    done");
+    return overallDoc.blocked ? 2 : 0;
+  }
+
+  /** One doc line's cell text — the doc path, the header facts and the line's
+   *  rounds (spec §5.3: `overall  <path>  v2.33 · Draft   review×4`); a present doc
+   *  carrying no `- **Doc type**:` declaration renders its `doc-type: missing
+   *  (BLOCKED)` marker in place of the facts (blocked = true). An absent doc renders
+   *  `(none)` (degradation, never a throw). */
+  static #docCell(docPath: string | null, line: BoardLine): { text: string; blocked: boolean } {
+    if (docPath === null) return { text: "(none)", blocked: false };
+    if (line.docType === null) {
+      const facts: string[] = [];
+      if (line.version !== null) facts.push(line.version);
+      if (line.status !== null) facts.push(line.status);
+      const head = facts.length === 0 ? "" : `${facts.join(" · ")}  `;
+      return { text: `${docPath}  ${head}doc-type: missing (BLOCKED)`, blocked: true };
+    }
+    const facts: string[] = [docPath];
+    const meta = [line.version, line.status].filter((part) => part !== null).join(" · ");
+    if (meta !== "") facts.push(meta);
+    const rounds = BoardView.roundsCell(line.rounds);
+    if (rounds !== "") facts.push(rounds);
+    return { text: facts.join("   "), blocked: false };
+  }
+
+  /** The node's ledger — the progress.json read face the render's closure/next
+   *  derivation consumes (each node reads its OWN workspace). */
+  static #ledgerOf(nodeSlug: string, repoRoot: string): Ledger {
+    const root = new WorkspaceRoot(repoRoot, ENGINE_RUNTIME.handoffNamespace.workspaceRoot);
+    return new Ledger(new Workspace(root, nodeSlug), new ConfigLoader());
+  }
+
+  /** Whether a doc/branch line is CLOSED — the engine's single C5 closure judge
+   *  (NextStepRouter) applied to the line's latest recorded round. The board reads
+   *  the same router + round carrier the ledger's closedWaves() face reads (zero new
+   *  judgment, zero second table): a line whose latest round's route is the `done`
+   *  terminal is exhausted. */
+  static #lineClosed(ledger: Ledger, key: string, type: TargetType): boolean {
+    const mode = type === "branch" ? "branch-review" : "review";
+    const reviews = ledger.roundCount(key, mode);
+    if (reviews === 0) return false;
+    const fixes = ledger.roundCount(key, "fix");
+    const round = fixes > 0 ? Math.min(fixes, reviews) : reviews;
+    const carried = ledger.round(fixes > 0 ? "fix" : "review", type, { round }, round);
+    if (carried === null) return false;
+    return new NextStepRouter().next(EMPTY_RUN_STATE, carried)?.kind === "done";
+  }
+
+  /** The board's `next:` derivation (spec §6.5) — consume PIPELINE_NEXT (the ONE
+   *  face-indirection table, never a second table): walk the phase's faces in line
+   *  order (spec → plan → wave → branch), take the FIRST face that has not yet
+   *  closed, and render its pipeline entry (the entry the engine's next face renders
+   *  when that face reaches `done`). Every face closed → the bare terminal `done`.
+   *  The render is byte-identical to the Capsule's `done` face (REFS[ref][host] with
+   *  the claude fallback; the literal's `<plan>` slot filled; the bare terminal
+   *  word). */
+  static #nextOf(
+    ledger: Ledger,
+    node: BoardProgress,
+    planPath: string | null,
+    words: Words,
+    host: string,
+  ): string {
+    const waves = node.waveLines ?? [];
+    const faces: Array<{ key: PipelineKey; closed: boolean }> = [
+      { key: "phase-spec", closed: BoardView.#lineClosed(ledger, "spec", "spec") },
+      { key: "plan", closed: BoardView.#lineClosed(ledger, "plan", "plan") },
+      // The wave face is exhausted when the plan yields NO wave still open — an
+      // empty wave segment (no plan) is not an exhausted face (nothing was closed).
+      {
+        key: "wave",
+        closed: waves.length > 0 && waves.every((wave) => wave.marker === BOARD_MARKERS.done),
+      },
+      { key: "branch", closed: BoardView.#lineClosed(ledger, "branch", "branch") },
+    ];
+    const frontier = faces.find((face) => !face.closed);
+    if (frontier === undefined) return words.routeWord("done");
+    return BoardView.#entryText(PIPELINE_NEXT[frontier.key], planPath, words, host);
+  }
+
+  /** One pipeline entry rendered to its dispatch-ready literal — the same render
+   *  the Capsule's `done` face produces (a ref → REFS[ref][host], the claude form
+   *  when the host is absent; a literal → its `<plan>` slot filled; done → the bare
+   *  terminal word). Never a hard-coded plugin spelling. */
+  static #entryText(
+    entry: PipelineEntry,
+    planPath: string | null,
+    words: Words,
+    host: string,
+  ): string {
+    if (entry.kind === "done") return words.routeWord("done");
+    if (entry.kind === "literal") return entry.literal.replace("<plan>", planPath ?? "<plan>");
+    const row = REFS[entry.ref as keyof typeof REFS];
+    const form = row === undefined ? undefined : row[host as "claude" | "cursor" | "pi"];
+    return form ?? row?.claude ?? words.routeWord("done");
   }
 
   /** One doc line — the header facts read from the doc (absent → nulls) + the row's

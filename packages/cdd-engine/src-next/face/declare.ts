@@ -1,5 +1,5 @@
 // packages/cdd-engine/src-next/face/declare.ts
-// §2.4 — the CLI declaration single surface: the argv channel table, the six-command
+// §2.4 — the CLI declaration single surface: the argv channel table, the seven-command
 // declarations, every CLI face type and the conditional-required group table cohere
 // in ONE file (the user ruling 2026-10-11: the declaration was scattered across
 // runtime/registry/argv → one surface). The migration converges:
@@ -149,9 +149,9 @@ export const VALUE_SHAPES: Readonly<
   },
 };
 
-/** The six subcommand words — the CLI command face (steady: implement · review ·
- *  fix · schema · issue · base). */
-export type CliVerb = "implement" | "review" | "fix" | "schema" | "issue" | "base";
+/** The seven subcommand words — the CLI command face (implement · review · fix ·
+ *  schema · issue · base · board). */
+export type CliVerb = "implement" | "review" | "fix" | "schema" | "issue" | "base" | "board";
 
 /** The nested leaf words — the sub-command surfaces of the pure commands. */
 export type CliLeafName = "get" | "set" | "render";
@@ -192,8 +192,9 @@ export interface CliCommandSpec {
   example?: string;
 }
 
-/** The six subcommand declarations — implement, review, fix (the lifecycle work
- *  commands) plus the pure base / schema / issue artifact commands. */
+/** The seven subcommand declarations — implement, review, fix (the lifecycle work
+ *  commands) plus the pure base / schema / issue artifact commands and the board
+ *  observability command. */
 export const CLI_COMMANDS: readonly CliCommandSpec[] = [
   {
     name: "implement",
@@ -277,6 +278,13 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
         keys: [],
       },
     ],
+  },
+  {
+    name: "board",
+    description: "render the slug progress board (overall/spec/plan/wave/branch)",
+    example: "cdd board 2026-10-10-engine-doc-tooling-p7",
+    keys: [{ key: "root" }],
+    positionals: [{ key: "slug", required: true }],
   },
 ];
 

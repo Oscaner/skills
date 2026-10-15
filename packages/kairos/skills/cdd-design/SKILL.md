@@ -27,10 +27,7 @@ flowchart TD
   X -->|fit| W[run-cdd-spec-writer]
   X -->|multi| C[run-cdd-charter]
   X -->|oversized| C[run-cdd-charter]
-  W --> L[NEXT-LOOP]
-  L -->|until next is terminal| L
-  L -->|until session closes| H[handoff-next]
-  L -->|no next| Z3((BLOCKED))
+  W --> H[handoff-next]
   C --> H[handoff-next]
 ```
 
@@ -89,15 +86,8 @@ flowchart TD
 
 - **Do**: Import `/kairos:cdd-spec-writer`（pi：/skill:cdd-spec-writer） with the target parameter (single-spec / phase-spec — the two near-identical dispatch variants are ONE node)
 - **Read**: grilling output + exploration context
-- **Exit**: Handoff executed → `NEXT-LOOP`
+- **Exit**: Handoff executed → `handoff-next`
 - **Fail**: Target skill missing → BLOCKED (install kairos — see the kairos README's 'Upstream dependency install' table)
-
-### `NEXT-LOOP`
-
-- **Do**: Run the design continuation recycle — the single hub after a delegated writer flow lands (a committed single-spec / phase-spec): dispatch the session's `next:` line as written — the literal is the route: a further design dispatch re-enters this hub while the route is not terminal (the self-loop stays live), a closure routes to `handoff-next`; a BLOCKED/TIMEOUT round carries no `next:` line — its reason rides stderr for reporting.
-- **Read**: the landed delegated flow's output (the `next:` line + the committed artifact)
-- **Exit**: the design chain closes → `handoff-next` (the `until session closes` closure exit — the design continuation is not an engine next-face consumer); each further design dispatch re-enters this hub while the route is not terminal (the `until next is terminal` self-loop)
-- **Fail**: —
 
 ### `run-cdd-charter`
 

@@ -15,8 +15,8 @@
 // The module exports the shared seams + the lifecycle class — zero behavior-carrying
 // bare functions.
 
-import { execFileSync } from "node:child_process";
 import process from "node:process";
+import { execaSync } from "execa";
 import { ConfigLoader } from "../infra/config.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
 import type { Workspace } from "../infra/workspace.ts";
@@ -53,25 +53,48 @@ export interface SyncProcess {
   ): { code: number; stdout: string; stderr: string };
 }
 
-/** SyncRunner — the node:child_process execFileSync adapter (sync because the T8
- *  lifecycle's DispatchStep seam is synchronous — one dispatch, one advance). */
+/** SyncRunner — the unbounded sync child channel (spec §14 · D36): execa's
+ *  synchronous face, whose `maxBuffer` defaults to unbounded — the whole-buffer
+ *  ceiling class the old `execFileSync` call hit (Node's default 1 MiB, the W1
+ *  `child claude returned no status line` truncation) does not exist here. The
+ *  face stays synchronous (the T8 lifecycle's DispatchStep seam is one dispatch,
+ *  one advance) and keeps the injected `SyncProcess` shape byte-for-byte: a
+ *  non-zero/broken child rides the code, never a throw — `reject: false` surfaces
+ *  the failure as a result, and `stripFinalNewline: false` keeps the child's
+ *  stdout verbatim (the `RETURN_STDOUT_BLOCK` tail stays intact). The adapter is
+ *  a pure `#collect` read: no buffering to bound, no worker, no concurrency. */
 export class SyncRunner implements SyncProcess {
   run(
     command: string,
     args: readonly string[],
     cwd: string,
   ): { code: number; stdout: string; stderr: string } {
-    try {
-      const stdout = execFileSync(command, [...args], { cwd, encoding: "utf8" });
-      return { code: 0, stdout, stderr: "" };
-    } catch (raw) {
-      const error = raw as { status?: unknown; stdout?: unknown; stderr?: unknown };
-      return {
-        code: typeof error.status === "number" ? error.status : 1,
-        stdout: typeof error.stdout === "string" ? error.stdout : "",
-        stderr: typeof error.stderr === "string" ? error.stderr : "",
-      };
-    }
+    return this.#collect(command, args, cwd);
+  }
+
+  /** The synchronous collection — execa's sync face with the three options the
+   *  fail-open `SyncProcess` contract needs: `reject: false` (a failed child is a
+   *  result, never a throw), `stripFinalNewline: false` (byte-verbatim stdout), and
+   *  the default unbounded `maxBuffer` (the ceiling class is retired). The result
+   *  reads back into the same `{code, stdout, stderr}` face — `exitCode ?? 1` is the
+   *  exit code; stderr is the child's own stream when it wrote one, else the execa
+   *  diagnostic (a spawn failure like ENOENT writes nothing, so its reason rides the
+   *  `shortMessage` — the fail-open face keeps a reason text, never an empty block). */
+  #collect(
+    command: string,
+    args: readonly string[],
+    cwd: string,
+  ): { code: number; stdout: string; stderr: string } {
+    const result = execaSync(command, [...args], {
+      cwd,
+      reject: false,
+      stripFinalNewline: false,
+    });
+    return {
+      code: result.exitCode ?? 1,
+      stdout: result.stdout ?? "",
+      stderr: result.stderr || (result.failed ? (result.shortMessage ?? "") : ""),
+    };
   }
 }
 

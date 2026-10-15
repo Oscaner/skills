@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P8 设计：`cdd board <slug>` slug 进度板 + 引擎统一 next 面（plan-graph 提级一等公民 · 文件系统唯一真源 · 全节点 verb×round 细粒度 · next 贯穿全 face×verb 到 skill ref）
-- **Version**: v1.1 · 2026-10-15
+- **Version**: v1.2 · 2026-10-15
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P8] 会话 · 用户裁定 · 2026-10-14）
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](2026-10-10-engine-doc-tooling-overall.md)
@@ -249,6 +249,21 @@ cdd board: 2026-10-10-engine-doc-tooling
 - **存量 sweep**：全库 doc（overall ×1 · phase-spec ×N · single-spec ×N · plan ×N）补声明行，单 commit。
 - **破坏性**：`deriveDocType`/`#docKeyOf` 公共/私有签名删除属破坏性变更（premise 1 允许 · deliberate pin break 与 P8 既有破坏面同级登记）。
 
+### 13. 自环词表更正 + branch 节点消融（D35 · 用户裁定 2026-10-15）
+#### 13.1 现场与根因（`until next=done` 是 D33 前的旧世界观）
+- **现场**：W1 落地后四 skill 的 NEXT-LOOP 自环标签仍为 `until next=done`，但 D33 后引擎 next 面的 `done` 只在两处出现——overall 线闭合（`PIPELINE_NEXT` overall-spec 行）与无 target 兜底。cdd-plan（plan 线闭合 → `/kairos:cdd-dev`）· cdd-dev（wave 闭合 → branch review · branch 闭合 → `/kairos:cdd-close`）· cdd-design（消费 spec 线序列 → skill ref）的 next 序列里 **done 永不出现**——`until` 条件永假，正常出口在字面上不存在（实际由 `no next` BLOCKED 异常面兜底）。cdd-spec-writer 仅 overall 变体能读到 done，phase 变体同样永假。
+- **W1 附带缺陷**：T6 溶解后 cdd-dev 的 `branch-review`/`branch-fix` 成**孤岛**（wave→branch 入边已由引擎字面承载删除，digraph 断为两个连通分量；现有 checker 只查双向完备 + 独立闭环存在，**不查连通性**，故静默通过）。
+- **根因**：`until next=done` 语义是 D33 之前的「done = 本线耗尽」；D33 之后 done = 「跨 face 续程被引擎接管，流水线终点」。本 skill 的循环退出条件实为「**引擎字面把编排器交出去**」（skill ref / 引擎命令字面）或 `done`（overall/终点）——即 **terminal**，不是 done。
+#### 13.2 判定（用户裁定 2026-10-15 · 四点）
+- **branch 节点消融**：cdd-dev 的 `branch-review`/`branch-fix` 节点删除——接线职责已被引擎 C5 + `PIPELINE_NEXT` 完全承载（branch review findings → `next: fix --type branch --findings …` 字面完整可执行；branch 闭合 → `/kairos:cdd-close`），编排器零 branch 专属路由知识。branch 线专属事实（BASE_BRANCH 引擎注入 · soft cap 走 `SOFT_CAP_SUGGESTION` · blocker 持久 fail-open）收进 NEXT-LOOP 的 Do 一句话 + Failure Modes 表。消融后 cdd-dev = 四个 bootstrap/首派发节点 + 单一 NEXT-LOOP（二出边形状不变，pipeline 域 `out.length === 2` pin 不破）。
+- **自环标签统一更正**：四流水线 skill（cdd-spec-writer/cdd-plan/cdd-dev）+ cdd-design 的自环标签 `until next=done` → **`until next is terminal`**（terminal = `done` 或 skill ref/引擎命令字面——引擎字面把编排器交出去即本 skill 循环使命终结；cdd-spec-writer 的 overall 变体读 done 亦被 terminal 覆盖）。
+- **cdd-design 闭合出口改名**：其 `next=done → handoff-next` 出边标签改 **`until session closes → handoff-next`**（design 续环转下 phase 的 design 不是引擎字面消费者，D33 明文不在 next 内——不得蹭 done 语义）。design 域保持三出边形状不变。
+- **契约同步**：`nextLoopConditions` 词表随新标签改（`until next is terminal` 替换 `until next=done`；`next=done` 成员随 cdd-design 出边改名收敛为 `until session closes`）· `loopShapeRule`/`edgeConditionRule` 断言文本随改 · **branch 独立闭环断言块退役**（`skill-anatomy.test.ts:442-461` 的 branch-review↔branch-fix 闭环断言 + `skill-anatomy.ts:264-266` 两条 branch 专论规则）· `out.length` 域规则（pipeline 2 / design 3）不动 · 双向完备性检查自动覆盖消融后形状。
+#### 13.3 落地面（Plan Sole Writer 修订 · T6 后置任务）
+- **skills**：cdd-dev（branch 双节点删 + hub Do 收编 branch 事实 + Failure Modes 增 branch blocker fail-open 行）· 四 skill 自环标签改 · cdd-design 出边标签改。
+- **contract**：`skill-anatomy.ts` 词表/规则文本随改 + branch 专论删 · `skill-anatomy.test.ts` branch 闭环断言块删 + 新标签断言。
+- **plan**：新任务（依赖 T6 · 消费面 pin 归 T7 扩集）+ T7 的 skill-anatomy pin 面同步。
+
 ### Acceptance criteria
 - `cdd board <slug>` 输出全局态势板：overall/spec/plan/wave/branch 五行 + 各 `implement×N · review×N · fix×N` + wave 每波一行（波链 ✔▶○ + 明细）+ 固定 legend + `next:` 行
 - slug → 三文档路径以**文件系统为唯一真源**：扫描 `docs/kairos/{specs,plans}` 命中 `<slug>*` 树化 · **不合成盘上不存在父节点**（`doc-architecture-v2` 族 `-p4.1` 存在而 `-p4` 缺失场景正确树化）· **不解析 overall File paths 表**
@@ -270,6 +285,7 @@ cdd board: 2026-10-10-engine-doc-tooling
 - **author bootstrap 回归 pin**：`skill-anatomy` 契约 + 检查器断言两 author 节点必携 skeleton bootstrap 字面（本类回归不可再静默通过）
 - **fix 路由载体括注（§11）**：`FIX_READBACK_SUFFIX` = `(confirm the findings · if a finding needs a ruling, record the ruling in the findings file)` · 四 SKILL.md 括注零残留（`grep -rn "annotate the carrier" packages/kairos/skills/` 零命中）· `02-naming.md` annotate 行随改
 - **Doc type 声明上收（§12 · D34）**：每份 doc 的 header 携 `- **Doc type**: <DocKey 四值>`（skeleton 生成）· `deriveDocType` 后缀规则 + `BoardView.#docKeyOf` 零残留（推导面整体退役）· validate/preflight/board 三消费点读同一声明读取方法 · 缺声明 BLOCKED · 存量 sweep 单 commit · 声明类型即 doc-contract 门的校验键（零文件名 cross-check）
+- **自环词表 + branch 消融（§13 · D35）**：四 skill 自环标签 `until next is terminal` · cdd-design 闭合出口 `until session closes → handoff-next` · cdd-dev branch 双节点消融（`branch-review`/`branch-fix` 零残留 · 单 hub 二出边）· branch 独立闭环断言块退役 · `nextLoopConditions`/`loopShapeRule`/`edgeConditionRule` 随新词表同步 · `out.length` 域规则不动
 
 ## Constraints
 - **文件系统唯一真源**：节点集合、artifact 存在性全来自扫描，绝不合成盘上不存在的节点，绝不解析 overall 的 Phase inventory / File paths 声明表
@@ -286,6 +302,7 @@ cdd board: 2026-10-10-engine-doc-tooling
 - **触碰历史 pin「cdd CLI 零新子命令」**：board 为新增第七命令，连带修订（文档先行——本 spec 即该修订落点）
 - **fix 路由括注单源（§11）**：载体动作措辞只在 `FIX_READBACK_SUFFIX` 一处声明，capsule 逐字渲染；skills 不复写引擎措辞（D29 判据——运行时字面即编排器的说明）
 - **doc type 声明单源（§12 · D34）**：doc 类型是文档声明的声明性事实（header `- **Doc type**:`），**不是文件名的派生事实**——零文件名→类型推导面（`deriveDocType` 后缀规则/`#docKeyOf` 退役）· 零双读层（缺声明 = BLOCKED，不兜底）· 零文件名 cross-check（声明类型即 doc-contract 门校验键）· slug 扫描只按前缀+目录分组，不承载类型
+- **digraph 边条件 = 引擎字面世界观的镜像（§13 · D35）**：skill digraph 的边条件词必须与引擎 next 面的实际字面序列一致——`done` 只渲在引擎真给 done 的位置（overall 闭合/流水线终点），编排器循环退出条件是 **terminal**（字面交出编排权），不是 done；编排器零 branch 专属路由知识（引擎字面即全部）
 
 ## Change history
 | Version | date | summary | author |
@@ -301,3 +318,4 @@ cdd board: 2026-10-10-engine-doc-tooling
 | v0.9 | 2026-10-15 | **回归更正 backfill（用户裁定 · D29 判定补正 · in-flight）**：用户发现 `author-spec`/`author-plan` 丢失骨架 bootstrap 命令——**P7/D29 回归**（`9d6f4e27` 明文删 `schema get … --output skeleton` 语法；P5/P6 曾载「generate the canonical skeleton first … fill its slots in place」）。**根因**：D29 按「形状」切而非「角色」切——`schema get … --output skeleton` 长得像内部语法而被剥，却正是 D29 自己 bootstrap 例外（入口节点唯一字面命令）所指；剥离清单与例外对撞，清单赢了；删后以散文复述补位 = 重演 D29 要消灭的第二真相。**逃逸面**：skill-anatomy 契约无「author 节点必携 bootstrap 字面」pin → 四轮 review 全过。**更正**：判据从「形状」改「角色」——入口发起命令 = 例外面（保留），内部结构镜像 = 剥离面（§10.3）；P7 历史 frozen 不动，**P8 为本更正 owning doc**。**热修（用户裁定）**：恢复两 author 节点的 bootstrap 字面（只命令 + fill in place · 不复述槽位名）+ 删散文结构复述 + 在 skill-anatomy 契约/检查器补回归 pin。新增 §10 + AC 2 条 + Constraints 1 行 | Oscar M. · Claude Opus 5（P8 编排器 backfill · 用户裁定） |
 | v1.0 | 2026-10-15 | **fix 路由载体括注措辞更正 backfill（用户裁定 2026-10-15 · D28 措辞补正 · in-flight）**：`FIX_READBACK_SUFFIX` 由 `(confirm the findings · annotate the carrier with the adjudications)` 改 **`(confirm the findings · if a finding needs a ruling, record the ruling in the findings file)`**（用户裁定：`if needed` 判据 = findings 是否需要裁定；措辞经消费者视角复议定案为行为语言——冷启动编排器无 repo 运维文档，`handoff carrier`/`adjudications` 内部词汇不可解引用，定案句零黑话自足）；**skills 侧括注整句剥离**（cdd-dev/cdd-plan/cdd-spec-writer/cdd-design 四文件——括注是引擎渲染面的内部镜像，运行时随 `next:` 字面给到编排器，skill 文本自持措辞副本 = D29 要消灭的会漂移第二真相；用户裁定：skills 只需「照 next 字面执行」）。P7/D28 历史 frozen 不动，**P8 为本更正 owning doc**（§10 同判例）。热修面：`next.ts` 常量值 + 注释 · `capsule.ts` 注释 · `next.test.ts` 两 literal pin · 四 SKILL.md 括注删 · `02-naming.md` annotate 行随改 · emit 重生成。新增 §11 + AC 1 条 + Constraints 1 行 | Oscar M. · Claude Opus 5（P8 编排器 backfill · 用户裁定） |
 | v1.1 | 2026-10-15 | **Doc type 声明上收 + 文件名推导退役 backfill（用户裁定 2026-10-15 · D34 · in-flight）**：用户指出 `deriveDocType`/`BoardView.#docKeyOf` 重复声明 + 「文件名判断 doc type 容易出错（agent 不能保证完美复刻命名规则）」。**根因**：重复声明只是症状，「文件名承载类型语义」是病灶——文件名是类型的派生副本（声明再抄温床 · premise 3），命名规则须被每个 author agent 心智复刻（premise 5），规则一改全消费点同改。**定案（三点）**：① header 增 `- **Doc type**:` 声明行（值域 = 现有四值 DocKey · skeleton 生成 · 零别名层）· ② 文件名推导**整体退役**（`deriveDocType` 后缀规则 + `#docKeyOf` 删除——重复声明被消灭非修复；剩一个声明读取面，validate/preflight/board 三消费点单源；header marker 扫描不选 parser——parsers-by-type 循环依赖是伪装的）· ③ 缺声明硬 BLOCKED + 存量单 commit sweep（零双读兜底层）。**并入 P8**（W1 已落 `#docKeyOf`，实现中修订，premise 1 破坏性允许）。新增 §12 + AC 1 条 + Constraints 1 行；plan 修订随落（T2/T4/T5 + T3 依赖面 + T7 pin 面） | Oscar M. · Claude Opus 5（P8 编排器 backfill · 用户裁定） |
+| v1.2 | 2026-10-15 | **自环词表更正 + branch 节点消融 backfill（用户裁定 2026-10-15 · D35 · in-flight）**：用户指出四 skill 的 `until next=done` 在 D33 后全失真（cdd-plan/cdd-dev/cdd-design 的 next 序列 done 永不出现——until 永假，正常出口字面缺失；spec-writer 仅 overall 变体可达 done）+ W1 落地的 cdd-dev branch-review/branch-fix 成孤岛（wave→branch 入边已由引擎字面承载，digraph 断为两连通分量；checker 不查连通性故静默通过）。**定案（四点）**：① cdd-dev branch 双节点消融（引擎 C5 + PIPELINE_NEXT 已完全承载 branch 接线 · branch 专属事实收 hub Do + Failure Modes · 单 hub 二出边 pin 不破）· ② 四 skill 自环标签 → `until next is terminal`（terminal = done 或 skill ref/引擎命令字面）· ③ cdd-design 闭合出口 → `until session closes → handoff-next`（design 续环非引擎字面，不蹭 done 语义 · design 域三出边不变）· ④ 契约同步（`nextLoopConditions`/`loopShapeRule`/`edgeConditionRule` 随新词表 · branch 独立闭环断言块退役 · `out.length` 域规则不动）。新增 §13 + AC 1 条 + Constraints 1 行；plan 后置任务随落 | Oscar M. · Claude Opus 5（P8 编排器 backfill · 用户裁定） |

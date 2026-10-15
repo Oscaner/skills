@@ -352,15 +352,14 @@ class SkillAnatomyCheck {
   }
 
   /** The edge-condition contract findings (v1.20 — the label-free rule reversed;
-   *  D33 — the out-edge count/shape per handoff scope): every edge out of a decision
-   *  node carries an explicit condition label; the loop family's NEXT-LOOP hub out-
-   *  edges are per handoff scope — the pipeline scope carries EXACTLY TWO (the
-   *  `until next=done` self-loop · the `no next` BLOCKED face; no `next=done`
+   *  D33/D35 — the out-edge count/shape per handoff scope): every edge out of a
+   *  decision node carries an explicit condition label; the loop family's NEXT-LOOP
+   *  hub out-edges are per handoff scope — the pipeline scope carries EXACTLY TWO
+   *  (the `until next is terminal` self-loop · the `no next` BLOCKED face; no
    *  closure exit — the closure routes through the engine's next face), the design
-   *  scope keeps the THREE pinned; each label an engine-lexicon pinned phrase
-   *  (edgeConditionWords — the static digraph shares ONE word table with the
-   *  runtime `next:` instance); the executor chain's branch-review loop is an
-   *  INDEPENDENT closed loop. */
+   *  scope keeps the THREE pinned (adding the `until session closes` closure exit);
+   *  each label an engine-lexicon pinned phrase (edgeConditionWords — the static
+   *  digraph shares ONE word table with the runtime `next:` instance). */
   #edgeConditionFindings(
     name: string,
     an: AnalyzedSkill,
@@ -393,26 +392,26 @@ class SkillAnatomyCheck {
     if (hubId === undefined) return; // the missing-hub finding is the family shape's row
     const conditions = anatomy.digraph.nextLoopConditions;
     const designScope = row.handoff === "design";
-    const branchLoop = row.role === "executor";
     const out = an.edges.filter((e) => e.from === hubId);
 
     // The per-scope out-edge assertion + word-table pin — the loop hub's exactly
     // the pinned out-edges of its handoff scope (pipeline 2 · design 3).
     const selfLoop = an.edges.find((e) => e.from === hubId && e.to === hubId);
-    const doneExit = out.find((e) => e.label === "next=done");
+    const closureExit = out.find((e) => e.label === "until session closes");
     const noNext = out.find((e) => e.label === "no next");
-    if (selfLoop === undefined || selfLoop.label !== "until next=done") {
+    if (selfLoop === undefined || selfLoop.label !== "until next is terminal") {
       this.#findings.push({
-        label: `the ${hub} self-loop must carry the pinned condition label "until next=done"`,
+        label: `the ${hub} self-loop must carry the pinned condition label "until next is terminal"`,
         skill: name,
       });
     }
-    // The `next=done` closure exit — the design scope only (D33: the pipeline scope's
-    // closure routes through the engine's next face, no closure exit edge).
+    // The `until session closes` closure exit — the design scope only (D33: the
+    // pipeline scope's closure routes through the engine's next face, no closure
+    // exit edge).
     if (designScope) {
-      if (doneExit === undefined || (idLabel.get(doneExit.to) ?? "").startsWith("BLOCKED")) {
+      if (closureExit === undefined || (idLabel.get(closureExit.to) ?? "").startsWith("BLOCKED")) {
         this.#findings.push({
-          label: `the ${hub} closure exit must be the "next=done" edge into a terminal node`,
+          label: `the ${hub} closure exit must be the "until session closes" edge into a terminal node`,
           skill: name,
         });
       }
@@ -434,31 +433,6 @@ class SkillAnatomyCheck {
       if (!conditions.includes(edge.label)) {
         this.#findings.push({
           label: `the ${hub} out-edge label "${edge.label}" is outside the engine-lexicon pinned phrases`,
-          skill: name,
-        });
-      }
-    }
-
-    // The branch loop-shape assertion — the executor's independent branch-review
-    // closed loop.
-    if (branchLoop) {
-      const reviewId = labelId.get("branch-review");
-      const fixId = labelId.get("branch-fix");
-      if (
-        reviewId === undefined ||
-        fixId === undefined ||
-        !an.edges.some((e) => e.from === reviewId && e.to === fixId) ||
-        !an.edges.some((e) => e.from === fixId && e.to === reviewId)
-      ) {
-        this.#findings.push({
-          label:
-            "the executor chain is missing the independent branch-review↔branch-fix closed loop",
-          skill: name,
-        });
-      }
-      if (fixId !== undefined && an.edges.some((e) => e.from === fixId && e.to === hubId)) {
-        this.#findings.push({
-          label: `the branch-fix node routes into the ${hub} hub — the branch loop must close on itself`,
           skill: name,
         });
       }

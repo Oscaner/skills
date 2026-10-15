@@ -17,7 +17,7 @@ flowchart TD
   A --> Z1((BLOCKED: upstream plugin missing))
   B --> C[commit-spec]
   C --> L[NEXT-LOOP]
-  L -->|until next=done| L
+  L -->|until next is terminal| L
   L -->|no next| Z2((BLOCKED))
 ```
 
@@ -52,7 +52,7 @@ flowchart TD
 
 - **Do**: Run the review-fix rhythm for the authored spec — one review per pass. Dispatch the review round on the current ref (`npx -y @oscaner-skills/cdd-engine@latest review --type spec --spec <path>`); dispatch the output's `next:` line as written — the literal is the route: a fix dispatch consumes the findings handoff, a closure ends the flow (follow the engine's `next:` literal — for a phase/overall spec it routes the next pipeline entrypoint); a BLOCKED/TIMEOUT round carries no `next:` line — its reason rides stderr for reporting.
 - **Read**: the review output — its conclusion and the `next:` line, plus the findings handoff path
-- **Exit**: the `next:` line reads `done` → the flow ends (the engine's `next:` literal carries the next pipeline entrypoint when one exists); each fix pass re-enters this hub while the route is not done (the `until next=done` self-loop)
+- **Exit**: the `next:` line routes the next pipeline entrypoint (a skill ref / the pipeline terminus) → the flow ends (the engine's `next:` literal carries the next pipeline entrypoint when one exists); each fix pass re-enters this hub while the route is not terminal — the engine's `next:` literal has not yet handed the orchestrator off (the `until next is terminal` self-loop)
 - **Fail**: Re-running a review after a closure conclusion → violates Review Convergence (stop + report)
 
 ## Invariants

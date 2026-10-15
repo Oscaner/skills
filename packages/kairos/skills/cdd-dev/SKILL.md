@@ -16,10 +16,8 @@ flowchart TD
   A[determine-base] --> B[set-base]
   B --> C[implement-wave]
   C --> L[NEXT-LOOP]
-  L -->|until next=done| L
+  L -->|until next is terminal| L
   L -->|no next| Z1((BLOCKED))
-  K[branch-review] -->|fix| F[branch-fix]
-  F -->|until next=done| K
 ```
 
 ## Node Definitions
@@ -47,24 +45,10 @@ flowchart TD
 
 ### `NEXT-LOOP`
 
-- **Do**: Run the wave review-fix rhythm through the engine — one review pass per dispatch. Dispatch the wave review (`npx -y @oscaner-skills/cdd-engine@latest review --type wave --tasks <n|n,n,…> --plan <path>`); dispatch the output's `next:` line as written — the literal is the route: a fix dispatch consumes the findings handoff, a next-wave dispatch runs through `implement-wave`; the engine's next face carries the wave→branch transition when the waves are exhausted; a BLOCKED/TIMEOUT round carries no `next:` line — its reason rides stderr for reporting.
-- **Read**: the full stdout — the review conclusion and the `next:` line (the dispatch-ready literal — fix / the next wave / the branch transition)
-- **Exit**: each fix / next-wave pass re-enters this hub while the route is not done (the `until next=done` self-loop); the engine's next literal carries the wave→branch transition when the waves are exhausted
+- **Do**: Run the wave review-fix rhythm through the engine — one review pass per dispatch. Dispatch the wave review (`npx -y @oscaner-skills/cdd-engine@latest review --type wave --tasks <n|n,n,…> --plan <path>`); dispatch the output's `next:` line as written — the literal is the route: a fix dispatch consumes the findings handoff, a next-wave dispatch runs through `implement-wave`; when the waves are exhausted the engine's next face carries the wave→branch transition, and the branch review travels the engine's own branch line (`review --type branch --plan <path>`, then its `fix --type branch` findings rounds) with no branch-specific orchestrator routing — the literal dispatches the next hop. A BLOCKED/TIMEOUT round carries no `next:` line — its reason rides stderr for reporting.
+- **Read**: the full stdout — the review conclusion and the `next:` line (the dispatch-ready literal — fix / the next wave / the branch transition — plus the branch line's own carried facts: the base branch the engine injected, the soft-cap suggestion, a persistent-blocker fail-open)
+- **Exit**: each fix / next-wave pass re-enters this hub while the route is not terminal — the engine's `next:` literal has not yet handed the orchestrator off to a skill ref or the pipeline terminus (the `until next is terminal` self-loop)
 - **Fail**: review exits with no output → BLOCKED: engine-error
-
-### `branch-review`
-
-- **Do**: Dispatch the branch final review (`npx -y @oscaner-skills/cdd-engine@latest review --type branch --plan <path>`) — the review judges the live tree against the resolved base branch.
-- **Read**: the base artifact + the review output contract (the `next:` line)
-- **Exit**: the `next:` line reads `fix …` → `branch-fix`; `done` → the flow ends (the engine's next face carries the pipeline continuation)
-- **Fail**: review exits with no output → BLOCKED: engine-error
-
-### `branch-fix`
-
-- **Do**: Dispatch the branch fix (`npx -y @oscaner-skills/cdd-engine@latest fix --type branch --plan <path> --findings <path>`) — the findings handoff is the current cycle's source branch review; this is the ONLY fix channel for branch findings — the orchestrator never hand-applies a finding as an editor edit. The branch loop is its OWN closure — the fix round's `next:` line re-enters `branch-review` while the route is not done; the engine's next face carries the closure when the route is done.
-- **Read**: the captured branch-review handoff findings (path from the review output)
-- **Exit**: the fix output's `next:` line routes the next hop — a re-review (re-enter `branch-review`, the independent loop) or the closure (the engine's next face carries the pipeline continuation)
-- **Fail**: blockers persist after multiple rounds → implicit fail-open (stop + report; branch preserved; user decides)
 
 ## Invariants
 
@@ -85,6 +69,7 @@ Cross-node failure handling (complements node Fail fields):
 | TIMEOUT | a round that timed out; retry within the handoff's counters cap, then terminal per the output contract |
 | BLOCKED | a round the engine refused to advance (no `next:` line); report the carried reason to the user and let them decide — never silently override the plan |
 | HARD_ERROR | a completed round with no `next:` line that is not BLOCKED/TIMEOUT — report the carried reason; re-run the same command to continue |
+| branch blockers persist | implicit fail-open — stop + report; the branch is preserved and the user decides (the branch line carries its own closure through the engine's next face) |
 
 **Fail-open vs BLOCKED convention**:
 

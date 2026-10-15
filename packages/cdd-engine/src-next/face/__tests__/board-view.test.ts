@@ -14,7 +14,9 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Workspace } from "../../infra/workspace.ts";
+import { ConfigLoader } from "../../infra/config.ts";
+import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
+import { Ledger } from "../../session/ledger.ts";
 import { BoardView } from "../board-view.ts";
 
 describe("Workspace.docsOfSlug — the slug → doc-tree reverse derivation", () => {
@@ -239,5 +241,124 @@ describe("BoardView.readHeader — the artifact header `{version, status, docTyp
       status: "Done",
       docType: "plan",
     });
+  });
+});
+
+describe("BoardView projectNode — the per-node progress.json single-source projection", () => {
+  let repo: string;
+
+  beforeEach(() => {
+    repo = mkdtempSync(path.join(tmpdir(), "board-progress-"));
+  });
+
+  afterEach(() => {
+    rmSync(repo, { recursive: true, force: true });
+  });
+
+  /** Seed a node's own workspace progress.json (the pure data write — the read side
+   *  is the projection under test, never a Ledger round synthesis). */
+  const seedProgress = (slug: string, data: Record<string, unknown>): void => {
+    const dir = path.join(repo, ".kairos/cdd", slug);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      path.join(dir, "progress.json"),
+      JSON.stringify({ timeoutCount: 0, contractViolationCount: 0, waves: [], ...data }, null, 2),
+    );
+  };
+
+  it("projects each node from its OWN progress.json — the overall node and a phase node", () => {
+    seedProgress("o1-overall", {
+      waves: [{ wave: "spec", rounds: { review: [1, 2], fix: [1] } }],
+    });
+    seedProgress("o1-p1", { waves: [{ wave: "plan", rounds: { review: [1], fix: [2] } }] });
+    mkdirSync(path.join(repo, "docs/kairos/specs"), { recursive: true });
+    writeFileSync(path.join(repo, "docs/kairos/specs/o1-p1-design.md"), "# S\n");
+
+    const nodes = BoardView.projectNodes("o1", repo);
+    const overall = nodes.find((node) => node.label === "o1-overall");
+    const phase = nodes.find((node) => node.label === "o1-p1");
+
+    expect(overall?.rounds).toEqual({ review: [1, 2], fix: [1] });
+    expect(phase?.lines.find((line) => line.label === "plan")?.rounds).toEqual({
+      review: [1],
+      fix: [2],
+    });
+  });
+
+  it("renders the ×N from the CYCLE-NUMBER array length — never the stored number", () => {
+    expect(BoardView.roundsCell({ review: [1, 3] })).toBe("review×2");
+    expect(BoardView.roundsCell({ implement: [1], review: [1, 3], fix: [2] })).toBe(
+      "implement×1 · review×2 · fix×1",
+    );
+    // the retired numeric form is out-of-format — no count renders (zero compat layer)
+    expect(BoardView.roundsCell({ review: 2 } as unknown as Record<string, number[]>)).toBe("");
+  });
+
+  it("derives one wave line per wave — the ✔/▶ markers ride the closedWaves() read", () => {
+    mkdirSync(path.join(repo, "docs/kairos/plans"), { recursive: true });
+    const planPath = path.join(repo, "docs/kairos/plans/o1-p1.md");
+    writeFileSync(
+      planPath,
+      [
+        "# Plan",
+        "",
+        "## Constraints",
+        "",
+        "- c",
+        "",
+        "### Task 1: a",
+        "- **Objective**: o",
+        "- **Files**: `a.ts`",
+        "- **Consumes**: x",
+        "- **Produces**: y",
+        "- **Steps**:",
+        "  - s — checkable: g",
+        "- **Acceptance**: ok",
+        "- **DependsOn**: none",
+        "",
+        "### Task 2: b",
+        "- **Objective**: o",
+        "- **Files**: `b.ts`",
+        "- **Consumes**: x",
+        "- **Produces**: y",
+        "- **Steps**:",
+        "  - s — checkable: g",
+        "- **Acceptance**: ok",
+        "- **DependsOn**: 1",
+        "",
+      ].join("\n"),
+    );
+    mkdirSync(path.join(repo, "docs/kairos/specs"), { recursive: true });
+    writeFileSync(path.join(repo, "docs/kairos/specs/o1-p1-design.md"), "# S\n");
+    // Close wave {1}: a recorded zero-findings review round at the wave row "1".
+    const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "o1-p1").ensure();
+    const ledger = new Ledger(workspace, new ConfigLoader());
+    ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings: [] });
+    ledger.recordRound("1", "review");
+
+    const node = BoardView.projectNode("o1-p1", repo);
+    const rendered = (node.waveLines ?? []).map((line) => `${line.label} ${line.marker}`);
+
+    expect(rendered[0]).toContain("W1 ✔");
+    expect(rendered[1]).toContain("W2 ▶");
+  });
+
+  it("degrades without error — no plan leaves the wave segment empty, no throw", () => {
+    seedProgress("o1-p2", { waves: [{ wave: "spec", rounds: { review: [1] } }] });
+    mkdirSync(path.join(repo, "docs/kairos/specs"), { recursive: true });
+    writeFileSync(path.join(repo, "docs/kairos/specs/o1-p2-design.md"), "# S\n");
+
+    const node = BoardView.projectNode("o1-p2", repo);
+
+    expect(node.waveLines ?? []).toEqual([]);
+  });
+
+  it("leaves the overall segment empty when the program carries no overall doc", () => {
+    seedProgress("o1-overall", { waves: [{ wave: "spec", rounds: { review: [1] } }] });
+
+    const node = BoardView.projectNode("o1-overall", repo);
+
+    expect(node.version).toBeNull();
+    expect(node.rounds).toEqual({ review: [1] });
   });
 });

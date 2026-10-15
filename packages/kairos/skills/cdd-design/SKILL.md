@@ -28,8 +28,8 @@ flowchart TD
   X -->|multi| C[run-cdd-charter]
   X -->|oversized| C[run-cdd-charter]
   W --> L[NEXT-LOOP]
-  L -->|until next=done| L
-  L -->|next=done| H[handoff-next]
+  L -->|until next is terminal| L
+  L -->|until session closes| H[handoff-next]
   L -->|no next| Z3((BLOCKED))
   C --> H[handoff-next]
 ```
@@ -94,9 +94,9 @@ flowchart TD
 
 ### `NEXT-LOOP`
 
-- **Do**: Run the design continuation recycle — the single hub after a delegated writer flow lands (a committed single-spec / phase-spec): dispatch the session's `next:` line as written — the literal is the route: a further design dispatch re-enters this hub while the route is not done (the self-loop stays live), a closure routes to `handoff-next`; a BLOCKED/TIMEOUT round carries no `next:` line — its reason rides stderr for reporting.
+- **Do**: Run the design continuation recycle — the single hub after a delegated writer flow lands (a committed single-spec / phase-spec): dispatch the session's `next:` line as written — the literal is the route: a further design dispatch re-enters this hub while the route is not terminal (the self-loop stays live), a closure routes to `handoff-next`; a BLOCKED/TIMEOUT round carries no `next:` line — its reason rides stderr for reporting.
 - **Read**: the landed delegated flow's output (the `next:` line + the committed artifact)
-- **Exit**: the `next:` line reads `done` → `handoff-next`; each further design dispatch re-enters this hub while the route is not done (the `until next=done` self-loop)
+- **Exit**: the design chain closes → `handoff-next` (the `until session closes` closure exit — the design continuation is not an engine next-face consumer); each further design dispatch re-enters this hub while the route is not terminal (the `until next is terminal` self-loop)
 - **Fail**: —
 
 ### `run-cdd-charter`

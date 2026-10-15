@@ -178,10 +178,12 @@ const waveCtx = (
   };
 };
 
-/** The doc-face context — the target doc judged by the doc-contract gate. */
+/** The doc-face context — the target doc judged by the doc-contract gate. `docKey`
+ *  is the doc's declared type (spec §12 · D34); null models a present doc carrying
+ *  no `- **Doc type**:` declaration (the seam BLOCKs). */
 const docCtx = (
   repoRoot: string,
-  docKey: DocKey,
+  docKey: DocKey | null,
   verb: PreFlightContext["verb"],
 ): PreFlightContext => {
   const workspace = new Workspace(
@@ -420,6 +422,21 @@ describe("PreFlight — the doc-contract gate (Contract.validate over the doc fa
       });
       const verdict = await preflight.vet(docCtx(repoRoot, "phase-spec", "review"));
       expect(verdict.ok).toBe(true);
+      expect(verdict.order).toEqual(["tree-clean", "doc-contract"]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a present doc carrying no Doc type declaration BLOCKs — zero filename-suffix fallback (spec §12 · D34)", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      const preflight = preflightOf(memoryFs(CONFORMING_SPEC));
+      const verdict = await preflight.vet(docCtx(repoRoot, null, "review"));
+      expect(verdict.ok).toBe(false);
+      expect(verdict.gate).toBe("doc-contract");
+      expect(verdict.reason).toBe("doc-contract");
+      expect(verdict.message).toContain("declares no `- **Doc type**:` line");
       expect(verdict.order).toEqual(["tree-clean", "doc-contract"]);
     } finally {
       cleanup();

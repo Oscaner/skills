@@ -60,8 +60,11 @@ export interface PreFlightVerdict {
 
 /** The doc-contract target of a spec/plan dispatch. */
 export interface PreFlightDoc {
-  /** The target doc type's registry key. */
-  docKey: DocKey;
+  /** The target doc type's registry key — read from the doc's `- **Doc type**:`
+   *  header declaration (spec §12 · D34; a `plan` face keys by its command type).
+   *  null when a present doc carries no declaration — the seam BLOCKs (zero
+   *  filename-suffix fallback, one declaration reading face `BoardView.readDocType`). */
+  docKey: DocKey | null;
   /** The target doc's path (the lifecycle's audit path). */
   path: string;
 }
@@ -172,12 +175,23 @@ export class PreFlight {
     // 4. doc-contract — the doc faces' structural gate: the target doc must pass
     //    Contract.validate (the interpreter's single judgment entry) before its
     //    review/fix round dispatches. An unreadable doc carries no judgment (no
-    //    fabricated findings from an absent surface).
+    //    fabricated findings from an absent surface). A PRESENT doc carrying no
+    //    `- **Doc type**:` declaration BLOCKs (spec §12 · D34: the declared type is
+    //    the one reading face, zero filename-suffix fallback).
     if (ctx.type === "spec" || ctx.type === "plan") {
       gates.push("doc-contract");
       const doc = ctx.doc;
       const content = doc === null ? null : this.#fs.read(doc.path);
       if (content !== null && doc !== null) {
+        if (doc.docKey === null) {
+          return {
+            ok: false,
+            gate: "doc-contract",
+            reason: "doc-contract",
+            message: this.#words.routeWord("docType"),
+            order: gates,
+          };
+        }
         const findings = this.#contract.validate({
           docKey: doc.docKey,
           path: doc.path,

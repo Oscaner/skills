@@ -712,18 +712,19 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
       expect(code).toBe(2);
       expect(io.stderrText).toContain("cdd schema get --output skeleton: missing <target>");
       io.stderrText = "";
-      // the retired display type is out of the skeleton vocabulary — the unknown
-      // type exits 2 at the run face (the shared vocabulary's rejection face)
+      // a command word (board) is not a schema type — the schema vocabulary and
+      // the command vocabulary are separate; the unknown type exits 2 at the run
+      // face (the shared vocabulary's rejection face)
       code = await command.runArgv([
         "schema",
         "get",
-        "plan-graph",
+        "board",
         "--output",
         "skeleton",
         "/tmp/demo.md",
       ]);
       expect(code).toBe(2);
-      expect(io.stderrText).toContain("unknown schema type: plan-graph");
+      expect(io.stderrText).toContain("unknown schema type: board");
       io.stderrText = "";
       // the --output enum rejects an out-of-domain value at parse
       code = await command.runArgv(["schema", "get", "plan", "--output", "bogus"]);
@@ -1883,11 +1884,12 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       ]);
       expect(overallCode).toBe(0);
       expect(io.stdoutText).toContain("next: done");
-      // The overall was judged under the overall-spec key (deriveDocType, design spec
-      // §2.3) — a phase-spec misjudge would trip the doc-contract gate: the charter
-      // fails the phase-spec face, the pre-flight refuses over CDD_BLOCKED and no
-      // round lands. The exit 0 + round + empty-findings carrier pin the zero
-      // misreport; the stderr stays free of the blocked channel.
+      // The overall was judged under the overall-spec key (its declared
+      // `- **Doc type**:` line, spec §12 · D34) — a phase-spec misjudge would trip
+      // the doc-contract gate: the charter fails the phase-spec face, the pre-flight
+      // refuses over CDD_BLOCKED and no round lands. The exit 0 + round +
+      // empty-findings carrier pin the zero misreport; the stderr stays free of the
+      // blocked channel.
       const round = path.join(repoRoot, ".kairos", "cdd", "o1-overall", "spec-review-1.json");
       expect(existsSync(round)).toBe(true);
       expect(io.stderrText).not.toContain("CDD_BLOCKED");
@@ -2693,12 +2695,12 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     }
   });
 
-  it("the retired display type exits 2 — plan-graph carries no route and no vocabulary row", async () => {
+  it("a command word is not a schema type — `schema get board` carries no route and no vocabulary row", async () => {
     const { command, io, cleanup } = fixture();
     try {
-      const code = await command.runArgv(["schema", "get", "plan-graph"]);
+      const code = await command.runArgv(["schema", "get", "board"]);
       expect(code).toBe(2);
-      expect(io.stderrText).toContain("unknown schema type: plan-graph");
+      expect(io.stderrText).toContain("unknown schema type: board");
     } finally {
       cleanup();
     }

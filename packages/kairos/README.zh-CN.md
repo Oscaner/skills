@@ -70,7 +70,7 @@ pi install npm:@oscaner-skills/kairos
 
 ## CDD 引擎 CLI
 
-CDD 引擎以独立 `@oscaner-skills/cdd-engine` 包发布；其唯一 CLI 运行器是 `cdd`（implement / review / fix / base / schema / issue）。它通过引擎内嵌的 harness 注册表（逐 harness 的调用与输出契约）将每个阶段派发给宿主 harness CLI：
+CDD 引擎以独立 `@oscaner-skills/cdd-engine` 包发布；其唯一 CLI 运行器是 `cdd`（implement / review / fix / base / schema / issue / board）。它通过引擎内嵌的 harness 注册表（逐 harness 的调用与输出契约）将每个阶段派发给宿主 harness CLI：
 
 | 标识符 | CLI 二进制 | 宿主 marker | 交付状态 |
 |--------|------------|-------------|----------|

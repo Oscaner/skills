@@ -183,14 +183,14 @@ describe("the commander pipeline — parseArg value-domain rejection + the norma
     ).toBe("commander.invalidArgument");
   });
 
-  it("accepts the schema <type> vocabulary — the phaseSpec alias normalizes, the retired display type rejects", () => {
+  it("accepts the schema <type> vocabulary — the phaseSpec alias normalizes, a command word rejects", () => {
     const schemaProgram = new CommandTreeBuilder();
     const get = leafOf(commandOf(schemaProgram.program, "schema"), "get");
     schemaProgram.program.parse(["schema", "get", "phaseSpec"], { from: "user" });
     expect(get.processedArgs[0]).toBe("phase-spec");
     const rejectedProgram = new CommandTreeBuilder();
     expect(() =>
-      rejectedProgram.program.parse(["schema", "get", "plan-graph"], { from: "user" }),
+      rejectedProgram.program.parse(["schema", "get", "board"], { from: "user" }),
     ).toThrow();
   });
 });

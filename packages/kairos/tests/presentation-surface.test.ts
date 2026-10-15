@@ -45,10 +45,10 @@ const ROOT_BEHAVIOR_HEADINGS = [
 ];
 
 // The engine's actual top-level CLI surface (the parse canonical set: implement / review / fix /
-// base / schema / issue — T20 converged the base command face) — README surfaces must document
-// all of it, issue included (the P4.2 Task 6 `cdd issue render` addition), else the behavior
-// claim drifts from the landing behavior.
-const CDD_SUBCOMMANDS = ["implement", "review", "fix", "base", "schema", "issue"];
+// base / schema / issue / board — T20 converged the base command face; P8 adds the board
+// observability command) — README surfaces must document all of it, issue included (the P4.2
+// Task 6 `cdd issue render` addition), else the behavior claim drifts from the landing behavior.
+const CDD_SUBCOMMANDS = ["implement", "review", "fix", "base", "schema", "issue", "board"];
 
 const read = (rel: string) => {
   return readFileSync(path.join(REPO, rel), "utf8");

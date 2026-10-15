@@ -182,9 +182,10 @@ export class Cli {
    *  commands consult before ANY child dispatch (tree-clean → graph → wave →
    *  doc-contract; the CLI orchestrates the call + the render, never a re-type). */
   readonly #preflight: PreFlight;
-  /** The contract coordinator — the shared doc-key derivation face (deriveDocType)
-   *  the pre-flight doc construction reads (design spec §2.3: the derivation point
-   *  converges to the single contract method). */
+  /** The contract coordinator — the doc-contract judgment face the pre-flight's
+   *  doc gate reads (the single interpreter entry; spec §12 · D34 retired the
+   *  filename→type derivation — the doc type is now the declared header fact read
+   *  through BoardView.readDocType). */
   readonly #contract: Contract;
   /** The commander command tree — the declaration projection (CommandTreeBuilder,
    *  face/projection.ts): the domain-run error face's usage byte is the command
@@ -431,7 +432,7 @@ export class Cli {
       doc:
         type === "spec" || type === "plan"
           ? {
-              docKey: type === "plan" ? "plan" : this.#contract.deriveDocType(docPath),
+              docKey: type === "plan" ? "plan" : BoardView.readDocType(docPath),
               path: docPath,
             }
           : null,

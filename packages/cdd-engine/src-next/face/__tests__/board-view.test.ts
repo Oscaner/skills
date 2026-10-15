@@ -218,4 +218,26 @@ describe("BoardView.readHeader — the artifact header `{version, status, docTyp
       docType: null,
     });
   });
+
+  it("a doc whose first line is not the `# Title` still reads its metadata block", () => {
+    mkdirSync(path.join(repo, "docs/kairos/plans"), { recursive: true });
+    const planPath = path.join(repo, "docs/kairos/plans/prog-p8.md");
+    writeFileSync(
+      planPath,
+      [
+        "- **Version**: v0.9 · …",
+        "- **Status**: Done",
+        "- **Doc type**: plan",
+        "",
+        "## Constraints",
+        "",
+      ].join("\n"),
+    );
+
+    expect(BoardView.readHeader(planPath)).toEqual({
+      version: "v0.9",
+      status: "Done",
+      docType: "plan",
+    });
+  });
 });

@@ -116,12 +116,15 @@ export class BoardView {
 
   /** The doc's header-block lines — an absent file scans empty; a present one
    *  yields the lines between the `# Title` and the first heading (the same block
-   *  the doc-type parsers expose as `headerLines`, read without one). */
+   *  the doc-type parsers expose as `headerLines`, read without one). The leading
+   *  line is dropped only when it IS the document title (a rank-1 heading) — a doc
+   *  whose first line is already metadata keeps it (the marker scan needs no title). */
   static #headerLinesOf(docPath: string): readonly string[] {
     if (!existsSync(docPath)) return [];
     const lines = readFileSync(docPath, "utf8").split("\n");
+    const body = /^#\s/.test(lines[0] ?? "") ? lines.slice(1) : lines;
     const header: string[] = [];
-    for (const line of lines.slice(1)) {
+    for (const line of body) {
       if (/^#+\s/.test(line)) break;
       header.push(line);
     }

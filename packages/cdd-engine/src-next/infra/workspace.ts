@@ -90,8 +90,8 @@ export class Workspace {
     return base.replace(/-(?:design|plan)$/, "");
   }
 
-  /** The slug's phase-suffix parse — the trailing `-p<主>(.<子>)*` segment (null
-   *  when the slug is a program slug, i.e. carries no phase suffix). */
+  /** The slug's phase-suffix parse — the trailing `-p<major>(.<minor>)*` segment
+   *  (null when the slug is a program slug, i.e. carries no phase suffix). */
   static phaseSuffixOf(slug: string): string | null {
     const match = /(?<program>.+?)(?<suffix>-p\d+(?:\.\d+)*)$/.exec(slug);
     return match?.groups?.suffix ?? null;

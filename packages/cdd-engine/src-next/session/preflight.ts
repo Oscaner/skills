@@ -61,7 +61,8 @@ export interface PreFlightVerdict {
 /** The doc-contract target of a spec/plan dispatch. */
 export interface PreFlightDoc {
   /** The target doc type's registry key — read from the doc's `- **Doc type**:`
-   *  header declaration (spec §12 · D34; a `plan` face keys by its command type).
+   *  header declaration (spec §12 · D34; both the spec and the plan faces key by
+   *  the declaration, zero command-type carve-out).
    *  null when a present doc carries no declaration — the seam BLOCKs (zero
    *  filename-suffix fallback, one declaration reading face `BoardView.readDocType`). */
   docKey: DocKey | null;

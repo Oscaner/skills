@@ -230,6 +230,7 @@ const conformingPlan = (repoRoot: string): string => {
       "**Spec:** [p3-design.md](docs/kairos/specs/p3-design.md)",
       "- **Parent program**: [p3-overall.md v1.0](docs/kairos/specs/p3-overall.md)",
       "- **Version**: v1.0 · 2026-10-09",
+      "- **Doc type**: plan",
       "- **Depends on**: P1",
       "- **Base**: develop",
       "",
@@ -874,7 +875,7 @@ describe("the help/--help display face — the command overview", () => {
       expect(out).toContain("Usage: cdd [options] [command]");
       expect(out).toContain("Commands:");
       // the seven-command table + the built-in help [command] row (native layout)
-      for (const name of ["implement", "review", "fix", "base", "schema", "issue"]) {
+      for (const name of ["implement", "review", "fix", "base", "schema", "issue", "board"]) {
         expect(out).toContain(name);
       }
       expect(out).toContain("help [command]");
@@ -1038,13 +1039,13 @@ describe("the help/--help display face — the per-command render", () => {
   it("every per-command --help carries the program-flag tail note (--dry-run alone)", async () => {
     const { command, io, cleanup } = fixture();
     try {
-      for (const verb of ["implement", "review", "fix", "base", "schema", "issue"]) {
+      for (const verb of ["implement", "review", "fix", "base", "schema", "issue", "board"]) {
         expect(await command.runArgv([verb, "--help"])).toBe(0);
       }
       // the tail note rides the commander afterAll surface — one line per help
       // face, listing --dry-run ALONE (the -h/--help redundant column unwritten)
       const legend = /program flags \(accepted at any position\): --dry-run/g;
-      expect(io.stdoutText.match(legend) ?? []).toHaveLength(6);
+      expect(io.stdoutText.match(legend) ?? []).toHaveLength(7);
       expect(io.stdoutText).not.toContain("· --help / -h");
     } finally {
       cleanup();
@@ -1861,6 +1862,38 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       expect(planCode).toBe(0);
       expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "plan-review-1.json"))).toBe(
         true,
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("review --type plan on a declaration-less plan BLOCKs — the plan face reads the declaration, zero command-type carve-out (spec §12 · D34)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      // A structurally contract-clean plan with its `- **Doc type**:` line stripped:
+      // the plan face keys the doc-contract target by the DECLARED type alone, never
+      // by the command verb — a missing declaration reads null and the seam BLOCKs.
+      const plan = conformingPlan(repoRoot);
+      const stripped = readFileSync(plan, "utf8").replace("- **Doc type**: plan\n", "");
+      writeFileSync(plan, stripped, "utf8");
+      const code = await command.runArgv([
+        "review",
+        "--type",
+        "plan",
+        "--plan",
+        plan,
+        "--dry-run",
+        "--root",
+        repoRoot,
+      ]);
+      expect(code).toBe(1);
+      expect(io.stderrText).toContain("CDD_BLOCKED");
+      expect(io.stderrText).toContain("the doc declares no `- **Doc type**:` line");
+      // no phantom round lands — the BLOCK precedes any child dispatch
+      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "plan-review-1.json"))).toBe(
+        false,
       );
     } finally {
       cleanup();

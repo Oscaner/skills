@@ -19,5 +19,7 @@ P8 T7 — consumer-surface sync + pin re-anchor (seven-command face · `deriveDo
   (`BoardView.readDocType`, shared with the board and the capsule's doc-class discrimination).
   The pre-flight doc-contract gate reads that declaration: a PRESENT doc carrying no
   declaration BLOCKs over `CDD_BLOCKED` (zero filename-suffix fallback, zero dual-read layer).
-  The obsolete `deriveDocType` describe block is removed and replaced by a
-  missing-declaration BLOCKED pin.
+  Both the spec AND the plan dispatch faces key by the declaration (`cli.ts` `#runWork` reads
+  `BoardView.readDocType` for both — zero command-type carve-out, so a declaration-less plan
+  hits the same null→BLOCKED seam). The obsolete `deriveDocType` describe block is removed and
+  replaced by a missing-declaration BLOCKED pin (seam + plan-face).

@@ -432,7 +432,11 @@ export class Cli {
       doc:
         type === "spec" || type === "plan"
           ? {
-              docKey: type === "plan" ? "plan" : BoardView.readDocType(docPath),
+              // The ONE declaration reading face (spec §12 · D34) — both the spec and
+              // the plan dispatch read the doc's `- **Doc type**:` header declaration;
+              // a declaration-less doc reads null and the seam BLOCKs (zero command-type
+              // carve-out, zero filename-suffix fallback).
+              docKey: BoardView.readDocType(docPath),
               path: docPath,
             }
           : null,

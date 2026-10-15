@@ -15,12 +15,16 @@
 // filename-suffix derivation; a missing declaration reads null and the consumer
 // blocks (zero dual-read fallback).
 //
-// D40 — the board's `next:` derivation delegates to the engine's SINGLE judges:
-// the line closure reads via `Ledger#lineClosed` (zero re-derived closure in the
-// face) and the entry→literal render via the shared `RouteRenderer` (the retired
-// board `#entryText`, byte-identical to the capsule by construction). Each wave
-// line's label carries the wave's task scope (`W1  5,11`) so the board shows which
-// tasks a wave covers.
+// D40 — the board's `next:` derivation walks the phase's faces in line order
+// (spec → plan → wave → branch) and, for the FIRST non-closed face, derives that
+// line's ACTIVE C5 hop from the SAME state→next chain the dispatch engine walks
+// (the wave face's frontier → `Ledger#waveLinePhase`; the doc/branch faces'
+// `Ledger#linePhase`) before feeding it to the ONE resolver (`NextStepRouter.resolve`)
+// and the ONE renderer (`RouteRenderer`, shared with the capsule). A line still in
+// flight therefore renders its next C5 hop (`implement --tasks 12,13,14`), never the
+// face-to-face handoff of an exhausted line; a fully drained line hands off to the
+// next pipeline entry. Each wave line's label carries the wave's task scope in braces
+// (`W1 {5,11}`) with the ✔/▶/○ marker column fixed-width aligned.
 //
 // Module-level exports are types / constants / the class — zero behavior-carrying
 // bare functions (the plan's zero-bare-function discipline).
@@ -31,7 +35,7 @@ import { MarkdownPrimitives, PlanDocType } from "../contract/doc.ts";
 import type { DocKey } from "../contract/project.ts";
 import { ConfigLoader } from "../infra/config.ts";
 import { ENGINE_RUNTIME } from "../infra/runtime.ts";
-import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
+import { type SlugDocs, Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 import type { RouteTarget } from "../session/faces.ts";
 import { TaskGraph } from "../session/graph.ts";
 import { Ledger, type ProgressData } from "../session/ledger.ts";
@@ -331,11 +335,15 @@ export class BoardView {
     if (waves.length === 0) {
       lines.push("  wave     (none)");
     } else {
+      // The marker column is fixed-width: every wave label is padded to the widest
+      // label so the ✔/▶/○ markers align into one column (spec §5.2 · D40).
+      const labelWidth = Math.max(...waves.map((wave) => wave.label.length));
       waves.forEach((wave, index) => {
         const prefix = index === 0 ? "  wave     " : "           ";
         const cell = BoardView.roundsCell(wave.rounds);
+        const label = wave.label.padEnd(labelWidth);
         lines.push(
-          `${prefix}${wave.label} ${wave.marker ?? ""}${cell === "" ? "" : `  ${cell}`}`.trimEnd(),
+          `${prefix}${label}  ${wave.marker ?? ""}${cell === "" ? "" : `  ${cell}`}`.trimEnd(),
         );
       });
     }
@@ -348,7 +356,7 @@ export class BoardView {
     );
 
     lines.push("");
-    lines.push(`  next:    ${BoardView.#nextOf(ledger, node, docs.plan, words, host)}`);
+    lines.push(`  next:    ${BoardView.#nextOf(ledger, node, docs, words, host)}`);
     return blocked ? 2 : 0;
   }
 
@@ -425,43 +433,83 @@ export class BoardView {
     return new Ledger(new Workspace(root, nodeSlug), new ConfigLoader());
   }
 
-  /** The board's `next:` derivation (spec §6.5 · D40) — walk the phase's faces in
-   *  line order (spec → plan → wave → branch), take the FIRST face that has not yet
-   *  closed, and render the route the ONE resolver yields for it (the handoff route
-   *  carrying that face's pipeline entry). Every face closed → the bare terminal
-   *  `done`. The closure reads delegate to `Ledger#lineClosed` (the engine's single
-   *  line-closure judge); the render delegates to the ONE RouteRenderer (byte-identical
-   *  to the Capsule's `done` face — the retired second renderer). */
+  /** The board's `next:` derivation (spec §6.5 · §18.2 · D40 deep-solve) — walk the
+   *  phase's lines in order (spec → plan → wave → branch) and, for the FIRST line not
+   *  yet closed, derive that line's ACTIVE C5 hop from the SAME state→next chain the
+   *  dispatch engine walks (`Ledger#lineRoute` for the doc/branch lines; the plan
+   *  frontier + `Ledger#waveLineRoute` for the wave line) before feeding it to the ONE
+   *  resolver (`NextStepRouter.resolve`) and the ONE renderer (`RouteRenderer`). A line
+   *  still in flight therefore renders its next C5 hop — a fresh wave's
+   *  `implement --plan <plan> --tasks <ids>`, an in-flight wave's `review`/`fix`, a
+   *  fresh doc line's `review --type <type> …` — never the face-to-face handoff of an
+   *  exhausted line (`resolve(null, …)` is the retired shallow form: it dropped the
+   *  line's C5 frontier and rendered the next face's entry for an open line). A line
+   *  with no active hop (a not-yet-started doc line, a plan-less wave face) hands off
+   *  to the next pipeline entry; every line closed → the bare terminal `done`. */
   static #nextOf(
     ledger: Ledger,
     node: BoardProgress,
-    planPath: string | null,
+    docs: SlugDocs,
     words: Words,
     host: string,
   ): string {
+    const renderer = new RouteRenderer(words, {}, host);
     const waves = node.waveLines ?? [];
-    const faces: Array<{ key: PipelineKey; closed: boolean }> = [
-      { key: "phase-spec", closed: ledger.lineClosed("spec", "spec") },
-      { key: "plan", closed: ledger.lineClosed("plan", "plan") },
-      // The wave face is exhausted when the plan yields NO wave still open — an
-      // empty wave segment (no plan) is not an exhausted face (nothing was closed).
+    const planTarget: RouteTarget | null =
+      docs.plan === null ? null : { type: "plan", id: docs.plan, plan: docs.plan };
+    // The plan's open frontier wave — the SAME ready batch the dispatch engine's
+    // task-graph frontier yields (frontier over closedWaves()).
+    const waveKey = BoardView.#waveFrontierKey(ledger, docs.plan);
+    const lines: Array<{
+      key: PipelineKey;
+      closed: boolean;
+      active: Route | null;
+      target: RouteTarget | null;
+    }> = [
       {
+        key: "phase-spec",
+        closed: ledger.lineClosed("spec", "spec"),
+        active: docs.spec === null ? null : ledger.lineRoute("spec", "spec"),
+        target: docs.spec === null ? null : { type: "spec", id: docs.spec },
+      },
+      {
+        key: "plan",
+        closed: ledger.lineClosed("plan", "plan"),
+        active: docs.plan === null ? null : ledger.lineRoute("plan", "plan"),
+        target: planTarget,
+      },
+      {
+        // The wave face is exhausted (skipped) only when the plan yields a wave set
+        // and every wave is done — an empty wave segment (no plan) is not an exhausted
+        // face (nothing was closed), so it stays the frontier and hands off.
         key: "wave",
         closed: waves.length > 0 && waves.every((wave) => wave.marker === PROGRESS_MARKERS.done),
+        active: waveKey === null ? null : ledger.waveLineRoute(waveKey),
+        target: docs.plan === null ? null : { type: "wave", id: waveKey ?? "", plan: docs.plan },
       },
-      { key: "branch", closed: ledger.lineClosed("branch", "branch") },
+      {
+        key: "branch",
+        closed: ledger.lineClosed("branch", "branch"),
+        active: ledger.lineRoute("branch", "branch"),
+        target: { type: "branch", id: "branch", plan: docs.plan ?? undefined },
+      },
     ];
-    // The line walk — ONE resolver call per line in order (spec → plan → wave →
-    // branch): a line's resolver verdict is its face-to-face handoff (the face's C5
-    // frontier drained → the next pipeline entry); the FIRST line still OPEN is the
-    // board's next. Every line closed → the bare terminal `done`.
-    const frontier = faces.find((face) => !face.closed);
-    const route: Route =
-      frontier === undefined ? { kind: "done" } : NextStepRouter.resolve(null, frontier.key);
-    const renderer = new RouteRenderer(words, {}, host);
-    const planTarget: RouteTarget | null =
-      planPath === null ? null : { type: "plan", id: planPath, plan: planPath };
-    return renderer.render(route, planTarget);
+    const frontier = lines.find((line) => !line.closed);
+    if (frontier === undefined) return renderer.render({ kind: "done" }, planTarget);
+    return renderer.render(NextStepRouter.resolve(frontier.active, frontier.key), frontier.target);
+  }
+
+  /** The plan's open frontier wave key — the ready batch over the node's `closedWaves()`
+   *  set, the SAME derivation the dispatch engine's task-graph frontier walks (T26, the
+   *  wave-unitary model). Null when the plan is absent or no wave remains open — the wave
+   *  face then holds no active hop (a not-yet-started wave line hands off to the next face). */
+  static #waveFrontierKey(ledger: Ledger, planPath: string | null): string | null {
+    if (planPath === null) return null;
+    const graph = new TaskGraph(
+      new PlanDocType("plan").parse(readFileSync(planPath, "utf8").split("\n")),
+    );
+    const frontier = graph.frontier(ledger.closedWaves());
+    return frontier.length === 0 ? null : frontier.join(",");
   }
 
   /** One doc line — the header facts read from the doc (absent → nulls) + the row's
@@ -527,7 +575,7 @@ export class BoardView {
           ? PROGRESS_MARKERS.current
           : PROGRESS_MARKERS.pending;
       return {
-        label: `W${index + 1}  ${wave.join(",")}`,
+        label: `W${index + 1} {${wave.join(",")}}`,
         version: null,
         status: null,
         docType: null,

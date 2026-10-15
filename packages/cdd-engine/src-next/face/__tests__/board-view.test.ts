@@ -340,10 +340,10 @@ describe("BoardView projectNode — the per-node progress.json single-source pro
     const node = BoardView.projectNode("o1-p1", repo);
     const rendered = (node.waveLines ?? []).map((line) => `${line.label} ${line.marker}`);
 
-    // D40 — the wave line's label carries the wave's task scope (`W1  1`), not just
-    // the wave number (the board must show W3 = tasks 5,11).
-    expect(rendered[0]).toContain("W1  1 ✔");
-    expect(rendered[1]).toContain("W2  2 ▶");
+    // D40 — the wave line's label carries the wave's task scope in braces (`W1 {1}`),
+    // not just the wave number (the board must show W4 = tasks 12,13,14).
+    expect(rendered[0]).toContain("W1 {1} ✔");
+    expect(rendered[1]).toContain("W2 {2} ▶");
   });
 
   it("degrades without error — no plan leaves the wave segment empty, no throw", () => {
@@ -471,23 +471,29 @@ describe("BoardView.render — the phase / program board layouts + the next deri
 
     const { text } = render("prog-p1");
 
-    // D40 — the wave line's label carries the wave's task scope.
-    expect(text).toContain("W1  1 ✔");
-    expect(text).toContain("W2  2 ▶");
+    // D40 — the wave line's label carries the wave's task scope in braces.
+    expect(text).toContain("W1 {1}");
+    expect(text).toContain("W2 {2}");
   });
 
-  it("phase board next: renders the first unexhausted face's PIPELINE_NEXT entry", () => {
-    // spec NOT closed → the phase-spec frontier → the cdd-plan ref (host=claude).
+  it("phase board next: the first not-closed line renders its ACTIVE C5 hop (the spec review)", () => {
+    // D40 deep-solve — the spec line has not started its C5 (no review round on record),
+    // so its ACTIVE hop is the review-lead the dispatch engine would run (Ledger#lineRoute
+    // → {kind:"review"}), NOT the exhausted-face handoff `/kairos:cdd-plan`. board next ==
+    // engine next (the retired shallow form rendered the face-to-face entry for an open line).
     writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
     writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
     writeDoc("docs/kairos/plans/prog-p1.md", ["# Plan", "", "- **Doc type**: plan"]);
 
     const { text } = render("prog-p1");
 
-    expect(text).toContain("  next:    /kairos:cdd-plan");
+    expect(text).toContain(
+      `  next:    review --type spec --spec ${path.join(repo, "docs/kairos/specs/prog-p1-design.md")}`,
+    );
+    expect(text).not.toContain("  next:    /kairos:cdd-plan");
   });
 
-  it("phase board next: spec closed + plan not started → the plan face's cdd-dev entry", () => {
+  it("phase board next: spec closed + plan not started → the plan line's active review hop", () => {
     writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
     writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
     writeDoc("docs/kairos/plans/prog-p1.md", ["# Plan", "", "- **Doc type**: plan"]);
@@ -499,7 +505,12 @@ describe("BoardView.render — the phase / program board layouts + the next deri
 
     const { text } = render("prog-p1");
 
-    expect(text).toContain("  next:    /kairos:cdd-dev");
+    // The spec face is exhausted → the plan line is the frontier; the plan line has not
+    // started its C5 → its ACTIVE hop is the plan review (not the cdd-dev handoff).
+    expect(text).toContain(
+      `  next:    review --type plan --plan ${path.join(repo, "docs/kairos/plans/prog-p1.md")}`,
+    );
+    expect(text).not.toContain("  next:    /kairos:cdd-dev");
   });
 
   it("phase board next: a skipped-cycle plan line (`{review:[1,2], fix:[2]}`) is CLOSED — the engine's judge, not a count", () => {
@@ -588,21 +599,177 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     const node = BoardView.projectNode("prog-p1", repo);
     const labels = (node.waveLines ?? []).map((line) => line.label);
 
-    // The wave's task ids ride the label (a reader sees `W1  5,11`, not a bare W1).
-    expect(labels[0]).toBe("W1  5,11");
+    // The wave's task ids ride the label in braces (a reader sees `W1 {5,11}`, not a
+    // bare W1) — the spec §5.2 `W{n} {<ids>}` form.
+    expect(labels[0]).toBe("W1 {5,11}");
     const { text } = render("prog-p1");
-    expect(text).toContain("W1  5,11");
+    expect(text).toContain("W1 {5,11}");
   });
 
-  it("phase board next: the same literal the Capsule renders for the done face (byte-identical)", () => {
+  it("D40 — a wave in flight renders the wave line's ACTIVE C5 hop, not the face handoff", () => {
+    // The deep-solve (spec §18.1 live case): W1 is closed, W2 ({12,13,14}) is the open
+    // frontier with no implement yet — its active C5 hop is the whole-wave implement
+    // (`implement --plan <plan> --tasks 12,13,14`), NOT the exhausted-wave face handoff
+    // (`review --type branch …`). A shallow `resolve(null, …)` renders the branch-review
+    // handoff here — the bug (W4 in flight rendering branch review) this pin drives out.
     writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
     writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
-    writeDoc("docs/kairos/plans/prog-p1.md", ["# Plan", "", "- **Doc type**: plan"]);
+    writeDoc("docs/kairos/plans/prog-p1.md", [
+      "# Plan",
+      "",
+      "- **Doc type**: plan",
+      "",
+      "## Constraints",
+      "",
+      "- c",
+      "",
+      "### Task 5: a",
+      "- **Objective**: o",
+      "- **Files**: `a.ts`",
+      "- **Consumes**: x",
+      "- **Produces**: y",
+      "- **Steps**:",
+      "  - s — checkable: g",
+      "- **Acceptance**: ok",
+      "- **DependsOn**: none",
+      "",
+      "### Task 12: b",
+      "- **Objective**: o",
+      "- **Files**: `b.ts`",
+      "- **Consumes**: x",
+      "- **Produces**: y",
+      "- **Steps**:",
+      "  - s — checkable: g",
+      "- **Acceptance**: ok",
+      "- **DependsOn**: 5",
+      "",
+      "### Task 13: c",
+      "- **Objective**: o",
+      "- **Files**: `c.ts`",
+      "- **Consumes**: x",
+      "- **Produces**: y",
+      "- **Steps**:",
+      "  - s — checkable: g",
+      "- **Acceptance**: ok",
+      "- **DependsOn**: 5",
+      "",
+      "### Task 14: d",
+      "- **Objective**: o",
+      "- **Files**: `d.ts`",
+      "- **Consumes**: x",
+      "- **Produces**: y",
+      "- **Steps**:",
+      "  - s — checkable: g",
+      "- **Acceptance**: ok",
+      "- **DependsOn**: 5",
+    ]);
+    const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
+    const ledger = new Ledger(workspace, new ConfigLoader());
+    // Close the spec and plan lines (a recorded zero-findings review each) so the wave
+    // face IS the frontier.
+    ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("spec", "review");
+    ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
+    ledger.recordRound("plan", "review");
+    // W1 ({5}) closed: a recorded zero-findings review round.
+    ledger.persistHandoff("review", "wave", { tasks: "5", round: 1 }, { findings: [] });
+    ledger.recordRound("5", "review");
+    // W2 ({12,13,14}) is the open frontier with NO implement yet — its active C5 hop is
+    // the whole-wave implement (spec §18.4 live case: W4 in flight → `implement --tasks
+    // 12,13,14`, never the exhausted-wave face handoff `review --type branch`).
+
+    const { text } = render("prog-p1");
+    const planPath = path.join(repo, "docs/kairos/plans/prog-p1.md");
+
+    // The active wave hop — the not-yet-implemented wave renders its implement literal.
+    expect(text).toContain(`  next:    implement --plan ${planPath} --tasks 12,13,14`);
+    // NOT the exhausted-wave face handoff (the shallow resolve(null, …) bug).
+    expect(text).not.toContain("review --type branch");
+  });
+
+  it("D40 — the wave-line markers align into one fixed-width column across differing id-set widths", () => {
+    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    writeDoc("docs/kairos/plans/prog-p1.md", [
+      "# Plan",
+      "",
+      "- **Doc type**: plan",
+      "",
+      "## Constraints",
+      "",
+      "- c",
+      "",
+      "### Task 1: a",
+      "- **Objective**: o",
+      "- **Files**: `a.ts`",
+      "- **Consumes**: x",
+      "- **Produces**: y",
+      "- **Steps**:",
+      "  - s — checkable: g",
+      "- **Acceptance**: ok",
+      "- **DependsOn**: none",
+      "",
+      "### Task 2: b",
+      "- **Objective**: o",
+      "- **Files**: `b.ts`",
+      "- **Consumes**: x",
+      "- **Produces**: y",
+      "- **Steps**:",
+      "  - s — checkable: g",
+      "- **Acceptance**: ok",
+      "- **DependsOn**: 1",
+      "",
+      "### Task 3: c",
+      "- **Objective**: o",
+      "- **Files**: `c.ts`",
+      "- **Consumes**: x",
+      "- **Produces**: y",
+      "- **Steps**:",
+      "  - s — checkable: g",
+      "- **Acceptance**: ok",
+      "- **DependsOn**: 1",
+      "",
+      "### Task 4: d",
+      "- **Objective**: o",
+      "- **Files**: `d.ts`",
+      "- **Consumes**: x",
+      "- **Produces**: y",
+      "- **Steps**:",
+      "  - s — checkable: g",
+      "- **Acceptance**: ok",
+      "- **DependsOn**: 1,2,3",
+    ]);
+    // Close W1 ({1}) — a recorded zero-findings review at the "1" row.
+    const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
+    const ledger = new Ledger(workspace, new ConfigLoader());
+    ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings: [] });
+    ledger.recordRound("1", "review");
+
+    const { text } = render("prog-p1");
+    // W1 {1} (narrow) and W2 {2,3} / W3 {4} (wider) — the markers must share one column.
+    const waveRows = text.split("\n").filter((line) => /W\d+ \{/.test(line));
+    expect(waveRows.length).toBe(3);
+    const markerColumns = waveRows.map((row) => row.search(/[✔▶○]/));
+    // Every wave row places its ✔/▶/○ marker at the exact same column index.
+    expect(new Set(markerColumns).size).toBe(1);
+  });
+
+  it("phase board next: a drained line hands off to the next face's skill ref (host fallback)", () => {
+    // D40 deep-solve — the spec line is closed and NO plan doc exists: the plan line
+    // (not closed — no row) holds no active C5 hop (no doc), so it hands off to its
+    // pipeline entry `PIPELINE_NEXT.plan` → the cdd-dev ref. The board renders that
+    // through the SAME RouteRenderer the Capsule's `done` face uses; host "" falls
+    // back to the claude form (REFS[ref].claude) — never a bare plugin guess.
+    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
+    const ledger = new Ledger(workspace, new ConfigLoader());
+    ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("spec", "review");
 
     const { text } = render("prog-p1", "");
 
-    // host "" falls back to the claude form (REFS[ref].claude) — never a bare plugin guess.
-    expect(text).toContain("  next:    /kairos:cdd-plan");
+    expect(text).toContain("  next:    /kairos:cdd-dev");
   });
 
   it("a present doc without a Doc type declaration renders BLOCKED and exits 2", () => {

@@ -41,7 +41,7 @@ Adding a new first-party plugin: create `packages/<name>/package.json` with an `
 - `packages/` — first-party plugins (kairos)
 - `scripts/run.ts emit` — unified emit tool (derives `source.json` + all harness manifests)
 - `.github/workflows/pr-validate.yml` — the native validation job matrix (one job per check; the local equivalent is the root `pnpm run validate` chain)
-- `packages/cdd-engine/` — CDD engine npm package (`src-next/` five-plane OOP tree · `templates/` · the six-command `cdd` CLI: implement / review / fix / schema / issue / base)
+- `packages/cdd-engine/` — CDD engine npm package (`src-next/` five-plane OOP tree · `templates/` · the seven-command `cdd` CLI: implement / review / fix / schema / issue / base / board)
 
 ### Per-package docs
 

@@ -361,7 +361,7 @@ export class Cli {
       return 2;
     }
     const host = HostDetect.detect(process.env);
-    const board = BoardView.render(slug, repoRoot, this.#words, host);
+    const board = BoardView.render(slug, repoRoot, this.#words, host, ARGV_CHANNEL);
     for (const line of board.lines) this.#io.stdout(`${line}\n`);
     return board.exitCode;
   }

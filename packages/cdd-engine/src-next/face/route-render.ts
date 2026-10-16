@@ -95,10 +95,9 @@ export class RouteRenderer {
     const verb = this.#words.routeWord("review");
     const type = target?.type ?? null;
     if (type === "wave") {
-      // find #7 (P4.1 T7 · design §5.6): the wave review literal carries its
-      // runtime-required `--plan` — the same assembly the implement/next-wave and
-      // fix→wave branches share (a W3 dispatch showed the missing flag parsed green
-      // yet refused the run: `missing required --plan <path>`).
+      // The wave review literal carries its runtime-required `--plan` — the same
+      // assembly the implement/next-wave and fix→wave branches share (a missing flag
+      // parses green yet refuses the dispatch at run time).
       return `${verb} ${this.#flag("type")} wave ${this.#flag("tasks")} ${target!.id} ${this.#flag("plan")} ${this.#planOf(target)}`;
     }
     if (type === "spec") {
@@ -133,10 +132,9 @@ export class RouteRenderer {
       return `${verb} ${this.#flag("type")} plan ${this.#flag("plan")} ${id} ${this.#flag("findings")} ${route.findings} ${FIX_READBACK_SUFFIX}`;
     }
     if (type === "branch") {
-      // find #8 F1b (spec §5.7 fix ② · the user's ruling): the branch fix literal
-      // carries the workspace-identity `--plan` (isomorphic with the wave fix
-      // branch; a plan-less `#sceneOf` resolves to the empty ref.short() directory
-      // — the workspace double identity, zero orchestrator fallback).
+      // The branch fix literal carries the workspace-identity `--plan` (isomorphic
+      // with the wave fix branch — a plan-less target resolves to the empty
+      // ref.short() directory, the workspace double identity).
       return `${verb} ${this.#flag("type")} branch ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("findings")} ${route.findings} ${FIX_READBACK_SUFFIX}`;
     }
     return `${verb} ${this.#flag("findings")} ${route.findings} ${FIX_READBACK_SUFFIX}`;
@@ -150,8 +148,13 @@ export class RouteRenderer {
     const entry = route.entry;
     if (entry.kind === "done") return this.#words.routeWord("done");
     if (entry.kind === "literal") return entry.literal.replace("<plan>", this.#planOf(target));
-    const row = REFS[entry.ref as keyof typeof REFS];
-    const form = row === undefined ? undefined : row[this.#host as "claude" | "cursor" | "pi"];
-    return form ?? row?.claude ?? this.#words.routeWord("done");
+    // The ref table read over a dynamic ref key — the local's shape (`string → per-host
+    // form`) is the HostReferenceTable contract, so the lookup needs no key cast.
+    const table: Readonly<
+      Record<string, Readonly<Record<string, string | undefined>> | undefined>
+    > = REFS;
+    const row = table[entry.ref];
+    if (row === undefined) return this.#words.routeWord("done");
+    return row[this.#host] ?? row.claude ?? this.#words.routeWord("done");
   }
 }

@@ -41,7 +41,7 @@ import { TaskGraph } from "../session/graph.ts";
 import { Ledger, type ProgressData } from "../session/ledger.ts";
 import { NextStepRouter, type PipelineKey, type Route } from "../session/next.ts";
 import { PROGRESS_LEGEND, PROGRESS_MARKERS } from "./graph-view.ts";
-import { RouteRenderer } from "./route-render.ts";
+import { type RouteChannelRow, RouteRenderer } from "./route-render.ts";
 import type { Words } from "./words.ts";
 
 /** One board node's header facts — the `**Version**` / `**Status**` / `**Doc type**`
@@ -283,19 +283,29 @@ export class BoardView {
     );
   }
 
-  /** render(slug, repoRoot, words, host) — the slug's progress board (spec §5.3):
-   *  the phase form (`overall/spec/plan/wave/branch` + one line per derived wave +
-   *  the fixed legend + the `next:` line) or the program form (the overall line with
-   *  its own rounds + one summary line per phase + `next: done` — cross-phase never
-   *  participates in next). A present doc line carrying no `- **Doc type**:`
-   *  declaration renders its `doc-type: missing (BLOCKED)` marker and the board
-   *  exits 2 (spec §12 · D34 — the consumer blocks, zero filename fallback). Pure
-   *  reads — zero tree writes, zero ledger writes, zero child dispatch. */
-  static render(slug: string, repoRoot: string, words: Words, host: string): BoardRender {
+  /** render(slug, repoRoot, words, host, channels) — the slug's progress board
+   *  (spec §5.3): the phase form (`overall/spec/plan/wave/branch` + one line per
+   *  derived wave + the fixed legend + the `next:` line) or the program form (the
+   *  overall line with its own rounds + one summary line per phase + `next: done` —
+   *  cross-phase never participates in next). The argv channel is threaded into the
+   *  shared `RouteRenderer` (the SAME channel the capsule's route render reads, so
+   *  the board's `next:` and the engine's `next:` literal compose their argv from
+   *  ONE flag-spelling source — never a second hard-coded format string). A present
+   *  doc line carrying no `- **Doc type**:` declaration renders its `doc-type:
+   *  missing (BLOCKED)` marker and the board exits 2 (spec §12 · D34 — the consumer
+   *  blocks, zero filename fallback). Pure reads — zero tree writes, zero ledger
+   *  writes, zero child dispatch. */
+  static render(
+    slug: string,
+    repoRoot: string,
+    words: Words,
+    host: string,
+    channels: Readonly<Record<string, RouteChannelRow>> = {},
+  ): BoardRender {
     const lines: string[] = [`cdd board: ${slug}`, ""];
     const exitCode =
       Workspace.phaseSuffixOf(slug) !== null
-        ? BoardView.#phaseBoard(lines, slug, repoRoot, words, host)
+        ? BoardView.#phaseBoard(lines, slug, repoRoot, words, host, channels)
         : BoardView.#programBoard(lines, slug, repoRoot);
     lines.push("", PROGRESS_LEGEND.board);
     return { lines, exitCode };
@@ -310,13 +320,18 @@ export class BoardView {
     repoRoot: string,
     words: Words,
     host: string,
+    channels: Readonly<Record<string, RouteChannelRow>>,
   ): number {
     const suffix = Workspace.phaseSuffixOf(slug)!;
     const program = slug.slice(0, slug.length - suffix.length);
     const docs = Workspace.docsOfSlug(slug, repoRoot);
     const node = BoardView.projectNode(slug, repoRoot);
     const overall = BoardView.projectNode(`${program}-overall`, repoRoot);
-    const [specLine, planLine, branchLine] = node.lines;
+    // Select each line by its label (never a positional index with a non-null
+    // assertion — a reorder of node.lines must not silently swap the facts).
+    const specLine = node.lines.find((line) => line.label === "spec");
+    const planLine = node.lines.find((line) => line.label === "plan");
+    const branchLine = node.lines.find((line) => line.label === "branch");
     let blocked = false;
 
     const overallDoc = BoardView.#docCell(docs.overall, overall.lines[0]!);
@@ -356,7 +371,7 @@ export class BoardView {
     );
 
     lines.push("");
-    lines.push(`  next:    ${BoardView.#nextOf(ledger, node, docs, words, host)}`);
+    lines.push(`  next:    ${BoardView.#nextOf(ledger, node, docs, words, host, channels)}`);
     return blocked ? 2 : 0;
   }
 
@@ -389,10 +404,16 @@ export class BoardView {
         BoardView.#docCell(docs.plan, plan!).blocked;
       blocked ||= phaseBlocked;
       const status = phaseBlocked ? "doc-type: missing (BLOCKED)" : (spec?.status ?? "Pending");
+      // The phase's wave summary token (spec §5.3): the wave segment's first wave
+      // number + an ellipsis (`wave W1…`) — the phase's wave progress at a glance,
+      // derived from the SAME wave segment the phase board renders (no second read).
+      const waves = node.waveLines ?? [];
+      const waveCell = waves.length === 0 ? "" : `${waves[0]!.label.split(" ")[0]}…`;
       const parts: string[] = [];
       const cells: Array<[string, string]> = [
         ["spec", BoardView.roundsCell(spec?.rounds ?? {})],
         ["plan", BoardView.roundsCell(plan?.rounds ?? {})],
+        ["wave", waveCell],
         ["branch", BoardView.roundsCell(branch?.rounds ?? {})],
       ];
       for (const [key, cell] of cells) if (cell !== "") parts.push(`${key} ${cell}`);
@@ -452,8 +473,9 @@ export class BoardView {
     docs: SlugDocs,
     words: Words,
     host: string,
+    channels: Readonly<Record<string, RouteChannelRow>>,
   ): string {
-    const renderer = new RouteRenderer(words, {}, host);
+    const renderer = new RouteRenderer(words, channels, host);
     const waves = node.waveLines ?? [];
     const planTarget: RouteTarget | null =
       docs.plan === null ? null : { type: "plan", id: docs.plan, plan: docs.plan };
@@ -504,12 +526,25 @@ export class BoardView {
    *  wave-unitary model). Null when the plan is absent or no wave remains open — the wave
    *  face then holds no active hop (a not-yet-started wave line hands off to the next face). */
   static #waveFrontierKey(ledger: Ledger, planPath: string | null): string | null {
-    if (planPath === null) return null;
-    const graph = new TaskGraph(
-      new PlanDocType("plan").parse(readFileSync(planPath, "utf8").split("\n")),
-    );
+    const graph = BoardView.#planGraph(planPath);
+    if (graph === null) return null;
     const frontier = graph.frontier(ledger.closedWaves());
     return frontier.length === 0 ? null : frontier.join(",");
+  }
+
+  /** The plan's task graph — the ONE guarded plan read shared by the wave frontier
+   *  key and the wave segment (`readFileSync` throwing on an unreadable plan is
+   *  caught here: a null plan path or an unreadable/absent file yields null, honoring
+   *  the wave face's "degradation, never a throw" contract). */
+  static #planGraph(planPath: string | null): TaskGraph | null {
+    if (planPath === null) return null;
+    try {
+      return new TaskGraph(
+        new PlanDocType("plan").parse(readFileSync(planPath, "utf8").split("\n")),
+      );
+    } catch {
+      return null;
+    }
   }
 
   /** One doc line — the header facts read from the doc (absent → nulls) + the row's
@@ -560,10 +595,8 @@ export class BoardView {
     progress: ProgressData | null,
     ledger: Ledger,
   ): BoardLine[] {
-    if (planPath === null) return [];
-    const graph = new TaskGraph(
-      new PlanDocType("plan").parse(readFileSync(planPath, "utf8").split("\n")),
-    );
+    const graph = BoardView.#planGraph(planPath);
+    if (graph === null) return [];
     const report = graph.report(ledger.closedWaves());
     const done = new Set(report.done);
     const currentIndex = report.waves.findIndex((wave) => wave.some((id) => !done.has(id)));

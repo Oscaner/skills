@@ -18,6 +18,8 @@ import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { Ledger } from "../../session/ledger.ts";
 import { BoardView } from "../board-view.ts";
+import { Capsule } from "../capsule.ts";
+import { ARGV_CHANNEL } from "../declare.ts";
 import { Words } from "../words.ts";
 
 describe("Workspace.docsOfSlug — the slug → doc-tree reverse derivation", () => {
@@ -398,8 +400,16 @@ describe("BoardView.render — the phase / program board layouts + the next deri
   };
 
   const render = (slug: string, host = "claude"): { text: string; exitCode: number } => {
-    const board = BoardView.render(slug, repo, new Words(), host);
+    const board = BoardView.render(slug, repo, new Words(), host, ARGV_CHANNEL);
     return { text: board.lines.join("\n"), exitCode: board.exitCode };
+  };
+
+  /** The board's `next:` value (the `  next:    ` row, the anchor stripped). */
+  const nextOf = (slug: string, host = "claude"): string => {
+    const line = render(slug, host)
+      .text.split("\n")
+      .find((row) => row.startsWith("  next:    "));
+    return line!.slice("  next:    ".length);
   };
 
   it("renders the phase board header + rows + the fixed legend tail", () => {
@@ -772,6 +782,50 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     expect(text).toContain("  next:    /kairos:cdd-dev");
   });
 
+  it("board per-harness ref pins — a drained line renders REFS[ref][host] (host=pi → /skill:…)", () => {
+    // The board's per-harness spelling rides REFS[ref][host] (never a claude-form
+    // constant). The reachable refs on the phase board's per-line walk: the spec face
+    // (no spec doc → the cdd-plan entry) and the plan face (spec closed + no plan doc
+    // → the cdd-dev entry). host=pi renders the flat `/skill:<bare>` form.
+    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
+    // The spec face is the frontier with no spec doc → PIPELINE_NEXT."phase-spec" → cdd-plan.
+    expect(nextOf("prog-p1", "pi")).toBe("/skill:cdd-plan");
+    expect(nextOf("prog-p1", "claude")).toBe("/kairos:cdd-plan");
+
+    // Close the spec line so the plan face is the frontier; no plan doc → the cdd-dev ref.
+    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
+    const ledger = new Ledger(workspace, new ConfigLoader());
+    ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("spec", "review");
+    expect(nextOf("prog-p1", "pi")).toBe("/skill:cdd-dev");
+    expect(nextOf("prog-p1", "claude")).toBe("/kairos:cdd-dev");
+  });
+
+  it("board next == the Capsule's done face — the shared renderer byte-identity (host claude / pi)", () => {
+    // route-render.ts claims the board's `next:` and the capsule's `next:` are
+    // byte-identical by construction (ONE RouteRenderer). Pin it: a drained plan face
+    // hands off to the SAME pipeline entry through both seams, and both seams now read
+    // the SAME argv channel (the board is threaded ARGV_CHANNEL from the composition
+    // root) — a flag-spelling change cannot silently split the two faces.
+    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
+    const ledger = new Ledger(workspace, new ConfigLoader());
+    ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("spec", "review");
+    const planId = path.join(repo, "docs/kairos/plans/prog-p1.md");
+
+    for (const host of ["claude", "pi"]) {
+      const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, host, repo)
+        .emit("APPROVED", "0", "/h.json", { kind: "done" }, { type: "plan", id: planId })[1]!
+        .slice("next: ".length);
+      // The board's plan face is drained (spec closed + no plan doc) → the same entry.
+      expect(nextOf("prog-p1", host)).toBe(capsuleNext);
+      expect(capsuleNext).toBe(host === "pi" ? "/skill:cdd-dev" : "/kairos:cdd-dev");
+    }
+  });
+
   it("a present doc without a Doc type declaration renders BLOCKED and exits 2", () => {
     writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
     // The spec doc carries NO `- **Doc type**:` line.
@@ -792,15 +846,53 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       "- **Doc type**: overall-spec",
     ]);
     writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
-    writeDoc("docs/kairos/plans/prog-p1.md", ["# Plan", "", "- **Doc type**: plan"]);
+    // Two task blocks → two waves, so the phase line carries its `wave W1…` token (spec §5.3).
+    writeDoc("docs/kairos/plans/prog-p1.md", [
+      "# Plan",
+      "",
+      "- **Doc type**: plan",
+      "",
+      "## Constraints",
+      "",
+      "- c",
+      "",
+      "### Task 1: a",
+      "- **Objective**: o",
+      "- **Files**: `a.ts`",
+      "- **Consumes**: x",
+      "- **Produces**: y",
+      "- **Steps**:",
+      "  - s — checkable: g",
+      "- **Acceptance**: ok",
+      "- **DependsOn**: none",
+      "",
+      "### Task 2: b",
+      "- **Objective**: o",
+      "- **Files**: `b.ts`",
+      "- **Consumes**: x",
+      "- **Produces**: y",
+      "- **Steps**:",
+      "  - s — checkable: g",
+      "- **Acceptance**: ok",
+      "- **DependsOn**: 1",
+    ]);
     seed("prog-overall", [{ wave: "spec", rounds: { review: [1, 2, 3, 4] } }]);
+    seed("prog-p1", [
+      { wave: "spec", rounds: { review: [1] } },
+      { wave: "plan", rounds: { review: [1] } },
+      { wave: "branch", rounds: { "branch-review": [1] } },
+    ]);
 
     const { text, exitCode } = render("prog");
 
     expect(exitCode).toBe(0);
     expect(text).toContain("cdd board: prog");
     expect(text).toContain("prog-overall.md   v2.33   review×4" /* 4 cycle numbers → ×4 */);
-    expect(text).toContain("  phase P1");
+    // The full phase line shape (spec §5.3): status + the spec/plan/wave/branch cells,
+    // the `wave W1…` token derived from the phase's own wave segment.
+    expect(text).toContain(
+      "  phase P1  Pending   spec review×1 · plan review×1 · wave W1… · branch branch-review×1",
+    );
     expect(text).toContain("  next:    done");
   });
 

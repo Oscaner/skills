@@ -17,6 +17,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { type ParseError, parse } from "jsonc-parser";
+import { ENGINE_RUNTIME } from "./runtime.ts";
 
 /** The tri-state JSON read — the read's three DISTINCT outcomes, discriminated: a
  *  `missing` file (never written) and a `malformed` file (present but unparseable)
@@ -113,8 +114,8 @@ export class Workspace {
    *  walking up the dotted phase path (`-p7.1` → `-p7` → program root) — no
    *  overall-declared table is parsed (the Phase inventory is stale-prone). */
   static docsOfSlug(slug: string, repoRoot: string): SlugDocs {
-    const specs = path.join(repoRoot, "docs/kairos/specs");
-    const plans = path.join(repoRoot, "docs/kairos/plans");
+    const specs = path.join(repoRoot, ENGINE_RUNTIME.docRoots.specs);
+    const plans = path.join(repoRoot, ENGINE_RUNTIME.docRoots.plans);
     const suffix = Workspace.phaseSuffixOf(slug);
     if (suffix === null) {
       const overall = path.join(specs, `${slug}-overall.md`);

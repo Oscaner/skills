@@ -42,8 +42,8 @@
 // variants fold the criteria/lens in.
 //
 // P5 (M1) supersede: the implement mode's dispatch wording names the upstream
-// `mattpocock-skills:implement` skill (the ref the dispatch row now resolves to),
-// never the retired tdd alias.
+// implement skill ref (`DISPATCH.implement`, the ref the dispatch row resolves
+// to), never the retired tdd alias.
 //
 // Module-level exports are types / the declared constant data / the class — zero
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).

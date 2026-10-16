@@ -10,6 +10,7 @@
 
 import { describe, expect, it } from "vitest";
 import { Translator } from "../../contract/translate.ts";
+import { DISPATCH } from "../../face/host.ts";
 import { Words } from "../../face/words.ts";
 import { BriefRenderer } from "../brief.ts";
 import { IssueBodyRenderer, type IssueReportInput } from "../issue-body.ts";
@@ -110,6 +111,10 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(out).not.toContain("INPUT_FINDINGS");
     expect(out).not.toContain("FIX_BASE");
     expect(out).not.toContain("BASE_BRANCH");
+    // ⑫ the implement dispatch ref is the DISPATCH single source — the rendered
+    // shell carries DISPATCH.implement's value (zero drift pin; the literal lives
+    // ONLY in the DISPATCH table, never re-spelled in the template prose).
+    expect(out).toContain(DISPATCH.implement);
   });
 
   it("renders the docs-fix mode through the same table — its own rules + subset", () => {

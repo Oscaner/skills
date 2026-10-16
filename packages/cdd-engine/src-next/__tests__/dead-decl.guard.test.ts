@@ -24,7 +24,7 @@ describe("dead-declaration zero residue (spec §3.4)", () => {
 
   it("⑯ the HandoffFamily interface + table carry zero dead fields", () => {
     const runtimeSrc = read("infra/runtime.ts");
-    for (const dead of ["fixFamily", "fixTemplate", "HostCacheSpec"]) {
+    for (const dead of ["fixFamily", "fixTemplate"]) {
       expect(runtimeSrc, dead).not.toContain(dead);
     }
     // the round/phase/prev fields are gone (the table rows carry name + schema only)

@@ -133,10 +133,6 @@ export interface DispatchScene {
  */
 export class CliLifecycle {
   readonly #env: ProcessEnvLike;
-  /** The scene's repo root — the ONE basis every round-context path token speaks
-   *  (relative to it) and the child's spawn cwd (D46: a relative token is only
-   *  correct if the child resolves it from the same root). */
-  readonly #repoRoot: string;
   readonly #sync: SyncProcess;
   readonly #config: ConfigLoader;
   readonly #template: TemplateAssembler;
@@ -149,7 +145,6 @@ export class CliLifecycle {
 
   constructor(opts: {
     env?: ProcessEnvLike;
-    repoRoot?: string;
     sync?: SyncProcess;
     config?: ConfigLoader;
     template?: TemplateAssembler;
@@ -159,7 +154,6 @@ export class CliLifecycle {
   }) {
     this.#env = opts.env ?? process.env;
     this.#scene = opts.scene;
-    this.#repoRoot = opts.repoRoot ?? opts.scene.workspace.root.repoRoot;
     this.#sync = opts.sync ?? new SyncRunner();
     this.#config = opts.config ?? new ConfigLoader();
     this.#template = opts.template ?? new TemplateAssembler();
@@ -207,7 +201,7 @@ export class CliLifecycle {
     const result = this.#sync.run(
       cliName,
       [...args, this.#childPrompt(row.promptForm, ref, prompt)],
-      this.#repoRoot,
+      this.#scene.workspace.root.repoRoot,
     );
     if (result.code !== 0) {
       this.#io.stderr(`CDD_BLOCKED: child ${cliName} exited ${result.code}\n`);
@@ -354,7 +348,8 @@ export class CliLifecycle {
    *  (the single conversion point). */
   #rel(value: string): string {
     if (value === "") return "";
-    return path.relative(this.#repoRoot, path.resolve(this.#repoRoot, value));
+    const repoRoot = this.#scene.workspace.root.repoRoot;
+    return path.relative(repoRoot, path.resolve(repoRoot, value));
   }
 
   /** The canonical prescribed OUTPUT_* write path of one artifact kind (find #5 —

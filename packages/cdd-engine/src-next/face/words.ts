@@ -193,6 +193,16 @@ export const ISSUE_LABEL_WORDS = {
   "chore.suggestedFix": { en: "## Suggested direction", zh: "## 建议方向" },
 } as const satisfies Readonly<Record<LocaleWordId, LocalizedWord>>;
 
+/** The finding-type vocabulary — the canonical issue-report type set, DERIVED from the
+ *  issue-label rows' `${type}.${segment}` key prefixes (deduped in row order). This is
+ *  the ONE source of the accepted finding types: the issue renderer's validation set
+ *  reads it, and the consumer `cdd-report` SKILL.md's declared `type ∈ {…}` domain is
+ *  pinned to it by the kairos-suite consistency gate (spec §3.3 ⑥ — never a second
+ *  hand-written list). */
+export const ISSUE_TYPES: readonly string[] = [
+  ...new Set(Object.keys(ISSUE_LABEL_WORDS).map((id) => id.split(".")[0]!)),
+];
+
 /** The charter anchor rows — the P7 canonicalize data plane: one row per legacy
  *  Chinese charter marker the structure judge matches through the canonicalize view
  *  (the doc-arch overall 决策组叶 / 上游先例背书). The family prefix `charter.` sits

@@ -117,7 +117,11 @@ export interface HostContract {
 }
 
 /** The per-harness install banners — the kairos self-install + the upstream plugin
- *  install commands (the README upstream dependency table renders from these rows). */
+ *  install commands. The `packages/kairos/README.md` upstream dependency table (and
+ *  its zh mirror) renders from these rows; the engine-suite gate
+ *  (face/__tests__/install-rows.guard.test.ts) pins each README row's Claude Code cell
+ *  to `INSTALL_ROWS[key].join("；")` and the row key set to these keys — a README
+ *  install-command drift fails there, never silently. */
 export const INSTALL_ROWS = {
   kairos: [
     "claude plugin marketplace add oscaner/skills",

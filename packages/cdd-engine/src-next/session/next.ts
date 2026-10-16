@@ -63,6 +63,14 @@ export type Route =
  *  never a hard stop — the user / Plan Sole Writer override it). */
 export const REVIEW_CYCLE_CAP = 10;
 
+/** The decision-edge words of the Route union — the C5 hop kinds that a review/fix
+ *  closure decision edge renders as a `next:` label (`done` · `next-wave` · `review`
+ *  · `fix` · `soft-cap`). The pure face-to-face `handoff` kind is EXCLUDED: it carries
+ *  no decision word (it renders the pipeline entry ref/literal, never a branch label).
+ *  The skill-anatomy contract's `edgeConditionWords` derives from this tuple — the
+ *  runtime Route lexicon is the ONE source, never a second hand-written list. */
+export const ROUTE_DECISION_WORDS = ["done", "next-wave", "review", "fix", "soft-cap"] as const;
+
 // ---------------------------------------------------------------------------
 // the face indirection line — the pipeline's face-to-face `done` routing table (D33)
 // ---------------------------------------------------------------------------
@@ -145,8 +153,11 @@ export const FIX_READBACK_SUFFIX =
   "(confirm the findings · if a finding needs a ruling, record the ruling in the findings file)";
 
 /** The failure face — a BLOCKED/TIMEOUT round goes the stderr CDD_BLOCKED channel and
- *  produces no `next:` line on any op. */
-const FAILED_STATUS = new Set(["BLOCKED", "TIMEOUT"]);
+ *  produces no `next:` line on any op. Exported as the ONE failure-status set: the
+ *  skill-anatomy contract's `edgeConditionWords` derivation reads it to exclude the
+ *  failure statuses from the decision-edge status words (a failure round carries no
+ *  closure edge — the reason rides the CDD_BLOCKED channel). */
+export const FAILED_STATUS = new Set(["BLOCKED", "TIMEOUT"]);
 
 /**
  * NextStepRouter — the C5 decision table as one instance method. The router keeps

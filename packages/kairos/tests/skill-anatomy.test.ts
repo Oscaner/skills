@@ -387,7 +387,11 @@ class SkillAnatomyCheck {
     const hub = anatomy.digraph.loopHubNode.name;
     const hubId = labelId.get(hub);
     if (hubId === undefined) return; // the missing-hub finding is the family shape's row
-    const conditions = anatomy.digraph.nextLoopConditions;
+    // The engine-lexicon label allowlist — the contract's `edgeConditionWords` (the
+    // NEXT-LOOP phrases + the closure status words + the Route decision words). A hub
+    // out-edge label outside this set is a shape violation; the derivation itself is
+    // pinned engine-side (contract/__tests__/edge-conditions.guard.test.ts).
+    const conditions = anatomy.edgeConditionWords;
     const out = an.edges.filter((e) => e.from === hubId);
 
     // The pinned out-edge shape + word-table pin — the loop hub's exactly the two

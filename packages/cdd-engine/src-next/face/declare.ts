@@ -90,11 +90,6 @@ export const ARGV_CHANNEL = {
     scope: "program",
     help: "show this help",
   },
-  root: {
-    flag: "--root",
-    type: "path",
-    help: "the repository root (default: the current git top level)",
-  },
   output: {
     flag: "--output",
     type: "enum",
@@ -200,7 +195,10 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
     name: "implement",
     description: "run the task implement phase",
     example: "cdd implement --tasks 1,2 --plan docs/kairos/plans/p3.md",
-    keys: [{ key: "tasks", required: true }, { key: "plan", required: true }, { key: "root" }],
+    keys: [
+      { key: "tasks", required: true },
+      { key: "plan", required: true },
+    ],
   },
   {
     name: "review",
@@ -212,7 +210,6 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
       { key: "plan" },
       { key: "spec" },
       { key: "round" },
-      { key: "root" },
     ],
   },
   {
@@ -225,7 +222,6 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
       { key: "findings" },
       { key: "spec" },
       { key: "plan" },
-      { key: "root" },
     ],
   },
   {
@@ -283,7 +279,7 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
     name: "board",
     description: "render the slug progress board (overall/spec/plan/wave/branch)",
     example: "cdd board 2026-10-10-engine-doc-tooling-p7",
-    keys: [{ key: "root" }],
+    keys: [],
     positionals: [{ key: "slug", required: true }],
   },
 ];

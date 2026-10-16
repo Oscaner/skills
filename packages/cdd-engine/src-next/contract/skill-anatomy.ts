@@ -272,12 +272,16 @@ export const SKILL_ANATOMY = {
     routeFactRule:
       "next: is consumed as a dispatch-ready literal (the literal IS the dispatch, no kind→command mapping layer); a full cdd command string never follows the next: token on a line; BLOCKED/TIMEOUT carry no next line and are not consumed as next steps",
   },
-  // The engine-lexicon pinned condition words (the v1.20 word-table pin) — the phrase set the
-  // digraph's loop/closure decision edges may carry: the NEXT-LOOP phrases + the
-  // decision status words (the review-closure status vocabulary) + the Route-kind
-  // words (the `next:` lexical domain). Sorted lexicographically, documented by
-  // edition; the wording test (face/words + session/next) pins the derivation — a
-  // drifted engine word fails the pin, never a silent second list.
+  // The engine-lexicon pinned condition words (the v1.20 word-table pin) — the phrase
+  // set the digraph's loop/closure decision edges may carry: the NEXT-LOOP phrases +
+  // the decision status words (the word table's status vocabulary minus the failure
+  // statuses) + the Route decision words (the `next:` lexical domain). This declared
+  // value is PINNED by the engine-suite derivation gate
+  // (contract/__tests__/edge-conditions.guard.test.ts) — it must equal the derivation
+  // from the engine word table / Route lexicon (`CAPSULE_WORDS.status` minus
+  // `FAILED_STATUS`, `ROUTE_DECISION_WORDS`, `nextLoopConditions`); a drifted engine
+  // word fails that gate, never a silent second list. The kairos-suite edge assertion
+  // consumes this set as its label allowlist.
   edgeConditionWords: [
     "until next is terminal",
     "no next",

@@ -16,6 +16,7 @@ import type { Command } from "commander";
 import { declaredRegistries } from "../contract/declare.ts";
 import type { DocKey } from "../contract/project.ts";
 import { Projector } from "../contract/project.ts";
+import type { RepoPath, RepoRoot } from "../infra/root.ts";
 import { WorkspaceRoot } from "../infra/workspace.ts";
 import type { IssueBodyRenderer, IssueReportInput } from "../render/issue-body.ts";
 import { SkeletonAssembler } from "../render/skeleton.ts";
@@ -96,16 +97,17 @@ export class CliArtifacts {
    *  face — the authoring scaffold lands in place, zero shell-redirection
    *  indirection (the D19 `<path>` zero-constraint fix). The written path prints
    *  to stdout. */
-  runSchemaSkeleton(node: Command, type: string, target: string): number {
+  runSchemaSkeleton(node: Command, root: RepoRoot, type: string, target: RepoPath): number {
     const projection = this.#projector.skeleton()[type as DocKey];
     const date = this.#today();
     const file = `${new SkeletonAssembler(projection, date).render()}\n`;
+    const absolute = root.resolve(target);
     try {
-      writeFileSync(target, file, "utf8");
+      writeFileSync(absolute, file, "utf8");
     } catch {
-      this.#usage(node, `cannot write file: ${target}`);
+      this.#usage(node, `cannot write file: ${absolute}`);
     }
-    this.#io.stdout(`${target}\n`);
+    this.#io.stdout(`${absolute}\n`);
     return 0;
   }
 
@@ -185,12 +187,16 @@ export class CliArtifacts {
   }
 
   /** Read a text file through the caller's command face; a missing/unreadable file is
-   *  the usage error of that face (the owning node's commander-native usage line). */
-  readText(node: Command, file: string): string {
+   *  the usage error of that face (the owning node's commander-native usage line). The
+   *  path is a branded `RepoPath` (repoRoot-relative — T3 §2.3: a bare `string` never
+   *  reaches this read) erased to the absolute syscall form through the ONE value
+   *  object (`RepoRoot.resolve`), so the read reads the file the funnel named. */
+  readText(node: Command, root: RepoRoot, file: RepoPath): string {
+    const absolute = root.resolve(file);
     try {
-      return readFileSync(file, "utf8");
+      return readFileSync(absolute, "utf8");
     } catch {
-      this.#usage(node, `cannot read file: ${file}`);
+      this.#usage(node, `cannot read file: ${absolute}`);
     }
   }
 

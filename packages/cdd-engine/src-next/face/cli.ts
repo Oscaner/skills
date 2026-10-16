@@ -55,6 +55,7 @@ import { Projector } from "../contract/project.ts";
 import { Translator } from "../contract/translate.ts";
 import { ConfigLoader } from "../infra/config.ts";
 import { GitClient } from "../infra/git.ts";
+import { type RepoPath, RepoRoot } from "../infra/root.ts";
 import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import { IssueBodyRenderer } from "../render/issue-body.ts";
@@ -106,8 +107,9 @@ export {
   SyncRunner,
 } from "./lifecycle.ts";
 /** The composition options — every collaborator injectable (tests substitute the
- *  hermetic ones: io / dispatch / repoRoot / stdin); the production defaults wire
- *  the living process. */
+ *  hermetic ones: io / dispatch / stdin); the production defaults wire the living
+ *  process. The repo root is NEVER injectable (T2): it derives from the ONE
+ *  conversion point (the git top level of the working directory — §2.4/§2.6). */
 export interface CliOptions {
   io?: CliIo;
   config?: ConfigLoader;
@@ -116,8 +118,6 @@ export interface CliOptions {
   translator?: Translator;
   git?: GitClient;
   sync?: SyncProcess;
-  cwd?: string;
-  repoRoot?: string;
   dryRun?: boolean;
   dispatch?: DispatchStep | null;
   preflight?: PreFlight;
@@ -171,8 +171,6 @@ export class Cli {
   readonly #words: Words;
   readonly #git: GitClient;
   readonly #sync: SyncProcess;
-  readonly #cwd: string;
-  readonly #repoRoot: string | null;
   readonly #dryRun: boolean;
   readonly #dispatch: DispatchStep | null;
   readonly #template: TemplateAssembler;
@@ -218,8 +216,6 @@ export class Cli {
     this.#wireActions();
     this.#git = opts.git ?? new GitClient();
     this.#sync = opts.sync ?? new SyncRunner();
-    this.#cwd = opts.cwd ?? process.cwd();
-    this.#repoRoot = opts.repoRoot ?? null;
     this.#dryRun = opts.dryRun ?? false;
     this.#dispatch = opts.dispatch ?? null;
     this.#template = opts.template ?? new TemplateAssembler();
@@ -359,7 +355,8 @@ export class Cli {
   async #runBoard(node: Command, parsed: RunInput): Promise<number> {
     const slug = parsed.positionals[0];
     if (slug === undefined) this.#usage(node, "cdd board: missing <slug>");
-    const repoRoot = await this.#repoRootOf(parsed);
+    const repoRoot = await this.#rootOf();
+    if (repoRoot === null) return 1;
     if (!BoardView.hasNode(slug, repoRoot)) {
       this.#io.stderr(`cdd board: no docs match slug ${slug}\n`);
       return 2;
@@ -411,12 +408,20 @@ export class Cli {
 
   /** One work command's run — assemble the scene, advance the requested phase (the
    *  lifecycle's single dispatch step per frame), render the capsule lines. */
-  async #runWork(verb: CliVerb, node: Command, parsed: RunInput): Promise<number> {
-    const type = (parsed.args.type ?? "wave") as TargetType;
-    if (type === "wave" && parsed.args.tasks === undefined) {
+  async #runWork(verb: CliVerb, node: Command, raw: RunInput): Promise<number> {
+    const type = (raw.args.type ?? "wave") as TargetType;
+    if (type === "wave" && raw.args.tasks === undefined) {
       this.#usage(node, `cdd ${verb} --type wave: missing required --tasks <n|n,n,…>`);
     }
-    const scene = await this.#sceneOf(verb, type, node, parsed);
+    // The repo root (the ONE conversion point, T2) + the input funnel (T3 §2.3) run
+    // FIRST — before the scene or any downstream face reads a path arg, so the whole
+    // run (scene + ledger + dispatch `--findings`) speaks ONE normalized argv shape.
+    const repoRoot = await this.#rootOf();
+    if (repoRoot === null) return 1;
+    const root = new RepoRoot(repoRoot);
+    const parsed = this.#funnel(root, raw);
+    const scene = await this.#sceneOf(verb, type, node, root, parsed);
+    if (scene === null) return 1;
 
     // THE pre-flight seam (P4.1 T1 · design §1): the single dispatch gate —
     // tree-clean → graph → wave → doc-contract — ONE call, the whole sequence
@@ -682,19 +687,31 @@ export class Cli {
 
   /** Assemble one work command's scene: the workspace (repo root + the plan/spec
    *  slug), the ledger, the run state (TaskGraph from the plan parse for the task
-   *  face, the empty single-target state otherwise), the fixed target. */
+   *  face, the empty single-target state otherwise), the fixed target. The repo root
+   *  is derived at the ONE conversion point (T2) — a cwd outside a git repo returns
+   *  null, which the caller turns into the BLOCKED exit (§2.6). The path-typed argv
+   *  values ride the input funnel (T3 · `#funnel`) so the scene consumes canonical
+   *  repoRoot-relative `RepoPath`s. */
   async #sceneOf(
     verb: CliVerb,
     type: TargetType,
     node: Command,
+    root: RepoRoot,
     parsed: RunInput,
-  ): Promise<WorkScene> {
+  ): Promise<WorkScene | null> {
     const config = this.#config;
     const face = targetFaces[type];
-    const repoRoot = await this.#repoRootOf(parsed);
-    const root = new WorkspaceRoot(repoRoot, config.handoffNamespace().workspaceRoot);
-    const planPath = parsed.args.plan ?? null;
-    const specPath = parsed.args.spec ?? null;
+    const repoRoot = root.absolute;
+    const rootPath = new WorkspaceRoot(repoRoot, config.handoffNamespace().workspaceRoot);
+    // The argv paths ride the ONE funnel (T3 §2.3): the READ faces consume the branded
+    // `RepoPath`, while the scene's own `planPath`/`target.doc` — the facts the ledger
+    // persists and the syscalls read — are the value object's `resolve` erasure (the
+    // absolute syscall form; their persisted shape is T4's face). Both derive from the
+    // same funnel, so there is zero second normalization.
+    const planRel = (parsed.args.plan ?? null) as RepoPath | null;
+    const planPath = planRel === null ? null : root.resolve(planRel);
+    const specRel = (parsed.args.spec ?? null) as RepoPath | null;
+    const specPath = specRel === null ? null : root.resolve(specRel);
 
     let slug: string;
     let planText: string | null = null;
@@ -702,10 +719,10 @@ export class Cli {
     let target: WorkScene["target"] = null;
     switch (type) {
       case "wave": {
-        if (planPath === null)
+        if (planPath === null || planRel === null)
           this.#usage(node, `cdd ${verb} --type wave: missing required --plan <path>`);
         slug = Workspace.slugFromDoc(planPath);
-        planText = this.#artifacts.readText(node, planPath);
+        planText = this.#artifacts.readText(node, root, planRel);
         break;
       }
       case "spec": {
@@ -716,20 +733,23 @@ export class Cli {
         break;
       }
       case "plan": {
-        if (planPath === null)
+        if (planPath === null || planRel === null)
           this.#usage(node, `cdd ${verb} --type plan: missing required --plan <path>`);
         slug = Workspace.slugFromDoc(planPath);
-        planText = this.#artifacts.readText(node, planPath);
+        planText = this.#artifacts.readText(node, root, planRel);
         // The plan's design-spec reference — the `**Spec:**` header link target,
         // derived from the plan text already read (the plan-review round context's
-        // extra read input; no second file read). Rebased to repoRoot-relative (D46):
-        // the plan-review child is spawned at cwd = repoRoot, so the raw link-space
-        // form (`../specs/X.md`) would resolve outside the repo — every round-context
-        // path token speaks ONE basis.
+        // extra read input; no second file read). Rebased to repoRoot-relative (D46 ·
+        // T3): the raw header form is markdown link-space (relative to the plan's own
+        // dir), so it is first resolved to an absolute path, then routed through the
+        // ONE value object (`RepoRoot.relativize`) — every round-context path token
+        // speaks ONE basis (the child is spawned at cwd = repoRoot).
         const rawSpecLink =
           new PlanDocType("plan").parse(planText.split("\n")).chain.specLink?.target ?? null;
         specLink =
-          rawSpecLink === null ? null : this.#resolveSpecLink(repoRoot, planPath, rawSpecLink);
+          rawSpecLink === null
+            ? null
+            : root.relativize(this.#resolveSpecLink(repoRoot, planPath, rawSpecLink));
         target = { kind: "doc", doc: planPath };
         break;
       }
@@ -746,7 +766,7 @@ export class Cli {
       }
     }
 
-    const workspace = new Workspace(root, slug).ensure();
+    const workspace = new Workspace(rootPath, slug).ensure();
     const ledger = new Ledger(workspace, config);
     const state =
       type === "wave"
@@ -767,11 +787,49 @@ export class Cli {
     };
   }
 
-  /** The repo root — the --root override, else the injected root, else the git top
-   *  level, else the cwd. */
-  async #repoRootOf(parsed?: RunInput): Promise<string> {
-    const override = parsed?.args.root;
-    return override ?? this.#repoRoot ?? (await this.#git.topLevel(this.#cwd)) ?? this.#cwd;
+  /** The input funnel — the ONE normalization landing (T3 · §2.3): every path-typed
+   *  argv value is relativized to the repo root EXACTLY once, here, before the scene
+   *  or any downstream face reads it, so no face ever sees a raw argv path shape. The
+   *  covered face: `--plan` · `--spec` · `--findings` (the schema `--output skeleton`
+   *  `<target>` positional rides `#runSchema`'s own funnel). An out-of-repo input (a
+   *  `..` segment after relativize) is ACCEPTED with a stderr warning — the shape is
+   *  what is judged, never the location (§2.10). */
+  #funnel(root: RepoRoot, parsed: RunInput): RunInput {
+    const args: Record<string, string> = { ...parsed.args };
+    for (const key of ["plan", "spec", "findings"] as const) {
+      const value = args[key];
+      if (value === undefined || value === "") continue;
+      const rel = root.relativize(value);
+      this.#warnOutsideRepo(rel);
+      args[key] = rel;
+    }
+    return { ...parsed, args };
+  }
+
+  /** The out-of-repo path warning (T3 · §2.10) — a relativized value carrying a `..`
+   *  segment lies outside the repo; the engine still reads it (shape, not location),
+   *  but the fact rides the stderr CDD_WARN channel so the caller is not surprised. */
+  #warnOutsideRepo(rel: string): void {
+    if (!rel.split(path.sep).includes("..")) return;
+    this.#io.stderr(`${this.#words.station("warn")} path is outside the repository: ${rel}\n`);
+  }
+
+  /** The repo root — the ONE conversion point (T2 · §2.4/§2.6): the single
+   *  working-dir → git-top-level resolution of the engine. Zero injection seams
+   *  (`--root` is retired; the composition options carry no root/cwd), zero
+   *  fallback. A cwd outside any git repository (a null top level) is a missing
+   *  run-environment fact: the existing CDD_BLOCKED channel carries the reason and
+   *  the caller exits 1 (never a usage error — exit 2). */
+  async #rootOf(): Promise<string | null> {
+    const root = await this.#git.topLevel(process.cwd());
+    if (root === null) {
+      const blocked = this.#words.station("blocked");
+      this.#io.stderr(
+        `${blocked} cannot resolve the repository root — the current directory is not inside a git repository (run cdd from within the repo)\n`,
+      );
+      return null;
+    }
+    return root;
   }
 
   /** The plan's `**Spec:**` link target resolved to an ABSOLUTE path (D46) — the
@@ -815,7 +873,15 @@ export class Cli {
       if (target === undefined) {
         this.#usage(node, "cdd schema get --output skeleton: missing <target>");
       }
-      return this.#artifacts.runSchemaSkeleton(node, type, target);
+      // The positional `<target>` rides the SAME input funnel (T3 §2.3) as the
+      // work-command path argv: relativized to the repo root exactly once, then
+      // erased through the value object at the write boundary.
+      const repoRoot = await this.#rootOf();
+      if (repoRoot === null) return 1;
+      const root = new RepoRoot(repoRoot);
+      const targetPath = root.relativize(target);
+      this.#warnOutsideRepo(targetPath);
+      return this.#artifacts.runSchemaSkeleton(node, root, type, targetPath);
     }
     if (target !== undefined) {
       this.#usage(
@@ -830,19 +896,22 @@ export class Cli {
   /** `cdd base <set|get> --plan <path>` — the base artifact read/write (T20: the
    *  command face `base`; the artifact file carries the base face too). */
   async #runBase(node: Command, parsed: RunInput): Promise<number> {
-    const planPath = parsed.args.plan;
-    if (planPath === undefined) {
+    const planArg = parsed.args.plan;
+    if (planArg === undefined) {
       this.#usage(node, "cdd base: missing --plan — the sole target is --plan <path>");
     }
+    const repoRoot = await this.#rootOf();
+    if (repoRoot === null) return 1;
+    const root = new RepoRoot(repoRoot);
+    // The base `--plan` rides the SAME input funnel (T3 §2.3): the stored artifact's
+    // path field speaks the ONE canonical shape (repoRoot-relative).
+    const planPath = root.relativize(planArg);
+    this.#warnOutsideRepo(planPath);
     const workspace = new Workspace(
-      new WorkspaceRoot(
-        await this.#repoRootOf(parsed),
-        this.#config.handoffNamespace().workspaceRoot,
-      ),
+      new WorkspaceRoot(repoRoot, this.#config.handoffNamespace().workspaceRoot),
       Workspace.slugFromDoc(planPath),
     ).ensure();
     const path = workspace.resolve("base.json");
-    const repoRoot = workspace.root.repoRoot;
     if (parsed.leaf === "set")
       return this.#artifacts.baseSet(node, parsed, planPath, path, repoRoot);
     if (parsed.leaf === "get") return this.#artifacts.baseGet(path, repoRoot);

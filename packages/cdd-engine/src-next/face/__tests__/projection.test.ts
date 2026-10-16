@@ -68,12 +68,14 @@ describe("CommandTreeBuilder — the declaration projection (the constructor is 
   it("projects the review surface — every declared key option, --type as a requiredOption", () => {
     const { program } = new CommandTreeBuilder();
     const review = commandOf(program, "review");
-    for (const key of ["--type", "--tasks", "--plan", "--spec", "--round", "--root"]) {
+    for (const key of ["--type", "--tasks", "--plan", "--spec", "--round"]) {
       expect(
         review.options.some((option) => option.flags.startsWith(key)),
         `review declares ${key}`,
       ).toBe(true);
     }
+    // `--root` is retired (T2 · §2.5) — the review node no longer declares it.
+    expect(review.options.some((option) => option.flags.startsWith("--root"))).toBe(false);
     // the branch range flags retired with the commit-sha surface (P7)
     expect(review.options.some((option) => option.flags.startsWith("--base"))).toBe(false);
     expect(review.options.some((option) => option.flags.startsWith("--head"))).toBe(false);

@@ -15,7 +15,8 @@ Writes the target spec from the writing-spec import — single-spec / phase-spec
 flowchart TD
   A[run-writing-spec-session] --> B[author-spec]
   A --> Z1((BLOCKED: upstream plugin missing))
-  B --> C[commit-spec]
+  B --> S[self-review]
+  S --> C[commit-spec]
   C --> L[NEXT-LOOP]
   L -->|until next is terminal| L
   L -->|no next| Z2((BLOCKED))
@@ -36,10 +37,16 @@ flowchart TD
   - **single-spec** — the free-form spec form; the docs-lane doc-contract gate asserts the version-lineage on every reviewed spec
   - **phase-spec** — the phase scope is an increment only: when the phase scope changed vs the parent overall, sync the parent overall (Issue/Phase inventory + Dependency graph + version bump + change history) BEFORE writing (the four-table sync ordering; the sync is the registration gate, never a silent skip)
   - **overall-spec** — the phase registration for a new phase is the parent's own table sync (see run-cdd-design's `run-cdd-charter · sync`)
-  Includes pre-commit self-review (spec coverage + type consistency + zero leftover `:::fill` markers + zero angle-bracket literals outside link-anchor slots) — issues found are fixed inline, not looped or passed to review.
 - **Read**: Session output + the target's structural contract (phase-spec/overall-spec variants also read the parent overall)
-- **Exit**: File written → `commit-spec`
+- **Exit**: File written → `self-review`
 - **Fail**: Session output unusable or write error → BLOCKED (missing design input)
+
+### `self-review`
+
+- **Do**: Review the just-written spec before committing — check spec coverage (every design decision the session landed is captured) + type consistency (doc-type / naming / cross-references agree) + zero leftover `:::fill` markers + zero angle-bracket literals outside link-anchor slots. Issues found are fixed inline on the same file; this is a pre-commit self-check inside this flow, not a review round (no `next:` dispatch, no findings carrier).
+- **Read**: the written spec document + the session output it was authored from
+- **Exit**: Self-check clean (issues fixed inline) → `commit-spec`
+- **Fail**: Unresolvable defect needing upstream design input → BLOCKED (missing design input)
 
 ### `commit-spec`
 

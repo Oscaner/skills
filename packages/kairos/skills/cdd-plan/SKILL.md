@@ -16,7 +16,8 @@ flowchart TD
   A[run-cdd-plan-session] --> B[backfill-design]
   A --> Z1((BLOCKED: upstream plugin missing))
   B --> C[author-plan]
-  C --> K[commit-plan]
+  C --> S[self-review]
+  S --> K[commit-plan]
   K --> L[NEXT-LOOP]
   L -->|until next is terminal| L
   L -->|no next| Z2((BLOCKED))
@@ -44,10 +45,16 @@ flowchart TD
   - **Constraints** — the `## Constraints` section declares the constraint surface the implement child reads — zero separately materialized constraints file; declaring no constraint rows never blocks a dispatch — no silent fallback, no phantom rules file.
   - **Dependencies** — declare each task's dependencies as the single directed edge on its task record — `- **DependsOn**: <n, n, …>` (any existing task id; forward references are legal; `none`/empty = the explicit no-dependency declaration); the declared edges group the tasks into dispatch waves.
   - **Sole writer** — cross-task adjudication surfaced later (user adjudication / phase-level re-scope) is handled by the orchestrator as Plan Sole Writer: it amends the target task's `- **Objective**:` / `- **Steps**:` / `- **Acceptance**:` data fields directly; fix/implement agents hold zero plan-modification authority.
-  - **Self-review** — before committing, check spec coverage + type consistency + zero leftover `:::fill` markers + zero angle-bracket literals outside link-anchor slots; issues found are fixed inline, not looped or passed to review.
 - **Read**: approved spec + `backfill-design` output + the plan's structural contract (the same structure fact the review reads)
-- **Exit**: File written → `commit-plan`
+- **Exit**: File written → `self-review`
 - **Fail**: Schema read fails or the draft plan is unusable → BLOCKED (missing plan input)
+
+### `self-review`
+
+- **Do**: Review the just-written plan before committing — check spec coverage (every approved-spec requirement maps to a task) + type consistency (task ids / `DependsOn` edges / naming agree) + zero leftover `:::fill` markers + zero angle-bracket literals outside link-anchor slots. Issues found are fixed inline on the same file; this is a pre-commit self-check inside this flow, not a review round (no `next:` dispatch, no findings carrier).
+- **Read**: the written plan document + the approved spec it implements
+- **Exit**: Self-check clean (issues fixed inline) → `commit-plan`
+- **Fail**: Unresolvable defect needing design input → BLOCKED (missing plan input)
 
 ### `commit-plan`
 

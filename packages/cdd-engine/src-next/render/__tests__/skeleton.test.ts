@@ -20,7 +20,7 @@ import { declaredRegistries } from "../../contract/declare.ts";
 import type { DocKey, DocSkeleton } from "../../contract/project.ts";
 import { Projector } from "../../contract/project.ts";
 import { BoardView } from "../../face/board-view.ts";
-import type { RepoPath } from "../../infra/root.ts";
+import { type RepoPath, RepoRoot } from "../../infra/root.ts";
 import { SkeletonAssembler } from "../skeleton.ts";
 
 /** The fixed run date — the injectable run-day truth (no live clock in the pins). */
@@ -472,7 +472,7 @@ describe("SkeletonAssembler — the Doc type declaration line (spec §3.1 ⑩)",
         const file = path.join(dir, `${key}.md`);
         writeFileSync(file, `${renderOf(key)}\n`, "utf8");
         expect(
-          BoardView.readDocType(file as RepoPath),
+          BoardView.readDocType(new RepoRoot(dir), path.relative(dir, file) as RepoPath),
           `${key}: skeleton fails its own doc-type read`,
         ).toBe(key);
       }

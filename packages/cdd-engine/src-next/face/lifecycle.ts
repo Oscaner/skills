@@ -526,7 +526,9 @@ export class CliLifecycle {
       exitCode: 0,
       stderrTail: [reason],
       stdoutTail: [],
-      attemptedHandoff: path,
+      // The persisted attempted-handoff path is the CANONICAL repoRoot-relative
+      // shape (never the absolute `handoffPath` syscall form — §2.7).
+      attemptedHandoff: this.#rel(path),
       next: this.#resumeOf(frame),
       cause: "contract-violation",
     });
@@ -615,17 +617,26 @@ export class CliLifecycle {
     const out: Record<string, string> = {};
     for (const [key, value] of Object.entries(declared)) {
       const canonical = this.#prescribedArtifact(frame, key);
-      // D46: the child receives repoRoot-relative OUTPUT_* tokens, so its declared
-      // artifacts arrive relative (the same basis) — compare on one basis before
-      // judging a deviation (else every round books a spurious note).
-      if (canonical !== "" && this.#rel(value) !== this.#rel(canonical)) {
+      if (canonical === "") {
+        // The non-prescribed slots (the pure read input `brief`, a docs-fix's `doc`,
+        // child extras) pass verbatim.
+        out[key] = value;
+        continue;
+      }
+      // A prescribed slot ALWAYS books the engine's canonical path in the CANONICAL
+      // shape (repoRoot-relative — never the absolute `workspace.resolve` form): the
+      // persisted carrier's artifacts map carries zero absolute strings (§2.7). The
+      // comparison runs on ONE basis (D46 — the child receives relative OUTPUT_*
+      // tokens, so a compliant declaration matches); a free-named OR absolute
+      // deviation is replaced and surfaced on the notes (the review scope axis reads
+      // them).
+      const relative = this.#rel(canonical);
+      if (this.#rel(value) !== relative) {
         notes.push(
           `artifact ${key}: declared path ${value} deviates from the prescribed ${canonical} — the canonical path is booked`,
         );
-        out[key] = canonical;
-      } else {
-        out[key] = value;
       }
+      out[key] = relative;
     }
     return Object.keys(out).length > 0 ? out : undefined;
   }

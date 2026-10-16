@@ -3720,11 +3720,19 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // only: identity rides the file name, never phase/tasks inline — v1.30) rides
       // the outcome, the block's two lines the pointer
       expect(outcome.status).toBe("APPROVED");
+      // The prescribed slots book the canonical repoRoot-RELATIVE paths (§2.7) even
+      // when the child declared them absolute; the non-prescribed `brief` passes verbatim.
       expect(outcome.carrier).toEqual({
         artifacts: {
           brief: "/b",
-          report: path.join(scene.workspace.path, "tasks-1-implement-report.md"),
-          test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+          report: path.relative(
+            repoRoot,
+            path.join(scene.workspace.path, "tasks-1-implement-report.md"),
+          ),
+          test_evidence: path.relative(
+            repoRoot,
+            path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+          ),
         },
         status: "APPROVED",
       });
@@ -3885,11 +3893,19 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const outcome = dispatch.step()(implementFrame);
       expect(outcome.status).toBe("APPROVED");
       // the engine books the canonical names — a child-reported free path never lands;
-      // both deviations ride the carrier's notes (the review scope axis reads them)
+      // both deviations ride the carrier's notes (the review scope axis reads them).
+      // The booked canonical paths are the repoRoot-RELATIVE shape (P9 T4 §2.7 —
+      // persisted path fields carry zero absolute strings).
       expect(outcome.carrier).toEqual({
         artifacts: {
-          report: path.join(scene.workspace.path, "tasks-1-implement-report.md"),
-          test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+          report: path.relative(
+            repoRoot,
+            path.join(scene.workspace.path, "tasks-1-implement-report.md"),
+          ),
+          test_evidence: path.relative(
+            repoRoot,
+            path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+          ),
         },
         status: "APPROVED",
         notes: [
@@ -4296,8 +4312,10 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const crash = readJson<{ attemptedHandoff: string; next: string; cause: string }>(
         path.join(scene.workspace.path, "crash-implement.wave-1.json"),
       );
+      // the persisted attempted-handoff path is the canonical repoRoot-RELATIVE
+      // shape (P9 T4 §2.7 — the absolute handoffPath syscall form never lands).
       expect(crash.attemptedHandoff).toBe(
-        path.join(scene.workspace.path, "tasks-1-implement.json"),
+        path.relative(repoRoot, path.join(scene.workspace.path, "tasks-1-implement.json")),
       );
       expect(crash.next).toBe("cdd implement --tasks 1 --plan <plan>");
       expect(crash.cause).toBe("contract-violation");
@@ -4396,12 +4414,19 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // the carrier is materialized (the child's work preserved) but rewritten BLOCKED.
       // The free-named declared paths are corrected to the canonical OUTPUT_* names
       // (find #5 — the engine derives, never books a child-reported path): the report
-      // and evidence book their canonical tasks-1- names with the deviations surfaced.
+      // and evidence book their canonical tasks-1- names (repoRoot-RELATIVE — §2.7)
+      // with the deviations surfaced; the non-prescribed `brief` slot passes verbatim.
       expect(outcome.carrier).toEqual({
         artifacts: {
           brief: "/b",
-          report: path.join(scene.workspace.path, "tasks-1-implement-report.md"),
-          test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+          report: path.relative(
+            repoRoot,
+            path.join(scene.workspace.path, "tasks-1-implement-report.md"),
+          ),
+          test_evidence: path.relative(
+            repoRoot,
+            path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+          ),
         },
         status: "BLOCKED",
         failure_category: "evidence-contract",

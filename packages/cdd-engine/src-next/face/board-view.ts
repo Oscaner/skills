@@ -182,16 +182,17 @@ export class BoardView {
     return { version, status, docType: BoardView.#docTypeOf(headerLines) };
   }
 
-  /** readDocType(docPath) — the doc's declared type alone (the `- **Doc type**:`
+  /** readDocType(root, rel) — the doc's declared type alone (the `- **Doc type**:`
    *  header declaration, spec §12 · D34): the ONE declaration reading face shared
    *  by the board and the capsule's doc-class discrimination. An absent file, a
    *  missing declaration or an out-of-domain value reads null — the consumer
    *  blocks (zero filename-suffix fallback, zero dual-read layer). The path is the
-   *  branded `RepoPath` (T4 §2.2: a bare `string` never reaches this read — the
-   *  caller feeds the funnel-shaped value, the read face reading it verbatim as the
-   *  absolute syscall form). */
-  static readDocType(docPath: RepoPath): DocKey | null {
-    return BoardView.#docTypeOf(BoardView.#headerLinesOf(docPath));
+   *  repoRoot-relative branded `RepoPath`, erased to the absolute syscall form
+   *  through the ONE value object (`root.resolve`) just before the read — the brand
+   *  is REAL (the absolute state is unrepresentable as a `RepoPath`, T4 §2.2), the
+   *  same shape as `artifacts.readText(node, root, file)`). */
+  static readDocType(root: RepoRoot, rel: RepoPath): DocKey | null {
+    return BoardView.#docTypeOf(BoardView.#headerLinesOf(root.resolve(rel)));
   }
 
   // -------------------------------------------------------------------------

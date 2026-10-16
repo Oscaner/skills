@@ -336,14 +336,25 @@ describe("workspace — the root/workspace pair + the slug rule + JSON roundtrip
       workspace.ensure();
       const abs = path.join(base, "docs", "kairos", "plans", "old.md");
       const target = path.join(workspace.path, "base.json");
-      writeFileSync(target, JSON.stringify({ plan: abs }, null, 2), "utf8");
+      // The legacy bytes are written byte-faithfully to the engine's own canonical
+      // EOF shape (a trailing `\n`) — the migration rewrite must preserve it, so the
+      // migrated file is a real engine-written byte shape (the zero-churn contract).
+      writeFileSync(target, `${JSON.stringify({ plan: abs }, null, 2)}\n`, "utf8");
       workspace.migrateJsonChild("base.json");
-      const healed = JSON.parse(readFileSync(target, "utf8")) as { plan: string };
-      expect(healed.plan).toBe("docs/kairos/plans/old.md");
+      const healed = readFileSync(target, "utf8");
+      expect(JSON.parse(healed)).toEqual({ plan: "docs/kairos/plans/old.md" });
+      expect(healed.endsWith("\n")).toBe(true);
       // A second migration is a no-op — the already-clean file stays byte-identical.
       const before = readFileSync(target, "utf8");
       workspace.migrateJsonChild("base.json");
       expect(readFileSync(target, "utf8")).toBe(before);
+      // The engine's OWN writer produces the same canonical bytes — a written file
+      // needs no migration at all (the writer/migration byte-shape agreement).
+      workspace.writeJson("base.json", { plan: abs });
+      const written = readFileSync(target, "utf8");
+      expect(written.endsWith("\n")).toBe(true);
+      workspace.migrateJsonChild("base.json");
+      expect(readFileSync(target, "utf8")).toBe(written);
       // A missing file is a silent no-op (the read face owns the missing report).
       expect(() => workspace.migrateJsonChild("absent.json")).not.toThrow();
     } finally {

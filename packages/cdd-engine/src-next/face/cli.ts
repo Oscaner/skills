@@ -430,11 +430,12 @@ export class Cli {
     // returns before any brief/lifecycle: no child dispatch ever runs. The
     // dirty-tree / doc-contract refusals ride the CDD_BLOCKED channel; the
     // graph / wave refusals keep the pre-existing refusal face. The doc-face read
-    // path is the branded `RepoPath` (T4 §2.2 — a bare `string` never reaches the
-    // read faces `BoardView.readDocType`/`PreFlightDoc.path`; the CLI feeds the
-    // scene's canonical doc path value).
-    const docPath = (
-      scene.target !== null && scene.target.kind === "doc" ? scene.target.doc : ""
+    // path is the repoRoot-relative branded `RepoPath` (T4 §2.2 — a bare `string`
+    // never reaches the read faces `BoardView.readDocType`/`PreFlightDoc.path`; the
+    // CLI feeds the funnel-shaped relative value, each read face erasing to the
+    // absolute syscall form through its OWN `RepoRoot`).
+    const docRel = (
+      scene.target !== null && scene.target.kind === "doc" ? root.relativize(scene.target.doc) : ""
     ) as RepoPath;
     const preflight = await this.#preflight.vet({
       verb: verb as "implement" | "review" | "fix",
@@ -450,8 +451,8 @@ export class Cli {
               // the plan dispatch read the doc's `- **Doc type**:` header declaration;
               // a declaration-less doc reads null and the seam BLOCKs (zero command-type
               // carve-out, zero filename-suffix fallback).
-              docKey: BoardView.readDocType(docPath),
-              path: docPath,
+              docKey: BoardView.readDocType(root, docRel),
+              path: docRel,
             }
           : null,
     });

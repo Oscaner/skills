@@ -35,8 +35,7 @@
 // the capsule plugs into the lifecycle's attachCapsule contact, byte-identically.
 // Module-level exports are the class — zero behavior-carrying bare functions.
 
-import path from "node:path";
-import type { RepoPath, RepoRoot } from "../infra/root.ts";
+import { type RepoPath, RepoRoot } from "../infra/root.ts";
 import type { RouteTarget } from "../session/faces.ts";
 import { NextStepRouter, type PipelineKey, type Route } from "../session/next.ts";
 import { BoardView } from "./board-view.ts";
@@ -142,7 +141,12 @@ export class Capsule {
    *  class (`single-spec`, the table's five keys exclude it — the bare word). */
   #docClassOf(target: RouteTarget): "blocked" | "terminal" | PipelineKey {
     if (target.type === "spec") {
-      const declared = BoardView.readDocType(this.#docPathOf(target.id));
+      // The read face takes the value object + the repoRoot-relative id (T4 §2.2);
+      // a `null` root (the hermetic default) keeps the value as its own basis.
+      const declared = BoardView.readDocType(
+        this.#root ?? new RepoRoot(""),
+        this.#rel(target.id) as RepoPath,
+      );
       return declared === null ? "blocked" : declared === "single-spec" ? "terminal" : declared;
     }
     if (target.type === "plan") return "plan";
@@ -154,16 +158,5 @@ export class Capsule {
    *  object (D47); a `null` root (the hermetic default) passes the value through. */
   #rel(value: string): string {
     return this.#root === null ? value : this.#root.relativize(value);
-  }
-
-  /** The doc-target id's file path — the id resolved against the capsule's repo
-   *  root (an absolute id passes through; a relative one joins the root). The
-   *  result is the branded `RepoPath` the declaration read face
-   *  (`BoardView.readDocType`, whose single contract is the canonical path type)
-   *  consumes (T4 §2.2). */
-  #docPathOf(id: string): RepoPath {
-    return (
-      path.isAbsolute(id) || this.#root === null ? id : path.join(this.#root.absolute, id)
-    ) as RepoPath;
   }
 }

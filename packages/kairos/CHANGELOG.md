@@ -1,5 +1,28 @@
 # @oscaner-skills/kairos
 
+## 1.0.0
+
+### Major Changes
+
+- [#335](https://github.com/Oscaner/skills/pull/335) [`ed259d6`](https://github.com/Oscaner/skills/commit/ed259d69c2528cd54000b8127a180ac7e461d0b0) Thanks [@Oscaner](https://github.com/Oscaner)! - feat: kairos — the plugin's first stable line: the `cdd-*` skill family, the `osuperpowers` → `kairos` rename, and the pi-harness distribution (breaking):
+  
+  - **Skill rename to the `cdd-*` family** (breaking, on all three harnesses) — every skill's directory, front-matter `name:`, and invocation token now share the `cdd-*` identity (`cdd-design` / `cdd-spec-writer` / `cdd-plan` / `cdd-dev` / `cdd-close` / `cdd-report`). In-plugin references and harness invocations use the new names throughout — claude/cursor invoke the slash form `/kairos:cdd-<name>`, pi invokes `/skill:cdd-<name>`.
+  - **Naming retirement `osuperpowers` → `kairos`** — the plugin's npm package name, invocation namespace (`/kairos:`), marketplace manifests, and install commands all read `kairos`; the retired `osuperpowers` token no longer resolves for install or invocation. The `cdd` CLI and the standalone `@oscaner-skills/cdd-engine` package are unchanged.
+  - **Manifest key rename `oscaner-plugin` → `oscaner`** — the `package.json` SOT key for emit and validation renames; `oscaner.harnesses` now declares the full delivery surface (claude / cursor / pi), and `oscaner.contentRoot` / `oscaner.keywords` / `oscaner.claude` carry the metadata previously spread across the old key.
+  - **pi-harness distribution** — the plugin declares the pi fields (`pi: { skills: ["./skills"] }` + the `pi-package` keyword), and the manifest contract is pinned in behavior tests. Each `cdd-*` name is a unique bare token, so a pi harness mounting kairos alongside any other plugin gets zero skill-name collisions.
+  - **Consumers** — reinstall kairos with its current install command, rename any `oscaner-plugin` key to `oscaner`, and replace any `/osuperpowers:*` references with `/kairos:cdd-*` (bare `/skill:cdd-*` on pi). This major also moves the plugin onto its first stable line (`0.x` → `1.0.0`).
+
+### Patch Changes
+
+- [#335](https://github.com/Oscaner/skills/pull/335) [`ed259d6`](https://github.com/Oscaner/skills/commit/ed259d69c2528cd54000b8127a180ac7e461d0b0) Thanks [@Oscaner](https://github.com/Oscaner)! - docs: kairos orchestrator-surface convergence — the engine-boundary discipline, the review-convergence contract, and the authoring-surface sync (non-breaking):
+  
+  - **Facts-only node discipline** — every orchestrator SKILL.md node definition keeps only the facts it owns; the upstream-import mechanics, target-role re-descriptions, and node copies of Invariant / Failure-Modes / Invocation-discipline facts are deleted — each fact lives in exactly one of the four skill surfaces (digraph · node definitions · invariants · failure modes). The four handoff nodes collapse to "hand off to `<target>`" plus only the transfer's own routing facts.
+  - **Review-convergence contract** — the S1/S2/S3 convergence is anchored to the engine's `status` values (`CHANGES_REQUESTED` / `REVIEW_FIX` / `APPROVED`) instead of a `blocker` count; the orchestrator skills read the `next:` line for the default next-hop dispatch instead of re-deriving their own fix/review routing prose; cdd-spec-writer and cdd-plan move the conventional commit between authoring and review (the order the clean-tree hard gate forces); and cdd-close lands its closeout backfill (version rows · Phase inventory → Done · acceptance record) as its own commit BEFORE the finish decision, so a merge ships the closeout with the branch.
+  - **Consumer-surface sync** — the author-node dispatch literals adopt the merged `schema get <type> --output skeleton <target>` surface; the NEXT-LOOP text slims (the four NEXT-LOOP-bearing skills follow the engine's `next:` literal as written); cdd-plan's authoring surface declares plan dependencies as the single `- **DependsOn**:` edge per task record and the engine derives the wave dispatch groups; the cdd-phase skeleton matches the doc-type schema (the three-truth skeleton + conditional sections); cdd-design's `run-cdd-spec-writer` → `run-cdd-spec` rename and the `handoff-next` / `handoff-phase-design` terminal split land.
+  - **Engine-boundary + packaging** — the consumer skills carry zero engine internals (the wave-derivation mechanism, scope-anchor injection, carrier structure, host-detection mechanism, and soft-cap value mirror are dropped — the `next:` line is the sole route source); the review-cycle soft cap consumer mirror is removed; the `single-spec`/`overall-spec` variant literals sync; the package adopts ESM (`"type": "module"`) as the front of the three-project typecheck gate; and the P3.2 consumer-surface sync re-anchors the README family to the retired-engine reality (zero `cdd`-on-PATH install precondition) alongside the dependency-shell strip.
+- Updated dependencies [[`c804ecd`](https://github.com/Oscaner/skills/commit/c804ecda94321d6cd453721958fb515ae53ba087), [`ed259d6`](https://github.com/Oscaner/skills/commit/ed259d69c2528cd54000b8127a180ac7e461d0b0), [`ed259d6`](https://github.com/Oscaner/skills/commit/ed259d69c2528cd54000b8127a180ac7e461d0b0), [`5f48d4b`](https://github.com/Oscaner/skills/commit/5f48d4b8ca64fd6502c1aca718e583e8dc6b920a), [`ed259d6`](https://github.com/Oscaner/skills/commit/ed259d69c2528cd54000b8127a180ac7e461d0b0), [`ed259d6`](https://github.com/Oscaner/skills/commit/ed259d69c2528cd54000b8127a180ac7e461d0b0)]:
+  - @oscaner-skills/cdd-engine@2.0.0
+
 ## 0.2.0
 
 ### Minor Changes

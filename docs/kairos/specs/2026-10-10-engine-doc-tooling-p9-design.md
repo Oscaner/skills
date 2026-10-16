@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P9 设计：一事实无处 / 无门 / 有副本 通审施工（D26 法条 · 路径面单源统一 + 无门事实通审 + frontmatter 门）
-- **Version**: v0.2 · 2026-10-16
+- **Version**: v0.3 · 2026-10-16
 - **Doc type**: phase-spec
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P9] 会话 · 用户裁定 · 2026-10-16）
@@ -21,6 +21,7 @@
 - **设计输入**：本会话 grilling 全裁定（kairos:cdd-design [P9] · 用户逐题裁定 Q1–Q3 · G1–G15 · S1/S2 · T1–T3 · 已回填 overall D43）。
 - **重构授权**：用户六前提 mandate（1 允许破坏性变更 · 2 高维 OOP 零裸函数 · 3 零技术债免声明再抄 · 4 高内聚低耦合清死码 · 5 消费心智负担优先 · 6 最大重构整合精简）。
 - **会话期 in-flight（D44 · 2026-10-16 · 独立提交）**：本 phase 会话期内用户提三条需求——① implement skill ref 复核（**保持** `mattpocock-skills:implement`）· ② author 后加 `self-review` 节点（消费面 skill）· ③ plan review 注入 spec doc（`INPUT_SPEC`）。②③ 为 **D26 主题外的 out-of-band 热修**，登记入 overall D44 程序记录并独立提交，**不并入本节 D26 施工面**（保主题纯净）；详细裁定见 overall D44。
+- **会话期 in-flight（⑳ · folded · 2026-10-16 · 独立提交 · D45）**：用户跑 `cdd board 2026-10-10-engine-doc-tooling-p9` 观测——P9 spec 评审链闭合后引擎吐 `next: /kairos:cdd-plan`，board 却吐 `next: /kairos:cdd-dev`（两 face 分叉）。查证 = board `#nextOf` **复制了引擎的面间派生规则**（有副本）→ **折入 §3.1 第 ⑳ 项**（本项即 D26 主题「有副本」的正统实例，非 out-of-band——与 ②③ 的归属相反）· 已 hot-fix（`NextStepRouter.walk` 单源 · 见 §3.1 ⑳）· 承 Mid-Flight Backfill I3/I4 独立提交。
 
 #### 1.2 判定基线（本 phase 的根前提 · D26 法条）
 
@@ -126,7 +127,7 @@
 
 ### 3. B 组 · 无门事实通审
 
-**门归属（T2=a · 镜像 P5/D18 校验归域）**：引擎内部事实（②④⑦⑨）→ **engine suite**；引擎 ⇄ 消费面对照（⑭⑮ · frontmatter 面）→ **kairos suite**。共 **19 项** = **①–⑮（15 项）** + **⑯–⑲（4 项 疑似）**（audit 枚举 · 编号沿用 audit 报告；frontmatter 面为 audit 体系外、由 D42 引入的第 20 项）。
+**门归属（T2=a · 镜像 P5/D18 校验归域）**：引擎内部事实（②④⑦⑨⑳）→ **engine suite**；引擎 ⇄ 消费面对照（⑭⑮ · frontmatter 面）→ **kairos suite**。共 **20 项** = **①–⑮（15 项）** + **⑯–⑲（4 项 疑似）** + **⑳（1 项 · D45 in-flight 真缺陷）**（audit 枚举 · 编号沿用 audit 报告；frontmatter 面为 audit 体系外、由 D42 引入的第 21 项）。
 
 #### 3.1 真缺陷（已发散 / 读写断层）
 
@@ -136,6 +137,7 @@
   - **源码直跑 floor（type-stripping floor）**：`packages/cdd-engine/src-next/bin.ts:23` `NODE_FLOOR = {major:22,minor:18}` = 22.18 vs `packages/cdd-engine/README.md:44` / `packages/cdd-engine/README.zh-CN.md:46`（`Node ≥22.18 native type stripping`）——**此亦有副本**，收口为单源。
   - **不可合并**：从 `packages/cdd-engine/package.json#engines`（`>=24`）派生 `NODE_FLOOR` 会使守卫**过严**（拒 Node 22.18–23.x，而 README 明示其源码直跑可用）。故 ② 须 (a) 拆分两事实、(b) 清点全部 **4 处 README 站点**（`packages/cdd-engine/README.md:13/44` + 镜像 `packages/cdd-engine/README.zh-CN.md:15/46`）、(c) 每事实各钉**正确**单源。
 - **⑩ `**Doc type**` 写者缺**：`board-view` / `preflight` / `capsule` **依赖**该头行（缺则 BLOCK），而 `render/skeleton.ts` **不产出**（grep 零命中）→ 引擎自产骨架过不了自己 preflight。**本会话已实证**：P9 骨架由 `schema get phase-spec --output skeleton` 生成后**缺** `- **Doc type**: phase-spec` 头行，author 时手工补入方过 gate。收口：skeleton 渲染补齐该头行 + 回归门（引擎自产骨架必过自身 preflight）。
+- **⑳ board `#nextOf` 复制引擎的面间派生规则（有副本 · 已发散）**：`face/board-view.ts` 的 `#nextOf` 自搓一套「按线序取首条未闭合线 → 用**该线自身**的 `PIPELINE_NEXT` 键 handoff」的 walk，与引擎的**封盘面**判定（`face/capsule.ts` `#routeText` → `#docClassOf`：封盘那一轮按**闭合目标**的 doc-class 查表）**分叉**。**本会话已实证**：P9 spec 闭合后（`spec` 线 closed · plan 线**未开始**——`docs.plan === null`）引擎吐 `next: /kairos:cdd-plan`，board 却吐 `next: /kairos:cdd-dev`（board 取**未开始的 plan 线**自身键 `PIPELINE_NEXT["plan"]`，而非**刚闭合的 spec 面**的出口）——面边界差一格（同类：整条 phase 全闭合时 board 渲 `done` 而引擎吐 `/kairos:cdd-close`）。收口：**面间派生单源**——`session/next.ts` 增 `NextStepRouter.walk(report)`（板报**观测事实** · router 判**下一步**，键/序皆单源），board 退化为纯消费者（零 forked selector）；回归 pin（`next.test.ts` 的 walk 用例含 off-by-one 守卫 · `board-view.test.ts` 三处 pin 重锚）。
 
 #### 3.2 单源抽取（copies → 单声明）
 
@@ -186,7 +188,7 @@
 
 - **W1 · 路径面基础**：`RepoRoot` + 品牌 `RepoPath` + 双 pin（2.2/2.9）——其余路径波的前置。
 - **W2 · 路径面收敛**：输入漏斗（2.3）+ repoRoot 单转换/三缝退役（2.4/2.6）+ 落盘/prompt 全相对（2.7）+ 迁移（2.11）+ 测试 chdir（2.12）+ 声明再抄（2.8）+ 声明面字节破格（2.5）。
-- **W3 · 真缺陷 + 单源抽取**（3.1/3.2）——含 ⑩ skeleton 补齐。
+- **W3 · 真缺陷 + 单源抽取**（3.1/3.2）——含 ⑩ skeleton 补齐 + ⑳ 面间派生单源（`NextStepRouter.walk`）。
 - **W4 · 缺门 + 死声明**（3.3/3.4）。
 - **W5 · 跨面散文一致性门 + frontmatter 门 + 修**（3.5 · 第 4 节）。
 
@@ -195,7 +197,7 @@
 ### Acceptance criteria
 
 - `A 组 · 路径面`：全 engine 生产代码 `process.cwd()` **恰好 1 处**、`git.topLevel` 转换点**恰好 1 处**（结构 pin 绿）· `FakeSync` 的 `call.cwd === repoRoot`（行为 pin 绿）· `--root` / `cwd` 注入 / `repoRoot` 注入**三缝零残留**（grep pin **覆盖生产面与测试面**：含 `cli.test.ts` 的 59 处 `--root` argv 站点）· 落盘 + child prompt 零绝对路径串（grep pin）· 同一文档绝对/相对 argv 归一后 `sameRef` **恒真**（虚假 drift 归零回归 pin）· 推算不出 repoRoot → **BLOCKED 退 1**（回归 pin）· 旧落盘数据经迁移 + 读时归一后可用（迁移回归 pin）· `invariants.ts` 的 `"specs"/"plans"` 硬编码**零残留**（读 `docRoots` 单源）。
-- `B 组 · 无门事实通审（19 项 = ①–⑮ + ⑯–⑲）`：每项——**或有单源且有门**（发散即 fail），**或已删**（死声明），**无中间态**。重点：① label 表单源一致（门绿）· ② **两 floor 各单源一致**（install floor：`packages/cdd-engine/package.json#engines` ↔ `packages/cdd-engine/README.md` 行；type-stripping floor：`packages/cdd-engine/src-next/bin.ts` `NODE_FLOOR` ↔ `packages/cdd-engine/README.md` 行 · 门绿）· ⑩ `schema get --output skeleton` 产出的骨架**含 `**Doc type**` 头行**且过自身 preflight（回归 pin）· ④ `edgeConditionWords` 有真派生门（假 pin 消除）· 门归属按 3.6 分域（engine/kairos suite）。
+- `B 组 · 无门事实通审（20 项 = ①–⑮ + ⑯–⑲ + ⑳）`：每项——**或有单源且有门**（发散即 fail），**或已删**（死声明），**无中间态**。重点：① label 表单源一致（门绿）· ② **两 floor 各单源一致**（install floor：`packages/cdd-engine/package.json#engines` ↔ `packages/cdd-engine/README.md` 行；type-stripping floor：`packages/cdd-engine/src-next/bin.ts` `NODE_FLOOR` ↔ `packages/cdd-engine/README.md` 行 · 门绿）· ⑩ `schema get --output skeleton` 产出的骨架**含 `**Doc type**` 头行**且过自身 preflight（回归 pin）· ⑳ 面间派生**单源**（board `next:` 与引擎同源——`NextStepRouter.walk` 为唯一 walk · board 零 forked selector · 回归 pin 含 off-by-one 守卫）· ④ `edgeConditionWords` 有真派生门（假 pin 消除）· 门归属按 3.6 分域（engine/kairos suite）。
 - `frontmatter 面`：`skill-anatomy` 契约含 frontmatter 槽位 · 全 6 SKILL.md frontmatter 过 `yaml.parse()`（门绿）· 三处 `description` **零裸 `: `**（grep pin）。
 - `过程门`：引擎 vitest 全绿 · `pnpm -C packages/kairos test` 全绿 · `pnpm run validate` ALL PASS · EOF 全绿 · changeset（cdd-engine）按既有归并落 pending · **不发布**。
 - `六前提`：零裸函数（全局 grep 零命中）· 死码/死缝清理（`ProcessRunner` · cwd 注入缝 · 死声明类）· 声明再抄消除 · 最大精简。
@@ -209,6 +211,7 @@
 - **唯一转换点**：engine 生产代码 `process.cwd()` → repoRoot 的转换恰好 1 处，机器 pin 把守。
 - **D29 黑盒边界守约**：skill 文本零引擎内部实现镜像；对消费面只加一致性门，不改 SKILL.md 承载语义。
 - **门归属分域**：引擎内部事实门进 engine suite；引擎⇄消费面对照门进 kairos suite。
+- **面间派生单源**：face 间的 `next` 派生恰好 1 处（`NextStepRouter.walk`）；board 只报**观测事实**，判**下一步**归 router（⑳）。
 - **变更先回填 parent overall**（backfill-as-version），再继续实现。
 
 ## Change history
@@ -217,3 +220,4 @@
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-16 | 初稿：P9 一事实无处/无门/有副本 通审施工（D26 法条）——A 组路径面单源统一（相对 repoRoot 唯一形态 · `RepoRoot`+`RepoPath` · `--root`/cwd/repoRoot 三缝全退 · `git.topLevel(process.cwd())` 唯一转换 · 推算不出→BLOCKED · 落盘+prompt 全相对 · 双 pin）+ B 组无门事实通审（audit 19 项 · 真缺陷/单源/缺门/死声明/跨面一致性门 · 分域归属）+ frontmatter 面（D42 · 契约驱动门 · 消裸冒号）· 单 phase-spec 内部波次 · 承 grilling 全裁定（D43） | Oscar M. · Claude Opus 5（kairos:cdd-design [P9] · 用户裁定 · 2026-10-16） |
 | v0.2 | 2026-10-16 | 会话期 in-flight 登记（D44）：三条需求裁定——① implement skill ref **保持** `mattpocock-skills:implement` · ② author 后加 `self-review` 节点 · ③ plan review 注入 spec doc（`INPUT_SPEC`）；②③ 为 D26 主题外 out-of-band 热修（登记 overall D44 · 独立提交 · 不并入本节施工面） | Oscar M. · Claude Opus 5（kairos:cdd-design [P9] in-flight · 用户裁定 · 2026-10-16） |
+| v0.3 | 2026-10-16 | **会话期 in-flight 折入（⑳ · D45 · Mid-Flight Backfill I3/I4 · 独立提交）**：用户跑 `cdd board <p9>` 观测 board `next:` 与引擎分叉（引擎 `/kairos:cdd-plan` vs board `/kairos:cdd-dev`）——查证 board `#nextOf` **复制了引擎的面间派生规则**（「有副本」· D26 主题正统实例，非 out-of-band）→ **折入 §3.1 第 ⑳ 项**（真缺陷）· 未开始的 frontier 线取错出口（面边界差一格）。**已 hot-fix**：`session/next.ts` 增 `NextStepRouter.walk(report)`（板报观测事实 · router 判下一步 · 键/序单源），`face/board-view.ts` 退化为纯消费者（零 forked selector）；回归 pin（`next.test.ts` walk 用例含 off-by-one 守卫 +6 · `board-view.test.ts` 三处 pin 重锚）。项数 19 → 20（①–⑮ + ⑯–⑲ + ⑳）· AC/§5 同步 | Oscar M. · Claude Opus 5（P9 in-flight 折入 · 用户裁定 · 2026-10-16） |

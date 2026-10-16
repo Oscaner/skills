@@ -1,6 +1,7 @@
 # 文档架构方法论 v2 — P5 Design Spec（DispatchContract + DispatchPacket 收敛重规划）
 
 - **Version**: v1.3 · 2026-10-10
+- **Doc type**: phase-spec
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer · 决策源 = grilling 五命题定案 2026-10-10）
 - **Parent program**: [doc-architecture-v2-overall.md v1.59](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)

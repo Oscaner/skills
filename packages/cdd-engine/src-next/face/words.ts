@@ -45,8 +45,10 @@ export type StationKind = "next" | "blocked" | "warn" | "cliMissing";
 
 /** The route classifier words — the station vocabulary the `next:` line renders
  *  (v1.20: the `none` word is retired — closure is `done`, never "no suggestion";
- *  v1.25: `implement` — the dispatch-ready `next:` literal's verb for a ready wave). */
-export type RouteWordKind = "done" | "review" | "fix" | "implement";
+ *  v1.25: `implement` — the dispatch-ready `next:` literal's verb for a ready wave;
+ *  `docType` — the missing-declaration BLOCK wording the capsule's unified next face
+ *  renders over the CDD_BLOCKED station, spec §12 · D34). */
+export type RouteWordKind = "done" | "review" | "fix" | "implement" | "docType";
 
 /** The wave-gate BLOCK wording rows — the vocabulary the WaveGate verdicts render
  *  (the v1.21 word-table pin: the gate's prompt wording rides the word table, never a CLI literal).
@@ -68,8 +70,8 @@ export interface WaveGateWords {
 export interface PreflightWords {
   /** The dirty-tree BLOCK — a dirty working tree refuses every work dispatch. */
   dirtyTree: string;
-  /** The plan-graph BLOCK — the plan's DependsOn graph fails to validate. */
-  planGraph: string;
+  /** The graph BLOCK — the plan's DependsOn graph fails to validate. */
+  graph: string;
   /** The doc-contract BLOCK — the target doc fails the structural contract. */
   docContract: string;
 }
@@ -95,6 +97,8 @@ export const CAPSULE_WORDS = {
     review: "review",
     fix: "fix",
     implement: "implement",
+    docType:
+      "the doc declares no `- **Doc type**:` line — add `- **Doc type**: <overall-spec|phase-spec|single-spec|plan>` to the doc's header (spec §12) and re-run",
   } as const,
   /** The wave-gate BLOCK wording rows (v1.21) — the highest-arity pre-flight refusal
    *  vocabulary, single-sourced (the gate fills the placeholders, never a re-type). */
@@ -108,7 +112,7 @@ export const CAPSULE_WORDS = {
   preflight: {
     dirtyTree:
       "the working tree is dirty — commit or discard your changes, then re-run the same command",
-    planGraph: "the plan graph has {count} edge violation(s) — fix the **DependsOn** edges first",
+    graph: "the plan graph has {count} edge violation(s) — fix the **DependsOn** edges first",
     docContract: "the target document fails the doc-contract — fix its structural findings first",
   } as const satisfies PreflightWords,
 } as const;

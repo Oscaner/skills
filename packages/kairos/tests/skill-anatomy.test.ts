@@ -257,6 +257,11 @@ class SkillAnatomyCheck {
           });
         }
       }
+
+      // The author-entry bootstrap pin (§10 · the D29-regression guard): every
+      // registered content-authoring entry node carries its skeleton bootstrap
+      // literal — a shape-keyed strip must never remove the entry command silently.
+      this.#authorBootstrapFindings(name, an, anatomy);
     }
 
     // The closed-set guard — the directory scan must equal the roster exactly.
@@ -299,10 +304,11 @@ class SkillAnatomyCheck {
   }
 
   /** The unified-skeleton family-shape findings (§4.2) — the loop family carries
-   *  the shared NEXT-LOOP hub + its single self-loop + the commit-* and handoff-*
-   *  terminals; the close/onepass families are the explicit no-self-loop
-   *  exceptions (cdd-close ends at the finish semantic gate + terminal ·
-   *  cdd-report one-shot toolchain). */
+   *  the shared NEXT-LOOP hub + its single self-loop and NO handoff-* terminal (the
+   *  closure routes through the engine's next face, D33); the close/onepass families
+   *  are the explicit no-self-loop exceptions (cdd-close ends at the finish semantic
+   *  gate + terminal · cdd-report one-shot toolchain · cdd-design forked-routing
+   *  one-pass flow). */
   #familyShapeFindings(
     name: string,
     an: AnalyzedSkill,
@@ -318,11 +324,6 @@ class SkillAnatomyCheck {
         this.#findings.push({ label: `missing the shared ${hub} hub`, skill: name });
       } else if (!hubSelfLoop) {
         this.#findings.push({ label: `the ${hub} hub carries no single self-loop`, skill: name });
-      }
-      for (const prefix of anatomy.digraph.loopHubNode.rowPrefixes) {
-        if (!an.nodes.some((n) => n.type === "rect" && n.label.startsWith(prefix))) {
-          this.#findings.push({ label: `missing the ${prefix}* terminal`, skill: name });
-        }
       }
     } else {
       if (hubSelfLoop) {
@@ -343,13 +344,13 @@ class SkillAnatomyCheck {
     }
   }
 
-  /** The edge-condition contract findings (v1.20 — the label-free rule reversed):
-   *  every edge out of a decision node carries an explicit condition label; the
-   *  loop family's NEXT-LOOP hub carries EXACTLY the three pinned out-edges (the
-   *  `until next=done` self-loop · the `next=done` closure exit · the `no next`
-   *  BLOCKED face), each label an engine-lexicon pinned phrase (edgeConditionWords
-   *  — the static digraph shares ONE word table with the runtime `next:` instance);
-   *  the executor chain's branch-review loop is an INDEPENDENT closed loop. */
+  /** The edge-condition contract findings (v1.20 — the label-free rule reversed;
+   *  D33/D35): every edge out of a decision node carries an explicit condition label;
+   *  the loop family's NEXT-LOOP hub carries EXACTLY TWO out-edges (the `until next
+   *  is terminal` self-loop · the `no next` BLOCKED face; no closure exit — the
+   *  closure routes through the engine's next face), each label an engine-lexicon
+   *  pinned phrase (edgeConditionWords — the static digraph shares ONE word table
+   *  with the runtime `next:` instance). */
   #edgeConditionFindings(
     name: string,
     an: AnalyzedSkill,
@@ -381,23 +382,15 @@ class SkillAnatomyCheck {
     const hubId = labelId.get(hub);
     if (hubId === undefined) return; // the missing-hub finding is the family shape's row
     const conditions = anatomy.digraph.nextLoopConditions;
-    const branchLoop = row.role === "executor";
     const out = an.edges.filter((e) => e.from === hubId);
 
-    // The three-out-edge assertion + word-table pin — the loop hub's exactly
-    // three pinned out-edges.
+    // The pinned out-edge shape + word-table pin — the loop hub's exactly the two
+    // pinned out-edges.
     const selfLoop = an.edges.find((e) => e.from === hubId && e.to === hubId);
-    const doneExit = out.find((e) => e.label === "next=done");
     const noNext = out.find((e) => e.label === "no next");
-    if (selfLoop === undefined || selfLoop.label !== "until next=done") {
+    if (selfLoop === undefined || selfLoop.label !== "until next is terminal") {
       this.#findings.push({
-        label: `the ${hub} self-loop must carry the pinned condition label "until next=done"`,
-        skill: name,
-      });
-    }
-    if (doneExit === undefined || (idLabel.get(doneExit.to) ?? "").startsWith("BLOCKED")) {
-      this.#findings.push({
-        label: `the ${hub} closure exit must be the "next=done" edge into a terminal node`,
+        label: `the ${hub} self-loop must carry the pinned condition label "until next is terminal"`,
         skill: name,
       });
     }
@@ -407,9 +400,10 @@ class SkillAnatomyCheck {
         skill: name,
       });
     }
-    if (out.length !== 3) {
+    const expectedOut = 2;
+    if (out.length !== expectedOut) {
       this.#findings.push({
-        label: `the ${hub} hub carries ${out.length} out-edge(s), expected exactly the three pinned`,
+        label: `the ${hub} hub carries ${out.length} out-edge(s), expected exactly the ${expectedOut} pinned`,
         skill: name,
       });
     }
@@ -421,27 +415,27 @@ class SkillAnatomyCheck {
         });
       }
     }
+  }
 
-    // The branch loop-shape assertion — the executor's independent branch-review
-    // closed loop.
-    if (branchLoop) {
-      const reviewId = labelId.get("branch-review");
-      const fixId = labelId.get("branch-fix");
-      if (
-        reviewId === undefined ||
-        fixId === undefined ||
-        !an.edges.some((e) => e.from === reviewId && e.to === fixId) ||
-        !an.edges.some((e) => e.from === fixId && e.to === reviewId)
-      ) {
+  /** The author-entry bootstrap findings (§10 · the D29-regression guard): for each
+   *  registered content-authoring entry (this skill's own entries only), the node's
+   *  definition block must carry its skeleton bootstrap literal — the `schema get
+   *  <type> --output skeleton <target>` entry command D29's own exception protects.
+   *  A shape-keyed strip that removes the entry command from an author node fires
+   *  here, never silently. */
+  #authorBootstrapFindings(name: string, an: AnalyzedSkill, anatomy: SkillAnatomyContract): void {
+    const re = new RegExp(anatomy.authorBootstrap.skeletonCommandPattern);
+    for (const entry of anatomy.authorBootstrap.entries) {
+      if (entry.skill !== name) continue;
+      const block = an.blocks.find((b) => b.name === entry.node);
+      if (block === undefined) {
         this.#findings.push({
-          label:
-            "the executor chain is missing the independent branch-review↔branch-fix closed loop",
+          label: `the registered author-entry node \`${entry.node}\` has no definition block`,
           skill: name,
         });
-      }
-      if (fixId !== undefined && an.edges.some((e) => e.from === fixId && e.to === hubId)) {
+      } else if (!re.test(block.block)) {
         this.#findings.push({
-          label: `the branch-fix node routes into the ${hub} hub — the branch loop must close on itself`,
+          label: `the author-entry node \`${entry.node}\` is missing its skeleton bootstrap literal (\`${anatomy.authorBootstrap.skeletonCommandPattern}\`)`,
           skill: name,
         });
       }

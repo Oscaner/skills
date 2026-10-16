@@ -1,6 +1,7 @@
 # 文档架构方法论 v2 — P7 Design Spec（Engine token 翻译能力接线：识别半 canonicalize · 元素表 English-primary）
 
 - **Version**: v1.2 · 2026-10-10
+- **Doc type**: phase-spec
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5（kairos:cdd-design → cdd-spec-writer · 决策源 = grilling A 方案定案 2026-10-10）
 - **Parent program**: [doc-architecture-v2-overall.md v1.63](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)

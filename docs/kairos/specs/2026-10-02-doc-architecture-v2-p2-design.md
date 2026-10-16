@@ -1,6 +1,7 @@
 # Doc Architecture v2 P2 — 文档平面瘦身（Doc Architecture v2 P2: Doc-Plane Slimming）— Phase Spec
 
 - **Version**: v1.1 · 2026-10-05
+- **Doc type**: phase-spec
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（kairos:cdd-design → grilling → cdd-phase）
 - **Parent program**: [2026-10-02-doc-architecture-v2-overall.md v1.3](2026-10-02-doc-architecture-v2-overall.md)

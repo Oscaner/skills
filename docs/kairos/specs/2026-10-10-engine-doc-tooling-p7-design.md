@@ -1,5 +1,6 @@
 # 引擎文档工具（Engine Doc-Tooling）— P7 设计：单一实况判定面（commit-sha 全退役 + 物料无条件 extract + brief=完整计划镜像 + round/键/字段实况化）
 - **Version**: v0.14 · 2026-10-14
+- **Doc type**: phase-spec
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P7] 会话 · 用户裁定 · 2026-10-13）
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](2026-10-10-engine-doc-tooling-overall.md)

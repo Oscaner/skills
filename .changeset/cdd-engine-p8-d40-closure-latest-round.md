@@ -1,0 +1,5 @@
+---
+"@oscaner-skills/cdd-engine": patch
+---
+
+**P8 §18 closure arithmetic root fix (D40 prerequisite · user ruling 2026-10-15)** — the engine's closure arithmetic `Ledger#rowClosed` / `#waveLinePhase` misjudged the "re-review closure" line: for the sequence `review=[1,2] · fix=[1]` (review-1 CHANGES_REQUESTED → fix-1 APPROVED → re-review-2 APPROVED), the old `Math.min(latestFix, latestReview)` form read the **stale fix@1** (route `review`) instead of the **closing review@2** (route `done`), reading an already-closed wave forever as "open at fix" — the wave gate then refused the next wave (the P8 `{5,11}` live case: `next:` pointed at `{12,13,14}` while the wave gate judged W3 still in-flight). Fixed to **judge the last recorded round** (fix-K iff a fix is recorded at the latest review's cycle K · the D28 identity read); `waveLinePhase` had the same ailment and is fixed alike. Regression pin: `{review:[1,2], fix:[1]}` → `closedWaves` contains that wave + `waveLinePhase` is null. This is the prerequisite root fix for D40's "next/closure judgment collapses to a single source".

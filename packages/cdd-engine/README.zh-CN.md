@@ -34,6 +34,7 @@ npm install @oscaner-skills/cdd-engine
 | `base` | `cdd base set\|get` | 读写 `base.json` 产物（单一 CDD `--plan` 目标） |
 | `schema` | `cdd schema get <type>` | 打印 canonical 文档结构 schema（发现型、零执法） |
 | `issue` | `cdd issue render` | 依据 stdin 发现渲染聚合 issue 正文（纯渲染、零执法） |
+| `board` | `cdd board <slug>` | 渲染 slug 进度板（overall/spec/plan/wave/branch；纯读、零执法） |
 
 用 `cdd <command> --help` 查看某命令的完整选项列表（例如 `cdd review --tasks` / `--spec` / `--plan` / `--round`）。
 

@@ -3,11 +3,11 @@
 // converge into ONE single-entry gate a work command consults before ANY child
 // dispatch — the clean-tree hard gate (tree-clean → BLOCKED with the commit/discard
 // guidance, the skill-side claim `engine entry gate: dirty → BLOCKED` finally made
-// real), then the wave-side gates (plan-graph validate + the three-verb WaveGate)
+// real), then the wave-side gates (graph validate + the three-verb WaveGate)
 // and the doc-side gate (Contract.validate over the target doc).
 //
 // Gate order (the design's pinned sequence, judgeable on every verdict):
-//   tree-clean → (wave/plan faces) plan-graph validate → (wave face) WaveGate.vet →
+//   tree-clean → (wave/plan faces) graph validate → (wave face) WaveGate.vet →
 //   (spec/plan faces) Contract.validate → dispatch
 // The evidence/read-back gates stay at the dispatch child face (the seam never
 // touches the round's produced artifacts — non-pre-flight by design).
@@ -35,15 +35,10 @@ import type { Ledger } from "./ledger.ts";
 import { WaveGate } from "./wave.ts";
 
 /** The named gates the seam composes — the run evidence + the blocking gate label. */
-export type PreFlightGateName = "tree-clean" | "plan-graph" | "wave" | "doc-contract";
+export type PreFlightGateName = "tree-clean" | "graph" | "wave" | "doc-contract";
 
 /** The named refusal rows — the BLOCK reason the CDD_BLOCKED wording fills. */
-export type PreFlightReason =
-  | "dirty-tree"
-  | "plan-graph"
-  | "split"
-  | "wrong-phase"
-  | "doc-contract";
+export type PreFlightReason = "dirty-tree" | "graph" | "split" | "wrong-phase" | "doc-contract";
 
 /** One pre-flight verdict — the single BLOCK carrier of the dispatch gates. */
 export interface PreFlightVerdict {
@@ -58,15 +53,19 @@ export interface PreFlightVerdict {
   message?: string;
   /** The named issue/finding lines the renderer prints under the message. */
   details?: readonly string[];
-  /** The gates that ran, in order — the judgeable order (tree-clean → plan-graph →
+  /** The gates that ran, in order — the judgeable order (tree-clean → graph →
    *  wave → doc-contract, per the face's applicable set). */
   order: readonly PreFlightGateName[];
 }
 
 /** The doc-contract target of a spec/plan dispatch. */
 export interface PreFlightDoc {
-  /** The target doc type's registry key. */
-  docKey: DocKey;
+  /** The target doc type's registry key — read from the doc's `- **Doc type**:`
+   *  header declaration (spec §12 · D34; both the spec and the plan faces key by
+   *  the declaration, zero command-type carve-out).
+   *  null when a present doc carries no declaration — the seam BLOCKs (zero
+   *  filename-suffix fallback, one declaration reading face `BoardView.readDocType`). */
+  docKey: DocKey | null;
   /** The target doc's path (the lifecycle's audit path). */
   path: string;
 }
@@ -79,7 +78,7 @@ export interface PreFlightContext {
   type: TargetType;
   /** The repo root the tree-clean gate reads. */
   repoRoot: string;
-  /** The plan text (the wave/plan faces' plan-graph gate input; null otherwise). */
+  /** The plan text (the wave/plan faces' graph gate input; null otherwise). */
   planText: string | null;
   /** The requested `--tasks` group (the wave face's WaveGate input). */
   tasks: ReadonlySet<number> | null;
@@ -121,7 +120,7 @@ export class PreFlight {
     this.#fs = opts.fs ?? new NodeFs();
   }
 
-  /** vet(ctx) — the single seam call: tree-clean → plan-graph → wave → doc-contract.
+  /** vet(ctx) — the single seam call: tree-clean → graph → wave → doc-contract.
    *  The first refused gate owns the verdict; the gates that ran precede it (the
    *  judgeable order). */
   async vet(ctx: PreFlightContext): Promise<PreFlightVerdict> {
@@ -139,20 +138,20 @@ export class PreFlight {
         order: gates,
       };
     }
-    // 2. plan-graph — the wave/plan faces' structural gate: the plan's DependsOn
+    // 2. graph — the wave/plan faces' structural gate: the plan's DependsOn
     //    graph must validate (missing-edge / missing-id / self-loop / cycle) before
     //    the dispatch reads it. The task-loss class dies here, never silently.
     let graph: TaskGraph | null = null;
     if ((ctx.type === "wave" || ctx.type === "plan") && ctx.planText !== null) {
-      gates.push("plan-graph");
+      gates.push("graph");
       graph = new TaskGraph(new PlanDocType("plan").parse(ctx.planText.split("\n")));
       const issues = graph.validate();
       if (issues.length > 0) {
         return {
           ok: false,
-          gate: "plan-graph",
-          reason: "plan-graph",
-          message: this.#words.preflightWords().planGraph.replace("{count}", String(issues.length)),
+          gate: "graph",
+          reason: "graph",
+          message: this.#words.preflightWords().graph.replace("{count}", String(issues.length)),
           details: issues.map((issue) => `${issue.kind}@T${issue.task}: ${issue.message}`),
           order: gates,
         };
@@ -177,12 +176,23 @@ export class PreFlight {
     // 4. doc-contract — the doc faces' structural gate: the target doc must pass
     //    Contract.validate (the interpreter's single judgment entry) before its
     //    review/fix round dispatches. An unreadable doc carries no judgment (no
-    //    fabricated findings from an absent surface).
+    //    fabricated findings from an absent surface). A PRESENT doc carrying no
+    //    `- **Doc type**:` declaration BLOCKs (spec §12 · D34: the declared type is
+    //    the one reading face, zero filename-suffix fallback).
     if (ctx.type === "spec" || ctx.type === "plan") {
       gates.push("doc-contract");
       const doc = ctx.doc;
       const content = doc === null ? null : this.#fs.read(doc.path);
       if (content !== null && doc !== null) {
+        if (doc.docKey === null) {
+          return {
+            ok: false,
+            gate: "doc-contract",
+            reason: "doc-contract",
+            message: this.#words.routeWord("docType"),
+            order: gates,
+          };
+        }
         const findings = this.#contract.validate({
           docKey: doc.docKey,
           path: doc.path,

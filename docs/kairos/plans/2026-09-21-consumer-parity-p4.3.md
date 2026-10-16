@@ -3,6 +3,7 @@
 **Spec:** [2026-09-21-consumer-parity-p4.3-design.md](docs/kairos/specs/2026-09-21-consumer-parity-p4.3-design.md)
 - **Parent program**: [consumer-parity overall v1.32](docs/kairos/specs/2026-09-21-consumer-parity-overall.md)
 - **Version**: v1.5 · 2026-09-25
+- **Doc type**: plan
 - **Base**: develop
 - **Depends on**: P4.1（shipped · [p4.1-design v1.5](docs/kairos/specs/2026-09-21-consumer-parity-p4.1-design.md)）
 

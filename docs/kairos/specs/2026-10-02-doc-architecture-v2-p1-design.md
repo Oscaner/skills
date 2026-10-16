@@ -1,6 +1,7 @@
 # Doc Architecture v2 P1 — DocType 抽象 + schema 工厂（Doc Architecture v2 P1: DocType Abstraction + Schema Factory）— Phase Spec
 
 - **Version**: v1.1 · 2026-10-04
+- **Doc type**: phase-spec
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（kairos:cdd-design → grilling → cdd-phase）
 - **Parent program**: [2026-10-02-doc-architecture-v2-overall.md v1.2](2026-10-02-doc-architecture-v2-overall.md)

@@ -1,9 +1,9 @@
 // packages/cdd-engine/src-next/face/__tests__/cli.test.ts
 // T11 Cli + composition-root suite (design spec §3.3):
-//   · the command face — the six steady subcommand words (implement / review / fix /
-//     schema / issue / base with their nested leaves) and the usage lines the
+//   · the command face — the seven steady subcommand words (implement / review / fix /
+//     schema / issue / base / board with their nested leaves) and the usage lines the
 //     consumers read (T20: the base command face — `cdd base set|get` — converges
-//     the six-command surface);
+//     the command surface; T5 adds the board observability command);
 //   · parse — the commander-native parse pipeline (the projection's program): the
 //     value-domain validation (int-list tasks, enum type / source, sha base/head,
 //     int round) + the unknown-flag rejection (the
@@ -15,8 +15,8 @@
 //     and land the canonical artifacts (brief / handoffs / progress); the phase gate
 //     refuses an unreachable round without dispatching a phantom;
 //   · the pure-command E2E — schema get (the merged D19 single leaf: the shared
-//     schema-type vocabulary — the primary doc-key spellings + the plan-graph
-//     display route — under the default --output json; the --output skeleton face
+//     schema-type vocabulary — the primary doc-key spellings — under the default
+//     --output json; the --output skeleton face
 //     rendering the derived doc skeleton DIRECTLY into the target document, the
 //     legacy phaseSpec alias normalized to the kebab key, §5.3), issue render
 //     (stdin body — the subcommand face; the
@@ -230,6 +230,7 @@ const conformingPlan = (repoRoot: string): string => {
       "**Spec:** [p3-design.md](docs/kairos/specs/p3-design.md)",
       "- **Parent program**: [p3-overall.md v1.0](docs/kairos/specs/p3-overall.md)",
       "- **Version**: v1.0 · 2026-10-09",
+      "- **Doc type**: plan",
       "- **Depends on**: P1",
       "- **Base**: develop",
       "",
@@ -278,6 +279,7 @@ const conformingOverall = (repoRoot: string): string => {
       "# Test Overall",
       "- **Version**: v1.21 · 2026-10-07",
       "- **Status**: Approved",
+      "- **Doc type**: overall-spec",
       "- **Author**: [human]",
       "- **Constraints**: all cross-cutting constraints apply",
       "",
@@ -379,12 +381,61 @@ const independentPlan = (repoRoot: string, name: string, count: number): string 
   return file;
 };
 
+/** A doc-contract-clean phase-spec — every registered phase-spec element present
+ *  (the header tuple + the version lineage + a Change-history table + the design
+ *  skeleton), carrying the `- **Doc type**:` declaration line (spec §12 · D34) the
+ *  capsule's doc-class discrimination reads (zero filename inference). */
+const conformingSpec = (repoRoot: string, name = "s1-design.md"): string => {
+  const file = path.join(repoRoot, "docs", "kairos", "specs", name);
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(
+    file,
+    [
+      "# Test Spec",
+      "- **Version**: v1.0 · 2026-10-09",
+      "- **Status**: Draft",
+      "- **Doc type**: phase-spec",
+      "- **Author**: x",
+      "- **Parent program**: [x-overall.md v1.0](docs/kairos/specs/x-overall.md)",
+      "- **Depends on**: P1",
+      "",
+      "## Design",
+      "",
+      "Design intro — the double-layer skeleton semantics.",
+      "",
+      "### 1. Data plane",
+      "#### 1.1 Registry",
+      "- text",
+      "",
+      "### Acceptance criteria",
+      "",
+      "- `c`",
+      "",
+      "## Constraints",
+      "",
+      "- delta",
+      "",
+      "## Change history",
+      "",
+      "| Version | date | summary | author |",
+      "|---|---|---|---|",
+      "| v1.0 | 2026-10-09 | initial | [human] |",
+    ].join("\n"),
+    "utf8",
+  );
+  // The chain sibling — the `**Parent program**` link resolves into the specs dir.
+  const sibling = path.join(repoRoot, "docs", "kairos", "specs", "x-overall.md");
+  mkdirSync(path.dirname(sibling), { recursive: true });
+  writeFileSync(sibling, "# x-overall\n", "utf8");
+  return file;
+};
+
 // ---------------------------------------------------------------------------
 // the command face — the steady subcommand words
 // ---------------------------------------------------------------------------
 
-describe("the command face — the six steady subcommand words", () => {
-  it("declares exactly the six subcommands of the steady command face", () => {
+describe("the command face — the seven steady subcommand words", () => {
+  it("declares exactly the seven subcommands of the steady command face", () => {
     expect(CLI_COMMANDS.map((command) => command.name)).toEqual([
       "implement",
       "review",
@@ -392,6 +443,7 @@ describe("the command face — the six steady subcommand words", () => {
       "base",
       "schema",
       "issue",
+      "board",
     ]);
   });
 
@@ -624,7 +676,7 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
       const code = await command.runArgv(["schema", "get", "bogus"]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain(
-        "unknown schema type: bogus (available: overall-spec, plan, phase-spec, single-spec, plan-graph)",
+        "unknown schema type: bogus (available: overall-spec, plan, phase-spec, single-spec)",
       );
     } finally {
       cleanup();
@@ -661,19 +713,19 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
       expect(code).toBe(2);
       expect(io.stderrText).toContain("cdd schema get --output skeleton: missing <target>");
       io.stderrText = "";
-      // plan-graph is the json-display route — never the skeleton render's doc-key
+      // a command word (board) is not a schema type — the schema vocabulary and
+      // the command vocabulary are separate; the unknown type exits 2 at the run
+      // face (the shared vocabulary's rejection face)
       code = await command.runArgv([
         "schema",
         "get",
-        "plan-graph",
+        "board",
         "--output",
         "skeleton",
         "/tmp/demo.md",
       ]);
       expect(code).toBe(2);
-      expect(io.stderrText).toContain(
-        "cdd schema get plan-graph: the skeleton render takes a doc-key <type>",
-      );
+      expect(io.stderrText).toContain("unknown schema type: board");
       io.stderrText = "";
       // the --output enum rejects an out-of-domain value at parse
       code = await command.runArgv(["schema", "get", "plan", "--output", "bogus"]);
@@ -822,8 +874,8 @@ describe("the help/--help display face — the command overview", () => {
       const out = io.stdoutText + io.stderrText;
       expect(out).toContain("Usage: cdd [options] [command]");
       expect(out).toContain("Commands:");
-      // the six-command table + the built-in help [command] row (native layout)
-      for (const name of ["implement", "review", "fix", "base", "schema", "issue"]) {
+      // the seven-command table + the built-in help [command] row (native layout)
+      for (const name of ["implement", "review", "fix", "base", "schema", "issue", "board"]) {
         expect(out).toContain(name);
       }
       expect(out).toContain("help [command]");
@@ -987,13 +1039,13 @@ describe("the help/--help display face — the per-command render", () => {
   it("every per-command --help carries the program-flag tail note (--dry-run alone)", async () => {
     const { command, io, cleanup } = fixture();
     try {
-      for (const verb of ["implement", "review", "fix", "base", "schema", "issue"]) {
+      for (const verb of ["implement", "review", "fix", "base", "schema", "issue", "board"]) {
         expect(await command.runArgv([verb, "--help"])).toBe(0);
       }
       // the tail note rides the commander afterAll surface — one line per help
       // face, listing --dry-run ALONE (the -h/--help redundant column unwritten)
       const legend = /program flags \(accepted at any position\): --dry-run/g;
-      expect(io.stdoutText.match(legend) ?? []).toHaveLength(6);
+      expect(io.stdoutText.match(legend) ?? []).toHaveLength(7);
       expect(io.stdoutText).not.toContain("· --help / -h");
     } finally {
       cleanup();
@@ -1007,7 +1059,7 @@ describe("the T4 commander-native help acceptance — the projected help face (�
    *  token stream through single spaces, never a wrapped byte literal. */
   const norm = (text: string): string => text.replace(/\s+/g, " ");
 
-  it("cdd --help — the native program face: Usage · the six-command table (short descriptions = the CLI_COMMANDS projection) · Examples heading · the --dry-run-only footer", async () => {
+  it("cdd --help — the native program face: Usage · the seven-command table (short descriptions = the CLI_COMMANDS projection) · Examples heading · the --dry-run-only footer", async () => {
     const { command, io, cleanup } = fixture();
     try {
       const code = await command.runArgv(["--help"]);
@@ -1018,7 +1070,7 @@ describe("the T4 commander-native help acceptance — the projected help face (�
       expect(help).toContain("Usage: cdd [options] [command]");
       expect(help).toContain("Commands:");
       expect(help).toContain("Options:");
-      // The six command rows — the command names + their short descriptions
+      // The seven command rows — the command names + their short descriptions
       // SINGLE-SOURCED at the CLI_COMMANDS declaration rows (the projection test,
       // never a hand-typed byte list).
       for (const spec of CLI_COMMANDS) {
@@ -1448,7 +1500,10 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       ]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 · handoff: ");
-      expect(io.stdoutText).toContain("next: done");
+      // T3 deliberate pin break (the constraints' registered next: break): the wave
+      // closure renders the wave→branch wiring literal (PIPELINE_NEXT.wave), never
+      // the bare terminal word.
+      expect(io.stdoutText).toContain("next: review --type branch --plan ");
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       expect(existsSync(path.join(workspace, "tasks-1-review-1.json"))).toBe(true);
     } finally {
@@ -1627,7 +1682,9 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       ]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 ·");
-      expect(io.stdoutText).toContain("next: done");
+      // T3 deliberate pin break: the branch closure routes the cdd-close ref
+      // (PIPELINE_NEXT.branch through REFS[ref][host]).
+      expect(io.stdoutText).toContain("next: /kairos:cdd-close");
       // the branch line's workspace is the plan-slug (the fix dispatch's --plan) and
       // the handoff is the spine `branch-review-1.json` (no range token in the name)
       const workspace = path.join(repoRoot, ".kairos", "cdd", Workspace.slugFromDoc(plan));
@@ -1767,7 +1824,10 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
-      const spec = path.join(repoRoot, "docs", "kairos", "specs", "s1-design.md");
+      // The declared, contract-clean spec doc — the `- **Doc type**:` header
+      // declaration (spec §12 · D34) the capsule's doc-class discrimination reads
+      // (zero filename inference).
+      const spec = conformingSpec(repoRoot);
       const specCode = await command.runArgv([
         "review",
         "--type",
@@ -1779,7 +1839,8 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         repoRoot,
       ]);
       expect(specCode).toBe(0);
-      expect(io.stdoutText).toContain("next: done");
+      // T3 deliberate pin break: the phase-spec closure routes the cdd-plan ref (PIPELINE_NEXT.phase-spec).
+      expect(io.stdoutText).toContain("next: /kairos:cdd-plan");
       expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "s1", "spec-review-1.json"))).toBe(
         true,
       );
@@ -1807,6 +1868,38 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     }
   });
 
+  it("review --type plan on a declaration-less plan BLOCKs — the plan face reads the declaration, zero command-type carve-out (spec §12 · D34)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      // A structurally contract-clean plan with its `- **Doc type**:` line stripped:
+      // the plan face keys the doc-contract target by the DECLARED type alone, never
+      // by the command verb — a missing declaration reads null and the seam BLOCKs.
+      const plan = conformingPlan(repoRoot);
+      const stripped = readFileSync(plan, "utf8").replace("- **Doc type**: plan\n", "");
+      writeFileSync(plan, stripped, "utf8");
+      const code = await command.runArgv([
+        "review",
+        "--type",
+        "plan",
+        "--plan",
+        plan,
+        "--dry-run",
+        "--root",
+        repoRoot,
+      ]);
+      expect(code).toBe(1);
+      expect(io.stderrText).toContain("CDD_BLOCKED");
+      expect(io.stderrText).toContain("the doc declares no `- **Doc type**:` line");
+      // no phantom round lands — the BLOCK precedes any child dispatch
+      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "plan-review-1.json"))).toBe(
+        false,
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
   it("review --type spec of an -overall.md — the overall-spec doc-key face (zero phase-spec misreport)", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
@@ -1824,11 +1917,12 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       ]);
       expect(overallCode).toBe(0);
       expect(io.stdoutText).toContain("next: done");
-      // The overall was judged under the overall-spec key (deriveDocType, design spec
-      // §2.3) — a phase-spec misjudge would trip the doc-contract gate: the charter
-      // fails the phase-spec face, the pre-flight refuses over CDD_BLOCKED and no
-      // round lands. The exit 0 + round + empty-findings carrier pin the zero
-      // misreport; the stderr stays free of the blocked channel.
+      // The overall was judged under the overall-spec key (its declared
+      // `- **Doc type**:` line, spec §12 · D34) — a phase-spec misjudge would trip
+      // the doc-contract gate: the charter fails the phase-spec face, the pre-flight
+      // refuses over CDD_BLOCKED and no round lands. The exit 0 + round +
+      // empty-findings carrier pin the zero misreport; the stderr stays free of the
+      // blocked channel.
       const round = path.join(repoRoot, ".kairos", "cdd", "o1-overall", "spec-review-1.json");
       expect(existsSync(round)).toBe(true);
       expect(io.stderrText).not.toContain("CDD_BLOCKED");
@@ -1857,7 +1951,8 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
           repoRoot,
         ]),
       ).toBe(0);
-      expect(io.stdoutText).toContain("next: done");
+      // T3 deliberate pin break: the plan closure routes the cdd-dev ref (PIPELINE_NEXT.plan).
+      expect(io.stdoutText).toContain("next: /kairos:cdd-dev");
       // The target doc then DRIFTS (a backfill edits the plan — the pre-T7 flow
       // froze the closed doc at "reviewed" with no reopen entry: the line held no
       // open round). The target identity moved — review is the requested phase and
@@ -1904,7 +1999,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
           repoRoot,
         ]),
       ).toBe(0);
-      expect(io.stdoutText).toContain("next: done");
+      expect(io.stdoutText).toContain("next: /kairos:cdd-dev");
       // The doc did NOT move — the line gate compares the current revision to the
       // reviewed one and BLOCKs with the identity-aware message (the old "no open
       // round" text retires on the doc face).
@@ -2079,7 +2174,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
           repoRoot,
         ]),
       ).toBe(0);
-      expect(io.stdoutText).toContain("next: done");
+      expect(io.stdoutText).toContain("next: /kairos:cdd-dev");
       // The doc DRIFTS (a backfill edits the plan) so the second review reopens the
       // line at the NEXT round rather than being refused as an unchanged doc.
       writeFileSync(
@@ -2101,7 +2196,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         repoRoot,
       ]);
       expect(relative).toBe(0);
-      expect(io.stdoutText).toContain("next: done");
+      expect(io.stdoutText).toContain("next: /kairos:cdd-dev");
       // ONE line under the line-type key `"plan"` — the two argv spellings did NOT
       // fork a second row keyed by the other spelling; the round CONTINUED (2), it
       // did not reset to 1 (the §3.7 dogfood fix)
@@ -2633,35 +2728,12 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     }
   });
 
-  it("plan-graph — the board shows the in-wave ✔/▶ mix from closedWaves", async () => {
-    const { command, io, repoRoot, cleanup } = fixture();
+  it("a command word is not a schema type — `schema get board` carries no route and no vocabulary row", async () => {
+    const { command, io, cleanup } = fixture();
     try {
-      gitInit(repoRoot);
-      const planPath = independentPlan(repoRoot, "two.md", 2);
-      // Seed task 1's full C5 closure record (implement + a clean review) and leave
-      // task 2 unrecorded — both sit in the single root wave {1,2}, so the board's
-      // current wave holds the MIX: task 1 done (✔), task 2 in-flight (▶). The v1.20
-      // marker fix — a done task shows ✔ INSIDE the current wave, never a swallowed
-      // whole-row ▶ ("any ledger row is done" is retired: the closed set = closedWaves).
-      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "two").ensure();
-      const ledger = new Ledger(workspace, new ConfigLoader());
-      ledger.recordRound(1, "implement");
-      ledger.persistHandoff(
-        "review",
-        "wave",
-        { tasks: "1", round: 1 },
-        {
-          tasks: [1],
-          phase: "review",
-          findings: [],
-        },
-      );
-      ledger.recordRound(1, "review");
-      io.stdoutText = "";
-      const code = await command.runArgv(["schema", "get", "plan-graph", "--plan", planPath]);
-      expect(code).toBe(0);
-      expect(io.stdoutText).toContain("T1✔ · T2▶");
-      expect(io.stdoutText).toContain("wave board:");
+      const code = await command.runArgv(["schema", "get", "board"]);
+      expect(code).toBe(2);
+      expect(io.stderrText).toContain("unknown schema type: board");
     } finally {
       cleanup();
     }
@@ -2887,7 +2959,8 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
       expect(nextOf()).toBe(`review --type wave --tasks 2 --plan ${plan}`);
       io.stdoutText = "";
 
-      // the final review closes the run → rev2 lands on `done`
+      // the final review closes the run → rev2 lands on the wave→branch wiring
+      // literal (T3 deliberate pin break — the PIPELINE_NEXT.wave route)
       expect(
         await command.runArgv([
           "review",
@@ -2902,7 +2975,7 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
           repoRoot,
         ]),
       ).toBe(0);
-      expect(nextOf()).toBe("done");
+      expect(nextOf()).toBe(`review --type branch --plan ${plan}`);
 
       const progress = readJson<{ waves: unknown[] }>(path.join(workspace, "progress.json"));
       // the wave-2 row carries its own D30 revision record — the final APPROVED
@@ -2948,7 +3021,7 @@ describe("the pure commands — schema / issue / base", () => {
       const code = await command.runArgv(["schema", "get", "bogus"]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain(
-        "unknown schema type: bogus (available: overall-spec, plan, phase-spec, single-spec, plan-graph)",
+        "unknown schema type: bogus (available: overall-spec, plan, phase-spec, single-spec)",
       );
     } finally {
       cleanup();
@@ -3227,6 +3300,70 @@ describe("T9 — the composition-root entry is the Cli.create static factory (de
 });
 
 // ---------------------------------------------------------------------------
+// T5 — `cdd board <slug>`: the pure-read observability command (no preflight
+// gate, zero side effects; missing slug → usage exit 2 · a ghost slug → exit 2 ·
+// a valid slug → the board to stdout, exit 0).
+// ---------------------------------------------------------------------------
+
+describe("T5 — cdd board <slug>: the pure-read board command", () => {
+  /** Seed a minimal phase's docs + overall (declared doc-types) in a fixture repo. */
+  const seedPhaseDocs = (repoRoot: string, program: string): void => {
+    mkdirSync(path.join(repoRoot, "docs/kairos/specs"), { recursive: true });
+    mkdirSync(path.join(repoRoot, "docs/kairos/plans"), { recursive: true });
+    writeFileSync(
+      path.join(repoRoot, `docs/kairos/specs/${program}-overall.md`),
+      "# O\n\n- **Doc type**: overall-spec\n",
+      "utf8",
+    );
+    writeFileSync(
+      path.join(repoRoot, `docs/kairos/specs/${program}-p1-design.md`),
+      "# S\n\n- **Doc type**: phase-spec\n",
+      "utf8",
+    );
+    writeFileSync(
+      path.join(repoRoot, `docs/kairos/plans/${program}-p1.md`),
+      "# Plan\n\n- **Doc type**: plan\n",
+      "utf8",
+    );
+  };
+
+  it("a valid slug renders the board to stdout and exits 0", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      seedPhaseDocs(repoRoot, "prog");
+      const code = await command.runArgv(["board", "prog-p1"]);
+      expect(code).toBe(0);
+      expect(io.stdoutText).toContain("cdd board: prog-p1");
+      expect(io.stdoutText.split("\n").at(-2)).toBe("progress: ✔ done · ▶ current · ○ pending");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a missing slug is a usage error — exit 2 (commander's required positional)", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["board"]);
+      expect(code).toBe(2);
+      expect(io.stderrText).toContain("missing required argument 'slug'");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a ghost slug matches nothing on disk — exit 2, no wall", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["board", "nonexistent-slug"]);
+      expect(code).toBe(2);
+      expect(io.stderrText).toContain("no docs match slug nonexistent-slug");
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // T3 — the commander-native composition root (behavior probes): runArgv parses
 // through the projection's commander program (face/projection.ts), the domain-run
 // thin shells dispatch the parsed commands, and the exit-code discriminator maps
@@ -3358,7 +3495,7 @@ describe("T3 — the commander-native composition root: program parse + .action 
       const code = await command.runArgv(["schema", "get", "bogus"]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain(
-        "unknown schema type: bogus (available: overall-spec, plan, phase-spec, single-spec, plan-graph)",
+        "unknown schema type: bogus (available: overall-spec, plan, phase-spec, single-spec)",
       );
     } finally {
       cleanup();
@@ -3400,17 +3537,24 @@ describe("T3 — the commander-native composition root: program parse + .action 
     }
   });
 
-  it("the plan-graph read refuses a missing --plan with the schema get face's native usage line", async () => {
+  it("the shared text-read's unreadable-file refusal rides the work face's native usage line", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
-      expect(await command.runArgv(["schema", "get", "plan-graph"])).toBe(2);
-      expect(io.stderrText).toContain("Usage: cdd schema get [options] <type>");
-      expect(io.stderrText).toContain("error: cdd schema get plan-graph: missing --plan <path>");
-      io.stderrText = "";
-      // the shared text-read's unreadable-file refusal rides the same face
+      // The text-read face the work commands share (readText) — its unreadable-file
+      // refusal surfaces through the wave face's --plan read (the same artifacts
+      // face; the owning node's usage line).
       const missing = path.join(repoRoot, "no-such-plan.md");
-      expect(await command.runArgv(["schema", "get", "plan-graph", "--plan", missing])).toBe(2);
-      expect(io.stderrText).toContain("Usage: cdd schema get [options] <type>");
+      const code = await command.runArgv([
+        "implement",
+        "--tasks",
+        "1",
+        "--plan",
+        missing,
+        "--root",
+        repoRoot,
+      ]);
+      expect(code).toBe(2);
+      expect(io.stderrText).toContain("Usage: cdd implement [options]");
       expect(io.stderrText).toContain(`error: cannot read file: ${missing}`);
     } finally {
       cleanup();
@@ -3446,7 +3590,10 @@ describe("T3 — the commander-native composition root: program parse + .action 
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
-      const spec = path.join(repoRoot, "docs", "kairos", "specs", "s1-design.md");
+      // The declared, contract-clean spec doc — the `- **Doc type**:` header
+      // declaration (spec §12 · D34) the capsule's doc-class discrimination reads
+      // (zero filename inference).
+      const spec = conformingSpec(repoRoot);
       const code = await command.runArgv([
         "review",
         "--type",
@@ -3458,7 +3605,7 @@ describe("T3 — the commander-native composition root: program parse + .action 
         repoRoot,
       ]);
       expect(code).toBe(0);
-      expect(io.stdoutText).toContain("next: done");
+      expect(io.stdoutText).toContain("next: /kairos:cdd-plan");
     } finally {
       cleanup();
     }
@@ -3805,6 +3952,54 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       });
       // T2 — the materialized work carrier is the work face: zero findings key
       expect("findings" in outcome.carrier!).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("D39 — a trailing-comma draft reconstructs cleanly (the lenient read face; the round is not voided)", () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new FakeSync();
+      sync.stdout = "status: APPROVED\n";
+      // The child LLM writes a draft with a routine slip — a trailing comma in the
+      // notes array (the W3 {5,11} block shape). The reconstruct's draft read is the
+      // LENIENT face (D39): the slip must not void the whole round.
+      const draftPath = path.join(scene.workspace.path, "tasks-1-implement.json");
+      writeFileSync(
+        draftPath,
+        '{\n  "status": "APPROVED",\n  "artifacts": {\n    "report": "' +
+          path.join(scene.workspace.path, "tasks-1-implement-report.md") +
+          '",\n    "test_evidence": "' +
+          path.join(scene.workspace.path, "tasks-1-test-evidence.json") +
+          '"\n  },\n  "notes": [\n    "a",\n    "b",\n  ]\n}\n',
+        "utf8",
+      );
+      writeFileSync(
+        path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+        JSON.stringify({
+          command: "npx vitest run",
+          exit_code: 0,
+          passed: true,
+          warnings_count: 0,
+          typecheck: { command: "tsc --noEmit", exit_code: 0, passed: true },
+        }),
+        "utf8",
+      );
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      const outcome = dispatch.step()(implementFrame);
+      // The trailing comma is tolerated — the round lands APPROVED, never a malformed
+      // reject; the notes the child wrote survive into the carrier.
+      expect(outcome.status).toBe("APPROVED");
+      expect(io.stderrText).toBe("");
+      expect((outcome.carrier as { notes?: string[] }).notes).toEqual(["a", "b"]);
     } finally {
       cleanup();
     }

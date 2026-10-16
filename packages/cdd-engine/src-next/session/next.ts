@@ -23,14 +23,24 @@
 // ready batch decides next-wave vs done). The Route output carries the structured
 // facts the capsule face renders into the `next:` line — including the fix-route
 // readback copy, authored here once as FIX_READBACK_SUFFIX (the declared wording
-// the capsule renders verbatim, never a literal restate). Module-level exports are
-// types / constants / the class — zero behavior-carrying bare functions (the
-// plan's zero-bare-function discipline).
+// the capsule renders verbatim, never a literal restate).
+//
+// D40 — ONE "next step" concept: the face-INTERNAL C5 hop and the face-TO-face
+// handoff are the SAME `Route` union (a `handoff` kind carries the pipeline entry),
+// so a consumer never consults a second table. `NextStepRouter.resolve` is the ONE
+// "one line → next" resolver: an active C5 hop passes through, a drained line yields
+// the face-to-face handoff. Both the board (its per-line walk) and the capsule
+// (the round's own line) call it — single resolver, single renderer.
+//
+// Module-level exports are types / constants / the class — zero behavior-carrying
+// bare functions (the plan's zero-bare-function discipline).
 
 import type { Round } from "./ledger.ts";
 import type { ExecutionState } from "./state.ts";
 
-/** The next-hop suggestion — the decision table's output (null = no next line). */
+/** The next-hop suggestion — the decision table's output (null = no next line). The
+ *  ONE "next step" concept (D40): the face-internal C5 hops AND the face-to-face
+ *  handoff are the same union, so a consumer never consults a second table. */
 export type Route =
   /** closure — the run is exhausted (`next: done`, the v1.20 terminal word). */
   | { kind: "done" }
@@ -41,26 +51,61 @@ export type Route =
   /** the one-way fix hop — findingsPath = the review handoff the fix reads (`--findings`). */
   | { kind: "fix"; findings?: string }
   /** the review-cycle soft cap — the suggestion defers to user adjudication. */
-  | { kind: "soft-cap"; message: string };
+  | { kind: "soft-cap"; message: string }
+  /** the face-to-face handoff (D40) — the line's C5 frontier exhausted, so the next
+   *  step is the next pipeline face's entry (`PIPELINE_NEXT[doc-class]`): the face
+   *  to face transition is ONE Route kind, never a second table a consumer reads. */
+  | { kind: "handoff"; entry: PipelineEntry };
 
 /** The review-cycle soft cap — the consecutive-S1 run length at which the fix face
  *  defers the next hop to user adjudication (soft by nature: a default suggestion,
  *  never a hard stop — the user / Plan Sole Writer override it). */
-export const REVIEW_CYCLE_CAP = 3;
+export const REVIEW_CYCLE_CAP = 10;
+
+// ---------------------------------------------------------------------------
+// the face indirection line — the pipeline's face-to-face `done` routing table (D33)
+// ---------------------------------------------------------------------------
+
+/** The doc-class keys of the unified next face — one row per pipeline seam a face
+ *  `done` can land on (the capsule's doc-class lookup reads them). */
+export type PipelineKey = "phase-spec" | "overall-spec" | "plan" | "wave" | "branch";
+
+/** One pipeline-next row — the skill ref to dispatch (`ref`), a literal command
+ *  (`literal`, the wave→branch transition — the wiring literal with its `<plan>`
+ *  slot), or the pipeline terminal (`done`). */
+export type PipelineEntry =
+  | { kind: "ref"; ref: string }
+  | { kind: "literal"; literal: string }
+  | { kind: "done" };
+
+/** The pipeline next table — the ONE face-indirection source (D33 · single-addressed
+ *  at session/next.ts):
+ *  the doc-class key → the next pipeline entrypoint. The skill refs ride REFS
+ *  (face/host.ts) resolved per host at the render — never a hard-coded plugin
+ *  spelling; the wave literal's `<plan>` slot is filled by the capsule with the
+ *  frame's plan fact. */
+export const PIPELINE_NEXT: Readonly<Record<PipelineKey, PipelineEntry>> = {
+  "phase-spec": { kind: "ref", ref: "kairos:cdd-plan" },
+  "overall-spec": { kind: "done" },
+  plan: { kind: "ref", ref: "kairos:cdd-dev" },
+  wave: { kind: "literal", literal: "review --type branch --plan <plan>" },
+  branch: { kind: "ref", ref: "kairos:cdd-close" },
+};
 
 /** The review-cycle soft-cap suggestion (the C5-0 suggestion face — user adjudicates). */
 export const SOFT_CAP_SUGGESTION = "BLOCKED: review-cycle-cap — user adjudicates";
 
 /** The fix-route readback suffix — appended verbatim to the fix findings path on the
- *  route's `next:` render (`(confirm the findings · annotate the carrier with the
- *  adjudications)`), a pure wording prompt: the anti-blind-fix mechanical guard is the
- *  ledger round / C5-1, the suffix only reminds the orchestrator to confirm the
- *  captured findings and ANNOTATE the carrier with the user adjudications
- *  (non-binding). `annotate` names the carrier action alone — distinct from
+ *  route's `next:` render (`(confirm the findings · if a finding needs a ruling,
+ *  record the ruling in the findings file)`), a pure wording prompt: the
+ *  anti-blind-fix mechanical guard is the ledger round / C5-1, the suffix only
+ *  reminds the orchestrator to confirm the captured findings and, when a finding
+ *  needs a user ruling, record that ruling back into the findings file the fix
+ *  round consumes. `annotate` names the carrier action alone — distinct from
  *  `backfill` (a durable fact landed into its owning doc), which stays the
- *  adjudication's destination when the ruling asserts a project-level fact. */
+ *  ruling's destination when it asserts a project-level fact. */
 export const FIX_READBACK_SUFFIX =
-  "(confirm the findings · annotate the carrier with the adjudications)";
+  "(confirm the findings · if a finding needs a ruling, record the ruling in the findings file)";
 
 /** The failure face — a BLOCKED/TIMEOUT round goes the stderr CDD_BLOCKED channel and
  *  produces no `next:` line on any op. */
@@ -123,5 +168,25 @@ export class NextStepRouter {
   /** The blocker count of the round's findings — the C5-1 severity count. */
   #blockerCount(ref: Round): number {
     return ref.findings.filter((finding) => finding.severity === "blocker").length;
+  }
+
+  /** The face-to-face handoff route for a pipeline doc-class (D40) — the next-face
+   *  entry (`PIPELINE_NEXT[key]`). One of the two ways the ONE "next step" concept
+   *  is produced (the C5 hop is the other), so a consumer never consults a second
+   *  table. */
+  static handoff(key: PipelineKey): Route {
+    return { kind: "handoff", entry: PIPELINE_NEXT[key] };
+  }
+
+  /** Resolve a line's next step (D40) — the single "one line → next" point shared by
+   *  the board (its per-line walk) and the capsule (the round's own line). An ACTIVE
+   *  C5 hop (`review` / `fix` / `implement` / `next-wave` / `soft-cap`) passes through
+   *  as the line's next step; a drained or not-yet-started line (the C5 `done` / no
+   *  active round) yields the face-to-face handoff carrying the pipeline entry. A null
+   *  doc-class (no face seam — the overall line / a bare terminal) rerenders the bare
+   *  `done` word. Pure — the callers hold their own line facts. */
+  static resolve(active: Route | null, key: PipelineKey | null): Route {
+    if (active !== null && active.kind !== "done") return active;
+    return key === null ? { kind: "done" } : NextStepRouter.handoff(key);
   }
 }

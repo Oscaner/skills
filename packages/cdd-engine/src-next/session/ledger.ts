@@ -537,38 +537,72 @@ export class Ledger {
     return { kind: "unbound" };
   }
 
+  /** The wave line's active C5 Route — the next C5 hop the dispatch engine would run
+   *  on this wave. A wave with no implement round yet is dispatched whole (`next-wave`
+   *  carrying the wave key — the engine's `implement`-phase action, rendered as the
+   *  implement literal); a recorded implement holding no review yet, or a re-review
+   *  after a blocker-carrying fix, is the review hop; a review awaiting a fix (its own
+   *  blockers outstanding) is the one-way fix hop carrying the source review's handoff
+   *  path. Null when the wave line holds no open hop (drained / deferred by the soft
+   *  cap). The D16/T11 revision precheck belongs HERE, not in a per-consumer copy: a
+   *  completed wave review bound the RENDERED BRIEF it judged to the row (run.ts
+   *  bookkeep `#recordReviewedWaveBrief` → `#briefRevision`), and a drifted BRIEF
+   *  reopens the wave at review regardless of the fix-awaited round state (the
+   *  stale-revision findings are voided — new revision, new review). Same revision + a
+   *  pending fix stays at fix (Review Convergence anti-spin); a null record (legacy wave
+   *  row) keeps the pure round-count derivation. The final leg reads the latest fix
+   *  round's C5 route under EMPTY_RUN_STATE — the close-side is inert for the
+   *  review/closure query (only the fix round's own blockers can yield review). The
+   *  `waveLinePhase` judge below derives its phase word from this route (one walk), and
+   *  the board's `next:` derivation reads the route itself (D40 — the active hop, never
+   *  a bare face handoff). */
+  waveLineRoute(waveKey: string): Route | null {
+    const implemented = this.roundCount(waveKey, "implement");
+    if (implemented === 0) return { kind: "next-wave", tasks: waveKey };
+    const data = this.readProgress();
+    const row = data === null ? undefined : this.rowFor(data, waveKey);
+    const latestReview = row === undefined ? 0 : this.#latestCycleOfRow(row, "review");
+    if (latestReview === 0) return { kind: "review" };
+    // The latest recorded round is a fix iff a fix is recorded at the latest review's
+    // CYCLE (D28 identity — fix-K ⟷ review-K); otherwise it is the latest review itself
+    // (its route carries the awaited `fix`). The prior "no fix at the latest review cycle
+    // ⇒ pending fix" short-circuit read a re-review-closed line (`review=[1,2] · fix=[1]`)
+    // as forever at `fix`, missing the closing review-2 — the router read below is the
+    // single judge (the `waveLineRoute` twin of `#rowClosed`).
+    const fixRecorded = row !== undefined && this.#cyclesOf(row, "fix").includes(latestReview);
+    const carried = this.round(
+      fixRecorded ? "fix" : "review",
+      "wave",
+      { tasks: waveKey },
+      latestReview,
+    );
+    if (carried === null) return null;
+    const route = this.#router.next(EMPTY_RUN_STATE, carried);
+    if (route?.kind === "review") return { kind: "review" };
+    if (route?.kind === "fix") {
+      // The fix-awaited face — a drifted wave BRIEF reopens at review (D30/D16), else fix.
+      const reviewed = this.reviewedRevisionOf(waveKey);
+      if (reviewed !== null && this.#briefDrift(waveKey, reviewed)) return { kind: "review" };
+      return {
+        kind: "fix",
+        findings: this.handoffPath("review", "wave", { tasks: waveKey, round: latestReview }),
+      };
+    }
+    return null;
+  }
+
   /** The wave line's open phase — the SINGLE derivation the wave gate AND the
    *  lifecycle's frame frontier both read (D26: one fact, one place, read at judgment
-   *  time). The D16/T11 revision precheck belongs HERE, not in a per-consumer copy:
-   *  a completed wave review bound the RENDERED BRIEF it judged to the row (run.ts
-   *  bookkeep `#recordReviewedWaveBrief` → `#briefRevision` — the wave line's OWN
-   *  brief-revision ref, a separate write-back from the doc face's gate), and a
-   *  drifted BRIEF reopens the wave at review regardless of the fix-awaited round
-   *  state (the stale-revision findings are voided — new revision, new review). Same
-   *  revision + a pending fix stays at fix (Review Convergence anti-spin); a null
-   *  record (legacy wave row) keeps the pure round-count derivation. The final leg
-   *  reads the latest fix round's C5 route under EMPTY_RUN_STATE — the close-side is
-   *  inert for the review/closure query (only the fix round's own blockers can yield
-   *  review; #close never does). */
+   *  time), mapped from `waveLineRoute`'s active C5 hop: the not-yet-implemented wave
+   *  reads `implement`, the review hop `review`, the one-way fix hop `fix`, a drained /
+   *  soft-capped line null. */
   waveLinePhase(waveKey: string): RoundPhase | null {
-    const implemented = this.roundCount(waveKey, "implement");
-    const reviews = this.roundCount(waveKey, "review");
-    if (implemented === 0) return "implement";
-    if (reviews === 0) return "review";
-    // The latest review CYCLE (= the count: review cycles are contiguous). The pending-fix
-    // test is the latest review's IDENTITY membership in the fix cycle set (D28) — NOT a
-    // `fixes < reviews` count comparison, which flattens a skipped cycle (a drift-voided
-    // review-1 → the first fix is cycle 2, recorded `[2]`, count 1 < reviews 2 would read
-    // a phantom pending fix and re-open the wave forever).
-    const latestReview = reviews;
-    if (!this.roundRecorded(waveKey, "fix", latestReview)) {
-      const reviewed = this.reviewedRevisionOf(waveKey);
-      if (reviewed !== null && this.#briefDrift(waveKey, reviewed)) return "review";
-      return "fix";
-    }
-    const carried = this.round("fix", "wave", { tasks: waveKey }, latestReview);
-    if (carried === null) return null;
-    return this.#router.next(EMPTY_RUN_STATE, carried)?.kind === "review" ? "review" : null;
+    const route = this.waveLineRoute(waveKey);
+    if (route === null) return null;
+    if (route.kind === "next-wave") return "implement";
+    if (route.kind === "review") return "review";
+    if (route.kind === "fix") return "fix";
+    return null;
   }
 
   /** The wave line's brief-drift verdict (D30) — the wave's CURRENT rendered brief
@@ -626,50 +660,126 @@ export class Ledger {
    * verdict — the structural root of the phantom-closure fix), and a historical
    * merged-wave row naturalizes through its own review/fix pair (the wave row's C5
    * route, never a per-member read). The frontier consumers (the wave gate · the
-   * plan-graph board) read this face — one closed set, one source.
+   * board face) read this face — one closed set, one source.
    */
   closedWaves(): Set<number> {
     const closed = new Set<number>();
     const data = this.readProgress();
     if (data === null) return closed;
     for (const row of data.waves) {
-      if (this.#rowClosed({ tasks: row.wave }, row)) {
+      if (this.#rowClosed("wave", { tasks: row.wave }, row)) {
         for (const id of row.wave.split(",").map((part) => Number(part))) closed.add(id);
       }
     }
     return closed;
   }
 
-  /** Whether one progress row's line is closed — the LATEST recorded round's C5 route
-   *  lies on the closure side ({done, next-wave}). The latest round is the last
-   *  recorded fix round when one exists; the last review round otherwise; a row with
-   *  no review round yet (implement-only or scheduled) holds the line open. The latest
-   *  fix is the fix recorded at the latest review's CYCLE (D28 identity), never a count. */
-  #rowClosed(params: HandoffParams, row: ProgressRow): boolean {
-    const reviews = this.#cyclesOf(row, "review");
-    const fixes = this.#cyclesOf(row, "fix");
-    const latestReview = reviews.length > 0 ? Math.max(...reviews) : 0;
-    if (fixes.length > 0) {
-      const latestFix = Math.max(...fixes);
-      const route = this.#roundRoute("fix", params, Math.min(latestFix, latestReview));
-      return Ledger.#closedBy(route);
+  /** Whether one LINE is closed — the line-level closure judge the board's `next:`
+   *  derivation and its branch row consume (and `closedWaves()` reads through the
+   *  same core). The C5 route of the line's LATEST recorded round must lie on the
+   *  closure side ({done, next-wave}). The key is the line-type constant the round
+   *  records under ("spec" / "plan" / "branch"); a row with no review round yet
+   *  (implement-only or absent) holds the line open. One judge, one source: the
+   *  board never re-derives closure in the face (zero second judge). */
+  lineClosed(key: LedgerKey, type: TargetType): boolean {
+    const data = this.readProgress();
+    if (data === null) return false;
+    const row = this.rowFor(data, key);
+    if (row === undefined) return false;
+    return this.#rowClosed(type, type === "wave" ? { tasks: String(key) } : {}, row);
+  }
+
+  /** The single-target line's active C5 Route — the next C5 hop the dispatch engine
+   *  would run on this line (the doc/branch faces: the review-lead round judges the
+   *  live tree; a fix-awaited review, a re-review after a blocker-carrying fix). A line
+   *  with no review-lead round yet is the review-lead hop (`{kind:"review"}` — the
+   *  renderer keys the literal off the target type); a review round with findings is
+   *  the one-way fix hop (carrying the review's handoff); a fix round that still carries
+   *  blockers is the re-review hop. Null when the line holds no open hop (a clean review
+   *  / a blocker-free fix closed it — the closure-side routes are not an "active hop").
+   *  The pending-fix test is the latest review's IDENTITY membership in the fix cycle
+   *  set (D28) — a count comparison would flatten a skipped cycle into a phantom pending
+   *  fix. The doc-revision gate is NOT part of this walk — the callers run their own
+   *  reviewGate first (doc-drift-first ordering). `linePhase` maps this route to its
+   *  phase word (one walk), and the board's `next:` derivation reads the route itself
+   *  (D40 — the active hop, never a bare face handoff). */
+  lineRoute(key: LedgerKey, type: TargetType): Route | null {
+    const reviewLead = targetFaces[type].product.reviewLead;
+    const reviews = this.roundCount(key, reviewLead);
+    if (reviews === 0) return { kind: "review" };
+    if (!this.roundRecorded(key, "fix", reviews)) {
+      const route = this.#lineRoundRoute("review", type, reviews);
+      return route?.kind === "fix" ? route : null;
     }
-    if (latestReview > 0) return Ledger.#closedBy(this.#roundRoute("review", params, latestReview));
-    return false;
+    const route = this.#lineRoundRoute("fix", type, reviews);
+    return route?.kind === "review" ? route : null;
+  }
+
+  /** The single-target line's open phase — the rounds/routes walk the lifecycle's
+   *  frame frontier (run.ts #nextLinePhase) and the CLI gate (gate.ts #linePhase)
+   *  BOTH consume (one judge, one source — the retired twin copies), mapped from
+   *  `lineRoute`'s active C5 hop: the review-lead hop reads the face's own review-lead
+   *  mode word (branch→branch-review, the others→review), the fix hop `"fix"`, a closed
+   *  line null. */
+  linePhase(key: LedgerKey, type: TargetType): RoundPhase | null {
+    const route = this.lineRoute(key, type);
+    if (route === null) return null;
+    return route.kind === "review" ? targetFaces[type].product.reviewLead : "fix";
+  }
+
+  /** One single-target line round's C5 route — the review-lead / fix round read back
+   *  through the ledger and judged by the router (null when unreadable). Single-target
+   *  lines key their handoff params `{ round }` (the run.ts / gate.ts shaping) — the
+   *  same #roundRoute the closure judge reads, one walk. */
+  #lineRoundRoute(op: "review" | "fix", type: TargetType, round: number): Route | null {
+    return this.#roundRoute(op, type, { round }, round);
+  }
+
+  /** Whether a C5 route lies on the closure side — the `{done, next-wave}` terminal
+   *  predicate SINGLE SOURCE (D40): the lifecycle's #markTerminal, `#rowClosed` and
+   *  every closure consumer read it here, never a re-typed literal. */
+  static routeClosed(route: Route | null): boolean {
+    return route !== null && (route.kind === "done" || route.kind === "next-wave");
+  }
+
+  /** Whether one progress row's line is closed — the LATEST recorded round's C5 route
+   *  lies on the closure side ({done, next-wave}). The latest recorded round is a fix
+   *  iff a fix is recorded at the latest review's CYCLE (D28 identity — fix-K ⟷
+   *  review-K); otherwise it is the latest review itself. The prior `Math.min(latestFix,
+   *  latestReview)` form was WRONG on a re-review-closed line: with `review=[1,2] ·
+   *  fix=[1]` (review-1 → fix-1 → review-2) it read the STALE fix-1 (whose route is
+   *  `review`) and missed the closing review-2 (whose route is `done`) — reading the
+   *  line forever open at fix. The latest recorded round is `review@2` here. A row with
+   *  no review round yet (implement-only or scheduled) holds the line open. The row's
+   *  review-lead mode rides the faces table (branch→branch-review, the others→review),
+   *  so the wave/spec/plan/branch lines share ONE judge. */
+  #rowClosed(type: TargetType, params: HandoffParams, row: ProgressRow): boolean {
+    const latestReview = this.#latestCycleOfRow(row, targetFaces[type].product.reviewLead);
+    if (latestReview === 0) return false;
+    const fixRecorded = this.#cyclesOf(row, "fix").includes(latestReview);
+    return Ledger.routeClosed(
+      this.#roundRoute(fixRecorded ? "fix" : "review", type, params, latestReview),
+    );
+  }
+
+  /** The latest recorded cycle of a row + mode — 0 when none (the identity read; a
+   *  skipped cycle reports its own number, never the count). */
+  #latestCycleOfRow(row: ProgressRow, mode: string): number {
+    const cycles = this.#cyclesOf(row, mode);
+    return cycles.length > 0 ? Math.max(...cycles) : 0;
   }
 
   /** The C5 route of one recorded round — null when the round is unreadable (a
    *  line whose round was never read cannot be judged closed: only present facts). */
-  #roundRoute(op: "review" | "fix", params: HandoffParams, round: number): Route | null {
-    const carried = this.round(op, "wave", params, round);
+  #roundRoute(
+    op: "review" | "fix",
+    type: TargetType,
+    params: HandoffParams,
+    round: number,
+  ): Route | null {
+    const carried = this.round(op, type, params, round);
     if (carried === null) return null;
     return this.#router.next(EMPTY_RUN_STATE, carried);
-  }
-
-  /** The closure-side predicate — route.kind ∈ {done, next-wave} (the v1.20 terminal
-   *  side, byte-identical to the lifecycle's #markTerminal gate). */
-  static #closedBy(route: Route | null): boolean {
-    return route !== null && (route.kind === "done" || route.kind === "next-wave");
   }
 
   // -------------------------------------------------------------------------

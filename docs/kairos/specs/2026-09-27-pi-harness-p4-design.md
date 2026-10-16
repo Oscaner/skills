@@ -1,6 +1,7 @@
 # Pi Harness P4 — 技能改名 + 命名退役 + 文档·测试·收口（Pi Harness P4: Skill Rename + Naming Retirement + Docs · Tests · Closeout）— Phase Spec
 
 - **Version**: v1.6 · 2026-10-01
+- **Doc type**: phase-spec
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming → writing-phase-spec)
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.22](2026-09-27-pi-harness-overall.md)

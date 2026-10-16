@@ -26,20 +26,25 @@
 // message — rides declared constants from session/next.ts, rendered by reference,
 // never restated.
 //
+// D40 — the render delegates to the shared `RouteRenderer` (the ONE route →
+// `next:` literal face, also consumed by the board); the capsule adds only the
+// `done` face's doc-class discrimination (a spec doc's declared class decides the
+// pipeline entry — or the BLOCKED face when the declaration is absent, spec §12).
+//
 // The class satisfies the session/run.ts CapsuleFace seam (T8's interaction point) —
 // the capsule plugs into the lifecycle's attachCapsule contact, byte-identically.
 // Module-level exports are the class — zero behavior-carrying bare functions.
 
+import path from "node:path";
 import type { RouteTarget } from "../session/faces.ts";
-import { FIX_READBACK_SUFFIX, type Route } from "../session/next.ts";
+import { NextStepRouter, type PipelineKey, type Route } from "../session/next.ts";
+import { BoardView } from "./board-view.ts";
+import { type RouteChannelRow, RouteRenderer } from "./route-render.ts";
 import type { CapsuleKey, Words } from "./words.ts";
 
-/** The argv-channel flag row the capsule's render reads (structural — the engine's
- *  channel rows carry the `flag` spelling; the default `--<key>` covers a row-less
- *  key so the render never hard-codes a spelling). */
-export interface CapsuleChannelRow {
-  flag?: string;
-}
+/** The argv-channel flag row the capsule's render reads — re-exported from the
+ *  shared renderer's row type (the capsule renders through the ONE RouteRenderer). */
+export type CapsuleChannelRow = RouteChannelRow;
 
 /**
  * Capsule — the single capsule output face. emit(status, blocker, handoff, next)
@@ -55,12 +60,21 @@ export interface CapsuleChannelRow {
 export class Capsule {
   /** The single word table — the capsule's whole vocabulary source. */
   readonly #words: Words;
-  /** The argv-channel flag spellings — the declared render source (parse's own). */
-  readonly #channels: Readonly<Record<string, CapsuleChannelRow>>;
+  /** The ONE route → `next:` literal renderer (D40 — shared with the board). */
+  readonly #route: RouteRenderer;
+  /** The repo root the doc-target ids resolve against (the declaration read's
+   *  path base; `""` keeps a relative id relative — the hermetic-test default). */
+  readonly #repoRoot: string;
 
-  constructor(words: Words, channels: Readonly<Record<string, CapsuleChannelRow>> = {}) {
+  constructor(
+    words: Words,
+    channels: Readonly<Record<string, CapsuleChannelRow>> = {},
+    host = "",
+    repoRoot = "",
+  ) {
     this.#words = words;
-    this.#channels = channels;
+    this.#repoRoot = repoRoot;
+    this.#route = new RouteRenderer(words, channels, host);
   }
 
   /** emit(status, blocker, handoff, next, target) → the capsule stdout lines: the
@@ -91,86 +105,45 @@ export class Capsule {
     return lines;
   }
 
-  /** The declared flag spelling of one channel key — the argv channel the CLI parse
-   *  itself resolves (never a hard-coded format string; `--<key>` for a row-less key). */
-  #flag(key: string): string {
-    return this.#channels[key]?.flag ?? `--${key}`;
-  }
-
-  /** The plan path of the literal — the frame's plan fact (the implement literal's
-   *  required `--plan`), the `<plan>` placeholder when the fact is absent (the bare
-   *  fallback face — the mirror of the crash-resume's `<plan>` seed). */
-  #planOf(target?: RouteTarget | null): string {
-    return target?.plan ?? "<plan>";
-  }
-
-  /** The route → `next:` text render — one complete executable command per C5 route
-   *  row (P4.1 T4): `implement --plan <path> --tasks 17` for a ready wave ·
-   *  `review --type <wave|spec|plan|branch> <type-arg>` for a review hop ·
-   *  `fix --type <type> <type-arg> --findings <path> (confirm the findings · annotate the carrier with the adjudications)`
-   *  for the one-way fix hop · `done` as the bare terminal word · the soft-cap
-   *  message verbatim. `--type` renders only where the verb's type discriminates —
-   *  implement (the single-type wave verb) never carries it (the declaration's
-   *  default-type semantics unchanged) · review/fix (multi-type) always do. The
-   *  target identity is the dispatch frame's own facts (never a router judgment);
-   *  absent → the bare classifier fallbacks. */
+  /** The route → `next:` text render — the shared RouteRenderer (D40) unless the
+   *  `done` face's doc-class discrimination fires (a spec doc's declared class decides
+   *  the pipeline entry — or the BLOCKED face when the declaration is absent, spec
+   *  §12 · D34). The capsule resolves the doc-class, then hands the resulting Route
+   *  (a `handoff` carrying the entry, or the bare `done`) to the same renderer. */
   #routeText(route: Route, target?: RouteTarget | null): string {
-    const words = this.#words;
-    switch (route.kind) {
-      case "done":
-        return words.routeWord("done");
-      case "next-wave":
-        return `${words.routeWord("implement")} ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("tasks")} ${route.tasks}`;
-      case "review": {
-        const verb = words.routeWord("review");
-        const type = target?.type ?? null;
-        if (type === "wave") {
-          // find #7 (P4.1 T7 · design §5.6): the wave review literal carries its
-          // runtime-required `--plan` — the same assembly the implement/next-wave
-          // and fix→wave branches share (a W3 dispatch showed the missing flag
-          // parsed green yet refused the run: `missing required --plan <path>`).
-          return `${verb} ${this.#flag("type")} wave ${this.#flag("tasks")} ${target!.id} ${this.#flag("plan")} ${this.#planOf(target)}`;
-        }
-        if (type === "spec") {
-          return `${verb} ${this.#flag("type")} spec ${this.#flag("spec")} ${target!.id}`;
-        }
-        if (type === "plan") {
-          return `${verb} ${this.#flag("type")} plan ${this.#flag("plan")} ${target!.id}`;
-        }
-        if (type === "branch") {
-          // The branch re-review literal carries only the workspace-identity `--plan`
-          // — the review judges the live tree, so no range rides the command (the
-          // scope anchor BASE_BRANCH is engine-injected at dispatch).
-          return `${verb} ${this.#flag("type")} branch ${this.#flag("plan")} ${this.#planOf(target)}`;
-        }
-        return verb;
+    if (route.kind === "done" && target != null) {
+      const verdict = this.#docClassOf(target);
+      if (verdict === "blocked") {
+        return `${this.#words.station("blocked")} ${this.#words.routeWord("docType")}`;
       }
-      case "fix": {
-        if (route.findings === undefined) return words.routeWord("fix");
-        const verb = words.routeWord("fix");
-        const type = target?.type ?? null;
-        const id = target?.id ?? "";
-        if (type === "wave") {
-          return `${verb} ${this.#flag("type")} wave ${this.#flag("tasks")} ${id} ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("findings")} ${route.findings} ${FIX_READBACK_SUFFIX}`;
-        }
-        if (type === "spec") {
-          return `${verb} ${this.#flag("type")} spec ${this.#flag("spec")} ${id} ${this.#flag("findings")} ${route.findings} ${FIX_READBACK_SUFFIX}`;
-        }
-        if (type === "plan") {
-          return `${verb} ${this.#flag("type")} plan ${this.#flag("plan")} ${id} ${this.#flag("findings")} ${route.findings} ${FIX_READBACK_SUFFIX}`;
-        }
-        if (type === "branch") {
-          // find #8 F1b (spec §5.7 fix ② · the user's ruling): the branch fix
-          // literal carries the workspace-identity `--plan` (isomorphic with the
-          // wave fix branch; a plan-less `#sceneOf` resolves to the empty
-          // ref.short() directory — the workspace double identity, zero
-          // orchestrator fallback).
-          return `${verb} ${this.#flag("type")} branch ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("findings")} ${route.findings} ${FIX_READBACK_SUFFIX}`;
-        }
-        return `${verb} ${this.#flag("findings")} ${route.findings} ${FIX_READBACK_SUFFIX}`;
-      }
-      case "soft-cap":
-        return route.message;
+      // The declared doc-class (or a bare terminal) picks the pipeline entry — the
+      // same resolver + renderer the board consumes.
+      const key = verdict === "terminal" ? null : verdict;
+      return this.#route.render(NextStepRouter.resolve({ kind: "done" }, key), target);
     }
+    return this.#route.render(route, target);
+  }
+
+  /** The target → doc-class verdict of the unified next face — the doc-class
+   *  discrimination face (D33): the spec doc's class reads its DECLARED type (the
+   *  `- **Doc type**:` header declaration, spec §12 · D34 — BoardView.readDocType,
+   *  the one declaration reading face), never the filename suffix; the task-face
+   *  targets key by type. `blocked` — the declaration is missing (the caller
+   *  renders the BLOCKED face); `terminal` — no pipeline seam carries the declared
+   *  class (`single-spec`, the table's five keys exclude it — the bare word). */
+  #docClassOf(target: RouteTarget): "blocked" | "terminal" | PipelineKey {
+    if (target.type === "spec") {
+      const declared = BoardView.readDocType(this.#docPathOf(target.id));
+      return declared === null ? "blocked" : declared === "single-spec" ? "terminal" : declared;
+    }
+    if (target.type === "plan") return "plan";
+    if (target.type === "wave") return "wave";
+    return "branch";
+  }
+
+  /** The doc-target id's file path — the id resolved against the capsule's repo
+   *  root (an absolute id passes through; a relative one joins the root). */
+  #docPathOf(id: string): string {
+    return path.isAbsolute(id) ? id : this.#repoRoot === "" ? id : path.join(this.#repoRoot, id);
   }
 }

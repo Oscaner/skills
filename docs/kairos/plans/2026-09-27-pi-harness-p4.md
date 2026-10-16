@@ -4,6 +4,7 @@
 
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.22](docs/kairos/specs/2026-09-27-pi-harness-overall.md)
 - **Version**: v1.5 · 2026-10-01
+- **Doc type**: plan
 - **Depends on**: P4 design v1.4 Approved（`0f279ded` · `4db6049c`，C1–C6）
 - **Base**: develop
 

@@ -1,12 +1,12 @@
 // packages/cdd-engine/src-next/session/__tests__/preflight.test.ts
 // P4.1 T1 — PreFlight suite: the lifecycle pre-flight seam (design §1) — the
-// tree-clean + plan-graph + wave + doc-contract dispatch gates converge into ONE
+// tree-clean + graph + wave + doc-contract dispatch gates converge into ONE
 // single-entry gate:
 //   · the dirty-tree hard gate — implement/review/fix on a dirty working tree
 //     BLOCKs (the CDD_BLOCKED guidance) BEFORE any wave/doc judgment, child zero;
-//   · the gate order — tree-clean → plan-graph → wave → doc-contract, one verdict
+//   · the gate order — tree-clean → graph → wave → doc-contract, one verdict
 //     carries the run gate list (the judgeable order);
-//   · the plan-graph gate — a plan whose DependsOn edges fail validates refuses;
+//   · the graph gate — a plan whose DependsOn edges fail validates refuses;
 //   · the wave gate — the three-verb split/wrong-phase refusals ride the seam;
 //   · the doc-contract gate — the doc faces judge the target doc's structure;
 //   · the unreadable-doc skip — an absent doc carries no doc-contract judgment;
@@ -178,10 +178,12 @@ const waveCtx = (
   };
 };
 
-/** The doc-face context — the target doc judged by the doc-contract gate. */
+/** The doc-face context — the target doc judged by the doc-contract gate. `docKey`
+ *  is the doc's declared type (spec §12 · D34); null models a present doc carrying
+ *  no `- **Doc type**:` declaration (the seam BLOCKs). */
 const docCtx = (
   repoRoot: string,
-  docKey: DocKey,
+  docKey: DocKey | null,
   verb: PreFlightContext["verb"],
 ): PreFlightContext => {
   const workspace = new Workspace(
@@ -229,7 +231,7 @@ describe("PreFlight — the clean-tree hard gate (implement/review/fix)", () => 
     try {
       dirty(repoRoot);
       const preflight = preflightOf();
-      // dangling DependsOn (plan-graph would refuse) + a defective doc: the dirty
+      // dangling DependsOn (the graph gate would refuse) + a defective doc: the dirty
       // tree still owns the verdict — the gate sequence stops at tree-clean.
       const badPlan = [task(1, "none"), task(2, "99")];
       const verdict = await preflight.vet(docCtx(repoRoot, "phase-spec", "review"));
@@ -263,7 +265,7 @@ describe("PreFlight — the clean-tree hard gate (implement/review/fix)", () => 
       const preflight = preflightOf();
       const verdict = await preflight.vet(ctx);
       expect(verdict.ok).toBe(true);
-      expect(verdict.order).toEqual(["tree-clean", "plan-graph", "wave"]);
+      expect(verdict.order).toEqual(["tree-clean", "graph", "wave"]);
       // A genuinely dirty USER file still refuses — the ignore is the workspace's
       // own self-published marker, never a pass for the user's uncommitted work.
       dirty(repoRoot);
@@ -299,8 +301,8 @@ describe("PreFlight — the clean-tree hard gate (implement/review/fix)", () => 
 // the gate order composition — the judgeable gate order
 // ---------------------------------------------------------------------------
 
-describe("PreFlight — the gate order composition (tree-clean → plan-graph → wave → doc-contract)", () => {
-  it("a clean wave dispatch passes through tree-clean → plan-graph → wave in order", async () => {
+describe("PreFlight — the gate order composition (tree-clean → graph → wave → doc-contract)", () => {
+  it("a clean wave dispatch passes through tree-clean → graph → wave in order", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
       const preflight = preflightOf();
@@ -308,7 +310,7 @@ describe("PreFlight — the gate order composition (tree-clean → plan-graph �
         waveCtx(repoRoot, [task(1, "none"), task(2, "1")], [1], "implement"),
       );
       expect(verdict.ok).toBe(true);
-      expect(verdict.order).toEqual(["tree-clean", "plan-graph", "wave"]);
+      expect(verdict.order).toEqual(["tree-clean", "graph", "wave"]);
     } finally {
       cleanup();
     }
@@ -328,10 +330,10 @@ describe("PreFlight — the gate order composition (tree-clean → plan-graph �
 });
 
 // ---------------------------------------------------------------------------
-// the plan-graph gate
+// the graph gate
 // ---------------------------------------------------------------------------
 
-describe("PreFlight — the plan-graph gate", () => {
+describe("PreFlight — the graph gate", () => {
   it("a dangling DependsOn edge BLOCKs the dispatch with the named edge issues", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
@@ -340,8 +342,8 @@ describe("PreFlight — the plan-graph gate", () => {
         waveCtx(repoRoot, [task(1, "none"), task(2, "99")], [1, 2], "implement"),
       );
       expect(verdict.ok).toBe(false);
-      expect(verdict.gate).toBe("plan-graph");
-      expect(verdict.reason).toBe("plan-graph");
+      expect(verdict.gate).toBe("graph");
+      expect(verdict.reason).toBe("graph");
       expect(verdict.message).toContain("edge violation");
       expect((verdict.details ?? []).length).toBeGreaterThan(0);
     } finally {
@@ -367,8 +369,8 @@ describe("PreFlight — the wave gate inside the seam", () => {
       expect(verdict.gate).toBe("wave");
       expect(verdict.reason).toBe("split");
       expect(verdict.message).toContain("derived wave");
-      // the wave gate ran AFTER tree-clean + plan-graph
-      expect(verdict.order).toEqual(["tree-clean", "plan-graph", "wave"]);
+      // the wave gate ran AFTER tree-clean + graph
+      expect(verdict.order).toEqual(["tree-clean", "graph", "wave"]);
     } finally {
       cleanup();
     }
@@ -420,6 +422,21 @@ describe("PreFlight — the doc-contract gate (Contract.validate over the doc fa
       });
       const verdict = await preflight.vet(docCtx(repoRoot, "phase-spec", "review"));
       expect(verdict.ok).toBe(true);
+      expect(verdict.order).toEqual(["tree-clean", "doc-contract"]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a present doc carrying no Doc type declaration BLOCKs — zero filename-suffix fallback (spec §12 · D34)", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      const preflight = preflightOf(memoryFs(CONFORMING_SPEC));
+      const verdict = await preflight.vet(docCtx(repoRoot, null, "review"));
+      expect(verdict.ok).toBe(false);
+      expect(verdict.gate).toBe("doc-contract");
+      expect(verdict.reason).toBe("doc-contract");
+      expect(verdict.message).toContain("declares no `- **Doc type**:` line");
       expect(verdict.order).toEqual(["tree-clean", "doc-contract"]);
     } finally {
       cleanup();

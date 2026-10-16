@@ -4,6 +4,7 @@
 
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.3](docs/kairos/specs/2026-09-27-pi-harness-overall.md)
 - **Version**: v1.5 · 2026-09-27
+- **Doc type**: plan
 - **Depends on**: P1 design v1.5 Approved（`aac2acc6`，C6 删除 + unpin + 残留清扫）
 - **Base**: develop
 

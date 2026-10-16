@@ -247,4 +247,41 @@ describe("workspace — the root/workspace pair + the slug rule + JSON roundtrip
     expect(Workspace.slugFromDoc("2026-10-02-x-overall.md")).toBe("2026-10-02-x-overall");
     expect(Workspace.slugFromDoc("notes.md")).toBe("notes");
   });
+
+  it("readJsonLenient tolerates the sub-agent draft dialect — trailing comma / comments (D39)", () => {
+    const base = mkdtempSync(path.join(tmpdir(), "infra-ws-"));
+    try {
+      const root = new WorkspaceRoot(base, ".kairos/cdd");
+      const workspace = new Workspace(root, "test-slug");
+      workspace.ensure();
+      // The W3 {5,11} block shape — a trailing comma in the draft's notes array: the
+      // lenient read passes it, the strict read vetoes it (the two faces are isolated).
+      const trailing = '{\n  "status": "APPROVED",\n  "notes": [\n    "a",\n    "b",\n  ]\n}\n';
+      writeFileSync(path.join(workspace.path, "draft.json"), trailing, "utf8");
+      expect(workspace.readJsonLenient("draft.json")).toEqual({
+        kind: "ok",
+        value: { status: "APPROVED", notes: ["a", "b"] },
+      });
+      expect(workspace.readJson("draft.json")).toEqual({ kind: "malformed" });
+
+      // A comment is the same dialect slip — tolerated leniently, vetoed strictly.
+      writeFileSync(path.join(workspace.path, "commented.json"), '{ // note\n "a": 1\n}', "utf8");
+      expect(workspace.readJsonLenient("commented.json")).toEqual({ kind: "ok", value: { a: 1 } });
+      expect(workspace.readJson("commented.json")).toEqual({ kind: "malformed" });
+
+      // A REAL break stays fail-loud on both faces — leniency never swallows corruption.
+      // The lenient face ALSO carries the parser's precise error codes (D39) for
+      // diagnosis; the strict face reports its bare malformed outcome.
+      writeFileSync(path.join(workspace.path, "broken.json"), '{ "a": 1 ', "utf8");
+      const broken = workspace.readJsonLenient("broken.json");
+      expect(broken.kind).toBe("malformed");
+      expect(broken.kind === "malformed" && (broken.errors?.length ?? 0) > 0).toBe(true);
+      expect(workspace.readJson("broken.json")).toEqual({ kind: "malformed" });
+
+      // The tri-state legs hold on the lenient face too.
+      expect(workspace.readJsonLenient("absent.json")).toEqual({ kind: "missing" });
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
+  });
 });

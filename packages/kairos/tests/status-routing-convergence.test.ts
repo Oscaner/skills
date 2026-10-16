@@ -20,10 +20,12 @@ import { expect, test } from "vitest";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SKILLS_ROOT = path.resolve(HERE, "..", "skills");
 
-// The convergence carriers — the C1 ①④ status-routing re-anchor set (the four loop-chain skills
-// whose Review Convergence words the orchestrator surface). Scope is self-describing: this is the
-// set that carries the convergence discipline, not an arbitrary file list.
-const CARRIERS = ["cdd-dev", "cdd-spec-writer", "cdd-design", "cdd-plan"];
+// The convergence carriers — the C1 ①④ status-routing re-anchor set (the loop-chain skills whose
+// Review Convergence words the orchestrator surface). Scope is self-describing: this is the set
+// that carries the convergence discipline, not an arbitrary file list. cdd-design is a one-pass
+// forked-routing flow (no NEXT-LOOP hub) — its convergence wording rides the delegated writer flows,
+// so it is not a carrier of the loop-chain convergence re-anchor.
+const CARRIERS = ["cdd-dev", "cdd-spec-writer", "cdd-plan"];
 
 // Retired wording — the "blocker count" read-interpretation vocabulary (M1/M3), the "three segments"
 // S1/S2/S3 self-narrated status→dispatch routing restatement (C5/T9), and the retired `status:` reading

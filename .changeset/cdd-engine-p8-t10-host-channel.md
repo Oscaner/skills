@@ -1,0 +1,5 @@
+---
+"@oscaner-skills/cdd-engine": patch
+---
+
+**P8 §14 host channel integrity (D36)** — `SyncRunner` abandons Node's built-in `execFileSync` (full buffering · the default `maxBuffer` 1 MiB ceiling: a long-running child's output past the limit is truncated and the trailing `RETURN_STDOUT_BLOCK` is lost first — the root cause of the two `CDD_BLOCKED: child claude returned no status line` failures in W1) and switches to **`execaSync`** (the sync face of `execa@10` · `maxBuffer` unbounded by default · the dual-pipe concurrent drainage built on `spawnSync`): `reject:false` (a failing child returns a result rather than throwing · fail-open), `stripFinalNewline:false` (stdout bytes verbatim · the trailing block untouched); the face is unchanged — still synchronous, still returning `{code, stdout, stderr}`, and the fully-synchronous `DispatchStep` dispatch contract is untouched (run.ts:113). New dependency `execa`. Regression pins: a >1 MiB child output is fully collected (exactly the byte count past the old default ceiling) + the `status:` trailing block stays whole + stderr on the same face + fail-open preserved.

@@ -1,6 +1,7 @@
 # P4.2 — 发布一致性闭环
 
 - **Version**: v1.2 · 2026-09-26
+- **Doc type**: phase-spec
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)
 - **Parent program**: [2026-09-21-consumer-parity-overall.md v1.44](2026-09-21-consumer-parity-overall.md)

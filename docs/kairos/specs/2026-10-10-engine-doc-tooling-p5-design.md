@@ -1,5 +1,6 @@
 # 引擎文档工具（Engine Doc-Tooling）— P5 设计：整引擎 + repo CI 验证脚本重整
 - **Version**: v0.8 · 2026-10-13
+- **Doc type**: phase-spec
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P5] 会话 · 用户裁定 · 2026-10-12）
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](2026-10-10-engine-doc-tooling-overall.md)

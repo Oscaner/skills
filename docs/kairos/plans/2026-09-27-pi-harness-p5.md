@@ -4,6 +4,7 @@
 
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.27](docs/kairos/specs/2026-09-27-pi-harness-overall.md)
 - **Version**: v1.4 · 2026-10-02
+- **Doc type**: plan
 - **Depends on**: P5 design v1.3 Approved（`18d30c16` review r1+r2 收口 + `f3e78471` v1.3 design backfill）
 - **Base**: develop
 

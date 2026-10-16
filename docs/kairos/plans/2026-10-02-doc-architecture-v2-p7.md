@@ -4,6 +4,7 @@
 
 - **Parent program**: [doc-architecture-v2-overall.md v1.63](docs/kairos/specs/2026-10-02-doc-architecture-v2-overall.md)
 - **Version**: v1.2 · 2026-10-10
+- **Doc type**: plan
 - **Depends on**: P2（Done · hard）· P3.2（Done · [p3.2-plan v1.31](docs/kairos/plans/2026-10-02-doc-architecture-v2-p3.2.md) —— serial-phase GATE 满足 · T19 翻译系统核心 + T20 base 命令面 carrying 基线）
 - **Base**: develop
 

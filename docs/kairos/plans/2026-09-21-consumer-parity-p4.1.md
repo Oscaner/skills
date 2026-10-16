@@ -3,6 +3,7 @@
 **Spec:** [2026-09-21-consumer-parity-p4.1-design.md](docs/kairos/specs/2026-09-21-consumer-parity-p4.1-design.md)
 **Parent program**: [consumer-parity overall v1.25](docs/kairos/specs/2026-09-21-consumer-parity-overall.md)
 - **Version**: v1.5 · 2026-09-24
+- **Doc type**: plan
 **Depends on**: P3 shipped（[p3-design v1.2](docs/kairos/specs/2026-09-21-consumer-parity-p3-design.md)）；本 session 已产出 overall v1.19/v1.20（P4 拆点分回填）与 [P4.1 design v1.1](docs/kairos/specs/2026-09-21-consumer-parity-p4.1-design.md)
 **Base**: develop
 

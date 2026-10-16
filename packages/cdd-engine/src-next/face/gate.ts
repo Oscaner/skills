@@ -12,9 +12,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { MarkdownPrimitives } from "../contract/doc.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import type { DispatchPhase } from "../session/faces.ts";
-import type { DocRevisionRef, HandoffParams } from "../session/ledger.ts";
-import type { Route } from "../session/next.ts";
-import { EMPTY_RUN_STATE } from "../session/run.ts";
+import type { DocRevisionRef } from "../session/ledger.ts";
 import type { RunInput, WorkScene } from "./cli.ts";
 
 /**
@@ -121,22 +119,13 @@ export class CliGate {
   }
 
   /** The single-target line's current open phase — fix-awaits / re-review / closure
-   *  read through the same ledger + router the lifecycle's line faces judge. */
+   *  read from the ledger's SINGLE line-phase judge (`Ledger#linePhase`, D40 — the
+   *  retired gate twin): the gate and the lifecycle's frame frontier now read ONE
+   *  source, never a second walk. */
   #linePhase(scene: WorkScene): DispatchPhase | null {
-    const reviewLead = scene.face.product.reviewLead;
     const key = this.#lineKey(scene);
     if (key === null) return null;
-    const reviews = scene.ledger.roundCount(key, reviewLead);
-    if (reviews === 0) return reviewLead;
-    // The latest review cycle's IDENTITY membership in the fix set (D28) — the twin
-    // of the lifecycle's #nextLinePhase judgment (a count comparison would flatten a
-    // skipped cycle into a phantom pending fix).
-    if (!scene.ledger.roundRecorded(key, "fix", reviews)) {
-      const route = this.#lineRoundRoute(scene, reviews);
-      return route?.kind === "fix" ? "fix" : null;
-    }
-    const route = this.#lineFixRoute(scene, reviews);
-    return route?.kind === "review" ? reviewLead : null;
+    return scene.ledger.linePhase(key, scene.face.type);
   }
 
   /** The line key of a fixed-target face — the line's STABLE key (find #9 · spec
@@ -148,25 +137,6 @@ export class CliGate {
     if (scene.target?.kind === "branch") return "branch";
     if (scene.target?.kind === "doc") return scene.face.type;
     return null;
-  }
-
-  /** The official handoff params of a line round (the lifecycle's own per-face shape). */
-  #lineParams(round: number): HandoffParams {
-    return { round };
-  }
-
-  /** The C5 route of a line's review-lead round (the fix-awaits decision). */
-  #lineRoundRoute(scene: WorkScene, round: number): Route | null {
-    const carried = scene.ledger.round("review", scene.face.type, this.#lineParams(round), round);
-    if (carried === null) return null;
-    return scene.router.next(EMPTY_RUN_STATE, carried);
-  }
-
-  /** The C5 route of a line's fix round (the re-review/closure decision). */
-  #lineFixRoute(scene: WorkScene, round: number): Route | null {
-    const carried = scene.ledger.round("fix", scene.face.type, this.#lineParams(round), round);
-    if (carried === null) return null;
-    return scene.router.next(EMPTY_RUN_STATE, carried);
   }
 
   /** The doc's live content — readable doc else null. This helper backs the face's

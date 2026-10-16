@@ -4,6 +4,7 @@
 
 - **Parent program**: [2026-09-27-pi-harness-overall.md v1.17](docs/kairos/specs/2026-09-27-pi-harness-overall.md)
 - **Version**: v1.10 · 2026-09-30
+- **Doc type**: plan
 - **Depends on**: P3 design v1.6 Approved（`495707f4` 前版 C1–C7 + 契约面 D1–D4 + Contract Lexicon L2 + 崩溃恢复 T7 + 统一终止模型 T8 + 预算维度统一 T9）
 - **Base**: develop
 

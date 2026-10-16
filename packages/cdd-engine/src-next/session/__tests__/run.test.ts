@@ -25,7 +25,7 @@ import { BriefRenderer } from "../../render/brief.ts";
 import { type TargetFace, type TargetType, targetFaces } from "../faces.ts";
 import { TaskGraph } from "../graph.ts";
 import { Ledger } from "../ledger.ts";
-import { SOFT_CAP_SUGGESTION } from "../next.ts";
+import { REVIEW_CYCLE_CAP, SOFT_CAP_SUGGESTION } from "../next.ts";
 import type { CapsuleFace, DispatchOutcome, DispatchStep, OpenFrame, StepResult } from "../run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../run.ts";
 
@@ -540,13 +540,14 @@ describe("the task small loop — implement → review → the next ready group"
     }
   });
 
-  it("three consecutive blocker reviews hit the review-cycle soft cap — the line stops for the user, not done (v1.29)", () => {
+  it("REVIEW_CYCLE_CAP consecutive blocker reviews hit the soft cap — the line stops for the user, not done (v1.29)", () => {
     const { ledger, cleanup } = fixture();
     try {
-      // REVIEW_CYCLE_CAP = 3: the fix round's consecutive-S1 run (walked from the review
-      // history) reaches 3 → the router defers to the user (soft-cap). The line is
+      // REVIEW_CYCLE_CAP: the fix round's consecutive-S1 run (walked from the review
+      // history) reaches the cap → the router defers to the user (soft-cap). The line is
       // neither closed (done/next-wave) nor failed — it HOLDS for adjudication: the
       // next frame opens nothing (the route is not "review"), the wave is not done.
+      // The walk is cap-driven so a cap change needs no test edit.
       const graph = taskGraph([task(1, "none")]);
       const dispatch = stub((frame) => {
         if (frame.phase === "implement") return APPROVED_IMPLEMENT;
@@ -561,16 +562,15 @@ describe("the task small loop — implement → review → the next ready group"
       });
 
       run.advance(); // implement 1
-      run.advance(); // review 1 (blocker) → fix
-      const fix1 = run.advance();
-      expect(fix1!.route!.kind).toBe("review"); // S1 run 1
-      run.advance(); // review 2 (blocker)
-      const fix2 = run.advance();
-      expect(fix2!.route!.kind).toBe("review"); // S1 run 2
-      run.advance(); // review 3 (blocker)
-      const fix3 = run.advance();
-      expect(fix3!.route!.kind).toBe("soft-cap"); // S1 run 3 → user adjudicates
-      expect(fix3!.route).toEqual({ kind: "soft-cap", message: SOFT_CAP_SUGGESTION });
+      for (let cycle = 1; cycle < REVIEW_CYCLE_CAP; cycle += 1) {
+        run.advance(); // review cycle (blocker) → fix
+        const fix = run.advance();
+        expect(fix!.route!.kind).toBe("review"); // S1 run cycle < cap → re-review
+      }
+      run.advance(); // review cap (blocker) → fix
+      const capFix = run.advance();
+      expect(capFix!.route!.kind).toBe("soft-cap"); // S1 run == cap → user adjudicates
+      expect(capFix!.route).toEqual({ kind: "soft-cap", message: SOFT_CAP_SUGGESTION });
       // the line HOLDS: neither closed (not done), nor re-reviewing (the cap defers)
       expect(graph.doneTasks()).toEqual(new Set());
       expect(run.advance()).toBeNull();

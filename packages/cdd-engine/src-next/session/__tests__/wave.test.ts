@@ -303,6 +303,39 @@ describe("ledger.closedWaves — the C5 closure single read face", () => {
       cleanup();
     }
   });
+
+  it("a re-review-closed wave (review=[1,2] · fix=[1]) is CLOSED — the latest recorded round wins", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // The regression pin (P8 {5,11}): review-1 raises a blocker → fix-1 carries the
+      // source review's findings → re-review-2 approves clean. The latest recorded round
+      // is review@2 (route `done`), NOT the stale fix@1 (route `review`). The prior judge
+      // read the fix at `Math.min(latestFix, latestReview)` = min(1,2) = 1 → the stale
+      // fix-1 → `review` → read the wave forever open at fix (the wave gate then refused
+      // the next wave). The identity read (a fix at the latest review's cycle) fixes it.
+      ledger.recordRound("5,11", "implement");
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "5,11", round: 1 },
+        { findings: [{ severity: "blocker", summary: "defect" }] },
+      );
+      ledger.recordRound("5,11", "review");
+      ledger.recordRound("5,11", "fix");
+      ledger.persistHandoff("fix", "wave", { tasks: "5,11", round: 1 }, { artifacts: {} });
+      ledger.recordRound("5,11", "review", 2);
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "5,11", round: 2 },
+        { tasks: [5, 11], phase: "review", findings: [] },
+      );
+      expect(ledger.closedWaves()).toEqual(new Set([5, 11]));
+      expect(ledger.waveLinePhase("5,11")).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
 });
 
 describe("WaveGate.vet — the brief-revision-aware pending-fix resolution (T11 · D16 · D30)", () => {

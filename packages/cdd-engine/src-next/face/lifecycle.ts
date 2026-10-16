@@ -15,8 +15,9 @@
 // The module exports the shared seams + the lifecycle class — zero behavior-carrying
 // bare functions.
 
-import { execFileSync } from "node:child_process";
 import process from "node:process";
+import { execaSync } from "execa";
+import { printParseErrorCode } from "jsonc-parser";
 import { ConfigLoader } from "../infra/config.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
 import type { Workspace } from "../infra/workspace.ts";
@@ -26,14 +27,7 @@ import type { HandoffSchemaFace } from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
 import type { Ledger, OpType, RoundStatus } from "../session/ledger.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame } from "../session/run.ts";
-import {
-  DISPATCH,
-  HOSTS,
-  type HostDetectSpec,
-  type HostId,
-  type HostReferenceTable,
-  REFS,
-} from "./host.ts";
+import { DISPATCH, HOSTS, HostDetect, type HostId, type HostReferenceTable, REFS } from "./host.ts";
 
 // ---------------------------------------------------------------------------
 // the stable seams — the shared faces the composition root + the lifecycle ride
@@ -60,25 +54,48 @@ export interface SyncProcess {
   ): { code: number; stdout: string; stderr: string };
 }
 
-/** SyncRunner — the node:child_process execFileSync adapter (sync because the T8
- *  lifecycle's DispatchStep seam is synchronous — one dispatch, one advance). */
+/** SyncRunner — the unbounded sync child channel (spec §14 · D36): execa's
+ *  synchronous face, which imposes no output-buffer ceiling — the whole-buffer
+ *  cap class the retired built-in call hit (a fixed 1 MiB default, the W1
+ *  `child claude returned no status line` truncation) does not exist here. The
+ *  face stays synchronous (the T8 lifecycle's DispatchStep seam is one dispatch,
+ *  one advance) and keeps the injected `SyncProcess` shape byte-for-byte: a
+ *  non-zero/broken child rides the code, never a throw — `reject: false` surfaces
+ *  the failure as a result, and `stripFinalNewline: false` keeps the child's
+ *  stdout verbatim (the `RETURN_STDOUT_BLOCK` tail stays intact). The adapter is
+ *  a pure `#collect` read: no buffering to bound, no worker, no concurrency. */
 export class SyncRunner implements SyncProcess {
   run(
     command: string,
     args: readonly string[],
     cwd: string,
   ): { code: number; stdout: string; stderr: string } {
-    try {
-      const stdout = execFileSync(command, [...args], { cwd, encoding: "utf8" });
-      return { code: 0, stdout, stderr: "" };
-    } catch (raw) {
-      const error = raw as { status?: unknown; stdout?: unknown; stderr?: unknown };
-      return {
-        code: typeof error.status === "number" ? error.status : 1,
-        stdout: typeof error.stdout === "string" ? error.stdout : "",
-        stderr: typeof error.stderr === "string" ? error.stderr : "",
-      };
-    }
+    return this.#collect(command, args, cwd);
+  }
+
+  /** The synchronous collection — execa's sync face with the three options the
+   *  fail-open `SyncProcess` contract needs: `reject: false` (a failed child is a
+   *  result, never a throw), `stripFinalNewline: false` (byte-verbatim stdout), and
+   *  the default unbounded output buffer (the cap class is retired). The result
+   *  reads back into the same `{code, stdout, stderr}` face — `exitCode ?? 1` is the
+   *  exit code; stderr is the child's own stream when it wrote one, else the execa
+   *  diagnostic (a spawn failure like ENOENT writes nothing, so its reason rides the
+   *  `shortMessage` — the fail-open face keeps a reason text, never an empty block). */
+  #collect(
+    command: string,
+    args: readonly string[],
+    cwd: string,
+  ): { code: number; stdout: string; stderr: string } {
+    const result = execaSync(command, [...args], {
+      cwd,
+      reject: false,
+      stripFinalNewline: false,
+    });
+    return {
+      code: result.exitCode ?? 1,
+      stdout: result.stdout ?? "",
+      stderr: result.stderr || (result.failed ? (result.shortMessage ?? "") : ""),
+    };
   }
 }
 
@@ -145,27 +162,11 @@ export class CliLifecycle {
   }
 
   /** The host-harness id detected from the env — "claude" | "cursor" | "pi" | "" —
-   *  the first host detect row that matches (the detection priority: specific markers
-   *  first, the generic AI_AGENT last). One row detects by its primary marker (a
-   *  session env, presence/enum — a UUID CLAUDE_CODE_SESSION_ID is claude by presence)
-   *  or by the AI_AGENT prefix (AI_AGENT=claude-code-…). */
+   *  a delegation to the module-level judgment (HostDetect.detect, face/host.ts —
+   *  the detection's single home; this instance method is the injectable-env
+   *  adapter the lifecycle face rides, behavior unchanged). */
   detectHost(env: ProcessEnvLike = this.#env): string {
-    for (const id of ["claude", "cursor", "pi"] as const) {
-      const detect: HostDetectSpec = HOSTS[id].detect;
-      if (detect.env !== undefined && detect.env !== "") {
-        const marker = env[detect.env];
-        if (marker !== undefined && marker.length > 0) {
-          if (detect.value !== undefined && marker !== detect.value) continue;
-          return id;
-        }
-      }
-      if (detect.aiAgentPrefix !== undefined && detect.aiAgentPrefix.length > 0) {
-        const agent = env.AI_AGENT;
-        if (agent !== undefined && agent.length > 0 && agent.startsWith(detect.aiAgentPrefix))
-          return id;
-      }
-    }
-    return "";
+    return HostDetect.detect(env);
   }
 
   /** The DispatchStep the lifecycle runs — one frame → the outcome. */
@@ -405,15 +406,25 @@ export class CliLifecycle {
     const path = scene.ledger.handoffPath(op, frame.type, frame.params);
     // The tri-state draft read — a MISSING draft ("never written") and a MALFORMED one
     // (present but unparseable JSON) are different facts: the rejection reports each
-    // truly, so a corrupt draft is never misreported as "not written" (D27).
-    const draftRead = scene.workspace.readJson<Record<string, unknown>>(
+    // truly, so a corrupt draft is never misreported as "not written" (D27). The read
+    // is LENIENT (D39): the draft is a child-LLM-authored carrier, and a trailing comma
+    // (a routine model slip) must not void the whole round — jsonc-parser tolerates the
+    // lenient dialect while a real break (a missing brace, …) still reports malformed.
+    const draftRead = scene.workspace.readJsonLenient<Record<string, unknown>>(
       scene.ledger.handoffName(op, frame.type, frame.params),
     );
     if (draftRead.kind === "missing") {
       return this.#reject(frame, path, `the handoff draft was not written at ${path}`);
     }
     if (draftRead.kind === "malformed") {
-      return this.#reject(frame, path, `the handoff draft at ${path} is malformed JSON`);
+      // The lenient face carries the parser's precise error codes (D39) — surface
+      // them in the rejection so a genuinely corrupt draft is diagnosable, not just
+      // "malformed".
+      const codes = (draftRead.errors ?? [])
+        .map((error) => printParseErrorCode(error.error))
+        .join(", ");
+      const detail = codes === "" ? "" : ` (${codes})`;
+      return this.#reject(frame, path, `the handoff draft at ${path} is malformed JSON${detail}`);
     }
     const draft = draftRead.value;
     const problems = schema.violations(face, draft);

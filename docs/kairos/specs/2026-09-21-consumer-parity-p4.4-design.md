@@ -1,6 +1,7 @@
 # 消费者面一致性（Consumer Parity）— P4.4 Phase Design Spec
 
 - **Version**: v1.9 · 2026-09-25
+- **Doc type**: phase-spec
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（osuperpowers:brainstorming → writing-phase-spec）
 - **Parent program**: [consumer-parity overall v1.42](2026-09-21-consumer-parity-overall.md)

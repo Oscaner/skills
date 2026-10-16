@@ -32,6 +32,7 @@ Global option: `--dry-run` — simulate the dispatch without writing handoff art
 | `base` | `cdd base set\|get` | Read/write the `base.json` artifact (single CDD `--plan` target) |
 | `schema` | `cdd schema get <type>` | Print the canonical doc-structure schema (discovery-only, zero enforcement) |
 | `issue` | `cdd issue render` | Render an aggregate issue body from stdin findings (pure rendering, zero enforcement) |
+| `board` | `cdd board <slug>` | Render the slug progress board (overall/spec/plan/wave/branch; pure read, zero enforcement) |
 
 Use `cdd <command> --help` for a command's full option list (for example `cdd review --tasks` / `--spec` / `--plan` / `--round`).
 

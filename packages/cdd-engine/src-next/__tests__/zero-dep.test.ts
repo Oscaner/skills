@@ -11,6 +11,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
+import { stripComments } from "./support/strip-comments.ts";
 
 const SRC_NEXT = fileURLToPath(new URL("../", import.meta.url));
 const PKG_ROOT = fileURLToPath(new URL("../../", import.meta.url)); // packages/cdd-engine/
@@ -36,52 +37,11 @@ const retiredByResolved = (resolved: string): RetiredPlane | null => {
 const SPECIFIER_PATTERN = /(?:from\s+|import\s*\(\s*)(['"])([^'"]+)\1/g;
 const SIDE_EFFECT_PATTERN = /^\s*import\s+(['"])([^'"]+)\1/gm;
 
-// Strip comments conservatively (line + block) while keeping string literals, so
-// prose that quotes a `from "../src/x"` idiom never trips the guard.
-// Heuristic boundary: comment elision applies only in code scope — string-literal
-// contents are kept verbatim, and nested template literals are not tracked (a
-// backtick inside `${ }` prematurely closes the outer template).
-const stripComments = (code: string): string => {
-  let out = "";
-  let i = 0;
-  let inLineComment = false;
-  let inBlockComment = false;
-  let inString: "'" | '"' | "`" | null = null;
-  while (i < code.length) {
-    const c = code[i];
-    const next = code[i + 1];
-    if (inLineComment) {
-      if (c === "\n") {
-        inLineComment = false;
-        out += c;
-      }
-      i++;
-    } else if (inBlockComment) {
-      if (c === "*" && next === "/") inBlockComment = false;
-      i++;
-    } else if (inString) {
-      if (c === "\\") {
-        out += c + (next ?? "");
-        i += 2;
-      } else {
-        out += c;
-        if (c === inString) inString = null;
-        i++;
-      }
-    } else if (c === "/" && next === "/") {
-      inLineComment = true;
-      i += 2;
-    } else if (c === "/" && next === "*") {
-      inBlockComment = true;
-      i += 2;
-    } else {
-      if (c === "'" || c === '"' || c === "`") inString = c;
-      out += c;
-      i++;
-    }
-  }
-  return out;
-};
+// Comment elision (line + block) with string literals kept verbatim — the shared
+// length-preserving stripper (P9 branch-review-1 F4: one stripper for both source
+// guards, `./support/strip-comments.ts`), so prose that quotes a `from "../src/x"`
+// idiom never trips the guard and its heuristic boundary can never drift apart from
+// the structural pin's copy.
 
 const listTsFiles = (dir: string, files: string[]): string[] => {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {

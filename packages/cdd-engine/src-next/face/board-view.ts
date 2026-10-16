@@ -309,29 +309,33 @@ export class BoardView {
     channels: Readonly<Record<string, RouteChannelRow>> = {},
   ): BoardRender {
     const lines: string[] = [`cdd board: ${slug}`, ""];
-    // The repo-basis value object — the ONE conversion exit the doc cells and the
-    // `next:` render normalize their embedded paths through (T1 `RepoRoot` · D47).
+    // The repo-basis value object — constructed ONCE at this boundary, the ONE
+    // conversion exit the doc cells and the `next:` render normalize their embedded
+    // paths through (T1 `RepoRoot` · D47). The raw string is threaded no further:
+    // the board renders read the basis through `root.absolute` (F2 — one basis,
+    // one form).
     const root = new RepoRoot(repoRoot);
     const exitCode =
       Workspace.phaseSuffixOf(slug) !== null
-        ? BoardView.#phaseBoard(lines, slug, repoRoot, root, words, host, channels)
-        : BoardView.#programBoard(lines, slug, repoRoot, root);
+        ? BoardView.#phaseBoard(lines, slug, root, words, host, channels)
+        : BoardView.#programBoard(lines, slug, root);
     lines.push("", PROGRESS_LEGEND.board);
     return { lines, exitCode };
   }
 
   /** The phase board render — the overall/spec/plan/wave/branch rows + the next
    *  derivation. Returns the exit code (2 when a present doc line carries no type
-   *  declaration). */
+   *  declaration). The repo-basis `root` is threaded alone (F2) — its `absolute`
+   *  feeds the fs-facing helpers, its value object the path renders. */
   static #phaseBoard(
     lines: string[],
     slug: string,
-    repoRoot: string,
     root: RepoRoot,
     words: Words,
     host: string,
     channels: Readonly<Record<string, RouteChannelRow>>,
   ): number {
+    const repoRoot = root.absolute;
     const suffix = Workspace.phaseSuffixOf(slug)!;
     const program = slug.slice(0, slug.length - suffix.length);
     const docs = Workspace.docsOfSlug(slug, repoRoot);
@@ -390,7 +394,8 @@ export class BoardView {
    *  §6.5). Returns the exit code (2 when the overall doc OR any present phase doc
    *  carries no type declaration — the phase board's BLOCK propagates here, spec §12 ·
    *  D34: zero silent fallback). */
-  static #programBoard(lines: string[], slug: string, repoRoot: string, root: RepoRoot): number {
+  static #programBoard(lines: string[], slug: string, root: RepoRoot): number {
+    const repoRoot = root.absolute;
     const nodes = BoardView.projectNodes(slug, repoRoot);
     const overall = nodes[0]!;
     const overallDoc = BoardView.#docCell(

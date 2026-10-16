@@ -49,6 +49,7 @@ import process from "node:process";
 import { type Command, CommanderError } from "commander";
 import { declaredRegistries } from "../contract/declare.ts";
 import { PlanDocType } from "../contract/doc.ts";
+import { FileExistenceInvariant } from "../contract/invariants.ts";
 import { Contract } from "../contract/judge.ts";
 import type { DocKey } from "../contract/project.ts";
 import { Projector } from "../contract/project.ts";
@@ -139,6 +140,17 @@ export interface WorkScene extends DispatchScene {
   specLink: string | null;
 }
 
+/** The path-typed argv values (T3 §2.3) — split out of the generic `args` record
+ *  so the funnel's normalized `RepoPath` brand reaches the scene/read faces with
+ *  NO downcast (branch-review-1 F7). The funnel is the ONE landing: before it runs
+ *  the three fields are null; after it they carry the branded repoRoot-relative
+ *  value (or null when the flag was absent). */
+export interface PathArgs {
+  plan: RepoPath | null;
+  spec: RepoPath | null;
+  findings: RepoPath | null;
+}
+
 /** The thin-shell → run-body input — the .action shell maps commander's parsed
  *  opts onto this consumption face (the parseArg-normalized values ride through
  *  verbatim, zero rewriting: int-list → the comma string · enum → the value · sha
@@ -149,8 +161,11 @@ export interface WorkScene extends DispatchScene {
 export interface RunInput {
   /** The nested leaf word (schema get|gen · base set|get) — null on the verbs. */
   leaf: CliLeafName | null;
-  /** The declared keys' values — normalized strings (undefined-flagged keys absent). */
+  /** The declared keys' values — normalized strings (undefined-flagged keys absent;
+   *  the path-typed keys are split into `paths` by the funnel). */
   args: Record<string, string>;
+  /** The path-typed argv values — the funnel's branded `RepoPath` landing (F7). */
+  paths: PathArgs;
   /** The positional values (the schema <type> — the parseTypeKey-normalized key). */
   positionals: readonly string[];
   /** The invocation's synthetic-dispatch scope (the --dry-run program flag). */
@@ -385,6 +400,9 @@ export class Cli {
     return {
       leaf,
       args,
+      // The path-typed values land empty — the funnel (`#funnel`) is the ONE
+      // normalization site that fills them with the branded repoRoot-relative form.
+      paths: { plan: null, spec: null, findings: null },
       positionals: command.processedArgs as string[],
       dryRun: this.#dryRun || globals.dryRun === true,
     };
@@ -433,10 +451,12 @@ export class Cli {
     // path is the repoRoot-relative branded `RepoPath` (T4 §2.2 — a bare `string`
     // never reaches the read faces `BoardView.readDocType`/`PreFlightDoc.path`; the
     // CLI feeds the funnel-shaped relative value, each read face erasing to the
-    // absolute syscall form through its OWN `RepoRoot`).
-    const docRel = (
-      scene.target !== null && scene.target.kind === "doc" ? root.relativize(scene.target.doc) : ""
-    ) as RepoPath;
+    // absolute syscall form through its OWN `RepoRoot`). Both branches yield the
+    // brand through the ONE conversion entry (`relativize` of the doc path; the
+    // empty path relativizes to the empty `RepoPath`) — no cast (F3).
+    const docRel = root.relativize(
+      scene.target !== null && scene.target.kind === "doc" ? scene.target.doc : "",
+    );
     const preflight = await this.#preflight.vet({
       verb: verb as "implement" | "review" | "fix",
       type,
@@ -518,7 +538,7 @@ export class Cli {
         this.#words,
         ARGV_CHANNEL,
         HostDetect.detect(process.env),
-        new RepoRoot(scene.workspace.root.repoRoot),
+        scene.workspace.root.basis,
       ),
       planPath: scene.planPath,
     });
@@ -629,7 +649,7 @@ export class Cli {
         baseBranch: this.#baseBranchOf(scene),
         specLink: scene.specLink,
       },
-      findings: parsed.args.findings ?? null,
+      findings: parsed.paths.findings,
     });
     return harness.step();
   }
@@ -675,10 +695,9 @@ export class Cli {
       const graph = new TaskGraph(new PlanDocType("plan").parse(scene.planText.split("\n")));
       const closed = scene.ledger.closedWaves();
       // The graph title's plan path renders repoRoot-relative (D47 · the ONE shape;
-      // `scene.planPath` is argv-origin) — normalized through the ONE value object.
-      const titlePlan = new RepoRoot(scene.workspace.root.repoRoot).relativize(
-        scene.planPath ?? "",
-      );
+      // `scene.planPath` is argv-origin) — normalized through the scene's OWN basis
+      // value object (F2: never a per-call re-wrap).
+      const titlePlan = scene.workspace.root.basis.relativize(scene.planPath ?? "");
       for (const line of this.#graphView
         .render(graph.report(closed), `graph: ${titlePlan}`)
         .split("\n"))
@@ -709,13 +728,14 @@ export class Cli {
     const repoRoot = root.absolute;
     const rootPath = new WorkspaceRoot(repoRoot, config.handoffNamespace().workspaceRoot);
     // The argv paths ride the ONE funnel (T3 §2.3): the READ faces consume the branded
-    // `RepoPath`, while the scene's own `planPath`/`target.doc` — the facts the ledger
-    // persists and the syscalls read — are the value object's `resolve` erasure (the
-    // absolute syscall form; their persisted shape is T4's face). Both derive from the
-    // same funnel, so there is zero second normalization.
-    const planRel = (parsed.args.plan ?? null) as RepoPath | null;
+    // `RepoPath` (`parsed.paths`), while the scene's own `planPath`/`target.doc` — the
+    // facts the ledger persists and the syscalls read — are the value object's `resolve`
+    // erasure (the absolute syscall form; their persisted shape is T4's face). Both
+    // derive from the same funnel, so there is zero second normalization — the brand
+    // reaches here with NO downcast (F7).
+    const planRel = parsed.paths.plan;
     const planPath = planRel === null ? null : root.resolve(planRel);
-    const specRel = (parsed.args.spec ?? null) as RepoPath | null;
+    const specRel = parsed.paths.spec;
     const specPath = specRel === null ? null : root.resolve(specRel);
 
     let slug: string;
@@ -799,31 +819,47 @@ export class Cli {
     };
   }
 
-  /** The input funnel — the ONE normalization landing (T3 · §2.3): every path-typed
-   *  argv value is relativized to the repo root EXACTLY once, here, before the scene
-   *  or any downstream face reads it, so no face ever sees a raw argv path shape. The
-   *  covered face: `--plan` · `--spec` · `--findings` (the schema `--output skeleton`
-   *  `<target>` positional rides `#runSchema`'s own funnel). An out-of-repo input (a
-   *  `..` segment after relativize) is ACCEPTED with a stderr warning — the shape is
-   *  what is judged, never the location (§2.10). */
+  /** The input funnel — the ONE path normalization landing (T3 · §2.3): every
+   *  path-typed argv value is relativized to the repo root EXACTLY once, here,
+   *  before the scene or any downstream face reads it, so no face ever sees a raw
+   *  argv path shape. The covered face: `--plan` · `--spec` · `--findings` (the
+   *  schema `--output skeleton` `<target>` positional and base `--plan` reach the
+   *  SAME landing through `#relativizePath` — branch-review-1 F6: one relativize+warn
+   *  helper, one landing). An out-of-repo input (a `..` segment after relativize) is
+   *  ACCEPTED with a stderr warning — the shape is what is judged, never the location
+   *  (§2.10). */
   #funnel(root: RepoRoot, parsed: RunInput): RunInput {
-    const args: Record<string, string> = { ...parsed.args };
-    for (const key of ["plan", "spec", "findings"] as const) {
-      const value = args[key];
-      if (value === undefined || value === "") continue;
-      const rel = root.relativize(value);
-      this.#warnOutsideRepo(rel);
-      args[key] = rel;
-    }
-    return { ...parsed, args };
+    const raw = parsed.args;
+    // The three path keys move OUT of the generic string record into the branded
+    // `paths` face (F7) — splitting them out means the raw path string exists in
+    // exactly ONE form downstream (the normalized `RepoPath`), never duplicated
+    // (the Data Clumps F2 targets).
+    const { plan, spec, findings, ...rest } = raw;
+    return {
+      ...parsed,
+      args: rest,
+      paths: {
+        plan: plan === undefined ? null : this.#relativizePath(root, plan),
+        spec: spec === undefined ? null : this.#relativizePath(root, spec),
+        findings: findings === undefined ? null : this.#relativizePath(root, findings),
+      },
+    };
   }
 
-  /** The out-of-repo path warning (T3 · §2.10) — a relativized value carrying a `..`
-   *  segment lies outside the repo; the engine still reads it (shape, not location),
-   *  but the fact rides the stderr CDD_WARN channel so the caller is not surprised. */
-  #warnOutsideRepo(rel: string): void {
-    if (!rel.split(path.sep).includes("..")) return;
-    this.#io.stderr(`${this.#words.station("warn")} path is outside the repository: ${rel}\n`);
+  /** The ONE path normalization landing (T3 §2.3 · F6) — relativize a raw argv path
+   *  to the branded repoRoot-relative `RepoPath` through the value object, then warn
+   *  on the stderr CDD_WARN channel when the result lies outside the repo. The
+   *  work-command funnel (`#funnel`) and the pure-command path argv (schema
+   *  `--output skeleton` `<target>` · base `--plan`) all reach THIS helper, so there
+   *  is literally ONE relativize+warn site. An out-of-repo input (a `..` segment after
+   *  relativize) is ACCEPTED — the shape is what is judged, never the location
+   *  (§2.10). An empty input normalizes to the empty path (no warning). */
+  #relativizePath(root: RepoRoot, raw: string): RepoPath {
+    const rel = root.relativize(raw);
+    if (rel.split(path.sep).includes("..")) {
+      this.#io.stderr(`${this.#words.station("warn")} path is outside the repository: ${rel}\n`);
+    }
+    return rel;
   }
 
   /** The repo root — the ONE conversion point (T2 · §2.4/§2.6): the single
@@ -848,19 +884,15 @@ export class Cli {
    *  plan-review round context's `INPUT_SPEC` (the round-context exit relativizes it
    *  to repoRoot along with every other path token). The raw header form is markdown
    *  link-space (relative to the plan's own dir — the skeleton's form) or a repoRoot
-   *  form; the resolution mirrors the doc-contract's own chain-link judgment
-   *  (FileExistenceInvariant.#targetExists): absolute direct · the repoRoot-relative
-   *  reading when it exists · else the plan-dir-relative reading. The fallback (neither
-   *  reading exists) resolves against the plan's own dir — the link-space semantic —
-   *  so the exit still receives an absolute path (the doc-contract's file-existence
-   *  finding owns the truly-missing case). */
+   *  form; the resolution IS the doc-contract's own chain-link judgment, delegated
+   *  to its ONE home (`FileExistenceInvariant.targetPath`) so a future contract
+   *  change cannot silently diverge from this mirror (P9 branch-review-1 F8 — never
+   *  a re-implemented chain). The fallback (neither reading exists) resolves against
+   *  the plan's own dir — the link-space semantic — so the exit still receives an
+   *  absolute path (the doc-contract's file-existence finding owns the truly-missing
+   *  case). */
   #resolveSpecLink(repoRoot: string, planPath: string, target: string): string {
-    const root = path.resolve(repoRoot);
-    if (path.isAbsolute(target)) return target;
-    const fromRoot = path.join(root, target);
-    if (existsSync(fromRoot)) return fromRoot;
-    const fromDocDir = path.resolve(path.dirname(path.resolve(planPath)), target);
-    return fromDocDir;
+    return FileExistenceInvariant.targetPath(repoRoot, planPath, target, (p) => existsSync(p));
   }
 
   // ---------------------------------------------------------------------------
@@ -884,14 +916,13 @@ export class Cli {
       if (target === undefined) {
         this.#usage(node, "cdd schema get --output skeleton: missing <target>");
       }
-      // The positional `<target>` rides the SAME input funnel (T3 §2.3) as the
-      // work-command path argv: relativized to the repo root exactly once, then
-      // erased through the value object at the write boundary.
+      // The positional `<target>` reaches the SAME one normalization landing (T3 §2.3
+      // · F6) as the work-command path argv (`#relativizePath`), then is erased
+      // through the value object at the write boundary.
       const repoRoot = await this.#rootOf();
       if (repoRoot === null) return 1;
       const root = new RepoRoot(repoRoot);
-      const targetPath = root.relativize(target);
-      this.#warnOutsideRepo(targetPath);
+      const targetPath = this.#relativizePath(root, target);
       return this.#artifacts.runSchemaSkeleton(node, root, type, targetPath);
     }
     if (target !== undefined) {
@@ -914,10 +945,10 @@ export class Cli {
     const repoRoot = await this.#rootOf();
     if (repoRoot === null) return 1;
     const root = new RepoRoot(repoRoot);
-    // The base `--plan` rides the SAME input funnel (T3 §2.3): the stored artifact's
-    // path field speaks the ONE canonical shape (repoRoot-relative).
-    const planPath = root.relativize(planArg);
-    this.#warnOutsideRepo(planPath);
+    // The base `--plan` reaches the SAME one normalization landing (T3 §2.3 · F6) as
+    // the work-command path argv: the stored artifact's path field speaks the ONE
+    // canonical shape (repoRoot-relative).
+    const planPath = this.#relativizePath(root, planArg);
     const workspace = new Workspace(
       new WorkspaceRoot(repoRoot, this.#config.handoffNamespace().workspaceRoot),
       Workspace.slugFromDoc(planPath),
@@ -927,9 +958,8 @@ export class Cli {
     // the read (an already-clean file is left byte-identical).
     workspace.migrateJsonChild("base.json");
     const path = workspace.resolve("base.json");
-    if (parsed.leaf === "set")
-      return this.#artifacts.baseSet(node, parsed, planPath, path, repoRoot);
-    if (parsed.leaf === "get") return this.#artifacts.baseGet(path, repoRoot);
+    if (parsed.leaf === "set") return this.#artifacts.baseSet(node, parsed, planPath, path, root);
+    if (parsed.leaf === "get") return this.#artifacts.baseGet(path, root);
     this.#usage(node, "cdd base: missing <set|get> subcommand");
   }
 

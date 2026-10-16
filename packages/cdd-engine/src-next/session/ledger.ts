@@ -24,7 +24,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { ConfigLoader } from "../infra/config.ts";
-import { type RepoPath, RepoRoot } from "../infra/root.ts";
+import type { RepoPath, RepoRoot } from "../infra/root.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
 import type { Workspace } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
@@ -341,9 +341,11 @@ export class Ledger {
   }
 
   /** The ledger's repo-basis value object — the ONE conversion exit every persisted
-   *  path field normalizes through (T1 `RepoRoot` · P9 T4 §2.7). */
+   *  path field normalizes through (T1 `RepoRoot` · P9 T4 §2.7). The basis is the
+   *  workspace root's OWN value object (built once at the root's boundary) — never
+   *  re-wrapped here (branch-review-1 F2: one basis, one form). */
   #basis(): RepoRoot {
-    return new RepoRoot(this.#workspace.root.repoRoot);
+    return this.#workspace.root.basis;
   }
 
   /** Normalize a path value to the canonical repoRoot-relative `RepoPath` — the

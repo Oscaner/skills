@@ -5,7 +5,11 @@
 // declared value could drift from the engine sources silently). This gate IS that pin:
 // it derives the expected set by family concatenation from the engine's OWN single
 // sources and asserts the declared contract value equals it —
-//   · the NEXT-LOOP phrases — the contract's own `digraph.nextLoopConditions`;
+//   · the NEXT-LOOP phrases — the contract's own `digraph.nextLoopConditions`
+//     (the contract IS the authoritative home for this one family: the phrases are
+//     the SKILL-digraph edge-label vocabulary, a consumer-surface prose face the
+//     runtime `next:` never emits, so no engine runtime constant carries them — see
+//     the contract slot's docstring · P9 branch-review-1 F9);
 //   · the review-closure status words — `CAPSULE_WORDS.status` (face/words.ts) minus
 //     the failure statuses `FAILED_STATUS` (session/next.ts), cross-checked against the
 //     `RoundStatus` union (session/ledger.ts — the status type's single home);

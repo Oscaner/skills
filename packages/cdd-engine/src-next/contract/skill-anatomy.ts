@@ -44,11 +44,15 @@ export interface AnatomyDigraph {
   loopHubNode: {
     name: string;
   };
-  /** The engine-lexicon pinned loop-condition phrases (the v1.20 word-table pin) — the ONLY
-   *  condition labels the loop-family NEXT-LOOP hub's out-edges may carry (the
-   *  `until next is terminal` self-loop · the `no next` failure face — the static
-   *  digraph truth shares ONE word table with the runtime `next:` instance,
-   *  mechanically anti-drift). */
+  /** The loop-condition phrases the loop-family NEXT-LOOP hub's out-edges may
+   *  carry (the `until next is terminal` self-loop · the `no next` failure face).
+   *  This slot IS the authoritative home for the family (P9 branch-review-1 F9):
+   *  the phrases are the SKILL-digraph EDGE-LABEL vocabulary — a consumer-surface
+   *  prose face the runtime `next:` never emits — so there is no engine runtime
+   *  constant to derive them from (unlike the status family ← the word table and
+   *  the route family ← `ROUTE_DECISION_WORDS`, both engine-grounded). The
+   *  edge-conditions guard pins the two runtime-derived families against their
+   *  engine sources and consumes THIS slot verbatim for the loop family. */
   nextLoopConditions: readonly string[];
 }
 

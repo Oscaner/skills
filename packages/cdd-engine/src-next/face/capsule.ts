@@ -142,11 +142,9 @@ export class Capsule {
   #docClassOf(target: RouteTarget): "blocked" | "terminal" | PipelineKey {
     if (target.type === "spec") {
       // The read face takes the value object + the repoRoot-relative id (T4 §2.2);
-      // a `null` root (the hermetic default) keeps the value as its own basis.
-      const declared = BoardView.readDocType(
-        this.#root ?? new RepoRoot(""),
-        this.#rel(target.id) as RepoPath,
-      );
+      // a `null` root (the hermetic default) keeps the value as its own basis. The
+      // `#rel` branded return needs no cast here (F3).
+      const declared = BoardView.readDocType(this.#root ?? new RepoRoot(""), this.#rel(target.id));
       return declared === null ? "blocked" : declared === "single-spec" ? "terminal" : declared;
     }
     if (target.type === "plan") return "plan";
@@ -154,9 +152,12 @@ export class Capsule {
     return "branch";
   }
 
-  /** One path value normalized to the repoRoot-relative shape through the ONE value
-   *  object (D47); a `null` root (the hermetic default) passes the value through. */
-  #rel(value: string): string {
-    return this.#root === null ? value : this.#root.relativize(value);
+  /** One path value normalized to the branded repoRoot-relative `RepoPath` through
+   *  the ONE value object (D47); a `null` root (the hermetic default) passes the
+   *  value through as its own basis. The branded return type carries the §2.2 brand
+   *  to the read face (`BoardView.readDocType`) with NO call-site cast (branch-
+   *  review-1 F3). */
+  #rel(value: string): RepoPath {
+    return this.#root === null ? (value as RepoPath) : this.#root.relativize(value);
   }
 }

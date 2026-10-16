@@ -16,7 +16,7 @@ import type { Command } from "commander";
 import { declaredRegistries } from "../contract/declare.ts";
 import type { DocKey } from "../contract/project.ts";
 import { Projector } from "../contract/project.ts";
-import { type RepoPath, RepoRoot } from "../infra/root.ts";
+import type { RepoPath, RepoRoot } from "../infra/root.ts";
 import type { IssueBodyRenderer, IssueReportInput } from "../render/issue-body.ts";
 import { SkeletonAssembler } from "../render/skeleton.ts";
 import type { RunInput } from "./cli.ts";
@@ -138,13 +138,14 @@ export class CliArtifacts {
   /** The `set` body — base/source required, a different existing base refuses without
    *  --force (the write-through artifact single-author). The echoed path is the
    *  repoRoot-relative shape (D47 · the ONE basis; the write itself uses the absolute
-   *  `path`). */
+   *  `path`). The repo-basis value object is threaded in whole (F2) — the echoed path
+   *  normalizes through it, never a per-call re-wrap. */
   baseSet(
     node: Command,
     parsed: RunInput,
-    planPath: string,
+    planPath: RepoPath,
     path: string,
-    repoRoot: string,
+    root: RepoRoot,
   ): number {
     const base = parsed.args.base;
     const source = parsed.args.source;
@@ -168,18 +169,19 @@ export class CliArtifacts {
       recordedAt: new Date().toISOString(),
     };
     writeFileSync(path, `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
-    this.#io.stdout(`${new RepoRoot(repoRoot).relativize(path)}\n`);
+    this.#io.stdout(`${root.relativize(path)}\n`);
     return 0;
   }
 
   /** The `get` body — read + validate + print the artifact JSON (exit 2 when the
    *  artifact is missing or corrupt — the orchestrator's inference-chain input). The
-   *  echoed path is the repoRoot-relative shape (D47). */
-  baseGet(path: string, repoRoot: string): number {
+   *  echoed path is the repoRoot-relative shape (D47), normalized through the threaded
+   *  basis (F2). */
+  baseGet(path: string, root: RepoRoot): number {
     const artifact = this.#readBase(path);
     if (artifact === null) {
       this.#io.stderr(
-        `cdd base get: missing or corrupt base artifact at ${new RepoRoot(repoRoot).relativize(path)}\n`,
+        `cdd base get: missing or corrupt base artifact at ${root.relativize(path)}\n`,
       );
       return 2;
     }

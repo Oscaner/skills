@@ -16,16 +16,18 @@
 // not production conversion points). Comments are stripped before the count so a
 // docstring mentioning the symbol never builds a hit; string literals are NOT
 // stripped (a `process.cwd()` inside a string would be a real defect). The
-// stripper is string/template/regex-aware so a `//` inside a string, or a
+// stripper (shared with the retired-plane guard — `__tests__/support/strip-comments
+// .ts`, F4) is string/template/regex-aware so a `//` inside a string, or a
 // backtick-bearing regex literal, never truncates or desyncs the scan.
 //
-// Zero module-level bare functions — the walk/strip/count helpers are `const`
+// Zero module-level bare functions — the walk/count helpers are `const`
 // (the plan's zero-`function`-declaration discipline).
 
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { stripComments } from "../../__tests__/support/strip-comments.ts";
 
 /** The src-next plane root — the engine's own source face (the scan set). */
 const SRC_ROOT = fileURLToPath(new URL("../../", import.meta.url));
@@ -51,87 +53,6 @@ const collectProductionTs = (dir: string, out: string[]): void => {
       out.push(path.join(dir, entry.name));
     }
   }
-};
-
-/** Whether a `/` at `previous` (the last non-space code char, "" at file start)
- *  may open a regex literal rather than being a division operator. */
-const regexMayStart = (previous: string): boolean =>
-  previous === "" || !/[A-Za-z0-9_$)\]]/.test(previous);
-
-/** Strip line + block comments, preserving length and line count (block bodies
- *  collapse to blank chars, a stripped comment's line terminator survives) so a
- *  reported hit line stays true. The scan tracks string and template-literal
- *  interiors (never blanked — a symbol inside a string is a real occurrence, not
- *  prose) and regex-literal bodies (so a backtick inside `/`+…`/` never desyncs
- *  the string tracker); a `//` inside a string or template therefore never
- *  truncates the line. Documented boundary: a template literal's `${ … }` nesting
- *  is not tracked, so a backtick inside an interpolation closes the outer
- *  template early (the same heuristic boundary the zero-dep guard records). */
-const stripComments = (source: string): string => {
-  const out = source.split("");
-  let index = 0;
-  let previous = "";
-  while (index < source.length) {
-    const char = source[index]!;
-    const next = source[index + 1];
-    if (char === "/" && next === "/") {
-      while (index < source.length && source[index] !== "\n") {
-        out[index] = "";
-        index += 1;
-      }
-    } else if (char === "/" && next === "*") {
-      out[index] = "";
-      out[index + 1] = "";
-      index += 2;
-      while (index < source.length && !(source[index] === "*" && source[index + 1] === "/")) {
-        if (source[index] !== "\n") out[index] = "";
-        index += 1;
-      }
-      if (index < source.length) {
-        out[index] = "";
-        out[index + 1] = "";
-        index += 2;
-      }
-    } else if (char === "'" || char === '"' || char === "`") {
-      const quote = char;
-      index += 1;
-      while (index < source.length && source[index] !== quote) {
-        if (source[index] === "\\") index += 1;
-        index += 1;
-      }
-      index += 1;
-    } else if (char === "/" && regexMayStart(previous)) {
-      index += 1;
-      let inClass = false;
-      while (index < source.length) {
-        const inner = source[index]!;
-        if (inner === "\\") {
-          index += 2;
-          continue;
-        }
-        if (inner === "[") {
-          inClass = true;
-          index += 1;
-          continue;
-        }
-        if (inner === "]") {
-          inClass = false;
-          index += 1;
-          continue;
-        }
-        if (inner === "/" && !inClass) {
-          index += 1;
-          break;
-        }
-        if (inner === "\n") break;
-        index += 1;
-      }
-    } else {
-      if (char.trim() !== "") previous = char;
-      index += 1;
-    }
-  }
-  return out.join("");
 };
 
 /** Every `file:line` hit of one token over the production face (comments stripped). */

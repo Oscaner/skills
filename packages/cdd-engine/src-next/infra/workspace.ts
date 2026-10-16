@@ -60,10 +60,18 @@ const PERSISTED_PATH_KEYS: ReadonlySet<string> = new Set(["doc", "plan"]);
 /** The repo-scoped workspace base — `<repoRoot>/<workspaceRoot>`. */
 export class WorkspaceRoot {
   readonly repoRoot: string;
+  /** The repo-basis value object (T1 `RepoRoot`) — constructed ONCE here, at the
+   *  workspace's own boundary, and shared by every reader that needs the basis
+   *  (the ledger's write/read normalization, the CLI's capsule/graph render, the
+   *  board's doc cells): the single repo-basis fact is threaded as the value object,
+   *  never re-wrapped per call (branch-review-1 F2 — Data Clumps / Primitive
+   *  Obsession: one basis, one form). */
+  readonly basis: RepoRoot;
   readonly path: string;
 
   constructor(repoRoot: string, workspaceRoot: string) {
     this.repoRoot = repoRoot;
+    this.basis = new RepoRoot(repoRoot);
     this.path = path.join(repoRoot, workspaceRoot);
   }
 
@@ -268,10 +276,11 @@ export class Workspace {
   }
 
   /** The workspace's repo-basis value object — the ONE conversion exit the
-   *  read-time path backstop normalizes through (T1 `RepoRoot`; the workspace
-   *  owns the slug, its root owns the basis). */
+   *  read-time path backstop normalizes through. The basis is the root's OWN
+   *  value object (`WorkspaceRoot.basis`, built once at the root's boundary) —
+   *  never re-wrapped here (branch-review-1 F2: one basis, one form). */
   #repoBasis(): RepoRoot {
-    return new RepoRoot(this.root.repoRoot);
+    return this.root.basis;
   }
 
   /** One-time legacy migration of a persisted JSON child (P9 T4 §2.11) — the

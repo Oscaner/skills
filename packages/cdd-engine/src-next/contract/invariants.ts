@@ -1042,13 +1042,33 @@ export class FileExistenceInvariant extends Invariant {
   }
 
   /** Whether the target exists — absolute targets directly; repo-root form first, the
-   *  doc's own dir as the file-relative fallback. */
+   *  doc's own dir as the file-relative fallback. The resolution chain is
+   *  single-sourced in `targetPath` (the ONE home the CLI's plan `**Spec:**` link
+   *  rebase delegates to as well — P9 branch-review-1 F8: a future contract change
+   *  cannot silently diverge from the CLI's mirror). */
   #targetExists(ctx: JudgeContext, target: string): boolean {
-    if (path.isAbsolute(target)) return ctx.fs.exists(target);
-    return (
-      ctx.fs.exists(path.join(ctx.root, target)) ||
-      ctx.fs.exists(path.join(path.dirname(ctx.path), target))
+    return ctx.fs.exists(
+      FileExistenceInvariant.targetPath(ctx.root, ctx.path, target, (p) => ctx.fs.exists(p)),
     );
+  }
+
+  /** The ONE chain-link target-resolution chain (the doc-contract's own judgment,
+   *  reused by the CLI's plan `**Spec:**` link rebase — F8): an absolute target as
+   *  itself; else the repoRoot-relative reading when it exists; else the doc-dir
+   *  (file-relative) reading. `exists` is the caller's filesystem seam (the
+   *  judgment's `ctx.fs`, the CLI's `fs.existsSync`) — the resolution is the shared
+   *  fact, the read is injected. When neither reading exists the doc-dir path is
+   *  returned (the link-space semantic — the caller owns the truly-missing case). */
+  static targetPath(
+    root: string,
+    docPath: string,
+    target: string,
+    exists: (path: string) => boolean,
+  ): string {
+    if (path.isAbsolute(target)) return target;
+    const fromRoot = path.join(path.resolve(root), target);
+    if (exists(fromRoot)) return fromRoot;
+    return path.join(path.dirname(path.resolve(docPath)), target);
   }
 }
 

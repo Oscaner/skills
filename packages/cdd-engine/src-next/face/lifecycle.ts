@@ -19,7 +19,7 @@ import process from "node:process";
 import { execaSync } from "execa";
 import { printParseErrorCode } from "jsonc-parser";
 import { ConfigLoader } from "../infra/config.ts";
-import { RepoRoot } from "../infra/root.ts";
+import type { RepoRoot } from "../infra/root.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
 import type { Workspace } from "../infra/workspace.ts";
 import type { TemplateValues, WorkMode } from "../render/templates.ts";
@@ -352,10 +352,11 @@ export class CliLifecycle {
   }
 
   /** The repo-basis value object of this scene — the ONE conversion entry every
-   *  round-context token normalizes through (T1 `RepoRoot`; the lifecycle holds the
-   *  scene's basis, never a re-derived string). */
+   *  round-context token normalizes through. The basis is the scene workspace
+   *  root's OWN value object (built once at the root's boundary) — never re-wrapped
+   *  here (branch-review-1 F2: one basis, one form). */
   #repoRootValue(): RepoRoot {
-    return new RepoRoot(this.#scene.workspace.root.repoRoot);
+    return this.#scene.workspace.root.basis;
   }
 
   /** The canonical prescribed OUTPUT_* write path of one artifact kind (find #5 —

@@ -2918,7 +2918,8 @@ describe("the pure commands — schema / issue / base", () => {
       // never appends; the D19 write path appends the single `\n`)
       expect(text.endsWith("\n")).toBe(true);
       expect(text.endsWith("\n\n")).toBe(false);
-      expect(io.stdoutText.trim()).toBe(target);
+      // the echoed path is the repoRoot-relative shape (D47 · §2.13)
+      expect(io.stdoutText.trim()).toBe(path.relative(repoRoot, target));
     } finally {
       cleanup();
     }
@@ -2966,7 +2967,8 @@ describe("the pure commands — schema / issue / base", () => {
       // the written doc ends with exactly one newline — the EOF rule
       expect(text.endsWith("\n")).toBe(true);
       expect(text.endsWith("\n\n")).toBe(false);
-      expect(io.stdoutText.trim()).toBe(target);
+      // the echoed path is the repoRoot-relative shape (D47 · §2.13)
+      expect(io.stdoutText.trim()).toBe(path.relative(repoRoot, target));
       // a missing <target> under --output skeleton exits 2 with the conditional-required byte
       io.stderrText = "";
       code = await command.runArgv(["schema", "get", "single-spec", "--output", "skeleton"]);
@@ -3417,7 +3419,10 @@ describe("T3 — the commander-native composition root: program parse + .action 
       const code = await command.runArgv(["implement", "--tasks", "1", "--plan", missing]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain("Usage: cdd implement [options]");
-      expect(io.stderrText).toContain(`error: cannot read file: ${missing}`);
+      // the refusal byte echoes the repoRoot-relative shape (D47 · §2.13)
+      expect(io.stderrText).toContain(
+        `error: cannot read file: ${path.relative(repoRoot, missing)}`,
+      );
     } finally {
       cleanup();
     }

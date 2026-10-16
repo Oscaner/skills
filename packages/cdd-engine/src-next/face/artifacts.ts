@@ -95,8 +95,10 @@ export class CliArtifacts {
    *  (the assembler never appends one — the written doc ends with exactly one
    *  `\n`). The target is the engine-declared parameter of the skeleton render
    *  face — the authoring scaffold lands in place, zero shell-redirection
-   *  indirection (the D19 `<path>` zero-constraint fix). The written path prints
-   *  to stdout. */
+   *  indirection (the D19 `<path>` zero-constraint fix). The echoed path is the
+   *  repoRoot-relative shape (D47 · §2.13: the branded `RepoPath` param on both the
+   *  stdout line and the failure byte; `RepoRoot.resolve` feeds only the writeFileSync
+   *  syscall). */
   runSchemaSkeleton(node: Command, root: RepoRoot, type: string, target: RepoPath): number {
     const projection = this.#projector.skeleton()[type as DocKey];
     const date = this.#today();
@@ -105,9 +107,9 @@ export class CliArtifacts {
     try {
       writeFileSync(absolute, file, "utf8");
     } catch {
-      this.#usage(node, `cannot write file: ${absolute}`);
+      this.#usage(node, `cannot write file: ${target}`);
     }
-    this.#io.stdout(`${absolute}\n`);
+    this.#io.stdout(`${target}\n`);
     return 0;
   }
 
@@ -190,13 +192,15 @@ export class CliArtifacts {
    *  the usage error of that face (the owning node's commander-native usage line). The
    *  path is a branded `RepoPath` (repoRoot-relative — T3 §2.3: a bare `string` never
    *  reaches this read) erased to the absolute syscall form through the ONE value
-   *  object (`RepoRoot.resolve`), so the read reads the file the funnel named. */
+   *  object (`RepoRoot.resolve`), so the read reads the file the funnel named. The
+   *  echoed path in the refusal byte is the repoRoot-relative shape (D47 · §2.13: the
+   *  branded `RepoPath`; `RepoRoot.resolve` feeds only the readFileSync syscall). */
   readText(node: Command, root: RepoRoot, file: RepoPath): string {
     const absolute = root.resolve(file);
     try {
       return readFileSync(absolute, "utf8");
     } catch {
-      this.#usage(node, `cannot read file: ${absolute}`);
+      this.#usage(node, `cannot read file: ${file}`);
     }
   }
 

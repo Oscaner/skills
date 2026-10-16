@@ -1,5 +1,0 @@
----
-"@oscaner-skills/kairos": patch
----
-
-**P8 §16 cdd-design node rename + handoff split (D38 · user ruling 2026-10-15)** — resolves cdd-design's one-name-two-meanings handoff: after D37 dissolved the hub, `run-cdd-spec-writer` and `run-cdd-charter` both pointed at `handoff-next`, while the two lines' semantics had diverged (the spec line should hand off to the engine's unified next face · the charter line alone to the design-domain continue-loop). **Rename**: `run-cdd-spec-writer` → `run-cdd-spec` (parallel to `run-cdd-charter` · dropping the redundant `-writer`). **Terminal split**: `run-cdd-spec → handoff-next` (where this `handoff-next` is redefined as **following the engine `next:` literal** specification) · `run-cdd-charter → handoff-phase-design` (**a new terminal** · inheriting the original `handoff-next`'s design-domain behavior — hand off to `/compact` or the next phase's `kairos:cdd-design` [Px program]). Digraph 12 → 13 nodes (only the `C → handoff-phase-design` edge target changes · the 16 edges are unchanged). The contract (`skill-anatomy.ts`) is unchanged.

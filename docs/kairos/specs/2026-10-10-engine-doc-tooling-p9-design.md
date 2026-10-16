@@ -65,7 +65,7 @@
 
 #### 2.4 repoRoot = `git.topLevel(process.cwd())` 唯一转换（G8=a · G5 溶解）
 
-- **`--root` 退役**：CLI flag 删除（`declare.ts` root 条目 + 四命令 `keys` 引用）；`#repoRootOf` 的 `override` 腿删除。
+- **`--root` 退役**：CLI flag 删除（`face/declare.ts` root 条目 + 四命令 `keys` 引用）；`#repoRootOf` 的 `override` 腿删除。
 - **注入缝退役**：`CliOptions` 的 `cwd` 与 `repoRoot` 双缝删除；`Cli.#cwd` / `CliLifecycle.#cwd` 双 `?? process.cwd()` 默认收一。
 - **唯一转换点**：`repoRoot = git.topLevel(process.cwd())`——**全 engine 生产代码恰好一处** `process.cwd()` 读取、一处到 repoRoot 的转换（旧树 `3d59d5be` 机器 pin 原样扶正）。
 - **`cwd` fallback 死**：`?? cwd` 那截退役，不再静默降级。
@@ -73,7 +73,16 @@
 
 #### 2.5 声明面字节破格（G12=a）
 
-`--root` 退役使命令声明面（`declare.ts` 的 usage 行 · help `Options`）字节变化——`implement` 等的 usage 由 `… [--root <path>]` 变为无该段。此为 **deliberate 字节破格**（与 P5「字节语义 major」/P8 pin 破格同级）：`cli.test.ts` 的 `--root` usage/help 行 pin（约 `:916` · `:1111` 顺序 · `:621` 位置语义）**整体重锚**。**`next:` 字面冻结不受影响**（1.3）。
+`--root` 退役使命令声明面（`face/declare.ts` root 条目 · help `Options` 行）字节变化——`implement` 等的 help `Options` 段由 `… [--root <path>]` 变为无该段。**注**：commander 原生 usage 行为 `Usage: cdd implement [options]`，`--root` 字节只存在于 help `Options` 行，不在 usage 行。此为 **deliberate 字节破格**（与 P5「字节语义 major」/P8 pin 破格同级）。**`next:` 字面冻结不受影响**（1.3）。
+
+**退役面清点（不可只 chdir，须删 argv token）**：
+
+- **正向 `--root` argv 站点**：`cli.test.ts` 内 `"--root",` 共 **59 处**（含共享 helper `:1791` `await command.runArgv([...argv, "--root", repoRoot])`）——这些 argv token **必须删除**，仅 chdir 不够（否则 `--root` 退役后全成 `error: unknown option '--root'`）。
+- **`projection.test.ts:71`**：review key 列表 `["--type", "--tasks", "--plan", "--spec", "--round", "--root"]` 断言 `review` **声明** `--root` → 翻为 **`--root` 缺席**断言。
+- **help pin 翻转**：`:916` `toContain("--root <path>")` 与 `:1111` `indexOf("--root") < indexOf("--dry-run")` 顺序 pin → **均翻负**。
+- **`:621` = 存活负锚（非重锚目标）**：`command.runArgv(["--root", "x", "implement"])` 断言 `error: unknown option '--root'` 且退 2——`--root` 未退役时即为 per-command 选项，此断言**退役后原样存活**（仍未知选项），不改。
+
+**grep pin 范围**：AC 的「三缝零残留」grep pin 须**同时覆盖生产面与测试面**（含上述 59 argv 站点 + `projection.test.ts:71`），否则 pin 假绿。
 
 #### 2.6 推算不出 → BLOCKED 退 1（T3=a）
 
@@ -87,8 +96,8 @@
 
 #### 2.8 声明再抄消除（G2=b · G15=a）
 
-- **`invariants.ts:#scanRoots`**（G15=a）：重构为 `[docDir(doc), ...Object.values(ENGINE_RUNTIME.docRoots)]`——family 根接**单源**，`docDir` 保持 doc-relative（邻居语义）。
-- **全部可执行 copy 从单源派生**（G2=b）：`invariants.ts:981/1063` 的 finding 消息 · `declare.ts:202/208/234` 的 help `example`——凡含 `docs/kairos/…` / `specs/plans` 字面者，从 `ENGINE_RUNTIME.docRoots` 派生，零硬编码副本。
+- **`invariants.ts:#scanRoots`**（G15=a）：现 `#scanRoots` 用 `own = path.dirname(docPath)`（`ctx.path` 为**文档文件路径**，故 `own` 是文档相对/绝对邻域目录）**拼** `path.dirname(own)` + 硬编码 `"specs"/"plans"`（`invariants.ts:1075`）。重构须**声明基准并钉合流规则**：`docRoots` 存的是 **repoRoot 相对串**（`docs/kairos/specs`），故须对 `ctx.root` 解析后再并——`[path.dirname(ctx.path), ...Object.values(ENGINE_RUNTIME.docRoots).map((r) => path.join(ctx.root, r))]`。**注**：`docDir(doc)` 于 src-next **不存在**（`grep -r docDir src-next` = 0 命中），落地用具体量 `path.dirname(ctx.path)`。
+- **全部可执行 copy 从单源派生**（G2=b）：`invariants.ts:981/1063` 的 finding 消息 · `face/declare.ts:202/208/234` 的 help `example`——凡含 `docs/kairos/…` / `specs/plans` 字面者，从 `ENGINE_RUNTIME.docRoots` 派生，零硬编码副本。
 - **注释 copy**（board-view / workspace / doc.ts 的 7 处）：随行清理（G2 范围含）。
 
 #### 2.9 双 pin（G11=a）
@@ -108,25 +117,33 @@
 
 #### 2.12 测试隔离 chdir（G9=a）
 
-`repoRoot` 不可注入后，187 处测试点 `Cli.create({ io, repoRoot })` 失效 → 测试改 `chdir` 进 fixture（`mkdtemp → gitInit → process.chdir(temp) → Cli.create({ io })`）。引擎 vitest 已确认**串行**（`maxWorkers:1 · fileParallelism:false`），chdir 安全。
+`repoRoot` 不可注入后，测试面迁移分两类：
+
+- **fixture helper 注入腿**：`cli.test.ts:135` `Cli.create({ io, repoRoot, ...opts })` 的 `repoRoot` 腿删除（`mkdir` fixture 后改 `process.chdir(temp)` → `Cli.create({ io, ...opts })`）。`cli.test.ts:3300` `Cli.create()` 无参调用不受影响。
+- **真实迁移面 = `fixture()` 调用点**：全测试 **201 处**（`cli.test.ts` 121 · `ledger.test.ts` 36 · `run.test.ts` 24 · `wave.test.ts` 20）——helper 一改，全部调用点随之生效；另加 §2.5 的 59 处 `--root` argv 站点（token 须删）。
+
+引擎 vitest 已确认**串行**（`maxWorkers:1 · fileParallelism:false`），chdir 安全。
 
 ### 3. B 组 · 无门事实通审
 
-**门归属（T2=a · 镜像 P5/D18 校验归域）**：引擎内部事实（②④⑦⑨）→ **engine suite**；引擎 ⇄ 消费面对照（⑭⑮ · frontmatter 面）→ **kairos suite**。共 **19 项**（audit 枚举 · 编号沿用 audit 报告；frontmatter 面为 audit 体系外、由 D42 引入的第 20 项）。
+**门归属（T2=a · 镜像 P5/D18 校验归域）**：引擎内部事实（②④⑦⑨）→ **engine suite**；引擎 ⇄ 消费面对照（⑭⑮ · frontmatter 面）→ **kairos suite**。共 **19 项** = §3.1–3.3 的 **①–⑮（15 项）** + §3.4 的 **⑯–⑲（4 项 疑似）**（audit 枚举 · 编号沿用 audit 报告；frontmatter 面为 audit 体系外、由 D42 引入的第 20 项）。
 
 #### 3.1 真缺陷（已发散 / 读写断层）
 
 - **① issue-body label 表已发散**：engine `words.ts:181`（`ISSUE_LABEL_WORDS`，渲染器实读）vs `templates/report/issue-body.json:21`（`sectionLabels`，SKILL 宣称的 oracle，**零 reader**）——二者**已不一致**（`bug.context` zh `## 场景` vs `## 背景` 等）。收口：单源 + 一致性门。
-- **② node floor 三值不一**：`bin.ts:23`（`{major:22,minor:18}`）= 22.18 · `package.json#engines` = ≥24 · `README.md:44` = 22.18。收口：单源（从 `package.json#engines` 派生）+ 门。
+- **② node floor 双事实混淆**：实为**两个不同事实**，不得并作一源——
+  - **安装 floor（install floor）**：`package.json#engines` = `>=24` vs `README.md:13` / `README.zh-CN.md:15` = `>= 22.12.0`——**此为真发散**，收口为单源。
+  - **源码直跑 floor（type-stripping floor）**：`bin.ts:23` `NODE_FLOOR = {major:22,minor:18}` = 22.18 vs `README.md:44` / `README.zh-CN.md:46`（`Node ≥22.18 native type stripping`）——**此亦有副本**，收口为单源。
+  - **不可合并**：从 `package.json#engines`（`>=24`）派生 `NODE_FLOOR` 会使守卫**过严**（拒 Node 22.18–23.x，而 README 明示其源码直跑可用）。故 ② 须 (a) 拆分两事实、(b) 清点全部 **4 处 README 站点**（`README.md:13/44` + 镜像 `README.zh-CN.md:15/46`）、(c) 每事实各钉**正确**单源。
 - **⑩ `**Doc type**` 写者缺**：`board-view` / `preflight` / `capsule` **依赖**该头行（缺则 BLOCK），而 `render/skeleton.ts` **不产出**（grep 零命中）→ 引擎自产骨架过不了自己 preflight。**本会话已实证**：P9 骨架由 `schema get phase-spec --output skeleton` 生成后**缺** `- **Doc type**: phase-spec` 头行，author 时手工补入方过 gate。收口：skeleton 渲染补齐该头行 + 回归门（引擎自产骨架必过自身 preflight）。
 
 #### 3.2 单源抽取（copies → 单声明）
 
-- **③ `DocKey` 手抄 5 处**：`contract/project.ts:48`（声明）· `judge.ts:37`（`DOC_KEYS`）· `declare.ts:112`（`DOC_TYPE_VALUES`）· `board-view.ts:118`（`DOC_TYPE_DOMAIN`）· `doc.ts:311`（inline union）——三运行时数组从 `DocKey` 派生 + 一致性门。
-- **⑤ `components` 名册**：`templates/report/issue-body.json:2` 的 8 串从 `SKILL_ANATOMY.skills.registry`（名册单源）派生。
+- **③ `DocKey` 手抄 5 处**：`contract/project.ts:48`（声明）· `judge.ts:37`（`DOC_KEYS`）· `contract/declare.ts:112`（`DOC_TYPE_VALUES`）· `board-view.ts:118`（`DOC_TYPE_DOMAIN`）· `doc.ts:311`（inline union）——三运行时数组从 `DocKey` 派生 + 一致性门。
+- **⑤ `components` 名册**：`templates/report/issue-body.json:2` 的 **8 串**须精确派生，**不可**声称整体从 `SKILL_ANATOMY.skills.registry` 1:1 派生——该 roster（`SKILL_ROSTER` · `skill-anatomy.ts:149-155`）仅 **6 行** skill（`cdd-design`/`cdd-spec-writer`/`cdd-plan`/`cdd-dev`/`cdd-close`/`cdd-report`）。规则：(a) 6 个 kairos 组件 = `"kairos:" + roster-key`（需前缀变换）；(b) 两非 skill 组件（`kairos (general)` · `cdd-engine`）为**固定头，无 roster 源**。
 - **⑪ `base.md` artifact schema**：`cdd-dev/docs/base.md` 的 schema 与 `BaseArtifact`（`artifacts.ts:30`）对齐 + 门。
 - **⑫ `mattpocock-skills:implement` 字面 ×2**：`render/templates.ts:167` 的 shell prose 从 `DISPATCH.implement`（`host.ts:220`）派生。
-- **⑬ phase-suffix 语法 3 正则**：`workspace.ts:106` · `board-view.ts:148` · `declare.ts:375/449` → 共享常量 + 一致性门。
+- **⑬ phase-suffix 语法 2 正则**：`workspace.ts:106`（`(?<suffix>-p\d+(?:\.\d+)*)$`）· `board-view.ts:148`（`^p\d+(?:\.\d+)*$`）——**同为 slug phase-suffix 语法**（小写 `p`，可共享常量 + 一致性门）。**注**：`contract/declare.ts:375/449` 的 `P\d+(\.\d+)*-design`（大写 `P` + `-design` 尾）是 **doc-contract 设计单元值语法**，属**另一事实**，**不并入**本共享常量（若欲单源，另立其自身 token 项）。
 
 #### 3.3 缺门（声明在、检查无）
 
@@ -138,7 +155,7 @@
 #### 3.4 死声明（T1=a 全收 · 「声明即事实」）
 
 - **⑧ `HOSTS[*].cache` 零消费**：`host.ts:96/168-174/191/207` 声明的缓存参数零 reader。收口：删除或补消费方。
-- **疑似（一并以门清）**：`HandoffFamily.fixTemplate/.prev/.round` 死字段（`runtime.ts:47-58`）· issue-body 孤儿字段（`severities`/`metaFields`/`reportDef`/`masterDef`）· `CRASH_TAIL_LINES` 幽灵常量（`ledger.ts:168/170` 注释引用、符号不存在）· `helpers.ts:74` 的 `.gitignore` 错值（`cdd/` vs 真 `.kairos/cdd/`）。
+- **疑似（一并以门清 · 编号 ⑯–⑲ 便于 AC 逐项核对）**：**⑯** `HandoffFamily.fixTemplate/.prev/.round` 死字段（`runtime.ts:47-58`）· **⑰** issue-body 孤儿字段（`severities`/`metaFields`/`reportDef`/`masterDef`）· **⑱** `CRASH_TAIL_LINES` 幽灵常量（`ledger.ts:168/170` 注释引用、符号不存在）· **⑲** `helpers.ts:74` 的 `.gitignore` 错值（`cdd/` vs 真 `.kairos/cdd/`）。
 
 #### 3.5 跨面散文一致性门（S2=a · 不碰 SKILL.md · 不违 D29）
 
@@ -177,8 +194,8 @@
 
 ### Acceptance criteria
 
-- `A 组 · 路径面`：全 engine 生产代码 `process.cwd()` **恰好 1 处**、`git.topLevel` 转换点**恰好 1 处**（结构 pin 绿）· `FakeSync` 的 `call.cwd === repoRoot`（行为 pin 绿）· `--root` / `cwd` 注入 / `repoRoot` 注入**三缝零残留**（grep pin）· 落盘 + child prompt 零绝对路径串（grep pin）· 同一文档绝对/相对 argv 归一后 `sameRef` **恒真**（虚假 drift 归零回归 pin）· 推算不出 repoRoot → **BLOCKED 退 1**（回归 pin）· 旧落盘数据经迁移 + 读时归一后可用（迁移回归 pin）· `invariants.ts` 的 `"specs"/"plans"` 硬编码**零残留**（读 `docRoots` 单源）。
-- `B 组 · 无门事实通审（19 项）`：每项——**或有单源且有门**（发散即 fail），**或已删**（死声明），**无中间态**。重点：① label 表单源一致（门绿）· ② node floor 单源一致（门绿）· ⑩ `schema get --output skeleton` 产出的骨架**含 `**Doc type**` 头行**且过自身 preflight（回归 pin）· ④ `edgeConditionWords` 有真派生门（假 pin 消除）· 门归属按 3.6 分域（engine/kairos suite）。
+- `A 组 · 路径面`：全 engine 生产代码 `process.cwd()` **恰好 1 处**、`git.topLevel` 转换点**恰好 1 处**（结构 pin 绿）· `FakeSync` 的 `call.cwd === repoRoot`（行为 pin 绿）· `--root` / `cwd` 注入 / `repoRoot` 注入**三缝零残留**（grep pin **覆盖生产面与测试面**：含 `cli.test.ts` 的 59 处 `--root` argv 站点）· 落盘 + child prompt 零绝对路径串（grep pin）· 同一文档绝对/相对 argv 归一后 `sameRef` **恒真**（虚假 drift 归零回归 pin）· 推算不出 repoRoot → **BLOCKED 退 1**（回归 pin）· 旧落盘数据经迁移 + 读时归一后可用（迁移回归 pin）· `invariants.ts` 的 `"specs"/"plans"` 硬编码**零残留**（读 `docRoots` 单源）。
+- `B 组 · 无门事实通审（19 项 = ①–⑮ + ⑯–⑲）`：每项——**或有单源且有门**（发散即 fail），**或已删**（死声明），**无中间态**。重点：① label 表单源一致（门绿）· ② **两 floor 各单源一致**（install floor：`package.json#engines` ↔ README 行；type-stripping floor：`bin.ts NODE_FLOOR` ↔ README 行 · 门绿）· ⑩ `schema get --output skeleton` 产出的骨架**含 `**Doc type**` 头行**且过自身 preflight（回归 pin）· ④ `edgeConditionWords` 有真派生门（假 pin 消除）· 门归属按 3.6 分域（engine/kairos suite）。
 - `frontmatter 面`：`skill-anatomy` 契约含 frontmatter 槽位 · 全 6 SKILL.md frontmatter 过 `yaml.parse()`（门绿）· 三处 `description` **零裸 `: `**（grep pin）。
 - `过程门`：引擎 vitest 全绿 · `pnpm -C packages/kairos test` 全绿 · `pnpm run validate` ALL PASS · EOF 全绿 · changeset（cdd-engine）按既有归并落 pending · **不发布**。
 - `六前提`：零裸函数（全局 grep 零命中）· 死码/死缝清理（`ProcessRunner` · cwd 注入缝 · 死声明类）· 声明再抄消除 · 最大精简。

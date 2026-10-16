@@ -19,6 +19,7 @@
 // declared constants from session/next.ts, rendered by reference, never restated.
 // Module-level exports are the class — zero behavior-carrying bare functions.
 
+import { WorkspaceRoot } from "../infra/workspace.ts";
 import type { RouteTarget } from "../session/faces.ts";
 import { FIX_READBACK_SUFFIX, type Route } from "../session/next.ts";
 import { REFS } from "./host.ts";
@@ -46,11 +47,29 @@ export class RouteRenderer {
   /** The host harness id — the skill-ref resolution key of the handoff/`done`
    *  pipeline lookup (REFS[ref][host]; `""` falls back to the claude form). */
   readonly #host: string;
+  /** The repo root the literal's embedded path values are normalized against —
+   *  `--plan`/`--findings`/doc-id render repoRoot-relative (D47 · the ONE shape);
+   *  `""` (the hermetic-test default) passes values through unchanged. */
+  readonly #repoRoot: string;
 
-  constructor(words: Words, channels: Readonly<Record<string, RouteChannelRow>> = {}, host = "") {
+  constructor(
+    words: Words,
+    channels: Readonly<Record<string, RouteChannelRow>> = {},
+    host = "",
+    repoRoot = "",
+  ) {
     this.#words = words;
     this.#channels = channels;
     this.#host = host;
+    this.#repoRoot = repoRoot;
+  }
+
+  /** One embedded path value in the literal — normalized to the repoRoot-relative
+   *  shape (D47 · the ONE basis; `""` short-circuits). Every `--plan`/`--findings`/
+   *  doc-id in the rendered argv passes through here, so the board's `next:` and the
+   *  engine's `next:` are byte-identical by construction. */
+  #rel(value: string): string {
+    return WorkspaceRoot.relativize(this.#repoRoot, value);
   }
 
   /** render(route, target) → the `next:` value: the complete executable command (a
@@ -82,10 +101,11 @@ export class RouteRenderer {
   }
 
   /** The plan path of the literal — the frame's plan fact (the implement literal's
-   *  required `--plan`), the `<plan>` placeholder when the fact is absent (the bare
-   *  fallback face — the mirror of the crash-resume's `<plan>` seed). */
+   *  required `--plan`), normalized to the repoRoot-relative shape (D47); the
+   *  `<plan>` placeholder when the fact is absent (the bare fallback face — the
+   *  mirror of the crash-resume's `<plan>` seed). */
   #planOf(target?: RouteTarget | null): string {
-    return target?.plan ?? "<plan>";
+    return target?.plan === undefined ? "<plan>" : this.#rel(target.plan);
   }
 
   /** The review hop's literal — `review --type <wave|spec|plan|branch> <type-arg>`
@@ -101,10 +121,10 @@ export class RouteRenderer {
       return `${verb} ${this.#flag("type")} wave ${this.#flag("tasks")} ${target!.id} ${this.#flag("plan")} ${this.#planOf(target)}`;
     }
     if (type === "spec") {
-      return `${verb} ${this.#flag("type")} spec ${this.#flag("spec")} ${target!.id}`;
+      return `${verb} ${this.#flag("type")} spec ${this.#flag("spec")} ${this.#rel(target!.id)}`;
     }
     if (type === "plan") {
-      return `${verb} ${this.#flag("type")} plan ${this.#flag("plan")} ${target!.id}`;
+      return `${verb} ${this.#flag("type")} plan ${this.#flag("plan")} ${this.#rel(target!.id)}`;
     }
     if (type === "branch") {
       // The branch re-review literal carries only the workspace-identity `--plan` —
@@ -116,28 +136,32 @@ export class RouteRenderer {
   }
 
   /** The one-way fix hop's literal — `fix --type <type> <type-arg> --findings <path>
-   *  <readback>` (the readback suffix the declared constant, rendered by reference). */
+   *  <readback>` (the readback suffix the declared constant, rendered by reference).
+   *  Every embedded path value (the doc-id for the spec/plan faces · `--findings`)
+   *  is normalized to the repoRoot-relative shape (D47); the wave face's `<type-arg>`
+   *  is a task key, not a path — passed through as-is. */
   #fixText(route: Extract<Route, { kind: "fix" }>, target?: RouteTarget | null): string {
     if (route.findings === undefined) return this.#words.routeWord("fix");
     const verb = this.#words.routeWord("fix");
     const type = target?.type ?? null;
     const id = target?.id ?? "";
+    const findings = this.#rel(route.findings);
     if (type === "wave") {
-      return `${verb} ${this.#flag("type")} wave ${this.#flag("tasks")} ${id} ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("findings")} ${route.findings} ${FIX_READBACK_SUFFIX}`;
+      return `${verb} ${this.#flag("type")} wave ${this.#flag("tasks")} ${id} ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("findings")} ${findings} ${FIX_READBACK_SUFFIX}`;
     }
     if (type === "spec") {
-      return `${verb} ${this.#flag("type")} spec ${this.#flag("spec")} ${id} ${this.#flag("findings")} ${route.findings} ${FIX_READBACK_SUFFIX}`;
+      return `${verb} ${this.#flag("type")} spec ${this.#flag("spec")} ${this.#rel(id)} ${this.#flag("findings")} ${findings} ${FIX_READBACK_SUFFIX}`;
     }
     if (type === "plan") {
-      return `${verb} ${this.#flag("type")} plan ${this.#flag("plan")} ${id} ${this.#flag("findings")} ${route.findings} ${FIX_READBACK_SUFFIX}`;
+      return `${verb} ${this.#flag("type")} plan ${this.#flag("plan")} ${this.#rel(id)} ${this.#flag("findings")} ${findings} ${FIX_READBACK_SUFFIX}`;
     }
     if (type === "branch") {
       // The branch fix literal carries the workspace-identity `--plan` (isomorphic
       // with the wave fix branch — a plan-less target resolves to the empty
       // ref.short() directory, the workspace double identity).
-      return `${verb} ${this.#flag("type")} branch ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("findings")} ${route.findings} ${FIX_READBACK_SUFFIX}`;
+      return `${verb} ${this.#flag("type")} branch ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("findings")} ${findings} ${FIX_READBACK_SUFFIX}`;
     }
-    return `${verb} ${this.#flag("findings")} ${route.findings} ${FIX_READBACK_SUFFIX}`;
+    return `${verb} ${this.#flag("findings")} ${findings} ${FIX_READBACK_SUFFIX}`;
   }
 
   /** The face-to-face handoff render — the pipeline entry: a `ref` resolves

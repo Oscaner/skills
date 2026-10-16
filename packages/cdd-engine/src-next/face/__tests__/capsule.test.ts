@@ -178,6 +178,29 @@ describe("P4.1 T7 (find #7) — the next literal's required-flag coverage (parse
     const literal = literalOf({ kind: "fix", findings: "tasks-1-review-1.json" }, wave);
     expect(literal).toContain(FIX_READBACK_SUFFIX);
   });
+
+  it("D47 — the next: literal's embedded paths render repoRoot-relative (absolute target + findings)", () => {
+    // §2.13 — the ONE renderer normalizes every embedded path value to the repoRoot-
+    // relative shape; an absolute target path and an absolute findings path both come
+    // out relative, and the repo root never appears in the literal.
+    const repo = "/tmp/d47-repo";
+    const capsule = new Capsule(new Words(), {}, "", repo);
+    const lines = capsule.emit(
+      "CHANGES_REQUESTED",
+      "1",
+      `${repo}/.kairos/cdd/p3/tasks-1-review-1.json`,
+      { kind: "fix", findings: `${repo}/.kairos/cdd/p3/tasks-1-review-1.json` },
+      { type: "plan", id: `${repo}/docs/kairos/plans/p3.md` },
+    );
+    const literal = lines[1]!.slice("next: ".length);
+    expect(literal).toBe(
+      `fix --type plan --plan docs/kairos/plans/p3.md --findings .kairos/cdd/p3/tasks-1-review-1.json ${FIX_READBACK_SUFFIX}`,
+    );
+    expect(literal).not.toContain(repo);
+    // The handoff: cell is the same basis — repoRoot-relative, never absolute.
+    expect(lines[0]).toContain("handoff: .kairos/cdd/p3/tasks-1-review-1.json");
+    expect(lines[0]).not.toContain(repo);
+  });
 });
 
 // ---------------------------------------------------------------------------

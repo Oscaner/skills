@@ -42,6 +42,18 @@ export class WorkspaceRoot {
     this.path = path.join(repoRoot, workspaceRoot);
   }
 
+  /** The repoRoot-relative form of a path value — the ONE path-basis normalizer
+   *  (D26 · D47): an absolute value is taken relative to repoRoot, a repoRoot-
+   *  relative value passes through, and an empty value (or an empty repoRoot — the
+   *  hermetic-test default) is returned unchanged. Absolute paths are transient at
+   *  the syscall boundary only; every render/echo surface emits THIS shape, and the
+   *  round-context exit (`#valuesOf`) shares it too (one relativizer, one basis).
+   *  (Pre-T1 home — `RepoRoot.relativize` is the value-object successor, §2.2.) */
+  static relativize(repoRoot: string, value: string): string {
+    if (repoRoot === "" || value === "") return value;
+    return path.relative(repoRoot, path.resolve(repoRoot, value));
+  }
+
   /** Idempotently create the workspace root + self-publish the namespace root's
    *  `.gitignore` (a single `*` — everything under `.kairos/` is engine-owned, so
    *  the git face ignores the whole namespace wholesale, the `cdd/` workspace and

@@ -36,6 +36,7 @@
 // Module-level exports are the class — zero behavior-carrying bare functions.
 
 import path from "node:path";
+import { WorkspaceRoot } from "../infra/workspace.ts";
 import type { RouteTarget } from "../session/faces.ts";
 import { NextStepRouter, type PipelineKey, type Route } from "../session/next.ts";
 import { BoardView } from "./board-view.ts";
@@ -74,7 +75,7 @@ export class Capsule {
   ) {
     this.#words = words;
     this.#repoRoot = repoRoot;
-    this.#route = new RouteRenderer(words, channels, host);
+    this.#route = new RouteRenderer(words, channels, host, repoRoot);
   }
 
   /** emit(status, blocker, handoff, next, target) → the capsule stdout lines: the
@@ -92,7 +93,13 @@ export class Capsule {
     target?: RouteTarget | null,
   ): string[] {
     const words = this.#words;
-    const cells: Record<CapsuleKey, string> = { status, blocker, handoff };
+    // The `handoff:` cell is a path value — normalized to the repoRoot-relative
+    // shape (D47 · the ONE basis; `handoffPath` sources it absolute).
+    const cells: Record<CapsuleKey, string> = {
+      status,
+      blocker,
+      handoff: WorkspaceRoot.relativize(this.#repoRoot, handoff),
+    };
     const capsuleLine = words
       .capsuleKeys()
       .map((kind) => `${kind}: ${cells[kind]}`)

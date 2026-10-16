@@ -333,15 +333,15 @@ export class BoardView {
     const branchLine = node.lines.find((line) => line.label === "branch");
     let blocked = false;
 
-    const overallDoc = BoardView.#docCell(docs.overall, overall.lines[0]!);
+    const overallDoc = BoardView.#docCell(docs.overall, overall.lines[0]!, repoRoot);
     lines.push(`  overall  ${overallDoc.text}`);
     blocked ||= overallDoc.blocked;
 
-    const specDoc = BoardView.#docCell(docs.spec, specLine!);
+    const specDoc = BoardView.#docCell(docs.spec, specLine!, repoRoot);
     lines.push(`  spec     ${specDoc.text}`);
     blocked ||= specDoc.blocked;
 
-    const planDoc = BoardView.#docCell(docs.plan, planLine!);
+    const planDoc = BoardView.#docCell(docs.plan, planLine!, repoRoot);
     lines.push(`  plan     ${planDoc.text}`);
     blocked ||= planDoc.blocked;
 
@@ -370,7 +370,9 @@ export class BoardView {
     );
 
     lines.push("");
-    lines.push(`  next:    ${BoardView.#nextOf(ledger, node, docs, words, host, channels)}`);
+    lines.push(
+      `  next:    ${BoardView.#nextOf(ledger, node, docs, words, host, channels, repoRoot)}`,
+    );
     return blocked ? 2 : 0;
   }
 
@@ -385,6 +387,7 @@ export class BoardView {
     const overallDoc = BoardView.#docCell(
       Workspace.docsOfSlug(slug, repoRoot).overall,
       overall.lines[0]!,
+      repoRoot,
     );
     lines.push(`  overall  ${overallDoc.text}`);
     lines.push("");
@@ -399,8 +402,8 @@ export class BoardView {
       // the marker renders on the phase line and the program board exits 2.
       const docs = Workspace.docsOfSlug(node.label, repoRoot);
       const phaseBlocked =
-        BoardView.#docCell(docs.spec, spec!).blocked ||
-        BoardView.#docCell(docs.plan, plan!).blocked;
+        BoardView.#docCell(docs.spec, spec!, repoRoot).blocked ||
+        BoardView.#docCell(docs.plan, plan!, repoRoot).blocked;
       blocked ||= phaseBlocked;
       const status = phaseBlocked ? "doc-type: missing (BLOCKED)" : (spec?.status ?? "Pending");
       // The phase's wave summary token (spec §5.3): the wave segment's first wave
@@ -428,17 +431,23 @@ export class BoardView {
    *  rounds (spec §5.3: `overall  <path>  v2.33 · Draft   review×4`); a present doc
    *  carrying no `- **Doc type**:` declaration renders its `doc-type: missing
    *  (BLOCKED)` marker in place of the facts (blocked = true). An absent doc renders
-   *  `(none)` (degradation, never a throw). */
-  static #docCell(docPath: string | null, line: BoardLine): { text: string; blocked: boolean } {
+   *  `(none)` (degradation, never a throw). The doc path renders repoRoot-relative
+   *  (D47 — `docsOfSlug` derives it absolute; the board emits the ONE shape). */
+  static #docCell(
+    docPath: string | null,
+    line: BoardLine,
+    repoRoot: string,
+  ): { text: string; blocked: boolean } {
     if (docPath === null) return { text: "(none)", blocked: false };
+    const rel = WorkspaceRoot.relativize(repoRoot, docPath);
     if (line.docType === null) {
       const facts: string[] = [];
       if (line.version !== null) facts.push(line.version);
       if (line.status !== null) facts.push(line.status);
       const head = facts.length === 0 ? "" : `${facts.join(" · ")}  `;
-      return { text: `${docPath}  ${head}doc-type: missing (BLOCKED)`, blocked: true };
+      return { text: `${rel}  ${head}doc-type: missing (BLOCKED)`, blocked: true };
     }
-    const facts: string[] = [docPath];
+    const facts: string[] = [rel];
     const meta = [line.version, line.status].filter((part) => part !== null).join(" · ");
     if (meta !== "") facts.push(meta);
     const rounds = BoardView.roundsCell(line.rounds);
@@ -474,8 +483,9 @@ export class BoardView {
     words: Words,
     host: string,
     channels: Readonly<Record<string, RouteChannelRow>>,
+    repoRoot: string,
   ): string {
-    const renderer = new RouteRenderer(words, channels, host);
+    const renderer = new RouteRenderer(words, channels, host, repoRoot);
     const waves = node.waveLines ?? [];
     // The plan's open frontier wave — the SAME ready batch the dispatch engine's
     // task-graph frontier yields (frontier over closedWaves()).

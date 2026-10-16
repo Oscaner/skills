@@ -663,8 +663,14 @@ export class Cli {
     if (verdict.gate === "wave" && verdict.reason === "split" && scene.planText !== null) {
       const graph = new TaskGraph(new PlanDocType("plan").parse(scene.planText.split("\n")));
       const closed = scene.ledger.closedWaves();
+      // The graph title's plan path renders repoRoot-relative (D47 · the ONE shape;
+      // `scene.planPath` is argv-origin).
+      const titlePlan = WorkspaceRoot.relativize(
+        scene.workspace.root.repoRoot,
+        scene.planPath ?? "",
+      );
       for (const line of this.#graphView
-        .render(graph.report(closed), `graph: ${scene.planPath ?? ""}`)
+        .render(graph.report(closed), `graph: ${titlePlan}`)
         .split("\n"))
         this.#io.stderr(`  ${line}\n`);
     }
@@ -836,8 +842,10 @@ export class Cli {
       Workspace.slugFromDoc(planPath),
     ).ensure();
     const path = workspace.resolve("base.json");
-    if (parsed.leaf === "set") return this.#artifacts.baseSet(node, parsed, planPath, path);
-    if (parsed.leaf === "get") return this.#artifacts.baseGet(path);
+    const repoRoot = workspace.root.repoRoot;
+    if (parsed.leaf === "set")
+      return this.#artifacts.baseSet(node, parsed, planPath, path, repoRoot);
+    if (parsed.leaf === "get") return this.#artifacts.baseGet(path, repoRoot);
     this.#usage(node, "cdd base: missing <set|get> subcommand");
   }
 

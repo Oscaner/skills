@@ -436,6 +436,11 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     expect(text).toContain("  overall  ");
     expect(text).toContain("prog-p1-design.md   v0.14 · Done");
     expect(text).toContain("prog-p1.md   v0.9");
+    // D47 — the doc cells render repoRoot-relative (docsOfSlug derives them absolute;
+    // the board emits the ONE shape). No row carries the absolute repo prefix.
+    expect(text).toContain("  spec     docs/kairos/specs/prog-p1-design.md");
+    expect(text).toContain("  plan     docs/kairos/plans/prog-p1.md");
+    expect(text).not.toContain(repo);
     expect(text).toContain("  branch   ○ open");
     expect(text.split("\n").at(-1)).toBe("progress: ✔ done · ▶ current · ○ pending");
   });
@@ -498,7 +503,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     const { text } = render("prog-p1");
 
     expect(text).toContain(
-      `  next:    review --type spec --spec ${path.join(repo, "docs/kairos/specs/prog-p1-design.md")}`,
+      `  next:    review --type spec --spec ${path.relative(repo, path.join(repo, "docs/kairos/specs/prog-p1-design.md"))}`,
     );
     expect(text).not.toContain("  next:    /kairos:cdd-plan");
   });
@@ -518,7 +523,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     // The spec face is exhausted → the plan line is the frontier; the plan line has not
     // started its C5 → its ACTIVE hop is the plan review (not the cdd-dev handoff).
     expect(text).toContain(
-      `  next:    review --type plan --plan ${path.join(repo, "docs/kairos/plans/prog-p1.md")}`,
+      `  next:    review --type plan --plan ${path.relative(repo, path.join(repo, "docs/kairos/plans/prog-p1.md"))}`,
     );
     expect(text).not.toContain("  next:    /kairos:cdd-dev");
   });
@@ -689,7 +694,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     // 12,13,14`, never the exhausted-wave face handoff `review --type branch`).
 
     const { text } = render("prog-p1");
-    const planPath = path.join(repo, "docs/kairos/plans/prog-p1.md");
+    const planPath = path.relative(repo, path.join(repo, "docs/kairos/plans/prog-p1.md"));
 
     // The active wave hop — the not-yet-implemented wave renders its implement literal.
     expect(text).toContain(`  next:    implement --plan ${planPath} --tasks 12,13,14`);
@@ -834,6 +839,32 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       // The board's spec face is drained (spec closed + no plan doc) → the same entry.
       expect(nextOf("prog-p1", host)).toBe(capsuleNext);
       expect(capsuleNext).toBe(host === "pi" ? "/skill:cdd-plan" : "/kairos:cdd-plan");
+    }
+  });
+
+  it("D47 — the next: literal's embedded paths are repoRoot-relative, byte-identical board↔capsule", () => {
+    // route-render.ts is the ONE renderer for both faces; D47 makes its embedded path
+    // values repoRoot-relative (the ONE shape, §2.13). Pin BOTH seams at a path-bearing
+    // C5 hop — the spec review literal's `--spec` — feeding the capsule an ABSOLUTE
+    // target path: the renderer must emit the repoRoot-relative form on both faces alike.
+    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
+    const specId = writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "# S",
+      "",
+      "- **Doc type**: phase-spec",
+    ]);
+    writeDoc("docs/kairos/plans/prog-p1.md", ["# Plan", "", "- **Doc type**: plan"]);
+    expect(path.isAbsolute(specId)).toBe(true);
+
+    for (const host of ["claude", "pi"]) {
+      const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, host, repo)
+        .emit("APPROVED", "0", "/h.json", { kind: "review" }, { type: "spec", id: specId })[1]!
+        .slice("next: ".length);
+      // The reviewer's own hop renders the repoRoot-relative --spec (never the absolute).
+      expect(capsuleNext).toBe("review --type spec --spec docs/kairos/specs/prog-p1-design.md");
+      expect(capsuleNext).not.toContain(repo);
+      // The board's spec frontier renders the SAME byte-identical relative literal.
+      expect(nextOf("prog-p1", host)).toBe(capsuleNext);
     }
   });
 

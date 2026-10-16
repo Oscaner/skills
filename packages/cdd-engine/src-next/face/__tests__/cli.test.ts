@@ -1558,8 +1558,9 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       // readback suffix (the cli face checkable)
       expect(io.stdoutText).toContain("status: CHANGES_REQUESTED · blocker: 1 · handoff: ");
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
+      // D47 — the next: literal's embedded paths are repoRoot-relative (the ONE shape).
       expect(io.stdoutText).toContain(
-        `next: fix --type wave --tasks 1 --plan ${plan} --findings ${path.join(workspace, "tasks-1-review-1.json")} ${FIX_READBACK_SUFFIX}`,
+        `next: fix --type wave --tasks 1 --plan ${path.relative(repoRoot, plan)} --findings ${path.relative(repoRoot, path.join(workspace, "tasks-1-review-1.json"))} ${FIX_READBACK_SUFFIX}`,
       );
     } finally {
       cleanup();
@@ -1648,8 +1649,11 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       ]);
       expect(code).toBe(0);
       // the re-review literal carries the workspace --plan only — the review judges
-      // the live tree (the scope anchor BASE_BRANCH is engine-injected at dispatch)
-      expect(io.stdoutText).toContain(`next: review --type branch --plan ${plan}`);
+      // the live tree (the scope anchor BASE_BRANCH is engine-injected at dispatch);
+      // D47 — the embedded path is repoRoot-relative
+      expect(io.stdoutText).toContain(
+        `next: review --type branch --plan ${path.relative(repoRoot, plan)}`,
+      );
       // the runtime gate, not parse-only: re-feeding the literal's argv through the CLI
       // dispatches a real branch review — exit 0, never a missing-refs refusal
       const reExit = await command.runArgv([
@@ -2592,7 +2596,9 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       ]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED");
-      expect(io.stdoutText).toContain(`next: review --type wave --tasks 1 --plan ${plan}`);
+      expect(io.stdoutText).toContain(
+        `next: review --type wave --tasks 1 --plan ${path.relative(repoRoot, plan)}`,
+      );
       expect(io.stderrText).not.toContain("CDD_BLOCKED:");
     } finally {
       cleanup();
@@ -2922,6 +2928,7 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot, 2);
+      const planRel = path.relative(repoRoot, plan);
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       const nextOf = (): string | null => {
         const m = io.stdoutText.match(/^next: (.+)$/m);
@@ -2941,7 +2948,7 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
           repoRoot,
         ]),
       ).toBe(0);
-      expect(nextOf()).toBe(`review --type wave --tasks 1 --plan ${plan}`);
+      expect(nextOf()).toBe(`review --type wave --tasks 1 --plan ${planRel}`);
       io.stdoutText = "";
 
       // the review finds a warn → the fix literal
@@ -2960,7 +2967,7 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
         ]),
       ).toBe(0);
       expect(nextOf()).toBe(
-        `fix --type wave --tasks 1 --plan ${plan} --findings ${path.join(workspace, "tasks-1-review-1.json")} ${FIX_READBACK_SUFFIX}`,
+        `fix --type wave --tasks 1 --plan ${planRel} --findings ${path.relative(repoRoot, path.join(workspace, "tasks-1-review-1.json"))} ${FIX_READBACK_SUFFIX}`,
       );
       io.stdoutText = "";
 
@@ -2979,7 +2986,7 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
           repoRoot,
         ]),
       ).toBe(0);
-      expect(nextOf()).toBe(`implement --plan ${plan} --tasks 2`);
+      expect(nextOf()).toBe(`implement --plan ${planRel} --tasks 2`);
       io.stdoutText = "";
 
       // rev 2 — implement wave 2 → the review literal
@@ -2995,7 +3002,7 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
           repoRoot,
         ]),
       ).toBe(0);
-      expect(nextOf()).toBe(`review --type wave --tasks 2 --plan ${plan}`);
+      expect(nextOf()).toBe(`review --type wave --tasks 2 --plan ${planRel}`);
       io.stdoutText = "";
 
       // the final review closes the run → rev2 lands on the wave→branch wiring
@@ -3014,7 +3021,7 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
           repoRoot,
         ]),
       ).toBe(0);
-      expect(nextOf()).toBe(`review --type branch --plan ${plan}`);
+      expect(nextOf()).toBe(`review --type branch --plan ${planRel}`);
 
       const progress = readJson<{ waves: unknown[] }>(path.join(workspace, "progress.json"));
       // the wave-2 row carries its own D30 revision record — the final APPROVED

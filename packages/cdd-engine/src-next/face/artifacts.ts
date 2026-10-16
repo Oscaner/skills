@@ -16,6 +16,7 @@ import type { Command } from "commander";
 import { declaredRegistries } from "../contract/declare.ts";
 import type { DocKey } from "../contract/project.ts";
 import { Projector } from "../contract/project.ts";
+import { WorkspaceRoot } from "../infra/workspace.ts";
 import type { IssueBodyRenderer, IssueReportInput } from "../render/issue-body.ts";
 import { SkeletonAssembler } from "../render/skeleton.ts";
 import type { RunInput } from "./cli.ts";
@@ -116,8 +117,16 @@ export class CliArtifacts {
   }
 
   /** The `set` body — base/source required, a different existing base refuses without
-   *  --force (the write-through artifact single-author). */
-  baseSet(node: Command, parsed: RunInput, planPath: string, path: string): number {
+   *  --force (the write-through artifact single-author). The echoed path is the
+   *  repoRoot-relative shape (D47 · the ONE basis; the write itself uses the absolute
+   *  `path`). */
+  baseSet(
+    node: Command,
+    parsed: RunInput,
+    planPath: string,
+    path: string,
+    repoRoot: string,
+  ): number {
     const base = parsed.args.base;
     const source = parsed.args.source;
     if (base === undefined || source === undefined) {
@@ -137,16 +146,19 @@ export class CliArtifacts {
       recordedAt: new Date().toISOString(),
     };
     writeFileSync(path, `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
-    this.#io.stdout(`${path}\n`);
+    this.#io.stdout(`${WorkspaceRoot.relativize(repoRoot, path)}\n`);
     return 0;
   }
 
   /** The `get` body — read + validate + print the artifact JSON (exit 2 when the
-   *  artifact is missing or corrupt — the orchestrator's inference-chain input). */
-  baseGet(path: string): number {
+   *  artifact is missing or corrupt — the orchestrator's inference-chain input). The
+   *  echoed path is the repoRoot-relative shape (D47). */
+  baseGet(path: string, repoRoot: string): number {
     const artifact = this.#readBase(path);
     if (artifact === null) {
-      this.#io.stderr(`cdd base get: missing or corrupt base artifact at ${path}\n`);
+      this.#io.stderr(
+        `cdd base get: missing or corrupt base artifact at ${WorkspaceRoot.relativize(repoRoot, path)}\n`,
+      );
       return 2;
     }
     this.#io.stdout(`${JSON.stringify(artifact, null, 2)}\n`);

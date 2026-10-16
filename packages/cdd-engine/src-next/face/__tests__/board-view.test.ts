@@ -764,12 +764,15 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     expect(new Set(markerColumns).size).toBe(1);
   });
 
-  it("phase board next: a drained line hands off to the next face's skill ref (host fallback)", () => {
-    // D40 deep-solve — the spec line is closed and NO plan doc exists: the plan line
-    // (not closed — no row) holds no active C5 hop (no doc), so it hands off to its
-    // pipeline entry `PIPELINE_NEXT.plan` → the cdd-dev ref. The board renders that
-    // through the SAME RouteRenderer the Capsule's `done` face uses; host "" falls
-    // back to the claude form (REFS[ref].claude) — never a bare plugin guess.
+  it("phase board next: a just-closed spec hands off to its OWN exit (never the absent plan's)", () => {
+    // D40 deep-solve / D26 — the spec line is closed and NO plan doc exists yet: the
+    // plan face is the frontier but was NEVER ENTERED (no doc), so the transition is
+    // the PRECEDING face's exit — the spec's `PIPELINE_NEXT["phase-spec"]` → the
+    // cdd-plan ref. The retired board fork handed off via the frontier LINE's own key
+    // (the absent plan's `cdd-dev`) — a face-boundary off-by-one the ONE walk kills
+    // (a closed spec means "author the plan", not "the plan is done"). Rendering rides
+    // the SAME RouteRenderer the Capsule's `done` face uses; host "" falls back to the
+    // claude form (REFS[ref].claude) — never a bare plugin guess.
     writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
     writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
@@ -779,50 +782,58 @@ describe("BoardView.render — the phase / program board layouts + the next deri
 
     const { text } = render("prog-p1", "");
 
-    expect(text).toContain("  next:    /kairos:cdd-dev");
+    expect(text).toContain("  next:    /kairos:cdd-plan");
   });
 
   it("board per-harness ref pins — a drained line renders REFS[ref][host] (host=pi → /skill:…)", () => {
     // The board's per-harness spelling rides REFS[ref][host] (never a claude-form
-    // constant). The reachable refs on the phase board's per-line walk: the spec face
-    // (no spec doc → the cdd-plan entry) and the plan face (spec closed + no plan doc
-    // → the cdd-dev entry). host=pi renders the flat `/skill:<bare>` form.
+    // constant). The reachable ref at the spec boundary is cdd-plan through both
+    // sub-states — the spec face never authored, and the spec face just closed with no
+    // plan authored (the off-by-one the fork rendered as the absent plan's cdd-dev).
+    // host=pi renders the flat `/skill:<bare>` form.
     writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
     // The spec face is the frontier with no spec doc → PIPELINE_NEXT."phase-spec" → cdd-plan.
     expect(nextOf("prog-p1", "pi")).toBe("/skill:cdd-plan");
     expect(nextOf("prog-p1", "claude")).toBe("/kairos:cdd-plan");
 
-    // Close the spec line so the plan face is the frontier; no plan doc → the cdd-dev ref.
+    // Close the spec line so the plan face is the frontier; no plan doc → the spec's OWN
+    // exit (cdd-plan), never the absent plan's cdd-dev.
     writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
     ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
     ledger.recordRound("spec", "review");
-    expect(nextOf("prog-p1", "pi")).toBe("/skill:cdd-dev");
-    expect(nextOf("prog-p1", "claude")).toBe("/kairos:cdd-dev");
+    expect(nextOf("prog-p1", "pi")).toBe("/skill:cdd-plan");
+    expect(nextOf("prog-p1", "claude")).toBe("/kairos:cdd-plan");
   });
 
   it("board next == the Capsule's done face — the shared renderer byte-identity (host claude / pi)", () => {
     // route-render.ts claims the board's `next:` and the capsule's `next:` are
-    // byte-identical by construction (ONE RouteRenderer). Pin it: a drained plan face
-    // hands off to the SAME pipeline entry through both seams, and both seams now read
-    // the SAME argv channel (the board is threaded ARGV_CHANNEL from the composition
-    // root) — a flag-spelling change cannot silently split the two faces.
+    // byte-identical by construction (ONE RouteRenderer). Pin it at the state BOTH
+    // seams agree on: the spec boundary. The board has a closed spec face + no plan doc
+    // (the plan face unentered → the spec's exit entry); the capsule's `done` face is
+    // fed the closed spec line's target (a phase-spec doc → `PIPELINE_NEXT["phase-spec"]`).
+    // Both resolve to the SAME pipeline entry through the ONE renderer, and both seams
+    // read the SAME argv channel (the board is threaded ARGV_CHANNEL from the
+    // composition root) — a flag-spelling change cannot silently split the two faces.
     writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    const specId = writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "# S",
+      "",
+      "- **Doc type**: phase-spec",
+    ]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
     ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
     ledger.recordRound("spec", "review");
-    const planId = path.join(repo, "docs/kairos/plans/prog-p1.md");
 
     for (const host of ["claude", "pi"]) {
       const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, host, repo)
-        .emit("APPROVED", "0", "/h.json", { kind: "done" }, { type: "plan", id: planId })[1]!
+        .emit("APPROVED", "0", "/h.json", { kind: "done" }, { type: "spec", id: specId })[1]!
         .slice("next: ".length);
-      // The board's plan face is drained (spec closed + no plan doc) → the same entry.
+      // The board's spec face is drained (spec closed + no plan doc) → the same entry.
       expect(nextOf("prog-p1", host)).toBe(capsuleNext);
-      expect(capsuleNext).toBe(host === "pi" ? "/skill:cdd-dev" : "/kairos:cdd-dev");
+      expect(capsuleNext).toBe(host === "pi" ? "/skill:cdd-plan" : "/kairos:cdd-plan");
     }
   });
 

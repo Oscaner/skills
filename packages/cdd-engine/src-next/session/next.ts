@@ -35,6 +35,7 @@
 // Module-level exports are types / constants / the class — zero behavior-carrying
 // bare functions (the plan's zero-bare-function discipline).
 
+import type { RouteTarget } from "./faces.ts";
 import type { Round } from "./ledger.ts";
 import type { ExecutionState } from "./state.ts";
 
@@ -91,6 +92,42 @@ export const PIPELINE_NEXT: Readonly<Record<PipelineKey, PipelineEntry>> = {
   wave: { kind: "literal", literal: "review --type branch --plan <plan>" },
   branch: { kind: "ref", ref: "kairos:cdd-close" },
 };
+
+/** The pipeline's phase-level face keys (D40) — `PipelineKey` minus the program-level
+ *  `overall-spec` (whose closure is the pipeline terminus, rendered by the capsule,
+ *  never walked). */
+export type PhaseFaceKey = Exclude<PipelineKey, "overall-spec">;
+
+/** The pipeline's phase-level face order (D40) — the face-to-face traversal
+ *  `spec → plan → wave → branch`, the ONE order declaration; `NextStepRouter.walk`
+ *  iterates it, so a consumer maps key → facts and declares NO order of its own. */
+export const PIPELINE_FACES: readonly PhaseFaceKey[] = ["phase-spec", "plan", "wave", "branch"];
+
+/** One pipeline face's OBSERVED state — the per-face facts a consumer reads off
+ *  disk and the ledger (never a judgment): whether the face is closed, its ACTIVE
+ *  C5 hop (null when the face never started), and the render target the literal
+ *  needs. The walk (`NextStepRouter.walk`) is the ONE decider over these
+ *  observations — a consumer reports facts, the router resolves the next step. */
+export interface PipelineFaceState {
+  /** Whether the face's line is closed (its latest C5 route lies on the closure
+   *  side) — a face holding no open work (an empty wave segment) is closed. */
+  closed: boolean;
+  /** The face's active C5 hop — null when the face holds no open hop (not started). */
+  active: Route | null;
+  /** The face's render target (the literal's type + id + plan), or null when absent. */
+  target: RouteTarget | null;
+}
+
+/** The consumer's face report — one observation per phase face, keyed by its
+ *  `PIPELINE_FACES` key (the order stays the router's; the consumer names faces). */
+export type PipelineFaceReport = Readonly<Record<PhaseFaceKey, PipelineFaceState>>;
+
+/** The walk's verdict — the ONE next Route + the render target it belongs to (the
+ *  frontier face's own target; the last face's on the all-closed terminal). */
+export interface PipelineNext {
+  route: Route;
+  target: RouteTarget | null;
+}
 
 /** The review-cycle soft-cap suggestion (the C5-0 suggestion face — user adjudicates). */
 export const SOFT_CAP_SUGGESTION = "BLOCKED: review-cycle-cap — user adjudicates";
@@ -178,15 +215,68 @@ export class NextStepRouter {
     return { kind: "handoff", entry: PIPELINE_NEXT[key] };
   }
 
-  /** Resolve a line's next step (D40) — the single "one line → next" point shared by
-   *  the board (its per-line walk) and the capsule (the round's own line). An ACTIVE
-   *  C5 hop (`review` / `fix` / `implement` / `next-wave` / `soft-cap`) passes through
-   *  as the line's next step; a drained or not-yet-started line (the C5 `done` / no
-   *  active round) yields the face-to-face handoff carrying the pipeline entry. A null
-   *  doc-class (no face seam — the overall line / a bare terminal) rerenders the bare
-   *  `done` word. Pure — the callers hold their own line facts. */
+  /** Resolve a line's next step (D40) — the capsule's "one line → next" point for the
+   *  round's OWN line: an ACTIVE C5 hop (`review` / `fix` / `implement` / `next-wave` /
+   *  `soft-cap`) passes through as the line's next step; a drained / not-yet-started
+   *  line (the C5 `done` / no active round) yields the face-to-face handoff carrying
+   *  the pipeline entry. A null doc-class (no face seam — the overall line / a bare
+   *  terminal) renders the bare `done` word. A whole-slug walk is `walk` (the board's
+   *  face-to-face traversal); this is the single-line form the capsule holds. Pure. */
   static resolve(active: Route | null, key: PipelineKey | null): Route {
     if (active !== null && active.kind !== "done") return active;
     return key === null ? { kind: "done" } : NextStepRouter.handoff(key);
+  }
+
+  /** Walk(face report) → the ONE next step (D40 · the board's face-to-face traversal
+   *  as a single router method). The caller REPORTS each face's facts keyed by its
+   *  `PIPELINE_FACES` key; the router iterates the ONE order and DECIDES the next step
+   *  — so no consumer re-derives the order OR the face-transition rule (the retired
+   *  board fork handed off via the frontier LINE's own key, so a slug whose spec just
+   *  closed but whose plan was not yet authored rendered `plan`'s exit `cdd-dev`
+   *  instead of the spec's exit `cdd-plan` — a face-boundary off-by-one the ONE walk
+   *  eliminates). The rule:
+   *    · the FRONTIER face (first not-closed) with an active C5 hop → render that hop
+   *      (the in-flight work — `review` / `fix` / `implement` / `next-wave`);
+   *    · the frontier has no active hop but IS entered (`target` present — an empty
+   *      wave segment, a drained-but-reached face) → its OWN pipeline exit entry;
+   *    · the frontier is NOT entered (no target — an absent doc, e.g. no plan yet) →
+   *      the transition INTO it, i.e. the PRECEDING entered face's exit entry (so a
+   *      just-closed spec hands off to the spec's exit `cdd-plan`, never the absent
+   *      plan's exit); no preceding entered face → the FIRST face's exit entry;
+   *    · every face closed → the LAST entered face's exit entry (the pipeline
+   *      terminus — `cdd-close` for a phase slug). */
+  static walk(report: PipelineFaceReport): PipelineNext {
+    const states = PIPELINE_FACES.map((key) => report[key]);
+    const frontierIndex = states.findIndex((face) => !face.closed);
+    if (frontierIndex === -1) {
+      const terminalIndex = NextStepRouter.#lastEnteredIndex(states);
+      const terminal = terminalIndex === -1 ? null : states[terminalIndex]!;
+      return terminal === null
+        ? { route: { kind: "done" }, target: null }
+        : {
+            route: NextStepRouter.handoff(PIPELINE_FACES[terminalIndex]!),
+            target: terminal.target,
+          };
+    }
+    const frontier = states[frontierIndex]!;
+    if (frontier.active !== null) return { route: frontier.active, target: frontier.target };
+    const anchorIndex =
+      frontier.target !== null
+        ? frontierIndex
+        : Math.max(0, NextStepRouter.#lastEnteredIndex(states.slice(0, frontierIndex)));
+    const anchor = states[anchorIndex]!;
+    return {
+      route: NextStepRouter.handoff(PIPELINE_FACES[anchorIndex]!),
+      target: anchor.target,
+    };
+  }
+
+  /** The index of the last OBSERVED face carrying a render target — the last face the
+   *  pipeline has REACHED (a face with no target was never entered). -1 when none is. */
+  static #lastEnteredIndex(states: readonly PipelineFaceState[]): number {
+    for (let i = states.length - 1; i >= 0; i--) {
+      if (states[i]!.target !== null) return i;
+    }
+    return -1;
   }
 }

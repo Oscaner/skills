@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P9 设计：一事实无处 / 无门 / 有副本 通审施工（D26 法条 · 路径面单源统一 + 无门事实通审 + frontmatter 门）
-- **Version**: v0.3 · 2026-10-16
+- **Version**: v0.4 · 2026-10-16
 - **Doc type**: phase-spec
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P9] 会话 · 用户裁定 · 2026-10-16）
@@ -22,6 +22,7 @@
 - **重构授权**：用户六前提 mandate（1 允许破坏性变更 · 2 高维 OOP 零裸函数 · 3 零技术债免声明再抄 · 4 高内聚低耦合清死码 · 5 消费心智负担优先 · 6 最大重构整合精简）。
 - **会话期 in-flight（D44 · 2026-10-16 · 独立提交）**：本 phase 会话期内用户提三条需求——① implement skill ref 复核（**保持** `mattpocock-skills:implement`）· ② author 后加 `self-review` 节点（消费面 skill）· ③ plan review 注入 spec doc（`INPUT_SPEC`）。②③ 为 **D26 主题外的 out-of-band 热修**，登记入 overall D44 程序记录并独立提交，**不并入本节 D26 施工面**（保主题纯净）；详细裁定见 overall D44。
 - **会话期 in-flight（⑳ · folded · 2026-10-16 · 独立提交 · D45）**：用户跑 `cdd board 2026-10-10-engine-doc-tooling-p9` 观测——P9 spec 评审链闭合后引擎吐 `next: /kairos:cdd-plan`，board 却吐 `next: /kairos:cdd-dev`（两 face 分叉）。查证 = board `#nextOf` **复制了引擎的面间派生规则**（有副本）→ **折入 §3.1 第 ⑳ 项**（本项即 D26 主题「有副本」的正统实例，非 out-of-band——与 ②③ 的归属相反）· 已 hot-fix（`NextStepRouter.walk` 单源 · 见 §3.1 ⑳）· 承 Mid-Flight Backfill I3/I4 独立提交。
+- **plan 期 backfill（round-context 路径基准散锚 · folded · 2026-10-16 · 独立提交 · D46）**：起草本 phase plan 时用户复盘 `plan-fix-1` BLOCKED，观测注入 child 的 round context 路径 token **散成三基准**——`INPUT_DOC` argv 原形（cwd 相对）· `INPUT_SPEC` **link-space 原形**（plan 的 `**Spec:**` 链接 target，D44③ 热修新注入，child cwd=repoRoot 时解到库外，**当前是坏的**）· `OUTPUT_*`/`WORKSPACE_DIR` **绝对**。查证 = 正是 §1.2 的**「散锚」**（一事实 ≥2 基准），属 A 组路径消费面的一处未收口 → **折入 A 组**（§2.3 / §2.7 / AC / §5 · 非 out-of-band）· 承 Mid-Flight Backfill I4 独立提交（spec + overall + plan 同批）。**BLOCKED 复盘（流程面 · 非产品缺陷）**：fix 子代理先提交 doc 后写 carrier（malformed）→ BLOCKED；重跑 `cdd fix` 被 `reviewGate` 拒（drifted doc 开 review lead · 设计语义）→ 下一步 = review（自愈）。
 
 #### 1.2 判定基线（本 phase 的根前提 · D26 法条）
 
@@ -62,6 +63,7 @@
 归一化（`relativize`）在 **CLI 输入解析处**发生**恰好一次**：`#runInput` 构造 `parsed` 之后、进入 scene 之前，对全部 path-typed argv 一次归一 → `RepoPath`；下游 scene / lifecycle / capsule / preflight **只收 `RepoPath`**。
 
 - **纳入面**：`--plan` · `--spec` · `--findings` · `schema get --output skeleton` 的位置参数 `<target>`。
+- **派生 doc 引用重基**：plan 的 `**Spec:**` 头链接 target（`../specs/X.md` · **markdown 链接空间**，相对 plan 所在目录）经**同一漏斗**重基为 **repoRoot 相对**（先按 plan 目录解析，再 `relativize`）——它随 round context 作 `INPUT_SPEC` 注入 child，与 argv 同属「路径事实」，不得保留 link-space 原形（当前留原形：child cwd=repoRoot 时 `../specs/X` 解到库外，路径坏）。
 - **`--root` 免除**：`--root` 退役（2.4），不再有 basis-definer flag——漏斗无特例。
 
 #### 2.4 repoRoot = `git.topLevel(process.cwd())` 唯一转换（G8=a · G5 溶解）
@@ -92,7 +94,7 @@
 #### 2.7 落盘 + child prompt 全相对（G13=a）
 
 - **落盘**：`progress.json` / `base.json` / wave carrier 内的一切路径存**相对 repoRoot**（`RepoPath`）。
-- **child prompt**：注入子进程的 `WORKSPACE_DIR` 亦发**相对**——唯一形态贯彻到底。子进程 spawn cwd = repoRoot（2.4），相对路径立即可达。
+- **child prompt 全路径 token 相对**：注入子进程的**全部 round-context 路径 token** 均发**相对 repoRoot**——`WORKSPACE_DIR` · `INPUT_DOC` · `INPUT_SPEC` · `INPUT_FINDINGS` · `OUTPUT_REPORT` · `OUTPUT_EVIDENCE` · `OUTPUT_HANDOFF`（唯一形态贯彻到底）。**当前散锚**：`OUTPUT_*`/`WORKSPACE_DIR` 走 `workspace.resolve` 产**绝对**、`INPUT_SPEC` 留 **link-space** 原形、`INPUT_DOC` 为 argv 原形——**三基准并存 = D26 散锚**，本 phase 收口为单一 repoRoot 相对形。子进程 spawn cwd = repoRoot（2.4），相对路径立即可达。
 - **安全条件**：子进程不自行 `chdir` 出仓库——由双 pin（2.9）兜住；spawn-cwd 归一因此成为**承重事实**。
 
 #### 2.8 声明再抄消除（G2=b · G15=a）
@@ -187,7 +189,7 @@
 单 phase-spec 承载，内部按 `DependsOn` 派生波次（承 P5/D18⑩ · P7 十五任务先例）。**建议拓扑**（实现期由 plan 细化）：
 
 - **W1 · 路径面基础**：`RepoRoot` + 品牌 `RepoPath` + 双 pin（2.2/2.9）——其余路径波的前置。
-- **W2 · 路径面收敛**：输入漏斗（2.3）+ repoRoot 单转换/三缝退役（2.4/2.6）+ 落盘/prompt 全相对（2.7）+ 迁移（2.11）+ 测试 chdir（2.12）+ 声明再抄（2.8）+ 声明面字节破格（2.5）。
+- **W2 · 路径面收敛**：输入漏斗（2.3 · 含派生 doc 引用重基）+ repoRoot 单转换/三缝退役（2.4/2.6）+ 落盘/prompt 全相对（2.7 · 含全 round-context 路径 token）+ 迁移（2.11）+ 测试 chdir（2.12）+ 声明再抄（2.8）+ 声明面字节破格（2.5）。
 - **W3 · 真缺陷 + 单源抽取**（3.1/3.2）——含 ⑩ skeleton 补齐 + ⑳ 面间派生单源（`NextStepRouter.walk`）。
 - **W4 · 缺门 + 死声明**（3.3/3.4）。
 - **W5 · 跨面散文一致性门 + frontmatter 门 + 修**（3.5 · 第 4 节）。
@@ -196,7 +198,7 @@
 
 ### Acceptance criteria
 
-- `A 组 · 路径面`：全 engine 生产代码 `process.cwd()` **恰好 1 处**、`git.topLevel` 转换点**恰好 1 处**（结构 pin 绿）· `FakeSync` 的 `call.cwd === repoRoot`（行为 pin 绿）· `--root` / `cwd` 注入 / `repoRoot` 注入**三缝零残留**（grep pin **覆盖生产面与测试面**：含 `cli.test.ts` 的 59 处 `--root` argv 站点）· 落盘 + child prompt 零绝对路径串（grep pin）· 同一文档绝对/相对 argv 归一后 `sameRef` **恒真**（虚假 drift 归零回归 pin）· 推算不出 repoRoot → **BLOCKED 退 1**（回归 pin）· 旧落盘数据经迁移 + 读时归一后可用（迁移回归 pin）· `invariants.ts` 的 `"specs"/"plans"` 硬编码**零残留**（读 `docRoots` 单源）。
+- `A 组 · 路径面`：全 engine 生产代码 `process.cwd()` **恰好 1 处**、`git.topLevel` 转换点**恰好 1 处**（结构 pin 绿）· `FakeSync` 的 `call.cwd === repoRoot`（行为 pin 绿）· `--root` / `cwd` 注入 / `repoRoot` 注入**三缝零残留**（grep pin **覆盖生产面与测试面**：含 `cli.test.ts` 的 59 处 `--root` argv 站点）· 落盘零绝对路径串（grep pin）· **child round-context 全路径 token 零绝对串且零 link-space 串**（`WORKSPACE_DIR`/`INPUT_DOC`/`INPUT_SPEC`/`INPUT_FINDINGS`/`OUTPUT_*` · grep pin）· **`INPUT_SPEC` 指向 repoRoot 相对且存在的 spec 路径**（回归 pin · 治 link-space 原形）· 同一文档绝对/相对 argv 归一后 `sameRef` **恒真**（虚假 drift 归零回归 pin）· 推算不出 repoRoot → **BLOCKED 退 1**（回归 pin）· 旧落盘数据经迁移 + 读时归一后可用（迁移回归 pin）· `invariants.ts` 的 `"specs"/"plans"` 硬编码**零残留**（读 `docRoots` 单源）。
 - `B 组 · 无门事实通审（20 项 = ①–⑮ + ⑯–⑲ + ⑳）`：每项——**或有单源且有门**（发散即 fail），**或已删**（死声明），**无中间态**。重点：① label 表单源一致（门绿）· ② **两 floor 各单源一致**（install floor：`packages/cdd-engine/package.json#engines` ↔ `packages/cdd-engine/README.md` 行；type-stripping floor：`packages/cdd-engine/src-next/bin.ts` `NODE_FLOOR` ↔ `packages/cdd-engine/README.md` 行 · 门绿）· ⑩ `schema get --output skeleton` 产出的骨架**含 `**Doc type**` 头行**且过自身 preflight（回归 pin）· ⑳ 面间派生**单源**（board `next:` 与引擎同源——`NextStepRouter.walk` 为唯一 walk · board 零 forked selector · 回归 pin 含 off-by-one 守卫）· ④ `edgeConditionWords` 有真派生门（假 pin 消除）· 门归属按 3.6 分域（engine/kairos suite）。
 - `frontmatter 面`：`skill-anatomy` 契约含 frontmatter 槽位 · 全 6 SKILL.md frontmatter 过 `yaml.parse()`（门绿）· 三处 `description` **零裸 `: `**（grep pin）。
 - `过程门`：引擎 vitest 全绿 · `pnpm -C packages/kairos test` 全绿 · `pnpm run validate` ALL PASS · EOF 全绿 · changeset（cdd-engine）按既有归并落 pending · **不发布**。
@@ -212,6 +214,7 @@
 - **D29 黑盒边界守约**：skill 文本零引擎内部实现镜像；对消费面只加一致性门，不改 SKILL.md 承载语义。
 - **门归属分域**：引擎内部事实门进 engine suite；引擎⇄消费面对照门进 kairos suite。
 - **面间派生单源**：face 间的 `next` 派生恰好 1 处（`NextStepRouter.walk`）；board 只报**观测事实**，判**下一步**归 router（⑳）。
+- **round-context 路径基准单源**：注入 child 的全部 round-context 路径 token 恰用**一个**基准（repoRoot 相对）——`WORKSPACE_DIR`/`INPUT_DOC`/`INPUT_SPEC`/`INPUT_FINDINGS`/`OUTPUT_*` 零绝对串、零 link-space 原形。
 - **变更先回填 parent overall**（backfill-as-version），再继续实现。
 
 ## Change history
@@ -221,3 +224,4 @@
 | v0.1 | 2026-10-16 | 初稿：P9 一事实无处/无门/有副本 通审施工（D26 法条）——A 组路径面单源统一（相对 repoRoot 唯一形态 · `RepoRoot`+`RepoPath` · `--root`/cwd/repoRoot 三缝全退 · `git.topLevel(process.cwd())` 唯一转换 · 推算不出→BLOCKED · 落盘+prompt 全相对 · 双 pin）+ B 组无门事实通审（audit 19 项 · 真缺陷/单源/缺门/死声明/跨面一致性门 · 分域归属）+ frontmatter 面（D42 · 契约驱动门 · 消裸冒号）· 单 phase-spec 内部波次 · 承 grilling 全裁定（D43） | Oscar M. · Claude Opus 5（kairos:cdd-design [P9] · 用户裁定 · 2026-10-16） |
 | v0.2 | 2026-10-16 | 会话期 in-flight 登记（D44）：三条需求裁定——① implement skill ref **保持** `mattpocock-skills:implement` · ② author 后加 `self-review` 节点 · ③ plan review 注入 spec doc（`INPUT_SPEC`）；②③ 为 D26 主题外 out-of-band 热修（登记 overall D44 · 独立提交 · 不并入本节施工面） | Oscar M. · Claude Opus 5（kairos:cdd-design [P9] in-flight · 用户裁定 · 2026-10-16） |
 | v0.3 | 2026-10-16 | **会话期 in-flight 折入（⑳ · D45 · Mid-Flight Backfill I3/I4 · 独立提交）**：用户跑 `cdd board <p9>` 观测 board `next:` 与引擎分叉（引擎 `/kairos:cdd-plan` vs board `/kairos:cdd-dev`）——查证 board `#nextOf` **复制了引擎的面间派生规则**（「有副本」· D26 主题正统实例，非 out-of-band）→ **折入 §3.1 第 ⑳ 项**（真缺陷）· 未开始的 frontier 线取错出口（面边界差一格）。**已 hot-fix**：`session/next.ts` 增 `NextStepRouter.walk(report)`（板报观测事实 · router 判下一步 · 键/序单源），`face/board-view.ts` 退化为纯消费者（零 forked selector）；回归 pin（`next.test.ts` walk 用例含 off-by-one 守卫 +6 · `board-view.test.ts` 三处 pin 重锚）。项数 19 → 20（①–⑮ + ⑯–⑲ + ⑳）· AC/§5 同步 | Oscar M. · Claude Opus 5（P9 in-flight 折入 · 用户裁定 · 2026-10-16） |
+| v0.4 | 2026-10-16 | **plan 期 backfill（round-context 路径基准散锚 · D46 · Mid-Flight Backfill I4 · 独立提交）**：起草 P9 plan 时用户复盘 plan-fix-1 BLOCKED，观测到 **round context 路径 token 散成三基准**——`INPUT_DOC` argv 原形（cwd 相对）· `INPUT_SPEC` **link-space 原形**（plan 的 `**Spec:**` 链接 target `../specs/X.md`，D44③ 热修新注入，child cwd=repoRoot 时解到库外，**当前是坏的**）· `OUTPUT_*`/`WORKSPACE_DIR` **绝对**（`workspace.resolve`）——**这正是本 phase §1.2 的「散锚」**（一事实 ≥2 基准），且是 A 组路径消费面的一处未收口。**折入 A 组**（非 out-of-band）：§2.3 增「派生 doc 引用（plan `**Spec:**` 链接 target）经同一漏斗重基 repoRoot 相对」；§2.7 把「child prompt 全相对」由单点 `WORKSPACE_DIR` 扩为**全 round-context 路径 token**（`WORKSPACE_DIR`/`INPUT_DOC`/`INPUT_SPEC`/`INPUT_FINDINGS`/`OUTPUT_*`）；AC 增 round-context 零绝对/零 link-space pin + `INPUT_SPEC` 可达 pin；Constraints 增「round-context 路径基准单源」；§5 W2 同步。**BLOCKED 复盘（流程面 · 非产品缺陷）**：fix 子代理先提交 doc（`07957aec` v0.2）后 carrier malformed（`notes[2]` 未转义 `"`）→ BLOCKED；重跑 `cdd fix` 被拒（`reviewGate` 按设计：drifted doc 一律开 review lead）→ 下一步 = review（自愈） | Oscar M. · Claude Opus 5（P9 plan 期 backfill · 用户复盘 · 2026-10-16） |

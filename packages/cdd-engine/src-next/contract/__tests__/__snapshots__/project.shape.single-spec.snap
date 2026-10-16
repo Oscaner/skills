@@ -1,0 +1,85 @@
+{
+  "docType": "single-spec",
+  "structure": [
+    {
+      "home": "header",
+      "elements": [
+        {
+          "anchor": "# Title",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "**Version**",
+          "presence": "required",
+          "refKind": "version-lineage"
+        },
+        {
+          "anchor": "**Status**",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "**Author**",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "**Depends on**",
+          "presence": "required",
+          "refKind": "none"
+        }
+      ]
+    },
+    {
+      "home": "section",
+      "elements": [
+        {
+          "anchor": "## Background & root cause",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "## Design decisions",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "## Acceptance",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "## Constraints",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "## Change history",
+          "presence": "required",
+          "refKind": "none"
+        }
+      ]
+    },
+    {
+      "home": "table",
+      "elements": [
+        {
+          "anchor": "Change history row",
+          "presence": "required",
+          "refKind": "version-lineage"
+        },
+        {
+          "anchor": "Version token",
+          "presence": "required",
+          "refKind": "version-lineage"
+        },
+        {
+          "anchor": "Change history date",
+          "presence": "required",
+          "refKind": "none"
+        }
+      ]
+    }
+  ]
+}

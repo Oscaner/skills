@@ -5,31 +5,30 @@
   "scripts": {
     "changeset": "changeset",
     "ci:version": "pnpm exec changeset version && pnpm run emit",
-    "validate": "node scripts/run.ts validate",
-    "precommit": "node scripts/run.ts precommit",
+    "validate": "pnpm run emit:check && pnpm exec vitest run && pnpm -C packages/kairos test && pnpm -C packages/cdd-engine test && pnpm run typecheck && pnpm run version-sync && pnpm run check:no-bare-functions",
+    "precommit": "pnpm run emit:check && pnpm exec vitest run && pnpm -C packages/kairos test && pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/channel-closure.guard.test.ts src-next/face/__tests__/words.guard.test.ts src-next/session/__tests__/handoff-plane.guard.test.ts && pnpm run typecheck && pnpm run version-sync && pnpm run check:no-bare-functions",
     "emit": "node scripts/run.ts emit",
     "emit:check": "node scripts/run.ts emit-check",
+    "version-sync": "node scripts/run.ts version-sync",
+    "check:no-bare-functions": "! grep -rnE '^(export )?(async )?function ' packages/cdd-engine/src-next packages/kairos/tests scripts --include='*.ts'",
+    "typecheck": "tsc --noEmit -p packages/cdd-engine && tsc --noEmit -p scripts && tsc --noEmit -p packages/kairos/tests",
     "biome": "biome check .",
     "biome:fix": "biome check --write .",
     "prepare": "husky",
     "test": "vitest run"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.14",
+    "@biomejs/biome": "^2.5.15",
     "@changesets/changelog-github": "^1.0.1",
+    "@types/node": "^24.19.2",
     "@changesets/cli": "^3.0.3",
     "@changesets/config": "^4.0.1",
     "@changesets/read": "^1.0.1",
-    "citty": "^0.2.2",
     "husky": "^9.1.7",
-    "vitest": "^5.0.1",
+    "lint-staged": "^17.6.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3",
     "yaml": "^2.9.1"
   },
-  "packageManager": "pnpm@11.23.0+sha512.f00082e5b283a199b74e079da28d155c008fe232f44c8a06ea7ddfa014ecf719fc362f790ecc67b28106ddac2afb24c49a9a079159da560b2ce7d1e98efd11af",
-  "dependencies": {
-    "ajv": "^8.20.0",
-    "execa": "^10.0.1",
-    "semver": "^7.8.5",
-    "tinyglobby": "^0.2.17"
-  }
+  "packageManager": "pnpm@12.9.1+sha512.06b055fff5cd20dc12781de173ced3310ce0951bf2ec620211a16045d5444d5c93a663210764ef29a653a610459ba0368f0e74f84d80c54723cf95aae7bc0d6d"
 }

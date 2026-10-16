@@ -1,0 +1,469 @@
+// packages/cdd-engine/src-next/session/__tests__/wave.test.ts
+// T24 (v1.21) — WaveGate suite: the three-verb unified wave gate over a hermetic
+// ledger + task graph:
+//   · the only read face — open = frontier(closedWaves()) (the C5 closure set);
+//   · the split/subset BLOCK — a `--tasks` set that splits or mismatches the derived
+//     wave (implement AND review AND fix share the same refusal);
+//   · the wrong-phase BLOCK — the open wave is at a phase ≠ the requested verb;
+//   · (v1.28) the phase read is WAVE-keyed — one ledger row per wave, every member
+//     shares the wave's phase (the multi-task regression: the per-task read missed
+//     a `{wave:"1,2"}` row and froze every multi-task wave at "implement", blocking
+//     review/fix forever — {16,22,24} exposed it);
+//   · the approved verdict — requested == open at the verb's phase.
+// Fixtures are plan literals parsed through the plan parser + a hermetic temp
+// workspace (the pattern the run/ledger suites share).
+
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+import { PlanDocType } from "../../contract/doc.ts";
+import { Words } from "../../face/words.ts";
+import { ConfigLoader } from "../../infra/config.ts";
+import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
+import { TaskGraph } from "../graph.ts";
+import { Ledger } from "../ledger.ts";
+import { WaveGate } from "../wave.ts";
+
+/** A hermetic ledger fixture — a fresh temp workspace (the run tests' pattern).
+ *  `repo` exposes the temp root so the T11 plan-drift cases can place a real plan
+ *  file the revision gate reads back. */
+const fixture = (): { ledger: Ledger; repo: string; cleanup: () => void } => {
+  const repo = mkdtempSync(path.join(tmpdir(), "wave-"));
+  const workspace = new Workspace(
+    new WorkspaceRoot(path.join(repo, ".kairos", "cdd"), "session"),
+    "wave-slug",
+  );
+  return {
+    ledger: new Ledger(workspace, new ConfigLoader()),
+    repo,
+    cleanup: () => rmSync(repo, { recursive: true, force: true }),
+  };
+};
+
+/** A plan document over `### Task N:` blocks + `- **DependsOn**:` values. */
+const planDoc = (blocks: readonly (readonly string[])[]): string => {
+  return [
+    "# Test Plan",
+    "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
+    "- **Parent program**: [x-overall.md v1.0](docs/kairos/specs/x-overall.md)",
+    "",
+    "## Constraints",
+    "",
+    "- delta",
+    "",
+    ...blocks.flat(),
+  ].join("\n");
+};
+
+const task = (id: number, dependsOn: string): readonly string[] => {
+  return [`### Task ${id}: task ${id}`, `- **DependsOn**: ${dependsOn}`];
+};
+
+/** Parse a fixture and build the TaskGraph — the gate's frontier source. */
+const graphOf = (blocks: readonly (readonly string[])[]): TaskGraph => {
+  return new TaskGraph(new PlanDocType("plan").parse(planDoc(blocks).split("\n")));
+};
+
+const gate = new WaveGate();
+const words = new Words();
+
+/** A clean APPROVED review carrier — the C5 closure record for a task line. */
+const cleanReviewCarrier = (ledger: Ledger, tasks: string, round: number): void => {
+  ledger.recordRound(tasks, "review");
+  ledger.persistHandoff(
+    "review",
+    "wave",
+    { tasks, round },
+    { tasks: tasks.split(",").map(Number), phase: "review", findings: [] },
+  );
+};
+
+/** An open wave's pending-fix state — the wave line at fix (implement + reviewed
+ *  into a blocker, fix awaiting): the T11 gate's baseline phase derivation. */
+const pendingFix = (ledger: Ledger, tasks: string, round: number): void => {
+  ledger.recordRound(tasks, "implement");
+  ledger.recordRound(tasks, "review");
+  ledger.persistHandoff(
+    "review",
+    "wave",
+    { tasks, round },
+    {
+      tasks: tasks.split(",").map(Number),
+      phase: "review",
+      findings: [{ severity: "blocker", lens: "plan", summary: "stale findings" }],
+    },
+  );
+};
+
+describe("WaveGate.vet — the split/subset BLOCK (three-verb shared)", () => {
+  it("a `--tasks` splitting the derived wave BLOCKs — implement, review and fix alike", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = graphOf([task(1, "none"), task(2, "1")]); // the open wave = {1}
+      for (const verb of ["implement", "review", "fix"] as const) {
+        const verdict = gate.vet(new Set([1, 2]), verb, graph, ledger, words);
+        expect(verdict.ok).toBe(false);
+        expect(verdict.reason).toBe("split");
+        expect(verdict.open).toEqual([1]);
+        expect(verdict.message).toContain("derived wave");
+      }
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a backend task request before its dependency closes BLOCKs (the wave still opens at the dep)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = graphOf([task(1, "none"), task(2, "1")]);
+      const verdict = gate.vet(new Set([2]), "implement", graph, ledger, words);
+      expect(verdict.ok).toBe(false);
+      expect(verdict.reason).toBe("split");
+      expect(verdict.message).toContain("(1)");
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("WaveGate.vet — the wrong-phase BLOCK", () => {
+  it("an open wave at the review phase refuses an implement dispatch (run the review first)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = graphOf([task(1, "none")]);
+      ledger.recordRound(1, "implement"); // task 1 implemented → its phase is review
+      const verdict = gate.vet(new Set([1]), "implement", graph, ledger, words);
+      expect(verdict.ok).toBe(false);
+      expect(verdict.reason).toBe("wrong-phase");
+      expect(verdict.message).toContain("at review");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a clean-closed wave refuses any further verb — the line sits in no open phase", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = graphOf([task(1, "none")]);
+      ledger.recordRound(1, "implement");
+      cleanReviewCarrier(ledger, "1", 1); // review approved → task 1 closed
+      // closedWaves now contains 1 → frontier over it is empty → the wave gate sees
+      // an empty open wave; a requested {1} mismatches ({1} ≠ {}) → the split BLOCK.
+      const verdict = gate.vet(new Set([1]), "review", graph, ledger, words);
+      expect(verdict.ok).toBe(false);
+      expect(verdict.reason).toBe("split");
+      expect(verdict.open).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("WaveGate.vet — the open wave's phase is EXACTLY the requested verb", () => {
+  it("an open wave at the review phase approves a review dispatch", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = graphOf([task(1, "none")]);
+      ledger.recordRound(1, "implement");
+      const verdict = gate.vet(new Set([1]), "review", graph, ledger, words);
+      expect(verdict.ok).toBe(true);
+      expect(verdict.open).toEqual([1]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("an unimplemented root wave approves the implement dispatch", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = graphOf([task(1, "none"), task(2, "none")]);
+      const verdict = gate.vet(new Set([1, 2]), "implement", graph, ledger, words);
+      expect(verdict.ok).toBe(true);
+      expect(verdict.open).toEqual([1, 2]);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("WaveGate.vet — the wave-unitary phase read (v1.28 regression)", () => {
+  it("a multi-task wave's phase derives from ITS wave row — review after implement passes the gate", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = graphOf([task(1, "none"), task(2, "none")]); // the open wave = {1,2}
+      ledger.recordRound("1,2", "implement"); // the WAVE row — never per-member rows
+      const verdict = gate.vet(new Set([1, 2]), "review", graph, ledger, words);
+      expect(verdict.ok).toBe(true);
+      expect(verdict.open).toEqual([1, 2]);
+      // every member shares the wave's single phase (the {16,22,24} shape)
+      expect(verdict.phases).toEqual([
+        { task: 1, phase: "review" },
+        { task: 2, phase: "review" },
+      ]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a multi-task wave at review refuses an implement dispatch (wrong-phase, not split)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = graphOf([task(1, "none"), task(2, "none")]);
+      ledger.recordRound("1,2", "implement");
+      const verdict = gate.vet(new Set([1, 2]), "implement", graph, ledger, words);
+      expect(verdict.ok).toBe(false);
+      expect(verdict.reason).toBe("wrong-phase");
+      expect(verdict.message).toContain("at review");
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("ledger.closedWaves — the C5 closure single read face", () => {
+  it("an implement-only task is never closed (implement rounds carry no closure verdict)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      ledger.recordRound(1, "implement");
+      expect(ledger.closedWaves()).toEqual(new Set());
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a clean review closes the task — the C5 route is the closure predicate", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      ledger.recordRound(1, "implement");
+      cleanReviewCarrier(ledger, "1", 1);
+      expect(ledger.closedWaves()).toEqual(new Set([1]));
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a review with blocker findings holds the task open (the fix awaits — not a closure)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      ledger.recordRound(1, "implement");
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1", round: 1 },
+        { findings: [{ severity: "blocker", summary: "defect" }] },
+      );
+      ledger.recordRound(1, "review");
+      expect(ledger.closedWaves()).toEqual(new Set());
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a merged-wave row naturalizes through ITS OWN review/fix pair (never a per-member read)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // The historical merged-wave row carries the review+fix pair — the pair's C5 route
+      // decides both members, without per-member implement rows.
+      ledger.recordRound("4,12", "review");
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "4,12", round: 1 },
+        { tasks: [4, 12], phase: "review", findings: [] },
+      );
+      expect(ledger.closedWaves()).toEqual(new Set([4, 12]));
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a LEGACY fix carrier WITHOUT a status still closes the wave — absent status is not a fabricated failure", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // The regression pin: a work-face fix carrier written before the status field
+      // existed holds no `status`. `conclusionOf("work", carrier)` returns undefined
+      // (no conclusion declared), and the router treats undefined as NOT a failure —
+      // so the fix round's clean source review closes the wave. A stricter
+      // absent→BLOCKED reading would fabricate a failure and strand every such wave
+      // open (the closedWaves regression this pin guards).
+      ledger.recordRound("7,9", "implement");
+      ledger.recordRound("7,9", "review");
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "7,9", round: 1 },
+        { tasks: [7, 9], phase: "review", findings: [{ severity: "nit", summary: "cosmetic" }] },
+      );
+      ledger.recordRound("7,9", "fix");
+      // the legacy fix carrier — artifacts only, NO status key
+      ledger.persistHandoff("fix", "wave", { tasks: "7,9", round: 1 }, { artifacts: {} });
+      expect(ledger.closedWaves()).toEqual(new Set([7, 9]));
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a re-review-closed wave (review=[1,2] · fix=[1]) is CLOSED — the latest recorded round wins", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // The regression pin (P8 {5,11}): review-1 raises a blocker → fix-1 carries the
+      // source review's findings → re-review-2 approves clean. The latest recorded round
+      // is review@2 (route `done`), NOT the stale fix@1 (route `review`). The prior judge
+      // read the fix at `Math.min(latestFix, latestReview)` = min(1,2) = 1 → the stale
+      // fix-1 → `review` → read the wave forever open at fix (the wave gate then refused
+      // the next wave). The identity read (a fix at the latest review's cycle) fixes it.
+      ledger.recordRound("5,11", "implement");
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "5,11", round: 1 },
+        { findings: [{ severity: "blocker", summary: "defect" }] },
+      );
+      ledger.recordRound("5,11", "review");
+      ledger.recordRound("5,11", "fix");
+      ledger.persistHandoff("fix", "wave", { tasks: "5,11", round: 1 }, { artifacts: {} });
+      ledger.recordRound("5,11", "review", 2);
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "5,11", round: 2 },
+        { tasks: [5, 11], phase: "review", findings: [] },
+      );
+      expect(ledger.closedWaves()).toEqual(new Set([5, 11]));
+      expect(ledger.waveLinePhase("5,11")).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("WaveGate.vet — the brief-revision-aware pending-fix resolution (T11 · D16 · D30)", () => {
+  it("a wave-backfill edit reopens the fix-pending wave at review — the reviewed BRIEF revision is the drift basis", () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const graph = graphOf([task(1, "none")]);
+      const planPath = path.join(repo, "plan.md");
+      writeFileSync(planPath, planDoc([task(1, "none")]));
+      pendingFix(ledger, "1", 1);
+      // the completed wave review bound the THEN-current BRIEF revision to the row
+      // (run.ts bookkeep → Ledger#recordReviewedBrief — the D30 identity gate)
+      ledger.recordReviewedBrief("1", planPath);
+      // the wave's OWN task section moves mid-flight — the recorded brief now drifts
+      // from the wave's current brief
+      writeFileSync(planPath, planDoc([task(1, "none"), ["  - extra step — checkable: green"]]));
+      const verdict = gate.vet(new Set([1]), "review", graph, ledger, words);
+      // the phase resolves at review — the drifted brief is re-reviewed on ITS
+      // current text (the pending fix's findings reference the stale revision)
+      expect(verdict.ok).toBe(true);
+      expect(verdict.phases).toEqual([{ task: 1, phase: "review" }]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("an OUTSIDE-wave plan edit keeps the wave at fix — the append-only backfill no longer voids a reviewed wave (D30)", () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const graph = graphOf([task(1, "none"), task(2, "1")]);
+      const planPath = path.join(repo, "plan.md");
+      writeFileSync(planPath, planDoc([task(1, "none"), task(2, "1")]));
+      pendingFix(ledger, "1", 1);
+      ledger.recordReviewedBrief("1", planPath);
+      // an append-only backfill adds a task OUTSIDE wave {1} — wave {1}'s brief
+      // (Task 1 + Constraints) is byte-identical, so the pending fix survives
+      writeFileSync(planPath, planDoc([task(1, "none"), task(2, "1"), task(3, "1,2")]));
+      const verdict = gate.vet(new Set([1]), "review", graph, ledger, words);
+      expect(verdict.ok).toBe(false);
+      expect(verdict.reason).toBe("wrong-phase");
+      expect(verdict.message).toContain("at fix");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the anti-spin pin — same brief revision + a pending fix stays at fix (Review Convergence unbroken)", () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const graph = graphOf([task(1, "none")]);
+      const planPath = path.join(repo, "plan.md");
+      writeFileSync(planPath, planDoc([task(1, "none")]));
+      pendingFix(ledger, "1", 1);
+      ledger.recordReviewedBrief("1", planPath);
+      // the plan has NOT moved — the recorded brief revision still matches
+      const verdict = gate.vet(new Set([1]), "review", graph, ledger, words);
+      expect(verdict.ok).toBe(false);
+      expect(verdict.reason).toBe("wrong-phase");
+      expect(verdict.message).toContain("at fix");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the null legacy pin — a wave row with no reviewed-revision record keeps the round-count BLOCK (backward compatible)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = graphOf([task(1, "none")]);
+      pendingFix(ledger, "1", 1); // no reviewedRevision on record — the legacy face
+      const verdict = gate.vet(new Set([1]), "review", graph, ledger, words);
+      expect(verdict.ok).toBe(false);
+      expect(verdict.reason).toBe("wrong-phase");
+      expect(verdict.message).toContain("at fix");
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("Ledger#waveLinePhase — the D28 phantom-pending-fix suppression", () => {
+  it("a drift-voided review-1 with the fix at cycle 2 is NOT a phantom pending fix (identity, never a count)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // The W10 scenario: review-1 was voided by drift, so the first landed fix is
+      // cycle 2 (fix-K ⟷ review-K). The cycle set is review [1, 2] · fix [2] — the
+      // fix's COUNT (1) trails the review count (2), which the retired
+      // `fixes < reviews` comparison read as a phantom pending fix → the wave would
+      // re-open at fix forever. The identity membership (2 ∈ {2}) suppresses it.
+      ledger.recordRound("1", "implement");
+      ledger.recordRound("1", "review");
+      ledger.recordRound("1", "review");
+      ledger.recordRound("1", "fix", 2);
+      // review-2 is clean and fix-2 closed it — the wave line is closed, not pending
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1", round: 2 },
+        { tasks: [1], phase: "review", findings: [] },
+      );
+      ledger.persistHandoff("fix", "wave", { tasks: "1", round: 2 }, { artifacts: {} });
+      expect(ledger.roundRecorded("1", "fix", 2)).toBe(true);
+      expect(ledger.roundRecorded("1", "fix", 1)).toBe(false); // cycle 1 never landed
+      // the closed line derives no open phase — no phantom "fix"
+      expect(ledger.waveLinePhase("1")).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a fix round that still routes review keeps the wave at review — the identity read never over-closes", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // the drift-voided shape again, but the source review-2 carries a blocker, so the
+      // fix round's C5 route is a re-review — the wave legitimately stays at review
+      ledger.recordRound("1", "implement");
+      ledger.recordRound("1", "review");
+      ledger.recordRound("1", "review");
+      ledger.recordRound("1", "fix", 2);
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1", round: 2 },
+        { tasks: [1], phase: "review", findings: [{ severity: "blocker", summary: "open" }] },
+      );
+      ledger.persistHandoff("fix", "wave", { tasks: "1", round: 2 }, { artifacts: {} });
+      expect(ledger.waveLinePhase("1")).toBe("review");
+    } finally {
+      cleanup();
+    }
+  });
+});

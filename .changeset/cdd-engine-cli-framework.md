@@ -1,0 +1,20 @@
+---
+"@oscaner-skills/cdd-engine": major
+---
+
+feat: the engine CLI is frameworkized on commander ^15, and the deferred doc-tooling phases — the P1 overall-contract review, help-display rebuild, and docKey vocabulary, plus the P2 schema-gen templates and CLAUDE.md flow-block retirement — fold into this same major. The composition root, validation, and every help/error/usage byte are now commander-native, and the review gate keys on doc revision instead of a pending-fix latch.
+
+- **Composition root rebuilt on commander ^15** — the hand-written parse/help pipeline is replaced by a single declaration-driven projection: `face/declare.ts` is the one home of the CLI surface (channel rows, command table, value-domain vocabulary, conditional-required groups), and a `CommandTreeBuilder` class projects it into the commander command tree at construction — options/arguments, injected help, `parseArg` value parsers, and the `preAction` group hook. The legacy `Cli#parse()` entry is retired; `runArgv` remains the single parsed entry, and domain runs wire through thin `.action()` shells with zero value rewriting.
+- **Help and error bytes are commander-native output** — the self-built help renderer, the did-you-mean hint engine, and the `usageFor` corpus are deleted; usage lines on domain failures come from commander's own help output. Program and per-command help show commander's `Usage/Options/Commands` layout plus the injected Examples block; the program-flag footer carries only `--dry-run`.
+- **Validation is commander-native** — value domains and the type vocabulary are enforced by `parseArg` parsers raising `commander.InvalidArgumentError`; the `--type` conditional-required groups run as a `preAction` hook; the self-built `ValueValidator` is retired. The exit-code table (0/1/2) and the `CDD_BLOCKED` stderr channel are unchanged.
+- **Review gate keyed on doc revision** — `cdd review` no longer latches on a pending-fix state: a revised doc (post-fix, post-backfill, or post-ruling) is directly re-reviewable and the accumulated findings auto-expire; an unrevised doc is still refused (anti-spin). Pending-fix is derived state — no new state field.
+- **Deferred P1 — overall-contract review, help-display rebuild, and docKey vocabulary** — the doc-key derivation behind the review/fix doc-contract gate accepts `*-overall.md` as `overall`, so `cdd review/fix --type spec --spec <overall>` judges a whole program contract without phase-spec false positives; the engine type vocabulary lives as the single `phase-spec` (kebab) spelling.
+- **Deferred P2 — schema-gen templates + CLAUDE.md flow-block retirement** — `cdd schema gen <phase-spec|overall|plan>` derives skeleton documents (heading tree, table headers, version scaffolding) from the declaration surface for write-then-fill authoring; `cdd schema get` remains the reference face. Alongside, the repo `CLAUDE.md` drops its retired engine-invocation, CLI-surface, engine-test, and review-convergence flow blocks.
+- **Semantic contract preserved** — the six commands, their flags, and their value domains are unchanged (the retired negative spellings below are the exceptions); domain-run semantics, doc-contract judgment, and `next:` dispatch literals are untouched.
+
+Consumers scripting the old bytes must migrate (breaking):
+
+- **Retired negative spellings** — `--no-dry-run` and `--no-force` no longer parse; a typo now surfaces commander's native `Did you mean --dry-run?` suggestion.
+- **Help/usage/error bytes reflowed to commander form** — anything matching the former self-rendered help, usage lines, or validation errors must re-anchor on commander's output.
+- **Help exit-code changes (deliberate)** — verb-less `cdd --help`/`-h` exits 0 (was 2); the built-in `help [command]` subcommand is reused, so `cdd help` / `cdd help <cmd>` / parent-command help exit 0 (was 2 for bare `cdd help`); a leaf `help` argument (`cdd implement help`) is a usage error (2) and `cdd help <bogus>` exits 2.
+- **New runtime dependency** — commander ^15 joins the runtime dependencies (the only change to the dependency surface).

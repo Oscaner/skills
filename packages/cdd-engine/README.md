@@ -2,11 +2,11 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-CDD engine CLI — the task runner, document/branch reviewer, and harness dispatcher behind the osuperpowers `cli-driven-development` skill. Published as a standalone package so the engine (`cdd`) can be installed and invoked on its own.
+CDD engine CLI — the task runner, document/branch reviewer, and harness dispatcher behind the kairos `cdd-dev` skill. Published as a standalone package so the engine (`cdd`) can be installed and invoked on its own.
 
 ## What this package is
 
-The engine runs the implement / review / fix phases of the CDD workflow against a plan file, writes the dispatch's handoff artifacts, reads and writes the `base-branch` artifact, and dispatches each phase to the host harness CLI through its embedded harness registry. It is consumed by the [osuperpowers plugin](https://www.npmjs.com/package/@oscaner-skills/osuperpowers)'s `cli-driven-development` skill and is also usable directly from the command line.
+The engine runs the implement / review / fix phases of the CDD workflow against a plan file, writes the dispatch's handoff artifacts, reads and writes the `base` artifact, and dispatches each phase to the host harness CLI through its embedded harness registry. It is consumed by the [kairos plugin](https://www.npmjs.com/package/@oscaner-skills/kairos)'s `cdd-dev` skill and is also usable directly from the command line.
 
 ## Installation
 
@@ -29,23 +29,24 @@ Global option: `--dry-run` — simulate the dispatch without writing handoff art
 | `implement` | `cdd implement --tasks=<n> [--plan=<path>]` | Run the task implement phase |
 | `review` | `cdd review --type=<task\|branch\|spec\|plan>` | Run a review — task, branch, spec, or plan |
 | `fix` | `cdd fix --type=<task\|branch\|spec\|plan>` | Fix review findings — task, branch, spec, or plan |
-| `base-branch` | `cdd base-branch set\|get` | Read/write the `base-branch.json` artifact (single CDD `--plan` target) |
+| `base` | `cdd base set\|get` | Read/write the `base.json` artifact (single CDD `--plan` target) |
 | `schema` | `cdd schema get <type>` | Print the canonical doc-structure schema (discovery-only, zero enforcement) |
 | `issue` | `cdd issue render` | Render an aggregate issue body from stdin findings (pure rendering, zero enforcement) |
+| `board` | `cdd board <slug>` | Render the slug progress board (overall/spec/plan/wave/branch; pure read, zero enforcement) |
 
-Use `cdd <command> --help` for a command's full option list (for example `cdd review --tasks` / `--base` / `--head` / `--spec` / `--round`).
+Use `cdd <command> --help` for a command's full option list (for example `cdd review --tasks` / `--spec` / `--plan` / `--round`).
 
 ## Development
 
-The package lives in the [Oscaner/skills](https://github.com/Oscaner/skills) monorepo at `packages/cdd-engine` (TypeScript, built with unbuild, tested with vitest; tests are colocated at `src/**/__tests__/**/*.test.ts`).
+The package lives in the [Oscaner/skills](https://github.com/Oscaner/skills) monorepo at `packages/cdd-engine` (TypeScript, emitted with `tsc -p tsconfig.build.json`, tested with vitest; tests are colocated at `src-next/**/__tests__/**/*.test.ts`).
 
 ```bash
-pnpm --filter @oscaner-skills/cdd-engine dev:stub   # rebuild the jiti immediate-load dev stub
-node packages/cdd-engine/dist/cli.mjs schema get plan # invoke the engine from the working tree
+node packages/cdd-engine/src-next/bin.ts schema get plan # invoke the engine source-direct from the working tree (Node ≥22.18 native type stripping)
 pnpm --filter @oscaner-skills/cdd-engine test       # run the engine test suite
+pnpm --filter @oscaner-skills/cdd-engine build      # tsc-emit the published dist/bin.js
 ```
 
-During repository development the engine is invoked straight from the working tree (`dist/cli.mjs`) — never through a global install or link, which can go stale.
+During repository development the engine is invoked straight on the source entry (`node packages/cdd-engine/src-next/bin.ts`) — never through a global install or link, which can go stale.
 
 ## License
 

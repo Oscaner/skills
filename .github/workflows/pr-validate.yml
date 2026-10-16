@@ -1,3 +1,19 @@
+# PR validate — the dissolved validate orchestrator's assertion surface as a native
+# job matrix (P5 T8): every check lives in its owning package suite / root script,
+# one job per check, each natively visible in its own action log. The matrix is the
+# equivalence map of the old `scripts/validate.ts` step table:
+#   · emit freshness / drift         → emit-check job (pnpm run emit:check)
+#   · kairos anatomy + word-face + behavior tree → kairos-suite job (pnpm -C packages/kairos test)
+#   · engine word-face + channel + handoff audits → the engine-suite job's guard files
+#   · the engine vitest suite        → engine-suite job (pnpm -C packages/cdd-engine test)
+#   · scripts unit tests             → scripts-unit job (pnpm exec vitest run)
+#   · type-check                     → typecheck job (pnpm run typecheck)
+#   · package version sync           → version-sync job (pnpm run version-sync)
+#   · zero module-level bare functions (the engine + kairos/tests + scripts .ts surfaces)
+#                                    → no-bare-functions job (pnpm run check:no-bare-functions)
+# The precommit script runs the tree-independent subset (the same commands minus the
+# engine suite — its black-box dispatch is dirty-tree incompatible by ruling).
+
 name: PR Validate
 
 on:
@@ -8,7 +24,7 @@ permissions:
   contents: read
 
 jobs:
-  validate:
+  engine-suite:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -16,3 +32,72 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/setup
       - uses: ./.github/actions/validate
+        with:
+          command: pnpm -C packages/cdd-engine test
+
+  kairos-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/validate
+        with:
+          command: pnpm -C packages/kairos test
+          install-pi: "true"
+
+  scripts-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/validate
+        with:
+          command: pnpm exec vitest run
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/validate
+        with:
+          command: pnpm run typecheck
+
+  emit-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/validate
+        with:
+          command: pnpm run emit:check
+
+  version-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/validate
+        with:
+          command: pnpm run version-sync
+
+  no-bare-functions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/validate
+        with:
+          command: pnpm run check:no-bare-functions

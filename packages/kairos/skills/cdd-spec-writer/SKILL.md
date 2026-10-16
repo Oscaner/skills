@@ -1,6 +1,6 @@
 ---
 name: cdd-spec-writer
-description: Independent spec-writer -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:brainstorming（pi：/skill:brainstorming） (writing-spec) design flow inline as this session's baseline, then authors the target spec (single-spec / phase-spec / overall-spec — one parameterized flow), commits it before the review-fix loop, and runs the loop following the engine's next: line — the engine's next face carries the pipeline continuation. Callable standalone; invoke as kairos:cdd-spec-writer（pi：/skill:cdd-spec-writer）.
+description: Independent spec-writer -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:brainstorming（pi：/skill:brainstorming） (writing-spec) design flow inline as this session's baseline, then authors the target spec (single-spec / phase-spec / overall-spec — one parameterized flow), commits it before the review-fix loop, and runs the loop following the engine's next face — the engine's next directive carries the pipeline continuation. Callable standalone; invoke as kairos:cdd-spec-writer（pi：/skill:cdd-spec-writer）.
 ---
 
 # Kairos CDD-Spec-Writer

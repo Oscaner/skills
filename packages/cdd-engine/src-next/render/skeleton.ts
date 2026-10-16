@@ -253,12 +253,19 @@ export class SkeletonAssembler {
 
   /** The header block — the header-home slots in projection order (the registry
    *  order — the title, then the version/status truths, the content markers, the
-   *  link placeholders), each probed, followed by the blank separator. */
+   *  link placeholders), each probed, followed by the blank separator. The
+   *  `- **Doc type**: <key>` declaration line is emitted right AFTER the Version
+   *  line (the position every real doc carries it): it is the reader the
+   *  board/preflight/capsule faces require, and it is deliberately NOT a
+   *  registered slot (it is doc-identity metadata, not a projected element), so it
+   *  is composed structurally and never probed — the skeleton the engine produces
+   *  now passes its OWN preflight (§3.1 ⑩). */
   #pushHeader(lines: string[], probe: Set<string>): void {
     for (const slot of this.#slots) {
       if (slot.home !== "header") continue;
       lines.push(this.#headerLine(slot));
       probe.add(slot.anchor);
+      if (slot.anchor === "**Version**") lines.push(`- **Doc type**: ${this.#docType}`);
     }
     lines.push("");
   }

@@ -1,6 +1,6 @@
 ---
 name: cdd-plan
-description: Independent plan-writing orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:writing-plans（pi：/skill:writing-plans） flow inline as this session's baseline, backfills the design spec on substantive drift before authoring, commits the authored plan before the review-fix loop, and runs the loop following the engine's next: line — the engine's next face carries the pipeline continuation. Callable standalone; invoke as kairos:cdd-plan（pi：/skill:cdd-plan）.
+description: Independent plan-writing orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:writing-plans（pi：/skill:writing-plans） flow inline as this session's baseline, backfills the design spec on substantive drift before authoring, commits the authored plan before the review-fix loop, and runs the loop following the engine's next face — the engine's next directive carries the pipeline continuation. Callable standalone; invoke as kairos:cdd-plan（pi：/skill:cdd-plan）.
 ---
 
 # Kairos CDD-Plan

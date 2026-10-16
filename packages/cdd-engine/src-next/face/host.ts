@@ -5,7 +5,7 @@
 // imported, never parsed:
 //
 //   · HOSTS     — the per-harness rows (cli / invoke / promptForm / output / ship /
-//     detect / install / cache). The host-marker closure is single-sourced HERE: the
+//     detect / install). The host-marker closure is single-sourced HERE: the
 //     detect rows are the only copy of the marker env keys (the channel audit derives
 //     the env whitelist from them — never a second declaration). The promptForm
 //     column (§3.5) is the prompt-position semantics data contract — how the
@@ -43,22 +43,6 @@ export interface HostDetectSpec {
   aiAgentPrefix?: string;
 }
 
-/** One host-cache row — the prompt-cache mechanism facts. */
-export interface HostCacheSpec {
-  /** The cache mechanism (explicit hints / auto-prefix). */
-  mechanism: string;
-  /** The minimum token threshold; the `pending` literal is the not-yet-known marker. */
-  minTokens: number | "pending";
-  /** Explicit-hint face: the read/write budget multipliers + TTL (claude only). */
-  readMultiplier?: number;
-  /** Explicit-hint face: the write-budget multiplier (claude only). */
-  writeMultiplier?: number;
-  /** Explicit-hint face: the cache TTL in minutes (claude only). */
-  ttlMinutes?: number;
-  /** Whether the cache is observable to the engine. */
-  observable: boolean;
-}
-
 /** The prompt-position semantics of a harness — HOW the skill-ref enters the child
  *  prompt (the §3.5 data contract, resolved by #childPrompt — the from-code-assumed
  *  prompt assembly becomes a per-host row). `ref-prefixed`: the slash ref prefixes
@@ -92,8 +76,6 @@ export interface HostRow {
   /** The per-package install banners (kairos self-install + upstream plugins);
    *  `"pending"` is the literal not-yet-known command. */
   install: Readonly<Record<string, readonly string[] | "pending">>;
-  /** The prompt-cache facts. */
-  cache: HostCacheSpec;
   /** The capability facts — the tested dispatch-face columns (T25). */
   capabilities: HostCapabilities;
 }
@@ -165,14 +147,6 @@ export const HOSTS = {
     ship: "full",
     detect: { env: "CLAUDE_CODE_SESSION_ID", aiAgentPrefix: "claude-code" },
     install: INSTALL_ROWS,
-    cache: {
-      mechanism: "explicit",
-      minTokens: 512,
-      readMultiplier: 0.1,
-      writeMultiplier: 1.25,
-      ttlMinutes: 5,
-      observable: true,
-    },
     capabilities: { parallel: true },
   },
   cursor: {
@@ -188,7 +162,6 @@ export const HOSTS = {
       "mattpocock-skills": "pending",
       impeccable: "pending",
     },
-    cache: { mechanism: "auto-prefix", minTokens: "pending", observable: false },
     capabilities: { parallel: "pending" },
   },
   pi: {
@@ -204,7 +177,6 @@ export const HOSTS = {
       "mattpocock-skills": ["pi install git:github.com/mattpocock/skills"],
       impeccable: ["npx impeccable install --providers=pi --scope=global -y"],
     },
-    cache: { mechanism: "auto-prefix", minTokens: "pending", observable: false },
     capabilities: { parallel: "pending" },
   },
 } as const satisfies Readonly<Record<HostId, HostRow>>;

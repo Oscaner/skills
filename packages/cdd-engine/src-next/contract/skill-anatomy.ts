@@ -77,6 +77,17 @@ export interface AnatomyConsumerPurity {
   zeroTraceRule: string;
 }
 
+/** The frontmatter-validity rule (spec §4 · D42) — every shipped SKILL.md's YAML
+ *  frontmatter block must parse under a REAL YAML parser. A bare ASCII `: ` inside
+ *  an unquoted scalar (e.g. `the engine's next: line`) makes the block unparseable,
+ *  and the harness then silently drops the skill — an ungated declaration. */
+export interface AnatomyFrontmatter {
+  /** The frontmatter fence delimiter (the block between two `---` lines). */
+  fence: string;
+  /** The rule wording the check quotes when a frontmatter block fails to parse. */
+  rule: string;
+}
+
 /** The author-entry bootstrap surface (§10 · the D29-regression pin) — the flow's
  *  content-authoring entry nodes and the skeleton bootstrap literal each one's Do
  *  must carry. D29's stripping rule keys on the ENTRY ROLE, not the surface shape:
@@ -118,6 +129,8 @@ export interface SkillAnatomyContract {
   growthBoundary: AnatomyGrowthBoundary;
   consumerPurity: AnatomyConsumerPurity;
   authorBootstrap: AnatomyAuthorBootstrap;
+  /** The frontmatter-validity rule (spec §4 · D42) — the real-YAML-parse gate. */
+  frontmatter: AnatomyFrontmatter;
   skills: { registry: Readonly<Record<string, SkillRosterRow>> };
   wording: Readonly<Record<string, string>>;
   /** The engine-lexicon pinned condition words (the v1.20 word-table pin) — the phrase set the
@@ -222,6 +235,13 @@ export const SKILL_ANATOMY = {
       { skill: "cdd-plan", node: "author-plan" },
     ],
     skeletonCommandPattern: "schema get \\S+ --output skeleton",
+  },
+  // The frontmatter-validity rule (spec §4 · D42) — every shipped SKILL.md's YAML
+  // frontmatter block must parse under a REAL parser; a bare `: ` in an unquoted
+  // scalar breaks the block and the harness silently drops the skill.
+  frontmatter: {
+    fence: "---",
+    rule: "every SKILL.md frontmatter block must parse under a real YAML parser — an unquoted `: ` in a scalar makes the block unparseable and the harness silently drops the skill (D42)",
   },
   skills: { registry: SKILL_ROSTER },
   // The check-facing diagnostic wording — the prose the anatomy assertions quote

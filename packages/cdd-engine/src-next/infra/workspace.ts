@@ -32,6 +32,23 @@ export type JsonRead<T> =
   | { kind: "missing" }
   | { kind: "malformed"; errors?: readonly ParseError[] };
 
+/** The slug phase-suffix syntax — the trailing `-p<major>(.<minor>)*` segment
+ *  (spec §3.2 ⑬). This is the ONE source of the phase-suffix grammar: both the
+ *  suffix parse (`Workspace.phaseSuffixOf`, the `-p…$` form) and the board's
+ *  suffix-only match (`BoardView.scanPhases`, the `^p…$` form) compose their
+ *  patterns from this fragment. (Distinct from the doc-contract design-unit value
+ *  syntax `P\d+(\.\d+)*-design` — uppercase + `-design` tail — which is another
+ *  fact, never merged here.) */
+export const PHASE_SUFFIX_CORE = "p\\d+(?:\\.\\d+)*";
+
+/** The phase-suffix parse — the trailing `-p<major>(.<minor>)*` segment captured
+ *  as the named `suffix` group (composed from PHASE_SUFFIX_CORE: the ONE grammar). */
+const PHASE_SUFFIX_TAIL = new RegExp(`(?<program>.+?)(?<suffix>-${PHASE_SUFFIX_CORE})$`);
+
+/** The suffix-only match — a bare `<major>(.<minor>)*` phase path (composed from
+ *  the SAME PHASE_SUFFIX_CORE; the board's scan uses this form). */
+export const PHASE_SUFFIX_BARE = new RegExp(`^${PHASE_SUFFIX_CORE}$`);
+
 /** The repo-scoped workspace base — `<repoRoot>/<workspaceRoot>`. */
 export class WorkspaceRoot {
   readonly repoRoot: string;
@@ -113,9 +130,10 @@ export class Workspace {
   }
 
   /** The slug's phase-suffix parse — the trailing `-p<major>(.<minor>)*` segment
-   *  (null when the slug is a program slug, i.e. carries no phase suffix). */
+   *  (null when the slug is a program slug, i.e. carries no phase suffix). The
+   *  grammar is PHASE_SUFFIX_TAIL, composed from the shared PHASE_SUFFIX_CORE. */
   static phaseSuffixOf(slug: string): string | null {
-    const match = /(?<program>.+?)(?<suffix>-p\d+(?:\.\d+)*)$/.exec(slug);
+    const match = PHASE_SUFFIX_TAIL.exec(slug);
     return match?.groups?.suffix ?? null;
   }
 

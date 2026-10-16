@@ -9,45 +9,6 @@
     "kairos:cdd-report",
     "kairos:cdd-close"
   ],
-  "severities": [
-    "blocker",
-    "warn",
-    "nit"
-  ],
-  "metaFields": [
-    { "key": "skill", "label": "Skill" },
-    { "key": "step", "label": "Step" }
-  ],
-  "sectionLabels": {
-    "bug": {
-      "en": {
-        "context": "## Context",
-        "problem": "## Problem",
-        "impact": "## Impact",
-        "suggestedFix": "## Suggested fix"
-      },
-      "zh": {
-        "context": "## 背景",
-        "problem": "## 问题",
-        "impact": "## 影响",
-        "suggestedFix": "## 建议修复"
-      }
-    },
-    "enhancement": {
-      "en": {
-        "context": "## Context",
-        "problem": "## Current behavior",
-        "impact": "## Desired behavior",
-        "suggestedFix": "## Suggested approach"
-      },
-      "zh": {
-        "context": "## 背景",
-        "problem": "## 当前行为",
-        "impact": "## 期望行为",
-        "suggestedFix": "## 建议方案"
-      }
-    }
-  },
   "formFieldDefs": {
     "bug_report": {
       "frontmatter": {
@@ -191,12 +152,5 @@
         }
       ]
     }
-  },
-  "reportDef": {
-    "labels": ["kairos", "cdd-engine"]
-  },
-  "masterDef": {
-    "sessionTitle": "## Session",
-    "harnessRow": "- Harness: <harness>"
   }
 }

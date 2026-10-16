@@ -1,6 +1,6 @@
 ---
 name: cdd-dev
-description: Independent cdd-dev orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Determines base via the engine artifact, dispatches the CDD implement / review / fix chain following the engine's next: line, and runs the branch final review — the engine's next face carries the pipeline continuation. Callable standalone; referenced by no other skill.
+description: Independent cdd-dev orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Determines base via the engine artifact, dispatches the CDD implement / review / fix chain following the engine's next face, and runs the branch final review — the engine's next directive carries the pipeline continuation. Callable standalone; referenced by no other skill.
 ---
 
 # Kairos CDD-Dev

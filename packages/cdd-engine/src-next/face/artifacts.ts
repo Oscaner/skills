@@ -20,19 +20,35 @@ import { WorkspaceRoot } from "../infra/workspace.ts";
 import type { IssueBodyRenderer, IssueReportInput } from "../render/issue-body.ts";
 import { SkeletonAssembler } from "../render/skeleton.ts";
 import type { RunInput } from "./cli.ts";
+import { ARGV_CHANNEL } from "./declare.ts";
 import type { CliIo } from "./lifecycle.ts";
 
 // ---------------------------------------------------------------------------
 // the pure artifact surfaces — the base artifact + the issue body
 // ---------------------------------------------------------------------------
 
+/** The base's source value domain — the four-value enum (design spec §3.2 ⑪).
+ *  Derived from the ONE declaration (the argv channel's `--source` domain,
+ *  face/declare.ts:76), so the artifact's `source` field and the CLI's accepted
+ *  values can never drift. */
+export type BaseSource = (typeof ARGV_CHANNEL.source.values)[number];
+
+/** The base artifact's declared field set, in canonical order — the runtime
+ *  companion of `BaseArtifact` (the `base.md` documented schema's four fields,
+ *  spec §3.2 ⑪). The cross-face gate (kairos suite) pins the `base.md` schema
+ *  table's field set to THIS tuple, so the doc and the artifact can never drift. */
+export const BASE_ARTIFACT_FIELDS = ["base", "source", "plan", "recordedAt"] as const;
+
 /** The base artifact schema — the sole CDD --plan target's read/write row (the
- *  artifact file carries the `base` face: the base branch the plan's line rides). */
+ *  artifact file carries the `base` face: the base branch the plan's line rides).
+ *  The field set (`base`/`source`/`plan`/`recordedAt`) mirrors the `base.md`
+ *  documented schema (spec §3.2 ⑪); `source` is narrowed to the declared enum
+ *  `BaseSource` — never a bare `string` (the drifted face this gate closes). */
 export interface BaseArtifact {
   /** The base branch name. */
   base: string;
-  /** The base's source channel (the engine-config source enum). */
-  source: string;
+  /** The base's source channel (the declared `--source` enum). */
+  source: BaseSource;
   /** The plan path the artifact serves. */
   plan: string;
   /** The ISO write timestamp. */
@@ -139,9 +155,12 @@ export class CliArtifacts {
         `cdd base set: base already set to ${existing.base} — pass --force to override`,
       );
     }
+    // The `--source` enum channel already validated the raw against the declared
+    // domain, so the value is narrowed to BaseSource here (single source: the
+    // channel's `values` array).
     const artifact: BaseArtifact = {
       base,
-      source,
+      source: source as BaseSource,
       plan: planPath,
       recordedAt: new Date().toISOString(),
     };
@@ -184,7 +203,10 @@ export class CliArtifacts {
     return `${now.getFullYear()}-${month}-${day}`;
   }
 
-  /** Read + validate the base artifact; null when missing or malformed. */
+  /** Read + validate the base artifact; null when missing or malformed. The
+   *  `source` field is narrowed to the declared enum domain (a value outside the
+   *  four-value set is a schema-invalid artifact → null, never a fabricated
+   *  source). */
   #readBase(path: string): BaseArtifact | null {
     try {
       const parsed = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
@@ -194,9 +216,10 @@ export class CliArtifacts {
         typeof parsed.plan !== "string"
       )
         return null;
+      if (!(ARGV_CHANNEL.source.values as readonly string[]).includes(parsed.source)) return null;
       return {
         base: parsed.base,
-        source: parsed.source,
+        source: parsed.source as BaseSource,
         plan: parsed.plan,
         recordedAt: typeof parsed.recordedAt === "string" ? parsed.recordedAt : "",
       };

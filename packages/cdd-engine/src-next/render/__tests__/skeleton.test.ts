@@ -12,10 +12,14 @@
 //     CLI's single appended `\n` leaves a redirected fixture with exactly one
 //     final newline.
 
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { declaredRegistries } from "../../contract/declare.ts";
 import type { DocKey, DocSkeleton } from "../../contract/project.ts";
 import { Projector } from "../../contract/project.ts";
+import { BoardView } from "../../face/board-view.ts";
 import { SkeletonAssembler } from "../skeleton.ts";
 
 /** The fixed run date — the injectable run-day truth (no live clock in the pins). */
@@ -83,6 +87,7 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
       [
         "# :::fill title",
         "- **Version**: v0.1 · 2026-10-11",
+        "- **Doc type**: phase-spec",
         "- **Status**: Draft",
         "- **Author**: :::fill author",
         "- **Parent program**: [<parent overall>](<parent path>)",
@@ -120,6 +125,7 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "**Spec:** [<spec path>](<spec path>)",
         "- **Parent program**: [<parent overall>](<parent path>)",
         "- **Version**: v0.1 · 2026-10-11",
+        "- **Doc type**: plan",
         "",
         "## Constraints",
         "",
@@ -149,6 +155,7 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
       [
         "# :::fill title",
         "- **Version**: v0.1 · 2026-10-11",
+        "- **Doc type**: overall-spec",
         "- **Status**: Draft",
         "- **Author**: :::fill author",
         "- **Constraints**: :::fill constraints",
@@ -217,6 +224,7 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
       [
         "# :::fill title",
         "- **Version**: v0.1 · 2026-10-11",
+        "- **Doc type**: single-spec",
         "- **Status**: Draft",
         "- **Author**: :::fill author",
         "- **Depends on**: :::fill depends-on",
@@ -436,6 +444,39 @@ describe("SkeletonAssembler — the slot-consumption invariant (composition vs r
     expect(() => new SkeletonAssembler(tampered, DATE).render()).toThrow(
       /emits the unregistered anchor: ## Constraints/,
     );
+  });
+});
+
+describe("SkeletonAssembler — the Doc type declaration line (spec §3.1 ⑩)", () => {
+  it("every doc skeleton carries `- **Doc type**: <key>` right after the Version line", () => {
+    for (const key of ["overall-spec", "plan", "phase-spec", "single-spec"] as const) {
+      const lines = renderOf(key).split("\n");
+      const docTypeIndex = lines.indexOf(`- **Doc type**: ${key}`);
+      expect(docTypeIndex, `${key}: missing Doc type line`).toBeGreaterThan(-1);
+      // the declaration immediately follows its Version line (the header tuple order)
+      expect(lines[docTypeIndex - 1], `${key}: Doc type not after Version`).toMatch(
+        /^- \*\*Version\*\*: /,
+      );
+    }
+  });
+
+  it("the engine-produced skeleton passes its OWN doc-type reader — BoardView.readDocType (self-preflight regression)", () => {
+    // The ⑩ defect: the engine's skeleton omitted the Doc type line, so a skeleton
+    // it produced failed its own preflight (BoardView.readDocType → null → BLOCK).
+    // This pin writes each skeleton to disk and asserts the doc-type reader returns
+    // the matching key — the writer/reader pair now agrees (§3.1 ⑩ regression).
+    const dir = mkdtempSync(path.join(tmpdir(), "skeleton-doctype-"));
+    try {
+      for (const key of ["overall-spec", "plan", "phase-spec", "single-spec"] as const) {
+        const file = path.join(dir, `${key}.md`);
+        writeFileSync(file, `${renderOf(key)}\n`, "utf8");
+        expect(BoardView.readDocType(file), `${key}: skeleton fails its own doc-type read`).toBe(
+          key,
+        );
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

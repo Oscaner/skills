@@ -43,9 +43,20 @@ import type {
   RefKind,
   RegistryElement,
 } from "./declare.ts";
+import { DOC_TYPE_VALUES } from "./declare.ts";
 
-/** The projection record keys — mirrors the declared-registries record shape ({ "overall-spec", plan, "phase-spec", "single-spec" }). */
-export type DocKey = "overall-spec" | "plan" | "phase-spec" | "single-spec";
+/** The projection record keys — the declared-registries record shape ({ "overall-spec",
+ *  plan, "phase-spec", "single-spec" }). Derived from the ONE declaration root
+ *  (declare.ts): the `DocKey` type aliases `DocType` and the runtime `DOC_KEYS`
+ *  tuple aliases `DOC_TYPE_VALUES`, so the value domain has a single source (spec
+ *  §3.2 ③) — judge/declare/board-view all consume these, never a second copy. */
+export type DocKey = DocType;
+
+/** The four doc-type record keys in canonical order — the runtime companion of
+ *  `DocKey`, re-exported from the declaration root (declare.ts `DOC_TYPE_VALUES`).
+ *  The judge's policy composition and the board's declaration domain read THIS
+ *  tuple; a value drift is impossible (one array). */
+export const DOC_KEYS = DOC_TYPE_VALUES;
 
 // ---------------------------------------------------------------------------
 // shared derivation chain

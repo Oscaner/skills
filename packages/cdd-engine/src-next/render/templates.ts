@@ -48,6 +48,7 @@
 // Module-level exports are types / the declared constant data / the class — zero
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
+import { DISPATCH } from "../face/host.ts";
 import type { TargetType } from "../session/faces.ts";
 
 /** The per-dispatch slot values — one entry per declared template token. */
@@ -164,7 +165,7 @@ const IMPLEMENT_SHELL: readonly string[] = [
   "## Instructions",
   "",
   ...FRAME_ITEMS,
-  "**implement:** read `INPUT_WAVE_BRIEF` (the complete plan mirror — every `### Task N:` of the wave + the plan's `## Constraints` section, fresh-extracted at dispatch). `WAVE` = this round's wave (the task list); implement ALL tasks of the wave, never a subset. `CONFIRMED_SEAMS` in the brief → apply as-is; else propose test boundaries in the report, then invoke **`mattpocock-skills:implement`**. Write the handoff draft at `OUTPUT_HANDOFF` per `## Handoff schema` BEFORE the return block: `status` (APPROVED once applied, else BLOCKED + `failure_category`) and `artifacts` (the prescribed `OUTPUT_REPORT`/`OUTPUT_EVIDENCE` paths from the round context — the `{family}-{key}-` canonical names, zero free naming).",
+  `**implement:** read \`INPUT_WAVE_BRIEF\` (the complete plan mirror — every \`### Task N:\` of the wave + the plan's \`## Constraints\` section, fresh-extracted at dispatch). \`WAVE\` = this round's wave (the task list); implement ALL tasks of the wave, never a subset. \`CONFIRMED_SEAMS\` in the brief → apply as-is; else propose test boundaries in the report, then invoke **\`${DISPATCH.implement}\`**. Write the handoff draft at \`OUTPUT_HANDOFF\` per \`## Handoff schema\` BEFORE the return block: \`status\` (APPROVED once applied, else BLOCKED + \`failure_category\`) and \`artifacts\` (the prescribed \`OUTPUT_REPORT\`/\`OUTPUT_EVIDENCE\` paths from the round context — the \`{family}-{key}-\` canonical names, zero free naming).`,
   EVIDENCE_ITEM,
   ...LICENSE_ITEMS,
   ...SCHEMA_SECTION,

@@ -165,9 +165,10 @@ export type CrashCause =
 export interface CrashRecord {
   /** The dead child's exit code (1 = run failure, 143 = SIGTERM — the shell convention). */
   exitCode: number;
-  /** The last CRASH_TAIL_LINES stderr lines (the "403 / abort without trace" tail). */
+  /** The dead child's stderr tail (the "403 / abort without trace" tail — the
+   *  caller's captured lines, no fixed tail-length constant). */
   stderrTail: readonly string[];
-  /** The last CRASH_TAIL_LINES stdout lines. */
+  /** The dead child's stdout tail. */
   stdoutTail: readonly string[];
   /** The handoff path the dead child was expected to write (null when the lane carries none). */
   attemptedHandoff: string | null;

@@ -17,6 +17,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
+import { parse as parseYaml } from "yaml";
 
 import {
   SKILL_ANATOMY,
@@ -262,6 +263,11 @@ class SkillAnatomyCheck {
       // registered content-authoring entry node carries its skeleton bootstrap
       // literal — a shape-keyed strip must never remove the entry command silently.
       this.#authorBootstrapFindings(name, an, anatomy);
+
+      // The frontmatter-validity rule (spec §4 · D42): the SKILL.md frontmatter
+      // block must parse under a real YAML parser (a bare `: ` in a scalar breaks
+      // it and the harness silently drops the skill — an ungated declaration).
+      this.#frontmatterFindings(name, an.src, anatomy);
     }
 
     // The closed-set guard — the directory scan must equal the roster exactly.
@@ -441,6 +447,35 @@ class SkillAnatomyCheck {
       }
     }
   }
+
+  /** The frontmatter-validity findings (spec §4 · D42): extract the leading
+   *  `---`-fenced block and parse it with a real YAML parser; a parse failure — the
+   *  `the engine's next: line` bare-colon class — is a finding (the harness would
+   *  silently drop the skill). A SKILL.md with no frontmatter block is a finding
+   *  too (the block is required). */
+  #frontmatterFindings(name: string, src: string, anatomy: SkillAnatomyContract): void {
+    const problem = SkillAnatomyCheck.frontmatterProblem(src, anatomy);
+    if (problem !== null) this.#findings.push({ label: problem, skill: name });
+  }
+
+  /** The frontmatter judgment as a pure static — extracted so the gate can be
+   *  exercised directly (a probe source) as well as over the live skills. Returns
+   *  the finding label, or null when the frontmatter block parses. */
+  static frontmatterProblem(src: string, anatomy: SkillAnatomyContract): string | null {
+    const fence = anatomy.frontmatter.fence;
+    const lines = src.split("\n");
+    if (lines[0]?.trim() !== fence) return "the SKILL.md carries no leading frontmatter block";
+    const close = lines.indexOf(fence, 1);
+    if (close === -1) return "the SKILL.md frontmatter block is not closed";
+    const block = lines.slice(1, close).join("\n");
+    try {
+      parseYaml(block);
+      return null;
+    } catch (err) {
+      const detail = err instanceof Error ? err.message.split("\n")[0] : String(err);
+      return `the SKILL.md frontmatter fails real YAML parsing — ${detail} (${anatomy.frontmatter.rule})`;
+    }
+  }
 }
 
 test("the kairos skills are the closed roster set — directory scan equals the contract registry", () => {
@@ -454,4 +489,29 @@ test("the six SKILL.md products pass the skill-anatomy contract (the live green 
   const findings = new SkillAnatomyCheck().check();
   const lines = findings.map((f) => `  ${f.skill}: ${f.label}`);
   expect(lines, `anatomy findings:\n${lines.join("\n")}`).toEqual([]);
+});
+
+test("the frontmatter gate is non-vacuous — a bare-colon description is a real YAML break (D42)", () => {
+  // The frontmatter defect class: a bare ASCII `: ` in an unquoted scalar makes the
+  // block unparseable (the harness then silently drops the skill). The gate must fire
+  // on exactly that shape — asserted through the checker's own frontmatter judgment,
+  // so the live-green face is not a vacuous pass.
+  const brokenSrc = [
+    "---",
+    "name: probe",
+    "description: the engine's next: line carries the pipeline",
+    "---",
+    "",
+    "# probe",
+  ].join("\n");
+  expect(SkillAnatomyCheck.frontmatterProblem(brokenSrc, SKILL_ANATOMY)).toContain(
+    "fails real YAML parsing",
+  );
+  // The fix shape — the bare colon reworded — parses clean.
+  const fixedSrc = brokenSrc.replace("the engine's next: line", "the engine's next face");
+  expect(SkillAnatomyCheck.frontmatterProblem(fixedSrc, SKILL_ANATOMY)).toBeNull();
+  // A SKILL.md with no frontmatter block is a finding too.
+  expect(SkillAnatomyCheck.frontmatterProblem("# no frontmatter\n", SKILL_ANATOMY)).toContain(
+    "no leading frontmatter",
+  );
 });

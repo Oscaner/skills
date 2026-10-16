@@ -108,7 +108,7 @@ export interface ChainLink {
  */
 export interface ChainRoot {
   /** The doc-type identity of the chain root's document. */
-  docType: "overall-spec" | "plan" | "phase-spec" | "single-spec";
+  docType: DocKey;
   /** The `**Parent program**` link (Class-B) — the parent overall reference of a
    *  plan/spec document; null for the overall (the chain root itself). */
   parentLink: ChainLink | null;
@@ -308,7 +308,7 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
   /** The derived section skeleton (shape projection) of this doc type. */
   readonly shape: DocShape;
   /** The doc-type name as carried by a conforming document's parse record. */
-  abstract readonly docTypeName: "overall-spec" | "plan" | "phase-spec" | "single-spec";
+  abstract readonly docTypeName: DocKey;
 
   /** The per-anchor slice lookup — the parse face's locating patterns. */
   readonly #slicesByAnchor: ReadonlyMap<string, ElementSlice>;

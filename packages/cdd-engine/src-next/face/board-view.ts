@@ -33,9 +33,10 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { MarkdownPrimitives, PlanDocType } from "../contract/doc.ts";
 import type { DocKey } from "../contract/project.ts";
+import { DOC_KEYS } from "../contract/project.ts";
 import { ConfigLoader } from "../infra/config.ts";
 import { ENGINE_RUNTIME } from "../infra/runtime.ts";
-import { type SlugDocs, Workspace, WorkspaceRoot } from "../infra/workspace.ts";
+import { PHASE_SUFFIX_BARE, type SlugDocs, Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 import { TaskGraph } from "../session/graph.ts";
 import { Ledger, type ProgressData } from "../session/ledger.ts";
 import { NextStepRouter, type PipelineFaceReport } from "../session/next.ts";
@@ -113,8 +114,9 @@ export interface BoardProgress {
 
 /** The DocKey domain of the `- **Doc type**:` declaration — the declared value must
  *  be one of the four keys; anything else reads null (present facts, never a
- *  fabricated type). */
-const DOC_TYPE_DOMAIN: readonly DocKey[] = ["overall-spec", "plan", "phase-spec", "single-spec"];
+ *  fabricated type). Derived from the ONE DocKey declaration (contract/project.ts
+ *  re-exports declare.ts's canonical tuple) — never a second copy (spec §3.2 ③). */
+const DOC_TYPE_DOMAIN: readonly DocKey[] = DOC_KEYS;
 
 /**
  * BoardView — the slug → node-tree board face. The static fact readers of this
@@ -144,7 +146,7 @@ export class BoardView {
       const slug = Workspace.slugFromDoc(entry);
       if (slug === programSlug || !slug.startsWith(prefix)) continue;
       const suffix = slug.slice(prefix.length);
-      if (/^p\d+(?:\.\d+)*$/.test(suffix)) suffixes.add(`-${suffix}`);
+      if (PHASE_SUFFIX_BARE.test(suffix)) suffixes.add(`-${suffix}`);
     }
     return [...suffixes].sort((a, b) => {
       const numsOf = (s: string) =>

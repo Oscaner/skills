@@ -4270,6 +4270,80 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
+  it("D46/§2.9 — the BEHAVIOR pin: every work face spawns the child at cwd = repoRoot (implement · review · fix)", () => {
+    // The behavior pin guards the SPAWN cwd, the fact the round-context tokens'
+    // repoRoot-relative basis rests on: a child spawned anywhere but the repo root
+    // would resolve every relative token off-root. It stands apart from the
+    // structural pin (repo-root.guard.test.ts — which guards the conversion point);
+    // the two pins cover different facts. This test drives all three work faces and
+    // pins `call.cwd === repoRoot` on each — the review/fix faces had no such read,
+    // so the pin now covers the whole work surface, not implement alone.
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new FakeSync();
+      sync.stdout = "status: APPROVED\n";
+      // Deterministic read-back inputs per face (the spawn precedes the read-back,
+      // so the cwd pin holds regardless — the drafts keep the outcome clean too).
+      writeFileSync(
+        path.join(scene.workspace.path, "tasks-1-implement.json"),
+        JSON.stringify({
+          status: "APPROVED",
+          artifacts: {
+            report: path.join(scene.workspace.path, "tasks-1-implement-report.md"),
+            test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+          },
+        }),
+        "utf8",
+      );
+      writeFileSync(
+        path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+        JSON.stringify({
+          command: "npx vitest run",
+          exit_code: 0,
+          passed: true,
+          warnings_count: 0,
+          typecheck: { command: "tsc --noEmit", exit_code: 0, passed: true },
+        }),
+        "utf8",
+      );
+      writeFileSync(
+        path.join(scene.workspace.path, "tasks-1-review-1.json"),
+        JSON.stringify({ findings: [] }),
+        "utf8",
+      );
+      writeFileSync(
+        path.join(scene.workspace.path, "tasks-1-fix-1.json"),
+        JSON.stringify({
+          status: "APPROVED",
+          artifacts: {
+            report: path.join(scene.workspace.path, "tasks-1-fix-1-report.md"),
+            test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+          },
+        }),
+        "utf8",
+      );
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      for (const frame of [implementFrame, taskReviewFrame, fixFrame]) {
+        dispatch.step()(frame);
+        const call = sync.calls[sync.calls.length - 1]!;
+        // the load-bearing spawn fact: cwd IS the repo root, the basis every
+        // repoRoot-relative round-context token resolves against.
+        expect(call.cwd, `the ${frame.phase} face spawns at cwd = repoRoot`).toBe(repoRoot);
+      }
+      // all three work faces were exercised (never a vacuous single-face pin)
+      expect(sync.calls).toHaveLength(3);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("no host harness → BLOCKED over the CDD_BLOCKED channel; a broken child → BLOCKED too", () => {
     const { repoRoot, cleanup } = fixture();
     try {

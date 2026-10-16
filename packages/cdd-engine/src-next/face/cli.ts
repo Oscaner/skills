@@ -43,7 +43,8 @@
 // Module-level exports are types / constant data / classes — zero behavior-carrying
 // bare functions (the composition root is the Cli class's static create factory).
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import process from "node:process";
 import { type Command, CommanderError } from "commander";
 import { declaredRegistries } from "../contract/declare.ts";
@@ -716,9 +717,14 @@ export class Cli {
         planText = this.#artifacts.readText(node, planPath);
         // The plan's design-spec reference — the `**Spec:**` header link target,
         // derived from the plan text already read (the plan-review round context's
-        // extra read input; no second file read).
-        specLink =
+        // extra read input; no second file read). Rebased to repoRoot-relative (D46):
+        // the plan-review child is spawned at cwd = repoRoot, so the raw link-space
+        // form (`../specs/X.md`) would resolve outside the repo — every round-context
+        // path token speaks ONE basis.
+        const rawSpecLink =
           new PlanDocType("plan").parse(planText.split("\n")).chain.specLink?.target ?? null;
+        specLink =
+          rawSpecLink === null ? null : this.#rebaseSpecLink(repoRoot, planPath, rawSpecLink);
         target = { kind: "doc", doc: planPath };
         break;
       }
@@ -761,6 +767,26 @@ export class Cli {
   async #repoRootOf(parsed?: RunInput): Promise<string> {
     const override = parsed?.args.root;
     return override ?? this.#repoRoot ?? (await this.#git.topLevel(this.#cwd)) ?? this.#cwd;
+  }
+
+  /** The plan's `**Spec:**` link target rebased to a repoRoot-relative token (D46) —
+   *  the plan-review round context's `INPUT_SPEC`, whose child is spawned at cwd =
+   *  repoRoot (one basis for every round-context path token). The raw header form is
+   *  markdown link-space (relative to the plan's own dir — the skeleton's form) or a
+   *  repoRoot form; the resolution mirrors the doc-contract's own chain-link judgment
+   *  (FileExistenceInvariant.#targetExists): absolute direct · the repoRoot-relative
+   *  reading when it exists · else the plan-dir-relative reading. The resolved file is
+   *  then emitted relative to repoRoot. Falls back to the raw target when neither
+   *  reading exists (the token still carries the plan's own link — the reviewer sees
+   *  the raw reference; the doc-contract's file-existence finding owns the missing case). */
+  #rebaseSpecLink(repoRoot: string, planPath: string, target: string): string {
+    const root = path.resolve(repoRoot);
+    if (path.isAbsolute(target)) return path.relative(root, target);
+    const fromRoot = path.join(root, target);
+    if (existsSync(fromRoot)) return path.normalize(target);
+    const fromDocDir = path.join(path.dirname(path.resolve(planPath)), target);
+    if (existsSync(fromDocDir)) return path.relative(root, fromDocDir);
+    return target;
   }
 
   // ---------------------------------------------------------------------------

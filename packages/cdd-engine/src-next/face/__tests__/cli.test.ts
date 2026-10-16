@@ -220,14 +220,17 @@ const briefRevision = (plan: string, tasks: string) => {
  *  links resolving into existing same-family siblings. The P4.1 doc-contract
  *  dispatch gate (the spec/plan faces) requires it — a plain task-fixture plan is
  *  structurally defective and never dispatches a doc round. */
-const conformingPlan = (repoRoot: string): string => {
+const conformingPlan = (
+  repoRoot: string,
+  specTarget = "docs/kairos/specs/p3-design.md",
+): string => {
   const file = path.join(repoRoot, "docs", "kairos", "plans", "p3.md");
   mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(
     file,
     [
       "# Test Plan",
-      "**Spec:** [p3-design.md](docs/kairos/specs/p3-design.md)",
+      `**Spec:** [p3-design.md](${specTarget})`,
       "- **Parent program**: [p3-overall.md v1.0](docs/kairos/specs/p3-overall.md)",
       "- **Version**: v1.0 · 2026-10-09",
       "- **Doc type**: plan",
@@ -1819,6 +1822,38 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
         else process.env.CLAUDE_CODE_SESSION_ID = saved;
       }
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("D46 — INPUT_SPEC is rebased to a repoRoot-relative token from the plan's link-space `**Spec:**` form", async () => {
+    const sync = new FakeSync();
+    sync.stdout = "status: APPROVED\n";
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      // The live plan header form: the `**Spec:**` target is markdown link-space
+      // (`../specs/X.md`, relative to the plan's OWN dir) — the actual form every
+      // in-repo plan P6+ uses. The reviewer is spawned at cwd = repoRoot, so the raw
+      // link-space form would resolve OUTSIDE the repo; the scene rebases it to the
+      // repoRoot-relative token (the one basis every round-context path token speaks).
+      const plan = conformingPlan(repoRoot, "../specs/p3-design.md");
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      try {
+        await command.runArgv(["review", "--type", "plan", "--plan", plan, "--root", repoRoot]);
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+      const prompt =
+        sync.calls[sync.calls.length - 1]!.args[sync.calls[sync.calls.length - 1]!.args.length - 1];
+      // The token is the repoRoot-relative path (never the raw `../specs/p3-design.md`)
+      // and it points at an existing file the reviewer can open from cwd = repoRoot.
+      expect(prompt).toContain("- `INPUT_SPEC`: docs/kairos/specs/p3-design.md");
+      expect(prompt).not.toContain("- `INPUT_SPEC`: ../specs/p3-design.md");
+      expect(existsSync(path.join(repoRoot, "docs/kairos/specs/p3-design.md"))).toBe(true);
     } finally {
       cleanup();
     }

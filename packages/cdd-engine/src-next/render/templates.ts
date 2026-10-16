@@ -234,6 +234,7 @@ const REVIEW_CONTEXT: readonly string[] = [
   "- `WAVE`: {{WAVE}}",
   "- `INPUT_WAVE_BRIEF`: {{INPUT_WAVE_BRIEF}}",
   "- `INPUT_DOC`: {{INPUT_DOC}}",
+  "- `INPUT_SPEC`: {{INPUT_SPEC}}",
   "- `BASE_BRANCH`: {{BASE_BRANCH}}",
   "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
   "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
@@ -320,7 +321,7 @@ export const REVIEWS = {
   plan: {
     lensEnum: ["completeness", "decomposition", "buildability"],
     axesGuide:
-      "Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding",
+      "Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability) + spec conformance — the plan is judged against its design spec at `INPUT_SPEC` (the plan's `**Spec:**` anchor): every spec requirement must map to a task, and a spec requirement with no owning task is a completeness finding + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding",
   },
 } as const satisfies ReviewGuides;
 
@@ -433,6 +434,7 @@ const TOKENS: readonly TemplateToken[] = [
   { name: "BASE_BRANCH", zone: "round-context" },
   { name: "HANDOFF_SCHEMA", zone: "shell" },
   { name: "INPUT_DOC", zone: "round-context" },
+  { name: "INPUT_SPEC", zone: "round-context" },
   { name: "INPUT_FINDINGS", zone: "round-context" },
   { name: "INPUT_WAVE_BRIEF", zone: "round-context" },
   // find #5 — the prescribed artifact write paths (the {family}-{key}-{artifact}

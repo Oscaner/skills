@@ -112,6 +112,11 @@ export interface DispatchScene {
   planPath: string | null;
   briefPath: string | null;
   baseBranch?: string | null;
+  /** The plan's design-spec reference (the `**Spec:**` header link target), read
+   *  from the plan document at the CLI seam — the plan-review round context's extra
+   *  read input (a plan review judges the plan against its spec). Null off the plan
+   *  scene (the slot stays empty and the assembler drops it). */
+  specLink?: string | null;
 }
 
 /**
@@ -300,6 +305,11 @@ export class CliLifecycle {
       // The doc anchor — the target doc for a doc line, the plan path for a branch
       // line (the branch review/fix judge the plan document). Empty off those faces.
       INPUT_DOC: docPath ?? (frame.target.kind === "branch" ? (scene.planPath ?? "") : ""),
+      // The plan's design-spec reference (the `**Spec:**` header link target the CLI
+      // seam derived from the plan doc) — a plan review judges the plan against its
+      // spec, so the plan-review round context carries the spec anchor. Empty off the
+      // plan face (the slot is dropped by the assembler).
+      INPUT_SPEC: frame.type === "plan" ? (scene.specLink ?? "") : "",
       // The branch/wave tree-review scope anchor (BASE_BRANCH) — engine-injected
       // from the base artifact at dispatch; empty off those faces (spec/plan reviews
       // carry none, and the empty slot is dropped by the assembler).

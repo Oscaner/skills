@@ -133,6 +133,9 @@ export interface WorkScene extends DispatchScene {
   target: { kind: "branch" } | { kind: "doc"; doc: string } | null;
   state: RunState;
   router: NextStepRouter;
+  /** The plan's `**Spec:**` header link target (plan docs only) — the plan-review
+   *  round context's spec anchor; null off the plan face. */
+  specLink: string | null;
 }
 
 /** The thin-shell → run-body input — the .action shell maps commander's parsed
@@ -613,6 +616,7 @@ export class Cli {
         planPath: scene.planPath,
         briefPath: scene.briefPath,
         baseBranch: this.#baseBranchOf(scene),
+        specLink: scene.specLink,
       },
       findings: parsed.args.findings ?? null,
     });
@@ -688,6 +692,7 @@ export class Cli {
 
     let slug: string;
     let planText: string | null = null;
+    let specLink: string | null = null;
     let target: WorkScene["target"] = null;
     switch (type) {
       case "wave": {
@@ -709,6 +714,11 @@ export class Cli {
           this.#usage(node, `cdd ${verb} --type plan: missing required --plan <path>`);
         slug = Workspace.slugFromDoc(planPath);
         planText = this.#artifacts.readText(node, planPath);
+        // The plan's design-spec reference — the `**Spec:**` header link target,
+        // derived from the plan text already read (the plan-review round context's
+        // extra read input; no second file read).
+        specLink =
+          new PlanDocType("plan").parse(planText.split("\n")).chain.specLink?.target ?? null;
         target = { kind: "doc", doc: planPath };
         break;
       }
@@ -742,6 +752,7 @@ export class Cli {
       state,
       router: new NextStepRouter(),
       briefPath: null,
+      specLink,
     };
   }
 

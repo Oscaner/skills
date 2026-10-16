@@ -1809,8 +1809,12 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
           path.join(repoRoot, "docs", "kairos", "specs", "s1-design.md"),
         ]);
         expect(spec).not.toContain("BASE_BRANCH");
+        expect(spec).not.toContain("INPUT_SPEC");
         const planReview = await promptOf(["review", "--type", "plan", "--plan", plan]);
         expect(planReview).not.toContain("BASE_BRANCH");
+        // the plan-review round context carries the plan's `**Spec:**` anchor
+        // (INPUT_SPEC) so the reviewer judges the plan against its design spec
+        expect(planReview).toContain("- `INPUT_SPEC`: docs/kairos/specs/p3-design.md");
       } finally {
         if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
         else process.env.CLAUDE_CODE_SESSION_ID = saved;

@@ -1,8 +1,8 @@
 // packages/cdd-engine/src-next/infra/__tests__/root.test.ts
 // T1 — the path value-object pair (design spec §2.2): the ONE basis authority
 // (RepoRoot) + the ONE canonical shape type (RepoPath). The pins judge the pure
-// relativize/resolve pair plus the sameRef normalization — zero syscall, zero
-// `process.cwd()` read (the plane is pure string arithmetic over node:path).
+// relativize/resolve pair — zero syscall, zero `process.cwd()` read (the plane
+// is pure string arithmetic over node:path).
 
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -40,21 +40,17 @@ describe("RepoRoot — the path-basis value object (the relativize/resolve pair)
   });
 
   it("normalizes the same document's absolute and relative forms to string-equal RepoPaths", () => {
-    // sameRef semantics: one document, two argv spellings → one canonical shape.
+    // The false-drift semantic: one document, two argv spellings → one canonical
+    // shape (the same absolute/relative pair relativizes to string-equal
+    // `RepoPath`s — an absolute argv and a relative argv for one file must not
+    // read as two documents).
     expect(root.relativize(path.join(ROOT, "docs/kairos/plans/p.md"))).toBe(
       root.relativize("docs/kairos/plans/p.md"),
     );
-    expect(root.sameRef(path.join(ROOT, "docs/kairos/plans/p.md"), "docs/kairos/plans/p.md")).toBe(
-      true,
-    );
-    expect(root.sameRef("docs/a.md", "docs/b.md")).toBe(false);
+    expect(root.relativize("docs/a.md")).not.toBe(root.relativize("docs/b.md"));
   });
 
-  it("classifies the two path states — absolute vs repoRoot-relative (the basis discriminant)", () => {
-    expect(RepoRoot.basisOf(path.join(ROOT, "docs/x.md"))).toBe("absolute");
-    expect(RepoRoot.basisOf("docs/x.md")).toBe("repoRoot-relative");
-    // the empty value reads repoRoot-relative (root against itself → empty string)
-    expect(RepoRoot.basisOf("")).toBe("repoRoot-relative");
+  it("relativizes the empty input to the empty string (the root against itself)", () => {
     expect(root.relativize("")).toBe("");
   });
 });

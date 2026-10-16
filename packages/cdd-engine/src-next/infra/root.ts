@@ -22,9 +22,6 @@
 //               `resolve`, never persisted, never compared, never passed across a
 //               layer (spec §2.1).
 //
-//   PathBasis — the discriminant of the two path states (absolute vs
-//               repoRoot-relative); `RepoRoot.basisOf` is its one reader.
-//
 // The whole plane is pure string arithmetic over `node:path` (zero syscall, zero
 // `process.cwd()` read) — the value object never touches the filesystem.
 //
@@ -32,11 +29,6 @@
 // functions (the plan's zero-bare-function discipline).
 
 import path from "node:path";
-
-/** The two path states a path value may hold: the transient ABSOLUTE form (the
- *  syscall boundary only) and the canonical repoRoot-RELATIVE form (the only
- *  persisted / compared / passed shape). */
-export type PathBasis = "absolute" | "repoRoot-relative";
 
 /** The branded repoRoot-relative path — the canonical shape lifted to the type
  *  level. The brand makes the absolute state unrepresentable: only `RepoRoot
@@ -77,20 +69,5 @@ export class RepoRoot {
    *  syscall boundary. */
   resolve(rel: RepoPath): string {
     return path.resolve(this.absolute, rel);
-  }
-
-  /** Whether two inputs denote the same document once normalized to the canonical
-   *  shape — the same absolute/relative pair relativizes to string-equal
-   *  `RepoPath`s (the false-drift guard: an absolute argv and a relative argv for
-   *  one file must not read as two documents). */
-  sameRef(a: string, b: string): boolean {
-    return this.relativize(a) === this.relativize(b);
-  }
-
-  /** The basis discriminant of a raw path value — absolute when the value is an
-   *  absolute path, repoRoot-relative otherwise (the PATH_BASIS reader; the
-   *  empty value reads repoRoot-relative). */
-  static basisOf(value: string): PathBasis {
-    return path.isAbsolute(value) ? "absolute" : "repoRoot-relative";
   }
 }

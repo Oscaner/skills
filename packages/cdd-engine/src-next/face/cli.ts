@@ -860,7 +860,6 @@ export class Cli {
     const fromRoot = path.join(root, target);
     if (existsSync(fromRoot)) return fromRoot;
     const fromDocDir = path.resolve(path.dirname(path.resolve(planPath)), target);
-    if (existsSync(fromDocDir)) return fromDocDir;
     return fromDocDir;
   }
 

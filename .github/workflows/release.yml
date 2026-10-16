@@ -8,6 +8,9 @@
 #     strict x.y.z compare; an empty tag list = first release → versioned). The judgment is derived
 #     from the tree itself (native `changeset version` owns the version math), so plugins that were
 #     not versioned by the push get no tag/Release — no phantom baseline tag/release → sync PR.
+#     release-plugin is the SOLE tag owner: `changeset publish` is invoked with `--no-git-tag`
+#     (else it tags by default, emitting a redundant SCOPED `<pkg-name>@<version>` alongside the
+#     bare `<tag_prefix>@<version>` — two tags per package).
 #   First-party kairos + cdd-engine only (vendors self-maintenance surface withdrawn, P6 Task 2 / B2): release-plugin
 #   and sync-develop no longer block on vendored co-publish.
 #   Push coverage model: `pnpm run validate` covers the PR surface in full (develop→main and
@@ -54,7 +57,13 @@ jobs:
         id: changesets
         with:
           version-script: pnpm run ci:version
-          publish-script: pnpm exec changeset publish
+          # `--no-git-tag` is load-bearing: `changeset publish` tags by default
+          # (`options?.gitTag ?? true`), emitting a SCOPED tag `<pkg-name>@<version>`
+          # (e.g. `@oscaner-skills/kairos@1.0.0`). The `release-plugin` matrix below is
+          # the sole tag owner and emits the BARE form (`kairos@<version>`), so leaving
+          # both on produces two tags per package. The action whitespace-tokenizes this
+          # string (@actions/exec `argStringToArray`), so the trailing flag reaches the CLI.
+          publish-script: pnpm exec changeset publish --no-git-tag
           create-github-releases: false
           commit-message: "chore: release plugins"
           pr-title: "chore: release plugins"

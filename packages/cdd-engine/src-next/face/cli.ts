@@ -606,7 +606,6 @@ export class Cli {
     }
     const harness = new CliLifecycle({
       env: process.env,
-      cwd: this.#cwd,
       sync: this.#sync,
       config: this.#config,
       template: this.#template,
@@ -724,7 +723,7 @@ export class Cli {
         const rawSpecLink =
           new PlanDocType("plan").parse(planText.split("\n")).chain.specLink?.target ?? null;
         specLink =
-          rawSpecLink === null ? null : this.#rebaseSpecLink(repoRoot, planPath, rawSpecLink);
+          rawSpecLink === null ? null : this.#resolveSpecLink(repoRoot, planPath, rawSpecLink);
         target = { kind: "doc", doc: planPath };
         break;
       }
@@ -769,24 +768,24 @@ export class Cli {
     return override ?? this.#repoRoot ?? (await this.#git.topLevel(this.#cwd)) ?? this.#cwd;
   }
 
-  /** The plan's `**Spec:**` link target rebased to a repoRoot-relative token (D46) —
-   *  the plan-review round context's `INPUT_SPEC`, whose child is spawned at cwd =
-   *  repoRoot (one basis for every round-context path token). The raw header form is
-   *  markdown link-space (relative to the plan's own dir — the skeleton's form) or a
-   *  repoRoot form; the resolution mirrors the doc-contract's own chain-link judgment
+  /** The plan's `**Spec:**` link target resolved to an ABSOLUTE path (D46) — the
+   *  plan-review round context's `INPUT_SPEC` (the round-context exit relativizes it
+   *  to repoRoot along with every other path token). The raw header form is markdown
+   *  link-space (relative to the plan's own dir — the skeleton's form) or a repoRoot
+   *  form; the resolution mirrors the doc-contract's own chain-link judgment
    *  (FileExistenceInvariant.#targetExists): absolute direct · the repoRoot-relative
-   *  reading when it exists · else the plan-dir-relative reading. The resolved file is
-   *  then emitted relative to repoRoot. Falls back to the raw target when neither
-   *  reading exists (the token still carries the plan's own link — the reviewer sees
-   *  the raw reference; the doc-contract's file-existence finding owns the missing case). */
-  #rebaseSpecLink(repoRoot: string, planPath: string, target: string): string {
+   *  reading when it exists · else the plan-dir-relative reading. The fallback (neither
+   *  reading exists) resolves against the plan's own dir — the link-space semantic —
+   *  so the exit still receives an absolute path (the doc-contract's file-existence
+   *  finding owns the truly-missing case). */
+  #resolveSpecLink(repoRoot: string, planPath: string, target: string): string {
     const root = path.resolve(repoRoot);
-    if (path.isAbsolute(target)) return path.relative(root, target);
+    if (path.isAbsolute(target)) return target;
     const fromRoot = path.join(root, target);
-    if (existsSync(fromRoot)) return path.normalize(target);
-    const fromDocDir = path.join(path.dirname(path.resolve(planPath)), target);
-    if (existsSync(fromDocDir)) return path.relative(root, fromDocDir);
-    return target;
+    if (existsSync(fromRoot)) return fromRoot;
+    const fromDocDir = path.resolve(path.dirname(path.resolve(planPath)), target);
+    if (existsSync(fromDocDir)) return fromDocDir;
+    return fromDocDir;
   }
 
   // ---------------------------------------------------------------------------

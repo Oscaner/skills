@@ -3769,19 +3769,24 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const call = sync.calls[0];
       expect(call.command).toBe("claude");
       expect(call.args).toContain("-p");
+      // D46 — the child is spawned at cwd = repoRoot: the round-context path tokens
+      // are repoRoot-relative, so a relative token only resolves correctly when the
+      // child's cwd IS the repoRoot (the coupled invariant — pin both together).
+      expect(call.cwd).toBe(repoRoot);
       // The skill ref is NOT a standalone positional (the harness CLI consumes the
       // first positional as the whole prompt — a split prompt loses everything after
       // the ref). It prefixes the single prompt argument instead.
       expect(call.args).not.toContain("/mattpocock-skills:implement");
       const prompt = call.args[call.args.length - 1];
       expect(prompt.startsWith("/mattpocock-skills:implement ")).toBe(true);
-      // v1.8 — the mode dispatch table + the normalized naming grammar (ROLE/WAVE · INPUT_/OUTPUT_/WORKSPACE_)
+      // v1.8 — the mode dispatch table + the normalized naming grammar (ROLE/WAVE · INPUT_/OUTPUT_/WORKSPACE_).
+      // D46 — every round-context path token is repoRoot-RELATIVE (the child is spawned
+      // at cwd = repoRoot): the tokens carry the workspace path minus the repoRoot prefix.
+      const wsRel = path.relative(repoRoot, scene.workspace.path);
       expect(prompt).toContain("- `ROLE`: implement");
       expect(prompt).toContain("- `WAVE`: 1");
-      expect(prompt).toContain(`- \`WORKSPACE_DIR\`: ${scene.workspace.path}`);
-      expect(prompt).toContain(
-        `- \`OUTPUT_HANDOFF\`: ${path.join(scene.workspace.path, "tasks-1-implement.json")}`,
-      );
+      expect(prompt).toContain(`- \`WORKSPACE_DIR\`: ${wsRel}`);
+      expect(prompt).toContain(`- \`OUTPUT_HANDOFF\`: ${wsRel}/tasks-1-implement.json`);
       // find #4 — INPUT_RULES is gone: the implement child reads the plan's
       // `## Constraints` through the wave brief mirror (zero materialized rules file,
       // zero dead pointer — the round context carries no rules channel).
@@ -3790,12 +3795,8 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // prefix): the brief is a pure read input (INPUT_WAVE_BRIEF) with no write slot
       // (only present facts ride the prompt), while report + evidence are prescribed.
       expect(prompt).not.toContain("OUTPUT_BRIEF");
-      expect(prompt).toContain(
-        `- \`OUTPUT_REPORT\`: ${path.join(scene.workspace.path, "tasks-1-implement-report.md")}`,
-      );
-      expect(prompt).toContain(
-        `- \`OUTPUT_EVIDENCE\`: ${path.join(scene.workspace.path, "tasks-1-test-evidence.json")}`,
-      );
+      expect(prompt).toContain(`- \`OUTPUT_REPORT\`: ${wsRel}/tasks-1-implement-report.md`);
+      expect(prompt).toContain(`- \`OUTPUT_EVIDENCE\`: ${wsRel}/tasks-1-test-evidence.json`);
       // the per-mode trimming: this scene carries no brief (briefPath null) — the empty
       // INPUT_TASK key is NOT emitted (empty keys are never emitted)
       expect(prompt).not.toContain("- `INPUT_TASK`");
@@ -3850,16 +3851,13 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // the brief is a pure read input (INPUT_WAVE_BRIEF — no OUTPUT_BRIEF · spec §4.2);
       // the prescribed write paths ride the round context (report + evidence = the
       // report/verify write paths — zero free naming, cross-round zero overwrite).
-      expect(prompt).toContain(
-        `- \`INPUT_WAVE_BRIEF\`: ${path.join(workspace.path, "tasks-1-brief.md")}`,
-      );
+      // D46 — every round-context path token is repoRoot-relative (the child spawned at
+      // cwd = repoRoot), so the tokens carry the workspace minus the repoRoot prefix.
+      const wsRel = path.relative(repoRoot, workspace.path);
+      expect(prompt).toContain(`- \`INPUT_WAVE_BRIEF\`: ${wsRel}/tasks-1-brief.md`);
       expect(prompt).not.toContain("OUTPUT_BRIEF");
-      expect(prompt).toContain(
-        `- \`OUTPUT_REPORT\`: ${path.join(workspace.path, "tasks-1-implement-report.md")}`,
-      );
-      expect(prompt).toContain(
-        `- \`OUTPUT_EVIDENCE\`: ${path.join(workspace.path, "tasks-1-test-evidence.json")}`,
-      );
+      expect(prompt).toContain(`- \`OUTPUT_REPORT\`: ${wsRel}/tasks-1-implement-report.md`);
+      expect(prompt).toContain(`- \`OUTPUT_EVIDENCE\`: ${wsRel}/tasks-1-test-evidence.json`);
     } finally {
       cleanup();
     }
@@ -3888,12 +3886,14 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
-      // the review + fix frames both carry the ONE scene brief (not implement-only)
+      // the review + fix frames both carry the ONE scene brief (not implement-only).
+      // D46 — the token is repoRoot-relative (the child spawned at cwd = repoRoot).
+      const briefRel = path.relative(repoRoot, briefPath);
       dispatch.step()(taskReviewFrame);
       dispatch.step()(fixFrame);
       for (const call of sync.calls) {
         const prompt = call.args[call.args.length - 1];
-        expect(prompt).toContain(`- \`INPUT_WAVE_BRIEF\`: ${briefPath}`);
+        expect(prompt).toContain(`- \`INPUT_WAVE_BRIEF\`: ${briefRel}`);
       }
     } finally {
       cleanup();
@@ -3924,12 +3924,10 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const first = sync.calls[0]!.args[sync.calls[0]!.args.length - 1];
       dispatch.step()({ ...specReviewFrame, round: 2, params: { round: 2 } });
       const second = sync.calls[1]!.args[sync.calls[1]!.args.length - 1];
-      expect(first).toContain(
-        `- \`OUTPUT_REPORT\`: ${path.join(workspace.path, "spec-review-1-report.md")}`,
-      );
-      expect(second).toContain(
-        `- \`OUTPUT_REPORT\`: ${path.join(workspace.path, "spec-review-2-report.md")}`,
-      );
+      // D46 — the token is repoRoot-relative (the child spawned at cwd = repoRoot).
+      const wsRel = path.relative(repoRoot, workspace.path);
+      expect(first).toContain(`- \`OUTPUT_REPORT\`: ${wsRel}/spec-review-1-report.md`);
+      expect(second).toContain(`- \`OUTPUT_REPORT\`: ${wsRel}/spec-review-2-report.md`);
       // the round-keyed names never collide — a re-review cannot overwrite its predecessor
       expect(path.join(workspace.path, "spec-review-1-report.md")).not.toBe(
         path.join(workspace.path, "spec-review-2-report.md"),
@@ -4605,13 +4603,11 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const prompt = sync.calls[0]!.args[sync.calls[0]!.args.length - 1];
       // find #9 — the prescribed artifact names are line-keyed: the round rides the
       // name (branch-fix-1-report.md), the evidence is the line's single file
-      // (branch-test-evidence.json); the range token appears NOWHERE in the paths
-      expect(prompt).toContain(
-        `- \`OUTPUT_REPORT\`: ${path.join(scene.workspace.path, "branch-fix-1-report.md")}`,
-      );
-      expect(prompt).toContain(
-        `- \`OUTPUT_EVIDENCE\`: ${path.join(scene.workspace.path, "branch-test-evidence.json")}`,
-      );
+      // (branch-test-evidence.json); the range token appears NOWHERE in the paths.
+      // D46 — the token is repoRoot-relative (the child spawned at cwd = repoRoot).
+      const wsRel = path.relative(repoRoot, scene.workspace.path);
+      expect(prompt).toContain(`- \`OUTPUT_REPORT\`: ${wsRel}/branch-fix-1-report.md`);
+      expect(prompt).toContain(`- \`OUTPUT_EVIDENCE\`: ${wsRel}/branch-test-evidence.json`);
       expect(prompt).not.toContain("aaaaaaaa..bbbbbbbb");
     } finally {
       cleanup();

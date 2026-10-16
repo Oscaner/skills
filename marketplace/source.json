@@ -14,7 +14,7 @@
       "cursor": {
         "emitMode": "plugin-root"
       },
-      "version": "0.2.0",
+      "version": "1.0.0",
       "description": "Standalone kairos skills: orchestration + cdd-* family + CDD engine.",
       "author": {
         "name": "Oscaner Miao",

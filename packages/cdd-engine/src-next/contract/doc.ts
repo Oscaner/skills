@@ -84,9 +84,11 @@ export interface GraphEdge {
 export interface ChainPhase {
   /** The registered phase id (e.g. "P2.1"). */
   id: string;
-  /** The Design-spec cell text (link tokens, e.g. `[P2-design](docs/kairos/specs/x-design.md)`). */
+  /** The Design-spec cell text (link tokens, e.g. a spec-root link under the
+   *  declared spec doc root — `[P2-design](<spec-root>/x-design.md)`). */
   designCell: string;
-  /** The Implementation-plan cell text (link tokens, e.g. `[plan](docs/kairos/plans/x.md)`). */
+  /** The Implementation-plan cell text (link tokens, e.g. a plan-root link under
+   *  the declared plan doc root — `[plan](<plan-root>/x.md)`). */
   planCell: string;
   /** The Dependency cell text (e.g. "P1 -> P2"). */
   dependencyCell: string;

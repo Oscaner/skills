@@ -16,8 +16,7 @@ import type { Command } from "commander";
 import { declaredRegistries } from "../contract/declare.ts";
 import type { DocKey } from "../contract/project.ts";
 import { Projector } from "../contract/project.ts";
-import type { RepoPath, RepoRoot } from "../infra/root.ts";
-import { WorkspaceRoot } from "../infra/workspace.ts";
+import { type RepoPath, RepoRoot } from "../infra/root.ts";
 import type { IssueBodyRenderer, IssueReportInput } from "../render/issue-body.ts";
 import { SkeletonAssembler } from "../render/skeleton.ts";
 import type { RunInput } from "./cli.ts";
@@ -169,7 +168,7 @@ export class CliArtifacts {
       recordedAt: new Date().toISOString(),
     };
     writeFileSync(path, `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
-    this.#io.stdout(`${WorkspaceRoot.relativize(repoRoot, path)}\n`);
+    this.#io.stdout(`${new RepoRoot(repoRoot).relativize(path)}\n`);
     return 0;
   }
 
@@ -180,7 +179,7 @@ export class CliArtifacts {
     const artifact = this.#readBase(path);
     if (artifact === null) {
       this.#io.stderr(
-        `cdd base get: missing or corrupt base artifact at ${WorkspaceRoot.relativize(repoRoot, path)}\n`,
+        `cdd base get: missing or corrupt base artifact at ${new RepoRoot(repoRoot).relativize(path)}\n`,
       );
       return 2;
     }

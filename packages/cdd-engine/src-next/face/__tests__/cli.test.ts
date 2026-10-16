@@ -221,14 +221,16 @@ const readJson = <T>(file: string): T => {
 /** The D30 wave-line reviewed identity — the brief-revision ref a wave row binds:
  *  the plan it renders FROM + the RENDERED brief's sha1 (the wave gate binds the
  *  brief, never the whole plan). */
-const briefRevision = (plan: string, tasks: string) => {
+const briefRevision = (repoRoot: string, plan: string, tasks: string) => {
   const brief = new BriefRenderer().render(
     readFileSync(plan, "utf8"),
     tasks.split(",").map(Number),
   );
   return {
     kind: "brief-revision" as const,
-    plan,
+    // The persisted shape is the canonical repoRoot-relative form (P9 T4 §2.7):
+    // the rendered-from plan field lands relative to repoRoot, never absolute.
+    plan: path.relative(repoRoot, plan),
     brief_hash: createHash("sha1").update(brief).digest("hex"),
   };
 };
@@ -1439,7 +1441,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       expect(progress.waves).toContainEqual({
         wave: "1",
         rounds: { implement: [1], review: [1] },
-        reviewedRevision: briefRevision(plan, "1"),
+        reviewedRevision: briefRevision(repoRoot, plan, "1"),
       });
       expect(progress.waves).toContainEqual({ wave: "2", rounds: { implement: [1] } });
       // the invocation's single stdout face — only the LAST step's capsule
@@ -1457,6 +1459,11 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       ]);
       expect(split).toBe(1);
       expect(io.stderrText).toContain("derived wave");
+      // T18 (§2.13) — the graph title's embedded plan path is repoRoot-relative
+      // (the argv plan is relativized before it reaches the `graph:` line; the
+      // absolute argv form never renders).
+      expect(io.stderrText).toContain("graph: docs/kairos/plans/p3.md");
+      expect(io.stderrText).not.toContain(`graph: ${repoRoot}`);
     } finally {
       cleanup();
     }
@@ -1812,6 +1819,62 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       expect(prompt).toContain("- `INPUT_SPEC`: docs/kairos/specs/p3-design.md");
       expect(prompt).not.toContain("- `INPUT_SPEC`: ../specs/p3-design.md");
       expect(existsSync(path.join(repoRoot, "docs/kairos/specs/p3-design.md"))).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("T4 — the round-context prompt's path tokens are ALL repoRoot-relative (one basis, zero absolute)", async () => {
+    // §2.7 — every path token injected into the child speaks ONE basis (repoRoot-
+    // relative): the child is spawned at cwd = repoRoot (T2), so a relative token
+    // resolves identically for every token, input or output alike. Across the modes
+    // the 8-token set is WORKSPACE_DIR · INPUT_DOC · INPUT_SPEC · INPUT_FINDINGS ·
+    // INPUT_WAVE_BRIEF · OUTPUT_REPORT · OUTPUT_EVIDENCE · OUTPUT_HANDOFF (the
+    // non-path tokens excluded); each mode emits its own subset. This pin drives an
+    // implement dispatch (the wave line's work face) and asserts EVERY emitted path
+    // token is relative — no absolute prefix, no `..` escape.
+    const sync = new FakeSync();
+    sync.stdout = "status: APPROVED\n";
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      try {
+        await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+      const call = sync.calls[sync.calls.length - 1]!;
+      const prompt = call.args[call.args.length - 1];
+      // The child is spawned at the repo root — the load-bearing fact a relative
+      // token relies on.
+      expect(call.cwd).toBe(repoRoot);
+      // Every emitted path token is repoRoot-relative: no absolute prefix, no escape.
+      const PATH_TOKENS = [
+        "WORKSPACE_DIR",
+        "INPUT_DOC",
+        "INPUT_SPEC",
+        "INPUT_FINDINGS",
+        "INPUT_WAVE_BRIEF",
+        "OUTPUT_REPORT",
+        "OUTPUT_EVIDENCE",
+        "OUTPUT_HANDOFF",
+      ];
+      const emitted = [...prompt.matchAll(/^- `([A-Z0-9_]+)`: (.+)$/gm)].flatMap((m) =>
+        PATH_TOKENS.includes(m[1]!) ? [[m[1]!, m[2]!.trim()]] : [],
+      );
+      // The implement-mode work face carries its path tokens (the wave brief + the
+      // prescribed write paths + the workspace dir) — never an empty assertion.
+      expect(emitted.length).toBeGreaterThanOrEqual(5);
+      for (const [token, value] of emitted) {
+        expect(path.isAbsolute(value), `${token} is repoRoot-relative`).toBe(false);
+        expect(value.startsWith(".."), `${token} carries no parent-escape prefix`).toBe(false);
+      }
+      // The absolute repo root never appears on any path-token line.
+      expect(prompt).not.toMatch(/^- `[A-Z0-9_]+`: \/.*repoRoot/m);
     } finally {
       cleanup();
     }
@@ -2845,7 +2908,7 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
       expect(progress.waves).toContainEqual({
         wave: "2",
         rounds: { implement: [1], review: [1] },
-        reviewedRevision: briefRevision(plan, "2"),
+        reviewedRevision: briefRevision(repoRoot, plan, "2"),
       });
     } finally {
       cleanup();
@@ -3102,6 +3165,12 @@ describe("the pure commands — schema / issue / base", () => {
       ]);
       expect(setCode).toBe(0);
       expect(io.stdoutText).toContain("base.json");
+      // T18 (§2.13) — the `base set` echo is the repoRoot-relative shape, never the
+      // absolute artifact path the write used.
+      expect(io.stdoutText).not.toContain(repoRoot);
+      expect(io.stdoutText.trim()).toBe(
+        path.join(".kairos", "cdd", "p3", "base.json").replaceAll(path.sep, "/"),
+      );
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       const artifact = readJson<{ base: string; source: string }>(
         path.join(workspace, "base.json"),

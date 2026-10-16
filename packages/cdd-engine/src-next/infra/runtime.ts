@@ -24,6 +24,9 @@
 // carrying bare functions (the plan's zero-bare-function discipline).
 
 import { ARGV_CHANNEL, type ChannelArgRow } from "../face/declare.ts";
+import { type DocRoots, ENGINE_DOC_ROOTS } from "./doc-roots.ts";
+
+export type { DocRoots } from "./doc-roots.ts";
 
 /** The context contract — the live argv channel table (the single channel the new
  *  tree's command face consumes; the host-marker env closure lives in the harness
@@ -52,15 +55,6 @@ export interface HandoffNamespace {
   workspaceRoot: string;
   /** The handoff families keyed by `op.type` — the ledger's naming truth. */
   families: Readonly<Record<string, HandoffFamily>>;
-}
-
-/** The doc-root segments — the slug → doc-tree reverse derivation's root paths
- *  (relative to the repo root; the board's scan reads them, never re-declares). */
-export interface DocRoots {
-  /** The design-spec directory segment. */
-  specs: string;
-  /** The plan directory segment. */
-  plans: string;
 }
 
 /** The engine runtime — the typed engine-config surface (version + channels + names
@@ -134,8 +128,5 @@ export const ENGINE_RUNTIME = {
     workspaceRoot: ".kairos/cdd",
     families: HANDOFF_FAMILIES,
   },
-  docRoots: {
-    specs: "docs/kairos/specs",
-    plans: "docs/kairos/plans",
-  },
+  docRoots: ENGINE_DOC_ROOTS,
 } as const satisfies EngineRuntime;

@@ -912,7 +912,10 @@ describe("T11/D30 — the wave review writes the reviewed BRIEF revision into th
       // wave's tasks leaves the brief byte-identical and must not void the wave)
       expect(recorded!.kind).toBe("brief-revision");
       if (recorded!.kind !== "brief-revision") throw new Error("unreachable");
-      expect(recorded!.plan).toBe(planPath);
+      // P9 T4 — the persisted plan layer speaks the ONE canonical shape (repoRoot-
+      // relative), so the fixture's basis (`<repo>/.kairos/cdd`) relativizes the
+      // plan to `../../plan.md` (the ledger normalizes on write + comparison).
+      expect(recorded!.plan).toBe("../../plan.md");
       expect(recorded!.brief_hash).toBe(briefHash(planPath, "1"));
       // the doc-line narrowing reader never surfaces a brief ref (a wave line is not
       // a doc line)

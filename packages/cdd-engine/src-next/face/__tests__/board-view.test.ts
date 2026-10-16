@@ -15,6 +15,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ConfigLoader } from "../../infra/config.ts";
+import { type RepoPath, RepoRoot } from "../../infra/root.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { Ledger } from "../../session/ledger.ts";
 import { BoardView } from "../board-view.ts";
@@ -189,7 +190,7 @@ describe("BoardView.readHeader — the artifact header `{version, status, docTyp
       status: "In review",
       docType: "phase-spec",
     });
-    expect(BoardView.readDocType(specPath)).toBe("phase-spec");
+    expect(BoardView.readDocType(specPath as RepoPath)).toBe("phase-spec");
   });
 
   it("a doc without a Doc type declaration reads docType null — the consumer blocks, no suffix fallback", () => {
@@ -205,7 +206,7 @@ describe("BoardView.readHeader — the artifact header `{version, status, docTyp
       status: "Draft",
       docType: null,
     });
-    expect(BoardView.readDocType(specPath)).toBeNull();
+    expect(BoardView.readDocType(specPath as RepoPath)).toBeNull();
   });
 
   it("an out-of-domain Doc type value reads null — present facts, never a fabricated type", () => {
@@ -213,7 +214,7 @@ describe("BoardView.readHeader — the artifact header `{version, status, docTyp
     const planPath = path.join(repo, "docs/kairos/plans/prog-p8.md");
     writeFileSync(planPath, ["# The plan", "", "- **Doc type**: memo", ""].join("\n"));
 
-    expect(BoardView.readDocType(planPath)).toBeNull();
+    expect(BoardView.readDocType(planPath as RepoPath)).toBeNull();
   });
 
   it("an absent doc yields nulls — never a fabricated value", () => {
@@ -833,7 +834,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     ledger.recordRound("spec", "review");
 
     for (const host of ["claude", "pi"]) {
-      const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, host, repo)
+      const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, host, new RepoRoot(repo))
         .emit("APPROVED", "0", "/h.json", { kind: "done" }, { type: "spec", id: specId })[1]!
         .slice("next: ".length);
       // The board's spec face is drained (spec closed + no plan doc) → the same entry.
@@ -857,7 +858,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     expect(path.isAbsolute(specId)).toBe(true);
 
     for (const host of ["claude", "pi"]) {
-      const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, host, repo)
+      const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, host, new RepoRoot(repo))
         .emit("APPROVED", "0", "/h.json", { kind: "review" }, { type: "spec", id: specId })[1]!
         .slice("next: ".length);
       // The reviewer's own hop renders the repoRoot-relative --spec (never the absolute).

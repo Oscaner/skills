@@ -17,6 +17,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { RepoRoot } from "../../infra/root.ts";
 import type { RouteTarget } from "../../session/faces.ts";
 import type { Route } from "../../session/next.ts";
 import { FIX_READBACK_SUFFIX, PIPELINE_NEXT } from "../../session/next.ts";
@@ -184,7 +185,7 @@ describe("P4.1 T7 (find #7) — the next literal's required-flag coverage (parse
     // relative shape; an absolute target path and an absolute findings path both come
     // out relative, and the repo root never appears in the literal.
     const repo = "/tmp/d47-repo";
-    const capsule = new Capsule(new Words(), {}, "", repo);
+    const capsule = new Capsule(new Words(), {}, "", new RepoRoot(repo));
     const lines = capsule.emit(
       "CHANGES_REQUESTED",
       "1",
@@ -240,7 +241,7 @@ describe("Capsule — the `done` route's PIPELINE_NEXT doc-class lookup (D33 · 
 
   /** The done-text of a capsule emit for a host-injected capsule over the repo. */
   const doneOf = (target?: RouteTarget, host = ""): string => {
-    const lines = new Capsule(new Words(), {}, host, repo).emit(
+    const lines = new Capsule(new Words(), {}, host, new RepoRoot(repo)).emit(
       "APPROVED",
       "0",
       "/h.json",

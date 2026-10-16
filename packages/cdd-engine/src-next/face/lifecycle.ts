@@ -15,11 +15,11 @@
 // The module exports the shared seams + the lifecycle class — zero behavior-carrying
 // bare functions.
 
-import path from "node:path";
 import process from "node:process";
 import { execaSync } from "execa";
 import { printParseErrorCode } from "jsonc-parser";
 import { ConfigLoader } from "../infra/config.ts";
+import { RepoRoot } from "../infra/root.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
 import type { Workspace } from "../infra/workspace.ts";
 import type { TemplateValues, WorkMode } from "../render/templates.ts";
@@ -343,13 +343,19 @@ export class CliLifecycle {
    *  `workspace.path`) yield absolute; `INPUT_SPEC` is resolved absolute at the CLI
    *  seam; the post-T3 argv tokens (`INPUT_DOC`/`INPUT_FINDINGS`) are repoRoot-relative
    *  `RepoPath`s. So the exit takes an absolute-or-repoRoot-relative value and emits
-   *  repoRoot-relative — `path.resolve(repoRoot, value)` reads an absolute value as
-   *  itself and a relative value as repoRoot-relative, collapsing both to one basis
-   *  (the single conversion point). */
+   *  repoRoot-relative through the ONE value object (`RepoRoot.relativize` reads an
+   *  absolute value as itself and a relative value as repoRoot-relative, collapsing
+   *  both to one basis — the single conversion point). */
   #rel(value: string): string {
     if (value === "") return "";
-    const repoRoot = this.#scene.workspace.root.repoRoot;
-    return path.relative(repoRoot, path.resolve(repoRoot, value));
+    return this.#repoRootValue().relativize(value);
+  }
+
+  /** The repo-basis value object of this scene — the ONE conversion entry every
+   *  round-context token normalizes through (T1 `RepoRoot`; the lifecycle holds the
+   *  scene's basis, never a re-derived string). */
+  #repoRootValue(): RepoRoot {
+    return new RepoRoot(this.#scene.workspace.root.repoRoot);
   }
 
   /** The canonical prescribed OUTPUT_* write path of one artifact kind (find #5 —

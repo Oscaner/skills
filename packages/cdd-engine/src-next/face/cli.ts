@@ -429,8 +429,13 @@ export class Cli {
     // + the verdict render (zero re-implemented gate here). A refused verdict
     // returns before any brief/lifecycle: no child dispatch ever runs. The
     // dirty-tree / doc-contract refusals ride the CDD_BLOCKED channel; the
-    // graph / wave refusals keep the pre-existing refusal face.
-    const docPath = scene.target !== null && scene.target.kind === "doc" ? scene.target.doc : "";
+    // graph / wave refusals keep the pre-existing refusal face. The doc-face read
+    // path is the branded `RepoPath` (T4 §2.2 — a bare `string` never reaches the
+    // read faces `BoardView.readDocType`/`PreFlightDoc.path`; the CLI feeds the
+    // scene's canonical doc path value).
+    const docPath = (
+      scene.target !== null && scene.target.kind === "doc" ? scene.target.doc : ""
+    ) as RepoPath;
     const preflight = await this.#preflight.vet({
       verb: verb as "implement" | "review" | "fix",
       type,
@@ -512,7 +517,7 @@ export class Cli {
         this.#words,
         ARGV_CHANNEL,
         HostDetect.detect(process.env),
-        scene.workspace.root.repoRoot,
+        new RepoRoot(scene.workspace.root.repoRoot),
       ),
       planPath: scene.planPath,
     });
@@ -669,9 +674,8 @@ export class Cli {
       const graph = new TaskGraph(new PlanDocType("plan").parse(scene.planText.split("\n")));
       const closed = scene.ledger.closedWaves();
       // The graph title's plan path renders repoRoot-relative (D47 · the ONE shape;
-      // `scene.planPath` is argv-origin).
-      const titlePlan = WorkspaceRoot.relativize(
-        scene.workspace.root.repoRoot,
+      // `scene.planPath` is argv-origin) — normalized through the ONE value object.
+      const titlePlan = new RepoRoot(scene.workspace.root.repoRoot).relativize(
         scene.planPath ?? "",
       );
       for (const line of this.#graphView
@@ -767,6 +771,13 @@ export class Cli {
     }
 
     const workspace = new Workspace(rootPath, slug).ensure();
+    // The one-time legacy migration (P9 T4 §2.11) — a `progress.json` / `base.json`
+    // written by an older build (absolute path fields) is healed to the canonical
+    // repoRoot-relative shape on first dispatch; an already-clean file is left
+    // byte-identical (zero churn). The read-time backstop (`Workspace.#normalizePaths`)
+    // covers any straggler regardless.
+    workspace.migrateJsonChild("progress.json");
+    workspace.migrateJsonChild("base.json");
     const ledger = new Ledger(workspace, config);
     const state =
       type === "wave"
@@ -911,6 +922,10 @@ export class Cli {
       new WorkspaceRoot(repoRoot, this.#config.handoffNamespace().workspaceRoot),
       Workspace.slugFromDoc(planPath),
     ).ensure();
+    // The one-time legacy migration (P9 T4 §2.11) — a legacy base.json with an
+    // absolute plan field is healed to the canonical repoRoot-relative shape before
+    // the read (an already-clean file is left byte-identical).
+    workspace.migrateJsonChild("base.json");
     const path = workspace.resolve("base.json");
     if (parsed.leaf === "set")
       return this.#artifacts.baseSet(node, parsed, planPath, path, repoRoot);

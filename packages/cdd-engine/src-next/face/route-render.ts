@@ -19,7 +19,7 @@
 // declared constants from session/next.ts, rendered by reference, never restated.
 // Module-level exports are the class — zero behavior-carrying bare functions.
 
-import { WorkspaceRoot } from "../infra/workspace.ts";
+import type { RepoRoot } from "../infra/root.ts";
 import type { RouteTarget } from "../session/faces.ts";
 import { FIX_READBACK_SUFFIX, type Route } from "../session/next.ts";
 import { REFS } from "./host.ts";
@@ -47,29 +47,30 @@ export class RouteRenderer {
   /** The host harness id — the skill-ref resolution key of the handoff/`done`
    *  pipeline lookup (REFS[ref][host]; `""` falls back to the claude form). */
   readonly #host: string;
-  /** The repo root the literal's embedded path values are normalized against —
-   *  `--plan`/`--findings`/doc-id render repoRoot-relative (D47 · the ONE shape);
-   *  `""` (the hermetic-test default) passes values through unchanged. */
-  readonly #repoRoot: string;
+  /** The repo-basis value object the literal's embedded path values normalize
+   *  through (T1 `RepoRoot` · D47) — the ONE conversion exit; `null` (the
+   *  hermetic-test default) passes values through unchanged. */
+  readonly #root: RepoRoot | null;
 
   constructor(
     words: Words,
     channels: Readonly<Record<string, RouteChannelRow>> = {},
     host = "",
-    repoRoot = "",
+    root: RepoRoot | null = null,
   ) {
     this.#words = words;
     this.#channels = channels;
     this.#host = host;
-    this.#repoRoot = repoRoot;
+    this.#root = root;
   }
 
   /** One embedded path value in the literal — normalized to the repoRoot-relative
-   *  shape (D47 · the ONE basis; `""` short-circuits). Every `--plan`/`--findings`/
-   *  doc-id in the rendered argv passes through here, so the board's `next:` and the
-   *  engine's `next:` are byte-identical by construction. */
+   *  shape through the ONE value object (D47 · the ONE basis; a `null` root — the
+   *  hermetic default — short-circuits). Every `--plan`/`--findings`/doc-id in the
+   *  rendered argv passes through here, so the board's `next:` and the engine's
+   *  `next:` are byte-identical by construction. */
   #rel(value: string): string {
-    return WorkspaceRoot.relativize(this.#repoRoot, value);
+    return this.#root === null ? value : this.#root.relativize(value);
   }
 
   /** render(route, target) → the `next:` value: the complete executable command (a

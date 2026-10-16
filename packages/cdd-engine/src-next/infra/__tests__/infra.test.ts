@@ -11,7 +11,7 @@
 //   · process — the subprocess seam (fail-open results);
 //   · workspace — the root/workspace pair + the slug rule + the JSON read/write.
 
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -280,6 +280,72 @@ describe("workspace — the root/workspace pair + the slug rule + JSON roundtrip
 
       // The tri-state legs hold on the lenient face too.
       expect(workspace.readJsonLenient("absent.json")).toEqual({ kind: "missing" });
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
+  });
+
+  it("writeJson relativizes the declared path fields (doc/plan) to the repoRoot-relative shape (P9 T4 §2.7)", () => {
+    const base = mkdtempSync(path.join(tmpdir(), "infra-ws-"));
+    try {
+      const workspace = new Workspace(new WorkspaceRoot(base, ".kairos/cdd"), "test-slug");
+      const abs = path.join(base, "docs", "kairos", "plans", "p3.md");
+      // The persisted shape is repoRoot-relative for the two DECLARED path keys; a
+      // prose string that merely looks like a path (the `notes` array) is untouched.
+      workspace.writeJson("progress.json", {
+        waves: [{ wave: "1", reviewedRevision: { kind: "brief-revision", plan: abs } }],
+        notes: [abs],
+      });
+      const onDisk = JSON.parse(
+        readFileSync(path.join(workspace.path, "progress.json"), "utf8"),
+      ) as { waves: { reviewedRevision: { plan: string } }[]; notes: string[] };
+      expect(onDisk.waves[0]!.reviewedRevision.plan).toBe("docs/kairos/plans/p3.md");
+      expect(onDisk.notes).toEqual([abs]);
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
+  });
+
+  it("readJson normalizes a legacy absolute path field on read — the backstop covers un-migrated bytes (P9 T4 §2.11)", () => {
+    const base = mkdtempSync(path.join(tmpdir(), "infra-ws-"));
+    try {
+      const workspace = new Workspace(new WorkspaceRoot(base, ".kairos/cdd"), "test-slug");
+      workspace.ensure();
+      // A legacy write (absolute plan field) sits on disk; the read normalizes it —
+      // the internal value is the canonical relative shape even without migration.
+      const abs = path.join(base, "docs", "kairos", "plans", "legacy.md");
+      writeFileSync(
+        path.join(workspace.path, "progress.json"),
+        JSON.stringify({ reviewedRevision: { plan: abs } }),
+        "utf8",
+      );
+      const read = workspace.readJson<{ reviewedRevision: { plan: string } }>("progress.json");
+      expect(read.kind).toBe("ok");
+      expect(read.kind === "ok" && read.value.reviewedRevision.plan).toBe(
+        "docs/kairos/plans/legacy.md",
+      );
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
+  });
+
+  it("migrateJsonChild heals a legacy absolute path field in place, leaving a clean file byte-identical (P9 T4 §2.11)", () => {
+    const base = mkdtempSync(path.join(tmpdir(), "infra-ws-"));
+    try {
+      const workspace = new Workspace(new WorkspaceRoot(base, ".kairos/cdd"), "test-slug");
+      workspace.ensure();
+      const abs = path.join(base, "docs", "kairos", "plans", "old.md");
+      const target = path.join(workspace.path, "base.json");
+      writeFileSync(target, JSON.stringify({ plan: abs }, null, 2), "utf8");
+      workspace.migrateJsonChild("base.json");
+      const healed = JSON.parse(readFileSync(target, "utf8")) as { plan: string };
+      expect(healed.plan).toBe("docs/kairos/plans/old.md");
+      // A second migration is a no-op — the already-clean file stays byte-identical.
+      const before = readFileSync(target, "utf8");
+      workspace.migrateJsonChild("base.json");
+      expect(readFileSync(target, "utf8")).toBe(before);
+      // A missing file is a silent no-op (the read face owns the missing report).
+      expect(() => workspace.migrateJsonChild("absent.json")).not.toThrow();
     } finally {
       rmSync(base, { recursive: true, force: true });
     }

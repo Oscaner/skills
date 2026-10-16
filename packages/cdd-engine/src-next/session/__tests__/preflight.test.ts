@@ -25,6 +25,7 @@ import type { DocKey } from "../../contract/project.ts";
 import { Words } from "../../face/words.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { GitClient } from "../../infra/git.ts";
+import type { RepoPath } from "../../infra/root.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { targetFaces } from "../faces.ts";
 import { Ledger } from "../ledger.ts";
@@ -198,7 +199,10 @@ const docCtx = (
     planText: null,
     tasks: null,
     ledger,
-    doc: { docKey, path: `docs/kairos/specs/${docKey === "plan" ? "plan" : "spec"}.md` },
+    doc: {
+      docKey,
+      path: `docs/kairos/specs/${docKey === "plan" ? "plan" : "spec"}.md` as RepoPath,
+    },
   };
 };
 

@@ -23,6 +23,7 @@
 import { InvalidArgumentError } from "commander";
 
 import type { DocKey } from "../contract/project.ts";
+import { ENGINE_DOC_ROOTS } from "../infra/doc-roots.ts";
 
 /** The component-value types of the argv channel (the CLI parse validates by these). */
 export type ChannelValueType = "string" | "path" | "int-list" | "enum" | "int" | "bool";
@@ -194,7 +195,7 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
   {
     name: "implement",
     description: "run the task implement phase",
-    example: "cdd implement --tasks 1,2 --plan docs/kairos/plans/p3.md",
+    example: `cdd implement --tasks 1,2 --plan ${ENGINE_DOC_ROOTS.plans}/p3.md`,
     keys: [
       { key: "tasks", required: true },
       { key: "plan", required: true },
@@ -203,7 +204,7 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
   {
     name: "review",
     description: "run a review — task | branch | spec | plan",
-    example: "cdd review --type spec --spec docs/kairos/specs/p3-design.md",
+    example: `cdd review --type spec --spec ${ENGINE_DOC_ROOTS.specs}/p3-design.md`,
     keys: [
       { key: "type", required: true },
       { key: "tasks" },
@@ -227,7 +228,7 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
   {
     name: "base",
     description: "read/write base.json (single CDD --plan target)",
-    example: "cdd base set --plan docs/kairos/plans/p3.md --base develop --source plan-field",
+    example: `cdd base set --plan ${ENGINE_DOC_ROOTS.plans}/p3.md --base develop --source plan-field`,
     keys: [],
     leaves: [
       {

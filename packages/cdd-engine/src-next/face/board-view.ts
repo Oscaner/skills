@@ -1,7 +1,7 @@
 // packages/cdd-engine/src-next/face/board-view.ts
 // The board face — the slug → node-tree progress board. The file system is the
-// ONLY truth: the node set comes from scanning `docs/kairos/{specs,plans}` (the
-// doc roots single-sourced at ENGINE_RUNTIME.docRoots), the artifact existence
+// ONLY truth: the node set comes from scanning the declared spec/plan doc roots
+// (single-sourced at ENGINE_RUNTIME.docRoots), the artifact existence
 // from existsSync, the header facts from the doc's header block — the overall's
 // declared Phase inventory / File paths tables are NEVER parsed (measured stale).
 // No on-disk-absent parent node is ever synthesized (`-p4.1` present with `-p4`
@@ -35,6 +35,7 @@ import { MarkdownPrimitives, PlanDocType } from "../contract/doc.ts";
 import type { DocKey } from "../contract/project.ts";
 import { DOC_KEYS } from "../contract/project.ts";
 import { ConfigLoader } from "../infra/config.ts";
+import { type RepoPath, RepoRoot } from "../infra/root.ts";
 import { ENGINE_RUNTIME } from "../infra/runtime.ts";
 import { PHASE_SUFFIX_BARE, type SlugDocs, Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 import { TaskGraph } from "../session/graph.ts";
@@ -185,8 +186,11 @@ export class BoardView {
    *  header declaration, spec §12 · D34): the ONE declaration reading face shared
    *  by the board and the capsule's doc-class discrimination. An absent file, a
    *  missing declaration or an out-of-domain value reads null — the consumer
-   *  blocks (zero filename-suffix fallback, zero dual-read layer). */
-  static readDocType(docPath: string): DocKey | null {
+   *  blocks (zero filename-suffix fallback, zero dual-read layer). The path is the
+   *  branded `RepoPath` (T4 §2.2: a bare `string` never reaches this read — the
+   *  caller feeds the funnel-shaped value, the read face reading it verbatim as the
+   *  absolute syscall form). */
+  static readDocType(docPath: RepoPath): DocKey | null {
     return BoardView.#docTypeOf(BoardView.#headerLinesOf(docPath));
   }
 
@@ -304,10 +308,13 @@ export class BoardView {
     channels: Readonly<Record<string, RouteChannelRow>> = {},
   ): BoardRender {
     const lines: string[] = [`cdd board: ${slug}`, ""];
+    // The repo-basis value object — the ONE conversion exit the doc cells and the
+    // `next:` render normalize their embedded paths through (T1 `RepoRoot` · D47).
+    const root = new RepoRoot(repoRoot);
     const exitCode =
       Workspace.phaseSuffixOf(slug) !== null
-        ? BoardView.#phaseBoard(lines, slug, repoRoot, words, host, channels)
-        : BoardView.#programBoard(lines, slug, repoRoot);
+        ? BoardView.#phaseBoard(lines, slug, repoRoot, root, words, host, channels)
+        : BoardView.#programBoard(lines, slug, repoRoot, root);
     lines.push("", PROGRESS_LEGEND.board);
     return { lines, exitCode };
   }
@@ -319,6 +326,7 @@ export class BoardView {
     lines: string[],
     slug: string,
     repoRoot: string,
+    root: RepoRoot,
     words: Words,
     host: string,
     channels: Readonly<Record<string, RouteChannelRow>>,
@@ -335,15 +343,15 @@ export class BoardView {
     const branchLine = node.lines.find((line) => line.label === "branch");
     let blocked = false;
 
-    const overallDoc = BoardView.#docCell(docs.overall, overall.lines[0]!, repoRoot);
+    const overallDoc = BoardView.#docCell(docs.overall, overall.lines[0]!, root);
     lines.push(`  overall  ${overallDoc.text}`);
     blocked ||= overallDoc.blocked;
 
-    const specDoc = BoardView.#docCell(docs.spec, specLine!, repoRoot);
+    const specDoc = BoardView.#docCell(docs.spec, specLine!, root);
     lines.push(`  spec     ${specDoc.text}`);
     blocked ||= specDoc.blocked;
 
-    const planDoc = BoardView.#docCell(docs.plan, planLine!, repoRoot);
+    const planDoc = BoardView.#docCell(docs.plan, planLine!, root);
     lines.push(`  plan     ${planDoc.text}`);
     blocked ||= planDoc.blocked;
 
@@ -372,9 +380,7 @@ export class BoardView {
     );
 
     lines.push("");
-    lines.push(
-      `  next:    ${BoardView.#nextOf(ledger, node, docs, words, host, channels, repoRoot)}`,
-    );
+    lines.push(`  next:    ${BoardView.#nextOf(ledger, node, docs, words, host, channels, root)}`);
     return blocked ? 2 : 0;
   }
 
@@ -383,13 +389,13 @@ export class BoardView {
    *  §6.5). Returns the exit code (2 when the overall doc OR any present phase doc
    *  carries no type declaration — the phase board's BLOCK propagates here, spec §12 ·
    *  D34: zero silent fallback). */
-  static #programBoard(lines: string[], slug: string, repoRoot: string): number {
+  static #programBoard(lines: string[], slug: string, repoRoot: string, root: RepoRoot): number {
     const nodes = BoardView.projectNodes(slug, repoRoot);
     const overall = nodes[0]!;
     const overallDoc = BoardView.#docCell(
       Workspace.docsOfSlug(slug, repoRoot).overall,
       overall.lines[0]!,
-      repoRoot,
+      root,
     );
     lines.push(`  overall  ${overallDoc.text}`);
     lines.push("");
@@ -404,8 +410,8 @@ export class BoardView {
       // the marker renders on the phase line and the program board exits 2.
       const docs = Workspace.docsOfSlug(node.label, repoRoot);
       const phaseBlocked =
-        BoardView.#docCell(docs.spec, spec!, repoRoot).blocked ||
-        BoardView.#docCell(docs.plan, plan!, repoRoot).blocked;
+        BoardView.#docCell(docs.spec, spec!, root).blocked ||
+        BoardView.#docCell(docs.plan, plan!, root).blocked;
       blocked ||= phaseBlocked;
       const status = phaseBlocked ? "doc-type: missing (BLOCKED)" : (spec?.status ?? "Pending");
       // The phase's wave summary token (spec §5.3): the wave segment's first wave
@@ -434,14 +440,15 @@ export class BoardView {
    *  carrying no `- **Doc type**:` declaration renders its `doc-type: missing
    *  (BLOCKED)` marker in place of the facts (blocked = true). An absent doc renders
    *  `(none)` (degradation, never a throw). The doc path renders repoRoot-relative
-   *  (D47 — `docsOfSlug` derives it absolute; the board emits the ONE shape). */
+   *  through the ONE value object (D47 — `docsOfSlug` derives it absolute; the board
+   *  emits the ONE shape). */
   static #docCell(
     docPath: string | null,
     line: BoardLine,
-    repoRoot: string,
+    root: RepoRoot,
   ): { text: string; blocked: boolean } {
     if (docPath === null) return { text: "(none)", blocked: false };
-    const rel = WorkspaceRoot.relativize(repoRoot, docPath);
+    const rel = root.relativize(docPath);
     if (line.docType === null) {
       const facts: string[] = [];
       if (line.version !== null) facts.push(line.version);
@@ -485,9 +492,9 @@ export class BoardView {
     words: Words,
     host: string,
     channels: Readonly<Record<string, RouteChannelRow>>,
-    repoRoot: string,
+    root: RepoRoot,
   ): string {
-    const renderer = new RouteRenderer(words, channels, host, repoRoot);
+    const renderer = new RouteRenderer(words, channels, host, root);
     const waves = node.waveLines ?? [];
     // The plan's open frontier wave — the SAME ready batch the dispatch engine's
     // task-graph frontier yields (frontier over closedWaves()).

@@ -29,6 +29,7 @@ import type { Contract } from "../contract/judge.ts";
 import type { DocKey } from "../contract/project.ts";
 import type { Words } from "../face/words.ts";
 import type { GitClient } from "../infra/git.ts";
+import type { RepoPath } from "../infra/root.ts";
 import type { TargetType } from "./faces.ts";
 import { TaskGraph } from "./graph.ts";
 import type { Ledger } from "./ledger.ts";
@@ -66,8 +67,10 @@ export interface PreFlightDoc {
    *  null when a present doc carries no declaration — the seam BLOCKs (zero
    *  filename-suffix fallback, one declaration reading face `BoardView.readDocType`). */
   docKey: DocKey | null;
-  /** The target doc's path (the lifecycle's audit path). */
-  path: string;
+  /** The target doc's path — the branded canonical `RepoPath` (T4 §2.2: a bare
+   *  `string` never reaches this read face; the caller feeds the funnel-shaped
+   *  value the erasure chain (`RepoRoot.resolve`) produced). */
+  path: RepoPath;
 }
 
 /** One dispatch's pre-flight inputs — the facts the seam judges. */

@@ -1,14 +1,15 @@
 # 引擎文档工具（Engine Doc-Tooling）— P9 实施计划：一事实无处 / 无门 / 有副本 通审施工（D26 法条 · A 组路径面单源统一 + B 组 20 项无门事实通审 + frontmatter 门）
 **Spec:** [2026-10-10-engine-doc-tooling-p9-design.md](../specs/2026-10-10-engine-doc-tooling-p9-design.md)
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](../specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.4 · 2026-10-16
+- **Version**: v0.5 · 2026-10-16
 - **Doc type**: plan
 
 ## Constraints
 
 - **功能语义不变**：退出码表 0/1/2 · CDD_BLOCKED 通道 · doc-contract 判定语义 · 领域 run 语义零变化。
-- **`next:` 字面冻结**：本 phase 不改 `next:` 行的可执行字面（承 P5 冻结先例）。
+- **`next:` 字面冻结**：本 phase 不改 `next:` 行的可执行字面**形态**（动词/旗标拼写/后缀/结构 · 承 P5 冻结先例）；其内嵌**路径值**归 A 组路径面（repoRoot 相对 · §2.13 · T18），非冻结对象。
 - **形态唯一（A 组）**：repoRoot 相对路径是唯一持久 / 比较 / 传递形态；绝对形态仅瞬态存在于 syscall 边界（`RepoRoot.resolve` 产出喂 `fs`/`git`/`execa`），永不落盘、永不比较、永不跨层。
+- **渲染 / 回显面路径基准单源**（D47 · §2.13）：引擎任一渲染 / 回显面内嵌的路径值一律 repoRoot 相对——`next:` 字面（`--plan`/`--findings`）· capsule `handoff:` cell · board 文档 cells · `base` stdout/stderr · graph title；`next:` 字面**形态**仍冻结，其**路径值**归本条。
 - **唯一转换点**：engine 生产代码 `process.cwd()` → repoRoot 的转换**恰好 1 处**，机器 pin 把守（§2.4/§2.9）。
 - **`process.chdir()` 生产的引擎路径禁用**（测试 fixture 的 chdir 隔离除外 · §2.12）。
 - **推算不出 repoRoot → BLOCKED 退 1**（运行环境事实缺失，非 usage 面退 2 · 零新消息面 · §2.6）。
@@ -255,7 +256,22 @@
   - 零裸函数 + EOF —— 全局 `^export function|^function` 零命中 · 全树 EOF 恰一 newline — checkable: grep 零命中 · EOF 检查绿
   - changeset —— `.changeset/` cdd-engine pending（既有归并口径） — checkable: `pnpm exec changeset status` 无 empty 条目
 - **Acceptance**: README ×2 与 `--root` 退役一致 · 跨套件 pin 终锚在位 · `pnpm run validate` ALL PASS · `pnpm run emit:check` OK · 零裸函数 grep 零命中 · EOF 全绿 · changeset（cdd-engine）pending · EOF 恰一 newline
-- **DependsOn**: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16
+- **DependsOn**: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18
+
+### Task 18: 渲染 / 回显面路径全相对（`next:` 字面 + capsule/board/base/graph · §2.13）
+- **Objective**: 唯一形态贯彻到**渲染 / 回显面**——§2.7 治的是注入 child 的 round-context prompt token（消费面 · `#valuesOf` 单出口）；本任务治**引擎自身 stdout/stderr 渲染的字面内嵌路径值**（回显面），二者是**不同面**。① **`next:` 可执行字面**：现 `face/route-render.ts` 的 `RouteRenderer` **全程 verbatim** 渲染 `target`/`route` 路径、零归一——board 侧 `--plan` 为**绝对**（`infra/workspace.ts:116` `docsOfSlug` 产 `path.join(repoRoot,…)`）· 引擎轮侧 `--plan` 为 **argv 原形**（`session/run.ts#routeTarget`（:587）直传 `#planPath`）· 两面 `--findings` 为**绝对**（`session/ledger.ts:813` `handoffPath` → `workspace.resolve`）。**单源修点 = 共享 `RouteRenderer`**（`face/route-render.ts` · D40 单渲染器覆盖 board + capsule 两面）：渲染前对 `target.plan`/`target.id`/`route.findings` 经 `RepoRoot.relativize` 归一（`RouteRenderer` 增持 `RepoRoot`；`Capsule` 已持 `#repoRoot`（`capsule.ts:67`）· `BoardView#nextOf` 已持 `repoRoot`——两构造点注入值对象）。② **capsule `handoff:` cell**：`session/run.ts#capsuleLines`（:573）的 `handoff`（`ledger.handoffPath` 绝对）在 emit 前归一。③ **board 文档 cells**：`face/board-view.ts` 的 `overall`/`spec`/`plan`（`docsOfSlug` 绝对 · `#docCell`（:432））在 `#docCell` 内归一。④ **`base set`/`get` 回显**：`face/cli.ts:834` 的 `workspace.resolve("base.json")` 与 `face/artifacts.ts:140/149` 的 stdout/stderr 路径归一。⑤ **graph title**：`face/cli.ts:667` 的 `scene.planPath`（argv 原形）归一。**承重事实**：这些字面供人类 / 编排器阅读与**再执行**，收件方 cwd = repoRoot（spawn-cwd 归一 · T2），相对立即可达。**注（D47 · 非打补丁）**：`next:` 字面**形态不变**（动词/旗标/后缀/结构 · Constraints 冻结面），仅其**路径值**归一；回归 pin 须检 board 与引擎两侧**同形**（同一 `RouteRenderer` 出口）。
+- **Files**: Modify `packages/cdd-engine/src-next/face/route-render.ts`（`RouteRenderer` 增持 `RepoRoot`（构造入参）· `#planOf`/`#reviewText`/`#fixText`/`#handoffText` 的路径经 `relativize` 归一）· Modify `packages/cdd-engine/src-next/face/capsule.ts`（构造 `RouteRenderer` 时注入 `RepoRoot`（已持 `#repoRoot` :67））· Modify `packages/cdd-engine/src-next/face/board-view.ts`（`#nextOf`（:470）构造 `RouteRenderer` 注入 `RepoRoot` · `#docCell`（:432）主路径归一）· Modify `packages/cdd-engine/src-next/session/run.ts`（`#capsuleLines`（:573）`handoff` emit 前归一）· Modify `packages/cdd-engine/src-next/face/cli.ts`（`base` 回显（:834 + artifacts stdout）· graph title（:667）归一）· Modify `packages/cdd-engine/src-next/face/artifacts.ts`（`baseSet`/`baseGet` 回显路径亲 `RepoPath`）· Modify 相关 `__tests__`（`board-view.test.ts` / `capsule.test.ts` / `cli.test.ts` / `next.test.ts` 的 next 字面 + board cells + base 回显 pin 重锚为相对）
+- **Consumes**: T1（`RepoRoot.relativize`/`resolve` 值对象）· T2（spawn cwd = repoRoot · 承重事实）· T3（`#planPath`/`scene.planPath` argv 归一后随之相对）· spec §2.13/§2.14 授权 + §1.3 冻结边界
+- **Produces**: 渲染 / 回显面路径全相对（`next:` 字面 `--plan`/`--findings` · capsule `handoff:` cell · board 文档 cells · `base` stdout/stderr · graph title）· 单源修点共享 `RouteRenderer`（board + 引擎两侧同形）· 供 T17 全量验证
+- **Steps**:
+  - `RouteRenderer` 归一 `next:` 字面 —— `face/route-render.ts` 构造增持 `RepoRoot`；`#planOf(target)` 的 `target.plan` · `#fixText` 的 `route.findings` · `#reviewText` 的 `target.id` 经 `relativize` 归一（形态不变，仅路径值） — checkable: 单测——board 与引擎同 plan 的 `next:` 字面**逐字节相等**且 `--plan`/`--findings` 为 repoRoot 相对（无绝对前缀）
+  - capsule `handoff:` cell 归一 —— `session/run.ts#capsuleLines`（:573）的 `handoff`（`handoffPath` 绝对）emit 前经 `relativize` — checkable: 单测——capsule 行 `handoff:` cell 为相对串
+  - board 文档 cells 归一 —— `face/board-view.ts#docCell`（:432）的 `docPath` 经 `relativize` — checkable: 单测——board `overall`/`spec`/`plan` 行路径为相对串
+  - `base` + graph 回显归一 —— `face/cli.ts:834` `workspace.resolve("base.json")` 与 `face/artifacts.ts:140/149` 回显（+ 死信路径）经 `relativize`；graph title `face/cli.ts:667` 的 `scene.planPath` 归一 — checkable: 单测——`base set`/`get` stdout·stderr 路径为相对串 · graph title 为相对串
+  - 两侧同形回归 pin —— board 与引擎对同一 plan 渲染的 `next:` 字面**同形**（同一 `RouteRenderer` 出口 · 无第二渲染路径） — checkable: 单测——两 face 输出 `next:` 行逐字节相等
+  - 跑引擎套件 —— checkable: `pnpm -C packages/cdd-engine test`
+- **Acceptance**: `next:` 字面 `--plan`/`--findings` 零绝对串（board 与引擎**两侧同形** · 同一 `RouteRenderer` 出口）· capsule `handoff:` cell · board 文档 cells（`overall`/`spec`/`plan`）· `base set`/`get` stdout·stderr · graph title 全 repoRoot 相对 · `next:` 字面**形态不变**（动词/旗标/后缀/结构）· 渲染/回显面零绝对路径串（grep/行为 pin）· 引擎 vitest 通过 · EOF 恰一 newline
+- **DependsOn**: 1, 2, 3
 
 ## Change history
 
@@ -265,3 +281,4 @@
 | v0.2 | 2026-10-16 | **plan-review-1 两 findings 修复（全数落地）**：① **W（T6）**——`:621` 负锚自洽化：`cli.test.ts` 的 `"--root",` 站点 **59 = 58 可删 token + 1 存活负锚（`:621`）**；Constraints 行、T6 Objective/Files/步骤同步重述（Files 删除行集排除 `:621`），步骤 checkable 由不可满足的「零命中」改为「残存命中恰 1 处且位于 `:621`」。② **N（T5）**——`#scanRoots` 签名变更显式化：`static #scanRoots(docPath: string)` → `(root: string, docPath: string)`，调用点 `:1049` 改传 `(ctx.root, ctx.path)`；Objective/Files/步骤同步。 | 引擎 plan-fix 轮 · Oscar M. · Claude Opus 5（P9 plan-fix round 1 · 全部 verified-true） |
 | v0.3 | 2026-10-16 | **plan 期 backfill（D46 补全 + cwd 基准更正）**：用户追问「round context 里所有文档路径都要相对 repo root，无论 input 还是 output」——复核 T4 的 round-context 路径 token 面**两处更正**：① **token 数 7 → 8**（漏 `INPUT_WAVE_BRIEF`，亦走 `workspace.resolve` 产绝对）；② **基准判定更正**——`INPUT_DOC`/`INPUT_FINDINGS` 非含糊「argv 原形」，实为 **cwd 相对原形**（按 `process.cwd()` 解，`cwd ≠ repoRoot` 即偏离），是**独立第三基准**。三基准 = 绝对（`OUTPUT_*`/`WORKSPACE_DIR`/`INPUT_WAVE_BRIEF`）· link-space（`INPUT_SPEC`）· cwd 相对（`INPUT_DOC`/`INPUT_FINDINGS`）。T4 Objective/Files/Steps/Acceptance 改为「**全 8 路径 token** · **单一出口**（`#valuesOf` 组装处一笔归一 · 各产出点仍可产绝对）」 | Oscar M. · Claude Opus 5（P9 plan 期 backfill 更正 · 用户追问） |
 | v0.4 | 2026-10-16 | **plan-review-2 findings 修复（D46 code hot-fix 再基线 · 全数落地）**：D46 代码 hot-fix（68c1c41a · 409572df）落在 plan v0.3（9382e3f0）之后，使 A 组 premises/计数/行锚失同步。① **W（T6）**——`--root` 站点计数重基 **60 = 59 可删 token + 1 存活负锚**：新增 D46 站点 `:1845` 计入可删集；负锚由 `:621`/`:623` 移到 `:624`（断言在 `:626`）；help pin 行 :916/:1111 → :919/:1114；`fixture()` 迁移面 201 → **202**（`cli.test.ts` 121 → 122）；步骤 checkable 由 `grep -v '^621:'` 改为 `grep -v '^624:'`。② **W（T7）**——行为 pin 前提失效：409572df 已在 `cli.test.ts:3775` 落 `call.cwd === repoRoot` 断言，故 T7 由「补零覆盖」转为「复核既有 pin 在位」；`FakeSync` 锚 :4635-4647 → :4666。③ **W（T3/T4）**——A 组前提重基：删除「当前留原形 / 现产绝对 / cwd 相对原形 / 路径坏」等 pre-hot-fix 陈述，改为**残余**工作（内联 `#rel`/`#resolveSpecLink` 收归 T1 值对象 + 读面 `RepoPath` typing + 落盘/迁移/读时兜底）；T4 8-token 锚全线 +4~+6 重引（`lifecycle.ts:301/305/311/318/332-334/336` · `#rel` :355 / `#valuesOf` :357），T3 `cli.ts:712/725/781`。④ **N（T2）**——行锚重引（`CliOptions` :119-120 · `Cli` :174-175 · 构造默认 :221-222 · `#repoRootOf` :766-769 · `#runWork` `CliLifecycle` :607 · lifecycle `#repoRoot` :139 / spawn :210）。 | 引擎 plan-fix 轮 · Oscar M. · Claude Opus 5（P9 plan-fix round 2 · 全部 verified-true） |
+| v0.5 | 2026-10-16 | **plan 期 backfill（渲染/回显面路径散锚 · D47 · 新增 T18）**：用户观测 `cdd board <p9>` 的 `next:` 行路径未相对化，推断「board 未复用 next 引擎」——**修正前提**：board **确已**复用 next 引擎（`NextStepRouter.walk` + 共享 `RouteRenderer`）；真病根 = **D46 只治 round-context prompt token、未覆盖 `next:` 字面及其它渲染/回显面**。**用户裁定「整个引擎全面统一 repo root 相对」**——§1.3 冻结只锁 `next:` 字面**形态**，其**路径值**归 A 组。**新增 T18**（渲染/回显面路径全相对：`next:` 字面（共享 `RouteRenderer` 修点）+ capsule `handoff:` cell + board 文档 cells + `base` stdout/stderr + graph title；`DependsOn: 1,2,3`）· Constraints 两条（`next:` 冻结边界 + 渲染/回显面路径基准单源）· T17 `DependsOn` 增 `18`。W2 波次增 T18 | Oscar M. · Claude Opus 5（P9 plan 期 backfill · 用户裁定） |

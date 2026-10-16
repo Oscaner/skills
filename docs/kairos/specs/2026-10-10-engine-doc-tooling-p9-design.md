@@ -10,7 +10,7 @@
 
 本 phase 承接 P8 收口后的续 phase（2026-10-16 cdd-design [P9] 会话注册 D41 · D42 in-flight · D43 grilling 全裁定）。**统一命题——D26 法条的横切施工**：把「**一事实一处 · 判定时刻现读 · 副本永不具权威**」这条已在 P7 判定面立起的法条，从判定面**推广到全引擎 + 消费面**，凡出现「散锚 / 无门 / 有副本」的事实一律收口。
 
-命题由两个入口汇聚而成：**其一**，注册时用户追问「child 派发是否在 repo root」——查证揭示路径**基准**散成三锚（cwd 类含两个独立 `process.cwd()` 根 · repoRoot 类 · doc-dir 相对硬编码类），且**文档身份**（`reviewedRevision.doc` 原样 argv 串）未归一 → 同一文档绝对/相对调用产生虚假 drift；旧树 `be9dbc5f` + `3d59d5be` 早已修过（单源 + 单转换点 + 机器 pin），src-next 重写时**三者全丢**。**其二**，in-flight 用户观测 harness skill-conflict——三份 SKILL.md 的 frontmatter `description` 含裸 ASCII `: ` 致严格 YAML 解析失败、skill 静默不加载；根因不是「字符串错了」而是「**仓库零门**用真实解析器校 SKILL.md frontmatter」——一个**无门的声明事实**（D42 · ⑦）。
+命题由两个入口汇聚而成：**其一**，注册时用户追问「child 派发是否在 repo root」——查证揭示路径**基准**散成三锚（cwd 类含两个独立 `process.cwd()` 根 · repoRoot 类 · doc-dir 相对硬编码类），且**文档身份**（`reviewedRevision.doc` 原样 argv 串）未归一 → 同一文档绝对/相对调用产生虚假 drift；旧树 `be9dbc5f` + `3d59d5be` 早已修过（单源 + 单转换点 + 机器 pin），src-next 重写时**三者全丢**。**其二**，in-flight 用户观测 harness skill-conflict——三份 SKILL.md 的 frontmatter `description` 含裸 ASCII `: ` 致严格 YAML 解析失败、skill 静默不加载；根因不是「字符串错了」而是「**仓库零门**用真实解析器校 SKILL.md frontmatter」——一个**无门的声明事实**（D42）。**注**：overall/D42 称此项为「第 ⑦ 项」；而本节 B 组的 audit 编号体系里 **⑦ 另指 `INSTALL_ROWS`**（§3.3）——两套编号相撞，故本 spec 对 frontmatter 项**只用名称「frontmatter 面」**（第 4 节），不再用数字 ⑦ 指代它以避歧。
 
 由此 `size?` 判得 **oversized**（25+ 任务位 · 跨 CLI/路径 · 契约类型 · 模板/label · host/refs · 消费散文 · docs 多平面）。用户裁定 **S1=c 不拆 phase** → 收敛为**单 phase-spec 承载，内部 wave 序列**（承 P5/D18⑩「不拆 phase ≠ 不拆 wave」先例）。**已知内聚代价**：单 phase 承载多平面（路径 / 契约类型 / 模板 / 消费散文），借内部波次缓解——如实记录，不粉饰。
 
@@ -70,50 +70,54 @@
 - **`cwd` fallback 死**：`?? cwd` 那截退役，不再静默降级。
 - **G5 溶解**：无 basis-definer flag 后，「唯 `--root` 豁免」条款消失。
 
-#### 2.5 推算不出 → BLOCKED 退 1（T3=a）
+#### 2.5 声明面字节破格（G12=a）
+
+`--root` 退役使命令声明面（`declare.ts` 的 usage 行 · help `Options`）字节变化——`implement` 等的 usage 由 `… [--root <path>]` 变为无该段。此为 **deliberate 字节破格**（与 P5「字节语义 major」/P8 pin 破格同级）：`cli.test.ts` 的 `--root` usage/help 行 pin（约 `:916` · `:1111` 顺序 · `:621` 位置语义）**整体重锚**。**`next:` 字面冻结不受影响**（1.3）。
+
+#### 2.6 推算不出 → BLOCKED 退 1（T3=a）
 
 `git.topLevel(process.cwd()) === null`（非 git 仓 / 无 tty 等）→ 走**既有 BLOCKED 语义**（stderr 携因 · 退出码 1），非 usage 错（退 2）。归因：**运行环境事实缺失**，非用户调用姿势错。零新消息面（复用既有 BLOCKED 通道）。
 
-#### 2.6 落盘 + child prompt 全相对（G13=a）
+#### 2.7 落盘 + child prompt 全相对（G13=a）
 
 - **落盘**：`progress.json` / `base.json` / wave carrier 内的一切路径存**相对 repoRoot**（`RepoPath`）。
 - **child prompt**：注入子进程的 `WORKSPACE_DIR` 亦发**相对**——唯一形态贯彻到底。子进程 spawn cwd = repoRoot（2.4），相对路径立即可达。
-- **安全条件**：子进程不自行 `chdir` 出仓库——由双 pin（2.8）兜住；spawn-cwd 归一因此成为**承重事实**。
+- **安全条件**：子进程不自行 `chdir` 出仓库——由双 pin（2.9）兜住；spawn-cwd 归一因此成为**承重事实**。
 
-#### 2.7 声明再抄消除（G2=b · G15=a）
+#### 2.8 声明再抄消除（G2=b · G15=a）
 
 - **`invariants.ts:#scanRoots`**（G15=a）：重构为 `[docDir(doc), ...Object.values(ENGINE_RUNTIME.docRoots)]`——family 根接**单源**，`docDir` 保持 doc-relative（邻居语义）。
 - **全部可执行 copy 从单源派生**（G2=b）：`invariants.ts:981/1063` 的 finding 消息 · `declare.ts:202/208/234` 的 help `example`——凡含 `docs/kairos/…` / `specs/plans` 字面者，从 `ENGINE_RUNTIME.docRoots` 派生，零硬编码副本。
 - **注释 copy**（board-view / workspace / doc.ts 的 7 处）：随行清理（G2 范围含）。
 
-#### 2.8 双 pin（G11=a）
+#### 2.9 双 pin（G11=a）
 
 - **结构 pin**：grep 级断言——engine 生产代码 `process.cwd()` **恰好 1 处** · `git.topLevel` **转换点恰好 1 处**。
 - **行为 pin**：`FakeSync` 的 `call.cwd === repoRoot`（补现存 11 处读者对 `calls[].cwd` 的**零覆盖**）。
 - **理由**：历史教训正是「单源 + 单转换点 + pin **三者全丢**」——两 pin 护的**不是同一事实**（行为护 spawn · 结构护转换点），须双立。
 
-#### 2.9 仓库外路径（G4=c）
+#### 2.10 仓库外路径（G4=c）
 
 用户给 `../outside/x.md`（repoRoot 之外的相对路径）→ **接 + stderr 告警**：形态仍是单一（相对 repoRoot，分段含 `..`），不破坏「唯一形态」不变量；读得动即放行，stderr 提示「路径在仓库外」。判别标准 = **形态对不对**，非位置在哪。
 
-#### 2.10 旧落盘数据迁移（G7=b+兜底）
+#### 2.11 旧落盘数据迁移（G7=b+兜底）
 
 - **一次性迁移**：将磁盘上旧 `progress.json` / `base.json` 内残留的冗余形态路径串归一为相对形态并回写。
 - **读时兜底**：读取层再 `relativize` 一次（防漏网）——迁移处理历史，读时归一兜底。
 
-#### 2.11 测试隔离 chdir（G9=a）
+#### 2.12 测试隔离 chdir（G9=a）
 
 `repoRoot` 不可注入后，187 处测试点 `Cli.create({ io, repoRoot })` 失效 → 测试改 `chdir` 进 fixture（`mkdtemp → gitInit → process.chdir(temp) → Cli.create({ io })`）。引擎 vitest 已确认**串行**（`maxWorkers:1 · fileParallelism:false`），chdir 安全。
 
 ### 3. B 组 · 无门事实通审
 
-**门归属（T2=a · 镜像 P5/D18 校验归域）**：引擎内部事实（②④⑦⑨）→ **engine suite**；引擎 ⇄ 消费面对照（⑭⑮ · ⑦-frontmatter）→ **kairos suite**。共 **19 项**（audit 枚举 · 编号沿用 audit 报告）。
+**门归属（T2=a · 镜像 P5/D18 校验归域）**：引擎内部事实（②④⑦⑨）→ **engine suite**；引擎 ⇄ 消费面对照（⑭⑮ · frontmatter 面）→ **kairos suite**。共 **19 项**（audit 枚举 · 编号沿用 audit 报告；frontmatter 面为 audit 体系外、由 D42 引入的第 20 项）。
 
 #### 3.1 真缺陷（已发散 / 读写断层）
 
 - **① issue-body label 表已发散**：engine `words.ts:181`（`ISSUE_LABEL_WORDS`，渲染器实读）vs `templates/report/issue-body.json:21`（`sectionLabels`，SKILL 宣称的 oracle，**零 reader**）——二者**已不一致**（`bug.context` zh `## 场景` vs `## 背景` 等）。收口：单源 + 一致性门。
 - **② node floor 三值不一**：`bin.ts:23`（`{major:22,minor:18}`）= 22.18 · `package.json#engines` = ≥24 · `README.md:44` = 22.18。收口：单源（从 `package.json#engines` 派生）+ 门。
-- **⑩ `**Doc type**` 写者缺**：`board-view` / `preflight` / `capsule` **依赖**该头行（缺则 BLOCK），而 `render/skeleton.ts` **不产出**（grep 零命中）→ 引擎自产骨架过不了自己 preflight。**本会话已实证**：P9 骨架 generated 缺 `- **Doc type**: phase-spec` 行（2.10 手补即此）。收口：skeleton 渲染补齐 + 回归门。
+- **⑩ `**Doc type**` 写者缺**：`board-view` / `preflight` / `capsule` **依赖**该头行（缺则 BLOCK），而 `render/skeleton.ts` **不产出**（grep 零命中）→ 引擎自产骨架过不了自己 preflight。**本会话已实证**：P9 骨架由 `schema get phase-spec --output skeleton` 生成后**缺** `- **Doc type**: phase-spec` 头行，author 时手工补入方过 gate。收口：skeleton 渲染补齐该头行 + 回归门（引擎自产骨架必过自身 preflight）。
 
 #### 3.2 单源抽取（copies → 单声明）
 
@@ -146,9 +150,9 @@
 | 事实面 | 门归属 suite |
 |---|---|
 | 引擎内部（②④⑦⑨⑩ 等） | engine suite（`packages/cdd-engine/src-next/**/__tests__`） |
-| 引擎 ⇄ 消费面对照（⑭⑮ · ⑦-frontmatter · ⑥） | kairos suite（`packages/kairos/tests`） |
+| 引擎 ⇄ 消费面对照（⑭⑮ · frontmatter 面 · ⑥） | kairos suite（`packages/kairos/tests`） |
 
-### 4. ⑦ · 消费面 SKILL.md frontmatter 合法性
+### 4. frontmatter 面 · 消费面 SKILL.md frontmatter 合法性（D42）
 
 #### 4.1 门（契约驱动 · G6=b）
 
@@ -162,28 +166,28 @@
 
 单 phase-spec 承载，内部按 `DependsOn` 派生波次（承 P5/D18⑩ · P7 十五任务先例）。**建议拓扑**（实现期由 plan 细化）：
 
-- **W1 · 路径面基础**：`RepoRoot` + 品牌 `RepoPath` + 双 pin（2.2/2.8）——其余路径波的前置。
-- **W2 · 路径面收敛**：输入漏斗（2.3）+ repoRoot 单转换/三缝退役（2.4/2.5）+ 落盘/prompt 全相对（2.6）+ 迁移（2.10）+ 测试 chdir（2.11）+ 声明再抄（2.7）。
+- **W1 · 路径面基础**：`RepoRoot` + 品牌 `RepoPath` + 双 pin（2.2/2.9）——其余路径波的前置。
+- **W2 · 路径面收敛**：输入漏斗（2.3）+ repoRoot 单转换/三缝退役（2.4/2.6）+ 落盘/prompt 全相对（2.7）+ 迁移（2.11）+ 测试 chdir（2.12）+ 声明再抄（2.8）+ 声明面字节破格（2.5）。
 - **W3 · 真缺陷 + 单源抽取**（3.1/3.2）——含 ⑩ skeleton 补齐。
 - **W4 · 缺门 + 死声明**（3.3/3.4）。
-- **W5 · 跨面散文一致性门 + ⑦ frontmatter 门 + 修**（3.5 · 第 4 节）。
+- **W5 · 跨面散文一致性门 + frontmatter 门 + 修**（3.5 · 第 4 节）。
 
 > 波次边界以「可独立验收的最小单元」为界，实现期按 plan 的 `DependsOn` 图派生，本处仅定位拓扑。
 
 ### Acceptance criteria
 
-- **A 组 · 路径面**：全 engine 生产代码 `process.cwd()` **恰好 1 处**、`git.topLevel` 转换点**恰好 1 处**（结构 pin 绿）· `FakeSync` 的 `call.cwd === repoRoot`（行为 pin 绿）· `--root` / `cwd` 注入 / `repoRoot` 注入**三缝零残留**（grep pin）· 落盘 + child prompt 零绝对路径串（grep pin）· 同一文档绝对/相对 argv 归一后 `sameRef` **恒真**（虚假 drift 归零回归 pin）· 推算不出 repoRoot → **BLOCKED 退 1**（回归 pin）· 旧落盘数据经迁移 + 读时归一后可用（迁移回归 pin）· `invariants.ts` 的 `"specs"/"plans"` 硬编码**零残留**（读 `docRoots` 单源）。
-- **B 组 · 无门事实通审（19 项）**：每项——**或有单源且有门**（发散即 fail），**或已删**（死声明），**无中间态**。重点：① label 表单源一致（门绿）· ② node floor 单源一致（门绿）· ⑩ `schema get --output skeleton` 产出的骨架**含 `**Doc type**` 头行**且过自身 preflight（回归 pin）· ④ `edgeConditionWords` 有真派生门（假 pin 消除）· 门归属按 3.6 分域（engine/kairos suite）。
-- **⑦ · frontmatter 门**：`skill-anatomy` 契约含 frontmatter 槽位 · 全 6 SKILL.md frontmatter 过 `yaml.parse()`（门绿）· 三处 `description` **零裸 `: `**（grep pin）。
-- **过程**：引擎 vitest 全绿 · `pnpm -C packages/kairos test` 全绿 · `pnpm run validate` ALL PASS · EOF 全绿 · changeset（cdd-engine）按既有归并落 pending · **不发布**。
-- **六前提**：零裸函数（全局 grep 零命中）· 死码/死缝清理（`ProcessRunner` · cwd 注入缝 · 死声明类）· 声明再抄消除 · 最大精简。
+- `A 组 · 路径面`：全 engine 生产代码 `process.cwd()` **恰好 1 处**、`git.topLevel` 转换点**恰好 1 处**（结构 pin 绿）· `FakeSync` 的 `call.cwd === repoRoot`（行为 pin 绿）· `--root` / `cwd` 注入 / `repoRoot` 注入**三缝零残留**（grep pin）· 落盘 + child prompt 零绝对路径串（grep pin）· 同一文档绝对/相对 argv 归一后 `sameRef` **恒真**（虚假 drift 归零回归 pin）· 推算不出 repoRoot → **BLOCKED 退 1**（回归 pin）· 旧落盘数据经迁移 + 读时归一后可用（迁移回归 pin）· `invariants.ts` 的 `"specs"/"plans"` 硬编码**零残留**（读 `docRoots` 单源）。
+- `B 组 · 无门事实通审（19 项）`：每项——**或有单源且有门**（发散即 fail），**或已删**（死声明），**无中间态**。重点：① label 表单源一致（门绿）· ② node floor 单源一致（门绿）· ⑩ `schema get --output skeleton` 产出的骨架**含 `**Doc type**` 头行**且过自身 preflight（回归 pin）· ④ `edgeConditionWords` 有真派生门（假 pin 消除）· 门归属按 3.6 分域（engine/kairos suite）。
+- `frontmatter 面`：`skill-anatomy` 契约含 frontmatter 槽位 · 全 6 SKILL.md frontmatter 过 `yaml.parse()`（门绿）· 三处 `description` **零裸 `: `**（grep pin）。
+- `过程门`：引擎 vitest 全绿 · `pnpm -C packages/kairos test` 全绿 · `pnpm run validate` ALL PASS · EOF 全绿 · changeset（cdd-engine）按既有归并落 pending · **不发布**。
+- `六前提`：零裸函数（全局 grep 零命中）· 死码/死缝清理（`ProcessRunner` · cwd 注入缝 · 死声明类）· 声明再抄消除 · 最大精简。
 
 ## Constraints
 
 - **功能语义不变**：退出码表 0/1/2 · CDD_BLOCKED 通道 · doc-contract 判定语义 · 领域 run 语义零变化。
 - **`next:` 字面冻结**：本 phase 不改 `next:` 可执行字面。
 - **形态唯一**：repoRoot 相对路径是唯一持久/比较/传递形态；绝对仅瞬态于 syscall 边界。
-- **`process.chdir()` 生产的引擎路径禁用**（测试 fixture 的 chdir 隔离除外 · 2.11）。
+- **`process.chdir()` 生产的引擎路径禁用**（测试 fixture 的 chdir 隔离除外 · 2.12）。
 - **唯一转换点**：engine 生产代码 `process.cwd()` → repoRoot 的转换恰好 1 处，机器 pin 把守。
 - **D29 黑盒边界守约**：skill 文本零引擎内部实现镜像；对消费面只加一致性门，不改 SKILL.md 承载语义。
 - **门归属分域**：引擎内部事实门进 engine suite；引擎⇄消费面对照门进 kairos suite。
@@ -193,4 +197,4 @@
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
-| v0.1 | 2026-10-16 | 初稿：P9 一事实无处/无门/有副本 通审施工（D26 法条）——A 组路径面单源统一（相对 repoRoot 唯一形态 · `RepoRoot`+`RepoPath` · `--root`/cwd/repoRoot 三缝全退 · `git.topLevel(process.cwd())` 唯一转换 · 推算不出→BLOCKED · 落盘+prompt 全相对 · 双 pin）+ B 组无门事实通审（audit 19 项 · 真缺陷/单源/缺门/死声明/跨面一致性门 · 分域归属）+ ⑦ frontmatter 门（契约驱动 · 消裸冒号）· 单 phase-spec 内部波次 · 承 grilling 全裁定（D43） | Oscar M. · Claude Opus 5（kairos:cdd-design [P9] · 用户裁定 · 2026-10-16） |
+| v0.1 | 2026-10-16 | 初稿：P9 一事实无处/无门/有副本 通审施工（D26 法条）——A 组路径面单源统一（相对 repoRoot 唯一形态 · `RepoRoot`+`RepoPath` · `--root`/cwd/repoRoot 三缝全退 · `git.topLevel(process.cwd())` 唯一转换 · 推算不出→BLOCKED · 落盘+prompt 全相对 · 双 pin）+ B 组无门事实通审（audit 19 项 · 真缺陷/单源/缺门/死声明/跨面一致性门 · 分域归属）+ frontmatter 面（D42 · 契约驱动门 · 消裸冒号）· 单 phase-spec 内部波次 · 承 grilling 全裁定（D43） | Oscar M. · Claude Opus 5（kairos:cdd-design [P9] · 用户裁定 · 2026-10-16） |

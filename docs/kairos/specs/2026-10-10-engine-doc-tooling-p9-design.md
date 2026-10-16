@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P9 设计：一事实无处 / 无门 / 有副本 通审施工（D26 法条 · 路径面单源统一 + 无门事实通审 + frontmatter 门）
-- **Version**: v0.1 · 2026-10-16
+- **Version**: v0.2 · 2026-10-16
 - **Doc type**: phase-spec
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P9] 会话 · 用户裁定 · 2026-10-16）
@@ -20,6 +20,7 @@
 
 - **设计输入**：本会话 grilling 全裁定（kairos:cdd-design [P9] · 用户逐题裁定 Q1–Q3 · G1–G15 · S1/S2 · T1–T3 · 已回填 overall D43）。
 - **重构授权**：用户六前提 mandate（1 允许破坏性变更 · 2 高维 OOP 零裸函数 · 3 零技术债免声明再抄 · 4 高内聚低耦合清死码 · 5 消费心智负担优先 · 6 最大重构整合精简）。
+- **会话期 in-flight（D44 · 2026-10-16 · 独立提交）**：本 phase 会话期内用户提三条需求——① implement skill ref 复核（**保持** `mattpocock-skills:implement`）· ② author 后加 `self-review` 节点（消费面 skill）· ③ plan review 注入 spec doc（`INPUT_SPEC`）。②③ 为 **D26 主题外的 out-of-band 热修**，登记入 overall D44 程序记录并独立提交，**不并入本节 D26 施工面**（保主题纯净）；详细裁定见 overall D44。
 
 #### 1.2 判定基线（本 phase 的根前提 · D26 法条）
 
@@ -198,3 +199,4 @@
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-16 | 初稿：P9 一事实无处/无门/有副本 通审施工（D26 法条）——A 组路径面单源统一（相对 repoRoot 唯一形态 · `RepoRoot`+`RepoPath` · `--root`/cwd/repoRoot 三缝全退 · `git.topLevel(process.cwd())` 唯一转换 · 推算不出→BLOCKED · 落盘+prompt 全相对 · 双 pin）+ B 组无门事实通审（audit 19 项 · 真缺陷/单源/缺门/死声明/跨面一致性门 · 分域归属）+ frontmatter 面（D42 · 契约驱动门 · 消裸冒号）· 单 phase-spec 内部波次 · 承 grilling 全裁定（D43） | Oscar M. · Claude Opus 5（kairos:cdd-design [P9] · 用户裁定 · 2026-10-16） |
+| v0.2 | 2026-10-16 | 会话期 in-flight 登记（D44）：三条需求裁定——① implement skill ref **保持** `mattpocock-skills:implement` · ② author 后加 `self-review` 节点 · ③ plan review 注入 spec doc（`INPUT_SPEC`）；②③ 为 D26 主题外 out-of-band 热修（登记 overall D44 · 独立提交 · 不并入本节施工面） | Oscar M. · Claude Opus 5（kairos:cdd-design [P9] in-flight · 用户裁定 · 2026-10-16） |

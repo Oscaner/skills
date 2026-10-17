@@ -1,7 +1,7 @@
 # 引擎文档工具（Engine Doc-Tooling）— P10 实施计划：文档头部 front-matter 化 + 登记表驱动正文解析统一
 **Spec:** [2026-10-10-engine-doc-tooling-p10-design.md](docs/kairos/specs/2026-10-10-engine-doc-tooling-p10-design.md)
 - **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](../specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.1 · 2026-10-17
+- **Version**: v0.2 · 2026-10-17
 - **Doc type**: plan
 
 ## Constraints
@@ -17,8 +17,8 @@
 - D29 黑盒边界守约：消费面只同步头部形态表述，零引擎内部实现镜像。
 - 门归属分域：引擎内部事实门进 engine suite；引擎 ⇄ 消费面对照门进 kairos suite。
 - 中间态红窗口：T5–T8（登记表/anchor/骨架翻面而夹具与语料未迁）期间引擎套件预期红；波末全绿收口于 T8（夹具）与 T13（全量）。
-- 波次结构：DependsOn 边即派发波（W1={1,2,3} · W2={4} · W3={5} · W4={6} · W5={7} · W6={8} · W7={9,10,11,12} · W8={13}），本计划 audit 覆盖八波、13 任务。
-- 变更先回填 parent overall（backfill-as-version）。
+- 波次结构：DependsOn 边即派发波（W1={1,2,3} · W2={4} · W3={5} · W4={6} · W5={7} · W6={8} · W7={9,11,12} · W8={10} · W9={13}），本计划 audit 覆盖九波、13 任务——T10 依赖 T9（readDocType 重指先于语料判压），波内序由边强制。
+- 变更先回填 parent overall（backfill-as-version）——spec 阶段已 discharge（D48 语义回填 + 用户裁定 backfill 提交，见 spec Change history）；本 plan 为格式迁移、T10 保持 overall change-history 行字节不变，该约束对格式迁移不适用、无 owning task。
 - 不发布：changeset（cdd-engine major breaking）落 pending；tag / publish = 独立动作。
 - English-primary（SKILL.md / `docs/*.md`）· specs/plans 中文（Strategy B）· emit 产物派生（`pnpm run emit`）· EOF 恰一 newline。
 - 本计划文件本身是 T10 迁移对象：头部保持旧 bullet 形态落盘，随迁移 wave 改写。
@@ -69,15 +69,15 @@
 - **DependsOn**: none
 
 ### Task 4: 元素数门拆分——`MAX_ELEMENTS` → `MAX_BODY_ELEMENTS` + `MAX_HEADER_ELEMENTS`
-- **Objective**: 将单一 `MAX_ELEMENTS` 守卫（`declare.test.ts:55-96`，`:54` 是 `MIN_ELEMENTS = 20`）拆成两条正交门：**`MAX_BODY_ELEMENTS = 40`**（正文 home：section/facet/table/graph/task-*/design-body/conditional）· **`MAX_HEADER_ELEMENTS = 12`**（`frontmatter`/`header` home）。plan-wave 数值裁定（spec §2.3 授权实施 wave 定）：以 today overall 34 正文 / 5 头为基准 + 余量；迁移后四型逐型 total 42 / 31 / 27 / 16（`39−1+2+date+doc-type` · `28+3` · `25−1+3` · `13+3`）各自过双门。single-spec 16 < MIN 20 lightweight 豁免不变。
+- **Objective**: 将单一 `MAX_ELEMENTS` 守卫（`declare.test.ts:55-96`，`:54` 是 `MIN_ELEMENTS = 20`）拆成两条正交门：**`MAX_BODY_ELEMENTS = 40`**（正文 home：section/facet/table/graph/task-*/design-body/conditional）· **`MAX_HEADER_ELEMENTS = 12`**（`frontmatter`/`header` home）。plan-wave 数值裁定（spec §2.3 授权实施 wave 定）：以 today overall 34 正文 / 5 头为基准 + 余量，落门 40 / 12；迁移后四型逐型 target total 42 / 31 / 27 / 16（`39−1+2+date+doc-type` · `28+3` · `25−1+3` · `13+3`）各自过双门——target 对账断言落 Task 5 元素数对账单（W3 登记表翻面后），本 task（W2）仅对 today 四型断言分侧计数。single-spec 16 < MIN 20 lightweight 豁免不变。
 - **Files**: Modify `packages/cdd-engine/src-next/contract/__tests__/declare.test.ts`（MIN :54 · MAX :55-96 拆分）
 - **Consumes**: Task 2（frontmatter home 名已立）；spec §2.3「元素数带上限」裁定（拆门、否决「抬 44」）。
 - **Produces**: `MAX_BODY_ELEMENTS = 40` · `MAX_HEADER_ELEMENTS = 12`；对每型按 home 分侧计数断言：正文侧 ≤ 40、头部侧 ≤ 12；`\bMAX_ELEMENTS\b` 旧常量退休。
 - **Steps**:
   - 拆分常量与断言（`MAX_ELEMENTS` 单计数 → 双常量 + 按 home 分侧计数的一对断言）— checkable: 拆分后 `pnpm -C packages/cdd-engine test declare` FAIL（旧单计数断言标注待删引用的失效——双门尚未接线）。
   - 全量替换旧常量引用并删旧——checkable: `grep -rn '\\bMAX_ELEMENTS\\b' packages/cdd-engine/src-next` 零命中。
-  - 四型验证：overall 42 · plan 31 · phase-spec 27 · single-spec 16，各自正文 ≤ 40 且头 ≤ 12 — checkable: `pnpm -C packages/cdd-engine test declare` PASS（`39−1+2+date+doc-type` 对账断言含新常量）。
-- **Acceptance**: 单门退休（`\bMAX_ELEMENTS\b` 零命中）、双门在册且对四型判过；single-spec lightweight 豁免保留。
+  - 拆门机制对今日 live 计数验证：双常量接线 + 每型按 home 分侧计数（今日 overall 34 正文/5 头 · plan 22/6 · phase-spec 18/7 · single-spec 8/5，两侧各 ≤ 40 / ≤ 12）— checkable: `pnpm -C packages/cdd-engine test declare` PASS（双门对新常量成立）。**迁移后 42/31/27/16 的逐型对账不在本 task 断言**——它随 T5 改 declare.ts 才成立，由 T5 的「元素数对账单」步承接（见 T5）。
+- **Acceptance**: 单门退休（`\bMAX_ELEMENTS\b` 零命中）、双门在册且对今日 live 计数判过；迁移后逐型对账 42/31/27/16 显式归 T5；single-spec lightweight 豁免保留。
 - **DependsOn**: 2
 
 ### Task 5: 登记表翻面——23 行 header anchor 改 key + 11 新键 + Constraints 成对 + 投影四面涟漪 + 快照再生
@@ -128,7 +128,7 @@
 - **Objective**: §5.1 第一类 bullet 字面量夹具全量改 front-matter 头（Version 线 44 行/9 文件 · Doc type 线 77 行/5 文件 · 其余登记头字面量族并集 **14 个测试文件**，其中 **4 个只带 `**Spec:**` + `- **Parent program**:`、对 Version/Doc-type 两条 census 不可见**的 plan 夹具显式在册）；`preflight.test.ts` 的 `CONFORMING_SPEC`（`:120-149`）改 front-matter 头 + `## Design` 起始正文；**波末（T8 结束）恢复 engine 套件全绿**——T5 起登记表/anchor 翻面造成的红窗口在此关闭。
 - **Files**: Modify 三线并集 14 个测试文件（`contract/__tests__/doc.test.ts` · `judge.test.ts` · `lint.test.ts` · `face/__tests__/board-view.test.ts` · `capsule.test.ts` · `cli.test.ts` · `render/__tests__/skeleton.test.ts` · `render.test.ts` · `smoke.integration.test.ts` · `session/__tests__/preflight.test.ts` · `graph.test.ts` · `run.test.ts` · `wave.test.ts`）——第 14 个由 grep 并集结果确认；头部夹具行改 front-matter 元组（`---` + 键值 + 正文），4 个 plan 夹具补 `version`/`date` 与 chain 字段。
 - **Consumes**: Task 6（判定通道已读 typed record——夹具迁移后判官方可判）· Task 7（骨架已吐 front-matter——`CONFORMING_SPEC` 迁移后仍零结构 finding）。
-- **Produces**: 全部夹具头部进 front-matter；`CONFORMING_SPEC` 在 front-matter 形态下维持「零结构 finding」；engine 套件全绿红线（W7 的 T9/T10/T11/T12 都依赖它）。
+- **Produces**: 全部夹具头部进 front-matter；`CONFORMING_SPEC` 在 front-matter 形态下维持「零结构 finding」；engine 套件全绿红线（T9/T10/T11/T12 均依赖它）。
 - **Steps**:
   - 迁移前 census 基线复测（三线计数入此 task 记录）— checkable: `grep -rn --include=*.test.ts -F -- '- **Version**:' packages/cdd-engine/src-next` = 44 行/9 文件。
   - 14 文件头部夹具批量改写（含 4 个 plan 夹具补 `version`/`date`/`spec`/`parent-program` 键与正文 H1 删除）— checkable: 迁移后两条 census 零命中（`- **Version**:` 与 `- **Doc type**:` 各 0）。
@@ -152,7 +152,7 @@
 ### Task 10: 语料一次性迁移——21 篇脚本跑完即删 · 五卡口 · 续行剥两格 · 单提交
 - **Objective**: 写**一次性 Node 迁移脚本（不入仓·跑完即删）**，对迁移时刻在册的 **21 篇**（`docs/kairos/specs/*.md` 11 = 1 overall + 10 phase-spec design 含本 p10 design · `docs/kairos/plans/*.md` 10 = 9 + 本 p10 实施计划）执行 §5.1 迁移：头部元组 → front-matter（一律 `yaml.stringify` 发射、零拼串）、正文 H1 删、`parent-version` 从 4 条带 token 的 `**Parent program**` 行提取（无 token 的 15 条不产出该键）、overall `**Constraints**` 10 行续行（两格缩进）剥两格搬为 `## Constraints` 正文 bullet（落位 `## Boundary rules` 与 `## Maintenance` 之间 · 文案字节与行序零改）、非元组头部行逐字节透传（当前 0 条/0 篇）、`Issues` 收编分支（当前 0 条，由单元用例钉「旧形头行 → `issues:` 键」）。**五卡口**：`[` 起首 `author` 3 · 链接形 28 · 截断类 0 · 非元组头 0 · 续行 10 行/1 篇。回环断言 `yaml.parse(yaml.stringify(head))` 逐篇深相等。**迁移结果 = 一个独立 commit**（Mid-Flight Backfill 纪律 · §5.1 一次提交）。
 - **Files**: Script：`.tmp-p10-migrate/`（一次性）· Modified `docs/kairos/specs/*.md`（11）+ `docs/kairos/plans/*.md`（10）· Test `packages/cdd-engine/src-next/contract/__tests__/corpus-form-pin.test.ts`（常驻：21 篇逐篇首行 `---` · `yaml.parse` 键集 = 各自 registry frontmatter-home 集 · 头部元组零命中 grep · 「迁移前后 finding 集合逐条同集」守真判据；脚本删除后由它守住 §5.1/§6 形态 pin）
-- **Consumes**: Task 8（引擎套件全绿、判定面干净——迁移前后 finding 集合同集的判压基线成立）；**当前树干净**（本 plan 与前期 commit 已落，见 commit-plan）；p10 plan 自身迁移前的 0-finding 基线已在本 plan 自检阶段实测。
+- **Consumes**: Task 8（引擎套件全绿、判定面干净——迁移前后 finding 集合同集的判压基线成立）；**Task 9**（`BoardView.readDocType`/`readHeader` 重指 front-matter `doc-type`——迁移语料的判压与 board 视图都经它读型，T9 必须先于本 task）；**当前树干净**（本 plan 与前期 commit 已落，见 commit-plan）；p10 plan 自身迁移前的 0-finding 基线已在本 plan 自检阶段实测。
 - **Produces**: 21 篇 front-matter 化落盘的单个 commit；语料形态 pin 常驻（脚本删除后持续守住迁移结果）；`parent-version` 4 条在册。
 - **Steps**:
   - 写迁移脚本（globs 扫 21 篇 · 按注册表 frontmatter-home 键集发射 · 三类非法形状卡口计数 · 续行处理 · 非元组透传）— checkable: 干跑（`--dry-run`）输出三卡口 = 3 / 28 / 0。
@@ -163,7 +163,7 @@
   - 单元用例：`Issues` 收编分支（构造旧形 `Issues（收口时关闭）` 头行 → 迁移后落 `issues:` 键）— checkable: 用例 PASS。
   - 脚本删除 + 语料形态 pin 常驻入 engine suite + 单个 commit — checkable: `.tmp-p10-migrate/` 零残留；`git status` 只余迁移 diff；`git add docs/kairos + commit` 一次。
 - **Acceptance**: 21 篇 front-matter 化（首行 `---` · yaml.parse 键集 = 注册表 frontmatter-home 集 · 引擎 board/review 判压全绿）；五卡口达标（3/28/0/0/10 行 1 篇）；脚本不入仓；一次性 commit；形态 pin 常驻。
-- **DependsOn**: 8
+- **DependsOn**: 8, 9
 
 ### Task 11: 判定回归——版本血缘 / 父血缘 / presence / domain / RAW 五用例 + INPUT_SPEC 保活
 - **Objective**: §6 判定回归 pin 落成常驻 engine suite——①版本血缘判 negative（`SelfBoundedInvariant`：头 `version:` 落在 Change-history 血缘之外仍产 finding，构造 front-matter 头 + 不含该版号的 Change-history 表）；②父血缘判 negative（Class-B：`parent-version:` token 不在 parent 血缘仍产 finding，单位级 `ContractInput` + 注入 `chainDocs`（`{parentLink.target → OverallParsed}`），走 `judge.ts:49/:106` 的 chainDocs 缝、`parse` 双参——生产接线（preflight 装配 chainDocs map）不在本 phase 面）；③presence negative（缺 `status:` 键 → presence finding）；④domain negative（`status: Bogus` → domain finding）——③④证明判定确走 `FrontMatterExtractor` typed record 而非被行扫真空满足；⑤RAW 提取 positive（head 值含已登记中文别名如 `组` 时，`Contract.validate` 提取结果与源串逐字相同、同用例正文仍 canonicalize，断言两侧）。**INPUT_SPEC 保活**（head-required 调用点的行为断言）：`cli.test.ts:1785` / `:1819` 仍解析出 `- \`INPUT_SPEC\`: docs/kairos/specs/p3-design.md`——用例体不改、随 `cli.ts:773` 双参迁移自动覆盖。
@@ -180,13 +180,13 @@
 - **DependsOn**: 8
 
 ### Task 12: 消费面同步——skills + 引擎输出键化 + 两份 changeset + emit
-- **Objective**: §5.2 消费面同步（major breaking · 零 legacy 兼容）：plan 头约定键化——`cdd-plan/SKILL.md:44`（原 `**Spec:**` on line 2 → `spec:` front-matter key，与 review `--spec` 指针同源）· `cdd-report/SKILL.md:37`（program-attribution 第一跳表述同步）· pin 测试 `packages/kairos/tests/cdd-plan-spec.test.ts:30-39` **重锚不删**；引擎输出同步——`words.ts:100-101` `routeWords.docType` BLOCKED 文案改 front-matter 表述（`doc-type:` 键 + 枚举）＋三处 pin 文案重锚（`cli.test.ts:1971` · `capsule.test.ts:279` · `preflight.test.ts:443`）· **finding 面键化**：`Finding.field` 十处 anchor 字面量（invariants.ts:901/911/1022/1024/1030/1161/1170/1180/1199/1225）值改 front-matter key 或 key 派生显示形、固定 message 去 `**…**`、五测试文件 24 处引号字面量重锚（judge 15 · project 5 · doc 2 · cli 1 · lint 1，均在 T8 并集内）· `render/templates.ts:325` axesGuide 的 `**Spec:**` anchor 表述改「the plan's `spec` front-matter target」+ 同批 grep（迁移后引擎源码 `the plan's \`**Spec:**\` anchor` 零命中，不新增 prompt 文本 pin）· 两份 changeset（cdd-engine **major breaking** 落 pending · kairos skill 同步）· `pnpm run emit` 产物再生成。
-- **Files**: Modify `packages/kairos/skills/cdd-plan/SKILL.md` · `packages/kairos/skills/cdd-report/SKILL.md` · `packages/kairos/tests/cdd-plan-spec.test.ts` · `packages/cdd-engine/src-next/face/words.ts`（:100-101）· `packages/cdd-engine/src-next/render/templates.ts`（:325）· `packages/cdd-engine/src-next/contract/invariants.ts`（Finding.field/message 键化）· 五测试文件 24 处重锚 · Changeset `.changeset/<slug>.md` ×2 · 再生成产物随 `pnpm run emit`
+- **Objective**: §5.2 消费面同步（major breaking · 零 legacy 兼容）：plan 头约定键化——`cdd-plan/SKILL.md:44`（原 `**Spec:**` on line 2 → `spec:` front-matter key，与 review `--spec` 指针同源）· `cdd-report/SKILL.md:37`（program-attribution 第一跳表述同步）· pin 测试 `packages/kairos/tests/cdd-plan-spec.test.ts:30-39` **重锚不删**；引擎输出同步——`words.ts:100-101` `routeWords.docType` BLOCKED 文案改 front-matter 表述（`doc-type:` 键 + 枚举）＋三处 pin 文案重锚（`cli.test.ts:1971` · `capsule.test.ts:279` · `preflight.test.ts:443`）· **finding 面键化**：`Finding.field` 十处 anchor 字面量（invariants.ts:901/911/1022/1024/1030/1161/1170/1180/1199/1225）值改 front-matter key 或 key 派生显示形、固定 message 去 `**…**`、五测试文件字段位引号字面量重锚至 key 形态（judge · project · doc · cli · lint 五文件，均在 T8 并集内；覆盖判据 = 重锚后套件全绿、遗留任一字段位 `**…**` 即 FAIL，弃裸计数）· `render/templates.ts:325` axesGuide 的 `**Spec:**` anchor 表述改「the plan's `spec` front-matter target」+ 同批 grep（迁移后引擎源码 `the plan's \`**Spec:**\` anchor` 零命中，不新增 prompt 文本 pin）· 两份 changeset（cdd-engine **major breaking** 落 pending · kairos skill 同步）· `pnpm run emit` 产物再生成。
+- **Files**: Modify `packages/kairos/skills/cdd-plan/SKILL.md` · `packages/kairos/skills/cdd-report/SKILL.md` · `packages/kairos/tests/cdd-plan-spec.test.ts` · `packages/cdd-engine/src-next/face/words.ts`（:100-101）· `packages/cdd-engine/src-next/render/templates.ts`（:325）· `packages/cdd-engine/src-next/contract/invariants.ts`（Finding.field/message 键化）· 五测试文件字段位引号字面量断言重锚 · Changeset `.changeset/<slug>.md` ×2 · 再生成产物随 `pnpm run emit`
 - **Consumes**: Task 5（anchor=key 在册）· Task 6（finding 面键化后的判定）· Task 7/8（skeleton 与夹具已 front-matter——BLOCKED 文案/pin 说的形态已换）。
 - **Produces**: 消费面与引擎输出零 bullet 头字面量形态；BLOCKED 文案、axesGuide、skill 文本全部 front-matter 表述；changeset ×2（cdd-engine major 落 pending · kairos）；emit 产物 fresh。
 - **Steps**:
   - skill 文本 + cdd-plan-spec pin 测试重锚 — checkable: `grep -n '\\*\\*Spec:\\*\\*' packages/kairos/skills packages/kairos/tests` 零命中（`spec:` 键形态替代）；`pnpm -C packages/kairos test cdd-plan-spec` PASS。
-  - 引擎 BLOCKED 文案 + finding 面键化（words.ts · Finding.field/message · 24 处断言重锚）— checkable: 非测试生产文件 grep 零残留（`grep -rnE '\\*\\*(Version|Status|Author|Spec:|Parent program|Depends on|Base)\\*\\*' packages/cdd-engine/src-next --include='*.ts'` 排除 `__tests__` 退役/改写清单外零命中）；三处 BLOCKED pin 文案同步 PASS。
+  - 引擎 BLOCKED 文案 + finding 面键化（words.ts · Finding.field/message · 字段位引号字面量断言重锚）— checkable: 非测试生产文件 grep 零残留（`grep -rnE '\\*\\*(Version|Status|Author|Spec:|Parent program|Depends on|Base)\\*\\*' packages/cdd-engine/src-next --include='*.ts'` 排除 `__tests__` 退役/改写清单外零命中）；三处 BLOCKED pin 文案同步 PASS。
   - axesGuide 改写 — checkable: `grep -rn 'the plan.s \\*\\*Spec:\\*\\* .anchor' packages/cdd-engine/src-next` 零命中。
   - changeset ×2 + emit — checkable: `.changeset/` 下两份新 md 内容正确（cdd-engine major breaking · kairos）；`pnpm run emit` + `pnpm run emit:check` 无漂移。
   - kairos suite 全绿 — checkable: `pnpm -C packages/kairos test` PASS。
@@ -211,4 +211,5 @@
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.2 | 2026-10-17 | **plan-fix-1（plan-review-1 findings 收口 · 2 warn + 2 nit · 零 blocker）**：① warn（buildability）——Task 4（W2）的 42/31/27/16 迁移后对账断言移出本 task（随 T5 改 declare.ts 才成立），步骤 3 只做双常量 + 分侧计数判 today live 计数（overall 34 正文/5 头 · plan 22/6 · phase-spec 18/7 · single-spec 8/5），消除 W2 红落在声明红窗口（T5–T8）之外的越窗断言；② warn（buildability）——Task 10 DependsOn 增 9（readDocType/readHeader 的 front-matter 重指向仅在 Task 9，须先于语料判压与 board 视图落位），Consumes 同步列 Task 9，波次随边重列（八波 → 九波：W7={9,11,12} · W8={10} · W9={13}）；③ nit（completeness）——Task 12 弃「24 处引号字面量」裸计数、改覆盖判据（judge · project · doc · cli · lint 五文件字段位引号字面量重锚至 key 形态，重锚后套件全绿、遗留任一字段位 `**…**` 即 FAIL），Objective/Files/Step 同位改写；④ nit（completeness）——Constraints「变更先回填 parent overall」标注 spec 阶段已 discharge（D48 语义回填 + 用户裁定 backfill 提交），对格式迁移不适用。 | Oscar M. · Claude Opus 5（kairos:cdd-plan [P10] plan-fix-1） |
 | v0.1 | 2026-10-17 | 初稿：P10 实施计划——front-matter 迁移 13 任务 8 波（W1={1,2,3} · W2={4} · W3={5} · W4={6} · W5={7} · W6={8} · W7={9,10,11,12} · W8={13}）。源 spec v0.8；三条 plan-wave 裁定（declare.test.ts HOME_VALUES 副本保副本改名 · header valuePattern 保留在册重规格为标量形 · 双门数值 40/12）；中间态红窗口 T5–T8；本 plan 自身为 T10 迁移对象。 | Oscar M. · Claude Opus 5（kairos:cdd-plan [P10]） |

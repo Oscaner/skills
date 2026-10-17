@@ -3,11 +3,14 @@
 //
 // The declare module is the doc contract's single declaration: one typed
 // registry per doc type (overall-spec / plan / phase-spec / single-spec). These
-// tests pin the acceptance gates of the declared data — every registry inside
-// the 20–40 element band (single-spec is the declared lightweight exception,
-// exempted by name), every element carrying all five fields (anchor · presence ·
-// value pattern · ref kind · home), the presence and ref-kind vocabularies
-// staying inside their legal domains, and anchors unique per registry — plus the
+// tests pin the acceptance gates of the declared data — every full doc type
+// carrying at least MIN_ELEMENTS registered elements (single-spec is the declared
+// lightweight exception, exempted by name), each doc type's body side
+// (non-frontmatter homes) kept within MAX_BODY_ELEMENTS and its header side
+// (the frontmatter surface) within MAX_HEADER_ELEMENTS, every element carrying
+// all five fields (anchor · presence · value pattern · ref kind · home), the
+// presence and ref-kind vocabularies staying inside their legal domains, and
+// anchors unique per registry — plus the
 // runtime type guards and the type-level contract surface.
 //
 // The legal value vocabularies are pinned here as the spec-side source of truth
@@ -52,7 +55,26 @@ const HOME_VALUES = [
 ] as const satisfies readonly Home[];
 
 const MIN_ELEMENTS = 20;
-const MAX_ELEMENTS = 40;
+/** The body-side element gate — every non-frontmatter home (section / facet / table /
+ *  graph / task-block / task-field / task-step / design-body / conditional) tallies into
+ *  the body side; a doc type's body side must stay at or below this count. The value (40)
+ *  keeps today's live body-side highs (overall-spec 34 · plan 22 · phase-spec 18 ·
+ *  single-spec 8) inside the gate with the post-migration additions' margin. */
+const MAX_BODY_ELEMENTS = 40;
+/** The header-side element gate — the frontmatter surface (H1 + metadata rows). Today's
+ *  live header counts run overall-spec 5 / plan 6 / phase-spec 7 / single-spec 5; 12 keeps
+ *  the post-migration header additions inside the gate with margin. */
+const MAX_HEADER_ELEMENTS = 12;
+/** The two home partitions — the header side is the single `frontmatter` surface; the body
+ *  side is every remaining declared home (derived from HOME_VALUES, so a newly declared
+ *  home is classified body-side until explicitly moved into the header partition). */
+const HEADER_HOMES: ReadonlySet<Home> = new Set(["frontmatter"]);
+const BODY_HOMES: ReadonlySet<Home> = new Set(
+  HOME_VALUES.filter((home) => !HEADER_HOMES.has(home)),
+);
+/** Count the elements of a registry whose home falls inside the given partition. */
+const countByHome = (registry: ElementRegistry, homes: ReadonlySet<Home>): number =>
+  registry.elements.filter((element) => homes.has(element.home)).length;
 /** The declared light-weight exception — single-spec is a deliberately sparse
  *  scaffold (header five-tuple + four prose sections + the change-history trio)
  *  whose registered element set sits below the full-doc band by design
@@ -74,15 +96,30 @@ describe("declared registries", () => {
     expect(declaredRegistries["single-spec"].docType).toBe("single-spec");
   });
 
-  it("carries between 20 and 40 elements per full doc type (acceptance count gate)", () => {
+  it("carries at least 20 elements per full doc type (acceptance count gate)", () => {
     for (const registry of ALL_REGISTRIES) {
       if (LIGHTWEIGHT_DOC_TYPES.has(registry.docType)) continue;
       expect(registry.elements.length, `${registry.docType} element count`).toBeGreaterThanOrEqual(
         MIN_ELEMENTS,
       );
-      expect(registry.elements.length, `${registry.docType} element count`).toBeLessThanOrEqual(
-        MAX_ELEMENTS,
-      );
+    }
+  });
+
+  it("keeps the header side (frontmatter home) within MAX_HEADER_ELEMENTS per doc type", () => {
+    for (const registry of ALL_REGISTRIES) {
+      expect(
+        countByHome(registry, HEADER_HOMES),
+        `${registry.docType} header element count`,
+      ).toBeLessThanOrEqual(MAX_HEADER_ELEMENTS);
+    }
+  });
+
+  it("keeps the body side (every non-frontmatter home) within MAX_BODY_ELEMENTS per doc type", () => {
+    for (const registry of ALL_REGISTRIES) {
+      expect(
+        countByHome(registry, BODY_HOMES),
+        `${registry.docType} body element count`,
+      ).toBeLessThanOrEqual(MAX_BODY_ELEMENTS);
     }
   });
 

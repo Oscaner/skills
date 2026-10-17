@@ -2,33 +2,48 @@
   "docType": "single-spec",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "single-spec document structure",
-  "description": "Derived JSON Schema — 13 declared elements · 13 required",
+  "description": "Derived JSON Schema — 16 declared elements · 15 required",
   "type": "object",
   "properties": {
-    "# Title": {
+    "title": {
       "type": "string",
-      "pattern": "^# \\S.*$",
+      "pattern": "^.+$",
       "description": "presence: required · home: frontmatter · ref: none"
     },
-    "**Version**": {
+    "doc-type": {
       "type": "string",
-      "pattern": "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+ · \\d{4}-\\d{2}-\\d{2}$",
+      "pattern": "^(overall-spec|plan|phase-spec|single-spec)$",
+      "description": "presence: required · home: frontmatter · ref: none"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^v\\d+\\.\\d+$",
       "description": "presence: required · home: frontmatter · ref: version-lineage"
     },
-    "**Status**": {
+    "date": {
       "type": "string",
-      "pattern": "^- \\*\\*Status\\*\\*: (Draft|Approved|In progress|Complete)$",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
       "description": "presence: required · home: frontmatter · ref: none"
     },
-    "**Author**": {
+    "status": {
       "type": "string",
-      "pattern": "^- \\*\\*Author\\*\\*:",
+      "pattern": "^(Draft|Approved|In progress|Complete)$",
       "description": "presence: required · home: frontmatter · ref: none"
     },
-    "**Depends on**": {
+    "author": {
       "type": "string",
-      "pattern": "^- \\*\\*Depends on\\*\\*:",
+      "pattern": "^.+$",
       "description": "presence: required · home: frontmatter · ref: none"
+    },
+    "depends-on": {
+      "type": "string",
+      "pattern": "^.+$",
+      "description": "presence: required · home: frontmatter · ref: none"
+    },
+    "issues": {
+      "type": "string",
+      "pattern": "^.+$",
+      "description": "presence: optional · home: frontmatter · ref: none"
     },
     "## Background & root cause": {
       "type": "string",
@@ -72,11 +87,13 @@
     }
   },
   "required": [
-    "# Title",
-    "**Version**",
-    "**Status**",
-    "**Author**",
-    "**Depends on**",
+    "title",
+    "doc-type",
+    "version",
+    "date",
+    "status",
+    "author",
+    "depends-on",
     "## Background & root cause",
     "## Design decisions",
     "## Acceptance",

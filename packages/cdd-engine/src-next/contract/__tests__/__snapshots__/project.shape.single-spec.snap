@@ -5,28 +5,43 @@
       "home": "frontmatter",
       "elements": [
         {
-          "anchor": "# Title",
+          "anchor": "title",
           "presence": "required",
           "refKind": "none"
         },
         {
-          "anchor": "**Version**",
+          "anchor": "doc-type",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "version",
           "presence": "required",
           "refKind": "version-lineage"
         },
         {
-          "anchor": "**Status**",
+          "anchor": "date",
           "presence": "required",
           "refKind": "none"
         },
         {
-          "anchor": "**Author**",
+          "anchor": "status",
           "presence": "required",
           "refKind": "none"
         },
         {
-          "anchor": "**Depends on**",
+          "anchor": "author",
           "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "depends-on",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "issues",
+          "presence": "optional",
           "refKind": "none"
         }
       ]

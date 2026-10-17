@@ -2,43 +2,53 @@
   "docType": "phase-spec",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "phase-spec document structure",
-  "description": "Derived JSON Schema — 25 declared elements · 17 required",
+  "description": "Derived JSON Schema — 27 declared elements · 19 required",
   "type": "object",
   "properties": {
-    "# Title": {
+    "title": {
       "type": "string",
-      "pattern": "^# \\S.*$",
+      "pattern": "^.+$",
       "description": "presence: required · home: frontmatter · ref: none"
     },
-    "**Version**": {
+    "doc-type": {
       "type": "string",
-      "pattern": "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+ · \\d{4}-\\d{2}-\\d{2}$",
+      "pattern": "^(overall-spec|plan|phase-spec|single-spec)$",
+      "description": "presence: required · home: frontmatter · ref: none"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^v\\d+\\.\\d+$",
       "description": "presence: required · home: frontmatter · ref: version-lineage"
     },
-    "**Status**": {
+    "date": {
       "type": "string",
-      "pattern": "^- \\*\\*Status\\*\\*: (Draft|Approved|Plan pending|Shipped)$",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
       "description": "presence: required · home: frontmatter · ref: none"
     },
-    "**Author**": {
+    "status": {
       "type": "string",
-      "pattern": "^- \\*\\*Author\\*\\*:",
+      "pattern": "^(Draft|Approved|Plan pending|Shipped)$",
       "description": "presence: required · home: frontmatter · ref: none"
     },
-    "**Parent program**": {
+    "author": {
       "type": "string",
-      "pattern": "^- \\*\\*Parent program\\*\\*:? \\[[^\\]]+\\]\\([^)]+\\)",
+      "pattern": "^.+$",
+      "description": "presence: required · home: frontmatter · ref: none"
+    },
+    "parent-program": {
+      "type": "string",
+      "pattern": "^.+$",
       "description": "presence: required · home: frontmatter · ref: parent-program"
     },
-    "**Depends on**": {
+    "parent-version": {
       "type": "string",
-      "pattern": "^- \\*\\*Depends on\\*\\*:",
-      "description": "presence: required · home: frontmatter · ref: none"
+      "pattern": "^v\\d+\\.\\d+$",
+      "description": "presence: optional · home: frontmatter · ref: version-lineage"
     },
-    "Depends on ref": {
+    "depends-on": {
       "type": "string",
-      "pattern": "^P\\d+(\\.\\d+)*",
-      "description": "presence: conditional · home: frontmatter · ref: phase-id"
+      "pattern": "^.+$",
+      "description": "presence: required · home: frontmatter · ref: none"
     },
     "## Design": {
       "type": "string",
@@ -132,12 +142,14 @@
     }
   },
   "required": [
-    "# Title",
-    "**Version**",
-    "**Status**",
-    "**Author**",
-    "**Parent program**",
-    "**Depends on**",
+    "title",
+    "doc-type",
+    "version",
+    "date",
+    "status",
+    "author",
+    "parent-program",
+    "depends-on",
     "## Design",
     "### N. group heading",
     "#### N.M item heading",

@@ -13,10 +13,9 @@
 // The element lines are enumerated from the methodology skeleton semantics (the
 // machine skeleton of each doc type as pinned by the four repo schema JSONs,
 // read as steady contract data) — freshly declared anchors, never cut from the
-// old tree's sources. Counts stand at overall-spec 39 / plan 28 / phase-spec 25 /
-// single-spec 13,
-// each within the planned 20–40 band (single-spec deliberately below it — the
-// lightweight-scaffold charter) and each element carrying all five fields
+// old tree's sources. Counts stand at overall-spec 42 / plan 31 / phase-spec 27 /
+// single-spec 16, each within the post-frontmatter band (single-spec below 20 —
+// the lightweight-scaffold charter) and each element carrying all five fields
 // (a completeness contract enforced by the array shape below and by the test
 // suite, which pins presence/ref-kind domains and per-registry anchor
 // uniqueness).
@@ -53,7 +52,7 @@ export type Home =
 
 /** One declared element: a structural fact of a doc type's skeleton. */
 export interface RegistryElement {
-  /** The machine anchor token the engine keys on — a heading literal, a header marker, or a row/field key. */
+  /** The machine anchor token the engine keys on — a heading literal, a YAML front-matter key, or a row/field key. */
   anchor: string;
   /** Whether a conforming document must carry the element, may carry it, or carries it only when its condition holds. */
   presence: Presence;
@@ -169,39 +168,47 @@ export class RegistryGuard {
 // overall-spec — the charter section surface
 // ---------------------------------------------------------------------------
 const OVERALL_SPEC_ELEMENTS = [
-  // Header block (H1 + bullet metadata).
+  // Header block — YAML front-matter keys (a frontmatter-home anchor IS the
+  // front-matter key name; the value patterns are scalar shapes, §2.3).
   {
-    anchor: "# Title",
+    anchor: "title",
     presence: "required",
-    valuePattern: "^# \\S.*$",
+    valuePattern: "^.+$",
     refKind: "none",
     home: "frontmatter",
   },
   {
-    anchor: "**Version**",
+    anchor: "doc-type",
     presence: "required",
-    valuePattern: "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+ · \\d{4}-\\d{2}-\\d{2}$",
+    valuePattern: `^(${DOC_TYPE_VALUES.join("|")})$`,
+    refKind: "none",
+    home: "frontmatter",
+  },
+  {
+    anchor: "version",
+    presence: "required",
+    valuePattern: "^v\\d+\\.\\d+$",
     refKind: "version-lineage",
     home: "frontmatter",
   },
   {
-    anchor: "**Status**",
+    anchor: "date",
     presence: "required",
-    valuePattern: "^- \\*\\*Status\\*\\*: (Draft|Approved|In progress|Complete)$",
+    valuePattern: "^\\d{4}-\\d{2}-\\d{2}$",
     refKind: "none",
     home: "frontmatter",
   },
   {
-    anchor: "**Author**",
+    anchor: "status",
     presence: "required",
-    valuePattern: "^- \\*\\*Author\\*\\*:",
+    valuePattern: "^(Draft|Approved|In progress|Complete)$",
     refKind: "none",
     home: "frontmatter",
   },
   {
-    anchor: "**Constraints**",
+    anchor: "author",
     presence: "required",
-    valuePattern: "^- \\*\\*Constraints\\*\\*:",
+    valuePattern: "^.+$",
     refKind: "none",
     home: "frontmatter",
   },
@@ -252,6 +259,23 @@ const OVERALL_SPEC_ELEMENTS = [
     anchor: "## Boundary rules",
     presence: "required",
     valuePattern: "^## Boundary rules$",
+    refKind: "none",
+    home: "section",
+  },
+  // The constraint surface (Form A delta-only) — the retired overall Constraints
+  // header bullet normalised to the body section + its delta bullet (the body
+  // anchor must be declared before the skeleton composes it, §2.4).
+  {
+    anchor: "## Constraints",
+    presence: "required",
+    valuePattern: "^## Constraints$",
+    refKind: "none",
+    home: "section",
+  },
+  {
+    anchor: "Constraint delta bullet",
+    presence: "required",
+    valuePattern: "^- ",
     refKind: "none",
     home: "section",
   },
@@ -463,46 +487,69 @@ const OVERALL_SPEC_ELEMENTS = [
 // plan — the task-block + header-field surface
 // ---------------------------------------------------------------------------
 const PLAN_ELEMENTS = [
-  // Header block (H1 + header fields).
+  // Header block — YAML front-matter keys (the frontmatter-home anchor IS the
+  // front-matter key name). Plan deliberately omits `status` / `author` — no
+  // plan head carries either row (the per-type presence contract of §2.3).
   {
-    anchor: "# Title",
+    anchor: "title",
     presence: "required",
-    valuePattern: "^# \\S.*$",
+    valuePattern: "^.+$",
     refKind: "none",
     home: "frontmatter",
   },
   {
-    anchor: "**Spec:**",
+    anchor: "doc-type",
     presence: "required",
-    valuePattern: "^\\*\\*Spec:\\*\\*\\s+\\[[^\\]]+\\]\\([^)]+\\)$",
-    refKind: "spec-ref",
+    valuePattern: `^(${DOC_TYPE_VALUES.join("|")})$`,
+    refKind: "none",
     home: "frontmatter",
   },
   {
-    anchor: "**Parent program**",
+    anchor: "version",
     presence: "required",
-    valuePattern: "^- \\*\\*Parent program\\*\\*:? \\[[^\\]]+\\]\\([^)]+\\)",
-    refKind: "parent-program",
-    home: "frontmatter",
-  },
-  {
-    anchor: "**Version**",
-    presence: "required",
-    valuePattern: "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+ · \\d{4}-\\d{2}-\\d{2}$",
+    valuePattern: "^v\\d+\\.\\d+$",
     refKind: "version-lineage",
     home: "frontmatter",
   },
   {
-    anchor: "**Depends on**",
+    anchor: "date",
+    presence: "required",
+    valuePattern: "^\\d{4}-\\d{2}-\\d{2}$",
+    refKind: "none",
+    home: "frontmatter",
+  },
+  {
+    anchor: "spec",
+    presence: "required",
+    valuePattern: "^.+$",
+    refKind: "spec-ref",
+    home: "frontmatter",
+  },
+  {
+    anchor: "parent-program",
+    presence: "required",
+    valuePattern: "^.+$",
+    refKind: "parent-program",
+    home: "frontmatter",
+  },
+  {
+    anchor: "parent-version",
     presence: "optional",
-    valuePattern: "^- \\*\\*Depends on\\*\\*:",
+    valuePattern: "^v\\d+\\.\\d+$",
+    refKind: "version-lineage",
+    home: "frontmatter",
+  },
+  {
+    anchor: "depends-on",
+    presence: "optional",
+    valuePattern: "^.+$",
     refKind: "phase-id",
     home: "frontmatter",
   },
   {
-    anchor: "**Base**",
+    anchor: "base",
     presence: "optional",
-    valuePattern: "^- \\*\\*Base\\*\\*:",
+    valuePattern: "^.+$",
     refKind: "none",
     home: "frontmatter",
   },
@@ -683,54 +730,71 @@ const PLAN_ELEMENTS = [
 // phase-spec — the skeleton surface
 // ---------------------------------------------------------------------------
 const PHASE_SPEC_ELEMENTS = [
-  // Header five-tuple — `**Version**` strictly required.
+  // Header block — YAML front-matter keys (the frontmatter-home anchor IS the
+  // key name). The old line-scan phase-id fallback is retired — its anchor never
+  // appeared in any document literal and it had zero consumers; the phase-id
+  // reference class rides the plan `depends-on` row.
   {
-    anchor: "# Title",
+    anchor: "title",
     presence: "required",
-    valuePattern: "^# \\S.*$",
+    valuePattern: "^.+$",
     refKind: "none",
     home: "frontmatter",
   },
   {
-    anchor: "**Version**",
+    anchor: "doc-type",
     presence: "required",
-    valuePattern: "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+ · \\d{4}-\\d{2}-\\d{2}$",
+    valuePattern: `^(${DOC_TYPE_VALUES.join("|")})$`,
+    refKind: "none",
+    home: "frontmatter",
+  },
+  {
+    anchor: "version",
+    presence: "required",
+    valuePattern: "^v\\d+\\.\\d+$",
     refKind: "version-lineage",
     home: "frontmatter",
   },
   {
-    anchor: "**Status**",
+    anchor: "date",
     presence: "required",
-    valuePattern: "^- \\*\\*Status\\*\\*: (Draft|Approved|Plan pending|Shipped)$",
+    valuePattern: "^\\d{4}-\\d{2}-\\d{2}$",
     refKind: "none",
     home: "frontmatter",
   },
   {
-    anchor: "**Author**",
+    anchor: "status",
     presence: "required",
-    valuePattern: "^- \\*\\*Author\\*\\*:",
+    valuePattern: "^(Draft|Approved|Plan pending|Shipped)$",
     refKind: "none",
     home: "frontmatter",
   },
   {
-    anchor: "**Parent program**",
+    anchor: "author",
     presence: "required",
-    valuePattern: "^- \\*\\*Parent program\\*\\*:? \\[[^\\]]+\\]\\([^)]+\\)",
+    valuePattern: "^.+$",
+    refKind: "none",
+    home: "frontmatter",
+  },
+  {
+    anchor: "parent-program",
+    presence: "required",
+    valuePattern: "^.+$",
     refKind: "parent-program",
     home: "frontmatter",
   },
   {
-    anchor: "**Depends on**",
-    presence: "required",
-    valuePattern: "^- \\*\\*Depends on\\*\\*:",
-    refKind: "none",
+    anchor: "parent-version",
+    presence: "optional",
+    valuePattern: "^v\\d+\\.\\d+$",
+    refKind: "version-lineage",
     home: "frontmatter",
   },
   {
-    anchor: "Depends on ref",
-    presence: "conditional",
-    valuePattern: "^P\\d+(\\.\\d+)*",
-    refKind: "phase-id",
+    anchor: "depends-on",
+    presence: "required",
+    valuePattern: "^.+$",
+    refKind: "none",
     home: "frontmatter",
   },
   // The double-layer design body.
@@ -872,45 +936,69 @@ const PHASE_SPEC_ELEMENTS = [
 // ---------------------------------------------------------------------------
 // The fourth doc type — the repair/ruling-oriented free-form document (the
 // 2026-09-28-cdd-review-contract-fix "single-spec" form). Deliberately lighter
-// than phase-spec: a header five-tuple (title / version / status / author /
-// `- **Depends on**`), four prose body sections and the change-history lineage.
-// No `### N.` double-layer outline (the free-form has no numbered design groups),
-// no `**Parent program**` requirement (a single-spec has no parent overall — an
-// independent program shape). The fixed section sequence runs in document order.
+// than phase-spec: a front-matter key set (title / doc-type / version / date /
+// status / author / depends-on / issues), four prose body sections and the
+// change-history lineage. No `### N.` double-layer outline (the free-form has no
+// numbered design groups), no parent-program key (a single-spec has no parent
+// overall — an independent program shape). The fixed section sequence runs in
+// document order.
 const SINGLE_SPEC_ELEMENTS = [
-  // Header five-tuple — title + the four bullet metadata rows.
+  // Header block — YAML front-matter keys (the frontmatter-home anchor IS the
+  // key name). The repaired/ruling carrier keeps the issue pointer as an
+  // optional `issues` scalar (single-spec only, §2.3).
   {
-    anchor: "# Title",
+    anchor: "title",
     presence: "required",
-    valuePattern: "^# \\S.*$",
+    valuePattern: "^.+$",
     refKind: "none",
     home: "frontmatter",
   },
   {
-    anchor: "**Version**",
+    anchor: "doc-type",
     presence: "required",
-    valuePattern: "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+ · \\d{4}-\\d{2}-\\d{2}$",
+    valuePattern: `^(${DOC_TYPE_VALUES.join("|")})$`,
+    refKind: "none",
+    home: "frontmatter",
+  },
+  {
+    anchor: "version",
+    presence: "required",
+    valuePattern: "^v\\d+\\.\\d+$",
     refKind: "version-lineage",
     home: "frontmatter",
   },
   {
-    anchor: "**Status**",
+    anchor: "date",
     presence: "required",
-    valuePattern: "^- \\*\\*Status\\*\\*: (Draft|Approved|In progress|Complete)$",
+    valuePattern: "^\\d{4}-\\d{2}-\\d{2}$",
     refKind: "none",
     home: "frontmatter",
   },
   {
-    anchor: "**Author**",
+    anchor: "status",
     presence: "required",
-    valuePattern: "^- \\*\\*Author\\*\\*:",
+    valuePattern: "^(Draft|Approved|In progress|Complete)$",
     refKind: "none",
     home: "frontmatter",
   },
   {
-    anchor: "**Depends on**",
+    anchor: "author",
     presence: "required",
-    valuePattern: "^- \\*\\*Depends on\\*\\*:",
+    valuePattern: "^.+$",
+    refKind: "none",
+    home: "frontmatter",
+  },
+  {
+    anchor: "depends-on",
+    presence: "required",
+    valuePattern: "^.+$",
+    refKind: "none",
+    home: "frontmatter",
+  },
+  {
+    anchor: "issues",
+    presence: "optional",
+    valuePattern: "^.+$",
     refKind: "none",
     home: "frontmatter",
   },

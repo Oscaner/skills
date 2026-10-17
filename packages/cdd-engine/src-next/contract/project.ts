@@ -13,10 +13,11 @@
 //   · schema      — a JSON Schema per doc type (properties keyed by anchor, the
 //                   required set from the required-presence elements, property
 //                   descriptions carrying presence · home · ref-kind);
-//   · slices      — the parse face: every element's anchor-literal slice (escaped
-//                   anchor, closed under parsing — each slice parses its anchor)
-//                   plus the declared value pattern compiled for line/cell
-//                   matching;
+//   · slices      — the parse face: every element's anchor-literal slice plus the
+//                   declared value pattern compiled for line/cell matching.
+//                   Frontmatter-home elements are exempt from both compilations —
+//                   their anchor is a YAML key, looked up directly against the
+//                   parsed front-matter, never scanned line-by-line (§3.3);
 //   · tokens      — the flat anchor lexicon, one token per registered element;
 //   · reference   — the per-element reference vocabulary (ref-kind + value
 //                   pattern), one entry per registered element;
@@ -151,12 +152,17 @@ export interface ElementSlice {
   /** The document surface the anchor lives in. */
   home: Home;
   /**
-   * The anchor-literal slice — the escaped anchor compiled. It parses the
-   * anchor itself (each slice parses its own anchor) and locates the literal
-   * token inside a document line.
+   * The anchor-literal slice — the escaped anchor compiled for body surfaces
+   * (home !== "frontmatter"). It parses the anchor itself (each slice parses its
+   * own anchor) and locates the literal token inside a document line.
+   * Frontmatter-home elements carry no compiled pattern — their anchor is a YAML
+   * key, looked up directly against the parsed front-matter, never a line scan
+   * (§3.3).
    */
-  anchorPattern: RegExp;
-  /** The value slice — the declared value pattern compiled; matches the element's line/cell in a document. */
+  anchorPattern?: RegExp;
+  /** The value slice — the declared value pattern compiled for body surfaces;
+   *  undefined on frontmatter-home elements (their values are judged against the
+   *  declared scalar pattern in the registry, not a compiled line slice). */
   valuePattern?: RegExp;
 }
 
@@ -448,13 +454,19 @@ export class Projector {
   #projectDocSlices(registry: ElementRegistry): DocSlices {
     const slices: ElementSlice[] = [];
     for (const element of this.#deriveRegistry(registry)) {
+      // Frontmatter-home elements anchor on YAML keys — a key is looked up
+      // directly against the parsed front-matter, so both RegExp compilations
+      // (anchor + value) stop on the header leg (§3.3).
+      const header = element.home === "frontmatter";
       slices.push({
         anchor: element.anchor,
         presence: element.presence,
         home: element.home,
-        anchorPattern: new RegExp(Projector.#escapeRegExp(element.anchor)),
+        anchorPattern: header ? undefined : new RegExp(Projector.#escapeRegExp(element.anchor)),
         valuePattern:
-          element.valuePattern === undefined ? undefined : new RegExp(element.valuePattern),
+          element.valuePattern === undefined || header
+            ? undefined
+            : new RegExp(element.valuePattern),
       });
     }
     return { docType: registry.docType, slices };
@@ -541,15 +553,16 @@ export class Projector {
    *                       fully-anchored enum / graph elements).
    */
   #skeletonSlotOf(element: DerivedElement): SlotKind {
-    // The link-typed anchor slots are the front-matter parent-program / spec-ref links
-    // (`**Parent program**` · the plan's `**Spec:**`) — the enum-typed table cells
-    // (a Design-spec cell, a markdown-link implementation-plan cell) ride the
-    // generator-truth class, never a link slot.
+    // The link-typed anchor slots are the front-matter link keys (`spec` · the
+    // `parent-program` of plan / phase-spec) — their values render as placeholder
+    // links (`<…>` targets on the exemption chain), never `:::fill`. The
+    // enum-typed table cells (a Design-spec cell, a markdown-link
+    // implementation-plan cell) ride the generator-truth class, never a link
+    // slot — the home + ref-kind pair keys the class (the frontmatter-home
+    // anchors are now YAML keys, so the old `\[`-shape probe no longer applies).
     if (
       element.home === "frontmatter" &&
-      (element.refKind === "parent-program" || element.refKind === "spec-ref") &&
-      element.valuePattern !== undefined &&
-      /\\\[/.test(element.valuePattern)
+      (element.refKind === "parent-program" || element.refKind === "spec-ref")
     )
       return "link";
     if (
@@ -558,7 +571,9 @@ export class Projector {
       /\\d/.test(element.valuePattern)
     )
       return "numeric-heading";
-    if (element.anchor === "**Version**") return "scaffold";
+    // The front-matter version and date rows are fixed scaffold — the same class
+    // as the table version/date tokens.
+    if (element.anchor === "version" || element.anchor === "date") return "scaffold";
     if (element.home === "graph" || Projector.#isEnumPattern(element.valuePattern))
       return "generator-truth";
     if (element.home === "table") {
@@ -572,7 +587,7 @@ export class Projector {
     }
     // The doc title is the header's one free-text position (a fill slot) — every
     // other remaining heading anchor is fixed structure.
-    if (element.anchor === "# Title") return "content";
+    if (element.anchor === "title") return "content";
     if (element.anchor.startsWith("#")) return "scaffold";
     return "content";
   }

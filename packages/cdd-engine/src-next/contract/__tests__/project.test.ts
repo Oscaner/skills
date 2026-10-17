@@ -10,7 +10,9 @@
 //     snapshot-pinned from the new tree's first version;
 //   · Projector.shape — the shape elements correspond 1:1 with the registered
 //     elements (grouped into the section skeleton), also snapshot-pinned;
-//   · Projector.slices — every declared element's slice parses its own anchor;
+//   · Projector.slices — every body element's slice parses its own anchor; the
+//     frontmatter-home rows carry no compiled pattern (a YAML key is looked up
+//     directly, never a line scan);
 //   · Projector.tokens / Projector.reference — both surfaces correspond 1:1
 //     with the registered elements.
 // Every projection is derived: the registered declaration and known-good anchor
@@ -169,10 +171,19 @@ describe("slices projection (Projector.slices)", () => {
         const element = registry.elements[i];
         const slice = doc.slices[i];
         expect(slice.anchor).toBe(element.anchor);
+        if (element.home === "frontmatter") {
+          // Frontmatter-home elements anchor on a YAML key — never compiled into
+          // a line scan; both the anchor and value RegExp compilations stop on
+          // the header leg (§3.3).
+          expect(slice.anchorPattern, `${registry.docType}:${element.anchor}`).toBeUndefined();
+          expect(slice.valuePattern, `${registry.docType}:${element.anchor}`).toBeUndefined();
+          continue;
+        }
         expect(slice.anchorPattern, `${registry.docType}:${element.anchor}`).toBeInstanceOf(RegExp);
         // The slice parses its anchor — the escaped anchor literal matches the anchor itself.
+        // (Non-null: the body-home contract above guarantees a compiled pattern.)
         expect(
-          slice.anchorPattern.test(element.anchor),
+          slice.anchorPattern!.test(element.anchor),
           `${registry.docType}:${element.anchor} anchorPattern`,
         ).toBe(true);
       }
@@ -181,22 +192,32 @@ describe("slices projection (Projector.slices)", () => {
 
   it("derives the anchor pattern from the anchor literal (known-good escapes)", () => {
     const overall = slices["overall-spec"];
-    // No metacharacters: the anchor is its own pattern.
-    expect(overall.slices[0].anchorPattern.source).toBe("# Title");
-    // `**Version**` — every `*` escaped.
-    expect(overall.slices[1].anchorPattern.source).toBe("\\*\\*Version\\*\\*");
+    // The two leading rows are front-matter keys — the slice carries the key as
+    // a literal, no compiled line scan.
+    expect(overall.slices[0].anchor).toBe("title");
+    expect(overall.slices[0].anchorPattern).toBeUndefined();
+    expect(overall.slices.find((s) => s.anchor === "version")?.anchorPattern).toBeUndefined();
+    // `## Document scope` — no metacharacters: the anchor is its own pattern.
+    const scope = overall.slices.find((s) => s.anchor === "## Document scope")!;
+    expect(scope.anchorPattern?.source).toBe("## Document scope");
     // `#### [MFRBEN] group` — brackets escaped (the anchor is the English canonical;
     // the legacy zh leaf matches through the judge's canonicalize view, never here).
     const mfrben = overall.slices.find((slice) => slice.anchor === "#### [MFRBEN] group")!;
-    expect(mfrben.anchorPattern.source).toBe("#### \\[MFRBEN\\] group");
+    expect(mfrben.anchorPattern?.source).toBe("#### \\[MFRBEN\\] group");
   });
 
-  it("derives the value slice from the declared value pattern", () => {
+  it("derives the value slice from the declared value pattern (body surfaces only)", () => {
     for (const [index, registry] of REGISTRIES.entries()) {
       const doc = slices[DOC_KEYS[index]];
       for (let i = 0; i < registry.elements.length; i++) {
         const element = registry.elements[i];
         const slice = doc.slices[i];
+        if (element.home === "frontmatter") {
+          // The registry still declares the scalar shape (the domain judgment
+          // reads it from the registry, never a compiled line slice).
+          expect(slice.valuePattern, `${registry.docType}:${element.anchor}`).toBeUndefined();
+          continue;
+        }
         expect(slice.valuePattern, `${registry.docType}:${element.anchor}`).toBeInstanceOf(RegExp);
         if (element.valuePattern !== undefined) {
           expect(slice.valuePattern?.source).toBe(element.valuePattern);
@@ -313,15 +334,15 @@ describe("skeleton projection (Projector.skeleton)", () => {
       const linkSlots = doc.slots.filter((slot) => slot.slot === "link");
       for (const slot of linkSlots) {
         const element = registry.elements.find((e) => e.anchor === slot.anchor);
-        // the link class is exactly the front-matter parent-program / spec-ref anchors
-        // (never the enum-typed table cells that also mention spec/ref)
+        // the link class is exactly the frontmatter-home parent-program / spec-ref
+        // keys (never the enum-typed table cells that also mention spec/ref)
         expect(element?.home).toBe("frontmatter");
         expect(["parent-program", "spec-ref"]).toContain(slot.refKind);
       }
     }
-    expect(skeletons.plan.slots.find((s) => s.anchor === "**Spec:**")?.slot).toBe("link");
-    expect(skeletons.plan.slots.find((s) => s.anchor === "**Parent program**")?.slot).toBe("link");
-    expect(skeletons["phase-spec"].slots.find((s) => s.anchor === "**Parent program**")?.slot).toBe(
+    expect(skeletons.plan.slots.find((s) => s.anchor === "spec")?.slot).toBe("link");
+    expect(skeletons.plan.slots.find((s) => s.anchor === "parent-program")?.slot).toBe("link");
+    expect(skeletons["phase-spec"].slots.find((s) => s.anchor === "parent-program")?.slot).toBe(
       "link",
     );
   });
@@ -344,10 +365,10 @@ describe("skeleton projection (Projector.skeleton)", () => {
     }
   });
 
-  it("classifies the enum domain (**Status**) and the graph rows as generator-truth", () => {
+  it("classifies the enum domain (status) and the graph rows as generator-truth", () => {
     for (const [index] of REGISTRIES.entries()) {
       const doc = skeletons[DOC_KEYS[index]];
-      const status = doc.slots.find((slot) => slot.anchor === "**Status**");
+      const status = doc.slots.find((slot) => slot.anchor === "status");
       if (status !== undefined) expect(status.slot).toBe("generator-truth");
       for (const anchor of ["Hard edge", "Graph legend"]) {
         const slot = doc.slots.find((s) => s.anchor === anchor);
@@ -363,7 +384,8 @@ describe("skeleton projection (Projector.skeleton)", () => {
     for (const [index] of REGISTRIES.entries()) {
       const doc = skeletons[DOC_KEYS[index]];
       for (const anchor of [
-        "**Version**",
+        "version",
+        "date",
         "Version token",
         "Change history date",
         "Phase id token",
@@ -377,9 +399,11 @@ describe("skeleton projection (Projector.skeleton)", () => {
   it("keeps the content slots free of fully-anchored enum and graph elements", () => {
     // the enum-domain + graph rows the generator-truth class owns — none of them
     // may ride the content class (a content slot is a free-text `:::fill` landing
-    // position, never a judged enum/graph value)
+    // position, never a judged enum/graph value). The anchors are the front-matter
+    // keys (`status` · `doc-type`) plus the enum-typed table cells and the graph rows.
     const truthAnchors = [
-      "**Status**",
+      "status",
+      "doc-type",
       "Issue ref cell",
       "Implementation plan cell",
       "Design spec cell",

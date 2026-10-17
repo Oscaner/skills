@@ -2,32 +2,37 @@
   "docType": "overall-spec",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "overall-spec document structure",
-  "description": "Derived JSON Schema — 39 declared elements · 32 required",
+  "description": "Derived JSON Schema — 42 declared elements · 35 required",
   "type": "object",
   "properties": {
-    "# Title": {
+    "title": {
       "type": "string",
-      "pattern": "^# \\S.*$",
+      "pattern": "^.+$",
       "description": "presence: required · home: frontmatter · ref: none"
     },
-    "**Version**": {
+    "doc-type": {
       "type": "string",
-      "pattern": "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+ · \\d{4}-\\d{2}-\\d{2}$",
+      "pattern": "^(overall-spec|plan|phase-spec|single-spec)$",
+      "description": "presence: required · home: frontmatter · ref: none"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^v\\d+\\.\\d+$",
       "description": "presence: required · home: frontmatter · ref: version-lineage"
     },
-    "**Status**": {
+    "date": {
       "type": "string",
-      "pattern": "^- \\*\\*Status\\*\\*: (Draft|Approved|In progress|Complete)$",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
       "description": "presence: required · home: frontmatter · ref: none"
     },
-    "**Author**": {
+    "status": {
       "type": "string",
-      "pattern": "^- \\*\\*Author\\*\\*:",
+      "pattern": "^(Draft|Approved|In progress|Complete)$",
       "description": "presence: required · home: frontmatter · ref: none"
     },
-    "**Constraints**": {
+    "author": {
       "type": "string",
-      "pattern": "^- \\*\\*Constraints\\*\\*:",
+      "pattern": "^.+$",
       "description": "presence: required · home: frontmatter · ref: none"
     },
     "## Document scope": {
@@ -63,6 +68,16 @@
     "## Boundary rules": {
       "type": "string",
       "pattern": "^## Boundary rules$",
+      "description": "presence: required · home: section · ref: none"
+    },
+    "## Constraints": {
+      "type": "string",
+      "pattern": "^## Constraints$",
+      "description": "presence: required · home: section · ref: none"
+    },
+    "Constraint delta bullet": {
+      "type": "string",
+      "pattern": "^- ",
       "description": "presence: required · home: section · ref: none"
     },
     "## Maintenance": {
@@ -202,11 +217,12 @@
     }
   },
   "required": [
-    "# Title",
-    "**Version**",
-    "**Status**",
-    "**Author**",
-    "**Constraints**",
+    "title",
+    "doc-type",
+    "version",
+    "date",
+    "status",
+    "author",
     "## Document scope",
     "## File paths",
     "## Program charter",
@@ -214,6 +230,8 @@
     "## Phase inventory",
     "## Dependency graph",
     "## Boundary rules",
+    "## Constraints",
+    "Constraint delta bullet",
     "## Maintenance",
     "## Change history",
     "### Goal",

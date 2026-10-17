@@ -23,7 +23,14 @@
 // so the compile surface is pinned even though vitest transforms types away.
 
 import { describe, expect, expectTypeOf, it } from "vitest";
-import type { ElementRegistry, Home, Presence, RefKind, RegistryElement } from "../declare.ts";
+import type {
+  DocType,
+  ElementRegistry,
+  Home,
+  Presence,
+  RefKind,
+  RegistryElement,
+} from "../declare.ts";
 import { declaredRegistries, RegistryGuard } from "../declare.ts";
 
 const PRESENCE_VALUES = [
@@ -175,6 +182,201 @@ describe("declared registries", () => {
         );
       }
     }
+  });
+});
+
+describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
+  // The canonical per-type front-matter key set of the contraction table (§2.3):
+  // plan deliberately omits `status`/`author` (no plan head carries either row),
+  // single-spec adds the optional `issues` key, plan/phase-spec add the optional
+  // `parent-version`. The order mirrors the §2.1 front-matter emission shapes.
+  const HEADER_KEYS: Record<DocType, readonly string[]> = {
+    "overall-spec": ["title", "doc-type", "version", "date", "status", "author"],
+    plan: [
+      "title",
+      "doc-type",
+      "version",
+      "date",
+      "spec",
+      "parent-program",
+      "parent-version",
+      "depends-on",
+      "base",
+    ],
+    "phase-spec": [
+      "title",
+      "doc-type",
+      "version",
+      "date",
+      "status",
+      "author",
+      "parent-program",
+      "parent-version",
+      "depends-on",
+    ],
+    "single-spec": [
+      "title",
+      "doc-type",
+      "version",
+      "date",
+      "status",
+      "author",
+      "depends-on",
+      "issues",
+    ],
+  };
+  /** The closed §3.3 key vocabulary — the registry's sole legal front-matter anchor set. */
+  const KEY_VOCABULARY = new Set([
+    "title",
+    "doc-type",
+    "version",
+    "date",
+    "status",
+    "author",
+    "spec",
+    "parent-program",
+    "parent-version",
+    "depends-on",
+    "base",
+    "issues",
+  ]);
+  const findKey = (docType: DocType, anchor: string): RegistryElement =>
+    declaredRegistries[docType].elements.find((element) => element.anchor === anchor)!;
+
+  it("registers exactly the canonical front-matter key set per doc type, in order", () => {
+    for (const registry of ALL_REGISTRIES) {
+      expect(
+        registry.elements
+          .filter((element) => element.home === "frontmatter")
+          .map((element) => element.anchor),
+        `${registry.docType} header keys`,
+      ).toEqual(HEADER_KEYS[registry.docType]);
+    }
+  });
+
+  it("keeps every front-matter anchor inside the §3.3 key vocabulary — zero bullet/heading literals", () => {
+    for (const registry of ALL_REGISTRIES) {
+      for (const element of registry.elements.filter((element) => element.home === "frontmatter")) {
+        expect(KEY_VOCABULARY.has(element.anchor), `${registry.docType}:${element.anchor}`).toBe(
+          true,
+        );
+        expect(element.anchor, `${registry.docType}:${element.anchor}`).not.toMatch(/^# /);
+        expect(element.anchor, `${registry.docType}:${element.anchor}`).not.toContain("**");
+      }
+    }
+  });
+
+  it("assigns the per-type presence per the §2.3 contraction table", () => {
+    // The four-type required keys.
+    for (const anchor of ["title", "doc-type", "version", "date"]) {
+      for (const registry of ALL_REGISTRIES) {
+        expect(findKey(registry.docType, anchor).presence, `${registry.docType}:${anchor}`).toBe(
+          "required",
+        );
+      }
+    }
+    // `status`/`author` ride the three spec carriers — plan has no such key.
+    for (const docType of ["overall-spec", "phase-spec", "single-spec"] as const) {
+      expect(findKey(docType, "status").presence).toBe("required");
+      expect(findKey(docType, "author").presence).toBe("required");
+    }
+    expect(declaredRegistries.plan.elements.some((element) => element.anchor === "status")).toBe(
+      false,
+    );
+    expect(declaredRegistries.plan.elements.some((element) => element.anchor === "author")).toBe(
+      false,
+    );
+    // `spec` is plan-only (the plan's design-spec pointer).
+    expect(findKey("plan", "spec").presence).toBe("required");
+    for (const docType of ["overall-spec", "phase-spec", "single-spec"] as const) {
+      expect(
+        declaredRegistries[docType].elements.some((element) => element.anchor === "spec"),
+        `${docType} has no spec key`,
+      ).toBe(false);
+    }
+    // `parent-program` required on the two Class-B carriers.
+    expect(findKey("plan", "parent-program").presence).toBe("required");
+    expect(findKey("phase-spec", "parent-program").presence).toBe("required");
+    // `depends-on` per type.
+    expect(findKey("plan", "depends-on").presence).toBe("optional");
+    expect(findKey("phase-spec", "depends-on").presence).toBe("required");
+    expect(findKey("single-spec", "depends-on").presence).toBe("required");
+    // The optional shape-typed keys: `parent-version` (Class-B), `base` (plan).
+    expect(findKey("plan", "parent-version").presence).toBe("optional");
+    expect(findKey("phase-spec", "parent-version").presence).toBe("optional");
+    for (const docType of ["overall-spec", "single-spec"] as const) {
+      expect(
+        declaredRegistries[docType].elements.some((element) => element.anchor === "parent-version"),
+        `${docType} has no parent-version key`,
+      ).toBe(false);
+    }
+    expect(findKey("plan", "base").presence).toBe("optional");
+    // `issues` is single-spec optional (the free-form's issue pointer).
+    expect(findKey("single-spec", "issues").presence).toBe("optional");
+    for (const docType of ["overall-spec", "plan", "phase-spec"] as const) {
+      expect(
+        declaredRegistries[docType].elements.some((element) => element.anchor === "issues"),
+        `${docType} has no issues key`,
+      ).toBe(false);
+    }
+  });
+
+  it("re-shapes every front-matter value pattern as a YAML scalar (zero bullet/heading forms)", () => {
+    for (const registry of ALL_REGISTRIES) {
+      for (const element of registry.elements.filter((element) => element.home === "frontmatter")) {
+        expect(element.valuePattern, `${registry.docType}:${element.anchor}`).toBeDefined();
+        expect(element.valuePattern, `${registry.docType}:${element.anchor}`).not.toContain(
+          "\\*\\*",
+        );
+        expect(element.valuePattern, `${registry.docType}:${element.anchor}`).not.toMatch(/^# /);
+        expect(element.valuePattern, `${registry.docType}:${element.anchor}`).not.toMatch(/^- /);
+      }
+    }
+  });
+
+  it("matches the declared scalar shapes against known-good front-matter values", () => {
+    const samples: Array<readonly [DocType, string, string]> = [
+      ["overall-spec", "version", "v2.46"],
+      ["plan", "version", "v0.9"],
+      ["phase-spec", "version", "v1.9"],
+      ["single-spec", "version", "v0.1"],
+      ["overall-spec", "date", "2026-10-17"],
+      ["plan", "date", "2026-10-17"],
+      ["phase-spec", "date", "2026-10-17"],
+      ["single-spec", "date", "2026-10-17"],
+      ["overall-spec", "doc-type", "overall-spec"],
+      ["plan", "doc-type", "plan"],
+      ["phase-spec", "doc-type", "phase-spec"],
+      ["single-spec", "doc-type", "single-spec"],
+      ["overall-spec", "status", "Approved"],
+      ["phase-spec", "status", "Plan pending"],
+      ["single-spec", "status", "Draft"],
+      ["plan", "title", "A plan title"],
+      ["plan", "spec", "docs/kairos/specs/p3-design.md"],
+      ["plan", "parent-program", "docs/kairos/specs/overall.md"],
+      ["plan", "parent-version", "v2.46"],
+      ["plan", "base", "main"],
+      ["phase-spec", "depends-on", "P9"],
+      ["single-spec", "issues", "#302"],
+      ["overall-spec", "author", "[human] · Claude Opus 5（…）"],
+    ];
+    for (const [docType, anchor, value] of samples) {
+      const pattern = new RegExp(findKey(docType, anchor).valuePattern!);
+      expect(pattern.test(value), `${docType}:${anchor} value ${JSON.stringify(value)}`).toBe(true);
+    }
+    // The scalar shapes are fully anchored — the retired bullet/date-combined form
+    // and the empty scalar both fail.
+    expect(
+      new RegExp(findKey("overall-spec", "version").valuePattern!).test("v2.46 · 2026-10-17"),
+    ).toBe(false);
+    expect(new RegExp(findKey("plan", "title").valuePattern!).test("")).toBe(false);
+  });
+
+  it("reconciles the post-migration element totals against the §2.3 arithmetic (42/31/27/16)", () => {
+    expect(declaredRegistries["overall-spec"].elements.length).toBe(42);
+    expect(declaredRegistries.plan.elements.length).toBe(31);
+    expect(declaredRegistries["phase-spec"].elements.length).toBe(27);
+    expect(declaredRegistries["single-spec"].elements.length).toBe(16);
   });
 });
 

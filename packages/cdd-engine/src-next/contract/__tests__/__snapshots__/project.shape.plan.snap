@@ -5,32 +5,47 @@
       "home": "frontmatter",
       "elements": [
         {
-          "anchor": "# Title",
+          "anchor": "title",
           "presence": "required",
           "refKind": "none"
         },
         {
-          "anchor": "**Spec:**",
+          "anchor": "doc-type",
           "presence": "required",
-          "refKind": "spec-ref"
+          "refKind": "none"
         },
         {
-          "anchor": "**Parent program**",
-          "presence": "required",
-          "refKind": "parent-program"
-        },
-        {
-          "anchor": "**Version**",
+          "anchor": "version",
           "presence": "required",
           "refKind": "version-lineage"
         },
         {
-          "anchor": "**Depends on**",
+          "anchor": "date",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "spec",
+          "presence": "required",
+          "refKind": "spec-ref"
+        },
+        {
+          "anchor": "parent-program",
+          "presence": "required",
+          "refKind": "parent-program"
+        },
+        {
+          "anchor": "parent-version",
+          "presence": "optional",
+          "refKind": "version-lineage"
+        },
+        {
+          "anchor": "depends-on",
           "presence": "optional",
           "refKind": "phase-id"
         },
         {
-          "anchor": "**Base**",
+          "anchor": "base",
           "presence": "optional",
           "refKind": "none"
         }

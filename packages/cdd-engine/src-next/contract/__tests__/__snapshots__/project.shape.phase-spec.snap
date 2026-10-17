@@ -5,39 +5,49 @@
       "home": "frontmatter",
       "elements": [
         {
-          "anchor": "# Title",
+          "anchor": "title",
           "presence": "required",
           "refKind": "none"
         },
         {
-          "anchor": "**Version**",
+          "anchor": "doc-type",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "version",
           "presence": "required",
           "refKind": "version-lineage"
         },
         {
-          "anchor": "**Status**",
+          "anchor": "date",
           "presence": "required",
           "refKind": "none"
         },
         {
-          "anchor": "**Author**",
+          "anchor": "status",
           "presence": "required",
           "refKind": "none"
         },
         {
-          "anchor": "**Parent program**",
+          "anchor": "author",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "parent-program",
           "presence": "required",
           "refKind": "parent-program"
         },
         {
-          "anchor": "**Depends on**",
-          "presence": "required",
-          "refKind": "none"
+          "anchor": "parent-version",
+          "presence": "optional",
+          "refKind": "version-lineage"
         },
         {
-          "anchor": "Depends on ref",
-          "presence": "conditional",
-          "refKind": "phase-id"
+          "anchor": "depends-on",
+          "presence": "required",
+          "refKind": "none"
         }
       ]
     },

@@ -391,23 +391,29 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
   /** The `### Task N:` blocks in document order, with their field + step surfaces.
    *  The block-head / field-marker / step-line grammars live in the TaskExtractor
    *  (the task home's fixed structure rules over the registry's declared anchors):
-   *  this method reassembles the typed records from the extractor's occurrence map. */
+   *  each block is extracted over its own lines, so the extractor's own scoping
+   *  (the fields, and the steps riding inside the `**Steps**` field) yields that
+   *  block's occurrence buckets directly — step recognition never re-appears here. */
   protected taskBlocks(blocks: readonly HeadingBlock[]): TaskBlock[] {
-    const lines = blocks.flatMap((block) => [block.heading, ...block.body]);
-    const extracted = taskExtractor.extract(this.registry, lines);
-    const headings = extracted["### Task N:"] ?? [];
-    if (headings.length === 0) return [];
-    const ids = extracted["Task id token"] ?? [];
-    const markers = this.#taskFieldMarkers(extracted);
     const out: TaskBlock[] = [];
     for (const block of blocks) {
-      const index = headings.indexOf(block.heading);
-      if (index === -1) continue;
-      const id = Number(ids[index] ?? "");
+      const lines = [block.heading, ...block.body];
+      const extracted = taskExtractor.extract(this.registry, lines);
+      const headings = extracted["### Task N:"] ?? [];
+      if (headings.length === 0) continue;
+      const ids = extracted["Task id token"] ?? [];
+      const id = Number(ids[0] ?? "");
       if (Number.isNaN(id)) continue;
-      const fields = this.#taskFieldsOf(block.body, markers);
-      const stepsField = fields.find((field) => field.key === "Steps");
-      out.push({ id, heading: block.heading, fields, steps: this.#taskStepsOf(stepsField) });
+      const fields = this.#taskFieldsOf(block.body, this.#taskFieldMarkers(extracted));
+      out.push({
+        id,
+        heading: block.heading,
+        fields,
+        steps: this.#taskStepsOf(
+          extracted["Step action"] ?? [],
+          new Set(extracted["Step checkable"] ?? []),
+        ),
+      });
     }
     return out;
   }
@@ -449,17 +455,17 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
     return fields;
   }
 
-  /** Parse a `**Steps**` field's value lines into step records — the retired `- `
-   *  bullet grammar is a plain prefix strip (the field parser trims the indented
-   *  continuation lines before they arrive here) and the `— checkable:` clause
-   *  splits verbatim. */
-  #taskStepsOf(field: TaskField | undefined): TaskStep[] {
-    if (field === undefined) return [];
+  /** Parse a block's recognized step lines into step records — the lines come
+   *  from the extractor's `Step action` bucket (the registry's `^- ` shape, so
+   *  no `- `-bullet re-recognition here); the action cell is a value read after
+   *  the anchor's bullet prefix (mirroring the `#taskIdOf` slot read), and
+   *  membership in the `Step checkable` bucket marks which lines carry a
+   *  verbatim `— checkable:` clause that the split then reads off. */
+  #taskStepsOf(stepLines: readonly string[], checkableLines: ReadonlySet<string>): TaskStep[] {
     const steps: TaskStep[] = [];
-    for (const line of field.lines) {
-      if (!line.startsWith("- ")) continue;
-      const text = line.slice(2).trim();
-      const checkableMarker = text.indexOf("— checkable:");
+    for (const line of stepLines) {
+      const text = line.trim().slice(2).trim();
+      const checkableMarker = checkableLines.has(line) ? text.indexOf("— checkable:") : -1;
       if (checkableMarker === -1) {
         steps.push({ action: text, checkable: null });
       } else {

@@ -28,6 +28,7 @@ import type {
   TaskBlock,
 } from "./doc.ts";
 import { MarkdownPrimitives } from "./doc.ts";
+import type { FrontMatterHead } from "./frontmatter.ts";
 import type { DocKey, DocShape, DocSlices, ElementSlice } from "./project.ts";
 
 // ---------------------------------------------------------------------------
@@ -97,11 +98,15 @@ export interface JudgeContext {
   docKey: DocKey;
   /** The parsed structural record of the document. */
   parsed: ParsedDoc;
-  /** The judged document's normalized content lines — the canonicalize view the
-   *  row-source seam (Contract.validate) builds ONCE per judgment: every
-   *  valuePattern / anchor-literal face (occurrenceLines · carrierLines ·
-   *  anchorLines and the parsed records) matches the view. The view is never
-   *  written back — the source document stays byte-identical. */
+  /** The document's typed front-matter head — the §2.2 delivery seam: the SAME
+   *  record validate() fed into parse (front-matter-home elements judge THIS,
+   *  never a body line scan — front matter is data, not body structure). */
+  head: FrontMatterHead;
+  /** The judged document's normalized content lines — the post-fence body's
+   *  canonicalize view the row-source seam (Contract.validate) builds ONCE per
+   *  judgment: every valuePattern / anchor-literal face (occurrenceLines ·
+   *  carrierLines · anchorLines and the parsed records) matches the view. The
+   *  view is never written back — the source document stays byte-identical. */
   lines: readonly string[];
   /** The document's file path (message attribution + the doc's own dir for links). */
   path: string;
@@ -284,6 +289,21 @@ export class PresenceInvariant extends Invariant {
       const slice = this.sliceOf(ctx, element.anchor);
       if (slice === undefined) continue;
       if (this.#derivedPresenceHolds(ctx, slice)) continue;
+      // The front-matter-home elements judge the typed head record (the §2.2
+      // delivery seam — NEVER the body line scan: front matter is data, and a
+      // whitespace line or a body-line mention of a key is not an occurrence).
+      if (slice.home === "frontmatter") {
+        if (ctx.head.value(element.anchor) !== null) continue;
+        findings.push(
+          this.finding(
+            ctx,
+            element.anchor,
+            `missing required element: ${element.anchor}`,
+            `add the "${element.anchor}" key to the document's front matter`,
+          ),
+        );
+        continue;
+      }
       if (this.occurrenceLines(ctx, slice).length === 0) {
         findings.push(
           this.finding(
@@ -454,7 +474,31 @@ export class DomainInvariant extends Invariant {
     const findings: Finding[] = [];
     for (const element of this.elementsOf(ctx)) {
       const slice = this.sliceOf(ctx, element.anchor);
-      if (slice === undefined || slice.valuePattern === undefined) continue;
+      if (slice === undefined) continue;
+      // The front-matter-home elements judge the typed head SCALAR (the §2.2
+      // delivery seam — the registered value patterns are scalar shapes, §2.3).
+      // Absence is presence's surface; a present scalar outside the declared
+      // shape is the finding. The pattern is read from the REGISTRY ELEMENT
+      // (project.ts's header leg deliberately stops both slice RegExp
+      // compilations — the front-matter key is looked up against the head).
+      if (slice.home === "frontmatter") {
+        const value = ctx.head.value(element.anchor);
+        if (value === null) continue;
+        const rawPattern = element.valuePattern;
+        if (rawPattern === undefined) continue;
+        if (!new RegExp(rawPattern).test(value)) {
+          findings.push(
+            this.finding(
+              ctx,
+              element.anchor,
+              `value outside the declared domain: ${value}`,
+              `make the front-matter ${element.anchor} value match ${rawPattern}`,
+            ),
+          );
+        }
+        continue;
+      }
+      if (slice.valuePattern === undefined) continue;
       // The element is judged by the SHAPE of the lines that carry it structurally —
       // a `**Status**: Draft` line must match its declared pattern. A prose citation
       // (a backticked code-span mention, or a table cell of a non-table element) is
@@ -889,7 +933,7 @@ export class SelfBoundedInvariant extends Invariant {
   readonly name = "selfBounded";
 
   evaluate(ctx: JudgeContext): Finding[] {
-    const headerVersion = this.#headerVersion(ctx);
+    const headerVersion = ctx.head.version;
     const historyVersions = this.#historyVersions(ctx);
     if (headerVersion === null || historyVersions.length === 0) return [];
     const findings: Finding[] = [];
@@ -898,9 +942,9 @@ export class SelfBoundedInvariant extends Invariant {
       findings.push(
         this.finding(
           ctx,
-          "**Version**",
+          "version",
           `the header version ${headerVersion} is not the change-history's newest row (${newest})`,
-          "bump both the **Version** header and the newest Change-history row together",
+          "bump both the version front-matter key and the newest Change-history row together",
         ),
       );
     }
@@ -908,9 +952,9 @@ export class SelfBoundedInvariant extends Invariant {
       findings.push(
         this.finding(
           ctx,
-          "**Version**",
+          "version",
           `the header version ${headerVersion} is outside the document's own lineage`,
-          `the **Version** header must belong to the Change-history row versions: ${historyVersions.join(", ")}`,
+          `the version front-matter key must belong to the Change-history row versions: ${historyVersions.join(", ")}`,
         ),
       );
     }
@@ -939,14 +983,6 @@ export class SelfBoundedInvariant extends Invariant {
     return this.tableRows(section.lines)
       .map((row) => this.#firstVersion(row[0] ?? ""))
       .filter((version) => version !== null) as readonly string[];
-  }
-
-  #headerVersion(ctx: JudgeContext): string | null {
-    for (const line of this.anchorLines(ctx, "**Version**")) {
-      const tokens = this.versionTokens(line);
-      if (tokens.length > 0) return tokens[0];
-    }
-    return null;
   }
 
   #firstVersion(text: string): string | null {
@@ -1163,16 +1199,9 @@ export class CrossDocChainInvariant extends Invariant {
           "add a **Spec:** link pointing at the phase design spec",
         ),
       );
-    } else if (specLink.label.trim() !== path.basename(specLink.target)) {
-      findings.push(
-        this.finding(
-          ctx,
-          "**Spec:**",
-          `the **Spec:** link label ${specLink.label.trim()} does not equal the resolved basename ${path.basename(specLink.target)}`,
-          "make the link label equal the resolved file's basename",
-        ),
-      );
     }
+    // The link-label drift judgment retired with the ChainLink label face — the
+    // spec link is a head scalar now (the `spec:` key), the label is not a fact.
     if (data.chain.parentLink === null) {
       findings.push(
         this.finding(
@@ -1224,7 +1253,7 @@ export class CrossDocChainInvariant extends Invariant {
             ctx,
             "**Parent program**",
             `the **Parent program** version token ${token} does not belong to the parent overall's lineage`,
-            `use a version the parent overall declares (its **Version** header or a Change-history row): ${[...lineage].join(", ")}`,
+            `use a version the parent overall declares (its version front-matter or a Change-history row): ${[...lineage].join(", ")}`,
           ),
         );
       }
@@ -1232,15 +1261,14 @@ export class CrossDocChainInvariant extends Invariant {
     return findings;
   }
 
-  /** The parent overall's lineage: its header version + every Change-history row version. */
+  /** The parent overall's lineage: its head `version:` scalar + every
+   *  Change-history row version (the T6 read point — the header fact rides the
+   *  typed head record, never a body line scan). */
   #parentLineage(parent: ParsedDoc): Set<string> {
     const lineage = new Set<string>();
     if (parent.docType !== "overall-spec") return lineage;
-    for (const line of (parent as OverallParsed).headerLines) {
-      if (line.includes("**Version**")) {
-        for (const token of this.versionTokens(line)) lineage.add(token);
-      }
-    }
+    const version = (parent as OverallParsed).head?.version;
+    if (version !== null && version !== undefined) lineage.add(version);
     for (const row of (parent as OverallParsed).tables["Change history"].rows) {
       const match = row[0]?.match(/v\d+\.\d+/);
       if (match !== null) lineage.add(match[0]);

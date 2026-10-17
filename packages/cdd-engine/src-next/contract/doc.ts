@@ -13,10 +13,10 @@
 //   · projection     — each class consumes the derived projection face (project.ts):
 //                      the slices (parse regexes) and the shape (section skeleton) of
 //                      its own doc type are the locating data every extraction walks.
-//   · chain root     — the Class-A/B anchors of the document (the plan's `**Spec:**`
-//                      link, the `**Parent program**` link + its version tokens, the
-//                      overall's Phase-inventory rows as the chain's anchor set) are
-//                      extracted into a ChainRoot and LEFT as an interface — the
+//   · chain root     — the Class-A/B anchors of the document (the plan/spec head
+//                      scalars `spec:` / `parent-program:` / `parent-version:` and
+//                      the overall's Phase-inventory rows as the chain's anchor set)
+//                      are extracted into a ChainRoot and LEFT as an interface — the
 //                      resolution judgment belongs to the cross-doc-chain invariant,
 //                      never to a DocType method.
 //
@@ -25,6 +25,7 @@
 
 import type { ElementRegistry } from "./declare.ts";
 import { declaredRegistries } from "./declare.ts";
+import type { FrontMatterHead } from "./frontmatter.ts";
 import type { ExtractionMap } from "./home-extractors.ts";
 import { DesignBodyExtractor, GraphExtractor, TaskExtractor } from "./home-extractors.ts";
 import type { DocKey, DocShape, DocSlices, ElementSlice } from "./project.ts";
@@ -103,19 +104,22 @@ export interface ChainPhase {
   dependencyCell: string;
 }
 
-/** A `[label](target)` link parsed from a line. */
+/** A `[text](target)` link parsed from a line — only the target surfaces: the
+ *  link-text face retired with the front-matter flip (the chain root reads the
+ *  head scalars, and the drift judgments are gone — zero consumer ever reads the
+ *  text part). */
 export interface ChainLink {
-  /** The link's label text. */
-  label: string;
   /** The link's target path. */
   target: string;
 }
 
 /**
- * The cross-doc chain root — the Class-A/B anchors a document carries, extracted
- * verbatim and left unresolved. Every resolution judgment (target existence, label
- * vs. basename drift, version-token lineage membership) belongs to the
- * cross-doc-chain / file-existence / sibling-scan invariants.
+ * The cross-doc chain root — the Class-A/B anchors a document carries, read from
+ * the front-matter head scalars (the §2.3 key set: `spec:` · `parent-program:` ·
+ * `parent-version:` · `depends-on:`), plus the overall's Phase-inventory rows.
+ * Extracted and LEFT as an interface — every resolution judgment (target
+ * existence, version-token lineage membership) belongs to the cross-doc-chain /
+ * file-existence / sibling-scan invariants, never to a DocType method.
  */
 export interface ChainRoot {
   /** The doc-type identity of the chain root's document. */
@@ -137,7 +141,11 @@ export interface ChainRoot {
 /** The overall parse record — the four tables, the graph edges and the chain root. */
 export interface OverallParsed {
   docType: "overall-spec";
-  /** The `# Title` line verbatim. */
+  /** The document's front-matter head — the typed head record (the §2.3 key set),
+   *  or null when parsed without one (the chainDocs producers MUST parse
+   *  dual-param — a head-less plan/spec parse reads a null chain face). */
+  head: FrontMatterHead | null;
+  /** The document title — the front-matter `title:` scalar ("" without a head). */
   title: string;
   /** The header bullet lines (between the title and the first section heading). */
   headerLines: readonly string[];
@@ -187,6 +195,9 @@ export interface TaskBlock {
 /** The plan parse record — the header, the constraints section and the task blocks. */
 export interface PlanParsed {
   docType: "plan";
+  /** The document's front-matter head, or null when parsed without one. */
+  head: FrontMatterHead | null;
+  /** The document title — the front-matter `title:` scalar ("" without a head). */
   title: string;
   headerLines: readonly string[];
   sections: readonly SectionBlock[];
@@ -216,6 +227,9 @@ export interface DesignItem {
 /** The phase-spec parse record — the header tuple and the design-body skeleton. */
 export interface PhaseSpecParsed {
   docType: "phase-spec";
+  /** The document's front-matter head, or null when parsed without one. */
+  head: FrontMatterHead | null;
+  /** The document title — the front-matter `title:` scalar ("" without a head). */
   title: string;
   headerLines: readonly string[];
   sections: readonly SectionBlock[];
@@ -227,6 +241,9 @@ export interface PhaseSpecParsed {
 /** The single-spec parse record — the header five-tuple and the prose section surface. */
 export interface SingleSpecParsed {
   docType: "single-spec";
+  /** The document's front-matter head, or null when parsed without one. */
+  head: FrontMatterHead | null;
+  /** The document title — the front-matter `title:` scalar ("" without a head). */
   title: string;
   headerLines: readonly string[];
   sections: readonly SectionBlock[];
@@ -241,21 +258,23 @@ export type ParsedDoc = OverallParsed | PlanParsed | PhaseSpecParsed | SingleSpe
 // ---------------------------------------------------------------------------
 
 /**
- * The shared extraction primitives: `[label](target)` links, `v<n>.<m>` version
+ * The shared extraction primitives: `[text](target)` links, `v<n>.<m>` version
  * tokens and `|…|` table-row parsing. Both the parse face (DocType) and the
  * judgment face (the Invariant base in invariants.ts) extend this base — the
  * link/token/table parse logic lives in exactly one place of the new tree. The
  * version-token grammar additionally exposes the public static `versionTokensOf`
- * — the face plane's doc-line BLOCK reads the SAME grammar through it (one home,
- * zero dual-write).
+ * — the board's header-fact read (face/board-view.ts) reads the SAME grammar
+ * through it (one home, zero dual-write).
  */
 export abstract class MarkdownPrimitives {
-  /** The `[label](target)` pairs parsed from one line. */
+  /** The `[text](target)` pairs parsed from one line — the target only (the
+   *  retired link-text face; the remaining consumers — the overall's phase-cell
+   *  links — resolve targets, never the text). */
   protected linksOnLine(line: string): readonly ChainLink[] {
     const links: ChainLink[] = [];
     const linkPattern = /\[([^\]]*)\]\(([^)]+)\)/g;
     for (const match of line.matchAll(linkPattern)) {
-      links.push({ label: match[1], target: match[2] });
+      links.push({ target: match[2] });
     }
     return links;
   }
@@ -308,7 +327,7 @@ export abstract class MarkdownPrimitives {
  * The abstract doc-type base. Each subclass binds its registry-derived projection
  * face (slices + shape) and implements parse — pure structural extraction into a
  * typed record. The base carries the shared extraction primitives (heading blocks,
- * table rows, header lines, `[label](target)` link parsing) as class methods: the
+ * table rows, header lines, `[text](target)` link parsing) as class methods: the
  * class face stays judgment-free (zero validate/audit/detect methods).
  */
 export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
@@ -336,8 +355,11 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
     this.#slicesByAnchor = new Map(this.slices.slices.map((slice) => [slice.anchor, slice]));
   }
 
-  /** The pure structural parse — what the invariants and the graph read. */
-  abstract parse(lines: readonly string[]): P;
+  /** The pure structural parse — what the invariants and the graph read. The head
+   *  is the typed front-matter head (the §2.2 delivery seam: the chain-docs
+   *  producers MUST parse dual-param, so the chain root reads the head scalars — a
+   *  single-param parse yields the null-head face: title "" and a null chain). */
+  abstract parse(lines: readonly string[], head?: FrontMatterHead | null): P;
 
   // -------------------------------------------------------------------------
   // shared extraction primitives (parse-only, never judgment)
@@ -485,32 +507,6 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
     return { heading: "", headerRow, rows: rows.slice(1) };
   }
 
-  /** The carrier line of one declared header element — the header line containing
-   *  the element's anchor literal (the registry anchor IS the literal), or null.
-   *  The retired marker-line family is gone: the locate is a plain literal search
-   *  (zero new grammar) over the declared anchors. */
-  protected headerCarrierLine(lines: readonly string[], anchor: string): string | null {
-    return lines.find((line) => line.includes(anchor)) ?? null;
-  }
-
-  /** The value of one declared header element — the carrier line stripped of the
-   *  anchor literal and the trailing colon, trimmed (the retired colon-scavenging
-   *  regex is now a plain prefix strip). */
-  protected headerValueOf(lines: readonly string[], anchor: string): string | null {
-    const line = this.headerCarrierLine(lines, anchor);
-    if (line === null) return null;
-    const markerIndex = line.indexOf(anchor);
-    let payload = line.slice(markerIndex + anchor.length).trim();
-    if (payload.startsWith(":")) payload = payload.slice(1).trim();
-    return payload;
-  }
-
-  /** The line number (1-indexed) the anchor first occurs on, or -1. */
-  protected indexOfLine(lines: readonly string[], text: string): number {
-    const index = lines.findIndex((line) => line.includes(text));
-    return index === -1 ? -1 : index + 1;
-  }
-
   /** The slice of one registered anchor (undefined when the anchor is not registered here). */
   protected sliceOf(anchor: string): ElementSlice | undefined {
     return this.#slicesByAnchor.get(anchor);
@@ -542,8 +538,8 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
 export class OverallDocType extends DocType<OverallParsed> {
   readonly docTypeName = "overall-spec" as const;
 
-  parse(lines: readonly string[]): OverallParsed {
-    const title = lines[0] ?? "";
+  parse(lines: readonly string[], head: FrontMatterHead | null = null): OverallParsed {
+    const title = head?.title ?? "";
     const blocks = this.headingBlocks(lines);
     const headerLines = this.headerLines(blocks);
     const sections = this.sections(blocks);
@@ -558,6 +554,7 @@ export class OverallDocType extends DocType<OverallParsed> {
     const phases = this.#phaseRows(tables["Phase inventory"]);
     return {
       docType: "overall-spec",
+      head,
       title,
       headerLines,
       sections,
@@ -651,33 +648,33 @@ export class OverallDocType extends DocType<OverallParsed> {
 export class PlanDocType extends DocType<PlanParsed> {
   readonly docTypeName = "plan" as const;
 
-  parse(lines: readonly string[]): PlanParsed {
-    const title = lines[0] ?? "";
+  parse(lines: readonly string[], head: FrontMatterHead | null = null): PlanParsed {
+    const title = head?.title ?? "";
     const blocks = this.headingBlocks(lines);
     const headerLines = this.headerLines(blocks);
     return {
       docType: "plan",
+      head,
       title,
       headerLines,
       sections: this.sections(blocks),
       taskBlocks: this.taskBlocks(blocks),
-      chain: this.chainRoot(headerLines),
+      chain: this.chainRoot(head),
     };
   }
 
-  /** The plan's cross-doc chain root: Class-A `**Spec:**` + Class-B `**Parent program**`. */
-  chainRoot(headerLines: readonly string[]): ChainRoot {
-    const specLine = this.headerCarrierLine(headerLines, "**Spec:**");
-    const specLinks = specLine === null ? [] : this.linksOnLine(specLine);
-    const parentLine = this.headerCarrierLine(headerLines, "**Parent program**");
-    const parentLinks = parentLine === null ? [] : this.linksOnLine(parentLine);
+  /** The plan's cross-doc chain root — the Class-A `spec:` + Class-B
+   *  `parent-program:`/`parent-version:` head scalars (the §2.2 delivery seam:
+   *  the chain facts ride the typed head, never a body line scan). */
+  chainRoot(head: FrontMatterHead | null): ChainRoot {
     return {
       docType: "plan",
-      parentLink: parentLinks.length > 0 ? parentLinks[0] : null,
-      specLink: specLinks.length > 0 ? specLinks[0] : null,
-      parentTokens: parentLine === null ? [] : this.versionTokens(parentLine),
+      parentLink:
+        head === null || head.parentProgram === null ? null : { target: head.parentProgram },
+      specLink: head === null || head.spec === null ? null : { target: head.spec },
+      parentTokens: head === null || head.parentVersion === null ? [] : [head.parentVersion],
       phases: [],
-      dependsOn: this.headerValueOf(headerLines, "**Depends on**"),
+      dependsOn: head?.dependsOn ?? null,
     };
   }
 }
@@ -689,17 +686,18 @@ export class PlanDocType extends DocType<PlanParsed> {
 export class PhaseSpecDocType extends DocType<PhaseSpecParsed> {
   readonly docTypeName = "phase-spec" as const;
 
-  parse(lines: readonly string[]): PhaseSpecParsed {
-    const title = lines[0] ?? "";
+  parse(lines: readonly string[], head: FrontMatterHead | null = null): PhaseSpecParsed {
+    const title = head?.title ?? "";
     const blocks = this.headingBlocks(lines);
     const headerLines = this.headerLines(blocks);
     return {
       docType: "phase-spec",
+      head,
       title,
       headerLines,
       sections: this.sections(blocks),
       design: this.designFromBlocks(blocks),
-      chain: this.chainRoot(headerLines),
+      chain: this.chainRoot(head),
     };
   }
 
@@ -750,17 +748,17 @@ export class PhaseSpecDocType extends DocType<PhaseSpecParsed> {
     return groups;
   }
 
-  /** The phase-spec's cross-doc chain root: the Class-B `**Parent program**` lineage. */
-  chainRoot(headerLines: readonly string[]): ChainRoot {
-    const parentLine = this.headerCarrierLine(headerLines, "**Parent program**");
-    const parentLinks = parentLine === null ? [] : this.linksOnLine(parentLine);
+  /** The phase-spec's cross-doc chain root: the Class-B `parent-program:`
+   *  `parent-version:` head scalars. */
+  chainRoot(head: FrontMatterHead | null): ChainRoot {
     return {
       docType: "phase-spec",
-      parentLink: parentLinks.length > 0 ? parentLinks[0] : null,
+      parentLink:
+        head === null || head.parentProgram === null ? null : { target: head.parentProgram },
       specLink: null,
-      parentTokens: parentLine === null ? [] : this.versionTokens(parentLine),
+      parentTokens: head === null || head.parentVersion === null ? [] : [head.parentVersion],
       phases: [],
-      dependsOn: this.headerValueOf(headerLines, "**Depends on**"),
+      dependsOn: head?.dependsOn ?? null,
     };
   }
 }
@@ -774,29 +772,30 @@ export class PhaseSpecDocType extends DocType<PhaseSpecParsed> {
 export class SingleSpecDocType extends DocType<SingleSpecParsed> {
   readonly docTypeName = "single-spec" as const;
 
-  parse(lines: readonly string[]): SingleSpecParsed {
-    const title = lines[0] ?? "";
+  parse(lines: readonly string[], head: FrontMatterHead | null = null): SingleSpecParsed {
+    const title = head?.title ?? "";
     const blocks = this.headingBlocks(lines);
     const headerLines = this.headerLines(blocks);
     return {
       docType: "single-spec",
+      head,
       title,
       headerLines,
       sections: this.sections(blocks),
-      chain: this.chainRoot(headerLines),
+      chain: this.chainRoot(head),
     };
   }
 
   /** The single-spec chain root — the degraded face: no parent link / no spec
-   *  link (the independent-program shape), the `**Depends on**` value only. */
-  chainRoot(headerLines: readonly string[]): ChainRoot {
+   *  link (the independent-program shape), the `depends-on:` value only. */
+  chainRoot(head: FrontMatterHead | null): ChainRoot {
     return {
       docType: "single-spec",
       parentLink: null,
       specLink: null,
       parentTokens: [],
       phases: [],
-      dependsOn: this.headerValueOf(headerLines, "**Depends on**"),
+      dependsOn: head?.dependsOn ?? null,
     };
   }
 }

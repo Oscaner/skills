@@ -9,7 +9,7 @@
 // instance and composes through it via its .action thin shells (zero bare functions).
 
 import { readFileSync, writeFileSync } from "node:fs";
-import { MarkdownPrimitives } from "../contract/doc.ts";
+import { FrontMatterExtractor } from "../contract/frontmatter.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import type { DispatchPhase } from "../session/faces.ts";
 import type { DocRevisionRef } from "../session/ledger.ts";
@@ -155,16 +155,11 @@ export class CliGate {
     }
   }
 
-  /** The doc's `v<major>.<minor>` version token — the first token on the
-   *  `**Version**` header line (the shared version-token grammar's one home —
-   *  MarkdownPrimitives.versionTokensOf · contract/doc.ts). */
+  /** The doc's `v<major>.<minor>` version token — the front-matter `version:`
+   *  scalar (the T6 read point: the header version facts ride the typed head
+   *  record — the fence split + `yaml` engine, never a line scan). */
   #docVersionOf(content: string | null): string | null {
     if (content === null) return null;
-    for (const line of content.split("\n")) {
-      if (line.trimStart().startsWith("- **Version**:")) {
-        return MarkdownPrimitives.versionTokensOf(line)[0] ?? null;
-      }
-    }
-    return null;
+    return FrontMatterExtractor.split(content).head.version;
   }
 }

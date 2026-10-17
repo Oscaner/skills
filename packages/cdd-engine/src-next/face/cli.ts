@@ -49,6 +49,7 @@ import process from "node:process";
 import { type Command, CommanderError } from "commander";
 import { declaredRegistries } from "../contract/declare.ts";
 import { PlanDocType } from "../contract/doc.ts";
+import { FrontMatterExtractor } from "../contract/frontmatter.ts";
 import { FileExistenceInvariant } from "../contract/invariants.ts";
 import { Contract } from "../contract/judge.ts";
 import type { DocKey } from "../contract/project.ts";
@@ -762,15 +763,20 @@ export class Cli {
           this.#usage(node, `cdd ${verb} --type plan: missing required --plan <path>`);
         slug = Workspace.slugFromDoc(planPath);
         planText = this.#artifacts.readText(node, root, planRel);
-        // The plan's design-spec reference — the `**Spec:**` header link target,
-        // derived from the plan text already read (the plan-review round context's
-        // extra read input; no second file read). Rebased to repoRoot-relative (D46 ·
-        // T3): the raw header form is markdown link-space (relative to the plan's own
-        // dir), so it is first resolved to an absolute path, then routed through the
-        // ONE value object (`RepoRoot.relativize`) — every round-context path token
+        // The plan's design-spec reference — the `spec:` front-matter key (the
+        // §2.2 delivery seam: this is the ONE head-REQUIRED parse call site — the
+        // raw plan text resolves its typed head through the fence split, then the
+        // post-fence body × head ride the dual-param parse), derived from the plan
+        // text already read (the plan-review round context's extra read input; no
+        // second file read). Rebased to repoRoot-relative (D46 · T3): the raw
+        // header form is markdown link-space (relative to the plan's own dir), so
+        // it is first resolved to an absolute path, then routed through the ONE
+        // value object (`RepoRoot.relativize`) — every round-context path token
         // speaks ONE basis (the child is spawned at cwd = repoRoot).
+        const split = FrontMatterExtractor.split(planText);
         const rawSpecLink =
-          new PlanDocType("plan").parse(planText.split("\n")).chain.specLink?.target ?? null;
+          new PlanDocType("plan").parse(split.body.split("\n"), split.head).chain.specLink
+            ?.target ?? null;
         specLink =
           rawSpecLink === null
             ? null

@@ -114,16 +114,22 @@ const memoryFs = (content: string): DocFs => {
   };
 };
 
-/** A conforming phase-spec — every current + P4.1-T2 phase-spec element present (the
- *  header tuple + the version lineage + a Change-history table + the design
- *  skeleton), so the doc-contract gate passes it (zero structural findings). */
+/** A conforming phase-spec — every current + P4.1-T2 phase-spec element present
+ *  (the front-matter head (since T6) + the version lineage + a Change-history
+ *  table + the design skeleton), so the doc-contract gate passes it (zero
+ *  structural findings). */
 const CONFORMING_SPEC = [
-  "# Test Spec",
-  "- **Version**: v1.0 · 2026-10-09",
-  "- **Status**: Draft",
-  "- **Author**: x",
-  "- **Parent program**: [x-overall.md v1.0](docs/kairos/specs/x-overall.md)",
-  "- **Depends on**: P1",
+  "---",
+  "title: Test Spec",
+  "doc-type: phase-spec",
+  "version: v1.0",
+  "date: 2026-10-09",
+  "status: Draft",
+  "author: x",
+  "parent-program: docs/kairos/specs/x-overall.md",
+  "parent-version: v1.0",
+  "depends-on: P1",
+  "---",
   "",
   "## Design",
   "",

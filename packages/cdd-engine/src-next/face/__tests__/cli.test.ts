@@ -198,9 +198,15 @@ const planFor = (repoRoot: string, count = 1, name = "p3.md"): string => {
   writeFileSync(
     file,
     [
-      "# Test Plan",
-      "**Spec:** [p3-design.md](docs/kairos/specs/p3-design.md)",
-      "- **Parent program**: [p3-overall.md v1.0](docs/kairos/specs/p3-overall.md)",
+      "---",
+      "title: Test Plan",
+      "doc-type: plan",
+      "version: v1.0",
+      "date: 2026-10-09",
+      "spec: docs/kairos/specs/p3-design.md",
+      "parent-program: docs/kairos/specs/p3-overall.md",
+      "parent-version: v1.0",
+      "---",
       "",
       "## Constraints",
       "",
@@ -249,13 +255,21 @@ const conformingPlan = (
   writeFileSync(
     file,
     [
-      "# Test Plan",
-      `**Spec:** [p3-design.md](${specTarget})`,
-      "- **Parent program**: [p3-overall.md v1.0](docs/kairos/specs/p3-overall.md)",
-      "- **Version**: v1.0 · 2026-10-09",
+      "---",
+      "title: Test Plan",
+      "doc-type: plan",
+      "version: v1.0",
+      "date: 2026-10-09",
+      `spec: ${specTarget}`,
+      "parent-program: docs/kairos/specs/p3-overall.md",
+      "parent-version: v1.0",
+      "depends-on: P1",
+      "base: develop",
+      "---",
+      // The `- **Doc type**:` line is the D34 bridge the BoardView.readDocType
+      // declaration face reads until the T9 re-point — the head `doc-type:` key
+      // carries the judged fact, the bullet keeps the legacy face dispatchable.
       "- **Doc type**: plan",
-      "- **Depends on**: P1",
-      "- **Base**: develop",
       "",
       "## Constraints",
       "",
@@ -299,12 +313,18 @@ const conformingOverall = (repoRoot: string): string => {
   writeFileSync(
     file,
     [
-      "# Test Overall",
-      "- **Version**: v1.21 · 2026-10-07",
-      "- **Status**: Approved",
+      "---",
+      "title: Test Overall",
+      "doc-type: overall-spec",
+      "version: v1.21",
+      "date: 2026-10-07",
+      "status: Approved",
+      'author: "[human]"',
+      "---",
+      // The `- **Doc type**:` line is the D34 bridge the BoardView.readDocType
+      // declaration face reads until the T9 re-point — the head `doc-type:` key
+      // carries the judged fact, the bullet keeps the legacy face dispatchable.
       "- **Doc type**: overall-spec",
-      "- **Author**: [human]",
-      "- **Constraints**: all cross-cutting constraints apply",
       "",
       "## Document scope",
       "scope prose",
@@ -342,6 +362,10 @@ const conformingOverall = (repoRoot: string): string => {
       "",
       "## Boundary rules",
       "- boundary rule",
+      "",
+      "## Constraints",
+      "",
+      "- 全部约定自动生效",
       "",
       "## Maintenance",
       "- maintenance note",
@@ -389,9 +413,15 @@ const independentPlan = (repoRoot: string, name: string, count: number): string 
   writeFileSync(
     file,
     [
-      "# Test Plan",
-      "**Spec:** [p3-design.md](docs/kairos/specs/p3-design.md)",
-      "- **Parent program**: [p3-overall.md v1.0](docs/kairos/specs/p3-overall.md)",
+      "---",
+      "title: Test Plan",
+      "doc-type: plan",
+      "version: v1.0",
+      "date: 2026-10-09",
+      "spec: docs/kairos/specs/p3-design.md",
+      "parent-program: docs/kairos/specs/p3-overall.md",
+      "parent-version: v1.0",
+      "---",
       "",
       "## Constraints",
       "",
@@ -414,13 +444,21 @@ const conformingSpec = (repoRoot: string, name = "s1-design.md"): string => {
   writeFileSync(
     file,
     [
-      "# Test Spec",
-      "- **Version**: v1.0 · 2026-10-09",
-      "- **Status**: Draft",
+      "---",
+      "title: Test Spec",
+      "doc-type: phase-spec",
+      "version: v1.0",
+      "date: 2026-10-09",
+      "status: Draft",
+      "author: x",
+      "parent-program: docs/kairos/specs/x-overall.md",
+      "parent-version: v1.0",
+      "depends-on: P1",
+      "---",
+      // The `- **Doc type**:` line is the D34 bridge the BoardView.readDocType
+      // declaration face reads until the T9 re-point — the head `doc-type:` key
+      // carries the judged fact, the bullet keeps the legacy face dispatchable.
       "- **Doc type**: phase-spec",
-      "- **Author**: x",
-      "- **Parent program**: [x-overall.md v1.0](docs/kairos/specs/x-overall.md)",
-      "- **Depends on**: P1",
       "",
       "## Design",
       "",

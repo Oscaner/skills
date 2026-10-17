@@ -43,7 +43,7 @@ flowchart TD
 
 ### `self-review`
 
-- **Do**: Review the just-written spec before committing — check spec coverage (every design decision the session landed is captured) + type consistency (doc-type / naming / cross-references agree) + zero leftover `:::fill` markers + zero angle-bracket literals outside link-anchor slots. Issues found are fixed inline on the same file; this is a pre-commit self-check inside this flow, not a review round (no `next:` dispatch, no findings carrier).
+- **Do**: Review the just-written spec before committing — run five checks, substance first: (1) **capture** — every design decision the session landed is in the spec, every ruling recorded; (2) **sufficiency** — could the downstream plan author act without guessing? Name each place where a wrong guess would change what gets built; (3) **consistency** — doc-type / naming / cross-references agree; (4) **failure modes** — the design addresses the failure modes and edge conditions it implies; (5) **proportion** — the spec carries decisions, not a transcript of the work. Then the mechanical tail: zero leftover `:::fill` markers, zero angle-bracket literals outside link-anchor slots (cheap hygiene the doc-contract gate would otherwise flag). Issues found are fixed inline on the same file; this is a pre-commit self-check inside this flow, not a review round (no `next:` dispatch, no findings carrier).
 - **Read**: the written spec document + the session output it was authored from
 - **Exit**: Self-check clean (issues fixed inline) → `commit-spec`
 - **Fail**: Unresolvable defect needing upstream design input → BLOCKED (missing design input)

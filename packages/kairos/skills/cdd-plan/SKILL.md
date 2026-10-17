@@ -51,7 +51,7 @@ flowchart TD
 
 ### `self-review`
 
-- **Do**: Review the just-written plan before committing — check spec coverage (every approved-spec requirement maps to a task) + type consistency (task ids / `DependsOn` edges / naming agree) + zero leftover `:::fill` markers + zero angle-bracket literals outside link-anchor slots. Issues found are fixed inline on the same file; this is a pre-commit self-check inside this flow, not a review round (no `next:` dispatch, no findings carrier).
+- **Do**: Review the just-written plan before committing — run five checks, substance first: (1) **coverage** — every approved-spec requirement maps to a task; (2) **step decidability** — each step lets the implementer write exactly one reasonable thing (a line that decides nothing, or a signature-and-tests-determined transcript, is a defect); (3) **consistency** — task ids / `DependsOn` edges / naming agree; (4) **failure-mode coverage** — every failure mode the spec implies has a task whose checkable exercises it; (5) **proportion** — the plan is not many times the length of the spec it implements. Then the mechanical tail: zero leftover `:::fill` markers, zero angle-bracket literals outside link-anchor slots (cheap hygiene the doc-contract gate would otherwise flag). Issues found are fixed inline on the same file; this is a pre-commit self-check inside this flow, not a review round (no `next:` dispatch, no findings carrier).
 - **Read**: the written plan document + the approved spec it implements
 - **Exit**: Self-check clean (issues fixed inline) → `commit-plan`
 - **Fail**: Unresolvable defect needing design input → BLOCKED (missing plan input)

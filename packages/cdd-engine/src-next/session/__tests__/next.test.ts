@@ -168,8 +168,8 @@ describe("the failure face — BLOCKED/TIMEOUT produce no next line", () => {
 });
 
 describe("the pinned surface — Route/soft-cap constants (the brief's type-check checkable)", () => {
-  it("the soft-cap constant is the literal 10 and the wording is stable", () => {
-    expect(REVIEW_CYCLE_CAP).toBe(10);
+  it("the soft-cap constant is the literal 20 and the wording is stable", () => {
+    expect(REVIEW_CYCLE_CAP).toBe(20);
     expect(SOFT_CAP_SUGGESTION).toBe("BLOCKED: review-cycle-cap — user adjudicates");
   });
 
@@ -189,11 +189,11 @@ describe("the pinned surface — Route/soft-cap constants (the brief's type-chec
 
   it("the soft-cap constants keep their literal types at compile time", () => {
     // Compile-time pins — this file fails under `tsc --noEmit` if either constant's
-    // declared type drifts from the decision table's domain (cap == 10, verbatim wording).
-    const cap: 10 = REVIEW_CYCLE_CAP;
+    // declared type drifts from the decision table's domain (cap == 20, verbatim wording).
+    const cap: 20 = REVIEW_CYCLE_CAP;
     const wording: "BLOCKED: review-cycle-cap — user adjudicates" = SOFT_CAP_SUGGESTION;
     expect({ cap, wording }).toEqual({
-      cap: 10,
+      cap: 20,
       wording: "BLOCKED: review-cycle-cap — user adjudicates",
     });
   });

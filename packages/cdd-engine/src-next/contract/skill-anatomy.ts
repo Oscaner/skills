@@ -44,11 +44,15 @@ export interface AnatomyDigraph {
   loopHubNode: {
     name: string;
   };
-  /** The engine-lexicon pinned loop-condition phrases (the v1.20 word-table pin) — the ONLY
-   *  condition labels the loop-family NEXT-LOOP hub's out-edges may carry (the
-   *  `until next is terminal` self-loop · the `no next` failure face — the static
-   *  digraph truth shares ONE word table with the runtime `next:` instance,
-   *  mechanically anti-drift). */
+  /** The loop-condition phrases the loop-family NEXT-LOOP hub's out-edges may
+   *  carry (the `until next is terminal` self-loop · the `no next` failure face).
+   *  This slot IS the authoritative home for the family (P9 branch-review-1 F9):
+   *  the phrases are the SKILL-digraph EDGE-LABEL vocabulary — a consumer-surface
+   *  prose face the runtime `next:` never emits — so there is no engine runtime
+   *  constant to derive them from (unlike the status family ← the word table and
+   *  the route family ← `ROUTE_DECISION_WORDS`, both engine-grounded). The
+   *  edge-conditions guard pins the two runtime-derived families against their
+   *  engine sources and consumes THIS slot verbatim for the loop family. */
   nextLoopConditions: readonly string[];
 }
 
@@ -75,6 +79,17 @@ export interface AnatomyGrowthBoundary {
 export interface AnatomyConsumerPurity {
   forbiddenNarrativeHeads: readonly string[];
   zeroTraceRule: string;
+}
+
+/** The frontmatter-validity rule (spec §4 · D42) — every shipped SKILL.md's YAML
+ *  frontmatter block must parse under a REAL YAML parser. A bare ASCII `: ` inside
+ *  an unquoted scalar (e.g. `the engine's next: line`) makes the block unparseable,
+ *  and the harness then silently drops the skill — an ungated declaration. */
+export interface AnatomyFrontmatter {
+  /** The frontmatter fence delimiter (the block between two `---` lines). */
+  fence: string;
+  /** The rule wording the check quotes when a frontmatter block fails to parse. */
+  rule: string;
 }
 
 /** The author-entry bootstrap surface (§10 · the D29-regression pin) — the flow's
@@ -118,6 +133,8 @@ export interface SkillAnatomyContract {
   growthBoundary: AnatomyGrowthBoundary;
   consumerPurity: AnatomyConsumerPurity;
   authorBootstrap: AnatomyAuthorBootstrap;
+  /** The frontmatter-validity rule (spec §4 · D42) — the real-YAML-parse gate. */
+  frontmatter: AnatomyFrontmatter;
   skills: { registry: Readonly<Record<string, SkillRosterRow>> };
   wording: Readonly<Record<string, string>>;
   /** The engine-lexicon pinned condition words (the v1.20 word-table pin) — the phrase set the
@@ -223,6 +240,13 @@ export const SKILL_ANATOMY = {
     ],
     skeletonCommandPattern: "schema get \\S+ --output skeleton",
   },
+  // The frontmatter-validity rule (spec §4 · D42) — every shipped SKILL.md's YAML
+  // frontmatter block must parse under a REAL parser; a bare `: ` in an unquoted
+  // scalar breaks the block and the harness silently drops the skill.
+  frontmatter: {
+    fence: "---",
+    rule: "every SKILL.md frontmatter block must parse under a real YAML parser — an unquoted `: ` in a scalar makes the block unparseable and the harness silently drops the skill (D42)",
+  },
   skills: { registry: SKILL_ROSTER },
   // The check-facing diagnostic wording — the prose the anatomy assertions quote
   // when a structure rule fires (the contract's self-describing face).
@@ -252,12 +276,16 @@ export const SKILL_ANATOMY = {
     routeFactRule:
       "next: is consumed as a dispatch-ready literal (the literal IS the dispatch, no kind→command mapping layer); a full cdd command string never follows the next: token on a line; BLOCKED/TIMEOUT carry no next line and are not consumed as next steps",
   },
-  // The engine-lexicon pinned condition words (the v1.20 word-table pin) — the phrase set the
-  // digraph's loop/closure decision edges may carry: the NEXT-LOOP phrases + the
-  // decision status words (the review-closure status vocabulary) + the Route-kind
-  // words (the `next:` lexical domain). Sorted lexicographically, documented by
-  // edition; the wording test (face/words + session/next) pins the derivation — a
-  // drifted engine word fails the pin, never a silent second list.
+  // The engine-lexicon pinned condition words (the v1.20 word-table pin) — the phrase
+  // set the digraph's loop/closure decision edges may carry: the NEXT-LOOP phrases +
+  // the decision status words (the word table's status vocabulary minus the failure
+  // statuses) + the Route decision words (the `next:` lexical domain). This declared
+  // value is PINNED by the engine-suite derivation gate
+  // (contract/__tests__/edge-conditions.guard.test.ts) — it must equal the derivation
+  // from the engine word table / Route lexicon (`CAPSULE_WORDS.status` minus
+  // `FAILED_STATUS`, `ROUTE_DECISION_WORDS`, `nextLoopConditions`); a drifted engine
+  // word fails that gate, never a silent second list. The kairos-suite edge assertion
+  // consumes this set as its label allowlist.
   edgeConditionWords: [
     "until next is terminal",
     "no next",

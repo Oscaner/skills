@@ -10,7 +10,7 @@ The engine runs the implement / review / fix phases of the CDD workflow against 
 
 ## Installation
 
-Requires Node.js `>= 22.12.0`.
+Requires Node.js `>= 24`.
 
 ```bash
 # global CLI (provides the `cdd` binary)

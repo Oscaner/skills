@@ -12,7 +12,7 @@ CDD 引擎 CLI——kairos `cdd-dev` 技能背后的任务运行器、文档/分
 
 ## 安装
 
-需要 Node.js `>= 22.12.0`。
+需要 Node.js `>= 24`。
 
 ```bash
 # 全局 CLI（提供 `cdd` 二进制）

@@ -96,12 +96,13 @@ const judge = (
   content: string,
   fs: DocFs = EMPTY_FS,
   phaseId?: string,
+  root = ".",
 ): Finding[] =>
   new Contract().validate({
     docKey,
     path: docKey === "overall-spec" ? OVERALL_PATH : docKey === "plan" ? PLAN_PATH : SPEC_PATH,
     content,
-    root: ".",
+    root,
     fs,
     phaseId,
   });
@@ -594,6 +595,29 @@ describe("the four context-seam invariants — one negative case each", () => {
     );
     const findings = judge("overall-spec", content, GOOD_OVERALL_FS);
     expect(withKind(findings, "sibling-scan")).toBe(true);
+  });
+
+  it("P9 T5 — #scanRoots composes the doc dir + doc roots on ONE basis (ctx.root)", () => {
+    // The scan roots resolve through the SAME `ctx.root` basis the rest of the
+    // judgment reads (never a bare relative string against process.cwd()): with a
+    // non-trivial root, the doc's own dir and BOTH declared doc roots join it.
+    const seen: string[] = [];
+    const fs: DocFs = {
+      exists: () => true,
+      read: () => null,
+      list: (dir) => {
+        seen.push(dir);
+        return dir.endsWith("/specs") || dir.endsWith("specs")
+          ? ["x-overall.md", "x-p1-design.md", "x-p2-design.md"]
+          : ["x-p1.md", "x-p2.md"];
+      },
+    };
+    judge("overall-spec", GOOD_OVERALL, fs, undefined, "/abs/repo");
+    // Every scan root carries the root basis (`/abs/repo`) — the doc dir + both
+    // doc roots, never a bare relative against process.cwd().
+    expect(seen.every((dir) => dir.startsWith("/abs/repo/"))).toBe(true);
+    expect(seen.some((dir) => dir.endsWith("/docs/kairos/specs"))).toBe(true);
+    expect(seen.some((dir) => dir.endsWith("/docs/kairos/plans"))).toBe(true);
   });
 
   it("cross-doc-chain: a **Spec:** label that drifts from the resolved basename is reported", () => {

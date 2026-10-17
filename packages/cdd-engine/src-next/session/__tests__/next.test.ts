@@ -27,6 +27,7 @@ import {
   FIX_READBACK_SUFFIX,
   NextStepRouter,
   PIPELINE_NEXT,
+  type PipelineFaceReport,
   REVIEW_CYCLE_CAP,
   SOFT_CAP_SUGGESTION,
 } from "../next.ts";
@@ -364,5 +365,96 @@ describe("D40 — the face-to-face handoff route + the single resolver", () => {
     // The overall line / a bare terminal: no pipeline seam carries it — the terminal word.
     expect(NextStepRouter.resolve({ kind: "done" }, null)).toEqual({ kind: "done" });
     expect(NextStepRouter.resolve(null, null)).toEqual({ kind: "done" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D40 / D26 — walk(): the ONE face-to-face traversal. The board reports the
+// observed faces (keyed), the router decides the next step. This is the D26 guard
+// for the board off-by-one: a just-closed spec hands off to the SPEC's exit
+// (cdd-plan), never the absent plan's exit (cdd-dev).
+// ---------------------------------------------------------------------------
+
+describe("D40/D26 — walk(): the single face-to-face traversal", () => {
+  /** A face report with every face unentered/open by default (the caller overrides). */
+  const report = (over: Partial<PipelineFaceReport>): PipelineFaceReport => ({
+    "phase-spec": { closed: false, active: null, target: null },
+    plan: { closed: false, active: null, target: null },
+    wave: { closed: false, active: null, target: null },
+    branch: { closed: false, active: null, target: null },
+    ...over,
+  });
+  const tSpec = { type: "spec", id: "docs/kairos/specs/p-design.md" } as const;
+  const tPlan = {
+    type: "plan",
+    id: "docs/kairos/plans/p.md",
+    plan: "docs/kairos/plans/p.md",
+  } as const;
+
+  it("a face with an active C5 hop renders that hop (the in-flight work wins)", () => {
+    const next = NextStepRouter.walk(
+      report({
+        "phase-spec": { closed: true, active: null, target: tSpec },
+        plan: { closed: false, active: { kind: "review" }, target: tPlan },
+      }),
+    );
+    expect(next.route).toEqual({ kind: "review" });
+    expect(next.target).toEqual(tPlan);
+  });
+
+  it("the off-by-one D26 guard — a just-closed spec + an ABSENT plan hands off to the SPEC's exit", () => {
+    // The board's frontier is the plan face, but it was never entered (no doc). The
+    // retired fork used the frontier LINE's key → plan's exit (cdd-dev). The walk uses
+    // the PRECEDING entered face's exit → the spec's (cdd-plan).
+    const next = NextStepRouter.walk(
+      report({ "phase-spec": { closed: true, active: null, target: tSpec } }),
+    );
+    expect(next.route).toEqual({ kind: "handoff", entry: PIPELINE_NEXT["phase-spec"] });
+    expect(next.target).toEqual(tSpec);
+  });
+
+  it("a frontier ENTERED but drained (a present doc, no active hop) renders its OWN exit", () => {
+    const next = NextStepRouter.walk(
+      report({
+        "phase-spec": { closed: true, active: null, target: tSpec },
+        plan: { closed: false, active: null, target: tPlan },
+      }),
+    );
+    expect(next.route).toEqual({ kind: "handoff", entry: PIPELINE_NEXT.plan });
+    expect(next.target).toEqual(tPlan);
+  });
+
+  it("no preceding entered face → the FIRST face's exit (the pipeline entrance)", () => {
+    const next = NextStepRouter.walk(report({}));
+    expect(next.route).toEqual({ kind: "handoff", entry: PIPELINE_NEXT["phase-spec"] });
+  });
+
+  it("every face closed → the LAST entered face's exit (the pipeline terminus)", () => {
+    const next = NextStepRouter.walk(
+      report({
+        "phase-spec": { closed: true, active: null, target: tSpec },
+        plan: { closed: true, active: null, target: tPlan },
+        wave: { closed: true, active: null, target: { type: "wave", id: "1", plan: tPlan.plan } },
+        branch: {
+          closed: true,
+          active: null,
+          target: { type: "branch", id: "branch", plan: tPlan.plan },
+        },
+      }),
+    );
+    expect(next.route).toEqual({ kind: "handoff", entry: PIPELINE_NEXT.branch });
+  });
+
+  it("every face closed with nothing entered → the bare terminal `done`", () => {
+    expect(
+      NextStepRouter.walk(
+        report({
+          "phase-spec": { closed: true, active: null, target: null },
+          plan: { closed: true, active: null, target: null },
+          wave: { closed: true, active: null, target: null },
+          branch: { closed: true, active: null, target: null },
+        }),
+      ).route,
+    ).toEqual({ kind: "done" });
   });
 });

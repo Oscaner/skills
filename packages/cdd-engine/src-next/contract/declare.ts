@@ -109,7 +109,7 @@ const HOME_VALUES = [
   "design-body",
   "conditional",
 ] as const satisfies readonly Home[];
-const DOC_TYPE_VALUES = [
+export const DOC_TYPE_VALUES = [
   "overall-spec",
   "plan",
   "phase-spec",

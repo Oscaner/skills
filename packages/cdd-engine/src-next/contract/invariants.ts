@@ -15,6 +15,7 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { ENGINE_DOC_ROOTS } from "../infra/doc-roots.ts";
 import type { ElementRegistry, RegistryElement } from "./declare.ts";
 import type {
   ChainLink,
@@ -32,6 +33,18 @@ import type { DocKey, DocShape, DocSlices, ElementSlice } from "./project.ts";
 // ---------------------------------------------------------------------------
 // judgment records + the context
 // ---------------------------------------------------------------------------
+
+/** The doc-tree root namespace derived from the ONE doc-root declaration (the
+ *  common parent of the spec/plan roots) — the finding messages name the
+ *  repo-root form `<namespace>/…` from THIS, never a hard-coded copy (P9 T5 §2.8). */
+const DOC_ROOT_NAMESPACE = path.dirname(ENGINE_DOC_ROOTS.specs);
+
+/** The two doc-root segment names derived from the same ONE declaration — the
+ *  sibling-scan finding message's `<segments>` form names THIS, never a hard-coded
+ *  copy (P9 T5 §2.8). */
+const DOC_ROOT_SEGMENTS = Object.values(ENGINE_DOC_ROOTS)
+  .map((dir) => path.basename(dir))
+  .join("/");
 
 /** One contract finding — a single invariant violation, bound to a doc + field. */
 export interface Finding {
@@ -978,7 +991,7 @@ export class FileExistenceInvariant extends Invariant {
             ctx,
             source,
             `the chain link target does not resolve to an existing file: ${link.target}`,
-            "fix the link target (repo-root form docs/kairos/... or a file-relative path)",
+            `fix the link target (repo-root form ${DOC_ROOT_NAMESPACE}/... or a file-relative path)`,
           ),
         );
       }
@@ -1029,13 +1042,33 @@ export class FileExistenceInvariant extends Invariant {
   }
 
   /** Whether the target exists — absolute targets directly; repo-root form first, the
-   *  doc's own dir as the file-relative fallback. */
+   *  doc's own dir as the file-relative fallback. The resolution chain is
+   *  single-sourced in `targetPath` (the ONE home the CLI's plan `**Spec:**` link
+   *  rebase delegates to as well — P9 branch-review-1 F8: a future contract change
+   *  cannot silently diverge from the CLI's mirror). */
   #targetExists(ctx: JudgeContext, target: string): boolean {
-    if (path.isAbsolute(target)) return ctx.fs.exists(target);
-    return (
-      ctx.fs.exists(path.join(ctx.root, target)) ||
-      ctx.fs.exists(path.join(path.dirname(ctx.path), target))
+    return ctx.fs.exists(
+      FileExistenceInvariant.targetPath(ctx.root, ctx.path, target, (p) => ctx.fs.exists(p)),
     );
+  }
+
+  /** The ONE chain-link target-resolution chain (the doc-contract's own judgment,
+   *  reused by the CLI's plan `**Spec:**` link rebase — F8): an absolute target as
+   *  itself; else the repoRoot-relative reading when it exists; else the doc-dir
+   *  (file-relative) reading. `exists` is the caller's filesystem seam (the
+   *  judgment's `ctx.fs`, the CLI's `fs.existsSync`) — the resolution is the shared
+   *  fact, the read is injected. When neither reading exists the doc-dir path is
+   *  returned (the link-space semantic — the caller owns the truly-missing case). */
+  static targetPath(
+    root: string,
+    docPath: string,
+    target: string,
+    exists: (path: string) => boolean,
+  ): string {
+    if (path.isAbsolute(target)) return target;
+    const fromRoot = path.join(path.resolve(root), target);
+    if (exists(fromRoot)) return fromRoot;
+    return path.join(path.dirname(path.resolve(docPath)), target);
   }
 }
 
@@ -1046,7 +1079,7 @@ export class SiblingScanInvariant extends FileExistenceInvariant {
   evaluate(ctx: JudgeContext): Finding[] {
     const findings: Finding[] = [];
     const baseline = new Set<string>();
-    for (const root of SiblingScanInvariant.#scanRoots(ctx.path)) {
+    for (const root of SiblingScanInvariant.#scanRoots(ctx.root, ctx.path)) {
       for (const entry of ctx.fs.list(root)) {
         if (entry.endsWith(".md")) baseline.add(entry);
       }
@@ -1060,7 +1093,7 @@ export class SiblingScanInvariant extends FileExistenceInvariant {
             ctx,
             source,
             `the cross-linked doc ${basename} is not a same-family sibling (not present in the sibling docs scan)`,
-            "link to a sibling doc under the same specs/plans family",
+            `link to a sibling doc under the same ${DOC_ROOT_SEGMENTS} family`,
           ),
         );
       }
@@ -1068,11 +1101,21 @@ export class SiblingScanInvariant extends FileExistenceInvariant {
     return findings;
   }
 
-  /** The doc's own dir + its sibling specs/plans dirs — the same-family scan roots. */
-  static #scanRoots(docPath: string): readonly string[] {
-    const own = path.dirname(docPath);
-    const grand = path.dirname(own);
-    return [own, path.join(grand, "specs"), path.join(grand, "plans")];
+  /** The doc's own dir + the sibling doc-root dirs — the same-family scan roots,
+   *  resolved on ONE basis (P9 T5 §2.8): the doc path and the doc roots
+   *  (`ENGINE_RUNTIME.docRoots` segments) compose through `root` (the absolute
+   *  basis) before they touch the filesystem — a relative string read without
+   *  `root` would resolve against `process.cwd()` (the engine never chdirs),
+   *  silently drifting off the repo root. `path.resolve(root, …)` reads an absolute
+   *  doc path as itself and a repoRoot-relative one as joined to the basis (both
+   *  callers — the pre-flight's absolute doc path and the judge's relative one — land
+   *  on the same basis). The doc-root segments are read from the ONE declaration
+   *  (never a hard-coded segment-name copy). */
+  static #scanRoots(root: string, docPath: string): readonly string[] {
+    return [
+      path.dirname(path.resolve(root, docPath)),
+      ...Object.values(ENGINE_DOC_ROOTS).map((dir) => path.join(root, dir)),
+    ];
   }
 }
 

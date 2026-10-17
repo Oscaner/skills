@@ -35,7 +35,7 @@
 // the capsule plugs into the lifecycle's attachCapsule contact, byte-identically.
 // Module-level exports are the class — zero behavior-carrying bare functions.
 
-import path from "node:path";
+import { type RepoPath, RepoRoot } from "../infra/root.ts";
 import type { RouteTarget } from "../session/faces.ts";
 import { NextStepRouter, type PipelineKey, type Route } from "../session/next.ts";
 import { BoardView } from "./board-view.ts";
@@ -62,19 +62,20 @@ export class Capsule {
   readonly #words: Words;
   /** The ONE route → `next:` literal renderer (D40 — shared with the board). */
   readonly #route: RouteRenderer;
-  /** The repo root the doc-target ids resolve against (the declaration read's
-   *  path base; `""` keeps a relative id relative — the hermetic-test default). */
-  readonly #repoRoot: string;
+  /** The repo-basis value object the doc-target ids + the `handoff:` cell resolve
+   *  through (T1 `RepoRoot` · D47 — the ONE conversion exit; `null` keeps a relative
+   *  id relative · the hermetic-test default). */
+  readonly #root: RepoRoot | null;
 
   constructor(
     words: Words,
     channels: Readonly<Record<string, CapsuleChannelRow>> = {},
     host = "",
-    repoRoot = "",
+    root: RepoRoot | null = null,
   ) {
     this.#words = words;
-    this.#repoRoot = repoRoot;
-    this.#route = new RouteRenderer(words, channels, host);
+    this.#root = root;
+    this.#route = new RouteRenderer(words, channels, host, root);
   }
 
   /** emit(status, blocker, handoff, next, target) → the capsule stdout lines: the
@@ -92,7 +93,14 @@ export class Capsule {
     target?: RouteTarget | null,
   ): string[] {
     const words = this.#words;
-    const cells: Record<CapsuleKey, string> = { status, blocker, handoff };
+    // The `handoff:` cell is a path value — normalized to the repoRoot-relative
+    // shape through the ONE value object (D47 · the ONE basis; `handoffPath` sources
+    // it absolute).
+    const cells: Record<CapsuleKey, string> = {
+      status,
+      blocker,
+      handoff: this.#rel(handoff),
+    };
     const capsuleLine = words
       .capsuleKeys()
       .map((kind) => `${kind}: ${cells[kind]}`)
@@ -133,7 +141,10 @@ export class Capsule {
    *  class (`single-spec`, the table's five keys exclude it — the bare word). */
   #docClassOf(target: RouteTarget): "blocked" | "terminal" | PipelineKey {
     if (target.type === "spec") {
-      const declared = BoardView.readDocType(this.#docPathOf(target.id));
+      // The read face takes the value object + the repoRoot-relative id (T4 §2.2);
+      // a `null` root (the hermetic default) keeps the value as its own basis. The
+      // `#rel` branded return needs no cast here (F3).
+      const declared = BoardView.readDocType(this.#root ?? new RepoRoot(""), this.#rel(target.id));
       return declared === null ? "blocked" : declared === "single-spec" ? "terminal" : declared;
     }
     if (target.type === "plan") return "plan";
@@ -141,9 +152,12 @@ export class Capsule {
     return "branch";
   }
 
-  /** The doc-target id's file path — the id resolved against the capsule's repo
-   *  root (an absolute id passes through; a relative one joins the root). */
-  #docPathOf(id: string): string {
-    return path.isAbsolute(id) ? id : this.#repoRoot === "" ? id : path.join(this.#repoRoot, id);
+  /** One path value normalized to the branded repoRoot-relative `RepoPath` through
+   *  the ONE value object (D47); a `null` root (the hermetic default) passes the
+   *  value through as its own basis. The branded return type carries the §2.2 brand
+   *  to the read face (`BoardView.readDocType`) with NO call-site cast (branch-
+   *  review-1 F3). */
+  #rel(value: string): RepoPath {
+    return this.#root === null ? (value as RepoPath) : this.#root.relativize(value);
   }
 }

@@ -1,14 +1,12 @@
 // packages/kairos/tests/helpers.ts — shared helpers for behavior/integration tests (Node port
-// of test-lib.sh `harness_free_path` + cdd-commit-gate-smoke.sh `setup_repo`).
+// of test-lib.sh `harness_free_path`).
 //
 // Distinct layer from the engine module unit tests (their helpers are inline): this file serves
 // the behavior/integration test tree under packages/kairos/tests/ (bash boundary tests).
 //
 // Zero module-level bare functions — the helpers are `const` arrows (the P5 zero-
 // `function`-declaration discipline applies to this migrated surface too).
-import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { SKILL_ANATOMY } from "../../cdd-engine/src-next/contract/skill-anatomy.ts";
 import { HOSTS } from "../../cdd-engine/src-next/face/host.ts";
@@ -64,33 +62,4 @@ export const harnessFreePath = ({
       });
     })
     .join(path.delimiter);
-};
-
-// setup_repo — a fresh git repo whose tracked .gitignore ignores cdd/ (the workspace dir,
-// mirroring a real repo: fixture files live under cdd/ without dirtying the tracked tree).
-// Returns the repo's absolute path.
-export const setupRepo = ({ prefix = "cdd-behavior-" } = {}) => {
-  const dest = mkdtempSync(path.join(tmpdir(), prefix));
-  writeFileSync(path.join(dest, ".gitignore"), "cdd/\n");
-  git(dest, "init", "-q");
-  git(dest, "add", "-A");
-  git(
-    dest,
-    "-c",
-    "user.name=cdd-gate-test",
-    "-c",
-    "user.email=cdd-gate-test@example.com",
-    "commit",
-    "--allow-empty",
-    "-qm",
-    "fixture",
-  );
-  return dest;
-};
-
-const git = (repo: string, ...args: string[]): string => {
-  return execFileSync("git", ["-C", repo, ...args], {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "ignore"],
-  }).trim();
 };

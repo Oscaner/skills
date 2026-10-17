@@ -10,6 +10,7 @@
 
 import { describe, expect, it } from "vitest";
 import { Translator } from "../../contract/translate.ts";
+import { DISPATCH } from "../../face/host.ts";
 import { Words } from "../../face/words.ts";
 import { BriefRenderer } from "../brief.ts";
 import { IssueBodyRenderer, type IssueReportInput } from "../issue-body.ts";
@@ -26,6 +27,7 @@ const ALL_VALUES: Record<string, string> = {
   INPUT_WAVE_BRIEF: "/ws/tasks-4,12-brief.md",
   INPUT_FINDINGS: "",
   INPUT_DOC: "",
+  INPUT_SPEC: "",
   BASE_BRANCH: "",
   OUTPUT_REPORT: "/ws/tasks-4,12-implement-report.md",
   OUTPUT_EVIDENCE: "/ws/tasks-4,12-test-evidence.json",
@@ -109,6 +111,10 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(out).not.toContain("INPUT_FINDINGS");
     expect(out).not.toContain("FIX_BASE");
     expect(out).not.toContain("BASE_BRANCH");
+    // ⑫ the implement dispatch ref is the DISPATCH single source — the rendered
+    // shell carries DISPATCH.implement's value (zero drift pin; the literal lives
+    // ONLY in the DISPATCH table, never re-spelled in the template prose).
+    expect(out).toContain(DISPATCH.implement);
   });
 
   it("renders the docs-fix mode through the same table — its own rules + subset", () => {
@@ -242,10 +248,25 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       REVIEW_TYPE: "plan",
       INPUT_WAVE_BRIEF: "",
       INPUT_DOC: "docs/kairos/plans/p.md",
+      INPUT_SPEC: "docs/kairos/specs/p-design.md",
       OUTPUT_HANDOFF: "/ws/plan-review-1.json",
     });
     expect(plan).toContain("**Criteria — plan:**");
     expect(plan).toContain("Claimed→pin");
+    // a plan review carries the plan's design-spec anchor (INPUT_SPEC) so the
+    // reviewer judges the plan against the spec it implements
+    expect(plan).toContain("- `INPUT_SPEC`: docs/kairos/specs/p-design.md");
+    // the spec review carries no INPUT_SPEC slot (empty → dropped by the assembler)
+    expect(
+      assembler.render({
+        ...ALL_VALUES,
+        ROLE: "review",
+        REVIEW_TYPE: "spec",
+        INPUT_WAVE_BRIEF: "",
+        INPUT_DOC: "docs/kairos/specs/s1-design.md",
+        OUTPUT_HANDOFF: "/ws/spec-review-1.json",
+      }),
+    ).not.toContain("INPUT_SPEC");
   });
 
   it("hard gates: a missing token value throws (named)", () => {

@@ -23,6 +23,7 @@
 import { InvalidArgumentError } from "commander";
 
 import type { DocKey } from "../contract/project.ts";
+import { ENGINE_DOC_ROOTS } from "../infra/doc-roots.ts";
 
 /** The component-value types of the argv channel (the CLI parse validates by these). */
 export type ChannelValueType = "string" | "path" | "int-list" | "enum" | "int" | "bool";
@@ -89,11 +90,6 @@ export const ARGV_CHANNEL = {
     type: "bool",
     scope: "program",
     help: "show this help",
-  },
-  root: {
-    flag: "--root",
-    type: "path",
-    help: "the repository root (default: the current git top level)",
   },
   output: {
     flag: "--output",
@@ -199,20 +195,22 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
   {
     name: "implement",
     description: "run the task implement phase",
-    example: "cdd implement --tasks 1,2 --plan docs/kairos/plans/p3.md",
-    keys: [{ key: "tasks", required: true }, { key: "plan", required: true }, { key: "root" }],
+    example: `cdd implement --tasks 1,2 --plan ${ENGINE_DOC_ROOTS.plans}/p3.md`,
+    keys: [
+      { key: "tasks", required: true },
+      { key: "plan", required: true },
+    ],
   },
   {
     name: "review",
     description: "run a review — task | branch | spec | plan",
-    example: "cdd review --type spec --spec docs/kairos/specs/p3-design.md",
+    example: `cdd review --type spec --spec ${ENGINE_DOC_ROOTS.specs}/p3-design.md`,
     keys: [
       { key: "type", required: true },
       { key: "tasks" },
       { key: "plan" },
       { key: "spec" },
       { key: "round" },
-      { key: "root" },
     ],
   },
   {
@@ -225,13 +223,12 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
       { key: "findings" },
       { key: "spec" },
       { key: "plan" },
-      { key: "root" },
     ],
   },
   {
     name: "base",
     description: "read/write base.json (single CDD --plan target)",
-    example: "cdd base set --plan docs/kairos/plans/p3.md --base develop --source plan-field",
+    example: `cdd base set --plan ${ENGINE_DOC_ROOTS.plans}/p3.md --base develop --source plan-field`,
     keys: [],
     leaves: [
       {
@@ -283,7 +280,7 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
     name: "board",
     description: "render the slug progress board (overall/spec/plan/wave/branch)",
     example: "cdd board 2026-10-10-engine-doc-tooling-p7",
-    keys: [{ key: "root" }],
+    keys: [],
     positionals: [{ key: "slug", required: true }],
   },
 ];

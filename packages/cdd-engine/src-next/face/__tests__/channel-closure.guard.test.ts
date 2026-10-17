@@ -14,13 +14,17 @@
 //      four, derived from the harness detect rows as the live single source;
 //   3. the dispatch/refs derivation — every dispatch-slot ref is registered and
 //      every per-harness slash form derives (`pi` /skill:<bare>, claude/cursor
-//      /<ref>).
+//      /<ref>);
+//   4. the pipeline-next refs closure (T13 ⑨) — every `PIPELINE_NEXT` ref-key entry
+//      is registered in REFS and derives its per-harness forms (the face-to-face
+//      handoff table × the ref table cross-closure).
 //
 // Zero module-level bare functions — the assertions read the typed exports with
 // `const` helpers only (the P5 zero-`function`-declaration discipline).
 
 import { describe, expect, it } from "vitest";
 
+import { PIPELINE_NEXT } from "../../session/next.ts";
 import { ARGV_CHANNEL, CLI_COMMANDS } from "../declare.ts";
 import { DISPATCH, HOSTS, REFS } from "../host.ts";
 
@@ -96,6 +100,29 @@ describe("the dispatch/refs derivation — every dispatch-slot ref registered + 
       for (const id of ["claude", "cursor", "pi"] as const) {
         const expected = id === "pi" ? `/skill:${ref.split(":")[1]}` : `/${ref}`;
         expect(form[id], `ref "${ref}" per-harness form for ${id}`).toBe(expected);
+      }
+    }
+  });
+
+  it("the PIPELINE_NEXT ref-key entries close over REFS (every handoff ref is registered + derives its forms)", () => {
+    // The face-to-face handoff table (session/next.ts PIPELINE_NEXT) routes each
+    // pipeline seam through a skill ref; every `{ kind: "ref" }` entry must name a
+    // registered REFS key and derive its per-harness slash forms — the same closure
+    // the dispatch leg enforces (a handoff ref absent from REFS renders the bare
+    // `done` word at the capsule's render, a silent mis-route).
+    const pipelineRefs = Object.values(PIPELINE_NEXT)
+      .filter((entry): entry is { kind: "ref"; ref: string } => entry.kind === "ref")
+      .map((entry) => entry.ref);
+    // The ref-shaped subset is non-empty (the phase-spec/plan/branch seams all route
+    // through refs; only the overall-spec seam is the `done` terminal + wave a literal).
+    expect(pipelineRefs.length).toBeGreaterThan(0);
+    for (const ref of pipelineRefs) {
+      const form = REFS[ref as keyof typeof REFS];
+      expect(form, `PIPELINE_NEXT names the registered ref key "${ref}"`).toBeDefined();
+      if (form === undefined) continue;
+      for (const id of ["claude", "cursor", "pi"] as const) {
+        const expected = id === "pi" ? `/skill:${ref.split(":")[1]}` : `/${ref}`;
+        expect(form[id], `PIPELINE_NEXT ref "${ref}" per-harness form for ${id}`).toBe(expected);
       }
     }
   });

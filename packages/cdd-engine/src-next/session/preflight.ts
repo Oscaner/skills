@@ -29,6 +29,7 @@ import type { Contract } from "../contract/judge.ts";
 import type { DocKey } from "../contract/project.ts";
 import type { Words } from "../face/words.ts";
 import type { GitClient } from "../infra/git.ts";
+import { type RepoPath, RepoRoot } from "../infra/root.ts";
 import type { TargetType } from "./faces.ts";
 import { TaskGraph } from "./graph.ts";
 import type { Ledger } from "./ledger.ts";
@@ -66,8 +67,13 @@ export interface PreFlightDoc {
    *  null when a present doc carries no declaration — the seam BLOCKs (zero
    *  filename-suffix fallback, one declaration reading face `BoardView.readDocType`). */
   docKey: DocKey | null;
-  /** The target doc's path (the lifecycle's audit path). */
-  path: string;
+  /** The target doc's path — the branded repoRoot-relative `RepoPath` (T4 §2.2: a
+   *  bare `string` never reaches this read face; the caller feeds the funnel-shaped
+   *  relative value). The seam erases it to the absolute syscall form through its
+   *  OWN `RepoRoot(ctx.repoRoot)` just before the read — the brand is REAL (the
+   *  absolute state is unrepresentable as a `RepoPath`), the same shape as
+   *  `artifacts.readText(node, root, file: RepoPath)`). */
+  path: RepoPath;
 }
 
 /** One dispatch's pre-flight inputs — the facts the seam judges. */
@@ -182,8 +188,11 @@ export class PreFlight {
     if (ctx.type === "spec" || ctx.type === "plan") {
       gates.push("doc-contract");
       const doc = ctx.doc;
-      const content = doc === null ? null : this.#fs.read(doc.path);
-      if (content !== null && doc !== null) {
+      // The relative `RepoPath` erases to the absolute syscall form through the ONE
+      // value object (the seam's OWN `RepoRoot(ctx.repoRoot)`) just before the read.
+      const docAbsolute = doc === null ? null : new RepoRoot(ctx.repoRoot).resolve(doc.path);
+      const content = docAbsolute === null ? null : this.#fs.read(docAbsolute);
+      if (content !== null && doc !== null && docAbsolute !== null) {
         if (doc.docKey === null) {
           return {
             ok: false,
@@ -195,7 +204,7 @@ export class PreFlight {
         }
         const findings = this.#contract.validate({
           docKey: doc.docKey,
-          path: doc.path,
+          path: docAbsolute,
           content,
           root: ctx.repoRoot,
           fs: this.#fs,

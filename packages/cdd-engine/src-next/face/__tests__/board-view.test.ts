@@ -15,6 +15,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ConfigLoader } from "../../infra/config.ts";
+import { type RepoPath, RepoRoot } from "../../infra/root.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { Ledger } from "../../session/ledger.ts";
 import { BoardView } from "../board-view.ts";
@@ -189,7 +190,9 @@ describe("BoardView.readHeader — the artifact header `{version, status, docTyp
       status: "In review",
       docType: "phase-spec",
     });
-    expect(BoardView.readDocType(specPath)).toBe("phase-spec");
+    expect(
+      BoardView.readDocType(new RepoRoot(repo), path.relative(repo, specPath) as RepoPath),
+    ).toBe("phase-spec");
   });
 
   it("a doc without a Doc type declaration reads docType null — the consumer blocks, no suffix fallback", () => {
@@ -205,7 +208,9 @@ describe("BoardView.readHeader — the artifact header `{version, status, docTyp
       status: "Draft",
       docType: null,
     });
-    expect(BoardView.readDocType(specPath)).toBeNull();
+    expect(
+      BoardView.readDocType(new RepoRoot(repo), path.relative(repo, specPath) as RepoPath),
+    ).toBeNull();
   });
 
   it("an out-of-domain Doc type value reads null — present facts, never a fabricated type", () => {
@@ -213,7 +218,9 @@ describe("BoardView.readHeader — the artifact header `{version, status, docTyp
     const planPath = path.join(repo, "docs/kairos/plans/prog-p8.md");
     writeFileSync(planPath, ["# The plan", "", "- **Doc type**: memo", ""].join("\n"));
 
-    expect(BoardView.readDocType(planPath)).toBeNull();
+    expect(
+      BoardView.readDocType(new RepoRoot(repo), path.relative(repo, planPath) as RepoPath),
+    ).toBeNull();
   });
 
   it("an absent doc yields nulls — never a fabricated value", () => {
@@ -436,6 +443,11 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     expect(text).toContain("  overall  ");
     expect(text).toContain("prog-p1-design.md   v0.14 · Done");
     expect(text).toContain("prog-p1.md   v0.9");
+    // D47 — the doc cells render repoRoot-relative (docsOfSlug derives them absolute;
+    // the board emits the ONE shape). No row carries the absolute repo prefix.
+    expect(text).toContain("  spec     docs/kairos/specs/prog-p1-design.md");
+    expect(text).toContain("  plan     docs/kairos/plans/prog-p1.md");
+    expect(text).not.toContain(repo);
     expect(text).toContain("  branch   ○ open");
     expect(text.split("\n").at(-1)).toBe("progress: ✔ done · ▶ current · ○ pending");
   });
@@ -498,7 +510,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     const { text } = render("prog-p1");
 
     expect(text).toContain(
-      `  next:    review --type spec --spec ${path.join(repo, "docs/kairos/specs/prog-p1-design.md")}`,
+      `  next:    review --type spec --spec ${path.relative(repo, path.join(repo, "docs/kairos/specs/prog-p1-design.md"))}`,
     );
     expect(text).not.toContain("  next:    /kairos:cdd-plan");
   });
@@ -518,7 +530,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     // The spec face is exhausted → the plan line is the frontier; the plan line has not
     // started its C5 → its ACTIVE hop is the plan review (not the cdd-dev handoff).
     expect(text).toContain(
-      `  next:    review --type plan --plan ${path.join(repo, "docs/kairos/plans/prog-p1.md")}`,
+      `  next:    review --type plan --plan ${path.relative(repo, path.join(repo, "docs/kairos/plans/prog-p1.md"))}`,
     );
     expect(text).not.toContain("  next:    /kairos:cdd-dev");
   });
@@ -689,7 +701,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     // 12,13,14`, never the exhausted-wave face handoff `review --type branch`).
 
     const { text } = render("prog-p1");
-    const planPath = path.join(repo, "docs/kairos/plans/prog-p1.md");
+    const planPath = path.relative(repo, path.join(repo, "docs/kairos/plans/prog-p1.md"));
 
     // The active wave hop — the not-yet-implemented wave renders its implement literal.
     expect(text).toContain(`  next:    implement --plan ${planPath} --tasks 12,13,14`);
@@ -764,12 +776,15 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     expect(new Set(markerColumns).size).toBe(1);
   });
 
-  it("phase board next: a drained line hands off to the next face's skill ref (host fallback)", () => {
-    // D40 deep-solve — the spec line is closed and NO plan doc exists: the plan line
-    // (not closed — no row) holds no active C5 hop (no doc), so it hands off to its
-    // pipeline entry `PIPELINE_NEXT.plan` → the cdd-dev ref. The board renders that
-    // through the SAME RouteRenderer the Capsule's `done` face uses; host "" falls
-    // back to the claude form (REFS[ref].claude) — never a bare plugin guess.
+  it("phase board next: a just-closed spec hands off to its OWN exit (never the absent plan's)", () => {
+    // D40 deep-solve / D26 — the spec line is closed and NO plan doc exists yet: the
+    // plan face is the frontier but was NEVER ENTERED (no doc), so the transition is
+    // the PRECEDING face's exit — the spec's `PIPELINE_NEXT["phase-spec"]` → the
+    // cdd-plan ref. The retired board fork handed off via the frontier LINE's own key
+    // (the absent plan's `cdd-dev`) — a face-boundary off-by-one the ONE walk kills
+    // (a closed spec means "author the plan", not "the plan is done"). Rendering rides
+    // the SAME RouteRenderer the Capsule's `done` face uses; host "" falls back to the
+    // claude form (REFS[ref].claude) — never a bare plugin guess.
     writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
     writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
@@ -779,50 +794,84 @@ describe("BoardView.render — the phase / program board layouts + the next deri
 
     const { text } = render("prog-p1", "");
 
-    expect(text).toContain("  next:    /kairos:cdd-dev");
+    expect(text).toContain("  next:    /kairos:cdd-plan");
   });
 
   it("board per-harness ref pins — a drained line renders REFS[ref][host] (host=pi → /skill:…)", () => {
     // The board's per-harness spelling rides REFS[ref][host] (never a claude-form
-    // constant). The reachable refs on the phase board's per-line walk: the spec face
-    // (no spec doc → the cdd-plan entry) and the plan face (spec closed + no plan doc
-    // → the cdd-dev entry). host=pi renders the flat `/skill:<bare>` form.
+    // constant). The reachable ref at the spec boundary is cdd-plan through both
+    // sub-states — the spec face never authored, and the spec face just closed with no
+    // plan authored (the off-by-one the fork rendered as the absent plan's cdd-dev).
+    // host=pi renders the flat `/skill:<bare>` form.
     writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
     // The spec face is the frontier with no spec doc → PIPELINE_NEXT."phase-spec" → cdd-plan.
     expect(nextOf("prog-p1", "pi")).toBe("/skill:cdd-plan");
     expect(nextOf("prog-p1", "claude")).toBe("/kairos:cdd-plan");
 
-    // Close the spec line so the plan face is the frontier; no plan doc → the cdd-dev ref.
+    // Close the spec line so the plan face is the frontier; no plan doc → the spec's OWN
+    // exit (cdd-plan), never the absent plan's cdd-dev.
     writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
     ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
     ledger.recordRound("spec", "review");
-    expect(nextOf("prog-p1", "pi")).toBe("/skill:cdd-dev");
-    expect(nextOf("prog-p1", "claude")).toBe("/kairos:cdd-dev");
+    expect(nextOf("prog-p1", "pi")).toBe("/skill:cdd-plan");
+    expect(nextOf("prog-p1", "claude")).toBe("/kairos:cdd-plan");
   });
 
   it("board next == the Capsule's done face — the shared renderer byte-identity (host claude / pi)", () => {
     // route-render.ts claims the board's `next:` and the capsule's `next:` are
-    // byte-identical by construction (ONE RouteRenderer). Pin it: a drained plan face
-    // hands off to the SAME pipeline entry through both seams, and both seams now read
-    // the SAME argv channel (the board is threaded ARGV_CHANNEL from the composition
-    // root) — a flag-spelling change cannot silently split the two faces.
+    // byte-identical by construction (ONE RouteRenderer). Pin it at the state BOTH
+    // seams agree on: the spec boundary. The board has a closed spec face + no plan doc
+    // (the plan face unentered → the spec's exit entry); the capsule's `done` face is
+    // fed the closed spec line's target (a phase-spec doc → `PIPELINE_NEXT["phase-spec"]`).
+    // Both resolve to the SAME pipeline entry through the ONE renderer, and both seams
+    // read the SAME argv channel (the board is threaded ARGV_CHANNEL from the
+    // composition root) — a flag-spelling change cannot silently split the two faces.
     writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    const specId = writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "# S",
+      "",
+      "- **Doc type**: phase-spec",
+    ]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
     ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
     ledger.recordRound("spec", "review");
-    const planId = path.join(repo, "docs/kairos/plans/prog-p1.md");
 
     for (const host of ["claude", "pi"]) {
-      const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, host, repo)
-        .emit("APPROVED", "0", "/h.json", { kind: "done" }, { type: "plan", id: planId })[1]!
+      const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, host, new RepoRoot(repo))
+        .emit("APPROVED", "0", "/h.json", { kind: "done" }, { type: "spec", id: specId })[1]!
         .slice("next: ".length);
-      // The board's plan face is drained (spec closed + no plan doc) → the same entry.
+      // The board's spec face is drained (spec closed + no plan doc) → the same entry.
       expect(nextOf("prog-p1", host)).toBe(capsuleNext);
-      expect(capsuleNext).toBe(host === "pi" ? "/skill:cdd-dev" : "/kairos:cdd-dev");
+      expect(capsuleNext).toBe(host === "pi" ? "/skill:cdd-plan" : "/kairos:cdd-plan");
+    }
+  });
+
+  it("D47 — the next: literal's embedded paths are repoRoot-relative, byte-identical board↔capsule", () => {
+    // route-render.ts is the ONE renderer for both faces; D47 makes its embedded path
+    // values repoRoot-relative (the ONE shape, §2.13). Pin BOTH seams at a path-bearing
+    // C5 hop — the spec review literal's `--spec` — feeding the capsule an ABSOLUTE
+    // target path: the renderer must emit the repoRoot-relative form on both faces alike.
+    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
+    const specId = writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "# S",
+      "",
+      "- **Doc type**: phase-spec",
+    ]);
+    writeDoc("docs/kairos/plans/prog-p1.md", ["# Plan", "", "- **Doc type**: plan"]);
+    expect(path.isAbsolute(specId)).toBe(true);
+
+    for (const host of ["claude", "pi"]) {
+      const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, host, new RepoRoot(repo))
+        .emit("APPROVED", "0", "/h.json", { kind: "review" }, { type: "spec", id: specId })[1]!
+        .slice("next: ".length);
+      // The reviewer's own hop renders the repoRoot-relative --spec (never the absolute).
+      expect(capsuleNext).toBe("review --type spec --spec docs/kairos/specs/prog-p1-design.md");
+      expect(capsuleNext).not.toContain(repo);
+      // The board's spec frontier renders the SAME byte-identical relative literal.
+      expect(nextOf("prog-p1", host)).toBe(capsuleNext);
     }
   });
 

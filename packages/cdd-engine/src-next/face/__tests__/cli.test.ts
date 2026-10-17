@@ -35,13 +35,14 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Command } from "commander";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { BriefRenderer } from "../../render/brief.ts";
@@ -128,16 +129,33 @@ interface CliFixture {
   cleanup: () => void;
 }
 
-/** A hermetic CLI fixture — a fresh temp repo, the io captured, the root injected. */
+/** The process cwd before any fixture chdir — restored after every test so the
+ *  isolation never leaks across tests (§2.12: the engine resolves the repo root
+ *  from the working directory, so the fixture isolates by chdir). */
+const ORIGINAL_CWD = process.cwd();
+afterEach(() => {
+  process.chdir(ORIGINAL_CWD);
+});
+
+/** A hermetic CLI fixture — a fresh temp repo, the io captured, the cwd isolated
+ *  into the temp root (the engine resolves the repo root from `process.cwd()`, so
+ *  the fixture chdirs rather than injecting a root — §2.12). The temp root is taken
+ *  through `realpathSync` because the engine's git-top-level resolution returns the
+ *  REAL path (macOS `/var` is a symlink to `/private/var`), so the fixture's paths
+ *  must speak the same basis the engine resolves. */
 const fixture = (opts: CliOptions = {}): CliFixture => {
-  const repoRoot = mkdtempSync(path.join(tmpdir(), "cli-"));
+  const repoRoot = realpathSync(mkdtempSync(path.join(tmpdir(), "cli-")));
+  process.chdir(repoRoot);
   const io = new CaptureIo();
-  const command = Cli.create({ io, repoRoot, ...opts });
+  const command = Cli.create({ io, ...opts });
   return {
     command,
     io,
     repoRoot,
-    cleanup: () => rmSync(repoRoot, { recursive: true, force: true }),
+    cleanup: () => {
+      process.chdir(ORIGINAL_CWD);
+      rmSync(repoRoot, { recursive: true, force: true });
+    },
   };
 };
 
@@ -203,14 +221,16 @@ const readJson = <T>(file: string): T => {
 /** The D30 wave-line reviewed identity — the brief-revision ref a wave row binds:
  *  the plan it renders FROM + the RENDERED brief's sha1 (the wave gate binds the
  *  brief, never the whole plan). */
-const briefRevision = (plan: string, tasks: string) => {
+const briefRevision = (repoRoot: string, plan: string, tasks: string) => {
   const brief = new BriefRenderer().render(
     readFileSync(plan, "utf8"),
     tasks.split(",").map(Number),
   );
   return {
     kind: "brief-revision" as const,
-    plan,
+    // The persisted shape is the canonical repoRoot-relative form (P9 T4 §2.7):
+    // the rendered-from plan field lands relative to repoRoot, never absolute.
+    plan: path.relative(repoRoot, plan),
     brief_hash: createHash("sha1").update(brief).digest("hex"),
   };
 };
@@ -220,14 +240,17 @@ const briefRevision = (plan: string, tasks: string) => {
  *  links resolving into existing same-family siblings. The P4.1 doc-contract
  *  dispatch gate (the spec/plan faces) requires it — a plain task-fixture plan is
  *  structurally defective and never dispatches a doc round. */
-const conformingPlan = (repoRoot: string): string => {
+const conformingPlan = (
+  repoRoot: string,
+  specTarget = "docs/kairos/specs/p3-design.md",
+): string => {
   const file = path.join(repoRoot, "docs", "kairos", "plans", "p3.md");
   mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(
     file,
     [
       "# Test Plan",
-      "**Spec:** [p3-design.md](docs/kairos/specs/p3-design.md)",
+      `**Spec:** [p3-design.md](${specTarget})`,
       "- **Parent program**: [p3-overall.md v1.0](docs/kairos/specs/p3-overall.md)",
       "- **Version**: v1.0 · 2026-10-09",
       "- **Doc type**: plan",
@@ -799,8 +822,6 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
         "1",
         "--plan",
         plan,
-        "--root",
-        repoRoot,
       ]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED");
@@ -913,7 +934,9 @@ describe("the help/--help display face — the per-command render", () => {
       expect(io.stdoutText).toContain("Usage: cdd implement [options]");
       expect(io.stdoutText).toContain("--tasks <n|n,n,…>");
       expect(io.stdoutText).toContain("--plan <path>");
-      expect(io.stdoutText).toContain("--root <path>");
+      // `--root` is retired (T2 · §2.5 — the deliberate command-declaration byte
+      // break): the help face no longer carries the option.
+      expect(io.stdoutText).not.toContain("--root <path>");
       expect(io.stdoutText).toContain("the task ids of the wave group (comma-separated)");
       expect(io.stdoutText).toContain("(required)");
       expect(io.stdoutText).toContain("run the task implement phase");
@@ -1108,7 +1131,8 @@ describe("the T4 commander-native help acceptance — the projected help face (�
       // declared keys (the registration order never a sorted/derived one).
       expect(help.indexOf("--type")).toBeLessThan(help.indexOf("--tasks"));
       expect(help.indexOf("--plan")).toBeLessThan(help.indexOf("--spec"));
-      expect(help.indexOf("--root")).toBeLessThan(help.indexOf("--dry-run"));
+      // `--root` is retired (T2) — it no longer appears on the review node's help.
+      expect(help).not.toContain("--root");
     } finally {
       cleanup();
     }
@@ -1309,8 +1333,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "--plan",
         plan,
         "--dry-run",
-        "--root",
-        repoRoot,
       ]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 · handoff: ");
@@ -1335,16 +1357,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       const plan = planFor(repoRoot);
       const briefPath = path.join(repoRoot, ".kairos", "cdd", "p3", "tasks-1-brief.md");
       expect(
-        await command.runArgv([
-          "implement",
-          "--tasks",
-          "1",
-          "--plan",
-          plan,
-          "--dry-run",
-          "--root",
-          repoRoot,
-        ]),
+        await command.runArgv(["implement", "--tasks", "1", "--plan", plan, "--dry-run"]),
       ).toBe(0);
       const firstBrief = readFileSync(briefPath, "utf8");
       // the complete plan mirror — the wave's task section AND the plan's
@@ -1371,8 +1384,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
           "--plan",
           plan,
           "--dry-run",
-          "--root",
-          repoRoot,
         ]),
       ).toBe(0);
       const secondBrief = readFileSync(briefPath, "utf8");
@@ -1396,16 +1407,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       // wave advances only through the review's C5 closure: review 1 must land before
       // task 2 becomes dispatchable.
       expect(
-        await command.runArgv([
-          "implement",
-          "--tasks",
-          "1",
-          "--plan",
-          plan,
-          "--dry-run",
-          "--root",
-          repoRoot,
-        ]),
+        await command.runArgv(["implement", "--tasks", "1", "--plan", plan, "--dry-run"]),
       ).toBe(0);
       io.stdoutText = "";
       expect(
@@ -1418,8 +1420,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
           "--plan",
           plan,
           "--dry-run",
-          "--root",
-          repoRoot,
         ]),
       ).toBe(0);
       io.stdoutText = "";
@@ -1430,8 +1430,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "--plan",
         plan,
         "--dry-run",
-        "--root",
-        repoRoot,
       ]);
       expect(code).toBe(0);
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
@@ -1443,7 +1441,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       expect(progress.waves).toContainEqual({
         wave: "1",
         rounds: { implement: [1], review: [1] },
-        reviewedRevision: briefRevision(plan, "1"),
+        reviewedRevision: briefRevision(repoRoot, plan, "1"),
       });
       expect(progress.waves).toContainEqual({ wave: "2", rounds: { implement: [1] } });
       // the invocation's single stdout face — only the LAST step's capsule
@@ -1458,11 +1456,14 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "--plan",
         plan,
         "--dry-run",
-        "--root",
-        repoRoot,
       ]);
       expect(split).toBe(1);
       expect(io.stderrText).toContain("derived wave");
+      // T18 (§2.13) — the graph title's embedded plan path is repoRoot-relative
+      // (the argv plan is relativized before it reaches the `graph:` line; the
+      // absolute argv form never renders).
+      expect(io.stderrText).toContain("graph: docs/kairos/plans/p3.md");
+      expect(io.stderrText).not.toContain(`graph: ${repoRoot}`);
     } finally {
       cleanup();
     }
@@ -1474,16 +1475,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
       expect(
-        await command.runArgv([
-          "implement",
-          "--tasks",
-          "1",
-          "--plan",
-          plan,
-          "--dry-run",
-          "--root",
-          repoRoot,
-        ]),
+        await command.runArgv(["implement", "--tasks", "1", "--plan", plan, "--dry-run"]),
       ).toBe(0);
       io.stdoutText = "";
       const code = await command.runArgv([
@@ -1495,8 +1487,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "--plan",
         plan,
         "--dry-run",
-        "--root",
-        repoRoot,
       ]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 · handoff: ");
@@ -1525,16 +1515,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
       expect(
-        await command.runArgv([
-          "implement",
-          "--tasks",
-          "1",
-          "--plan",
-          plan,
-          "--dry-run",
-          "--root",
-          repoRoot,
-        ]),
+        await command.runArgv(["implement", "--tasks", "1", "--plan", plan, "--dry-run"]),
       ).toBe(0);
       io.stdoutText = "";
       const code = await command.runArgv([
@@ -1546,8 +1527,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "--plan",
         plan,
         "--dry-run",
-        "--root",
-        repoRoot,
       ]);
       expect(code).toBe(0);
       // the review's findings route the one-way fix hop — the capsule next: line
@@ -1555,8 +1534,9 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       // readback suffix (the cli face checkable)
       expect(io.stdoutText).toContain("status: CHANGES_REQUESTED · blocker: 1 · handoff: ");
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
+      // D47 — the next: literal's embedded paths are repoRoot-relative (the ONE shape).
       expect(io.stdoutText).toContain(
-        `next: fix --type wave --tasks 1 --plan ${plan} --findings ${path.join(workspace, "tasks-1-review-1.json")} ${FIX_READBACK_SUFFIX}`,
+        `next: fix --type wave --tasks 1 --plan ${path.relative(repoRoot, plan)} --findings ${path.relative(repoRoot, path.join(workspace, "tasks-1-review-1.json"))} ${FIX_READBACK_SUFFIX}`,
       );
     } finally {
       cleanup();
@@ -1592,8 +1572,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "--plan",
         plan,
         "--dry-run",
-        "--root",
-        repoRoot,
       ]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 · handoff: ");
@@ -1640,13 +1618,14 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "--findings",
         findingsPath,
         "--dry-run",
-        "--root",
-        repoRoot,
       ]);
       expect(code).toBe(0);
       // the re-review literal carries the workspace --plan only — the review judges
-      // the live tree (the scope anchor BASE_BRANCH is engine-injected at dispatch)
-      expect(io.stdoutText).toContain(`next: review --type branch --plan ${plan}`);
+      // the live tree (the scope anchor BASE_BRANCH is engine-injected at dispatch);
+      // D47 — the embedded path is repoRoot-relative
+      expect(io.stdoutText).toContain(
+        `next: review --type branch --plan ${path.relative(repoRoot, plan)}`,
+      );
       // the runtime gate, not parse-only: re-feeding the literal's argv through the CLI
       // dispatches a real branch review — exit 0, never a missing-refs refusal
       const reExit = await command.runArgv([
@@ -1656,8 +1635,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "--plan",
         plan,
         "--dry-run",
-        "--root",
-        repoRoot,
       ]);
       expect(reExit).toBe(0);
     } finally {
@@ -1677,8 +1654,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "--plan",
         plan,
         "--dry-run",
-        "--root",
-        repoRoot,
       ]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 ·");
@@ -1702,7 +1677,8 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       gitInit(repoRoot);
       const plan = conformingPlan(repoRoot);
       // the base artifact the CLI reads (the same `base set` write-through source);
-      // the leaf carries no --root — the fixture's injected repoRoot is the root.
+      // the leaf carries no basis flag — the engine resolves the repo root from the
+      // fixture's working directory (T2 · §2.12).
       expect(
         await command.runArgv([
           "base",
@@ -1722,15 +1698,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       process.env.CLAUDE_CODE_SESSION_ID = "s";
       let code: number;
       try {
-        code = await command.runArgv([
-          "review",
-          "--type",
-          "branch",
-          "--plan",
-          plan,
-          "--root",
-          repoRoot,
-        ]);
+        code = await command.runArgv(["review", "--type", "branch", "--plan", plan]);
       } finally {
         if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
         else process.env.CLAUDE_CODE_SESSION_ID = saved;
@@ -1788,7 +1756,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       const saved = process.env.CLAUDE_CODE_SESSION_ID;
       process.env.CLAUDE_CODE_SESSION_ID = "s";
       const promptOf = async (argv: readonly string[]): Promise<string> => {
-        await command.runArgv([...argv, "--root", repoRoot]);
+        await command.runArgv([...argv]);
         const call = sync.calls[sync.calls.length - 1]!;
         return call.args[call.args.length - 1];
       };
@@ -1809,11 +1777,134 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
           path.join(repoRoot, "docs", "kairos", "specs", "s1-design.md"),
         ]);
         expect(spec).not.toContain("BASE_BRANCH");
+        expect(spec).not.toContain("INPUT_SPEC");
         const planReview = await promptOf(["review", "--type", "plan", "--plan", plan]);
         expect(planReview).not.toContain("BASE_BRANCH");
+        // the plan-review round context carries the plan's `**Spec:**` anchor
+        // (INPUT_SPEC) so the reviewer judges the plan against its design spec
+        expect(planReview).toContain("- `INPUT_SPEC`: docs/kairos/specs/p3-design.md");
       } finally {
         if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
         else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("D46 — INPUT_SPEC is rebased to a repoRoot-relative token from the plan's link-space `**Spec:**` form", async () => {
+    const sync = new FakeSync();
+    sync.stdout = "status: APPROVED\n";
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      // The live plan header form: the `**Spec:**` target is markdown link-space
+      // (`../specs/X.md`, relative to the plan's OWN dir) — the actual form every
+      // in-repo plan P6+ uses. The reviewer is spawned at cwd = repoRoot, so the raw
+      // link-space form would resolve OUTSIDE the repo; the scene rebases it to the
+      // repoRoot-relative token (the one basis every round-context path token speaks).
+      const plan = conformingPlan(repoRoot, "../specs/p3-design.md");
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      try {
+        await command.runArgv(["review", "--type", "plan", "--plan", plan]);
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+      const prompt =
+        sync.calls[sync.calls.length - 1]!.args[sync.calls[sync.calls.length - 1]!.args.length - 1];
+      // The token is the repoRoot-relative path (never the raw `../specs/p3-design.md`)
+      // and it points at an existing file the reviewer can open from cwd = repoRoot.
+      expect(prompt).toContain("- `INPUT_SPEC`: docs/kairos/specs/p3-design.md");
+      expect(prompt).not.toContain("- `INPUT_SPEC`: ../specs/p3-design.md");
+      expect(existsSync(path.join(repoRoot, "docs/kairos/specs/p3-design.md"))).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("T4 — the round-context prompt's path tokens are ALL repoRoot-relative (one basis, zero absolute)", async () => {
+    // §2.7 — every path token injected into the child speaks ONE basis (repoRoot-
+    // relative): the child is spawned at cwd = repoRoot (T2), so a relative token
+    // resolves identically for every token, input or output alike. Across the modes
+    // the 8-token set is WORKSPACE_DIR · INPUT_DOC · INPUT_SPEC · INPUT_FINDINGS ·
+    // INPUT_WAVE_BRIEF · OUTPUT_REPORT · OUTPUT_EVIDENCE · OUTPUT_HANDOFF (the
+    // non-path tokens excluded); each mode emits its own subset. This pin drives an
+    // implement dispatch (the wave line's work face) and asserts EVERY emitted path
+    // token is relative — no absolute prefix, no `..` escape.
+    const sync = new FakeSync();
+    sync.stdout = "status: APPROVED\n";
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      try {
+        await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+      const call = sync.calls[sync.calls.length - 1]!;
+      const prompt = call.args[call.args.length - 1];
+      // The child is spawned at the repo root — the load-bearing fact a relative
+      // token relies on.
+      expect(call.cwd).toBe(repoRoot);
+      // Every emitted path token is repoRoot-relative: no absolute prefix, no escape.
+      const PATH_TOKENS = [
+        "WORKSPACE_DIR",
+        "INPUT_DOC",
+        "INPUT_SPEC",
+        "INPUT_FINDINGS",
+        "INPUT_WAVE_BRIEF",
+        "OUTPUT_REPORT",
+        "OUTPUT_EVIDENCE",
+        "OUTPUT_HANDOFF",
+      ];
+      const emitted = [...prompt.matchAll(/^- `([A-Z0-9_]+)`: (.+)$/gm)].flatMap((m) =>
+        PATH_TOKENS.includes(m[1]!) ? [[m[1]!, m[2]!.trim()]] : [],
+      );
+      // The implement-mode work face carries its path tokens (the wave brief + the
+      // prescribed write paths + the workspace dir) — never an empty assertion.
+      expect(emitted.length).toBeGreaterThanOrEqual(5);
+      for (const [token, value] of emitted) {
+        expect(path.isAbsolute(value), `${token} is repoRoot-relative`).toBe(false);
+        expect(value.startsWith(".."), `${token} carries no parent-escape prefix`).toBe(false);
+      }
+      // The absolute repo root never appears on any path-token line.
+      expect(prompt).not.toMatch(/^- `[A-Z0-9_]+`: \/.*repoRoot/m);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("T3 — an out-of-repo path is accepted with a stderr warning (shape judged, never location)", async () => {
+    // §2.10 — a `..`-carrying relativized value lies outside the repo; the engine
+    // still reads it (the shape is what is judged), but the fact rides the stderr
+    // CDD_WARN channel so the caller is not surprised.
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const outside = realpathSync(mkdtempSync(path.join(tmpdir(), "cli-outside-")));
+      const plan = conformingPlan(outside);
+      try {
+        // a plan OUTSIDE the fixture repo (the absolute path relativizes to `../…`);
+        // --dry-run keeps the dispatch synthetic (no child spawn).
+        const code = await command.runArgv([
+          "--dry-run",
+          "implement",
+          "--tasks",
+          "1",
+          "--plan",
+          plan,
+        ]);
+        expect(code).toBe(0);
+        expect(io.stderrText).toContain("CDD_WARN:");
+        expect(io.stderrText).toContain("outside the repository");
+      } finally {
+        rmSync(outside, { recursive: true, force: true });
       }
     } finally {
       cleanup();
@@ -1835,8 +1926,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "--spec",
         spec,
         "--dry-run",
-        "--root",
-        repoRoot,
       ]);
       expect(specCode).toBe(0);
       // T3 deliberate pin break: the phase-spec closure routes the cdd-plan ref (PIPELINE_NEXT.phase-spec).
@@ -1856,8 +1945,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "--plan",
         plan,
         "--dry-run",
-        "--root",
-        repoRoot,
       ]);
       expect(planCode).toBe(0);
       expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "plan-review-1.json"))).toBe(
@@ -1878,16 +1965,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       const plan = conformingPlan(repoRoot);
       const stripped = readFileSync(plan, "utf8").replace("- **Doc type**: plan\n", "");
       writeFileSync(plan, stripped, "utf8");
-      const code = await command.runArgv([
-        "review",
-        "--type",
-        "plan",
-        "--plan",
-        plan,
-        "--dry-run",
-        "--root",
-        repoRoot,
-      ]);
+      const code = await command.runArgv(["review", "--type", "plan", "--plan", plan, "--dry-run"]);
       expect(code).toBe(1);
       expect(io.stderrText).toContain("CDD_BLOCKED");
       expect(io.stderrText).toContain("the doc declares no `- **Doc type**:` line");
@@ -1912,8 +1990,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "--spec",
         overall,
         "--dry-run",
-        "--root",
-        repoRoot,
       ]);
       expect(overallCode).toBe(0);
       expect(io.stdoutText).toContain("next: done");
@@ -1939,18 +2015,9 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       const plan = conformingPlan(repoRoot);
       // Round 1: the initial clean review closes the doc line AND records the
       // reviewed doc revision (the line's identity — the T7 write-back at bookkeep).
-      expect(
-        await command.runArgv([
-          "review",
-          "--type",
-          "plan",
-          "--plan",
-          plan,
-          "--dry-run",
-          "--root",
-          repoRoot,
-        ]),
-      ).toBe(0);
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan, "--dry-run"])).toBe(
+        0,
+      );
       // T3 deliberate pin break: the plan closure routes the cdd-dev ref (PIPELINE_NEXT.plan).
       expect(io.stdoutText).toContain("next: /kairos:cdd-dev");
       // The target doc then DRIFTS (a backfill edits the plan — the pre-T7 flow
@@ -1970,8 +2037,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "--plan",
         plan,
         "--dry-run",
-        "--root",
-        repoRoot,
       ]);
       expect(reopen).toBe(0);
       expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "plan-review-2.json"))).toBe(
@@ -1987,18 +2052,9 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     try {
       gitInit(repoRoot);
       const plan = conformingPlan(repoRoot);
-      expect(
-        await command.runArgv([
-          "review",
-          "--type",
-          "plan",
-          "--plan",
-          plan,
-          "--dry-run",
-          "--root",
-          repoRoot,
-        ]),
-      ).toBe(0);
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan, "--dry-run"])).toBe(
+        0,
+      );
       expect(io.stdoutText).toContain("next: /kairos:cdd-dev");
       // The doc did NOT move — the line gate compares the current revision to the
       // reviewed one and BLOCKs with the identity-aware message (the old "no open
@@ -2011,8 +2067,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "--plan",
         plan,
         "--dry-run",
-        "--root",
-        repoRoot,
       ]);
       expect(unchanged).toBe(1);
       expect(io.stderrText).toContain("already reviewed at v1.0");
@@ -2050,8 +2104,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "--spec",
         specPath,
         "--dry-run",
-        "--root",
-        repoRoot,
       ]);
       expect(blocked).toBe(1);
       expect(io.stderrText).toContain("the line holds no open round");
@@ -2081,18 +2133,9 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       // Review round 1 with blockers — the line awaits its fix (fixes < reviews:
       // the pre-T8 gate read the fix-awaited route and froze the re-review at
       // "the next round is fix" even after the doc moved).
-      expect(
-        await command.runArgv([
-          "review",
-          "--type",
-          "plan",
-          "--plan",
-          plan,
-          "--dry-run",
-          "--root",
-          repoRoot,
-        ]),
-      ).toBe(0);
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan, "--dry-run"])).toBe(
+        0,
+      );
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       expect(existsSync(path.join(workspace, "plan-review-1.json"))).toBe(true);
       // The aborted fix — the pre-T8 stuck path's origin: the fix attempt BLOCKS,
@@ -2100,18 +2143,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       // findings binding the reviewed doc revision.
       io.stdoutText = "";
       io.stderrText = "";
-      expect(
-        await command.runArgv([
-          "fix",
-          "--type",
-          "plan",
-          "--plan",
-          plan,
-          "--dry-run",
-          "--root",
-          repoRoot,
-        ]),
-      ).toBe(1);
+      expect(await command.runArgv(["fix", "--type", "plan", "--plan", plan, "--dry-run"])).toBe(1);
       // The doc then moves (fix applied · backfill · user decision are the SAME
       // case — the doc revision is the gate's primary criterion): the review runs
       // directly, whatever the fix-awaited round state says, and the old findings
@@ -2130,8 +2162,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "--plan",
         plan,
         "--dry-run",
-        "--root",
-        repoRoot,
       ]);
       expect(reopen).toBe(0);
       expect(io.stderrText).not.toContain("cannot dispatch");
@@ -2170,8 +2200,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
           "--plan",
           plan, // the ABSOLUTE argv spelling
           "--dry-run",
-          "--root",
-          repoRoot,
         ]),
       ).toBe(0);
       expect(io.stdoutText).toContain("next: /kairos:cdd-dev");
@@ -2192,8 +2220,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "--plan",
         relativePlan, // the RELATIVE argv spelling — the same file
         "--dry-run",
-        "--root",
-        repoRoot,
       ]);
       expect(relative).toBe(0);
       expect(io.stdoutText).toContain("next: /kairos:cdd-dev");
@@ -2226,18 +2252,9 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     try {
       gitInit(repoRoot);
       const plan = conformingPlan(repoRoot);
-      expect(
-        await command.runArgv([
-          "review",
-          "--type",
-          "plan",
-          "--plan",
-          plan,
-          "--dry-run",
-          "--root",
-          repoRoot,
-        ]),
-      ).toBe(0);
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan, "--dry-run"])).toBe(
+        0,
+      );
       // The SAME doc (no drift) — the repeat review stays REFUSED (Review
       // Convergence anti-spin): the pending fix derives from the doc-same +
       // non-APPROVED face (the review's own fix is still outstanding), and the
@@ -2250,8 +2267,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "--plan",
         plan,
         "--dry-run",
-        "--root",
-        repoRoot,
       ]);
       expect(repeat).toBe(1);
       expect(io.stderrText).toContain("the pending fix applies to the unchanged doc");
@@ -2284,32 +2299,12 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       // the review lead. The lifecycle already dispatches this face; the CLI gate
       // must agree (an open gate and a dispatchable frame — the run.ts JSDoc
       // invariant) instead of the revision-aware "amend body/version" rejection.
-      expect(
-        await command.runArgv([
-          "review",
-          "--type",
-          "plan",
-          "--plan",
-          plan,
-          "--dry-run",
-          "--root",
-          repoRoot,
-        ]),
-      ).toBe(0);
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan, "--dry-run"])).toBe(
+        0,
+      );
       io.stdoutText = "";
       io.stderrText = "";
-      expect(
-        await command.runArgv([
-          "fix",
-          "--type",
-          "plan",
-          "--plan",
-          plan,
-          "--dry-run",
-          "--root",
-          repoRoot,
-        ]),
-      ).toBe(0);
+      expect(await command.runArgv(["fix", "--type", "plan", "--plan", plan, "--dry-run"])).toBe(0);
       io.stdoutText = "";
       io.stderrText = "";
       const reopen = await command.runArgv([
@@ -2319,8 +2314,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "--plan",
         plan,
         "--dry-run",
-        "--root",
-        repoRoot,
       ]);
       expect(reopen).toBe(0);
       // no revision-aware rejection on the completed-fix face — the delta has moved
@@ -2347,8 +2340,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "--plan",
         plan,
         "--dry-run",
-        "--root",
-        repoRoot,
       ]);
       expect(code).toBe(1);
       expect(io.stderrText).toContain("the open wave is at implement");
@@ -2372,8 +2363,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "--plan",
         plan,
         "--dry-run",
-        "--root",
-        repoRoot,
       ]);
       expect(code).toBe(1);
       expect(io.stdoutText).toContain("status: BLOCKED");
@@ -2425,8 +2414,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "--plan",
         plan,
         "--dry-run",
-        "--root",
-        repoRoot,
       ]);
       expect(code).toBe(1);
       expect(io.stdoutText).toContain("status: BLOCKED");
@@ -2459,8 +2446,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
           "--plan",
           planPath,
           "--dry-run",
-          "--root",
-          repoRoot,
         ]),
       ).toBe(1);
       expect(io.stderrText).toContain("splits/mismatches the derived wave");
@@ -2476,8 +2461,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
           "--plan",
           planPath,
           "--dry-run",
-          "--root",
-          repoRoot,
         ]),
       ).toBe(1);
       expect(io.stderrText).toContain("splits/mismatches the derived wave");
@@ -2498,30 +2481,12 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       io.stderrText = "";
       // review on the implemented multi-task wave passes the gate (dispatch proceeds).
       expect(
-        await command.runArgv([
-          "review",
-          "--tasks",
-          "1,2",
-          "--plan",
-          planPath,
-          "--dry-run",
-          "--root",
-          repoRoot,
-        ]),
+        await command.runArgv(["review", "--tasks", "1,2", "--plan", planPath, "--dry-run"]),
       ).not.toBe(1);
       // a re-implement on the at-review wave is the wrong-phase BLOCK, not a silent split.
       io.stderrText = "";
       expect(
-        await command.runArgv([
-          "implement",
-          "--tasks",
-          "1,2",
-          "--plan",
-          planPath,
-          "--dry-run",
-          "--root",
-          repoRoot,
-        ]),
+        await command.runArgv(["implement", "--tasks", "1,2", "--plan", planPath, "--dry-run"]),
       ).toBe(1);
       expect(io.stderrText).toContain("at review");
     } finally {
@@ -2548,12 +2513,12 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "--plan",
         plan,
         "--dry-run",
-        "--root",
-        repoRoot,
       ]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED");
-      expect(io.stdoutText).toContain(`next: review --type wave --tasks 1 --plan ${plan}`);
+      expect(io.stdoutText).toContain(
+        `next: review --type wave --tasks 1 --plan ${path.relative(repoRoot, plan)}`,
+      );
       expect(io.stderrText).not.toContain("CDD_BLOCKED:");
     } finally {
       cleanup();
@@ -2578,7 +2543,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
             : verb === "review"
               ? ["review", "--type", "wave", "--tasks", "1", "--plan", plan]
               : ["fix", "--type", "wave", "--tasks", "1", "--plan", plan];
-        const code = await command.runArgv([...args, "--dry-run", "--root", repoRoot]);
+        const code = await command.runArgv([...args, "--dry-run"]);
         expect(code).toBe(1);
         // the CDD_BLOCKED channel + the commit/discard guidance
         expect(io.stderrText).toContain("CDD_BLOCKED:");
@@ -2611,8 +2576,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "--plan",
         plan,
         "--dry-run",
-        "--root",
-        repoRoot,
       ]);
       expect(implement).toBe(0);
       // the first dispatch landed the engine workspace + its self-published keep-out
@@ -2629,8 +2592,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "--plan",
         plan,
         "--dry-run",
-        "--root",
-        repoRoot,
       ]);
       expect(review).toBe(0);
       expect(io.stderrText).not.toContain("CDD_BLOCKED:");
@@ -2651,8 +2612,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "--plan",
         plan,
         "--dry-run",
-        "--root",
-        repoRoot,
       ]);
       expect(code).toBe(0);
       const carrier = JSON.parse(
@@ -2672,16 +2631,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       const plan = planFor(repoRoot);
       // the implement leg — the dry-run dispatch persists the work-face final carrier
       expect(
-        await command.runArgv([
-          "implement",
-          "--tasks",
-          "1",
-          "--plan",
-          plan,
-          "--dry-run",
-          "--root",
-          repoRoot,
-        ]),
+        await command.runArgv(["implement", "--tasks", "1", "--plan", plan, "--dry-run"]),
       ).toBe(0);
       const implementCarrier = JSON.parse(
         readFileSync(path.join(repoRoot, ".kairos", "cdd", "p3", "tasks-1-implement.json"), "utf8"),
@@ -2714,8 +2664,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
           "--plan",
           plan,
           "--dry-run",
-          "--root",
-          repoRoot,
         ]),
       ).toBe(0);
       const fixCarrier = JSON.parse(
@@ -2883,6 +2831,7 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot, 2);
+      const planRel = path.relative(repoRoot, plan);
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       const nextOf = (): string | null => {
         const m = io.stdoutText.match(/^next: (.+)$/m);
@@ -2891,18 +2840,9 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
 
       // rev 1 — implement wave 1 → the review literal
       expect(
-        await command.runArgv([
-          "implement",
-          "--tasks",
-          "1",
-          "--plan",
-          plan,
-          "--dry-run",
-          "--root",
-          repoRoot,
-        ]),
+        await command.runArgv(["implement", "--tasks", "1", "--plan", plan, "--dry-run"]),
       ).toBe(0);
-      expect(nextOf()).toBe(`review --type wave --tasks 1 --plan ${plan}`);
+      expect(nextOf()).toBe(`review --type wave --tasks 1 --plan ${planRel}`);
       io.stdoutText = "";
 
       // the review finds a warn → the fix literal
@@ -2916,12 +2856,10 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
           "--plan",
           plan,
           "--dry-run",
-          "--root",
-          repoRoot,
         ]),
       ).toBe(0);
       expect(nextOf()).toBe(
-        `fix --type wave --tasks 1 --plan ${plan} --findings ${path.join(workspace, "tasks-1-review-1.json")} ${FIX_READBACK_SUFFIX}`,
+        `fix --type wave --tasks 1 --plan ${planRel} --findings ${path.relative(repoRoot, path.join(workspace, "tasks-1-review-1.json"))} ${FIX_READBACK_SUFFIX}`,
       );
       io.stdoutText = "";
 
@@ -2936,27 +2874,16 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
           "--plan",
           plan,
           "--dry-run",
-          "--root",
-          repoRoot,
         ]),
       ).toBe(0);
-      expect(nextOf()).toBe(`implement --plan ${plan} --tasks 2`);
+      expect(nextOf()).toBe(`implement --plan ${planRel} --tasks 2`);
       io.stdoutText = "";
 
       // rev 2 — implement wave 2 → the review literal
       expect(
-        await command.runArgv([
-          "implement",
-          "--tasks",
-          "2",
-          "--plan",
-          plan,
-          "--dry-run",
-          "--root",
-          repoRoot,
-        ]),
+        await command.runArgv(["implement", "--tasks", "2", "--plan", plan, "--dry-run"]),
       ).toBe(0);
-      expect(nextOf()).toBe(`review --type wave --tasks 2 --plan ${plan}`);
+      expect(nextOf()).toBe(`review --type wave --tasks 2 --plan ${planRel}`);
       io.stdoutText = "";
 
       // the final review closes the run → rev2 lands on the wave→branch wiring
@@ -2971,11 +2898,9 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
           "--plan",
           plan,
           "--dry-run",
-          "--root",
-          repoRoot,
         ]),
       ).toBe(0);
-      expect(nextOf()).toBe(`review --type branch --plan ${plan}`);
+      expect(nextOf()).toBe(`review --type branch --plan ${planRel}`);
 
       const progress = readJson<{ waves: unknown[] }>(path.join(workspace, "progress.json"));
       // the wave-2 row carries its own D30 revision record — the final APPROVED
@@ -2983,7 +2908,7 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
       expect(progress.waves).toContainEqual({
         wave: "2",
         rounds: { implement: [1], review: [1] },
-        reviewedRevision: briefRevision(plan, "2"),
+        reviewedRevision: briefRevision(repoRoot, plan, "2"),
       });
     } finally {
       cleanup();
@@ -3031,6 +2956,7 @@ describe("the pure commands — schema / issue / base", () => {
   it("schema get phase-spec --output skeleton <target> — the derived doc skeleton written directly into the target document", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
+      gitInit(repoRoot);
       const target = path.join(repoRoot, "docs", "skeleton.md");
       mkdirSync(path.dirname(target), { recursive: true });
       const code = await command.runArgv([
@@ -3055,7 +2981,8 @@ describe("the pure commands — schema / issue / base", () => {
       // never appends; the D19 write path appends the single `\n`)
       expect(text.endsWith("\n")).toBe(true);
       expect(text.endsWith("\n\n")).toBe(false);
-      expect(io.stdoutText.trim()).toBe(target);
+      // the echoed path is the repoRoot-relative shape (D47 · §2.13)
+      expect(io.stdoutText.trim()).toBe(path.relative(repoRoot, target));
     } finally {
       cleanup();
     }
@@ -3064,6 +2991,7 @@ describe("the pure commands — schema / issue / base", () => {
   it("schema get single-spec — the fourth doc-type channel: the json render without a target, the skeleton render into a required target", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
+      gitInit(repoRoot);
       // the json render face — the derived single-spec declaration, no target
       let code = await command.runArgv(["schema", "get", "single-spec"]);
       expect(code).toBe(0);
@@ -3102,7 +3030,8 @@ describe("the pure commands — schema / issue / base", () => {
       // the written doc ends with exactly one newline — the EOF rule
       expect(text.endsWith("\n")).toBe(true);
       expect(text.endsWith("\n\n")).toBe(false);
-      expect(io.stdoutText.trim()).toBe(target);
+      // the echoed path is the repoRoot-relative shape (D47 · §2.13)
+      expect(io.stdoutText.trim()).toBe(path.relative(repoRoot, target));
       // a missing <target> under --output skeleton exits 2 with the conditional-required byte
       io.stderrText = "";
       code = await command.runArgv(["schema", "get", "single-spec", "--output", "skeleton"]);
@@ -3117,6 +3046,8 @@ describe("the pure commands — schema / issue / base", () => {
     const dash = fixture();
     const camel = fixture();
     try {
+      gitInit(dash.repoRoot);
+      gitInit(camel.repoRoot);
       const dashTarget = path.join(dash.repoRoot, "dash.md");
       const camelTarget = path.join(camel.repoRoot, "camel.md");
       expect(
@@ -3220,6 +3151,7 @@ describe("the pure commands — schema / issue / base", () => {
   it("base set/get — the single --plan artifact write-through + the force gate (T20 face)", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
+      gitInit(repoRoot);
       const plan = planFor(repoRoot);
       const setCode = await command.runArgv([
         "base",
@@ -3233,6 +3165,12 @@ describe("the pure commands — schema / issue / base", () => {
       ]);
       expect(setCode).toBe(0);
       expect(io.stdoutText).toContain("base.json");
+      // T18 (§2.13) — the `base set` echo is the repoRoot-relative shape, never the
+      // absolute artifact path the write used.
+      expect(io.stdoutText).not.toContain(repoRoot);
+      expect(io.stdoutText.trim()).toBe(
+        path.join(".kairos", "cdd", "p3", "base.json").replaceAll(path.sep, "/"),
+      );
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       const artifact = readJson<{ base: string; source: string }>(
         path.join(workspace, "base.json"),
@@ -3330,6 +3268,7 @@ describe("T5 — cdd board <slug>: the pure-read board command", () => {
   it("a valid slug renders the board to stdout and exits 0", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
+      gitInit(repoRoot);
       seedPhaseDocs(repoRoot, "prog");
       const code = await command.runArgv(["board", "prog-p1"]);
       expect(code).toBe(0);
@@ -3352,8 +3291,9 @@ describe("T5 — cdd board <slug>: the pure-read board command", () => {
   });
 
   it("a ghost slug matches nothing on disk — exit 2, no wall", async () => {
-    const { command, io, cleanup } = fixture();
+    const { command, io, repoRoot, cleanup } = fixture();
     try {
+      gitInit(repoRoot);
       const code = await command.runArgv(["board", "nonexistent-slug"]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain("no docs match slug nonexistent-slug");
@@ -3540,22 +3480,18 @@ describe("T3 — the commander-native composition root: program parse + .action 
   it("the shared text-read's unreadable-file refusal rides the work face's native usage line", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
+      gitInit(repoRoot);
       // The text-read face the work commands share (readText) — its unreadable-file
       // refusal surfaces through the wave face's --plan read (the same artifacts
       // face; the owning node's usage line).
       const missing = path.join(repoRoot, "no-such-plan.md");
-      const code = await command.runArgv([
-        "implement",
-        "--tasks",
-        "1",
-        "--plan",
-        missing,
-        "--root",
-        repoRoot,
-      ]);
+      const code = await command.runArgv(["implement", "--tasks", "1", "--plan", missing]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain("Usage: cdd implement [options]");
-      expect(io.stderrText).toContain(`error: cannot read file: ${missing}`);
+      // the refusal byte echoes the repoRoot-relative shape (D47 · §2.13)
+      expect(io.stderrText).toContain(
+        `error: cannot read file: ${path.relative(repoRoot, missing)}`,
+      );
     } finally {
       cleanup();
     }
@@ -3564,6 +3500,7 @@ describe("T3 — the commander-native composition root: program parse + .action 
   it("the base get domain read — a set artifact exits 0 over the write-through path", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
+      gitInit(repoRoot);
       const plan = planFor(repoRoot);
       expect(
         await command.runArgv([
@@ -3594,20 +3531,32 @@ describe("T3 — the commander-native composition root: program parse + .action 
       // declaration (spec §12 · D34) the capsule's doc-class discrimination reads
       // (zero filename inference).
       const spec = conformingSpec(repoRoot);
-      const code = await command.runArgv([
-        "review",
-        "--type",
-        "spec",
-        "--spec",
-        spec,
-        "--dry-run",
-        "--root",
-        repoRoot,
-      ]);
+      const code = await command.runArgv(["review", "--type", "spec", "--spec", spec, "--dry-run"]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("next: /kairos:cdd-plan");
     } finally {
       cleanup();
+    }
+  });
+
+  it("an underivable repo root BLOCKs (exit 1, never a usage 2) — a work verb from outside any git repo (§2.6)", async () => {
+    // The repo root is the ONE conversion point (T2): the working directory's git
+    // top level. A cwd outside any git repository cannot derive it — a missing
+    // run-environment fact, so the command rides the CDD_BLOCKED channel and exits 1
+    // (never a usage error — exit 2, zero new message surface).
+    const nonRepo = realpathSync(mkdtempSync(path.join(tmpdir(), "cli-nonrepo-")));
+    const savedCwd = process.cwd();
+    process.chdir(nonRepo);
+    const io = new CaptureIo();
+    const command = Cli.create({ io, dispatch: () => ({ status: "APPROVED", findings: [] }) });
+    try {
+      const code = await command.runArgv(["implement", "--tasks", "1", "--plan", "p3.md"]);
+      expect(code).toBe(1);
+      expect(io.stderrText).toContain("CDD_BLOCKED:");
+      expect(io.stderrText).toContain("not inside a git repository");
+    } finally {
+      process.chdir(savedCwd);
+      rmSync(nonRepo, { recursive: true, force: true });
     }
   });
 });
@@ -3730,19 +3679,24 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const call = sync.calls[0];
       expect(call.command).toBe("claude");
       expect(call.args).toContain("-p");
+      // D46 — the child is spawned at cwd = repoRoot: the round-context path tokens
+      // are repoRoot-relative, so a relative token only resolves correctly when the
+      // child's cwd IS the repoRoot (the coupled invariant — pin both together).
+      expect(call.cwd).toBe(repoRoot);
       // The skill ref is NOT a standalone positional (the harness CLI consumes the
       // first positional as the whole prompt — a split prompt loses everything after
       // the ref). It prefixes the single prompt argument instead.
       expect(call.args).not.toContain("/mattpocock-skills:implement");
       const prompt = call.args[call.args.length - 1];
       expect(prompt.startsWith("/mattpocock-skills:implement ")).toBe(true);
-      // v1.8 — the mode dispatch table + the normalized naming grammar (ROLE/WAVE · INPUT_/OUTPUT_/WORKSPACE_)
+      // v1.8 — the mode dispatch table + the normalized naming grammar (ROLE/WAVE · INPUT_/OUTPUT_/WORKSPACE_).
+      // D46 — every round-context path token is repoRoot-RELATIVE (the child is spawned
+      // at cwd = repoRoot): the tokens carry the workspace path minus the repoRoot prefix.
+      const wsRel = path.relative(repoRoot, scene.workspace.path);
       expect(prompt).toContain("- `ROLE`: implement");
       expect(prompt).toContain("- `WAVE`: 1");
-      expect(prompt).toContain(`- \`WORKSPACE_DIR\`: ${scene.workspace.path}`);
-      expect(prompt).toContain(
-        `- \`OUTPUT_HANDOFF\`: ${path.join(scene.workspace.path, "tasks-1-implement.json")}`,
-      );
+      expect(prompt).toContain(`- \`WORKSPACE_DIR\`: ${wsRel}`);
+      expect(prompt).toContain(`- \`OUTPUT_HANDOFF\`: ${wsRel}/tasks-1-implement.json`);
       // find #4 — INPUT_RULES is gone: the implement child reads the plan's
       // `## Constraints` through the wave brief mirror (zero materialized rules file,
       // zero dead pointer — the round context carries no rules channel).
@@ -3751,12 +3705,8 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // prefix): the brief is a pure read input (INPUT_WAVE_BRIEF) with no write slot
       // (only present facts ride the prompt), while report + evidence are prescribed.
       expect(prompt).not.toContain("OUTPUT_BRIEF");
-      expect(prompt).toContain(
-        `- \`OUTPUT_REPORT\`: ${path.join(scene.workspace.path, "tasks-1-implement-report.md")}`,
-      );
-      expect(prompt).toContain(
-        `- \`OUTPUT_EVIDENCE\`: ${path.join(scene.workspace.path, "tasks-1-test-evidence.json")}`,
-      );
+      expect(prompt).toContain(`- \`OUTPUT_REPORT\`: ${wsRel}/tasks-1-implement-report.md`);
+      expect(prompt).toContain(`- \`OUTPUT_EVIDENCE\`: ${wsRel}/tasks-1-test-evidence.json`);
       // the per-mode trimming: this scene carries no brief (briefPath null) — the empty
       // INPUT_TASK key is NOT emitted (empty keys are never emitted)
       expect(prompt).not.toContain("- `INPUT_TASK`");
@@ -3770,11 +3720,19 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // only: identity rides the file name, never phase/tasks inline — v1.30) rides
       // the outcome, the block's two lines the pointer
       expect(outcome.status).toBe("APPROVED");
+      // The prescribed slots book the canonical repoRoot-RELATIVE paths (§2.7) even
+      // when the child declared them absolute; the non-prescribed `brief` passes verbatim.
       expect(outcome.carrier).toEqual({
         artifacts: {
           brief: "/b",
-          report: path.join(scene.workspace.path, "tasks-1-implement-report.md"),
-          test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+          report: path.relative(
+            repoRoot,
+            path.join(scene.workspace.path, "tasks-1-implement-report.md"),
+          ),
+          test_evidence: path.relative(
+            repoRoot,
+            path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+          ),
         },
         status: "APPROVED",
       });
@@ -3811,16 +3769,13 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // the brief is a pure read input (INPUT_WAVE_BRIEF — no OUTPUT_BRIEF · spec §4.2);
       // the prescribed write paths ride the round context (report + evidence = the
       // report/verify write paths — zero free naming, cross-round zero overwrite).
-      expect(prompt).toContain(
-        `- \`INPUT_WAVE_BRIEF\`: ${path.join(workspace.path, "tasks-1-brief.md")}`,
-      );
+      // D46 — every round-context path token is repoRoot-relative (the child spawned at
+      // cwd = repoRoot), so the tokens carry the workspace minus the repoRoot prefix.
+      const wsRel = path.relative(repoRoot, workspace.path);
+      expect(prompt).toContain(`- \`INPUT_WAVE_BRIEF\`: ${wsRel}/tasks-1-brief.md`);
       expect(prompt).not.toContain("OUTPUT_BRIEF");
-      expect(prompt).toContain(
-        `- \`OUTPUT_REPORT\`: ${path.join(workspace.path, "tasks-1-implement-report.md")}`,
-      );
-      expect(prompt).toContain(
-        `- \`OUTPUT_EVIDENCE\`: ${path.join(workspace.path, "tasks-1-test-evidence.json")}`,
-      );
+      expect(prompt).toContain(`- \`OUTPUT_REPORT\`: ${wsRel}/tasks-1-implement-report.md`);
+      expect(prompt).toContain(`- \`OUTPUT_EVIDENCE\`: ${wsRel}/tasks-1-test-evidence.json`);
     } finally {
       cleanup();
     }
@@ -3849,12 +3804,14 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
-      // the review + fix frames both carry the ONE scene brief (not implement-only)
+      // the review + fix frames both carry the ONE scene brief (not implement-only).
+      // D46 — the token is repoRoot-relative (the child spawned at cwd = repoRoot).
+      const briefRel = path.relative(repoRoot, briefPath);
       dispatch.step()(taskReviewFrame);
       dispatch.step()(fixFrame);
       for (const call of sync.calls) {
         const prompt = call.args[call.args.length - 1];
-        expect(prompt).toContain(`- \`INPUT_WAVE_BRIEF\`: ${briefPath}`);
+        expect(prompt).toContain(`- \`INPUT_WAVE_BRIEF\`: ${briefRel}`);
       }
     } finally {
       cleanup();
@@ -3885,12 +3842,10 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const first = sync.calls[0]!.args[sync.calls[0]!.args.length - 1];
       dispatch.step()({ ...specReviewFrame, round: 2, params: { round: 2 } });
       const second = sync.calls[1]!.args[sync.calls[1]!.args.length - 1];
-      expect(first).toContain(
-        `- \`OUTPUT_REPORT\`: ${path.join(workspace.path, "spec-review-1-report.md")}`,
-      );
-      expect(second).toContain(
-        `- \`OUTPUT_REPORT\`: ${path.join(workspace.path, "spec-review-2-report.md")}`,
-      );
+      // D46 — the token is repoRoot-relative (the child spawned at cwd = repoRoot).
+      const wsRel = path.relative(repoRoot, workspace.path);
+      expect(first).toContain(`- \`OUTPUT_REPORT\`: ${wsRel}/spec-review-1-report.md`);
+      expect(second).toContain(`- \`OUTPUT_REPORT\`: ${wsRel}/spec-review-2-report.md`);
       // the round-keyed names never collide — a re-review cannot overwrite its predecessor
       expect(path.join(workspace.path, "spec-review-1-report.md")).not.toBe(
         path.join(workspace.path, "spec-review-2-report.md"),
@@ -3938,11 +3893,19 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const outcome = dispatch.step()(implementFrame);
       expect(outcome.status).toBe("APPROVED");
       // the engine books the canonical names — a child-reported free path never lands;
-      // both deviations ride the carrier's notes (the review scope axis reads them)
+      // both deviations ride the carrier's notes (the review scope axis reads them).
+      // The booked canonical paths are the repoRoot-RELATIVE shape (P9 T4 §2.7 —
+      // persisted path fields carry zero absolute strings).
       expect(outcome.carrier).toEqual({
         artifacts: {
-          report: path.join(scene.workspace.path, "tasks-1-implement-report.md"),
-          test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+          report: path.relative(
+            repoRoot,
+            path.join(scene.workspace.path, "tasks-1-implement-report.md"),
+          ),
+          test_evidence: path.relative(
+            repoRoot,
+            path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+          ),
         },
         status: "APPROVED",
         notes: [
@@ -4307,6 +4270,80 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
+  it("D46/§2.9 — the BEHAVIOR pin: every work face spawns the child at cwd = repoRoot (implement · review · fix)", () => {
+    // The behavior pin guards the SPAWN cwd, the fact the round-context tokens'
+    // repoRoot-relative basis rests on: a child spawned anywhere but the repo root
+    // would resolve every relative token off-root. It stands apart from the
+    // structural pin (repo-root.guard.test.ts — which guards the conversion point);
+    // the two pins cover different facts. This test drives all three work faces and
+    // pins `call.cwd === repoRoot` on each — the review/fix faces had no such read,
+    // so the pin now covers the whole work surface, not implement alone.
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new FakeSync();
+      sync.stdout = "status: APPROVED\n";
+      // Deterministic read-back inputs per face (the spawn precedes the read-back,
+      // so the cwd pin holds regardless — the drafts keep the outcome clean too).
+      writeFileSync(
+        path.join(scene.workspace.path, "tasks-1-implement.json"),
+        JSON.stringify({
+          status: "APPROVED",
+          artifacts: {
+            report: path.join(scene.workspace.path, "tasks-1-implement-report.md"),
+            test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+          },
+        }),
+        "utf8",
+      );
+      writeFileSync(
+        path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+        JSON.stringify({
+          command: "npx vitest run",
+          exit_code: 0,
+          passed: true,
+          warnings_count: 0,
+          typecheck: { command: "tsc --noEmit", exit_code: 0, passed: true },
+        }),
+        "utf8",
+      );
+      writeFileSync(
+        path.join(scene.workspace.path, "tasks-1-review-1.json"),
+        JSON.stringify({ findings: [] }),
+        "utf8",
+      );
+      writeFileSync(
+        path.join(scene.workspace.path, "tasks-1-fix-1.json"),
+        JSON.stringify({
+          status: "APPROVED",
+          artifacts: {
+            report: path.join(scene.workspace.path, "tasks-1-fix-1-report.md"),
+            test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+          },
+        }),
+        "utf8",
+      );
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      for (const frame of [implementFrame, taskReviewFrame, fixFrame]) {
+        dispatch.step()(frame);
+        const call = sync.calls[sync.calls.length - 1]!;
+        // the load-bearing spawn fact: cwd IS the repo root, the basis every
+        // repoRoot-relative round-context token resolves against.
+        expect(call.cwd, `the ${frame.phase} face spawns at cwd = repoRoot`).toBe(repoRoot);
+      }
+      // all three work faces were exercised (never a vacuous single-face pin)
+      expect(sync.calls).toHaveLength(3);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("no host harness → BLOCKED over the CDD_BLOCKED channel; a broken child → BLOCKED too", () => {
     const { repoRoot, cleanup } = fixture();
     try {
@@ -4349,8 +4386,10 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const crash = readJson<{ attemptedHandoff: string; next: string; cause: string }>(
         path.join(scene.workspace.path, "crash-implement.wave-1.json"),
       );
+      // the persisted attempted-handoff path is the canonical repoRoot-RELATIVE
+      // shape (P9 T4 §2.7 — the absolute handoffPath syscall form never lands).
       expect(crash.attemptedHandoff).toBe(
-        path.join(scene.workspace.path, "tasks-1-implement.json"),
+        path.relative(repoRoot, path.join(scene.workspace.path, "tasks-1-implement.json")),
       );
       expect(crash.next).toBe("cdd implement --tasks 1 --plan <plan>");
       expect(crash.cause).toBe("contract-violation");
@@ -4449,12 +4488,19 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // the carrier is materialized (the child's work preserved) but rewritten BLOCKED.
       // The free-named declared paths are corrected to the canonical OUTPUT_* names
       // (find #5 — the engine derives, never books a child-reported path): the report
-      // and evidence book their canonical tasks-1- names with the deviations surfaced.
+      // and evidence book their canonical tasks-1- names (repoRoot-RELATIVE — §2.7)
+      // with the deviations surfaced; the non-prescribed `brief` slot passes verbatim.
       expect(outcome.carrier).toEqual({
         artifacts: {
           brief: "/b",
-          report: path.join(scene.workspace.path, "tasks-1-implement-report.md"),
-          test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+          report: path.relative(
+            repoRoot,
+            path.join(scene.workspace.path, "tasks-1-implement-report.md"),
+          ),
+          test_evidence: path.relative(
+            repoRoot,
+            path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+          ),
         },
         status: "BLOCKED",
         failure_category: "evidence-contract",
@@ -4566,13 +4612,11 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const prompt = sync.calls[0]!.args[sync.calls[0]!.args.length - 1];
       // find #9 — the prescribed artifact names are line-keyed: the round rides the
       // name (branch-fix-1-report.md), the evidence is the line's single file
-      // (branch-test-evidence.json); the range token appears NOWHERE in the paths
-      expect(prompt).toContain(
-        `- \`OUTPUT_REPORT\`: ${path.join(scene.workspace.path, "branch-fix-1-report.md")}`,
-      );
-      expect(prompt).toContain(
-        `- \`OUTPUT_EVIDENCE\`: ${path.join(scene.workspace.path, "branch-test-evidence.json")}`,
-      );
+      // (branch-test-evidence.json); the range token appears NOWHERE in the paths.
+      // D46 — the token is repoRoot-relative (the child spawned at cwd = repoRoot).
+      const wsRel = path.relative(repoRoot, scene.workspace.path);
+      expect(prompt).toContain(`- \`OUTPUT_REPORT\`: ${wsRel}/branch-fix-1-report.md`);
+      expect(prompt).toContain(`- \`OUTPUT_EVIDENCE\`: ${wsRel}/branch-test-evidence.json`);
       expect(prompt).not.toContain("aaaaaaaa..bbbbbbbb");
     } finally {
       cleanup();

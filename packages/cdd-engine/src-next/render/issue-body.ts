@@ -17,6 +17,7 @@
 // Module-level exports are types / the class — zero behavior-carrying bare functions.
 
 import type { Translator, WordLocaleFace } from "../contract/translate.ts";
+import { ISSUE_TYPES } from "../face/words.ts";
 
 /** One finding row of the issue-report input. */
 export interface ReportFindingInput {
@@ -48,8 +49,10 @@ export interface IssueReportInput {
  * (open hits) → Related (closed hits + program). Pure deterministic text.
  */
 export class IssueBodyRenderer {
-  /** The finding-type vocabulary (the canonical type set). */
-  readonly types: readonly string[] = ["bug", "enhancement", "chore"];
+  /** The finding-type vocabulary (the canonical type set) — the word table's
+   *  `ISSUE_TYPES` (derived from the issue-label rows, the ONE type source), never a
+   *  second hand-written list. */
+  readonly types: readonly string[] = ISSUE_TYPES;
   /** The four text-segment keys, in the render order. */
   readonly #segments: readonly string[] = ["context", "problem", "impact", "suggestedFix"];
   /** The word table's locale face — the langs projection + the label rows. */

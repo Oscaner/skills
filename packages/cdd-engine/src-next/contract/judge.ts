@@ -30,11 +30,8 @@ import {
   UniquenessInvariant,
 } from "./invariants.ts";
 import type { DocKey } from "./project.ts";
-import { Projector } from "./project.ts";
+import { DOC_KEYS, Projector } from "./project.ts";
 import { Translator } from "./translate.ts";
-
-/** The four doc-type record keys — the policy-composition identity. */
-const DOC_KEYS: readonly DocKey[] = ["overall-spec", "plan", "phase-spec", "single-spec"];
 
 /** The judgment input — the doc's identity, content and the seam closures. */
 export interface ContractInput {

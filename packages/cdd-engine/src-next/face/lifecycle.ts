@@ -19,6 +19,7 @@ import process from "node:process";
 import { execaSync } from "execa";
 import { printParseErrorCode } from "jsonc-parser";
 import { ConfigLoader } from "../infra/config.ts";
+import type { RepoRoot } from "../infra/root.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
 import type { Workspace } from "../infra/workspace.ts";
 import type { TemplateValues, WorkMode } from "../render/templates.ts";
@@ -112,6 +113,11 @@ export interface DispatchScene {
   planPath: string | null;
   briefPath: string | null;
   baseBranch?: string | null;
+  /** The plan's design-spec reference (the `**Spec:**` header link target), read
+   *  from the plan document at the CLI seam — the plan-review round context's extra
+   *  read input (a plan review judges the plan against its spec). Null off the plan
+   *  scene (the slot stays empty and the assembler drops it). */
+  specLink?: string | null;
 }
 
 /**
@@ -127,7 +133,6 @@ export interface DispatchScene {
  */
 export class CliLifecycle {
   readonly #env: ProcessEnvLike;
-  readonly #cwd: string;
   readonly #sync: SyncProcess;
   readonly #config: ConfigLoader;
   readonly #template: TemplateAssembler;
@@ -140,7 +145,6 @@ export class CliLifecycle {
 
   constructor(opts: {
     env?: ProcessEnvLike;
-    cwd?: string;
     sync?: SyncProcess;
     config?: ConfigLoader;
     template?: TemplateAssembler;
@@ -149,7 +153,7 @@ export class CliLifecycle {
     findings?: string | null;
   }) {
     this.#env = opts.env ?? process.env;
-    this.#cwd = opts.cwd ?? process.cwd();
+    this.#scene = opts.scene;
     this.#sync = opts.sync ?? new SyncRunner();
     this.#config = opts.config ?? new ConfigLoader();
     this.#template = opts.template ?? new TemplateAssembler();
@@ -157,7 +161,6 @@ export class CliLifecycle {
       stdout: (t) => process.stdout.write(t),
       stderr: (t) => process.stderr.write(t),
     };
-    this.#scene = opts.scene;
     this.#findings = opts.findings ?? null;
   }
 
@@ -198,7 +201,7 @@ export class CliLifecycle {
     const result = this.#sync.run(
       cliName,
       [...args, this.#childPrompt(row.promptForm, ref, prompt)],
-      this.#cwd,
+      this.#scene.workspace.root.repoRoot,
     );
     if (result.code !== 0) {
       this.#io.stderr(`CDD_BLOCKED: child ${cliName} exited ${result.code}\n`);
@@ -289,17 +292,24 @@ export class CliLifecycle {
       // dispatch (the unconditional re-extract at every dispatch makes it the pure
       // read face of the wave line — §4.2); the non-wave faces carry no brief path
       // (the slot stays empty, never emitted).
-      INPUT_WAVE_BRIEF: isWave ? (scene.briefPath ?? "") : "",
+      INPUT_WAVE_BRIEF: isWave ? this.#rel(scene.briefPath ?? "") : "",
       // v1.9: INPUT_FINDINGS is fix/docs-fix only — the open findings of the source
       // review; a review writes its own draft (INPUT_FINDINGS === OUTPUT_HANDOFF
       // would be a short-circuit).
       INPUT_FINDINGS:
         op === "fix"
-          ? (this.#findings ?? scene.ledger.handoffPath("review", frame.type, params))
+          ? this.#rel(this.#findings ?? scene.ledger.handoffPath("review", frame.type, params))
           : "",
       // The doc anchor — the target doc for a doc line, the plan path for a branch
       // line (the branch review/fix judge the plan document). Empty off those faces.
-      INPUT_DOC: docPath ?? (frame.target.kind === "branch" ? (scene.planPath ?? "") : ""),
+      INPUT_DOC: this.#rel(
+        docPath ?? (frame.target.kind === "branch" ? (scene.planPath ?? "") : ""),
+      ),
+      // The plan's design-spec reference (the `**Spec:**` header link target the CLI
+      // seam derived from the plan doc) — a plan review judges the plan against its
+      // spec, so the plan-review round context carries the spec anchor. Empty off the
+      // plan face (the slot is dropped by the assembler).
+      INPUT_SPEC: frame.type === "plan" ? this.#rel(scene.specLink ?? "") : "",
       // The branch/wave tree-review scope anchor (BASE_BRANCH) — engine-injected
       // from the base artifact at dispatch; empty off those faces (spec/plan reviews
       // carry none, and the empty slot is dropped by the assembler).
@@ -313,17 +323,40 @@ export class CliLifecycle {
       // slot the frame's family does not consume stays empty and is dropped (only
       // present facts land). The brief is a pure read input (INPUT_WAVE_BRIEF) with
       // no write slot.
-      OUTPUT_REPORT: this.#outputOf(frame, "report"),
-      OUTPUT_EVIDENCE: this.#outputOf(frame, "evidence"),
-      OUTPUT_HANDOFF: scene.ledger.handoffPath(op, frame.type, params),
+      OUTPUT_REPORT: this.#rel(this.#outputOf(frame, "report")),
+      OUTPUT_EVIDENCE: this.#rel(this.#outputOf(frame, "evidence")),
+      OUTPUT_HANDOFF: this.#rel(scene.ledger.handoffPath(op, frame.type, params)),
       REVIEW_TYPE: isReview ? frame.type : "",
-      WORKSPACE_DIR: scene.workspace.path,
+      WORKSPACE_DIR: this.#rel(scene.workspace.path),
       WORKSPACE_ID: scene.workspace.slug,
       // v1.9 — the injected writable-subset schema (projection ①): the `## Handoff
       // schema` section of the mode's fixed prefix (byte-stable per mode; the work
       // faces — implement/fix — carry the evidence-file fence too).
       HANDOFF_SCHEMA: this.#schemaText(frame),
     };
+  }
+
+  /** The round-context path normalizer (D46) — EVERY path token injected into the
+   *  child prompt speaks ONE basis (repoRoot-relative): the child is spawned at
+   *  cwd = repoRoot, so a relative token resolves from the same root for every
+   *  token, input or output alike. The producers (`#outputOf`/`handoffPath`/
+   *  `workspace.path`) yield absolute; `INPUT_SPEC` is resolved absolute at the CLI
+   *  seam; the post-T3 argv tokens (`INPUT_DOC`/`INPUT_FINDINGS`) are repoRoot-relative
+   *  `RepoPath`s. So the exit takes an absolute-or-repoRoot-relative value and emits
+   *  repoRoot-relative through the ONE value object (`RepoRoot.relativize` reads an
+   *  absolute value as itself and a relative value as repoRoot-relative, collapsing
+   *  both to one basis — the single conversion point). */
+  #rel(value: string): string {
+    if (value === "") return "";
+    return this.#repoRootValue().relativize(value);
+  }
+
+  /** The repo-basis value object of this scene — the ONE conversion entry every
+   *  round-context token normalizes through. The basis is the scene workspace
+   *  root's OWN value object (built once at the root's boundary) — never re-wrapped
+   *  here (branch-review-1 F2: one basis, one form). */
+  #repoRootValue(): RepoRoot {
+    return this.#scene.workspace.root.basis;
   }
 
   /** The canonical prescribed OUTPUT_* write path of one artifact kind (find #5 —
@@ -494,7 +527,9 @@ export class CliLifecycle {
       exitCode: 0,
       stderrTail: [reason],
       stdoutTail: [],
-      attemptedHandoff: path,
+      // The persisted attempted-handoff path is the CANONICAL repoRoot-relative
+      // shape (never the absolute `handoffPath` syscall form — §2.7).
+      attemptedHandoff: this.#rel(path),
       next: this.#resumeOf(frame),
       cause: "contract-violation",
     });
@@ -583,14 +618,26 @@ export class CliLifecycle {
     const out: Record<string, string> = {};
     for (const [key, value] of Object.entries(declared)) {
       const canonical = this.#prescribedArtifact(frame, key);
-      if (canonical !== "" && value !== canonical) {
+      if (canonical === "") {
+        // The non-prescribed slots (the pure read input `brief`, a docs-fix's `doc`,
+        // child extras) pass verbatim.
+        out[key] = value;
+        continue;
+      }
+      // A prescribed slot ALWAYS books the engine's canonical path in the CANONICAL
+      // shape (repoRoot-relative — never the absolute `workspace.resolve` form): the
+      // persisted carrier's artifacts map carries zero absolute strings (§2.7). The
+      // comparison runs on ONE basis (D46 — the child receives relative OUTPUT_*
+      // tokens, so a compliant declaration matches); a free-named OR absolute
+      // deviation is replaced and surfaced on the notes (the review scope axis reads
+      // them).
+      const relative = this.#rel(canonical);
+      if (this.#rel(value) !== relative) {
         notes.push(
           `artifact ${key}: declared path ${value} deviates from the prescribed ${canonical} — the canonical path is booked`,
         );
-        out[key] = canonical;
-      } else {
-        out[key] = value;
       }
+      out[key] = relative;
     }
     return Object.keys(out).length > 0 ? out : undefined;
   }

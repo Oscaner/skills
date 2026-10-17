@@ -24,6 +24,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { ConfigLoader } from "../infra/config.ts";
+import type { RepoPath, RepoRoot } from "../infra/root.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
 import type { Workspace } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
@@ -165,9 +166,10 @@ export type CrashCause =
 export interface CrashRecord {
   /** The dead child's exit code (1 = run failure, 143 = SIGTERM — the shell convention). */
   exitCode: number;
-  /** The last CRASH_TAIL_LINES stderr lines (the "403 / abort without trace" tail). */
+  /** The dead child's stderr tail (the "403 / abort without trace" tail — the
+   *  caller's captured lines, no fixed tail-length constant). */
   stderrTail: readonly string[];
-  /** The last CRASH_TAIL_LINES stdout lines. */
+  /** The dead child's stdout tail. */
   stdoutTail: readonly string[];
   /** The handoff path the dead child was expected to write (null when the lane carries none). */
   attemptedHandoff: string | null;
@@ -338,6 +340,28 @@ export class Ledger {
     return this.#refs;
   }
 
+  /** The ledger's repo-basis value object — the ONE conversion exit every persisted
+   *  path field normalizes through (T1 `RepoRoot` · P9 T4 §2.7). The basis is the
+   *  workspace root's OWN value object (built once at the root's boundary) — never
+   *  re-wrapped here (branch-review-1 F2: one basis, one form). */
+  #basis(): RepoRoot {
+    return this.#workspace.root.basis;
+  }
+
+  /** Normalize a path value to the canonical repoRoot-relative `RepoPath` — the
+   *  comparison/write side of the shapes fix (a persisted relative value and an
+   *  incoming absolute argv value compare on ONE basis). */
+  #rel(value: string): RepoPath {
+    return this.#basis().relativize(value);
+  }
+
+  /** Erase a (possibly relative) path value to the absolute syscall string for a
+   *  read (a legacy relative persisted value resolves against the basis, never
+   *  `process.cwd()`). */
+  #abs(value: string): string {
+    return this.#basis().resolve(this.#basis().relativize(value));
+  }
+
   // ---- the single author's write/read primitives ----
 
   /** Persist a JSON artifact — the ledger's single write point (engine sole author). */
@@ -468,8 +492,10 @@ export class Ledger {
   #briefRevision(waveKey: string, planPath: string): BriefRevisionRef | null {
     try {
       const tasks = waveKey.split(",").map((part) => Number(part));
-      const brief = this.#brief.render(readFileSync(planPath, "utf8"), tasks);
-      return this.#refs.briefRevision(planPath, brief);
+      // The plan layer is stored repoRoot-relative (P9 T4 §2.7) — one basis with
+      // every persisted path field; the read erases to absolute at the syscall edge.
+      const brief = this.#brief.render(readFileSync(this.#abs(planPath), "utf8"), tasks);
+      return this.#refs.briefRevision(this.#rel(planPath), brief);
     } catch {
       return null;
     }
@@ -504,7 +530,11 @@ export class Ledger {
     const reviewed = this.reviewedDocRevisionOf(key);
     if (reviewed === null) return null;
     try {
-      const current = this.#refs.docRevision(doc, readFileSync(doc, "utf8"));
+      // Both sides on ONE basis (P9 T4 §2.7): the recorded ref is repoRoot-relative;
+      // the incoming target (an absolute argv-erasure) is relativized here so the
+      // false-drift comparison never reads one document as two.
+      const rel = this.#rel(doc);
+      const current = this.#refs.docRevision(rel, readFileSync(this.#abs(doc), "utf8"));
       return this.#refs.sameRef(reviewed, current) ? "same" : "drift";
     } catch {
       return null;

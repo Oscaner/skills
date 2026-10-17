@@ -17,6 +17,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { type ParseError, parse } from "jsonc-parser";
+import { RepoRoot } from "./root.ts";
 import { ENGINE_RUNTIME } from "./runtime.ts";
 
 /** The tri-state JSON read — the read's three DISTINCT outcomes, discriminated: a
@@ -32,13 +33,45 @@ export type JsonRead<T> =
   | { kind: "missing" }
   | { kind: "malformed"; errors?: readonly ParseError[] };
 
+/** The slug phase-suffix syntax — the trailing `-p<major>(.<minor>)*` segment
+ *  (spec §3.2 ⑬). This is the ONE source of the phase-suffix grammar: both the
+ *  suffix parse (`Workspace.phaseSuffixOf`, the `-p…$` form) and the board's
+ *  suffix-only match (`BoardView.scanPhases`, the `^p…$` form) compose their
+ *  patterns from this fragment. (Distinct from the doc-contract design-unit value
+ *  syntax `P\d+(\.\d+)*-design` — uppercase + `-design` tail — which is another
+ *  fact, never merged here.) */
+export const PHASE_SUFFIX_CORE = "p\\d+(?:\\.\\d+)*";
+
+/** The phase-suffix parse — the trailing `-p<major>(.<minor>)*` segment captured
+ *  as the named `suffix` group (composed from PHASE_SUFFIX_CORE: the ONE grammar). */
+const PHASE_SUFFIX_TAIL = new RegExp(`(?<program>.+?)(?<suffix>-${PHASE_SUFFIX_CORE})$`);
+
+/** The suffix-only match — a bare `<major>(.<minor>)*` phase path (composed from
+ *  the SAME PHASE_SUFFIX_CORE; the board's scan uses this form). */
+export const PHASE_SUFFIX_BARE = new RegExp(`^${PHASE_SUFFIX_CORE}$`);
+
+/** The persisted path-field keys — the JSON fields whose value is a PATH (the
+ *  progress.json `reviewedRevision.doc` / `.plan` layers · the base.json `plan`
+ *  field). The read-time normalization (P9 T4 §2.11) relativizes exactly these
+ *  values, never an arbitrary string (a carrier's `notes` prose is never treated as
+ *  a path). */
+const PERSISTED_PATH_KEYS: ReadonlySet<string> = new Set(["doc", "plan"]);
+
 /** The repo-scoped workspace base — `<repoRoot>/<workspaceRoot>`. */
 export class WorkspaceRoot {
   readonly repoRoot: string;
+  /** The repo-basis value object (T1 `RepoRoot`) — constructed ONCE here, at the
+   *  workspace's own boundary, and shared by every reader that needs the basis
+   *  (the ledger's write/read normalization, the CLI's capsule/graph render, the
+   *  board's doc cells): the single repo-basis fact is threaded as the value object,
+   *  never re-wrapped per call (branch-review-1 F2 — Data Clumps / Primitive
+   *  Obsession: one basis, one form). */
+  readonly basis: RepoRoot;
   readonly path: string;
 
   constructor(repoRoot: string, workspaceRoot: string) {
     this.repoRoot = repoRoot;
+    this.basis = new RepoRoot(repoRoot);
     this.path = path.join(repoRoot, workspaceRoot);
   }
 
@@ -101,9 +134,10 @@ export class Workspace {
   }
 
   /** The slug's phase-suffix parse — the trailing `-p<major>(.<minor>)*` segment
-   *  (null when the slug is a program slug, i.e. carries no phase suffix). */
+   *  (null when the slug is a program slug, i.e. carries no phase suffix). The
+   *  grammar is PHASE_SUFFIX_TAIL, composed from the shared PHASE_SUFFIX_CORE. */
   static phaseSuffixOf(slug: string): string | null {
-    const match = /(?<program>.+?)(?<suffix>-p\d+(?:\.\d+)*)$/.exec(slug);
+    const match = PHASE_SUFFIX_TAIL.exec(slug);
     return match?.groups?.suffix ?? null;
   }
 
@@ -179,7 +213,11 @@ export class Workspace {
     const text = this.#readText(target);
     if (text.kind !== "ok") return text;
     try {
-      return { kind: "ok", value: JSON.parse(text.value) as T };
+      // The read-time path backstop (P9 T4 §2.11): a path field persisted by an
+      // older build (an absolute form) is relativized on read, so an un-migrated
+      // file still yields the ONE canonical shape downstream. A no-op on
+      // already-relative values (relativize is idempotent).
+      return { kind: "ok", value: this.#normalizePaths(JSON.parse(text.value)) as T };
     } catch {
       return { kind: "malformed" };
     }
@@ -224,9 +262,76 @@ export class Workspace {
     return { kind: "ok", value: text };
   }
 
-  /** Write a JSON child — mkdir before write. */
+  /** Write a JSON child — mkdir before write. The declared path fields (`doc` /
+   *  `plan`) are normalized to the canonical repoRoot-relative shape on write (P9
+   *  T4 §2.7), so every engine-persisted path field lands relative — the read-time
+   *  backstop then only covers legacy bytes (migration handles history, the read
+   *  normalizes any straggler). The written bytes carry exactly one trailing `\n`
+   *  (the repo's EOF rule), so an engine-written file is byte-canonical and the
+   *  one-time migration leaves it byte-identical (zero churn). */
   writeJson(name: string, value: unknown): void {
     this.ensure();
-    writeFileSync(this.resolve(name), JSON.stringify(value, null, 2), "utf8");
+    const normalized = this.#normalizePaths(value);
+    writeFileSync(this.resolve(name), `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
+  }
+
+  /** The workspace's repo-basis value object — the ONE conversion exit the
+   *  read-time path backstop normalizes through. The basis is the root's OWN
+   *  value object (`WorkspaceRoot.basis`, built once at the root's boundary) —
+   *  never re-wrapped here (branch-review-1 F2: one basis, one form). */
+  #repoBasis(): RepoRoot {
+    return this.root.basis;
+  }
+
+  /** One-time legacy migration of a persisted JSON child (P9 T4 §2.11) — the
+   *  historical half of the shapes fix: a `progress.json` / `base.json` written by
+   *  an older build may carry an absolute (or otherwise redundant) path field. The
+   *  raw bytes are read, their declared path fields normalized, and the file is
+   *  REWRITTEN ONLY when the normalization actually changes bytes (an already-clean
+   *  file is left byte-identical — zero churn). A missing or unparseable file is a
+   *  no-op (the read face owns the malformed report; migration never fabricates). */
+  migrateJsonChild(name: string): void {
+    const target = this.resolve(name);
+    let raw: string;
+    try {
+      raw = readFileSync(target, "utf8");
+    } catch {
+      return;
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return;
+    }
+    const normalized = `${JSON.stringify(this.#normalizePaths(parsed), null, 2)}\n`;
+    if (normalized !== raw) writeFileSync(target, normalized, "utf8");
+  }
+
+  /** The read-time path backstop (P9 T4 §2.11) — deep-normalize every DECLARED
+   *  path field (`doc` / `plan` — the `reviewedRevision` two-layer layers + the
+   *  base artifact's `plan`) to the canonical repoRoot-relative shape, so an
+   *  un-migrated file (a legacy absolute value) still reads as the ONE shape.
+   *  Only the declared path keys are touched (never arbitrary prose); the walk is
+   *  a pure clone (arrays + plain objects), recursing into `waves[]` rows and the
+   *  reviewed-revision records alike. Relativizing an already-relative value is a
+   *  no-op (idempotent). */
+  #normalizePaths(value: unknown): unknown {
+    const root = this.#repoBasis();
+    const walk = (node: unknown): unknown => {
+      if (Array.isArray(node)) return node.map(walk);
+      if (node !== null && typeof node === "object") {
+        const out: Record<string, unknown> = {};
+        for (const [key, child] of Object.entries(node as Record<string, unknown>)) {
+          out[key] =
+            PERSISTED_PATH_KEYS.has(key) && typeof child === "string"
+              ? root.relativize(child)
+              : walk(child);
+        }
+        return out;
+      }
+      return node;
+    };
+    return walk(value);
   }
 }

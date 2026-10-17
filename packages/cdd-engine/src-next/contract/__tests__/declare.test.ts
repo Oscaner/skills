@@ -39,7 +39,7 @@ const REF_KIND_VALUES = [
   "task-id",
 ] as const satisfies readonly RefKind[];
 const HOME_VALUES = [
-  "header",
+  "frontmatter",
   "section",
   "facet",
   "table",

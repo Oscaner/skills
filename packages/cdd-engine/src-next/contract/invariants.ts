@@ -261,7 +261,7 @@ export abstract class Invariant extends MarkdownPrimitives {
 /** Home surfaces the presence invariant judges — the structural doc surface
  *  (table rows/columns/tokens are judged by hollow/section-scoped strategies). */
 const PRESENCE_HOMES = new Set([
-  "header",
+  "frontmatter",
   "section",
   "facet",
   "graph",

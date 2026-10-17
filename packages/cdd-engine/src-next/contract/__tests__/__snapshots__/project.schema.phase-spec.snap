@@ -8,37 +8,37 @@
     "# Title": {
       "type": "string",
       "pattern": "^# \\S.*$",
-      "description": "presence: required · home: header · ref: none"
+      "description": "presence: required · home: frontmatter · ref: none"
     },
     "**Version**": {
       "type": "string",
       "pattern": "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+ · \\d{4}-\\d{2}-\\d{2}$",
-      "description": "presence: required · home: header · ref: version-lineage"
+      "description": "presence: required · home: frontmatter · ref: version-lineage"
     },
     "**Status**": {
       "type": "string",
       "pattern": "^- \\*\\*Status\\*\\*: (Draft|Approved|Plan pending|Shipped)$",
-      "description": "presence: required · home: header · ref: none"
+      "description": "presence: required · home: frontmatter · ref: none"
     },
     "**Author**": {
       "type": "string",
       "pattern": "^- \\*\\*Author\\*\\*:",
-      "description": "presence: required · home: header · ref: none"
+      "description": "presence: required · home: frontmatter · ref: none"
     },
     "**Parent program**": {
       "type": "string",
       "pattern": "^- \\*\\*Parent program\\*\\*:? \\[[^\\]]+\\]\\([^)]+\\)",
-      "description": "presence: required · home: header · ref: parent-program"
+      "description": "presence: required · home: frontmatter · ref: parent-program"
     },
     "**Depends on**": {
       "type": "string",
       "pattern": "^- \\*\\*Depends on\\*\\*:",
-      "description": "presence: required · home: header · ref: none"
+      "description": "presence: required · home: frontmatter · ref: none"
     },
     "Depends on ref": {
       "type": "string",
       "pattern": "^P\\d+(\\.\\d+)*",
-      "description": "presence: conditional · home: header · ref: phase-id"
+      "description": "presence: conditional · home: frontmatter · ref: phase-id"
     },
     "## Design": {
       "type": "string",

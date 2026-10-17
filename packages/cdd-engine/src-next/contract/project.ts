@@ -541,12 +541,12 @@ export class Projector {
    *                       fully-anchored enum / graph elements).
    */
   #skeletonSlotOf(element: DerivedElement): SlotKind {
-    // The link-typed anchor slots are the HEADER parent-program / spec-ref links
+    // The link-typed anchor slots are the front-matter parent-program / spec-ref links
     // (`**Parent program**` · the plan's `**Spec:**`) — the enum-typed table cells
     // (a Design-spec cell, a markdown-link implementation-plan cell) ride the
     // generator-truth class, never a link slot.
     if (
-      element.home === "header" &&
+      element.home === "frontmatter" &&
       (element.refKind === "parent-program" || element.refKind === "spec-ref") &&
       element.valuePattern !== undefined &&
       /\\\[/.test(element.valuePattern)

@@ -40,7 +40,7 @@ export type RefKind =
 
 /** The document surface an element belongs to — where the anchor lives in a conforming document. */
 export type Home =
-  | "header"
+  | "frontmatter"
   | "section"
   | "facet"
   | "table"
@@ -98,7 +98,7 @@ const REF_KIND_VALUES = [
   "task-id",
 ] as const satisfies readonly RefKind[];
 const HOME_VALUES = [
-  "header",
+  "frontmatter",
   "section",
   "facet",
   "table",
@@ -175,35 +175,35 @@ const OVERALL_SPEC_ELEMENTS = [
     presence: "required",
     valuePattern: "^# \\S.*$",
     refKind: "none",
-    home: "header",
+    home: "frontmatter",
   },
   {
     anchor: "**Version**",
     presence: "required",
     valuePattern: "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+ · \\d{4}-\\d{2}-\\d{2}$",
     refKind: "version-lineage",
-    home: "header",
+    home: "frontmatter",
   },
   {
     anchor: "**Status**",
     presence: "required",
     valuePattern: "^- \\*\\*Status\\*\\*: (Draft|Approved|In progress|Complete)$",
     refKind: "none",
-    home: "header",
+    home: "frontmatter",
   },
   {
     anchor: "**Author**",
     presence: "required",
     valuePattern: "^- \\*\\*Author\\*\\*:",
     refKind: "none",
-    home: "header",
+    home: "frontmatter",
   },
   {
     anchor: "**Constraints**",
     presence: "required",
     valuePattern: "^- \\*\\*Constraints\\*\\*:",
     refKind: "none",
-    home: "header",
+    home: "frontmatter",
   },
   // `##`-ranked sections.
   {
@@ -469,42 +469,42 @@ const PLAN_ELEMENTS = [
     presence: "required",
     valuePattern: "^# \\S.*$",
     refKind: "none",
-    home: "header",
+    home: "frontmatter",
   },
   {
     anchor: "**Spec:**",
     presence: "required",
     valuePattern: "^\\*\\*Spec:\\*\\*\\s+\\[[^\\]]+\\]\\([^)]+\\)$",
     refKind: "spec-ref",
-    home: "header",
+    home: "frontmatter",
   },
   {
     anchor: "**Parent program**",
     presence: "required",
     valuePattern: "^- \\*\\*Parent program\\*\\*:? \\[[^\\]]+\\]\\([^)]+\\)",
     refKind: "parent-program",
-    home: "header",
+    home: "frontmatter",
   },
   {
     anchor: "**Version**",
     presence: "required",
     valuePattern: "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+ · \\d{4}-\\d{2}-\\d{2}$",
     refKind: "version-lineage",
-    home: "header",
+    home: "frontmatter",
   },
   {
     anchor: "**Depends on**",
     presence: "optional",
     valuePattern: "^- \\*\\*Depends on\\*\\*:",
     refKind: "phase-id",
-    home: "header",
+    home: "frontmatter",
   },
   {
     anchor: "**Base**",
     presence: "optional",
     valuePattern: "^- \\*\\*Base\\*\\*:",
     refKind: "none",
-    home: "header",
+    home: "frontmatter",
   },
   // Constraint surface (Form A delta-only).
   {
@@ -689,49 +689,49 @@ const PHASE_SPEC_ELEMENTS = [
     presence: "required",
     valuePattern: "^# \\S.*$",
     refKind: "none",
-    home: "header",
+    home: "frontmatter",
   },
   {
     anchor: "**Version**",
     presence: "required",
     valuePattern: "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+ · \\d{4}-\\d{2}-\\d{2}$",
     refKind: "version-lineage",
-    home: "header",
+    home: "frontmatter",
   },
   {
     anchor: "**Status**",
     presence: "required",
     valuePattern: "^- \\*\\*Status\\*\\*: (Draft|Approved|Plan pending|Shipped)$",
     refKind: "none",
-    home: "header",
+    home: "frontmatter",
   },
   {
     anchor: "**Author**",
     presence: "required",
     valuePattern: "^- \\*\\*Author\\*\\*:",
     refKind: "none",
-    home: "header",
+    home: "frontmatter",
   },
   {
     anchor: "**Parent program**",
     presence: "required",
     valuePattern: "^- \\*\\*Parent program\\*\\*:? \\[[^\\]]+\\]\\([^)]+\\)",
     refKind: "parent-program",
-    home: "header",
+    home: "frontmatter",
   },
   {
     anchor: "**Depends on**",
     presence: "required",
     valuePattern: "^- \\*\\*Depends on\\*\\*:",
     refKind: "none",
-    home: "header",
+    home: "frontmatter",
   },
   {
     anchor: "Depends on ref",
     presence: "conditional",
     valuePattern: "^P\\d+(\\.\\d+)*",
     refKind: "phase-id",
-    home: "header",
+    home: "frontmatter",
   },
   // The double-layer design body.
   {
@@ -884,35 +884,35 @@ const SINGLE_SPEC_ELEMENTS = [
     presence: "required",
     valuePattern: "^# \\S.*$",
     refKind: "none",
-    home: "header",
+    home: "frontmatter",
   },
   {
     anchor: "**Version**",
     presence: "required",
     valuePattern: "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+ · \\d{4}-\\d{2}-\\d{2}$",
     refKind: "version-lineage",
-    home: "header",
+    home: "frontmatter",
   },
   {
     anchor: "**Status**",
     presence: "required",
     valuePattern: "^- \\*\\*Status\\*\\*: (Draft|Approved|In progress|Complete)$",
     refKind: "none",
-    home: "header",
+    home: "frontmatter",
   },
   {
     anchor: "**Author**",
     presence: "required",
     valuePattern: "^- \\*\\*Author\\*\\*:",
     refKind: "none",
-    home: "header",
+    home: "frontmatter",
   },
   {
     anchor: "**Depends on**",
     presence: "required",
     valuePattern: "^- \\*\\*Depends on\\*\\*:",
     refKind: "none",
-    home: "header",
+    home: "frontmatter",
   },
   // The prose body surface — the free-form's four sections in document order.
   {

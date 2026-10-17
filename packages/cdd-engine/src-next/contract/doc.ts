@@ -23,13 +23,22 @@
 // Module-level exports are types / the class family / one composition root — zero
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
+import type { ElementRegistry } from "./declare.ts";
 import { declaredRegistries } from "./declare.ts";
+import type { ExtractionMap } from "./home-extractors.ts";
+import { DesignBodyExtractor, GraphExtractor, TaskExtractor } from "./home-extractors.ts";
 import type { DocKey, DocShape, DocSlices, ElementSlice } from "./project.ts";
 import { Projector } from "./project.ts";
 
 /** The projection carrier — one Projector instance over the declared registries,
  *  shared by the four parser classes (each binds its own doc-type faces). */
 const projector = new Projector(declaredRegistries);
+
+/** The home-driven extractors — the fixed structure rules of the task / design /
+ *  graph homes (spec §3.2), shared by the parsers that read those surfaces. */
+const taskExtractor = new TaskExtractor();
+const designExtractor = new DesignBodyExtractor();
+const graphExtractor = new GraphExtractor();
 
 // ---------------------------------------------------------------------------
 // shared structural types
@@ -305,6 +314,9 @@ export abstract class MarkdownPrimitives {
 export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
   /** The doc-type record key — the projection-face identity. */
   readonly key: DocKey;
+  /** The declared registry of this doc type — the extractors read their anchor
+   *  rosters from it (the registry stays the single knowledge source). */
+  readonly registry: ElementRegistry;
   /** The derived parse face (per-element anchor slices) of this doc type. */
   readonly slices: DocSlices;
   /** The derived section skeleton (shape projection) of this doc type. */
@@ -318,6 +330,7 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
   constructor(key: DocKey) {
     super();
     this.key = key;
+    this.registry = declaredRegistries[key];
     this.slices = projector.slices()[key];
     this.shape = projector.shape()[key];
     this.#slicesByAnchor = new Map(this.slices.slices.map((slice) => [slice.anchor, slice]));
@@ -375,26 +388,45 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
     return out;
   }
 
-  /** The `### Task N:` blocks in document order, with their field + step surfaces. */
+  /** The `### Task N:` blocks in document order, with their field + step surfaces.
+   *  The block-head / field-marker / step-line grammars live in the TaskExtractor
+   *  (the task home's fixed structure rules over the registry's declared anchors):
+   *  this method reassembles the typed records from the extractor's occurrence map. */
   protected taskBlocks(blocks: readonly HeadingBlock[]): TaskBlock[] {
+    const lines = blocks.flatMap((block) => [block.heading, ...block.body]);
+    const extracted = taskExtractor.extract(this.registry, lines);
+    const headings = extracted["### Task N:"] ?? [];
+    if (headings.length === 0) return [];
+    const ids = extracted["Task id token"] ?? [];
+    const markers = this.#taskFieldMarkers(extracted);
     const out: TaskBlock[] = [];
     for (const block of blocks) {
-      const match = block.heading.match(/^### Task (\d+):/);
-      if (match === null) continue;
-      const fields = this.parseTaskFields(block.body);
+      const index = headings.indexOf(block.heading);
+      if (index === -1) continue;
+      const id = Number(ids[index] ?? "");
+      if (Number.isNaN(id)) continue;
+      const fields = this.#taskFieldsOf(block.body, markers);
       const stepsField = fields.find((field) => field.key === "Steps");
-      out.push({
-        id: Number(match[1]),
-        heading: block.heading,
-        fields,
-        steps: this.parseSteps(stepsField),
-      });
+      out.push({ id, heading: block.heading, fields, steps: this.#taskStepsOf(stepsField) });
     }
     return out;
   }
 
-  /** Parse a task block's body into keyed fields. */
-  protected parseTaskFields(body: readonly string[]): TaskField[] {
+  /** The task-field anchor lookup — each declared field anchor's marker line maps
+   *  to its anchor (the retired per-anchor field grammar collapses to one map). */
+  #taskFieldMarkers(extracted: ExtractionMap): ReadonlyMap<string, string> {
+    const markers = new Map<string, string>();
+    for (const [anchor, lines] of Object.entries(extracted)) {
+      if (!anchor.startsWith("**")) continue;
+      for (const line of lines) markers.set(line, anchor);
+    }
+    return markers;
+  }
+
+  /** Parse a task block's body into keyed fields — the marker membership comes
+   *  from the extractor's field-anchor map; the remainder and continuation
+   *  handling mirror the retired grammar's behavior exactly. */
+  #taskFieldsOf(body: readonly string[], markers: ReadonlyMap<string, string>): TaskField[] {
     const fields: TaskField[] = [];
     let openKey: string | null = null;
     let openLines: string[] = [];
@@ -404,11 +436,11 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
       openLines = [];
     };
     for (const line of body) {
-      const fieldMarker = line.match(/^-\s+\*\*([A-Za-z ]+)\*\*:\s*(.*)$/);
-      if (fieldMarker !== null) {
+      const anchor = markers.get(line);
+      if (anchor !== undefined) {
         close();
-        openKey = fieldMarker[1];
-        openLines = [fieldMarker[2].trim()];
+        openKey = anchor.slice(2, -2);
+        openLines = [line.slice(`- ${anchor}:`.length).trim()];
       } else if (openKey !== null && line.trim().length > 0) {
         openLines.push(line.trim());
       }
@@ -417,14 +449,16 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
     return fields;
   }
 
-  /** Parse a `**Steps**` field's value lines into step records. */
-  protected parseSteps(field: TaskField | undefined): TaskStep[] {
+  /** Parse a `**Steps**` field's value lines into step records — the retired `- `
+   *  bullet grammar is a plain prefix strip (the field parser trims the indented
+   *  continuation lines before they arrive here) and the `— checkable:` clause
+   *  splits verbatim. */
+  #taskStepsOf(field: TaskField | undefined): TaskStep[] {
     if (field === undefined) return [];
     const steps: TaskStep[] = [];
     for (const line of field.lines) {
-      const bullet = line.match(/^-\s+(.*)$/);
-      if (bullet === null) continue;
-      const text = bullet[1];
+      if (!line.startsWith("- ")) continue;
+      const text = line.slice(2).trim();
       const checkableMarker = text.indexOf("— checkable:");
       if (checkableMarker === -1) {
         steps.push({ action: text, checkable: null });
@@ -445,18 +479,24 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
     return { heading: "", headerRow, rows: rows.slice(1) };
   }
 
-  /** The first `**Marker**:`-style header line by its literal marker. */
-  protected markerLine(lines: readonly string[], marker: string): string | null {
-    for (const line of lines) if (line.includes(marker)) return line;
-    return null;
+  /** The carrier line of one declared header element — the header line containing
+   *  the element's anchor literal (the registry anchor IS the literal), or null.
+   *  The retired marker-line family is gone: the locate is a plain literal search
+   *  (zero new grammar) over the declared anchors. */
+  protected headerCarrierLine(lines: readonly string[], anchor: string): string | null {
+    return lines.find((line) => line.includes(anchor)) ?? null;
   }
 
-  /** The value token of a `- **Key**: <value>` header line (the text after the marker). */
-  protected markerValue(line: string, marker: string): string {
-    const markerIndex = line.indexOf(marker);
-    if (markerIndex === -1) return "";
-    const payload = line.slice(markerIndex + marker.length).trim();
-    return payload.replace(/^:\s*/, "").trim();
+  /** The value of one declared header element — the carrier line stripped of the
+   *  anchor literal and the trailing colon, trimmed (the retired colon-scavenging
+   *  regex is now a plain prefix strip). */
+  protected headerValueOf(lines: readonly string[], anchor: string): string | null {
+    const line = this.headerCarrierLine(lines, anchor);
+    if (line === null) return null;
+    const markerIndex = line.indexOf(anchor);
+    let payload = line.slice(markerIndex + anchor.length).trim();
+    if (payload.startsWith(":")) payload = payload.slice(1).trim();
+    return payload;
   }
 
   /** The line number (1-indexed) the anchor first occurs on, or -1. */
@@ -528,14 +568,22 @@ export class OverallDocType extends DocType<OverallParsed> {
     };
   }
 
-  /** The `## Dependency graph` edge lines, parsed into from/to tokens. */
+  /** The `## Dependency graph` edge lines — the graph-home occurrence map (the
+   *  declared Hard/Soft edge anchors) identified by the extractor; the from/to
+   *  token grammar stays the preserved graph-edge primitive. */
   #graphEdges(sections: readonly SectionBlock[]): GraphEdge[] {
     for (const section of sections) {
       if (!this.sectionConforms(section.heading, "## Dependency graph")) continue;
+      const extracted = graphExtractor.extract(this.registry, section.lines);
+      const edgeLines = new Set<string>([
+        ...(extracted["Hard edge"] ?? []),
+        ...(extracted["Soft edge"] ?? []),
+      ]);
       const edges: GraphEdge[] = [];
       const edgePattern = /^P(\d+(?:\.\d+)*)\s*->\s*P(\d+(?:\.\d+)*)$/;
       for (const line of section.lines) {
         const trimmed = line.trim();
+        if (!edgeLines.has(trimmed)) continue;
         const match = trimmed.match(edgePattern);
         if (match !== null) edges.push({ text: trimmed, from: `P${match[1]}`, to: `P${match[2]}` });
       }
@@ -569,11 +617,12 @@ export class OverallDocType extends DocType<OverallParsed> {
     return phases;
   }
 
-  /** The phase id of a Phase-inventory data row — the cell carrying a phase-id token
-   *  (the first `#` column cell in the canonical repo row form, where the `Phase`
-   *  column holds the phase name). A numeric-led row falls back to its `Phase` cell. */
+  /** The phase id of a Phase-inventory data row — the cell carrying a phase-id
+   *  token (the token shape judged through the declared `Phase id token` value
+   *  pattern — the retired literal grammar now sourced from the registry). */
   #phaseId(row: readonly string[]): string {
-    const idCell = row.find((cell) => /^P\d+(\.\d+)*$/.test(cell.trim()));
+    const pattern = this.sliceOf("Phase id token")?.valuePattern;
+    const idCell = row.find((cell) => pattern?.test(cell.trim()) === true);
     return idCell === undefined ? "" : idCell.trim();
   }
 
@@ -612,18 +661,17 @@ export class PlanDocType extends DocType<PlanParsed> {
 
   /** The plan's cross-doc chain root: Class-A `**Spec:**` + Class-B `**Parent program**`. */
   chainRoot(headerLines: readonly string[]): ChainRoot {
-    const specLine = this.markerLine(headerLines, "**Spec:**");
+    const specLine = this.headerCarrierLine(headerLines, "**Spec:**");
     const specLinks = specLine === null ? [] : this.linksOnLine(specLine);
-    const parentLine = this.markerLine(headerLines, "**Parent program**");
+    const parentLine = this.headerCarrierLine(headerLines, "**Parent program**");
     const parentLinks = parentLine === null ? [] : this.linksOnLine(parentLine);
-    const dependsOnLine = this.markerLine(headerLines, "**Depends on**");
     return {
       docType: "plan",
       parentLink: parentLinks.length > 0 ? parentLinks[0] : null,
       specLink: specLinks.length > 0 ? specLinks[0] : null,
       parentTokens: parentLine === null ? [] : this.versionTokens(parentLine),
       phases: [],
-      dependsOn: dependsOnLine === null ? null : this.markerValue(dependsOnLine, "**Depends on**"),
+      dependsOn: this.headerValueOf(headerLines, "**Depends on**"),
     };
   }
 }
@@ -649,9 +697,17 @@ export class PhaseSpecDocType extends DocType<PhaseSpecParsed> {
     };
   }
 
-  /** The design double-layer skeleton — the `### N.` groups + their `#### N.M` items
-   *  between the `## Design` section and the next rank-2 heading. */
+  /** The design double-layer skeleton — the `### N.` groups + their `#### N.M`
+   *  items between the `## Design` section and the next rank-2 heading. The
+   *  numbered-heading grammars (and their number/text decomposition) live in the
+   *  DesignBodyExtractor; this method walks the declared groups/items from its
+   *  occurrence map. */
   designFromBlocks(blocks: readonly HeadingBlock[]): DesignGroup[] {
+    const lines = blocks.flatMap((block) => [block.heading, ...block.body]);
+    const extracted = designExtractor.extract(this.registry, lines);
+    const designHeadings = new Set(extracted["## Design"] ?? []);
+    const groupHeadings = new Set(extracted["### N. group heading"] ?? []);
+    const itemHeadings = new Set(extracted["#### N.M item heading"] ?? []);
     const groups: DesignGroup[] = [];
     let openNumber: string | null = null;
     let openHeading = "";
@@ -669,20 +725,19 @@ export class PhaseSpecDocType extends DocType<PhaseSpecParsed> {
       const rank = this.headingRank(block.heading);
       if (rank === 2) {
         if (inDesign) break;
-        if (this.sectionConforms(block.heading, "## Design")) inDesign = true;
+        if (designHeadings.has(block.heading)) inDesign = true;
         continue;
       }
       if (!inDesign || (rank !== 3 && rank !== 4)) continue;
-      const groupMatch = block.heading.match(/^### (\d+)\.\s+(.*)$/);
-      if (groupMatch !== null) {
+      if (groupHeadings.has(block.heading)) {
         close();
-        openNumber = groupMatch[1];
-        openHeading = groupMatch[2];
+        const group = designExtractor.groupOf(block.heading);
+        openNumber = group.number;
+        openHeading = group.heading;
         continue;
       }
-      const itemMatch = block.heading.match(/^#### (\d+)\.(\d+)\s+(.*)$/);
-      if (itemMatch !== null && openNumber !== null) {
-        openItems.push({ number: `${itemMatch[1]}.${itemMatch[2]}`, heading: itemMatch[3] });
+      if (openNumber !== null && itemHeadings.has(block.heading)) {
+        openItems.push(designExtractor.itemOf(block.heading));
       }
     }
     close();
@@ -691,16 +746,15 @@ export class PhaseSpecDocType extends DocType<PhaseSpecParsed> {
 
   /** The phase-spec's cross-doc chain root: the Class-B `**Parent program**` lineage. */
   chainRoot(headerLines: readonly string[]): ChainRoot {
-    const parentLine = this.markerLine(headerLines, "**Parent program**");
+    const parentLine = this.headerCarrierLine(headerLines, "**Parent program**");
     const parentLinks = parentLine === null ? [] : this.linksOnLine(parentLine);
-    const dependsOnLine = this.markerLine(headerLines, "**Depends on**");
     return {
       docType: "phase-spec",
       parentLink: parentLinks.length > 0 ? parentLinks[0] : null,
       specLink: null,
       parentTokens: parentLine === null ? [] : this.versionTokens(parentLine),
       phases: [],
-      dependsOn: dependsOnLine === null ? null : this.markerValue(dependsOnLine, "**Depends on**"),
+      dependsOn: this.headerValueOf(headerLines, "**Depends on**"),
     };
   }
 }
@@ -730,14 +784,13 @@ export class SingleSpecDocType extends DocType<SingleSpecParsed> {
   /** The single-spec chain root — the degraded face: no parent link / no spec
    *  link (the independent-program shape), the `**Depends on**` value only. */
   chainRoot(headerLines: readonly string[]): ChainRoot {
-    const dependsOnLine = this.markerLine(headerLines, "**Depends on**");
     return {
       docType: "single-spec",
       parentLink: null,
       specLink: null,
       parentTokens: [],
       phases: [],
-      dependsOn: dependsOnLine === null ? null : this.markerValue(dependsOnLine, "**Depends on**"),
+      dependsOn: this.headerValueOf(headerLines, "**Depends on**"),
     };
   }
 }

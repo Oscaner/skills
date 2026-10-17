@@ -313,9 +313,9 @@ describe("skeleton projection (Projector.skeleton)", () => {
       const linkSlots = doc.slots.filter((slot) => slot.slot === "link");
       for (const slot of linkSlots) {
         const element = registry.elements.find((e) => e.anchor === slot.anchor);
-        // the link class is exactly the header parent-program / spec-ref anchors
+        // the link class is exactly the front-matter parent-program / spec-ref anchors
         // (never the enum-typed table cells that also mention spec/ref)
-        expect(element?.home).toBe("header");
+        expect(element?.home).toBe("frontmatter");
         expect(["parent-program", "spec-ref"]).toContain(slot.refKind);
       }
     }

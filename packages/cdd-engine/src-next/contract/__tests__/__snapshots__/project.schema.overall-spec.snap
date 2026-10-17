@@ -8,27 +8,27 @@
     "# Title": {
       "type": "string",
       "pattern": "^# \\S.*$",
-      "description": "presence: required · home: header · ref: none"
+      "description": "presence: required · home: frontmatter · ref: none"
     },
     "**Version**": {
       "type": "string",
       "pattern": "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+ · \\d{4}-\\d{2}-\\d{2}$",
-      "description": "presence: required · home: header · ref: version-lineage"
+      "description": "presence: required · home: frontmatter · ref: version-lineage"
     },
     "**Status**": {
       "type": "string",
       "pattern": "^- \\*\\*Status\\*\\*: (Draft|Approved|In progress|Complete)$",
-      "description": "presence: required · home: header · ref: none"
+      "description": "presence: required · home: frontmatter · ref: none"
     },
     "**Author**": {
       "type": "string",
       "pattern": "^- \\*\\*Author\\*\\*:",
-      "description": "presence: required · home: header · ref: none"
+      "description": "presence: required · home: frontmatter · ref: none"
     },
     "**Constraints**": {
       "type": "string",
       "pattern": "^- \\*\\*Constraints\\*\\*:",
-      "description": "presence: required · home: header · ref: none"
+      "description": "presence: required · home: frontmatter · ref: none"
     },
     "## Document scope": {
       "type": "string",

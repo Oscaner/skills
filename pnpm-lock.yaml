@@ -214,6 +214,9 @@ importers:
       simple-git:
         specifier: ^4.0.2
         version: 4.0.2
+      yaml:
+        specifier: ^2.9.1
+        version: 2.9.1
     devDependencies:
       '@types/node':
         specifier: ^24.19.2

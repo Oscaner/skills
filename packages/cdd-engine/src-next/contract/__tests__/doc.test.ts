@@ -14,6 +14,13 @@ import { describe, expect, it } from "vitest";
 import { SkeletonAssembler } from "../../render/skeleton.ts";
 import { declaredRegistries } from "../declare.ts";
 import { docTypeParsers, OverallDocType, PhaseSpecDocType, PlanDocType } from "../doc.ts";
+import {
+  DesignBodyExtractor,
+  GraphExtractor,
+  HeadingScanner,
+  TableExtractor,
+  TaskExtractor,
+} from "../home-extractors.ts";
 import { Contract } from "../judge.ts";
 import type { DocKey } from "../project.ts";
 import { Projector } from "../project.ts";
@@ -273,6 +280,86 @@ describe("PhaseSpecDocType.parse — the design skeleton + the Class-B chain roo
     });
     expect(parsed.chain.parentTokens).toEqual(["v1.21"]);
     expect(parsed.chain.specLink).toBeNull();
+  });
+});
+
+describe("the home-driven extractors (T3 · spec §3.2) — the fixed structure rules over the registry's anchors", () => {
+  it("TaskExtractor — block heads + aligned id tokens + the scoped field/step occurrences", () => {
+    const extracted = new TaskExtractor().extract(declaredRegistries.plan, PLAN);
+    expect(extracted["### Task N:"]).toEqual(["### Task 1: skeleton", "### Task 2: registry"]);
+    expect(extracted["Task id token"]).toEqual(["1", "2"]);
+    expect(extracted["**Objective**"]).toEqual([
+      "- **Objective**: establish the skeleton",
+      "- **Objective**: declare the registries",
+    ]);
+    expect(extracted["**DependsOn**"]).toEqual(["- **DependsOn**: none", "- **DependsOn**: 1"]);
+    // the step bullets are scoped to the `**Steps**` field and matched on the
+    // trimmed form — the header / constraint bullets never leak in
+    expect(extracted["Step action"]).toEqual([
+      "  - step one",
+      "  - step two — checkable: second step check",
+      "  - write the registry — checkable: types compile",
+    ]);
+    expect(extracted["Step checkable"]).toEqual([
+      "  - step two — checkable: second step check",
+      "  - write the registry — checkable: types compile",
+    ]);
+    // the cell-shape anchors of the same home are not line occurrences
+    expect(extracted["File path token"]).toBeUndefined();
+  });
+
+  it("DesignBodyExtractor — the numbered group/item headings and the design leaves", () => {
+    const extracted = new DesignBodyExtractor().extract(
+      declaredRegistries["phase-spec"],
+      PHASE_SPEC,
+    );
+    expect(extracted["## Design"]).toEqual(["## Design"]);
+    expect(extracted["### N. group heading"]).toEqual(["### 1. 判定面", "### 2. 编排面"]);
+    expect(extracted["#### N.M item heading"]).toEqual(["#### 1.1 策略类族", "#### 2.1 波次"]);
+    expect(extracted["### Acceptance criteria"]).toEqual(["### Acceptance criteria"]);
+    expect(new DesignBodyExtractor().groupOf("### 1. 判定面")).toEqual({
+      number: "1",
+      heading: "判定面",
+    });
+    expect(new DesignBodyExtractor().itemOf("#### 2.1 波次")).toEqual({
+      number: "2.1",
+      heading: "波次",
+    });
+  });
+
+  it("GraphExtractor — the declared graph edge lines on their trimmed form", () => {
+    const sections = new OverallDocType("overall-spec").parse(OVERALL).sections;
+    const graphSection = sections.find((section) =>
+      section.heading.startsWith("## Dependency graph"),
+    );
+    expect(graphSection).toBeDefined();
+    const extracted = new GraphExtractor().extract(declaredRegistries["overall-spec"], [
+      ...(graphSection?.lines ?? []),
+    ]);
+    expect(extracted["Hard edge"]).toEqual(["P1 -> P2"]);
+    expect(extracted["Graph legend"]).toEqual(["-> = hard block"]);
+    expect(extracted["Soft edge"]).toBeUndefined();
+  });
+
+  it("TableExtractor — the declared column-header and data rows", () => {
+    const extracted = new TableExtractor().extract(declaredRegistries["overall-spec"], [
+      "| Phase | Issue (ref) | Title summary |",
+      "| --- | --- | --- |",
+      "| P1 | #123 | issue one |",
+    ]);
+    expect(extracted["Issue inventory columns"]).toEqual([
+      "| Phase | Issue (ref) | Title summary |",
+    ]);
+    expect(extracted["Issue row"]).toEqual(["| P1 | #123 | issue one |"]);
+    // the separator row never matches a data anchor
+    expect(extracted["Change history row"]).toBeUndefined();
+  });
+
+  it("HeadingScanner — the registered section/facet headings by their declared rank", () => {
+    const extracted = new HeadingScanner().extract(declaredRegistries["overall-spec"], OVERALL);
+    expect(extracted["## Document scope"]).toEqual(["## Document scope"]);
+    expect(extracted["### Goal"]).toEqual(["### Goal"]);
+    expect(extracted["### Non-goals"]).toEqual(["### Non-goals"]);
   });
 });
 

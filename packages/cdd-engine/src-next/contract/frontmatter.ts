@@ -1,0 +1,157 @@
+// packages/cdd-engine/src-next/contract/frontmatter.ts
+// T1 — the front-matter head extraction chain (design spec §2.1/§2.2): a typed
+// head value object plus a thin `---` fence split over the `yaml` engine. The
+// extractor reads the RAW content (never the canonicalize view — front matter is
+// data, not structure; the canonicalized view would silently rewrite registered
+// Chinese aliases inside header values). The registry keeps the declared value
+// shapes (spec §2.3); this file only carries the parse channel (fence split +
+// `yaml.parse`) and the typed accessors.
+//
+// Zero bare functions and zero new regexes are hard guarantees of this module:
+// the line split/join are hand-rolled string walks and the YAML engine does all
+// value parsing.
+
+import { parse } from "yaml";
+
+/** A parsed front-matter head — the typed accessor surface over the YAML record.
+ *  A missing key, a non-scalar value (a list, a mapping, a bare number) and an
+ *  unparseable block all read as `null`: the head carries only scalar facts. */
+export class FrontMatterHead {
+  /** The parsed front-matter record, or null when no head was extracted. */
+  readonly #data: Record<string, unknown> | null;
+
+  /** Wrap one parsed front-matter record (null for "no head"). */
+  constructor(data: Record<string, unknown> | null) {
+    this.#data = data;
+  }
+
+  /** The scalar value of one front-matter key — null for a missing key, a
+   *  non-scalar YAML value (list / mapping / number / boolean) or a null literal. */
+  value(key: string): string | null {
+    if (this.#data === null) return null;
+    const raw = this.#data[key];
+    if (typeof raw !== "string") return null;
+    return raw;
+  }
+
+  /** The document title (`title:`). */
+  get title(): string | null {
+    return this.value("title");
+  }
+
+  /** The machine doc-type identity (`doc-type:`) — a `DOC_TYPE_VALUES` member in a conforming document. */
+  get docType(): string | null {
+    return this.value("doc-type");
+  }
+
+  /** The version token (`version:`, the `v<major>.<minor>` form). */
+  get version(): string | null {
+    return this.value("version");
+  }
+
+  /** The ISO date (`date:`, the `yyyy-mm-dd` form). */
+  get date(): string | null {
+    return this.value("date");
+  }
+
+  /** The status literal (`status:`, the declared per-doc-type enum). */
+  get status(): string | null {
+    return this.value("status");
+  }
+
+  /** The author line (`author:`). */
+  get author(): string | null {
+    return this.value("author");
+  }
+
+  /** The plan's design-spec target path (`spec:`). */
+  get spec(): string | null {
+    return this.value("spec");
+  }
+
+  /** The Class-B parent-overall target path (`parent-program:`). */
+  get parentProgram(): string | null {
+    return this.value("parent-program");
+  }
+
+  /** The Class-B version token (`parent-version:`, the `v<major>.<minor>` form). */
+  get parentVersion(): string | null {
+    return this.value("parent-version");
+  }
+
+  /** The `**Depends on**` header value (`depends-on:`). */
+  get dependsOn(): string | null {
+    return this.value("depends-on");
+  }
+
+  /** The plan base-line value (`base:`). */
+  get base(): string | null {
+    return this.value("base");
+  }
+
+  /** The single-spec issues line (`issues:`). */
+  get issues(): string | null {
+    return this.value("issues");
+  }
+}
+
+/** The front-matter split of a document — the fence split + `yaml.parse` (spec
+ *  §2.2's selection: one YAML engine for the whole repo, a ~10-line fence split,
+ *  no front-matter library). Reads the RAW original content verbatim; the body is
+ *  everything after the second `---` fence. */
+// biome-ignore lint/complexity/noStaticOnlyClass: the plan-mandated static split surface — the zero-bare-function discipline admits no standalone split helpers.
+export class FrontMatterExtractor {
+  /** Split one document into its typed head and body. With no opening fence on
+   *  line zero, no closing fence, an unparseable block or a non-record block,
+   *  every head value reads null and the body is the original content. */
+  static split(content: string): { head: FrontMatterHead; body: string } {
+    const lines = FrontMatterExtractor.lineSplit(content);
+    if (lines.length === 0 || lines[0].trim() !== "---") {
+      return { head: new FrontMatterHead(null), body: content };
+    }
+    const closing = lines.findIndex((line, index) => index > 0 && line.trim() === "---");
+    if (closing === -1) return { head: new FrontMatterHead(null), body: content };
+    const yamlText = FrontMatterExtractor.lineJoin(lines.slice(1, closing));
+    let parsed: unknown;
+    try {
+      parsed = parse(yamlText);
+    } catch {
+      return { head: new FrontMatterHead(null), body: content };
+    }
+    // A non-record parse (a scalar block, a sequence) is not a head — every
+    // value reads null and the body stays the original content. A null parse
+    // (an empty front-matter block) yields the empty head with the post-fence
+    // body: the fence split itself succeeded.
+    if (parsed !== null && (typeof parsed !== "object" || Array.isArray(parsed))) {
+      return { head: new FrontMatterHead(null), body: content };
+    }
+    return {
+      head: new FrontMatterHead(parsed as Record<string, unknown> | null),
+      body: FrontMatterExtractor.lineJoin(lines.slice(closing + 1)),
+    };
+  }
+
+  /** Split a document into its lines — the hand-rolled split (the zero-regex
+   *  discipline bans `String#split`'s word here). */
+  static lineSplit(content: string): string[] {
+    const lines: string[] = [];
+    let start = 0;
+    for (let index = 0; index < content.length; index++) {
+      if (content[index] !== "\n") continue;
+      lines.push(content.slice(start, index));
+      start = index + 1;
+    }
+    lines.push(content.slice(start));
+    return lines;
+  }
+
+  /** Join lines with single `\n` separators — the hand-rolled join. */
+  static lineJoin(lines: readonly string[]): string {
+    let out = "";
+    for (let index = 0; index < lines.length; index++) {
+      if (index > 0) out += "\n";
+      out += lines[index];
+    }
+    return out;
+  }
+}

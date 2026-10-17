@@ -251,7 +251,7 @@ export class SkeletonAssembler {
   // the shared scaffolds — header, tables, sections, the join
   // -------------------------------------------------------------------------
 
-  /** The header block — the header-home slots in projection order (the registry
+  /** The header block — the front-matter-home slots in projection order (the registry
    *  order — the title, then the version/status truths, the content markers, the
    *  link placeholders), each probed, followed by the blank separator. The
    *  `- **Doc type**: <key>` declaration line is emitted right AFTER the Version
@@ -262,7 +262,7 @@ export class SkeletonAssembler {
    *  now passes its OWN preflight (§3.1 ⑩). */
   #pushHeader(lines: string[], probe: Set<string>): void {
     for (const slot of this.#slots) {
-      if (slot.home !== "header") continue;
+      if (slot.home !== "frontmatter") continue;
       lines.push(this.#headerLine(slot));
       probe.add(slot.anchor);
       if (slot.anchor === "**Version**") lines.push(`- **Doc type**: ${this.#docType}`);

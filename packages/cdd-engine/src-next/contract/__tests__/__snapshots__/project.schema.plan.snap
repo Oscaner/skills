@@ -8,32 +8,32 @@
     "# Title": {
       "type": "string",
       "pattern": "^# \\S.*$",
-      "description": "presence: required · home: header · ref: none"
+      "description": "presence: required · home: frontmatter · ref: none"
     },
     "**Spec:**": {
       "type": "string",
       "pattern": "^\\*\\*Spec:\\*\\*\\s+\\[[^\\]]+\\]\\([^)]+\\)$",
-      "description": "presence: required · home: header · ref: spec-ref"
+      "description": "presence: required · home: frontmatter · ref: spec-ref"
     },
     "**Parent program**": {
       "type": "string",
       "pattern": "^- \\*\\*Parent program\\*\\*:? \\[[^\\]]+\\]\\([^)]+\\)",
-      "description": "presence: required · home: header · ref: parent-program"
+      "description": "presence: required · home: frontmatter · ref: parent-program"
     },
     "**Version**": {
       "type": "string",
       "pattern": "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+ · \\d{4}-\\d{2}-\\d{2}$",
-      "description": "presence: required · home: header · ref: version-lineage"
+      "description": "presence: required · home: frontmatter · ref: version-lineage"
     },
     "**Depends on**": {
       "type": "string",
       "pattern": "^- \\*\\*Depends on\\*\\*:",
-      "description": "presence: optional · home: header · ref: phase-id"
+      "description": "presence: optional · home: frontmatter · ref: phase-id"
     },
     "**Base**": {
       "type": "string",
       "pattern": "^- \\*\\*Base\\*\\*:",
-      "description": "presence: optional · home: header · ref: none"
+      "description": "presence: optional · home: frontmatter · ref: none"
     },
     "## Constraints": {
       "type": "string",

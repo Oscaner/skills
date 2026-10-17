@@ -2,7 +2,7 @@
   "docType": "plan",
   "structure": [
     {
-      "home": "header",
+      "home": "frontmatter",
       "elements": [
         {
           "anchor": "# Title",

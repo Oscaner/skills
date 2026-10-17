@@ -1,5 +1,5 @@
 # 引擎文档工具（Engine Doc-Tooling）— P10 设计：文档头部 front-matter 化 + 登记表驱动正文解析统一（Fork B）
-- **Version**: v0.1 · 2026-10-17
+- **Version**: v0.2 · 2026-10-17
 - **Doc type**: phase-spec
 - **Status**: Draft
 - **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P10] 会话 · 用户裁定 · 2026-10-17）
@@ -10,9 +10,9 @@
 
 本 phase 承接 P9 收口后的续 phase（2026-10-17 cdd-design [P10] 会话注册 D48）。**统一命题——一份 CDD 文档的真相是「head 是数据 · body 是结构」**：head（title / doc-type / version / date / status / author / spec / parent-program / depends-on / base）是一组**固定 schema 的标量字段**——它是*数据*；body（section / table / task block / design heading / dependency graph）是 *markdown 结构*。现行引擎把 head 当成「带 anchor 的 markdown 行」建模（`declare.ts` 登记表 anchor 是字面量 token，`project.ts` 编译成 `RegExp` 扫行），**把数据当结构解**——这正是本次要修正的根。
 
-命题由两个入口汇聚：**其一**，头部形态脆弱且违 D26——四类文档的机器判定头部元组以 markdown bullet 行承载（`- **Version**: v2.44 · 2026-10-17` / `- **Status**: Draft` / `- **Author**: …` / `- **Doc type**: overall-spec` + plan 的 `**Spec:**` / `**Parent program**` / `**Depends on**` / `**Base**`），同一事实既编码为 markdown anchor 又编码为登记表 anchor，**两套模型**；且 P9/D42 已实测这类「裸 key + 冒号 + 散文」形态在 YAML/手工解析两头不讨好（`description: the engine's next: line` 致严格 YAML 解析炸）。**其二**，正文结构层同样存在「声明再抄」——`doc.ts` 用 ~5 个手写正则（`/^### Task (\d+):/` · `/^-\s+\*\*([A-Za-z ]+)\*\*:\s*(.*)$/` · 表格 `split("|")` · `/^### (\d+)\.\s+(.*)$/` · `/^#### (\d+)\.(\d+)\s+(.*)$/`）**重新编码**了登记表已声明的 anchor 结构，同一结构知识存在两份。
+命题由两个入口汇聚：**其一**，头部形态脆弱且违 D26——四类文档的机器判定头部元组以 markdown bullet 行承载（`- **Version**: v2.44 · 2026-10-17` / `- **Status**: Draft` / `- **Author**: …` / `- **Doc type**: overall-spec` + plan 的 `**Spec:**` / `**Parent program**` / `**Depends on**` / `**Base**`），同一事实既编码为 markdown anchor 又编码为登记表 anchor，**两套模型**；且 P9/D42 已实测这类「裸 key + 冒号 + 散文」形态在 YAML/手工解析两头不讨好（`description: the engine's next: line` 致严格 YAML 解析炸）。**其二**，正文结构层同样存在「声明再抄」——`doc.ts` 用 ~5 个手写正则（`contract/doc.ts:382` `/^### Task (\d+):/` · `:407` `/^-\s+\*\*([A-Za-z ]+)\*\*:\s*(.*)$/` · `:425` `/^-\s+(.*)$/` · `:676` `/^### (\d+)\.\s+(.*)$/` · `:683` `/^#### (\d+)\.(\d+)\s+(.*)$/` + 表格 `split("|")`）**重新编码**了登记表已声明的 anchor 结构，同一结构知识存在两份。
 
-由此 `size?` 判得 **oversized**（头部迁移 + 正文解析模型重写 + 登记表扩展 + 骨架渲染 + 全库 64 篇迁移 + 消费面 skill 同步 · 跨 contract/render/face 三面 + docs 平面）。用户裁定 **S1=c 不拆 phase** → 收敛为**单 phase-spec 承载，内部 wave 序列**（承 P5/D18⑩「不拆 phase ≠ 不拆 wave」先例）。
+由此 `size?` 判得 **oversized**（头部迁移 + 正文解析模型重写 + 登记表扩展 + 骨架渲染 + 全库 65 篇迁移 + 消费面 skill 同步 · 跨 contract/render/face 三面 + docs 平面）。用户裁定 **S1=c 不拆 phase** → 收敛为**单 phase-spec 承载，内部 wave 序列**（承 P5/D18⑩「不拆 phase ≠ 不拆 wave」先例）。
 
 ### 1. 目标与边界
 
@@ -35,7 +35,7 @@
 
 #### 1.3 保留面（冻结）
 
-- **判定语义不变**：`invariants.ts` 的判压逻辑（version-lineage · phase-registered · change-history 版本血缘 · cross-doc chain 等）逐条不变——本 phase 只换**事实的承载形态与提取通道**，不改判定规则。
+- **判定语义不变**：`invariants.ts` 的判压逻辑（version-lineage · phase-registered · change-history 版本血缘 · cross-doc chain 等）逐条不变——本 phase 只换**事实的承载形态与提取通道**，不改判定规则。此冻结**对头部版本事实的读取通道同样成立**：现行三处把 `**Version**` 当**裸 markdown 行**读（不经任何 DocType 解析器）——`invariants.ts:944` `#headerVersion`（`anchorLines(ctx,"**Version**")`）· `invariants.ts:1236-1247` `#parentLineage`（扫 `(parent as OverallParsed).headerLines` 找 `line.includes("**Version**")`）· `face/gate.ts:161-169` `#docVersionOf`（`line.trimStart().startsWith("- **Version**:")`）。头部迁 front-matter 后这些 bullet 行消失，三处各自返回空 → `SelfBoundedInvariant.evaluate` 在 `headerVersion === null` 早退（`:894`）· `classB` 在 `parentTokens.length === 0` 早退（`:1219`）→ **判压静默自禁（假绿）**。故本 phase 必须把这三处**显式列为改点**并给定 front-matter 替换通道（见 §2.2 / §4.1 / §6 的回归 pin），否则违本冻结。
 - **`next:` 字面冻结**：不改 `next:` 行的可执行字面（动作/旗标拼写/后缀/结构 · 承 P5/P9 先例）。
 - **退出码表 0/1/2 · CDD_BLOCKED 通道 · 领域 run 语义**不变。
 - **D29 黑盒边界守约**：skill 文本零引擎内部实现镜像；对消费面只**同步头部形态表述**，不注入解析实现细节。
@@ -74,7 +74,7 @@ depends-on: P9
 
 - **字段全集**：`title` · `doc-type` · `version` · `date` · `status` · `author`（四型按需出现）；plan 追加 `spec` · `parent-program` · `depends-on` · `base`。
 - **`version` 与 `date` 拆两字段**（原 `v2.44 · 2026-10-17` 一字符串）——版本血缘判定只需 `v2.44`，date 独立更可比。
-- **`spec` / `parent-program` 只存标量**（路径 / label），不存 `[label](target)` markdown 链——链 target 是机器事实，label 由 basename/兄弟扫描派生（引擎已有此链路）。
+- **`spec` / `parent-program` 只存标量**（路径 / label），不存 `[label](target)` markdown 链——链 target 是机器事实，label 由 basename/兄弟扫描派生（引擎已有此链路）。**连带退休两处标签漂移判**：标量形态下 label **即** basename/label 派生值，`invariants.ts:1166`（Class-A `specLink.label.trim() !== path.basename(specLink.target)`）与 `lint.ts#crossDocDriftWarns`（`:234-242` Class-B label↔basename 漂移 WARN）**退化为恒真**（无可漂移的独立事实）→ **两处一并退休**，登记进 §4.1 删除集并附 grep pin。链存在性判（`specLink === null` / `parentLink === null` → finding）与 Class-B **版本 token 血缘判**（`classB`）保留不变。
 - **留在正文**：`**Constraints**` 多行散文（见 §2.4）、single-spec 的 `Issues` 散文行（见 §2.3）、以及全部正文结构层。
 
 #### 2.2 解析通道 = `yaml` 引擎 + 薄 fence 切分（选型裁定）
@@ -83,10 +83,15 @@ depends-on: P9
 - **形态**：`---` fence 切分（文件开头 `---` 到下一 `---`）是 ~10 行代码，格式标准稳定，无需 front-matter 专用库。
 - **依赖面**：`yaml` 由仓库 devDep 升为 **cdd-engine 运行时依赖**（P3 commander ^15 先例 · 记一笔）。
 - **提取器落点**：`FrontMatterExtractor`（值对象类 · 零裸函数）——fence 切分 + `yaml.parse` + typed accessor，产出 typed head record（含 `version` lineage 所需的版本 token）。
+- **头部版本读点重指（判定语义不变 · 见 §1.3）**：三处现行「裸行」版本读点全部改走 front-matter typed accessor，判定规则零改动：
+  - `invariants.ts:944` `#headerVersion`：由 `anchorLines(ctx,"**Version**")` 改为读 typed head record 的 `version` 标量（经 `FrontMatterExtractor`），返回值即 `v<major>.<minor>` token；
+  - `invariants.ts:1236-1247` `#parentLineage`：由扫 `(parent as OverallParsed).headerLines` 改为读 **parent overall 的 front-matter `version` 标量** 加入 lineage（Change-history 行版本照旧）；
+  - `face/gate.ts:161-169` `#docVersionOf`：由 `line.trimStart().startsWith("- **Version**:")` 改为解析 front-matter block 的 `version` 标量，产出同一 `v<major>.<minor>` token。
+  三处 `versionTokens`/`versionTokensOf` 的 token 语法是共享单一源（`contract/doc.ts`），仅**入口事实**由「裸行」换为「front-matter 标量」，不对判定值形状作任何放宽。
 
 #### 2.3 登记表外头部事实收编
 
-- **`doc-type`**：今天不在 `declare.ts` 登记表，由 `face/board-view.ts#docTypeOf` 单读（board 判 doc 类 · capsule 判 doc-class）。收编进登记表（`home: "frontmatter"`），消灭「无门声明事实」。
+- **`doc-type`**：今天不在 `declare.ts` 登记表，声明由 `face/board-view.ts#docTypeOf`（`:655`，经 `#headerLinesOf` `:641` 扫 `- **Doc type**:` 行）解析。**读点全清单**（收编后须全部重指到登记表的 front-matter `doc-type` 元素）：`board-view.ts:194` `readDocType`（其非测试调用者 `face/capsule.ts:147` · `face/cli.ts:474` 的 plan dispatch），以及 `session/preflight.ts` 的 doc-contract 门（`:64-69` · `:186-206` 自持 docKey 派生读 `- **Doc type**:` 行）。收编进登记表（`home: "frontmatter"`），**唯一读通道** = 登记表 `doc-type` 元素的 front-matter 标量（`FrontMatterExtractor`），消灭「无门声明事实」。
 - **single-spec `Issues`**：今天为自由散文行（不在登记表）。收编进登记表。
 - 收编后头部元组事实**全部在册**（登记表 = 唯一声明根 · D26 成立）。
 
@@ -101,6 +106,8 @@ depends-on: P9
 今天引擎有两套结构知识：`declare.ts` 登记表声明「有哪些 anchor + home」，而 `doc.ts` 用 ~5 个正则**重新编码**了同一批 anchor 的结构形态（「声明再抄」）。统一后，结构知识只留在**一处**——登记的 `home` 轴。
 
 `home` 取值：`header`（迁 frontmatter 后为 `frontmatter`）· `section` · `facet` · `table` · `graph` · `task-block` · `task-field` · `task-step` · `design-body` · `conditional`。
+
+**`header` → `frontmatter` 为改名（retire 旧值，非并存）**：`header` 是活 union 成员（`declare.ts:42-52` `Home` union · `HOME_VALUES` `:100-111`）且有 23 处 `home: "header"` 用例，并被 presence 不变量的 `PRESENCE_HOMES` 集（`invariants.ts:263-273`）引用。本 phase 统一：`Home` union 与 `HOME_VALUES` 中 `"header"` **改名为 `"frontmatter"`**，23 处用例随之改，`PRESENCE_HOMES` 同步把 `"header"` 换为 `"frontmatter"`——不留 `header` 并存值（并存即「两套头部模型」· 违 §1.2 与 D26）。
 
 #### 3.2 home 驱动的泛型提取器（一族一方法）
 
@@ -119,14 +126,27 @@ depends-on: P9
 
 头部元素登记为 `home: "frontmatter"`，其 anchor 即 **front-matter key 名**（`title` / `doc-type` / …）；`project.ts` 的 slices 投影对 `frontmatter`-home 元素改用「YAML key 查表」而非 RegExp 编译。正文元素照旧走 home 提取器（§3.2）。**登记表仍是唯一真源**（合 D26）——非「头部单抽一套 schema」（β · 两套模型 · 违六前提+ D26）。
 
+**投影涟漪全清单（anchor 字面量是 key 的不止 slices）**：
+
+| 投影面 | 落点 | `frontmatter`-home 元素的处理 |
+|---|---|---|
+| slices | `project.ts:448-461` `#projectDocSlices` | anchor 即 YAML key → 改用 key 查表；`anchorPattern`/`valuePattern` 两 RegExp 编译对 header 腿停用 |
+| schema | `project.ts:428/434` `#projectDocSchema`（`properties[element.anchor]` · `required.push(element.anchor)`） | key 直接进 `properties`/`required`（已是 key 形态）——`properties` 的 `pattern` 改吐 front-matter 值形状 |
+| tokens | `project.ts:468` `#projectDocTokens`（carry anchor） | anchor 即 key，无需 RegExp，字面量照carry |
+| skeleton/pattern-truth | `project.ts:513-577` `#projectDocSkeleton` / `#skeletonSlotOf`（按 anchor 分类） | 分类键由 bullet anchor token（如 `**Version**`）改为 YAML key（如 `version`） |
+
+**值形状（valuePattern）重规格**：四类文档头部的 `valuePattern` 今日为 **bullet 形态正则**（`declare.ts:183/491/697/892` 的 `^- \*\*Version\*\*: v\d+\.\d+ · \d{4}-\d{2}-\d{2}$` · `:190` `^- \*\*Status\*\*: (Draft|Approved|…)` · `:176` `^# \S.*$` 等），**无法作用于 YAML 标量值**。本 phase 将 header 元素（`home: "frontmatter"`）的 `valuePattern` 全部**重规格为 YAML 标量形状**：`version` → `^v\d+\.\d+$` · `date` → ISO 日期 `^\d{4}-\d{2}-\d{2}$` · `status` → 原枚举元组 · `doc-type` → 原 `DOC_TYPE_VALUES` 元组 · `title`/`author` → 非空标量。或（择一）把值形状判定整体移交 `FrontMatterExtractor`，登记表仅留 `presence`/`home`/`refKind` 与 key 名。无论哪条，**schema / tokens / slices / skeleton 四面与全部 header valuePattern 一处同步改**，不留 bullet 形态正则残留。
+
 ### 4. 死代码清理与骨架渲染
 
 #### 4.1 死头代码清理（六前提④）
 
-- `render/skeleton.ts` 的 `HEADER_FORMS` 硬编码（`"- **Version**: v0.1 · {date}"` 等）· `LINK_SLOTS`。
+- `render/skeleton.ts` 的 `HEADER_FORMS` 硬编码（`:32` · `"- **Version**: v0.1 · {date}"` 等）· `LINK_SLOTS`（`:45`）。
 - `contract/doc.ts` 的 header-line 提取（`headerLines` / `HeadingBlock` 头部腿）。
-- `face/board-view.ts#headerLinesOf` / `#docTypeOf` 的头部行扫描。
-- 头部 anchor 的 RegExp 编译（`project.ts#projectDocSlices` 对 header 腿）。
+- `face/board-view.ts#headerLinesOf`（`:641`） / `#docTypeOf`（`:655`）的头部行扫描。
+- 头部 anchor 的 RegExp 编译（`project.ts#projectDocSlices` `:448-461` 对 header 腿）。
+- **头部「裸行」版本读点**（§1.3 · §2.2）：`invariants.ts:944` `#headerVersion` 的 `anchorLines(ctx,"**Version**")` 扫描 · `invariants.ts:1236-1247` `#parentLineage` 的 `headerLines` 扫描 · `face/gate.ts:161-169` `#docVersionOf` 的 `- **Version**:` 行扫描——三处裸行扫描全删，改走 front-matter 标量。
+- **标签漂移判**（§2.1）：`invariants.ts:1166` Class-A label==basename 判 · `lint.ts:234-242` `#crossDocDriftWarns` Class-B label↔basename 漂移判——标量形态下退化为恒真，一并退休。
 - 全部删除，零残留（grep pin）。
 
 #### 4.2 骨架渲染器改吐 front-matter 头
@@ -137,9 +157,9 @@ depends-on: P9
 
 ### 5. 迁移与消费面
 
-#### 5.1 全量迁移（本仓 64 篇）
+#### 5.1 全量迁移（本仓 65 篇）
 
-- 本仓 **34 spec + 30 plan** 一次性机械改写头部为 front-matter（脚本可安全批改——同源模板 · 头部块形态一致）；正文 H1 删除（`title:` 唯一源）。
+- 本仓 **35 spec + 30 plan** 一次性机械改写头部为 front-matter（脚本可安全批改——同源模板 · 头部块形态一致）；正文 H1 删除（`title:` 唯一源）。**算术对账**：`docs/kairos/specs/*.md` = 35（4 overall-spec + 30 phase-spec design + 1 single-spec，**含本 p10 design 自身**）· `docs/kairos/plans/*.md` = 30 → 合计 **65**（非旧表述的 34+30=64；修正为 65 并同步 AC 与 parent overall D48）。
 - 迁移后引擎 `board` / `review` / `fix` 对历史文档判压全绿（`readDocType` 从 front-matter `doc-type` 读）。
 - **一次提交**（头部形态迁移独立于实现 · Mid-Flight Backfill 纪律）。
 
@@ -151,9 +171,9 @@ depends-on: P9
 
 ### 6. 不变量与 pin
 
-- **结构 pin**：`doc.ts` 手写 anchor 正则零命中（`grep -nE '\.match\(/\^#'` 类）；登记表含 `frontmatter` home + `doc-type` + `Issues`。
+- **结构 pin**：`doc.ts` 手写 anchor 正则零命中（`grep -nE '\.match\(/\^#'` 类）；登记表含 `frontmatter` home + `doc-type` + `Issues`；退休判零残留（`invariants.ts` label==basename 判 · `lint.ts#crossDocDriftWarns` grep 零命中）。
 - **形态 pin**：四类文档头部元组全在 front-matter（正文 bullet 头零残留 grep）；正文 H1 零残留。
-- **判定回归 pin**：迁移后全部历史文档过 doc-contract（`invariants` 判压零 finding）——判定语义零变化。
+- **判定回归 pin**：迁移后全部历史文档过 doc-contract（`invariants` 判压零 finding）——判定语义零变化。**并须钉死三处版本读点仍触发判压**（§1.3 假绿回归）：头版本落在 Change-history 血缘之外须仍产 finding（`SelfBoundedInvariant`）· `**Parent program**` token 不在 parent 血缘须仍产 finding（`classB`）——各一条 negative-case 回归用例，防迁移后静默自禁。
 - **依赖 pin**：`yaml` 落 cdd-engine `package.json#dependencies`。
 - **门归属**：引擎内部事实门进 **engine suite**；引擎 ⇄ 消费面对照门进 **kairos suite**（镜像 P5/P9 归域）。
 
@@ -164,9 +184,9 @@ depends-on: P9
 - `doc.ts 手写 anchor 正则零命中（登记表 home 驱动提取器替换）`
 - `登记表含 frontmatter home + Doc type + Issues 收编（无门事实归零）`
 - `Constraints 归一为正文 section（overall 头部 bullet 零残留）`
-- `死头代码零残留（HEADER_FORMS · #headerLinesOf · header-line 提取）`
+- `死头代码零残留（HEADER_FORMS · #headerLinesOf · header-line 提取 · 三处裸行版本读点 · 两处标签漂移判）`
 - `skeleton 吐 front-matter 头（yaml stringify）+ body 骨架保留`
-- `本仓 64 篇文档全量迁移（引擎 board/review 判压历史文档全绿 · 判定语义零变化）`
+- `本仓 65 篇文档全量迁移（引擎 board/review 判压历史文档全绿 · 判定语义零变化 · 版本血缘判与父血缘判迁移后仍触发）`
 - `消费面迁移说明在册（major breaking · 零 legacy 兼容）`
 - `引擎 vitest 全绿 + kairos suite 全绿 + pnpm run validate ALL PASS · 不发布`
 - `零裸函数（grep 零命中）· EOF 恰一 newline · English-primary（SKILL.md/docs）· specs/plans 中文（Strategy B）`
@@ -177,7 +197,7 @@ depends-on: P9
 - **两组分界（唯一规范）**：结构化元数据（front-matter）→ 标准解析器（`yaml`）；markdown 正文骨架 → 登记表驱动轻量扫描。**正文层不引 AST 解析器**（避第二套模型 · 守六前提⑤心智负担 · `declare.ts` 登记表 anchor 保持字面量 token 形态）。
 - **登记表仍是唯一声明根**：头部元素 `home: "frontmatter"`（anchor = YAML key）· 正文元素 home 提取器；零「头部单抽 schema」双模型。
 - **`yaml` 升 engine 运行时依赖**：由仓库 devDep 升 cdd-engine `dependencies`（P3 commander 先例 · 记一笔）。
-- **迁移 = 全量 · 零 legacy 兼容**：本仓 64 篇一次性改写；消费者自行迁移；major breaking。不引入双格式头兼容层（违 D26「两套模型」）。
+- **迁移 = 全量 · 零 legacy 兼容**：本仓 65 篇一次性改写；消费者自行迁移；major breaking。不引入双格式头兼容层（违 D26「两套模型」）。
 - **H1 删除**：`title:` 是唯一标题源，正文自 `## Document scope`/`## Design` 起。
 - **D29 黑盒边界守约**：skill 文本零引擎内部实现镜像；消费面只同步头部形态表述。
 - **门归属分域**：引擎内部事实门进 engine suite；引擎 ⇄ 消费面对照门进 kairos suite。
@@ -193,3 +213,4 @@ depends-on: P9
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-17 | 初稿：P10 文档头部 front-matter 化 + 登记表驱动正文解析统一（Fork B）——头部元组迁 YAML front-matter（`yaml` 引擎 + 薄 fence 切分 · 正文 H1 删）+ 正文结构层登记表 home 驱动泛型提取器（消 `doc.ts` 手写 anchor 正则）+ 登记表增 frontmatter home + `Doc type`/`Issues` 收编 + Constraints 归一 + 死头代码清理 + 骨架吐 front-matter 头 + 全量迁移 64 篇 + 消费者自行迁移（major breaking）· 尺寸 oversized 单 phase 内部波次 · 会话裁定回填 overall D48 | Oscar M. · Claude Opus 5（kairos:cdd-design [P10]） |
+| v0.2 | 2026-10-17 | **spec-fix-1（review-1 findings 收口 · 1 blocker + 5 warn + 1 nit）**：① blocker——补三处「裸行」版本读点（`invariants.ts:944` `#headerVersion` · `:1236-1247` `#parentLineage` · `gate.ts:161-169` `#docVersionOf`）的 front-matter 替换通道（§1.3 · §2.2 · §4.1）并加迁移后回归 pin（版本血缘判 / 父血缘判仍触发 · 防假绿）；② warn——补 `spec`/`parent-program` 标量化的标签漂移判退休（`invariants.ts:1166` · `lint.ts#crossDocDriftWarns` · §2.1/§4.1）；③ warn——迁移计数 64 → **65**（35 spec + 30 plan · 含本 p10 design 自身）· §5.1/AC/Constraints 对账；④ warn——补全 `doc-type` 读点清单（`readDocType` + capsule/cli/callers + `preflight.ts` doc-contract 门 · §2.3）；⑤ warn——补全登记表接法 α 的投影涟漪（schema/tokens/slices/skeleton 四面 + header valuePattern 重规格为 YAML 标量形 · §3.3）；⑥ warn——为承重行为断言补 `path:line` 引证；⑦ nit——`header` → `frontmatter` 定为**改名 retire**（`Home` union + `HOME_VALUES` + 23 用例 + `PRESENCE_HOMES` · §3.1） | Oscar M. · Claude Opus 5（kairos:cdd-design [P10] spec-fix-1） |

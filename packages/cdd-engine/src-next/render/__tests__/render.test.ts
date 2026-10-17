@@ -206,6 +206,12 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     // the claimed→pin clause (T4) — every behavior claim must cite a colocated pin;
     // the spec + plan review variants carry it (the task/branch variants do not)
     expect(spec).toContain("Claimed→pin");
+    // the review-quality clauses (P10/D49) — every axis carries the vision-document
+    // rule (silence is not permission), the declined-to-judge ledger, and severity
+    // calibration; pinned per distinctive phrase
+    expect(spec).toContain("its silence is not permission");
+    expect(spec).toContain("nothing set aside is dropped silently");
+    expect(spec).toContain("accurate praise earns the rest of the report trust");
     expect(spec).toContain("- `INPUT_DOC`: docs/kairos/specs/s1-design.md");
     expect(spec).not.toContain("- `INPUT_WAVE_BRIEF`");
     expect(spec).not.toContain("- `INPUT_FINDINGS`");
@@ -226,6 +232,11 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(task).toContain("- `BASE_BRANCH`: develop");
     expect(task).not.toContain("Follow URC");
     expect(task).not.toContain("Claimed→pin"); // the task axes carry no clause
+    // every review axis (task/branch/spec/plan) carries the three review-quality
+    // clauses (P10/D49) — here on the wave variant
+    expect(task).toContain("its silence is not permission");
+    expect(task).toContain("nothing set aside is dropped silently");
+    expect(task).toContain("accurate praise earns the rest of the report trust");
     // a branch review carries the single doc anchor (the plan) + the scope anchor
     // BASE_BRANCH — the shared review layout carries the slot (§3.1/§3.2)
     const branch = assembler.render({
@@ -239,6 +250,10 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     });
     expect(branch).toContain("- `INPUT_DOC`: docs/kairos/plans/p.md");
     expect(branch).toContain("- `BASE_BRANCH`: develop");
+    // the branch variant carries the three review-quality clauses too (P10/D49)
+    expect(branch).toContain("its silence is not permission");
+    expect(branch).toContain("nothing set aside is dropped silently");
+    expect(branch).toContain("accurate praise earns the rest of the report trust");
     // a plan review carries the same claimed→pin clause as the spec variant; the
     // semantic spec/plan-absent anchor rule (the tree-review faces only) is the
     // lifecycle-injection concern — pinned at the CLI dispatch face (cli.test.ts)

@@ -63,23 +63,26 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(assembler.declaredTokens()).not.toContain("INPUT_RULES");
   });
 
-  it("renders the two-line return contract — exactly status + artifacts, the commits line retired (§2.4)", () => {
-    // The `## Return` zone prescribes exactly two command lines inside its fence:
-    // `status:` then `artifacts:`. The retired `commits:` line must not survive
-    // anywhere in the assembled prompt (the child returns status + artifacts; the
-    // engine appends the counters/next lines — never the child's).
+  it("renders the single prose return contract — the retired status/artifacts key block is gone (§2.4)", () => {
+    // P11 §2.1: the `## Return` zone is ONE plain-prose contract block — the child
+    // narrates the round in prose and nothing downstream parses its stdout (the
+    // handoff draft at OUTPUT_HANDOFF is the machine-readable result). The retired
+    // two-line key block (`status:` / `artifacts:` inside a fence) must not survive
+    // anywhere in the assembled prompt.
     const out = assembler.render(ALL_VALUES);
-    const fence = out.split("```")[1];
-    expect(fence).toBeDefined();
-    const commandLines = fence!
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
-    expect(commandLines).toEqual([
-      "status: <APPROVED|BLOCKED>",
-      "artifacts: report=<path> test_evidence=<path>",
-    ]);
+    const returnZone = out.split("## Return")[1];
+    expect(returnZone).toBeDefined();
+    // the prose contract is present, byte-anchored on the RETURN_PROSE zone
+    expect(returnZone).toContain(
+      "Report in a few plain sentences what this round did, whether it succeeded",
+    );
+    expect(returnZone).toContain("`OUTPUT_HANDOFF` is the round's machine-readable result");
+    expect(returnZone).toContain("Do not emit key-value lines");
+    // zero key-value residue — no fenced command block, no `status:`/`artifacts:` line
+    expect(out).not.toContain("```");
     expect(out).not.toContain("commits:");
+    expect(out).not.toMatch(/^status: /m);
+    expect(out).not.toMatch(/^artifacts: /m);
   });
 
   it("assembles the implement mode — the fixed prefix + the reduced round context", () => {

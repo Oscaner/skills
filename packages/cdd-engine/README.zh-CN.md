@@ -24,7 +24,7 @@ npm install @oscaner-skills/cdd-engine
 
 ## CLI
 
-全局选项：`--dry-run`——预览下一步派发而不写任何内容（仅限 implement/review/fix）。
+全局选项：`--dry-run`——预览下一步派发及其预期产物 — 对 repo 零写入、不占轮次（仅限 implement/review/fix）。
 
 | 子命令 | 用法 | 用途 |
 |--------|------|------|

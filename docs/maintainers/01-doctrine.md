@@ -38,4 +38,4 @@ Every Node Definition (Do / Read / Exit / Fail) states only the facts **that nod
 
 ## 4. Engine smoke positioning
 
-The release gate is the test-plane integration test (`smoke.integration.test.ts`): it boots the source bin (`node src-next/bin.ts`) over a fixture repo and asserts the status-capsule contract on the `--help` face plus the implement/review dry-run chain (`pnpm -C packages/cdd-engine run smoke`). The P4.2 consumer-sim (build → pack → tarball → install) is retired; the shared sentence — **consumer-sim = the cdd-engine published-artifact consumer black-box** — survives.
+The release gate is the test-plane integration test (`smoke.integration.test.ts`): it boots the source bin (`node src-next/bin.ts`) over a fixture repo and asserts the `--help` commander face plus the read-only implement `--dry-run` preview (the five-row next-step forecast at zero repo writes; `pnpm -C packages/cdd-engine run smoke`). The P4.2 consumer-sim (build → pack → tarball → install) is retired; the shared sentence — **consumer-sim = the cdd-engine published-artifact consumer black-box** — survives.

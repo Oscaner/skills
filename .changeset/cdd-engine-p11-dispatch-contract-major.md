@@ -1,0 +1,12 @@
+---
+"@oscaner-skills/cdd-engine": major
+---
+
+feat!: P11 dispatch contract 收口——child Return 去结构化 + `--dry-run` 真只读预览（D50）:
+
+- **① child Return 去结构化** — agent 的返回结构不稳定，引擎对 child stdout 固定两行（`status:` / `artifacts:`）的解析导致无意义 BLOCK，而该结构今日已是**死数据 + 一道 presence 门**（`#parseBlockReturn` 的 status 零消费者 · stdout 的 `artifacts:` 仅 hermetic fallback 用）。改为：模板 `## Return` 收为**单个散文契约块**（`RETURN_PROSE`，`RETURN_STDOUT_BLOCK` 更名）；引擎**零解析** child stdout——删 `#parseBlockReturn` · 删「exit 0 但无 status 行 → BLOCKED」门 · 删 `DispatchOutcome.artifacts` 与 `ReturnZone` 接口/`returnFormats()` 内省；唯一进程信号 = child 非零退出码，结论一律来自 **handoff 草稿 + test-evidence 回读**；散文不转发到 stdout（机器面），仅存入 crash record 的 `stdoutTail`（`STDOUT_TAIL_MAX` 限界）。
+- **② `--dry-run` 真只读预览**（issue #345 采纳方案 b）— 旧语义是「模拟派发并 book 一轮」（写 `<kind>-review-N.json`、消耗 review 唯一槽位、经合成 dispatch `() => ({ status: "APPROVED", findings: [] })` 伪造结论），与「不写产物」的文档承诺相反。改为**纯读的下一步预告**：零 repo 写入（不 `Workspace.ensure()` · 不 `migrateJsonChild` · 不 `renderBrief` · 不 `persistHandoff`/`recordRound`/`recordReviewed*` · 不写 crash record）、不占轮次；输出单块 `cdd <verb>: preview (no repo changes)` + `step:` / `reads:` / `would write:` / `would record:` / `child:` 五行，**不打印 `status:` / `next:`**（结论未定，打印即伪造）。pre-flight 四门照常跑（纯读），拒绝则输出与真实运行一致的拒绝面并 exit 1。合成 dispatch 删除。收窄为 implement / review / fix 专用——其余命令（`base` / `schema` / `issue` / `board`）携带该旗标 → usage 报错、exit 2（静默忽略的旗标是消费者心智负担）。
+- **③ 抽象与遗留清理** — 预期产物名由 `CliLifecycle` 的私有散点（`#outputOf` / `#evidenceName` / `#evidencePrefix`）提取为 `RoundNaming` 类（session 面），由 `CliLifecycle` 与 preview **两面共用**；写点自 ensure 收口——`#sceneOf` / `#runBase` 两处显式 `Workspace.ensure()` 调用点退休，`#runWork` 在预检后、首个写点前对**所有面**补一次（`dryRun` 跳过）；`migrateJsonChild` 全调用点 + 方法本体 + 直测退休（`#readBase` 改走 `Workspace.readJson`）。
+- **④ 文档面** — `declare.ts` flag help + `README.md` + `README.zh-CN.md` 同批一致为「preview the next dispatch step and its expected artifacts — zero repo writes, no round consumed」。
+- **⑤ dispatch 输入面命名收口**（D51，同 phase 的独立 changeset）— `--findings` → `--reviews` · `INPUT_FINDINGS` → `INPUT_REVIEWS`；本 changeset 覆盖全 phase，major 级次不变。
+- **回归** — 引擎 vitest 738/738 · `pnpm -C packages/cdd-engine run smoke` 绿 · `pnpm run validate` 退出 0。不发布：tag / publish 为独立动作。

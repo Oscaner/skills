@@ -10,7 +10,7 @@
 //     acceptance's unknown-flag BLOCK) and the program scopes (--dry-run / --help)
 //     — the parse-level assertions ride runArgv (the retired tokenizer and its
 //     guard never return to the tree);
-//   · the work-command E2E (dry-run) — implement / review / fix compose the lifecycle,
+//   · the work-command E2E — implement / review / fix compose the lifecycle,
 //     the capsule and the ledger in a hermetic temp repo, advance the requested phase
 //     and land the canonical artifacts (brief / handoffs / progress); the phase gate
 //     refuses an unreachable round without dispatching a phantom;
@@ -24,7 +24,8 @@
 //     home), base set/get (the single → artifact);
 //   · the composition root + HarnessDispatch — host detection, the dispatch prompt
 //     (template data plane), the child return-block parse (block + JSON).
-// Fixtures are hermetic mkdtemp repos (git-inited for the dry-run HEAD); the io is
+// Fixtures are hermetic mkdtemp repos (git-inited — the engine resolves the repo
+// root from the git top level and the review binds its `next:` base there); the io is
 // captured, never the process.
 
 import { spawnSync } from "node:child_process";
@@ -50,7 +51,7 @@ import type { RouteTarget } from "../../session/faces.ts";
 import { Ledger } from "../../session/ledger.ts";
 import type { Route } from "../../session/next.ts";
 import { FIX_READBACK_SUFFIX } from "../../session/next.ts";
-import type { OpenFrame } from "../../session/run.ts";
+import type { DispatchStep, OpenFrame } from "../../session/run.ts";
 import { Capsule } from "../capsule.ts";
 import type { CliIo, CliOptions, DispatchScene, SyncProcess } from "../cli.ts";
 import { Cli, HarnessDispatch } from "../cli.ts";
@@ -137,6 +138,14 @@ afterEach(() => {
   process.chdir(ORIGINAL_CWD);
 });
 
+/** The hermetic approving dispatch — the real-run stand-in for the retired
+ *  `--dry-run` synthetic approval (P11 · §2.2/§2.4): a work round lands APPROVED
+ *  (a findings-free work carrier), a findings round lands zero findings (its
+ *  conclusion derives APPROVED at judgment time). The E2E tests inject it and drop
+ *  `--dry-run`, so the lifecycle (bookkeep · capsule · next hop) runs for real
+ *  without spawning a child. */
+const APPROVING: DispatchStep = () => ({ status: "APPROVED", findings: [] });
+
 /** A hermetic CLI fixture — a fresh temp repo, the io captured, the cwd isolated
  *  into the temp root (the engine resolves the repo root from `process.cwd()`, so
  *  the fixture chdirs rather than injecting a root — §2.12). The temp root is taken
@@ -159,12 +168,12 @@ const fixture = (opts: CliOptions = {}): CliFixture => {
   };
 };
 
-/** Init a git repo with one commit — the dry-run's HEAD (the review `next:` base).
- *  The fixture .gitignore keeps the dispatch's own writes (the `.kairos` workspace)
- *  and the fixture's synthetic docs (`/docs/`) out of the tree — the working tree
- *  stays clean across multi-dispatch flows (the P4.1 clean-tree dispatch gate).
- *  Pass an explicit ignore content to shape it (the no-`.kairos`-ignore consumer
- *  regression). */
+/** Init a git repo with one commit — the repo root the engine resolves from the
+ *  working directory, and the review `next:` base. The fixture .gitignore keeps the
+ *  dispatch's own writes (the `.kairos` workspace) and the fixture's synthetic docs
+ *  (`/docs/`) out of the tree — the working tree stays clean across multi-dispatch
+ *  flows (the P4.1 clean-tree dispatch gate). Pass an explicit ignore content to
+ *  shape it (the no-`.kairos`-ignore consumer regression). */
 const gitInit = (repoRoot: string, ignore = ".kairos\n/docs/\n"): string => {
   spawnSync("git", ["init", "-q"], { cwd: repoRoot });
   spawnSync("git", ["config", "user.email", "cli@test"], { cwd: repoRoot });
@@ -833,7 +842,7 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
     }
   });
 
-  it("a pre-verb --dry-run dispatches through the program scope — the flag merges into the run (exit 0)", async () => {
+  it("a pre-verb --dry-run reaches the program scope — the flag merges into the run as the read-only preview (exit 0)", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
@@ -847,10 +856,10 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
         plan,
       ]);
       expect(code).toBe(0);
-      expect(io.stdoutText).toContain("status: APPROVED");
-      expect(
-        existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "tasks-1-implement.json")),
-      ).toBe(true);
+      // the merged program-scope flag drives the preview — the next step forecast
+      // with zero repo writes (the retired synthetic bookkeeping is gone)
+      expect(io.stdoutText.startsWith("cdd implement: preview (no repo changes)\n")).toBe(true);
+      expect(existsSync(path.join(repoRoot, ".kairos"))).toBe(false);
     } finally {
       cleanup();
     }
@@ -1343,23 +1352,17 @@ describe("the error-path face — commander's native suggestion bytes (T5 re-pin
 });
 
 // ---------------------------------------------------------------------------
-// the work commands — the lifecycle/capsule/ledger composition (dry-run E2E)
+// the work commands — the lifecycle/capsule/ledger composition (the real run
+// with a hermetic injected dispatch; the retired `--dry-run` synthetic approval)
 // ---------------------------------------------------------------------------
 
-describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", () => {
+describe("the work commands run the lifecycle/capsule/ledger — injected-dispatch E2E", () => {
   it("implement — one dispatch, the capsule face, the ledger record + the rendered brief", async () => {
-    const { command, io, repoRoot, cleanup } = fixture();
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
-      const code = await command.runArgv([
-        "implement",
-        "--tasks",
-        "1",
-        "--plan",
-        plan,
-        "--dry-run",
-      ]);
+      const code = await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 · handoff: ");
       expect(io.stdoutText).toContain(`next: review --type wave --tasks 1`);
@@ -1377,14 +1380,12 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
   });
 
   it("every wave-face dispatch re-extracts the brief from the CURRENT plan — the complete plan mirror (task + Constraints), never an exists→reuse copy (§4.1/§5)", async () => {
-    const { command, io, repoRoot, cleanup } = fixture();
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
       const briefPath = path.join(repoRoot, ".kairos", "cdd", "p3", "tasks-1-brief.md");
-      expect(
-        await command.runArgv(["implement", "--tasks", "1", "--plan", plan, "--dry-run"]),
-      ).toBe(0);
+      expect(await command.runArgv(["implement", "--tasks", "1", "--plan", plan])).toBe(0);
       const firstBrief = readFileSync(briefPath, "utf8");
       // the complete plan mirror — the wave's task section AND the plan's
       // `## Constraints` section (both faces of the mirror, not the task block alone)
@@ -1401,16 +1402,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       );
       io.stdoutText = "";
       expect(
-        await command.runArgv([
-          "review",
-          "--type",
-          "wave",
-          "--tasks",
-          "1",
-          "--plan",
-          plan,
-          "--dry-run",
-        ]),
+        await command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
       ).toBe(0);
       const secondBrief = readFileSync(briefPath, "utf8");
       // the mirrored Constraints reflect the CURRENT plan (fresh-extracted at the
@@ -1424,7 +1416,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
   });
 
   it("implement — strict-wave dispatch: one derived wave per invocation (the C5 closure advances the wave)", async () => {
-    const { command, io, repoRoot, cleanup } = fixture();
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot, 2);
@@ -1432,31 +1424,13 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       // NOT close it (implement rounds are never a closure — v1.20 closedWaves), so the
       // wave advances only through the review's C5 closure: review 1 must land before
       // task 2 becomes dispatchable.
-      expect(
-        await command.runArgv(["implement", "--tasks", "1", "--plan", plan, "--dry-run"]),
-      ).toBe(0);
+      expect(await command.runArgv(["implement", "--tasks", "1", "--plan", plan])).toBe(0);
       io.stdoutText = "";
       expect(
-        await command.runArgv([
-          "review",
-          "--type",
-          "wave",
-          "--tasks",
-          "1",
-          "--plan",
-          plan,
-          "--dry-run",
-        ]),
+        await command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
       ).toBe(0);
       io.stdoutText = "";
-      const code = await command.runArgv([
-        "implement",
-        "--tasks",
-        "2",
-        "--plan",
-        plan,
-        "--dry-run",
-      ]);
+      const code = await command.runArgv(["implement", "--tasks", "2", "--plan", plan]);
       expect(code).toBe(0);
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       const progress = readJson<{ waves: unknown[] }>(path.join(workspace, "progress.json"));
@@ -1475,14 +1449,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       expect(existsSync(path.join(workspace, "tasks-2-implement.json"))).toBe(true);
       // the strict-wave gate (T24): a `--tasks` splitting the derived wave BLOCKs
       io.stderrText = "";
-      const split = await command.runArgv([
-        "implement",
-        "--tasks",
-        "1,2",
-        "--plan",
-        plan,
-        "--dry-run",
-      ]);
+      const split = await command.runArgv(["implement", "--tasks", "1,2", "--plan", plan]);
       expect(split).toBe(1);
       expect(io.stderrText).toContain("derived wave");
       // T18 (§2.13) — the graph title's embedded plan path is repoRoot-relative
@@ -1496,13 +1463,11 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
   });
 
   it("review — the phase derives from the ledger (implement then review), a clean review closes", async () => {
-    const { command, io, repoRoot, cleanup } = fixture();
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
-      expect(
-        await command.runArgv(["implement", "--tasks", "1", "--plan", plan, "--dry-run"]),
-      ).toBe(0);
+      expect(await command.runArgv(["implement", "--tasks", "1", "--plan", plan])).toBe(0);
       io.stdoutText = "";
       const code = await command.runArgv([
         "review",
@@ -1512,7 +1477,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "1",
         "--plan",
         plan,
-        "--dry-run",
       ]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 · handoff: ");
@@ -1540,9 +1504,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
-      expect(
-        await command.runArgv(["implement", "--tasks", "1", "--plan", plan, "--dry-run"]),
-      ).toBe(0);
+      expect(await command.runArgv(["implement", "--tasks", "1", "--plan", plan])).toBe(0);
       io.stdoutText = "";
       const code = await command.runArgv([
         "review",
@@ -1552,7 +1514,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "1",
         "--plan",
         plan,
-        "--dry-run",
       ]);
       expect(code).toBe(0);
       // the review's findings route the one-way fix hop — the capsule next: line
@@ -1570,7 +1531,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
   });
 
   it("fix — the source review's blocker findings drive the re-review next (C5-1)", async () => {
-    const { command, io, repoRoot, cleanup } = fixture();
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
@@ -1589,16 +1550,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         },
       );
       ledger.recordRound(1, "review");
-      const code = await command.runArgv([
-        "fix",
-        "--type",
-        "wave",
-        "--tasks",
-        "1",
-        "--plan",
-        plan,
-        "--dry-run",
-      ]);
+      const code = await command.runArgv(["fix", "--type", "wave", "--tasks", "1", "--plan", plan]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 · handoff: ");
       expect(io.stdoutText).toContain(`next: review --type wave --tasks 1`);
@@ -1643,7 +1595,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         plan,
         "--reviews",
         reviewsPath,
-        "--dry-run",
       ]);
       expect(code).toBe(0);
       // the re-review literal carries the workspace --plan only — the review judges
@@ -1654,14 +1605,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       );
       // the runtime gate, not parse-only: re-feeding the literal's argv through the CLI
       // dispatches a real branch review — exit 0, never a missing-refs refusal
-      const reExit = await command.runArgv([
-        "review",
-        "--type",
-        "branch",
-        "--plan",
-        plan,
-        "--dry-run",
-      ]);
+      const reExit = await command.runArgv(["review", "--type", "branch", "--plan", plan]);
       expect(reExit).toBe(0);
     } finally {
       cleanup();
@@ -1669,18 +1613,11 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
   });
 
   it("review --type branch — the live-tree branch face", async () => {
-    const { command, io, repoRoot, cleanup } = fixture();
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
     try {
       gitInit(repoRoot);
       const plan = conformingPlan(repoRoot);
-      const code = await command.runArgv([
-        "review",
-        "--type",
-        "branch",
-        "--plan",
-        plan,
-        "--dry-run",
-      ]);
+      const code = await command.runArgv(["review", "--type", "branch", "--plan", plan]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 ·");
       // T3 deliberate pin break: the branch closure routes the cdd-close ref
@@ -1717,9 +1654,9 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
           "plan-field",
         ]),
       ).toBe(0);
-      // A REAL branch-review dispatch (not --dry-run — the dry-run synthetic approval
-      // never reaches the lifecycle). The host is injected ambiently (the CLI's
-      // production dispatch reads process.env), so mark it and restore it.
+      // A REAL branch-review dispatch (the production HarnessDispatch — no injected
+      // seam). The host is injected ambiently (the CLI's production dispatch reads
+      // process.env), so mark it and restore it.
       const saved = process.env.CLAUDE_CODE_SESSION_ID;
       process.env.CLAUDE_CODE_SESSION_ID = "s";
       let code: number;
@@ -1776,9 +1713,9 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
           artifacts: {},
         },
       );
-      // A REAL dispatch (not --dry-run — the synthetic approval never reaches the
-      // lifecycle). The host is injected ambiently (the CLI's production dispatch
-      // reads process.env), so mark it and restore it.
+      // A REAL dispatch (the production HarnessDispatch — no injected seam). The
+      // host is injected ambiently (the CLI's production dispatch reads
+      // process.env), so mark it and restore it.
       const saved = process.env.CLAUDE_CODE_SESSION_ID;
       process.env.CLAUDE_CODE_SESSION_ID = "s";
       const promptOf = async (argv: readonly string[]): Promise<string> => {
@@ -1912,22 +1849,15 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     // §2.10 — a `..`-carrying relativized value lies outside the repo; the engine
     // still reads it (the shape is what is judged), but the fact rides the stderr
     // CDD_WARN channel so the caller is not surprised.
-    const { command, io, repoRoot, cleanup } = fixture();
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
     try {
       gitInit(repoRoot);
       const outside = realpathSync(mkdtempSync(path.join(tmpdir(), "cli-outside-")));
       const plan = conformingPlan(outside);
       try {
         // a plan OUTSIDE the fixture repo (the absolute path relativizes to `../…`);
-        // --dry-run keeps the dispatch synthetic (no child spawn).
-        const code = await command.runArgv([
-          "--dry-run",
-          "implement",
-          "--tasks",
-          "1",
-          "--plan",
-          plan,
-        ]);
+        // the injected dispatch keeps the run hermetic (no child spawn).
+        const code = await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
         expect(code).toBe(0);
         expect(io.stderrText).toContain("CDD_WARN:");
         expect(io.stderrText).toContain("outside the repository");
@@ -1940,21 +1870,14 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
   });
 
   it("review --type spec/plan — the doc-path face (the doc-derived workspace slug)", async () => {
-    const { command, io, repoRoot, cleanup } = fixture();
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
     try {
       gitInit(repoRoot);
       // The declared, contract-clean spec doc — the `doc-type:` head key
       // (spec §12 · D34) the capsule's doc-class discrimination reads
       // (zero filename inference).
       const spec = conformingSpec(repoRoot);
-      const specCode = await command.runArgv([
-        "review",
-        "--type",
-        "spec",
-        "--spec",
-        spec,
-        "--dry-run",
-      ]);
+      const specCode = await command.runArgv(["review", "--type", "spec", "--spec", spec]);
       expect(specCode).toBe(0);
       // T3 deliberate pin break: the phase-spec closure routes the cdd-plan ref (PIPELINE_NEXT.phase-spec).
       expect(io.stdoutText).toContain("next: /kairos:cdd-plan");
@@ -1966,14 +1889,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       // header tuple + version lineage + Change-history table + the chain siblings)
       // dispatches its review round.
       const plan = conformingPlan(repoRoot);
-      const planCode = await command.runArgv([
-        "review",
-        "--type",
-        "plan",
-        "--plan",
-        plan,
-        "--dry-run",
-      ]);
+      const planCode = await command.runArgv(["review", "--type", "plan", "--plan", plan]);
       expect(planCode).toBe(0);
       expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "plan-review-1.json"))).toBe(
         true,
@@ -1993,7 +1909,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       const plan = conformingPlan(repoRoot);
       const stripped = readFileSync(plan, "utf8").replace("doc-type: plan\n", "");
       writeFileSync(plan, stripped, "utf8");
-      const code = await command.runArgv(["review", "--type", "plan", "--plan", plan, "--dry-run"]);
+      const code = await command.runArgv(["review", "--type", "plan", "--plan", plan]);
       expect(code).toBe(1);
       expect(io.stderrText).toContain("CDD_BLOCKED");
       expect(io.stderrText).toContain("the doc declares no `doc-type:` key");
@@ -2007,18 +1923,11 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
   });
 
   it("review --type spec of an -overall.md — the overall-spec doc-key face (zero phase-spec misreport)", async () => {
-    const { command, io, repoRoot, cleanup } = fixture();
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
     try {
       gitInit(repoRoot);
       const overall = conformingOverall(repoRoot);
-      const overallCode = await command.runArgv([
-        "review",
-        "--type",
-        "spec",
-        "--spec",
-        overall,
-        "--dry-run",
-      ]);
+      const overallCode = await command.runArgv(["review", "--type", "spec", "--spec", overall]);
       expect(overallCode).toBe(0);
       expect(io.stdoutText).toContain("next: done");
       // The overall was judged under the overall-spec key (its declared
@@ -2037,15 +1946,13 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
   });
 
   it("a closed doc line REOPENS on doc-revision drift — the identity-aware line gate (T7)", async () => {
-    const { command, io, repoRoot, cleanup } = fixture();
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
     try {
       gitInit(repoRoot);
       const plan = conformingPlan(repoRoot);
       // Round 1: the initial clean review closes the doc line AND records the
       // reviewed doc revision (the line's identity — the T7 write-back at bookkeep).
-      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan, "--dry-run"])).toBe(
-        0,
-      );
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
       // T3 deliberate pin break: the plan closure routes the cdd-dev ref (PIPELINE_NEXT.plan).
       expect(io.stdoutText).toContain("next: /kairos:cdd-dev");
       // The target doc then DRIFTS (a backfill edits the plan — the pre-T7 flow
@@ -2058,14 +1965,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       );
       writeFileSync(plan, driftedSource, "utf8");
       io.stdoutText = "";
-      const reopen = await command.runArgv([
-        "review",
-        "--type",
-        "plan",
-        "--plan",
-        plan,
-        "--dry-run",
-      ]);
+      const reopen = await command.runArgv(["review", "--type", "plan", "--plan", plan]);
       expect(reopen).toBe(0);
       expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "plan-review-2.json"))).toBe(
         true,
@@ -2076,26 +1976,17 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
   });
 
   it("an UNCHANGED closed doc line stays blocked — the revision-aware BLOCK message (T7)", async () => {
-    const { command, io, repoRoot, cleanup } = fixture();
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
     try {
       gitInit(repoRoot);
       const plan = conformingPlan(repoRoot);
-      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan, "--dry-run"])).toBe(
-        0,
-      );
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
       expect(io.stdoutText).toContain("next: /kairos:cdd-dev");
       // The doc did NOT move — the line gate compares the current revision to the
       // reviewed one and BLOCKs with the identity-aware message (the old "no open
       // round" text retires on the doc face).
       io.stderrText = "";
-      const unchanged = await command.runArgv([
-        "review",
-        "--type",
-        "plan",
-        "--plan",
-        plan,
-        "--dry-run",
-      ]);
+      const unchanged = await command.runArgv(["review", "--type", "plan", "--plan", plan]);
       expect(unchanged).toBe(1);
       expect(io.stderrText).toContain("already reviewed at v1.0");
       expect(io.stderrText).toContain("target revision unchanged");
@@ -2161,9 +2052,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       // Review round 1 with blockers — the line awaits its fix (fixes < reviews:
       // the pre-T8 gate read the fix-awaited route and froze the re-review at
       // "the next round is fix" even after the doc moved).
-      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan, "--dry-run"])).toBe(
-        0,
-      );
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       expect(existsSync(path.join(workspace, "plan-review-1.json"))).toBe(true);
       // The aborted fix — the pre-T8 stuck path's origin: the fix attempt BLOCKS,
@@ -2171,7 +2060,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       // findings binding the reviewed doc revision.
       io.stdoutText = "";
       io.stderrText = "";
-      expect(await command.runArgv(["fix", "--type", "plan", "--plan", plan, "--dry-run"])).toBe(1);
+      expect(await command.runArgv(["fix", "--type", "plan", "--plan", plan])).toBe(1);
       // The doc then moves (fix applied · backfill · user decision are the SAME
       // case — the doc revision is the gate's primary criterion): the review runs
       // directly, whatever the fix-awaited round state says, and the old findings
@@ -2183,14 +2072,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       writeFileSync(plan, driftedSource, "utf8");
       io.stderrText = "";
       io.stdoutText = "";
-      const reopen = await command.runArgv([
-        "review",
-        "--type",
-        "plan",
-        "--plan",
-        plan,
-        "--dry-run",
-      ]);
+      const reopen = await command.runArgv(["review", "--type", "plan", "--plan", plan]);
       expect(reopen).toBe(0);
       expect(io.stderrText).not.toContain("cannot dispatch");
       expect(io.stderrText).not.toContain("the next round is fix");
@@ -2212,7 +2094,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
   });
 
   it("dogfood §3.7 — the same doc via an ABSOLUTE then a RELATIVE argv path lands ONE ledger line (the doc line keys by its line-type constant, never the argv string)", async () => {
-    const { command, io, repoRoot, cleanup } = fixture();
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
     const savedCwd = process.cwd();
     try {
       gitInit(repoRoot);
@@ -2227,7 +2109,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
           "plan",
           "--plan",
           plan, // the ABSOLUTE argv spelling
-          "--dry-run",
         ]),
       ).toBe(0);
       expect(io.stdoutText).toContain("next: /kairos:cdd-dev");
@@ -2247,7 +2128,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "plan",
         "--plan",
         relativePlan, // the RELATIVE argv spelling — the same file
-        "--dry-run",
       ]);
       expect(relative).toBe(0);
       expect(io.stdoutText).toContain("next: /kairos:cdd-dev");
@@ -2280,22 +2160,13 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     try {
       gitInit(repoRoot);
       const plan = conformingPlan(repoRoot);
-      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan, "--dry-run"])).toBe(
-        0,
-      );
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
       // The SAME doc (no drift) — the repeat review stays REFUSED (Review
       // Convergence anti-spin): the pending fix derives from the doc-same +
       // non-APPROVED face (the review's own fix is still outstanding), and the
       // message names the derived hop.
       io.stderrText = "";
-      const repeat = await command.runArgv([
-        "review",
-        "--type",
-        "plan",
-        "--plan",
-        plan,
-        "--dry-run",
-      ]);
+      const repeat = await command.runArgv(["review", "--type", "plan", "--plan", plan]);
       expect(repeat).toBe(1);
       expect(io.stderrText).toContain("the pending fix applies to the unchanged doc");
       expect(io.stderrText).toContain("— run cdd fix first");
@@ -2327,22 +2198,13 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       // the review lead. The lifecycle already dispatches this face; the CLI gate
       // must agree (an open gate and a dispatchable frame — the run.ts JSDoc
       // invariant) instead of the revision-aware "amend body/version" rejection.
-      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan, "--dry-run"])).toBe(
-        0,
-      );
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
       io.stdoutText = "";
       io.stderrText = "";
-      expect(await command.runArgv(["fix", "--type", "plan", "--plan", plan, "--dry-run"])).toBe(0);
+      expect(await command.runArgv(["fix", "--type", "plan", "--plan", plan])).toBe(0);
       io.stdoutText = "";
       io.stderrText = "";
-      const reopen = await command.runArgv([
-        "review",
-        "--type",
-        "plan",
-        "--plan",
-        plan,
-        "--dry-run",
-      ]);
+      const reopen = await command.runArgv(["review", "--type", "plan", "--plan", plan]);
       expect(reopen).toBe(0);
       // no revision-aware rejection on the completed-fix face — the delta has moved
       expect(io.stderrText).not.toContain("already reviewed");
@@ -2367,7 +2229,6 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "1",
         "--plan",
         plan,
-        "--dry-run",
       ]);
       expect(code).toBe(1);
       expect(io.stderrText).toContain("the open wave is at implement");
@@ -2384,14 +2245,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
-      const code = await command.runArgv([
-        "implement",
-        "--tasks",
-        "1",
-        "--plan",
-        plan,
-        "--dry-run",
-      ]);
+      const code = await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
       expect(code).toBe(1);
       expect(io.stdoutText).toContain("status: BLOCKED");
     } finally {
@@ -2433,16 +2287,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         JSON.stringify({ status: "APPROVED", findings: [] }),
         "utf8",
       );
-      const code = await command.runArgv([
-        "fix",
-        "--type",
-        "wave",
-        "--tasks",
-        "1",
-        "--plan",
-        plan,
-        "--dry-run",
-      ]);
+      const code = await command.runArgv(["fix", "--type", "wave", "--tasks", "1", "--plan", plan]);
       expect(code).toBe(1);
       expect(io.stdoutText).toContain("status: BLOCKED");
       // the verdict single-source face — zero next: line (the unrecorded round holds
@@ -2465,31 +2310,13 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       // review of a subset {1} while the wave sits at {1,2} → the split BLOCK (review is
       // gated like implement — the half-wave review is structurally refused)
       expect(
-        await command.runArgv([
-          "review",
-          "--type",
-          "wave",
-          "--tasks",
-          "1",
-          "--plan",
-          planPath,
-          "--dry-run",
-        ]),
+        await command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", planPath]),
       ).toBe(1);
       expect(io.stderrText).toContain("splits/mismatches the derived wave");
       io.stderrText = "";
       // fix of a subset {2} before its implement → the split BLOCK (fix shares the gate)
       expect(
-        await command.runArgv([
-          "fix",
-          "--type",
-          "wave",
-          "--tasks",
-          "2",
-          "--plan",
-          planPath,
-          "--dry-run",
-        ]),
+        await command.runArgv(["fix", "--type", "wave", "--tasks", "2", "--plan", planPath]),
       ).toBe(1);
       expect(io.stderrText).toContain("splits/mismatches the derived wave");
     } finally {
@@ -2507,10 +2334,19 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "two").ensure();
       new Ledger(workspace, new ConfigLoader()).recordRound("1,2", "implement");
       io.stderrText = "";
-      // review on the implemented multi-task wave passes the gate (dispatch proceeds).
+      // review on the implemented multi-task wave passes the gate (the preview renders).
       expect(
-        await command.runArgv(["review", "--tasks", "1,2", "--plan", planPath, "--dry-run"]),
-      ).not.toBe(1);
+        await command.runArgv([
+          "review",
+          "--type",
+          "wave",
+          "--tasks",
+          "1,2",
+          "--plan",
+          planPath,
+          "--dry-run",
+        ]),
+      ).toBe(0);
       // a re-implement on the at-review wave is the wrong-phase BLOCK, not a silent split.
       io.stderrText = "";
       expect(
@@ -2534,14 +2370,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
-      const code = await command.runArgv([
-        "implement",
-        "--tasks",
-        "1",
-        "--plan",
-        plan,
-        "--dry-run",
-      ]);
+      const code = await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED");
       expect(io.stdoutText).toContain(
@@ -2586,15 +2415,51 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     }
   });
 
-  it("a consumer repo WITHOUT a .kairos gitignore — the engine workspace does not self-BLOCK the clean-tree gate across dispatches (P4.1 F1 regression)", async () => {
+  it("P4.1 F1 (real run) — a consumer repo WITHOUT a .kairos gitignore does not self-BLOCK the clean-tree gate across dispatches", async () => {
+    // The consumer-repo shape: no `.kairos` entry in the fixture .gitignore — the
+    // real run's workspace ensure self-publishes `.kairos/cdd/.gitignore` (content
+    // `*`) at its first write point, BEFORE the next dispatch's gate reads the tree,
+    // so the engine's own writes (the workspace + the round artifacts) land under
+    // its keep-out marker — git's judgment stays clean, and the gate refuses only
+    // genuinely dirty user work (never the engine's own outputs).
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot, "/docs/\n");
+      const plan = conformingPlan(repoRoot);
+      const implement = await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
+      expect(implement).toBe(0);
+      // the first dispatch landed the engine workspace + its self-published keep-out
+      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3"))).toBe(true);
+      expect(readFileSync(path.join(repoRoot, ".kairos", ".gitignore"), "utf8")).toBe("*\n");
+      // the brief the first dispatch rendered from the current plan is on disk
+      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "tasks-1-brief.md"))).toBe(
+        true,
+      );
+      io.stderrText = "";
+      // the SECOND dispatch must not self-BLOCK on the engine's own artifacts
+      const review = await command.runArgv([
+        "review",
+        "--type",
+        "wave",
+        "--tasks",
+        "1",
+        "--plan",
+        plan,
+      ]);
+      expect(review).toBe(0);
+      expect(io.stderrText).not.toContain("CDD_BLOCKED:");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("P4.1 F1 (preview leg) — the `--dry-run` chain writes nothing and consumes no round, so the review preview is never refused", async () => {
+    // The preview's zero-write face on the same consumer-repo shape: `.kairos/` never
+    // appears, the tree stays byte-identical, and because the implement preview books
+    // no round the review preview still renders (no round consumed — the chained
+    // command is not refused by the phase gate).
     const { command, io, repoRoot, cleanup } = fixture();
     try {
-      // The consumer-repo shape: no `.kairos` entry in the fixture .gitignore — the
-      // workspace ensure self-publishes `.kairos/cdd/.gitignore` (content `*`)
-      // BEFORE the gate reads the tree, so the first dispatch's own writes (the
-      // scene's workspace ensure + the round artifacts) land under the engine's own
-      // keep-out marker — git's judgment stays clean, and the gate refuses only
-      // genuinely dirty user work (never the engine's own outputs).
       gitInit(repoRoot, "/docs/\n");
       const plan = conformingPlan(repoRoot);
       const implement = await command.runArgv([
@@ -2606,11 +2471,12 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "--dry-run",
       ]);
       expect(implement).toBe(0);
-      // the first dispatch landed the engine workspace + its self-published keep-out
-      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3"))).toBe(true);
-      expect(readFileSync(path.join(repoRoot, ".kairos", ".gitignore"), "utf8")).toBe("*\n");
-      io.stderrText = "";
-      // the SECOND dispatch must not self-BLOCK on the engine's own artifacts
+      expect(io.stdoutText.startsWith("cdd implement: preview (no repo changes)\n")).toBe(true);
+      expect(existsSync(path.join(repoRoot, ".kairos"))).toBe(false);
+      io.stdoutText = "";
+      // the review preview: the implement preview left no ledger row, so the same
+      // wave is still open at implement — the real run's phase gate would refuse it,
+      // and the preview reports that refusal verbatim (pre-flight gates still run).
       const review = await command.runArgv([
         "review",
         "--type",
@@ -2621,26 +2487,22 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         plan,
         "--dry-run",
       ]);
-      expect(review).toBe(0);
-      expect(io.stderrText).not.toContain("CDD_BLOCKED:");
+      expect(review).toBe(1);
+      expect(io.stderrText).toContain("the open wave is at implement");
+      expect(io.stdoutText).toBe("");
+      // zero writes across both previews — the chain never materialized the workspace
+      expect(existsSync(path.join(repoRoot, ".kairos"))).toBe(false);
     } finally {
       cleanup();
     }
   });
 
   it("the materialized implement carrier on disk carries zero findings keys — the work face's zero-findings write path (T2)", async () => {
-    const { command, repoRoot, cleanup } = fixture();
+    const { command, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
-      const code = await command.runArgv([
-        "implement",
-        "--tasks",
-        "1",
-        "--plan",
-        plan,
-        "--dry-run",
-      ]);
+      const code = await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
       expect(code).toBe(0);
       const carrier = JSON.parse(
         readFileSync(path.join(repoRoot, ".kairos", "cdd", "p3", "tasks-1-implement.json"), "utf8"),
@@ -2652,15 +2514,13 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     }
   });
 
-  it("T6 — probe A: the end-to-end dry-run implement + fix final carriers carry zero findings keys — both work-face materialization legs (implement + wave fix)", async () => {
-    const { command, repoRoot, cleanup } = fixture();
+  it("T6 — probe A: the end-to-end implement + fix final carriers carry zero findings keys — both work-face materialization legs (implement + wave fix)", async () => {
+    const { command, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
-      // the implement leg — the dry-run dispatch persists the work-face final carrier
-      expect(
-        await command.runArgv(["implement", "--tasks", "1", "--plan", plan, "--dry-run"]),
-      ).toBe(0);
+      // the implement leg — the injected dispatch persists the work-face final carrier
+      expect(await command.runArgv(["implement", "--tasks", "1", "--plan", plan])).toBe(0);
       const implementCarrier = JSON.parse(
         readFileSync(path.join(repoRoot, ".kairos", "cdd", "p3", "tasks-1-implement.json"), "utf8"),
       ) as Record<string, unknown>;
@@ -2682,18 +2542,9 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         },
       );
       ledger.recordRound(1, "review");
-      expect(
-        await command.runArgv([
-          "fix",
-          "--type",
-          "wave",
-          "--tasks",
-          "1",
-          "--plan",
-          plan,
-          "--dry-run",
-        ]),
-      ).toBe(0);
+      expect(await command.runArgv(["fix", "--type", "wave", "--tasks", "1", "--plan", plan])).toBe(
+        0,
+      );
       const fixCarrier = JSON.parse(
         readFileSync(path.join(repoRoot, ".kairos", "cdd", "p3", "tasks-1-fix-1.json"), "utf8"),
       ) as Record<string, unknown>;
@@ -2843,7 +2694,7 @@ describe("P4.1 T4 — the next literal is a complete executable command (zero-er
   });
 });
 
-describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next round (rev1→implement wave 2 · rev2→done)", () => {
+describe("P4.1 T4 — the real chain: next literals dispatch the next round (rev1→implement wave 2 · rev2→done)", () => {
   it("implement→review(fix)→fix(closure)→implement wave 2→review→done — every next literal re-dispatches", async () => {
     const { command, io, repoRoot, cleanup } = fixture({
       dispatch: (frame: OpenFrame) => {
@@ -2867,24 +2718,13 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
       };
 
       // rev 1 — implement wave 1 → the review literal
-      expect(
-        await command.runArgv(["implement", "--tasks", "1", "--plan", plan, "--dry-run"]),
-      ).toBe(0);
+      expect(await command.runArgv(["implement", "--tasks", "1", "--plan", plan])).toBe(0);
       expect(nextOf()).toBe(`review --type wave --tasks 1 --plan ${planRel}`);
       io.stdoutText = "";
 
       // the review finds a warn → the fix literal
       expect(
-        await command.runArgv([
-          "review",
-          "--type",
-          "wave",
-          "--tasks",
-          "1",
-          "--plan",
-          plan,
-          "--dry-run",
-        ]),
+        await command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
       ).toBe(0);
       expect(nextOf()).toBe(
         `fix --type wave --tasks 1 --plan ${planRel} --reviews ${path.relative(repoRoot, path.join(workspace, "tasks-1-review-1.json"))} ${FIX_READBACK_SUFFIX}`,
@@ -2892,41 +2732,21 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
       io.stdoutText = "";
 
       // the fix closes (warn-only input) → rev1 lands on the NEXT WAVE's implement literal
-      expect(
-        await command.runArgv([
-          "fix",
-          "--type",
-          "wave",
-          "--tasks",
-          "1",
-          "--plan",
-          plan,
-          "--dry-run",
-        ]),
-      ).toBe(0);
+      expect(await command.runArgv(["fix", "--type", "wave", "--tasks", "1", "--plan", plan])).toBe(
+        0,
+      );
       expect(nextOf()).toBe(`implement --plan ${planRel} --tasks 2`);
       io.stdoutText = "";
 
       // rev 2 — implement wave 2 → the review literal
-      expect(
-        await command.runArgv(["implement", "--tasks", "2", "--plan", plan, "--dry-run"]),
-      ).toBe(0);
+      expect(await command.runArgv(["implement", "--tasks", "2", "--plan", plan])).toBe(0);
       expect(nextOf()).toBe(`review --type wave --tasks 2 --plan ${planRel}`);
       io.stdoutText = "";
 
       // the final review closes the run → rev2 lands on the wave→branch wiring
       // literal (T3 deliberate pin break — the PIPELINE_NEXT.wave route)
       expect(
-        await command.runArgv([
-          "review",
-          "--type",
-          "wave",
-          "--tasks",
-          "2",
-          "--plan",
-          plan,
-          "--dry-run",
-        ]),
+        await command.runArgv(["review", "--type", "wave", "--tasks", "2", "--plan", plan]),
       ).toBe(0);
       expect(nextOf()).toBe(`review --type branch --plan ${planRel}`);
 
@@ -3697,7 +3517,7 @@ describe("T3 — the commander-native composition root: program parse + .action 
     }
   });
 
-  it("review --type spec --dry-run — the thin-shell domain run synthesizes the approval", async () => {
+  it("review --type spec --dry-run — the preview forecasts the spec round at zero writes", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
@@ -3707,7 +3527,15 @@ describe("T3 — the commander-native composition root: program parse + .action 
       const spec = conformingSpec(repoRoot);
       const code = await command.runArgv(["review", "--type", "spec", "--spec", spec, "--dry-run"]);
       expect(code).toBe(0);
-      expect(io.stdoutText).toContain("next: /kairos:cdd-plan");
+      // the preview names the spec round's step + its prescribed write set, and
+      // fabricates neither a conclusion nor a next hop (P11 §3.3)
+      expect(io.stdoutText.startsWith("cdd review: preview (no repo changes)\n")).toBe(true);
+      expect(io.stdoutText).toContain("  step:        review round 1 — spec");
+      expect(io.stdoutText).toContain(
+        "  would write: .kairos/cdd/s1/spec-review-1.json · .kairos/cdd/s1/spec-review-1-report.md",
+      );
+      expect(io.stdoutText).not.toContain("next:");
+      expect(existsSync(path.join(repoRoot, ".kairos"))).toBe(false);
     } finally {
       cleanup();
     }

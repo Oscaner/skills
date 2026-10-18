@@ -86,6 +86,7 @@ import {
   type SyncProcess,
   SyncRunner,
 } from "./lifecycle.ts";
+import { Preview } from "./preview.ts";
 import { CommandTreeBuilder } from "./projection.ts";
 import { Words } from "./words.ts";
 
@@ -350,7 +351,8 @@ export class Cli {
     leafNode("base", "get").action(async (_opts: unknown, command: Command) => {
       this.#exitCode = await this.#runBase(command, this.#runInput("get", command));
     });
-    leafNode("issue", "render").action(async () => {
+    leafNode("issue", "render").action(async (_opts: unknown, command: Command) => {
+      this.#assertDryRunScope(command, this.#dryRunOf(command));
       this.#exitCode = this.#artifacts.runIssue();
     });
     // the board observability command — a pure read (no preflight gate)
@@ -369,6 +371,7 @@ export class Cli {
    *  (spec §12 · D34). The host is detected once for the pipeline-entry ref render
    *  (REFS[ref][host], the same judgment the capsule injects — never hard-coded). */
   async #runBoard(node: Command, parsed: RunInput): Promise<number> {
+    this.#assertDryRunScope(node, parsed.dryRun);
     const slug = parsed.positionals[0];
     if (slug === undefined) this.#usage(node, "cdd board: missing <slug>");
     const repoRoot = await this.#rootOf();
@@ -405,8 +408,31 @@ export class Cli {
       // normalization site that fills them with the branded repoRoot-relative form.
       paths: { plan: null, spec: null, reviews: null },
       positionals: command.processedArgs as string[],
-      dryRun: this.#dryRun || globals.dryRun === true,
+      dryRun: this.#dryRunOf(command),
     };
+  }
+
+  /** The invocation's `--dry-run` scope — the constructor flag OR the program-scope
+   *  flag (the flag is declared on the program node, so a leaf's own opts would miss
+   *  it; `optsWithGlobals` merges the parent chain). The ONE derivation the run input
+   *  and the scope guard read — never a second copy of the merge rule. */
+  #dryRunOf(command: Command): boolean {
+    const globals = command.optsWithGlobals() as Record<string, unknown>;
+    return this.#dryRun || globals.dryRun === true;
+  }
+
+  /** The `--dry-run` scope guard (P11 T5 · §3.5) — the preview semantics belong to
+   *  the three work verbs alone. A pure command carrying the program flag is a usage
+   *  rejection (exit 2), never a silently ignored flag: a no-op flag the consumer has
+   *  to remember to skip is a mind-share defect, not a convenience. The usage byte is
+   *  the owning node's commander-native usage line (the same `#usage` face every run
+   *  body's rejection rides). */
+  #assertDryRunScope(node: Command, dryRun: boolean): void {
+    if (!dryRun) return;
+    this.#usage(
+      node,
+      "--dry-run previews the next dispatch step and its expected artifacts — it applies to implement / review / fix only",
+    );
   }
 
   /** Configure every node's output into the injected io (commander writes its
@@ -492,14 +518,18 @@ export class Cli {
     // real dispatch always lands in an existing workspace (the child's
     // OUTPUT_REPORT / OUTPUT_HANDOFF targets, and the keep-out marker published
     // before the child can dirty the tree). `Workspace.writeJson` keeps its own
-    // internal ensure; `CliGate#renderBrief` no longer ensures.
+    // internal ensure; `CliGate#renderBrief` no longer ensures. The `--dry-run`
+    // preview never reaches it — the preview path returns before any write
+    // (P11 T5 · §3.2: a preview is a pure read).
     if (!parsed.dryRun) scene.workspace.ensure();
 
     // The unconditional extract (§4.1): every wave-face dispatch re-renders the
     // brief from the CURRENT plan text — implement, review and fix alike (a
     // mid-run plan amendment reflects into the next dispatch; no "exists → leave
     // it" reuse). The doc/branch faces carry no wave brief (planText is null there).
-    if (type === "wave" && scene.planText !== null)
+    // The preview skips it — the brief is a WRITE (`Workspace#writeText`), and the
+    // preview names the same path through RoundNaming instead of rendering it.
+    if (!parsed.dryRun && type === "wave" && scene.planText !== null)
       scene.briefPath = this.#gate.renderBrief(scene, parsed);
     const expected =
       verb === "implement" ? "implement" : verb === "fix" ? "fix" : scene.face.product.reviewLead;
@@ -600,6 +630,15 @@ export class Cli {
         }
         break;
       }
+      // The `--dry-run` preview (P11 T5 · §3.3) — the SAME frame the real run would
+      // dispatch, rendered as the five-row forecast instead of dispatched: the
+      // frontier read above is the preview's single step source (zero second
+      // derivation), and the early return means no write point below ever runs
+      // (`renderBrief` skipped above, `#bookkeep`/`#reject` never reached).
+      if (parsed.dryRun) {
+        for (const line of new Preview({ scene }).render(verb, frame)) this.#io.stdout(`${line}\n`);
+        return 0;
+      }
       const step = run.advance();
       if (step === null) break;
       // The dispatch-entry gate's refusal (the lifecycle's hard child zero-dispatch wiring —
@@ -642,13 +681,13 @@ export class Cli {
     return 0;
   }
 
-  /** The dispatch seam — the injected override, else the dry-run synthetic approval,
-   *  else the harness production default. */
+  /** The dispatch seam — the injected override, else the harness production default.
+   *  A `--dry-run` invocation never reaches here: the preview path returns before any
+   *  dispatch (P11 T5 · §3.2), so the retired synthetic approval
+   *  (`() => ({ status: "APPROVED", findings: [] })`) has no remaining caller — a
+   *  preview books no round and fabricates no conclusion. */
   #dispatchOf(scene: WorkScene, parsed: RunInput): DispatchStep {
     if (this.#dispatch !== null) return this.#dispatch;
-    if (parsed.dryRun || this.#dryRun) {
-      return () => ({ status: "APPROVED", findings: [] });
-    }
     const harness = new CliLifecycle({
       env: process.env,
       sync: this.#sync,
@@ -920,6 +959,7 @@ export class Cli {
    *  schema-type table (`SCHEMA_TYPE_KEYS` in face/declare.ts: the primary DocKey
    *  spellings + the legacy alias normalized to kebab, spec §5.3). */
   async #runSchema(node: Command, parsed: RunInput): Promise<number> {
+    this.#assertDryRunScope(node, parsed.dryRun);
     const [type, target] = parsed.positionals;
     if (type === undefined) this.#usage(node, "cdd schema get: missing <type>");
     const output = parsed.args.output ?? "json";
@@ -951,6 +991,7 @@ export class Cli {
   /** `cdd base <set|get> --plan <path>` — the base artifact read/write (T20: the
    *  command face `base`; the artifact file carries the base face too). */
   async #runBase(node: Command, parsed: RunInput): Promise<number> {
+    this.#assertDryRunScope(node, parsed.dryRun);
     const planArg = parsed.args.plan;
     if (planArg === undefined) {
       this.#usage(node, "cdd base: missing --plan — the sole target is --plan <path>");

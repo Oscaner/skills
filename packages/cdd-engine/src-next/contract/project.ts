@@ -585,8 +585,10 @@ export class Projector {
       if (element.anchor === "Dependency cell") return "content";
       return "scaffold";
     }
-    // The doc title is the header's one free-text position (a fill slot) — every
-    // other remaining heading anchor is fixed structure.
+    // The front-matter content keys (the title plus the other free-text head
+    // scalars — author · depends-on · base) are the head's fill positions (`:::fill
+    // <key>` in the emitted front matter); the remaining heading anchors are fixed
+    // structure.
     if (element.anchor === "title") return "content";
     if (element.anchor.startsWith("#")) return "scaffold";
     return "content";

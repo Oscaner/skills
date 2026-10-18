@@ -3312,6 +3312,61 @@ describe("P11 T3 — the workspace write-point + the base read normalization", (
     }
   });
 
+  it("a fresh repo's first REAL dispatch builds `.kairos/<slug>/` + publishes `.kairos/.gitignore` BEFORE the child spawns — every face (wave / spec / plan / branch)", async () => {
+    const cases: { face: string; slug: string; argv: (plan: string, spec: string) => string[] }[] =
+      [
+        {
+          face: "wave",
+          slug: "p3",
+          argv: (plan) => ["implement", "--tasks", "1", "--plan", plan],
+        },
+        {
+          face: "branch",
+          slug: "p3",
+          argv: (plan) => ["review", "--type", "branch", "--plan", plan],
+        },
+        {
+          face: "spec",
+          slug: "s1",
+          argv: (_plan, spec) => ["review", "--type", "spec", "--spec", spec],
+        },
+        {
+          face: "plan",
+          slug: "p3",
+          argv: (plan) => ["review", "--type", "plan", "--plan", plan],
+        },
+      ];
+    for (const entry of cases) {
+      // The spawn-time observations — read INSIDE the dispatch seam, before the
+      // round's bookkeeping could build anything. An after-the-run existsSync
+      // cannot discriminate (the bookkeep's own writeJson ensures internally), so
+      // the assertion has to sit at the child-spawn boundary itself.
+      let workspaceAtSpawn = false;
+      let keepOutAtSpawn = false;
+      const { command, repoRoot, cleanup } = fixture({
+        dispatch: () => {
+          workspaceAtSpawn = existsSync(path.join(repoRoot, ".kairos", "cdd", entry.slug));
+          const keepOut = path.join(repoRoot, ".kairos", ".gitignore");
+          keepOutAtSpawn = existsSync(keepOut) && readFileSync(keepOut, "utf8") === "*\n";
+          return { status: "APPROVED" };
+        },
+      });
+      try {
+        gitInit(repoRoot);
+        const plan = conformingPlan(repoRoot);
+        const spec = conformingSpec(repoRoot);
+        // scene assembly builds nothing — the workspace is absent before the run
+        expect(existsSync(path.join(repoRoot, ".kairos")), `${entry.face}: pre-run`).toBe(false);
+        const code = await command.runArgv(entry.argv(plan, spec));
+        expect(code, `${entry.face}: dispatch exited ${code}`).toBe(0);
+        expect(workspaceAtSpawn, `${entry.face}: workspace absent at spawn`).toBe(true);
+        expect(keepOutAtSpawn, `${entry.face}: keep-out marker absent at spawn`).toBe(true);
+      } finally {
+        cleanup();
+      }
+    }
+  });
+
   it("a fresh repo's first REAL dispatch builds the workspace + renders the brief (zero ENOENT)", async () => {
     const { command, io, repoRoot, cleanup } = fixture({
       dispatch: () => ({ status: "APPROVED" }),
@@ -3750,9 +3805,9 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
       const sync = new FakeSync();
-      // the child's block-return is the two-line contract (status + artifacts — the
-      // commit carrier is retired · spec §2.4)
-      sync.stdout = "status: APPROVED\nartifacts: brief=/b report=/r test_evidence=/t\n";
+      // the child's Return is prose (P11 · §2.1) — the engine never parses it; the
+      // round's content is the OUTPUT_HANDOFF draft read back below.
+      sync.stdout = "Implemented the task. All checks green.\n";
       // The child's write-back: the implement draft at OUTPUT_HANDOFF per the injected
       // `work` schema + the canonical test-evidence file (the v1.9 read-back inputs).
       const draft = path.join(scene.workspace.path, "tasks-1-implement.json");
@@ -3834,7 +3889,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(prompt).not.toContain("HANDOFF_WRITE_GATE");
       // the read-back reconstruct — the final carrier (the schema's declared fields
       // only: identity rides the file name, never phase/tasks inline — v1.30) rides
-      // the outcome, the block's two lines the pointer
+      // the outcome; the child's stdout prose is never parsed
       expect(outcome.status).toBe("APPROVED");
       // The prescribed slots book the canonical repoRoot-RELATIVE paths (§2.7) even
       // when the child declared them absolute; the non-prescribed `brief` passes verbatim.

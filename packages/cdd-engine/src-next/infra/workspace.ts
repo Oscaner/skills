@@ -275,6 +275,16 @@ export class Workspace {
     writeFileSync(this.resolve(name), `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
   }
 
+  /** Write a text child — mkdir before write (the text twin of `writeJson`; the
+   *  engine-rendered brief is the one text artifact the engine authors itself).
+   *  Returns the resolved path. */
+  writeText(name: string, text: string): string {
+    this.ensure();
+    const target = this.resolve(name);
+    writeFileSync(target, text, "utf8");
+    return target;
+  }
+
   /** The workspace's repo-basis value object — the ONE conversion exit the
    *  read-time path backstop normalizes through. The basis is the root's OWN
    *  value object (`WorkspaceRoot.basis`, built once at the root's boundary) —

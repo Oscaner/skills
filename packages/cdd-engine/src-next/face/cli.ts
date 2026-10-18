@@ -484,6 +484,17 @@ export class Cli {
       return 1;
     }
 
+    // The real run's first write point (P11 · §4.2): the workspace — and the
+    // namespace's `.gitignore` keep-out marker — is built HERE, after the
+    // pre-flight verdict and before the brief render / the child dispatch, for
+    // EVERY face (wave / spec / plan / branch). Scene assembly no longer
+    // pre-creates it, so a read-only command leaves `.kairos/` absent while a
+    // real dispatch always lands in an existing workspace (the child's
+    // OUTPUT_REPORT / OUTPUT_HANDOFF targets, and the keep-out marker published
+    // before the child can dirty the tree). `Workspace.writeJson` keeps its own
+    // internal ensure; `CliGate#renderBrief` no longer ensures.
+    if (!parsed.dryRun) scene.workspace.ensure();
+
     // The unconditional extract (§4.1): every wave-face dispatch re-renders the
     // brief from the CURRENT plan text — implement, review and fix alike (a
     // mid-run plan amendment reflects into the next dispatch; no "exists → leave
@@ -795,11 +806,11 @@ export class Cli {
     }
 
     // The workspace is NOT built here (P11 · §4.2): scene assembly is a READ face —
-    // the first WRITE point builds it (`CliGate#renderBrief` · `Workspace.writeJson`,
-    // each of which ensures internally), so a read-only command never creates
-    // `.kairos/`. The one-time legacy migration retired with this build: the
-    // `Workspace.readJson` read-time normalization is the ONE heal path, covering
-    // `base.json` alongside `progress.json` (a second healing point is gone).
+    // the real run's single write point builds it (`Cli#runWork`'s explicit ensure,
+    // every face), so a read-only command never creates `.kairos/`. The one-time
+    // legacy migration retired with this build: the `Workspace.readJson` read-time
+    // normalization is the ONE heal path, covering `base.json` alongside
+    // `progress.json` (a second healing point is gone).
     const workspace = new Workspace(rootPath, slug);
     const ledger = new Ledger(workspace, config);
     const state =

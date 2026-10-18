@@ -36,7 +36,13 @@ export class RoundNaming {
    *  `tasks-{tasks}-brief.md` (the implement dispatch's read input; its producer is
    *  `CliGate#renderBrief`). */
   brief(tasks: string): string {
-    return this.#workspace.resolve(`tasks-${tasks}-brief.md`);
+    return this.#workspace.resolve(this.briefName(tasks));
+  }
+
+  /** The brief's workspace-relative NAME — the write face takes the name, the read
+   *  faces take the resolved path (one derivation, both spellings). */
+  briefName(tasks: string): string {
+    return `tasks-${tasks}-brief.md`;
   }
 
   /** The prescribed report path of a round — the doc line's

@@ -8,7 +8,7 @@
 // members moved verbatim — behavior bytes identical; the root Cli holds the gate
 // instance and composes through it via its .action thin shells (zero bare functions).
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { FrontMatterExtractor } from "../contract/frontmatter.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import type { DispatchPhase } from "../session/faces.ts";
@@ -116,14 +116,12 @@ export class CliGate {
   renderBrief(scene: WorkScene, parsed: RunInput): string {
     const tasks = this.tasksOf(parsed);
     const content = this.#brief.render(scene.planText!, tasks);
-    // The REAL run's first write point (P11 · §4.2): the workspace — and the
-    // namespace's `.gitignore` keep-out marker — is built here. Scene assembly no
-    // longer pre-creates it, so a read-only command leaves `.kairos/` absent and
-    // the first real write owns the build.
-    scene.workspace.ensure();
-    const briefPath = new RoundNaming(scene.workspace).brief(parsed.args.tasks ?? "");
-    writeFileSync(briefPath, content, "utf8");
-    return briefPath;
+    // The real run's workspace is built by the single write point (`Cli#runWork`'s
+    // ensure, P11 · §4.2) BEFORE this render; the write still rides the workspace's
+    // own text-write face (the `writeJson` mkdir-before-write pattern), never a
+    // second explicit `ensure()` — no bare `writeFileSync` into a possibly absent dir.
+    const name = new RoundNaming(scene.workspace).briefName(parsed.args.tasks ?? "");
+    return scene.workspace.writeText(name, content);
   }
 
   /** The single-target line's current open phase — fix-awaits / re-review / closure

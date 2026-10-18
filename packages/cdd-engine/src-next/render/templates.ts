@@ -1,7 +1,7 @@
 // packages/cdd-engine/src-next/render/templates.ts
 // T21 — the template-contract typed surface: the template-contract JSON's data-plane
 // home PLUS the TemplateAssembler (one module, one renderer). The dispatch prompt
-// data (the per-mode shell frames · the review variants · the return-format block ·
+// data (the per-mode shell frames · the review variants · the single prose return block ·
 // the round-context subsets · the token registry · the clause partials) and the
 // review criteria (the four-type axes guides — P4, extended to spec/plan by the
 // v1.8 review-closeout) are typed constant data here, imported never parsed:
@@ -464,12 +464,14 @@ export const CLAUSES = {
     "Self-validate before returning: run the validation/checks your change requires and record the evidence (command + exit code + result) in the report.",
 } as const;
 
-/** The dispatch-prompt data plane — the typed template-contract surface. $version 8
+/** The dispatch-prompt data plane — the typed template-contract surface. $version 9
  *  is the kind-named doc-anchor shape (INPUT_PLAN / INPUT_SPEC replace the generic
- *  INPUT_DOC; INPUT_WAVE_BRIEF), the branch scope anchor BASE_BRANCH, the two-line
- *  return contract, and the per-type review criterion shells. */
+ *  INPUT_DOC; INPUT_WAVE_BRIEF), the branch scope anchor BASE_BRANCH, the single
+ *  prose return contract (`RETURN_PROSE` — nothing downstream parses the child's
+ *  stdout), and the per-type review criterion shells. The bump from 8 marks the
+ *  return-shape change (the two-line key-value block retired). */
 export const TEMPLATE_PROMPT = {
-  $version: 8,
+  $version: 9,
   modes: MODE_PROMPTS,
   reviews: REVIEW_VARIANTS,
   return: RETURN_ZONE,

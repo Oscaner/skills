@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P11 实施计划：dispatch contract 收口（child Return 去结构化 + `--dry-run` 真只读预览 + `RoundNaming` 命名单源）
 doc-type: plan
-version: v0.2
+version: v0.3
 date: 2026-10-18
 spec: docs/kairos/specs/2026-10-10-engine-doc-tooling-p11-design.md
 parent-program: docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md
@@ -21,6 +21,7 @@ base: develop
 - **D29 黑盒边界**：skill 文本零改动；本 phase 消费面可见变化仅限 README + flag help。
 - **变更先回填 parent overall**：spec 阶段已 discharge（D50/D51 + R1–R3 回填，见 spec/overall Change history）；本 plan 为格式无关的实现分解，保持 overall change-history 行字节不变。
 - **中间态红窗口**：A 组模板/解析翻面（T1/T2）期间，两行 fence pin 与 `returnFormats` pin 预期红，随 T1/T2 同批迁移收口；全量测试面绿收口于 T6。
+- **T2 已 hotfix 落地（in-flight）**：T1 单独落地后真实派发自锁——child 按新模板返回纯散文（无 `status:` 行），而引擎 no-status 门（T2 方删）仍存 → 每次真实派发 BLOCKED。已手动落地 T2 全量（删 `#parseBlockReturn` · `#dispatch` 的 no-status 门 · `DispatchOutcome.artifacts`，加私有 `#stdoutTail` 崩溃通道，commit `6ac29ac`）解锁；T1+T2 同属 A 组原子翻面，但 T2 的 `DependsOn` 边（T2 消费 T1）保留，故波次仍 W1={1,3,4} · W2={2,5} · W3={6}——唯 T2 的代码已随 hotfix 落地，W2 的 `implement` 面实际仅 T5。
 - **注册连带已落地**：本 plan 落仓引入第 23 条语料（`docs/kairos/plans/*.md` 10→11 · total 22→23），corpus form-pin（`packages/cdd-engine/src-next/contract/__tests__/corpus-form-pin.test.ts`）已随注册重锚（`plans` 10→11 · total 22→23 · `specs`=12 不变，standalone 连地带 commit `6b4e38b`，仿 `e062355e` 对 spec 侧同型重锚）；引擎套件回绿。T6 的 §2.4 测试面迁移**不含**本钉（§2.4 的 pin 面 = F1 双面 / smoke / 两行 fence / `returnFormats` / `Object.keys(template.return)` / `migrateJsonChild`）。
 - **不发布**：changeset（cdd-engine major）落 pending；tag / publish = 独立动作。
 - **English-primary**（SKILL.md / `docs/*.md`）· specs/plans 中文（Strategy B）· emit 产物派生（`pnpm run emit`）· EOF 恰一 newline。
@@ -53,17 +54,17 @@ base: develop
 - **DependsOn**: 1
 
 ### Task 3: C 组 ensure/migrate 遗留退休——写点自 ensure · `#readBase` 走 `readJson` · `migrateJsonChild` 死码删除
-- **Objective**: 关闭 C 组的读写遗留写点：两条显式 `Workspace.ensure()` 调用点（`face/cli.ts:797` `#sceneOf` · `:958` `#runBase`）退休；`CliGate#renderBrief` 在其裸 `writeFileSync`（`face/gate.ts:117-118`）之前补一次 `Workspace.ensure()`（真实运行首个写点，dry-run 不触发）；`CliArtifacts#readBase`（`face/artifacts.ts:221-223`）的裸 `JSON.parse(readFileSync(...))` 改走 `Workspace.readJson`（读写同一条归一化路径），使 P9 读时归一化真正覆盖 `base.json`；三处 `migrateJsonChild` 调用点（`face/cli.ts:803`/`:804`/`:962`）随之退休，`Workspace.migrateJsonChild`（`infra/workspace.ts:293`）成死码，连同其四直测（`infra/__tests__/infra.test.ts:332-359`）一并删除。`Workspace.ensure()` 方法本身保留（`writeJson` 内部调用它），仍是 `.kairos/.gitignore` keep-out 标记的唯一发布点，发布时机不变（首个写点）；只读的 `cdd base get` 不再建 `.kairos/`。
-- **Files**: Modify `packages/cdd-engine/src-next/face/cli.ts`（`:797`/`:958` ensure 退休 · `:803`/`:804`/`:962` migrate 调用退休）· Modify `packages/cdd-engine/src-next/face/gate.ts`（`:117-118` 补 `Workspace.ensure()`）· Modify `packages/cdd-engine/src-next/face/artifacts.ts`（`:221-223` 改 `Workspace.readJson`）· Modify `packages/cdd-engine/src-next/infra/workspace.ts`（`:293` 方法删）· Modify `packages/cdd-engine/src-next/infra/__tests__/infra.test.ts`（`:332-359` 四直测删）· Test `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（新增空仓首派 pin）
+- **Objective**: 关闭 C 组的读写遗留写点：两条显式 `Workspace.ensure()` 调用点（`face/cli.ts:797` `#sceneOf` · `:958` `#runBase`）退休；`#runWork`（`face/cli.ts` 预检通过后、首个写点前）补一次 `Workspace.ensure()`，**覆盖所有面**（wave / spec / plan / branch；`dryRun` 旗标跳过——守 B 组零写）——真实运行首个写点，子进程 OUTPUT_REPORT / OUTPUT_HANDOFF 目标目录的建立者（原设计仅在 `type === "wave"` 时经 `CliGate#renderBrief` ensure，spec/plan/branch 面在空仓真实派发时 `.kairos/<slug>/` 缺席）；`CliArtifacts#readBase`（`face/artifacts.ts:221-223`）的裸 `JSON.parse(readFileSync(...))` 改走 `Workspace.readJson`（读写同一条归一化路径），使 P9 读时归一化真正覆盖 `base.json`；三处 `migrateJsonChild` 调用点（`face/cli.ts:803`/`:804`/`:962`）随之退休，`Workspace.migrateJsonChild`（`infra/workspace.ts:293`）成死码，连同其四直测（`infra/__tests__/infra.test.ts:332-359`）一并删除。`Workspace.ensure()` 方法本身保留（`writeJson` 内部调用它），仍是 `.kairos/.gitignore` keep-out 标记的唯一发布点，发布时机不变（真实运行首个写点）；只读的 `cdd base get` 不再建 `.kairos/`。
+- **Files**: Modify `packages/cdd-engine/src-next/face/cli.ts`（`:797`/`:958` ensure 退休 · `#runWork` 预检后补一次 ensure（所有面；`dryRun` 跳过）· `:803`/`:804`/`:962` migrate 调用退休）· Modify `packages/cdd-engine/src-next/face/artifacts.ts`（`:221-223` 改 `Workspace.readJson`）· Modify `packages/cdd-engine/src-next/infra/workspace.ts`（`:293` 方法删）· Modify `packages/cdd-engine/src-next/infra/__tests__/infra.test.ts`（`:332-359` 四直测删）· Test `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（新增空仓首派 pin：wave + spec/plan/branch 面）
 - **Consumes**: R1/R2 裁定（写点自 ensure · `#readBase` 归一化）· spec §3.2 前两行 · §4.2
 - **Produces**: 显式 `ensure()` 调用点仅 `CliGate#renderBrief` 一处（首个写点）；`migrateJsonChild` 零残留；`#readBase` 经 `Workspace.readJson`
 - **Steps**:
-  - `#sceneOf`（`:797`）/`#runBase`（`:958`）的显式 `.ensure()` 退休；`renderBrief` 补 `Workspace.ensure()`（`gate.ts:117-118`）— checkable: `grep -rn '\.ensure()' packages/cdd-engine/src-next/face --include='*.ts' | grep -v __tests__` 仅剩 `gate.ts` 一处（生产面；`face/__tests__/` 内既有 `board-view.test.ts`/`cli.test.ts` 的 `.ensure()` 不在该信号内）
+  - `#sceneOf`（`:797`）/`#runBase`（`:958`）的显式 `.ensure()` 退休；`#runWork`（`face/cli.ts` 预检后、首个写点前）补一次 `Workspace.ensure()`，覆盖所有面（`dryRun` 旗标跳过）— checkable: `grep -rn '\.ensure()' packages/cdd-engine/src-next/face --include='*.ts' | grep -v __tests__` 仅剩 `cli.ts` 一处（生产面；`face/__tests__/` 内既有 `board-view.test.ts`/`cli.test.ts` 的 `.ensure()` 不在该信号内）
   - `#readBase` 改走 `Workspace.readJson`（缺失文件 tri-state 回 `{kind:"missing"}`，不抛）— checkable: 新 pin「持 legacy 绝对 `plan` 的 base.json → `cdd base get` 报 repoRoot 相对形」PASS
   - 删三处 `migrateJsonChild` 调用（`cli.ts:803`/`:804`/`:962`）与方法本体（`workspace.ts:293`）+ 四直测（`infra.test.ts:332-359`）— checkable: `grep -rn migrateJsonChild packages/cdd-engine/src-next` 零命中
   - 只读 `base get` 零写 — checkable: fresh-repo pin「`cdd base get` 不建 `.kairos/`」PASS
-  - 空仓首次真实 dispatch 建目录 + 渲染 brief（零 ENOENT）— checkable: fresh-repo pin「空仓首派建 `.kairos/` 且 brief 已渲染」PASS；`pnpm -C packages/cdd-engine test` PASS
-- **Acceptance**: 两条 `face/cli.ts:797`/`:958` 调用点退休后零残留；`CliGate#renderBrief` 的显式 `ensure()` 为首个写点；`migrateJsonChild` 调用点与方法本体零残留（四直测删除）；base.json 归一化 pin 在册；空仓首次真实 dispatch 建目录并渲染 brief（零 ENOENT）pin 在册
+  - 空仓首次真实 dispatch 建目录（所有面）+ wave 面渲染 brief（零 ENOENT）— checkable: fresh-repo pin「空仓 spec/plan/branch 真实派发即在子进程 spawn 前建 `.kairos/<slug>/` 且发布 `.kairos/.gitignore`」「空仓 wave 首派建 `.kairos/` 且 brief 已渲染」PASS；`pnpm -C packages/cdd-engine test` PASS
+- **Acceptance**: 两条 `face/cli.ts:797`/`:958` 调用点退休后零残留；真实运行派发入口（`#runWork`）的显式 `ensure()` 为首个写点，覆盖所有面（wave / spec / plan / branch），dry-run 分支不达；`migrateJsonChild` 调用点与方法本体零残留（四直测删除）；base.json 归一化 pin 在册；空仓首次真实 dispatch（wave + spec/plan/branch）建目录（wave 面并渲染 brief）零 ENOENT pin 在册
 - **DependsOn**: none
 
 ### Task 4: C 组 `RoundNaming` 命名单源——lifecycle 私有命名散点收编 · handoff 名委派 `Ledger`
@@ -111,3 +112,4 @@ base: develop
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-18 | 初稿——P11 实施计划：A 组 child Return 去结构化（T1 模板/内省 + T2 引擎删除/`stdoutTail`）· B 组 `--dry-run` 真只读预览（T5）· C 组 `RoundNaming` 命名单源（T4）+ ensure/migrate 遗留退休（T3）；测试面迁移与文档面/变更集单列（T6）；D 组（D51 命名收口）已落地无实现面。波次：W1={1,3,4} · W2={2,5} · W3={6} | Oscar M. · Claude Opus 5（kairos:cdd-plan [P11] · 2026-10-18） |
 | v0.2 | 2026-10-18 | docs-fix round 1——落实 plan-review-1 四条：Constraints 增「注册连带已落地」行（plan-commit 第 23 条语料 → corpus form-pin 重锚 `plans` 10→11/total 22→23/`specs`=12，commit `6b4e38b`；T6 §2.4 不含本钉）· T2 `stdoutTail` 通道指名私有字段「`#dispatch` set → `#reject` read」（`#reconstruct(frame)` 保持单参，加宽签名被否）Objective/Files/Steps/Acceptance 同步 · T5 `child:` 行补未检出 host 分支字面量 `(no host detected — real run would BLOCK)` Objective/Steps/Acceptance 同步 · T3 step-1 grep checkable 收窄至生产面（`--include='*.ts' | grep -v __tests__`，排除 `face/__tests__/` 既有命中） | Oscar M. · Claude Opus 5（kairos:cdd-plan [P11] docs-fix round 1 · 2026-10-18） |
+| v0.3 | 2026-10-19 | in-flight backfill（review blocker F1 + T2 hotfix）：(a) ensure 扩面——T3 写点由「`CliGate#renderBrief` 一处（`type === "wave"` 门内）」改为「`#runWork` 真实运行派发入口对所有面一次（预检后、首个写点前，`dryRun` 跳过）」，对齐 spec v0.5 §3.2/§4.2/§1.3；T3 Objective/Files（去 `gate.ts`、归 `cli.ts`）/Steps/Acceptance 同步 + 空仓 spec/plan/branch 派发 pin。(b) T2 已 hotfix 落地（commit `6ac29ac`）：T1 单独落地致真实派发自锁（散文无 `status:` 行 vs 未删的 no-status 门），手动落地 T2 全量解锁；Constraints 记「T2 已 hotfix 落地」行（wave 不变 W1={1,3,4} · W2={2,5} · W3={6}；T2 代码已随 hotfix 落地，W2 实现面实际仅 T5）| Oscar M. · Claude Opus 5（kairos:cdd-dev [P11] in-flight backfill · 2026-10-19） |

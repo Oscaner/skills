@@ -13,6 +13,7 @@ import { FrontMatterExtractor } from "../contract/frontmatter.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import type { DispatchPhase } from "../session/faces.ts";
 import type { DocRevisionRef } from "../session/ledger.ts";
+import { RoundNaming } from "../session/round-naming.ts";
 import type { RunInput, WorkScene } from "./cli.ts";
 
 /**
@@ -115,7 +116,12 @@ export class CliGate {
   renderBrief(scene: WorkScene, parsed: RunInput): string {
     const tasks = this.tasksOf(parsed);
     const content = this.#brief.render(scene.planText!, tasks);
-    const briefPath = scene.workspace.resolve(`tasks-${parsed.args.tasks}-brief.md`);
+    // The REAL run's first write point (P11 · §4.2): the workspace — and the
+    // namespace's `.gitignore` keep-out marker — is built here. Scene assembly no
+    // longer pre-creates it, so a read-only command leaves `.kairos/` absent and
+    // the first real write owns the build.
+    scene.workspace.ensure();
+    const briefPath = new RoundNaming(scene.workspace).brief(parsed.args.tasks ?? "");
     writeFileSync(briefPath, content, "utf8");
     return briefPath;
   }

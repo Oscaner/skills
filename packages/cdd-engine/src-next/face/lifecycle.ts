@@ -27,6 +27,7 @@ import { TemplateAssembler } from "../render/templates.ts";
 import type { HandoffSchemaFace } from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
 import type { Ledger, OpType, RoundStatus } from "../session/ledger.ts";
+import { RoundNaming } from "../session/round-naming.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame } from "../session/run.ts";
 import { DISPATCH, HOSTS, HostDetect, type HostId, type HostReferenceTable, REFS } from "./host.ts";
 
@@ -63,7 +64,7 @@ export interface SyncProcess {
  *  one advance) and keeps the injected `SyncProcess` shape byte-for-byte: a
  *  non-zero/broken child rides the code, never a throw — `reject: false` surfaces
  *  the failure as a result, and `stripFinalNewline: false` keeps the child's
- *  stdout verbatim (the `RETURN_STDOUT_BLOCK` tail stays intact). The adapter is
+ *  stdout verbatim (the child's final output tail stays intact). The adapter is
  *  a pure `#collect` read: no buffering to bound, no worker, no concurrency. */
 export class SyncRunner implements SyncProcess {
   run(
@@ -139,6 +140,10 @@ export class CliLifecycle {
   readonly #io: CliIo;
   readonly #scene: DispatchScene;
   readonly #reviews: string | null;
+  /** The round-naming single source (P11 T4) — every prescribed artifact name of a
+   *  frame derives here (the report/evidence/brief names + the family op), so the
+   *  lifecycle and the dry-run preview name the same artifacts by one rule. */
+  readonly #naming: RoundNaming;
   /** The handoff-schema face — stateless, one shared instance (the read-back
    *  validator + the injected prompt text). */
   readonly #handoffSchema = new HandoffSchema();
@@ -154,6 +159,7 @@ export class CliLifecycle {
   }) {
     this.#env = opts.env ?? process.env;
     this.#scene = opts.scene;
+    this.#naming = new RoundNaming(opts.scene.workspace);
     this.#sync = opts.sync ?? new SyncRunner();
     this.#config = opts.config ?? new ConfigLoader();
     this.#template = opts.template ?? new TemplateAssembler();
@@ -216,9 +222,11 @@ export class CliLifecycle {
     return this.#reconstruct(frame, this.#parseBlockReturn(result.stdout));
   }
 
-  /** The work-mode of a frame phase — branch-review rides the review family. */
+  /** The work-mode of a frame phase — branch-review rides the review family. The
+   *  mapping itself lives in `RoundNaming` (the artifact stems key on it); this is
+   *  the lifecycle's read of that single source. */
   #opOf(frame: OpenFrame): OpType {
-    return frame.phase === "branch-review" ? "review" : frame.phase;
+    return this.#naming.op(frame);
   }
 
   /** The dispatch-table work-mode (ROLE) of a frame — the spec/plan fix faces ride
@@ -334,8 +342,8 @@ export class CliLifecycle {
       // slot the frame's family does not consume stays empty and is dropped (only
       // present facts land). The brief is a pure read input (INPUT_WAVE_BRIEF) with
       // no write slot.
-      OUTPUT_REPORT: this.#rel(this.#outputOf(frame, "report")),
-      OUTPUT_EVIDENCE: this.#rel(this.#outputOf(frame, "evidence")),
+      OUTPUT_REPORT: this.#rel(this.#naming.report(frame)),
+      OUTPUT_EVIDENCE: this.#rel(this.#naming.evidence(frame)),
       OUTPUT_HANDOFF: this.#rel(scene.ledger.handoffPath(op, frame.type, params)),
       REVIEW_TYPE: isReview ? frame.type : "",
       WORKSPACE_DIR: this.#rel(scene.workspace.path),
@@ -350,7 +358,7 @@ export class CliLifecycle {
   /** The round-context path normalizer (D46) — EVERY path token injected into the
    *  child prompt speaks ONE basis (repoRoot-relative): the child is spawned at
    *  cwd = repoRoot, so a relative token resolves from the same root for every
-   *  token, input or output alike. The producers (`#outputOf`/`handoffPath`/
+   *  token, input or output alike. The producers (`RoundNaming`/`handoffPath`/
    *  `workspace.path`) yield absolute; `INPUT_SPEC` is resolved absolute at the CLI
    *  seam; the post-T3 argv tokens (`INPUT_PLAN`/`INPUT_SPEC`/`INPUT_REVIEWS`) are repoRoot-relative
    *  `RepoPath`s. So the exit takes an absolute-or-repoRoot-relative value and emits
@@ -370,45 +378,7 @@ export class CliLifecycle {
     return this.#scene.workspace.root.basis;
   }
 
-  /** The canonical prescribed OUTPUT_* write path of one artifact kind (find #5 —
-   *  the {family}-{key}-{artifact} single naming scheme; find #9 — branch line
-   *  drops the range token: `branch-{op}{-round}-report.md` · `branch-test-evidence.json`,
-   *  the branch line carries no commit identity · doc = the {type}-{op}-{round} stem,
-   *  spec-review-1). "" when the frame's family does not consume the slot — only
-   *  present facts ride the prompt (the assembler drops the empty-valued keys). */
-  #outputOf(frame: OpenFrame, kind: "report" | "evidence"): string {
-    const workspace = this.#scene.workspace;
-    const op = this.#opOf(frame);
-    if (frame.type === "spec" || frame.type === "plan") {
-      // The doc family — the round-keyed {type}-{op}-{round} stem (spec-review-1):
-      // every review/docs-fix round books its own report (a re-review never
-      // overwrites its predecessor); evidence is a work-family face only.
-      if (kind !== "report") return "";
-      return workspace.resolve(`${frame.type}-${op}-${frame.round}-report.md`);
-    }
-    const family = frame.type === "wave" ? `tasks-${frame.params.tasks ?? ""}` : "branch";
-    if (kind === "report") {
-      const suffix = frame.phase === "implement" ? "" : `-${frame.round}`;
-      return workspace.resolve(`${family}-${op}${suffix}-report.md`);
-    }
-    // evidence — the work faces only (implement/fix write the canonical evidence file)
-    if (frame.phase !== "implement" && frame.phase !== "fix") return "";
-    return workspace.resolve(this.#evidenceName(frame));
-  }
-
-  /** The canonical evidence file name of a work frame (find #5/#9 — the
-   *  {line}-test-evidence.json form: `tasks-{tasks}-test-evidence.json` /
-   *  `branch-test-evidence.json` — the branch line's row-level current state,
-   *  overwritten each round (the range token left the name);
-   *  the same name the read-back gate reads). The line token joins when the frame
-   *  keys it (the task face) — a key-less line (branch) names the family alone. */
-  #evidenceName(frame: OpenFrame): string {
-    const key = frame.type === "wave" ? (frame.params.tasks ?? "") : "";
-    const line = key === "" ? this.#evidencePrefix(frame) : `${this.#evidencePrefix(frame)}-${key}`;
-    return `${line}-test-evidence.json`;
-  }
-
-  /** The RETURN_STDOUT_BLOCK child stdout → the outcome: the two canonical lines
+  /** The child stdout's return block → the outcome: the two canonical lines
    *  (status / artifacts), each key=value tokens; a missing status line is a BLOCKED
    *  outcome (only present facts land). */
   #parseBlockReturn(stdout: string): DispatchOutcome {
@@ -501,7 +471,7 @@ export class CliLifecycle {
     // missing/malformed/schema-violating file rewrites the draft to BLOCKED (each
     // cause reported truly — the tri-state read, D27).
     if (face === "work") {
-      const evidenceName = this.#evidenceName(frame);
+      const evidenceName = this.#naming.evidenceName(frame);
       const evidencePath = scene.workspace.resolve(evidenceName);
       const evidenceRead = scene.workspace.readJson<unknown>(evidenceName);
       // The SAME tri-state discrimination as the draft leg (D27): a PRESENT-but-corrupt
@@ -654,15 +624,15 @@ export class CliLifecycle {
   }
 
   /** The prescribed path of one block-artifact slot — a slot the frame's family
-   *  prescribes (report/test_evidence → the canonical OUTPUT_* name), "" for every
-   *  other slot (the pure read input `brief` is never a write slot, and a docs-fix's
-   *  `doc` is never prescribed — both pass verbatim). */
+   *  prescribes (report/test_evidence → the canonical name from `RoundNaming`), ""
+   *  for every other slot (the pure read input `brief` is never a write slot, and a
+   *  docs-fix's `doc` is never prescribed — both pass verbatim). */
   #prescribedArtifact(frame: OpenFrame, slot: string): string {
     switch (slot) {
       case "report":
-        return this.#outputOf(frame, "report");
+        return this.#naming.report(frame);
       case "test_evidence":
-        return this.#outputOf(frame, "evidence");
+        return this.#naming.evidence(frame);
       default:
         return "";
     }
@@ -677,15 +647,8 @@ export class CliLifecycle {
     const op = this.#opOf(frame);
     const face = this.#familyOf(op, frame.type).schema ?? "work";
     const evidence = face === "work";
-    const prefix = evidence ? this.#evidencePrefix(frame) : "tasks";
+    const prefix = evidence ? this.#naming.prefix(frame) : "tasks";
     return this.#handoffSchema.schemaText(face, evidence, prefix);
-  }
-
-  /** The evidence file's family prefix (§3.7 naming) — the task-family work rounds
-   *  use the canonical `tasks-` prefix; the branch fix uses the `branch-` family
-   *  prefix (never the misleading tasks- spine). */
-  #evidencePrefix(frame: OpenFrame): string {
-    return frame.type === "wave" ? "tasks" : "branch";
   }
 
   /** The op.type family record — the engine-config handoff namespace single truth

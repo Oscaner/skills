@@ -18,7 +18,7 @@ Every provider's prompt cache is **exact byte-prefix matching**; these hold acro
 
 | # | Contract |
 |---|---|
-| C1 | Assembly order fixed — `[## Instructions + ## Handoff (slot-free shell)] → [## Return (frozen constant)] → [## Round context (single dynamic zone)]`; the dynamic zone is always final, and the shell embeds zero slots by construction (`## Return` = the byte constant `RETURN_STDOUT_BLOCK`) |
+| C1 | Assembly order fixed — `[## Instructions + ## Handoff (slot-free shell)] → [## Return (frozen constant)] → [## Round context (single dynamic zone)]`; the dynamic zone is always final, and the shell embeds zero slots by construction (`## Return` = the byte constant `RETURN_PROSE`) |
 | C2 | Shell/clause structure single-sourced — byte-identity cannot drift by construction |
 | C3 | Deterministic serialization — canonical key order, fixed whitespace, no env-dependent reordering |
 | C4 | Re-dispatch byte reuse — the shell + `## Return` memoize per (family × return format); byte-identical re-dispatches hit the frozen frame with zero re-render, and only `## Round context` re-renders |

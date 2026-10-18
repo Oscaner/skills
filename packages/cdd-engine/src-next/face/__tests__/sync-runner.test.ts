@@ -5,7 +5,7 @@
 // buffers without bound by default):
 //   · >1 MiB output (exactly the retired default-ceiling byte count + 1) arrives
 //     whole — the tail block the read-back gate parses is intact;
-//   · a `status: APPROVED` RETURN_STDOUT_BLOCK tail survives the biggest pipe —
+//   · a `status: APPROVED` return tail survives the biggest pipe —
 //     the W1 failure class (tail truncation losing the status line) is dead;
 //   · stderr aggregates by the same face;
 //   · the fail-open semantics hold — a non-zero child rides its code, a broken

@@ -794,14 +794,13 @@ export class Cli {
       }
     }
 
-    const workspace = new Workspace(rootPath, slug).ensure();
-    // The one-time legacy migration (P9 T4 §2.11) — a `progress.json` / `base.json`
-    // written by an older build (absolute path fields) is healed to the canonical
-    // repoRoot-relative shape on first dispatch; an already-clean file is left
-    // byte-identical (zero churn). The read-time backstop (`Workspace.#normalizePaths`)
-    // covers any straggler regardless.
-    workspace.migrateJsonChild("progress.json");
-    workspace.migrateJsonChild("base.json");
+    // The workspace is NOT built here (P11 · §4.2): scene assembly is a READ face —
+    // the first WRITE point builds it (`CliGate#renderBrief` · `Workspace.writeJson`,
+    // each of which ensures internally), so a read-only command never creates
+    // `.kairos/`. The one-time legacy migration retired with this build: the
+    // `Workspace.readJson` read-time normalization is the ONE heal path, covering
+    // `base.json` alongside `progress.json` (a second healing point is gone).
+    const workspace = new Workspace(rootPath, slug);
     const ledger = new Ledger(workspace, config);
     const state =
       type === "wave"
@@ -952,17 +951,17 @@ export class Cli {
     // the work-command path argv: the stored artifact's path field speaks the ONE
     // canonical shape (repoRoot-relative).
     const planPath = this.#relativizePath(root, planArg);
+    // The workspace is not built here (P11 · §4.2): `base set` builds it through
+    // `Workspace.writeJson`'s internal ensure, while the read-only `base get`
+    // creates nothing. The read rides `Workspace.readJson`, so the P9 read-time
+    // normalization covers `base.json` (the retired migration's job).
     const workspace = new Workspace(
       new WorkspaceRoot(repoRoot, this.#config.handoffNamespace().workspaceRoot),
       Workspace.slugFromDoc(planPath),
-    ).ensure();
-    // The one-time legacy migration (P9 T4 §2.11) — a legacy base.json with an
-    // absolute plan field is healed to the canonical repoRoot-relative shape before
-    // the read (an already-clean file is left byte-identical).
-    workspace.migrateJsonChild("base.json");
-    const path = workspace.resolve("base.json");
-    if (parsed.leaf === "set") return this.#artifacts.baseSet(node, parsed, planPath, path, root);
-    if (parsed.leaf === "get") return this.#artifacts.baseGet(path, root);
+    );
+    if (parsed.leaf === "set")
+      return this.#artifacts.baseSet(node, parsed, planPath, workspace, root);
+    if (parsed.leaf === "get") return this.#artifacts.baseGet(workspace, root);
     this.#usage(node, "cdd base: missing <set|get> subcommand");
   }
 

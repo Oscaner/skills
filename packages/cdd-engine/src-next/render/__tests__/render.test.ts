@@ -45,7 +45,6 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     // v1.8 — the mode dispatch table; v1.9 — RETURN_JSON / DOCS_FIX retired; the
     // review criteria/lens tokens are gone (§3.7).
     expect(assembler.workModes()).toEqual(["implement", "fix", "review", "docs-fix"]);
-    expect(assembler.returnFormats()).toEqual(["RETURN_STDOUT_BLOCK"]);
     expect(assembler.declaredTokens()).toContain("ROLE");
     expect(assembler.declaredTokens()).toContain("OUTPUT_HANDOFF");
     expect(assembler.declaredTokens()).toContain("OUTPUT_REPORT");

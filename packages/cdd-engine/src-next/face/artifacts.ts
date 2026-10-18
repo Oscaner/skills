@@ -17,6 +17,7 @@ import { declaredRegistries } from "../contract/declare.ts";
 import type { DocKey } from "../contract/project.ts";
 import { Projector } from "../contract/project.ts";
 import type { RepoPath, RepoRoot } from "../infra/root.ts";
+import type { Workspace } from "../infra/workspace.ts";
 import type { IssueBodyRenderer, IssueReportInput } from "../render/issue-body.ts";
 import { SkeletonAssembler } from "../render/skeleton.ts";
 import type { RunInput } from "./cli.ts";
@@ -136,15 +137,17 @@ export class CliArtifacts {
   }
 
   /** The `set` body — base/source required, a different existing base refuses without
-   *  --force (the write-through artifact single-author). The echoed path is the
-   *  repoRoot-relative shape (D47 · the ONE basis; the write itself uses the absolute
-   *  `path`). The repo-basis value object is threaded in whole (F2) — the echoed path
-   *  normalizes through it, never a per-call re-wrap. */
+   *  `--force` (the write-through artifact single-author). The write rides
+   *  `Workspace.writeJson` (P11 · §4.2: the JSON write self-ensures, so `base set` on
+   *  a fresh repo builds the workspace with no scene-side ensure); the read rides the
+   *  same `Workspace.readJson` normalization path. The echoed path is the
+   *  repoRoot-relative shape (D47 · the ONE basis), normalized through the threaded
+   *  basis (F2). */
   baseSet(
     node: Command,
     parsed: RunInput,
     planPath: RepoPath,
-    path: string,
+    workspace: Workspace,
     root: RepoRoot,
   ): number {
     const base = parsed.args.base;
@@ -152,7 +155,7 @@ export class CliArtifacts {
     if (base === undefined || source === undefined) {
       this.#usage(node, "cdd base set: required --base <branch> and --source <source>");
     }
-    const existing = this.#readBase(path);
+    const existing = this.#readBase(workspace);
     if (existing !== null && existing.base !== base && parsed.args.force !== "true") {
       this.#usage(
         node,
@@ -168,21 +171,21 @@ export class CliArtifacts {
       plan: planPath,
       recordedAt: new Date().toISOString(),
     };
-    writeFileSync(path, `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
-    this.#io.stdout(`${root.relativize(path)}\n`);
+    workspace.writeJson("base.json", artifact);
+    this.#io.stdout(`${root.relativize(workspace.resolve("base.json"))}\n`);
     return 0;
   }
 
   /** The `get` body — read + validate + print the artifact JSON (exit 2 when the
-   *  artifact is missing or corrupt — the orchestrator's inference-chain input). The
-   *  echoed path is the repoRoot-relative shape (D47), normalized through the threaded
-   *  basis (F2). */
-  baseGet(path: string, root: RepoRoot): number {
-    const artifact = this.#readBase(path);
+   *  artifact is missing or corrupt — the orchestrator's inference-chain input). A
+   *  pure READ (P11 · §4.2): the workspace is never built here, so `cdd base get`
+   *  leaves `.kairos/` absent on a fresh repo. The echoed path is the repoRoot-relative
+   *  shape (D47), normalized through the threaded basis (F2). */
+  baseGet(workspace: Workspace, root: RepoRoot): number {
+    const artifact = this.#readBase(workspace);
     if (artifact === null) {
-      this.#io.stderr(
-        `cdd base get: missing or corrupt base artifact at ${root.relativize(path)}\n`,
-      );
+      const path = root.relativize(workspace.resolve("base.json"));
+      this.#io.stderr(`cdd base get: missing or corrupt base artifact at ${path}\n`);
       return 2;
     }
     this.#io.stdout(`${JSON.stringify(artifact, null, 2)}\n`);
@@ -214,28 +217,32 @@ export class CliArtifacts {
     return `${now.getFullYear()}-${month}-${day}`;
   }
 
-  /** Read + validate the base artifact; null when missing or malformed. The
-   *  `source` field is narrowed to the declared enum domain (a value outside the
-   *  four-value set is a schema-invalid artifact → null, never a fabricated
-   *  source). */
-  #readBase(path: string): BaseArtifact | null {
-    try {
-      const parsed = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
-      if (
-        typeof parsed.base !== "string" ||
-        typeof parsed.source !== "string" ||
-        typeof parsed.plan !== "string"
-      )
-        return null;
-      if (!(ARGV_CHANNEL.source.values as readonly string[]).includes(parsed.source)) return null;
-      return {
-        base: parsed.base,
-        source: parsed.source as BaseSource,
-        plan: parsed.plan,
-        recordedAt: typeof parsed.recordedAt === "string" ? parsed.recordedAt : "",
-      };
-    } catch {
+  /** Read + validate the base artifact; null when missing or malformed — a total
+   *  read (never a throw). The read rides `Workspace.readJson` (P11 · §4.2) — the
+   *  read/write single normalization path, so a legacy absolute `plan` field reads
+   *  back in the canonical repoRoot-relative shape (the retired migration's job is the
+   *  read-time backstop). A non-object JSON payload (the literal `null`, a bare
+   *  scalar/array) is malformed input, not a base artifact. The `source` field is
+   *  narrowed to the declared enum domain (a value outside the four-value set is a
+   *  schema-invalid artifact → null, never a fabricated source). */
+  #readBase(workspace: Workspace): BaseArtifact | null {
+    const read = workspace.readJson<unknown>("base.json");
+    if (read.kind !== "ok") return null;
+    const parsed = read.value;
+    if (parsed === null || typeof parsed !== "object") return null;
+    const record = parsed as Record<string, unknown>;
+    if (
+      typeof record.base !== "string" ||
+      typeof record.source !== "string" ||
+      typeof record.plan !== "string"
+    )
       return null;
-    }
+    if (!(ARGV_CHANNEL.source.values as readonly string[]).includes(record.source)) return null;
+    return {
+      base: record.base,
+      source: record.source as BaseSource,
+      plan: record.plan,
+      recordedAt: typeof record.recordedAt === "string" ? record.recordedAt : "",
+    };
   }
 }

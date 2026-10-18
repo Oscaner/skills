@@ -34,7 +34,7 @@
 // in the same plane: the `## Handoff schema` section at every shell's tail carries
 // the {{HANDOFF_SCHEMA}} slot (projection ① of session/handoff-schema.ts — the same
 // declared objects the engine validates the draft against, projection ②). The
-// handoff-format prose is gone; RETURN_STDOUT_BLOCK is the ONE return contract.
+// handoff-format prose is gone; RETURN_PROSE is the ONE return contract.
 //
 // T15 v1.10/1.11 (the review-closeout batch — §3.7) refines the shell composition:
 // the work-mode tail is the shared EVIDENCE_ITEM cell (implement/fix carry it;
@@ -62,11 +62,6 @@ export interface TemplateToken {
   name: string;
   /** The zone the token belongs to (shell / return / round-context). */
   zone: string;
-}
-
-/** One per-return-format block — the `## Return` zone's declared variants. */
-export interface ReturnZone {
-  [format: string]: readonly string[];
 }
 
 /** The work-modes of the dispatch table — the ROLE values (fix's spec/plan face is
@@ -103,8 +98,10 @@ export interface TemplatePrompt {
   /** The review mode's per-type rows — each variant's fixed prefix carries its
    *  criteria + lens (folded in, never tokens). */
   reviews: Readonly<Record<TargetType, ModePromptRow>>;
-  /** The `## Return` zone — the single block contract (v1.9). */
-  return: ReturnZone;
+  /** The `## Return` zone — the single plain-prose block (P11: the child's stdout
+   *  contract is prose, never a fixed key=value block; the handoff draft is the
+   *  round's machine-readable result). */
+  return: { readonly RETURN_PROSE: readonly string[] };
   /** The token registry — the union across every mode's round context + the shell's
    *  schema slot (the gate's declared list). */
   tokens: readonly TemplateToken[];
@@ -409,22 +406,19 @@ const REVIEW_VARIANTS: Readonly<Record<TargetType, ModePromptRow>> = {
   },
 };
 
-/** The `## Return` zone — the single block contract (v1.9: the child's content
- *  lives in the draft file, the block is the pointer every mode returns). */
-const RETURN_ZONE: ReturnZone = {
-  RETURN_STDOUT_BLOCK: [
+/** The `## Return` zone — the single plain-prose contract block (P11: the child
+ *  narrates the round in prose; nothing downstream parses its stdout — the handoff
+ *  draft at `OUTPUT_HANDOFF` is the round's machine-readable result). */
+const RETURN_ZONE: TemplatePrompt["return"] = {
+  RETURN_PROSE: [
     "## Return",
     "",
-    "Output exactly 2 lines — this block is the FINAL output; nothing may follow it:",
+    "Report in a few plain sentences what this round did, whether it succeeded, and — if it",
+    "did not — what blocked it. Nothing downstream parses this text; the handoff draft at",
+    "`OUTPUT_HANDOFF` is the round's machine-readable result. Do not emit key-value lines,",
+    "JSON, or any fixed block.",
     "",
-    "```",
-    "status: <APPROVED|BLOCKED>",
-    "artifacts: report=<path> test_evidence=<path>",
-    "```",
-    "",
-    "RETURN_STDOUT_BLOCK (one contract): the handoff content (findings/notes/evidence) lives in the draft at `OUTPUT_HANDOFF` — this block is the pointer. Review/docs-fix rounds state `status: APPROVED` (their conclusion derives from the draft's findings); work rounds state the concluding status. Never emit the 3rd `counters:` / 4th `next:` lines (the engine appends them). Any non-`APPROVED` status (e.g. `NEEDS_CONTEXT`) → collapsed to `BLOCKED` + exit 1.",
-    "",
-    "The `artifacts:` line's paths are the round context's prescribed `OUTPUT_REPORT`/`OUTPUT_EVIDENCE` values — copy them verbatim (zero free naming; a declared path deviating from the canonical name is corrected to it and flagged on the carrier's notes).",
+    "(fail: an uncaught failure → exit non-zero with a one-line reason)",
   ],
 };
 
@@ -500,12 +494,6 @@ export class TemplateAssembler {
     this.#contract = TEMPLATE_PROMPT;
   }
 
-  /** The return formats the contract declares — the single block contract (v1.9:
-   *  one format; every pre-v1.9 return variant is retired). */
-  returnFormats(): readonly string[] {
-    return Object.keys(this.#contract.return);
-  }
-
   /** The tokens the contract declares (the union across every mode — all zones). */
   declaredTokens(): readonly string[] {
     return this.#contract.tokens.map((token) => token.name);
@@ -524,7 +512,7 @@ export class TemplateAssembler {
     const row = this.#rowOf(values);
     const zones: Record<string, string> = {
       shell: this.#joinLines(row.shell),
-      return: this.#joinLines(this.#contract.return.RETURN_STDOUT_BLOCK),
+      return: this.#joinLines(this.#contract.return.RETURN_PROSE),
       "round-context": this.#contextLines(row, values),
     };
     return this.#fill([zones.shell, zones.return, zones["round-context"]].join("\n\n"), values);
@@ -611,7 +599,7 @@ export class TemplateAssembler {
     const namesOf = (text: string): string[] => text.match(naming) ?? [];
     const allowed = new Set<string>([
       ...row.roundContext.flatMap((line) => namesOf(line)),
-      ...namesOf(this.#joinLines(this.#contract.return.RETURN_STDOUT_BLOCK)),
+      ...namesOf(this.#joinLines(this.#contract.return.RETURN_PROSE)),
     ]);
     for (const name of new Set(namesOf(this.#joinLines(row.shell)))) {
       if (!allowed.has(name)) {

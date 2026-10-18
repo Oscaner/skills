@@ -4,7 +4,7 @@ Maintainer-only guidance for naming across the repo's authorable surfaces (Engli
 
 ## 1. Principles
 
-1. **Scoped semantic names** — `<scope>_<semantic>` (snake_case): `issue-body.json`, `RETURN_STDOUT_BLOCK`.
+1. **Scoped semantic names** — `<scope>_<semantic>` (snake_case): `issue-body.json`, `RETURN_PROSE`.
 2. **Full words, no historical abbreviations** — one name one meaning; a name needing a glossary to decode is a debt.
 3. **One word one meaning** — one name per concept; synonyms merge.
 4. **Canonical ordering for serializable data** — JSON key order fixed by the canonical file.
@@ -37,7 +37,7 @@ Single registration point for the repo's governing terms; a term is in force whe
 | **backfill** | Land a durable fact into its owning doc (overall / spec / plan) — the destination of a ruling that asserts a project-level fact. Distinct from the per-round carrier action. | `cdd-plan` (backfill-design) · `cdd-close` (closeout-backfill) · cdd-dev I6 |
 | **annotate** | The per-round carrier action: when a finding needs a user ruling, record the ruling in the round's findings file (the fix child's input), never a durable doc. The one carrier write the `next:` fix suffix names. | `session/next.ts` (`FIX_READBACK_SUFFIX`) · `face/capsule.ts` |
 
-**Return-block constants are not injection slots.** `RETURN_STDOUT_BLOCK` is the ONE return contract (`render/templates.ts`) — a literal label, never a moustache, never a registry token; only `round-context` slots are injected. The status enum (`APPROVED`/`BLOCKED`/`CHANGES_REQUESTED`/`REVIEW_FIX`/`TIMEOUT`) is the same class.
+**Return-block constants are not injection slots.** `RETURN_PROSE` is the ONE return contract (`render/templates.ts`) — a literal label, never a moustache, never a registry token; only `round-context` slots are injected. The status enum (`APPROVED`/`BLOCKED`/`CHANGES_REQUESTED`/`REVIEW_FIX`/`TIMEOUT`) is the same class.
 
 ### 2.3 Banned legacy names (aligned with `GUARD_BAN_WORDS`)
 

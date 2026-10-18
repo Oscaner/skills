@@ -3249,6 +3249,92 @@ describe("the pure commands — schema / issue / base", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// P11 T3 — the write-point single authority: scene assembly never builds the
+// workspace (the first real write owns it) and the base artifact read rides the
+// SAME normalization path as its write.
+// ---------------------------------------------------------------------------
+
+describe("P11 T3 — the workspace write-point + the base read normalization", () => {
+  it("a READ-ONLY `cdd base get` on a fresh repo writes nothing (no .kairos/)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const code = await command.runArgv(["base", "get", "--plan", plan]);
+      // the artifact is absent — the read reports it (exit 2) and builds nothing
+      expect(code).toBe(2);
+      expect(io.stderrText).toContain("missing or corrupt base artifact");
+      expect(existsSync(path.join(repoRoot, ".kairos"))).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("`cdd base get` reports a legacy ABSOLUTE `plan` field in the repoRoot-relative shape (the read normalization covers base.json)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+      const absolutePlan = path.join(repoRoot, "docs", "kairos", "plans", "p3.md");
+      writeFileSync(
+        path.join(workspace.path, "base.json"),
+        `${JSON.stringify(
+          { base: "develop", source: "plan-field", plan: absolutePlan, recordedAt: "t" },
+          null,
+          2,
+        )}\n`,
+        "utf8",
+      );
+      const code = await command.runArgv(["base", "get", "--plan", plan]);
+      expect(code).toBe(0);
+      expect(io.stdoutText).toContain('"plan": "docs/kairos/plans/p3.md"');
+      expect(io.stdoutText).not.toContain(repoRoot);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("`cdd base get` treats a non-object base.json as corrupt (exit 2, never a throw)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+      // the literal `null` is valid JSON but no base artifact — the read stays total
+      writeFileSync(path.join(workspace.path, "base.json"), "null\n", "utf8");
+      const code = await command.runArgv(["base", "get", "--plan", plan]);
+      expect(code).toBe(2);
+      expect(io.stderrText).toContain("missing or corrupt base artifact");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a fresh repo's first REAL dispatch builds the workspace + renders the brief (zero ENOENT)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({
+      dispatch: () => ({ status: "APPROVED" }),
+    });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      // scene assembly builds nothing — the workspace is absent before the run
+      expect(existsSync(path.join(repoRoot, ".kairos"))).toBe(false);
+      const code = await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
+      expect(code).toBe(0);
+      const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
+      expect(existsSync(workspace)).toBe(true);
+      expect(existsSync(path.join(workspace, "tasks-1-brief.md"))).toBe(true);
+      expect(io.stderrText).not.toContain("ENOENT");
+      // the namespace keep-out marker is published at the first write point
+      expect(readFileSync(path.join(repoRoot, ".kairos", ".gitignore"), "utf8")).toBe("*\n");
+    } finally {
+      cleanup();
+    }
+  });
+});
+
 describe("T9 — the composition-root entry is the Cli.create static factory (deliberate pin)", () => {
   it("the module's composition root is the class static factory — zero bare-function entry", () => {
     // The P5 zero-bare-function closure locked the composition root's class form:

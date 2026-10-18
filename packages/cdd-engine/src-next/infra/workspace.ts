@@ -283,31 +283,6 @@ export class Workspace {
     return this.root.basis;
   }
 
-  /** One-time legacy migration of a persisted JSON child (P9 T4 §2.11) — the
-   *  historical half of the shapes fix: a `progress.json` / `base.json` written by
-   *  an older build may carry an absolute (or otherwise redundant) path field. The
-   *  raw bytes are read, their declared path fields normalized, and the file is
-   *  REWRITTEN ONLY when the normalization actually changes bytes (an already-clean
-   *  file is left byte-identical — zero churn). A missing or unparseable file is a
-   *  no-op (the read face owns the malformed report; migration never fabricates). */
-  migrateJsonChild(name: string): void {
-    const target = this.resolve(name);
-    let raw: string;
-    try {
-      raw = readFileSync(target, "utf8");
-    } catch {
-      return;
-    }
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      return;
-    }
-    const normalized = `${JSON.stringify(this.#normalizePaths(parsed), null, 2)}\n`;
-    if (normalized !== raw) writeFileSync(target, normalized, "utf8");
-  }
-
   /** The read-time path backstop (P9 T4 §2.11) — deep-normalize every DECLARED
    *  path field (`doc` / `plan` — the `reviewedRevision` two-layer layers + the
    *  base artifact's `plan`) to the canonical repoRoot-relative shape, so an

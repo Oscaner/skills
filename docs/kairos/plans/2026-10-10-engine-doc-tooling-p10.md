@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P10 实施计划：文档头部 front-matter 化 + 登记表驱动正文解析统一
 doc-type: plan
-version: v0.2
+version: v0.3
 date: 2026-10-17
 spec: docs/kairos/specs/2026-10-10-engine-doc-tooling-p10-design.md
 parent-program: ../specs/2026-10-10-engine-doc-tooling-overall.md
